@@ -1,7 +1,7 @@
 #include "Ili9881cDisplay.h"
+#include "disp_init_data.h"
 
 #include <Tactility/Logger.h>
-
 #include <esp_lcd_ili9881c.h>
 
 static const auto LOGGER = tt::Logger("ILI9881C");
@@ -42,7 +42,7 @@ bool Ili9881cDisplay::createMipiDsiBus() {
         .bus_id = 0,
         .num_data_lanes = 2,
         .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
-        .lane_bit_rate_mbps = 960
+        .lane_bit_rate_mbps = 1000
     };
 
     if (esp_lcd_new_dsi_bus(&bus_config, &mipiDsiBus) != ESP_OK) {
@@ -87,40 +87,39 @@ esp_lcd_panel_dev_config_t Ili9881cDisplay::createPanelConfig(std::shared_ptr<Es
 }
 
 bool Ili9881cDisplay::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, const esp_lcd_panel_dev_config_t& panelConfig, esp_lcd_panel_handle_t& panelHandle) {
-    // Create DPI panel configuration
-    // Override default timings
-    // TODO: Use ILI9881C_800_1280_PANEL_60HZ_DPI_CONFIG() when ILI9881C library is updated
+    // Based on BSP: https://github.com/espressif/esp-bsp/blob/master/bsp/m5stack_tab5/README.md
     static const esp_lcd_dpi_panel_config_t dpi_config = {
         .virtual_channel = 0,
         .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-        .dpi_clock_freq_mhz = 80,
+        .dpi_clock_freq_mhz = 60,
         .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
         .in_color_format = LCD_COLOR_FMT_RGB565,
         .out_color_format = LCD_COLOR_FMT_RGB565,
-        .num_fbs = 1,
-        .video_timing = {
-            .h_size = 720,
-            .v_size = 1280,
-            .hsync_pulse_width = 40,
-            .hsync_back_porch = 140,
-            .hsync_front_porch = 40,
-            .vsync_pulse_width = 4,
-            .vsync_back_porch = 20,
-            .vsync_front_porch = 20,
-        },
-        .flags = {
-            .use_dma2d = 1,
-            .disable_lp = 0
+        .num_fbs = 1, // TODO: 2?
+        .video_timing =
+            {
+                .h_size = 720,
+                .v_size = 1280,
+                .hsync_pulse_width = 40,
+                .hsync_back_porch = 140,
+                .hsync_front_porch = 40,
+                .vsync_pulse_width = 4,
+                .vsync_back_porch = 20,
+                .vsync_front_porch = 20,
+            },
+        .flags {
+            .use_dma2d = 1, // TODO: true?
+            .disable_lp = 0,
         }
     };
 
     ili9881c_vendor_config_t vendor_config = {
-        .init_cmds = nullptr,
-        .init_cmds_size = 0,
+        .init_cmds = disp_init_data,
+        .init_cmds_size = std::size(disp_init_data),
         .mipi_config = {
             .dsi_bus = mipiDsiBus,
             .dpi_config = &dpi_config,
-            .lane_num = 2
+            .lane_num = 2,
         },
     };
 
