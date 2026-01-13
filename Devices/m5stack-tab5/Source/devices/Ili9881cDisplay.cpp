@@ -88,7 +88,8 @@ esp_lcd_panel_dev_config_t Ili9881cDisplay::createPanelConfig(std::shared_ptr<Es
 
 bool Ili9881cDisplay::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, const esp_lcd_panel_dev_config_t& panelConfig, esp_lcd_panel_handle_t& panelHandle) {
     // Based on BSP: https://github.com/espressif/esp-bsp/blob/master/bsp/m5stack_tab5/README.md
-    static const esp_lcd_dpi_panel_config_t dpi_config = {
+    // TODO: undo static
+    static esp_lcd_dpi_panel_config_t dpi_config = {
         .virtual_channel = 0,
         .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
         .dpi_clock_freq_mhz = 60,
@@ -113,7 +114,8 @@ bool Ili9881cDisplay::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, cons
         }
     };
 
-    ili9881c_vendor_config_t vendor_config = {
+    // TODO: undo static
+    static ili9881c_vendor_config_t vendor_config = {
         .init_cmds = disp_init_data,
         .init_cmds_size = std::size(disp_init_data),
         .mipi_config = {

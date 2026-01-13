@@ -68,7 +68,7 @@ static bool initBoot() {
 
     constexpr auto IO_EXPANDER2_ADDRESS = 0x44;
     if (!i2c::masterWriteRegisterArray(I2C_NUM_0, IO_EXPANDER2_ADDRESS, reg_data_io2, sizeof(reg_data_io2))) {
-        LOGGER.error("IO expander 1 init failed in phase 2");
+        LOGGER.error("IO expander 2 init failed");
         return false;
     }
 
@@ -77,7 +77,7 @@ static bool initBoot() {
     tt::kernel::delayTicks(10);
 
     if (!i2c::masterWriteRegisterArray(I2C_NUM_0, IO_EXPANDER1_ADDRESS, reg_data_io1_2, sizeof(reg_data_io1_2))) {
-        LOGGER.error("IO expander 2 init failed");
+        LOGGER.error("IO expander 1 init failed in phase 2");
         return false;
     }
 

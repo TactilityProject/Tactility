@@ -60,5 +60,5 @@ std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
     });
 
     const auto display = std::make_shared<Ili9881cDisplay>(configuration);
-    return std::reinterpret_pointer_cast<tt::hal::display::DisplayDevice>(display);
+    return std::static_pointer_cast<tt::hal::display::DisplayDevice>(display);
 }
