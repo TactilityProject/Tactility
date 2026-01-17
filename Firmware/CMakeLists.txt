@@ -47,20 +47,16 @@ else ()
 
     add_definitions(-D_Nullable=)
     add_definitions(-D_Nonnull=)
-
-    add_dependencies(FirmwareSim Generated)
 endif ()
 
-# Generate devicetree code and attach to component
-add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c ${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.h
-    COMMAND mkdir ${CMAKE_SOURCE_DIR}/Firmware/Generated | pip install lark pyyaml && python Buildscripts/devicetree-compiler/compile.py ${DEVICETREE_LOCATION} Firmware/Generated
+# Generate devicetree code and attach to Firmware component
+add_custom_target(Generated
+    COMMAND mkdir -p ${CMAKE_SOURCE_DIR}/Firmware/Generated | echo Firmware/Generated exists
+    COMMAND pip install lark pyyaml
+    COMMAND python Buildscripts/devicetree-compiler/compile.py ${DEVICETREE_LOCATION} Firmware/Generated
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    VERBATIM
 )
-add_custom_target(Generated DEPENDS ${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c ${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.h)
 set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY ADDITIONAL_CLEAN_FILES "Firmware/Generated/devicetree.c" "/Firmware/Generated/devicetree.h")
-# Attach generated code to project
 target_sources(${COMPONENT_LIB} PRIVATE "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c")
 target_include_directories(${COMPONENT_LIB} PRIVATE ${CMAKE_SOURCE_DIR}/Firmware/Generated)
 add_dependencies(${COMPONENT_LIB} Generated)

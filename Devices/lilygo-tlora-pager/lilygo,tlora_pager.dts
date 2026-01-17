@@ -5,8 +5,8 @@
 #include <drivers-esp/esp32_i2c.h>
 
 / {
-	model = "LilyGO T-Lora Pager";
 	compatible = "lilygo,tlora-pager";
+	model = "LilyGO T-Lora Pager";
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";

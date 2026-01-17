@@ -31,7 +31,6 @@ class BindingProperty:
     type: str
     required: bool
     description: str
-    includes: list[str]
 
 @dataclass
 class Binding:
@@ -39,4 +38,5 @@ class Binding:
     compatible: str
     description: str
     properties: list[BindingProperty]
+    includes: list[str]
     bus: str = None

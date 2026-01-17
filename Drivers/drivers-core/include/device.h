@@ -21,16 +21,11 @@ struct device_state {
     bool initialized : 1;
 };
 
-#define DEVICE_LABEL(key, value) #key":"#value
-#define DEVICE_LABEL_FOR_TYPE(_type) DEVICE_LABEL(type, _type)
-
 struct device_metadata {
-    /* @brief number of elements in the nodelabels array */
-    size_t num_node_labels;
-    /* @brief array of node labels as strings, exactly as they
-     *        appear in the final devicetree
-     */
-    const char** node_labels;
+    /** @brief number of elements in the compatible array */
+    size_t compatible_count;
+    /** @brief array of strings containing the compatible device names */
+    const char** compatible;
 };
 
 struct device {
@@ -50,10 +45,26 @@ struct device {
     struct device_metadata metadata;
 };
 
+/**
+ * Initialize a device.
+ * @param[in] dev
+ * @return the return code of the device's init function
+ */
 uint8_t device_init(struct device* dev);
 
+/**
+ * Initialize an array of devices.
+ * @param[in] device_array a null-terminated array of devices
+ * @retval true if all devices initialized successfully
+ * @retval false if any device failed to initialize
+ */
 bool device_init_all(struct device** device_array);
 
+/**
+ * Deinitialize a device.
+ * @param[in] dev
+ * @return the return code of the device's deinit function
+ */
 uint8_t device_deinit(struct device* dev);
 
 /**
@@ -69,7 +80,7 @@ bool device_is_ready(const struct device* dev);
  *
  * @param[in] dev non-null device pointer
  */
-bool device_add(const struct device* dev);
+void device_add(const struct device* dev);
 
 /**
  * Register all devices in the specified array.
@@ -79,9 +90,20 @@ bool device_add(const struct device* dev);
  */
 void device_add_all(struct device** device_array);
 
+/**
+ * Deregister a device
+ * @param[in] dev non-null device pointer
+ * @return true when the device was found and deregistered
+ */
 bool device_remove(const struct device* dev);
 
-bool device_find_next(const char* label, const struct device** device);
+/**
+ * Iterate the devicetree. Find the next with the specified label.
+ * @param[in] identifier the identifier of the device, such as "root" or "i2c-controller"
+ * @param[inout] dev a pointer to a device pointer in the tree, or nullptr to start searching for the first device
+ * @return true if a device was found
+ */
+bool device_find_next_by_compatible(const char* identifier, const struct device** dev);
 
 #ifdef __cplusplus
 }

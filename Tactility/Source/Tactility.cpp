@@ -318,11 +318,6 @@ void run(const Configuration& config, device** devices) {
     if (devices != nullptr) {
         device_add_all(devices);
         device_init_all(devices);
-
-        const struct device* i2c_controller = nullptr;
-        const char* label = DEVICE_LABEL_FOR_TYPE(i2c_controller);
-        while (device_find_next(label, &i2c_controller)) {
-        }
     }
 
 #ifdef ESP_PLATFORM

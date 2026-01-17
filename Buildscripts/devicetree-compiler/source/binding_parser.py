@@ -30,6 +30,8 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
             bus = parent_binding.bus
         for prop in parent_binding.properties:
             properties_dict[prop.name] = prop
+        for include in parent_binding.includes:
+            includes.append(include)
 
     # Parse local properties
     properties_raw = data.get('properties', {})
@@ -39,7 +41,6 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
             type=details.get('type', 'unknown'),
             required=details.get('required', False),
             description=details.get('description', '').strip(),
-            includes=includes
         )
         properties_dict[name] = prop
 
@@ -50,5 +51,6 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
         compatible=compatible,
         description=description.strip(),
         properties=list(properties_dict.values()),
+        includes=includes,
         bus=bus
     )

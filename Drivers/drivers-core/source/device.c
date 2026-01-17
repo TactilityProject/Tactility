@@ -7,7 +7,12 @@
 #define CONFIG_DEVICE_INDEX_SIZE 64
 
 // TODO: Automatically increase allocated size
-static const struct device* device_index[128] = { 0 };
+static const struct device* device_index[CONFIG_DEVICE_INDEX_SIZE ] = {
+    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
+};
 
 uint8_t device_init(struct device* const dev) {
     assert(dev != nullptr);
@@ -63,15 +68,15 @@ bool device_is_ready(const struct device* const dev) {
 }
 
 
-bool device_add(const struct device* dev) {
+void device_add(const struct device* dev) {
     assert(dev != nullptr);
     for (int i = 0; i < CONFIG_DEVICE_INDEX_SIZE; i++) {
         if (device_index[i] == nullptr) {
             device_index[i] = dev;
-            return true;
+            return;
         }
     }
-    return false;
+    assert(false); // out of space
 }
 
 void device_add_all(struct device** const device_array) {
@@ -85,6 +90,7 @@ void device_add_all(struct device** const device_array) {
 }
 
 bool device_remove(const struct device* dev) {
+    assert(dev != nullptr);
     for (int i = 0; i < CONFIG_DEVICE_INDEX_SIZE; i++) {
         if (device_index[i] == dev) {
             device_index[i] = nullptr;
@@ -94,20 +100,20 @@ bool device_remove(const struct device* dev) {
     return false;
 }
 
-bool device_find_next(const char* label, const struct device** device) {
-    bool found_first = (device == nullptr);
+bool device_find_next_by_compatible(const char* identifier, const struct device** dev) {
+    bool found_first = (*dev == nullptr);
     for (int device_idx = 0; device_idx < CONFIG_DEVICE_INDEX_SIZE; device_idx++) {
         auto indexed_device = device_index[device_idx];
         if (indexed_device != nullptr) {
             if (!found_first) {
-                if (indexed_device == *device) {
+                if (indexed_device == *dev) {
                     found_first = true;
                 }
             } else {
-                for (int label_idx = 0; label_idx< indexed_device->metadata.num_node_labels; ++label_idx) {
-                    const char* indexed_device_label = indexed_device->metadata.node_labels[label_idx];
-                    if (strcmp(indexed_device_label, label) == 0) {
-                        *device = indexed_device;
+                for (int label_idx = 0; label_idx< indexed_device->metadata.compatible_count; ++label_idx) {
+                    const char* indexed_device_label = indexed_device->metadata.compatible[label_idx];
+                    if (strcmp(indexed_device_label, identifier) == 0) {
+                        *dev = indexed_device;
                         return true;
                     }
                 }
@@ -116,4 +122,3 @@ bool device_find_next(const char* label, const struct device** device) {
     }
     return false;
 }
-

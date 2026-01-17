@@ -99,7 +99,7 @@ def write_config(file, device: Device, bindings: list[Binding], type_name: str):
         file.write(f"{config_params_joined}\n")
     file.write("};\n\n")
 
-def write_device(file, device: Device, parent_device: Device, bindings: list[Binding], verbose: bool):
+def write_device(file, device: Device, bindings: list[Binding], verbose: bool):
     if verbose:
         print(f"Processing device '{device.identifier}'")
     # Assemble some pre-requisites
@@ -108,6 +108,7 @@ def write_device(file, device: Device, parent_device: Device, bindings: list[Bin
     if compatible_property is None:
         raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
     identifier = get_device_identifier_safe(device)
+    device_binding = find_binding(compatible_property.value, bindings)
     # Write config struct
     write_config(file, device, bindings, type_name)
     # Type & instance names
@@ -129,12 +130,18 @@ def write_device(file, device: Device, parent_device: Device, bindings: list[Bin
     file.write(f".deinit = {deinit_function_name}")
     file.write("},\n")
     file.write("\t.metadata = {\n")
-    file.write("\t\t.num_node_labels = 0,\n")
-    file.write("\t\t.node_labels = nullptr\n")
+    node_label_count = len(device_binding.includes) + 1
+    file.write(f"\t\t.compatible_count = {node_label_count},\n")
+    file.write("\t\t.compatible = (const char*[]) {\n")
+    file.write(f"\t\t\t\"{device_binding.compatible}\",\n")
+    for include in device_binding.includes:
+        include_compatible = include.removesuffix(".yaml")
+        file.write(f"\t\t\t\"{include_compatible}\",\n")
+    file.write("\t\t}\n")
     file.write("\t}\n")
     file.write("};\n\n")
     for child_device in device.devices:
-        write_device(file, child_device, device, bindings, verbose)
+        write_device(file, child_device, bindings, verbose)
 
 def write_device_list_entry(file, device: Device):
     compatible_property = find_binding_property(device, "compatible")
@@ -165,7 +172,7 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         for item in items:
             if type(item) is Device:
                 devices.append(item)
-                write_device(file, item, None, bindings, verbose)
+                write_device(file, item, bindings, verbose)
         write_device_list(file, devices)
         file.write(dedent('''\
         struct device** devices_builtin_get() {
