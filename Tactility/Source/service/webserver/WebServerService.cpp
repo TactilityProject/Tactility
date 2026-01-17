@@ -1137,7 +1137,7 @@ esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
     LOGGER.info("[200] /api/screenshot -> {}", screenshot_path);
     return ESP_OK;
 #else
-    httpd_resp_send_err(request, HTTPD_501_NOT_IMPLEMENTED, "screenshot feature not enabled");
+    httpd_resp_send_err(request, HTTPD_501_METHOD_NOT_IMPLEMENTED, "screenshot feature not enabled");
     return ESP_FAIL;
 #endif
 }
