@@ -60,6 +60,9 @@ namespace service {
 #if TT_FEATURE_SCREENSHOT_ENABLED
     namespace screenshot { extern const ServiceManifest manifest; }
 #endif
+#ifdef ESP_PLATFORM
+    namespace webserver { extern const ServiceManifest manifest; }
+#endif
 
 }
 
@@ -104,6 +107,9 @@ namespace app {
     namespace wifiapsettings { extern const AppManifest manifest; }
     namespace wificonnect { extern const AppManifest manifest; }
     namespace wifimanage { extern const AppManifest manifest; }
+#ifdef ESP_PLATFORM
+    namespace webserversettings { extern const AppManifest manifest; }
+#endif
 #if TT_FEATURE_SCREENSHOT_ENABLED
         namespace screenshot { extern const AppManifest manifest; }
 #endif
@@ -111,9 +117,6 @@ namespace app {
     namespace crashdiagnostics { extern const AppManifest manifest; }
 #endif
 }
-
-#ifndef ESP_PLATFORM
-#endif
 
 // endregion
 
@@ -146,6 +149,9 @@ static void registerInternalApps() {
     addAppManifest(app::wifiapsettings::manifest);
     addAppManifest(app::wificonnect::manifest);
     addAppManifest(app::wifimanage::manifest);
+#ifdef ESP_PLATFORM
+    addAppManifest(app::webserversettings::manifest);
+#endif
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED
     addAppManifest(app::usbsettings::manifest);
@@ -262,6 +268,9 @@ static void registerAndStartPrimaryServices() {
 
 #if defined(CONFIG_TT_WIFI_ENABLED) && !defined(CONFIG_ESP_WIFI_REMOTE_ENABLED)
     addService(service::espnow::manifest);
+#endif
+#ifdef ESP_PLATFORM
+    addService(service::webserver::manifest);
 #endif
 }
 

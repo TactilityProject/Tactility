@@ -52,10 +52,10 @@ public:
         address(address),
         stackSize(stackSize),
         matchUri(matchUri),
-        handlers(handlers)
+        handlers(std::move(handlers))
     {}
 
-    void start();
+    bool start();
 
     void stop();
 

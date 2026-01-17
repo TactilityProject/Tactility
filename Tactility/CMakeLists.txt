@@ -27,6 +27,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         vfs
         fatfs
         lwip
+        spi_flash
     )
     if ("${IDF_TARGET}" STREQUAL "esp32s3")
         list(APPEND REQUIRES_LIST esp_tinyusb)

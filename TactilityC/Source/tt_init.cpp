@@ -177,6 +177,7 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(esp_log),
     ESP_ELFSYM_EXPORT(esp_log_write),
     ESP_ELFSYM_EXPORT(esp_log_timestamp),
+    ESP_ELFSYM_EXPORT(esp_err_to_name),
     // Tactility
     ESP_ELFSYM_EXPORT(tt_app_start),
     ESP_ELFSYM_EXPORT(tt_app_start_with_bundle),
@@ -385,11 +386,8 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(lv_obj_set_style_pad_right),
     ESP_ELFSYM_EXPORT(lv_obj_set_style_pad_column),
     ESP_ELFSYM_EXPORT(lv_obj_set_style_pad_row),
-    ESP_ELFSYM_EXPORT(lv_obj_set_style_border_width),
-    ESP_ELFSYM_EXPORT(lv_obj_set_style_border_opa),
     ESP_ELFSYM_EXPORT(lv_obj_set_style_border_post),
     ESP_ELFSYM_EXPORT(lv_obj_set_style_border_side),
-    ESP_ELFSYM_EXPORT(lv_obj_set_style_border_color),
     ESP_ELFSYM_EXPORT(lv_obj_set_style_text_opa),
     ESP_ELFSYM_EXPORT(lv_obj_set_style_text_align),
     ESP_ELFSYM_EXPORT(lv_obj_set_style_text_color),
@@ -412,6 +410,10 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(lv_obj_set_style_outline_width),
     ESP_ELFSYM_EXPORT(lv_obj_set_style_outline_pad),
     ESP_ELFSYM_EXPORT(lv_obj_set_style_outline_opa),
+    ESP_ELFSYM_EXPORT(lv_obj_scroll_to_y),
+    ESP_ELFSYM_EXPORT(lv_obj_set_scrollbar_mode),
+    ESP_ELFSYM_EXPORT(lv_obj_get_child_count),
+    ESP_ELFSYM_EXPORT(lv_obj_get_child),
     // lv_font
     ESP_ELFSYM_EXPORT(lv_font_get_default),
     // lv_theme
@@ -506,6 +508,9 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(lv_textarea_set_placeholder_text),
     ESP_ELFSYM_EXPORT(lv_textarea_set_text),
     ESP_ELFSYM_EXPORT(lv_textarea_set_text_selection),
+    ESP_ELFSYM_EXPORT(lv_textarea_set_max_length),
+    ESP_ELFSYM_EXPORT(lv_textarea_set_cursor_click_pos),
+    ESP_ELFSYM_EXPORT(lv_textarea_add_text),
     // lv_palette
     ESP_ELFSYM_EXPORT(lv_palette_main),
     ESP_ELFSYM_EXPORT(lv_palette_darken),
@@ -574,6 +579,10 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(lv_line_set_points_mutable),
     // lv_group
     ESP_ELFSYM_EXPORT(lv_group_remove_obj),
+    ESP_ELFSYM_EXPORT(lv_group_focus_obj),
+    ESP_ELFSYM_EXPORT(lv_group_get_default),
+    ESP_ELFSYM_EXPORT(lv_group_add_obj),
+    ESP_ELFSYM_EXPORT(lv_group_set_default),
     // lv_mem
     ESP_ELFSYM_EXPORT(lv_free),
     ESP_ELFSYM_EXPORT(lv_malloc),
