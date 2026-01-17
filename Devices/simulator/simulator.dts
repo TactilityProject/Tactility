@@ -1,0 +1,9 @@
+/dts-v1/;
+
+#include <device.h>
+#include <drivers/root.h>
+
+/ {
+	model = "Simulator";
+	compatible = "root";
+};

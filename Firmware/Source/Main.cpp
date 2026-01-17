@@ -1,4 +1,5 @@
 #include <Tactility/Tactility.h>
+#include <devicetree.h>
 
 #ifdef ESP_PLATFORM
 #include <tt_init.h>
@@ -24,7 +25,8 @@ void app_main() {
     tt_init_tactility_c(); // ELF bindings for side-loading on ESP32
 #endif
 
-    tt::run(config);
+    auto devices = devices_builtin_get();
+    tt::run(config, devices);
 }
 
 } // extern

@@ -1,0 +1,22 @@
+/dts-v1/;
+
+#include <drivers/tlora_pager.h>
+#include <drivers-esp/esp32_gpio.h>
+#include <drivers-esp/esp32_i2c.h>
+
+/ {
+	model = "LilyGO T-Lora Pager";
+	compatible = "lilygo,tlora-pager";
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	i2c0 {
+		compatible = "espressif,esp32-i2c";
+		clock-frequency = <100000>;
+		pin-sda = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+		pin-scl = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+	};
+};

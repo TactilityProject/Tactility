@@ -1,0 +1,4 @@
+properties:
+  model:
+    required: true
+    description: the name of hardware, usually vendor and model name

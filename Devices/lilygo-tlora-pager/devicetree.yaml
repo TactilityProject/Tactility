@@ -1,0 +1,4 @@
+dependencies:
+  - Drivers/drivers-esp
+bindings: ./
+dts: lilygo,tlora_pager.dts

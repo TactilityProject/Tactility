@@ -1,0 +1,3 @@
+dependencies:
+  - Drivers/drivers-abstract
+bindings: bindings

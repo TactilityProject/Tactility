@@ -1,0 +1,4 @@
+dependencies:
+  - Drivers/drivers-abstract
+bindings: ./
+dts: simulator.dts

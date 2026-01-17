@@ -4,6 +4,7 @@
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/service/ServiceManifest.h>
+#include <device.h>
 
 namespace tt {
 
@@ -21,7 +22,7 @@ struct Configuration {
  * Attempts to initialize Tactility and all configured hardware.
  * @param[in] config
  */
-void run(const Configuration& config);
+void run(const Configuration& config, device** devices);
 
 /**
  * While technically nullable, this instance is always set if tt_init() succeeds.

@@ -1,0 +1,10 @@
+bus: i2c
+
+properties:
+  clock-frequency:
+    type: int
+    description: Initial clock frequency in Hz
+  pin-sda:
+    type: phandle-array
+  pin-scl:
+    type: phandle-array

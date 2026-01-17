@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (DEFINED ENV{ESP_IDF_VERSION})
@@ -27,7 +27,10 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         vfs
         fatfs
         lwip
+        drivers-abstract
+        drivers-core
     )
+
     if ("${IDF_TARGET}" STREQUAL "esp32s3")
         list(APPEND REQUIRES_LIST esp_tinyusb)
     endif ()
@@ -49,7 +52,6 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         # Read-write
         fatfs_create_spiflash_image(data "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data" FLASH_IN_PROJECT PRESERVE_TIME)
     endif ()
-
 else()
     file(GLOB_RECURSE SOURCES "Source/*.c*")
 
@@ -79,6 +81,8 @@ else()
         PUBLIC lv_screenshot
         PUBLIC minmea
         PUBLIC minitar
+        PUBLIC drivers-abstract
+        PUBLIC drivers-core
     )
 endif()
 
