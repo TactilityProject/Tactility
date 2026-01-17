@@ -1,3 +1,10 @@
 description: ESP32 GPIO Controller
 
 include: ["i2c-controller.yaml"]
+
+properties:
+  port:
+    type: int
+    description: |
+      The port number, defined by i2c_port_t.
+      Depending on the hardware, these values are available: I2C_NUM_0, I2C_NUM_1, LP_I2C_NUM_0

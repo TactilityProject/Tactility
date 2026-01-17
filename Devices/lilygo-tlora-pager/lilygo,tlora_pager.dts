@@ -1,8 +1,8 @@
 /dts-v1/;
 
 #include <drivers/tlora_pager.h>
-#include <drivers-esp/esp32_gpio.h>
-#include <drivers-esp/esp32_i2c.h>
+#include <tactility/drivers/esp32_gpio.h>
+#include <tactility/drivers/esp32_i2c.h>
 
 / {
 	compatible = "lilygo,tlora-pager";
@@ -18,5 +18,6 @@
 		clock-frequency = <100000>;
 		pin-sda = <&gpio0 3 GPIO_ACTIVE_HIGH>;
 		pin-scl = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+		port = <I2C_NUM_0>;
 	};
 };

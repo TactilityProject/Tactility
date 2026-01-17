@@ -4,10 +4,13 @@
 extern "C" {
 #endif
 
-#include <device.h>
-#include <drivers/gpio_controller.h>
+#include <tactility/device.h>
+#include <tactility/drivers/gpio_controller.h>
 
-#define esp32_gpio_config gpio_controller_config
+struct esp32_gpio_config {
+    uint8_t gpio_count;
+};
+
 #define esp32_gpio_api gpio_controller_api
 
 int esp32_gpio_init(const struct device* device);

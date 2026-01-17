@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(CMAKE_CXX_STANDARD 26)
-set(CMAKE_C_STANDARD 23)
-
 file(GLOB_RECURSE SOURCE_FILES "Source/*.c*")
 
 # Determine device identifier and project location
@@ -25,9 +22,8 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_component_register(
         SRCS ${SOURCE_FILES}
         REQUIRES ${DEVICE_COMPONENTS}
-        REQUIRES Tactility TactilityC drivers-core drivers-abstract drivers-esp ${TACTILITY_DEVICE_PROJECT}
+        REQUIRES Tactility TactilityC core drivers-esp ${TACTILITY_DEVICE_PROJECT}
     )
-    target_compile_options(${COMPONENT_LIB} PRIVATE -std=c23)
 
 else ()
 
@@ -38,12 +34,10 @@ else ()
         PRIVATE TactilityFreeRtos
         PRIVATE Simulator
         PRIVATE SDL2::SDL2-static SDL2-static
-        PRIVATE drivers-abstract
-        PRIVATE drivers-core
+        PRIVATE core
     )
 
     target_include_directories(FirmwareSim PRIVATE "${CMAKE_SOURCE_DIR}/Firmware/Generated")
-    target_compile_options(FirmwareSim PRIVATE -std=c++23)
 
     add_definitions(-D_Nullable=)
     add_definitions(-D_Nonnull=)

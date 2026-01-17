@@ -4,7 +4,8 @@
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/service/ServiceManifest.h>
-#include <device.h>
+
+#include <tactility/device.h>
 
 namespace tt {
 

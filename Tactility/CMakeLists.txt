@@ -1,12 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(CMAKE_CXX_STANDARD 26)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 if (DEFINED ENV{ESP_IDF_VERSION})
     file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
     list(APPEND REQUIRES_LIST
+        core
         TactilityCore
         TactilityFreeRtos
         lvgl
@@ -27,8 +25,6 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         vfs
         fatfs
         lwip
-        drivers-abstract
-        drivers-core
     )
 
     if ("${IDF_TARGET}" STREQUAL "esp32s3")
@@ -81,8 +77,7 @@ else()
         PUBLIC lv_screenshot
         PUBLIC minmea
         PUBLIC minitar
-        PUBLIC drivers-abstract
-        PUBLIC drivers-core
+        PUBLIC core
     )
 endif()
 

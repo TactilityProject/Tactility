@@ -1,25 +1,27 @@
-#include "device.h"
+#include <tactility/device.h>
+#include <tactility/log.h>
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
 #define CONFIG_DEVICE_INDEX_SIZE 64
+#define TAG "device"
 
 // TODO: Automatically increase allocated size
 static const struct device* device_index[CONFIG_DEVICE_INDEX_SIZE ] = {
-    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 uint8_t device_init(struct device* const dev) {
-    assert(dev != nullptr);
-    printf("device_init: %s\n", dev->name);
+    assert(dev != NULL);
+    LOG_I(TAG, "init %s", dev->name);
 
     if (!dev->state.initialized) {
-        if (dev->operations.init == nullptr) {
+        if (dev->operations.init == NULL) {
             dev->state.initialized = true;
             dev->state.init_result = 0U;
         } else {
@@ -32,10 +34,10 @@ uint8_t device_init(struct device* const dev) {
 }
 
 bool device_init_all(struct device** const device_array) {
-    assert(device_array != nullptr);
+    assert(device_array != NULL);
     struct device** current_device = device_array;
     bool all_succeeded = true;
-    while (*current_device != nullptr) {
+    while (*current_device != NULL) {
         struct device* device = *current_device;
         if (device_init(device) != 0U) {
             all_succeeded = false;
@@ -46,10 +48,11 @@ bool device_init_all(struct device** const device_array) {
 }
 
 uint8_t device_deinit(struct device* const dev) {
-    assert(dev != nullptr);
+    assert(dev != NULL);
+    LOG_I(TAG, "deinit %s", dev->name);
 
     if (dev->state.initialized) {
-        if (dev->operations.deinit != nullptr) {
+        if (dev->operations.deinit != NULL) {
             dev->state.init_result = dev->operations.deinit(dev);
             if (dev->state.init_result == 0U) {
                 dev->state.initialized = false;
@@ -63,15 +66,16 @@ uint8_t device_deinit(struct device* const dev) {
 }
 
 bool device_is_ready(const struct device* const dev) {
-    assert(dev != nullptr);
+    assert(dev != NULL);
     return dev->state.initialized && (dev->state.init_result == 0U);
 }
 
 
 void device_add(const struct device* dev) {
-    assert(dev != nullptr);
+    assert(dev != NULL);
+    LOG_I(TAG, "add %s", dev->name);
     for (int i = 0; i < CONFIG_DEVICE_INDEX_SIZE; i++) {
-        if (device_index[i] == nullptr) {
+        if (device_index[i] == NULL) {
             device_index[i] = dev;
             return;
         }
@@ -80,9 +84,9 @@ void device_add(const struct device* dev) {
 }
 
 void device_add_all(struct device** const device_array) {
-    assert(device_array != nullptr);
+    assert(device_array != NULL);
     struct device** current_device = device_array;
-    while (*current_device != nullptr) {
+    while (*current_device != NULL) {
         struct device* device = *current_device;
         device_add(device);
         current_device++;
@@ -90,10 +94,11 @@ void device_add_all(struct device** const device_array) {
 }
 
 bool device_remove(const struct device* dev) {
-    assert(dev != nullptr);
+    assert(dev != NULL);
+    LOG_I(TAG, "remove %s", dev->name);
     for (int i = 0; i < CONFIG_DEVICE_INDEX_SIZE; i++) {
         if (device_index[i] == dev) {
-            device_index[i] = nullptr;
+            device_index[i] = NULL;
             return true;
         }
     }
@@ -101,10 +106,10 @@ bool device_remove(const struct device* dev) {
 }
 
 bool device_find_next_by_compatible(const char* identifier, const struct device** dev) {
-    bool found_first = (*dev == nullptr);
+    bool found_first = (*dev == NULL);
     for (int device_idx = 0; device_idx < CONFIG_DEVICE_INDEX_SIZE; device_idx++) {
-        auto indexed_device = device_index[device_idx];
-        if (indexed_device != nullptr) {
+        const struct device* indexed_device = device_index[device_idx];
+        if (indexed_device != NULL) {
             if (!found_first) {
                 if (indexed_device == *dev) {
                     found_first = true;

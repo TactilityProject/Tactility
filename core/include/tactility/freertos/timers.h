@@ -2,9 +2,8 @@
 
 #ifdef ESP_PLATFORM
 #include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
+#include <freertos/timers.h>
 #else
 #include <FreeRTOS.h>
-#include <queue.h>
+#include <timers.h>
 #endif
-

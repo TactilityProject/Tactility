@@ -124,7 +124,7 @@ def write_device(file, device: Device, bindings: list[Binding], verbose: bool):
     file.write(f"\t.config = &{config_instance_name},\n")
     file.write(f"\t.api = &{api_instance_name},\n")
     file.write("\t.state = { .init_result = 0, .initialized = false },\n")
-    file.write("\t.data = nullptr,\n")
+    file.write("\t.data = NULL,\n")
     file.write("\t.operations = { ")
     file.write(f".init = {init_function_name}, ")
     file.write(f".deinit = {deinit_function_name}")
@@ -157,7 +157,7 @@ def write_device_list(file, devices: list[Device]):
     for device in devices:
         write_device_list_entry(file, device)
     # Terminator
-    file.write(f"\tnullptr\n")
+    file.write(f"\tNULL\n")
     file.write("};\n\n")
 
 def generate_devicetree_c(filename: str, items: list[object], bindings: list[Binding], verbose: bool):
@@ -184,14 +184,14 @@ def generate_devicetree_h(filename: str):
     with open(filename, "w") as file:
         file.write(dedent('''\
         #pragma once
-        #include <device.h>
+        #include <tactility/device.h>
         
         #ifdef __cplusplus
         extern "C" {
         #endif
         
         /**
-         * @return an array of device* where the last item in the array is nullptr
+         * @return an array of device* where the last item in the array is NULL
          */
         struct device** devices_builtin_get();
         

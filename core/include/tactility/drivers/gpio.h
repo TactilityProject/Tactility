@@ -4,23 +4,33 @@
 extern "C" {
 #endif
 
-#include <device.h>
+#include <tactility/device.h>
 
 #define GPIO_OPTIONS_MASK 0x1f
 
 #define GPIO_ACTIVE_HIGH (0 << 0)
 #define GPIO_ACTIVE_LOW (1 << 0)
 
-#define GPIO_UNIDIRECTIONAL (0 << 1)
-#define GPIO_BIDIRECTIONAL (1 << 1)
-
-#define GPIO_OPEN_DRAIN (GPIO_UNIDIRECTIONAL | (0 << 2))
-#define GPIO_OPEN_SOURCE (GPIO_UNIDIRECTIONAL | (1 << 2))
+#define GPIO_DIRECTION_INPUT (1 << 1)
+#define GPIO_DIRECTION_OUTPUT (1 << 2)
+#define GPIO_DIRECTION_INPUT_OUTPUT (GPIO_DIRECTION_INPUT | GPIO_DIRECTION_OUTPUT)
 
 #define GPIO_PULL_UP (0 << 3)
 #define GPIO_PULL_DOWN (1 << 4)
 
-#define GPIO_INTERRUPT_WAKE_UP (1 << 5)
+#define GPIO_INTERRUPT_BITMASK (0b111 << 5) // 3 bits to hold the values [0, 5]
+#define GPIO_INTERRUPT_FROM_OPTIONS(options) (gpio_interrupt_type_t)((options & GPIO_INTERRUPT_BITMASK) >> 5)
+#define GPIO_INTERRUPT_TO_OPTIONS(options, interrupt) (options | (interrupt << 5))
+
+typedef enum {
+    GPIO_INTERRUPT_DISABLE = 0,
+    GPIO_INTERRUPT_POS_EDGE = 1,
+    GPIO_INTERRUPT_NEG_EDGE = 2,
+    GPIO_INTERRUPT_ANY_EDGE = 3,
+    GPIO_INTERRUPT_LOW_LEVEL = 4,
+    GPIO_INTERRUPT_HIGH_LEVEL = 5,
+    GPIO__MAX,
+} gpio_interrupt_type_t;
 
 /**
  * @brief Provides a type to hold a GPIO pin index.

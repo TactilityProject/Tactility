@@ -4,8 +4,8 @@
 extern "C" {
 #endif
 
-#include <device.h>
-#include <drivers/root.h>
+#include <tactility/device.h>
+#include <tactility/drivers/root.h>
 
 // Inherit base config
 #define tlora_pager_config root_config

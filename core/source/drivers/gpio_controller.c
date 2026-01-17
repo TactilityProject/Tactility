@@ -1,4 +1,6 @@
-#include <drivers/gpio_controller.h>
+#include <tactility/drivers/gpio_controller.h>
+
+#define GPIO_API(dev) ((struct gpio_controller_api*)dev->api)
 
 bool gpio_controller_set_level(const struct device* dev, gpio_pin_t pin, bool high) {
     return GPIO_API(dev)->set_level(dev, pin, high);
