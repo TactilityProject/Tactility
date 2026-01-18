@@ -15,9 +15,9 @@ namespace tt::service::webserver {
 
 static const auto LOGGER = tt::Logger("AssetVersion");
 constexpr auto* DATA_VERSION_FILE = "/data/webserver/version.json";
-constexpr auto* SD_VERSION_FILE = "/sdcard/.tactility/webserver/version.json";
+constexpr auto* SD_VERSION_FILE = "/sdcard/tactility/webserver/version.json";
 constexpr auto* DATA_ASSETS_DIR = "/data/webserver";
-constexpr auto* SD_ASSETS_DIR = "/sdcard/.tactility/webserver";
+constexpr auto* SD_ASSETS_DIR = "/sdcard/tactility/webserver";
 
 static bool loadVersionFromFile(const char* path, AssetVersion& version) {
     if (!file::isFile(path)) {

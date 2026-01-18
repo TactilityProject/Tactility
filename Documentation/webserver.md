@@ -301,7 +301,7 @@ Reboots the device after a 1-second delay.
 The WebServer serves static files from:
 
 1. **Primary**: `/data/webserver/` (internal flash)
-2. **Fallback**: `/sdcard/.tactility/webserver/` (SD card)
+2. **Fallback**: `/sdcard/tactility/webserver/` (SD card)
 
 The dashboard HTML file is served from these locations. If `dashboard.html` doesn't exist, `default.html` is served as a fallback.
 
@@ -314,7 +314,7 @@ The WebServer includes an asset synchronization system that keeps web assets in 
 | Location | Path | Purpose |
 |----------|------|---------|
 | Data Partition | `/data/webserver/` | Primary storage, served by WebServer |
-| SD Card | `/sdcard/.tactility/webserver/` | Backup storage for recovery |
+| SD Card | `/sdcard/tactility/webserver/` | Backup storage for recovery |
 
 ### Version Tracking
 
@@ -411,7 +411,7 @@ bool success = tt::service::webserver::syncAssets();
 ├── dashboard.html        # Main dashboard UI
 └── ...                   # Other web assets
 
-/sdcard/.tactility/webserver/
+/sdcard/tactility/webserver/
 ├── version.json          # Version tracking (backup)
 ├── dashboard.html        # Dashboard backup
 └── ...                   # Other web assets (backup)
@@ -421,8 +421,8 @@ bool success = tt::service::webserver::syncAssets();
 
 To update web assets with a new version:
 
-1. Place new assets in `/sdcard/.tactility/webserver/`
-2. Update `/sdcard/.tactility/webserver/version.json` with a higher version number
+1. Place new assets in `/sdcard/tactility/webserver/`
+2. Update `/sdcard/tactility/webserver/version.json` with a higher version number
 3. Reboot the device or trigger manual sync
 4. The sync system will detect the newer SD version and copy to Data
 
@@ -464,9 +464,9 @@ When the WebServer is running, a statusbar icon indicates the WiFi mode:
 - `webserver_ap_white.png` - Access Point mode
 - `webserver_station_white.png` - Station mode
 
-## System Events
+## Events
 
-The WebServer publishes system events:
+The WebServer publishes events:
 - `WebServerStarted` - Fired when the HTTP server starts
 - `WebServerStopped` - Fired when the HTTP server stops
 - `WebServerSettingsChanged` - Fired when settings are modified

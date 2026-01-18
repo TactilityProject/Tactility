@@ -81,16 +81,27 @@ static std::atomic<WebServerService*> g_webServerInstance{nullptr};
 
 constexpr int MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10 MB limit
 
-static bool secureCompare(const std::string& a, const std::string& b) {
-    if (a.size() != b.size()) {
-        // Still do the comparison to avoid length-based timing leak
-        volatile int dummy = 0;
-        for (size_t i = 0; i < a.size(); ++i) dummy ^= a[i];
-        return false;
+static void publish_event(WebServerService* webserver, WebServerEvent event) {
+    webserver->getPubsub()->publish(event);
+}
+
+std::shared_ptr<PubSub<WebServerEvent>> getPubsub() {
+    WebServerService* webserver = g_webServerInstance.load();
+    if (webserver == nullptr) {
+        tt_crash("Service not running");
     }
+
+    return webserver->getPubsub();
+}
+
+static bool secureCompare(const std::string& a, const std::string& b) {
+    size_t maxLen = std::max(a.size(), b.size());
     volatile unsigned char result = 0;
-    for (size_t i = 0; i < a.size(); ++i) {
-        result |= static_cast<unsigned char>(a[i]) ^ static_cast<unsigned char>(b[i]);
+    result |= (a.size() != b.size());
+    for (size_t i = 0; i < maxLen; ++i) {
+        unsigned char ca = (i < a.size()) ? static_cast<unsigned char>(a[i]) : 0;
+        unsigned char cb = (i < b.size()) ? static_cast<unsigned char>(b[i]) : 0;
+        result |= ca ^ cb;
     }
     return result == 0;
 }
@@ -209,15 +220,14 @@ bool WebServerService::onStart(ServiceContext& service) {
         serverEnabled = g_cachedSettings.webServerEnabled;
     }
     // Subscribe to settings change events to refresh cache
-    settingsEventSubscription = kernel::subscribeSystemEvent(
-        kernel::SystemEvent::WebServerSettingsChanged,
-        [](auto) {
+    settingsEventSubscription = pubsub->subscribe([](WebServerEvent event) {
+        if (event == WebServerEvent::WebServerSettingsChanged) {
             auto lock = g_settingsMutex.asScopedLock();
             lock.lock();
             g_cachedSettings = settings::webserver::loadOrGetDefault();
             g_settingsCached = true;
         }
-    );
+    });
 
     // Start HTTP server only if enabled in settings (default: OFF to save memory)
     if (serverEnabled) {
@@ -234,10 +244,7 @@ bool WebServerService::onStart(ServiceContext& service) {
 void WebServerService::onStop(ServiceContext& service) {
     g_webServerInstance.store(nullptr);
 
-    if (settingsEventSubscription != 0) {
-        kernel::unsubscribeSystemEvent(settingsEventSubscription);
-        settingsEventSubscription = 0;
-    }
+    pubsub->unsubscribe(settingsEventSubscription);
 
     setEnabled(false);
 
@@ -358,7 +365,7 @@ bool WebServerService::startServer() {
     }
 
     LOGGER.info("HTTP server started successfully on port {}", settings.webServerPort);
-    kernel::publishSystemEvent(kernel::SystemEvent::WebServerStarted);
+    publish_event(this, WebServerEvent::WebServerStarted);
 
     // Show statusbar icon (different icon for AP vs Station mode)
     if (statusbarIconId >= 0) {
@@ -384,7 +391,7 @@ void WebServerService::stopServer() {
     httpServer.reset();
 
     LOGGER.info("HTTP server stopped");
-    kernel::publishSystemEvent(kernel::SystemEvent::WebServerStopped);
+    publish_event(this, WebServerEvent::WebServerStopped);
 
     if (statusbarIconId >= 0) {
         lvgl::statusbar_icon_set_visibility(statusbarIconId, false);
@@ -746,16 +753,18 @@ esp_err_t WebServerService::handleFsUpload(httpd_req_t* request) {
             if (timeout_retries >= MAX_TIMEOUT_RETRIES) {
                 LOGGER.error("Upload recv timeout after {} retries", timeout_retries);
                 fclose(fp);
+                remove(norm.c_str());  // Clean up partial file
                 httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "recv timeout");
                 return ESP_FAIL;
             }
             LOGGER.warn("Upload recv timeout, retry {}/{}", timeout_retries, MAX_TIMEOUT_RETRIES);
-            vTaskDelay(pdMS_TO_TICKS(100 * timeout_retries)); // Exponential backoff
+            vTaskDelay(pdMS_TO_TICKS(100 * timeout_retries)); // Linear backoff
             continue;
         }
         if (ret <= 0) {
             LOGGER.error("Upload recv failed with error {}", ret);
             fclose(fp);
+            remove(norm.c_str());  // Clean up partial file
             httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "recv failed");
             return ESP_FAIL;
         }
@@ -864,19 +873,21 @@ esp_err_t WebServerService::handleApiPost(httpd_req_t* request) {
     const char* uri = request->uri;
 
     // Auth check for sensitive app management endpoints
-    if (strncmp(uri, "/api/apps/run", 13) == 0 ||
-        strncmp(uri, "/api/apps/uninstall", 19) == 0) {
+    if (strncmp(uri, "/api/apps/run", 13) == 0) {
         bool authPassed = false;
         esp_err_t authResult = validateRequestAuth(request, authPassed);
         if (!authPassed) {
             return authResult;
         }
-    }
-
-    if (strncmp(uri, "/api/apps/run", 13) == 0) {
         return handleApiAppsRun(request);
     }
+
     if (strncmp(uri, "/api/apps/uninstall", 19) == 0) {
+        bool authPassed = false;
+        esp_err_t authResult = validateRequestAuth(request, authPassed);
+        if (!authPassed) {
+            return authResult;
+        }
         return handleApiAppsUninstall(request);
     }
 
@@ -1533,7 +1544,7 @@ esp_err_t WebServerService::handleReboot(httpd_req_t* request) {
     httpd_resp_sendstr(request, "Rebooting...");
     
     // Reboot after a short delay to allow response to be sent
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(2000));
     esp_restart();
 
     return ESP_OK; // Unreachable, but satisfies function signature
@@ -1593,7 +1604,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
     }
 
     // Fallback to SD card
-    std::string sdPath = std::string("/sdcard/.tactility/webserver") + requestedPath;
+    std::string sdPath = std::string("/sdcard/tactility/webserver") + requestedPath;
     if (file::isFile(sdPath.c_str())) {
         httpd_resp_set_type(request, getContentType(sdPath));
         

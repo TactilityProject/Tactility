@@ -21,13 +21,12 @@ bool getHeaderOrSendError(httpd_req_t* request, const std::string& name, std::st
         return false;
     }
 
-    auto* raw_buffer = static_cast<char*>(malloc(header_size + 1));
-    if (raw_buffer == nullptr) {
+    auto header_buffer = std::make_unique<char[]>(header_size + 1);
+    if (header_buffer == nullptr) {
         LOGGER.error( LOG_MESSAGE_ALLOC_FAILED);
         httpd_resp_send_500(request);
         return false;
     }
-    std::unique_ptr<char[], decltype(&free)> header_buffer(raw_buffer, free);
 
     if (httpd_req_get_hdr_value_str(request, name.c_str(), header_buffer.get(), header_size + 1) != ESP_OK) {
         httpd_resp_send_500(request);
@@ -116,33 +115,21 @@ std::unique_ptr<char[]> receiveByteArray(httpd_req_t* request, size_t length, si
 }
 
 std::string receiveTextUntil(httpd_req_t* request, const std::string& terminator) {
-    std::string result;
-    constexpr int MAX_TIMEOUT_RETRIES = 5;
-    int timeout_retries = 0;
-    while (result.size() < terminator.size() || 
-           result.compare(result.size() - terminator.size(), terminator.size(), terminator) != 0) {
+    size_t read_index = 0;
+    std::stringstream result;
+    while (!result.str().ends_with(terminator)) {
         char buffer;
-        int bytes_read = httpd_req_recv(request, &buffer, 1);
-        if (bytes_read == HTTPD_SOCK_ERR_TIMEOUT) {
-            // Timeout - retry with backoff
-            timeout_retries++;
-            if (timeout_retries >= MAX_TIMEOUT_RETRIES) {
-                LOGGER.warn("receiveTextUntil timeout after {} retries", timeout_retries);
-                return "";
-            }
-            vTaskDelay(pdMS_TO_TICKS(100 * timeout_retries)); // Linear backoff
-            continue;
-        }
+        size_t bytes_read = httpd_req_recv(request, &buffer, 1);
         if (bytes_read <= 0) {
             return "";
+        } else {
+            read_index += bytes_read;
         }
 
-        // Successful read - reset timeout counter
-        timeout_retries = 0;
-        result += buffer;
+        result << buffer;
     }
 
-    return result;
+    return result.str();
 }
 
 std::map<std::string, std::string> parseContentDisposition(const std::vector<std::string>& input) {
@@ -207,34 +194,15 @@ size_t receiveFile(httpd_req_t* request, size_t length, const std::string& fileP
         return 0;
     }
 
-    constexpr int MAX_TIMEOUT_RETRIES = 5;
-    int timeout_retries = 0;
-    bool success = true;
     while (bytes_received < length) {
         auto expected_chunk_size = std::min<size_t>(BUFFER_SIZE, length - bytes_received);
-        int receive_chunk_size = httpd_req_recv(request, buffer, expected_chunk_size);
-        if (receive_chunk_size == HTTPD_SOCK_ERR_TIMEOUT) {
-            // Timeout - retry with backoff
-            timeout_retries++;
-            if (timeout_retries >= MAX_TIMEOUT_RETRIES) {
-                LOGGER.error("receiveFile timeout after {} retries, received {}/{} bytes", timeout_retries, bytes_received, length);
-                success = false;
-                break;
-            }
-            LOGGER.warn("receiveFile timeout, retry {}/{}", timeout_retries, MAX_TIMEOUT_RETRIES);
-            vTaskDelay(pdMS_TO_TICKS(100 << (timeout_retries - 1))); // Exponential backoff
-            continue;
-        }
+        size_t receive_chunk_size = httpd_req_recv(request, buffer, expected_chunk_size);
         if (receive_chunk_size <= 0) {
-            LOGGER.error("Receive failed with error {}", receive_chunk_size);
-            success = false;
+            LOGGER.error("Receive failed");
             break;
         }
-        // Successful read - reset timeout counter
-        timeout_retries = 0;
         if (fwrite(buffer, 1, receive_chunk_size, file) != (size_t)receive_chunk_size) {
             LOGGER.error("Failed to write all bytes");
-            success = false;
             break;
         }
         bytes_received += receive_chunk_size;
@@ -242,10 +210,6 @@ size_t receiveFile(httpd_req_t* request, size_t length, const std::string& fileP
 
     // Write file
     fclose(file);
-    if (!success) {
-        remove(filePath.c_str());
-        return 0;
-    }
     return bytes_received;
 }
 

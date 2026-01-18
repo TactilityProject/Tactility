@@ -8,7 +8,6 @@
 #include <Tactility/service/webserver/WebServerService.h>
 #include <Tactility/Assets.h>
 #include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/Logger.h>
 
 #include <lvgl.h>
@@ -333,7 +332,7 @@ public:
                 }
 
                 // Publish event immediately after save so WebServer cache refreshes BEFORE requests arrive
-                kernel::publishSystemEvent(kernel::SystemEvent::WebServerSettingsChanged);
+                service::webserver::getPubsub()->publish(service::webserver::WebServerEvent::WebServerSettingsChanged);
 
                 // Only reconnect WiFi if WiFi settings actually changed
                 if (wifiChanged) {

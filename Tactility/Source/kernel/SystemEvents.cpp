@@ -51,12 +51,6 @@ static const char* getEventName(SystemEvent event) {
             return TT_STRINGIFY(LvglStopped);
         case Time:
             return TT_STRINGIFY(Time);
-        case WebServerSettingsChanged:
-            return TT_STRINGIFY(WebServerSettingsChanged);
-        case WebServerStarted:
-            return TT_STRINGIFY(WebServerStarted);
-        case WebServerStopped:
-            return TT_STRINGIFY(WebServerStopped);
     }
 
     tt_crash(); // Missing case above

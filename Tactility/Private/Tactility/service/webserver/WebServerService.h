@@ -1,15 +1,24 @@
 #pragma once
 #ifdef ESP_PLATFORM
 
+#include <Tactility/PubSub.h>
 #include <Tactility/service/Service.h>
 #include <Tactility/network/HttpServer.h>
 #include <Tactility/RecursiveMutex.h>
-#include <Tactility/kernel/SystemEvents.h>
 
 #include <esp_http_server.h>
 #include <string>
 
 namespace tt::service::webserver {
+
+enum class WebServerEvent {
+    /** WebServer settings have been modified (WiFi/HTTP credentials, enable/disable states) */
+    WebServerSettingsChanged,
+    /** HTTP server has started and is accepting connections */
+    WebServerStarted,
+    /** HTTP server has stopped and is no longer accepting connections */
+    WebServerStopped
+};
 
 /**
  * @brief Web server service with resilient asset architecture
@@ -24,15 +33,15 @@ class WebServerService final : public Service {
 private:
     mutable RecursiveMutex mutex;
     std::unique_ptr<network::HttpServer> httpServer;
-    std::string deviceResponse;
-    kernel::SystemEventSubscription settingsEventSubscription = kernel::NoSystemEventSubscription;
+    PubSub<WebServerEvent>::SubscriptionHandle settingsEventSubscription = nullptr;
+    std::shared_ptr<PubSub<WebServerEvent>> pubsub = std::make_shared<PubSub<WebServerEvent>>();
     int8_t statusbarIconId = -1;  // Statusbar icon for WebServer state
-    
+
     // Core HTML endpoints (hardcoded in firmware)
     static esp_err_t handleRoot(httpd_req_t* request);
     static esp_err_t handleSync(httpd_req_t* request);
     static esp_err_t handleReboot(httpd_req_t* request);
-    
+
     // File browser endpoints
     static esp_err_t handleFileBrowser(httpd_req_t* request);
     static esp_err_t handleFsList(httpd_req_t* request);
@@ -62,20 +71,26 @@ private:
 
     // Dynamic asset serving
     static esp_err_t handleAssets(httpd_req_t* request);
-    
+
     bool startServer();
     void stopServer();
-    
+
 public:
+
     bool onStart(ServiceContext& service) override;
     void onStop(ServiceContext& service) override;
-    
+
     void setEnabled(bool enabled);
     bool isEnabled() const;
+
+    std::shared_ptr<PubSub<WebServerEvent>> getPubsub() const { return pubsub; }
 };
 
 // Global accessor for controlling the WebServer service
 void setWebServerEnabled(bool enabled);
+
+// Get the pubsub for subscribing to WebServer events
+std::shared_ptr<PubSub<WebServerEvent>> getPubsub();
 
 } // namespace
 

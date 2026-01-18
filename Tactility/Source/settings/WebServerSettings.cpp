@@ -36,7 +36,7 @@ std::string generateDefaultApSsid() {
         return "Tactility-0000";
     }
     char ssid[16];
-    snprintf(ssid, sizeof(ssid), "Tactility-%02X%02X", mac[4], mac[5]);
+    snprintf(ssid, sizeof(ssid), "Tactility-%02X%02X", mac[2] ^ mac[3], mac[4] ^ mac[5]);
     return std::string(ssid);
 #else
     return "Tactility-0000";

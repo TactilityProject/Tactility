@@ -24,12 +24,6 @@ enum class SystemEvent {
     LvglStopped,
     /** An important system time-related event, such as NTP update or time-zone change */
     Time,
-    /** WebServer settings have been modified (WiFi/HTTP credentials, enable/disable states) */
-    WebServerSettingsChanged,
-    /** HTTP server has started and is accepting connections */
-    WebServerStarted,
-    /** HTTP server has stopped and is no longer accepting connections */
-    WebServerStopped,
 };
 
 /** Value 0 mean "no subscription" */

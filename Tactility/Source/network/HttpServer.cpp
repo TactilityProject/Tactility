@@ -9,14 +9,14 @@ namespace tt::network {
 
 static const auto LOGGER = Logger("HttpServer");
 
-static constexpr size_t URI_HANDLER_HEADROOM = 2;  // Reserve slots for internal handlers
+static constexpr size_t INTERNAL_URI_HANDLER_COUNT = 2;
 
 bool HttpServer::startInternal() {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.stack_size = stackSize;
     config.server_port = port;
     config.uri_match_fn = matchUri;
-    config.max_uri_handlers = handlers.size() + URI_HANDLER_HEADROOM;
+    config.max_uri_handlers = handlers.size() + INTERNAL_URI_HANDLER_COUNT;
 
     if (httpd_start(&server, &config) != ESP_OK) {
         LOGGER.error("Failed to start http server on port {}", port);
