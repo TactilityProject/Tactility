@@ -107,7 +107,15 @@ static esp_err_t sendUnauthorized(httpd_req_t* request, const char* message) {
 static esp_err_t validateRequestAuth(httpd_req_t* request, bool& authPassed) {
     authPassed = false;
 
-    if (!g_cachedSettings.webServerAuthEnabled) {
+    // Copy settings under lock to avoid race with settings update callback
+    settings::webserver::WebServerSettings settings;
+    {
+        auto lock = g_settingsMutex.asScopedLock();
+        lock.lock();
+        settings = g_cachedSettings;
+    }
+
+    if (!settings.webServerAuthEnabled) {
         authPassed = true;
         return ESP_OK;  // Auth disabled, allow request
     }
@@ -164,8 +172,16 @@ static esp_err_t validateRequestAuth(httpd_req_t* request, bool& authPassed) {
     std::string password = decoded.substr(colon_pos + 1);
 
     // Validate against cached settings
-    bool usernameMatch = secureCompare(username, g_cachedSettings.webServerUsername);
-    bool passwordMatch = secureCompare(password, g_cachedSettings.webServerPassword);
+    // Copy settings under lock to avoid race with settings update callback
+    settings::webserver::WebServerSettings settings;
+    {
+        auto lock = g_settingsMutex.asScopedLock();
+        lock.lock();
+        settings = g_cachedSettings;
+    }
+
+    bool usernameMatch = secureCompare(username, settings.webServerUsername);
+    bool passwordMatch = secureCompare(password, settings.webServerPassword);
     if (!usernameMatch || !passwordMatch) {
         LOGGER.warn("Invalid credentials for user '{}'", username);
         return sendUnauthorized(request, "Invalid credentials");
@@ -1298,7 +1314,7 @@ esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
     std::string lvgl_screenshot_path = lvgl::PATH_PREFIX + screenshot_path;
 
     // Capture screenshot using LVGL
-    if (lvgl::lock(100 / portTICK_PERIOD_MS)) {
+    if (lvgl::lock(pdMS_TO_TICKS(100))) {
         bool success = lv_screenshot_create(lv_scr_act(), LV_100ASK_SCREENSHOT_SV_PNG, lvgl_screenshot_path.c_str());
         lvgl::unlock();
 
