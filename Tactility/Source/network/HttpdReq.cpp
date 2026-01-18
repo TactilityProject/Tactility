@@ -21,12 +21,13 @@ bool getHeaderOrSendError(httpd_req_t* request, const std::string& name, std::st
         return false;
     }
 
-    auto header_buffer = std::make_unique<char[]>(header_size + 1);
-    if (header_buffer == nullptr) {
+    auto* raw_buffer = static_cast<char*>(malloc(header_size + 1));
+    if (raw_buffer == nullptr) {
         LOGGER.error( LOG_MESSAGE_ALLOC_FAILED);
         httpd_resp_send_500(request);
         return false;
     }
+    std::unique_ptr<char[], decltype(&free)> header_buffer(raw_buffer, free);
 
     if (httpd_req_get_hdr_value_str(request, name.c_str(), header_buffer.get(), header_size + 1) != ESP_OK) {
         httpd_resp_send_500(request);
@@ -83,36 +84,65 @@ std::unique_ptr<char[]> receiveByteArray(httpd_req_t* request, size_t length, si
         return nullptr;
     }
 
+    constexpr int MAX_TIMEOUT_RETRIES = 5;
+    int timeout_retries = 0;
     while (bytesRead < length) {
         size_t read_size = length - bytesRead;
-        size_t bytes_received = httpd_req_recv(request, buffer + bytesRead, read_size);
+        int bytes_received = httpd_req_recv(request, buffer + bytesRead, read_size);
+        if (bytes_received == HTTPD_SOCK_ERR_TIMEOUT) {
+            // Timeout - retry with backoff
+            timeout_retries++;
+            if (timeout_retries >= MAX_TIMEOUT_RETRIES) {
+                LOGGER.warn("Recv timeout after {} retries, read {}/{} bytes", timeout_retries, bytesRead, length);
+                free(buffer);
+                return nullptr;
+            }
+            LOGGER.warn("Recv timeout, retry {}/{}", timeout_retries, MAX_TIMEOUT_RETRIES);
+            vTaskDelay(pdMS_TO_TICKS(100 * timeout_retries)); // Exponential backoff
+            continue;
+        }
         if (bytes_received <= 0) {
             LOGGER.warn("Received error {} after reading {}/{} bytes", bytes_received, bytesRead, length);
+            free(buffer);
             return nullptr;
         }
 
+        // Successful read - reset timeout counter
+        timeout_retries = 0;
         bytesRead += bytes_received;
     }
 
-    return std::unique_ptr<char[]>(std::move(buffer));
+    return std::unique_ptr<char[]>(buffer);
 }
 
 std::string receiveTextUntil(httpd_req_t* request, const std::string& terminator) {
-    size_t read_index = 0;
-    std::stringstream result;
-    while (!result.str().ends_with(terminator)) {
+    std::string result;
+    constexpr int MAX_TIMEOUT_RETRIES = 5;
+    int timeout_retries = 0;
+    while (result.size() < terminator.size() || 
+           result.compare(result.size() - terminator.size(), terminator.size(), terminator) != 0) {
         char buffer;
-        size_t bytes_read = httpd_req_recv(request, &buffer, 1);
+        int bytes_read = httpd_req_recv(request, &buffer, 1);
+        if (bytes_read == HTTPD_SOCK_ERR_TIMEOUT) {
+            // Timeout - retry with backoff
+            timeout_retries++;
+            if (timeout_retries >= MAX_TIMEOUT_RETRIES) {
+                LOGGER.warn("receiveTextUntil timeout after {} retries", timeout_retries);
+                return "";
+            }
+            vTaskDelay(pdMS_TO_TICKS(100 * timeout_retries)); // Linear backoff
+            continue;
+        }
         if (bytes_read <= 0) {
             return "";
-        } else {
-            read_index += bytes_read;
         }
 
-        result << buffer;
+        // Successful read - reset timeout counter
+        timeout_retries = 0;
+        result += buffer;
     }
 
-    return result.str();
+    return result;
 }
 
 std::map<std::string, std::string> parseContentDisposition(const std::vector<std::string>& input) {
@@ -131,7 +161,7 @@ std::map<std::string, std::string> parseContentDisposition(const std::vector<std
 
     auto parseable = content_disposition_header->substr(prefix.size());
     auto parts = string::split(parseable, "; ");
-    for (auto part : parts) {
+    for (const auto& part : parts) {
         auto key_value = string::split(part, "=");
         if (key_value.size() == 2) {
             // Trim trailing newlines
@@ -150,7 +180,7 @@ std::map<std::string, std::string> parseContentDisposition(const std::vector<std
 bool readAndDiscardOrSendError(httpd_req_t* request, const std::string& toRead) {
     size_t bytes_read;
     auto buffer = receiveByteArray(request, toRead.length(), bytes_read);
-    if (bytes_read != toRead.length()) {
+    if (buffer == nullptr || bytes_read != toRead.length()) {
         httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "failed to read discardable data");
         return false;
     }
@@ -177,15 +207,34 @@ size_t receiveFile(httpd_req_t* request, size_t length, const std::string& fileP
         return 0;
     }
 
+    constexpr int MAX_TIMEOUT_RETRIES = 5;
+    int timeout_retries = 0;
+    bool success = true;
     while (bytes_received < length) {
         auto expected_chunk_size = std::min<size_t>(BUFFER_SIZE, length - bytes_received);
-        size_t receive_chunk_size = httpd_req_recv(request, buffer, expected_chunk_size);
+        int receive_chunk_size = httpd_req_recv(request, buffer, expected_chunk_size);
+        if (receive_chunk_size == HTTPD_SOCK_ERR_TIMEOUT) {
+            // Timeout - retry with backoff
+            timeout_retries++;
+            if (timeout_retries >= MAX_TIMEOUT_RETRIES) {
+                LOGGER.error("receiveFile timeout after {} retries, received {}/{} bytes", timeout_retries, bytes_received, length);
+                success = false;
+                break;
+            }
+            LOGGER.warn("receiveFile timeout, retry {}/{}", timeout_retries, MAX_TIMEOUT_RETRIES);
+            vTaskDelay(pdMS_TO_TICKS(100 << (timeout_retries - 1))); // Exponential backoff
+            continue;
+        }
         if (receive_chunk_size <= 0) {
-            LOGGER.error("Receive failed");
+            LOGGER.error("Receive failed with error {}", receive_chunk_size);
+            success = false;
             break;
         }
-        if (fwrite(buffer, 1, receive_chunk_size, file) != receive_chunk_size) {
+        // Successful read - reset timeout counter
+        timeout_retries = 0;
+        if (fwrite(buffer, 1, receive_chunk_size, file) != (size_t)receive_chunk_size) {
             LOGGER.error("Failed to write all bytes");
+            success = false;
             break;
         }
         bytes_received += receive_chunk_size;
@@ -193,6 +242,10 @@ size_t receiveFile(httpd_req_t* request, size_t length, const std::string& fileP
 
     // Write file
     fclose(file);
+    if (!success) {
+        remove(filePath.c_str());
+        return 0;
+    }
     return bytes_received;
 }
 

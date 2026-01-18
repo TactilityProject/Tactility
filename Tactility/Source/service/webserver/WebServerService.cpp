@@ -719,10 +719,32 @@ esp_err_t WebServerService::handleFsUpload(httpd_req_t* request) {
     FILE* fp = fopen(norm.c_str(), "wb");
     if (!fp) { httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "open failed"); return ESP_FAIL; }
     char buf[512]; int remaining = request->content_len; int received=0;
+    constexpr int MAX_TIMEOUT_RETRIES = 5;
+    int timeout_retries = 0;
     while (remaining > 0) {
         int to_read = remaining > (int)sizeof(buf) ? (int)sizeof(buf) : remaining;
         int ret = httpd_req_recv(request, buf, to_read);
-        if (ret <= 0) { fclose(fp); httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "recv failed"); return ESP_FAIL; }
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            // Timeout - retry with backoff
+            timeout_retries++;
+            if (timeout_retries >= MAX_TIMEOUT_RETRIES) {
+                LOGGER.error("Upload recv timeout after {} retries", timeout_retries);
+                fclose(fp);
+                httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "recv timeout");
+                return ESP_FAIL;
+            }
+            LOGGER.warn("Upload recv timeout, retry {}/{}", timeout_retries, MAX_TIMEOUT_RETRIES);
+            vTaskDelay(pdMS_TO_TICKS(100 * timeout_retries)); // Exponential backoff
+            continue;
+        }
+        if (ret <= 0) {
+            LOGGER.error("Upload recv failed with error {}", ret);
+            fclose(fp);
+            httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "recv failed");
+            return ESP_FAIL;
+        }
+        // Successful read - reset timeout counter
+        timeout_retries = 0;
         size_t written = fwrite(buf, 1, ret, fp);
         if (written != (size_t)ret) {
             fclose(fp);
@@ -1519,7 +1541,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
 
     std::string dataPath = std::string("/data/webserver") + requestedPath;
     
-    if (strcmp(uri, "/dashboard.html") == 0 && !file::isFile(dataPath.c_str())) {
+    if (requestedPath == "/dashboard.html" && !file::isFile(dataPath.c_str())) {
         // Dashboard doesn't exist, try default.html
         dataPath = "/data/webserver/default.html";
         LOGGER.info("dashboard.html not found, serving default.html");
