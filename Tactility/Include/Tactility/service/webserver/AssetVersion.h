@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
 
 namespace tt::service::webserver {
 
@@ -70,4 +69,4 @@ bool hasSdAssets();
  */
 bool syncAssets();
 
-} // namespace
+} // namespace tt::service::webserver

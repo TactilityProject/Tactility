@@ -41,6 +41,7 @@
 #include <cstring>
 #include <iomanip>
 #include <cctype>
+#include <mbedtls/base64.h>
 
 namespace tt::service::webserver {
 
@@ -79,6 +80,101 @@ static WebServerService* g_webServerInstance = nullptr;
 
 constexpr int MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10 MB limit
 
+static bool secureCompare(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) {
+        // Still do the comparison to avoid length-based timing leak
+        volatile int dummy = 0;
+        for (size_t i = 0; i < a.size(); ++i) dummy ^= a[i];
+        return false;
+    }
+    volatile unsigned char result = 0;
+    for (size_t i = 0; i < a.size(); ++i) {
+        result |= static_cast<unsigned char>(a[i]) ^ static_cast<unsigned char>(b[i]);
+    }
+    return result == 0;
+}
+
+// Helper to send 401 Unauthorized response with WWW-Authenticate header
+static esp_err_t sendUnauthorized(httpd_req_t* request, const char* message) {
+    httpd_resp_set_hdr(request, "WWW-Authenticate", "Basic realm=\"Tactility\"");
+    httpd_resp_send_err(request, HTTPD_401_UNAUTHORIZED, message);
+    return ESP_OK;  // Response was sent successfully
+}
+
+// Helper to validate HTTP Basic Auth on sensitive endpoints
+// Returns ESP_OK with authPassed=true if auth succeeded or is disabled
+// Returns ESP_OK with authPassed=false if auth failed (401 response already sent)
+static esp_err_t validateRequestAuth(httpd_req_t* request, bool& authPassed) {
+    authPassed = false;
+
+    if (!g_cachedSettings.webServerAuthEnabled) {
+        authPassed = true;
+        return ESP_OK;  // Auth disabled, allow request
+    }
+
+    // Get Authorization header
+    size_t auth_len = httpd_req_get_hdr_value_len(request, "Authorization");
+    if (auth_len == 0) {
+        return sendUnauthorized(request, "Authorization required");
+    }
+
+    std::string auth_header(auth_len + 1, '\0');
+    if (httpd_req_get_hdr_value_str(request, "Authorization", auth_header.data(), auth_len + 1) != ESP_OK) {
+        LOGGER.warn("Failed to read Authorization header");
+        return sendUnauthorized(request, "Authorization required");
+    }
+    auth_header.resize(auth_len);  // Remove null terminator from string length
+
+    // Check for "Basic " prefix
+    if (auth_header.rfind("Basic ", 0) != 0) {
+        LOGGER.warn("Authorization header is not Basic auth");
+        return sendUnauthorized(request, "Basic authorization required");
+    }
+
+    // Extract base64 encoded credentials
+    std::string base64_creds = auth_header.substr(6);
+
+    // Decode base64 using mbedtls (available in ESP-IDF)
+    size_t decoded_len = 0;
+    // First pass to get length
+    mbedtls_base64_decode(nullptr, 0, &decoded_len,
+                          reinterpret_cast<const unsigned char*>(base64_creds.c_str()),
+                          base64_creds.length());
+
+    std::string decoded(decoded_len, '\0');
+    size_t actual_len = 0;
+    int ret = mbedtls_base64_decode(reinterpret_cast<unsigned char*>(decoded.data()),
+                                     decoded_len, &actual_len,
+                                     reinterpret_cast<const unsigned char*>(base64_creds.c_str()),
+                                     base64_creds.length());
+    if (ret != 0) {
+        LOGGER.warn("Failed to decode base64 credentials");
+        return sendUnauthorized(request, "Invalid credentials format");
+    }
+    decoded.resize(actual_len);
+
+    // Parse username:password
+    size_t colon_pos = decoded.find(':');
+    if (colon_pos == std::string::npos) {
+        LOGGER.warn("Invalid credentials format (no colon separator)");
+        return sendUnauthorized(request, "Invalid credentials format");
+    }
+
+    std::string username = decoded.substr(0, colon_pos);
+    std::string password = decoded.substr(colon_pos + 1);
+
+    // Validate against cached settings
+    bool usernameMatch = secureCompare(username, g_cachedSettings.webServerUsername);
+    bool passwordMatch = secureCompare(password, g_cachedSettings.webServerPassword);
+    if (!usernameMatch || !passwordMatch) {
+        LOGGER.warn("Invalid credentials for user '{}'", username);
+        return sendUnauthorized(request, "Invalid credentials");
+    }
+
+    authPassed = true;
+    return ESP_OK;  // Auth successful
+}
+
 bool WebServerService::onStart(ServiceContext& service) {
     LOGGER.info("Starting WebServer service...");
 
@@ -95,15 +191,18 @@ bool WebServerService::onStart(ServiceContext& service) {
     }
 
     // Load and cache settings once at boot
-    g_cachedSettings = settings::webserver::loadOrGetDefault();
-    g_settingsCached = true;
-    LOGGER.info("HTTP server starting (access: {})", g_cachedSettings.webServerEnabled ? "allowed" : "denied");
-
+    {
+        auto lock = g_settingsMutex.asScopedLock();
+        lock.lock();
+        g_cachedSettings = settings::webserver::loadOrGetDefault();
+        g_settingsCached = true;
+    }
     // Subscribe to settings change events to refresh cache
     settingsEventSubscription = kernel::subscribeSystemEvent(
         kernel::SystemEvent::WebServerSettingsChanged,
         [](auto) {
-            LOGGER.info("Settings changed, refreshing cache...");
+            auto lock = g_settingsMutex.asScopedLock();
+            lock.lock();
             g_cachedSettings = settings::webserver::loadOrGetDefault();
             g_settingsCached = true;
         }
@@ -123,6 +222,12 @@ bool WebServerService::onStart(ServiceContext& service) {
 
 void WebServerService::onStop(ServiceContext& service) {
     g_webServerInstance = nullptr;
+
+    if (settingsEventSubscription != 0) {
+        kernel::unsubscribeSystemEvent(settingsEventSubscription);
+        settingsEventSubscription = 0;
+    }
+
     setEnabled(false);
 
     // Remove statusbar icon
@@ -156,7 +261,13 @@ bool WebServerService::isEnabled() const {
 }
 
 bool WebServerService::startServer() {
-    auto settings = settings::webserver::loadOrGetDefault();
+    // Copy settings locally to minimize lock duration
+    settings::webserver::WebServerSettings settings;
+    {
+        auto lock = g_settingsMutex.asScopedLock();
+        lock.lock();
+        settings = g_cachedSettings;
+    }
 
     // NOTE: If you see 'no slots left for registering handler', increase CONFIG_HTTPD_MAX_URI_HANDLERS in sdkconfig (default is 8, 16+ recommended for many endpoints)
     void* ctx = this;  // Avoid IDE warnings about 'this' in designated initializers
@@ -431,12 +542,18 @@ static bool getQueryParam(httpd_req_t* req, const char* key, std::string& out) {
     if (len <= 1) return false;
     std::unique_ptr<char[]> buf(new char[len]);
     if (httpd_req_get_url_query_str(req, buf.get(), len) != ESP_OK) return false;
-    char value[384];
-    if (httpd_query_key_value(buf.get(), key, value, sizeof(value)) == ESP_OK) {
-        out = value;
+    // Allocate buffer large enough for the entire query string (worst case)
+    std::unique_ptr<char[]> value(new char[len]);
+    if (httpd_query_key_value(buf.get(), key, value.get(), len) == ESP_OK) {
+        out = value.get();
         return true;
     }
     return false;
+}
+
+static bool uriMatches(const char* uri, const char* route) {
+    const size_t n = strlen(route);
+    return strncmp(uri, route, n) == 0 && (uri[n] == '\0' || uri[n] == '?' || uri[n] == '/');
 }
 
 esp_err_t WebServerService::handleFileBrowser(httpd_req_t* request) {
@@ -529,12 +646,7 @@ esp_err_t WebServerService::handleFsDownload(httpd_req_t* request) {
         httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
         return ESP_FAIL;
     }
-    // Content type guess
-    const char* ct = "application/octet-stream";
-    if (norm.ends_with(".txt")) ct = "text/plain";
-    else if (norm.ends_with(".html")) ct = "text/html";
-    else if (norm.ends_with(".json")) ct = "application/json";
-    httpd_resp_set_type(request, ct);
+    httpd_resp_set_type(request, getContentType(norm));
     // Suggest download - build header into a local string so it remains valid
     std::string fname = file::getLastPathSegment(norm);
     std::string disposition = std::string("attachment; filename=\"") + fname + "\"";
@@ -629,10 +741,17 @@ esp_err_t WebServerService::handleFsUpload(httpd_req_t* request) {
 
 // Generic GET dispatcher for /fs/* URIs
 esp_err_t WebServerService::handleFsGenericGet(httpd_req_t* request) {
+    // Auth check for all /fs/* endpoints (file system access is sensitive)
+    bool authPassed = false;
+    esp_err_t authResult = validateRequestAuth(request, authPassed);
+    if (!authPassed) {
+        return authResult;
+    }
+
     const char* uri = request->uri;
-    if (strncmp(uri, "/fs/list", strlen("/fs/list")) == 0) return handleFsList(request);
-    if (strncmp(uri, "/fs/download", strlen("/fs/download")) == 0) return handleFsDownload(request);
-    if (strncmp(uri, "/fs/tree", strlen("/fs/tree")) == 0) return handleFsTree(request);
+    if (uriMatches(uri, "/fs/list")) return handleFsList(request);
+    if (uriMatches(uri, "/fs/download")) return handleFsDownload(request);
+    if (uriMatches(uri, "/fs/tree")) return handleFsTree(request);
     LOGGER.warn("GET {} - not found in fs generic dispatcher", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
     return ESP_FAIL;
@@ -640,11 +759,18 @@ esp_err_t WebServerService::handleFsGenericGet(httpd_req_t* request) {
 
 // Generic POST dispatcher for /fs/* URIs
 esp_err_t WebServerService::handleFsGenericPost(httpd_req_t* request) {
+    // Auth check for all /fs/* endpoints (file system access is sensitive)
+    bool authPassed = false;
+    esp_err_t authResult = validateRequestAuth(request, authPassed);
+    if (!authPassed) {
+        return authResult;
+    }
+
     const char* uri = request->uri;
-    if (strncmp(uri, "/fs/mkdir", strlen("/fs/mkdir")) == 0) return handleFsMkdir(request);
-    if (strncmp(uri, "/fs/delete", strlen("/fs/delete")) == 0) return handleFsDelete(request);
-    if (strncmp(uri, "/fs/rename", strlen("/fs/rename")) == 0) return handleFsRename(request);
-    if (strncmp(uri, "/fs/upload", strlen("/fs/upload")) == 0) return handleFsUpload(request);
+    if (uriMatches(uri, "/fs/mkdir")) return handleFsMkdir(request);
+    if (uriMatches(uri, "/fs/delete")) return handleFsDelete(request);
+    if (uriMatches(uri, "/fs/rename")) return handleFsRename(request);
+    if (uriMatches(uri, "/fs/upload")) return handleFsUpload(request);
     LOGGER.warn("POST {} - not found in fs generic dispatcher", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
     return ESP_FAIL;
@@ -652,6 +778,13 @@ esp_err_t WebServerService::handleFsGenericPost(httpd_req_t* request) {
 
 // Admin dispatcher for consolidated small POST endpoints (e.g. sync, reboot)
 esp_err_t WebServerService::handleAdminPost(httpd_req_t* request) {
+    // Auth check for all /admin/* endpoints (admin actions are sensitive)
+    bool authPassed = false;
+    esp_err_t authResult = validateRequestAuth(request, authPassed);
+    if (!authPassed) {
+        return authResult;
+    }
+
     const char* uri = request->uri;
     if (strncmp(uri, "/admin/sync", 11) == 0) return handleSync(request);
     if (strncmp(uri, "/admin/reboot", 13) == 0) return handleReboot(request);
@@ -673,7 +806,13 @@ esp_err_t WebServerService::handleApiGet(httpd_req_t* request) {
     if (strncmp(uri, "/api/wifi", 9) == 0) {
         return handleApiWifi(request);
     }
+    // Auth check for sensitive screenshot endpoint
     if (strncmp(uri, "/api/screenshot", 15) == 0) {
+        bool authPassed = false;
+        esp_err_t authResult = validateRequestAuth(request, authPassed);
+        if (!authPassed) {
+            return authResult;
+        }
         return handleApiScreenshot(request);
     }
 
@@ -685,6 +824,16 @@ esp_err_t WebServerService::handleApiGet(httpd_req_t* request) {
 // API POST dispatcher
 esp_err_t WebServerService::handleApiPost(httpd_req_t* request) {
     const char* uri = request->uri;
+
+    // Auth check for sensitive app management endpoints
+    if (strncmp(uri, "/api/apps/run", 13) == 0 ||
+        strncmp(uri, "/api/apps/uninstall", 19) == 0) {
+        bool authPassed = false;
+        esp_err_t authResult = validateRequestAuth(request, authPassed);
+        if (!authPassed) {
+            return authResult;
+        }
+    }
 
     if (strncmp(uri, "/api/apps/run", 13) == 0) {
         return handleApiAppsRun(request);
@@ -702,7 +851,13 @@ esp_err_t WebServerService::handleApiPost(httpd_req_t* request) {
 esp_err_t WebServerService::handleApiPut(httpd_req_t* request) {
     const char* uri = request->uri;
 
+    // Auth check for sensitive app install endpoint
     if (strncmp(uri, "/api/apps/install", 17) == 0) {
+        bool authPassed = false;
+        esp_err_t authResult = validateRequestAuth(request, authPassed);
+        if (!authPassed) {
+            return authResult;
+        }
         return handleApiAppsInstall(request);
     }
 
@@ -960,6 +1115,7 @@ esp_err_t WebServerService::handleApiAppsInstall(httpd_req_t* request) {
     }
 
     size_t content_left = request->content_len;
+    constexpr size_t MAX_APP_UPLOAD_SIZE = 20 * 1024 * 1024;
 
     // Read headers until empty line (skip boundary line first)
     auto content_headers_data = network::receiveTextUntil(request, "\r\n\r\n");
@@ -988,7 +1144,16 @@ esp_err_t WebServerService::handleApiAppsInstall(httpd_req_t* request) {
 
     // Calculate file size
     auto boundary_and_newlines_after_file = std::format("\r\n--{}--\r\n", boundary);
+    if (content_left <= boundary_and_newlines_after_file.length()) {
+        httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "invalid multipart payload");
+        return ESP_FAIL;
+    }
+
     auto file_size = content_left - boundary_and_newlines_after_file.length();
+    if (file_size == 0 || file_size > MAX_APP_UPLOAD_SIZE) {
+        httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "file too large");
+        return ESP_FAIL;
+    }
 
     // Create tmp directory
     const std::string tmp_path = getTempPath();
@@ -997,7 +1162,14 @@ esp_err_t WebServerService::handleApiAppsInstall(httpd_req_t* request) {
         return ESP_FAIL;
     }
 
-    auto file_path = std::format("{}/{}", tmp_path, filename_entry->second);
+    std::string safe_name = file::getLastPathSegment(filename_entry->second);
+    if (safe_name.empty() || safe_name.find("..") != std::string::npos ||
+        safe_name.find('/') != std::string::npos || safe_name.find('\\') != std::string::npos) {
+        httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "invalid filename");
+        return ESP_FAIL;
+    }
+    auto file_path = std::format("{}/{}", tmp_path, safe_name);
+
     if (network::receiveFile(request, file_size, file_path) != file_size) {
         httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "failed to save file");
         return ESP_FAIL;
@@ -1085,12 +1257,19 @@ esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
 
     // Find next available filename with incrementing number
     std::string screenshot_path;
+    bool found_slot = false;
     for (int i = 1; i <= 9999; ++i) {
         screenshot_path = std::format("{}/webscreenshot{}.png", save_path, i);
         if (!file::isFile(screenshot_path)) {
+            found_slot = true;
             break;
         }
     }
+    if (!found_slot) {
+        httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "no available screenshot slots");
+        return ESP_FAIL;
+    }
+
     LOGGER.info("Screenshot will be saved to: {}", screenshot_path);
 
     // LVGL's lodepng uses lv_fs which requires the "A:" prefix
@@ -1212,13 +1391,13 @@ esp_err_t WebServerService::handleFsDelete(httpd_req_t* request) {
         return ESP_FAIL;
     }
     std::string norm = normalizePath(path);
-    LOGGER.info("POST /fs/delete requested: '{}' normalized: '{}'", path.c_str(), norm.c_str());
+    LOGGER.info("POST /fs/delete requested: '{}' normalized: '{}'", path, norm);
     if (!isAllowedBasePath(norm)) {
         httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "invalid path");
         return ESP_FAIL;
     }
     if (isRootMountPoint(norm)) {
-        httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "cannot delete mount ");
+        httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "cannot delete mount point");
         return ESP_FAIL;
     }
     bool ok = true;
@@ -1318,8 +1497,6 @@ esp_err_t WebServerService::handleReboot(httpd_req_t* request) {
     // Reboot after a short delay to allow response to be sent
     vTaskDelay(pdMS_TO_TICKS(1000));
     esp_restart();
-    
-    return ESP_OK;
 }
 
 esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
@@ -1329,6 +1506,15 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
     
     // Special case: if requesting dashboard.html but it doesn't exist, serve default.html
     std::string requestedPath = uri;
+    if (auto qpos = requestedPath.find('?'); qpos != std::string::npos) {
+        requestedPath = requestedPath.substr(0, qpos);
+    }
+    requestedPath = normalizePath(requestedPath);
+    if (requestedPath == "/.." || requestedPath.ends_with("/..") || requestedPath.find("/../") != std::string::npos) {
+        httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "invalid path");
+        return ESP_FAIL;
+    }
+
     std::string dataPath = std::string("/data/webserver") + requestedPath;
     
     if (strcmp(uri, "/dashboard.html") == 0 && !file::isFile(dataPath.c_str())) {
@@ -1367,7 +1553,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
     }
 
     // Fallback to SD card
-    std::string sdPath = std::string("/sdcard/.tactility/webserver") + uri;
+    std::string sdPath = std::string("/sdcard/.tactility/webserver") + requestedPath;
     if (file::isFile(sdPath.c_str())) {
         httpd_resp_set_type(request, getContentType(uri));
         

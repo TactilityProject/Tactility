@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <sstream>
+#include <esp_random.h>
 
 namespace tt::service::webserver {
 
@@ -67,12 +68,13 @@ static bool loadVersionFromFile(const char* path, AssetVersion& version) {
         return false;
     }
     
-    if (versionItem->valueint < 0) {
-        LOGGER.error("Version cannot be negative: {}", path);
+    double versionValue = versionItem->valuedouble;
+    if (versionValue < 0 || versionValue > UINT32_MAX) {
+        LOGGER.error("Version out of valid range [0, {}]: {}", UINT32_MAX, path);
         cJSON_Delete(json);
         return false;
     }
-    version.version = static_cast<uint32_t>(versionItem->valueint);
+    version.version = static_cast<uint32_t>(versionValue);
     cJSON_Delete(json);
     
     LOGGER.info("Loaded version {} from {}", version.version, path);
@@ -116,8 +118,21 @@ static bool saveVersionToFile(const char* path, const AssetVersion& version) {
         
         FILE* fp = fopen(path, "w");
         if (fp) {
-            size_t written = fwrite(jsonString, 1, strlen(jsonString), fp);
-            success = (written == strlen(jsonString));
+            size_t len = strlen(jsonString);
+            size_t written = fwrite(jsonString, 1, len, fp);
+            success = (written == len);
+            if (success) {
+                if (fflush(fp) != 0) {
+                    LOGGER.error("Failed to flush version file: {}", path);
+                    success = false;
+                } else {
+                    int fd = fileno(fp);
+                    if (fd >= 0 && fsync(fd) != 0) {
+                        LOGGER.error("Failed to fsync version file: {}", path);
+                        success = false;
+                    }
+                }
+            }
             fclose(fp);
         }
         lock->unlock();
@@ -192,10 +207,14 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
                 copySuccess = false;
             }
         } else if (entry.d_type == file::TT_DT_REG) {
-            // Copy file using standard C FILE* operations
+            // Copy file using atomic temp file approach
             auto lock = file::getLock(srcPath);
             lock->lock(portMAX_DELAY);
-            
+
+            // Generate unique temp file path
+            uint32_t randomId = esp_random();
+            std::string tempPath = dstPath + ".tmp." + std::to_string(randomId);
+
             FILE* srcFile = fopen(srcPath.c_str(), "rb");
             if (!srcFile) {
                 LOGGER.error("Failed to open source file: {}", srcPath);
@@ -203,24 +222,24 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
                 copySuccess = false;
                 return;
             }
-            
-            FILE* dstFile = fopen(dstPath.c_str(), "wb");
-            if (!dstFile) {
-                LOGGER.error("Failed to create destination file: {}", dstPath);
+
+            FILE* tempFile = fopen(tempPath.c_str(), "wb");
+            if (!tempFile) {
+                LOGGER.error("Failed to create temp file: {}", tempPath);
                 fclose(srcFile);
                 lock->unlock();
                 copySuccess = false;
                 return;
             }
-            
+
             // Copy in chunks
             char buffer[512];
             size_t bytesRead;
             bool fileCopySuccess = true;
             while ((bytesRead = fread(buffer, 1, sizeof(buffer), srcFile)) > 0) {
-                size_t bytesWritten = fwrite(buffer, 1, bytesRead, dstFile);
+                size_t bytesWritten = fwrite(buffer, 1, bytesRead, tempFile);
                 if (bytesWritten != bytesRead) {
-                    LOGGER.error("Failed to write to destination file: {}", dstPath);
+                    LOGGER.error("Failed to write to temp file: {}", tempPath);
                     fileCopySuccess = false;
                     copySuccess = false;
                     break;
@@ -234,7 +253,38 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
             }
 
             fclose(srcFile);
-            fclose(dstFile);
+
+            // Flush and sync temp file before closing
+            if (fileCopySuccess) {
+                if (fflush(tempFile) != 0) {
+                    LOGGER.error("Failed to flush temp file: {}", tempPath);
+                    fileCopySuccess = false;
+                    copySuccess = false;
+                } else {
+                    int fd = fileno(tempFile);
+                    if (fd >= 0 && fsync(fd) != 0) {
+                        LOGGER.error("Failed to fsync temp file: {}", tempPath);
+                        fileCopySuccess = false;
+                        copySuccess = false;
+                    }
+                }
+            }
+
+            fclose(tempFile);
+
+            if (fileCopySuccess) {
+                // Atomically rename temp file to destination
+                if (rename(tempPath.c_str(), dstPath.c_str()) != 0) {
+                    LOGGER.error("Failed to rename temp file {} to {}", tempPath, dstPath);
+                    remove(tempPath.c_str());
+                    fileCopySuccess = false;
+                    copySuccess = false;
+                }
+            } else {
+                // Clean up temp file on failure
+                remove(tempPath.c_str());
+            }
+
             lock->unlock();
 
             if (fileCopySuccess) {

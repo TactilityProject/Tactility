@@ -12,22 +12,22 @@ enum class WiFiMode : uint8_t {
 
 struct WebServerSettings {
     // WiFi Configuration
-    bool wifiEnabled;           // Enable/disable WiFi entirely
-    WiFiMode wifiMode;          // Station or Access Point
+    bool wifiEnabled = false;    // Enable/disable WiFi entirely
+    WiFiMode wifiMode = WiFiMode::Station;          // Station or Access Point
 
     // Access Point Mode Settings
-    std::string apSsid;           // Default: "Tactility-XXXX" (last 4 of MAC)
-    std::string apPassword;       // Default: "tactility"
-    uint8_t apChannel;            // 1-13
+    std::string apSsid{};           // Default: "Tactility-XXXX" (last 4 of MAC)
+    std::string apPassword{};       // Default: "tactility"
+    uint8_t apChannel = 1;            // 1-13
 
     // Web Server Settings
-    bool webServerEnabled;
-    uint16_t webServerPort;       // Default: 80
+    bool webServerEnabled = false;
+    uint16_t webServerPort = 80;       // Default: 80
 
     // Optional HTTP Basic Auth
-    bool webServerAuthEnabled;
-    std::string webServerUsername;
-    std::string webServerPassword;
+    bool webServerAuthEnabled = false;
+    std::string webServerUsername{};
+    std::string webServerPassword{};
 };
 
 /**

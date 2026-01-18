@@ -23,30 +23,42 @@ bool HttpServer::startInternal() {
         return false;
     }
 
+    bool allRegistered = true;
     for (std::vector<httpd_uri_t>::reference handler : handlers) {
         if (httpd_register_uri_handler(server, &handler) != ESP_OK) {
             LOGGER.error("Failed to register URI handler: {}", handler.uri);
+            allRegistered = false;
         }
+    }
+    if (!allRegistered) {
+        httpd_stop(server);
+        server = nullptr;
+        return false;
     }
 
     LOGGER.info("Started on port {}", config.server_port);
-
     return true;
 }
 
 void HttpServer::stopInternal() {
     LOGGER.info("Stopping server");
     if (server != nullptr) {
-        if (httpd_stop(server) != ESP_OK) {
-        LOGGER.warn("Error while stopping");
+        if (httpd_stop(server) == ESP_OK) {
+            server = nullptr;
+        } else {
+            LOGGER.warn("Error while stopping");
         }
-        server = nullptr;
     }
 }
 
 bool HttpServer::start() {
     auto lock = mutex.asScopedLock();
     lock.lock();
+
+    if (isStarted()) {
+        LOGGER.warn("Already started");
+        return false;
+    }
 
     return startInternal();
 }
@@ -57,6 +69,7 @@ void HttpServer::stop() {
 
     if (!isStarted()) {
         LOGGER.warn("Not started");
+        return;
     }
 
     stopInternal();

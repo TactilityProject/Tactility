@@ -87,16 +87,21 @@ class WebServerSettingsApp final : public App {
     }
 
     static void onSyncAssets(lv_event_t* e) {
-        //auto* app = static_cast<WebServerSettingsApp*>(lv_event_get_user_data(e));
+        auto* app = static_cast<WebServerSettingsApp*>(lv_event_get_user_data(e));
+        auto* btn = static_cast<lv_obj_t*>(lv_event_get_target_obj(e));
+        lv_obj_add_state(btn, LV_STATE_DISABLED);
         LOGGER.info("Manual asset sync triggered");
         
-        // Run sync on main dispatcher (may briefly block UI during file I/O)
-        getMainDispatcher().dispatch([]{ 
+        getMainDispatcher().dispatch([app, btn]{ 
             bool success = service::webserver::syncAssets();
             if (success) {
                 LOGGER.info("Asset sync completed successfully");
             } else {
                 LOGGER.error("Asset sync failed");
+            }
+            // Only re-enable if button still exists (user hasn't navigated away)
+            if (lv_obj_is_valid(btn)) {
+                lv_obj_remove_state(btn, LV_STATE_DISABLED);
             }
         });
     }
@@ -191,7 +196,7 @@ public:
         lv_textarea_set_max_length(textAreaApPassword, 64);
         lv_textarea_set_password_mode(textAreaApPassword, true);
         lv_textarea_set_text(textAreaApPassword, wsSettings.apPassword.c_str());
-        lv_obj_add_event_cb(textAreaApPassword, onCredentialChanged, LV_EVENT_VALUE_CHANGED, this);
+        lv_obj_add_event_cb(textAreaApPassword, onApPasswordChanged, LV_EVENT_VALUE_CHANGED, this);
 
         // Web Server Enable toggle
         auto* ws_enable_wrapper = lv_obj_create(main_wrapper);
@@ -324,7 +329,9 @@ public:
 
             getMainDispatcher().dispatch([copy, wifiChanged, webServerChanged]{
                 // Save to flash (fast, low memory pressure)
-                settings::webserver::save(copy);
+                if (!settings::webserver::save(copy)) {
+                    LOGGER.warn("Failed to persist WebServer settings; changes may be lost on reboot");
+                }
 
                 // Publish event immediately after save so WebServer cache refreshes BEFORE requests arrive
                 kernel::publishSystemEvent(kernel::SystemEvent::WebServerSettingsChanged);

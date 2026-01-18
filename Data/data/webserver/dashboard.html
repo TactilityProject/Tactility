@@ -311,16 +311,16 @@
         }
 
         /* Status message */
-        #status {
+        .status {
             padding: 12px 15px;
             border-radius: 8px;
             margin-bottom: 15px;
             display: none;
         }
-        #status.show { display: block; }
-        #status.error { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
-        #status.success { background: rgba(39, 174, 96, 0.2); color: #2ecc71; }
-        #status.info { background: rgba(52, 152, 219, 0.2); color: #3498db; }
+        .status.show { display: block; }
+        .status.error { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+        .status.success { background: rgba(39, 174, 96, 0.2); color: #2ecc71; }
+        .status.info { background: rgba(52, 152, 219, 0.2); color: #3498db; }
 
         footer {
             text-align: center;
@@ -397,7 +397,7 @@
             <div class="upload-zone" id="uploadZone">
                 <p>Drag & drop an .app file here, or click to select</p>
                 <button class="btn btn-primary" onclick="document.getElementById('appFileInput').click()">Select App File</button>
-                <input type="file" id="appFileInput" accept=".app,.tar" />
+                <input type="file" id="appFileInput" accept=".app" />
             </div>
             <div class="card">
                 <h2>Installed Apps</h2>
@@ -651,10 +651,12 @@ async function loadWifiStatus() {
             'off': 'bad'
         };
 
+        const capitalize = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+
         wifiContent.innerHTML = `
             <div class="stat">
                 <span class="stat-label">Status</span>
-                <span class="stat-value ${stateColors[data.state] || ''}">${escapeHtml(data.state)}</span>
+                <span class="stat-value ${stateColors[data.state] || ''}">${escapeHtml(capitalize(data.state))}</span>
             </div>
             ${data.ssid ? `<div class="stat">
                 <span class="stat-label">Network</span>
@@ -760,25 +762,40 @@ const upBtn = document.getElementById('upBtn');
 function setFilesStatus(msg, type) {
     const el = document.getElementById('files-status');
     el.textContent = msg;
-    el.className = type ? 'show ' + type : '';
+    el.className = 'status' + (type ? ' show ' + type : '');
     if (type !== 'error') setTimeout(() => el.className = '', 3000);
 }
 
 function updateBreadcrumb(path) {
     const parts = path.split('/').filter(Boolean);
-    let html = '<a href="#" onclick="navigateTo(\'/\');return false;">Root</a>';
+    breadcrumbEl.innerHTML = '';
+    const rootLink = document.createElement('a');
+    rootLink.href = '#';
+    rootLink.textContent = 'Root';
+    rootLink.addEventListener('click', e => { e.preventDefault(); navigateTo('/'); });
+    breadcrumbEl.appendChild(rootLink);
+
     let cumulative = '';
     parts.forEach((p, i) => {
         cumulative += '/' + p;
         const cp = cumulative;
-        html += '<span>/</span>';
+
+        const sep = document.createElement('span');
+        sep.textContent = '/';
+        breadcrumbEl.appendChild(sep);
+
         if (i === parts.length - 1) {
-            html += '<strong>' + escapeHtml(p) + '</strong>';
+            const strong = document.createElement('strong');
+            strong.textContent = p;
+            breadcrumbEl.appendChild(strong);
         } else {
-            html += `<a href="#" onclick="navigateTo('${cp}');return false;">${escapeHtml(p)}</a>`;
+            const link = document.createElement('a');
+            link.href = '#';
+            link.textContent = p;
+            link.addEventListener('click', e => { e.preventDefault(); navigateTo(cp); });
+            breadcrumbEl.appendChild(link);
         }
     });
-    breadcrumbEl.innerHTML = html;
 }
 
 function updateSelection() {
@@ -985,7 +1002,7 @@ const appListEl = document.getElementById('app-list');
 function setAppsStatus(msg, type) {
     const el = document.getElementById('apps-status');
     el.textContent = msg;
-    el.className = type ? 'show ' + type : '';
+    el.className = 'status' + (type ? ' show ' + type : '');
     if (type !== 'error') setTimeout(() => el.className = '', 3000);
 }
 
@@ -1085,8 +1102,10 @@ uploadZone.addEventListener('drop', async e => {
     e.preventDefault();
     uploadZone.classList.remove('dragover');
     const files = e.dataTransfer.files;
-    if (files.length > 0) {
+    if (files.length > 0 && files[0].name.toLowerCase().endsWith('.app')) {
         await installAppFile(files[0]);
+    } else if (files.length > 0) {
+        setAppsStatus('Only .app files are supported', 'error');
     }
 });
 
@@ -1101,7 +1120,7 @@ async function installAppFile(file) {
     setAppsStatus('Installing ' + file.name + '...', 'info');
 
     const formData = new FormData();
-    formData.append('elf', file, file.name);
+    formData.append('file', file, file.name);
 
     try {
         const r = await fetch('/api/apps/install', {

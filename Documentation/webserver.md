@@ -24,7 +24,7 @@ When enabled, a statusbar icon appears indicating the server mode (AP or Station
 
 Once enabled, access the dashboard by navigating to the device's IP address in a web browser:
 
-```
+```text
 http://<device-ip>/
 ```
 
@@ -405,7 +405,7 @@ bool success = tt::service::webserver::syncAssets();
 
 ### Directory Structure
 
-```
+```text
 /data/webserver/
 ├── version.json          # Version tracking
 ├── dashboard.html        # Main dashboard UI
@@ -427,6 +427,14 @@ To update web assets with a new version:
 4. The sync system will detect the newer SD version and copy to Data
 
 ## Security Considerations
+
+> **⚠️ Security Warning**: The WebServer is unauthenticated by default, allowing anyone on the network to:
+> - Upload, download, and delete files
+> - Install and uninstall applications  
+> - Reboot the device
+> - Capture screenshots
+>
+> **Strongly recommended**: Enable HTTP Basic Authentication in Settings > Web Server before exposing the device to untrusted networks.
 
 - **Authentication**: Optional HTTP Basic Authentication can be enabled in Settings > Web Server
 - When authentication is disabled, anyone on the network can access the WebServer

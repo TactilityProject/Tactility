@@ -111,7 +111,7 @@ namespace app {
     namespace webserversettings { extern const AppManifest manifest; }
 #endif
 #if TT_FEATURE_SCREENSHOT_ENABLED
-        namespace screenshot { extern const AppManifest manifest; }
+    namespace screenshot { extern const AppManifest manifest; }
 #endif
 #ifdef ESP_PLATFORM
     namespace crashdiagnostics { extern const AppManifest manifest; }

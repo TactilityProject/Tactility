@@ -30,7 +30,6 @@ private:
     
     // Core HTML endpoints (hardcoded in firmware)
     static esp_err_t handleRoot(httpd_req_t* request);
-    static esp_err_t handleUpload(httpd_req_t* request);
     static esp_err_t handleSync(httpd_req_t* request);
     static esp_err_t handleReboot(httpd_req_t* request);
     

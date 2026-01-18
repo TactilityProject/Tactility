@@ -3,6 +3,7 @@
 #include <Tactility/file/File.h>
 #include <Tactility/Logger.h>
 
+#include <charconv>
 #include <map>
 #include <string>
 
@@ -69,11 +70,20 @@ bool load(WebServerSettings& settings) {
         ? WiFiMode::AccessPoint
         : WiFiMode::Station;
 
+    auto parseInt = [](const std::string& value, int min, int max, int fallback) -> int {
+        int v = 0;
+        auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), v);
+        if (ec != std::errc{} || v < min || v > max) {
+            return fallback;
+        }
+        return v;
+    };
+
     // AP mode settings
     settings.apSsid = (ap_ssid != map.end()) ? ap_ssid->second : generateDefaultApSsid();
     settings.apPassword = (ap_password != map.end()) ? ap_password->second : "tactility";
     settings.apChannel = (ap_channel != map.end())
-        ? static_cast<uint8_t>(std::stoi(ap_channel->second))
+        ? static_cast<uint8_t>(parseInt(ap_channel->second, 1, 13, 1))
         : 1;
 
     // Web server settings
@@ -82,7 +92,7 @@ bool load(WebServerSettings& settings) {
         : false;
 
     settings.webServerPort = (webserver_port != map.end())
-        ? static_cast<uint16_t>(std::stoi(webserver_port->second))
+        ? static_cast<uint16_t>(parseInt(webserver_port->second, 1, 65535, 80))
         : 80;
 
     // Web server auth settings
