@@ -1497,6 +1497,8 @@ esp_err_t WebServerService::handleReboot(httpd_req_t* request) {
     // Reboot after a short delay to allow response to be sent
     vTaskDelay(pdMS_TO_TICKS(1000));
     esp_restart();
+
+    return ESP_OK; // Unreachable, but satisfies function signature
 }
 
 esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
@@ -1525,7 +1527,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
     
     // Try to serve from Data partition first
     if (file::isFile(dataPath.c_str())) {
-        httpd_resp_set_type(request, getContentType(uri));
+        httpd_resp_set_type(request, getContentType(dataPath));
         
         // Read and send file using standard C FILE* operations
         auto lock = file::getLock(dataPath);
@@ -1555,7 +1557,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
     // Fallback to SD card
     std::string sdPath = std::string("/sdcard/.tactility/webserver") + requestedPath;
     if (file::isFile(sdPath.c_str())) {
-        httpd_resp_set_type(request, getContentType(uri));
+        httpd_resp_set_type(request, getContentType(sdPath));
         
         auto lock = file::getLock(sdPath);
         lock->lock(portMAX_DELAY);

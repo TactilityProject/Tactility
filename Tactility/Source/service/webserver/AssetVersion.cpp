@@ -1,3 +1,5 @@
+#ifdef ESP_PLATFORM
+
 #include <Tactility/service/webserver/AssetVersion.h>
 
 #include <Tactility/file/File.h>
@@ -390,3 +392,5 @@ bool syncAssets() {
 }
 
 } // namespace
+
+#endif

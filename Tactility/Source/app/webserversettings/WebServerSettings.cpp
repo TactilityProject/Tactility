@@ -46,7 +46,6 @@ class WebServerSettingsApp final : public App {
             app->wsSettings.wifiMode = static_cast<settings::webserver::WiFiMode>(index);
             app->updated = true;
             app->wifiSettingsChanged = true;
-            app->webServerEnabledChanged = true;
             app->updateUrlDisplay();
         });
     }
