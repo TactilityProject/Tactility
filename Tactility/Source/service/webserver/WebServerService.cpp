@@ -37,6 +37,7 @@
 #include <esp_vfs_fat.h>
 #include <esp_flash.h>
 #include <sstream>
+#include <atomic>
 #include <cerrno>
 #include <cstring>
 #include <iomanip>
@@ -75,8 +76,8 @@ static Mutex g_settingsMutex;
 static settings::webserver::WebServerSettings g_cachedSettings;
 static bool g_settingsCached = false;
 
-// Global instance pointer for controlling the service
-static WebServerService* g_webServerInstance = nullptr;
+// Global instance pointer for controlling the service (atomic to prevent TOCTOU races)
+static std::atomic<WebServerService*> g_webServerInstance{nullptr};
 
 constexpr int MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10 MB limit
 
@@ -172,14 +173,6 @@ static esp_err_t validateRequestAuth(httpd_req_t* request, bool& authPassed) {
     std::string password = decoded.substr(colon_pos + 1);
 
     // Validate against cached settings
-    // Copy settings under lock to avoid race with settings update callback
-    settings::webserver::WebServerSettings settings;
-    {
-        auto lock = g_settingsMutex.asScopedLock();
-        lock.lock();
-        settings = g_cachedSettings;
-    }
-
     bool usernameMatch = secureCompare(username, settings.webServerUsername);
     bool passwordMatch = secureCompare(password, settings.webServerPassword);
     if (!usernameMatch || !passwordMatch) {
@@ -195,7 +188,7 @@ bool WebServerService::onStart(ServiceContext& service) {
     LOGGER.info("Starting WebServer service...");
 
     // Register global instance
-    g_webServerInstance = this;
+    g_webServerInstance.store(this);
 
     // Create statusbar icon (hidden initially, shown when server actually starts)
     statusbarIconId = lvgl::statusbar_icon_add();
@@ -207,11 +200,13 @@ bool WebServerService::onStart(ServiceContext& service) {
     }
 
     // Load and cache settings once at boot
+    bool serverEnabled;
     {
         auto lock = g_settingsMutex.asScopedLock();
         lock.lock();
         g_cachedSettings = settings::webserver::loadOrGetDefault();
         g_settingsCached = true;
+        serverEnabled = g_cachedSettings.webServerEnabled;
     }
     // Subscribe to settings change events to refresh cache
     settingsEventSubscription = kernel::subscribeSystemEvent(
@@ -225,7 +220,7 @@ bool WebServerService::onStart(ServiceContext& service) {
     );
 
     // Start HTTP server only if enabled in settings (default: OFF to save memory)
-    if (g_cachedSettings.webServerEnabled) {
+    if (serverEnabled) {
         LOGGER.info("WebServer enabled in settings, starting HTTP server...");
         setEnabled(true);
     } else {
@@ -237,7 +232,7 @@ bool WebServerService::onStart(ServiceContext& service) {
 }
 
 void WebServerService::onStop(ServiceContext& service) {
-    g_webServerInstance = nullptr;
+    g_webServerInstance.store(nullptr);
 
     if (settingsEventSubscription != 0) {
         kernel::unsubscribeSystemEvent(settingsEventSubscription);
@@ -726,10 +721,15 @@ esp_err_t WebServerService::handleFsUpload(httpd_req_t* request) {
         httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "invalid path");
         return ESP_FAIL;
     }
-    // Ensure parent directory exists
-    file::findOrCreateParentDirectory(norm, 0755);
+
     if (request->content_len > MAX_UPLOAD_SIZE) {
         httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "file too large");
+        return ESP_FAIL;
+    }
+
+    // Ensure parent directory exists (after size check to avoid creating dirs for rejected uploads)
+    if (!file::findOrCreateParentDirectory(norm, 0755)) {
+        httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "failed to create parent directory");
         return ESP_FAIL;
     }
     FILE* fp = fopen(norm.c_str(), "wb");
@@ -1633,8 +1633,9 @@ extern const ServiceManifest manifest = {
 };
 
 void setWebServerEnabled(bool enabled) {
-    if (g_webServerInstance != nullptr) {
-        g_webServerInstance->setEnabled(enabled);
+    WebServerService* instance = g_webServerInstance.load();
+    if (instance != nullptr) {
+        instance->setEnabled(enabled);
         // Don't log here - startServer()/stopServer() already log the actual result
     } else {
         LOGGER.warn("WebServer service not available, cannot {}", enabled ? "start" : "stop");
