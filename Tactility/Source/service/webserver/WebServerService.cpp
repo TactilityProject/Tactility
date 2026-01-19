@@ -1198,7 +1198,16 @@ esp_err_t WebServerService::handleApiSysinfo(httpd_req_t* request) {
 
     // Task count
     UBaseType_t task_count = uxTaskGetNumberOfTasks();
-    json << "\"task_count\":" << task_count;
+    json << "\"task_count\":" << task_count << ",";
+
+    // Feature flags
+    json << "\"features_enabled\":{";
+#if TT_FEATURE_SCREENSHOT_ENABLED
+    json << "\"screenshot\":true";
+#else
+    json << "\"screenshot\":false";
+#endif
+    json << "}";
 
     json << "}";
 

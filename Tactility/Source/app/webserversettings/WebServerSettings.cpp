@@ -192,7 +192,14 @@ public:
         lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-        lvgl::toolbar_create(parent, app);
+        lv_obj_t* toolbar = lvgl::toolbar_create(parent, app);
+
+        // Web Server Enable toggle
+        switchWebServerEnabled = lvgl::toolbar_add_switch_action(toolbar);
+        if (wsSettings.webServerEnabled) {
+            lv_obj_add_state(switchWebServerEnabled, LV_STATE_CHECKED);
+        }
+        lv_obj_add_event_cb(switchWebServerEnabled, onWebServerEnabledSwitch, LV_EVENT_VALUE_CHANGED, this);
 
         auto* main_wrapper = lv_obj_create(parent);
         lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
@@ -235,7 +242,7 @@ public:
         lv_label_set_text(ap_pass_label, "AP Password");
         lv_obj_align(ap_pass_label, LV_ALIGN_LEFT_MID, 0, 0);
         textAreaApPassword = lv_textarea_create(ap_pass_wrapper);
-        lv_obj_set_width(textAreaApPassword, 180);
+        lv_obj_set_width(textAreaApPassword, 120);
         lv_obj_align(textAreaApPassword, LV_ALIGN_RIGHT_MID, 0, 0);
         lv_textarea_set_one_line(textAreaApPassword, true);
         lv_textarea_set_max_length(textAreaApPassword, 64);
@@ -247,19 +254,6 @@ public:
             lv_obj_add_state(textAreaApPassword, LV_STATE_DISABLED);
             lv_obj_remove_flag(textAreaApPassword, LV_OBJ_FLAG_CLICKABLE);
         }
-
-        // Web Server Enable toggle
-        auto* ws_enable_wrapper = lv_obj_create(main_wrapper);
-        lv_obj_set_size(ws_enable_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(ws_enable_wrapper, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(ws_enable_wrapper, 0, LV_STATE_DEFAULT);
-        auto* ws_enable_label = lv_label_create(ws_enable_wrapper);
-        lv_label_set_text(ws_enable_label, "Web Server Enabled");
-        lv_obj_align(ws_enable_label, LV_ALIGN_LEFT_MID, 0, 0);
-        switchWebServerEnabled = lv_switch_create(ws_enable_wrapper);
-        if (wsSettings.webServerEnabled) lv_obj_add_state(switchWebServerEnabled, LV_STATE_CHECKED);
-        lv_obj_align(switchWebServerEnabled, LV_ALIGN_RIGHT_MID, 0, 0);
-        lv_obj_add_event_cb(switchWebServerEnabled, onWebServerEnabledSwitch, LV_EVENT_VALUE_CHANGED, this);
 
         // Web Server Authentication Enable toggle
         auto* ws_auth_wrapper = lv_obj_create(main_wrapper);
@@ -283,7 +277,7 @@ public:
         lv_label_set_text(ws_user_label, "Username");
         lv_obj_align(ws_user_label, LV_ALIGN_LEFT_MID, 0, 0);
         textAreaWebServerUsername = lv_textarea_create(ws_user_wrapper);
-        lv_obj_set_width(textAreaWebServerUsername, 180);
+        lv_obj_set_width(textAreaWebServerUsername, 120);
         lv_obj_align(textAreaWebServerUsername, LV_ALIGN_RIGHT_MID, 0, 0);
         lv_textarea_set_one_line(textAreaWebServerUsername, true);
         lv_textarea_set_max_length(textAreaWebServerUsername, 32);
@@ -299,7 +293,7 @@ public:
         lv_label_set_text(ws_pass_label, "Password");
         lv_obj_align(ws_pass_label, LV_ALIGN_LEFT_MID, 0, 0);
         textAreaWebServerPassword = lv_textarea_create(ws_pass_wrapper);
-        lv_obj_set_width(textAreaWebServerPassword, 180);
+        lv_obj_set_width(textAreaWebServerPassword, 120);
         lv_obj_align(textAreaWebServerPassword, LV_ALIGN_RIGHT_MID, 0, 0);
         lv_textarea_set_one_line(textAreaWebServerPassword, true);
         lv_textarea_set_max_length(textAreaWebServerPassword, 64);

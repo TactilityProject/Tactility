@@ -608,7 +608,7 @@ function renderDashboard(data) {
                 <div class="actions">
                     <button class="btn btn-primary" onclick="syncAssets(this)">Sync Assets</button>
                     <button class="btn btn-secondary" onclick="location.reload()">Refresh</button>
-                    <button class="btn btn-secondary" onclick="captureScreenshot(this)">Screenshot</button>
+                    ${data.features_enabled?.screenshot ? '<button class="btn btn-secondary" onclick="captureScreenshot(this)">Screenshot</button>' : ''}
                     <button class="btn btn-danger" onclick="rebootDevice(this)">Reboot</button>
                 </div>
                 <div id="actionStatus" style="margin-top: 15px; font-size: 0.9em;"></div>
