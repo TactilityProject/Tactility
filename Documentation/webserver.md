@@ -8,7 +8,7 @@ The WebServer service provides a built-in HTTP server for remote device manageme
 - **File Browser**: Navigate, upload, download, rename, and delete files on internal storage and SD card
 - **App Management**: List installed apps, run apps remotely, install/uninstall external apps
 - **WiFi Status**: View current WiFi connection details
-- **Screenshot Capture**: Capture the current display as a PNG image
+- **Screenshot Capture**: Capture the current display as a PNG
 - **System Controls**: Sync assets, reboot device
 
 ## Enabling the WebServer
@@ -27,6 +27,8 @@ Once enabled, access the dashboard by navigating to the device's IP address in a
 ```text
 http://<device-ip>/
 ```
+
+**Access Point Mode:** When using AP mode, connect to the device's WiFi network (SSID shown in settings, default `Tactility-XXXX`) and navigate to `http://192.168.4.1/`
 
 The root URL redirects to `/dashboard.html` which provides a tabbed interface for all features.
 
@@ -112,9 +114,9 @@ Returns current WiFi connection status.
 
 #### GET /api/screenshot
 
-Captures the current display and returns a PNG image. The screenshot is also saved to storage with an incrementing filename.
+Captures the current display and returns a PNG. The screenshot is also saved to storage with an incrementing filename.
 
-**Response:** PNG image data (`image/png`)
+**Response:** PNG data (`image/png`)
 
 **Save Location:**
 - SD card root (if mounted): `/sdcard/webscreenshot1.png`, `/sdcard/webscreenshot2.png`, etc.
@@ -430,7 +432,7 @@ To update web assets with a new version:
 
 > **⚠️ Security Warning**: The WebServer is unauthenticated by default, allowing anyone on the network to:
 > - Upload, download, and delete files
-> - Install and uninstall applications  
+> - Install and uninstall applications
 > - Reboot the device
 > - Capture screenshots
 >
@@ -438,6 +440,11 @@ To update web assets with a new version:
 
 - **Authentication**: Optional HTTP Basic Authentication can be enabled in Settings > Web Server
 - When authentication is disabled, anyone on the network can access the WebServer
+- **Automatic credential generation**: Credentials are automatically generated when insecure:
+  - **AP Password**: Generated when empty or set to legacy default "tactility"
+  - **HTTP Auth**: Generated when auth is enabled but username/password are empty or "admin"
+  - Generated credentials are 12 alphanumeric characters (~71 bits of entropy) and persisted immediately
+  - Check Settings > Web Server to view the generated credentials
 - File operations are restricted to `/data` and `/sdcard` paths
 - Path traversal attacks are blocked (e.g., `../` is rejected)
 - Mount points cannot be deleted
@@ -450,11 +457,13 @@ Settings are stored in the WebServer settings file and can be configured via **S
 | Setting | Description | Default |
 |---------|-------------|---------|
 | WiFi Mode | Station (connect to existing network) or Access Point (create own network) | Station |
-| AP Password | Password for Access Point mode | - |
+| AP Password | Password for Access Point mode (WPA2, 8-63 chars) | Auto-generated |
 | Web Server Enabled | Whether the HTTP server is running | Disabled |
 | Require Authentication | Enable HTTP Basic Authentication | Disabled |
-| Username | Authentication username (when auth enabled) | - |
-| Password | Authentication password (when auth enabled) | - |
+| Username | Authentication username (when auth enabled) | Auto-generated |
+| Password | Authentication password (when auth enabled) | Auto-generated |
+
+**Note:** The system automatically generates secure credentials when they are empty or set to insecure defaults. Generated credentials are 12-character alphanumeric strings with ~71 bits of entropy. See **Security Considerations** for details.
 
 **Note:** WiFi Station credentials are managed separately via the WiFi settings menu.
 

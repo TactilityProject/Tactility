@@ -57,7 +57,7 @@ bool HttpServer::start() {
 
     if (isStarted()) {
         LOGGER.warn("Already started");
-        return false;
+        return true;
     }
 
     return startInternal();

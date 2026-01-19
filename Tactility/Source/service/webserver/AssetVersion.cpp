@@ -8,7 +8,7 @@
 #include <cJSON.h>
 #include <cstdio>
 #include <cstring>
-#include <sstream>
+#include <format>
 #include <esp_random.h>
 
 namespace tt::service::webserver {
@@ -200,8 +200,8 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
             return;
         }
         
-        std::string srcPath = std::string(src) + "/" + entry.d_name;
-        std::string dstPath = std::string(dst) + "/" + entry.d_name;
+        std::string srcPath = file::getChildPath(src, entry.d_name);
+        std::string dstPath = file::getChildPath(dst, entry.d_name);
         
         if (entry.d_type == file::TT_DT_DIR) {
             // Recursively copy subdirectory
@@ -214,8 +214,7 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
             lock->lock(portMAX_DELAY);
 
             // Generate unique temp file path
-            uint32_t randomId = esp_random();
-            std::string tempPath = dstPath + ".tmp." + std::to_string(randomId);
+            std::string tempPath = std::format("{}.tmp.{}", dstPath, esp_random());
 
             FILE* srcFile = fopen(srcPath.c_str(), "rb");
             if (!srcFile) {

@@ -10,6 +10,9 @@
 #ifdef ESP_PLATFORM
 #include <esp_mac.h>
 #include <esp_wifi.h>
+#include <esp_random.h>
+#else
+#include <random>
 #endif
 
 namespace tt::settings::webserver {
@@ -41,6 +44,44 @@ std::string generateDefaultApSsid() {
 #else
     return "Tactility-0000";
 #endif
+}
+
+/**
+ * @brief Generate a cryptographically secure random string for credentials
+ * @param length The desired length of the string
+ * @return A random alphanumeric string
+ */
+static std::string generateRandomCredential(size_t length) {
+    static constexpr char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    static constexpr size_t charsetSize = sizeof(charset) - 1;
+
+    std::string result;
+    result.reserve(length);
+
+#ifdef ESP_PLATFORM
+    for (size_t i = 0; i < length; ++i) {
+        uint32_t randomValue = esp_random();
+        result += charset[randomValue % charsetSize];
+    }
+#else
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, charsetSize - 1);
+    for (size_t i = 0; i < length; ++i) {
+        result += charset[dis(gen)];
+    }
+#endif
+
+    return result;
+}
+
+/**
+ * @brief Check if a credential value is insecure (empty or the old "admin" default)
+ * @param value The credential value to check
+ * @return true if the credential is considered insecure
+ */
+static bool isInsecureCredential(const std::string& value) {
+    return value.empty() || value == "admin" || value == "tactility";
 }
 
 bool load(WebServerSettings& settings) {
@@ -80,11 +121,31 @@ bool load(WebServerSettings& settings) {
     };
 
     // AP mode settings
-    settings.apSsid = (ap_ssid != map.end()) ? ap_ssid->second : generateDefaultApSsid();
-    settings.apPassword = (ap_password != map.end()) ? ap_password->second : "tactility";
+    settings.apSsid = (ap_ssid != map.end() && !ap_ssid->second.empty())
+        ? ap_ssid->second
+        : generateDefaultApSsid();
+    settings.apPassword = (ap_password != map.end()) ? ap_password->second : "";
     settings.apChannel = (ap_channel != map.end())
         ? static_cast<uint8_t>(parseInt(ap_channel->second, 1, 13, 1))
         : 1;
+
+    // Security: If AP password is insecure (empty or the old "tactility" default),
+    // generate a strong random password and persist it immediately
+    if (isInsecureCredential(settings.apPassword)) {
+        LOGGER.warn("AP password is insecure - generating secure random password");
+
+        // Generate 12-character random password (alphanumeric, ~71 bits of entropy)
+        // WPA2 requires 8-63 characters, so 12 is well within range
+        settings.apPassword = generateRandomCredential(12);
+
+        // Persist the generated password immediately
+        map[KEY_AP_PASSWORD] = settings.apPassword;
+        if (file::savePropertiesFile(SETTINGS_FILE, map)) {
+            LOGGER.info("Generated and saved new secure AP password");
+        } else {
+            LOGGER.error("Failed to save generated AP password");
+        }
+    }
 
     // Web server settings
     settings.webServerEnabled = (webserver_enabled != map.end())
@@ -100,8 +161,31 @@ bool load(WebServerSettings& settings) {
         ? (webserver_auth_enabled->second == "1" || webserver_auth_enabled->second == "true")
         : false;
 
-    settings.webServerUsername = (webserver_username != map.end()) ? webserver_username->second : "admin";
-    settings.webServerPassword = (webserver_password != map.end()) ? webserver_password->second : "admin";
+    // Load credentials from file, defaulting to empty if not present
+    settings.webServerUsername = (webserver_username != map.end()) ? webserver_username->second : "";
+    settings.webServerPassword = (webserver_password != map.end()) ? webserver_password->second : "";
+
+    // Security: If auth is enabled but credentials are insecure (empty or "admin"),
+    // generate strong random credentials and persist them immediately
+    if (settings.webServerAuthEnabled &&
+        (isInsecureCredential(settings.webServerUsername) || isInsecureCredential(settings.webServerPassword))) {
+
+        LOGGER.warn("Auth enabled with insecure credentials - generating secure random credentials");
+
+        // Generate 12-character random credentials (alphanumeric, ~71 bits of entropy each)
+        settings.webServerUsername = generateRandomCredential(12);
+        settings.webServerPassword = generateRandomCredential(12);
+
+        // Persist the generated credentials immediately
+        // We need to save these to the file so they're consistent across reboots
+        map[KEY_WEBSERVER_USERNAME] = settings.webServerUsername;
+        map[KEY_WEBSERVER_PASSWORD] = settings.webServerPassword;
+        if (file::savePropertiesFile(SETTINGS_FILE, map)) {
+            LOGGER.info("Generated and saved new secure credentials");
+        } else {
+            LOGGER.error("Failed to save generated credentials - auth may be inconsistent across reboots");
+        }
+    }
 
     return true;
 }
@@ -111,13 +195,13 @@ WebServerSettings getDefault() {
         .wifiEnabled = false,  // Default WiFi OFF
         .wifiMode = WiFiMode::Station,
         .apSsid = generateDefaultApSsid(),
-        .apPassword = "tactility",
+        .apPassword = "",  // Empty - will be auto-generated on first use
         .apChannel = 1,
         .webServerEnabled = false,  // Default WebServer OFF for security
         .webServerPort = 80,
-        .webServerAuthEnabled = false,
-        .webServerUsername = "admin",
-        .webServerPassword = "admin"
+        .webServerAuthEnabled = false,  // Auth disabled by default
+        .webServerUsername = "",  // Empty - will be generated if auth is enabled
+        .webServerPassword = ""   // Empty - will be generated if auth is enabled
     };
 }
 

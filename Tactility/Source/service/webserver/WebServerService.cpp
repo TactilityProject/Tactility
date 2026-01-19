@@ -36,6 +36,11 @@
 #include <esp_chip_info.h>
 #include <esp_vfs_fat.h>
 #include <esp_flash.h>
+#include <esp_wifi.h>
+#include <esp_netif.h>
+#include <lwip/ip4_addr.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <sstream>
 #include <atomic>
 #include <cerrno>
@@ -278,6 +283,139 @@ bool WebServerService::isEnabled() const {
     return httpServer && httpServer->isStarted();
 }
 
+// region AP Mode WiFi Management
+
+bool WebServerService::startApMode() {
+    // Copy settings locally
+    settings::webserver::WebServerSettings settings;
+    {
+        auto lock = g_settingsMutex.asScopedLock();
+        lock.lock();
+        settings = g_cachedSettings;
+    }
+
+    if (settings.wifiMode != settings::webserver::WiFiMode::AccessPoint) {
+        LOGGER.info("Not in AP mode, skipping AP WiFi initialization");
+        return true;  // Not an error, just not needed
+    }
+
+    LOGGER.info("Starting WiFi in Access Point mode...");
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    if (esp_wifi_init(&cfg) != ESP_OK) {
+        LOGGER.error("esp_wifi_init() failed");
+        return false;
+    }
+    apWifiInitialized = true;
+
+    // Create the AP network interface
+    apNetif = esp_netif_create_default_wifi_ap();
+    if (apNetif == nullptr) {
+        LOGGER.error("esp_netif_create_default_wifi_ap() failed");
+        esp_wifi_deinit();
+        apWifiInitialized = false;
+        return false;
+    }
+
+    if (esp_wifi_set_mode(WIFI_MODE_AP) != ESP_OK) {
+        LOGGER.error("esp_wifi_set_mode(AP) failed");
+        stopApMode();
+        return false;
+    }
+
+    // Configure static IP for AP: 192.168.4.1/24
+    esp_netif_ip_info_t ip_info;
+    memset(&ip_info, 0, sizeof(esp_netif_ip_info_t));
+    ip_info.ip.addr = ipaddr_addr("192.168.4.1");
+    ip_info.gw.addr = ipaddr_addr("192.168.4.1");
+    ip_info.netmask.addr = ipaddr_addr("255.255.255.0");
+
+    if (esp_netif_dhcps_stop(apNetif) != ESP_OK) {
+        LOGGER.error("esp_netif_dhcps_stop() failed");
+        stopApMode();
+        return false;
+    }
+
+    if (esp_netif_set_ip_info(apNetif, &ip_info) != ESP_OK) {
+        LOGGER.error("esp_netif_set_ip_info() failed");
+        stopApMode();
+        return false;
+    }
+
+    if (esp_netif_dhcps_start(apNetif) != ESP_OK) {
+        LOGGER.error("esp_netif_dhcps_start() failed");
+        stopApMode();
+        return false;
+    }
+
+    // Configure WiFi AP settings
+    wifi_config_t wifi_config;
+    memset(&wifi_config, 0, sizeof(wifi_config_t));
+
+    // Set SSID
+    strncpy(reinterpret_cast<char*>(wifi_config.ap.ssid), settings.apSsid.c_str(), sizeof(wifi_config.ap.ssid) - 1);
+    wifi_config.ap.ssid[sizeof(wifi_config.ap.ssid) - 1] = '\0';
+    wifi_config.ap.ssid_len = static_cast<uint8_t>(settings.apSsid.length());
+
+    // Set password and auth mode
+    if (settings.apPassword.length() >= 8 && settings.apPassword.length() <= 63) {
+        wifi_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
+        strncpy(reinterpret_cast<char*>(wifi_config.ap.password), settings.apPassword.c_str(), sizeof(wifi_config.ap.password) - 1);
+        wifi_config.ap.password[sizeof(wifi_config.ap.password) - 1] = '\0';
+        LOGGER.info("AP configured with WPA2-PSK authentication");
+    } else {
+        if (!settings.apPassword.empty()) {
+            LOGGER.warn("AP password invalid (must be 8-63 chars, got {}) - using OPEN mode", settings.apPassword.length());
+        }
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+        LOGGER.warn("AP configured with OPEN authentication (no password)");
+    }
+
+    wifi_config.ap.max_connection = 4;
+    wifi_config.ap.channel = settings.apChannel;
+
+    if (esp_wifi_set_config(WIFI_IF_AP, &wifi_config) != ESP_OK) {
+        LOGGER.error("esp_wifi_set_config(AP) failed");
+        stopApMode();
+        return false;
+    }
+
+    if (esp_wifi_start() != ESP_OK) {
+        LOGGER.error("esp_wifi_start() failed");
+        stopApMode();
+        return false;
+    }
+
+    LOGGER.info("WiFi AP started - SSID: '{}', Channel: {}, IP: 192.168.4.1", settings.apSsid, settings.apChannel);
+    return true;
+}
+
+void WebServerService::stopApMode() {
+    if (apWifiInitialized) {
+        esp_err_t err;
+        err = esp_wifi_stop();
+        if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_STARTED) {
+            LOGGER.warn("esp_wifi_stop() in cleanup: {}", esp_err_to_name(err));
+        }
+        LOGGER.info("WiFi AP stopped");
+
+        err = esp_wifi_set_mode(WIFI_MODE_APSTA);
+        if (err != ESP_OK) {
+            LOGGER.warn("esp_wifi_set_mode() in cleanup: {}", esp_err_to_name(err));
+        }
+        LOGGER.info("Wifi mode set back to STA");
+
+        apWifiInitialized = false;
+    }
+
+    if (apNetif != nullptr) {
+        esp_netif_destroy(apNetif);
+        apNetif = nullptr;
+    }
+}
+
+// endregion
+
 bool WebServerService::startServer() {
     // Copy settings locally to minimize lock duration
     settings::webserver::WebServerSettings settings;
@@ -285,6 +423,14 @@ bool WebServerService::startServer() {
         auto lock = g_settingsMutex.asScopedLock();
         lock.lock();
         settings = g_cachedSettings;
+    }
+
+    // Start AP mode WiFi if configured
+    if (settings.wifiMode == settings::webserver::WiFiMode::AccessPoint) {
+        if (!startApMode()) {
+            LOGGER.error("Failed to start AP mode WiFi - HTTP server will not start");
+            return false;
+        }
     }
 
     // NOTE: If you see 'no slots left for registering handler', increase CONFIG_HTTPD_MAX_URI_HANDLERS in sdkconfig (default is 8, 16+ recommended for many endpoints)
@@ -389,6 +535,11 @@ void WebServerService::stopServer() {
 
     httpServer->stop();
     httpServer.reset();
+
+    // Stop AP mode WiFi if we started it
+    if (apWifiInitialized || apNetif != nullptr) {
+        stopApMode();
+    }
 
     LOGGER.info("HTTP server stopped");
     publish_event(this, WebServerEvent::WebServerStopped);
@@ -773,6 +924,7 @@ esp_err_t WebServerService::handleFsUpload(httpd_req_t* request) {
         size_t written = fwrite(buf, 1, ret, fp);
         if (written != (size_t)ret) {
             fclose(fp);
+            remove(norm.c_str());
             httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "write failed");
             return ESP_FAIL;
         }
@@ -1220,6 +1372,7 @@ esp_err_t WebServerService::handleApiAppsInstall(httpd_req_t* request) {
     auto file_path = std::format("{}/{}", tmp_path, safe_name);
 
     if (network::receiveFile(request, file_size, file_path) != file_size) {
+        file::deleteFile(file_path);
         httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "failed to save file");
         return ESP_FAIL;
     }

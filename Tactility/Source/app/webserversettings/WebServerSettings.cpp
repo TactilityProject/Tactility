@@ -146,11 +146,6 @@ class WebServerSettingsApp final : public App {
 public:
     void onCreate(TT_UNUSED AppContext& app) override {
         wsSettings = settings::webserver::loadOrGetDefault();
-        // Force Station mode until AP mode is fully supported
-        if (wsSettings.wifiMode == settings::webserver::WiFiMode::AccessPoint) {
-            wsSettings.wifiMode = settings::webserver::WiFiMode::Station;
-            updated = true; // Ensure change is persisted
-        }
         originalSettings = wsSettings;
     }
 
@@ -175,7 +170,7 @@ public:
         lv_obj_align(wifi_mode_label, LV_ALIGN_LEFT_MID, 0, 0);
         dropdownWifiMode = lv_dropdown_create(wifi_mode_wrapper);
         lv_obj_align(dropdownWifiMode, LV_ALIGN_RIGHT_MID, 0, 0);
-        lv_dropdown_set_options(dropdownWifiMode, "Station"); //\nAccess Point... might work one day.
+        lv_dropdown_set_options(dropdownWifiMode, "Station\nAccess Point");
         lv_dropdown_set_selected(dropdownWifiMode, static_cast<uint32_t>(wsSettings.wifiMode));
         lv_obj_add_event_cb(dropdownWifiMode, onWifiModeChanged, LV_EVENT_VALUE_CHANGED, this);
 

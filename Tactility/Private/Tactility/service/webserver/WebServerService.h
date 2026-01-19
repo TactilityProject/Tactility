@@ -7,6 +7,7 @@
 #include <Tactility/RecursiveMutex.h>
 
 #include <esp_http_server.h>
+#include <esp_netif.h>
 #include <string>
 
 namespace tt::service::webserver {
@@ -36,6 +37,13 @@ private:
     PubSub<WebServerEvent>::SubscriptionHandle settingsEventSubscription = nullptr;
     std::shared_ptr<PubSub<WebServerEvent>> pubsub = std::make_shared<PubSub<WebServerEvent>>();
     int8_t statusbarIconId = -1;  // Statusbar icon for WebServer state
+
+    // AP mode WiFi management
+    esp_netif_t* apNetif = nullptr;
+    bool apWifiInitialized = false;
+
+    bool startApMode();
+    void stopApMode();
 
     // Core HTML endpoints (hardcoded in firmware)
     static esp_err_t handleRoot(httpd_req_t* request);
