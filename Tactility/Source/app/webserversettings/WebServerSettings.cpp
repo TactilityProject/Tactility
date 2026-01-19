@@ -30,6 +30,7 @@ class WebServerSettingsApp final : public App {
     bool webServerEnabledChanged = false;
     lv_obj_t* dropdownWifiMode = nullptr;
     lv_obj_t* textAreaApPassword = nullptr;
+    lv_obj_t* switchApOpenNetwork = nullptr;
     lv_obj_t* switchWebServerEnabled = nullptr;
     lv_obj_t* switchWebServerAuthEnabled = nullptr;
     lv_obj_t* textAreaWebServerUsername = nullptr;
@@ -63,6 +64,23 @@ class WebServerSettingsApp final : public App {
     static void onWebServerAuthEnabledSwitch(lv_event_t* e) {
         auto* app = static_cast<WebServerSettingsApp*>(lv_event_get_user_data(e));
         bool enabled = lv_obj_has_state(app->switchWebServerAuthEnabled, LV_STATE_CHECKED);
+
+        if (app->textAreaWebServerUsername && app->textAreaWebServerPassword) {
+            if (enabled) {
+                lv_obj_remove_state(app->textAreaWebServerUsername, LV_STATE_DISABLED);
+                lv_obj_add_flag(app->textAreaWebServerUsername, LV_OBJ_FLAG_CLICKABLE);
+
+                lv_obj_remove_state(app->textAreaWebServerPassword, LV_STATE_DISABLED);
+                lv_obj_add_flag(app->textAreaWebServerPassword, LV_OBJ_FLAG_CLICKABLE);
+            } else {
+                lv_obj_add_state(app->textAreaWebServerUsername, LV_STATE_DISABLED);
+                lv_obj_remove_flag(app->textAreaWebServerUsername, LV_OBJ_FLAG_CLICKABLE);
+
+                lv_obj_add_state(app->textAreaWebServerPassword, LV_STATE_DISABLED);
+                lv_obj_remove_flag(app->textAreaWebServerPassword, LV_OBJ_FLAG_CLICKABLE);
+            }
+        }
+
         getMainDispatcher().dispatch([app, enabled] {
             app->wsSettings.webServerAuthEnabled = enabled;
             app->updated = true;
@@ -79,6 +97,27 @@ class WebServerSettingsApp final : public App {
     static void onApPasswordChanged(lv_event_t* e) {
         auto* app = static_cast<WebServerSettingsApp*>(lv_event_get_user_data(e));
         getMainDispatcher().dispatch([app] {
+            app->updated = true;
+            app->wifiSettingsChanged = true;
+        });
+    }
+
+    static void onApOpenNetworkSwitch(lv_event_t* e) {
+        auto* app = static_cast<WebServerSettingsApp*>(lv_event_get_user_data(e));
+        bool openNetwork = lv_obj_has_state(app->switchApOpenNetwork, LV_STATE_CHECKED);
+
+        if (app->textAreaApPassword) {
+            if (openNetwork) {
+                lv_obj_add_state(app->textAreaApPassword, LV_STATE_DISABLED);
+                lv_obj_remove_flag(app->textAreaApPassword, LV_OBJ_FLAG_CLICKABLE);
+            } else {
+                lv_obj_remove_state(app->textAreaApPassword, LV_STATE_DISABLED);
+                lv_obj_add_flag(app->textAreaApPassword, LV_OBJ_FLAG_CLICKABLE);
+            }
+        }
+
+        getMainDispatcher().dispatch([app, openNetwork] {
+            app->wsSettings.apOpenNetwork = openNetwork;
             app->updated = true;
             app->wifiSettingsChanged = true;
         });
@@ -174,6 +213,19 @@ public:
         lv_dropdown_set_selected(dropdownWifiMode, static_cast<uint32_t>(wsSettings.wifiMode));
         lv_obj_add_event_cb(dropdownWifiMode, onWifiModeChanged, LV_EVENT_VALUE_CHANGED, this);
 
+        // AP Open Network toggle
+        auto* ap_open_wrapper = lv_obj_create(main_wrapper);
+        lv_obj_set_size(ap_open_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_all(ap_open_wrapper, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_border_width(ap_open_wrapper, 0, LV_STATE_DEFAULT);
+        auto* ap_open_label = lv_label_create(ap_open_wrapper);
+        lv_label_set_text(ap_open_label, "AP Open Network");
+        lv_obj_align(ap_open_label, LV_ALIGN_LEFT_MID, 0, 0);
+        switchApOpenNetwork = lv_switch_create(ap_open_wrapper);
+        if (wsSettings.apOpenNetwork) lv_obj_add_state(switchApOpenNetwork, LV_STATE_CHECKED);
+        lv_obj_align(switchApOpenNetwork, LV_ALIGN_RIGHT_MID, 0, 0);
+        lv_obj_add_event_cb(switchApOpenNetwork, onApOpenNetworkSwitch, LV_EVENT_VALUE_CHANGED, this);
+
         // AP Password
         auto* ap_pass_wrapper = lv_obj_create(main_wrapper);
         lv_obj_set_size(ap_pass_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
@@ -190,6 +242,11 @@ public:
         lv_textarea_set_password_mode(textAreaApPassword, true);
         lv_textarea_set_text(textAreaApPassword, wsSettings.apPassword.c_str());
         lv_obj_add_event_cb(textAreaApPassword, onApPasswordChanged, LV_EVENT_VALUE_CHANGED, this);
+        // Disable password field if open network is enabled
+        if (wsSettings.apOpenNetwork) {
+            lv_obj_add_state(textAreaApPassword, LV_STATE_DISABLED);
+            lv_obj_remove_flag(textAreaApPassword, LV_OBJ_FLAG_CLICKABLE);
+        }
 
         // Web Server Enable toggle
         auto* ws_enable_wrapper = lv_obj_create(main_wrapper);

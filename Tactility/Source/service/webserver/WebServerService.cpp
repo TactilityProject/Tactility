@@ -358,7 +358,11 @@ bool WebServerService::startApMode() {
     wifi_config.ap.ssid_len = static_cast<uint8_t>(settings.apSsid.length());
 
     // Set password and auth mode
-    if (settings.apPassword.length() >= 8 && settings.apPassword.length() <= 63) {
+    if (settings.apOpenNetwork) {
+        // User explicitly chose an open network
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+        LOGGER.info("AP configured with OPEN authentication (user choice)");
+    } else if (settings.apPassword.length() >= 8 && settings.apPassword.length() <= 63) {
         wifi_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
         strncpy(reinterpret_cast<char*>(wifi_config.ap.password), settings.apPassword.c_str(), sizeof(wifi_config.ap.password) - 1);
         wifi_config.ap.password[sizeof(wifi_config.ap.password) - 1] = '\0';
@@ -399,7 +403,7 @@ void WebServerService::stopApMode() {
         }
         LOGGER.info("WiFi AP stopped");
 
-        err = esp_wifi_set_mode(WIFI_MODE_APSTA);
+        err = esp_wifi_set_mode(WIFI_MODE_STA);
         if (err != ESP_OK) {
             LOGGER.warn("esp_wifi_set_mode() in cleanup: {}", esp_err_to_name(err));
         }

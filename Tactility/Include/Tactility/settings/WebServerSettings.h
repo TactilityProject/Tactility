@@ -17,7 +17,8 @@ struct WebServerSettings {
 
     // Access Point Mode Settings
     std::string apSsid{};           // Default: "Tactility-XXXX" (last 4 of MAC)
-    std::string apPassword{};       // Default: "tactility"
+    std::string apPassword{};       // Password for WPA2 (8-63 chars)
+    bool apOpenNetwork = false;     // If true, create open network (no password)
     uint8_t apChannel = 1;            // 1-13
 
     // Web Server Settings

@@ -436,12 +436,13 @@ To update web assets with a new version:
 > - Reboot the device
 > - Capture screenshots
 >
-> **Strongly recommended**: Enable HTTP Basic Authentication in Settings > Web Server before exposing the device to untrusted networks.
+> **Strongly recommended**: 
+> - Enable HTTP Basic Authentication in Settings > Web Server before exposing the device to untrusted networks
+> - Keep "AP Open Network" disabled (use WPA2 password protection) to prevent unauthorized network access
 
-- **Authentication**: Optional HTTP Basic Authentication can be enabled in Settings > Web Server
-- When authentication is disabled, anyone on the network can access the WebServer
+- **⚠️ Open Network Option**: The "AP Open Network" setting allows creating an unprotected access point without a password. **This is convenient for quick access but exposes the device to anyone within WiFi range**, potentially allowing unauthorized access to all WebServer functionality if HTTP authentication is also disabled.
 - **Automatic credential generation**: Credentials are automatically generated when insecure:
-  - **AP Password**: Generated when empty or set to legacy default "tactility"
+  - **AP Password**: Generated when empty or set to legacy default "tactility" (unless "AP Open Network" is enabled)
   - **HTTP Auth**: Generated when auth is enabled but username/password are empty or "admin"
   - Generated credentials are 12 alphanumeric characters (~71 bits of entropy) and persisted immediately
   - Check Settings > Web Server to view the generated credentials
@@ -457,7 +458,8 @@ Settings are stored in the WebServer settings file and can be configured via **S
 | Setting | Description | Default |
 |---------|-------------|---------|
 | WiFi Mode | Station (connect to existing network) or Access Point (create own network) | Station |
-| AP Password | Password for Access Point mode (WPA2, 8-63 chars) | Auto-generated |
+| AP Open Network | Create an open AP without password protection | Disabled |
+| AP Password | Password for Access Point mode (WPA2, 8-63 chars). Disabled when Open Network is enabled. | Auto-generated |
 | Web Server Enabled | Whether the HTTP server is running | Disabled |
 | Require Authentication | Enable HTTP Basic Authentication | Disabled |
 | Username | Authentication username (when auth enabled) | Auto-generated |

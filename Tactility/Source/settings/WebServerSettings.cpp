@@ -25,6 +25,7 @@ constexpr auto* KEY_WIFI_ENABLED = "wifiEnabled";
 constexpr auto* KEY_WIFI_MODE = "wifiMode";
 constexpr auto* KEY_AP_SSID = "apSsid";
 constexpr auto* KEY_AP_PASSWORD = "apPassword";
+constexpr auto* KEY_AP_OPEN_NETWORK = "apOpenNetwork";
 constexpr auto* KEY_AP_CHANNEL = "apChannel";
 constexpr auto* KEY_WEBSERVER_ENABLED = "webServerEnabled";
 constexpr auto* KEY_WEBSERVER_PORT = "webServerPort";
@@ -95,6 +96,7 @@ bool load(WebServerSettings& settings) {
     auto wifi_mode = map.find(KEY_WIFI_MODE);
     auto ap_ssid = map.find(KEY_AP_SSID);
     auto ap_password = map.find(KEY_AP_PASSWORD);
+    auto ap_open_network = map.find(KEY_AP_OPEN_NETWORK);
     auto ap_channel = map.find(KEY_AP_CHANNEL);
     auto webserver_enabled = map.find(KEY_WEBSERVER_ENABLED);
     auto webserver_port = map.find(KEY_WEBSERVER_PORT);
@@ -125,13 +127,17 @@ bool load(WebServerSettings& settings) {
         ? ap_ssid->second
         : generateDefaultApSsid();
     settings.apPassword = (ap_password != map.end()) ? ap_password->second : "";
+    settings.apOpenNetwork = (ap_open_network != map.end())
+        ? (ap_open_network->second == "1" || ap_open_network->second == "true")
+        : false;
     settings.apChannel = (ap_channel != map.end())
         ? static_cast<uint8_t>(parseInt(ap_channel->second, 1, 13, 1))
         : 1;
 
     // Security: If AP password is insecure (empty or the old "tactility" default),
-    // generate a strong random password and persist it immediately
-    if (isInsecureCredential(settings.apPassword)) {
+    // generate a strong random password and persist it immediately.
+    // Skip this if user explicitly wants an open network.
+    if (!settings.apOpenNetwork && isInsecureCredential(settings.apPassword)) {
         LOGGER.warn("AP password is insecure - generating secure random password");
 
         // Generate 12-character random password (alphanumeric, ~71 bits of entropy)
@@ -195,7 +201,8 @@ WebServerSettings getDefault() {
         .wifiEnabled = false,  // Default WiFi OFF
         .wifiMode = WiFiMode::Station,
         .apSsid = generateDefaultApSsid(),
-        .apPassword = "",  // Empty - will be auto-generated on first use
+        .apPassword = "",  // Empty - will be auto-generated on first use (unless apOpenNetwork)
+        .apOpenNetwork = false,  // Default to secured network
         .apChannel = 1,
         .webServerEnabled = false,  // Default WebServer OFF for security
         .webServerPort = 80,
@@ -233,6 +240,7 @@ bool save(const WebServerSettings& settings) {
     // AP mode settings
     map[KEY_AP_SSID] = settings.apSsid;
     map[KEY_AP_PASSWORD] = settings.apPassword;
+    map[KEY_AP_OPEN_NETWORK] = settings.apOpenNetwork ? "1" : "0";
     map[KEY_AP_CHANNEL] = std::to_string(settings.apChannel);
 
     // Web server settings
