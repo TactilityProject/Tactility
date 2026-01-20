@@ -6,6 +6,8 @@
 #include <Tactility/Error.h>
 #include <Tactility/Log.h>
 
+#define TAG LOG_TAG(driver)
+
 struct DriverInternalData {
     Mutex mutex {};
     int use_count = 0;
@@ -34,15 +36,12 @@ struct DriverLedger {
 
 static DriverLedger ledger;
 
-#define TAG "driver"
-
 #define ledger_lock() mutex_lock(&ledger.mutex);
 #define ledger_unlock() mutex_unlock(&ledger.mutex);
 
 #define driver_internal_data(driver) static_cast<DriverInternalData*>(driver->internal.data)
 #define driver_lock(driver) mutex_lock(&driver_internal_data(driver)->mutex);
 #define driver_unlock(driver) mutex_unlock(&driver_internal_data(driver)->mutex);
-
 
 static void driver_add(Driver* dev) {
     LOG_I(TAG, "add %s", dev->name);
@@ -85,18 +84,18 @@ int driver_destruct(Driver* driver) {
     return 0;
 }
 
-Driver* driver_find(const char* name) {
+Driver* driver_find(const char* compatible) {
     ledger_lock();
-    const auto it = std::ranges::find_if(ledger.drivers, [name](Driver* driver) {
+    const auto it = std::ranges::find_if(ledger.drivers, [compatible](Driver* driver) {
         const char** current_compatible = driver->compatible;
         assert(current_compatible != nullptr);
         while (*current_compatible != nullptr) {
-            if (strcmp(name, *current_compatible) == 0) {
-                return 0;
+            if (strcmp(compatible, *current_compatible) == 0) {
+                return true;
             }
             current_compatible++;
         }
-        return -1;
+        return false;
     });
     auto* driver = (it != ledger.drivers.end()) ? *it : nullptr;
     ledger_unlock();

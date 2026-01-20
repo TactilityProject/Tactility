@@ -178,7 +178,7 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         file.write("\n")
 
         file.write(dedent('''\
-        #define TAG "devicetree"
+        #define TAG LOG_TAG(devicetree)
         
         static int init_builtin_device(struct Device* device, const char* compatible, struct Device* parent_device) {
             struct Driver* driver = driver_find(compatible);

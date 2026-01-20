@@ -1,11 +1,11 @@
-#include <esp_log.h>
 #include <driver/i2c.h>
 
 #include <Tactility/Driver.h>
 #include <Tactility/drivers/Esp32I2c.h>
 #include <Tactility/drivers/I2cController.h>
+#include <Tactility/Log.h>
 
-#define TAG "esp32_i2c"
+#define TAG LOG_TAG(esp32_i2c)
 
 struct InternalData {
     Mutex mutex {};

@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cstring>
 #include <vector>
-#include <sys/errno.h>
 
 #include <Tactility/concurrent/Mutex.h>
 #include <Tactility/Bus.h>

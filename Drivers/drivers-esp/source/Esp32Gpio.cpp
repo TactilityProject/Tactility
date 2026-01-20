@@ -1,12 +1,12 @@
 #include <driver/gpio.h>
-#include <esp_log.h>
 
 #include <Tactility/Driver.h>
 #include <Tactility/drivers/Esp32Gpio.h>
 #include <Tactility/drivers/GpioController.h>
 #include <Tactility/drivers/Gpio.h>
+#include <Tactility/Log.h>
 
-#define TAG "esp32_gpio"
+#define TAG LOG_TAG(esp32_gpio)
 
 #define GET_CONFIG(device) ((struct Esp32GpioConfig*)device->internal.driver_data)
 
