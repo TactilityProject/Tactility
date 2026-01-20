@@ -22,7 +22,7 @@ void log_generic(const char* tag, const char* format, ...);
 
 #else
 
-#define LOG_E(x, ...) ESP_LOGD(x, ##__VA_ARGS__)
+#define LOG_E(x, ...) ESP_LOGE(x, ##__VA_ARGS__)
 #define LOG_W(x, ...) ESP_LOGW(x, ##__VA_ARGS__)
 #define LOG_I(x, ...) ESP_LOGI(x, ##__VA_ARGS__)
 #define LOG_D(x, ...) ESP_LOGD(x, ##__VA_ARGS__)

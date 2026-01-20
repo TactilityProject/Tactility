@@ -7,8 +7,16 @@
 #include <Tactility/Log.h>
 
 struct DriverInternalData {
-    Mutex mutex;
+    Mutex mutex {};
     int use_count = 0;
+
+    DriverInternalData() {
+        mutex_construct(&mutex);
+    }
+
+    ~DriverInternalData() {
+        mutex_destruct(&mutex);
+    }
 };
 
 struct DriverLedger {
@@ -80,7 +88,15 @@ int driver_destruct(Driver* driver) {
 Driver* driver_find(const char* name) {
     ledger_lock();
     const auto it = std::ranges::find_if(ledger.drivers, [name](Driver* driver) {
-        return strcmp(name, driver->name) == 0;
+        const char** current_compatible = driver->compatible;
+        assert(current_compatible != nullptr);
+        while (*current_compatible != nullptr) {
+            if (strcmp(name, *current_compatible) == 0) {
+                return 0;
+            }
+            current_compatible++;
+        }
+        return -1;
     });
     auto* driver = (it != ledger.drivers.end()) ? *it : nullptr;
     ledger_unlock();

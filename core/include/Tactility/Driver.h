@@ -29,7 +29,7 @@ int driver_construct(struct Driver* drv);
 
 int driver_destruct(struct Driver* drv);
 
-struct Driver* driver_find(const char* name);
+struct Driver* driver_find(const char* compatible);
 
 int driver_bind(struct Driver* drv, struct Device* dev);
 

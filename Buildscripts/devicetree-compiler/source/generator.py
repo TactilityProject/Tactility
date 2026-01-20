@@ -115,7 +115,7 @@ def write_device_structs(file, device: Device, bindings: list[Binding], verbose:
     write_config(file, device, bindings, type_name)
     # Write device struct
     file.write(f"static struct Device {identifier}" " = {\n")
-    file.write(f"\t.name = \"{identifier}\",\n")
+    file.write(f"\t.name = \"{device.identifier}\",\n") # Use original name
     file.write(f"\t.config = (void*)&{config_variable_name},\n")
     file.write("};\n\n")
     # Child devices
@@ -133,22 +133,13 @@ def write_device_init(file, device: Device, parent_device: Device, bindings: lis
     # Type & instance names
     identifier = get_device_identifier_safe(device)
     device_variable = identifier
-    driver_variable = f"{type_name}_driver"
-    config_instance_name = f"{identifier}_config_instance"
     if parent_device is not None:
         parent_identifier = get_device_identifier_safe(parent_device)
         parent_value = f"&{parent_identifier}"
     else:
         parent_value = "NULL"
     # Write device struct
-    file.write(f"\tdevice_construct(&{device_variable});\n")
-    file.write(f"\tdevice_add(&{device_variable});\n")
-    file.write(f"\tstruct Driver* {driver_variable} = driver_find(\"{compatible_property.value}\");\n")
-    file.write(f"\tif ({driver_variable} == NULL) return -1;\n")
-    file.write(f"\tdevice_set_driver(&{device_variable}, {driver_variable});\n")
-    file.write(f"\tdevice_set_parent(&{device_variable}, {parent_value});\n")
-    file.write(f"\tif (device_start(&{device_variable}) != 0) return -1;\n")
-    file.write("\n");
+    file.write(f"\tif (init_builtin_device(&{device_variable}, \"{compatible_property.value}\", {parent_value}) != 0) return -1;\n")
     # Write children
     for child_device in device.devices:
         write_device_init(file, child_device, device, bindings, verbose)
@@ -172,13 +163,43 @@ def write_device_list(file, devices: list[Device]):
 
 def generate_devicetree_c(filename: str, items: list[object], bindings: list[Binding], verbose: bool):
     with open(filename, "w") as file:
-        file.write("#include <Tactility/Device.h>\n")
-        file.write("#include <Tactility/Driver.h>\n")
+        file.write(dedent('''\
+        // Generated includes
+        #include <Tactility/Device.h>
+        #include <Tactility/Driver.h>
+        #include <Tactility/Log.h>
+        // DTS includes
+        '''))
+
         # Write all headers first
         for item in items:
             if type(item) is IncludeC:
                 write_include(file, item, verbose)
         file.write("\n")
+
+        file.write(dedent('''\
+        #define TAG "devicetree"
+        
+        static int init_builtin_device(struct Device* device, const char* compatible, struct Device* parent_device) {
+            struct Driver* driver = driver_find(compatible);
+            if (driver == NULL) {
+                LOG_E(TAG, "Can't find driver: %s", compatible);
+                return -1;
+            }
+        	device_construct(device);
+            device_set_driver(device, driver);
+            device_set_parent(device, parent_device);
+            device_add(device);
+            const int err = device_start(device);
+            if (err != 0) {
+                LOG_E(TAG, "Failed to start device %s with driver %s: error code %d", device->name, compatible, err);
+                return -1;
+            }
+            return 0;
+        }
+        
+        '''))
+
         # Then write all devices
         for item in items:
             if type(item) is Device:
