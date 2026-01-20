@@ -1,24 +1,28 @@
-#include <tactility/drivers/esp32_gpio.h>
-#include <tactility/drivers/gpio_controller.h>
-
 #include <driver/gpio.h>
 #include <esp_log.h>
 
+#include <Tactility/Driver.h>
+#include <Tactility/drivers/Esp32Gpio.h>
+#include <Tactility/drivers/GpioController.h>
+#include <Tactility/drivers/Gpio.h>
+
 #define TAG "esp32_gpio"
 
-#define GET_CONFIG(dev) ((struct esp32_gpio_config*)dev->config)
+#define GET_CONFIG(device) ((struct Esp32GpioConfig*)device->internal.driver_data)
 
-static bool set_level(const struct device* dev, gpio_pin_t pin, bool high) {
-    return gpio_set_level(pin, high) == ESP_OK;
+extern "C" {
+
+static bool set_level(Device* device, gpio_pin_t pin, bool high) {
+    return gpio_set_level(static_cast<gpio_num_t>(pin), high) == ESP_OK;
 }
 
-static bool get_level(const struct device* dev, gpio_pin_t pin, bool* high) {
-    *high = gpio_get_level(pin) != 0;
+static bool get_level(Device* device, gpio_pin_t pin, bool* high) {
+    *high = gpio_get_level(static_cast<gpio_num_t>(pin)) != 0;
     return true;
 }
 
-static bool set_options(const struct device* dev, gpio_pin_t pin, gpio_flags_t options) {
-    const struct esp32_gpio_config* config = GET_CONFIG(dev);
+static bool set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
+    const Esp32GpioConfig* config = GET_CONFIG(device);
 
     if (pin >= config->gpio_count) {
         return false;
@@ -49,7 +53,7 @@ static bool set_options(const struct device* dev, gpio_pin_t pin, gpio_flags_t o
     return gpio_config(&esp_config) == ESP_OK;
 }
 
-static bool get_options(const struct device* dev, gpio_pin_t pin, gpio_flags_t* options) {
+static bool get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {
     gpio_io_config_t esp_config;
     if (gpio_get_io_config((gpio_num_t)pin, &esp_config) != ESP_OK) {
         return false;
@@ -85,19 +89,30 @@ static bool get_options(const struct device* dev, gpio_pin_t pin, gpio_flags_t* 
     return true;
 }
 
-const struct esp32_gpio_api esp32_gpio_api_instance = {
+static int start(Device* device) {
+    ESP_LOGI(TAG, "start %s", device->name);
+    return 0;
+}
+
+static int stop(Device* device) {
+    ESP_LOGI(TAG, "stop %s", device->name);
+    return 0;
+}
+
+const static GpioControllerApi esp32_gpio_api  = {
     .set_level = set_level,
     .get_level = get_level,
     .set_options = set_options,
     .get_options = get_options
 };
 
-int esp32_gpio_init(const struct device* device) {
-    ESP_LOGI(TAG, "init %s", device->name);
-    return 0;
-}
+Driver esp32_gpio_driver = {
+    .name = "esp32_gpio",
+    .compatible = (const char*[]) { "espressif,esp32-gpio", nullptr },
+    .start_device = start,
+    .stop_device = stop,
+    .api =  (void*)&esp32_gpio_api,
+    .internal = { 0 }
+};
 
-int esp32_gpio_deinit(const struct device* device) {
-    ESP_LOGI(TAG, "deinit %s", device->name);
-    return 0;
-}
+} // extern "C"

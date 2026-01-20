@@ -4,15 +4,9 @@
 extern "C" {
 #endif
 
-struct root_config {
+struct RootConfig {
     const char* model;
 };
-
-struct root_api {
-};
-
-#define root_init nullptr
-#define root_deinit nullptr
 
 #ifdef __cplusplus
 }

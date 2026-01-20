@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-#include <tactility/device.h>
+#include <Tactility/Device.h>
 
 #define GPIO_OPTIONS_MASK 0x1f
 
@@ -19,7 +19,7 @@ extern "C" {
 #define GPIO_PULL_DOWN (1 << 4)
 
 #define GPIO_INTERRUPT_BITMASK (0b111 << 5) // 3 bits to hold the values [0, 5]
-#define GPIO_INTERRUPT_FROM_OPTIONS(options) (gpio_interrupt_type_t)((options & GPIO_INTERRUPT_BITMASK) >> 5)
+#define GPIO_INTERRUPT_FROM_OPTIONS(options) (gpio_int_type_t)((options & GPIO_INTERRUPT_BITMASK) >> 5)
 #define GPIO_INTERRUPT_TO_OPTIONS(options, interrupt) (options | (interrupt << 5))
 
 typedef enum {
@@ -30,7 +30,7 @@ typedef enum {
     GPIO_INTERRUPT_LOW_LEVEL = 4,
     GPIO_INTERRUPT_HIGH_LEVEL = 5,
     GPIO__MAX,
-} gpio_interrupt_type_t;
+} GpioInterruptType;
 
 /**
  * @brief Provides a type to hold a GPIO pin index.
@@ -67,25 +67,21 @@ typedef uint16_t gpio_flags_t;
  * controlled by that device, and the subset of pin configuration
  * flags which may be given in devicetree.
  */
-struct gpio_pin_config {
+struct GpioPinConfig {
     /** GPIO device controlling the pin */
-    const struct device* port;
+    const struct Device* port;
     /** The pin's number on the device */
     gpio_pin_t pin;
     /** The pin's configuration flags as specified in devicetree */
     gpio_flags_t dt_flags;
 };
 
-
 /**
- * @brief Validate that GPIO port is ready.
- *
- * @param spec GPIO specification from devicetree
- *
- * @retval true if the GPIO spec is ready for use.
- * @retval false if the GPIO spec is not ready for use.
+ * Check if the pin is ready to be used.
+ * @param pin_config the specifications of the pin
+ * @return true if the pin is ready to be used
  */
-inline bool gpio_is_ready(const struct gpio_pin_config* pin_config) {
+static inline bool gpio_is_ready(const struct GpioPinConfig* pin_config) {
     return device_is_ready(pin_config->port);
 }
 

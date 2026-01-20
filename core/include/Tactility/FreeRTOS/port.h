@@ -1,6 +1,6 @@
 #pragma once
 
-#include "freertos.h"
+#include "FreeRTOS.h"
 
 #ifndef ESP_PLATFORM
 #define xPortInIsrContext(x) (false)

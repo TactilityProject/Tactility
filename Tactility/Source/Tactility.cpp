@@ -306,7 +306,7 @@ void registerApps() {
     registerInstalledAppsFromSdCards();
 }
 
-void run(const Configuration& config, device** devices) {
+void run(const Configuration& config) {
     LOGGER.info("Tactility v{} on {} ({})", TT_VERSION, CONFIG_TT_DEVICE_NAME, CONFIG_TT_DEVICE_ID);
 
     assert(config.hardware);
@@ -314,11 +314,6 @@ void run(const Configuration& config, device** devices) {
 
     // Assign early so starting services can use it
     config_instance = &config;
-
-    if (devices != nullptr) {
-        device_add_all(devices);
-        device_init_all(devices);
-    }
 
 #ifdef ESP_PLATFORM
     initEsp();

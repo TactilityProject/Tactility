@@ -88,7 +88,9 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding]) ->
 
 def write_config(file, device: Device, bindings: list[Binding], type_name: str):
     device_identifier = get_device_identifier_safe(device)
-    file.write(f"const static struct {type_name}_config {device_identifier}_config_instance" " = {\n")
+    config_type = f"{type_name}_config_dt"
+    config_variable_name = f"{device_identifier}_config"
+    file.write(f"static const {config_type} {config_variable_name}" " = {\n")
     config_params = resolve_parameters_from_bindings(device, bindings)
     # Indent all params
     for index, config_param in enumerate(config_params):
@@ -99,49 +101,57 @@ def write_config(file, device: Device, bindings: list[Binding], type_name: str):
         file.write(f"{config_params_joined}\n")
     file.write("};\n\n")
 
-def write_device(file, device: Device, bindings: list[Binding], verbose: bool):
+def write_device_structs(file, device: Device, bindings: list[Binding], verbose: bool):
     if verbose:
-        print(f"Processing device '{device.identifier}'")
+        print(f"Writing device struct for '{device.identifier}'")
     # Assemble some pre-requisites
     type_name = get_device_type_name(device, bindings)
     compatible_property = find_binding_property(device, "compatible")
     if compatible_property is None:
         raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
     identifier = get_device_identifier_safe(device)
-    device_binding = find_binding(compatible_property.value, bindings)
+    config_variable_name = f"{identifier}_config"
     # Write config struct
     write_config(file, device, bindings, type_name)
-    # Type & instance names
-    api_type_name = f"{type_name}_api"
-    api_instance_name = f"{type_name}_api_instance"
-    init_function_name = f"{type_name}_init"
-    deinit_function_name = f"{type_name}_deinit"
-    config_instance_name = f"{identifier}_config_instance"
     # Write device struct
-    file.write(f"extern const struct {api_type_name} {api_instance_name};\n\n")
-    file.write("static struct device " f"{identifier}" " = {\n")
-    file.write("\t.name = \"" f"{identifier}" "\",\n")
-    file.write(f"\t.config = &{config_instance_name},\n")
-    file.write(f"\t.api = &{api_instance_name},\n")
-    file.write("\t.state = { .init_result = 0, .initialized = false },\n")
-    file.write("\t.data = NULL,\n")
-    file.write("\t.operations = { ")
-    file.write(f".init = {init_function_name}, ")
-    file.write(f".deinit = {deinit_function_name}")
-    file.write("},\n")
-    file.write("\t.metadata = {\n")
-    node_label_count = len(device_binding.includes) + 1
-    file.write(f"\t\t.compatible_count = {node_label_count},\n")
-    file.write("\t\t.compatible = (const char*[]) {\n")
-    file.write(f"\t\t\t\"{device_binding.compatible}\",\n")
-    for include in device_binding.includes:
-        include_compatible = include.removesuffix(".yaml")
-        file.write(f"\t\t\t\"{include_compatible}\",\n")
-    file.write("\t\t}\n")
-    file.write("\t}\n")
+    file.write(f"static struct Device {identifier}" " = {\n")
+    file.write(f"\t.name = \"{identifier}\",\n")
+    file.write(f"\t.config = (void*)&{config_variable_name},\n")
     file.write("};\n\n")
+    # Child devices
     for child_device in device.devices:
-        write_device(file, child_device, bindings, verbose)
+        write_device_structs(file, child_device, bindings, verbose)
+
+def write_device_init(file, device: Device, parent_device: Device, bindings: list[Binding], verbose: bool):
+    if verbose:
+        print(f"Processing device init code for '{device.identifier}'")
+    # Assemble some pre-requisites
+    type_name = get_device_type_name(device, bindings)
+    compatible_property = find_binding_property(device, "compatible")
+    if compatible_property is None:
+        raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
+    # Type & instance names
+    identifier = get_device_identifier_safe(device)
+    device_variable = identifier
+    driver_variable = f"{type_name}_driver"
+    config_instance_name = f"{identifier}_config_instance"
+    if parent_device is not None:
+        parent_identifier = get_device_identifier_safe(parent_device)
+        parent_value = f"&{parent_identifier}"
+    else:
+        parent_value = "NULL"
+    # Write device struct
+    file.write(f"\tdevice_construct(&{device_variable});\n")
+    file.write(f"\tdevice_add(&{device_variable});\n")
+    file.write(f"\tstruct Driver* {driver_variable} = driver_find(\"{compatible_property.value}\");\n")
+    file.write(f"\tif ({driver_variable} == NULL) return -1;\n")
+    file.write(f"\tdevice_set_driver(&{device_variable}, {driver_variable});\n")
+    file.write(f"\tdevice_set_parent(&{device_variable}, {parent_value});\n")
+    file.write(f"\tif (device_start(&{device_variable}) != 0) return -1;\n")
+    file.write("\n");
+    # Write children
+    for child_device in device.devices:
+        write_device_init(file, child_device, device, bindings, verbose)
 
 def write_device_list_entry(file, device: Device):
     compatible_property = find_binding_property(device, "compatible")
@@ -162,38 +172,37 @@ def write_device_list(file, devices: list[Device]):
 
 def generate_devicetree_c(filename: str, items: list[object], bindings: list[Binding], verbose: bool):
     with open(filename, "w") as file:
+        file.write("#include <Tactility/Device.h>\n")
+        file.write("#include <Tactility/Driver.h>\n")
         # Write all headers first
         for item in items:
             if type(item) is IncludeC:
                 write_include(file, item, verbose)
         file.write("\n")
         # Then write all devices
-        devices = []
         for item in items:
             if type(item) is Device:
-                devices.append(item)
-                write_device(file, item, bindings, verbose)
-        write_device_list(file, devices)
-        file.write(dedent('''\
-        struct device** devices_builtin_get() {
-            return devices_builtin;
-        }
-        '''))
+                write_device_structs(file, item, bindings, verbose)
+        # Init function body start
+        file.write("int devices_builtin_init() {\n")
+        # Init function body logic
+        for item in items:
+            if type(item) is Device:
+                write_device_init(file, item, None, bindings, verbose)
+        file.write("\treturn 0;\n")
+        # Init function body end
+        file.write("}\n")
 
 def generate_devicetree_h(filename: str):
     with open(filename, "w") as file:
         file.write(dedent('''\
         #pragma once
-        #include <tactility/device.h>
         
         #ifdef __cplusplus
         extern "C" {
         #endif
         
-        /**
-         * @return an array of device* where the last item in the array is NULL
-         */
-        struct device** devices_builtin_get();
+        extern int devices_builtin_init();
         
         #ifdef __cplusplus
         }

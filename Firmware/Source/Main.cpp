@@ -1,4 +1,6 @@
 #include <Tactility/Tactility.h>
+
+#include <Tactility/Driver.h>
 #include <devicetree.h>
 
 #ifdef ESP_PLATFORM
@@ -25,8 +27,17 @@ void app_main() {
     tt_init_tactility_c(); // ELF bindings for side-loading on ESP32
 #endif
 
-    auto devices = devices_builtin_get();
-    tt::run(config, devices);
+    extern Driver root_driver;
+    extern Driver tlora_pager_driver;
+    extern Driver esp32_gpio_driver;
+    extern Driver esp32_i2c_driver;
+    driver_construct(&root_driver);
+    driver_construct(&tlora_pager_driver);
+    driver_construct(&esp32_gpio_driver);
+    driver_construct(&esp32_i2c_driver);
+
+    devices_builtin_init();
+    tt::run(config);
 }
 
 } // extern
