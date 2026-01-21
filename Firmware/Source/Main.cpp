@@ -14,6 +14,10 @@ extern const tt::hal::Configuration hardwareConfiguration;
 
 extern "C" {
 
+extern void register_kernel_drivers();
+extern void register_platform_drivers();
+extern void register_device_drivers();
+
 void app_main() {
     static const tt::Configuration config = {
         /**
@@ -27,14 +31,9 @@ void app_main() {
     tt_init_tactility_c(); // ELF bindings for side-loading on ESP32
 #endif
 
-    extern Driver root_driver;
-    extern Driver tlora_pager_driver;
-    extern Driver esp32_gpio_driver;
-    extern Driver esp32_i2c_driver;
-    driver_construct(&root_driver);
-    driver_construct(&tlora_pager_driver);
-    driver_construct(&esp32_gpio_driver);
-    driver_construct(&esp32_i2c_driver);
+    register_kernel_drivers();
+    register_platform_drivers();
+    register_device_drivers();
 
     devices_builtin_init();
     tt::run(config);
