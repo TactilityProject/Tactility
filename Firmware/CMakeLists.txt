@@ -44,16 +44,17 @@ else ()
 endif ()
 
 # Generate devicetree code and attach to Firmware component
-add_custom_target(Generated
-    COMMAND echo mkdir -p ${CMAKE_SOURCE_DIR}/Firmware/Generated | echo Firmware/Generated exists
-    COMMAND mkdir -p ${CMAKE_SOURCE_DIR}/Firmware/Generated | echo Firmware/Generated exists
-    COMMAND echo pip install lark pyyaml | echo Installing lark/pyyaml failed
-    COMMAND pip install lark pyyaml | echo Installing lark/pyyaml failed
-    COMMAND echo python Buildscripts/devicetree-compiler/compile.py ${DEVICETREE_LOCATION} Firmware/Generated
-    COMMAND python Buildscripts/devicetree-compiler/compile.py ${DEVICETREE_LOCATION} Firmware/Generated
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+add_custom_command(
+    OUTPUT "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c"
+        "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.h"
+    COMMAND mkdir -p "${CMAKE_SOURCE_DIR}/Firmware/Generated"
+    COMMAND pip install lark pyyaml
+    COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/devicetree-compiler/compile.py"
+    "${DEVICETREE_LOCATION}" "Firmware/Generated"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    DEPENDS "${DEVICETREE_LOCATION}/devicetree.yaml" # Optional: trigger rebuild if source changes
+    COMMENT "Generating devicetree source files..."
 )
-set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY ADDITIONAL_CLEAN_FILES "Firmware/Generated/devicetree.c" "/Firmware/Generated/devicetree.h")
+set_source_files_properties("${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c" PROPERTIES GENERATED TRUE)
+add_custom_target(Generated DEPENDS "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c")
 target_sources(${COMPONENT_LIB} PRIVATE "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c")
-target_include_directories(${COMPONENT_LIB} PRIVATE ${CMAKE_SOURCE_DIR}/Firmware/Generated)
-add_dependencies(${COMPONENT_LIB} Generated)
