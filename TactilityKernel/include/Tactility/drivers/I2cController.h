@@ -21,6 +21,8 @@ bool i2c_controller_write(struct Device* device, uint8_t address, const uint8_t*
 
 bool i2c_controller_write_read(struct Device* device, uint8_t address, const uint8_t* write_data, size_t write_data_size, uint8_t* read_data, size_t read_data_size, TickType_t timeout);
 
+extern const struct DeviceType I2C_CONTROLLER_TYPE;
+
 #ifdef __cplusplus
 }
 #endif

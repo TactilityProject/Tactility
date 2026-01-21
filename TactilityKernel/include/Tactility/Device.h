@@ -1,10 +1,11 @@
 #pragma once
 
+#include "Driver.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <Tactility/Bus.h>
 #include <Tactility/concurrent/Mutex.h>
 
 #include <stdbool.h>
@@ -12,6 +13,12 @@ extern "C" {
 #include <stdint.h>
 
 struct Driver;
+
+/** Enables discovering devices of the same type */
+struct DeviceType {
+    /* Placeholder because empty structs have a different size with C vs C++ compilers */
+    uint8_t _;
+};
 
 /** Represents a piece of hardware */
 struct Device {
@@ -27,8 +34,6 @@ struct Device {
         struct Driver* driver;
         /** The driver data for this device (e.g. a mutex) */
         void* driver_data;
-        /** The bus that is owned by this device. This bus can contain child devices to make them discoverable. Can be NULL. */
-        struct Bus* bus;
         /** The mutex for device operations */
         struct Mutex mutex;
         /** The device state */
@@ -134,18 +139,6 @@ static inline bool device_is_added(const struct Device* device) {
     return device->internal.state.added;
 }
 
-static inline struct Bus* device_get_bus(const struct Device* device) {
-    return device->internal.bus;
-}
-
-static inline void device_set_bus(struct Device* device, struct Bus* bus) {
-    device->internal.bus = bus;
-}
-
-static inline const char* device_get_bus_name(const struct Device* device) {
-    return device->internal.bus ? device->internal.bus->name : "";
-}
-
 static inline void device_lock(struct Device* device) {
     mutex_lock(&device->internal.mutex);
 }
@@ -157,6 +150,18 @@ static inline int device_try_lock(struct Device* device) {
 static inline void device_unlock(struct Device* device) {
     mutex_unlock(&device->internal.mutex);
 }
+
+static inline const struct DeviceType* device_get_type(struct Device* device) {
+    return device->internal.driver->device_type;
+}
+
+    /**
+ * Iterate through all the known devices of a specific type
+ * @param type the type to filter
+ * @param callback_context the parameter to pass to the callback. NULL is valid.
+ * @param on_device the function to call for each filtered device. return true to continue iterating or false to stop.
+ */
+void for_each_device_of_type(const struct DeviceType* type, void* callback_context, bool(*on_device)(struct Device* device, void* context));
 
 #ifdef __cplusplus
 }

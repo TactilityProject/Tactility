@@ -2,6 +2,7 @@
 #include <vector>
 
 #include <Tactility/concurrent/Mutex.h>
+#include <Tactility/Device.h>
 #include <Tactility/Driver.h>
 #include <Tactility/Error.h>
 #include <Tactility/Log.h>

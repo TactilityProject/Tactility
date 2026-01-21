@@ -90,11 +90,6 @@ void device_add(Device* device) {
         device_add_child(parent, device);
     }
 
-    auto* bus = device->internal.bus;
-    if (bus != nullptr) {
-        bus_add_device(bus, device);
-    }
-
     device->internal.state.added = true;
 }
 
@@ -106,11 +101,6 @@ bool device_remove(Device* device) {
     // Already removed
     if (!device->internal.state.added) {
         return true;
-    }
-
-    auto* bus = device->internal.bus;
-    if (bus != nullptr) {
-        bus_remove_device(bus, device);
     }
 
     // Remove self from parent's children list
@@ -136,11 +126,6 @@ failed_ledger_lookup:
     // Re-add to parent
     if (parent != nullptr) {
         device_add_child(parent, device);
-    }
-
-    // Re-add to bus
-    if (bus != nullptr) {
-        bus_add_device(bus, device);
     }
 
     return false;
@@ -180,15 +165,6 @@ int device_stop(struct Device* device) {
         return 0;
     }
 
-    int result = driver_unbind(device->internal.driver, device);
-    if (result != 0) {
-        // Re-add to bus
-        if (device->internal.bus != nullptr) {
-            bus_add_device(device->internal.bus, device);
-        }
-        return result;
-    }
-
     device->internal.state.started = false;
     device->internal.state.start_result = 0;
     return 0;
@@ -197,6 +173,21 @@ int device_stop(struct Device* device) {
 void device_set_parent(Device* device, Device* parent) {
     assert(!device->internal.state.started);
     device->parent = parent;
+}
+
+void for_each_device_of_type(const DeviceType* type, void* callback_context, bool(*on_device)(Device* device, void* context)) {
+    ledger_lock();
+    for (auto* device : ledger.devices) {
+        auto* driver = device->internal.driver;
+        if (driver != nullptr) {
+            if (driver->device_type == type) {
+                if (!on_device(device, callback_context)) {
+                    break;
+                }
+            }
+        }
+    }
+    ledger_unlock()
 }
 
 } // extern "C"

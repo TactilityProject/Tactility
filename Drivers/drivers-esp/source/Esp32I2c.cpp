@@ -84,6 +84,7 @@ Driver esp32_i2c_driver = {
     .start_device = start,
     .stop_device = stop,
     .api = (void*)&esp32_i2c_api,
+    .device_type = &I2C_CONTROLLER_TYPE,
     .internal = { 0 }
 };
 

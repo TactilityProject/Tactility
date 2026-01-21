@@ -20,6 +20,7 @@ Driver tlora_pager_driver = {
     .start_device = start,
     .stop_device = stop,
     .api = nullptr,
+    .device_type = nullptr,
     .internal = { 0 }
 };
 

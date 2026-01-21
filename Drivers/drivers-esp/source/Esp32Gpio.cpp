@@ -112,6 +112,7 @@ Driver esp32_gpio_driver = {
     .start_device = start,
     .stop_device = stop,
     .api =  (void*)&esp32_gpio_api,
+    .device_type = nullptr,
     .internal = { 0 }
 };
 

@@ -9,6 +9,7 @@ Driver root_driver = {
     .start_device = nullptr,
     .stop_device = nullptr,
     .api = nullptr,
+    .device_type = nullptr,
     .internal = { 0 }
 };
 

@@ -20,4 +20,6 @@ bool i2c_controller_write_read(Device* device, uint8_t address, const uint8_t* w
     return I2C_DRIVER_API(driver)->write_read(device, address, write_data, write_data_size, read_data, read_data_size, timeout);
 }
 
+const struct DeviceType I2C_CONTROLLER_TYPE { 0 };
+
 }
