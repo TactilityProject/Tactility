@@ -34,6 +34,7 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
             includes.append(include)
 
     # Parse local properties
+    compatible = data.get('compatible', None)
     properties_raw = data.get('properties', {})
     for name, details in properties_raw.items():
         prop = BindingProperty(
@@ -43,9 +44,7 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
             description=details.get('description', '').strip(),
         )
         properties_dict[name] = prop
-
     filename = os.path.basename(file_path)
-    compatible = filename.removesuffix(".yaml").removesuffix(".yml")
     return Binding(
         filename=filename,
         compatible=compatible,

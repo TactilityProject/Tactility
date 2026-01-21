@@ -1,3 +1,5 @@
+compatible: "root"
+
 properties:
   model:
     required: true

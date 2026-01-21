@@ -18,8 +18,10 @@ def get_device_identifier_safe(device: Device):
 
 def get_device_type_name(device: Device, bindings: list[Binding]):
     device_binding = find_device_binding(device, bindings)
-    if device_binding == None:
+    if device_binding is None:
         raise Exception(f"Binding not found for {device.identifier}")
+    if device_binding.compatible is None:
+        raise Exception(f"Couldn't find compatible binding for {device.identifier}")
     compatible_safe = device_binding.compatible.split(",")[-1]
     return compatible_safe.replace("-", "_")
 
@@ -126,7 +128,6 @@ def write_device_init(file, device: Device, parent_device: Device, bindings: lis
     if verbose:
         print(f"Processing device init code for '{device.identifier}'")
     # Assemble some pre-requisites
-    type_name = get_device_type_name(device, bindings)
     compatible_property = find_binding_property(device, "compatible")
     if compatible_property is None:
         raise Exception(f"Cannot find 'compatible' property for {device.identifier}")

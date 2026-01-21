@@ -35,7 +35,7 @@ class BindingProperty:
 @dataclass
 class Binding:
     filename: str
-    compatible: str
+    compatible: list[str]
     description: str
     properties: list[BindingProperty]
     includes: list[str]

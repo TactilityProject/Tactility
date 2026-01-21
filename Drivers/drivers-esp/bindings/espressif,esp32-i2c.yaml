@@ -2,6 +2,8 @@ description: ESP32 GPIO Controller
 
 include: ["i2c-controller.yaml"]
 
+compatible: "espressif,esp32-i2c"
+
 properties:
   port:
     type: int
