@@ -7,7 +7,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_component_register(
         SRCS ${SOURCES}
         INCLUDE_DIRS "include/"
-        REQUIRES core driver
+        REQUIRES TactilityKernel driver
     )
 
 else ()

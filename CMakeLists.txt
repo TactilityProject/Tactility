@@ -32,7 +32,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         "Firmware"
         "Devices/${TACTILITY_DEVICE_PROJECT}"
         "Drivers"
-        "core"
+        "TactilityKernel"
         "Tactility"
         "TactilityC"
         "TactilityCore"
@@ -75,13 +75,13 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Tactility)
     add_subdirectory(TactilityCore)
     add_subdirectory(TactilityFreeRtos)
+    add_subdirectory(TactilityKernel)
     add_subdirectory(Devices/simulator)
     add_subdirectory(Libraries/cJSON)
     add_subdirectory(Libraries/lv_screenshot)
     add_subdirectory(Libraries/QRCode)
     add_subdirectory(Libraries/minitar)
     add_subdirectory(Libraries/minmea)
-    add_subdirectory(core)
 
     # FreeRTOS
     set(FREERTOS_CONFIG_FILE_DIRECTORY ${PROJECT_SOURCE_DIR}/Devices/simulator/Source CACHE STRING "")

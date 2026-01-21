@@ -22,7 +22,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_component_register(
         SRCS ${SOURCE_FILES}
         REQUIRES ${DEVICE_COMPONENTS}
-        REQUIRES Tactility TactilityC core drivers-esp ${TACTILITY_DEVICE_PROJECT}
+        REQUIRES Tactility TactilityC TactilityKernel drivers-esp ${TACTILITY_DEVICE_PROJECT}
     )
 
 else ()
@@ -32,9 +32,9 @@ else ()
         PRIVATE Tactility
         PRIVATE TactilityCore
         PRIVATE TactilityFreeRtos
+        PRIVATE TactilityKernel
         PRIVATE Simulator
         PRIVATE SDL2::SDL2-static SDL2-static
-        PRIVATE core
     )
 
     target_include_directories(FirmwareSim PRIVATE "${CMAKE_SOURCE_DIR}/Firmware/Generated")

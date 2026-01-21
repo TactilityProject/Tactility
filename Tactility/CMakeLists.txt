@@ -4,7 +4,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
     list(APPEND REQUIRES_LIST
-        core
+        TactilityKernel
         TactilityCore
         TactilityFreeRtos
         lvgl
@@ -72,12 +72,12 @@ else()
         PUBLIC cJSON
         PUBLIC TactilityFreeRtos
         PUBLIC TactilityCore
+        PUBLIC TactilityKernel
         PUBLIC freertos_kernel
         PUBLIC lvgl
         PUBLIC lv_screenshot
         PUBLIC minmea
         PUBLIC minitar
-        PUBLIC core
     )
 endif()
 
