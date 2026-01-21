@@ -45,8 +45,11 @@ endif ()
 
 # Generate devicetree code and attach to Firmware component
 add_custom_target(Generated
+    COMMAND echo mkdir -p ${CMAKE_SOURCE_DIR}/Firmware/Generated | echo Firmware/Generated exists
     COMMAND mkdir -p ${CMAKE_SOURCE_DIR}/Firmware/Generated | echo Firmware/Generated exists
-    COMMAND pip install lark pyyaml
+    COMMAND echo pip install lark pyyaml | echo Installing lark/pyyaml failed
+    COMMAND pip install lark pyyaml | echo Installing lark/pyyaml failed
+    COMMAND echo python Buildscripts/devicetree-compiler/compile.py ${DEVICETREE_LOCATION} Firmware/Generated
     COMMAND python Buildscripts/devicetree-compiler/compile.py ${DEVICETREE_LOCATION} Firmware/Generated
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
