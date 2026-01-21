@@ -250,6 +250,7 @@ void WebServerService::onStop(ServiceContext& service) {
     g_webServerInstance.store(nullptr);
 
     pubsub->unsubscribe(settingsEventSubscription);
+    settingsEventSubscription = 0;
 
     setEnabled(false);
 
@@ -997,25 +998,30 @@ esp_err_t WebServerService::handleAdminPost(httpd_req_t* request) {
 }
 
 // API GET dispatcher - returns JSON system information
+// Note: /api/sysinfo is intentionally public for monitoring use cases
 esp_err_t WebServerService::handleApiGet(httpd_req_t* request) {
     const char* uri = request->uri;
 
+    // Public endpoint: sysinfo (basic device info for monitoring)
     if (strncmp(uri, "/api/sysinfo", 12) == 0) {
         return handleApiSysinfo(request);
     }
+
+    // Protected endpoints require authentication
+    bool authPassed = false;
+    esp_err_t authResult = validateRequestAuth(request, authPassed);
+    if (!authPassed) {
+        return authResult;
+    }
+
+    // Auth-protected endpoints
     if (strncmp(uri, "/api/apps", 9) == 0) {
         return handleApiApps(request);
     }
     if (strncmp(uri, "/api/wifi", 9) == 0) {
         return handleApiWifi(request);
     }
-    // Auth check for sensitive screenshot endpoint
     if (strncmp(uri, "/api/screenshot", 15) == 0) {
-        bool authPassed = false;
-        esp_err_t authResult = validateRequestAuth(request, authPassed);
-        if (!authPassed) {
-            return authResult;
-        }
         return handleApiScreenshot(request);
     }
 
@@ -1024,26 +1030,19 @@ esp_err_t WebServerService::handleApiGet(httpd_req_t* request) {
     return ESP_FAIL;
 }
 
-// API POST dispatcher
+// API POST dispatcher - all POST endpoints require authentication
 esp_err_t WebServerService::handleApiPost(httpd_req_t* request) {
-    const char* uri = request->uri;
-
-    // Auth check for sensitive app management endpoints
-    if (strncmp(uri, "/api/apps/run", 13) == 0) {
-        bool authPassed = false;
-        esp_err_t authResult = validateRequestAuth(request, authPassed);
-        if (!authPassed) {
-            return authResult;
-        }
-        return handleApiAppsRun(request);
+    bool authPassed = false;
+    esp_err_t authResult = validateRequestAuth(request, authPassed);
+    if (!authPassed) {
+        return authResult;
     }
 
+    const char* uri = request->uri;
+    if (strncmp(uri, "/api/apps/run", 13) == 0) {
+        return handleApiAppsRun(request);
+    }
     if (strncmp(uri, "/api/apps/uninstall", 19) == 0) {
-        bool authPassed = false;
-        esp_err_t authResult = validateRequestAuth(request, authPassed);
-        if (!authPassed) {
-            return authResult;
-        }
         return handleApiAppsUninstall(request);
     }
 
@@ -1052,17 +1051,16 @@ esp_err_t WebServerService::handleApiPost(httpd_req_t* request) {
     return ESP_FAIL;
 }
 
-// API PUT dispatcher
+// API PUT dispatcher - all PUT endpoints require authentication
 esp_err_t WebServerService::handleApiPut(httpd_req_t* request) {
-    const char* uri = request->uri;
+    bool authPassed = false;
+    esp_err_t authResult = validateRequestAuth(request, authPassed);
+    if (!authPassed) {
+        return authResult;
+    }
 
-    // Auth check for sensitive app install endpoint
+    const char* uri = request->uri;
     if (strncmp(uri, "/api/apps/install", 17) == 0) {
-        bool authPassed = false;
-        esp_err_t authResult = validateRequestAuth(request, authPassed);
-        if (!authPassed) {
-            return authResult;
-        }
         return handleApiAppsInstall(request);
     }
 
@@ -1717,10 +1715,50 @@ esp_err_t WebServerService::handleReboot(httpd_req_t* request) {
 }
 
 esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
-    
+    // Auth check for UI access control
+    bool authPassed = false;
+    esp_err_t authResult = validateRequestAuth(request, authPassed);
+    if (!authPassed) {
+        return authResult;
+    }
+
     const char* uri = request->uri;
     LOGGER.info("GET {}", uri);
-    
+
+    // Special case: serve favicon from system assets
+    if (strcmp(uri, "/favicon.ico") == 0) {
+        const char* faviconPath = "/data/system/spinner.png";
+        if (file::isFile(faviconPath)) {
+            httpd_resp_set_type(request, "image/png");
+            httpd_resp_set_hdr(request, "Cache-Control", "public, max-age=86400");
+
+            auto lock = file::getLock(faviconPath);
+            lock->lock(portMAX_DELAY);
+
+            FILE* fp = fopen(faviconPath, "rb");
+            if (fp) {
+                char buffer[512];
+                size_t bytesRead;
+                while ((bytesRead = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+                    if (httpd_resp_send_chunk(request, buffer, bytesRead) != ESP_OK) {
+                        fclose(fp);
+                        lock->unlock();
+                        return ESP_FAIL;
+                    }
+                }
+                fclose(fp);
+                lock->unlock();
+                httpd_resp_send_chunk(request, nullptr, 0);
+                LOGGER.info("[200] {} (favicon)", uri);
+                return ESP_OK;
+            }
+            lock->unlock();
+        }
+        // If favicon not found, return 404 silently (browsers handle this gracefully)
+        httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "Not found");
+        return ESP_FAIL;
+    }
+
     // Special case: if requesting dashboard.html but it doesn't exist, serve default.html
     std::string requestedPath = uri;
     if (auto qpos = requestedPath.find('?'); qpos != std::string::npos) {

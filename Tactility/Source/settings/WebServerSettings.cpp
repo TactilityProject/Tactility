@@ -77,12 +77,12 @@ static std::string generateRandomCredential(size_t length) {
 }
 
 /**
- * @brief Check if a credential value is insecure (empty or the old "admin" default)
+ * @brief Check if a credential value is empty (needs auto-generation)
  * @param value The credential value to check
- * @return true if the credential is considered insecure
+ * @return true if the credential is empty and needs generation
  */
-static bool isInsecureCredential(const std::string& value) {
-    return value.empty() || value == "admin" || value == "tactility";
+static bool isEmptyCredential(const std::string& value) {
+    return value.empty();
 }
 
 bool load(WebServerSettings& settings) {
@@ -134,11 +134,11 @@ bool load(WebServerSettings& settings) {
         ? static_cast<uint8_t>(parseInt(ap_channel->second, 1, 13, 1))
         : 1;
 
-    // Security: If AP password is insecure (empty or the old "tactility" default),
-    // generate a strong random password and persist it immediately.
+    // Security: If AP password is empty, generate a strong random password.
     // Skip this if user explicitly wants an open network.
-    if (!settings.apOpenNetwork && isInsecureCredential(settings.apPassword)) {
-        LOGGER.warn("AP password is insecure - generating secure random password");
+    // Note: We only auto-generate for EMPTY passwords, not user-set ones.
+    if (!settings.apOpenNetwork && isEmptyCredential(settings.apPassword)) {
+        LOGGER.info("AP password is empty - generating secure random password");
 
         // Generate 12-character random password (alphanumeric, ~71 bits of entropy)
         // WPA2 requires 8-63 characters, so 12 is well within range
@@ -171,12 +171,13 @@ bool load(WebServerSettings& settings) {
     settings.webServerUsername = (webserver_username != map.end()) ? webserver_username->second : "";
     settings.webServerPassword = (webserver_password != map.end()) ? webserver_password->second : "";
 
-    // Security: If auth is enabled but credentials are insecure (empty or "admin"),
-    // generate strong random credentials and persist them immediately
+    // Security: If auth is enabled but credentials are empty,
+    // generate strong random credentials and persist them immediately.
+    // Note: We only auto-generate for EMPTY credentials, allowing users to set their own.
     if (settings.webServerAuthEnabled &&
-        (isInsecureCredential(settings.webServerUsername) || isInsecureCredential(settings.webServerPassword))) {
+        (isEmptyCredential(settings.webServerUsername) || isEmptyCredential(settings.webServerPassword))) {
 
-        LOGGER.warn("Auth enabled with insecure credentials - generating secure random credentials");
+        LOGGER.info("Auth enabled with empty credentials - generating secure random credentials");
 
         // Generate 12-character random credentials (alphanumeric, ~71 bits of entropy each)
         settings.webServerUsername = generateRandomCredential(12);

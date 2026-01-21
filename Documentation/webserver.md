@@ -441,10 +441,11 @@ To update web assets with a new version:
 > - Keep "AP Open Network" disabled (use WPA2 password protection) to prevent unauthorized network access
 
 - **⚠️ Open Network Option**: The "AP Open Network" setting allows creating an unprotected access point without a password. **This is convenient for quick access but exposes the device to anyone within WiFi range**, potentially allowing unauthorized access to all WebServer functionality if HTTP authentication is also disabled.
-- **Automatic credential generation**: Credentials are automatically generated when insecure:
-  - **AP Password**: Generated when empty or set to legacy default "tactility" (unless "AP Open Network" is enabled)
-  - **HTTP Auth**: Generated when auth is enabled but username/password are empty or "admin"
+- **Automatic credential generation**: Credentials are automatically generated when empty:
+  - **AP Password**: Generated when empty (unless "AP Open Network" is enabled)
+  - **HTTP Auth**: Generated when auth is enabled but username or password are empty
   - Generated credentials are 12 alphanumeric characters (~71 bits of entropy) and persisted immediately
+  - User-set credentials are preserved (the system only replaces empty credentials, not weak user-chosen passwords)
   - Check Settings > Web Server to view the generated credentials
 - File operations are restricted to `/data` and `/sdcard` paths
 - Path traversal attacks are blocked (e.g., `../` is rejected)
@@ -465,7 +466,7 @@ Settings are stored in the WebServer settings file and can be configured via **S
 | Username | Authentication username (when auth enabled) | Auto-generated |
 | Password | Authentication password (when auth enabled) | Auto-generated |
 
-**Note:** The system automatically generates secure credentials when they are empty or set to insecure defaults. Generated credentials are 12-character alphanumeric strings with ~71 bits of entropy. See **Security Considerations** for details.
+**Note:** The system automatically generates secure credentials when they are empty. Generated credentials are 12-character alphanumeric strings with ~71 bits of entropy. See **Security Considerations** for details.
 
 **Note:** WiFi Station credentials are managed separately via the WiFi settings menu.
 
