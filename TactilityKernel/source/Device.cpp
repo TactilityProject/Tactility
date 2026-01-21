@@ -85,7 +85,7 @@ void device_add(Device* device) {
     ledger_unlock();
 
     // Add self to parent's children list
-    auto* parent = device->internal.parent;
+    auto* parent = device->parent;
     if (parent != nullptr) {
         device_add_child(parent, device);
     }
@@ -114,7 +114,7 @@ bool device_remove(Device* device) {
     }
 
     // Remove self from parent's children list
-    auto* parent = device->internal.parent;
+    auto* parent = device->parent;
     if (parent != nullptr) {
         device_remove_child(parent, device);
     }
@@ -196,7 +196,7 @@ int device_stop(struct Device* device) {
 
 void device_set_parent(Device* device, Device* parent) {
     assert(!device->internal.state.started);
-    device->internal.parent = parent;
+    device->parent = parent;
 }
 
 } // extern "C"

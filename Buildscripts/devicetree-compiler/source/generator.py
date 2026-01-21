@@ -103,7 +103,7 @@ def write_config(file, device: Device, bindings: list[Binding], type_name: str):
         file.write(f"{config_params_joined}\n")
     file.write("};\n\n")
 
-def write_device_structs(file, device: Device, bindings: list[Binding], verbose: bool):
+def write_device_structs(file, device: Device, parent_device: Device, bindings: list[Binding], verbose: bool):
     if verbose:
         print(f"Writing device struct for '{device.identifier}'")
     # Assemble some pre-requisites
@@ -113,18 +113,24 @@ def write_device_structs(file, device: Device, bindings: list[Binding], verbose:
         raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
     identifier = get_device_identifier_safe(device)
     config_variable_name = f"{identifier}_config"
+    if parent_device is not None:
+        parent_identifier = get_device_identifier_safe(parent_device)
+        parent_value = f"&{parent_identifier}"
+    else:
+        parent_value = "NULL"
     # Write config struct
     write_config(file, device, bindings, type_name)
     # Write device struct
     file.write(f"static struct Device {identifier}" " = {\n")
     file.write(f"\t.name = \"{device.identifier}\",\n") # Use original name
     file.write(f"\t.config = (void*)&{config_variable_name},\n")
+    file.write(f"\t.parent = {parent_value},\n")
     file.write("};\n\n")
     # Child devices
     for child_device in device.devices:
-        write_device_structs(file, child_device, bindings, verbose)
+        write_device_structs(file, child_device, device, bindings, verbose)
 
-def write_device_init(file, device: Device, parent_device: Device, bindings: list[Binding], verbose: bool):
+def write_device_init(file, device: Device, bindings: list[Binding], verbose: bool):
     if verbose:
         print(f"Processing device init code for '{device.identifier}'")
     # Assemble some pre-requisites
@@ -134,16 +140,11 @@ def write_device_init(file, device: Device, parent_device: Device, bindings: lis
     # Type & instance names
     identifier = get_device_identifier_safe(device)
     device_variable = identifier
-    if parent_device is not None:
-        parent_identifier = get_device_identifier_safe(parent_device)
-        parent_value = f"&{parent_identifier}"
-    else:
-        parent_value = "NULL"
     # Write device struct
-    file.write(f"\tif (init_builtin_device(&{device_variable}, \"{compatible_property.value}\", {parent_value}) != 0) return -1;\n")
+    file.write(f"\tif (init_builtin_device(&{device_variable}, \"{compatible_property.value}\") != 0) return -1;\n")
     # Write children
     for child_device in device.devices:
-        write_device_init(file, child_device, device, bindings, verbose)
+        write_device_init(file, child_device, bindings, verbose)
 
 def write_device_list_entry(file, device: Device):
     compatible_property = find_binding_property(device, "compatible")
@@ -165,11 +166,11 @@ def write_device_list(file, devices: list[Device]):
 def generate_devicetree_c(filename: str, items: list[object], bindings: list[Binding], verbose: bool):
     with open(filename, "w") as file:
         file.write(dedent('''\
-        // Generated includes
+        // Default headers
         #include <Tactility/Device.h>
         #include <Tactility/Driver.h>
         #include <Tactility/Log.h>
-        // DTS includes
+        // DTS headers
         '''))
 
         # Write all headers first
@@ -181,7 +182,7 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         file.write(dedent('''\
         #define TAG LOG_TAG(devicetree)
         
-        static int init_builtin_device(struct Device* device, const char* compatible, struct Device* parent_device) {
+        static int init_builtin_device(struct Device* device, const char* compatible) {
             struct Driver* driver = driver_find(compatible);
             if (driver == NULL) {
                 LOG_E(TAG, "Can't find driver: %s", compatible);
@@ -189,7 +190,6 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
             }
         	device_construct(device);
             device_set_driver(device, driver);
-            device_set_parent(device, parent_device);
             device_add(device);
             const int err = device_start(device);
             if (err != 0) {
@@ -204,13 +204,13 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         # Then write all devices
         for item in items:
             if type(item) is Device:
-                write_device_structs(file, item, bindings, verbose)
+                write_device_structs(file, item, None, bindings, verbose)
         # Init function body start
         file.write("int devices_builtin_init() {\n")
         # Init function body logic
         for item in items:
             if type(item) is Device:
-                write_device_init(file, item, None, bindings, verbose)
+                write_device_init(file, item, bindings, verbose)
         file.write("\treturn 0;\n")
         # Init function body end
         file.write("}\n")

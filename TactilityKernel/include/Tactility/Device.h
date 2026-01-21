@@ -19,10 +19,10 @@ struct Device {
     const char* name;
     /** The configuration data for the device's driver */
     void* config;
+    /** The parent device that this device belongs to. Can be NULL, but only the root device should have a NULL parent. */
+    struct Device* parent;
     /** Internal data */
     struct {
-        /** The parent device that this device belongs to. Can be NULL, but only the root device should have a NULL parent. */
-        struct Device* parent;
         /** Address of the API exposed by the device instance. */
         struct Driver* driver;
         /** The driver data for this device (e.g. a mutex) */
