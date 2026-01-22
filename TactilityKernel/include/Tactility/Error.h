@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sys/errno.h>
+#include <errno.h>
 
 #define CUSTOM_ERROR_CODE(x) (-2000 - x)
 

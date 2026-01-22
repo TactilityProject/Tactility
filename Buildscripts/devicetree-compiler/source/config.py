@@ -42,8 +42,9 @@ def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
             config.dts = os.path.join(current_path, dts_path)
 
         bindings = data.get("bindings", "")
-        bindings_resolved = os.path.join(current_path, bindings)
-        config.bindings.append(bindings_resolved)
+        if bindings:
+            bindings_resolved = os.path.join(current_path, bindings)
+            config.bindings.append(bindings_resolved)
 
     _parse_recursive(file_path, True)
     return config

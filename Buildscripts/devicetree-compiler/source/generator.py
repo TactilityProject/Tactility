@@ -31,8 +31,8 @@ def find_device_property(device: Device, name: str) -> DeviceProperty:
             return property
     return None
 
-def find_binding_property(binding: Binding, name: str) -> BindingProperty:
-    for property in binding.properties:
+def find_binding_property(device: Device, name: str) -> BindingProperty:
+    for property in device.properties:
         if property.name == name:
             return property
     return None
@@ -97,7 +97,7 @@ def write_config(file, device: Device, bindings: list[Binding], type_name: str):
     # Indent all params
     for index, config_param in enumerate(config_params):
         config_params[index] = f"\t{config_param}"
-    # Join with comman and newline
+    # Join with command and newline
     if len(config_params) > 0:
         config_params_joined = ",\n".join(config_params)
         file.write(f"{config_params_joined}\n")
@@ -171,7 +171,7 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
                 LOG_E(TAG, "Can't find driver: %s", compatible);
                 return -1;
             }
-        	device_construct(device);
+            device_construct(device);
             device_set_driver(device, driver);
             device_add(device);
             const int err = device_start(device);
