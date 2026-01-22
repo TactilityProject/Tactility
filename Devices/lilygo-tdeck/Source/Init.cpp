@@ -108,14 +108,12 @@ bool initBoot() {
         // Apply trackball settings (requires LVGL lock for cursor manipulation)
         auto tbSettings = tt::settings::trackball::loadOrGetDefault();
         if (tt::lvgl::lock(100)) {
+            trackball::setMode(tbSettings.trackballMode == tt::settings::trackball::TrackballMode::Pointer
+                ? trackball::Mode::Pointer
+                : trackball::Mode::Encoder);
+            trackball::setEncoderSensitivity(tbSettings.encoderSensitivity);
+            trackball::setPointerSensitivity(tbSettings.pointerSensitivity);
             trackball::setEnabled(tbSettings.trackballEnabled);
-
-            // Apply trackball mode from settings
-            if (tbSettings.trackballEnabled) {
-                trackball::setMode(tbSettings.trackballMode == tt::settings::trackball::TrackballMode::Pointer
-                    ? trackball::Mode::Pointer
-                    : trackball::Mode::Encoder);
-            }
             tt::lvgl::unlock();
         } else {
             LOGGER.warn("Failed to acquire LVGL lock for trackball settings");

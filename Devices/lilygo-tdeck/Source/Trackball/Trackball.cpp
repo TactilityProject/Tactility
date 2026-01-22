@@ -238,18 +238,7 @@ lv_indev_t* init(const TrackballConfig& config) {
 
     // Register as LVGL encoder input device for group navigation (default mode)
     g_indev = lv_indev_create();
-    lv_indev_set_type(g_indev, LV_INDEV_TYPE_ENCODER);
-    lv_indev_set_read_cb(g_indev, read_cb);
-
-    if (g_indev != nullptr) {
-        g_initialized.store(true, std::memory_order_relaxed);
-        LOGGER.info("Initialized with interrupts (R:{} U:{} L:{} D:{} Click:{})",
-                 static_cast<int>(config.pinRight),
-                 static_cast<int>(config.pinUp),
-                 static_cast<int>(config.pinLeft),
-                 static_cast<int>(config.pinDown),
-                 static_cast<int>(config.pinClick));
-    } else {
+    if (g_indev == nullptr) {
         LOGGER.error("Failed to register LVGL input device");
         // Cleanup ISR handlers on failure
         const gpio_num_t pins[5] = {
@@ -262,6 +251,16 @@ lv_indev_t* init(const TrackballConfig& config) {
         }
         return nullptr;
     }
+
+    lv_indev_set_type(g_indev, LV_INDEV_TYPE_ENCODER);
+    lv_indev_set_read_cb(g_indev, read_cb);
+    g_initialized.store(true, std::memory_order_relaxed);
+    LOGGER.info("Initialized with interrupts (R:{} U:{} L:{} D:{} Click:{})",
+             static_cast<int>(config.pinRight),
+             static_cast<int>(config.pinUp),
+             static_cast<int>(config.pinLeft),
+             static_cast<int>(config.pinDown),
+             static_cast<int>(config.pinClick));
 
     return g_indev;
 }
