@@ -375,6 +375,9 @@ void setMode(Mode mode) {
         // Switch to pointer mode
         lv_indev_set_type(g_indev, LV_INDEV_TYPE_POINTER);
         createCursor();
+        if (!g_enabled.load(std::memory_order_relaxed) && g_cursor != nullptr) {
+            lv_obj_add_flag(g_cursor, LV_OBJ_FLAG_HIDDEN);
+        }
         // Reset cursor to center when switching modes
         g_cursorX.store(SCREEN_WIDTH / 2, std::memory_order_relaxed);
         g_cursorY.store(SCREEN_HEIGHT / 2, std::memory_order_relaxed);
