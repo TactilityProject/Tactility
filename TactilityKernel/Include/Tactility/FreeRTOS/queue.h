@@ -1,10 +1,10 @@
 #pragma once
 
+#include "FreeRTOS.h"
+
 #ifdef ESP_PLATFORM
-#include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #else
-#include <FreeRTOS.h>
 #include <queue.h>
 #endif
 

@@ -1,3 +1,4 @@
 dependencies:
   - TactilityKernel
+  - Drivers/PlatformPosix
 dts: ../placeholder.dts

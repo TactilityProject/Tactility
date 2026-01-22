@@ -1,5 +1,6 @@
 #include <sys/errno.h>
 #include <vector>
+#include <cstring>
 
 #include <Tactility/concurrent/Mutex.h>
 #include <Tactility/Device.h>

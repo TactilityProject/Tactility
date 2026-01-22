@@ -18,19 +18,20 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 
     idf_component_register(
         SRCS ${SOURCE_FILES} "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c"
-        REQUIRES Tactility TactilityC TactilityKernel drivers-esp ${TACTILITY_DEVICE_PROJECT}
+        REQUIRES Tactility TactilityC TactilityKernel PlatformEsp32 ${TACTILITY_DEVICE_PROJECT}
     )
 
 else ()
 
     add_executable(FirmwareSim ${SOURCE_FILES} "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c")
-    target_link_libraries(FirmwareSim
-        PRIVATE Tactility
-        PRIVATE TactilityCore
-        PRIVATE TactilityFreeRtos
-        PRIVATE TactilityKernel
-        PRIVATE Simulator
-        PRIVATE SDL2::SDL2-static SDL2-static
+    target_link_libraries(FirmwareSim PRIVATE
+        Tactility
+        TactilityCore
+        TactilityFreeRtos
+        TactilityKernel
+        Simulator
+        PlatformPosix
+        SDL2::SDL2-static SDL2-static
     )
 
     add_definitions(-D_Nullable=)
@@ -52,6 +53,7 @@ add_custom_command(
 )
 add_custom_target(Generated DEPENDS "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c")
 set_source_files_properties("${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.h" PROPERTIES GENERATED TRUE)
 # Update target for generated code
 target_sources(${COMPONENT_LIB} PRIVATE "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c")
 target_include_directories(${COMPONENT_LIB} PRIVATE "${CMAKE_SOURCE_DIR}/Firmware/Generated")
