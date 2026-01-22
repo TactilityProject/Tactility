@@ -3,7 +3,7 @@
 #include <Tactility/Driver.h>
 #include <Tactility/Log.h>
 
-#include <algorithm>
+#include <ranges>
 #include <cassert>
 #include <cstring>
 #include <sys/errno.h>
