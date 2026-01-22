@@ -26,7 +26,7 @@ class DtsTransformer(Transformer):
         for index, entry in enumerate(tokens):
             if index == 0:
                 identifier = entry.value
-            elif type(entry) is Property:
+            elif type(entry) is DeviceProperty:
                 properties.append(entry)
             elif type(entry) is Device:
                 devices.append(entry)
@@ -35,7 +35,7 @@ class DtsTransformer(Transformer):
         assert len(objects) == 2
         if not type(objects[1]) is PropertyValue:
             raise Exception(f"Object was not converted to PropertyValue: {objects[1]}")
-        return Property(objects[0], objects[1].type, objects[1].value)
+        return DeviceProperty(objects[0], objects[1].type, objects[1].value)
     def property_value(self, tokens: List):
         token = tokens[0]
         if type(token) is Token:
