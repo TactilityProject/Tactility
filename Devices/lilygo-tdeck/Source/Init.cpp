@@ -8,6 +8,7 @@
 #include <Tactility/LogMessages.h>
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/settings/KeyboardSettings.h>
+#include <Tactility/settings/TrackballSettings.h>
 #include <Trackball/Trackball.h>
 
 #include <KeyboardBacklight/KeyboardBacklight.h>
@@ -103,7 +104,15 @@ bool initBoot() {
             LOGGER.warn("Failed to set keyboard backlight brightness");
         }
 
-        trackball::setEnabled(kbSettings.trackballEnabled);
+        auto tbSettings = tt::settings::trackball::loadOrGetDefault();
+        trackball::setEnabled(tbSettings.trackballEnabled);
+
+        // Apply trackball mode from settings
+        if (tbSettings.trackballEnabled) {
+            trackball::setMode(tbSettings.trackballMode == tt::settings::trackball::TrackballMode::Pointer
+                ? trackball::Mode::Pointer
+                : trackball::Mode::Encoder);
+        }
     });
 
     return true;

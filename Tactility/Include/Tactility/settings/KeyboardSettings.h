@@ -5,11 +5,10 @@
 namespace tt::settings::keyboard {
 
 struct KeyboardSettings {
-    bool backlightEnabled;
-    uint8_t backlightBrightness; // 0-255
-    bool trackballEnabled;
-    bool backlightTimeoutEnabled;
-    uint32_t backlightTimeoutMs; // Timeout in milliseconds
+    bool backlightEnabled = false;
+    uint8_t backlightBrightness = 0; // 0-255
+    bool backlightTimeoutEnabled = false;
+    uint32_t backlightTimeoutMs = 0; // Timeout in milliseconds
 };
 
 bool load(KeyboardSettings& settings);

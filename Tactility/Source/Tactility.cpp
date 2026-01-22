@@ -103,6 +103,9 @@ namespace app {
     namespace systeminfo { extern const AppManifest manifest; }
     namespace timedatesettings { extern const AppManifest manifest; }
     namespace timezone { extern const AppManifest manifest; }
+#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
+    namespace trackballsettings { extern const AppManifest manifest; }
+#endif
     namespace usbsettings { extern const AppManifest manifest; }
     namespace wifiapsettings { extern const AppManifest manifest; }
     namespace wificonnect { extern const AppManifest manifest; }
@@ -146,6 +149,9 @@ static void registerInternalApps() {
     addAppManifest(app::systeminfo::manifest);
     addAppManifest(app::timedatesettings::manifest);
     addAppManifest(app::timezone::manifest);
+#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
+    addAppManifest(app::trackballsettings::manifest);
+#endif
     addAppManifest(app::wifiapsettings::manifest);
     addAppManifest(app::wificonnect::manifest);
     addAppManifest(app::wifimanage::manifest);
