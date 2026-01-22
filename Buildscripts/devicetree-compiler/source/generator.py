@@ -52,7 +52,7 @@ def find_binding(compatible: str, bindings: list[Binding]) -> Binding:
             return binding
     return None
 
-def property_to_string(property: Property) -> str:
+def property_to_string(property: DeviceProperty) -> str:
     type = property.type
     if type == "value":
         return property.value

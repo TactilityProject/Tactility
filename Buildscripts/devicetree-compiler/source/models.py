@@ -11,7 +11,7 @@ class Device:
     devices: list
 
 @dataclass
-class Property:
+class DeviceProperty:
     name: str
     type: str
     value: object
