@@ -1,5 +1,8 @@
 #pragma once
 
+#include "freertos/semphr.h"
+
+
 #include <Tactility/FreeRTOS/semphr.h>
 
 #ifdef __cplusplus
@@ -23,7 +26,7 @@ inline static void recursive_mutex_destruct(struct RecursiveMutex* mutex) {
 
 inline static void recursive_mutex_lock(struct RecursiveMutex* mutex) {
     assert(mutex->handle != NULL);
-    xSemaphoreTake(mutex->handle, portMAX_DELAY);
+    xSemaphoreTakeRecursive(mutex->handle, portMAX_DELAY);
 }
 
 inline static bool recursive_mutex_is_locked(struct RecursiveMutex* mutex) {
@@ -33,12 +36,12 @@ inline static bool recursive_mutex_is_locked(struct RecursiveMutex* mutex) {
 
 inline static bool recursive_mutex_try_lock(struct RecursiveMutex* mutex) {
     assert(mutex->handle != NULL);
-    return xSemaphoreTake(mutex->handle, 0) == pdTRUE;
+    return xSemaphoreTakeRecursive(mutex->handle, 0) == pdTRUE;
 }
 
 inline static void recursive_mutex_unlock(struct RecursiveMutex* mutex) {
     assert(mutex->handle != NULL);
-    xSemaphoreGive(mutex->handle);
+    xSemaphoreGiveRecursive(mutex->handle);
 }
 
 #ifdef __cplusplus

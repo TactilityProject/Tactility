@@ -1,6 +1,6 @@
 #ifndef ESP_PLATFORM
 
-#include <tactility/log.h>
+#include <Tactility/Log.h>
 
 #include <stdio.h>
 #include <stdarg.h>

@@ -2,26 +2,17 @@ cmake_minimum_required(VERSION 3.20)
 
 file(GLOB_RECURSE SOURCE_FILES "Source/*.c*")
 
-# Determine device identifier and project location
-if (DEFINED ENV{ESP_IDF_VERSION})
-    include("../Buildscripts/device.cmake")
-    init_tactility_globals("../sdkconfig")
-    get_property(TACTILITY_DEVICE_PROJECT GLOBAL PROPERTY TACTILITY_DEVICE_PROJECT)
-else ()
-    set(TACTILITY_DEVICE_PROJECT "Devices/simulator")
-endif ()
-
-set(DEVICETREE_LOCATION "Devices/${TACTILITY_DEVICE_ID}")
-
-if (NOT DEFINED ${COMPONENT_LIB})
+if (NOT DEFINED ENV{ESP_IDF_VERSION})
     set(COMPONENT_LIB FirmwareSim)
 endif ()
 
 if (DEFINED ENV{ESP_IDF_VERSION})
+    include("../Buildscripts/device.cmake")
+    init_tactility_globals("../sdkconfig")
+    get_property(TACTILITY_DEVICE_PROJECT GLOBAL PROPERTY TACTILITY_DEVICE_PROJECT)
 
     idf_component_register(
         SRCS ${SOURCE_FILES}
-        REQUIRES ${DEVICE_COMPONENTS}
         REQUIRES Tactility TactilityC TactilityKernel drivers-esp ${TACTILITY_DEVICE_PROJECT}
     )
 

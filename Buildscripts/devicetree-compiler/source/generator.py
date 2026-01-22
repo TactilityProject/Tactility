@@ -146,23 +146,6 @@ def write_device_init(file, device: Device, bindings: list[Binding], verbose: bo
     for child_device in device.devices:
         write_device_init(file, child_device, bindings, verbose)
 
-def write_device_list_entry(file, device: Device):
-    compatible_property = find_binding_property(device, "compatible")
-    if compatible_property is None:
-        raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
-    identifier = get_device_identifier_safe(device)
-    file.write(f"\t&{identifier},\n")
-    for child in device.devices:
-        write_device_list_entry(file, child)
-
-def write_device_list(file, devices: list[Device]):
-    file.write("struct device* devices_builtin[] = {\n")
-    for device in devices:
-        write_device_list_entry(file, device)
-    # Terminator
-    file.write(f"\tNULL\n")
-    file.write("};\n\n")
-
 def generate_devicetree_c(filename: str, items: list[object], bindings: list[Binding], verbose: bool):
     with open(filename, "w") as file:
         file.write(dedent('''\

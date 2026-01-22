@@ -8,7 +8,7 @@ class DeviceTreeConfig:
     bindings: list[str] = field(default_factory=list)
     dts: str = ""
 
-def parse_config(file_path: str, project_root: str) -> list[DeviceTreeConfig]:
+def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
     """
     Parses devicetree.yaml and recursively finds dependencies.
     Returns a list of DeviceTreeConfig objects in post-order (dependencies first).

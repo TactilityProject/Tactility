@@ -19,7 +19,7 @@ struct InternalData {
     }
 };
 
-#define GET_CONFIG(device) ((Esp32I2cConfig*)device->internal.driver_data)
+#define GET_CONFIG(device) ((Esp32I2cConfig*)device->config)
 #define GET_DATA(device) ((InternalData*)device->internal.driver_data)
 
 #define lock(data) mutex_lock(&data->mutex);
@@ -52,7 +52,7 @@ static bool write_read(Device* device, uint8_t address, const uint8_t* write_dat
     auto* driver_data = GET_DATA(device);
     lock(driver_data);
     const esp_err_t result = i2c_master_write_read_device(GET_CONFIG(device)->port, address, write_data, write_data_size, read_data, read_data_size, timeout);
-    unlock(driver_data)
+    unlock(driver_data);
     ESP_ERROR_CHECK_WITHOUT_ABORT(result);
     return result == ESP_OK;
 }

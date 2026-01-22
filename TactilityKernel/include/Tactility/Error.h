@@ -2,7 +2,7 @@
 
 #include <sys/errno.h>
 
-#define CUSTOM_ERROR_CODE(x) (-__ELASTERROR - x)
+#define CUSTOM_ERROR_CODE(x) (-2000 - x)
 
 #define ERROR_UNDEFINED CUSTOM_ERROR_CODE(1)
 #define ERROR_INVALID_STATE CUSTOM_ERROR_CODE(2)
