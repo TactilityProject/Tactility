@@ -1,8 +1,6 @@
 #pragma once
 
-#include "freertos/semphr.h"
-
-
+#include <stdbool.h>
 #include <Tactility/FreeRTOS/semphr.h>
 
 #ifdef __cplusplus
@@ -20,6 +18,7 @@ inline static void recursive_mutex_construct(struct RecursiveMutex* mutex) {
 inline static void recursive_mutex_destruct(struct RecursiveMutex* mutex) {
     assert(mutex != NULL);
     assert(mutex->handle != NULL);
+    vPortAssertIfInISR();
     vSemaphoreDelete(mutex->handle);
     mutex->handle = NULL;
 }

@@ -2,6 +2,7 @@
 
 #include <Tactility/FreeRTOS/semphr.h>
 #include <assert.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
