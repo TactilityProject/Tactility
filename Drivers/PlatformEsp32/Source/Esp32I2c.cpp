@@ -8,7 +8,7 @@
 #define TAG LOG_TAG(esp32_i2c)
 
 struct InternalData {
-    Mutex mutex {};
+    Mutex mutex { 0 };
 
     InternalData() {
         mutex_construct(&mutex);

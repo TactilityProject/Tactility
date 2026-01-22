@@ -11,7 +11,7 @@
 #define TAG LOG_TAG(driver)
 
 struct DriverInternalData {
-    Mutex mutex {};
+    Mutex mutex { 0 };
     int use_count = 0;
 
     DriverInternalData() {
@@ -25,7 +25,7 @@ struct DriverInternalData {
 
 struct DriverLedger {
     std::vector<Driver*> drivers = {};
-    Mutex mutex {};
+    Mutex mutex { 0 };
 
     DriverLedger() {
         mutex_construct(&mutex);

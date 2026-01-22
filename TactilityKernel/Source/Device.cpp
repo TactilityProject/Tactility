@@ -17,7 +17,7 @@ struct DeviceData {
 
 struct DeviceLedger {
     std::vector<Device*> devices;
-    Mutex mutex {};
+    Mutex mutex { 0 };
 
     DeviceLedger() {
         mutex_construct(&mutex);
@@ -54,7 +54,8 @@ int device_destruct(Device* device) {
 /** Add a child to the list of children */
 static void device_add_child(struct Device* device, struct Device* child) {
     device_lock(device);
-    get_device_data(device)->children.push_back(device);
+    assert(device->internal.state.added);
+    get_device_data(device)->children.push_back(child);
     device_unlock(device);
 }
 
@@ -173,6 +174,25 @@ int device_stop(struct Device* device) {
 void device_set_parent(Device* device, Device* parent) {
     assert(!device->internal.state.started);
     device->parent = parent;
+}
+
+void for_each_device(void* callback_context, bool(*on_device)(Device* device, void* context)) {
+    ledger_lock();
+    for (auto* device : ledger.devices) {
+        if (!on_device(device, callback_context)) {
+            break;
+        }
+    }
+    ledger_unlock()
+}
+
+void for_each_device_child(Device* device, void* callback_context, bool(*on_device)(struct Device* device, void* context)) {
+    auto* data = get_device_data(device);
+    for (auto* child_device : data->children) {
+        if (!on_device(child_device, callback_context)) {
+            break;
+        }
+    }
 }
 
 void for_each_device_of_type(const DeviceType* type, void* callback_context, bool(*on_device)(Device* device, void* context)) {
