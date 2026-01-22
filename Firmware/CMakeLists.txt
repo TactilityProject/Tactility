@@ -15,8 +15,9 @@ endif ()
 set(DEVICETREE_LOCATION "${CMAKE_SOURCE_DIR}/Devices/${TACTILITY_DEVICE_ID}")
 
 if (DEFINED ENV{ESP_IDF_VERSION})
+
     idf_component_register(
-        SRCS ${SOURCE_FILES}
+        SRCS ${SOURCE_FILES} "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c"
         REQUIRES Tactility TactilityC TactilityKernel drivers-esp ${TACTILITY_DEVICE_PROJECT}
     )
 
