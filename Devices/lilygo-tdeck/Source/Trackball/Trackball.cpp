@@ -246,6 +246,16 @@ lv_indev_t* init(const TrackballConfig& config) {
                  static_cast<int>(config.pinClick));
     } else {
         LOGGER.error("Failed to register LVGL input device");
+        // Cleanup ISR handlers on failure
+        const gpio_num_t pins[5] = {
+            config.pinRight, config.pinUp, config.pinLeft,
+            config.pinDown, config.pinClick
+        };
+        for (int i = 0; i < 5; i++) {
+            gpio_intr_disable(pins[i]);
+            gpio_isr_handler_remove(pins[i]);
+        }
+        return nullptr;
     }
 
     return g_indev;

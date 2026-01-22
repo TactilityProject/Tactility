@@ -1,4 +1,4 @@
-//#ifdef ESP_PLATFORM
+#ifdef ESP_PLATFORM
 
 #include <Tactility/Tactility.h>
 
@@ -207,4 +207,4 @@ extern const AppManifest manifest = {
 
 }
 
-//#endif
+#endif
