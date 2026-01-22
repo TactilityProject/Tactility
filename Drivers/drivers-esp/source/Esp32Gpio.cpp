@@ -46,7 +46,7 @@ static bool set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
         .pull_down_en = (options & GPIO_PULL_DOWN) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTERRUPT_FROM_OPTIONS(options),
 #if SOC_GPIO_SUPPORT_PIN_HYS_FILTER
-        .hys_ctrl_mode = GPIO_HYS_CTRL_EFUSE
+        .hys_ctrl_mode = GPIO_HYS_SOFT_DISABLE
 #endif
     };
 

@@ -215,6 +215,8 @@ def generate_devicetree_h(filename: str):
         '''))
 
 def generate(output_path: str, items: list[object], bindings: list[Binding], verbose: bool):
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     devicetree_c_filename = os.path.join(output_path, "devicetree.c")
     generate_devicetree_c(devicetree_c_filename, items, bindings, verbose)
     devicetree_h_filename = os.path.join(output_path, "devicetree.h")
