@@ -37,6 +37,11 @@ static constexpr int32_t CURSOR_SIZE = 16;
 
 // ISR handler for trackball directions
 static void IRAM_ATTR trackball_isr_handler(void* arg) {
+    // Skip accumulating movement when disabled
+    if (!g_enabled.load(std::memory_order_relaxed)) {
+        return;
+    }
+
     gpio_num_t pin = static_cast<gpio_num_t>(reinterpret_cast<intptr_t>(arg));
 
     if (g_mode.load(std::memory_order_relaxed) == Mode::Pointer) {
@@ -99,7 +104,7 @@ static void read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     if (currentMode == Mode::Encoder) {
         // Read and reset accumulated encoder diff
         int32_t diff = g_encoderDiff.exchange(0);
-        data->enc_diff = static_cast<int16_t>(diff);
+        data->enc_diff = static_cast<int16_t>(clamp(diff, INT16_MIN, INT16_MAX));
 
         if (diff != 0) {
             lv_disp_trig_activity(nullptr);
@@ -334,6 +339,11 @@ void setPointerSensitivity(uint8_t sensitivity) {
 
 void setEnabled(bool enabled) {
     g_enabled.store(enabled, std::memory_order_relaxed);
+
+    if (!enabled) {
+        // Clear accumulated state to prevent jumps on re-enable
+        g_encoderDiff.store(0, std::memory_order_relaxed);
+    }
 
     // Hide/show cursor based on enabled state when in pointer mode
     // Note: Must be called from LVGL thread (main thread) for thread safety

@@ -32,16 +32,20 @@ bool load(TrackballSettings& settings) {
     // Safe integer parsing without exceptions
     auto safeParseUint8 = [](const std::string& str, uint8_t defaultVal) -> uint8_t {
         if (str.empty()) return defaultVal;
-        int val = 0;
+        unsigned int val = 0;
         for (char c : str) {
             if (c < '0' || c > '9') return defaultVal;
+            if (val > 25) return defaultVal; // Early exit: val*10+9 would exceed 255
             val = val * 10 + (c - '0');
             if (val > 255) return defaultVal;
         }
         return static_cast<uint8_t>(val);
     };
 
-    settings.trackballEnabled = (tb_enabled != map.end()) ? (tb_enabled->second == "1" || tb_enabled->second == "true" || tb_enabled->second == "True") : true;
+    auto isTrueValue = [](const std::string& s) {
+        return s == "1" || s == "true" || s == "True" || s == "TRUE";
+    };
+    settings.trackballEnabled = (tb_enabled != map.end()) ? isTrueValue(tb_enabled->second) : true;
     settings.trackballMode = (tb_mode != map.end() && tb_mode->second == "1") ? TrackballMode::Pointer : TrackballMode::Encoder;
     settings.encoderSensitivity = (enc_sens != map.end()) ? safeParseUint8(enc_sens->second, MIN_ENCODER_SENSITIVITY) : MIN_ENCODER_SENSITIVITY;
     settings.pointerSensitivity = (ptr_sens != map.end()) ? safeParseUint8(ptr_sens->second, MAX_POINTER_SENSITIVITY) : MAX_POINTER_SENSITIVITY;

@@ -6,6 +6,7 @@
 #include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
+#include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/settings/KeyboardSettings.h>
 #include <Tactility/settings/TrackballSettings.h>
@@ -104,14 +105,20 @@ bool initBoot() {
             LOGGER.warn("Failed to set keyboard backlight brightness");
         }
 
+        // Apply trackball settings (requires LVGL lock for cursor manipulation)
         auto tbSettings = tt::settings::trackball::loadOrGetDefault();
-        trackball::setEnabled(tbSettings.trackballEnabled);
+        if (tt::lvgl::lock(100)) {
+            trackball::setEnabled(tbSettings.trackballEnabled);
 
-        // Apply trackball mode from settings
-        if (tbSettings.trackballEnabled) {
-            trackball::setMode(tbSettings.trackballMode == tt::settings::trackball::TrackballMode::Pointer
-                ? trackball::Mode::Pointer
-                : trackball::Mode::Encoder);
+            // Apply trackball mode from settings
+            if (tbSettings.trackballEnabled) {
+                trackball::setMode(tbSettings.trackballMode == tt::settings::trackball::TrackballMode::Pointer
+                    ? trackball::Mode::Pointer
+                    : trackball::Mode::Encoder);
+            }
+            tt::lvgl::unlock();
+        } else {
+            LOGGER.warn("Failed to acquire LVGL lock for trackball settings");
         }
     });
 

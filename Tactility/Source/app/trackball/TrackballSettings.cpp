@@ -29,6 +29,15 @@ static trackball::Mode toDriverMode(settings::trackball::TrackballMode mode) {
     return trackball::Mode::Encoder; // default
 }
 
+// Convert settings enum to dropdown index (dropdown order: Encoder=0, Pointer=1)
+static uint32_t modeToDropdownIndex(settings::trackball::TrackballMode mode) {
+    switch (mode) {
+        case settings::trackball::TrackballMode::Encoder: return 0;
+        case settings::trackball::TrackballMode::Pointer: return 1;
+    }
+    return 0; // default to Encoder
+}
+
 class TrackballSettingsApp final : public App {
 
     settings::trackball::TrackballSettings tbSettings;
@@ -131,7 +140,7 @@ public:
         lv_obj_align(trackballModeDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
         lv_obj_set_style_border_color(trackballModeDropdown, lv_color_hex(0xFAFAFA), LV_PART_MAIN);
         lv_obj_set_style_border_width(trackballModeDropdown, 1, LV_PART_MAIN);
-        lv_dropdown_set_selected(trackballModeDropdown, static_cast<uint32_t>(tbSettings.trackballMode));
+        lv_dropdown_set_selected(trackballModeDropdown, modeToDropdownIndex(tbSettings.trackballMode));
         lv_obj_add_event_cb(trackballModeDropdown, onTrackballModeChanged, LV_EVENT_VALUE_CHANGED, this);
 
         // Disable dropdown if trackball is disabled
