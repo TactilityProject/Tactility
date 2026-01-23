@@ -6,13 +6,7 @@
 #include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
-#include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/gps/GpsService.h>
-#include <Tactility/settings/KeyboardSettings.h>
-#include <Tactility/settings/TrackballSettings.h>
-#include <Trackball/Trackball.h>
-
-#include <KeyboardBacklight/KeyboardBacklight.h>
 
 static const auto LOGGER = tt::Logger("T-Deck");
 
@@ -90,33 +84,6 @@ bool initBoot() {
             } else {
                 LOGGER.error("{} start failed", trackball->getName());
             }
-        }
-
-        // Backlight doesn't seem to turn on until toggled on and off from keyboard settings...
-        // Or let the display and backlight sleep then wake it up.
-        // Then it works fine...until reboot, then you need to toggle again.
-        // The current keyboard firmware sets backlight duty to 0 on boot.
-        // https://github.com/Xinyuan-LilyGO/T-Deck/blob/master/firmware/T-Keyboard_Keyboard_ESP32C3_250620.bin
-        // https://github.com/Xinyuan-LilyGO/T-Deck/blob/master/examples/Keyboard_ESP32C3/Keyboard_ESP32C3.ino#L25
-        // https://github.com/Xinyuan-LilyGO/T-Deck/blob/master/examples/Keyboard_ESP32C3/Keyboard_ESP32C3.ino#L217
-        auto kbSettings = tt::settings::keyboard::loadOrGetDefault();
-        bool result = keyboardbacklight::setBrightness(kbSettings.backlightEnabled ? kbSettings.backlightBrightness : 0);
-        if (!result) {
-            LOGGER.warn("Failed to set keyboard backlight brightness");
-        }
-
-        // Apply trackball settings (requires LVGL lock for cursor manipulation)
-        auto tbSettings = tt::settings::trackball::loadOrGetDefault();
-        if (tt::lvgl::lock(100)) {
-            trackball::setMode(tbSettings.trackballMode == tt::settings::trackball::TrackballMode::Pointer
-                ? trackball::Mode::Pointer
-                : trackball::Mode::Encoder);
-            trackball::setEncoderSensitivity(tbSettings.encoderSensitivity);
-            trackball::setPointerSensitivity(tbSettings.pointerSensitivity);
-            trackball::setEnabled(tbSettings.trackballEnabled);
-            tt::lvgl::unlock();
-        } else {
-            LOGGER.warn("Failed to acquire LVGL lock for trackball settings");
         }
     });
 
