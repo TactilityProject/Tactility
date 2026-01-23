@@ -25,7 +25,7 @@ struct Device {
     /** The name of the device. Valid characters: a-z a-Z 0-9 - _ . */
     const char* name;
     /** The configuration data for the device's driver */
-    void* config;
+    const void* config;
     /** The parent device that this device belongs to. Can be NULL, but only the root device should have a NULL parent. */
     struct Device* parent;
     /** Internal data */
@@ -51,8 +51,9 @@ struct Device {
  * Initialize the properties of a device.
  *
  * @param[in] dev a device with all non-internal properties set
+ * @return the result code (0 for success)
  */
-void device_construct(struct Device* device);
+int device_construct(struct Device* device);
 
 /**
  * Deinitialize the properties of a device.
@@ -80,8 +81,9 @@ static inline bool device_is_ready(const struct Device* device) {
  * - a bus (if any)
  *
  * @param[in] device non-null device pointer
+ * @return 0 on success
  */
-void device_add(struct Device* device);
+int device_add(struct Device* device);
 
 /**
  * Deregister a device. Remove it from all relevant systems:
@@ -90,9 +92,9 @@ void device_add(struct Device* device);
  * - a bus (if any)
  *
  * @param[in] device non-null device pointer
- * @return true when the device was found and deregistered
+ * @return 0 on success
  */
-bool device_remove(struct Device* device);
+int device_remove(struct Device* device);
 
 /**
  * Attach the driver.

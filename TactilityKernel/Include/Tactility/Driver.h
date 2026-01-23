@@ -11,7 +11,7 @@ struct Driver {
     /** The driver name */
     const char* name;
     /** Array of const char*, terminated by NULL */
-    const char** compatible;
+    const char**compatible;
     /** Function to initialize the driver for a device */
     int (*start_device)(struct Device* dev);
     /** Function to deinitialize the driver for a device */
@@ -31,11 +31,13 @@ int driver_construct(struct Driver* driver);
 
 int driver_destruct(struct Driver* driver);
 
-struct Driver* driver_find(const char* compatible);
-
 int driver_bind(struct Driver* driver, struct Device* device);
 
 int driver_unbind(struct Driver* driver, struct Device* device);
+
+bool driver_is_compatible(struct Driver* driver, const char* compatible);
+
+struct Driver* driver_find_compatible(const char* compatible);
 
 static inline const struct DeviceType* driver_get_device_type(struct Driver* driver) {
     return driver->device_type;

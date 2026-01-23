@@ -123,7 +123,7 @@ def write_device_structs(file, device: Device, parent_device: Device, bindings: 
     # Write device struct
     file.write(f"static struct Device {identifier}" " = {\n")
     file.write(f"\t.name = \"{device.identifier}\",\n") # Use original name
-    file.write(f"\t.config = (void*)&{config_variable_name},\n")
+    file.write(f"\t.config = &{config_variable_name},\n")
     file.write(f"\t.parent = {parent_value},\n")
     file.write("};\n\n")
     # Child devices

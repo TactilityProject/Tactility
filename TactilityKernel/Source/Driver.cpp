@@ -24,7 +24,7 @@ struct DriverInternalData {
 };
 
 struct DriverLedger {
-    std::vector<Driver*> drivers = {};
+    std::vector<Driver*> drivers;
     Mutex mutex { 0 };
 
     DriverLedger() {
@@ -34,35 +34,45 @@ struct DriverLedger {
     ~DriverLedger() {
         mutex_destruct(&mutex);
     }
+
+    void lock() {
+        mutex_lock(&mutex);
+    }
+
+    void unlock() {
+        mutex_unlock(&mutex);
+    }
 };
 
-static DriverLedger ledger;
+static DriverLedger& get_ledger() {
+    static DriverLedger ledger;
+    return ledger;
+}
 
-#define ledger_lock() mutex_lock(&ledger.mutex);
-#define ledger_unlock() mutex_unlock(&ledger.mutex);
+#define ledger get_ledger()
 
 #define driver_internal_data(driver) static_cast<DriverInternalData*>(driver->internal.data)
 #define driver_lock(driver) mutex_lock(&driver_internal_data(driver)->mutex);
 #define driver_unlock(driver) mutex_unlock(&driver_internal_data(driver)->mutex);
 
-static void driver_add(Driver* dev) {
-    LOG_I(TAG, "add %s", dev->name);
-    ledger_lock();
-    ledger.drivers.push_back(dev);
-    ledger_unlock();
+static void driver_add(Driver* driver) {
+    LOG_I(TAG, "add %s", driver->name);
+    ledger.lock();
+    ledger.drivers.push_back(driver);
+    ledger.unlock();
 }
 
-static bool driver_remove(Driver* dev) {
-    LOG_I(TAG, "remove %s", dev->name);
+static bool driver_remove(Driver* driver) {
+    LOG_I(TAG, "remove %s", driver->name);
 
-    ledger_lock();
-    const auto iterator = std::ranges::find(ledger.drivers, dev);
+    ledger.lock();
+    const auto iterator = std::ranges::find(ledger.drivers, driver);
     // check that there actually is a 3 in our vector
     if (iterator == ledger.drivers.end()) {
         return false;
     }
     ledger.drivers.erase(iterator);
-    ledger_unlock();
+    ledger.unlock();
 
     return true;
 }
@@ -70,38 +80,51 @@ static bool driver_remove(Driver* dev) {
 extern "C" {
 
 int driver_construct(Driver* driver) {
-    driver->internal.data = new DriverInternalData();
+    driver->internal.data = new(std::nothrow) DriverInternalData;
+    if (driver->internal.data == nullptr) {
+        return ENOMEM;
+    }
     driver_add(driver);
     return 0;
 }
 
 int driver_destruct(Driver* driver) {
     // Check if in use
-    if (driver_internal_data(driver)->use_count == 0) {
+    if (driver_internal_data(driver)->use_count != 0) {
         return ERROR_INVALID_STATE;
     }
 
     driver_remove(driver);
     delete driver_internal_data(driver);
+    driver->internal.data = nullptr;
     return 0;
 }
 
-Driver* driver_find(const char* compatible) {
-    ledger_lock();
-    const auto it = std::ranges::find_if(ledger.drivers, [compatible](Driver* driver) {
-        const char** current_compatible = driver->compatible;
-        assert(current_compatible != nullptr);
-        while (*current_compatible != nullptr) {
-            if (strcmp(compatible, *current_compatible) == 0) {
-                return true;
-            }
-            current_compatible++;
-        }
+bool driver_is_compatible(Driver* driver, const char* compatible) {
+    if (compatible == nullptr || driver->compatible == nullptr) {
         return false;
-    });
-    auto* driver = (it != ledger.drivers.end()) ? *it : nullptr;
-    ledger_unlock();
-    return driver;
+    }
+    const char** compatible_iterator = driver->compatible;
+    while (*compatible_iterator != nullptr) {
+        if (strcmp(*compatible_iterator, compatible) == 0) {
+            return true;
+        }
+        compatible_iterator++;
+    }
+    return false;
+}
+
+Driver* driver_find_compatible(const char* compatible) {
+    ledger.lock();
+    Driver* result = nullptr;
+    for (auto* driver : ledger.drivers) {
+        if (driver_is_compatible(driver, compatible)) {
+            result = driver;
+            break;
+        }
+    }
+    ledger.unlock();
+    return result;
 }
 
 int driver_bind(Driver* driver, Device* device) {
@@ -109,11 +132,9 @@ int driver_bind(Driver* driver, Device* device) {
 
     int err = 0;
     if (!device_is_added(device)) {
-        err = -ENODEV;
+        err = ERROR_INVALID_STATE;
         goto error;
     }
-
-    device_set_driver(device, driver);
 
     if (driver->start_device != nullptr) {
         err = driver->start_device(device);
@@ -137,16 +158,19 @@ error:
 int driver_unbind(Driver* driver, Device* device) {
     driver_lock(driver);
 
-    if (driver->stop_device == nullptr) {
-        return 0;
-    }
-
-    int err = driver->stop_device(device);
-    if (err != 0) {
+    int err = 0;
+    if (!device_is_added(device)) {
+        err = ERROR_INVALID_STATE;
         goto error;
     }
 
-    device_set_driver(device, nullptr);
+    if (driver->stop_device != nullptr) {
+        err = driver->stop_device(device);
+        if (err != 0) {
+            goto error;
+        }
+    }
+
     driver_internal_data(driver)->use_count--;
     driver_unlock(driver);
 

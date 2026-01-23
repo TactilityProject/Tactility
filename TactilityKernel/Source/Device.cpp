@@ -28,7 +28,12 @@ struct DeviceLedger {
     }
 };
 
-static DeviceLedger ledger;
+static DeviceLedger& get_ledger() {
+    static DeviceLedger ledger;
+    return ledger;
+}
+
+#define ledger get_ledger()
 
 extern "C" {
 
@@ -37,10 +42,14 @@ extern "C" {
 
 #define get_device_data(device) static_cast<DeviceData*>(device->internal.data)
 
-void device_construct(Device* device) {
+int device_construct(Device* device) {
     LOG_I(TAG, "construct %s", device->name);
-    device->internal.data = new DeviceData();
+    device->internal.data = new(std::nothrow) DeviceData;
+    if (device->internal.data == nullptr) {
+        return ENOMEM;
+    }
     mutex_construct(&device->internal.mutex);
+    return 0;
 }
 
 int device_destruct(Device* device) {
@@ -63,21 +72,19 @@ static void device_add_child(struct Device* device, struct Device* child) {
 static void device_remove_child(struct Device* device, struct Device* child) {
     device_lock(device);
     auto* parent_data = get_device_data(device);
-    const auto iterator = std::ranges::find(parent_data->children, device);
+    const auto iterator = std::ranges::find(parent_data->children, child);
     if (iterator != parent_data->children.end()) {
         parent_data->children.erase(iterator);
     }
     device_unlock(device);
 }
 
-void device_add(Device* device) {
+int device_add(Device* device) {
     LOG_I(TAG, "add %s", device->name);
 
-    assert(!device->internal.state.started);
-
     // Already added
-    if (device->internal.state.added) {
-        return;
+    if (device->internal.state.started || device->internal.state.added) {
+        return ERROR_INVALID_STATE;
     }
 
     // Add to ledger
@@ -92,16 +99,14 @@ void device_add(Device* device) {
     }
 
     device->internal.state.added = true;
+    return 0;
 }
 
-bool device_remove(Device* device) {
+int device_remove(Device* device) {
     LOG_I(TAG, "remove %s", device->name);
 
-    assert(!device->internal.state.started);
-
-    // Already removed
-    if (!device->internal.state.added) {
-        return true;
+    if (device->internal.state.started || !device->internal.state.added) {
+        return ERROR_INVALID_STATE;
     }
 
     // Remove self from parent's children list
@@ -120,7 +125,7 @@ bool device_remove(Device* device) {
     ledger_unlock();
 
     device->internal.state.added = false;
-    return true;
+    return 0;
 
 failed_ledger_lookup:
 
@@ -129,11 +134,15 @@ failed_ledger_lookup:
         device_add_child(parent, device);
     }
 
-    return false;
+    return ERROR_NOT_FOUND;
 }
 
 int device_start(Device* device) {
     if (!device->internal.state.added) {
+        return ERROR_INVALID_STATE;
+    }
+
+    if (device->internal.driver == nullptr) {
         return ERROR_INVALID_STATE;
     }
 
@@ -142,18 +151,10 @@ int device_start(Device* device) {
         return 0;
     }
 
-    if (device->internal.driver == nullptr) {
-        LOG_E(TAG, "start error: no driver for %s", device->name);
-        return ERROR_INVALID_STATE;
-    }
-
     int result = driver_bind(device->internal.driver, device);
-    if (result != 0) {
-        device->internal.state.started = true;
-        device->internal.state.start_result = result;
-    }
-
-    return 0;
+    device->internal.state.started = (result == 0);
+    device->internal.state.start_result = result;
+    return result;
 }
 
 int device_stop(struct Device* device) {
@@ -161,9 +162,14 @@ int device_stop(struct Device* device) {
         return ERROR_INVALID_STATE;
     }
 
-    // Already stopped
+    // Not started
     if (!device->internal.state.started) {
         return 0;
+    }
+
+    int result = driver_unbind(device->internal.driver, device);
+    if (result != 0) {
+        return result;
     }
 
     device->internal.state.started = false;
