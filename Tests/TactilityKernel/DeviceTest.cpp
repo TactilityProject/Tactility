@@ -5,8 +5,6 @@
 
 #include <Tactility/Device.h>
 
-#include "Tactility/Log.h"
-
 TEST_CASE("device_construct and device_destruct should set and unset the correct fields") {
     Device device = { 0 };
 

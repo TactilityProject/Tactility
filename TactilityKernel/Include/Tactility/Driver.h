@@ -4,6 +4,8 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+
 struct Device;
 struct DeviceType;
 

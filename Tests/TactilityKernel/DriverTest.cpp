@@ -1,5 +1,4 @@
 #include "doctest.h"
-#include <cstring>
 #include <Tactility/Driver.h>
 
 TEST_CASE("driver_construct and driver_destruct should set and unset the correct fields") {
