@@ -69,6 +69,7 @@ static bool driver_remove(Driver* driver) {
     const auto iterator = std::ranges::find(ledger.drivers, driver);
     // check that there actually is a 3 in our vector
     if (iterator == ledger.drivers.end()) {
+        ledger.unlock();
         return false;
     }
     ledger.drivers.erase(iterator);

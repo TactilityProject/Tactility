@@ -22,9 +22,7 @@ void test_task(void* parameter) {
 
     data->result = context.run();
 
-    if (context.shouldExit()) { // important - query flags (and --exit) rely on the user doing this
-        vTaskEndScheduler();
-    }
+    vTaskEndScheduler();
 
     vTaskDelete(nullptr);
 }

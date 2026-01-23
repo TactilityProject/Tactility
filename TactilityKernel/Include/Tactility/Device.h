@@ -38,7 +38,7 @@ struct Device {
         struct Mutex mutex;
         /** The device state */
         struct {
-            uint8_t start_result;
+            int start_result;
             bool started : 1;
             bool added : 1;
         } state;
@@ -154,7 +154,7 @@ static inline void device_unlock(struct Device* device) {
 }
 
 static inline const struct DeviceType* device_get_type(struct Device* device) {
-    return device->internal.driver->device_type;
+    return device->internal.driver ? device->internal.driver->device_type : nullptr;
 }
 /**
  * Iterate through all the known devices

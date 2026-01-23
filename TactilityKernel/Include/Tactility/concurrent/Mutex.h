@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Tactility/FreeRTOS/semphr.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <Tactility/FreeRTOS/semphr.h>
 
 #ifdef __cplusplus
 extern "C" {

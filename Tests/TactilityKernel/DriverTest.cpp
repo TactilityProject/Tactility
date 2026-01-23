@@ -13,7 +13,7 @@ TEST_CASE("driver_construct and driver_destruct should set and unset the correct
     CHECK_EQ(driver.internal.data, nullptr);
 }
 
-TEST_CASE("driver_is_comptable should return true if a compatible value is found") {
+TEST_CASE("driver_is_compatible should return true if a compatible value is found") {
     Driver driver = {
         .name = "test_driver",
         .compatible = (const char*[]) { "test_compatible", nullptr },
@@ -28,7 +28,7 @@ TEST_CASE("driver_is_comptable should return true if a compatible value is found
     CHECK_EQ(driver_is_compatible(&driver, nullptr), false);
 }
 
-TEST_CASE("driver_is_comptable should return true if a compatible value is found") {
+TEST_CASE("driver_is_compatible should return true if a compatible value is found") {
     Driver driver = {
         .name = "test_driver",
         .compatible = nullptr,

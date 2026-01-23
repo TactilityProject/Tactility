@@ -36,11 +36,12 @@ static bool set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
     } else if (options & GPIO_DIRECTION_OUTPUT) {
         mode = GPIO_MODE_OUTPUT;
     } else {
-        assert(false);
+        ESP_LOGE(TAG, "set_options: no direction flag specified for pin %d", pin);
+        return false;
     }
 
     const gpio_config_t esp_config = {
-        .pin_bit_mask = 1UL << pin,
+        .pin_bit_mask = 1ULL << pin,
         .mode = mode,
         .pull_up_en = (options & GPIO_PULL_UP) ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE,
         .pull_down_en = (options & GPIO_PULL_DOWN) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE,

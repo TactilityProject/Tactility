@@ -5,7 +5,7 @@ from source.main import *
 
 def print_help():
     print("Usage: python compile.py [in_file] [out_path] [arguments]\n")
-    print(f"\t[in_file]                 the .dts file")
+    print(f"\t[in_path]                 the path where the root devicetree.yaml file is")
     print(f"\t[out_path]                output folder for C file output")
     print("")
     print("Optional arguments:\n")

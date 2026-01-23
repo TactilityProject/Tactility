@@ -13,7 +13,7 @@ from source.config import *
 def main(config_path: str, output_path: str, verbose: bool):
     print(f"Generating devicetree code\n  config: {config_path}\n  output: {output_path}")
     if not os.path.isdir(config_path):
-        raise Exception(f"Not found: {config_path}")
+        raise Exception(f"Directory not found: {config_path}")
 
     config = parse_config(config_path, os.getcwd())
     if verbose:

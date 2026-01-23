@@ -146,14 +146,14 @@ TEST_CASE("device_remove should remove the device from its parent") {
 
 TEST_CASE("device_remove should clear the state 'added'") {
     Device device = { 0 };
-    device_construct(&device);
+    CHECK_EQ(device_construct(&device), 0);
 
-    device_add(&device);
+    CHECK_EQ(device_add(&device), 0);
     CHECK_EQ(device.internal.state.added, true);
-    device_remove(&device);
+    CHECK_EQ(device_remove(&device), 0);
     CHECK_EQ(device.internal.state.added, false);
 
-    device_destruct(&device);
+    CHECK_EQ(device_destruct(&device), 0);
 }
 
 TEST_CASE("device_is_ready should return true only when it is started") {
@@ -177,8 +177,7 @@ TEST_CASE("device_is_ready should return true only when it is started") {
     CHECK_EQ(device.internal.state.started, false);
     CHECK_EQ(device_add(&device), 0);
     CHECK_EQ(device.internal.state.started, false);
-    int result = device_start(&device);
-    CHECK_EQ(result, 0);
+    CHECK_EQ(device_start(&device), 0);
     CHECK_EQ(device.internal.state.started, true);
     CHECK_EQ(device_stop(&device), 0);
     CHECK_EQ(device.internal.state.started, false);

@@ -37,22 +37,28 @@ static DeviceLedger& get_ledger() {
 
 extern "C" {
 
-#define ledger_lock() mutex_lock(&ledger.mutex);
-#define ledger_unlock() mutex_unlock(&ledger.mutex);
+#define ledger_lock() mutex_lock(&ledger.mutex)
+#define ledger_unlock() mutex_unlock(&ledger.mutex)
 
 #define get_device_data(device) static_cast<DeviceData*>(device->internal.data)
 
 int device_construct(Device* device) {
-    LOG_I(TAG, "construct %s", device->name);
     device->internal.data = new(std::nothrow) DeviceData;
     if (device->internal.data == nullptr) {
         return ENOMEM;
     }
+    LOG_I(TAG, "construct %s", device->name);
     mutex_construct(&device->internal.mutex);
     return 0;
 }
 
 int device_destruct(Device* device) {
+    if (device->internal.state.started || device->internal.state.added) {
+        return ERROR_INVALID_STATE;
+    }
+    if (!get_device_data(device)->children.empty()) {
+        return ERROR_INVALID_STATE;
+    }
     LOG_I(TAG, "destruct %s", device->name);
     mutex_destruct(&device->internal.mutex);
     delete get_device_data(device);
@@ -189,7 +195,7 @@ void for_each_device(void* callback_context, bool(*on_device)(Device* device, vo
             break;
         }
     }
-    ledger_unlock()
+    ledger_unlock();
 }
 
 void for_each_device_child(Device* device, void* callback_context, bool(*on_device)(struct Device* device, void* context)) {
@@ -213,7 +219,7 @@ void for_each_device_of_type(const DeviceType* type, void* callback_context, boo
             }
         }
     }
-    ledger_unlock()
+    ledger_unlock();
 }
 
 } // extern "C"

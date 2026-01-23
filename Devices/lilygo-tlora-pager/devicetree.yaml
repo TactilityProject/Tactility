@@ -1,4 +1,5 @@
 dependencies:
+  - Devices/lilygo-tlora-pager/Source/bindings
   - Drivers/PlatformEsp32
 bindings: ./
-dts: lilygo,tlora_pager.dts
+dts: lilygo,tlora-pager.dts
