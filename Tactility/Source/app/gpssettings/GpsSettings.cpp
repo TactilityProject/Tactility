@@ -124,7 +124,7 @@ class GpsSettingsApp final : public App {
         lv_label_set_text_fmt(uart_label, "UART: %s", configuration.uartName);
 
         auto* baud_label = lv_label_create(left_wrapper);
-        lv_label_set_text_fmt(baud_label, "Baud: %lu", configuration.baudRate);
+        lv_label_set_text_fmt(baud_label, "Baud: %u", configuration.baudRate);
 
         auto* model_label = lv_label_create(left_wrapper);
         if (configuration.model == hal::gps::GpsModel::Unknown) {

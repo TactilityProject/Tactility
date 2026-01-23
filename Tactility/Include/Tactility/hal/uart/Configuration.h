@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include "UartCompat.h"
 
 namespace tt::hal::uart {

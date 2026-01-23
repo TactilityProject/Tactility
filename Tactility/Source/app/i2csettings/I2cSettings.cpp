@@ -66,7 +66,7 @@ static void show(lv_obj_t* parent, const hal::i2c::Configuration& configuration)
     // Frequency:
     if (configuration.config.mode == I2C_MODE_MASTER) {
         auto* frequency_label = lv_label_create(card);
-        lv_label_set_text_fmt(frequency_label, "Frequency: %lu Hz", configuration.config.master.clk_speed);
+        lv_label_set_text_fmt(frequency_label, "Frequency: %" PRIu32 " Hz", configuration.config.master.clk_speed);
         lv_obj_align_to(frequency_label, scl_pin_label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
     }
 }

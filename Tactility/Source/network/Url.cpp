@@ -46,7 +46,7 @@ std::string urlEncode(const std::string& input) {
         } else if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
             result += c;
         } else {
-            sprintf(hex_buffer, "%%%02X", c); //%% means '%' literal, %02X means at least two digits, paddable with a leading zero
+            snprintf(hex_buffer, sizeof(hex_buffer), "%%%02X", c); //%% means '%' literal, %02X means at least two digits, paddable with a leading zero
             result += hex_buffer;
         }
     }
@@ -67,7 +67,7 @@ std::string urlDecode(const std::string& input) {
                 result += input[i];
             }
         } else {
-            sscanf(input.substr(i + 1, 2).c_str(), "%x", &conversion_buffer);
+            sscanf(input.substr(i + 1, 2).c_str(), "%zx", &conversion_buffer);
             char c = static_cast<char>(conversion_buffer);
             result += c;
             i = i + 2;
