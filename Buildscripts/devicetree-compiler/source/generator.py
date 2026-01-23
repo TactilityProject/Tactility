@@ -31,12 +31,6 @@ def find_device_property(device: Device, name: str) -> DeviceProperty:
             return property
     return None
 
-def find_binding_property(device: Device, name: str) -> BindingProperty:
-    for property in device.properties:
-        if property.name == name:
-            return property
-    return None
-
 def find_device_binding(device: Device, bindings: list[Binding]) -> Binding:
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
@@ -64,7 +58,7 @@ def property_to_string(property: DeviceProperty) -> str:
         raise Exception(f"property_to_string() has an unsupported type: {type}")
 
 def resolve_parameters_from_bindings(device: Device, bindings: list[Binding]) -> list:
-    compatible_property = find_binding_property(device, "compatible")
+    compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
         raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
     device_binding = find_binding(compatible_property.value, bindings)
@@ -108,7 +102,7 @@ def write_device_structs(file, device: Device, parent_device: Device, bindings: 
         print(f"Writing device struct for '{device.identifier}'")
     # Assemble some pre-requisites
     type_name = get_device_type_name(device, bindings)
-    compatible_property = find_binding_property(device, "compatible")
+    compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
         raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
     identifier = get_device_identifier_safe(device)
@@ -134,7 +128,7 @@ def write_device_init(file, device: Device, bindings: list[Binding], verbose: bo
     if verbose:
         print(f"Processing device init code for '{device.identifier}'")
     # Assemble some pre-requisites
-    compatible_property = find_binding_property(device, "compatible")
+    compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
         raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
     # Type & instance names
@@ -166,7 +160,7 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         #define TAG LOG_TAG(devicetree)
         
         static int init_builtin_device(struct Device* device, const char* compatible) {
-            struct Driver* driver = driver_find(compatible);
+            struct Driver* driver = driver_find_compatible(compatible);
             if (driver == NULL) {
                 LOG_E(TAG, "Can't find driver: %s", compatible);
                 return -1;

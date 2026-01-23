@@ -29,7 +29,7 @@ static bool set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
     }
 
     gpio_mode_t mode;
-    if (options & (GPIO_DIRECTION_INPUT_OUTPUT)) {
+    if ((options & GPIO_DIRECTION_INPUT_OUTPUT) == GPIO_DIRECTION_INPUT_OUTPUT) {
         mode = GPIO_MODE_INPUT_OUTPUT;
     } else if (options & GPIO_DIRECTION_INPUT) {
         mode = GPIO_MODE_INPUT;
@@ -71,10 +71,6 @@ static bool get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {
 
     if (esp_config.ie) {
         output |= GPIO_DIRECTION_INPUT;
-    }
-
-    if (esp_config.oe) {
-        output |= GPIO_DIRECTION_OUTPUT;
     }
 
     if (esp_config.oe) {
