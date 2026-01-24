@@ -1,7 +1,7 @@
-import os
+import sys
 
-from source.printing import *
-from source.main import *
+from source.printing import print_error
+from source.main import main
 
 def print_help():
     print("Usage: python compile.py [in_file] [out_path] [arguments]\n")
@@ -16,12 +16,13 @@ if __name__ == "__main__":
     if "--help" in sys.argv:
         print_help()
         sys.exit()
-    if len(sys.argv) < 3:
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if len(args) < 2:
         print_error("Missing argument")
         print_help()
         sys.exit()
     is_verbose = "--verbose" in sys.argv
-    devictree_yaml_config = sys.argv[1]
-    output_path = sys.argv[2]
-    main(devictree_yaml_config, output_path, is_verbose)
+    devicetree_yaml_config = args[0]
+    output_path = args[1]
+    main(devicetree_yaml_config, output_path, is_verbose)
 

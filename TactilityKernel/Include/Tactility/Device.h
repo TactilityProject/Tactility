@@ -154,7 +154,7 @@ static inline void device_unlock(struct Device* device) {
 }
 
 static inline const struct DeviceType* device_get_type(struct Device* device) {
-    return device->internal.driver ? device->internal.driver->device_type : nullptr;
+    return device->internal.driver ? device->internal.driver->device_type : NULL;
 }
 /**
  * Iterate through all the known devices

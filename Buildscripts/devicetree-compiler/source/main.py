@@ -18,7 +18,6 @@ def main(config_path: str, output_path: str, verbose: bool):
     config = parse_config(config_path, os.getcwd())
     if verbose:
         pprint(config)
-    dts_file_path: str
 
     project_dir = os.path.dirname(os.path.realpath(__file__))
     grammar_path = os.path.join(project_dir, "grammar.lark")

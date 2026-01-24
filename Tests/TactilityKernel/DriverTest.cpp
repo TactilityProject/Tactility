@@ -28,19 +28,6 @@ TEST_CASE("driver_is_compatible should return true if a compatible value is foun
     CHECK_EQ(driver_is_compatible(&driver, nullptr), false);
 }
 
-TEST_CASE("driver_is_compatible should return true if a compatible value is found") {
-    Driver driver = {
-        .name = "test_driver",
-        .compatible = nullptr,
-        .start_device = nullptr,
-        .stop_device = nullptr,
-        .api = nullptr,
-        .device_type = nullptr,
-        .internal = { 0 }
-    };
-    CHECK_EQ(driver_is_compatible(&driver, nullptr), false);
-}
-
 TEST_CASE("driver_find should only find a compatible driver when the driver was constructed") {
     // Must be static or outside of function to prevent SIGSEV crash due to memory corruption while iterating .compatible
     static Driver driver = {
