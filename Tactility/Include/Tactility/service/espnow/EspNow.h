@@ -4,7 +4,7 @@
 #include <sdkconfig.h>
 #endif
 
-#ifdef CONFIG_ESP_WIFI_ENABLED
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
 
 #include <cstdint>
 #include <cstring>
@@ -56,4 +56,4 @@ void unsubscribeReceiver(ReceiverSubscription subscription);
 
 }
 
-#endif // ESP_PLATFORM
+#endif // CONFIG_SOC_WIFI_SUPPORTED && !CONFIG_SLAVE_SOC_WIFI_SUPPORTED
