@@ -28,7 +28,7 @@ Some examples of non-serious issues include:
 
 ## Anything that doesn't fall in the above categories?
 
-Please [contact me](https://tactility.one/#/support) first!
+Please [contact me](https://tactilityproject.org/#/support) first!
 
 ## Pull Requests
 

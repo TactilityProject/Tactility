@@ -11,7 +11,7 @@
     1. Download the `cdn-files.zip` from the pipelines
     2. Upload them to the CDN at `apps/x.y.z/`
     3. Also upload them to the CDN for the upcoming version, because the upcoming a.b.c version will also need some basic apps to download
-5. Test the latest unstable version of Tactility on several devices using the [web installer](https://install.tactility.one). Pay special attention to:
+5. Test the latest unstable version of Tactility on several devices using the [web installer](https://install.tactilityproject.org). Pay special attention to:
     1. The version of the unstable channel (should be updated!)
     2. App Hub
     3. Wi-Fi

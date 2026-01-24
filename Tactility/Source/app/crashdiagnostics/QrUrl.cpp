@@ -35,7 +35,7 @@ std::string getUrlFromCrashData() {
 
     std::stringstream stream;
 
-    stream << "https://oops.tactility.one";
+    stream << "https://oops.tactilityproject.org";
     stream << "?v=" << TT_VERSION; // Version
     stream << "&a=" << CONFIG_IDF_TARGET; // Architecture
     stream << "&b=" << CONFIG_TT_DEVICE_ID; // Board identifier
