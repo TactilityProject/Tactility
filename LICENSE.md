@@ -30,6 +30,7 @@ Below is an overview of the licenses of some of the subprojects.
 | Devices/*          | GNU Public License v3.0 |
 | Drivers/*          | (varies)                |
 | DevicetreeCompiler | Apache License v2.0     |
+| Platforms/*        | Apache License v2.0     |
 
 Subprojects and directories in this project can contain license files.
 

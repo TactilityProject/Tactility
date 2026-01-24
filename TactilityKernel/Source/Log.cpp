@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 #ifndef ESP_PLATFORM
 
 #include <Tactility/Log.h>

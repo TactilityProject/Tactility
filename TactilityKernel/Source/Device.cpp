@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 #include <Tactility/Device.h>
 #include <Tactility/Error.h>
 #include <Tactility/Driver.h>
