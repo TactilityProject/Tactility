@@ -7,40 +7,29 @@ These applications are not part of the Tactility operating system's main firmwar
 
 "end-users" refers to people who install and/or use Tactility software on their devices.
 
-## Licensing Intent
-
-The main intention is to make sure forks of the operating system stay open source,
-while external applications can have both open or closed source licenses.
-
-TactilitySDK combines several subprojects and should not have source code with a GPL licenses inside.
-
 ## Past & Present
 
 Formerly, there was a mixed usage of [GPL v3.0](Documentation/LICENSE-GPL-3.0.md) for internal subprojects
 and [Apache License v2.0](Documentation/LICENSE-Apache-2.0.md) for subprojects that would be used in external apps.
 
-For future subprojects, [LGPL v3.0](Documentation/LICENSE-LGPL-3.0.md) will be chosen for internal subprojects and
-Apache License v2.0 will be chosen for header-only projects.
-Existing GPL-licensed projects will retain this license, as it cannot be changed to LGPL.
-
-The reason is that LGPL allows for logic in header files, but it comes with limitations (e.g. limit of 10 lines of code in headers).
-If we write C++ wrappers for C libraries then we want them to be usable for building external apps, without such LGPL limitations.
+For future subprojects, [Apache License v2.0](Documentation/LICENSE-Apache-2.0.md) will be chosen for internal subproject.
+Existing GPL-licensed projects will retain this license, as it cannot be changed to a more permissivce license.
 
 ## Overview
 
 Below is an overview of the licenses of some of the subprojects.
 
-| Project            | License             |
-|--------------------|---------------------|
-| Tactility          | GPL v3.0            |
-| TactilityCore      | GPL v3.0            |
-| TactilityC         | Apache License v2.0 |
-| TactilityFreeRTOS  | Apache License v2.0 |
-| TactilityKernel    | LGPL v3.0           |
-| Tests              | GPL v3.0            |
-| Devices/*          | GPL v3.0            |
-| Drivers/*          | (varies)            |
-| DevicetreeCompiler | Apache License v2.0 |
+| Project            | License                 |
+|--------------------|-------------------------|
+| Tactility          | GNU Public License v3.0 |
+| TactilityCore      | GNU Public License v3.0 |
+| TactilityC         | Apache License v2.0     |
+| TactilityFreeRTOS  | Apache License v2.0     |
+| TactilityKernel    | Apache License v2.0     |
+| Tests              | GNU Public License v3.0 |
+| Devices/*          | GNU Public License v3.0 |
+| Drivers/*          | (varies)                |
+| DevicetreeCompiler | Apache License v2.0     |
 
 Subprojects and directories in this project can contain license files.
 
@@ -69,4 +58,4 @@ Third-party licenses and copyrights are listed in [THIRD-PARTY-NOTICES.md](THIRD
 ## FAQ
 
 - Q: Can I build closed source applications?
-- A: Yes, external apps can be closed source. All subprojects with an Apache License or LGPL license can be used in this manner. If you fork the project and make an internal app, it must be redistributed under the GPL v3.0 license.
+- A: Yes, external apps can be closed source. All subprojects with an Apache License v2.0 and similarly permissive licenses can be used in this manner.
