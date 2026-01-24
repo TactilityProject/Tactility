@@ -14,8 +14,8 @@ License: [GPL v3.0](https://github.com/espressif/esp-idf/blob/master/LICENSE)
 
 ### Flipper Zero Firmware
 
-Some of the code in this project has originally been adapted from the Flipper Zero firmware.
-It was changed to fit the Tactility project.
+Some of the code in inside the Tactility or TactilityCore project has originally been adapted
+from the Flipper Zero firmware it was changed to fit the Tactility project.
 
 Website: https://github.com/flipperdevices/flipperzero-firmware/
 
