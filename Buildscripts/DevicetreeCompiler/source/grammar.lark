@@ -7,9 +7,9 @@
 %import common.ESCAPED_STRING -> ESCAPED_STRING
 %ignore WS
 
-// Commment
+// Comment
 
-COMMENT: /\/\*[^\/]*\*\//
+COMMENT: /\/\*([^*]|\*+[^*\/])*\*+\//
 %ignore COMMENT
 
 // Boolean
@@ -22,11 +22,10 @@ INCLUDE_C: /#include <[\w\/.\-]+>/
 
 PROPERTY_NAME: /#?[a-zA-Z0-9_\-,]+/
 
-hex_number: /0x[0-9a-fA-F]+/
 QUOTE: "\""
 QUOTED_TEXT: QUOTE /[^"]+/ QUOTE
 quoted_text_array: QUOTED_TEXT ("," " "* QUOTED_TEXT)+
-HEX_NUMBER: "0x" HEXDIGIT*
+HEX_NUMBER: "0x" HEXDIGIT+
 NUMBER: SIGNED_NUMBER | HEX_NUMBER
 PHANDLE: /&[0-9a-zA-Z\-]+/
 C_VARIABLE: /[0-9a-zA-Z_]+/

@@ -12,6 +12,7 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
 
     # Handle inclusions
     includes = data.get('include', [])
+    all_includes = list(includes)  # Copy for iteration
     for include_file in includes:
         include_path = None
         for binding_dir in binding_dirs:
@@ -22,6 +23,7 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
 
         if not include_path:
             print(f"Warning: Could not find include file {include_file}")
+            continue
 
         parent_binding = parse_binding(include_path, binding_dirs)
         if not description and parent_binding.description:
@@ -31,7 +33,7 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
         for prop in parent_binding.properties:
             properties_dict[prop.name] = prop
         for include in parent_binding.includes:
-            includes.append(include)
+            all_includes.append(include)
 
     # Parse local properties
     compatible = data.get('compatible', None)
@@ -50,6 +52,6 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
         compatible=compatible,
         description=description.strip(),
         properties=list(properties_dict.values()),
-        includes=includes,
+        includes=all_includes,
         bus=bus
     )

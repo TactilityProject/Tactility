@@ -1,8 +1,4 @@
-# Tactility
-
-See [LICENSE.md](LICENSE.md)
-
-# Dependencies 
+# Third-Party Notices 
 
 ### ESP-IDF
 
@@ -10,7 +6,7 @@ This project uses ESP-IDF to compile the ESP32 firmware.
 
 Website: https://www.espressif.com/
 
-License: [GPL v3.0](https://github.com/espressif/esp-idf/blob/master/LICENSE)
+License: [Apache License v2.0](https://github.com/espressif/esp-idf/blob/master/LICENSE)
 
 ### Flipper Zero Firmware
 
@@ -65,6 +61,6 @@ Website: https://github.com/UsefulElectronics/esp32s3-gc9a01-lvgl
 
 License: [Explicitly granted by author](https://github.com/ByteWelder/Tactility/pull/295#discussion_r2226215423)
 
-### Other Components
+### Other Dependencies
 
-See `/components` for the respective projects and their licenses.
+Some dependencies contain their own license. For example: the subprojects in `Libraries/`

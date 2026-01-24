@@ -32,10 +32,13 @@ class DtsTransformer(Transformer):
                 devices.append(entry)
         return Device(identifier, properties, devices)
     def device_property(self, objects: List[object]):
-        assert len(objects) == 2
-        if not type(objects[1]) is PropertyValue:
+        name = objects[0]
+        if len(objects) == 1:
+            # Boolean property with no value
+            return DeviceProperty(name, "boolean", True)
+        if type(objects[1]) is not PropertyValue:
             raise Exception(f"Object was not converted to PropertyValue: {objects[1]}")
-        return DeviceProperty(objects[0], objects[1].type, objects[1].value)
+        return DeviceProperty(name, objects[1].type, objects[1].value)
     def property_value(self, tokens: List):
         token = tokens[0]
         if type(token) is Token:
