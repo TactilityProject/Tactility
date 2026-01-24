@@ -37,6 +37,10 @@ inline static bool recursive_mutex_try_lock(struct RecursiveMutex* mutex) {
     return xSemaphoreTakeRecursive(mutex->handle, 0) == pdTRUE;
 }
 
+inline static bool recursive_mutex_try_lock_timed(struct RecursiveMutex* mutex, TickType_t timeout) {
+    return xSemaphoreTakeRecursive(mutex->handle, timeout) == pdTRUE;
+}
+
 inline static void recursive_mutex_unlock(struct RecursiveMutex* mutex) {
     xSemaphoreGiveRecursive(mutex->handle);
 }

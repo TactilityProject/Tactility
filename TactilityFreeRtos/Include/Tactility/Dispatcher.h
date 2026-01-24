@@ -67,6 +67,7 @@ public:
         }
 
         if (shutdown) {
+            mutex.unlock();
             return false;
         }
 

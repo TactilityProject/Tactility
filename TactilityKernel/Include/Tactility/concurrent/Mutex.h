@@ -34,6 +34,10 @@ inline static bool mutex_try_lock(struct Mutex* mutex) {
     return xSemaphoreTake(mutex->handle, 0) == pdTRUE;
 }
 
+inline static bool mutex_try_lock_timed(struct Mutex* mutex, TickType_t timeout) {
+    return xSemaphoreTake(mutex->handle, timeout) == pdTRUE;
+}
+
 inline static bool mutex_is_locked(struct Mutex* mutex) {
     return xSemaphoreGetMutexHolder(mutex->handle) != NULL;
 }

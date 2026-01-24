@@ -33,11 +33,8 @@ public:
     }
 
     enum class Error {
-        Unknown,
         Timeout,
-        Resource,
-        Parameter,
-        IsrStatus
+        Resource
     };
 
     /**
