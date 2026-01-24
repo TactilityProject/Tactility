@@ -157,9 +157,10 @@ TEST_CASE("device_remove should clear the state 'added'") {
 }
 
 TEST_CASE("device_is_ready should return true only when it is started") {
+    const char* compatible[] = { "test_compatible", nullptr };
     Driver driver = {
         .name = "test_driver",
-        .compatible = (const char*[]) { "test_compatible", nullptr },
+        .compatible = compatible,
         .start_device = nullptr,
         .stop_device = nullptr,
         .api = nullptr,

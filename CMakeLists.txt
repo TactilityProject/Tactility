@@ -32,6 +32,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         "Firmware"
         "Devices/${TACTILITY_DEVICE_PROJECT}"
         "Drivers"
+        "Platforms/PlatformEsp32"
         "TactilityKernel"
         "Tactility"
         "TactilityC"
