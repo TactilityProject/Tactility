@@ -23,7 +23,7 @@ For future subprojects, [LGPL v3.0](Documentation/LICENSE-LGPL-3.0.md) will be c
 Apache License v2.0 will be chosen for header-only projects.
 Existing GPL-licensed projects will retain this license, as it cannot be changed to LGPL.
 
-The reason is that LGPL allows for logic in header files, but it comes with limitations (e.g. 10 lines of code limit in headers).
+The reason is that LGPL allows for logic in header files, but it comes with limitations (e.g. limit of 10 lines of code in headers).
 If we write C++ wrappers for C libraries then we want them to be usable for building external apps, without such LGPL limitations.
 
 ## Overview
