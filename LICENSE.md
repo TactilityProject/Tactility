@@ -21,16 +21,17 @@ building external apps. These wrappers might have more lines of code in the head
 
 Below is an overview of the licenses of some of the subprojects.
 
-| Project           | License                  |
-|-------------------|--------------------------|
-| Tactility         | GPL v3.0                 |
-| TactilityCore     | GPL v3.0                 |
-| TactilityC        | Apache License v2.0      |
-| TactilityFreeRTOS | Apache License v2.0      |
-| TactilityKernel   | LGPL v3.0                |
-| Tests             | GPL v3.0                 |
-| Devices/*         | GPL v3.0                 |
-| Drivers           | Varies                   |
+| Project            | License             |
+|--------------------|---------------------|
+| Tactility          | GPL v3.0            |
+| TactilityCore      | GPL v3.0            |
+| TactilityC         | Apache License v2.0 |
+| TactilityFreeRTOS  | Apache License v2.0 |
+| TactilityKernel    | LGPL v3.0           |
+| Tests              | GPL v3.0            |
+| Devices/*          | GPL v3.0            |
+| Drivers/*          | (varies)            |
+| DevicetreeCompiler | Apache License v2.0 |
 
 # Logo
 
@@ -40,7 +41,7 @@ For other usages, [contact me](https://kenvanhoeylandt.net).
 
 # Third Party
 
-For third party copyrights, see [COPYRIGHT.md](COPYRIGHT.md).
+Third-party copyrights are listed in [COPYRIGHT.md](COPYRIGHT.md).
 
 # FAQ
 

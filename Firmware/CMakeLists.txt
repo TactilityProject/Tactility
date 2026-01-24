@@ -45,7 +45,7 @@ add_custom_command(
     OUTPUT "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c"
         "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.h"
     COMMAND pip install lark pyyaml
-    COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/devicetree-compiler/compile.py"
+    COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/DevicetreeCompiler/compile.py"
     "${DEVICETREE_LOCATION}" "Firmware/Generated"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     DEPENDS "${DEVICETREE_LOCATION}/devicetree.yaml" # Optional: trigger rebuild if source changes
