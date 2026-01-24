@@ -2,7 +2,7 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_TT_WIFI_ENABLED) && !defined(CONFIG_ESP_WIFI_REMOTE_ENABLED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
 
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/lvgl/Toolbar.h>

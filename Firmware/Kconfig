@@ -96,11 +96,4 @@ menu "Tactility App"
         help
             The minimum time to show the splash screen in milliseconds.
             When set to 0, startup will continue to desktop as soon as boot operations are finished.
-
-    config TT_WIFI_ENABLED
-        bool "Enable WiFi Support"
-        default n
-        help
-            Enable WiFi support for Tactility.
-            Uses native WiFi on ESP32/ESP32-S3 or ESP-Hosted on ESP32-P4.
 endmenu
