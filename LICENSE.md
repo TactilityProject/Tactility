@@ -13,7 +13,7 @@ Formerly, there was a mixed usage of [GPL v3.0](Documentation/LICENSE-GPL-3.0.md
 and [Apache License v2.0](Documentation/LICENSE-Apache-2.0.md) for subprojects that would be used in external apps.
 
 For future subprojects, [Apache License v2.0](Documentation/LICENSE-Apache-2.0.md) will be chosen for internal subproject.
-Existing GPL-licensed projects will retain this license, as it cannot be changed to a more permissivce license.
+Existing GPL-licensed projects will retain this license, as it cannot be changed to a more permissive license.
 
 ## Overview
 
@@ -59,4 +59,4 @@ Third-party licenses and copyrights are listed in [THIRD-PARTY-NOTICES.md](THIRD
 ## FAQ
 
 - Q: Can I build closed source applications?
-- A: Yes, external apps can be closed source. All subprojects with an Apache License v2.0 and similarly permissive licenses can be used in this manner.
+- A: If the applications were built with the Tactility SDK, then they can have a proprietary license. Applications inside the Tactility firmware can't be released with a proprietary license.
