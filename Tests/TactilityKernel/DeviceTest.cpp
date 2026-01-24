@@ -1,6 +1,6 @@
 #include "doctest.h"
 
-#include <string.h>
+#include <cstring>
 #include <vector>
 
 #include <Tactility/Device.h>
@@ -157,7 +157,7 @@ TEST_CASE("device_remove should clear the state 'added'") {
 }
 
 TEST_CASE("device_is_ready should return true only when it is started") {
-    static Driver driver = {
+    Driver driver = {
         .name = "test_driver",
         .compatible = (const char*[]) { "test_compatible", nullptr },
         .start_device = nullptr,
