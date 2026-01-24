@@ -14,9 +14,10 @@ TEST_CASE("driver_construct and driver_destruct should set and unset the correct
 }
 
 TEST_CASE("driver_is_compatible should return true if a compatible value is found") {
+    const char* compatible[] = { "test_compatible", nullptr };
     Driver driver = {
         .name = "test_driver",
-        .compatible = (const char*[]) { "test_compatible", nullptr },
+        .compatible = compatible,
         .start_device = nullptr,
         .stop_device = nullptr,
         .api = nullptr,
@@ -29,10 +30,10 @@ TEST_CASE("driver_is_compatible should return true if a compatible value is foun
 }
 
 TEST_CASE("driver_find should only find a compatible driver when the driver was constructed") {
-    // Must be static or outside of function to prevent SIGSEV crash due to memory corruption while iterating .compatible
-    static Driver driver = {
+    const char* compatible[] = { "test_compatible", nullptr };
+    Driver driver = {
         .name = "test_driver",
-        .compatible = (const char*[]) { "test_compatible", nullptr },
+        .compatible = compatible,
         .start_device = nullptr,
         .stop_device = nullptr,
         .api = nullptr,
