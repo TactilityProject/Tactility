@@ -59,7 +59,7 @@ License: [MIT](https://github.com/Xinyuan-LilyGO/T-Echo/blob/main/LICENSE)
 
 Website: https://github.com/UsefulElectronics/esp32s3-gc9a01-lvgl
 
-License: [Explicitly granted by author](https://github.com/ByteWelder/Tactility/pull/295#discussion_r2226215423)
+License: [Explicitly granted by author](https://github.com/TactilityProject/Tactility/pull/295#discussion_r2226215423)
 
 ### Other Dependencies
 

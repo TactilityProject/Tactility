@@ -52,7 +52,7 @@ The Tactility logo copyrights are owned by Ken Van Hoeylandt.
 
 Logo usage is permitted in these scenarios:
 - News, blog posts, articles and documentation that write about the official Tactility project.
-- Firmwares built with unmodified source code from [the official repository](https://github.com/ByteWelder/Tactility) can be redistributed with the Tactility logo.
+- Firmwares built with unmodified source code from [the official repository](https://github.com/TactilityProject/Tactility) can be redistributed with the Tactility logo.
 - Personal use for local builds that contain Tactility source code (original or modified), and aren't re-distributed online.
 
 Logo usage is forbidden in all other scenarios unless an exception was granted by the author.
