@@ -27,11 +27,11 @@ struct InternalData {
 
 extern "C" {
 
-static bool read(Device* device, uint8_t address, uint8_t* data, size_t dataSize, TickType_t timeout) {
+static bool read(Device* device, uint8_t address, uint8_t* data, size_t data_size, TickType_t timeout) {
     vPortAssertIfInISR();
     auto* driver_data = GET_DATA(device);
     lock(driver_data);
-    const esp_err_t result = i2c_master_read_from_device(GET_CONFIG(device)->port, address, data, dataSize, timeout);
+    const esp_err_t result = i2c_master_read_from_device(GET_CONFIG(device)->port, address, data, data_size, timeout);
     unlock(driver_data);
     ESP_ERROR_CHECK_WITHOUT_ABORT(result);
     return result == ESP_OK;

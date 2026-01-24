@@ -1,4 +1,4 @@
-description: ESP32 GPIO Controller
+description: ESP32 I2C Controller
 
 include: ["i2c-controller.yaml"]
 

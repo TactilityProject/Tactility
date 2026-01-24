@@ -3,7 +3,7 @@
 The main intention is to make sure forks of the operating system stay open source,
 while external applications can be both open or closed source.
 
-TactilitySDK combines several subproject and should not have GPL licenses inside.
+TactilitySDK combines several subprojects and should not have GPL licenses inside.
 
 # Past & Present
 
@@ -45,4 +45,4 @@ For third party copyrights, see [COPYRIGHT.md](COPYRIGHT.md).
 # FAQ
 
 - Q: Can I build closed source applications?
-- A: Yes, external apps can be closed source. All subprojects with an Apache License or LGPL license can be used in this manner. If you fork the project and make an internal app, it must be redistributed under the GPL v3.0 license
+- A: Yes, external apps can be closed source. All subprojects with an Apache License or LGPL license can be used in this manner. If you fork the project and make an internal app, it must be redistributed under the GPL v3.0 license.
