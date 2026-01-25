@@ -7,8 +7,7 @@
 extern "C" {
 #endif
 
-int event_group_set(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags) {
-    assert(eventGroup);
+error_t event_group_set(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags) {
     if (xPortInIsrContext() == pdTRUE) {
         BaseType_t yield = pdFALSE;
         if (xEventGroupSetBitsFromISR(eventGroup, inFlags, &yield) == pdFAIL) {
@@ -18,19 +17,18 @@ int event_group_set(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* o
                 *outFlags = inFlags;
             }
             portYIELD_FROM_ISR(yield);
-            return 0;
+            return ERROR_NONE;
         }
     } else {
         auto result = xEventGroupSetBits(eventGroup, inFlags);
         if (outFlags != nullptr) {
             *outFlags = result;
         }
-        return 0;
+        return ERROR_NONE;
     }
 }
 
-int event_group_clear(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags) {
-    assert(eventGroup);
+error_t event_group_clear(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags) {
     if (xPortInIsrContext() == pdTRUE) {
         uint32_t result = xEventGroupGetBitsFromISR(eventGroup);
         if (xEventGroupClearBitsFromISR(eventGroup, inFlags) == pdFAIL) {
@@ -40,18 +38,17 @@ int event_group_clear(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t*
             *outFlags = result;
         }
         portYIELD_FROM_ISR(pdTRUE);
-        return 0;
+        return ERROR_NONE;
     } else {
         auto result = xEventGroupClearBits(eventGroup, inFlags);
         if (outFlags != nullptr) {
             *outFlags = result;
         }
-        return 0;
+        return ERROR_NONE;
     }
 }
 
 uint32_t event_group_get(EventGroupHandle_t eventGroup) {
-    assert(eventGroup);
     if (xPortInIsrContext() == pdTRUE) {
         return xEventGroupGetBitsFromISR(eventGroup);
     } else {
@@ -59,7 +56,7 @@ uint32_t event_group_get(EventGroupHandle_t eventGroup) {
     }
 }
 
-int event_group_wait(
+error_t event_group_wait(
     EventGroupHandle_t eventGroup,
     uint32_t flags,
     bool awaitAll,
@@ -67,8 +64,9 @@ int event_group_wait(
     TickType_t timeout,
     uint32_t* outFlags
 ) {
-    assert(eventGroup != nullptr);
-    assert(xPortInIsrContext() == pdFALSE);
+    if (xPortInIsrContext()) {
+        return ERROR_ISR_STATUS;
+    }
 
     uint32_t result_flags = xEventGroupWaitBits(
         eventGroup,
@@ -93,7 +91,7 @@ int event_group_wait(
         *outFlags = result_flags;
     }
 
-    return 0;
+    return ERROR_NONE;
 }
 
 #ifdef __cplusplus

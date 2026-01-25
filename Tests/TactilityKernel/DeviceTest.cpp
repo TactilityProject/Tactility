@@ -8,14 +8,13 @@
 TEST_CASE("device_construct and device_destruct should set and unset the correct fields") {
     Device device = { 0 };
 
-    int error = device_construct(&device);
-    CHECK_EQ(error, 0);
+    error_t error = device_construct(&device);
+    CHECK_EQ(error, ERROR_NONE);
 
     CHECK_NE(device.internal.data, nullptr);
     CHECK_NE(device.internal.mutex.handle, nullptr);
 
-    error = device_destruct(&device);
-    CHECK_EQ(error, 0);
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
 
     CHECK_EQ(device.internal.data, nullptr);
     CHECK_EQ(device.internal.mutex.handle, nullptr);
@@ -30,13 +29,13 @@ TEST_CASE("device_construct and device_destruct should set and unset the correct
 
 TEST_CASE("device_add should add the device to the list of all devices") {
     Device device = { 0 };
-    CHECK_EQ(device_construct(&device), 0);
-    CHECK_EQ(device_add(&device), 0);
+    CHECK_EQ(device_construct(&device), ERROR_NONE);
+    CHECK_EQ(device_add(&device), ERROR_NONE);
 
     // Gather all devices
     std::vector<Device*> devices;
     for_each_device(&devices, [](auto* device, auto* context) {
-        auto* devices_ptr = (std::vector<Device*>*)context;
+        auto* devices_ptr = static_cast<std::vector<Device*>*>(context);
         devices_ptr->push_back(device);
         return true;
     });
@@ -44,8 +43,8 @@ TEST_CASE("device_add should add the device to the list of all devices") {
     CHECK_EQ(devices.size(), 1);
     CHECK_EQ(devices[0], &device);
 
-    CHECK_EQ(device_remove(&device), 0);
-    CHECK_EQ(device_destruct(&device), 0);
+    CHECK_EQ(device_remove(&device), ERROR_NONE);
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
 }
 
 TEST_CASE("device_add should add the device to its parent") {
@@ -57,11 +56,11 @@ TEST_CASE("device_add should add the device to its parent") {
         .parent = &parent
     };
 
-    CHECK_EQ(device_construct(&parent), 0);
-    CHECK_EQ(device_add(&parent), 0);
+    CHECK_EQ(device_construct(&parent), ERROR_NONE);
+    CHECK_EQ(device_add(&parent), ERROR_NONE);
 
-    CHECK_EQ(device_construct(&child), 0);
-    CHECK_EQ(device_add(&child), 0);
+    CHECK_EQ(device_construct(&child), ERROR_NONE);
+    CHECK_EQ(device_add(&child), ERROR_NONE);
 
     // Gather all child devices
     std::vector<Device*> children;
@@ -74,30 +73,30 @@ TEST_CASE("device_add should add the device to its parent") {
     CHECK_EQ(children.size(), 1);
     CHECK_EQ(children[0], &child);
 
-    CHECK_EQ(device_remove(&child), 0);
-    CHECK_EQ(device_destruct(&child), 0);
+    CHECK_EQ(device_remove(&child), ERROR_NONE);
+    CHECK_EQ(device_destruct(&child), ERROR_NONE);
 
-    CHECK_EQ(device_remove(&parent), 0);
-    CHECK_EQ(device_destruct(&parent), 0);
+    CHECK_EQ(device_remove(&parent), ERROR_NONE);
+    CHECK_EQ(device_destruct(&parent), ERROR_NONE);
 }
 
 TEST_CASE("device_add should set the state to 'added'") {
     Device device = { 0 };
-    CHECK_EQ(device_construct(&device), 0);
+    CHECK_EQ(device_construct(&device), ERROR_NONE);
 
     CHECK_EQ(device.internal.state.added, false);
-    CHECK_EQ(device_add(&device), 0);
+    CHECK_EQ(device_add(&device), ERROR_NONE);
     CHECK_EQ(device.internal.state.added, true);
 
-    CHECK_EQ(device_remove(&device), 0);
-    CHECK_EQ(device_destruct(&device), 0);
+    CHECK_EQ(device_remove(&device), ERROR_NONE);
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
 }
 
 TEST_CASE("device_remove should remove it from the list of all devices") {
     Device device = { 0 };
-    CHECK_EQ(device_construct(&device), 0);
-    CHECK_EQ(device_add(&device), 0);
-    CHECK_EQ(device_remove(&device), 0);
+    CHECK_EQ(device_construct(&device), ERROR_NONE);
+    CHECK_EQ(device_add(&device), ERROR_NONE);
+    CHECK_EQ(device_remove(&device), ERROR_NONE);
 
     // Gather all devices
     std::vector<Device*> devices;
@@ -107,9 +106,9 @@ TEST_CASE("device_remove should remove it from the list of all devices") {
         return true;
     });
 
-    CHECK_EQ(devices.size(), 0);
+    CHECK_EQ(devices.size(), ERROR_NONE);
 
-    CHECK_EQ(device_destruct(&device), 0);
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
 }
 
 TEST_CASE("device_remove should remove the device from its parent") {
@@ -121,12 +120,12 @@ TEST_CASE("device_remove should remove the device from its parent") {
         .parent = &parent
     };
 
-    CHECK_EQ(device_construct(&parent), 0);
-    CHECK_EQ(device_add(&parent), 0);
+    CHECK_EQ(device_construct(&parent), ERROR_NONE);
+    CHECK_EQ(device_add(&parent), ERROR_NONE);
 
-    CHECK_EQ(device_construct(&child), 0);
-    CHECK_EQ(device_add(&child), 0);
-    CHECK_EQ(device_remove(&child), 0);
+    CHECK_EQ(device_construct(&child), ERROR_NONE);
+    CHECK_EQ(device_add(&child), ERROR_NONE);
+    CHECK_EQ(device_remove(&child), ERROR_NONE);
 
     // Gather all child devices
     std::vector<Device*> children;
@@ -136,24 +135,24 @@ TEST_CASE("device_remove should remove the device from its parent") {
         return true;
     });
 
-    CHECK_EQ(children.size(), 0);
+    CHECK_EQ(children.size(), ERROR_NONE);
 
-    CHECK_EQ(device_destruct(&child), 0);
+    CHECK_EQ(device_destruct(&child), ERROR_NONE);
 
-    CHECK_EQ(device_remove(&parent), 0);
-    CHECK_EQ(device_destruct(&parent), 0);
+    CHECK_EQ(device_remove(&parent), ERROR_NONE);
+    CHECK_EQ(device_destruct(&parent), ERROR_NONE);
 }
 
 TEST_CASE("device_remove should clear the state 'added'") {
     Device device = { 0 };
-    CHECK_EQ(device_construct(&device), 0);
+    CHECK_EQ(device_construct(&device), ERROR_NONE);
 
-    CHECK_EQ(device_add(&device), 0);
+    CHECK_EQ(device_add(&device), ERROR_NONE);
     CHECK_EQ(device.internal.state.added, true);
-    CHECK_EQ(device_remove(&device), 0);
+    CHECK_EQ(device_remove(&device), ERROR_NONE);
     CHECK_EQ(device.internal.state.added, false);
 
-    CHECK_EQ(device_destruct(&device), 0);
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
 }
 
 TEST_CASE("device_is_ready should return true only when it is started") {
@@ -170,21 +169,21 @@ TEST_CASE("device_is_ready should return true only when it is started") {
 
     Device device = { 0 };
 
-    CHECK_EQ(driver_construct(&driver), 0);
-    CHECK_EQ(device_construct(&device), 0);
+    CHECK_EQ(driver_construct(&driver), ERROR_NONE);
+    CHECK_EQ(device_construct(&device), ERROR_NONE);
 
     CHECK_EQ(device.internal.state.started, false);
     device_set_driver(&device, &driver);
     CHECK_EQ(device.internal.state.started, false);
-    CHECK_EQ(device_add(&device), 0);
+    CHECK_EQ(device_add(&device), ERROR_NONE);
     CHECK_EQ(device.internal.state.started, false);
-    CHECK_EQ(device_start(&device), 0);
+    CHECK_EQ(device_start(&device), ERROR_NONE);
     CHECK_EQ(device.internal.state.started, true);
-    CHECK_EQ(device_stop(&device), 0);
+    CHECK_EQ(device_stop(&device), ERROR_NONE);
     CHECK_EQ(device.internal.state.started, false);
-    CHECK_EQ(device_remove(&device), 0);
+    CHECK_EQ(device_remove(&device), ERROR_NONE);
     CHECK_EQ(device.internal.state.started, false);
 
-    CHECK_EQ(driver_destruct(&driver), 0);
-    CHECK_EQ(device_destruct(&device), 0);
+    CHECK_EQ(driver_destruct(&driver), ERROR_NONE);
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
 }

@@ -60,7 +60,7 @@ TEST_CASE("mutex_lock in another task should block when a lock is active") {
     CHECK_EQ(task_lock_counter, 0);
 
     mutex_unlock(&mutex);
-    vTaskDelay(1);
+    vTaskDelay(2); // 1 is sufficient most of the time, but not always
     CHECK_EQ(task_lock_counter, 1);
     mutex_destruct(&mutex);
 }

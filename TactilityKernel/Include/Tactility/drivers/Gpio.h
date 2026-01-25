@@ -6,6 +6,8 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <Tactility/Device.h>
 
 #define GPIO_OPTIONS_MASK 0x1f

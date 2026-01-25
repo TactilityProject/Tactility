@@ -62,7 +62,7 @@ static int start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
     auto* data = new InternalData();
     device_set_driver_data(device, data);
-    return 0;
+    return ERROR_NONE;
 }
 
 static int stop(Device* device) {
@@ -70,7 +70,7 @@ static int stop(Device* device) {
     auto* driver_data = static_cast<InternalData*>(device_get_driver_data(device));
     device_set_driver_data(device, nullptr);
     delete driver_data;
-    return 0;
+    return ERROR_NONE;
 }
 
 const static I2cControllerApi esp32_i2c_api = {

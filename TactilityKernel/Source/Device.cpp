@@ -44,17 +44,17 @@ extern "C" {
 
 #define get_device_data(device) static_cast<DeviceData*>(device->internal.data)
 
-int device_construct(Device* device) {
+error_t device_construct(Device* device) {
     device->internal.data = new(std::nothrow) DeviceData;
     if (device->internal.data == nullptr) {
-        return ENOMEM;
+        return ERROR_OUT_OF_MEMORY;
     }
     LOG_I(TAG, "construct %s", device->name);
     mutex_construct(&device->internal.mutex);
-    return 0;
+    return ERROR_NONE;
 }
 
-int device_destruct(Device* device) {
+error_t device_destruct(Device* device) {
     if (device->internal.state.started || device->internal.state.added) {
         return ERROR_INVALID_STATE;
     }
@@ -65,7 +65,7 @@ int device_destruct(Device* device) {
     mutex_destruct(&device->internal.mutex);
     delete get_device_data(device);
     device->internal.data = nullptr;
-    return 0;
+    return ERROR_NONE;
 }
 
 /** Add a child to the list of children */
@@ -87,7 +87,7 @@ static void device_remove_child(struct Device* device, struct Device* child) {
     device_unlock(device);
 }
 
-int device_add(Device* device) {
+error_t device_add(Device* device) {
     LOG_I(TAG, "add %s", device->name);
 
     // Already added
@@ -107,10 +107,10 @@ int device_add(Device* device) {
     }
 
     device->internal.state.added = true;
-    return 0;
+    return ERROR_NONE;
 }
 
-int device_remove(Device* device) {
+error_t device_remove(Device* device) {
     LOG_I(TAG, "remove %s", device->name);
 
     if (device->internal.state.started || !device->internal.state.added) {
@@ -133,7 +133,7 @@ int device_remove(Device* device) {
     ledger_unlock();
 
     device->internal.state.added = false;
-    return 0;
+    return ERROR_NONE;
 
 failed_ledger_lookup:
 
@@ -145,7 +145,7 @@ failed_ledger_lookup:
     return ERROR_NOT_FOUND;
 }
 
-int device_start(Device* device) {
+error_t device_start(Device* device) {
     if (!device->internal.state.added) {
         return ERROR_INVALID_STATE;
     }
@@ -156,33 +156,31 @@ int device_start(Device* device) {
 
     // Already started
     if (device->internal.state.started) {
-        return 0;
+        return ERROR_NONE;
     }
 
-    int result = driver_bind(device->internal.driver, device);
-    device->internal.state.started = (result == 0);
-    device->internal.state.start_result = result;
-    return result;
+    error_t bind_error = driver_bind(device->internal.driver, device);
+    device->internal.state.started = (bind_error == ERROR_NONE);
+    device->internal.state.start_result = bind_error;
+    return bind_error == ERROR_NONE ? ERROR_NONE : ERROR_RESOURCE;
 }
 
-int device_stop(struct Device* device) {
+error_t device_stop(struct Device* device) {
     if (!device->internal.state.added) {
         return ERROR_INVALID_STATE;
     }
 
-    // Not started
     if (!device->internal.state.started) {
-        return 0;
+        return ERROR_NONE;
     }
 
-    int result = driver_unbind(device->internal.driver, device);
-    if (result != 0) {
-        return result;
+    if (driver_unbind(device->internal.driver, device) != ERROR_NONE) {
+        return ERROR_RESOURCE;
     }
 
     device->internal.state.started = false;
     device->internal.state.start_result = 0;
-    return 0;
+    return ERROR_NONE;
 }
 
 void device_set_parent(Device* device, Device* parent) {

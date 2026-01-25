@@ -4,8 +4,7 @@
 #include <Tactility/Driver.h>
 #include <Tactility/drivers/Esp32Gpio.h>
 
-#include "Tactility/Error.h"
-
+#include <Tactility/Error.h>
 #include <Tactility/Log.h>
 #include <Tactility/drivers/Gpio.h>
 #include <Tactility/drivers/GpioController.h>
@@ -16,19 +15,19 @@
 
 extern "C" {
 
-static int set_level(Device* device, gpio_pin_t pin, bool high) {
-    return gpio_set_level(static_cast<gpio_num_t>(pin), high) == ESP_OK;
+static error_t set_level(Device* device, gpio_pin_t pin, bool high) {
+    return gpio_set_level(static_cast<gpio_num_t>(pin), high); // TODO: Translate to Tactility errors
 }
 
-static int get_level(Device* device, gpio_pin_t pin, bool* high) {
+static error_t get_level(Device* device, gpio_pin_t pin, bool* high) {
     *high = gpio_get_level(static_cast<gpio_num_t>(pin)) != 0;
-    return true;
+    return ERROR_NONE;
 }
 
-static int set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
+static error_t set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
     const Esp32GpioConfig* config = GET_CONFIG(device);
 
-    if (pin >= config->gpio_count) {
+    if (pin >= config->gpioCount) {
         return ERROR_INVALID_ARGUMENT;
     }
 
@@ -86,17 +85,17 @@ static int get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {
     }
 
     *options = output;
-    return 0;
+    return ERROR_NONE;
 }
 
-static int start(Device* device) {
+static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
-    return 0;
+    return ERROR_NONE;
 }
 
-static int stop(Device* device) {
+static error_t stop(Device* device) {
     ESP_LOGI(TAG, "stop %s", device->name);
-    return 0;
+    return ERROR_NONE;
 }
 
 const static GpioControllerApi esp32_gpio_api  = {

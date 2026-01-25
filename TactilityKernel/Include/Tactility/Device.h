@@ -8,11 +8,12 @@
 extern "C" {
 #endif
 
-#include <Tactility/concurrent/Mutex.h>
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include "Error.h"
+#include <Tactility/concurrent/Mutex.h>
 
 struct Driver;
 
@@ -52,24 +53,26 @@ struct Device {
 /**
  * Initialize the properties of a device.
  *
- * @param[in] dev a device with all non-internal properties set
- * @return the result code (0 for success)
+ * @param[in] device a device with all non-internal properties set
+ * @retval ERROR_OUT_OF_MEMORY
+ * @retval ERROR_NONE
  */
-int device_construct(struct Device* device);
+error_t device_construct(struct Device* device);
 
 /**
  * Deinitialize the properties of a device.
  * This fails when a device is busy or has children.
  *
- * @param[in] dev
- * @return the result code (0 for success)
+ * @param[in] device
+ * @retval ERROR_INVALID_STATE
+ * @retval ERROR_NONE
  */
-int device_destruct(struct Device* device);
+error_t device_destruct(struct Device* device);
 
 /**
  * Indicates whether the device is in a state where its API is available
  *
- * @param[in] dev non-null device pointer
+ * @param[in] device non-null device pointer
  * @return true if the device is ready for use
  */
 static inline bool device_is_ready(const struct Device* device) {
@@ -83,9 +86,10 @@ static inline bool device_is_ready(const struct Device* device) {
  * - a bus (if any)
  *
  * @param[in] device non-null device pointer
- * @return 0 on success
+ * @retval ERROR_INVALID_STATE
+ * @retval ERROR_NONE
  */
-int device_add(struct Device* device);
+error_t device_add(struct Device* device);
 
 /**
  * Deregister a device. Remove it from all relevant systems:
@@ -94,26 +98,32 @@ int device_add(struct Device* device);
  * - a bus (if any)
  *
  * @param[in] device non-null device pointer
- * @return 0 on success
+ * @retval ERROR_INVALID_STATE
+ * @retval ERROR_NOT_FOUND
+ * @retval ERROR_NONE
  */
-int device_remove(struct Device* device);
+error_t device_remove(struct Device* device);
 
 /**
  * Attach the driver.
  *
  * @warning must call device_construct() and device_add() first
  * @param device
- * @return ERROR_INVALID_STATE or otherwise the value of the driver binding result (0 on success)
+ * @retval ERROR_INVALID_STATE
+ * @retval ERROR_RESOURCE when driver binding fails
+ * @retval ERROR_NONE
  */
-int device_start(struct Device* device);
+error_t device_start(struct Device* device);
 
 /**
  * Detach the driver.
  *
  * @param device
- * @return ERROR_INVALID_STATE or otherwise the value of the driver unbinding result (0 on success)
+ * @retval ERROR_INVALID_STATE
+ * @retval ERROR_RESOURCE when driver unbinding fails
+ * @retval ERROR_NONE
  */
-int device_stop(struct Device* device);
+error_t device_stop(struct Device* device);
 
 /**
  * Set or unset a parent.
@@ -147,7 +157,7 @@ static inline void device_lock(struct Device* device) {
     mutex_lock(&device->internal.mutex);
 }
 
-static inline int device_try_lock(struct Device* device) {
+static inline bool device_try_lock(struct Device* device) {
     return mutex_try_lock(&device->internal.mutex);
 }
 

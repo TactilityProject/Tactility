@@ -9,6 +9,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <Tactility/Error.h>
 #include <Tactility/FreeRTOS/event_groups.h>
 
 struct EventGroup {
@@ -32,22 +33,24 @@ static inline void event_group_destruct(EventGroupHandle_t* eventGroup) {
  * @param[in] eventGroup the event group
  * @param[in] inFlags the flags to set
  * @param[out] outFlags optional resulting flags: this is set when the return value is true
- * @return 0 on success
+ * @retval ERROR_RESOURCE when setting failed
+ * @retval ERROR_NONE
  */
-int event_group_set(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags);
+error_t event_group_set(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags);
 
 /**
  * Clear flags
  * @param[in] eventGroup the event group
  * @param[in] inFlags the flags to clear
  * @param[out] outFlags optional resulting flags: this is set when the return value is true
- * @return 0 on success
+ * @retval ERROR_RESOURCE when clearing failed
+ * @retval ERROR_NONE
  */
-int event_group_clear(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags);
+error_t event_group_clear(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags);
 
 /**
  * @param[in] eventGroup the event group
- * @return the current flags
+ * @return the bitset (always succeeds)
  */
 uint32_t event_group_get(EventGroupHandle_t eventGroup);
 
@@ -59,9 +62,12 @@ uint32_t event_group_get(EventGroupHandle_t eventGroup);
  * @param[in] clearOnExit If true, clears all the bits on exit, otherwise don't clear.
  * @param[in] timeout the maximum amount of ticks to wait for flags to be set
  * @param[out] outFlags optional resulting flags: this is set when the return value is true
- * @return 0 on success
+ * @retval ERROR_ISR_STATUS when the function was called from an ISR context
+ * @retval ERROR_TIMEOUT
+ * @retval ERROR_RESOURCE when flags were triggered, but not in a way that was expected (e.g. waiting for all flags, but was only partially set)
+ * @retval ERROR_NONE
  */
-int event_group_wait(
+error_t event_group_wait(
     EventGroupHandle_t eventGroup,
     uint32_t flags,
     bool awaitAll,

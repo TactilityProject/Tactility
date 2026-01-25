@@ -57,11 +57,12 @@ static DriverLedger& get_ledger() {
 #define driver_lock(driver) mutex_lock(&driver_internal_data(driver)->mutex);
 #define driver_unlock(driver) mutex_unlock(&driver_internal_data(driver)->mutex);
 
-static void driver_add(Driver* driver) {
+static error_t driver_add(Driver* driver) {
     LOG_I(TAG, "add %s", driver->name);
     ledger.lock();
     ledger.drivers.push_back(driver);
     ledger.unlock();
+    return ERROR_NONE;
 }
 
 static bool driver_remove(Driver* driver) {
@@ -72,26 +73,26 @@ static bool driver_remove(Driver* driver) {
     // check that there actually is a 3 in our vector
     if (iterator == ledger.drivers.end()) {
         ledger.unlock();
-        return false;
+        return ERROR_NOT_FOUND;
     }
     ledger.drivers.erase(iterator);
     ledger.unlock();
 
-    return true;
+    return ERROR_NONE;
 }
 
 extern "C" {
 
-int driver_construct(Driver* driver) {
+error_t driver_construct(Driver* driver) {
     driver->internal.data = new(std::nothrow) DriverInternalData;
     if (driver->internal.data == nullptr) {
-        return ENOMEM;
+        return ERROR_OUT_OF_MEMORY;
     }
     driver_add(driver);
-    return 0;
+    return ERROR_NONE;
 }
 
-int driver_destruct(Driver* driver) {
+error_t driver_destruct(Driver* driver) {
     // Check if in use
     if (driver_internal_data(driver)->use_count != 0) {
         return ERROR_INVALID_STATE;
@@ -100,7 +101,7 @@ int driver_destruct(Driver* driver) {
     driver_remove(driver);
     delete driver_internal_data(driver);
     driver->internal.data = nullptr;
-    return 0;
+    return ERROR_NONE;
 }
 
 bool driver_is_compatible(Driver* driver, const char* compatible) {
@@ -130,18 +131,18 @@ Driver* driver_find_compatible(const char* compatible) {
     return result;
 }
 
-int driver_bind(Driver* driver, Device* device) {
+error_t driver_bind(Driver* driver, Device* device) {
     driver_lock(driver);
 
-    int err = 0;
+    error_t error = ERROR_NONE;
     if (!device_is_added(device)) {
-        err = ERROR_INVALID_STATE;
+        error = ERROR_INVALID_STATE;
         goto error;
     }
 
     if (driver->startDevice != nullptr) {
-        err = driver->startDevice(device);
-        if (err != 0) {
+        error = driver->startDevice(device);
+        if (error != ERROR_NONE) {
             goto error;
         }
     }
@@ -150,18 +151,18 @@ int driver_bind(Driver* driver, Device* device) {
     driver_unlock(driver);
 
     LOG_I(TAG, "bound %s to %s", driver->name, device->name);
-    return 0;
+    return ERROR_NONE;
 
 error:
 
     driver_unlock(driver);
-    return err;
+    return error;
 }
 
-int driver_unbind(Driver* driver, Device* device) {
+error_t driver_unbind(Driver* driver, Device* device) {
     driver_lock(driver);
 
-    int err = 0;
+    error_t err = ERROR_NONE;
     if (!device_is_added(device)) {
         err = ERROR_INVALID_STATE;
         goto error;
@@ -169,7 +170,7 @@ int driver_unbind(Driver* driver, Device* device) {
 
     if (driver->stopDevice != nullptr) {
         err = driver->stopDevice(device);
-        if (err != 0) {
+        if (err != ERROR_NONE) {
             goto error;
         }
     }
@@ -179,7 +180,7 @@ int driver_unbind(Driver* driver, Device* device) {
 
     LOG_I(TAG, "unbound %s to %s", driver->name, device->name);
 
-    return 0;
+    return ERROR_NONE;
 
 error:
 

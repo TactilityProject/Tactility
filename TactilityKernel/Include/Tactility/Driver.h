@@ -7,6 +7,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include "Error.h"
 
 struct Device;
 struct DeviceType;
@@ -17,9 +18,9 @@ struct Driver {
     /** Array of const char*, terminated by NULL */
     const char**compatible;
     /** Function to initialize the driver for a device */
-    int (*startDevice)(struct Device* dev);
+    error_t (*startDevice)(struct Device* dev);
     /** Function to deinitialize the driver for a device */
-    int (*stopDevice)(struct Device* dev);
+    error_t (*stopDevice)(struct Device* dev);
     /** Contains the driver's functions */
     const void* api;
     /** Which type of devices this driver creates (can be NULL) */
@@ -31,13 +32,13 @@ struct Driver {
     } internal;
 };
 
-int driver_construct(struct Driver* driver);
+error_t driver_construct(struct Driver* driver);
 
-int driver_destruct(struct Driver* driver);
+error_t driver_destruct(struct Driver* driver);
 
-int driver_bind(struct Driver* driver, struct Device* device);
+error_t driver_bind(struct Driver* driver, struct Device* device);
 
-int driver_unbind(struct Driver* driver, struct Device* device);
+error_t driver_unbind(struct Driver* driver, struct Device* device);
 
 bool driver_is_compatible(struct Driver* driver, const char* compatible);
 

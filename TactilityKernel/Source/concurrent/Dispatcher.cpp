@@ -4,6 +4,8 @@
 
 #include <Tactility/concurrent/Dispatcher.h>
 
+#include "Tactility/Error.h"
+
 #include <Tactility/Log.h>
 #include <Tactility/concurrent/EventGroup.h>
 #include <Tactility/concurrent/Mutex.h>
@@ -52,7 +54,7 @@ void dispatcher_free(DispatcherHandle_t dispatcher) {
     delete data;
 }
 
-bool dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callbackContext, DispatcherCallback callback, TickType_t timeout) {
+error_t dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callbackContext, DispatcherCallback callback, TickType_t timeout) {
     auto* data = dispatcher_data(dispatcher);
 
     // Mutate
@@ -60,12 +62,12 @@ bool dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callbackCont
 #ifdef ESP_PLATFORM
         LOG_E(TAG, "Mutex acquisition timeout");
 #endif
-        return false;
+        return ERROR_TIMEOUT;
     }
 
     if (data->shutdown.load(std::memory_order_acquire)) {
         mutex_unlock(&data->mutex);
-        return false;
+        return ERROR_INVALID_STATE;
     }
 
     data->queue.push({
@@ -81,38 +83,41 @@ bool dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callbackCont
 
     mutex_unlock(&data->mutex);
 
-    if (event_group_set(data->eventGroup, WAIT_FLAG, nullptr) != 0) {
+    if (event_group_set(data->eventGroup, WAIT_FLAG, nullptr) != ERROR_NONE) {
 #ifdef ESP_PLATFORM
         LOG_E(TAG, "Failed to set flag");
 #endif
     }
-    return true;
+    return ERROR_NONE;
 }
 
-uint32_t dispatcher_consume_timed(DispatcherHandle_t dispatcher, TickType_t timeout) {
+error_t dispatcher_consume_timed(DispatcherHandle_t dispatcher, TickType_t timeout) {
     auto* data = dispatcher_data(dispatcher);
 
     // TODO: keep track of time and consider the timeout input as total timeout
 
     // Wait for signal
-    if (event_group_wait(data->eventGroup, WAIT_FLAG, false, true, timeout, nullptr) != 0) {
-        return 0;
+    error_t error = event_group_wait(data->eventGroup, WAIT_FLAG, false, true, timeout, nullptr);
+    if (error != ERROR_NONE) {
+        if (error == ERROR_TIMEOUT) {
+            return ERROR_TIMEOUT;
+        } else {
+            return ERROR_RESOURCE;
+        }
     }
 
     if (data->shutdown.load(std::memory_order_acquire)) {
-        return 0;
+        return ERROR_INVALID_STATE;
     }
 
     // Mutate
     bool processing = true;
-    uint32_t consumed = 0;
     do {
         if (mutex_try_lock_timed(&data->mutex, 10)) {
             if (!data->queue.empty()) {
                 // Make a copy, so it's thread-safe when we unlock
                 auto entry = data->queue.front();
                 data->queue.pop();
-                consumed++;
                 processing = !data->queue.empty();
                 // Don't keep lock as callback might be slow and we want to allow dispatch in the meanwhile
                 mutex_unlock(&data->mutex);
@@ -129,7 +134,7 @@ uint32_t dispatcher_consume_timed(DispatcherHandle_t dispatcher, TickType_t time
 
     } while (processing && !data->shutdown.load(std::memory_order_acquire));
 
-    return consumed;
+    return ERROR_NONE;
 }
 
 }

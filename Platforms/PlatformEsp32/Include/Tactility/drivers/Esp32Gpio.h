@@ -8,7 +8,7 @@ extern "C" {
 #include <stdint.h>
 
 struct Esp32GpioConfig {
-    uint8_t gpio_count;
+    uint8_t gpioCount;
 };
 
 #ifdef __cplusplus

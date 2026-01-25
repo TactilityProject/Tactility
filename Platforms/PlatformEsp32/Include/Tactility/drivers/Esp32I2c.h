@@ -9,9 +9,9 @@ extern "C" {
 #endif
 
 struct Esp32I2cConfig {
-    uint32_t clock_frequency;
-    struct GpioPinConfig pin_sda;
-    struct GpioPinConfig pin_scl;
+    uint32_t clockFrequency;
+    struct GpioPinConfig pinSda;
+    struct GpioPinConfig pinScl;
     const i2c_port_t port;
 };
 
