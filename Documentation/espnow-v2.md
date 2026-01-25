@@ -43,7 +43,7 @@ I [EspNowService] ESP-NOW version: 2.0
 
 ### Larger Messages
 
-- Message size increased from **127 to 1416 characters**
+- Message size increased from **127 to 1417 characters**
 - Variable-length packet transmission (only sends actual message length)
 - Backwards compatible: messages < 197 chars still work with v1.0 devices
 
@@ -69,7 +69,7 @@ Offset  Size   Field
 | `Tactility/Private/Tactility/app/chat/ChatProtocol.h` | `MESSAGE_SIZE` = 1417, added header constants |
 | `Tactility/Source/app/chat/ChatProtocol.cpp` | Variable-length serialize/deserialize |
 | `Tactility/Source/app/chat/ChatApp.cpp` | Send actual packet size |
-| `Tactility/Source/app/chat/ChatView.cpp` | Input field max length = 1416 |
+| `Tactility/Source/app/chat/ChatView.cpp` | Input field max length = 1417 |
 | `Documentation/chat.md` | Updated protocol documentation |
 
 ## Compatibility

@@ -122,7 +122,8 @@ void ChatApp::sendMessage(const std::string& text) {
 void ChatApp::applySettings(const std::string& nickname, const std::string& keyHex) {
     bool needRestart = false;
 
-    settings.nickname = nickname;
+    // Trim nickname to protocol limit
+    settings.nickname = nickname.substr(0, SENDER_NAME_SIZE - 1);
 
     // Parse hex key
     if (keyHex.size() == ESP_NOW_KEY_LEN * 2) {
@@ -133,7 +134,9 @@ void ChatApp::applySettings(const std::string& nickname, const std::string& keyH
                 char hex[3] = { keyHex[i * 2], keyHex[i * 2 + 1], 0 };
                 newKey[i] = static_cast<uint8_t>(strtoul(hex, nullptr, 16));
             }
-            if (!std::equal(newKey, newKey + ESP_NOW_KEY_LEN, settings.encryptionKey.begin())) {
+            // Restart if key changed OR if encryption is being enabled
+            bool wasEnabled = settings.hasEncryptionKey;
+            if (!wasEnabled || !std::equal(newKey, newKey + ESP_NOW_KEY_LEN, settings.encryptionKey.begin())) {
                 std::copy(newKey, newKey + ESP_NOW_KEY_LEN, settings.encryptionKey.begin());
                 needRestart = true;
             }
@@ -151,7 +154,7 @@ void ChatApp::applySettings(const std::string& nickname, const std::string& keyH
         LOGGER.warn("Key must be exactly {} hex characters, got {}", ESP_NOW_KEY_LEN * 2, keyHex.size());
     }
 
-    state.setLocalNickname(nickname);
+    state.setLocalNickname(settings.nickname);
     saveSettings(settings);
 
     if (needRestart) {
@@ -161,8 +164,9 @@ void ChatApp::applySettings(const std::string& nickname, const std::string& keyH
 }
 
 void ChatApp::switchChannel(const std::string& chatChannel) {
-    state.setCurrentChannel(chatChannel);
-    settings.chatChannel = chatChannel;
+    const auto trimmedChannel = chatChannel.substr(0, TARGET_SIZE - 1);
+    state.setCurrentChannel(trimmedChannel);
+    settings.chatChannel = trimmedChannel;
     saveSettings(settings);
 
     {

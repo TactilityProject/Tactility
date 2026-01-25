@@ -61,7 +61,7 @@ void unsubscribeReceiver(ReceiverSubscription subscription);
 /** Get the ESP-NOW protocol version (1 for v1.0, 2 for v2.0). Returns 0 if service not running. */
 uint32_t getVersion();
 
-/** Get the maximum data length for current ESP-NOW version (250 for v1.0, 1470 for v2.0). */
+/** Get the maximum data length for current ESP-NOW version (250 for v1.0, 1470 for v2.0). Returns 0 if service not running. */
 size_t getMaxDataLength();
 
 }

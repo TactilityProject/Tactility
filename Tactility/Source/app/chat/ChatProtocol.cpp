@@ -54,7 +54,7 @@ bool deserializeMessage(const uint8_t* data, int length, ParsedMessage& out) {
     // Calculate actual message length from packet size and ensure null termination
     size_t msgLen = length - MESSAGE_HEADER_SIZE;
     if (msgLen > 0 && msgLen < MESSAGE_SIZE) {
-        msg.message[msgLen] = '\0';  // Ensure null at end of received data
+        msg.message[msgLen] = '\0';  // Handle malformed packets missing null terminator
     }
     msg.message[MESSAGE_SIZE - 1] = '\0';  // Safety: ensure buffer is always terminated
 
