@@ -3,9 +3,12 @@
 
 #include <Tactility/Driver.h>
 #include <Tactility/drivers/Esp32Gpio.h>
-#include <Tactility/drivers/GpioController.h>
-#include <Tactility/drivers/Gpio.h>
+
+#include "Tactility/Error.h"
+
 #include <Tactility/Log.h>
+#include <Tactility/drivers/Gpio.h>
+#include <Tactility/drivers/GpioController.h>
 
 #define TAG LOG_TAG(esp32_gpio)
 
@@ -13,20 +16,20 @@
 
 extern "C" {
 
-static bool set_level(Device* device, gpio_pin_t pin, bool high) {
+static int set_level(Device* device, gpio_pin_t pin, bool high) {
     return gpio_set_level(static_cast<gpio_num_t>(pin), high) == ESP_OK;
 }
 
-static bool get_level(Device* device, gpio_pin_t pin, bool* high) {
+static int get_level(Device* device, gpio_pin_t pin, bool* high) {
     *high = gpio_get_level(static_cast<gpio_num_t>(pin)) != 0;
     return true;
 }
 
-static bool set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
+static int set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
     const Esp32GpioConfig* config = GET_CONFIG(device);
 
     if (pin >= config->gpio_count) {
-        return false;
+        return ERROR_INVALID_ARGUMENT;
     }
 
     gpio_mode_t mode;
@@ -37,8 +40,7 @@ static bool set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
     } else if (options & GPIO_DIRECTION_OUTPUT) {
         mode = GPIO_MODE_OUTPUT;
     } else {
-        ESP_LOGE(TAG, "set_options: no direction flag specified for pin %d", pin);
-        return false;
+        return ERROR_INVALID_ARGUMENT;
     }
 
     const gpio_config_t esp_config = {
@@ -52,13 +54,13 @@ static bool set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
 #endif
     };
 
-    return gpio_config(&esp_config) == ESP_OK;
+    return gpio_config(&esp_config); // TODO: Translate to Tactility error
 }
 
-static bool get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {
+static int get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {
     gpio_io_config_t esp_config;
-    if (gpio_get_io_config((gpio_num_t)pin, &esp_config) != ESP_OK) {
-        return false;
+    if (gpio_get_io_config(static_cast<gpio_num_t>(pin), &esp_config) != ESP_OK) {
+        return ERROR_RESOURCE;
     }
 
     gpio_flags_t output = 0;
@@ -84,7 +86,7 @@ static bool get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {
     }
 
     *options = output;
-    return true;
+    return 0;
 }
 
 static int start(Device* device) {

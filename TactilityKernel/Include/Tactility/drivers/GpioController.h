@@ -10,18 +10,18 @@ extern "C" {
 #include <stdbool.h>
 
 struct GpioControllerApi {
-    bool (*set_level)(struct Device* device, gpio_pin_t pin, bool high);
-    bool (*get_level)(struct Device* device, gpio_pin_t pin, bool* high);
-    bool (*set_options)(struct Device* device, gpio_pin_t pin, gpio_flags_t options);
-    bool (*get_options)(struct Device* device, gpio_pin_t pin, gpio_flags_t* options);
+    int (*set_level)(struct Device* device, gpio_pin_t pin, bool high);
+    int (*get_level)(struct Device* device, gpio_pin_t pin, bool* high);
+    int (*set_options)(struct Device* device, gpio_pin_t pin, gpio_flags_t options);
+    int (*get_options)(struct Device* device, gpio_pin_t pin, gpio_flags_t* options);
 };
 
-bool gpio_controller_set_level(struct Device* device, gpio_pin_t pin, bool high);
-bool gpio_controller_get_level(struct Device* device, gpio_pin_t pin, bool* high);
-bool gpio_controller_set_options(struct Device* device, gpio_pin_t pin, gpio_flags_t options);
-bool gpio_controller_get_options(struct Device* device, gpio_pin_t pin, gpio_flags_t* options);
+int gpio_controller_set_level(struct Device* device, gpio_pin_t pin, bool high);
+int gpio_controller_get_level(struct Device* device, gpio_pin_t pin, bool* high);
+int gpio_controller_set_options(struct Device* device, gpio_pin_t pin, gpio_flags_t options);
+int gpio_controller_get_options(struct Device* device, gpio_pin_t pin, gpio_flags_t* options);
 
-inline bool gpio_set_options_config(struct Device* device, struct GpioPinConfig* config) {
+static inline bool gpio_set_options_config(struct Device* device, const struct GpioPinConfig* config) {
     return gpio_controller_set_options(device, config->pin, config->flags);
 }
 
