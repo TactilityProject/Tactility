@@ -219,14 +219,19 @@ class GpsSettingsApp final : public App {
 
                     double latCoord = minmea_tocoord(&latitude);
                     double lonCoord = minmea_tocoord(&longitude);
-                    const char* latDir = (latCoord >= 0) ? "N" : "S";
-                    const char* lonDir = (lonCoord >= 0) ? "E" : "W";
+                    if (isnan(latCoord) || isnan(lonCoord)) {
+                        lv_label_set_text(statusLatitudeValue, "--");
+                        lv_label_set_text(statusLongitudeValue, "--");
+                    } else {
+                        const char* latDir = (latCoord >= 0) ? "N" : "S";
+                        const char* lonDir = (lonCoord >= 0) ? "E" : "W";
 
-                    snprintf(buffer, sizeof(buffer), "%.6f %s", std::abs(latCoord), latDir);
-                    lv_label_set_text(statusLatitudeValue, buffer);
+                        snprintf(buffer, sizeof(buffer), "%.6f %s", std::abs(latCoord), latDir);
+                        lv_label_set_text(statusLatitudeValue, buffer);
 
-                    snprintf(buffer, sizeof(buffer), "%.6f %s", std::abs(lonCoord), lonDir);
-                    lv_label_set_text(statusLongitudeValue, buffer);
+                        snprintf(buffer, sizeof(buffer), "%.6f %s", std::abs(lonCoord), lonDir);
+                        lv_label_set_text(statusLongitudeValue, buffer);
+                    }
 
                     float speedKnots = minmea_tofloat(&rmc.speed);
                     if (!isnan(speedKnots)) {
@@ -239,6 +244,9 @@ class GpsSettingsApp final : public App {
 
                     float heading = minmea_tofloat(&rmc.course);
                     if (!isnan(heading)) {
+                        // Normalize heading to [0, 360) range
+                        heading = fmodf(heading, 360.0f);
+                        if (heading < 0) heading += 360.0f;
                         const char* dirs[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
                         // Calculate cardinal direction index (0-7)
                         int idx = (int)((heading + 22.5f) / 45.0f) % 8;

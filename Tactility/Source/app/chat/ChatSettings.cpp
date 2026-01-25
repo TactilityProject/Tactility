@@ -63,7 +63,7 @@ static bool readHex(const std::string& input, uint8_t* buffer, size_t length) {
 
 static bool encryptKey(const uint8_t key[ESP_NOW_KEY_LEN], std::string& hexOutput) {
     uint8_t iv[16];
-    crypt::getIv(IV_SEED, strlen(IV_SEED), iv);
+    crypt::getIv(IV_SEED, sizeof(IV_SEED) - 1, iv);
 
     uint8_t encrypted[ESP_NOW_KEY_LEN];
     if (crypt::encrypt(iv, key, encrypted, ESP_NOW_KEY_LEN) != 0) {
@@ -86,7 +86,7 @@ static bool decryptKey(const std::string& hexInput, uint8_t key[ESP_NOW_KEY_LEN]
     }
 
     uint8_t iv[16];
-    crypt::getIv(IV_SEED, strlen(IV_SEED), iv);
+    crypt::getIv(IV_SEED, sizeof(IV_SEED) - 1, iv);
 
     if (crypt::decrypt(iv, encrypted, key, ESP_NOW_KEY_LEN) != 0) {
         LOGGER.error("Failed to decrypt key");

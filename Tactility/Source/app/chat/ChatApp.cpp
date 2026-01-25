@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <cctype>
 
 namespace tt::app::chat {
 
@@ -125,13 +126,7 @@ void ChatApp::applySettings(const std::string& nickname, const std::string& keyH
 
     // Parse hex key
     if (keyHex.size() == ESP_NOW_KEY_LEN * 2) {
-        bool validHex = true;
-        for (char c : keyHex) {
-            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
-                validHex = false;
-                break;
-            }
-        }
+        bool validHex = std::all_of(keyHex.begin(), keyHex.end(), [](unsigned char c) { return std::isxdigit(c); });
         if (validHex) {
             uint8_t newKey[ESP_NOW_KEY_LEN];
             for (int i = 0; i < ESP_NOW_KEY_LEN; i++) {

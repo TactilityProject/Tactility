@@ -17,7 +17,7 @@ ESP-NOW based chat application with channel-based messaging. Devices with the sa
 
 ## UI Layout
 
-```
+```text
 +------------------------------------------+
 | [Back] Chat: #general    [List] [Gear]   |
 +------------------------------------------+
@@ -65,7 +65,7 @@ Changing the encryption key causes ESP-NOW to restart with the new configuration
 
 Variable-length packed struct broadcast over ESP-NOW (ESP-NOW v2.0):
 
-```
+```text
 Offset  Size   Field
 ------  ----   -----
 0       4      header (magic: 0x31544354 "TCT1")

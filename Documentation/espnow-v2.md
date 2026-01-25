@@ -25,7 +25,7 @@ constexpr size_t MAX_DATA_LEN_V2 = 1470;
 ### Version Detection
 
 ESP-NOW version is queried on initialization and logged:
-```
+```text
 I (15620) ESPNOW: espnow [version: 2.0] init
 I [EspNowService] ESP-NOW version: 2.0
 ```
@@ -49,7 +49,7 @@ I [EspNowService] ESP-NOW version: 2.0
 
 ### Wire Protocol
 
-```
+```text
 Offset  Size   Field
 ------  ----   -----
 0       4      header (magic: 0x31544354)

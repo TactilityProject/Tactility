@@ -36,6 +36,7 @@ bool isEnabled() {
     if (service != nullptr) {
         return service->isEnabled();
     } else {
+        LOGGER.error("Service not found");
         return false;
     }
 }
@@ -84,6 +85,7 @@ uint32_t getVersion() {
     if (service != nullptr) {
         return service->getVersion();
     }
+    LOGGER.error("Service not found");
     return 0;
 }
 

@@ -125,6 +125,7 @@ void EspNowService::disableFromDispatcher() {
         LOGGER.error("deinitWifi() failed");
     }
 
+    espnowVersion = 0;
     enabled = false;
 }
 
