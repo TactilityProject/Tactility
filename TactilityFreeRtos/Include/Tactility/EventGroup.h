@@ -40,32 +40,20 @@ public:
     /**
      * Set the flags.
      * @param[in] flags the flags to set
-     * @param[out] outFlags optional resulting flags: this is set when the return value is true
-     * @param[out] outError optional error output: this is set when the return value is false
      * @return true on success
      */
-    bool set(uint32_t flags, uint32_t* outFlags = nullptr, Error* outError = nullptr) const {
+    bool set(uint32_t flags) const {
         assert(handle);
         if (xPortInIsrContext() == pdTRUE) {
-            uint32_t result;
             BaseType_t yield = pdFALSE;
             if (xEventGroupSetBitsFromISR(handle.get(), flags, &yield) == pdFAIL) {
-                if (outError != nullptr) {
-                    *outError = Error::Resource;
-                }
                 return false;
             } else {
-                if (outFlags != nullptr) {
-                    *outFlags = flags;
-                }
                 portYIELD_FROM_ISR(yield);
                 return true;
             }
         } else {
-            auto result = xEventGroupSetBits(handle.get(), flags);
-            if (outFlags != nullptr) {
-                *outFlags = result;
-            }
+            xEventGroupSetBits(handle.get(), flags);
             return true;
         }
     }
@@ -73,30 +61,18 @@ public:
     /**
      * Clear flags
      * @param[in] flags the flags to clear
-     * @param[out] outFlags optional resulting flags: this is set when the return value is true
-     * @param[out] outError optional error output: this is set when the return value is false
      * @return true on success
      */
-    bool clear(uint32_t flags, uint32_t* outFlags = nullptr, Error* outError = nullptr) const {
+    bool clear(uint32_t flags) const {
         if (xPortInIsrContext() == pdTRUE) {
             uint32_t result = xEventGroupGetBitsFromISR(handle.get());
             if (xEventGroupClearBitsFromISR(handle.get(), flags) == pdFAIL) {
-                if (outError != nullptr) {
-                    *outError = Error::Resource;
-                }
                 return false;
-            }
-            if (outFlags != nullptr) {
-                *outFlags = result;
             }
             portYIELD_FROM_ISR(pdTRUE);
             return true;
         } else {
-            auto result = xEventGroupClearBits(handle.get(), flags);
-            if (outFlags != nullptr) {
-                *outFlags = result;
-            }
-            return true;
+            return xEventGroupClearBits(handle.get(), flags) == pdTRUE;
         }
     }
 
@@ -117,16 +93,14 @@ public:
      * @param[in] awaitAll If true, await for all bits to be set. Otherwise, await for any.
      * @param[in] clearOnExit If true, clears all the bits on exit, otherwise don't clear.
      * @param[in] timeout the maximum amount of ticks to wait for flags to be set
-     * @param[out] outFlags optional resulting flags: this is set when the return value is true
-     * @param[out] outError optional error output: this is set when the return value is false
+     * @param[out] outFlags optional resulting flags: this is set when the return value is true. Only set when return value is true.
      */
     bool wait(
         uint32_t flags,
         bool awaitAll = false,
         bool clearOnExit = true,
-        TickType_t timeout = kernel::MAX_TICKS,
         uint32_t* outFlags = nullptr,
-        Error* outError = nullptr
+        TickType_t timeout = kernel::MAX_TICKS
     ) const {
         assert(xPortInIsrContext() == pdFALSE);
 
@@ -141,14 +115,8 @@ public:
         auto invalid_flags = awaitAll
             ? ((flags & result_flags) != flags) // await all
             : ((flags & result_flags) == 0U); // await any
+
         if (invalid_flags) {
-            if (outError != nullptr) {
-                if (timeout > 0U) { // assume time-out
-                    *outError = Error::Timeout;
-                } else {
-                    *outError = Error::Resource;
-                }
-            }
             return false;
         }
 

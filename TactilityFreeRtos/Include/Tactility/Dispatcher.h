@@ -94,7 +94,7 @@ public:
      */
     uint32_t consume(TickType_t timeout = kernel::MAX_TICKS) {
         // Wait for signal
-        if (!eventFlag.wait(WAIT_FLAG, false, true, timeout)) {
+        if (!eventFlag.wait(WAIT_FLAG, false, true, nullptr, timeout)) {
             return 0;
         }
 
