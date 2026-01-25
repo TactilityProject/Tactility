@@ -30,6 +30,9 @@ static bool powerOn() {
         return false;
     }
 
+    // Avoids crash when no SD card is inserted. It's unknown why, but likely is related to power draw.
+    vTaskDelay(100);
+
     return true;
 }
 
