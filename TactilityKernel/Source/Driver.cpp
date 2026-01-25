@@ -65,7 +65,7 @@ static error_t driver_add(Driver* driver) {
     return ERROR_NONE;
 }
 
-static bool driver_remove(Driver* driver) {
+static error_t driver_remove(Driver* driver) {
     LOG_I(TAG, "remove %s", driver->name);
 
     ledger.lock();

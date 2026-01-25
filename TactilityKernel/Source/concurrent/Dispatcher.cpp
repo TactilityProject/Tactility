@@ -83,11 +83,13 @@ error_t dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callbackC
 
     mutex_unlock(&data->mutex);
 
-    if (event_group_set(data->eventGroup, WAIT_FLAG, nullptr) != ERROR_NONE) {
+    if (event_group_set(data->eventGroup, WAIT_FLAG) != ERROR_NONE) {
 #ifdef ESP_PLATFORM
         LOG_E(TAG, "Failed to set flag");
 #endif
+        return ERROR_RESOURCE;
     }
+
     return ERROR_NONE;
 }
 
@@ -97,7 +99,7 @@ error_t dispatcher_consume_timed(DispatcherHandle_t dispatcher, TickType_t timeo
     // TODO: keep track of time and consider the timeout input as total timeout
 
     // Wait for signal
-    error_t error = event_group_wait(data->eventGroup, WAIT_FLAG, false, true, timeout, nullptr);
+    error_t error = event_group_wait(data->eventGroup, WAIT_FLAG, false, true, nullptr, timeout);
     if (error != ERROR_NONE) {
         if (error == ERROR_TIMEOUT) {
             return ERROR_TIMEOUT;

@@ -28,6 +28,7 @@ void dispatcher_free(DispatcherHandle_t dispatcher);
  * @param[in] callback the function to execute elsewhere
  * @param[in] timeout lock acquisition timeout
  * @retval ERROR_TIMEOUT
+ * @retval ERROR_RESOURCE when failing to set event
  * @retval ERROR_INVALID_STATE when the dispatcher is in the process of shutting down
  * @retval ERROR_NONE
  */
