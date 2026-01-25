@@ -5,6 +5,6 @@
 #include "FreeRTOS.h"
 
 #ifndef ESP_PLATFORM
-#define xPortInIsrContext(x) (false)
+#define xPortInIsrContext() (pdFALSE)
 #define vPortAssertIfInISR()
 #endif

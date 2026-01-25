@@ -48,7 +48,7 @@ error_t event_group_wait(
     uint32_t* outFlags,
     TickType_t timeout
 ) {
-    if (xPortInIsrContext()) {
+    if (xPortInIsrContext() == pdTRUE) {
         return ERROR_ISR_STATUS;
     }
 

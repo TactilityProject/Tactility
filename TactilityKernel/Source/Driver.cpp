@@ -70,7 +70,6 @@ static error_t driver_remove(Driver* driver) {
 
     ledger.lock();
     const auto iterator = std::ranges::find(ledger.drivers, driver);
-    // check that there actually is a 3 in our vector
     if (iterator == ledger.drivers.end()) {
         ledger.unlock();
         return ERROR_NOT_FOUND;
@@ -184,7 +183,7 @@ error_t driver_unbind(Driver* driver, Device* device) {
     driver_internal_data(driver)->use_count--;
     driver_unlock(driver);
 
-    LOG_I(TAG, "unbound %s to %s", driver->name, device->name);
+    LOG_I(TAG, "unbound %s from %s", driver->name, device->name);
 
     return ERROR_NONE;
 
