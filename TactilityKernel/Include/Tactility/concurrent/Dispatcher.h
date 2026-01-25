@@ -39,6 +39,7 @@ error_t dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callbackC
  *
  * @param[in] callbackContext the data to pass to the function upon execution
  * @param[in] callback the function to execute elsewhere
+ * @retval ERROR_RESOURCE when failing to set event
  * @retval ERROR_TIMEOUT unlikely to occur unless there's an issue with the internal mutex
  * @retval ERROR_INVALID_STATE when the dispatcher is in the process of shutting down
  * @retval ERROR_NONE

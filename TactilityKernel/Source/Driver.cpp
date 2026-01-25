@@ -57,12 +57,11 @@ static DriverLedger& get_ledger() {
 #define driver_lock(driver) mutex_lock(&driver_internal_data(driver)->mutex);
 #define driver_unlock(driver) mutex_unlock(&driver_internal_data(driver)->mutex);
 
-static error_t driver_add(Driver* driver) {
+static void driver_add(Driver* driver) {
     LOG_I(TAG, "add %s", driver->name);
     ledger.lock();
     ledger.drivers.push_back(driver);
     ledger.unlock();
-    return ERROR_NONE;
 }
 
 static error_t driver_remove(Driver* driver) {
@@ -98,7 +97,10 @@ error_t driver_destruct(Driver* driver) {
         return ERROR_INVALID_STATE;
     }
 
-    driver_remove(driver);
+    if (driver_remove(driver) != ERROR_NONE) {
+        LOG_W(TAG, "Failed to remove driver from ledger: %s", driver->name);
+    }
+
     delete driver_internal_data(driver);
     driver->internal.data = nullptr;
     return ERROR_NONE;

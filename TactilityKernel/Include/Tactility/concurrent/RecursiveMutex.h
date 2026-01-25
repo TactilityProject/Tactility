@@ -32,9 +32,9 @@ inline static void recursive_mutex_lock(struct RecursiveMutex* mutex) {
 
 inline static bool recursive_mutex_is_locked(struct RecursiveMutex* mutex) {
     if (xPortInIsrContext() == pdTRUE) {
-        return xSemaphoreGetMutexHolder(mutex->handle) != NULL;
-    } else {
         return xSemaphoreGetMutexHolderFromISR(mutex->handle) != NULL;
+    } else {
+        return xSemaphoreGetMutexHolder(mutex->handle) != NULL;
     }
 }
 

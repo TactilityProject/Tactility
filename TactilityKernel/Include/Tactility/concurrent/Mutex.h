@@ -44,9 +44,9 @@ inline static bool mutex_try_lock_timed(struct Mutex* mutex, TickType_t timeout)
 
 inline static bool mutex_is_locked(struct Mutex* mutex) {
     if (xPortInIsrContext() == pdTRUE) {
-        return xSemaphoreGetMutexHolder(mutex->handle) != NULL;
-    } else {
         return xSemaphoreGetMutexHolderFromISR(mutex->handle) != NULL;
+    } else {
+        return xSemaphoreGetMutexHolder(mutex->handle) != NULL;
     }
 }
 

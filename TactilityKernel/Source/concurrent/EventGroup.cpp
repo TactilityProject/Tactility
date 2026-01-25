@@ -67,11 +67,11 @@ error_t event_group_wait(
         : ((inFlags & result_flags) == 0U); // await any
 
     if (invalid_flags) {
-        if (timeout > 0U) { // assume time-out
+        const uint32_t matched = inFlags & result_flags;
+        if (matched == 0U) {
             return ERROR_TIMEOUT;
-        } else {
-            return ERROR_RESOURCE;
         }
+        return ERROR_RESOURCE;
     }
 
     if (outFlags != nullptr) {

@@ -3,6 +3,7 @@
 #include "devices/TrackballDevice.h"
 
 #include <Tactility/hal/gps/GpsConfiguration.h>
+#include <Tactility/kernel/Kernel.h>
 #include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
@@ -31,7 +32,7 @@ static bool powerOn() {
     }
 
     // Avoids crash when no SD card is inserted. It's unknown why, but likely is related to power draw.
-    vTaskDelay(100);
+    tt::kernel::delayMillis(100);
 
     return true;
 }
