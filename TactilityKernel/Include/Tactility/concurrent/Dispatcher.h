@@ -5,8 +5,6 @@
 */
 #pragma once
 
-#include <stdbool.h>
-
 #include <Tactility/Error.h>
 #include <Tactility/FreeRTOS/FreeRTOS.h>
 
@@ -17,7 +15,7 @@ extern "C" {
 typedef void (*DispatcherCallback)(void* context);
 typedef void* DispatcherHandle_t;
 
-DispatcherHandle_t dispatcher_alloc();
+DispatcherHandle_t dispatcher_alloc(void);
 
 void dispatcher_free(DispatcherHandle_t dispatcher);
 
@@ -49,7 +47,7 @@ static inline error_t dispatcher_dispatch(DispatcherHandle_t dispatcher, void* c
 }
 
 /**
- * Consume 1 or more dispatched function (if any) until the queue is empty.
+ * Consume 1 or more dispatched functions (if any) until the queue is empty.
  *
  * @warning The timeout is only the wait time before consuming the message! It is not a limit to the total execution time when calling this method.
  *
@@ -62,7 +60,7 @@ static inline error_t dispatcher_dispatch(DispatcherHandle_t dispatcher, void* c
 error_t dispatcher_consume_timed(DispatcherHandle_t dispatcher, TickType_t timeout);
 
 /**
- * Consume 1 or more dispatched function (if any) until the queue is empty.
+ * Consume 1 or more dispatched functions (if any) until the queue is empty.
  *
  * @warning The timeout is only the wait time before consuming the message! It is not a limit to the total execution time when calling this method.
  *

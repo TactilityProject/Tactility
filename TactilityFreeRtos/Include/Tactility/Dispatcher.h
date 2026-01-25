@@ -87,7 +87,7 @@ public:
     }
 
     /**
-     * Consume 1 or more dispatched function (if any) until the queue is empty.
+     * Consume 1 or more dispatched functions (if any) until the queue is empty.
      * @warning The timeout is only the wait time before consuming the message! It is not a limit to the total execution time when calling this method.
      * @param[in] timeout the ticks to wait for a message
      * @return the amount of messages that were consumed

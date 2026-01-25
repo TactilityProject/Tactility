@@ -27,9 +27,7 @@ error_t event_group_clear(EventGroupHandle_t eventGroup, uint32_t flags) {
         }
         portYIELD_FROM_ISR(pdTRUE);
     } else {
-        if (xEventGroupClearBits(eventGroup, flags) == pdFAIL) {
-            return ERROR_RESOURCE;
-        }
+        xEventGroupClearBits(eventGroup, flags);
     }
     return ERROR_NONE;
 }

@@ -70,10 +70,10 @@ public:
                 return false;
             }
             portYIELD_FROM_ISR(pdTRUE);
-            return true;
         } else {
-            return xEventGroupClearBits(handle.get(), flags) == pdTRUE;
+            xEventGroupClearBits(handle.get(), flags);
         }
+        return true;
     }
 
     /**

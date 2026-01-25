@@ -42,7 +42,7 @@ struct DispatcherData {
 
 extern "C" {
 
-DispatcherHandle_t dispatcher_alloc() {
+DispatcherHandle_t dispatcher_alloc(void) {
     return new DispatcherData();
 }
 

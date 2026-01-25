@@ -15,6 +15,7 @@
 struct DriverInternalData {
     Mutex mutex { 0 };
     int use_count = 0;
+    bool destroying = false;
 
     DriverInternalData() {
         mutex_construct(&mutex);
@@ -92,10 +93,13 @@ error_t driver_construct(Driver* driver) {
 }
 
 error_t driver_destruct(Driver* driver) {
-    // Check if in use
-    if (driver_internal_data(driver)->use_count != 0) {
+    driver_lock(driver);
+    if (driver_internal_data(driver)->use_count != 0 || driver_internal_data(driver)->destroying) {
+        driver_unlock(driver);
         return ERROR_INVALID_STATE;
     }
+    driver_internal_data(driver)->destroying = true;
+    driver_unlock(driver);
 
     if (driver_remove(driver) != ERROR_NONE) {
         LOG_W(TAG, "Failed to remove driver from ledger: %s", driver->name);
@@ -137,7 +141,7 @@ error_t driver_bind(Driver* driver, Device* device) {
     driver_lock(driver);
 
     error_t error = ERROR_NONE;
-    if (!device_is_added(device)) {
+    if (driver_internal_data(driver)->destroying || !device_is_added(device)) {
         error = ERROR_INVALID_STATE;
         goto error;
     }
@@ -164,15 +168,15 @@ error:
 error_t driver_unbind(Driver* driver, Device* device) {
     driver_lock(driver);
 
-    error_t err = ERROR_NONE;
-    if (!device_is_added(device)) {
-        err = ERROR_INVALID_STATE;
+    error_t error = ERROR_NONE;
+    if (driver_internal_data(driver)->destroying || !device_is_added(device)) {
+        error = ERROR_INVALID_STATE;
         goto error;
     }
 
     if (driver->stopDevice != nullptr) {
-        err = driver->stopDevice(device);
-        if (err != ERROR_NONE) {
+        error = driver->stopDevice(device);
+        if (error != ERROR_NONE) {
             goto error;
         }
     }
@@ -187,7 +191,7 @@ error_t driver_unbind(Driver* driver, Device* device) {
 error:
 
     driver_unlock(driver);
-    return err;
+    return error;
 }
 
 } // extern "C"
