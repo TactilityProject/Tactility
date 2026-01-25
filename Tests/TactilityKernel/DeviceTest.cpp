@@ -106,7 +106,7 @@ TEST_CASE("device_remove should remove it from the list of all devices") {
         return true;
     });
 
-    CHECK_EQ(devices.size(), ERROR_NONE);
+    CHECK_EQ(devices.size(), 0);
 
     CHECK_EQ(device_destruct(&device), ERROR_NONE);
 }
@@ -135,7 +135,7 @@ TEST_CASE("device_remove should remove the device from its parent") {
         return true;
     });
 
-    CHECK_EQ(children.size(), ERROR_NONE);
+    CHECK_EQ(children.size(), 0);
 
     CHECK_EQ(device_destruct(&child), ERROR_NONE);
 

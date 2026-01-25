@@ -4,7 +4,7 @@
 #include <Tactility/Driver.h>
 #include <Tactility/drivers/Esp32Gpio.h>
 
-#include <Tactility/Error.h>
+#include <Tactility/ErrorEsp32.h>
 #include <Tactility/Log.h>
 #include <Tactility/drivers/Gpio.h>
 #include <Tactility/drivers/GpioController.h>
@@ -16,7 +16,8 @@
 extern "C" {
 
 static error_t set_level(Device* device, gpio_pin_t pin, bool high) {
-    return gpio_set_level(static_cast<gpio_num_t>(pin), high); // TODO: Translate to Tactility errors
+    auto esp_error = gpio_set_level(static_cast<gpio_num_t>(pin), high);
+    return esp_err_to_error(esp_error);
 }
 
 static error_t get_level(Device* device, gpio_pin_t pin, bool* high) {
@@ -53,7 +54,8 @@ static error_t set_options(Device* device, gpio_pin_t pin, gpio_flags_t options)
 #endif
     };
 
-    return gpio_config(&esp_config); // TODO: Translate to Tactility error
+    auto esp_error = gpio_config(&esp_config);
+    return esp_err_to_error(esp_error);
 }
 
 static int get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {

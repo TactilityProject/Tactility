@@ -30,6 +30,7 @@ static inline void event_group_destruct(EventGroupHandle_t* eventGroup) {
 
 /**
  * Set the flags.
+ *
  * @param[in] eventGroup the event group
  * @param[in] inFlags the flags to set
  * @param[out] outFlags optional resulting flags: this is set when the return value is true
@@ -40,6 +41,7 @@ error_t event_group_set(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_
 
 /**
  * Clear flags
+ *
  * @param[in] eventGroup the event group
  * @param[in] inFlags the flags to clear
  * @param[out] outFlags optional resulting flags: this is set when the return value is true
@@ -56,6 +58,7 @@ uint32_t event_group_get(EventGroupHandle_t eventGroup);
 
 /**
  * Wait for flags to be set
+ *
  * @param[in] eventGroup the event group
  * @param[in] flags the flags to await
  * @param[in] awaitAll If true, await for all bits to be set. Otherwise, await for any.

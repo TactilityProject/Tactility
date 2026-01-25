@@ -54,6 +54,7 @@ struct GpioPinConfig {
 
 /**
  * Check if the pin is ready to be used.
+ *
  * @param pinConfig the specifications of the pin
  * @return true if the pin is ready to be used
  */
