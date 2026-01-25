@@ -160,14 +160,15 @@ bool GpsService::startReceiving() {
         addGpsDevice(device);
     }
 
+    // Reset times before starting devices to avoid race with incoming data
+    rmcTime = 0;
+    ggaTime = 0;
+
     bool started_one_or_more = false;
 
     for (auto& record: deviceRecords) {
         started_one_or_more |= startGpsDevice(record);
     }
-
-    rmcTime = 0;
-    ggaTime = 0;
 
     if (started_one_or_more) {
         setState(State::On);
