@@ -84,6 +84,12 @@ void EspNowService::enableFromDispatcher(const EspNowConfig& config) {
         return;
     }
 
+    if (esp_now_get_version(&espnowVersion) == ESP_OK) {
+        LOGGER.info("ESP-NOW version: {}.0", espnowVersion);
+    } else {
+        LOGGER.warn("Failed to get ESP-NOW version");
+    }
+
     // Add default unencrypted broadcast peer
     esp_now_peer_info_t broadcast_peer;
     memset(&broadcast_peer, 0, sizeof(esp_now_peer_info_t));
@@ -193,6 +199,12 @@ void EspNowService::unsubscribeReceiver(ReceiverSubscription subscriptionId) {
     auto lock = mutex.asScopedLock();
     lock.lock();
     std::erase_if(subscriptions, [subscriptionId](auto& subscription) { return subscription.id == subscriptionId; });
+}
+
+uint32_t EspNowService::getVersion() const {
+    auto lock = mutex.asScopedLock();
+    lock.lock();
+    return espnowVersion;
 }
 
 std::shared_ptr<EspNowService> findService() {

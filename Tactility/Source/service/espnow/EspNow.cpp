@@ -79,6 +79,18 @@ void unsubscribeReceiver(ReceiverSubscription subscription) {
     }
 }
 
+uint32_t getVersion() {
+    auto service = findService();
+    if (service != nullptr) {
+        return service->getVersion();
+    }
+    return 0;
+}
+
+size_t getMaxDataLength() {
+    return getVersion() >= 2 ? MAX_DATA_LEN_V2 : MAX_DATA_LEN_V1;
+}
+
 }
 
 #endif // CONFIG_SOC_WIFI_SUPPORTED && !CONFIG_SLAVE_SOC_WIFI_SUPPORTED

@@ -30,6 +30,12 @@ class GpsSettingsApp final : public App {
     std::shared_ptr<GpsSettingsApp*> appReference = std::make_shared<GpsSettingsApp*>(this);
     lv_obj_t* statusWrapper = nullptr;
     lv_obj_t* statusLabelWidget = nullptr;
+    lv_obj_t* statusLatitudeValue = nullptr;
+    lv_obj_t* statusLongitudeValue = nullptr;
+    lv_obj_t* statusAltitudeValue = nullptr;
+    lv_obj_t* statusSpeedValue = nullptr;
+    lv_obj_t* statusHeadingValue = nullptr;
+    lv_obj_t* statusSatellitesValue = nullptr;
     lv_obj_t* switchWidget = nullptr;
     lv_obj_t* spinnerWidget = nullptr;
     lv_obj_t* infoContainerWidget = nullptr;
@@ -203,14 +209,71 @@ class GpsSettingsApp final : public App {
                 }
 
                 minmea_sentence_rmc rmc;
+                char buffer[64];
                 if (service->getCoordinates(rmc)) {
+                    lv_label_set_text(statusLabelWidget, "Lock acquired");
+                    lv_obj_set_style_text_color(statusLabelWidget, lv_color_hex(0x00ff00), 0);
+
                     minmea_float latitude = { rmc.latitude.value, rmc.latitude.scale };
                     minmea_float longitude = { rmc.longitude.value, rmc.longitude.scale };
-                    auto label_text = std::format("LAT {}\nLON {}", minmea_tocoord(&latitude), minmea_tocoord(&longitude));
-                    lv_label_set_text(statusLabelWidget, label_text.c_str());
+
+                    double latCoord = minmea_tocoord(&latitude);
+                    double lonCoord = minmea_tocoord(&longitude);
+                    const char* latDir = (latCoord >= 0) ? "N" : "S";
+                    const char* lonDir = (lonCoord >= 0) ? "E" : "W";
+
+                    snprintf(buffer, sizeof(buffer), "%.6f %s", std::abs(latCoord), latDir);
+                    lv_label_set_text(statusLatitudeValue, buffer);
+
+                    snprintf(buffer, sizeof(buffer), "%.6f %s", std::abs(lonCoord), lonDir);
+                    lv_label_set_text(statusLongitudeValue, buffer);
+
+                    float speedKnots = minmea_tofloat(&rmc.speed);
+                    if (!isnan(speedKnots)) {
+                        float speedKmh = speedKnots * 1.852f;
+                        snprintf(buffer, sizeof(buffer), "%.1f km/h", speedKmh);
+                        lv_label_set_text(statusSpeedValue, buffer);
+                    } else {
+                        lv_label_set_text(statusSpeedValue, "--");
+                    }
+
+                    float heading = minmea_tofloat(&rmc.course);
+                    if (!isnan(heading)) {
+                        const char* dirs[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+                        // Calculate cardinal direction index (0-7)
+                        int idx = (int)((heading + 22.5f) / 45.0f) % 8;
+                        snprintf(buffer, sizeof(buffer), "%.0f° %s", heading, dirs[idx]);
+                        lv_label_set_text(statusHeadingValue, buffer);
+                    } else {
+                        lv_label_set_text(statusHeadingValue, "--");
+                    }
+
                 } else {
                     lv_label_set_text(statusLabelWidget, "Acquiring lock...");
+                    lv_obj_set_style_text_color(statusLabelWidget, lv_color_hex(0xffaa00), 0);
+                    lv_label_set_text(statusLatitudeValue, "--");
+                    lv_label_set_text(statusLongitudeValue, "--");
+                    lv_label_set_text(statusSpeedValue, "--");
+                    lv_label_set_text(statusHeadingValue, "--");
                 }
+
+                minmea_sentence_gga gga;
+                if (service->getGga(gga)) {
+                    float altitude = minmea_tofloat(&gga.altitude);
+                    if (!isnan(altitude)) {
+                        snprintf(buffer, sizeof(buffer), "%.1f m", altitude);
+                        lv_label_set_text(statusAltitudeValue, buffer);
+                    } else {
+                        lv_label_set_text(statusAltitudeValue, "--");
+                    }
+
+                    snprintf(buffer, sizeof(buffer), "%d", gga.satellites_tracked);
+                    lv_label_set_text(statusSatellitesValue, buffer);
+                } else {
+                    lv_label_set_text(statusAltitudeValue, "--");
+                    lv_label_set_text(statusSatellitesValue, "--");
+                }
+
                 lv_obj_remove_flag(statusLabelWidget, LV_OBJ_FLAG_HIDDEN);
             } else {
                 if (hasSetInfo) {
@@ -266,6 +329,28 @@ class GpsSettingsApp final : public App {
         }
     }
 
+    lv_obj_t* createInfoRow(lv_obj_t* parent, const char* labelText, lv_color_t color) {
+        lv_obj_t* row = lv_obj_create(parent);
+        lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+
+        lv_obj_set_style_pad_all(row, 0, 0);
+        lv_obj_set_style_pad_right(row, 10, 0);
+        lv_obj_set_style_border_width(row, 0, 0);
+        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+
+        lv_obj_t* label = lv_label_create(row);
+        lv_label_set_text(label, labelText);
+        lv_obj_set_style_text_color(label, lv_color_hex(0x888888), 0);
+
+        lv_obj_t* value = lv_label_create(row);
+        lv_label_set_text(value, "--");
+        lv_obj_set_style_text_color(value, color, 0);
+
+        return value;
+    }
+
 public:
 
     GpsSettingsApp() {
@@ -297,19 +382,28 @@ public:
         statusWrapper = lv_obj_create(main_wrapper);
         lv_obj_set_width(statusWrapper, LV_PCT(100));
         lv_obj_set_height(statusWrapper, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(statusWrapper, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(statusWrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_all(statusWrapper, 0, 0);
+        lv_obj_set_style_pad_row(statusWrapper, 8, 0);
         lv_obj_set_style_border_width(statusWrapper, 0, 0);
 
         statusLabelWidget = lv_label_create(statusWrapper);
-        lv_obj_align(statusLabelWidget, LV_ALIGN_TOP_LEFT, 0, 0);
 
         infoContainerWidget = lv_obj_create(statusWrapper);
-        lv_obj_align_to(infoContainerWidget, statusLabelWidget, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 20);
         lv_obj_set_size(infoContainerWidget, LV_PCT(100), LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(infoContainerWidget, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_border_width(infoContainerWidget, 0, 0);
-        lv_obj_set_style_pad_all(infoContainerWidget, 0, 0);
+        lv_obj_set_style_pad_row(infoContainerWidget, 5, 0);
+        lv_obj_set_style_pad_hor(infoContainerWidget, 10, 0);
         hasSetInfo = false;
+
+        statusLatitudeValue = createInfoRow(infoContainerWidget, "Latitude:", lv_color_hex(0x00ff00));
+        statusLongitudeValue = createInfoRow(infoContainerWidget, "Longitude:", lv_color_hex(0x00ff00));
+        statusAltitudeValue = createInfoRow(infoContainerWidget, "Altitude:", lv_color_hex(0x00ffff));
+        statusSpeedValue = createInfoRow(infoContainerWidget, "Speed:", lv_color_hex(0xffff00));
+        statusHeadingValue = createInfoRow(infoContainerWidget, "Heading:", lv_color_hex(0xff88ff));
+        statusSatellitesValue = createInfoRow(infoContainerWidget, "Satellites:", lv_color_hex(0xffffff));
 
         serviceStateSubscription = service->getStatePubsub()->subscribe([this](auto) {
             onServiceStateChanged();

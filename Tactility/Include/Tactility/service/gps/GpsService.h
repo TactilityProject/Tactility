@@ -21,6 +21,9 @@ class GpsService final : public Service {
     minmea_sentence_rmc rmcRecord;
     TickType_t rmcTime = 0;
 
+    minmea_sentence_gga ggaRecord;
+    TickType_t ggaTime = 0;
+
     RecursiveMutex mutex;
     Mutex stateMutex;
     std::vector<GpsDeviceRecord> deviceRecords;
@@ -58,6 +61,7 @@ public:
 
     bool hasCoordinates() const;
     bool getCoordinates(minmea_sentence_rmc& rmc) const;
+    bool getGga(minmea_sentence_gga& gga) const;
 
     /** @return GPS service pubsub that broadcasts State* objects */
     std::shared_ptr<PubSub<State>> getStatePubsub() const { return statePubSub; }
