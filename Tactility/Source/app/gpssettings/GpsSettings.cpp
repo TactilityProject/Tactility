@@ -350,7 +350,7 @@ class GpsSettingsApp final : public App {
 
         lv_obj_t* label = lv_label_create(row);
         lv_label_set_text(label, labelText);
-        lv_obj_set_style_text_color(label, lv_color_hex(0x888888), 0);
+        lv_obj_set_style_text_color(label, lv_palette_lighten(LV_PALETTE_GREY, 5), 0);
 
         lv_obj_t* value = lv_label_create(row);
         lv_label_set_text(value, "--");
@@ -406,12 +406,12 @@ public:
         lv_obj_set_style_pad_hor(infoContainerWidget, 10, 0);
         hasSetInfo = false;
 
-        statusLatitudeValue = createInfoRow(infoContainerWidget, "Latitude:", lv_color_hex(0x00ff00));
-        statusLongitudeValue = createInfoRow(infoContainerWidget, "Longitude:", lv_color_hex(0x00ff00));
-        statusAltitudeValue = createInfoRow(infoContainerWidget, "Altitude:", lv_color_hex(0x00ffff));
-        statusSpeedValue = createInfoRow(infoContainerWidget, "Speed:", lv_color_hex(0xffff00));
-        statusHeadingValue = createInfoRow(infoContainerWidget, "Heading:", lv_color_hex(0xff88ff));
-        statusSatellitesValue = createInfoRow(infoContainerWidget, "Satellites:", lv_color_hex(0xffffff));
+        statusLatitudeValue = createInfoRow(infoContainerWidget, "Latitude", lv_color_hex(0x00ff00));
+        statusLongitudeValue = createInfoRow(infoContainerWidget, "Longitude", lv_color_hex(0x00ff00));
+        statusAltitudeValue = createInfoRow(infoContainerWidget, "Altitude", lv_color_hex(0x00ffff));
+        statusSpeedValue = createInfoRow(infoContainerWidget, "Speed", lv_color_hex(0xffff00));
+        statusHeadingValue = createInfoRow(infoContainerWidget, "Heading", lv_color_hex(0xff88ff));
+        statusSatellitesValue = createInfoRow(infoContainerWidget, "Satellites", lv_color_hex(0xffffff));
 
         serviceStateSubscription = service->getStatePubsub()->subscribe([this](auto) {
             onServiceStateChanged();
