@@ -28,7 +28,7 @@ void ChatApp::enableEspNow() {
         service::espnow::Mode::Station,
         1, // Channel 1 default; actual channel determined by WiFi if connected
         false,
-        false
+        settings.hasEncryptionKey
     );
     service::espnow::enable(config);
 }

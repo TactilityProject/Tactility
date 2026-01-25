@@ -90,7 +90,9 @@ uint32_t getVersion() {
 }
 
 size_t getMaxDataLength() {
-    return getVersion() >= 2 ? MAX_DATA_LEN_V2 : MAX_DATA_LEN_V1;
+    auto v = getVersion();
+    if (v == 0) return 0;
+    return v >= 2 ? MAX_DATA_LEN_V2 : MAX_DATA_LEN_V1;
 }
 
 }
