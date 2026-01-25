@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 #include <Tactility/ErrorEsp32.h>
 
 error_t esp_err_to_error(esp_err_t error) {
