@@ -24,7 +24,7 @@ static inline void event_group_destruct(EventGroupHandle_t* eventGroup) {
     assert(xPortInIsrContext() == pdFALSE);
     assert(*eventGroup != NULL);
     vEventGroupDelete(*eventGroup);
-    *eventGroup = nullptr;
+    *eventGroup = NULL;
 }
 
 /**

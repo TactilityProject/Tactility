@@ -3,9 +3,11 @@
 #include <queue>
 
 #include <Tactility/concurrent/Dispatcher.h>
+
+#include <Tactility/Log.h>
 #include <Tactility/concurrent/EventGroup.h>
 #include <Tactility/concurrent/Mutex.h>
-#include <Tactility/Log.h>
+#include <atomic>
 
 #define TAG LOG_TAG("Dispatcher")
 
@@ -21,7 +23,7 @@ struct DispatcherData {
     Mutex mutex = { 0 };
     std::queue<QueuedItem> queue = {};
     EventGroupHandle_t eventGroup = nullptr;
-    bool shutdown = false; // TODO: Use EventGroup
+    std::atomic<bool> shutdown{false}; // TODO: Use EventGroup
 
     DispatcherData() {
         event_group_construct(&eventGroup);
@@ -34,7 +36,7 @@ struct DispatcherData {
     }
 };
 
-#define dispatcher_data(handle) static_cast<DispatcherData*>(dispatcher)
+#define dispatcher_data(handle) static_cast<DispatcherData*>(handle)
 
 extern "C" {
 
@@ -44,7 +46,7 @@ DispatcherHandle_t dispatcher_alloc() {
 
 void dispatcher_free(DispatcherHandle_t dispatcher) {
     auto* data = dispatcher_data(dispatcher);
-    data->shutdown = true;
+    data->shutdown.store(true, std::memory_order_release);
     mutex_lock(&data->mutex);
     mutex_unlock(&data->mutex);
     delete data;
@@ -61,7 +63,7 @@ bool dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callback_con
         return false;
     }
 
-    if (data->shutdown) {
+    if (data->shutdown.load(std::memory_order_acquire)) {
         mutex_unlock(&data->mutex);
         return false;
     }
@@ -97,7 +99,7 @@ uint32_t dispatcher_consume_timed(DispatcherHandle_t dispatcher, TickType_t time
         return 0;
     }
 
-    if (data->shutdown) {
+    if (data->shutdown.load(std::memory_order_acquire)) {
         return 0;
     }
 
@@ -125,7 +127,7 @@ uint32_t dispatcher_consume_timed(DispatcherHandle_t dispatcher, TickType_t time
 #endif
         }
 
-    } while (processing && !data->shutdown);
+    } while (processing && !data->shutdown.load(std::memory_order_acquire));
 
     return consumed;
 }
