@@ -16,7 +16,7 @@ constexpr uint32_t CHAT_MAGIC_HEADER = 0x31544354; // "TCT1"
 constexpr uint8_t PROTOCOL_VERSION = 0x01;
 constexpr size_t SENDER_NAME_SIZE = 24;
 constexpr size_t TARGET_SIZE = 24;
-constexpr size_t MESSAGE_SIZE = 1417;  // Max for ESP-NOW v2.0 (1470 - 53 header bytes)
+constexpr size_t MESSAGE_SIZE = 200;  //1417 Max for ESP-NOW v2.0 (1470 - 53 header bytes)
 
 // Header size = offset to message field (header + version + sender_name + target)
 constexpr size_t MESSAGE_HEADER_SIZE = 4 + 1 + SENDER_NAME_SIZE + TARGET_SIZE;  // 53 bytes
