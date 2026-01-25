@@ -21,21 +21,21 @@ void dispatcher_free(DispatcherHandle_t dispatcher);
 
 /**
  * Queue a function to be consumed elsewhere.
+ * @param[in] callbackContext the data to pass to the function upon execution
  * @param[in] callback the function to execute elsewhere
- * @param[in] callback_context the data to pass to the function upon execution
  * @param[in] timeout lock acquisition timeout
  * @return true if dispatching was successful (timeout not reached)
  */
-bool dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callback_context, DispatcherCallback callback, TickType_t timeout);
+bool dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callbackContext, DispatcherCallback callback, TickType_t timeout);
 
 /**
  * Queue a function to be consumed elsewhere.
+ * @param[in] callbackContext the data to pass to the function upon execution
  * @param[in] callback the function to execute elsewhere
- * @param[in] callback_context the data to pass to the function upon execution
  * @return true if dispatching was successful (timeout not reached)
  */
-static inline bool dispatcher_dispatch(DispatcherHandle_t dispatcher, void* callback_context, DispatcherCallback callback) {
-    return dispatcher_dispatch_timed(dispatcher, callback_context, callback, portMAX_DELAY);
+static inline bool dispatcher_dispatch(DispatcherHandle_t dispatcher, void* callbackContext, DispatcherCallback callback) {
+    return dispatcher_dispatch_timed(dispatcher, callbackContext, callback, portMAX_DELAY);
 }
 
 /**

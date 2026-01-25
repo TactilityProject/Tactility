@@ -30,20 +30,20 @@ static inline void event_group_destruct(EventGroupHandle_t* eventGroup) {
 /**
  * Set the flags.
  * @param[in] eventGroup the event group
- * @param[in] flags the flags to set
+ * @param[in] inFlags the flags to set
  * @param[out] outFlags optional resulting flags: this is set when the return value is true
  * @return 0 on success
  */
-int event_group_set(EventGroupHandle_t eventGroup, uint32_t flags, uint32_t* outFlags);
+int event_group_set(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags);
 
 /**
  * Clear flags
  * @param[in] eventGroup the event group
- * @param[in] flags the flags to clear
+ * @param[in] inFlags the flags to clear
  * @param[out] outFlags optional resulting flags: this is set when the return value is true
  * @return 0 on success
  */
-int event_group_clear(EventGroupHandle_t eventGroup, uint32_t flags, uint32_t* outFlags);
+int event_group_clear(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags);
 
 /**
  * @param[in] eventGroup the event group

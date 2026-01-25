@@ -107,10 +107,10 @@ const static GpioControllerApi esp32_gpio_api  = {
 Driver esp32_gpio_driver = {
     .name = "esp32_gpio",
     .compatible = (const char*[]) { "espressif,esp32-gpio", nullptr },
-    .start_device = start,
-    .stop_device = stop,
+    .startDevice = start,
+    .stopDevice = stop,
     .api =  (void*)&esp32_gpio_api,
-    .device_type = nullptr,
+    .deviceType = nullptr,
     .internal = { 0 }
 };
 

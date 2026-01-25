@@ -18,10 +18,10 @@ TEST_CASE("driver_is_compatible should return true if a compatible value is foun
     Driver driver = {
         .name = "test_driver",
         .compatible = compatible,
-        .start_device = nullptr,
-        .stop_device = nullptr,
+        .startDevice = nullptr,
+        .stopDevice = nullptr,
         .api = nullptr,
-        .device_type = nullptr,
+        .deviceType = nullptr,
         .internal = { 0 }
     };
     CHECK_EQ(driver_is_compatible(&driver, "test_compatible"), true);
@@ -34,10 +34,10 @@ TEST_CASE("driver_find should only find a compatible driver when the driver was 
     Driver driver = {
         .name = "test_driver",
         .compatible = compatible,
-        .start_device = nullptr,
-        .stop_device = nullptr,
+        .startDevice = nullptr,
+        .stopDevice = nullptr,
         .api = nullptr,
-        .device_type = nullptr,
+        .deviceType = nullptr,
         .internal = { 0 }
     };
 

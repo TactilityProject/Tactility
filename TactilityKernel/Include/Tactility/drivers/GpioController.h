@@ -22,7 +22,7 @@ bool gpio_controller_set_options(struct Device* device, gpio_pin_t pin, gpio_fla
 bool gpio_controller_get_options(struct Device* device, gpio_pin_t pin, gpio_flags_t* options);
 
 inline bool gpio_set_options_config(struct Device* device, struct GpioPinConfig* config) {
-    return gpio_controller_set_options(device, config->pin, config->dt_flags);
+    return gpio_controller_set_options(device, config->pin, config->flags);
 }
 
 #ifdef __cplusplus

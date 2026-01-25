@@ -17,9 +17,9 @@ bool i2c_controller_write(Device* device, uint8_t address, const uint8_t* data, 
     return I2C_DRIVER_API(driver)->write(device, address, data, dataSize, timeout);
 }
 
-bool i2c_controller_write_read(Device* device, uint8_t address, const uint8_t* write_data, size_t write_data_size, uint8_t* read_data, size_t read_data_size, TickType_t timeout) {
+bool i2c_controller_write_read(Device* device, uint8_t address, const uint8_t* writeData, size_t writeDataSize, uint8_t* readData, size_t readDataSize, TickType_t timeout) {
     const auto* driver = device_get_driver(device);
-    return I2C_DRIVER_API(driver)->write_read(device, address, write_data, write_data_size, read_data, read_data_size, timeout);
+    return I2C_DRIVER_API(driver)->write_read(device, address, writeData, writeDataSize, readData, readDataSize, timeout);
 }
 
 const struct DeviceType I2C_CONTROLLER_TYPE { 0 };

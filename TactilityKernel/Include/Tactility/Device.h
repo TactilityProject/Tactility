@@ -156,7 +156,7 @@ static inline void device_unlock(struct Device* device) {
 }
 
 static inline const struct DeviceType* device_get_type(struct Device* device) {
-    return device->internal.driver ? device->internal.driver->device_type : NULL;
+    return device->internal.driver ? device->internal.driver->deviceType : NULL;
 }
 /**
  * Iterate through all the known devices
@@ -167,18 +167,18 @@ void for_each_device(void* callback_context, bool(*on_device)(struct Device* dev
 
 /**
  * Iterate through all the child devices of the specified device
- * @param callback_context the parameter to pass to the callback. NULL is valid.
+ * @param callbackContext the parameter to pass to the callback. NULL is valid.
  * @param on_device the function to call for each filtered device. return true to continue iterating or false to stop.
  */
-void for_each_device_child(struct Device* device, void* callback_context, bool(*on_device)(struct Device* device, void* context));
+void for_each_device_child(struct Device* device, void* callbackContext, bool(*on_device)(struct Device* device, void* context));
 
 /**
  * Iterate through all the known devices of a specific type
  * @param type the type to filter
- * @param callback_context the parameter to pass to the callback. NULL is valid.
+ * @param callbackContext the parameter to pass to the callback. NULL is valid.
  * @param on_device the function to call for each filtered device. return true to continue iterating or false to stop.
  */
-void for_each_device_of_type(const struct DeviceType* type, void* callback_context, bool(*on_device)(struct Device* device, void* context));
+void for_each_device_of_type(const struct DeviceType* type, void* callbackContext, bool(*on_device)(struct Device* device, void* context));
 
 #ifdef __cplusplus
 }

@@ -34,57 +34,29 @@ typedef enum {
     GPIO__MAX,
 } GpioInterruptType;
 
-/**
- * @brief Provides a type to hold a GPIO pin index.
- *
- * This reduced-size type is sufficient to record a pin number,
- * e.g. from a devicetree GPIOS property.
- */
+/** The index of a GPIO pin on a GPIO Controller */
 typedef uint8_t gpio_pin_t;
 
-/**
- * @brief Identifies a set of pins associated with a port.
- *
- * The pin with index n is present in the set if and only if the bit
- * identified by (1U << n) is set.
- */
-typedef uint32_t gpio_pinset_t;
-
-/**
- * @brief Provides a type to hold GPIO devicetree flags.
- *
- * All GPIO flags that can be expressed in devicetree fit in the low 16
- * bits of the full flags field, so use a reduced-size type to record
- * that part of a GPIOS property.
- *
- * The lower 8 bits are used for standard flags. The upper 8 bits are reserved
- * for SoC specific flags.
- */
+/** Specifies the configuration flags for a GPIO pin (or set of pins) */
 typedef uint16_t gpio_flags_t;
 
-/**
- * @brief Container for GPIO pin information specified in dts files
- *
- * This type contains a pointer to a GPIO device, pin identifier for a pin
- * controlled by that device, and the subset of pin configuration
- * flags which may be given in devicetree.
- */
+/** A configuration for a single GPIO pin */
 struct GpioPinConfig {
     /** GPIO device controlling the pin */
     const struct Device* port;
     /** The pin's number on the device */
     gpio_pin_t pin;
     /** The pin's configuration flags as specified in devicetree */
-    gpio_flags_t dt_flags;
+    gpio_flags_t flags;
 };
 
 /**
  * Check if the pin is ready to be used.
- * @param pin_config the specifications of the pin
+ * @param pinConfig the specifications of the pin
  * @return true if the pin is ready to be used
  */
-static inline bool gpio_is_ready(const struct GpioPinConfig* pin_config) {
-    return device_is_ready(pin_config->port);
+static inline bool gpio_is_ready(const struct GpioPinConfig* pinConfig) {
+    return device_is_ready(pinConfig->port);
 }
 
 #ifdef __cplusplus

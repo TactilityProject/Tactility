@@ -82,10 +82,10 @@ const I2cControllerApi esp32_i2c_api = {
 Driver esp32_i2c_driver = {
     .name = "esp32_i2c",
     .compatible = (const char*[]) { "espressif,esp32-i2c", nullptr },
-    .start_device = start,
-    .stop_device = stop,
+    .startDevice = start,
+    .stopDevice = stop,
     .api = (void*)&esp32_i2c_api,
-    .device_type = &I2C_CONTROLLER_TYPE,
+    .deviceType = &I2C_CONTROLLER_TYPE,
     .internal = { 0 }
 };
 

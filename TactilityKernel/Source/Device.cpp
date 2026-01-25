@@ -200,22 +200,22 @@ void for_each_device(void* callback_context, bool(*on_device)(Device* device, vo
     ledger_unlock();
 }
 
-void for_each_device_child(Device* device, void* callback_context, bool(*on_device)(struct Device* device, void* context)) {
+void for_each_device_child(Device* device, void* callbackContext, bool(*on_device)(struct Device* device, void* context)) {
     auto* data = get_device_data(device);
     for (auto* child_device : data->children) {
-        if (!on_device(child_device, callback_context)) {
+        if (!on_device(child_device, callbackContext)) {
             break;
         }
     }
 }
 
-void for_each_device_of_type(const DeviceType* type, void* callback_context, bool(*on_device)(Device* device, void* context)) {
+void for_each_device_of_type(const DeviceType* type, void* callbackContext, bool(*on_device)(Device* device, void* context)) {
     ledger_lock();
     for (auto* device : ledger.devices) {
         auto* driver = device->internal.driver;
         if (driver != nullptr) {
-            if (driver->device_type == type) {
-                if (!on_device(device, callback_context)) {
+            if (driver->deviceType == type) {
+                if (!on_device(device, callbackContext)) {
                     break;
                 }
             }

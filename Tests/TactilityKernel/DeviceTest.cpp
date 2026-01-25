@@ -161,10 +161,10 @@ TEST_CASE("device_is_ready should return true only when it is started") {
     Driver driver = {
         .name = "test_driver",
         .compatible = compatible,
-        .start_device = nullptr,
-        .stop_device = nullptr,
+        .startDevice = nullptr,
+        .stopDevice = nullptr,
         .api = nullptr,
-        .device_type = nullptr,
+        .deviceType = nullptr,
         .internal = { 0 }
     };
 

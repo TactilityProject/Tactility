@@ -7,21 +7,21 @@
 extern "C" {
 #endif
 
-int event_group_set(EventGroupHandle_t eventGroup, uint32_t flags, uint32_t* outFlags) {
+int event_group_set(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags) {
     assert(eventGroup);
     if (xPortInIsrContext() == pdTRUE) {
         BaseType_t yield = pdFALSE;
-        if (xEventGroupSetBitsFromISR(eventGroup, flags, &yield) == pdFAIL) {
+        if (xEventGroupSetBitsFromISR(eventGroup, inFlags, &yield) == pdFAIL) {
             return ERROR_RESOURCE;
         } else {
             if (outFlags != nullptr) {
-                *outFlags = flags;
+                *outFlags = inFlags;
             }
             portYIELD_FROM_ISR(yield);
             return 0;
         }
     } else {
-        auto result = xEventGroupSetBits(eventGroup, flags);
+        auto result = xEventGroupSetBits(eventGroup, inFlags);
         if (outFlags != nullptr) {
             *outFlags = result;
         }
@@ -29,11 +29,11 @@ int event_group_set(EventGroupHandle_t eventGroup, uint32_t flags, uint32_t* out
     }
 }
 
-int event_group_clear(EventGroupHandle_t eventGroup, uint32_t flags, uint32_t* outFlags) {
+int event_group_clear(EventGroupHandle_t eventGroup, uint32_t inFlags, uint32_t* outFlags) {
     assert(eventGroup);
     if (xPortInIsrContext() == pdTRUE) {
         uint32_t result = xEventGroupGetBitsFromISR(eventGroup);
-        if (xEventGroupClearBitsFromISR(eventGroup, flags) == pdFAIL) {
+        if (xEventGroupClearBitsFromISR(eventGroup, inFlags) == pdFAIL) {
             return ERROR_RESOURCE;
         }
         if (outFlags != nullptr) {
@@ -42,7 +42,7 @@ int event_group_clear(EventGroupHandle_t eventGroup, uint32_t flags, uint32_t* o
         portYIELD_FROM_ISR(pdTRUE);
         return 0;
     } else {
-        auto result = xEventGroupClearBits(eventGroup, flags);
+        auto result = xEventGroupClearBits(eventGroup, inFlags);
         if (outFlags != nullptr) {
             *outFlags = result;
         }

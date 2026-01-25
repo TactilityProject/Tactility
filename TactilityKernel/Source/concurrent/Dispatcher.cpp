@@ -52,7 +52,7 @@ void dispatcher_free(DispatcherHandle_t dispatcher) {
     delete data;
 }
 
-bool dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callback_context, DispatcherCallback callback, TickType_t timeout) {
+bool dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callbackContext, DispatcherCallback callback, TickType_t timeout) {
     auto* data = dispatcher_data(dispatcher);
 
     // Mutate
@@ -70,7 +70,7 @@ bool dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callback_con
 
     data->queue.push({
         .callback = callback,
-        .context = callback_context
+        .context = callbackContext
     });
 
     if (data->queue.size() == BACKPRESSURE_WARNING_COUNT) {
