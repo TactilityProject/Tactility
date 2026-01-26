@@ -15,8 +15,14 @@ namespace tt::app::chat {
 bool serializeTextMessage(uint32_t senderId, uint32_t targetId,
                           const std::string& senderName, const std::string& target,
                           const std::string& message, std::vector<uint8_t>& out) {
-    // Validate input lengths
-    if (senderName.size() > MAX_NICKNAME_LEN || target.size() > MAX_TARGET_LEN) {
+    // Validate input lengths (min and max)
+    if (senderName.size() < MIN_NICKNAME_LEN || senderName.size() > MAX_NICKNAME_LEN) {
+        return false;
+    }
+    if (target.size() > MAX_TARGET_LEN) {
+        return false;  // MIN_TARGET_LEN is 0, so empty (broadcast) is allowed
+    }
+    if (message.size() < MIN_MESSAGE_LEN) {
         return false;
     }
 
@@ -33,17 +39,18 @@ bool serializeTextMessage(uint32_t senderId, uint32_t targetId,
         return false;  // payload_size is uint8_t
     }
 
+    // Build header
+    MessageHeader header = {
+        .magic = CHAT_MAGIC_V2,
+        .protocol_version = PROTOCOL_VERSION,
+        .from = senderId,
+        .to = targetId,
+        .payload_type = static_cast<uint8_t>(PayloadType::TextMessage),
+        .payload_size = static_cast<uint8_t>(payloadSize)
+    };
+
     // Allocate output buffer
     out.resize(HEADER_SIZE + payloadSize);
-
-    // Build header
-    MessageHeader header;
-    header.magic = CHAT_MAGIC_V2;
-    header.protocol_version = PROTOCOL_VERSION;
-    header.from = senderId;
-    header.to = targetId;
-    header.payload_type = static_cast<uint8_t>(PayloadType::TextMessage);
-    header.payload_size = static_cast<uint8_t>(payloadSize);
 
     // Copy header to output
     memcpy(out.data(), &header, HEADER_SIZE);
@@ -65,8 +72,10 @@ bool serializeTextMessage(uint32_t senderId, uint32_t targetId,
 }
 
 bool deserializeMessage(const uint8_t* data, size_t length, ParsedMessage& out) {
-    // Minimum: header + at least 2 null terminators (empty nickname + empty target)
-    if (length < HEADER_SIZE + 2) {
+    // Minimum: header + min_nickname + null + min_target + null + min_message
+    // = 16 + 2 + 1 + 0 + 1 + 1 = 21 bytes
+    constexpr size_t MIN_PACKET_SIZE = HEADER_SIZE + MIN_NICKNAME_LEN + 1 + MIN_TARGET_LEN + 1 + MIN_MESSAGE_LEN;
+    if (length < MIN_PACKET_SIZE) {
         return false;
     }
 
@@ -119,6 +128,17 @@ bool deserializeMessage(const uint8_t* data, size_t length, ParsedMessage& out) 
 
     // Rest is the message (not null-terminated)
     const char* messageStart = reinterpret_cast<const char*>(payload + offset);
+
+    // Validate field lengths (min and max)
+    if (nicknameLen < MIN_NICKNAME_LEN || nicknameLen > MAX_NICKNAME_LEN) {
+        return false;
+    }
+    if (targetLen > MAX_TARGET_LEN) {
+        return false;
+    }
+    if (remaining < MIN_MESSAGE_LEN) {
+        return false;
+    }
 
     // Populate output
     out.senderId = header.from;

@@ -42,8 +42,17 @@ static_assert(sizeof(MessageHeader) == 16, "MessageHeader must be 16 bytes");
 constexpr size_t HEADER_SIZE = sizeof(MessageHeader);
 constexpr size_t MAX_PAYLOAD_V1 = 250 - HEADER_SIZE;   // 234 bytes for ESP-NOW v1
 constexpr size_t MAX_PAYLOAD_V2 = 1470 - HEADER_SIZE;  // 1454 bytes for ESP-NOW v2
+
+// Nickname constraints
+constexpr size_t MIN_NICKNAME_LEN = 2;    // Single-letter names not allowed
 constexpr size_t MAX_NICKNAME_LEN = 23;   // Max nickname length (excluding null)
+
+// Target/channel constraints (0 = broadcast allowed)
+constexpr size_t MIN_TARGET_LEN = 0;      // Empty = broadcast
 constexpr size_t MAX_TARGET_LEN = 23;     // Max target/channel length (excluding null)
+
+// Message constraints
+constexpr size_t MIN_MESSAGE_LEN = 1;     // At least 1 char (e.g. "?")
 
 // Max message length: 255 (uint8_t payload_size) - nickname - null - target - null
 // Using max lengths: 255 - 23 - 1 - 23 - 1 = 207, rounded down for safety

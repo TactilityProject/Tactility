@@ -85,9 +85,13 @@ Offset  Size   Field
 [nickname\0][target\0][message bytes]
 ```
 
-- `nickname`: Null-terminated sender display name (max 23 chars + null)
-- `target`: Null-terminated channel (e.g. `#general`) or empty for broadcast (max 23 chars + null)
-- `message`: Remaining bytes, NOT null-terminated (length = `payload_size - strlen(nickname) - 1 - strlen(target) - 1`)
+- `nickname`: Null-terminated sender display name (2-23 chars + null; single-letter names rejected)
+- `target`: Null-terminated channel or empty for broadcast (0-23 chars + null)
+  - Empty string (`\0`): broadcast to all channels
+  - Channel name (e.g. `#general`): visible only when viewing that channel
+- `message`: Remaining bytes, NOT null-terminated, minimum 1 byte (length = `payload_size - strlen(nickname) - 1 - strlen(target) - 1`)
+
+**Minimum packet size for TextMessage:** 16 (header) + 2 (min nickname) + 1 (null) + 0 (empty target) + 1 (null) + 1 (min message) = **21 bytes**
 
 **Example calculation:** If nickname is "Alice" (5 chars) and target is "#general" (8 chars):
 - Overhead: 5 + 1 + 8 + 1 = 15 bytes
@@ -102,13 +106,15 @@ Offset  Size   Field
 
 ### Size Limits
 
-| Constraint | Value |
-|------------|-------|
-| Header size | 16 bytes |
-| Max payload (uint8_t) | 255 bytes |
-| Max nickname | 23 characters |
-| Max channel/target | 23 characters |
-| Max message | 200-251 bytes (varies by nickname/target length) |
+| Constraint | Min | Max |
+|------------|-----|-----|
+| Header size | 16 bytes | 16 bytes |
+| Payload (uint8_t) | 5 bytes | 255 bytes |
+| Nickname | 2 characters | 23 characters |
+| Channel/target | 0 (broadcast) | 23 characters |
+| Message (wire) | 1 byte | up to 251 bytes (varies by overhead) |
+| Message (UI) | 1 character | 200 characters |
+| Total packet (TextMessage) | 21 bytes | 271 bytes |
 
 ### Payload Types
 
@@ -159,9 +165,10 @@ All files are guarded with `#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(C
    - Protocol version: must be 2
    - Payload size: `header.payload_size` must equal `received_length - 16`
 3. Parse null-terminated nickname and target from payload
-4. Extract message from remaining bytes (length derived from payload_size)
-5. Store in message deque with sender ID
-6. Display if target matches current channel or is broadcast (empty)
+4. Validate minimum lengths: nickname >= 2 chars, message >= 1 byte
+5. Extract message from remaining bytes (length derived from payload_size)
+6. Store in message deque with sender ID
+7. Display if target matches current channel or is broadcast (empty)
 
 ## Limitations
 
