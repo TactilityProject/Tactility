@@ -26,7 +26,7 @@ static void log_task_info() {
 extern "C" {
 #endif
 
-_Noreturn void __crash() {
+__attribute__((noreturn)) void __crash() {
     log_task_info();
     log_memory_info();
     // TODO: Add breakpoint when debugger is attached.

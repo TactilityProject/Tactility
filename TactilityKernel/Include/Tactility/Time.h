@@ -8,6 +8,7 @@
 #include <esp_timer.h>
 #else
 #include <sys/time.h>
+#include <time.h>
 #endif
 
 // Projects that include this header must align with Tactility's frequency (e.g. apps)
@@ -39,9 +40,13 @@ static inline int64_t get_micros_since_boot() {
 #ifdef ESP_PLATFORM
     return esp_timer_get_time();
 #else
+    timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        return (static_cast<int64_t>(ts.tv_sec) * 1000000LL) + (ts.tv_nsec / 1000);
+    }
     timeval tv;
     gettimeofday(&tv, nullptr);
-    return 1000000 * tv.tv_sec + tv.tv_usec;
+    return (static_cast<int64_t>(tv.tv_sec) * 1000000LL) + tv.tv_usec;
 #endif
 }
 

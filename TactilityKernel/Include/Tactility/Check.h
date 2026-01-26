@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-_Noreturn extern void __crash(void);
+__attribute__((noreturn)) extern void __crash(void);
 
 #define CHECK_GET_MACRO(_1, _2, NAME, ...) NAME
 #define check(...) CHECK_GET_MACRO(__VA_ARGS__, CHECK_MSG, CHECK_NO_MSG)(__VA_ARGS__)
