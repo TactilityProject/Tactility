@@ -22,7 +22,7 @@ void download(
     const std::function<void(const char* errorMessage)>& onError
 ) {
     service::gui::warnIfRunningOnGuiTask("HTTP");
-    LOGGER.info("Downloading {} to {} from ", url, downloadFilePath);
+    LOGGER.info("Downloading from {} to {}", url, downloadFilePath);
 #ifdef ESP_PLATFORM
     getMainDispatcher().dispatch([url, certFilePath, downloadFilePath, onSuccess, onError] {
         LOGGER.info("Loading certificate");
