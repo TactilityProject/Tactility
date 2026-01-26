@@ -1,12 +1,13 @@
 #include <Tactility/app/files/View.h>
 #include <Tactility/app/files/SupportedFiles.h>
 
-#include <Tactility/file/File.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/imageviewer/ImageViewer.h>
 #include <Tactility/app/inputdialog/InputDialog.h>
 #include <Tactility/app/notes/Notes.h>
 #include <Tactility/app/ElfApp.h>
+#include <Tactility/Check.h>
+#include <Tactility/file/File.h>
 #include <Tactility/kernel/Platform.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>

@@ -1,6 +1,7 @@
 #include <Tactility/app/fileselection/View.h>
 
 #include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/Check.h>
 #include <Tactility/file/File.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
