@@ -19,7 +19,7 @@ inline unsigned int getBufferSize(const std::shared_ptr<EspLcdConfiguration>& co
 
 EspLcdDisplayV2::~EspLcdDisplayV2() {
     check(
-        displayDriver == nullptr || displayDriver.use_count() == 0,
+        displayDriver == nullptr || displayDriver.use_count() < 2, // 1 reference is held by this class
         "DisplayDriver is still in use. This will cause memory access violations."
     );
 }

@@ -46,14 +46,6 @@ void getLimit() {
 }
 ```
 
-### Preprocessor
-
-Preprocessor functions are written in snake-case and prefixed with `tt_`, for example:
-
-```c++
-#define check(x) if (!(x)) { /* .. */ }
-```
-
 ### Type names
 
 Consts are lower camel case with capital letters.

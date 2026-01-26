@@ -163,7 +163,7 @@ static int aes256CryptCbc(
 }
 
 int encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
-    check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256");
+    check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256)");
     uint8_t key[32];
     getKey(key);
 
@@ -175,7 +175,7 @@ int encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_
 }
 
 int decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
-    check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256");
+    check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256)");
     uint8_t key[32];
     getKey(key);
 

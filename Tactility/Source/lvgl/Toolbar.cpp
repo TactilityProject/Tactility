@@ -2,6 +2,7 @@
 
 #include <Tactility/lvgl/Toolbar.h>
 
+#include <Tactility/Check.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/lvgl/Spinner.h>
 

@@ -11,7 +11,7 @@ static const auto LOGGER = tt::Logger("EspLcdDisplay");
 
 EspLcdDisplay::~EspLcdDisplay() {
     check(
-        displayDriver == nullptr || displayDriver.use_count() == 0,
+        displayDriver == nullptr || displayDriver.use_count() < 2, // 1 reference is held by this class
         "DisplayDriver is still in use. This will cause memory access violations."
     );
 }
