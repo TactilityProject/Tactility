@@ -1,6 +1,6 @@
 # Chat App
 
-ESP-NOW based chat application with channel-based messaging. Devices with the same encryption key can communicate in real-time without requiring a WiFi access point or internet connection.
+ESP-NOW-based chat application with channel-based messaging. Devices with the same encryption key can communicate in real-time without requiring a WiFi access point or internet connection.
 
 ## Features
 
@@ -137,7 +137,7 @@ Messages with incorrect magic/version or invalid payload are silently discarded.
 
 ## Architecture
 
-```
+```text
 ChatApp         - App lifecycle, ESP-NOW send/receive, settings management
 ChatState       - Message storage (deque, max 100), channel filtering, mutex-protected
 ChatView        - LVGL UI: toolbar, message list, input bar, settings/channel panels
@@ -160,7 +160,7 @@ All files are guarded with `#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(C
 
 1. ESP-NOW callback fires with raw data
 2. Validate packet:
-   - Minimum size: 18 bytes (16 header + 2 null terminators)
+   - Minimum size: 21 bytes (16 header + 2 min nickname + 1 null + 0 min target + 1 null + 1 min message)
    - Magic bytes: must be `0x54435432` ("TCT2")
    - Protocol version: must be 2
    - Payload size: `header.payload_size` must equal `received_length - 16`
