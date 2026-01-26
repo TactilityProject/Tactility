@@ -13,8 +13,9 @@
 #include <Tactility/lvgl/LvglSync.h>
 
 #include <algorithm>
-#include <cstdlib>
 #include <cctype>
+#include <cstdlib>
+#include <vector>
 
 namespace tt::app::chat {
 
@@ -68,8 +69,10 @@ void ChatApp::onShow(AppContext& context, lv_obj_t* parent) {
 }
 
 void ChatApp::onReceive(const esp_now_recv_info_t* receiveInfo, const uint8_t* data, int length) {
+    if (length <= 0) return;
+
     ParsedMessage parsed;
-    if (!deserializeMessage(data, length, parsed)) {
+    if (!deserializeMessage(data, static_cast<size_t>(length), parsed)) {
         return;
     }
 
@@ -93,14 +96,13 @@ void ChatApp::sendMessage(const std::string& text) {
     std::string nickname = state.getLocalNickname();
     std::string channel = state.getCurrentChannel();
 
-    Message wireMsg;
-    size_t packetSize = serializeMessage(nickname, channel, text, wireMsg);
-    if (packetSize == 0) {
+    std::vector<uint8_t> wireMsg;
+    if (!serializeTextMessage(settings.senderId, BROADCAST_ID, nickname, channel, text, wireMsg)) {
         LOGGER.error("Failed to serialize message");
         return;
     }
 
-    if (!service::espnow::send(BROADCAST_ADDRESS, reinterpret_cast<const uint8_t*>(&wireMsg), packetSize)) {
+    if (!service::espnow::send(BROADCAST_ADDRESS, wireMsg.data(), wireMsg.size())) {
         LOGGER.error("Failed to send message");
         return;
     }
@@ -123,7 +125,7 @@ void ChatApp::applySettings(const std::string& nickname, const std::string& keyH
     bool needRestart = false;
 
     // Trim nickname to protocol limit
-    settings.nickname = nickname.substr(0, SENDER_NAME_SIZE - 1);
+    settings.nickname = nickname.substr(0, MAX_NICKNAME_LEN);
 
     // Parse hex key
     if (keyHex.size() == ESP_NOW_KEY_LEN * 2) {
@@ -164,7 +166,7 @@ void ChatApp::applySettings(const std::string& nickname, const std::string& keyH
 }
 
 void ChatApp::switchChannel(const std::string& chatChannel) {
-    const auto trimmedChannel = chatChannel.substr(0, TARGET_SIZE - 1);
+    const auto trimmedChannel = chatChannel.substr(0, MAX_TARGET_LEN);
     state.setCurrentChannel(trimmedChannel);
     settings.chatChannel = trimmedChannel;
     saveSettings(settings);

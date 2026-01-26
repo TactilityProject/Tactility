@@ -11,6 +11,8 @@
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/Logger.h>
 
+#include <esp_random.h>
+
 #include <cstdlib>
 #include <cstring>
 #include <iomanip>
@@ -22,6 +24,7 @@ namespace tt::app::chat {
 
 static const auto LOGGER = Logger("ChatSettings");
 
+constexpr auto* KEY_SENDER_ID = "senderId";
 constexpr auto* KEY_NICKNAME = "nickname";
 constexpr auto* KEY_ENCRYPTION_KEY = "encryptionKey";
 constexpr auto* KEY_CHAT_CHANNEL = "chatChannel";
@@ -94,8 +97,18 @@ static bool decryptKey(const std::string& hexInput, uint8_t key[ESP_NOW_KEY_LEN]
     return true;
 }
 
+/** Generate a non-zero random sender ID using hardware RNG. */
+static uint32_t generateSenderId() {
+    uint32_t id;
+    do {
+        id = esp_random();
+    } while (id == 0);
+    return id;
+}
+
 ChatSettingsData getDefaultSettings() {
     return ChatSettingsData{
+        .senderId = 0,
         .nickname = "Device",
         .encryptionKey = {},
         .hasEncryptionKey = false,
@@ -108,12 +121,22 @@ ChatSettingsData loadSettings() {
 
     std::map<std::string, std::string> map;
     if (!file::loadPropertiesFile(CHAT_SETTINGS_FILE, map)) {
+        settings.senderId = generateSenderId();
         return settings;
     }
 
-    auto it = map.find(KEY_NICKNAME);
+    auto it = map.find(KEY_SENDER_ID);
     if (it != map.end() && !it->second.empty()) {
-        settings.nickname = it->second.substr(0, SENDER_NAME_SIZE - 1);
+        settings.senderId = static_cast<uint32_t>(strtoul(it->second.c_str(), nullptr, 10));
+    }
+    // Generate sender ID if missing or zero
+    if (settings.senderId == 0) {
+        settings.senderId = generateSenderId();
+    }
+
+    it = map.find(KEY_NICKNAME);
+    if (it != map.end() && !it->second.empty()) {
+        settings.nickname = it->second.substr(0, MAX_NICKNAME_LEN);
     }
 
     it = map.find(KEY_ENCRYPTION_KEY);
@@ -125,7 +148,7 @@ ChatSettingsData loadSettings() {
 
     it = map.find(KEY_CHAT_CHANNEL);
     if (it != map.end() && !it->second.empty()) {
-        settings.chatChannel = it->second.substr(0, TARGET_SIZE - 1);
+        settings.chatChannel = it->second.substr(0, MAX_TARGET_LEN);
     }
 
     return settings;
@@ -134,6 +157,7 @@ ChatSettingsData loadSettings() {
 bool saveSettings(const ChatSettingsData& settings) {
     std::map<std::string, std::string> map;
 
+    map[KEY_SENDER_ID] = std::to_string(settings.senderId);
     map[KEY_NICKNAME] = settings.nickname;
     map[KEY_CHAT_CHANNEL] = settings.chatChannel;
 

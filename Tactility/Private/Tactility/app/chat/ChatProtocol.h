@@ -9,45 +9,79 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace tt::app::chat {
 
-constexpr uint32_t CHAT_MAGIC_HEADER = 0x31544354; // "TCT1"
-constexpr uint8_t PROTOCOL_VERSION = 0x01;
-constexpr size_t SENDER_NAME_SIZE = 24;
-constexpr size_t TARGET_SIZE = 24;
-constexpr size_t MESSAGE_SIZE = 200;  //1417 Max for ESP-NOW v2.0 (1470 - 53 header bytes)
+// Protocol identification
+constexpr uint32_t CHAT_MAGIC_V2 = 0x54435432; // "TCT2"
+constexpr uint16_t PROTOCOL_VERSION = 2;
 
-// Header size = offset to message field (header + version + sender_name + target)
-constexpr size_t MESSAGE_HEADER_SIZE = 4 + 1 + SENDER_NAME_SIZE + TARGET_SIZE;  // 53 bytes
-constexpr size_t MIN_PACKET_SIZE = MESSAGE_HEADER_SIZE + 1;  // At least 1 byte of message
+// Broadcast/channel target ID
+constexpr uint32_t BROADCAST_ID = 0;
 
-struct __attribute__((packed)) Message {
-    uint32_t header;
-    uint8_t protocol_version;
-    char sender_name[SENDER_NAME_SIZE];
-    char target[TARGET_SIZE];   // empty=broadcast, "#channel" or "username"
-    char message[MESSAGE_SIZE];
+// Payload types
+enum class PayloadType : uint8_t {
+    TextMessage = 1,
+    // Future: Position = 2, Telemetry = 3, etc.
 };
 
-static_assert(sizeof(Message) == 1470, "Message struct must be exactly ESP-NOW v2.0 max payload");
-static_assert(MESSAGE_HEADER_SIZE == offsetof(Message, message), "Header size calculation mismatch");
+// Wire format header (16 bytes)
+struct __attribute__((packed)) MessageHeader {
+    uint32_t magic;             // CHAT_MAGIC_V2
+    uint16_t protocol_version;  // PROTOCOL_VERSION
+    uint32_t from;              // Sender ID (random, stored in settings)
+    uint32_t to;                // Recipient ID (0 = broadcast/channel)
+    uint8_t payload_type;       // PayloadType enum
+    uint8_t payload_size;       // Size of payload following header
+};
 
+static_assert(sizeof(MessageHeader) == 16, "MessageHeader must be 16 bytes");
+
+// Size limits
+constexpr size_t HEADER_SIZE = sizeof(MessageHeader);
+constexpr size_t MAX_PAYLOAD_V1 = 250 - HEADER_SIZE;   // 234 bytes for ESP-NOW v1
+constexpr size_t MAX_PAYLOAD_V2 = 1470 - HEADER_SIZE;  // 1454 bytes for ESP-NOW v2
+constexpr size_t MAX_NICKNAME_LEN = 23;   // Max nickname length (excluding null)
+constexpr size_t MAX_TARGET_LEN = 23;     // Max target/channel length (excluding null)
+
+// Max message length: 255 (uint8_t payload_size) - nickname - null - target - null
+// Using max lengths: 255 - 23 - 1 - 23 - 1 = 207, rounded down for safety
+constexpr size_t MAX_MESSAGE_LEN = 200;
+
+// Parsed message for application use
 struct ParsedMessage {
+    uint32_t senderId;
+    uint32_t targetId;
     std::string senderName;
     std::string target;
     std::string message;
 };
 
-/** Serialize fields into the wire format.
- * Returns the actual packet size to send (variable length), or 0 on failure.
- * Short messages (< 250 bytes total) are compatible with ESP-NOW v1.0 devices. */
-size_t serializeMessage(const std::string& senderName, const std::string& target,
-                        const std::string& message, Message& out);
+/** Serialize a text message into wire format.
+ * @param senderId Sender's unique ID
+ * @param targetId Recipient ID (0 for broadcast/channel)
+ * @param senderName Sender's display name
+ * @param target Channel name (e.g. "#general") or empty for broadcast
+ * @param message The message text
+ * @param out Output buffer (will be resized to fit)
+ * @return true on success, false if inputs exceed limits
+ */
+bool serializeTextMessage(uint32_t senderId, uint32_t targetId,
+                          const std::string& senderName, const std::string& target,
+                          const std::string& message, std::vector<uint8_t>& out);
 
 /** Deserialize a received buffer into a ParsedMessage.
- * Returns true if valid (correct magic, version, and minimum length). */
-bool deserializeMessage(const uint8_t* data, int length, ParsedMessage& out);
+ * @param data Raw received data
+ * @param length Length of received data
+ * @param out Parsed message output
+ * @return true if valid (correct magic, version, and format)
+ */
+bool deserializeMessage(const uint8_t* data, size_t length, ParsedMessage& out);
+
+/** Get maximum message length for current ESP-NOW version.
+ * Accounts for header + nickname + target overhead. */
+size_t getMaxMessageLength(size_t nicknameLen, size_t targetLen);
 
 } // namespace tt::app::chat
 
