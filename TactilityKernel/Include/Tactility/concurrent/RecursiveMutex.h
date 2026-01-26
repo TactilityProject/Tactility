@@ -3,7 +3,7 @@
 #pragma once
 
 #include <stdbool.h>
-#include <assert.h>
+#include <Tactility/Check.h>
 #include <Tactility/FreeRTOS/semphr.h>
 
 #ifdef __cplusplus
@@ -19,14 +19,14 @@ inline static void recursive_mutex_construct(struct RecursiveMutex* mutex) {
 }
 
 inline static void recursive_mutex_destruct(struct RecursiveMutex* mutex) {
-    assert(mutex->handle != NULL);
-    vPortAssertIfInISR();
+    check(mutex->handle != NULL);
+    check(xPortInIsrContext() != pdTRUE);
     vSemaphoreDelete(mutex->handle);
     mutex->handle = NULL;
 }
 
 inline static void recursive_mutex_lock(struct RecursiveMutex* mutex) {
-    assert(xPortInIsrContext() != pdTRUE);
+    check(xPortInIsrContext() != pdTRUE);
     xSemaphoreTakeRecursive(mutex->handle, portMAX_DELAY);
 }
 
@@ -39,17 +39,17 @@ inline static bool recursive_mutex_is_locked(struct RecursiveMutex* mutex) {
 }
 
 inline static bool recursive_mutex_try_lock(struct RecursiveMutex* mutex) {
-    assert(xPortInIsrContext() != pdTRUE);
+    check(xPortInIsrContext() != pdTRUE);
     return xSemaphoreTakeRecursive(mutex->handle, 0) == pdTRUE;
 }
 
 inline static bool recursive_mutex_try_lock_timed(struct RecursiveMutex* mutex, TickType_t timeout) {
-    assert(xPortInIsrContext() != pdTRUE);
+    check(xPortInIsrContext() != pdTRUE);
     return xSemaphoreTakeRecursive(mutex->handle, timeout) == pdTRUE;
 }
 
 inline static void recursive_mutex_unlock(struct RecursiveMutex* mutex) {
-    assert(xPortInIsrContext() != pdTRUE);
+    check(xPortInIsrContext() != pdTRUE);
     xSemaphoreGiveRecursive(mutex->handle);
 }
 

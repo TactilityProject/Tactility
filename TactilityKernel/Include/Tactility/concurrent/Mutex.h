@@ -4,6 +4,8 @@
 
 #include <assert.h>
 #include <stdbool.h>
+
+#include <Tactility/Check.h>
 #include <Tactility/FreeRTOS/semphr.h>
 
 #ifdef __cplusplus
@@ -28,17 +30,17 @@ inline static void mutex_destruct(struct Mutex* mutex) {
 }
 
 inline static void mutex_lock(struct Mutex* mutex) {
-    assert(xPortInIsrContext() != pdTRUE);
+    check(xPortInIsrContext() != pdTRUE);
     xSemaphoreTake(mutex->handle, portMAX_DELAY);
 }
 
 inline static bool mutex_try_lock(struct Mutex* mutex) {
-    assert(xPortInIsrContext() != pdTRUE);
+    check(xPortInIsrContext() != pdTRUE);
     return xSemaphoreTake(mutex->handle, 0) == pdTRUE;
 }
 
 inline static bool mutex_try_lock_timed(struct Mutex* mutex, TickType_t timeout) {
-    assert(xPortInIsrContext() != pdTRUE);
+    check(xPortInIsrContext() != pdTRUE);
     return xSemaphoreTake(mutex->handle, timeout) == pdTRUE;
 }
 
@@ -51,7 +53,7 @@ inline static bool mutex_is_locked(struct Mutex* mutex) {
 }
 
 inline static void mutex_unlock(struct Mutex* mutex) {
-    assert(xPortInIsrContext() != pdTRUE);
+    check(xPortInIsrContext() != pdTRUE);
     xSemaphoreGive(mutex->handle);
 }
 

@@ -5,21 +5,21 @@
 extern "C" {
 #endif
 
-#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <Tactility/Check.h>
 #include <Tactility/Error.h>
 #include <Tactility/FreeRTOS/event_groups.h>
 
 static inline void event_group_construct(EventGroupHandle_t* eventGroup) {
-    assert(xPortInIsrContext() == pdFALSE);
+    check(xPortInIsrContext() == pdFALSE);
     *eventGroup = xEventGroupCreate();
 }
 
 static inline void event_group_destruct(EventGroupHandle_t* eventGroup) {
-    assert(xPortInIsrContext() == pdFALSE);
-    assert(*eventGroup != NULL);
+    check(xPortInIsrContext() == pdFALSE);
+    check(*eventGroup != NULL);
     vEventGroupDelete(*eventGroup);
     *eventGroup = NULL;
 }
