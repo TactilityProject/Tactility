@@ -26,7 +26,7 @@ class AppSettingsApp final : public App {
 public:
 
     void onShow(AppContext& app, lv_obj_t* parent) override {
-        auto* toolbar = lvgl::toolbar_create(parent, "External Apps");
+        auto* toolbar = lvgl::toolbar_create(parent, "Installed Apps");
         lv_obj_align(toolbar, LV_ALIGN_TOP_MID, 0, 0);
 
         lv_obj_t* list = lv_list_create(parent);

@@ -43,6 +43,11 @@ dependencies:
     rules:
       # More hardware seems to be supported - enable as needed
       - if: "target in [esp32p4]"
+  espressif/esp_lcd_ili9881c:
+    version: "1.1.0"
+    rules:
+      # More hardware seems to be supported - enable as needed
+      - if: "target in [esp32p4]"
   espressif/esp_lcd_panel_io_additions: "1.0.1"
   espressif/esp_tinyusb:
     version: "1.7.6~1"

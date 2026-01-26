@@ -36,6 +36,7 @@ bool isEnabled() {
     if (service != nullptr) {
         return service->isEnabled();
     } else {
+        LOGGER.error("Service not found");
         return false;
     }
 }
@@ -77,6 +78,21 @@ void unsubscribeReceiver(ReceiverSubscription subscription) {
     } else {
         LOGGER.error("Service not found");
     }
+}
+
+uint32_t getVersion() {
+    auto service = findService();
+    if (service != nullptr) {
+        return service->getVersion();
+    }
+    LOGGER.error("Service not found");
+    return 0;
+}
+
+size_t getMaxDataLength() {
+    auto v = getVersion();
+    if (v == 0) return 0;
+    return v >= 2 ? MAX_DATA_LEN_V2 : MAX_DATA_LEN_V1;
 }
 
 }

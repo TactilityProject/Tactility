@@ -81,8 +81,7 @@ void init(const Configuration& configuration) {
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitUartEnd);
 
     if (configuration.initBoot != nullptr) {
-        LOGGER.info("Init power");
-        check(configuration.initBoot(), "Init power failed");
+        check(configuration.initBoot(), "Init boot failed");
     }
 
     registerDevices(configuration);

@@ -74,14 +74,21 @@ void EspNowService::enableFromDispatcher(const EspNowConfig& config) {
         return;
     }
 
-//#if CONFIG_ESPNOW_ENABLE_POWER_SAVE
-//    ESP_ERROR_CHECK( esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW) );
-//    ESP_ERROR_CHECK( esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL) );
-//#endif
+    //#if CONFIG_ESPNOW_ENABLE_POWER_SAVE
+    //    ESP_ERROR_CHECK( esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW) );
+    //    ESP_ERROR_CHECK( esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL) );
+    //#endif
 
     if (esp_now_set_pmk(config.masterKey) != ESP_OK) {
         LOGGER.error("esp_now_set_pmk() failed");
         return;
+    }
+
+    espnowVersion = 0;
+    if (esp_now_get_version(&espnowVersion) == ESP_OK) {
+        LOGGER.info("ESP-NOW version: {}.0", espnowVersion);
+    } else {
+        LOGGER.warn("Failed to get ESP-NOW version");
     }
 
     // Add default unencrypted broadcast peer
@@ -119,6 +126,7 @@ void EspNowService::disableFromDispatcher() {
         LOGGER.error("deinitWifi() failed");
     }
 
+    espnowVersion = 0;
     enabled = false;
 }
 
@@ -193,6 +201,12 @@ void EspNowService::unsubscribeReceiver(ReceiverSubscription subscriptionId) {
     auto lock = mutex.asScopedLock();
     lock.lock();
     std::erase_if(subscriptions, [subscriptionId](auto& subscription) { return subscription.id == subscriptionId; });
+}
+
+uint32_t EspNowService::getVersion() const {
+    auto lock = mutex.asScopedLock();
+    lock.lock();
+    return espnowVersion;
 }
 
 std::shared_ptr<EspNowService> findService() {
