@@ -17,6 +17,13 @@ constexpr auto GUI_THREAD_FLAG_INPUT = (1 << 1);
 constexpr auto GUI_THREAD_FLAG_EXIT = (1 << 2);
 constexpr auto GUI_THREAD_FLAG_ALL = (GUI_THREAD_FLAG_DRAW | GUI_THREAD_FLAG_INPUT | GUI_THREAD_FLAG_EXIT);
 
+/**
+ * Output a log warning if the current task is the GUI task.
+ * This is meant for code that should either create their own task or use a different task to execute on.
+ * @param[in] context a descriptive name or label that refers to the caller of this function
+ */
+void warnIfRunningOnGuiTask(const char* context);
+
 class GuiService final : public Service {
 
     // Thread and lock

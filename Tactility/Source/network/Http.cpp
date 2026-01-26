@@ -3,6 +3,8 @@
 #include <Tactility/Logger.h>
 #include <Tactility/network/Http.h>
 
+#include "Tactility/service/gui/GuiService.h"
+
 #ifdef ESP_PLATFORM
 #include <Tactility/network/EspHttpClient.h>
 #include <esp_http_client.h>
@@ -19,7 +21,8 @@ void download(
     const std::function<void()>& onSuccess,
     const std::function<void(const char* errorMessage)>& onError
 ) {
-    LOGGER.info("Downloading {} to {}", url, downloadFilePath);
+    service::gui::warnIfRunningOnGuiTask("HTTP");
+    LOGGER.info("Downloading {} to {} from ", url, downloadFilePath);
 #ifdef ESP_PLATFORM
     getMainDispatcher().dispatch([url, certFilePath, downloadFilePath, onSuccess, onError] {
         LOGGER.info("Loading certificate");
@@ -90,6 +93,7 @@ void download(
                 onError("Failed to write all bytes");
                 return;
             }
+            taskYIELD();
         }
         fclose(file);
         LOGGER.info("Downloaded {} to {}", url, downloadFilePath);

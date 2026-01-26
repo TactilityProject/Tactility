@@ -1,5 +1,7 @@
 #include <Tactility/service/gui/GuiService.h>
 
+#include <cstring>
+
 #include <Tactility/app/AppInstance.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
@@ -14,6 +16,15 @@ namespace tt::service::gui {
 extern const ServiceManifest manifest;
 static const auto LOGGER = Logger("GuiService");
 using namespace loader;
+
+constexpr auto* GUI_TASK_NAME = "gui";
+
+void warnIfRunningOnGuiTask(const char* context) {
+    const char* task_name = pcTaskGetName(nullptr);
+    if (strcmp(GUI_TASK_NAME, task_name) == 0) {
+        LOGGER.warn("{} shouldn't run on the GUI task", context);
+    }
+}
 
 // region AppManifest
 
@@ -122,10 +133,12 @@ bool GuiService::onStart(TT_UNUSED ServiceContext& service) {
     }
 
     thread = new Thread(
-        "gui",
+        GUI_TASK_NAME,
         4096, // Last known minimum was 2800 for launching desktop
         []() { return guiMain(); }
     );
+
+    thread->setPriority(THREAD_PRIORITY_SERVICE);
 
     const auto loader = findLoaderService();
     assert(loader != nullptr);
