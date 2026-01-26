@@ -17,7 +17,7 @@ static const auto LOGGER = Logger("CrashDiagnostics");
 
 extern const AppManifest manifest;
 
-void onContinuePressed(TT_UNUSED lv_event_t* event) {
+void onContinuePressed(lv_event_t* event) {
     stop(manifest.appId);
     launcher::start();
 }

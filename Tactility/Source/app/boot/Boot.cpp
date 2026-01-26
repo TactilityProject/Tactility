@@ -170,7 +170,7 @@ public:
         thread.join();
     }
 
-    void onShow(TT_UNUSED AppContext& app, lv_obj_t* parent) override {
+    void onShow(AppContext& app, lv_obj_t* parent) override {
         lvgl::obj_set_style_bg_blacken(parent);
         lv_obj_set_style_border_width(parent, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_radius(parent, 0, LV_STATE_DEFAULT);

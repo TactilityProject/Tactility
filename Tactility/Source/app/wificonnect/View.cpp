@@ -21,7 +21,7 @@ void View::resetErrors() {
     lv_obj_add_flag(connection_error, LV_OBJ_FLAG_HIDDEN);
 }
 
-static void onConnect(TT_UNUSED lv_event_t* event) {
+static void onConnect(lv_event_t* event) {
     auto wifi = std::static_pointer_cast<WifiConnect>(getCurrentApp());
     auto& view = wifi->getView();
 

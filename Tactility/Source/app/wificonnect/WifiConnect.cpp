@@ -15,7 +15,7 @@ constexpr auto* WIFI_CONNECT_PARAM_PASSWORD = "password"; // String
 
 extern const AppManifest manifest;
 
-static void onConnect(const service::wifi::settings::WifiApSettings& ap_settings, bool remember, TT_UNUSED void* parameter) {
+static void onConnect(const service::wifi::settings::WifiApSettings& ap_settings, bool remember, void* parameter) {
     auto* wifi = static_cast<WifiConnect*>(parameter);
     wifi->getState().setApSettings(ap_settings);
     wifi->getState().setConnecting(true);
@@ -88,7 +88,7 @@ void WifiConnect::onShow(AppContext& app, lv_obj_t* parent) {
     unlock();
 }
 
-void WifiConnect::onHide(TT_UNUSED AppContext& app) {
+void WifiConnect::onHide(AppContext& app) {
     // No need to lock view, as this is called from within Gui's LVGL context
     lock();
     viewEnabled = false;

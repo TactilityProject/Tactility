@@ -15,7 +15,7 @@ void setMain(MainFunction newMainFunction) {
     mainFunction = newMainFunction;
 }
 
-static void freertosMainTask(TT_UNUSED void* parameter) {
+static void freertosMainTask(void* parameter) {
     LOGGER.info("starting app_main()");
     assert(simulator::mainFunction);
     mainFunction();

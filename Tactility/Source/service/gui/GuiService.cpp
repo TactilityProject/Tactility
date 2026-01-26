@@ -125,7 +125,7 @@ void GuiService::redraw() {
     unlock();
 }
 
-bool GuiService::onStart(TT_UNUSED ServiceContext& service) {
+bool GuiService::onStart(ServiceContext& service) {
     auto* screen_root = lv_screen_active();
     if (screen_root == nullptr) {
         LOGGER.error("No display found");
@@ -182,7 +182,7 @@ bool GuiService::onStart(TT_UNUSED ServiceContext& service) {
     return true;
 }
 
-void GuiService::onStop(TT_UNUSED ServiceContext& service) {
+void GuiService::onStop(ServiceContext& service) {
     lock();
 
     const auto loader = findLoaderService();
@@ -199,7 +199,7 @@ void GuiService::onStop(TT_UNUSED ServiceContext& service) {
 
     unlock();
 
-    tt_check(lvgl::lock(1000 / portTICK_PERIOD_MS));
+    check(lvgl::lock(1000 / portTICK_PERIOD_MS));
     lv_group_delete(keyboardGroup);
     lvgl::unlock();
 }

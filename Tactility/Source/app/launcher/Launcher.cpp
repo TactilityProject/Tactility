@@ -76,7 +76,7 @@ class LauncherApp final : public App {
         return show_power_button;
     }
 
-    static void onAppPressed(TT_UNUSED lv_event_t* e) {
+    static void onAppPressed(lv_event_t* e) {
         auto* appId = static_cast<const char*>(lv_event_get_user_data(e));
         start(appId);
     }
@@ -90,7 +90,7 @@ class LauncherApp final : public App {
 
 public:
 
-    void onCreate(TT_UNUSED AppContext& app) override {
+    void onCreate(AppContext& app) override {
         settings::BootSettings boot_properties;
         if (settings::loadBootSettings(boot_properties) && !boot_properties.autoStartAppId.empty()) {
             LOGGER.info("Starting {}", boot_properties.autoStartAppId);
@@ -98,7 +98,7 @@ public:
         }
     }
 
-    void onShow(TT_UNUSED AppContext& app, lv_obj_t* parent) override {
+    void onShow(AppContext& app, lv_obj_t* parent) override {
         auto* buttons_wrapper = lv_obj_create(parent);
 
         auto ui_scale = hal::getConfiguration()->uiScale;

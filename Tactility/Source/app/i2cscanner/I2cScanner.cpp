@@ -325,7 +325,7 @@ void I2cScannerApp::selectBus(int32_t selected) {
     updateViews();
 }
 
-void I2cScannerApp::onPressScan(TT_UNUSED lv_event_t* event) {
+void I2cScannerApp::onPressScan(lv_event_t* event) {
     if (scanState == ScanStateScanning) {
         stopScanning();
     } else {

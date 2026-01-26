@@ -7,7 +7,8 @@
 #include <esp_lcd_types.h>
 #include <esp_lvgl_port_disp.h>
 
-class TT_DEPRECATED EspLcdDisplay : public tt::hal::display::DisplayDevice {
+/** @deprecated use EspLcdDisplayV2 */
+class EspLcdDisplay : public tt::hal::display::DisplayDevice {
 
     esp_lcd_panel_io_handle_t _Nullable ioHandle = nullptr;
     esp_lcd_panel_handle_t _Nullable panelHandle = nullptr;
@@ -29,7 +30,7 @@ protected:
 
     virtual bool isRgbPanel() const { return false; }
 
-    virtual lvgl_port_display_rgb_cfg_t getLvglPortDisplayRgbConfig(esp_lcd_panel_io_handle_t ioHandle, esp_lcd_panel_handle_t panelHandle) { tt_crash("Not supported"); }
+    virtual lvgl_port_display_rgb_cfg_t getLvglPortDisplayRgbConfig(esp_lcd_panel_io_handle_t ioHandle, esp_lcd_panel_handle_t panelHandle) { check(false, "Not supported"); }
 
 public:
 

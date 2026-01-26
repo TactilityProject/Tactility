@@ -107,7 +107,7 @@ void ScreenshotTask::taskStart() {
         return;
     }
 
-    tt_check(thread == nullptr);
+    check(thread == nullptr);
     thread = new Thread(
         "screenshot",
         8192,

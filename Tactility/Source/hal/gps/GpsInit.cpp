@@ -139,7 +139,7 @@ GpsResponse getACKCas(uart::Uart& uart, uint8_t class_id, uint8_t msg_id, uint32
 bool init(uart::Uart& uart, GpsModel type) {
     switch (type) {
         case GpsModel::Unknown:
-            tt_crash();
+            check(false);
         case GpsModel::AG3335:
         case GpsModel::AG3352:
             return initAg33xx(uart);

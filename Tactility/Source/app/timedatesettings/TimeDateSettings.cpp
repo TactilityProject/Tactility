@@ -134,7 +134,7 @@ public:
         lv_label_set_text(timeZoneLabel, timeZoneName.c_str());
     }
 
-    void onResult(AppContext& app, TT_UNUSED LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle) override {
+    void onResult(AppContext& app, LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle) override {
         if (result == Result::Ok && bundle != nullptr) {
             const auto name = timezone::getResultName(*bundle);
             const auto code = timezone::getResultCode(*bundle);

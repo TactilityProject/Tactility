@@ -46,12 +46,12 @@ private:
 
     int findAppInStack(const std::string& id) const;
 
-    bool onStart(TT_UNUSED ServiceContext& service) override {
+    bool onStart(ServiceContext& service) override {
         dispatcherThread->start();
         return true;
     }
 
-    void onStop(TT_UNUSED ServiceContext& service) override {
+    void onStop(ServiceContext& service) override {
         // Send stop signal to thread and wait for thread to finish
         mutex.withLock([this] {
             dispatcherThread->stop();

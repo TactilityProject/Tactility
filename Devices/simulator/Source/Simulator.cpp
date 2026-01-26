@@ -17,7 +17,7 @@ static bool initBoot() {
     return true;
 }
 
-TT_UNUSED static void deinitPower() {
+static void deinitPower() {
     lvgl_task_interrupt();
     while (lvgl_task_is_running()) {
         tt::kernel::delayMillis(10);

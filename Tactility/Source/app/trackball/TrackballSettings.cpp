@@ -197,7 +197,7 @@ public:
         }
     }
 
-    void onHide(TT_UNUSED AppContext& app) override {
+    void onHide(AppContext& app) override {
         if (updated) {
             const auto copy = tbSettings;
             getMainDispatcher().dispatch([copy]{ settings::trackball::save(copy); });

@@ -692,7 +692,7 @@ class SystemInfoApp final : public App {
         tasksTimer.start();    // Tasks/CPU: every 15s
     }
 
-    void onHide(TT_UNUSED AppContext& app) override {
+    void onHide(AppContext& app) override {
         memoryTimer.stop();
         tasksTimer.stop();
     }

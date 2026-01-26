@@ -183,7 +183,7 @@ public:
         update_timer.start();
     }
 
-    void onHide(TT_UNUSED AppContext& app) override {
+    void onHide(AppContext& app) override {
         update_timer.stop();
     }
 };

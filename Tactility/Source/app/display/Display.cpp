@@ -236,7 +236,7 @@ public:
         }
     }
 
-    void onHide(TT_UNUSED AppContext& app) override {
+    void onHide(AppContext& app) override {
         if (displaySettingsUpdated) {
             // Dispatch it, so file IO doesn't block the UI
             const settings::display::DisplaySettings settings_to_save = displaySettings;

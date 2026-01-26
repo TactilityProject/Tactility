@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Tactility/hal/touch/TouchDevice.h"
+#include <Tactility/Check.h>
 #include <Tactility/TactilityCore.h>
 
 class SdlTouch final : public tt::hal::touch::TouchDevice {
@@ -15,7 +16,7 @@ public:
 
     bool start() override { return true; }
 
-    bool stop() override { tt_crash("Not supported"); }
+    bool stop() override { check(false, "Not supported"); }
 
     bool supportsLvgl() const override { return true; }
 
@@ -24,7 +25,7 @@ public:
         return handle != nullptr;
     }
 
-    bool stopLvgl() override { tt_crash("Not supported"); }
+    bool stopLvgl() override { check(false, "Not supported"); }
 
     lv_indev_t* _Nullable getLvglIndev() override { return handle; }
 

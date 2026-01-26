@@ -73,12 +73,12 @@ class TimeZoneApp final : public App {
     lv_obj_t* listWidget = nullptr;
     lv_obj_t* filterTextareaWidget = nullptr;
 
-    static void onTextareaValueChangedCallback(TT_UNUSED lv_event_t* e) {
+    static void onTextareaValueChangedCallback(lv_event_t* e) {
         auto* app = (TimeZoneApp*)lv_event_get_user_data(e);
         app->onTextareaValueChanged(e);
     }
 
-    void onTextareaValueChanged(TT_UNUSED lv_event_t* e) {
+    void onTextareaValueChanged(lv_event_t* e) {
         if (mutex.lock(100 / portTICK_PERIOD_MS)) {
             if (updateTimer->isRunning()) {
                 updateTimer->stop();

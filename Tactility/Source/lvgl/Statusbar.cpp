@@ -1,5 +1,6 @@
 #define LV_USE_PRIVATE_API 1 // For actual lv_obj_t declaration
 
+#include <Tactility/Check.h>
 #include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
@@ -10,7 +11,6 @@
 #include <Tactility/RecursiveMutex.h>
 #include <Tactility/settings/Time.h>
 #include <Tactility/Tactility.h>
-#include <Tactility/TactilityCore.h>
 #include <Tactility/Timer.h>
 
 #include <lvgl.h>
@@ -116,7 +116,7 @@ static void statusbar_pubsub_event(Statusbar* statusbar) {
     }
 }
 
-static void onTimeChanged(TT_UNUSED kernel::SystemEvent event) {
+static void onTimeChanged(kernel::SystemEvent event) {
     if (statusbar_data.mutex.lock()) {
         statusbar_data.time_update_timer->reset(5);
         statusbar_data.mutex.unlock();
@@ -142,7 +142,7 @@ static void statusbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj) 
     }
 }
 
-static void statusbar_destructor(TT_UNUSED const lv_obj_class_t* class_p, lv_obj_t* obj) {
+static void statusbar_destructor(const lv_obj_class_t* class_p, lv_obj_t* obj) {
     auto* statusbar = (Statusbar*)obj;
     statusbar_data.pubsub->unsubscribe(statusbar->pubsub_subscription);
 }
@@ -215,7 +215,7 @@ static void update_main(Statusbar* statusbar) {
     }
 }
 
-static void statusbar_event(TT_UNUSED const lv_obj_class_t* class_p, lv_event_t* event) {
+static void statusbar_event(const lv_obj_class_t* class_p, lv_event_t* event) {
     // Call the ancestor's event handler
     lv_result_t result = lv_obj_event_base(&statusbar_class, event);
     if (result != LV_RES_OK) {
@@ -258,7 +258,7 @@ void statusbar_icon_remove(int8_t id) {
     if (LOGGER.isLoggingDebug()) {
         LOGGER.debug("id {}: remove", id);
     }
-    tt_check(id >= 0 && id < STATUSBAR_ICON_LIMIT);
+    check(id >= 0 && id < STATUSBAR_ICON_LIMIT);
     statusbar_data.mutex.lock();
     StatusbarIcon* icon = &statusbar_data.icons[id];
     icon->claimed = false;
@@ -276,10 +276,10 @@ void statusbar_icon_set_image(int8_t id, const std::string& image) {
             LOGGER.debug("id {}: set image {}", id, image);
         }
     }
-    tt_check(id >= 0 && id < STATUSBAR_ICON_LIMIT);
+    check(id >= 0 && id < STATUSBAR_ICON_LIMIT);
     statusbar_data.mutex.lock();
     StatusbarIcon* icon = &statusbar_data.icons[id];
-    tt_check(icon->claimed);
+    check(icon->claimed);
     icon->image = image;
     statusbar_data.mutex.unlock();
     statusbar_data.pubsub->publish(nullptr);
@@ -289,10 +289,10 @@ void statusbar_icon_set_visibility(int8_t id, bool visible) {
     if (LOGGER.isLoggingDebug()) {
         LOGGER.debug("id {}: set visibility {}", id, visible);
     }
-    tt_check(id >= 0 && id < STATUSBAR_ICON_LIMIT);
+    check(id >= 0 && id < STATUSBAR_ICON_LIMIT);
     statusbar_data.mutex.lock();
     StatusbarIcon* icon = &statusbar_data.icons[id];
-    tt_check(icon->claimed);
+    check(icon->claimed);
     icon->visible = visible;
     statusbar_data.mutex.unlock();
     statusbar_data.pubsub->publish(nullptr);

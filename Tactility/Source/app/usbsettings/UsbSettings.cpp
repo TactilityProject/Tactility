@@ -11,12 +11,12 @@
 
 namespace tt::app::usbsettings {
 
-static void onRebootMassStorageSdmmc(TT_UNUSED lv_event_t* event) {
+static void onRebootMassStorageSdmmc(lv_event_t* event) {
     hal::usb::rebootIntoMassStorageSdmmc();
 }
 
 // Flash reboot handler
-static void onRebootMassStorageFlash(TT_UNUSED lv_event_t* event) {
+static void onRebootMassStorageFlash(lv_event_t* event) {
     hal::usb::rebootIntoMassStorageFlash();
 }
 

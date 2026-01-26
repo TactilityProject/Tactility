@@ -63,7 +63,7 @@ static const lv_obj_class_t toolbar_class = {
     .theme_inheritable = false
 };
 
-static void stop_app(TT_UNUSED lv_event_t* event) {
+static void stop_app(lv_event_t* event) {
     app::stop();
 }
 
@@ -166,7 +166,7 @@ void toolbar_set_nav_action(lv_obj_t* obj, const char* icon, lv_event_cb_t callb
 
 lv_obj_t* toolbar_add_button_action(lv_obj_t* obj, const char* imageOrButton, bool isImage, lv_event_cb_t callback, void* user_data) {
     auto* toolbar = reinterpret_cast<Toolbar*>(obj);
-    tt_check(toolbar->action_count < TOOLBAR_ACTION_LIMIT, "max actions reached");
+    check(toolbar->action_count < TOOLBAR_ACTION_LIMIT, "max actions reached");
     toolbar->action_count++;
 
     auto ui_scale = hal::getConfiguration()->uiScale;

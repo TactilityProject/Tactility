@@ -58,14 +58,14 @@ std::shared_ptr<ScreenshotApp> _Nullable optApp() {
     }
 }
 
-static void onStartPressedCallback(TT_UNUSED lv_event_t* event) {
+static void onStartPressedCallback(lv_event_t* event) {
     auto app = optApp();
     if (app != nullptr) {
         app->onStartPressed();
     }
 }
 
-static void onModeSetCallback(TT_UNUSED lv_event_t* event) {
+static void onModeSetCallback(lv_event_t* event) {
     auto app = optApp();
     if (app != nullptr) {
         app->onModeSet();

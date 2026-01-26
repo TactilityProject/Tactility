@@ -21,7 +21,7 @@ static tt::hal::Device::Type toTactilityDeviceType(DeviceType type) {
         case DEVICE_TYPE_GPS:
             return tt::hal::Device::Type::Gps;
         default:
-            tt_crash("Device::Type not supported");
+            check(false, "Device::Type not supported");
     }
 }
 

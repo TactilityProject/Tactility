@@ -1,4 +1,5 @@
 #include <Tactility/Tactility.h>
+#include <Tactility/Check.h>
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/hal/Device.h>
 #include <Tactility/hal/gps/GpsInit.h>
@@ -68,20 +69,20 @@ void init(const Configuration& configuration) {
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitHalBegin);
 
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitI2cBegin);
-    tt_check(i2c::init(configuration.i2c), "I2C init failed");
+    check(i2c::init(configuration.i2c), "I2C init failed");
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitI2cEnd);
 
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitSpiBegin);
-    tt_check(spi::init(configuration.spi), "SPI init failed");
+    check(spi::init(configuration.spi), "SPI init failed");
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitSpiEnd);
 
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitUartBegin);
-    tt_check(uart::init(configuration.uart), "UART init failed");
+    check(uart::init(configuration.uart), "UART init failed");
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitUartEnd);
 
     if (configuration.initBoot != nullptr) {
         LOGGER.info("Init power");
-        tt_check(configuration.initBoot(), "Init power failed");
+        check(configuration.initBoot(), "Init power failed");
     }
 
     registerDevices(configuration);

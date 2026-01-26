@@ -20,7 +20,7 @@ static ColorFormat toColorFormat(tt::hal::display::ColorFormat format) {
         case tt::hal::display::ColorFormat::RGB888:
             return COLOR_FORMAT_RGB888;
         default:
-            tt_crash("ColorFormat not supported");
+            check(false, "ColorFormat not supported");
     }
 }
 

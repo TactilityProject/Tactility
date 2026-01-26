@@ -53,10 +53,10 @@ class AppInstance : public AppContext {
 #ifdef ESP_PLATFORM
             return createElfApp(manifest);
 #else
-            tt_crash("not supported");
+            check(false, "not supported");
 #endif
         } else {
-            tt_crash("not implemented");
+            check(false, "not implemented");
         }
     }
 

@@ -4,6 +4,7 @@
 #include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
 
+#include <Tactility/CoreDefines.h>
 #include <list>
 
 namespace tt::kernel {
@@ -53,7 +54,7 @@ static const char* getEventName(SystemEvent event) {
             return TT_STRINGIFY(Time);
     }
 
-    tt_crash(); // Missing case above
+    check(false); // Missing case above
 }
 
 void publishSystemEvent(SystemEvent event) {
@@ -83,7 +84,7 @@ SystemEventSubscription subscribeSystemEvent(SystemEvent event, OnSystemEvent ha
         mutex.unlock();
         return id;
     } else {
-        tt_crash();
+        check(false);
     }
 }
 

@@ -28,7 +28,7 @@ void tt_app_register(
         reinterpret_cast<tt::app::OnResult>(appRegistration.onResult)
     );
 #else
-    tt_crash("TactilityC is not intended for PC/Simulator");
+    check(false, "TactilityC is not intended for PC/Simulator");
 #endif
 }
 

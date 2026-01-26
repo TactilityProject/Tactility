@@ -1,5 +1,6 @@
 #ifdef ESP_PLATFORM
 
+#include <Tactility/Check.h>
 #include <Tactility/service/webserver/WebServerService.h>
 #include <Tactility/service/webserver/AssetVersion.h>
 #include <Tactility/service/ServiceManifest.h>
@@ -93,7 +94,7 @@ static void publish_event(WebServerService* webserver, WebServerEvent event) {
 std::shared_ptr<PubSub<WebServerEvent>> getPubsub() {
     WebServerService* webserver = g_webServerInstance.load();
     if (webserver == nullptr) {
-        tt_crash("Service not running");
+        check(false, "Service not running");
     }
 
     return webserver->getPubsub();

@@ -245,7 +245,7 @@ void LoaderService::transitionAppToState(const std::shared_ptr<app::AppInstance>
     switch (state) {
         using enum app::State;
         case Initial:
-            tt_crash(LOG_MESSAGE_ILLEGAL_STATE);
+            check(false, LOG_MESSAGE_ILLEGAL_STATE);
         case Created:
             assert(app->getState() == app::State::Initial);
             app->getApp()->onCreate(*app);

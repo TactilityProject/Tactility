@@ -202,7 +202,7 @@ bool masterWrite(i2c_port_t port, uint8_t address, const uint8_t* data, uint16_t
 }
 
 bool masterWriteRegister(i2c_port_t port, uint8_t address, uint8_t reg, const uint8_t* data, uint16_t dataSize, TickType_t timeout) {
-    tt_check(reg != 0);
+    check(reg != 0);
 
     auto lock = getLock(port).asScopedLock();
     if (!lock.lock(timeout)) {

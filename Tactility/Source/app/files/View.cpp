@@ -58,7 +58,7 @@ static void onDeletePressedCallback(lv_event_t* event) {
     view->onDeletePressed();
 }
 
-static void onNavigateUpPressedCallback(TT_UNUSED lv_event_t* event) {
+static void onNavigateUpPressedCallback(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
     view->onNavigateUpPressed();
 }
@@ -179,7 +179,7 @@ void View::onDirEntryLongPressed(int32_t index) {
 }
 
 void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
-    tt_check(list);
+    check(list);
     const char* symbol;
     if (dir_entry.d_type == file::TT_DT_DIR || dir_entry.d_type == file::TT_DT_CHR) {
         symbol = LV_SYMBOL_DIRECTORY;

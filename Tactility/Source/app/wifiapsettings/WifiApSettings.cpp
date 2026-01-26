@@ -6,6 +6,7 @@
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/Check.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/lvgl/Style.h>
@@ -34,7 +35,7 @@ class WifiApSettings : public App {
     std::string ssid;
     PubSub<service::wifi::WifiEvent>::SubscriptionHandle wifiSubscription = nullptr;
 
-    static void onPressForget(TT_UNUSED lv_event_t* event) {
+    static void onPressForget(lv_event_t* event) {
         std::vector<std::string> choices = {
             "Yes",
             "No"
@@ -61,7 +62,7 @@ class WifiApSettings : public App {
     static void onPressConnect(lv_event_t* event) {
         auto app = getCurrentAppContext();
         auto parameters = app->getParameters();
-        tt_check(parameters != nullptr, "Parameters missing");
+        check(parameters != nullptr, "Parameters missing");
 
         std::string ssid = parameters->getString("ssid");
         service::wifi::settings::WifiApSettings settings;
@@ -124,7 +125,7 @@ public:
 
     void onCreate(AppContext& app) override {
         const auto parameters = app.getParameters();
-        tt_check(parameters != nullptr, "Parameters missing");
+        check(parameters != nullptr, "Parameters missing");
         ssid = parameters->getString("ssid");
     }
 
@@ -209,7 +210,7 @@ public:
         viewEnabled = false;
     }
 
-    void onResult(TT_UNUSED AppContext& appContext, TT_UNUSED LaunchId launchId, TT_UNUSED Result result, std::unique_ptr<Bundle> bundle) override {
+    void onResult(AppContext& appContext, LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle) override {
         if (result != Result::Ok || bundle == nullptr) {
             return;
         }
@@ -220,7 +221,7 @@ public:
         }
 
         auto parameters = appContext.getParameters();
-        tt_check(parameters != nullptr, "Parameters missing");
+        check(parameters != nullptr, "Parameters missing");
 
         std::string ssid = parameters->getString("ssid");
         if (!service::wifi::settings::remove(ssid.c_str())) {

@@ -170,7 +170,7 @@ public:
         }
     }
 
-    void onHide(TT_UNUSED AppContext& app) override {
+    void onHide(AppContext& app) override {
         if (updated) {
             const auto copy = kbSettings;
             getMainDispatcher().dispatch([copy]{ settings::keyboard::save(copy); });

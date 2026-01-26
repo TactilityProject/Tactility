@@ -18,9 +18,10 @@ inline unsigned int getBufferSize(const std::shared_ptr<EspLcdConfiguration>& co
 }
 
 EspLcdDisplayV2::~EspLcdDisplayV2() {
-    if (displayDriver != nullptr && displayDriver.use_count() > 1) {
-        tt_crash("DisplayDriver is still in use. This will cause memory access violations.");
-    }
+    check(
+        displayDriver == nullptr || displayDriver.use_count() == 0,
+        "DisplayDriver is still in use. This will cause memory access violations."
+    );
 }
 
 bool EspLcdDisplayV2::applyConfiguration() const {
@@ -215,7 +216,7 @@ std::shared_ptr<tt::hal::display::DisplayDriver> EspLcdDisplayV2::getDisplayDriv
         } else if (lvgl_port_config.color_format == LV_COLOR_FORMAT_RGB888) {
             color_format = tt::hal::display::ColorFormat::RGB888;
         } else {
-            tt_crash("unsupported driver");
+            check(false, "unsupported driver");
         }
 
         displayDriver = std::make_shared<EspLcdDisplayDriver>(

@@ -53,7 +53,7 @@ protected:
 
     virtual bool isRgbPanel() const { return false; }
 
-    virtual lvgl_port_display_rgb_cfg_t getLvglPortDisplayRgbConfig(esp_lcd_panel_io_handle_t ioHandle, esp_lcd_panel_handle_t panelHandle) { tt_crash("Not supported"); }
+    virtual lvgl_port_display_rgb_cfg_t getLvglPortDisplayRgbConfig(esp_lcd_panel_io_handle_t ioHandle, esp_lcd_panel_handle_t panelHandle) { check(false, "Not supported"); }
 
     // Hook for MIPI-DSI DPI panels to let LVGL port use DSI-specific path
     virtual bool useDsiPanel() const { return false; }

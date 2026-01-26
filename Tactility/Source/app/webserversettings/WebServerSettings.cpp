@@ -183,7 +183,7 @@ class WebServerSettingsApp final : public App {
     }
 
 public:
-    void onCreate(TT_UNUSED AppContext& app) override {
+    void onCreate(AppContext& app) override {
         wsSettings = settings::webserver::loadOrGetDefault();
         originalSettings = wsSettings;
     }
@@ -353,7 +353,7 @@ public:
             "AP mode uses the password configured above.");
     }
 
-    void onHide(TT_UNUSED AppContext& app) override {
+    void onHide(AppContext& app) override {
         if (updated) {
             // Read values from text areas
             if (textAreaApPassword) {

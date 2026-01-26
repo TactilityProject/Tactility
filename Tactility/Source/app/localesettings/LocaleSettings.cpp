@@ -149,7 +149,7 @@ public:
         lv_obj_add_event_cb(languageDropdown, onLanguageSet, LV_EVENT_VALUE_CHANGED, this);
     }
 
-    void onHide(TT_UNUSED AppContext& app) override {
+    void onHide(AppContext& app) override {
         if (settingsUpdated && regionTextArea) {
             settings::SystemSettings sysSettings;
             if (settings::loadSystemSettings(sysSettings)) {

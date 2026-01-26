@@ -29,7 +29,7 @@ static void get_hardware_key(uint8_t key[32]) {
     // MAC can be 6 or 8 bytes
     size_t mac_length = esp_mac_addr_len_get(ESP_MAC_EFUSE_FACTORY);
     LOGGER.info("Using MAC with length {}", mac_length);
-    tt_check(mac_length <= 8);
+    check(mac_length <= 8);
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_EFUSE_FACTORY));
 
     // Fill buffer with repeating MAC
@@ -68,13 +68,13 @@ static void get_nvs_key(uint8_t key[32]) {
 
     if (result != ESP_OK) {
         LOGGER.error("Failed to get key from NVS ({})", esp_err_to_name(result));
-        tt_crash("NVS error");
+        check(false, "NVS error");
     }
 
     size_t length = 32;
     if (nvs_get_blob(handle, "key", key, &length) == ESP_OK) {
         LOGGER.info("Fetched key from NVS ({} bytes)", length);
-        tt_check(length == 32);
+        check(length == 32);
     } else {
         // TODO: Improved randomness
         esp_cpu_cycle_count_t cycle_count = esp_cpu_get_cycle_count();
@@ -144,7 +144,7 @@ static int aes256CryptCbc(
     const unsigned char* input,
     unsigned char* output
 ) {
-    tt_check(key && iv && input && output);
+    check(key && iv && input && output);
 
     if ((length % 16) || (length == 0)) {
         return -1; // TODO: Proper error code from mbed lib?
@@ -163,7 +163,7 @@ static int aes256CryptCbc(
 }
 
 int encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
-    tt_check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256");
+    check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256");
     uint8_t key[32];
     getKey(key);
 
@@ -175,7 +175,7 @@ int encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_
 }
 
 int decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
-    tt_check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256");
+    check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256");
     uint8_t key[32];
     getKey(key);
 

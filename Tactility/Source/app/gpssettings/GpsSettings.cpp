@@ -247,7 +247,7 @@ class GpsSettingsApp final : public App {
         }
     }
 
-    void onGpsToggled(TT_UNUSED lv_event_t* event) {
+    void onGpsToggled(lv_event_t* event) {
         bool wants_on = lv_obj_has_state(switchWidget, LV_STATE_CHECKED);
         auto state = service->getState();
         bool is_on = (state == service::gps::State::On) || (state == service::gps::State::OnPending);

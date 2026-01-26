@@ -76,7 +76,7 @@ void setScanRecords(uint16_t records) {
 }
 
 std::vector<ApRecord> getScanResults() {
-    tt_check(wifi);
+    check(wifi);
 
     std::vector<ApRecord> records;
     records.push_back((ApRecord) {
@@ -145,14 +145,14 @@ class WifiService final : public Service {
 
 public:
 
-    bool onStart(TT_UNUSED ServiceContext& service) override {
-        tt_check(wifi == nullptr);
+    bool onStart(ServiceContext& service) override {
+        check(wifi == nullptr);
         wifi = new Wifi();
         return true;
     }
 
-    void onStop(TT_UNUSED ServiceContext& service) override {
-        tt_check(wifi != nullptr);
+    void onStop(ServiceContext& service) override {
+        check(wifi != nullptr);
         delete wifi;
         wifi = nullptr;
     }

@@ -29,7 +29,7 @@ static bool keyboard_i2c_read(uint8_t* output) {
  * @param indev_drv
  * @param data
  */
-static void keyboard_read_callback(TT_UNUSED lv_indev_t* indev, lv_indev_data_t* data) {
+static void keyboard_read_callback(lv_indev_t* indev, lv_indev_data_t* data) {
     static uint8_t last_buffer = 0x00;
     uint8_t read_buffer = 0x00;
 

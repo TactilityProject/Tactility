@@ -12,9 +12,10 @@
 static const auto LOGGER = tt::Logger("RgbDisplay");
 
 RgbDisplay::~RgbDisplay() {
-    if (displayDriver != nullptr && displayDriver.use_count() > 1) {
-        tt_crash("DisplayDriver is still in use. This will cause memory access violations.");
-    }
+    check(
+        displayDriver == nullptr || displayDriver.use_count() == 0,
+        "DisplayDriver is still in use. This will cause memory access violations."
+    );
 }
 
 bool RgbDisplay::start() {

@@ -45,7 +45,7 @@ class ImageViewerApp final : public App {
         lv_obj_align_to(file_label, wrapper, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
         std::shared_ptr<const Bundle> bundle = app.getParameters();
-        tt_check(bundle != nullptr, "Parameters not set");
+        check(bundle != nullptr, "Parameters not set");
         std::string file_argument;
         if (bundle->optString(IMAGE_VIEWER_FILE_ARGUMENT, file_argument)) {
             std::string prefixed_path = lvgl::PATH_PREFIX + file_argument;

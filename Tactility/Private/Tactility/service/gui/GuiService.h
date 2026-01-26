@@ -53,7 +53,7 @@ class GuiService final : public Service {
     void redraw();
 
     void lock() const {
-        tt_check(mutex.lock(pdMS_TO_TICKS(1000)));
+        check(mutex.lock(pdMS_TO_TICKS(1000)));
     }
 
     void unlock() const {
@@ -66,9 +66,9 @@ class GuiService final : public Service {
 
 public:
 
-    bool onStart(TT_UNUSED ServiceContext& service) override;
+    bool onStart(ServiceContext& service) override;
 
-    void onStop(TT_UNUSED ServiceContext& service) override;
+    void onStop(ServiceContext& service) override;
 
     void requestDraw();
 

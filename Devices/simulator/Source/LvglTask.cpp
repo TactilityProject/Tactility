@@ -52,7 +52,7 @@ static void lvgl_unlock() {
 }
 
 void lvgl_task_interrupt() {
-    tt_check(task_lock(portMAX_DELAY));
+    check(task_lock(portMAX_DELAY));
     task_set_running(false); // interrupt task with boolean as flag
     task_unlock();
 }
@@ -75,7 +75,7 @@ void lvgl_task_start() {
     assert(task_result == pdTRUE);
 }
 
-static void lvgl_task(TT_UNUSED void* arg) {
+static void lvgl_task(void* arg) {
     LOGGER.info("LVGL task started");
 
     /** Ideally. the display handle would be created during Simulator.start(),

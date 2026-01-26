@@ -16,7 +16,7 @@ static void onAppPressed(lv_event_t* e) {
 }
 
 static void createWidget(const std::shared_ptr<AppManifest>& manifest, void* parent) {
-    tt_check(parent);
+    check(parent);
     auto* list = (lv_obj_t*)parent;
     const void* icon = !manifest->appIcon.empty() ? manifest->appIcon.c_str() : TT_ASSETS_APP_ICON_FALLBACK;
     auto* btn = lv_list_add_button(list, icon, manifest->appName.c_str());

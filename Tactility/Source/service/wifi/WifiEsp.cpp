@@ -6,6 +6,7 @@
 
 #include <Tactility/service/wifi/Wifi.h>
 
+#include <Tactility/Check.h>
 #include <Tactility/EventGroup.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
@@ -140,7 +141,7 @@ static std::shared_ptr<Wifi> wifi_singleton;
 std::shared_ptr<PubSub<WifiEvent>> getPubsub() {
     auto wifi = wifi_singleton;
     if (wifi == nullptr) {
-        tt_crash("Service not running");
+        check(false, "Service not running");
     }
 
     return wifi->pubsub;
@@ -472,7 +473,7 @@ static void dispatchAutoConnect(std::shared_ptr<Wifi> wifi) {
     }
 }
 
-static void eventHandler(TT_UNUSED void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
+static void eventHandler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
     auto wifi = wifi_singleton;
     if (wifi == nullptr) {
         LOGGER.error("eventHandler: no wifi instance");

@@ -9,7 +9,7 @@
 #include <unistd.h>
 #endif
 
-#include <assert.h>
+#include <Tactility/Check.h>
 #include "Tactility/FreeRTOS/FreeRTOS.h"
 
 #ifdef __cplusplus
@@ -21,7 +21,7 @@ extern "C" {
  * @warning Does not work in ISR context
  */
 static inline void delay_ticks(TickType_t ticks) {
-    assert(xPortInIsrContext() == pdFALSE);
+    check(xPortInIsrContext() == pdFALSE);
     if (ticks == 0U) {
         taskYIELD();
     } else {

@@ -131,7 +131,7 @@ void WifiManage::onShow(AppContext& app, lv_obj_t* parent) {
     }
 }
 
-void WifiManage::onHide(TT_UNUSED AppContext& app) {
+void WifiManage::onHide(AppContext& app) {
     lock();
     service::wifi::getPubsub()->unsubscribe(wifiSubscription);
     wifiSubscription = nullptr;

@@ -51,7 +51,7 @@ void getLimit() {
 Preprocessor functions are written in snake-case and prefixed with `tt_`, for example:
 
 ```c++
-#define tt_check(x) if (!(x)) { /* .. */ }
+#define check(x) if (!(x)) { /* .. */ }
 ```
 
 ### Type names

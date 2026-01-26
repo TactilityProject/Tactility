@@ -1,7 +1,5 @@
 #pragma once
 
-#define TT_UNUSED __attribute__((unused))
-
 #define TT_STRINGIFY(x) #x
 
 // region Variable arguments support

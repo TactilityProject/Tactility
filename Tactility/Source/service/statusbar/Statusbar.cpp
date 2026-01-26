@@ -1,5 +1,6 @@
 #include <Tactility/lvgl/Statusbar.h>
 
+#include <Tactility/Check.h>
 #include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <Tactility/Logger.h>
@@ -71,7 +72,7 @@ static const char* getWifiStatusIcon(wifi::RadioState state, bool secure) {
             rssi = wifi::getRssi();
             return getWifiStatusIconForRssi(rssi);
         default:
-            tt_crash("not implemented");
+            check(false, "not implemented");
     }
 }
 
@@ -85,7 +86,7 @@ static const char* getSdCardStatusIcon(hal::sdcard::SdCardDevice::State state) {
         case Timeout:
             return STATUSBAR_ICON_SDCARD_ALERT;
         default:
-            tt_crash("Unhandled SdCard state");
+            check(false, "Unhandled SdCard state");
     }
 }
 

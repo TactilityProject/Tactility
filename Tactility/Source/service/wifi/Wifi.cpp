@@ -1,6 +1,7 @@
 #include <Tactility/service/wifi/Wifi.h>
 
 #include <Tactility/Check.h>
+#include <Tactility/CoreDefines.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
 
@@ -22,7 +23,7 @@ const char* radioStateToString(RadioState state) {
         case Off:
             return TT_STRINGIFY(Off);
     }
-    tt_crash("not implemented");
+    check(false, "not implemented");
 }
 
 extern const ServiceManifest manifest;

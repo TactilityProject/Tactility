@@ -4,9 +4,9 @@
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/Check.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/TactilityCore.h>
 
 #include <lvgl.h>
 #include <format>
@@ -27,7 +27,7 @@ class AppDetailsApp : public App {
 
     std::shared_ptr<AppManifest> manifest;
 
-    static void onPressUninstall(TT_UNUSED lv_event_t* event) {
+    static void onPressUninstall(lv_event_t* event) {
         auto* self = static_cast<AppDetailsApp*>(lv_event_get_user_data(event));
         std::vector<std::string> choices = {
             "Yes",
@@ -40,7 +40,7 @@ public:
 
     void onCreate(AppContext& app) override {
         const auto parameters = app.getParameters();
-        tt_check(parameters != nullptr, "Parameters missing");
+        check(parameters != nullptr, "Parameters missing");
         auto app_id = parameters->getString("appId");
         manifest = findAppManifestById(app_id);
         assert(manifest != nullptr);
@@ -86,7 +86,7 @@ public:
         }
     }
 
-    void onResult(TT_UNUSED AppContext& appContext, TT_UNUSED LaunchId launchId, TT_UNUSED Result result, std::unique_ptr<Bundle> bundle) override {
+    void onResult(AppContext& appContext, LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle) override {
         if (result != Result::Ok || bundle == nullptr) {
             return;
         }

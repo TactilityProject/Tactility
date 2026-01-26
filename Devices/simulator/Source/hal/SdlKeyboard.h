@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Tactility/hal/keyboard/KeyboardDevice.h>
+#include <Tactility/Check.h>
 #include <Tactility/TactilityCore.h>
 
 class SdlKeyboard final : public tt::hal::keyboard::KeyboardDevice {
@@ -17,7 +18,7 @@ public:
         return handle != nullptr;
     }
 
-    bool stopLvgl() override { tt_crash("Not supported"); }
+    bool stopLvgl() override { check(false, "Not supported"); }
 
     bool isAttached() const override { return true; }
 

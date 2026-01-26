@@ -59,7 +59,7 @@ class DisplayIdleService final : public Service {
     }
 
 public:
-    bool onStart(TT_UNUSED ServiceContext& service) override {
+    bool onStart(ServiceContext& service) override {
         // Load settings once at startup and cache them
         // This eliminates file I/O from timer callback (prevents watchdog timeout)
         cachedDisplaySettings = settings::display::loadOrGetDefault();
@@ -73,7 +73,7 @@ public:
         return true;
     }
 
-    void onStop(TT_UNUSED ServiceContext& service) override {
+    void onStop(ServiceContext& service) override {
         if (timer) {
             timer->stop();
             timer = nullptr;
