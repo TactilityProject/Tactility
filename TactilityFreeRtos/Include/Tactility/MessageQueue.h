@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * MessageQueue is a wrapper for FreeRTOS xQueue functionality.
  * There is no additional thread-safety on top of the xQueue functionality,

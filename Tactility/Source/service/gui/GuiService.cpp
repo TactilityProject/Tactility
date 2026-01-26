@@ -31,7 +31,7 @@ int32_t GuiService::guiMain() {
 
     while (true) {
         uint32_t flags = 0;
-        if (service->threadFlags.wait(GUI_THREAD_FLAG_ALL, false, true, portMAX_DELAY, &flags)) {
+        if (service->threadFlags.wait(GUI_THREAD_FLAG_ALL, false, true, &flags, portMAX_DELAY)) {
             // When service not started or starting -> exit
             State service_state = getState(manifest.id);
             if (service_state != State::Started && service_state != State::Starting) {

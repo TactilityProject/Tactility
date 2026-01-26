@@ -1,0 +1,5 @@
+description: LilyGO T-Lora Pager
+
+include: ["root.yaml"]
+
+compatible: "lilygo,tlora-pager"

@@ -1,0 +1,3 @@
+dependencies:
+  - TactilityKernel
+dts: ../placeholder.dts

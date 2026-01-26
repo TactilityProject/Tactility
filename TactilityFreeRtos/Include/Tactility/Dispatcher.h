@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
 * Dispatcher is a thread-safe code execution queue.
 */
@@ -66,6 +67,7 @@ public:
         }
 
         if (shutdown) {
+            mutex.unlock();
             return false;
         }
 
@@ -85,14 +87,14 @@ public:
     }
 
     /**
-     * Consume 1 or more dispatched function (if any) until the queue is empty.
+     * Consume 1 or more dispatched functions (if any) until the queue is empty.
      * @warning The timeout is only the wait time before consuming the message! It is not a limit to the total execution time when calling this method.
      * @param[in] timeout the ticks to wait for a message
      * @return the amount of messages that were consumed
      */
     uint32_t consume(TickType_t timeout = kernel::MAX_TICKS) {
         // Wait for signal
-        if (!eventFlag.wait(WAIT_FLAG, false, true, timeout)) {
+        if (!eventFlag.wait(WAIT_FLAG, false, true, nullptr, timeout)) {
             return 0;
         }
 

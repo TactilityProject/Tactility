@@ -1,0 +1,46 @@
+%import common.DIGIT -> DIGIT
+%import common.LETTER -> LETTER
+%import common.HEXDIGIT -> HEXDIGIT
+%import common.SIGNED_INT -> SIGNED_INT
+%import common.WS -> WS
+%import common.SIGNED_NUMBER -> SIGNED_NUMBER
+%import common.ESCAPED_STRING -> ESCAPED_STRING
+%ignore WS
+
+// Comment
+
+COMMENT: /\/\*([^*]|\*+[^*\/])*\*+\//
+%ignore COMMENT
+
+// Boolean
+
+BOOLEAN: "true" | "false"
+
+// Main
+
+INCLUDE_C: /#include <[\w\/.\-]+>/
+
+PROPERTY_NAME: /#?[a-zA-Z0-9_\-,]+/
+
+QUOTE: "\""
+QUOTED_TEXT: QUOTE /[^"]+/ QUOTE
+quoted_text_array: QUOTED_TEXT ("," " "* QUOTED_TEXT)+
+HEX_NUMBER: "0x" HEXDIGIT+
+NUMBER: SIGNED_NUMBER | HEX_NUMBER
+PHANDLE: /&[0-9a-zA-Z\-]+/
+C_VARIABLE: /[0-9a-zA-Z_]+/
+VALUE: NUMBER | PHANDLE | C_VARIABLE
+value: VALUE
+values: VALUE+
+array: NUMBER+
+
+property_value: quoted_text_array | QUOTED_TEXT | "<" value ">" | "<" values ">" | "[" array "]"
+device_property: PROPERTY_NAME ["=" property_value] ";"
+
+DEVICE_IDENTIFIER: /[a-zA-Z0-9_\-\/@]+/
+
+device: DEVICE_IDENTIFIER "{" (device | device_property)* "};"
+
+dts_version: /[0-9a-zA-Z\-]+/
+
+start: "/" dts_version "/;" INCLUDE_C* device+

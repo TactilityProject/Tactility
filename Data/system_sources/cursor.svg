@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   height="24px"
+   viewBox="0 -960 960 960"
+   width="24px"
+   fill="#e3e3e3"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="cursor.svg"
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   inkscape:export-filename="cursor.png"
+   inkscape:export-xdpi="64"
+   inkscape:export-ydpi="64"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="27.754563"
+     inkscape:cx="8.2689106"
+     inkscape:cy="12.538479"
+     inkscape:window-width="3440"
+     inkscape:window-height="1371"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" />
+  <path
+     d="m 557.97643,-402.02357 331.52219,-134.40089 c 11.09341,-4.26669 19.20013,-10.88007 24.32016,-19.84013 5.12004,-8.96006 7.68005,-18.13346 7.68005,-27.52018 0,-9.38673 -2.77335,-18.56012 -8.32005,-27.52018 -5.5467,-8.96006 -13.86676,-15.57344 -24.96017,-19.84013 l -785.9252,-291.84191 c -10.240066,-4.2667 -20.053468,-5.1201 -29.440193,-2.56 -9.386724,2.56 -17.493453,7.2533 -24.320161,14.0801 -6.826707,6.82666 -11.520076,14.93339 -14.080093,24.32011 -2.560017,9.38673 -1.706673,19.20013 2.560017,29.4402 l 291.84194,785.925186 c 4.26669,11.09341 10.88007,19.41346 19.84013,24.96016 8.96006,5.5467 18.13345,8.32006 27.52018,8.32006 9.38672,0 18.56012,-2.56002 27.52018,-7.68005 8.96006,-5.12004 15.57344,-13.22675 19.84013,-24.32016 z"
+     id="path1"
+     style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:66.24;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;paint-order:normal"
+     sodipodi:nodetypes="ccsssccsssccssscc"
+     inkscape:label="cursor" />
+</svg>

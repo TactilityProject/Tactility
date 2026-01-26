@@ -30,4 +30,4 @@ If applicable, add screenshots to help explain your problem.
 
 **Additional context**
 Add any other context about the problem here.
-Add your oops.tactility.one URL if you had a crash (scanned from QR).
+Add your oops.tactilityproject.org URL if you had a crash (scanned from QR).

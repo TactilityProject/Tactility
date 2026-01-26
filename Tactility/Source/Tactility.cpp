@@ -45,7 +45,7 @@ namespace service {
 #ifdef ESP_PLATFORM
     namespace development { extern const ServiceManifest manifest; }
 #endif
-#if defined(CONFIG_TT_WIFI_ENABLED) && !defined(CONFIG_ESP_WIFI_REMOTE_ENABLED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
     namespace espnow { extern const ServiceManifest manifest; }
 #endif
     // Secondary (UI)
@@ -59,6 +59,9 @@ namespace service {
 #endif
 #if TT_FEATURE_SCREENSHOT_ENABLED
     namespace screenshot { extern const ServiceManifest manifest; }
+#endif
+#ifdef ESP_PLATFORM
+    namespace webserver { extern const ServiceManifest manifest; }
 #endif
 
 }
@@ -76,7 +79,7 @@ namespace app {
     namespace applist { extern const AppManifest manifest; }
     namespace appsettings { extern const AppManifest manifest; }
     namespace boot { extern const AppManifest manifest; }
-#if defined(CONFIG_TT_WIFI_ENABLED) && !defined(CONFIG_ESP_WIFI_REMOTE_ENABLED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
     namespace chat { extern const AppManifest manifest; }
 #endif
     namespace development { extern const AppManifest manifest; }
@@ -100,20 +103,23 @@ namespace app {
     namespace systeminfo { extern const AppManifest manifest; }
     namespace timedatesettings { extern const AppManifest manifest; }
     namespace timezone { extern const AppManifest manifest; }
+#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
+    namespace trackballsettings { extern const AppManifest manifest; }
+#endif
     namespace usbsettings { extern const AppManifest manifest; }
     namespace wifiapsettings { extern const AppManifest manifest; }
     namespace wificonnect { extern const AppManifest manifest; }
     namespace wifimanage { extern const AppManifest manifest; }
+#ifdef ESP_PLATFORM
+    namespace webserversettings { extern const AppManifest manifest; }
+#endif
 #if TT_FEATURE_SCREENSHOT_ENABLED
-        namespace screenshot { extern const AppManifest manifest; }
+    namespace screenshot { extern const AppManifest manifest; }
 #endif
 #ifdef ESP_PLATFORM
     namespace crashdiagnostics { extern const AppManifest manifest; }
 #endif
 }
-
-#ifndef ESP_PLATFORM
-#endif
 
 // endregion
 
@@ -143,9 +149,15 @@ static void registerInternalApps() {
     addAppManifest(app::systeminfo::manifest);
     addAppManifest(app::timedatesettings::manifest);
     addAppManifest(app::timezone::manifest);
+#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
+    addAppManifest(app::trackballsettings::manifest);
+#endif
     addAppManifest(app::wifiapsettings::manifest);
     addAppManifest(app::wificonnect::manifest);
     addAppManifest(app::wifimanage::manifest);
+#ifdef ESP_PLATFORM
+    addAppManifest(app::webserversettings::manifest);
+#endif
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED
     addAppManifest(app::usbsettings::manifest);
@@ -155,7 +167,7 @@ static void registerInternalApps() {
     addAppManifest(app::screenshot::manifest);
 #endif
 
-#if defined(CONFIG_TT_WIFI_ENABLED) && !defined(CONFIG_ESP_WIFI_REMOTE_ENABLED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
     addAppManifest(app::chat::manifest);
 #endif
 
@@ -260,8 +272,11 @@ static void registerAndStartPrimaryServices() {
     addService(service::development::manifest);
 #endif
 
-#if defined(CONFIG_TT_WIFI_ENABLED) && !defined(CONFIG_ESP_WIFI_REMOTE_ENABLED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
     addService(service::espnow::manifest);
+#endif
+#ifdef ESP_PLATFORM
+    addService(service::webserver::manifest);
 #endif
 }
 

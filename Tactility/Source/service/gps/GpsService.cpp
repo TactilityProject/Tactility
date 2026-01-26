@@ -37,7 +37,7 @@ void GpsService::addGpsDevice(const std::shared_ptr<GpsDevice>& device) {
 
     GpsDeviceRecord record = {.device = device};
 
-    if (getState() == State::On) { // Ignore during OnPending due to risk of data corruptiohn
+    if (getState() == State::On) { // Ignore during OnPending due to risk of data corruption
         startGpsDevice(record);
     }
 
@@ -50,7 +50,7 @@ void GpsService::removeGpsDevice(const std::shared_ptr<GpsDevice>& device) {
 
     GpsDeviceRecord* record = findGpsRecord(device);
 
-    if (getState() == State::On) { // Ignore during OnPending due to risk of data corruptiohn
+    if (getState() == State::On) { // Ignore during OnPending due to risk of data corruption
         stopGpsDevice(*record);
     }
 
@@ -87,6 +87,10 @@ bool GpsService::startGpsDevice(GpsDeviceRecord& record) {
 
     record.satelliteSubscriptionId = device->subscribeGga([this](hal::Device::Id deviceId, auto& record) {
         mutex.lock();
+        if (record.fix_quality > 0) {
+            ggaRecord = record;
+            ggaTime = kernel::getTicks();
+        }
         onGgaSentence(deviceId, record);
         mutex.unlock();
     });
@@ -156,13 +160,15 @@ bool GpsService::startReceiving() {
         addGpsDevice(device);
     }
 
+    // Reset times before starting devices to avoid race with incoming data
+    rmcTime = 0;
+    ggaTime = 0;
+
     bool started_one_or_more = false;
 
     for (auto& record: deviceRecords) {
         started_one_or_more |= startGpsDevice(record);
     }
-
-    rmcTime = 0;
 
     if (started_one_or_more) {
         setState(State::On);
@@ -186,6 +192,7 @@ void GpsService::stopReceiving() {
     }
 
     rmcTime = 0;
+    ggaTime = 0;
 
     setState(State::Off);
 }
@@ -225,6 +232,16 @@ bool GpsService::getCoordinates(minmea_sentence_rmc& rmc) const {
     } else {
         return false;
     }
+}
+
+bool GpsService::getGga(minmea_sentence_gga& gga) const {
+    auto lock = mutex.asScopedLock();
+    lock.lock();
+    if (getState() == State::On && ggaTime != 0 && !hasTimeElapsed(kernel::getTicks(), ggaTime, kernel::secondsToTicks(10))) {
+        gga = ggaRecord;
+        return true;
+    }
+    return false;
 }
 
 std::shared_ptr<GpsService> findGpsService() {

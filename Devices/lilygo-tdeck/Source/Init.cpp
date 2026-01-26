@@ -3,14 +3,11 @@
 #include "devices/TrackballDevice.h"
 
 #include <Tactility/hal/gps/GpsConfiguration.h>
+#include <Tactility/kernel/Kernel.h>
 #include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/service/gps/GpsService.h>
-#include <Tactility/settings/KeyboardSettings.h>
-#include <Trackball/Trackball.h>
-
-#include <KeyboardBacklight/KeyboardBacklight.h>
 
 static const auto LOGGER = tt::Logger("T-Deck");
 
@@ -33,6 +30,9 @@ static bool powerOn() {
     if (gpio_set_level(TDECK_POWERON_GPIO, 1) != ESP_OK) {
         return false;
     }
+
+    // Avoids crash when no SD card is inserted. It's unknown why, but likely is related to power draw.
+    tt::kernel::delayMillis(100);
 
     return true;
 }
@@ -89,21 +89,6 @@ bool initBoot() {
                 LOGGER.error("{} start failed", trackball->getName());
             }
         }
-
-        // Backlight doesn't seem to turn on until toggled on and off from keyboard settings...
-        // Or let the display and backlight sleep then wake it up.
-        // Then it works fine...until reboot, then you need to toggle again.
-        // The current keyboard firmware sets backlight duty to 0 on boot.
-        // https://github.com/Xinyuan-LilyGO/T-Deck/blob/master/firmware/T-Keyboard_Keyboard_ESP32C3_250620.bin
-        // https://github.com/Xinyuan-LilyGO/T-Deck/blob/master/examples/Keyboard_ESP32C3/Keyboard_ESP32C3.ino#L25
-        // https://github.com/Xinyuan-LilyGO/T-Deck/blob/master/examples/Keyboard_ESP32C3/Keyboard_ESP32C3.ino#L217
-        auto kbSettings = tt::settings::keyboard::loadOrGetDefault();
-        bool result = keyboardbacklight::setBrightness(kbSettings.backlightEnabled ? kbSettings.backlightBrightness : 0);
-        if (!result) {
-            LOGGER.warn("Failed to set keyboard backlight brightness");
-        }
-
-        trackball::setEnabled(kbSettings.trackballEnabled);
     });
 
     return true;

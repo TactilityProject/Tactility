@@ -1,0 +1,6 @@
+properties:
+  gpio-count:
+    type: int
+    required: true
+    description: |
+        The number of available GPIOs.

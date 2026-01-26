@@ -1,0 +1,4 @@
+dependencies:
+  - TactilityKernel
+  - Platforms/PlatformPosix
+dts: ../placeholder.dts

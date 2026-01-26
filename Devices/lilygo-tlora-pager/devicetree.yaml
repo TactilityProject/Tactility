@@ -1,0 +1,4 @@
+dependencies:
+  - Platforms/PlatformEsp32
+bindings: ./
+dts: lilygo,tlora-pager.dts

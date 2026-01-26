@@ -4,7 +4,7 @@
 
 namespace tt::app::apphub {
 
-constexpr auto* BASE_URL = "https://cdn.tactility.one/apps";
+constexpr auto* BASE_URL = "https://cdn.tactilityproject.org/apps";
 
 static std::string getVersionWithoutPostfix() {
     std::string version(TT_VERSION);

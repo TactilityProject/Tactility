@@ -799,11 +799,11 @@ static void dispatchConnect(std::shared_ptr<Wifi> wifi) {
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT)
      * or connection failed for the maximum number of re-tries (WIFI_FAIL_BIT).
      * The bits are set by wifi_event_handler() */
-    uint32_t bits;
-    if (wifi_singleton->connection_wait_flags.wait(WIFI_FAIL_BIT | WIFI_CONNECTED_BIT, false, true, kernel::MAX_TICKS, &bits)) {
+    uint32_t flags;
+    if (wifi_singleton->connection_wait_flags.wait(WIFI_FAIL_BIT | WIFI_CONNECTED_BIT, false, true, &flags, kernel::MAX_TICKS)) {
         LOGGER.info("Waiting for EventGroup by event_handler()");
 
-        if (bits & WIFI_CONNECTED_BIT) {
+        if (flags & WIFI_CONNECTED_BIT) {
             wifi->setSecureConnection(config.sta.password[0] != 0x00U);
             wifi->setRadioState(RadioState::ConnectionActive);
             publish_event(wifi, WifiEvent::ConnectionSuccess);
@@ -815,7 +815,7 @@ static void dispatchConnect(std::shared_ptr<Wifi> wifi) {
                     LOGGER.info("Stored credentials");
                 }
             }
-        } else if (bits & WIFI_FAIL_BIT) {
+        } else if (flags & WIFI_FAIL_BIT) {
             wifi->setRadioState(RadioState::On);
             publish_event(wifi, WifiEvent::ConnectionFailed);
             LOGGER.info("Failed to connect to {}", wifi->connection_target.ssid.c_str());

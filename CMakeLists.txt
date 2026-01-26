@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_ASM_COMPILE_OBJECT "${CMAKE_CXX_COMPILER_TARGET}")
 
 include("Buildscripts/logo.cmake")
@@ -13,20 +12,28 @@ set(Cyan "${Esc}[36m")
 file(READ version.txt TACTILITY_VERSION)
 add_compile_definitions(TT_VERSION="${TACTILITY_VERSION}")
 
+# Determine device identifier and project location
+if (DEFINED ENV{ESP_IDF_VERSION})
+    include("Buildscripts/device.cmake")
+    init_tactility_globals("sdkconfig")
+    get_property(TACTILITY_DEVICE_PROJECT GLOBAL PROPERTY TACTILITY_DEVICE_PROJECT)
+    get_property(TACTILITY_DEVICE_ID GLOBAL PROPERTY TACTILITY_DEVICE_ID)
+else ()
+    set(TACTILITY_DEVICE_PROJECT "Devices/simulator")
+    set(TACTILITY_DEVICE_ID "simulator")
+endif ()
+
 if (DEFINED ENV{ESP_IDF_VERSION})
     message("Using ESP-IDF ${Cyan}v$ENV{ESP_IDF_VERSION}${ColorReset}")
     include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-
-    include("Buildscripts/device.cmake")
-
-    init_tactility_globals("sdkconfig")
-    get_property(TACTILITY_DEVICE_PROJECT GLOBAL PROPERTY TACTILITY_DEVICE_PROJECT)
 
     set(COMPONENTS Firmware)
     set(EXTRA_COMPONENT_DIRS
         "Firmware"
         "Devices/${TACTILITY_DEVICE_PROJECT}"
         "Drivers"
+        "Platforms/PlatformEsp32"
+        "TactilityKernel"
         "Tactility"
         "TactilityC"
         "TactilityCore"
@@ -69,6 +76,8 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Tactility)
     add_subdirectory(TactilityCore)
     add_subdirectory(TactilityFreeRtos)
+    add_subdirectory(TactilityKernel)
+    add_subdirectory(Platforms/PlatformPosix)
     add_subdirectory(Devices/simulator)
     add_subdirectory(Libraries/cJSON)
     add_subdirectory(Libraries/lv_screenshot)

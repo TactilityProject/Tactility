@@ -1,0 +1,6 @@
+on-bus: i2c
+
+properties:
+  register:
+    required: true
+    description: device address on the bus

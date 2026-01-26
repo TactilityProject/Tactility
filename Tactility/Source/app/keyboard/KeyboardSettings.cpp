@@ -13,13 +13,20 @@ namespace keyboardbacklight {
     bool setBrightness(uint8_t brightness);
 }
 
-namespace trackball {
-    void setEnabled(bool enabled);
-}
-
 namespace tt::app::keyboardsettings {
 
 constexpr auto* TAG = "KeyboardSettings";
+
+// Shared timeout values: 15s, 30s, 1m, 2m, 5m, Never (0)
+static constexpr uint32_t TIMEOUT_VALUES_MS[] = {15000, 30000, 60000, 120000, 300000, 0};
+static constexpr size_t TIMEOUT_DEFAULT_IDX = 2; // 1 minute
+
+static uint32_t timeoutMsToIndex(uint32_t ms) {
+    for (size_t i = 0; i < sizeof(TIMEOUT_VALUES_MS) / sizeof(TIMEOUT_VALUES_MS[0]); ++i) {
+        if (TIMEOUT_VALUES_MS[i] == ms) return static_cast<uint32_t>(i);
+    }
+    return TIMEOUT_DEFAULT_IDX;
+}
 
 static void applyKeyboardBacklight(bool enabled, uint8_t brightness) {
     keyboardbacklight::setBrightness(enabled ? brightness : 0);
@@ -30,7 +37,6 @@ class KeyboardSettingsApp final : public App {
     settings::keyboard::KeyboardSettings kbSettings;
     bool updated = false;
     lv_obj_t* switchBacklight = nullptr;
-    lv_obj_t* switchTrackball = nullptr;
     lv_obj_t* sliderBrightness = nullptr;
     lv_obj_t* switchTimeoutEnable = nullptr;
     lv_obj_t* timeoutDropdown = nullptr;
@@ -57,14 +63,6 @@ class KeyboardSettingsApp final : public App {
         }
     }
 
-    static void onTrackballSwitch(lv_event_t* e) {
-        auto* app = static_cast<KeyboardSettingsApp*>(lv_event_get_user_data(e));
-        bool enabled = lv_obj_has_state(app->switchTrackball, LV_STATE_CHECKED);
-        app->kbSettings.trackballEnabled = enabled;
-        app->updated = true;
-        trackball::setEnabled(enabled);
-    }
-
     static void onTimeoutEnableSwitch(lv_event_t* e) {
         auto* app = static_cast<KeyboardSettingsApp*>(lv_event_get_user_data(e));
         bool enabled = lv_obj_has_state(app->switchTimeoutEnable, LV_STATE_CHECKED);
@@ -83,17 +81,16 @@ class KeyboardSettingsApp final : public App {
         auto* app = static_cast<KeyboardSettingsApp*>(lv_event_get_user_data(event));
         auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
         uint32_t idx = lv_dropdown_get_selected(dropdown);
-        // Map dropdown index to ms: 0=15s,1=30s,2=1m,3=2m,4=5m,5=Never
-        static const uint32_t values_ms[] = {15000, 30000, 60000, 120000, 300000, 0};
-        if (idx < (sizeof(values_ms)/sizeof(values_ms[0]))) {
-            app->kbSettings.backlightTimeoutMs = values_ms[idx];
-        app->updated = true;
+        if (idx < (sizeof(TIMEOUT_VALUES_MS) / sizeof(TIMEOUT_VALUES_MS[0]))) {
+            app->kbSettings.backlightTimeoutMs = TIMEOUT_VALUES_MS[idx];
+            app->updated = true;
         }
     }
 
 public:
     void onShow(AppContext& app, lv_obj_t* parent) override {
         kbSettings = settings::keyboard::loadOrGetDefault();
+        updated = false;
 
         lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
@@ -136,20 +133,6 @@ public:
         if (!kbSettings.backlightEnabled) lv_obj_add_state(sliderBrightness, LV_STATE_DISABLED);
         lv_obj_add_event_cb(sliderBrightness, onBrightnessChanged, LV_EVENT_VALUE_CHANGED, this);
 
-        // Trackball toggle
-        auto* tb_wrapper = lv_obj_create(main_wrapper);
-        lv_obj_set_size(tb_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(tb_wrapper, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(tb_wrapper, 0, LV_STATE_DEFAULT);
-
-        auto* tb_label = lv_label_create(tb_wrapper);
-        lv_label_set_text(tb_label, "Trackball");
-        lv_obj_align(tb_label, LV_ALIGN_LEFT_MID, 0, 0);
-        switchTrackball = lv_switch_create(tb_wrapper);
-        if (kbSettings.trackballEnabled) lv_obj_add_state(switchTrackball, LV_STATE_CHECKED);
-        lv_obj_align(switchTrackball, LV_ALIGN_RIGHT_MID, 0, 0);
-        lv_obj_add_event_cb(switchTrackball, onTrackballSwitch, LV_EVENT_VALUE_CHANGED, this);
-
         // Backlight timeout enable
         auto* to_enable_wrapper = lv_obj_create(main_wrapper);
         lv_obj_set_size(to_enable_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
@@ -181,20 +164,7 @@ public:
         lv_obj_set_style_border_width(timeoutDropdown, 1, LV_PART_MAIN);
         lv_obj_add_event_cb(timeoutDropdown, onTimeoutChanged, LV_EVENT_VALUE_CHANGED, this);
         // Initialize dropdown selection from settings
-        uint32_t ms = kbSettings.backlightTimeoutMs;
-        uint32_t idx = 2; // default 1 minute
-        if (ms == 15000) idx = 0;
-        else if (ms == 30000)
-            idx = 1;
-        else if (ms == 60000)
-            idx = 2;
-        else if (ms == 120000)
-            idx = 3;
-        else if (ms == 300000)
-            idx = 4;
-        else if (ms == 0)
-            idx = 5;
-        lv_dropdown_set_selected(timeoutDropdown, idx);
+        lv_dropdown_set_selected(timeoutDropdown, timeoutMsToIndex(kbSettings.backlightTimeoutMs));
         if (!kbSettings.backlightTimeoutEnabled) {
             lv_obj_add_state(timeoutDropdown, LV_STATE_DISABLED);
         }
@@ -204,6 +174,7 @@ public:
         if (updated) {
             const auto copy = kbSettings;
             getMainDispatcher().dispatch([copy]{ settings::keyboard::save(copy); });
+            updated = false;
         }
     }
 };

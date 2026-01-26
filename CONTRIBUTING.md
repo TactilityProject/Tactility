@@ -2,7 +2,7 @@
 
 ## New features and boards
 
-Feel free to open an [issue](https://github.com/ByteWelder/Tactility/issues/new)
+Feel free to open an [issue](https://github.com/TactilityProject/Tactility/issues/new)
 to discuss ideas you have regarding the implementation of new boards or features.
 
 Keep in mind that the internal APIs are changing rapidly. They might change considerably in a short timespan.
@@ -28,7 +28,7 @@ Some examples of non-serious issues include:
 
 ## Anything that doesn't fall in the above categories?
 
-Please [contact me](https://tactility.one/#/support) first!
+Please [contact me](https://tactilityproject.org/#/support) first!
 
 ## Pull Requests
 

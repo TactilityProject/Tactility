@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tactility Dashboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        header {
+            text-align: center;
+            padding: 20px 0;
+        }
+        header h1 {
+            font-size: 1.8em;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+        header .subtitle {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin-bottom: 25px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px;
+            border-radius: 10px;
+        }
+        .tab {
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            color: #95a5a6;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .tab:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .tab.active {
+            background: #3498db;
+            color: #fff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Cards */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .card h2 {
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #7f8c8d;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card h2::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: #3498db;
+            border-radius: 2px;
+        }
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .stat:last-child { border-bottom: none; }
+        .stat-label { color: #95a5a6; font-size: 0.9em; }
+        .stat-value { color: #fff; font-weight: 500; }
+        .stat-value.good { color: #2ecc71; }
+        .stat-value.warn { color: #f39c12; }
+        .stat-value.bad { color: #e74c3c; }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        .progress-fill.good { background: linear-gradient(90deg, #27ae60, #2ecc71); }
+        .progress-fill.warn { background: linear-gradient(90deg, #f39c12, #f1c40f); }
+        .progress-fill.bad { background: linear-gradient(90deg, #c0392b, #e74c3c); }
+
+        /* Feature badges */
+        .features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 5px;
+        }
+        .feature-badge {
+            background: rgba(52, 152, 219, 0.2);
+            color: #3498db;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 500;
+        }
+
+        /* Buttons */
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-primary { background: #3498db; color: #fff; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; color: #fff; }
+        .btn-success:hover { background: #1e8449; }
+        .btn-danger { background: #e74c3c; color: #fff; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-secondary { background: rgba(255, 255, 255, 0.1); color: #fff; }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8em; }
+
+        /* Loading & Error */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #3498db;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        /* File Browser Styles */
+        .breadcrumb {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .breadcrumb a { color: #3498db; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .breadcrumb span { color: #7f8c8d; margin: 0 5px; }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 8px;
+            align-items: center;
+        }
+        .toolbar-group { display: flex; gap: 5px; }
+        .toolbar-sep { width: 1px; height: 24px; background: rgba(255, 255, 255, 0.1); margin: 0 8px; }
+        #pathInput {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 0.9em;
+        }
+        #pathInput:focus { outline: none; border-color: #3498db; }
+        input[type=file] { display: none; }
+
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .file-table th {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #95a5a6;
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .file-table td { padding: 10px 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .file-table tr:last-child td { border-bottom: none; }
+        .file-table tr:hover { background: rgba(255, 255, 255, 0.03); }
+        .file-table tr.selected { background: rgba(52, 152, 219, 0.2); }
+        .file-name { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .file-name:hover { color: #3498db; }
+        .file-icon { font-size: 1.1em; }
+        .file-size { color: #7f8c8d; font-size: 0.85em; }
+        .file-type { color: #95a5a6; font-size: 0.75em; text-transform: uppercase; }
+        .dl-link { color: #3498db; text-decoration: none; font-size: 0.85em; }
+        .dl-link:hover { text-decoration: underline; }
+        .empty { text-align: center; padding: 40px; color: #7f8c8d; }
+
+        /* Apps Tab Styles */
+        .upload-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        .upload-zone.dragover {
+            border-color: #3498db;
+            background: rgba(52, 152, 219, 0.1);
+        }
+        .upload-zone p { color: #7f8c8d; margin-bottom: 15px; }
+
+        .app-list { display: flex; flex-direction: column; gap: 10px; }
+        .app-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .app-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(52, 152, 219, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+        }
+        .app-info { flex: 1; }
+        .app-name { font-weight: 600; color: #fff; }
+        .app-meta { font-size: 0.8em; color: #7f8c8d; margin-top: 3px; }
+        .app-actions { display: flex; gap: 8px; }
+
+        /* Screenshot preview */
+        .screenshot-container {
+            text-align: center;
+            margin-top: 15px;
+        }
+        .screenshot-img {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Status message */
+        .status {
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        .status.show { display: block; }
+        .status.error { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+        .status.success { background: rgba(39, 174, 96, 0.2); color: #2ecc71; }
+        .status.info { background: rgba(52, 152, 219, 0.2); color: #3498db; }
+
+        footer {
+            text-align: center;
+            padding: 20px 0;
+            color: #555;
+            font-size: 0.8em;
+        }
+
+        @media (max-width: 600px) {
+            header h1 { font-size: 1.4em; }
+            .grid { grid-template-columns: 1fr; }
+            .tabs { flex-wrap: wrap; }
+            .tab { padding: 10px 16px; font-size: 0.85em; }
+            .toolbar { flex-direction: column; }
+            .toolbar-group { width: 100%; }
+            .toolbar-sep { display: none; }
+            #pathInput { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Tactility Dashboard</h1>
+            <p class="subtitle" id="version">Loading...</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('dashboard')">Dashboard</button>
+            <button class="tab" onclick="showTab('files')">Files</button>
+            <button class="tab" onclick="showTab('apps')">Apps</button>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard-tab" class="tab-content active">
+            <div id="dashboard-content">
+                <div class="loading">Loading system information...</div>
+            </div>
+        </div>
+
+        <!-- Files Tab -->
+        <div id="files-tab" class="tab-content">
+            <div id="files-status" class="status"></div>
+            <div class="breadcrumb" id="breadcrumb"></div>
+            <div class="toolbar">
+                <div class="toolbar-group">
+                    <button class="btn btn-secondary btn-sm" onclick="goHome()">Home</button>
+                    <button class="btn btn-secondary btn-sm" onclick="goUp()" id="upBtn">Up</button>
+                </div>
+                <div class="toolbar-sep"></div>
+                <input type="text" id="pathInput" value="/data" onkeydown="if(event.key==='Enter')refreshFiles()">
+                <button class="btn btn-primary btn-sm" onclick="refreshFiles()">Go</button>
+                <div class="toolbar-sep"></div>
+                <div class="toolbar-group">
+                    <button class="btn btn-secondary btn-sm" onclick="createFolder()">New Folder</button>
+                    <button class="btn btn-secondary btn-sm" onclick="triggerUpload()">Upload</button>
+                    <input type="file" id="uploadInput" multiple />
+                </div>
+                <div class="toolbar-sep"></div>
+                <div class="toolbar-group">
+                    <button class="btn btn-secondary btn-sm" onclick="renameSelected()" id="renameBtn" disabled>Rename</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteSelected()" id="deleteBtn" disabled>Delete</button>
+                </div>
+            </div>
+            <table class="file-table">
+                <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Action</th></tr></thead>
+                <tbody id="file-list"><tr><td colspan="4" class="empty">Select the Files tab to browse</td></tr></tbody>
+            </table>
+        </div>
+
+        <!-- Apps Tab -->
+        <div id="apps-tab" class="tab-content">
+            <div id="apps-status" class="status"></div>
+            <div class="upload-zone" id="uploadZone">
+                <p>Drag & drop an .app file here, or click to select</p>
+                <button class="btn btn-primary" onclick="document.getElementById('appFileInput').click()">Select App File</button>
+                <input type="file" id="appFileInput" accept=".app" />
+            </div>
+            <div class="card">
+                <h2>Installed Apps</h2>
+                <div id="app-list" class="app-list">
+                    <div class="loading">Loading apps...</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            Tactility WebServer - Auto-refreshes every 30 seconds
+        </footer>
+    </div>
+
+<script>
+// Tab management
+function showTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.tab[onclick="showTab('${tabName}')"]`).classList.add('active');
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+
+    if (tabName === 'files' && !filesLoaded) {
+        refreshFiles();
+        filesLoaded = true;
+    }
+    if (tabName === 'apps' && !appsLoaded) {
+        loadApps();
+        appsLoaded = true;
+    }
+}
+
+// Handle URL hash for direct tab access
+function handleHashChange() {
+    const hash = window.location.hash.slice(1);
+    if (hash === 'files' || hash === 'apps' || hash === 'dashboard') {
+        showTab(hash);
+    }
+}
+window.addEventListener('hashchange', handleHashChange);
+if (window.location.hash) handleHashChange();
+
+// Utility functions
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    if (days > 0) return `${days}d ${hours}h ${mins}m`;
+    if (hours > 0) return `${hours}h ${mins}m ${secs}s`;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+}
+
+function getUsageClass(percent) {
+    if (percent < 60) return 'good';
+    if (percent < 85) return 'warn';
+    return 'bad';
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// ==================== DASHBOARD ====================
+const dashboardContent = document.getElementById('dashboard-content');
+const versionEl = document.getElementById('version');
+
+function renderDashboard(data) {
+    const heapUsed = data.heap.total - data.heap.free;
+    const heapPercent = data.heap.total > 0 ? (heapUsed / data.heap.total) * 100 : 0;
+    const psramUsed = data.psram.total - data.psram.free;
+    const psramPercent = data.psram.total > 0 ? (psramUsed / data.psram.total) * 100 : 0;
+    const hasPsram = data.psram.total > 0;
+    const dataUsed = data.storage.data.mounted ? (data.storage.data.total - data.storage.data.free) : 0;
+    const dataPercent = data.storage.data.mounted && data.storage.data.total > 0 ? (dataUsed / data.storage.data.total) * 100 : 0;
+    const sdUsed = data.storage.sdcard.mounted ? (data.storage.sdcard.total - data.storage.sdcard.free) : 0;
+    const sdPercent = data.storage.sdcard.mounted && data.storage.sdcard.total > 0 ? (sdUsed / data.storage.sdcard.total) * 100 : 0;
+
+    versionEl.textContent = `Tactility v${data.firmware.version} | ESP-IDF v${data.firmware.idf_version}`;
+
+    // Build features HTML
+    const featuresHtml = data.chip.features && data.chip.features.length > 0
+        ? `<div class="features">${data.chip.features.map(f => `<span class="feature-badge">${escapeHtml(f)}</span>`).join('')}</div>`
+        : '';
+
+    dashboardContent.innerHTML = `
+        <div class="grid">
+            <div class="card">
+                <h2>System Overview</h2>
+                <div class="stat">
+                    <span class="stat-label">Chip</span>
+                    <span class="stat-value">${escapeHtml(data.chip.model)}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">CPU Cores</span>
+                    <span class="stat-value">${data.chip.cores}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Chip Revision</span>
+                    <span class="stat-value">${data.chip.revision}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Flash Size</span>
+                    <span class="stat-value">${formatBytes(data.chip.flash_size || 0)}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Active Tasks</span>
+                    <span class="stat-value">${data.task_count}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Uptime</span>
+                    <span class="stat-value">${formatUptime(data.uptime)}</span>
+                </div>
+                ${featuresHtml ? `<div class="stat" style="flex-direction: column; align-items: flex-start;">
+                    <span class="stat-label" style="margin-bottom: 8px;">Features</span>
+                    ${featuresHtml}
+                </div>` : ''}
+            </div>
+
+            <div class="card">
+                <h2>Internal Memory (Heap)</h2>
+                <div class="stat">
+                    <span class="stat-label">Used</span>
+                    <span class="stat-value ${getUsageClass(heapPercent)}">${formatBytes(heapUsed)} / ${formatBytes(data.heap.total)}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${getUsageClass(heapPercent)}" style="width: ${heapPercent}%"></div>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Free</span>
+                    <span class="stat-value">${formatBytes(data.heap.free)}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Min Free Ever</span>
+                    <span class="stat-value">${formatBytes(data.heap.min_free)}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Largest Block</span>
+                    <span class="stat-value">${formatBytes(data.heap.largest_block)}</span>
+                </div>
+            </div>
+
+            ${hasPsram ? `
+            <div class="card">
+                <h2>External Memory (PSRAM)</h2>
+                <div class="stat">
+                    <span class="stat-label">Used</span>
+                    <span class="stat-value ${getUsageClass(psramPercent)}">${formatBytes(psramUsed)} / ${formatBytes(data.psram.total)}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${getUsageClass(psramPercent)}" style="width: ${psramPercent}%"></div>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Free</span>
+                    <span class="stat-value">${formatBytes(data.psram.free)}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Min Free Ever</span>
+                    <span class="stat-value">${formatBytes(data.psram.min_free)}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Largest Block</span>
+                    <span class="stat-value">${formatBytes(data.psram.largest_block)}</span>
+                </div>
+            </div>
+            ` : ''}
+
+            <div class="card">
+                <h2>Storage</h2>
+                <div class="stat">
+                    <span class="stat-label">Data Partition</span>
+                    <span class="stat-value ${data.storage.data.mounted ? getUsageClass(dataPercent) : ''}">${
+                        data.storage.data.mounted ? formatBytes(data.storage.data.free) + ' free' : 'Not mounted'
+                    }</span>
+                </div>
+                ${data.storage.data.mounted ? `<div class="progress-bar">
+                    <div class="progress-fill ${getUsageClass(dataPercent)}" style="width: ${dataPercent}%"></div>
+                </div>` : ''}
+                <div class="stat" style="margin-top: 15px">
+                    <span class="stat-label">SD Card</span>
+                    <span class="stat-value ${data.storage.sdcard.mounted ? getUsageClass(sdPercent) : ''}">${
+                        data.storage.sdcard.mounted ? formatBytes(data.storage.sdcard.free) + ' free' : 'Not mounted'
+                    }</span>
+                </div>
+                ${data.storage.sdcard.mounted ? `<div class="progress-bar">
+                    <div class="progress-fill ${getUsageClass(sdPercent)}" style="width: ${sdPercent}%"></div>
+                </div>` : ''}
+            </div>
+
+            <div class="card" id="wifi-card">
+                <h2>WiFi Status</h2>
+                <div id="wifi-content"><div class="loading">Loading...</div></div>
+            </div>
+
+            <div class="card">
+                <h2>Quick Actions</h2>
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="syncAssets(this)">Sync Assets</button>
+                    <button class="btn btn-secondary" onclick="location.reload()">Refresh</button>
+                    ${data.features_enabled?.screenshot ? '<button class="btn btn-secondary" onclick="captureScreenshot(this)">Screenshot</button>' : ''}
+                    <button class="btn btn-danger" onclick="rebootDevice(this)">Reboot</button>
+                </div>
+                <div id="actionStatus" style="margin-top: 15px; font-size: 0.9em;"></div>
+                <div class="screenshot-container" id="screenshotContainer" style="display: none;">
+                    <img id="screenshotImg" class="screenshot-img" alt="Screenshot">
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Load WiFi status
+    loadWifiStatus();
+}
+
+async function loadDashboard() {
+    try {
+        const r = await fetch('/api/sysinfo');
+        if (!r.ok) throw new Error('Failed to fetch: ' + r.status);
+        const data = await r.json();
+        renderDashboard(data);
+    } catch (e) {
+        dashboardContent.innerHTML = `<div class="error">Failed to load system info: ${escapeHtml(e.message)}</div>`;
+        versionEl.textContent = 'Error loading data';
+    }
+}
+
+async function loadWifiStatus() {
+    const wifiContent = document.getElementById('wifi-content');
+    if (!wifiContent) return;
+
+    try {
+        const r = await fetch('/api/wifi');
+        if (!r.ok) throw new Error('Failed to fetch');
+        const data = await r.json();
+
+        const stateColors = {
+            'connected': 'good',
+            'connecting': 'warn',
+            'on': '',
+            'off': 'bad'
+        };
+
+        const capitalize = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+
+        wifiContent.innerHTML = `
+            <div class="stat">
+                <span class="stat-label">Status</span>
+                <span class="stat-value ${stateColors[data.state] || ''}">${escapeHtml(capitalize(data.state))}</span>
+            </div>
+            ${data.ssid ? `<div class="stat">
+                <span class="stat-label">Network</span>
+                <span class="stat-value">${escapeHtml(data.ssid)}</span>
+            </div>` : ''}
+            ${data.ip ? `<div class="stat">
+                <span class="stat-label">IP Address</span>
+                <span class="stat-value">${escapeHtml(data.ip)}</span>
+            </div>` : ''}
+            ${data.rssi && data.rssi < 0 ? `<div class="stat">
+                <span class="stat-label">Signal (RSSI)</span>
+                <span class="stat-value">${data.rssi} dBm</span>
+            </div>` : ''}
+            ${data.secure !== undefined ? `<div class="stat">
+                <span class="stat-label">Security</span>
+                <span class="stat-value">${data.secure ? 'Encrypted' : 'Open'}</span>
+            </div>` : ''}
+        `;
+    } catch (e) {
+        wifiContent.innerHTML = `<div class="stat"><span class="stat-label">Status</span><span class="stat-value">Unknown</span></div>`;
+    }
+}
+
+async function syncAssets(btn) {
+    const status = document.getElementById('actionStatus');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    try {
+        const r = await fetch('/admin/sync', { method: 'POST' });
+        if (status) {
+            status.textContent = r.ok ? 'Assets synchronized!' : 'Sync failed';
+            status.style.color = r.ok ? '#2ecc71' : '#e74c3c';
+        }
+    } catch (e) {
+        if (status) {
+            status.textContent = 'Error: ' + e.message;
+            status.style.color = '#e74c3c';
+        }
+    }
+    btn.disabled = false;
+    btn.textContent = 'Sync Assets';
+}
+
+async function captureScreenshot(btn) {
+    const status = document.getElementById('actionStatus');
+    const container = document.getElementById('screenshotContainer');
+    const img = document.getElementById('screenshotImg');
+
+    btn.disabled = true;
+    btn.textContent = 'Capturing...';
+    status.textContent = '';
+
+    try {
+        const r = await fetch('/api/screenshot');
+        if (!r.ok) {
+            const text = await r.text();
+            throw new Error(text || r.status);
+        }
+        const blob = await r.blob();
+        // Revoke previous object URL to prevent memory leak
+        if (img.src && img.src.startsWith('blob:')) {
+            URL.revokeObjectURL(img.src);
+        }
+        img.src = URL.createObjectURL(blob);
+        container.style.display = 'block';
+        status.textContent = 'Screenshot captured!';
+        status.style.color = '#2ecc71';
+    } catch (e) {
+        status.textContent = 'Screenshot failed: ' + e.message;
+        status.style.color = '#e74c3c';
+        container.style.display = 'none';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Screenshot';
+}
+let refreshInterval;
+async function rebootDevice(btn) {
+    if (!confirm('Reboot device now?')) return;
+    const status = document.getElementById('actionStatus');
+    btn.disabled = true;
+    btn.textContent = 'Rebooting...';
+    if (refreshInterval) clearInterval(refreshInterval);
+    try {
+        await fetch('/admin/reboot', { method: 'POST' });
+    } catch (e) { }
+    status.textContent = 'Device is rebooting...';
+    status.style.color = '#3498db';
+}
+
+// ==================== FILE BROWSER ====================
+let currentPath = '/';
+let selectedName = '';
+let selectedType = '';
+let filesLoaded = false;
+
+const fileListEl = document.getElementById('file-list');
+const pathInput = document.getElementById('pathInput');
+const breadcrumbEl = document.getElementById('breadcrumb');
+const renameBtn = document.getElementById('renameBtn');
+const deleteBtn = document.getElementById('deleteBtn');
+const upBtn = document.getElementById('upBtn');
+
+function setFilesStatus(msg, type) {
+    const el = document.getElementById('files-status');
+    el.textContent = msg;
+    el.className = 'status' + (type ? ' show ' + type : '');
+    if (type !== 'error') setTimeout(() => el.className = '', 3000);
+}
+
+function updateBreadcrumb(path) {
+    const parts = path.split('/').filter(Boolean);
+    breadcrumbEl.innerHTML = '';
+    const rootLink = document.createElement('a');
+    rootLink.href = '#';
+    rootLink.textContent = 'Root';
+    rootLink.addEventListener('click', e => { e.preventDefault(); navigateTo('/'); });
+    breadcrumbEl.appendChild(rootLink);
+
+    let cumulative = '';
+    parts.forEach((p, i) => {
+        cumulative += '/' + p;
+        const cp = cumulative;
+
+        const sep = document.createElement('span');
+        sep.textContent = '/';
+        breadcrumbEl.appendChild(sep);
+
+        if (i === parts.length - 1) {
+            const strong = document.createElement('strong');
+            strong.textContent = p;
+            breadcrumbEl.appendChild(strong);
+        } else {
+            const link = document.createElement('a');
+            link.href = '#';
+            link.textContent = p;
+            link.addEventListener('click', e => { e.preventDefault(); navigateTo(cp); });
+            breadcrumbEl.appendChild(link);
+        }
+    });
+}
+
+function updateSelection() {
+    renameBtn.disabled = !selectedName;
+    deleteBtn.disabled = !selectedName;
+}
+
+function selectRow(name, tr, type) {
+    document.querySelectorAll('#file-list tr').forEach(r => r.classList.remove('selected'));
+    if (name && tr) {
+        tr.classList.add('selected');
+        selectedName = name;
+        selectedType = type;
+    } else {
+        selectedName = '';
+        selectedType = '';
+    }
+    updateSelection();
+}
+
+function navigateTo(path) {
+    pathInput.value = path;
+    refreshFiles();
+}
+
+function goHome() { navigateTo('/'); }
+
+function goUp() {
+    const parts = currentPath.split('/').filter(Boolean);
+    if (parts.length <= 1) return;
+    parts.pop();
+    navigateTo('/' + parts.join('/'));
+}
+
+function getFileIcon(name, type) {
+    if (type === 'dir') return '\uD83D\uDCC1';
+    const ext = name.split('.').pop().toLowerCase();
+    const icons = {
+        txt: '\uD83D\uDCC4', json: '\uD83D\uDCCB', html: '\uD83C\uDF10', css: '\uD83C\uDFA8', js: '\u26A1',
+        png: '\uD83D\uDDBC\uFE0F', jpg: '\uD83D\uDDBC\uFE0F', jpeg: '\uD83D\uDDBC\uFE0F', gif: '\uD83D\uDDBC\uFE0F', svg: '\uD83D\uDDBC\uFE0F',
+        mp3: '\uD83C\uDFB5', wav: '\uD83C\uDFB5', mp4: '\uD83C\uDFAC', zip: '\uD83D\uDCE6', gz: '\uD83D\uDCE6', app: '\uD83D\uDCE6'
+    };
+    return icons[ext] || '\uD83D\uDCC4';
+}
+
+async function refreshFiles() {
+    const path = pathInput.value || '/';
+    currentPath = path;
+    selectedName = '';
+    updateSelection();
+    updateBreadcrumb(path);
+    upBtn.disabled = path === '/' || path.split('/').filter(Boolean).length <= 1;
+
+    fileListEl.innerHTML = '<tr><td colspan="4" class="empty">Loading...</td></tr>';
+
+    try {
+        const r = await fetch('/fs/list?path=' + encodeURIComponent(path));
+        if (!r.ok) {
+            const text = await r.text();
+            throw new Error(text || 'HTTP ' + r.status);
+        }
+        const data = await r.json();
+        if (data.error) {
+            setFilesStatus(data.error, 'error');
+            fileListEl.innerHTML = '<tr><td colspan="4" class="empty">Error loading directory</td></tr>';
+            return;
+        }
+        renderFileList(data);
+        setFilesStatus('Loaded ' + data.entries.length + ' item(s)', 'info');
+    } catch (e) {
+        setFilesStatus('Error: ' + e.message, 'error');
+        fileListEl.innerHTML = '<tr><td colspan="4" class="empty">Failed to load</td></tr>';
+    }
+}
+
+function renderFileList(data) {
+    fileListEl.innerHTML = '';
+    const basePath = data.path === '/' ? '' : data.path;
+
+    // Parent directory
+    if (data.path && data.path !== '/' && data.path.split('/').filter(Boolean).length > 1) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="file-name" onclick="goUp()" style="cursor:pointer"><span class="file-icon">\uD83D\uDCC1</span>..</td>
+                       <td class="file-type">dir</td><td></td><td></td>`;
+        fileListEl.appendChild(tr);
+    }
+
+    if (data.entries.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="4" class="empty">Empty directory</td>';
+        fileListEl.appendChild(tr);
+        return;
+    }
+
+    // Sort: directories first, then files
+    data.entries.sort((a, b) => {
+        if (a.type === 'dir' && b.type !== 'dir') return -1;
+        if (a.type !== 'dir' && b.type === 'dir') return 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    data.entries.forEach(e => {
+        const tr = document.createElement('tr');
+        const fullPath = basePath + '/' + e.name;
+        const dlUrl = '/fs/download?path=' + encodeURIComponent(fullPath);
+
+        const nameTd = document.createElement('td');
+        nameTd.className = 'file-name';
+        nameTd.innerHTML = `<span class="file-icon">${getFileIcon(e.name, e.type)}</span>${escapeHtml(e.name)}`;
+        if (e.type === 'dir') {
+            // Single click to enter directories
+            nameTd.onclick = () => navigateTo(fullPath);
+            nameTd.style.cursor = 'pointer';
+        } else {
+            // Single click to select files, double-click to download
+            nameTd.onclick = () => selectRow(e.name, tr, e.type);
+            nameTd.ondblclick = () => window.location = dlUrl;
+        }
+        tr.appendChild(nameTd);
+
+        const typeTd = document.createElement('td');
+        typeTd.className = 'file-type';
+        typeTd.textContent = e.type;
+        tr.appendChild(typeTd);
+
+        const sizeTd = document.createElement('td');
+        sizeTd.className = 'file-size';
+        sizeTd.textContent = e.type === 'file' ? formatBytes(e.size) : '';
+        tr.appendChild(sizeTd);
+
+        const actTd = document.createElement('td');
+        if (e.type === 'file') {
+            const a = document.createElement('a');
+            a.className = 'dl-link';
+            a.href = dlUrl;
+            a.textContent = 'Download';
+            actTd.appendChild(a);
+        }
+        tr.appendChild(actTd);
+
+        fileListEl.appendChild(tr);
+    });
+}
+
+function triggerUpload() { document.getElementById('uploadInput').click(); }
+
+document.getElementById('uploadInput').addEventListener('change', async ev => {
+    const files = ev.target.files;
+    if (!files.length) return;
+
+    for (const file of files) {
+        const target = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
+        setFilesStatus('Uploading ' + file.name + '...', 'info');
+        try {
+            const r = await fetch('/fs/upload?path=' + encodeURIComponent(target), {
+                method: 'POST', body: file
+            });
+            if (!r.ok) throw new Error(await r.text());
+        } catch (e) {
+            setFilesStatus('Upload failed: ' + e, 'error');
+            return;
+        }
+    }
+    setFilesStatus('Upload complete', 'success');
+    ev.target.value = '';
+    refreshFiles();
+});
+
+function createFolder() {
+    const name = prompt('New folder name:');
+    if (!name) return;
+    const target = currentPath + (currentPath.endsWith('/') ? '' : '/') + name;
+    fetch('/fs/mkdir?path=' + encodeURIComponent(target), { method: 'POST' })
+        .then(r => r.ok ? r.text() : Promise.reject(r.statusText))
+        .then(() => { setFilesStatus('Folder created', 'success'); refreshFiles(); })
+        .catch(e => setFilesStatus('Error: ' + e, 'error'));
+}
+
+function deleteSelected() {
+    if (!selectedName) { setFilesStatus('Select a file or folder first', 'error'); return; }
+    if (!confirm('Delete "' + selectedName + '"?')) return;
+    const target = currentPath + (currentPath.endsWith('/') ? '' : '/') + selectedName;
+    fetch('/fs/delete?path=' + encodeURIComponent(target), { method: 'POST' })
+        .then(r => r.ok ? r.text() : Promise.reject(r.statusText))
+        .then(() => { setFilesStatus('Deleted', 'success'); refreshFiles(); })
+        .catch(e => setFilesStatus('Delete failed: ' + e, 'error'));
+}
+
+function renameSelected() {
+    if (!selectedName) { setFilesStatus('Select a file or folder first', 'error'); return; }
+    const newName = prompt('Rename to:', selectedName);
+    if (!newName || newName === selectedName) return;
+    const target = currentPath + (currentPath.endsWith('/') ? '' : '/') + selectedName;
+    fetch('/fs/rename?path=' + encodeURIComponent(target) + '&newName=' + encodeURIComponent(newName), { method: 'POST' })
+        .then(r => r.ok ? r.text() : Promise.reject(r.statusText))
+        .then(() => { setFilesStatus('Renamed', 'success'); refreshFiles(); })
+        .catch(e => setFilesStatus('Rename failed: ' + e, 'error'));
+}
+
+// ==================== APPS ====================
+let appsLoaded = false;
+const appListEl = document.getElementById('app-list');
+
+function setAppsStatus(msg, type) {
+    const el = document.getElementById('apps-status');
+    el.textContent = msg;
+    el.className = 'status' + (type ? ' show ' + type : '');
+    if (type !== 'error') setTimeout(() => el.className = '', 3000);
+}
+
+async function loadApps() {
+    appListEl.innerHTML = '<div class="loading">Loading apps...</div>';
+
+    try {
+        const r = await fetch('/api/apps');
+        if (!r.ok) throw new Error('Failed to fetch');
+        const data = await r.json();
+        renderAppList(data.apps);
+    } catch (e) {
+        appListEl.innerHTML = `<div class="error">Failed to load apps: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function escapeAttr(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function renderAppList(apps) {
+    if (!apps || apps.length === 0) {
+        appListEl.innerHTML = '<div class="empty">No apps installed</div>';
+        return;
+    }
+
+    // Sort: user apps first, then by name
+    apps.sort((a, b) => {
+        if (a.category === 'user' && b.category !== 'user') return -1;
+        if (a.category !== 'user' && b.category === 'user') return 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    appListEl.innerHTML = apps.filter(app => !app.hidden).map(app => `
+        <div class="app-item">
+            <div class="app-icon">${app.isExternal ? '\uD83D\uDCE6' : '\u2699\uFE0F'}</div>
+            <div class="app-info">
+                <div class="app-name">${escapeHtml(app.name)}</div>
+                <div class="app-meta">${escapeHtml(app.id)} ${app.version ? 'v' + escapeHtml(app.version) : ''} | ${app.category}</div>
+            </div>
+            <div class="app-actions" data-app-id="${escapeAttr(app.id)}">
+                <button class="btn btn-primary btn-sm" onclick="runApp(this.parentElement.dataset.appId, this)">Run</button>
+                ${app.isExternal ? `<button class="btn btn-danger btn-sm" onclick="uninstallApp(this.parentElement.dataset.appId, this)">Uninstall</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+async function runApp(appId, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+    try {
+        const r = await fetch('/api/apps/run?id=' + encodeURIComponent(appId), { method: 'POST' });
+        if (!r.ok) throw new Error(await r.text());
+        setAppsStatus('App started: ' + appId, 'success');
+    } catch (e) {
+        setAppsStatus('Failed to start app: ' + e.message, 'error');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Run';
+}
+
+async function uninstallApp(appId, btn) {
+    if (!confirm('Uninstall ' + appId + '?')) return;
+    btn.disabled = true;
+    btn.textContent = 'Removing...';
+    try {
+        const r = await fetch('/api/apps/uninstall?id=' + encodeURIComponent(appId), { method: 'POST' });
+        if (!r.ok) throw new Error(await r.text());
+        setAppsStatus('App uninstalled', 'success');
+        loadApps();
+    } catch (e) {
+        setAppsStatus('Failed to uninstall: ' + e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Uninstall';
+    }
+}
+
+// App upload handling
+const uploadZone = document.getElementById('uploadZone');
+const appFileInput = document.getElementById('appFileInput');
+
+uploadZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+});
+
+uploadZone.addEventListener('dragleave', () => {
+    uploadZone.classList.remove('dragover');
+});
+
+uploadZone.addEventListener('drop', async e => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length > 0 && files[0].name.toLowerCase().endsWith('.app')) {
+        await installAppFile(files[0]);
+    } else if (files.length > 0) {
+        setAppsStatus('Only .app files are supported', 'error');
+    }
+});
+
+appFileInput.addEventListener('change', async e => {
+    if (e.target.files.length > 0) {
+        await installAppFile(e.target.files[0]);
+        e.target.value = '';
+    }
+});
+
+async function installAppFile(file) {
+    setAppsStatus('Installing ' + file.name + '...', 'info');
+
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+
+    try {
+        const r = await fetch('/api/apps/install', {
+            method: 'PUT',
+            body: formData
+        });
+        if (!r.ok) throw new Error(await r.text());
+        setAppsStatus('App installed successfully!', 'success');
+        loadApps();
+    } catch (e) {
+        setAppsStatus('Installation failed: ' + e.message, 'error');
+    }
+}
+
+// Initial load
+loadDashboard();
+refreshInterval = setInterval(() => {
+    if (document.getElementById('dashboard-tab').classList.contains('active')) {
+        loadDashboard();
+    }
+}, 30000);
+</script>
+</body>
+</html>

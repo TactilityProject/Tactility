@@ -26,6 +26,8 @@ const esp_elfsym freertos_symbols[] = {
     ESP_ELFSYM_EXPORT(vTaskSetThreadLocalStoragePointer),
     ESP_ELFSYM_EXPORT(vTaskSetThreadLocalStoragePointerAndDelCallback),
     ESP_ELFSYM_EXPORT(vTaskGetInfo),
+    ESP_ELFSYM_EXPORT(vTaskResume),
+    ESP_ELFSYM_EXPORT(vTaskSuspend),
     ESP_ELFSYM_EXPORT(xTaskCreate),
     ESP_ELFSYM_EXPORT(xTaskAbortDelay),
     ESP_ELFSYM_EXPORT(xTaskCheckForTimeOut),
@@ -77,6 +79,7 @@ const esp_elfsym freertos_symbols[] = {
     ESP_ELFSYM_EXPORT(xQueueGenericSend),
     ESP_ELFSYM_EXPORT(xQueueGenericSendFromISR),
     ESP_ELFSYM_EXPORT(xQueueSemaphoreTake),
+    ESP_ELFSYM_EXPORT(xQueueReceive),
     // Timer
     ESP_ELFSYM_EXPORT(pvTimerGetTimerID),
     ESP_ELFSYM_EXPORT(xTimerCreate),

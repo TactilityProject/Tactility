@@ -7,8 +7,6 @@
 
 namespace tt {
 
-namespace app::launcher { extern const AppManifest manifest; }
-
 /** @brief The configuration for the operating system
  * It contains the hardware configuration, apps and services
  */

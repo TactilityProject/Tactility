@@ -83,18 +83,35 @@ std::unique_ptr<char[]> receiveByteArray(httpd_req_t* request, size_t length, si
         return nullptr;
     }
 
+    constexpr int MAX_TIMEOUT_RETRIES = 5;
+    int timeout_retries = 0;
     while (bytesRead < length) {
         size_t read_size = length - bytesRead;
-        size_t bytes_received = httpd_req_recv(request, buffer + bytesRead, read_size);
+        int bytes_received = httpd_req_recv(request, buffer + bytesRead, read_size);
+        if (bytes_received == HTTPD_SOCK_ERR_TIMEOUT) {
+            // Timeout - retry with backoff
+            timeout_retries++;
+            if (timeout_retries >= MAX_TIMEOUT_RETRIES) {
+                LOGGER.warn("Recv timeout after {} retries, read {}/{} bytes", timeout_retries, bytesRead, length);
+                free(buffer);
+                return nullptr;
+            }
+            LOGGER.warn("Recv timeout, retry {}/{}", timeout_retries, MAX_TIMEOUT_RETRIES);
+            vTaskDelay(pdMS_TO_TICKS(100 * timeout_retries)); // Exponential backoff
+            continue;
+        }
         if (bytes_received <= 0) {
             LOGGER.warn("Received error {} after reading {}/{} bytes", bytes_received, bytesRead, length);
+            free(buffer);
             return nullptr;
         }
 
+        // Successful read - reset timeout counter
+        timeout_retries = 0;
         bytesRead += bytes_received;
     }
 
-    return std::unique_ptr<char[]>(std::move(buffer));
+    return std::unique_ptr<char[]>(buffer);
 }
 
 std::string receiveTextUntil(httpd_req_t* request, const std::string& terminator) {
@@ -131,7 +148,7 @@ std::map<std::string, std::string> parseContentDisposition(const std::vector<std
 
     auto parseable = content_disposition_header->substr(prefix.size());
     auto parts = string::split(parseable, "; ");
-    for (auto part : parts) {
+    for (const auto& part : parts) {
         auto key_value = string::split(part, "=");
         if (key_value.size() == 2) {
             // Trim trailing newlines
@@ -150,7 +167,7 @@ std::map<std::string, std::string> parseContentDisposition(const std::vector<std
 bool readAndDiscardOrSendError(httpd_req_t* request, const std::string& toRead) {
     size_t bytes_read;
     auto buffer = receiveByteArray(request, toRead.length(), bytes_read);
-    if (bytes_read != toRead.length()) {
+    if (buffer == nullptr || bytes_read != toRead.length()) {
         httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "failed to read discardable data");
         return false;
     }
@@ -184,7 +201,7 @@ size_t receiveFile(httpd_req_t* request, size_t length, const std::string& fileP
             LOGGER.error("Receive failed");
             break;
         }
-        if (fwrite(buffer, 1, receive_chunk_size, file) != receive_chunk_size) {
+        if (fwrite(buffer, 1, receive_chunk_size, file) != (size_t)receive_chunk_size) {
             LOGGER.error("Failed to write all bytes");
             break;
         }

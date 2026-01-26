@@ -10,6 +10,7 @@
 
 // UI
 #define TT_ASSETS_UI_SPINNER TT_ASSET("spinner.png")
+#define TT_ASSETS_UI_CURSOR TT_ASSET("cursor.png")
 
 // App icons
 #define TT_ASSETS_APP_ICON_FALLBACK TT_ASSET("app_icon_fallback_dark_mode.png")

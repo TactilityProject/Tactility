@@ -1,6 +1,6 @@
 # Get Started
 
-See [https://docs.tactility.one]
+See [https://docs.tactilityproject.org]
 
 # Useful Parameters
 

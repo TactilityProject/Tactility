@@ -1,0 +1,5 @@
+description: ESP32 GPIO Controller
+
+compatible: "espressif,esp32-gpio"
+
+include: ["gpio-controller.yaml"]

@@ -20,8 +20,10 @@ jobs:
       - name: "Build Tests"
         run: cmake --build build --target build-tests
       - name: "Run TactilityCore Tests"
-        run: build/Tests/TactilityCore/TactilityCoreTests --exit
+        run: build/Tests/TactilityCore/TactilityCoreTests
       - name: "Run TactilityFreeRtos Tests"
-        run: build/Tests/TactilityFreeRtos/TactilityFreeRtosTests --exit
+        run: build/Tests/TactilityFreeRtos/TactilityFreeRtosTests
       - name: "Run TactilityHeadless Tests"
-        run: build/Tests/Tactility/TactilityTests --exit
+        run: build/Tests/Tactility/TactilityTests
+      - name: "Run TactilityKernel Tests"
+        run: build/Tests/TactilityKernel/TactilityKernelTests
