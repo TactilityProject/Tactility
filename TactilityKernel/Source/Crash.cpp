@@ -33,7 +33,7 @@ __attribute__((noreturn)) void __crash() {
 #ifdef ESP_PLATFORM
     esp_system_abort("System halted. Connect debugger for more info.");
 #else
-    while (true) { vTaskDelay(portMAX_DELAY); }
+    while (true) { /* Indefinite lock-up */ }
 #endif
     __builtin_unreachable();
 }
