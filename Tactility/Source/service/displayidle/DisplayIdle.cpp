@@ -40,6 +40,9 @@ void DisplayIdleService::stopScreensaver() {
         return;
     }
 
+    const auto restoreDuty = cachedDisplaySettings.backlightDuty;
+    const bool wasDimmed = displayDimmed;
+
     if (screensaverOverlay) {
         if (screensaver) {
             screensaver->stop();
@@ -57,10 +60,10 @@ void DisplayIdleService::stopScreensaver() {
 
     // Restore backlight if display was dimmed
     auto display = getDisplay();
-    if (display && displayDimmed) {
-        display->setBacklightDuty(cachedDisplaySettings.backlightDuty);
+    if (display && wasDimmed) {
+        display->setBacklightDuty(restoreDuty);
     }
-    displayDimmed = false;
+    displayDimmed = wasDimmed ? false : displayDimmed;
 }
 
 void DisplayIdleService::activateScreensaver() {
