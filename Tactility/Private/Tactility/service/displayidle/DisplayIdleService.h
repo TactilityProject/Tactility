@@ -5,6 +5,7 @@
 #include <Tactility/settings/DisplaySettings.h>
 #include <Tactility/Timer.h>
 
+#include <atomic>
 #include <memory>
 
 // Forward declarations
@@ -23,12 +24,15 @@ class DisplayIdleService final : public Service {
 
     lv_obj_t* screensaverOverlay = nullptr;
     bool stopScreensaverRequested = false;
+    std::atomic<bool> settingsReloadRequested{false};
 
     // Active screensaver instance
     std::unique_ptr<Screensaver> screensaver;
 
     // Screensaver auto-off: turn off backlight after 5 minutes of screensaver
-    static constexpr int SCREENSAVER_AUTO_OFF_TICKS = 6000;  // 5 minutes at 50ms/tick
+    static constexpr uint32_t TICK_INTERVAL_MS = 50;
+    static constexpr uint32_t SCREENSAVER_AUTO_OFF_MS = 5 * 60 * 1000;  // 5 minutes
+    static constexpr int SCREENSAVER_AUTO_OFF_TICKS = SCREENSAVER_AUTO_OFF_MS / TICK_INTERVAL_MS;
     int screensaverActiveCounter = 0;
     bool backlightOff = false;
 
@@ -58,8 +62,9 @@ public:
     bool isScreensaverActive() const;
 
     /**
-     * Reload display settings from storage.
-     * Call this when settings have been changed externally.
+     * Request reload of display settings from storage.
+     * Thread-safe: can be called from any thread. Actual reload
+     * happens on the next timer tick.
      */
     void reloadSettings();
 };

@@ -1,4 +1,5 @@
 #pragma once
+#ifdef ESP_PLATFORM
 
 #include "Screensaver.h"
 #include <array>
@@ -8,6 +9,13 @@ namespace tt::service::displayidle {
 
 class BouncingBallsScreensaver final : public Screensaver {
 public:
+    BouncingBallsScreensaver() = default;
+    ~BouncingBallsScreensaver() override = default;
+    BouncingBallsScreensaver(const BouncingBallsScreensaver&) = delete;
+    BouncingBallsScreensaver& operator=(const BouncingBallsScreensaver&) = delete;
+    BouncingBallsScreensaver(BouncingBallsScreensaver&&) = delete;
+    BouncingBallsScreensaver& operator=(BouncingBallsScreensaver&&) = delete;
+
     void start(lv_obj_t* overlay, lv_coord_t screenW, lv_coord_t screenH) override;
     void stop() override;
     void update(lv_coord_t screenW, lv_coord_t screenH) override;
@@ -47,3 +55,5 @@ private:
 };
 
 } // namespace tt::service::displayidle
+
+#endif // ESP_PLATFORM

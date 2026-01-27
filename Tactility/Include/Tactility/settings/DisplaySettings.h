@@ -26,7 +26,7 @@ struct DisplaySettings {
     uint8_t backlightDuty;
     bool backlightTimeoutEnabled;
     uint32_t backlightTimeoutMs; // 0 = Never
-    ScreensaverType screensaverType = ScreensaverType::None;
+    ScreensaverType screensaverType = ScreensaverType::BouncingBalls;
 };
 
 /** Compares default settings with the function parameter to return the difference */

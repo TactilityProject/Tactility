@@ -1,3 +1,5 @@
+#ifdef ESP_PLATFORM
+
 #include "BouncingBallsScreensaver.h"
 #include <cstdlib>
 
@@ -54,6 +56,9 @@ void BouncingBallsScreensaver::update(lv_coord_t screenW, lv_coord_t screenH) {
 }
 
 void BouncingBallsScreensaver::initBall(Ball& ball, lv_obj_t* parent, lv_coord_t screenW, lv_coord_t screenH, int index) {
+    if (ball.obj == nullptr) {
+        return;
+    }
     ball.obj = lv_obj_create(parent);
     lv_obj_remove_style_all(ball.obj);
     lv_obj_set_size(ball.obj, BALL_SIZE, BALL_SIZE);
@@ -116,3 +121,5 @@ void BouncingBallsScreensaver::updateBallColor(Ball& ball) {
 }
 
 } // namespace tt::service::displayidle
+
+#endif // ESP_PLATFORM

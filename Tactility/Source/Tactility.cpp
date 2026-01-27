@@ -53,7 +53,9 @@ namespace service {
     namespace loader { extern const ServiceManifest manifest; }
     namespace memorychecker { extern const ServiceManifest manifest; }
     namespace statusbar { extern const ServiceManifest manifest; }
+#ifdef ESP_PLATFORM
     namespace displayidle { extern const ServiceManifest manifest; }
+#endif
 #if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
     namespace keyboardidle { extern const ServiceManifest manifest; }
 #endif
@@ -251,7 +253,9 @@ static void registerAndStartSecondaryServices() {
     addService(service::loader::manifest);
     addService(service::gui::manifest);
     addService(service::statusbar::manifest);
+#ifdef ESP_PLATFORM
     addService(service::displayidle::manifest);
+#endif
 #if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
     addService(service::keyboardidle::manifest);
 #endif

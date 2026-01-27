@@ -1,3 +1,5 @@
+#ifdef ESP_PLATFORM
+
 #include "MatrixRainScreensaver.h"
 #include <cstdlib>
 #include <algorithm>
@@ -40,7 +42,9 @@ int MatrixRainScreensaver::getRandomAvailableColumn() {
     }
     int idx = rand() % availableColumns_.size();
     int column = availableColumns_[idx];
-    availableColumns_.erase(availableColumns_.begin() + idx);
+    // O(1) removal: swap with last element and pop
+    availableColumns_[idx] = availableColumns_.back();
+    availableColumns_.pop_back();
     return column;
 }
 
@@ -54,16 +58,30 @@ void MatrixRainScreensaver::releaseColumn(int column) {
 }
 
 void MatrixRainScreensaver::createRainCharLabels(RainChar& rc, int trailIndex, int trailLength) {
+    if (overlay_ == nullptr) {
+        rc.label = nullptr;
+        rc.glowLabel = nullptr;
+        return;
+    }
     rc.ch = randomChar();
 
     // Create glow layer first (behind main text)
     rc.glowLabel = lv_label_create(overlay_);
+    if (rc.glowLabel == nullptr) {
+        rc.label = nullptr;
+        return;
+    }
     lv_obj_set_style_text_font(rc.glowLabel, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(rc.glowLabel, lv_color_hex(COLOR_GLOW), 0);
     lv_obj_set_style_opa(rc.glowLabel, LV_OPA_70, 0);
 
     // Create main character label
     rc.label = lv_label_create(overlay_);
+    if (rc.label == nullptr) {
+        lv_obj_delete(rc.glowLabel);
+        rc.glowLabel = nullptr;
+        return;
+    }
     lv_obj_set_style_text_font(rc.label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(rc.label, getTrailColor(trailIndex, trailLength), 0);
 
@@ -135,6 +153,9 @@ void MatrixRainScreensaver::resetRaindrop(Raindrop& drop) {
     // Refresh characters and colors for all labels
     for (int i = 0; i < drop.trailLength; i++) {
         auto& rc = drop.chars[i];
+        if (rc.label == nullptr || rc.glowLabel == nullptr) {
+            continue;
+        }
         rc.ch = randomChar();
 
         char text[2] = {rc.ch, '\0'};
@@ -154,6 +175,9 @@ void MatrixRainScreensaver::updateRaindropDisplay(Raindrop& drop) {
 
     for (int i = 0; i < drop.trailLength; i++) {
         auto& rc = drop.chars[i];
+        if (rc.label == nullptr || rc.glowLabel == nullptr) {
+            continue;
+        }
         int row = drop.headRow - i;
         int yPos = row * CHAR_HEIGHT;
 
@@ -181,6 +205,9 @@ void MatrixRainScreensaver::flickerRandomChars() {
             if (row >= 0 && row < numRows_) {
                 if (rand() % 100 < ERROR_PERCENT) {
                     auto& rc = drop.chars[i];
+                    if (rc.label == nullptr || rc.glowLabel == nullptr) {
+                        continue;
+                    }
                     rc.ch = randomChar();
                     char text[2] = {rc.ch, '\0'};
                     lv_label_set_text(rc.label, text);
@@ -216,8 +243,11 @@ void MatrixRainScreensaver::start(lv_obj_t* overlay, lv_coord_t screenW, lv_coor
         int col = getRandomAvailableColumn();
         if (col >= 0) {
             initRaindrop(drops_[i], col);
-            // Stagger start positions
-            drops_[i].headRow = -(rand() % (numRows_ / 2));
+            // Stagger start positions (guard against tiny screens)
+            int staggerRange = numRows_ / 2;
+            if (staggerRange > 0) {
+                drops_[i].headRow = -(rand() % staggerRange);
+            }
         }
     }
 }
@@ -243,8 +273,10 @@ void MatrixRainScreensaver::stop() {
 }
 
 void MatrixRainScreensaver::update(lv_coord_t screenW, lv_coord_t screenH) {
+    // Screen dimensions captured at start() - no dynamic resize support during screensaver
     LV_UNUSED(screenW);
     LV_UNUSED(screenH);
+
     // Global glitch effect
     globalFlickerCounter_++;
     if (globalFlickerCounter_ >= 5) {
@@ -264,7 +296,7 @@ void MatrixRainScreensaver::update(lv_coord_t screenW, lv_coord_t screenH) {
             drop.headRow++;
 
             // Randomly change the head character when it advances
-            if (!drop.chars.empty()) {
+            if (!drop.chars.empty() && drop.chars[0].label != nullptr && drop.chars[0].glowLabel != nullptr) {
                 drop.chars[0].ch = randomChar();
                 char text[2] = {drop.chars[0].ch, '\0'};
                 lv_label_set_text(drop.chars[0].label, text);
@@ -284,3 +316,5 @@ void MatrixRainScreensaver::update(lv_coord_t screenW, lv_coord_t screenH) {
 }
 
 } // namespace tt::service::displayidle
+
+#endif // ESP_PLATFORM

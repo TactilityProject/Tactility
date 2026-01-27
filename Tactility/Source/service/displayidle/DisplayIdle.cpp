@@ -1,3 +1,5 @@
+#ifdef ESP_PLATFORM
+
 #include <Tactility/service/displayidle/DisplayIdleService.h>
 
 #include "Screensaver.h"
@@ -119,6 +121,11 @@ void DisplayIdleService::tick() {
         return;
     }
 
+    // Check for settings reload request (thread-safe)
+    if (settingsReloadRequested.exchange(false, std::memory_order_acquire)) {
+        cachedDisplaySettings = settings::display::loadOrGetDefault();
+    }
+
     uint32_t inactive_ms = 0;
     if (lvgl::lock(100)) {
         inactive_ms = lv_disp_get_inactive_time(nullptr);
@@ -188,7 +195,7 @@ bool DisplayIdleService::onStart(ServiceContext& service) {
 
     cachedDisplaySettings = settings::display::loadOrGetDefault();
 
-    timer = std::make_unique<Timer>(Timer::Type::Periodic, kernel::millisToTicks(50), [this]{ this->tick(); });
+    timer = std::make_unique<Timer>(Timer::Type::Periodic, kernel::millisToTicks(TICK_INTERVAL_MS), [this]{ this->tick(); });
     timer->setCallbackPriority(Thread::Priority::Lower);
     timer->start();
     return true;
@@ -209,7 +216,7 @@ void DisplayIdleService::onStop(ServiceContext& service) {
             }
         }
         if (screensaverOverlay) {
-            LOGGER.info("Failed to stop screensaver during shutdown");
+            LOGGER.info("Failed to stop screensaver during shutdown - potential resource leak");
         }
     }
     screensaver.reset();
@@ -239,7 +246,8 @@ bool DisplayIdleService::isScreensaverActive() const {
 }
 
 void DisplayIdleService::reloadSettings() {
-    cachedDisplaySettings = settings::display::loadOrGetDefault();
+    // Set flag for thread-safe reload - actual reload happens in tick()
+    settingsReloadRequested.store(true, std::memory_order_release);
 }
 
 std::shared_ptr<DisplayIdleService> findService() {
@@ -254,3 +262,5 @@ extern const ServiceManifest manifest = {
 };
 
 }
+
+#endif // ESP_PLATFORM

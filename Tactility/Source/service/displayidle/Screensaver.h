@@ -1,4 +1,5 @@
 #pragma once
+#ifdef ESP_PLATFORM
 
 #include <lvgl.h>
 
@@ -43,3 +44,5 @@ public:
 };
 
 } // namespace tt::service::displayidle
+
+#endif // ESP_PLATFORM

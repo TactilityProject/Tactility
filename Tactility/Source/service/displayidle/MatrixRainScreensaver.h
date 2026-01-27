@@ -1,4 +1,5 @@
 #pragma once
+#ifdef ESP_PLATFORM
 
 #include "Screensaver.h"
 #include <array>
@@ -81,3 +82,5 @@ private:
 };
 
 } // namespace tt::service::displayidle
+
+#endif // ESP_PLATFORM

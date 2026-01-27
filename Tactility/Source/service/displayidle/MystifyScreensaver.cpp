@@ -1,3 +1,5 @@
+#ifdef ESP_PLATFORM
+
 #include "MystifyScreensaver.h"
 #include <cmath>
 #include <cstdlib>
@@ -203,3 +205,5 @@ void MystifyScreensaver::updateLineColors(Polygon& polygon) {
 }
 
 } // namespace tt::service::displayidle
+
+#endif // ESP_PLATFORM
