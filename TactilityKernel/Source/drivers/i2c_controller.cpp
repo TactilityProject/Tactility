@@ -23,6 +23,33 @@ error_t i2c_controller_write_read(Device* device, uint8_t address, const uint8_t
     return I2C_DRIVER_API(driver)->write_read(device, address, writeData, writeDataSize, readData, readDataSize, timeout);
 }
 
+error_t i2c_controller_read_register(Device* device, uint8_t address, uint8_t reg, uint8_t* data, size_t dataSize, TickType_t timeout) {
+    const auto* driver = device_get_driver(device);
+    return I2C_DRIVER_API(driver)->read_register(device, address, reg, data, dataSize, timeout);
+}
+
+error_t i2c_controller_write_register(Device* device, uint8_t address, uint8_t reg, const uint8_t* data, uint16_t dataSize, TickType_t timeout) {
+    const auto* driver = device_get_driver(device);
+    return I2C_DRIVER_API(driver)->write_register(device, address, reg, data, dataSize, timeout);
+}
+
+error_t i2c_controller_write_register_array(Device* device, uint8_t address, const uint8_t* data, uint16_t dataSize, TickType_t timeout) {
+    const auto* driver = device_get_driver(device);
+    assert(dataSize % 2 == 0);
+    error_t error;
+    for (int i = 0; i < dataSize; i += 2) {
+        error = I2C_DRIVER_API(driver)->write_register(device, address, data[i], &data[i + 1], 1, timeout);
+        if (error != ERROR_NONE) break;
+    }
+    return error;
+}
+
+error_t i2c_controller_has_device_at_address(Device* device, uint8_t address, TickType_t timeout) {
+    const auto* driver = device_get_driver(device);
+    uint8_t message[2] = { 0, 0 };
+    return I2C_DRIVER_API(driver)->write(device, address, message, 2, timeout);
+}
+
 const struct DeviceType I2C_CONTROLLER_TYPE { 0 };
 
 }

@@ -1,7 +1,7 @@
 #include <tactility/freertos/task.h>
 #include <tactility/log.h>
 
-static const auto* TAG = LOG_TAG("Kernel");
+static const auto* TAG = LOG_TAG(Kernel);
 
 static void log_memory_info() {
 #ifdef ESP_PLATFORM

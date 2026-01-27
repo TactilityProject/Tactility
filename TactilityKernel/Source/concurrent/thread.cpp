@@ -11,7 +11,7 @@
 #include <string>
 
 static const size_t LOCAL_STORAGE_SELF_POINTER_INDEX = 0;
-static const char* TAG = LOG_TAG("Thread");
+static const char* TAG = LOG_TAG(Thread);
 
 struct Thread {
     TaskHandle_t taskHandle = nullptr;
