@@ -1,6 +1,6 @@
 # C coding Style
 
-## Naming
+## Files & Folders
 
 ### Files
 
@@ -8,7 +8,7 @@ Files are lower snake case.
 
 - Files: `^[0-9a-z_]+$`
 - Directories: `^[0-9a-z_]+$`
- 
+
 Example:
 ```c
 some_feature.c
@@ -21,6 +21,8 @@ Project folders include:
 - `source` for source files and public header files
 - `private` for private header files
 - `include` for projects that require separate header files
+
+## C language
 
 ### Macros and consts
 
@@ -93,4 +95,36 @@ Examples:
 
 ```c
 typedef uint32_t thread_id_t;
+```
+
+### Function comments
+
+```c
+/**
+ * @brief Validates a number
+ * @param[in] number the integer to validate
+ * @return true if validation was succesful and there were no issues
+ */
+bool validate(int number);
+
+/**
+ * @brief Run the action.
+ * @param timeout[in] the maximum time the task should run
+ * @retval ERROR_TIMEOUT when the task couldn't be completed on time
+ * @retval ERROR_NONE when the task completed successfully
+ */
+error_t runAction(TickType_t timeout);
+
+/**
+ * @brief Increase a number.
+ * @param[inout] number
+ */
+void increase(int* number);
+
+/**
+ * A function with a longer description here.
+ *
+ * @brief short description
+ */
+void something();
 ```
