@@ -1,6 +1,8 @@
 #include <Tactility/Tactility.h>
 
+#ifdef ESP_PLATFORM
 #include <Tactility/service/displayidle/DisplayIdleService.h>
+#endif
 #include <Tactility/settings/DisplaySettings.h>
 #include <Tactility/Assets.h>
 #include <Tactility/hal/display/DisplayDevice.h>
@@ -287,11 +289,13 @@ public:
             const settings::display::DisplaySettings settings_to_save = displaySettings;
             getMainDispatcher().dispatch([settings_to_save] {
                 settings::display::save(settings_to_save);
+#ifdef ESP_PLATFORM
                 // Notify DisplayIdle service to reload settings
                 auto displayIdle = service::displayidle::findService();
                 if (displayIdle) {
                     displayIdle->reloadSettings();
                 }
+#endif
             });
         }
     }

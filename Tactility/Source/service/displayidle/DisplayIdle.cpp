@@ -30,7 +30,7 @@ static std::shared_ptr<hal::display::DisplayDevice> getDisplay() {
 void DisplayIdleService::stopScreensaverCb(lv_event_t* e) {
     auto* self = static_cast<DisplayIdleService*>(lv_event_get_user_data(e));
     lv_event_stop_bubbling(e);
-    self->stopScreensaverRequested = true;
+    self->stopScreensaverRequested.store(true, std::memory_order_release);
     lv_display_trigger_activity(nullptr);
 }
 
@@ -49,7 +49,7 @@ void DisplayIdleService::stopScreensaver() {
         screensaverOverlay = nullptr;
     }
     lvgl::unlock();
-    stopScreensaverRequested = false;
+    stopScreensaverRequested.store(false, std::memory_order_relaxed);
 
     // Reset auto-off state
     screensaverActiveCounter = 0;
@@ -131,7 +131,7 @@ void DisplayIdleService::tick() {
         inactive_ms = lv_disp_get_inactive_time(nullptr);
 
         // Only update if not stopping (prevents lag on touch)
-        if (displayDimmed && screensaverOverlay && !stopScreensaverRequested) {
+        if (displayDimmed && screensaverOverlay && !stopScreensaverRequested.load(std::memory_order_acquire)) {
             // Check if screensaver should auto-off after 5 minutes
             if (!backlightOff) {
                 screensaverActiveCounter++;
@@ -158,7 +158,7 @@ void DisplayIdleService::tick() {
     }
 
     // Check stop request early for faster response
-    if (stopScreensaverRequested) {
+    if (stopScreensaverRequested.load(std::memory_order_acquire)) {
         stopScreensaver();
         return;
     }
@@ -216,7 +216,7 @@ void DisplayIdleService::onStop(ServiceContext& service) {
             }
         }
         if (screensaverOverlay) {
-            LOGGER.info("Failed to stop screensaver during shutdown - potential resource leak");
+            LOGGER.warn("Failed to stop screensaver during shutdown - potential resource leak");
         }
     }
     screensaver.reset();

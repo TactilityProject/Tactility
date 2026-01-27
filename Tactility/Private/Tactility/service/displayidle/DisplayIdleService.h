@@ -23,7 +23,7 @@ class DisplayIdleService final : public Service {
     settings::display::DisplaySettings cachedDisplaySettings;
 
     lv_obj_t* screensaverOverlay = nullptr;
-    bool stopScreensaverRequested = false;
+    std::atomic<bool> stopScreensaverRequested{false};
     std::atomic<bool> settingsReloadRequested{false};
 
     // Active screensaver instance
@@ -37,8 +37,13 @@ class DisplayIdleService final : public Service {
     bool backlightOff = false;
 
     static void stopScreensaverCb(lv_event_t* e);
+
+    /** @pre Caller must hold LVGL lock */
     void activateScreensaver();
+
+    /** @pre Caller must hold LVGL lock */
     void updateScreensaver();
+
     void tick();
 
 public:
@@ -58,6 +63,7 @@ public:
     /**
      * Check if the screensaver is currently active.
      * @return true if the screensaver overlay is visible
+     * @note Not thread-safe. Call from timer thread or LVGL context only.
      */
     bool isScreensaverActive() const;
 
