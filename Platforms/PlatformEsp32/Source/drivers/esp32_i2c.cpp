@@ -32,7 +32,8 @@ struct InternalData {
 extern "C" {
 
 static error_t read(Device* device, uint8_t address, uint8_t* data, size_t data_size, TickType_t timeout) {
-    vPortAssertIfInISR();
+    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
+    if (data_size == 0) return ERROR_INVALID_ARGUMENT;
     auto* driver_data = GET_DATA(device);
     lock(driver_data);
     const esp_err_t esp_error = i2c_master_read_from_device(GET_CONFIG(device)->port, address, data, data_size, timeout);
@@ -41,18 +42,19 @@ static error_t read(Device* device, uint8_t address, uint8_t* data, size_t data_
     return esp_err_to_error(esp_error);
 }
 
-static error_t write(Device* device, uint8_t address, const uint8_t* data, uint16_t dataSize, TickType_t timeout) {
-    vPortAssertIfInISR();
+static error_t write(Device* device, uint8_t address, const uint8_t* data, uint16_t data_size, TickType_t timeout) {
+    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
+    if (data_size == 0) return ERROR_INVALID_ARGUMENT;
     auto* driver_data = GET_DATA(device);
     lock(driver_data);
-    const esp_err_t esp_error = i2c_master_write_to_device(GET_CONFIG(device)->port, address, data, dataSize, timeout);
+    const esp_err_t esp_error = i2c_master_write_to_device(GET_CONFIG(device)->port, address, data, data_size, timeout);
     unlock(driver_data);
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_error);
     return esp_err_to_error(esp_error);
 }
 
 static error_t write_read(Device* device, uint8_t address, const uint8_t* write_data, size_t write_data_size, uint8_t* read_data, size_t read_data_size, TickType_t timeout) {
-    vPortAssertIfInISR();
+    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
     auto* driver_data = GET_DATA(device);
     lock(driver_data);
     const esp_err_t esp_error = i2c_master_write_read_device(GET_CONFIG(device)->port, address, write_data, write_data_size, read_data, read_data_size, timeout);
@@ -61,7 +63,9 @@ static error_t write_read(Device* device, uint8_t address, const uint8_t* write_
     return esp_err_to_error(esp_error);
 }
 
-static error_t read_register(Device* device, uint8_t address, uint8_t reg, uint8_t* data, size_t dataSize, TickType_t timeout) {
+static error_t read_register(Device* device, uint8_t address, uint8_t reg, uint8_t* data, size_t data_size, TickType_t timeout) {
+    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
+    if (data_size == 0) return ERROR_INVALID_ARGUMENT;
     auto* driver_data = GET_DATA(device);
 
     lock(driver_data);
@@ -73,10 +77,10 @@ static error_t read_register(Device* device, uint8_t address, uint8_t reg, uint8
     // Read length of response from current pointer
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_READ, ACK_CHECK_EN);
-    if (dataSize > 1) {
-        i2c_master_read(cmd, data, dataSize - 1, I2C_MASTER_ACK);
+    if (data_size > 1) {
+        i2c_master_read(cmd, data, data_size - 1, I2C_MASTER_ACK);
     }
-    i2c_master_read_byte(cmd, data + dataSize - 1, I2C_MASTER_NACK);
+    i2c_master_read_byte(cmd, data + data_size - 1, I2C_MASTER_NACK);
     i2c_master_stop(cmd);
     // TODO: We're passing an inaccurate timeout value as we already lost time with locking
     esp_err_t esp_error = i2c_master_cmd_begin(GET_CONFIG(device)->port, cmd, timeout);
@@ -87,7 +91,9 @@ static error_t read_register(Device* device, uint8_t address, uint8_t reg, uint8
     return esp_err_to_error(esp_error);
 }
 
-static error_t write_register(Device* device, uint8_t address, uint8_t reg, const uint8_t* data, uint16_t dataSize, TickType_t timeout) {
+static error_t write_register(Device* device, uint8_t address, uint8_t reg, const uint8_t* data, uint16_t data_size, TickType_t timeout) {
+    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
+    if (data_size == 0) return ERROR_INVALID_ARGUMENT;
     auto* driver_data = GET_DATA(device);
 
     lock(driver_data);
@@ -95,7 +101,7 @@ static error_t write_register(Device* device, uint8_t address, uint8_t reg, cons
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_WRITE, ACK_CHECK_EN);
     i2c_master_write_byte(cmd, reg, ACK_CHECK_EN);
-    i2c_master_write(cmd, (uint8_t*) data, dataSize, ACK_CHECK_EN);
+    i2c_master_write(cmd, (uint8_t*) data, data_size, ACK_CHECK_EN);
     i2c_master_stop(cmd);
     // TODO: We're passing an inaccurate timeout value as we already lost time with locking
     esp_err_t esp_error = i2c_master_cmd_begin(GET_CONFIG(device)->port, cmd, timeout);

@@ -43,10 +43,12 @@ struct Thread {
 static void thread_set_state_internal(Thread* thread, ThreadState newState) {
     thread->lock();
     thread->state = newState;
-    if (thread->stateCallback) {
-        thread->stateCallback(thread->state, thread->stateCallbackContext);
-    }
+    auto cb = thread->stateCallback;
+    auto cb_ctx = thread->stateCallbackContext;
     thread->unlock();
+    if (cb) {
+        cb(newState, cb_ctx);
+    }
 }
 
 static void thread_main_body(void* context) {
@@ -57,18 +59,24 @@ static void thread_main_body(void* context) {
     check(pvTaskGetThreadLocalStoragePointer(nullptr, LOCAL_STORAGE_SELF_POINTER_INDEX) == nullptr);
     vTaskSetThreadLocalStoragePointer(nullptr, LOCAL_STORAGE_SELF_POINTER_INDEX, thread);
 
-    LOG_I(TAG, "Starting %s", thread->name.c_str());
+    LOG_I(TAG, "Starting %s", thread->name.c_str()); // No need to lock as we don't allow mutation after thread start
     check(thread->state == THREAD_STATE_STARTING);
     thread_set_state_internal(thread, THREAD_STATE_RUNNING);
 
-    thread->callbackResult = thread->mainFunction(thread->mainFunctionContext);
+    int32_t result = thread->mainFunction(thread->mainFunctionContext);
+    thread->lock();
+    thread->callbackResult = result;
+    thread->unlock();
 
     check(thread->state == THREAD_STATE_RUNNING);
     thread_set_state_internal(thread, THREAD_STATE_STOPPED);
-    LOG_I(TAG, "Stopped %s", thread->name.c_str());
+    LOG_I(TAG, "Stopped %s", thread->name.c_str()); // No need to lock as we don't allow mutation after thread start
 
     vTaskSetThreadLocalStoragePointer(nullptr, LOCAL_STORAGE_SELF_POINTER_INDEX, nullptr);
+
+    thread->lock();
     thread->taskHandle = nullptr;
+    thread->unlock();
 
     vTaskDelete(nullptr);
 }
@@ -117,7 +125,6 @@ void thread_set_name(Thread* thread, const char* name) {
 void thread_set_stack_size(Thread* thread, size_t stack_size) {
     thread->lock();
     check(thread->state == THREAD_STATE_STOPPED);
-    check(stack_size % 4 == 0);
     thread->stackSize = stack_size;
     thread->unlock();
 }
@@ -208,7 +215,15 @@ error_t thread_start(Thread* thread) {
         );
     }
 
-    return (result == pdPASS) ? ERROR_NONE : ERROR_UNDEFINED;
+    if (result != pdPASS) {
+        thread_set_state_internal(thread, THREAD_STATE_STOPPED);
+        thread->lock();
+        thread->taskHandle = nullptr;
+        thread->unlock();
+        return ERROR_UNDEFINED;
+    }
+
+    return ERROR_NONE;
 }
 
 error_t thread_join(Thread* thread, TickType_t timeout, TickType_t poll_interval) {
