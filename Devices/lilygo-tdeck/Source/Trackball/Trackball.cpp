@@ -107,7 +107,7 @@ static void read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
         data->enc_diff = static_cast<int16_t>(clamp(diff, INT16_MIN, INT16_MAX));
 
         if (diff != 0) {
-            lv_disp_trig_activity(nullptr);
+            lv_display_trigger_activity(nullptr);
         }
     } else {
         // Pointer mode: read and clamp cursor position
@@ -127,7 +127,7 @@ static void read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 
     if (pressed) {
-        lv_disp_trig_activity(nullptr);
+        lv_display_trigger_activity(nullptr);
     }
 }
 

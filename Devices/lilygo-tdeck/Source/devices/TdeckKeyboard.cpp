@@ -52,7 +52,7 @@ static void keyboard_read_callback(lv_indev_t* indev, lv_indev_data_t* data) {
             data->state = LV_INDEV_STATE_PRESSED;
             // TODO: Avoid performance hit by calling loadOrGetDefault() on each key press
             // Ensure LVGL activity is triggered so idle services can wake the display
-            lv_disp_trig_activity(nullptr);
+            lv_display_trigger_activity(nullptr);
 
             // Actively wake display/backlights immediately on key press (independent of idle tick)
             // Restore display backlight if off (we assume duty 0 means dimmed)

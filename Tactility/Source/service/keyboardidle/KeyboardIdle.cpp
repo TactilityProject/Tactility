@@ -32,7 +32,7 @@ class KeyboardIdleService final : public Service {
         // Query LVGL inactivity once for both checks
         uint32_t inactive_ms = 0;
         if (lvgl::lock(100)) {
-            inactive_ms = lv_disp_get_inactive_time(nullptr);
+            inactive_ms = lv_display_get_inactive_time(nullptr);
             lvgl::unlock();
         }
 

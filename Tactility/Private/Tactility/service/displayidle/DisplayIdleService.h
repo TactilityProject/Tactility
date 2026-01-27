@@ -52,11 +52,15 @@ public:
 
     /**
      * Force the screensaver to start immediately, regardless of idle timeout.
+     * @note Not thread-safe. Call from LVGL/main context only, not from
+     *       arbitrary threads while the timer is running.
      */
     void startScreensaver();
 
     /**
      * Force the screensaver to stop immediately and restore backlight.
+     * @note Not thread-safe. Call from LVGL/main context only, not from
+     *       arbitrary threads while the timer is running.
      */
     void stopScreensaver();
 

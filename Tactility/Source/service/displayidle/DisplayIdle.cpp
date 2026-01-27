@@ -72,8 +72,8 @@ void DisplayIdleService::activateScreensaver() {
     screensaverActiveCounter = 0;
     backlightOff = false;
 
-    lv_coord_t screenW = lv_disp_get_hor_res(nullptr);
-    lv_coord_t screenH = lv_disp_get_ver_res(nullptr);
+    lv_coord_t screenW = lv_display_get_horizontal_resolution(nullptr);
+    lv_coord_t screenH = lv_display_get_vertical_resolution(nullptr);
 
     // Black background overlay
     screensaverOverlay = lv_obj_create(top);
@@ -110,14 +110,14 @@ void DisplayIdleService::activateScreensaver() {
 
 void DisplayIdleService::updateScreensaver() {
     if (screensaver) {
-        lv_coord_t screenW = lv_disp_get_hor_res(nullptr);
-        lv_coord_t screenH = lv_disp_get_ver_res(nullptr);
+        lv_coord_t screenW = lv_display_get_horizontal_resolution(nullptr);
+        lv_coord_t screenH = lv_display_get_vertical_resolution(nullptr);
         screensaver->update(screenW, screenH);
     }
 }
 
 void DisplayIdleService::tick() {
-    if (lv_disp_get_default() == nullptr) {
+    if (lv_display_get_default() == nullptr) {
         return;
     }
 
@@ -128,7 +128,7 @@ void DisplayIdleService::tick() {
 
     uint32_t inactive_ms = 0;
     if (lvgl::lock(100)) {
-        inactive_ms = lv_disp_get_inactive_time(nullptr);
+        inactive_ms = lv_display_get_inactive_time(nullptr);
 
         // Only update if not stopping (prevents lag on touch)
         if (displayDimmed && screensaverOverlay && !stopScreensaverRequested.load(std::memory_order_acquire)) {
@@ -228,6 +228,7 @@ void DisplayIdleService::startScreensaver() {
     }
 
     // Reload settings to get current screensaver type
+    // Note: This is safe because we hold the LVGL lock which serializes with tick()
     cachedDisplaySettings = settings::display::loadOrGetDefault();
 
     activateScreensaver();
