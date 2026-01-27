@@ -1,6 +1,6 @@
 #include "doctest.h"
 #include <tactility/driver.h>
-#include <Tactility/device.h>
+#include <tactility/device.h>
 
 struct IntegrationDriverConfig {
     int startResult;

@@ -1,4 +1,4 @@
-# C++ coding Style
+# C coding Style
 
 ## Naming
 
@@ -10,7 +10,7 @@ Files are lower snake case.
 - Directories: `^[0-9a-z_]+$`
  
 Example:
-```c++
+```c
 some_feature.c
 some_feature.h
 ```
@@ -51,7 +51,7 @@ struct ThreadData {
 };
 ```
 
-```c++
+```c
 enum SomeResult  {
     Ok,
     NotSupported,
@@ -65,7 +65,7 @@ Function names are lower snake case.
 
 Example:
 
-```c++
+```c
 void get_limit() {
     // ...
 }
@@ -91,6 +91,6 @@ They are postfixed with `_t`
 
 Examples:
 
-```c++
+```c
 typedef uint32_t thread_id_t;
 ```

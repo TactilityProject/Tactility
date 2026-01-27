@@ -9,7 +9,7 @@
 #include <unistd.h>
 #endif
 
-#include "tactility/freertos/FreeRTOS.h"
+#include <tactility/freertos/freertos.h>
 #include <tactility/check.h>
 
 #ifdef __cplusplus

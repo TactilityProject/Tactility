@@ -2,7 +2,7 @@
 #include "doctest.h"
 #include <cassert>
 
-#include <Tactility/FreeRTOS/task.h>
+#include <tactility/freertos/task.h>
 
 typedef struct {
     int argc;

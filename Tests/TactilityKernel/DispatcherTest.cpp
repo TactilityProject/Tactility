@@ -1,6 +1,6 @@
 #include "doctest.h"
-#include <Tactility/FreeRTOS/task.h>
-#include <Tactility/concurrent/dispatcher.h>
+#include <tactility/freertos/task.h>
+#include <tactility/concurrent/dispatcher.h>
 
 TEST_CASE("dispatcher test") {
     DispatcherHandle_t dispatcher = dispatcher_alloc();

@@ -3,7 +3,7 @@
 #include <cstring>
 #include <vector>
 
-#include <Tactility/device.h>
+#include <tactility/device.h>
 
 TEST_CASE("device_construct and device_destruct should set and unset the correct fields") {
     Device device = { 0 };
