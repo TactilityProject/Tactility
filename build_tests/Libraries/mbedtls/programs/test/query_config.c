@@ -1,1 +1,0 @@
-/home/ken/Projects/Tactility/Libraries/mbedtls/programs/test/query_config.c
