@@ -7,6 +7,8 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_component_register(
         SRCS ${SOURCES}
         INCLUDE_DIRS "Include/"
+        # TODO move the related logic for esp_time in Tactility/time.h into the Platform/ subproject
+        REQUIRES esp_timer
     )
 
 else ()

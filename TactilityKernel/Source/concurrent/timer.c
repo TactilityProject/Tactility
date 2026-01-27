@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-
 #include <tactility/concurrent/timer.h>
 #include <tactility/check.h>
 #include <tactility/freertos/timers.h>

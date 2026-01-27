@@ -36,12 +36,11 @@ error_t i2c_controller_write_register(Device* device, uint8_t address, uint8_t r
 error_t i2c_controller_write_register_array(Device* device, uint8_t address, const uint8_t* data, uint16_t dataSize, TickType_t timeout) {
     const auto* driver = device_get_driver(device);
     assert(dataSize % 2 == 0);
-    error_t error;
     for (int i = 0; i < dataSize; i += 2) {
-        error = I2C_DRIVER_API(driver)->write_register(device, address, data[i], &data[i + 1], 1, timeout);
-        if (error != ERROR_NONE) break;
+        error_t error = I2C_DRIVER_API(driver)->write_register(device, address, data[i], &data[i + 1], 1, timeout);
+        if (error != ERROR_NONE) return error;
     }
-    return error;
+    return ERROR_NONE;
 }
 
 error_t i2c_controller_has_device_at_address(Device* device, uint8_t address, TickType_t timeout) {
