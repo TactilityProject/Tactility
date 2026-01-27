@@ -4,8 +4,8 @@
 extern "C" {
 #endif
 
-#include <Tactility/bindings/bindings.h>
-#include <Tactility/drivers/Root.h>
+#include <tactility/bindings/bindings.h>
+#include <tactility/drivers/root.h>
 #include <drivers/TloraPager.h>
 
 DEFINE_DEVICETREE(tlora_pager, struct RootConfig)

@@ -7,8 +7,8 @@
 #include <Tactility/service/wifi/Wifi.h>
 
 #include <Tactility/PubSub.h>
-#include <Tactility/Check.h>
 #include <Tactility/RecursiveMutex.h>
+#include <tactility/check.h>
 #include <Tactility/service/Service.h>
 #include <Tactility/service/ServiceManifest.h>
 

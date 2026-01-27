@@ -1,6 +1,6 @@
 #include "tt_hal_device.h"
 
-#include "Tactility/Check.h"
+#include <tactility/check.h>
 
 #include <Tactility/hal/Device.h>
 

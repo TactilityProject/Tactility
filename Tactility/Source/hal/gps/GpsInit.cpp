@@ -1,9 +1,9 @@
-#include <Tactility/Check.h>
+#include <Tactility/Logger.h>
+#include <tactility/check.h>
 #include <Tactility/hal/gps/Cas.h>
 #include <Tactility/hal/gps/GpsDevice.h>
 #include <Tactility/hal/gps/Ublox.h>
 #include <Tactility/kernel/Kernel.h>
-#include <Tactility/Logger.h>
 
 #include <cstring>
 

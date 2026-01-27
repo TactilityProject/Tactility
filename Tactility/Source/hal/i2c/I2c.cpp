@@ -1,8 +1,8 @@
 #include <Tactility/hal/i2c/I2c.h>
 
-#include <Tactility/Check.h>
 #include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
+#include <tactility/check.h>
 
 namespace tt::hal::i2c {
 

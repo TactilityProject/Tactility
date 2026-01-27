@@ -1,16 +1,16 @@
 #include "Tactility/lvgl/LvglSync.h"
 
-#include <Tactility/service/wifi/WifiApSettings.h>
-#include <Tactility/service/wifi/Wifi.h>
+#include <Tactility/LogMessages.h>
+#include <Tactility/Logger.h>
 #include <Tactility/app/App.h>
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
-#include <Tactility/Check.h>
-#include <Tactility/Logger.h>
-#include <Tactility/LogMessages.h>
+#include <tactility/check.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/lvgl/Toolbar.h>
+#include <Tactility/service/wifi/Wifi.h>
+#include <Tactility/service/wifi/WifiApSettings.h>
 
 #include <lvgl.h>
 

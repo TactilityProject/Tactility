@@ -1,6 +1,6 @@
 #include "doctest.h"
-#include <Tactility/Time.h>
-#include <Tactility/Delay.h>
+#include <Tactility/delay.h>
+#include <Tactility/time.h>
 
 TEST_CASE("delay ticks should be accurate within 1 tick") {
     auto start_time = get_ticks();

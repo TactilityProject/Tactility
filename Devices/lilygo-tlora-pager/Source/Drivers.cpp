@@ -1,4 +1,4 @@
-#include <Tactility/Driver.h>
+#include <tactility/driver.h>
 
 extern "C" {
 

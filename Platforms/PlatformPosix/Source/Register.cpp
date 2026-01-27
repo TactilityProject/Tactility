@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <Tactility/Driver.h>
+#include <tactility/driver.h>
 
 extern "C" {
 

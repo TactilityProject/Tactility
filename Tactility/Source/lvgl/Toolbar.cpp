@@ -2,9 +2,9 @@
 
 #include <Tactility/lvgl/Toolbar.h>
 
-#include <Tactility/Check.h>
-#include <Tactility/service/loader/Loader.h>
+#include <tactility/check.h>
 #include <Tactility/lvgl/Spinner.h>
+#include <Tactility/service/loader/Loader.h>
 
 namespace tt::lvgl {
 

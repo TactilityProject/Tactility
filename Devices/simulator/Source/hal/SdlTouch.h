@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Tactility/hal/touch/TouchDevice.h"
-#include <Tactility/Check.h>
 #include <Tactility/TactilityCore.h>
+#include <tactility/check.h>
 
 class SdlTouch final : public tt::hal::touch::TouchDevice {
 

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <esp_lcd_panel_dev.h>
-#include <Tactility/Check.h>
 #include <Tactility/Lock.h>
+#include <tactility/check.h>
 #include <Tactility/hal/display/DisplayDevice.h>
+#include <esp_lcd_panel_dev.h>
 
 #include <esp_lcd_types.h>
 #include <esp_lvgl_port_disp.h>

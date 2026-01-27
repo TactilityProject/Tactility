@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Tactility/Lock.h>
-#include <Tactility/Check.h>
+#include <tactility/check.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 
 #include <esp_lcd_types.h>

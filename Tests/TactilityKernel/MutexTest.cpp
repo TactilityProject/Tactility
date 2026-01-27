@@ -1,5 +1,5 @@
 #include "doctest.h"
-#include <Tactility/concurrent/Mutex.h>
+#include <Tactility/concurrent/mutex.h>
 
 TEST_CASE("mutex_construct and mutex_destruct should properly set the handle") {
     Mutex mutex = { 0 };

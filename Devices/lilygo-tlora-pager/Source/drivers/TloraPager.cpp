@@ -1,6 +1,6 @@
 #include "TloraPager.h"
 
-#include <Tactility/Driver.h>
+#include <tactility/driver.h>
 
 #include <esp_log.h>
 

@@ -4,7 +4,7 @@
 
 #include "Tactility/CpuAffinity.h"
 
-#include <Tactility/Check.h>
+#include <tactility/check.h>
 
 namespace tt {
 

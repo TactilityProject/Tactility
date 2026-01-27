@@ -1,9 +1,10 @@
 #include "tt_hal_display.h"
 
-#include "Tactility/Check.h"
-#include "Tactility/hal/Device.h"
-#include "Tactility/hal/display/DisplayDevice.h"
-#include "Tactility/hal/display/DisplayDriver.h"
+#include <tactility/check.h>
+
+#include <Tactility/hal/Device.h>
+#include <Tactility/hal/display/DisplayDevice.h>
+#include <Tactility/hal/display/DisplayDriver.h>
 
 static ColorFormat toColorFormat(tt::hal::display::ColorFormat format) {
     switch (format) {

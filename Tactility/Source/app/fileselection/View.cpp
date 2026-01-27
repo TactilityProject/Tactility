@@ -1,15 +1,15 @@
 #include <Tactility/app/fileselection/View.h>
 
-#include <Tactility/app/alertdialog/AlertDialog.h>
-#include <Tactility/Check.h>
-#include <Tactility/file/File.h>
-#include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
-#include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/kernel/Platform.h>
+#include <Tactility/Logger.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/Tactility.h>
+#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <tactility/check.h>
+#include <Tactility/file/File.h>
+#include <Tactility/kernel/Platform.h>
+#include <Tactility/lvgl/LvglSync.h>
+#include <Tactility/lvgl/Toolbar.h>
 
 #include <cstring>
 #include <unistd.h>

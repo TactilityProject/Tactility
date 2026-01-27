@@ -1,8 +1,8 @@
 #include <Tactility/kernel/SystemEvents.h>
 
-#include <Tactility/Check.h>
 #include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
+#include <tactility/check.h>
 
 #include <Tactility/CoreDefines.h>
 #include <list>

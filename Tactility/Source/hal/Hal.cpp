@@ -1,5 +1,6 @@
+#include <Tactility/Logger.h>
 #include <Tactility/Tactility.h>
-#include <Tactility/Check.h>
+#include <tactility/check.h>
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/hal/Device.h>
 #include <Tactility/hal/gps/GpsInit.h>
@@ -7,7 +8,6 @@
 #include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/hal/spi/SpiInit.h>
 #include <Tactility/hal/uart/UartInit.h>
-#include <Tactility/Logger.h>
 
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/sdcard/SdCardMounting.h>

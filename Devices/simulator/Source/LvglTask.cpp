@@ -1,9 +1,9 @@
 #include "LvglTask.h"
 
-#include <Tactility/Check.h>
-#include <Tactility/Thread.h>
 #include <Tactility/Logger.h>
 #include <Tactility/RecursiveMutex.h>
+#include <Tactility/Thread.h>
+#include <tactility/check.h>
 #include <Tactility/lvgl/LvglSync.h>
 
 #include <lvgl.h>

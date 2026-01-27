@@ -1,6 +1,6 @@
 #include "RgbDisplay.h"
 
-#include <Tactility/Check.h>
+#include <tactility/check.h>
 #include <Tactility/hal/touch/TouchDevice.h>
 #include <Tactility/Logger.h>
 

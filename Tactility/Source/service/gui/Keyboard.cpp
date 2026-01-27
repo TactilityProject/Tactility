@@ -1,8 +1,8 @@
 #include "Tactility/lvgl/Keyboard.h"
-#include "Tactility/Check.h"
 #include "Tactility/lvgl/LvglSync.h"
 #include "Tactility/service/gui/GuiService.h"
 
+#include <tactility/check.h>
 #include <Tactility/TactilityConfig.h>
 #include <Tactility/service/espnow/EspNowService.h>
 

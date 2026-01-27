@@ -1,6 +1,6 @@
 #include "Drv2605.h"
 
-#include <Tactility/Check.h>
+#include <tactility/check.h>
 #include <Tactility/Logger.h>
 
 static const auto LOGGER = tt::Logger("DRV2605");

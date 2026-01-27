@@ -1,5 +1,5 @@
 #include "doctest.h"
-#include <Tactility/concurrent/RecursiveMutex.h>
+#include <Tactility/concurrent/recursivemutex.h>
 
 TEST_CASE("recursive_mutex_construct and mutex_destruct should properly set the handle") {
     RecursiveMutex mutex = { 0 };

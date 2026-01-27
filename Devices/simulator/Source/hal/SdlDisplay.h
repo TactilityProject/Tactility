@@ -1,7 +1,7 @@
 #pragma once
 
 #include "SdlTouch.h"
-#include <Tactility/Check.h>
+#include <tactility/check.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 
 /** Hack: variable comes from LvglTask.cpp */

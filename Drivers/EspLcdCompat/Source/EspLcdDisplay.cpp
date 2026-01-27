@@ -1,11 +1,11 @@
 #include "EspLcdDisplay.h"
 #include "EspLcdDisplayDriver.h"
 
+#include <Tactility/Logger.h>
+#include <tactility/check.h>
+#include <Tactility/hal/touch/TouchDevice.h>
 #include <cassert>
 #include <esp_lvgl_port_disp.h>
-#include <Tactility/Check.h>
-#include <Tactility/Logger.h>
-#include <Tactility/hal/touch/TouchDevice.h>
 
 static const auto LOGGER = tt::Logger("EspLcdDisplay");
 

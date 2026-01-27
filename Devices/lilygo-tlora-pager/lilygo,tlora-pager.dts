@@ -1,8 +1,8 @@
 /dts-v1/;
 
 #include <bindings/tlora_pager.h>
-#include <Tactility/bindings/esp32_gpio.h>
-#include <Tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c.h>
 
 / {
 	compatible = "lilygo,tlora-pager";

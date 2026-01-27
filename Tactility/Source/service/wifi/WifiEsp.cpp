@@ -6,7 +6,7 @@
 
 #include <Tactility/service/wifi/Wifi.h>
 
-#include <Tactility/Check.h>
+#include <tactility/check.h>
 #include <Tactility/EventGroup.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>

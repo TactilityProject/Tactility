@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-#include <Tactility/drivers/Root.h>
+#include <tactility/drivers/root.h>
 
 #ifdef __cplusplus
 }

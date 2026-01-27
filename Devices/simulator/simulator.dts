@@ -1,6 +1,6 @@
 /dts-v1/;
 
-#include <Tactility/bindings/root.h>
+#include <tactility/bindings/root.h>
 
 / {
 	model = "Simulator";

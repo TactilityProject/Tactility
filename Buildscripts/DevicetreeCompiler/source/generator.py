@@ -144,9 +144,9 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
     with open(filename, "w") as file:
         file.write(dedent('''\
         // Default headers
-        #include <Tactility/Device.h>
-        #include <Tactility/Driver.h>
-        #include <Tactility/Log.h>
+        #include <tactility/device.h>
+        #include <tactility/driver.h>
+        #include <tactility/log.h>
         // DTS headers
         '''))
 

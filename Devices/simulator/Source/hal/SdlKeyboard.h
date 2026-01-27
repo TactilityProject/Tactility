@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Tactility/hal/keyboard/KeyboardDevice.h>
-#include <Tactility/Check.h>
 #include <Tactility/TactilityCore.h>
+#include <tactility/check.h>
+#include <Tactility/hal/keyboard/KeyboardDevice.h>
 
 class SdlKeyboard final : public tt::hal::keyboard::KeyboardDevice {
 

@@ -3,7 +3,7 @@
 #include <Tactility/service/loader/Loader.h>
 
 #include <Tactility/Assets.h>
-#include <Tactility/Check.h>
+#include <tactility/check.h>
 #include <lvgl.h>
 
 #include <algorithm>

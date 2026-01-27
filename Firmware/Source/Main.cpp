@@ -1,6 +1,6 @@
 #include <Tactility/Tactility.h>
 
-#include <Tactility/Driver.h>
+#include <tactility/driver.h>
 #include <devicetree.h>
 
 #ifdef ESP_PLATFORM

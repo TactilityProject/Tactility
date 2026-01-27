@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include "freertos.h"
+
+#ifdef ESP_PLATFORM
+#include <freertos/queue.h>
+#else
+#include <queue.h>
+#endif
+
