@@ -1,6 +1,6 @@
 #include "doctest.h"
-#include "tactility/delay.h"
 
+#include <tactility/delay.h>
 #include <tactility/concurrent/thread.h>
 
 TEST_CASE("when a thread is started then its callback should be called") {

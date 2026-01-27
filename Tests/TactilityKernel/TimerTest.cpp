@@ -1,8 +1,9 @@
 #include "doctest.h"
 
-#include "tactility/timer.h"
-#include "tactility/delay.h"
 #include <atomic>
+
+#include <tactility/concurrent/timer.h>
+#include <tactility/delay.h>
 
 TEST_CASE("timer_alloc and timer_free should handle allocation and deallocation") {
     auto callback = [](void* context) {};
