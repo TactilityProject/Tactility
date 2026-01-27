@@ -1,9 +1,10 @@
 #pragma once
-#include "Log.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include <Tactility/Log.h>
 
 __attribute__((noreturn)) extern void __crash(void);
 

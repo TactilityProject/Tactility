@@ -22,11 +22,9 @@ static void log_task_info() {
     LOG_E(TAG, "Task: %s", safe_name);
 }
 
-#ifdef __cplusplus
 extern "C" {
-#endif
 
-__attribute__((noreturn)) void __crash() {
+__attribute__((noreturn)) void __crash(void) {
     log_task_info();
     log_memory_info();
     // TODO: Add breakpoint when debugger is attached.
@@ -38,6 +36,4 @@ __attribute__((noreturn)) void __crash() {
     __builtin_unreachable();
 }
 
-#ifdef __cplusplus
 }
-#endif

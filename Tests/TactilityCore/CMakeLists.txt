@@ -20,6 +20,7 @@ add_test(NAME TactilityCoreTests
 
 target_link_libraries(TactilityCoreTests PUBLIC
     TactilityCore
+    TactilityKernel
     TactilityFreeRtos
     freertos_kernel
 )

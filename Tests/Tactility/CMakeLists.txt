@@ -21,7 +21,7 @@ add_test(NAME TactilityTests
 target_link_libraries(TactilityTests PRIVATE
     Tactility
     TactilityCore
-    Tactility
+    TactilityKernel
     Simulator
     SDL2::SDL2-static SDL2-static
 )
