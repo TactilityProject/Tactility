@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tactility/timer.h"
-#include "tactility/check.h"
-#include "tactility/freertos/timers.h"
+#include <tactility/concurrent/timer.h>
+#include <tactility/check.h>
+#include <tactility/freertos/timers.h>
 #include <stdlib.h>
 
 struct Timer {
