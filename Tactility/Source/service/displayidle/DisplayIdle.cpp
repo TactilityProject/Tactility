@@ -1,91 +1,252 @@
+#include <Tactility/service/displayidle/DisplayIdleService.h>
+
+#include "Screensaver.h"
+#include "BouncingBallsScreensaver.h"
+#include "MatrixRainScreensaver.h"
+#include "MystifyScreensaver.h"
+
+#include <Tactility/Logger.h>
 #include <Tactility/CoreDefines.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
-#include <Tactility/settings/DisplaySettings.h>
-#include <Tactility/Timer.h>
+#include <cstdlib>
+#include <ctime>
 
 namespace tt::service::displayidle {
 
-class DisplayIdleService final : public Service {
+static const auto LOGGER = Logger("DisplayIdle");
 
-    std::unique_ptr<Timer> timer;
-    bool displayDimmed = false;
-    settings::display::DisplaySettings cachedDisplaySettings;
+constexpr uint32_t kWakeActivityThresholdMs = 100;
 
-    static std::shared_ptr<hal::display::DisplayDevice> getDisplay() {
-        return hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
+static std::shared_ptr<hal::display::DisplayDevice> getDisplay() {
+    return hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
+}
+
+void DisplayIdleService::stopScreensaverCb(lv_event_t* e) {
+    auto* self = static_cast<DisplayIdleService*>(lv_event_get_user_data(e));
+    lv_event_stop_bubbling(e);
+    self->stopScreensaverRequested = true;
+    lv_display_trigger_activity(nullptr);
+}
+
+void DisplayIdleService::stopScreensaver() {
+    if (!lvgl::lock(100)) {
+        // Lock failed - keep flag set to retry on next tick
+        return;
     }
 
-    void tick() {
-        // Settings are now cached and event-driven (no file I/O in timer callback!)
-        // This prevents watchdog timeout from blocking the Timer Service task
-
-        if (lv_disp_get_default() == nullptr) {
-            return;
+    if (screensaverOverlay) {
+        if (screensaver) {
+            screensaver->stop();
+            screensaver.reset();
         }
+        lv_obj_delete(screensaverOverlay);
+        screensaverOverlay = nullptr;
+    }
+    lvgl::unlock();
+    stopScreensaverRequested = false;
 
-        // Query LVGL inactivity once for both checks
-        uint32_t inactive_ms = 0;
-        if (lvgl::lock(100)) {
-            inactive_ms = lv_disp_get_inactive_time(nullptr);
-            lvgl::unlock();
-        } else {
-            return;
-        }
+    // Reset auto-off state
+    screensaverActiveCounter = 0;
+    backlightOff = false;
 
-        // TODO: The following logic only works with the first display. There might be multiple displays.
-        // Handle display backlight
-        auto display = getDisplay();
-        if (display != nullptr && display->supportsBacklightDuty()) {
-            // If timeout disabled, ensure backlight restored if we had dimmed it
-            if (!cachedDisplaySettings.backlightTimeoutEnabled || cachedDisplaySettings.backlightTimeoutMs == 0) {
-                if (displayDimmed) {
-                    display->setBacklightDuty(cachedDisplaySettings.backlightDuty);
-                    displayDimmed = false;
-                }
-            } else {
-                if (!displayDimmed && inactive_ms >= cachedDisplaySettings.backlightTimeoutMs) {
-                    display->setBacklightDuty(0);
-                    displayDimmed = true;
-                } else if (displayDimmed && inactive_ms < 100) {
-                    display->setBacklightDuty(cachedDisplaySettings.backlightDuty);
-                    displayDimmed = false;
+    // Restore backlight if display was dimmed
+    auto display = getDisplay();
+    if (display && displayDimmed) {
+        display->setBacklightDuty(cachedDisplaySettings.backlightDuty);
+    }
+    displayDimmed = false;
+}
+
+void DisplayIdleService::activateScreensaver() {
+    lv_obj_t* top = lv_layer_top();
+
+    if (screensaverOverlay != nullptr) return;
+
+    // Reset auto-off counter when starting screensaver
+    screensaverActiveCounter = 0;
+    backlightOff = false;
+
+    lv_coord_t screenW = lv_disp_get_hor_res(nullptr);
+    lv_coord_t screenH = lv_disp_get_ver_res(nullptr);
+
+    // Black background overlay
+    screensaverOverlay = lv_obj_create(top);
+    lv_obj_remove_style_all(screensaverOverlay);
+    lv_obj_set_size(screensaverOverlay, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_pos(screensaverOverlay, 0, 0);
+    lv_obj_set_style_bg_color(screensaverOverlay, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(screensaverOverlay, LV_OPA_COVER, 0);
+    lv_obj_add_flag(screensaverOverlay, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(screensaverOverlay, stopScreensaverCb, LV_EVENT_CLICKED, this);
+
+    // Create and start the screensaver based on settings
+    switch (cachedDisplaySettings.screensaverType) {
+        case settings::display::ScreensaverType::Mystify:
+            screensaver = std::make_unique<MystifyScreensaver>();
+            break;
+        case settings::display::ScreensaverType::BouncingBalls:
+            screensaver = std::make_unique<BouncingBallsScreensaver>();
+            break;
+        case settings::display::ScreensaverType::MatrixRain:
+            screensaver = std::make_unique<MatrixRainScreensaver>();
+            break;
+        case settings::display::ScreensaverType::None:
+        default:
+            // Just black screen, no animated screensaver
+            screensaver = nullptr;
+            break;
+    }
+
+    if (screensaver) {
+        screensaver->start(screensaverOverlay, screenW, screenH);
+    }
+}
+
+void DisplayIdleService::updateScreensaver() {
+    if (screensaver) {
+        lv_coord_t screenW = lv_disp_get_hor_res(nullptr);
+        lv_coord_t screenH = lv_disp_get_ver_res(nullptr);
+        screensaver->update(screenW, screenH);
+    }
+}
+
+void DisplayIdleService::tick() {
+    if (lv_disp_get_default() == nullptr) {
+        return;
+    }
+
+    uint32_t inactive_ms = 0;
+    if (lvgl::lock(100)) {
+        inactive_ms = lv_disp_get_inactive_time(nullptr);
+
+        // Only update if not stopping (prevents lag on touch)
+        if (displayDimmed && screensaverOverlay && !stopScreensaverRequested) {
+            // Check if screensaver should auto-off after 5 minutes
+            if (!backlightOff) {
+                screensaverActiveCounter++;
+                if (screensaverActiveCounter >= SCREENSAVER_AUTO_OFF_TICKS) {
+                    // Stop screensaver animation and turn off backlight
+                    if (screensaver) {
+                        screensaver->stop();
+                        screensaver.reset();
+                    }
+                    auto display = getDisplay();
+                    if (display) {
+                        display->setBacklightDuty(0);
+                    }
+                    backlightOff = true;
+                } else {
+                    updateScreensaver();
                 }
             }
         }
+
+        lvgl::unlock();
+    } else {
+        return;
     }
 
-public:
-    bool onStart(ServiceContext& service) override {
-        // Load settings once at startup and cache them
-        // This eliminates file I/O from timer callback (prevents watchdog timeout)
-        cachedDisplaySettings = settings::display::loadOrGetDefault();
-        
-        // Note: Settings changes require service restart to take effect
-        // TODO: Add DisplaySettingsChanged events for dynamic updates
-        
-        timer = std::make_unique<Timer>(Timer::Type::Periodic, kernel::millisToTicks(250), [this]{ this->tick(); });
-        timer->setCallbackPriority(Thread::Priority::Lower);
-        timer->start();
-        return true;
+    // Check stop request early for faster response
+    if (stopScreensaverRequested) {
+        stopScreensaver();
+        return;
     }
 
-    void onStop(ServiceContext& service) override {
-        if (timer) {
-            timer->stop();
-            timer = nullptr;
-        }
-        // Ensure display restored on stop
-        auto display = getDisplay();
-        if (display && displayDimmed) {
-            display->setBacklightDuty(cachedDisplaySettings.backlightDuty);
-            displayDimmed = false;
+    auto display = getDisplay();
+    if (display != nullptr && display->supportsBacklightDuty()) {
+        if (!cachedDisplaySettings.backlightTimeoutEnabled || cachedDisplaySettings.backlightTimeoutMs == 0) {
+            if (displayDimmed) {
+                display->setBacklightDuty(cachedDisplaySettings.backlightDuty);
+                displayDimmed = false;
+            }
+        } else {
+            if (!displayDimmed && inactive_ms >= cachedDisplaySettings.backlightTimeoutMs) {
+                if (!lvgl::lock(100)) {
+                    return; // Retry on next tick
+                }
+                activateScreensaver();
+                lvgl::unlock();
+                // Turn off backlight for "None" screensaver (just black screen)
+                if (cachedDisplaySettings.screensaverType == settings::display::ScreensaverType::None) {
+                    display->setBacklightDuty(0);
+                }
+                displayDimmed = true;
+            } else if (displayDimmed && (inactive_ms < kWakeActivityThresholdMs)) {
+                stopScreensaver();
+            }
         }
     }
-};
+}
+
+bool DisplayIdleService::onStart(ServiceContext& service) {
+    // Seed random number generator for varied screensaver patterns
+    srand(static_cast<unsigned int>(time(nullptr)));
+
+    cachedDisplaySettings = settings::display::loadOrGetDefault();
+
+    timer = std::make_unique<Timer>(Timer::Type::Periodic, kernel::millisToTicks(50), [this]{ this->tick(); });
+    timer->setCallbackPriority(Thread::Priority::Lower);
+    timer->start();
+    return true;
+}
+
+void DisplayIdleService::onStop(ServiceContext& service) {
+    if (timer) {
+        timer->stop();
+        timer = nullptr;
+    }
+    if (screensaverOverlay) {
+        // Retry screensaver cleanup during shutdown
+        constexpr int maxRetries = 5;
+        for (int i = 0; i < maxRetries && screensaverOverlay; ++i) {
+            stopScreensaver();
+            if (screensaverOverlay && i < maxRetries - 1) {
+                kernel::delayMillis(50); // Brief delay before retry
+            }
+        }
+        if (screensaverOverlay) {
+            LOGGER.info("Failed to stop screensaver during shutdown");
+        }
+    }
+    screensaver.reset();
+}
+
+void DisplayIdleService::startScreensaver() {
+    if (!lvgl::lock(100)) {
+        return;
+    }
+
+    // Reload settings to get current screensaver type
+    cachedDisplaySettings = settings::display::loadOrGetDefault();
+
+    activateScreensaver();
+    lvgl::unlock();
+
+    // Turn off backlight for "None" screensaver
+    auto display = getDisplay();
+    if (display && cachedDisplaySettings.screensaverType == settings::display::ScreensaverType::None) {
+        display->setBacklightDuty(0);
+    }
+    displayDimmed = true;
+}
+
+bool DisplayIdleService::isScreensaverActive() const {
+    return screensaverOverlay != nullptr;
+}
+
+void DisplayIdleService::reloadSettings() {
+    cachedDisplaySettings = settings::display::loadOrGetDefault();
+}
+
+std::shared_ptr<DisplayIdleService> findService() {
+    return std::static_pointer_cast<DisplayIdleService>(
+        findServiceById("DisplayIdle")
+    );
+}
 
 extern const ServiceManifest manifest = {
     .id = "DisplayIdle",

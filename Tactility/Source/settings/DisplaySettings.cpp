@@ -16,6 +16,7 @@ constexpr auto* SETTINGS_KEY_GAMMA_CURVE = "gammaCurve";
 constexpr auto* SETTINGS_KEY_BACKLIGHT_DUTY = "backlightDuty";
 constexpr auto* SETTINGS_KEY_TIMEOUT_ENABLED = "backlightTimeoutEnabled";
 constexpr auto* SETTINGS_KEY_TIMEOUT_MS = "backlightTimeoutMs";
+constexpr auto* SETTINGS_KEY_SCREENSAVER_TYPE = "screensaverType";
 
 static Orientation getDefaultOrientation() {
     auto* display = lv_display_get_default();
@@ -64,6 +65,40 @@ static bool fromString(const std::string& str, Orientation& orientation) {
     }
 }
 
+static std::string toString(ScreensaverType type) {
+    switch (type) {
+        using enum ScreensaverType;
+        case None:
+            return "None";
+        case BouncingBalls:
+            return "BouncingBalls";
+        case Mystify:
+            return "Mystify";
+        case MatrixRain:
+            return "MatrixRain";
+        default:
+            std::unreachable();
+    }
+}
+
+static bool fromString(const std::string& str, ScreensaverType& type) {
+    if (str == "None") {
+        type = ScreensaverType::None;
+        return true;
+    } else if (str == "BouncingBalls") {
+        type = ScreensaverType::BouncingBalls;
+        return true;
+    } else if (str == "Mystify") {
+        type = ScreensaverType::Mystify;
+        return true;
+    } else if (str == "MatrixRain") {
+        type = ScreensaverType::MatrixRain;
+        return true;
+    } else {
+        return false;
+    }
+}
+
 bool load(DisplaySettings& settings) {
     std::map<std::string, std::string> map;
     if (!file::loadPropertiesFile(SETTINGS_FILE, map)) {
@@ -103,11 +138,18 @@ bool load(DisplaySettings& settings) {
         timeout_ms = static_cast<uint32_t>(std::strtoul(timeout_ms_entry->second.c_str(), nullptr, 10));
     }
 
+    auto screensaver_entry = map.find(SETTINGS_KEY_SCREENSAVER_TYPE);
+    ScreensaverType screensaver_type = ScreensaverType::BouncingBalls;
+    if (screensaver_entry != map.end()) {
+        fromString(screensaver_entry->second, screensaver_type);
+    }
+
     settings.orientation = orientation;
     settings.gammaCurve = gamma_curve;
     settings.backlightDuty = backlight_duty;
     settings.backlightTimeoutEnabled = timeout_enabled;
     settings.backlightTimeoutMs = timeout_ms;
+    settings.screensaverType = screensaver_type;
 
     return true;
 }
@@ -118,7 +160,8 @@ DisplaySettings getDefault() {
         .gammaCurve = 1,
         .backlightDuty = 200,
         .backlightTimeoutEnabled = false,
-        .backlightTimeoutMs = 60000
+        .backlightTimeoutMs = 60000,
+        .screensaverType = ScreensaverType::BouncingBalls
     };
 }
 
@@ -137,6 +180,7 @@ bool save(const DisplaySettings& settings) {
     map[SETTINGS_KEY_ORIENTATION] = toString(settings.orientation);
     map[SETTINGS_KEY_TIMEOUT_ENABLED] = settings.backlightTimeoutEnabled ? "1" : "0";
     map[SETTINGS_KEY_TIMEOUT_MS] = std::to_string(settings.backlightTimeoutMs);
+    map[SETTINGS_KEY_SCREENSAVER_TYPE] = toString(settings.screensaverType);
     return file::savePropertiesFile(SETTINGS_FILE, map);
 }
 

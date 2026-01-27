@@ -1,5 +1,6 @@
 #include <Tactility/Tactility.h>
 
+#include <Tactility/service/displayidle/DisplayIdleService.h>
 #include <Tactility/settings/DisplaySettings.h>
 #include <Tactility/Assets.h>
 #include <Tactility/hal/display/DisplayDevice.h>
@@ -22,6 +23,7 @@ class DisplayApp final : public App {
     bool displaySettingsUpdated = false;
     lv_obj_t* timeoutSwitch = nullptr;
     lv_obj_t* timeoutDropdown = nullptr;
+    lv_obj_t* screensaverDropdown = nullptr;
 
     static void onBacklightSliderEvent(lv_event_t* event) {
         auto* slider = static_cast<lv_obj_t*>(lv_event_get_target(event));
@@ -73,8 +75,14 @@ class DisplayApp final : public App {
         if (app->timeoutDropdown) {
             if (enabled) {
                 lv_obj_clear_state(app->timeoutDropdown, LV_STATE_DISABLED);
+                if (app->screensaverDropdown) {
+                    lv_obj_clear_state(app->screensaverDropdown, LV_STATE_DISABLED);
+                }
             } else {
                 lv_obj_add_state(app->timeoutDropdown, LV_STATE_DISABLED);
+                if (app->screensaverDropdown) {
+                    lv_obj_add_state(app->screensaverDropdown, LV_STATE_DISABLED);
+                }
             }
         }
     }
@@ -87,6 +95,21 @@ class DisplayApp final : public App {
         static const uint32_t values_ms[] = {15000, 30000, 60000, 120000, 300000, 0};
         if (idx < (sizeof(values_ms)/sizeof(values_ms[0]))) {
             app->displaySettings.backlightTimeoutMs = values_ms[idx];
+            app->displaySettingsUpdated = true;
+        }
+    }
+
+    static void onScreensaverChanged(lv_event_t* event) {
+        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
+        uint32_t idx = lv_dropdown_get_selected(dropdown);
+        // Validate index bounds before casting to enum
+        if (idx >= static_cast<uint32_t>(settings::display::ScreensaverType::Count)) {
+            return;
+        }
+        auto selected_type = static_cast<settings::display::ScreensaverType>(idx);
+        if (selected_type != app->displaySettings.screensaverType) {
+            app->displaySettings.screensaverType = selected_type;
             app->displaySettingsUpdated = true;
         }
     }
@@ -233,6 +256,28 @@ public:
             if (!displaySettings.backlightTimeoutEnabled) {
                 lv_obj_add_state(timeoutDropdown, LV_STATE_DISABLED);
             }
+
+            // Screensaver type
+            auto* screensaver_wrapper = lv_obj_create(main_wrapper);
+            lv_obj_set_size(screensaver_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+            lv_obj_set_style_pad_all(screensaver_wrapper, 0, LV_STATE_DEFAULT);
+            lv_obj_set_style_border_width(screensaver_wrapper, 0, LV_STATE_DEFAULT);
+
+            auto* screensaver_label = lv_label_create(screensaver_wrapper);
+            lv_label_set_text(screensaver_label, "Screensaver");
+            lv_obj_align(screensaver_label, LV_ALIGN_LEFT_MID, 0, 0);
+
+            screensaverDropdown = lv_dropdown_create(screensaver_wrapper);
+            // Note: order correlates with settings::display::ScreensaverType enum order
+            lv_dropdown_set_options(screensaverDropdown, "None\nBouncing Balls\nMystify\nMatrix Rain");
+            lv_obj_align(screensaverDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
+            lv_obj_set_style_border_color(screensaverDropdown, lv_color_hex(0xFAFAFA), LV_PART_MAIN);
+            lv_obj_set_style_border_width(screensaverDropdown, 1, LV_PART_MAIN);
+            lv_obj_add_event_cb(screensaverDropdown, onScreensaverChanged, LV_EVENT_VALUE_CHANGED, this);
+            lv_dropdown_set_selected(screensaverDropdown, static_cast<uint16_t>(displaySettings.screensaverType));
+            if (!displaySettings.backlightTimeoutEnabled) {
+                lv_obj_add_state(screensaverDropdown, LV_STATE_DISABLED);
+            }
         }
     }
 
@@ -242,6 +287,11 @@ public:
             const settings::display::DisplaySettings settings_to_save = displaySettings;
             getMainDispatcher().dispatch([settings_to_save] {
                 settings::display::save(settings_to_save);
+                // Notify DisplayIdle service to reload settings
+                auto displayIdle = service::displayidle::findService();
+                if (displayIdle) {
+                    displayIdle->reloadSettings();
+                }
             });
         }
     }

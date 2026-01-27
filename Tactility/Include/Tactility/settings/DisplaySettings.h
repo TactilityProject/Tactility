@@ -12,12 +12,21 @@ enum class Orientation {
     PortraitFlipped,
 };
 
+enum class ScreensaverType {
+    None,           // Just black screen
+    BouncingBalls,
+    Mystify,
+    MatrixRain,
+    Count           // Sentinel for bounds checking - must be last
+};
+
 struct DisplaySettings {
     Orientation orientation;
     uint8_t gammaCurve;
     uint8_t backlightDuty;
     bool backlightTimeoutEnabled;
     uint32_t backlightTimeoutMs; // 0 = Never
+    ScreensaverType screensaverType = ScreensaverType::None;
 };
 
 /** Compares default settings with the function parameter to return the difference */
