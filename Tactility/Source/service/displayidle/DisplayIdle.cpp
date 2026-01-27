@@ -117,7 +117,11 @@ void DisplayIdleService::updateScreensaver() {
 }
 
 void DisplayIdleService::tick() {
+    if (!lvgl::lock(100)) {
+        return;
+    }
     if (lv_display_get_default() == nullptr) {
+        lvgl::unlock();
         return;
     }
 
@@ -127,7 +131,7 @@ void DisplayIdleService::tick() {
     }
 
     uint32_t inactive_ms = 0;
-    if (lvgl::lock(100)) {
+
         inactive_ms = lv_display_get_inactive_time(nullptr);
 
         // Only update if not stopping (prevents lag on touch)
@@ -153,9 +157,6 @@ void DisplayIdleService::tick() {
         }
 
         lvgl::unlock();
-    } else {
-        return;
-    }
 
     // Check stop request early for faster response
     if (stopScreensaverRequested.load(std::memory_order_acquire)) {
