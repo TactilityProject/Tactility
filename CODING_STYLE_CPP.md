@@ -72,7 +72,7 @@ struct ThreadData {
 `enum class` or `enum struct` is preferred over plain `enum` because of scoping. It's styled like this:
 
 ```c++
-enum class  {
+enum class SomeType {
     Ok,
     NotSupported,
     Error
