@@ -74,16 +74,13 @@ namespace service {
 
 namespace app {
     namespace addgps { extern const AppManifest manifest; }
+    namespace alertdialog { extern const AppManifest manifest; }
     namespace apphub { extern const AppManifest manifest; }
     namespace apphubdetails { extern const AppManifest manifest; }
-    namespace alertdialog { extern const AppManifest manifest; }
     namespace appdetails { extern const AppManifest manifest; }
     namespace applist { extern const AppManifest manifest; }
     namespace appsettings { extern const AppManifest manifest; }
     namespace boot { extern const AppManifest manifest; }
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
-    namespace chat { extern const AppManifest manifest; }
-#endif
     namespace development { extern const AppManifest manifest; }
     namespace display { extern const AppManifest manifest; }
     namespace files { extern const AppManifest manifest; }
@@ -94,9 +91,6 @@ namespace app {
     namespace imageviewer { extern const AppManifest manifest; }
     namespace inputdialog { extern const AppManifest manifest; }
     namespace launcher { extern const AppManifest manifest; }
-#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
-    namespace keyboardsettings { extern const AppManifest manifest; }
-#endif
     namespace localesettings { extern const AppManifest manifest; }
     namespace notes { extern const AppManifest manifest; }
     namespace power { extern const AppManifest manifest; }
@@ -105,21 +99,27 @@ namespace app {
     namespace systeminfo { extern const AppManifest manifest; }
     namespace timedatesettings { extern const AppManifest manifest; }
     namespace timezone { extern const AppManifest manifest; }
-#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
-    namespace trackballsettings { extern const AppManifest manifest; }
-#endif
     namespace usbsettings { extern const AppManifest manifest; }
     namespace wifiapsettings { extern const AppManifest manifest; }
     namespace wificonnect { extern const AppManifest manifest; }
     namespace wifimanage { extern const AppManifest manifest; }
+
 #ifdef ESP_PLATFORM
+    namespace crashdiagnostics { extern const AppManifest manifest; }
     namespace webserversettings { extern const AppManifest manifest; }
 #endif
+
+#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
+    namespace keyboardsettings { extern const AppManifest manifest; }
+    namespace trackballsettings { extern const AppManifest manifest; }
+#endif
+
 #if TT_FEATURE_SCREENSHOT_ENABLED
     namespace screenshot { extern const AppManifest manifest; }
 #endif
-#ifdef ESP_PLATFORM
-    namespace crashdiagnostics { extern const AppManifest manifest; }
+
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+    namespace chat { extern const AppManifest manifest; }
 #endif
 }
 
@@ -138,12 +138,11 @@ static void registerInternalApps() {
     addAppManifest(app::display::manifest);
     addAppManifest(app::files::manifest);
     addAppManifest(app::fileselection::manifest);
+    addAppManifest(app::i2cscanner::manifest);
+    addAppManifest(app::i2csettings::manifest);
     addAppManifest(app::imageviewer::manifest);
     addAppManifest(app::inputdialog::manifest);
     addAppManifest(app::launcher::manifest);
-#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
-    addAppManifest(app::keyboardsettings::manifest);
-#endif
     addAppManifest(app::localesettings::manifest);
     addAppManifest(app::notes::manifest);
     addAppManifest(app::settings::manifest);
@@ -151,14 +150,19 @@ static void registerInternalApps() {
     addAppManifest(app::systeminfo::manifest);
     addAppManifest(app::timedatesettings::manifest);
     addAppManifest(app::timezone::manifest);
-#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
-    addAppManifest(app::trackballsettings::manifest);
-#endif
     addAppManifest(app::wifiapsettings::manifest);
     addAppManifest(app::wificonnect::manifest);
     addAppManifest(app::wifimanage::manifest);
+
 #ifdef ESP_PLATFORM
     addAppManifest(app::webserversettings::manifest);
+    addAppManifest(app::crashdiagnostics::manifest);
+    addAppManifest(app::development::manifest);
+#endif
+
+#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
+    addAppManifest(app::keyboardsettings::manifest);
+    addAppManifest(app::trackballsettings::manifest);
 #endif
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED
@@ -172,16 +176,6 @@ static void registerInternalApps() {
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
     addAppManifest(app::chat::manifest);
 #endif
-
-#ifdef ESP_PLATFORM
-    addAppManifest(app::crashdiagnostics::manifest);
-    addAppManifest(app::development::manifest);
-#endif
-
-    if (!hal::getConfiguration()->i2c.empty()) {
-        addAppManifest(app::i2cscanner::manifest);
-        addAppManifest(app::i2csettings::manifest);
-    }
 
     if (!hal::getConfiguration()->uart.empty()) {
         addAppManifest(app::addgps::manifest);

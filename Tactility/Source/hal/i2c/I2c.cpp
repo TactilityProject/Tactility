@@ -34,9 +34,7 @@ struct Data {
 static Data dataArray[I2C_NUM_MAX];
 
 #ifdef ESP_PLATFORM
-void registerDriver(Configuration configuration) {
-    Data& data = dataArray[configuration.port];
-
+void registerDriver(Data& data, const Configuration& configuration) {
     // Should only be called on init
     check(data.device == nullptr);
 
@@ -52,22 +50,19 @@ void registerDriver(Configuration configuration) {
     data.device->config = &data.config;
     data.device->parent = nullptr;
 
-    device_construct_add(data.device, "espressif,esp32-i2c");
+    if (device_construct_add(data.device, "espressif,esp32-i2c") == ERROR_NONE) {
+        data.isConfigured = true;
+    }
 }
 
-bool initExistingKernelDevice(const Configuration& configuration) {
-    Data& data = dataArray[configuration.port];
-
-    // Should only be called on init
-    check(data.device == nullptr);
-
+Device* findExistingKernelDevice(i2c_port_t port) {
     struct Params {
         i2c_port_t port;
         Device* device;
     };
 
     Params params = {
-        .port = configuration.port,
+        .port = port,
         .device = nullptr
     };
 
@@ -84,41 +79,51 @@ bool initExistingKernelDevice(const Configuration& configuration) {
         return false;
     });
 
-    if (params.device == nullptr) {
-        return false;
-    }
-
-    data.device = params.device;
-    memcpy(&data.config, params.device->config, sizeof(Esp32I2cConfig));
-    return true;
+    return params.device;
 }
 #endif
 
 bool init(const std::vector<Configuration>& configurations) {
    LOGGER.info("Init");
 #ifdef ESP_PLATFORM
-   for (const auto& configuration: configurations) {
-       if (configuration.config.mode != I2C_MODE_MASTER) {
-           LOGGER.error("Currently only master mode is supported");
-           return false;
-       }
-       if (initExistingKernelDevice(configuration)) {
-           LOGGER.info("Initialized port {} with existing kernel device", (int)configuration.port);
-       } else {
-           registerDriver(configuration);
-       }
-       dataArray[configuration.port].isConfigured = true;
-   }
+    bool found_existing = false;
+    for (int port = 0; port < I2C_NUM_MAX; ++port) {
+        auto native_port = static_cast<i2c_port_t>(port);
+        auto existing_device = findExistingKernelDevice(native_port);
+        if (existing_device != nullptr) {
+            LOGGER.info("Initialized port {} with existing kernel device", port);
+            auto& data = dataArray[port];
+            data.device = existing_device;
+            data.isConfigured = true;
+            memcpy(&data.config, existing_device->config, sizeof(Esp32I2cConfig));
+            // Ensure we don't initialize
+            found_existing = true;
+        }
+    }
 
-   for (const auto& config: configurations) {
-       if (config.initMode == InitMode::ByTactility) {
-           if (!start(config.port)) {
-               return false;
-           }
-       }
-   }
+    // Nothing found in HAL, so try configuration
+    for (const auto& configuration: configurations) {
+        check(!found_existing, "hal::Configuration specifies I2C, but I2C was already initialized by devicetree. Remove the hal::Configuration I2C entries!");
+        if (configuration.config.mode != I2C_MODE_MASTER) {
+            LOGGER.error("Currently only master mode is supported");
+            return false;
+        }
+        Data& data = dataArray[configuration.port];
+        registerDriver(data, configuration);
+    }
+
+    if (!found_existing) {
+        for (const auto& config: configurations) {
+            if (config.initMode == InitMode::ByTactility) {
+                if (!start(config.port)) {
+                    return false;
+                }
+            }
+        }
+    }
+
 #endif
-   return true;
+    return true;
 }
 
 bool start(i2c_port_t port) {
@@ -138,6 +143,7 @@ bool start(i2c_port_t port) {
     error_t error = device_start(data.device);
     if (error != ERROR_NONE) {
         LOGGER.error("Failed to start device {}: {}", data.device->name, error_to_string(error));
+        return false;
     }
 
     return true;
@@ -167,6 +173,17 @@ bool isStarted(i2c_port_t port) {
     return device_is_ready(dataArray[port].device);
 #else
     return false;
+#endif
+}
+
+const char* getName(i2c_port_t port) {
+#ifdef ESP_PLATFORM
+    auto lock = getLock(port).asScopedLock();
+    lock.lock();
+    if (!dataArray[port].isConfigured) return nullptr;
+    return dataArray[port].device->name;
+#else
+    return nullptr;
 #endif
 }
 

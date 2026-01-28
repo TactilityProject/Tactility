@@ -50,6 +50,9 @@ bool stop(i2c_port_t port);
 /** @return true if the bus is started */
 bool isStarted(i2c_port_t port);
 
+/** @return name or nullptr */
+const char* getName(i2c_port_t port);
+
 /** Read bytes in master mode. */
 bool masterRead(i2c_port_t port, uint8_t address, uint8_t* data, size_t dataSize, TickType_t timeout = defaultTimeout);
 

@@ -19,18 +19,42 @@ std::string getAddressText(uint8_t address) {
 
 std::string getPortNamesForDropdown() {
     std::vector<std::string> config_names;
-    size_t port_index = 0;
-    for (const auto& i2c_config: tt::getConfiguration()->hardware->i2c) {
-        if (!i2c_config.name.empty()) {
-            config_names.push_back(i2c_config.name);
-        } else {
-            std::stringstream stream;
-            stream << "Port " << std::to_string(port_index);
-            config_names.push_back(stream.str());
+    for (int port = 0; port < I2C_NUM_MAX; ++port) {
+        auto native_port = static_cast<i2c_port_t>(port);
+        if (hal::i2c::isStarted(native_port)) {
+            auto* name = hal::i2c::getName(native_port);
+            if (name != nullptr) {
+                config_names.push_back(name);
+            }
         }
-        port_index++;
     }
     return string::join(config_names, "\n");
+}
+
+bool getFirstActiveI2cPort(int32_t& out) {
+    for (int port = 0; port < I2C_NUM_MAX; ++port) {
+        auto native_port = static_cast<i2c_port_t>(port);
+        if (hal::i2c::isStarted(native_port)) {
+            out = port;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool getActivePortAtIndex(int32_t index, int32_t& out) {
+    int current_index = -1;
+    for (int port = 0; port < I2C_NUM_MAX; ++port) {
+        auto native_port = static_cast<i2c_port_t>(port);
+        if (hal::i2c::isStarted(native_port)) {
+            current_index++;
+            if (current_index == index) {
+                out = port;
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 }

@@ -38,25 +38,6 @@ static DeviceVector createDevices() {
 extern const Configuration hardwareConfiguration = {
     .initBoot = tpagerInit,
     .createDevices = createDevices,
-    .i2c = {
-        i2c::Configuration {
-            .name = "Internal",
-            .port = I2C_NUM_0,
-            .initMode = i2c::InitMode::ByTactility,
-            .isMutable = false,
-            .config = (i2c_config_t) {
-                .mode = I2C_MODE_MASTER,
-                .sda_io_num = GPIO_NUM_3,
-                .scl_io_num = GPIO_NUM_2,
-                .sda_pullup_en = false,
-                .scl_pullup_en = false,
-                .master = {
-                    .clk_speed = 100'000
-                },
-                .clk_flags = 0
-            }
-        }
-    },
     .spi {spi::Configuration {
         .device = SPI2_HOST,
         .dma = SPI_DMA_CH_AUTO,

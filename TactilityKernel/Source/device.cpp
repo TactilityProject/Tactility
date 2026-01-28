@@ -146,6 +146,7 @@ failed_ledger_lookup:
 }
 
 error_t device_start(Device* device) {
+    LOG_I(TAG, "start %s", device->name);
     if (!device->internal.state.added) {
         return ERROR_INVALID_STATE;
     }
@@ -166,6 +167,7 @@ error_t device_start(Device* device) {
 }
 
 error_t device_stop(struct Device* device) {
+    LOG_I(TAG, "stop %s", device->name);
     if (!device->internal.state.added) {
         return ERROR_INVALID_STATE;
     }
