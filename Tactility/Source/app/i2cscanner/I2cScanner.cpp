@@ -141,9 +141,10 @@ void I2cScannerApp::onShow(AppContext& app, lv_obj_t* parent) {
     lv_obj_add_flag(scan_list, LV_OBJ_FLAG_HIDDEN);
     scanListWidget = scan_list;
 
-    int32_t active_port;
-    if (getFirstActiveI2cPort(active_port)) {
-        selectBus(active_port);
+    int32_t first_port;
+    if (getActivePortAtIndex(0, first_port)) {
+        lv_dropdown_set_selected(port_dropdown, 0);
+        selectBus(0);
     }
 }
 

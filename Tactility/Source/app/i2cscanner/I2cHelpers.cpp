@@ -31,17 +31,6 @@ std::string getPortNamesForDropdown() {
     return string::join(config_names, "\n");
 }
 
-bool getFirstActiveI2cPort(int32_t& out) {
-    for (int port = 0; port < I2C_NUM_MAX; ++port) {
-        auto native_port = static_cast<i2c_port_t>(port);
-        if (hal::i2c::isStarted(native_port)) {
-            out = port;
-            return true;
-        }
-    }
-    return false;
-}
-
 bool getActivePortAtIndex(int32_t index, int32_t& out) {
     int current_index = -1;
     for (int port = 0; port < I2C_NUM_MAX; ++port) {
