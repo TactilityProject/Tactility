@@ -197,7 +197,7 @@ static error_t stop(Device* device) {
     i2c_port_t port = GET_CONFIG(device)->port;
     esp_err_t result = i2c_driver_delete(port);
     if (result != ESP_OK) {
-        LOG_E(TAG, "Failed to delete driver: {}", static_cast<int>(port), esp_err_to_name(result));
+        LOG_E(TAG, "Failed to delete driver at port %d: %s", static_cast<int>(port), esp_err_to_name(result));
         return ERROR_RESOURCE;
     }
 

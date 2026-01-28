@@ -116,6 +116,7 @@ void thread_free(Thread* thread) {
 }
 
 void thread_set_name(Thread* thread, const char* name) {
+    check(name != nullptr);
     thread->lock();
     check(thread->state == THREAD_STATE_STOPPED);
     thread->name = name;
@@ -124,6 +125,7 @@ void thread_set_name(Thread* thread, const char* name) {
 
 void thread_set_stack_size(Thread* thread, size_t stack_size) {
     thread->lock();
+    check(stack_size > 0);
     check(thread->state == THREAD_STATE_STOPPED);
     thread->stackSize = stack_size;
     thread->unlock();
@@ -138,6 +140,7 @@ void thread_set_affinity(Thread* thread, portBASE_TYPE affinity) {
 
 void thread_set_main_function(Thread* thread, thread_main_fn_t function, void* context) {
     thread->lock();
+    check(function != nullptr);
     check(thread->state == THREAD_STATE_STOPPED);
     thread->mainFunction = function;
     thread->mainFunctionContext = context;
@@ -153,6 +156,7 @@ void thread_set_priority(Thread* thread, enum ThreadPriority priority) {
 
 void thread_set_state_callback(Thread* thread, thread_state_callback_t callback, void* context) {
     thread->lock();
+    check(callback != nullptr);
     check(thread->state == THREAD_STATE_STOPPED);
     thread->stateCallback = callback;
     thread->stateCallbackContext = context;

@@ -39,9 +39,11 @@ static inline size_t get_millis() {
 }
 
 static inline TickType_t get_timeout_remaining_ticks(TickType_t timeout, TickType_t start_time) {
-    auto ticks_passed = get_ticks() - start_time;
-    auto ticks_remaining = (timeout - ticks_passed);
-    return MAX(ticks_remaining, 0);
+    TickType_t ticks_passed = get_ticks() - start_time;
+    if (ticks_passed >= timeout) {
+        return 0;
+    }
+    return timeout - ticks_passed;
 }
 
 /** @return the frequency at which the kernel task schedulers operate */

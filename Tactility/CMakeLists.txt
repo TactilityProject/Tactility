@@ -57,9 +57,10 @@ else()
 
     target_sources(Tactility PRIVATE ${SOURCES})
 
-    include_directories(PRIVATE Private/)
-
-    target_include_directories(Tactility PUBLIC Include/)
+    target_include_directories(Tactility
+        PRIVATE Private/
+        PUBLIC Include/
+    )
 
     add_definitions(-D_Nullable=)
     add_definitions(-D_Nonnull=)
