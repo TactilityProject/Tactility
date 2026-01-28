@@ -8,6 +8,7 @@
 #include <Tactility/service/webserver/WebServerService.h>
 #include <Tactility/Assets.h>
 #include <Tactility/lvgl/Toolbar.h>
+#include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/Logger.h>
 
 #include <lvgl.h>
@@ -46,7 +47,10 @@ class WebServerSettingsApp final : public App {
             app->wsSettings.wifiMode = static_cast<settings::webserver::WiFiMode>(index);
             app->updated = true;
             app->wifiSettingsChanged = true;
-            app->updateUrlDisplay();
+            if (lvgl::lock(100)) {
+                app->updateUrlDisplay();
+                lvgl::unlock();
+            }
         });
     }
 
@@ -57,7 +61,10 @@ class WebServerSettingsApp final : public App {
             app->wsSettings.webServerEnabled = enabled;
             app->updated = true;
             app->webServerEnabledChanged = true;
-            app->updateUrlDisplay();
+            if (lvgl::lock(100)) {
+                app->updateUrlDisplay();
+                lvgl::unlock();
+            }
         });
     }
 
@@ -128,8 +135,8 @@ class WebServerSettingsApp final : public App {
         auto* btn = static_cast<lv_obj_t*>(lv_event_get_target_obj(e));
         lv_obj_add_state(btn, LV_STATE_DISABLED);
         LOGGER.info("Manual asset sync triggered");
-        
-        getMainDispatcher().dispatch([app, btn]{ 
+
+        getMainDispatcher().dispatch([app, btn]{
             bool success = service::webserver::syncAssets();
             if (success) {
                 LOGGER.info("Asset sync completed successfully");
@@ -137,8 +144,12 @@ class WebServerSettingsApp final : public App {
                 LOGGER.error("Asset sync failed");
             }
             // Only re-enable if button still exists (user hasn't navigated away)
-            if (lv_obj_is_valid(btn)) {
-                lv_obj_remove_state(btn, LV_STATE_DISABLED);
+            // Must acquire LVGL lock since we're not in an LVGL event callback context
+            if (lvgl::lock(1000)) {
+                if (lv_obj_is_valid(btn)) {
+                    lv_obj_remove_state(btn, LV_STATE_DISABLED);
+                }
+                lvgl::unlock();
             }
         });
     }
@@ -277,6 +288,10 @@ public:
         lv_label_set_text(ws_user_label, "Username");
         lv_obj_align(ws_user_label, LV_ALIGN_LEFT_MID, 0, 0);
         textAreaWebServerUsername = lv_textarea_create(ws_user_wrapper);
+        if (!wsSettings.webServerAuthEnabled) {
+            lv_obj_add_state(textAreaWebServerUsername, LV_STATE_DISABLED);
+            lv_obj_remove_flag(textAreaWebServerUsername, LV_OBJ_FLAG_CLICKABLE);
+        }
         lv_obj_set_width(textAreaWebServerUsername, 120);
         lv_obj_align(textAreaWebServerUsername, LV_ALIGN_RIGHT_MID, 0, 0);
         lv_textarea_set_one_line(textAreaWebServerUsername, true);
@@ -293,6 +308,10 @@ public:
         lv_label_set_text(ws_pass_label, "Password");
         lv_obj_align(ws_pass_label, LV_ALIGN_LEFT_MID, 0, 0);
         textAreaWebServerPassword = lv_textarea_create(ws_pass_wrapper);
+        if (!wsSettings.webServerAuthEnabled) {
+            lv_obj_add_state(textAreaWebServerPassword, LV_STATE_DISABLED);
+            lv_obj_remove_flag(textAreaWebServerPassword, LV_OBJ_FLAG_CLICKABLE);
+        }
         lv_obj_set_width(textAreaWebServerPassword, 120);
         lv_obj_align(textAreaWebServerPassword, LV_ALIGN_RIGHT_MID, 0, 0);
         lv_textarea_set_one_line(textAreaWebServerPassword, true);

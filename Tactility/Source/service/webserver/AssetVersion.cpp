@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <format>
+#include <memory>
 #include <esp_random.h>
 
 namespace tt::service::webserver {
@@ -202,24 +203,37 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
         
         std::string srcPath = file::getChildPath(src, entry.d_name);
         std::string dstPath = file::getChildPath(dst, entry.d_name);
-        
-        if (entry.d_type == file::TT_DT_DIR) {
+
+        // Determine entry type - use stat() directly for unknown/unexpected d_type values
+        // (FAT/SD card filesystems often return non-standard d_type values)
+        // Note: We use stat() directly here instead of file::isDirectory/isFile to avoid
+        // deadlock, since listDirectory already holds a lock on the parent directory.
+        bool isDir = (entry.d_type == file::TT_DT_DIR);
+        bool isReg = (entry.d_type == file::TT_DT_REG);
+        if (!isDir && !isReg) {
+            struct stat st;
+            if (stat(srcPath.c_str(), &st) == 0) {
+                isDir = S_ISDIR(st.st_mode);
+                isReg = S_ISREG(st.st_mode);
+            } else {
+                LOGGER.warn("Failed to stat entry, skipping: {}", srcPath);
+                return;
+            }
+        }
+
+        if (isDir) {
             // Recursively copy subdirectory
             if (!copyDirectory(srcPath.c_str(), dstPath.c_str(), depth + 1)) {
                 copySuccess = false;
             }
-        } else if (entry.d_type == file::TT_DT_REG) {
-            // Copy file using atomic temp file approach
-            auto lock = file::getLock(srcPath);
-            lock->lock(portMAX_DELAY);
-
-            // Generate unique temp file path
+        } else if (isReg) {
+            // Copy file - no additional locking needed since listDirectory already holds a lock
+            // and we're the only accessor during sync
             std::string tempPath = std::format("{}.tmp.{}", dstPath, esp_random());
 
             FILE* srcFile = fopen(srcPath.c_str(), "rb");
             if (!srcFile) {
                 LOGGER.error("Failed to open source file: {}", srcPath);
-                lock->unlock();
                 copySuccess = false;
                 return;
             }
@@ -228,17 +242,17 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
             if (!tempFile) {
                 LOGGER.error("Failed to create temp file: {}", tempPath);
                 fclose(srcFile);
-                lock->unlock();
                 copySuccess = false;
                 return;
             }
 
-            // Copy in chunks
-            char buffer[512];
+            // Copy in chunks (heap-allocated buffer to avoid stack overflow)
+            constexpr size_t COPY_BUF_SIZE = 4096;
+            auto buffer = std::make_unique<char[]>(COPY_BUF_SIZE);
             size_t bytesRead;
             bool fileCopySuccess = true;
-            while ((bytesRead = fread(buffer, 1, sizeof(buffer), srcFile)) > 0) {
-                size_t bytesWritten = fwrite(buffer, 1, bytesRead, tempFile);
+            while ((bytesRead = fread(buffer.get(), 1, COPY_BUF_SIZE, srcFile)) > 0) {
+                size_t bytesWritten = fwrite(buffer.get(), 1, bytesRead, tempFile);
                 if (bytesWritten != bytesRead) {
                     LOGGER.error("Failed to write to temp file: {}", tempPath);
                     fileCopySuccess = false;
@@ -274,7 +288,9 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
             fclose(tempFile);
 
             if (fileCopySuccess) {
-                // Atomically rename temp file to destination
+                // Remove destination if it exists (rename may not overwrite on some filesystems)
+                remove(dstPath.c_str());
+                // Rename temp file to destination
                 if (rename(tempPath.c_str(), dstPath.c_str()) != 0) {
                     LOGGER.error("Failed to rename temp file {} to {}", tempPath, dstPath);
                     remove(tempPath.c_str());
@@ -285,8 +301,6 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
                 // Clean up temp file on failure
                 remove(tempPath.c_str());
             }
-
-            lock->unlock();
 
             if (fileCopySuccess) {
                 LOGGER.info("Copied file: {}", entry.d_name);

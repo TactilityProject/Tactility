@@ -14,8 +14,13 @@
         }
         .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
         header {
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             padding: 20px 0;
+        }
+        .header-left {
+            text-align: left;
         }
         header h1 {
             font-size: 1.8em;
@@ -25,6 +30,95 @@
         header .subtitle {
             color: #7f8c8d;
             font-size: 0.9em;
+        }
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .refresh-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-size: 1.1em;
+        }
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .refresh-btn:active {
+            transform: scale(0.95);
+        }
+        .refresh-btn.spinning svg {
+            animation: spin 0.8s linear infinite;
+        }
+        .auto-refresh-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85em;
+        }
+        .auto-refresh-toggle label {
+            color: #95a5a6;
+            cursor: pointer;
+            user-select: none;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            z-index: 1;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 22px;
+            transition: 0.3s;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: #3498db;
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(18px);
+        }
+        .countdown {
+            color: #7f8c8d;
+            font-size: 0.8em;
+            min-width: 24px;
+            text-align: center;
         }
 
         /* Tab Navigation */
@@ -330,7 +424,10 @@
         }
 
         @media (max-width: 600px) {
+            header { flex-direction: column; gap: 15px; }
+            .header-left { text-align: center; }
             header h1 { font-size: 1.4em; }
+            .header-controls { width: 100%; justify-content: center; }
             .grid { grid-template-columns: 1fr; }
             .tabs { flex-wrap: wrap; }
             .tab { padding: 10px 16px; font-size: 0.85em; }
@@ -344,8 +441,25 @@
 <body>
     <div class="container">
         <header>
-            <h1>Tactility Dashboard</h1>
-            <p class="subtitle" id="version">Loading...</p>
+            <div class="header-left">
+                <h1>Tactility Dashboard</h1>
+                <p class="subtitle" id="version">Loading...</p>
+            </div>
+            <div class="header-controls">
+                <div class="auto-refresh-toggle">
+                    <label for="autoRefreshToggle">Auto</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="autoRefreshToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </div>
+                    <span class="countdown" id="countdown">30s</span>
+                </div>
+                <button class="refresh-btn" onclick="manualRefresh()" title="Refresh now">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                    </svg>
+                </button>
+            </div>
         </header>
 
         <div class="tabs">
@@ -408,7 +522,7 @@
         </div>
 
         <footer>
-            Tactility WebServer - Auto-refreshes every 30 seconds
+            Tactility WebServer
         </footer>
     </div>
 
@@ -419,6 +533,20 @@ function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.querySelector(`.tab[onclick="showTab('${tabName}')"]`).classList.add('active');
     document.getElementById(`${tabName}-tab`).classList.add('active');
+
+    // Pause/resume auto-refresh based on active tab to avoid misleading countdown
+    if (tabName === 'dashboard') {
+        // Resume auto-refresh if toggle is on
+        if (autoRefreshToggle.checked && !refreshInterval) {
+            startAutoRefresh();
+        }
+    } else {
+        // Stop auto-refresh when leaving dashboard (countdown would be misleading)
+        // Toggle state is preserved, so it will resume when returning to dashboard
+        if (refreshInterval) {
+            stopAutoRefresh();
+        }
+    }
 
     if (tabName === 'files' && !filesLoaded) {
         refreshFiles();
@@ -607,7 +735,6 @@ function renderDashboard(data) {
                 <h2>Quick Actions</h2>
                 <div class="actions">
                     <button class="btn btn-primary" onclick="syncAssets(this)">Sync Assets</button>
-                    <button class="btn btn-secondary" onclick="location.reload()">Refresh</button>
                     ${data.features_enabled?.screenshot ? '<button class="btn btn-secondary" onclick="captureScreenshot(this)">Screenshot</button>' : ''}
                     <button class="btn btn-danger" onclick="rebootDevice(this)">Reboot</button>
                 </div>
@@ -733,12 +860,80 @@ async function captureScreenshot(btn) {
     btn.textContent = 'Screenshot';
 }
 let refreshInterval;
+let countdownInterval;
+let countdownValue = 30;
+const REFRESH_INTERVAL_SECONDS = 30;
+
+const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+const countdownEl = document.getElementById('countdown');
+
+function updateCountdown() {
+    countdownValue--;
+    if (countdownValue <= 0) {
+        countdownValue = REFRESH_INTERVAL_SECONDS;
+    }
+    countdownEl.textContent = countdownValue + 's';
+}
+
+function startAutoRefresh() {
+    countdownValue = REFRESH_INTERVAL_SECONDS;
+    countdownEl.textContent = countdownValue + 's';
+    countdownEl.style.display = '';
+
+    countdownInterval = setInterval(updateCountdown, 1000);
+    refreshInterval = setInterval(() => {
+        if (document.getElementById('dashboard-tab').classList.contains('active')) {
+            loadDashboard();
+            countdownValue = REFRESH_INTERVAL_SECONDS;
+        }
+    }, REFRESH_INTERVAL_SECONDS * 1000);
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) clearInterval(refreshInterval);
+    if (countdownInterval) clearInterval(countdownInterval);
+    refreshInterval = null;
+    countdownInterval = null;
+    countdownEl.style.display = 'none';
+}
+
+autoRefreshToggle.addEventListener('change', () => {
+    if (autoRefreshToggle.checked) {
+        // Only start if on dashboard tab to avoid misleading countdown
+        if (document.getElementById('dashboard-tab').classList.contains('active') && !refreshInterval) {
+            startAutoRefresh();
+        }
+    } else {
+        stopAutoRefresh();
+    }
+});
+
+async function manualRefresh() {
+    const btn = document.querySelector('.refresh-btn');
+    btn.classList.add('spinning');
+
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab.id === 'dashboard-tab') {
+        await loadDashboard();
+        if (autoRefreshToggle.checked) {
+            countdownValue = REFRESH_INTERVAL_SECONDS;
+        }
+    } else if (activeTab.id === 'files-tab') {
+        await refreshFiles();
+    } else if (activeTab.id === 'apps-tab') {
+        await loadApps();
+    }
+
+    btn.classList.remove('spinning');
+}
+
 async function rebootDevice(btn) {
     if (!confirm('Reboot device now?')) return;
     const status = document.getElementById('actionStatus');
     btn.disabled = true;
     btn.textContent = 'Rebooting...';
-    if (refreshInterval) clearInterval(refreshInterval);
+    stopAutoRefresh();
+    autoRefreshToggle.checked = false;
     try {
         await fetch('/admin/reboot', { method: 'POST' });
     } catch (e) { }
@@ -1137,11 +1332,7 @@ async function installAppFile(file) {
 
 // Initial load
 loadDashboard();
-refreshInterval = setInterval(() => {
-    if (document.getElementById('dashboard-tab').classList.contains('active')) {
-        loadDashboard();
-    }
-}, 30000);
+startAutoRefresh();
 </script>
 </body>
 </html>
