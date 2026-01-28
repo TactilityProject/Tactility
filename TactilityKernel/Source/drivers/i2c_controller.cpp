@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-
-#include <tactility/driver.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/error.h>
 

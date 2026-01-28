@@ -14,7 +14,6 @@ constexpr TickType_t defaultTimeout = 10 / portTICK_PERIOD_MS;
 
 enum class InitMode {
     ByTactility, // Tactility will initialize it in the correct bootup phase
-    ByExternal, // The device is already initialized and Tactility should assume it works
     Disabled // Not initialized by default
 };
 
@@ -38,15 +37,6 @@ enum class Status {
     Stopped,
     Unknown
 };
-
-/**
- * Reconfigure a port with the provided settings.
- * @warning This fails when the HAL Configuration is not mutable.
- * @param[in] port the port to reconfigure
- * @param[in] configuration the new configuration
- * @return true on success
- */
-bool configure(i2c_port_t port, const i2c_config_t& configuration);
 
 /**
  * Start the bus for the specified port.

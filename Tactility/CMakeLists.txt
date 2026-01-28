@@ -5,6 +5,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 
     list(APPEND REQUIRES_LIST
         TactilityKernel
+        PlatformEsp32
         TactilityCore
         TactilityFreeRtos
         lvgl
@@ -54,31 +55,26 @@ else()
 
     add_library(Tactility OBJECT)
 
-    target_sources(Tactility
-        PRIVATE ${SOURCES}
-    )
+    target_sources(Tactility PRIVATE ${SOURCES})
 
-    include_directories(
-        PRIVATE Private/
-    )
+    include_directories(PRIVATE Private/)
 
-    target_include_directories(Tactility
-        PUBLIC Include/
-    )
+    target_include_directories(Tactility PUBLIC Include/)
 
     add_definitions(-D_Nullable=)
     add_definitions(-D_Nonnull=)
 
-    target_link_libraries(Tactility
-        PUBLIC cJSON
-        PUBLIC TactilityFreeRtos
-        PUBLIC TactilityCore
-        PUBLIC TactilityKernel
-        PUBLIC freertos_kernel
-        PUBLIC lvgl
-        PUBLIC lv_screenshot
-        PUBLIC minmea
-        PUBLIC minitar
+    target_link_libraries(Tactility PUBLIC
+        cJSON
+        TactilityFreeRtos
+        TactilityCore
+        TactilityKernel
+        PlatformPosix
+        freertos_kernel
+        lvgl
+        lv_screenshot
+        minmea
+        minitar
     )
 endif()
 

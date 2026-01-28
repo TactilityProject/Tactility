@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <tactility/error.h>
 
+extern "C" {
+
 const char* error_to_string(error_t error) {
     switch (error) {
         case ERROR_NONE:
@@ -28,4 +30,6 @@ const char* error_to_string(error_t error) {
         default:
             return "unknown";
     }
+}
+
 }

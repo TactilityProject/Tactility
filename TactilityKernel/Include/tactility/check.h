@@ -14,7 +14,7 @@ __attribute__((noreturn)) extern void __crash(void);
 #define CHECK_NO_MSG(condition) \
     do { \
         if (!(condition)) { \
-            LOG_E("Error", "Check failed: %s at %s:%d", #condition, __FILE__, __LINE__); \
+            LOG_E("Error", "Check failed: %s\n\tat %s:%d", #condition, __FILE__, __LINE__); \
             __crash(); \
         } \
     } while (0)
@@ -22,7 +22,7 @@ __attribute__((noreturn)) extern void __crash(void);
 #define CHECK_MSG(condition, message) \
     do { \
         if (!(condition)) { \
-            LOG_E("Error", "Check failed: %s at %s:%d", message, __FILE__, __LINE__); \
+            LOG_E("Error", "Check failed: %s\n\tat %s:%d", message, __FILE__, __LINE__); \
             __crash(); \
         } \
     } while (0)

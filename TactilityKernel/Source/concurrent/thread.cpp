@@ -260,7 +260,7 @@ uint32_t thread_get_stack_space(Thread* thread) {
         return 0;
     }
     thread->lock();
-    assert(thread->state == THREAD_STATE_RUNNING);
+    check(thread->state == THREAD_STATE_RUNNING);
     auto result = uxTaskGetStackHighWaterMark(thread->taskHandle) * sizeof(StackType_t);
     thread->unlock();
     return result;

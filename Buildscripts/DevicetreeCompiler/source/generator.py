@@ -135,7 +135,7 @@ def write_device_init(file, device: Device, bindings: list[Binding], verbose: bo
     identifier = get_device_identifier_safe(device)
     device_variable = identifier
     # Write device struct
-    file.write(f"\tif (init_builtin_device(&{device_variable}, \"{compatible_property.value}\") != 0) return -1;\n")
+    file.write(f"\tif (device_construct_add_start(&{device_variable}, \"{compatible_property.value}\") != ERROR_NONE) return ERROR_RESOURCE;\n")
     # Write children
     for child_device in device.devices:
         write_device_init(file, child_device, bindings, verbose)
@@ -145,7 +145,7 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         file.write(dedent('''\
         // Default headers
         #include <tactility/device.h>
-        #include <tactility/driver.h>
+        #include <tactility/error.h>
         #include <tactility/log.h>
         // DTS headers
         '''))
@@ -156,39 +156,17 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
                 write_include(file, item, verbose)
         file.write("\n")
 
-        file.write(dedent('''\
-        #define TAG LOG_TAG(devicetree)
-        
-        static int init_builtin_device(struct Device* device, const char* compatible) {
-            struct Driver* driver = driver_find_compatible(compatible);
-            if (driver == NULL) {
-                LOG_E(TAG, "Can't find driver: %s", compatible);
-                return -1;
-            }
-            device_construct(device);
-            device_set_driver(device, driver);
-            device_add(device);
-            const int err = device_start(device);
-            if (err != 0) {
-                LOG_E(TAG, "Failed to start device %s with driver %s: error code %d", device->name, compatible, err);
-                return -1;
-            }
-            return 0;
-        }
-        
-        '''))
-
         # Then write all devices
         for item in items:
             if type(item) is Device:
                 write_device_structs(file, item, None, bindings, verbose)
         # Init function body start
-        file.write("int devices_builtin_init() {\n")
+        file.write("error_t devices_builtin_init() {\n")
         # Init function body logic
         for item in items:
             if type(item) is Device:
                 write_device_init(file, item, bindings, verbose)
-        file.write("\treturn 0;\n")
+        file.write("\treturn ERROR_NONE;\n")
         # Init function body end
         file.write("}\n")
 
@@ -196,12 +174,13 @@ def generate_devicetree_h(filename: str):
     with open(filename, "w") as file:
         file.write(dedent('''\
         #pragma once
+        #include <tactility/error.h>
         
         #ifdef __cplusplus
         extern "C" {
         #endif
         
-        extern int devices_builtin_init();
+        extern error_t devices_builtin_init();
         
         #ifdef __cplusplus
         }

@@ -183,6 +183,56 @@ error_t device_stop(struct Device* device) {
     return ERROR_NONE;
 }
 
+error_t device_construct_add(struct Device* device, const char* compatible) {
+    struct Driver* driver = driver_find_compatible(compatible);
+    if (driver == nullptr) {
+        LOG_E(TAG, "Can't find driver '%s' for device '%s'", compatible, device->name);
+        return ERROR_RESOURCE;
+    }
+
+    error_t error = device_construct(device);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to construct device %s: %s", device->name, error_to_string(error));
+        goto on_construct_error;
+    }
+
+    device_set_driver(device, driver);
+
+    error = device_add(device);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to add device %s: %s", device->name, error_to_string(error));
+        goto on_add_error;
+    }
+
+    return ERROR_NONE;
+
+    on_add_error:
+    device_destruct(device);
+    on_construct_error:
+    return error;
+}
+
+error_t device_construct_add_start(struct Device* device, const char* compatible) {
+    error_t error = device_construct_add(device, compatible);
+    if (error != ERROR_NONE) {
+        goto on_construct_add_error;
+    }
+
+    error = device_start(device);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to start device %s: %s", device->name, error_to_string(error));
+        goto on_start_error;
+    }
+
+    return ERROR_NONE;
+
+on_start_error:
+    device_remove(device);
+    device_destruct(device);
+on_construct_add_error:
+    return error;
+}
+
 void device_set_parent(Device* device, Device* parent) {
     assert(!device->internal.state.started);
     device->parent = parent;

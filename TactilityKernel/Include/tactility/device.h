@@ -133,6 +133,10 @@ error_t device_stop(struct Device* device);
  */
 void device_set_parent(struct Device* device, struct Device* parent);
 
+error_t device_construct_add(struct Device* device, const char* compatible);
+
+error_t device_construct_add_start(struct Device* device, const char* compatible);
+
 static inline void device_set_driver(struct Device* device, struct Driver* driver) {
     device->internal.driver = driver;
 }
