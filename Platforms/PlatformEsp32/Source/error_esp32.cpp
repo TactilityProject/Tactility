@@ -11,6 +11,10 @@ error_t esp_err_to_error(esp_err_t error) {
             return ERROR_INVALID_STATE;
         case ESP_ERR_TIMEOUT:
             return ERROR_TIMEOUT;
+        case ESP_ERR_NO_MEM:
+            return ERROR_OUT_OF_MEMORY;
+        case ESP_ERR_NOT_SUPPORTED:
+            return ERROR_NOT_SUPPORTED;
         default:
             return ERROR_UNDEFINED;
     }

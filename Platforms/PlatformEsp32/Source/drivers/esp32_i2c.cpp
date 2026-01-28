@@ -5,6 +5,7 @@
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/log.h>
 
+#include <tactility/time.h>
 #include <tactility/error_esp32.h>
 #include <tactility/drivers/esp32_i2c.h>
 
@@ -64,52 +65,87 @@ static error_t write_read(Device* device, uint8_t address, const uint8_t* write_
 }
 
 static error_t read_register(Device* device, uint8_t address, uint8_t reg, uint8_t* data, size_t data_size, TickType_t timeout) {
+    auto start_time = get_ticks();
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
     if (data_size == 0) return ERROR_INVALID_ARGUMENT;
     auto* driver_data = GET_DATA(device);
 
     lock(driver_data);
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    // Set address pointer
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_WRITE, ACK_CHECK_EN);
-    i2c_master_write(cmd, &reg, 1, ACK_CHECK_EN);
-    // Read length of response from current pointer
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_READ, ACK_CHECK_EN);
-    if (data_size > 1) {
-        i2c_master_read(cmd, data, data_size - 1, I2C_MASTER_ACK);
+    esp_err_t error = ESP_OK;
+    if (cmd == nullptr) {
+        error = ESP_ERR_NO_MEM;
+        goto on_error;
     }
-    i2c_master_read_byte(cmd, data + data_size - 1, I2C_MASTER_NACK);
-    i2c_master_stop(cmd);
-    // TODO: We're passing an inaccurate timeout value as we already lost time with locking
-    esp_err_t esp_error = i2c_master_cmd_begin(GET_CONFIG(device)->port, cmd, timeout);
+    // Set address pointer
+    error = i2c_master_start(cmd);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_WRITE, ACK_CHECK_EN);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_write(cmd, &reg, 1, ACK_CHECK_EN);
+    if (error != ESP_OK) goto on_error;
+    // Read length of response from current pointer
+    error = i2c_master_start(cmd);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_READ, ACK_CHECK_EN);
+    if (error != ESP_OK) goto on_error;
+    if (data_size > 1) {
+        error = i2c_master_read(cmd, data, data_size - 1, I2C_MASTER_ACK);
+        if (error != ESP_OK) goto on_error;
+    }
+    error = i2c_master_read_byte(cmd, data + data_size - 1, I2C_MASTER_NACK);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_stop(cmd);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_cmd_begin(GET_CONFIG(device)->port, cmd, get_timeout_remaining_ticks(timeout, start_time));
+    if (error != ESP_OK) goto on_error;
+
     i2c_cmd_link_delete(cmd);
     unlock(driver_data);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(error);
+    return esp_err_to_error(error);
 
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_error);
-    return esp_err_to_error(esp_error);
+on_error:
+    i2c_cmd_link_delete(cmd);
+    unlock(driver_data);
+    return esp_err_to_error(error);
 }
 
 static error_t write_register(Device* device, uint8_t address, uint8_t reg, const uint8_t* data, uint16_t data_size, TickType_t timeout) {
+    auto start_time = get_ticks();
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
     if (data_size == 0) return ERROR_INVALID_ARGUMENT;
     auto* driver_data = GET_DATA(device);
 
     lock(driver_data);
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_WRITE, ACK_CHECK_EN);
-    i2c_master_write_byte(cmd, reg, ACK_CHECK_EN);
-    i2c_master_write(cmd, (uint8_t*) data, data_size, ACK_CHECK_EN);
-    i2c_master_stop(cmd);
-    // TODO: We're passing an inaccurate timeout value as we already lost time with locking
-    esp_err_t esp_error = i2c_master_cmd_begin(GET_CONFIG(device)->port, cmd, timeout);
+    esp_err_t error = ESP_OK;
+    if (cmd == nullptr) {
+        error = ESP_ERR_NO_MEM;
+        goto on_error;
+    }
+    error = i2c_master_start(cmd);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_WRITE, ACK_CHECK_EN);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_write_byte(cmd, reg, ACK_CHECK_EN);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_write(cmd, (uint8_t*) data, data_size, ACK_CHECK_EN);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_stop(cmd);
+    if (error != ESP_OK) goto on_error;
+    error = i2c_master_cmd_begin(GET_CONFIG(device)->port, cmd, get_timeout_remaining_ticks(timeout, start_time));
+    if (error != ESP_OK) goto on_error;
+
     i2c_cmd_link_delete(cmd);
     unlock(driver_data);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(error);
+    return esp_err_to_error(error);
 
-    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_error);
-    return esp_err_to_error(esp_error);
+on_error:
+    i2c_cmd_link_delete(cmd);
+    unlock(driver_data);
+    return esp_err_to_error(error);
 }
 
 static error_t start(Device* device) {
@@ -126,7 +162,6 @@ static error_t stop(Device* device) {
     delete driver_data;
     return ERROR_NONE;
 }
-
 
 const static I2cControllerApi esp32_i2c_api = {
     .read = read,

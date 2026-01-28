@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: Apache-2.0
+/**
+ * Time-keeping related functionality.
+ * This includes functionality for both ticks and seconds.
+ */
 #pragma once
 
 #include <stdint.h>
 
+#include "defines.h"
 #include "tactility/freertos/task.h"
 
 #ifdef ESP_PLATFORM
@@ -30,6 +36,12 @@ static inline TickType_t get_ticks() {
 /** @return the milliseconds that have passed since FreeRTOS' main task started */
 static inline size_t get_millis() {
     return get_ticks() * portTICK_PERIOD_MS;
+}
+
+static inline TickType_t get_timeout_remaining_ticks(TickType_t timeout, TickType_t start_time) {
+    auto ticks_passed = get_ticks() - start_time;
+    auto ticks_remaining = (timeout - ticks_passed);
+    return MAX(ticks_remaining, 0);
 }
 
 /** @return the frequency at which the kernel task schedulers operate */

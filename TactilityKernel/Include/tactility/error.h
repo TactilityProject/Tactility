@@ -17,3 +17,7 @@ typedef int error_t;
 #define ERROR_RESOURCE 7 // A problem with a resource/dependency
 #define ERROR_TIMEOUT 8
 #define ERROR_OUT_OF_MEMORY 9
+#define ERROR_NOT_SUPPORTED 10
+
+/** Convert an error_t to a human-readable text. Useful for logging. */
+const char* error_to_string(error_t error);
