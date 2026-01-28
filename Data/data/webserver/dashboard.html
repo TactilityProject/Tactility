@@ -566,7 +566,10 @@ function handleHashChange() {
     }
 }
 window.addEventListener('hashchange', handleHashChange);
-if (window.location.hash) handleHashChange();
+if (window.location.hash) {
+    // Defer until auto-refresh elements are initialized to avoid ReferenceError
+    setTimeout(handleHashChange, 0);
+}
 
 // Utility functions
 function formatBytes(bytes) {
