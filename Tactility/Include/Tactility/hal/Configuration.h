@@ -41,9 +41,6 @@ struct Configuration {
 
     std::function<DeviceVector()> createDevices = [] { return std::vector<std::shared_ptr<Device>>(); };
 
-    /** A list of I2C interface configurations */
-    const std::vector<i2c::Configuration> i2c = {};
-
     /** A list of SPI interface configurations */
     const std::vector<spi::Configuration> spi = {};
 

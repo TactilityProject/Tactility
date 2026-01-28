@@ -8,8 +8,6 @@
 #include "tt_hal.h"
 #include "tt_hal_device.h"
 #include "tt_hal_display.h"
-#include "tt_hal_gpio.h"
-#include "tt_hal_i2c.h"
 #include "tt_hal_touch.h"
 #include "tt_hal_uart.h"
 #include <tt_lock.h>
@@ -219,23 +217,6 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(tt_hal_display_driver_lock),
     ESP_ELFSYM_EXPORT(tt_hal_display_driver_unlock),
     ESP_ELFSYM_EXPORT(tt_hal_display_driver_supported),
-    ESP_ELFSYM_EXPORT(tt_hal_gpio_configure),
-    ESP_ELFSYM_EXPORT(tt_hal_gpio_configure_with_pin_bitmask),
-    ESP_ELFSYM_EXPORT(tt_hal_gpio_set_mode),
-    ESP_ELFSYM_EXPORT(tt_hal_gpio_get_level),
-    ESP_ELFSYM_EXPORT(tt_hal_gpio_set_level),
-    ESP_ELFSYM_EXPORT(tt_hal_gpio_get_pin_count),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_start),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_stop),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_is_started),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_master_read),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_master_read_register),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_master_write),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_master_write_register),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_master_write_read),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_master_has_device_at_address),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_lock),
-    ESP_ELFSYM_EXPORT(tt_hal_i2c_unlock),
     ESP_ELFSYM_EXPORT(tt_hal_touch_driver_supported),
     ESP_ELFSYM_EXPORT(tt_hal_touch_driver_alloc),
     ESP_ELFSYM_EXPORT(tt_hal_touch_driver_free),

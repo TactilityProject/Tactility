@@ -28,18 +28,6 @@ static const char* getEventName(SystemEvent event) {
             return TT_STRINGIFY(BootInitHalBegin);
         case BootInitHalEnd:
             return TT_STRINGIFY(BootInitHalEnd);
-        case BootInitI2cBegin:
-            return TT_STRINGIFY(BootInitI2cBegin);
-        case BootInitI2cEnd:
-            return TT_STRINGIFY(BootInitI2cEnd);
-        case BootInitSpiBegin:
-            return TT_STRINGIFY(BootInitSpiBegin);
-        case BootInitSpiEnd:
-            return TT_STRINGIFY(BootInitSpiEnd);
-        case BootInitUartBegin:
-            return TT_STRINGIFY(BootInitUartBegin);
-        case BootInitUartEnd:
-            return TT_STRINGIFY(BootInitUartEnd);
         case BootSplash:
             return TT_STRINGIFY(BootSplash);
         case NetworkConnected:

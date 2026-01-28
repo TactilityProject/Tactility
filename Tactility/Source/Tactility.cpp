@@ -87,7 +87,6 @@ namespace app {
     namespace fileselection { extern const AppManifest manifest; }
     namespace gpssettings { extern const AppManifest manifest; }
     namespace i2cscanner { extern const AppManifest manifest; }
-    namespace i2csettings { extern const AppManifest manifest; }
     namespace imageviewer { extern const AppManifest manifest; }
     namespace inputdialog { extern const AppManifest manifest; }
     namespace launcher { extern const AppManifest manifest; }
@@ -139,7 +138,6 @@ static void registerInternalApps() {
     addAppManifest(app::files::manifest);
     addAppManifest(app::fileselection::manifest);
     addAppManifest(app::i2cscanner::manifest);
-    addAppManifest(app::i2csettings::manifest);
     addAppManifest(app::imageviewer::manifest);
     addAppManifest(app::inputdialog::manifest);
     addAppManifest(app::launcher::manifest);

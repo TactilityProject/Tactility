@@ -12,36 +12,13 @@ namespace tt::hal::i2c {
 
 constexpr TickType_t defaultTimeout = 10 / portTICK_PERIOD_MS;
 
-enum class InitMode {
-    ByTactility, // Tactility will initialize it in the correct bootup phase
-    Disabled // Not initialized by default
-};
-
-struct Configuration {
-    std::string name;
-    /** The port to operate on */
-    i2c_port_t port;
-    /** Whether this bus should be initialized when device starts up */
-    InitMode initMode;
-    /**
-     * Whether this bus can be changed after booting.
-     * If the bus is internal and/or used for core features like touch screen, then it can be declared static.
-     */
-    bool isMutable;
-    /** Configuration that must be valid when initAtBoot is set to true. */
-    i2c_config_t config;
-};
-
 enum class Status {
     Started,
     Stopped,
     Unknown
 };
 
-/**
- * Start the bus for the specified port.
- * Devices might be started automatically at boot if their HAL configuration requires it.
- */
+/** Start the bus for the specified port. */
 bool start(i2c_port_t port);
 
 /** Stop the bus for the specified port. */

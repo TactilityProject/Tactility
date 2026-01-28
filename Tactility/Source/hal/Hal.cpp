@@ -3,8 +3,6 @@
 #include <tactility/check.h>
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/hal/Device.h>
-#include <Tactility/hal/gps/GpsInit.h>
-#include <Tactility/hal/i2c/I2cInit.h>
 #include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/hal/spi/SpiInit.h>
 #include <Tactility/hal/uart/UartInit.h>
@@ -68,17 +66,8 @@ static void startDisplays() {
 void init(const Configuration& configuration) {
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitHalBegin);
 
-    kernel::publishSystemEvent(kernel::SystemEvent::BootInitI2cBegin);
-    check(i2c::init(configuration.i2c), "I2C init failed");
-    kernel::publishSystemEvent(kernel::SystemEvent::BootInitI2cEnd);
-
-    kernel::publishSystemEvent(kernel::SystemEvent::BootInitSpiBegin);
     check(spi::init(configuration.spi), "SPI init failed");
-    kernel::publishSystemEvent(kernel::SystemEvent::BootInitSpiEnd);
-
-    kernel::publishSystemEvent(kernel::SystemEvent::BootInitUartBegin);
     check(uart::init(configuration.uart), "UART init failed");
-    kernel::publishSystemEvent(kernel::SystemEvent::BootInitUartEnd);
 
     if (configuration.initBoot != nullptr) {
         check(configuration.initBoot(), "Init boot failed");
