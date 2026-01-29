@@ -40,7 +40,7 @@ endif ()
 
 file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/Firmware/Generated")
 
-# Generate devicetree code and attach to Firmware component
+add_custom_target(AlwaysRun)
 add_custom_command(
     OUTPUT "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c"
         "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.h"
@@ -48,7 +48,7 @@ add_custom_command(
     COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/DevicetreeCompiler/compile.py"
     "${DEVICETREE_LOCATION}" "Firmware/Generated"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    DEPENDS "${DEVICETREE_LOCATION}/devicetree.yaml" # Optional: trigger rebuild if source changes
+    DEPENDS AlwaysRun "${DEVICETREE_LOCATION}/devicetree.yaml" # AlwaysRun ensures it always gets built
     COMMENT "Generating devicetree source files..."
 )
 add_custom_target(Generated DEPENDS "${CMAKE_SOURCE_DIR}/Firmware/Generated/devicetree.c")
