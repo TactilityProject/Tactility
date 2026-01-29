@@ -10,6 +10,6 @@
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
-		gpio-count = <49>;
+		gpio-count = <31>;
 	};
 };

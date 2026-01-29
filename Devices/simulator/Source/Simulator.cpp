@@ -40,42 +40,6 @@ static std::vector<std::shared_ptr<Device>> createDevices() {
 extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .createDevices = createDevices,
-    .i2c = {
-        i2c::Configuration {
-            .name = "Internal",
-            .port = I2C_NUM_0,
-            .initMode = i2c::InitMode::ByTactility,
-            .isMutable = false,
-            .config = (i2c_config_t) {
-                .mode = I2C_MODE_MASTER,
-                .sda_io_num = 1,
-                .scl_io_num = 2,
-                .sda_pullup_en = true,
-                .scl_pullup_en = true,
-                .master = {
-                    .clk_speed = 400000
-                },
-                .clk_flags = 0
-            }
-        },
-        i2c::Configuration {
-            .name = "External",
-            .port = I2C_NUM_1,
-            .initMode = i2c::InitMode::ByTactility,
-            .isMutable = true,
-            .config = (i2c_config_t) {
-                .mode = I2C_MODE_MASTER,
-                .sda_io_num = 3,
-                .scl_io_num = 2,
-                .sda_pullup_en = false,
-                .scl_pullup_en = false,
-                .master = {
-                    .clk_speed = 400000
-                },
-                .clk_flags = 0
-            }
-        }
-    },
     .uart = {
         uart::Configuration {
             .name = "/dev/ttyUSB0",

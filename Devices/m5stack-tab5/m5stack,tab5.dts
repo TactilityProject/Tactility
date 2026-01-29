@@ -10,7 +10,7 @@
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
-		gpio-count = <40>;
+		gpio-count = <57>;
 	};
 
 	i2c_internal {

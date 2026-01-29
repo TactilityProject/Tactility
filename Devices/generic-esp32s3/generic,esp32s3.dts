@@ -6,7 +6,7 @@
 
 / {
 	compatible = "root";
-	model = "Generic ESP32 S4";
+	model = "Generic ESP32 S3";
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
