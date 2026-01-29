@@ -21,7 +21,7 @@
 		pin-scl = <32>;
 	};
 
-	// CN1 header
+	/* CN1 header */
 	i2c_external {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_1>;
