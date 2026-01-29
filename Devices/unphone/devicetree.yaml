@@ -1,3 +1,3 @@
 dependencies:
   - Platforms/PlatformEsp32
-dts: unphone,unphone.dts
+dts: unphone.dts
