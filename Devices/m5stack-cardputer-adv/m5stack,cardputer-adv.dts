@@ -9,6 +9,7 @@
 	model = "M5Stack Cardputer Adv";
 
 	gpio0: gpio0 {
+		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
 	};
 
