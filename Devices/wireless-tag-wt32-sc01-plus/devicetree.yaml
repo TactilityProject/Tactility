@@ -1,3 +1,3 @@
 dependencies:
-  - TactilityKernel
-dts: ../placeholder.dts
+  - Platforms/PlatformEsp32
+dts: wireless-tag,wt32-sc01-plus.dts

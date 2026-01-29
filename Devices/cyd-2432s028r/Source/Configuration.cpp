@@ -31,25 +31,6 @@ static DeviceVector createDevices() {
 extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .createDevices = createDevices,
-    .i2c = {
-        i2c::Configuration {
-            .name = "CN1",
-            .port = I2C_NUM_0,
-            .initMode = i2c::InitMode::ByTactility,
-            .isMutable = true,
-            .config = (i2c_config_t) {
-                .mode = I2C_MODE_MASTER,
-                .sda_io_num = GPIO_NUM_27,
-                .scl_io_num = GPIO_NUM_22,
-                .sda_pullup_en = false,
-                .scl_pullup_en = false,
-                .master = {
-                    .clk_speed = 400000
-                },
-                .clk_flags = 0
-            }
-        }
-    },
     .spi {
         // Display
         spi::Configuration {

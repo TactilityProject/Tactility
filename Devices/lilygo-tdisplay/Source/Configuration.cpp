@@ -22,7 +22,6 @@ extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .uiScale = UiScale::Smallest,
     .createDevices = createDevices,
-    .i2c = {},
     .spi {
         spi::Configuration {
             .device = SPI2_HOST,

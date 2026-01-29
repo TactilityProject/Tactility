@@ -20,45 +20,6 @@ static DeviceVector createDevices() {
 extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .createDevices = createDevices,
-    .i2c = {
-        //Touch
-        i2c::Configuration {
-            .name = "Internal",
-            .port = I2C_NUM_0,
-            .initMode = i2c::InitMode::ByTactility,
-            .isMutable = true,
-            .config = (i2c_config_t) {
-                .mode = I2C_MODE_MASTER,
-                .sda_io_num = GPIO_NUM_19,
-                .scl_io_num = GPIO_NUM_20,
-                .sda_pullup_en = true,
-                .scl_pullup_en = true,
-                .master = {
-                    .clk_speed = 400000
-                },
-                .clk_flags = 0
-            }
-        },
-        //P4 header, JST SH 1.25, GND / 3.3V / IO17 / IO18 or
-        //P5 header, JST SH 1.0, GND / 3.3V / IO17 / IO18
-        i2c::Configuration {
-            .name = "External",
-            .port = I2C_NUM_1,
-            .initMode = i2c::InitMode::Disabled,
-            .isMutable = true,
-            .config = (i2c_config_t) {
-                .mode = I2C_MODE_MASTER,
-                .sda_io_num = GPIO_NUM_17,
-                .scl_io_num = GPIO_NUM_18,
-                .sda_pullup_en = true,
-                .scl_pullup_en = true,
-                .master = {
-                    .clk_speed = 400000
-                },
-                .clk_flags = 0
-            }
-        }
-    },
     .spi {
         //SD Card
         spi::Configuration {

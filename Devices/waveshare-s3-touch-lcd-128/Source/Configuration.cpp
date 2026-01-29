@@ -24,25 +24,6 @@ extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .uiScale = UiScale::Smallest,
     .createDevices = createDevices,
-    .i2c = {
-        i2c::Configuration {
-            .name = "Main",
-            .port = I2C_NUM_0,
-            .initMode = i2c::InitMode::ByTactility,
-            .isMutable = false,
-            .config = (i2c_config_t) {
-                .mode = I2C_MODE_MASTER,
-                .sda_io_num = GPIO_NUM_6,
-                .scl_io_num = GPIO_NUM_7,
-                .sda_pullup_en = false,
-                .scl_pullup_en = false,
-                .master = {
-                    .clk_speed = 400000
-                },
-                .clk_flags = 0
-            }
-        }
-    },
     .spi {
         // Display
         spi::Configuration {

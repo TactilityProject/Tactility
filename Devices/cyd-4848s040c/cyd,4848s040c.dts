@@ -1,0 +1,25 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c.h>
+
+/ {
+	compatible = "root";
+	model = "CYD 4848S040C";
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	i2c0 {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_0>;
+		clock-frequency = <400000>;
+		pin-sda = <19>;
+		pin-scl = <45>;
+		sda-pullup;
+		scl-pullup;
+	};
+};

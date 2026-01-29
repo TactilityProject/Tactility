@@ -1,0 +1,14 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+
+/ {
+	compatible = "root";
+	model = "CYD E32R28T";
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <40>;
+	};
+};

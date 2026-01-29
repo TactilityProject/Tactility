@@ -20,7 +20,6 @@ static std::vector<std::shared_ptr<Device>> createDevices() {
 extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .createDevices = createDevices,
-    .i2c = {},
     .spi {
         spi::Configuration {
             .device = SPI2_HOST,

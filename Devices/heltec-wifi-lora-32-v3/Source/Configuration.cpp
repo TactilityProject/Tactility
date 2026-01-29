@@ -48,24 +48,5 @@ extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .uiScale = UiScale::Smallest,
     .createDevices = createDevices,
-    .i2c = {
-        tt::hal::i2c::Configuration {
-            .name = "Internal",
-            .port = DISPLAY_I2C_PORT,
-            .initMode = tt::hal::i2c::InitMode::ByTactility,
-            .isMutable = true,
-            .config = (i2c_config_t) {
-                .mode = I2C_MODE_MASTER,
-                .sda_io_num = DISPLAY_PIN_SDA,
-                .scl_io_num = DISPLAY_PIN_SCL,
-                .sda_pullup_en = GPIO_PULLUP_ENABLE,
-                .scl_pullup_en = GPIO_PULLUP_ENABLE,
-                .master = {
-                    .clk_speed = DISPLAY_I2C_SPEED
-                },
-                .clk_flags = 0
-            }
-        }
-    },
     .spi {},
 };

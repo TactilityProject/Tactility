@@ -1,0 +1,33 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c.h>
+
+/ {
+	compatible = "root";
+	model = "M5Stack Cardputer Adv";
+
+	gpio0: gpio0 {
+		gpio-count = <49>;
+	};
+
+	i2c_internal {
+		port = <I2C_NUM_0>;
+		sda = <8>;
+		scl = <9>;
+		frequency = <400000>;
+		sda-pullup;
+		scl-pullup;
+	};
+
+	i2c_port_a {
+		port = <I2C_NUM_1>;
+		sda = <2>;
+		scl = <1>;
+		frequency = <400000>;
+		sda-pullup;
+		scl-pullup;
+		disabled;
+	};
+};

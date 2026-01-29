@@ -21,27 +21,6 @@ static DeviceVector createDevices() {
 extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .createDevices = createDevices,
-    .i2c = {
-        // There is only 1 (internal for touch, and also serves as "I2C-OUT" port)
-        // Note: You could repurpose 1 or more UART interfaces as I2C interfaces
-        i2c::Configuration {
-            .name = "Main",
-            .port = I2C_NUM_0,
-            .initMode = i2c::InitMode::ByTactility,
-            .isMutable = false,
-            .config = (i2c_config_t) {
-                .mode = I2C_MODE_MASTER,
-                .sda_io_num = GPIO_NUM_19,
-                .scl_io_num = GPIO_NUM_20,
-                .sda_pullup_en = true,
-                .scl_pullup_en = true,
-                .master = {
-                    .clk_speed = 400000
-                },
-                .clk_flags = 0
-            }
-        }
-    },
     .spi {
         // SD card
         spi::Configuration {
