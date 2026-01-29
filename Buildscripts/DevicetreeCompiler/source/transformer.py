@@ -33,8 +33,8 @@ class DtsTransformer(Transformer):
         return Device(identifier, properties, devices)
     def device_property(self, objects: List[object]):
         name = objects[0]
-        if len(objects) == 1:
-            # Boolean property with no value
+        # Boolean property has no value as the value is implied to be true
+        if (len(objects) == 1) or (objects[1] is None):
             return DeviceProperty(name, "boolean", True)
         if type(objects[1]) is not PropertyValue:
             raise Exception(f"Object was not converted to PropertyValue: {objects[1]}")
