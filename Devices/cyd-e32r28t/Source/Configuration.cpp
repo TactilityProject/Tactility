@@ -19,7 +19,6 @@ static tt::hal::DeviceVector createDevices() {
 extern const tt::hal::Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .createDevices = createDevices,
-    .i2c = {},
     .spi = {
         tt::hal::spi::Configuration {
             .device = SPI2_HOST,
