@@ -30,7 +30,6 @@ extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
     .uiScale = UiScale::Smallest,
     .createDevices = createDevices,
-    .i2c {},
     .spi {
         // Display
         spi::Configuration {

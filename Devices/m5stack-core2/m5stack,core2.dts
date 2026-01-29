@@ -19,8 +19,8 @@
 		clock-frequency = <400000>;
 		pin-sda = <21>;
 		pin-scl = <22>;
-		sda-pullup;
-		scl-pullup;
+		pin-sda-pullup;
+		pin-scl-pullup;
 	};
 
 	i2c_port_a {
@@ -29,7 +29,7 @@
 		clock-frequency = <400000>;
 		pin-sda = <32>;
 		pin-scl = <33>;
-		sda-pullup;
-		scl-pullup;
+		pin-sda-pullup;
+		pin-scl-pullup;
 	};
 };
