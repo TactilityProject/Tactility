@@ -6,6 +6,8 @@
 
 extern "C" {
 
+extern struct Module device_module;
+
 static int start(Device* device) {
     return 0;
 }
@@ -21,7 +23,8 @@ Driver tlora_pager_driver = {
     .stopDevice = stop,
     .api = nullptr,
     .deviceType = nullptr,
-    .internal = { 0 }
+    .owner = &device_module,
+    .driver_private = nullptr
 };
 
 }

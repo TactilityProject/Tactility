@@ -19,7 +19,7 @@ TEST_CASE("driver_construct and driver_destruct should set and unset the correct
     CHECK_EQ(driver.driver_private, nullptr);
 }
 
-TEST_CASE("a driver without a module should not be destrucable") {
+TEST_CASE("a driver without a module should not be destructible") {
     Driver driver = { 0 };
 
     CHECK_EQ(driver_construct(&driver), ERROR_NONE);
