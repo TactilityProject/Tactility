@@ -11,6 +11,7 @@ extern "C" {
 
 struct Device;
 struct DeviceType;
+struct Module;
 
 struct Driver {
     /** The driver name */

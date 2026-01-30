@@ -2,9 +2,6 @@
 
 extern "C" {
 
-extern Driver esp32_gpio_driver;
-extern Driver esp32_i2c_driver;
-
 static error_t start() {
     /* NO-OP for now */
     return ERROR_NONE;

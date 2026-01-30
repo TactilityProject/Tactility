@@ -18,7 +18,10 @@ struct Configuration {
 };
 
 /**
- * Attempts to initialize Tactility and all configured hardware.
+ * @brief Main entry point for Tactility.
+ * @param platformModule Platform module to start (non-null).
+ * @param deviceModule Device module to start (non-null).
+ * @param devicetreeDevices Null-terminated array where an entry { NULL, NULL } marks the end of the list.
  */
 void run(const Configuration& config, Module* platformModule, Module* deviceModule, CompatibleDevice devicetreeDevices[]);
 
