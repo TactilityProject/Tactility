@@ -97,16 +97,6 @@ bool module_is_started(struct Module* module);
  */
 error_t module_stop(struct Module* module);
 
-error_t kernel_module_parent_construct(void);
-
-error_t kernel_module_parent_destruct(void);
-
-/**
- * @brief Get the kernel module parent. This parent is the root parent for kernel modules.
- * @return the kernel module parent
- */
-struct ModuleParent* get_kernel_module_parent(void);
-
 #ifdef __cplusplus
 }
 #endif

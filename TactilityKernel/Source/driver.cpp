@@ -108,14 +108,10 @@ error_t driver_destruct(Driver* driver) {
         LOG_W(TAG, "Failed to remove driver from ledger: %s", driver->name);
     }
 
-    // Copy the mutex so we can free the driver's memory and unlock the mutex later
-    struct Mutex mutex_copy;
-    memcpy(&mutex_copy, &get_internal(driver)->mutex, sizeof(Mutex));
-
+    driver_unlock(driver);
     delete get_internal(driver);
     driver->internal = nullptr;
 
-    mutex_unlock(&mutex_copy);
     return ERROR_NONE;
 }
 

@@ -27,6 +27,8 @@ const char* error_to_string(error_t error) {
             return "out of memory";
         case ERROR_NOT_SUPPORTED:
             return "not supported";
+        case ERROR_NOT_ALLOWED:
+            return "not allowed";
         default:
             return "unknown";
     }

@@ -98,23 +98,5 @@ error_t module_stop(struct Module* module) {
 
 #pragma endregion
 
-#pragma region kernel_module_parent;
-
-static struct ModuleParent kernel_module_parent = { "kernel", { nullptr } };
-
-error_t kernel_module_parent_construct(void) {
-    return module_parent_construct(&kernel_module_parent);
-}
-
-error_t kernel_module_parent_destruct(void) {
-    return module_parent_destruct(&kernel_module_parent);
-}
-
-struct ModuleParent* get_kernel_module_parent(void) {
-    return &kernel_module_parent;
-}
-
-#pragma endregion
-
 }
 

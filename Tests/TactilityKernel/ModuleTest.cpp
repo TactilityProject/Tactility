@@ -82,8 +82,9 @@ TEST_CASE("Module parent management") {
     CHECK_EQ(module_set_parent(&module, &parent1), ERROR_NONE);
     CHECK_EQ(module.internal.parent, &parent1);
 
-    module_parent_destruct(&parent1);
-    module_parent_destruct(&parent2);
+    CHECK_EQ(module_set_parent(&module, nullptr), ERROR_NONE);
+    CHECK_EQ(module_parent_destruct(&parent1), ERROR_NONE);
+    CHECK_EQ(module_parent_destruct(&parent2), ERROR_NONE);
 }
 
 TEST_CASE("Module lifecycle") {
@@ -154,21 +155,6 @@ TEST_CASE("Module lifecycle") {
     test_stop_result = ERROR_NONE;
     CHECK_EQ(module_stop(&module), ERROR_NONE);
 
-    module_parent_destruct(&parent);
-}
-
-TEST_CASE("Kernel module parent") {
-    // Ensure it's constructed
-    REQUIRE_EQ(kernel_module_parent_construct(), ERROR_NONE);
-
-    struct ModuleParent* kernel_parent = get_kernel_module_parent();
-    CHECK_NE(kernel_parent, nullptr);
-    CHECK_NE(kernel_parent->internal.data, nullptr);
-
-    // Multiple calls return the same
-    CHECK_EQ(get_kernel_module_parent(), kernel_parent);
-
-    // Test destruction
-    CHECK_EQ(kernel_module_parent_destruct(), ERROR_NONE);
-    CHECK_EQ(kernel_parent->internal.data, nullptr);
+    CHECK_EQ(module_set_parent(&module, nullptr), ERROR_NONE);
+    CHECK_EQ(module_parent_destruct(&parent), ERROR_NONE);
 }
