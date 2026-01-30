@@ -7,7 +7,7 @@ extern "C" {
 extern Driver tlora_pager_driver;
 
 static error_t start() {
-    /* We crash when destruct fails, because if a single driver fails to construct,
+    /* We crash when construct fails, because if a single driver fails to construct,
      * there is no guarantee that the previously constructed drivers can be destroyed */
     check(driver_construct(&tlora_pager_driver) == ERROR_NONE);
     return ERROR_NONE;
@@ -20,7 +20,7 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-/** @warn The variable name must be exactly "device_module" */
+/** @warning The variable name must be exactly "device_module" */
 struct Module device_module = {
     .name = "LilyGO T-Lora Pager",
     .start = start,

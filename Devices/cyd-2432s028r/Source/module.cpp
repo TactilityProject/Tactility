@@ -12,7 +12,7 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-/** @warn The variable name must be exactly "device_module" */
+/** @warning The variable name must be exactly "device_module" */
 struct Module device_module = {
     .name = "Module",
     .start = start,
