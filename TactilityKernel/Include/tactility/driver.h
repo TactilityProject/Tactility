@@ -12,6 +12,7 @@ extern "C" {
 struct Device;
 struct DeviceType;
 struct Module;
+struct DriverPrivate;
 
 struct Driver {
     /** The driver name */
@@ -29,7 +30,7 @@ struct Driver {
     /** The module that owns this driver. When it is NULL, the system owns the driver and it cannot be removed from registration. */
     const struct Module* owner;
     /** Internal data */
-    void* internal;
+    struct DriverPrivate* driver_private;
 };
 
 error_t driver_construct(struct Driver* driver);

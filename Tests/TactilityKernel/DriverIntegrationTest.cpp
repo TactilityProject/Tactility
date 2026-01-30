@@ -38,7 +38,7 @@ static Driver integration_driver = {
     .api = nullptr,
     .deviceType = nullptr,
     .owner = &module,
-    .internal = nullptr,
+    .driver_private = nullptr,
 };
 
 TEST_CASE("driver with with start success and stop success should start and stop a device") {

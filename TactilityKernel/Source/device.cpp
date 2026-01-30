@@ -13,7 +13,7 @@
 
 #define TAG LOG_TAG(device)
 
-struct DeviceData {
+struct DevicePrivate {
     std::vector<Device*> children;
 };
 
@@ -42,11 +42,11 @@ extern "C" {
 #define ledger_lock() mutex_lock(&ledger.mutex)
 #define ledger_unlock() mutex_unlock(&ledger.mutex)
 
-#define get_device_data(device) static_cast<DeviceData*>(device->internal.data)
+#define get_device_private(device) static_cast<DevicePrivate*>(device->internal.device_private)
 
 error_t device_construct(Device* device) {
-    device->internal.data = new(std::nothrow) DeviceData;
-    if (device->internal.data == nullptr) {
+    device->internal.device_private = new(std::nothrow) DevicePrivate;
+    if (device->internal.device_private == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
     LOG_I(TAG, "construct %s", device->name);
@@ -58,13 +58,13 @@ error_t device_destruct(Device* device) {
     if (device->internal.state.started || device->internal.state.added) {
         return ERROR_INVALID_STATE;
     }
-    if (!get_device_data(device)->children.empty()) {
+    if (!get_device_private(device)->children.empty()) {
         return ERROR_INVALID_STATE;
     }
     LOG_I(TAG, "destruct %s", device->name);
     mutex_destruct(&device->internal.mutex);
-    delete get_device_data(device);
-    device->internal.data = nullptr;
+    delete get_device_private(device);
+    device->internal.device_private = nullptr;
     return ERROR_NONE;
 }
 
@@ -72,14 +72,14 @@ error_t device_destruct(Device* device) {
 static void device_add_child(struct Device* device, struct Device* child) {
     device_lock(device);
     assert(device->internal.state.added);
-    get_device_data(device)->children.push_back(child);
+    get_device_private(device)->children.push_back(child);
     device_unlock(device);
 }
 
 /** Remove a child from the list of children */
 static void device_remove_child(struct Device* device, struct Device* child) {
     device_lock(device);
-    auto* parent_data = get_device_data(device);
+    auto* parent_data = get_device_private(device);
     const auto iterator = std::ranges::find(parent_data->children, child);
     if (iterator != parent_data->children.end()) {
         parent_data->children.erase(iterator);
@@ -251,7 +251,7 @@ void for_each_device(void* callback_context, bool(*on_device)(Device* device, vo
 }
 
 void for_each_device_child(Device* device, void* callbackContext, bool(*on_device)(struct Device* device, void* context)) {
-    auto* data = get_device_data(device);
+    auto* data = get_device_private(device);
     for (auto* child_device : data->children) {
         if (!on_device(child_device, callbackContext)) {
             break;

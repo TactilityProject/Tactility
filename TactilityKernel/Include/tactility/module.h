@@ -8,6 +8,7 @@ extern "C" {
 #include <stdbool.h>
 
 struct ModuleParent;
+struct ModuleParentPrivate;
 
 /**
  * A module is a collection of drivers or other functionality that can be loaded and unloaded at runtime.
@@ -46,9 +47,7 @@ struct Module {
 struct ModuleParent {
     /** The name of the parent module, for logging/debugging purposes */
     const char* name;
-    struct {
-        void* data;
-    } internal;
+    struct ModuleParentPrivate* module_parent_private;
 };
 
 /**

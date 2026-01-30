@@ -16,19 +16,19 @@ static error_t test_stop() {
 }
 
 TEST_CASE("ModuleParent construction and destruction") {
-    struct ModuleParent parent = { "test_parent", { nullptr } };
+    struct ModuleParent parent = { "test_parent", nullptr };
 
     // Test successful construction
     CHECK_EQ(module_parent_construct(&parent), ERROR_NONE);
-    CHECK_NE(parent.internal.data, nullptr);
+    CHECK_NE(parent.module_parent_private, nullptr);
 
     // Test successful destruction
     CHECK_EQ(module_parent_destruct(&parent), ERROR_NONE);
-    CHECK_EQ(parent.internal.data, nullptr);
+    CHECK_EQ(parent.module_parent_private, nullptr);
 }
 
 TEST_CASE("ModuleParent destruction with children") {
-    struct ModuleParent parent = { "parent", { nullptr } };
+    struct ModuleParent parent = { "parent", nullptr };
     REQUIRE_EQ(module_parent_construct(&parent), ERROR_NONE);
 
     struct Module module = {
@@ -42,19 +42,19 @@ TEST_CASE("ModuleParent destruction with children") {
 
     // Should fail to destruct because it has a child
     CHECK_EQ(module_parent_destruct(&parent), ERROR_INVALID_STATE);
-    CHECK_NE(parent.internal.data, nullptr);
+    CHECK_NE(parent.module_parent_private, nullptr);
 
     // Remove child
     REQUIRE_EQ(module_set_parent(&module, nullptr), ERROR_NONE);
 
     // Now it should succeed
     CHECK_EQ(module_parent_destruct(&parent), ERROR_NONE);
-    CHECK_EQ(parent.internal.data, nullptr);
+    CHECK_EQ(parent.module_parent_private, nullptr);
 }
 
 TEST_CASE("Module parent management") {
-    struct ModuleParent parent1 = { "parent1", { nullptr } };
-    struct ModuleParent parent2 = { "parent2", { nullptr } };
+    struct ModuleParent parent1 = { "parent1", nullptr };
+    struct ModuleParent parent2 = { "parent2", nullptr };
     REQUIRE_EQ(module_parent_construct(&parent1), ERROR_NONE);
     REQUIRE_EQ(module_parent_construct(&parent2), ERROR_NONE);
 
@@ -88,7 +88,7 @@ TEST_CASE("Module parent management") {
 }
 
 TEST_CASE("Module lifecycle") {
-    struct ModuleParent parent = { "parent", { nullptr } };
+    struct ModuleParent parent = { "parent", nullptr };
     REQUIRE_EQ(module_parent_construct(&parent), ERROR_NONE);
 
     start_called = false;

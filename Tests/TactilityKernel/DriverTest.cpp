@@ -14,9 +14,9 @@ TEST_CASE("driver_construct and driver_destruct should set and unset the correct
     driver.owner = &module;
 
     CHECK_EQ(driver_construct(&driver), ERROR_NONE);
-    CHECK_NE(driver.internal, nullptr);
+    CHECK_NE(driver.driver_private, nullptr);
     CHECK_EQ(driver_destruct(&driver), ERROR_NONE);
-    CHECK_EQ(driver.internal, nullptr);
+    CHECK_EQ(driver.driver_private, nullptr);
 }
 
 TEST_CASE("a driver without a module should not be destrucable") {
@@ -38,7 +38,7 @@ TEST_CASE("driver_is_compatible should return true if a compatible value is foun
         .api = nullptr,
         .deviceType = nullptr,
         .owner = &module,
-        .internal = nullptr
+        .driver_private = nullptr
     };
     CHECK_EQ(driver_is_compatible(&driver, "test_compatible"), true);
     CHECK_EQ(driver_is_compatible(&driver, "nope"), false);
@@ -55,7 +55,7 @@ TEST_CASE("driver_find should only find a compatible driver when the driver was 
         .api = nullptr,
         .deviceType = nullptr,
         .owner = &module,
-        .internal = nullptr
+        .driver_private = nullptr
     };
 
     Driver* found_driver = driver_find_compatible("test_compatible");

@@ -7,7 +7,10 @@ extern "C" {
 
 #define TAG LOG_TAG(kernel)
 
-struct ModuleParent kernel_module_parent;
+struct ModuleParent kernel_module_parent = {
+    "kernel",
+    nullptr
+};
 
 static error_t init_kernel_drivers() {
     extern Driver root_driver;

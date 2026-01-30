@@ -13,7 +13,7 @@ Driver root_driver = {
     .api = nullptr,
     .deviceType = nullptr,
     .owner = nullptr,
-    .internal = nullptr
+    .driver_private = nullptr
 };
 
 }

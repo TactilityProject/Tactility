@@ -117,7 +117,7 @@ Driver esp32_gpio_driver = {
     .api =  (void*)&esp32_gpio_api,
     .deviceType = nullptr,
     .owner = &platform_module,
-    .internal = nullptr
+    .driver_private = nullptr
 };
 
 } // extern "C"
