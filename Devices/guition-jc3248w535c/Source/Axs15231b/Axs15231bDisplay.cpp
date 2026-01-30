@@ -369,6 +369,9 @@ bool Axs15231bDisplay::stop() {
 
     teardownTeSync();
 
+    // Invalidate cached DisplayDriver - it holds a raw panelHandle that is about to be deleted
+    displayDriver.reset();
+
     if (panelHandle != nullptr && esp_lcd_panel_del(panelHandle) != ESP_OK) {
         LOGGER.error("Failed to delete panel");
     }
@@ -473,6 +476,10 @@ bool Axs15231bDisplay::stopLvgl() {
 std::shared_ptr<tt::hal::display::DisplayDriver> Axs15231bDisplay::getDisplayDriver() {
     if (lvglDisplay != nullptr) {
         LOGGER.error("Cannot get DisplayDriver while LVGL is active - call stopLvgl() first");
+        return nullptr;
+    }
+    if (panelHandle == nullptr) {
+        LOGGER.error("Cannot get DisplayDriver - display is not started");
         return nullptr;
     }
     if (displayDriver == nullptr) {
