@@ -30,6 +30,10 @@ public:
     void onResult(AppContext& appContext, LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle) override {
         view->onResult(launchId, result, std::move(bundle));
     }
+
+    void onHide(AppContext& appContext) override {
+        view->deinit(appContext);
+    }
 };
 
 extern const AppManifest manifest = {

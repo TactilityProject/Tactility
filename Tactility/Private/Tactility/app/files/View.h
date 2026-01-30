@@ -44,6 +44,7 @@ public:
     void onNewFolderPressed();
     void onDirEntryListScrollBegin();
     void onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle);
+    void deinit(const AppContext& appContext);
 };
 
 }

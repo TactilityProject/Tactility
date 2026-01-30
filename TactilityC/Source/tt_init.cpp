@@ -564,6 +564,7 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(lv_group_get_default),
     ESP_ELFSYM_EXPORT(lv_group_add_obj),
     ESP_ELFSYM_EXPORT(lv_group_set_default),
+    ESP_ELFSYM_EXPORT(lv_group_set_editing),
     // lv_mem
     ESP_ELFSYM_EXPORT(lv_free),
     ESP_ELFSYM_EXPORT(lv_malloc),

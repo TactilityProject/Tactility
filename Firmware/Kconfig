@@ -45,6 +45,8 @@ menu "Tactility App"
             bool "Guition JC1060P470CIWY"
         config TT_DEVICE_GUITION_JC2432W328C
             bool "Guition JC2432W328C"
+        config TT_DEVICE_GUITION_JC3248W535C
+            bool "Guition JC3248W535C"
         config TT_DEVICE_GUITION_JC8048W550C
             bool "Guition JC8048W550C"
         config TT_DEVICE_HELTEC_V3

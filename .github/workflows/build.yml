@@ -49,6 +49,7 @@ jobs:
           { id: elecrow-crowpanel-basic-50, arch: esp32s3 },
           { id: guition-jc1060p470ciwy, arch: esp32p4 },
           { id: guition-jc2432w328c, arch: esp32 },
+          { id: guition-jc3248w535c, arch: esp32s3 },
           { id: guition-jc8048w550c, arch: esp32s3 },
           { id: heltec-wifi-lora-32-v3, arch: esp32s3 },
           { id: lilygo-tdeck, arch: esp32s3 },
