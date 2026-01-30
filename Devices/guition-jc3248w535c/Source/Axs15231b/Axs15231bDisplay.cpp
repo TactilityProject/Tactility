@@ -447,6 +447,15 @@ bool Axs15231bDisplay::stopLvgl() {
 
     esp_lcd_panel_disp_on_off(panelHandle, false);
 
+    // Unregister IO callbacks before deleting the display to prevent use-after-free.
+    // The on_color_trans_done callback captures lvglDisplay as user_ctx; if a DMA
+    // transfer completes after lv_display_delete(), it would call
+    // lv_display_flush_ready() on a freed pointer.
+    const esp_lcd_panel_io_callbacks_t nullCbs = {
+        .on_color_trans_done = nullptr,
+    };
+    esp_lcd_panel_io_register_event_callbacks(ioHandle, &nullCbs, nullptr);
+
     lv_display_delete(lvglDisplay);
     lvglDisplay = nullptr;
 
