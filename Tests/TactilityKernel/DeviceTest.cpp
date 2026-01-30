@@ -4,6 +4,13 @@
 #include <vector>
 
 #include <tactility/device.h>
+#include <tactility/module.h>
+
+static Module module = {
+    .name = "test_module",
+    .start = nullptr,
+    .stop = nullptr
+};
 
 TEST_CASE("device_construct and device_destruct should set and unset the correct fields") {
     Device device = { 0 };
@@ -164,7 +171,8 @@ TEST_CASE("device_is_ready should return true only when it is started") {
         .stopDevice = nullptr,
         .api = nullptr,
         .deviceType = nullptr,
-        .internal = { 0 }
+        .owner = &module,
+        .internal = nullptr
     };
 
     Device device = { 0 };

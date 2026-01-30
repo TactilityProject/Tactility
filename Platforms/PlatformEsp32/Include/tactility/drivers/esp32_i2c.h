@@ -18,8 +18,6 @@ struct Esp32I2cConfig {
 };
 
 error_t esp32_i2c_get_port(struct Device* device, i2c_port_t* port);
-void esp32_i2c_lock(struct Device* device);
-void esp32_i2c_unlock(struct Device* device);
 
 #ifdef __cplusplus
 }

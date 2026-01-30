@@ -12,16 +12,16 @@
 
 #define TAG LOG_TAG(driver)
 
-struct DriverInternalData {
+struct DriverInternal {
     Mutex mutex { 0 };
     int use_count = 0;
     bool destroying = false;
 
-    DriverInternalData() {
+    DriverInternal() {
         mutex_construct(&mutex);
     }
 
-    ~DriverInternalData() {
+    ~DriverInternal() {
         mutex_destruct(&mutex);
     }
 };
@@ -54,9 +54,9 @@ static DriverLedger& get_ledger() {
 
 #define ledger get_ledger()
 
-#define driver_internal_data(driver) static_cast<DriverInternalData*>(driver->internal.data)
-#define driver_lock(driver) mutex_lock(&driver_internal_data(driver)->mutex);
-#define driver_unlock(driver) mutex_unlock(&driver_internal_data(driver)->mutex);
+#define get_internal(driver) static_cast<DriverInternal*>(driver->internal)
+#define driver_lock(driver) mutex_lock(&get_internal(driver)->mutex);
+#define driver_unlock(driver) mutex_unlock(&get_internal(driver)->mutex);
 
 static void driver_add(Driver* driver) {
     LOG_I(TAG, "add %s", driver->name);
@@ -83,8 +83,8 @@ static error_t driver_remove(Driver* driver) {
 extern "C" {
 
 error_t driver_construct(Driver* driver) {
-    driver->internal.data = new(std::nothrow) DriverInternalData;
-    if (driver->internal.data == nullptr) {
+    driver->internal = new(std::nothrow) DriverInternal;
+    if (driver->internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
     driver_add(driver);
@@ -93,19 +93,29 @@ error_t driver_construct(Driver* driver) {
 
 error_t driver_destruct(Driver* driver) {
     driver_lock(driver);
-    if (driver_internal_data(driver)->use_count != 0 || driver_internal_data(driver)->destroying) {
+    // No module means the system owns it and it cannot be destroyed
+    if (driver->owner == nullptr) {
+        driver_unlock(driver);
+        return ERROR_NOT_ALLOWED;
+    }
+    if (get_internal(driver)->use_count != 0 || get_internal(driver)->destroying) {
         driver_unlock(driver);
         return ERROR_INVALID_STATE;
     }
-    driver_internal_data(driver)->destroying = true;
-    driver_unlock(driver);
+    get_internal(driver)->destroying = true;
 
     if (driver_remove(driver) != ERROR_NONE) {
         LOG_W(TAG, "Failed to remove driver from ledger: %s", driver->name);
     }
 
-    delete driver_internal_data(driver);
-    driver->internal.data = nullptr;
+    // Copy the mutex so we can free the driver's memory and unlock the mutex later
+    struct Mutex mutex_copy;
+    memcpy(&mutex_copy, &get_internal(driver)->mutex, sizeof(Mutex));
+
+    delete get_internal(driver);
+    driver->internal = nullptr;
+
+    mutex_unlock(&mutex_copy);
     return ERROR_NONE;
 }
 
@@ -140,7 +150,7 @@ error_t driver_bind(Driver* driver, Device* device) {
     driver_lock(driver);
 
     error_t error = ERROR_NONE;
-    if (driver_internal_data(driver)->destroying || !device_is_added(device)) {
+    if (get_internal(driver)->destroying || !device_is_added(device)) {
         error = ERROR_INVALID_STATE;
         goto error;
     }
@@ -152,7 +162,7 @@ error_t driver_bind(Driver* driver, Device* device) {
         }
     }
 
-    driver_internal_data(driver)->use_count++;
+    get_internal(driver)->use_count++;
     driver_unlock(driver);
 
     LOG_I(TAG, "bound %s to %s", driver->name, device->name);
@@ -168,7 +178,7 @@ error_t driver_unbind(Driver* driver, Device* device) {
     driver_lock(driver);
 
     error_t error = ERROR_NONE;
-    if (driver_internal_data(driver)->destroying || !device_is_added(device)) {
+    if (get_internal(driver)->destroying || !device_is_added(device)) {
         error = ERROR_INVALID_STATE;
         goto error;
     }
@@ -180,7 +190,7 @@ error_t driver_unbind(Driver* driver, Device* device) {
         }
     }
 
-    driver_internal_data(driver)->use_count--;
+    get_internal(driver)->use_count--;
     driver_unlock(driver);
 
     LOG_I(TAG, "unbound %s from %s", driver->name, device->name);

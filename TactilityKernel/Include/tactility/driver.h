@@ -25,11 +25,10 @@ struct Driver {
     const void* api;
     /** Which type of devices this driver creates (can be NULL) */
     const struct DeviceType* deviceType;
+    /** The module that owns this driver. When it is NULL, the system owns the driver and it cannot be removed from registration. */
+    const struct Module* owner;
     /** Internal data */
-    struct {
-        /** Contains private data */
-        void* data;
-    } internal;
+    void* internal;
 };
 
 error_t driver_construct(struct Driver* driver);

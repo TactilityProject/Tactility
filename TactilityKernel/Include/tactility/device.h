@@ -51,6 +51,16 @@ struct Device {
 };
 
 /**
+ * Holds a device pointer and a compatible string.
+ * The device must not be constructed, added or started yet.
+ * This is mused by the devicetree code generator and the application init sequence.
+ */
+struct CompatibleDevice {
+    struct Device* device;
+    const char* compatible;
+};
+
+/**
  * Initialize the properties of a device.
  *
  * @param[in] device a device with all non-internal properties set

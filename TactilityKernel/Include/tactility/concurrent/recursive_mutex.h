@@ -15,6 +15,7 @@ struct RecursiveMutex {
 };
 
 inline static void recursive_mutex_construct(struct RecursiveMutex* mutex) {
+    check(mutex->handle == NULL);
     mutex->handle = xSemaphoreCreateRecursiveMutex();
 }
 

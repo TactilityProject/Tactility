@@ -107,6 +107,8 @@ const static GpioControllerApi esp32_gpio_api  = {
     .get_options = get_options
 };
 
+extern struct Module platform_module;
+
 Driver esp32_gpio_driver = {
     .name = "esp32_gpio",
     .compatible = (const char*[]) { "espressif,esp32-gpio", nullptr },
@@ -114,7 +116,8 @@ Driver esp32_gpio_driver = {
     .stopDevice = stop,
     .api =  (void*)&esp32_gpio_api,
     .deviceType = nullptr,
-    .internal = { 0 }
+    .owner = &platform_module,
+    .internal = nullptr
 };
 
 } // extern "C"

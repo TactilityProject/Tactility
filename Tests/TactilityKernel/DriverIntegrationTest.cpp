@@ -1,6 +1,13 @@
 #include "doctest.h"
 #include <tactility/driver.h>
 #include <tactility/device.h>
+#include <tactility/module.h>
+
+static Module module = {
+    .name = "test_module",
+    .start = nullptr,
+    .stop = nullptr
+};
 
 struct IntegrationDriverConfig {
     int startResult;
@@ -30,7 +37,8 @@ static Driver integration_driver = {
     .stopDevice = stop,
     .api = nullptr,
     .deviceType = nullptr,
-    .internal = { 0 }
+    .owner = &module,
+    .internal = nullptr,
 };
 
 TEST_CASE("driver with with start success and stop success should start and stop a device") {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tactility/device.h"
+#include "tactility/module.h"
 #include <Tactility/Dispatcher.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/hal/Configuration.h>
@@ -17,9 +19,8 @@ struct Configuration {
 
 /**
  * Attempts to initialize Tactility and all configured hardware.
- * @param[in] config
  */
-void run(const Configuration& config);
+void run(const Configuration& config, Module* platformModule, Module* deviceModule, CompatibleDevice devicetreeDevices[]);
 
 /**
  * While technically nullable, this instance is always set if tt_init() succeeds.

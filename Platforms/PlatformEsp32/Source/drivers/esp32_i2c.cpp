@@ -150,14 +150,6 @@ error_t esp32_i2c_get_port(struct Device* device, i2c_port_t* port) {
     return ERROR_NONE;
 }
 
-void esp32_i2c_lock(struct Device* device) {
-    mutex_lock(&GET_DATA(device)->mutex);
-}
-
-void esp32_i2c_unlock(struct Device* device) {
-    mutex_unlock(&GET_DATA(device)->mutex);
-}
-
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
     auto dts_config = GET_CONFIG(device);
@@ -214,6 +206,8 @@ const static I2cControllerApi esp32_i2c_api = {
     .write_register = write_register
 };
 
+extern struct Module platform_module;
+
 Driver esp32_i2c_driver = {
     .name = "esp32_i2c",
     .compatible = (const char*[]) { "espressif,esp32-i2c", nullptr },
@@ -221,7 +215,8 @@ Driver esp32_i2c_driver = {
     .stopDevice = stop,
     .api = (void*)&esp32_i2c_api,
     .deviceType = &I2C_CONTROLLER_TYPE,
-    .internal = { 0 }
+    .owner = &platform_module,
+    .internal = nullptr
 };
 
 } // extern "C"

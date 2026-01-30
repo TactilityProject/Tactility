@@ -135,7 +135,7 @@ def write_device_init(file, device: Device, bindings: list[Binding], verbose: bo
     identifier = get_device_identifier_safe(device)
     device_variable = identifier
     # Write device struct
-    file.write(f"\tif (device_construct_add_start(&{device_variable}, \"{compatible_property.value}\") != ERROR_NONE) return ERROR_RESOURCE;\n")
+    file.write("\t{ " f"&{device_variable}, \"{compatible_property.value}\"" " },\n")
     # Write children
     for child_device in device.devices:
         write_device_init(file, child_device, bindings, verbose)
@@ -145,8 +145,6 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         file.write(dedent('''\
         // Default headers
         #include <tactility/device.h>
-        #include <tactility/error.h>
-        #include <tactility/log.h>
         // DTS headers
         '''))
 
@@ -161,14 +159,14 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
             if type(item) is Device:
                 write_device_structs(file, item, None, bindings, verbose)
         # Init function body start
-        file.write("error_t devices_builtin_init() {\n")
+        file.write("struct CompatibleDevice devicetree_devices[] = {\n")
         # Init function body logic
         for item in items:
             if type(item) is Device:
                 write_device_init(file, item, bindings, verbose)
-        file.write("\treturn ERROR_NONE;\n")
         # Init function body end
-        file.write("}\n")
+        file.write("\t{ NULL, NULL },\n")
+        file.write("};\n")
 
 def generate_devicetree_h(filename: str):
     with open(filename, "w") as file:
@@ -180,7 +178,7 @@ def generate_devicetree_h(filename: str):
         extern "C" {
         #endif
         
-        extern error_t devices_builtin_init();
+        extern struct CompatibleDevice devicetree_devices[];
         
         #ifdef __cplusplus
         }

@@ -3,6 +3,11 @@
 #include <tactility/driver.h>
 #include <devicetree.h>
 
+// From the relevant platform
+extern struct Module platform_module;
+// From the relevant device
+extern struct Module device_module;
+
 #ifdef ESP_PLATFORM
 #include <tt_init.h>
 #else
@@ -13,10 +18,6 @@
 extern const tt::hal::Configuration hardwareConfiguration;
 
 extern "C" {
-
-extern void register_kernel_drivers();
-extern void register_platform_drivers();
-extern void register_device_drivers();
 
 void app_main() {
     static const tt::Configuration config = {
@@ -31,12 +32,7 @@ void app_main() {
     tt_init_tactility_c(); // ELF bindings for side-loading on ESP32
 #endif
 
-    register_kernel_drivers();
-    register_platform_drivers();
-    register_device_drivers();
-
-    devices_builtin_init();
-    tt::run(config);
+    tt::run(config, &platform_module, &device_module, devicetree_devices);
 }
 
 } // extern

@@ -22,6 +22,8 @@
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/TimePrivate.h>
 
+#include <tactility/kernel_init.h>
+
 #include <map>
 #include <format>
 
@@ -317,10 +319,17 @@ void registerApps() {
     registerInstalledAppsFromSdCards();
 }
 
-void run(const Configuration& config) {
+void run(const Configuration& config, Module* platformModule, Module* deviceModule, CompatibleDevice devicetreeDevices[]) {
     LOGGER.info("Tactility v{} on {} ({})", TT_VERSION, CONFIG_TT_DEVICE_NAME, CONFIG_TT_DEVICE_ID);
 
     assert(config.hardware);
+
+    LOGGER.info(R"(Calling kernel_init with modules: "{}" and "{}")", platformModule->name, deviceModule->name);
+    if (kernel_init(platformModule, deviceModule, devicetreeDevices) != ERROR_NONE) {
+        LOGGER.error("Failed to initialize kernel");
+        return;
+    }
+
     const hal::Configuration& hardware = *config.hardware;
 
     // Assign early so starting services can use it
