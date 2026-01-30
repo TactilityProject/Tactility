@@ -1,0 +1,35 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c.h>
+
+/ {
+	compatible = "root";
+	model = "Guition JC3248W535C";
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	i2c_internal {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_0>;
+		clock-frequency = <400000>;
+		pin-sda = <4>;
+		pin-scl = <8>;
+		pin-sda-pullup;
+		pin-scl-pullup;
+	};
+
+	i2c_external {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_1>;
+		clock-frequency = <400000>;
+		pin-sda = <17>;
+		pin-scl = <18>;
+		pin-sda-pullup;
+		pin-scl-pullup;
+	};
+};

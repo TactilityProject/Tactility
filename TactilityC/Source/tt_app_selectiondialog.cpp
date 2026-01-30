@@ -3,12 +3,12 @@
 
 extern "C" {
 
-void tt_app_selectiondialog_start(const char* title, int argc, const char* argv[]) {
+AppLaunchId tt_app_selectiondialog_start(const char* title, int argc, const char* argv[]) {
     std::vector<std::string> list;
     for (int i = 0; i < argc; i++) {
         list.emplace_back(argv[i]);
     }
-    tt::app::selectiondialog::start(title, list);
+    return tt::app::selectiondialog::start(title, list);
 }
 
 int32_t tt_app_selectiondialog_get_result_index(BundleHandle handle) {

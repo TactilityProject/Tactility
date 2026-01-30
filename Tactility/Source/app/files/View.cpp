@@ -472,4 +472,8 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
     }
 }
 
+void View::deinit(const AppContext& appContext) {
+    lv_obj_remove_event_cb(dir_entry_list, dirEntryListScrollBeginCallback);
+}
+
 }
