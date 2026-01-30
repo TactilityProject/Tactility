@@ -14,7 +14,7 @@ static error_t stop() {
 
 /** @warn The variable name must be exactly "device_module" */
 struct Module device_module = {
-    .name = "LilyGO T-Deck",
+    .name = "Module",
     .start = start,
     .stop = stop
 };
