@@ -17,7 +17,7 @@ set(DEVICETREE_LOCATION "${CMAKE_SOURCE_DIR}/Devices/${TACTILITY_DEVICE_ID}")
 set(GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/Generated")
 # Ensure the directory is built in the correct CMake build phase
 # If the check is not done, then another directory is created in the root of the build folder.
-if (DEFINED ${CMAKE_CURRENT_BINARY_DIR})
+if (DEFINED CMAKE_CURRENT_BINARY_DIR)
     file(MAKE_DIRECTORY "${GENERATED_DIR}")
 endif ()
 
@@ -45,7 +45,9 @@ else ()
     add_definitions(-D_Nonnull=)
 endif ()
 
-add_custom_target(AlwaysRun)
+add_custom_target(AlwaysRun
+    COMMAND ${CMAKE_COMMAND} -E rm -f "${GENERATED_DIR}/devicetree.c"
+)
 add_custom_command(
     OUTPUT "${GENERATED_DIR}/devicetree.c"
         "${GENERATED_DIR}/devicetree.h"
