@@ -22,7 +22,7 @@ static DeviceVector createDevices() {
     auto tca8418 = std::make_shared<Tca8418>(I2C_NUM_0);
     auto keyboard = std::make_shared<TpagerKeyboard>(tca8418);
 
-    return std::vector<std::shared_ptr<Device>> {
+    return std::vector<std::shared_ptr<tt::hal::Device>> {
         tca8418,
         std::make_shared<Bq25896>(I2C_NUM_0),
         bq27220,
