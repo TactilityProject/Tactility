@@ -42,6 +42,8 @@ static enum HalDeviceType getHalDeviceType(tt::hal::Device::Type type) {
     }
 }
 
+extern "C" {
+
 HalDeviceType hal_device_get_type(struct Device* device) {
     auto type = GET_DATA(device)->halDevice->getType();
     return getHalDeviceType(type);
@@ -73,6 +75,8 @@ void hal_device_for_each_of_type(HalDeviceType type, void* context, bool(*onDevi
     });
 }
 
+}
+
 namespace tt::hal {
 
 std::shared_ptr<Device> hal_device_get_device(::Device* device) {
@@ -89,13 +93,13 @@ void hal_device_set_device(::Device* kernelDevice, std::shared_ptr<Device> halDe
 #pragma region Lifecycle
 
 static error_t start(Device* device) {
-    ESP_LOGI(TAG, "start %s", device->name);
+    LOG_I(TAG, "start %s", device->name);
     device->internal.driver_data = new HalDevicePrivate();
     return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
-    ESP_LOGI(TAG, "stop %s", device->name);
+    LOG_I(TAG, "stop %s", device->name);
     delete GET_DATA(device);
     return ERROR_NONE;
 }

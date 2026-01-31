@@ -33,7 +33,7 @@ public:
     typedef uint32_t Id;
 
     struct KernelDeviceHolder {
-        std::string name = {};
+        const std::string name;
         std::shared_ptr<KernelDevice> device = std::make_shared<KernelDevice>();
 
         explicit KernelDeviceHolder(std::string name) : name(name) {

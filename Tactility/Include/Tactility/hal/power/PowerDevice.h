@@ -44,4 +44,4 @@ public:
     virtual void powerOff() { /* NO-OP*/ }
 };
 
-} // namespace tt
+}

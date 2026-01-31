@@ -110,7 +110,7 @@ public:
         return lastRmcSubscriptionId;
     }
 
-    void unsubscribeRmc(GgaSubscriptionId subscriptionId) {
+    void unsubscribeRmc(RmcSubscriptionId subscriptionId) {
         auto lock = mutex.asScopedLock();
         lock.lock();
         std::erase_if(rmcSubscriptions, [subscriptionId](auto& subscription) { return subscription.id == subscriptionId; });
