@@ -2,7 +2,7 @@
 #include "Xpt2046Touch.h"
 
 #include <Tactility/Logger.h>
-#include <Tactility/hal/Device.h>
+#include <tactility/hal/Device.h>
 
 static const auto LOGGER = tt::Logger("Xpt2046Power");
 

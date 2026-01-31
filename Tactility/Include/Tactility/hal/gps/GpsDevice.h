@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Device.h"
+#include <tactility/hal/Device.h>
 #include "GpsConfiguration.h"
 #include "Satellites.h"
 
@@ -110,7 +110,7 @@ public:
         return lastRmcSubscriptionId;
     }
 
-    void unsubscribeRmc(GgaSubscriptionId subscriptionId) {
+    void unsubscribeRmc(RmcSubscriptionId subscriptionId) {
         auto lock = mutex.asScopedLock();
         lock.lock();
         std::erase_if(rmcSubscriptions, [subscriptionId](auto& subscription) { return subscription.id == subscriptionId; });

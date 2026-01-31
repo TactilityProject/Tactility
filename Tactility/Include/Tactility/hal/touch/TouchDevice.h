@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Device.h"
+#include <tactility/hal/Device.h>
 #include "TouchDriver.h"
 
 #include <lvgl.h>

@@ -3,7 +3,7 @@
 #include <Tactility/lvgl/LvglSync.h>
 
 #include <Tactility/Assets.h>
-#include <Tactility/hal/Device.h>
+#include <tactility/hal/Device.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>
 

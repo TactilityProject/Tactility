@@ -11,7 +11,7 @@
 
 #define TAG LOG_TAG(esp32_gpio)
 
-#define GET_CONFIG(device) ((struct Esp32GpioConfig*)device->internal.driver_data)
+#define GET_CONFIG(device) ((struct Esp32GpioConfig*)device->config)
 
 extern "C" {
 

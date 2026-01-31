@@ -1,7 +1,7 @@
 #include "Tactility/MountPoints.h"
 
 #include "Tactility/TactilityConfig.h"
-#include "Tactility/hal/Device.h"
+#include <tactility/hal/Device.h>
 #include "Tactility/hal/sdcard/SdCardDevice.h"
 
 #include <Tactility/file/File.h>

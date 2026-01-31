@@ -8,6 +8,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         PlatformEsp32
         TactilityCore
         TactilityFreeRtos
+        hal-device
         lvgl
         driver
         elf_loader
@@ -71,6 +72,7 @@ else()
         TactilityCore
         TactilityKernel
         PlatformPosix
+        hal-device
         freertos_kernel
         lvgl
         lv_screenshot

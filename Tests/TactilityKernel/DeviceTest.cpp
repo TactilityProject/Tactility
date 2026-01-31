@@ -177,7 +177,7 @@ TEST_CASE("device_is_ready should return true only when it is started") {
 
     Device device = { 0 };
 
-    CHECK_EQ(driver_construct(&driver), ERROR_NONE);
+    CHECK_EQ(driver_construct_add(&driver), ERROR_NONE);
     CHECK_EQ(device_construct(&device), ERROR_NONE);
 
     CHECK_EQ(device.internal.state.started, false);
@@ -192,6 +192,6 @@ TEST_CASE("device_is_ready should return true only when it is started") {
     CHECK_EQ(device_remove(&device), ERROR_NONE);
     CHECK_EQ(device.internal.state.started, false);
 
-    CHECK_EQ(driver_destruct(&driver), ERROR_NONE);
     CHECK_EQ(device_destruct(&device), ERROR_NONE);
+    CHECK_EQ(driver_remove_destruct(&driver), ERROR_NONE);
 }

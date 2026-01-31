@@ -49,7 +49,7 @@ error_t device_construct(Device* device) {
     if (device->internal.device_private == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
-    LOG_I(TAG, "construct %s", device->name);
+    LOG_D(TAG, "construct %s", device->name);
     mutex_construct(&device->internal.mutex);
     return ERROR_NONE;
 }
@@ -61,7 +61,7 @@ error_t device_destruct(Device* device) {
     if (!get_device_private(device)->children.empty()) {
         return ERROR_INVALID_STATE;
     }
-    LOG_I(TAG, "destruct %s", device->name);
+    LOG_D(TAG, "destruct %s", device->name);
     mutex_destruct(&device->internal.mutex);
     delete get_device_private(device);
     device->internal.device_private = nullptr;
@@ -88,7 +88,7 @@ static void device_remove_child(struct Device* device, struct Device* child) {
 }
 
 error_t device_add(Device* device) {
-    LOG_I(TAG, "add %s", device->name);
+    LOG_D(TAG, "add %s", device->name);
 
     // Already added
     if (device->internal.state.started || device->internal.state.added) {
@@ -111,7 +111,7 @@ error_t device_add(Device* device) {
 }
 
 error_t device_remove(Device* device) {
-    LOG_I(TAG, "remove %s", device->name);
+    LOG_D(TAG, "remove %s", device->name);
 
     if (device->internal.state.started || !device->internal.state.added) {
         return ERROR_INVALID_STATE;

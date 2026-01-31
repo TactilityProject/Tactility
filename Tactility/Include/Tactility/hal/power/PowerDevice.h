@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Device.h"
+#include <tactility/hal/Device.h>
 #include <cstdint>
 
 namespace tt::hal::power {
@@ -44,4 +44,4 @@ public:
     virtual void powerOff() { /* NO-OP*/ }
 };
 
-} // namespace tt
+}

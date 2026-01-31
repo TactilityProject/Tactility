@@ -37,6 +37,14 @@ error_t driver_construct(struct Driver* driver);
 
 error_t driver_destruct(struct Driver* driver);
 
+error_t driver_add(struct Driver* driver);
+
+error_t driver_remove(struct Driver* driver);
+
+error_t driver_construct_add(struct Driver* driver);
+
+error_t driver_remove_destruct(struct Driver* driver);
+
 error_t driver_bind(struct Driver* driver, struct Device* device);
 
 error_t driver_unbind(struct Driver* driver, struct Device* device);

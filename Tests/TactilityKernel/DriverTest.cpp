@@ -14,7 +14,9 @@ TEST_CASE("driver_construct and driver_destruct should set and unset the correct
     driver.owner = &module;
 
     CHECK_EQ(driver_construct(&driver), ERROR_NONE);
+    CHECK_EQ(driver_add(&driver), ERROR_NONE);
     CHECK_NE(driver.driver_private, nullptr);
+    CHECK_EQ(driver_remove(&driver), ERROR_NONE);
     CHECK_EQ(driver_destruct(&driver), ERROR_NONE);
     CHECK_EQ(driver.driver_private, nullptr);
 }
@@ -62,10 +64,12 @@ TEST_CASE("driver_find should only find a compatible driver when the driver was 
     CHECK_EQ(found_driver, nullptr);
 
     CHECK_EQ(driver_construct(&driver), ERROR_NONE);
+    CHECK_EQ(driver_add(&driver), ERROR_NONE);
 
     found_driver = driver_find_compatible("test_compatible");
     CHECK_EQ(found_driver, &driver);
 
+    CHECK_EQ(driver_remove(&driver), ERROR_NONE);
     CHECK_EQ(driver_destruct(&driver), ERROR_NONE);
 
     found_driver = driver_find_compatible("test_compatible");

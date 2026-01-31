@@ -1,5 +1,5 @@
 #include "doctest.h"
-#include <Tactility/hal/Device.h>
+#include <tactility/hal/Device.h>
 
 #include <utility>
 

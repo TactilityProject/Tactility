@@ -28,7 +28,7 @@ static void deinitPower() {
 #endif
 }
 
-static std::vector<std::shared_ptr<Device>> createDevices() {
+static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
     return {
         std::make_shared<SdlDisplay>(),
         std::make_shared<SdlKeyboard>(),

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Device.h"
+#include <tactility/hal/Device.h>
 #include "I2c.h"
 
 namespace tt::hal::i2c {

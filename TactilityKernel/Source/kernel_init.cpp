@@ -14,7 +14,7 @@ struct ModuleParent kernel_module_parent = {
 
 static error_t init_kernel_drivers() {
     extern Driver root_driver;
-    if (driver_construct(&root_driver) != ERROR_NONE) return ERROR_RESOURCE;
+    if (driver_construct_add(&root_driver) != ERROR_NONE) return ERROR_RESOURCE;
     return ERROR_NONE;
 }
 

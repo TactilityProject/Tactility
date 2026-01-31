@@ -2,9 +2,9 @@
 
 #include <tactility/check.h>
 
-#include <Tactility/hal/Device.h>
+#include <tactility/hal/Device.h>
 
-static tt::hal::Device::Type toTactilityDeviceType(DeviceType type) {
+static tt::hal::Device::Type toTactilityDeviceType(TtDeviceType type) {
     switch (type) {
         case DEVICE_TYPE_I2C:
             return tt::hal::Device::Type::I2c;
@@ -27,7 +27,7 @@ static tt::hal::Device::Type toTactilityDeviceType(DeviceType type) {
 
 extern "C" {
 
-bool tt_hal_device_find(DeviceType type, DeviceId* deviceIds, uint16_t* count, uint16_t maxCount) {
+bool tt_hal_device_find(TtDeviceType type, DeviceId* deviceIds, uint16_t* count, uint16_t maxCount) {
     assert(maxCount > 0);
 
     int16_t currentIndex = -1;

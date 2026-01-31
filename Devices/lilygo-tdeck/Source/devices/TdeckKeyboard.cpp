@@ -5,7 +5,7 @@
 #include <Tactility/settings/KeyboardSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
 #include <Tactility/hal/display/DisplayDevice.h>
-#include <Tactility/hal/Device.h>
+#include <tactility/hal/Device.h>
 #include <Tactility/Logger.h>
 #include <KeyboardBacklight/KeyboardBacklight.h>
 

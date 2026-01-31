@@ -14,7 +14,7 @@
 
 #include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
-#include <Tactility/hal/Device.h>
+#include <tactility/hal/Device.h>
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/App.h>

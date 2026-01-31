@@ -55,7 +55,7 @@ TEST_CASE("driver with with start success and stop success should start and stop
         .parent = nullptr,
     };
 
-    CHECK_EQ(driver_construct(&integration_driver), ERROR_NONE);
+    CHECK_EQ(driver_construct_add(&integration_driver), ERROR_NONE);
 
     CHECK_EQ(device_construct(&integration_device), ERROR_NONE);
     device_add(&integration_device);
@@ -68,5 +68,5 @@ TEST_CASE("driver with with start success and stop success should start and stop
     CHECK_EQ(device_remove(&integration_device), ERROR_NONE);
     CHECK_EQ(device_destruct(&integration_device), ERROR_NONE);
 
-    CHECK_EQ(driver_destruct(&integration_driver), ERROR_NONE);
+    CHECK_EQ(driver_remove_destruct(&integration_driver), ERROR_NONE);
 }
