@@ -36,10 +36,7 @@ void test_task(void* parameter) {
     // overrides
     context.setOption("no-breaks", true); // don't break in the debugger when assertions fail
 
-    if (kernel_init(&platform_module, &device_module, nullptr) != ERROR_NONE) {
-        return;
-    }
-
+    check(kernel_init(&platform_module, &device_module, nullptr) == ERROR_NONE);
     // HAL compatibility module: it creates kernel driver wrappers for tt::hal::Device
     check(module_parent_construct(&tactility_tests_module_parent) == ERROR_NONE);
     check(module_set_parent(&hal_device_module, &tactility_tests_module_parent) == ERROR_NONE);
@@ -70,4 +67,6 @@ int main(int argc, char** argv) {
     assert(task_result == pdPASS);
 
     vTaskStartScheduler();
+
+    return data.result;
 }

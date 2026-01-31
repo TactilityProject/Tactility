@@ -11,4 +11,8 @@ target_include_directories(TactilityKernelTests PRIVATE ${DOCTESTINC})
 
 add_test(NAME TactilityKernelTests COMMAND TactilityKernelTests)
 
-target_link_libraries(TactilityKernelTests PUBLIC TactilityKernel)
+target_link_libraries(TactilityKernelTests PUBLIC
+    TactilityKernel
+    PlatformPosix
+    hal-device
+)

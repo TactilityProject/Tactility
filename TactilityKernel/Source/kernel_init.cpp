@@ -37,10 +37,12 @@ error_t kernel_init(struct Module* platform_module, struct Module* device_module
         return ERROR_RESOURCE;
     }
 
-    module_set_parent(device_module, &kernel_module_parent);
-    if (module_start(device_module) != ERROR_NONE) {
-        LOG_E(TAG, "init failed to start device module");
-        return ERROR_RESOURCE;
+    if (device_module != nullptr) {
+        module_set_parent(device_module, &kernel_module_parent);
+        if (module_start(device_module) != ERROR_NONE) {
+            LOG_E(TAG, "init failed to start device module");
+            return ERROR_RESOURCE;
+        }
     }
 
     if (devicetree_devices) {

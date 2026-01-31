@@ -32,9 +32,7 @@ __attribute__((noreturn)) void __crash(void) {
 #ifdef ESP_PLATFORM
     esp_system_abort("System halted. Connect debugger for more info.");
 #else
-    while (true) {
-        exit(-1);
-    }
+    exit(1);
 #endif
     __builtin_unreachable();
 }
