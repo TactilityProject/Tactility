@@ -58,28 +58,6 @@ static DriverLedger& get_ledger() {
 #define driver_lock(driver) mutex_lock(&get_driver_private(driver)->mutex);
 #define driver_unlock(driver) mutex_unlock(&get_driver_private(driver)->mutex);
 
-static void driver_add(Driver* driver) {
-    LOG_I(TAG, "add %s", driver->name);
-    ledger.lock();
-    ledger.drivers.push_back(driver);
-    ledger.unlock();
-}
-
-static error_t driver_remove(Driver* driver) {
-    LOG_I(TAG, "remove %s", driver->name);
-
-    ledger.lock();
-    const auto iterator = std::ranges::find(ledger.drivers, driver);
-    if (iterator == ledger.drivers.end()) {
-        ledger.unlock();
-        return ERROR_NOT_FOUND;
-    }
-    ledger.drivers.erase(iterator);
-    ledger.unlock();
-
-    return ERROR_NONE;
-}
-
 extern "C" {
 
 error_t driver_construct(Driver* driver) {
@@ -87,7 +65,6 @@ error_t driver_construct(Driver* driver) {
     if (driver->driver_private == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
-    driver_add(driver);
     return ERROR_NONE;
 }
 
@@ -104,14 +81,45 @@ error_t driver_destruct(Driver* driver) {
     }
     get_driver_private(driver)->destroying = true;
 
-    if (driver_remove(driver) != ERROR_NONE) {
-        LOG_W(TAG, "Failed to remove driver from ledger: %s", driver->name);
-    }
-
     driver_unlock(driver);
     delete get_driver_private(driver);
     driver->driver_private = nullptr;
 
+    return ERROR_NONE;
+}
+
+error_t driver_add(Driver* driver) {
+    LOG_I(TAG, "add %s", driver->name);
+    ledger.lock();
+    ledger.drivers.push_back(driver);
+    ledger.unlock();
+    return ERROR_NONE;
+}
+
+error_t driver_remove(Driver* driver) {
+    LOG_I(TAG, "remove %s", driver->name);
+
+    ledger.lock();
+    const auto iterator = std::ranges::find(ledger.drivers, driver);
+    if (iterator == ledger.drivers.end()) {
+        ledger.unlock();
+        return ERROR_NOT_FOUND;
+    }
+    ledger.drivers.erase(iterator);
+    ledger.unlock();
+
+    return ERROR_NONE;
+}
+
+error_t driver_construct_add(struct Driver* driver) {
+    if (driver_construct(driver) != ERROR_NONE) return ERROR_RESOURCE;
+    if (driver_add(driver) != ERROR_NONE) return ERROR_RESOURCE;
+    return ERROR_NONE;
+}
+
+error_t driver_remove_destruct(struct Driver* driver) {
+    if (driver_remove(driver) != ERROR_NONE) return ERROR_RESOURCE;
+    if (driver_destruct(driver) != ERROR_NONE) return ERROR_RESOURCE;
     return ERROR_NONE;
 }
 

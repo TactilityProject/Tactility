@@ -65,7 +65,7 @@ void hal_device_for_each_of_type(HalDeviceType type, void* context, bool(*onDevi
         auto* internal_context = static_cast<InternalContext*>(context);
         auto hal_device_type = getHalDeviceType(hal_device_private->halDevice->getType());
         if (hal_device_type == internal_context->typeParam) {
-            if (!internal_context->onDeviceParam(device, context)) {
+            if (!internal_context->onDeviceParam(device, internal_context->contextParam)) {
                 return false;
             }
         }

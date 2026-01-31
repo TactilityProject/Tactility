@@ -9,7 +9,6 @@
 
 namespace tt::hal {
 
-std::vector<std::shared_ptr<Device>> devices;
 RecursiveMutex mutex;
 static Device::Id nextId = 0;
 
@@ -17,14 +16,10 @@ static const auto LOGGER = Logger("Devices");
 
 Device::Device() : id(nextId++) {}
 
-template <std::ranges::range RangeType>
-auto toVector(RangeType&& range) {
-    auto view = range | std::views::common;
-    return std::vector(view.begin(), view.end());
-}
-
 static std::shared_ptr<Device::KernelDeviceHolder> createKernelDeviceHolder(const std::shared_ptr<Device>& device) {
-    auto kernel_device_holder = std::make_shared<Device::KernelDeviceHolder>(device->getName());
+    auto kernel_device_name = std::format("hal-device-{}", device->getId());
+    LOGGER.info("Registering {} with id {} as kernel device {}", device->getName(), device->getId(), kernel_device_name);
+    auto kernel_device_holder = std::make_shared<Device::KernelDeviceHolder>(kernel_device_name);
     auto* kernel_device = kernel_device_holder->device.get();
     check(device_construct(kernel_device) == ERROR_NONE);
     check(device_add(kernel_device) == ERROR_NONE);
@@ -49,9 +44,7 @@ void registerDevice(const std::shared_ptr<Device>& device) {
     auto scoped_mutex = mutex.asScopedLock();
     scoped_mutex.lock();
 
-    if (findDevice(device->getId()) == nullptr) {
-        devices.push_back(device);
-        LOGGER.info("Registered {} with id {}", device->getName(), device->getId());
+    if (device->getKernelDeviceHolder() == nullptr) {
         // Kernel device
         auto kernel_device_holder = createKernelDeviceHolder(device);
         device->setKernelDeviceHolder(kernel_device_holder);
@@ -69,25 +62,27 @@ void deregisterDevice(const std::shared_ptr<Device>& device) {
     if (kernel_device_holder) {
         destroyKernelDeviceHolder(kernel_device_holder);
         device->setKernelDeviceHolder(nullptr);
-    }
-
-    auto id_to_remove = device->getId();
-    auto remove_iterator = std::remove_if(devices.begin(), devices.end(), [id_to_remove](const auto& device) {
-        return device->getId() == id_to_remove;
-    });
-    if (remove_iterator != devices.end()) {
-        LOGGER.info("Deregistering {} with id {}", device->getName(), device->getId());
-        devices.erase(remove_iterator);
     } else {
-        LOGGER.warn("Deregistering {} with id {} failed: not found", device->getName(), device->getId());
+        LOGGER.warn("Device {} with id {} was not registered", device->getName(), device->getId());
     }
+}
+
+template<typename R>
+auto toVector(R&& range) {
+    using T = std::ranges::range_value_t<R>;
+    std::vector<T> result;
+    if constexpr (std::ranges::common_range<R>) {
+        result.reserve(std::ranges::distance(range));
+    }
+    std::ranges::copy(range, std::back_inserter(result));
+    return result;
 }
 
 std::vector<std::shared_ptr<Device>> findDevices(const std::function<bool(const std::shared_ptr<Device>&)>& filterFunction) {
     auto scoped_mutex = mutex.asScopedLock();
     scoped_mutex.lock();
 
-    auto devices_view = devices | std::views::filter([&filterFunction](auto& device) {
+    auto devices_view = getDevices() | std::views::filter([&filterFunction](auto& device) {
         return filterFunction(device);
     });
     return toVector(devices_view);
@@ -97,7 +92,7 @@ std::shared_ptr<Device> _Nullable findDevice(const std::function<bool(const std:
     auto scoped_mutex = mutex.asScopedLock();
     scoped_mutex.lock();
 
-    auto result_set = devices | std::views::filter([&filterFunction](auto& device) {
+    auto result_set = getDevices() | std::views::filter([&filterFunction](auto& device) {
          return filterFunction(device);
     });
     if (!result_set.empty()) {
@@ -126,13 +121,20 @@ std::vector<std::shared_ptr<Device>> findDevices(Device::Type type) {
 }
 
 std::vector<std::shared_ptr<Device>> getDevices() {
+    std::vector<std::shared_ptr<Device>> devices;
+    for_each_device_of_type(&HAL_DEVICE_TYPE, &devices ,[](auto* kernelDevice, auto* context) {
+        auto devices_ptr = static_cast<std::vector<std::shared_ptr<Device>>*>(context);
+        auto hal_device = hal_device_get_device(kernelDevice);
+        (*devices_ptr).push_back(hal_device);
+        return true;
+    });
     return devices;
 }
 
 bool hasDevice(Device::Type type) {
     auto scoped_mutex = mutex.asScopedLock();
     scoped_mutex.lock();
-    auto result_set = devices | std::views::filter([&type](auto& device) {
+    auto result_set = getDevices() | std::views::filter([&type](auto& device) {
          return device->getType() == type;
     });
     return !result_set.empty();
