@@ -91,7 +91,7 @@ static int get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {
 }
 
 error_t get_pin_count(struct Device* device, uint32_t* count) {
-    *count = static_cast<const Esp32GpioConfig*>(device->config)->gpioCount;
+    *count = GET_CONFIG(device)->gpioCount;
     return ERROR_NONE;
 }
 
@@ -121,7 +121,7 @@ Driver esp32_gpio_driver = {
     .startDevice = start,
     .stopDevice = stop,
     .api =  (void*)&esp32_gpio_api,
-    .deviceType = nullptr,
+    .deviceType = &GPIO_CONTROLLER_TYPE,
     .owner = &platform_module,
     .driver_private = nullptr
 };
