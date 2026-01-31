@@ -1,4 +1,7 @@
-#include <Tactility/hal/Device.h>
+// SPDX-License-Identifier: Apache-2.0
+#include <tactility/hal/Device.h>
+#include <tactility/driver.h>
+#include <tactility/drivers/hal_device.hpp>
 
 #include <Tactility/Logger.h>
 #include <Tactility/RecursiveMutex.h>
@@ -20,6 +23,28 @@ auto toVector(RangeType&& range) {
     return std::vector(view.begin(), view.end());
 }
 
+static std::shared_ptr<Device::KernelDeviceHolder> createKernelDeviceHolder(const std::shared_ptr<Device>& device) {
+    auto kernel_device_holder = std::make_shared<Device::KernelDeviceHolder>(device->getName());
+    auto* kernel_device = kernel_device_holder->device.get();
+    check(device_construct(kernel_device) == ERROR_NONE);
+    check(device_add(kernel_device) == ERROR_NONE);
+    auto* driver = driver_find_compatible("hal-device");
+    check(driver);
+    device_set_driver(kernel_device, driver);
+    check(device_start(kernel_device) == ERROR_NONE);
+    hal_device_set_device(kernel_device, device);
+    return kernel_device_holder;
+}
+
+static void destroyKernelDeviceHolder(std::shared_ptr<Device::KernelDeviceHolder>& holder) {
+    auto kernel_device = holder->device.get();
+    hal_device_set_device(kernel_device, nullptr);
+    check(device_stop(kernel_device) == ERROR_NONE);
+    check(device_remove(kernel_device) == ERROR_NONE);
+    check(device_destruct(kernel_device) == ERROR_NONE);
+    holder->device = nullptr;
+}
+
 void registerDevice(const std::shared_ptr<Device>& device) {
     auto scoped_mutex = mutex.asScopedLock();
     scoped_mutex.lock();
@@ -27,6 +52,9 @@ void registerDevice(const std::shared_ptr<Device>& device) {
     if (findDevice(device->getId()) == nullptr) {
         devices.push_back(device);
         LOGGER.info("Registered {} with id {}", device->getName(), device->getId());
+        // Kernel device
+        auto kernel_device_holder = createKernelDeviceHolder(device);
+        device->setKernelDeviceHolder(kernel_device_holder);
     } else {
         LOGGER.warn("Device {} with id {} was already registered", device->getName(), device->getId());
     }
@@ -35,6 +63,13 @@ void registerDevice(const std::shared_ptr<Device>& device) {
 void deregisterDevice(const std::shared_ptr<Device>& device) {
     auto scoped_mutex = mutex.asScopedLock();
     scoped_mutex.lock();
+
+    // Kernel device
+    auto kernel_device_holder = device->getKernelDeviceHolder();
+    if (kernel_device_holder) {
+        destroyKernelDeviceHolder(kernel_device_holder);
+        device->setKernelDeviceHolder(nullptr);
+    }
 
     auto id_to_remove = device->getId();
     auto remove_iterator = std::remove_if(devices.begin(), devices.end(), [id_to_remove](const auto& device) {

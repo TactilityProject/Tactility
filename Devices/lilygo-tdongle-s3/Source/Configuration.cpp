@@ -10,7 +10,7 @@ bool initBoot();
 
 using namespace tt::hal;
 
-static std::vector<std::shared_ptr<Device>> createDevices() {
+static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
     return {
         createDisplay(),
         createSdCard()

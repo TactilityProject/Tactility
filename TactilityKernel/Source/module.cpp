@@ -3,6 +3,8 @@
 #include <tactility/concurrent/mutex.h>
 #include <tactility/module.h>
 
+#define TAG LOG_TAG(module)
+
 struct ModuleParentPrivate {
     std::vector<struct Module*> modules;
     struct Mutex mutex = { 0 };
@@ -72,6 +74,8 @@ error_t module_set_parent(struct Module* module, struct ModuleParent* parent) {
 }
 
 error_t module_start(struct Module* module) {
+    LOG_I(TAG, "start %s", module->name);
+
     if (module->internal.started) return ERROR_NONE;
     if (!module->internal.parent) return ERROR_INVALID_STATE;
 
@@ -85,6 +89,8 @@ bool module_is_started(struct Module* module) {
 }
 
 error_t module_stop(struct Module* module) {
+    LOG_I(TAG, "stop %s", module->name);
+
     if (!module->internal.started) return ERROR_NONE;
 
     error_t error = module->stop();

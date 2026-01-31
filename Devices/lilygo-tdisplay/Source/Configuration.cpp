@@ -11,7 +11,7 @@ static bool initBoot() {
     return driver::pwmbacklight::init(LCD_PIN_BACKLIGHT);
 }
 
-static std::vector<std::shared_ptr<Device>> createDevices() {
+static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
     return {
         createDisplay(),
         ButtonControl::createTwoButtonControl(35, 0)

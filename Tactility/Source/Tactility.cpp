@@ -23,6 +23,7 @@
 #include <Tactility/settings/TimePrivate.h>
 
 #include <tactility/kernel_init.h>
+#include <tactility/hal_device_module.h>
 
 #include <map>
 #include <format>
@@ -37,6 +38,11 @@ static auto LOGGER = Logger("Tactility");
 
 static const Configuration* config_instance = nullptr;
 static Dispatcher mainDispatcher;
+
+struct ModuleParent tactility_module_parent  {
+    "tactility",
+    nullptr
+};
 
 // region Default services
 namespace service {
@@ -329,6 +335,11 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
         LOGGER.error("Failed to initialize kernel");
         return;
     }
+
+    // HAL compatibility module: it creates kernel driver wrappers for tt::hal::Device
+    check(module_parent_construct(&tactility_module_parent) == ERROR_NONE);
+    check(module_set_parent(&hal_device_module, &tactility_module_parent) == ERROR_NONE);
+    check(module_start(&hal_device_module) == ERROR_NONE);
 
     const hal::Configuration& hardware = *config.hardware;
 

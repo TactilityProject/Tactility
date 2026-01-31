@@ -7,7 +7,7 @@
 #include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/Timer.h>
 #include <Tactility/Assets.h>
-#include <Tactility/hal/Device.h>
+#include <tactility/hal/Device.h>
 
 #include <lvgl.h>
 

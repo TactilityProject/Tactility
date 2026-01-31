@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Tactility/hal/Device.h>
+#include <tactility/hal/Device.h>
 #include <lvgl.h>
 
 class TrackballDevice : public tt::hal::Device {

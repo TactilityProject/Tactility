@@ -17,6 +17,8 @@ struct Module {
     /**
      * The name of the module, for logging/debugging purposes
      * Should never be NULL.
+     * Characters allowed: a-z A-Z 0-9 - _ .
+     * Desirable format "platform-esp32", "lilygo-tdeck", etc.
      */
     const char* name;
 

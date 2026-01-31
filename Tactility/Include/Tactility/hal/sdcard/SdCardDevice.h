@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Device.h"
+#include <tactility/hal/Device.h>
 
 #include <Tactility/TactilityCore.h>
 #include <Tactility/Lock.h>

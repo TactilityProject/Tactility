@@ -32,6 +32,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         "Firmware"
         "Devices/${TACTILITY_DEVICE_PROJECT}"
         "Drivers"
+        "Modules"
         "Platforms/PlatformEsp32"
         "TactilityKernel"
         "Tactility"
@@ -84,6 +85,7 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Libraries/QRCode)
     add_subdirectory(Libraries/minitar)
     add_subdirectory(Libraries/minmea)
+    add_subdirectory(Modules/hal-device)
 
     # FreeRTOS
     set(FREERTOS_CONFIG_FILE_DIRECTORY ${PROJECT_SOURCE_DIR}/Devices/simulator/Source CACHE STRING "")

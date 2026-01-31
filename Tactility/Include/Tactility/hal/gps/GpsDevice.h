@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Device.h"
+#include <tactility/hal/Device.h>
 #include "GpsConfiguration.h"
 #include "Satellites.h"
 

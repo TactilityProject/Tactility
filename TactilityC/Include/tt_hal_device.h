@@ -15,7 +15,7 @@ typedef enum {
     DEVICE_TYPE_KEYBOARD,
     DEVICE_TYPE_POWER,
     DEVICE_TYPE_GPS
-} DeviceType;
+} TtDeviceType;
 
 typedef uint32_t DeviceId;
 
@@ -27,7 +27,7 @@ typedef uint32_t DeviceId;
  * @param[in] maxCount the maximum number of items that the "deviceIds" output can contain (minimum value is 1)
  * @return true if one or more devices were found
  */
-bool tt_hal_device_find(DeviceType type, DeviceId* deviceIds, uint16_t* count, uint16_t maxCount);
+bool tt_hal_device_find(TtDeviceType type, DeviceId* deviceIds, uint16_t* count, uint16_t maxCount);
 
 #ifdef __cplusplus
 }

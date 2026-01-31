@@ -5,7 +5,7 @@
 #include "SdCardDevice.h"
 
 #include <Tactility/RecursiveMutex.h>
-#include <Tactility/hal/Device.h>
+#include <tactility/hal/Device.h>
 #include <Tactility/hal/spi/Spi.h>
 #include <sd_protocol_types.h>
 #include <soc/gpio_num.h>

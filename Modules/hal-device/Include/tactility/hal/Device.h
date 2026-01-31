@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #include <functional>
@@ -6,6 +7,10 @@
 #include <string>
 #include <vector>
 #include <cassert>
+
+#include <tactility/device.h>
+
+typedef ::Device KernelDevice;
 
 namespace tt::hal {
 /** Base class for HAL-related devices. */
@@ -27,9 +32,19 @@ public:
 
     typedef uint32_t Id;
 
+    struct KernelDeviceHolder {
+        std::string name = {};
+        std::shared_ptr<KernelDevice> device = std::make_shared<KernelDevice>();
+
+        explicit KernelDeviceHolder(std::string name) : name(name) {
+            device->name = this->name.c_str();
+        }
+    };
+
 private:
 
     Id id;
+    std::shared_ptr<KernelDeviceHolder> kernelDeviceHolder;
 
 public:
 
@@ -49,6 +64,10 @@ public:
      * e.g. "USB charging controller with I2C interface."
      */
     virtual std::string getDescription() const = 0;
+
+    void setKernelDeviceHolder(std::shared_ptr<KernelDeviceHolder> kernelDeviceHolder) { this->kernelDeviceHolder = kernelDeviceHolder; }
+
+    std::shared_ptr<KernelDeviceHolder> getKernelDeviceHolder() const { return kernelDeviceHolder; }
 };
 
 /**
