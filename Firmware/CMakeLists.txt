@@ -36,6 +36,7 @@ else ()
         TactilityCore
         TactilityFreeRtos
         TactilityKernel
+        hal-device
         Simulator
         PlatformPosix
         SDL2::SDL2-static SDL2-static

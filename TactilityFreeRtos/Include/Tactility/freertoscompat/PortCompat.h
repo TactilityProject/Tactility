@@ -4,5 +4,10 @@
 #include "RTOS.h"
 
 #ifndef ESP_PLATFORM
+
+// TactilityKernel co-existence check
+#ifndef xPortInIsrContext
 #define xPortInIsrContext(x) (false)
+#endif
+
 #endif
