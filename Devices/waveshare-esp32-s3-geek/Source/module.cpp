@@ -14,7 +14,7 @@ static error_t stop() {
 
 /** @warning The variable name must be exactly "device_module" */
 struct Module device_module = {
-    .name = "Module",
+    .name = "waveshare-esp32-s3-geek",
     .start = start,
     .stop = stop
 };
