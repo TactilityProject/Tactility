@@ -8,7 +8,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         INCLUDE_DIRS "Include/"
         PRIV_INCLUDE_DIRS "Private/"
         REQUIRES lvgl
-        PRIV_REQUIRES Tactility TactilityCore elf_loader
+        PRIV_REQUIRES Tactility TactilityCore elf_loader TactilityKernel
     )
 
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -28,6 +28,7 @@ else()
     target_link_libraries(TactilityC
         PRIVATE Tactility
         PRIVATE TactilityCore
+        PRIVATE TactilityKernel
         PUBLIC lvgl
     )
 endif()

@@ -45,6 +45,14 @@ struct GpioControllerApi {
      * @return ERROR_NONE if successful
      */
     error_t (*get_options)(struct Device* device, gpio_pin_t pin, gpio_flags_t* options);
+
+    /**
+     * @brief Gets the number of pins supported by the controller.
+     * @param[in] device the GPIO controller device
+     * @param[out] count pointer to store the number of pins
+     * @return ERROR_NONE if successful
+     */
+    error_t (*get_pin_count)(struct Device* device, uint32_t* count);
 };
 
 /**
@@ -84,6 +92,14 @@ error_t gpio_controller_set_options(struct Device* device, gpio_pin_t pin, gpio_
 error_t gpio_controller_get_options(struct Device* device, gpio_pin_t pin, gpio_flags_t* options);
 
 /**
+     * @brief Gets the number of pins supported by the controller.
+     * @param[in] device the GPIO controller device
+     * @param[out] count pointer to store the number of pins
+     * @return ERROR_NONE if successful
+     */
+error_t gpio_controller_get_pin_count(struct Device* device, uint32_t* count);
+
+/**
  * @brief Configures the options for a GPIO pin using a pin configuration structure.
  * @param[in] device the GPIO controller device
  * @param[in] config the pin configuration structure
@@ -92,6 +108,8 @@ error_t gpio_controller_get_options(struct Device* device, gpio_pin_t pin, gpio_
 static inline error_t gpio_set_options_config(struct Device* device, const struct GpioPinConfig* config) {
     return gpio_controller_set_options(device, config->pin, config->flags);
 }
+
+extern const struct DeviceType GPIO_CONTROLLER_TYPE;
 
 #ifdef __cplusplus
 }

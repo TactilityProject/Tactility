@@ -8,6 +8,7 @@
 #include "tt_hal.h"
 #include "tt_hal_device.h"
 #include "tt_hal_display.h"
+#include "tt_hal_gpio.h"
 #include "tt_hal_touch.h"
 #include "tt_hal_uart.h"
 #include <tt_lock.h>
@@ -217,6 +218,8 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(tt_hal_display_driver_lock),
     ESP_ELFSYM_EXPORT(tt_hal_display_driver_unlock),
     ESP_ELFSYM_EXPORT(tt_hal_display_driver_supported),
+    ESP_ELFSYM_EXPORT(tt_hal_gpio_get_level),
+    ESP_ELFSYM_EXPORT(tt_hal_gpio_get_pin_count),
     ESP_ELFSYM_EXPORT(tt_hal_touch_driver_supported),
     ESP_ELFSYM_EXPORT(tt_hal_touch_driver_alloc),
     ESP_ELFSYM_EXPORT(tt_hal_touch_driver_free),

@@ -27,4 +27,11 @@ error_t gpio_controller_get_options(Device* device, gpio_pin_t pin, gpio_flags_t
     return GPIO_DRIVER_API(driver)->get_options(device, pin, options);
 }
 
+error_t gpio_controller_get_pin_count(struct Device* device, uint32_t* count) {
+    const auto* driver = device_get_driver(device);
+    return GPIO_DRIVER_API(driver)->get_pin_count(device, count);
+}
+
+const struct DeviceType GPIO_CONTROLLER_TYPE { 0 };
+
 }
