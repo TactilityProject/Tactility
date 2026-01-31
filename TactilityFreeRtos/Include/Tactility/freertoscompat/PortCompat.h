@@ -7,7 +7,7 @@
 
 // TactilityKernel co-existence check
 #ifndef xPortInIsrContext
-#define xPortInIsrContext(x) (false)
+#define xPortInIsrContext() (false)
 #endif
 
 #endif

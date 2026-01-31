@@ -111,7 +111,7 @@ std::vector<std::shared_ptr<DeviceType>> findDevices(Device::Type type) {
             assert(target_device != nullptr);
             result.push_back(target_device);
         }
-        return std::move(result);
+        return result;
     }
 }
 
