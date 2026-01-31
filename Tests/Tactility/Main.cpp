@@ -5,11 +5,26 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+#include <tactility/kernel_init.h>
+#include <tactility/hal_device_module.h>
+
 typedef struct {
     int argc;
     char** argv;
     int result;
 } TestTaskData;
+
+extern "C" {
+// From the relevant platform
+extern struct Module platform_module;
+// From the relevant device
+extern struct Module device_module;
+}
+
+struct ModuleParent tactility_tests_module_parent  {
+    "tactility-tests",
+    nullptr
+};
 
 void test_task(void* parameter) {
     auto* data = (TestTaskData*)parameter;
@@ -20,6 +35,15 @@ void test_task(void* parameter) {
 
     // overrides
     context.setOption("no-breaks", true); // don't break in the debugger when assertions fail
+
+    if (kernel_init(&platform_module, &device_module, nullptr) != ERROR_NONE) {
+        return;
+    }
+
+    // HAL compatibility module: it creates kernel driver wrappers for tt::hal::Device
+    check(module_parent_construct(&tactility_tests_module_parent) == ERROR_NONE);
+    check(module_set_parent(&hal_device_module, &tactility_tests_module_parent) == ERROR_NONE);
+    check(module_start(&hal_device_module) == ERROR_NONE);
 
     data->result = context.run();
 

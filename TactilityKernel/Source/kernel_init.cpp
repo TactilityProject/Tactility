@@ -43,13 +43,15 @@ error_t kernel_init(struct Module* platform_module, struct Module* device_module
         return ERROR_RESOURCE;
     }
 
-    CompatibleDevice* compatible_device = devicetree_devices;
-    while (compatible_device->device != nullptr) {
-        if (device_construct_add_start(compatible_device->device, compatible_device->compatible) != ERROR_NONE) {
-            LOG_E(TAG, "kernel_init failed to construct device: %s (%s)", compatible_device->device->name, compatible_device->compatible);
-            return ERROR_RESOURCE;
+    if (devicetree_devices) {
+        CompatibleDevice* compatible_device = devicetree_devices;
+        while (compatible_device->device != nullptr) {
+            if (device_construct_add_start(compatible_device->device, compatible_device->compatible) != ERROR_NONE) {
+                LOG_E(TAG, "kernel_init failed to construct device: %s (%s)", compatible_device->device->name, compatible_device->compatible);
+                return ERROR_RESOURCE;
+            }
+            compatible_device++;
         }
-        compatible_device++;
     }
 
     LOG_I(TAG, "init done");

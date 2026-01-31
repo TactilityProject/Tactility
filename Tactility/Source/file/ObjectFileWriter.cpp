@@ -16,7 +16,7 @@ bool ObjectFileWriter::open() {
     }
 
     // Edit existing or create a new file
-    auto opening_file = std::unique_ptr<FILE, FileCloser>(std::fopen(filePath.c_str(), "wb"));
+    auto opening_file = std::unique_ptr<FILE, FileCloser>(std::fopen(filePath.c_str(), edit_existing ? "rb+" : "wb"));
     if (opening_file == nullptr) {
         LOGGER.error("Failed to open file {}", filePath);
         return false;

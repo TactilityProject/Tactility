@@ -56,8 +56,10 @@ TEST_CASE("Appending records to a file") {
     CHECK_EQ(reader.open(), true);
     CHECK_EQ(reader.hasNext(), true);
     CHECK_EQ(reader.readNext(&record_in), true);
+    CHECK_EQ(record_in.value, 0xAAAAAAAA);
     CHECK_EQ(reader.hasNext(), true);
     CHECK_EQ(reader.readNext(&record_in), true);
+    CHECK_EQ(record_in.value, 0xBBBBBBBB);
     CHECK_EQ(reader.hasNext(), false);
     reader.close();
 
