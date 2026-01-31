@@ -16,3 +16,6 @@
 [submodule "Libraries/cJSON/cJSON"]
 	path = Libraries/cJSON/cJSON
 	url = https://github.com/DaveGamble/cJSON.git
+[submodule "Libraries/epdiy"]
+	path = Libraries/epdiy
+	url = https://github.com/fonix232/epdiy

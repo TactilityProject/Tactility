@@ -39,4 +39,14 @@ public:
     bool readBatteryVoltageOnce(uint32_t& output) const;
 
     uint8_t estimateChargeLevelFromVoltage(uint32_t milliVolt) const { return chargeFromVoltage.estimateCharge(milliVolt); }
+
+    /**
+     * @brief Get the ADC unit handle
+     * 
+     * Exposes the ADC unit handle to allow configuring additional channels
+     * on the same ADC unit. Use with caution.
+     * 
+     * @return The ADC unit handle, or nullptr if not initialized
+     */
+    adc_oneshot_unit_handle_t getAdcHandle() const { return adcHandle; }
 };

@@ -67,7 +67,9 @@ menu "Tactility App"
             bool "M5Stack Core2"
         config TT_DEVICE_M5STACK_CORES3
             bool "M5Stack CoreS3"
-        config TT_DEVICE_M5STACK_STICKC_PLUS
+        config TT_BOARD_M5STACK_PAPERS3
+            bool "M5Stack PaperS3"
+        config TT_BOARD_M5STACK_STICKC_PLUS
             bool "M5Stack StickC Plus"
         config TT_DEVICE_M5STACK_STICKC_PLUS2
             bool "M5Stack StickC Plus2"
