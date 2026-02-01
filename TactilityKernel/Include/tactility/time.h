@@ -59,7 +59,7 @@ static inline int64_t get_micros_since_boot() {
         return ((int64_t)ts.tv_sec * 1000000LL) + (ts.tv_nsec / 1000);
     }
     struct timeval tv;
-    gettimeofday(&tv, nullptr);
+    gettimeofday(&tv, NULL);
     return ((int64_t)tv.tv_sec * 1000000LL) + tv.tv_usec;
 #endif
 }

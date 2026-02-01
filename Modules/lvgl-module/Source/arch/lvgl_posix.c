@@ -97,7 +97,7 @@ static void lvgl_task(void* arg) {
 
     if (lvgl_module_config.on_stop) lvgl_module_config.on_stop();
 
-    vTaskDelete(nullptr);
+    vTaskDelete(NULL);
 }
 
 error_t lvgl_arch_start() {
@@ -110,7 +110,7 @@ error_t lvgl_arch_start() {
         lvgl_module_config.task_stack_size,
         &lvgl_task_handle,
         lvgl_module_config.task_priority,
-        nullptr
+        NULL
     );
 
     return (task_result == pdTRUE) ? ERROR_NONE : ERROR_RESOURCE;
@@ -119,7 +119,7 @@ error_t lvgl_arch_start() {
 error_t lvgl_arch_stop() {
     TickType_t start_ticks = get_ticks();
     lvgl_task_interrupt();
-    while (lvgl_task_handle != nullptr) { // TODO: make thread-safe
+    while (lvgl_task_handle != NULL) { // TODO: make thread-safe
         delay_ticks(LVGL_STOP_POLL_INTERVAL);
         if (get_ticks() - start_ticks > LVGL_STOP_TIMEOUT) {
             return ERROR_TIMEOUT;
