@@ -217,7 +217,7 @@ void GuiService::onStop(ServiceContext& service) {
         }
         lvgl::unlock();
     } else {
-        LOGGER.error("Failed to unlock LVGL during GUI stop");
+        LOGGER.error("Failed to lock LVGL during GUI stop");
     }
 
     delete thread;
