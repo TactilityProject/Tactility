@@ -5,6 +5,9 @@
  */
 #pragma once
 
+#ifndef __cplusplus
+#include <assert.h>
+#endif
 #include <stdint.h>
 
 #include "defines.h"
@@ -22,7 +25,11 @@ extern "C" {
 #endif
 
 // Projects that include this header must align with Tactility's frequency (e.g. apps)
+#ifdef __cplusplus
 static_assert(configTICK_RATE_HZ == 1000);
+#else
+static_assert(configTICK_RATE_HZ == 1000, "configTICK_RATE_HZ must be 1000");
+#endif
 
 static inline uint32_t get_tick_frequency() {
     return configTICK_RATE_HZ;
