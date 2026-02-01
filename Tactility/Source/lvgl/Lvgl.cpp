@@ -23,7 +23,7 @@ bool isStarted() {
     return module_is_started(&lvgl_module);
 }
 
-static void on_start() {
+void attachDevices() {
     LOGGER.info("Adding devices");
 
     auto lock = getSyncLock()->asScopedLock();
@@ -120,7 +120,7 @@ static void on_start() {
     }
 }
 
-static void on_stop() {
+void detachDevices() {
     LOGGER.info("Removing devices");
 
     auto lock = getSyncLock()->asScopedLock();
@@ -174,6 +174,7 @@ static void on_stop() {
 }
 
 void start() {
+    tt::lvgl::syncSet(&lvgl_try_lock_timed, &lvgl_unlock);
     check(module_start(&lvgl_module) == ERROR_NONE);
 }
 

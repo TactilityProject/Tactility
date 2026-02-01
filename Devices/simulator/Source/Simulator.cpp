@@ -1,4 +1,3 @@
-#include "LvglTask.h"
 #include "hal/SdlDisplay.h"
 #include "hal/SdlKeyboard.h"
 #include "hal/SimulatorPower.h"
@@ -11,23 +10,6 @@
 
 using namespace tt::hal;
 
-static bool initBoot() {
-    lv_init();
-    lvgl_task_start();
-    return true;
-}
-
-static void deinitPower() {
-    lvgl_task_interrupt();
-    while (lvgl_task_is_running()) {
-        tt::kernel::delayMillis(10);
-    }
-
-#if LV_ENABLE_GC || !LV_MEM_CUSTOM
-    lv_deinit();
-#endif
-}
-
 static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
     return {
         std::make_shared<SdlDisplay>(),
@@ -38,7 +20,7 @@ static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
 }
 
 extern const Configuration hardwareConfiguration = {
-    .initBoot = initBoot,
+    .initBoot = nullptr,
     .createDevices = createDevices,
     .uart = {
         uart::Configuration {

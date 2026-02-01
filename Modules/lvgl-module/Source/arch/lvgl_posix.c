@@ -10,7 +10,9 @@
 
 #include <lvgl.h>
 
-#include "lvgl_module_private.h"
+#include "tactility/lvgl_module.h"
+
+extern struct LvglModuleConfig lvgl_module_config;
 
 // Mutex for LVGL drawing
 static struct RecursiveMutex lvgl_mutex;
@@ -80,6 +82,8 @@ static void lvgl_task(void* arg) {
 
     check(!lvgl_task_is_interrupt_requested());
 
+    if (lvgl_module_config.on_start) lvgl_module_config.on_start();
+
     while (!lvgl_task_is_interrupt_requested()) {
         if (lvgl_try_lock_timed(10)) {
             task_delay_ms = lv_timer_handler();
@@ -93,10 +97,14 @@ static void lvgl_task(void* arg) {
         vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
     }
 
+    if (lvgl_module_config.on_stop) lvgl_module_config.on_stop();
+
     vTaskDelete(nullptr);
 }
 
 error_t lvgl_arch_start() {
+    lv_init();
+
     // Create the main app loop, like ESP-IDF
     BaseType_t task_result = xTaskCreate(
         lvgl_task,
@@ -119,6 +127,9 @@ error_t lvgl_arch_stop() {
             return ERROR_TIMEOUT;
         }
     }
+
+    lv_deinit();
+
     return ERROR_NONE;
 }
 

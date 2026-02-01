@@ -7,7 +7,6 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_component_register(
         SRCS ${SOURCE_FILES}
         INCLUDE_DIRS "Include/"
-        PRIV_INCLUDE_DIRS "Private/"
         REQUIRES lvgl esp_lvgl_port
     )
 
@@ -19,7 +18,6 @@ else ()
 
     target_include_directories(lvgl-module
         PUBLIC Include/
-        PRIVATE Private/
     )
 
     target_link_libraries(lvgl-module PUBLIC

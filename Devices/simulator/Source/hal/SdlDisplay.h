@@ -13,21 +13,24 @@ public:
     std::string getName() const override { return "SDL Display"; }
     std::string getDescription() const override { return ""; }
 
-    bool start() override {
+    bool start() override { return true; }
+
+    bool stop() override { return true; }
+
+    bool supportsLvgl() const override { return true; }
+
+    bool startLvgl() override {
         displayHandle = lv_sdl_window_create(320, 240);
         lv_sdl_window_set_title(displayHandle, "Tactility");
-        return true;
+        return displayHandle != nullptr;
     }
 
-    bool stop() override {
+    bool stopLvgl() override {
         lv_display_delete(displayHandle);
         displayHandle = nullptr;
         return true;
     }
 
-    bool supportsLvgl() const override { return true; }
-    bool startLvgl() override { return displayHandle != nullptr; }
-    bool stopLvgl() override { check(false, "Not supported"); }
     lv_display_t* getLvglDisplay() const override { return displayHandle; }
 
     std::shared_ptr<tt::hal::touch::TouchDevice> getTouchDevice() override { return std::make_shared<SdlTouch>(); }

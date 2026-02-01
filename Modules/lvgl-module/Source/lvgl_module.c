@@ -8,13 +8,13 @@ error_t lvgl_arch_stop();
 
 static bool is_running;
 
-static struct LvglModuleConfig config = {
+struct LvglModuleConfig lvgl_module_config = {
     nullptr,
     nullptr
 };
 
-void lvgl_module_configure(const struct LvglModuleConfig in_config) {
-    memcpy(&config, &in_config, sizeof(struct LvglModuleConfig));
+void lvgl_module_configure(const struct LvglModuleConfig config) {
+    memcpy(&lvgl_module_config, &config, sizeof(struct LvglModuleConfig));
 }
 
 static error_t start() {
@@ -25,7 +25,6 @@ static error_t start() {
     error_t result = lvgl_arch_start();
     if (result == ERROR_NONE) {
         is_running = true;
-        if (config.on_start) config.on_start();
     }
 
     return result;
@@ -39,7 +38,6 @@ static error_t stop() {
     error_t error = lvgl_arch_stop();
     if (error == ERROR_NONE) {
         is_running = false;
-        if (config.on_stop) config.on_stop();
     }
 
     return error;

@@ -14,7 +14,7 @@
 #include <Tactility/hal/HalPrivate.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
-#include <Tactility/lvgl/Lvgl.h>
+#include <Tactility/lvgl/LvglPrivate.h>
 #include <Tactility/MountPoints.h>
 #include <Tactility/network/NtpPrivate.h>
 #include <Tactility/service/ServiceManifest.h>
@@ -358,8 +358,8 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
     registerAndStartPrimaryServices();
 
     lvgl_module_configure((LvglModuleConfig) {
-        .on_start = lvgl::start,
-        .on_stop = lvgl::stop
+        .on_start = lvgl::attachDevices,
+        .on_stop = lvgl::detachDevices
     });
     module_set_parent(&lvgl_module, &tactility_module_parent);
     lvgl::start();
