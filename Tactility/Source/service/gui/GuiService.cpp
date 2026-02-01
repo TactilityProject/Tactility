@@ -40,6 +40,51 @@ void GuiService::onLoaderEvent(LoaderService::Event event) {
 int32_t GuiService::guiMain() {
     auto service = findServiceById<GuiService>(manifest.id);
 
+    if (!lvgl::lock(5000)) {
+        LOGGER.error("LVGL guiMain start failed as LVGL couldn't be locked");
+        return 0;
+    }
+
+    // The screen root is created in the main task instead of during onStart because
+    // it allows onStart() to succeed faster and allows widget creation to happen in the background
+
+    auto* screen_root = lv_screen_active();
+    if (screen_root == nullptr) {
+        LOGGER.error("No display found, exiting GUI task");
+        lvgl::unlock();
+        return 0;
+    }
+
+    service->keyboardGroup = lv_group_create();
+    lv_obj_set_style_border_width(screen_root, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(screen_root, 0, LV_STATE_DEFAULT);
+
+    service->keyboardGroup = lv_group_create();
+    lv_obj_set_style_border_width(screen_root, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(screen_root, 0, LV_STATE_DEFAULT);
+
+    lv_obj_t* vertical_container = lv_obj_create(screen_root);
+    lv_obj_set_size(vertical_container, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_flex_flow(vertical_container, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(vertical_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_gap(vertical_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(vertical_container, lv_color_black(), LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(vertical_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(vertical_container, 0, LV_STATE_DEFAULT);
+
+    service->statusbarWidget = lvgl::statusbar_create(vertical_container);
+
+    auto* app_container = lv_obj_create(vertical_container);
+    lv_obj_set_style_pad_all(app_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(app_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_width(app_container, LV_PCT(100));
+    lv_obj_set_flex_grow(app_container, 1);
+    lv_obj_set_flex_flow(app_container, LV_FLEX_FLOW_COLUMN);
+
+    service->appRootWidget = app_container;
+
+    lvgl::unlock();
+
     while (true) {
         uint32_t flags = 0;
         if (service->threadFlags.wait(GUI_THREAD_FLAG_ALL, false, true, &flags, portMAX_DELAY)) {
@@ -61,6 +106,9 @@ int32_t GuiService::guiMain() {
             }
         }
     }
+
+    service->appRootWidget = nullptr;
+    service->statusbarWidget = nullptr;
 
     return 0;
 }
@@ -86,6 +134,12 @@ lv_obj_t* GuiService::createAppViews(lv_obj_t* parent) {
 void GuiService::redraw() {
     // Lock GUI and LVGL
     lock();
+
+    if (appRootWidget == nullptr) {
+        LOGGER.warn("No root widget");
+        unlock();
+        return;
+    }
 
     if (lvgl::lock(1000)) {
         lv_obj_clean(appRootWidget);
@@ -113,7 +167,7 @@ void GuiService::redraw() {
             lv_obj_t* container = createAppViews(appRootWidget);
             appToRender->getApp()->onShow(*appToRender, container);
         } else {
-            LOGGER.warn("nothing to draw");
+            LOGGER.warn("Nothing to draw");
         }
 
         // Unlock GUI and LVGL
@@ -126,18 +180,11 @@ void GuiService::redraw() {
 }
 
 bool GuiService::onStart(ServiceContext& service) {
-    auto* screen_root = lv_screen_active();
-    if (screen_root == nullptr) {
-        LOGGER.error("No display found");
-        return false;
-    }
-
     thread = new Thread(
         GUI_TASK_NAME,
         4096, // Last known minimum was 2800 for launching desktop
-        []() { return guiMain(); }
+        guiMain
     );
-
     thread->setPriority(THREAD_PRIORITY_SERVICE);
 
     const auto loader = findLoaderService();
@@ -146,37 +193,8 @@ bool GuiService::onStart(ServiceContext& service) {
         onLoaderEvent(event);
     });
 
-    lvgl::lock(portMAX_DELAY);
-
-    keyboardGroup = lv_group_create();
-    lv_obj_set_style_border_width(screen_root, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_all(screen_root, 0, LV_STATE_DEFAULT);
-
-    lv_obj_t* vertical_container = lv_obj_create(screen_root);
-    lv_obj_set_size(vertical_container, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_flex_flow(vertical_container, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(vertical_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_gap(vertical_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(vertical_container, lv_color_black(), LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(vertical_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(vertical_container, 0, LV_STATE_DEFAULT);
-
-    statusbarWidget = lvgl::statusbar_create(vertical_container);
-
-    auto* app_container = lv_obj_create(vertical_container);
-    lv_obj_set_style_pad_all(app_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(app_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_width(app_container, LV_PCT(100));
-    lv_obj_set_flex_grow(app_container, 1);
-    lv_obj_set_flex_flow(app_container, LV_FLEX_FLOW_COLUMN);
-
-    appRootWidget = app_container;
-
-    lvgl::unlock();
-
     isStarted = true;
 
-    thread->setPriority(THREAD_PRIORITY_SERVICE);
     thread->start();
 
     return true;
@@ -192,20 +210,21 @@ void GuiService::onStop(ServiceContext& service) {
     appToRender = nullptr;
     isStarted = false;
 
-    auto task_handle = thread->getTaskHandle();
     threadFlags.set(GUI_THREAD_FLAG_EXIT);
-    thread->join();
-    delete thread;
-
     unlock();
+    thread->join();
 
-    check(lvgl::lock(1000 / portTICK_PERIOD_MS));
-    lv_group_delete(keyboardGroup);
+    lvgl::lock();
+    if (keyboardGroup != nullptr) {
+        lv_group_delete(keyboardGroup);
+        keyboardGroup = nullptr;
+    }
     lvgl::unlock();
+
+    delete thread;
 }
 
 void GuiService::requestDraw() {
-    auto task_handle = thread->getTaskHandle();
     threadFlags.set(GUI_THREAD_FLAG_DRAW);
 }
 

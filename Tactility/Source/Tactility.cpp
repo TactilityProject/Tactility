@@ -2,11 +2,15 @@
 #include <sdkconfig.h>
 #endif
 
+#include <format>
+#include <map>
+
 #include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
 
 #include <Tactility/app/AppManifestParsing.h>
 #include <Tactility/app/AppRegistration.h>
+#include <Tactility/CpuAffinity.h>
 #include <Tactility/DispatcherThread.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
@@ -21,12 +25,10 @@
 #include <Tactility/service/ServiceRegistration.h>
 #include <Tactility/settings/TimePrivate.h>
 
+#include <tactility/concurrent/thread.h>
 #include <tactility/kernel_init.h>
 #include <tactility/hal_device_module.h>
 #include <tactility/lvgl_module.h>
-
-#include <format>
-#include <map>
 
 #ifdef ESP_PLATFORM
 #include <Tactility/InitEsp.h>
@@ -359,7 +361,15 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
 
     lvgl_module_configure((LvglModuleConfig) {
         .on_start = lvgl::attachDevices,
-        .on_stop = lvgl::detachDevices
+        .on_stop = lvgl::detachDevices,
+        .task_priority = THREAD_PRIORITY_HIGHER,
+        /** Minimum seems to be about 3500. In some scenarios, the WiFi app crashes at 8192,
+         * so we now have 9120 to run in a stable manner. We should figure out a way to avoid this.
+         * Perhaps we can give apps their own stack space and deal with lvgl callback handlers in a clever way. */
+        .task_stack_size = 9120,
+#ifdef ESP_PLATFORM
+        .task_affinity = getCpuAffinityConfiguration().graphics
+#endif
     });
     module_set_parent(&lvgl_module, &tactility_module_parent);
     lvgl::start();

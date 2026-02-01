@@ -39,12 +39,13 @@ static void task_unlock(void) {
     recursive_mutex_unlock(&task_mutex);
 }
 
-void lvgl_lock(void) {
+bool lvgl_lock(void) {
     if (!lvgl_mutex_initialised) {
         recursive_mutex_construct(&lvgl_mutex);
         lvgl_mutex_initialised = true;
     }
     recursive_mutex_lock(&lvgl_mutex);
+    return true;
 }
 
 bool lvgl_try_lock_timed(uint32_t timeout) {
@@ -53,11 +54,7 @@ bool lvgl_try_lock_timed(uint32_t timeout) {
         lvgl_mutex_initialised = true;
     }
 
-    // esp_lvgl_port locks without timeout when timeout is set to 0
-    // We want to keep it consistent so we do that here too
-    // TODO: Test if we can remove it
-    TickType_t safe_timeout = (timeout == 0) ? portMAX_DELAY : timeout;
-    return recursive_mutex_try_lock_timed(&lvgl_mutex, safe_timeout);
+    return recursive_mutex_try_lock_timed(&lvgl_mutex, timeout);
 }
 
 void lvgl_unlock(void) {
@@ -82,6 +79,7 @@ static void lvgl_task(void* arg) {
 
     check(!lvgl_task_is_interrupt_requested());
 
+    // on_start must be called from the task, otherwhise the display doesn't work
     if (lvgl_module_config.on_start) lvgl_module_config.on_start();
 
     while (!lvgl_task_is_interrupt_requested()) {
@@ -109,9 +107,9 @@ error_t lvgl_arch_start() {
     BaseType_t task_result = xTaskCreate(
         lvgl_task,
         "lvgl",
-        8192,
+        lvgl_module_config.task_stack_size,
         &lvgl_task_handle,
-        (UBaseType_t)THREAD_PRIORITY_HIGH,
+        lvgl_module_config.task_priority,
         nullptr
     );
 

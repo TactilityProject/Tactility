@@ -7,7 +7,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_component_register(
         SRCS ${SOURCE_FILES}
         INCLUDE_DIRS "Include/"
-        REQUIRES lvgl esp_lvgl_port
+        REQUIRES TactilityKernel lvgl esp_lvgl_port
     )
 
 else ()

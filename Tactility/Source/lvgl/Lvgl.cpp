@@ -174,7 +174,6 @@ void detachDevices() {
 }
 
 void start() {
-    tt::lvgl::syncSet(&lvgl_try_lock_timed, &lvgl_unlock);
     check(module_start(&lvgl_module) == ERROR_NONE);
 }
 
