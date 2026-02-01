@@ -4,21 +4,12 @@ file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
 if (DEFINED ENV{ESP_IDF_VERSION})
 
-    list(APPEND REQUIRES_LIST
-        TactilityKernel
-        lvgl
-        esp_lvgl_port
-    )
-
     idf_component_register(
         SRCS ${SOURCE_FILES}
         INCLUDE_DIRS "Include/"
-        REQUIRES ${REQUIRES_LIST}
+        PRIV_INCLUDE_DIRS "Private/"
+        REQUIRES lvgl esp_lvgl_port
     )
-
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        target_compile_options(${COMPONENT_LIB} PUBLIC -Wno-unused-variable)
-    endif ()
 
 else ()
 
@@ -28,6 +19,7 @@ else ()
 
     target_include_directories(lvgl-module
         PUBLIC Include/
+        PRIVATE Private/
     )
 
     target_link_libraries(lvgl-module PUBLIC

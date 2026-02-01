@@ -60,7 +60,6 @@ void lvgl_task_interrupt() {
 void lvgl_task_start() {
     LOGGER.info("LVGL task starting");
 
-    tt::lvgl::syncSet(&lvgl_lock, &lvgl_unlock);
 
     // Create the main app loop, like ESP-IDF
     BaseType_t task_result = xTaskCreate(

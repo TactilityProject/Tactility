@@ -12,11 +12,6 @@ enum class SystemEvent {
     /** Gained IP address */
     NetworkConnected,
     NetworkDisconnected,
-    /** LVGL devices are initialized and usable */
-    LvglStarted,
-    /** LVGL devices were removed and not usable anymore */
-    LvglStopped,
-    /** An important system time-related event, such as NTP update or time-zone change */
     Time,
 };
 

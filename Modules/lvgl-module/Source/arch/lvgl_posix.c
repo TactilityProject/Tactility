@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: GPL-3.0-only
+#ifndef ESP_PLATFORM
+
+#include <tactility/check.h>
+#include <tactility/delay.h>
+#include <tactility/concurrent/recursive_mutex.h>
+#include <tactility/concurrent/thread.h>
+
+#include <tactility/freertos/task.h>
+
+#include <lvgl.h>
+
+#include "lvgl_module_private.h"
+
+// Mutex for LVGL drawing
+static struct RecursiveMutex lvgl_mutex;
+static bool lvgl_mutex_initialised = false;
+static struct RecursiveMutex task_mutex;
+static bool task_mutex_initialised = false;
+
+static uint32_t task_max_sleep_ms = 10;
+static TaskHandle_t lvgl_task_handle = NULL;
+static bool lvgl_task_interrupt_requested = false;
+
+#define LVGL_STOP_POLL_INTERVAL 10
+#define LVGL_STOP_TIMEOUT 5000
+
+static void task_lock(void) {
+    if (!task_mutex_initialised) {
+        recursive_mutex_construct(&task_mutex);
+        task_mutex_initialised = true;
+    }
+    recursive_mutex_lock(&task_mutex);
+}
+
+static void task_unlock(void) {
+    recursive_mutex_unlock(&task_mutex);
+}
+
+void lvgl_lock(void) {
+    if (!lvgl_mutex_initialised) {
+        recursive_mutex_construct(&lvgl_mutex);
+        lvgl_mutex_initialised = true;
+    }
+    recursive_mutex_lock(&lvgl_mutex);
+}
+
+bool lvgl_try_lock_timed(uint32_t timeout) {
+    if (!lvgl_mutex_initialised) {
+        recursive_mutex_construct(&lvgl_mutex);
+        lvgl_mutex_initialised = true;
+    }
+
+    // esp_lvgl_port locks without timeout when timeout is set to 0
+    // We want to keep it consistent so we do that here too
+    // TODO: Test if we can remove it
+    TickType_t safe_timeout = (timeout == 0) ? portMAX_DELAY : timeout;
+    return recursive_mutex_try_lock_timed(&lvgl_mutex, safe_timeout);
+}
+
+void lvgl_unlock(void) {
+    recursive_mutex_unlock(&lvgl_mutex);
+}
+
+static void lvgl_task_interrupt() {
+    task_lock();
+    lvgl_task_interrupt_requested = false; // interrupt task with boolean as flag
+    task_unlock();
+}
+
+static bool lvgl_task_is_interrupt_requested() {
+    task_lock();
+    bool result = lvgl_task_interrupt_requested;
+    task_unlock();
+    return result;
+}
+
+static void lvgl_task(void* arg) {
+    uint32_t task_delay_ms = task_max_sleep_ms;
+
+    check(!lvgl_task_is_interrupt_requested());
+
+    while (!lvgl_task_is_interrupt_requested()) {
+        if (lvgl_try_lock_timed(10)) {
+            task_delay_ms = lv_timer_handler();
+            lvgl_unlock();
+        }
+        if ((task_delay_ms > task_max_sleep_ms) || (1 == task_delay_ms)) {
+            task_delay_ms = task_max_sleep_ms;
+        } else if (task_delay_ms < 1) {
+            task_delay_ms = 1;
+        }
+        vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
+    }
+
+    vTaskDelete(nullptr);
+}
+
+error_t lvgl_arch_start() {
+    // Create the main app loop, like ESP-IDF
+    BaseType_t task_result = xTaskCreate(
+        lvgl_task,
+        "lvgl",
+        8192,
+        &lvgl_task_handle,
+        (UBaseType_t)THREAD_PRIORITY_HIGH,
+        nullptr
+    );
+
+    return (task_result == pdTRUE) ? ERROR_NONE : ERROR_RESOURCE;
+}
+
+error_t lvgl_arch_stop() {
+    TickType_t start_ticks = get_ticks();
+    lvgl_task_interrupt();
+    while (lvgl_task_handle != nullptr) { // TODO: make thread-safe
+        delay_ticks(LVGL_STOP_POLL_INTERVAL);
+        if (get_ticks() - start_ticks > LVGL_STOP_TIMEOUT) {
+            return ERROR_TIMEOUT;
+        }
+    }
+    return ERROR_NONE;
+}
+
+#endif

@@ -14,20 +14,19 @@
 #include <Tactility/hal/HalPrivate.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
-#include <Tactility/lvgl/LvglPrivate.h>
+#include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/MountPoints.h>
 #include <Tactility/network/NtpPrivate.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
-#include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/TimePrivate.h>
 
 #include <tactility/kernel_init.h>
 #include <tactility/hal_device_module.h>
 #include <tactility/lvgl_module.h>
 
-#include <map>
 #include <format>
+#include <map>
 
 #ifdef ESP_PLATFORM
 #include <Tactility/InitEsp.h>
@@ -342,9 +341,6 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
     // hal-device-module
     check(module_set_parent(&hal_device_module, &tactility_module_parent) == ERROR_NONE);
     check(module_start(&hal_device_module) == ERROR_NONE);
-    //lvgl-module
-    check(module_set_parent(&lvgl_module, &tactility_module_parent) == ERROR_NONE);
-    check(module_start(&lvgl_module) == ERROR_NONE);
 
     const hal::Configuration& hardware = *config.hardware;
 
@@ -360,7 +356,14 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
     network::ntp::init();
 
     registerAndStartPrimaryServices();
-    lvgl::init(hardware);
+
+    lvgl_module_configure((LvglModuleConfig) {
+        .on_start = lvgl::start,
+        .on_stop = lvgl::stop
+    });
+    module_set_parent(&lvgl_module, &tactility_module_parent);
+    lvgl::start();
+
     registerAndStartSecondaryServices();
 
     LOGGER.info("Core systems ready");

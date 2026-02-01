@@ -34,10 +34,6 @@ static const char* getEventName(SystemEvent event) {
             return TT_STRINGIFY(NetworkConnected);
         case NetworkDisconnected:
             return TT_STRINGIFY(NetworkDisconnected);
-        case LvglStarted:
-            return TT_STRINGIFY(LvglStarted);
-        case LvglStopped:
-            return TT_STRINGIFY(LvglStopped);
         case Time:
             return TT_STRINGIFY(Time);
     }

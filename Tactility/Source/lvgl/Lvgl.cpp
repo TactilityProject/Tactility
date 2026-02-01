@@ -7,47 +7,24 @@
 #include <Tactility/lvgl/Keyboard.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/service/ServiceRegistration.h>
 #include <Tactility/settings/DisplaySettings.h>
 
-#ifdef ESP_PLATFORM
-#include <Tactility/lvgl/EspLvglPort.h>
-#endif
+#include <tactility/lvgl_module.h>
+#include <tactility/module.h>
 
 #include <lvgl.h>
 
 namespace tt::lvgl {
 
-static const auto LOGGER = Logger("Lvgl");
-
-static bool started = false;
-
-void init(const hal::Configuration& config) {
-    LOGGER.info("Init started");
-
-#ifdef ESP_PLATFORM
-    if (config.lvglInit == hal::LvglInit::Default && !initEspLvglPort()) {
-        return;
-    }
-#endif
-
-    start();
-
-    LOGGER.info("Init finished");
-}
+static const auto LOGGER = Logger("LVGL");
 
 bool isStarted() {
-    return started;
+    return module_is_started(&lvgl_module);
 }
 
-void start() {
-    LOGGER.info("Start LVGL");
-
-    if (started) {
-        LOGGER.warn("Can't start LVGL twice");
-        return;
-    }
+static void on_start() {
+    LOGGER.info("Adding devices");
 
     auto lock = getSyncLock()->asScopedLock();
     lock.lock();
@@ -56,7 +33,7 @@ void start() {
 
     LOGGER.info("Start displays");
     auto displays = hal::findDevices<hal::display::DisplayDevice>(hal::Device::Type::Display);
-    for (const auto& display : displays) {
+    for (const auto& display: displays) {
         if (display->supportsLvgl()) {
             if (display->startLvgl()) {
                 LOGGER.info("Started {}", display->getName());
@@ -82,7 +59,7 @@ void start() {
     if (primary_display != nullptr) {
         LOGGER.info("Start touch devices");
         auto touch_devices = hal::findDevices<hal::touch::TouchDevice>(hal::Device::Type::Touch);
-        for (const auto& touch_device : touch_devices) {
+        for (const auto& touch_device: touch_devices) {
             // Start any touch devices that haven't been started yet
             if (touch_device->supportsLvgl() && touch_device->getLvglIndev() == nullptr) {
                 if (touch_device->startLvgl(primary_display->getLvglDisplay())) {
@@ -96,7 +73,7 @@ void start() {
         // Start keyboards
         LOGGER.info("Start keyboards");
         auto keyboards = hal::findDevices<hal::keyboard::KeyboardDevice>(hal::Device::Type::Keyboard);
-        for (const auto& keyboard : keyboards) {
+        for (const auto& keyboard: keyboards) {
             if (keyboard->isAttached()) {
                 if (keyboard->startLvgl(primary_display->getLvglDisplay())) {
                     lv_indev_t* keyboard_indev = keyboard->getLvglIndev();
@@ -111,7 +88,7 @@ void start() {
         // Start encoders
         LOGGER.info("Start encoders");
         auto encoders = hal::findDevices<hal::encoder::EncoderDevice>(hal::Device::Type::Encoder);
-        for (const auto& encoder : encoders) {
+        for (const auto& encoder: encoders) {
             if (encoder->startLvgl(primary_display->getLvglDisplay())) {
                 LOGGER.info("Started {}", encoder->getName());
             } else {
@@ -141,21 +118,10 @@ void start() {
             LOGGER.error("Statusbar service is not in Stopped state");
         }
     }
-
-    // Finalize
-
-    kernel::publishSystemEvent(kernel::SystemEvent::LvglStarted);
-
-    started = true;
 }
 
-void stop() {
-    LOGGER.info("Stopping LVGL");
-
-    if (!started) {
-        LOGGER.warn("Can't stop LVGL: not started");
-        return;
-    }
+static void on_stop() {
+    LOGGER.info("Removing devices");
 
     auto lock = getSyncLock()->asScopedLock();
     lock.lock();
@@ -169,7 +135,7 @@ void stop() {
 
     LOGGER.info("Stopping keyboards");
     auto keyboards = hal::findDevices<hal::keyboard::KeyboardDevice>(hal::Device::Type::Keyboard);
-    for (auto keyboard : keyboards) {
+    for (auto keyboard: keyboards) {
         if (keyboard->getLvglIndev() != nullptr) {
             keyboard->stopLvgl();
         }
@@ -180,7 +146,7 @@ void stop() {
     LOGGER.info("Stopping touch");
     // The display generally stops their own touch devices, but we'll clean up anything that didn't
     auto touch_devices = hal::findDevices<hal::touch::TouchDevice>(hal::Device::Type::Touch);
-    for (auto touch_device : touch_devices) {
+    for (auto touch_device: touch_devices) {
         if (touch_device->getLvglIndev() != nullptr) {
             touch_device->stopLvgl();
         }
@@ -191,7 +157,7 @@ void stop() {
     LOGGER.info("Stopping encoders");
     // The display generally stops their own touch devices, but we'll clean up anything that didn't
     auto encoder_devices = hal::findDevices<hal::encoder::EncoderDevice>(hal::Device::Type::Encoder);
-    for (auto encoder_device : encoder_devices) {
+    for (auto encoder_device: encoder_devices) {
         if (encoder_device->getLvglIndev() != nullptr) {
             encoder_device->stopLvgl();
         }
@@ -200,17 +166,19 @@ void stop() {
 
     LOGGER.info("Stopping displays");
     auto displays = hal::findDevices<hal::display::DisplayDevice>(hal::Device::Type::Display);
-    for (auto display : displays) {
+    for (auto display: displays) {
         if (display->supportsLvgl() && display->getLvglDisplay() != nullptr && !display->stopLvgl()) {
             LOGGER.error("Failed to detach display from LVGL");
         }
     }
+}
 
-    started = false;
+void start() {
+    check(module_start(&lvgl_module) == ERROR_NONE);
+}
 
-    kernel::publishSystemEvent(kernel::SystemEvent::LvglStopped);
-
-    LOGGER.info("Stopped LVGL");
+void stop() {
+    check(module_stop(&lvgl_module) == ERROR_NONE);
 }
 
 } // namespace

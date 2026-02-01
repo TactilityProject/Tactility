@@ -4,18 +4,26 @@
 #include <tactility/check.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 
-/** Hack: variable comes from LvglTask.cpp */
-extern lv_disp_t* displayHandle;
-
 class SdlDisplay final : public tt::hal::display::DisplayDevice {
+
+    lv_disp_t* displayHandle;
 
 public:
 
     std::string getName() const override { return "SDL Display"; }
     std::string getDescription() const override { return ""; }
 
-    bool start() override { return true; }
-    bool stop() override { check(false, "Not supported"); }
+    bool start() override {
+        displayHandle = lv_sdl_window_create(320, 240);
+        lv_sdl_window_set_title(displayHandle, "Tactility");
+        return true;
+    }
+
+    bool stop() override {
+        lv_display_delete(displayHandle);
+        displayHandle = nullptr;
+        return true;
+    }
 
     bool supportsLvgl() const override { return true; }
     bool startLvgl() override { return displayHandle != nullptr; }
