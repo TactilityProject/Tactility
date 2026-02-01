@@ -17,6 +17,10 @@
 #include <time.h>
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Projects that include this header must align with Tactility's frequency (e.g. apps)
 static_assert(configTICK_RATE_HZ == 1000);
 
@@ -77,3 +81,7 @@ static inline TickType_t millis_to_ticks(uint32_t milliSeconds) {
     return static_cast<TickType_t>(((float)configTICK_RATE_HZ) / 1000.0f * (float)milliSeconds);
 #endif
 }
+
+#ifdef __cplusplus
+}
+#endif
