@@ -264,7 +264,7 @@ void for_each_device_of_type(const DeviceType* type, void* callbackContext, bool
     for (auto* device : ledger.devices) {
         auto* driver = device->internal.driver;
         if (driver != nullptr) {
-            if (driver->deviceType == type) {
+            if (driver->device_type == type) {
                 if (!on_device(device, callbackContext)) {
                     break;
                 }

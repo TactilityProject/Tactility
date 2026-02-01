@@ -115,10 +115,10 @@ extern struct Module hal_device_module;
 Driver hal_device_driver = {
     .name = "hal-device",
     .compatible = (const char*[]) {"hal-device", nullptr},
-    .startDevice = start,
-    .stopDevice = stop,
+    .start_device = start,
+    .stop_device = stop,
     .api = nullptr,
-    .deviceType = &HAL_DEVICE_TYPE,
+    .device_type = &HAL_DEVICE_TYPE,
     .owner = &hal_device_module,
     .driver_private = nullptr
 };

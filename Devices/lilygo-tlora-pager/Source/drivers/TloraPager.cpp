@@ -19,10 +19,10 @@ static int stop(Device* device) {
 Driver tlora_pager_driver = {
     .name = "T-Lora Pager",
     .compatible = (const char*[]) { "lilygo,tlora-pager", nullptr },
-    .startDevice = start,
-    .stopDevice = stop,
+    .start_device = start,
+    .stop_device = stop,
     .api = nullptr,
-    .deviceType = nullptr,
+    .device_type = nullptr,
     .owner = &device_module,
     .driver_private = nullptr
 };

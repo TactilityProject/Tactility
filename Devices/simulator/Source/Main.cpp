@@ -40,21 +40,3 @@ void freertosMain() {
 }
 
 } // namespace
-
-/**
- * Assert implementation as defined in the FreeRTOSConfig.h
- * It allows you to set breakpoints and debug asserts.
- */
-void vAssertCalled(unsigned long line, const char* const file) {
-    volatile uint32_t set_to_nonzero_in_debugger_to_continue = 0;
-    LOGGER.error("Assert triggered at {}:{}", file, line);
-    taskENTER_CRITICAL();
-    {
-        // Step out by attaching a debugger and setting set_to_nonzero_in_debugger_to_continue
-        while (set_to_nonzero_in_debugger_to_continue == 0) {
-            // NO-OP
-        }
-    }
-    taskEXIT_CRITICAL();
-}
-

@@ -211,10 +211,10 @@ extern struct Module platform_module;
 Driver esp32_i2c_driver = {
     .name = "esp32_i2c",
     .compatible = (const char*[]) { "espressif,esp32-i2c", nullptr },
-    .startDevice = start,
-    .stopDevice = stop,
+    .start_device = start,
+    .stop_device = stop,
     .api = (void*)&esp32_i2c_api,
-    .deviceType = &I2C_CONTROLLER_TYPE,
+    .device_type = &I2C_CONTROLLER_TYPE,
     .owner = &platform_module,
     .driver_private = nullptr
 };

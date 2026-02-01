@@ -159,8 +159,8 @@ error_t driver_bind(Driver* driver, Device* device) {
         goto error;
     }
 
-    if (driver->startDevice != nullptr) {
-        error = driver->startDevice(device);
+    if (driver->start_device != nullptr) {
+        error = driver->start_device(device);
         if (error != ERROR_NONE) {
             goto error;
         }
@@ -187,8 +187,8 @@ error_t driver_unbind(Driver* driver, Device* device) {
         goto error;
     }
 
-    if (driver->stopDevice != nullptr) {
-        error = driver->stopDevice(device);
+    if (driver->stop_device != nullptr) {
+        error = driver->stop_device(device);
         if (error != ERROR_NONE) {
             goto error;
         }

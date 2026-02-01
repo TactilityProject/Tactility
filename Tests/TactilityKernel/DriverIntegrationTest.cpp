@@ -33,10 +33,10 @@ static int stop(Device* device) {
 static Driver integration_driver = {
     .name = "integration_test_driver",
     .compatible = (const char*[]) { "integration", nullptr },
-    .startDevice = start,
-    .stopDevice = stop,
+    .start_device = start,
+    .stop_device = stop,
     .api = nullptr,
-    .deviceType = nullptr,
+    .device_type = nullptr,
     .owner = &module,
     .driver_private = nullptr,
 };

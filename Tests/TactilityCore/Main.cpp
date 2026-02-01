@@ -49,10 +49,3 @@ int main(int argc, char** argv) {
 
     return data.result;
 }
-
-extern "C" {
-    // Required for FreeRTOS
-    void vAssertCalled(unsigned long line, const char* const file) {
-        __assert_fail("assert failed", file, line, "");
-    }
-}
