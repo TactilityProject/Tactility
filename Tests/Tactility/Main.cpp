@@ -7,7 +7,6 @@
 
 #include <tactility/kernel_init.h>
 #include <tactility/hal_device_module.h>
-
 typedef struct {
     int argc;
     char** argv;
@@ -17,8 +16,6 @@ typedef struct {
 extern "C" {
 // From the relevant platform
 extern struct Module platform_module;
-// From the relevant device
-extern struct Module device_module;
 }
 
 struct ModuleParent tactility_tests_module_parent  {
@@ -36,7 +33,7 @@ void test_task(void* parameter) {
     // overrides
     context.setOption("no-breaks", true); // don't break in the debugger when assertions fail
 
-    check(kernel_init(&platform_module, &device_module, nullptr) == ERROR_NONE);
+    check(kernel_init(&platform_module, nullptr, nullptr) == ERROR_NONE);
     // HAL compatibility module: it creates kernel driver wrappers for tt::hal::Device
     check(module_parent_construct(&tactility_tests_module_parent) == ERROR_NONE);
     check(module_set_parent(&hal_device_module, &tactility_tests_module_parent) == ERROR_NONE);
@@ -69,4 +66,11 @@ int main(int argc, char** argv) {
     vTaskStartScheduler();
 
     return data.result;
+}
+
+extern "C" {
+// Required for FreeRTOS
+void vAssertCalled(unsigned long line, const char* const file) {
+    __assert_fail("assert failed", file, line, "");
+}
 }
