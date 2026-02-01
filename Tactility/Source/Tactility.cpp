@@ -371,7 +371,7 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
         .task_affinity = getCpuAffinityConfiguration().graphics
 #endif
     });
-    module_set_parent(&lvgl_module, &tactility_module_parent);
+    check(module_set_parent(&lvgl_module, &tactility_module_parent) == ERROR_NONE);
     lvgl::start();
 
     registerAndStartSecondaryServices();

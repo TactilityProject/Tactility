@@ -59,10 +59,6 @@ int32_t GuiService::guiMain() {
     lv_obj_set_style_border_width(screen_root, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(screen_root, 0, LV_STATE_DEFAULT);
 
-    service->keyboardGroup = lv_group_create();
-    lv_obj_set_style_border_width(screen_root, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_all(screen_root, 0, LV_STATE_DEFAULT);
-
     lv_obj_t* vertical_container = lv_obj_create(screen_root);
     lv_obj_set_size(vertical_container, LV_PCT(100), LV_PCT(100));
     lv_obj_set_flex_flow(vertical_container, LV_FLEX_FLOW_COLUMN);
@@ -214,12 +210,15 @@ void GuiService::onStop(ServiceContext& service) {
     unlock();
     thread->join();
 
-    lvgl::lock();
-    if (keyboardGroup != nullptr) {
-        lv_group_delete(keyboardGroup);
-        keyboardGroup = nullptr;
+    if (lvgl::lock()) {
+        if (keyboardGroup != nullptr) {
+            lv_group_delete(keyboardGroup);
+            keyboardGroup = nullptr;
+        }
+        lvgl::unlock();
+    } else {
+        LOGGER.error("Failed to unlock LVGL during GUI stop");
     }
-    lvgl::unlock();
 
     delete thread;
 }

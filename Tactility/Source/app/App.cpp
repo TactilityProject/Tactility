@@ -43,7 +43,7 @@ std::shared_ptr<AppContext> getCurrentAppContext() {
 
 std::shared_ptr<App> getCurrentApp() {
     const auto app_context = getCurrentAppContext();
-    return (app_context !=  nullptr) ? app_context->getApp() : nullptr;
+    return (app_context != nullptr) ? app_context->getApp() : nullptr;
 }
 
 }

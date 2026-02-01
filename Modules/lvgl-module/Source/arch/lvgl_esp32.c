@@ -3,6 +3,7 @@
 
 #include <esp_lvgl_port.h>
 
+#include <tactility/time.h>
 #include <tactility/error.h>
 #include <tactility/lvgl_module.h>
 
@@ -17,7 +18,7 @@ bool lvgl_lock(void) {
 
 bool lvgl_try_lock_timed(uint32_t timeout) {
     if (!initialized) return false;
-    return lvgl_port_lock(timeout);
+    return lvgl_port_lock(millis_to_ticks(timeout));
 }
 
 void lvgl_unlock(void) {

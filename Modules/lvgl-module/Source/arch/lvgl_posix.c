@@ -5,8 +5,8 @@
 #include <tactility/delay.h>
 #include <tactility/concurrent/recursive_mutex.h>
 #include <tactility/concurrent/thread.h>
-
 #include <tactility/freertos/task.h>
+#include <tactility/time.h>
 
 #include <lvgl.h>
 
@@ -28,42 +28,34 @@ static bool lvgl_task_interrupt_requested = false;
 #define LVGL_STOP_TIMEOUT 5000
 
 static void task_lock(void) {
-    if (!task_mutex_initialised) {
-        recursive_mutex_construct(&task_mutex);
-        task_mutex_initialised = true;
-    }
+    if (!task_mutex_initialised) return;
     recursive_mutex_lock(&task_mutex);
 }
 
 static void task_unlock(void) {
+    if (!task_mutex_initialised) return;
     recursive_mutex_unlock(&task_mutex);
 }
 
 bool lvgl_lock(void) {
-    if (!lvgl_mutex_initialised) {
-        recursive_mutex_construct(&lvgl_mutex);
-        lvgl_mutex_initialised = true;
-    }
+    if (!lvgl_mutex_initialised) return false;
     recursive_mutex_lock(&lvgl_mutex);
     return true;
 }
 
 bool lvgl_try_lock_timed(uint32_t timeout) {
-    if (!lvgl_mutex_initialised) {
-        recursive_mutex_construct(&lvgl_mutex);
-        lvgl_mutex_initialised = true;
-    }
-
-    return recursive_mutex_try_lock_timed(&lvgl_mutex, timeout);
+    if (!lvgl_mutex_initialised) return false;
+    return recursive_mutex_try_lock_timed(&lvgl_mutex, millis_to_ticks(timeout));
 }
 
 void lvgl_unlock(void) {
+    if (!lvgl_mutex_initialised) return;
     recursive_mutex_unlock(&lvgl_mutex);
 }
 
-static void lvgl_task_interrupt() {
+static void lvgl_task_set_interrupted(bool interrupted) {
     task_lock();
-    lvgl_task_interrupt_requested = false; // interrupt task with boolean as flag
+    lvgl_task_interrupt_requested = interrupted;
     task_unlock();
 }
 
@@ -79,7 +71,7 @@ static void lvgl_task(void* arg) {
 
     check(!lvgl_task_is_interrupt_requested());
 
-    // on_start must be called from the task, otherwhise the display doesn't work
+    // on_start must be called from the task, otherwise the display doesn't work
     if (lvgl_module_config.on_start) lvgl_module_config.on_start();
 
     while (!lvgl_task_is_interrupt_requested()) {
@@ -97,10 +89,26 @@ static void lvgl_task(void* arg) {
 
     if (lvgl_module_config.on_stop) lvgl_module_config.on_stop();
 
+    task_lock();
+    lvgl_task_handle = nullptr;
+    task_unlock();
+
     vTaskDelete(NULL);
 }
 
 error_t lvgl_arch_start() {
+    if (!lvgl_mutex_initialised) {
+        recursive_mutex_construct(&lvgl_mutex);
+        lvgl_mutex_initialised = true;
+    }
+
+    if (!task_mutex_initialised) {
+        recursive_mutex_construct(&task_mutex);
+        task_mutex_initialised = true;
+    }
+
+    lvgl_task_set_interrupted(false);
+
     lv_init();
 
     // Create the main app loop, like ESP-IDF
@@ -108,9 +116,9 @@ error_t lvgl_arch_start() {
         lvgl_task,
         "lvgl",
         lvgl_module_config.task_stack_size,
-        &lvgl_task_handle,
+        NULL,
         lvgl_module_config.task_priority,
-        NULL
+        &lvgl_task_handle
     );
 
     return (task_result == pdTRUE) ? ERROR_NONE : ERROR_RESOURCE;
@@ -118,9 +126,15 @@ error_t lvgl_arch_start() {
 
 error_t lvgl_arch_stop() {
     TickType_t start_ticks = get_ticks();
-    lvgl_task_interrupt();
-    while (lvgl_task_handle != NULL) { // TODO: make thread-safe
+    lvgl_task_set_interrupted(true);
+    while (true) {
+        task_lock();
+        bool done = (lvgl_task_handle == nullptr);
+        task_unlock();
+        if (done) break;
+
         delay_ticks(LVGL_STOP_POLL_INTERVAL);
+
         if (get_ticks() - start_ticks > LVGL_STOP_TIMEOUT) {
             return ERROR_TIMEOUT;
         }

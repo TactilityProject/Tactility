@@ -69,7 +69,7 @@ bool lvgl_lock(void);
 /**
  * @brief Tries to lock the LVGL mutex with a timeout.
  *
- * @param timeout Timeout in milliseconds.
+ * @param timeout Timeout in ticks
  * @return true if the lock was acquired, false otherwise.
  */
 bool lvgl_try_lock_timed(uint32_t timeout);

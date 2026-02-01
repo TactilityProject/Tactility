@@ -6,7 +6,7 @@
 
 class SdlDisplay final : public tt::hal::display::DisplayDevice {
 
-    lv_disp_t* displayHandle;
+    lv_disp_t* displayHandle = nullptr;
 
 public:
 
@@ -20,12 +20,14 @@ public:
     bool supportsLvgl() const override { return true; }
 
     bool startLvgl() override {
+        if (displayHandle) return true; // already started
         displayHandle = lv_sdl_window_create(320, 240);
         lv_sdl_window_set_title(displayHandle, "Tactility");
         return displayHandle != nullptr;
     }
 
     bool stopLvgl() override {
+        if (!displayHandle) return true;
         lv_display_delete(displayHandle);
         displayHandle = nullptr;
         return true;
