@@ -55,7 +55,7 @@ struct Module {
      * Should be terminated by MODULE_SYMBOL_TERMINATOR.
      * Can be a NULL value.
      */
-    struct ModuleSymbol* symbols;
+    const struct ModuleSymbol* symbols;
 
     struct {
         bool started;

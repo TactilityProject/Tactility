@@ -44,12 +44,16 @@ error_t module_parent_destruct(struct ModuleParent* parent) {
 
 bool module_parent_resolve_symbol(ModuleParent* parent, const char* symbol_name, uintptr_t* symbol_address) {
     auto* data = static_cast<ModuleParentPrivate*>(parent->module_parent_private);
-    for (auto* module : data->modules ) {
+    mutex_lock(&data->mutex);
+    for (auto* module : data->modules) {
         if (!module_is_started(module))
             continue;
-        if (module_resolve_symbol(module, symbol_name, symbol_address))
+        if (module_resolve_symbol(module, symbol_name, symbol_address)) {
+            mutex_unlock(&data->mutex);
             return true;
+        }
     }
+    mutex_unlock(&data->mutex);
     return false;
 }
 

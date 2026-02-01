@@ -64,5 +64,5 @@ struct Module lvgl_module = {
     .name = "lvgl",
     .start = start,
     .stop = stop,
-    .symbols = (struct ModuleSymbol*)lvgl_module_symbols
+    .symbols = (const struct ModuleSymbol*)lvgl_module_symbols
 };
