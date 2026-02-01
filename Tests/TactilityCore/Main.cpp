@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
     return data.result;
 }
 
-// NOTE: This is normally provided by the platform module, but that's not loaded for TactilityCore
+// NOTE: This is normally provided by the platform kernel module, but that's not loaded for TactilityCore
 extern "C" {
 // Required for FreeRTOS
 void vAssertCalled(unsigned long line, const char* const file) {
