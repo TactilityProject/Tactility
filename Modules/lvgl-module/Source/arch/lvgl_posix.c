@@ -90,7 +90,7 @@ static void lvgl_task(void* arg) {
     if (lvgl_module_config.on_stop) lvgl_module_config.on_stop();
 
     task_lock();
-    lvgl_task_handle = nullptr;
+    lvgl_task_handle = NULL;
     task_unlock();
 
     vTaskDelete(NULL);
@@ -129,7 +129,7 @@ error_t lvgl_arch_stop() {
     lvgl_task_set_interrupted(true);
     while (true) {
         task_lock();
-        bool done = (lvgl_task_handle == nullptr);
+        bool done = (lvgl_task_handle == NULL);
         task_unlock();
         if (done) break;
 
