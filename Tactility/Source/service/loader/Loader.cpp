@@ -18,7 +18,7 @@
 
 namespace tt::service::loader {
 
-static const auto LOGGER = Logger("Boot");
+static const auto LOGGER = Logger("Loader");
 
 constexpr auto LOADER_TIMEOUT = (100 / portTICK_PERIOD_MS);
 
