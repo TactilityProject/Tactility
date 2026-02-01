@@ -13,9 +13,12 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_event_get_target),
     DEFINE_MODULE_SYMBOL(lv_event_get_current_target_obj),
     DEFINE_MODULE_SYMBOL(lv_event_get_draw_task),
+    DEFINE_MODULE_SYMBOL(lv_event_stop_bubbling),
     // lv_obj
     DEFINE_MODULE_SYMBOL(lv_color_hex),
     DEFINE_MODULE_SYMBOL(lv_color_make),
+    DEFINE_MODULE_SYMBOL(lv_color_black),
+    DEFINE_MODULE_SYMBOL(lv_color_white),
     DEFINE_MODULE_SYMBOL(lv_obj_center),
     DEFINE_MODULE_SYMBOL(lv_obj_clean),
     DEFINE_MODULE_SYMBOL(lv_obj_clear_flag),
@@ -24,6 +27,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_add_event_cb),
     DEFINE_MODULE_SYMBOL(lv_obj_add_flag),
     DEFINE_MODULE_SYMBOL(lv_obj_add_state),
+    DEFINE_MODULE_SYMBOL(lv_obj_clear_state),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_state),
     DEFINE_MODULE_SYMBOL(lv_obj_align),
     DEFINE_MODULE_SYMBOL(lv_obj_align_to),
     DEFINE_MODULE_SYMBOL(lv_obj_get_parent),
@@ -112,10 +117,25 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_outline_width),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_outline_pad),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_outline_opa),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_flex_cross_place),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_image_recolor_opa),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_pad_gap),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_shadow_width),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_size),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_transform_pivot_x),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_transform_pivot_y),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_transform_rotation),
     DEFINE_MODULE_SYMBOL(lv_obj_scroll_to_y),
     DEFINE_MODULE_SYMBOL(lv_obj_set_scrollbar_mode),
     DEFINE_MODULE_SYMBOL(lv_obj_get_child_count),
     DEFINE_MODULE_SYMBOL(lv_obj_get_child),
+    DEFINE_MODULE_SYMBOL(lv_obj_get_index),
+    DEFINE_MODULE_SYMBOL(lv_obj_remove_style_all),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_content_height),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_content_width),
+    DEFINE_MODULE_SYMBOL(lv_obj_event_base),
+    DEFINE_MODULE_SYMBOL(lv_obj_class_create_obj),
+    DEFINE_MODULE_SYMBOL(lv_obj_class_init_obj),
     // lv_font
     DEFINE_MODULE_SYMBOL(lv_font_get_default),
     // lv_theme
@@ -126,6 +146,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_theme_get_font_large),
     // lv_button
     DEFINE_MODULE_SYMBOL(lv_button_create),
+    DEFINE_MODULE_SYMBOL(lv_btn_create),
     // lv_buttonmatrix
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_create),
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_get_button_text),
@@ -139,6 +160,10 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_set_one_checked),
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_set_button_width),
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_set_selected_button),
+    // lv_canvas
+    DEFINE_MODULE_SYMBOL(lv_canvas_create),
+    DEFINE_MODULE_SYMBOL(lv_canvas_set_draw_buf),
+    DEFINE_MODULE_SYMBOL(lv_canvas_set_px),
     // lv_label
     DEFINE_MODULE_SYMBOL(lv_label_create),
     DEFINE_MODULE_SYMBOL(lv_label_cut_text),
@@ -193,6 +218,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_list_add_button),
     DEFINE_MODULE_SYMBOL(lv_list_get_button_text),
     DEFINE_MODULE_SYMBOL(lv_list_set_button_text),
+    // lv_keyboard
+    DEFINE_MODULE_SYMBOL(lv_keyboard_create),
+    DEFINE_MODULE_SYMBOL(lv_keyboard_set_textarea),
     // lv_textarea
     DEFINE_MODULE_SYMBOL(lv_textarea_create),
     DEFINE_MODULE_SYMBOL(lv_textarea_get_accepted_chars),
@@ -224,6 +252,11 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_display_get_physical_horizontal_resolution),
     DEFINE_MODULE_SYMBOL(lv_display_get_physical_vertical_resolution),
     DEFINE_MODULE_SYMBOL(lv_display_dpx),
+    DEFINE_MODULE_SYMBOL(lv_display_get_inactive_time),
+    DEFINE_MODULE_SYMBOL(lv_display_get_rotation),
+    DEFINE_MODULE_SYMBOL(lv_display_set_rotation),
+    DEFINE_MODULE_SYMBOL(lv_display_set_offset),
+    DEFINE_MODULE_SYMBOL(lv_display_trigger_activity),
     // lv_pct
     DEFINE_MODULE_SYMBOL(lv_pct),
     DEFINE_MODULE_SYMBOL(lv_pct_to_px),
@@ -251,6 +284,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_indev_get_gesture_dir),
     DEFINE_MODULE_SYMBOL(lv_indev_get_state),
     DEFINE_MODULE_SYMBOL(lv_indev_active),
+    DEFINE_MODULE_SYMBOL(lv_indev_get_next),
+    DEFINE_MODULE_SYMBOL(lv_indev_set_group),
     // lv_timer
     DEFINE_MODULE_SYMBOL(lv_timer_handler),
     DEFINE_MODULE_SYMBOL(lv_timer_handler_run_in_period),
@@ -279,6 +314,20 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_line_create),
     DEFINE_MODULE_SYMBOL(lv_line_set_points),
     DEFINE_MODULE_SYMBOL(lv_line_set_points_mutable),
+    // lv_slider
+    DEFINE_MODULE_SYMBOL(lv_slider_create),
+    DEFINE_MODULE_SYMBOL(lv_slider_get_value),
+    DEFINE_MODULE_SYMBOL(lv_slider_set_range),
+    DEFINE_MODULE_SYMBOL(lv_slider_set_value),
+    // lv_tabview
+    DEFINE_MODULE_SYMBOL(lv_tabview_add_tab),
+    DEFINE_MODULE_SYMBOL(lv_tabview_create),
+    DEFINE_MODULE_SYMBOL(lv_tabview_set_tab_bar_position),
+    DEFINE_MODULE_SYMBOL(lv_tabview_set_tab_bar_size),
+    // lv_screen
+    DEFINE_MODULE_SYMBOL(lv_scr_act),
+    DEFINE_MODULE_SYMBOL(lv_screen_active),
+    DEFINE_MODULE_SYMBOL(lv_layer_top),
     // lv_group
     DEFINE_MODULE_SYMBOL(lv_group_remove_obj),
     DEFINE_MODULE_SYMBOL(lv_group_focus_obj),
@@ -286,6 +335,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_group_add_obj),
     DEFINE_MODULE_SYMBOL(lv_group_set_default),
     DEFINE_MODULE_SYMBOL(lv_group_set_editing),
+    DEFINE_MODULE_SYMBOL(lv_group_create),
+    DEFINE_MODULE_SYMBOL(lv_group_delete),
     // lv_mem
     DEFINE_MODULE_SYMBOL(lv_free),
     DEFINE_MODULE_SYMBOL(lv_malloc),
@@ -293,8 +344,22 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_draw_task_get_draw_dsc),
     DEFINE_MODULE_SYMBOL(lv_draw_task_get_label_dsc),
     DEFINE_MODULE_SYMBOL(lv_draw_task_get_fill_dsc),
+    DEFINE_MODULE_SYMBOL(lv_draw_buf_create),
     // lv_image
     DEFINE_MODULE_SYMBOL(lv_image_create),
     DEFINE_MODULE_SYMBOL(lv_image_set_src),
+    DEFINE_MODULE_SYMBOL(lv_img_set_src),
+    // lv_anim
+    DEFINE_MODULE_SYMBOL(lv_anim_init),
+    DEFINE_MODULE_SYMBOL(lv_anim_set_duration),
+    DEFINE_MODULE_SYMBOL(lv_anim_set_exec_cb),
+    DEFINE_MODULE_SYMBOL(lv_anim_set_repeat_count),
+    DEFINE_MODULE_SYMBOL(lv_anim_set_values),
+    DEFINE_MODULE_SYMBOL(lv_anim_set_var),
+    DEFINE_MODULE_SYMBOL(lv_anim_set_path_cb),
+    DEFINE_MODULE_SYMBOL(lv_anim_start),
+    DEFINE_MODULE_SYMBOL(lv_anim_path_ease_in_out),
+    DEFINE_MODULE_SYMBOL(lv_anim_path_linear),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_valid),
     MODULE_SYMBOL_TERMINATOR
 };
