@@ -19,7 +19,7 @@
 static const auto LOGGER = tt::Logger("USB");
 
 namespace tt::hal::usb {
-    extern sdmmc_card_t* _Nullable getCard();
+    extern sdmmc_card_t* getCard();
 }
 
 enum {

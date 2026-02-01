@@ -49,7 +49,7 @@ public:
 
 
 /** Returns the app data if the app is active. Note that this could clash if the same app is started twice and a background thread is slow. */
-std::shared_ptr<ScreenshotApp> _Nullable optApp() {
+std::shared_ptr<ScreenshotApp> optApp() {
     auto appContext = getCurrentAppContext();
     if (appContext != nullptr && appContext->getManifest().appId == manifest.appId) {
         return std::static_pointer_cast<ScreenshotApp>(appContext->getApp());

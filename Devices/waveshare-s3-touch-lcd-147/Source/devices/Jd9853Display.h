@@ -67,7 +67,7 @@ public:
         uint32_t bufferSize; // Size in pixel count. 0 means default, which is 1/10 of the screen size
         lcd_rgb_element_order_t rgbElementOrder;
         std::shared_ptr<tt::hal::touch::TouchDevice> touch;
-        std::function<void(uint8_t)> _Nullable backlightDutyFunction = nullptr;
+        std::function<void(uint8_t)> backlightDutyFunction = nullptr;
     };
 
 private:
@@ -93,7 +93,7 @@ public:
 
     std::string getDescription() const override { return "JD9853 display"; }
 
-    std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable getTouchDevice() override { return configuration->touch; }
+    std::shared_ptr<tt::hal::touch::TouchDevice> getTouchDevice() override { return configuration->touch; }
 
     void setBacklightDuty(uint8_t backlightDuty) override {
         if (configuration->backlightDutyFunction != nullptr) {

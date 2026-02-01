@@ -48,7 +48,7 @@ public:
     void stop();
 };
 
-std::shared_ptr<ScreenshotService> _Nullable optScreenshotService();
+std::shared_ptr<ScreenshotService> optScreenshotService();
 
 } // namespace
 

@@ -376,7 +376,8 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
     }
 }
 
-const Configuration* _Nullable getConfiguration() {
+/** return the configuration or nullptr if it's not initialized */
+const Configuration* getConfiguration() {
     return config_instance;
 }
 

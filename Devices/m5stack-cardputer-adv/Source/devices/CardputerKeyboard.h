@@ -9,7 +9,7 @@
 
 class CardputerKeyboard final : public tt::hal::keyboard::KeyboardDevice {
 
-    lv_indev_t* _Nullable kbHandle = nullptr;
+    lv_indev_t* kbHandle = nullptr;
     QueueHandle_t queue = nullptr;
 
     std::shared_ptr<Tca8418> keypad;
@@ -42,5 +42,5 @@ public:
     bool stopLvgl() override;
 
     bool isAttached() const override;
-    lv_indev_t* _Nullable getLvglIndev() override { return kbHandle; }
+    lv_indev_t* getLvglIndev() override { return kbHandle; }
 };

@@ -20,7 +20,7 @@ struct BootModeData {
 static Mode currentMode = Mode::Default;
 static RTC_NOINIT_ATTR BootModeData bootModeData;
 
-sdmmc_card_t* _Nullable getCard() {
+sdmmc_card_t* getCard() {
     auto sdcards = findDevices<sdcard::SpiSdCardDevice>(Device::Type::SdCard);
 
     std::shared_ptr<sdcard::SpiSdCardDevice> usable_sdcard;

@@ -18,7 +18,7 @@ bool removeAppManifest(const std::string& id);
  * @param[in] id the manifest id
  * @return the application manifest if it was found
  */
-_Nullable std::shared_ptr<AppManifest> findAppManifestById(const std::string& id);
+std::shared_ptr<AppManifest> findAppManifestById(const std::string& id);
 
 /** @return a list of all registered apps. This includes user and system apps. */
 std::vector<std::shared_ptr<AppManifest>> getAppManifests();

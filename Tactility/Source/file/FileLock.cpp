@@ -5,7 +5,7 @@
 
 namespace tt::file {
 
-std::shared_ptr<Lock> _Nullable findLock(const std::string& path) {
+std::shared_ptr<Lock> findLock(const std::string& path) {
     return hal::sdcard::findSdCardLock(path);
 }
 

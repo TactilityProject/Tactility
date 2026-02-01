@@ -5,7 +5,7 @@ namespace tt::app {
 
 constexpr auto* TAG = "App";
 
-LaunchId start(const std::string& id, std::shared_ptr<const Bundle> _Nullable parameters) {
+LaunchId start(const std::string& id, std::shared_ptr<const Bundle> parameters) {
     const auto service = service::loader::findLoaderService();
     assert(service != nullptr);
     return service->start(id, std::move(parameters));
@@ -35,13 +35,13 @@ bool isRunning(const std::string& id) {
     return service->isRunning(id);
 }
 
-std::shared_ptr<AppContext> _Nullable getCurrentAppContext() {
+std::shared_ptr<AppContext> getCurrentAppContext() {
     const auto service = service::loader::findLoaderService();
     assert(service != nullptr);
     return service->getCurrentAppContext();
 }
 
-std::shared_ptr<App> _Nullable getCurrentApp() {
+std::shared_ptr<App> getCurrentApp() {
     const auto app_context = getCurrentAppContext();
     return (app_context !=  nullptr) ? app_context->getApp() : nullptr;
 }

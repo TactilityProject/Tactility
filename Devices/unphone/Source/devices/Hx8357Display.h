@@ -21,10 +21,10 @@
 
 class Hx8357Display : public tt::hal::display::DisplayDevice {
 
-    uint8_t* _Nullable buffer = nullptr;
-    lv_display_t* _Nullable lvglDisplay = nullptr;
-    std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable touchDevice;
-    std::shared_ptr<tt::hal::display::DisplayDriver> _Nullable nativeDisplay;
+    uint8_t* buffer = nullptr;
+    lv_display_t* lvglDisplay = nullptr;
+    std::shared_ptr<tt::hal::touch::TouchDevice> touchDevice;
+    std::shared_ptr<tt::hal::display::DisplayDriver> nativeDisplay;
 
     class Hx8357Driver : public tt::hal::display::DisplayDriver {
         std::shared_ptr<tt::Lock> lock = tt::hal::spi::getLock(SPI2_HOST);
@@ -51,14 +51,14 @@ public:
 
     bool stopLvgl() override;
 
-    std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable getTouchDevice() override;
+    std::shared_ptr<tt::hal::touch::TouchDevice> getTouchDevice() override;
 
-    lv_display_t* _Nullable getLvglDisplay() const override { return lvglDisplay; }
+    lv_display_t* getLvglDisplay() const override { return lvglDisplay; }
 
     // TODO: Set to true after fixing UnPhoneDisplayDriver
     bool supportsDisplayDriver() const override { return false; }
 
-    std::shared_ptr<tt::hal::display::DisplayDriver> _Nullable getDisplayDriver() override {
+    std::shared_ptr<tt::hal::display::DisplayDriver> getDisplayDriver() override {
         if (nativeDisplay == nullptr) {
             nativeDisplay = std::make_shared<Hx8357Driver>();
         }

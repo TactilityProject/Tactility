@@ -67,8 +67,8 @@ public:
     bool isMounted(TickType_t timeout = kernel::MAX_TICKS) const { return getState(timeout) == State::Mounted; }
 };
 
-/** Return the SdCard device if the path is within the SdCard mounted path (path std::string::starts_with() check)*/
-std::shared_ptr<SdCardDevice> _Nullable find(const std::string& path);
+/** Return the SdCard device if the path is within the SdCard mounted path (path std::string::starts_with() check), otherwise return nullptr */
+std::shared_ptr<SdCardDevice> find(const std::string& path);
 
 /**
  * Attempt to find an SD card that the specified belongs to,

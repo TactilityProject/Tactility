@@ -23,9 +23,6 @@ else()
 
     target_include_directories(TactilityCore PUBLIC Include/)
 
-    add_definitions(-D_Nullable=)
-    add_definitions(-D_Nonnull=)
-
     target_link_libraries(TactilityCore PUBLIC
         TactilityFreeRtos
         TactilityKernel

@@ -31,7 +31,7 @@ struct Configuration {
      * Called before I2C/SPI/etc is initialized.
      * Used for powering on the peripherals manually.
      */
-    const InitBoot _Nullable initBoot = nullptr;
+    const InitBoot initBoot = nullptr;
 
     /** Init behaviour: default (esp_lvgl_port for ESP32, nothing for PC) or None (nothing on any platform). Only used in Tactility, not in TactilityHeadless. */
     const LvglInit lvglInit = LvglInit::Default;

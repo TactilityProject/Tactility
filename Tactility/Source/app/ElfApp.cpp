@@ -34,13 +34,13 @@ class ElfApp final : public App {
 public:
 
     struct Parameters {
-        CreateData _Nullable createData = nullptr;
-        DestroyData _Nullable destroyData = nullptr;
-        OnCreate _Nullable onCreate = nullptr;
-        OnDestroy _Nullable onDestroy = nullptr;
-        OnShow _Nullable onShow = nullptr;
-        OnHide _Nullable onHide = nullptr;
-        OnResult _Nullable onResult = nullptr;
+        CreateData createData = nullptr;
+        DestroyData destroyData = nullptr;
+        OnCreate onCreate = nullptr;
+        OnDestroy onDestroy = nullptr;
+        OnShow onShow = nullptr;
+        OnHide onHide = nullptr;
+        OnResult onResult = nullptr;
     };
 
     static void setParameters(const Parameters& parameters) {
@@ -202,13 +202,13 @@ size_t ElfApp::staticParametersSetCount = 0;
 std::shared_ptr<Lock> ElfApp::staticParametersLock = std::make_shared<Mutex>();
 
 void setElfAppParameters(
-    CreateData _Nullable createData,
-    DestroyData _Nullable destroyData,
-    OnCreate _Nullable onCreate,
-    OnDestroy _Nullable onDestroy,
-    OnShow _Nullable onShow,
-    OnHide _Nullable onHide,
-    OnResult _Nullable onResult
+    CreateData createData,
+    DestroyData destroyData,
+    OnCreate onCreate,
+    OnDestroy onDestroy,
+    OnShow onShow,
+    OnHide onHide,
+    OnResult onResult
 ) {
     ElfApp::setParameters({
         .createData = createData,

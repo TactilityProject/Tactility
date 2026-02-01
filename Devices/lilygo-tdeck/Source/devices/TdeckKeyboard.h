@@ -5,7 +5,7 @@
 
 class TdeckKeyboard final : public tt::hal::keyboard::KeyboardDevice {
 
-    lv_indev_t* _Nullable deviceHandle = nullptr;
+    lv_indev_t* deviceHandle = nullptr;
 
 public:
 
@@ -15,5 +15,5 @@ public:
     bool startLvgl(lv_display_t* display) override;
     bool stopLvgl() override;
     bool isAttached() const override;
-    lv_indev_t* _Nullable getLvglIndev() override { return deviceHandle; }
+    lv_indev_t* getLvglIndev() override { return deviceHandle; }
 };

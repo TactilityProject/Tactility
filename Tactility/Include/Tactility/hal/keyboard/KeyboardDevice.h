@@ -20,7 +20,8 @@ public:
     /** @return true when the keyboard currently is physically attached */
     virtual bool isAttached() const = 0;
 
-    virtual lv_indev_t* _Nullable getLvglIndev() = 0;
+    /** Could return nullptr if not started */
+    virtual lv_indev_t* getLvglIndev() = 0;
 };
 
 }

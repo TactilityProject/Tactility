@@ -21,7 +21,4 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
 
     target_link_libraries(Simulator PRIVATE ${SDL2_LIBRARIES})
 
-    add_definitions(-D_Nullable=)
-    add_definitions(-D_Nonnull=)
-
 endif()

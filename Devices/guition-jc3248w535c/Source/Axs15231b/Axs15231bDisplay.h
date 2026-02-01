@@ -72,23 +72,23 @@ public:
         uint32_t bufferSize; // Size in pixel count. 0 means default, which is 1/10 of the screen size
         lcd_rgb_element_order_t rgbElementOrder;
         std::shared_ptr<tt::hal::touch::TouchDevice> touch;
-        std::function<void(uint8_t)> _Nullable backlightDutyFunction = nullptr;
+        std::function<void(uint8_t)> backlightDutyFunction = nullptr;
     };
 
 private:
 
-    esp_lcd_panel_io_handle_t _Nullable ioHandle = nullptr;
-    esp_lcd_panel_handle_t _Nullable panelHandle = nullptr;
-    lv_display_t* _Nullable lvglDisplay = nullptr;
-    uint16_t* _Nullable buffer1 = nullptr;
-    uint16_t* _Nullable buffer2 = nullptr;
-    uint16_t* _Nullable tempBuf = nullptr;
-    SemaphoreHandle_t _Nullable teSyncSemaphore = nullptr;
+    esp_lcd_panel_io_handle_t ioHandle = nullptr;
+    esp_lcd_panel_handle_t panelHandle = nullptr;
+    lv_display_t* lvglDisplay = nullptr;
+    uint16_t* buffer1 = nullptr;
+    uint16_t* buffer2 = nullptr;
+    uint16_t* tempBuf = nullptr;
+    SemaphoreHandle_t teSyncSemaphore = nullptr;
     bool teIsrInstalled = false;
     bool isrServiceInstalledByUs = false;
 
     std::unique_ptr<Configuration> configuration;
-    std::shared_ptr<tt::hal::display::DisplayDriver> _Nullable displayDriver;
+    std::shared_ptr<tt::hal::display::DisplayDriver> displayDriver;
 
     bool createIoHandle();
 
@@ -118,9 +118,9 @@ public:
 
     bool stopLvgl() override;
 
-    lv_display_t* _Nullable getLvglDisplay() const override { return lvglDisplay; }
+    lv_display_t* getLvglDisplay() const override { return lvglDisplay; }
 
-    std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable getTouchDevice() override { return configuration->touch; }
+    std::shared_ptr<tt::hal::touch::TouchDevice> getTouchDevice() override { return configuration->touch; }
 
     void setBacklightDuty(uint8_t backlightDuty) override {
         if (configuration->backlightDutyFunction != nullptr) {
@@ -132,7 +132,7 @@ public:
 
     bool supportsDisplayDriver() const override { return true; }
 
-    std::shared_ptr<tt::hal::display::DisplayDriver> _Nullable getDisplayDriver() override;
+    std::shared_ptr<tt::hal::display::DisplayDriver> getDisplayDriver() override;
 
     static void lvgl_port_flush_callback(lv_display_t *drv, const lv_area_t *area, uint8_t *color_map);
 

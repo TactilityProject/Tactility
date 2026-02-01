@@ -44,7 +44,7 @@ void addService(const ServiceManifest& manifest, bool autoStart) {
     addService(std::make_shared<const ServiceManifest>(manifest), autoStart);
 }
 
-std::shared_ptr<const ServiceManifest> _Nullable findManifestById(const std::string& id) {
+std::shared_ptr<const ServiceManifest> findManifestById(const std::string& id) {
     manifest_mutex.lock();
     auto iterator = service_manifest_map.find(id);
     auto manifest = iterator != service_manifest_map.end() ? iterator->second : nullptr;
@@ -52,7 +52,7 @@ std::shared_ptr<const ServiceManifest> _Nullable findManifestById(const std::str
     return manifest;
 }
 
-static std::shared_ptr<ServiceInstance> _Nullable findServiceInstanceById(const std::string& id) {
+static std::shared_ptr<ServiceInstance> findServiceInstanceById(const std::string& id) {
     manifest_mutex.lock();
     auto iterator = service_instance_map.find(id);
     auto service = iterator != service_instance_map.end() ? iterator->second : nullptr;
@@ -92,11 +92,11 @@ bool startService(const std::string& id) {
     return true;
 }
 
-std::shared_ptr<ServiceContext> _Nullable findServiceContextById(const std::string& id) {
+std::shared_ptr<ServiceContext> findServiceContextById(const std::string& id) {
     return findServiceInstanceById(id);
 }
 
-std::shared_ptr<Service> _Nullable findServiceById(const std::string& id) {
+std::shared_ptr<Service> findServiceById(const std::string& id) {
     auto instance = findServiceInstanceById(id);
     return instance != nullptr ? instance->getService() : nullptr;
 }

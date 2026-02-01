@@ -5,7 +5,7 @@
 
 class TpagerEncoder final : public tt::hal::encoder::EncoderDevice {
 
-    lv_indev_t* _Nullable encHandle = nullptr;
+    lv_indev_t* encHandle = nullptr;
     pcnt_unit_handle_t encPcntUnit = nullptr;
 
     bool initEncoder();
@@ -26,5 +26,5 @@ public:
 
     int getEncoderPulses() const;
 
-    lv_indev_t* _Nullable getLvglIndev() override { return encHandle; }
+    lv_indev_t* getLvglIndev() override { return encHandle; }
 };

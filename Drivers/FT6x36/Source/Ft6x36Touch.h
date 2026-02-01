@@ -34,7 +34,7 @@ public:
 private:
 
     std::unique_ptr<Configuration> configuration;
-    lv_indev_t* _Nullable deviceHandle = nullptr;
+    lv_indev_t* deviceHandle = nullptr;
     FT6X36 driver = FT6X36(configuration->port, configuration->pinInterrupt);
     std::shared_ptr<tt::Thread> driverThread;
     bool interruptDriverThread = false;
@@ -65,7 +65,7 @@ public:
     bool startLvgl(lv_display_t* display) override;
     bool stopLvgl() override;
 
-    lv_indev_t* _Nullable getLvglIndev() override { return deviceHandle; }
+    lv_indev_t* getLvglIndev() override { return deviceHandle; }
 
     class Ft6TouchDriver : public tt::hal::touch::TouchDriver {
     public:

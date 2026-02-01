@@ -10,7 +10,7 @@
 
 class TpagerKeyboard final : public tt::hal::keyboard::KeyboardDevice {
 
-    lv_indev_t* _Nullable kbHandle = nullptr;
+    lv_indev_t* kbHandle = nullptr;
     gpio_num_t backlightPin = GPIO_NUM_NC;
     ledc_timer_t backlightTimer;
     ledc_channel_t backlightChannel;
@@ -45,7 +45,7 @@ public:
     bool stopLvgl() override;
 
     bool isAttached() const override;
-    lv_indev_t* _Nullable getLvglIndev() override { return kbHandle; }
+    lv_indev_t* getLvglIndev() override { return kbHandle; }
 
     bool setBacklightDuty(uint8_t duty);
     void makeBacklightImpulse();

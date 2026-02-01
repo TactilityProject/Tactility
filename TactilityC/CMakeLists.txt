@@ -19,9 +19,6 @@ else()
 
     add_library(TactilityC OBJECT)
 
-    add_definitions(-D_Nullable=)
-    add_definitions(-D_Nonnull=)
-
     target_sources(TactilityC PRIVATE ${SOURCES})
     include_directories(TactilityC PRIVATE Private/)
     target_include_directories(TactilityC PUBLIC Include/)

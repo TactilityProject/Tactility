@@ -151,15 +151,15 @@ bool listDirectory(
  *
  * @param[in] path path the scan for files and directories
  * @param[out] outList a pointer to vector of dirent
- * @param[in] filter an optional filter to filter out specific items
- * @param[in] sort an optional sorting function
+ * @param[in] filter an optional filter to filter out specific items (nullable)
+ * @param[in] sort an optional sorting function (nullable)
  * @return the amount of items that were stored in "output" or -1 when an error occurred
  */
 int scandir(
     const std::string& path,
     std::vector<dirent>& outList,
-    ScandirFilter _Nullable filter = nullptr,
-    ScandirSort _Nullable sort = nullptr
+    ScandirFilter filter = nullptr,
+    ScandirSort sort = nullptr
 );
 
 bool readLines(const std::string& filePath, bool stripNewLine, std::function<void(const char* line)> callback);

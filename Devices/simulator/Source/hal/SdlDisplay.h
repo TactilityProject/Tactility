@@ -20,10 +20,10 @@ public:
     bool supportsLvgl() const override { return true; }
     bool startLvgl() override { return displayHandle != nullptr; }
     bool stopLvgl() override { check(false, "Not supported"); }
-    lv_display_t* _Nullable getLvglDisplay() const override { return displayHandle; }
+    lv_display_t* getLvglDisplay() const override { return displayHandle; }
 
-    std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable getTouchDevice() override { return std::make_shared<SdlTouch>(); }
+    std::shared_ptr<tt::hal::touch::TouchDevice> getTouchDevice() override { return std::make_shared<SdlTouch>(); }
 
     bool supportsDisplayDriver() const override { return false; }
-    std::shared_ptr<tt::hal::display::DisplayDriver> _Nullable getDisplayDriver() override { return nullptr; }
+    std::shared_ptr<tt::hal::display::DisplayDriver> getDisplayDriver() override { return nullptr; }
 };

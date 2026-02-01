@@ -48,7 +48,7 @@ private:
 
     const GpsConfiguration configuration;
     RecursiveMutex mutex;
-    std::unique_ptr<Thread> _Nullable thread;
+    std::unique_ptr<Thread> thread;
     bool threadInterrupted = false;
     std::vector<GgaSubscription> ggaSubscriptions;
     std::vector<RmcSubscription> rmcSubscriptions;

@@ -92,8 +92,8 @@ bool listDirectory(
 int scandir(
     const std::string& path,
     std::vector<dirent>& outList,
-    ScandirFilter _Nullable filterMethod,
-    ScandirSort _Nullable sortMethod
+    ScandirFilter filterMethod,
+    ScandirSort sortMethod
 ) {
     auto lock = getLock(path)->asScopedLock();
     lock.lock();

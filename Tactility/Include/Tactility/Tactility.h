@@ -27,9 +27,10 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
 
 /**
  * While technically nullable, this instance is always set if tt_init() succeeds.
+ * Could return nullptr if init was not called.
  * @return the Configuration instance that was passed on to tt_init() if init is successful
  */
-const Configuration* _Nullable getConfiguration();
+const Configuration* getConfiguration();
 
 /** Provides access to the dispatcher that runs on the main task.
  * @warning This dispatcher is used for WiFi and might block for some time during WiFi connection.
@@ -40,7 +41,7 @@ Dispatcher& getMainDispatcher();
 namespace hal {
 
 /** While technically this configuration is nullable, it's never null after initHeadless() is called. */
-const Configuration* _Nullable getConfiguration();
+const Configuration* getConfiguration();
 
 } // namespace hal
 

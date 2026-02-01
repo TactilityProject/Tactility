@@ -29,7 +29,7 @@ public:
             gpio_num_t spiPinInt,
             MountBehaviour mountBehaviourAtBoot,
             /** When customLock is a nullptr, use the SPI default one */
-            std::shared_ptr<Lock> _Nullable customLock = nullptr,
+            std::shared_ptr<Lock> customLock = nullptr,
             std::vector<gpio_num_t> csPinWorkAround = std::vector<gpio_num_t>(),
             spi_host_device_t spiHost = SPI2_HOST,
             int spiFrequencyKhz = SDMMC_FREQ_DEFAULT
@@ -50,7 +50,7 @@ public:
         gpio_num_t spiPinWp; // Write-protect
         gpio_num_t spiPinInt; // Interrupt
         MountBehaviour mountBehaviourAtBoot;
-        std::shared_ptr<Lock> _Nullable customLock;
+        std::shared_ptr<Lock> customLock; // can be nullptr
         std::vector<gpio_num_t> csPinWorkAround;
         spi_host_device_t spiHost;
         bool formatOnMountFailed = false;
@@ -91,7 +91,8 @@ public:
 
     State getState(TickType_t timeout) const override;
 
-    sdmmc_card_t* _Nullable getCard() { return card; }
+    /** return card when mounted, otherwise return nullptr */
+    sdmmc_card_t* getCard() { return card; }
 };
 
 }

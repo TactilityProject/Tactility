@@ -274,7 +274,7 @@ extern const AppManifest manifest;
 
 class SystemInfoApp;
 
-static std::shared_ptr<SystemInfoApp> _Nullable optApp() {
+static std::shared_ptr<SystemInfoApp> optApp() {
     auto appContext = getCurrentAppContext();
     if (appContext != nullptr && appContext->getManifest().appId == manifest.appId) {
         return std::static_pointer_cast<SystemInfoApp>(appContext->getApp());

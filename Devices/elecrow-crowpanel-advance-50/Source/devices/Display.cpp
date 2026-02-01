@@ -3,7 +3,7 @@
 #include <Gt911Touch.h>
 #include <RgbDisplay.h>
 
-std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable createTouch() {
+std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
     // Note for future changes: Reset pin is 38 and interrupt pin is 18
     // or INT = NC, schematic and other info floating around is kinda conflicting...
     auto configuration = std::make_unique<Gt911Touch::Configuration>(

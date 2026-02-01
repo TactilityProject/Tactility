@@ -16,7 +16,7 @@ namespace tt::app::wifimanage {
 
 static const auto LOGGER = Logger("WifiManageView");
 
-std::shared_ptr<WifiManage> _Nullable optWifiManage();
+std::shared_ptr<WifiManage> optWifiManage();
 
 static uint8_t mapRssiToPercentage(int rssi) {
     auto abs_rssi = std::abs(rssi);

@@ -7,9 +7,6 @@ set(CMAKE_CXX_COMPILER g++)
 file(GLOB_RECURSE TEST_SOURCES ${PROJECT_SOURCE_DIR}/*.cpp)
 add_executable(TactilityFreeRtosTests EXCLUDE_FROM_ALL ${TEST_SOURCES})
 
-add_definitions(-D_Nullable=)
-add_definitions(-D_Nonnull=)
-
 target_include_directories(TactilityFreeRtosTests PRIVATE
     ${DOCTESTINC}
 )

@@ -99,7 +99,7 @@ bool Hx8357Display::stopLvgl() {
     return true;
 }
 
-std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable Hx8357Display::getTouchDevice() {
+std::shared_ptr<tt::hal::touch::TouchDevice> Hx8357Display::getTouchDevice() {
     if (touchDevice == nullptr) {
         touchDevice = std::reinterpret_pointer_cast<tt::hal::touch::TouchDevice>(createTouch());
         LOGGER.info("Created touch device");

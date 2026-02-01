@@ -34,7 +34,8 @@ class GpsService final : public Service {
     bool startGpsDevice(GpsDeviceRecord& deviceRecord);
     static bool stopGpsDevice(GpsDeviceRecord& deviceRecord);
 
-    GpsDeviceRecord* _Nullable findGpsRecord(const std::shared_ptr<hal::gps::GpsDevice>& record);
+    /** return nullptr when not found */
+    GpsDeviceRecord* findGpsRecord(const std::shared_ptr<hal::gps::GpsDevice>& record);
 
     void onGgaSentence(hal::Device::Id deviceId, const minmea_sentence_gga& gga);
     void onRmcSentence(hal::Device::Id deviceId, const minmea_sentence_rmc& rmc);

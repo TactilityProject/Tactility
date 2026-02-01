@@ -22,46 +22,47 @@ typedef enum {
 
 typedef unsigned int AppLaunchId;
 
-/** Important: These function types must map to t::app types exactly */
+/** Important: These function types must map to t::app types exactly. All void* data is nullable. */
 typedef void* (*AppCreateData)();
 typedef void (*AppDestroyData)(void* data);
-typedef void (*AppOnCreate)(AppHandle app, void* _Nullable data);
-typedef void (*AppOnDestroy)(AppHandle app, void* _Nullable data);
-typedef void (*AppOnShow)(AppHandle app, void* _Nullable data, lv_obj_t* parent);
-typedef void (*AppOnHide)(AppHandle app, void* _Nullable data);
-typedef void (*AppOnResult)(AppHandle app, void* _Nullable data, AppLaunchId launchId, AppResult result, BundleHandle resultData);
+typedef void (*AppOnCreate)(AppHandle app, void* data);
+typedef void (*AppOnDestroy)(AppHandle app, void* data);
+typedef void (*AppOnShow)(AppHandle app, void* data, lv_obj_t* parent);
+typedef void (*AppOnHide)(AppHandle app, void* data);
+typedef void (*AppOnResult)(AppHandle app, void* data, AppLaunchId launchId, AppResult result, BundleHandle resultData);
 
+/** All callback types are nullable */
 typedef struct {
     /** The application can allocate data to re-use later (e.g. struct with state) */
-    AppCreateData _Nullable createData;
+    AppCreateData createData;
     /** If createData is specified, this one must be specified too */
-    AppDestroyData _Nullable destroyData;
+    AppDestroyData destroyData;
     /** Called when the app is launched (started) */
-    AppOnCreate _Nullable onCreate;
+    AppOnCreate onCreate;
     /** Called when the app is exited (stopped) */
-    AppOnDestroy _Nullable onDestroy;
+    AppOnDestroy onDestroy;
     /** Called when the app is about to be shown to the user (app becomes visible) */
-    AppOnShow _Nullable onShow;
+    AppOnShow onShow;
     /** Called when the app is about to be invisible to the user (e.g. other app was launched by this app, and this app goes to the background) */
-    AppOnHide _Nullable onHide;
+    AppOnHide onHide;
     /** Called when the app receives a result after launching another app */
-    AppOnResult _Nullable onResult;
+    AppOnResult onResult;
 } AppRegistration;
 
 /** This is used to register the manifest of an external app. */
 void tt_app_register(const AppRegistration app);
 
 /** @return the bundle that belongs to this application, or null if it wasn't started with parameters. */
-BundleHandle _Nullable tt_app_get_parameters(AppHandle handle);
+BundleHandle tt_app_get_parameters(AppHandle handle);
 
 /**
  * Set the result before closing an app.
  * The result and bundle are passed along to the app that launched this app, when this app is closed.
  * @param[in] handle the app handle to set the result for
  * @param[in] result the result state to set
- * @param[in] bundle the result bundle to set
+ * @param[in] bundle the result bundle to set (can be null)
  */
-void tt_app_set_result(AppHandle handle, AppResult result, BundleHandle _Nullable bundle);
+void tt_app_set_result(AppHandle handle, AppResult result, BundleHandle bundle);
 
 /** @return true if a result was set for this app context */
 bool tt_app_has_result(AppHandle handle);

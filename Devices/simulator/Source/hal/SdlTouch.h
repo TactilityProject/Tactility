@@ -6,7 +6,7 @@
 
 class SdlTouch final : public tt::hal::touch::TouchDevice {
 
-    lv_indev_t* _Nullable handle = nullptr;
+    lv_indev_t* handle = nullptr;
 
 public:
 
@@ -27,10 +27,10 @@ public:
 
     bool stopLvgl() override { check(false, "Not supported"); }
 
-    lv_indev_t* _Nullable getLvglIndev() override { return handle; }
+    lv_indev_t* getLvglIndev() override { return handle; }
 
     bool supportsTouchDriver() override { return false; }
 
-    std::shared_ptr<tt::hal::touch::TouchDriver> _Nullable getTouchDriver() override { return nullptr; };
+    std::shared_ptr<tt::hal::touch::TouchDriver> getTouchDriver() override { return nullptr; };
 };
 

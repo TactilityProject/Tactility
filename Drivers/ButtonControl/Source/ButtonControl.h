@@ -37,7 +37,7 @@ private:
         bool triggerLongPress = false;
     };
 
-    lv_indev_t* _Nullable deviceHandle = nullptr;
+    lv_indev_t* deviceHandle = nullptr;
     std::shared_ptr<tt::Thread> driverThread;
     bool interruptDriverThread = false;
     tt::Mutex mutex;
@@ -67,7 +67,8 @@ public:
     bool startLvgl(lv_display_t* display) override;
     bool stopLvgl() override;
 
-    lv_indev_t* _Nullable getLvglIndev() override { return deviceHandle; }
+    /** Could return nullptr if not started */
+    lv_indev_t* getLvglIndev() override { return deviceHandle; }
 
     static std::shared_ptr<ButtonControl> createOneButtonControl(tt::hal::gpio::Pin pin) {
         return std::make_shared<ButtonControl>(std::vector {

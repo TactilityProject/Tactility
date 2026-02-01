@@ -8,20 +8,26 @@ namespace tt::app {
 
 typedef void* (*CreateData)();
 typedef void (*DestroyData)(void* data);
-typedef void (*OnCreate)(void* appContext, void* _Nullable data);
-typedef void (*OnDestroy)(void* appContext, void* _Nullable data);
-typedef void (*OnShow)(void* appContext, void* _Nullable data, lv_obj_t* parent);
-typedef void (*OnHide)(void* appContext, void* _Nullable data);
-typedef void (*OnResult)(void* appContext, void* _Nullable data, LaunchId launchId, Result result, Bundle* resultData);
+/** data is nullable */
+typedef void (*OnCreate)(void* appContext, void* data);
+/** data is nullable */
+typedef void (*OnDestroy)(void* appContext, void* data);
+/** data is nullable */
+typedef void (*OnShow)(void* appContext, void* data, lv_obj_t* parent);
+/** data is nullable */
+typedef void (*OnHide)(void* appContext, void* data);
+/** data is nullable, resultData is nullable. */
+typedef void (*OnResult)(void* appContext, void* data, LaunchId launchId, Result result, Bundle* resultData);
 
+/** All fields are nullable */
 void setElfAppParameters(
-    CreateData _Nullable createData,
-    DestroyData _Nullable destroyData,
-    OnCreate _Nullable onCreate,
-    OnDestroy _Nullable onDestroy,
-    OnShow _Nullable onShow,
-    OnHide _Nullable onHide,
-    OnResult _Nullable onResult
+    CreateData createData,
+    DestroyData destroyData,
+    OnCreate onCreate,
+    OnDestroy onDestroy,
+    OnShow onShow,
+    OnHide onHide,
+    OnResult onResult
 );
 
 std::shared_ptr<App> createElfApp(const std::shared_ptr<AppManifest>& manifest);

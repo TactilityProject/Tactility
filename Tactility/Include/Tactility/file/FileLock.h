@@ -15,6 +15,6 @@ namespace tt::file {
  * @param[in] path the path to find a lock for
  * @return a lock instance when a lock was found, otherwise nullptr
  */
-std::shared_ptr<Lock> _Nullable findLock(const std::string& path);
+std::shared_ptr<Lock> findLock(const std::string& path);
 
 }

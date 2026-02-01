@@ -3,7 +3,7 @@
 
 namespace tt::hal::sdcard {
 
-std::shared_ptr<SdCardDevice> _Nullable find(const std::string& path) {
+std::shared_ptr<SdCardDevice> find(const std::string& path) {
     auto sdcards = findDevices<SdCardDevice>(Device::Type::SdCard);
     for (auto& sdcard : sdcards) {
         if (sdcard->isMounted() && path.starts_with(sdcard->getMountPath())) {

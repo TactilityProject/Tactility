@@ -4,7 +4,7 @@
 #include <PwmBacklight.h>
 #include <RgbDisplay.h>
 
-std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable createTouch() {
+std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
     // Note for future changes: Reset pin is 41 and interrupt pin is 40
     auto configuration = std::make_unique<Gt911Touch::Configuration>(
         I2C_NUM_0,

@@ -8,7 +8,7 @@
 class CardputerKeyboard : public tt::hal::keyboard::KeyboardDevice {
     KEYBOARD::Keyboard keyboard;
     int lastKeyNum = 0;
-    lv_indev_t* _Nullable lvglDevice = nullptr;
+    lv_indev_t* lvglDevice = nullptr;
 
     static void readCallback(lv_indev_t* indev, lv_indev_data_t* data);
 
@@ -22,5 +22,5 @@ public:
 
     bool isAttached() const override { return true; }
 
-    lv_indev_t* _Nullable getLvglIndev() override { return lvglDevice; }
+    lv_indev_t* getLvglIndev() override { return lvglDevice; }
 };

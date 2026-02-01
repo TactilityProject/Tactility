@@ -22,11 +22,13 @@ public:
     virtual bool startLvgl(lv_display_t* display) = 0;
     virtual bool stopLvgl() = 0;
 
-    virtual lv_indev_t* _Nullable getLvglIndev() = 0;
+    /** Could return nullptr if not started */
+    virtual lv_indev_t* getLvglIndev() = 0;
 
     virtual bool supportsTouchDriver() = 0;
 
-    virtual std::shared_ptr<TouchDriver> _Nullable getTouchDriver() = 0;
+    /** Could return nullptr if not supported */
+    virtual std::shared_ptr<TouchDriver> getTouchDriver() = 0;
 };
 
 }

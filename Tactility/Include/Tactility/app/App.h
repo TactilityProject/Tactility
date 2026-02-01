@@ -44,7 +44,8 @@ public:
     virtual void onDestroy(AppContext& appContext) {}
     virtual void onShow(AppContext& appContext, lv_obj_t* parent) {}
     virtual void onHide(AppContext& appContext) {}
-    virtual void onResult(AppContext& appContext, LaunchId launchId, Result result, std::unique_ptr<Bundle> _Nullable resultData) {}
+    /** resultData could be null */
+    virtual void onResult(AppContext& appContext, LaunchId launchId, Result result, std::unique_ptr<Bundle> resultData) {}
 
     Mutex& getMutex() { return mutex; }
 
@@ -81,9 +82,9 @@ std::shared_ptr<App> create() { return std::shared_ptr<T>(new T); }
 /**
  * @brief Start an app
  * @param[in] id application name or id
- * @param[in] parameters optional parameters to pass onto the application
+ * @param[in] parameters optional parameters to pass onto the application. can be nullptr.
  */
-LaunchId start(const std::string& id, std::shared_ptr<const Bundle> _Nullable parameters = nullptr);
+LaunchId start(const std::string& id, std::shared_ptr<const Bundle> parameters = nullptr);
 
 /** @brief Stop the currently showing app. Show the previous app if any app was still running. */
 void stop();
@@ -103,10 +104,10 @@ void stopAll(const std::string& id);
 bool isRunning(const std::string& id);
 
 /** @return the currently running app context (it is only ever null before the splash screen is shown) */
-std::shared_ptr<AppContext> _Nullable getCurrentAppContext();
+std::shared_ptr<AppContext> getCurrentAppContext();
 
 /** @return the currently running app (it is only ever null before the splash screen is shown) */
-std::shared_ptr<App> _Nullable getCurrentApp();
+std::shared_ptr<App> getCurrentApp();
 
 bool install(const std::string& path);
 

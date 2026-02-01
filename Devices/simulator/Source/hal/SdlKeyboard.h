@@ -6,7 +6,7 @@
 
 class SdlKeyboard final : public tt::hal::keyboard::KeyboardDevice {
 
-    lv_indev_t* _Nullable handle = nullptr;
+    lv_indev_t* handle = nullptr;
 
 public:
 
@@ -22,5 +22,5 @@ public:
 
     bool isAttached() const override { return true; }
 
-    lv_indev_t* _Nullable getLvglIndev() override { return handle; }
+    lv_indev_t* getLvglIndev() override { return handle; }
 };

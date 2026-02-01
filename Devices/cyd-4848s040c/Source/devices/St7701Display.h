@@ -7,7 +7,7 @@
 
 class St7701Display final : public EspLcdDisplay {
 
-    std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable touchDevice;
+    std::shared_ptr<tt::hal::touch::TouchDevice> touchDevice;
 
     bool createIoHandle(esp_lcd_panel_io_handle_t& outHandle) override;
 
@@ -27,7 +27,7 @@ public:
 
     std::string getDescription() const override { return "ST7701S RGB display"; }
 
-    std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable getTouchDevice() override;
+    std::shared_ptr<tt::hal::touch::TouchDevice> getTouchDevice() override;
 
     void setBacklightDuty(uint8_t backlightDuty) override;
 

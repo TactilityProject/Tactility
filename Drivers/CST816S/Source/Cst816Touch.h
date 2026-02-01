@@ -49,7 +49,7 @@ private:
     std::unique_ptr<Configuration> configuration;
     esp_lcd_panel_io_handle_t ioHandle = nullptr;
     esp_lcd_touch_handle_t touchHandle = nullptr;
-    lv_indev_t* _Nullable deviceHandle = nullptr;
+    lv_indev_t* deviceHandle = nullptr;
 
     void cleanup();
 

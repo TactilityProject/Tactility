@@ -16,7 +16,7 @@ static const auto LOGGER = Logger("ScreenshotService");
 
 extern const ServiceManifest manifest;
 
-std::shared_ptr<ScreenshotService> _Nullable optScreenshotService() {
+std::shared_ptr<ScreenshotService> optScreenshotService() {
     return service::findServiceById<ScreenshotService>(manifest.id);
 }
 

@@ -62,9 +62,9 @@ public:
     // for example: when scanning and you turn off the radio, the scan should probably stop or turning off
     // the radio should disable the on/off button in the app as it is pending.
     /** @brief The network interface when wifi is started */
-    esp_netif_t* _Nullable netif = nullptr;
+    esp_netif_t* netif = nullptr;
     /** @brief Scanning results */
-    wifi_ap_record_t* _Nullable scan_list = nullptr;
+    wifi_ap_record_t* scan_list = nullptr;
     /** @brief The current item count in scan_list (-1 when scan_list is NULL) */
     uint16_t scan_list_count = 0;
     /** @brief Maximum amount of records to scan (value > 0) */

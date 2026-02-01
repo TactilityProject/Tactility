@@ -17,7 +17,7 @@ constexpr bool hasTimeElapsed(TickType_t now, TickType_t timeInThePast, TickType
     return (now - timeInThePast) >= expireTimeInTicks;
 }
 
-GpsService::GpsDeviceRecord* _Nullable GpsService::findGpsRecord(const std::shared_ptr<GpsDevice>& device) {
+GpsService::GpsDeviceRecord* GpsService::findGpsRecord(const std::shared_ptr<GpsDevice>& device) {
     auto lock = mutex.asScopedLock();
     lock.lock();
 

@@ -25,7 +25,7 @@ public:
         bool swapBytes;
         uint32_t bufferSize; // Pixel count, not byte count. Set to 0 for default (1/10th of display size)
         std::shared_ptr<tt::hal::touch::TouchDevice> touch;
-        std::function<void(uint8_t)> _Nullable backlightDutyFunction;
+        std::function<void(uint8_t)> backlightDutyFunction; // Nullable
         gpio_num_t resetPin;
         lcd_rgb_element_order_t rgbElementOrder;
     };

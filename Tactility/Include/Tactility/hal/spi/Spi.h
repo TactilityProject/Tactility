@@ -24,7 +24,7 @@ struct Configuration {
     /** Whether configuration can be changed. */
     bool isMutable;
     /** Optional custom lock - otherwise creates one internally */
-    std::shared_ptr<Lock> _Nullable lock;
+    std::shared_ptr<Lock> lock;
 };
 
 enum class Status {

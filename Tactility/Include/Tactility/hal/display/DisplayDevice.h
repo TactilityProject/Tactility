@@ -26,7 +26,8 @@ public:
     virtual bool isPoweredOn() const { return true; }
     virtual bool supportsPowerControl() const { return false; }
 
-    virtual std::shared_ptr<touch::TouchDevice> _Nullable getTouchDevice() = 0;
+    /** Could return nullptr if not started */
+    virtual std::shared_ptr<touch::TouchDevice> getTouchDevice() = 0;
 
     /** Set a value in the range [0, 255] */
     virtual void setBacklightDuty(uint8_t backlightDuty) { /* NO-OP */ }
@@ -40,10 +41,12 @@ public:
     virtual bool startLvgl() = 0;
     virtual bool stopLvgl() = 0;
 
-    virtual lv_display_t* _Nullable getLvglDisplay() const = 0;
+    /** Could return nullptr if not started */
+    virtual lv_display_t* getLvglDisplay() const = 0;
 
     virtual bool supportsDisplayDriver() const = 0;
-    virtual std::shared_ptr<DisplayDriver> _Nullable getDisplayDriver() = 0;
+    /** Could return nullptr if not supported */
+    virtual std::shared_ptr<DisplayDriver> getDisplayDriver() = 0;
 };
 
 } // namespace tt::hal::display

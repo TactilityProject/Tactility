@@ -297,7 +297,7 @@ void LoaderService::stopAll(const std::string& id) {
     });
 }
 
-std::shared_ptr<app::AppContext> _Nullable LoaderService::getCurrentAppContext() {
+std::shared_ptr<app::AppContext> LoaderService::getCurrentAppContext() {
     const auto lock = mutex.asScopedLock();
     lock.lock();
     if (appStack.empty()) {
@@ -318,7 +318,7 @@ bool LoaderService::isRunning(const std::string& id) const {
     return false;
 }
 
-std::shared_ptr<LoaderService> _Nullable findLoaderService() {
+std::shared_ptr<LoaderService> findLoaderService() {
     return service::findServiceById<LoaderService>(manifest.id);
 }
 

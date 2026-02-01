@@ -155,7 +155,7 @@ public:
         mutex.unlock();
     }
 
-    void setStateCallback(StateCallback callback, _Nullable void* callbackContext = nullptr) {
+    void setStateCallback(StateCallback callback, void* callbackContext = nullptr) {
         mutex.lock();
         assert(state == State::Stopped);
         stateCallback = callback;

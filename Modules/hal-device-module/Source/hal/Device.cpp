@@ -88,7 +88,7 @@ std::vector<std::shared_ptr<Device>> findDevices(const std::function<bool(const 
     return toVector(devices_view);
 }
 
-std::shared_ptr<Device> _Nullable findDevice(const std::function<bool(const std::shared_ptr<Device>&)>& filterFunction) {
+std::shared_ptr<Device> findDevice(const std::function<bool(const std::shared_ptr<Device>&)>& filterFunction) {
     auto scoped_mutex = mutex.asScopedLock();
     scoped_mutex.lock();
 
@@ -102,13 +102,13 @@ std::shared_ptr<Device> _Nullable findDevice(const std::function<bool(const std:
     }
 }
 
-std::shared_ptr<Device> _Nullable findDevice(std::string name) {
+std::shared_ptr<Device> findDevice(std::string name) {
     return findDevice([&name](auto& device){
         return device->getName() == name;
     });
 }
 
-std::shared_ptr<Device> _Nullable findDevice(Device::Id id) {
+std::shared_ptr<Device> findDevice(Device::Id id) {
     return findDevice([id](auto& device){
       return device->getId() == id;
     });

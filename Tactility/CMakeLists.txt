@@ -62,9 +62,6 @@ else()
         PUBLIC Include/
     )
 
-    add_definitions(-D_Nullable=)
-    add_definitions(-D_Nonnull=)
-
     target_link_libraries(Tactility PUBLIC
         cJSON
         TactilityFreeRtos

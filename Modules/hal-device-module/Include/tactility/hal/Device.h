@@ -79,17 +79,17 @@ void registerDevice(const std::shared_ptr<Device>& device);
 /** Remove a device from the registry. */
 void deregisterDevice(const std::shared_ptr<Device>& device);
 
-/** Find a single device with a custom filter */
-std::shared_ptr<Device> _Nullable findDevice(const std::function<bool(const std::shared_ptr<Device>&)>& filterFunction);
+/** Find a single device with a custom filter. Could return nullptr if not found. */
+std::shared_ptr<Device> findDevice(const std::function<bool(const std::shared_ptr<Device>&)>& filterFunction);
 
 /** Find devices with a custom filter */
 std::vector<std::shared_ptr<Device>> findDevices(const std::function<bool(const std::shared_ptr<Device>&)>& filterFunction);
 
-/** Find a device in the registry by its name. */
-std::shared_ptr<Device> _Nullable findDevice(std::string name);
+/** Find a device in the registry by its name. Could return nullptr if not found. */
+std::shared_ptr<Device> findDevice(std::string name);
 
-/** Find a device in the registry by its identifier. */
-std::shared_ptr<Device> _Nullable findDevice(Device::Id id);
+/** Find a device in the registry by its identifier. Could return nullptr if not found.*/
+std::shared_ptr<Device> findDevice(Device::Id id);
 
 /** Find 0, 1 or more devices in the registry by type. */
 std::vector<std::shared_ptr<Device>> findDevices(Device::Type type);

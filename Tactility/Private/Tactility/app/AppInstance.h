@@ -36,7 +36,7 @@ class AppInstance : public AppContext {
      * When these are stored in the app struct, the struct takes ownership.
      * Do not mutate after app creation.
      */
-    std::shared_ptr<const Bundle> _Nullable parameters;
+    std::shared_ptr<const Bundle> parameters;
 
     std::shared_ptr<App> app;
 

@@ -62,10 +62,10 @@ public:
     /**
      * @brief Start an app given an app id and an optional bundle with parameters
      * @param id the app identifier
-     * @param parameters optional parameter bundle
+     * @param parameters optional parameter bundle (nullable)
      * @return the launch id
      */
-    app::LaunchId start(const std::string& id, std::shared_ptr<const Bundle> _Nullable parameters);
+    app::LaunchId start(const std::string& id, std::shared_ptr<const Bundle> parameters);
 
     /**
      * @brief Stops the top-most app (the one that is currently active shown to the user
@@ -85,8 +85,8 @@ public:
      */
     void stopAll(const std::string& id);
 
-    /** @return the AppContext of the top-most application */
-    std::shared_ptr<app::AppContext> _Nullable getCurrentAppContext();
+    /** @return the AppContext of the top-most application, or nullptr if no app is running. */
+    std::shared_ptr<app::AppContext> getCurrentAppContext();
 
     /** @return true if the app is running anywhere in the app stack (the app does not have to be the top-most one for this to return true) */
     bool isRunning(const std::string& id) const;
@@ -95,6 +95,7 @@ public:
     std::shared_ptr<PubSub<Event>> getPubsub() const { return pubsubExternal; }
 };
 
-std::shared_ptr<LoaderService> _Nullable findLoaderService();
+/** return the service or nullptr if it's not running */
+std::shared_ptr<LoaderService> findLoaderService();
 
 } // namespace

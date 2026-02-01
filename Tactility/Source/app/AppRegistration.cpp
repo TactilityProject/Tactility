@@ -39,7 +39,7 @@ bool removeAppManifest(const std::string& id) {
     return app_manifest_map.erase(id) == 1;
 }
 
-_Nullable std::shared_ptr<AppManifest> findAppManifestById(const std::string& id) {
+std::shared_ptr<AppManifest> findAppManifestById(const std::string& id) {
     hash_mutex.lock();
     auto result = app_manifest_map.find(id);
     hash_mutex.unlock();

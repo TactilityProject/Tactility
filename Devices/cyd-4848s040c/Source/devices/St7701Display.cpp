@@ -219,7 +219,7 @@ lvgl_port_display_rgb_cfg_t St7701Display::getLvglPortDisplayRgbConfig(esp_lcd_p
     };
 }
 
-std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable St7701Display::getTouchDevice() {
+std::shared_ptr<tt::hal::touch::TouchDevice> St7701Display::getTouchDevice() {
     if (touchDevice == nullptr) {
         auto configuration = std::make_unique<Gt911Touch::Configuration>(
            I2C_NUM_0,

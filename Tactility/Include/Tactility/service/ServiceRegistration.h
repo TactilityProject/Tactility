@@ -40,26 +40,26 @@ State getState(const std::string& id);
  * @param[in] id the id as defined in the manifest
  * @return the matching manifest or nullptr when it wasn't found
  */
-std::shared_ptr<const ServiceManifest> _Nullable findManifestById(const std::string& id);
+std::shared_ptr<const ServiceManifest> findManifestById(const std::string& id);
 
 /** Find a ServiceContext by its manifest id.
  * @param[in] id the id as defined in the manifest
  * @return the service context or nullptr when it wasn't found
  */
-std::shared_ptr<ServiceContext> _Nullable findServiceContextById(const std::string& id);
+std::shared_ptr<ServiceContext> findServiceContextById(const std::string& id);
 
 /** Find a Service by its manifest id.
  * @param[in] id the id as defined in the manifest
  * @return the service context or nullptr when it wasn't found
  */
-std::shared_ptr<Service> _Nullable findServiceById(const std::string& id);
+std::shared_ptr<Service> findServiceById(const std::string& id);
 
 /** Find a Service by its manifest id.
  * @param[in] id the id as defined in the manifest
  * @return the service context or nullptr when it wasn't found
  */
 template <typename T>
-std::shared_ptr<T> _Nullable findServiceById(const std::string& id) {
+std::shared_ptr<T> findServiceById(const std::string& id) {
     return std::static_pointer_cast<T>(findServiceById(id));
 }
 

@@ -30,7 +30,7 @@ class AppHubApp final : public App {
     std::vector<AppHubEntry> entries;
     Mutex mutex;
 
-    static std::shared_ptr<AppHubApp> _Nullable findAppInstance() {
+    static std::shared_ptr<AppHubApp> findAppInstance() {
         auto app_context = getCurrentAppContext();
         if (app_context->getManifest().appId != manifest.appId) {
             return nullptr;

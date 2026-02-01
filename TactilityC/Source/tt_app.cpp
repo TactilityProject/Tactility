@@ -32,11 +32,11 @@ void tt_app_register(
 #endif
 }
 
-BundleHandle _Nullable tt_app_get_parameters(AppHandle handle) {
+BundleHandle tt_app_get_parameters(AppHandle handle) {
     return (BundleHandle)HANDLE_AS_APP_CONTEXT(handle)->getParameters().get();
 }
 
-void tt_app_set_result(AppHandle handle, AppResult result, BundleHandle _Nullable bundle) {
+void tt_app_set_result(AppHandle handle, AppResult result, BundleHandle bundle) {
     auto shared_bundle = std::unique_ptr<tt::Bundle>(static_cast<tt::Bundle*>(bundle));
     HANDLE_AS_APP_CONTEXT(handle)->getApp()->setResult(static_cast<tt::app::Result>(result), std::move(shared_bundle));
 }

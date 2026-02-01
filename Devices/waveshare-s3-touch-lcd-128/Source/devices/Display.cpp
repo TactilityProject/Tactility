@@ -4,7 +4,7 @@
 #include <PwmBacklight.h>
 #include <Gc9a01Display.h>
 
-std::shared_ptr<tt::hal::touch::TouchDevice> _Nullable createTouch() {
+std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
     auto configuration = std::make_unique<Cst816sTouch::Configuration>(
         I2C_NUM_0,
         240,

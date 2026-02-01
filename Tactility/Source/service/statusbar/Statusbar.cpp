@@ -90,7 +90,7 @@ static const char* getSdCardStatusIcon(hal::sdcard::SdCardDevice::State state) {
     }
 }
 
-static _Nullable const char* getPowerStatusIcon() {
+static const char* getPowerStatusIcon() {
     // TODO: Support multiple power devices?
     std::shared_ptr<hal::power::PowerDevice> power;
     hal::findDevices<hal::power::PowerDevice>(hal::Device::Type::Power, [&power](const auto& device) {

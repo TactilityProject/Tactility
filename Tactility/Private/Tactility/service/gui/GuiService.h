@@ -39,7 +39,7 @@ class GuiService final : public Service {
     // App-specific
     std::shared_ptr<app::AppInstance> appToRender = nullptr;
 
-    lv_obj_t* _Nullable keyboard = nullptr;
+    lv_obj_t* keyboard = nullptr;
     lv_group_t* keyboardGroup = nullptr;
 
     bool isStarted = false;
