@@ -1,15 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
+#include "error.h"
+#include <stdbool.h>
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "error.h"
-#include <stdbool.h>
-
 struct ModuleParent;
 struct ModuleParentPrivate;
+
+#define MODULE_SYMBOL_TERMINATOR { NULL, NULL }
+#define DEFINE_MODULE_SYMBOL(symbol) { #symbol, (void*)&symbol }
+
+/** A binary symbol like a function or a variable. */
+struct ModuleSymbol {
+    /** The name of the symbol. */
+    const char* name;
+    /** The address of the symbol. */
+    const void* symbol;
+};
 
 /**
  * A module is a collection of drivers or other functionality that can be loaded and unloaded at runtime.
@@ -37,6 +49,13 @@ struct Module {
      * @return ERROR_NONE if successful
      */
     error_t (*stop)(void);
+
+    /**
+     * A list of symbols exported by the module.
+     * Should be terminated by MODULE_SYMBOL_TERMINATOR.
+     * Can be a NULL value.
+     */
+    struct ModuleSymbol* symbols;
 
     struct {
         bool started;
@@ -70,6 +89,16 @@ error_t module_parent_construct(struct ModuleParent* parent);
 error_t module_parent_destruct(struct ModuleParent* parent);
 
 /**
+ * @brief Resolve a symbol from the module parent.
+ * @details This function iterates through all started modules in the parent and attempts to resolve the symbol.
+ * @param parent parent module
+ * @param symbol_name name of the symbol to resolve
+ * @param symbol_address pointer to store the address of the resolved symbol
+ * @return true if the symbol was found, false otherwise
+ */
+bool module_parent_resolve_symbol(struct ModuleParent* parent, const char* symbol_name, uintptr_t* symbol_address);
+
+/**
  * @brief Set the parent of the module.
  * @warning must call before module_start()
  * @param module module
@@ -98,6 +127,16 @@ bool module_is_started(struct Module* module);
  * @return ERROR_NONE if successful or if the module wasn't started, or otherwise it returns the result of the module's stop function
  */
 error_t module_stop(struct Module* module);
+
+/**
+ * @brief Resolve a symbol from the module.
+ * @details The module must be started for symbol resolution to succeed.
+ * @param module module
+ * @param symbol_name name of the symbol to resolve
+ * @param symbol_address pointer to store the address of the resolved symbol
+ * @return true if the symbol was found and the module is started, false otherwise
+ */
+bool module_resolve_symbol(struct Module* module, const char* symbol_name, uintptr_t* symbol_address);
 
 #ifdef __cplusplus
 }

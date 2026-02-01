@@ -17,7 +17,8 @@ static error_t stop() {
 struct Module platform_module = {
     .name = "platform-posix",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }

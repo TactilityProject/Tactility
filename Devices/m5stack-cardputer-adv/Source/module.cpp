@@ -16,7 +16,8 @@ static error_t stop() {
 struct Module device_module = {
     .name = "m5stack-cardputer-adv",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }

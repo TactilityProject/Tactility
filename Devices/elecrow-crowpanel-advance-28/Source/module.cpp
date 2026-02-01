@@ -16,7 +16,8 @@ static error_t stop() {
 struct Module device_module = {
     .name = "elecrow-crowpanel-advance-28",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }

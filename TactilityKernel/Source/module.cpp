@@ -1,4 +1,5 @@
 #include <vector>
+#include <string.h>
 #include <algorithm>
 #include <tactility/concurrent/mutex.h>
 #include <tactility/module.h>
@@ -39,6 +40,17 @@ error_t module_parent_destruct(struct ModuleParent* parent) {
     delete data;
     parent->module_parent_private = nullptr;
     return ERROR_NONE;
+}
+
+bool module_parent_resolve_symbol(ModuleParent* parent, const char* symbol_name, uintptr_t* symbol_address) {
+    auto* data = static_cast<ModuleParentPrivate*>(parent->module_parent_private);
+    for (auto* module : data->modules ) {
+        if (!module_is_started(module))
+            continue;
+        if (module_resolve_symbol(module, symbol_name, symbol_address))
+            return true;
+    }
+    return false;
 }
 
 #pragma endregion
@@ -100,6 +112,20 @@ error_t module_stop(struct Module* module) {
 
     module->internal.started = false;
     return error;
+}
+
+bool module_resolve_symbol(Module* module, const char* symbol_name, uintptr_t* symbol_address) {
+    if (!module_is_started(module)) return false;
+    auto* symbol_ptr = module->symbols;
+    if (symbol_ptr == nullptr) return false;
+    while (symbol_ptr->name != nullptr) {
+        if (strcmp(symbol_ptr->name, symbol_name) == 0) {
+            *symbol_address = reinterpret_cast<uintptr_t>(symbol_ptr->symbol);
+            return true;
+        }
+        symbol_ptr++;
+    }
+    return false;
 }
 
 #pragma endregion

@@ -4,7 +4,7 @@
 #include <tactility/module.h>
 #include <tactility/lvgl_module.h>
 
-
+extern const struct ModuleSymbol lvgl_module_symbols[];
 error_t lvgl_arch_start();
 error_t lvgl_arch_stop();
 
@@ -63,5 +63,6 @@ bool lvgl_is_running() {
 struct Module lvgl_module = {
     .name = "lvgl",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = (struct ModuleSymbol*)lvgl_module_symbols
 };

@@ -38,6 +38,8 @@ const Configuration* getConfiguration();
  */
 Dispatcher& getMainDispatcher();
 
+ModuleParent& getModuleParent();
+
 namespace hal {
 
 /** While technically this configuration is nullable, it's never null after initHeadless() is called. */

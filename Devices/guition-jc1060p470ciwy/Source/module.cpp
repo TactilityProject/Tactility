@@ -16,7 +16,8 @@ static error_t stop() {
 struct Module device_module = {
     .name = "guition-jc1060p470ciwy",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }

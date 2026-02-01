@@ -35,6 +35,7 @@ TEST_CASE("ModuleParent destruction with children") {
         .name = "test",
         .start = test_start,
         .stop = test_stop,
+        .symbols = nullptr,
         .internal = {.started = false, .parent = nullptr}
     };
 
@@ -62,6 +63,7 @@ TEST_CASE("Module parent management") {
         .name = "test",
         .start = test_start,
         .stop = test_stop,
+        .symbols = nullptr,
         .internal = {.started = false, .parent = nullptr}
     };
 
@@ -100,6 +102,7 @@ TEST_CASE("Module lifecycle") {
         .name = "test",
         .start = test_start,
         .stop = test_stop,
+        .symbols = nullptr,
         .internal = {.started = false, .parent = nullptr}
     };
 

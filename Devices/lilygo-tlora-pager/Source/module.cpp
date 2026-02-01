@@ -24,7 +24,8 @@ static error_t stop() {
 struct Module device_module = {
     .name = "lilygo-tlora-pager",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }

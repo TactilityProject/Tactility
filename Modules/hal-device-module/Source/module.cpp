@@ -17,15 +17,15 @@ static error_t start() {
 static error_t stop() {
     /* We crash when destruct fails, because if a single driver fails to destruct,
      * there is no guarantee that the previously destroyed drivers can be recovered */
-    check(driver_remove(&hal_device_driver) == ERROR_NONE);
-    check(driver_destruct(&hal_device_driver) == ERROR_NONE);
+    check(driver_remove_destruct(&hal_device_driver) == ERROR_NONE);
     return ERROR_NONE;
 }
 
 struct Module hal_device_module = {
     .name = "hal-device",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }

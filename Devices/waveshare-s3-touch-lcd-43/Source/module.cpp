@@ -16,7 +16,8 @@ static error_t stop() {
 struct Module device_module = {
     .name = "waveshare-s3-touch-lcd-43",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }

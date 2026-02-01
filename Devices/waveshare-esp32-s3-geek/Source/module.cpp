@@ -16,7 +16,8 @@ static error_t stop() {
 struct Module device_module = {
     .name = "waveshare-esp32-s3-geek",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }

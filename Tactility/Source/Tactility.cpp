@@ -41,10 +41,14 @@ static auto LOGGER = Logger("Tactility");
 static const Configuration* config_instance = nullptr;
 static Dispatcher mainDispatcher;
 
-struct ModuleParent tactility_module_parent  {
+static struct ModuleParent tactility_module_parent {
     "tactility",
     nullptr
 };
+
+ModuleParent& getModuleParent() {
+    return tactility_module_parent;
+}
 
 // region Default services
 namespace service {

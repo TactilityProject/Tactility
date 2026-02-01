@@ -16,7 +16,8 @@ static error_t stop() {
 struct Module device_module = {
     .name = "cyd-4848s040c",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }

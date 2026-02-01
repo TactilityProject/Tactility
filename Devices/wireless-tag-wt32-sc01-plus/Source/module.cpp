@@ -16,7 +16,8 @@ static error_t stop() {
 struct Module device_module = {
     .name = "wireless-tag-wt32-sc01-plus",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .symbols = nullptr
 };
 
 }
