@@ -85,7 +85,8 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Libraries/QRCode)
     add_subdirectory(Libraries/minitar)
     add_subdirectory(Libraries/minmea)
-    add_subdirectory(Modules/hal-device)
+    add_subdirectory(Modules/hal-device-module)
+    add_subdirectory(Modules/lvgl-module)
 
     # FreeRTOS
     set(FREERTOS_CONFIG_FILE_DIRECTORY ${PROJECT_SOURCE_DIR}/Devices/simulator/Source CACHE STRING "")

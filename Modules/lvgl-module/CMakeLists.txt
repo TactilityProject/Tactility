@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
 
+file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
+
 if (DEFINED ENV{ESP_IDF_VERSION})
-    file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
     list(APPEND REQUIRES_LIST
         TactilityKernel
-        TactilityCore
-        TactilityFreeRtos
+        lvgl
+        esp_lvgl_port
     )
 
     idf_component_register(
@@ -21,25 +22,18 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 
 else ()
 
-    file(GLOB_RECURSE SOURCES "Source/*.c*")
+    add_library(lvgl-module OBJECT)
 
-    add_library(hal-device OBJECT)
+    target_sources(lvgl-module PRIVATE ${SOURCE_FILES})
 
-    target_sources(hal-device PRIVATE ${SOURCES})
-
-    target_include_directories(hal-device
-        PRIVATE Private/
+    target_include_directories(lvgl-module
         PUBLIC Include/
     )
 
-    add_definitions(-D_Nullable=)
-    add_definitions(-D_Nonnull=)
-
-    target_link_libraries(hal-device PUBLIC
-        TactilityFreeRtos
-        TactilityCore
+    target_link_libraries(lvgl-module PUBLIC
         TactilityKernel
         freertos_kernel
+        lvgl
     )
     
 endif ()

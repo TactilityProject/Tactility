@@ -24,6 +24,7 @@
 
 #include <tactility/kernel_init.h>
 #include <tactility/hal_device_module.h>
+#include <tactility/lvgl_module.h>
 
 #include <map>
 #include <format>
@@ -336,10 +337,14 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
         return;
     }
 
-    // HAL compatibility module: it creates kernel driver wrappers for tt::hal::Device
+    // Module parent
     check(module_parent_construct(&tactility_module_parent) == ERROR_NONE);
+    // hal-device-module
     check(module_set_parent(&hal_device_module, &tactility_module_parent) == ERROR_NONE);
     check(module_start(&hal_device_module) == ERROR_NONE);
+    //lvgl-module
+    check(module_set_parent(&lvgl_module, &tactility_module_parent) == ERROR_NONE);
+    check(module_start(&lvgl_module) == ERROR_NONE);
 
     const hal::Configuration& hardware = *config.hardware;
 

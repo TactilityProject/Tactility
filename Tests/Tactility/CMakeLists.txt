@@ -23,7 +23,9 @@ target_link_libraries(TactilityTests PRIVATE
     TactilityCore
     TactilityKernel
     PlatformPosix
-    hal-device
+    hal-device-module
+    lvgl-module
+    lvgl
     Simulator
     SDL2::SDL2-static SDL2-static
 )
