@@ -9,7 +9,7 @@
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 
-#define TAG LOG_TAG(esp32_gpio)
+#define TAG "esp32_gpio"
 
 #define GET_CONFIG(device) ((struct Esp32GpioConfig*)device->config)
 

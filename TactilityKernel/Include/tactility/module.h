@@ -6,14 +6,16 @@
 #include <stdint.h>
 
 #ifdef __cplusplus
-extern "C" {
+#define MODULE_SYMBOL_TERMINATOR { nullptr, nullptr }
+#else
+#define MODULE_SYMBOL_TERMINATOR { NULL, NULL }
 #endif
 
-struct ModuleParent;
-struct ModuleParentPrivate;
-
-#define MODULE_SYMBOL_TERMINATOR { NULL, NULL }
 #define DEFINE_MODULE_SYMBOL(symbol) { #symbol, (void*)&symbol }
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** A binary symbol like a function or a variable. */
 struct ModuleSymbol {
@@ -57,60 +59,44 @@ struct Module {
      */
     const struct ModuleSymbol* symbols;
 
+
     struct {
         bool started;
-        struct ModuleParent* parent;
     } internal;
 };
 
 /**
- * A module parent is a collection of modules that can be loaded and unloaded at runtime.
+ * @brief Construct a module instance.
+ * @param module module instance to construct
+ * @return ERROR_NONE if successful
  */
-struct ModuleParent {
-    /** The name of the parent module, for logging/debugging purposes */
-    const char* name;
-    struct ModuleParentPrivate* module_parent_private;
-};
+error_t module_construct(struct Module* module);
 
 /**
- * @brief Initialize the module parent.
- * @warn This function does no validation on input or state.
- * @param parent parent module
- * @return ERROR_NONE if successful, ERROR_OUT_OF_MEMORY if allocation fails
+ * @brief Destruct a module instance.
+ * @param module module instance to destruct
+ * @return ERROR_NONE if successful
  */
-error_t module_parent_construct(struct ModuleParent* parent);
+error_t module_destruct(struct Module* module);
 
 /**
- * @brief Deinitialize the module parent. Must have no children when calling this.
- * @warn This function does no validation on input.
- * @param parent parent module
- * @return ERROR_NONE if successful or ERROR_INVALID_STATE if the parent has children
+ * @brief Add a module to the system.
+ * @param module module to add
+ * @return ERROR_NONE if successful
  */
-error_t module_parent_destruct(struct ModuleParent* parent);
+error_t module_add(struct Module* module);
 
 /**
- * @brief Resolve a symbol from the module parent.
- * @details This function iterates through all started modules in the parent and attempts to resolve the symbol.
- * @param parent parent module
- * @param symbol_name name of the symbol to resolve
- * @param symbol_address pointer to store the address of the resolved symbol
- * @return true if the symbol was found, false otherwise
+ * @brief Remove a module from the system.
+ * @param module module to remove
+ * @return ERROR_NONE if successful
  */
-bool module_parent_resolve_symbol(struct ModuleParent* parent, const char* symbol_name, uintptr_t* symbol_address);
-
-/**
- * @brief Set the parent of the module.
- * @warning must call before module_start()
- * @param module module
- * @param parent nullable parent module
- * @return ERROR_NONE if successful, ERROR_INVALID_STATE if the module is already started
- */
-error_t module_set_parent(struct Module* module, struct ModuleParent* parent);
+error_t module_remove(struct Module* module);
 
 /**
  * @brief Start the module.
  * @param module module
- * @return ERROR_NONE if already started, ERROR_INVALID_STATE if the module doesn't have a parent, or otherwise it returns the result of the module's start function
+ * @return ERROR_NONE if already started, or otherwise it returns the result of the module's start function
  */
 error_t module_start(struct Module* module);
 
@@ -137,6 +123,16 @@ error_t module_stop(struct Module* module);
  * @return true if the symbol was found and the module is started, false otherwise
  */
 bool module_resolve_symbol(struct Module* module, const char* symbol_name, uintptr_t* symbol_address);
+
+/**
+ * @brief Resolve a symbol from any module
+ * @details This function iterates through all started modules in the parent and attempts to resolve the symbol.
+ * @param parent parent module
+ * @param symbol_name name of the symbol to resolve
+ * @param symbol_address pointer to store the address of the resolved symbol
+ * @return true if the symbol was found, false otherwise
+ */
+bool module_resolve_symbol_global(const char* symbol_name, uintptr_t* symbol_address);
 
 #ifdef __cplusplus
 }

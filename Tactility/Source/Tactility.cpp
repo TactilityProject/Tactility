@@ -41,15 +41,6 @@ static auto LOGGER = Logger("Tactility");
 static const Configuration* config_instance = nullptr;
 static Dispatcher mainDispatcher;
 
-static struct ModuleParent tactility_module_parent {
-    "tactility",
-    nullptr
-};
-
-ModuleParent& getModuleParent() {
-    return tactility_module_parent;
-}
-
 // region Default services
 namespace service {
     // Primary
@@ -342,10 +333,9 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
         return;
     }
 
-    // Module parent
-    check(module_parent_construct(&tactility_module_parent) == ERROR_NONE);
     // hal-device-module
-    check(module_set_parent(&hal_device_module, &tactility_module_parent) == ERROR_NONE);
+    check(module_construct(&hal_device_module) == ERROR_NONE);
+    check(module_add(&hal_device_module) == ERROR_NONE);
     check(module_start(&hal_device_module) == ERROR_NONE);
 
     const hal::Configuration& hardware = *config.hardware;
@@ -375,7 +365,8 @@ void run(const Configuration& config, Module* platformModule, Module* deviceModu
         .task_affinity = getCpuAffinityConfiguration().graphics
 #endif
     });
-    check(module_set_parent(&lvgl_module, &tactility_module_parent) == ERROR_NONE);
+    check(module_construct(&lvgl_module) == ERROR_NONE);
+    check(module_add(&lvgl_module) == ERROR_NONE);
     lvgl::start();
 
     registerAndStartSecondaryServices();

@@ -9,7 +9,7 @@
 #include <tactility/error_esp32.h>
 #include <tactility/drivers/esp32_i2c.h>
 
-#define TAG LOG_TAG(esp32_i2c)
+#define TAG "esp32_i2c"
 #define ACK_CHECK_EN 1
 
 struct InternalData {

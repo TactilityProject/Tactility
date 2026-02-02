@@ -11,7 +11,7 @@
 #include <tactility/log.h>
 #include <atomic>
 
-#define TAG LOG_TAG(Dispatcher)
+#define TAG "Dispatcher"
 
 static constexpr EventBits_t BACKPRESSURE_WARNING_COUNT = 100U;
 static constexpr EventBits_t WAIT_FLAG = 1U;

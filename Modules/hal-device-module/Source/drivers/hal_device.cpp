@@ -8,7 +8,7 @@
 #include <memory>
 #include <utility>
 
-#define TAG LOG_TAG(HalDevice)
+#define TAG "HalDevice"
 
 struct HalDevicePrivate {
     std::shared_ptr<tt::hal::Device> halDevice;

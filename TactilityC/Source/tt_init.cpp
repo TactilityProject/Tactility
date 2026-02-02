@@ -51,7 +51,6 @@
 
 #include <Tactility/Tactility.h>
 
-bool module_parent_resolve_symbol(ModuleParent* pParent, const char* name, uintptr_t* pInt);
 extern "C" {
 
 extern double __floatsidf(int x);
@@ -375,9 +374,8 @@ uintptr_t tt_symbol_resolver(const char* symbolName) {
         }
     }
 
-    auto& module_parent = tt::getModuleParent();
     uintptr_t symbol_address;
-    if (module_parent_resolve_symbol(&module_parent, symbolName, &symbol_address)) {
+    if (module_resolve_symbol_global(symbolName, &symbol_address)) {
         return symbol_address;
     }
 

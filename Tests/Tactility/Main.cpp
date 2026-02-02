@@ -34,9 +34,7 @@ void test_task(void* parameter) {
     context.setOption("no-breaks", true); // don't break in the debugger when assertions fail
 
     check(kernel_init(&platform_module, nullptr, nullptr) == ERROR_NONE);
-    // HAL compatibility module: it creates kernel driver wrappers for tt::hal::Device
-    check(module_parent_construct(&tactility_tests_module_parent) == ERROR_NONE);
-    check(module_set_parent(&hal_device_module, &tactility_tests_module_parent) == ERROR_NONE);
+    check(module_construct(&hal_device_module) == ERROR_NONE);
     check(module_start(&hal_device_module) == ERROR_NONE);
 
     data->result = context.run();

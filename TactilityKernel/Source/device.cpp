@@ -11,7 +11,7 @@
 #include <sys/errno.h>
 #include <vector>
 
-#define TAG LOG_TAG(device)
+#define TAG "device"
 
 struct DevicePrivate {
     std::vector<Device*> children;

@@ -1,32 +1,27 @@
 cmake_minimum_required(VERSION 3.20)
 
+include("${CMAKE_CURRENT_LIST_DIR}/../Buildscripts/module.cmake")
+
+list(APPEND REQUIRES_LIST
+    lvgl
+)
+
+list(APPEND PRIV_REQUIRES_LIST
+    Tactility
+    TactilityCore
+    TactilityKernel
+)
+
 if (DEFINED ENV{ESP_IDF_VERSION})
-    file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
+    list(APPEND PRIV_REQUIRES_LIST elf_loader)
+endif ()
 
-    idf_component_register(
-        SRCS ${SOURCE_FILES}
-        INCLUDE_DIRS "Include/"
-        PRIV_INCLUDE_DIRS "Private/"
-        REQUIRES lvgl
-        PRIV_REQUIRES Tactility TactilityCore elf_loader TactilityKernel
-    )
+file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        target_compile_options(${COMPONENT_LIB} PUBLIC -Wno-unused-variable)
-    endif()
-else()
-    file(GLOB_RECURSE SOURCES "Source/*.c**")
-
-    add_library(TactilityC OBJECT)
-
-    target_sources(TactilityC PRIVATE ${SOURCES})
-    include_directories(TactilityC PRIVATE Private/)
-    target_include_directories(TactilityC PUBLIC Include/)
-    target_link_libraries(TactilityC
-        PRIVATE Tactility
-        PRIVATE TactilityCore
-        PRIVATE TactilityKernel
-        PUBLIC lvgl
-    )
-endif()
-
+tactility_add_module(TactilityC
+    SRCS ${SOURCE_FILES}
+    INCLUDE_DIRS Include/
+    PRIV_INCLUDE_DIRS Private/
+    REQUIRES ${REQUIRES_LIST}
+    PRIV_REQUIRES ${PRIV_REQUIRES_LIST}
+)

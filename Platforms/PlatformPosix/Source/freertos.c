@@ -5,7 +5,7 @@
 #include <tactility/freertos/task.h>
 #include <tactility/log.h>
 
-#define TAG LOG_TAG(freertos)
+#define TAG "freertos"
 
 /**
  * Assert implementation as defined in the FreeRTOSConfig.h

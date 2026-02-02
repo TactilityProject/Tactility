@@ -1,72 +1,70 @@
 #pragma once
 
-#include "LoggerAdapter.h"
-#include "LoggerSettings.h"
-
-#ifdef ESP_PLATFORM
-#include "LoggerAdapterEsp.h"
-#else
-#include "LoggerAdapterGeneric.h"
-#endif
+#include <tactility/log.h>
 
 #include <format>
 
 namespace tt {
 
-#ifdef ESP_PLATFORM
-static LoggerAdapter defaultLoggerAdapter = espLoggerAdapter;
-#else
-static LoggerAdapter defaultLoggerAdapter = genericLoggerAdapter;
-#endif
-
 class Logger {
 
     const char* tag;
+
+    LogLevel level = LOG_LEVEL_INFO;
 
 public:
 
     explicit Logger(const char* tag) : tag(tag) {}
 
     template <typename... Args>
-    void log(LogLevel level, std::format_string<Args...> format, Args&&... args) const {
-        std::string message = std::format(format, std::forward<Args>(args)...);
-        defaultLoggerAdapter(level, tag, message.c_str());
-    }
-
-    template <typename... Args>
     void verbose(std::format_string<Args...> format, Args&&... args) const {
-        log(LogLevel::Verbose, format, std::forward<Args>(args)...);
+        std::string message = std::format(format, std::forward<Args>(args)...);
+        LOG_V(tag, "%s", message.c_str());
     }
 
     template <typename... Args>
     void debug(std::format_string<Args...> format, Args&&... args) const {
-        log(LogLevel::Debug, format, std::forward<Args>(args)...);
+        std::string message = std::format(format, std::forward<Args>(args)...);
+        LOG_D(tag, "%s", message.c_str());
     }
 
     template <typename... Args>
     void info(std::format_string<Args...> format, Args&&... args) const {
-        log(LogLevel::Info, format, std::forward<Args>(args)...);
+        std::string message = std::format(format, std::forward<Args>(args)...);
+        LOG_I(tag, "%s", message.c_str());
     }
 
     template <typename... Args>
     void warn(std::format_string<Args...> format, Args&&... args) const {
-        log(LogLevel::Warning, format, std::forward<Args>(args)...);
+        std::string message = std::format(format, std::forward<Args>(args)...);
+        LOG_W(tag, "%s", message.c_str());
     }
 
     template <typename... Args>
     void error(std::format_string<Args...> format, Args&&... args) const {
-        log(LogLevel::Error, format, std::forward<Args>(args)...);
+        std::string message = std::format(format, std::forward<Args>(args)...);
+        LOG_E(tag, "%s", message.c_str());
     }
 
-    bool isLoggingVerbose() const { return LogLevel::Verbose <= LOG_LEVEL; }
+    bool isLoggingVerbose() const {
+        return LOG_LEVEL_VERBOSE <= level;
+    }
 
-    bool isLoggingDebug() const { return LogLevel::Debug <= LOG_LEVEL; }
+    bool isLoggingDebug() const {
+        return LOG_LEVEL_DEBUG <= level;
+    }
 
-    bool isLoggingInfo() const { return LogLevel::Info <= LOG_LEVEL; }
+    bool isLoggingInfo() const {
+        return LOG_LEVEL_INFO <= level;
+    }
 
-    bool isLoggingWarning() const { return LogLevel::Warning <= LOG_LEVEL; }
+    bool isLoggingWarning() const {
+        return LOG_LEVEL_WARNING <= level;
+    }
 
-    bool isLoggingError() const { return LogLevel::Error <= LOG_LEVEL; }
+    bool isLoggingError() const {
+        return LOG_LEVEL_ERROR <= level;
+    }
 };
 
 }

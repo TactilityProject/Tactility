@@ -10,7 +10,7 @@
 #include <tactility/error.h>
 #include <tactility/log.h>
 
-#define TAG LOG_TAG(driver)
+#define TAG "driver"
 
 struct DriverPrivate {
     Mutex mutex { 0 };
@@ -30,21 +30,11 @@ struct DriverLedger {
     std::vector<Driver*> drivers;
     Mutex mutex { 0 };
 
-    DriverLedger() {
-        mutex_construct(&mutex);
-    }
+    DriverLedger() { mutex_construct(&mutex); }
+    ~DriverLedger() { mutex_destruct(&mutex); }
 
-    ~DriverLedger() {
-        mutex_destruct(&mutex);
-    }
-
-    void lock() {
-        mutex_lock(&mutex);
-    }
-
-    void unlock() {
-        mutex_unlock(&mutex);
-    }
+    void lock() { mutex_lock(&mutex); }
+    void unlock() { mutex_unlock(&mutex); }
 };
 
 static DriverLedger& get_ledger() {
@@ -98,6 +88,8 @@ error_t driver_add(Driver* driver) {
 
 error_t driver_remove(Driver* driver) {
     LOG_I(TAG, "remove %s", driver->name);
+
+    if (driver->owner == nullptr) return ERROR_NOT_ALLOWED;
 
     ledger.lock();
     const auto iterator = std::ranges::find(ledger.drivers, driver);
