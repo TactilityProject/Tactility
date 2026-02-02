@@ -8,10 +8,10 @@ extern "C" {
     extern void _ZdlPvj(void* p, uint64_t size); // operator delete(void*, unsigned int)
     extern void __cxa_pure_virtual();
     // cxx_guards.cpp
-    extern "C" int __cxa_guard_acquire(void* pg);
-    extern "C" void __cxa_guard_release(void* pg) throw();
-    extern "C" void __cxa_guard_abort(void* pg) throw();
-    extern "C" void __cxa_guard_dummy(void);
+    extern int __cxa_guard_acquire(void* pg);
+    extern void __cxa_guard_release(void* pg) throw();
+    extern void __cxa_guard_abort(void* pg) throw();
+    extern void __cxa_guard_dummy(void);
 }
 
 const esp_elfsym cplusplus_symbols[] = {
