@@ -360,6 +360,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_anim_start),
     DEFINE_MODULE_SYMBOL(lv_anim_path_ease_in_out),
     DEFINE_MODULE_SYMBOL(lv_anim_path_linear),
-    DEFINE_MODULE_SYMBOL(lv_obj_is_valid),
+    DEFINE_MODULE_SYMBOL(lv_anim_path_ease_in_out),
+    DEFINE_MODULE_SYMBOL(lv_anim_path_linear),
+    MODULE_SYMBOL_TERMINATOR
+};
     MODULE_SYMBOL_TERMINATOR
 };
