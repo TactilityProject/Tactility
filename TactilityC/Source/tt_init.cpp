@@ -35,23 +35,21 @@
 #include <ctime>
 #include <ctype.h>
 #include <getopt.h>
-#include <setjmp.h>
-#include <sys/errno.h>
-#include <sys/unistd.h>
-
+#include <dirent.h>
 #include <esp_log.h>
 #include <esp_random.h>
 #include <esp_sntp.h>
 #include <esp_netif.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <time.h>
 #include <fcntl.h>
 #include <lwip/sockets.h>
+#include <locale.h>
+#include <setjmp.h>
+#include <sys/errno.h>
+#include <sys/stat.h>
+#include <sys/unistd.h>
+#include <vector>
 
 #include <Tactility/Tactility.h>
-
-#include <vector>
 
 bool module_parent_resolve_symbol(ModuleParent* pParent, const char* name, uintptr_t* pInt);
 extern "C" {
@@ -90,8 +88,30 @@ const esp_elfsym main_symbols[] {
     // esp_sntp.h
     ESP_ELFSYM_EXPORT(sntp_get_sync_status),
     // math.h
+    ESP_ELFSYM_EXPORT(atan),
     ESP_ELFSYM_EXPORT(cos),
     ESP_ELFSYM_EXPORT(sin),
+    ESP_ELFSYM_EXPORT(tan),
+    ESP_ELFSYM_EXPORT(tanh),
+    ESP_ELFSYM_EXPORT(frexp),
+    ESP_ELFSYM_EXPORT(modf),
+    ESP_ELFSYM_EXPORT(ceil),
+    ESP_ELFSYM_EXPORT(fabs),
+    ESP_ELFSYM_EXPORT(floor),
+#ifndef _REENT_ONLY
+    ESP_ELFSYM_EXPORT(acos),
+    ESP_ELFSYM_EXPORT(asin),
+    ESP_ELFSYM_EXPORT(atan2),
+    ESP_ELFSYM_EXPORT(cos),
+    ESP_ELFSYM_EXPORT(sinh),
+    ESP_ELFSYM_EXPORT(exp),
+    ESP_ELFSYM_EXPORT(ldexp),
+    ESP_ELFSYM_EXPORT(log),
+    ESP_ELFSYM_EXPORT(log10),
+    ESP_ELFSYM_EXPORT(pow),
+    ESP_ELFSYM_EXPORT(sqrt),
+    ESP_ELFSYM_EXPORT(fmod),
+#endif
     // sys/errno.h
     ESP_ELFSYM_EXPORT(__errno),
     // freertos_tasks_c_additions.h
@@ -114,6 +134,7 @@ const esp_elfsym main_symbols[] {
     // cassert
     ESP_ELFSYM_EXPORT(__assert_func),
     // cstdio
+    ESP_ELFSYM_EXPORT(abort),
     ESP_ELFSYM_EXPORT(fclose),
     ESP_ELFSYM_EXPORT(feof),
     ESP_ELFSYM_EXPORT(ferror),
@@ -122,6 +143,7 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(fgetpos),
     ESP_ELFSYM_EXPORT(fgets),
     ESP_ELFSYM_EXPORT(fopen),
+    ESP_ELFSYM_EXPORT(freopen),
     ESP_ELFSYM_EXPORT(fputc),
     ESP_ELFSYM_EXPORT(fputs),
     ESP_ELFSYM_EXPORT(fprintf),
@@ -155,11 +177,15 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(strtol),
     ESP_ELFSYM_EXPORT(strcspn),
     ESP_ELFSYM_EXPORT(strncat),
+    ESP_ELFSYM_EXPORT(strpbrk),
+    ESP_ELFSYM_EXPORT(strspn),
+    ESP_ELFSYM_EXPORT(strcoll),
     ESP_ELFSYM_EXPORT(memset),
     ESP_ELFSYM_EXPORT(memcpy),
     ESP_ELFSYM_EXPORT(memcmp),
     ESP_ELFSYM_EXPORT(memchr),
     ESP_ELFSYM_EXPORT(memmove),
+
     // ctype
     ESP_ELFSYM_EXPORT(isalnum),
     ESP_ELFSYM_EXPORT(isalpha),
@@ -312,6 +338,8 @@ const esp_elfsym main_symbols[] {
     // esp_netif.h
     ESP_ELFSYM_EXPORT(esp_netif_get_ip_info),
     ESP_ELFSYM_EXPORT(esp_netif_get_handle_from_ifkey),
+    // Locale
+    ESP_ELFSYM_EXPORT(localeconv),
     // delimiter
     ESP_ELFSYM_END
 };
