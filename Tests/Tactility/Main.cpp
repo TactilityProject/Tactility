@@ -27,9 +27,6 @@ void test_task(void* parameter) {
     // overrides
     context.setOption("no-breaks", true); // don't break in the debugger when assertions fail
 
-    check(module_construct(&hal_device_module) == ERROR_NONE);
-    check(module_add(&hal_device_module) == ERROR_NONE);
-    check(module_start(&hal_device_module) == ERROR_NONE);
     check(kernel_init(&platform_module, &hal_device_module, nullptr) == ERROR_NONE);
 
     data->result = context.run();
