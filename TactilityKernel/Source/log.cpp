@@ -66,9 +66,9 @@ extern "C" {
 void log_generic(enum LogLevel level, const char* tag, const char* format, ...) {
     va_list args;
     va_start(args, format);
-    printf("%s %c (%" PRIu64 ") \033[37m%s\033[0m ", get_log_color(level), get_log_prefix(level), get_log_timestamp(), tag);
+    printf("%s %c (%" PRIu64 ") %s ", get_log_color(level), get_log_prefix(level), get_log_timestamp(), tag);
     vprintf(format, args);
-    printf("\n");
+    printf("\033[0m\n");
     va_end(args);
 }
 

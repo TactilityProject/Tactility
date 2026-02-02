@@ -7,21 +7,15 @@
 
 #include <tactility/kernel_init.h>
 #include <tactility/hal_device_module.h>
+
 typedef struct {
     int argc;
     char** argv;
     int result;
 } TestTaskData;
 
-extern "C" {
 // From the relevant platform
-extern struct Module platform_module;
-}
-
-struct ModuleParent tactility_tests_module_parent  {
-    "tactility-tests",
-    nullptr
-};
+extern "C" struct Module platform_module;
 
 void test_task(void* parameter) {
     auto* data = (TestTaskData*)parameter;

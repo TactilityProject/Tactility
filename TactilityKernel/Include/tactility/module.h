@@ -81,6 +81,7 @@ error_t module_destruct(struct Module* module);
 
 /**
  * @brief Add a module to the system.
+ * @warning Only call this once. This function does not check if it was added before.
  * @param module module to add
  * @return ERROR_NONE if successful
  */
@@ -127,7 +128,6 @@ bool module_resolve_symbol(struct Module* module, const char* symbol_name, uintp
 /**
  * @brief Resolve a symbol from any module
  * @details This function iterates through all started modules in the parent and attempts to resolve the symbol.
- * @param parent parent module
  * @param symbol_name name of the symbol to resolve
  * @param symbol_address pointer to store the address of the resolved symbol
  * @return true if the symbol was found, false otherwise

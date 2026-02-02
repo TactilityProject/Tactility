@@ -66,7 +66,7 @@ error_t kernel_init(struct Module* platform_module, struct Module* device_module
 
     LOG_I(TAG, "init done");
     return ERROR_NONE;
-};
+}
 
 #ifdef __cplusplus
 }
