@@ -41,7 +41,7 @@ TEST_CASE("device_add should add the device to the list of all devices") {
 
     // Gather all devices
     std::vector<Device*> devices;
-    for_each_device(&devices, [](auto* device, auto* context) {
+    device_for_each(&devices, [](auto* device, auto* context) {
         auto* devices_ptr = static_cast<std::vector<Device*>*>(context);
         devices_ptr->push_back(device);
         return true;
@@ -71,7 +71,7 @@ TEST_CASE("device_add should add the device to its parent") {
 
     // Gather all child devices
     std::vector<Device*> children;
-    for_each_device_child(&parent, &children, [](auto* child_device, auto* context) {
+    device_for_each_child(&parent, &children, [](auto* child_device, auto* context) {
         auto* children_ptr = (std::vector<Device*>*)context;
         children_ptr->push_back(child_device);
         return true;
@@ -107,7 +107,7 @@ TEST_CASE("device_remove should remove it from the list of all devices") {
 
     // Gather all devices
     std::vector<Device*> devices;
-    for_each_device(&devices, [](auto* device, auto* context) {
+    device_for_each(&devices, [](auto* device, auto* context) {
         auto* devices_ptr = (std::vector<Device*>*)context;
         devices_ptr->push_back(device);
         return true;
@@ -136,7 +136,7 @@ TEST_CASE("device_remove should remove the device from its parent") {
 
     // Gather all child devices
     std::vector<Device*> children;
-    for_each_device_child(&parent, &children, [](auto* child_device, auto* context) {
+    device_for_each_child(&parent, &children, [](auto* child_device, auto* context) {
         auto* children_ptr = (std::vector<Device*>*)context;
         children_ptr->push_back(child_device);
         return true;

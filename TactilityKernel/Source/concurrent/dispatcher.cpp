@@ -6,10 +6,10 @@
 
 #include "tactility/error.h"
 
-#include <tactility/concurrent/eventgroup.h>
+#include <atomic>
+#include <tactility/concurrent/event_group.h>
 #include <tactility/concurrent/mutex.h>
 #include <tactility/log.h>
-#include <atomic>
 
 #define TAG "Dispatcher"
 

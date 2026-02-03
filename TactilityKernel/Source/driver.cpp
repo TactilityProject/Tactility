@@ -199,4 +199,8 @@ error:
     return error;
 }
 
+const struct DeviceType* driver_get_device_type(struct Driver* driver) {
+    return driver->device_type;
+}
+
 } // extern "C"

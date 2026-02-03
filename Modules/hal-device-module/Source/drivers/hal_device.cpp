@@ -62,7 +62,7 @@ void hal_device_for_each_of_type(HalDeviceType type, void* context, bool(*onDevi
         .onDeviceParam = onDevice
     };
 
-    for_each_device_of_type(&HAL_DEVICE_TYPE, &internal_context, [](Device* device, void* context){
+    device_for_each_of_type(&HAL_DEVICE_TYPE, &internal_context, [](Device* device, void* context){
         auto* hal_device_private = GET_DATA(device);
         auto* internal_context = static_cast<InternalContext*>(context);
         auto hal_device_type = getHalDeviceType(hal_device_private->halDevice->getType());

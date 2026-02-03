@@ -32,7 +32,7 @@ Device* findDevice(i2c_port_t port) {
         .device = nullptr
     };
 
-    for_each_device_of_type(&I2C_CONTROLLER_TYPE, &params, [](auto* device, auto* context) {
+    device_for_each_of_type(&I2C_CONTROLLER_TYPE, &params, [](auto* device, auto* context) {
         auto* params_ptr = (Params*)context;
         auto* driver = device_get_driver(device);
         if (driver == nullptr) return true;

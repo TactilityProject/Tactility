@@ -69,6 +69,14 @@ error_t module_stop(struct Module* module) {
     return error;
 }
 
+error_t module_construct_add_start(struct Module* module) {
+    error_t error = module_construct(module);
+    if (error != ERROR_NONE) return error;
+    error = module_add(module);
+    if (error != ERROR_NONE) return error;
+    return module_start(module);
+}
+
 bool module_resolve_symbol(Module* module, const char* symbol_name, uintptr_t* symbol_address) {
     if (!module_is_started(module)) return false;
     auto* symbol_ptr = module->symbols;

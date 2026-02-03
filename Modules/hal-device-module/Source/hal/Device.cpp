@@ -122,7 +122,7 @@ std::vector<std::shared_ptr<Device>> findDevices(Device::Type type) {
 
 std::vector<std::shared_ptr<Device>> getDevices() {
     std::vector<std::shared_ptr<Device>> devices;
-    for_each_device_of_type(&HAL_DEVICE_TYPE, &devices ,[](auto* kernelDevice, auto* context) {
+    device_for_each_of_type(&HAL_DEVICE_TYPE, &devices ,[](auto* kernelDevice, auto* context) {
         auto devices_ptr = static_cast<std::vector<std::shared_ptr<Device>>*>(context);
         auto hal_device = hal_device_get_device(kernelDevice);
         (*devices_ptr).push_back(hal_device);

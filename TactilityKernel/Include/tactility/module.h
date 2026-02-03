@@ -59,7 +59,6 @@ struct Module {
      */
     const struct ModuleSymbol* symbols;
 
-
     struct {
         bool started;
     } internal;
@@ -102,18 +101,25 @@ error_t module_remove(struct Module* module);
 error_t module_start(struct Module* module);
 
 /**
- * @brief Check if the module is started.
- * @param module module to check
- * @return true if the module is started, false otherwise
- */
-bool module_is_started(struct Module* module);
-
-/**
  * @brief Stop the module.
  * @param module module
  * @return ERROR_NONE if successful or if the module wasn't started, or otherwise it returns the result of the module's stop function
  */
 error_t module_stop(struct Module* module);
+
+/**
+ * @brief Construct, add and start a module.
+ * @param module module
+ * @return ERROR_NONE if successful
+ */
+error_t module_construct_add_start(struct Module* module);
+
+/**
+ * @brief Check if the module is started.
+ * @param module module to check
+ * @return true if the module is started, false otherwise
+ */
+bool module_is_started(struct Module* module);
 
 /**
  * @brief Resolve a symbol from the module.

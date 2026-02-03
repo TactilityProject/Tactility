@@ -7,48 +7,41 @@ extern "C" {
 
 #define TAG "kernel"
 
-static error_t init_kernel_drivers() {
+extern const struct ModuleSymbol KERNEL_SYMBOLS[];
+
+static error_t start() {
     extern Driver root_driver;
     if (driver_construct_add(&root_driver) != ERROR_NONE) return ERROR_RESOURCE;
     return ERROR_NONE;
 }
 
+static error_t stop() {
+    return ERROR_NONE;
+}
+
+struct Module root_module = {
+    .name = "kernel",
+    .start = start,
+    .stop = stop,
+    .symbols = (const struct ModuleSymbol*)KERNEL_SYMBOLS
+};
+
 error_t kernel_init(struct Module* platform_module, struct Module* device_module, struct CompatibleDevice devicetree_devices[]) {
     LOG_I(TAG, "init");
 
-    if (init_kernel_drivers() != ERROR_NONE) {
-        LOG_E(TAG, "init failed to init kernel drivers");
+    if (module_construct_add_start(&root_module) != ERROR_NONE) {
+        LOG_E(TAG, "root module init failed");
         return ERROR_RESOURCE;
     }
 
-    if (module_construct(platform_module) != ERROR_NONE) {
-        LOG_E(TAG, "init failed to construct platform module");
-        return ERROR_RESOURCE;
-    }
-
-    if (module_add(platform_module) != ERROR_NONE) {
-        LOG_E(TAG, "init failed to add platform module");
-        return ERROR_RESOURCE;
-    }
-
-    if (module_start(platform_module) != ERROR_NONE) {
-        LOG_E(TAG, "init failed to start platform module");
+    if (module_construct_add_start(platform_module) != ERROR_NONE) {
+        LOG_E(TAG, "platform module init failed");
         return ERROR_RESOURCE;
     }
 
     if (device_module != nullptr) {
-        if (module_construct(device_module) != ERROR_NONE) {
-            LOG_E(TAG, "init failed to construct device module");
-            return ERROR_RESOURCE;
-        }
-
-        if (module_add(device_module) != ERROR_NONE) {
-            LOG_E(TAG, "init failed to add device module");
-            return ERROR_RESOURCE;
-        }
-
-        if (module_start(device_module) != ERROR_NONE) {
-            LOG_E(TAG, "init failed to start device module");
+        if (module_construct_add_start(device_module) != ERROR_NONE) {
+            LOG_E(TAG, "device module init failed");
             return ERROR_RESOURCE;
         }
     }

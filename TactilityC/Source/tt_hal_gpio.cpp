@@ -9,7 +9,7 @@ using namespace tt::hal;
 
 static Device* find_first_gpio_controller() {
     Device* device_result = nullptr;
-    for_each_device_of_type(&GPIO_CONTROLLER_TYPE, &device_result, [](Device* device, void* context) {
+    device_for_each_of_type(&GPIO_CONTROLLER_TYPE, &device_result, [](Device* device, void* context) {
         if (device_is_ready(device)) {
             auto** device_result_ptr = static_cast<Device**>(context);
             *device_result_ptr = device;

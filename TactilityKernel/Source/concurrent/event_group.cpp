@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#include <tactility/concurrent/eventgroup.h>
+#include <tactility/concurrent/event_group.h>
 #include <tactility/error.h>
 
 #ifdef __cplusplus

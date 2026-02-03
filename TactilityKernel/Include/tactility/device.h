@@ -3,17 +3,17 @@
 #pragma once
 
 #include "driver.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "error.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
 #include <tactility/concurrent/mutex.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct Driver;
 struct DevicePrivate;
@@ -81,16 +81,6 @@ error_t device_construct(struct Device* device);
 error_t device_destruct(struct Device* device);
 
 /**
- * Indicates whether the device is in a state where its API is available
- *
- * @param[in] device non-null device pointer
- * @return true if the device is ready for use
- */
-static inline bool device_is_ready(const struct Device* device) {
-    return device->internal.state.started;
-}
-
-/**
  * Register a device to all relevant systems:
  * - the global ledger
  * - its parent (if any)
@@ -137,6 +127,20 @@ error_t device_start(struct Device* device);
 error_t device_stop(struct Device* device);
 
 /**
+ * Construct and add a device with the given compatible string.
+ * @param compatible compatible string
+ * @return the constructed device
+ */
+error_t device_construct_add_start(struct Device* device, const char* compatible);
+
+/**
+ * Construct and add a device with the given compatible string.
+ * @param compatible compatible string
+ * @return the constructed device
+ */
+error_t device_construct_add(struct Device* device, const char* compatible);
+
+/**
  * Set or unset a parent.
  * @warning must call before device_add()
  * @param device non-NULL device
@@ -144,58 +148,96 @@ error_t device_stop(struct Device* device);
  */
 void device_set_parent(struct Device* device, struct Device* parent);
 
-error_t device_construct_add(struct Device* device, const char* compatible);
+/**
+ * Set the driver for a device.
+ * @warning must call before device_add()
+ * @param device non-NULL device
+ * @param driver nullable driver
+ */
+void device_set_driver(struct Device* device, struct Driver* driver);
 
-error_t device_construct_add_start(struct Device* device, const char* compatible);
+/**
+ * Get the driver for a device.
+ * @param device non-null device pointer
+ * @return the driver, or NULL if the device has no driver
+ */
+struct Driver* device_get_driver(struct Device* device);
 
-static inline void device_set_driver(struct Device* device, struct Driver* driver) {
-    device->internal.driver = driver;
-}
+/**
+ * Get the parent device of a device.
+ * @param device non-null device pointer
+ * @return the parent device, or NULL if the device has no parent
+ */
+struct Device* device_get_parent(struct Device* device);
 
-static inline struct Driver* device_get_driver(struct Device* device) {
-    return device->internal.driver;
-}
+/**
+ * Indicates whether the device is in a state where its API is available
+ *
+ * @param[in] device non-null device pointer
+ * @return true if the device is ready for use
+ */
+bool device_is_ready(const struct Device* device);
 
-static inline void device_set_driver_data(struct Device* device, void* driver_data) {
-    device->internal.driver_data = driver_data;
-}
+/**
+ * Get the driver data for a device.
+ * @param device non-null device pointer
+ * @return the driver data
+ */
+void device_set_driver_data(struct Device* device, void* driver_data);
 
-static inline void* device_get_driver_data(struct Device* device) {
-    return device->internal.driver_data;
-}
+/**
+ * Get the driver data for a device.
+ * @param device non-null device pointer
+ * @return the driver data
+ */
+void* device_get_driver_data(struct Device* device);
 
-static inline bool device_is_added(const struct Device* device) {
-    return device->internal.state.added;
-}
+/**
+ * Indicates whether the device has been added to the system.
+ * @param device non-null device pointer
+ * @return true if the device has been added
+ */
+bool device_is_added(const struct Device* device);
 
-static inline void device_lock(struct Device* device) {
-    mutex_lock(&device->internal.mutex);
-}
+/**
+ * Lock the device for exclusive access.
+ * @param device non-null device pointer
+ */
+void device_lock(struct Device* device);
 
-static inline bool device_try_lock(struct Device* device) {
-    return mutex_try_lock(&device->internal.mutex);
-}
+/**
+ * Try to lock the device for exclusive access.
+ * @param device non-null device pointer
+ * @return true if the device was locked successfully
+ */
+bool device_try_lock(struct Device* device);
 
-static inline void device_unlock(struct Device* device) {
-    mutex_unlock(&device->internal.mutex);
-}
+/**
+ * Unlock the device.
+ * @param device non-null device pointer
+ */
+void device_unlock(struct Device* device);
 
-static inline const struct DeviceType* device_get_type(struct Device* device) {
-    return device->internal.driver ? device->internal.driver->device_type : NULL;
-}
+/**
+ * Get the type of a device.
+ * @param device non-null device pointer
+ * @return the device type
+ */
+const struct DeviceType* device_get_type(struct Device* device);
+
 /**
  * Iterate through all the known devices
  * @param callback_context the parameter to pass to the callback. NULL is valid.
  * @param on_device the function to call for each filtered device. return true to continue iterating or false to stop.
  */
-void for_each_device(void* callback_context, bool(*on_device)(struct Device* device, void* context));
+void device_for_each(void* callback_context, bool(*on_device)(struct Device* device, void* context));
 
 /**
  * Iterate through all the child devices of the specified device
  * @param callbackContext the parameter to pass to the callback. NULL is valid.
  * @param on_device the function to call for each filtered device. return true to continue iterating or false to stop.
  */
-void for_each_device_child(struct Device* device, void* callbackContext, bool(*on_device)(struct Device* device, void* context));
+void device_for_each_child(struct Device* device, void* callbackContext, bool(*on_device)(struct Device* device, void* context));
 
 /**
  * Iterate through all the known devices of a specific type
@@ -203,7 +245,7 @@ void for_each_device_child(struct Device* device, void* callbackContext, bool(*o
  * @param callbackContext the parameter to pass to the callback. NULL is valid.
  * @param on_device the function to call for each filtered device. return true to continue iterating or false to stop.
  */
-void for_each_device_of_type(const struct DeviceType* type, void* callbackContext, bool(*on_device)(struct Device* device, void* context));
+void device_for_each_of_type(const struct DeviceType* type, void* callbackContext, bool(*on_device)(struct Device* device, void* context));
 
 #ifdef __cplusplus
 }
