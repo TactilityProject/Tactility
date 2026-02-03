@@ -148,6 +148,8 @@ def write_spiram_variables(output_file, device_properties: ConfigParser):
     output_file.write("CONFIG_SPIRAM=y\n")
     output_file.write(f"CONFIG_{idf_target.upper()}_SPIRAM_SUPPORT=y\n")
     mode = get_property_or_exit(device_properties, "hardware", "spiRamMode")
+    if mode == "OPI":
+        mode = "OCT"
     # Mode
     if mode != "AUTO":
         output_file.write(f"CONFIG_SPIRAM_MODE_{mode}=y\n")

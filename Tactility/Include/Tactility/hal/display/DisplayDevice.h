@@ -26,6 +26,9 @@ public:
     virtual bool isPoweredOn() const { return true; }
     virtual bool supportsPowerControl() const { return false; }
 
+    /** For e-paper screens */
+    virtual void requestFullRefresh() {}
+
     /** Could return nullptr if not started */
     virtual std::shared_ptr<touch::TouchDevice> getTouchDevice() = 0;
 

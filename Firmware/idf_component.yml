@@ -54,4 +54,8 @@ dependencies:
     version: "1.7.6~1"
     rules:
       - if: "target == esp32s3"
+  FastEPD:
+    git: https://github.com/bitbank2/FastEPD.git
+    version: 1.4.2
   idf: '5.5'
+
