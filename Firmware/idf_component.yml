@@ -57,5 +57,8 @@ dependencies:
   FastEPD:
     git: https://github.com/bitbank2/FastEPD.git
     version: 1.4.2
+    rules:
+      # More hardware might be supported - enable as needed
+      - if: "target in [esp32s3]"
   idf: '5.5'
 
