@@ -29,7 +29,7 @@ runs:
       env:
         # NOTE: Update with ESP-IDF!
         ESP_IDF_VERSION: '5.5'
-      run: Buildscripts/release-sdk.sh release/TactilitySDK
+      run: python Buildscripts/release-sdk.py release/TactilitySDK
     - name: 'Upload Artifact'
       uses: actions/upload-artifact@v4
       with:
