@@ -1,5 +1,6 @@
 #include <private/elf_symbol.h>
 #include <cstddef>
+#include <new>
 
 #include <symbols/cplusplus.h>
 
@@ -17,6 +18,7 @@ extern "C" {
 const esp_elfsym cplusplus_symbols[] = {
     ESP_ELFSYM_EXPORT(_Znwj), // operator new(unsigned int)
     ESP_ELFSYM_EXPORT(_ZdlPvj), // operator delete(void*, unsigned int)
+    { "_ZSt7nothrow", (void*)&std::nothrow },
     // cxx_guards
     ESP_ELFSYM_EXPORT(__cxa_pure_virtual), // class-related, see https://arobenko.github.io/bare_metal_cpp/
     ESP_ELFSYM_EXPORT(__cxa_guard_acquire),

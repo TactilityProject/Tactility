@@ -51,6 +51,9 @@
 
 #include <Tactility/Tactility.h>
 
+#include <driver/i2s_common.h>
+#include <driver/i2s_std.h>
+
 extern "C" {
 
 extern double __floatsidf(int x);
@@ -97,19 +100,32 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(ceil),
     ESP_ELFSYM_EXPORT(fabs),
     ESP_ELFSYM_EXPORT(floor),
+    ESP_ELFSYM_EXPORT(sinf),
+    ESP_ELFSYM_EXPORT(cosf),
+    ESP_ELFSYM_EXPORT(fabsf),
 #ifndef _REENT_ONLY
     ESP_ELFSYM_EXPORT(acos),
+    ESP_ELFSYM_EXPORT(acosf),
     ESP_ELFSYM_EXPORT(asin),
+    ESP_ELFSYM_EXPORT(asinf),
     ESP_ELFSYM_EXPORT(atan2),
-    ESP_ELFSYM_EXPORT(cos),
+    ESP_ELFSYM_EXPORT(atan2f),
     ESP_ELFSYM_EXPORT(sinh),
+    ESP_ELFSYM_EXPORT(sinhf),
     ESP_ELFSYM_EXPORT(exp),
+    ESP_ELFSYM_EXPORT(expf),
     ESP_ELFSYM_EXPORT(ldexp),
+    ESP_ELFSYM_EXPORT(ldexpf),
     ESP_ELFSYM_EXPORT(log),
+    ESP_ELFSYM_EXPORT(logf),
     ESP_ELFSYM_EXPORT(log10),
+    ESP_ELFSYM_EXPORT(log10f),
     ESP_ELFSYM_EXPORT(pow),
+    ESP_ELFSYM_EXPORT(powf),
     ESP_ELFSYM_EXPORT(sqrt),
+    ESP_ELFSYM_EXPORT(sqrtf),
     ESP_ELFSYM_EXPORT(fmod),
+    ESP_ELFSYM_EXPORT(fmodf),
 #endif
     // sys/errno.h
     ESP_ELFSYM_EXPORT(__errno),
@@ -339,6 +355,22 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(esp_netif_get_handle_from_ifkey),
     // Locale
     ESP_ELFSYM_EXPORT(localeconv),
+    //i2s_common.h
+    ESP_ELFSYM_EXPORT(i2s_new_channel),
+    ESP_ELFSYM_EXPORT(i2s_del_channel),
+    ESP_ELFSYM_EXPORT(i2s_channel_enable),
+    ESP_ELFSYM_EXPORT(i2s_channel_disable),
+    ESP_ELFSYM_EXPORT(i2s_channel_write),
+    ESP_ELFSYM_EXPORT(i2s_channel_get_info),
+    ESP_ELFSYM_EXPORT(i2s_channel_read),
+    ESP_ELFSYM_EXPORT(i2s_channel_register_event_callback),
+    ESP_ELFSYM_EXPORT(i2s_channel_preload_data),
+    ESP_ELFSYM_EXPORT(i2s_channel_tune_rate),
+    //i2s_std.h
+    ESP_ELFSYM_EXPORT(i2s_channel_init_std_mode),
+    ESP_ELFSYM_EXPORT(i2s_channel_reconfig_std_clock),
+    ESP_ELFSYM_EXPORT(i2s_channel_reconfig_std_slot),
+    ESP_ELFSYM_EXPORT(i2s_channel_reconfig_std_gpio),
     // delimiter
     ESP_ELFSYM_END
 };

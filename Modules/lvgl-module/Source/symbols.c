@@ -162,7 +162,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_set_selected_button),
     // lv_canvas
     DEFINE_MODULE_SYMBOL(lv_canvas_create),
+    DEFINE_MODULE_SYMBOL(lv_canvas_fill_bg),
     DEFINE_MODULE_SYMBOL(lv_canvas_set_draw_buf),
+    DEFINE_MODULE_SYMBOL(lv_canvas_set_buffer),
     DEFINE_MODULE_SYMBOL(lv_canvas_set_px),
     // lv_label
     DEFINE_MODULE_SYMBOL(lv_label_create),
@@ -314,6 +316,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_line_create),
     DEFINE_MODULE_SYMBOL(lv_line_set_points),
     DEFINE_MODULE_SYMBOL(lv_line_set_points_mutable),
+    DEFINE_MODULE_SYMBOL(lv_tick_get),
+    DEFINE_MODULE_SYMBOL(lv_tick_elaps),
     // lv_slider
     DEFINE_MODULE_SYMBOL(lv_slider_create),
     DEFINE_MODULE_SYMBOL(lv_slider_get_value),
