@@ -6,7 +6,7 @@
 
 / {
 	compatible = "root";
-	model = "M5Stack CoreS3";
+	model = "M5Stack PaperS3";
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
