@@ -17,9 +17,15 @@ include("Buildscripts/module.cmake")
 
 # Determine device identifier and project location
 include("Buildscripts/device.cmake")
-init_tactility_globals("sdkconfig")
-get_property(TACTILITY_DEVICE_PROJECT GLOBAL PROPERTY TACTILITY_DEVICE_PROJECT)
-get_property(TACTILITY_DEVICE_ID GLOBAL PROPERTY TACTILITY_DEVICE_ID)
+
+if (DEFINED ENV{ESP_IDF_VERSION})
+    init_tactility_globals("sdkconfig")
+    get_property(TACTILITY_DEVICE_PROJECT GLOBAL PROPERTY TACTILITY_DEVICE_PROJECT)
+    get_property(TACTILITY_DEVICE_ID GLOBAL PROPERTY TACTILITY_DEVICE_ID)
+else ()
+    set(TACTILITY_DEVICE_PROJECT "Devices/simulator")
+    set(TACTILITY_DEVICE_ID "simulator")
+endif ()
 
 if (DEFINED ENV{ESP_IDF_VERSION})
     message("Using ESP-IDF ${Cyan}v$ENV{ESP_IDF_VERSION}${ColorReset}")
