@@ -69,8 +69,6 @@ def main():
     target_path = os.path.abspath(sys.argv[1])
     os.makedirs(target_path, exist_ok=True)
 
-    lib_path = os.path.join(target_path, "Libraries")
-
     # Mapping logic
     mappings = [
         {'src': 'version.txt', 'dst': ''},
@@ -99,7 +97,7 @@ def main():
         {'src': 'Libraries/lvgl/lv_version.h', 'dst': 'Libraries/lvgl/Include/'},
         {'src': 'Libraries/lvgl/LICENCE.txt', 'dst': 'Libraries/lvgl/LICENSE.txt'},
         {'src': 'Libraries/lvgl/src/lv_conf_kconfig.h', 'dst': 'Libraries/lvgl/Include/lv_conf.h'},
-        {'src': 'Libraries/lvgl/src/**/*.h', 'dst': 'Libraries/lvgl/Include/'},
+        {'src': 'Libraries/lvgl/src/**/*.h', 'dst': 'Libraries/lvgl/Include/src/'},
         # elf_loader
         {'src': 'Libraries/elf_loader/elf_loader.cmake', 'dst': 'Libraries/elf_loader/'},
         {'src': 'Libraries/elf_loader/license.txt', 'dst': 'Libraries/elf_loader/'},
