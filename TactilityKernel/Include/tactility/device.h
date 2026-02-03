@@ -64,9 +64,9 @@ struct CompatibleDevice {
 /**
  * Initialize the properties of a device.
  *
- * @param[in] device a device with all non-internal properties set
- * @retval ERROR_OUT_OF_MEMORY
- * @retval ERROR_NONE
+ * @param[in,out] device a device with all non-internal properties set
+ * @retval ERROR_OUT_OF_MEMORY if internal data allocation failed
+ * @retval ERROR_NONE on success
  */
 error_t device_construct(struct Device* device);
 
@@ -74,9 +74,9 @@ error_t device_construct(struct Device* device);
  * Deinitialize the properties of a device.
  * This fails when a device is busy or has children.
  *
- * @param[in] device
- * @retval ERROR_INVALID_STATE
- * @retval ERROR_NONE
+ * @param[in,out] device non-null device pointer
+ * @retval ERROR_INVALID_STATE if the device is busy or has children
+ * @retval ERROR_NONE on success
  */
 error_t device_destruct(struct Device* device);
 
@@ -84,11 +84,10 @@ error_t device_destruct(struct Device* device);
  * Register a device to all relevant systems:
  * - the global ledger
  * - its parent (if any)
- * - a bus (if any)
  *
- * @param[in] device non-null device pointer
- * @retval ERROR_INVALID_STATE
- * @retval ERROR_NONE
+ * @param[in,out] device non-null device pointer
+ * @retval ERROR_INVALID_STATE if the device is already added
+ * @retval ERROR_NONE on success
  */
 error_t device_add(struct Device* device);
 
@@ -96,12 +95,11 @@ error_t device_add(struct Device* device);
  * Deregister a device. Remove it from all relevant systems:
  * - the global ledger
  * - its parent (if any)
- * - a bus (if any)
  *
- * @param[in] device non-null device pointer
- * @retval ERROR_INVALID_STATE
- * @retval ERROR_NOT_FOUND
- * @retval ERROR_NONE
+ * @param[in,out] device non-null device pointer
+ * @retval ERROR_INVALID_STATE if the device is still started
+ * @retval ERROR_NOT_FOUND if the device was not found in the system
+ * @retval ERROR_NONE on success
  */
 error_t device_remove(struct Device* device);
 
@@ -109,63 +107,73 @@ error_t device_remove(struct Device* device);
  * Attach the driver.
  *
  * @warning must call device_construct() and device_add() first
- * @param device
- * @retval ERROR_INVALID_STATE
+ * @param[in,out] device non-null device pointer
+ * @retval ERROR_INVALID_STATE if the device is already started or not added
  * @retval ERROR_RESOURCE when driver binding fails
- * @retval ERROR_NONE
+ * @retval ERROR_NONE on success
  */
 error_t device_start(struct Device* device);
 
 /**
  * Detach the driver.
  *
- * @param device
- * @retval ERROR_INVALID_STATE
+ * @param[in,out] device non-null device pointer
+ * @retval ERROR_INVALID_STATE if the device is not started
  * @retval ERROR_RESOURCE when driver unbinding fails
- * @retval ERROR_NONE
+ * @retval ERROR_NONE on success
  */
 error_t device_stop(struct Device* device);
 
 /**
  * Construct and add a device with the given compatible string.
- * @param compatible compatible string
- * @return the constructed device
+ *
+ * @param[in,out] device non-NULL device
+ * @param[in] compatible compatible string
+ * @retval ERROR_NONE on success
+ * @retval error_t error code on failure
  */
 error_t device_construct_add_start(struct Device* device, const char* compatible);
 
 /**
  * Construct and add a device with the given compatible string.
- * @param compatible compatible string
- * @return the constructed device
+ *
+ * @param[in,out] device non-NULL device
+ * @param[in] compatible compatible string
+ * @retval ERROR_NONE on success
+ * @retval error_t error code on failure
  */
 error_t device_construct_add(struct Device* device, const char* compatible);
 
 /**
  * Set or unset a parent.
+ *
  * @warning must call before device_add()
- * @param device non-NULL device
- * @param parent nullable parent device
+ * @param[in,out] device non-NULL device
+ * @param[in] parent nullable parent device
  */
 void device_set_parent(struct Device* device, struct Device* parent);
 
 /**
  * Set the driver for a device.
+ *
  * @warning must call before device_add()
- * @param device non-NULL device
- * @param driver nullable driver
+ * @param[in,out] device non-NULL device
+ * @param[in] driver nullable driver
  */
 void device_set_driver(struct Device* device, struct Driver* driver);
 
 /**
  * Get the driver for a device.
- * @param device non-null device pointer
+ *
+ * @param[in] device non-null device pointer
  * @return the driver, or NULL if the device has no driver
  */
 struct Driver* device_get_driver(struct Device* device);
 
 /**
  * Get the parent device of a device.
- * @param device non-null device pointer
+ *
+ * @param[in] device non-null device pointer
  * @return the parent device, or NULL if the device has no parent
  */
 struct Device* device_get_parent(struct Device* device);
@@ -180,72 +188,83 @@ bool device_is_ready(const struct Device* device);
 
 /**
  * Set the driver data for a device.
- * @param device non-null device pointer
- * @return the driver data
+ *
+ * @param[in,out] device non-null device pointer
+ * @param[in] driver_data the driver data
  */
 void device_set_driver_data(struct Device* device, void* driver_data);
 
 /**
  * Get the driver data for a device.
- * @param device non-null device pointer
+ *
+ * @param[in] device non-null device pointer
  * @return the driver data
  */
 void* device_get_driver_data(struct Device* device);
 
 /**
  * Indicates whether the device has been added to the system.
- * @param device non-null device pointer
+ *
+ * @param[in] device non-null device pointer
  * @return true if the device has been added
  */
 bool device_is_added(const struct Device* device);
 
 /**
  * Lock the device for exclusive access.
- * @param device non-null device pointer
+ *
+ * @param[in,out] device non-null device pointer
  */
 void device_lock(struct Device* device);
 
 /**
  * Try to lock the device for exclusive access.
- * @param device non-null device pointer
+ *
+ * @param[in,out] device non-null device pointer
  * @return true if the device was locked successfully
  */
 bool device_try_lock(struct Device* device);
 
 /**
  * Unlock the device.
- * @param device non-null device pointer
+ *
+ * @param[in,out] device non-null device pointer
  */
 void device_unlock(struct Device* device);
 
 /**
  * Get the type of a device.
- * @param device non-null device pointer
+ *
+ * @param[in] device non-null device pointer
  * @return the device type
  */
 const struct DeviceType* device_get_type(struct Device* device);
 
 /**
  * Iterate through all the known devices
- * @param callback_context the parameter to pass to the callback. NULL is valid.
- * @param on_device the function to call for each filtered device. return true to continue iterating or false to stop.
+ *
+ * @param[in] callback_context the parameter to pass to the callback. NULL is valid.
+ * @param[in] on_device the function to call for each filtered device. return true to continue iterating or false to stop.
  */
 void device_for_each(void* callback_context, bool(*on_device)(struct Device* device, void* context));
 
 /**
  * Iterate through all the child devices of the specified device
- * @param callbackContext the parameter to pass to the callback. NULL is valid.
- * @param on_device the function to call for each filtered device. return true to continue iterating or false to stop.
+ *
+ * @param[in] device non-null device pointer
+ * @param[in] callback_context the parameter to pass to the callback. NULL is valid.
+ * @param[in] on_device the function to call for each filtered device. return true to continue iterating or false to stop.
  */
-void device_for_each_child(struct Device* device, void* callbackContext, bool(*on_device)(struct Device* device, void* context));
+void device_for_each_child(struct Device* device, void* callback_context, bool(*on_device)(struct Device* device, void* context));
 
 /**
  * Iterate through all the known devices of a specific type
- * @param type the type to filter
- * @param callbackContext the parameter to pass to the callback. NULL is valid.
- * @param on_device the function to call for each filtered device. return true to continue iterating or false to stop.
+ *
+ * @param[in] type the type to filter
+ * @param[in] callback_context the parameter to pass to the callback. NULL is valid.
+ * @param[in] on_device the function to call for each filtered device. return true to continue iterating or false to stop.
  */
-void device_for_each_of_type(const struct DeviceType* type, void* callbackContext, bool(*on_device)(struct Device* device, void* context));
+void device_for_each_of_type(const struct DeviceType* type, void* callback_context, bool(*on_device)(struct Device* device, void* context));
 
 #ifdef __cplusplus
 }
