@@ -16,7 +16,7 @@ std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
     );
 
     auto touch = std::make_shared<Gt911Touch>(std::move(configuration));
-    return std::reinterpret_pointer_cast<tt::hal::touch::TouchDevice>(touch);
+    return std::static_pointer_cast<tt::hal::touch::TouchDevice>(touch);
 }
 
 std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay(std::shared_ptr<tt::hal::touch::TouchDevice> touch) {

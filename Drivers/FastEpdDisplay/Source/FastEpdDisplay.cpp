@@ -140,6 +140,7 @@ bool FastEpdDisplay::start() {
     const int desired_mode = configuration.use4bppGrayscale ? BB_MODE_4BPP : BB_MODE_1BPP;
     if (epd.setMode(desired_mode) != BBEP_SUCCESS) {
         LOG_E(TAG, "FastEPD setMode(%d) failed", desired_mode);
+        epd.deInit();
         return false;
     }
 
