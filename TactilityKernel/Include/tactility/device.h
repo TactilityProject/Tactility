@@ -179,7 +179,7 @@ struct Device* device_get_parent(struct Device* device);
 bool device_is_ready(const struct Device* device);
 
 /**
- * Get the driver data for a device.
+ * Set the driver data for a device.
  * @param device non-null device pointer
  * @return the driver data
  */

@@ -11,7 +11,7 @@
 #include <tactility/module.h>
 
 /**
- * This file is a C++ file instead of C, so we can import all headers as C code.
+ * This file is a C file instead of C++, so we can import all headers as C code.
  * The intent is to catch errors that only show up when compiling as C and not as C++.
  * For example: wrong header includes.
  */
@@ -52,13 +52,13 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(driver_is_compatible),
     DEFINE_MODULE_SYMBOL(driver_find_compatible),
     DEFINE_MODULE_SYMBOL(driver_get_device_type),
-    // drivers/i2c_controller
+    // drivers/gpio_controller
     DEFINE_MODULE_SYMBOL(gpio_controller_set_level),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_level),
     DEFINE_MODULE_SYMBOL(gpio_controller_set_options),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_options),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_pin_count),
-    // drivers/gpio_controller
+    // drivers/i2c_controller
     DEFINE_MODULE_SYMBOL(i2c_controller_read),
     DEFINE_MODULE_SYMBOL(i2c_controller_write),
     DEFINE_MODULE_SYMBOL(i2c_controller_write_read),
