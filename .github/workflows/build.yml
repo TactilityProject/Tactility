@@ -61,6 +61,7 @@ jobs:
           { id: m5stack-cardputer-adv, arch: esp32s3 },
           { id: m5stack-core2, arch: esp32 },
           { id: m5stack-cores3, arch: esp32s3 },
+          { id: m5stack-papers3, arch: esp32s3 },
           { id: m5stack-stickc-plus, arch: esp32 },
           { id: m5stack-stickc-plus2, arch: esp32 },
           { id: m5stack-tab5, arch: esp32p4 },
