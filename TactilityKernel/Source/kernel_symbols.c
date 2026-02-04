@@ -74,6 +74,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(i2s_controller_write),
     DEFINE_MODULE_SYMBOL(i2s_controller_set_config),
     DEFINE_MODULE_SYMBOL(i2s_controller_get_config),
+    DEFINE_MODULE_SYMBOL(i2s_controller_reset),
     DEFINE_MODULE_SYMBOL(I2S_CONTROLLER_TYPE),
     // concurrent/dispatcher
     DEFINE_MODULE_SYMBOL(dispatcher_alloc),

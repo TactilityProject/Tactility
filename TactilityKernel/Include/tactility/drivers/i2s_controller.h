@@ -80,6 +80,13 @@ struct I2sControllerApi {
      * @retval ERROR_NONE when the operation was successful
      */
     error_t (*get_config)(struct Device* device, struct I2sConfig* config);
+
+    /**
+     * @brief Resets the I2S controller. Must configure it again before it can be used.
+     * @param[in] device the I2S controller device
+     * @retval ERROR_NONE when the operation was successful
+     */
+    error_t (*reset)(struct Device* device);
 };
 
 /**
@@ -119,6 +126,13 @@ error_t i2s_controller_set_config(struct Device* device, const struct I2sConfig*
  * @retval ERROR_NONE when the operation was successful
  */
 error_t i2s_controller_get_config(struct Device* device, struct I2sConfig* config);
+
+/**
+ * @brief Resets the I2S controller. Must configure it again before it can be used.
+ * @param[in] device the I2S controller device
+ * @retval ERROR_NONE when the operation was successful
+ */
+error_t i2s_controller_reset(struct Device* device);
 
 extern const struct DeviceType I2S_CONTROLLER_TYPE;
 

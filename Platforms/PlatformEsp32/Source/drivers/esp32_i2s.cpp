@@ -199,11 +199,21 @@ static error_t stop(Device* device) {
     return ERROR_NONE;
 }
 
+static error_t reset(Device* device) {
+    ESP_LOGI(TAG, "reset %s", device->name);
+    auto* driver_data = GET_DATA(device);
+    lock(driver_data);
+    cleanup_channel_handles(driver_data);
+    unlock(driver_data);
+    return ERROR_NONE;
+}
+
 const static I2sControllerApi esp32_i2s_api = {
     .read = read,
     .write = write,
     .set_config = set_config,
-    .get_config = get_config
+    .get_config = get_config,
+    .reset = reset
 };
 
 extern struct Module platform_module;

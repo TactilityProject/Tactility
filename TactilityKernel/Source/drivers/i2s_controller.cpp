@@ -27,6 +27,11 @@ error_t i2s_controller_get_config(Device* device, struct I2sConfig* config) {
     return I2S_DRIVER_API(driver)->get_config(device, config);
 }
 
+error_t i2s_controller_reset(struct Device* device) {
+    const auto* driver = device_get_driver(device);
+    return I2S_DRIVER_API(driver)->reset(device);
+}
+
 const struct DeviceType I2S_CONTROLLER_TYPE { 0 };
 
 }
