@@ -150,41 +150,6 @@ error_t esp32_i2c_get_port(struct Device* device, i2c_port_t* port) {
     return ERROR_NONE;
 }
 
-static error_t set_clock_frequency(Device* device, uint32_t clockFrequency) {
-    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
-    auto* driver_data = GET_DATA(device);
-    auto* dts_config = GET_CONFIG(device);
-    lock(driver_data);
-
-    // ESP32 I2C driver doesn't seem to have a direct "set_clock" function that doesn't re-init
-    // But i2c_param_config can be used.
-    i2c_config_t esp_config = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = dts_config->pinSda,
-        .scl_io_num = dts_config->pinScl,
-        .sda_pullup_en = dts_config->pinSdaPullUp,
-        .scl_pullup_en = dts_config->pinSclPullUp,
-        .master {
-            .clk_speed = clockFrequency
-        },
-        .clk_flags = 0
-    };
-
-    esp_err_t error = i2c_param_config(dts_config->port, &esp_config);
-    if (error == ESP_OK) {
-        dts_config->clockFrequency = clockFrequency;
-    }
-
-    unlock(driver_data);
-    return esp_err_to_error(error);
-}
-
-static error_t get_clock_frequency(Device* device, uint32_t* clockFrequency) {
-    auto* dts_config = GET_CONFIG(device);
-    *clockFrequency = dts_config->clockFrequency;
-    return ERROR_NONE;
-}
-
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
     auto dts_config = GET_CONFIG(device);
@@ -238,9 +203,7 @@ const static I2cControllerApi esp32_i2c_api = {
     .write = write,
     .write_read = write_read,
     .read_register = read_register,
-    .write_register = write_register,
-    .set_clock_frequency = set_clock_frequency,
-    .get_clock_frequency = get_clock_frequency
+    .write_register = write_register
 };
 
 extern struct Module platform_module;

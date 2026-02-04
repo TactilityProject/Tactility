@@ -166,7 +166,10 @@ static error_t get_config(Device* device, struct I2sConfig* config) {
     auto* driver_data = GET_DATA(device);
 
     lock(driver_data);
-    if (!driver_data->config_set) return ERROR_RESOURCE;
+    if (!driver_data->config_set) {
+        unlock(driver_data);
+        return ERROR_RESOURCE;
+    }
     memcpy(config, &driver_data->config, sizeof(I2sConfig));
     unlock(driver_data);
 
@@ -176,6 +179,7 @@ static error_t get_config(Device* device, struct I2sConfig* config) {
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
     auto* data = new(std::nothrow) InternalData();
+    if (!data) return ERROR_OUT_OF_MEMORY;
 
     device_set_driver_data(device, data);
 

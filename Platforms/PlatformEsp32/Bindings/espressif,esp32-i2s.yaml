@@ -7,21 +7,27 @@ compatible: "espressif,esp32-i2s"
 properties:
   port:
     type: int
+    required: true
     description: |
       The port number, defined by i2s_port_t.
       Depending on the hardware, these values are available: I2S_NUM_0, I2S_NUM_1
   pin-bclk:
     type: int
+    required: true
     description: BCK pin
   pin-ws:
     type: int
+    required: true
     description: WS pin
   pin-data-out:
     type: int
+    required: true
     description: DATA OUT pin
   pin-data-in:
     type: int
+    required: true
     description: DATA IN pin
   pin-mclk:
     type: int
+    required: true
     description: MCLK pin
