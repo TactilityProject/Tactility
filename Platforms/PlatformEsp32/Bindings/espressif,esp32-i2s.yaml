@@ -1,0 +1,27 @@
+description: ESP32 I2S Controller
+
+include: ["i2s-controller.yaml"]
+
+compatible: "espressif,esp32-i2s"
+
+properties:
+  port:
+    type: int
+    description: |
+      The port number, defined by i2s_port_t.
+      Depending on the hardware, these values are available: I2S_NUM_0, I2S_NUM_1
+  pin-bclk:
+    type: int
+    description: BCK pin
+  pin-ws:
+    type: int
+    description: WS pin
+  pin-data-out:
+    type: int
+    description: DATA OUT pin
+  pin-data-in:
+    type: int
+    description: DATA IN pin
+  pin-mclk:
+    type: int
+    description: MCLK pin

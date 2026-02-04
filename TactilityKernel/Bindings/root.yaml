@@ -1,3 +1,5 @@
+description: Represents root node of a device tree. It holds all other nodes.
+
 compatible: "root"
 
 properties:

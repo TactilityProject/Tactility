@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <driver/i2s.h>
+#include <driver/i2s_std.h>
+#include <driver/i2s_common.h>
 
 #include <tactility/driver.h>
 #include <tactility/drivers/i2s_controller.h>
@@ -9,10 +10,16 @@
 #include <tactility/error_esp32.h>
 #include <tactility/drivers/esp32_i2s.h>
 
+#include <new>
+
 #define TAG "esp32_i2s"
 
 struct InternalData {
     Mutex mutex { 0 };
+    i2s_chan_handle_t tx_handle = nullptr;
+    i2s_chan_handle_t rx_handle = nullptr;
+    I2sConfig config {};
+    bool config_set = false;
 
     InternalData() {
         mutex_construct(&mutex);
@@ -31,11 +38,70 @@ struct InternalData {
 
 extern "C" {
 
+static error_t cleanup_channel_handles(InternalData* driver_data) {
+    // TODO: error handling of i2ss functions
+    if (driver_data->tx_handle) {
+        i2s_channel_disable(driver_data->tx_handle);
+        i2s_del_channel(driver_data->tx_handle);
+        driver_data->tx_handle = nullptr;
+    }
+    if (driver_data->rx_handle) {
+        i2s_channel_disable(driver_data->rx_handle);
+        i2s_del_channel(driver_data->rx_handle);
+        driver_data->rx_handle = nullptr;
+    }
+    return ERROR_NONE;
+}
+
+static i2s_data_bit_width_t to_esp32_bits_per_sample(uint8_t bits) {
+    switch (bits) {
+        case 8: return I2S_DATA_BIT_WIDTH_8BIT;
+        case 16: return I2S_DATA_BIT_WIDTH_16BIT;
+        case 24: return I2S_DATA_BIT_WIDTH_24BIT;
+        case 32: return I2S_DATA_BIT_WIDTH_32BIT;
+        default: return I2S_DATA_BIT_WIDTH_16BIT;
+    }
+}
+
+static void get_esp32_std_config(const I2sConfig* config, const Esp32I2sConfig* dts_config, i2s_std_config_t* std_cfg) {
+    std_cfg->clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(config->sample_rate);
+    std_cfg->slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(to_esp32_bits_per_sample(config->bits_per_sample), I2S_SLOT_MODE_STEREO);
+    
+    if (config->communication_format & I2S_FORMAT_STAND_MSB) {
+        std_cfg->slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(to_esp32_bits_per_sample(config->bits_per_sample), I2S_SLOT_MODE_STEREO);
+    } else if (config->communication_format & (I2S_FORMAT_STAND_PCM_SHORT | I2S_FORMAT_STAND_PCM_LONG)) {
+        std_cfg->slot_cfg = I2S_STD_PCM_SLOT_DEFAULT_CONFIG(to_esp32_bits_per_sample(config->bits_per_sample), I2S_SLOT_MODE_STEREO);
+    }
+
+    if (config->channel_left != I2S_CHANNEL_NONE && config->channel_right == I2S_CHANNEL_NONE) {
+        std_cfg->slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
+    } else if (config->channel_left == I2S_CHANNEL_NONE && config->channel_right != I2S_CHANNEL_NONE) {
+        std_cfg->slot_cfg.slot_mask = I2S_STD_SLOT_RIGHT;
+    } else {
+        std_cfg->slot_cfg.slot_mask = I2S_STD_SLOT_BOTH;
+    }
+
+    std_cfg->gpio_cfg = {
+        .mclk = (gpio_num_t)dts_config->pin_mclk,
+        .bclk = (gpio_num_t)dts_config->pin_bclk,
+        .ws = (gpio_num_t)dts_config->pin_ws,
+        .dout = (gpio_num_t)dts_config->pin_data_out,
+        .din = (gpio_num_t)dts_config->pin_data_in,
+        .invert_flags = {
+            .mclk_inv = false,
+            .bclk_inv = false,
+            .ws_inv = false
+        }
+    };
+}
+
 static error_t read(Device* device, void* data, size_t data_size, size_t* bytes_read, TickType_t timeout) {
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
     auto* driver_data = GET_DATA(device);
+    if (!driver_data->rx_handle) return ERROR_NOT_SUPPORTED;
+    
     lock(driver_data);
-    const esp_err_t esp_error = i2s_read(GET_CONFIG(device)->port, data, data_size, bytes_read, timeout);
+    const esp_err_t esp_error = i2s_channel_read(driver_data->rx_handle, data, data_size, bytes_read, timeout);
     unlock(driver_data);
     return esp_err_to_error(esp_error);
 }
@@ -43,16 +109,12 @@ static error_t read(Device* device, void* data, size_t data_size, size_t* bytes_
 static error_t write(Device* device, const void* data, size_t data_size, size_t* bytes_written, TickType_t timeout) {
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
     auto* driver_data = GET_DATA(device);
+    if (!driver_data->tx_handle) return ERROR_NOT_SUPPORTED;
+
     lock(driver_data);
-    const esp_err_t esp_error = i2s_write(GET_CONFIG(device)->port, data, data_size, bytes_written, timeout);
+    const esp_err_t esp_error = i2s_channel_write(driver_data->tx_handle, data, data_size, bytes_written, timeout);
     unlock(driver_data);
     return esp_err_to_error(esp_error);
-}
-
-error_t esp32_i2s_get_port(struct Device* device, i2s_port_t* port) {
-    auto* config = GET_CONFIG(device);
-    *port = config->port;
-    return ERROR_NONE;
 }
 
 static error_t set_config(Device* device, const struct I2sConfig* config) {
@@ -61,91 +123,72 @@ static error_t set_config(Device* device, const struct I2sConfig* config) {
     auto* dts_config = GET_CONFIG(device);
     lock(driver_data);
 
-    esp_err_t esp_error = i2s_set_sample_rates(dts_config->port, config->sampleRate);
+    cleanup_channel_handles(driver_data);
+    driver_data->config_set = false;
+
+    // Create new channel handles
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(dts_config->port, I2S_ROLE_MASTER);
+    esp_err_t esp_error = i2s_new_channel(&chan_cfg, &driver_data->tx_handle, &driver_data->rx_handle);
     if (esp_error != ESP_OK) {
+        LOG_E(TAG, "Failed to create I2S channels: %s", esp_err_to_name(esp_error));
+        unlock(driver_data);
+        return ERROR_RESOURCE;
+    }
+
+    i2s_std_config_t std_cfg;
+    get_esp32_std_config(config, dts_config, &std_cfg);
+
+    if (driver_data->tx_handle) {
+        esp_error = i2s_channel_init_std_mode(driver_data->tx_handle, &std_cfg);
+        if (esp_error == ESP_OK) esp_error = i2s_channel_enable(driver_data->tx_handle);
+    }
+    if (esp_error == ESP_OK && driver_data->rx_handle) {
+        esp_error = i2s_channel_init_std_mode(driver_data->rx_handle, &std_cfg);
+        if (esp_error == ESP_OK) esp_error = i2s_channel_enable(driver_data->rx_handle);
+    }
+
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "Failed to initialize/enable I2S channels: %s", esp_err_to_name(esp_error));
+        cleanup_channel_handles(driver_data);
         unlock(driver_data);
         return esp_err_to_error(esp_error);
     }
 
-    esp_error = i2s_set_clk(dts_config->port, config->sampleRate, (i2s_bits_per_sample_t)config->bitsPerSample, (i2s_channel_fmt_t)config->channelFormat);
-    if (esp_error != ESP_OK) {
-        unlock(driver_data);
-        return esp_err_to_error(esp_error);
-    }
-
-    // Update dts_config to reflect current state
-    dts_config->sampleRate = config->sampleRate;
-    dts_config->bitsPerSample = config->bitsPerSample;
-    dts_config->channelFormat = config->channelFormat;
-    dts_config->communicationFormat = config->communicationFormat;
+    // Update runtime config to reflect current state
+    memcpy(&driver_data->config, config, sizeof(I2sConfig));
+    driver_data->config_set = true;
 
     unlock(driver_data);
     return ERROR_NONE;
 }
 
 static error_t get_config(Device* device, struct I2sConfig* config) {
-    auto* dts_config = GET_CONFIG(device);
-    config->mode = dts_config->mode;
-    config->sampleRate = dts_config->sampleRate;
-    config->bitsPerSample = dts_config->bitsPerSample;
-    config->channelFormat = dts_config->channelFormat;
-    config->communicationFormat = dts_config->communicationFormat;
+    auto* driver_data = GET_DATA(device);
+
+    lock(driver_data);
+    if (!driver_data->config_set) return ERROR_RESOURCE;
+    memcpy(config, &driver_data->config, sizeof(I2sConfig));
+    unlock(driver_data);
+
     return ERROR_NONE;
 }
 
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
-    auto dts_config = GET_CONFIG(device);
+    auto* data = new(std::nothrow) InternalData();
 
-    i2s_config_t esp_config = {
-        .mode = (i2s_mode_t)(I2S_MODE_TX | I2S_MODE_RX | (dts_config->mode == I2S_MODE_MASTER ? I2S_MODE_MASTER : I2S_MODE_SLAVE)),
-        .sample_rate = dts_config->sampleRate,
-        .bits_per_sample = (i2s_bits_per_sample_t)dts_config->bitsPerSample,
-        .channel_format = (i2s_channel_fmt_t)dts_config->channelFormat,
-        .communication_format = (i2s_comm_format_t)dts_config->communicationFormat,
-        .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count = 8,
-        .dma_buf_len = 64,
-        .use_apll = false,
-        .tx_desc_auto_clear = true,
-        .fixed_mclk = 0
-    };
-
-    esp_err_t error = i2s_driver_install(dts_config->port, &esp_config, 0, NULL);
-    if (error != ESP_OK) {
-        LOG_E(TAG, "Failed to install driver at port %d: %s", static_cast<int>(dts_config->port), esp_err_to_name(error));
-        return ERROR_RESOURCE;
-    }
-
-    i2s_pin_config_t pin_config = {
-        .bck_io_num = dts_config->pinBclk,
-        .ws_io_num = dts_config->pinWs,
-        .data_out_num = dts_config->pinDataOut,
-        .data_in_num = dts_config->pinDataIn
-    };
-
-    error = i2s_set_pin(dts_config->port, &pin_config);
-    if (error != ESP_OK) {
-        LOG_E(TAG, "Failed to set pins for port %d: %s", static_cast<int>(dts_config->port), esp_err_to_name(error));
-        i2s_driver_uninstall(dts_config->port);
-        return ERROR_RESOURCE;
-    }
-
-    auto* data = new InternalData();
     device_set_driver_data(device, data);
+
     return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
     ESP_LOGI(TAG, "stop %s", device->name);
-    auto* driver_data = static_cast<InternalData*>(device_get_driver_data(device));
+    auto* driver_data = GET_DATA(device);
 
-    i2s_port_t port = GET_CONFIG(device)->port;
-    esp_err_t result = i2s_driver_uninstall(port);
-    if (result != ESP_OK) {
-        LOG_E(TAG, "Failed to uninstall driver at port %d: %s", static_cast<int>(port), esp_err_to_name(result));
-        return ERROR_RESOURCE;
-    }
+    lock(driver_data);
+    cleanup_channel_handles(driver_data);
+    unlock(driver_data);
 
     device_set_driver_data(device, nullptr);
     delete driver_data;

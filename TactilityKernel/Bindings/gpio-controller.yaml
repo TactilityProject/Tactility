@@ -1,3 +1,4 @@
+description: GPIO controller
 properties:
   gpio-count:
     type: int

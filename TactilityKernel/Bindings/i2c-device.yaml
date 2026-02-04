@@ -1,4 +1,4 @@
-on-bus: i2c
+description: I2C device
 
 properties:
   register:

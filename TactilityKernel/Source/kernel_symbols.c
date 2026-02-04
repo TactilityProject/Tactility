@@ -59,6 +59,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(gpio_controller_set_options),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_options),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_pin_count),
+    DEFINE_MODULE_SYMBOL(GPIO_CONTROLLER_TYPE),
     // drivers/i2c_controller
     DEFINE_MODULE_SYMBOL(i2c_controller_read),
     DEFINE_MODULE_SYMBOL(i2c_controller_write),
@@ -69,6 +70,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(i2c_controller_has_device_at_address),
     DEFINE_MODULE_SYMBOL(i2c_controller_set_clock_frequency),
     DEFINE_MODULE_SYMBOL(i2c_controller_get_clock_frequency),
+    DEFINE_MODULE_SYMBOL(I2C_CONTROLLER_TYPE),
     // drivers/i2s_controller
     DEFINE_MODULE_SYMBOL(i2s_controller_read),
     DEFINE_MODULE_SYMBOL(i2s_controller_write),

@@ -26,6 +26,8 @@ extern "C" {
 #define GPIO_INTERRUPT_FROM_OPTIONS(options) (gpio_int_type_t)((options & GPIO_INTERRUPT_BITMASK) >> 5)
 #define GPIO_INTERRUPT_TO_OPTIONS(options, interrupt) (options | (interrupt << 5))
 
+#define GPIO_PIN_NONE -1
+
 typedef enum {
     GPIO_INTERRUPT_DISABLE = 0,
     GPIO_INTERRUPT_POS_EDGE = 1,

@@ -15,52 +15,26 @@ extern "C" {
 #include <tactility/error.h>
 
 /**
- * @brief I2S Mode
+ * @brief I2S communication format
  */
-typedef enum {
-    I2S_MODE_MASTER = 1,
-    I2S_MODE_SLAVE = 2,
-} i2s_mode_t;
+enum I2sCommunicationFormat {
+    I2S_FORMAT_STAND_I2S = 0x01,
+    I2S_FORMAT_STAND_MSB = 0x02,
+    I2S_FORMAT_STAND_PCM_SHORT = 0x04,
+    I2S_FORMAT_STAND_PCM_LONG = 0x08,
+};
 
-/**
- * @brief I2S Communication Format
- */
-typedef enum {
-    I2S_COMM_FORMAT_STAND_I2S = 0x01,
-    I2S_COMM_FORMAT_STAND_MSB = 0x02,
-    I2S_COMM_FORMAT_STAND_PCM_SHORT = 0x04,
-    I2S_COMM_FORMAT_STAND_PCM_LONG = 0x08,
-} i2s_comm_format_t;
-
-/**
- * @brief I2S Channel Format
- */
-typedef enum {
-    I2S_CHANNEL_FMT_RIGHT_LEFT = 0,
-    I2S_CHANNEL_FMT_ALL_RIGHT,
-    I2S_CHANNEL_FMT_ALL_LEFT,
-    I2S_CHANNEL_FMT_ONLY_RIGHT,
-    I2S_CHANNEL_FMT_ONLY_LEFT,
-} i2s_channel_fmt_t;
-
-/**
- * @brief I2S Bits Per Sample
- */
-typedef enum {
-    I2S_BITS_PER_SAMPLE_16BIT = 16,
-    I2S_BITS_PER_SAMPLE_24BIT = 24,
-    I2S_BITS_PER_SAMPLE_32BIT = 32,
-} i2s_bits_per_sample_t;
+#define I2S_CHANNEL_NONE -1
 
 /**
  * @brief I2S Config
  */
 struct I2sConfig {
-    i2s_mode_t mode;
-    uint32_t sampleRate;
-    i2s_bits_per_sample_t bitsPerSample;
-    i2s_channel_fmt_t channelFormat;
-    i2s_comm_format_t communicationFormat;
+    enum I2sCommunicationFormat communication_format;
+    uint32_t sample_rate;
+    uint8_t bits_per_sample; // 16, 24, 32
+    int8_t channel_left; // I2S_CHANNEL_NONE to disable
+    int8_t channel_right; // I2S_CHANNEL_NONE to disable
 };
 
 /**
@@ -71,25 +45,25 @@ struct I2sControllerApi {
      * @brief Reads data from I2S.
      * @param[in] device the I2S controller device
      * @param[out] data the buffer to store the read data
-     * @param[in] dataSize the number of bytes to read
-     * @param[out] bytesRead the number of bytes actually read
+     * @param[in] data_size the number of bytes to read
+     * @param[out] bytes_read the number of bytes actually read
      * @param[in] timeout the maximum time to wait for the operation to complete
      * @retval ERROR_NONE when the read operation was successful
      * @retval ERROR_TIMEOUT when the operation timed out
      */
-    error_t (*read)(struct Device* device, void* data, size_t dataSize, size_t* bytesRead, TickType_t timeout);
+    error_t (*read)(struct Device* device, void* data, size_t data_size, size_t* bytes_read, TickType_t timeout);
 
     /**
      * @brief Writes data to I2S.
      * @param[in] device the I2S controller device
      * @param[in] data the buffer containing the data to write
-     * @param[in] dataSize the number of bytes to write
-     * @param[out] bytesWritten the number of bytes actually written
+     * @param[in] data_size the number of bytes to write
+     * @param[out] bytes_written the number of bytes actually written
      * @param[in] timeout the maximum time to wait for the operation to complete
      * @retval ERROR_NONE when the write operation was successful
      * @retval ERROR_TIMEOUT when the operation timed out
      */
-    error_t (*write)(struct Device* device, const void* data, size_t dataSize, size_t* bytesWritten, TickType_t timeout);
+    error_t (*write)(struct Device* device, const void* data, size_t data_size, size_t* bytes_written, TickType_t timeout);
 
     /**
      * @brief Sets the I2S configuration.
@@ -112,23 +86,23 @@ struct I2sControllerApi {
  * @brief Reads data from I2S using the specified controller.
  * @param[in] device the I2S controller device
  * @param[out] data the buffer to store the read data
- * @param[in] dataSize the number of bytes to read
- * @param[out] bytesRead the number of bytes actually read
+ * @param[in] data_size the number of bytes to read
+ * @param[out] bytes_read the number of bytes actually read
  * @param[in] timeout the maximum time to wait for the operation to complete
  * @retval ERROR_NONE when the read operation was successful
  */
-error_t i2s_controller_read(struct Device* device, void* data, size_t dataSize, size_t* bytesRead, TickType_t timeout);
+error_t i2s_controller_read(struct Device* device, void* data, size_t data_size, size_t* bytes_read, TickType_t timeout);
 
 /**
  * @brief Writes data to I2S using the specified controller.
  * @param[in] device the I2S controller device
  * @param[in] data the buffer containing the data to write
- * @param[in] dataSize the number of bytes to write
- * @param[out] bytesWritten the number of bytes actually written
+ * @param[in] data_size the number of bytes to write
+ * @param[out] bytes_written the number of bytes actually written
  * @param[in] timeout the maximum time to wait for the operation to complete
  * @retval ERROR_NONE when the write operation was successful
  */
-error_t i2s_controller_write(struct Device* device, const void* data, size_t dataSize, size_t* bytesWritten, TickType_t timeout);
+error_t i2s_controller_write(struct Device* device, const void* data, size_t data_size, size_t* bytes_written, TickType_t timeout);
 
 /**
  * @brief Sets the I2S configuration using the specified controller.

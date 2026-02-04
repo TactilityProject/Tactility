@@ -3,6 +3,7 @@
 
 #include <tactility/bindings/bindings.h>
 #include <tactility/drivers/esp32_i2s.h>
+#include <driver/i2s_common.h>
 
 #ifdef __cplusplus
 extern "C" {
