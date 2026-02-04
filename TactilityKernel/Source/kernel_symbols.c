@@ -68,8 +68,6 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(i2c_controller_write_register),
     DEFINE_MODULE_SYMBOL(i2c_controller_write_register_array),
     DEFINE_MODULE_SYMBOL(i2c_controller_has_device_at_address),
-    DEFINE_MODULE_SYMBOL(i2c_controller_set_clock_frequency),
-    DEFINE_MODULE_SYMBOL(i2c_controller_get_clock_frequency),
     DEFINE_MODULE_SYMBOL(I2C_CONTROLLER_TYPE),
     // drivers/i2s_controller
     DEFINE_MODULE_SYMBOL(i2s_controller_read),
