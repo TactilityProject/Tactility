@@ -80,6 +80,22 @@ struct I2cControllerApi {
      * @retval ERROR_TIMEOUT when the operation timed out
      */
     error_t (*write_register)(struct Device* device, uint8_t address, uint8_t reg, const uint8_t* data, uint16_t dataSize, TickType_t timeout);
+
+    /**
+     * @brief Sets the I2C clock frequency.
+     * @param[in] device the I2C controller device
+     * @param[in] clockFrequency the new clock frequency in Hz
+     * @retval ERROR_NONE when the operation was successful
+     */
+    error_t (*set_clock_frequency)(struct Device* device, uint32_t clockFrequency);
+
+    /**
+     * @brief Gets the current I2C clock frequency.
+     * @param[in] device the I2C controller device
+     * @param[out] clockFrequency the buffer to store the current clock frequency
+     * @retval ERROR_NONE when the operation was successful
+     */
+    error_t (*get_clock_frequency)(struct Device* device, uint32_t* clockFrequency);
 };
 
 /**
@@ -160,6 +176,22 @@ error_t i2c_controller_write_register_array(struct Device* device, uint8_t addre
  * @retval ERROR_NONE when a device responded at the address
  */
 error_t i2c_controller_has_device_at_address(struct Device* device, uint8_t address, TickType_t timeout);
+
+/**
+ * @brief Sets the I2C clock frequency using the specified controller.
+ * @param[in] device the I2C controller device
+ * @param[in] clockFrequency the new clock frequency in Hz
+ * @retval ERROR_NONE when the operation was successful
+ */
+error_t i2c_controller_set_clock_frequency(struct Device* device, uint32_t clockFrequency);
+
+/**
+ * @brief Gets the current I2C clock frequency using the specified controller.
+ * @param[in] device the I2C controller device
+ * @param[out] clockFrequency the buffer to store the current clock frequency
+ * @retval ERROR_NONE when the operation was successful
+ */
+error_t i2c_controller_get_clock_frequency(struct Device* device, uint32_t* clockFrequency);
 
 extern const struct DeviceType I2C_CONTROLLER_TYPE;
 

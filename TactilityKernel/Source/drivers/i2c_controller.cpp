@@ -49,6 +49,16 @@ error_t i2c_controller_has_device_at_address(Device* device, uint8_t address, Ti
     return I2C_DRIVER_API(driver)->write(device, address, message, 2, timeout);
 }
 
+error_t i2c_controller_set_clock_frequency(Device* device, uint32_t clockFrequency) {
+    const auto* driver = device_get_driver(device);
+    return I2C_DRIVER_API(driver)->set_clock_frequency(device, clockFrequency);
+}
+
+error_t i2c_controller_get_clock_frequency(Device* device, uint32_t* clockFrequency) {
+    const auto* driver = device_get_driver(device);
+    return I2C_DRIVER_API(driver)->get_clock_frequency(device, clockFrequency);
+}
+
 const struct DeviceType I2C_CONTROLLER_TYPE { 0 };
 
 }
