@@ -32,6 +32,6 @@ error_t i2s_controller_reset(struct Device* device) {
     return I2S_DRIVER_API(driver)->reset(device);
 }
 
-const struct DeviceType I2S_CONTROLLER_TYPE { 0 };
+extern const struct DeviceType I2S_CONTROLLER_TYPE { 0 };
 
 }

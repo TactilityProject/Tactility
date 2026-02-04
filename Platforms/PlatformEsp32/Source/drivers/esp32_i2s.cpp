@@ -119,6 +119,16 @@ static error_t write(Device* device, const void* data, size_t data_size, size_t*
 
 static error_t set_config(Device* device, const struct I2sConfig* config) {
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
+
+    if (
+        config->bits_per_sample != 8 &&
+        config->bits_per_sample != 16 &&
+        config->bits_per_sample != 24 &&
+        config->bits_per_sample != 32
+    ) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
     auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
     lock(driver_data);
