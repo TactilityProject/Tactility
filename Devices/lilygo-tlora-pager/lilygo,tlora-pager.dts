@@ -3,6 +3,7 @@
 #include <bindings/tlora_pager.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2s.h>
 
 // Reference: https://wiki.lilygo.cc/get_started/en/LoRa_GPS/T-LoraPager/T-LoraPager.html#Pin-Overview
 / {
