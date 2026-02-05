@@ -37,9 +37,10 @@ array: NUMBER+
 property_value: quoted_text_array | QUOTED_TEXT | "<" value ">" | "<" values ">" | "[" array "]"
 device_property: PROPERTY_NAME ["=" property_value] ";"
 
-DEVICE_IDENTIFIER: /[a-zA-Z0-9_\-\/@]+/
+NODE_ALIAS: /[a-zA-Z0-9_\-\/@]+/
+NODE_NAME: /[a-zA-Z0-9_\-\/@]+/
 
-device: DEVICE_IDENTIFIER "{" (device | device_property)* "};"
+device: (NODE_ALIAS ":")? NODE_NAME "{" (device | device_property)* "};"
 
 dts_version: /[0-9a-zA-Z\-]+/
 

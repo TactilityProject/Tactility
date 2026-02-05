@@ -20,17 +20,18 @@ class DtsTransformer(Transformer):
             raise Exception(f"Unsupported DTS version: {version}")
         return DtsVersion(version)
     def device(self, tokens: list):
-        identifier = "UNKNOWN"
+        node_name = "UNKNOWN"
         properties = list()
         devices = list()
+        names = list()
         for index, entry in enumerate(tokens):
             if index == 0:
-                identifier = entry.value
+                node_name = entry.value
             elif type(entry) is DeviceProperty:
                 properties.append(entry)
             elif type(entry) is Device:
                 devices.append(entry)
-        return Device(identifier, properties, devices)
+        return Device(node_name, properties, devices)
     def device_property(self, objects: List[object]):
         name = objects[0]
         # Boolean property has no value as the value is implied to be true

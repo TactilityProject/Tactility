@@ -10,18 +10,18 @@ def write_include(file, include: IncludeC, verbose: bool):
     file.write(include.statement)
     file.write('\n')
 
-def get_device_identifier_safe(device: Device):
-    if device.identifier == "/":
+def get_device_node_name_safe(device: Device):
+    if device.node_name == "/":
         return "root"
     else:
-        return device.identifier
+        return device.node_name.replace("-", "_")
 
 def get_device_type_name(device: Device, bindings: list[Binding]):
     device_binding = find_device_binding(device, bindings)
     if device_binding is None:
-        raise Exception(f"Binding not found for {device.identifier}")
+        raise Exception(f"Binding not found for {device.node_name}")
     if device_binding.compatible is None:
-        raise Exception(f"Couldn't find compatible binding for {device.identifier}")
+        raise Exception(f"Couldn't find compatible binding for {device.node_name}")
     compatible_safe = device_binding.compatible.split(",")[-1]
     return compatible_safe.replace("-", "_")
 
@@ -34,7 +34,7 @@ def find_device_property(device: Device, name: str) -> DeviceProperty:
 def find_device_binding(device: Device, bindings: list[Binding]) -> Binding:
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
-        raise Exception(f"property 'compatible' not found in device {device.identifier}")
+        raise Exception(f"property 'compatible' not found in device {device.node_name}")
     for binding in bindings:
         if binding.compatible == compatible_property.value:
             return binding
@@ -60,10 +60,10 @@ def property_to_string(property: DeviceProperty) -> str:
 def resolve_parameters_from_bindings(device: Device, bindings: list[Binding]) -> list:
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
-        raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
+        raise Exception(f"Cannot find 'compatible' property for {device.node_name}")
     device_binding = find_binding(compatible_property.value, bindings)
     if device_binding is None:
-        raise Exception(f"Binding not found for {device.identifier} and compatible '{compatible_property.value}'")
+        raise Exception(f"Binding not found for {device.node_name} and compatible '{compatible_property.value}'")
     # Filter out system properties
     binding_properties = []
     for property in device_binding.properties:
@@ -75,7 +75,7 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding]) ->
         device_property = find_device_property(device, binding_property.name)
         if device_property is None:
             if binding_property.required:
-                raise Exception(f"device {device.identifier} doesn't have property '{binding_property.name}'")
+                raise Exception(f"device {device.node_name} doesn't have property '{binding_property.name}'")
             else:
                 result[index] = '0'
         else:
@@ -83,9 +83,9 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding]) ->
     return result
 
 def write_config(file, device: Device, bindings: list[Binding], type_name: str):
-    device_identifier = get_device_identifier_safe(device)
+    node_name = get_device_node_name_safe(device)
     config_type = f"{type_name}_config_dt"
-    config_variable_name = f"{device_identifier}_config"
+    config_variable_name = f"{node_name}_config"
     file.write(f"static const {config_type} {config_variable_name}" " = {\n")
     config_params = resolve_parameters_from_bindings(device, bindings)
     # Indent all params
@@ -99,24 +99,24 @@ def write_config(file, device: Device, bindings: list[Binding], type_name: str):
 
 def write_device_structs(file, device: Device, parent_device: Device, bindings: list[Binding], verbose: bool):
     if verbose:
-        print(f"Writing device struct for '{device.identifier}'")
+        print(f"Writing device struct for '{device.node_name}'")
     # Assemble some pre-requisites
     type_name = get_device_type_name(device, bindings)
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
-        raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
-    identifier = get_device_identifier_safe(device)
-    config_variable_name = f"{identifier}_config"
+        raise Exception(f"Cannot find 'compatible' property for {device.node_name}")
+    node_name = get_device_node_name_safe(device)
+    config_variable_name = f"{node_name}_config"
     if parent_device is not None:
-        parent_identifier = get_device_identifier_safe(parent_device)
-        parent_value = f"&{parent_identifier}"
+        parent_node_name = get_device_node_name_safe(parent_device)
+        parent_value = f"&{parent_node_name}"
     else:
         parent_value = "NULL"
     # Write config struct
     write_config(file, device, bindings, type_name)
     # Write device struct
-    file.write(f"static struct Device {identifier}" " = {\n")
-    file.write(f"\t.name = \"{device.identifier}\",\n") # Use original name
+    file.write(f"static struct Device {node_name}" " = {\n")
+    file.write(f"\t.name = \"{device.node_name}\",\n") # Use original name
     file.write(f"\t.config = &{config_variable_name},\n")
     file.write(f"\t.parent = {parent_value},\n")
     file.write("};\n\n")
@@ -126,14 +126,14 @@ def write_device_structs(file, device: Device, parent_device: Device, bindings: 
 
 def write_device_init(file, device: Device, bindings: list[Binding], verbose: bool):
     if verbose:
-        print(f"Processing device init code for '{device.identifier}'")
+        print(f"Processing device init code for '{device.node_name}'")
     # Assemble some pre-requisites
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
-        raise Exception(f"Cannot find 'compatible' property for {device.identifier}")
+        raise Exception(f"Cannot find 'compatible' property for {device.node_name}")
     # Type & instance names
-    identifier = get_device_identifier_safe(device)
-    device_variable = identifier
+    node_name = get_device_node_name_safe(device)
+    device_variable = node_name
     # Write device struct
     file.write("\t{ " f"&{device_variable}, \"{compatible_property.value}\"" " },\n")
     # Write children
