@@ -7,6 +7,7 @@ class DtsVersion:
 @dataclass
 class Device:
     node_name: str
+    node_alias: str
     properties: list
     devices: list
 

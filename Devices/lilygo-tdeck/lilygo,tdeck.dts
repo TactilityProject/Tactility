@@ -24,7 +24,7 @@
 		pin-mclk = <GPIO_PIN_NONE>;
 	};
 
-	i2c_internal {
+	i2c_internal: i2c0 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
 		clock-frequency = <400000>;
@@ -32,7 +32,7 @@
 		pin-scl = <8>;
 	};
 
-	i2c_external {
+	i2c_external: i2c1 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_1>;
 		clock-frequency = <400000>;
