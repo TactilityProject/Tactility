@@ -31,7 +31,8 @@ public:
             gpio_num_t pinD1,
             gpio_num_t pinD2,
             gpio_num_t pinD3,
-            MountBehaviour mountBehaviourAtBoot
+            MountBehaviour mountBehaviourAtBoot,
+            uint8_t busWidth = 4
         ) :
             pinClock(pinClock),
             pinCmd(pinCmd),
@@ -39,7 +40,8 @@ public:
             pinD1(pinD1),
             pinD2(pinD2),
             pinD3(pinD3),
-            mountBehaviourAtBoot(mountBehaviourAtBoot)
+            mountBehaviourAtBoot(mountBehaviourAtBoot),
+            busWidth(busWidth)
         {}
 
         int spiFrequencyKhz;
@@ -50,6 +52,7 @@ public:
         gpio_num_t pinD2;
         gpio_num_t pinD3;
         MountBehaviour mountBehaviourAtBoot;
+        uint8_t busWidth;
         bool formatOnMountFailed = false;
         uint16_t maxOpenFiles = 4;
         uint16_t allocUnitSize = 16 * 1024;

@@ -41,7 +41,7 @@ bool SdmmcDevice::mountInternal(const std::string& newMountPath) {
         .d7  = static_cast<gpio_num_t>(0),
         .cd  = GPIO_NUM_NC,
         .wp  = GPIO_NUM_NC,
-        .width = 4,
+        .width = config->busWidth,
         .flags = 0
       };
 
