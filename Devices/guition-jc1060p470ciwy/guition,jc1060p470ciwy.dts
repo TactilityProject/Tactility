@@ -3,7 +3,16 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2s.h>
 
+/**
+ * For future reference:
+ *  - ES8311 on I2C with PA PIN at GPIO 11
+ *  - Built-in led at GPIO 26
+ *  - Boot button at GPIO 21
+ *  - LCD reset: GPIO 27
+ *  - LCD backlight: GPIO 23
+ */
 / {
 	compatible = "root";
 	model = "Guition JC1060P470C-I-W-Y";
@@ -21,5 +30,15 @@
 		pin-scl = <8>;
 		pin-sda-pullup;
 		pin-scl-pullup;
+	};
+
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <12>;
+		pin-ws = <10>;
+		pin-data-out = <9>;
+		pin-data-in = <48>;
+		pin-mclk = <13>;
 	};
 };

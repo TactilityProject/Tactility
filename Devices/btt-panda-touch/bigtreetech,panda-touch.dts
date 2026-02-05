@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 
+// Reference: https://github.com/bigtreetech/PandaTouch_PlatformIO/blob/master/docs/PINOUT.md
 / {
 	compatible = "root";
 	model = "BigTreeTech Panda Touch";

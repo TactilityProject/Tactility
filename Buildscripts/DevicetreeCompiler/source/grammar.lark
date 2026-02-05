@@ -9,8 +9,10 @@
 
 // Comment
 
-COMMENT: /\/\*([^*]|\*+[^*\/])*\*+\//
-%ignore COMMENT
+SINGLE_LINE_COMMENT: /\/\/[^\n]*/
+MULTI_LINE_COMMENT: /\/\*([^*]|\*+[^*\/])*\*+\//
+%ignore SINGLE_LINE_COMMENT
+%ignore MULTI_LINE_COMMENT
 
 // Boolean
 

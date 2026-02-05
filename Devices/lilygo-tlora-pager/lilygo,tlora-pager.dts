@@ -3,7 +3,9 @@
 #include <bindings/tlora_pager.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2s.h>
 
+// Reference: https://wiki.lilygo.cc/get_started/en/LoRa_GPS/T-LoraPager/T-LoraPager.html#Pin-Overview
 / {
 	compatible = "lilygo,tlora-pager";
 	model = "LilyGO T-Lora Pager";
@@ -19,5 +21,16 @@
 		clock-frequency = <100000>;
 		pin-sda = <3>;
 		pin-scl = <2>;
+	};
+
+	// ES8311 (also connected to I2C bus)
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <11>;
+		pin-ws = <18>;
+		pin-data-out = <45>;
+		pin-data-in = <17>;
+		pin-mclk = <10>;
 	};
 };
