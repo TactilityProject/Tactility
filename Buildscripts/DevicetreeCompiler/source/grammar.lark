@@ -27,14 +27,14 @@ QUOTED_TEXT: QUOTE /[^"]+/ QUOTE
 quoted_text_array: QUOTED_TEXT ("," " "* QUOTED_TEXT)+
 HEX_NUMBER: "0x" HEXDIGIT+
 NUMBER: SIGNED_NUMBER | HEX_NUMBER
-PHANDLE: /&[0-9a-zA-Z\-]+/
+PHANDLE: /&[0-9a-zA-Z_\-]+/
 C_VARIABLE: /[0-9a-zA-Z_]+/
 VALUE: NUMBER | PHANDLE | C_VARIABLE
 value: VALUE
 values: VALUE+
 array: NUMBER+
 
-property_value: quoted_text_array | QUOTED_TEXT | "<" value ">" | "<" values ">" | "[" array "]"
+property_value: quoted_text_array | QUOTED_TEXT | "<" value ">" | "<" values ">" | "[" array "]" | PHANDLE
 device_property: PROPERTY_NAME ["=" property_value] ";"
 
 NODE_ALIAS: /[a-zA-Z0-9_\-\/@]+/

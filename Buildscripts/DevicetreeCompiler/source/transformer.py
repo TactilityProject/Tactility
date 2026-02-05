@@ -3,12 +3,18 @@ from typing import List
 from lark import Transformer
 from lark import Token
 from source.models import *
+from dataclasses import dataclass
 
 def flatten_token_array(tokens: List[Token], name: str):
     result_list = list()
     for token in tokens:
         result_list.append(token.value)
     return Token(name, result_list)
+
+@dataclass
+class NodeNameAndAlias:
+    name: str
+    alias: str
 
 class DtsTransformer(Transformer):
     # Flatten the start node into a list
@@ -47,6 +53,8 @@ class DtsTransformer(Transformer):
         if type(token) is Token:
             raise Exception(f"Failed to convert token to PropertyValue: {token}")
         return token
+    def PHANDLE(self, token: Token):
+        return PropertyValue(type="phandle", value=token.value[1:])
     def values(self, object):
         return PropertyValue(type="values", value=object)
     def value(self, object):

@@ -46,7 +46,13 @@ def find_binding(compatible: str, bindings: list[Binding]) -> Binding:
             return binding
     return None
 
-def property_to_string(property: DeviceProperty) -> str:
+def find_phandle(devices: list[Device], phandle: str):
+    for device in devices:
+        if device.node_name == phandle or device.node_alias == phandle:
+            return f"&{get_device_node_name_safe(device)}"
+    raise Exception(f"phandle '{phandle}' not found in device tree")
+
+def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
     type = property.type
     if type == "value":
         return property.value
@@ -54,10 +60,12 @@ def property_to_string(property: DeviceProperty) -> str:
         return f"\"{property.value}\""
     elif type == "values":
         return "{ " + ",".join(property.value) + " }"
+    elif type == "phandle":
+        return find_phandle(devices, property.value)
     else:
         raise Exception(f"property_to_string() has an unsupported type: {type}")
 
-def resolve_parameters_from_bindings(device: Device, bindings: list[Binding]) -> list:
+def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], devices: list[Device]) -> list:
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
         raise Exception(f"Cannot find 'compatible' property for {device.node_name}")
@@ -79,15 +87,15 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding]) ->
             else:
                 result[index] = '0'
         else:
-            result[index] = property_to_string(device_property)
+            result[index] = property_to_string(device_property, devices)
     return result
 
-def write_config(file, device: Device, bindings: list[Binding], type_name: str):
+def write_config(file, device: Device, bindings: list[Binding], devices: list[Device], type_name: str):
     node_name = get_device_node_name_safe(device)
     config_type = f"{type_name}_config_dt"
     config_variable_name = f"{node_name}_config"
     file.write(f"static const {config_type} {config_variable_name}" " = {\n")
-    config_params = resolve_parameters_from_bindings(device, bindings)
+    config_params = resolve_parameters_from_bindings(device, bindings, devices)
     # Indent all params
     for index, config_param in enumerate(config_params):
         config_params[index] = f"\t{config_param}"
@@ -97,7 +105,7 @@ def write_config(file, device: Device, bindings: list[Binding], type_name: str):
         file.write(f"{config_params_joined}\n")
     file.write("};\n\n")
 
-def write_device_structs(file, device: Device, parent_device: Device, bindings: list[Binding], verbose: bool):
+def write_device_structs(file, device: Device, parent_device: Device, bindings: list[Binding], devices: list[Device], verbose: bool):
     if verbose:
         print(f"Writing device struct for '{device.node_name}'")
     # Assemble some pre-requisites
@@ -113,16 +121,13 @@ def write_device_structs(file, device: Device, parent_device: Device, bindings: 
     else:
         parent_value = "NULL"
     # Write config struct
-    write_config(file, device, bindings, type_name)
+    write_config(file, device, bindings, devices, type_name)
     # Write device struct
     file.write(f"static struct Device {node_name}" " = {\n")
     file.write(f"\t.name = \"{device.node_name}\",\n") # Use original name
     file.write(f"\t.config = &{config_variable_name},\n")
     file.write(f"\t.parent = {parent_value},\n")
     file.write("};\n\n")
-    # Child devices
-    for child_device in device.devices:
-        write_device_structs(file, child_device, device, bindings, verbose)
 
 def write_device_init(file, device: Device, bindings: list[Binding], verbose: bool):
     if verbose:
@@ -136,11 +141,19 @@ def write_device_init(file, device: Device, bindings: list[Binding], verbose: bo
     device_variable = node_name
     # Write device struct
     file.write("\t{ " f"&{device_variable}, \"{compatible_property.value}\"" " },\n")
-    # Write children
+
+# Walk the tree and gather all devices
+def gather_devices(device: Device, output: list[Device]):
+    output.append(device)
     for child_device in device.devices:
-        write_device_init(file, child_device, bindings, verbose)
+        gather_devices(child_device, output)
 
 def generate_devicetree_c(filename: str, items: list[object], bindings: list[Binding], verbose: bool):
+    devices = list()
+    for item in items:
+        if type(item) is Device:
+            gather_devices(item, devices)
+
     with open(filename, "w") as file:
         file.write(dedent('''\
         // Default headers
@@ -155,15 +168,13 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         file.write("\n")
 
         # Then write all devices
-        for item in items:
-            if type(item) is Device:
-                write_device_structs(file, item, None, bindings, verbose)
+        for device in devices:
+            write_device_structs(file, device, None, bindings, devices, verbose)
         # Init function body start
         file.write("struct CompatibleDevice devicetree_devices[] = {\n")
         # Init function body logic
-        for item in items:
-            if type(item) is Device:
-                write_device_init(file, item, bindings, verbose)
+        for device in devices:
+            write_device_init(file, device, bindings, verbose)
         # Init function body end
         file.write("\t{ NULL, NULL },\n")
         file.write("};\n")
