@@ -36,5 +36,4 @@
 		pin-data-in = <46>;
 		pin-mclk = <GPIO_PIN_NONE>;
 	};
-
 };
