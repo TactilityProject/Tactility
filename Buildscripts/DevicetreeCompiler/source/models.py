@@ -27,6 +27,10 @@ class IncludeC:
     statement: str
 
 @dataclass
+class DefineC:
+    statement: str
+
+@dataclass
 class BindingProperty:
     name: str
     type: str

@@ -21,6 +21,7 @@ BOOLEAN: "true" | "false"
 // Main
 
 INCLUDE_C: /#include <[\w\/.\-]+>/
+DEFINE_C: /#define[^\n]+/
 
 PROPERTY_NAME: /#?[a-zA-Z0-9_\-,]+/
 
@@ -46,4 +47,4 @@ device: (NODE_ALIAS ":")? NODE_NAME "{" (device | device_property)* "};"
 
 dts_version: /[0-9a-zA-Z\-]+/
 
-start: "/" dts_version "/;" INCLUDE_C* device+
+start: "/" dts_version "/;" (INCLUDE_C | DEFINE_C)* device+

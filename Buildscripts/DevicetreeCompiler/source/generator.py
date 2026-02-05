@@ -10,6 +10,13 @@ def write_include(file, include: IncludeC, verbose: bool):
     file.write(include.statement)
     file.write('\n')
 
+def write_define(file, define: DefineC, verbose: bool):
+    if verbose:
+        print("Processing define:")
+        print(f"  {define.statement}")
+    file.write(define.statement)
+    file.write('\n')
+
 def get_device_node_name_safe(device: Device):
     if device.node_name == "/":
         return "root"
@@ -165,6 +172,8 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         for item in items:
             if type(item) is IncludeC:
                 write_include(file, item, verbose)
+            elif type(item) is DefineC:
+                write_define(file, item, verbose)
         file.write("\n")
 
         # Then write all devices

@@ -76,3 +76,5 @@ class DtsTransformer(Transformer):
         return PropertyValue("text_array", result_list)
     def INCLUDE_C(self, token: Token):
         return IncludeC(token.value)
+    def DEFINE_C(self, token: Token):
+        return DefineC(token.value)
