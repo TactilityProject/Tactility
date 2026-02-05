@@ -14,7 +14,7 @@ struct HalDevicePrivate {
     std::shared_ptr<tt::hal::Device> halDevice;
 };
 
-#define GET_DATA(device) ((struct HalDevicePrivate*)device->internal.driver_data)
+#define GET_DATA(device) ((HalDevicePrivate*)device_get_driver_data(device))
 
 static enum HalDeviceType getHalDeviceType(tt::hal::Device::Type type) {
     switch (type) {
@@ -94,7 +94,9 @@ void hal_device_set_device(::Device* kernelDevice, std::shared_ptr<Device> halDe
 
 static error_t start(Device* device) {
     LOG_I(TAG, "start %s", device->name);
-    device->internal.driver_data = new HalDevicePrivate();
+    auto hal_device_data = new(std::nothrow) HalDevicePrivate();
+    if (hal_device_data == nullptr) return ERROR_OUT_OF_MEMORY;
+    device_set_driver_data(device, hal_device_data);
     return ERROR_NONE;
 }
 
