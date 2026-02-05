@@ -21,13 +21,11 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_color_white),
     DEFINE_MODULE_SYMBOL(lv_obj_center),
     DEFINE_MODULE_SYMBOL(lv_obj_clean),
-    DEFINE_MODULE_SYMBOL(lv_obj_clear_flag),
     DEFINE_MODULE_SYMBOL(lv_obj_create),
     DEFINE_MODULE_SYMBOL(lv_obj_delete),
     DEFINE_MODULE_SYMBOL(lv_obj_add_event_cb),
     DEFINE_MODULE_SYMBOL(lv_obj_add_flag),
     DEFINE_MODULE_SYMBOL(lv_obj_add_state),
-    DEFINE_MODULE_SYMBOL(lv_obj_clear_state),
     DEFINE_MODULE_SYMBOL(lv_obj_set_state),
     DEFINE_MODULE_SYMBOL(lv_obj_align),
     DEFINE_MODULE_SYMBOL(lv_obj_align_to),
@@ -146,7 +144,6 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_theme_get_font_large),
     // lv_button
     DEFINE_MODULE_SYMBOL(lv_button_create),
-    DEFINE_MODULE_SYMBOL(lv_btn_create),
     // lv_buttonmatrix
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_create),
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_get_button_text),
@@ -352,7 +349,6 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lv_image
     DEFINE_MODULE_SYMBOL(lv_image_create),
     DEFINE_MODULE_SYMBOL(lv_image_set_src),
-    DEFINE_MODULE_SYMBOL(lv_img_set_src),
     // lv_anim
     DEFINE_MODULE_SYMBOL(lv_anim_init),
     DEFINE_MODULE_SYMBOL(lv_anim_set_duration),
