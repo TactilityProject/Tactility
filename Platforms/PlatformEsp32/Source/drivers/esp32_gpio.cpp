@@ -123,7 +123,7 @@ Driver esp32_gpio_driver = {
     .api =  (void*)&esp32_gpio_api,
     .device_type = &GPIO_CONTROLLER_TYPE,
     .owner = &platform_module,
-    .driver_private = nullptr
+    .internal = nullptr
 };
 
 } // extern "C"

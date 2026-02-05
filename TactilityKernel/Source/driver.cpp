@@ -12,16 +12,16 @@
 
 #define TAG "driver"
 
-struct DriverPrivate {
+struct DriverInternal {
     Mutex mutex { 0 };
     int use_count = 0;
     bool destroying = false;
 
-    DriverPrivate() {
+    DriverInternal() {
         mutex_construct(&mutex);
     }
 
-    ~DriverPrivate() {
+    ~DriverInternal() {
         mutex_destruct(&mutex);
     }
 };
@@ -44,15 +44,15 @@ static DriverLedger& get_ledger() {
 
 #define ledger get_ledger()
 
-#define get_driver_private(driver) static_cast<DriverPrivate*>(driver->driver_private)
+#define get_driver_private(driver) static_cast<DriverInternal*>(driver->internal)
 #define driver_lock(driver) mutex_lock(&get_driver_private(driver)->mutex);
 #define driver_unlock(driver) mutex_unlock(&get_driver_private(driver)->mutex);
 
 extern "C" {
 
 error_t driver_construct(Driver* driver) {
-    driver->driver_private = new(std::nothrow) DriverPrivate;
-    if (driver->driver_private == nullptr) {
+    driver->internal = new(std::nothrow) DriverInternal;
+    if (driver->internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
     return ERROR_NONE;
@@ -73,7 +73,7 @@ error_t driver_destruct(Driver* driver) {
 
     driver_unlock(driver);
     delete get_driver_private(driver);
-    driver->driver_private = nullptr;
+    driver->internal = nullptr;
 
     return ERROR_NONE;
 }

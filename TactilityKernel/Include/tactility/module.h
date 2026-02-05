@@ -25,6 +25,8 @@ struct ModuleSymbol {
     const void* symbol;
 };
 
+struct ModuleInternal;
+
 /**
  * A module is a collection of drivers or other functionality that can be loaded and unloaded at runtime.
  */
@@ -59,7 +61,7 @@ struct Module {
      */
     const struct ModuleSymbol* symbols;
 
-    void* internal;
+    struct ModuleInternal* internal;
 };
 
 /**

@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 struct Driver;
-struct DevicePrivate;
+struct DeviceInternal;
 
 /** Enables discovering devices of the same type */
 struct DeviceType {
@@ -33,22 +33,7 @@ struct Device {
     /** The parent device that this device belongs to. Can be NULL, but only the root device should have a NULL parent. */
     struct Device* parent;
     /** Internal data */
-    struct {
-        /** Address of the API exposed by the device instance. */
-        struct Driver* driver;
-        /** The driver data for this device (e.g. a mutex) */
-        void* driver_data;
-        /** The mutex for device operations */
-        struct Mutex mutex;
-        /** The device state */
-        struct {
-            int start_result;
-            bool started : 1;
-            bool added : 1;
-        } state;
-        /** Private data */
-        struct DevicePrivate* device_private;
-    } internal;
+    struct DeviceInternal* internal;
 };
 
 /**

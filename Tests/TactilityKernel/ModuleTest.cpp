@@ -28,7 +28,7 @@ TEST_CASE("Module construction and destruction") {
 
     // Test successful construction
     CHECK_EQ(module_construct(&module), ERROR_NONE);
-    CHECK_EQ(module.internal.started, false);
+    CHECK_EQ(module_is_started(&module), false);
 
     // Test successful destruction
     CHECK_EQ(module_destruct(&module), ERROR_NONE);

@@ -13,7 +13,20 @@
 
 #define TAG "device"
 
-struct DevicePrivate {
+struct DeviceInternal {
+    /** Address of the API exposed by the device instance. */
+    struct Driver* driver;
+    /** The driver data for this device (e.g. a mutex) */
+    void* driver_data;
+    /** The mutex for device operations */
+    struct Mutex mutex;
+    /** The device state */
+    struct {
+        int start_result;
+        bool started : 1;
+        bool added : 1;
+    } state;
+    /** Attached child devices */
     std::vector<Device*> children;
 };
 
@@ -42,47 +55,44 @@ extern "C" {
 #define ledger_lock() mutex_lock(&ledger.mutex)
 #define ledger_unlock() mutex_unlock(&ledger.mutex)
 
-#define get_device_private(device) static_cast<DevicePrivate*>(device->internal.device_private)
-
 error_t device_construct(Device* device) {
-    device->internal.device_private = new(std::nothrow) DevicePrivate;
-    if (device->internal.device_private == nullptr) {
+    device->internal = new(std::nothrow) DeviceInternal;
+    if (device->internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
     LOG_D(TAG, "construct %s", device->name);
-    mutex_construct(&device->internal.mutex);
+    mutex_construct(&device->internal->mutex);
     return ERROR_NONE;
 }
 
 error_t device_destruct(Device* device) {
-    if (device->internal.state.started || device->internal.state.added) {
+    if (device->internal->state.started || device->internal->state.added) {
         return ERROR_INVALID_STATE;
     }
-    if (!get_device_private(device)->children.empty()) {
+    if (!device->internal->children.empty()) {
         return ERROR_INVALID_STATE;
     }
     LOG_D(TAG, "destruct %s", device->name);
-    mutex_destruct(&device->internal.mutex);
-    delete get_device_private(device);
-    device->internal.device_private = nullptr;
+    mutex_destruct(&device->internal->mutex);
+    delete device->internal;
+    device->internal = nullptr;
     return ERROR_NONE;
 }
 
 /** Add a child to the list of children */
 static void device_add_child(struct Device* device, struct Device* child) {
     device_lock(device);
-    assert(device->internal.state.added);
-    get_device_private(device)->children.push_back(child);
+    check(device->internal->state.added);
+    device->internal->children.push_back(child);
     device_unlock(device);
 }
 
 /** Remove a child from the list of children */
 static void device_remove_child(struct Device* device, struct Device* child) {
     device_lock(device);
-    auto* parent_data = get_device_private(device);
-    const auto iterator = std::ranges::find(parent_data->children, child);
-    if (iterator != parent_data->children.end()) {
-        parent_data->children.erase(iterator);
+    const auto iterator = std::ranges::find(device->internal->children, child);
+    if (iterator != device->internal->children.end()) {
+        device->internal->children.erase(iterator);
     }
     device_unlock(device);
 }
@@ -91,7 +101,7 @@ error_t device_add(Device* device) {
     LOG_D(TAG, "add %s", device->name);
 
     // Already added
-    if (device->internal.state.started || device->internal.state.added) {
+    if (device->internal->state.started || device->internal->state.added) {
         return ERROR_INVALID_STATE;
     }
 
@@ -106,14 +116,14 @@ error_t device_add(Device* device) {
         device_add_child(parent, device);
     }
 
-    device->internal.state.added = true;
+    device->internal->state.added = true;
     return ERROR_NONE;
 }
 
 error_t device_remove(Device* device) {
     LOG_D(TAG, "remove %s", device->name);
 
-    if (device->internal.state.started || !device->internal.state.added) {
+    if (device->internal->state.started || !device->internal->state.added) {
         return ERROR_INVALID_STATE;
     }
 
@@ -132,7 +142,7 @@ error_t device_remove(Device* device) {
     ledger.devices.erase(iterator);
     ledger_unlock();
 
-    device->internal.state.added = false;
+    device->internal->state.added = false;
     return ERROR_NONE;
 
 failed_ledger_lookup:
@@ -147,41 +157,41 @@ failed_ledger_lookup:
 
 error_t device_start(Device* device) {
     LOG_I(TAG, "start %s", device->name);
-    if (!device->internal.state.added) {
+    if (!device->internal->state.added) {
         return ERROR_INVALID_STATE;
     }
 
-    if (device->internal.driver == nullptr) {
+    if (device->internal->driver == nullptr) {
         return ERROR_INVALID_STATE;
     }
 
     // Already started
-    if (device->internal.state.started) {
+    if (device->internal->state.started) {
         return ERROR_NONE;
     }
 
-    error_t bind_error = driver_bind(device->internal.driver, device);
-    device->internal.state.started = (bind_error == ERROR_NONE);
-    device->internal.state.start_result = bind_error;
+    error_t bind_error = driver_bind(device->internal->driver, device);
+    device->internal->state.started = (bind_error == ERROR_NONE);
+    device->internal->state.start_result = bind_error;
     return bind_error == ERROR_NONE ? ERROR_NONE : ERROR_RESOURCE;
 }
 
 error_t device_stop(struct Device* device) {
     LOG_I(TAG, "stop %s", device->name);
-    if (!device->internal.state.added) {
+    if (!device->internal->state.added) {
         return ERROR_INVALID_STATE;
     }
 
-    if (!device->internal.state.started) {
+    if (!device->internal->state.started) {
         return ERROR_NONE;
     }
 
-    if (driver_unbind(device->internal.driver, device) != ERROR_NONE) {
+    if (driver_unbind(device->internal->driver, device) != ERROR_NONE) {
         return ERROR_RESOURCE;
     }
 
-    device->internal.state.started = false;
-    device->internal.state.start_result = 0;
+    device->internal->state.started = false;
+    device->internal->state.start_result = 0;
     return ERROR_NONE;
 }
 
@@ -236,7 +246,7 @@ on_construct_add_error:
 }
 
 void device_set_parent(Device* device, Device* parent) {
-    assert(!device->internal.state.started);
+    assert(!device->internal->state.started);
     device->parent = parent;
 }
 
@@ -245,43 +255,43 @@ Device* device_get_parent(struct Device* device) {
 }
 
 void device_set_driver(struct Device* device, struct Driver* driver) {
-    device->internal.driver = driver;
+    device->internal->driver = driver;
 }
 
 struct Driver* device_get_driver(struct Device* device) {
-    return device->internal.driver;
+    return device->internal->driver;
 }
 
 bool device_is_ready(const struct Device* device) {
-    return device->internal.state.started;
+    return device->internal->state.started;
 }
 
 void device_set_driver_data(struct Device* device, void* driver_data) {
-    device->internal.driver_data = driver_data;
+    device->internal->driver_data = driver_data;
 }
 
 void* device_get_driver_data(struct Device* device) {
-    return device->internal.driver_data;
+    return device->internal->driver_data;
 }
 
 bool device_is_added(const struct Device* device) {
-    return device->internal.state.added;
+    return device->internal->state.added;
 }
 
 void device_lock(struct Device* device) {
-    mutex_lock(&device->internal.mutex);
+    mutex_lock(&device->internal->mutex);
 }
 
 bool device_try_lock(struct Device* device) {
-    return mutex_try_lock(&device->internal.mutex);
+    return mutex_try_lock(&device->internal->mutex);
 }
 
 void device_unlock(struct Device* device) {
-    mutex_unlock(&device->internal.mutex);
+    mutex_unlock(&device->internal->mutex);
 }
 
 const struct DeviceType* device_get_type(struct Device* device) {
-    return device->internal.driver ? device->internal.driver->device_type : NULL;
+    return device->internal->driver ? device->internal->driver->device_type : NULL;
 }
 
 void device_for_each(void* callback_context, bool(*on_device)(Device* device, void* context)) {
@@ -295,8 +305,7 @@ void device_for_each(void* callback_context, bool(*on_device)(Device* device, vo
 }
 
 void device_for_each_child(Device* device, void* callbackContext, bool(*on_device)(struct Device* device, void* context)) {
-    auto* data = get_device_private(device);
-    for (auto* child_device : data->children) {
+    for (auto* child_device : device->internal->children) {
         if (!on_device(child_device, callbackContext)) {
             break;
         }
@@ -306,7 +315,7 @@ void device_for_each_child(Device* device, void* callbackContext, bool(*on_devic
 void device_for_each_of_type(const DeviceType* type, void* callbackContext, bool(*on_device)(Device* device, void* context)) {
     ledger_lock();
     for (auto* device : ledger.devices) {
-        auto* driver = device->internal.driver;
+        auto* driver = device->internal->driver;
         if (driver != nullptr) {
             if (driver->device_type == type) {
                 if (!on_device(device, callbackContext)) {

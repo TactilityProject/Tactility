@@ -236,7 +236,7 @@ Driver esp32_i2s_driver = {
     .api = (void*)&esp32_i2s_api,
     .device_type = &I2S_CONTROLLER_TYPE,
     .owner = &platform_module,
-    .driver_private = nullptr
+    .internal = nullptr
 };
 
 } // extern "C"

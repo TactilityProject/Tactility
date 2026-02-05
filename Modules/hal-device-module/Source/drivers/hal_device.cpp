@@ -120,7 +120,7 @@ Driver hal_device_driver = {
     .api = nullptr,
     .device_type = &HAL_DEVICE_TYPE,
     .owner = &hal_device_module,
-    .driver_private = nullptr
+    .internal = nullptr
 };
 
 }

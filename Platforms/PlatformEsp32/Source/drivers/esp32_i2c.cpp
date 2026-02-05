@@ -216,7 +216,7 @@ Driver esp32_i2c_driver = {
     .api = (void*)&esp32_i2c_api,
     .device_type = &I2C_CONTROLLER_TYPE,
     .owner = &platform_module,
-    .driver_private = nullptr
+    .internal = nullptr
 };
 
 } // extern "C"

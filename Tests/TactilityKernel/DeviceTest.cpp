@@ -12,26 +12,17 @@ static Module module = {
     .stop = nullptr
 };
 
-TEST_CASE("device_construct and device_destruct should set and unset the correct fields") {
+TEST_CASE("device_construct and device_destruct should set and unset the internal field") {
     Device device = { 0 };
 
     error_t error = device_construct(&device);
     CHECK_EQ(error, ERROR_NONE);
 
-    CHECK_NE(device.internal.device_private, nullptr);
-    CHECK_NE(device.internal.mutex.handle, nullptr);
+    CHECK_NE(device.internal, nullptr);
 
     CHECK_EQ(device_destruct(&device), ERROR_NONE);
 
-    CHECK_EQ(device.internal.device_private, nullptr);
-    CHECK_EQ(device.internal.mutex.handle, nullptr);
-
-    Device comparison_device = { 0 };
-    comparison_device.internal.device_private = device.internal.device_private;
-    comparison_device.internal.mutex.handle = device.internal.mutex.handle;
-
-    // Check that no other data was set
-    CHECK_EQ(memcmp(&device, &comparison_device, sizeof(Device)), 0);
+    CHECK_EQ(device.internal, nullptr);
 }
 
 TEST_CASE("device_add should add the device to the list of all devices") {
@@ -91,9 +82,9 @@ TEST_CASE("device_add should set the state to 'added'") {
     Device device = { 0 };
     CHECK_EQ(device_construct(&device), ERROR_NONE);
 
-    CHECK_EQ(device.internal.state.added, false);
+    CHECK_EQ(device_is_added(&device), false);
     CHECK_EQ(device_add(&device), ERROR_NONE);
-    CHECK_EQ(device.internal.state.added, true);
+    CHECK_EQ(device_is_added(&device), true);
 
     CHECK_EQ(device_remove(&device), ERROR_NONE);
     CHECK_EQ(device_destruct(&device), ERROR_NONE);
@@ -155,9 +146,9 @@ TEST_CASE("device_remove should clear the state 'added'") {
     CHECK_EQ(device_construct(&device), ERROR_NONE);
 
     CHECK_EQ(device_add(&device), ERROR_NONE);
-    CHECK_EQ(device.internal.state.added, true);
+    CHECK_EQ(device_is_added(&device), true);
     CHECK_EQ(device_remove(&device), ERROR_NONE);
-    CHECK_EQ(device.internal.state.added, false);
+    CHECK_EQ(device_is_added(&device), false);
 
     CHECK_EQ(device_destruct(&device), ERROR_NONE);
 }
@@ -172,7 +163,7 @@ TEST_CASE("device_is_ready should return true only when it is started") {
         .api = nullptr,
         .device_type = nullptr,
         .owner = &module,
-        .driver_private = nullptr
+        .internal = nullptr
     };
 
     Device device = { 0 };
@@ -180,17 +171,17 @@ TEST_CASE("device_is_ready should return true only when it is started") {
     CHECK_EQ(driver_construct_add(&driver), ERROR_NONE);
     CHECK_EQ(device_construct(&device), ERROR_NONE);
 
-    CHECK_EQ(device.internal.state.started, false);
+    CHECK_EQ(device_is_ready(&device), false);
     device_set_driver(&device, &driver);
-    CHECK_EQ(device.internal.state.started, false);
+    CHECK_EQ(device_is_ready(&device), false);
     CHECK_EQ(device_add(&device), ERROR_NONE);
-    CHECK_EQ(device.internal.state.started, false);
+    CHECK_EQ(device_is_ready(&device), false);
     CHECK_EQ(device_start(&device), ERROR_NONE);
-    CHECK_EQ(device.internal.state.started, true);
+    CHECK_EQ(device_is_ready(&device), true);
     CHECK_EQ(device_stop(&device), ERROR_NONE);
-    CHECK_EQ(device.internal.state.started, false);
+    CHECK_EQ(device_is_ready(&device), false);
     CHECK_EQ(device_remove(&device), ERROR_NONE);
-    CHECK_EQ(device.internal.state.started, false);
+    CHECK_EQ(device_is_ready(&device), false);
 
     CHECK_EQ(device_destruct(&device), ERROR_NONE);
     CHECK_EQ(driver_remove_destruct(&driver), ERROR_NONE);
