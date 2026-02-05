@@ -90,6 +90,8 @@
 - `UiScale` implementation for devices like the CYD 2432S032C
 - Bug: CYD 2432S032C screen rotation fails due to touch driver issue
 - Calculator app should show regular text input field on non-touch devices that have a keyboard (Cardputer, T-Lora Pager)
+- Allow for WSAD keys to navigate LVGL (this is extra nice for cardputer, but just handy in general)
+- Create a "How to" app for a device. It could explain things like keyboard navigation on first start.
 
 # Nice-to-haves
 
