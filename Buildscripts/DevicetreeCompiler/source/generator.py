@@ -135,6 +135,9 @@ def write_device_structs(file, device: Device, parent_device: Device, bindings: 
     file.write(f"\t.config = &{config_variable_name},\n")
     file.write(f"\t.parent = {parent_value},\n")
     file.write("};\n\n")
+    # Child devices
+    for child_device in device.devices:
+        write_device_structs(file, child_device, device, bindings, devices, verbose)
 
 def write_device_init(file, device: Device, bindings: list[Binding], verbose: bool):
     if verbose:
@@ -148,6 +151,9 @@ def write_device_init(file, device: Device, bindings: list[Binding], verbose: bo
     device_variable = node_name
     # Write device struct
     file.write("\t{ " f"&{device_variable}, \"{compatible_property.value}\"" " },\n")
+    # Write children
+    for child_device in device.devices:
+        write_device_init(file, child_device, bindings, verbose)
 
 # Walk the tree and gather all devices
 def gather_devices(device: Device, output: list[Device]):
@@ -156,6 +162,8 @@ def gather_devices(device: Device, output: list[Device]):
         gather_devices(child_device, output)
 
 def generate_devicetree_c(filename: str, items: list[object], bindings: list[Binding], verbose: bool):
+    # Create a cache for looking up device names and aliases easily
+    # We still want to traverse it as a tree during code generation because of parent-setting
     devices = list()
     for item in items:
         if type(item) is Device:
@@ -177,13 +185,15 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         file.write("\n")
 
         # Then write all devices
-        for device in devices:
-            write_device_structs(file, device, None, bindings, devices, verbose)
+        for item in items:
+            if type(item) is Device:
+                write_device_structs(file, item, None, bindings, devices, verbose)
         # Init function body start
         file.write("struct CompatibleDevice devicetree_devices[] = {\n")
         # Init function body logic
-        for device in devices:
-            write_device_init(file, device, bindings, verbose)
+        for item in items:
+            if type(item) is Device:
+                write_device_init(file, item, bindings, verbose)
         # Init function body end
         file.write("\t{ NULL, NULL },\n")
         file.write("};\n")
