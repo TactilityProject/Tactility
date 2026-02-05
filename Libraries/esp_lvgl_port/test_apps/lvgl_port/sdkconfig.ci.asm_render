@@ -1,6 +1,0 @@
-# sdkconfig to enable the SIMD in the lvgl_port
-
-# Set custom ASM render and provide a header file with function prototypes
-CONFIG_LV_DRAW_SW_ASM_CUSTOM=y
-CONFIG_LV_USE_DRAW_SW_ASM=255
-CONFIG_LV_DRAW_SW_ASM_CUSTOM_INCLUDE="esp_lvgl_port_lv_blend.h"
