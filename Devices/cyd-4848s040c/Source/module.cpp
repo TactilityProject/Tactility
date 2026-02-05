@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "cyd-4848s040c",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

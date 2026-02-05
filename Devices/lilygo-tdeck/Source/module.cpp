@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "lilygo-tdeck",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

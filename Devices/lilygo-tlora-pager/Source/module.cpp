@@ -25,7 +25,8 @@ struct Module device_module = {
     .name = "lilygo-tlora-pager",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

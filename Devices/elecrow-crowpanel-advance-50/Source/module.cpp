@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "elecrow-crowpanel-advance-50",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

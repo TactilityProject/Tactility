@@ -23,7 +23,7 @@ TEST_CASE("Module construction and destruction") {
         .start = test_start,
         .stop = test_stop,
         .symbols = nullptr,
-        .internal = {.started = false}
+        .internal = nullptr
     };
 
     // Test successful construction
@@ -40,7 +40,7 @@ TEST_CASE("Module registration") {
         .start = test_start,
         .stop = test_stop,
         .symbols = nullptr,
-        .internal = {.started = false}
+        .internal = nullptr
     };
 
     // module_add should succeed
@@ -61,7 +61,7 @@ TEST_CASE("Module lifecycle") {
         .start = test_start,
         .stop = test_stop,
         .symbols = nullptr,
-        .internal = {.started = false}
+        .internal = nullptr
     };
 
     // 1. Successful start (no parent required anymore)
@@ -117,7 +117,7 @@ TEST_CASE("Global symbol resolution") {
         .start = test_start,
         .stop = test_stop,
         .symbols = test_symbols,
-        .internal = {.started = false}
+        .internal = nullptr
     };
 
     uintptr_t addr;

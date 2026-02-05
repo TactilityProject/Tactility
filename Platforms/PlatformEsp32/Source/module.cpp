@@ -31,7 +31,8 @@ struct Module platform_module = {
     .name = "platform-esp32",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

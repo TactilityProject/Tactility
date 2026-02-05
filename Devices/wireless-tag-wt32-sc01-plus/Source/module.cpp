@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "wireless-tag-wt32-sc01-plus",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

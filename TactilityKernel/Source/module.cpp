@@ -3,8 +3,13 @@
 #include <algorithm>
 #include <tactility/concurrent/mutex.h>
 #include <tactility/module.h>
+#include <new>
 
 #define TAG "module"
+
+struct ModuleInternal {
+    bool started;
+};
 
 struct ModuleLedger {
     std::vector<struct Module*> modules;
@@ -19,11 +24,14 @@ static ModuleLedger ledger;
 extern "C" {
 
 error_t module_construct(struct Module* module) {
-    module->internal.started = false;
+    module->internal = new (std::nothrow) ModuleInternal { .started = false };
+    if (module->internal == nullptr) return ERROR_OUT_OF_MEMORY;
     return ERROR_NONE;
 }
 
 error_t module_destruct(struct Module* module) {
+    delete static_cast<ModuleInternal*>(module->internal);
+    module->internal = nullptr;
     return ERROR_NONE;
 }
 
@@ -44,28 +52,30 @@ error_t module_remove(struct Module* module) {
 error_t module_start(struct Module* module) {
     LOG_I(TAG, "start %s", module->name);
 
-    if (module->internal.started) return ERROR_NONE;
+    auto* internal = static_cast<ModuleInternal*>(module->internal);
+    if (internal->started) return ERROR_NONE;
 
     error_t error = module->start();
-    module->internal.started = (error == ERROR_NONE);
+    internal->started = (error == ERROR_NONE);
     return error;
 }
 
 bool module_is_started(struct Module* module) {
-    return module->internal.started;
+    return static_cast<ModuleInternal*>(module->internal)->started;
 }
 
 error_t module_stop(struct Module* module) {
     LOG_I(TAG, "stop %s", module->name);
 
-    if (!module->internal.started) return ERROR_NONE;
+    auto* internal = static_cast<ModuleInternal*>(module->internal);
+    if (!internal->started) return ERROR_NONE;
 
     error_t error = module->stop();
     if (error != ERROR_NONE) {
         return error;
     }
 
-    module->internal.started = false;
+    internal->started = false;
     return error;
 }
 

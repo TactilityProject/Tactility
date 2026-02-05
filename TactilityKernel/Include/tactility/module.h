@@ -59,9 +59,7 @@ struct Module {
      */
     const struct ModuleSymbol* symbols;
 
-    struct {
-        bool started;
-    } internal;
+    void* internal;
 };
 
 /**

@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "m5stack-stickc-plus",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "waveshare-esp32-s3-geek",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

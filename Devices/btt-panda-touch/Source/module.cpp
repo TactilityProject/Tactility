@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "btt-panda-touch",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

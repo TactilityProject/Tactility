@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "waveshare-s3-lcd-13",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

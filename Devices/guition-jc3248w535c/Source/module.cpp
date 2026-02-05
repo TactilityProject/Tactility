@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "guition-jc3248w535c",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

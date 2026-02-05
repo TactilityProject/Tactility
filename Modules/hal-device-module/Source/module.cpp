@@ -25,7 +25,8 @@ struct Module hal_device_module = {
     .name = "hal-device",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

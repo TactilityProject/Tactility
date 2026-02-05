@@ -18,7 +18,8 @@ struct Module platform_module = {
     .name = "platform-posix",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

@@ -23,7 +23,8 @@ struct Module root_module = {
     .name = "kernel",
     .start = start,
     .stop = stop,
-    .symbols = (const struct ModuleSymbol*)KERNEL_SYMBOLS
+    .symbols = (const struct ModuleSymbol*)KERNEL_SYMBOLS,
+    .internal = nullptr
 };
 
 error_t kernel_init(struct Module* platform_module, struct Module* device_module, struct CompatibleDevice devicetree_devices[]) {

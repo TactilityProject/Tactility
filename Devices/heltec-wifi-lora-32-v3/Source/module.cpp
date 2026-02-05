@@ -17,7 +17,8 @@ struct Module device_module = {
     .name = "heltec-wifi-lora-32-v3",
     .start = start,
     .stop = stop,
-    .symbols = nullptr
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }
