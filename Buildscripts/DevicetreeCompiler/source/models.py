@@ -6,7 +6,8 @@ class DtsVersion:
 
 @dataclass
 class Device:
-    identifier: str
+    node_name: str
+    node_alias: str
     properties: list
     devices: list
 
@@ -23,6 +24,10 @@ class PropertyValue:
 
 @dataclass
 class IncludeC:
+    statement: str
+
+@dataclass
+class DefineC:
     statement: str
 
 @dataclass

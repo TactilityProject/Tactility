@@ -23,7 +23,8 @@
 		pin-scl = <2>;
 	};
 
-	// ES8311 (also connected to I2C bus)
+	// ES8311
+	// TODO: init via I2C to enable audio playback
 	i2s0 {
 		compatible = "espressif,esp32-i2s";
 		port = <I2S_NUM_0>;
