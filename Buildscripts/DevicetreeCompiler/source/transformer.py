@@ -58,10 +58,15 @@ class DtsTransformer(Transformer):
     def values(self, object):
         return PropertyValue(type="values", value=object)
     def value(self, object):
+        # PHANDLE is already converted to PropertyValue
+        if isinstance(object[0], PropertyValue):
+            return object[0]
         return PropertyValue(type="value", value=object[0])
     def array(self, object):
         return PropertyValue(type="array", value=object)
     def VALUE(self, token: Token):
+        if token.value.startswith("&"):
+            return PropertyValue(type="phandle", value=token.value[1:])
         return token.value
     def NUMBER(self, token: Token):
         return token.value
