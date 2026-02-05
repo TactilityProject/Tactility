@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 
+// Reference: https://docs.m5stack.com/en/core/Cardputer-Adv
 / {
 	compatible = "root";
 	model = "M5Stack Cardputer Adv";
@@ -31,5 +32,16 @@
 		pin-scl = <1>;
 		pin-sda-pullup;
 		pin-scl-pullup;
+	};
+
+	// Speaker and microphone (ES8311)
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <41>;
+		pin-ws = <43>;
+		pin-data-out = <42>;
+		pin-data-in = <46>;
+		pin-mclk = <GPIO_PIN_NONE>;
 	};
 };

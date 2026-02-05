@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 
+// Reference: https://docs.m5stack.com/en/core/Cardputer
 / {
 	compatible = "root";
 	model = "M5Stack Cardputer";
@@ -22,4 +23,17 @@
 		pin-sda-pullup;
 		pin-scl-pullup;
 	};
+
+	// Speaker and microphone
+	// TODO: Microphone I2C init code from https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L936
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <41>;
+		pin-ws = <43>;
+		pin-data-out = <42>;
+		pin-data-in = <46>;
+		pin-mclk = <GPIO_PIN_NONE>;
+	};
+
 };

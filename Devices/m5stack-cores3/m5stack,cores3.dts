@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 
+// Reference: https://docs.m5stack.com/en/core/CoreS3
 / {
 	compatible = "root";
 	model = "M5Stack CoreS3";
@@ -51,5 +52,19 @@
 		pin-scl = <17>;
 		sda-pullup;
 		scl-pullup;
+	};
+
+	// TODO: Enable speaker via I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L417
+	// TODO: Enable microphone via I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L616
+	i2s0 {
+		// Note: M5Unified sets the following for speaker: magnification = 2, oversampling = 1
+		// Note: M5Unified sets the following for microphone: magnification = 4
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <34>;
+		pin-ws = <33>;
+		pin-data-out = <13>;
+		pin-data-in = <14>;
+		pin-mclk = <0>;
 	};
 };

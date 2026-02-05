@@ -5,6 +5,7 @@
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
 
+// Reference: https://wiki.lilygo.cc/get_started/en/Wearable/T-Deck-Plus/T-Deck-Plus.html#Pin-Overview
 / {
 	compatible = "root";
 	model = "LilyGO T-Deck";
@@ -12,16 +13,6 @@
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
-	};
-
-	i2s0 {
-		compatible = "espressif,esp32-i2s";
-		port = <I2S_NUM_0>;
-		pin-bclk = <7>;
-		pin-ws = <5>;
-		pin-data-out = <6>;
-		pin-data-in = <GPIO_PIN_NONE>;
-		pin-mclk = <GPIO_PIN_NONE>;
 	};
 
 	i2c_internal {
@@ -38,5 +29,15 @@
 		clock-frequency = <400000>;
 		pin-sda = <43>;
 		pin-scl = <44>;
+	};
+
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <7>;
+		pin-ws = <5>;
+		pin-data-out = <6>;
+		pin-data-in = <GPIO_PIN_NONE>;
+		pin-mclk = <GPIO_PIN_NONE>;
 	};
 };
