@@ -71,9 +71,10 @@ error_t driver_destruct(Driver* driver) {
     }
     get_driver_internal(driver)->destroying = true;
 
-    driver_unlock(driver);
-    delete get_driver_internal(driver);
+    DriverInternal* internal = get_driver_internal(driver);
     driver->internal = nullptr;
+    mutex_unlock(&internal->mutex);
+    delete internal;
 
     return ERROR_NONE;
 }
