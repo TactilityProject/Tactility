@@ -92,10 +92,10 @@ def main():
         {'src': 'Modules/lvgl-module/CMakeLists.txt', 'dst': 'Libraries/lvgl-module/'},
         {'src': 'Modules/lvgl-module/LICENSE*.*', 'dst': 'Libraries/lvgl-module/'},
         # lvgl (basics)
-        {'src': 'build/esp-idf/lvgl/liblvgl.a', 'dst': 'Libraries/lvgl/Binary/'},
+        {'src': 'build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a', 'dst': 'Libraries/lvgl/Binary/liblvgl.a'},
         {'src': 'Libraries/lvgl/lvgl.h', 'dst': 'Libraries/lvgl/Include/'},
         {'src': 'Libraries/lvgl/lv_version.h', 'dst': 'Libraries/lvgl/Include/'},
-        {'src': 'Libraries/lvgl/LICENCE.txt', 'dst': 'Libraries/lvgl/LICENSE.txt'},
+        {'src': 'Libraries/lvgl/LICENCE*.*', 'dst': 'Libraries/lvgl/'},
         {'src': 'Libraries/lvgl/src/lv_conf_kconfig.h', 'dst': 'Libraries/lvgl/Include/lv_conf.h'},
         {'src': 'Libraries/lvgl/src/**/*.h', 'dst': 'Libraries/lvgl/Include/src/'},
         # elf_loader

@@ -11,6 +11,7 @@
 
 ## Higher Priority
 
+- Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.
 - Add kernel listening mechanism so that the root device init can be notified when a device becomes available: 
   Callback for device/start stop with filtering on device type:
     - on_before_start: e.g. to do the CS pin hack for SD card on a shared bus
