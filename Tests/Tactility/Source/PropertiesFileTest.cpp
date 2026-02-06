@@ -1,7 +1,7 @@
-#include "../TactilityCore/TestFile.h"
-#include "doctest.h"
+#include "../../TactilityCore/Source/TestFile.h"
+#include "../../Tactility/Include/Tactility/file/PropertiesFile.h"
 
-#include <../../Tactility/Include/Tactility/file/PropertiesFile.h>
+#include "doctest.h"
 
 using namespace tt;
 
