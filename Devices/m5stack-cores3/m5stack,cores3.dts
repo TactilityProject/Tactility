@@ -55,8 +55,8 @@
 		scl-pullup;
 	};
 
-	// TODO: Enable speaker via I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L417
-	// TODO: Enable microphone via I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L616
+	// TODO: Enable speaker via ES7210 I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L417
+	// TODO: Enable microphone via ES7210 I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L616
 	i2s0 {
 		// Note: M5Unified sets the following for speaker: magnification = 2, oversampling = 1
 		// Note: M5Unified sets the following for microphone: magnification = 4
