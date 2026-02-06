@@ -49,6 +49,10 @@ public:
     void onDirEntryListScrollBegin();
     void onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle);
     void deinit(const AppContext& appContext);
+
+private:
+
+    bool resolveDirentFromListIndex(int32_t list_index, dirent& out_entry);
 };
 
 }

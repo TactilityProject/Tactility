@@ -1,5 +1,5 @@
-#include <Tactility/app/files/View.h>
 #include <Tactility/app/files/SupportedFiles.h>
+#include <Tactility/app/files/View.h>
 
 #include <Tactility/LogMessages.h>
 #include <Tactility/Logger.h>
@@ -10,11 +10,11 @@
 #include <Tactility/app/imageviewer/ImageViewer.h>
 #include <Tactility/app/inputdialog/InputDialog.h>
 #include <Tactility/app/notes/Notes.h>
-#include <tactility/check.h>
 #include <Tactility/file/File.h>
 #include <Tactility/kernel/Platform.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
+#include <tactility/check.h>
 
 #include <cstdio>
 #include <cstring>
@@ -104,7 +104,7 @@ void View::viewFile(const std::string& path, const std::string& filename) {
         // install(filename);
         auto message = std::format("Do you want to install {}?", filename);
         installAppPath = processed_filepath;
-        auto choices = std::vector { "Yes", "No" };
+        auto choices = std::vector {"Yes", "No"};
         installAppLaunchId = alertdialog::start("Install?", message, choices);
 #endif
     } else if (isSupportedImageFile(filename)) {
@@ -123,59 +123,72 @@ void View::viewFile(const std::string& path, const std::string& filename) {
     onNavigate();
 }
 
+bool View::resolveDirentFromListIndex(int32_t list_index, dirent& out_entry) {
+    const bool is_root = (state->getCurrentPath() == "/");
+    const bool has_back = (!is_root && current_start_index > 0);
+
+    if (has_back && list_index == 0) {
+        return false; // Back button
+    }
+
+    const size_t adjusted_index =
+        current_start_index + static_cast<size_t>(list_index) - (has_back ? 1 : 0);
+
+    return state->getDirent(static_cast<uint32_t>(adjusted_index), out_entry);
+}
+
 void View::onDirEntryPressed(uint32_t index) {
     dirent dir_entry;
-    if (state->getDirent(index, dir_entry)) {
-        LOGGER.info("Pressed {} {}", dir_entry.d_name, dir_entry.d_type);
-        state->setSelectedChildEntry(dir_entry.d_name);
-        using namespace tt::file;
-        switch (dir_entry.d_type) {
-            case TT_DT_DIR:
-            case TT_DT_CHR:
-                state->setEntriesForChildPath(dir_entry.d_name);
-                onNavigate();
-                update();
-                break;
-            case TT_DT_LNK:
-                LOGGER.warn("opening links is not supported");
-                break;
-            case TT_DT_REG:
-                viewFile(state->getCurrentPath(), dir_entry.d_name);
-                onNavigate();
-                break;
-            default:
-                // Assume it's a file
-                // TODO: Find a better way to identify a file
-                viewFile(state->getCurrentPath(), dir_entry.d_name);
-                onNavigate();
-                break;
-        }
+    if (!resolveDirentFromListIndex(static_cast<int32_t>(index), dir_entry)) {
+        return;
+    }
+
+    LOGGER.info("Pressed {} {}", dir_entry.d_name, dir_entry.d_type);
+    state->setSelectedChildEntry(dir_entry.d_name);
+
+    using namespace tt::file;
+    switch (dir_entry.d_type) {
+        case TT_DT_DIR:
+        case TT_DT_CHR:
+            state->setEntriesForChildPath(dir_entry.d_name);
+            onNavigate();
+            update();
+            break;
+
+        case TT_DT_LNK:
+            LOGGER.warn("opening links is not supported");
+            break;
+
+        default:
+            viewFile(state->getCurrentPath(), dir_entry.d_name);
+            onNavigate();
+            break;
     }
 }
 
 void View::onDirEntryLongPressed(int32_t index) {
     dirent dir_entry;
-    if (state->getDirent(index, dir_entry)) {
-        LOGGER.info("Pressed {} {}", dir_entry.d_name, dir_entry.d_type);
-        state->setSelectedChildEntry(dir_entry.d_name);
-        using namespace file;
-        switch (dir_entry.d_type) {
-            case TT_DT_DIR:
-            case TT_DT_CHR:
-                showActionsForDirectory();
-                break;
-            case TT_DT_LNK:
-                LOGGER.warn("Opening links is not supported");
-                break;
-            case TT_DT_REG:
-                showActionsForFile();
-                break;
-            default:
-                // Assume it's a file
-                // TODO: Find a better way to identify a file
-                showActionsForFile();
-                break;
-        }
+    if (!resolveDirentFromListIndex(index, dir_entry)) {
+        return;
+    }
+
+    LOGGER.info("Pressed {} {}", dir_entry.d_name, dir_entry.d_type);
+    state->setSelectedChildEntry(dir_entry.d_name);
+
+    using namespace file;
+    switch (dir_entry.d_type) {
+        case TT_DT_DIR:
+        case TT_DT_CHR:
+            showActionsForDirectory();
+            break;
+
+        case TT_DT_LNK:
+            LOGGER.warn("Opening links is not supported");
+            break;
+
+        default:
+            showActionsForFile();
+            break;
     }
 }
 
@@ -251,7 +264,7 @@ void View::onDeletePressed() {
     LOGGER.info("Pending delete {}", file_path);
     state->setPendingAction(State::ActionDelete);
     std::string message = "Do you want to delete this?\n" + file_path;
-    const std::vector<std::string> choices = { "Yes", "No" };
+    const std::vector<std::string> choices = {"Yes", "No"};
     alertdialog::start("Are you sure?", message, choices);
 }
 
@@ -304,6 +317,9 @@ void View::update(size_t start_index) {
 
     state->withEntries([this, is_root](const std::vector<dirent>& entries) {
         size_t total_entries = entries.size();
+        if (current_start_index > total_entries) {
+            current_start_index = total_entries;
+        }
         size_t count = 0;
 
         if (!is_root && current_start_index > 0) {
@@ -312,8 +328,7 @@ void View::update(size_t start_index) {
                 auto* view = static_cast<View*>(lv_event_get_user_data(event));
                 size_t new_index = (view->current_start_index >= view->MAX_BATCH) ? 
                                     view->current_start_index - view->MAX_BATCH : 0;
-                view->update(new_index);
-            }, LV_EVENT_SHORT_CLICKED, this);
+                view->update(new_index); }, LV_EVENT_SHORT_CLICKED, this);
         }
 
         for (size_t i = current_start_index; i < total_entries; ++i) {
@@ -323,18 +338,19 @@ void View::update(size_t start_index) {
             count++;
 
             if (count >= MAX_BATCH) {
-                last_loaded_index = i + 1;
                 break;
             }
         }
 
+        last_loaded_index = std::min(current_start_index + count, total_entries);
+
         if (!is_root && last_loaded_index < total_entries) {
-            if (total_entries - current_start_index > MAX_BATCH) {
+            if (total_entries > current_start_index &&
++                (total_entries - current_start_index) > MAX_BATCH) {
                 auto* next_btn = lv_list_add_btn(dir_entry_list, LV_SYMBOL_RIGHT, "Next");
                 lv_obj_add_event_cb(next_btn, [](lv_event_t* event) {
                     auto* view = static_cast<View*>(lv_event_get_user_data(event));
-                    view->update(view->last_loaded_index);
-                }, LV_EVENT_SHORT_CLICKED, this);
+                    view->update(view->last_loaded_index); }, LV_EVENT_SHORT_CLICKED, this);
             }
         } else {
             last_loaded_index = total_entries;
@@ -513,4 +529,4 @@ void View::deinit(const AppContext& appContext) {
     lv_obj_remove_event_cb(dir_entry_list, dirEntryListScrollBeginCallback);
 }
 
-}
+} // namespace tt::app::files
