@@ -29,7 +29,11 @@ struct Driver {
     const struct DeviceType* device_type;
     /** The module that owns this driver. When it is NULL, the system owns the driver and it cannot be removed from registration. */
     const struct Module* owner;
-    /** Internal data */
+    /**
+     * Internal state managed by the kernel.
+     * Driver implementers should initialize this to NULL.
+     * Do not access or modify directly; use driver_* functions.
+     */
     struct DriverInternal* internal;
 };
 

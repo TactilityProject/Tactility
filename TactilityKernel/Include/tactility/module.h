@@ -38,7 +38,6 @@ struct Module {
      * Desirable format "platform-esp32", "lilygo-tdeck", etc.
      */
     const char* name;
-
     /**
      * A function to initialize the module.
      * Should never be NULL.
@@ -46,21 +45,23 @@ struct Module {
      * @return ERROR_NONE if successful
      */
     error_t (*start)(void);
-
     /**
      * Deinitializes the module.
      * Should never be NULL.
      * @return ERROR_NONE if successful
      */
     error_t (*stop)(void);
-
     /**
      * A list of symbols exported by the module.
      * Should be terminated by MODULE_SYMBOL_TERMINATOR.
      * Can be a NULL value.
      */
     const struct ModuleSymbol* symbols;
-
+    /**
+     * Internal state managed by the kernel.
+     * Module implementers should initialize this to NULL.
+     * Do not access or modify directly; use module_* functions.
+     */
     struct ModuleInternal* internal;
 };
 

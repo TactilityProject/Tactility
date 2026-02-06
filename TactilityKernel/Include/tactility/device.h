@@ -28,11 +28,18 @@ struct DeviceType {
 struct Device {
     /** The name of the device. Valid characters: a-z a-Z 0-9 - _ . */
     const char* name;
+
     /** The configuration data for the device's driver */
     const void* config;
+
     /** The parent device that this device belongs to. Can be NULL, but only the root device should have a NULL parent. */
     struct Device* parent;
-    /** Internal data */
+
+    /**
+     * Internal state managed by the kernel.
+     * Device implementers should initialize this to NULL.
+     * Do not access or modify directly; use device_* functions.
+     */
     struct DeviceInternal* internal;
 };
 
