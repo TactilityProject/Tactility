@@ -32,10 +32,10 @@ runs:
       run: python Buildscripts/release-sdk.py release/TactilitySDK
     - name: 'Test Integration Prep'
       shell: bash
-      # Make a copy of the SDK with the folder structure that tactility.py expects
+      # The manifest.properties of our integration test uses version 0.0.0 to indicate that it is not using a normal SDK
+      # This way, it only works with our custom build. That means we have to create a copy of the SDK with the correct folder structure:
       run: |
-        TACTILITY_VERSION=`cat version.txt`
-        TACTILITY_SDK_NAME="$TACTILITY_VERSION-${{ inputs.arch }}"
+        TACTILITY_SDK_NAME="0.0.0-${{ inputs.arch }}"
         mkdir -p test_sdk/$TACTILITY_SDK_NAME
         cp -r release/TactilitySDK test_sdk/$TACTILITY_SDK_NAME
     - name: 'Test Integration'

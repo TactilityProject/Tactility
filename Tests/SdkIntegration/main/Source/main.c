@@ -22,8 +22,6 @@
 #include <tactility/module.h>
 #include <tactility/time.h>
 
-#include <tactility/hal_device_module.h>
-
 #include <tactility/lvgl_module.h>
 
 static void onShowApp(AppHandle app, void* data, lv_obj_t* parent) {
