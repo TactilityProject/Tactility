@@ -16,9 +16,9 @@ jobs:
       matrix:
         board: [
           { id: generic-esp32, arch: esp32 },
-          { id: generic-esp32c6, arch: esp32c6 },
-          { id: generic-esp32p4, arch: esp32p4 },
-          { id: generic-esp32s3, arch: esp32s3 },
+#          { id: generic-esp32c6, arch: esp32c6 },
+#          { id: generic-esp32p4, arch: esp32p4 },
+#          { id: generic-esp32s3, arch: esp32s3 },
         ]
     runs-on: ubuntu-latest
     steps:

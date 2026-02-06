@@ -30,12 +30,21 @@ runs:
         # NOTE: Update with ESP-IDF!
         ESP_IDF_VERSION: '5.5'
       run: python Buildscripts/release-sdk.py release/TactilitySDK
+    - name: 'Test Integration Prep'
+      shell: bash
+      run: |
+        ls
+        ls release/TactilitySDK
+        TACTILITY_VERSION=`cat version.txt`
+        TACTILITY_SDK_NAME="$TACTILITY_VERSION-${{ inputs.arch }}"
+        mkdir -p test_sdk/$TACTILITY_SDK_NAME
+        cp -r release/TactilitySDK test_sdk/$TACTILITY_SDK_NAME
     - name: 'Test Integration'
       uses: espressif/esp-idf-ci-action@v1
       with:
         esp_idf_version: v5.5
         target: ${{ inputs.arch }}
-        command: export TACTILITY_SDK_PATH=../../release/TactilitySDK && cd Tests/HelloWorld && python tactility.py build ${{ inputs.arch }} --local-sdk
+        command: export TACTILITY_SDK_PATH=../../test_sdk && cd Tests/HelloWorld && python tactility.py build ${{ inputs.arch }} --local-sdk
     - name: 'Upload Artifact'
       uses: actions/upload-artifact@v4
       with:
