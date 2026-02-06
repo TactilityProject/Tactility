@@ -3,7 +3,6 @@
 
 build/
 buildsim/
-build-*/
 cmake-*/
 CMakeCache.txt
 *.cbp
@@ -22,3 +21,5 @@ dependencies.lock
 .gitpod.yml
 
 sdkconfig.board.*.dev
+
+.tactility/
