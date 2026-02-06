@@ -18,12 +18,10 @@ struct Mutex {
 };
 
 inline static void mutex_construct(struct Mutex* mutex) {
-    assert(mutex->handle == NULL);
     mutex->handle = xSemaphoreCreateMutex();
 }
 
 inline static void mutex_destruct(struct Mutex* mutex) {
-    assert(mutex->handle != NULL);
     vPortAssertIfInISR();
     vSemaphoreDelete(mutex->handle);
     mutex->handle = NULL;

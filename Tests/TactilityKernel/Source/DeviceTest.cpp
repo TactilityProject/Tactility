@@ -26,7 +26,12 @@ TEST_CASE("device_construct and device_destruct should set and unset the interna
 }
 
 TEST_CASE("device_add should add the device to the list of all devices") {
-    Device device = { 0 };
+    Device device = {
+        .name = "device",
+        .config = nullptr,
+        .parent = nullptr,
+        .internal = nullptr
+    };
     CHECK_EQ(device_construct(&device), ERROR_NONE);
     CHECK_EQ(device_add(&device), ERROR_NONE);
 
@@ -46,12 +51,18 @@ TEST_CASE("device_add should add the device to the list of all devices") {
 }
 
 TEST_CASE("device_add should add the device to its parent") {
-    Device parent = { 0 };
+    Device parent = {
+        .name = "parent",
+        .config = nullptr,
+        .parent = nullptr,
+        .internal = nullptr
+    };
 
     Device child = {
-        .name = nullptr,
+        .name = "child",
         .config = nullptr,
-        .parent = &parent
+        .parent = &parent,
+        .internal = nullptr
     };
 
     CHECK_EQ(device_construct(&parent), ERROR_NONE);
@@ -79,7 +90,13 @@ TEST_CASE("device_add should add the device to its parent") {
 }
 
 TEST_CASE("device_add should set the state to 'added'") {
-    Device device = { 0 };
+    Device device = {
+        .name = "device",
+        .config = nullptr,
+        .parent = nullptr,
+        .internal = nullptr
+    };
+
     CHECK_EQ(device_construct(&device), ERROR_NONE);
 
     CHECK_EQ(device_is_added(&device), false);
@@ -91,7 +108,13 @@ TEST_CASE("device_add should set the state to 'added'") {
 }
 
 TEST_CASE("device_remove should remove it from the list of all devices") {
-    Device device = { 0 };
+    Device device = {
+        .name = "device",
+        .config = nullptr,
+        .parent = nullptr,
+        .internal = nullptr
+    };
+
     CHECK_EQ(device_construct(&device), ERROR_NONE);
     CHECK_EQ(device_add(&device), ERROR_NONE);
     CHECK_EQ(device_remove(&device), ERROR_NONE);
@@ -110,12 +133,18 @@ TEST_CASE("device_remove should remove it from the list of all devices") {
 }
 
 TEST_CASE("device_remove should remove the device from its parent") {
-    Device parent = { 0 };
+    Device parent = {
+        .name = "parent",
+        .config = nullptr,
+        .parent = nullptr,
+        .internal = nullptr
+    };
 
     Device child = {
-        .name = nullptr,
+        .name = "child",
         .config = nullptr,
-        .parent = &parent
+        .parent = &parent,
+        .internal = nullptr
     };
 
     CHECK_EQ(device_construct(&parent), ERROR_NONE);
@@ -142,7 +171,13 @@ TEST_CASE("device_remove should remove the device from its parent") {
 }
 
 TEST_CASE("device_remove should clear the state 'added'") {
-    Device device = { 0 };
+    Device device = {
+        .name = "device",
+        .config = nullptr,
+        .parent = nullptr,
+        .internal = nullptr
+    };
+
     CHECK_EQ(device_construct(&device), ERROR_NONE);
 
     CHECK_EQ(device_add(&device), ERROR_NONE);

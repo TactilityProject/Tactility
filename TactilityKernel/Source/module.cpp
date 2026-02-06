@@ -13,7 +13,7 @@ struct ModuleInternal {
 
 struct ModuleLedger {
     std::vector<struct Module*> modules;
-    struct Mutex mutex = { 0 };
+    struct Mutex mutex {};
 
     ModuleLedger() { mutex_construct(&mutex); }
     ~ModuleLedger() { mutex_destruct(&mutex); }

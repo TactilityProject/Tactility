@@ -15,19 +15,19 @@
 
 struct DeviceInternal {
     /** Address of the API exposed by the device instance. */
-    struct Driver* driver;
+    struct Driver* driver = nullptr;
     /** The driver data for this device (e.g. a mutex) */
-    void* driver_data;
+    void* driver_data = nullptr;
     /** The mutex for device operations */
-    struct Mutex mutex;
+    struct Mutex mutex {};
     /** The device state */
     struct {
-        int start_result;
-        bool started : 1;
-        bool added : 1;
+        int start_result = 0;
+        bool started : 1 = false;
+        bool added : 1 = false;
     } state;
     /** Attached child devices */
-    std::vector<Device*> children;
+    std::vector<Device*> children {};
 };
 
 struct DeviceLedger {
@@ -55,6 +55,9 @@ extern "C" {
 #define ledger_lock() mutex_lock(&ledger.mutex)
 #define ledger_unlock() mutex_unlock(&ledger.mutex)
 
+#define lock_internal(internal) mutex_lock(&internal->mutex)
+#define unlock_internal(internal) mutex_unlock(&internal->mutex)
+
 error_t device_construct(Device* device) {
     device->internal = new(std::nothrow) DeviceInternal;
     if (device->internal == nullptr) {
@@ -66,16 +69,22 @@ error_t device_construct(Device* device) {
 }
 
 error_t device_destruct(Device* device) {
-    if (device->internal->state.started || device->internal->state.added) {
+    lock_internal(device->internal);
+
+    auto* internal = device->internal;
+
+    if (internal->state.started || internal->state.added) {
         return ERROR_INVALID_STATE;
     }
-    if (!device->internal->children.empty()) {
+    if (!internal->children.empty()) {
         return ERROR_INVALID_STATE;
     }
     LOG_D(TAG, "destruct %s", device->name);
-    mutex_destruct(&device->internal->mutex);
-    delete device->internal;
+
     device->internal = nullptr;
+    mutex_unlock(&internal->mutex);
+    delete internal;
+
     return ERROR_NONE;
 }
 
