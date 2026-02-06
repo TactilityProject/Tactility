@@ -33,17 +33,17 @@ def print_help():
     print("Usage: python tactility.py [action] [options]")
     print("")
     print("Actions:")
-    print("  build [esp32,esp32s3]          Build the app. Optionally specify a platform.")
-    print("    esp32:         ESP32")
-    print("    esp32s3:       ESP32 S3")
+    print("  build [platform]              Build the app. Optionally specify a platform.")
+    print("    Supported platforms are lower case. Example: esp32s3")
+    print("    Supported platforms are read from manifest.properties")
     print("  clean                          Clean the build folders")
     print("  clearcache                     Clear the SDK cache")
     print("  updateself                     Update this tool")
     print("  run [ip]                       Run the application")
     print("  install [ip]                   Install the application")
     print("  uninstall [ip]                 Uninstall the application")
-    print("  bir [ip] [esp32,esp32s3]       Build, install then run. Optionally specify a platform.")
-    print("  brrr [ip] [esp32,esp32s3]      Functionally the same as \"bir\", but \"app goes brrr\" meme variant.")
+    print("  bir [ip] [platform]           Build, install then run. Optionally specify a platform.")
+    print("  brrr [ip] [platform]          Functionally the same as \"bir\", but \"app goes brrr\" meme variant.")
     print("")
     print("Options:")
     print("  --help                         Show this commandline info")
@@ -391,7 +391,7 @@ def build_first(version, platform, skip_build):
     shell_needed = sys.platform == "win32"
     build_command = ["idf.py", "-B", cmake_path, "build"]
     if verbose:
-        print(f"Running command: {" ".join(build_command)}")
+        print(f"Running command: {' '.join(build_command)}")
     with subprocess.Popen(build_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=shell_needed) as process:
         build_output = wait_for_process(process)
         # The return code is never expected to be 0 due to a bug in the elf cmake script, but we keep it just in case
@@ -525,7 +525,8 @@ def build_action(manifest, platform_arg):
     if not build_all(sdk_version, platforms_to_build, skip_build):  # Environment validation
         return False
     if not skip_build:
-        package_all(platforms_to_build)
+        if not package_all(platforms_to_build):
+            return False
     return True
 
 def clean_action():

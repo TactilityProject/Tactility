@@ -32,13 +32,11 @@ runs:
       run: python Buildscripts/release-sdk.py release/TactilitySDK
     - name: 'Test Integration'
       uses: espressif/esp-idf-ci-action@v1
-      env:
-        TACTILITY_SDK_PATH: '../../release/TactilitySDK'
       with:
         esp_idf_version: v5.5
         target: ${{ inputs.arch }}
         path: 'Tests/HelloWorld/'
-        command: python tactility.py build ${{ inputs.arch }} --local-sdk
+        command: export TACTILITY_SDK_PATH=../../release/TactilitySDK' && python tactility.py build ${{ inputs.arch }} --local-sdk
     - name: 'Upload Artifact'
       uses: actions/upload-artifact@v4
       with:
