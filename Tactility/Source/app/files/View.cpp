@@ -317,8 +317,10 @@ void View::update(size_t start_index) {
 
     state->withEntries([this, is_root](const std::vector<dirent>& entries) {
         size_t total_entries = entries.size();
-        if (current_start_index > total_entries) {
-            current_start_index = total_entries;
+        if (current_start_index >= total_entries) {
+            current_start_index = (total_entries > MAX_BATCH)
+                ? (total_entries - MAX_BATCH)
+                : 0;
         }
         size_t count = 0;
 
