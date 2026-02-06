@@ -501,7 +501,7 @@ def setup_environment():
     global ttbuild_path
     os.makedirs(ttbuild_path, exist_ok=True)
 
-def build_action(manifest, platform_arg):
+def build_action(manifest, platform_arg, skip_build):
     # Environment validation
     validate_environment()
     platforms_to_build = get_manifest_target_platforms(manifest, platform_arg)
@@ -665,7 +665,7 @@ if __name__ == "__main__":
         platform = None
         if len(sys.argv) > 2:
             platform = sys.argv[2]
-        if not build_action(manifest, platform):
+        if not build_action(manifest, platform, skip_build):
             sys.exit(1)
     elif action_arg == "clean":
         clean_action()
@@ -702,7 +702,7 @@ if __name__ == "__main__":
         if len(sys.argv) >= 4:
             platform = sys.argv[3]
             platforms_to_install = [platform]
-        if build_action(manifest, platform):
+        if build_action(manifest, platform, skip_build):
             if install_action(sys.argv[2], platforms_to_install):
                 run_action(manifest, sys.argv[2])
     else:
