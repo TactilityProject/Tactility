@@ -49,6 +49,8 @@ error_t i2c_controller_has_device_at_address(Device* device, uint8_t address, Ti
     return I2C_DRIVER_API(driver)->write(device, address, message, 2, timeout);
 }
 
-extern const struct DeviceType I2C_CONTROLLER_TYPE { 0 };
+extern const struct DeviceType I2C_CONTROLLER_TYPE {
+    .name = "i2c-controller"
+};
 
 }

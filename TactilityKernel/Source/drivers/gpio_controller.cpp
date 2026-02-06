@@ -32,6 +32,8 @@ error_t gpio_controller_get_pin_count(struct Device* device, uint32_t* count) {
     return GPIO_DRIVER_API(driver)->get_pin_count(device, count);
 }
 
-extern const struct DeviceType GPIO_CONTROLLER_TYPE { 0 };
+extern const struct DeviceType GPIO_CONTROLLER_TYPE {
+    .name = "gpio-controller"
+};
 
 }

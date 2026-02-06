@@ -20,8 +20,7 @@ struct DeviceInternal;
 
 /** Enables discovering devices of the same type */
 struct DeviceType {
-    /* Placeholder because empty structs have a different size with C vs C++ compilers */
-    uint8_t _;
+    const char* name;
 };
 
 /** Represents a piece of hardware */
