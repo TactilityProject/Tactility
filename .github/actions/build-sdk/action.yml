@@ -32,9 +32,8 @@ runs:
       run: python Buildscripts/release-sdk.py release/TactilitySDK
     - name: 'Test Integration Prep'
       shell: bash
+      # Make a copy of the SDK with the folder structure that tactility.py expects
       run: |
-        ls
-        ls release/TactilitySDK
         TACTILITY_VERSION=`cat version.txt`
         TACTILITY_SDK_NAME="$TACTILITY_VERSION-${{ inputs.arch }}"
         mkdir -p test_sdk/$TACTILITY_SDK_NAME
@@ -44,7 +43,7 @@ runs:
       with:
         esp_idf_version: v5.5
         target: ${{ inputs.arch }}
-        command: export TACTILITY_SDK_PATH=../../test_sdk && cd Tests/HelloWorld && python tactility.py build ${{ inputs.arch }} --local-sdk
+        command: export TACTILITY_SDK_PATH=../../test_sdk && cd Tests/SdkIntegration && python tactility.py build ${{ inputs.arch }} --local-sdk
     - name: 'Upload Artifact'
       uses: actions/upload-artifact@v4
       with:

@@ -12,5 +12,5 @@ endif()
 include("${TACTILITY_SDK_PATH}/TactilitySDK.cmake")
 set(EXTRA_COMPONENT_DIRS ${TACTILITY_SDK_PATH})
 
-project(HelloWorld)
-tactility_project(HelloWorld)
+project(SdkTest)
+tactility_project(SdkTest)
