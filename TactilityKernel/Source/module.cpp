@@ -1,9 +1,9 @@
-#include <vector>
-#include <string.h>
+#include <cstring>
 #include <algorithm>
+#include <new>
 #include <tactility/concurrent/mutex.h>
 #include <tactility/module.h>
-#include <new>
+#include <vector>
 
 #define TAG "module"
 
@@ -116,4 +116,3 @@ bool module_resolve_symbol_global(const char* symbol_name, uintptr_t* symbol_add
 }
 
 }
-

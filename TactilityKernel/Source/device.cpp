@@ -74,9 +74,11 @@ error_t device_destruct(Device* device) {
     auto* internal = device->internal;
 
     if (internal->state.started || internal->state.added) {
+        unlock_internal(device->internal);
         return ERROR_INVALID_STATE;
     }
     if (!internal->children.empty()) {
+        unlock_internal(device->internal);
         return ERROR_INVALID_STATE;
     }
     LOG_D(TAG, "destruct %s", device->name);

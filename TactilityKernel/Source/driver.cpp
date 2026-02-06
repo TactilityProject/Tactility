@@ -51,7 +51,7 @@ error_t driver_destruct(Driver* driver) {
     }
     internal->destroying = true;
 
-    // Remove the internal reference before unlocking so it cannot be accidentally locked again
+    // Nullify internal reference before deletion to prevent use-after-free
     driver->internal = nullptr;
     delete internal;
 
