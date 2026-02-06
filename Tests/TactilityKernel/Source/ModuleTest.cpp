@@ -64,6 +64,8 @@ TEST_CASE("Module lifecycle") {
         .internal = nullptr
     };
 
+    CHECK_EQ(module_construct(&module), ERROR_NONE);
+
     // 1. Successful start (no parent required anymore)
     CHECK_EQ(module_start(&module), ERROR_NONE);
     CHECK_EQ(module_is_started(&module), true);
@@ -104,6 +106,8 @@ TEST_CASE("Module lifecycle") {
     // Clean up: fix stop result so we can stop it
     test_stop_result = ERROR_NONE;
     CHECK_EQ(module_stop(&module), ERROR_NONE);
+
+    CHECK_EQ(module_destruct(&module), ERROR_NONE);
 }
 
 TEST_CASE("Global symbol resolution") {
@@ -120,6 +124,8 @@ TEST_CASE("Global symbol resolution") {
         .internal = nullptr
     };
 
+    REQUIRE_EQ(module_construct(&module), ERROR_NONE);
+
     uintptr_t addr;
     // Should fail as it is not added or started
     CHECK_EQ(module_resolve_symbol_global("symbol_test_function", &addr), false);
@@ -128,8 +134,8 @@ TEST_CASE("Global symbol resolution") {
     REQUIRE_EQ(module_start(&module), ERROR_NONE);
     // Still fails as symbols are null
     CHECK_EQ(module_resolve_symbol_global("symbol_test_function", &addr), true);
-
     // Cleanup
     CHECK_EQ(module_remove(&module), ERROR_NONE);
+
     CHECK_EQ(module_destruct(&module), ERROR_NONE);
 }

@@ -8,7 +8,7 @@
 #define TAG "module"
 
 struct ModuleInternal {
-    bool started;
+    bool started = false;
 };
 
 struct ModuleLedger {
@@ -24,7 +24,7 @@ static ModuleLedger ledger;
 extern "C" {
 
 error_t module_construct(struct Module* module) {
-    module->internal = new (std::nothrow) ModuleInternal { .started = false };
+    module->internal = new (std::nothrow) ModuleInternal();
     if (module->internal == nullptr) return ERROR_OUT_OF_MEMORY;
     return ERROR_NONE;
 }
