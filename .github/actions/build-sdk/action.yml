@@ -31,7 +31,7 @@ runs:
         ESP_IDF_VERSION: '5.5'
       run: python Buildscripts/release-sdk.py release/TactilitySDK
     - name: 'Test Integration'
-      shell: bash
+      uses: espressif/esp-idf-ci-action@v1
       working-directory: Tests/HelloWorld
       env:
         # NOTE: Update with ESP-IDF!

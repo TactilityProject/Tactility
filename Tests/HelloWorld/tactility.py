@@ -10,15 +10,17 @@ import urllib.request
 import zipfile
 import requests
 import tarfile
+from urllib.parse import urlparse
 
 ttbuild_path = ".tactility"
-ttbuild_version = "3.2.0"
+ttbuild_version = "3.3.0"
 ttbuild_cdn = "https://cdn.tactilityproject.org"
 ttbuild_sdk_json_validity = 3600  # seconds
 ttport = 6666
 verbose = False
 use_local_sdk = False
 local_base_path = None
+http_timeout_seconds = 10
 
 shell_color_red = "\033[91m"
 shell_color_orange = "\033[93m"
@@ -55,6 +57,10 @@ def download_file(url, filepath):
     global verbose
     if verbose:
         print(f"Downloading from {url} to {filepath}")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        print_error(f"Unsupported URL scheme: {parsed.scheme}")
+        return False
     request = urllib.request.Request(
         url,
         data=None,
@@ -63,10 +69,8 @@ def download_file(url, filepath):
         }
     )
     try:
-        response = urllib.request.urlopen(request)
-        file = open(filepath, mode="wb")
-        file.write(response.read())
-        file.close()
+        with urllib.request.urlopen(request, timeout=30) as response, open(filepath, mode="wb") as file:
+            file.write(response.read())
         return True
     except OSError as error:
         if verbose:
@@ -266,6 +270,14 @@ def get_manifest_target_platforms(manifest, requested_platform):
 
 #region SDK download
 
+def safe_extract_zip(zip_ref, target_dir):
+    target_dir = os.path.realpath(target_dir)
+    for member in zip_ref.infolist():
+        dest = os.path.realpath(os.path.join(target_dir, member.filename))
+        if not dest.startswith(target_dir + os.sep):
+            raise ValueError(f"Invalid zip entry: {member.filename}")
+    zip_ref.extractall(target_dir)
+
 def sdk_download(version, platform):
     sdk_root_dir = get_sdk_root_dir(version, platform)
     os.makedirs(sdk_root_dir, exist_ok=True)
@@ -293,7 +305,7 @@ def sdk_download(version, platform):
         print_error(f"Failed to download {sdk_zip_source_url} to {sdk_zip_target_filepath}")
         return False
     with zipfile.ZipFile(sdk_zip_target_filepath, "r") as zip_ref:
-        zip_ref.extractall(os.path.join(sdk_root_dir, "TactilitySDK"))
+        safe_extract_zip(zip_ref, os.path.join(sdk_root_dir, "TactilitySDK"))
     return True
 
 def sdk_download_all(version, platforms):
@@ -429,8 +441,9 @@ def build_consecutively(version, platform, skip_build):
 def package_intermediate_manifest(target_path):
     if not os.path.isfile("manifest.properties"):
         print_error("manifest.properties not found")
-        return
+        return False
     shutil.copy("manifest.properties", os.path.join(target_path, "manifest.properties"))
+    return True
 
 def package_intermediate_binaries(target_path, platforms):
     elf_dir = os.path.join(target_path, "elf")
@@ -439,8 +452,9 @@ def package_intermediate_binaries(target_path, platforms):
         elf_path = find_elf_file(platform)
         if elf_path is None:
             print_error(f"ELF file not found at {elf_path}")
-            return
+            return False
         shutil.copy(elf_path, os.path.join(elf_dir, f"{platform}.elf"))
+    return True
 
 def package_intermediate_assets(target_path):
     if os.path.isdir("assets"):
@@ -451,20 +465,24 @@ def package_intermediate(platforms):
     if os.path.isdir(target_path):
         shutil.rmtree(target_path)
     os.makedirs(target_path, exist_ok=True)
-    package_intermediate_manifest(target_path)
-    package_intermediate_binaries(target_path, platforms)
+    if not package_intermediate_manifest(target_path):
+        return False
+    if not package_intermediate_binaries(target_path, platforms):
+        return False
     package_intermediate_assets(target_path)
+    return True
 
 def package_name(platforms):
     elf_path = find_elf_file(platforms[0])
     elf_base_name = os.path.basename(elf_path).removesuffix(".app.elf")
     return os.path.join("build", f"{elf_base_name}.app")
 
-
 def package_all(platforms):
     status = f"Building package with {platforms}"
     print_status_busy(status)
-    package_intermediate(platforms)
+    if not package_intermediate(platforms):
+        print_status_error("Building package failed: missing inputs")
+        return False
     # Create build/something.app
     try:
         tar_path = package_name(platforms)
@@ -538,7 +556,7 @@ def get_device_info(ip):
     print_status_busy(f"Requesting device info")
     url = get_url(ip, "/info")
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=http_timeout_seconds)
         if response.status_code != 200:
             print_error("Run failed")
         else:
@@ -553,7 +571,7 @@ def run_action(manifest, ip):
     url = get_url(ip, "/app/run")
     params = {'id': app_id}
     try:
-        response = requests.post(url, params=params)
+        response = requests.post(url, params=params, timeout=http_timeout_seconds)
         if response.status_code != 200:
             print_error("Run failed")
         else:
@@ -577,7 +595,7 @@ def install_action(ip, platforms):
             files = {
                 'elf': file
             }
-            response = requests.put(url, files=files)
+            response = requests.put(url, files=files, timeout=http_timeout_seconds)
             if response.status_code != 200:
                 print_status_error("Install failed")
                 return False
@@ -597,7 +615,7 @@ def uninstall_action(manifest, ip):
     url = get_url(ip, "/app/uninstall")
     params = {'id': app_id}
     try:
-        response = requests.put(url, params=params)
+        response = requests.put(url, params=params, timeout=http_timeout_seconds)
         if response.status_code != 200:
             print_status_error("Server responded that uninstall failed")
         else:
