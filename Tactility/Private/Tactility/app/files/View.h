@@ -11,6 +11,10 @@ namespace tt::app::files {
 
 class View final {
     std::shared_ptr<State> state;
+    
+    size_t current_start_index = 0;
+    size_t last_loaded_index = 0;
+    const size_t MAX_BATCH = 50;
 
     lv_obj_t* dir_entry_list = nullptr;
     lv_obj_t* action_list = nullptr;
@@ -33,7 +37,7 @@ public:
     explicit View(const std::shared_ptr<State>& state) : state(state) {}
 
     void init(const AppContext& appContext, lv_obj_t* parent);
-    void update();
+    void update(size_t start_index = 0);
 
     void onNavigateUpPressed();
     void onDirEntryPressed(uint32_t index);

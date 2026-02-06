@@ -289,25 +289,62 @@ void View::showActionsForFile() {
     lv_obj_remove_flag(action_list, LV_OBJ_FLAG_HIDDEN);
 }
 
-void View::update() {
+void View::update(size_t start_index) {
+    const bool is_root = (state->getCurrentPath() == "/");
+
     auto scoped_lockable = lvgl::getSyncLock()->asScopedLock();
-    if (scoped_lockable.lock(lvgl::defaultLockTime)) {
-        lv_obj_clean(dir_entry_list);
-
-        state->withEntries([this](const std::vector<dirent>& entries) {
-            for (auto entry : entries) {
-                LOGGER.debug("Entry: {} {}", entry.d_name, entry.d_type);
-                createDirEntryWidget(dir_entry_list, entry);
-            }
-        });
-
-        if (state->getCurrentPath() == "/") {
-            lv_obj_add_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_remove_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
-        }
-    } else {
+    if (!scoped_lockable.lock(lvgl::defaultLockTime)) {
         LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "lvgl");
+        return;
+    }
+
+    lv_obj_clean(dir_entry_list);
+
+    current_start_index = start_index;
+
+    state->withEntries([this, is_root](const std::vector<dirent>& entries) {
+        size_t total_entries = entries.size();
+        size_t count = 0;
+
+        if (!is_root && current_start_index > 0) {
+            auto* back_btn = lv_list_add_btn(dir_entry_list, LV_SYMBOL_LEFT, "Back");
+            lv_obj_add_event_cb(back_btn, [](lv_event_t* event) {
+                auto* view = static_cast<View*>(lv_event_get_user_data(event));
+                size_t new_index = (view->current_start_index >= view->MAX_BATCH) ? 
+                                    view->current_start_index - view->MAX_BATCH : 0;
+                view->update(new_index);
+            }, LV_EVENT_SHORT_CLICKED, this);
+        }
+
+        for (size_t i = current_start_index; i < total_entries; ++i) {
+            auto entry = entries[i];
+
+            createDirEntryWidget(dir_entry_list, entry);
+            count++;
+
+            if (count >= MAX_BATCH) {
+                last_loaded_index = i + 1;
+                break;
+            }
+        }
+
+        if (!is_root && last_loaded_index < total_entries) {
+            if (total_entries - current_start_index > MAX_BATCH) {
+                auto* next_btn = lv_list_add_btn(dir_entry_list, LV_SYMBOL_RIGHT, "Next");
+                lv_obj_add_event_cb(next_btn, [](lv_event_t* event) {
+                    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+                    view->update(view->last_loaded_index);
+                }, LV_EVENT_SHORT_CLICKED, this);
+            }
+        } else {
+            last_loaded_index = total_entries;
+        }
+    });
+
+    if (is_root) {
+        lv_obj_add_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_remove_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
