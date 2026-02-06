@@ -4,16 +4,12 @@ enable_language(C CXX ASM)
 
 set(CMAKE_CXX_COMPILER g++)
 
-file(GLOB_RECURSE TEST_SOURCES ${PROJECT_SOURCE_DIR}/*.cpp)
+file(GLOB_RECURSE TEST_SOURCES ${PROJECT_SOURCE_DIR}/Source/*.cpp)
 add_executable(TactilityTests EXCLUDE_FROM_ALL ${TEST_SOURCES})
 
-target_include_directories(TactilityTests PRIVATE
-    ${DOCTESTINC}
-)
+target_include_directories(TactilityTests PRIVATE ${DOCTESTINC})
 
-add_test(NAME TactilityTests
-    COMMAND TactilityTests
-)
+add_test(NAME TactilityTests COMMAND TactilityTests)
 
 target_link_libraries(TactilityTests PRIVATE
     Tactility

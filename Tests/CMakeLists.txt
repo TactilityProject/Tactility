@@ -1,6 +1,6 @@
 project(tests)
 
-set(DOCTESTINC ${PROJECT_SOURCE_DIR}/Include)
+set(DOCTESTINC ${PROJECT_SOURCE_DIR}/Doctest/Include)
 
 enable_testing()
 add_subdirectory(TactilityCore)
