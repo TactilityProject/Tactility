@@ -37,7 +37,7 @@ runs:
         # NOTE: Update with ESP-IDF!
         ESP_IDF_VERSION: '5.5'
         TACTILITY_SDK_PATH: '../../release/TactilitySDK'
-      run: python.py tactility.py build ${{ inputs.arch }} --local-sdk
+      run: python tactility.py build ${{ inputs.arch }} --local-sdk
     - name: 'Upload Artifact'
       uses: actions/upload-artifact@v4
       with:
