@@ -44,6 +44,7 @@
 - Support direct installation of an `.app` file with `tactility.py install helloworld.app <ip>`
 - Support `tactility.py target <ip>` to remember the device IP address.
 - minitar/untarFile(): "entry->metadata.path" can escape its confined path (e.g. "../something")
+- Refactor elf loader code to make it multi-platform and to support multiple types of executables
 
 ## Medium Priority
 
@@ -61,13 +62,10 @@
 - Bug: Turn on WiFi (when testing it wasn't connected/connecting - just active). Open chat. Observe crash.
 - Bug: Crash handling app cannot be exited with an EncoderDevice. (current work-around is to manually reset the device)
 - I2C app should show error when I2C port is disabled when the scan button was manually pressed
-- TactilitySDK: Support automatic scanning of header files so that we can generate the `tt_init.cpp` symbols list.
-- elf_loader: split up symbol lists further (after radio support is implemented)
 
 ## Lower Priority
 
 - Rename `Lock::lock()` and `Lock::unlock()` to `Lock::acquire()` and `Lock::release()`?
-- elf_loader: make main() entry-point optional (so we can build libraries, or have the `manifest` as a global symbol)
 - Implement system suspend that turns off the screen
 - The boot button on some devices can be used as GPIO_NUM_0 at runtime
 - Localize all apps
