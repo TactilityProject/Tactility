@@ -20,7 +20,7 @@ bool initUblox10(::Device* uart);
     do { \
         auto msglen = makePacket(TYPE, ID, DATA, sizeof(DATA), BUFFER); \
         uart_controller_write_bytes(UART, BUFFER, msglen, TIMEOUT_MILLIS / portTICK_PERIOD_MS); \
-        if (getAck(UART, TYPE, ID, TIMEOUT) != GpsResponse::Ok) { \
+        if (getAck(UART, TYPE, ID, TIMEOUT_MILLIS) != GpsResponse::Ok) { \
             LOGGER.info("Sending packet failed: {}", #ERRMSG); \
         } \
     } while (0)
