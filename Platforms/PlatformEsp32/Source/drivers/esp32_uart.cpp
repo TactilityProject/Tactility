@@ -172,7 +172,7 @@ static error_t get_available(Device* device, size_t* available_bytes) {
     lock(driver_data);
     if (!driver_data->is_open) {
         unlock(driver_data);
-        return -1;
+        return ERROR_INVALID_STATE;
     }
 
     esp_err_t err = uart_get_buffered_data_len(dts_config->port, available_bytes);

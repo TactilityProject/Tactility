@@ -21,15 +21,5 @@ static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
 
 extern const Configuration hardwareConfiguration = {
     .initBoot = nullptr,
-    .createDevices = createDevices,
-    .uart = {
-        uart::Configuration {
-            .name = "/dev/ttyUSB0",
-            .baudRate = 115200
-        },
-        uart::Configuration {
-            .name = "/dev/ttyACM0",
-            .baudRate = 115200
-        }
-    }
+    .createDevices = createDevices
 };

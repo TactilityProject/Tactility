@@ -30,7 +30,7 @@
 		pin-tx = <43>;
 		pin-rx = <44>;
 		pin-cts = <GPIO_PIN_NONE>;
-		pin-rtx = <GPIO_PIN_NONE>;
+		pin-rts = <GPIO_PIN_NONE>;
 	};
 
 	uart1 {
@@ -39,6 +39,6 @@
 		pin-tx = <17>;
 		pin-rx = <18>;
 		pin-cts = <GPIO_PIN_NONE>;
-		pin-rtx = <GPIO_PIN_NONE>;
+		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

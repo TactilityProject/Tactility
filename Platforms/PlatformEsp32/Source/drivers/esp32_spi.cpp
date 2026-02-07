@@ -11,19 +11,19 @@
 #define TAG "esp32_spi"
 
 #define GET_CONFIG(device) ((const struct Esp32SpiConfig*)device->config)
-#define GET_DATA(device) ((struct InternalData*)device_get_driver_data(device))
+#define GET_DATA(device) ((struct Esp32SpiInternal*)device_get_driver_data(device))
 
 extern "C" {
 
-struct InternalData {
+struct Esp32SpiInternal {
     Mutex mutex;
     bool initialized = false;
 
-    InternalData() {
+    Esp32SpiInternal() {
         mutex_construct(&mutex);
     }
 
-    ~InternalData() {
+    ~Esp32SpiInternal() {
         mutex_destruct(&mutex);
     }
 };
@@ -50,18 +50,17 @@ static error_t unlock(Device* device) {
 
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
-    auto* data = new(std::nothrow) InternalData();
+    auto* data = new(std::nothrow) Esp32SpiInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
 
     data->initialized = false;
     device_set_driver_data(device, data);
 
-    auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
 
-    if (driver_data->initialized) {
+    if (data->initialized) {
         spi_bus_free(dts_config->host);
-        driver_data->initialized = false;
+        data->initialized = false;
     }
 
     spi_bus_config_t buscfg = {
@@ -79,11 +78,13 @@ static error_t start(Device* device) {
 
     esp_err_t ret = spi_bus_initialize(dts_config->host, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) {
+        delete data;
+        device_set_driver_data(device, nullptr);
         ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
         return ERROR_RESOURCE;
     }
 
-    driver_data->initialized = true;
+    data->initialized = true;
     return ERROR_NONE;
 }
 

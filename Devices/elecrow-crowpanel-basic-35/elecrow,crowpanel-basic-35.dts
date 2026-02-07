@@ -30,6 +30,6 @@
 		pin-tx = <1>;
 		pin-rx = <3>;
 		pin-cts = <GPIO_PIN_NONE>;
-		pin-rtx = <GPIO_PIN_NONE>;
+		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

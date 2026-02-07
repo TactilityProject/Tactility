@@ -12,20 +12,20 @@
 #define TAG "esp32_i2c"
 #define ACK_CHECK_EN 1
 
-struct InternalData {
+struct Esp32SpiInternal {
     Mutex mutex { 0 };
 
-    InternalData() {
+    Esp32SpiInternal() {
         mutex_construct(&mutex);
     }
 
-    ~InternalData() {
+    ~Esp32SpiInternal() {
         mutex_destruct(&mutex);
     }
 };
 
 #define GET_CONFIG(device) ((Esp32I2cConfig*)device->config)
-#define GET_DATA(device) ((InternalData*)device_get_driver_data(device))
+#define GET_DATA(device) ((Esp32SpiInternal*)device_get_driver_data(device))
 
 #define lock(data) mutex_lock(&data->mutex);
 #define unlock(data) mutex_unlock(&data->mutex);
@@ -172,14 +172,14 @@ static error_t start(Device* device) {
         LOG_E(TAG, "Failed to install driver at port %d: %s", static_cast<int>(dts_config->port), esp_err_to_name(error));
         return ERROR_RESOURCE;
     }
-    auto* data = new InternalData();
+    auto* data = new Esp32SpiInternal();
     device_set_driver_data(device, data);
     return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
     ESP_LOGI(TAG, "stop %s", device->name);
-    auto* driver_data = static_cast<InternalData*>(device_get_driver_data(device));
+    auto* driver_data = static_cast<Esp32SpiInternal*>(device_get_driver_data(device));
 
     i2c_port_t port = GET_CONFIG(device)->port;
     esp_err_t result = i2c_driver_delete(port);

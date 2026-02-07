@@ -41,6 +41,6 @@
 		pin-tx = <43>;
 		pin-rx = <44>;
 		pin-cts = <GPIO_PIN_NONE>;
-		pin-rtx = <GPIO_PIN_NONE>;
+		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

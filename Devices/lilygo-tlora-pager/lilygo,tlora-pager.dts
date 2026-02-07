@@ -42,7 +42,7 @@
 		pin-tx = <12>;
 		pin-rx = <4>;
 		pin-cts = <GPIO_PIN_NONE>;
-		pin-rtx = <GPIO_PIN_NONE>;
+		pin-rts = <GPIO_PIN_NONE>;
 	};
 
 	uart_external: uart1 {
@@ -51,6 +51,6 @@
 		pin-tx = <43>;
 		pin-rx = <44>;
 		pin-cts = <GPIO_PIN_NONE>;
-		pin-rtx = <GPIO_PIN_NONE>;
+		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

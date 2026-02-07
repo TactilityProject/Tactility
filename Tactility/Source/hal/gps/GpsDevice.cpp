@@ -33,7 +33,7 @@ int32_t GpsDevice::threadMain() {
 
     error_t error = uart_controller_set_config(uart, &uartConfig);
     if (error != ERROR_NONE) {
-        LOGGER.error("Failed to configure UART {}: {}", configuration.baudRate, configuration.uartName, error_to_string(error));
+        LOGGER.error("Failed to configure UART {}: {}", configuration.uartName, error_to_string(error));
         return -1;
     }
 
