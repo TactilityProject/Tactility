@@ -16,10 +16,10 @@ bool initUblox6(::Device* uart);
 bool initUblox789(::Device* uart, GpsModel model);
 bool initUblox10(::Device* uart);
 
-#define SEND_UBX_PACKET(UART, BUFFER, TYPE, ID, DATA, ERRMSG, TIMEOUT) \
+#define SEND_UBX_PACKET(UART, BUFFER, TYPE, ID, DATA, ERRMSG, TIMEOUT_MILLIS) \
     do { \
         auto msglen = makePacket(TYPE, ID, DATA, sizeof(DATA), BUFFER); \
-        uart_controller_write_bytes(UART, BUFFER, msglen, TIMEOUT); \
+        uart_controller_write_bytes(UART, BUFFER, msglen, TIMEOUT_MILLIS / portTICK_PERIOD_MS); \
         if (getAck(UART, TYPE, ID, TIMEOUT) != GpsResponse::Ok) { \
             LOGGER.info("Sending packet failed: {}", #ERRMSG); \
         } \
@@ -220,7 +220,7 @@ GpsModel probe(::Device* uart) {
     uint8_t cfg_rate[] = {0xB5, 0x62, 0x06, 0x08, 0x00, 0x00, 0x00, 0x00};
     checksum(cfg_rate, sizeof(cfg_rate));
     uart_controller_flush_input(uart);
-    uart_controller_write_bytes(uart, cfg_rate, sizeof(cfg_rate), 500);
+    uart_controller_write_bytes(uart, cfg_rate, sizeof(cfg_rate), 500 / portTICK_PERIOD_MS);
     // Check that the returned response class and message ID are correct
     GpsResponse response = getAck(uart, 0x06, 0x08, 750);
     if (response == GpsResponse::None) {
@@ -372,7 +372,7 @@ bool initUblox10(::Device* uart) {
     // BBR will survive a restart, and power off for a while, but modules with small backup
     // batteries or super caps will not retain the config for a long power off time.
     auto packet_size = makePacket(0x06, 0x09, _message_SAVE_10, sizeof(_message_SAVE_10), buffer);
-    uart_controller_write_bytes(uart, buffer, packet_size, 2000);
+    uart_controller_write_bytes(uart, buffer, packet_size, 2000 / portTICK_PERIOD_MS);
     if (getAck(uart, 0x06, 0x09, 2000) != GpsResponse::Ok) {
         LOGGER.warn("Unable to save GNSS module config");
     } else {
@@ -386,10 +386,10 @@ bool initUblox789(::Device* uart, GpsModel model) {
     if (model == GpsModel::UBLOX7) {
         LOGGER.debug("Set GPS+SBAS");
         auto msglen = makePacket(0x06, 0x3e, _message_GNSS_7, sizeof(_message_GNSS_7), buffer);
-        uart_controller_write_bytes(uart, buffer, msglen, 800);
+        uart_controller_write_bytes(uart, buffer, msglen, 800 / portTICK_PERIOD_MS);
     } else { // 8,9
         auto msglen = makePacket(0x06, 0x3e, _message_GNSS_8, sizeof(_message_GNSS_8), buffer);
-        uart_controller_write_bytes(uart, buffer, msglen, 800);
+        uart_controller_write_bytes(uart, buffer, msglen, 800 / portTICK_PERIOD_MS);
     }
 
     if (getAck(uart, 0x06, 0x3e, 800) == GpsResponse::NotAck) {
@@ -446,7 +446,7 @@ bool initUblox789(::Device* uart, GpsModel model) {
     }
 
     auto packet_size = makePacket(0x06, 0x09, _message_SAVE, sizeof(_message_SAVE), buffer);
-    uart_controller_write_bytes(uart, buffer, packet_size, 2000);
+    uart_controller_write_bytes(uart, buffer, packet_size, 2000 / portTICK_PERIOD_MS);
     if (getAck(uart, 0x06, 0x09, 2000) != GpsResponse::Ok) {
         LOGGER.warn("Unable to save GNSS module config");
     } else {

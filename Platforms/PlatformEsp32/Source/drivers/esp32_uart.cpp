@@ -245,7 +245,7 @@ static error_t open(Device* device) {
         .data_bits = to_esp32_data_bits(driver_data->config.data_bits),
         .parity = to_esp32_parity(driver_data->config.parity),
         .stop_bits = to_esp32_stop_bits(driver_data->config.stop_bits),
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE, // Flow control is not yet exposed via UartConfig
         .rx_flow_ctrl_thresh = 0,
         .source_clk = UART_SCLK_DEFAULT,
         .flags = {
@@ -253,6 +253,10 @@ static error_t open(Device* device) {
             .backup_before_sleep = 0
         }
     };
+
+    if (dts_config->pinCts != UART_PIN_NO_CHANGE || dts_config->pinRts != UART_PIN_NO_CHANGE) {
+        LOG_W(TAG, "%s: CTS/RTS pins are defined but hardware flow control is disabled (not supported in UartConfig)", device->name);
+    }
 
     esp_error = uart_param_config(dts_config->port, &uart_config);
     if (esp_error != ESP_OK) {
@@ -338,10 +342,10 @@ static error_t stop(Device* device) {
         unlock(driver_data);
         return ERROR_INVALID_STATE;
     }
-    device_set_driver_data(device, nullptr);
     unlock(driver_data);
-
+    device_set_driver_data(device, nullptr);
     delete driver_data;
+
     return ERROR_NONE;
 }
 
