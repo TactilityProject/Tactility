@@ -259,6 +259,14 @@ void device_for_each_child(struct Device* device, void* callback_context, bool(*
  */
 void device_for_each_of_type(const struct DeviceType* type, void* callback_context, bool(*on_device)(struct Device* device, void* context));
 
+/**
+ * Find a device by its name.
+ *
+ * @param[in] name non-null device name to look up
+ * @return the device pointer if found, or NULL if not found
+ */
+struct Device* device_find_by_name(const char* name);
+
 #ifdef __cplusplus
 }
 #endif

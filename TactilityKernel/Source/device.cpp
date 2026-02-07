@@ -338,4 +338,17 @@ void device_for_each_of_type(const DeviceType* type, void* callbackContext, bool
     ledger_unlock();
 }
 
+Device* device_find_by_name(const char* name) {
+    Device* found = nullptr;
+    ledger_lock();
+    for (auto* device : ledger.devices) {
+        if (device->name != nullptr && std::strcmp(device->name, name) == 0) {
+            found = device;
+            break;
+        }
+    }
+    ledger_unlock();
+    return found;
+}
+
 } // extern "C"
