@@ -15,7 +15,7 @@ struct Esp32SpiConfig {
     int pin_sclk;
     int pin_wp;
     int pin_hd;
-    int max_transfer_sz;
+    int max_transfer_size;
 };
 
 #ifdef __cplusplus

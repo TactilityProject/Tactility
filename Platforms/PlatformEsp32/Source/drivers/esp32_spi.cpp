@@ -72,7 +72,7 @@ static error_t start(Device* device) {
         .data6_io_num = GPIO_NUM_NC,
         .data7_io_num = GPIO_NUM_NC,
         .data_io_default_level = false,
-        .max_transfer_sz = dts_config->max_transfer_sz,
+        .max_transfer_sz = dts_config->max_transfer_size,
         .flags = 0,
         .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,
         .intr_flags = 0

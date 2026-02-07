@@ -326,7 +326,6 @@ static error_t start(Device* device) {
 static error_t stop(Device* device) {
     ESP_LOGI(TAG, "stop %s", device->name);
     auto* driver_data = GET_DATA(device);
-    auto* dts_config = GET_CONFIG(device);
 
     lock(driver_data);
     if (driver_data->is_open) {

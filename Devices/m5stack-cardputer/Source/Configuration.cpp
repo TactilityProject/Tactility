@@ -11,7 +11,7 @@
 
 using namespace tt::hal;
 
-bool initBoot() {
+static bool initBoot() {
     return driver::pwmbacklight::init(LCD_PIN_BACKLIGHT, 512);
 }
 

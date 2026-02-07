@@ -129,12 +129,13 @@ GpsResponse getAck(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t wa
     return GpsResponse::None; // No response received within timeout
 }
 
-static int getAck(::Device* uart, uint8_t* buffer, uint16_t size, uint8_t requestedClass, uint8_t requestedId, uint32_t timeout) {
+static int getAck(::Device* uart, uint8_t* buffer, uint16_t size, uint8_t requestedClass, uint8_t requestedId, uint32_t timeoutMillis) {
     uint16_t ubxFrameCounter = 0;
-    uint32_t startTime = kernel::getTicks();
+    TickType_t startTime = kernel::getTicks();
+    TickType_t timeoutTicks = pdMS_TO_TICKS(timeoutMillis);
     uint16_t needRead = 0;
 
-    while (kernel::getTicks() - startTime < timeout) {
+    while ((kernel::getTicks() - startTime) < timeoutTicks) {
         size_t available = 0;
         uart_controller_get_available(uart, &available);
         while (available > 0) {
