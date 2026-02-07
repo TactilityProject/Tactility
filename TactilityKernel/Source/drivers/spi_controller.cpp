@@ -27,7 +27,7 @@ error_t spi_controller_unlock(struct Device* device) {
     return SPI_DRIVER_API(driver)->unlock(device);
 }
 
-extern const struct DeviceType SPI_CONTROLLER_TYPE {
+const struct DeviceType SPI_CONTROLLER_TYPE {
     .name = "spi-controller"
 };
 

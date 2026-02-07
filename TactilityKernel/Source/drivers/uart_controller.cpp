@@ -27,9 +27,9 @@ error_t uart_controller_read_bytes(struct Device* device, uint8_t* buffer, size_
     return UART_DRIVER_API(driver)->read_bytes(device, buffer, buffer_size, timeout);
 }
 
-int uart_controller_available(struct Device* device, TickType_t timeout) {
+int uart_controller_available(struct Device* device) {
     const auto* driver = device_get_driver(device);
-    return UART_DRIVER_API(driver)->available(device, timeout);
+    return UART_DRIVER_API(driver)->available(device);
 }
 
 error_t uart_controller_set_config(struct Device* device, const struct UartConfig* config) {
@@ -47,7 +47,7 @@ error_t uart_controller_reset(struct Device* device) {
     return UART_DRIVER_API(driver)->reset(device);
 }
 
-extern const struct DeviceType UART_CONTROLLER_TYPE {
+const struct DeviceType UART_CONTROLLER_TYPE {
     .name = "uart-controller"
 };
 

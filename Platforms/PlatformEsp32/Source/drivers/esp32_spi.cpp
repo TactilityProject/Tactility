@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <tactility/device.h>
 #include <tactility/drivers/esp32_spi.h>
 #include <tactility/concurrent/mutex.h>
 
@@ -8,7 +9,7 @@
 
 #define TAG "esp32_spi"
 
-#define GET_CONFIG(device) ((const struct Esp32SpiConfig*)device_get_config(device))
+#define GET_CONFIG(device) ((const struct Esp32SpiConfig*)device->config)
 #define GET_DATA(device) ((struct InternalData*)device_get_driver_data(device))
 
 extern "C" {

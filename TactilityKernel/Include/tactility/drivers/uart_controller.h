@@ -103,10 +103,9 @@ struct UartControllerApi {
     /**
      * @brief Returns the number of bytes available for reading.
      * @param[in] device the UART controller device
-     * @param[in] timeout the maximum time to wait for the operation to complete
      * @return the number of bytes available, or a negative error code on failure
      */
-    int (*available)(struct Device* device, TickType_t timeout);
+    int (*available)(struct Device* device);
 
     /**
      * @brief Sets the UART configuration.
@@ -155,7 +154,7 @@ error_t uart_controller_read_bytes(struct Device* device, uint8_t* buffer, size_
 /**
  * @brief Returns the number of bytes available for reading using the specified controller.
  */
-int uart_controller_available(struct Device* device, TickType_t timeout);
+int uart_controller_available(struct Device* device);
 
 /**
  * @brief Sets the UART configuration using the specified controller.

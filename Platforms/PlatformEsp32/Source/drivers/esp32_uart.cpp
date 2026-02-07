@@ -2,6 +2,7 @@
 #include <driver/uart.h>
 
 #include <tactility/concurrent/mutex.h>
+#include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/drivers/esp32_uart.h>
@@ -136,7 +137,7 @@ static error_t read_bytes(Device* device, uint8_t* buffer, size_t buffer_size, T
     return ERROR_NONE;
 }
 
-static int available(Device* device, TickType_t timeout) {
+static int available(Device* device) {
     auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
     if (!driver_data->initialized) return -1;
@@ -163,8 +164,12 @@ static error_t set_config(Device* device, const struct UartConfig* config) {
         .parity = to_esp32_parity(config->parity),
         .stop_bits = to_esp32_stop_bits(config->stop_bits),
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .rx_flow_thls = 0,
+        .rx_flow_ctrl_thresh = 0,
         .source_clk = UART_SCLK_DEFAULT,
+        .flags = {
+            .allow_pd = 0,
+            .backup_before_sleep = 0
+        }
     };
 
     if (config->cts_pin != -1 || config->rts_pin != -1) {

@@ -110,7 +110,9 @@ static error_t stop(Device* device) {
 
 extern "C" {
 
-extern const struct DeviceType HAL_DEVICE_TYPE {0};
+const struct DeviceType HAL_DEVICE_TYPE {
+    "hal-device"
+};
 
 extern struct Module hal_device_module;
 
