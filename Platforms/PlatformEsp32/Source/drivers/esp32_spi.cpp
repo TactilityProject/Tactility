@@ -62,7 +62,7 @@ static error_t lock(Device* device) {
 
 static error_t try_lock(Device* device, TickType_t timeout) {
     auto* driver_data = GET_DATA(device);
-    if (mutex_try_lock_timed(&driver_data->mutex, timeout)) {
+    if (mutex_try_lock(&driver_data->mutex, timeout)) {
         return ERROR_NONE;
     }
     return ERROR_TIMEOUT;

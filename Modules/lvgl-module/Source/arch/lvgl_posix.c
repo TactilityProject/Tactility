@@ -45,7 +45,7 @@ bool lvgl_lock(void) {
 
 bool lvgl_try_lock_timed(uint32_t timeout) {
     if (!lvgl_mutex_initialised) return false;
-    return recursive_mutex_try_lock_timed(&lvgl_mutex, millis_to_ticks(timeout));
+    return recursive_mutex_try_lock(&lvgl_mutex, millis_to_ticks(timeout));
 }
 
 void lvgl_unlock(void) {

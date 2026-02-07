@@ -39,12 +39,7 @@ inline static bool recursive_mutex_is_locked(struct RecursiveMutex* mutex) {
     }
 }
 
-inline static bool recursive_mutex_try_lock(struct RecursiveMutex* mutex) {
-    check(xPortInIsrContext() != pdTRUE);
-    return xSemaphoreTakeRecursive(mutex->handle, 0) == pdTRUE;
-}
-
-inline static bool recursive_mutex_try_lock_timed(struct RecursiveMutex* mutex, TickType_t timeout) {
+inline static bool recursive_mutex_try_lock(struct RecursiveMutex* mutex, TickType_t timeout) {
     check(xPortInIsrContext() != pdTRUE);
     return xSemaphoreTakeRecursive(mutex->handle, timeout) == pdTRUE;
 }

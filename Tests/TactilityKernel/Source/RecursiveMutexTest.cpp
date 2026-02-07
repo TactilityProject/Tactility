@@ -43,8 +43,8 @@ TEST_CASE("recursive_mutex_try_lock should lock multiple times from the same thr
     RecursiveMutex mutex = { 0 };
     recursive_mutex_construct(&mutex);
 
-    CHECK_EQ(recursive_mutex_try_lock(&mutex), true);
-    CHECK_EQ(recursive_mutex_try_lock(&mutex), true);
+    CHECK_EQ(recursive_mutex_try_lock(&mutex, 0), true);
+    CHECK_EQ(recursive_mutex_try_lock(&mutex, 0), true);
     recursive_mutex_unlock(&mutex);
     CHECK_EQ(recursive_mutex_is_locked(&mutex), true);
     recursive_mutex_unlock(&mutex);

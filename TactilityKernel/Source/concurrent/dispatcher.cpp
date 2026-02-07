@@ -58,7 +58,7 @@ error_t dispatcher_dispatch_timed(DispatcherHandle_t dispatcher, void* callbackC
     auto* data = dispatcher_data(dispatcher);
 
     // Mutate
-    if (!mutex_try_lock_timed(&data->mutex, timeout)) {
+    if (!mutex_try_lock(&data->mutex, timeout)) {
 #ifdef ESP_PLATFORM
         LOG_E(TAG, "Mutex acquisition timeout");
 #endif
@@ -115,7 +115,7 @@ error_t dispatcher_consume_timed(DispatcherHandle_t dispatcher, TickType_t timeo
     // Mutate
     bool processing = true;
     do {
-        if (mutex_try_lock_timed(&data->mutex, 10)) {
+        if (mutex_try_lock(&data->mutex, 10)) {
             if (!data->queue.empty()) {
                 // Make a copy, so it's thread-safe when we unlock
                 auto entry = data->queue.front();

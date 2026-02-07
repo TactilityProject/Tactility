@@ -68,7 +68,7 @@ error_t spi_controller_lock(struct Device* device);
  * @retval ERROR_NONE when the operation was successful
  * @retval ERROR_TIMEOUT when the operation timed out
  */
-error_t spi_controller_try_lock(struct Device* device, TickType_t timeout));
+error_t spi_controller_try_lock(struct Device* device, TickType_t timeout);
 
 /**
  * @brief Unlocks the SPI controller using the specified controller.

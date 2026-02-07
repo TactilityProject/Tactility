@@ -32,12 +32,7 @@ inline static void mutex_lock(struct Mutex* mutex) {
     xSemaphoreTake(mutex->handle, portMAX_DELAY);
 }
 
-inline static bool mutex_try_lock(struct Mutex* mutex) {
-    check(xPortInIsrContext() != pdTRUE);
-    return xSemaphoreTake(mutex->handle, 0) == pdTRUE;
-}
-
-inline static bool mutex_try_lock_timed(struct Mutex* mutex, TickType_t timeout) {
+inline static bool mutex_try_lock(struct Mutex* mutex, TickType_t timeout) {
     check(xPortInIsrContext() != pdTRUE);
     return xSemaphoreTake(mutex->handle, timeout) == pdTRUE;
 }

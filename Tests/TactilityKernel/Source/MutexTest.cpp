@@ -26,8 +26,8 @@ TEST_CASE("mutex_try_lock should succeed on first lock but not on second") {
     Mutex mutex = { 0 };
     mutex_construct(&mutex);
 
-    CHECK_EQ(mutex_try_lock(&mutex), true);
-    CHECK_EQ(mutex_try_lock(&mutex), false);
+    CHECK_EQ(mutex_try_lock(&mutex, 0), true);
+    CHECK_EQ(mutex_try_lock(&mutex, 0), false);
     mutex_unlock(&mutex);
 
     mutex_destruct(&mutex);
