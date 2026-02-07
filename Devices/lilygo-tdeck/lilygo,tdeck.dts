@@ -42,7 +42,7 @@
 		pin-mclk = <GPIO_PIN_NONE>;
 	};
 
-	uart0 {
+	uart1 {
 		compatible = "espressif,esp32-uart";
 		port = <UART_NUM_1>;
 		pin-tx = <43>;

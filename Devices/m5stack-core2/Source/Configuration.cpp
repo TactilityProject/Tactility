@@ -46,30 +46,5 @@ extern const Configuration hardwareConfiguration = {
             .isMutable = false,
             .lock = tt::lvgl::getSyncLock() // esp_lvgl_port owns the lock for the display
         }
-    },
-    .uart {
-        uart::Configuration {
-            .name = "Port A", // Grove
-            .port = UART_NUM_1,
-            .rxPin = GPIO_NUM_32,
-            .txPin = GPIO_NUM_33,
-            .rtsPin = GPIO_NUM_NC,
-            .ctsPin = GPIO_NUM_NC,
-            .rxBufferSize = 1024,
-            .txBufferSize = 1024,
-            .config = {
-                .baud_rate = 115200,
-                .data_bits = UART_DATA_8_BITS,
-                .parity    = UART_PARITY_DISABLE,
-                .stop_bits = UART_STOP_BITS_1,
-                .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-                .rx_flow_ctrl_thresh = 0,
-                .source_clk = UART_SCLK_DEFAULT,
-                .flags = {
-                    .allow_pd = 0,
-                    .backup_before_sleep = 0,
-                }
-            }
-        },
     }
 };

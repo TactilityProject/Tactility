@@ -2,6 +2,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_uart.h>
 
 / {
 	compatible = "root";
@@ -30,5 +31,14 @@
 		pin-scl = <33>;
 		pin-sda-pullup;
 		pin-scl-pullup;
+	};
+
+	uart_grove: uart1 {
+		compatible = "espressif,esp32-uart";
+		port = <UART_NUM_1>;
+		pin-tx = <33>;
+		pin-rx = <32>;
+		pin-cts = <GPIO_PIN_NONE>;
+		pin-rtx = <GPIO_PIN_NONE>;
 	};
 };

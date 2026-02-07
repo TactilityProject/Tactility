@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_uart.h>
 
 / {
 	compatible = "root";
@@ -13,7 +14,7 @@
 		gpio-count = <40>;
 	};
 
-	i2c_internal {
+	i2c_internal: i2c0 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
 		clock-frequency = <400000>;
@@ -21,12 +22,22 @@
 		pin-scl = <32>;
 	};
 
-	/* CN1 header */
-	i2c_external {
+	// CN1 header
+	i2c_external: i2c1 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_1>;
 		clock-frequency = <400000>;
 		pin-sda = <21>;
 		pin-scl = <22>;
+	};
+
+	// CN1 header, JST SH 1.25, GND / IO22 / IO21 / 3.3V
+	uart1 {
+		compatible = "espressif,esp32-uart";
+		port = <UART_NUM_1>;
+		pin-tx = <22>;
+		pin-rx = <21>;
+		pin-cts = <GPIO_PIN_NONE>;
+		pin-rtx = <GPIO_PIN_NONE>;
 	};
 };

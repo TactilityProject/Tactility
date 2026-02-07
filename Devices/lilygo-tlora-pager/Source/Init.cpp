@@ -41,7 +41,7 @@ bool tpagerInit() {
             gps_service->getGpsConfigurations(gps_configurations);
             if (gps_configurations.empty()) {
                 if (gps_service->addGpsConfiguration(tt::hal::gps::GpsConfiguration {
-                    .uartName = "Internal",
+                    .uartName = "uart0",
                     .baudRate = 38400,
                     .model = tt::hal::gps::GpsModel::UBLOX10
                 })) {

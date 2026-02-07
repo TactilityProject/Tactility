@@ -68,6 +68,5 @@ extern const Configuration hardwareConfiguration = {
             .isMutable = false,
             .lock = nullptr
         }
-    },
-    .uart {}
+    }
 };

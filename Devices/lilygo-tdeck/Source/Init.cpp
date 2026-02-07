@@ -58,7 +58,7 @@ bool initBoot() {
             std::vector<tt::hal::gps::GpsConfiguration> gps_configurations;
             gps_service->getGpsConfigurations(gps_configurations);
             if (gps_configurations.empty()) {
-                if (gps_service->addGpsConfiguration(tt::hal::gps::GpsConfiguration {.uartName = "uart0", .baudRate = 38400, .model = tt::hal::gps::GpsModel::UBLOX10})) {
+                if (gps_service->addGpsConfiguration(tt::hal::gps::GpsConfiguration {.uartName = "uart1", .baudRate = 38400, .model = tt::hal::gps::GpsModel::UBLOX10})) {
                     LOGGER.info("Configured internal GPS");
                 } else {
                     LOGGER.error("Failed to configure internal GPS");

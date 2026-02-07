@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_uart.h>
 
 // Reference: https://wiki.lilygo.cc/get_started/en/LoRa_GPS/T-LoraPager/T-LoraPager.html#Pin-Overview
 / {
@@ -33,5 +34,23 @@
 		pin-data-out = <45>;
 		pin-data-in = <17>;
 		pin-mclk = <10>;
+	};
+
+	uart_internal: uart0 {
+		compatible = "espressif,esp32-uart";
+		port = <UART_NUM_0>;
+		pin-tx = <12>;
+		pin-rx = <4>;
+		pin-cts = <GPIO_PIN_NONE>;
+		pin-rtx = <GPIO_PIN_NONE>;
+	};
+
+	uart_external: uart1 {
+		compatible = "espressif,esp32-uart";
+		port = <UART_NUM_1>;
+		pin-tx = <43>;
+		pin-rx = <44>;
+		pin-cts = <GPIO_PIN_NONE>;
+		pin-rtx = <GPIO_PIN_NONE>;
 	};
 };

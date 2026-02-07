@@ -70,55 +70,5 @@ extern const Configuration hardwareConfiguration = {
             .isMutable = false,
             .lock = nullptr // No custom lock needed
         }
-    },
-    .uart {
-        // "UART0-IN"
-        uart::Configuration {
-            .name = "UART0",
-            .port = UART_NUM_1,
-            .rxPin = GPIO_NUM_44,
-            .txPin = GPIO_NUM_43,
-            .rtsPin = GPIO_NUM_NC,
-            .ctsPin = GPIO_NUM_NC,
-            .rxBufferSize = 1024,
-            .txBufferSize = 1024,
-            .config = {
-                .baud_rate = 115200,
-                .data_bits = UART_DATA_8_BITS,
-                .parity    = UART_PARITY_DISABLE,
-                .stop_bits = UART_STOP_BITS_1,
-                .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-                .rx_flow_ctrl_thresh = 0,
-                .source_clk = UART_SCLK_DEFAULT,
-                .flags = {
-                    .allow_pd = 0,
-                    .backup_before_sleep = 0,
-                }
-            }
-        },
-        // "UART1-OUT"
-        uart::Configuration {
-            .name = "UART1",
-            .port = UART_NUM_2,
-            .rxPin = GPIO_NUM_18,
-            .txPin = GPIO_NUM_17,
-            .rtsPin = GPIO_NUM_NC,
-            .ctsPin = GPIO_NUM_NC,
-            .rxBufferSize = 1024,
-            .txBufferSize = 1024,
-            .config = {
-                .baud_rate = 115200,
-                .data_bits = UART_DATA_8_BITS,
-                .parity    = UART_PARITY_DISABLE,
-                .stop_bits = UART_STOP_BITS_1,
-                .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-                .rx_flow_ctrl_thresh = 0,
-                .source_clk = UART_SCLK_DEFAULT,
-                .flags = {
-                    .allow_pd = 0,
-                    .backup_before_sleep = 0,
-                }
-            }
-        }
     }
 };
