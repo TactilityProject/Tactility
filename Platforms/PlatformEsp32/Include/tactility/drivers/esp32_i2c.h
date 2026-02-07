@@ -17,7 +17,6 @@ struct Esp32I2cConfig {
     bool pinSclPullUp;
 };
 
-error_t esp32_i2c_get_port(struct Device* device, i2c_port_t* port);
 
 #ifdef __cplusplus
 }

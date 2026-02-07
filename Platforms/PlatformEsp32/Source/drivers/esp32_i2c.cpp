@@ -144,11 +144,6 @@ on_error:
     return esp_err_to_error(error);
 }
 
-error_t esp32_i2c_get_port(struct Device* device, i2c_port_t* port) {
-    auto* config = GET_CONFIG(device);
-    *port = config->port;
-    return ERROR_NONE;
-}
 
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
