@@ -209,12 +209,6 @@ static error_t set_config(Device* device, const struct UartConfig* config) {
         }
     };
 
-    if (config->cts_pin != -1 || config->rts_pin != -1) {
-         uart_cfg.flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS;
-         if (config->cts_pin != -1 && config->rts_pin == -1) uart_cfg.flow_ctrl = UART_HW_FLOWCTRL_CTS;
-         if (config->cts_pin == -1 && config->rts_pin != -1) uart_cfg.flow_ctrl = UART_HW_FLOWCTRL_RTS;
-    }
-
     esp_err_t esp_error = uart_param_config(dts_config->port, &uart_cfg);
     if (esp_error == ESP_OK) {
         esp_error = uart_set_pin(dts_config->port, dts_config->pinTx, dts_config->pinRx, dts_config->pinCts, dts_config->pinRts);
@@ -230,6 +224,20 @@ static error_t set_config(Device* device, const struct UartConfig* config) {
     driver_data->config_set = true;
 
     unlock(driver_data);
+    return ERROR_NONE;
+}
+
+static error_t get_config(Device* device, struct UartConfig* config) {
+    auto* driver_data = GET_DATA(device);
+
+    lock(driver_data);
+    if (!driver_data->config_set) {
+        unlock(driver_data);
+        return ERROR_RESOURCE;
+    }
+    memcpy(config, &driver_data->config, sizeof(UartConfig));
+    unlock(driver_data);
+
     return ERROR_NONE;
 }
 
@@ -285,20 +293,6 @@ static bool is_open(Device* device) {
     bool status = driver_data->is_open;
     unlock(driver_data);
     return status;
-}
-
-static error_t get_config(Device* device, struct UartConfig* config) {
-    auto* driver_data = GET_DATA(device);
-
-    lock(driver_data);
-    if (!driver_data->config_set) {
-        unlock(driver_data);
-        return ERROR_RESOURCE;
-    }
-    memcpy(config, &driver_data->config, sizeof(UartConfig));
-    unlock(driver_data);
-
-    return ERROR_NONE;
 }
 
 static error_t flush_input(Device* device) {

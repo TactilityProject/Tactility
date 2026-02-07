@@ -50,10 +50,6 @@ struct UartConfig {
     enum UartDataBits data_bits;
     enum UartParity parity;
     enum UartStopBits stop_bits;
-    int8_t tx_pin;
-    int8_t rx_pin;
-    int8_t cts_pin;
-    int8_t rts_pin;
 };
 
 /**
