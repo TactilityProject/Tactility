@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include <tactility/concurrent/mutex.h>
+#include <tactility/freertos/freertos.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -212,9 +213,10 @@ void device_lock(struct Device* device);
  * Try to lock the device for exclusive access.
  *
  * @param[in,out] device non-null device pointer
+ * @param[in] timeout how long to wait for the lock
  * @return true if the device was locked successfully
  */
-bool device_try_lock(struct Device* device);
+bool device_try_lock(struct Device* device, TickType_t timeout);
 
 /**
  * Unlock the device.

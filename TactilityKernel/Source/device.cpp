@@ -293,8 +293,8 @@ void device_lock(struct Device* device) {
     mutex_lock(&device->internal->mutex);
 }
 
-bool device_try_lock(struct Device* device) {
-    return mutex_try_lock(&device->internal->mutex);
+bool device_try_lock(struct Device* device, TickType_t timeout) {
+    return mutex_try_lock(&device->internal->mutex, timeout);
 }
 
 void device_unlock(struct Device* device) {
