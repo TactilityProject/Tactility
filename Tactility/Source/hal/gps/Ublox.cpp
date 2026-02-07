@@ -64,6 +64,7 @@ GpsResponse getAck(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t wa
     const uint8_t ackP[2] = {class_id, msg_id};
     uint8_t buf[10] = {0xB5, 0x62, 0x05, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint32_t startTime = kernel::getMillis();
+    TickType_t waitTicks = pdMS_TO_TICKS(waitMillis);
     const char frame_errors[] = "More than 100 frame errors";
     int sCounter = 0;
 #ifdef GPS_DEBUG
@@ -81,7 +82,7 @@ GpsResponse getAck(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t wa
         buf[9] += buf[8];
     }
 
-    while (kernel::getTicks() - startTime < waitMillis) {
+    while (kernel::getTicks() - startTime < waitTicks) {
         if (ack > 9) {
 #ifdef GPS_DEBUG
             LOGGER.info("Got ACK for class {:02X} message {:02X} in {}ms", class_id, msg_id, kernel::getMillis() - startTime);

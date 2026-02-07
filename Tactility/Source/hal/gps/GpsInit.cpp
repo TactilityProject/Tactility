@@ -81,6 +81,7 @@ GpsResponse getACKCas(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t
     uint32_t startTime = kernel::getMillis();
     uint8_t buffer[CAS_ACK_NACK_MSG_SIZE] = {0};
     uint8_t bufferPos = 0;
+    TickType_t waitTicks = pdMS_TO_TICKS(waitMillis);
 
     // CAS-ACK-(N)ACK structure
     //         | H1   | H2   | Payload Len | cls  | msg  | Payload                   | Checksum (4)              |
@@ -89,7 +90,7 @@ GpsResponse getACKCas(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t
     // ACK-NACK| 0xBA | 0xCE | 0x04 | 0x00 | 0x05 | 0x00 | 0xXX | 0xXX | 0x00 | 0x00 | 0xXX | 0xXX | 0xXX | 0xXX |
     // ACK-ACK | 0xBA | 0xCE | 0x04 | 0x00 | 0x05 | 0x01 | 0xXX | 0xXX | 0x00 | 0x00 | 0xXX | 0xXX | 0xXX | 0xXX |
 
-    while (kernel::getTicks() - startTime < waitMillis) {
+    while (kernel::getTicks() - startTime < waitTicks) {
         size_t available = 0;
         uart_controller_get_available(uart, &available);
         if (available > 0) {

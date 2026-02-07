@@ -53,15 +53,13 @@ static error_t start(Device* device) {
     auto* data = new(std::nothrow) Esp32SpiInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
 
-    data->initialized = false;
+    if (data->initialized) {
+        return ERROR_INVALID_STATE;
+    }
+
     device_set_driver_data(device, data);
 
     auto* dts_config = GET_CONFIG(device);
-
-    if (data->initialized) {
-        spi_bus_free(dts_config->host);
-        data->initialized = false;
-    }
 
     spi_bus_config_t buscfg = {
         .mosi_io_num = dts_config->pin_mosi,
@@ -73,7 +71,11 @@ static error_t start(Device* device) {
         .data5_io_num = GPIO_NUM_NC,
         .data6_io_num = GPIO_NUM_NC,
         .data7_io_num = GPIO_NUM_NC,
+        .data_io_default_level = false,
         .max_transfer_sz = dts_config->max_transfer_sz,
+        .flags = 0,
+        .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,
+        .intr_flags = 0
     };
 
     esp_err_t ret = spi_bus_initialize(dts_config->host, &buscfg, SPI_DMA_CH_AUTO);

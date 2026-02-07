@@ -14,31 +14,31 @@
 
 #define TAG "esp32_i2s"
 
-struct Esp32SpiInternal {
+struct Esp32I2sInternal {
     Mutex mutex {};
     i2s_chan_handle_t tx_handle = nullptr;
     i2s_chan_handle_t rx_handle = nullptr;
     I2sConfig config {};
     bool config_set = false;
 
-    Esp32SpiInternal() {
+    Esp32I2sInternal() {
         mutex_construct(&mutex);
     }
 
-    ~Esp32SpiInternal() {
+    ~Esp32I2sInternal() {
         mutex_destruct(&mutex);
     }
 };
 
 #define GET_CONFIG(device) ((Esp32I2sConfig*)device->config)
-#define GET_DATA(device) ((Esp32SpiInternal*)device_get_driver_data(device))
+#define GET_DATA(device) ((Esp32I2sInternal*)device_get_driver_data(device))
 
 #define lock(data) mutex_lock(&data->mutex);
 #define unlock(data) mutex_unlock(&data->mutex);
 
 extern "C" {
 
-static error_t cleanup_channel_handles(Esp32SpiInternal* driver_data) {
+static error_t cleanup_channel_handles(Esp32I2sInternal* driver_data) {
     // TODO: error handling of i2ss functions
     if (driver_data->tx_handle) {
         i2s_channel_disable(driver_data->tx_handle);
@@ -188,7 +188,7 @@ static error_t get_config(Device* device, struct I2sConfig* config) {
 
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
-    auto* data = new(std::nothrow) Esp32SpiInternal();
+    auto* data = new(std::nothrow) Esp32I2sInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
 
     device_set_driver_data(device, data);

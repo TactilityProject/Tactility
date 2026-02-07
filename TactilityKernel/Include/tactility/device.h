@@ -46,7 +46,7 @@ struct Device {
 /**
  * Holds a device pointer and a compatible string.
  * The device must not be constructed, added or started yet.
- * This is used by the devicetree code generator and the application init sequence::.
+ * This is used by the devicetree code generator and the application init sequence.
  */
 struct CompatibleDevice {
     struct Device* device;
