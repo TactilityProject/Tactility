@@ -1,0 +1,27 @@
+description: ESP32 UART Controller
+
+include: ["uart-controller.yaml"]
+
+compatible: "espressif,esp32-uart"
+
+properties:
+  port:
+    type: int
+    required: true
+    description: |
+      The port number, defined by uart_port_t.
+      Depending on the hardware, these values are available: UART_NUM_0, UART_NUM_1, UART_NUM_2
+  pin-tx:
+    type: int
+    required: true
+    description: TX pin
+  pin-rx:
+    type: int
+    required: true
+    description: RX pin
+  pin-cts:
+    type: int
+    description: CTS pin
+  pin-rts:
+    type: int
+    description: RTS pin

@@ -15,7 +15,7 @@
 #define TAG "esp32_i2s"
 
 struct InternalData {
-    Mutex mutex { 0 };
+    Mutex mutex {};
     i2s_chan_handle_t tx_handle = nullptr;
     i2s_chan_handle_t rx_handle = nullptr;
     I2sConfig config {};
