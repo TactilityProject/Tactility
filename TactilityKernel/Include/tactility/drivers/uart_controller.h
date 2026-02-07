@@ -87,7 +87,7 @@ struct UartControllerApi {
      * @retval ERROR_NONE when the write operation was successful
      * @retval ERROR_TIMEOUT when the operation timed out
      */
-    error_t (*write_bytes)(struct Device* device, uint8_t* buffer, size_t buffer_size, TickType_t timeout);
+    error_t (*write_bytes)(struct Device* device, const uint8_t* buffer, size_t buffer_size, TickType_t timeout);
 
     /**
      * @brief Reads multiple bytes from UART.
@@ -144,7 +144,7 @@ error_t uart_controller_write_byte(struct Device* device, uint8_t out, TickType_
 /**
  * @brief Writes multiple bytes to UART using the specified controller.
  */
-error_t uart_controller_write_bytes(struct Device* device, uint8_t* buffer, size_t buffer_size, TickType_t timeout);
+error_t uart_controller_write_bytes(struct Device* device, const uint8_t* buffer, size_t buffer_size, TickType_t timeout);
 
 /**
  * @brief Reads multiple bytes from UART using the specified controller.

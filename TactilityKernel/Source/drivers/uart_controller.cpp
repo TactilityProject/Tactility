@@ -17,7 +17,7 @@ error_t uart_controller_write_byte(struct Device* device, uint8_t out, TickType_
     return UART_DRIVER_API(driver)->write_byte(device, out, timeout);
 }
 
-error_t uart_controller_write_bytes(struct Device* device, uint8_t* buffer, size_t buffer_size, TickType_t timeout) {
+error_t uart_controller_write_bytes(struct Device* device, const uint8_t* buffer, size_t buffer_size, TickType_t timeout) {
     const auto* driver = device_get_driver(device);
     return UART_DRIVER_API(driver)->write_bytes(device, buffer, buffer_size, timeout);
 }

@@ -16,7 +16,7 @@ extern "C" {
 
 struct InternalData {
     Mutex mutex;
-    bool initialized;
+    bool initialized = false;
 
     InternalData() {
         mutex_construct(&mutex);

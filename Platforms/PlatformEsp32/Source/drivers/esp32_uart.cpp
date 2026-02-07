@@ -32,8 +32,8 @@ struct InternalData {
 #define GET_CONFIG(device) ((Esp32UartConfig*)device->config)
 #define GET_DATA(device) ((InternalData*)device_get_driver_data(device))
 
-#define lock(data) mutex_lock(&data->mutex);
-#define unlock(data) mutex_unlock(&data->mutex);
+#define lock(data) mutex_lock(&data->mutex)
+#define unlock(data) mutex_unlock(&data->mutex)
 
 extern "C" {
 
@@ -106,7 +106,7 @@ static error_t write_byte(Device* device, uint8_t out, TickType_t timeout) {
     return ERROR_NONE;
 }
 
-static error_t write_bytes(Device* device, uint8_t* buffer, size_t buffer_size, TickType_t timeout) {
+static error_t write_bytes(Device* device, const uint8_t* buffer, size_t buffer_size, TickType_t timeout) {
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
     auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);

@@ -64,7 +64,7 @@ error_t spi_controller_lock(struct Device* device);
 /**
  * @brief Tries to lock the SPI controller using the specified controller.
  * @param[in] device the SPI controller device
-* @param[in] timeout the maximum time to wait for the lock
+ * @param[in] timeout the maximum ticks to wait for the lock
  * @retval ERROR_NONE when the operation was successful
  * @retval ERROR_TIMEOUT when the operation timed out
  */
