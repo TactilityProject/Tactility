@@ -186,37 +186,11 @@ static error_t set_config(Device* device, const struct UartConfig* config) {
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
 
     auto* driver_data = GET_DATA(device);
-    auto* dts_config = GET_CONFIG(device);
     lock(driver_data);
 
     if (driver_data->is_open) {
         unlock(driver_data);
         return ERROR_INVALID_STATE;
-    }
-
-    uart_config_t uart_cfg = {
-        .baud_rate = (int)config->baud_rate,
-        .data_bits = to_esp32_data_bits(config->data_bits),
-        .parity = to_esp32_parity(config->parity),
-        .stop_bits = to_esp32_stop_bits(config->stop_bits),
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .rx_flow_ctrl_thresh = 0,
-        .source_clk = UART_SCLK_DEFAULT,
-        .flags = {
-            .allow_pd = 0,
-            .backup_before_sleep = 0
-        }
-    };
-
-    esp_err_t esp_error = uart_param_config(dts_config->port, &uart_cfg);
-    if (esp_error == ESP_OK) {
-        esp_error = uart_set_pin(dts_config->port, dts_config->pinTx, dts_config->pinRx, dts_config->pinCts, dts_config->pinRts);
-    }
-
-    if (esp_error != ESP_OK) {
-        LOG_E(TAG, "Failed to configure UART: %s", esp_err_to_name(esp_error));
-        unlock(driver_data);
-        return esp_err_to_error(esp_error);
     }
 
     memcpy(&driver_data->config, config, sizeof(UartConfig));
@@ -241,6 +215,7 @@ static error_t get_config(Device* device, struct UartConfig* config) {
 }
 
 static error_t open(Device* device) {
+    ESP_LOGI(TAG, "%s open", device->name);
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
     auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
@@ -248,21 +223,51 @@ static error_t open(Device* device) {
     lock(driver_data);
     if (driver_data->is_open) {
         unlock(driver_data);
-        LOG_W(TAG, "Already open");
+        LOG_W(TAG, "%s is already open", device->name);
         return ERROR_INVALID_STATE;
     }
 
     if (!driver_data->config_set) {
         unlock(driver_data);
-        LOG_E(TAG, "open failed: config not set");
+        LOG_E(TAG, "%s open failed: config not set", device->name);
         return ERROR_INVALID_STATE;
     }
 
     esp_err_t esp_error = uart_driver_install(dts_config->port, 1024, 0, 0, NULL, 0);
     if (esp_error != ESP_OK) {
-        LOG_E(TAG, "Failed to install UART driver: %s", esp_err_to_name(esp_error));
+        LOG_E(TAG, "%s failed to install: %s", device->name, esp_err_to_name(esp_error));
         unlock(driver_data);
         return esp_err_to_error(esp_error);
+    }
+
+    uart_config_t uart_config = {
+        .baud_rate = (int)driver_data->config.baud_rate,
+        .data_bits = to_esp32_data_bits(driver_data->config.data_bits),
+        .parity = to_esp32_parity(driver_data->config.parity),
+        .stop_bits = to_esp32_stop_bits(driver_data->config.stop_bits),
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .rx_flow_ctrl_thresh = 0,
+        .source_clk = UART_SCLK_DEFAULT,
+        .flags = {
+            .allow_pd = 0,
+            .backup_before_sleep = 0
+        }
+    };
+
+    esp_error = uart_param_config(dts_config->port, &uart_config);
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "%s failed to configure: %s", device->name, esp_err_to_name(esp_error));
+        uart_driver_delete(dts_config->port);
+        unlock(driver_data);
+        return ERROR_RESOURCE;
+    }
+
+    esp_error = uart_set_pin(dts_config->port, dts_config->pinTx, dts_config->pinRx, dts_config->pinCts, dts_config->pinRts);
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "%s failed to set uart pins: %s", device->name, esp_err_to_name(esp_error));
+        uart_driver_delete(dts_config->port);
+        unlock(driver_data);
+        return ERROR_RESOURCE;
     }
 
     driver_data->is_open = true;
@@ -272,6 +277,7 @@ static error_t open(Device* device) {
 }
 
 static error_t close(Device* device) {
+    ESP_LOGI(TAG, "%s close", device->name);
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
     auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
@@ -314,7 +320,7 @@ static error_t flush_input(Device* device) {
 }
 
 static error_t start(Device* device) {
-    ESP_LOGI(TAG, "start %s", device->name);
+    ESP_LOGI(TAG, "%s start", device->name);
     auto* data = new(std::nothrow) Esp32UartInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
 
@@ -324,7 +330,7 @@ static error_t start(Device* device) {
 }
 
 static error_t stop(Device* device) {
-    ESP_LOGI(TAG, "stop %s", device->name);
+    ESP_LOGI(TAG, "%s stop", device->name);
     auto* driver_data = GET_DATA(device);
 
     lock(driver_data);

@@ -3,7 +3,7 @@
 #include <driver/gpio.h>
 
 #include <Tactility/hal/Configuration.h>
-#include <Tactility/hal/I2c.h>
+#include <Tactility/hal/i2c/I2c.h>
 
 using namespace tt::hal;
 

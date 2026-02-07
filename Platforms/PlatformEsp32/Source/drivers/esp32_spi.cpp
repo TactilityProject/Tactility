@@ -53,10 +53,6 @@ static error_t start(Device* device) {
     auto* data = new(std::nothrow) Esp32SpiInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
 
-    if (data->initialized) {
-        return ERROR_INVALID_STATE;
-    }
-
     device_set_driver_data(device, data);
 
     auto* dts_config = GET_CONFIG(device);
