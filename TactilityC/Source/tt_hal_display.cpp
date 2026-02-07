@@ -57,13 +57,12 @@ void tt_hal_display_driver_free(DisplayDriverHandle handle) {
 }
 
 bool tt_hal_display_driver_lock(DisplayDriverHandle handle, TickType_t timeout) {
-    auto wrapper = static_cast<DriverWrapper*>(handle);
-    return wrapper->driver->getLock()->lock(timeout);
+    // TODO: re-implement with SPI lock
+    return true;
 }
 
 void tt_hal_display_driver_unlock(DisplayDriverHandle handle) {
-    auto wrapper = static_cast<DriverWrapper*>(handle);
-    wrapper->driver->getLock()->unlock();
+    // TODO: re-implement with SPI lock
 }
 
 ColorFormat tt_hal_display_driver_get_colorformat(DisplayDriverHandle handle) {

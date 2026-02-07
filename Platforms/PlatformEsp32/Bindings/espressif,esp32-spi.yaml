@@ -1,0 +1,36 @@
+description: ESP32 SPI Controller
+
+include: ["spi-controller.yaml"]
+
+compatible: "espressif,esp32-spi"
+
+properties:
+  host:
+    type: int
+    required: true
+    description: |
+      The SPI host (controller) to use.
+      Defined by spi_host_device_t (e.g. SPI2_HOST, SPI3_HOST).
+  pin-mosi:
+    type: int
+    required: true
+    description: MOSI (Data 0) pin
+  pin-miso:
+    type: int
+    required: true
+    description: MISO (Data 1) pin
+  pin-sclk:
+    type: int
+    required: true
+    description: Clock pin
+  pin-wp:
+    type: int
+    description: WP (Data 2) pin
+  pin-hd:
+    type: int
+    description: HD (Data 3) pin
+  max-transfer-size:
+    type: int
+    description: |
+      Data transfer size limit in bytes. 
+      0 means the platform decides the limit.

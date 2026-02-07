@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Tactility/Lock.h>
 #include <tactility/check.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <esp_lcd_panel_dev.h>
@@ -35,7 +34,6 @@ class EspLcdDisplayV2 : public tt::hal::display::DisplayDevice {
     esp_lcd_panel_handle_t _Nullable panelHandle = nullptr;
     lv_display_t* _Nullable lvglDisplay = nullptr;
     std::shared_ptr<tt::hal::display::DisplayDriver> _Nullable displayDriver;
-    std::shared_ptr<tt::Lock> lock;
     std::shared_ptr<EspLcdConfiguration> configuration;
 
     bool applyConfiguration() const;
@@ -67,17 +65,13 @@ protected:
 
 public:
 
-    EspLcdDisplayV2(const std::shared_ptr<EspLcdConfiguration>& configuration, const std::shared_ptr<tt::Lock>& lock) :
-        lock(lock),
+    EspLcdDisplayV2(const std::shared_ptr<EspLcdConfiguration>& configuration) :
         configuration(configuration)
     {
         assert(configuration != nullptr);
-        assert(lock != nullptr);
     }
 
     ~EspLcdDisplayV2() override;
-
-    std::shared_ptr<tt::Lock> getLock() const { return lock; }
 
     bool start() final;
 

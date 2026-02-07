@@ -1,11 +1,10 @@
 #pragma once
 
-#include <Tactility/hal/spi/Spi.h>
-
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/display/DisplayDriver.h>
 
 #include <driver/gpio.h>
+#include <driver/spi_common.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_types.h>
 #include <freertos/FreeRTOS.h>
@@ -26,7 +25,7 @@ public:
             gpio_num_t csPin,
             gpio_num_t dcPin,
             gpio_num_t resetPin,
-            gpio_num_t tePin,
+
             unsigned int horizontalResolution,
             unsigned int verticalResolution,
             std::shared_ptr<tt::hal::touch::TouchDevice> touch,

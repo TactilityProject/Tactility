@@ -221,7 +221,6 @@ std::shared_ptr<tt::hal::display::DisplayDriver> EspLcdDisplayV2::getDisplayDriv
 
         displayDriver = std::make_shared<EspLcdDisplayDriver>(
             panelHandle,
-            lock,
             lvgl_port_config.hres,
             lvgl_port_config.vres,
             color_format
