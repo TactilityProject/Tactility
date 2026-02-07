@@ -3,9 +3,10 @@
 #include <tactility/drivers/esp32_spi.h>
 #include <tactility/concurrent/mutex.h>
 
+#include <cstring>
 #include <esp_log.h>
 #include <new>
-#include <cstring>
+#include <soc/gpio_num.h>
 
 #define TAG "esp32_spi"
 
@@ -26,34 +27,6 @@ struct InternalData {
         mutex_destruct(&mutex);
     }
 };
-
-static error_t reset(Device* device) {
-    auto* driver_data = GET_DATA(device);
-    auto* dts_config = GET_CONFIG(device);
-
-    if (driver_data->initialized) {
-        spi_bus_free(dts_config->host);
-        driver_data->initialized = false;
-    }
-
-    spi_bus_config_t buscfg = {
-        .mosi_io_num = dts_config->pin_mosi,
-        .miso_io_num = dts_config->pin_miso,
-        .sclk_io_num = dts_config->pin_sclk,
-        .quadwp_io_num = dts_config->pin_wp,
-        .quadhd_io_num = dts_config->pin_hd,
-        .max_transfer_sz = dts_config->max_transfer_sz,
-    };
-
-    esp_err_t ret = spi_bus_initialize(dts_config->host, &buscfg, SPI_DMA_CH_AUTO);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
-        return ERROR_RESOURCE;
-    }
-
-    driver_data->initialized = true;
-    return ERROR_NONE;
-}
 
 static error_t lock(Device* device) {
     auto* driver_data = GET_DATA(device);
@@ -83,7 +56,35 @@ static error_t start(Device* device) {
     data->initialized = false;
     device_set_driver_data(device, data);
 
-    return reset(device);
+    auto* driver_data = GET_DATA(device);
+    auto* dts_config = GET_CONFIG(device);
+
+    if (driver_data->initialized) {
+        spi_bus_free(dts_config->host);
+        driver_data->initialized = false;
+    }
+
+    spi_bus_config_t buscfg = {
+        .mosi_io_num = dts_config->pin_mosi,
+        .miso_io_num = dts_config->pin_miso,
+        .sclk_io_num = dts_config->pin_sclk,
+        .data2_io_num = dts_config->pin_wp,
+        .data3_io_num = dts_config->pin_hd,
+        .data4_io_num = GPIO_NUM_NC,
+        .data5_io_num = GPIO_NUM_NC,
+        .data6_io_num = GPIO_NUM_NC,
+        .data7_io_num = GPIO_NUM_NC,
+        .max_transfer_sz = dts_config->max_transfer_sz,
+    };
+
+    esp_err_t ret = spi_bus_initialize(dts_config->host, &buscfg, SPI_DMA_CH_AUTO);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
+        return ERROR_RESOURCE;
+    }
+
+    driver_data->initialized = true;
+    return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
@@ -101,7 +102,6 @@ static error_t stop(Device* device) {
 }
 
 const static struct SpiControllerApi esp32_spi_api = {
-    .reset = reset,
     .lock = lock,
     .try_lock = try_lock,
     .unlock = unlock

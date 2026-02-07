@@ -5,18 +5,21 @@
 #include <Tactility/hal/gps/Ublox.h>
 #include <Tactility/kernel/Kernel.h>
 
+#include <tactility/device.h>
+#include <tactility/drivers/uart_controller.h>
+
 #include <cstring>
 
 namespace tt::hal::gps {
 
 static const auto LOGGER = Logger("Gps");
 
-bool initMtk(uart::Uart& uart);
-bool initMtkL76b(uart::Uart& uart);
-bool initMtkPa1616s(uart::Uart& uart);
-bool initAtgm336h(uart::Uart& uart);
-bool initUc6580(uart::Uart& uart);
-bool initAg33xx(uart::Uart& uart);
+bool initMtk(::Device* uart);
+bool initMtkL76b(::Device* uart);
+bool initMtkPa1616s(::Device* uart);
+bool initAtgm336h(::Device* uart);
+bool initUc6580(::Device* uart);
+bool initAg33xx(::Device* uart);
 
 // region CAS
 
@@ -73,7 +76,7 @@ static uint8_t makeCASPacket(uint8_t* buffer, uint8_t class_id, uint8_t msg_id, 
     return (payload_size + 10);
 }
 
-GpsResponse getACKCas(uart::Uart& uart, uint8_t class_id, uint8_t msg_id, uint32_t waitMillis)
+GpsResponse getACKCas(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t waitMillis)
 {
     uint32_t startTime = kernel::getMillis();
     uint8_t buffer[CAS_ACK_NACK_MSG_SIZE] = {0};
@@ -87,8 +90,10 @@ GpsResponse getACKCas(uart::Uart& uart, uint8_t class_id, uint8_t msg_id, uint32
     // ACK-ACK | 0xBA | 0xCE | 0x04 | 0x00 | 0x05 | 0x01 | 0xXX | 0xXX | 0x00 | 0x00 | 0xXX | 0xXX | 0xXX | 0xXX |
 
     while (kernel::getTicks() - startTime < waitMillis) {
-        if (uart.available()) {
-            uart.readByte(&buffer[bufferPos++]);
+        size_t available = 0;
+        uart_controller_get_available(uart, &available);
+        if (available > 0) {
+            uart_controller_read_byte(uart, &buffer[bufferPos++], 1);
 
             // keep looking at the first two bytes of buffer until
             // we have found the CAS frame header (0xBA, 0xCE), if not
@@ -136,7 +141,7 @@ GpsResponse getACKCas(uart::Uart& uart, uint8_t class_id, uint8_t msg_id, uint32
 
 // endregion
 
-bool init(uart::Uart& uart, GpsModel type) {
+bool init(::Device* uart, GpsModel type) {
     switch (type) {
         case GpsModel::Unknown:
             check(false);
@@ -167,58 +172,58 @@ bool init(uart::Uart& uart, GpsModel type) {
     return false;
 }
 
-bool initAg33xx(uart::Uart& uart) {
-    uart.writeString("$PAIR066,1,0,1,0,0,1*3B\r\n"); // Enable GPS+GALILEO+NAVIC
+bool initAg33xx(::Device* uart) {
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR066,1,0,1,0,0,1*3B\r\n", 25, 250); // Enable GPS+GALILEO+NAVIC
 
     // Configure NMEA (sentences will output once per fix)
-    uart.writeString("$PAIR062,0,1*3F\r\n"); // GGA ON
-    uart.writeString("$PAIR062,1,0*3F\r\n"); // GLL OFF
-    uart.writeString("$PAIR062,2,0*3C\r\n"); // GSA OFF
-    uart.writeString("$PAIR062,3,0*3D\r\n"); // GSV OFF
-    uart.writeString("$PAIR062,4,1*3B\r\n"); // RMC ON
-    uart.writeString("$PAIR062,5,0*3B\r\n"); // VTG OFF
-    uart.writeString("$PAIR062,6,0*38\r\n"); // ZDA ON
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,0,1*3F\r\n", 17, 250); // GGA ON
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,1,0*3F\r\n", 17, 250); // GLL OFF
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,2,0*3C\r\n", 17, 250); // GSA OFF
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,3,0*3D\r\n", 17, 250); // GSV OFF
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,4,1*3B\r\n", 17, 250); // RMC ON
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,5,0*3B\r\n", 17, 250); // VTG OFF
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,6,0*38\r\n", 17, 250); // ZDA ON
 
     kernel::delayMillis(250);
-    uart.writeString("$PAIR513*3D\r\n"); // save configuration
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR513*3D\r\n", 13, 250); // save configuration
     return true;
 }
 
-bool initUc6580(uart::Uart& uart) {
+bool initUc6580(::Device* uart) {
     // The Unicore UC6580 can use a lot of sat systems, enable it to
     // use GPS L1 & L5 + BDS B1I & B2a + GLONASS L1 + GALILEO E1 & E5a + SBAS + QZSS
     // This will reset the receiver, so wait a bit afterwards
     // The paranoid will wait for the OK*04 confirmation response after each command.
-    uart.writeString("$CFGSYS,h35155\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$CFGSYS,h35155\r\n", 16, 250);
     kernel::delayMillis(750);
     // Must be done after the CFGSYS command
     // Turn off GSV messages, we don't really care about which and where the sats are, maybe someday.
-    uart.writeString("$CFGMSG,0,3,0\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$CFGMSG,0,3,0\r\n", 15, 250);
     kernel::delayMillis(250);
     // Turn off GSA messages, TinyGPS++ doesn't use this message.
-    uart.writeString("$CFGMSG,0,2,0\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$CFGMSG,0,2,0\r\n", 15, 250);
     kernel::delayMillis(250);
     // Turn off NOTICE __TXT messages, these may provide Unicore some info but we don't care.
-    uart.writeString("$CFGMSG,6,0,0\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$CFGMSG,6,0,0\r\n", 15, 250);
     kernel::delayMillis(250);
-    uart.writeString("$CFGMSG,6,1,0\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$CFGMSG,6,1,0\r\n", 15, 250);
     kernel::delayMillis(250);
     return true;
 }
 
-bool initAtgm336h(uart::Uart& uart) {
+bool initAtgm336h(::Device* uart) {
     uint8_t buffer[256];
 
     // Set the intial configuration of the device - these _should_ work for most AT6558 devices
     int msglen = makeCASPacket(buffer, 0x06, 0x07, sizeof(_message_CAS_CFG_NAVX_CONF), _message_CAS_CFG_NAVX_CONF);
-    uart.writeBytes(buffer, msglen);
+    uart_controller_write_bytes(uart, buffer, msglen, 250);
     if (getACKCas(uart, 0x06, 0x07, 250) != GpsResponse::Ok) {
         LOGGER.warn("ATGM336H: Could not set Config");
     }
 
     // Set the update frequence to 1Hz
     msglen = makeCASPacket(buffer, 0x06, 0x04, sizeof(_message_CAS_CFG_RATE_1HZ), _message_CAS_CFG_RATE_1HZ);
-    uart.writeBytes(buffer, msglen);
+    uart_controller_write_bytes(uart, buffer, msglen, 250);
     if (getACKCas(uart, 0x06, 0x04, 250) != GpsResponse::Ok) {
         LOGGER.warn("ATGM336H: Could not set Update Frequency");
     }
@@ -230,7 +235,7 @@ bool initAtgm336h(uart::Uart& uart) {
         // Construct a CAS-CFG-MSG packet
         uint8_t cas_cfg_msg_packet[] = {0x4e, fields[i], 0x01, 0x00};
         msglen = makeCASPacket(buffer, 0x06, 0x01, sizeof(cas_cfg_msg_packet), cas_cfg_msg_packet);
-        uart.writeBytes(buffer, msglen);
+        uart_controller_write_bytes(uart, buffer, msglen, 250);
         if (getACKCas(uart, 0x06, 0x01, 250) != GpsResponse::Ok) {
             LOGGER.warn("ATGM336H: Could not enable NMEA MSG: {}", fields[i]);
         }
@@ -238,53 +243,53 @@ bool initAtgm336h(uart::Uart& uart) {
     return true;
 }
 
-bool initMtkPa1616s(uart::Uart& uart) {
+bool initMtkPa1616s(::Device* uart) {
     // PA1616S is used in some GPS breakout boards from Adafruit
     // PA1616S does not have GLONASS capability. PA1616D does, but is not implemented here.
-    uart.writeString("$PMTK353,1,0,0,0,0*2A\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK353,1,0,0,0,0*2A\r\n", 23, 250);
     // Above command will reset the GPS and takes longer before it will accept new commands
     kernel::delayMillis(1000);
     // Only ask for RMC and GGA (GNRMC and GNGGA)
-    uart.writeString("$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n", 51, 250);
     kernel::delayMillis(250);
     // Enable SBAS / WAAS
-    uart.writeString("$PMTK301,2*2E\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK301,2*2E\r\n", 15, 250);
     kernel::delayMillis(250);
     return true;
 }
 
-bool initMtkL76b(uart::Uart& uart) {
+bool initMtkL76b(::Device* uart) {
     // Waveshare Pico-GPS hat uses the L76B with 9600 baud
     // Initialize the L76B Chip, use GPS + GLONASS
     // See note in L76_Series_GNSS_Protocol_Specification, chapter 3.29
-    uart.writeString("$PMTK353,1,1,0,0,0*2B\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK353,1,1,0,0,0*2B\r\n", 23, 250);
     // Above command will reset the GPS and takes longer before it will accept new commands
     kernel::delayMillis(1000);
     // only ask for RMC and GGA (GNRMC and GNGGA)
     // See note in L76_Series_GNSS_Protocol_Specification, chapter 2.1
-    uart.writeString("$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n", 51, 250);
     kernel::delayMillis(250);
     // Enable SBAS
-    uart.writeString("$PMTK301,2*2E\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK301,2*2E\r\n", 15, 250);
     kernel::delayMillis(250);
     // Enable PPS for 2D/3D fix only
-    uart.writeString("$PMTK285,3,100*3F\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK285,3,100*3F\r\n", 19, 250);
     kernel::delayMillis(250);
     // Switch to Fitness Mode, for running and walking purpose with low speed (<5 m/s)
-    uart.writeString("$PMTK886,1*29\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK886,1*29\r\n", 15, 250);
     kernel::delayMillis(250);
     return true;
 }
 
-bool initMtk(uart::Uart& uart) {
+bool initMtk(::Device* uart) {
     // Initialize the L76K Chip, use GPS + GLONASS + BEIDOU
-    uart.writeString("$PCAS04,7*1E\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PCAS04,7*1E\r\n", 14, 250);
     kernel::delayMillis(250);
     // only ask for RMC and GGA
-    uart.writeString("$PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0*02\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0*02\r\n", 38, 250);
     kernel::delayMillis(250);
     // Switch to Vehicle Mode, since SoftRF enables Aviation < 2g
-    uart.writeString("$PCAS11,3*1E\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PCAS11,3*1E\r\n", 14, 250);
     kernel::delayMillis(250);
     return true;
 }

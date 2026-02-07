@@ -1,8 +1,10 @@
 #include <Tactility/hal/gps/GpsDevice.h>
 #include <Tactility/hal/gps/GpsInit.h>
 #include <Tactility/hal/gps/Probe.h>
-#include <Tactility/hal/uart/Uart.h>
 #include <Tactility/Logger.h>
+
+#include <tactility/device.h>
+#include <tactility/drivers/uart_controller.h>
 
 #include <cstring>
 #include <minmea.h>
@@ -16,25 +18,34 @@ static const auto LOGGER = Logger("GpsDevice");
 int32_t GpsDevice::threadMain() {
     uint8_t buffer[GPS_UART_BUFFER_SIZE];
 
-    auto uart = uart::open(configuration.uartName);
+    auto* uart = device_find_by_name(configuration.uartName);
     if (uart == nullptr) {
-        LOGGER.error("Failed to open UART {}", configuration.uartName);
+        LOGGER.error("Failed to find UART {}", configuration.uartName);
         return -1;
     }
 
-    if (!uart->start()) {
-        LOGGER.error("Failed to start UART {}", configuration.uartName);
+    struct UartConfig uartConfig = {
+        .baud_rate = configuration.baudRate,
+        .data_bits = UART_CONTROLLER_DATA_8_BITS,
+        .parity = UART_CONTROLLER_PARITY_DISABLE,
+        .stop_bits = UART_CONTROLLER_STOP_BITS_1
+    };
+
+    error_t error = uart_controller_set_config(uart, &uartConfig);
+    if (error != ERROR_NONE) {
+        LOGGER.error("Failed to configure UART {}: {}", configuration.baudRate, configuration.uartName, error_to_string(error));
         return -1;
     }
 
-    if (!uart->setBaudRate(static_cast<int>(configuration.baudRate))) {
-        LOGGER.error("Failed to set baud rate to {} for UART {}", configuration.baudRate, configuration.uartName);
+    error = uart_controller_open(uart);
+    if (error != ERROR_NONE) {
+        LOGGER.error("Failed to open UART {}: {}", configuration.uartName, error_to_string(error));
         return -1;
     }
 
     GpsModel model = configuration.model;
     if (model == GpsModel::Unknown) {
-        model = probe(*uart);
+        model = probe(uart);
         if (model == GpsModel::Unknown) {
             LOGGER.error("Probe failed");
             setState(State::Error);
@@ -45,7 +56,7 @@ int32_t GpsDevice::threadMain() {
     this->model = model;
     mutex.unlock();
 
-    if (!init(*uart, model)) {
+    if (!init(uart, model)) {
         LOGGER.error("Init failed");
         setState(State::Error);
         return -1;
@@ -55,7 +66,8 @@ int32_t GpsDevice::threadMain() {
 
     // Reference: https://gpsd.gitlab.io/gpsd/NMEA.html
     while (!isThreadInterrupted()) {
-        size_t bytes_read = uart->readUntil(reinterpret_cast<std::byte*>(buffer), GPS_UART_BUFFER_SIZE, '\n', 100 / portTICK_PERIOD_MS);
+        size_t bytes_read = 0;
+        uart_controller_read_until(uart, buffer, GPS_UART_BUFFER_SIZE, '\n', true, &bytes_read, 100 / portTICK_PERIOD_MS);
 
         // Thread might've been interrupted in the meanwhile
         if (isThreadInterrupted()) {
@@ -103,7 +115,7 @@ int32_t GpsDevice::threadMain() {
         }
     }
 
-    if (uart->isStarted() && !uart->stop()) {
+    if (uart_controller_close(uart) != ERROR_NONE) {
         LOGGER.warn("Failed to stop UART {}", configuration.uartName);
     }
 

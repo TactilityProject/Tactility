@@ -7,11 +7,6 @@
 
 extern "C" {
 
-error_t spi_controller_reset(struct Device* device) {
-    const auto* driver = device_get_driver(device);
-    return SPI_DRIVER_API(driver)->reset(device);
-}
-
 error_t spi_controller_lock(struct Device* device) {
     const auto* driver = device_get_driver(device);
     return SPI_DRIVER_API(driver)->lock(device);

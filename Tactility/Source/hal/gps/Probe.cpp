@@ -1,8 +1,10 @@
 #include "Tactility/hal/gps/GpsDevice.h"
 #include "Tactility/hal/gps/Ublox.h"
 #include <Tactility/Logger.h>
-#include <Tactility/hal/uart/Uart.h>
 #include <Tactility/kernel/Kernel.h>
+
+#include <tactility/device.h>
+#include <tactility/drivers/uart_controller.h>
 
 #include <cstring>
 
@@ -41,7 +43,7 @@ char* strnstr(const char* s, const char* find, size_t slen) {
 /**
  * From: https://github.com/meshtastic/firmware/blob/f81d3b045dd1b7e3ca7870af3da915ff4399ea98/src/gps/GPS.cpp
  */
-GpsResponse getAck(uart::Uart& uart, const char* message, uint32_t waitMillis) {
+GpsResponse getAck(::Device* uart, const char* message, uint32_t waitMillis) {
     uint8_t buffer[768] = {0};
     uint8_t b;
     int bytesRead = 0;
@@ -50,8 +52,10 @@ GpsResponse getAck(uart::Uart& uart, const char* message, uint32_t waitMillis) {
     std::string debugmsg = "";
 #endif
     while (kernel::getMillis() < startTimeout) {
-        if (uart.available()) {
-            uart.readByte(&b);
+        size_t available = 0;
+        uart_controller_get_available(uart, &available);
+        if (available > 0) {
+            uart_controller_read_byte(uart, &b, 1);
 
 #ifdef GPS_DEBUG
             debugmsg += vformat("%c", (b >= 32 && b <= 126) ? b : '.');
@@ -82,8 +86,8 @@ GpsResponse getAck(uart::Uart& uart, const char* message, uint32_t waitMillis) {
 #define PROBE_SIMPLE(UART, CHIP, TOWRITE, RESPONSE, DRIVER, TIMEOUT, ...)   \
     do {                                                                    \
         LOGGER.info("Probing for {} ({})", CHIP, TOWRITE);                  \
-        UART.flushInput();                                                  \
-        UART.writeString(TOWRITE "\r\n", TIMEOUT);                          \
+        uart_controller_flush_input(UART);                                  \
+        uart_controller_write_bytes(UART, (const uint8_t*)(TOWRITE "\r\n"), strlen(TOWRITE "\r\n"), TIMEOUT); \
         if (getAck(UART, RESPONSE, TIMEOUT) == GpsResponse::Ok) {           \
             LOGGER.info("Probe detected {} {}", CHIP, #DRIVER);             \
             return DRIVER;                                                  \
@@ -93,15 +97,15 @@ GpsResponse getAck(uart::Uart& uart, const char* message, uint32_t waitMillis) {
 /**
  * From: https://github.com/meshtastic/firmware/blob/f81d3b045dd1b7e3ca7870af3da915ff4399ea98/src/gps/GPS.cpp
  */
-GpsModel probe(uart::Uart& uart) {
+GpsModel probe(::Device* uart) {
     // Close all NMEA sentences, valid for L76K, ATGM336H (and likely other AT6558 devices)
-    uart.writeString("$PCAS03,0,0,0,0,0,0,0,0,0,0,,,0,0*02\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PCAS03,0,0,0,0,0,0,0,0,0,0,,,0,0*02\r\n", 40, 500);
     kernel::delayMillis(20);
 
     // Close NMEA sequences on Ublox
-    uart.writeString("$PUBX,40,GLL,0,0,0,0,0,0*5C\r\n");
-    uart.writeString("$PUBX,40,GSV,0,0,0,0,0,0*59\r\n");
-    uart.writeString("$PUBX,40,VTG,0,0,0,0,0,0*5E\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PUBX,40,GLL,0,0,0,0,0,0*5C\r\n", 29, 500);
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PUBX,40,GSV,0,0,0,0,0,0*59\r\n", 29, 500);
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PUBX,40,VTG,0,0,0,0,0,0*5E\r\n", 29, 500);
     kernel::delayMillis(20);
 
     // Unicore UFirebirdII Series: UC6580, UM620, UM621, UM670A, UM680A, or UM681A
@@ -114,9 +118,9 @@ GpsModel probe(uart::Uart& uart) {
     PROBE_SIMPLE(uart, "ATGM332D", "$PCAS06,1*1A", "$GPTXT,01,01,02,HW=ATGM332D", GpsModel::ATGM336H, 500);
 
     /* Airoha (Mediatek) AG3335A/M/S, A3352Q, Quectel L89 2.0, SimCom SIM65M */
-    uart.writeString("$PAIR062,2,0*3C\r\n"); // GSA OFF to reduce volume
-    uart.writeString("$PAIR062,3,0*3D\r\n"); // GSV OFF to reduce volume
-    uart.writeString("$PAIR513*3D\r\n"); // save configuration
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,2,0*3C\r\n", 17, 500); // GSA OFF to reduce volume
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,3,0*3D\r\n", 17, 500); // GSV OFF to reduce volume
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR513*3D\r\n", 13, 500); // save configuration
     PROBE_SIMPLE(uart, "AG3335", "$PAIR021*39", "$PAIR021,AG3335", GpsModel::AG3335, 500);
     PROBE_SIMPLE(uart, "AG3352", "$PAIR021*39", "$PAIR021,AG3352", GpsModel::AG3352, 500);
     PROBE_SIMPLE(uart, "LC86", "$PQTMVERNO*58", "$PQTMVERNO,LC86", GpsModel::AG3352, 500);
@@ -124,7 +128,7 @@ GpsModel probe(uart::Uart& uart) {
     PROBE_SIMPLE(uart, "L76K", "$PCAS06,0*1B", "$GPTXT,01,01,02,SW=", GpsModel::MTK, 500);
 
     // Close all NMEA sentences, valid for L76B MTK platform (Waveshare Pico GPS)
-    uart.writeString("$PMTK514,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*2E\r\n");
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK514,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*2E\r\n", 51, 500);
     kernel::delayMillis(20);
 
     PROBE_SIMPLE(uart, "L76B", "$PMTK605*31", "Quectel-L76B", GpsModel::MTK_L76B, 500);
@@ -134,7 +138,7 @@ GpsModel probe(uart::Uart& uart) {
     if (ublox_result != GpsModel::Unknown) {
         return ublox_result;
     } else {
-        LOGGER.warn("No GNSS Module (baud rate {})", uart.getBaudRate());
+        LOGGER.warn("No GNSS Module");
         return GpsModel::Unknown;
     }
 }

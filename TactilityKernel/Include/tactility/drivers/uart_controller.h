@@ -101,9 +101,10 @@ struct UartControllerApi {
     /**
      * @brief Returns the number of bytes available for reading.
      * @param[in] device the UART controller device
-     * @return the number of bytes available, or a negative error code on failure
+     * @param[out] available the number of bytes available
+     * @return ERROR_NONE on success
      */
-    int (*available)(struct Device* device);
+    error_t (*get_available)(struct Device* device, size_t* available);
 
     /**
      * @brief Sets the UART configuration.
@@ -171,9 +172,23 @@ error_t uart_controller_write_bytes(struct Device* device, const uint8_t* buffer
 error_t uart_controller_read_bytes(struct Device* device, uint8_t* buffer, size_t buffer_size, TickType_t timeout);
 
 /**
- * @brief Returns the number of bytes available for reading using the specified controller.
+ * @brief Reads from UART until a specific byte is encountered.
+ * @param[in] device the UART controller device
+ * @param[out] buffer the buffer to store the read data
+ * @param[in] buffer_size the size of the buffer
+ * @param[in] until_byte the byte to look for
+ * @param[in] timeout the maximum time to wait for the operation to complete
+ * @param[in] add_null_terminator whether to add a null terminator after the until_byte
+ * @param[out] bytes_read the number of bytes read (excluding null terminator if added)
+ * @retval ERROR_NONE when the operation was successful
+ * @retval ERROR_TIMEOUT when the operation timed out
  */
-int uart_controller_available(struct Device* device);
+error_t uart_controller_read_until(struct Device* device, uint8_t* buffer, size_t buffer_size, uint8_t until_byte, bool add_null_terminator, size_t* bytes_read, TickType_t timeout);
+
+/**
+ * @brief Get the number of bytes available for reading using the specified controller.
+ */
+error_t uart_controller_get_available(struct Device* device, size_t* available);
 
 /**
  * @brief Sets the UART configuration using the specified controller.
@@ -199,11 +214,6 @@ error_t uart_controller_close(struct Device* device);
  * @brief Checks if the UART controller is open using the specified controller.
  */
 bool uart_controller_is_open(struct Device* device);
-
-/**
- * @brief Resets the UART controller using the specified controller.
- */
-error_t uart_controller_reset(struct Device* device);
 
 /**
  * @brief Flushes the UART input buffer using the specified controller.

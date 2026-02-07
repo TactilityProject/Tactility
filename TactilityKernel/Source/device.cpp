@@ -338,6 +338,20 @@ void device_for_each_of_type(const DeviceType* type, void* callbackContext, bool
     ledger_unlock();
 }
 
+bool device_exists_of_type(const DeviceType* type) {
+    bool found = false;
+    ledger_lock();
+    for (auto* device : ledger.devices) {
+        auto* driver = device->internal->driver;
+        if (driver != nullptr && driver->device_type == type) {
+            found = true;
+            break;
+        }
+    }
+    ledger_unlock();
+    return found;
+}
+
 Device* device_find_by_name(const char* name) {
     Device* found = nullptr;
     ledger_lock();

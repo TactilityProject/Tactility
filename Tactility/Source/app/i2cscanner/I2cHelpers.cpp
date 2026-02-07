@@ -1,7 +1,7 @@
 #include "Tactility/app/i2cscanner/I2cHelpers.h"
 
-#include <Tactility/Tactility.h>
 #include <Tactility/StringUtils.h>
+#include <Tactility/hal/i2c/I2c.h>
 
 #include <iomanip>
 #include <vector>

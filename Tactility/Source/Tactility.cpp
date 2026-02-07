@@ -26,8 +26,9 @@
 #include <Tactility/settings/TimePrivate.h>
 
 #include <tactility/concurrent/thread.h>
-#include <tactility/kernel_init.h>
+#include <tactility/drivers/uart_controller.h>
 #include <tactility/hal_device_module.h>
+#include <tactility/kernel_init.h>
 #include <tactility/lvgl_module.h>
 
 #ifdef ESP_PLATFORM
@@ -180,7 +181,7 @@ static void registerInternalApps() {
     addAppManifest(app::chat::manifest);
 #endif
 
-    if (!hal::getConfiguration()->uart.empty()) {
+    if (device_exists_of_type(&UART_CONTROLLER_TYPE)) {
         addAppManifest(app::addgps::manifest);
         addAppManifest(app::gpssettings::manifest);
     }

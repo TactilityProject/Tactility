@@ -1,8 +1,10 @@
 #include <Tactility/hal/gps/Ublox.h>
 #include <Tactility/hal/gps/UbloxMessages.h>
-#include <Tactility/hal/uart/Uart.h>
 #include <Tactility/kernel/Kernel.h>
 #include <Tactility/Logger.h>
+
+#include <tactility/device.h>
+#include <tactility/drivers/uart_controller.h>
 
 #include <cstring>
 
@@ -10,14 +12,14 @@ namespace tt::hal::gps::ublox {
 
 static const auto LOGGER = Logger("Ublox");
 
-bool initUblox6(uart::Uart& uart);
-bool initUblox789(uart::Uart& uart, GpsModel model);
-bool initUblox10(uart::Uart& uart);
+bool initUblox6(::Device* uart);
+bool initUblox789(::Device* uart, GpsModel model);
+bool initUblox10(::Device* uart);
 
 #define SEND_UBX_PACKET(UART, BUFFER, TYPE, ID, DATA, ERRMSG, TIMEOUT) \
     do { \
         auto msglen = makePacket(TYPE, ID, DATA, sizeof(DATA), BUFFER); \
-        UART.writeBytes(BUFFER, sizeof(BUFFER)); \
+        uart_controller_write_bytes(UART, BUFFER, msglen, TIMEOUT); \
         if (getAck(UART, TYPE, ID, TIMEOUT) != GpsResponse::Ok) { \
             LOGGER.info("Sending packet failed: {}", #ERRMSG); \
         } \
@@ -56,7 +58,7 @@ uint8_t makePacket(uint8_t classId, uint8_t messageId, const uint8_t* payload, u
     return (payloadSize + 8U);
 }
 
-GpsResponse getAck(uart::Uart& uart, uint8_t class_id, uint8_t msg_id, uint32_t waitMillis) {
+GpsResponse getAck(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t waitMillis) {
     uint8_t b;
     uint8_t ack = 0;
     const uint8_t ackP[2] = {class_id, msg_id};
@@ -86,8 +88,10 @@ GpsResponse getAck(uart::Uart& uart, uint8_t class_id, uint8_t msg_id, uint32_t 
 #endif
             return GpsResponse::Ok; // ACK received
         }
-        if (uart.available()) {
-            uart.readByte(&b);
+        size_t available = 0;
+        uart_controller_get_available(uart, &available);
+        if (available > 0) {
+            uart_controller_read_byte(uart, &b, 1);
             if (b == frame_errors[sCounter]) {
                 sCounter++;
                 if (sCounter == 26) {
@@ -124,15 +128,18 @@ GpsResponse getAck(uart::Uart& uart, uint8_t class_id, uint8_t msg_id, uint32_t 
     return GpsResponse::None; // No response received within timeout
 }
 
-static int getAck(uart::Uart& uart, uint8_t* buffer, uint16_t size, uint8_t requestedClass, uint8_t requestedId, TickType_t timeout) {
+static int getAck(::Device* uart, uint8_t* buffer, uint16_t size, uint8_t requestedClass, uint8_t requestedId, uint32_t timeout) {
     uint16_t ubxFrameCounter = 0;
     uint32_t startTime = kernel::getTicks();
     uint16_t needRead = 0;
 
     while (kernel::getTicks() - startTime < timeout) {
-        while (uart.available()) {
+        size_t available = 0;
+        uart_controller_get_available(uart, &available);
+        while (available > 0) {
             uint8_t c;
-            uart.readByte(&c);
+            uart_controller_read_byte(uart, &c, 1);
+            available--;
 
             switch (ubxFrameCounter) {
                 case 0:
@@ -174,7 +181,8 @@ static int getAck(uart::Uart& uart, uint8_t* buffer, uint16_t size, uint8_t requ
                         ubxFrameCounter = 0;
                         break;
                     }
-                    auto read_bytes = uart.readBytes(buffer, needRead, 250 / portTICK_PERIOD_MS);
+                    auto read_bytes = 0U;
+                    uart_controller_read_bytes(uart, buffer, needRead, 250 / portTICK_PERIOD_MS);
                     if (read_bytes != needRead) {
                         ubxFrameCounter = 0;
                     } else {
@@ -203,21 +211,21 @@ static struct uBloxGnssModelInfo {
     uint8_t protocol_version;
 } ublox_info;
 
-GpsModel probe(uart::Uart& uart) {
+GpsModel probe(::Device* uart) {
     LOGGER.info("Probing for U-blox");
     constexpr auto DETECTED_MESSAGE = "{} detected, using {} Module";
 
     uint8_t cfg_rate[] = {0xB5, 0x62, 0x06, 0x08, 0x00, 0x00, 0x00, 0x00};
     checksum(cfg_rate, sizeof(cfg_rate));
-    uart.flushInput();
-    uart.writeBytes(cfg_rate, sizeof(cfg_rate));
+    uart_controller_flush_input(uart);
+    uart_controller_write_bytes(uart, cfg_rate, sizeof(cfg_rate), 500);
     // Check that the returned response class and message ID are correct
     GpsResponse response = getAck(uart, 0x06, 0x08, 750);
     if (response == GpsResponse::None) {
-        LOGGER.warn("No GNSS Module (baudrate {})", uart.getBaudRate());
+        LOGGER.warn("No GNSS Module");
         return GpsModel::Unknown;
     } else if (response == GpsResponse::FrameErrors) {
-        LOGGER.warn("UBlox Frame Errors (baudrate {})", uart.getBaudRate());
+        LOGGER.warn("UBlox Frame Errors");
     }
 
     uint8_t buffer[256];
@@ -230,8 +238,8 @@ GpsModel probe(uart::Uart& uart) {
     };
     //  Get Ublox gnss module hardware and software info
     checksum(_message_MONVER, sizeof(_message_MONVER));
-    uart.flushInput();
-    uart.writeBytes(_message_MONVER, sizeof(_message_MONVER));
+    uart_controller_flush_input(uart);
+    uart_controller_write_bytes(uart, _message_MONVER, sizeof(_message_MONVER), 500);
 
     uint16_t ack_response_len = getAck(uart, buffer, sizeof(buffer), 0x0A, 0x04, 1200);
     if (ack_response_len) {
@@ -303,7 +311,7 @@ GpsModel probe(uart::Uart& uart) {
     return GpsModel::Unknown;
 }
 
-bool init(uart::Uart& uart, GpsModel model) {
+bool init(::Device* uart, GpsModel model) {
     LOGGER.info("U-blox init");
     switch (model) {
         case GpsModel::UBLOX6:
@@ -320,19 +328,19 @@ bool init(uart::Uart& uart, GpsModel model) {
     }
 }
 
-bool initUblox10(uart::Uart& uart) {
+bool initUblox10(::Device* uart) {
     uint8_t buffer[256];
     kernel::delayMillis(1000);
-    uart.flushInput();
+    uart_controller_flush_input(uart);
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x8A, _message_VALSET_DISABLE_NMEA_RAM, "disable NMEA messages in M10 RAM", 300);
     kernel::delayMillis(750);
-    uart.flushInput();
+    uart_controller_flush_input(uart);
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x8A, _message_VALSET_DISABLE_NMEA_BBR, "disable NMEA messages in M10 BBR", 300);
     kernel::delayMillis(750);
-    uart.flushInput();
+    uart_controller_flush_input(uart);
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x8A, _message_VALSET_DISABLE_TXT_INFO_RAM, "disable Info messages for M10 GPS RAM", 300);
     kernel::delayMillis(750);
-    uart.flushInput();
+    uart_controller_flush_input(uart);
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x8A, _message_VALSET_DISABLE_TXT_INFO_BBR, "disable Info messages for M10 GPS BBR", 300);
     kernel::delayMillis(750);
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x8A, _message_VALSET_PM_RAM, "enable powersave for M10 GPS RAM", 300);
@@ -362,7 +370,7 @@ bool initUblox10(uart::Uart& uart) {
     // BBR will survive a restart, and power off for a while, but modules with small backup
     // batteries or super caps will not retain the config for a long power off time.
     auto packet_size = makePacket(0x06, 0x09, _message_SAVE_10, sizeof(_message_SAVE_10), buffer);
-    uart.writeBytes(buffer, packet_size);
+    uart_controller_write_bytes(uart, buffer, packet_size, 2000);
     if (getAck(uart, 0x06, 0x09, 2000) != GpsResponse::Ok) {
         LOGGER.warn("Unable to save GNSS module config");
     } else {
@@ -371,15 +379,15 @@ bool initUblox10(uart::Uart& uart) {
     return true;
 }
 
-bool initUblox789(uart::Uart& uart, GpsModel model) {
+bool initUblox789(::Device* uart, GpsModel model) {
     uint8_t buffer[256];
     if (model == GpsModel::UBLOX7) {
         LOGGER.debug("Set GPS+SBAS");
         auto msglen = makePacket(0x06, 0x3e, _message_GNSS_7, sizeof(_message_GNSS_7), buffer);
-        uart.writeBytes(buffer, msglen);
+        uart_controller_write_bytes(uart, buffer, msglen, 800);
     } else { // 8,9
         auto msglen = makePacket(0x06, 0x3e, _message_GNSS_8, sizeof(_message_GNSS_8), buffer);
-        uart.writeBytes(buffer, msglen);
+        uart_controller_write_bytes(uart, buffer, msglen, 800);
     }
 
     if (getAck(uart, 0x06, 0x3e, 800) == GpsResponse::NotAck) {
@@ -396,15 +404,15 @@ bool initUblox789(uart::Uart& uart, GpsModel model) {
         kernel::delayMillis(1000);
     }
 
-    uart.flushInput();
+    uart_controller_flush_input(uart);
 
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x02, _message_DISABLE_TXT_INFO, "disable text info messages", 500);
 
     if (model == GpsModel::UBLOX8) { // 8
-        uart.flushInput();
+        uart_controller_flush_input(uart);
         SEND_UBX_PACKET(uart, buffer, 0x06, 0x39, _message_JAM_8, "enable interference resistance", 500);
 
-        uart.flushInput();
+        uart_controller_flush_input(uart);
         SEND_UBX_PACKET(uart, buffer, 0x06, 0x23, _message_NAVX5_8, "configure NAVX5_8 settings", 500);
     } else { // 6,7,9
         SEND_UBX_PACKET(uart, buffer, 0x06, 0x39, _message_JAM_6_7, "enable interference resistance", 500);
@@ -421,13 +429,13 @@ bool initUblox789(uart::Uart& uart, GpsModel model) {
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x01, _message_GGA, "enable NMEA GGA", 500);
 
     if (ublox_info.protocol_version >= 18) {
-        uart.flushInput();
+        uart_controller_flush_input(uart);
         SEND_UBX_PACKET(uart, buffer, 0x06, 0x86, _message_PMS, "enable powersave for GPS", 500);
         SEND_UBX_PACKET(uart, buffer, 0x06, 0x3B, _message_CFG_PM2, "enable powersave details for GPS", 500);
 
         // For M8 we want to enable NMEA version 4.10 so we can see the additional satellites.
         if (model == GpsModel::UBLOX8) {
-            uart.flushInput();
+            uart_controller_flush_input(uart);
             SEND_UBX_PACKET(uart, buffer, 0x06, 0x17, _message_NMEA, "enable NMEA 4.10", 500);
         }
     } else {
@@ -436,7 +444,7 @@ bool initUblox789(uart::Uart& uart, GpsModel model) {
     }
 
     auto packet_size = makePacket(0x06, 0x09, _message_SAVE, sizeof(_message_SAVE), buffer);
-    uart.writeBytes(buffer, packet_size);
+    uart_controller_write_bytes(uart, buffer, packet_size, 2000);
     if (getAck(uart, 0x06, 0x09, 2000) != GpsResponse::Ok) {
         LOGGER.warn("Unable to save GNSS module config");
     } else {
@@ -445,10 +453,10 @@ bool initUblox789(uart::Uart& uart, GpsModel model) {
     return true;
 }
 
-bool initUblox6(uart::Uart& uart) {
+bool initUblox6(::Device* uart) {
     uint8_t buffer[256];
 
-    uart.flushInput();
+    uart_controller_flush_input(uart);
 
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x02, _message_DISABLE_TXT_INFO, "disable text info messages", 500);
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x39, _message_JAM_6_7, "enable interference resistance", 500);
@@ -463,14 +471,14 @@ bool initUblox6(uart::Uart& uart) {
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x01, _message_RMC, "enable NMEA RMC", 500);
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x01, _message_GGA, "enable NMEA GGA", 500);
 
-    uart.flushInput();
+    uart_controller_flush_input(uart);
 
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x11, _message_CFG_RXM_ECO, "enable powersave ECO mode for Neo-6", 500);
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x3B, _message_CFG_PM2, "enable powersave details for GPS", 500);
     SEND_UBX_PACKET(uart, buffer, 0x06, 0x01, _message_AID, "disable UBX-AID", 500);
 
     auto packet_size = makePacket(0x06, 0x09, _message_SAVE, sizeof(_message_SAVE), buffer);
-    uart.writeBytes(buffer, packet_size);
+    uart_controller_write_bytes(uart, buffer, packet_size, 2000);
     if (getAck(uart, 0x06, 0x09, 2000) != GpsResponse::Ok) {
         LOGGER.warn("Unable to save GNSS module config");
     } else {

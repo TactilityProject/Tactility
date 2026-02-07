@@ -10,6 +10,13 @@ extern "C" {
 #endif
 
 /**
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ * WARNING: THIS API IS NON-FUNCTIONAL AND DEPRECATED.
+ * IT WILL BE REMOVED IN A FUTURE RELEASE ONCE OFFICIAL APPS ARE MIGRATED.
+* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ */
+
+/**
  * @file tt_hal_uart.h
  * @brief C HAL interface for UART devices used by Tactility C modules.
  *

@@ -19,13 +19,6 @@ struct Device;
  */
 struct SpiControllerApi {
     /**
-     * @brief Resets the SPI controller.
-     * @param[in] device the SPI controller device
-     * @retval ERROR_NONE when the operation was successful
-     */
-    error_t (*reset)(struct Device* device);
-
-    /**
      * @brief Locks the SPI controller.
      * @param[in] device the SPI controller device
      * @retval ERROR_NONE when the operation was successful
@@ -48,13 +41,6 @@ struct SpiControllerApi {
      */
     error_t (*unlock)(struct Device* device);
 };
-
-/**
- * @brief Resets the SPI controller using the specified controller.
- * @param[in] device the SPI controller device
- * @retval ERROR_NONE when the operation was successful
- */
-error_t spi_controller_reset(struct Device* device);
 
 /**
  * @brief Locks the SPI controller using the specified controller.

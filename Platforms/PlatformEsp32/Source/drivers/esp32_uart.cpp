@@ -14,23 +14,23 @@
 
 #define TAG "esp32_uart"
 
-struct InternalData {
+struct Esp32UartInternal {
     Mutex mutex {};
     UartConfig config {};
     bool config_set = false;
     bool is_open = false;
 
-    InternalData() {
+    Esp32UartInternal() {
         mutex_construct(&mutex);
     }
 
-    ~InternalData() {
+    ~Esp32UartInternal() {
         mutex_destruct(&mutex);
     }
 };
 
 #define GET_CONFIG(device) ((Esp32UartConfig*)device->config)
-#define GET_DATA(device) ((InternalData*)device_get_driver_data(device))
+#define GET_DATA(device) ((Esp32UartInternal*)device_get_driver_data(device))
 
 #define lock(data) mutex_lock(&data->mutex)
 #define unlock(data) mutex_unlock(&data->mutex)
@@ -165,7 +165,7 @@ static error_t read_bytes(Device* device, uint8_t* buffer, size_t buffer_size, T
     return ERROR_NONE;
 }
 
-static int available(Device* device) {
+static error_t get_available(Device* device, size_t* available_bytes) {
     auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
 
@@ -175,12 +175,11 @@ static int available(Device* device) {
         return -1;
     }
 
-    size_t size;
-    esp_err_t err = uart_get_buffered_data_len(dts_config->port, &size);
+    esp_err_t err = uart_get_buffered_data_len(dts_config->port, available_bytes);
     unlock(driver_data);
 
-    if (err != ESP_OK) return -1;
-    return (int)size;
+    if (err != ESP_OK) return esp_err_to_error(err);
+    return ERROR_NONE;
 }
 
 static error_t set_config(Device* device, const struct UartConfig* config) {
@@ -249,11 +248,13 @@ static error_t open(Device* device) {
     lock(driver_data);
     if (driver_data->is_open) {
         unlock(driver_data);
-        return ERROR_NONE;
+        LOG_W(TAG, "Already open");
+        return ERROR_INVALID_STATE;
     }
 
     if (!driver_data->config_set) {
         unlock(driver_data);
+        LOG_E(TAG, "open failed: config not set");
         return ERROR_INVALID_STATE;
     }
 
@@ -278,6 +279,7 @@ static error_t close(Device* device) {
     lock(driver_data);
     if (!driver_data->is_open) {
         unlock(driver_data);
+        LOG_W(TAG, "Already closed");
         return ERROR_INVALID_STATE;
     }
     uart_driver_delete(dts_config->port);
@@ -313,7 +315,7 @@ static error_t flush_input(Device* device) {
 
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
-    auto* data = new(std::nothrow) InternalData();
+    auto* data = new(std::nothrow) Esp32UartInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
 
     device_set_driver_data(device, data);
@@ -343,7 +345,7 @@ const static UartControllerApi esp32_uart_api = {
     .write_byte = write_byte,
     .write_bytes = write_bytes,
     .read_bytes = read_bytes,
-    .available = available,
+    .get_available = get_available,
     .set_config = set_config,
     .get_config = get_config,
     .open = open,

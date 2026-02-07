@@ -260,6 +260,14 @@ void device_for_each_child(struct Device* device, void* callback_context, bool(*
 void device_for_each_of_type(const struct DeviceType* type, void* callback_context, bool(*on_device)(struct Device* device, void* context));
 
 /**
+ * Check if a device of the specified type exists.
+ *
+ * @param[in] type the type to check
+ * @return true if a device of the specified type exists
+ */
+bool device_exists_of_type(const struct DeviceType* type);
+
+/**
  * Find a device by its name.
  *
  * @param[in] name non-null device name to look up

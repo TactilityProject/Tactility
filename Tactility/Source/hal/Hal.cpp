@@ -3,9 +3,7 @@
 #include <tactility/check.h>
 #include <Tactility/hal/Configuration.h>
 #include <tactility/hal/Device.h>
-#include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/hal/spi/SpiInit.h>
-#include <Tactility/hal/uart/UartInit.h>
 
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/sdcard/SdCardMounting.h>
@@ -67,7 +65,6 @@ void init(const Configuration& configuration) {
     kernel::publishSystemEvent(kernel::SystemEvent::BootInitHalBegin);
 
     check(spi::init(configuration.spi), "SPI init failed");
-    check(uart::init(configuration.uart), "UART init failed");
 
     if (configuration.initBoot != nullptr) {
         check(configuration.initBoot(), "Init boot failed");

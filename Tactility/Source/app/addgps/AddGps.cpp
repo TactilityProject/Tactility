@@ -3,11 +3,11 @@
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/hal/gps/GpsDevice.h>
-#include <Tactility/hal/uart/Uart.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/gps/GpsService.h>
 
+#include "tactility/drivers/uart_controller.h"
 #include <cstring>
 #include <lvgl.h>
 
@@ -20,6 +20,8 @@ class AddGpsApp final : public App {
     lv_obj_t* uartDropdown = nullptr;
     lv_obj_t* modelDropdown = nullptr;
     lv_obj_t* baudDropdown = nullptr;
+
+    std::vector<::Device*> devices;
 
     // Store as string instead of int, so app startup doesn't require parsing all entries.
     // We only need to parse back to int when adding the new GPS entry
@@ -69,6 +71,24 @@ class AddGpsApp final : public App {
         }
     }
 
+    void updateUartDevices() {
+        devices.clear();
+        device_for_each_of_type(&UART_CONTROLLER_TYPE, &devices, [](auto* device, auto* context){
+            auto* vector_ptr = static_cast<std::vector<::Device*>*>(context);
+            vector_ptr->push_back(device);
+            return true;
+        });
+    }
+
+    std::string getUartDropdownNames() {
+        std::vector<std::string> names;
+        names.push_back("");
+        for (auto* device: devices) {
+            names.push_back(device->name);
+        }
+        return string::join(names, "\n");
+    }
+
 public:
 
     void onShow(AppContext& app, lv_obj_t* parent) final {
@@ -95,9 +115,9 @@ public:
 
         uartDropdown = lv_dropdown_create(uart_wrapper);
 
-        auto uart_names = hal::uart::getNames();
-        uart_names.insert(uart_names.begin(), "");
-        auto uart_options = string::join(uart_names, "\n");
+        updateUartDevices();
+
+        auto uart_options = getUartDropdownNames();
         lv_dropdown_set_options(uartDropdown, uart_options.c_str());
         lv_obj_align(uartDropdown, LV_ALIGN_TOP_RIGHT, 0, 0);
         lv_obj_set_width(uartDropdown, LV_PCT(50));

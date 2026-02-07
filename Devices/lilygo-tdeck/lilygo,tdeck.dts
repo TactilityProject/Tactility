@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_uart.h>
 
 // Reference: https://wiki.lilygo.cc/get_started/en/Wearable/T-Deck-Plus/T-Deck-Plus.html#Pin-Overview
 / {
@@ -39,5 +40,14 @@
 		pin-data-out = <6>;
 		pin-data-in = <GPIO_PIN_NONE>;
 		pin-mclk = <GPIO_PIN_NONE>;
+	};
+
+	uart0 {
+		compatible = "espressif,esp32-uart";
+		port = <UART_NUM_1>;
+		pin-tx = <43>;
+		pin-rx = <44>;
+		pin-cts = <GPIO_PIN_NONE>;
+		pin-rtx = <GPIO_PIN_NONE>;
 	};
 };

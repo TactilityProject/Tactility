@@ -1,8 +1,10 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
-#include <tactility/drivers/gpio_controller.h>
+#include <tactility/drivers/spi_controller.h>
+#include <tactility/drivers/uart_controller.h>
 #include <tactility/concurrent/dispatcher.h>
 #include <tactility/concurrent/event_group.h>
 #include <tactility/concurrent/thread.h>
@@ -41,6 +43,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(device_for_each),
     DEFINE_MODULE_SYMBOL(device_for_each_child),
     DEFINE_MODULE_SYMBOL(device_for_each_of_type),
+    DEFINE_MODULE_SYMBOL(device_exists_of_type),
     // driver
     DEFINE_MODULE_SYMBOL(driver_construct),
     DEFINE_MODULE_SYMBOL(driver_destruct),
@@ -76,6 +79,24 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(i2s_controller_get_config),
     DEFINE_MODULE_SYMBOL(i2s_controller_reset),
     DEFINE_MODULE_SYMBOL(I2S_CONTROLLER_TYPE),
+    // drivers/spi_controller
+    DEFINE_MODULE_SYMBOL(spi_controller_lock),
+    DEFINE_MODULE_SYMBOL(spi_controller_try_lock),
+    DEFINE_MODULE_SYMBOL(spi_controller_unlock),
+    // drivers/uart_controller
+    DEFINE_MODULE_SYMBOL(uart_controller_open),
+    DEFINE_MODULE_SYMBOL(uart_controller_close),
+    DEFINE_MODULE_SYMBOL(uart_controller_is_open),
+    DEFINE_MODULE_SYMBOL(uart_controller_read_byte),
+    DEFINE_MODULE_SYMBOL(uart_controller_read_bytes),
+    DEFINE_MODULE_SYMBOL(uart_controller_read_until),
+    DEFINE_MODULE_SYMBOL(uart_controller_write_byte),
+    DEFINE_MODULE_SYMBOL(uart_controller_write_bytes),
+    DEFINE_MODULE_SYMBOL(uart_controller_set_config),
+    DEFINE_MODULE_SYMBOL(uart_controller_get_config),
+    DEFINE_MODULE_SYMBOL(uart_controller_get_available),
+    DEFINE_MODULE_SYMBOL(uart_controller_flush_input),
+    DEFINE_MODULE_SYMBOL(UART_CONTROLLER_TYPE),
     // concurrent/dispatcher
     DEFINE_MODULE_SYMBOL(dispatcher_alloc),
     DEFINE_MODULE_SYMBOL(dispatcher_free),

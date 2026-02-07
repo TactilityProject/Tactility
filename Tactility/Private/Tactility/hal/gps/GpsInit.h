@@ -2,13 +2,13 @@
 
 #include "Tactility/hal/gps/GpsDevice.h"
 
-namespace tt::hal::uart { class Uart; }
+struct Device;
 
 namespace tt::hal::gps {
 
 /**
  * Init sequence on UART for a specific GPS model.
  */
-bool init(uart::Uart& uart, GpsModel type);
+bool init(::Device* uart, GpsModel type);
 
 }
