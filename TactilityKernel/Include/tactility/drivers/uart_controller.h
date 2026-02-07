@@ -12,6 +12,8 @@ extern "C" {
 #include <tactility/freertos/freertos.h>
 #include <tactility/error.h>
 
+struct Device;
+
 /**
  * @brief UART parity modes
  */
@@ -124,11 +126,32 @@ struct UartControllerApi {
     error_t (*get_config)(struct Device* device, struct UartConfig* config);
 
     /**
-     * @brief Resets the UART controller. Must configure it again before it can be used.
+     * @brief Opens the UART controller.
      * @param[in] device the UART controller device
      * @retval ERROR_NONE when the operation was successful
      */
-    error_t (*reset)(struct Device* device);
+    error_t (*open)(struct Device* device);
+
+    /**
+     * @brief Closes the UART controller.
+     * @param[in] device the UART controller device
+     * @retval ERROR_NONE when the operation was successful
+     */
+    error_t (*close)(struct Device* device);
+
+    /**
+     * @brief Checks if the UART controller is open.
+     * @param[in] device the UART controller device
+     * @return true if open, false otherwise
+     */
+    bool (*is_open)(struct Device* device);
+
+    /**
+     * @brief Flushes the UART input buffer.
+     * @param[in] device the UART controller device
+     * @retval ERROR_NONE when the operation was successful
+     */
+    error_t (*flush_input)(struct Device* device);
 };
 
 /**
@@ -167,9 +190,29 @@ error_t uart_controller_set_config(struct Device* device, const struct UartConfi
 error_t uart_controller_get_config(struct Device* device, struct UartConfig* config);
 
 /**
+ * @brief Opens the UART controller using the specified controller.
+ */
+error_t uart_controller_open(struct Device* device);
+
+/**
+ * @brief Closes the UART controller using the specified controller.
+ */
+error_t uart_controller_close(struct Device* device);
+
+/**
+ * @brief Checks if the UART controller is open using the specified controller.
+ */
+bool uart_controller_is_open(struct Device* device);
+
+/**
  * @brief Resets the UART controller using the specified controller.
  */
 error_t uart_controller_reset(struct Device* device);
+
+/**
+ * @brief Flushes the UART input buffer using the specified controller.
+ */
+error_t uart_controller_flush_input(struct Device* device);
 
 extern const struct DeviceType UART_CONTROLLER_TYPE;
 

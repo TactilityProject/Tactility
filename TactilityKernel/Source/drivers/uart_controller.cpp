@@ -42,9 +42,24 @@ error_t uart_controller_get_config(struct Device* device, struct UartConfig* con
     return UART_DRIVER_API(driver)->get_config(device, config);
 }
 
-error_t uart_controller_reset(struct Device* device) {
+error_t uart_controller_open(struct Device* device) {
     const auto* driver = device_get_driver(device);
-    return UART_DRIVER_API(driver)->reset(device);
+    return UART_DRIVER_API(driver)->open(device);
+}
+
+error_t uart_controller_close(struct Device* device) {
+    const auto* driver = device_get_driver(device);
+    return UART_DRIVER_API(driver)->close(device);
+}
+
+bool uart_controller_is_open(struct Device* device) {
+    const auto* driver = device_get_driver(device);
+    return UART_DRIVER_API(driver)->is_open(device);
+}
+
+error_t uart_controller_flush_input(struct Device* device) {
+    const auto* driver = device_get_driver(device);
+    return UART_DRIVER_API(driver)->flush_input(device);
 }
 
 const struct DeviceType UART_CONTROLLER_TYPE {

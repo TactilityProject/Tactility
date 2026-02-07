@@ -13,6 +13,8 @@ extern "C" {
 #include <tactility/freertos/freertos.h>
 #include <tactility/error.h>
 
+struct Device;
+
 /**
  * @brief API for I2C controller drivers.
  */

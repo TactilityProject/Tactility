@@ -9,6 +9,8 @@ extern "C" {
 #include "gpio.h"
 #include <tactility/error.h>
 
+struct Device;
+
 struct GpioControllerApi {
     /**
      * @brief Sets the logical level of a GPIO pin.
