@@ -1,6 +1,7 @@
 #include "devices/SdCard.h"
 #include "devices/Display.h"
 #include "devices/Power.h"
+#include <driver/gpio.h>
 
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/lvgl/LvglSync.h>

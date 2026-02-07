@@ -1,9 +1,9 @@
 #include "InitBoot.h"
 #include "devices/Display.h"
 #include "devices/SdCard.h"
+#include <driver/gpio.h>
 
 #include <Tactility/hal/Configuration.h>
-#include <Tactility/hal/uart/Uart.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Axp2101Power.h>
 

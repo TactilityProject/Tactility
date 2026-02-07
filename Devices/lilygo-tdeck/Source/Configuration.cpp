@@ -4,6 +4,7 @@
 #include "devices/Sdcard.h"
 #include "devices/TdeckKeyboard.h"
 #include "devices/TrackballDevice.h"
+#include <driver/gpio.h>
 
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/lvgl/LvglSync.h>

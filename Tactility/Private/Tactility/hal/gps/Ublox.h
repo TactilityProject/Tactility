@@ -18,4 +18,4 @@ GpsModel probe(::Device* uart);
 
 bool init(::Device* uart, GpsModel model);
 
-} // namespace tt::service::gps
+}

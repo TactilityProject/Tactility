@@ -3,6 +3,7 @@
 #include "devices/CardputerEncoder.h"
 #include "devices/CardputerKeyboard.h"
 #include "devices/CardputerPower.h"
+#include <driver/gpio.h>
 
 #include <PwmBacklight.h>
 #include <Tactility/hal/Configuration.h>

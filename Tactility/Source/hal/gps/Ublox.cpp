@@ -63,7 +63,7 @@ GpsResponse getAck(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t wa
     uint8_t ack = 0;
     const uint8_t ackP[2] = {class_id, msg_id};
     uint8_t buf[10] = {0xB5, 0x62, 0x05, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00};
-    uint32_t startTime = kernel::getMillis();
+    uint32_t startTime = kernel::getTicks();
     TickType_t waitTicks = pdMS_TO_TICKS(waitMillis);
     const char frame_errors[] = "More than 100 frame errors";
     int sCounter = 0;

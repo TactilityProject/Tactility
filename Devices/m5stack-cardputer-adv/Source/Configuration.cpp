@@ -2,6 +2,7 @@
 #include "devices/SdCard.h"
 #include "devices/CardputerKeyboard.h"
 #include "devices/CardputerPower.h"
+#include <driver/gpio.h>
 
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/lvgl/LvglSync.h>

@@ -3,6 +3,7 @@
 #include "devices/TpagerEncoder.h"
 #include "devices/TpagerKeyboard.h"
 #include "devices/TpagerPower.h"
+#include <driver/gpio.h>
 
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/lvgl/LvglSync.h>
