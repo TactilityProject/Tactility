@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Tactility/hal/display/DisplayDevice.h>
-#include <Tactility/hal/spi/Spi.h>
+#include <driver/spi_common.h>
 
 #include <EspLcdDisplay.h>
 #include <functional>

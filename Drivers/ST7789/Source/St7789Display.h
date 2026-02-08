@@ -8,8 +8,6 @@
 
 class St7789Display final : public EspLcdSpiDisplay {
 
-    std::shared_ptr<tt::Lock> lock;
-
 public:
 
     /** Minimal set of overrides for EspLcdConfiguration */

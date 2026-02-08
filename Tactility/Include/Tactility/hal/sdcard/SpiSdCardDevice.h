@@ -3,14 +3,14 @@
 #pragma once
 
 #include "SdCardDevice.h"
+#include "Tactility/kernel/SpiDeviceLock.h"
 
-#include <Tactility/hal/spi/Spi.h>
+#include <driver/gpio.h>
+#include <driver/spi_common.h>
 
 #include <sd_protocol_types.h>
 #include <utility>
 #include <vector>
-#include <hal/spi_types.h>
-#include <soc/gpio_num.h>
 
 namespace tt::hal::sdcard {
 
@@ -64,15 +64,23 @@ private:
     std::string mountPath;
     sdmmc_card_t* card = nullptr;
     std::shared_ptr<Config> config;
+    std::shared_ptr<Lock> lock;
 
     bool applyGpioWorkAround();
     bool mountInternal(const std::string& mountPath);
 
 public:
 
-    explicit SpiSdCardDevice(std::unique_ptr<Config> config) : SdCardDevice(config->mountBehaviourAtBoot),
-        config(std::move(config))
-    {}
+    explicit SpiSdCardDevice(std::unique_ptr<Config> newConfig, ::Device* spiController) : SdCardDevice(newConfig->mountBehaviourAtBoot),
+        config(std::move(newConfig))
+    {
+        if (config->customLock == nullptr) {
+            auto spi_lock = std::make_shared<SpiDeviceLock>(spiController);
+            lock = std::static_pointer_cast<Lock>(spi_lock);
+        } else {
+            lock = config->customLock;
+        }
+    }
 
     std::string getName() const override { return "SD Card"; }
     std::string getDescription() const override { return "SD card via SPI interface"; }
@@ -82,11 +90,7 @@ public:
     std::string getMountPath() const override { return mountPath; }
 
     std::shared_ptr<Lock> getLock() const override {
-        if (config->customLock != nullptr) {
-            return config->customLock;
-        } else {
-            return spi::getLock(config->spiHost);
-        }
+        return lock;
     }
 
     State getState(TickType_t timeout) const override;

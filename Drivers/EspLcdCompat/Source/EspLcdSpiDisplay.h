@@ -1,7 +1,8 @@
 #pragma once
 
 #include "EspLcdDisplayV2.h"
-#include <Tactility/hal/spi/Spi.h>
+
+#include <driver/spi_common.h>
 
 #include <esp_lcd_io_spi.h>
 #include <esp_lcd_types.h>
@@ -23,7 +24,7 @@ public:
     };
 
     explicit EspLcdSpiDisplay(const std::shared_ptr<EspLcdConfiguration>& configuration, const std::shared_ptr<SpiConfiguration> spiConfiguration, int gammaCurveCount) :
-        EspLcdDisplayV2(configuration, tt::hal::spi::getLock(spiConfiguration->spiHostDevice)),
+        EspLcdDisplayV2(configuration),
         spiConfiguration(spiConfiguration),
         gammaCurveCount(gammaCurveCount)
     {}

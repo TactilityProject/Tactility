@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Tactility/hal/sdcard/SdCardDevice.h>
-#include <Tactility/hal/spi/Spi.h>
 
 namespace tt::hal {
 
@@ -38,9 +37,6 @@ struct Configuration {
     const UiScale uiScale = UiScale::Default;
 
     std::function<DeviceVector()> createDevices = [] { return std::vector<std::shared_ptr<Device>>(); };
-
-    /** A list of SPI interface configurations */
-    const std::vector<spi::Configuration> spi = {};
 };
 
 } // namespace

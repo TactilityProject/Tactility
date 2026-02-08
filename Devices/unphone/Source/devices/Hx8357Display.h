@@ -7,7 +7,7 @@
 #include <esp_lcd_types.h>
 #include <lvgl.h>
 
-#include <Tactility/hal/spi/Spi.h>
+#include <driver/spi_common.h>
 
 #define UNPHONE_LCD_SPI_HOST SPI2_HOST
 #define UNPHONE_LCD_PIN_CS GPIO_NUM_48
@@ -27,13 +27,11 @@ class Hx8357Display : public tt::hal::display::DisplayDevice {
     std::shared_ptr<tt::hal::display::DisplayDriver> nativeDisplay;
 
     class Hx8357Driver : public tt::hal::display::DisplayDriver {
-        std::shared_ptr<tt::Lock> lock = tt::hal::spi::getLock(SPI2_HOST);
     public:
         tt::hal::display::ColorFormat getColorFormat() const override { return tt::hal::display::ColorFormat::RGB888; }
         uint16_t getPixelWidth() const override { return UNPHONE_LCD_HORIZONTAL_RESOLUTION; }
         uint16_t getPixelHeight() const override { return UNPHONE_LCD_VERTICAL_RESOLUTION; }
         bool drawBitmap(int xStart, int yStart, int xEnd, int yEnd, const void* pixelData) override;
-        std::shared_ptr<tt::Lock> getLock() const override { return lock; }
     };
 
 public:

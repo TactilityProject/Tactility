@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_spi.h>
 
 / {
 	compatible = "root";
@@ -21,5 +22,16 @@
 		pin-scl = <45>;
 		pin-sda-pullup;
 		pin-scl-pullup;
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <47>;
+		pin-miso = <41>;
+		pin-sclk = <48>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <42>;
+		max-transfer-size = <0>;
 	};
 };

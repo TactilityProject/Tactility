@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_spi.h>
-#include <tactility/concurrent/mutex.h>
+#include <tactility/concurrent/recursive_mutex.h>
 
 #include <cstring>
 #include <esp_log.h>
@@ -16,27 +16,27 @@
 extern "C" {
 
 struct Esp32SpiInternal {
-    Mutex mutex;
+    RecursiveMutex mutex = {};
     bool initialized = false;
 
     Esp32SpiInternal() {
-        mutex_construct(&mutex);
+        recursive_mutex_construct(&mutex);
     }
 
     ~Esp32SpiInternal() {
-        mutex_destruct(&mutex);
+        recursive_mutex_destruct(&mutex);
     }
 };
 
 static error_t lock(Device* device) {
     auto* driver_data = GET_DATA(device);
-    mutex_lock(&driver_data->mutex);
+    recursive_mutex_lock(&driver_data->mutex);
     return ERROR_NONE;
 }
 
 static error_t try_lock(Device* device, TickType_t timeout) {
     auto* driver_data = GET_DATA(device);
-    if (mutex_try_lock(&driver_data->mutex, timeout)) {
+    if (recursive_mutex_try_lock(&driver_data->mutex, timeout)) {
         return ERROR_NONE;
     }
     return ERROR_TIMEOUT;
@@ -44,7 +44,7 @@ static error_t try_lock(Device* device, TickType_t timeout) {
 
 static error_t unlock(Device* device) {
     auto* driver_data = GET_DATA(device);
-    mutex_unlock(&driver_data->mutex);
+    recursive_mutex_unlock(&driver_data->mutex);
     return ERROR_NONE;
 }
 

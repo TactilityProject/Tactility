@@ -1,11 +1,11 @@
 #pragma once
 
 #include <Tactility/hal/display/DisplayDevice.h>
-#include <Tactility/hal/spi/Spi.h>
 
 #include <EspLcdDisplay.h>
 
 #include <driver/gpio.h>
+#include <driver/spi_common.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_types.h>
 #include <functional>
@@ -83,7 +83,6 @@ private:
 public:
 
     explicit Jd9853Display(std::unique_ptr<Configuration> inConfiguration) :
-        EspLcdDisplay(tt::hal::spi::getLock(inConfiguration->spiHostDevice)),
         configuration(std::move(inConfiguration)
     ) {
         assert(configuration != nullptr);

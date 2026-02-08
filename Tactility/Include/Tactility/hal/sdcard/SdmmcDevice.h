@@ -6,7 +6,6 @@
 
 #include <Tactility/RecursiveMutex.h>
 #include <tactility/hal/Device.h>
-#include <Tactility/hal/spi/Spi.h>
 #include <sd_protocol_types.h>
 #include <soc/gpio_num.h>
 #include <utility>
