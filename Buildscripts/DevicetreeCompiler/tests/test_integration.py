@@ -16,7 +16,8 @@ def run_compiler(config_path, output_path):
         [sys.executable, COMPILE_SCRIPT, config_path, output_path],
         capture_output=True,
         text=True,
-        cwd=PROJECT_ROOT
+        cwd=PROJECT_ROOT,
+        timeout=60
     )
     return result
 
