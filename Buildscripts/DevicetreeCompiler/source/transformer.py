@@ -4,6 +4,7 @@ from lark import Transformer
 from lark import Token
 from source.models import *
 from dataclasses import dataclass
+from .exception import DevicetreeException
 
 def flatten_token_array(tokens: List[Token], name: str):
     result_list = list()
@@ -23,7 +24,7 @@ class DtsTransformer(Transformer):
     def dts_version(self, tokens: List[Token]):
         version = tokens[0].value
         if version != "dts-v1":
-            raise Exception(f"Unsupported DTS version: {version}")
+            raise DevicetreeException(f"Unsupported DTS version: {version}")
         return DtsVersion(version)
     def device(self, tokens: list):
         node_name = None
@@ -46,12 +47,12 @@ class DtsTransformer(Transformer):
         if (len(objects) == 1) or (objects[1] is None):
             return DeviceProperty(name, "boolean", True)
         if type(objects[1]) is not PropertyValue:
-            raise Exception(f"Object was not converted to PropertyValue: {objects[1]}")
+            raise DevicetreeException(f"Object was not converted to PropertyValue: {objects[1]}")
         return DeviceProperty(name, objects[1].type, objects[1].value)
     def property_value(self, tokens: List):
         token = tokens[0]
         if type(token) is Token:
-            raise Exception(f"Failed to convert token to PropertyValue: {token}")
+            raise DevicetreeException(f"Failed to convert token to PropertyValue: {token}")
         return token
     def PHANDLE(self, token: Token):
         return PropertyValue(type="phandle", value=token.value[1:])

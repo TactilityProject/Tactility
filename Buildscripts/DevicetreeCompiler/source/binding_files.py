@@ -1,4 +1,5 @@
 import os
+from .exception import DevicetreeException
 
 def find_bindings(directory_path: str) -> list[str]:
     yaml_files = []
@@ -14,6 +15,6 @@ def find_all_bindings(directory_paths: list[str]) -> list[str]:
     for directory_path in directory_paths:
         new_paths = find_bindings(directory_path)
         if len(new_paths) == 0:
-            raise Exception(f"No bindings found in {directory_path}")
+            raise DevicetreeException(f"No bindings found in {directory_path}")
         yaml_files += new_paths
     return yaml_files

@@ -24,5 +24,6 @@ if __name__ == "__main__":
     is_verbose = "--verbose" in sys.argv
     devicetree_yaml_config = args[0]
     output_path = args[1]
-    main(devicetree_yaml_config, output_path, is_verbose)
+    result = main(devicetree_yaml_config, output_path, is_verbose)
+    sys.exit(result)
 

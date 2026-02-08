@@ -12,8 +12,6 @@
 ## Higher Priority
 
 - Make a root device type so it can be discovered more easily.
-- DTS/yaml: Consider support for default values.
-- DTS: throw custom exceptions and catch them to show cleaner error messages.
 - When device.py selects a new device, it should automatically delete the build dirs (build/, cmake-*/) when it detects that the platform has changed.
 - Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.
 - Add kernel listening mechanism so that the root device init can be notified when a device becomes available: 

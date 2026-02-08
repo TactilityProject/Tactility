@@ -1,7 +1,7 @@
 import os.path
 from textwrap import dedent
-
 from source.models import *
+from .exception import DevicetreeException
 
 def write_include(file, include: IncludeC, verbose: bool):
     if verbose:
@@ -26,9 +26,9 @@ def get_device_node_name_safe(device: Device):
 def get_device_type_name(device: Device, bindings: list[Binding]):
     device_binding = find_device_binding(device, bindings)
     if device_binding is None:
-        raise Exception(f"Binding not found for {device.node_name}")
+        raise DevicetreeException(f"Binding not found for {device.node_name}")
     if device_binding.compatible is None:
-        raise Exception(f"Couldn't find compatible binding for {device.node_name}")
+        raise DevicetreeException(f"Couldn't find compatible binding for {device.node_name}")
     compatible_safe = device_binding.compatible.split(",")[-1]
     return compatible_safe.replace("-", "_")
 
@@ -41,7 +41,7 @@ def find_device_property(device: Device, name: str) -> DeviceProperty:
 def find_device_binding(device: Device, bindings: list[Binding]) -> Binding:
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
-        raise Exception(f"property 'compatible' not found in device {device.node_name}")
+        raise DevicetreeException(f"property 'compatible' not found in device {device.node_name}")
     for binding in bindings:
         if binding.compatible == compatible_property.value:
             return binding
@@ -57,7 +57,7 @@ def find_phandle(devices: list[Device], phandle: str):
     for device in devices:
         if device.node_name == phandle or device.node_alias == phandle:
             return f"&{get_device_node_name_safe(device)}"
-    raise Exception(f"phandle '{phandle}' not found in device tree")
+    raise DevicetreeException(f"phandle '{phandle}' not found in device tree")
 
 def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
     type = property.type
@@ -74,15 +74,15 @@ def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
     elif type == "phandle":
         return find_phandle(devices, property.value)
     else:
-        raise Exception(f"property_to_string() has an unsupported type: {type}")
+        raise DevicetreeException(f"property_to_string() has an unsupported type: {type}")
 
 def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], devices: list[Device]) -> list:
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
-        raise Exception(f"Cannot find 'compatible' property for {device.node_name}")
+        raise DevicetreeException(f"Cannot find 'compatible' property for {device.node_name}")
     device_binding = find_binding(compatible_property.value, bindings)
     if device_binding is None:
-        raise Exception(f"Binding not found for {device.node_name} and compatible '{compatible_property.value}'")
+        raise DevicetreeException(f"Binding not found for {device.node_name} and compatible '{compatible_property.value}'")
     # Filter out system properties
     binding_properties = []
     binding_property_names = set()
@@ -96,7 +96,7 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
         if device_property.name in ["compatible"]:
             continue
         if device_property.name not in binding_property_names:
-            raise Exception(f"Device '{device.node_name}' has invalid property '{device_property.name}'")
+            raise DevicetreeException(f"Device '{device.node_name}' has invalid property '{device_property.name}'")
 
     # Allocate total expected configuration arguments
     result = [0] * len(binding_properties)
@@ -106,7 +106,7 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
             if binding_property.type == "bool":
                 result[index] = "false"
             elif binding_property.required:
-                raise Exception(f"device {device.node_name} doesn't have property '{binding_property.name}'")
+                raise DevicetreeException(f"device {device.node_name} doesn't have property '{binding_property.name}'")
             elif binding_property.default is not None:
                 temp_prop = DeviceProperty(
                     name=binding_property.name,
@@ -115,7 +115,7 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
                 )
                 result[index] = property_to_string(temp_prop, devices)
             else:
-                raise Exception(f"Device {device.node_name} doesn't have property '{binding_property.name}' and no default value is set")
+                raise DevicetreeException(f"Device {device.node_name} doesn't have property '{binding_property.name}' and no default value is set")
         else:
             result[index] = property_to_string(device_property, devices)
     return result
@@ -142,7 +142,7 @@ def write_device_structs(file, device: Device, parent_device: Device, bindings: 
     type_name = get_device_type_name(device, bindings)
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
-        raise Exception(f"Cannot find 'compatible' property for {device.node_name}")
+        raise DevicetreeException(f"Cannot find 'compatible' property for {device.node_name}")
     node_name = get_device_node_name_safe(device)
     config_variable_name = f"{node_name}_config"
     if parent_device is not None:
@@ -169,7 +169,7 @@ def write_device_init(file, device: Device, bindings: list[Binding], verbose: bo
     # Assemble some pre-requisites
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
-        raise Exception(f"Cannot find 'compatible' property for {device.node_name}")
+        raise DevicetreeException(f"Cannot find 'compatible' property for {device.node_name}")
     # Type & instance names
     node_name = get_device_node_name_safe(device)
     device_variable = node_name
