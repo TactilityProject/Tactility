@@ -21,13 +21,13 @@ properties:
     description: WS pin
   pin-data-out:
     type: int
-    required: true
     description: DATA OUT pin
   pin-data-in:
     type: int
-    required: true
+    required: false
     description: DATA IN pin
   pin-mclk:
     type: int
-    required: true
+    required: false
+    default: GPIO_PIN_NONE
     description: MCLK pin

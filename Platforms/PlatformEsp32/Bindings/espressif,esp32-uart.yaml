@@ -21,7 +21,9 @@ properties:
     description: RX pin
   pin-cts:
     type: int
+    default: GPIO_PIN_NONE
     description: CTS pin
   pin-rts:
     type: int
+    default: GPIO_PIN_NONE
     description: RTS pin

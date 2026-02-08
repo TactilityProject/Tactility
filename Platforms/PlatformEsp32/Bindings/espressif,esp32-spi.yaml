@@ -25,12 +25,15 @@ properties:
     description: Clock pin
   pin-wp:
     type: int
+    default: GPIO_PIN_NONE
     description: WP (Data 2) pin
   pin-hd:
     type: int
+    default: GPIO_PIN_NONE
     description: HD (Data 3) pin
   max-transfer-size:
     type: int
+    default: 0
     description: |
       Data transfer size limit in bytes. 
       0 means the platform decides the limit.
