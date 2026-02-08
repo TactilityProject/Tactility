@@ -51,7 +51,7 @@ add_custom_target(AlwaysRun
 add_custom_command(
     OUTPUT "${GENERATED_DIR}/devicetree.c"
         "${GENERATED_DIR}/devicetree.h"
-    COMMAND pip install lark pyyaml
+    COMMAND pip install lark==1.3.1 pyyaml==6.0.3
     COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/DevicetreeCompiler/compile.py"
     "${DEVICETREE_LOCATION}" "${GENERATED_DIR}"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"

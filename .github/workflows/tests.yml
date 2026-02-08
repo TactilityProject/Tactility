@@ -36,7 +36,7 @@ jobs:
           submodules: recursive
       - name: "Install Python Dependencies"
         shell: bash
-        run: pip install lark pyyaml
+        run: pip install lark==1.3.1 pyyaml==6.0.3
       - name: "Run Devicetree Tests"
         shell: bash
         working-directory: Buildscripts/DevicetreeCompiler/tests
