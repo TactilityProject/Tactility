@@ -10,7 +10,7 @@ namespace tt {
 class SpiDeviceLock : public Lock {
     ::Device* device;
 public:
-    SpiDeviceLock(::Device* device) : device(device) { }
+    explicit SpiDeviceLock(::Device* device) : device(device) { }
 
     bool lock(TickType_t timeout) const override {
         return spi_controller_try_lock(device, timeout) == ERROR_NONE;

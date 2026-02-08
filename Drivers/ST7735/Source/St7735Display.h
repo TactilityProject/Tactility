@@ -12,8 +12,6 @@
 
 class St7735Display final : public EspLcdDisplay {
 
-    std::shared_ptr<tt::Lock> lock;
-
 public:
 
     class Configuration {

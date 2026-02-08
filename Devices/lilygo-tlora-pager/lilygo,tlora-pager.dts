@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 
 // Reference: https://wiki.lilygo.cc/get_started/en/LoRa_GPS/T-LoraPager/T-LoraPager.html#Pin-Overview
@@ -22,6 +23,17 @@
 		clock-frequency = <100000>;
 		pin-sda = <3>;
 		pin-scl = <2>;
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <34>;
+		pin-miso = <33>;
+		pin-sclk = <35>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <GPIO_PIN_NONE>;
+		max-transfer-size = <0>;
 	};
 
 	// ES8311

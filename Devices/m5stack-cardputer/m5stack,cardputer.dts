@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 
 // Reference: https://docs.m5stack.com/en/core/Cardputer
@@ -22,8 +23,28 @@
 		clock-frequency = <400000>;
 		pin-sda = <2>;
 		pin-scl = <1>;
-		pin-sda-pullup;
-		pin-scl-pullup;
+	};
+
+	display_spi: spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <35>;
+		pin-miso = <GPIO_PIN_NONE>;
+		pin-sclk = <36>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <GPIO_PIN_NONE>;
+		max-transfer-size = <0>;
+	};
+
+	sdcard_spi: spi1 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI3_HOST>;
+		pin-mosi = <14>;
+		pin-miso = <39>;
+		pin-sclk = <40>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <GPIO_PIN_NONE>;
+		max-transfer-size = <0>;
 	};
 
 	// Speaker and microphone

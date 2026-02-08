@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 
 / {
@@ -20,8 +21,17 @@
 		clock-frequency = <400000>;
 		pin-sda = <8>;
 		pin-scl = <9>;
-		pin-sda-pullup;
-		pin-scl-pullup;
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <11>;
+		pin-miso = <13>;
+		pin-sclk = <12>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <GPIO_PIN_NONE>;
+		max-transfer-size = <0>;
 	};
 
 	uart1 {

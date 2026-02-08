@@ -84,9 +84,7 @@ public:
 
     explicit Jd9853Display(std::unique_ptr<Configuration> inConfiguration) :
         configuration(std::move(inConfiguration)
-    ) {
-        assert(configuration != nullptr);
-    }
+    ) {}
 
     std::string getName() const override { return "JD9853"; }
 

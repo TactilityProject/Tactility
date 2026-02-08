@@ -1,7 +1,5 @@
 #pragma once
 
-#include <Tactility/RecursiveMutex.h>
-
 #include <EspLcdDisplay.h>
 #include <lvgl.h>
 

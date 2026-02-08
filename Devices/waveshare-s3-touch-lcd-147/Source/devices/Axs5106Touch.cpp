@@ -3,8 +3,6 @@
 #include <esp_lcd_touch_axs5106.h>
 #include <esp_err.h>
 
-constexpr auto* TAG = "AXS5106";
-
 bool Axs5106Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
     esp_lcd_panel_io_i2c_config_t io_config = ESP_LCD_TOUCH_IO_I2C_AXS5106_CONFIG();
     return esp_lcd_new_panel_io_i2c(configuration->port, &io_config, &outHandle) == ESP_OK;

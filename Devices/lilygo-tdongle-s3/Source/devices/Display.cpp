@@ -9,7 +9,7 @@
 #define LCD_PIN_RESET GPIO_NUM_1
 #define LCD_HORIZONTAL_RESOLUTION 80
 #define LCD_VERTICAL_RESOLUTION 160
-#define LCD_SPI_TRANSFER_HEIGHT LCD_VERTICAL_RESOLUTION / 4
+#define LCD_SPI_TRANSFER_HEIGHT (LCD_VERTICAL_RESOLUTION / 4)
 
 std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
     auto configuration = std::make_unique<St7735Display::Configuration>(

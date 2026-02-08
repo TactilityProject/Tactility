@@ -3,7 +3,9 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_spi.h>
 
+// Reference: https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-1.28
 / {
 	compatible = "root";
 	model = "Waveshare S3 Touch LCD 1.28";
@@ -13,11 +15,33 @@
 		gpio-count = <49>;
 	};
 
-	i2c_main {
+	i2c0 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
 		clock-frequency = <400000>;
 		pin-sda = <6>;
 		pin-scl = <7>;
+	};
+
+	display_spi: spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <11>;
+		pin-miso = <12>;
+		pin-sclk = <10>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <GPIO_PIN_NONE>;
+		max-transfer-size = <0>;
+	};
+
+	sdcard_spi: spi1 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI3_HOST>;
+		pin-mosi = <16>;
+		pin-miso = <15>;
+		pin-sclk = <17>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <GPIO_PIN_NONE>;
+		max-transfer-size = <0>;
 	};
 };

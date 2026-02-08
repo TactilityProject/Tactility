@@ -5,7 +5,7 @@
 #include <driver/spi_common.h>
 
 // Display
-constexpr auto LCD_SPI_HOST = SPI3_HOST;
+constexpr auto LCD_SPI_HOST = SPI2_HOST;
 constexpr auto LCD_PIN_CS = GPIO_NUM_3;
 constexpr auto LCD_PIN_DC = GPIO_NUM_35;
 constexpr auto LCD_HORIZONTAL_RESOLUTION = 320;

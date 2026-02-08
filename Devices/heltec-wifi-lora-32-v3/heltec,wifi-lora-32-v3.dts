@@ -19,7 +19,5 @@
 		clock-frequency = <200000>;
 		pin-sda = <17>;
 		pin-scl = <18>;
-		pin-sda-pullup;
-		pin-scl-pullup;
 	};
 };

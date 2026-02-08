@@ -8,7 +8,6 @@ constexpr auto LCD_PIN_DC = GPIO_NUM_45;
 constexpr auto LCD_PIN_RESET = GPIO_NUM_40;
 constexpr auto LCD_HORIZONTAL_RESOLUTION = 172;
 constexpr auto LCD_VERTICAL_RESOLUTION = 320;
-constexpr auto LCD_SPI_TRANSFER_HEIGHT = (LCD_VERTICAL_RESOLUTION / 10);
 
 void setBacklightDuty(uint8_t level);
 

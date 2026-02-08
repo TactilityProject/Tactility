@@ -21,8 +21,6 @@
 		clock-frequency = <400000>;
 		pin-sda = <4>;
 		pin-scl = <8>;
-		pin-sda-pullup;
-		pin-scl-pullup;
 	};
 
 	i2c_external: i2c1 {
@@ -31,8 +29,6 @@
 		clock-frequency = <400000>;
 		pin-sda = <17>;
 		pin-scl = <18>;
-		pin-sda-pullup;
-		pin-scl-pullup;
 	};
 
 	display_spi: spi0 {

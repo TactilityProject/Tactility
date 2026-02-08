@@ -2,8 +2,6 @@
 
 #include <tactility/device.h>
 #include <Tactility/hal/sdcard/SpiSdCardDevice.h>
-#include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/RecursiveMutex.h>
 
 using tt::hal::sdcard::SpiSdCardDevice;
 
@@ -13,10 +11,7 @@ std::shared_ptr<SdCardDevice> createSdCard() {
         GPIO_NUM_NC,
         GPIO_NUM_NC,
         GPIO_NUM_NC,
-        SdCardDevice::MountBehaviour::AtBoot,
-        nullptr,
-        std::vector<gpio_num_t>(),
-        SPI2_HOST
+        SdCardDevice::MountBehaviour::AtBoot
     );
 
     auto* spi_controller = device_find_by_name("spi0");

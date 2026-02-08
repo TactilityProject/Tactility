@@ -34,7 +34,7 @@ public:
 
     Ili9881cDisplay(
         const std::shared_ptr<EspLcdConfiguration>& configuration
-    ) : EspLcdDisplayV2(configuration, std::make_shared<NoLock>()) {}
+    ) : EspLcdDisplayV2(configuration) {}
 
     ~Ili9881cDisplay() override;
 

@@ -28,7 +28,7 @@ public:
             bool mirrorX = false,
             bool mirrorY = false,
             bool invertColor = false,
-            uint32_t bufferSize = 0 // Size in pixel count. 0 means default, which is 1/20 of the screen size
+            uint32_t bufferSize = 0 // Size in pixel count. 0 means default, which is 1/10 of the screen size
         ) : spiHostDevice(spiHostDevice),
             csPin(csPin),
             dcPin(dcPin),

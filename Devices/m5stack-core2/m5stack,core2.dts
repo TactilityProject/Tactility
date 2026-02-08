@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 
 // Reference: https://docs.m5stack.com/en/core/Core2
@@ -22,8 +23,6 @@
 		clock-frequency = <400000>;
 		pin-sda = <21>;
 		pin-scl = <22>;
-		pin-sda-pullup;
-		pin-scl-pullup;
 	};
 
 	i2c_port_a {
@@ -32,8 +31,17 @@
 		clock-frequency = <400000>;
 		pin-sda = <32>;
 		pin-scl = <33>;
-		pin-sda-pullup;
-		pin-scl-pullup;
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <23>;
+		pin-miso = <38>;
+		pin-sclk = <18>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <GPIO_PIN_NONE>;
+		max-transfer-size = <0>;
 	};
 
 	// NS4168: Speaker and microphone

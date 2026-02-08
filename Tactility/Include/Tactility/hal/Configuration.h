@@ -20,7 +20,6 @@ enum class UiScale {
 
 struct Configuration {
     /**
-     * Called before I2C/SPI/etc is initialized.
      * Used for powering on the peripherals manually.
      */
     const InitBoot initBoot = nullptr;

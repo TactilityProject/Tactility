@@ -1,5 +1,6 @@
 #include "SdCard.h"
 
+#include <tactility/device.h>
 #include <Tactility/hal/sdcard/SpiSdCardDevice.h>
 
 constexpr auto SDCARD_PIN_CS = GPIO_NUM_12;
@@ -14,12 +15,16 @@ std::shared_ptr<SdCardDevice> createSdCard() {
         GPIO_NUM_NC,
         GPIO_NUM_NC,
         SdCardDevice::MountBehaviour::AtBoot,
-        tt::hal::spi::getLock(SPI3_HOST),
+        nullptr,
         std::vector { EXPANSION_HEADER_PIN_CS },
         SPI3_HOST
     );
 
+    auto* spi_controller = device_find_by_name("spi1");
+    check(spi_controller, "spi1 not found");
+
     return std::make_shared<SpiSdCardDevice>(
-        std::move(configuration)
+        std::move(configuration),
+        spi_controller
     );
 }

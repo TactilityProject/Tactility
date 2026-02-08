@@ -65,7 +65,7 @@ protected:
 
 public:
 
-    EspLcdDisplayV2(const std::shared_ptr<EspLcdConfiguration>& configuration) :
+    explicit EspLcdDisplayV2(const std::shared_ptr<EspLcdConfiguration>& configuration) :
         configuration(configuration)
     {
         assert(configuration != nullptr);

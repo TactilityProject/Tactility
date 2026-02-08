@@ -8,7 +8,7 @@
 
 #include <PwmBacklight.h>
 
-bool initBoot() {
+static bool initBoot() {
     if (!driver::pwmbacklight::init(LCD_PIN_BACKLIGHT)) {
         return false;
     }

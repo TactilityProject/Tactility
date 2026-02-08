@@ -2,7 +2,6 @@
 
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/display/DisplayDriver.h>
-#include <Tactility/Mutex.h>
 
 #include <esp_lcd_types.h>
 #include <lvgl.h>
@@ -17,7 +16,6 @@
 #define UNPHONE_LCD_HORIZONTAL_RESOLUTION 320
 #define UNPHONE_LCD_VERTICAL_RESOLUTION 480
 #define UNPHONE_LCD_DRAW_BUFFER_HEIGHT (UNPHONE_LCD_VERTICAL_RESOLUTION / 15)
-#define UNPHONE_LCD_SPI_TRANSFER_HEIGHT (UNPHONE_LCD_VERTICAL_RESOLUTION / 15)
 
 class Hx8357Display : public tt::hal::display::DisplayDevice {
 

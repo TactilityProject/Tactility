@@ -858,7 +858,7 @@ static void dispatchDisconnectButKeepActive(std::shared_ptr<Wifi> wifi) {
 
 static bool shouldScanForAutoConnect(std::shared_ptr<Wifi> wifi) {
     auto lock = wifi->dataMutex.asScopedLock();
-    if (!lock.lock(100)) {
+    if (!lock.lock(100 / portTICK_PERIOD_MS)) {
         return false;
     }
 
@@ -893,7 +893,7 @@ std::string getIp() {
     auto wifi = std::static_pointer_cast<Wifi>(wifi_singleton);
 
     auto lock = wifi->dataMutex.asScopedLock();
-    if (!lock.lock(100)) {
+    if (!lock.lock(100 / portTICK_PERIOD_MS)) {
         return "0.0.0.0";
     }
 

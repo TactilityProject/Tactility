@@ -12,8 +12,6 @@
 
 class Gc9a01Display final : public EspLcdDisplay {
 
-    std::shared_ptr<tt::Lock> lock;
-
 public:
 
     class Configuration {
@@ -82,12 +80,8 @@ private:
 public:
 
     explicit Gc9a01Display(std::unique_ptr<Configuration> inConfiguration) :
-        EspLcdDisplay(tt::hal::spi::getLock(inConfiguration->spiHostDevice)),
         configuration(std::move(inConfiguration)
-    ) {
-        assert(configuration != nullptr);
-        assert(getLock() != nullptr);
-    }
+    ) {}
 
     std::string getName() const override { return "GC9A01"; }
 

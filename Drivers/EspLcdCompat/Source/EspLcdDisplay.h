@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Tactility/Lock.h>
 #include <tactility/check.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 
