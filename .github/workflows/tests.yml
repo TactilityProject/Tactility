@@ -36,5 +36,5 @@ jobs:
           submodules: recursive
       - name: "Run Devicetree Tests"
         shell: bash
-        working-directory: Buildscripts/DevicetreeCompiler/Tests
+        working-directory: Buildscripts/DevicetreeCompiler/tests
         run: python test_integration.py
