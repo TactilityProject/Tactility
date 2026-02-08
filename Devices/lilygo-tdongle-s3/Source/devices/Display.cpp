@@ -3,7 +3,7 @@
 #include <PwmBacklight.h>
 #include <St7735Display.h>
 
-#define LCD_SPI_HOST SPI3_HOST
+#define LCD_SPI_HOST SPI2_HOST
 #define LCD_PIN_CS GPIO_NUM_4
 #define LCD_PIN_DC GPIO_NUM_2
 #define LCD_PIN_RESET GPIO_NUM_1

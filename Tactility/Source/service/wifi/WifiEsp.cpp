@@ -47,8 +47,8 @@ static void dispatchDisconnectButKeepActive(std::shared_ptr<Wifi> wifi);
 class Wifi {
 
     std::atomic<RadioState> radio_state = RadioState::Off;
-    bool scan_active = false;
-    bool secure_connection = false;
+    std::atomic<bool> scan_active = false;
+    std::atomic<bool> secure_connection = false;
 
 public:
 
@@ -81,54 +81,34 @@ public:
     kernel::SystemEventSubscription bootEventSubscription = kernel::NoSystemEventSubscription;
 
     RadioState getRadioState() const {
-        auto lock = dataMutex.asScopedLock();
-        lock.lock();
-        // TODO: Handle lock failure
         return radio_state;
     }
 
     void setRadioState(RadioState newState) {
-        auto lock = dataMutex.asScopedLock();
-        lock.lock();
-        // TODO: Handle lock failure
         radio_state = newState;
     }
 
     bool isScanning() const {
-        auto lock = dataMutex.asScopedLock();
-        lock.lock();
-        // TODO: Handle lock failure
         return scan_active;
     }
 
     void setScanning(bool newState) {
-        auto lock = dataMutex.asScopedLock();
-        lock.lock();
-        // TODO: Handle lock failure
         scan_active = newState;
     }
 
     bool isScanActive() const {
-        auto lock = dataMutex.asScopedLock();
-        lock.lock();
         return scan_active;
     }
 
     void setScanActive(bool newState) {
-        auto lock = dataMutex.asScopedLock();
-        lock.lock();
         scan_active = newState;
     }
 
     bool isSecureConnection() const {
-        auto lock = dataMutex.asScopedLock();
-        lock.lock();
         return secure_connection;
     }
 
     void setSecureConnection(bool newState) {
-        auto lock = dataMutex.asScopedLock();
-        lock.lock();
         secure_connection = newState;
     }
 };
@@ -913,7 +893,9 @@ std::string getIp() {
     auto wifi = std::static_pointer_cast<Wifi>(wifi_singleton);
 
     auto lock = wifi->dataMutex.asScopedLock();
-    lock.lock();
+    if (!lock.lock(100)) {
+        return "0.0.0.0";
+    }
 
     return std::format("{}.{}.{}.{}", IP2STR(&wifi->ip_info.ip));
 }

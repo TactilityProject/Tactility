@@ -12,12 +12,12 @@ extern struct LvglModuleConfig lvgl_module_config;
 static bool initialized = false;
 
 bool lvgl_lock(void) {
-    if (!initialized) return false;
+    if (!initialized) return true; // We allow (ake) locking because it's safe to do so as LVGL is not running yet
     return lvgl_port_lock(portMAX_DELAY);
 }
 
 bool lvgl_try_lock_timed(uint32_t timeout) {
-    if (!initialized) return false;
+    if (!initialized) return true; // We allow (ake) locking because it's safe to do so as LVGL is not running yet
     return lvgl_port_lock(millis_to_ticks(timeout));
 }
 

@@ -25,7 +25,7 @@ public:
             gpio_num_t csPin,
             gpio_num_t dcPin,
             gpio_num_t resetPin,
-
+            gpio_num_t tePin,
             unsigned int horizontalResolution,
             unsigned int verticalResolution,
             std::shared_ptr<tt::hal::touch::TouchDevice> touch,

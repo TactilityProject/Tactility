@@ -12,15 +12,14 @@ extern "C" {
 
 struct RecursiveMutex {
     QueueHandle_t handle;
+    // TODO: Debugging functionality
 };
 
 inline static void recursive_mutex_construct(struct RecursiveMutex* mutex) {
-    check(mutex->handle == NULL);
     mutex->handle = xSemaphoreCreateRecursiveMutex();
 }
 
 inline static void recursive_mutex_destruct(struct RecursiveMutex* mutex) {
-    check(mutex->handle != NULL);
     check(xPortInIsrContext() != pdTRUE);
     vSemaphoreDelete(mutex->handle);
     mutex->handle = NULL;

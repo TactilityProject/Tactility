@@ -75,7 +75,6 @@ private:
 public:
 
     explicit Ili9488Display(std::unique_ptr<Configuration> inConfiguration) :
-        EspLcdDisplay(tt::hal::spi::getLock(inConfiguration->spiHostDevice)),
         configuration(std::move(inConfiguration)
     ) {
         assert(configuration != nullptr);

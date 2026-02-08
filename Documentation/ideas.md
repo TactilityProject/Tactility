@@ -11,6 +11,9 @@
 
 ## Higher Priority
 
+- Make a root device type so it can be discovered more easily.
+- DTS/yaml: Consider support for default values.
+- DTS: throw custom exceptions and catch them to show cleaner error messages.
 - Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.
 - Add kernel listening mechanism so that the root device init can be notified when a device becomes available: 
   Callback for device/start stop with filtering on device type:

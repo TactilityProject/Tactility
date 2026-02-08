@@ -35,19 +35,3 @@ esp_lcd_touch_config_t Xpt2046Touch::createEspLcdTouchConfig() {
         .driver_data = nullptr
     };
 }
-
-bool Xpt2046Touch::getVBat(float& outputVbat) {
-    auto touch_handle = getTouchHandle();
-    if (touch_handle == nullptr) {
-        return false;
-    }
-
-    // Shares the SPI bus with the display, so we have to sync/lock as this method might be called from anywhere
-    if (!tt::lvgl::lock(50 / portTICK_PERIOD_MS)) {
-        return false;
-    }
-
-    esp_lcd_touch_xpt2046_read_battery_level(touch_handle, &outputVbat);
-    tt::lvgl::unlock();
-    return true;
-}

@@ -5,7 +5,6 @@
 
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/lvgl/LvglSync.h>
-#include <Xpt2046Power.h>
 
 #define UNPHONE_SPI_TRANSFER_SIZE_LIMIT (UNPHONE_LCD_HORIZONTAL_RESOLUTION * UNPHONE_LCD_SPI_TRANSFER_HEIGHT * LV_COLOR_DEPTH / 8)
 
@@ -13,7 +12,6 @@ bool initBoot();
 
 static tt::hal::DeviceVector createDevices() {
     return {
-        std::make_shared<Xpt2046Power>(),
         createDisplay(),
         createSdCard()
     };

@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 
 / {
@@ -22,6 +23,28 @@
 		pin-scl = <16>;
 		pin-sda-pullup;
 		pin-scl-pullup;
+	};
+
+	display_spi: spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <39>;
+		pin-miso = <GPIO_PIN_NONE>;
+		pin-sclk = <42>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <GPIO_PIN_NONE>;
+		max-transfer-size = <0>;
+	};
+
+	sdcard_spi: spi1 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI3_HOST>;
+		pin-mosi = <6>;
+		pin-miso = <4>;
+		pin-sclk = <5>;
+		pin-wp = <GPIO_PIN_NONE>;
+		pin-hd = <GPIO_PIN_NONE>;
+		max-transfer-size = <0>;
 	};
 
 	uart0 {

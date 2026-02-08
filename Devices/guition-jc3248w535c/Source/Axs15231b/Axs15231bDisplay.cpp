@@ -485,7 +485,6 @@ std::shared_ptr<tt::hal::display::DisplayDriver> Axs15231bDisplay::getDisplayDri
     if (displayDriver == nullptr) {
         displayDriver = std::make_shared<EspLcdDisplayDriver>(
             panelHandle,
-            tt::lvgl::getSyncLock(),
             configuration->horizontalResolution,
             configuration->verticalResolution,
             tt::hal::display::ColorFormat::RGB565Swapped

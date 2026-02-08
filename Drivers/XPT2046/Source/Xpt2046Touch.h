@@ -56,6 +56,4 @@ public:
     std::string getName() const final { return "XPT2046"; }
 
     std::string getDescription() const final { return "XPT2046 I2C touch driver"; }
-
-    bool getVBat(float& outputVbat);
 };

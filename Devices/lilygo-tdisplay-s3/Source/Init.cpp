@@ -7,9 +7,6 @@
 
 #define TAG "tdisplay-s3"
 
-// Power on
-
-
 static bool powerOn() {
     gpio_config_t power_signal_config = {
         .pin_bit_mask = BIT64(TDISPLAY_S3_POWERON_GPIO),
@@ -27,7 +24,7 @@ static bool powerOn() {
         return false;
     }
 
-
+    return true;
 }
 
 bool initBoot() {

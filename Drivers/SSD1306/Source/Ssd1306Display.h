@@ -57,7 +57,6 @@ private:
 public:
 
     explicit Ssd1306Display(std::unique_ptr<Configuration> inConfiguration) :
-        EspLcdDisplay(nullptr),
         configuration(std::move(inConfiguration))
     {
         assert(configuration != nullptr);

@@ -1,14 +1,11 @@
 #pragma once
 
 #include <Tactility/hal/display/DisplayDevice.h>
-#include <Tactility/RecursiveMutex.h>
 #include <EspLcdDisplayDriver.h>
 #include <esp_lcd_panel_rgb.h>
 #include <esp_lvgl_port_disp.h>
 
 class RgbDisplay final : public tt::hal::display::DisplayDevice {
-
-    std::shared_ptr<tt::Lock> lock = std::make_shared<tt::RecursiveMutex>();
 
 public:
 
@@ -75,7 +72,7 @@ public:
         assert(configuration != nullptr);
     }
 
-    ~RgbDisplay();
+    ~RgbDisplay() override;
 
     std::string getName() const override { return "RGB Display"; }
     std::string getDescription() const override { return "RGB Display"; }
@@ -108,7 +105,7 @@ public:
     std::shared_ptr<tt::hal::display::DisplayDriver> _Nullable getDisplayDriver() override {
         if (displayDriver == nullptr) {
             auto config = getLvglPortDisplayConfig();
-            displayDriver = std::make_shared<EspLcdDisplayDriver>(panelHandle, lock, config.hres, config.vres, tt::hal::display::ColorFormat::RGB888);
+            displayDriver = std::make_shared<EspLcdDisplayDriver>(panelHandle, config.hres, config.vres, tt::hal::display::ColorFormat::RGB888);
         }
         return displayDriver;
     }

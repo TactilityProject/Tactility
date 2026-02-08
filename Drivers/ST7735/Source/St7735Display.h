@@ -87,12 +87,8 @@ private:
 public:
 
     explicit St7735Display(std::unique_ptr<Configuration> inConfiguration) :
-        EspLcdDisplay(tt::hal::spi::getLock(inConfiguration->spiHostDevice)),
         configuration(std::move(inConfiguration)
-    ) {
-        assert(configuration != nullptr);
-        assert(getLock() != nullptr);
-    }
+    ) {}
 
     std::string getName() const override { return "ST7735"; }
 
