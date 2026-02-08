@@ -1,0 +1,17 @@
+/dts-v1/;
+
+#include <test_include.h>
+
+/ {
+    compatible = "test,root";
+    model = "Test Model";
+
+    test_device: test-device@0 {
+        compatible = "test,device";
+        reg = <0>;
+        status = "okay";
+        boolean-prop;
+        int-prop = <42>;
+        string-prop = "hello";
+    };
+};

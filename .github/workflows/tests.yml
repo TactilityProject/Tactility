@@ -6,7 +6,7 @@ on:
   pull_request:
     types: [ opened, synchronize, reopened ]
 jobs:
-  run:
+  TactilityTests:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout repo"
@@ -27,3 +27,14 @@ jobs:
         run: build/Tests/Tactility/TactilityTests
       - name: "Run TactilityKernel Tests"
         run: build/Tests/TactilityKernel/TactilityKernelTests
+  DevicetreeTests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: "Run Devicetree Tests"
+        shell: bash
+        working-directory: Buildscripts/DevicetreeCompiler/Tests
+        run: python test_integration.py

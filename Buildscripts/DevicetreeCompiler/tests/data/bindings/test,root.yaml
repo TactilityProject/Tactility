@@ -1,0 +1,5 @@
+description: Test root binding
+compatible: "test,root"
+properties:
+  model:
+    type: string

@@ -1,0 +1,14 @@
+description: Test device binding
+compatible: "test,device"
+properties:
+  reg:
+    type: int
+    required: true
+  status:
+    type: string
+  boolean-prop:
+    type: boolean
+  int-prop:
+    type: int
+  string-prop:
+    type: string
