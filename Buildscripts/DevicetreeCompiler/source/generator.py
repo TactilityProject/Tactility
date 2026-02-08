@@ -61,9 +61,7 @@ def find_phandle(devices: list[Device], phandle: str):
 
 def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
     type = property.type
-    if type == "value":
-        return property.value
-    elif type == "int":
+    if type == "value" or type == "int":
         return property.value
     elif type == "boolean":
         return "true"

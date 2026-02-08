@@ -14,7 +14,8 @@ from source.exception import DevicetreeException
 def main(config_path: str, output_path: str, verbose: bool) -> int:
     print(f"Generating devicetree code\n  config: {config_path}\n  output: {output_path}")
     if not os.path.isdir(config_path):
-        raise DevicetreeException(f"Directory not found: {config_path}")
+        print(f"Directory not found: {config_path}")
+        return 1
 
     config = parse_config(config_path, os.getcwd())
     if verbose:
@@ -34,11 +35,11 @@ def main(config_path: str, output_path: str, verbose: bool) -> int:
             pprint(transformed)
         binding_files = find_all_bindings(config.bindings)
         if verbose:
-            print(f"Bindings found:")
+            print("Bindings found:")
             for binding_file in binding_files:
                 print(f"  {binding_file}")
         if verbose:
-            print(f"Parsing bindings")
+            print("Parsing bindings")
         bindings = []
         for binding_file in binding_files:
             bindings.append(parse_binding(binding_file, config.bindings))
