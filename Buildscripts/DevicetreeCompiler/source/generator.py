@@ -63,6 +63,8 @@ def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
     type = property.type
     if type == "value":
         return property.value
+    elif type == "int":
+        return property.value
     elif type == "boolean":
         return "true"
     elif type == "text":
