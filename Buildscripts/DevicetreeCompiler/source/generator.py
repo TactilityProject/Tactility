@@ -101,17 +101,17 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
     for index, binding_property in enumerate(binding_properties):
         device_property = find_device_property(device, binding_property.name)
         if device_property is None:
-            if binding_property.type == "bool":
-                result[index] = "false"
-            elif binding_property.required:
-                raise DevicetreeException(f"device {device.node_name} doesn't have property '{binding_property.name}'")
-            elif binding_property.default is not None:
+            if binding_property.default is not None:
                 temp_prop = DeviceProperty(
                     name=binding_property.name,
                     type=binding_property.type,
                     value=binding_property.default
                 )
                 result[index] = property_to_string(temp_prop, devices)
+            elif binding_property.type == "bool":
+                result[index] = "false"
+            elif binding_property.required:
+                raise DevicetreeException(f"device {device.node_name} doesn't have property '{binding_property.name}'")
             else:
                 raise DevicetreeException(f"Device {device.node_name} doesn't have property '{binding_property.name}' and no default value is set")
         else:
