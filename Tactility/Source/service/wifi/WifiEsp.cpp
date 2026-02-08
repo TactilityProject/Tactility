@@ -304,11 +304,6 @@ bool isConnectionSecure() {
         return false;
     }
 
-    auto lock = wifi->dataMutex.asScopedLock();
-    if (!lock.lock(10 / portTICK_PERIOD_MS)) {
-        return false;
-    }
-
     return wifi->isSecureConnection();
 }
 
@@ -892,9 +887,11 @@ void onAutoConnectTimer() {
 std::string getIp() {
     auto wifi = std::static_pointer_cast<Wifi>(wifi_singleton);
 
+    if (wifi == nullptr) return "127.0.0.1";
+
     auto lock = wifi->dataMutex.asScopedLock();
     if (!lock.lock(100 / portTICK_PERIOD_MS)) {
-        return "0.0.0.0";
+        return "127.0.0.1";
     }
 
     return std::format("{}.{}.{}.{}", IP2STR(&wifi->ip_info.ip));

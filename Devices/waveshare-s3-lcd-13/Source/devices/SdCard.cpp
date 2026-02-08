@@ -2,7 +2,6 @@
 
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/hal/sdcard/SpiSdCardDevice.h>
-#include <Tactility/RecursiveMutex.h>
 #include <driver/gpio.h>
 
 using tt::hal::sdcard::SpiSdCardDevice;

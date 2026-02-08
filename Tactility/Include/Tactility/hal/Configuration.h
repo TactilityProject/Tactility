@@ -27,7 +27,7 @@ struct Configuration {
     /** Modify LVGL widget size */
     const UiScale uiScale = UiScale::Default;
 
-    std::function<DeviceVector()> createDevices = [] { return DeviceVector(); };
+    const std::function<DeviceVector()> createDevices = [] { return DeviceVector(); };
 };
 
 } // namespace

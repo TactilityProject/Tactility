@@ -8,11 +8,6 @@
 
 class Jd9165Display final : public EspLcdDisplayV2 {
 
-    class NoLock final : public tt::Lock {
-        bool lock(TickType_t timeout) const override { return true; }
-        void unlock() const override { /* NO-OP */ }
-    };
-
     esp_lcd_dsi_bus_handle_t mipiDsiBus = nullptr;
     esp_ldo_channel_handle_t ldoChannel = nullptr;
 
@@ -34,7 +29,7 @@ public:
 
     Jd9165Display(
         const std::shared_ptr<EspLcdConfiguration>& configuration
-    ) : EspLcdDisplayV2(configuration, std::make_shared<NoLock>()) {}
+    ) : EspLcdDisplayV2(configuration) {}
 
     ~Jd9165Display() override;
 
