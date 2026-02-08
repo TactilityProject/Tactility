@@ -36,6 +36,7 @@ class BindingProperty:
     type: str
     required: bool
     description: str
+    default: object = None
 
 @dataclass
 class Binding:

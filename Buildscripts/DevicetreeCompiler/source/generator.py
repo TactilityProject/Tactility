@@ -83,18 +83,37 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
         raise Exception(f"Binding not found for {device.node_name} and compatible '{compatible_property.value}'")
     # Filter out system properties
     binding_properties = []
+    binding_property_names = set()
     for property in device_binding.properties:
         if property.name != "compatible":
             binding_properties.append(property)
+            binding_property_names.add(property.name)
+
+    # Check for invalid properties in device
+    for device_property in device.properties:
+        if device_property.name in ["compatible"]:
+            continue
+        if device_property.name not in binding_property_names:
+            raise Exception(f"Device '{device.node_name}' has invalid property '{device_property.name}'")
+
     # Allocate total expected configuration arguments
     result = [0] * len(binding_properties)
     for index, binding_property in enumerate(binding_properties):
         device_property = find_device_property(device, binding_property.name)
         if device_property is None:
-            if binding_property.required:
+            if binding_property.type == "bool":
+                result[index] = "false"
+            elif binding_property.required:
                 raise Exception(f"device {device.node_name} doesn't have property '{binding_property.name}'")
+            elif binding_property.default is not None:
+                temp_prop = DeviceProperty(
+                    name=binding_property.name,
+                    type=binding_property.type,
+                    value=binding_property.default
+                )
+                result[index] = property_to_string(temp_prop, devices)
             else:
-                result[index] = '0'
+                raise Exception(f"Device {device.node_name} doesn't have property '{binding_property.name}' and no default value is set")
         else:
             result[index] = property_to_string(device_property, devices)
     return result

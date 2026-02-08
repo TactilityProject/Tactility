@@ -69,8 +69,6 @@
 
 ## Lower Priority
 
-- Rename `Lock::lock()` and `Lock::unlock()` to `Lock::acquire()` and `Lock::release()`?
-- Implement system suspend that turns off the screen
 - The boot button on some devices can be used as GPIO_NUM_0 at runtime
 - Localize all apps
 - Support hot-plugging SD card (note: this is not possible if they require the CS pin hack)
