@@ -1,5 +1,6 @@
 #include "SdCard.h"
 
+#include <tactility/device.h>
 #include <Tactility/hal/sdcard/SpiSdCardDevice.h>
 #include <Tactility/lvgl/LvglSync.h>
 
@@ -17,7 +18,11 @@ std::shared_ptr<SdCardDevice> createSdCard() {
         SPI2_HOST
     );
 
+    ::Device* spiController = device_find_by_name("spi0");
+    check(spiController != nullptr, "spi0 not found");
+
     return std::make_shared<SpiSdCardDevice>(
-        std::move(configuration)
+        std::move(configuration),
+        spiController
     );
 }
