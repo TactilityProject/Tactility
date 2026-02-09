@@ -28,8 +28,6 @@
 		pin-mosi = <47>;
 		pin-miso = <41>;
 		pin-sclk = <48>;
-		pin-wp = <GPIO_PIN_NONE>;
 		pin-hd = <42>;
-		max-transfer-size = <0>;
 	};
 };

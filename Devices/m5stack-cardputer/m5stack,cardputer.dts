@@ -29,11 +29,7 @@
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
 		pin-mosi = <35>;
-		pin-miso = <GPIO_PIN_NONE>;
 		pin-sclk = <36>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 
 	sdcard_spi: spi1 {
@@ -42,9 +38,6 @@
 		pin-mosi = <14>;
 		pin-miso = <39>;
 		pin-sclk = <40>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 
 	// Speaker and microphone
@@ -56,7 +49,6 @@
 		pin-ws = <43>;
 		pin-data-out = <42>;
 		pin-data-in = <46>;
-		pin-mclk = <GPIO_PIN_NONE>;
 	};
 
 	uart_port_a: uart1 {
@@ -64,7 +56,5 @@
 		port = <UART_NUM_1>;
 		pin-tx = <1>;
 		pin-rx = <2>;
-		pin-cts = <GPIO_PIN_NONE>;
-		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

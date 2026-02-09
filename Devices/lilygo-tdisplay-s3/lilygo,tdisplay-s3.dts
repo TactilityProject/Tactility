@@ -18,10 +18,6 @@
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
 		pin-mosi = <7>;
-		pin-miso = <GPIO_PIN_NONE>;
 		pin-sclk = <6>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 };

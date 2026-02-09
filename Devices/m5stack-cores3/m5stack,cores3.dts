@@ -55,9 +55,6 @@
 		pin-mosi = <37>;
 		pin-miso = <35>;
 		pin-sclk = <36>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 
 	// TODO: Enable speaker via ES7210 I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L417
@@ -79,7 +76,5 @@
 		port = <UART_NUM_1>;
 		pin-tx = <1>;
 		pin-rx = <2>;
-		pin-cts = <GPIO_PIN_NONE>;
-		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

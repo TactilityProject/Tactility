@@ -35,11 +35,7 @@
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
 		pin-mosi = <15>;
-		pin-miso = <GPIO_PIN_NONE>;
 		pin-sclk = <13>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 
 	uart_grove: uart1 {
@@ -47,7 +43,5 @@
 		port = <UART_NUM_1>;
 		pin-tx = <33>;
 		pin-rx = <32>;
-		pin-cts = <GPIO_PIN_NONE>;
-		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

@@ -29,8 +29,6 @@
 		pin-mosi = <13>;
 		pin-miso = <12>;
 		pin-sclk = <14>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
 		max-transfer-size = <65536>;
 	};
 
@@ -40,9 +38,6 @@
 		pin-mosi = <23>;
 		pin-miso = <19>;
 		pin-sclk = <18>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 
 	uart1 {
@@ -50,7 +45,5 @@
 		port = <UART_NUM_1>;
 		pin-tx = <17>;
 		pin-rx = <16>;
-		pin-cts = <GPIO_PIN_NONE>;
-		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

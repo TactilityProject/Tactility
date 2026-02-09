@@ -31,9 +31,6 @@
 		pin-mosi = <34>;
 		pin-miso = <33>;
 		pin-sclk = <35>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 
 	// ES8311
@@ -53,8 +50,6 @@
 		port = <UART_NUM_0>;
 		pin-tx = <12>;
 		pin-rx = <4>;
-		pin-cts = <GPIO_PIN_NONE>;
-		pin-rts = <GPIO_PIN_NONE>;
 	};
 
 	uart_external: uart1 {
@@ -62,7 +57,5 @@
 		port = <UART_NUM_1>;
 		pin-tx = <43>;
 		pin-rx = <44>;
-		pin-cts = <GPIO_PIN_NONE>;
-		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

@@ -39,8 +39,6 @@
 		pin-bclk = <7>;
 		pin-ws = <5>;
 		pin-data-out = <6>;
-		pin-data-in = <GPIO_PIN_NONE>;
-		pin-mclk = <GPIO_PIN_NONE>;
 	};
 
 	spi0 {
@@ -49,9 +47,6 @@
 		pin-mosi = <41>;
 		pin-miso = <38>;
 		pin-sclk = <40>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 
 	uart1 {
@@ -59,7 +54,5 @@
 		port = <UART_NUM_1>;
 		pin-tx = <43>;
 		pin-rx = <44>;
-		pin-cts = <GPIO_PIN_NONE>;
-		pin-rts = <GPIO_PIN_NONE>;
 	};
 };

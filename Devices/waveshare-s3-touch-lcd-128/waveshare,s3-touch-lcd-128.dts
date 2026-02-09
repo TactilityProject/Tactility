@@ -29,9 +29,6 @@
 		pin-mosi = <11>;
 		pin-miso = <12>;
 		pin-sclk = <10>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 
 	sdcard_spi: spi1 {
@@ -40,8 +37,5 @@
 		pin-mosi = <16>;
 		pin-miso = <15>;
 		pin-sclk = <17>;
-		pin-wp = <GPIO_PIN_NONE>;
-		pin-hd = <GPIO_PIN_NONE>;
-		max-transfer-size = <0>;
 	};
 };
