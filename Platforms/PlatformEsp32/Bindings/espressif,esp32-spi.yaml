@@ -13,11 +13,11 @@ properties:
       Defined by spi_host_device_t (e.g. SPI2_HOST, SPI3_HOST).
   pin-mosi:
     type: int
-    required: true
+    default: GPIO_PIN_NONE
     description: MOSI (Data 0) pin
   pin-miso:
     type: int
-    required: true
+    default: GPIO_PIN_NONE
     description: MISO (Data 1) pin
   pin-sclk:
     type: int
