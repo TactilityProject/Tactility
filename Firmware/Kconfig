@@ -6,7 +6,13 @@ menu "Tactility App"
     config TT_DEVICE_ID
         string "Device Identifier"
         default ""
-    config TT_SPLASH_DURATION
+     # T-Deck device-related code was directly referenced from Tactility in a pull request.
+     # This breaks other devices because the code does not exist in those implementations.
+     # Until we move it out into a proper driver, we have to have pre-processor definition for that.
+     config TT_TDECK_WORKAROUND
+         bool "Temporary work-around until we fix the T-Deck keyboard and trackball settings"
+         default n
+     config TT_SPLASH_DURATION
         int "Splash Duration (ms)"
         default 1000
         range 0 3000

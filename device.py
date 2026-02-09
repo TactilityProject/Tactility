@@ -105,6 +105,9 @@ def write_tactility_variables(output_file, device_properties: ConfigParser, devi
     else:
         output_file.write(f"CONFIG_TT_DEVICE_NAME=\"{board_vendor} {board_name}\"\n")
     output_file.write(f"CONFIG_TT_DEVICE_ID=\"{device_id}\"\n")
+    if device_id == "lilygo-tdeck":
+        output_file.write("CONFIG_TT_TDECK_WORKAROUND=y\n")
+
 
 def write_core_variables(output_file, device_properties: ConfigParser):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()

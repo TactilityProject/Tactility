@@ -111,8 +111,10 @@ namespace app {
 #ifdef ESP_PLATFORM
     namespace crashdiagnostics { extern const AppManifest manifest; }
     namespace webserversettings { extern const AppManifest manifest; }
+#if CONFIG_TT_TDECK_WORKAROUND == 1
     namespace keyboardsettings { extern const AppManifest manifest; } // T-Deck only for now
     namespace trackballsettings { extern const AppManifest manifest; } // T-Deck only for now
+#endif
 #endif
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
@@ -158,13 +160,10 @@ static void registerInternalApps() {
     addAppManifest(app::webserversettings::manifest);
     addAppManifest(app::crashdiagnostics::manifest);
     addAppManifest(app::development::manifest);
-    // T-Deck only:
-    auto* root_device = device_find_by_name("/");
-    check(root_device);
-    if (root_is_model(root_device, "LilyGO T-Deck")) {
+#if defined(CONFIG_TT_TDECK_WORKAROUND)
         addAppManifest(app::keyboardsettings::manifest);
         addAppManifest(app::trackballsettings::manifest);
-    }
+#endif
 #endif
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED
@@ -250,14 +249,11 @@ static void registerAndStartSecondaryServices() {
     addService(service::gui::manifest);
     addService(service::statusbar::manifest);
     addService(service::memorychecker::manifest);
-#ifdef ESP_PLATFORM
+#if defined(ESP_PLATFORM)
     addService(service::displayidle::manifest);
-    // T-Deck only:
-    auto* root_device = device_find_by_name("/");
-    check(root_device);
-    if (root_is_model(root_device, "LilyGO T-Deck")) {
-        addService(service::keyboardidle::manifest);
-    }
+#if defined(CONFIG_TT_TDECK_WORKAROUND)
+    addService(service::keyboardidle::manifest);
+#endif
 #endif
 #if TT_FEATURE_SCREENSHOT_ENABLED
     addService(service::screenshot::manifest);
