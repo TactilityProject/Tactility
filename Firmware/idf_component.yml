@@ -54,7 +54,7 @@ dependencies:
     version: "1.7.6~1"
     rules:
       - if: "target == esp32s3"
-  espressif/esp_lvgl_port: "2.7.0"
+  espressif/esp_lvgl_port: "2.5.0"
   lvgl/lvgl: "9.3.0"
   FastEPD:
     git: https://github.com/bitbank2/FastEPD.git
