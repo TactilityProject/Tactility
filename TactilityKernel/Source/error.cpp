@@ -30,7 +30,7 @@ const char* error_to_string(error_t error) {
         case ERROR_NOT_ALLOWED:
             return "not allowed";
         case ERROR_BUFFER_OVERFLOW:
-            return "buffer overlow";
+            return "buffer overflow";
         default:
             return "unknown";
     }
