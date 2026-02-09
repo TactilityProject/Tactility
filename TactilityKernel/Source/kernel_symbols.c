@@ -3,6 +3,7 @@
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
+#include <tactility/drivers/root.h>
 #include <tactility/drivers/spi_controller.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/concurrent/dispatcher.h>
@@ -36,6 +37,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(device_get_driver_data),
     DEFINE_MODULE_SYMBOL(device_is_added),
     DEFINE_MODULE_SYMBOL(device_is_ready),
+    DEFINE_MODULE_SYMBOL(device_is_compatible),
     DEFINE_MODULE_SYMBOL(device_lock),
     DEFINE_MODULE_SYMBOL(device_try_lock),
     DEFINE_MODULE_SYMBOL(device_unlock),
@@ -79,6 +81,8 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(i2s_controller_get_config),
     DEFINE_MODULE_SYMBOL(i2s_controller_reset),
     DEFINE_MODULE_SYMBOL(I2S_CONTROLLER_TYPE),
+    // drivers/root
+    DEFINE_MODULE_SYMBOL(root_is_model),
     // drivers/spi_controller
     DEFINE_MODULE_SYMBOL(spi_controller_lock),
     DEFINE_MODULE_SYMBOL(spi_controller_try_lock),

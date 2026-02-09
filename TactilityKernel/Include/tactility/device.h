@@ -179,6 +179,14 @@ struct Device* device_get_parent(struct Device* device);
 bool device_is_ready(const struct Device* device);
 
 /**
+ * Indicates whether the device is compatible with the given compatible string.
+ * @param[in] device non-null device pointer
+ * @param[in] compatible compatible string
+ * @return true if the device is compatible
+ */
+bool device_is_compatible(const struct Device* device, const char* compatible);
+
+/**
  * Set the driver data for a device.
  *
  * @param[in,out] device non-null device pointer

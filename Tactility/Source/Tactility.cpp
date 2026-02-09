@@ -32,6 +32,7 @@
 #include <tactility/lvgl_module.h>
 
 #ifdef ESP_PLATFORM
+#include "tactility/drivers/root.h"
 #include <Tactility/InitEsp.h>
 #endif
 
@@ -61,8 +62,6 @@ namespace service {
     namespace statusbar { extern const ServiceManifest manifest; }
 #ifdef ESP_PLATFORM
     namespace displayidle { extern const ServiceManifest manifest; }
-#endif
-#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
     namespace keyboardidle { extern const ServiceManifest manifest; }
 #endif
 #if TT_FEATURE_SCREENSHOT_ENABLED
@@ -112,11 +111,8 @@ namespace app {
 #ifdef ESP_PLATFORM
     namespace crashdiagnostics { extern const AppManifest manifest; }
     namespace webserversettings { extern const AppManifest manifest; }
-#endif
-
-#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
-    namespace keyboardsettings { extern const AppManifest manifest; }
-    namespace trackballsettings { extern const AppManifest manifest; }
+    namespace keyboardsettings { extern const AppManifest manifest; } // T-Deck only for now
+    namespace trackballsettings { extern const AppManifest manifest; } // T-Deck only for now
 #endif
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
@@ -162,11 +158,13 @@ static void registerInternalApps() {
     addAppManifest(app::webserversettings::manifest);
     addAppManifest(app::crashdiagnostics::manifest);
     addAppManifest(app::development::manifest);
-#endif
-
-#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
-    addAppManifest(app::keyboardsettings::manifest);
-    addAppManifest(app::trackballsettings::manifest);
+    // T-Deck only:
+    auto* root_device = device_find_by_name("/");
+    check(root_device);
+    if (root_is_model(root_device, "LilyGO T-Deck")) {
+        addAppManifest(app::keyboardsettings::manifest);
+        addAppManifest(app::trackballsettings::manifest);
+    }
 #endif
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED
@@ -251,13 +249,16 @@ static void registerAndStartSecondaryServices() {
     addService(service::loader::manifest);
     addService(service::gui::manifest);
     addService(service::statusbar::manifest);
+    addService(service::memorychecker::manifest);
 #ifdef ESP_PLATFORM
     addService(service::displayidle::manifest);
+    // T-Deck only:
+    auto* root_device = device_find_by_name("/");
+    check(root_device);
+    if (root_is_model(root_device, "LilyGO T-Deck")) {
+        addService(service::keyboardidle::manifest);
+    }
 #endif
-#if defined(ESP_PLATFORM) && defined(CONFIG_TT_DEVICE_LILYGO_TDECK)
-    addService(service::keyboardidle::manifest);
-#endif
-    addService(service::memorychecker::manifest);
 #if TT_FEATURE_SCREENSHOT_ENABLED
     addService(service::screenshot::manifest);
 #endif

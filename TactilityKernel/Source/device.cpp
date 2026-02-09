@@ -277,6 +277,11 @@ bool device_is_ready(const struct Device* device) {
     return device->internal->state.started;
 }
 
+bool device_is_compatible(const struct Device* device, const char* compatible) {
+    if (device->internal->driver == nullptr) return false;
+    return driver_is_compatible(device->internal->driver, compatible);
+}
+
 void device_set_driver_data(struct Device* device, void* driver_data) {
     device->internal->driver_data = driver_data;
 }
