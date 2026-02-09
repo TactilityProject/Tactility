@@ -7,22 +7,16 @@
 extern "C" {
 #endif
 
-/** Logical GPIO pin identifier used by the HAL. Typically maps to the SoC GPIO number. */
+/** @deprecated NON-FUNCTIONAL - WILL BE REMOVED SOON */
 typedef unsigned int GpioPin;
-/** Value indicating that no GPIO pin is used/applicable. */
+
+/** @deprecated NON-FUNCTIONAL - WILL BE REMOVED SOON */
 #define GPIO_NO_PIN -1
 
-/** Read the current logic level of a pin.
- * The pin should be configured for input or input/output.
- * @param[in] pin The pin to read.
- * @return true if the level is high, false if low. If the pin is invalid, the
- *         behavior is implementation-defined and may return false.
- */
+/** @deprecated NON-FUNCTIONAL - WILL BE REMOVED SOON */
 bool tt_hal_gpio_get_level(GpioPin pin);
 
-/** Get the number of GPIO pins available on this platform.
- * @return The count of valid GPIO pins.
- */
+/** @deprecated NON-FUNCTIONAL - WILL BE REMOVED SOON */
 int tt_hal_gpio_get_pin_count();
 
 #ifdef __cplusplus

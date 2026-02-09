@@ -8,6 +8,7 @@
 #include <tactility/log.h>
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
+#include <tactility/drivers/gpio_descriptor.h>
 
 #define TAG "esp32_gpio"
 
@@ -15,20 +16,20 @@
 
 extern "C" {
 
-static error_t set_level(Device* device, gpio_pin_t pin, bool high) {
-    auto esp_error = gpio_set_level(static_cast<gpio_num_t>(pin), high);
+static error_t set_level(GpioDescriptor* descriptor, bool high) {
+    auto esp_error = gpio_set_level(static_cast<gpio_num_t>(descriptor->pin), high);
     return esp_err_to_error(esp_error);
 }
 
-static error_t get_level(Device* device, gpio_pin_t pin, bool* high) {
-    *high = gpio_get_level(static_cast<gpio_num_t>(pin)) != 0;
+static error_t get_level(GpioDescriptor* descriptor, bool* high) {
+    *high = gpio_get_level(static_cast<gpio_num_t>(descriptor->pin)) != 0;
     return ERROR_NONE;
 }
 
-static error_t set_options(Device* device, gpio_pin_t pin, gpio_flags_t options) {
-    const Esp32GpioConfig* config = GET_CONFIG(device);
+static error_t set_options(GpioDescriptor* descriptor, gpio_flags_t options) {
+    const Esp32GpioConfig* config = GET_CONFIG(descriptor->controller);
 
-    if (pin >= config->gpioCount) {
+    if (descriptor->pin >= config->gpioCount) {
         return ERROR_INVALID_ARGUMENT;
     }
 
@@ -44,7 +45,7 @@ static error_t set_options(Device* device, gpio_pin_t pin, gpio_flags_t options)
     }
 
     const gpio_config_t esp_config = {
-        .pin_bit_mask = 1ULL << pin,
+        .pin_bit_mask = 1ULL << descriptor->pin,
         .mode = mode,
         .pull_up_en = (options & GPIO_PULL_UP) ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE,
         .pull_down_en = (options & GPIO_PULL_DOWN) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE,
@@ -58,9 +59,9 @@ static error_t set_options(Device* device, gpio_pin_t pin, gpio_flags_t options)
     return esp_err_to_error(esp_error);
 }
 
-static int get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {
+static error_t get_options(GpioDescriptor* descriptor, gpio_flags_t* options) {
     gpio_io_config_t esp_config;
-    if (gpio_get_io_config(static_cast<gpio_num_t>(pin), &esp_config) != ESP_OK) {
+    if (gpio_get_io_config(static_cast<gpio_num_t>(descriptor->pin), &esp_config) != ESP_OK) {
         return ERROR_RESOURCE;
     }
 
@@ -90,27 +91,31 @@ static int get_options(Device* device, gpio_pin_t pin, gpio_flags_t* options) {
     return ERROR_NONE;
 }
 
-error_t get_pin_count(struct Device* device, uint32_t* count) {
-    *count = GET_CONFIG(device)->gpioCount;
+static error_t get_pin_number(struct GpioDescriptor* descriptor, gpio_pin_t* pin) {
+    if (!descriptor) return ERROR_INVALID_ARGUMENT;
+    *pin = descriptor->pin;
     return ERROR_NONE;
 }
 
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
-    return ERROR_NONE;
+    auto pin_count = GET_CONFIG(device)->gpioCount;
+    return gpio_controller_init_descriptors(device, pin_count, nullptr);
 }
 
 static error_t stop(Device* device) {
     ESP_LOGI(TAG, "stop %s", device->name);
-    return ERROR_NONE;
+    return gpio_controller_deinit_descriptors(device);
 }
 
 const static GpioControllerApi esp32_gpio_api  = {
+    .acquire_descriptor = acquire_descriptor,
+    .release_descriptor = release_descriptor,
+    .get_pin_number = get_pin_number,
     .set_level = set_level,
     .get_level = get_level,
     .set_options = set_options,
-    .get_options = get_options,
-    .get_pin_count = get_pin_count
+    .get_options = get_options
 };
 
 extern struct Module platform_module;

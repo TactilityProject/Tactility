@@ -59,11 +59,13 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(driver_find_compatible),
     DEFINE_MODULE_SYMBOL(driver_get_device_type),
     // drivers/gpio_controller
-    DEFINE_MODULE_SYMBOL(gpio_controller_set_level),
-    DEFINE_MODULE_SYMBOL(gpio_controller_get_level),
-    DEFINE_MODULE_SYMBOL(gpio_controller_set_options),
-    DEFINE_MODULE_SYMBOL(gpio_controller_get_options),
+    DEFINE_MODULE_SYMBOL(gpio_descriptor_set_level),
+    DEFINE_MODULE_SYMBOL(gpio_descriptor_get_level),
+    DEFINE_MODULE_SYMBOL(gpio_descriptor_set_options),
+    DEFINE_MODULE_SYMBOL(gpio_descriptor_get_options),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_pin_count),
+    DEFINE_MODULE_SYMBOL(gpio_controller_init_descriptors),
+    DEFINE_MODULE_SYMBOL(gpio_controller_deinit_descriptors),
     DEFINE_MODULE_SYMBOL(GPIO_CONTROLLER_TYPE),
     // drivers/i2c_controller
     DEFINE_MODULE_SYMBOL(i2c_controller_read),

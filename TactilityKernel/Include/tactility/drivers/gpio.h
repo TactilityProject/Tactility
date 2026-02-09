@@ -38,11 +38,24 @@ typedef enum {
     GPIO__MAX,
 } GpioInterruptType;
 
+enum GpioOwnerType {
+    /** @brief Pin is unclaimed/free */
+    GPIO_OWNER_NONE,
+    /** @brief Pin is owned by a hog */
+    GPIO_OWNER_HOG,
+    /** @brief Pin is claimed by a regular consumer */
+    GPIO_OWNER_GPIO,
+    /** @brief Pin is owned by SPI. This is a special case because of CS pin transfer from hog to SPI controller. */
+    GPIO_OWNER_SPI
+};
+
 /** The index of a GPIO pin on a GPIO Controller */
 typedef uint8_t gpio_pin_t;
 
 /** Specifies the configuration flags for a GPIO pin (or set of pins) */
 typedef uint16_t gpio_flags_t;
+
+typedef uint8_t gpio_level_t;
 
 /** A configuration for a single GPIO pin */
 struct GpioPinConfig {
