@@ -11,7 +11,9 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
         320,
         true,
         true,
-        false
+        false,
+        GPIO_NUM_NC,
+        GPIO_NUM_16
     );
 
     return std::make_shared<Gt911Touch>(std::move(configuration));
