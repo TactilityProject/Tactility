@@ -12,7 +12,6 @@ constexpr auto LCD_VERTICAL_RESOLUTION = 320;
 void setBacklightDuty(uint8_t level);
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
-    // Note for future changes: Reset pin is 48 and interrupt pin is 47
     auto configuration = std::make_unique<Axs5106Touch::Configuration>(
         I2C_NUM_0,
         172,
