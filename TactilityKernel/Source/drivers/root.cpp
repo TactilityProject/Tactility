@@ -3,6 +3,7 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/root.h>
+#include <cstring>
 
 extern "C" {
 
@@ -18,7 +19,8 @@ Driver root_driver = {
     .stop_device = nullptr,
     .api = nullptr,
     .device_type = nullptr,
-    .owner = nullptr
+    .owner = nullptr,
+    .internal = nullptr
 };
 
 }
