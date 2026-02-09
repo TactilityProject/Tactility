@@ -32,6 +32,7 @@
 #include <tactility/lvgl_module.h>
 
 #ifdef ESP_PLATFORM
+#include "tactility/drivers/root.h"
 #include <Tactility/InitEsp.h>
 #endif
 
