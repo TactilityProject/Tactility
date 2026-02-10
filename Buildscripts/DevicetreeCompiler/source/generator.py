@@ -57,7 +57,7 @@ def find_phandle(devices: list[Device], phandle: str):
     for device in devices:
         if device.node_name == phandle or device.node_alias == phandle:
             return f"&{get_device_node_name_safe(device)}"
-    raise DevicetreeException(f"phandle '{phandle}' not found in device tree")
+    raise DevicetreeException(f"phandle '{phandle}' not found in devicetree")
 
 def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
     type = property.type
@@ -77,6 +77,20 @@ def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
         return "{ " + ",".join(value_list) + " }"
     elif type == "phandle":
         return find_phandle(devices, property.value)
+    elif type == "phandle-array":
+        value_list = list()
+        if isinstance(property.value, list):
+            for item in property.value:
+                if isinstance(item, PropertyValue):
+                    value_list.append(property_to_string(DeviceProperty(name="", type=item.type, value=item.value), devices))
+                else:
+                    value_list.append(str(item))
+            return "{ " + ",".join(value_list) + " }"
+        elif isinstance(property.value, str):
+            # If it's a string, assume it's a #define and show it as-is
+            return property.value
+        else:
+            raise Exception(f"Unsupported phandle-array type for {property.value}")
     else:
         raise DevicetreeException(f"property_to_string() has an unsupported type: {type}")
 
