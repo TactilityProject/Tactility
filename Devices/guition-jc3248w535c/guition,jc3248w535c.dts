@@ -19,16 +19,16 @@
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
 		clock-frequency = <400000>;
-		pin-sda = <4>;
-		pin-scl = <8>;
+		pin-sda = <&gpio0 4 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 8 GPIO_FLAG_NONE>;
 	};
 
 	i2c_external: i2c1 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_1>;
 		clock-frequency = <400000>;
-		pin-sda = <17>;
-		pin-scl = <18>;
+		pin-sda = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 18 GPIO_FLAG_NONE>;
 	};
 
 	display_spi: spi0 {

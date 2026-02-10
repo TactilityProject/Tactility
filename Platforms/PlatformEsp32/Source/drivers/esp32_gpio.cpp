@@ -26,7 +26,7 @@ static error_t get_level(GpioDescriptor* descriptor, bool* high) {
     return ERROR_NONE;
 }
 
-static error_t set_options(GpioDescriptor* descriptor, gpio_flags_t options) {
+static error_t set_flags(GpioDescriptor* descriptor, gpio_flags_t flags) {
     const Esp32GpioConfig* config = GET_CONFIG(descriptor->controller);
 
     if (descriptor->pin >= config->gpioCount) {
@@ -34,11 +34,11 @@ static error_t set_options(GpioDescriptor* descriptor, gpio_flags_t options) {
     }
 
     gpio_mode_t mode;
-    if ((options & GPIO_DIRECTION_INPUT_OUTPUT) == GPIO_DIRECTION_INPUT_OUTPUT) {
+    if ((flags & GPIO_FLAG_DIRECTION_INPUT_OUTPUT) == GPIO_FLAG_DIRECTION_INPUT_OUTPUT) {
         mode = GPIO_MODE_INPUT_OUTPUT;
-    } else if (options & GPIO_DIRECTION_INPUT) {
+    } else if (flags & GPIO_FLAG_DIRECTION_INPUT) {
         mode = GPIO_MODE_INPUT;
-    } else if (options & GPIO_DIRECTION_OUTPUT) {
+    } else if (flags & GPIO_FLAG_DIRECTION_OUTPUT) {
         mode = GPIO_MODE_OUTPUT;
     } else {
         return ERROR_INVALID_ARGUMENT;
@@ -47,9 +47,9 @@ static error_t set_options(GpioDescriptor* descriptor, gpio_flags_t options) {
     const gpio_config_t esp_config = {
         .pin_bit_mask = 1ULL << descriptor->pin,
         .mode = mode,
-        .pull_up_en = (options & GPIO_PULL_UP) ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE,
-        .pull_down_en = (options & GPIO_PULL_DOWN) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTERRUPT_FROM_OPTIONS(options),
+        .pull_up_en = (flags & GPIO_FLAG_PULL_UP) ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE,
+        .pull_down_en = (flags & GPIO_FLAG_PULL_DOWN) ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_FLAG_INTERRUPT_FROM_OPTIONS(flags),
 #if SOC_GPIO_SUPPORT_PIN_HYS_FILTER
         .hys_ctrl_mode = GPIO_HYS_SOFT_DISABLE
 #endif
@@ -59,7 +59,7 @@ static error_t set_options(GpioDescriptor* descriptor, gpio_flags_t options) {
     return esp_err_to_error(esp_error);
 }
 
-static error_t get_options(GpioDescriptor* descriptor, gpio_flags_t* options) {
+static error_t get_flags(GpioDescriptor* descriptor, gpio_flags_t* flags) {
     gpio_io_config_t esp_config;
     if (gpio_get_io_config(static_cast<gpio_num_t>(descriptor->pin), &esp_config) != ESP_OK) {
         return ERROR_RESOURCE;
@@ -68,32 +68,32 @@ static error_t get_options(GpioDescriptor* descriptor, gpio_flags_t* options) {
     gpio_flags_t output = 0;
 
     if (esp_config.pu) {
-        output |= GPIO_PULL_UP;
+        output |= GPIO_FLAG_PULL_UP;
     }
 
     if (esp_config.pd) {
-        output |= GPIO_PULL_DOWN;
+        output |= GPIO_FLAG_PULL_DOWN;
     }
 
     if (esp_config.ie) {
-        output |= GPIO_DIRECTION_INPUT;
+        output |= GPIO_FLAG_DIRECTION_INPUT;
     }
 
     if (esp_config.oe) {
-        output |= GPIO_DIRECTION_OUTPUT;
+        output |= GPIO_FLAG_DIRECTION_OUTPUT;
     }
 
     if (esp_config.oe_inv) {
-        output |= GPIO_ACTIVE_LOW;
+        output |= GPIO_FLAG_ACTIVE_LOW;
     }
 
-    *options = output;
+    *flags = output;
     return ERROR_NONE;
 }
 
-static error_t get_pin_number(struct GpioDescriptor* descriptor, gpio_pin_t* pin) {
-    if (!descriptor) return ERROR_INVALID_ARGUMENT;
-    *pin = descriptor->pin;
+static error_t get_native_pin_number(GpioDescriptor* descriptor, void* pin_number) {
+    auto* esp_pin_number = static_cast<gpio_num_t*>(pin_number);
+    *esp_pin_number = static_cast<gpio_num_t>(descriptor->pin);
     return ERROR_NONE;
 }
 
@@ -109,13 +109,11 @@ static error_t stop(Device* device) {
 }
 
 const static GpioControllerApi esp32_gpio_api  = {
-    .acquire_descriptor = acquire_descriptor,
-    .release_descriptor = release_descriptor,
-    .get_pin_number = get_pin_number,
     .set_level = set_level,
     .get_level = get_level,
-    .set_options = set_options,
-    .get_options = get_options
+    .set_flags = set_flags,
+    .get_flags = get_flags,
+    .get_native_pin_number = get_native_pin_number
 };
 
 extern struct Module platform_module;

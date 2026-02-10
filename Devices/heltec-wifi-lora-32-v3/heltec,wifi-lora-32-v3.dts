@@ -17,7 +17,7 @@
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
 		clock-frequency = <200000>;
-		pin-sda = <17>;
-		pin-scl = <18>;
+		pin-sda = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 18 GPIO_FLAG_NONE>;
 	};
 };

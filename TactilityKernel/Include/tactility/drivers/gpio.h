@@ -10,21 +10,22 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-#define GPIO_OPTIONS_MASK 0x1f
+#define GPIO_FLAGS_MASK 0x1f
 
-#define GPIO_ACTIVE_HIGH (0 << 0)
-#define GPIO_ACTIVE_LOW (1 << 0)
+#define GPIO_FLAG_NONE 0
+#define GPIO_FLAG_ACTIVE_HIGH (0 << 0)
+#define GPIO_FLAG_ACTIVE_LOW (1 << 0)
 
-#define GPIO_DIRECTION_INPUT (1 << 1)
-#define GPIO_DIRECTION_OUTPUT (1 << 2)
-#define GPIO_DIRECTION_INPUT_OUTPUT (GPIO_DIRECTION_INPUT | GPIO_DIRECTION_OUTPUT)
+#define GPIO_FLAG_DIRECTION_INPUT (1 << 1)
+#define GPIO_FLAG_DIRECTION_OUTPUT (1 << 2)
+#define GPIO_FLAG_DIRECTION_INPUT_OUTPUT (GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_DIRECTION_OUTPUT)
 
-#define GPIO_PULL_UP (0 << 3)
-#define GPIO_PULL_DOWN (1 << 4)
+#define GPIO_FLAG_PULL_UP (0 << 3)
+#define GPIO_FLAG_PULL_DOWN (1 << 4)
 
-#define GPIO_INTERRUPT_BITMASK (0b111 << 5) // 3 bits to hold the values [0, 5]
-#define GPIO_INTERRUPT_FROM_OPTIONS(options) (gpio_int_type_t)((options & GPIO_INTERRUPT_BITMASK) >> 5)
-#define GPIO_INTERRUPT_TO_OPTIONS(options, interrupt) (options | (interrupt << 5))
+#define GPIO_FLAG_INTERRUPT_BITMASK (0b111 << 5) // 3 bits to hold the values [0, 5]
+#define GPIO_FLAG_INTERRUPT_FROM_OPTIONS(options) (gpio_int_type_t)((options & GPIO_FLAG_INTERRUPT_BITMASK) >> 5)
+#define GPIO_FLAG_INTERRUPT_TO_OPTIONS(options, interrupt) (options | (interrupt << 5))
 
 #define GPIO_PIN_NONE -1
 
@@ -35,7 +36,7 @@ typedef enum {
     GPIO_INTERRUPT_ANY_EDGE = 3,
     GPIO_INTERRUPT_LOW_LEVEL = 4,
     GPIO_INTERRUPT_HIGH_LEVEL = 5,
-    GPIO__MAX,
+    GPIO_MAX,
 } GpioInterruptType;
 
 enum GpioOwnerType {
@@ -55,27 +56,18 @@ typedef uint8_t gpio_pin_t;
 /** Specifies the configuration flags for a GPIO pin (or set of pins) */
 typedef uint16_t gpio_flags_t;
 
-typedef uint8_t gpio_level_t;
-
-/** A configuration for a single GPIO pin */
-struct GpioPinConfig {
+/**
+ * Specifies a pin and its properties for a specific GPIO controller.
+ * Used by the devicetree, drivers and application code to refer to GPIO pins and acquire them via the gpio_controller API.
+ */
+struct GpioPinSpec {
     /** GPIO device controlling the pin */
-    const struct Device* port;
+    struct Device* gpio_controller;
     /** The pin's number on the device */
     gpio_pin_t pin;
     /** The pin's configuration flags as specified in devicetree */
     gpio_flags_t flags;
 };
-
-/**
- * Check if the pin is ready to be used.
- *
- * @param pinConfig the specifications of the pin
- * @return true if the pin is ready to be used
- */
-static inline bool gpio_is_ready(const struct GpioPinConfig* pinConfig) {
-    return device_is_ready(pinConfig->port);
-}
 
 #ifdef __cplusplus
 }

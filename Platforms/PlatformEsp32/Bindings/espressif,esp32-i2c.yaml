@@ -21,9 +21,3 @@ properties:
   pin-scl:
     type: int
     required: true
-  pin-sda-pull-up:
-    type: bool
-    description: enable internal pull-up resistor for SDA pin
-  pin-scl-pull-up:
-    type: bool
-    description: enable internal pull-up resistor for SCL pin

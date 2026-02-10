@@ -53,6 +53,7 @@
 
 #include <driver/i2s_common.h>
 #include <driver/i2s_std.h>
+#include <driver/gpio.h>
 
 extern "C" {
 
@@ -374,7 +375,11 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(esp_netif_get_handle_from_ifkey),
     // Locale
     ESP_ELFSYM_EXPORT(localeconv),
-    //i2s_common.h
+    // driver/gpio.h
+    ESP_ELFSYM_EXPORT(gpio_config),
+    ESP_ELFSYM_EXPORT(gpio_get_level),
+    ESP_ELFSYM_EXPORT(gpio_set_level),
+    // driver/i2s_common.h
     ESP_ELFSYM_EXPORT(i2s_new_channel),
     ESP_ELFSYM_EXPORT(i2s_del_channel),
     ESP_ELFSYM_EXPORT(i2s_channel_enable),
@@ -385,7 +390,7 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(i2s_channel_register_event_callback),
     ESP_ELFSYM_EXPORT(i2s_channel_preload_data),
     ESP_ELFSYM_EXPORT(i2s_channel_tune_rate),
-    //i2s_std.h
+    // driver/i2s_std.h
     ESP_ELFSYM_EXPORT(i2s_channel_init_std_mode),
     ESP_ELFSYM_EXPORT(i2s_channel_reconfig_std_clock),
     ESP_ELFSYM_EXPORT(i2s_channel_reconfig_std_slot),

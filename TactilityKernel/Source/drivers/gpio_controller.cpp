@@ -6,21 +6,41 @@
 #include <tactility/concurrent/mutex.h>
 #include <tactility/drivers/gpio_descriptor.h>
 
+#include <cstdlib>
+#include <new>
+
 #define GPIO_INTERNAL_API(driver) ((struct GpioControllerApi*)driver->api)
 
 extern "C" {
 
 struct GpioControllerData {
-    struct Mutex mutex;
+    struct Mutex mutex {};
     uint32_t pin_count;
     struct GpioDescriptor* descriptors;
+
+    explicit GpioControllerData(Device* device, uint32_t pin_count, void* controller_context) : pin_count(pin_count) {
+        mutex_construct(&mutex);
+        descriptors = (struct GpioDescriptor*)calloc(pin_count, sizeof(struct GpioDescriptor));
+        check(descriptors);
+
+        for (uint32_t i = 0; i < pin_count; ++i) {
+            descriptors[i].controller = device;
+            descriptors[i].pin = (gpio_pin_t)i;
+            descriptors[i].owner_type = GPIO_OWNER_NONE;
+            descriptors[i].controller_context = controller_context;
+        }
+    }
+
+    ~GpioControllerData() {
+        free(descriptors);
+        mutex_destruct(&mutex);
+    }
 };
 
-struct GpioDescriptor* acquire_descriptor(
+struct GpioDescriptor* gpio_descriptor_acquire(
     struct Device* controller,
     gpio_pin_t pin_number,
-    enum GpioOwnerType owner,
-    void* owner_context
+    enum GpioOwnerType owner
 ) {
     auto* data = (struct GpioControllerData*)device_get_driver_data(controller);
 
@@ -37,15 +57,13 @@ struct GpioDescriptor* acquire_descriptor(
     }
 
     desc->owner_type = owner;
-    desc->owner_context = owner_context;
     mutex_unlock(&data->mutex);
 
     return desc;
 }
 
-error_t release_descriptor(struct GpioDescriptor* descriptor) {
+error_t gpio_descriptor_release(struct GpioDescriptor* descriptor) {
     descriptor->owner_type = GPIO_OWNER_NONE;
-    descriptor->owner_context = nullptr;
     return ERROR_NONE;
 }
 
@@ -56,37 +74,16 @@ error_t gpio_controller_get_pin_count(struct Device* device, uint32_t* count) {
 }
 
 error_t gpio_controller_init_descriptors(struct Device* device, uint32_t pin_count, void* controller_context) {
-    auto* data = (struct GpioControllerData*)malloc(sizeof(struct GpioControllerData));
+    auto* data = new(std::nothrow) GpioControllerData(device, pin_count, controller_context);
     if (!data) return ERROR_OUT_OF_MEMORY;
-
-    data->pin_count = pin_count;
-    data->descriptors = (struct GpioDescriptor*)calloc(pin_count, sizeof(struct GpioDescriptor));
-    if (!data->descriptors) {
-        free(data);
-        return ERROR_OUT_OF_MEMORY;
-    }
-
-    for (uint32_t i = 0; i < pin_count; ++i) {
-        data->descriptors[i].controller = device;
-        data->descriptors[i].pin = (gpio_pin_t)i;
-        data->descriptors[i].owner_type = GPIO_OWNER_NONE;
-        data->descriptors[i].controller_context = controller_context;
-    }
-
-    mutex_construct(&data->mutex);
     device_set_driver_data(device, data);
-
     return ERROR_NONE;
 }
 
 error_t gpio_controller_deinit_descriptors(struct Device* device) {
-    auto* data = (struct GpioControllerData*)device_get_driver_data(device);
-
-    free(data->descriptors);
-    mutex_destruct(&data->mutex);
-    free(data);
+    auto* data = static_cast<struct GpioControllerData*>(device_get_driver_data(device));
+    delete data;
     device_set_driver_data(device, nullptr);
-
     return ERROR_NONE;
 }
 
@@ -100,19 +97,29 @@ error_t gpio_descriptor_get_level(struct GpioDescriptor* descriptor, bool* high)
     return GPIO_INTERNAL_API(driver)->get_level(descriptor, high);
 }
 
-error_t gpio_descriptor_set_options(struct GpioDescriptor* descriptor, gpio_flags_t options) {
+error_t gpio_descriptor_set_flags(struct GpioDescriptor* descriptor, gpio_flags_t flags) {
     const auto* driver = device_get_driver(descriptor->controller);
-    return GPIO_INTERNAL_API(driver)->set_options(descriptor, options);
+    return GPIO_INTERNAL_API(driver)->set_flags(descriptor, flags);
 }
 
-error_t gpio_descriptor_get_options(struct GpioDescriptor* descriptor, gpio_flags_t* options) {
+error_t gpio_descriptor_get_flags(struct GpioDescriptor* descriptor, gpio_flags_t* flags) {
     const auto* driver = device_get_driver(descriptor->controller);
-    return GPIO_INTERNAL_API(driver)->get_options(descriptor, options);
+    return GPIO_INTERNAL_API(driver)->get_flags(descriptor, flags);
 }
 
 error_t gpio_descriptor_get_pin_number(struct GpioDescriptor* descriptor, gpio_pin_t* pin) {
+    *pin = descriptor->pin;
+    return ERROR_NONE;
+}
+
+error_t gpio_descriptor_get_native_pin_number(struct GpioDescriptor* descriptor, void* pin_number) {
     const auto* driver = device_get_driver(descriptor->controller);
-    return GPIO_INTERNAL_API(driver)->get_pin_number(descriptor, pin);
+    return GPIO_INTERNAL_API(driver)->get_native_pin_number(descriptor, pin_number);
+}
+
+error_t gpio_descriptor_get_owner_type(struct GpioDescriptor* descriptor, GpioOwnerType* owner_type) {
+    *owner_type = descriptor->owner_type;
+    return ERROR_NONE;
 }
 
 const struct DeviceType GPIO_CONTROLLER_TYPE {

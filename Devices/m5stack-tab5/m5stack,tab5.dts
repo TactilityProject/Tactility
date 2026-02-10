@@ -18,16 +18,16 @@
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
 		clock-frequency = <400000>;
-		pin-sda = <31>;
-		pin-scl = <32>;
+		pin-sda = <&gpio0 31 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 32 GPIO_FLAG_NONE>;
 	};
 
 	i2c_port_a {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_1>;
 		clock-frequency = <400000>;
-		pin-sda = <53>;
-		pin-scl = <54>;
+		pin-sda = <&gpio0 53 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 54 GPIO_FLAG_NONE>;
 	};
 
 	sdcard_spi: spi0 {

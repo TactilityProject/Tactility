@@ -11,12 +11,9 @@ extern "C" {
 struct Esp32I2cConfig {
     i2c_port_t port;
     uint32_t clockFrequency;
-    gpio_pin_t pinSda;
-    gpio_pin_t pinScl;
-    bool pinSdaPullUp;
-    bool pinSclPullUp;
+    struct GpioPinSpec pinSda;
+    struct GpioPinSpec pinScl;
 };
-
 
 #ifdef __cplusplus
 }
