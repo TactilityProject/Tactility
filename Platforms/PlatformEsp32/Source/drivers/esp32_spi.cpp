@@ -20,7 +20,7 @@ struct Esp32SpiInternal {
     RecursiveMutex mutex = {};
     bool initialized = false;
 
-    Esp32SpiInternal(GpioDescriptor* pDescriptor, GpioDescriptor* pGpioDescriptor) {
+    explicit Esp32SpiInternal() {
         recursive_mutex_construct(&mutex);
     }
 
@@ -51,7 +51,7 @@ static error_t unlock(Device* device) {
 
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
-    auto* data = new (std::nothrow) Esp32SpiInternal(nullptr, nullptr);
+    auto* data = new (std::nothrow) Esp32SpiInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
 
     device_set_driver_data(device, data);

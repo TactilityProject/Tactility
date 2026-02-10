@@ -32,7 +32,7 @@ struct GpioControllerApi {
     /**
      * @brief Configures the options for a GPIO pin.
      * @param[in,out] descriptor the pin descriptor
-     * @param[in] options configuration flags (direction, pull-up/down, etc.)
+     * @param[in] flags configuration flags (direction, pull-up/down, etc.)
      * @return ERROR_NONE if successful
      */
     error_t (*set_flags)(struct GpioDescriptor* descriptor, gpio_flags_t flags);
@@ -40,7 +40,7 @@ struct GpioControllerApi {
     /**
      * @brief Gets the configuration options for a GPIO pin.
      * @param[in] descriptor the pin descriptor
-     * @param[out] options pointer to store the configuration flags
+     * @param[out] flags pointer to store the configuration flags
      * @return ERROR_NONE if successful
      */
     error_t (*get_flags)(struct GpioDescriptor* descriptor, gpio_flags_t* flags);

@@ -13,7 +13,7 @@
 #define ACK_CHECK_EN 1
 
 struct Esp32SpiInternal {
-    Mutex mutex { 0 };
+    Mutex mutex {};
     GpioDescriptor* sda_descriptor = nullptr;
     GpioDescriptor* scl_descriptor = nullptr;
 
@@ -164,7 +164,7 @@ static error_t start(Device* device) {
 
     auto* scl_descriptor = gpio_descriptor_acquire(scl_spec.gpio_controller, scl_spec.pin, GPIO_OWNER_GPIO);
     if (!scl_descriptor) {
-        LOG_E(TAG, "Failed to acquire pin %u", sda_spec.pin);
+        LOG_E(TAG, "Failed to acquire pin %u", scl_spec.pin);
         gpio_descriptor_release(sda_descriptor);
         return ERROR_RESOURCE;
     }
@@ -173,7 +173,7 @@ static error_t start(Device* device) {
     check(gpio_descriptor_get_native_pin_number(sda_descriptor, &sda_pin) == ERROR_NONE);
     check(gpio_descriptor_get_native_pin_number(scl_descriptor, &scl_pin) == ERROR_NONE);
 
-    gpio_flags_t sda_flags, scl_flags;;
+    gpio_flags_t sda_flags, scl_flags;
     check(gpio_descriptor_get_flags(sda_descriptor, &sda_flags) == ERROR_NONE);
     check(gpio_descriptor_get_flags(scl_descriptor, &scl_flags) == ERROR_NONE);
 
@@ -192,11 +192,15 @@ static error_t start(Device* device) {
     esp_err_t error = i2c_param_config(dts_config->port, &esp_config);
     if (error != ESP_OK) {
         LOG_E(TAG, "Failed to configure port %d: %s", static_cast<int>(dts_config->port), esp_err_to_name(error));
+        check(gpio_descriptor_release(sda_descriptor) == ERROR_NONE);
+        check(gpio_descriptor_release(scl_descriptor) == ERROR_NONE);
         return ERROR_RESOURCE;
     }
 
     error = i2c_driver_install(dts_config->port, esp_config.mode, 0, 0, 0);
     if (error != ESP_OK) {
+        check(gpio_descriptor_release(sda_descriptor) == ERROR_NONE);
+        check(gpio_descriptor_release(scl_descriptor) == ERROR_NONE);
         LOG_E(TAG, "Failed to install driver at port %d: %s", static_cast<int>(dts_config->port), esp_err_to_name(error));
         return ERROR_RESOURCE;
     }

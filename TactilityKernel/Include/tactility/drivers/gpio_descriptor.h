@@ -2,6 +2,8 @@
 
 #include "gpio.h"
 
+struct Device;
+
 struct GpioDescriptor {
     /** @brief The controller that owns this pin */
     struct Device* controller;

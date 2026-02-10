@@ -16,23 +16,28 @@ extern "C" {
 struct GpioControllerData {
     struct Mutex mutex {};
     uint32_t pin_count;
-    struct GpioDescriptor* descriptors;
+    struct GpioDescriptor* descriptors = nullptr;
 
-    explicit GpioControllerData(Device* device, uint32_t pin_count, void* controller_context) : pin_count(pin_count) {
+    explicit GpioControllerData(uint32_t pin_count) : pin_count(pin_count) {
         mutex_construct(&mutex);
-        descriptors = (struct GpioDescriptor*)calloc(pin_count, sizeof(struct GpioDescriptor));
-        check(descriptors);
+    }
 
+    error_t init_descriptors(Device* device, void* controller_context) {
+        descriptors = (struct GpioDescriptor*)calloc(pin_count, sizeof(struct GpioDescriptor));
+        if (!descriptors) return ERROR_OUT_OF_MEMORY;
         for (uint32_t i = 0; i < pin_count; ++i) {
             descriptors[i].controller = device;
             descriptors[i].pin = (gpio_pin_t)i;
             descriptors[i].owner_type = GPIO_OWNER_NONE;
             descriptors[i].controller_context = controller_context;
         }
+        return ERROR_NONE;
     }
 
     ~GpioControllerData() {
-        free(descriptors);
+        if (descriptors != nullptr) {
+            free(descriptors);
+        }
         mutex_destruct(&mutex);
     }
 };
@@ -42,6 +47,8 @@ struct GpioDescriptor* gpio_descriptor_acquire(
     gpio_pin_t pin_number,
     enum GpioOwnerType owner
 ) {
+    check(owner != GPIO_OWNER_NONE);
+
     auto* data = (struct GpioControllerData*)device_get_driver_data(controller);
 
     mutex_lock(&data->mutex);
@@ -74,8 +81,14 @@ error_t gpio_controller_get_pin_count(struct Device* device, uint32_t* count) {
 }
 
 error_t gpio_controller_init_descriptors(struct Device* device, uint32_t pin_count, void* controller_context) {
-    auto* data = new(std::nothrow) GpioControllerData(device, pin_count, controller_context);
+    auto* data = new(std::nothrow) GpioControllerData(pin_count);
     if (!data) return ERROR_OUT_OF_MEMORY;
+
+    if (data->init_descriptors(device, controller_context) != ERROR_NONE) {
+        delete data;
+        return ERROR_OUT_OF_MEMORY;
+    }
+
     device_set_driver_data(device, data);
     return ERROR_NONE;
 }
