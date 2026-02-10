@@ -92,7 +92,7 @@ static error_t get_flags(GpioDescriptor* descriptor, gpio_flags_t* flags) {
 }
 
 static error_t get_native_pin_number(GpioDescriptor* descriptor, void* pin_number) {
-    auto* esp_pin_number = static_cast<gpio_num_t*>(pin_number);
+    auto* esp_pin_number = reinterpret_cast<gpio_num_t*>(pin_number);
     *esp_pin_number = static_cast<gpio_num_t>(descriptor->pin);
     return ERROR_NONE;
 }

@@ -3,6 +3,8 @@
 #include <driver/i2s_common.h>
 
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio_controller.h>
+#include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/drivers/i2s_controller.h>
 #include <tactility/log.h>
 
@@ -14,23 +16,106 @@
 
 #define TAG "esp32_i2s"
 
+static void release_pin(GpioDescriptor** gpio_descriptor) {
+    if (*gpio_descriptor == nullptr) return;
+    check(gpio_descriptor_release(*gpio_descriptor) == ERROR_NONE);
+    *gpio_descriptor = nullptr;
+}
+
+static bool acquire_pin_or_set_null(const GpioPinSpec& pin_spec, GpioDescriptor** gpio_descriptor) {
+    if (pin_spec.gpio_controller == nullptr) {
+        *gpio_descriptor = nullptr;
+        return true;
+    }
+    *gpio_descriptor = gpio_descriptor_acquire(pin_spec.gpio_controller, pin_spec.pin, GPIO_OWNER_GPIO);
+    if (*gpio_descriptor == nullptr) {
+        LOG_E(TAG, "Failed to acquire pin %u", pin_spec.pin);
+    }
+
+    return *gpio_descriptor != nullptr;
+}
+
+/**
+ * Safely acquire the native pin avalue.
+ * Set to GPIO_NUM_NC if the descriptor is null.
+ * @param[in] descriptor Pin descriptor to acquire
+ * @return Native pin number
+ */
+static gpio_num_t get_native_pin(GpioDescriptor* descriptor) {
+    if (descriptor != nullptr) {
+        gpio_num_t pin;
+        check(gpio_descriptor_get_native_pin_number(descriptor, &pin) == ERROR_NONE);
+        return pin;
+    } else {
+        return GPIO_NUM_NC;
+    }
+}
+
+/**
+ * Returns true if the given pin is inverted
+ * @param[in] descriptor Pin descriptor to check, nullable
+ */
+static bool is_pin_inverted(GpioDescriptor* descriptor) {
+    if (!descriptor) return false;
+    gpio_flags_t flags;
+    check(gpio_descriptor_get_flags(descriptor, &flags) == ERROR_NONE);
+    return (flags & GPIO_FLAG_ACTIVE_LOW) != 0;
+}
+
 struct Esp32I2sInternal {
     Mutex mutex {};
-    i2s_chan_handle_t tx_handle = nullptr;
-    i2s_chan_handle_t rx_handle = nullptr;
     I2sConfig config {};
     bool config_set = false;
+    GpioDescriptor* bclk_descriptor = nullptr;
+    GpioDescriptor* ws_descriptor = nullptr;
+    GpioDescriptor* data_out_descriptor = nullptr;
+    GpioDescriptor* data_in_descriptor = nullptr;
+    GpioDescriptor* mclk_descriptor = nullptr;
+    i2s_chan_handle_t tx_handle = nullptr;
+    i2s_chan_handle_t rx_handle = nullptr;
 
     Esp32I2sInternal() {
         mutex_construct(&mutex);
     }
 
     ~Esp32I2sInternal() {
+        cleanup_pins();
         mutex_destruct(&mutex);
+    }
+
+    void cleanup_pins() {
+        release_pin(&bclk_descriptor);
+        release_pin(&ws_descriptor);
+        release_pin(&data_out_descriptor);
+        release_pin(&data_in_descriptor);
+        release_pin(&mclk_descriptor);
+    }
+
+    bool init_pins(Esp32I2sConfig* dts_config) {
+        check (!ws_descriptor && !bclk_descriptor && !data_out_descriptor && !data_in_descriptor && !mclk_descriptor);
+        auto& ws_spec = dts_config->pin_ws;
+        auto& bclk_spec = dts_config->pin_bclk;
+        auto& data_in_spec = dts_config->pin_data_in;
+        auto& data_out_spec = dts_config->pin_data_out;
+        auto& mclk_spec = dts_config->pin_mclk;
+
+        bool success = acquire_pin_or_set_null(ws_spec, &ws_descriptor) &&
+            acquire_pin_or_set_null(bclk_spec, &bclk_descriptor) &&
+            acquire_pin_or_set_null(data_in_spec, &data_in_descriptor) &&
+            acquire_pin_or_set_null(data_out_spec, &data_out_descriptor) &&
+            acquire_pin_or_set_null(mclk_spec, &mclk_descriptor);
+
+        if (!success) {
+            cleanup_pins();
+            LOG_E(TAG, "Failed to acquire all pins");
+            return false;
+        }
+
+        return true;
     }
 };
 
-#define GET_CONFIG(device) ((Esp32I2sConfig*)device->config)
+#define GET_CONFIG(device) ((Esp32I2sConfig*)(device)->config)
 #define GET_DATA(device) ((Esp32I2sInternal*)device_get_driver_data(device))
 
 #define lock(data) mutex_lock(&data->mutex);
@@ -63,10 +148,10 @@ static i2s_data_bit_width_t to_esp32_bits_per_sample(uint8_t bits) {
     }
 }
 
-static void get_esp32_std_config(const I2sConfig* config, const Esp32I2sConfig* dts_config, i2s_std_config_t* std_cfg) {
+static void get_esp32_std_config(Esp32I2sInternal* internal, const I2sConfig* config, i2s_std_config_t* std_cfg) {
     std_cfg->clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(config->sample_rate);
     std_cfg->slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(to_esp32_bits_per_sample(config->bits_per_sample), I2S_SLOT_MODE_STEREO);
-    
+
     if (config->communication_format & I2S_FORMAT_STAND_MSB) {
         std_cfg->slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(to_esp32_bits_per_sample(config->bits_per_sample), I2S_SLOT_MODE_STEREO);
     } else if (config->communication_format & (I2S_FORMAT_STAND_PCM_SHORT | I2S_FORMAT_STAND_PCM_LONG)) {
@@ -81,16 +166,28 @@ static void get_esp32_std_config(const I2sConfig* config, const Esp32I2sConfig* 
         std_cfg->slot_cfg.slot_mask = I2S_STD_SLOT_BOTH;
     }
 
+    gpio_num_t mclk_pin = get_native_pin(internal->mclk_descriptor);
+    gpio_num_t bclk_pin = get_native_pin(internal->bclk_descriptor);
+    gpio_num_t ws_pin = get_native_pin(internal->ws_descriptor);
+    gpio_num_t data_out_pin = get_native_pin(internal->data_out_descriptor);
+    gpio_num_t data_in_pin = get_native_pin(internal->data_in_descriptor);
+    LOG_I(TAG, "Configuring I2S pins: MCLK=%d, BCLK=%d, WS=%d, DATA_OUT=%d, DATA_IN=%d", mclk_pin, bclk_pin, ws_pin, data_out_pin, data_in_pin);
+
+    bool mclk_inverted = is_pin_inverted(internal->mclk_descriptor);
+    bool bclk_inverted = is_pin_inverted(internal->bclk_descriptor);
+    bool ws_inverted = is_pin_inverted(internal->ws_descriptor);
+    LOG_I(TAG, "Inverted pins: MCLK=%u, BCLK=%u, WS=%u", mclk_inverted, bclk_inverted, ws_inverted);
+
     std_cfg->gpio_cfg = {
-        .mclk = (gpio_num_t)dts_config->pin_mclk,
-        .bclk = (gpio_num_t)dts_config->pin_bclk,
-        .ws = (gpio_num_t)dts_config->pin_ws,
-        .dout = (gpio_num_t)dts_config->pin_data_out,
-        .din = (gpio_num_t)dts_config->pin_data_in,
+        .mclk = mclk_pin,
+        .bclk = bclk_pin,
+        .ws = ws_pin,
+        .dout = data_out_pin,
+        .din = data_in_pin,
         .invert_flags = {
-            .mclk_inv = false,
-            .bclk_inv = false,
-            .ws_inv = false
+            .mclk_inv = mclk_inverted,
+            .bclk_inv = bclk_inverted,
+            .ws_inv = ws_inverted
         }
     };
 }
@@ -129,46 +226,46 @@ static error_t set_config(Device* device, const struct I2sConfig* config) {
         return ERROR_INVALID_ARGUMENT;
     }
 
-    auto* driver_data = GET_DATA(device);
+    auto* internal = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
-    lock(driver_data);
+    lock(internal);
 
-    cleanup_channel_handles(driver_data);
-    driver_data->config_set = false;
+    cleanup_channel_handles(internal);
+    internal->config_set = false;
 
     // Create new channel handles
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(dts_config->port, I2S_ROLE_MASTER);
-    esp_err_t esp_error = i2s_new_channel(&chan_cfg, &driver_data->tx_handle, &driver_data->rx_handle);
+    esp_err_t esp_error = i2s_new_channel(&chan_cfg, &internal->tx_handle, &internal->rx_handle);
     if (esp_error != ESP_OK) {
         LOG_E(TAG, "Failed to create I2S channels: %s", esp_err_to_name(esp_error));
-        unlock(driver_data);
+        unlock(internal);
         return ERROR_RESOURCE;
     }
 
-    i2s_std_config_t std_cfg;
-    get_esp32_std_config(config, dts_config, &std_cfg);
+    i2s_std_config_t std_cfg = {};
+    get_esp32_std_config(internal, config, &std_cfg);
 
-    if (driver_data->tx_handle) {
-        esp_error = i2s_channel_init_std_mode(driver_data->tx_handle, &std_cfg);
-        if (esp_error == ESP_OK) esp_error = i2s_channel_enable(driver_data->tx_handle);
+    if (internal->tx_handle) {
+        esp_error = i2s_channel_init_std_mode(internal->tx_handle, &std_cfg);
+        if (esp_error == ESP_OK) esp_error = i2s_channel_enable(internal->tx_handle);
     }
-    if (esp_error == ESP_OK && driver_data->rx_handle) {
-        esp_error = i2s_channel_init_std_mode(driver_data->rx_handle, &std_cfg);
-        if (esp_error == ESP_OK) esp_error = i2s_channel_enable(driver_data->rx_handle);
+    if (esp_error == ESP_OK && internal->rx_handle) {
+        esp_error = i2s_channel_init_std_mode(internal->rx_handle, &std_cfg);
+        if (esp_error == ESP_OK) esp_error = i2s_channel_enable(internal->rx_handle);
     }
 
     if (esp_error != ESP_OK) {
         LOG_E(TAG, "Failed to initialize/enable I2S channels: %s", esp_err_to_name(esp_error));
-        cleanup_channel_handles(driver_data);
-        unlock(driver_data);
+        cleanup_channel_handles(internal);
+        unlock(internal);
         return esp_err_to_error(esp_error);
     }
 
     // Update runtime config to reflect current state
-    memcpy(&driver_data->config, config, sizeof(I2sConfig));
-    driver_data->config_set = true;
+    memcpy(&internal->config, config, sizeof(I2sConfig));
+    internal->config_set = true;
 
-    unlock(driver_data);
+    unlock(internal);
     return ERROR_NONE;
 }
 
@@ -188,8 +285,16 @@ static error_t get_config(Device* device, struct I2sConfig* config) {
 
 static error_t start(Device* device) {
     ESP_LOGI(TAG, "start %s", device->name);
+
+    auto* dts_config = GET_CONFIG(device);
+
     auto* data = new(std::nothrow) Esp32I2sInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
+
+    if (!data->init_pins(dts_config)) {
+        LOG_E(TAG, "Failed to init one or more pins");
+        return ERROR_RESOURCE;
+    }
 
     device_set_driver_data(device, data);
 

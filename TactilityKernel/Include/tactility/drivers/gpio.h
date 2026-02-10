@@ -12,22 +12,21 @@ extern "C" {
 
 #define GPIO_FLAGS_MASK 0x1f
 
+#define GPIO_PIN_NONE -1
+
+#define GPIO_PIN_SPEC_NONE ((struct GpioPinSpec) { NULL, 0, GPIO_FLAG_NONE })
+
 #define GPIO_FLAG_NONE 0
 #define GPIO_FLAG_ACTIVE_HIGH (0 << 0)
 #define GPIO_FLAG_ACTIVE_LOW (1 << 0)
-
 #define GPIO_FLAG_DIRECTION_INPUT (1 << 1)
 #define GPIO_FLAG_DIRECTION_OUTPUT (1 << 2)
 #define GPIO_FLAG_DIRECTION_INPUT_OUTPUT (GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_DIRECTION_OUTPUT)
-
 #define GPIO_FLAG_PULL_UP (0 << 3)
 #define GPIO_FLAG_PULL_DOWN (1 << 4)
-
 #define GPIO_FLAG_INTERRUPT_BITMASK (0b111 << 5) // 3 bits to hold the values [0, 5]
 #define GPIO_FLAG_INTERRUPT_FROM_OPTIONS(options) (gpio_int_type_t)((options & GPIO_FLAG_INTERRUPT_BITMASK) >> 5)
 #define GPIO_FLAG_INTERRUPT_TO_OPTIONS(options, interrupt) (options | (interrupt << 5))
-
-#define GPIO_PIN_NONE -1
 
 typedef enum {
     GPIO_INTERRUPT_DISABLE = 0,

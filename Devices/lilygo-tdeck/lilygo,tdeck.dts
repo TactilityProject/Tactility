@@ -36,9 +36,9 @@
 	i2s0 {
 		compatible = "espressif,esp32-i2s";
 		port = <I2S_NUM_0>;
-		pin-bclk = <7>;
-		pin-ws = <5>;
-		pin-data-out = <6>;
+		pin-bclk = <&gpio0 7 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 5 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 6 GPIO_FLAG_NONE>;
 	};
 
 	spi0 {

@@ -12,23 +12,22 @@ properties:
       The port number, defined by i2s_port_t.
       Depending on the hardware, these values are available: I2S_NUM_0, I2S_NUM_1
   pin-bclk:
-    type: int
+    type: phandle-array
     required: true
-    description: BCK pin
+    description: Bit clock pin
   pin-ws:
-    type: int
+    type: phandle-array
     required: true
-    description: WS pin
+    description: Word (slot) select pin
   pin-data-out:
-    type: int
-    default: GPIO_PIN_NONE
-    description: DATA OUT pin
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+    description: Data output pin
   pin-data-in:
-    type: int
-    default: GPIO_PIN_NONE
-    description: DATA IN pin
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+    description: Data input pin
   pin-mclk:
-    type: int
-    required: false
-    default: GPIO_PIN_NONE
-    description: MCLK pin
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+    description: Master clock pin

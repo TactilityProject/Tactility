@@ -11,11 +11,11 @@ extern "C" {
 
 struct Esp32I2sConfig {
     i2s_port_t port;
-    gpio_pin_t pin_bclk;
-    gpio_pin_t pin_ws;
-    gpio_pin_t pin_data_out;
-    gpio_pin_t pin_data_in;
-    gpio_pin_t pin_mclk;
+    struct GpioPinSpec pin_bclk;
+    struct GpioPinSpec pin_ws;
+    struct GpioPinSpec pin_data_out;
+    struct GpioPinSpec pin_data_in;
+    struct GpioPinSpec pin_mclk;
 };
 
 #ifdef __cplusplus
