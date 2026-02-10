@@ -16,8 +16,8 @@ properties:
     required: true
     description: Initial clock frequency in Hz
   pin-sda:
-    type: int
+    type: phandle-array
     required: true
   pin-scl:
-    type: int
+    type: phandle-array
     required: true
