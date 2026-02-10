@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <driver/i2c.h>
 
+#include <new>
+
 #include <tactility/error_esp32.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/gpio_controller.h>
@@ -205,7 +207,8 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    auto* data = new Esp32SpiInternal(sda_descriptor, scl_descriptor);
+    auto* data = new(std::nothrow) Esp32SpiInternal(sda_descriptor, scl_descriptor);
+    if (data == nullptr) return ERROR_OUT_OF_MEMORY;
 
     device_set_driver_data(device, data);
     return ERROR_NONE;

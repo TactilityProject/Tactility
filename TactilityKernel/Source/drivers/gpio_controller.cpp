@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <new>
 
-#define GPIO_INTERNAL_API(driver) ((struct GpioControllerApi*)driver->api)
+#define GPIO_INTERNAL_API(driver) ((struct GpioControllerApi*)(driver)->api)
 
 extern "C" {
 
