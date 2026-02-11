@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>
+
 struct Device;
 
 /** Signals the intended state of a device. */

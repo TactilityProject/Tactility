@@ -4,8 +4,6 @@ properties:
   reg:
     type: int
     required: true
-  status:
-    type: string
   boolean-prop:
     type: boolean
   int-prop:

@@ -11,10 +11,10 @@ extern "C" {
 
 struct Esp32UartConfig {
     uart_port_t port;
-    struct GpioPinSpec pinTx;
-    struct GpioPinSpec pinRx;
-    struct GpioPinSpec pinCts;
-    struct GpioPinSpec pinRts;
+    struct GpioPinSpec pin_tx;
+    struct GpioPinSpec pin_rx;
+    struct GpioPinSpec pin_cts;
+    struct GpioPinSpec pin_rts;
 };
 
 #ifdef __cplusplus

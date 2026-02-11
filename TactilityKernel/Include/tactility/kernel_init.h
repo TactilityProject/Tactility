@@ -12,7 +12,7 @@ extern "C" {
  * Initialize the kernel with platform and device modules, and a device tree.
  * @param platform_module The platform module to start. This module should not be constructed yet.
  * @param device_module The device module to start. This module should not be constructed yet. This parameter can be NULL.
- * @param dts_devices The list of generated devices from the devicetree. The array must be terminated by an entry { NULL, NULL }. This parameter can be NULL.
+ * @param dts_devices The list of generated devices from the devicetree. The array must be terminated with DTS_DEVICE_TERMINATOR. This parameter can be NULL.
  * @return ERROR_NONE on success, otherwise an error code
  */
 error_t kernel_init(struct Module* platform_module, struct Module* device_module, struct DtsDevice dts_devices[]);

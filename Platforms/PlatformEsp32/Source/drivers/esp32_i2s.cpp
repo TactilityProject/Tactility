@@ -248,6 +248,7 @@ static error_t start(Device* device) {
 
     if (!data->init_pins(dts_config)) {
         LOG_E(TAG, "Failed to init one or more pins");
+        delete data;
         return ERROR_RESOURCE;
     }
 

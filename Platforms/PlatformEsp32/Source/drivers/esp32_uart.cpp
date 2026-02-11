@@ -270,7 +270,7 @@ static error_t open(Device* device) {
         }
     };
 
-    if (dts_config->pinCts.gpio_controller != nullptr || dts_config->pinRts.gpio_controller != nullptr) {
+    if (dts_config->pin_cts.gpio_controller != nullptr || dts_config->pin_rts.gpio_controller != nullptr) {
         LOG_W(TAG, "%s: CTS/RTS pins are defined but hardware flow control is disabled (not supported in UartConfig)", device->name);
     }
 
@@ -284,10 +284,10 @@ static error_t open(Device* device) {
 
     // Acquire pins from the specified GPIO pin specs. Optional pins are allowed.
     bool pins_ok =
-        acquire_pin_or_set_null(dts_config->pinTx, &driver_data->tx_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pinRx, &driver_data->rx_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pinCts, &driver_data->cts_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pinRts, &driver_data->rts_descriptor);
+        acquire_pin_or_set_null(dts_config->pin_tx, &driver_data->tx_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_rx, &driver_data->rx_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_cts, &driver_data->cts_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_rts, &driver_data->rts_descriptor);
 
     if (!pins_ok) {
         LOG_E(TAG, "%s failed to acquire UART pins", device->name);
@@ -298,10 +298,12 @@ static error_t open(Device* device) {
     }
 
     esp_error = uart_set_pin(dts_config->port,
-                             get_native_pin(driver_data->tx_descriptor),
-                             get_native_pin(driver_data->rx_descriptor),
-                             get_native_pin(driver_data->cts_descriptor),
-                             get_native_pin(driver_data->rts_descriptor));
+        get_native_pin(driver_data->tx_descriptor),
+        get_native_pin(driver_data->rx_descriptor),
+        get_native_pin(driver_data->rts_descriptor),
+        get_native_pin(driver_data->cts_descriptor)
+    );
+
     if (esp_error != ESP_OK) {
         LOG_E(TAG, "%s failed to set uart pins: %s", device->name, esp_err_to_name(esp_error));
         driver_data->cleanup_pins();

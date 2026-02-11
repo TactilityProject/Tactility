@@ -27,7 +27,7 @@ def test_compile_success():
         result = run_compiler(TEST_DATA_DIR, output_dir)
         
         if result.returncode != 0:
-            print(f"FAILED: Compilation failed: {result.stderr}")
+            print(f"FAILED: Compilation failed: {result.stderr} {result.stdout}")
             return False
             
         if not os.path.exists(os.path.join(output_dir, "devicetree.c")):

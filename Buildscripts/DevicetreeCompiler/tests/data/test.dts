@@ -6,7 +6,7 @@
     compatible = "test,root";
     model = "Test Model";
 
-    test_device: test-device@0 {
+    test_device1: test-device@0 {
         compatible = "test,device";
         reg = <0>;
         status = "okay";

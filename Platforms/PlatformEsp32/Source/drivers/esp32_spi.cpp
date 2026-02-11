@@ -111,8 +111,8 @@ static error_t start(Device* device) {
     esp_err_t ret = spi_bus_initialize(dts_config->host, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) {
         data->cleanup_pins();
-        delete data;
         device_set_driver_data(device, nullptr);
+        delete data;
         ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
         return ERROR_RESOURCE;
     }
