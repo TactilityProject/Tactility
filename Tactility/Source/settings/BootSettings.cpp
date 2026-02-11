@@ -11,7 +11,7 @@
 
 namespace tt::settings {
 
-static const auto LOGGER = Logger("BootSettings");
+constexpr auto* TAG = "BootSettings";
 
 constexpr auto* PROPERTIES_FILE_FORMAT = "{}/settings/boot.properties";
 constexpr auto* PROPERTIES_KEY_LAUNCHER_APP_ID = "launcherAppId";
@@ -37,7 +37,7 @@ bool loadBootSettings(BootSettings& properties) {
             properties.launcherAppId = value;
         }
     })) {
-        LOGGER.error("Failed to load {}", path);
+        LOG_I(TAG, "No settings at %s", path.c_str());
         return false;
     }
 

@@ -95,9 +95,7 @@ def write_partition_table(output_file, device_properties: ConfigParser, is_dev: 
     output_file.write(f"CONFIG_PARTITION_TABLE_FILENAME=\"partitions-{flash_size_number}mb.csv\"\n")
 
 def write_tactility_variables(output_file, device_properties: ConfigParser, device_id: str):
-    device_selector_name = device_id.upper().replace("-", "_")
-    device_selector = f"CONFIG_TT_DEVICE_{device_selector_name}"
-    output_file.write(f"{device_selector}=y\n")
+    # Board and vendor
     board_vendor = get_property_or_exit(device_properties, "general", "vendor").replace("\"", "\\\"")
     board_name = get_property_or_exit(device_properties, "general", "name").replace("\"", "\\\"")
     if board_name == board_vendor or board_vendor == "":
@@ -107,7 +105,14 @@ def write_tactility_variables(output_file, device_properties: ConfigParser, devi
     output_file.write(f"CONFIG_TT_DEVICE_ID=\"{device_id}\"\n")
     if device_id == "lilygo-tdeck":
         output_file.write("CONFIG_TT_TDECK_WORKAROUND=y\n")
-
+    # Launcher app id
+    launcher_app_id = get_property_or_exit(device_properties, "apps", "launcherAppId").replace("\"", "\\\"")
+    output_file.write(f"CONFIG_TT_LAUNCHER_APP_ID=\"{launcher_app_id}\"\n")
+    # Auto start app id
+    auto_start_app_id = get_property_or_none(device_properties, "apps", "autoStartAppId")
+    if auto_start_app_id is not None:
+        safe_auto_start_app_id = auto_start_app_id.replace("\"", "\\\"")
+        output_file.write(f"CONFIG_TT_AUTO_START_APP_ID=\"{safe_auto_start_app_id }\"\n")
 
 def write_core_variables(output_file, device_properties: ConfigParser):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()

@@ -3,20 +3,39 @@ menu "Tactility App"
     config TT_DEVICE_NAME
         string "Device Name"
         default ""
+        help
+            Human-readable device name, including vendor
     config TT_DEVICE_ID
         string "Device Identifier"
         default ""
-     # T-Deck device-related code was directly referenced from Tactility in a pull request.
-     # This breaks other devices because the code does not exist in those implementations.
-     # Until we move it out into a proper driver, we have to have pre-processor definition for that.
-     config TT_TDECK_WORKAROUND
-         bool "Temporary work-around until we fix the T-Deck keyboard and trackball settings"
-         default n
-     config TT_SPLASH_DURATION
-        int "Splash Duration (ms)"
-        default 1000
-        range 0 3000
         help
-            The minimum time to show the splash screen in milliseconds.
-            When set to 0, startup will continue to desktop as soon as boot operations are finished.
+            The name of the directory in Devices/
+            See https://docs.tactilityproject.org for formatting guidance.
+    config TT_LAUNCHER_APP_ID
+        string "Launcher App ID"
+        default "Launcher"
+        help
+            The applications that gives access to other application.
+            This is the first thing that starts after the boot screen.
+            The user can override it from a boot.properties file.
+    config TT_AUTO_START_APP_ID
+        string "Auto Start App ID"
+        default ""
+        help
+            An application that gets automatically started from the launcher application.
+            This is optional and can be left empty.
+            The user can override it from a boot.properties file.
+    # T-Deck device-related code was directly referenced from Tactility in a pull request.
+    # This breaks other devices because the code does not exist in those implementations.
+    # Until we move it out into a proper driver, we have to have pre-processor definition for that.
+    config TT_TDECK_WORKAROUND
+        bool "Temporary work-around until we fix the T-Deck keyboard and trackball settings"
+        default n
+    config TT_SPLASH_DURATION
+       int "Splash Duration (ms)"
+       default 1000
+       range 0 3000
+       help
+           The minimum time to show the splash screen in milliseconds.
+           When set to 0, startup will continue to desktop as soon as boot operations are finished.
 endmenu

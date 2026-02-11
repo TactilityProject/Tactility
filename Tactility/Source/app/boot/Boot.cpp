@@ -130,6 +130,30 @@ class BootApp : public App {
         return 0;
     }
 
+    static std::string getLauncherAppId() {
+        settings::BootSettings boot_properties;
+        std::string launcher_app_id;
+        // When boot.properties hasn't been overridden, return default
+        if (!settings::loadBootSettings(boot_properties)) {
+            return CONFIG_TT_LAUNCHER_APP_ID;
+        }
+
+        // When boot properties didn't specify an override, return default
+        if (boot_properties.launcherAppId.empty()) {
+            LOGGER.error("Failed to load launcher configuration, or launcher not configured");
+            return CONFIG_TT_LAUNCHER_APP_ID;
+        }
+
+        // If the app in the boot.properties does not exist, return default
+        if (findAppManifestById(launcher_app_id) == nullptr) {
+            LOGGER.error("Launcher app {} not found", launcher_app_id);
+            return CONFIG_TT_LAUNCHER_APP_ID;
+        }
+
+        // The boot.properties launcher app id is valid
+        return boot_properties.launcherAppId;
+    }
+
     static void startNextApp() {
 #ifdef ESP_PLATFORM
         if (esp_reset_reason() == ESP_RST_PANIC) {
@@ -137,16 +161,7 @@ class BootApp : public App {
             return;
         }
 #endif
-
-        settings::BootSettings boot_properties;
-        std::string launcher_app_id;
-        if (settings::loadBootSettings(boot_properties) && boot_properties.launcherAppId.empty()) {
-            LOGGER.error("Failed to load launcher configuration, or launcher not configured");
-            launcher_app_id = boot_properties.launcherAppId;
-        } else {
-            launcher_app_id = "Launcher";
-        }
-
+        auto launcher_app_id = getLauncherAppId();
         start(launcher_app_id);
     }
 

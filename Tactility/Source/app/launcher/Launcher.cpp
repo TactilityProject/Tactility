@@ -92,9 +92,22 @@ public:
 
     void onCreate(AppContext& app) override {
         settings::BootSettings boot_properties;
-        if (settings::loadBootSettings(boot_properties) && !boot_properties.autoStartAppId.empty()) {
-            LOGGER.info("Starting {}", boot_properties.autoStartAppId);
-            start(boot_properties.autoStartAppId);
+        if (settings::loadBootSettings(boot_properties)) {
+            if (
+                !boot_properties.autoStartAppId.empty() &&
+                findAppManifestById(boot_properties.autoStartAppId) != nullptr
+            ) {
+                LOGGER.info("Starting {}", boot_properties.autoStartAppId);
+                start(boot_properties.autoStartAppId);
+            } else {
+                LOGGER.info("No auto-start app configured. Skipping default auto-start due to boot.properties presence.");
+            }
+        } else if (
+            strcmp(CONFIG_TT_AUTO_START_APP_ID, "") != 0 &&
+            findAppManifestById(CONFIG_TT_AUTO_START_APP_ID) != nullptr
+        ) {
+            LOGGER.info("Starting {}", CONFIG_TT_AUTO_START_APP_ID);
+            start(CONFIG_TT_AUTO_START_APP_ID);
         }
     }
 
