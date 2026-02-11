@@ -32,7 +32,7 @@
 #include <tactility/lvgl_module.h>
 
 #ifdef ESP_PLATFORM
-#include "tactility/drivers/root.h"
+#include <tactility/drivers/root.h>
 #include <Tactility/InitEsp.h>
 #endif
 
@@ -320,13 +320,13 @@ void registerApps() {
     registerInstalledAppsFromSdCards();
 }
 
-void run(const Configuration& config, Module* platformModule, Module* deviceModule, CompatibleDevice devicetreeDevices[]) {
+void run(const Configuration& config, Module* platformModule, Module* deviceModule, DtsDevice dtsDevices[]) {
     LOGGER.info("Tactility v{} on {} ({})", TT_VERSION, CONFIG_TT_DEVICE_NAME, CONFIG_TT_DEVICE_ID);
 
     assert(config.hardware);
 
     LOGGER.info(R"(Calling kernel_init with modules: "{}" and "{}")", platformModule->name, deviceModule->name);
-    if (kernel_init(platformModule, deviceModule, devicetreeDevices) != ERROR_NONE) {
+    if (kernel_init(platformModule, deviceModule, dtsDevices) != ERROR_NONE) {
         LOGGER.error("Failed to initialize kernel");
         return;
     }

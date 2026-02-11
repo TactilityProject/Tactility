@@ -32,7 +32,7 @@ void app_main() {
     tt_init_tactility_c(); // ELF bindings for side-loading on ESP32
 #endif
 
-    tt::run(config, &platform_module, &device_module, devicetree_devices);
+    tt::run(config, &platform_module, &device_module, dts_devices);
 }
 
 } // extern

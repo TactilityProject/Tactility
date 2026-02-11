@@ -50,6 +50,7 @@
 	};
 
 	uart1 {
+		status = "disabled";
 		compatible = "espressif,esp32-uart";
 		port = <UART_NUM_1>;
 		pin-tx = <43>;

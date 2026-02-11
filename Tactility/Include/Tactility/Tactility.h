@@ -7,6 +7,10 @@
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/service/ServiceManifest.h>
 
+extern "C" {
+struct DtsDevice;
+}
+
 namespace tt {
 
 /** @brief The configuration for the operating system
@@ -21,9 +25,9 @@ struct Configuration {
  * @brief Main entry point for Tactility.
  * @param platformModule Platform module to start (non-null).
  * @param deviceModule Device module to start (non-null).
- * @param devicetreeDevices Null-terminated array where an entry { NULL, NULL } marks the end of the list.
+ * @param dtsDevices Array that is terminated with DTS_DEVICE_TERMINATOR
  */
-void run(const Configuration& config, Module* platformModule, Module* deviceModule, CompatibleDevice devicetreeDevices[]);
+void run(const Configuration& config, Module* platformModule, Module* deviceModule, struct DtsDevice dtsDevices[]);
 
 /**
  * While technically nullable, this instance is always set if tt_init() succeeds.

@@ -1,3 +1,4 @@
+#include "tactility/dts.h"
 #include <tactility/kernel_init.h>
 #include <tactility/log.h>
 
@@ -27,7 +28,7 @@ struct Module root_module = {
     .internal = nullptr
 };
 
-error_t kernel_init(struct Module* platform_module, struct Module* device_module, struct CompatibleDevice devicetree_devices[]) {
+error_t kernel_init(struct Module* platform_module, struct Module* device_module, struct DtsDevice dts_devices[]) {
     LOG_I(TAG, "init");
 
     if (module_construct_add_start(&root_module) != ERROR_NONE) {
@@ -47,14 +48,23 @@ error_t kernel_init(struct Module* platform_module, struct Module* device_module
         }
     }
 
-    if (devicetree_devices) {
-        CompatibleDevice* compatible_device = devicetree_devices;
-        while (compatible_device->device != nullptr) {
-            if (device_construct_add_start(compatible_device->device, compatible_device->compatible) != ERROR_NONE) {
-                LOG_E(TAG, "kernel_init failed to construct device: %s (%s)", compatible_device->device->name, compatible_device->compatible);
-                return ERROR_RESOURCE;
+    if (dts_devices) {
+        DtsDevice* dts_device = dts_devices;
+        while (dts_device->device != nullptr) {
+            if (dts_device->status == DTS_DEVICE_STATUS_OKAY) {
+                if (device_construct_add_start(dts_device->device, dts_device->compatible) != ERROR_NONE) {
+                    LOG_E(TAG, "kernel_init failed to construct+add+start device: %s (%s)", dts_device->device->name, dts_device->compatible);
+                    return ERROR_RESOURCE;
+                }
+            } else if (dts_device->status == DTS_DEVICE_STATUS_DISABLED) {
+                if (device_construct_add(dts_device->device, dts_device->compatible) != ERROR_NONE) {
+                    LOG_E(TAG, "kernel_init failed to construct+add device: %s (%s)", dts_device->device->name, dts_device->compatible);
+                    return ERROR_RESOURCE;
+                }
+            } else {
+                check(false, "DTS status not implemented");
             }
-            compatible_device++;
+            dts_device++;
         }
     }
 

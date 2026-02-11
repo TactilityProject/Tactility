@@ -8,6 +8,7 @@ class DtsVersion:
 class Device:
     node_name: str
     node_alias: str
+    status: str
     properties: list
     devices: list
 
