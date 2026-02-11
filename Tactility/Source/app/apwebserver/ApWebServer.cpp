@@ -44,6 +44,7 @@ public:
         lv_obj_set_style_text_color(labelSsid, lv_palette_main(LV_PALETTE_GREY), LV_PART_MAIN);
 
         labelSsidValue = lv_label_create(wrapper);
+        lv_obj_set_style_text_align(labelSsidValue, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
         lv_obj_set_width(labelSsidValue, LV_PCT(100));
         lv_label_set_long_mode(labelSsidValue, LV_LABEL_LONG_SCROLL);
         lv_obj_set_style_margin_hor(labelSsidValue, 2, LV_PART_MAIN);
@@ -53,6 +54,7 @@ public:
         lv_obj_set_style_text_color(labelPassword, lv_palette_main(LV_PALETTE_GREY), LV_PART_MAIN);
 
         labelPasswordValue = lv_label_create(wrapper);
+        lv_obj_set_style_text_align(labelPasswordValue, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
         lv_obj_set_width(labelPasswordValue, LV_PCT(100));
         lv_label_set_long_mode(labelPasswordValue, LV_LABEL_LONG_SCROLL);
         lv_obj_set_style_margin_hor(labelPasswordValue, 2, LV_PART_MAIN);
@@ -62,6 +64,7 @@ public:
         lv_obj_set_style_text_color(labelIp, lv_palette_main(LV_PALETTE_GREY), LV_PART_MAIN);
 
         labelIpValue = lv_label_create(wrapper);
+        lv_obj_set_style_text_align(labelIpValue, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
         lv_obj_set_width(labelIpValue, LV_PCT(100));
         lv_label_set_long_mode(labelIpValue, LV_LABEL_LONG_SCROLL);
         lv_obj_set_style_margin_hor(labelIpValue, 2, LV_PART_MAIN);
