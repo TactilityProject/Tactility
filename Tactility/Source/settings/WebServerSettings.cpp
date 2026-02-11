@@ -52,7 +52,7 @@ std::string generateDefaultApSsid() {
  * @param length The desired length of the string
  * @return A random alphanumeric string
  */
-static std::string generateRandomCredential(size_t length) {
+std::string generateRandomCredential(size_t length) {
     static constexpr char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     static constexpr size_t charsetSize = sizeof(charset) - 1;
 

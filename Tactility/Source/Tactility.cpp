@@ -109,6 +109,7 @@ namespace app {
     namespace wifimanage { extern const AppManifest manifest; }
 
 #ifdef ESP_PLATFORM
+    namespace apwebserver { extern const AppManifest manifest; }
     namespace crashdiagnostics { extern const AppManifest manifest; }
     namespace webserversettings { extern const AppManifest manifest; }
 #if CONFIG_TT_TDECK_WORKAROUND == 1
@@ -157,6 +158,7 @@ static void registerInternalApps() {
     addAppManifest(app::wifimanage::manifest);
 
 #ifdef ESP_PLATFORM
+    addAppManifest(app::apwebserver::manifest);
     addAppManifest(app::webserversettings::manifest);
     addAppManifest(app::crashdiagnostics::manifest);
     addAppManifest(app::development::manifest);

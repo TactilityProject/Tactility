@@ -134,6 +134,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_event_base),
     DEFINE_MODULE_SYMBOL(lv_obj_class_create_obj),
     DEFINE_MODULE_SYMBOL(lv_obj_class_init_obj),
+    DEFINE_MODULE_SYMBOL(lv_obj_move_foreground),
+    DEFINE_MODULE_SYMBOL(lv_obj_move_to_index),
     // lv_font
     DEFINE_MODULE_SYMBOL(lv_font_get_default),
     // lv_theme

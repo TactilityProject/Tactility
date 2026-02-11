@@ -122,6 +122,8 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(fmaxf),
     ESP_ELFSYM_EXPORT(fmin),
     ESP_ELFSYM_EXPORT(fminf),
+    ESP_ELFSYM_EXPORT(round),
+    ESP_ELFSYM_EXPORT(roundf),
 #ifndef _REENT_ONLY
     ESP_ELFSYM_EXPORT(acos),
     ESP_ELFSYM_EXPORT(acosf),

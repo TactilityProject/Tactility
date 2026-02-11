@@ -63,4 +63,11 @@ bool save(const WebServerSettings& settings);
  */
 std::string generateDefaultApSsid();
 
+/**
+ * @brief Generate a cryptographically secure random string for credentials
+ * @param length The desired length of the string
+ * @return A random alphanumeric string
+ */
+std::string generateRandomCredential(size_t length);
+
 }
