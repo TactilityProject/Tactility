@@ -38,11 +38,11 @@
 	i2s0 {
 		compatible = "espressif,esp32-i2s";
 		port = <I2S_NUM_0>;
-		pin-bclk = <11>;
-		pin-ws = <18>;
-		pin-data-out = <45>;
-		pin-data-in = <17>;
-		pin-mclk = <10>;
+		pin-bclk = <&gpio0 11 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 18 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 45 GPIO_FLAG_NONE>;
+		pin-data-in = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-mclk = <&gpio0 10 GPIO_FLAG_NONE>;
 	};
 
 	uart_internal: uart0 {
