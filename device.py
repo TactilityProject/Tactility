@@ -112,7 +112,7 @@ def write_tactility_variables(output_file, device_properties: ConfigParser, devi
     auto_start_app_id = get_property_or_none(device_properties, "apps", "autoStartAppId")
     if auto_start_app_id is not None:
         safe_auto_start_app_id = auto_start_app_id.replace("\"", "\\\"")
-        output_file.write(f"CONFIG_TT_AUTO_START_APP_ID=\"{safe_auto_start_app_id }\"\n")
+        output_file.write(f"CONFIG_TT_AUTO_START_APP_ID=\"{safe_auto_start_app_id}\"\n")
 
 def write_core_variables(output_file, device_properties: ConfigParser):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()

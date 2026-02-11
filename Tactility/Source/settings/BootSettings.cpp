@@ -41,7 +41,7 @@ bool loadBootSettings(BootSettings& properties) {
         return false;
     }
 
-    return !properties.launcherAppId.empty();
+    return true;
 }
 
 }

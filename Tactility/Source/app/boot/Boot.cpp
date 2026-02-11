@@ -132,7 +132,6 @@ class BootApp : public App {
 
     static std::string getLauncherAppId() {
         settings::BootSettings boot_properties;
-        std::string launcher_app_id;
         // When boot.properties hasn't been overridden, return default
         if (!settings::loadBootSettings(boot_properties)) {
             return CONFIG_TT_LAUNCHER_APP_ID;
@@ -145,8 +144,8 @@ class BootApp : public App {
         }
 
         // If the app in the boot.properties does not exist, return default
-        if (findAppManifestById(launcher_app_id) == nullptr) {
-            LOGGER.error("Launcher app {} not found", launcher_app_id);
+        if (findAppManifestById(boot_properties.launcherAppId) == nullptr) {
+            LOGGER.error("Launcher app {} not found", boot_properties.launcherAppId);
             return CONFIG_TT_LAUNCHER_APP_ID;
         }
 

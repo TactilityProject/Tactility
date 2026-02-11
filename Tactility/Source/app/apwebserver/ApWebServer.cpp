@@ -44,8 +44,8 @@ public:
         lv_obj_set_style_text_color(labelSsid, lv_palette_main(LV_PALETTE_GREY), LV_PART_MAIN);
 
         labelSsidValue = lv_label_create(wrapper);
-        lv_label_set_long_mode(labelSsidValue, LV_LABEL_LONG_SCROLL);
         lv_obj_set_width(labelSsidValue, LV_PCT(100));
+        lv_label_set_long_mode(labelSsidValue, LV_LABEL_LONG_SCROLL);
         lv_obj_set_style_margin_hor(labelSsidValue, 2, LV_PART_MAIN);
 
         lv_obj_t* labelPassword = lv_label_create(wrapper);

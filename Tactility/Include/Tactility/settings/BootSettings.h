@@ -17,7 +17,7 @@ struct BootSettings {
  * then it will try to load the one from the data mount point.
  *
  * @param[out] properties the resulting properties
- * @return true when the properties were successfully loaded and the result was set
+ * @return true when the properties were successfully loaded (they might still be empty strings!)
  */
 bool loadBootSettings(BootSettings& properties);
 

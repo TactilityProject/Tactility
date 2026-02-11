@@ -8,6 +8,7 @@
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/BootSettings.h>
 
+#include <cstring>
 #include <lvgl.h>
 
 namespace tt::app::launcher {

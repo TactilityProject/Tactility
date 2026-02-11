@@ -70,6 +70,8 @@ else ()
     message("Building for sim target")
     add_compile_definitions(CONFIG_TT_DEVICE_ID="simulator")
     add_compile_definitions(CONFIG_TT_DEVICE_NAME="Simulator")
+    add_compile_definitions(CONFIG_TT_LAUNCHER_APP_ID="Launcher")
+    add_compile_definitions(CONFIG_TT_AUTO_START_APP_ID="")
 endif ()
 
 project(Tactility)
