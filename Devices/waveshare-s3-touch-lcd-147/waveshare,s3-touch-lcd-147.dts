@@ -26,16 +26,15 @@
 	display_spi: spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <39>;
-		pin-miso = <GPIO_PIN_NONE>;
-		pin-sclk = <38>;
+		pin-mosi = <&gpio0 39 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 38 GPIO_FLAG_NONE>;
 	};
 
 	sdcard_spi: spi1 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI3_HOST>;
-		pin-mosi = <15>;
-		pin-miso = <17>;
-		pin-sclk = <16>;
+		pin-mosi = <&gpio0 15 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 16 GPIO_FLAG_NONE>;
 	};
 };

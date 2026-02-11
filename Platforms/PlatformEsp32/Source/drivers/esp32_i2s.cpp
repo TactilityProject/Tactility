@@ -10,57 +10,12 @@
 
 #include <tactility/time.h>
 #include <tactility/error_esp32.h>
+#include <tactility/drivers/esp32_gpio_helpers.h>
 #include <tactility/drivers/esp32_i2s.h>
 
 #include <new>
 
 #define TAG "esp32_i2s"
-
-static void release_pin(GpioDescriptor** gpio_descriptor) {
-    if (*gpio_descriptor == nullptr) return;
-    check(gpio_descriptor_release(*gpio_descriptor) == ERROR_NONE);
-    *gpio_descriptor = nullptr;
-}
-
-static bool acquire_pin_or_set_null(const GpioPinSpec& pin_spec, GpioDescriptor** gpio_descriptor) {
-    if (pin_spec.gpio_controller == nullptr) {
-        *gpio_descriptor = nullptr;
-        return true;
-    }
-    *gpio_descriptor = gpio_descriptor_acquire(pin_spec.gpio_controller, pin_spec.pin, GPIO_OWNER_GPIO);
-    if (*gpio_descriptor == nullptr) {
-        LOG_E(TAG, "Failed to acquire pin %u", pin_spec.pin);
-    }
-
-    return *gpio_descriptor != nullptr;
-}
-
-/**
- * Safely acquire the native pin avalue.
- * Set to GPIO_NUM_NC if the descriptor is null.
- * @param[in] descriptor Pin descriptor to acquire
- * @return Native pin number
- */
-static gpio_num_t get_native_pin(GpioDescriptor* descriptor) {
-    if (descriptor != nullptr) {
-        gpio_num_t pin;
-        check(gpio_descriptor_get_native_pin_number(descriptor, &pin) == ERROR_NONE);
-        return pin;
-    } else {
-        return GPIO_NUM_NC;
-    }
-}
-
-/**
- * Returns true if the given pin is inverted
- * @param[in] descriptor Pin descriptor to check, nullable
- */
-static bool is_pin_inverted(GpioDescriptor* descriptor) {
-    if (!descriptor) return false;
-    gpio_flags_t flags;
-    check(gpio_descriptor_get_flags(descriptor, &flags) == ERROR_NONE);
-    return (flags & GPIO_FLAG_ACTIVE_LOW) != 0;
-}
 
 struct Esp32I2sInternal {
     Mutex mutex {};

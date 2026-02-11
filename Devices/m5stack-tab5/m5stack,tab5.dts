@@ -33,8 +33,8 @@
 	sdcard_spi: spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <44>;
-		pin-miso = <39>;
-		pin-sclk = <43>;
+		pin-mosi = <&gpio0 44 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 39 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 43 GPIO_FLAG_NONE>;
 	};
 };

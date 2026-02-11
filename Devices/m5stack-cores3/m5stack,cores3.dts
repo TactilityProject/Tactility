@@ -32,9 +32,10 @@
 		pin-sda = <&gpio0 2 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 1 GPIO_FLAG_NONE>;
 	};
-/*
+
 	i2c_port_b {
 		compatible = "espressif,esp32-i2c";
+		status = "disabled";
 		port = <I2C_NUM_1>;
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 9 GPIO_FLAG_NONE>;
@@ -43,18 +44,19 @@
 
 	i2c_port_c {
 		compatible = "espressif,esp32-i2c";
+		status = "disabled";
 		port = <I2C_NUM_1>;
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 18 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 17 GPIO_FLAG_NONE>;
 	};
-*/
+
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <37>;
-		pin-miso = <35>;
-		pin-sclk = <36>;
+		pin-mosi = <&gpio0 37 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 35 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
 	};
 
 	// TODO: Enable speaker via ES7210 I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L417
@@ -73,8 +75,9 @@
 
 	uart_port_a: uart1 {
 		compatible = "espressif,esp32-uart";
+		status = "disabled";
 		port = <UART_NUM_1>;
-		pin-tx = <1>;
-		pin-rx = <2>;
+		pin-tx = <&gpio0 1 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 2 GPIO_FLAG_NONE>;
 	};
 };

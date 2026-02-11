@@ -27,6 +27,7 @@
 
 	i2c_external: i2c1 {
 		compatible = "espressif,esp32-i2c";
+		status = "disabled";
 		port = <I2C_NUM_1>;
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 43 GPIO_FLAG_NONE>;
@@ -44,16 +45,15 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <41>;
-		pin-miso = <38>;
-		pin-sclk = <40>;
+		pin-mosi = <&gpio0 41 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 38 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
 	};
 
 	uart1 {
-		status = "disabled";
 		compatible = "espressif,esp32-uart";
 		port = <UART_NUM_1>;
-		pin-tx = <43>;
-		pin-rx = <44>;
+		pin-tx = <&gpio0 43 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 44 GPIO_FLAG_NONE>;
 	};
 };

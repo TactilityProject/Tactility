@@ -28,9 +28,9 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <34>;
-		pin-miso = <33>;
-		pin-sclk = <35>;
+		pin-mosi = <&gpio0 34 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 33 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 35 GPIO_FLAG_NONE>;
 	};
 
 	// ES8311
@@ -48,14 +48,14 @@
 	uart_internal: uart0 {
 		compatible = "espressif,esp32-uart";
 		port = <UART_NUM_0>;
-		pin-tx = <12>;
-		pin-rx = <4>;
+		pin-tx = <&gpio0 12 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 4 GPIO_FLAG_NONE>;
 	};
 
 	uart_external: uart1 {
 		compatible = "espressif,esp32-uart";
 		port = <UART_NUM_1>;
-		pin-tx = <43>;
-		pin-rx = <44>;
+		pin-tx = <&gpio0 43 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 44 GPIO_FLAG_NONE>;
 	};
 };

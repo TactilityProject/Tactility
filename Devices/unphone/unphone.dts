@@ -25,9 +25,9 @@
 	sdcard_spi: spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <40>;
-		pin-miso = <41>;
-		pin-sclk = <39>;
+		pin-mosi = <&gpio0 40 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 41 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 39 GPIO_FLAG_NONE>;
 		max-transfer-size = <65536>;
 	};
 };

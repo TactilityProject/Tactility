@@ -11,25 +11,24 @@ properties:
     description: |
       The SPI host (controller) to use.
       Defined by spi_host_device_t (e.g. SPI2_HOST, SPI3_HOST).
+  pin-sclk:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
   pin-mosi:
-    type: int
-    default: GPIO_PIN_NONE
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
     description: MOSI (Data 0) pin
   pin-miso:
-    type: int
+    type: phandle-array
     default: GPIO_PIN_NONE
     description: MISO (Data 1) pin
-  pin-sclk:
-    type: int
-    required: true
-    description: Clock pin
   pin-wp:
-    type: int
-    default: GPIO_PIN_NONE
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
     description: WP (Data 2) pin
   pin-hd:
-    type: int
-    default: GPIO_PIN_NONE
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
     description: HD (Data 3) pin
   max-transfer-size:
     type: int

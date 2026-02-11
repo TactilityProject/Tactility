@@ -26,15 +26,15 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <41>;
-		pin-sclk = <40>;
+		pin-mosi = <&gpio0 41 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
 	};
 
 	spi1 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI3_HOST>;
-		pin-mosi = <18>;
-		pin-miso = <16>;
-		pin-sclk = <21>;
+		pin-mosi = <&gpio0 18 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 21 GPIO_FLAG_NONE>;
 	};
 };

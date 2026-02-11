@@ -28,16 +28,16 @@
 	display_spi: spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <35>;
-		pin-sclk = <36>;
+		pin-mosi = <&gpio0 35 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
 	};
 
 	sdcard_spi: spi1 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI3_HOST>;
-		pin-mosi = <14>;
-		pin-miso = <39>;
-		pin-sclk = <40>;
+		pin-mosi = <&gpio0 14 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 39 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
 	};
 
 	// Speaker and microphone
@@ -53,8 +53,9 @@
 
 	uart_port_a: uart1 {
 		compatible = "espressif,esp32-uart";
+		status = "disabled";
 		port = <UART_NUM_1>;
-		pin-tx = <1>;
-		pin-rx = <2>;
+		pin-tx = <&gpio0 1 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 2 GPIO_FLAG_NONE>;
 	};
 };

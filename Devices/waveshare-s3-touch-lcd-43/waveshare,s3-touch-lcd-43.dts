@@ -26,15 +26,15 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <11>;
-		pin-miso = <13>;
-		pin-sclk = <12>;
+		pin-mosi = <&gpio0 11 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 13 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 12 GPIO_FLAG_NONE>;
 	};
 
 	uart1 {
 		compatible = "espressif,esp32-uart";
 		port = <UART_NUM_1>;
-		pin-tx = <43>;
-		pin-rx = <44>;
+		pin-tx = <&gpio0 43 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 44 GPIO_FLAG_NONE>;
 	};
 };

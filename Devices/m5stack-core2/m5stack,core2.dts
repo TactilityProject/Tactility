@@ -36,9 +36,9 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <23>;
-		pin-miso = <38>;
-		pin-sclk = <18>;
+		pin-mosi = <&gpio0 23 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 38 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
 	};
 
 	// NS4168: Speaker and microphone
@@ -54,8 +54,9 @@
 
 	uart_port_a: uart1 {
 		compatible = "espressif,esp32-uart";
+		status = "disabled";
 		port = <UART_NUM_1>;
-		pin-tx = <33>;
-		pin-rx = <32>;
+		pin-tx = <&gpio0 33 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 32 GPIO_FLAG_NONE>;
 	};
 };

@@ -26,14 +26,14 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <3>;
-		pin-sclk = <5>;
+		pin-mosi = <&gpio0 3 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 5 GPIO_FLAG_NONE>;
 	};
 
 	stemma_qt: uart1 {
 		compatible = "espressif,esp32-uart";
 		port = <UART_NUM_1>;
-		pin-tx = <43>;
-		pin-rx = <44>;
+		pin-tx = <&gpio0 43 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 44 GPIO_FLAG_NONE>;
 	};
 };

@@ -33,14 +33,15 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <15>;
-		pin-sclk = <13>;
+		pin-mosi = <&gpio0 15 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 13 GPIO_FLAG_NONE>;
 	};
 
 	uart_grove: uart1 {
 		compatible = "espressif,esp32-uart";
+		status = "disabled";
 		port = <UART_NUM_1>;
-		pin-tx = <33>;
-		pin-rx = <32>;
+		pin-tx = <&gpio0 33 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 32 GPIO_FLAG_NONE>;
 	};
 };

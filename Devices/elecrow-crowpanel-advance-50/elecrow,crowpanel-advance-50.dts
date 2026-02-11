@@ -26,22 +26,22 @@
 	sdcard_spi: spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		pin-mosi = <6>;
-		pin-miso = <4>;
-		pin-sclk = <5>;
+		pin-mosi = <&gpio0 6 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 4 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 5 GPIO_FLAG_NONE>;
 	};
 
 	uart0 {
 		compatible = "espressif,esp32-uart";
 		port = <UART_NUM_0>;
-		pin-tx = <43>;
-		pin-rx = <44>;
+		pin-tx = <&gpio0 43 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 44 GPIO_FLAG_NONE>;
 	};
 
 	uart1 {
 		compatible = "espressif,esp32-uart";
 		port = <UART_NUM_1>;
-		pin-tx = <20>;
-		pin-rx = <19>;
+		pin-tx = <&gpio0 20 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 19 GPIO_FLAG_NONE>;
 	};
 };

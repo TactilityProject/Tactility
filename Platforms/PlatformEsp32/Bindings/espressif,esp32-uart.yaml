@@ -12,18 +12,18 @@ properties:
       The port number, defined by uart_port_t.
       Depending on the hardware, these values are available: UART_NUM_0, UART_NUM_1, UART_NUM_2
   pin-tx:
-    type: int
+    type: phandle-array
     required: true
     description: TX pin
   pin-rx:
-    type: int
+    type: phandle-array
     required: true
     description: RX pin
   pin-cts:
-    type: int
-    default: GPIO_PIN_NONE
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
     description: CTS pin
   pin-rts:
-    type: int
-    default: GPIO_PIN_NONE
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
     description: RTS pin

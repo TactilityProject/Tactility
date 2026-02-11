@@ -4,6 +4,7 @@
 #include <tactility/concurrent/recursive_mutex.h>
 
 #include "tactility/drivers/gpio_descriptor.h"
+#include <tactility/drivers/esp32_gpio_helpers.h>
 #include <cstring>
 #include <esp_log.h>
 #include <new>
@@ -20,12 +21,28 @@ struct Esp32SpiInternal {
     RecursiveMutex mutex = {};
     bool initialized = false;
 
+    // Pin descriptors
+    GpioDescriptor* sclk_descriptor = nullptr;
+    GpioDescriptor* mosi_descriptor = nullptr;
+    GpioDescriptor* miso_descriptor = nullptr;
+    GpioDescriptor* wp_descriptor = nullptr;
+    GpioDescriptor* hd_descriptor = nullptr;
+
     explicit Esp32SpiInternal() {
         recursive_mutex_construct(&mutex);
     }
 
     ~Esp32SpiInternal() {
+        cleanup_pins();
         recursive_mutex_destruct(&mutex);
+    }
+
+    void cleanup_pins() {
+        release_pin(&sclk_descriptor);
+        release_pin(&mosi_descriptor);
+        release_pin(&miso_descriptor);
+        release_pin(&wp_descriptor);
+        release_pin(&hd_descriptor);
     }
 };
 
@@ -58,12 +75,28 @@ static error_t start(Device* device) {
 
     auto* dts_config = GET_CONFIG(device);
 
+    // Acquire pins from the specified GPIO pin specs. Optional pins are allowed.
+    bool pins_ok =
+        acquire_pin_or_set_null(dts_config->pin_sclk, &data->sclk_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_mosi, &data->mosi_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_miso, &data->miso_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_wp, &data->wp_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_hd, &data->hd_descriptor);
+
+    if (!pins_ok) {
+        ESP_LOGE(TAG, "Failed to acquire required SPI pins");
+        data->cleanup_pins();
+        device_set_driver_data(device, nullptr);
+        delete data;
+        return ERROR_RESOURCE;
+    }
+
     spi_bus_config_t buscfg = {
-        .mosi_io_num = dts_config->pin_mosi,
-        .miso_io_num = dts_config->pin_miso,
-        .sclk_io_num = dts_config->pin_sclk,
-        .data2_io_num = dts_config->pin_wp,
-        .data3_io_num = dts_config->pin_hd,
+        .mosi_io_num = get_native_pin(data->mosi_descriptor),
+        .miso_io_num = get_native_pin(data->miso_descriptor),
+        .sclk_io_num = get_native_pin(data->sclk_descriptor),
+        .data2_io_num = get_native_pin(data->wp_descriptor),
+        .data3_io_num = get_native_pin(data->hd_descriptor),
         .data4_io_num = GPIO_NUM_NC,
         .data5_io_num = GPIO_NUM_NC,
         .data6_io_num = GPIO_NUM_NC,
@@ -77,6 +110,7 @@ static error_t start(Device* device) {
 
     esp_err_t ret = spi_bus_initialize(dts_config->host, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) {
+        data->cleanup_pins();
         delete data;
         device_set_driver_data(device, nullptr);
         ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
@@ -96,6 +130,7 @@ static error_t stop(Device* device) {
         spi_bus_free(dts_config->host);
     }
 
+    driver_data->cleanup_pins();
     device_set_driver_data(device, nullptr);
     delete driver_data;
     return ERROR_NONE;

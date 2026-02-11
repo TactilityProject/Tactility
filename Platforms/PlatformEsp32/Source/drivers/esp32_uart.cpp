@@ -9,6 +9,8 @@
 #include <tactility/error_esp32.h>
 #include <tactility/log.h>
 #include <tactility/time.h>
+#include <tactility/drivers/gpio_descriptor.h>
+#include <tactility/drivers/esp32_gpio_helpers.h>
 
 #include <new>
 
@@ -20,12 +22,26 @@ struct Esp32UartInternal {
     bool config_set = false;
     bool is_open = false;
 
+    // Pin descriptors
+    GpioDescriptor* tx_descriptor = nullptr;
+    GpioDescriptor* rx_descriptor = nullptr;
+    GpioDescriptor* cts_descriptor = nullptr;
+    GpioDescriptor* rts_descriptor = nullptr;
+
     Esp32UartInternal() {
         mutex_construct(&mutex);
     }
 
     ~Esp32UartInternal() {
+        cleanup_pins();
         mutex_destruct(&mutex);
+    }
+
+    void cleanup_pins() {
+        release_pin(&tx_descriptor);
+        release_pin(&rx_descriptor);
+        release_pin(&cts_descriptor);
+        release_pin(&rts_descriptor);
     }
 };
 
@@ -254,7 +270,7 @@ static error_t open(Device* device) {
         }
     };
 
-    if (dts_config->pinCts != UART_PIN_NO_CHANGE || dts_config->pinRts != UART_PIN_NO_CHANGE) {
+    if (dts_config->pinCts.gpio_controller != nullptr || dts_config->pinRts.gpio_controller != nullptr) {
         LOG_W(TAG, "%s: CTS/RTS pins are defined but hardware flow control is disabled (not supported in UartConfig)", device->name);
     }
 
@@ -266,9 +282,29 @@ static error_t open(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    esp_error = uart_set_pin(dts_config->port, dts_config->pinTx, dts_config->pinRx, dts_config->pinCts, dts_config->pinRts);
+    // Acquire pins from the specified GPIO pin specs. Optional pins are allowed.
+    bool pins_ok =
+        acquire_pin_or_set_null(dts_config->pinTx, &driver_data->tx_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pinRx, &driver_data->rx_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pinCts, &driver_data->cts_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pinRts, &driver_data->rts_descriptor);
+
+    if (!pins_ok) {
+        LOG_E(TAG, "%s failed to acquire UART pins", device->name);
+        driver_data->cleanup_pins();
+        uart_driver_delete(dts_config->port);
+        unlock(driver_data);
+        return ERROR_RESOURCE;
+    }
+
+    esp_error = uart_set_pin(dts_config->port,
+                             get_native_pin(driver_data->tx_descriptor),
+                             get_native_pin(driver_data->rx_descriptor),
+                             get_native_pin(driver_data->cts_descriptor),
+                             get_native_pin(driver_data->rts_descriptor));
     if (esp_error != ESP_OK) {
         LOG_E(TAG, "%s failed to set uart pins: %s", device->name, esp_err_to_name(esp_error));
+        driver_data->cleanup_pins();
         uart_driver_delete(dts_config->port);
         unlock(driver_data);
         return ERROR_RESOURCE;
@@ -293,6 +329,7 @@ static error_t close(Device* device) {
         return ERROR_INVALID_STATE;
     }
     uart_driver_delete(dts_config->port);
+    driver_data->cleanup_pins();
     driver_data->is_open = false;
     unlock(driver_data);
 

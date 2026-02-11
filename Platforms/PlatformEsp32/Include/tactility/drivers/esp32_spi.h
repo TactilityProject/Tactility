@@ -3,6 +3,7 @@
 
 #include <driver/spi_common.h>
 #include <tactility/drivers/spi_controller.h>
+#include <tactility/drivers/gpio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -10,16 +11,16 @@ extern "C" {
 
 struct Esp32SpiConfig {
     spi_host_device_t host;
-    /** Data 0 pin */
-    int pin_mosi;
-    /** Data 1 pin */
-    int pin_miso;
     /** Clock pin */
-    int pin_sclk;
+    struct GpioPinSpec pin_sclk;
+    /** Data 0 pin */
+    struct GpioPinSpec pin_mosi;
+    /** Data 1 pin */
+    struct GpioPinSpec pin_miso;
     /** Data 2 pin */
-    int pin_wp;
+    struct GpioPinSpec pin_wp;
     /** Data 3 pin */
-    int pin_hd;
+    struct GpioPinSpec pin_hd;
     /** Data transfer size limit in bytes. 0 means the platform decides the limit. */
     int max_transfer_size;
 };
