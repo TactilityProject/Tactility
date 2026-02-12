@@ -2,7 +2,7 @@ import os;
 
 def generate(bpp, size, font_file: str, symbols: list, output: str):
     output_file_name = f"{output}_{size}.c"
-    output_path = os.path.join(base_dir, "..", "Source", "fonts", output_file_name)
+    output_path = os.path.join("..", "Source", "fonts", output_file_name)
     print(f"Generating {output_file_name}")
     cmd = "lv_font_conv --no-compress --no-prefilter --bpp {} --size {} --font {} -r {} --format lvgl -o {} --force-fast-kern-format".format(bpp, size, font_file, ",".join(symbols), output_path)
     os.system(cmd)
@@ -35,7 +35,7 @@ def generate_icon_fonts(font_file, font_sizes, symbols, output):
 
 def generate_icon_names(codepoint_map: dict, codepoint_names: list, filename: str):
     print(f"Generating {filename}")
-    output_path = os.path.join(base_dir, "..", "Include", "tactility", filename)
+    output_path = os.path.join("..", "Include", "tactility", filename)
     with open(output_path, 'w') as f:
         f.write("#pragma once\n\n")
         for name in codepoint_names:

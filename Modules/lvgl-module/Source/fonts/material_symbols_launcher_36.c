@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 36 px
  * Bpp: 2
- * Opts: --no-compress --no-prefilter --bpp 2 --size 36 --font MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf -r 0xE5C3,0xE2C7,0xE8B8 --format lvgl -o /home/ken/Projects/Tactility/Modules/lvgl-module/Assets/../Source/fonts/material_symbols_launcher_36.c --force-fast-kern-format
+ * Opts: --no-compress --no-prefilter --bpp 2 --size 36 --font MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf -r 0xE5C3,0xE2C7,0xE8B8 --format lvgl -o ../Source/fonts/material_symbols_launcher_36.c --force-fast-kern-format
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
