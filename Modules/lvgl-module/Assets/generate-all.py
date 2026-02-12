@@ -2,7 +2,7 @@ import os;
 
 def generate(bpp, size, font_file: str, symbols: list, output: str):
     output_file_name = f"{output}_{size}.c"
-    output_path = os.path.join(base_dir, "..", "Source", "tactility", output_file_name)
+    output_path = os.path.join(base_dir, "..", "Source", "fonts", output_file_name)
     print(f"Generating {output_file_name}")
     cmd = "lv_font_conv --no-compress --no-prefilter --bpp {} --size {} --font {} -r {} --format lvgl -o {} --force-fast-kern-format".format(bpp, size, font_file, ",".join(symbols), output_path)
     os.system(cmd)
@@ -114,6 +114,11 @@ statusbar_symbol_code_point_names = [
     "battery_android_frame_bolt"
 ]
 
+launcher_symbol_code_point_names = [
+    "apps",
+    "folder",
+    "settings"
+]
 shared_symbol_font_sizes = [
     16 # Fits with montserrat 14 in lv_list as icon with text
 ]
@@ -132,3 +137,9 @@ generate_icon_names(codepoints_map, shared_symbol_code_point_names, "lvgl_symbol
 statusbar_symbol_code_points = get_code_points(codepoints_map, statusbar_symbol_code_point_names)
 generate_icon_fonts("MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf", [20], statusbar_symbol_code_points, "material_symbols_statusbar")
 generate_icon_names(codepoints_map, statusbar_symbol_code_point_names, "lvgl_symbols_statusbar.h")
+
+# Launcher symbols
+launcher_symbol_code_points = get_code_points(codepoints_map, launcher_symbol_code_point_names)
+generate_icon_fonts("MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf", [36], launcher_symbol_code_points, "material_symbols_launcher")
+generate_icon_names(codepoints_map, launcher_symbol_code_point_names, "lvgl_symbols_launcher.h")
+

@@ -4,12 +4,14 @@
 #include <Tactility/app/AppPaths.h>
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/hal/power/PowerDevice.h>
-#include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/BootSettings.h>
 
 #include <cstring>
 #include <lvgl.h>
+
+#include <tactility/lvgl_fonts.h>
+#include <tactility/lvgl_symbols_launcher.h>
 
 namespace tt::app::launcher {
 
@@ -17,9 +19,9 @@ static const auto LOGGER = Logger("Launcher");
 
 static int getButtonSize(hal::UiScale scale) {
     if (scale == hal::UiScale::Smallest) {
-        return 40;
+        return 36; // icon size
     } else {
-        return 64;
+        return 56;
     }
 }
 
@@ -41,7 +43,9 @@ class LauncherApp final : public App {
 
         // create the image first
         auto* button_image = lv_image_create(apps_button);
+        lv_obj_set_style_text_font(button_image, LVGL_SYMBOL_FONT_LAUNCHER, LV_STATE_DEFAULT);
         lv_image_set_src(button_image, imageFile);
+        lv_obj_set_style_text_color(button_image, lv_theme_get_color_primary(button_image), LV_STATE_DEFAULT);
 
         // Recolor handling:
         // For color builds use theme primary color
@@ -119,7 +123,6 @@ public:
         auto button_size = getButtonSize(ui_scale);
 
         lv_obj_align(buttons_wrapper, LV_ALIGN_CENTER, 0, 0);
-        // lv_obj_set_style_pad_all(buttons_wrapper, 0, LV_STATE_DEFAULT);
         lv_obj_set_size(buttons_wrapper, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         lv_obj_set_style_border_width(buttons_wrapper, 0, LV_STATE_DEFAULT);
         lv_obj_set_flex_grow(buttons_wrapper, 1);
@@ -150,14 +153,9 @@ public:
             margin = std::min<int32_t>(available_height / 16, button_size);
         }
 
-        const auto paths = app.getPaths();
-        const auto apps_icon_path = lvgl::PATH_PREFIX + paths->getAssetsPath("icon_apps.png");
-        const auto files_icon_path = lvgl::PATH_PREFIX + paths->getAssetsPath("icon_files.png");
-        const auto settings_icon_path = lvgl::PATH_PREFIX + paths->getAssetsPath("icon_settings.png");
-
-        createAppButton(buttons_wrapper, ui_scale, apps_icon_path.c_str(), "AppList", margin, is_landscape_display);
-        createAppButton(buttons_wrapper, ui_scale, files_icon_path.c_str(), "Files", margin, is_landscape_display);
-        createAppButton(buttons_wrapper, ui_scale, settings_icon_path.c_str(), "Settings", margin, is_landscape_display);
+        createAppButton(buttons_wrapper, ui_scale, LVGL_SYMBOL_APPS, "AppList", margin, is_landscape_display);
+        createAppButton(buttons_wrapper, ui_scale, LVGL_SYMBOL_FOLDER, "Files", margin, is_landscape_display);
+        createAppButton(buttons_wrapper, ui_scale, LVGL_SYMBOL_SETTINGS, "Settings", margin, is_landscape_display);
 
         if (shouldShowPowerButton()) {
             auto* power_button = lv_btn_create(parent);

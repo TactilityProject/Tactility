@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 20 px
  * Bpp: 2
- * Opts: --no-compress --no-prefilter --bpp 2 --size 20 --font MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf -r 0xF1DB,0xF15C,0xE623,0xF057,0xF0B0,0xEBE4,0xEBD6,0xEBE1,0xF065,0xE1DA,0xF257,0xF256,0xF255,0xF254,0xF253,0xF252,0xF250 --format lvgl -o /home/ken/Projects/Tactility/Modules/lvgl-module/Assets/../Source/tactility/material_symbols_statusbar_20.c --force-fast-kern-format
+ * Opts: --no-compress --no-prefilter --bpp 2 --size 20 --font MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf -r 0xF1DB,0xF15C,0xE623,0xF057,0xF0B0,0xEBE4,0xEBD6,0xEBE1,0xF065,0xE1DA,0xF257,0xF256,0xF255,0xF254,0xF253,0xF252,0xF250 --format lvgl -o /home/ken/Projects/Tactility/Modules/lvgl-module/Assets/../Source/fonts/material_symbols_statusbar_20.c --force-fast-kern-format
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
