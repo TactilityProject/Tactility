@@ -20,3 +20,7 @@ tactility_add_module(lvgl-module
     INCLUDE_DIRS Include/
     REQUIRES ${REQUIRES_LIST}
 )
+
+tactility_get_module_name("lvgl-module" MODULE_NAME)
+
+target_compile_definitions(${MODULE_NAME} PUBLIC "-DLV_LVGL_H_INCLUDE_SIMPLE")

@@ -3,12 +3,12 @@
 #include <Tactility/file/FileLock.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/service/loader/Loader.h>
 #include <Tactility/Assets.h>
 
 #include <Tactility/file/File.h>
 
 #include <lvgl.h>
+#include <tactility/lvgl_symbols_shared.h>
 
 namespace tt::app::notes {
 
@@ -209,7 +209,7 @@ class NotesApp final : public App {
 extern const AppManifest manifest = {
     .appId = "Notes",
     .appName = "Notes",
-    .appIcon = TT_ASSETS_APP_ICON_NOTES,
+    .appIcon = LVGL_SYMBOL_EDIT_NOTE,
     .createApp = create<NotesApp>
 };
 

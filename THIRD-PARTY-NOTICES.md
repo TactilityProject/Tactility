@@ -17,9 +17,12 @@ Website: https://github.com/flipperdevices/flipperzero-firmware/
 
 License: [GPL v3.0](https://github.com/flipperdevices/flipperzero-firmware/blob/dev/LICENSE)
 
-### Google Fonts
+### Google Fonts & Material Design Icons
 
-Website: https://fonts.google.com/icons
+Websites:
+
+- https://fonts.google.com/icons
+- https://github.com/google/material-design-icons
 
 License: [Apache License, version 2.0](https://fonts.google.com/attribution)
 

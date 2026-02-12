@@ -12,6 +12,7 @@
 #include <Tactility/Logger.h>
 
 #include <lvgl.h>
+#include <tactility/lvgl_symbols_shared.h>
 
 #include <esp_netif.h>
 #include <esp_wifi.h>
@@ -417,7 +418,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "WebServerSettings",
     .appName = "Web Server",
-    .appIcon = TT_ASSETS_APP_ICON_SETTINGS,
+    .appIcon = LVGL_SYMBOL_CLOUD,
     .appCategory = Category::System,
     .createApp = create<WebServerSettingsApp>
 };

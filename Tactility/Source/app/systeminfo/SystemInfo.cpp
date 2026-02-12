@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <format>
 #include <lvgl.h>
+#include <tactility/lvgl_symbols_shared.h>
 #include <utility>
 #include <cstring>
 
@@ -701,7 +702,7 @@ class SystemInfoApp final : public App {
 extern const AppManifest manifest = {
     .appId = "SystemInfo",
     .appName = "System Info",
-    .appIcon = TT_ASSETS_APP_ICON_SYSTEM_INFO,
+    .appIcon = LVGL_SYMBOL_MONITORING,
     .appCategory = Category::System,
     .createApp = create<SystemInfoApp>
 };

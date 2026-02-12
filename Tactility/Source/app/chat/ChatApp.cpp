@@ -8,13 +8,13 @@
 #include <Tactility/app/chat/ChatProtocol.h>
 
 #include <Tactility/app/AppManifest.h>
-#include <Tactility/Assets.h>
 #include <Tactility/Logger.h>
 #include <Tactility/lvgl/LvglSync.h>
 
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <tactility/lvgl_symbols_shared.h>
 #include <vector>
 
 namespace tt::app::chat {
@@ -181,7 +181,7 @@ void ChatApp::switchChannel(const std::string& chatChannel) {
 extern const AppManifest manifest = {
     .appId = "Chat",
     .appName = "Chat",
-    .appIcon = TT_ASSETS_APP_ICON_CHAT,
+    .appIcon = LVGL_SYMBOL_FORUM,
     .createApp = create<ChatApp>
 };
 

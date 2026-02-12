@@ -11,10 +11,11 @@
 #include <Tactility/Preferences.h>
 #include <Tactility/RecursiveMutex.h>
 #include <Tactility/service/loader/Loader.h>
-#include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>
 
 #include <format>
+
+#include <tactility/lvgl_symbols_shared.h>
 
 namespace tt::app::i2cscanner {
 
@@ -410,7 +411,7 @@ void I2cScannerApp::onScanTimerFinished() {
 extern const AppManifest manifest = {
     .appId = "I2cScanner",
     .appName = "I2C Scanner",
-    .appIcon = TT_ASSETS_APP_ICON_I2C_SETTINGS,
+    .appIcon = LVGL_SYMBOL_DEVICE_HUB,
     .appCategory = Category::System,
     .createApp = create<I2cScannerApp>
 };

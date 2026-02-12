@@ -15,6 +15,8 @@
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/screenshot/Screenshot.h>
 
+#include <tactility/lvgl_symbols_shared.h>
+
 namespace tt::app::screenshot {
 
 static const auto LOGGER = Logger("Screenshot");
@@ -283,7 +285,7 @@ void ScreenshotApp::onShow(AppContext& appContext, lv_obj_t* parent) {
 extern const AppManifest manifest = {
     .appId = "Screenshot",
     .appName = "Screenshot",
-    .appIcon = LV_SYMBOL_IMAGE,
+    .appIcon = LVGL_SYMBOL_IMAGE,
     .appCategory = Category::System,
     .createApp = create<ScreenshotApp>
 };

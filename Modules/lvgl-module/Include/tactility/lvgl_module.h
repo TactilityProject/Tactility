@@ -84,7 +84,7 @@ void lvgl_unlock(void);
  *
  * @return true if running, false otherwise.
  */
-bool lvgl_is_running();
+bool lvgl_is_running(void);
 
 #ifdef __cplusplus
 }
