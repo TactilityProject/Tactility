@@ -1,16 +1,18 @@
+#include <tactility/lvgl_fonts.h>
+#include <tactility/lvgl_symbols_shared.h>
+
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
-#include <Tactility/app/AppPaths.h>
 #include <Tactility/app/timezone/TimeZone.h>
-#include <Tactility/Logger.h>
+
 #include <Tactility/LogMessages.h>
-#include <Tactility/lvgl/Lvgl.h>
-#include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/lvgl/LvglSync.h>
+#include <Tactility/Logger.h>
 #include <Tactility/MountPoints.h>
-#include <Tactility/service/loader/Loader.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/Timer.h>
+#include <Tactility/lvgl/LvglSync.h>
+#include <Tactility/lvgl/Toolbar.h>
+#include <Tactility/service/loader/Loader.h>
 
 #include <lvgl.h>
 #include <memory>
@@ -203,8 +205,8 @@ public:
         lv_obj_set_style_image_recolor_opa(icon, 255, 0);
         lv_obj_set_style_image_recolor(icon, lv_theme_get_color_primary(parent), 0);
 
-        std::string icon_path = lvgl::PATH_PREFIX + app.getPaths()->getAssetsPath("search.png");
-        lv_image_set_src(icon, icon_path.c_str());
+        lv_obj_set_style_text_font(icon, LVGL_SYMBOL_FONT_DEFAULT, LV_STATE_DEFAULT);
+        lv_image_set_src(icon, LVGL_SYMBOL_SEARCH);
         lv_obj_set_style_image_recolor(icon, lv_theme_get_color_primary(parent), 0);
 
         auto* textarea = lv_textarea_create(search_wrapper);
