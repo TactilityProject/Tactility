@@ -1,4 +1,12 @@
-import os;
+import os
+import urllib.request
+
+def download_file(url: str, filename: str):
+    if not os.path.exists(filename):
+        print(f"Downloading {filename} from {url}")
+        urllib.request.urlretrieve(url, filename)
+    else:
+        print(f"{filename} already exists, skipping download.")
 
 def generate(bpp, size, font_file: str, symbols: list, output: str):
     output_file_name = f"{output}_{size}.c"
@@ -135,21 +143,33 @@ shared_symbol_font_sizes = [
 
 # Resolve file path relative to this script so it can be executed from any CWD
 base_dir = os.path.dirname(__file__)
-codepoints_map_path = os.path.join(base_dir, "MaterialSymbolsRounded[FILL,GRAD,opsz,wght].codepoints")
+if base_dir:
+    os.chdir(base_dir)
+
+codepoints_url = "https://github.com/google/material-design-icons/raw/refs/heads/master/variablefont/MaterialSymbolsRounded%5BFILL,GRAD,opsz,wght%5D.codepoints"
+ttf_url = "https://github.com/google/material-design-icons/raw/refs/heads/master/variablefont/MaterialSymbolsRounded%5BFILL,GRAD,opsz,wght%5D.ttf"
+
+codepoints_filename = "MaterialSymbolsRounded.codepoints"
+ttf_filename = "MaterialSymbolsRounded.ttf"
+
+download_file(codepoints_url, codepoints_filename)
+download_file(ttf_url, ttf_filename)
+
+codepoints_map_path = codepoints_filename
 codepoints_map = read_code_points_map(codepoints_map_path)
 
 # Shared symbols
 shared_symbol_code_points = get_code_points(codepoints_map, shared_symbol_code_point_names)
-generate_icon_fonts("MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf", shared_symbol_font_sizes, shared_symbol_code_points, "material_symbols_shared")
+generate_icon_fonts(ttf_filename, shared_symbol_font_sizes, shared_symbol_code_points, "material_symbols_shared")
 generate_icon_names(codepoints_map, shared_symbol_code_point_names, "lvgl_symbols_shared.h")
 
 # Statusbar symbols
 statusbar_symbol_code_points = get_code_points(codepoints_map, statusbar_symbol_code_point_names)
-generate_icon_fonts("MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf", [20], statusbar_symbol_code_points, "material_symbols_statusbar")
+generate_icon_fonts(ttf_filename, [20], statusbar_symbol_code_points, "material_symbols_statusbar")
 generate_icon_names(codepoints_map, statusbar_symbol_code_point_names, "lvgl_symbols_statusbar.h")
 
 # Launcher symbols
 launcher_symbol_code_points = get_code_points(codepoints_map, launcher_symbol_code_point_names)
-generate_icon_fonts("MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf", [36], launcher_symbol_code_points, "material_symbols_launcher")
+generate_icon_fonts(ttf_filename, [36], launcher_symbol_code_points, "material_symbols_launcher")
 generate_icon_names(codepoints_map, launcher_symbol_code_point_names, "lvgl_symbols_launcher.h")
 
