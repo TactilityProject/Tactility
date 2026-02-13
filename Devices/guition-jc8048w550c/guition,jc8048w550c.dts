@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 
@@ -29,6 +30,15 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 17 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 18 GPIO_FLAG_NONE>;
+	};
+
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		status = "disabled";
+		port = <I2S_NUM_0>;
+		pin-bclk = <&gpio0 0 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 18 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 17 GPIO_FLAG_NONE>;
 	};
 
 	spi0 {
