@@ -1,9 +1,10 @@
-#include <Tactility/app/appdetails/AppDetails.h>
-#include <Tactility/app/AppRegistration.h>
-#include <Tactility/service/loader/Loader.h>
-#include <Tactility/lvgl/Toolbar.h>
+#include <tactility/lvgl_fonts.h>
+#include <tactility/lvgl_symbols_shared.h>
 
-#include <Tactility/Assets.h>
+#include <Tactility/app/AppRegistration.h>
+#include <Tactility/app/appdetails/AppDetails.h>
+#include <Tactility/lvgl/Toolbar.h>
+#include <Tactility/service/loader/Loader.h>
 
 #include <lvgl.h>
 #include <algorithm>
@@ -18,8 +19,10 @@ class AppSettingsApp final : public App {
     }
 
     static void createAppWidget(const std::shared_ptr<AppManifest>& manifest, lv_obj_t* list) {
-        const void* icon = !manifest->appIcon.empty() ? manifest->appIcon.c_str() : TT_ASSETS_APP_ICON_FALLBACK;
+        const void* icon = !manifest->appIcon.empty() ? manifest->appIcon.c_str() : LVGL_SYMBOL_TOOLBAR;
         lv_obj_t* btn = lv_list_add_button(list, icon, manifest->appName.c_str());
+        lv_obj_t* image = lv_obj_get_child(btn, 0);
+        lv_obj_set_style_text_font(image, LVGL_SYMBOL_FONT_DEFAULT, LV_PART_MAIN);
         lv_obj_add_event_cb(btn, &onAppPressed, LV_EVENT_SHORT_CLICKED, manifest.get());
     }
 
@@ -59,6 +62,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "AppSettings",
     .appName = "Apps",
+    .appIcon = LVGL_SYMBOL_APPS,
     .appCategory = Category::Settings,
     .createApp = create<AppSettingsApp>,
 };

@@ -144,7 +144,7 @@ void WifiManage::onHide(AppContext& app) {
 extern const AppManifest manifest = {
     .appId = "WifiManage",
     .appName = "Wi-Fi",
-    .appIcon = LVGL_SYMBOL_NETWORK_MANAGE,
+    .appIcon = LVGL_SYMBOL_WIFI,
     .appCategory = Category::Settings,
     .createApp = create<WifiManage>
 };

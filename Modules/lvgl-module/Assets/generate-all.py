@@ -55,38 +55,48 @@ def generate_icon_names(codepoint_map: dict, codepoint_names: list, filename: st
 # --------------- Symbol Fonts ---------------
 
 shared_symbol_code_point_names = [
-    "mail",
-    "toolbar", # Apps without custom icon
-    "forum", # Chat app
-    "device_hub", # I2C
-    "display_settings", # Display Settings app
-    "download",
-    "gamepad",
-    "lightbulb",
-    "network_manage", # Wifi Settings app
-    "settings",
-    "monitoring", # System Info app
+    "add",
+    "apps",
+    "area_chart", # System Info
+    "app_registration", # App Settings app
+    "calendar_month",
+    "cable",
+    "circle",
     "close",
-    "note_add",
-    "edit_note",
+    "cloud", # Web server
+    "check",
     "delete",
+    "devices", # Developer app
+    "display_settings", # Display Settings app
+    "edit_note",
+    "electric_bolt", # Power (settings) app
     "folder",
+    "deployed_code", # 3D cube
+    "download",
+    "forum", # Chat app
+    "gamepad",
+    "help", # Diceware help
     "hub", # App Hub
     "image", # Screenshot app
     "keyboard_arrow_up",
+    "lightbulb",
+    "language", # Globe
+    "lists", # Chat app toolbar
+    "mail",
+    "menu",
+    "mop",
+    "more_vert",
+    "music_note",
+    "note_add",
+    "power_settings_new", # Power off for T-Lora Pager
+    "refresh", # e.g. App Hub reload button
     "search",
-    "cloud", # Web server
-    "app_registration", # App Settings app
-    "devices", # Developer app
+    "settings",
+    "toolbar", # Apps without custom icon
     "navigation", # GPS (settings) app
     "keyboard_alt", # Keyboard (settings) app
-    "electric_bolt", # Power (settings) app
     "usb", # Power (settings) app
     "wifi", # WiFi (settings) app
-    "refresh", # e.g. App Hub reload button
-    "lists", # Chat app toolbar
-    "help", # Diceware help
-    "power_settings_new", # Power off for T-Lora Pager
 ]
 
 statusbar_symbol_code_point_names = [

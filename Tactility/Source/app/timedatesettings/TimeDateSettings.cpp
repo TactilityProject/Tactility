@@ -1,4 +1,3 @@
-#include <Tactility/Assets.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/timezone/TimeZone.h>
 #include <Tactility/Logger.h>
@@ -10,6 +9,8 @@
 #include <Tactility/settings/SystemSettings.h>
 
 #include <lvgl.h>
+
+#include <tactility/lvgl_symbols_shared.h>
 
 namespace tt::app::timedatesettings {
 
@@ -154,7 +155,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "TimeDateSettings",
     .appName = "Time & Date",
-    .appIcon = TT_ASSETS_APP_ICON_TIME_DATE_SETTINGS,
+    .appIcon = LVGL_SYMBOL_CALENDAR_MONTH,
     .appCategory = Category::Settings,
     .createApp = create<TimeDateSettingsApp>
 };

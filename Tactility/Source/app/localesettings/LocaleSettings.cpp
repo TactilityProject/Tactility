@@ -1,18 +1,16 @@
-#include <Tactility/Assets.h>
 #include <Tactility/RecursiveMutex.h>
-#include <Tactility/app/timezone/TimeZone.h>
 #include <Tactility/app/localesettings/TextResources.h>
 #include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/Time.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/settings/Language.h>
 #include <Tactility/settings/SystemSettings.h>
 
+#include <tactility/lvgl_symbols_shared.h>
+
 #include <lvgl.h>
 #include <map>
-#include <sstream>
 
 namespace tt::app::localesettings {
 
@@ -163,7 +161,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "LocaleSettings",
     .appName = "Region & Language",
-    .appIcon = TT_ASSETS_APP_ICON_TIME_DATE_SETTINGS,
+    .appIcon = LVGL_SYMBOL_LANGUAGE,
     .appCategory = Category::Settings,
     .createApp = create<LocaleSettingsApp>
 };

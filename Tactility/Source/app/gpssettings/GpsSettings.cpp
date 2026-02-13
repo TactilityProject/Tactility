@@ -10,6 +10,8 @@
 #include <Tactility/service/gps/GpsState.h>
 #include <Tactility/service/loader/Loader.h>
 
+#include <tactility/lvgl_symbols_shared.h>
+
 #include <cstring>
 #include <format>
 #include <lvgl.h>
@@ -453,7 +455,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "GpsSettings",
     .appName = "GPS",
-    .appIcon = LV_SYMBOL_GPS,
+    .appIcon = LVGL_SYMBOL_NAVIGATION,
     .appCategory = Category::Settings,
     .createApp = create<GpsSettingsApp>
 };

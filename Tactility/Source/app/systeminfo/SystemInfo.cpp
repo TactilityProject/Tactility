@@ -702,7 +702,7 @@ class SystemInfoApp final : public App {
 extern const AppManifest manifest = {
     .appId = "SystemInfo",
     .appName = "System Info",
-    .appIcon = LVGL_SYMBOL_MONITORING,
+    .appIcon = LVGL_SYMBOL_AREA_CHART,
     .appCategory = Category::System,
     .createApp = create<SystemInfoApp>
 };

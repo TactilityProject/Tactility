@@ -13,6 +13,8 @@
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/service/wifi/Wifi.h>
 
+#include <tactility/lvgl_symbols_shared.h>
+
 #include <cstring>
 #include <lvgl.h>
 
@@ -163,6 +165,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "Development",
     .appName = "Development",
+    .appIcon = LVGL_SYMBOL_DEVICES,
     .appCategory = Category::Settings,
     .createApp = create<DevelopmentApp>
 };

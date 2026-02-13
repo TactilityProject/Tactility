@@ -411,7 +411,7 @@ void I2cScannerApp::onScanTimerFinished() {
 extern const AppManifest manifest = {
     .appId = "I2cScanner",
     .appName = "I2C Scanner",
-    .appIcon = LVGL_SYMBOL_DEVICE_HUB,
+    .appIcon = LVGL_SYMBOL_SEARCH,
     .appCategory = Category::System,
     .createApp = create<I2cScannerApp>
 };

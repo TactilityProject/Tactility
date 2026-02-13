@@ -3,8 +3,9 @@
 #include <Tactility/Tactility.h>
 
 #include <Tactility/settings/KeyboardSettings.h>
-#include <Tactility/Assets.h>
 #include <Tactility/lvgl/Toolbar.h>
+
+#include <tactility/lvgl_symbols_shared.h>
 
 #include <lvgl.h>
 
@@ -182,7 +183,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "KeyboardSettings",
     .appName = "Keyboard",
-    .appIcon = TT_ASSETS_APP_ICON_SETTINGS,
+    .appIcon = LVGL_SYMBOL_KEYBOARD_ALT,
     .appCategory = Category::Settings,
     .createApp = create<KeyboardSettingsApp>
 };

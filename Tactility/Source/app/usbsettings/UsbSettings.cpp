@@ -1,11 +1,11 @@
-#include "Tactility/app/App.h"
-#include "Tactility/app/AppManifest.h"
-#include "Tactility/lvgl/Toolbar.h"
-
-#include <Tactility/CoreDefines.h>
+#include <Tactility/app/App.h>
+#include <Tactility/app/AppManifest.h>
 #include <Tactility/hal/usb/Usb.h>
+#include <Tactility/lvgl/Toolbar.h>
 
 #include <lvgl.h>
+
+#include <tactility/lvgl_symbols_shared.h>
 
 #define TAG "usb_settings"
 
@@ -62,7 +62,7 @@ class UsbSettingsApp : public App {
 extern const AppManifest manifest = {
     .appId = "UsbSettings",
     .appName = "USB",
-    .appIcon = LV_SYMBOL_USB,
+    .appIcon = LVGL_SYMBOL_USB,
     .appCategory = Category::Settings,
     .createApp = create<UsbSettingsApp>
 };

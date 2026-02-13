@@ -58,7 +58,6 @@ public:
 extern const AppManifest manifest = {
     .appId = "FileSelection",
     .appName = "File Selection",
-    .appIcon = TT_ASSETS_APP_ICON_FILES,
     .appCategory = Category::System,
     .appFlags = AppManifest::Flags::Hidden,
     .createApp = create<FileSelection>
