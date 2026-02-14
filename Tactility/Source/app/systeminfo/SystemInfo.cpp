@@ -1,6 +1,9 @@
+#include "tactility/lvgl_fonts.h"
+
+
 #include <Tactility/TactilityConfig.h>
-#include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/lvgl/LvglSync.h>
+#include <Tactility/lvgl/Toolbar.h>
 
 #include <tactility/hal/Device.h>
 #include <Tactility/hal/sdcard/SdCardDevice.h>
@@ -18,17 +21,14 @@
 #include <esp_vfs_fat.h>
 #include <esp_heap_caps.h>
 #include <Tactility/MountPoints.h>
+#include <sdkconfig.h>
+#else
+#define CONFIG_TT_LVGL_SCALE 100
 #endif
 
 namespace tt::app::systeminfo {
 
 constexpr auto* TAG = "SystemInfo";
-
-#ifdef ESP_PLATFORM
-#include <sdkconfig.h>
-#else
-#define CONFIG_TT_LVGL_SCALE 100
-#endif
 
 static size_t getHeapFree() {
 #ifdef ESP_PLATFORM
@@ -442,7 +442,7 @@ class SystemInfoApp final : public App {
         // Summary
         auto* summary_label = lv_label_create(psramContainer);
         lv_label_set_text(summary_label, "PSRAM Usage Summary");
-        lv_obj_set_style_text_font(summary_label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(summary_label, lvgl_get_text_font(FONT_SIZE_SMALL), 0);
         lv_obj_set_style_pad_bottom(summary_label, 8, 0);
 
         // Current usage
@@ -483,7 +483,6 @@ class SystemInfoApp final : public App {
         // PSRAM Configuration section
         auto* config_header = lv_label_create(psramContainer);
         lv_label_set_text(config_header, "PSRAM Configuration");
-        lv_obj_set_style_text_font(config_header, &lv_font_montserrat_14, 0);
         lv_obj_set_style_pad_bottom(config_header, 8, 0);
 
         // Get threshold from sdkconfig
@@ -520,7 +519,7 @@ class SystemInfoApp final : public App {
         // Known PSRAM consumers header
         auto* consumers_label = lv_label_create(psramContainer);
         lv_label_set_text(consumers_label, "PSRAM Allocation Strategy");
-        lv_obj_set_style_text_font(consumers_label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(consumers_label, lvgl_get_text_font(FONT_SIZE_SMALL), 0);
         lv_obj_set_style_pad_bottom(consumers_label, 8, 0);
 
         // Explain what's in PSRAM
@@ -560,7 +559,7 @@ class SystemInfoApp final : public App {
         // App behavior explanation
         auto* app_behavior_label = lv_label_create(psramContainer);
         lv_label_set_text(app_behavior_label, "App Memory Behavior");
-        lv_obj_set_style_text_font(app_behavior_label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(app_behavior_label, lvgl_get_text_font(FONT_SIZE_SMALL), 0);
         lv_obj_set_style_pad_bottom(app_behavior_label, 8, 0);
 
         auto* app_note1 = lv_label_create(psramContainer);
@@ -651,7 +650,7 @@ class SystemInfoApp final : public App {
         // CPU tab - summary at top
         cpuSummaryLabel = lv_label_create(cpu_tab);
         lv_label_set_text(cpuSummaryLabel, "Overall CPU Usage: --.-%");
-        lv_obj_set_style_text_font(cpuSummaryLabel, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(cpuSummaryLabel, lvgl_get_text_font(FONT_SIZE_SMALL), 0);
         lv_obj_set_style_pad_bottom(cpuSummaryLabel, 4, 0);
         
         taskCountLabel = lv_label_create(cpu_tab);

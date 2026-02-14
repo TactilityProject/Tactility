@@ -79,6 +79,18 @@ def get_boolean_property_or_false(properties: ConfigParser, group: str, key: str
         return False
     return properties[group][key] == "true"
 
+def safe_int(value: str, error_message: str):
+    try:
+        return int(value)
+    except ValueError:
+        exit_with_error(error_message)
+
+def safe_float(value: str, error_message: str):
+    try:
+        return float(value)
+    except ValueError:
+        exit_with_error(error_message)
+
 def write_defaults(output_file):
     default_properties_path = os.path.join("Buildscripts", "sdkconfig", "default.properties")
     default_properties = read_file(default_properties_path)
@@ -182,16 +194,16 @@ def write_performance_improvements(output_file, device_properties: ConfigParser)
         output_file.write("# Performance improvement: Fixes glitches in the RGB display driver when rendering new screens/apps\n")
         output_file.write("CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y\n")
 
-def get_scale_from_dpi(dpi: int):
+def get_scale_from_dpi(dpi: float):
     baseline_dpi = 143 # T-Deck
     return dpi / baseline_dpi
 
-def get_font_height_for_dpi(dpi: int):
+def get_font_height_for_dpi(dpi: float):
     scale = get_scale_from_dpi(dpi)
     scaled_baseline_font_size = int(scale * 14)
     if scaled_baseline_font_size < 10:
-        # We could try in the future if font height 12 could work here
-        raise ValueError(f"Baseline size {scaled_baseline_font_size} for DPI {dpi} is too small")
+        print_warning(f"Computed baseline font size {scaled_baseline_font_size} for DPI {dpi} is too small (minimum is 10). Clamping to 12.")
+        return 12
     elif scaled_baseline_font_size <= 12:
         return 12
     elif scaled_baseline_font_size <= 15:
@@ -222,7 +234,8 @@ def write_lvgl_variables(output_file, device_properties: ConfigParser):
     if not has_group(device_properties, "lvgl") or not has_group(device_properties, "display"):
         write_lvgl_variable_placeholders(output_file)
         return
-    dpi = int(get_property_or_exit(device_properties, "display", "dpi"))
+    dpi_text = get_property_or_exit(device_properties, "display", "dpi")
+    dpi = safe_int(dpi_text, f"DPI must be an integer, but was: '{dpi_text}'")
     output_file.write(f"CONFIG_LV_DPI_DEF={dpi}\n")
     if has_group(device_properties, "lvgl"):
         color_depth = get_property_or_exit(device_properties, "lvgl", "colorDepth")
@@ -239,9 +252,10 @@ def write_lvgl_variables(output_file, device_properties: ConfigParser):
         output_file.write("CONFIG_LV_THEME_MONO=y\n")
     else:
         exit_with_error(f"Unknown theme: {theme}")
-    ui_scale = int(get_property_or_default(device_properties, "lvgl", "uiScale", "100"))
+    ui_scale_text = get_property_or_default(device_properties, "lvgl", "uiScale", "100")
+    ui_scale = safe_int(ui_scale_text, f"UI scale must be an integer, but was: '{ui_scale_text}'")
     output_file.write(f"CONFIG_TT_LVGL_SCALE={ui_scale}\n")
-    scaled_dpi = dpi * float(ui_scale) / 100
+    scaled_dpi = dpi * safe_float(ui_scale_text, f"UI scale must be a number, but was: '{ui_scale_text}'") / 100
     font_height = get_font_height_for_dpi(scaled_dpi)
     if font_height <= 12:
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_8=y\n")

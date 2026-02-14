@@ -12,9 +12,9 @@ namespace tt::lvgl {
 
 static uint32_t getToolbarHeight(hal::UiDensity uiDensity) {
     if (uiDensity == hal::UiDensity::Compact) {
-        return lvgl_get_text_font_height(FONT_SIZE_DEFAULT) * 1.4;
+        return lvgl_get_text_font_height(FONT_SIZE_DEFAULT) * 1.4f;
     } else {
-        return lvgl_get_text_font_height(FONT_SIZE_LARGE) * 2.2;
+        return lvgl_get_text_font_height(FONT_SIZE_LARGE) * 2.2f;
     }
 }
 

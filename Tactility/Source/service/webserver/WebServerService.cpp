@@ -520,7 +520,7 @@ bool WebServerService::startServer() {
     LOGGER.info("HTTP server started successfully on port {}", settings.webServerPort);
     publish_event(this, WebServerEvent::WebServerStarted);
 
-    // Show statusbar icon (different icon for AP vs Station mode)
+    // Show statusbar icon
     if (statusbarIconId >= 0) {
         lvgl::statusbar_icon_set_image(statusbarIconId, LVGL_SYMBOL_CLOUD);
         lvgl::statusbar_icon_set_visibility(statusbarIconId, true);

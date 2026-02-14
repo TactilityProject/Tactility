@@ -15,7 +15,7 @@ function(GET_PROPERTY_FILE_CONTENT PROPERTY_FILE RESULT_VAR)
     get_filename_component(PROPERTY_FILE_ABS ${PROPERTY_FILE} ABSOLUTE)
     # Find the device identifier in the sdkconfig file
     if (NOT EXISTS ${PROPERTY_FILE_ABS})
-        message(FATAL_ERROR "sdkconfig file not found:${PROPERTY_FILE}\nMake sure you select a device by running \"python device.py [device-id]\"\n")
+        message(FATAL_ERROR "Property file not found: ${PROPERTY_FILE}\nMake sure you select a device by running \"python device.py [device-id]\"\n")
     endif ()
     file(READ ${PROPERTY_FILE_ABS} file_content)
     set(${RESULT_VAR} "${file_content}" PARENT_SCOPE)

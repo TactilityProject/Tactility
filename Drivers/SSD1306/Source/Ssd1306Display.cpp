@@ -44,15 +44,6 @@ static bool ssd1306_i2c_send_cmd(i2c_port_t port, uint8_t addr, uint8_t cmd) {
     return true;
 }
 
-static bool ssd1306_i2c_send(i2c_port_t port, uint8_t addr, uint16_t value) {
-    esp_err_t ret = i2c_master_write_to_device(port, addr, reinterpret_cast<const uint8_t*>(&value), sizeof(value), pdMS_TO_TICKS(1000));
-    if (ret != ESP_OK) {
-        LOGGER.error("Failed to send command 0x{:04X}: {}", value, ret);
-        return false;
-    }
-    return true;
-}
-
 bool Ssd1306Display::createIoHandle(esp_lcd_panel_io_handle_t& ioHandle) {
     const esp_lcd_panel_io_i2c_config_t io_config = {
         .dev_addr = configuration->deviceAddress,
@@ -182,6 +173,8 @@ bool Ssd1306Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_l
         ssd1306_i2c_send_cmd(port, addr, 0x7);
     else if (configuration->verticalResolution == 32)
         ssd1306_i2c_send_cmd(port, addr, 0x3);
+    else
+        check(false, "Not supported");
 
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_DISPLAY_INVERT);
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_STOP_SCROLL);

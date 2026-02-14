@@ -32,7 +32,7 @@ extern double __negdf2(double a);
 // extern long double __negtf2(long double a);
 // extern long double __negxf2(long double a);
 
-extern long double __extendsfdf2(float a);
+extern double __extendsfdf2(float a);
 
 // extern long double __extendsftf2(float a);
 // extern long double __extendsfxf2(float a);

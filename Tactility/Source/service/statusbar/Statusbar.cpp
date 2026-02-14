@@ -122,8 +122,6 @@ class StatusbarService final : public Service {
     int8_t power_icon_id;
     const char* power_last_icon = nullptr;
 
-    std::unique_ptr<ServicePaths> paths;
-
     void lock() const {
         mutex.lock();
     }
@@ -224,8 +222,6 @@ public:
             LOGGER.error("No display found");
             return false;
         }
-
-        paths = serviceContext.getPaths();
 
         // TODO: Make thread-safe for LVGL
         lvgl::statusbar_icon_set_visibility(wifi_icon_id, true);

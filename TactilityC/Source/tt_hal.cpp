@@ -6,13 +6,13 @@
 extern "C" {
 
 UiDensity tt_hal_configuration_get_ui_density() {
-    auto scale = tt::hal::getConfiguration()->uiDensity;
-    return static_cast<UiDensity>(scale);
+    auto density = tt::hal::getConfiguration()->uiDensity;
+    return static_cast<UiDensity>(density);
 }
 
 UiScale tt_hal_configuration_get_ui_scale() {
-    auto scale = tt::hal::getConfiguration()->uiDensity;
-    return static_cast<UiScale>(scale);
+    auto density = tt::hal::getConfiguration()->uiDensity;
+    return static_cast<UiScale>(density);
 }
 
 }

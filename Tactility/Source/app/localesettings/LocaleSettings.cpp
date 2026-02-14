@@ -86,8 +86,6 @@ class LocaleSettingsApp final : public App {
 public:
 
     void onShow(AppContext& app, lv_obj_t* parent) override {
-        auto ui_density = hal::getConfiguration()->uiDensity;
-
         textResources.load();
 
         lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);

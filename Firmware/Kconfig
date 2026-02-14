@@ -23,46 +23,46 @@ menu "Tactility App"
         default 100
         range 20 1000
         help
-           LVGL scales UI with the DPI settings. This isn't a complete solution for
-           high resolution tiny screens. This scaling parameter allows for compensating
-           this somewhat.
-           It only affects font sizes and icon sizes - not margins.
+            Scaling percentage. 100 means 100% scale, so no changes.
+            LVGL scales UI with the DPI settings. This isn't a complete solution for high
+            resolution tiny screens. This scaling parameter allows for compensating this somewhat.
+            This value can also be used when creating widgets, but it isn't in use by the LVGL theme.
     config TT_LVGL_FONT_SIZE_SMALL
         int "Small font size"
         default 10
         range 8 36
         help
-            Small font size
+            Small font size in pixels
     config TT_LVGL_FONT_SIZE_DEFAULT
         int "Default font size"
         default 14
         range 8 36
         help
-            Default font size
+            Default font size in pixels
     config TT_LVGL_FONT_SIZE_LARGE
         int "Large font size"
         default 18
         range 8 36
         help
-            Large font size
+            Large font size in pixels
     config TT_LVGL_STATUSBAR_ICON_SIZE
         int "Statusbar icon size"
         default 20
         range 0 60
         help
-            Statusbar icon size
+            Statusbar icon size in pixels
     config TT_LVGL_LAUNCHER_ICON_SIZE
         int "Launcher icon size"
         default 20
         range 0 200
         help
-            Launcher icon size
+            Launcher icon size in pixels
     config TT_LVGL_SHARED_ICON_SIZE
         int "Shared icon size"
         default 16
         range 0 100
         help
-            Shared icon size
+            Shared icon size in pixels
     config TT_AUTO_START_APP_ID
         string "Auto Start App ID"
         default ""

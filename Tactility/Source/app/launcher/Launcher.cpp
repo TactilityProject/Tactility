@@ -17,8 +17,8 @@ namespace tt::app::launcher {
 
 static const auto LOGGER = Logger("Launcher");
 
-static uint32_t getButtonPadding(hal::UiDensity scale, uint32_t buttonSize) {
-    if (scale == hal::UiDensity::Compact) {
+static uint32_t getButtonPadding(hal::UiDensity density, uint32_t buttonSize) {
+    if (density == hal::UiDensity::Compact) {
         return 0;
     } else {
         return buttonSize / 8;
@@ -130,8 +130,8 @@ public:
         lv_obj_set_style_border_width(buttons_wrapper, 0, LV_STATE_DEFAULT);
         lv_obj_set_flex_grow(buttons_wrapper, 1);
 
-        // Fix for button selection (problem with UiDensity::Small on Cardputer)
-        if (!hal::hasDevice(hal::Device::Type::Touch)) {
+        // Fix for button selection (problem with UiDensity::Compact)
+        if (ui_density == hal::UiDensity::Compact) {
             lv_obj_set_style_pad_all(buttons_wrapper, 6, LV_STATE_DEFAULT);
         } else {
             lv_obj_set_style_pad_all(buttons_wrapper, 0, LV_STATE_DEFAULT);
