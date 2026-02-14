@@ -73,31 +73,31 @@ def main():
     mappings = [
         {'src': 'version.txt', 'dst': ''},
         # TactilityC
-        {'src': 'build/esp-idf/TactilityC/libTactilityC.a', 'dst': 'Libraries/TactilityC/Binary/'},
-        {'src': 'TactilityC/Include/*', 'dst': 'Libraries/TactilityC/Include/'},
+        {'src': 'build/esp-idf/TactilityC/libTactilityC.a', 'dst': 'Libraries/TactilityC/binary/'},
+        {'src': 'TactilityC/Include/*', 'dst': 'Libraries/TactilityC/include/'},
         {'src': 'TactilityC/CMakeLists.txt', 'dst': 'Libraries/TactilityC/'},
         {'src': 'TactilityC/LICENSE*.*', 'dst': 'Libraries/TactilityC/'},
         # TactilityFreeRtos
-        {'src': 'TactilityFreeRtos/Include/**', 'dst': 'Libraries/TactilityFreeRtos/Include/'},
+        {'src': 'TactilityFreeRtos/Include/**', 'dst': 'Libraries/TactilityFreeRtos/include/'},
         {'src': 'TactilityFreeRtos/CMakeLists.txt', 'dst': 'Libraries/TactilityFreeRtos/'},
         {'src': 'TactilityFreeRtos/LICENSE*.*', 'dst': 'Libraries/TactilityFreeRtos/'},
         # TactilityKernel
-        {'src': 'build/esp-idf/TactilityKernel/libTactilityKernel.a', 'dst': 'Libraries/TactilityKernel/Binary/'},
-        {'src': 'TactilityKernel/Include/**', 'dst': 'Libraries/TactilityKernel/Include/'},
+        {'src': 'build/esp-idf/TactilityKernel/libTactilityKernel.a', 'dst': 'Libraries/TactilityKernel/binary/'},
+        {'src': 'TactilityKernel/include/**', 'dst': 'Libraries/TactilityKernel/include/'},
         {'src': 'TactilityKernel/CMakeLists.txt', 'dst': 'Libraries/TactilityKernel/'},
         {'src': 'TactilityKernel/LICENSE*.*', 'dst': 'Libraries/TactilityKernel/'},
         # lvgl-module
-        {'src': 'build/esp-idf/lvgl-module/liblvgl-module.a', 'dst': 'Libraries/lvgl-module/Binary/'},
-        {'src': 'Modules/lvgl-module/Include/**', 'dst': 'Libraries/lvgl-module/Include/'},
+        {'src': 'build/esp-idf/lvgl-module/liblvgl-module.a', 'dst': 'Libraries/lvgl-module/binary/'},
+        {'src': 'Modules/lvgl-module/include/**', 'dst': 'Libraries/lvgl-module/include/'},
         {'src': 'Modules/lvgl-module/CMakeLists.txt', 'dst': 'Libraries/lvgl-module/'},
         {'src': 'Modules/lvgl-module/LICENSE*.*', 'dst': 'Libraries/lvgl-module/'},
         # lvgl (basics)
-        {'src': 'build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a', 'dst': 'Libraries/lvgl/Binary/liblvgl.a'},
-        {'src': 'Libraries/lvgl/lvgl.h', 'dst': 'Libraries/lvgl/Include/'},
-        {'src': 'Libraries/lvgl/lv_version.h', 'dst': 'Libraries/lvgl/Include/'},
+        {'src': 'build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a', 'dst': 'Libraries/lvgl/binary/liblvgl.a'},
+        {'src': 'Libraries/lvgl/lvgl.h', 'dst': 'Libraries/lvgl/include/'},
+        {'src': 'Libraries/lvgl/lv_version.h', 'dst': 'Libraries/lvgl/include/'},
         {'src': 'Libraries/lvgl/LICENCE*.*', 'dst': 'Libraries/lvgl/'},
-        {'src': 'Libraries/lvgl/src/lv_conf_kconfig.h', 'dst': 'Libraries/lvgl/Include/lv_conf.h'},
-        {'src': 'Libraries/lvgl/src/**/*.h', 'dst': 'Libraries/lvgl/Include/src/'},
+        {'src': 'Libraries/lvgl/src/lv_conf_kconfig.h', 'dst': 'Libraries/lvgl/include/lv_conf.h'},
+        {'src': 'Libraries/lvgl/src/**/*.h', 'dst': 'Libraries/lvgl/include/src/'},
         # elf_loader
         {'src': 'Libraries/elf_loader/elf_loader.cmake', 'dst': 'Libraries/elf_loader/'},
         {'src': 'Libraries/elf_loader/license.txt', 'dst': 'Libraries/elf_loader/'},

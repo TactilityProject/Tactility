@@ -18,37 +18,28 @@ menu "Tactility App"
             The applications that gives access to other application.
             This is the first thing that starts after the boot screen.
             The user can override it with a boot.properties file
-    config TT_LVGL_SCALE
-        int "Affects font size and icon size"
-        default 100
-        range 20 1000
-        help
-            Scaling percentage. 100 means 100% scale, so no changes.
-            LVGL scales UI with the DPI settings. This isn't a complete solution for high
-            resolution tiny screens. This scaling parameter allows for compensating this somewhat.
-            This value can also be used when creating widgets, but it isn't in use by the LVGL theme.
     config TT_LVGL_FONT_SIZE_SMALL
         int "Small font size"
         default 10
-        range 8 36
+        range 8 200
         help
             Small font size in pixels
     config TT_LVGL_FONT_SIZE_DEFAULT
         int "Default font size"
         default 14
-        range 8 36
+        range 8 200
         help
             Default font size in pixels
     config TT_LVGL_FONT_SIZE_LARGE
         int "Large font size"
         default 18
-        range 8 36
+        range 8 200
         help
             Large font size in pixels
     config TT_LVGL_STATUSBAR_ICON_SIZE
         int "Statusbar icon size"
         default 20
-        range 0 60
+        range 0 200
         help
             Statusbar icon size in pixels
     config TT_LVGL_LAUNCHER_ICON_SIZE
@@ -60,7 +51,7 @@ menu "Tactility App"
     config TT_LVGL_SHARED_ICON_SIZE
         int "Shared icon size"
         default 16
-        range 0 100
+        range 0 200
         help
             Shared icon size in pixels
     config TT_AUTO_START_APP_ID

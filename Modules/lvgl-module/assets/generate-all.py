@@ -145,6 +145,7 @@ launcher_symbol_code_point_names = [
 shared_symbol_sizes = [
     12,
     16, # T-Deck reference, with montserrat 14 in lv_list as icon with text
+    20,
     24,
     32
 ]

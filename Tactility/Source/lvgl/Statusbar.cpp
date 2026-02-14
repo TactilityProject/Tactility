@@ -17,12 +17,6 @@
 
 #include <lvgl.h>
 
-#ifdef ESP_PLATFORM
-#include <sdkconfig.h>
-#else
-#define CONFIG_TT_LVGL_SCALE 100
-#endif
-
 namespace tt::lvgl {
 
 static const auto LOGGER = Logger("statusbar");

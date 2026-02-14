@@ -21,9 +21,6 @@
 #include <esp_vfs_fat.h>
 #include <esp_heap_caps.h>
 #include <Tactility/MountPoints.h>
-#include <sdkconfig.h>
-#else
-#define CONFIG_TT_LVGL_SCALE 100
 #endif
 
 namespace tt::app::systeminfo {
@@ -145,7 +142,8 @@ static MemoryBarWidgets createMemoryBar(lv_obj_t* parent, const char* label) {
 
     auto* left_label = lv_label_create(container);
     lv_label_set_text(left_label, label);
-    lv_obj_set_width(left_label, 60 * CONFIG_TT_LVGL_SCALE / 100.f);
+    auto label_width = 4 * lvgl_get_text_font_height(FONT_SIZE_DEFAULT);
+    lv_obj_set_width(left_label, label_width);
 
     auto* bar = lv_bar_create(container);
     lv_obj_set_flex_grow(bar, 1);
@@ -590,7 +588,8 @@ class SystemInfoApp final : public App {
 
         auto* tabview = lv_tabview_create(wrapper);
         lv_tabview_set_tab_bar_position(tabview, LV_DIR_LEFT);
-        lv_tabview_set_tab_bar_size(tabview, 80 * CONFIG_TT_LVGL_SCALE / 100.f);
+        auto tab_bar_width = 6 * lvgl_get_text_font_height(FONT_SIZE_DEFAULT);
+        lv_tabview_set_tab_bar_size(tabview, tab_bar_width);
 
         // Create tabs
         auto* memory_tab = createTab(tabview, "Memory");
