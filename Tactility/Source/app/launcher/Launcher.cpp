@@ -17,21 +17,22 @@ namespace tt::app::launcher {
 
 static const auto LOGGER = Logger("Launcher");
 
-static int getButtonSize(hal::UiScale scale) {
-    if (scale == hal::UiScale::Smallest) {
-        return 36; // icon size
+static uint32_t getButtonPadding(hal::UiDensity scale, uint32_t buttonSize) {
+    if (scale == hal::UiDensity::Compact) {
+        return 0;
     } else {
-        return 56;
+        return buttonSize / 8;
     }
 }
 
 class LauncherApp final : public App {
 
-    static lv_obj_t* createAppButton(lv_obj_t* parent, hal::UiScale uiScale, const char* imageFile, const char* appId, int32_t itemMargin, bool isLandscape) {
-        auto button_size = getButtonSize(uiScale);
-
+    static lv_obj_t* createAppButton(lv_obj_t* parent, hal::UiDensity uiDensity, const char* imageFile, const char* appId, int32_t itemMargin, bool isLandscape) {
+        const auto button_size = lvgl_get_launcher_icon_font_height();
+        const auto button_padding = getButtonPadding(uiDensity, button_size);
         auto* apps_button = lv_button_create(parent);
-        lv_obj_set_style_pad_all(apps_button, 0, LV_STATE_DEFAULT);
+
+        lv_obj_set_style_pad_all(apps_button, static_cast<int32_t>(button_padding), LV_STATE_DEFAULT);
         if (isLandscape) {
             lv_obj_set_style_margin_hor(apps_button, itemMargin, LV_STATE_DEFAULT);
         } else {
@@ -43,7 +44,7 @@ class LauncherApp final : public App {
 
         // create the image first
         auto* button_image = lv_image_create(apps_button);
-        lv_obj_set_style_text_font(button_image, LVGL_SYMBOL_FONT_LAUNCHER, LV_STATE_DEFAULT);
+        lv_obj_set_style_text_font(button_image, lvgl_get_launcher_icon_font(), LV_STATE_DEFAULT);
         lv_image_set_src(button_image, imageFile);
         lv_obj_set_style_text_color(button_image, lv_theme_get_color_primary(button_image), LV_STATE_DEFAULT);
 
@@ -119,15 +120,17 @@ public:
     void onShow(AppContext& app, lv_obj_t* parent) override {
         auto* buttons_wrapper = lv_obj_create(parent);
 
-        auto ui_scale = hal::getConfiguration()->uiScale;
-        auto button_size = getButtonSize(ui_scale);
+        auto ui_density = hal::getConfiguration()->uiDensity;
+        const auto button_size = lvgl_get_launcher_icon_font_height();
+        const auto button_padding = getButtonPadding(ui_density, button_size);
+        const auto total_button_size = button_size + (button_padding * 2);
 
         lv_obj_align(buttons_wrapper, LV_ALIGN_CENTER, 0, 0);
         lv_obj_set_size(buttons_wrapper, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
         lv_obj_set_style_border_width(buttons_wrapper, 0, LV_STATE_DEFAULT);
         lv_obj_set_flex_grow(buttons_wrapper, 1);
 
-        // Fix for button selection (problem with UiScale::Small on Cardputer)
+        // Fix for button selection (problem with UiDensity::Small on Cardputer)
         if (!hal::hasDevice(hal::Device::Type::Touch)) {
             lv_obj_set_style_pad_all(buttons_wrapper, 6, LV_STATE_DEFAULT);
         } else {
@@ -146,16 +149,16 @@ public:
 
         int32_t margin;
         if (is_landscape_display) {
-            const int32_t available_width = std::max<int32_t>(0, lv_display_get_horizontal_resolution(display) - (3 * button_size));
-            margin = std::min<int32_t>(available_width / 16, button_size);
+            const int32_t available_width = std::max<int32_t>(0, lv_display_get_horizontal_resolution(display) - (3 * total_button_size));
+            margin = std::min<int32_t>(available_width / 16, total_button_size / 2);
         } else {
-            const int32_t available_height = std::max<int32_t>(0, lv_display_get_vertical_resolution(display) - (3 * button_size));
-            margin = std::min<int32_t>(available_height / 16, button_size);
+            const int32_t available_height = std::max<int32_t>(0, lv_display_get_vertical_resolution(display) - (3 * total_button_size));
+            margin = std::min<int32_t>(available_height / 16, total_button_size / 2);
         }
 
-        createAppButton(buttons_wrapper, ui_scale, LVGL_SYMBOL_APPS, "AppList", margin, is_landscape_display);
-        createAppButton(buttons_wrapper, ui_scale, LVGL_SYMBOL_FOLDER, "Files", margin, is_landscape_display);
-        createAppButton(buttons_wrapper, ui_scale, LVGL_SYMBOL_SETTINGS, "Settings", margin, is_landscape_display);
+        createAppButton(buttons_wrapper, ui_density, LVGL_SYMBOL_APPS, "AppList", margin, is_landscape_display);
+        createAppButton(buttons_wrapper, ui_density, LVGL_SYMBOL_FOLDER, "Files", margin, is_landscape_display);
+        createAppButton(buttons_wrapper, ui_density, LVGL_SYMBOL_SETTINGS, "Settings", margin, is_landscape_display);
 
         if (shouldShowPowerButton()) {
             auto* power_button = lv_btn_create(parent);

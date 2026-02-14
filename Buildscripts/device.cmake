@@ -7,23 +7,13 @@ else ()
     set(Cyan "")
 endif ()
 
+
+include("${CMAKE_CURRENT_LIST_DIR}/properties.cmake")
+
 function(INIT_TACTILITY_GLOBALS SDKCONFIG_FILE)
-    get_filename_component(SDKCONFIG_FILE_ABS ${SDKCONFIG_FILE} ABSOLUTE)
-    # Find the device identifier in the sdkconfig file
-    if (NOT EXISTS ${SDKCONFIG_FILE_ABS})
-        message(FATAL_ERROR "sdkconfig file not found:\nMake sure you select a device by running \"python device.py [device-id]\"\n")
-    endif ()
-    file(READ ${SDKCONFIG_FILE_ABS} sdkconfig_text)
-    string(REGEX MATCH "(CONFIG_TT_DEVICE_ID\=\"[^\"]*\")" sdkconfig_device_id "${sdkconfig_text}")
-    if (sdkconfig_device_id STREQUAL "CONFIG_TT_DEVICE_ID=\"\"" OR sdkconfig_device_id STREQUAL "")
-        message(FATAL_ERROR "CONFIG_TT_DEVICE_ID not found in sdkconfig:\nMake sure you select a device with 'python device.py device-id'")
-    endif ()
-    string(LENGTH ${sdkconfig_device_id} sdkconfig_device_id_length)
-    set(id_length 0)
-    # Total length minus chars of 'CONFIG_TT_DEVICE_ID=""'
-    math(EXPR id_length "${sdkconfig_device_id_length} - 22")
-    # Skip 'CONFIG_TT_DEVICE_ID="' then read the relevant (remaining) chars
-    string(SUBSTRING ${sdkconfig_device_id} 21 ${id_length} device_id)
+    GET_PROPERTY_FILE_CONTENT(${SDKCONFIG_FILE} sdkconfig_text)
+    # Get device id
+    GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_DEVICE_ID" device_id)
     # Validate device id
     if (NOT device_id MATCHES "^[a-z0-9\-]*$")
         message(FATAL_ERROR "Device identifier ${device_id} contains invalid characters. Valid characters: a-z 0-9 \"-\"")
@@ -31,7 +21,8 @@ function(INIT_TACTILITY_GLOBALS SDKCONFIG_FILE)
     # Output results
     message("Device identifier: ${Cyan}${device_id}${ColorReset}")
     set(TACTILITY_DEVICE_PROJECT ${device_id})
-    message("Device project path: ${Cyan}Devices/${TACTILITY_DEVICE_PROJECT}${ColorReset}\n")
+    message("Device project path: ${Cyan}Devices/${TACTILITY_DEVICE_PROJECT}${ColorReset} ")
+    message("")
     set_property(GLOBAL PROPERTY TACTILITY_DEVICE_PROJECT ${TACTILITY_DEVICE_PROJECT})
     set_property(GLOBAL PROPERTY TACTILITY_DEVICE_ID ${device_id})
 endfunction()

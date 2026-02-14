@@ -1,11 +1,10 @@
-#include <Tactility/Tactility.h>
-
 #include <Tactility/Logger.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServiceManifest.h>
-#include <Tactility/service/ServicePaths.h>
 #include <Tactility/service/memorychecker/MemoryCheckerService.h>
+
+#include <tactility/lvgl_symbols_statusbar.h>
 
 namespace tt::service::memorychecker {
 
@@ -55,8 +54,7 @@ bool MemoryCheckerService::onStart(ServiceContext& service) {
     auto lock = mutex.asScopedLock();
     lock.lock();
 
-    auto icon_path = std::string("A:") + service.getPaths()->getAssetsPath("memory_alert.png");
-    statusbarIconId = lvgl::statusbar_icon_add(icon_path, false);
+    statusbarIconId = lvgl::statusbar_icon_add(LVGL_SYMBOL_MEMORY, false);
     lvgl::statusbar_icon_set_visibility(statusbarIconId, false);
 
     timer.setCallbackPriority(Thread::Priority::Lower);

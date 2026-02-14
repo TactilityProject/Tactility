@@ -205,7 +205,7 @@ public:
         lv_obj_set_style_image_recolor_opa(icon, 255, 0);
         lv_obj_set_style_image_recolor(icon, lv_theme_get_color_primary(parent), 0);
 
-        lv_obj_set_style_text_font(icon, LVGL_SYMBOL_FONT_DEFAULT, LV_STATE_DEFAULT);
+        lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_font(), LV_STATE_DEFAULT);
         lv_image_set_src(icon, LVGL_SYMBOL_SEARCH);
         lv_obj_set_style_image_recolor(icon, lv_theme_get_color_primary(parent), 0);
 

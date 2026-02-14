@@ -25,6 +25,6 @@ static DeviceVector createDevices() {
 
 extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
-    .uiScale = UiScale::Smallest,
+    .uiDensity = UiDensity::Compact,
     .createDevices = createDevices
 };

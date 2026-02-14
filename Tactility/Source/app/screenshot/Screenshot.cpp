@@ -1,19 +1,19 @@
 #include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
 
-#include <Tactility/Timer.h>
-#include <Tactility/kernel/Kernel.h>
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
 
 #include <Tactility/app/App.h>
 #include <Tactility/app/AppManifest.h>
+#include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <Tactility/kernel/Platform.h>
 #include <Tactility/Logger.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/screenshot/Screenshot.h>
+#include <Tactility/Timer.h>
 
 #include <tactility/lvgl_symbols_shared.h>
 

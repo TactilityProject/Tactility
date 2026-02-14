@@ -122,7 +122,7 @@ public:
 
     void onShow(AppContext& app, lv_obj_t* parent) override {
         displaySettings = settings::display::loadOrGetDefault();
-        auto ui_scale = hal::getConfiguration()->uiScale;
+        auto ui_density = hal::getConfiguration()->uiDensity;
 
         lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
@@ -144,7 +144,7 @@ public:
             lv_obj_set_size(brightness_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
             lv_obj_set_style_pad_hor(brightness_wrapper, 0, LV_STATE_DEFAULT);
             lv_obj_set_style_border_width(brightness_wrapper, 0, LV_STATE_DEFAULT);
-            if (ui_scale != hal::UiScale::Smallest) {
+            if (ui_density != hal::UiDensity::Compact) {
                 lv_obj_set_style_pad_ver(brightness_wrapper, 4, LV_STATE_DEFAULT);
             }
 
@@ -168,7 +168,7 @@ public:
             lv_obj_set_size(gamma_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
             lv_obj_set_style_pad_hor(gamma_wrapper, 0, LV_STATE_DEFAULT);
             lv_obj_set_style_border_width(gamma_wrapper, 0, LV_STATE_DEFAULT);
-            if (ui_scale != hal::UiScale::Smallest) {
+            if (ui_density != hal::UiDensity::Compact) {
                 lv_obj_set_style_pad_ver(gamma_wrapper, 4, LV_STATE_DEFAULT);
             }
 

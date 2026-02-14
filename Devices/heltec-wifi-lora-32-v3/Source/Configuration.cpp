@@ -44,6 +44,6 @@ static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
 
 extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
-    .uiScale = UiScale::Smallest,
+    .uiDensity = UiDensity::Compact,
     .createDevices = createDevices
 };

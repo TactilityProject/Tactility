@@ -7,8 +7,6 @@
 namespace tt::lvgl {
 
 constexpr auto STATUSBAR_ICON_LIMIT = 8;
-constexpr auto STATUSBAR_ICON_SIZE = 20;
-constexpr auto STATUSBAR_HEIGHT = STATUSBAR_ICON_SIZE + 2;
 
 /** Create a statusbar widget. Needs to be called with LVGL lock. */
 lv_obj_t* statusbar_create(lv_obj_t* parent);
@@ -27,5 +25,7 @@ void statusbar_icon_set_image(int8_t id, const std::string& image);
 
 /** Update the visibility for an icon on the statusbar. Does not need to be called with LVGL lock. */
 void statusbar_icon_set_visibility(int8_t id, bool visible);
+
+int statusbar_get_height();
 
 } // namespace

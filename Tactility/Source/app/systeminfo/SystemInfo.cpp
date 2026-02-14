@@ -2,8 +2,8 @@
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/lvgl/LvglSync.h>
 
-#include <Tactility/Assets.h>
 #include <tactility/hal/Device.h>
+#include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>
 
@@ -23,6 +23,12 @@
 namespace tt::app::systeminfo {
 
 constexpr auto* TAG = "SystemInfo";
+
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#else
+#define CONFIG_TT_LVGL_SCALE 100
+#endif
 
 static size_t getHeapFree() {
 #ifdef ESP_PLATFORM
@@ -139,7 +145,7 @@ static MemoryBarWidgets createMemoryBar(lv_obj_t* parent, const char* label) {
 
     auto* left_label = lv_label_create(container);
     lv_label_set_text(left_label, label);
-    lv_obj_set_width(left_label, 60);
+    lv_obj_set_width(left_label, 60 * CONFIG_TT_LVGL_SCALE / 100.f);
 
     auto* bar = lv_bar_create(container);
     lv_obj_set_flex_grow(bar, 1);
@@ -148,7 +154,7 @@ static MemoryBarWidgets createMemoryBar(lv_obj_t* parent, const char* label) {
     lv_obj_set_width(bottom_label, LV_PCT(100));
     lv_obj_set_style_text_align(bottom_label, LV_TEXT_ALIGN_RIGHT, 0);
 
-    if (hal::getConfiguration()->uiScale == hal::UiScale::Smallest) {
+    if (hal::getConfiguration()->uiDensity == hal::UiDensity::Compact) {
         lv_obj_set_style_pad_bottom(bottom_label, 2, LV_STATE_DEFAULT);
     } else {
         lv_obj_set_style_pad_bottom(bottom_label, 12, LV_STATE_DEFAULT);
@@ -585,7 +591,7 @@ class SystemInfoApp final : public App {
 
         auto* tabview = lv_tabview_create(wrapper);
         lv_tabview_set_tab_bar_position(tabview, LV_DIR_LEFT);
-        lv_tabview_set_tab_bar_size(tabview, 80);
+        lv_tabview_set_tab_bar_size(tabview, 80 * CONFIG_TT_LVGL_SCALE / 100.f);
 
         // Create tabs
         auto* memory_tab = createTab(tabview, "Memory");

@@ -1,6 +1,8 @@
 #pragma once
 
-#include <Tactility/hal/sdcard/SdCardDevice.h>
+#include <memory>
+#include <tactility/hal/Device.h>
+#include <vector>
 
 namespace tt::hal {
 
@@ -11,9 +13,9 @@ typedef std::vector<std::shared_ptr<Device>> DeviceVector;
 typedef std::shared_ptr<Device> (*CreateDevice)();
 
 /** Affects LVGL widget style */
-enum class UiScale {
+enum class UiDensity {
     /** Ideal for very small non-touch screen devices (e.g. Waveshare S3 LCD 1.3") */
-    Smallest,
+    Compact,
     /** Nothing was changed in the LVGL UI/UX */
     Default
 };
@@ -25,7 +27,7 @@ struct Configuration {
     const InitBoot initBoot = nullptr;
 
     /** Modify LVGL widget size */
-    const UiScale uiScale = UiScale::Default;
+    const UiDensity uiDensity = UiDensity::Default;
 
     const std::function<DeviceVector()> createDevices = [] { return DeviceVector(); };
 };

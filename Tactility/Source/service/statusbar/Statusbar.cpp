@@ -14,60 +14,40 @@
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/service/wifi/Wifi.h>
 
+#include <tactility/lvgl_symbols_statusbar.h>
+
 namespace tt::service::statusbar {
 
 static const auto LOGGER = Logger("StatusbarService");
 
-// SD card status
-constexpr auto* STATUSBAR_ICON_SDCARD = "sdcard.png";
-constexpr auto* STATUSBAR_ICON_SDCARD_ALERT = "sdcard_alert.png";
-
-// Wifi status
-constexpr auto* STATUSBAR_ICON_WIFI_OFF_WHITE = "wifi_off_white.png";
-constexpr auto* STATUSBAR_ICON_WIFI_SCAN_WHITE = "wifi_scan_white.png";
-constexpr auto* STATUSBAR_ICON_WIFI_SIGNAL_WEAK_WHITE = "wifi_signal_weak_white.png";
-constexpr auto* STATUSBAR_ICON_WIFI_SIGNAL_MEDIUM_WHITE = "wifi_signal_medium_white.png";
-constexpr auto* STATUSBAR_ICON_WIFI_SIGNAL_STRONG_WHITE = "wifi_signal_strong_white.png";
-
-// Power status
-constexpr auto* STATUSBAR_ICON_POWER_0 = "power_0.png";
-constexpr auto* STATUSBAR_ICON_POWER_10 = "power_10.png";
-constexpr auto* STATUSBAR_ICON_POWER_20 = "power_20.png";
-constexpr auto* STATUSBAR_ICON_POWER_30 = "power_30.png";
-constexpr auto* STATUSBAR_ICON_POWER_40 = "power_40.png";
-constexpr auto* STATUSBAR_ICON_POWER_50 = "power_50.png";
-constexpr auto* STATUSBAR_ICON_POWER_60 = "power_60.png";
-constexpr auto* STATUSBAR_ICON_POWER_70 = "power_70.png";
-constexpr auto* STATUSBAR_ICON_POWER_80 = "power_80.png";
-constexpr auto* STATUSBAR_ICON_POWER_90 = "power_90.png";
-constexpr auto* STATUSBAR_ICON_POWER_100 = "power_100.png";
-
 // GPS
-constexpr auto* STATUSBAR_ICON_GPS = "location.png";
-
 extern const ServiceManifest manifest;
 
 const char* getWifiStatusIconForRssi(int rssi) {
     if (rssi >= -60) {
-        return STATUSBAR_ICON_WIFI_SIGNAL_STRONG_WHITE;
+        return LVGL_SYMBOL_SIGNAL_WIFI_4_BAR;
     } else if (rssi >= -70) {
-        return STATUSBAR_ICON_WIFI_SIGNAL_MEDIUM_WHITE;
+        return LVGL_SYMBOL_NETWORK_WIFI_3_BAR;
+    } else if (rssi >= -80) {
+        return LVGL_SYMBOL_NETWORK_WIFI_2_BAR;
+    } else if (rssi >= -90) {
+        return LVGL_SYMBOL_NETWORK_WIFI_1_BAR;
     } else {
-        return STATUSBAR_ICON_WIFI_SIGNAL_WEAK_WHITE;
+        return LVGL_SYMBOL_SIGNAL_WIFI_BAD;
     }
 }
 
-static const char* getWifiStatusIcon(wifi::RadioState state, bool secure) {
+static const char* getWifiStatusIcon(wifi::RadioState state) {
     int rssi;
     switch (state) {
         using enum wifi::RadioState;
         case On:
         case OnPending:
         case ConnectionPending:
-            return STATUSBAR_ICON_WIFI_SCAN_WHITE;
+            return LVGL_SYMBOL_SIGNAL_WIFI_0_BAR;
         case OffPending:
         case Off:
-            return STATUSBAR_ICON_WIFI_OFF_WHITE;
+            return LVGL_SYMBOL_SIGNAL_WIFI_OFF;
         case ConnectionActive:
             rssi = wifi::getRssi();
             return getWifiStatusIconForRssi(rssi);
@@ -80,11 +60,11 @@ static const char* getSdCardStatusIcon(hal::sdcard::SdCardDevice::State state) {
     switch (state) {
         using enum hal::sdcard::SdCardDevice::State;
         case Mounted:
-            return STATUSBAR_ICON_SDCARD;
+            return LVGL_SYMBOL_SD_CARD;
         case Error:
         case Unmounted:
         case Timeout:
-            return STATUSBAR_ICON_SDCARD_ALERT;
+            return LVGL_SYMBOL_SD_CARD_ALERT;
         default:
             check(false, "Unhandled SdCard state");
     }
@@ -113,27 +93,19 @@ static const char* getPowerStatusIcon() {
     uint8_t charge = charge_level.valueAsUint8;
 
     if (charge >= 95) {
-        return STATUSBAR_ICON_POWER_100;
-    } else if (charge >= 85) {
-        return STATUSBAR_ICON_POWER_90;
-    } else if (charge >= 75) {
-        return STATUSBAR_ICON_POWER_80;
-    } else if (charge >= 65) {
-        return STATUSBAR_ICON_POWER_70;
-    } else if (charge >= 55) {
-        return STATUSBAR_ICON_POWER_60;
-    } else if (charge >= 45) {
-        return STATUSBAR_ICON_POWER_50;
-    } else if (charge >= 35) {
-        return STATUSBAR_ICON_POWER_40;
-    } else if (charge >= 25) {
-        return STATUSBAR_ICON_POWER_30;
-    } else if (charge >= 15) {
-        return STATUSBAR_ICON_POWER_20;
-    } else if (charge >= 5) {
-        return STATUSBAR_ICON_POWER_10;
+        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_FULL;
+    } else if (charge >= 80) {
+        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_6;
+    } else if (charge >= 64) {
+        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_5;
+    } else if (charge >= 48) {
+        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_4;
+    } else if (charge >= 32) {
+        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_3;
+    } else if (charge >= 16) {
+        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_2;
     } else  {
-        return STATUSBAR_ICON_POWER_0;
+        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_1;
     }
 }
 
@@ -165,8 +137,7 @@ class StatusbarService final : public Service {
         bool show_icon = (gps_state == gps::State::OnPending) || (gps_state == gps::State::On);
         if (gps_last_state != show_icon) {
             if (show_icon) {
-                auto icon_path = "A:" + paths->getAssetsPath(STATUSBAR_ICON_GPS);
-                lvgl::statusbar_icon_set_image(gps_icon_id, icon_path);
+                lvgl::statusbar_icon_set_image(gps_icon_id, LVGL_SYMBOL_LOCATION_ON);
                 lvgl::statusbar_icon_set_visibility(gps_icon_id, true);
             } else {
                 lvgl::statusbar_icon_set_visibility(gps_icon_id, false);
@@ -177,12 +148,10 @@ class StatusbarService final : public Service {
 
     void updateWifiIcon() {
         wifi::RadioState radio_state = wifi::getRadioState();
-        bool is_secure = wifi::isConnectionSecure();
-        const char* desired_icon = getWifiStatusIcon(radio_state, is_secure);
+        const char* desired_icon = getWifiStatusIcon(radio_state);
         if (wifi_last_icon != desired_icon) {
             if (desired_icon != nullptr) {
-                auto icon_path = "A:" + paths->getAssetsPath(desired_icon);
-                lvgl::statusbar_icon_set_image(wifi_icon_id, icon_path);
+                lvgl::statusbar_icon_set_image(wifi_icon_id, desired_icon);
                 lvgl::statusbar_icon_set_visibility(wifi_icon_id, true);
             } else {
                 lvgl::statusbar_icon_set_visibility(wifi_icon_id, false);
@@ -195,8 +164,7 @@ class StatusbarService final : public Service {
         const char* desired_icon = getPowerStatusIcon();
         if (power_last_icon != desired_icon) {
             if (desired_icon != nullptr) {
-                auto icon_path = "A:" + paths->getAssetsPath(desired_icon);
-                lvgl::statusbar_icon_set_image(power_icon_id, icon_path);
+                lvgl::statusbar_icon_set_image(power_icon_id, desired_icon);
                 lvgl::statusbar_icon_set_visibility(power_icon_id, true);
             } else {
                 lvgl::statusbar_icon_set_visibility(power_icon_id, false);
@@ -214,8 +182,7 @@ class StatusbarService final : public Service {
             if (state != hal::sdcard::SdCardDevice::State::Timeout) {
                 auto* desired_icon = getSdCardStatusIcon(state);
                 if (sdcard_last_icon != desired_icon) {
-                    auto icon_path = "A:" + paths->getAssetsPath(desired_icon);
-                    lvgl::statusbar_icon_set_image(sdcard_icon_id, icon_path);
+                    lvgl::statusbar_icon_set_image(sdcard_icon_id, desired_icon);
                     lvgl::statusbar_icon_set_visibility(sdcard_icon_id, true);
                     sdcard_last_icon = desired_icon;
                 }

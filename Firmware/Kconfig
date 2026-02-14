@@ -17,7 +17,52 @@ menu "Tactility App"
         help
             The applications that gives access to other application.
             This is the first thing that starts after the boot screen.
-            The user can override it from a boot.properties file.
+            The user can override it with a boot.properties file
+    config TT_LVGL_SCALE
+        int "Affects font size and icon size"
+        default 100
+        range 20 1000
+        help
+           LVGL scales UI with the DPI settings. This isn't a complete solution for
+           high resolution tiny screens. This scaling parameter allows for compensating
+           this somewhat.
+           It only affects font sizes and icon sizes - not margins.
+    config TT_LVGL_FONT_SIZE_SMALL
+        int "Small font size"
+        default 10
+        range 8 36
+        help
+            Small font size
+    config TT_LVGL_FONT_SIZE_DEFAULT
+        int "Default font size"
+        default 14
+        range 8 36
+        help
+            Default font size
+    config TT_LVGL_FONT_SIZE_LARGE
+        int "Large font size"
+        default 18
+        range 8 36
+        help
+            Large font size
+    config TT_LVGL_STATUSBAR_ICON_SIZE
+        int "Statusbar icon size"
+        default 20
+        range 0 60
+        help
+            Statusbar icon size
+    config TT_LVGL_LAUNCHER_ICON_SIZE
+        int "Launcher icon size"
+        default 20
+        range 0 200
+        help
+            Launcher icon size
+    config TT_LVGL_SHARED_ICON_SIZE
+        int "Shared icon size"
+        default 16
+        range 0 100
+        help
+            Shared icon size
     config TT_AUTO_START_APP_ID
         string "Auto Start App ID"
         default ""

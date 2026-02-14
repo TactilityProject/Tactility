@@ -87,7 +87,6 @@
 - Remove flex_flow from app_container in Gui.cpp
 - Files app: copy/cut/paste actions
 - ElfAppManifest: change name (remove "manifest" as it's confusing), remove icon and title, publish snapshot SDK on CDN
-- `UiScale` implementation for devices like the CYD 2432S032C
 - Bug: CYD 2432S032C screen rotation fails due to touch driver issue
 - Calculator app should show regular text input field on non-touch devices that have a keyboard (Cardputer, T-Lora Pager)
 - Allow for WSAD keys to navigate LVGL (this is extra nice for cardputer, but just handy in general)

@@ -62,12 +62,15 @@ def get_property_or_exit(properties: ConfigParser, group: str, key: str):
         exit_with_error(f"Device properties does not contain key: {key}")
     return properties[group][key]
 
-def get_property_or_none(properties: ConfigParser, group: str, key: str):
+def get_property_or_default(properties: ConfigParser, group: str, key: str, default):
     if group not in properties.sections():
-        return None
+        return default
     if key not in properties[group].keys():
-        return None
+        return default
     return properties[group][key]
+
+def get_property_or_none(properties: ConfigParser, group: str, key: str):
+    return get_property_or_default(properties, group, key, None)
 
 def get_boolean_property_or_false(properties: ConfigParser, group: str, key: str):
     if group not in properties.sections():
@@ -135,11 +138,8 @@ def write_flash_variables(output_file, device_properties: ConfigParser):
     output_file.write("# Flash\n")
     flash_size_number = flash_size[:-2]
     output_file.write(f"CONFIG_ESPTOOLPY_FLASHSIZE_{flash_size_number}MB=y\n")
-    flash_mode = get_property_or_none(device_properties, "hardware", "flashMode")
-    if flash_mode is not None:
-        output_file.write(f"CONFIG_FLASHMODE_{flash_mode}=y\n")
-    else:
-        output_file.write("CONFIG_FLASHMODE_QIO=y\n")
+    flash_mode = get_property_or_default(device_properties, "hardware", "flashMode", 'QIO')
+    output_file.write(f"CONFIG_FLASHMODE_{flash_mode}=y\n")
     esptool_flash_freq = get_property_or_none(device_properties, "hardware", "esptoolFlashFreq")
     if esptool_flash_freq is not None:
         output_file.write(f"CONFIG_ESPTOOLPY_FLASHFREQ_{esptool_flash_freq}=y\n")
@@ -182,18 +182,40 @@ def write_performance_improvements(output_file, device_properties: ConfigParser)
         output_file.write("# Performance improvement: Fixes glitches in the RGB display driver when rendering new screens/apps\n")
         output_file.write("CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y\n")
 
+def get_scale_from_dpi(dpi: int):
+    baseline_dpi = 143 # T-Deck
+    return dpi / baseline_dpi
+
+def get_font_height_for_dpi(dpi: int):
+    scale = get_scale_from_dpi(dpi)
+    scaled_baseline_font_size = int(scale * 14)
+    if scaled_baseline_font_size < 10:
+        # We could try in the future if font height 12 could work here
+        raise ValueError(f"Baseline size {scaled_baseline_font_size} for DPI {dpi} is too small")
+    elif scaled_baseline_font_size <= 12:
+        return 12
+    elif scaled_baseline_font_size <= 15:
+        return 14
+    elif scaled_baseline_font_size <= 17:
+        return 16
+    elif scaled_baseline_font_size <= 19:
+        return 18
+    elif scaled_baseline_font_size <= 21:
+        return 24
+    else:
+        return 28
+
 def write_lvgl_variables(output_file, device_properties: ConfigParser):
     output_file.write("# LVGL\n")
-    if has_group(device_properties, "display"):
-        dpi = get_property_or_exit(device_properties, "display", "dpi")
-        output_file.write(f"CONFIG_LV_DPI_DEF={dpi}\n")
+    dpi = int(get_property_or_exit(device_properties, "display", "dpi"))
+    output_file.write(f"CONFIG_LV_DPI_DEF={dpi}\n")
     if has_group(device_properties, "lvgl"):
         color_depth = get_property_or_exit(device_properties, "lvgl", "colorDepth")
         output_file.write(f"CONFIG_LV_COLOR_DEPTH={color_depth}\n")
         output_file.write(f"CONFIG_LV_COLOR_DEPTH_{color_depth}=y\n")
     output_file.write("CONFIG_LV_DISP_DEF_REFR_PERIOD=10\n")
-    theme = get_property_or_none(device_properties, "lvgl", "theme")
-    if theme is None or theme == "DefaultDark":
+    theme = get_property_or_default(device_properties, "lvgl", "theme", "DefaultDark")
+    if theme == "DefaultDark":
         output_file.write("CONFIG_LV_THEME_DEFAULT_DARK=y\n")
     elif theme == "DefaultLight":
         output_file.write("CONFIG_LV_THEME_DEFAULT_LIGHT=y\n")
@@ -202,6 +224,77 @@ def write_lvgl_variables(output_file, device_properties: ConfigParser):
         output_file.write("CONFIG_LV_THEME_MONO=y\n")
     else:
         exit_with_error(f"Unknown theme: {theme}")
+    ui_scale = int(get_property_or_default(device_properties, "lvgl", "uiScale", "100"))
+    output_file.write(f"CONFIG_TT_LVGL_SCALE={ui_scale}\n")
+    scaled_dpi = dpi * float(ui_scale) / 100
+    font_height = get_font_height_for_dpi(scaled_dpi)
+    if font_height <= 12:
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_8=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_12=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_16=y\n")
+        output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_12=y\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_SMALL=8\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_DEFAULT=12\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_LARGE=16\n")
+        output_file.write("CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE=12\n")
+        output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=30\n")
+        output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=12\n")
+    elif font_height <= 14:
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_10=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_14=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_18=y\n")
+        output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_14=y\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_SMALL=10\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_DEFAULT=14\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_LARGE=18\n")
+        output_file.write("CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE=16\n")
+        output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=36\n")
+        output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=16\n")
+    elif font_height <= 16:
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_12=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_16=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_22=y\n")
+        output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_16=y\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_SMALL=12\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_DEFAULT=16\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_LARGE=22\n")
+        output_file.write("CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE=16\n")
+        output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=42\n")
+        output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=16\n")
+    elif font_height <= 18:
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_14=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_18=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_24=y\n")
+        output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_18=y\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_SMALL=14\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_DEFAULT=18\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_LARGE=24\n")
+        output_file.write("CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE=16\n")
+        output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=48\n")
+        output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=16\n")
+    elif font_height <= 24:
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_18=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_24=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_30=y\n")
+        output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_24=y\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_SMALL=18\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_DEFAULT=24\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_LARGE=30\n")
+        output_file.write("CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE=20\n")
+        output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=64\n")
+        output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=24\n")
+    else:
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_20=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_28=y\n")
+        output_file.write("CONFIG_LV_FONT_MONTSERRAT_36=y\n")
+        output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_28=y\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_SMALL=20\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_DEFAULT=28\n")
+        output_file.write("CONFIG_TT_LVGL_FONT_SIZE_LARGE=36\n")
+        output_file.write("CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE=30\n")
+        output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=72\n")
+        output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=32\n")
+
 
 def write_usb_variables(output_file, device_properties: ConfigParser):
     has_tiny_usb = get_boolean_property_or_false(device_properties, "hardware", "tinyUsb")

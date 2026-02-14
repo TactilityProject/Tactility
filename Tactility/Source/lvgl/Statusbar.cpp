@@ -6,14 +6,22 @@
 #include <Tactility/RecursiveMutex.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>
-#include <tactility/check.h>
 #include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/settings/Time.h>
 
+#include <tactility/check.h>
+#include <tactility/lvgl_fonts.h>
+
 #include <lvgl.h>
+
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#else
+#define CONFIG_TT_LVGL_SCALE 100
+#endif
 
 namespace tt::lvgl {
 
@@ -88,7 +96,7 @@ static void onUpdateTime() {
     }
 }
 
-static const lv_obj_class_t statusbar_class = {
+static lv_obj_class_t statusbar_class = {
     .base_class = &lv_obj_class,
     .constructor_cb = &statusbar_constructor,
     .destructor_cb = &statusbar_destructor,
@@ -96,7 +104,7 @@ static const lv_obj_class_t statusbar_class = {
     .user_data = nullptr,
     .name = nullptr,
     .width_def = LV_PCT(100),
-    .height_def = STATUSBAR_HEIGHT,
+    .height_def = 20,
     .editable = false,
     .group_def = LV_OBJ_CLASS_GROUP_DEF_TRUE,
     .instance_size = sizeof(Statusbar),
@@ -157,10 +165,11 @@ static void update_icon(lv_obj_t* image, const StatusbarIcon* icon) {
 }
 
 lv_obj_t* statusbar_create(lv_obj_t* parent) {
+    statusbar_class.height_def = statusbar_get_height();
     lv_obj_t* obj = lv_obj_class_create_obj(&statusbar_class, parent);
     lv_obj_class_init_obj(obj);
 
-    auto* statusbar = (Statusbar*)obj;
+    auto* statusbar = reinterpret_cast<Statusbar*>(obj);
 
     lv_obj_set_width(obj, LV_PCT(100));
     lv_obj_set_style_pad_ver(obj, 0, LV_STATE_DEFAULT);
@@ -168,6 +177,10 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
     lv_obj_center(obj);
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    auto icon_size = lvgl_get_statusbar_icon_font_height();
+    auto ui_density = hal::getConfiguration()->uiDensity;
+    auto icon_padding = (ui_density != hal::UiDensity::Compact) ? static_cast<uint32_t>(icon_size * 0.2f) : 2;
+    lv_obj_set_style_pad_column(obj, icon_padding, LV_STATE_DEFAULT);
 
     statusbar->time = lv_label_create(obj);
     lv_obj_set_style_text_color(statusbar->time, lv_color_white(), LV_STATE_DEFAULT);
@@ -179,17 +192,19 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
     obj_set_style_bg_invisible(left_spacer);
     lv_obj_set_flex_grow(left_spacer, 1);
 
-    statusbar_data.mutex.lock(kernel::MAX_TICKS);
-    for (int i = 0; i < STATUSBAR_ICON_LIMIT; ++i) {
-        auto* image = lv_image_create(obj);
-        lv_obj_set_size(image, STATUSBAR_ICON_SIZE, STATUSBAR_ICON_SIZE);
-        lv_obj_set_style_pad_all(image, 0, LV_STATE_DEFAULT);
-        obj_set_style_bg_blacken(image);
-        statusbar->icons[i] = image;
+    if (statusbar_data.mutex.lock(kernel::MAX_TICKS)) {
+        for (int i = 0; i < STATUSBAR_ICON_LIMIT; ++i) {
+            auto* image = lv_image_create(obj);
+            lv_obj_set_size(image, icon_size, icon_size); // regular padding doesn't work
+            lv_obj_set_style_text_font(image, lvgl_get_statusbar_icon_font(), LV_STATE_DEFAULT);
+            lv_obj_set_style_pad_all(image, 0, LV_STATE_DEFAULT);
+            obj_set_style_bg_blacken(image);
+            statusbar->icons[i] = image;
 
-        update_icon(image, &(statusbar_data.icons[i]));
+            update_icon(image, &(statusbar_data.icons[i]));
+        }
+        statusbar_data.mutex.unlock();
     }
-    statusbar_data.mutex.unlock();
 
     return obj;
 }
@@ -296,6 +311,12 @@ void statusbar_icon_set_visibility(int8_t id, bool visible) {
     icon->visible = visible;
     statusbar_data.mutex.unlock();
     statusbar_data.pubsub->publish(nullptr);
+}
+
+int statusbar_get_height() {
+    const auto icon_size = lvgl_get_statusbar_icon_font_height();
+    const auto vertical_padding = static_cast<uint32_t>((static_cast<float>(icon_size) * 0.1f));
+    return icon_size + (2 * vertical_padding);
 }
 
 } // namespace

@@ -16,6 +16,7 @@
 #include <Tactility/file/FileLock.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/hal/HalPrivate.h>
+#include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/lvgl/LvglPrivate.h>

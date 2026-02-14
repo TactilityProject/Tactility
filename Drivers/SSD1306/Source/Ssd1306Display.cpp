@@ -13,6 +13,7 @@
 static const auto LOGGER = tt::Logger("Ssd1306Display");
 
 // SSD1306 commands
+#define SSD1306_CMD_SET_CLOCK 0xD5
 #define SSD1306_CMD_SET_CHARGE_PUMP 0x8D
 #define SSD1306_CMD_SET_SEGMENT_REMAP 0xA0
 #define SSD1306_CMD_SET_COM_SCAN_DIR 0xC0
@@ -20,11 +21,17 @@ static const auto LOGGER = tt::Logger("Ssd1306Display");
 #define SSD1306_CMD_SET_CONTRAST 0x81
 #define SSD1306_CMD_SET_PRECHARGE 0xD9
 #define SSD1306_CMD_SET_VCOMH_DESELECT 0xDB
-#define SSD1306_CMD_DISPLAY_INVERT 0xA6
+#define SSD1306_CMD_DISPLAY_NORMAL 0xA6
+#define SSD1306_CMD_DISPLAY_INVERT 0xA7
+#define SSD1306_CMD_DISPLAY_OFF 0xAE
 #define SSD1306_CMD_DISPLAY_ON 0xAF
-#define SSD1306_CMD_SET_MEMORY_ADDR_MODE 0x20
+#define SSD1306_CMD_SET_MEMORY_MODE 0x20
 #define SSD1306_CMD_SET_COLUMN_RANGE 0x21
 #define SSD1306_CMD_SET_PAGE_RANGE 0x22
+#define SSD1306_CMD_SET_MULTIPLEX 0xA8
+#define SSD1306_CMD_SET_OFFSET 0xD3
+#define SSD1306_CMD_STOP_SCROLL 0x2E
+#define SSD1306_CMD_SET_SCAN_DIRECTION_REVERSED 0xC8
 
 // Helper to send I2C commands directly
 static bool ssd1306_i2c_send_cmd(i2c_port_t port, uint8_t addr, uint8_t cmd) {
@@ -37,18 +44,32 @@ static bool ssd1306_i2c_send_cmd(i2c_port_t port, uint8_t addr, uint8_t cmd) {
     return true;
 }
 
+static bool ssd1306_i2c_send(i2c_port_t port, uint8_t addr, uint16_t value) {
+    esp_err_t ret = i2c_master_write_to_device(port, addr, reinterpret_cast<const uint8_t*>(&value), sizeof(value), pdMS_TO_TICKS(1000));
+    if (ret != ESP_OK) {
+        LOGGER.error("Failed to send command 0x{:04X}: {}", value, ret);
+        return false;
+    }
+    return true;
+}
+
 bool Ssd1306Display::createIoHandle(esp_lcd_panel_io_handle_t& ioHandle) {
     const esp_lcd_panel_io_i2c_config_t io_config = {
         .dev_addr = configuration->deviceAddress,
+        .on_color_trans_done = nullptr,
+        .user_ctx = nullptr,
         .control_phase_bytes = 1,
         .dc_bit_offset = 6,
+        .lcd_cmd_bits = 0,
+        .lcd_param_bits = 0,
         .flags = {
             .dc_low_on_data = false,
             .disable_control_phase = false,
         },
+        .scl_speed_hz = 0
     };
 
-    if (esp_lcd_new_panel_io_i2c((esp_lcd_i2c_bus_handle_t)configuration->port, &io_config, &ioHandle) != ESP_OK) {
+    if (esp_lcd_new_panel_io_i2c(static_cast<esp_lcd_i2c_bus_handle_t>(configuration->port), &io_config, &ioHandle) != ESP_OK) {
         LOGGER.error("Failed to create IO handle");
         return false;
     }
@@ -78,6 +99,7 @@ bool Ssd1306Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_l
     esp_lcd_panel_dev_config_t panel_config = {
         .reset_gpio_num = GPIO_NUM_NC, // Already handled above
         .color_space = ESP_LCD_COLOR_SPACE_MONOCHROME,
+        .data_endian = LCD_RGB_DATA_ENDIAN_BIG,
         .bits_per_pixel = 1, // Must be 1 for monochrome
         .flags = {
             .reset_active_high = false,
@@ -104,40 +126,35 @@ bool Ssd1306Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_l
     auto addr = configuration->deviceAddress;
     
     LOGGER.info("Sending Heltec V3 custom init sequence");
-    
+
     // Display off while configuring
-    ssd1306_i2c_send_cmd(port, addr, 0xAE);
-    vTaskDelay(pdMS_TO_TICKS(10)); // Important: let display stabilize after turning off
-    
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_DISPLAY_OFF);
+
     // Set oscillator frequency (MUST come early in sequence)
-    ssd1306_i2c_send_cmd(port, addr, 0xD5);
-    ssd1306_i2c_send_cmd(port, addr, 0x80);
-    
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_CLOCK);
+    ssd1306_i2c_send_cmd(port, addr, 0xF0); // ~96 Hz
+
     // Set multiplex ratio
-    ssd1306_i2c_send_cmd(port, addr, 0xA8);
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_MULTIPLEX);
     ssd1306_i2c_send_cmd(port, addr, configuration->verticalResolution - 1);
-    
-    // Set display offset
-    ssd1306_i2c_send_cmd(port, addr, 0xD3);
+
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_OFFSET);
     ssd1306_i2c_send_cmd(port, addr, 0x00);
-    
-    // Set display start line
     ssd1306_i2c_send_cmd(port, addr, 0x40);
-    
+
     // Enable charge pump (required for Heltec V3 - must be before memory mode)
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_CHARGE_PUMP);
     ssd1306_i2c_send_cmd(port, addr, 0x14); // Enable
-    
+
     // Horizontal addressing mode
-    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_MEMORY_ADDR_MODE);
-    ssd1306_i2c_send_cmd(port, addr, 0x00);
-    
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_MEMORY_MODE);
+    ssd1306_i2c_send_cmd(port, addr, 0x00); // Horizontal addressing
+
     // Segment remap (0xA1 for Heltec V3 orientation)
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_SEGMENT_REMAP | 0x01);
-    
-    // COM scan direction (0xC8 = reversed)
-    ssd1306_i2c_send_cmd(port, addr, 0xC8);
-    
+
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_SCAN_DIRECTION_REVERSED );
+
     // COM pin configuration
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_COM_PIN_CFG);
     if (configuration->verticalResolution == 64) {
@@ -145,31 +162,33 @@ bool Ssd1306Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_l
     } else {
         ssd1306_i2c_send_cmd(port, addr, 0x02); // Sequential COM pin config for 32-row displays
     }
-    
-    // Contrast (0xCF = bright, good for Heltec OLED)
+
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_CONTRAST);
     ssd1306_i2c_send_cmd(port, addr, 0xCF);
-    
-    // Precharge period (0xF1 for Heltec OLED)
+
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_PRECHARGE);
     ssd1306_i2c_send_cmd(port, addr, 0xF1);
-    
-    // VCOMH deselect level
+
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_VCOMH_DESELECT);
     ssd1306_i2c_send_cmd(port, addr, 0x40);
-    
-    // Normal display mode (not inverse/all-on)
-    ssd1306_i2c_send_cmd(port, addr, 0xA6);
-    
-    // Invert display (0xA7)
-    // This is what your old working driver did unconditionally
-    ssd1306_i2c_send_cmd(port, addr, 0xA7);
-    
-    // Display ON
+
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_COLUMN_RANGE);
+    ssd1306_i2c_send_cmd(port, addr, 0);
+    ssd1306_i2c_send_cmd(port, addr, configuration->horizontalResolution - 1);
+
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_SET_PAGE_RANGE);
+    ssd1306_i2c_send_cmd(port, addr, 0);
+    if (configuration->verticalResolution == 64)
+        ssd1306_i2c_send_cmd(port, addr, 0x7);
+    else if (configuration->verticalResolution == 32)
+        ssd1306_i2c_send_cmd(port, addr, 0x3);
+
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_DISPLAY_INVERT);
+    ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_STOP_SCROLL);
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_DISPLAY_ON);
-    
+
     vTaskDelay(pdMS_TO_TICKS(100)); // Let display stabilize
-    
+
     LOGGER.info("Heltec V3 display initialized successfully");
 
     return true;

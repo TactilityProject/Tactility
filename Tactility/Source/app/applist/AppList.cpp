@@ -21,7 +21,7 @@ class AppListApp final : public App {
         const void* icon = !manifest->appIcon.empty() ? manifest->appIcon.c_str() : LVGL_SYMBOL_TOOLBAR;
         lv_obj_t* btn = lv_list_add_button(list, icon, manifest->appName.c_str());
         lv_obj_t* image = lv_obj_get_child(btn, 0);
-        lv_obj_set_style_text_font(image, LVGL_SYMBOL_FONT_DEFAULT, LV_PART_MAIN);
+        lv_obj_set_style_text_font(image, lvgl_get_shared_icon_font(), LV_PART_MAIN);
         lv_obj_add_event_cb(btn, &onAppPressed, LV_EVENT_SHORT_CLICKED, manifest.get());
     }
 

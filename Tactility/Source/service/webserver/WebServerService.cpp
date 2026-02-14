@@ -8,16 +8,15 @@
 #include <Tactility/MountPoints.h>
 #include <Tactility/file/File.h>
 #include <Tactility/Logger.h>
-#include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/Mutex.h>
 
-#include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
 #include <tactility/hal/Device.h>
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/App.h>
+#include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <Tactility/service/wifi/Wifi.h>
 #include <Tactility/network/HttpdReq.h>
 #include <Tactility/network/Url.h>
@@ -32,23 +31,25 @@
 #include <lv_screenshot.h>
 #endif
 
-#include <esp_system.h>
-#include <esp_heap_caps.h>
-#include <esp_chip_info.h>
-#include <esp_vfs_fat.h>
-#include <esp_flash.h>
-#include <esp_wifi.h>
-#include <esp_netif.h>
-#include <lwip/ip4_addr.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <sstream>
+#include <tactility/lvgl_symbols_statusbar.h>
+
 #include <atomic>
+#include <cctype>
 #include <cerrno>
 #include <cstring>
+#include <esp_chip_info.h>
+#include <esp_flash.h>
+#include <esp_heap_caps.h>
+#include <esp_netif.h>
+#include <esp_system.h>
+#include <esp_vfs_fat.h>
+#include <esp_wifi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <iomanip>
-#include <cctype>
+#include <lwip/ip4_addr.h>
 #include <mbedtls/base64.h>
+#include <sstream>
 
 namespace tt::service::webserver {
 
@@ -521,11 +522,7 @@ bool WebServerService::startServer() {
 
     // Show statusbar icon (different icon for AP vs Station mode)
     if (statusbarIconId >= 0) {
-        const char* icon_name = (settings.wifiMode == settings::webserver::WiFiMode::AccessPoint)
-            ? "webserver_ap_white.png"
-            : "webserver_station_white.png";
-        auto icon_path = std::string("A:/system/service/Statusbar/assets/") + icon_name;
-        lvgl::statusbar_icon_set_image(statusbarIconId, icon_path);
+        lvgl::statusbar_icon_set_image(statusbarIconId, LVGL_SYMBOL_CLOUD);
         lvgl::statusbar_icon_set_visibility(statusbarIconId, true);
         LOGGER.info("WebServer statusbar icon shown ({} mode)",
                  settings.wifiMode == settings::webserver::WiFiMode::AccessPoint ? "AP" : "Station");

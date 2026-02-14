@@ -1,11 +1,11 @@
 #pragma once
 
 #include "../app/AppContext.h"
-#include "Tactility/Tactility.h"
 
 #include <lvgl.h>
 
 namespace tt::lvgl {
+
 #define TOOLBAR_ACTION_LIMIT 4
 
 /** Create a toolbar widget that shows the app name as title */

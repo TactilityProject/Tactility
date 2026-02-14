@@ -32,6 +32,8 @@ extern double __negdf2(double a);
 // extern long double __negtf2(long double a);
 // extern long double __negxf2(long double a);
 
+extern long double __extendsfdf2(float a);
+
 // extern long double __extendsftf2(float a);
 // extern long double __extendsfxf2(float a);
 // extern long double __extenddftf2(double a);
@@ -151,6 +153,8 @@ const esp_elfsym gcc_soft_float_symbols[] = {
     ESP_ELFSYM_EXPORT(__negdf2),
     // ESP_ELFSYM_EXPORT(__negtf2),
     // ESP_ELFSYM_EXPORT(__negxf2),
+
+    ESP_ELFSYM_EXPORT(__extendsfdf2),
 
     // ESP_ELFSYM_EXPORT(__extendsftf2),
     // ESP_ELFSYM_EXPORT(__extendsfxf2),
