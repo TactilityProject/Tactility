@@ -1,7 +1,7 @@
 idf_component_register(
     INCLUDE_DIRS
         "Libraries/TactilityC/Include"
-        "Libraries/TactilityKernel/Include"
+        "Libraries/TactilityKernel/include"
         "Libraries/TactilityFreeRtos/Include"
         "Libraries/lvgl/Include"
         "Libraries/lvgl-module/include"

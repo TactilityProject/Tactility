@@ -18,7 +18,7 @@ list(APPEND REQUIRES_LIST
 if (DEFINED ENV{ESP_IDF_VERSION})
 
     list(APPEND REQUIRES_LIST
-        PlatformEsp32
+        platform-esp32
         driver
         elf_loader
         QRCode
@@ -42,7 +42,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 else ()
 
     list(APPEND REQUIRES_LIST
-        PlatformPosix
+        platform-posix
         freertos_kernel
         cJSON
         lvgl

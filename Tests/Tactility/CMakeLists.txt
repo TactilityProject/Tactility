@@ -15,7 +15,7 @@ target_link_libraries(TactilityTests PRIVATE
     Tactility
     TactilityCore
     TactilityKernel
-    PlatformPosix
+    platform-posix
     hal-device-module
     lvgl-module
     lvgl

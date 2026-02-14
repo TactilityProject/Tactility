@@ -39,7 +39,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         "Devices/${TACTILITY_DEVICE_PROJECT}"
         "Drivers"
         "Modules"
-        "Platforms/PlatformEsp32"
+        "Platforms/platform-esp32"
         "TactilityKernel"
         "Tactility"
         "TactilityC"
@@ -84,7 +84,7 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(TactilityCore)
     add_subdirectory(TactilityFreeRtos)
     add_subdirectory(TactilityKernel)
-    add_subdirectory(Platforms/PlatformPosix)
+    add_subdirectory(Platforms/platform-posix)
     add_subdirectory(Devices/simulator)
     add_subdirectory(Libraries/cJSON)
     add_subdirectory(Libraries/lv_screenshot)

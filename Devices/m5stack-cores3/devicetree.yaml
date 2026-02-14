@@ -1,3 +1,3 @@
 dependencies:
-  - Platforms/PlatformEsp32
+  - Platforms/platform-esp32
 dts: m5stack,cores3.dts

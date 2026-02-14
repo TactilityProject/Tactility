@@ -25,7 +25,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 
     idf_component_register(
         SRCS ${SOURCE_FILES} "${GENERATED_DIR}/devicetree.c"
-        REQUIRES Tactility TactilityC TactilityKernel PlatformEsp32 ${TACTILITY_DEVICE_PROJECT}
+        REQUIRES Tactility TactilityC TactilityKernel platform-esp32 ${TACTILITY_DEVICE_PROJECT}
     )
 
 else ()
@@ -39,7 +39,7 @@ else ()
         hal-device-module
         lvgl-module
         Simulator
-        PlatformPosix
+        platform-posix
         SDL2::SDL2-static SDL2-static
     )
 
