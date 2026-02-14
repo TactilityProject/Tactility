@@ -205,8 +205,23 @@ def get_font_height_for_dpi(dpi: int):
     else:
         return 28
 
+def write_lvgl_variable_placeholders(output_file):
+    output_file.write("# LVGL Placeholder\n")
+    output_file.write(f"CONFIG_LV_DPI_DEF=100\n")
+    output_file.write("CONFIG_LV_FONT_MONTSERRAT_8=y\n")
+    output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_8=y\n")
+    output_file.write("CONFIG_TT_LVGL_FONT_SIZE_SMALL=8\n")
+    output_file.write("CONFIG_TT_LVGL_FONT_SIZE_DEFAULT=8\n")
+    output_file.write("CONFIG_TT_LVGL_FONT_SIZE_LARGE=8\n")
+    output_file.write("CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE=12\n")
+    output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=30\n")
+    output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=12\n")
+
 def write_lvgl_variables(output_file, device_properties: ConfigParser):
     output_file.write("# LVGL\n")
+    if not has_group(device_properties, "lvgl") or not has_group(device_properties, "display"):
+        write_lvgl_variable_placeholders(output_file)
+        return
     dpi = int(get_property_or_exit(device_properties, "display", "dpi"))
     output_file.write(f"CONFIG_LV_DPI_DEF={dpi}\n")
     if has_group(device_properties, "lvgl"):
