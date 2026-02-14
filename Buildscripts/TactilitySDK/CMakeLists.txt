@@ -4,7 +4,7 @@ idf_component_register(
         "Libraries/TactilityKernel/Include"
         "Libraries/TactilityFreeRtos/Include"
         "Libraries/lvgl/Include"
-        "Libraries/lvgl-module/Include"
+        "Libraries/lvgl-module/include"
     REQUIRES esp_timer
 )
 
