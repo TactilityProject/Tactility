@@ -1,6 +1,5 @@
-#include "tactility/lvgl_module.h"
-
-
+// SPDX-License-Identifier: Apache-2.0
+#include <tactility/lvgl_module.h>
 #include <tactility/lvgl_fonts.h>
 
 #include <lvgl.h>

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 #include <lvgl.h>
 #include <tactility/lvgl_fonts.h>
 #include <tactility/check.h>
