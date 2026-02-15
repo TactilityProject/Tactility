@@ -43,7 +43,7 @@ bool lvgl_lock(void) {
     return true;
 }
 
-bool lvgl_try_lock_timed(uint32_t timeout) {
+bool lvgl_try_lock(uint32_t timeout) {
     if (!lvgl_mutex_initialised) return false;
     return recursive_mutex_try_lock(&lvgl_mutex, millis_to_ticks(timeout));
 }
@@ -75,7 +75,7 @@ static void lvgl_task(void* arg) {
     if (lvgl_module_config.on_start) lvgl_module_config.on_start();
 
     while (!lvgl_task_is_interrupt_requested()) {
-        if (lvgl_try_lock_timed(10)) {
+        if (lvgl_try_lock(10)) {
             task_delay_ms = lv_timer_handler();
             lvgl_unlock();
         }

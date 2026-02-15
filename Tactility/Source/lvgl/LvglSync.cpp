@@ -6,7 +6,7 @@
 namespace tt::lvgl {
 
 bool lock(TickType_t timeout) {
-    return lvgl_try_lock_timed(timeout);
+    return lvgl_try_lock(timeout);
 }
 
 void unlock() {
@@ -18,7 +18,7 @@ public:
     ~LvglSync() override = default;
 
     bool lock(TickType_t timeoutTicks) const override {
-        return lvgl_try_lock_timed(timeoutTicks);
+        return lvgl_try_lock(timeoutTicks);
     }
 
     void unlock() const override {
