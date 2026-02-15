@@ -4,7 +4,7 @@
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/memorychecker/MemoryCheckerService.h>
 
-#include <tactility/lvgl_symbols_statusbar.h>
+#include <tactility/lvgl_icon_statusbar.h>
 
 namespace tt::service::memorychecker {
 
@@ -54,7 +54,7 @@ bool MemoryCheckerService::onStart(ServiceContext& service) {
     auto lock = mutex.asScopedLock();
     lock.lock();
 
-    statusbarIconId = lvgl::statusbar_icon_add(LVGL_SYMBOL_MEMORY, false);
+    statusbarIconId = lvgl::statusbar_icon_add(LVGL_ICON_STATUSBAR_MEMORY, false);
     lvgl::statusbar_icon_set_visibility(statusbarIconId, false);
 
     timer.setCallbackPriority(Thread::Priority::Lower);

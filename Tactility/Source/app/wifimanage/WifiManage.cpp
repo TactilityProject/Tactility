@@ -9,7 +9,7 @@
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/loader/Loader.h>
 
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::wifimanage {
 
@@ -144,7 +144,7 @@ void WifiManage::onHide(AppContext& app) {
 extern const AppManifest manifest = {
     .appId = "WifiManage",
     .appName = "Wi-Fi",
-    .appIcon = LVGL_SYMBOL_WIFI,
+    .appIcon = LVGL_ICON_SHARED_WIFI,
     .appCategory = Category::Settings,
     .createApp = create<WifiManage>
 };

@@ -8,7 +8,7 @@
 #include <Tactility/file/File.h>
 
 #include <lvgl.h>
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::notes {
 
@@ -209,7 +209,7 @@ class NotesApp final : public App {
 extern const AppManifest manifest = {
     .appId = "Notes",
     .appName = "Notes",
-    .appIcon = LVGL_SYMBOL_EDIT_NOTE,
+    .appIcon = LVGL_ICON_SHARED_EDIT_NOTE,
     .createApp = create<NotesApp>
 };
 

@@ -14,7 +14,7 @@
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/service/wifi/Wifi.h>
 
-#include <tactility/lvgl_symbols_statusbar.h>
+#include <tactility/lvgl_icon_statusbar.h>
 
 namespace tt::service::statusbar {
 
@@ -25,15 +25,15 @@ extern const ServiceManifest manifest;
 
 const char* getWifiStatusIconForRssi(int rssi) {
     if (rssi >= -60) {
-        return LVGL_SYMBOL_SIGNAL_WIFI_4_BAR;
+        return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_4_BAR;
     } else if (rssi >= -70) {
-        return LVGL_SYMBOL_NETWORK_WIFI_3_BAR;
+        return LVGL_ICON_STATUSBAR_NETWORK_WIFI_3_BAR;
     } else if (rssi >= -80) {
-        return LVGL_SYMBOL_NETWORK_WIFI_2_BAR;
+        return LVGL_ICON_STATUSBAR_NETWORK_WIFI_2_BAR;
     } else if (rssi >= -90) {
-        return LVGL_SYMBOL_NETWORK_WIFI_1_BAR;
+        return LVGL_ICON_STATUSBAR_NETWORK_WIFI_1_BAR;
     } else {
-        return LVGL_SYMBOL_SIGNAL_WIFI_BAD;
+        return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_BAD;
     }
 }
 
@@ -44,10 +44,10 @@ static const char* getWifiStatusIcon(wifi::RadioState state) {
         case On:
         case OnPending:
         case ConnectionPending:
-            return LVGL_SYMBOL_SIGNAL_WIFI_0_BAR;
+            return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_0_BAR;
         case OffPending:
         case Off:
-            return LVGL_SYMBOL_SIGNAL_WIFI_OFF;
+            return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_OFF;
         case ConnectionActive:
             rssi = wifi::getRssi();
             return getWifiStatusIconForRssi(rssi);
@@ -60,11 +60,11 @@ static const char* getSdCardStatusIcon(hal::sdcard::SdCardDevice::State state) {
     switch (state) {
         using enum hal::sdcard::SdCardDevice::State;
         case Mounted:
-            return LVGL_SYMBOL_SD_CARD;
+            return LVGL_ICON_STATUSBAR_SD_CARD;
         case Error:
         case Unmounted:
         case Timeout:
-            return LVGL_SYMBOL_SD_CARD_ALERT;
+            return LVGL_ICON_STATUSBAR_SD_CARD_ALERT;
         default:
             check(false, "Unhandled SdCard state");
     }
@@ -93,19 +93,19 @@ static const char* getPowerStatusIcon() {
     uint8_t charge = charge_level.valueAsUint8;
 
     if (charge >= 95) {
-        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_FULL;
+        return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_FULL;
     } else if (charge >= 80) {
-        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_6;
+        return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_6;
     } else if (charge >= 64) {
-        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_5;
+        return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_5;
     } else if (charge >= 48) {
-        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_4;
+        return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_4;
     } else if (charge >= 32) {
-        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_3;
+        return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_3;
     } else if (charge >= 16) {
-        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_2;
+        return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_2;
     } else  {
-        return LVGL_SYMBOL_BATTERY_ANDROID_FRAME_1;
+        return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_1;
     }
 }
 
@@ -135,7 +135,7 @@ class StatusbarService final : public Service {
         bool show_icon = (gps_state == gps::State::OnPending) || (gps_state == gps::State::On);
         if (gps_last_state != show_icon) {
             if (show_icon) {
-                lvgl::statusbar_icon_set_image(gps_icon_id, LVGL_SYMBOL_LOCATION_ON);
+                lvgl::statusbar_icon_set_image(gps_icon_id, LVGL_ICON_STATUSBAR_LOCATION_ON);
                 lvgl::statusbar_icon_set_visibility(gps_icon_id, true);
             } else {
                 lvgl::statusbar_icon_set_visibility(gps_icon_id, false);

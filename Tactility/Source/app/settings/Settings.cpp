@@ -3,7 +3,7 @@
 #include <Tactility/service/loader/Loader.h>
 
 #include <tactility/check.h>
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 #include <tactility/lvgl_fonts.h>
 
 #include <lvgl.h>
@@ -20,7 +20,7 @@ static void onAppPressed(lv_event_t* e) {
 static void createWidget(const std::shared_ptr<AppManifest>& manifest, void* parent) {
     check(parent);
     auto* list = static_cast<lv_obj_t*>(parent);
-    const void* icon = !manifest->appIcon.empty() ? manifest->appIcon.c_str() : LVGL_SYMBOL_TOOLBAR;
+    const void* icon = !manifest->appIcon.empty() ? manifest->appIcon.c_str() : LVGL_ICON_SHARED_TOOLBAR;
     auto* btn = lv_list_add_button(list, icon, manifest->appName.c_str());
     lv_obj_t* image = lv_obj_get_child(btn, 0);
     lv_obj_set_style_text_font(image, lvgl_get_shared_icon_font(), LV_PART_MAIN);
@@ -52,7 +52,7 @@ class SettingsApp final : public App {
 extern const AppManifest manifest = {
     .appId = "Settings",
     .appName = "Settings",
-    .appIcon = LVGL_SYMBOL_SETTINGS,
+    .appIcon = LVGL_ICON_SHARED_SETTINGS,
     .appCategory = Category::System,
     .appFlags = AppManifest::Flags::Hidden,
     .createApp = create<SettingsApp>

@@ -8,7 +8,7 @@
 #include <Tactility/settings/Language.h>
 #include <Tactility/settings/SystemSettings.h>
 
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 #include <lvgl.h>
 #include <map>
@@ -160,7 +160,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "LocaleSettings",
     .appName = "Region & Language",
-    .appIcon = LVGL_SYMBOL_LANGUAGE,
+    .appIcon = LVGL_ICON_SHARED_LANGUAGE,
     .appCategory = Category::Settings,
     .createApp = create<LocaleSettingsApp>
 };

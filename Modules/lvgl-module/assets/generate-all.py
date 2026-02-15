@@ -43,7 +43,8 @@ def generate_icon_fonts(font_file, font_sizes, symbols, output):
     for size in font_sizes:
         generate(2, size, font_file, symbols, output)
 
-def generate_icon_names(codepoint_map: dict, codepoint_names: list, filename: str):
+def generate_icon_names(codepoint_map: dict, codepoint_names: list, variable_name: str):
+    filename = f"lvgl_icon_{variable_name}.h"
     print(f"Generating {filename}")
     output_path = os.path.join("..", "include", "tactility", filename)
     with open(output_path, 'w') as f:
@@ -58,12 +59,13 @@ def generate_icon_names(codepoint_map: dict, codepoint_names: list, filename: st
                 utf8_bytes = chr(val).encode('utf-8')
                 escaped_str = "".join(f"\\x{b:02X}" for b in utf8_bytes)
                 
-                f.write(f'#define LVGL_SYMBOL_{safe_name.upper()} "{escaped_str}"\n')
+                f.write(f'#define LVGL_ICON_{variable_name.upper()}_{safe_name.upper()} "{escaped_str}"\n')
             else:
                 print(f"Warning: {safe_name} not found in codepoint map")
 
 # --------------- Symbol Fonts ---------------
 
+# Get more from https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded
 shared_symbol_code_point_names = [
     "add",
     "apps",
@@ -109,6 +111,7 @@ shared_symbol_code_point_names = [
     "wifi", # WiFi (settings) app
 ]
 
+# Get more from https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded
 statusbar_symbol_code_point_names = [
     # Location tracking
     "location_on",
@@ -138,6 +141,7 @@ statusbar_symbol_code_point_names = [
     "battery_android_frame_bolt"
 ]
 
+# Get more from https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded
 launcher_symbol_code_point_names = [
     "apps",
     "folder",
@@ -188,15 +192,15 @@ codepoints_map = read_code_points_map(codepoints_map_path)
 # Shared symbols
 shared_symbol_code_points = get_code_points(codepoints_map, shared_symbol_code_point_names)
 generate_icon_fonts(ttf_filename, shared_symbol_sizes, shared_symbol_code_points, "material_symbols_shared")
-generate_icon_names(codepoints_map, shared_symbol_code_point_names, "lvgl_symbols_shared.h")
+generate_icon_names(codepoints_map, shared_symbol_code_point_names, "shared")
 
 # Statusbar symbols
 statusbar_symbol_code_points = get_code_points(codepoints_map, statusbar_symbol_code_point_names)
 generate_icon_fonts(ttf_filename, statusbar_symbol_sizes, statusbar_symbol_code_points, "material_symbols_statusbar")
-generate_icon_names(codepoints_map, statusbar_symbol_code_point_names, "lvgl_symbols_statusbar.h")
+generate_icon_names(codepoints_map, statusbar_symbol_code_point_names, "statusbar")
 
 # Launcher symbols
 launcher_symbol_code_points = get_code_points(codepoints_map, launcher_symbol_code_point_names)
 generate_icon_fonts(ttf_filename, launcher_symbol_sizes, launcher_symbol_code_points, "material_symbols_launcher")
-generate_icon_names(codepoints_map, launcher_symbol_code_point_names, "lvgl_symbols_launcher.h")
+generate_icon_names(codepoints_map, launcher_symbol_code_point_names, "launcher")
 

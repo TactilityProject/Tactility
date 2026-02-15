@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 #include <vector>
 
 namespace tt::app::chat {
@@ -181,7 +181,7 @@ void ChatApp::switchChannel(const std::string& chatChannel) {
 extern const AppManifest manifest = {
     .appId = "Chat",
     .appName = "Chat",
-    .appIcon = LVGL_SYMBOL_FORUM,
+    .appIcon = LVGL_ICON_FORUM,
     .createApp = create<ChatApp>
 };
 

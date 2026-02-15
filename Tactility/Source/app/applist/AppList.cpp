@@ -6,7 +6,7 @@
 #include <algorithm>
 
 #include <tactility/lvgl_fonts.h>
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::applist {
 
@@ -18,7 +18,7 @@ class AppListApp final : public App {
     }
 
     static void createAppWidget(const std::shared_ptr<AppManifest>& manifest, lv_obj_t* list) {
-        const void* icon = !manifest->appIcon.empty() ? manifest->appIcon.c_str() : LVGL_SYMBOL_TOOLBAR;
+        const void* icon = !manifest->appIcon.empty() ? manifest->appIcon.c_str() : LVGL_ICON_SHARED_TOOLBAR;
         lv_obj_t* btn = lv_list_add_button(list, icon, manifest->appName.c_str());
         lv_obj_t* image = lv_obj_get_child(btn, 0);
         lv_obj_set_style_text_font(image, lvgl_get_shared_icon_font(), LV_PART_MAIN);

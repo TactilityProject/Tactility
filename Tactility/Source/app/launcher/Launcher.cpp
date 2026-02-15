@@ -11,7 +11,7 @@
 #include <lvgl.h>
 
 #include <tactility/lvgl_fonts.h>
-#include <tactility/lvgl_symbols_launcher.h>
+#include <tactility/lvgl_icon_launcher.h>
 
 namespace tt::app::launcher {
 
@@ -151,9 +151,9 @@ public:
             margin = std::min<int32_t>(available_height / 16, total_button_size / 2);
         }
 
-        createAppButton(buttons_wrapper, ui_density, LVGL_SYMBOL_APPS, "AppList", margin, is_landscape_display);
-        createAppButton(buttons_wrapper, ui_density, LVGL_SYMBOL_FOLDER, "Files", margin, is_landscape_display);
-        createAppButton(buttons_wrapper, ui_density, LVGL_SYMBOL_SETTINGS, "Settings", margin, is_landscape_display);
+        createAppButton(buttons_wrapper, ui_density, LVGL_ICON_LAUNCHER_APPS, "AppList", margin, is_landscape_display);
+        createAppButton(buttons_wrapper, ui_density, LVGL_ICON_LAUNCHER_FOLDER, "Files", margin, is_landscape_display);
+        createAppButton(buttons_wrapper, ui_density, LVGL_ICON_LAUNCHER_SETTINGS, "Settings", margin, is_landscape_display);
 
         if (shouldShowPowerButton()) {
             auto* power_button = lv_btn_create(parent);

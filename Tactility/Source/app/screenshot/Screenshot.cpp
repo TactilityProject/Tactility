@@ -15,7 +15,7 @@
 #include <Tactility/service/screenshot/Screenshot.h>
 #include <Tactility/Timer.h>
 
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::screenshot {
 
@@ -285,7 +285,7 @@ void ScreenshotApp::onShow(AppContext& appContext, lv_obj_t* parent) {
 extern const AppManifest manifest = {
     .appId = "Screenshot",
     .appName = "Screenshot",
-    .appIcon = LVGL_SYMBOL_IMAGE,
+    .appIcon = LVGL_ICON_SHARED_IMAGE,
     .appCategory = Category::System,
     .createApp = create<ScreenshotApp>
 };

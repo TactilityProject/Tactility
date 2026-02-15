@@ -8,7 +8,7 @@
 #include <Tactility/Timer.h>
 
 #include <tactility/hal/Device.h>
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 #include <lvgl.h>
 
@@ -192,7 +192,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "Power",
     .appName = "Power",
-    .appIcon = LVGL_SYMBOL_ELECTRIC_BOLT,
+    .appIcon = LVGL_ICON_SHARED_ELECTRIC_BOLT,
     .appCategory = Category::Settings,
     .createApp = create<PowerApp>
 };
