@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
 
 / {
@@ -14,7 +15,7 @@
 		gpio-count = <57>;
 	};
 
-	i2c_internal {
+	i2c_internal: i2c0 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
 		clock-frequency = <400000>;
@@ -22,7 +23,7 @@
 		pin-scl = <&gpio0 32 GPIO_FLAG_NONE>;
 	};
 
-	i2c_port_a {
+	i2c_port_a: i2c1 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_1>;
 		clock-frequency = <400000>;
@@ -36,5 +37,16 @@
 		pin-mosi = <&gpio0 44 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 43 GPIO_FLAG_NONE>;
+	};
+
+	// ES8388 and ES7210
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <&gpio0 27 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 29 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 26 GPIO_FLAG_NONE>;
+		pin-data-in = <&gpio0 28 GPIO_FLAG_NONE>;
+		pin-mclk = <&gpio0 30 GPIO_FLAG_NONE>;
 	};
 };
