@@ -9,6 +9,7 @@ using tt::hal::sdcard::SpiSdCardDevice;
 constexpr auto TPAGER_SDCARD_PIN_CS = GPIO_NUM_21;
 constexpr auto TPAGER_LCD_PIN_CS = GPIO_NUM_38;
 constexpr auto TPAGER_RADIO_PIN_CS = GPIO_NUM_36;
+constexpr auto TPAGER_NFC_PIN_CS = GPIO_NUM_39;
 
 std::shared_ptr<SdCardDevice> createTpagerSdCard() {
     auto configuration = std::make_unique<SpiSdCardDevice::Config>(
@@ -20,7 +21,8 @@ std::shared_ptr<SdCardDevice> createTpagerSdCard() {
         tt::lvgl::getSyncLock(),
         std::vector {
             TPAGER_RADIO_PIN_CS,
-            TPAGER_LCD_PIN_CS
+            TPAGER_LCD_PIN_CS,
+            TPAGER_NFC_PIN_CS
         }
     );
 
