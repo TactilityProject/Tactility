@@ -1,5 +1,5 @@
 #include <tactility/lvgl_fonts.h>
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
@@ -205,7 +205,7 @@ public:
         lv_obj_set_style_image_recolor_opa(icon, 255, 0);
         lv_obj_set_style_image_recolor(icon, lv_theme_get_color_primary(parent), 0);
         lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_font(), LV_STATE_DEFAULT);
-        lv_image_set_src(icon, LVGL_SYMBOL_SEARCH);
+        lv_image_set_src(icon, LVGL_ICON_SHARED_SEARCH);
 
         auto* textarea = lv_textarea_create(search_wrapper);
         lv_textarea_set_placeholder_text(textarea, "e.g. Europe/Amsterdam");

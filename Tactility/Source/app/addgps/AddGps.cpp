@@ -10,7 +10,7 @@
 #include "tactility/drivers/uart_controller.h"
 #include <cstring>
 #include <lvgl.h>
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::addgps {
 
@@ -194,7 +194,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "AddGps",
     .appName = "Add GPS",
-    .appIcon = LVGL_SYMBOL_NAVIGATION,
+    .appIcon = LVGL_ICON_SHARED_NAVIGATION,
     .appCategory = Category::System,
     .appFlags = AppManifest::Flags::Hidden,
     .createApp = create<AddGpsApp>

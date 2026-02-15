@@ -31,7 +31,7 @@
 #include <lv_screenshot.h>
 #endif
 
-#include <tactility/lvgl_symbols_statusbar.h>
+#include <tactility/lvgl_icon_statusbar.h>
 
 #include <atomic>
 #include <cctype>
@@ -522,7 +522,7 @@ bool WebServerService::startServer() {
 
     // Show statusbar icon
     if (statusbarIconId >= 0) {
-        lvgl::statusbar_icon_set_image(statusbarIconId, LVGL_SYMBOL_CLOUD);
+        lvgl::statusbar_icon_set_image(statusbarIconId, LVGL_ICON_STATUSBAR_CLOUD);
         lvgl::statusbar_icon_set_visibility(statusbarIconId, true);
         LOGGER.info("WebServer statusbar icon shown ({} mode)",
                  settings.wifiMode == settings::webserver::WiFiMode::AccessPoint ? "AP" : "Station");

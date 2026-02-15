@@ -11,7 +11,7 @@
 #include <lvgl.h>
 #include <tactility/lvgl_fonts.h>
 #include <tactility/hal/Device.h>
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 #include <utility>
 #include <cstring>
 
@@ -700,7 +700,7 @@ class SystemInfoApp final : public App {
 extern const AppManifest manifest = {
     .appId = "SystemInfo",
     .appName = "System Info",
-    .appIcon = LVGL_SYMBOL_AREA_CHART,
+    .appIcon = LVGL_ICON_SHARED_AREA_CHART,
     .appCategory = Category::System,
     .createApp = create<SystemInfoApp>
 };

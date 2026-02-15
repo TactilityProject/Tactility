@@ -1,6 +1,6 @@
 #include <Tactility/Tactility.h>
 
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 #ifdef ESP_PLATFORM
 #include <Tactility/service/displayidle/DisplayIdleService.h>
@@ -306,7 +306,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "Display",
     .appName = "Display",
-    .appIcon = LVGL_SYMBOL_DISPLAY_SETTINGS,
+    .appIcon = LVGL_ICON_SHARED_DISPLAY_SETTINGS,
     .appCategory = Category::Settings,
     .createApp = create<DisplayApp>
 };

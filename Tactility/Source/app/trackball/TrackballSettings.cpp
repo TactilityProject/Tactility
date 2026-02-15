@@ -7,7 +7,7 @@
 
 #include <lvgl.h>
 
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 // Forward declare driver functions
 namespace trackball {
@@ -210,7 +210,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "TrackballSettings",
     .appName = "Trackball",
-    .appIcon = LVGL_SYMBOL_CIRCLE,
+    .appIcon = LVGL_ICON_SHARED_CIRCLE,
     .appCategory = Category::Settings,
     .createApp = create<TrackballSettingsApp>
 };

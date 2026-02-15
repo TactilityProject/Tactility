@@ -5,7 +5,7 @@
 
 #include <lvgl.h>
 
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 #define TAG "usb_settings"
 
@@ -62,7 +62,7 @@ class UsbSettingsApp : public App {
 extern const AppManifest manifest = {
     .appId = "UsbSettings",
     .appName = "USB",
-    .appIcon = LVGL_SYMBOL_USB,
+    .appIcon = LVGL_ICON_SHARED_USB,
     .appCategory = Category::Settings,
     .createApp = create<UsbSettingsApp>
 };

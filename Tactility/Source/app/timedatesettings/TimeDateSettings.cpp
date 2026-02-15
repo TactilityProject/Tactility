@@ -10,7 +10,7 @@
 
 #include <lvgl.h>
 
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::timedatesettings {
 
@@ -155,7 +155,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "TimeDateSettings",
     .appName = "Time & Date",
-    .appIcon = LVGL_SYMBOL_CALENDAR_MONTH,
+    .appIcon = LVGL_ICON_SHARED_CALENDAR_MONTH,
     .appCategory = Category::Settings,
     .createApp = create<TimeDateSettingsApp>
 };

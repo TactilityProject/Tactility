@@ -1,0 +1,5 @@
+#pragma once
+
+#define LVGL_ICON_LAUNCHER_APPS "\xEE\x97\x83"
+#define LVGL_ICON_LAUNCHER_FOLDER "\xEE\x8B\x87"
+#define LVGL_ICON_LAUNCHER_SETTINGS "\xEE\xA2\xB8"

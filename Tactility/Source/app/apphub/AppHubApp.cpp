@@ -12,7 +12,7 @@
 #include <Tactility/service/wifi/Wifi.h>
 
 #include <lvgl.h>
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 #include <algorithm>
 #include <format>
 
@@ -179,7 +179,7 @@ public:
 extern const AppManifest manifest = {
     .appId = "AppHub",
     .appName = "App Hub",
-    .appIcon = LVGL_SYMBOL_HUB,
+    .appIcon = LVGL_ICON_SHARED_HUB,
     .appCategory = Category::System,
     .createApp = create<AppHubApp>,
 };

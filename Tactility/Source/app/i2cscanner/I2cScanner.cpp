@@ -15,7 +15,7 @@
 
 #include <format>
 
-#include <tactility/lvgl_symbols_shared.h>
+#include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::i2cscanner {
 
@@ -411,7 +411,7 @@ void I2cScannerApp::onScanTimerFinished() {
 extern const AppManifest manifest = {
     .appId = "I2cScanner",
     .appName = "I2C Scanner",
-    .appIcon = LVGL_SYMBOL_SEARCH,
+    .appIcon = LVGL_ICON_SHARED_SEARCH,
     .appCategory = Category::System,
     .createApp = create<I2cScannerApp>
 };
