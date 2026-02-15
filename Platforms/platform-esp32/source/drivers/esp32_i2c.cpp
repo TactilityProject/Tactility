@@ -237,7 +237,7 @@ static error_t stop(Device* device) {
     return ERROR_NONE;
 }
 
-const static I2cControllerApi esp32_i2c_api = {
+static constexpr I2cControllerApi ESP32_I2C_API = {
     .read = read,
     .write = write,
     .write_read = write_read,
@@ -245,14 +245,14 @@ const static I2cControllerApi esp32_i2c_api = {
     .write_register = write_register
 };
 
-extern struct Module platform_module;
+extern Module platform_module;
 
 Driver esp32_i2c_driver = {
     .name = "esp32_i2c",
     .compatible = (const char*[]) { "espressif,esp32-i2c", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = (void*)&esp32_i2c_api,
+    .api = &ESP32_I2C_API,
     .device_type = &I2C_CONTROLLER_TYPE,
     .owner = &platform_module,
     .internal = nullptr

@@ -31,6 +31,34 @@ error_t i2c_controller_write_register(Device* device, uint8_t address, uint8_t r
     return I2C_DRIVER_API(driver)->write_register(device, address, reg, data, dataSize, timeout);
 }
 
+error_t i2c_controller_register8_set(Device* device, uint8_t address, uint8_t reg, uint8_t value, TickType_t timeout) {
+    const auto* driver = device_get_driver(device);
+    return I2C_DRIVER_API(driver)->write_register(device, address, reg, &value, 1, timeout);
+}
+
+error_t i2c_controller_register8_get(Device* device, uint8_t address, uint8_t reg, uint8_t* value, TickType_t timeout) {
+    const auto* driver = device_get_driver(device);
+    return I2C_DRIVER_API(driver)->read_register(device, address, reg, value, 1, timeout);
+}
+
+error_t i2c_controller_register8_set_bits(Device* device, uint8_t address, uint8_t reg, uint8_t bits_to_set, TickType_t timeout) {
+    const auto* driver = device_get_driver(device);
+    uint8_t data = 0;
+    auto error = I2C_DRIVER_API(driver)->read_register(device, address, reg, &data, 1, timeout);
+    if (error != ERROR_NONE) return error;
+    data |= bits_to_set;
+    return I2C_DRIVER_API(driver)->write_register(device, address, reg, &data, 1, timeout);
+}
+
+error_t i2c_controller_register8_reset_bits(Device* device, uint8_t address, uint8_t reg, uint8_t bits_to_reset, TickType_t timeout) {
+    const auto* driver = device_get_driver(device);
+    uint8_t data = 0;
+    auto error = I2C_DRIVER_API(driver)->read_register(device, address, reg, &data, 1, timeout);
+    if (error != ERROR_NONE) return error;
+    data &= ~bits_to_reset;
+    return I2C_DRIVER_API(driver)->write_register(device, address, reg, &data, 1, timeout);
+}
+
 error_t i2c_controller_write_register_array(Device* device, uint8_t address, const uint8_t* data, uint16_t dataSize, TickType_t timeout) {
     const auto* driver = device_get_driver(device);
     if (dataSize % 2 != 0) {

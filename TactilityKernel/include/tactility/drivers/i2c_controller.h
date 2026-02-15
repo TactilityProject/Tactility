@@ -143,6 +143,14 @@ error_t i2c_controller_read_register(struct Device* device, uint8_t address, uin
  */
 error_t i2c_controller_write_register(struct Device* device, uint8_t address, uint8_t reg, const uint8_t* data, uint16_t dataSize, TickType_t timeout);
 
+error_t i2c_controller_register8_set(struct Device* device, uint8_t address, uint8_t reg, uint8_t value, TickType_t timeout);
+
+error_t i2c_controller_register8_get(struct Device* device, uint8_t address, uint8_t reg, uint8_t* value, TickType_t timeout);
+
+error_t i2c_controller_register8_set_bits(struct Device* device, uint8_t address, uint8_t reg, uint8_t bits_to_set, TickType_t timeout);
+
+error_t i2c_controller_register8_reset_bits(struct Device* device, uint8_t address, uint8_t reg, uint8_t bits_to_reset, TickType_t timeout);
+
 /**
  * @brief Writes an array of register-value pairs to an I2C device.
  * @param[in] device the I2C controller device
