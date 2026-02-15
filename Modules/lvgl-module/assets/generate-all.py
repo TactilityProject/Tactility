@@ -13,7 +13,9 @@ def generate(bpp, size, font_file: str, symbols: list, output: str):
     output_path = os.path.join("..", "source-fonts", output_file_name)
     print(f"Generating {output_file_name}")
     cmd = "lv_font_conv --no-compress --no-prefilter --bpp {} --size {} --font {} -r {} --format lvgl -o {} --force-fast-kern-format".format(bpp, size, font_file, ",".join(symbols), output_path)
-    os.system(cmd)
+    ret = os.system(cmd)
+    if ret != 0:
+        raise RuntimeError(f"Font generation failed for {output_file_name} (exit code {ret})")
 
 def read_code_points_map(file_path: str):
     codepoints = {}

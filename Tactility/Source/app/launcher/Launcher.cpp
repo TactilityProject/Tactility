@@ -60,8 +60,7 @@ class LauncherApp final : public App {
         lv_obj_set_style_image_recolor_opa(button_image, LV_OPA_COVER, LV_STATE_DEFAULT);
         #endif
 
-        // Ensure buttons are still tappable when the asset fails to load
-        // Icon images are 40x40, so we get some extra padding too
+        // Ensure it's square (Material Symbols are slightly wider than tall)
         lv_obj_set_size(button_image, button_size, button_size);
 
         lv_obj_add_event_cb(apps_button, onAppPressed, LV_EVENT_SHORT_CLICKED, (void*)appId);

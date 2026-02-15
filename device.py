@@ -196,7 +196,7 @@ def write_performance_improvements(output_file, device_properties: ConfigParser)
 
 def write_lvgl_variable_placeholders(output_file):
     output_file.write("# LVGL Placeholder\n")
-    output_file.write(f"CONFIG_LV_DPI_DEF=100\n")
+    output_file.write("CONFIG_LV_DPI_DEF=100\n")
     output_file.write("CONFIG_LV_FONT_MONTSERRAT_8=y\n")
     output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_8=y\n")
     output_file.write("CONFIG_TT_LVGL_FONT_SIZE_SMALL=8\n")
@@ -217,10 +217,9 @@ def write_lvgl_variables(output_file, device_properties: ConfigParser):
         dpi_text = get_property_or_exit(device_properties, "display", "dpi")
     dpi = safe_int(dpi_text, f"DPI must be an integer, but was: '{dpi_text}'")
     output_file.write(f"CONFIG_LV_DPI_DEF={dpi}\n")
-    if has_group(device_properties, "lvgl"):
-        color_depth = get_property_or_exit(device_properties, "lvgl", "colorDepth")
-        output_file.write(f"CONFIG_LV_COLOR_DEPTH={color_depth}\n")
-        output_file.write(f"CONFIG_LV_COLOR_DEPTH_{color_depth}=y\n")
+    color_depth = get_property_or_exit(device_properties, "lvgl", "colorDepth")
+    output_file.write(f"CONFIG_LV_COLOR_DEPTH={color_depth}\n")
+    output_file.write(f"CONFIG_LV_COLOR_DEPTH_{color_depth}=y\n")
     output_file.write("CONFIG_LV_DISP_DEF_REFR_PERIOD=10\n")
     theme = get_property_or_default(device_properties, "lvgl", "theme", "DefaultDark")
     if theme == "DefaultDark":

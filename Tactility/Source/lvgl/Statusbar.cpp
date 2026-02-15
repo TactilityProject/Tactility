@@ -186,20 +186,18 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
     obj_set_style_bg_invisible(left_spacer);
     lv_obj_set_flex_grow(left_spacer, 1);
 
-    if (statusbar_data.mutex.lock(kernel::MAX_TICKS)) {
-        for (int i = 0; i < STATUSBAR_ICON_LIMIT; ++i) {
-            auto* image = lv_image_create(obj);
-            lv_obj_set_size(image, icon_size, icon_size); // regular padding doesn't work
-            lv_obj_set_style_text_font(image, lvgl_get_statusbar_icon_font(), LV_STATE_DEFAULT);
-            lv_obj_set_style_pad_all(image, 0, LV_STATE_DEFAULT);
-            obj_set_style_bg_blacken(image);
-            statusbar->icons[i] = image;
+    statusbar_data.mutex.lock(kernel::MAX_TICKS);
+    for (int i = 0; i < STATUSBAR_ICON_LIMIT; ++i) {
+        auto* image = lv_image_create(obj);
+        lv_obj_set_size(image, icon_size, icon_size); // regular padding doesn't work
+        lv_obj_set_style_text_font(image, lvgl_get_statusbar_icon_font(), LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_all(image, 0, LV_STATE_DEFAULT);
+        obj_set_style_bg_blacken(image);
+        statusbar->icons[i] = image;
 
-            update_icon(image, &(statusbar_data.icons[i]));
-        }
-        statusbar_data.mutex.unlock();
+        update_icon(image, &(statusbar_data.icons[i]));
     }
-
+    statusbar_data.mutex.unlock();
     return obj;
 }
 
