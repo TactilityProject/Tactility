@@ -60,6 +60,10 @@ bool lvgl_is_running() {
     return is_running;
 }
 
+enum UiDensity lvgl_get_ui_density(void) {
+    return TT_LVGL_UI_DENSITY;
+}
+
 struct Module lvgl_module = {
     .name = "lvgl",
     .start = start,

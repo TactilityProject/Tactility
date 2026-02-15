@@ -2,41 +2,43 @@
 
 #include <Tactility/Tactility.h>
 #include <Tactility/lvgl/Toolbar.h>
+
 #include <Tactility/lvgl/Spinner.h>
 #include <Tactility/service/loader/Loader.h>
 
 #include <tactility/check.h>
 #include <tactility/lvgl_fonts.h>
+#include <tactility/lvgl_module.h>
 
 namespace tt::lvgl {
 
-static uint32_t getToolbarHeight(hal::UiDensity uiDensity) {
-    if (uiDensity == hal::UiDensity::Compact) {
+static uint32_t getToolbarHeight(UiDensity uiDensity) {
+    if (uiDensity == LVGL_UI_DENSITY_COMPACT) {
         return lvgl_get_text_font_height(FONT_SIZE_DEFAULT) * 1.4f;
     } else {
         return lvgl_get_text_font_height(FONT_SIZE_LARGE) * 2.2f;
     }
 }
 
-static const _lv_font_t* getToolbarFont(hal::UiDensity uiDensity) {
-    if (uiDensity == hal::UiDensity::Compact) {
+static const _lv_font_t* getToolbarFont(UiDensity uiDensity) {
+    if (uiDensity == LVGL_UI_DENSITY_COMPACT) {
         return lvgl_get_text_font(FONT_SIZE_DEFAULT);
     } else {
         return lvgl_get_text_font(FONT_SIZE_LARGE);
     }
 }
 
-static uint32_t getActionIconPadding(hal::UiDensity ui_density) {
-    auto toolbar_height = getToolbarHeight(ui_density);
+static uint32_t getActionIconPadding(UiDensity uiDensity) {
+    auto toolbar_height = getToolbarHeight(uiDensity);
     // Minimal 8 pixels total padding for selection/animation (4+4 pixels)
-    return (ui_density != hal::UiDensity::Compact) ? (uint32_t)(toolbar_height * 0.2f) : 8;
+    return (uiDensity != LVGL_UI_DENSITY_COMPACT) ? (uint32_t)(toolbar_height * 0.2f) : 8;
 }
 
 /**
  * Helps with button expansion and also with vertical alignment of content,
  * as the parent flex doesn't allow for vertical alignment
  */
-static lv_obj_t* create_action_wrapper(lv_obj_t* parent, hal::UiDensity ui_density) {
+static lv_obj_t* create_action_wrapper(lv_obj_t* parent, UiDensity ui_density) {
     auto* wrapper = lv_obj_create(parent);
     auto toolbar_height = getToolbarHeight(ui_density);
     lv_obj_set_size(wrapper, LV_SIZE_CONTENT, toolbar_height);
@@ -89,7 +91,7 @@ static void toolbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj) {
 }
 
 lv_obj_t* toolbar_create(lv_obj_t* parent, const std::string& title) {
-    auto ui_density = hal::getConfiguration()->uiDensity;
+    auto ui_density = lvgl_get_ui_density();
     auto toolbar_height = getToolbarHeight(ui_density);
     toolbar_class.height_def = toolbar_height;
     lv_obj_t* obj = lv_obj_class_create_obj(&toolbar_class, parent);
@@ -109,7 +111,7 @@ lv_obj_t* toolbar_create(lv_obj_t* parent, const std::string& title) {
     auto* close_button_wrapper = create_action_wrapper(obj, ui_density);
 
     toolbar->close_button = lv_button_create(close_button_wrapper);
-    if (ui_density == hal::UiDensity::Compact) {
+    if (ui_density == LVGL_UI_DENSITY_COMPACT) {
         lv_obj_set_style_bg_opa(toolbar->close_button, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     }
 
@@ -121,8 +123,8 @@ lv_obj_t* toolbar_create(lv_obj_t* parent, const std::string& title) {
     lv_obj_align(toolbar->close_button_image, LV_ALIGN_CENTER, 0, 0);
 
     auto* title_wrapper = lv_obj_create(obj);
-    uint32_t title_left_padding = (ui_density != hal::UiDensity::Compact) ? icon_padding : 2;
-    uint32_t title_right_padding = (ui_density != hal::UiDensity::Compact) ? (icon_padding / 2) : 2;
+    uint32_t title_left_padding = (ui_density != LVGL_UI_DENSITY_COMPACT) ? icon_padding : 2;
+    uint32_t title_right_padding = (ui_density != LVGL_UI_DENSITY_COMPACT) ? (icon_padding / 2) : 2;
     lv_obj_set_size(title_wrapper, LV_SIZE_CONTENT, LV_PCT(100));
     lv_obj_set_style_bg_opa(title_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_left(title_wrapper, title_left_padding, LV_STATE_DEFAULT);
@@ -179,7 +181,7 @@ lv_obj_t* toolbar_add_button_action(lv_obj_t* obj, const char* imageOrButton, bo
     check(toolbar->action_count < TOOLBAR_ACTION_LIMIT, "max actions reached");
     toolbar->action_count++;
 
-    auto ui_density = hal::getConfiguration()->uiDensity;
+    auto ui_density = lvgl_get_ui_density();
     auto toolbar_height = getToolbarHeight(ui_density);
 
     auto* wrapper = create_action_wrapper(toolbar->action_container, ui_density);
@@ -190,7 +192,7 @@ lv_obj_t* toolbar_add_button_action(lv_obj_t* obj, const char* imageOrButton, bo
     lv_obj_set_size(action_button, toolbar_height - padding, toolbar_height - padding);
     lv_obj_set_style_pad_all(action_button, 0, LV_STATE_DEFAULT);
     lv_obj_align(action_button, LV_ALIGN_CENTER, 0, 0);
-    if (ui_density == hal::UiDensity::Compact) {
+    if (ui_density == LVGL_UI_DENSITY_COMPACT) {
         lv_obj_set_style_bg_opa(action_button, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     }
 
@@ -219,7 +221,7 @@ lv_obj_t* toolbar_add_text_button_action(lv_obj_t* obj, const char* text, lv_eve
 lv_obj_t* toolbar_add_switch_action(lv_obj_t* obj) {
     auto* toolbar = reinterpret_cast<Toolbar*>(obj);
 
-    auto ui_density = hal::getConfiguration()->uiDensity;
+    auto ui_density = lvgl_get_ui_density();
     auto* wrapper = create_action_wrapper(toolbar->action_container, ui_density);
     lv_obj_set_style_pad_hor(wrapper, 4, LV_STATE_DEFAULT);
 
@@ -231,7 +233,7 @@ lv_obj_t* toolbar_add_switch_action(lv_obj_t* obj) {
 lv_obj_t* toolbar_add_spinner_action(lv_obj_t* obj) {
     auto* toolbar = reinterpret_cast<Toolbar*>(obj);
 
-    auto ui_density = hal::getConfiguration()->uiDensity;
+    auto ui_density = lvgl_get_ui_density();
     auto* wrapper = create_action_wrapper(toolbar->action_container, ui_density);
 
     auto* spinner = spinner_create(wrapper);

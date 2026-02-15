@@ -1,13 +1,13 @@
 #ifdef ESP_PLATFORM
 
-#include <Tactility/Tactility.h>
-
-#include <Tactility/settings/TrackballSettings.h>
-#include <Tactility/lvgl/Toolbar.h>
-
 #include <lvgl.h>
 
 #include <tactility/lvgl_icon_shared.h>
+#include <tactility/lvgl_module.h>
+
+#include <Tactility/Tactility.h>
+#include <Tactility/settings/TrackballSettings.h>
+#include <Tactility/lvgl/Toolbar.h>
 
 // Forward declare driver functions
 namespace trackball {
@@ -109,7 +109,7 @@ class TrackballSettingsApp final : public App {
 public:
     void onShow(AppContext& app, lv_obj_t* parent) override {
         tbSettings = settings::trackball::loadOrGetDefault();
-        auto ui_density = hal::getConfiguration()->uiDensity;
+        auto ui_density = lvgl_get_ui_density();
         updated = false;
 
         lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
@@ -154,7 +154,7 @@ public:
         lv_obj_set_size(enc_sens_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
         lv_obj_set_style_pad_hor(enc_sens_wrapper, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(enc_sens_wrapper, 0, LV_STATE_DEFAULT);
-        if (ui_density != hal::UiDensity::Compact) {
+        if (ui_density != LVGL_UI_DENSITY_COMPACT) {
             lv_obj_set_style_pad_ver(enc_sens_wrapper, 4, LV_STATE_DEFAULT);
         }
 
@@ -178,7 +178,7 @@ public:
         lv_obj_set_size(ptr_sens_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
         lv_obj_set_style_pad_hor(ptr_sens_wrapper, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(ptr_sens_wrapper, 0, LV_STATE_DEFAULT);
-        if (ui_density != hal::UiDensity::Compact) {
+        if (ui_density != LVGL_UI_DENSITY_COMPACT) {
             lv_obj_set_style_pad_ver(ptr_sens_wrapper, 4, LV_STATE_DEFAULT);
         }
 

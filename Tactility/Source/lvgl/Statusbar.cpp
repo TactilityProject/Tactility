@@ -14,6 +14,7 @@
 
 #include <tactility/check.h>
 #include <tactility/lvgl_fonts.h>
+#include <tactility/lvgl_module.h>
 
 #include <lvgl.h>
 
@@ -172,8 +173,8 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     auto icon_size = lvgl_get_statusbar_icon_font_height();
-    auto ui_density = hal::getConfiguration()->uiDensity;
-    auto icon_padding = (ui_density != hal::UiDensity::Compact) ? static_cast<uint32_t>(icon_size * 0.2f) : 2;
+    auto ui_density = lvgl_get_ui_density();
+    auto icon_padding = (ui_density != LVGL_UI_DENSITY_COMPACT) ? static_cast<uint32_t>(icon_size * 0.2f) : 2;
     lv_obj_set_style_pad_column(obj, icon_padding, LV_STATE_DEFAULT);
 
     statusbar->time = lv_label_create(obj);

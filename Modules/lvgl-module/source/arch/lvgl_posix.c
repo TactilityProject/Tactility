@@ -10,7 +10,7 @@
 
 #include <lvgl.h>
 
-#include "tactility/lvgl_module.h"
+#include <tactility/lvgl_module.h>
 
 extern struct LvglModuleConfig lvgl_module_config;
 

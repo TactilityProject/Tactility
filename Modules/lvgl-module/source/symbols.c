@@ -11,6 +11,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_try_lock),
     DEFINE_MODULE_SYMBOL(lvgl_unlock),
     DEFINE_MODULE_SYMBOL(lvgl_is_running),
+    DEFINE_MODULE_SYMBOL(lvgl_get_ui_density),
     // lvgl_fonts
     DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_font),
     DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_font_height),

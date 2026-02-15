@@ -1,5 +1,10 @@
-#include <Tactility/network/HttpdReq.h>
+#include <format>
+#include <string>
+#include <set>
 
+#include <tactility/lvgl_module.h>
+
+#include <Tactility/network/HttpdReq.h>
 #include <Tactility/app/wifimanage/View.h>
 #include <Tactility/app/wifimanage/WifiManagePrivate.h>
 #include <Tactility/Logger.h>
@@ -8,10 +13,6 @@
 #include <Tactility/service/wifi/Wifi.h>
 #include <Tactility/service/wifi/WifiSettings.h>
 #include <Tactility/Tactility.h>
-
-#include <format>
-#include <string>
-#include <set>
 
 namespace tt::app::wifimanage {
 
@@ -162,7 +163,7 @@ void View::updateNetworkList() {
     lv_obj_add_event_cb(enable_on_boot_switch, onEnableOnBootSwitchChanged, LV_EVENT_VALUE_CHANGED, bindings);
     lv_obj_add_event_cb(enable_on_boot_wrapper, onEnableOnBootParentClicked, LV_EVENT_SHORT_CLICKED, enable_on_boot_switch);
 
-    if (hal::getConfiguration()->uiDensity == hal::UiDensity::Compact) {
+    if (lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT) {
         lv_obj_set_style_pad_ver(enable_on_boot_wrapper, 2, LV_STATE_DEFAULT);
     } else {
         lv_obj_set_style_pad_ver(enable_on_boot_wrapper, 8, LV_STATE_DEFAULT);

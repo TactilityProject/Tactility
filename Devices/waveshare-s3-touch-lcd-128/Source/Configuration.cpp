@@ -20,6 +20,5 @@ static bool initBoot() {
 
 extern const Configuration hardwareConfiguration = {
     .initBoot = initBoot,
-    .uiDensity = UiDensity::Compact,
     .createDevices = createDevices
 };

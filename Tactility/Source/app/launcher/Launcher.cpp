@@ -12,13 +12,14 @@
 
 #include <tactility/lvgl_fonts.h>
 #include <tactility/lvgl_icon_launcher.h>
+#include <tactility/lvgl_module.h>
 
 namespace tt::app::launcher {
 
 static const auto LOGGER = Logger("Launcher");
 
-static uint32_t getButtonPadding(hal::UiDensity density, uint32_t buttonSize) {
-    if (density == hal::UiDensity::Compact) {
+static uint32_t getButtonPadding(UiDensity density, uint32_t buttonSize) {
+    if (density == LVGL_UI_DENSITY_COMPACT) {
         return 0;
     } else {
         return buttonSize / 8;
@@ -27,7 +28,7 @@ static uint32_t getButtonPadding(hal::UiDensity density, uint32_t buttonSize) {
 
 class LauncherApp final : public App {
 
-    static lv_obj_t* createAppButton(lv_obj_t* parent, hal::UiDensity uiDensity, const char* imageFile, const char* appId, int32_t itemMargin, bool isLandscape) {
+    static lv_obj_t* createAppButton(lv_obj_t* parent, UiDensity uiDensity, const char* imageFile, const char* appId, int32_t itemMargin, bool isLandscape) {
         const auto button_size = lvgl_get_launcher_icon_font_height();
         const auto button_padding = getButtonPadding(uiDensity, button_size);
         auto* apps_button = lv_button_create(parent);
@@ -119,7 +120,7 @@ public:
     void onShow(AppContext& app, lv_obj_t* parent) override {
         auto* buttons_wrapper = lv_obj_create(parent);
 
-        auto ui_density = hal::getConfiguration()->uiDensity;
+        auto ui_density = lvgl_get_ui_density();
         const auto button_size = lvgl_get_launcher_icon_font_height();
         const auto button_padding = getButtonPadding(ui_density, button_size);
         const auto total_button_size = button_size + (button_padding * 2);

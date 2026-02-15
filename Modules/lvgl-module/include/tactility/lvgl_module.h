@@ -16,6 +16,14 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
+/** Affects LVGL widget style */
+enum UiDensity {
+    /** Ideal for very small non-touch screen devices (e.g. Waveshare S3 LCD 1.3") */
+    LVGL_UI_DENSITY_COMPACT,
+    /** Nothing was changed in the LVGL UI/UX */
+    LVGL_UI_DENSITY_DEFAULT
+};
+
 /**
  * @brief The LVGL module instance.
  */
@@ -85,6 +93,14 @@ void lvgl_unlock(void);
  * @return true if running, false otherwise.
  */
 bool lvgl_is_running(void);
+
+/**
+ * @brief Gets the desired UI density for the target hardware.
+ * The density is defined in the `device.properties` of a hardware device.
+ * This setting is read by CMakeLists.txt and passed as a target compile definition of the LVLG module.
+ * @return the UI density
+ */
+enum UiDensity lvgl_get_ui_density(void);
 
 #ifdef __cplusplus
 }
