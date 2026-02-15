@@ -48,7 +48,7 @@ READ_PROPERTIES_TO_MAP(
 GET_VALUE_FROM_MAP(device_properties "[lvgl]uiDensity" ui_density)
 # Define UiDensity enum value
 if (ui_scale)
-    if (ui_scale == "normal")
+    if (ui_scale == "default")
         set(ui_density "LVGL_UI_DENSITY_DEFAULT")
     elif (ui_scale == "compact")
         set(ui_density "LVGL_UI_DENSITY_COMPACT")
