@@ -181,7 +181,7 @@ void ChatApp::switchChannel(const std::string& chatChannel) {
 extern const AppManifest manifest = {
     .appId = "Chat",
     .appName = "Chat",
-    .appIcon = LVGL_ICON_FORUM,
+    .appIcon = LVGL_ICON_SHARED_FORUM,
     .createApp = create<ChatApp>
 };
 
