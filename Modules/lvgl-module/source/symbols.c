@@ -1,7 +1,26 @@
-#include <tactility/module.h>
+#include "tactility/lvgl_module.h"
+
+
+#include <tactility/lvgl_fonts.h>
+
 #include <lvgl.h>
+#include <tactility/module.h>
 
 const struct ModuleSymbol lvgl_module_symbols[] = {
+    // lvgl_module
+    DEFINE_MODULE_SYMBOL(lvgl_lock),
+    DEFINE_MODULE_SYMBOL(lvgl_try_lock),
+    DEFINE_MODULE_SYMBOL(lvgl_unlock),
+    DEFINE_MODULE_SYMBOL(lvgl_is_running),
+    // lvgl_fonts
+    DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_font),
+    DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_font_height),
+    DEFINE_MODULE_SYMBOL(lvgl_get_text_font),
+    DEFINE_MODULE_SYMBOL(lvgl_get_text_font_height),
+    DEFINE_MODULE_SYMBOL(lvgl_get_launcher_icon_font),
+    DEFINE_MODULE_SYMBOL(lvgl_get_launcher_icon_font_height),
+    DEFINE_MODULE_SYMBOL(lvgl_get_statusbar_icon_font),
+    DEFINE_MODULE_SYMBOL(lvgl_get_statusbar_icon_font_height),
     // lv_event
     DEFINE_MODULE_SYMBOL(lv_event_get_code),
     DEFINE_MODULE_SYMBOL(lv_event_get_indev),

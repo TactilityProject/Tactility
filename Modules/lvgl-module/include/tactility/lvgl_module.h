@@ -72,7 +72,7 @@ bool lvgl_lock(void);
  * @param timeout Timeout in ticks
  * @return true if the lock was acquired, false otherwise.
  */
-bool lvgl_try_lock_timed(uint32_t timeout);
+bool lvgl_try_lock(uint32_t timeout);
 
 /**
  * @brief Unlocks the LVGL mutex.
