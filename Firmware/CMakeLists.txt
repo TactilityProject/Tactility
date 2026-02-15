@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 file(GLOB_RECURSE SOURCE_FILES "Source/*.c*")
 
-# For Generate target below
+# Get the project and device id
 if (DEFINED ENV{ESP_IDF_VERSION})
     include("../Buildscripts/device.cmake")
     init_tactility_globals("../sdkconfig")
@@ -10,9 +10,14 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 else ()
     set(TACTILITY_DEVICE_ID simulator)
     set(COMPONENT_LIB FirmwareSim)
+    set(TACTILITY_DEVICE_PROJECT Simulator)
 endif ()
 
 set(DEVICETREE_LOCATION "${CMAKE_SOURCE_DIR}/Devices/${TACTILITY_DEVICE_ID}")
+
+# ===============================
+# Generated/ directory creation
+# ===============================
 
 set(GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/Generated")
 # Ensure the directory is built in the correct CMake build phase
@@ -21,29 +26,42 @@ if (DEFINED CMAKE_CURRENT_BINARY_DIR)
     file(MAKE_DIRECTORY "${GENERATED_DIR}")
 endif ()
 
-if (DEFINED ENV{ESP_IDF_VERSION})
+# ===============================
+# Component
+# ===============================
 
+list(APPEND REQUIRES_LIST
+    Tactility
+    TactilityKernel
+    ${TACTILITY_DEVICE_PROJECT}
+)
+
+if (DEFINED ENV{ESP_IDF_VERSION})
+    list(APPEND REQUIRES_LIST
+        TactilityC
+        platform-esp32
+    )
     idf_component_register(
         SRCS ${SOURCE_FILES} "${GENERATED_DIR}/devicetree.c"
-        REQUIRES Tactility TactilityC TactilityKernel platform-esp32 ${TACTILITY_DEVICE_PROJECT}
+        REQUIRES ${REQUIRES_LIST}
     )
-
 else ()
-
-    add_executable(FirmwareSim ${SOURCE_FILES} "${GENERATED_DIR}/devicetree.c")
-    target_link_libraries(FirmwareSim PRIVATE
-        Tactility
+    list(APPEND REQUIRES_LIST
         TactilityCore
         TactilityFreeRtos
-        TactilityKernel
+        platform-posix
         hal-device-module
         lvgl-module
-        Simulator
-        platform-posix
-        SDL2::SDL2-static SDL2-static
+        SDL2::SDL2-static
+        SDL2-static
     )
-
+    add_executable(FirmwareSim ${SOURCE_FILES} "${GENERATED_DIR}/devicetree.c")
+    target_link_libraries(FirmwareSim PRIVATE ${REQUIRES_LIST})
 endif ()
+
+# ===============================
+# Devicetree code generation
+# ===============================
 
 add_custom_target(AlwaysRun
     COMMAND ${CMAKE_COMMAND} -E rm -f "${GENERATED_DIR}/devicetree.c"
