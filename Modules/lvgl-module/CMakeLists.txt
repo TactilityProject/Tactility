@@ -14,7 +14,6 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE" statusbar_symbol_size)
     GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE" launcher_symbol_size)
     GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_LVGL_SHARED_ICON_SIZE" shared_symbol_size)
-    GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_LVGL_SHARED_ICON_SIZE" shared_symbol_size)
 else ()
     # Default values for simulator
     set(font_size_small 10)
@@ -47,16 +46,19 @@ READ_PROPERTIES_TO_MAP(
 # Read UI density
 GET_VALUE_FROM_MAP(device_properties "[lvgl]uiDensity" ui_density)
 # Define UiDensity enum value
-if (ui_scale)
-    if (ui_scale == "default")
-        set(ui_density "LVGL_UI_DENSITY_DEFAULT")
-    elif (ui_scale == "compact")
-        set(ui_density "LVGL_UI_DENSITY_COMPACT")
+if (ui_density)
+    if (ui_density STREQUAL "default")
+        set(ui_density_variable "LVGL_UI_DENSITY_DEFAULT")
+    elseif (ui_density STREQUAL "compact")
+        set(ui_density_variable "LVGL_UI_DENSITY_COMPACT")
     else ()
         message(FATAL_ERROR "Invalid [lvgl]uiDensity: '${ui_density}'. Must be either 'default' or 'compact'")
     endif ()
+    message("UI density set to '${ui_density}' via properties")
 else ()
-    set(ui_density "LVGL_UI_DENSITY_DEFAULT")
+    set(ui_density "default")
+    set(ui_density_variable "LVGL_UI_DENSITY_DEFAULT")
+    message("UI density set to default: ${ui_density}")
 endif ()
 
 # ####################################
@@ -109,5 +111,5 @@ target_compile_definitions(${MODULE_NAME} PUBLIC
     "-DTT_LVGL_SHARED_FONT_ICON_SIZE=${shared_symbol_size}"
     "-DTT_LVGL_SHARED_FONT_ICON_SYMBOL=material_symbols_shared_${shared_symbol_size}"
     # UiDensity
-    "-DTT_LVGL_UI_DENSITY=${ui_density}"
+    "-DTT_LVGL_UI_DENSITY=${ui_density_variable}"
 )

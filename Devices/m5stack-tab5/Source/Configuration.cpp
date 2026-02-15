@@ -142,7 +142,7 @@ static error_t initSound(::Device* i2c_controller) {
     constexpr auto IO_EXPANDER1_ADDRESS = 0x43;
     constexpr auto AMP_REGISTER = 0x05;
     // Note: to disable the amplifier, reset the bits
-    error = i2c_controller_register8_set_bits(i2c_controller, IO_EXPANDER1_ADDRESS, AMP_REGISTER, 0b00000010 , pdMS_TO_TICKS(100));
+    error = i2c_controller_register8_set_bits(i2c_controller, IO_EXPANDER1_ADDRESS, AMP_REGISTER, 0b00000010, pdMS_TO_TICKS(100));
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to enable amplifier: %s", error_to_string(error));
         return error;
@@ -156,7 +156,7 @@ static bool initBoot() {
     check(i2c0, "i2c0 not found");
 
     auto error = initPower(i2c0);
-    if (initPower(i2c0) != ERROR_NONE) {
+    if (error != ERROR_NONE) {
         return false;
     }
 

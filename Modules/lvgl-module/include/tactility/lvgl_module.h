@@ -97,7 +97,7 @@ bool lvgl_is_running(void);
 /**
  * @brief Gets the desired UI density for the target hardware.
  * The density is defined in the `device.properties` of a hardware device.
- * This setting is read by CMakeLists.txt and passed as a target compile definition of the LVLG module.
+ * This setting is read by CMakeLists.txt and passed as a target compile definition of the LVGL module.
  * @return the UI density
  */
 enum UiDensity lvgl_get_ui_density(void);
