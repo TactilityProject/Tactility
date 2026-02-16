@@ -85,7 +85,8 @@ else ()
         SDL2::SDL2-static
         SDL2-static
     )
-    add_executable(FirmwareSim ${SOURCE_FILES} "${GENERATED_DIR}/devicetree.c")
+    add_executable(FirmwareSim ${SOURCE_FILES} "${GENERATED_DIR}/devicetree.c"
+        ../Drivers/pi4ioe5v6408-module/source/symbols.c)
     target_link_libraries(FirmwareSim PRIVATE ${REQUIRES_LIST})
 endif ()
 

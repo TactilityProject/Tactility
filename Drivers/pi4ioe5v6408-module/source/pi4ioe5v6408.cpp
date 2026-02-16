@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <drivers/pi4ioe5v6408.h>
+#include <pi4ioe5v6408_module.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/i2c_controller.h>
-#include <tactility/module.h>
-
 #include <tactility/log.h>
-#include <pi4ioe5v6408_module.h>
 
 #define TAG "PI4IOE5V6408"
 
-#define GET_DATA(device) ((Pi4DevicePrivate*)device_get_driver_data(device))
+#define GET_CONFIG(device) (static_cast<const Pi4ioe5v6408Config*>((device)->config))
+
+constexpr auto PI4_REGISTER_DIRECTION = 0x03;
+constexpr auto PI4_REGISTER_OUTPUT_LEVEL = 0x05;
+constexpr auto PI4_REGISTER_OUTPUT_HIGH_IMPEDANCE = 0x07;
+constexpr auto PI4_REGISTER_INPUT_DEFAULT_LEVEL = 0x09;
+constexpr auto PI4_REGISTER_PULL_ENABLE = 0x0B;
+constexpr auto PI4_REGISTER_PULL_SELECT = 0x0D;
+constexpr auto PI4_REGISTER_INPUT_LEVEL = 0x0F;
+constexpr auto PI4_REGISTER_INTERRUPT_MASK = 0x11;
+constexpr auto PI4_REGISTER_INTERRUPT_LEVEL = 0x13;
 
 static error_t start(Device* device) {
 	auto* parent = device_get_parent(device);
@@ -26,6 +35,31 @@ static error_t stop(Device* device) {
 }
 
 extern "C" {
+
+error_t pi4ioe5v6408_get_input_level(struct Device* device, uint8_t* bits, TickType_t timeout) {
+    auto* parent = device_get_parent(device);
+    return i2c_controller_register8_get(parent, GET_CONFIG(device)->reg, PI4_REGISTER_INPUT_LEVEL, bits, timeout);
+}
+
+error_t pi4ioe5v6408_set_output_level(Device* device, uint8_t bits, TickType_t timeout) {
+    auto* parent = device_get_parent(device);
+    return i2c_controller_register8_set_bits(parent, GET_CONFIG(device)->reg, PI4_REGISTER_OUTPUT_LEVEL, bits, timeout);
+}
+
+error_t pi4ioe5v6408_set_output_high_impedance(struct Device* device, uint8_t bits, TickType_t timeout) {
+    auto* parent = device_get_parent(device);
+    return i2c_controller_register8_set_bits(parent, GET_CONFIG(device)->reg, PI4_REGISTER_OUTPUT_HIGH_IMPEDANCE, bits, timeout);
+}
+
+error_t pi4ioe5v6408_set_input_default_level(struct Device* device, uint8_t bits, TickType_t timeout) {
+    auto* parent = device_get_parent(device);
+    return i2c_controller_register8_set_bits(parent, GET_CONFIG(device)->reg, PI4_REGISTER_INPUT_DEFAULT_LEVEL, bits, timeout);
+}
+
+error_t pi4ioe5v6408_set_direction(Device* device, uint8_t bits, TickType_t timeout) {
+    auto* parent = device_get_parent(device);
+    return i2c_controller_register8_set_bits(parent, GET_CONFIG(device)->reg, PI4_REGISTER_DIRECTION, bits, timeout);
+}
 
 Driver pi4ioe5v6408_driver = {
     .name = "pi4ioe5v6408",
