@@ -21,17 +21,17 @@ constexpr auto PI4_REGISTER_INTERRUPT_MASK = 0x11;
 constexpr auto PI4_REGISTER_INTERRUPT_LEVEL = 0x13;
 
 static error_t start(Device* device) {
-	auto* parent = device_get_parent(device);
+    auto* parent = device_get_parent(device);
     if (device_get_type(parent) != &I2C_CONTROLLER_TYPE) {
         LOG_E(TAG, "Parent device is not I2C");
         return ERROR_RESOURCE;
     }
     LOG_I(TAG, "Started PI4IOE5V6408 device %s", device->name);
-	return ERROR_NONE;
+    return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
-	return ERROR_NONE;
+    return ERROR_NONE;
 }
 
 extern "C" {

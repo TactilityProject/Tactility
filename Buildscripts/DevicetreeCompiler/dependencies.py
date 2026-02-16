@@ -6,7 +6,7 @@ from source.config import parse_config
 
 def print_help():
     print("Usage: python dependencies.py [in_file]\n")
-    print(f"\t[in_file]                 the path where the root devicetree.yaml file is")
+    print("\t[in_file]                 the path where the root devicetree.yaml file is")
 
 if __name__ == "__main__":
     if "--help" in sys.argv:
@@ -16,7 +16,7 @@ if __name__ == "__main__":
     if len(args) < 1:
         print_error("Missing argument")
         print_help()
-        sys.exit()
+        sys.exit(1)
 
     devicetree_yaml_config = args[0]
     

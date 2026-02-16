@@ -23,7 +23,7 @@ struct Configuration {
 
 /**
  * @brief Main entry point for Tactility.
- * @param platformModule Platform module to start (non-null).
+ * @param deviceModule Module for the device
  * @param dtsModules List of modules from devicetree, null-terminated, non-null parameter
  * @param dtsDevices Array that is terminated with DTS_DEVICE_TERMINATOR
  */

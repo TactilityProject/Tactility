@@ -13,7 +13,6 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-// The name must be exactly "platform_module"
 struct Module platform_posix_module = {
     .name = "platform-posix",
     .start = start,
