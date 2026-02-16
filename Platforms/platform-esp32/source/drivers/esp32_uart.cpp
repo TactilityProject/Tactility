@@ -402,7 +402,7 @@ const static UartControllerApi esp32_uart_api = {
     .flush_input = flush_input
 };
 
-extern struct Module platform_module;
+extern struct Module platform_esp32_module;
 
 Driver esp32_uart_driver = {
     .name = "esp32_uart",
@@ -411,7 +411,7 @@ Driver esp32_uart_driver = {
     .stop_device = stop,
     .api = (void*)&esp32_uart_api,
     .device_type = &UART_CONTROLLER_TYPE,
-    .owner = &platform_module,
+    .owner = &platform_esp32_module,
     .internal = nullptr
 };
 

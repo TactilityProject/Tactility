@@ -323,13 +323,13 @@ void registerApps() {
     registerInstalledAppsFromSdCards();
 }
 
-void run(const Configuration& config, Module* platformModule, Module* deviceModule, DtsDevice dtsDevices[]) {
+void run(const Configuration& config, Module* deviceModule, Module* dtsModules[], DtsDevice dtsDevices[]) {
     LOGGER.info("Tactility v{} on {} ({})", TT_VERSION, CONFIG_TT_DEVICE_NAME, CONFIG_TT_DEVICE_ID);
 
     assert(config.hardware);
 
-    LOGGER.info(R"(Calling kernel_init with modules: "{}" and "{}")", platformModule->name, deviceModule->name);
-    if (kernel_init(platformModule, deviceModule, dtsDevices) != ERROR_NONE) {
+    LOGGER.info(R"(Calling kernel_init with modules "{}")", deviceModule->name);
+    if (kernel_init(deviceModule, dtsModules, dtsDevices) != ERROR_NONE) {
         LOGGER.error("Failed to initialize kernel");
         return;
     }

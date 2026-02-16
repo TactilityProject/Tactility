@@ -13,7 +13,7 @@ static error_t stop() {
 }
 
 /** @warning The variable name must be exactly "device_module" */
-struct Module device_module = {
+Module device_module = {
     .name = "m5stack-tab5",
     .start = start,
     .stop = stop,

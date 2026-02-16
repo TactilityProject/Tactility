@@ -3,8 +3,6 @@
 #include <tactility/driver.h>
 #include <devicetree.h>
 
-// From the relevant platform
-extern struct Module platform_module;
 // From the relevant device
 extern struct Module device_module;
 
@@ -32,7 +30,7 @@ void app_main() {
     tt_init_tactility_c(); // ELF bindings for side-loading on ESP32
 #endif
 
-    tt::run(config, &platform_module, &device_module, dts_devices);
+    tt::run(config, &device_module, dts_modules, dts_devices);
 }
 
 } // extern

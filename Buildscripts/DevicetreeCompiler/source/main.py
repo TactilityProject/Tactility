@@ -46,7 +46,7 @@ def main(config_path: str, output_path: str, verbose: bool) -> int:
         if verbose:
             for binding in bindings:
                 pprint(binding)
-        generate(output_path, transformed, bindings, verbose)
+        generate(output_path, transformed, bindings, config, verbose)
         return 0
     except DevicetreeException as caught:
         print("\033[31mError: ", caught, "\033[0m")

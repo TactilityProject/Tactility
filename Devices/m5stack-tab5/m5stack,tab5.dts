@@ -5,6 +5,7 @@
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <bindings/pi4ioe5v6408.h>
 
 / {
 	compatible = "root";
@@ -21,6 +22,16 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 31 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 32 GPIO_FLAG_NONE>;
+
+		io_expander0 {
+			compatible = "diodes,pi4ioe5v6408";
+			register = <0x43>;
+		};
+
+		io_expander1 {
+			compatible = "diodes,pi4ioe5v6408";
+			register = <0x44>;
+		};
 	};
 
 	i2c_port_a: i2c1 {

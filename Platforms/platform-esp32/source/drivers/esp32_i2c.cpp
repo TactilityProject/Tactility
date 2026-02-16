@@ -245,7 +245,7 @@ static constexpr I2cControllerApi ESP32_I2C_API = {
     .write_register = write_register
 };
 
-extern Module platform_module;
+extern Module platform_esp32_module;
 
 Driver esp32_i2c_driver = {
     .name = "esp32_i2c",
@@ -254,7 +254,7 @@ Driver esp32_i2c_driver = {
     .stop_device = stop,
     .api = &ESP32_I2C_API,
     .device_type = &I2C_CONTROLLER_TYPE,
-    .owner = &platform_module,
+    .owner = &platform_esp32_module,
     .internal = nullptr
 };
 

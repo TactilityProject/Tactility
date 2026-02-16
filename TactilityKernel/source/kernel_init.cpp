@@ -28,7 +28,7 @@ struct Module root_module = {
     .internal = nullptr
 };
 
-error_t kernel_init(struct Module* platform_module, struct Module* device_module, struct DtsDevice dts_devices[]) {
+error_t kernel_init(Module* device_module, Module* dts_modules[], DtsDevice dts_devices[]) {
     LOG_I(TAG, "init");
 
     if (module_construct_add_start(&root_module) != ERROR_NONE) {
@@ -36,9 +36,13 @@ error_t kernel_init(struct Module* platform_module, struct Module* device_module
         return ERROR_RESOURCE;
     }
 
-    if (module_construct_add_start(platform_module) != ERROR_NONE) {
-        LOG_E(TAG, "platform module init failed");
-        return ERROR_RESOURCE;
+    Module** dts_module = dts_modules;
+    while (*dts_module != nullptr) {
+        if (module_construct_add_start(*dts_module) != ERROR_NONE) {
+            LOG_E(TAG, "dts module init failed: %s", (*dts_module)->name);
+            return ERROR_RESOURCE;
+        }
+        dts_module++;
     }
 
     if (device_module != nullptr) {

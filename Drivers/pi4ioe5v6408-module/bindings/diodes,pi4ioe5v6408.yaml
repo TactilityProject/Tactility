@@ -1,0 +1,5 @@
+description: Diodes Incorporated PI4IOE5V6408 low-voltage translating 8-bit I2C-bus I/O expander
+
+include: ["i2c-device.yaml"]
+
+compatible: "diodes,pi4ioe5v6408"

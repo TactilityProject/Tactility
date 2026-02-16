@@ -212,7 +212,7 @@ def gather_devices(device: Device, output: list[Device]):
     for child_device in device.devices:
         gather_devices(child_device, output)
 
-def generate_devicetree_c(filename: str, items: list[object], bindings: list[Binding], verbose: bool):
+def generate_devicetree_c(filename: str, items: list[object], bindings: list[Binding], config, verbose: bool):
     # Create a cache for looking up device names and aliases easily
     # We still want to traverse it as a tree during code generation because of parent-setting
     devices = list()
@@ -225,6 +225,7 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         // Default headers
         #include <tactility/device.h>
         #include <tactility/dts.h>
+        #include <tactility/module.h>
         // DTS headers
         '''))
 
@@ -246,6 +247,25 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
                 write_device_list_entry(file, item, bindings, verbose)
         file.write("\tDTS_DEVICE_TERMINATOR\n")
         file.write("};\n")
+        # Gather module symbols
+        module_symbol_names = []
+        for dependency in config.dependencies:
+            dependency_name = os.path.basename(os.path.normpath(dependency))
+            module_symbol_name = f"{dependency_name.replace('-', '_')}"
+            if not module_symbol_name.endswith("_module"):
+                module_symbol_name += "_module"
+            module_symbol_names.append(module_symbol_name)
+        file.write("\n")
+        # Forward declaration of symbol variables
+        for symbol in module_symbol_names:
+            file.write(f"extern struct Module {symbol};\n")
+        file.write("\n")
+        # Create array of symbol variables
+        file.write("struct Module* dts_modules[] = {\n")
+        for symbol in module_symbol_names:
+            file.write(f"\t&{symbol},\n")
+        file.write("\tNULL\n")
+        file.write("};\n")
 
 def generate_devicetree_h(filename: str):
     with open(filename, "w") as file:
@@ -258,17 +278,21 @@ def generate_devicetree_h(filename: str):
         extern "C" {
         #endif
         
+        // Array of device tree modules terminated with DTS_MODULE_TERMINATOR
         extern struct DtsDevice dts_devices[];
+        
+        // Array of module symbols terminated with NULL
+        extern struct Module* dts_modules[];
         
         #ifdef __cplusplus
         }
         #endif
         '''))
 
-def generate(output_path: str, items: list[object], bindings: list[Binding], verbose: bool):
+def generate(output_path: str, items: list[object], bindings: list[Binding], config, verbose: bool):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     devicetree_c_filename = os.path.join(output_path, "devicetree.c")
-    generate_devicetree_c(devicetree_c_filename, items, bindings, verbose)
+    generate_devicetree_c(devicetree_c_filename, items, bindings, config, verbose)
     devicetree_h_filename = os.path.join(output_path, "devicetree.h")
     generate_devicetree_h(devicetree_h_filename)

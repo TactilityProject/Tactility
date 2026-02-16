@@ -116,7 +116,7 @@ const static GpioControllerApi esp32_gpio_api  = {
     .get_native_pin_number = get_native_pin_number
 };
 
-extern struct Module platform_module;
+extern struct Module platform_esp32_module;
 
 Driver esp32_gpio_driver = {
     .name = "esp32_gpio",
@@ -125,7 +125,7 @@ Driver esp32_gpio_driver = {
     .stop_device = stop,
     .api =  (void*)&esp32_gpio_api,
     .device_type = &GPIO_CONTROLLER_TYPE,
-    .owner = &platform_module,
+    .owner = &platform_esp32_module,
     .internal = nullptr
 };
 

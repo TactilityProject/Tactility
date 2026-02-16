@@ -15,7 +15,7 @@ typedef struct {
 } TestTaskData;
 
 // From the relevant platform
-extern "C" struct Module platform_module;
+extern "C" struct Module platform_posix_module;
 
 void test_task(void* parameter) {
     auto* data = (TestTaskData*)parameter;
@@ -27,7 +27,8 @@ void test_task(void* parameter) {
     // overrides
     context.setOption("no-breaks", true); // don't break in the debugger when assertions fail
 
-    check(kernel_init(&platform_module, &hal_device_module, nullptr) == ERROR_NONE);
+    Module* dts_modules[] = { &platform_posix_module, nullptr };
+    check(kernel_init(&hal_device_module, dts_modules, nullptr) == ERROR_NONE);
 
     data->result = context.run();
 
