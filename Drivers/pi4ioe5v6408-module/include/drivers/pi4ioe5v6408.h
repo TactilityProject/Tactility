@@ -13,7 +13,7 @@ struct Device;
 
 struct Pi4ioe5v6408Config {
     /** Address on bus */
-    uint8_t reg;
+    uint8_t address;
 };
 
 error_t pi4ioe5v6408_set_direction(struct Device* device, uint8_t bits, TickType_t timeout);

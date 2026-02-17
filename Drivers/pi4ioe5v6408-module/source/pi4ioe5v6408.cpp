@@ -38,52 +38,52 @@ extern "C" {
 
 error_t pi4ioe5v6408_set_direction(Device* device, uint8_t bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_set(parent, GET_CONFIG(device)->reg, PI4_REGISTER_DIRECTION, bits, timeout);
+    return i2c_controller_register8_set(parent, GET_CONFIG(device)->address, PI4_REGISTER_DIRECTION, bits, timeout);
 }
 
 error_t pi4ioe5v6408_set_output_level(Device* device, uint8_t bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_set(parent, GET_CONFIG(device)->reg, PI4_REGISTER_OUTPUT_LEVEL, bits, timeout);
+    return i2c_controller_register8_set(parent, GET_CONFIG(device)->address, PI4_REGISTER_OUTPUT_LEVEL, bits, timeout);
 }
 
 error_t pi4ioe5v6408_get_output_level(Device* device, uint8_t* bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_get(parent, GET_CONFIG(device)->reg, PI4_REGISTER_OUTPUT_LEVEL, bits, timeout);
+    return i2c_controller_register8_get(parent, GET_CONFIG(device)->address, PI4_REGISTER_OUTPUT_LEVEL, bits, timeout);
 }
 
 error_t pi4ioe5v6408_set_output_high_impedance(struct Device* device, uint8_t bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_set(parent, GET_CONFIG(device)->reg, PI4_REGISTER_OUTPUT_HIGH_IMPEDANCE, bits, timeout);
+    return i2c_controller_register8_set(parent, GET_CONFIG(device)->address, PI4_REGISTER_OUTPUT_HIGH_IMPEDANCE, bits, timeout);
 }
 
 error_t pi4ioe5v6408_set_input_default_level(struct Device* device, uint8_t bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_set(parent, GET_CONFIG(device)->reg, PI4_REGISTER_INPUT_DEFAULT_LEVEL, bits, timeout);
+    return i2c_controller_register8_set(parent, GET_CONFIG(device)->address, PI4_REGISTER_INPUT_DEFAULT_LEVEL, bits, timeout);
 }
 
 error_t pi4ioe5v6408_set_pull_enable(struct Device* device, uint8_t bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_set(parent, GET_CONFIG(device)->reg, PI4_REGISTER_PULL_ENABLE, bits, timeout);
+    return i2c_controller_register8_set(parent, GET_CONFIG(device)->address, PI4_REGISTER_PULL_ENABLE, bits, timeout);
 }
 
 error_t pi4ioe5v6408_set_pull_select(struct Device* device, uint8_t bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_set(parent, GET_CONFIG(device)->reg, PI4_REGISTER_PULL_SELECT, bits, timeout);
+    return i2c_controller_register8_set(parent, GET_CONFIG(device)->address, PI4_REGISTER_PULL_SELECT, bits, timeout);
 }
 
 error_t pi4ioe5v6408_get_input_level(struct Device* device, uint8_t* bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_get(parent, GET_CONFIG(device)->reg, PI4_REGISTER_INPUT_LEVEL, bits, timeout);
+    return i2c_controller_register8_get(parent, GET_CONFIG(device)->address, PI4_REGISTER_INPUT_LEVEL, bits, timeout);
 }
 
 error_t pi4ioe5v6408_set_interrupt_mask(struct Device* device, uint8_t bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_set(parent, GET_CONFIG(device)->reg, PI4_REGISTER_INTERRUPT_MASK, bits, timeout);
+    return i2c_controller_register8_set(parent, GET_CONFIG(device)->address, PI4_REGISTER_INTERRUPT_MASK, bits, timeout);
 }
 
 error_t pi4ioe5v6408_get_interrupt_level(struct Device* device, uint8_t* bits, TickType_t timeout) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_register8_get(parent, GET_CONFIG(device)->reg, PI4_REGISTER_INTERRUPT_LEVEL, bits, timeout);
+    return i2c_controller_register8_get(parent, GET_CONFIG(device)->address, PI4_REGISTER_INTERRUPT_LEVEL, bits, timeout);
 }
 
 Driver pi4ioe5v6408_driver = {
