@@ -5,7 +5,7 @@ from source.printing import print_error
 from source.config import parse_config
 
 def print_help():
-    print("Usage: python dependencies.py [in_file]\n")
+    print("Usage: python dependencies.py [path]\n")
     print("\t[in_file]                 the path where the root devicetree.yaml file is")
 
 if __name__ == "__main__":
@@ -18,14 +18,18 @@ if __name__ == "__main__":
         print_help()
         sys.exit(1)
 
-    devicetree_yaml_config = args[0]
+    yaml_directory = args[0]
     
-    if not os.path.exists(devicetree_yaml_config):
-        print_error(f"Path not found: {devicetree_yaml_config}")
+    if not os.path.exists(yaml_directory):
+        print_error(f"Path not found: {yaml_directory}")
         sys.exit(1)
 
-    config = parse_config(devicetree_yaml_config, os.getcwd())
-    
+    config = parse_config(yaml_directory, os.getcwd())
+
+    # Device module is added first because it's started first:
+    # It creates the root device, so it must exist before its children.
+    device_dependency = os.path.basename(os.path.normpath(yaml_directory))
+    print(device_dependency)
     for dependency in config.dependencies:
         dependency_name = os.path.basename(os.path.normpath(dependency))
         print(dependency_name)

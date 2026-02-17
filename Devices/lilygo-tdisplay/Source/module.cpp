@@ -13,7 +13,7 @@ static error_t stop() {
 }
 
 /** @warning The variable name must be exactly "device_module" */
-struct Module device_module = {
+struct Module lilygo_tdisplay_module = {
     .name = "lilygo-tdisplay",
     .start = start,
     .stop = stop,

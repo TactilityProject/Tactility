@@ -323,23 +323,19 @@ void registerApps() {
     registerInstalledAppsFromSdCards();
 }
 
-void run(const Configuration& config, Module* deviceModule, Module* dtsModules[], DtsDevice dtsDevices[]) {
+void run(const Configuration& config, Module* dtsModules[], DtsDevice dtsDevices[]) {
     LOGGER.info("Tactility v{} on {} ({})", TT_VERSION, CONFIG_TT_DEVICE_NAME, CONFIG_TT_DEVICE_ID);
 
     assert(config.hardware);
 
-    LOGGER.info(R"(Calling kernel_init with modules "{}")", deviceModule->name);
-    if (kernel_init(deviceModule, dtsModules, dtsDevices) != ERROR_NONE) {
+    LOGGER.info("Initializing kernel");
+    if (kernel_init(dtsModules, dtsDevices) != ERROR_NONE) {
         LOGGER.error("Failed to initialize kernel");
         return;
     }
 
     // hal-device-module
-    check(module_construct(&hal_device_module) == ERROR_NONE);
-    check(module_add(&hal_device_module) == ERROR_NONE);
-    check(module_start(&hal_device_module) == ERROR_NONE);
-
-    const hal::Configuration& hardware = *config.hardware;
+    check(module_construct_add_start(&hal_device_module) == ERROR_NONE);
 
     // Assign early so starting services can use it
     config_instance = &config;

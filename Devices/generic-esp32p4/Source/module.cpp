@@ -13,7 +13,7 @@ static error_t stop() {
 }
 
 /** @warning The variable name must be exactly "device_module" */
-struct Module device_module = {
+struct Module generic_esp32p4_module = {
     .name = "generic-esp32p4",
     .start = start,
     .stop = stop,

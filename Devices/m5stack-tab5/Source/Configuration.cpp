@@ -6,6 +6,7 @@
 
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/hal/i2c/I2c.h>
+#include <drivers/pi4ioe5v6408.h>
 
 using namespace tt::hal;
 
@@ -18,9 +19,11 @@ static DeviceVector createDevices() {
     };
 }
 
-static error_t initPower(::Device* i2c_controller) {
+static error_t initPower(::Device* io_expander0, ::Device* io_expander1) {
+    constexpr TickType_t i2c_timeout = pdMS_TO_TICKS(10);
+
     /*
-     PI4IOE5V6408-1 (0x43)
+     PI4IOE5V6408-0 (0x43)
      - Bit 0: RF internal/external switch
      - Bit 1: Speaker enable
      - Bit 2: External 5V bus enable
@@ -29,8 +32,18 @@ static error_t initPower(::Device* i2c_controller) {
      - Bit 5: Touch reset
      - Bit 6: Camera reset
      - Bit 7: Headphone detect
+     */
 
-     PI4IOE5V6408-2 (0x44)
+    check(pi4ioe5v6408_set_direction(io_expander0, 0b01111111, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_output_level(io_expander0, 0b01000110, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_output_high_impedance(io_expander0, 0b00000000, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_pull_select(io_expander0, 0b01111111, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_pull_enable(io_expander0, 0b01111111, i2c_timeout) == ERROR_NONE);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    check(pi4ioe5v6408_set_output_level(io_expander0, 0b01110110, i2c_timeout) == ERROR_NONE);
+
+    /*
+     PI4IOE5V6408-1 (0x44)
      - Bit 0: C6 WLAN enable
      - Bit 1: /
      - Bit 2: /
@@ -41,57 +54,18 @@ static error_t initPower(::Device* i2c_controller) {
      - Bit 7: IP2326: CHG_EN
     */
 
-    // Init byte arrays adapted from https://github.com/m5stack/M5GFX/blob/03565ccc96cb0b73c8b157f5ec3fbde439b034ad/src/M5GFX.cpp
-    static constexpr uint8_t reg_data_io1_1[] = {
-        0x03, 0b01111111,   // PI4IO_REG_IO_DIR
-        0x05, 0b01000110,   // PI4IO_REG_OUT_SET (bit4=LCD Reset, bit5=GT911 TouchReset -> LOW)
-        0x07, 0b00000000,   // PI4IO_REG_OUT_H_IM
-        0x0D, 0b01111111,   // PI4IO_REG_PULL_SEL
-        0x0B, 0b01111111,   // PI4IO_REG_PULL_EN
-    };
-
-    static constexpr uint8_t reg_data_io1_2[] = {
-        0x05, 0b01110110,   // PI4IO_REG_OUT_SET (bit4=LCD Reset, bit5=GT911 TouchReset -> HIGH)
-    };
-
-    static constexpr uint8_t reg_data_io2[] = {
-        0x03, 0b10111001,   // PI4IO_REG_IO_DIR
-        0x07, 0b00000110,   // PI4IO_REG_OUT_H_IM
-        0x0D, 0b10111001,   // PI4IO_REG_PULL_SEL
-        0x0B, 0b11111001,   // PI4IO_REG_PULL_EN
-        0x09, 0b01000000,   // PI4IO_REG_IN_DEF_STA
-        0x11, 0b10111111,   // PI4IO_REG_INT_MASK
-        0x05, 0b10001001,   // PI4IO_REG_OUT_SET (enable WiFi, USB-A 5V and CHG_EN)
-    };
-
-    constexpr auto IO_EXPANDER1_ADDRESS = 0x43;
-    auto error = i2c_controller_write_register_array(i2c_controller, IO_EXPANDER1_ADDRESS, reg_data_io1_1, sizeof(reg_data_io1_1), pdMS_TO_TICKS(100));
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "IO expander 1 init failed in phase 1");
-        return ERROR_UNDEFINED;
-    }
-
-    constexpr auto IO_EXPANDER2_ADDRESS = 0x44;
-    error = i2c_controller_write_register_array(i2c_controller, IO_EXPANDER2_ADDRESS, reg_data_io2, sizeof(reg_data_io2), pdMS_TO_TICKS(100));
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "IO expander 2 init failed");
-        return ERROR_UNDEFINED;
-    }
-
-    // The M5Stack code applies this, but it's not known why
-    // TODO: Remove and test it extensively
-    tt::kernel::delayTicks(10);
-
-    error = i2c_controller_write_register_array(i2c_controller, IO_EXPANDER1_ADDRESS, reg_data_io1_2, sizeof(reg_data_io1_2), pdMS_TO_TICKS(100));
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "IO expander 1 init failed in phase 2");
-        return ERROR_UNDEFINED;
-    }
+    check(pi4ioe5v6408_set_direction(io_expander1, 0b10111001, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_output_high_impedance(io_expander1, 0b00000110, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_pull_select(io_expander1, 0b10111001, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_pull_enable(io_expander1, 0b11111001, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_input_default_level(io_expander1, 0b01000000, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_interrupt_mask(io_expander1, 0b10111111, i2c_timeout) == ERROR_NONE);
+    check(pi4ioe5v6408_set_output_level(io_expander1, 0b10001001, i2c_timeout) == ERROR_NONE);
 
     return ERROR_NONE;
 }
 
-static error_t initSound(::Device* i2c_controller) {
+static error_t initSound(::Device* i2c_controller, ::Device* io_expander0 = nullptr) {
     // Init data from M5Unified:
     // https://github.com/m5stack/M5Unified/blob/master/src/M5Unified.cpp
     static constexpr uint8_t ES8388_I2C_ADDR = 0x10;
@@ -139,13 +113,15 @@ static error_t initSound(::Device* i2c_controller) {
         return error;
     }
 
-    constexpr auto IO_EXPANDER1_ADDRESS = 0x43;
-    constexpr auto AMP_REGISTER = 0x05;
-    // Note: to disable the amplifier, reset the bits
-    error = i2c_controller_register8_set_bits(i2c_controller, IO_EXPANDER1_ADDRESS, AMP_REGISTER, 0b00000010, pdMS_TO_TICKS(100));
-    if (error != ERROR_NONE) {
+    uint8_t output_level = 0;
+    if (pi4ioe5v6408_get_output_level(io_expander0, &output_level, pdMS_TO_TICKS(100)) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to read power level: %s", error_to_string(error));
+        return ERROR_RESOURCE;
+    }
+
+    if (pi4ioe5v6408_set_output_level(io_expander0, output_level | 0b00000010, pdMS_TO_TICKS(100)) != ERROR_NONE) {
         LOG_E(TAG, "Failed to enable amplifier: %s", error_to_string(error));
-        return error;
+        return ERROR_RESOURCE;
     }
 
     return ERROR_NONE;
@@ -155,12 +131,13 @@ static bool initBoot() {
     auto* i2c0 = device_find_by_name("i2c0");
     check(i2c0, "i2c0 not found");
 
-    auto error = initPower(i2c0);
-    if (error != ERROR_NONE) {
-        return false;
-    }
+    auto* io_expander0 = device_find_by_name("io_expander0");
+    auto* io_expander1 = device_find_by_name("io_expander1");
+    check(i2c0, "i2c0 not found");
 
-    error = initSound(i2c0);
+    initPower(io_expander0, io_expander1);
+
+    error_t error = initSound(i2c0, io_expander0);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to enable ES8388");
     }

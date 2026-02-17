@@ -1,6 +1,6 @@
 description: I2C device
 
 properties:
-  register:
+  reg:
     required: true
     description: device address on the bus

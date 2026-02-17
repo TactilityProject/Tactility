@@ -13,7 +13,7 @@ static error_t stop() {
 }
 
 /** @warning The variable name must be exactly "device_module" */
-struct Module device_module = {
+struct Module elecrow_crowpanel_basic_28_module = {
     .name = "elecrow-crowpanel-basic-28",
     .start = start,
     .stop = stop,

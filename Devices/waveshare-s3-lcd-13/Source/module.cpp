@@ -13,7 +13,7 @@ static error_t stop() {
 }
 
 /** @warning The variable name must be exactly "device_module" */
-struct Module device_module = {
+struct Module waveshare_s3_lcd_13_module = {
     .name = "waveshare-s3-lcd-13",
     .start = start,
     .stop = stop,

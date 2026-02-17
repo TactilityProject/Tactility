@@ -1,5 +1,6 @@
-#include "tactility/dts.h"
 #include <tactility/kernel_init.h>
+
+#include <tactility/device.h>
 #include <tactility/log.h>
 
 #ifdef __cplusplus
@@ -8,7 +9,7 @@ extern "C" {
 
 #define TAG "kernel"
 
-extern const struct ModuleSymbol KERNEL_SYMBOLS[];
+extern const ModuleSymbol KERNEL_SYMBOLS[];
 
 static error_t start() {
     extern Driver root_driver;
@@ -20,7 +21,7 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-struct Module root_module = {
+Module root_module = {
     .name = "kernel",
     .start = start,
     .stop = stop,
@@ -28,7 +29,7 @@ struct Module root_module = {
     .internal = nullptr
 };
 
-error_t kernel_init(Module* device_module, Module* dts_modules[], DtsDevice dts_devices[]) {
+error_t kernel_init(Module* dts_modules[], DtsDevice dts_devices[]) {
     LOG_I(TAG, "init");
 
     if (module_construct_add_start(&root_module) != ERROR_NONE) {
@@ -43,13 +44,6 @@ error_t kernel_init(Module* device_module, Module* dts_modules[], DtsDevice dts_
             return ERROR_RESOURCE;
         }
         dts_module++;
-    }
-
-    if (device_module != nullptr) {
-        if (module_construct_add_start(device_module) != ERROR_NONE) {
-            LOG_E(TAG, "device module init failed");
-            return ERROR_RESOURCE;
-        }
     }
 
     if (dts_devices) {

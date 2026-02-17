@@ -23,11 +23,10 @@ struct Configuration {
 
 /**
  * @brief Main entry point for Tactility.
- * @param deviceModule Module for the device
  * @param dtsModules List of modules from devicetree, null-terminated, non-null parameter
  * @param dtsDevices Array that is terminated with DTS_DEVICE_TERMINATOR
  */
-void run(const Configuration& config, Module* deviceModule, Module* dtsModules[], DtsDevice dtsDevices[]);
+void run(const Configuration& config, Module* dtsModules[], DtsDevice dtsDevices[]);
 
 /**
  * While technically nullable, this instance is always set if tt_init() succeeds.

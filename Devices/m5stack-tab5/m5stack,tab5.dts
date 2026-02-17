@@ -23,14 +23,34 @@
 		pin-sda = <&gpio0 31 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 32 GPIO_FLAG_NONE>;
 
+		/*
+		 - Bit 0: RF internal/external switch
+		 - Bit 1: Speaker enable
+		 - Bit 2: External 5V bus enable
+		 - Bit 3: /
+		 - Bit 4: LCD reset
+		 - Bit 5: Touch reset
+		 - Bit 6: Camera reset
+		 - Bit 7: Headphone detect
+		 */
 		io_expander0 {
 			compatible = "diodes,pi4ioe5v6408";
-			register = <0x43>;
+			reg = <0x43>;
 		};
 
+		/*
+		 - Bit 0: C6 WLAN enable
+		 - Bit 1: /
+		 - Bit 2: /
+		 - Bit 3: USB-A 5V enable
+		 - Bit 4: Device power: PWROFF_PLUSE
+		 - Bit 5: IP2326: nCHG_QC_EN
+		 - Bit 6: IP2326: CHG_STAT_LED
+		 - Bit 7: IP2326: CHG_EN
+		*/
 		io_expander1 {
 			compatible = "diodes,pi4ioe5v6408";
-			register = <0x44>;
+			reg = <0x44>;
 		};
 	};
 

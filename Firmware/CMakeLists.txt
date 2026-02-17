@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 
 file(GLOB_RECURSE SOURCE_FILES "Source/*.c*")
 
+get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+
 # Get the project and device id
 if (DEFINED ENV{ESP_IDF_VERSION})
     include("../Buildscripts/device.cmake")
@@ -14,7 +16,6 @@ else ()
     set(TACTILITY_DEVICE_PROJECT Simulator)
 endif ()
 
-get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(DEVICETREE_LOCATION "${PROJECT_ROOT}/Devices/${TACTILITY_DEVICE_ID}")
 
 #
@@ -57,19 +58,18 @@ endif ()
 list(APPEND REQUIRES_LIST
     Tactility
     TactilityKernel
-    ${TACTILITY_DEVICE_PROJECT}
 )
+
+# Add devicetree dependencies
+foreach(dts_dependency IN LISTS DEVICE_DEPENDENCIES)
+    message("Adding DTS dependency ${dts_dependency}")
+    list(APPEND REQUIRES_LIST ${dts_dependency})
+endforeach()
 
 if (DEFINED ENV{ESP_IDF_VERSION})
     list(APPEND REQUIRES_LIST
         TactilityC
     )
-
-    # Add devicetree dependencies
-    foreach(dts_dependency IN LISTS DEVICE_DEPENDENCIES)
-        message("Adding DTS dependency ${dts_dependency}")
-        list(APPEND REQUIRES_LIST ${dts_dependency})
-    endforeach()
 
     idf_component_register(
         SRCS ${SOURCE_FILES} "${GENERATED_DIR}/devicetree.c"
@@ -79,14 +79,12 @@ else ()
     list(APPEND REQUIRES_LIST
         TactilityCore
         TactilityFreeRtos
-        platform-posix
         hal-device-module
         lvgl-module
         SDL2::SDL2-static
         SDL2-static
     )
-    add_executable(FirmwareSim ${SOURCE_FILES} "${GENERATED_DIR}/devicetree.c"
-        ../Drivers/pi4ioe5v6408-module/source/symbols.c)
+    add_executable(FirmwareSim ${SOURCE_FILES} "${GENERATED_DIR}/devicetree.c")
     target_link_libraries(FirmwareSim PRIVATE ${REQUIRES_LIST})
 endif ()
 
