@@ -99,9 +99,6 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     set(FREERTOS_PORT GCC_POSIX CACHE STRING "")
     add_subdirectory(Libraries/FreeRTOS-Kernel)
     target_compile_definitions(freertos_kernel PUBLIC "projCOVERAGE_TEST=0")
-    target_include_directories(freertos_kernel
-        PUBLIC Devices/Simulator/Source # for FreeRTOSConfig.h
-    )
 
     # EmbedTLS
     set(ENABLE_TESTING OFF)
