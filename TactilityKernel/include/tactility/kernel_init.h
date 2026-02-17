@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 /**
- * Initialize the kernel with platform and device modules, and a device tree.
+ * Initialize the kernel with the provided modules from the device tree
  * @param dts_modules List of modules from devicetree, null-terminated, non-null parameter
  * @param dts_devices The list of generated devices from the devicetree. The array must be terminated with DTS_DEVICE_TERMINATOR. This parameter can be NULL.
  * @return ERROR_NONE on success, otherwise an error code

@@ -1,7 +1,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "doctest.h"
 #include <cassert>
+#include <tactility/check.h>
 
+#include <tactility/dts.h>
 #include <tactility/freertos/task.h>
 #include <tactility/kernel_init.h>
 
@@ -25,7 +27,8 @@ void test_task(void* parameter) {
     context.setOption("no-breaks", true); // don't break in the debugger when assertions fail
 
     Module* dts_modules[] = { &platform_posix_module, nullptr };
-    check(kernel_init(nullptr, dts_modules, nullptr) == ERROR_NONE);
+    DtsDevice dts_devices[] = { DTS_DEVICE_TERMINATOR };
+    check(kernel_init(dts_modules, dts_devices) == ERROR_NONE);
 
     data->result = context.run();
 
