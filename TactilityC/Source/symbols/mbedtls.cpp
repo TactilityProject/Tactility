@@ -16,20 +16,7 @@
 #include <mbedtls/ecdh.h>
 #include <mbedtls/error.h>
 
-// mbedtls_calloc/mbedtls_free may be macros (expanding to calloc/free).
-// Provide wrapper functions so the ELF symbol names resolve correctly.
-extern "C" {
-static void* tt_mbedtls_calloc(size_t n, size_t size) { return calloc(n, size); }
-static void  tt_mbedtls_free(void* ptr) { free(ptr); }
-}
-
-// mbedtls_pk_load_file is declared in pk_internal.h (not a public header)
-extern "C" int mbedtls_pk_load_file(const char *path, unsigned char **buf, size_t *n);
-
 const esp_elfsym mbedtls_symbols[] = {
-    // Platform (wrappers to avoid macro issues)
-    { "mbedtls_calloc", (void*)&tt_mbedtls_calloc },
-    { "mbedtls_free",   (void*)&tt_mbedtls_free },
     // CTR_DRBG (random number generation)
     ESP_ELFSYM_EXPORT(mbedtls_ctr_drbg_init),
     ESP_ELFSYM_EXPORT(mbedtls_ctr_drbg_free),
@@ -88,7 +75,6 @@ const esp_elfsym mbedtls_symbols[] = {
     ESP_ELFSYM_EXPORT(mbedtls_pk_get_type),
     ESP_ELFSYM_EXPORT(mbedtls_pk_parse_key),
     ESP_ELFSYM_EXPORT(mbedtls_pk_parse_keyfile),
-    ESP_ELFSYM_EXPORT(mbedtls_pk_load_file),
     // ECP (elliptic curves)
     ESP_ELFSYM_EXPORT(mbedtls_ecp_group_load),
     ESP_ELFSYM_EXPORT(mbedtls_ecp_point_init),
