@@ -12,7 +12,6 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-/** @warning The variable name must be exactly "device_module" */
 struct Module m5stack_stickc_plus_module = {
     .name = "m5stack-stickc-plus",
     .start = start,

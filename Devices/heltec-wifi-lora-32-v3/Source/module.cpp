@@ -12,7 +12,6 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-/** @warning The variable name must be exactly "device_module" */
 struct Module heltec_wifi_lora_32_v3_module = {
     .name = "heltec-wifi-lora-32-v3",
     .start = start,

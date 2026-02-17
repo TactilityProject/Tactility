@@ -20,7 +20,6 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-/** @warning The variable name must be exactly "device_module" */
 struct Module lilygo_tlora_pager_module = {
     .name = "lilygo-tlora-pager",
     .start = start,

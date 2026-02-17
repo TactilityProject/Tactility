@@ -12,7 +12,6 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-/** @warning The variable name must be exactly "device_module" */
 struct Module btt_panda_touch_module = {
     .name = "btt-panda-touch",
     .start = start,

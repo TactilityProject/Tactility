@@ -12,7 +12,6 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-/** @warning The variable name must be exactly "device_module" */
 Module m5stack_tab5_module = {
     .name = "m5stack-tab5",
     .start = start,

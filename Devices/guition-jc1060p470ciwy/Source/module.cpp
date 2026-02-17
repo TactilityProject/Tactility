@@ -12,7 +12,6 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-/** @warning The variable name must be exactly "device_module" */
 struct Module guition_jc1060p470ciwy_module = {
     .name = "guition-jc1060p470ciwy",
     .start = start,
