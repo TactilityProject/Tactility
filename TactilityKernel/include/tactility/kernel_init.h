@@ -10,8 +10,8 @@ extern "C" {
 
 /**
  * Initialize the kernel with the provided modules from the device tree
- * @param dts_modules List of modules from devicetree, null-terminated, non-null parameter
- * @param dts_devices The list of generated devices from the devicetree. The array must be terminated with DTS_DEVICE_TERMINATOR. This parameter can be NULL.
+ * @param dts_modules List of modules from devicetree, null-terminated. Non-null parameter.
+ * @param dts_devices The list of generated devices from the devicetree. The array must be terminated with DTS_DEVICE_TERMINATOR. Non-null parameter.
  * @return ERROR_NONE on success, otherwise an error code
  */
 error_t kernel_init(struct Module* dts_modules[], struct DtsDevice dts_devices[]);

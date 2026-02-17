@@ -46,24 +46,22 @@ error_t kernel_init(Module* dts_modules[], DtsDevice dts_devices[]) {
         dts_module++;
     }
 
-    if (dts_devices) {
-        DtsDevice* dts_device = dts_devices;
-        while (dts_device->device != nullptr) {
-            if (dts_device->status == DTS_DEVICE_STATUS_OKAY) {
-                if (device_construct_add_start(dts_device->device, dts_device->compatible) != ERROR_NONE) {
-                    LOG_E(TAG, "kernel_init failed to construct+add+start device: %s (%s)", dts_device->device->name, dts_device->compatible);
-                    return ERROR_RESOURCE;
-                }
-            } else if (dts_device->status == DTS_DEVICE_STATUS_DISABLED) {
-                if (device_construct_add(dts_device->device, dts_device->compatible) != ERROR_NONE) {
-                    LOG_E(TAG, "kernel_init failed to construct+add device: %s (%s)", dts_device->device->name, dts_device->compatible);
-                    return ERROR_RESOURCE;
-                }
-            } else {
-                check(false, "DTS status not implemented");
+    DtsDevice* dts_device = dts_devices;
+    while (dts_device->device != nullptr) {
+        if (dts_device->status == DTS_DEVICE_STATUS_OKAY) {
+            if (device_construct_add_start(dts_device->device, dts_device->compatible) != ERROR_NONE) {
+                LOG_E(TAG, "kernel_init failed to construct+add+start device: %s (%s)", dts_device->device->name, dts_device->compatible);
+                return ERROR_RESOURCE;
             }
-            dts_device++;
+        } else if (dts_device->status == DTS_DEVICE_STATUS_DISABLED) {
+            if (device_construct_add(dts_device->device, dts_device->compatible) != ERROR_NONE) {
+                LOG_E(TAG, "kernel_init failed to construct+add device: %s (%s)", dts_device->device->name, dts_device->compatible);
+                return ERROR_RESOURCE;
+            }
+        } else {
+            check(false, "DTS status not implemented");
         }
+        dts_device++;
     }
 
     LOG_I(TAG, "init done");
