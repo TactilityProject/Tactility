@@ -64,8 +64,8 @@ extern long __fixdfdi(double a);
 // extern long long __fixtfti(long double a);
 // extern long long __fixxfti(long double a);
 
-// extern unsigned int __fixunssfsi(float a);
-// extern unsigned int __fixunsdfsi(double a);
+extern unsigned int __fixunssfsi(float a);
+extern unsigned int __fixunsdfsi(double a);
 // extern unsigned int __fixunstfsi(long double a);
 // extern unsigned int __fixunsxfsi(long double a);
 
@@ -79,8 +79,8 @@ extern unsigned long __fixunsdfdi(double a);
 // extern unsigned long long __fixunstfti(long double a);
 // extern unsigned long long __fixunsxfti(long double a);
 
-// extern float __floatsisf(int i);
-// extern double __floatsidf(int i);
+extern float __floatsisf(int i);
+extern double __floatsidf(int i);
 // extern long double __floatsitf(int i);
 // extern long double __floatsixf(int i);
 
@@ -146,6 +146,12 @@ int __gtsf2(float a, float b);
 int __gtdf2(double a, double b);
 // int __gttf2(long double a, long double b);
 
+// GCC integer arithmetic helpers (needed on 32-bit targets for 64-bit ops)
+long long __divdi3(long long a, long long b);
+long long __moddi3(long long a, long long b);
+unsigned long long __udivdi3(unsigned long long a, unsigned long long b);
+unsigned long long __umoddi3(unsigned long long a, unsigned long long b);
+
 } // extern "C"
 
 const esp_elfsym gcc_soft_float_symbols[] = {
@@ -201,8 +207,8 @@ const esp_elfsym gcc_soft_float_symbols[] = {
     // ESP_ELFSYM_EXPORT(__fixtfti),
     // ESP_ELFSYM_EXPORT(__fixxfti),
 
-    // ESP_ELFSYM_EXPORT(__fixunssfsi),
-    // ESP_ELFSYM_EXPORT(__fixunsdfsi),
+    ESP_ELFSYM_EXPORT(__fixunssfsi),
+    ESP_ELFSYM_EXPORT(__fixunsdfsi),
     // ESP_ELFSYM_EXPORT(__fixunstfsi),
     // ESP_ELFSYM_EXPORT(__fixunsxfsi),
 
@@ -216,8 +222,8 @@ const esp_elfsym gcc_soft_float_symbols[] = {
     // ESP_ELFSYM_EXPORT(__fixunstfti),
     // ESP_ELFSYM_EXPORT(__fixunsxfti),
 
-    // ESP_ELFSYM_EXPORT(__floatsisf),
-    // ESP_ELFSYM_EXPORT(__floatsidf),
+    ESP_ELFSYM_EXPORT(__floatsisf),
+    ESP_ELFSYM_EXPORT(__floatsidf),
     // ESP_ELFSYM_EXPORT(__floatsitf),
     // ESP_ELFSYM_EXPORT(__floatsixf),
 
@@ -282,6 +288,12 @@ const esp_elfsym gcc_soft_float_symbols[] = {
     ESP_ELFSYM_EXPORT(__gtsf2),
     ESP_ELFSYM_EXPORT(__gtdf2),
     // ESP_ELFSYM_EXPORT(__gttf2),
+
+    // GCC integer arithmetic helpers
+    ESP_ELFSYM_EXPORT(__divdi3),
+    ESP_ELFSYM_EXPORT(__moddi3),
+    ESP_ELFSYM_EXPORT(__udivdi3),
+    ESP_ELFSYM_EXPORT(__umoddi3),
 
     ESP_ELFSYM_END
 };

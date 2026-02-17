@@ -23,6 +23,7 @@
 #include "symbols/esp_http_client.h"
 #include "symbols/freertos.h"
 #include "symbols/gcc_soft_float.h"
+#include "symbols/mbedtls.h"
 #include "symbols/pthread.h"
 #include "symbols/stl.h"
 #include "symbols/string.h"
@@ -40,8 +41,12 @@
 #include <esp_netif.h>
 #include <fcntl.h>
 #include <lwip/sockets.h>
+#include <lwip/netdb.h>
+#include <lwip/inet.h>
+#include <sys/select.h>
 #include <locale.h>
 #include <setjmp.h>
+#include <strings.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/unistd.h>
@@ -80,10 +85,13 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(close),
     ESP_ELFSYM_EXPORT(rmdir),
     ESP_ELFSYM_EXPORT(unlink),
+    // strings.h
+    ESP_ELFSYM_EXPORT(explicit_bzero),
     // time.h
     ESP_ELFSYM_EXPORT(clock_gettime),
     ESP_ELFSYM_EXPORT(strftime),
     ESP_ELFSYM_EXPORT(time),
+    ESP_ELFSYM_EXPORT(difftime),
     ESP_ELFSYM_EXPORT(localtime_r),
     ESP_ELFSYM_EXPORT(localtime),
     // esp_sntp.h
@@ -364,6 +372,12 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(lwip_accept),
     ESP_ELFSYM_EXPORT(lwip_getsockname),
     ESP_ELFSYM_EXPORT(lwip_send),
+    ESP_ELFSYM_EXPORT(lwip_connect),
+    ESP_ELFSYM_EXPORT(lwip_select),
+    ESP_ELFSYM_EXPORT(lwip_gethostbyname),
+    ESP_ELFSYM_EXPORT(ipaddr_addr),
+    // POSIX socket names (VFS wrappers used when apps include <sys/socket.h>)
+    ESP_ELFSYM_EXPORT(select),
     // sys/stat.h
     ESP_ELFSYM_EXPORT(stat),
     ESP_ELFSYM_EXPORT(mkdir),
@@ -418,6 +432,7 @@ uintptr_t tt_symbol_resolver(const char* symbolName) {
         string_symbols,
         esp_event_symbols,
         esp_http_client_symbols,
+        mbedtls_symbols,
     };
 
     for (const auto* symbols : all_symbols) {

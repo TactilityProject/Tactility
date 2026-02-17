@@ -10,6 +10,7 @@ list(APPEND PRIV_REQUIRES_LIST
     Tactility
     TactilityCore
     TactilityKernel
+    mbedtls
 )
 
 if (DEFINED ENV{ESP_IDF_VERSION})
