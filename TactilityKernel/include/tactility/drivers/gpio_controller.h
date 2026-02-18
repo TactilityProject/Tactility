@@ -52,6 +52,36 @@ struct GpioControllerApi {
      * @return ERROR_NONE if successful
      */
     error_t (*get_native_pin_number)(struct GpioDescriptor* descriptor, void* pin_number);
+
+    /**
+     * @brief Adds a callback to be called when a GPIO interrupt occurs.
+     * @param[in] descriptor the pin descriptor
+     * @param[in] callback the callback function
+     * @param[in] arg the argument to pass to the callback
+     * @return ERROR_NONE if successful, ERROR_NOT_SUPPORTED if not implemented
+     */
+    error_t (*add_callback)(struct GpioDescriptor* descriptor, void (*callback)(void*), void* arg);
+
+    /**
+     * @brief Removes a callback from a GPIO interrupt.
+     * @param[in] descriptor the pin descriptor
+     * @return ERROR_NONE if successful, ERROR_NOT_SUPPORTED if not implemented
+     */
+    error_t (*remove_callback)(struct GpioDescriptor* descriptor);
+
+    /**
+     * @brief Enables the interrupt for a GPIO pin.
+     * @param[in] descriptor the pin descriptor
+     * @return ERROR_NONE if successful, ERROR_NOT_SUPPORTED if not implemented
+     */
+    error_t (*enable_interrupt)(struct GpioDescriptor* descriptor);
+
+    /**
+     * @brief Disables the interrupt for a GPIO pin.
+     * @param[in] descriptor the pin descriptor
+     * @return ERROR_NONE if successful, ERROR_NOT_SUPPORTED if not implemented
+     */
+    error_t (*disable_interrupt)(struct GpioDescriptor* descriptor);
 };
 
 struct GpioDescriptor* gpio_descriptor_acquire(
@@ -117,6 +147,36 @@ error_t gpio_descriptor_get_flags(struct GpioDescriptor* descriptor, gpio_flags_
  * @return ERROR_NONE if successful
  */
 error_t gpio_descriptor_get_native_pin_number(struct GpioDescriptor* descriptor, void* pin_number);
+
+/**
+ * @brief Adds a callback to be called when a GPIO interrupt occurs.
+ * @param[in] descriptor the pin descriptor
+ * @param[in] callback the callback function
+ * @param[in] arg the argument to pass to the callback
+ * @return ERROR_NONE if successful, ERROR_NOT_SUPPORTED if not implemented
+ */
+error_t gpio_descriptor_add_callback(struct GpioDescriptor* descriptor, void (*callback)(void*), void* arg);
+
+/**
+ * @brief Removes a callback from a GPIO interrupt.
+ * @param[in] descriptor the pin descriptor
+ * @return ERROR_NONE if successful, ERROR_NOT_SUPPORTED if not implemented
+ */
+error_t gpio_descriptor_remove_callback(struct GpioDescriptor* descriptor);
+
+/**
+ * @brief Enables the interrupt for a GPIO pin.
+ * @param[in] descriptor the pin descriptor
+ * @return ERROR_NONE if successful, ERROR_NOT_SUPPORTED if not implemented
+ */
+error_t gpio_descriptor_enable_interrupt(struct GpioDescriptor* descriptor);
+
+/**
+ * @brief Disables the interrupt for a GPIO pin.
+ * @param[in] descriptor the pin descriptor
+ * @return ERROR_NONE if successful, ERROR_NOT_SUPPORTED if not implemented
+ */
+error_t gpio_descriptor_disable_interrupt(struct GpioDescriptor* descriptor);
 
 /**
  * @brief Gets the number of pins supported by the controller.

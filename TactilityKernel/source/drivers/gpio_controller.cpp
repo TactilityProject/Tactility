@@ -130,6 +130,34 @@ error_t gpio_descriptor_get_native_pin_number(struct GpioDescriptor* descriptor,
     return GPIO_INTERNAL_API(driver)->get_native_pin_number(descriptor, pin_number);
 }
 
+error_t gpio_descriptor_add_callback(struct GpioDescriptor* descriptor, void (*callback)(void*), void* arg) {
+    const auto* driver = device_get_driver(descriptor->controller);
+    auto* api = GPIO_INTERNAL_API(driver);
+    if (!api->add_callback) return ERROR_NOT_SUPPORTED;
+    return api->add_callback(descriptor, callback, arg);
+}
+
+error_t gpio_descriptor_remove_callback(struct GpioDescriptor* descriptor) {
+    const auto* driver = device_get_driver(descriptor->controller);
+    auto* api = GPIO_INTERNAL_API(driver);
+    if (!api->remove_callback) return ERROR_NOT_SUPPORTED;
+    return api->remove_callback(descriptor);
+}
+
+error_t gpio_descriptor_enable_interrupt(struct GpioDescriptor* descriptor) {
+    const auto* driver = device_get_driver(descriptor->controller);
+    auto* api = GPIO_INTERNAL_API(driver);
+    if (!api->enable_interrupt) return ERROR_NOT_SUPPORTED;
+    return api->enable_interrupt(descriptor);
+}
+
+error_t gpio_descriptor_disable_interrupt(struct GpioDescriptor* descriptor) {
+    const auto* driver = device_get_driver(descriptor->controller);
+    auto* api = GPIO_INTERNAL_API(driver);
+    if (!api->disable_interrupt) return ERROR_NOT_SUPPORTED;
+    return api->disable_interrupt(descriptor);
+}
+
 error_t gpio_descriptor_get_owner_type(struct GpioDescriptor* descriptor, GpioOwnerType* owner_type) {
     *owner_type = descriptor->owner_type;
     return ERROR_NONE;
