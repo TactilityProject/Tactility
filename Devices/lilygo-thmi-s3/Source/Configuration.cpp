@@ -14,7 +14,7 @@ static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
         createPower(),
         createSdCard(),
         createDisplay(),
-        ButtonControl::createTwoButtonControl(0),
+        ButtonControl::createOneButtonControl(0)
     };
 }
 
