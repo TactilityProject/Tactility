@@ -43,7 +43,5 @@ bool initBoot() {
         return false;
     }
 
-    driver::pwmbacklight::setBacklightDuty(100);
-
     return true;
 }

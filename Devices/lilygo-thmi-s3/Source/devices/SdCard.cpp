@@ -13,7 +13,8 @@ std::shared_ptr<SdCardDevice> createSdCard() {
         SD_DIO_NC, //D1
         SD_DIO_NC, //D2
         SD_DIO_NC, //D3
-        SdCardDevice::MountBehaviour::AtBoot
+        SdCardDevice::MountBehaviour::AtBoot,
+        SD_DIO_BUS_WIDTH
     );
 
     return std::make_shared<SdmmcDevice>(
