@@ -1,0 +1,3 @@
+dependencies:
+  - Platforms/platform-esp32
+dts: lilygo,thmi-s3.dts
