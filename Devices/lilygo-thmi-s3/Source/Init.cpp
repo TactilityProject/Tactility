@@ -20,11 +20,11 @@ static bool powerOn() {
         return false;
     }
 
-    if (gpio_set_level(TDISPLAY_S3_POWERON_GPIO, 1) != ESP_OK) {
+    if (gpio_set_level(THMI_S3_POWERON_GPIO, 1) != ESP_OK) {
         return false;
     }
     
-    if (gpio_set_level(TDISPLAY_S3_POWEREN_GPIO, 1) != ESP_OK) {
+    if (gpio_set_level(THMI_S3_POWEREN_GPIO, 1) != ESP_OK) {
         return false;
     }
 
