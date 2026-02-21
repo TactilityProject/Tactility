@@ -9,7 +9,7 @@
 
 static bool powerOn() {
     gpio_config_t power_signal_config = {
-        .pin_bit_mask =  (1ULL << TDISPLAY_S3_POWERON_GPIO) | (1ULL << TDISPLAY_S3_POWEREN_GPIO),
+        .pin_bit_mask =  (1ULL << THMI_S3_POWERON_GPIO) | (1ULL << THMI_S3_POWEREN_GPIO),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
