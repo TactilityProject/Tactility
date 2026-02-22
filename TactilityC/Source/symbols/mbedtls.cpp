@@ -1,6 +1,5 @@
 #include <private/elf_symbol.h>
 #include <cstddef>
-#include <cstdlib>
 
 #include <symbols/mbedtls.h>
 

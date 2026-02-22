@@ -74,6 +74,73 @@ static void onNewFolderPressedCallback(lv_event_t* event) {
     view->onNewFolderPressed();
 }
 
+static void onCopyPressedCallback(lv_event_t* event) {
+    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    view->onCopyPressed();
+}
+
+static void onCutPressedCallback(lv_event_t* event) {
+    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    view->onCutPressed();
+}
+
+static void onPastePressedCallback(lv_event_t* event) {
+    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    view->onPastePressed();
+}
+
+// endregion
+
+// region File helpers
+
+static bool copyFileContents(const std::string& src, const std::string& dst) {
+    FILE* in = fopen(src.c_str(), "rb");
+    if (in == nullptr) return false;
+    FILE* out = fopen(dst.c_str(), "wb");
+    if (out == nullptr) {
+        fclose(in);
+        return false;
+    }
+    uint8_t buf[512];
+    bool success = true;
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+        if (fwrite(buf, 1, n, out) != n) {
+            success = false;
+            break;
+        }
+    }
+    if (ferror(in)) {
+        success = false;
+    }
+    fclose(in);
+    fclose(out);
+    if (!success) {
+        remove(dst.c_str());
+    }
+    return success;
+}
+
+static bool copyRecursive(const std::string& src, const std::string& dst) {
+    if (file::isDirectory(src)) {
+        if (!file::findOrCreateDirectory(dst, 0755)) {
+            return false;
+        }
+        bool success = true;
+        file::listDirectory(src, [&](const dirent& entry) {
+            if (!success) return;
+            auto child_src = file::getChildPath(src, entry.d_name);
+            auto child_dst = file::getChildPath(dst, entry.d_name);
+            if (!copyRecursive(child_src, child_dst)) {
+                success = false;
+            }
+        });
+        return success;
+    } else {
+        return copyFileContents(src, dst);
+    }
+}
+
 // endregion
 
 void View::viewFile(const std::string& path, const std::string& filename) {
@@ -283,6 +350,10 @@ void View::onNewFolderPressed() {
 void View::showActionsForDirectory() {
     lv_obj_clean(action_list);
 
+    auto* copy_button = lv_list_add_button(action_list, LV_SYMBOL_COPY, "Copy");
+    lv_obj_add_event_cb(copy_button, onCopyPressedCallback, LV_EVENT_SHORT_CLICKED, this);
+    auto* cut_button = lv_list_add_button(action_list, LV_SYMBOL_CUT, "Cut");
+    lv_obj_add_event_cb(cut_button, onCutPressedCallback, LV_EVENT_SHORT_CLICKED, this);
     auto* rename_button = lv_list_add_button(action_list, LV_SYMBOL_EDIT, "Rename");
     lv_obj_add_event_cb(rename_button, onRenamePressedCallback, LV_EVENT_SHORT_CLICKED, this);
     auto* delete_button = lv_list_add_button(action_list, LV_SYMBOL_TRASH, "Delete");
@@ -294,6 +365,10 @@ void View::showActionsForDirectory() {
 void View::showActionsForFile() {
     lv_obj_clean(action_list);
 
+    auto* copy_button = lv_list_add_button(action_list, LV_SYMBOL_COPY, "Copy");
+    lv_obj_add_event_cb(copy_button, onCopyPressedCallback, LV_EVENT_SHORT_CLICKED, this);
+    auto* cut_button = lv_list_add_button(action_list, LV_SYMBOL_CUT, "Cut");
+    lv_obj_add_event_cb(cut_button, onCutPressedCallback, LV_EVENT_SHORT_CLICKED, this);
     auto* rename_button = lv_list_add_button(action_list, LV_SYMBOL_EDIT, "Rename");
     lv_obj_add_event_cb(rename_button, onRenamePressedCallback, LV_EVENT_SHORT_CLICKED, this);
     auto* delete_button = lv_list_add_button(action_list, LV_SYMBOL_TRASH, "Delete");
@@ -360,9 +435,15 @@ void View::update(size_t start_index) {
     });
 
     if (is_root) {
-        lv_obj_add_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(lv_obj_get_parent(navigate_up_button), LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_obj_remove_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(lv_obj_get_parent(navigate_up_button), LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (state->hasClipboard()) {
+        lv_obj_remove_flag(lv_obj_get_parent(paste_button), LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(lv_obj_get_parent(paste_button), LV_OBJ_FLAG_HIDDEN);
     }
 }
 
@@ -374,6 +455,8 @@ void View::init(const AppContext& appContext, lv_obj_t* parent) {
     navigate_up_button = lvgl::toolbar_add_image_button_action(toolbar, LV_SYMBOL_UP, &onNavigateUpPressedCallback, this);
     new_file_button = lvgl::toolbar_add_image_button_action(toolbar, LV_SYMBOL_FILE, &onNewFilePressedCallback, this);
     new_folder_button = lvgl::toolbar_add_image_button_action(toolbar, LV_SYMBOL_DIRECTORY, &onNewFolderPressedCallback, this);
+    paste_button = lvgl::toolbar_add_image_button_action(toolbar, LV_SYMBOL_PASTE, &onPastePressedCallback, this);
+    lv_obj_add_flag(lv_obj_get_parent(paste_button), LV_OBJ_FLAG_HIDDEN);
 
     auto* wrapper = lv_obj_create(parent);
     lv_obj_set_width(wrapper, LV_PCT(100));
@@ -454,7 +537,13 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                 auto lock = file::getLock(filepath);
                 lock->lock();
                 std::string rename_to = file::getChildPath(state->getCurrentPath(), new_name);
-                if (rename(filepath.c_str(), rename_to.c_str())) {
+                struct stat st;
+                if (stat(rename_to.c_str(), &st) == 0) {
+                    LOGGER.warn("Rename: destination already exists: \"{}\"", rename_to);
+                    lock->unlock();
+                    break;
+                }
+                if (rename(filepath.c_str(), rename_to.c_str()) == 0) {
                     LOGGER.info("Renamed \"{}\" to \"{}\"", filepath, rename_to);
                 } else {
                     LOGGER.error("Failed to rename \"{}\" to \"{}\"", filepath, rename_to);
@@ -522,9 +611,99 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
             }
             break;
         }
+        case State::ActionPaste: {
+            if (alertdialog::getResultIndex(*bundle) == 0) {
+                auto clipboard = state->getClipboard();
+                if (clipboard.has_value()) {
+                    std::string dst = state->getPendingPasteDst();
+                    if (file::deleteRecursively(dst)) {
+                        doPaste(clipboard->first, clipboard->second, dst);
+                    } else {
+                        LOGGER.error("Overwrite: failed to remove existing destination: \"{}\"", dst);
+                    }
+                }
+            }
+            break;
+        }
         default:
             break;
     }
+}
+
+void View::onCopyPressed() {
+    std::string path = state->getSelectedChildPath();
+    state->setClipboard(path, false);
+    LOGGER.info("Copied to clipboard: {}", path);
+    onNavigate();
+    update();
+}
+
+void View::onCutPressed() {
+    std::string path = state->getSelectedChildPath();
+    state->setClipboard(path, true);
+    LOGGER.info("Cut to clipboard: {}", path);
+    onNavigate();
+    update();
+}
+
+void View::onPastePressed() {
+    auto clipboard = state->getClipboard();
+    if (!clipboard.has_value()) return;
+
+    std::string src = clipboard->first;
+    bool is_cut = clipboard->second;
+    std::string filename = file::getLastPathSegment(src);
+    std::string dst = file::getChildPath(state->getCurrentPath(), filename);
+
+    auto lock = file::getLock(src);
+    lock->lock();
+
+    struct stat st;
+    bool dst_exists = (stat(dst.c_str(), &st) == 0);
+    lock->unlock();
+
+    if (dst_exists) {
+        state->setPendingPasteDst(dst);
+        state->setPendingAction(State::ActionPaste);
+        const std::vector<std::string> choices = {"Overwrite", "Cancel"};
+        alertdialog::start("File exists", "Overwrite \"" + filename + "\"?", choices);
+        return;
+    }
+
+    doPaste(src, is_cut, dst);
+}
+
+void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) {
+    auto lock = file::getLock(src);
+    lock->lock();
+
+    bool success = false;
+    if (is_cut) {
+        success = (rename(src.c_str(), dst.c_str()) == 0);
+        if (!success) {
+            // Fallback for cross-filesystem moves: copy then delete
+            if (copyRecursive(src, dst)) {
+                success = true;
+                if (!file::deleteRecursively(src)) {
+                    LOGGER.warn("Cut: copied \"{}\" to \"{}\" but failed to remove source", src, dst);
+                }
+            }
+        }
+    } else {
+        success = copyRecursive(src, dst);
+    }
+
+    lock->unlock();
+
+    if (success) {
+        LOGGER.info("{} \"{}\" to \"{}\"", is_cut ? "Moved" : "Copied", src, dst);
+        state->clearClipboard();
+    } else {
+        LOGGER.error("Failed to {} \"{}\" to \"{}\"", is_cut ? "move" : "copy", src, dst);
+    }
+
+    state->setEntriesForPath(state->getCurrentPath());
+    update();
 }
 
 void View::deinit(const AppContext& appContext) {
