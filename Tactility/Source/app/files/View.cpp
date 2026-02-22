@@ -129,6 +129,7 @@ static bool copyRecursive(const std::string& src, const std::string& dst) {
         bool success = true;
         file::listDirectory(src, [&](const dirent& entry) {
             if (!success) return;
+            if (strcmp(entry.d_name, ".") == 0 || strcmp(entry.d_name, "..") == 0) return;
             auto child_src = file::getChildPath(src, entry.d_name);
             auto child_dst = file::getChildPath(dst, entry.d_name);
             if (!copyRecursive(child_src, child_dst)) {
@@ -347,7 +348,7 @@ void View::onNewFolderPressed() {
     inputdialog::start("New Folder", "Enter folder name:", "");
 }
 
-void View::showActionsForDirectory() {
+void View::showActions() {
     lv_obj_clean(action_list);
 
     auto* copy_button = lv_list_add_button(action_list, LV_SYMBOL_COPY, "Copy");
@@ -362,20 +363,8 @@ void View::showActionsForDirectory() {
     lv_obj_remove_flag(action_list, LV_OBJ_FLAG_HIDDEN);
 }
 
-void View::showActionsForFile() {
-    lv_obj_clean(action_list);
-
-    auto* copy_button = lv_list_add_button(action_list, LV_SYMBOL_COPY, "Copy");
-    lv_obj_add_event_cb(copy_button, onCopyPressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    auto* cut_button = lv_list_add_button(action_list, LV_SYMBOL_CUT, "Cut");
-    lv_obj_add_event_cb(cut_button, onCutPressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    auto* rename_button = lv_list_add_button(action_list, LV_SYMBOL_EDIT, "Rename");
-    lv_obj_add_event_cb(rename_button, onRenamePressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    auto* delete_button = lv_list_add_button(action_list, LV_SYMBOL_TRASH, "Delete");
-    lv_obj_add_event_cb(delete_button, onDeletePressedCallback, LV_EVENT_SHORT_CLICKED, this);
-
-    lv_obj_remove_flag(action_list, LV_OBJ_FLAG_HIDDEN);
-}
+void View::showActionsForDirectory() { showActions(); }
+void View::showActionsForFile() { showActions(); }
 
 void View::update(size_t start_index) {
     const bool is_root = (state->getCurrentPath() == "/");
@@ -541,6 +530,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                 if (stat(rename_to.c_str(), &st) == 0) {
                     LOGGER.warn("Rename: destination already exists: \"{}\"", rename_to);
                     lock->unlock();
+                    alertdialog::start("Rename failed", "\"" + new_name + "\" already exists.");
                     break;
                 }
                 if (rename(filepath.c_str(), rename_to.c_str()) == 0) {
@@ -616,6 +606,11 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                 auto clipboard = state->getClipboard();
                 if (clipboard.has_value()) {
                     std::string dst = state->getPendingPasteDst();
+                    // Trade-off: dst is removed before the copy attempt. If doPaste
+                    // subsequently fails (e.g. source read error, out of space), the
+                    // original dst data is unrecoverable. Acceptable for an embedded
+                    // file manager; a safer approach would rename dst to a temp path
+                    // first and roll back on failure.
                     if (file::deleteRecursively(dst)) {
                         doPaste(clipboard->first, clipboard->second, dst);
                     } else {
@@ -655,6 +650,10 @@ void View::onPastePressed() {
     std::string filename = file::getLastPathSegment(src);
     std::string dst = file::getChildPath(state->getCurrentPath(), filename);
 
+    // Note: getLock(src) guards the source path; the existence check below is
+    // against dst, so there is a TOCTOU gap — another writer could create dst
+    // between this check and the write inside doPaste.  Acceptable on a
+    // single-user embedded device; locking dst instead would be more correct.
     auto lock = file::getLock(src);
     lock->lock();
 
@@ -681,11 +680,15 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     if (is_cut) {
         success = (rename(src.c_str(), dst.c_str()) == 0);
         if (!success) {
-            // Fallback for cross-filesystem moves: copy then delete
+            // Fallback for cross-filesystem moves: copy then delete.
+            // Only mark success if both halves succeed — if the source removal
+            // fails we leave success=false so the clipboard is preserved and
+            // the error is surfaced; the user must remove the source manually.
             if (copyRecursive(src, dst)) {
-                success = true;
-                if (!file::deleteRecursively(src)) {
-                    LOGGER.warn("Cut: copied \"{}\" to \"{}\" but failed to remove source", src, dst);
+                if (file::deleteRecursively(src)) {
+                    success = true;
+                } else {
+                    LOGGER.error("Cut: copied \"{}\" to \"{}\" but failed to remove source — manual cleanup required", src, dst);
                 }
             }
         }

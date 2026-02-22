@@ -26,6 +26,7 @@ class View final {
     std::string installAppPath = { 0 };
     LaunchId installAppLaunchId = 0;
 
+    void showActions();
     void showActionsForDirectory();
     void showActionsForFile();
 

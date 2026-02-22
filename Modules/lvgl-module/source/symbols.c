@@ -410,8 +410,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_anim_start),
     DEFINE_MODULE_SYMBOL(lv_anim_path_ease_in_out),
     DEFINE_MODULE_SYMBOL(lv_anim_path_linear),
-    DEFINE_MODULE_SYMBOL(lv_anim_path_ease_out),
     DEFINE_MODULE_SYMBOL(lv_anim_path_ease_in),
+    DEFINE_MODULE_SYMBOL(lv_anim_path_ease_out),
     // lv_async
     DEFINE_MODULE_SYMBOL(lv_async_call),
     MODULE_SYMBOL_TERMINATOR

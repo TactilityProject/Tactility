@@ -74,6 +74,10 @@ public:
 
     void setPendingAction(PendingAction newAction) { action = newAction; }
 
+    // These accessors intentionally omit mutex locking: both are only called
+    // from the UI thread (onPastePressed → onResult), so no concurrent access
+    // is possible.  If that threading assumption changes, add mutex guards here
+    // to match the clipboard accessors above.
     std::string getPendingPasteDst() const { return pending_paste_dst; }
     void setPendingPasteDst(const std::string& dst) { pending_paste_dst = dst; }
 
