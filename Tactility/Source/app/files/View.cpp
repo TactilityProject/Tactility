@@ -432,7 +432,7 @@ void View::update(size_t start_index) {
         lv_obj_remove_flag(lv_obj_get_parent(navigate_up_button), LV_OBJ_FLAG_HIDDEN);
     }
 
-    if (state->hasClipboard()) {
+    if (state->hasClipboard() && !is_root) {
         lv_obj_remove_flag(lv_obj_get_parent(paste_button), LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(lv_obj_get_parent(paste_button), LV_OBJ_FLAG_HIDDEN);
@@ -680,9 +680,6 @@ void View::onPastePressed() {
 }
 
 void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) {
-    auto lock = file::getLock(src);
-    lock->lock();
-
     bool success = false;
     bool src_delete_failed = false;
     if (is_cut) {
@@ -704,8 +701,6 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     } else {
         success = copyRecursive(src, dst);
     }
-
-    lock->unlock();
 
     const std::string filename = file::getLastPathSegment(src);
     if (success) {
