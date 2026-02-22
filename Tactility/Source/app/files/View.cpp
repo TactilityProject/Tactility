@@ -136,6 +136,9 @@ static bool copyRecursive(const std::string& src, const std::string& dst) {
                 success = false;
             }
         });
+        if (!success) {
+            file::deleteRecursively(dst); // remove partial copy
+        }
         return success;
     } else {
         return copyFileContents(src, dst);
@@ -654,6 +657,10 @@ void View::onPastePressed() {
     // against dst, so there is a TOCTOU gap — another writer could create dst
     // between this check and the write inside doPaste.  Acceptable on a
     // single-user embedded device; locking dst instead would be more correct.
+    if (src == dst) {
+        LOGGER.info("Paste: source and destination are the same path, skipping");
+        return;
+    }
     auto lock = file::getLock(src);
     lock->lock();
 
@@ -677,6 +684,7 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     lock->lock();
 
     bool success = false;
+    bool src_delete_failed = false;
     if (is_cut) {
         success = (rename(src.c_str(), dst.c_str()) == 0);
         if (!success) {
@@ -688,6 +696,7 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
                 if (file::deleteRecursively(src)) {
                     success = true;
                 } else {
+                    src_delete_failed = true;
                     LOGGER.error("Cut: copied \"{}\" to \"{}\" but failed to remove source — manual cleanup required", src, dst);
                 }
             }
@@ -698,11 +707,18 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
 
     lock->unlock();
 
+    const std::string filename = file::getLastPathSegment(src);
     if (success) {
         LOGGER.info("{} \"{}\" to \"{}\"", is_cut ? "Moved" : "Copied", src, dst);
         state->clearClipboard();
+    } else if (src_delete_failed) {
+        alertdialog::start("Move incomplete", "\"" + filename + "\" was copied but the original could not be removed.\nPlease delete it manually.");
     } else {
         LOGGER.error("Failed to {} \"{}\" to \"{}\"", is_cut ? "move" : "copy", src, dst);
+        alertdialog::start(
+            std::string("Failed to ") + (is_cut ? "move" : "copy"),
+            "\"" + filename + "\" could not be " + (is_cut ? "moved." : "copied.")
+        );
     }
 
     state->setEntriesForPath(state->getCurrentPath());
