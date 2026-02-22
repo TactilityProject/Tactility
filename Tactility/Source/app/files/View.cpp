@@ -114,7 +114,9 @@ static bool copyFileContents(const std::string& src, const std::string& dst) {
         success = false;
     }
     fclose(in);
-    fclose(out);
+    if (fclose(out) != 0) {
+        success = false;
+    }
     if (!success) {
         remove(dst.c_str());
     }
@@ -126,16 +128,21 @@ static bool copyRecursive(const std::string& src, const std::string& dst) {
         if (!file::findOrCreateDirectory(dst, 0755)) {
             return false;
         }
-        bool success = true;
+        std::vector<dirent> entries;
         file::listDirectory(src, [&](const dirent& entry) {
-            if (!success) return;
             if (strcmp(entry.d_name, ".") == 0 || strcmp(entry.d_name, "..") == 0) return;
+            entries.push_back(entry); // collect while lock is held; do not recurse here
+        });
+        // listDirectory has returned — device lock is now released
+        bool success = true;
+        for (const auto& entry : entries) {
+            if (!success) break;
             auto child_src = file::getChildPath(src, entry.d_name);
             auto child_dst = file::getChildPath(dst, entry.d_name);
             if (!copyRecursive(child_src, child_dst)) {
                 success = false;
             }
-        });
+        }
         if (!success) {
             file::deleteRecursively(dst); // remove partial copy
         }
@@ -707,9 +714,11 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
         LOGGER.info("{} \"{}\" to \"{}\"", is_cut ? "Moved" : "Copied", src, dst);
         state->clearClipboard();
     } else if (src_delete_failed) {
+        state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start("Move incomplete", "\"" + filename + "\" was copied but the original could not be removed.\nPlease delete it manually.");
     } else {
         LOGGER.error("Failed to {} \"{}\" to \"{}\"", is_cut ? "move" : "copy", src, dst);
+        state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start(
             std::string("Failed to ") + (is_cut ? "move" : "copy"),
             "\"" + filename + "\" could not be " + (is_cut ? "moved." : "copied.")
