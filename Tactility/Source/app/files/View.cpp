@@ -129,10 +129,14 @@ static bool copyRecursive(const std::string& src, const std::string& dst) {
             return false;
         }
         std::vector<dirent> entries;
-        file::listDirectory(src, [&](const dirent& entry) {
+        bool listed = file::listDirectory(src, [&](const dirent& entry) {
             if (strcmp(entry.d_name, ".") == 0 || strcmp(entry.d_name, "..") == 0) return;
             entries.push_back(entry); // collect while lock is held; do not recurse here
         });
+        if (!listed) {
+            file::deleteRecursively(dst); // remove the directory created above
+            return false;
+        }
         // listDirectory has returned — device lock is now released
         bool success = true;
         for (const auto& entry : entries) {
@@ -540,6 +544,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                 if (stat(rename_to.c_str(), &st) == 0) {
                     LOGGER.warn("Rename: destination already exists: \"{}\"", rename_to);
                     lock->unlock();
+                    state->setPendingAction(State::ActionNone);
                     alertdialog::start("Rename failed", "\"" + new_name + "\" already exists.");
                     break;
                 }
@@ -625,6 +630,11 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                         doPaste(clipboard->first, clipboard->second, dst);
                     } else {
                         LOGGER.error("Overwrite: failed to remove existing destination: \"{}\"", dst);
+                        state->setPendingAction(State::ActionNone);
+                        alertdialog::start(
+                            "Overwrite failed",
+                            "Could not remove \"" + file::getLastPathSegment(dst) + "\" before overwriting."
+                        );
                     }
                 }
             }
