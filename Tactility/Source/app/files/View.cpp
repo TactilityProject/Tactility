@@ -94,18 +94,27 @@ static void onPastePressedCallback(lv_event_t* event) {
 // region File helpers
 
 static bool copyFileContents(const std::string& src, const std::string& dst) {
-    auto lock = file::getLock(src);
-    lock->lock();
+    auto src_lock = file::getLock(src);
+    auto dst_lock = file::getLock(dst);
+    const bool same_lock = (src_lock.get() == dst_lock.get());
+
+    auto unlock_all = [&] {
+        if (!same_lock) dst_lock->unlock();
+        src_lock->unlock();
+    };
+
+    src_lock->lock();
+    if (!same_lock) dst_lock->lock();
 
     FILE* in = fopen(src.c_str(), "rb");
     if (in == nullptr) {
-        lock->unlock();
+        unlock_all();
         return false;
     }
     FILE* out = fopen(dst.c_str(), "wb");
     if (out == nullptr) {
         fclose(in);
-        lock->unlock();
+        unlock_all();
         return false;
     }
     uint8_t buf[512];
@@ -127,7 +136,7 @@ static bool copyFileContents(const std::string& src, const std::string& dst) {
     if (!success) {
         remove(dst.c_str());
     }
-    lock->unlock();
+    unlock_all();
     return success;
 }
 
