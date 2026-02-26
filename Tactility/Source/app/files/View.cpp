@@ -94,11 +94,18 @@ static void onPastePressedCallback(lv_event_t* event) {
 // region File helpers
 
 static bool copyFileContents(const std::string& src, const std::string& dst) {
+    auto lock = file::getLock(src);
+    lock->lock();
+
     FILE* in = fopen(src.c_str(), "rb");
-    if (in == nullptr) return false;
+    if (in == nullptr) {
+        lock->unlock();
+        return false;
+    }
     FILE* out = fopen(dst.c_str(), "wb");
     if (out == nullptr) {
         fclose(in);
+        lock->unlock();
         return false;
     }
     uint8_t buf[512];
@@ -120,6 +127,7 @@ static bool copyFileContents(const std::string& src, const std::string& dst) {
     if (!success) {
         remove(dst.c_str());
     }
+    lock->unlock();
     return success;
 }
 
@@ -128,27 +136,36 @@ static bool copyRecursive(const std::string& src, const std::string& dst) {
         if (!file::findOrCreateDirectory(dst, 0755)) {
             return false;
         }
-        std::vector<dirent> entries;
-        bool listed = file::listDirectory(src, [&](const dirent& entry) {
-            if (strcmp(entry.d_name, ".") == 0 || strcmp(entry.d_name, "..") == 0) return;
-            entries.push_back(entry); // collect while lock is held; do not recurse here
-        });
-        if (!listed) {
-            file::deleteRecursively(dst); // remove the directory created above
+
+        // Process one entry at a time: release the device lock between iterations
+        // so other SPI bus users aren't starved, and stop immediately on failure.
+        auto lock = file::getLock(src);
+        lock->lock();
+        DIR* dir = opendir(src.c_str());
+        if (!dir) {
+            lock->unlock();
+            file::deleteRecursively(dst);
             return false;
         }
-        // listDirectory has returned — device lock is now released
+
         bool success = true;
-        for (const auto& entry : entries) {
-            if (!success) break;
-            auto child_src = file::getChildPath(src, entry.d_name);
-            auto child_dst = file::getChildPath(dst, entry.d_name);
-            if (!copyRecursive(child_src, child_dst)) {
-                success = false;
-            }
+        while (success) {
+            struct dirent* entry = readdir(dir);
+            if (!entry) break;
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+            std::string name = entry->d_name; // copy before releasing lock
+            lock->unlock();
+
+            success = copyRecursive(file::getChildPath(src, name), file::getChildPath(dst, name));
+
+            lock->lock();
         }
+        closedir(dir);
+        lock->unlock();
+
         if (!success) {
-            file::deleteRecursively(dst); // remove partial copy
+            file::deleteRecursively(dst);
         }
         return success;
     } else {
@@ -667,8 +684,8 @@ void View::onPastePressed() {
 
     std::string src = clipboard->first;
     bool is_cut = clipboard->second;
-    std::string filename = file::getLastPathSegment(src);
-    std::string dst = file::getChildPath(state->getCurrentPath(), filename);
+    std::string entry_name = file::getLastPathSegment(src);
+    std::string dst = file::getChildPath(state->getCurrentPath(), entry_name);
 
     // Note: getLock(src) guards the source path; the existence check below is
     // against dst, so there is a TOCTOU gap — another writer could create dst
@@ -689,7 +706,7 @@ void View::onPastePressed() {
         state->setPendingPasteDst(dst);
         state->setPendingAction(State::ActionPaste);
         const std::vector<std::string> choices = {"Overwrite", "Cancel"};
-        alertdialog::start("File exists", "Overwrite \"" + filename + "\"?", choices);
+        alertdialog::start("File exists", "Overwrite \"" + entry_name + "\"?", choices);
         return;
     }
 
@@ -700,7 +717,10 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     bool success = false;
     bool src_delete_failed = false;
     if (is_cut) {
+        auto lock = file::getLock(src);
+        lock->lock();
         success = (rename(src.c_str(), dst.c_str()) == 0);
+        lock->unlock();
         if (!success) {
             // Fallback for cross-filesystem moves: copy then delete.
             // Only mark success if both halves succeed — if the source removal
@@ -722,7 +742,9 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     const std::string filename = file::getLastPathSegment(src);
     if (success) {
         LOGGER.info("{} \"{}\" to \"{}\"", is_cut ? "Moved" : "Copied", src, dst);
-        state->clearClipboard();
+        if (is_cut) {
+            state->clearClipboard();
+        }
     } else if (src_delete_failed) {
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start("Move incomplete", "\"" + filename + "\" was copied but the original could not be removed.\nPlease delete it manually.");
