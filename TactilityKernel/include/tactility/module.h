@@ -118,6 +118,7 @@ error_t module_construct_add_start(struct Module* module);
 
 /**
  * @brief Check if the module is started.
+ * Can be used when module isn't constructed yet.
  * @param module module to check
  * @return true if the module is started, false otherwise
  */
