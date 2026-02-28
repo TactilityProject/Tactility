@@ -5,6 +5,7 @@
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <bindings/bmi270.h>
 #include <bindings/pi4ioe5v6408.h>
 
 / {
@@ -51,6 +52,11 @@
 		io_expander1 {
 			compatible = "diodes,pi4ioe5v6408";
 			reg = <0x44>;
+		};
+
+		bmi270 {
+			compatible = "bosch,bmi270";
+			reg = <0x68>;
 		};
 	};
 

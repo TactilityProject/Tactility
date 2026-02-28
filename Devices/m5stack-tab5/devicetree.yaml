@@ -1,4 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
   - Drivers/pi4ioe5v6408-module
+  - Drivers/bmi270-module
 dts: m5stack,tab5.dts

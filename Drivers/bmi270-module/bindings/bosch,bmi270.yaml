@@ -1,0 +1,5 @@
+description: Bosch BMI270 6-axis IMU
+
+include: ["i2c-device.yaml"]
+
+compatible: "bosch,bmi270"

@@ -1,13 +1,11 @@
 #include "devices/Display.h"
 #include "devices/SdCard.h"
-#include <driver/gpio.h>
 
+#include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
 
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/hal/i2c/I2c.h>
-#include <drivers/pi4ioe5v6408.h>
-#include <tactility/drivers/gpio_controller.h>
 
 using namespace tt::hal;
 
@@ -58,8 +56,6 @@ constexpr auto GPIO_EXP1_PIN_IP2326_CHG_STAT_LED = 6;
 constexpr auto GPIO_EXP1_PIN_IP2326_CHG_EN = 7;
 
 static void initExpander0(::Device* io_expander0) {
-    constexpr TickType_t i2c_timeout = pdMS_TO_TICKS(10);
-
     auto* rf_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_RF_INTERNAL_EXTERNAL, GPIO_OWNER_GPIO);
     auto* speaker_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_OWNER_GPIO);
     auto* external_5v_bus_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_EXTERNAL_5V_BUS_ENABLE, GPIO_OWNER_GPIO);
