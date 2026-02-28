@@ -201,6 +201,15 @@ error_t gpio_controller_init_descriptors(struct Device* device, uint32_t pin_cou
  */
 error_t gpio_controller_deinit_descriptors(struct Device* device);
 
+/**
+ * Unlike other drivers, a GPIO controller's internal data is created and set by gpio_controller_init_descriptors()
+ * This means that the specific controller implementation cannot set the device's driver data, as it's already set by the GPIO controller base coded.
+ * When calling init descriptors, the caller can pass a controller_context, which is an optional pointer that holds the implementation's internal data.
+ * @param device the GPIO controller device
+ * @return ERROR_NONE if successful
+ */
+void* gpio_controller_get_controller_context(struct Device* device);
+
 extern const struct DeviceType GPIO_CONTROLLER_TYPE;
 
 #ifdef __cplusplus

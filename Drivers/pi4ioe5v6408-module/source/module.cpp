@@ -6,7 +6,6 @@
 extern "C" {
 
 extern Driver pi4ioe5v6408_driver;
-extern const ModuleSymbol pi4ioe5v6408_module_symbols[];
 
 static error_t start() {
     /* We crash when construct fails, because if a single driver fails to construct,
@@ -26,7 +25,7 @@ Module pi4ioe5v6408_module = {
     .name = "pi4ioe5v6408",
     .start = start,
     .stop = stop,
-    .symbols = pi4ioe5v6408_module_symbols,
+    .symbols = nullptr,
     .internal = nullptr
 };
 
