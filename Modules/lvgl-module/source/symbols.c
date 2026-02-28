@@ -155,6 +155,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_class_init_obj),
     DEFINE_MODULE_SYMBOL(lv_obj_move_foreground),
     DEFINE_MODULE_SYMBOL(lv_obj_move_to_index),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_min_height),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_max_height),
     // lv_font
     DEFINE_MODULE_SYMBOL(lv_font_get_default),
     // lv_theme
@@ -385,6 +387,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_group_set_editing),
     DEFINE_MODULE_SYMBOL(lv_group_create),
     DEFINE_MODULE_SYMBOL(lv_group_delete),
+    DEFINE_MODULE_SYMBOL(lv_group_get_editing),
     // lv_mem
     DEFINE_MODULE_SYMBOL(lv_free),
     DEFINE_MODULE_SYMBOL(lv_malloc),
@@ -407,5 +410,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_anim_start),
     DEFINE_MODULE_SYMBOL(lv_anim_path_ease_in_out),
     DEFINE_MODULE_SYMBOL(lv_anim_path_linear),
+    DEFINE_MODULE_SYMBOL(lv_anim_path_ease_in),
+    DEFINE_MODULE_SYMBOL(lv_anim_path_ease_out),
+    // lv_async
+    DEFINE_MODULE_SYMBOL(lv_async_call),
     MODULE_SYMBOL_TERMINATOR
 };

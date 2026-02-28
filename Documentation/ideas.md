@@ -85,7 +85,6 @@
 - T-Deck: Use trackball as input device (with optional mouse functionality for LVGL)
 - Show a warning screen if firmware encryption or secure boot are off when saving WiFi credentials.
 - Remove flex_flow from app_container in Gui.cpp
-- Files app: copy/cut/paste actions
 - ElfAppManifest: change name (remove "manifest" as it's confusing), remove icon and title, publish snapshot SDK on CDN
 - Bug: CYD 2432S032C screen rotation fails due to touch driver issue
 - Calculator app should show regular text input field on non-touch devices that have a keyboard (Cardputer, T-Lora Pager)

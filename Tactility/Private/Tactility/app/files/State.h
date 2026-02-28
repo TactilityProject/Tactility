@@ -2,7 +2,9 @@
 
 #include <Tactility/RecursiveMutex.h>
 
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 #include <dirent.h>
 
@@ -17,7 +19,8 @@ public:
         ActionDelete,
         ActionRename,
         ActionCreateFile,
-        ActionCreateFolder
+        ActionCreateFolder,
+        ActionPaste
     };
 
 private:
@@ -27,6 +30,10 @@ private:
     std::string current_path;
     std::string selected_child_entry;
     PendingAction action = ActionNone;
+    std::string pending_paste_dst;
+    std::string clipboard_path;
+    bool clipboard_is_cut = false;
+    bool clipboard_active = false;
 
 public:
 
@@ -66,6 +73,46 @@ public:
     PendingAction getPendingAction() const { return action; }
 
     void setPendingAction(PendingAction newAction) { action = newAction; }
+
+    // These accessors intentionally omit mutex locking: both are only called
+    // from the UI thread (onPastePressed → onResult), so no concurrent access
+    // is possible.  If that threading assumption changes, add mutex guards here
+    // to match the clipboard accessors above.
+    std::string getPendingPasteDst() const { return pending_paste_dst; }
+    void setPendingPasteDst(const std::string& dst) { pending_paste_dst = dst; }
+
+    void setClipboard(const std::string& path, bool is_cut) {
+        mutex.withLock([&] {
+            clipboard_path = path;
+            clipboard_is_cut = is_cut;
+            clipboard_active = true;
+        });
+    }
+
+    bool hasClipboard() const {
+        bool result = false;
+        mutex.withLock([&] { result = clipboard_active; });
+        return result;
+    }
+
+    /** Returns {path, is_cut} atomically, or nullopt if clipboard is empty. */
+    std::optional<std::pair<std::string, bool>> getClipboard() const {
+        std::optional<std::pair<std::string, bool>> result;
+        mutex.withLock([&] {
+            if (clipboard_active) {
+                result = { clipboard_path, clipboard_is_cut };
+            }
+        });
+        return result;
+    }
+
+    void clearClipboard() {
+        mutex.withLock([&] {
+            clipboard_active = false;
+            clipboard_path.clear();
+            clipboard_is_cut = false;
+        });
+    }
 };
 
 }

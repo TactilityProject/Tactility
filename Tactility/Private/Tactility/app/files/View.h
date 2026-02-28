@@ -21,10 +21,12 @@ class View final {
     lv_obj_t* navigate_up_button = nullptr;
     lv_obj_t* new_file_button = nullptr;
     lv_obj_t* new_folder_button = nullptr;
+    lv_obj_t* paste_button = nullptr;
 
     std::string installAppPath = { 0 };
     LaunchId installAppLaunchId = 0;
 
+    void showActions();
     void showActionsForDirectory();
     void showActionsForFile();
 
@@ -46,6 +48,9 @@ public:
     void onDeletePressed();
     void onNewFilePressed();
     void onNewFolderPressed();
+    void onCopyPressed();
+    void onCutPressed();
+    void onPastePressed();
     void onDirEntryListScrollBegin();
     void onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle);
     void deinit(const AppContext& appContext);
@@ -53,6 +58,7 @@ public:
 private:
 
     bool resolveDirentFromListIndex(int32_t list_index, dirent& out_entry);
+    void doPaste(const std::string& src, bool is_cut, const std::string& dst);
 };
 
 }
