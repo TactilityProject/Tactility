@@ -87,6 +87,8 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(unlink),
     // strings.h
     ESP_ELFSYM_EXPORT(explicit_bzero),
+    ESP_ELFSYM_EXPORT(strcasecmp),
+    ESP_ELFSYM_EXPORT(strncasecmp),
     // time.h
     ESP_ELFSYM_EXPORT(clock_gettime),
     ESP_ELFSYM_EXPORT(strftime),
