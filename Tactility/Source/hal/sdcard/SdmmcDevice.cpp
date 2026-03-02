@@ -21,7 +21,7 @@ bool SdmmcDevice::mountInternal(const std::string& newMountPath) {
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
         .format_if_mount_failed = config->formatOnMountFailed,
         .max_files = config->maxOpenFiles,
-        .allocation_unit_size = config->allocUnitSize,
+        .allocation_unit_size = 512 * 8,
         .disk_status_check_enable = config->statusCheckEnabled,
         .use_one_fat = false
     };
