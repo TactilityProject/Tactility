@@ -422,7 +422,12 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(ledc_set_freq),
     ESP_ELFSYM_EXPORT(ledc_channel_config),
     ESP_ELFSYM_EXPORT(ledc_set_duty),
+    ESP_ELFSYM_EXPORT(ledc_set_fade),
+    ESP_ELFSYM_EXPORT(ledc_set_pin),
     ESP_ELFSYM_EXPORT(ledc_timer_config),
+    ESP_ELFSYM_EXPORT(ledc_timer_pause),
+    ESP_ELFSYM_EXPORT(ledc_timer_resume),
+    ESP_ELFSYM_EXPORT(ledc_timer_rst),
     // delimiter
     ESP_ELFSYM_END
 };

@@ -1,17 +1,17 @@
+#include <tactility/concurrent/dispatcher.h>
+#include <tactility/concurrent/event_group.h>
+#include <tactility/concurrent/thread.h>
+#include <tactility/concurrent/timer.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/gpio_controller.h>
+#include <tactility/drivers/file_system.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
 #include <tactility/drivers/root.h>
 #include <tactility/drivers/spi_controller.h>
 #include <tactility/drivers/uart_controller.h>
-#include <tactility/concurrent/dispatcher.h>
-#include <tactility/concurrent/event_group.h>
-#include <tactility/concurrent/thread.h>
-#include <tactility/concurrent/timer.h>
 #include <tactility/error.h>
-#include <tactility/log.h>
 #include <tactility/module.h>
 
 /**
@@ -58,6 +58,11 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(driver_is_compatible),
     DEFINE_MODULE_SYMBOL(driver_find_compatible),
     DEFINE_MODULE_SYMBOL(driver_get_device_type),
+    // file system
+    DEFINE_MODULE_SYMBOL(file_system_mount),
+    DEFINE_MODULE_SYMBOL(file_system_unmount),
+    DEFINE_MODULE_SYMBOL(file_system_is_mounted),
+    DEFINE_MODULE_SYMBOL(file_system_get_mount_path),
     // drivers/gpio_controller
     DEFINE_MODULE_SYMBOL(gpio_descriptor_acquire),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_release),
