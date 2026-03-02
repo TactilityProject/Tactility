@@ -424,5 +424,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_anim_path_ease_out),
     // lv_async
     DEFINE_MODULE_SYMBOL(lv_async_call),
+    // lv_binfont
+    DEFINE_MODULE_SYMBOL(lv_binfont_create),
+    DEFINE_MODULE_SYMBOL(lv_binfont_destroy),
     MODULE_SYMBOL_TERMINATOR
 };
