@@ -7,7 +7,7 @@
 #include "tactility/drivers/gpio_descriptor.h"
 #include <new>
 #include <tactility/drivers/esp32_gpio_helpers.h>
-#include <tactility/drivers/file_system.h>
+#include <tactility/drivers/esp32_gpio_fs.h>
 
 #define TAG "esp32_sdmmc"
 
@@ -16,32 +16,16 @@
 
 extern "C" {
 
-error_t mount(Device* device) {
-    return ERROR_NONE;
-}
-
-error_t unmount(Device* device) {
-    return ERROR_NONE;
-}
-
-bool is_mounted(Device* device) {
-    return true;
-}
-
-error_t get_mount_path(Device*, char* out_path) {
-    return ERROR_NONE;
-}
-
-static const FileSystemApi sdmmc_filesystem_api = {
-    .mount = mount,
-    .unmount = unmount,
-    .is_mounted = is_mounted,
-    .get_mount_path = get_mount_path
-};
-
 struct Esp32SdmmcInternal {
     RecursiveMutex mutex = {};
     bool initialized = false;
+    char fs_device_name[16] = "esp32_sdmmc_fs0";
+    Device fs_device = {
+        .name = fs_device_name,
+        .config = nullptr,
+        .parent = nullptr,
+        .internal = nullptr
+    };
 
     // Pin descriptors
     GpioDescriptor* pin_clk_descriptor = nullptr;
@@ -122,7 +106,11 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    // TODO: filesystem
+    // Create filesystem child device
+    auto* fs_device = &data->fs_device;
+    fs_device->parent = device;
+    fs_device->config = sdmmc_config;
+    check(device_construct_add_start(fs_device, "espressif,esp32-sdmmc-fs") == ERROR_NONE);
 
     data->initialized = true;
     return ERROR_NONE;
@@ -130,14 +118,18 @@ static error_t start(Device* device) {
 
 static error_t stop(Device* device) {
     ESP_LOGI(TAG, "stop %s", device->name);
-    auto* driver_data = GET_DATA(device);
+    auto* data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
 
-    // TODO: filesystem
+    // Create filesystem child device
+    auto* fs_device = &data->fs_device;
+    check(device_stop(fs_device) == ERROR_NONE);
+    check(device_remove(fs_device) == ERROR_NONE);
+    check(device_destruct(fs_device) == ERROR_NONE);
 
-    driver_data->cleanup_pins();
+    data->cleanup_pins();
     device_set_driver_data(device, nullptr);
-    delete driver_data;
+    delete data;
     return ERROR_NONE;
 }
 

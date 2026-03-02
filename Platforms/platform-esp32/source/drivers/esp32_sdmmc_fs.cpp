@@ -74,7 +74,7 @@ error_t mount(Device* device, const char* mount_path) {
         } else {
             LOG_E(TAG, "Mounting failed: %s", esp_err_to_name(result));
         }
-        return false;
+        return ERROR_UNDEFINED;
     }
 
     data->mount_path = mount_path;
@@ -117,7 +117,9 @@ static error_t start(Device* device) {
 
     device_set_driver_data(device, data);
 
-    // TODO: filesystem
+    if (mount(device, "/sdcard") != ERROR_NONE) {
+        LOG_E(TAG, "Failed to mount SD card");
+    }
 
     return ERROR_NONE;
 }
@@ -126,7 +128,11 @@ static error_t stop(Device* device) {
     ESP_LOGI(TAG, "stop %s", device->name);
     auto* driver_data = GET_DATA(device);
 
-    // TODO: filesystem
+    if (is_mounted(device)) {
+        if (unmount(device) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to unmount SD card");
+        }
+    }
 
     device_set_driver_data(device, nullptr);
     delete driver_data;
