@@ -1,0 +1,57 @@
+description: ESP32 SDMMC
+
+compatible: "espressif,sdmmc"
+
+properties:
+  pin-clk:
+    type: phandle-array
+    required: true
+  pin-cmd:
+    type: phandle-array
+    required: true
+  pin-d0:
+    type: phandle-array
+    required: true
+  pin-d1:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+  pin-d2:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+  pin-d3:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+  pin-d4:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+  pin-d5:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+  pin-d6:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+  pin-d7:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+  pin-cd:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+  pin-wp:
+    type: phandle-array
+    default: GPIO_PIN_SPEC_NONE
+  bus-width:
+    type: int
+    required: true
+    description: Bus width in bits
+  max-open-files:
+    type: int
+    required: true
+    description: Maximum number of open files
+  wp-active-high:
+    type: boolean
+    default: false
+    description: Whether the WP pin is active high
+  enable-uhs:
+    type: boolean
+    default: false
+    description: Enable UHS mode

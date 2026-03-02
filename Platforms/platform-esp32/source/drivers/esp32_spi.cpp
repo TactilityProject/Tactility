@@ -2,11 +2,11 @@
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_spi.h>
 #include <tactility/concurrent/recursive_mutex.h>
+#include <tactility/log.h>
 
 #include "tactility/drivers/gpio_descriptor.h"
 #include <tactility/drivers/esp32_gpio_helpers.h>
 #include <cstring>
-#include <esp_log.h>
 #include <new>
 #include <soc/gpio_num.h>
 
@@ -84,7 +84,7 @@ static error_t start(Device* device) {
         acquire_pin_or_set_null(dts_config->pin_hd, &data->hd_descriptor);
 
     if (!pins_ok) {
-        ESP_LOGE(TAG, "Failed to acquire required SPI pins");
+        LOG_E(TAG, "Failed to acquire required SPI pins");
         data->cleanup_pins();
         device_set_driver_data(device, nullptr);
         delete data;
@@ -113,7 +113,7 @@ static error_t start(Device* device) {
         data->cleanup_pins();
         device_set_driver_data(device, nullptr);
         delete data;
-        ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
+        LOG_E(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
         return ERROR_RESOURCE;
     }
 
@@ -122,7 +122,7 @@ static error_t start(Device* device) {
 }
 
 static error_t stop(Device* device) {
-    ESP_LOGI(TAG, "stop %s", device->name);
+    LOG_I(TAG, "stop %s", device->name);
     auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
 
