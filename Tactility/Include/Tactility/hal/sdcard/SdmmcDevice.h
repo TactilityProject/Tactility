@@ -43,7 +43,6 @@ public:
             busWidth(busWidth)
         {}
 
-        int spiFrequencyKhz;
         gpio_num_t pinClock;
         gpio_num_t pinCmd;
         gpio_num_t pinD0;
