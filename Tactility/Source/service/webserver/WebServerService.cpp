@@ -26,6 +26,8 @@
 #include <Tactility/StringUtils.h>
 
 #include <ranges>
+#include <tactility/drivers/file_system.h>
+#include <tactility/drivers/hal_device.h>
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
 #include <lv_screenshot.h>
@@ -774,6 +776,16 @@ esp_err_t WebServerService::handleFsList(httpd_req_t* request) {
                 break;
             }
         }
+
+        device_for_each_of_type(&FILE_SYSTEM_TYPE, &json, [] (auto* fs_device, void* context) {
+            if (file_system_is_mounted(fs_device)) {
+                auto* json_context_ptr = static_cast<std::ostringstream*>(context);
+                auto& json_context = *json_context_ptr;
+                json_context << ",{\"name\":\"sdcard\",\"type\":\"dir\",\"size\":0}";
+            }
+            return true;
+        });
+
         json << "]}";
     } else {
         std::vector<dirent> entries;
@@ -1180,6 +1192,29 @@ esp_err_t WebServerService::handleApiSysinfo(httpd_req_t* request) {
             break;
         }
     }
+
+    struct FsIterContext {
+        std::ostringstream& json;
+        bool sdcard_found;
+    };
+    FsIterContext fs_iter_context { json, sdcard_found };
+    device_for_each_of_type(&FILE_SYSTEM_TYPE, &fs_iter_context, [] (auto* fs_device, void* context) {
+        if (!file_system_is_mounted(fs_device)) return true;
+        char mount_path[128];
+        if (file_system_get_mount_path(fs_device, mount_path, sizeof(mount_path)) != ESP_OK) return true;
+        uint64_t storage_total = 0, storage_free = 0;
+        if (esp_vfs_fat_info(mount_path, &storage_total, &storage_free) != ESP_OK) return true;
+        auto* fs_iter_context = static_cast<FsIterContext*>(context);
+        auto& json_context = fs_iter_context->json;
+        json_context << "\"free\":" << storage_free << ",";
+        json_context << "\"total\":" << storage_total << ",";
+        json_context << "\"mounted\":true";
+        fs_iter_context->sdcard_found = true;
+        return true;
+    });
+
+    if (fs_iter_context.sdcard_found) sdcard_found = true;
+
     if (!sdcard_found) {
         json << "\"mounted\":false";
     }

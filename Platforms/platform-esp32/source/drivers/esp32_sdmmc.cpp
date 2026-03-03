@@ -7,7 +7,6 @@
 #include "tactility/drivers/gpio_descriptor.h"
 #include <new>
 #include <tactility/drivers/esp32_gpio_helpers.h>
-#include <tactility/drivers/esp32_gpio_fs.h>
 
 #define TAG "esp32_sdmmc"
 
@@ -135,7 +134,7 @@ static error_t stop(Device* device) {
 
 extern Module platform_esp32_module;
 
-Driver esp32_spi_driver = {
+Driver esp32_sdmmc_driver = {
     .name = "esp32_sdmmc",
     .compatible = (const char*[]) { "espressif,esp32-sdmmc", nullptr },
     .start_device = start,

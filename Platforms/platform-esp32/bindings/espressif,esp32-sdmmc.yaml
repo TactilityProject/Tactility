@@ -1,6 +1,6 @@
 description: ESP32 SDMMC
 
-compatible: "espressif,sdmmc"
+compatible: "espressif,esp32-sdmmc"
 
 properties:
   pin-clk:
@@ -43,10 +43,6 @@ properties:
     type: int
     required: true
     description: Bus width in bits
-  max-open-files:
-    type: int
-    required: true
-    description: Maximum number of open files
   wp-active-high:
     type: boolean
     default: false

@@ -2,6 +2,7 @@
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_sdmmc.h>
 #include <tactility/drivers/file_system.h>
+#include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/log.h>
 
 #include <driver/sdmmc_host.h>
@@ -9,7 +10,10 @@
 #include <new>
 #include <sdmmc_cmd.h>
 #include <string>
-#include <tactility/drivers/gpio_descriptor.h>
+
+#if SOC_SD_PWR_CTRL_SUPPORTED
+#include <sd_pwr_ctrl_by_on_chip_ldo.h>
+#endif
 
 #define TAG "esp32_sdmmc_fs"
 
@@ -20,6 +24,9 @@
 struct Esp32SdmmcFsInternal {
     std::string mount_path {};
     sdmmc_card_t* card = nullptr;
+#if SOC_SD_PWR_CTRL_SUPPORTED
+    sd_pwr_ctrl_handle_t pwr_ctrl_handle = nullptr;
+#endif
 };
 
 static gpio_num_t to_native_pin(GpioPinSpec pin_spec) {
@@ -37,13 +44,25 @@ error_t mount(Device* device, const char* mount_path) {
 
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
         .format_if_mount_failed = false,
-        .max_files = config->max_open_files,
+        .max_files = 4,
         .allocation_unit_size = 0, // Default is sector size
         .disk_status_check_enable = false,
         .use_one_fat = false
     };
 
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+
+#if SOC_SD_PWR_CTRL_SUPPORTED
+    sd_pwr_ctrl_ldo_config_t ldo_config = {
+        .ldo_chan_id = 4, // LDO4 is typically used for SDMMC on ESP32-S3
+    };
+    esp_err_t pwr_err = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &data->pwr_ctrl_handle);
+    if (pwr_err != ESP_OK) {
+        LOG_E(TAG, "Failed to create SD power control driver, err=0x%x", pwr_err);
+        return ERROR_NOT_SUPPORTED;
+    }
+    host.pwr_ctrl_handle = data->pwr_ctrl_handle;
+#endif
 
     uint32_t slot_config_flags = 0;
     if (config->enable_uhs) slot_config_flags |= SDMMC_SLOT_FLAG_UHS1;
@@ -74,9 +93,16 @@ error_t mount(Device* device, const char* mount_path) {
         } else {
             LOG_E(TAG, "Mounting failed: %s", esp_err_to_name(result));
         }
+#if SOC_SD_PWR_CTRL_SUPPORTED
+        if (data->pwr_ctrl_handle) {
+            sd_pwr_ctrl_del_on_chip_ldo(data->pwr_ctrl_handle);
+            data->pwr_ctrl_handle = nullptr;
+        }
+#endif
         return ERROR_UNDEFINED;
     }
 
+    LOG_I(TAG, "Mounted %s", mount_path);
     data->mount_path = mount_path;
 
     return ERROR_NONE;
@@ -93,6 +119,13 @@ error_t unmount(Device* device) {
     LOG_I(TAG, "Unmounted %s", data->mount_path.c_str());
     data->mount_path = "";
     data->card = nullptr;
+
+#if SOC_SD_PWR_CTRL_SUPPORTED
+    if (data->pwr_ctrl_handle) {
+        sd_pwr_ctrl_del_on_chip_ldo(data->pwr_ctrl_handle);
+        data->pwr_ctrl_handle = nullptr;
+    }
+#endif
 
     return ERROR_NONE;
 }

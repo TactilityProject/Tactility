@@ -20,13 +20,13 @@ struct FileSystemApi {
 
 extern const struct DeviceType FILE_SYSTEM_TYPE;
 
-error_t file_system_mount(struct Device* device);
+error_t file_system_mount(struct Device* device, const char* mount_path);
 
 error_t file_system_unmount(struct Device* device);
 
 bool file_system_is_mounted(struct Device* device);
 
-error_t file_system_get_mount_path(struct Device*, char* out_path);
+error_t file_system_get_mount_path(struct Device*, char* out_path, size_t out_path_size);
 
 #ifdef __cplusplus
 }

@@ -32,15 +32,14 @@
 	};
 
 	sdmmc0 {
-		compatible = "espressif,sdmmc";
-		pin-clk = <&gpio 12 GPIO_FLAG_NONE>;
-		pin-cmd = <&gpio 16 GPIO_FLAG_NONE>;
-		pin-d0 = <&gpio 14 GPIO_FLAG_NONE>;
-		pin-d1 = <&gpio 17 GPIO_FLAG_NONE>;
-		pin-d2 = <&gpio 21 GPIO_FLAG_NONE>;
-		pin-d3 = <&gpio 18 GPIO_FLAG_NONE>;
+		compatible = "espressif,esp32-sdmmc";
+		pin-clk = <&gpio0 12 GPIO_FLAG_NONE>;
+		pin-cmd = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-d0 = <&gpio0 14 GPIO_FLAG_NONE>;
+		pin-d1 = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-d2 = <&gpio0 21 GPIO_FLAG_NONE>;
+		pin-d3 = <&gpio0 18 GPIO_FLAG_NONE>;
 		bus-width = <4>;
-		max-open-files = <4>;
 	};
 
 	stemma_qt: uart1 {

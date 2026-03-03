@@ -23,7 +23,6 @@ struct Esp32SdmmcConfig {
     struct GpioPinSpec pin_cd;
     struct GpioPinSpec pin_wp;
     uint8_t bus_width;
-    uint8_t max_open_files;
     bool wp_active_high;
     bool enable_uhs;
 };
