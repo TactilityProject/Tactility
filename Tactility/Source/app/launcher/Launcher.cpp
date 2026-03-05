@@ -48,18 +48,8 @@ class LauncherApp final : public App {
         lv_obj_set_style_text_font(button_image, lvgl_get_launcher_icon_font(), LV_STATE_DEFAULT);
         lv_image_set_src(button_image, imageFile);
         lv_obj_set_style_text_color(button_image, lv_theme_get_color_primary(button_image), LV_STATE_DEFAULT);
-
-        // Recolor handling:
-        // For color builds use theme primary color
-        // For 1-bit/monochrome builds force a visible color (black)
-        #if LV_COLOR_DEPTH == 1
-        // Try forcing black recolor on monochrome builds
-        lv_obj_set_style_image_recolor(button_image, lv_color_black(), LV_STATE_DEFAULT);
-        lv_obj_set_style_image_recolor_opa(button_image, LV_OPA_COVER, LV_STATE_DEFAULT);
-        #else
         lv_obj_set_style_image_recolor(button_image, lv_theme_get_color_primary(parent), LV_STATE_DEFAULT);
         lv_obj_set_style_image_recolor_opa(button_image, LV_OPA_COVER, LV_STATE_DEFAULT);
-        #endif
 
         // Ensure it's square (Material Symbols are slightly wider than tall)
         lv_obj_set_size(button_image, button_size, button_size);
@@ -157,7 +147,7 @@ public:
         createAppButton(buttons_wrapper, ui_density, LVGL_ICON_LAUNCHER_SETTINGS, "Settings", margin, is_landscape_display);
 
         if (shouldShowPowerButton()) {
-            auto* power_button = lv_btn_create(parent);
+            auto* power_button = lv_button_create(parent);
             lv_obj_set_style_pad_all(power_button, 8, 0);
             lv_obj_align(power_button, LV_ALIGN_BOTTOM_MID, 0, -10);
             lv_obj_add_event_cb(power_button, onPowerOffPressed, LV_EVENT_SHORT_CLICKED, nullptr);

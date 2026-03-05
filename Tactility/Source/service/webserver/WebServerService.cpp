@@ -18,6 +18,7 @@
 #include <Tactility/app/App.h>
 #include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <Tactility/service/wifi/Wifi.h>
+#include <esp_wifi_default.h>
 #include <Tactility/network/HttpdReq.h>
 #include <Tactility/network/Url.h>
 #include <Tactility/Paths.h>
@@ -400,6 +401,9 @@ bool WebServerService::startApMode() {
 void WebServerService::stopApMode() {
     if (apWifiInitialized) {
         esp_err_t err;
+        if (apNetif != nullptr) {
+            esp_wifi_clear_default_wifi_driver_and_handlers(apNetif);
+        }
         err = esp_wifi_stop();
         if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_STARTED) {
             LOGGER.warn("esp_wifi_stop() in cleanup: {}", esp_err_to_name(err));

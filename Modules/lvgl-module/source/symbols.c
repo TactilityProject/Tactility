@@ -414,5 +414,13 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_anim_path_ease_out),
     // lv_async
     DEFINE_MODULE_SYMBOL(lv_async_call),
+    // lv_span
+    DEFINE_MODULE_SYMBOL(lv_spangroup_create),
+    DEFINE_MODULE_SYMBOL(lv_spangroup_set_align),
+    DEFINE_MODULE_SYMBOL(lv_spangroup_set_mode),
+    DEFINE_MODULE_SYMBOL(lv_spangroup_add_span),
+    DEFINE_MODULE_SYMBOL(lv_spangroup_refresh),
+    DEFINE_MODULE_SYMBOL(lv_span_get_style),
+    DEFINE_MODULE_SYMBOL(lv_span_set_text),
     MODULE_SYMBOL_TERMINATOR
 };

@@ -39,6 +39,7 @@
 #include <esp_random.h>
 #include <esp_sntp.h>
 #include <esp_netif.h>
+#include <esp_heap_caps.h>
 #include <fcntl.h>
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
@@ -408,6 +409,8 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(i2s_channel_reconfig_std_clock),
     ESP_ELFSYM_EXPORT(i2s_channel_reconfig_std_slot),
     ESP_ELFSYM_EXPORT(i2s_channel_reconfig_std_gpio),
+    // esp_heap_caps.h
+    ESP_ELFSYM_EXPORT(heap_caps_get_total_size),
     // delimiter
     ESP_ELFSYM_END
 };
