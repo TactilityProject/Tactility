@@ -18,6 +18,7 @@ ChargeFromAdcVoltage::ChargeFromAdcVoltage(
         LOGGER.error("ADC channel config failed");
 
         adc_oneshot_del_unit(adcHandle);
+        adcHandle = nullptr;
         return;
     }
 }
