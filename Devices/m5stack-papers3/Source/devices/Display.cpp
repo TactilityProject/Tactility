@@ -11,7 +11,7 @@ std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
         true,  // mirrorX
         false, // mirrorY
         GPIO_NUM_NC, // pinReset
-        GPIO_NUM_48  // pinInterrupt
+        GPIO_NUM_NC  //48 pinInterrupt
     );
 
     return std::make_shared<Gt911Touch>(std::move(configuration));
