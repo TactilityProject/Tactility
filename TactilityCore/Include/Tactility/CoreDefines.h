@@ -24,12 +24,3 @@
 #pragma message("WARNING: TT_DEPRECATED is not implemented for this compiler")
 #define TT_DEPRECATED
 #endif
-
-// _Nullable is a Clang type-qualifier for pointer nullability annotations.
-// Define as a no-op on compilers that don't support it so driver headers
-// remain portable.
-#if !(defined(__clang__) && __has_feature(nullability))
-#  ifndef _Nullable
-#    define _Nullable
-#  endif
-#endif

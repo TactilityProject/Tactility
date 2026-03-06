@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Tactility/CoreDefines.h>
 #include <tactility/hal/Device.h>
 #include "TouchDriver.h"
 
