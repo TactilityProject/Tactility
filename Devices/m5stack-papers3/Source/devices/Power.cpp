@@ -220,6 +220,11 @@ void PaperS3Power::toneOff() {
 
 void PaperS3Power::powerOff() {
     LOG_W(TAG, "Power-off requested");
+    // Note: callers are responsible for stopping the display (e.g. EPD refresh) before
+    // calling powerOff(). The beep sequence below (~500 ms) provides some lead time,
+    // but a full EPD refresh can take up to ~1500 ms. If a refresh is still in flight
+    // when GPIO44 cuts power, the current frame will be incomplete; the display will
+    // recover correctly on next boot via a full-screen clear.
 
     if (!powerOffInitialized) {
         initializePowerOff();
@@ -267,8 +272,11 @@ std::shared_ptr<PowerDevice> createPower() {
         },
     };
 
-    return std::make_shared<PaperS3Power>(
-        std::make_unique<ChargeFromAdcVoltage>(config, MIN_BATTERY_VOLTAGE, MAX_BATTERY_VOLTAGE),
-        POWER_OFF_PIN
-    );
+    auto adc = std::make_unique<ChargeFromAdcVoltage>(config, MIN_BATTERY_VOLTAGE, MAX_BATTERY_VOLTAGE);
+    if (!adc->isInitialized()) {
+        LOG_E(TAG, "ADC initialization failed; power monitoring unavailable");
+        return nullptr;
+    }
+
+    return std::make_shared<PaperS3Power>(std::move(adc), POWER_OFF_PIN);
 }
