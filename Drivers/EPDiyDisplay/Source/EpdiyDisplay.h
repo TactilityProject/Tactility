@@ -8,6 +8,7 @@
 #include <lvgl.h>
 #include <memory>
 #include <cassert>
+#include <cstdlib>
 
 class EpdiyDisplay final : public tt::hal::display::DisplayDevice {
 
@@ -37,6 +38,9 @@ public:
             rotation(rotation) {
             assert(board != nullptr && "board is required");
             assert(display != nullptr && "display is required");
+            if (board == nullptr || display == nullptr) {
+                std::abort();
+            }
         }
 
         const EpdBoardDefinition* board;
@@ -60,6 +64,7 @@ private:
     uint8_t* packedBuffer = nullptr; // Pre-allocated 4-bit packed pixel buffer for flushInternal
     bool initialized = false;
     bool powered = false;
+    bool lifecycleEnded = false;
 
     static void flushCallback(lv_display_t* display, const lv_area_t* area, uint8_t* pixelMap);
     void flushInternal(const lv_area_t* area, uint8_t* pixelMap, bool isLast);

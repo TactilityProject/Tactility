@@ -1,6 +1,6 @@
 #include "Power.h"
 
-#include <Tactility/Log.h>
+#include <tactility/log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <driver/ledc.h>

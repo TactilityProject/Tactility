@@ -644,11 +644,12 @@ static void dispatchDisable(std::shared_ptr<Wifi> wifi) {
         esp_wifi_clear_default_wifi_driver_and_handlers(wifi->netif);
     }
 
+    // Note: handlers are already detached above, so we cannot safely return to
+    // RadioState::On from here — the netif would be missing its default WiFi
+    // event handlers and subsequent disable attempts would behave incorrectly.
+    // If stop fails, continue the teardown anyway so we end in a clean Off state.
     if (esp_wifi_stop() != ESP_OK) {
-        LOGGER.error("Failed to stop radio");
-        wifi->setRadioState(RadioState::On);
-        publish_event(wifi, WifiEvent::RadioStateOn);
-        return;
+        LOGGER.error("Failed to stop radio - continuing teardown");
     }
 
     if (esp_wifi_set_mode(WIFI_MODE_NULL) != ESP_OK) {

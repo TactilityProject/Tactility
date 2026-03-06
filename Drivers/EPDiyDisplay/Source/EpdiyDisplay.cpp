@@ -25,6 +25,11 @@ EpdiyDisplay::~EpdiyDisplay() {
 }
 
 bool EpdiyDisplay::start() {
+    if (lifecycleEnded) {
+        LOG_E(TAG, "Restart after stop() is not supported");
+        return false;
+    }
+
     if (initialized) {
         LOG_W(TAG, "Already initialized");
         return true;
@@ -103,6 +108,7 @@ bool EpdiyDisplay::stop() {
     framebuffer = nullptr;
 
     initialized = false;
+    lifecycleEnded = true;
     LOG_I(TAG, "EPDiy deinitialized");
 
     return true;
