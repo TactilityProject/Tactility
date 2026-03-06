@@ -8,6 +8,9 @@
 
 constexpr const char* TAG = "EpdiyDisplay";
 
+bool EpdiyDisplay::s_hlInitialized = false;
+EpdiyHighlevelState EpdiyDisplay::s_hlState = {};
+
 EpdiyDisplay::EpdiyDisplay(std::unique_ptr<Configuration> inConfiguration)
     : configuration(std::move(inConfiguration)) {
     check(configuration != nullptr);
@@ -25,17 +28,12 @@ EpdiyDisplay::~EpdiyDisplay() {
 }
 
 bool EpdiyDisplay::start() {
-    if (lifecycleEnded) {
-        LOG_E(TAG, "Restart after stop() is not supported");
-        return false;
-    }
-
     if (initialized) {
         LOG_W(TAG, "Already initialized");
         return true;
     }
 
-    // Initialize EPDiy
+    // Initialize EPDiy low-level hardware
     epd_init(
         configuration->board,
         configuration->display,
@@ -46,14 +44,22 @@ bool EpdiyDisplay::start() {
     epd_set_rotation(configuration->rotation);
     LOG_I(TAG, "Display rotation set to %d", configuration->rotation);
 
-    // Initialize the high-level API
-    highlevelState = epd_hl_init(configuration->waveform);
-    if (highlevelState.front_fb == nullptr) {
-        LOG_E(TAG, "Failed to initialize EPDiy highlevel state");
-        epd_deinit();
-        return false;
+    // Initialize the high-level API only once — epd_hl_init() sets a static flag internally
+    // and there is no matching epd_hl_deinit(). Reuse the existing state on subsequent starts.
+    if (!s_hlInitialized) {
+        s_hlState = epd_hl_init(configuration->waveform);
+        if (s_hlState.front_fb == nullptr) {
+            LOG_E(TAG, "Failed to initialize EPDiy highlevel state");
+            epd_deinit();
+            return false;
+        }
+        s_hlInitialized = true;
+        LOG_I(TAG, "EPDiy highlevel state initialized");
+    } else {
+        LOG_I(TAG, "Reusing existing EPDiy highlevel state");
     }
 
+    highlevelState = s_hlState;
     framebuffer = epd_hl_get_framebuffer(&highlevelState);
 
     initialized = true;
@@ -81,35 +87,18 @@ bool EpdiyDisplay::stop() {
         setPowerOn(false);
     }
 
-    // EPDiy has no epd_hl_deinit(); free the framebuffers allocated by epd_hl_init() manually.
-    // Note: epd_hl_init() also sets a static already_initialized flag, so start() must not
-    // be called again after stop() — this driver is single-lifecycle.
-    if (highlevelState.front_fb != nullptr) {
-        heap_caps_free(highlevelState.front_fb);
-    }
-    if (highlevelState.back_fb != nullptr) {
-        heap_caps_free(highlevelState.back_fb);
-    }
-    if (highlevelState.difference_fb != nullptr) {
-        heap_caps_free(highlevelState.difference_fb);
-    }
-    if (highlevelState.dirty_lines != nullptr) {
-        free(highlevelState.dirty_lines);
-    }
-    if (highlevelState.dirty_columns != nullptr) {
-        heap_caps_free(highlevelState.dirty_columns);
-    }
-
-    // Deinitialize EPDiy
+    // Deinitialize EPDiy low-level hardware.
+    // The HL framebuffers (s_hlState) are intentionally kept alive: epd_hl_init() has no
+    // matching deinit and sets an internal already_initialized flag, so the HL state must
+    // persist across stop()/start() cycles and be reused on the next start().
     epd_deinit();
 
-    // Reset state
+    // Clear instance references to HL state (the static s_hlState still owns the memory)
     highlevelState = {};
     framebuffer = nullptr;
 
     initialized = false;
-    lifecycleEnded = true;
-    LOG_I(TAG, "EPDiy deinitialized");
+    LOG_I(TAG, "EPDiy deinitialized (HL state preserved for restart)");
 
     return true;
 }

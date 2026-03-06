@@ -36,11 +36,8 @@ public:
             defaultDrawMode(defaultDrawMode),
             fullRefresh(fullRefresh),
             rotation(rotation) {
-            assert(board != nullptr && "board is required");
-            assert(display != nullptr && "display is required");
-            if (board == nullptr || display == nullptr) {
-                std::abort();
-            }
+            check(board != nullptr);
+            check(display != nullptr);
         }
 
         const EpdBoardDefinition* board;
@@ -64,7 +61,11 @@ private:
     uint8_t* packedBuffer = nullptr; // Pre-allocated 4-bit packed pixel buffer for flushInternal
     bool initialized = false;
     bool powered = false;
-    bool lifecycleEnded = false;
+
+    // epd_hl_init() sets an internal already_initialized flag and has no matching deinit.
+    // We track first-time init statically and keep the HL state alive across stop()/start() cycles.
+    static bool s_hlInitialized;
+    static EpdiyHighlevelState s_hlState;
 
     static void flushCallback(lv_display_t* display, const lv_area_t* area, uint8_t* pixelMap);
     void flushInternal(const lv_area_t* area, uint8_t* pixelMap, bool isLast);
