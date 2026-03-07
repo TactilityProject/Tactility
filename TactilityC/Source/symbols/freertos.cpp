@@ -35,6 +35,7 @@ const esp_elfsym freertos_symbols[] = {
     ESP_ELFSYM_EXPORT(xTaskCreateStatic),
     ESP_ELFSYM_EXPORT(xTaskCreateStaticPinnedToCore),
     ESP_ELFSYM_EXPORT(xTaskCreateWithCaps),
+    ESP_ELFSYM_EXPORT(xTaskCreatePinnedToCoreWithCaps),
     ESP_ELFSYM_EXPORT(xTaskDelayUntil),
     ESP_ELFSYM_EXPORT(xTaskGenericNotify),
     ESP_ELFSYM_EXPORT(xTaskGenericNotifyFromISR),

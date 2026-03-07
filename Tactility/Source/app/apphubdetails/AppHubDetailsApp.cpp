@@ -204,7 +204,11 @@ public:
         lv_obj_set_width(description_label, LV_PCT(100));
         lv_label_set_long_mode(description_label, LV_LABEL_LONG_MODE_WRAP);
         if (!entry.appDescription.empty()) {
-            lv_label_set_text(description_label, entry.appDescription.c_str());
+            std::string description = entry.appDescription;
+            for (size_t pos = 0; (pos = description.find("\\n", pos)) != std::string::npos;) {
+                description.replace(pos, 2, "\n");
+            }
+            lv_label_set_text(description_label, description.c_str());
         } else {
             lv_label_set_text(description_label, "This app has no description yet.");
         }

@@ -19,6 +19,7 @@
 #include <Tactility/service/wifi/WifiGlobals.h>
 #include <Tactility/service/wifi/WifiSettings.h>
 
+#include <esp_wifi_default.h>
 #include <lwip/esp_netif_net_stack.h>
 #include <freertos/FreeRTOS.h>
 #include <atomic>
@@ -537,6 +538,7 @@ static void dispatchEnable(std::shared_ptr<Wifi> wifi) {
         publish_event(wifi, WifiEvent::RadioStateOnPending);
 
         if (wifi->netif != nullptr) {
+            esp_wifi_clear_default_wifi_driver_and_handlers(wifi->netif);
             esp_netif_destroy(wifi->netif);
         }
         wifi->netif = esp_netif_create_default_wifi_sta();
@@ -633,11 +635,21 @@ static void dispatchDisable(std::shared_ptr<Wifi> wifi) {
     // Free up scan list memory
     scan_list_free_safely(wifi_singleton);
 
+    // Detach netif from the internal WiFi event handlers before stopping.
+    // Those handlers call esp_netif_action_stop on WIFI_EVENT_STA_STOP, which
+    // queues esp_netif_stop_api to the lwIP thread. esp_netif_destroy later
+    // queues a second one; the first zeroes lwip_netif, and the second then
+    // crashes in netif_ip6_addr_set_parts (null pointer + 0x263 offset).
+    if (wifi->netif != nullptr) {
+        esp_wifi_clear_default_wifi_driver_and_handlers(wifi->netif);
+    }
+
+    // Note: handlers are already detached above, so we cannot safely return to
+    // RadioState::On from here — the netif would be missing its default WiFi
+    // event handlers and subsequent disable attempts would behave incorrectly.
+    // If stop fails, continue the teardown anyway so we end in a clean Off state.
     if (esp_wifi_stop() != ESP_OK) {
-        LOGGER.error("Failed to stop radio");
-        wifi->setRadioState(RadioState::On);
-        publish_event(wifi, WifiEvent::RadioStateOn);
-        return;
+        LOGGER.error("Failed to stop radio - continuing teardown");
     }
 
     if (esp_wifi_set_mode(WIFI_MODE_NULL) != ESP_OK) {

@@ -53,6 +53,7 @@ jobs:
           { id: guition-jc8048w550c, arch: esp32s3 },
           { id: heltec-wifi-lora-32-v3, arch: esp32s3 },
           { id: lilygo-tdeck, arch: esp32s3 },
+          { id: lilygo-thmi-s3, arch: esp32s3 },
           { id: lilygo-tdongle-s3, arch: esp32s3 },
           { id: lilygo-tdisplay-s3, arch: esp32s3 },
           { id: lilygo-tlora-pager, arch: esp32s3 },

@@ -40,6 +40,7 @@
 #include <esp_random.h>
 #include <esp_sntp.h>
 #include <esp_netif.h>
+#include <esp_heap_caps.h>
 #include <fcntl.h>
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
@@ -428,6 +429,11 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(ledc_timer_pause),
     ESP_ELFSYM_EXPORT(ledc_timer_resume),
     ESP_ELFSYM_EXPORT(ledc_timer_rst),
+    // esp_heap_caps.h
+    ESP_ELFSYM_EXPORT(heap_caps_get_total_size),
+    ESP_ELFSYM_EXPORT(heap_caps_get_allocated_size),
+    ESP_ELFSYM_EXPORT(heap_caps_get_free_size),
+    ESP_ELFSYM_EXPORT(heap_caps_get_largest_free_block),
     // delimiter
     ESP_ELFSYM_END
 };

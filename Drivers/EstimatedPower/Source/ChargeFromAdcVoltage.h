@@ -34,6 +34,8 @@ public:
 
     ~ChargeFromAdcVoltage();
 
+    bool isInitialized() const { return adcHandle != nullptr; }
+
     bool readBatteryVoltageSampled(uint32_t& output) const;
 
     bool readBatteryVoltageOnce(uint32_t& output) const;

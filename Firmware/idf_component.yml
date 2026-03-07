@@ -56,9 +56,9 @@ dependencies:
       - if: "target == esp32s3"
   espressif/esp_lvgl_port: "2.5.0"
   lvgl/lvgl: "9.3.0"
-  FastEPD:
-    git: https://github.com/bitbank2/FastEPD.git
-    version: 1.4.2
+  epdiy:
+    git: https://github.com/Shadowtrance/epdiy.git
+    version: 2.0.1
     rules:
       # More hardware might be supported - enable as needed
       - if: "target in [esp32s3]"

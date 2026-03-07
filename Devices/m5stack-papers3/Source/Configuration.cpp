@@ -1,19 +1,22 @@
 #include "devices/Display.h"
 #include "devices/SdCard.h"
+#include "devices/Power.h"
 
 #include <Tactility/hal/Configuration.h>
 
 using namespace tt::hal;
 
+bool initBoot();
+
 static DeviceVector createDevices() {
-    auto touch = createTouch();
     return {
+        createPower(),
+        createDisplay(),
         createSdCard(),
-        createDisplay(touch)
     };
 }
 
 extern const Configuration hardwareConfiguration = {
-    .initBoot = nullptr,
+    .initBoot = initBoot,
     .createDevices = createDevices
 };

@@ -192,8 +192,8 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
         auto* image = lv_image_create(obj);
         lv_obj_set_size(image, icon_size, icon_size); // regular padding doesn't work
         lv_obj_set_style_text_font(image, lvgl_get_statusbar_icon_font(), LV_STATE_DEFAULT);
+        lv_obj_set_style_text_color(image, lv_color_white(), LV_STATE_DEFAULT);
         lv_obj_set_style_pad_all(image, 0, LV_STATE_DEFAULT);
-        obj_set_style_bg_blacken(image);
         statusbar->icons[i] = image;
 
         update_icon(image, &(statusbar_data.icons[i]));

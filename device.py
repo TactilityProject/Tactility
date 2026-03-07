@@ -227,8 +227,7 @@ def write_lvgl_variables(output_file, device_properties: ConfigParser):
     elif theme == "DefaultLight":
         output_file.write("CONFIG_LV_THEME_DEFAULT_LIGHT=y\n")
     elif theme == "Mono":
-        output_file.write("CONFIG_LV_THEME_DEFAULT_DARK=y\n")
-        output_file.write("CONFIG_LV_THEME_MONO=y\n")
+        output_file.write("CONFIG_LV_USE_THEME_MONO=y\n")
     else:
         exit_with_error(f"Unknown theme: {theme}")
     font_height_text = get_property_or_default(device_properties, "lvgl", "fontSize", "14")

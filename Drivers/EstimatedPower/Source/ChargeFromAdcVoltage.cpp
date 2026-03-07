@@ -18,6 +18,7 @@ ChargeFromAdcVoltage::ChargeFromAdcVoltage(
         LOGGER.error("ADC channel config failed");
 
         adc_oneshot_del_unit(adcHandle);
+        adcHandle = nullptr;
         return;
     }
 }
@@ -29,6 +30,9 @@ ChargeFromAdcVoltage::~ChargeFromAdcVoltage() {
 }
 
 bool ChargeFromAdcVoltage::readBatteryVoltageOnce(uint32_t& output) const {
+    if (adcHandle == nullptr) {
+        return false;
+    }
     int raw;
     if (adc_oneshot_read(adcHandle, configuration.adcChannel, &raw) == ESP_OK) {
         output = configuration.adcMultiplier * ((1000.f * configuration.adcRefVoltage) / 4096.f) * (float)raw;

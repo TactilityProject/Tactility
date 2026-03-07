@@ -275,6 +275,10 @@ void View::onDirEntryPressed(uint32_t index) {
 }
 
 void View::onDirEntryLongPressed(int32_t index) {
+    if (state->getCurrentPath() == "/") {
+        return;
+    }
+
     dirent dir_entry;
     if (!resolveDirentFromListIndex(index, dir_entry)) {
         return;
@@ -452,7 +456,7 @@ void View::update(size_t start_index) {
 
         if (!is_root && last_loaded_index < total_entries) {
             if (total_entries > current_start_index &&
-+                (total_entries - current_start_index) > MAX_BATCH) {
+                (total_entries - current_start_index) > MAX_BATCH) {
                 auto* next_btn = lv_list_add_btn(dir_entry_list, LV_SYMBOL_RIGHT, "Next");
                 lv_obj_add_event_cb(next_btn, [](lv_event_t* event) {
                     auto* view = static_cast<View*>(lv_event_get_user_data(event));
@@ -549,7 +553,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                 } else if (file::isFile(filepath)) {
                     auto lock = file::getLock(filepath);
                     lock->lock();
-                    if (remove(filepath.c_str()) <= 0) {
+                    if (remove(filepath.c_str()) != 0) {
                         LOGGER.warn("Failed to delete {}", filepath);
                     }
                     lock->unlock();
