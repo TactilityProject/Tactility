@@ -14,6 +14,10 @@
 #include <tactility/filesystem/file_system.h>
 #include <tactility/module.h>
 
+#ifndef ESP_PLATFORM
+#include <tactility/log.h>
+#endif
+
 /**
  * This file is a C file instead of C++, so we can import all headers as C code.
  * The intent is to catch errors that only show up when compiling as C and not as C++.

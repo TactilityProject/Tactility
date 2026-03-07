@@ -14,7 +14,6 @@ namespace tt::file {
 
 std::vector<dirent> getFileSystemDirents() {
     std::vector<dirent> dir_entries;
-    dir_entries.clear();
 
     file_system_for_each(&dir_entries, [](auto* fs, void* context) {
         if (!file_system_is_mounted(fs)) return true;

@@ -6,10 +6,11 @@
 #include <Tactility/MountPoints.h>
 #include <Tactility/kernel/Platform.h>
 
+#include <Tactility/LogMessages.h>
 #include <cstring>
+#include <dirent.h>
 #include <unistd.h>
 #include <vector>
-#include <dirent.h>
 
 namespace tt::app::fileselection {
 
@@ -35,6 +36,12 @@ std::string State::getSelectedChildPath() const {
 
 bool State::setEntriesForPath(const std::string& path) {
     LOGGER.info("Changing path: {} -> {}", current_path, path);
+
+    auto lock = mutex.asScopedLock();
+    if (!lock.lock(100)) {
+        LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "setEntriesForPath");
+        return false;
+    }
 
     /**
      * ESP32 does not have a root directory, so we have to create it manually.

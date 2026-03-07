@@ -73,13 +73,18 @@ GpioDescriptor* gpio_descriptor_acquire(
 }
 
 error_t gpio_descriptor_release(GpioDescriptor* descriptor) {
+    auto* data = static_cast<struct GpioControllerData*>(device_get_driver_data(descriptor->controller));
+    mutex_lock(&data->mutex);
     descriptor->owner_type = GPIO_OWNER_NONE;
+    mutex_unlock(&data->mutex);
     return ERROR_NONE;
 }
 
 error_t gpio_controller_get_pin_count(Device* device, uint32_t* count) {
     auto* data = static_cast<struct GpioControllerData*>(device_get_driver_data(device));
+    mutex_lock(&data->mutex);
     *count = data->pin_count;
+    mutex_unlock(&data->mutex);
     return ERROR_NONE;
 }
 
@@ -98,8 +103,8 @@ error_t gpio_controller_init_descriptors(Device* device, uint32_t pin_count, voi
 
 error_t gpio_controller_deinit_descriptors(Device* device) {
     auto* data = static_cast<struct GpioControllerData*>(device_get_driver_data(device));
-    delete data;
     device_set_driver_data(device, nullptr);
+    delete data;
     return ERROR_NONE;
 }
 

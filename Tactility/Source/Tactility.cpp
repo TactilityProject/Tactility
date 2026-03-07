@@ -50,7 +50,6 @@ namespace service {
     // Primary
     namespace gps { extern const ServiceManifest manifest; }
     namespace wifi { extern const ServiceManifest manifest; }
-    namespace sdcard { extern const ServiceManifest manifest; }
 #ifdef ESP_PLATFORM
     namespace development { extern const ServiceManifest manifest; }
 #endif
@@ -236,7 +235,7 @@ static void registerInstalledAppsFromFileSystems() {
         if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
         const auto app_path = std::format("{}/app", path);
         if (!app_path.starts_with(file::MOUNT_POINT_SYSTEM) && file::isDirectory(app_path)) {
-            LOGGER.info("Registering apps from {}", path);
+            LOGGER.info("Registering apps from {}", app_path);
             registerInstalledApps(app_path);
         }
         return true;
@@ -263,9 +262,6 @@ static void registerAndStartSecondaryServices() {
 static void registerAndStartPrimaryServices() {
     LOGGER.info("Registering and starting primary system services");
     addService(service::gps::manifest);
-    if (hasMountedSdCard()) {
-        addService(service::sdcard::manifest);
-    }
     addService(service::wifi::manifest);
 #ifdef ESP_PLATFORM
     addService(service::development::manifest);

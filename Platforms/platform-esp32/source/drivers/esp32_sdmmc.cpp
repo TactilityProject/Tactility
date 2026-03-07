@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <soc/soc_caps.h>
 #if SOC_SDMMC_HOST_SUPPORTED
+
+#include <new>
+
+#include <tactility/concurrent/recursive_mutex.h>
 #include <tactility/device.h>
+#include <tactility/drivers/esp32_gpio_helpers.h>
 #include <tactility/drivers/esp32_sdmmc.h>
 #include <tactility/drivers/esp32_sdmmc_fs.h>
-#include <tactility/concurrent/recursive_mutex.h>
-#include <tactility/log.h>
-
-#include "tactility/drivers/gpio_descriptor.h"
-#include <new>
-#include <tactility/drivers/esp32_gpio_helpers.h>
+#include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/filesystem/file_system.h>
+#include <tactility/log.h>
 
 #define TAG "esp32_sdmmc"
 
@@ -46,7 +47,7 @@ struct Esp32SdmmcInternal {
     ~Esp32SdmmcInternal() {
         cleanup_pins();
         recursive_mutex_destruct(&mutex);
-        if (esp32_sdmmc_fs_handle) free(esp32_sdmmc_fs_handle);
+        if (esp32_sdmmc_fs_handle) esp32_sdmmc_fs_free(esp32_sdmmc_fs_handle);
     }
 
     void cleanup_pins() {
@@ -105,6 +106,7 @@ static error_t start(Device* device) {
     }
 
     data->esp32_sdmmc_fs_handle = esp32_sdmmc_fs_alloc(sdmmc_config, "/sdcard");
+    check(data->esp32_sdmmc_fs_handle);
     data->file_system = file_system_add(&esp32_sdmmc_fs_api, data->esp32_sdmmc_fs_handle);
     if (file_system_mount(data->file_system) != ERROR_NONE) {
         // Error is not recoverable at the time, but it might be recoverable later,
@@ -117,7 +119,7 @@ static error_t start(Device* device) {
 }
 
 static error_t stop(Device* device) {
-    ESP_LOGI(TAG, "stop %s", device->name);
+    LOG_I(TAG, "stop %s", device->name);
     auto* data = GET_DATA(device);
 
     if (file_system_is_mounted(data->file_system)) {

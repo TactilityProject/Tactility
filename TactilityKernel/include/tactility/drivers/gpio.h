@@ -9,7 +9,7 @@ extern "C" {
 #include <tactility/device.h>
 #include <stdint.h>
 
-#define GPIO_FLAGS_MASK 0x1f
+#define GPIO_FLAGS_MASK 0xff
 
 #define GPIO_PIN_NONE -1
 

@@ -4,17 +4,36 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <tactility/error.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 struct Device;
 
+enum WifiAuthenticationType {
+    WIFI_AUTHENTICATION_TYPE_OPEN = 0,
+    WIFI_AUTHENTICATION_TYPE_WEP,
+    WIFI_AUTHENTICATION_TYPE_WPA_PSK,
+    WIFI_AUTHENTICATION_TYPE_WPA2_PSK,
+    WIFI_AUTHENTICATION_TYPE_WPA_WPA2_PSK,
+    WIFI_AUTHENTICATION_TYPE_WPA2_ENTERPRISE,
+    WIFI_AUTHENTICATION_TYPE_WPA3_PSK,
+    WIFI_AUTHENTICATION_TYPE_WPA2_WPA3_PSK,
+    WIFI_AUTHENTICATION_TYPE_WAPI_PSK,
+    WIFI_AUTHENTICATION_TYPE_OWE,
+    WIFI_AUTHENTICATION_TYPE_WPA3_ENT_192,
+    WIFI_AUTHENTICATION_TYPE_WPA3_EXT_PSK,
+    WIFI_AUTHENTICATION_TYPE_WPA3_EXT_PSK_MIXED_MODE,
+    WIFI_AUTHENTICATION_TYPE_MAX
+} wifi_auth_mode_t;
+
 struct WifiApRecord {
     char ssid[32];
     int8_t rssi;
     int32_t channel;
-    wifi_auth_mode_t auth_mode;
+    enum WifiAuthenticationType authentication_type;
 };
 
 enum WifiRadioState {
@@ -35,7 +54,7 @@ enum WifiAccessPointState {
     WIFI_ACCESS_POINT_STATE_STOPPED,
 };
 
-enum class WifiEventType {
+enum WifiEventType {
     /** Radio state changed */
     WIFI_EVENT_TYPE_RADIO_STATE_CHANGED,
     /** WifiStationState changed */
@@ -50,7 +69,7 @@ enum class WifiEventType {
     WIFI_EVENT_TYPE_SCAN_FINISHED,
 };
 
-enum class WifiStationConnectionError {
+enum WifiStationConnectionError {
     WIFI_STATION_CONNECTION_ERROR_NONE,
     /** Wrong password */
     WIFI_STATION_CONNECTION_ERROR_WRONG_CREDENTIALS,
@@ -67,10 +86,10 @@ struct WifiEvent {
         enum WifiStationState station_state;
         enum WifiAccessPointState access_point_state;
         enum WifiStationConnectionError connection_error;
-    }
+    };
 };
 
-typedef void (*WifiEventCallback)(struct Device* device, void* callback_context, WifiEvent event);
+typedef void (*WifiEventCallback)(struct Device* device, void* callback_context, struct WifiEvent event);
 
 struct WifiApi {
     /**
@@ -100,9 +119,9 @@ struct WifiApi {
     /**
      * Check if the device is currently scanning for access points.
      * @param[in] device the wifi device
-     * @return ERROR_NONE on success
+     * @return true when scanning
      */
-    error_t (*is_scanning)(struct Device* device);
+    bool (*is_scanning)(struct Device* device);
 
     /**
      * Start a scan for access points.
@@ -129,9 +148,9 @@ struct WifiApi {
     error_t (*station_get_ipv4_address)(struct Device* device, char* ipv4);
 
     /**
-     * Get the IPv6 address of the device.
+     * Get the IPv4 address of the device.
      * @param[in] device the device
-     * @param[out] ipv6 the buffer to store the IPv6 address (must be at least 33 bytes, will be null-terminated)
+     * @param[out] ipv4 the buffer to store the IPv4 address (must be at least 33 bytes, will be null-terminated)
      * @return ERROR_NONE on success
      */
     error_t (*station_get_target_ssid)(struct Device* device, char* ssid);
@@ -140,7 +159,7 @@ struct WifiApi {
      * Connect to an access point.
      * @param[in] device the wifi device
      * @param[in] ssid the SSID of the access point
-     * @param[in] password the password of the access point (must be at least 33 characters and null-terminated)
+     * @param[in] password the password of the access point (33 characters at most, including null-termination)
      * @param[in] channel the Wi-Fi channel to connect to (0 means "any" / no preference)
      * @return ERROR_NONE on success
      */

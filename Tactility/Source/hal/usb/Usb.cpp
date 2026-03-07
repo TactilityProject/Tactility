@@ -42,8 +42,12 @@ sdmmc_card_t* getCard() {
         device_for_each(&sdcard, [](auto* device, void* context) {
             if (device_is_ready(device) && device_is_compatible(device, "espressif,esp32-sdmmc")) {
                 auto** sdcard = static_cast<sdmmc_card_t**>(context);
-                *sdcard = esp32_sdmmc_get_card(device);
-                return false;
+                auto* sdmmc_card = esp32_sdmmc_get_card(device);
+                if (sdmmc_card) {
+                    *sdcard = sdmmc_card;
+                    return false;
+                }
+                return true;
             }
             return true;
         });

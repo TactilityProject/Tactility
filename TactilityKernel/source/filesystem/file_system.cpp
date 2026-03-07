@@ -11,57 +11,62 @@ struct FileSystem {
     void* data;
 };
 
-// Global Mutex and the master list of file systems
-static Mutex fs_mutex;
-static bool fs_mutex_initialized = false;
-static std::vector<FileSystem*> file_systems;
+// Global list of file systems and its mutex
+struct FileSystemsLedger {
+    std::vector<FileSystem*> file_systems;
+    Mutex mutex {};
 
-static void ensure_mutex_initialized() {
-    if (!fs_mutex_initialized) {
-        mutex_construct(&fs_mutex);
-        fs_mutex_initialized = true;
-    }
+    FileSystemsLedger() { mutex_construct(&mutex); }
+    ~FileSystemsLedger() { mutex_destruct(&mutex); }
+
+    void lock() { mutex_lock(&mutex); }
+    void unlock() { mutex_unlock(&mutex); }
+};
+
+static FileSystemsLedger& get_ledger() {
+    static FileSystemsLedger ledger;
+    return ledger;
 }
 
 extern "C" {
 
 FileSystem* file_system_add(const FileSystemApi* fs_api, void* data) {
-    ensure_mutex_initialized();
-    mutex_lock(&fs_mutex);
+    auto& ledger = get_ledger();
+    ledger.lock();
     
     auto* fs = new(std::nothrow) struct FileSystem();
     check(fs != nullptr);
     fs->api = fs_api;
     fs->data = data;
-    file_systems.push_back(fs);
+    ledger.file_systems.push_back(fs);
     
-    mutex_unlock(&fs_mutex);
+    ledger.unlock();
     return fs;
 }
 
 void file_system_remove(FileSystem* fs) {
     check(!file_system_is_mounted(fs));
-    ensure_mutex_initialized();
-    mutex_lock(&fs_mutex);
+    auto& ledger = get_ledger();
+    ledger.lock();
     
-    auto it = std::ranges::find(file_systems, fs);
-    if (it != file_systems.end()) {
-        file_systems.erase(it);
+    auto it = std::ranges::find(ledger.file_systems, fs);
+    if (it != ledger.file_systems.end()) {
+        ledger.file_systems.erase(it);
         delete fs;
     }
     
-    mutex_unlock(&fs_mutex);
+    ledger.unlock();
 }
 
 void file_system_for_each(void* callback_context, bool (*callback)(FileSystem* fs, void* context)) {
-    ensure_mutex_initialized();
-    mutex_lock(&fs_mutex);
+    auto& ledger = get_ledger();
+    ledger.lock();
     
-    for (auto* fs : file_systems) {
+    for (auto* fs : ledger.file_systems) {
         if (!callback(fs, callback_context)) break;
     }
     
-    mutex_unlock(&fs_mutex);
+    ledger.unlock();
 }
 
 error_t file_system_mount(FileSystem* fs) {

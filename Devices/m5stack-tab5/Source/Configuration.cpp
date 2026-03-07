@@ -57,12 +57,19 @@ constexpr auto GPIO_EXP1_PIN_IP2326_CHG_EN = 7;
 
 static void initExpander0(::Device* io_expander0) {
     auto* rf_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_RF_INTERNAL_EXTERNAL, GPIO_OWNER_GPIO);
+    check(rf_pin);
     auto* speaker_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_OWNER_GPIO);
+    check(speaker_enable_pin);
     auto* external_5v_bus_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_EXTERNAL_5V_BUS_ENABLE, GPIO_OWNER_GPIO);
+    check(external_5v_bus_enable_pin);
     auto* lcd_reset_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_LCD_RESET, GPIO_OWNER_GPIO);
+    check(lcd_reset_pin);
     auto* touch_reset_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_TOUCH_RESET, GPIO_OWNER_GPIO);
+    check(touch_reset_pin);
     auto* camera_reset_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_CAMERA_RESET, GPIO_OWNER_GPIO);
+    check(camera_reset_pin);
     auto* headphone_detect_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_HEADPHONE_DETECT, GPIO_OWNER_GPIO);
+    check(headphone_detect_pin);
 
     gpio_descriptor_set_flags(rf_pin, GPIO_FLAG_DIRECTION_OUTPUT);
     gpio_descriptor_set_flags(speaker_enable_pin, GPIO_FLAG_DIRECTION_OUTPUT);

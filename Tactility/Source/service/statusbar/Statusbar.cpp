@@ -164,7 +164,7 @@ class StatusbarService final : public Service {
     }
 
     void updateSdCardIcon() {
-        auto* sdcard_fs = findFirstSdcardFileSystem();
+        auto* sdcard_fs = findSdcardFileSystem(false);
         // TODO: Support multiple SD cards
         if (sdcard_fs != nullptr) {
             auto mounted = file_system_is_mounted(sdcard_fs);
@@ -174,7 +174,11 @@ class StatusbarService final : public Service {
                 lvgl::statusbar_icon_set_visibility(sdcard_icon_id, true);
                 sdcard_last_icon = desired_icon;
             }
-            // TODO: Consider tracking how long the SD card has been in unknown status and then show error
+        } else {
+            if (sdcard_last_icon != nullptr) {
+                lvgl::statusbar_icon_set_visibility(sdcard_icon_id, false);
+                sdcard_last_icon = nullptr;
+            }
         }
     }
 

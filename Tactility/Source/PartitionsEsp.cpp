@@ -92,7 +92,8 @@ esp_err_t initPartitionsEsp() {
         LOGGER.error("Failed to mount /system ({})", esp_err_to_name(system_result));
     } else {
         LOGGER.info("Mounted /system");
-        file_system_add(&partition_fs_api, new PartitionFsData("/system"));
+        static auto system_fs_data = PartitionFsData("/system");
+        file_system_add(&partition_fs_api, &system_fs_data);
     }
 
     auto data_result = esp_vfs_fat_spiflash_mount_rw_wl("/data", "data", &mount_config, &data_wl_handle);
@@ -100,7 +101,8 @@ esp_err_t initPartitionsEsp() {
         LOGGER.error("Failed to mount /data ({})", esp_err_to_name(data_result));
     } else {
         LOGGER.info("Mounted /data");
-        file_system_add(&partition_fs_api, new PartitionFsData("/data"));
+        static auto data_fs_data = PartitionFsData("/data");
+        file_system_add(&partition_fs_api, &data_fs_data);
     }
 
     return system_result == ESP_OK && data_result == ESP_OK;

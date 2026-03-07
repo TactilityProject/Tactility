@@ -775,7 +775,7 @@ esp_err_t WebServerService::handleFsList(httpd_req_t* request) {
         file_system_for_each(&fs_iter_context, [] (auto* fs, void* context) {
             auto* fs_iter_context = static_cast<FsIterContext*>(context);
             char path[128];
-            if (file_system_is_mounted(fs) && file_system_get_path(fs, path, sizeof(path)) == ESP_OK && strcmp(path, "/system") != 0) {
+            if (file_system_is_mounted(fs) && file_system_get_path(fs, path, sizeof(path)) == ERROR_NONE && strcmp(path, "/system") != 0) {
                 fs_iter_context->count++;
                 if (fs_iter_context->count != 1) fs_iter_context->json << ","; // add separator between json array entries
                 fs_iter_context->json << "{\"name\":\"" << path << "\",\"type\":\"dir\",\"size\":0}";

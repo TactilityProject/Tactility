@@ -9,11 +9,7 @@ namespace tt {
 
 bool findFirstMountedSdCardPath(std::string& path);
 
-bool hasMountedSdCard();
-
-FileSystem* findFirstMountedSdcardFileSystem();
-
-FileSystem* findFirstSdcardFileSystem();
+FileSystem* findSdcardFileSystem(bool mustBeMounted);
 
 std::string getSystemRootPath();
 

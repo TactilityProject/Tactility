@@ -30,6 +30,11 @@ struct Esp32SdmmcConfig {
     bool enable_uhs;
 };
 
+/**
+ * @brief Get the SD card handle for the given device.
+ * @param[in] device the device to get the card handle for
+ * @return the SD card handle, or NULL if the device is not mounted
+ */
 sdmmc_card_t* esp32_sdmmc_get_card(struct Device* device);
 
 #ifdef __cplusplus

@@ -81,12 +81,12 @@ static error_t mount(void* data) {
     sd_pwr_ctrl_ldo_config_t ldo_config = {
         .ldo_chan_id = 4, // LDO4 is typically used for SDMMC on ESP32-S3
     };
-    esp_err_t pwr_err = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &data->pwr_ctrl_handle);
+    esp_err_t pwr_err = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &fs_data->pwr_ctrl_handle);
     if (pwr_err != ESP_OK) {
         LOG_E(TAG, "Failed to create SD power control driver, err=0x%x", pwr_err);
         return ERROR_NOT_SUPPORTED;
     }
-    host.pwr_ctrl_handle = data->pwr_ctrl_handle;
+    host.pwr_ctrl_handle = fs_data->pwr_ctrl_handle;
 #endif
 
     uint32_t slot_config_flags = 0;
@@ -144,9 +144,9 @@ static error_t unmount(void* data) {
     fs_data->card = nullptr;
 
 #if SOC_SD_PWR_CTRL_SUPPORTED
-    if (data->pwr_ctrl_handle) {
-        sd_pwr_ctrl_del_on_chip_ldo(data->pwr_ctrl_handle);
-        data->pwr_ctrl_handle = nullptr;
+    if (fs_data->pwr_ctrl_handle) {
+        sd_pwr_ctrl_del_on_chip_ldo(fs_data->pwr_ctrl_handle);
+        fs_data->pwr_ctrl_handle = nullptr;
     }
 #endif
 
@@ -157,13 +157,13 @@ static error_t unmount(void* data) {
 
 static bool is_mounted(void* data) {
     const auto* fs_data = GET_DATA(data);
-    if (fs_data == nullptr || fs_data->card == nullptr) return false;
+    if (fs_data->card == nullptr) return false;
     return sdmmc_get_status(fs_data->card) == ESP_OK;
 }
 
 static error_t get_path(void* data, char* out_path, size_t out_path_size) {
     const auto* fs_data = GET_DATA(data);
-    if (fs_data == nullptr || fs_data->card == nullptr) return ERROR_INVALID_STATE;
+    if (fs_data->card == nullptr) return ERROR_INVALID_STATE;
     if (fs_data->mount_path.size() >= out_path_size) return ERROR_BUFFER_OVERFLOW;
     strncpy(out_path, fs_data->mount_path.c_str(), out_path_size);
     return ERROR_NONE;

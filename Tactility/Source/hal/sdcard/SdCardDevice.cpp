@@ -26,8 +26,10 @@ static bool is_mounted(void* data) {
 
 static error_t get_path(void* data, char* out_path, size_t out_path_size) {
     auto* device = static_cast<SdCardDevice*>(data);
-    if (device->getMountPath().size() >= out_path_size) return ERROR_BUFFER_OVERFLOW;
-    strncpy(out_path, device->getMountPath().c_str(), out_path_size);
+    const auto mount_path = device->getMountPath();
+    if (mount_path.size() >= out_path_size) return ERROR_BUFFER_OVERFLOW;
+    if (mount_path.empty()) return ERROR_INVALID_STATE;
+    strncpy(out_path, mount_path.c_str(), out_path_size);
     return ERROR_NONE;
 }
 
@@ -44,6 +46,7 @@ SdCardDevice::SdCardDevice(MountBehaviour mountBehaviour) : mountBehaviour(mount
 }
 
 SdCardDevice::~SdCardDevice() {
+    check(!isMounted());
     file_system_remove(fileSystem);
 }
 

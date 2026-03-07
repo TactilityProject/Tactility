@@ -9,7 +9,7 @@
 namespace tt {
 
 bool findFirstMountedSdCardPath(std::string& path) {
-    auto* fs = findFirstMountedSdcardFileSystem();
+    auto* fs = findSdcardFileSystem(true);
     if (fs == nullptr) return false;
     char found_path[128];
     if (file_system_get_path(fs, found_path, sizeof(found_path)) != ERROR_NONE) return false;
@@ -17,27 +17,7 @@ bool findFirstMountedSdCardPath(std::string& path) {
     return true;
 }
 
-bool hasMountedSdCard() {
-    auto* fs = findFirstMountedSdcardFileSystem();
-    return fs != nullptr;
-}
-
-FileSystem* findFirstMountedSdcardFileSystem() {
-    FileSystem* found = nullptr;
-    file_system_for_each(&found, [](auto* fs, void* context) {
-        char path[128];
-        if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
-        // TODO: Find a better way to identify SD card paths
-        if (std::string(path).starts_with("/sdcard") && file_system_is_mounted(fs)) {
-            *static_cast<FileSystem**>(context) = fs;
-            return false;
-        }
-        return true;
-    });
-    return found;
-}
-
-FileSystem* findFirstSdcardFileSystem() {
+FileSystem* findSdcardFileSystem(bool mustBeMounted) {
     FileSystem* found = nullptr;
     file_system_for_each(&found, [](auto* fs, void* context) {
         char path[128];
@@ -49,6 +29,9 @@ FileSystem* findFirstSdcardFileSystem() {
         }
         return true;
     });
+    if (found && mustBeMounted && !file_system_is_mounted(found)) {
+        return nullptr;
+    }
     return found;
 }
 

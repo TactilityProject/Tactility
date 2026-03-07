@@ -321,7 +321,6 @@ class SystemInfoApp final : public App {
 
     bool hasExternalMem = false;
     bool hasDataStorage = false;
-    bool hasSdcardStorage = false;
     bool hasSystemStorage = false;
 
     void updateMemory() {
@@ -621,7 +620,6 @@ class SystemInfoApp final : public App {
 
         std::string sdcard_path;
         if (findFirstMountedSdCardPath(sdcard_path) && esp_vfs_fat_info(sdcard_path.c_str(), &storage_total, &storage_free) == ESP_OK) {
-            hasSdcardStorage = true;
             sdcardStorageBar = createMemoryBar(storage_tab, sdcard_path.c_str());
         }
 
