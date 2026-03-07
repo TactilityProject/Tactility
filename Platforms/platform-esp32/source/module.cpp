@@ -2,6 +2,8 @@
 #include <tactility/driver.h>
 #include <tactility/module.h>
 
+#include <soc/soc_caps.h>
+
 extern "C" {
 
 extern Driver esp32_gpio_driver;

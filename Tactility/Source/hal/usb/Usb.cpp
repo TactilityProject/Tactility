@@ -1,5 +1,7 @@
 #ifdef ESP_PLATFORM
 
+#include <soc/soc_caps.h>
+
 #include <Tactility/hal/usb/Usb.h>
 #include <Tactility/hal/sdcard/SpiSdCardDevice.h>
 #include <Tactility/hal/usb/UsbTusb.h>

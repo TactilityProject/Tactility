@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <soc/soc_caps.h>
 #if SOC_SDMMC_HOST_SUPPORTED
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_sdmmc.h>
@@ -118,7 +119,6 @@ static error_t start(Device* device) {
 static error_t stop(Device* device) {
     ESP_LOGI(TAG, "stop %s", device->name);
     auto* data = GET_DATA(device);
-    auto* dts_config = GET_CONFIG(device);
 
     if (file_system_is_mounted(data->file_system)) {
         if (file_system_unmount(data->file_system) != ERROR_NONE) {

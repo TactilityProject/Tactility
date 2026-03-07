@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <soc/soc_caps.h>
 #if SOC_SDMMC_HOST_SUPPORTED
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_sdmmc.h>

@@ -416,7 +416,6 @@ const esp_elfsym main_symbols[] {
     // miniz.h
     ESP_ELFSYM_EXPORT(tinfl_decompress),
     ESP_ELFSYM_EXPORT(tinfl_decompress_mem_to_callback),
-    ESP_ELFSYM_EXPORT(tinfl_decompress_mem_to_heap),
     ESP_ELFSYM_EXPORT(tinfl_decompress_mem_to_mem),
     // ledc
     ESP_ELFSYM_EXPORT(ledc_update_duty),

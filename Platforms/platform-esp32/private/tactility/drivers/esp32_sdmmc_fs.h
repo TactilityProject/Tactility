@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
+#include <soc/soc_caps.h>
 #if SOC_SDMMC_HOST_SUPPORTED
 #include <tactility/filesystem/file_system.h>
 
