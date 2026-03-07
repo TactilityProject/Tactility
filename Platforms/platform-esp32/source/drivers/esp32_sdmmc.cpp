@@ -67,8 +67,6 @@ struct Esp32SdmmcInternal {
 
     void lock() { recursive_mutex_lock(&mutex); }
 
-    error_t try_lock(TickType_t timeout) { return recursive_mutex_try_lock(&mutex, timeout); }
-
     void unlock() { recursive_mutex_unlock(&mutex); }
 };
 
@@ -78,6 +76,7 @@ static error_t start(Device* device) {
     auto* data = new (std::nothrow) Esp32SdmmcInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
 
+    data->lock();
     device_set_driver_data(device, data);
 
     auto* sdmmc_config = GET_CONFIG(device);
@@ -101,12 +100,20 @@ static error_t start(Device* device) {
         LOG_E(TAG, "Failed to acquire required one or more pins");
         data->cleanup_pins();
         device_set_driver_data(device, nullptr);
+        data->unlock();
         delete data;
         return ERROR_RESOURCE;
     }
 
     data->esp32_sdmmc_fs_handle = esp32_sdmmc_fs_alloc(sdmmc_config, "/sdcard");
-    check(data->esp32_sdmmc_fs_handle);
+    if (!data->esp32_sdmmc_fs_handle) {
+        data->cleanup_pins();
+        device_set_driver_data(device, nullptr);
+        data->unlock();
+        delete data;
+        return ERROR_OUT_OF_MEMORY;
+    }
+
     data->file_system = file_system_add(&esp32_sdmmc_fs_api, data->esp32_sdmmc_fs_handle);
     if (file_system_mount(data->file_system) != ERROR_NONE) {
         // Error is not recoverable at the time, but it might be recoverable later,
@@ -115,16 +122,21 @@ static error_t start(Device* device) {
     }
 
     data->initialized = true;
+    data->unlock();
     return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
     LOG_I(TAG, "stop %s", device->name);
     auto* data = GET_DATA(device);
+    if (!data) return ERROR_NONE;
+
+    data->lock();
 
     if (file_system_is_mounted(data->file_system)) {
         if (file_system_unmount(data->file_system) != ERROR_NONE) {
             LOG_E(TAG, "Failed to unmount SD card filesystem");
+            data->unlock();
             return ERROR_RESOURCE;
         }
     }
@@ -138,6 +150,8 @@ static error_t stop(Device* device) {
 
     data->cleanup_pins();
     device_set_driver_data(device, nullptr);
+
+    data->unlock();
     delete data;
     return ERROR_NONE;
 }
@@ -145,7 +159,13 @@ static error_t stop(Device* device) {
 sdmmc_card_t* esp32_sdmmc_get_card(Device* device) {
     if (!device_is_ready(device)) return nullptr;
     auto* data = GET_DATA(device);
-    return esp32_sdmmc_fs_get_card(data->esp32_sdmmc_fs_handle);
+    if (!data) return nullptr;
+
+    data->lock();
+    auto* card = esp32_sdmmc_fs_get_card(data->esp32_sdmmc_fs_handle);
+    data->unlock();
+
+    return card;
 }
 
 extern Module platform_esp32_module;

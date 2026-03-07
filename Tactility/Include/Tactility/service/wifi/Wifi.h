@@ -29,7 +29,7 @@ typedef enum {
     WIFI_AUTH_WPA3_EXT_PSK,     /**< authenticate mode : WPA3_PSK_EXT_KEY */
     WIFI_AUTH_WPA3_EXT_PSK_MIXED_MODE, /**< authenticate mode: WPA3_PSK + WPA3_PSK_EXT_KEY */
     WIFI_AUTH_MAX
-} wifi_auth_mode_t;
+};
 #endif
 
 namespace tt::service::wifi {

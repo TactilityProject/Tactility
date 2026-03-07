@@ -163,7 +163,6 @@ static bool is_mounted(void* data) {
 
 static error_t get_path(void* data, char* out_path, size_t out_path_size) {
     const auto* fs_data = GET_DATA(data);
-    if (fs_data->card == nullptr) return ERROR_INVALID_STATE;
     if (fs_data->mount_path.size() >= out_path_size) return ERROR_BUFFER_OVERFLOW;
     strncpy(out_path, fs_data->mount_path.c_str(), out_path_size);
     return ERROR_NONE;

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#include <tactility/filesystem/file_system.h>
-#include <tactility/concurrent/mutex.h>
-#include <vector>
 #include <algorithm>
+#include <tactility/concurrent/mutex.h>
+#include <tactility/concurrent/recursive_mutex.h>
+#include <tactility/filesystem/file_system.h>
+#include <vector>
 
 // Define the internal FileSystem structure
 struct FileSystem {
@@ -14,13 +15,14 @@ struct FileSystem {
 // Global list of file systems and its mutex
 struct FileSystemsLedger {
     std::vector<FileSystem*> file_systems;
-    Mutex mutex {};
+    // Use recursive mutex so that file_system_for_each() can lock within the callback
+    RecursiveMutex mutex {};
 
-    FileSystemsLedger() { mutex_construct(&mutex); }
-    ~FileSystemsLedger() { mutex_destruct(&mutex); }
+    FileSystemsLedger() { recursive_mutex_construct(&mutex); }
+    ~FileSystemsLedger() { recursive_mutex_destruct(&mutex); }
 
-    void lock() { mutex_lock(&mutex); }
-    void unlock() { mutex_unlock(&mutex); }
+    void lock() { recursive_mutex_lock(&mutex); }
+    void unlock() { recursive_mutex_unlock(&mutex); }
 };
 
 static FileSystemsLedger& get_ledger() {
@@ -61,11 +63,9 @@ void file_system_remove(FileSystem* fs) {
 void file_system_for_each(void* callback_context, bool (*callback)(FileSystem* fs, void* context)) {
     auto& ledger = get_ledger();
     ledger.lock();
-    
     for (auto* fs : ledger.file_systems) {
         if (!callback(fs, callback_context)) break;
     }
-    
     ledger.unlock();
 }
 

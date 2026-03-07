@@ -146,20 +146,31 @@ static error_t disable_interrupt(GpioDescriptor* descriptor) {
 }
 
 static error_t start(Device* device) {
-    ESP_LOGI(TAG, "start %s", device->name);
+    LOG_I(TAG, "start %s", device->name);
     const Esp32GpioConfig* config = GET_CONFIG(device);
     auto* internal = new Esp32GpioInternal();
     return gpio_controller_init_descriptors(device, config->gpioCount, internal);
 }
 
 static error_t stop(Device* device) {
-    ESP_LOGI(TAG, "stop %s", device->name);
+    LOG_I(TAG, "stop %s", device->name);
+    const Esp32GpioConfig* config = GET_CONFIG(device);
     auto* internal = static_cast<Esp32GpioInternal*>(gpio_controller_get_controller_context(device));
+
+    // First, remove all ISR handlers to prevent callbacks during cleanup
+    for (uint8_t i = 0; i < config->gpioCount; ++i) {
+        gpio_isr_handler_remove(static_cast<gpio_num_t>(i));
+    }
+
+    // Then uninstall ISR service
     if (internal->isr_service_ref_count > 0) {
         gpio_uninstall_isr_service();
     }
-    delete internal;
+
+    // Now safe to deinit descriptors and delete internal
     check(gpio_controller_deinit_descriptors(device) == ERROR_NONE);
+    delete internal;
+
     return ERROR_NONE;
 }
 

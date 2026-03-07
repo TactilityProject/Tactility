@@ -30,7 +30,7 @@ enum WifiAuthenticationType {
 } wifi_auth_mode_t;
 
 struct WifiApRecord {
-    char ssid[32];
+    char ssid[33]; // 32 bytes + null terminator
     int8_t rssi;
     int32_t channel;
     enum WifiAuthenticationType authentication_type;
@@ -148,9 +148,9 @@ struct WifiApi {
     error_t (*station_get_ipv4_address)(struct Device* device, char* ipv4);
 
     /**
-     * Get the IPv4 address of the device.
-     * @param[in] device the device
-     * @param[out] ipv4 the buffer to store the IPv4 address (must be at least 33 bytes, will be null-terminated)
+     * Get the SSID of the access point the device is currently connected to.
+     * @param[in] device the wifi device
+     * @param[out] ssid the buffer to store the SSID (must be at least 33 bytes, will be null-terminated)
      * @return ERROR_NONE on success
      */
     error_t (*station_get_target_ssid)(struct Device* device, char* ssid);
@@ -159,7 +159,7 @@ struct WifiApi {
      * Connect to an access point.
      * @param[in] device the wifi device
      * @param[in] ssid the SSID of the access point
-     * @param[in] password the password of the access point (33 characters at most, including null-termination)
+     * @param[in] password the password of the access point
      * @param[in] channel the Wi-Fi channel to connect to (0 means "any" / no preference)
      * @return ERROR_NONE on success
      */

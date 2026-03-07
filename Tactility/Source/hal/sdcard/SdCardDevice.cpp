@@ -46,7 +46,6 @@ SdCardDevice::SdCardDevice(MountBehaviour mountBehaviour) : mountBehaviour(mount
 }
 
 SdCardDevice::~SdCardDevice() {
-    check(!isMounted());
     file_system_remove(fileSystem);
 }
 
