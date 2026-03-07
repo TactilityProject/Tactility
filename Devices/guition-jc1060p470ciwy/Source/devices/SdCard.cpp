@@ -18,6 +18,7 @@ static const auto LOGGER = tt::Logger("JcSdCard");
 // ESP32-P4 Slot 0 uses IO MUX (fixed pins, not manually configurable)
 // CLK=43, CMD=44, D0=39, D1=40, D2=41, D3=42 (defined automatically by hardware)
 
+// TODO: Migrate to "espressif,esp32-sdmmc" driver (needs LDO code porting)
 class SdCardDeviceImpl final : public SdCardDevice {
 
     class NoLock final : public tt::Lock {
