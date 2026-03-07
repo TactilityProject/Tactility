@@ -34,6 +34,7 @@ sdmmc_card_t* getCard() {
         }
     }
 
+#if SOC_SDMMC_HOST_SUPPORTED
     // Find ESP32 SDMMC device:
     if (sdcard == nullptr) {
         device_for_each(&sdcard, [](auto* device, void* context) {
@@ -45,6 +46,7 @@ sdmmc_card_t* getCard() {
             return true;
         });
     }
+#endif
 
     if (sdcard == nullptr) {
         LOGGER.warn("Couldn't find a mounted SD card");

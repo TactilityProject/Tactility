@@ -7,8 +7,9 @@ extern "C" {
 extern Driver esp32_gpio_driver;
 extern Driver esp32_i2c_driver;
 extern Driver esp32_i2s_driver;
+#if SOC_SDMMC_HOST_SUPPORTED
 extern Driver esp32_sdmmc_driver;
-extern Driver esp32_sdmmc_fs_driver;
+#endif
 extern Driver esp32_spi_driver;
 extern Driver esp32_uart_driver;
 
@@ -18,7 +19,9 @@ static error_t start() {
     check(driver_construct_add(&esp32_gpio_driver) == ERROR_NONE);
     check(driver_construct_add(&esp32_i2c_driver) == ERROR_NONE);
     check(driver_construct_add(&esp32_i2s_driver) == ERROR_NONE);
+#if SOC_SDMMC_HOST_SUPPORTED
     check(driver_construct_add(&esp32_sdmmc_driver) == ERROR_NONE);
+#endif
     check(driver_construct_add(&esp32_spi_driver) == ERROR_NONE);
     check(driver_construct_add(&esp32_uart_driver) == ERROR_NONE);
     return ERROR_NONE;
@@ -30,7 +33,9 @@ static error_t stop() {
     check(driver_remove_destruct(&esp32_gpio_driver) == ERROR_NONE);
     check(driver_remove_destruct(&esp32_i2c_driver) == ERROR_NONE);
     check(driver_remove_destruct(&esp32_i2s_driver) == ERROR_NONE);
+#if SOC_SDMMC_HOST_SUPPORTED
     check(driver_remove_destruct(&esp32_sdmmc_driver) == ERROR_NONE);
+#endif
     check(driver_remove_destruct(&esp32_spi_driver) == ERROR_NONE);
     check(driver_remove_destruct(&esp32_uart_driver) == ERROR_NONE);
     return ERROR_NONE;

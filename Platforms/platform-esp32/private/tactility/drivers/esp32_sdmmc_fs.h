@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
+#if SOC_SDMMC_HOST_SUPPORTED
 #include <tactility/filesystem/file_system.h>
 
 #ifdef __cplusplus
@@ -19,4 +20,6 @@ extern const FileSystemApi esp32_sdmmc_fs_api;
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

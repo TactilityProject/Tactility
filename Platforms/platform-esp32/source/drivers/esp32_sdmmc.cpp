@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#if SOC_SDMMC_HOST_SUPPORTED
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_sdmmc.h>
 #include <tactility/drivers/esp32_sdmmc_fs.h>
@@ -159,3 +160,4 @@ Driver esp32_sdmmc_driver = {
 };
 
 } // extern "C"
+#endif

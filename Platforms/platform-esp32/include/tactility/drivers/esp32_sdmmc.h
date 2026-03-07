@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
+#if SOC_SDMMC_HOST_SUPPORTED
 
 #include <sd_protocol_types.h>
 #include <stdbool.h>
@@ -32,4 +33,6 @@ sdmmc_card_t* esp32_sdmmc_get_card(struct Device* device);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

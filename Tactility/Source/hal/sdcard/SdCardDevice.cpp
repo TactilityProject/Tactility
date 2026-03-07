@@ -2,6 +2,8 @@
 
 #include <tactility/filesystem/file_system.h>
 
+#include <cstring>
+
 namespace tt::hal::sdcard {
 
 static error_t mount(void* data) {
