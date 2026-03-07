@@ -6,16 +6,16 @@
 #include <ChargeFromVoltage.h>
 #include <Tactility/hal/power/PowerDevice.h>
 
-constexpr auto THMI_S3_POWEREN_GPIO = GPIO_NUM_10;
-constexpr auto THMI_S3_POWERON_GPIO = GPIO_NUM_14;
+constexpr auto THMI_POWEREN_GPIO = GPIO_NUM_10;
+constexpr auto THMI_POWERON_GPIO = GPIO_NUM_14;
 
 using tt::hal::power::PowerDevice;
 
 class Power final : public PowerDevice {
 
     ChargeFromVoltage chargeFromAdcVoltage = ChargeFromVoltage(3.3f, 4.2f);
-    bool initialized = false;
     esp_adc_cal_characteristics_t adcCharacteristics;
+    bool initialized = false;
     bool calibrated = false;
 
     bool adcInitCalibration();
@@ -25,7 +25,7 @@ class Power final : public PowerDevice {
 
 public:
 
-    std::string getName() const override { return "T-hmi Power"; }
+    std::string getName() const override { return "T-HMI Power"; }
     std::string getDescription() const override { return "Power measurement via ADC"; }
 
     bool supportsMetric(MetricType type) const override;

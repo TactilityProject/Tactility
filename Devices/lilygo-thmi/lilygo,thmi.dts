@@ -8,7 +8,7 @@
 
 / {
 	compatible = "root";
-	model = "LilyGO T-HMI S3";
+	model = "LilyGO T-HMI";
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";

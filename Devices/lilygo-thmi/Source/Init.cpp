@@ -5,11 +5,11 @@
 #include "Tactility/kernel/SystemEvents.h"
 #include <Tactility/TactilityCore.h>
 
-#define TAG "thmi-s3"
+#define TAG "thmi"
 
 static bool powerOn() {
     gpio_config_t power_signal_config = {
-        .pin_bit_mask =  (1ULL << THMI_S3_POWERON_GPIO) | (1ULL << THMI_S3_POWEREN_GPIO),
+        .pin_bit_mask =  (1ULL << THMI_POWERON_GPIO) | (1ULL << THMI_POWEREN_GPIO),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -20,11 +20,11 @@ static bool powerOn() {
         return false;
     }
 
-    if (gpio_set_level(THMI_S3_POWERON_GPIO, 1) != ESP_OK) {
+    if (gpio_set_level(THMI_POWERON_GPIO, 1) != ESP_OK) {
         return false;
     }
     
-    if (gpio_set_level(THMI_S3_POWEREN_GPIO, 1) != ESP_OK) {
+    if (gpio_set_level(THMI_POWEREN_GPIO, 1) != ESP_OK) {
         return false;
     }
 
