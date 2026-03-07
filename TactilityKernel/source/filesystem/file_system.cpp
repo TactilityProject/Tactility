@@ -22,6 +22,7 @@ struct FileSystemsLedger {
     ~FileSystemsLedger() { recursive_mutex_destruct(&mutex); }
 
     void lock() { recursive_mutex_lock(&mutex); }
+    bool is_locked() { return recursive_mutex_is_locked(&mutex); }
     void unlock() { recursive_mutex_unlock(&mutex); }
 };
 
@@ -34,6 +35,7 @@ extern "C" {
 
 FileSystem* file_system_add(const FileSystemApi* fs_api, void* data) {
     auto& ledger = get_ledger();
+    check(!ledger.is_locked()); // ensure file_system_for_each() doesn't add a filesystem while iterating
     ledger.lock();
     
     auto* fs = new(std::nothrow) struct FileSystem();
@@ -49,6 +51,7 @@ FileSystem* file_system_add(const FileSystemApi* fs_api, void* data) {
 void file_system_remove(FileSystem* fs) {
     check(!file_system_is_mounted(fs));
     auto& ledger = get_ledger();
+    check(!ledger.is_locked()); // ensure file_system_for_each() doesn't remove a filesystem while iterating
     ledger.lock();
     
     auto it = std::ranges::find(ledger.file_systems, fs);

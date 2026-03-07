@@ -119,9 +119,9 @@ static error_t mount(void* data) {
             LOG_E(TAG, "Mounting failed: %s", esp_err_to_name(result));
         }
 #if SOC_SD_PWR_CTRL_SUPPORTED
-        if (data->pwr_ctrl_handle) {
-            sd_pwr_ctrl_del_on_chip_ldo(data->pwr_ctrl_handle);
-            data->pwr_ctrl_handle = nullptr;
+        if (fs_data->pwr_ctrl_handle) {
+            sd_pwr_ctrl_del_on_chip_ldo(fs_data->pwr_ctrl_handle);
+            fs_data->pwr_ctrl_handle = nullptr;
         }
 #endif
         return ERROR_UNDEFINED;
