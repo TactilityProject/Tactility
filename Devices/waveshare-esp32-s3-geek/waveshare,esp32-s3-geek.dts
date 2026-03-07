@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_sdmmc.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 
@@ -28,6 +29,17 @@
 		host = <SPI2_HOST>;
 		pin-mosi = <&gpio0 11 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 12 GPIO_FLAG_NONE>;
+	};
+
+	sdmmc0 {
+		compatible = "espressif,esp32-sdmmc";
+		pin-clk = <&gpio0 36 GPIO_FLAG_NONE>;
+		pin-cmd = <&gpio0 35 GPIO_FLAG_NONE>;
+		pin-d0 = <&gpio0 37 GPIO_FLAG_NONE>;
+		pin-d1 = <&gpio0 33 GPIO_FLAG_NONE>;
+		pin-d2 = <&gpio0 38 GPIO_FLAG_NONE>;
+		pin-d3 = <&gpio0 34 GPIO_FLAG_NONE>;
+		bus-width = <4>;
 	};
 
 	uart0 {

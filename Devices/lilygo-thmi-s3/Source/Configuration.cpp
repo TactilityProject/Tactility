@@ -1,5 +1,4 @@
 #include "devices/Power.h"
-#include "devices/SdCard.h"
 #include "devices/Display.h"
 
 #include <ButtonControl.h>
@@ -11,7 +10,6 @@ using namespace tt::hal;
 
 static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
     return {
-        createSdCard(),
         createDisplay(),
         std::make_shared<Power>(),
         ButtonControl::createOneButtonControl(0)
