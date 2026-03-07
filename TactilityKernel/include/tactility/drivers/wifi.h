@@ -27,7 +27,7 @@ enum WifiAuthenticationType {
     WIFI_AUTHENTICATION_TYPE_WPA3_EXT_PSK,
     WIFI_AUTHENTICATION_TYPE_WPA3_EXT_PSK_MIXED_MODE,
     WIFI_AUTHENTICATION_TYPE_MAX
-} wifi_auth_mode_t;
+};
 
 struct WifiApRecord {
     char ssid[33]; // 32 bytes + null terminator
