@@ -26,8 +26,7 @@
 #include <Tactility/StringUtils.h>
 
 #include <ranges>
-#include <tactility/drivers/file_system.h>
-#include <tactility/drivers/hal_device.h>
+#include <tactility/filesystem/file_system.h>
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
 #include <lv_screenshot.h>
@@ -762,26 +761,20 @@ esp_err_t WebServerService::handleFsList(httpd_req_t* request) {
 
     std::ostringstream json;
     json << "{\"path\":\"" << norm << "\",\"entries\":[";
-
+    struct FsIterContext {
+        std::ostringstream& json;
+        uint16_t count = 0;
+    };
+    FsIterContext fs_iter_context { json };
     // Special handling for root: show available mount points
     if (norm == "/") {
-        // Always show /data
-        json << "{\"name\":\"data\",\"type\":\"dir\",\"size\":0}";
-
-        // Show /sdcard if mounted
-        const auto sdcard_devices = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-        for (const auto& sdcard : sdcard_devices) {
-            if (sdcard->isMounted()) {
-                json << ",{\"name\":\"sdcard\",\"type\":\"dir\",\"size\":0}";
-                break;
-            }
-        }
-
-        device_for_each_of_type(&FILE_SYSTEM_TYPE, &json, [] (auto* fs_device, void* context) {
-            if (file_system_is_mounted(fs_device)) {
-                auto* json_context_ptr = static_cast<std::ostringstream*>(context);
-                auto& json_context = *json_context_ptr;
-                json_context << ",{\"name\":\"sdcard\",\"type\":\"dir\",\"size\":0}";
+        file_system_for_each(&fs_iter_context, [] (auto* fs, void* context) {
+            auto* fs_iter_context = static_cast<FsIterContext*>(context);
+            char path[128];
+            if (file_system_is_mounted(fs) && file_system_get_path(fs, path, sizeof(path)) == ESP_OK && strcmp(path, "/system") != 0) {
+                fs_iter_context->count++;
+                if (fs_iter_context->count != 1) fs_iter_context->json << ","; // add separator between json array entries
+                fs_iter_context->json << "{\"name\":\"" << path << "\",\"type\":\"dir\",\"size\":0}";
             }
             return true;
         });
@@ -1168,57 +1161,38 @@ esp_err_t WebServerService::handleApiSysinfo(httpd_req_t* request) {
     json << "\"storage\":{";
     uint64_t storage_total = 0, storage_free = 0;
 
-    // Data partition
-    json << "\"data\":{";
-    if (esp_vfs_fat_info(file::MOUNT_POINT_DATA, &storage_total, &storage_free) == ESP_OK) {
-        json << "\"free\":" << storage_free << ",";
-        json << "\"total\":" << storage_total << ",";
-        json << "\"mounted\":true";
-    } else {
-        json << "\"mounted\":false";
-    }
-    json << "},";
-
-    // SD card - check all sdcard devices
-    json << "\"sdcard\":{";
-    bool sdcard_found = false;
-    const auto sdcard_devices = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-    for (const auto& sdcard : sdcard_devices) {
-        if (sdcard->isMounted() && esp_vfs_fat_info(sdcard->getMountPath().c_str(), &storage_total, &storage_free) == ESP_OK) {
-            json << "\"free\":" << storage_free << ",";
-            json << "\"total\":" << storage_total << ",";
-            json << "\"mounted\":true";
-            sdcard_found = true;
-            break;
-        }
-    }
-
     struct FsIterContext {
         std::ostringstream& json;
-        bool sdcard_found;
+        uint16_t count = 0;
     };
-    FsIterContext fs_iter_context { json, sdcard_found };
-    device_for_each_of_type(&FILE_SYSTEM_TYPE, &fs_iter_context, [] (auto* fs_device, void* context) {
-        if (!file_system_is_mounted(fs_device)) return true;
-        char mount_path[128];
-        if (file_system_get_mount_path(fs_device, mount_path, sizeof(mount_path)) != ESP_OK) return true;
-        uint64_t storage_total = 0, storage_free = 0;
-        if (esp_vfs_fat_info(mount_path, &storage_total, &storage_free) != ESP_OK) return true;
+    FsIterContext fs_iter_context { json };
+    file_system_for_each(&fs_iter_context, [] (auto* fs, void* context) {
+        char mount_path[128] = "";
+        if (file_system_get_path(fs, mount_path, sizeof(mount_path)) != ERROR_NONE) return true;
+        if (strcmp(mount_path, "/system") == 0) return true; // Hide system partition
+
+        bool mounted = file_system_is_mounted(fs);
         auto* fs_iter_context = static_cast<FsIterContext*>(context);
         auto& json_context = fs_iter_context->json;
-        json_context << "\"free\":" << storage_free << ",";
-        json_context << "\"total\":" << storage_total << ",";
-        json_context << "\"mounted\":true";
-        fs_iter_context->sdcard_found = true;
+        std::string mount_path_cpp = mount_path;
+
+        fs_iter_context->count++;
+        if (fs_iter_context->count != 1) json_context << ","; // add separator between json array entries
+        json_context << "\"" << mount_path_cpp.substr(1) << "\":{";
+
+        uint64_t storage_total = 0, storage_free = 0;
+        if (esp_vfs_fat_info(mount_path, &storage_total, &storage_free) == ESP_OK) {
+            json_context << "\"free\":" << storage_free << ",";
+            json_context << "\"total\":" << storage_total << ",";
+        } else {
+            json_context << "\"free\":0,";
+            json_context << "\"total\":0,";
+        }
+
+        json_context << "\"mounted\":" << (mounted ? "true" : "false") << "";
+        json_context << "}";
         return true;
     });
-
-    if (fs_iter_context.sdcard_found) sdcard_found = true;
-
-    if (!sdcard_found) {
-        json << "\"mounted\":false";
-    }
-    json << "}";
 
     json << "},";  // end storage
 
@@ -1490,14 +1464,7 @@ esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
 #if TT_FEATURE_SCREENSHOT_ENABLED
     // Determine save location: prefer SD card root if mounted, otherwise /data
     std::string save_path;
-    auto sdcard_devices = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-    for (const auto& sdcard : sdcard_devices) {
-        if (sdcard->isMounted()) {
-            save_path = sdcard->getMountPath();
-            break;
-        }
-    }
-    if (save_path.empty()) {
+    if (!findFirstMountedSdCardPath(save_path)) {
         save_path = file::MOUNT_POINT_DATA;
     }
 
@@ -1574,7 +1541,7 @@ esp_err_t WebServerService::handleFsTree(httpd_req_t* request) {
     std::ostringstream json;
     json << "{";
     // Gather mount points
-    auto mounts = file::getMountPoints();
+    auto mounts = file::getFileSystemDirents();
     json << "\"mounts\": [";
     bool firstMount = true;
     for (auto& m : mounts) {

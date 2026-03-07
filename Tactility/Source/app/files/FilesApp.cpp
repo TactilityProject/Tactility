@@ -2,7 +2,6 @@
 #include <Tactility/app/files/State.h>
 #include <Tactility/app/AppContext.h>
 
-#include <Tactility/Assets.h>
 #include <Tactility/service/loader/Loader.h>
 
 #include <memory>

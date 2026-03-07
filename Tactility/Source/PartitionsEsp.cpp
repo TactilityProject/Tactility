@@ -5,10 +5,46 @@
 
 #include <esp_vfs_fat.h>
 #include <nvs_flash.h>
+#include <tactility/error.h>
+#include <tactility/filesystem/file_system.h>
 
 namespace tt {
 
 static const auto LOGGER = Logger("Partitions");
+
+// region file_system stub
+
+struct PartitionFsData {
+    const char* path;
+};
+
+static error_t mount(void* data) {
+    return ERROR_NOT_SUPPORTED;
+}
+
+static error_t unmount(void* data) {
+    return ERROR_NOT_SUPPORTED;
+}
+
+static bool is_mounted(void* data) {
+    return true;
+}
+
+static error_t get_path(void* data, char* out_path, size_t out_path_size) {
+    auto* fs_data = static_cast<PartitionFsData*>(data);
+    if (strlen(fs_data->path) >= out_path_size) return ERROR_BUFFER_OVERFLOW;
+    strncpy(out_path, fs_data->path, out_path_size);
+    return ERROR_NONE;
+}
+
+FileSystemApi partition_fs_api = {
+    .mount = mount,
+    .unmount = unmount,
+    .is_mounted = is_mounted,
+    .get_path = get_path
+};
+
+// endregion file_system stub
 
 static esp_err_t initNvsFlashSafely() {
     esp_err_t result = nvs_flash_init();
@@ -56,6 +92,7 @@ esp_err_t initPartitionsEsp() {
         LOGGER.error("Failed to mount /system ({})", esp_err_to_name(system_result));
     } else {
         LOGGER.info("Mounted /system");
+        file_system_add(&partition_fs_api, new PartitionFsData("/system"));
     }
 
     auto data_result = esp_vfs_fat_spiflash_mount_rw_wl("/data", "data", &mount_config, &data_wl_handle);
@@ -63,6 +100,7 @@ esp_err_t initPartitionsEsp() {
         LOGGER.error("Failed to mount /data ({})", esp_err_to_name(data_result));
     } else {
         LOGGER.info("Mounted /data");
+        file_system_add(&partition_fs_api, new PartitionFsData("/data"));
     }
 
     return system_result == ESP_OK && data_result == ESP_OK;

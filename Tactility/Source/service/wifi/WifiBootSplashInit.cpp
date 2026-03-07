@@ -6,13 +6,14 @@
 #include <Tactility/Logger.h>
 #include <Tactility/service/wifi/WifiApSettings.h>
 
+#include <Tactility/Paths.h>
+#include <Tactility/Tactility.h>
+#include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <dirent.h>
 #include <format>
 #include <map>
 #include <string>
 #include <vector>
-#include <Tactility/Tactility.h>
-#include <Tactility/hal/sdcard/SdCardDevice.h>
 
 namespace tt::service::wifi {
 
@@ -118,18 +119,14 @@ static void importWifiApSettingsFromDir(const std::string& path) {
 void bootSplashInit() {
     getMainDispatcher().dispatch([] {
         // First import any provisioning files placed on the system data partition.
-        const std::string settings_path = file::getChildPath(file::MOUNT_POINT_DATA, "settings");
-        importWifiApSettingsFromDir(settings_path);
+        const std::string data_settings_path = file::getChildPath(file::MOUNT_POINT_DATA, "settings");
+        importWifiApSettingsFromDir(data_settings_path);
 
         // Then scan attached SD cards as before.
-        const auto sdcards = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-        for (auto& sdcard : sdcards) {
-            if (sdcard->isMounted()) {
-                const std::string settings_path = file::getChildPath(sdcard->getMountPath(), "settings");
-                importWifiApSettingsFromDir(settings_path);
-            } else {
-                LOGGER.warn("Skipping unmounted SD card {}", sdcard->getMountPath());
-            }
+        std::string sdcard_path;
+        if (findFirstMountedSdCardPath((sdcard_path))) {
+            const std::string sd_settings_path = file::getChildPath(sdcard_path, "settings");
+            importWifiApSettingsFromDir(sd_settings_path);
         }
     });
 }

@@ -2,25 +2,54 @@
 
 #include <Tactility/app/AppManifestParsing.h>
 #include <Tactility/MountPoints.h>
-#include <Tactility/hal/sdcard/SdCardDevice.h>
 
 #include <format>
+#include <tactility/filesystem/file_system.h>
 
 namespace tt {
 
 bool findFirstMountedSdCardPath(std::string& path) {
-    // const auto sdcards = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-    bool is_set = false;
-    hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard, [&is_set, &path](const auto& device) {
-        if (device->isMounted()) {
-            path = device->getMountPath();
-            is_set = true;
-            return false; // stop iterating
-        } else {
-            return true;
+    auto* fs = findFirstMountedSdcardFileSystem();
+    if (fs == nullptr) return false;
+    char found_path[128];
+    if (file_system_get_path(fs, found_path, sizeof(found_path)) != ERROR_NONE) return false;
+    path = found_path;
+    return true;
+}
+
+bool hasMountedSdCard() {
+    auto* fs = findFirstMountedSdcardFileSystem();
+    return fs != nullptr;
+}
+
+FileSystem* findFirstMountedSdcardFileSystem() {
+    FileSystem* found = nullptr;
+    file_system_for_each(&found, [](auto* fs, void* context) {
+        char path[128];
+        if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
+        // TODO: Find a better way to identify SD card paths
+        if (std::string(path).starts_with("/sdcard") && file_system_is_mounted(fs)) {
+            *static_cast<FileSystem**>(context) = fs;
+            return false;
         }
+        return true;
     });
-    return is_set;
+    return found;
+}
+
+FileSystem* findFirstSdcardFileSystem() {
+    FileSystem* found = nullptr;
+    file_system_for_each(&found, [](auto* fs, void* context) {
+        char path[128];
+        if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
+        // TODO: Find a better way to identify SD card paths
+        if (std::string(path).starts_with("/sdcard")) {
+            *static_cast<FileSystem**>(context) = fs;
+            return false;
+        }
+        return true;
+    });
+    return found;
 }
 
 std::string getSystemRootPath() {

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_sdmmc.h>
-#include <tactility/drivers/file_system.h>
+#include <tactility/drivers/esp32_sdmmc_fs.h>
+#include <tactility/filesystem/file_system.h>
 #include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/log.h>
 
 #include <driver/sdmmc_host.h>
 #include <esp_vfs_fat.h>
-#include <new>
 #include <sdmmc_cmd.h>
 #include <string>
 
@@ -17,16 +17,24 @@
 
 #define TAG "esp32_sdmmc_fs"
 
-#define GET_DATA(device) ((struct Esp32SdmmcFsInternal*)device_get_driver_data(device))
-// We re-use the config from the parent device
-#define GET_CONFIG(device) ((const struct Esp32SdmmcConfig*)device->config)
+#define GET_DATA(data) static_cast<Esp32SdmmcFsData*>(data)
 
-struct Esp32SdmmcFsInternal {
-    std::string mount_path {};
-    sdmmc_card_t* card = nullptr;
+struct Esp32SdmmcFsData {
+    const std::string mount_path;
+    const Esp32SdmmcConfig* config;
+    sdmmc_card_t* card;
 #if SOC_SD_PWR_CTRL_SUPPORTED
-    sd_pwr_ctrl_handle_t pwr_ctrl_handle = nullptr;
+    sd_pwr_ctrl_handle_t pwr_ctrl_handle;
 #endif
+
+    Esp32SdmmcFsData(const Esp32SdmmcConfig* config, const std::string& mount_path) :
+        mount_path(mount_path),
+        config(config),
+        card(nullptr)
+#if SOC_SD_PWR_CTRL_SUPPORTED
+        ,pwr_ctrl_handle(nullptr)
+#endif
+    {}
 };
 
 static gpio_num_t to_native_pin(GpioPinSpec pin_spec) {
@@ -36,11 +44,26 @@ static gpio_num_t to_native_pin(GpioPinSpec pin_spec) {
 
 extern "C" {
 
-error_t mount(Device* device, const char* mount_path) {
-    LOG_I(TAG, "Mounting %s", mount_path);
+static error_t get_path(void* data, char* out_path, size_t out_path_size);
 
-    auto* data = GET_DATA(device);
-    auto* config = GET_CONFIG(device);
+Esp32SdmmcHandle esp32_sdmmc_fs_alloc(const Esp32SdmmcConfig* config, const char* mount_path) {
+    return new(std::nothrow) Esp32SdmmcFsData(config, mount_path);
+}
+
+sdmmc_card_t* esp32_sdmmc_fs_get_card(Esp32SdmmcHandle handle) {
+    return GET_DATA(handle)->card;
+}
+
+void esp32_sdmmc_fs_free(Esp32SdmmcHandle handle) {
+    auto* fs_data = GET_DATA(handle);
+    delete fs_data;
+}
+
+static error_t mount(void* data) {
+    auto* fs_data = GET_DATA(data);
+    auto* config = fs_data->config;
+
+    LOG_I(TAG, "Mounting %s", fs_data->mount_path.c_str());
 
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
         .format_if_mount_failed = false,
@@ -85,9 +108,9 @@ error_t mount(Device* device, const char* mount_path) {
         .flags = slot_config_flags
     };
 
-    esp_err_t result = esp_vfs_fat_sdmmc_mount(mount_path, &host, &slot_config, &mount_config, &data->card);
+    esp_err_t result = esp_vfs_fat_sdmmc_mount(fs_data->mount_path.c_str(), &host, &slot_config, &mount_config, &fs_data->card);
 
-    if (result != ESP_OK || data->card == nullptr) {
+    if (result != ESP_OK || fs_data->card == nullptr) {
         if (result == ESP_FAIL) {
             LOG_E(TAG, "Mounting failed. Ensure the card is formatted with FAT.");
         } else {
@@ -102,23 +125,21 @@ error_t mount(Device* device, const char* mount_path) {
         return ERROR_UNDEFINED;
     }
 
-    LOG_I(TAG, "Mounted %s", mount_path);
-    data->mount_path = mount_path;
+    LOG_I(TAG, "Mounted %s", fs_data->mount_path.c_str());
 
     return ERROR_NONE;
 }
 
-error_t unmount(Device* device) {
-    auto* data = GET_DATA(device);
+static error_t unmount(void* data) {
+    auto* fs_data = GET_DATA(data);
+    LOG_I(TAG, "Unmounting %s", fs_data->mount_path.c_str());
 
-    if (esp_vfs_fat_sdcard_unmount(data->mount_path.c_str(), data->card) != ESP_OK) {
-        LOG_E(TAG, "Unmount failed for %s", data->mount_path.c_str());
+    if (esp_vfs_fat_sdcard_unmount(fs_data->mount_path.c_str(), fs_data->card) != ESP_OK) {
+        LOG_E(TAG, "Unmount failed for %s", fs_data->mount_path.c_str());
         return ERROR_UNDEFINED;
     }
 
-    LOG_I(TAG, "Unmounted %s", data->mount_path.c_str());
-    data->mount_path = "";
-    data->card = nullptr;
+    fs_data->card = nullptr;
 
 #if SOC_SD_PWR_CTRL_SUPPORTED
     if (data->pwr_ctrl_handle) {
@@ -127,69 +148,30 @@ error_t unmount(Device* device) {
     }
 #endif
 
-    return ERROR_NONE;
-}
-
-bool is_mounted(Device* device) {
-    const auto* data = GET_DATA(device);
-    return data != nullptr && data->card != nullptr;
-}
-
-error_t get_mount_path(Device* device, char* out_path, size_t out_path_size) {
-    const auto* data = GET_DATA(device);
-    if (data == nullptr || data->card == nullptr) return ERROR_INVALID_STATE;
-    if (data->mount_path.size() >= out_path_size) return ERROR_BUFFER_OVERFLOW;
-    strncpy(out_path, data->mount_path.c_str(), out_path_size);
-    return ERROR_NONE;
-}
-
-static error_t start(Device* device) {
-    LOG_I(TAG, "start %s", device->name);
-    auto* data = new (std::nothrow) Esp32SdmmcFsInternal();
-    if (!data) return ERROR_OUT_OF_MEMORY;
-
-    device_set_driver_data(device, data);
-
-    if (mount(device, "/sdcard") != ERROR_NONE) {
-        LOG_E(TAG, "Failed to mount SD card");
-    }
+    LOG_I(TAG, "Unmounted %s", fs_data->mount_path.c_str());
 
     return ERROR_NONE;
 }
 
-static error_t stop(Device* device) {
-    ESP_LOGI(TAG, "stop %s", device->name);
-    auto* driver_data = GET_DATA(device);
+static bool is_mounted(void* data) {
+    const auto* fs_data = GET_DATA(data);
+    if (fs_data == nullptr || fs_data->card == nullptr) return false;
+    return sdmmc_get_status(fs_data->card) == ESP_OK;
+}
 
-    if (is_mounted(device)) {
-        if (unmount(device) != ERROR_NONE) {
-            LOG_E(TAG, "Failed to unmount SD card");
-        }
-    }
-
-    device_set_driver_data(device, nullptr);
-    delete driver_data;
+static error_t get_path(void* data, char* out_path, size_t out_path_size) {
+    const auto* fs_data = GET_DATA(data);
+    if (fs_data == nullptr || fs_data->card == nullptr) return ERROR_INVALID_STATE;
+    if (fs_data->mount_path.size() >= out_path_size) return ERROR_BUFFER_OVERFLOW;
+    strncpy(out_path, fs_data->mount_path.c_str(), out_path_size);
     return ERROR_NONE;
 }
 
-extern Module platform_esp32_module;
-
-static const FileSystemApi sdmmc_fs_api = {
+const FileSystemApi esp32_sdmmc_fs_api = {
     .mount = mount,
     .unmount = unmount,
     .is_mounted = is_mounted,
-    .get_mount_path = get_mount_path
-};
-
-Driver esp32_sdmmc_fs_driver = {
-    .name = "esp32_sdmmc_fs",
-    .compatible = (const char*[]) { "espressif,esp32-sdmmc-fs", nullptr },
-    .start_device = start,
-    .stop_device = stop,
-    .api = &sdmmc_fs_api,
-    .device_type = &FILE_SYSTEM_TYPE,
-    .owner = &platform_esp32_module,
-    .internal = nullptr
+    .get_path = get_path
 };
 
 } // extern "C"

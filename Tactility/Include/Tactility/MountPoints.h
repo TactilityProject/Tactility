@@ -21,6 +21,6 @@ constexpr auto* MOUNT_POINT_DATA = "/data";
 constexpr auto* MOUNT_POINT_DATA = "data";
 #endif
 
-std::vector<dirent> getMountPoints();
+std::vector<dirent> getFileSystemDirents();
 
 } // namespace

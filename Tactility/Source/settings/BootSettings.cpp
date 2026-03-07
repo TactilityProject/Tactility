@@ -5,6 +5,7 @@
 #include <Tactility/Logger.h>
 #include <Tactility/settings/BootSettings.h>
 
+#include <Tactility/Paths.h>
 #include <format>
 #include <string>
 #include <vector>
@@ -18,9 +19,9 @@ constexpr auto* PROPERTIES_KEY_LAUNCHER_APP_ID = "launcherAppId";
 constexpr auto* PROPERTIES_KEY_AUTO_START_APP_ID = "autoStartAppId";
 
 static std::string getPropertiesFilePath() {
-    const auto sdcards = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-    for (auto& sdcard : sdcards) {
-        std::string path = std::format(PROPERTIES_FILE_FORMAT, sdcard->getMountPath());
+    std::string sdcard_path;
+    if (findFirstMountedSdCardPath(sdcard_path)) {
+        std::string path = std::format(PROPERTIES_FILE_FORMAT, sdcard_path);
         if (file::isFile(path)) {
             return path;
         }

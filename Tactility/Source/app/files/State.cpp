@@ -51,7 +51,7 @@ bool State::setEntriesForPath(const std::string& path) {
     bool get_mount_points = (kernel::getPlatform() == kernel::PlatformEsp) && (path == "/");
     if (get_mount_points) {
         LOGGER.info("Setting custom root");
-        dir_entries = file::getMountPoints();
+        dir_entries = file::getFileSystemDirents();
         current_path = path;
         selected_child_entry = "";
         action = ActionNone;

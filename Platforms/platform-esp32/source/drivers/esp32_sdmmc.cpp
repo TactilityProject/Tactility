@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_sdmmc.h>
+#include <tactility/drivers/esp32_sdmmc_fs.h>
 #include <tactility/concurrent/recursive_mutex.h>
 #include <tactility/log.h>
 
 #include "tactility/drivers/gpio_descriptor.h"
 #include <new>
 #include <tactility/drivers/esp32_gpio_helpers.h>
+#include <tactility/filesystem/file_system.h>
 
 #define TAG "esp32_sdmmc"
 
@@ -18,13 +20,8 @@ extern "C" {
 struct Esp32SdmmcInternal {
     RecursiveMutex mutex = {};
     bool initialized = false;
-    char fs_device_name[16] = "esp32_sdmmc_fs0";
-    Device fs_device = {
-        .name = fs_device_name,
-        .config = nullptr,
-        .parent = nullptr,
-        .internal = nullptr
-    };
+    Esp32SdmmcHandle esp32_sdmmc_fs_handle = nullptr;
+    FileSystem* file_system = nullptr;
 
     // Pin descriptors
     GpioDescriptor* pin_clk_descriptor = nullptr;
@@ -47,6 +44,7 @@ struct Esp32SdmmcInternal {
     ~Esp32SdmmcInternal() {
         cleanup_pins();
         recursive_mutex_destruct(&mutex);
+        if (esp32_sdmmc_fs_handle) free(esp32_sdmmc_fs_handle);
     }
 
     void cleanup_pins() {
@@ -96,7 +94,6 @@ static error_t start(Device* device) {
         acquire_pin_or_set_null(sdmmc_config->pin_cd, &data->pin_cd_descriptor) &&
         acquire_pin_or_set_null(sdmmc_config->pin_wp, &data->pin_wp_descriptor);
 
-
     if (!pins_ok) {
         LOG_E(TAG, "Failed to acquire required one or more pins");
         data->cleanup_pins();
@@ -105,11 +102,13 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    // Create filesystem child device
-    auto* fs_device = &data->fs_device;
-    fs_device->parent = device;
-    fs_device->config = sdmmc_config;
-    check(device_construct_add_start(fs_device, "espressif,esp32-sdmmc-fs") == ERROR_NONE);
+    data->esp32_sdmmc_fs_handle = esp32_sdmmc_fs_alloc(sdmmc_config, "/sdcard");
+    data->file_system = file_system_add(&esp32_sdmmc_fs_api, data->esp32_sdmmc_fs_handle);
+    if (file_system_mount(data->file_system) != ERROR_NONE) {
+        // Error is not recoverable at the time, but it might be recoverable later,
+        // so we don't return start() failure.
+        LOG_E(TAG, "Failed to mount SD card filesystem");
+    }
 
     data->initialized = true;
     return ERROR_NONE;
@@ -120,16 +119,30 @@ static error_t stop(Device* device) {
     auto* data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
 
-    // Create filesystem child device
-    auto* fs_device = &data->fs_device;
-    check(device_stop(fs_device) == ERROR_NONE);
-    check(device_remove(fs_device) == ERROR_NONE);
-    check(device_destruct(fs_device) == ERROR_NONE);
+    if (file_system_is_mounted(data->file_system)) {
+        if (file_system_unmount(data->file_system) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to unmount SD card filesystem");
+            return ERROR_RESOURCE;
+        }
+    }
+
+    // Free file system
+    file_system_remove(data->file_system);
+    data->file_system = nullptr;
+    // Free file system data
+    esp32_sdmmc_fs_free(data->esp32_sdmmc_fs_handle);
+    data->esp32_sdmmc_fs_handle = nullptr;
 
     data->cleanup_pins();
     device_set_driver_data(device, nullptr);
     delete data;
     return ERROR_NONE;
+}
+
+sdmmc_card_t* esp32_sdmmc_get_card(Device* device) {
+    if (!device_is_ready(device)) return nullptr;
+    auto* data = GET_DATA(device);
+    return esp32_sdmmc_fs_get_card(data->esp32_sdmmc_fs_handle);
 }
 
 extern Module platform_esp32_module;

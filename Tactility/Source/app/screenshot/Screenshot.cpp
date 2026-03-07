@@ -1,18 +1,18 @@
 #include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
 
-
 #if TT_FEATURE_SCREENSHOT_ENABLED
 
 #include <Tactility/app/App.h>
 #include <Tactility/app/AppManifest.h>
-#include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <Tactility/kernel/Platform.h>
 #include <Tactility/Logger.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/screenshot/Screenshot.h>
+
+#include <Tactility/Paths.h>
 #include <Tactility/Timer.h>
 
 #include <tactility/lvgl_icon_shared.h>
@@ -204,12 +204,9 @@ void ScreenshotApp::createFilePathWidgets(lv_obj_t* parent) {
     lv_textarea_set_one_line(pathTextArea, true);
     lv_obj_set_flex_grow(pathTextArea, 1);
     if (kernel::getPlatform() == kernel::PlatformEsp) {
-        auto sdcard_devices = tt::hal::findDevices<tt::hal::sdcard::SdCardDevice>(tt::hal::Device::Type::SdCard);
-        if (sdcard_devices.size() > 1) {
-            LOGGER.warn("Found multiple SD card devices - picking first");
-        }
-        if (!sdcard_devices.empty() && sdcard_devices.front()->isMounted()) {
-            std::string lvgl_mount_path = lvgl::PATH_PREFIX + sdcard_devices.front()->getMountPath();
+        std::string sdcard_path;
+        if (findFirstMountedSdCardPath(sdcard_path)) {
+            std::string lvgl_mount_path = lvgl::PATH_PREFIX + sdcard_path + "/screenshots";
             lv_textarea_set_text(pathTextArea, lvgl_mount_path.c_str());
         } else {
             lv_textarea_set_text(pathTextArea, "Error: no SD card");

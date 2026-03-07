@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include <tactility/drivers/gpio.h>
-#include <stdint.h>
+#include <sd_protocol_types.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <tactility/drivers/gpio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +27,8 @@ struct Esp32SdmmcConfig {
     bool wp_active_high;
     bool enable_uhs;
 };
+
+sdmmc_card_t* esp32_sdmmc_get_card(struct Device* device);
 
 #ifdef __cplusplus
 }

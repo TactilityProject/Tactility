@@ -1,10 +1,10 @@
 #include <Tactility/TactilityConfig.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>
 
+#include <Tactility/Paths.h>
 #include <algorithm>
 #include <cstring>
 #include <format>
@@ -343,14 +343,9 @@ class SystemInfoApp final : public App {
             }
         }
 
-        if (hasSdcardStorage) {
-            const auto sdcard_devices = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-            for (const auto& sdcard : sdcard_devices) {
-                if (sdcard->isMounted() && esp_vfs_fat_info(sdcard->getMountPath().c_str(), &storage_total, &storage_free) == ESP_OK) {
-                    updateMemoryBar(sdcardStorageBar, storage_free, storage_total);
-                    break;  // Only update first SD card
-                }
-            }
+        std::string sdcard_path;
+        if (findFirstMountedSdCardPath(sdcard_path) && esp_vfs_fat_info(sdcard_path.c_str(), &storage_total, &storage_free) == ESP_OK) {
+            updateMemoryBar(sdcardStorageBar, storage_free, storage_total);
         }
 
         if (hasSystemStorage) {
@@ -624,13 +619,10 @@ class SystemInfoApp final : public App {
             dataStorageBar = createMemoryBar(storage_tab, file::MOUNT_POINT_DATA);
         }
 
-        const auto sdcard_devices = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-        for (const auto& sdcard : sdcard_devices) {
-            if (sdcard->isMounted() && esp_vfs_fat_info(sdcard->getMountPath().c_str(), &storage_total, &storage_free) == ESP_OK) {
-                hasSdcardStorage = true;
-                sdcardStorageBar = createMemoryBar(storage_tab, sdcard->getMountPath().c_str());
-                break;  // Only show first SD card
-            }
+        std::string sdcard_path;
+        if (findFirstMountedSdCardPath(sdcard_path) && esp_vfs_fat_info(sdcard_path.c_str(), &storage_total, &storage_free) == ESP_OK) {
+            hasSdcardStorage = true;
+            sdcardStorageBar = createMemoryBar(storage_tab, sdcard_path.c_str());
         }
 
         if (config::SHOW_SYSTEM_PARTITION) {

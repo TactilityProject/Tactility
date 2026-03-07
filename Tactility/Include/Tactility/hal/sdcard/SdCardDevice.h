@@ -2,9 +2,11 @@
 
 #include <tactility/hal/Device.h>
 
-#include <Tactility/TactilityCore.h>
 #include <Tactility/Lock.h>
+#include <Tactility/TactilityCore.h>
 
+
+struct FileSystem;
 namespace tt::hal::sdcard {
 
 /**
@@ -31,11 +33,12 @@ public:
 private:
 
     MountBehaviour mountBehaviour;
+    FileSystem* fileSystem;
 
 public:
 
-    explicit SdCardDevice(MountBehaviour mountBehaviour) : mountBehaviour(mountBehaviour) {}
-    ~SdCardDevice() override = default;
+    explicit SdCardDevice(MountBehaviour mountBehaviour);
+    ~SdCardDevice() override;
 
     Type getType() const final { return Type::SdCard; };
 

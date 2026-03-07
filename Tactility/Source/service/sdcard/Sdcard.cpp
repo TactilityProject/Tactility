@@ -1,11 +1,12 @@
-#include <Tactility/hal/sdcard/SdCardDevice.h>
-#include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
+#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
-#include <Tactility/service/ServiceContext.h>
-#include <Tactility/service/ServiceRegistration.h>
+#include <Tactility/Paths.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>
+#include <Tactility/hal/sdcard/SdCardDevice.h>
+#include <Tactility/service/ServiceContext.h>
+#include <Tactility/service/ServiceRegistration.h>
 
 namespace tt::service::sdcard {
 
@@ -17,7 +18,7 @@ class SdCardService final : public Service {
 
     Mutex mutex;
     std::unique_ptr<Timer> updateTimer;
-    hal::sdcard::SdCardDevice::State lastState = hal::sdcard::SdCardDevice::State::Unmounted;
+    bool lastMountedState = false;
 
     bool lock(TickType_t timeout) const {
         return mutex.lock(timeout);
@@ -29,23 +30,13 @@ class SdCardService final : public Service {
 
     void update() {
         // TODO: Support multiple SD cards
-        auto sdcard = hal::findFirstDevice<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-        if (sdcard == nullptr) {
-            return;
-        }
+        auto* file_system = findFirstSdcardFileSystem();
 
         if (lock(50)) {
-            auto new_state = sdcard->getState();
-
-            if (new_state == hal::sdcard::SdCardDevice::State::Error) {
-                LOGGER.error("Sdcard error - unmounting. Did you eject the card in an unsafe manner?");
-                sdcard->unmount();
+            auto is_mounted = file_system_is_mounted(file_system);
+            if (is_mounted != lastMountedState) {
+                lastMountedState = is_mounted;
             }
-
-            if (new_state != lastState) {
-                lastState = new_state;
-            }
-
             unlock();
         } else {
             LOGGER.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED);
@@ -55,7 +46,8 @@ class SdCardService final : public Service {
 public:
 
     bool onStart(ServiceContext& serviceContext) override {
-        if (hal::findFirstDevice<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard) == nullptr) {
+        auto* sdcard_fs = findFirstSdcardFileSystem();
+        if (sdcard_fs == nullptr) {
             LOGGER.warn("No SD card device found - not starting Service");
             return false;
         }

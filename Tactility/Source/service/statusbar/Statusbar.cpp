@@ -2,8 +2,8 @@
 
 #include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
+#include <Tactility/Paths.h>
 #include <Tactility/Timer.h>
-#include <tactility/check.h>
 #include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/hal/sdcard/SdCardDevice.h>
 #include <Tactility/lvgl/Lvgl.h>
@@ -13,6 +13,7 @@
 #include <Tactility/service/ServiceRegistration.h>
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/service/wifi/Wifi.h>
+#include <tactility/check.h>
 
 #include <tactility/lvgl_icon_statusbar.h>
 
@@ -56,18 +57,9 @@ static const char* getWifiStatusIcon(wifi::RadioState state) {
     }
 }
 
-static const char* getSdCardStatusIcon(hal::sdcard::SdCardDevice::State state) {
-    switch (state) {
-        using enum hal::sdcard::SdCardDevice::State;
-        case Mounted:
-            return LVGL_ICON_STATUSBAR_SD_CARD;
-        case Error:
-        case Unmounted:
-        case Timeout:
-            return LVGL_ICON_STATUSBAR_SD_CARD_ALERT;
-        default:
-            check(false, "Unhandled SdCard state");
-    }
+static const char* getSdCardStatusIcon(bool mounted) {
+    if (mounted) return LVGL_ICON_STATUSBAR_SD_CARD;
+    return LVGL_ICON_STATUSBAR_SD_CARD_ALERT;
 }
 
 static const char* getPowerStatusIcon() {
@@ -172,18 +164,15 @@ class StatusbarService final : public Service {
     }
 
     void updateSdCardIcon() {
-        auto sdcards = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
+        auto* sdcard_fs = findFirstSdcardFileSystem();
         // TODO: Support multiple SD cards
-        auto sdcard = sdcards.empty() ? nullptr : sdcards[0];
-        if (sdcard != nullptr) {
-            auto state = sdcard->getState(50 / portTICK_PERIOD_MS);
-            if (state != hal::sdcard::SdCardDevice::State::Timeout) {
-                auto* desired_icon = getSdCardStatusIcon(state);
-                if (sdcard_last_icon != desired_icon) {
-                    lvgl::statusbar_icon_set_image(sdcard_icon_id, desired_icon);
-                    lvgl::statusbar_icon_set_visibility(sdcard_icon_id, true);
-                    sdcard_last_icon = desired_icon;
-                }
+        if (sdcard_fs != nullptr) {
+            auto mounted = file_system_is_mounted(sdcard_fs);
+            auto* desired_icon = getSdCardStatusIcon(mounted);
+            if (sdcard_last_icon != desired_icon) {
+                lvgl::statusbar_icon_set_image(sdcard_icon_id, desired_icon);
+                lvgl::statusbar_icon_set_visibility(sdcard_icon_id, true);
+                sdcard_last_icon = desired_icon;
             }
             // TODO: Consider tracking how long the SD card has been in unknown status and then show error
         }

@@ -8,19 +8,19 @@
 #include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
 
-#include <Tactility/app/AppManifestParsing.h>
-#include <Tactility/app/AppRegistration.h>
 #include <Tactility/CpuAffinity.h>
 #include <Tactility/DispatcherThread.h>
+#include <Tactility/LogMessages.h>
+#include <Tactility/Logger.h>
+#include <Tactility/MountPoints.h>
+#include <Tactility/Paths.h>
+#include <Tactility/app/AppManifestParsing.h>
+#include <Tactility/app/AppRegistration.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/hal/HalPrivate.h>
-#include <Tactility/hal/sdcard/SdCardDevice.h>
-#include <Tactility/Logger.h>
-#include <Tactility/LogMessages.h>
 #include <Tactility/lvgl/LvglPrivate.h>
-#include <Tactility/MountPoints.h>
 #include <Tactility/network/NtpPrivate.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
@@ -28,6 +28,7 @@
 
 #include <tactility/concurrent/thread.h>
 #include <tactility/drivers/uart_controller.h>
+#include <tactility/filesystem/file_system.h>
 #include <tactility/hal_device_module.h>
 #include <tactility/kernel_init.h>
 #include <tactility/lvgl_module.h>
@@ -228,22 +229,18 @@ static void registerInstalledApps(const std::string& path) {
     });
 }
 
-static void registerInstalledAppsFromSdCard(const std::shared_ptr<hal::sdcard::SdCardDevice>& sdcard) {
-    auto sdcard_root_path = sdcard->getMountPath();
-    auto app_path = std::format("{}/app", sdcard_root_path);
-    if (file::isDirectory(app_path)) {
-        registerInstalledApps(app_path);
-    }
-}
-
-static void registerInstalledAppsFromSdCards() {
-    auto sdcard_devices = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-    for (const auto& sdcard : sdcard_devices) {
-        if (sdcard->isMounted()) {
-            LOGGER.info("Registering apps from {}", sdcard->getMountPath());
-            registerInstalledAppsFromSdCard(sdcard);
+static void registerInstalledAppsFromFileSystems() {
+    file_system_for_each(nullptr, [](auto* fs, void* context) {
+        if (!file_system_is_mounted(fs)) return true;
+        char path[128];
+        if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
+        const auto app_path = std::format("{}/app", path);
+        if (!app_path.starts_with(file::MOUNT_POINT_SYSTEM) && file::isDirectory(app_path)) {
+            LOGGER.info("Registering apps from {}", path);
+            registerInstalledApps(app_path);
         }
-    }
+        return true;
+    });
 }
 
 static void registerAndStartSecondaryServices() {
@@ -266,7 +263,7 @@ static void registerAndStartSecondaryServices() {
 static void registerAndStartPrimaryServices() {
     LOGGER.info("Registering and starting primary system services");
     addService(service::gps::manifest);
-    if (hal::hasDevice(hal::Device::Type::SdCard)) {
+    if (hasMountedSdCard()) {
         addService(service::sdcard::manifest);
     }
     addService(service::wifi::manifest);
@@ -301,26 +298,19 @@ void createTempDirectory(const std::string& rootPath) {
 }
 
 void prepareFileSystems() {
-    // Temporary directories for SD cards
-    auto sdcard_devices = hal::findDevices<hal::sdcard::SdCardDevice>(hal::Device::Type::SdCard);
-    for (const auto& sdcard : sdcard_devices) {
-        if (sdcard->isMounted()) {
-            createTempDirectory(sdcard->getMountPath());
-        }
-    }
-    // Temporary directory for /data
-    if (file::isDirectory(file::MOUNT_POINT_DATA)) {
-        createTempDirectory(file::MOUNT_POINT_DATA);
-    }
+    file_system_for_each(nullptr, [](auto* fs, void* context) {
+        if (!file_system_is_mounted(fs)) return true;
+        char path[128];
+        if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
+        if (std::string(path) == file::MOUNT_POINT_SYSTEM) return true;
+        createTempDirectory(path);
+        return true;
+    });
 }
 
 void registerApps() {
     registerInternalApps();
-    auto data_apps_path = std::format("{}/app", file::MOUNT_POINT_DATA);
-    if (file::isDirectory(data_apps_path)) {
-        registerInstalledApps(data_apps_path);
-    }
-    registerInstalledAppsFromSdCards();
+    registerInstalledAppsFromFileSystems();
 }
 
 void run(const Configuration& config, Module* dtsModules[], DtsDevice dtsDevices[]) {
