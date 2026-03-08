@@ -227,6 +227,11 @@ lv_obj_t* toolbar_add_switch_action(lv_obj_t* obj) {
 
     lv_obj_t* widget = lv_switch_create(wrapper);
     lv_obj_set_align(widget, LV_ALIGN_CENTER);
+
+    if (lv_display_get_color_format(lv_obj_get_display(obj)) == LV_COLOR_FORMAT_L8) {
+        lv_obj_set_style_bg_color(widget, lv_theme_get_color_secondary(obj), LV_PART_MAIN);
+    }
+
     return widget;
 }
 
@@ -238,6 +243,12 @@ lv_obj_t* toolbar_add_spinner_action(lv_obj_t* obj) {
 
     auto* spinner = spinner_create(wrapper);
     lv_obj_set_align(spinner, LV_ALIGN_CENTER);
+
+    if (lv_display_get_color_format(lv_obj_get_display(obj)) == LV_COLOR_FORMAT_L8) {
+        lv_obj_set_style_image_recolor(spinner, lv_theme_get_color_secondary(obj), LV_STATE_DEFAULT);
+        lv_obj_set_style_image_recolor_opa(spinner, LV_OPA_COVER, LV_STATE_DEFAULT);
+    }
+
     return spinner;
 }
 

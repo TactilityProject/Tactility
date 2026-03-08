@@ -24,7 +24,9 @@ void ChatView::addMessageToList(lv_obj_t* list, const StoredMessage& msg) {
     lv_obj_set_style_pad_all(label, 2, 0);
 
     if (msg.isOwn) {
-        lv_obj_set_style_text_color(label, lv_color_hex(0x80C0FF), 0);
+        if (lv_display_get_color_format(lv_obj_get_display(label)) != LV_COLOR_FORMAT_L8) {
+            lv_obj_set_style_text_color(label, lv_color_hex(0x80C0FF), 0);
+        }
     }
 }
 
@@ -155,7 +157,9 @@ void ChatView::init(AppContext& appContext, lv_obj_t* parent) {
     msgList = lv_list_create(parent);
     lv_obj_set_flex_grow(msgList, 1);
     lv_obj_set_width(msgList, LV_PCT(100));
-    lv_obj_set_style_bg_color(msgList, lv_color_hex(0x262626), 0);
+    if (lv_display_get_color_format(lv_obj_get_display(parent)) != LV_COLOR_FORMAT_L8) {
+        lv_obj_set_style_bg_color(msgList, lv_color_hex(0x262626), 0);
+    }
     lv_obj_set_style_border_width(msgList, 0, 0);
     lv_obj_set_style_pad_ver(msgList, 2, 0);
     lv_obj_set_style_pad_hor(msgList, 4, 0);

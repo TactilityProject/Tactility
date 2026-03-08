@@ -333,7 +333,11 @@ public:
         lv_label_set_text(labelUrl, "Web Server URL:");
         
         labelUrlValue = lv_label_create(url_wrapper);
-        lv_obj_set_style_text_color(labelUrlValue, lv_palette_main(LV_PALETTE_BLUE), 0);
+        if (lv_display_get_color_format(lv_obj_get_display(parent)) == LV_COLOR_FORMAT_L8) {
+            lv_obj_set_style_text_color(labelUrlValue, lv_theme_get_color_secondary(labelUrlValue), LV_PART_MAIN);
+        } else {
+            lv_obj_set_style_text_color(labelUrlValue, lv_palette_main(LV_PALETTE_BLUE), 0);
+        }
 
         updateUrlDisplay();
 
@@ -347,12 +351,13 @@ public:
         
         auto* sync_label = lv_label_create(sync_wrapper);
         lv_label_set_text(sync_label, "Asset Synchronization");
-        lv_obj_set_style_text_font(sync_label, &lv_font_montserrat_14, 0);
         
         auto* sync_info = lv_label_create(sync_wrapper);
         lv_label_set_long_mode(sync_info, LV_LABEL_LONG_WRAP);
         lv_obj_set_width(sync_info, LV_PCT(95));
-        lv_obj_set_style_text_color(sync_info, lv_palette_main(LV_PALETTE_GREY), 0);
+        if (lv_display_get_color_format(lv_obj_get_display(parent)) != LV_COLOR_FORMAT_L8) {
+            lv_obj_set_style_text_color(sync_info, lv_palette_main(LV_PALETTE_GREY), 0);
+        }
         lv_label_set_text(sync_info, "Sync web assets between Data partition and SD card backup");
         
         auto* sync_button = lv_btn_create(sync_wrapper);
@@ -366,7 +371,9 @@ public:
         auto* info_label = lv_label_create(main_wrapper);
         lv_label_set_long_mode(info_label, LV_LABEL_LONG_WRAP);
         lv_obj_set_width(info_label, LV_PCT(95));
-        lv_obj_set_style_text_color(info_label, lv_palette_main(LV_PALETTE_GREY), 0);
+        if (lv_display_get_color_format(lv_obj_get_display(parent)) != LV_COLOR_FORMAT_L8) {
+            lv_obj_set_style_text_color(info_label, lv_palette_main(LV_PALETTE_GREY), 0);
+        }
         lv_label_set_text(info_label,
             "WiFi Station credentials are managed separately.\n"
             "Use the WiFi menu to connect to networks.\n\n"

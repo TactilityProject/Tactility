@@ -170,8 +170,6 @@ void ScreenshotApp::createModeSettingWidgets(lv_obj_t* parent) {
     modeDropdown = lv_dropdown_create(mode_wrapper);
     lv_dropdown_set_options(modeDropdown, "Timer\nApp start");
     lv_obj_align_to(modeDropdown, mode_label, LV_ALIGN_OUT_RIGHT_MID, 8, 0);
-    lv_obj_set_style_border_color(modeDropdown, lv_color_hex(0xFAFAFA), LV_PART_MAIN);
-    lv_obj_set_style_border_width(modeDropdown, 1, LV_PART_MAIN);
     lv_obj_add_event_cb(modeDropdown, onModeSetCallback, LV_EVENT_VALUE_CHANGED, nullptr);
     service::screenshot::Mode mode = service->getMode();
     if (mode == service::screenshot::Mode::Apps) {

@@ -435,5 +435,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lv_binfont
     DEFINE_MODULE_SYMBOL(lv_binfont_create),
     DEFINE_MODULE_SYMBOL(lv_binfont_destroy),
+    // lv_style_gen
+    DEFINE_MODULE_SYMBOL(lv_style_set_text_font),
     MODULE_SYMBOL_TERMINATOR
 };

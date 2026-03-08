@@ -203,8 +203,6 @@ public:
         // Note: order correlates with settings::display::Orientation item order
         lv_dropdown_set_options(orientation_dropdown, "Landscape\nPortrait Right\nLandscape Flipped\nPortrait Left");
         lv_obj_align(orientation_dropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-        lv_obj_set_style_border_color(orientation_dropdown, lv_color_hex(0xFAFAFA), LV_PART_MAIN);
-        lv_obj_set_style_border_width(orientation_dropdown, 1, LV_PART_MAIN);
         lv_obj_add_event_cb(orientation_dropdown, onOrientationSet, LV_EVENT_VALUE_CHANGED, this);
         // Set the dropdown to match current orientation enum
         lv_dropdown_set_selected(orientation_dropdown, static_cast<uint16_t>(displaySettings.orientation));
@@ -240,8 +238,6 @@ public:
             timeoutDropdown = lv_dropdown_create(timeout_select_wrapper);
             lv_dropdown_set_options(timeoutDropdown, "15 seconds\n30 seconds\n1 minute\n2 minutes\n5 minutes\nNever");
             lv_obj_align(timeoutDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-            lv_obj_set_style_border_color(timeoutDropdown, lv_color_hex(0xFAFAFA), LV_PART_MAIN);
-            lv_obj_set_style_border_width(timeoutDropdown, 1, LV_PART_MAIN);
             lv_obj_add_event_cb(timeoutDropdown, onTimeoutChanged, LV_EVENT_VALUE_CHANGED, this);
             // Initialize dropdown selection from settings
             uint32_t ms = displaySettings.backlightTimeoutMs;
@@ -276,8 +272,6 @@ public:
             // Note: order correlates with settings::display::ScreensaverType enum order
             lv_dropdown_set_options(screensaverDropdown, "None\nBouncing Balls\nMystify\nMatrix Rain");
             lv_obj_align(screensaverDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-            lv_obj_set_style_border_color(screensaverDropdown, lv_color_hex(0xFAFAFA), LV_PART_MAIN);
-            lv_obj_set_style_border_width(screensaverDropdown, 1, LV_PART_MAIN);
             lv_obj_add_event_cb(screensaverDropdown, onScreensaverChanged, LV_EVENT_VALUE_CHANGED, this);
             lv_dropdown_set_selected(screensaverDropdown, static_cast<uint16_t>(displaySettings.screensaverType));
             if (!displaySettings.backlightTimeoutEnabled) {

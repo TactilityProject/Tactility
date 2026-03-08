@@ -161,8 +161,6 @@ public:
         timeoutDropdown = lv_dropdown_create(timeout_select_wrapper);
         lv_dropdown_set_options(timeoutDropdown, "15 seconds\n30 seconds\n1 minute\n2 minutes\n5 minutes\nNever");
         lv_obj_align(timeoutDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-        lv_obj_set_style_border_color(timeoutDropdown, lv_color_hex(0xFAFAFA), LV_PART_MAIN);
-        lv_obj_set_style_border_width(timeoutDropdown, 1, LV_PART_MAIN);
         lv_obj_add_event_cb(timeoutDropdown, onTimeoutChanged, LV_EVENT_VALUE_CHANGED, this);
         // Initialize dropdown selection from settings
         lv_dropdown_set_selected(timeoutDropdown, timeoutMsToIndex(kbSettings.backlightTimeoutMs));

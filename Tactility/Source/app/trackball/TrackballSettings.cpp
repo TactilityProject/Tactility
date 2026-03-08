@@ -139,8 +139,6 @@ public:
         trackballModeDropdown = lv_dropdown_create(tb_mode_wrapper);
         lv_dropdown_set_options(trackballModeDropdown, "Encoder\nPointer");
         lv_obj_align(trackballModeDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-        lv_obj_set_style_border_color(trackballModeDropdown, lv_color_hex(0xFAFAFA), LV_PART_MAIN);
-        lv_obj_set_style_border_width(trackballModeDropdown, 1, LV_PART_MAIN);
         lv_dropdown_set_selected(trackballModeDropdown, modeToDropdownIndex(tbSettings.trackballMode));
         lv_obj_add_event_cb(trackballModeDropdown, onTrackballModeChanged, LV_EVENT_VALUE_CHANGED, this);
 

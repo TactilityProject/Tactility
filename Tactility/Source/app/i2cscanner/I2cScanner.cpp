@@ -128,8 +128,6 @@ void I2cScannerApp::onShow(AppContext& app, lv_obj_t* parent) {
     lv_dropdown_set_options(port_dropdown, dropdown_items.c_str());
     lv_obj_set_width(port_dropdown, LV_PCT(48));
     lv_obj_align(port_dropdown, LV_ALIGN_TOP_RIGHT, 0, 0);
-    lv_obj_set_style_border_color(port_dropdown, lv_color_hex(0xFAFAFA), LV_PART_MAIN);
-    lv_obj_set_style_border_width(port_dropdown, 1, LV_PART_MAIN);
     lv_obj_add_event_cb(port_dropdown, onSelectBusCallback, LV_EVENT_VALUE_CHANGED, this);
     auto selected_bus = getLastBusIndex();
     lv_dropdown_set_selected(port_dropdown, selected_bus);

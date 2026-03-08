@@ -147,7 +147,9 @@ public:
         lv_label_set_text(warning_label, "This feature is experimental and uses an unsecured http connection.");
         lv_obj_set_width(warning_label, LV_PCT(100));
         lv_label_set_long_mode(warning_label, LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_color(warning_label, lv_color_make(0xff, 0xff, 00), LV_STATE_DEFAULT);
+        if (lv_display_get_color_format(lv_obj_get_display(parent)) != LV_COLOR_FORMAT_L8) {
+            lv_obj_set_style_text_color(warning_label, lv_color_make(0xff, 0xff, 0x00), LV_STATE_DEFAULT);
+        }
 
         updateViewState();
 

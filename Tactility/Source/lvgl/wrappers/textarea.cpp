@@ -22,6 +22,11 @@ lv_obj_t* __wrap_lv_textarea_create(lv_obj_t* parent) {
         gui_service->keyboardAddTextArea(textarea);
     }
 
+    if (lv_display_get_color_format(lv_obj_get_display(parent)) == LV_COLOR_FORMAT_L8) {
+        lv_obj_set_style_border_width(textarea, 1, LV_PART_MAIN);
+        lv_obj_set_style_border_color(textarea, lv_theme_get_color_secondary(parent), LV_PART_MAIN);
+    }
+
     return textarea;
 }
 
