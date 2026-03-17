@@ -78,7 +78,8 @@ static error_t mount(void* data) {
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
 
 #if SOC_SD_PWR_CTRL_SUPPORTED
-    if (config->on_chip_ldo_chan != -1) {
+    // Treat non-positive values as disabled to remain safe with zero-initialized configs.
+    if (config->on_chip_ldo_chan > 0) {
         sd_pwr_ctrl_ldo_config_t ldo_config = {
             .ldo_chan_id = (uint32_t)config->on_chip_ldo_chan,
         };
@@ -127,10 +128,10 @@ static error_t mount(void* data) {
             fs_data->pwr_ctrl_handle = nullptr;
         }
 #endif
-        sdmmc_card_print_info(stdout, fs_data->card);
         return ERROR_UNDEFINED;
     }
 
+    sdmmc_card_print_info(stdout, fs_data->card);
     LOG_I(TAG, "Mounted %s", fs_data->mount_path.c_str());
 
     return ERROR_NONE;
