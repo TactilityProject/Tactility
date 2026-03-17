@@ -51,3 +51,11 @@ properties:
     type: boolean
     default: false
     description: Enable UHS mode
+  pullups:
+    type: boolean
+    default: false
+    description: Enable internal pullups for SDMMC pins
+  on-chip-ldo-chan:
+    type: int
+    default: -1
+    description: On-chip LDO channel for SD power (e.g. 4 for LDO4). Set to -1 to disable.
