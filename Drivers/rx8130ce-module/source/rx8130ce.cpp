@@ -114,6 +114,9 @@ error_t rx8130ce_set_datetime(Device* device, const Rx8130ceDateTime* dt) {
         dt->hour > 23 || dt->minute > 59 || dt->second > 59) {
         return ERROR_INVALID_ARGUMENT;
     }
+    if (dt->year < 2000 || dt->year > 2099) {
+        return ERROR_INVALID_ARGUMENT;
+    }
 
     auto* i2c_controller = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
@@ -132,10 +135,6 @@ error_t rx8130ce_set_datetime(Device* device, const Rx8130ceDateTime* dt) {
     buf[3] = 0; // weekday — unused
     buf[4] = dec_to_bcd(dt->day);
     buf[5] = dec_to_bcd(dt->month);
-    uint8_t year_offset = 0;
-    if (dt->year < 2000 || dt->year > 2099) {
-        return ERROR_INVALID_ARGUMENT;
-    }
     uint8_t year_offset = static_cast<uint8_t>(dt->year - 2000);
     buf[6] = dec_to_bcd(year_offset);
     error_t error = i2c_controller_write_register(i2c_controller, address, REG_SECONDS, buf, sizeof(buf), I2C_TIMEOUT_TICKS);
