@@ -438,6 +438,7 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(heap_caps_get_allocated_size),
     ESP_ELFSYM_EXPORT(heap_caps_get_free_size),
     ESP_ELFSYM_EXPORT(heap_caps_get_largest_free_block),
+    ESP_ELFSYM_EXPORT(heap_caps_malloc),
     // delimiter
     ESP_ELFSYM_END
 };
