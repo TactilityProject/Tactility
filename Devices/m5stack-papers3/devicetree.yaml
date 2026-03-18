@@ -1,3 +1,5 @@
 dependencies:
-  - Platforms/platform-esp32
+- Platforms/platform-esp32
+- Drivers/bmi270-module
+- Drivers/bm8563-module
 dts: m5stack,papers3.dts

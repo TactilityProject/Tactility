@@ -2,8 +2,11 @@
 
 #include <Tactility/hal/encoder/EncoderDevice.h>
 #include <Tactility/hal/gpio/Gpio.h>
+#include <Tactility/MessageQueue.h>
 #include <Tactility/TactilityCore.h>
 #include <Tactility/Thread.h>
+
+#include <driver/gpio.h>
 
 class ButtonControl final : public tt::hal::encoder::EncoderDevice {
 
@@ -31,28 +34,41 @@ private:
 
     struct PinState {
         long pressStartTime = 0;
-        long pressReleaseTime = 0;
+        long lastChangeTime = 0;
         bool pressState = false;
         bool triggerShortPress = false;
         bool triggerLongPress = false;
     };
 
+    /** Queued from ISR to worker thread. pin == GPIO_NUM_NC is a shutdown sentinel. */
+    struct ButtonEvent {
+        gpio_num_t pin;
+        bool pressed;
+    };
+
+    /** One entry per unique physical pin; addresses must remain stable after construction. */
+    struct IsrArg {
+        ButtonControl* self;
+        gpio_num_t pin;
+    };
+
     lv_indev_t* deviceHandle = nullptr;
     std::shared_ptr<tt::Thread> driverThread;
-    bool interruptDriverThread = false;
     tt::Mutex mutex;
+    tt::MessageQueue buttonQueue;
     std::vector<PinConfiguration> pinConfigurations;
     std::vector<PinState> pinStates;
+    std::vector<IsrArg> isrArgs; // one entry per unique physical pin
 
-    bool shouldInterruptDriverThread() const;
-
-    static void updatePin(std::vector<PinConfiguration>::const_reference value, std::vector<PinState>::reference pin_state);
+    static void updatePin(std::vector<PinConfiguration>::const_reference config, std::vector<PinState>::reference state, bool pressed);
 
     void driverThreadMain();
 
     static void readCallback(lv_indev_t* indev, lv_indev_data_t* data);
 
-    void startThread();
+    static void IRAM_ATTR gpioIsrHandler(void* arg);
+
+    bool startThread();
     void stopThread();
 
 public:

@@ -1,0 +1,5 @@
+description: QST QMI8658 6-axis IMU
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "qst,qmi8658"

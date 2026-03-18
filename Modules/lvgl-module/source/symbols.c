@@ -159,6 +159,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_move_to_index),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_min_height),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_max_height),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_width),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_height),
     // lv_font
     DEFINE_MODULE_SYMBOL(lv_font_get_bitmap_fmt_txt),
     DEFINE_MODULE_SYMBOL(lv_font_get_default),
@@ -249,6 +251,16 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_arc_get_knob_offset),
     DEFINE_MODULE_SYMBOL(lv_arc_align_obj_to_angle),
     DEFINE_MODULE_SYMBOL(lv_arc_rotate_obj_to_angle),
+    // lv_chart
+    DEFINE_MODULE_SYMBOL(lv_chart_set_div_line_count),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_all_values),
+    DEFINE_MODULE_SYMBOL(lv_chart_create),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_type),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_next_value),
+    DEFINE_MODULE_SYMBOL(lv_chart_add_series),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_axis_range),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_update_mode),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_point_count),
     // lv_dropdown
     DEFINE_MODULE_SYMBOL(lv_dropdown_create),
     DEFINE_MODULE_SYMBOL(lv_dropdown_add_option),

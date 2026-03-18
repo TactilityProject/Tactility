@@ -613,10 +613,12 @@ function renderDashboard(data) {
     const psramUsed = data.psram.total - data.psram.free;
     const psramPercent = data.psram.total > 0 ? (psramUsed / data.psram.total) * 100 : 0;
     const hasPsram = data.psram.total > 0;
-    const dataUsed = data.storage.data.mounted ? (data.storage.data.total - data.storage.data.free) : 0;
-    const dataPercent = data.storage.data.mounted && data.storage.data.total > 0 ? (dataUsed / data.storage.data.total) * 100 : 0;
-    const sdUsed = data.storage.sdcard.mounted ? (data.storage.sdcard.total - data.storage.sdcard.free) : 0;
-    const sdPercent = data.storage.sdcard.mounted && data.storage.sdcard.total > 0 ? (sdUsed / data.storage.sdcard.total) * 100 : 0;
+    const dataPartition = data.storage?.data ?? {};
+    const sdcard = data.storage?.sdcard ?? {};
+    const dataUsed = dataPartition.mounted ? (dataPartition.total - dataPartition.free) : 0;
+    const dataPercent = dataPartition.mounted && dataPartition.total > 0 ? (dataUsed / dataPartition.total) * 100 : 0;
+    const sdUsed = sdcard.mounted ? (sdcard.total - sdcard.free) : 0;
+    const sdPercent = sdcard.mounted && sdcard.total > 0 ? (sdUsed / sdcard.total) * 100 : 0;
 
     versionEl.textContent = `Tactility v${data.firmware.version} | ESP-IDF v${data.firmware.idf_version}`;
 
@@ -711,20 +713,20 @@ function renderDashboard(data) {
                 <h2>Storage</h2>
                 <div class="stat">
                     <span class="stat-label">Data Partition</span>
-                    <span class="stat-value ${data.storage.data.mounted ? getUsageClass(dataPercent) : ''}">${
-                        data.storage.data.mounted ? formatBytes(data.storage.data.free) + ' free' : 'Not mounted'
+                    <span class="stat-value ${dataPartition.mounted ? getUsageClass(dataPercent) : ''}">${
+                        dataPartition.mounted ? formatBytes(dataPartition.free) + ' free' : 'Not mounted'
                     }</span>
                 </div>
-                ${data.storage.data.mounted ? `<div class="progress-bar">
+                ${dataPartition.mounted ? `<div class="progress-bar">
                     <div class="progress-fill ${getUsageClass(dataPercent)}" style="width: ${dataPercent}%"></div>
                 </div>` : ''}
                 <div class="stat" style="margin-top: 15px">
                     <span class="stat-label">SD Card</span>
-                    <span class="stat-value ${data.storage.sdcard.mounted ? getUsageClass(sdPercent) : ''}">${
-                        data.storage.sdcard.mounted ? formatBytes(data.storage.sdcard.free) + ' free' : 'Not mounted'
+                    <span class="stat-value ${sdcard.mounted ? getUsageClass(sdPercent) : ''}">${
+                        sdcard.mounted ? formatBytes(sdcard.free) + ' free' : 'Not mounted'
                     }</span>
                 </div>
-                ${data.storage.sdcard.mounted ? `<div class="progress-bar">
+                ${sdcard.mounted ? `<div class="progress-bar">
                     <div class="progress-fill ${getUsageClass(sdPercent)}" style="width: ${sdPercent}%"></div>
                 </div>` : ''}
             </div>

@@ -7,6 +7,7 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <bindings/bmi270.h>
 #include <bindings/pi4ioe5v6408.h>
+#include <bindings/rx8130ce.h>
 
 / {
 	compatible = "root";
@@ -20,7 +21,7 @@
 	i2c_internal: i2c0 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
-		clock-frequency = <400000>;
+		clock-frequency = <100000>;
 		pin-sda = <&gpio0 31 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 32 GPIO_FLAG_NONE>;
 
@@ -37,6 +38,11 @@
 		bmi270 {
 			compatible = "bosch,bmi270";
 			reg = <0x68>;
+		};
+
+		rx8130ce {
+			compatible = "epson,rx8130ce";
+			reg = <0x32>;
 		};
 	};
 

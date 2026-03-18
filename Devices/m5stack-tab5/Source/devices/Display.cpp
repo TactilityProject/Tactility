@@ -1,16 +1,22 @@
+#include "Detect.h"
 #include "Display.h"
 #include "Ili9881cDisplay.h"
+#include "St7123Display.h"
+#include "St7123Touch.h"
 
 #include <Gt911Touch.h>
 #include <PwmBacklight.h>
 #include <Tactility/Logger.h>
-#include <Tactility/Mutex.h>
 #include <Tactility/hal/gpio/Gpio.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+static const auto LOGGER = tt::Logger("Tab5Display");
 
 constexpr auto LCD_PIN_RESET = GPIO_NUM_0;  // Match P4 EV board reset line
 constexpr auto LCD_PIN_BACKLIGHT = GPIO_NUM_22;
 
-static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
+static std::shared_ptr<tt::hal::touch::TouchDevice> createGt911Touch() {
     auto configuration = std::make_unique<Gt911Touch::Configuration>(
         I2C_NUM_0,
         720,
@@ -19,25 +25,46 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
         false,  // mirrorX
         false,  // mirrorY
         GPIO_NUM_NC, // reset pin
-        GPIO_NUM_NC // "GPIO_NUM_23 cannot be used due to resistor to 3V3" https://github.com/espressif/esp-bsp/blob/ad668c765cbad177495a122181df0a70ff9f8f61/bsp/m5stack_tab5/src/m5stack_tab5.c#L76234
+        GPIO_NUM_NC  // "GPIO_NUM_23 cannot be used due to resistor to 3V3"
+                     // https://github.com/espressif/esp-bsp/blob/ad668c765cbad177495a122181df0a70ff9f8f61/bsp/m5stack_tab5/src/m5stack_tab5.c#L76234
     );
-
     return std::make_shared<Gt911Touch>(std::move(configuration));
+}
+
+static std::shared_ptr<tt::hal::touch::TouchDevice> createSt7123Touch() {
+    auto configuration = std::make_unique<St7123Touch::Configuration>(
+        I2C_NUM_0,
+        720,
+        1280,
+        false,       // swapXY
+        false,       // mirrorX
+        false,       // mirrorY
+        GPIO_NUM_23  // interrupt pin
+    );
+    return std::make_shared<St7123Touch>(std::move(configuration));
 }
 
 std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
     // Initialize PWM backlight
     if (!driver::pwmbacklight::init(LCD_PIN_BACKLIGHT, 5000, LEDC_TIMER_1, LEDC_CHANNEL_0)) {
-        tt::Logger("Tab5").warn("Failed to initialize backlight");
+        LOGGER.warn("Failed to initialize backlight");
     }
 
-    auto touch = createTouch();
+    Tab5Variant variant = detectVariant();
 
-    // Work-around to init touch : interrupt pin must be set to low
-    // Note: There is a resistor to 3V3 on interrupt pin which is blocking GT911 touch
-    // See https://github.com/espressif/esp-bsp/blob/ad668c765cbad177495a122181df0a70ff9f8f61/bsp/m5stack_tab5/src/m5stack_tab5.c#L777
-    tt::hal::gpio::configure(23, tt::hal::gpio::Mode::Output, true, false);
-    tt::hal::gpio::setLevel(23, false);
+    std::shared_ptr<tt::hal::touch::TouchDevice> touch;
+
+    if (variant == Tab5Variant::St7123) {
+        touch = createSt7123Touch();
+    } else {
+        touch = createGt911Touch();
+
+        // Work-around to init GT911 touch: interrupt pin must be set to low
+        // Note: There is a resistor to 3V3 on interrupt pin which is blocking GT911 touch
+        // See https://github.com/espressif/esp-bsp/blob/ad668c765cbad177495a122181df0a70ff9f8f61/bsp/m5stack_tab5/src/m5stack_tab5.c#L777
+        tt::hal::gpio::configure(23, tt::hal::gpio::Mode::Output, true, false);
+        tt::hal::gpio::setLevel(23, false);
+    }
 
     auto configuration = std::make_shared<EspLcdConfiguration>(EspLcdConfiguration {
         .horizontalResolution = 720,
@@ -50,6 +77,8 @@ std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
         .mirrorY = false,
         .invertColor = false,
         .bufferSize = 0, // 0 = default (1/10 of screen)
+        .swRotate = (variant == Tab5Variant::St7123), // ST7123 MIPI-DSI panel does not support hardware swap_xy
+        .buffSpiram = (variant == Tab5Variant::St7123), // sw_rotate needs a 3rd buffer; use PSRAM to avoid OOM in internal SRAM
         .touch = touch,
         .backlightDutyFunction = driver::pwmbacklight::setBacklightDuty,
         .resetPin = LCD_PIN_RESET,
@@ -59,6 +88,13 @@ std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
         .bitsPerPixel = 16
     });
 
-    const auto display = std::make_shared<Ili9881cDisplay>(configuration);
-    return std::static_pointer_cast<tt::hal::display::DisplayDevice>(display);
+    if (variant == Tab5Variant::St7123) {
+        return std::static_pointer_cast<tt::hal::display::DisplayDevice>(
+            std::make_shared<St7123Display>(configuration)
+        );
+    } else {
+        return std::static_pointer_cast<tt::hal::display::DisplayDevice>(
+            std::make_shared<Ili9881cDisplay>(configuration)
+        );
+    }
 }

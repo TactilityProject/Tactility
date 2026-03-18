@@ -99,6 +99,7 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(difftime),
     ESP_ELFSYM_EXPORT(localtime_r),
     ESP_ELFSYM_EXPORT(localtime),
+    ESP_ELFSYM_EXPORT(mktime),
     // esp_sntp.h
     ESP_ELFSYM_EXPORT(sntp_get_sync_status),
     // math.h

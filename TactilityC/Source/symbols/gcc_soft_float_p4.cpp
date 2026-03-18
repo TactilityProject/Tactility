@@ -131,6 +131,9 @@ int __ledf2(double a, double b);
 int __gtdf2(double a, double b);
 // int __gttf2(long double a, long double b);
 
+// GCC integer/bitwise helpers (compiler-rt)
+int __clzsi2(unsigned int x);
+
 } // extern "C"
 
 const esp_elfsym gcc_soft_float_symbols[] = {
@@ -252,6 +255,9 @@ const esp_elfsym gcc_soft_float_symbols[] = {
 
     ESP_ELFSYM_EXPORT(__gtdf2),
     // ESP_ELFSYM_EXPORT(__gttf2),
+
+    // GCC integer/bitwise helpers
+    ESP_ELFSYM_EXPORT(__clzsi2),
 
     ESP_ELFSYM_END
 };

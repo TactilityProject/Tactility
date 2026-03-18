@@ -1,0 +1,71 @@
+/dts-v1/;
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_uart.h>
+#include <bindings/bmi270.h>
+#include <bindings/m5pm1.h>
+
+/ {
+	compatible = "root";
+	model = "M5Stack StickS3";
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	i2c_internal {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_0>;
+		clock-frequency = <100000>;
+		pin-sda = <&gpio0 47 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 48 GPIO_FLAG_NONE>;
+
+		m5pm1 {
+			compatible = "m5stack,m5pm1";
+			reg = <0x6E>;
+		};
+
+		bmi270 {
+			compatible = "bosch,bmi270";
+			reg = <0x68>;
+		};
+	};
+
+	i2c_grove {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_1>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 9 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 10 GPIO_FLAG_NONE>;
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <&gpio0 39 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
+	};
+
+	// Speaker and microphone (ES8311)
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 15 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 14 GPIO_FLAG_NONE>;
+		pin-data-in = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-mclk = <&gpio0 18 GPIO_FLAG_NONE>;
+	};
+
+	uart_grove: uart1 {
+		compatible = "espressif,esp32-uart";
+		status = "disabled";
+		port = <UART_NUM_1>;
+		pin-tx = <&gpio0 9 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 10 GPIO_FLAG_NONE>;
+	};
+};
