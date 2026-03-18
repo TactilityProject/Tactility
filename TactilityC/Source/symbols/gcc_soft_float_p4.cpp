@@ -59,10 +59,11 @@ extern long __fixdfdi(double a);
 // extern long long __fixxfti(long double a);
 
 // extern unsigned int __fixunssfsi(float a);
-// extern unsigned int __fixunsdfsi(double a);
+extern unsigned int __fixunsdfsi(double a);
 // extern unsigned int __fixunstfsi(long double a);
 // extern unsigned int __fixunsxfsi(long double a);
 
+extern unsigned long __fixunssfdi(float a);
 extern unsigned long __fixunsdfdi(double a);
 // extern unsigned long __fixunstfdi(long double a);
 // extern unsigned long __fixunsxfdi(long double a);
@@ -184,10 +185,11 @@ const esp_elfsym gcc_soft_float_symbols[] = {
     // ESP_ELFSYM_EXPORT(__fixxfti),
 
     // ESP_ELFSYM_EXPORT(__fixunssfsi),
-    // ESP_ELFSYM_EXPORT(__fixunsdfsi),
+    ESP_ELFSYM_EXPORT(__fixunsdfsi),
     // ESP_ELFSYM_EXPORT(__fixunstfsi),
     // ESP_ELFSYM_EXPORT(__fixunsxfsi),
 
+    ESP_ELFSYM_EXPORT(__fixunssfdi),
     ESP_ELFSYM_EXPORT(__fixunsdfdi),
     // ESP_ELFSYM_EXPORT(__fixunstfdi),
     // ESP_ELFSYM_EXPORT(__fixunsxfdi),

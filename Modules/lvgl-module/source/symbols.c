@@ -38,6 +38,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_color_make),
     DEFINE_MODULE_SYMBOL(lv_color_black),
     DEFINE_MODULE_SYMBOL(lv_color_white),
+    DEFINE_MODULE_SYMBOL(lv_color_lighten),
+    DEFINE_MODULE_SYMBOL(lv_color_darken),
     DEFINE_MODULE_SYMBOL(lv_obj_center),
     DEFINE_MODULE_SYMBOL(lv_obj_clean),
     DEFINE_MODULE_SYMBOL(lv_obj_create),
@@ -391,6 +393,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_slider_get_value),
     DEFINE_MODULE_SYMBOL(lv_slider_set_range),
     DEFINE_MODULE_SYMBOL(lv_slider_set_value),
+    DEFINE_MODULE_SYMBOL(lv_slider_set_mode),
     // lv_tabview
     DEFINE_MODULE_SYMBOL(lv_tabview_add_tab),
     DEFINE_MODULE_SYMBOL(lv_tabview_create),
