@@ -133,20 +133,22 @@ error_t rx8130ce_set_datetime(Device* device, const Rx8130ceDateTime* dt) {
     buf[4] = dec_to_bcd(dt->day);
     buf[5] = dec_to_bcd(dt->month);
     uint8_t year_offset = 0;
-    if (dt->year >= 2000 && dt->year <= 2099) {
-        year_offset = static_cast<uint8_t>(dt->year - 2000);
-    } else if (dt->year > 2099) {
-        LOG_W(TAG, "Year %u exceeds 2099, clamping to 2099", dt->year);
-        year_offset = 99; // Clamp to max representable year (2099)
-    } else {
-        LOG_W(TAG, "Year %u below 2000, clamping to 2000", dt->year);
+    if (dt->year < 2000 || dt->year > 2099) {
+        return ERROR_INVALID_ARGUMENT;
     }
+    uint8_t year_offset = static_cast<uint8_t>(dt->year - 2000);
     buf[6] = dec_to_bcd(year_offset);
     error_t error = i2c_controller_write_register(i2c_controller, address, REG_SECONDS, buf, sizeof(buf), I2C_TIMEOUT_TICKS);
 
     // Clear STOP bit to resume — do this even if the write failed
     ctrl0 &= static_cast<uint8_t>(~CTRL0_STOP);
-    i2c_controller_write_register(i2c_controller, address, REG_CTRL0, &ctrl0, 1, I2C_TIMEOUT_TICKS);
+    error_t resume_error = i2c_controller_write_register(i2c_controller, address, REG_CTRL0, &ctrl0, 1, I2C_TIMEOUT_TICKS);
+    if (resume_error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to clear STOP bit after datetime write");
+        if (error == ERROR_NONE) {
+            return resume_error;
+        }
+    }
 
     return error;
 }

@@ -69,6 +69,10 @@ bool Ili9881cDisplay::createIoHandle(esp_lcd_panel_io_handle_t& ioHandle) {
 
     if (esp_lcd_new_panel_io_dbi(mipiDsiBus, &dbi_config, &ioHandle) != ESP_OK) {
         LOGGER.error("Failed to create panel IO");
+        esp_lcd_del_dsi_bus(mipiDsiBus);
+        mipiDsiBus = nullptr;
+        esp_ldo_release_channel(ldoChannel);
+        ldoChannel = nullptr;
         return false;
     }
 
