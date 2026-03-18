@@ -89,8 +89,8 @@ static error_t start(Device* device) {
     // Disable DMP and FIFO
     if (i2c_controller_register8_set(i2c_controller, address, REG_USER_CTRL,     0x00,             I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
     if (i2c_controller_register8_set(i2c_controller, address, REG_FIFO_EN,       0x00,             I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
-    // Interrupt: active-high, push-pull, latched, cleared on any read
-    if (i2c_controller_register8_set(i2c_controller, address, REG_INT_PIN_CFG,   0x22,             I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
+    // Interrupt: active-high (ACTL=0), push-pull (OPEN=0), latched (LATCH_INT_EN=1), cleared on any read (INT_ANYRD_2CLEAR=1) → 0x30
+    if (i2c_controller_register8_set(i2c_controller, address, REG_INT_PIN_CFG,   0x30,             I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
     // Enable DATA_RDY interrupt
     if (i2c_controller_register8_set(i2c_controller, address, REG_INT_ENABLE,    0x01,             I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
 

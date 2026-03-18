@@ -8,11 +8,15 @@ extern "C" {
 extern Driver qmi8658_driver;
 
 static error_t start() {
+    /* We crash when construct fails, because if a single driver fails to construct,
+     * there is no guarantee that the previously constructed drivers can be destroyed */
     check(driver_construct_add(&qmi8658_driver) == ERROR_NONE);
     return ERROR_NONE;
 }
 
 static error_t stop() {
+    /* We crash when destruct fails, because if a single driver fails to destruct,
+     * there is no guarantee that the previously destroyed drivers can be recovered */
     check(driver_remove_destruct(&qmi8658_driver) == ERROR_NONE);
     return ERROR_NONE;
 }

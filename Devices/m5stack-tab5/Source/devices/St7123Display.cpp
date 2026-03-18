@@ -106,7 +106,7 @@ bool St7123Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, const 
             .vsync_back_porch = 8,
             .vsync_front_porch = 220,
         },
-        .flags {
+        .flags = {
             .use_dma2d = 1,
             .disable_lp = 0,
         }

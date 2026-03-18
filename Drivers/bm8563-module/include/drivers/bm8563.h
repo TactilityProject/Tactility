@@ -36,7 +36,7 @@ error_t bm8563_get_datetime(struct Device* device, struct Bm8563DateTime* dt);
  * Write the date and time to the RTC.
  * @param[in] device bm8563 device
  * @param[in] dt     Pointer to Bm8563DateTime to write (year must be 2000–2199)
- * @return ERROR_NONE on success, ERROR_INVALID_ARG if year out of range
+ * @return ERROR_NONE on success, ERROR_INVALID_ARGUMENT if any field is out of range
  */
 error_t bm8563_set_datetime(struct Device* device, const struct Bm8563DateTime* dt);
 

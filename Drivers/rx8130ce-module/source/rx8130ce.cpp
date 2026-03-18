@@ -83,6 +83,14 @@ error_t rx8130ce_get_datetime(Device* device, Rx8130ceDateTime* dt) {
     auto* i2c_controller = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
 
+    // Check VLF (voltage-low flag) before reading time data
+    uint8_t flag = 0;
+    if (i2c_controller_register8_get(i2c_controller, address, REG_FLAG, &flag, I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
+    if (flag & FLAG_VLF) {
+        LOG_E(TAG, "Clock integrity compromised (VLF flag set) — data unreliable");
+        return ERROR_INVALID_STATE;
+    }
+
     // Burst-read 7 registers starting at 0x10:
     // [0]=sec [1]=min [2]=hours [3]=weekday [4]=day [5]=month [6]=year
     uint8_t buf[7] = {};
@@ -101,6 +109,12 @@ error_t rx8130ce_get_datetime(Device* device, Rx8130ceDateTime* dt) {
 }
 
 error_t rx8130ce_set_datetime(Device* device, const Rx8130ceDateTime* dt) {
+    if (dt->month < 1 || dt->month > 12 ||
+        dt->day < 1 || dt->day > 31 ||
+        dt->hour > 23 || dt->minute > 59 || dt->second > 59) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
     auto* i2c_controller = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
 

@@ -110,7 +110,7 @@ bool Ili9881cDisplay::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, cons
                 .vsync_back_porch = 20,
                 .vsync_front_porch = 20,
             },
-        .flags {
+        .flags = {
             .use_dma2d = 1, // TODO: true?
             .disable_lp = 0,
         }

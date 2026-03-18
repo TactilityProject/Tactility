@@ -64,7 +64,8 @@ error_t bm8563_get_datetime(Device* device, Bm8563DateTime* dt) {
     if (error != ERROR_NONE) return error;
 
     if (buf[0] & 0x80u) {
-        LOG_W(TAG, "Clock integrity compromised (VL flag set)");
+        LOG_E(TAG, "Clock integrity compromised (VL flag set) — data unreliable");
+        return ERROR_INVALID_STATE;
     }
     dt->second = bcd_to_dec(buf[0] & 0x7Fu); // mask VL flag
     dt->minute = bcd_to_dec(buf[1] & 0x7Fu);
@@ -79,7 +80,10 @@ error_t bm8563_get_datetime(Device* device, Bm8563DateTime* dt) {
 }
 
 error_t bm8563_set_datetime(Device* device, const Bm8563DateTime* dt) {
-    if (dt->year < 2000 || dt->year > 2199) {
+    if (dt->year < 2000 || dt->year > 2199 ||
+        dt->month < 1 || dt->month > 12 ||
+        dt->day < 1 || dt->day > 31 ||
+        dt->hour > 23 || dt->minute > 59 || dt->second > 59) {
         return ERROR_INVALID_ARGUMENT;
     }
 

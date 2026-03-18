@@ -141,7 +141,7 @@ static error_t stop(Device* device) {
 
     // Disable accelerometer and gyroscope (clear bit1=gyr_en, bit2=acc_en)
     if (i2c_controller_register8_set(i2c_controller, address, REG_PWR_CTRL, 0x00, I2C_TIMEOUT_TICKS) != ERROR_NONE) {
-        LOG_E(TAG, "Failed to put MPU6886 to sleep");
+        LOG_E(TAG, "Failed to put BMI270 to sleep");
         return ERROR_RESOURCE;
     }
 

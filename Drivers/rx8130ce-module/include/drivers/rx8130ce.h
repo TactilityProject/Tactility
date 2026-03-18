@@ -28,15 +28,15 @@ struct Rx8130ceDateTime {
  * Read the current date and time from the RTC.
  * @param[in]  device rx8130ce device
  * @param[out] dt     Pointer to Rx8130ceDateTime to populate
- * @return ERROR_NONE on success
+ * @return ERROR_NONE on success, ERROR_INVALID_STATE if VLF is set (clock data unreliable)
  */
 error_t rx8130ce_get_datetime(struct Device* device, struct Rx8130ceDateTime* dt);
 
 /**
  * Write the date and time to the RTC.
  * @param[in] device rx8130ce device
- * @param[in] dt     Pointer to Rx8130ceDateTime to write
- * @return ERROR_NONE on success
+ * @param[in] dt     Pointer to Rx8130ceDateTime to write (year must be 2000–2099)
+ * @return ERROR_NONE on success, ERROR_INVALID_ARGUMENT if any field is out of range
  */
 error_t rx8130ce_set_datetime(struct Device* device, const struct Rx8130ceDateTime* dt);
 
