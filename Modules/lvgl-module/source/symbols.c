@@ -33,6 +33,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_event_get_current_target_obj),
     DEFINE_MODULE_SYMBOL(lv_event_get_draw_task),
     DEFINE_MODULE_SYMBOL(lv_event_stop_bubbling),
+    DEFINE_MODULE_SYMBOL(lv_event_get_layer),
     // lv_obj
     DEFINE_MODULE_SYMBOL(lv_color_hex),
     DEFINE_MODULE_SYMBOL(lv_color_make),
@@ -452,5 +453,11 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_binfont_destroy),
     // lv_style_gen
     DEFINE_MODULE_SYMBOL(lv_style_set_text_font),
+    // lv_draw_line
+    DEFINE_MODULE_SYMBOL(lv_draw_line),
+    DEFINE_MODULE_SYMBOL(lv_draw_line_dsc_init),
+    // lv_area
+    DEFINE_MODULE_SYMBOL(lv_area_get_width),
+    DEFINE_MODULE_SYMBOL(lv_area_get_height),
     MODULE_SYMBOL_TERMINATOR
 };
