@@ -1,7 +1,8 @@
 #include "Detect.h"
 
 #include <Tactility/Logger.h>
-#include <Tactility/hal/i2c/I2c.h>
+#include <tactility/device.h>
+#include <tactility/drivers/i2c_controller.h>
 #include <esp_lcd_touch_gt911.h>
 #include <esp_lcd_touch_st7123.h>
 #include <freertos/FreeRTOS.h>
@@ -15,18 +16,26 @@ Tab5Variant detectVariant() {
     // register reads (read_fw_info) succeed reliably.
     vTaskDelay(pdMS_TO_TICKS(300));
 
+    auto* i2c0 = device_find_by_name("i2c0");
+    if (i2c0 == nullptr) {
+        LOGGER.error("i2c0 not found, defaulting to ST7123");
+        return Tab5Variant::St7123;
+    }
+
+    constexpr auto PROBE_TIMEOUT = pdMS_TO_TICKS(50);
+
     for (int attempt = 0; attempt < 3; ++attempt) {
         // GT911 address depends on INT pin state during reset:
         //   GPIO 23 has a pull-up resistor to 3V3, so INT is high at reset → GT911 uses 0x5D (primary)
         //   It may also appear at 0x14 (backup) if the pin happened to be driven low
-        if (tt::hal::i2c::masterHasDeviceAtAddress(I2C_NUM_0, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS) ||
-            tt::hal::i2c::masterHasDeviceAtAddress(I2C_NUM_0, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP)) {
+        if (i2c_controller_has_device_at_address(i2c0, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS, PROBE_TIMEOUT) == ERROR_NONE ||
+            i2c_controller_has_device_at_address(i2c0, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP, PROBE_TIMEOUT) == ERROR_NONE) {
             LOGGER.info("Detected GT911 touch — using ILI9881C display");
             return Tab5Variant::Ili9881c_Gt911;
         }
 
         // Probe for ST7123 touch (new variant)
-        if (tt::hal::i2c::masterHasDeviceAtAddress(I2C_NUM_0, ESP_LCD_TOUCH_IO_I2C_ST7123_ADDRESS)) {
+        if (i2c_controller_has_device_at_address(i2c0, ESP_LCD_TOUCH_IO_I2C_ST7123_ADDRESS, PROBE_TIMEOUT) == ERROR_NONE) {
             LOGGER.info("Detected ST7123 touch — using ST7123 display");
             return Tab5Variant::St7123;
         }

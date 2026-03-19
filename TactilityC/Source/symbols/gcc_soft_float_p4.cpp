@@ -74,7 +74,7 @@ extern unsigned long __fixunsdfdi(double a);
 // extern unsigned long long __fixunsxfti(long double a);
 
 // extern float __floatsisf(int i);
-// extern double __floatsidf(int i);
+extern double __floatsidf(int i);
 // extern long double __floatsitf(int i);
 // extern long double __floatsixf(int i);
 
@@ -200,7 +200,7 @@ const esp_elfsym gcc_soft_float_symbols[] = {
     // ESP_ELFSYM_EXPORT(__fixunsxfti),
 
     // ESP_ELFSYM_EXPORT(__floatsisf),
-    // ESP_ELFSYM_EXPORT(__floatsidf),
+    ESP_ELFSYM_EXPORT(__floatsidf),
     // ESP_ELFSYM_EXPORT(__floatsitf),
     // ESP_ELFSYM_EXPORT(__floatsixf),
 

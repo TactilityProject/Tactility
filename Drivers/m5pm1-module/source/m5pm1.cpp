@@ -55,18 +55,6 @@ static constexpr TickType_t TIMEOUT = pdMS_TO_TICKS(50);
 #define GET_CONFIG(device) (static_cast<const M5pm1Config*>((device)->config))
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-static error_t read16le(Device* i2c, uint8_t addr, uint8_t reg, uint16_t* out) {
-    uint8_t buf[2] = {};
-    error_t err = i2c_controller_read_register(i2c, addr, reg, buf, 2, TIMEOUT);
-    if (err != ERROR_NONE) return err;
-    *out = static_cast<uint16_t>(buf[0] | (buf[1] << 8));
-    return ERROR_NONE;
-}
-
-// ---------------------------------------------------------------------------
 // Driver lifecycle
 // ---------------------------------------------------------------------------
 
@@ -130,15 +118,15 @@ static error_t stop(Device* device) {
 extern "C" {
 
 error_t m5pm1_get_battery_voltage(Device* device, uint16_t* mv) {
-    return read16le(device_get_parent(device), GET_CONFIG(device)->address, REG_VBAT_L, mv);
+    return i2c_controller_register16le_get(device_get_parent(device), GET_CONFIG(device)->address, REG_VBAT_L, mv, TIMEOUT);
 }
 
 error_t m5pm1_get_vin_voltage(Device* device, uint16_t* mv) {
-    return read16le(device_get_parent(device), GET_CONFIG(device)->address, REG_VIN_L, mv);
+    return i2c_controller_register16le_get(device_get_parent(device), GET_CONFIG(device)->address, REG_VIN_L, mv, TIMEOUT);
 }
 
 error_t m5pm1_get_5vout_voltage(Device* device, uint16_t* mv) {
-    return read16le(device_get_parent(device), GET_CONFIG(device)->address, REG_5VOUT_L, mv);
+    return i2c_controller_register16le_get(device_get_parent(device), GET_CONFIG(device)->address, REG_5VOUT_L, mv, TIMEOUT);
 }
 
 error_t m5pm1_get_power_source(Device* device, M5pm1PowerSource* source) {
@@ -208,7 +196,7 @@ error_t m5pm1_get_temperature(Device* device, uint16_t* decidegc) {
         return ERROR_TIMEOUT;
     }
 
-    return read16le(i2c, addr, REG_ADC_RES_L, decidegc);
+    return i2c_controller_register16le_get(i2c, addr, REG_ADC_RES_L, decidegc, TIMEOUT);
 }
 
 error_t m5pm1_shutdown(Device* device) {

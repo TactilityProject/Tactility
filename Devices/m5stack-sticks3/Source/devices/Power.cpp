@@ -1,29 +1,21 @@
 #include "Power.h"
 
-#include <Tactility/hal/i2c/I2c.h>
 #include <Tactility/hal/power/PowerDevice.h>
+#include <drivers/m5pm1.h>
+#include <tactility/device.h>
 #include <tactility/log.h>
-#include <driver/i2c.h>
 
 using namespace tt::hal::power;
 
 static constexpr auto* TAG = "StickS3Power";
-
-static constexpr i2c_port_t M5PM1_I2C_PORT  = I2C_NUM_0;
-static constexpr uint8_t    M5PM1_ADDR       = 0x6E;
-
-// Battery voltage: little-endian 16-bit in mV
-static constexpr uint8_t REG_BAT_L  = 0x22;
-// GPIO input register: bit 0 = PM1_G0 (charging status, LOW = charging)
-static constexpr uint8_t REG_GPIO_IN = 0x12;
-// Power-off: write 0xA1 (high nibble 0xA, low nibble 0x1) to trigger shutdown
-static constexpr uint8_t REG_POWEROFF = 0x0C;
 
 static constexpr float MIN_BATTERY_VOLTAGE_MV = 3300.0f;
 static constexpr float MAX_BATTERY_VOLTAGE_MV = 4200.0f;
 
 class StickS3Power final : public PowerDevice {
 public:
+    explicit StickS3Power(::Device* m5pm1Device) : m5pm1(m5pm1Device) {}
+
     std::string getName() const override { return "M5Stack StickS3 Power"; }
     std::string getDescription() const override { return "Battery monitoring via M5PM1 over I2C"; }
 
@@ -45,14 +37,14 @@ public:
 
             case BatteryVoltage: {
                 uint16_t mv = 0;
-                if (!readBatteryVoltage(mv)) return false;
+                if (m5pm1_get_battery_voltage(m5pm1, &mv) != ERROR_NONE) return false;
                 data.valueAsUint32 = mv;
                 return true;
             }
 
             case ChargeLevel: {
                 uint16_t mv = 0;
-                if (!readBatteryVoltage(mv)) return false;
+                if (m5pm1_get_battery_voltage(m5pm1, &mv) != ERROR_NONE) return false;
                 float voltage = static_cast<float>(mv);
                 if (voltage >= MAX_BATTERY_VOLTAGE_MV) {
                     data.valueAsUint8 = 100;
@@ -66,13 +58,12 @@ public:
             }
 
             case IsCharging: {
-                uint8_t gpio_in = 0;
-                if (!tt::hal::i2c::masterReadRegister(M5PM1_I2C_PORT, M5PM1_ADDR, REG_GPIO_IN, &gpio_in, 1)) {
-                    LOG_W(TAG, "Failed to read GPIO input register");
+                bool charging = false;
+                if (m5pm1_is_charging(m5pm1, &charging) != ERROR_NONE) {
+                    LOG_W(TAG, "Failed to read charging status");
                     return false;
                 }
-                // PM1_G0: LOW = charging, HIGH = not charging
-                data.valueAsBool = (gpio_in & 0x01U) == 0;
+                data.valueAsBool = charging;
                 return true;
             }
 
@@ -85,25 +76,19 @@ public:
 
     void powerOff() override {
         LOG_W(TAG, "Powering off via M5PM1");
-        // High nibble must be 0xA; low nibble 1 = shutdown
-        uint8_t value = 0xA1;
-        if (!tt::hal::i2c::masterWriteRegister(M5PM1_I2C_PORT, M5PM1_ADDR, REG_POWEROFF, &value, 1)) {
+        if (m5pm1_shutdown(m5pm1) != ERROR_NONE) {
             LOG_E(TAG, "Failed to send power-off command");
         }
     }
 
 private:
-    bool readBatteryVoltage(uint16_t& mv) {
-        uint8_t buf[2] = {};
-        if (!tt::hal::i2c::masterReadRegister(M5PM1_I2C_PORT, M5PM1_ADDR, REG_BAT_L, buf, sizeof(buf))) {
-            LOG_W(TAG, "Failed to read battery voltage");
-            return false;
-        }
-        mv = static_cast<uint16_t>(buf[0] | (buf[1] << 8));
-        return true;
-    }
+    ::Device* m5pm1;
 };
 
 std::shared_ptr<PowerDevice> createPower() {
-    return std::make_shared<StickS3Power>();
+    auto* m5pm1 = device_find_by_name("m5pm1");
+    if (m5pm1 == nullptr) {
+        LOG_E(TAG, "m5pm1 device not found");
+    }
+    return std::make_shared<StickS3Power>(m5pm1);
 }

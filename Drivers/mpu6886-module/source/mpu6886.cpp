@@ -94,8 +94,6 @@ static error_t start(Device* device) {
     // Enable DATA_RDY interrupt
     if (i2c_controller_register8_set(i2c_controller, address, REG_INT_ENABLE,    0x01,             I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
 
-    vTaskDelay(pdMS_TO_TICKS(100));
-
     return ERROR_NONE;
 }
 

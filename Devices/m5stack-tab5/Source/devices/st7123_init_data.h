@@ -6,6 +6,8 @@
 #pragma once
 #include <esp_lcd_st7123.h>
 
+//Refer to https://github.com/m5stack/M5Tab5-UserDemo
+//https://github.com/m5stack/M5Tab5-UserDemo/blob/main/LICENSE
 static const st7123_lcd_init_cmd_t st7123_init_data[] = {
     {0x60, (uint8_t[]){0x71, 0x23, 0xa2}, 3, 0},
     {0x60, (uint8_t[]){0x71, 0x23, 0xa3}, 3, 0},

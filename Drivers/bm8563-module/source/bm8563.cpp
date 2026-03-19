@@ -34,8 +34,7 @@ static error_t start(Device* device) {
     auto address = GET_CONFIG(device)->address;
 
     // Clear STOP bit — chip may have been stopped after a power cycle
-    uint8_t ctrl = 0x00;
-    if (i2c_controller_write_register(i2c_controller, address, REG_CTRL1, &ctrl, 1, I2C_TIMEOUT_TICKS) != ERROR_NONE) {
+    if (i2c_controller_register8_set(i2c_controller, address, REG_CTRL1, 0x00, I2C_TIMEOUT_TICKS) != ERROR_NONE) {
         LOG_E(TAG, "Failed to clear STOP bit at 0x%02X", address);
         return ERROR_RESOURCE;
     }

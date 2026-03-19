@@ -46,8 +46,7 @@ static error_t start(Device* device) {
     auto address = GET_CONFIG(device)->address;
 
     // Clear VLF and other status flags
-    uint8_t flag = 0x00;
-    if (i2c_controller_write_register(i2c_controller, address, REG_FLAG, &flag, 1, I2C_TIMEOUT_TICKS) != ERROR_NONE) {
+    if (i2c_controller_register8_set(i2c_controller, address, REG_FLAG, 0x00, I2C_TIMEOUT_TICKS) != ERROR_NONE) {
         LOG_E(TAG, "Failed to clear FLAG register at 0x%02X", address);
         return ERROR_RESOURCE;
     }
