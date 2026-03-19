@@ -440,6 +440,7 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(heap_caps_get_free_size),
     ESP_ELFSYM_EXPORT(heap_caps_get_largest_free_block),
     ESP_ELFSYM_EXPORT(heap_caps_malloc),
+    ESP_ELFSYM_EXPORT(heap_caps_calloc),
     ESP_ELFSYM_EXPORT(heap_caps_free),
     // esp_timer.h
     ESP_ELFSYM_EXPORT(esp_timer_create),
