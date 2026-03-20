@@ -17,7 +17,7 @@ Tab5Variant detectVariant() {
     vTaskDelay(pdMS_TO_TICKS(300));
 
     auto* i2c0 = device_find_by_name("i2c0");
-    check("i2c0");
+    check(i2c0);
 
     constexpr auto PROBE_TIMEOUT = pdMS_TO_TICKS(50);
 
