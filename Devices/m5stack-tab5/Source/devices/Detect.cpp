@@ -17,10 +17,7 @@ Tab5Variant detectVariant() {
     vTaskDelay(pdMS_TO_TICKS(300));
 
     auto* i2c0 = device_find_by_name("i2c0");
-    if (i2c0 == nullptr) {
-        LOGGER.error("i2c0 not found, defaulting to ST7123");
-        return Tab5Variant::St7123;
-    }
+    check("i2c0");
 
     constexpr auto PROBE_TIMEOUT = pdMS_TO_TICKS(50);
 
