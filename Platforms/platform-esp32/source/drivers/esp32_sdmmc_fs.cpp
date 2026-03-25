@@ -78,20 +78,24 @@ static error_t mount(void* data) {
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
 
 #if SOC_SD_PWR_CTRL_SUPPORTED
-    sd_pwr_ctrl_ldo_config_t ldo_config = {
-        .ldo_chan_id = 4, // LDO4 is typically used for SDMMC on ESP32-S3
-    };
-    esp_err_t pwr_err = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &fs_data->pwr_ctrl_handle);
-    if (pwr_err != ESP_OK) {
-        LOG_E(TAG, "Failed to create SD power control driver, err=0x%x", pwr_err);
-        return ERROR_NOT_SUPPORTED;
+    // Treat non-positive values as disabled to remain safe with zero-initialized configs.
+    if (config->on_chip_ldo_chan > 0) {
+        sd_pwr_ctrl_ldo_config_t ldo_config = {
+            .ldo_chan_id = (uint32_t)config->on_chip_ldo_chan,
+        };
+        esp_err_t pwr_err = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &fs_data->pwr_ctrl_handle);
+        if (pwr_err != ESP_OK) {
+            LOG_E(TAG, "Failed to create SD power control driver, err=0x%x", pwr_err);
+            return ERROR_NOT_SUPPORTED;
+        }
+        host.pwr_ctrl_handle = fs_data->pwr_ctrl_handle;
     }
-    host.pwr_ctrl_handle = fs_data->pwr_ctrl_handle;
 #endif
 
     uint32_t slot_config_flags = 0;
     if (config->enable_uhs) slot_config_flags |= SDMMC_SLOT_FLAG_UHS1;
     if (config->wp_active_high) slot_config_flags |= SDMMC_SLOT_FLAG_WP_ACTIVE_HIGH;
+    if (config->pullups) slot_config_flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
 
     sdmmc_slot_config_t slot_config = {
         .clk = to_native_pin(config->pin_clk),
@@ -127,6 +131,7 @@ static error_t mount(void* data) {
         return ERROR_UNDEFINED;
     }
 
+    sdmmc_card_print_info(stdout, fs_data->card);
     LOG_I(TAG, "Mounted %s", fs_data->mount_path.c_str());
 
     return ERROR_NONE;

@@ -24,6 +24,14 @@
 
 #include <tactility/lvgl_module.h>
 
+#include <drivers/bm8563.h>
+#include <drivers/bmi270.h>
+#include <drivers/mpu6886.h>
+#include <drivers/mpu6886.h>
+#include <drivers/pi4ioe5v6408.h>
+#include <drivers/qmi8658.h>
+#include <drivers/rx8130ce.h>
+
 static void onShowApp(AppHandle app, void* data, lv_obj_t* parent) {
     lv_obj_t* toolbar = tt_lvgl_toolbar_create_for_app(parent, app);
     lv_obj_align(toolbar, LV_ALIGN_TOP_MID, 0, 0);

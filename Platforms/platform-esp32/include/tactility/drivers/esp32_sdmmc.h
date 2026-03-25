@@ -28,6 +28,8 @@ struct Esp32SdmmcConfig {
     uint8_t bus_width;
     bool wp_active_high;
     bool enable_uhs;
+    bool pullups;
+    int32_t on_chip_ldo_chan;
 };
 
 /**

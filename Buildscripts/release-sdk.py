@@ -5,6 +5,7 @@ import shutil
 import glob
 import subprocess
 import sys
+from textwrap import dedent
 
 def map_copy(mappings, target_base):
     """
@@ -59,6 +60,45 @@ def map_copy(mappings, target_base):
 
             os.makedirs(os.path.dirname(final_dst), exist_ok=True)
             shutil.copy2(src, final_dst)
+            
+def get_driver_mappings(driver_name):
+    return [
+        {'src': f'Drivers/{driver_name}/include/**', 'dst': f'Drivers/{driver_name}/include/'},
+        {'src': f'Drivers/{driver_name}/*.md', 'dst': f'Drivers/{driver_name}/'},
+        {'src': f'build/esp-idf/{driver_name}/lib{driver_name}.a', 'dst': f'Drivers/{driver_name}/binary/lib{driver_name}.a'},
+    ]
+
+def get_module_mappings(module_name):
+    return [
+        {'src': f'Modules/{module_name}/include/**', 'dst': f'Modules/{module_name}/include/'},
+        {'src': f'Modules/{module_name}/*.md', 'dst': f'Modules/{module_name}/'},
+        {'src': f'build/esp-idf/{module_name}/lib{module_name}.a', 'dst': f'Modules/{module_name}/binary/lib{module_name}.a'},
+    ]
+
+def create_module_cmakelists(module_name):
+    return dedent(f'''
+    cmake_minimum_required(VERSION 3.20)
+    idf_component_register(
+        INCLUDE_DIRS "include"
+    )
+    add_prebuilt_library({module_name} "binary/lib{module_name}.a")
+    '''.format(module_name=module_name))
+
+def write_module_cmakelists(path, content):
+    with open(path, 'w') as f:
+        f.write(content)
+
+def add_driver(target_path, driver_name):
+    mappings = get_driver_mappings(driver_name)
+    map_copy(mappings, target_path)
+    cmakelists_content = create_module_cmakelists(driver_name)
+    write_module_cmakelists(os.path.join(target_path, f"Drivers/{driver_name}/CMakeLists.txt"), cmakelists_content)
+
+def add_module(target_path, module_name):
+    mappings = get_module_mappings(module_name)
+    map_copy(mappings, target_path)
+    cmakelists_content = create_module_cmakelists(module_name)
+    write_module_cmakelists(os.path.join(target_path, f"Modules/{module_name}/CMakeLists.txt"), cmakelists_content)
 
 def main():
     if len(sys.argv) < 2:
@@ -85,12 +125,7 @@ def main():
         {'src': 'build/esp-idf/TactilityKernel/libTactilityKernel.a', 'dst': 'Libraries/TactilityKernel/binary/'},
         {'src': 'TactilityKernel/include/**', 'dst': 'Libraries/TactilityKernel/include/'},
         {'src': 'TactilityKernel/CMakeLists.txt', 'dst': 'Libraries/TactilityKernel/'},
-        {'src': 'TactilityKernel/LICENSE*.*', 'dst': 'Libraries/TactilityKernel/'},
-        # lvgl-module
-        {'src': 'build/esp-idf/lvgl-module/liblvgl-module.a', 'dst': 'Libraries/lvgl-module/binary/'},
-        {'src': 'Modules/lvgl-module/include/**', 'dst': 'Libraries/lvgl-module/include/'},
-        {'src': 'Modules/lvgl-module/CMakeLists.txt', 'dst': 'Libraries/lvgl-module/'},
-        {'src': 'Modules/lvgl-module/LICENSE*.*', 'dst': 'Libraries/lvgl-module/'},
+        {'src': 'TactilityKernel/*.md', 'dst': 'Libraries/TactilityKernel/'},
         # lvgl (basics)
         {'src': 'build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a', 'dst': 'Libraries/lvgl/binary/liblvgl.a'},
         {'src': 'Libraries/lvgl/lvgl.h', 'dst': 'Libraries/lvgl/include/'},
@@ -107,6 +142,18 @@ def main():
     ]
 
     map_copy(mappings, target_path)
+
+    # Modules
+    add_module(target_path, "lvgl-module")
+
+    # Drivers
+    add_driver(target_path, "bm8563-module")
+    add_driver(target_path, "bm8563-module")
+    add_driver(target_path, "bmi270-module")
+    add_driver(target_path, "mpu6886-module")
+    add_driver(target_path, "pi4ioe5v6408-module")
+    add_driver(target_path, "qmi8658-module")
+    add_driver(target_path, "rx8130ce-module")
 
     # Output ESP-IDF SDK version to file
     esp_idf_version = os.environ.get("ESP_IDF_VERSION", "")

@@ -1,3 +1,10 @@
 dependencies:
   - Platforms/platform-esp32
+  # Add all driver modules because the generic devices are used to build the SDK
+  - Drivers/bm8563-module
+  - Drivers/bmi270-module
+  - Drivers/mpu6886-module
+  - Drivers/pi4ioe5v6408-module
+  - Drivers/qmi8658-module
+  - Drivers/rx8130ce-module
 dts: generic,esp32.dts

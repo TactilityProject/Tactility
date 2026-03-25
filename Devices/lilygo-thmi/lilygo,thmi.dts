@@ -29,5 +29,6 @@
 		pin-cmd = <&gpio0 11 GPIO_FLAG_NONE>;
 		pin-d0 = <&gpio0 13 GPIO_FLAG_NONE>;
 		bus-width = <1>;
+		pullups;
 	};
 };
