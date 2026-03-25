@@ -33,11 +33,14 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_event_get_current_target_obj),
     DEFINE_MODULE_SYMBOL(lv_event_get_draw_task),
     DEFINE_MODULE_SYMBOL(lv_event_stop_bubbling),
+    DEFINE_MODULE_SYMBOL(lv_event_get_layer),
     // lv_obj
     DEFINE_MODULE_SYMBOL(lv_color_hex),
     DEFINE_MODULE_SYMBOL(lv_color_make),
     DEFINE_MODULE_SYMBOL(lv_color_black),
     DEFINE_MODULE_SYMBOL(lv_color_white),
+    DEFINE_MODULE_SYMBOL(lv_color_lighten),
+    DEFINE_MODULE_SYMBOL(lv_color_darken),
     DEFINE_MODULE_SYMBOL(lv_obj_center),
     DEFINE_MODULE_SYMBOL(lv_obj_clean),
     DEFINE_MODULE_SYMBOL(lv_obj_create),
@@ -159,6 +162,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_move_to_index),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_min_height),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_max_height),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_width),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_height),
     // lv_font
     DEFINE_MODULE_SYMBOL(lv_font_get_bitmap_fmt_txt),
     DEFINE_MODULE_SYMBOL(lv_font_get_default),
@@ -249,6 +254,16 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_arc_get_knob_offset),
     DEFINE_MODULE_SYMBOL(lv_arc_align_obj_to_angle),
     DEFINE_MODULE_SYMBOL(lv_arc_rotate_obj_to_angle),
+    // lv_chart
+    DEFINE_MODULE_SYMBOL(lv_chart_set_div_line_count),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_all_values),
+    DEFINE_MODULE_SYMBOL(lv_chart_create),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_type),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_next_value),
+    DEFINE_MODULE_SYMBOL(lv_chart_add_series),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_axis_range),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_update_mode),
+    DEFINE_MODULE_SYMBOL(lv_chart_set_point_count),
     // lv_dropdown
     DEFINE_MODULE_SYMBOL(lv_dropdown_create),
     DEFINE_MODULE_SYMBOL(lv_dropdown_add_option),
@@ -379,6 +394,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_slider_get_value),
     DEFINE_MODULE_SYMBOL(lv_slider_set_range),
     DEFINE_MODULE_SYMBOL(lv_slider_set_value),
+    DEFINE_MODULE_SYMBOL(lv_slider_set_mode),
     // lv_tabview
     DEFINE_MODULE_SYMBOL(lv_tabview_add_tab),
     DEFINE_MODULE_SYMBOL(lv_tabview_create),
@@ -437,5 +453,11 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_binfont_destroy),
     // lv_style_gen
     DEFINE_MODULE_SYMBOL(lv_style_set_text_font),
+    // lv_draw_line
+    DEFINE_MODULE_SYMBOL(lv_draw_line),
+    DEFINE_MODULE_SYMBOL(lv_draw_line_dsc_init),
+    // lv_area
+    DEFINE_MODULE_SYMBOL(lv_area_get_width),
+    DEFINE_MODULE_SYMBOL(lv_area_get_height),
     MODULE_SYMBOL_TERMINATOR
 };

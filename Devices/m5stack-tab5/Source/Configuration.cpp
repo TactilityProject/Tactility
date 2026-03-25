@@ -102,11 +102,17 @@ static void initExpander0(::Device* io_expander0) {
 static void initExpander1(::Device* io_expander1) {
 
     auto* c6_wlan_enable_pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_C6_WLAN_ENABLE, GPIO_OWNER_GPIO);
+    check(c6_wlan_enable_pin);
     auto* usb_a_5v_enable_pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_USB_A_5V_ENABLE, GPIO_OWNER_GPIO);
+    check(usb_a_5v_enable_pin);
     auto* device_power_pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_DEVICE_POWER, GPIO_OWNER_GPIO);
+    check(device_power_pin);
     auto* ip2326_ncharge_qc_enable_pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_IP2326_NCHG_QC_EN, GPIO_OWNER_GPIO);
+    check(ip2326_ncharge_qc_enable_pin);
     auto* ip2326_charge_state_led_pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_IP2326_CHG_STAT_LED, GPIO_OWNER_GPIO);
+    check(ip2326_charge_state_led_pin);
     auto* ip2326_charge_enable_pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_IP2326_CHG_EN, GPIO_OWNER_GPIO);
+    check(ip2326_charge_enable_pin);
 
     gpio_descriptor_set_flags(c6_wlan_enable_pin, GPIO_FLAG_DIRECTION_OUTPUT);
     gpio_descriptor_set_flags(usb_a_5v_enable_pin, GPIO_FLAG_DIRECTION_OUTPUT);

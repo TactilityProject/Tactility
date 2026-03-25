@@ -1,5 +1,5 @@
 #include "Ili9881cDisplay.h"
-#include "disp_init_data.h"
+#include "ili9881_init_data.h"
 
 #include <Tactility/Logger.h>
 #include <esp_lcd_ili9881c.h>
@@ -47,6 +47,8 @@ bool Ili9881cDisplay::createMipiDsiBus() {
 
     if (esp_lcd_new_dsi_bus(&bus_config, &mipiDsiBus) != ESP_OK) {
         LOGGER.error("Failed to create bus");
+        esp_ldo_release_channel(ldoChannel);
+        ldoChannel = nullptr;
         return false;
     }
 
@@ -67,6 +69,10 @@ bool Ili9881cDisplay::createIoHandle(esp_lcd_panel_io_handle_t& ioHandle) {
 
     if (esp_lcd_new_panel_io_dbi(mipiDsiBus, &dbi_config, &ioHandle) != ESP_OK) {
         LOGGER.error("Failed to create panel IO");
+        esp_lcd_del_dsi_bus(mipiDsiBus);
+        mipiDsiBus = nullptr;
+        esp_ldo_release_channel(ldoChannel);
+        ldoChannel = nullptr;
         return false;
     }
 
@@ -108,15 +114,15 @@ bool Ili9881cDisplay::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, cons
                 .vsync_back_porch = 20,
                 .vsync_front_porch = 20,
             },
-        .flags {
+        .flags = {
             .use_dma2d = 1, // TODO: true?
             .disable_lp = 0,
         }
     };
 
     ili9881c_vendor_config_t vendor_config = {
-        .init_cmds = disp_init_data,
-        .init_cmds_size = std::size(disp_init_data),
+        .init_cmds = ili9881_init_data,
+        .init_cmds_size = std::size(ili9881_init_data),
         .mipi_config = {
             .dsi_bus = mipiDsiBus,
             .dpi_config = &dpi_config,

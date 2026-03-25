@@ -1,0 +1,5 @@
+dependencies:
+- Platforms/platform-esp32
+- Drivers/bmi270-module
+- Drivers/m5pm1-module
+dts: m5stack,sticks3.dts

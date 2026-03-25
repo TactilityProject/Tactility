@@ -180,9 +180,9 @@ lvgl_port_display_cfg_t EspLcdDisplayV2::getLvglPortDisplayConfig(std::shared_pt
         },
         .color_format = configuration->lvglColorFormat,
         .flags = {
-            .buff_dma = 1,
-            .buff_spiram = 0,
-            .sw_rotate = 0,
+            .buff_dma = configuration->buffSpiram ? 0u : 1u,
+            .buff_spiram = configuration->buffSpiram ? 1u : 0u,
+            .sw_rotate = configuration->swRotate ? 1u : 0u,
             .swap_bytes = configuration->lvglSwapBytes,
             .full_refresh = 0,
             .direct_mode = 0

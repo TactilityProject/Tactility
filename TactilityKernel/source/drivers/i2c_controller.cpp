@@ -77,6 +77,14 @@ error_t i2c_controller_has_device_at_address(Device* device, uint8_t address, Ti
     return I2C_DRIVER_API(driver)->write(device, address, message, 2, timeout);
 }
 
+error_t i2c_controller_register16le_get(Device* device, uint8_t address, uint8_t reg, uint16_t* value, TickType_t timeout) {
+    uint8_t buf[2] = {};
+    error_t err = i2c_controller_read_register(device, address, reg, buf, 2, timeout);
+    if (err != ERROR_NONE) return err;
+    *value = static_cast<uint16_t>(buf[0] | (buf[1] << 8));
+    return ERROR_NONE;
+}
+
 const struct DeviceType I2C_CONTROLLER_TYPE {
     .name = "i2c-controller"
 };

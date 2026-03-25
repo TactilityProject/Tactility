@@ -41,6 +41,7 @@
 #include <esp_sntp.h>
 #include <esp_netif.h>
 #include <esp_heap_caps.h>
+#include <esp_timer.h>
 #include <fcntl.h>
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
@@ -99,6 +100,7 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(difftime),
     ESP_ELFSYM_EXPORT(localtime_r),
     ESP_ELFSYM_EXPORT(localtime),
+    ESP_ELFSYM_EXPORT(mktime),
     // esp_sntp.h
     ESP_ELFSYM_EXPORT(sntp_get_sync_status),
     // math.h
@@ -437,6 +439,14 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(heap_caps_get_allocated_size),
     ESP_ELFSYM_EXPORT(heap_caps_get_free_size),
     ESP_ELFSYM_EXPORT(heap_caps_get_largest_free_block),
+    ESP_ELFSYM_EXPORT(heap_caps_malloc),
+    ESP_ELFSYM_EXPORT(heap_caps_calloc),
+    ESP_ELFSYM_EXPORT(heap_caps_free),
+    // esp_timer.h
+    ESP_ELFSYM_EXPORT(esp_timer_create),
+    ESP_ELFSYM_EXPORT(esp_timer_stop),
+    ESP_ELFSYM_EXPORT(esp_timer_delete),
+    ESP_ELFSYM_EXPORT(esp_timer_start_periodic),
     // delimiter
     ESP_ELFSYM_END
 };

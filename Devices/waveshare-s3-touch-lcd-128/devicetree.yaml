@@ -1,3 +1,4 @@
 dependencies:
-  - Platforms/platform-esp32
+- Platforms/platform-esp32
+- Drivers/qmi8658-module
 dts: waveshare,s3-touch-lcd-128.dts

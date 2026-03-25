@@ -1,0 +1,5 @@
+description: Epson RX8130CE RTC
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "epson,rx8130ce"

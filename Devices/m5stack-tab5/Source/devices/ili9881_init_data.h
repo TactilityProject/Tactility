@@ -6,7 +6,7 @@
 #pragma once
 #include <esp_lcd_ili9881c.h>
 
-static const ili9881c_lcd_init_cmd_t disp_init_data[] = {
+static const ili9881c_lcd_init_cmd_t ili9881_init_data[] = {
     // {cmd, { data }, data_size, delay}
 
     /**** CMD_Page 1 ****/

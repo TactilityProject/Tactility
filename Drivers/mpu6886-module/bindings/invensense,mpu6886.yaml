@@ -1,0 +1,5 @@
+description: InvenSense (TDK) MPU-6886 6-axis IMU
+
+include: ["i2c-device.yaml"]
+
+compatible: "invensense,mpu6886"

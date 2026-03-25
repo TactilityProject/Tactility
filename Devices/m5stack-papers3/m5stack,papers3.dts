@@ -4,6 +4,8 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <bindings/bmi270.h>
+#include <bindings/bm8563.h>
 
 / {
 	compatible = "root";
@@ -20,6 +22,16 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 41 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 42 GPIO_FLAG_NONE>;
+
+		bmi270 {
+			compatible = "bosch,bmi270";
+			reg = <0x68>;
+		};
+
+		bm8563 {
+			compatible = "belling,bm8563";
+			reg = <0x51>;
+		};
 	};
 
 	spi0 {

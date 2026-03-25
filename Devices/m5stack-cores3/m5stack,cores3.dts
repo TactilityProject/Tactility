@@ -6,6 +6,8 @@
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
+#include <bindings/bmi270.h>
+#include <bindings/bm8563.h>
 
 // Reference: https://docs.m5stack.com/en/core/CoreS3
 / {
@@ -23,6 +25,16 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 12 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 11 GPIO_FLAG_NONE>;
+
+		bmi270 {
+			compatible = "bosch,bmi270";
+			reg = <0x68>;
+		};
+
+		bm8563 {
+			compatible = "belling,bm8563";
+			reg = <0x51>;
+		};
 	};
 
 	i2c_port_a {

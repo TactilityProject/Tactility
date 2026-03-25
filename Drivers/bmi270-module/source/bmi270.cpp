@@ -131,6 +131,20 @@ static error_t start(Device* device) {
 }
 
 static error_t stop(Device* device) {
+    auto* i2c_controller = device_get_parent(device);
+    if (device_get_type(i2c_controller) != &I2C_CONTROLLER_TYPE) {
+        LOG_E(TAG, "Parent is not an I2C controller");
+        return ERROR_RESOURCE;
+    }
+
+    auto address = GET_CONFIG(device)->address;
+
+    // Disable accelerometer and gyroscope (clear bit1=gyr_en, bit2=acc_en)
+    if (i2c_controller_register8_set(i2c_controller, address, REG_PWR_CTRL, 0x00, I2C_TIMEOUT_TICKS) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to put BMI270 to sleep");
+        return ERROR_RESOURCE;
+    }
+
     return ERROR_NONE;
 }
 

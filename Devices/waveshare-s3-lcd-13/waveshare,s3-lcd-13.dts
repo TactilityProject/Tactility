@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <bindings/qmi8658.h>
 
 // Reference: https://www.waveshare.com/wiki/ESP32-S3-LCD-1.3
 / {
@@ -21,6 +22,11 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 47 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 48 GPIO_FLAG_NONE>;
+
+		qmi8658 {
+			compatible = "qst,qmi8658";
+			reg = <0x6B>;
+		};
 	};
 
 	spi0 {

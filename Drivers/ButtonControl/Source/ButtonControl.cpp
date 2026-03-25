@@ -1,22 +1,52 @@
 #include "ButtonControl.h"
 
+#include <Tactility/app/App.h>
 #include <Tactility/Logger.h>
 
 #include <esp_lvgl_port.h>
 
 static const auto LOGGER = tt::Logger("ButtonControl");
 
-ButtonControl::ButtonControl(const std::vector<PinConfiguration>& pinConfigurations) : pinConfigurations(pinConfigurations) {
+ButtonControl::ButtonControl(const std::vector<PinConfiguration>& pinConfigurations)
+    : buttonQueue(20, sizeof(ButtonEvent)),
+      pinConfigurations(pinConfigurations) {
+
     pinStates.resize(pinConfigurations.size());
-    for (const auto& pinConfiguration : pinConfigurations) {
-        tt::hal::gpio::configure(pinConfiguration.pin, tt::hal::gpio::Mode::Input, false, false);
+
+    // Build isrArgs with one entry per unique physical pin, then configure GPIO.
+    isrArgs.reserve(pinConfigurations.size());
+    for (size_t i = 0; i < pinConfigurations.size(); i++) {
+        const auto pin = static_cast<gpio_num_t>(pinConfigurations[i].pin);
+
+        // Skip if this physical pin was already seen.
+        bool seen = false;
+        for (const auto& arg : isrArgs) {
+            if (arg.pin == pin) { seen = true; break; }
+        }
+        if (seen) continue;
+
+        gpio_config_t io_conf = {
+            .pin_bit_mask = 1ULL << pin,
+            .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_ANYEDGE,
+        };
+        esp_err_t err = gpio_config(&io_conf);
+        if (err != ESP_OK) {
+            LOGGER.error("Failed to configure GPIO {}: {}", static_cast<int>(pin), esp_err_to_name(err));
+            continue;
+        }
+
+        // isrArgs is reserved upfront; push_back will not reallocate, keeping addresses stable
+        // for gpio_isr_handler_add() called later in startThread().
+        isrArgs.push_back({ .self = this, .pin = pin });
     }
 }
 
 ButtonControl::~ButtonControl() {
     if (driverThread != nullptr && driverThread->getState() != tt::Thread::State::Stopped) {
-        interruptDriverThread = true;
-        driverThread->join();
+        stopThread();
     }
 }
 
@@ -48,7 +78,7 @@ void ButtonControl::readCallback(lv_indev_t* indev, lv_indev_data_t* data) {
                         data->state = LV_INDEV_STATE_PRESSED;
                         break;
                     case Action::AppClose:
-                        // TODO: implement
+                        tt::app::stop();
                         break;
                 }
             }
@@ -57,57 +87,86 @@ void ButtonControl::readCallback(lv_indev_t* indev, lv_indev_data_t* data) {
     }
 }
 
-void ButtonControl::updatePin(std::vector<PinConfiguration>::const_reference configuration, std::vector<PinState>::reference state) {
-    if (tt::hal::gpio::getLevel(configuration.pin)) { // if pressed
-        if (state.pressState) {
-            // check time for long press trigger
-            auto time_passed = tt::kernel::getMillis() - state.pressStartTime;
-            if (time_passed > 500) {
-                // state.triggerLongPress = true;
-            }
-        } else {
-            state.pressStartTime = tt::kernel::getMillis();
-            state.pressState = true;
-        }
+void ButtonControl::updatePin(std::vector<PinConfiguration>::const_reference configuration, std::vector<PinState>::reference state, bool pressed) {
+    auto now = tt::kernel::getMillis();
+
+    // Software debounce: ignore edges within 20ms of the last state change.
+    if ((now - state.lastChangeTime) < 20) {
+        return;
+    }
+    state.lastChangeTime = now;
+
+    if (pressed) {
+        state.pressStartTime = now;
+        state.pressState = true;
     } else { // released
         if (state.pressState) {
-            auto time_passed = tt::kernel::getMillis() - state.pressStartTime;
+            auto time_passed = now - state.pressStartTime;
             if (time_passed < 500) {
-                LOGGER.debug("Trigger short press");
+                LOGGER.info("Short press ({}ms)", time_passed);
                 state.triggerShortPress = true;
+            } else {
+                LOGGER.info("Long press ({}ms)", time_passed);
+                state.triggerLongPress = true;
             }
             state.pressState = false;
         }
     }
 }
 
+void IRAM_ATTR ButtonControl::gpioIsrHandler(void* arg) {
+    auto* isrArg = static_cast<IsrArg*>(arg);
+    ButtonEvent event {
+        .pin = isrArg->pin,
+        .pressed = gpio_get_level(isrArg->pin) == 0, // active-low: LOW = pressed
+    };
+    // tt::MessageQueue::put() is ISR-safe with timeout=0: it detects ISR context via
+    // xPortInIsrContext() and uses xQueueSendFromISR() + portYIELD_FROM_ISR() internally.
+    isrArg->self->buttonQueue.put(&event, 0);
+}
+
 void ButtonControl::driverThreadMain() {
-    while (!shouldInterruptDriverThread()) {
-        if (mutex.lock(100)) {
-            for (int i = 0; i < pinConfigurations.size(); i++) {
-                updatePin(pinConfigurations[i], pinStates[i]);
+    ButtonEvent event;
+    while (buttonQueue.get(&event, portMAX_DELAY)) {
+        if (event.pin == GPIO_NUM_NC) {
+            break; // shutdown sentinel
+        }
+        LOGGER.info("Pin {} {}", static_cast<int>(event.pin), event.pressed ? "down" : "up");
+        if (mutex.lock(portMAX_DELAY)) {
+            // Update ALL PinConfiguration entries that share this physical pin.
+            for (size_t i = 0; i < pinConfigurations.size(); i++) {
+                if (static_cast<gpio_num_t>(pinConfigurations[i].pin) == event.pin) {
+                    updatePin(pinConfigurations[i], pinStates[i], event.pressed);
+                }
             }
             mutex.unlock();
         }
-        tt::kernel::delayMillis(5);
     }
 }
 
-bool ButtonControl::shouldInterruptDriverThread() const {
-    bool interrupt = false;
-    if (mutex.lock(50 / portTICK_PERIOD_MS)) {
-        interrupt = interruptDriverThread;
-        mutex.unlock();
-    }
-    return interrupt;
-}
-
-void ButtonControl::startThread() {
+bool ButtonControl::startThread() {
     LOGGER.info("Start");
 
-    mutex.lock();
+    esp_err_t err = gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        LOGGER.error("Failed to install GPIO ISR service: {}", esp_err_to_name(err));
+        return false;
+    }
 
-    interruptDriverThread = false;
+    // isrArgs has one entry per unique physical pin — no duplicate registrations.
+    // Addresses are stable: vector was reserved in constructor and is not modified after that.
+    int handlersAdded = 0;
+    for (auto& arg : isrArgs) {
+        err = gpio_isr_handler_add(arg.pin, gpioIsrHandler, &arg);
+        if (err != ESP_OK) {
+            LOGGER.error("Failed to add ISR for GPIO {}: {}", static_cast<int>(arg.pin), esp_err_to_name(err));
+            for (int i = 0; i < handlersAdded; i++) {
+                gpio_isr_handler_remove(isrArgs[i].pin);
+            }
+            return false;
+        }
+        handlersAdded++;
+    }
 
     driverThread = std::make_shared<tt::Thread>("ButtonControl", 4096, [this] {
         driverThreadMain();
@@ -115,22 +174,21 @@ void ButtonControl::startThread() {
     });
 
     driverThread->start();
-
-    mutex.unlock();
+    return true;
 }
 
 void ButtonControl::stopThread() {
     LOGGER.info("Stop");
 
-    mutex.lock();
-    interruptDriverThread = true;
-    mutex.unlock();
+    for (const auto& arg : isrArgs) {
+        gpio_isr_handler_remove(arg.pin);
+    }
+
+    ButtonEvent sentinel { .pin = GPIO_NUM_NC, .pressed = false };
+    buttonQueue.put(&sentinel, portMAX_DELAY);
 
     driverThread->join();
-
-    mutex.lock();
     driverThread = nullptr;
-    mutex.unlock();
 }
 
 bool ButtonControl::startLvgl(lv_display_t* display) {
@@ -138,7 +196,9 @@ bool ButtonControl::startLvgl(lv_display_t* display) {
         return false;
     }
 
-    startThread();
+    if (!startThread()) {
+        return false;
+    }
 
     deviceHandle = lv_indev_create();
     lv_indev_set_type(deviceHandle, LV_INDEV_TYPE_ENCODER);

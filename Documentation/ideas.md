@@ -29,7 +29,6 @@
 - Fix glitches when installing app via App Hub with 4.3" Waveshare
 - TCA9534 keyboards should use interrupts
 - GT911 drivers should use interrupts if it's stable
-- Change ButtonControl to work with interrupts and xQueue
 - Fix Cardputer (original): use LV_KEY_NEXT and _PREV in keyboard mapping instead of encoder driver hack (and check GPIO app if it then hangs too)
 - Logging with a function that uses std::format
 - Expose http::download() and main dispatcher to TactiltyC.

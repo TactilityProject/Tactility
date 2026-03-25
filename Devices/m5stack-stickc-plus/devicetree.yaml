@@ -1,3 +1,5 @@
 dependencies:
-  - Platforms/platform-esp32
+- Platforms/platform-esp32
+- Drivers/mpu6886-module
+- Drivers/bm8563-module
 dts: m5stack,stickc-plus.dts

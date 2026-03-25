@@ -20,6 +20,8 @@ struct EspLcdConfiguration {
     bool mirrorY;
     bool invertColor;
     uint32_t bufferSize; // Size in pixel count. 0 means default, which is 1/10 of the screen size
+    bool swRotate = false; // Use LVGL software rotation instead of hardware swap_xy (required for MIPI-DSI panels that don't support swap_xy)
+    bool buffSpiram = false; // Allocate LVGL draw buffers from PSRAM instead of DMA-capable internal SRAM (required when sw_rotate needs a 3rd buffer that won't fit in internal SRAM)
     std::shared_ptr<tt::hal::touch::TouchDevice> touch;
     std::function<void(uint8_t)> _Nullable backlightDutyFunction;
     gpio_num_t resetPin;

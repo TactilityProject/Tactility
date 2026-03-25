@@ -5,6 +5,8 @@
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
+#include <bindings/mpu6886.h>
+#include <bindings/bm8563.h>
 
 / {
 	compatible = "root";
@@ -21,6 +23,16 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 21 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 22 GPIO_FLAG_NONE>;
+
+		mpu6886 {
+			compatible = "invensense,mpu6886";
+			reg = <0x68>;
+		};
+
+		bm8563 {
+			compatible = "belling,bm8563";
+			reg = <0x51>;
+		};
 	};
 
 	i2c_grove {

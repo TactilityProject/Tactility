@@ -1,0 +1,5 @@
+description: BM8563 RTC (PCF8563-compatible)
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "belling,bm8563"

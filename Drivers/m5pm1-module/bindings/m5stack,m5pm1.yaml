@@ -1,0 +1,5 @@
+description: M5Stack M5PM1 Power Management IC
+
+include: ["i2c-device.yaml"]
+
+compatible: "m5stack,m5pm1"
