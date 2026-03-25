@@ -72,7 +72,7 @@ def get_module_mappings(module_name):
     return [
         {'src': f'Modules/{module_name}/include/**', 'dst': f'Modules/{module_name}/include/'},
         {'src': f'Modules/{module_name}/*.md', 'dst': f'Modules/{module_name}/'},
-        {'src': f'build/esp-idf/{module_name}/lib{module_name}.a', 'dst': f'Drivers/{module_name}/binary/lib{module_name}.a'},
+        {'src': f'build/esp-idf/{module_name}/lib{module_name}.a', 'dst': f'Modules/{module_name}/binary/lib{module_name}.a'},
     ]
 
 def create_module_cmakelists(module_name):
