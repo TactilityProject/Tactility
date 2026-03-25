@@ -32,13 +32,4 @@ macro(tactility_project project_name)
         rx8130ce-module
     )
 
-    # Regular and core features
-    add_prebuilt_library(TactilityC Libraries/TactilityC/binary/libTactilityC.a)
-    add_prebuilt_library(TactilityKernel Libraries/TactilityKernel/binary/libTactilityKernel.a)
-    add_prebuilt_library(lvgl Libraries/lvgl/binary/liblvgl.a)
-
-    target_link_libraries(${COMPONENT_LIB} INTERFACE TactilityC)
-    target_link_libraries(${COMPONENT_LIB} INTERFACE TactilityKernel)
-    target_link_libraries(${COMPONENT_LIB} INTERFACE lvgl)
-
 endmacro()
