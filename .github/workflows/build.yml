@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - cyd-2.4
     tags:
       - v*
   pull_request:
