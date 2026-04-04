@@ -9,7 +9,7 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch(esp_lcd_spi_bus_
         TOUCH_CS_PIN,
         LCD_HORIZONTAL_RESOLUTION,
         LCD_VERTICAL_RESOLUTION,
-        false,  // swapXY
+        true,  // swapXY
         false,   // mirrorX
         false    // mirrorY
     );
