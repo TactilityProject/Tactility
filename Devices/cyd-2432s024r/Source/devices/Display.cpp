@@ -9,9 +9,9 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch(esp_lcd_spi_bus_
         TOUCH_CS_PIN,
         LCD_HORIZONTAL_RESOLUTION,
         LCD_VERTICAL_RESOLUTION,
-        false,   // swapXY
-        true,   // mirrorX
-        false   // mirrorY
+        true,    // swapXY
+        false,   // mirrorX
+        false    // mirrorY
     );
     return std::make_shared<Xpt2046Touch>(std::move(configuration));
 }
@@ -31,8 +31,8 @@ std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
         .gapX = 0,
         .gapY = 0,
         .swapXY = true,
-        .mirrorX = true,
-        .mirrorY = false,
+        .mirrorX = false,
+        .mirrorY = true,
         .invertColor = false,
         .swapBytes = true,
         .bufferSize = LCD_BUFFER_SIZE,
