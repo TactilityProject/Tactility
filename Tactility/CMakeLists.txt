@@ -58,6 +58,8 @@ tactility_add_module(Tactility
 )
 
 if (DEFINED ENV{ESP_IDF_VERSION})
+    idf_component_optional_requires(PRIVATE bt)
+
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(${COMPONENT_LIB} PUBLIC -Wno-unused-variable)
     endif ()

@@ -18,6 +18,15 @@ endif ()
 
 set(DEVICETREE_LOCATION "${PROJECT_ROOT}/Devices/${TACTILITY_DEVICE_ID}")
 
+# Check if device has Bluetooth enabled
+# Fixes the sdkconfig bluetooth enable options from getting nuked on non-P4+C6 builds when idf build runs
+if (DEFINED ENV{ESP_IDF_VERSION})
+    file(READ "${DEVICETREE_LOCATION}/device.properties" device_properties_content)
+    if (device_properties_content MATCHES "bluetooth=true")
+        list(APPEND REQUIRES_LIST bt)
+    endif()
+endif()
+
 #
 # DTS compiler python dependencies
 #

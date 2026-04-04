@@ -400,6 +400,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_tabview_create),
     DEFINE_MODULE_SYMBOL(lv_tabview_set_tab_bar_position),
     DEFINE_MODULE_SYMBOL(lv_tabview_set_tab_bar_size),
+    DEFINE_MODULE_SYMBOL(lv_tabview_get_tab_active),
+    DEFINE_MODULE_SYMBOL(lv_tabview_get_content),
     // lv_screen
     DEFINE_MODULE_SYMBOL(lv_scr_act),
     DEFINE_MODULE_SYMBOL(lv_screen_active),

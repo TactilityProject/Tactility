@@ -307,6 +307,34 @@ def write_usb_variables(output_file, device_properties: ConfigParser):
         output_file.write("CONFIG_TINYUSB_MSC_ENABLED=y\n")
         output_file.write("CONFIG_TINYUSB_MSC_MOUNT_PATH=\"/sdcard\"\n")
 
+def write_bluetooth_variables(output_file, device_properties: ConfigParser):
+    idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
+    has_bluetooth = get_boolean_property_or_false(device_properties, "hardware", "bluetooth")
+    if has_bluetooth:
+        output_file.write("# Bluetooth (NimBLE)\n")
+        output_file.write("CONFIG_BT_ENABLED=y\n")
+        output_file.write("CONFIG_BT_NIMBLE_ENABLED=y\n")
+        if idf_target == "esp32p4":
+            output_file.write(f"CONFIG_BT_NIMBLE_TRANSPORT_UART=n\n")
+            output_file.write(f"CONFIG_ESP_HOSTED_ENABLE_BT_NIMBLE=y\n")
+        # Move NimBLE host buffers to SPIRAM when available, regardless of target.
+        # The default (INTERNAL) mode causes heap fragmentation after a disable+deinit
+        # cycle, preventing a subsequent nimble_port_init() from allocating its buffers
+        # ("hci inits failed" / rc=-1). EXTERNAL mode uses SPIRAM, which is much larger
+        # and does not suffer from the same fragmentation — enabling reliable re-init.
+        # Also frees significant internal RAM on memory-constrained targets (e.g. S3).
+        # Dependency: CONFIG_SPIRAM_USE_CAPS_ALLOC || CONFIG_SPIRAM_USE_MALLOC (set by write_spiram_variables).
+        has_spiram = get_boolean_property_or_false(device_properties, "hardware", "spiRam")
+        if has_spiram:
+            output_file.write("CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y\n")
+        # Expand NimBLE's GAP device name buffer to match BLE_DEVICE_NAME_MAX.
+        # The default (31) is too short for some device names and leaves no headroom.
+        output_file.write("CONFIG_BT_NIMBLE_GAP_DEVICE_NAME_MAX_LEN=64\n")
+        # Increase NimBLE host task stack from the 4096-byte default.
+        # GAP/GATT event processing + C++ frames push the default over the limit,
+        # causing stack-protection faults on events like BLE_GAP_EVENT_SUBSCRIBE.
+        output_file.write("CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=8192\n")
+
 def write_custom_sdkconfig(output_file, device_properties: ConfigParser):
     if "sdkconfig" in device_properties.sections():
         output_file.write("# Custom\n")
@@ -325,6 +353,7 @@ def write_properties(output_file, device_properties: ConfigParser, device_id: st
     write_spiram_variables(output_file, device_properties)
     write_performance_improvements(output_file, device_properties)
     write_usb_variables(output_file, device_properties)
+    write_bluetooth_variables(output_file, device_properties)
     write_custom_sdkconfig(output_file, device_properties)
     write_lvgl_variables(output_file, device_properties)
 

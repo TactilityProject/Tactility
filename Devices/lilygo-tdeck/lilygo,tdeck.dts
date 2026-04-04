@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 
@@ -11,6 +12,10 @@
 / {
 	compatible = "root";
 	model = "LilyGO T-Deck";
+
+	ble0 {
+		compatible = "esp32,ble";
+	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
