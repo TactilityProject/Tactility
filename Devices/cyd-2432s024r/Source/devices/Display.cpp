@@ -11,7 +11,7 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch(esp_lcd_spi_bus_
         LCD_VERTICAL_RESOLUTION,
         false,  // swapXY
         true,   // mirrorX
-        true,   // mirrorY
+        true    // mirrorY
     );
     return std::make_shared<Xpt2046Touch>(std::move(configuration));
 }
