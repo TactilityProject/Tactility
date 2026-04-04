@@ -30,7 +30,7 @@ std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
         .verticalResolution = LCD_VERTICAL_RESOLUTION,
         .gapX = 0,
         .gapY = 0,
-        .swapXY = false,
+        .swapXY = true,
         .mirrorX = true,
         .mirrorY = false,
         .invertColor = false,
@@ -39,7 +39,7 @@ std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
         .touch = createTouch(spi_configuration->spiHostDevice),
         .backlightDutyFunction = driver::pwmbacklight::setBacklightDuty,
         .resetPin = LCD_PIN_RST,
-        .rgbElementOrder = LCD_RGB_ELEMENT_ORDER_BGR
+        .rgbElementOrder = LCD_RGB_ELEMENT_ORDER_RGB
     };
 
     return std::make_shared<Ili934xDisplay>(panel_configuration, spi_configuration, true);
