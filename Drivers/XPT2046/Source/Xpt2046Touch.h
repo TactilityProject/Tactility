@@ -55,5 +55,7 @@ public:
 
     std::string getName() const final { return "XPT2046"; }
 
-    std::string getDescription() const final { return "XPT2046 I2C touch driver"; }
+    std::string getDescription() const final { return "XPT2046 SPI touch driver"; }
+
+    bool supportsCalibration() const override { return true; }
 };

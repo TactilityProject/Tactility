@@ -1,9 +1,29 @@
 #include "Xpt2046Touch.h"
 
+#include <Tactility/settings/TouchCalibrationSettings.h>
 #include <Tactility/lvgl/LvglSync.h>
 
+#include <algorithm>
 #include <esp_err.h>
 #include <esp_lcd_touch_xpt2046.h>
+
+static void processCoordinates(esp_lcd_touch_handle_t tp, uint16_t* x, uint16_t* y, uint16_t* strength, uint8_t* pointCount, uint8_t maxPointCount) {
+    (void)strength;
+    if (tp == nullptr || x == nullptr || y == nullptr || pointCount == nullptr || *pointCount == 0) {
+        return;
+    }
+
+    auto* config = static_cast<Xpt2046Touch::Configuration*>(tp->config.user_data);
+    if (config == nullptr) {
+        return;
+    }
+
+    const auto settings = tt::settings::touch::getActive();
+    const auto points = std::min<uint8_t>(*pointCount, maxPointCount);
+    for (uint8_t i = 0; i < points; i++) {
+        tt::settings::touch::applyCalibration(settings, config->xMax, config->yMax, x[i], y[i]);
+    }
+}
 
 bool Xpt2046Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
     const esp_lcd_panel_io_spi_config_t io_config = ESP_LCD_TOUCH_IO_SPI_XPT2046_CONFIG(configuration->spiPinCs);
@@ -29,9 +49,9 @@ esp_lcd_touch_config_t Xpt2046Touch::createEspLcdTouchConfig() {
             .mirror_x = configuration->mirrorX,
             .mirror_y = configuration->mirrorY,
         },
-        .process_coordinates = nullptr,
+        .process_coordinates = processCoordinates,
         .interrupt_callback = nullptr,
-        .user_data = nullptr,
+        .user_data = configuration.get(),
         .driver_data = nullptr
     };
 }

@@ -27,6 +27,8 @@ public:
 
     virtual bool supportsTouchDriver() = 0;
 
+    virtual bool supportsCalibration() const { return false; }
+
     /** Could return nullptr if not supported */
     virtual std::shared_ptr<TouchDriver> getTouchDriver() = 0;
 };

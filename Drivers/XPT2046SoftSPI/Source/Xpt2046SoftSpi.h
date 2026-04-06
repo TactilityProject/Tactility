@@ -81,8 +81,7 @@ private:
     std::shared_ptr<tt::hal::touch::TouchDriver> touchDriver;
 
     int readSPI(uint8_t command);
-    bool loadCalibration();
-    void saveCalibration();
+    bool readRawPoint(uint16_t& x, uint16_t& y);
     static void touchReadCallback(lv_indev_t* indev, lv_indev_data_t* data);
 
 public:
@@ -100,12 +99,11 @@ public:
     bool stopLvgl() override;
 
     bool supportsTouchDriver() override { return true; }
+    bool supportsCalibration() const override { return true; }
     std::shared_ptr<tt::hal::touch::TouchDriver> getTouchDriver() override;
     lv_indev_t* getLvglIndev() override { return lvglDevice; }
 
     // XPT2046-specific methods
     bool getTouchPoint(Point& point);
-    void calibrate();
-    void setCalibration(int xMin, int yMin, int xMax, int yMax);
     bool isTouched();
 };
