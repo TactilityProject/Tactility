@@ -103,6 +103,7 @@ namespace app {
     namespace settings { extern const AppManifest manifest; }
     namespace systeminfo { extern const AppManifest manifest; }
     namespace timedatesettings { extern const AppManifest manifest; }
+    namespace touchcalibration { extern const AppManifest manifest; }
     namespace timezone { extern const AppManifest manifest; }
     namespace usbsettings { extern const AppManifest manifest; }
     namespace wifiapsettings { extern const AppManifest manifest; }
@@ -153,6 +154,7 @@ static void registerInternalApps() {
     addAppManifest(app::selectiondialog::manifest);
     addAppManifest(app::systeminfo::manifest);
     addAppManifest(app::timedatesettings::manifest);
+    addAppManifest(app::touchcalibration::manifest);
     addAppManifest(app::timezone::manifest);
     addAppManifest(app::wifiapsettings::manifest);
     addAppManifest(app::wificonnect::manifest);
