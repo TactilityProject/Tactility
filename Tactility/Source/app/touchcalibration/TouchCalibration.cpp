@@ -137,6 +137,18 @@ class TouchCalibrationApp final : public App {
 
 public:
 
+    void onCreate(AppContext& app) override {
+        (void)app;
+        settings::touch::setRuntimeCalibrationEnabled(false);
+        settings::touch::invalidateCache();
+    }
+
+    void onDestroy(AppContext& app) override {
+        (void)app;
+        settings::touch::setRuntimeCalibrationEnabled(true);
+        settings::touch::invalidateCache();
+    }
+
     void onShow(AppContext& app, lv_obj_t* parent) override {
         (void)app;
 

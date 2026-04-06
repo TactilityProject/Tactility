@@ -131,8 +131,7 @@ class DisplayApp final : public App {
         }
     }
 
-    static void onCalibrateTouchClicked(lv_event_t* event) {
-        (void)event;
+    static void onCalibrateTouchClicked(lv_event_t*) {
         app::start("TouchCalibration");
     }
 

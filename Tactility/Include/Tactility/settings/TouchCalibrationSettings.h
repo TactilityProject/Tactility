@@ -24,6 +24,10 @@ bool isValid(const TouchCalibrationSettings& settings);
 
 TouchCalibrationSettings getActive();
 
+void setRuntimeCalibrationEnabled(bool enabled);
+
+void invalidateCache();
+
 bool applyCalibration(const TouchCalibrationSettings& settings, uint16_t xMax, uint16_t yMax, uint16_t& x, uint16_t& y);
 
 } // namespace tt::settings::touch
