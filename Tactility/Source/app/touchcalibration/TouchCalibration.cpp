@@ -178,6 +178,8 @@ public:
         lv_obj_set_size(target, 28, 28);
         lv_obj_set_style_radius(target, LV_RADIUS_CIRCLE, LV_STATE_DEFAULT);
         lv_obj_set_style_bg_color(target, lv_palette_main(LV_PALETTE_RED), LV_STATE_DEFAULT);
+        // Ensure root receives all presses for sampling.
+        lv_obj_remove_flag(target, LV_OBJ_FLAG_CLICKABLE);
 
         auto* targetLabel = lv_label_create(target);
         lv_label_set_text(targetLabel, "+");
