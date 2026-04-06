@@ -115,8 +115,8 @@ bool applyCalibration(const TouchCalibrationSettings& settings, uint16_t xMax, u
     const int32_t mapped_x = (in_x - settings.xMin) * static_cast<int32_t>(xMax) / (settings.xMax - settings.xMin);
     const int32_t mapped_y = (in_y - settings.yMin) * static_cast<int32_t>(yMax) / (settings.yMax - settings.yMin);
 
-    x = static_cast<uint16_t>(std::clamp(mapped_x, 0, static_cast<int32_t>(xMax)));
-    y = static_cast<uint16_t>(std::clamp(mapped_y, 0, static_cast<int32_t>(yMax)));
+    x = static_cast<uint16_t>(std::clamp(mapped_x, static_cast<int32_t>(0), static_cast<int32_t>(xMax)));
+    y = static_cast<uint16_t>(std::clamp(mapped_y, static_cast<int32_t>(0), static_cast<int32_t>(yMax)));
     return true;
 }
 
