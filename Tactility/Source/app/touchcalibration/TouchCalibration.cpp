@@ -5,6 +5,7 @@
 #include <Tactility/Logger.h>
 #include <Tactility/settings/TouchCalibrationSettings.h>
 
+#include <algorithm>
 #include <lvgl.h>
 
 namespace tt::app::touchcalibration {
@@ -119,8 +120,8 @@ class TouchCalibrationApp final : public App {
 
         if (sampleCount < 4) {
             samples[sampleCount] = {
-                .x = static_cast<uint16_t>(point.x),
-                .y = static_cast<uint16_t>(point.y),
+                .x = static_cast<uint16_t>(std::max(static_cast<lv_coord_t>(0), point.x)),
+                .y = static_cast<uint16_t>(std::max(static_cast<lv_coord_t>(0), point.y)),
             };
             sampleCount++;
 
