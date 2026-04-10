@@ -1,0 +1,45 @@
+@startuml Bluetooth Thread Model
+
+box "nimble_host task\n(NimBLE internal, 4 KB stack)" #LightBlue
+    participant "gap_event_handler\n(esp32_ble.cpp)" as GAP
+    participant "ble_gatt\ncallbacks" as GATT
+    participant "bt_event_bridge\n(Bluetooth.cpp)" as Bridge
+    participant "hidHostGapCb\n& discovery\n(BluetoothHidHost.cpp)" as HID
+end box
+
+box "main_dispatcher task\n(Tactility main task)" #LightGreen
+    participant "settings I/O\n& peer updates" as Dispatch
+end box
+
+box "App tasks" #LightYellow
+    participant "BtManage\nBtPeerSettings" as Apps
+end box
+
+box "esp_timer task" #LightGray
+    participant "advRestart\nmidiKeepalive\nhidEncRetry" as Timers
+end box
+
+box "LVGL task\n(GuiService)" #MistyRose
+    participant "hidHostKeyboard\nReadCb / mouseReadCb" as LVGL
+end box
+
+GAP -> Bridge : ble_publish_event() →\nBtEventCallback (bt_event_bridge)
+Bridge -> Dispatch : getMainDispatcher().dispatch()\n(settings::load/save, autoConnect)
+Dispatch -> Apps : publishEventCpp → PubSub callbacks
+GATT -> GAP : GATT access within\nnimble_host task
+HID -> Dispatch : getMainDispatcher().dispatch()\n(indev cleanup, ProfileStateChanged)
+Timers -> GAP : advRestartCallback\n(calls ble_start_advertising)
+LVGL -> HID : lv_indev read callbacks\n(LVGL tick)
+
+note over GAP, GATT
+  NO file I/O on NimBLE host task —
+  stringstream blows the 4 KB stack
+end note
+
+note over GAP, Bridge
+  Driver fires BtEvent via callback array.
+  Bridge (Tactility layer) translates to
+  C++ PubSub<BtEvent> and dispatches I/O.
+end note
+
+@enduml

@@ -38,6 +38,8 @@
 #include <Tactility/InitEsp.h>
 #endif
 
+#include <Tactility/bluetooth/Bluetooth.h>
+
 namespace tt {
 
 static auto LOGGER = Logger("Tactility");
@@ -105,6 +107,8 @@ namespace app {
     namespace timedatesettings { extern const AppManifest manifest; }
     namespace timezone { extern const AppManifest manifest; }
     namespace usbsettings { extern const AppManifest manifest; }
+    namespace btmanage { extern const AppManifest manifest; }
+    namespace btpeersettings { extern const AppManifest manifest; }
     namespace wifiapsettings { extern const AppManifest manifest; }
     namespace wificonnect { extern const AppManifest manifest; }
     namespace wifimanage { extern const AppManifest manifest; }
@@ -154,6 +158,8 @@ static void registerInternalApps() {
     addAppManifest(app::systeminfo::manifest);
     addAppManifest(app::timedatesettings::manifest);
     addAppManifest(app::timezone::manifest);
+    addAppManifest(app::btmanage::manifest);
+    addAppManifest(app::btpeersettings::manifest);
     addAppManifest(app::wifiapsettings::manifest);
     addAppManifest(app::wificonnect::manifest);
     addAppManifest(app::wifimanage::manifest);
@@ -333,6 +339,7 @@ void run(const Configuration& config, Module* dtsModules[], DtsDevice dtsDevices
     settings::initTimeZone();
     hal::init(*config.hardware);
     network::ntp::init();
+    bluetooth::systemStart();
 
     registerAndStartPrimaryServices();
 

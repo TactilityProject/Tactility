@@ -447,6 +447,8 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(esp_timer_stop),
     ESP_ELFSYM_EXPORT(esp_timer_delete),
     ESP_ELFSYM_EXPORT(esp_timer_start_periodic),
+    ESP_ELFSYM_EXPORT(esp_timer_start_once),
+    ESP_ELFSYM_EXPORT(esp_timer_get_time),
     // delimiter
     ESP_ELFSYM_END
 };

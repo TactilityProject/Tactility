@@ -5,6 +5,7 @@
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_ble.h>
 #include <bindings/bmi270.h>
 #include <bindings/pi4ioe5v6408.h>
 #include <bindings/rx8130ce.h>
@@ -12,6 +13,10 @@
 / {
 	compatible = "root";
 	model = "Tab5";
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";

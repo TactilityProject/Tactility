@@ -8,3 +8,5 @@ idf_component_register(
     PRIV_INCLUDE_DIRS "private/"
     REQUIRES TactilityKernel driver vfs fatfs
 )
+
+idf_component_optional_requires(PRIVATE bt)

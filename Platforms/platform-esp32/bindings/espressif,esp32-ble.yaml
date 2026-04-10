@@ -1,0 +1,8 @@
+description: ESP32 BLE driver (NimBLE)
+
+compatible: "espressif,esp32-ble"
+
+properties:
+  _unused:
+    type: int
+    default: 0
