@@ -1,0 +1,39 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_uart.h>
+
+/ {
+    compatible = "root";
+	model = "CYD 2432S024R";
+
+    gpio0 {
+        compatible = "espressif,esp32-gpio";
+        gpio-count = <40>;
+    };
+
+    display_spi: spi0 {
+        compatible = "espressif,esp32-spi";
+        host = <SPI2_HOST>;
+        pin-mosi = <&gpio0 13 GPIO_FLAG_NONE>;
+        pin-miso = <&gpio0 12 GPIO_FLAG_NONE>;
+        pin-sclk = <&gpio0 14 GPIO_FLAG_NONE>;
+    };
+
+    sdcard_spi: spi1 {
+        compatible = "espressif,esp32-spi";
+        host = <SPI3_HOST>;
+        pin-mosi = <&gpio0 23 GPIO_FLAG_NONE>;
+        pin-miso = <&gpio0 19 GPIO_FLAG_NONE>;
+        pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
+    };
+
+    uart1 {
+        compatible = "espressif,esp32-uart";
+        port = <UART_NUM_1>;
+        pin-tx = <&gpio0 1 GPIO_FLAG_NONE>;
+        pin-rx = <&gpio0 3 GPIO_FLAG_NONE>;
+    };
+};

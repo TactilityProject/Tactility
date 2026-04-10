@@ -1,0 +1,3 @@
+dependencies:
+  - Platforms/platform-esp32
+dts: cyd,2432s024r.dts

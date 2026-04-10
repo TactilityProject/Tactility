@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - cyd-2.4
     tags:
       - v*
   pull_request:
@@ -34,6 +35,7 @@ jobs:
         board: [
           { id: btt-panda-touch, arch: esp32s3 },
           { id: cyd-2432s024c, arch: esp32 },
+          { id: cyd-2432s024r, arch: esp32 },
           { id: cyd-2432s028r, arch: esp32 },
           { id: cyd-2432s028rv3, arch: esp32 },
           { id: cyd-e32r28t, arch: esp32 },
