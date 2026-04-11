@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Display.h"
-
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <memory>
 #include <driver/gpio.h>
