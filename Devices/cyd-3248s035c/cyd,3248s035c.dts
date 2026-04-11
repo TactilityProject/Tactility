@@ -1,0 +1,58 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_uart.h>
+
+/ {
+	compatible = "root";
+	model = "CYD 3248S035C";
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <40>;
+	};
+
+	i2c_internal: i2c0 {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_0>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 33 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 32 GPIO_FLAG_NONE>;
+	};
+
+	// CN1 header
+	i2c_external: i2c1 {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_1>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 21 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 22 GPIO_FLAG_NONE>;
+	};
+
+	display_spi: spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <&gpio0 13 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 14 GPIO_FLAG_NONE>;
+	};
+
+	sdcard_spi: spi1 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI3_HOST>;
+		pin-mosi = <&gpio0 23 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 19 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
+	};
+
+	// CN1 header, JST SH 1.25, GND / IO22 / IO21 / 3.3V
+	uart1 {
+		compatible = "espressif,esp32-uart";
+		status = "disabled";
+		port = <UART_NUM_1>;
+		pin-tx = <&gpio0 22 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 21 GPIO_FLAG_NONE>;
+	};
+};

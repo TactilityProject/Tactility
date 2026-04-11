@@ -39,6 +39,7 @@ jobs:
           { id: cyd-e32r28t, arch: esp32 },
           { id: cyd-e32r32p, arch: esp32 },
           { id: cyd-2432s032c, arch: esp32 },
+          { id: cyd-3248s035c, arch: esp32 },
           { id: cyd-8048s043c, arch: esp32s3 },
           { id: cyd-4848s040c, arch: esp32s3 },
           { id: elecrow-crowpanel-advance-28, arch: esp32s3 },
