@@ -359,6 +359,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_indev_active),
     DEFINE_MODULE_SYMBOL(lv_indev_get_next),
     DEFINE_MODULE_SYMBOL(lv_indev_set_group),
+    DEFINE_MODULE_SYMBOL(lv_indev_wait_release),
     // lv_timer
     DEFINE_MODULE_SYMBOL(lv_timer_handler),
     DEFINE_MODULE_SYMBOL(lv_timer_handler_run_in_period),
@@ -400,6 +401,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_tabview_create),
     DEFINE_MODULE_SYMBOL(lv_tabview_set_tab_bar_position),
     DEFINE_MODULE_SYMBOL(lv_tabview_set_tab_bar_size),
+    DEFINE_MODULE_SYMBOL(lv_tabview_get_tab_active),
+    DEFINE_MODULE_SYMBOL(lv_tabview_get_content),
     // lv_screen
     DEFINE_MODULE_SYMBOL(lv_scr_act),
     DEFINE_MODULE_SYMBOL(lv_screen_active),
@@ -456,6 +459,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lv_draw_line
     DEFINE_MODULE_SYMBOL(lv_draw_line),
     DEFINE_MODULE_SYMBOL(lv_draw_line_dsc_init),
+    // lv_draw_rect
+    DEFINE_MODULE_SYMBOL(lv_draw_fill),
+    DEFINE_MODULE_SYMBOL(lv_draw_fill_dsc_init),
     // lv_area
     DEFINE_MODULE_SYMBOL(lv_area_get_width),
     DEFINE_MODULE_SYMBOL(lv_area_get_height),

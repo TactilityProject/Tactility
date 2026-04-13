@@ -6,6 +6,7 @@
 namespace tt::lvgl {
 
 static lv_indev_t* keyboard_device = nullptr;
+static lv_group_t* pending_keyboard_group = nullptr;
 
 void software_keyboard_show(lv_obj_t* textarea) {
     auto gui_service = service::gui::findService();
@@ -31,12 +32,14 @@ bool software_keyboard_is_enabled() {
 }
 
 void software_keyboard_activate(lv_group_t* group) {
+    pending_keyboard_group = group;
     if (keyboard_device != nullptr) {
         lv_indev_set_group(keyboard_device, group);
     }
 }
 
 void software_keyboard_deactivate() {
+    pending_keyboard_group = nullptr;
     if (keyboard_device != nullptr) {
         lv_indev_set_group(keyboard_device, nullptr);
     }
@@ -48,6 +51,11 @@ bool hardware_keyboard_is_available() {
 
 void hardware_keyboard_set_indev(lv_indev_t* device) {
     keyboard_device = device;
+    // If an app already activated a keyboard group while no hardware keyboard was
+    // connected, apply the pending group now that the device is available.
+    if (device != nullptr && pending_keyboard_group != nullptr) {
+        lv_indev_set_group(device, pending_keyboard_group);
+    }
 }
 
 }

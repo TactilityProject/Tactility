@@ -109,6 +109,7 @@ shared_symbol_code_point_names = [
     "keyboard_alt", # Keyboard (settings) app
     "usb", # Power (settings) app
     "wifi", # WiFi (settings) app
+    "bluetooth", # Bluetooth (settings) app
 ]
 
 # Get more from https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded
@@ -138,7 +139,12 @@ statusbar_symbol_code_point_names = [
     "battery_android_frame_5",
     "battery_android_frame_6",
     "battery_android_frame_full",
-    "battery_android_frame_bolt"
+    "battery_android_frame_bolt",
+    # Bluetooth
+    "bluetooth",
+    "bluetooth_searching",
+    "bluetooth_connected",
+    "bluetooth_disabled",
 ]
 
 # Get more from https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded

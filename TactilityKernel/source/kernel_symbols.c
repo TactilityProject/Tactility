@@ -4,6 +4,10 @@
 #include <tactility/concurrent/timer.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/bluetooth.h>
+#include <tactility/drivers/bluetooth_serial.h>
+#include <tactility/drivers/bluetooth_midi.h>
+#include <tactility/drivers/bluetooth_hid_device.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
@@ -50,6 +54,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(device_for_each_child),
     DEFINE_MODULE_SYMBOL(device_for_each_of_type),
     DEFINE_MODULE_SYMBOL(device_exists_of_type),
+    DEFINE_MODULE_SYMBOL(device_find_by_name),
     // driver
     DEFINE_MODULE_SYMBOL(driver_construct),
     DEFINE_MODULE_SYMBOL(driver_destruct),
@@ -117,6 +122,50 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(uart_controller_get_available),
     DEFINE_MODULE_SYMBOL(uart_controller_flush_input),
     DEFINE_MODULE_SYMBOL(UART_CONTROLLER_TYPE),
+    // drivers/bluetooth
+    DEFINE_MODULE_SYMBOL(bluetooth_find_first_ready_device),
+    DEFINE_MODULE_SYMBOL(bluetooth_get_radio_state),
+    DEFINE_MODULE_SYMBOL(bluetooth_set_radio_enabled),
+    DEFINE_MODULE_SYMBOL(bluetooth_scan_start),
+    DEFINE_MODULE_SYMBOL(bluetooth_scan_stop),
+    DEFINE_MODULE_SYMBOL(bluetooth_is_scanning),
+    DEFINE_MODULE_SYMBOL(bluetooth_pair),
+    DEFINE_MODULE_SYMBOL(bluetooth_unpair),
+    DEFINE_MODULE_SYMBOL(bluetooth_connect),
+    DEFINE_MODULE_SYMBOL(bluetooth_disconnect),
+    DEFINE_MODULE_SYMBOL(bluetooth_add_event_callback),
+    DEFINE_MODULE_SYMBOL(bluetooth_remove_event_callback),
+    DEFINE_MODULE_SYMBOL(bluetooth_set_device_name),
+    DEFINE_MODULE_SYMBOL(bluetooth_get_device_name),
+    DEFINE_MODULE_SYMBOL(bluetooth_set_hid_host_active),
+    DEFINE_MODULE_SYMBOL(bluetooth_fire_event),
+    DEFINE_MODULE_SYMBOL(BLUETOOTH_TYPE),
+    // drivers/bluetooth_serial
+    DEFINE_MODULE_SYMBOL(bluetooth_serial_get_device),
+    DEFINE_MODULE_SYMBOL(bluetooth_serial_start),
+    DEFINE_MODULE_SYMBOL(bluetooth_serial_stop),
+    DEFINE_MODULE_SYMBOL(bluetooth_serial_write),
+    DEFINE_MODULE_SYMBOL(bluetooth_serial_read),
+    DEFINE_MODULE_SYMBOL(bluetooth_serial_is_connected),
+    DEFINE_MODULE_SYMBOL(BLUETOOTH_SERIAL_TYPE),
+    // drivers/bluetooth_midi
+    DEFINE_MODULE_SYMBOL(bluetooth_midi_get_device),
+    DEFINE_MODULE_SYMBOL(bluetooth_midi_start),
+    DEFINE_MODULE_SYMBOL(bluetooth_midi_stop),
+    DEFINE_MODULE_SYMBOL(bluetooth_midi_send),
+    DEFINE_MODULE_SYMBOL(bluetooth_midi_is_connected),
+    DEFINE_MODULE_SYMBOL(BLUETOOTH_MIDI_TYPE),
+    // drivers/bluetooth_hid_device
+    DEFINE_MODULE_SYMBOL(bluetooth_hid_device_get_device),
+    DEFINE_MODULE_SYMBOL(bluetooth_hid_device_start),
+    DEFINE_MODULE_SYMBOL(bluetooth_hid_device_stop),
+    DEFINE_MODULE_SYMBOL(bluetooth_hid_device_send_key),
+    DEFINE_MODULE_SYMBOL(bluetooth_hid_device_send_keyboard),
+    DEFINE_MODULE_SYMBOL(bluetooth_hid_device_send_consumer),
+    DEFINE_MODULE_SYMBOL(bluetooth_hid_device_send_mouse),
+    DEFINE_MODULE_SYMBOL(bluetooth_hid_device_send_gamepad),
+    DEFINE_MODULE_SYMBOL(bluetooth_hid_device_is_connected),
+    DEFINE_MODULE_SYMBOL(BLUETOOTH_HID_DEVICE_TYPE),
     // concurrent/dispatcher
     DEFINE_MODULE_SYMBOL(dispatcher_alloc),
     DEFINE_MODULE_SYMBOL(dispatcher_free),

@@ -11,6 +11,10 @@
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServicePaths.h>
 #include <Tactility/service/ServiceRegistration.h>
+#include <Tactility/bluetooth/Bluetooth.h>
+#include <tactility/drivers/bluetooth.h>
+#include <tactility/drivers/bluetooth_serial.h>
+#include <tactility/drivers/bluetooth_midi.h>
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/service/wifi/Wifi.h>
 #include <tactility/check.h>
@@ -55,6 +59,21 @@ static const char* getWifiStatusIcon(wifi::RadioState state) {
         default:
             check(false, "not implemented");
     }
+}
+
+static const char* getBluetoothStatusIcon(tt::bluetooth::RadioState state, bool scanning, bool connected) {
+    switch (state) {
+        using enum tt::bluetooth::RadioState;
+        case Off:
+        case OffPending:
+            return nullptr; // hidden when off
+        case OnPending:
+        case On:
+            if (connected) return LVGL_ICON_STATUSBAR_BLUETOOTH_CONNECTED;
+            if (scanning)  return LVGL_ICON_STATUSBAR_BLUETOOTH_SEARCHING;
+            return LVGL_ICON_STATUSBAR_BLUETOOTH;
+    }
+    return nullptr;
 }
 
 static const char* getSdCardStatusIcon(bool mounted) {
@@ -107,6 +126,8 @@ class StatusbarService final : public Service {
     std::unique_ptr<Timer> updateTimer;
     int8_t gps_icon_id;
     bool gps_last_state = false;
+    int8_t bt_icon_id;
+    const char* bt_last_icon = nullptr;
     int8_t wifi_icon_id;
     const char* wifi_last_icon = nullptr;
     int8_t sdcard_icon_id;
@@ -133,6 +154,26 @@ class StatusbarService final : public Service {
                 lvgl::statusbar_icon_set_visibility(gps_icon_id, false);
             }
             gps_last_state = show_icon;
+        }
+    }
+
+    void updateBluetoothIcon() {
+        auto radio_state = tt::bluetooth::getRadioState();
+        struct Device* btdev = tt::bluetooth::findFirstDevice();
+        bool scanning = btdev ? bluetooth_is_scanning(btdev) : false;
+        struct Device* serial_dev = bluetooth_serial_get_device();
+        struct Device* midi_dev = bluetooth_midi_get_device();
+        bool connected = (serial_dev && bluetooth_serial_is_connected(serial_dev)) ||
+                         (midi_dev && bluetooth_midi_is_connected(midi_dev));
+        const char* desired_icon = getBluetoothStatusIcon(radio_state, scanning, connected);
+        if (bt_last_icon != desired_icon) {
+            if (desired_icon != nullptr) {
+                lvgl::statusbar_icon_set_image(bt_icon_id, desired_icon);
+                lvgl::statusbar_icon_set_visibility(bt_icon_id, true);
+            } else {
+                lvgl::statusbar_icon_set_visibility(bt_icon_id, false);
+            }
+            bt_last_icon = desired_icon;
         }
     }
 
@@ -186,6 +227,7 @@ class StatusbarService final : public Service {
         if (lvgl::isStarted()) {
             if (lvgl::lock(100)) {
                 updateGpsIcon();
+                updateBluetoothIcon();
                 updateWifiIcon();
                 updateSdCardIcon();
                 updatePowerStatusIcon();
@@ -198,6 +240,7 @@ public:
 
     StatusbarService() {
         gps_icon_id = lvgl::statusbar_icon_add();
+        bt_icon_id = lvgl::statusbar_icon_add();
         sdcard_icon_id = lvgl::statusbar_icon_add();
         wifi_icon_id = lvgl::statusbar_icon_add();
         power_icon_id = lvgl::statusbar_icon_add();
@@ -206,6 +249,7 @@ public:
     ~StatusbarService() override {
         lvgl::statusbar_icon_remove(wifi_icon_id);
         lvgl::statusbar_icon_remove(sdcard_icon_id);
+        lvgl::statusbar_icon_remove(bt_icon_id);
         lvgl::statusbar_icon_remove(power_icon_id);
         lvgl::statusbar_icon_remove(gps_icon_id);
     }
