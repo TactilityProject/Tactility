@@ -7,11 +7,16 @@
     model = "Test Model";
 
     test_device1: test-device@0 {
-        compatible = "test,device";
+        compatible = "test,generic-device";
         reg = <0>;
         status = "okay";
-        boolean-prop;
         int-prop = <42>;
         string-prop = "hello";
+    };
+
+    bool-test-device {
+        compatible = "test,bool-device";
+        binding-default-false-setting-direct;
+        binding-implied-true-setting-direct;
     };
 };

@@ -1,11 +1,9 @@
-description: Test device binding
-compatible: "test,device"
+description: Generic test device binding
+compatible: "test,generic-device"
 properties:
   reg:
     type: int
     required: true
-  boolean-prop:
-    type: boolean
   int-prop:
     type: int
   string-prop:

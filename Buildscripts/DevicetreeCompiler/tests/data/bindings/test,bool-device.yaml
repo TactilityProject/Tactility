@@ -1,0 +1,16 @@
+description: Boolean test device binding
+compatible: "test,bool-device"
+properties:
+  binding-default-true-setting-implied:
+    type: boolean
+    default: true
+  binding-default-false-setting-implied:
+    type: boolean
+    default: false
+  binding-default-false-setting-direct:
+    type: boolean
+    default: false
+  binding-implied-true-setting-direct:
+    type: boolean
+  binding-implied-true-setting-implied:
+    type: boolean

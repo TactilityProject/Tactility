@@ -30,13 +30,23 @@ def test_compile_success():
             print(f"FAILED: Compilation failed: {result.stderr} {result.stdout}")
             return False
             
-        if not os.path.exists(os.path.join(output_dir, "devicetree.c")):
-            print("FAILED: devicetree.c not generated")
-            return False
+        for filename in ["devicetree.c", "devicetree.h"]:
+            generated_path = os.path.join(output_dir, filename)
+            expected_path = os.path.join(TEST_DATA_DIR, f"expected_{filename}")
             
-        if not os.path.exists(os.path.join(output_dir, "devicetree.h")):
-            print("FAILED: devicetree.h not generated")
-            return False
+            if not os.path.exists(generated_path):
+                print(f"FAILED: {filename} not generated")
+                return False
+                
+            if not os.path.exists(expected_path):
+                print(f"FAILED: {os.path.basename(expected_path)} not found in test data")
+                return False
+
+            diff_result = subprocess.run(["diff", "-u", expected_path, generated_path], capture_output=True, text=True)
+            if diff_result.returncode != 0:
+                print(f"FAILED: {filename} does not match expected_{filename}")
+                print(diff_result.stdout)
+                return False
             
         print("PASSED")
         return True

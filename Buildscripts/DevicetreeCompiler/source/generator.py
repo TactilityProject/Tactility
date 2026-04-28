@@ -64,7 +64,10 @@ def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
     if type == "value" or type == "int":
         return property.value
     elif type == "boolean" or type == "bool":
-        return "true"
+        if property.value is None or not property.value:
+            return "false"
+        else:
+            return "true"
     elif type == "text":
         return f"\"{property.value}\""
     elif type == "values":
@@ -120,6 +123,7 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
     result = [0] * len(binding_properties)
     for index, binding_property in enumerate(binding_properties):
         device_property = find_device_property(device, binding_property.name)
+        # No property specified in DTS, use binding defaults
         if device_property is None:
             if binding_property.default is not None:
                 temp_prop = DeviceProperty(
@@ -130,8 +134,11 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
                 result[index] = property_to_string(temp_prop, devices)
             elif binding_property.required:
                 raise DevicetreeException(f"device {device.node_name} doesn't have property '{binding_property.name}'")
-            elif binding_property.type == "bool":
-                result[index] = "false"
+            elif binding_property.type == "bool" or binding_property.type == "boolean":
+                if binding_property.default == "true" or binding_property.default == None:
+                    result[index] = "true"
+                else: # Explicit or implied false
+                    result[index] = "false"
             else:
                 raise DevicetreeException(f"Device {device.node_name} doesn't have property '{binding_property.name}' and no default value is set")
         else:
