@@ -21,9 +21,14 @@ static const auto LOGGER = Logger("SpiSdCardDevice");
 bool SpiSdCardDevice::applyGpioWorkAround() {
     LOGGER.info("applyGpioWorkAround");
 
-    uint64_t pin_bit_mask = BIT64(config->spiPinCs);
+    uint64_t pin_bit_mask = config->spiPinCs != GPIO_NUM_NC ? BIT64(config->spiPinCs) : 0;
     for (auto const& pin: config->csPinWorkAround) {
         pin_bit_mask |= BIT64(pin);
+    }
+
+    // Nothing to do
+    if (pin_bit_mask == 0) {
+        return true;
     }
 
     if (!gpio::configureWithPinBitmask(pin_bit_mask, gpio::Mode::Output, false, false)) {
