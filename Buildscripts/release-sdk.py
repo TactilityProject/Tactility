@@ -148,7 +148,6 @@ def main():
 
     # Drivers
     add_driver(target_path, "bm8563-module")
-    add_driver(target_path, "bm8563-module")
     add_driver(target_path, "bmi270-module")
     add_driver(target_path, "mpu6886-module")
     add_driver(target_path, "pi4ioe5v6408-module")

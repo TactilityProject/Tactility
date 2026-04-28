@@ -27,7 +27,6 @@
 #include <drivers/bm8563.h>
 #include <drivers/bmi270.h>
 #include <drivers/mpu6886.h>
-#include <drivers/mpu6886.h>
 #include <drivers/pi4ioe5v6408.h>
 #include <drivers/qmi8658.h>
 #include <drivers/rx8130ce.h>
