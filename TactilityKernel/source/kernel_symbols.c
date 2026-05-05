@@ -140,6 +140,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(thread_get_state),
     DEFINE_MODULE_SYMBOL(thread_start),
     DEFINE_MODULE_SYMBOL(thread_join),
+    DEFINE_MODULE_SYMBOL(tt_thread_join),
     DEFINE_MODULE_SYMBOL(thread_get_task_handle),
     DEFINE_MODULE_SYMBOL(thread_get_return_code),
     DEFINE_MODULE_SYMBOL(thread_get_stack_space),

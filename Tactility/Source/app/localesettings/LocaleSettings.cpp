@@ -107,6 +107,7 @@ public:
         lv_obj_set_style_border_width(region_wrapper, 0, 0);
 
         auto* region_label = lv_label_create(region_wrapper);
+        textResources.load();
         lv_label_set_text(region_label, textResources[i18n::Text::REGION].c_str());
         lv_obj_align(region_label, LV_ALIGN_LEFT_MID, 4, 0);
 

@@ -1,0 +1,7 @@
+# Add Python GDB extensions
+python
+try:
+    import freertos_gdb
+except ModuleNotFoundError:
+    print('warning: python extension "freertos_gdb" not found.')
+end

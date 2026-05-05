@@ -161,7 +161,7 @@ DisplaySettings getDefault() {
         .backlightDuty = 200,
         .backlightTimeoutEnabled = false,
         .backlightTimeoutMs = 60000,
-        .screensaverType = ScreensaverType::BouncingBalls
+        .screensaverType = ScreensaverType::BouncingBalls,
     };
 }
 

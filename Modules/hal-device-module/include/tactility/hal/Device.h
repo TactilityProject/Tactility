@@ -27,6 +27,7 @@ public:
         Encoder,
         Power,
         Gps,
+        Audio,
         Other
     };
 

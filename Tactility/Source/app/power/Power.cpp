@@ -32,7 +32,7 @@ std::shared_ptr<PowerApp> optApp() {
 
 class PowerApp : public App {
 
-    Timer update_timer = Timer(Timer::Type::Periodic, kernel::millisToTicks(1000),[]() { onTimer(); });
+    Timer update_timer = Timer(Timer::Type::Periodic, kernel::millisToTicks(5000),[]() { onTimer(); });
 
     std::shared_ptr<hal::power::PowerDevice> power;
 

@@ -1,0 +1,2 @@
+--flash_mode dout --flash_freq 80m --flash_size 32MB
+0x10000 $<TARGET_PROPERTY:__idf_build_target,EXECUTABLE_NAME>.bin

@@ -220,7 +220,7 @@ def write_lvgl_variables(output_file, device_properties: ConfigParser):
     color_depth = get_property_or_exit(device_properties, "lvgl", "colorDepth")
     output_file.write(f"CONFIG_LV_COLOR_DEPTH={color_depth}\n")
     output_file.write(f"CONFIG_LV_COLOR_DEPTH_{color_depth}=y\n")
-    output_file.write("CONFIG_LV_DISP_DEF_REFR_PERIOD=10\n")
+    output_file.write("CONFIG_LV_DEF_REFR_PERIOD=10\n")
     theme = get_property_or_default(device_properties, "lvgl", "theme", "DefaultDark")
     if theme == "DefaultDark":
         output_file.write("CONFIG_LV_THEME_DEFAULT_DARK=y\n")
@@ -325,8 +325,8 @@ def write_properties(output_file, device_properties: ConfigParser, device_id: st
     write_spiram_variables(output_file, device_properties)
     write_performance_improvements(output_file, device_properties)
     write_usb_variables(output_file, device_properties)
-    write_custom_sdkconfig(output_file, device_properties)
     write_lvgl_variables(output_file, device_properties)
+    write_custom_sdkconfig(output_file, device_properties)
 
 def main(device_id: str, is_dev: bool):
     device_properties_path = get_properties_file_path(device_id)

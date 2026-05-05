@@ -244,6 +244,10 @@ error_t thread_join(Thread* thread, TickType_t timeout, TickType_t poll_interval
     return ERROR_NONE;
 }
 
+error_t tt_thread_join(Thread* thread, TickType_t timeout, TickType_t poll_interval) {
+    return thread_join(thread, timeout, poll_interval);
+}
+
 TaskHandle_t thread_get_task_handle(Thread* thread) {
     thread->lock();
     auto* handle = thread->taskHandle;

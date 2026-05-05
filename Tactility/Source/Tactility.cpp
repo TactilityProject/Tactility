@@ -50,6 +50,9 @@ namespace service {
     // Primary
     namespace gps { extern const ServiceManifest manifest; }
     namespace wifi { extern const ServiceManifest manifest; }
+#ifdef CONFIG_BT_ENABLED
+    namespace ble { extern const ServiceManifest manifest; }
+#endif
 #ifdef ESP_PLATFORM
     namespace development { extern const ServiceManifest manifest; }
 #endif
@@ -64,6 +67,7 @@ namespace service {
 #ifdef ESP_PLATFORM
     namespace displayidle { extern const ServiceManifest manifest; }
     namespace keyboardidle { extern const ServiceManifest manifest; }
+    namespace rtctime { extern const ServiceManifest manifest; }
 #endif
 #if TT_FEATURE_SCREENSHOT_ENABLED
     namespace screenshot { extern const ServiceManifest manifest; }
@@ -82,12 +86,14 @@ namespace app {
     namespace addgps { extern const AppManifest manifest; }
     namespace alertdialog { extern const AppManifest manifest; }
     namespace apphub { extern const AppManifest manifest; }
+    namespace audio { extern const AppManifest manifest; }
     namespace apphubdetails { extern const AppManifest manifest; }
     namespace appdetails { extern const AppManifest manifest; }
     namespace applist { extern const AppManifest manifest; }
     namespace appsettings { extern const AppManifest manifest; }
     namespace boot { extern const AppManifest manifest; }
     namespace development { extern const AppManifest manifest; }
+    namespace dialogbox { extern const AppManifest manifest; }
     namespace display { extern const AppManifest manifest; }
     namespace files { extern const AppManifest manifest; }
     namespace fileselection { extern const AppManifest manifest; }
@@ -97,6 +103,7 @@ namespace app {
     namespace inputdialog { extern const AppManifest manifest; }
     namespace launcher { extern const AppManifest manifest; }
     namespace localesettings { extern const AppManifest manifest; }
+    namespace miscsettings { extern const AppManifest manifest; }
     namespace notes { extern const AppManifest manifest; }
     namespace power { extern const AppManifest manifest; }
     namespace selectiondialog { extern const AppManifest manifest; }
@@ -136,7 +143,9 @@ static void registerInternalApps() {
     LOGGER.info("Registering internal apps");
 
     addAppManifest(app::alertdialog::manifest);
-    addAppManifest(app::appdetails::manifest);
+    addAppManifest(app::audio::manifest);
+    addAppManifest(app::dialogbox::manifest);
+    app::addAppManifest(app::appdetails::manifest);
     addAppManifest(app::apphub::manifest);
     addAppManifest(app::apphubdetails::manifest);
     addAppManifest(app::applist::manifest);
@@ -149,6 +158,7 @@ static void registerInternalApps() {
     addAppManifest(app::inputdialog::manifest);
     addAppManifest(app::launcher::manifest);
     addAppManifest(app::localesettings::manifest);
+    addAppManifest(app::miscsettings::manifest);
     addAppManifest(app::notes::manifest);
     addAppManifest(app::settings::manifest);
     addAppManifest(app::selectiondialog::manifest);
@@ -160,9 +170,10 @@ static void registerInternalApps() {
     addAppManifest(app::wificonnect::manifest);
     addAppManifest(app::wifimanage::manifest);
 
+    // Test apps (not in launcher - access via Files app)
+
 #ifdef ESP_PLATFORM
     addAppManifest(app::apwebserver::manifest);
-    addAppManifest(app::webserversettings::manifest);
     addAppManifest(app::crashdiagnostics::manifest);
     addAppManifest(app::development::manifest);
 #if defined(CONFIG_TT_TDECK_WORKAROUND)
@@ -250,7 +261,8 @@ static void registerAndStartSecondaryServices() {
     addService(service::gui::manifest);
     addService(service::statusbar::manifest);
     addService(service::memorychecker::manifest);
-#if defined(ESP_PLATFORM)
+#ifdef ESP_PLATFORM
+    addService(service::rtctime::manifest);
     addService(service::displayidle::manifest);
 #if defined(CONFIG_TT_TDECK_WORKAROUND)
     addService(service::keyboardidle::manifest);

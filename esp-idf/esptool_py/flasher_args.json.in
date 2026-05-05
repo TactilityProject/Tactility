@@ -1,0 +1,28 @@
+{
+    "write_flash_args" : [ "--flash_mode", "dout",
+                           "--flash_size", "32MB",
+                           "--flash_freq", "80m" ],
+    "flash_settings" : {
+        "flash_mode": "dout",
+        "flash_size": "32MB",
+        "flash_freq": "80m"
+    },
+    "flash_files" : {
+        "0x0" : "bootloader/bootloader.bin",
+        "0x10000" : "$<TARGET_PROPERTY:__idf_build_target,EXECUTABLE_NAME>.bin",
+        "0x8000" : "partition_table/partition-table.bin",
+        "0x310000" : "system.bin",
+        "0x35b000" : "data.bin"
+    },
+    "bootloader" : { "offset" : "0x0", "file" : "bootloader/bootloader.bin", "encrypted" : "false" },
+    "app" : { "offset" : "0x10000", "file" : "$<TARGET_PROPERTY:__idf_build_target,EXECUTABLE_NAME>.bin", "encrypted" : "false" },
+    "partition-table" : { "offset" : "0x8000", "file" : "partition_table/partition-table.bin", "encrypted" : "false" },
+    "system" : { "offset" : "0x310000", "file" : "system.bin", "encrypted" : "false" },
+    "data" : { "offset" : "0x35b000", "file" : "data.bin", "encrypted" : "false" },
+    "extra_esptool_args" : {
+        "after"  : "hard_reset",
+        "before" : "default_reset",
+        "stub"   : true,
+        "chip"   : "esp32s3"
+    }
+}

@@ -1,0 +1,46 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <bindings/bm8563.h>
+#include <bindings/qmi8658.h>
+
+/ {
+	compatible = "root";
+	model = "Waveshare S3 Touch AMOLED 2.06";
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	i2c0 {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_0>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 15 GPIO_FLAG_PULL_UP>;
+		pin-scl = <&gpio0 14 GPIO_FLAG_PULL_UP>;
+
+		rtc {
+			compatible = "belling,bm8563";
+			reg = <0x51>;
+		};
+
+		imu {
+			compatible = "qst,qmi8658";
+			reg = <0x6B>;
+		};
+	};
+
+	// SD Card via SPI3 - Reference: https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-2.06
+	// CS=GPIO17, MOSI=GPIO1, MISO=GPIO3, SCLK=GPIO2
+	sdcard_spi: spi1 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI3_HOST>;
+		pin-mosi = <&gpio0 1 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 3 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 2 GPIO_FLAG_NONE>;
+	};
+};

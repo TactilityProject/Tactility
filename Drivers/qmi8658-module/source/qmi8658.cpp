@@ -14,6 +14,15 @@ static constexpr uint8_t REG_CTRL2    = 0x03; // accel: range[6:4] + ODR[3:0]
 static constexpr uint8_t REG_CTRL3    = 0x04; // gyro:  range[6:4] + ODR[3:0]
 static constexpr uint8_t REG_CTRL7    = 0x08; // sensor enable: bit0=accel, bit1=gyro
 static constexpr uint8_t REG_AX_L     = 0x35; // first data register (accel X LSB)
+// Motion wake interrupt registers
+static constexpr uint8_t REG_DHP      = 0x37; // data hold priority
+static constexpr uint8_t REG_INT_CTL  = 0x15; // interrupt control
+static constexpr uint8_t REG_INT_EN   = 0x16; // interrupt enable
+static constexpr uint8_t REG_INT_MAP = 0x17; // interrupt pin mapping
+static constexpr uint8_t REG_INT_LTH = 0x1B; // low threshold
+static constexpr uint8_t REG_INT_HTL = 0x1F; // high threshold
+static constexpr uint8_t REG_INT_SRC = 0x38; // interrupt source status
+static constexpr uint8_t REG_FIFO_CTL = 0x3E; // FIFO control
 
 static constexpr uint8_t WHO_AM_I_VALUE = 0x05;
 
@@ -37,37 +46,75 @@ static constexpr TickType_t I2C_TIMEOUT_TICKS = pdMS_TO_TICKS(10);
 // region Driver lifecycle
 
 static error_t start(Device* device) {
+    LOG_I(TAG, "Starting QMI8658...");
     auto* i2c_controller = device_get_parent(device);
     if (device_get_type(i2c_controller) != &I2C_CONTROLLER_TYPE) {
         LOG_E(TAG, "Parent is not an I2C controller");
         return ERROR_RESOURCE;
     }
+    LOG_I(TAG, "Parent is I2C controller - OK");
 
     auto address = GET_CONFIG(device)->address;
+    LOG_I(TAG, "I2C address: 0x%02X", address);
 
     // Verify chip ID
     uint8_t who_am_i = 0;
-    if (i2c_controller_register8_get(i2c_controller, address, REG_WHO_AM_I, &who_am_i, I2C_TIMEOUT_TICKS) != ERROR_NONE
-        || who_am_i != WHO_AM_I_VALUE) {
+    error_t err = i2c_controller_register8_get(i2c_controller, address, REG_WHO_AM_I, &who_am_i, I2C_TIMEOUT_TICKS);
+    LOG_I(TAG, "WHO_AM_I read err=%d, value=0x%02X", err, who_am_i);
+    if (err != ERROR_NONE || who_am_i != WHO_AM_I_VALUE) {
         LOG_E(TAG, "WHO_AM_I mismatch: got 0x%02X, expected 0x%02X", who_am_i, WHO_AM_I_VALUE);
         return ERROR_RESOURCE;
     }
+    LOG_I(TAG, "WHO_AM_I verified - OK");
 
     // Disable all sensors during configuration
-    if (i2c_controller_register8_set(i2c_controller, address, REG_CTRL7, 0x00, I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
+    err = i2c_controller_register8_set(i2c_controller, address, REG_CTRL7, 0x00, I2C_TIMEOUT_TICKS);
+    LOG_I(TAG, "CTRL7 disable err=%d", err);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
 
     // Serial interface: auto address increment, little-endian
-    if (i2c_controller_register8_set(i2c_controller, address, REG_CTRL1, CTRL1_VAL, I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
+    err = i2c_controller_register8_set(i2c_controller, address, REG_CTRL1, CTRL1_VAL, I2C_TIMEOUT_TICKS);
+    LOG_I(TAG, "CTRL1 set err=%d", err);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
 
     // Accel: ±8g, 1000Hz ODR
-    if (i2c_controller_register8_set(i2c_controller, address, REG_CTRL2, CTRL2_VAL, I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
+    err = i2c_controller_register8_set(i2c_controller, address, REG_CTRL2, CTRL2_VAL, I2C_TIMEOUT_TICKS);
+    LOG_I(TAG, "CTRL2 set err=%d", err);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
 
     // Gyro: ±2048°/s, 1000Hz ODR
-    if (i2c_controller_register8_set(i2c_controller, address, REG_CTRL3, CTRL3_VAL, I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
+    err = i2c_controller_register8_set(i2c_controller, address, REG_CTRL3, CTRL3_VAL, I2C_TIMEOUT_TICKS);
+    LOG_I(TAG, "CTRL3 set err=%d", err);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
 
     // Enable accel + gyro
-    if (i2c_controller_register8_set(i2c_controller, address, REG_CTRL7, CTRL7_ENABLE, I2C_TIMEOUT_TICKS) != ERROR_NONE) return ERROR_RESOURCE;
+    err = i2c_controller_register8_set(i2c_controller, address, REG_CTRL7, CTRL7_ENABLE, I2C_TIMEOUT_TICKS);
+    LOG_I(TAG, "CTRL7 enable err=%d", err);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
 
+    // Configure motion wake interrupt on INT1
+    // Set low threshold for wake (0.15g = 0.15 * 4096 = 614 LSB for ±8g)
+    uint16_t threshold = static_cast<uint16_t>(0.15f * 4096.0f);
+    err = i2c_controller_register8_set(i2c_controller, address, REG_INT_LTH, threshold & 0xFF, I2C_TIMEOUT_TICKS);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
+    err = i2c_controller_register8_set(i2c_controller, address, REG_INT_LTH + 1, (threshold >> 8) & 0xFF, I2C_TIMEOUT_TICKS);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
+
+    // Enable accel-based wake interrupt (bit 0 = accel interrupt)
+    err = i2c_controller_register8_set(i2c_controller, address, REG_INT_EN, 0x01, I2C_TIMEOUT_TICKS);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
+
+    // Map interrupt to INT1 (bit 4 for accel interrupt)
+    err = i2c_controller_register8_set(i2c_controller, address, REG_INT_MAP, 0x10, I2C_TIMEOUT_TICKS);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
+
+    // Enable wake function (bit 4 = wake enabled)
+    err = i2c_controller_register8_set(i2c_controller, address, REG_INT_CTL, 0x10, I2C_TIMEOUT_TICKS);
+    if (err != ERROR_NONE) return ERROR_RESOURCE;
+
+    LOG_I(TAG, "Motion wake interrupt configured");
+
+    LOG_I(TAG, "QMI8658 started successfully");
     return ERROR_NONE;
 }
 

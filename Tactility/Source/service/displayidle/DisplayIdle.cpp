@@ -14,20 +14,62 @@
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
+#include <tactility/device.h>
+#include <drivers/qmi8658.h>
+#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <cstdlib>
+#include <cmath>
 #include <ctime>
 
 namespace tt::service::displayidle {
 
 static const auto LOGGER = Logger("DisplayIdle");
+static DisplayIdleService* instance = nullptr;
 
 constexpr uint32_t kWakeActivityThresholdMs = 100;
+
+static Device* findQmi8658() {
+    return device_find_by_name("imu");
+}
+
+static bool checkMotionWake() {
+    Device* imu = findQmi8658();
+    if (!imu) {
+        return false;
+    }
+
+    Qmi8658Data data;
+    if (qmi8658_read(imu, &data) != ERROR_NONE) {
+        return false;
+    }
+
+    float magnitude = std::sqrt(data.ax * data.ax + data.ay * data.ay + data.az * data.az);
+    float deviation = std::abs(magnitude - 1.0f);
+
+    return deviation > 0.35f;
+}
+
+static bool checkFaceDown() {
+    Device* imu = findQmi8658();
+    if (!imu) {
+        return false;
+    }
+
+    Qmi8658Data data;
+    if (qmi8658_read(imu, &data) != ERROR_NONE) {
+        return false;
+    }
+
+    // Face down: az is positive when watch is face-down on this board
+    return data.az > 0.9f;
+}
 
 static std::shared_ptr<hal::display::DisplayDevice> getDisplay() {
     return hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
 }
 
 void DisplayIdleService::stopScreensaverCb(lv_event_t* e) {
+    LOGGER.info("Screensaver tap detected, stopping");
     auto* self = static_cast<DisplayIdleService*>(lv_event_get_user_data(e));
     lv_event_stop_bubbling(e);
     self->stopScreensaverRequested.store(true, std::memory_order_release);
@@ -57,11 +99,14 @@ void DisplayIdleService::stopScreensaver() {
     // Reset auto-off state
     screensaverActiveCounter = 0;
     backlightOff = false;
+    faceDownCounter = 0;
+    motionCooldownCounter = 0;
+    screensaverReactivateCooldown = 0;
 
     // Restore backlight if display was dimmed
     auto display = getDisplay();
     if (display && wasDimmed) {
-        display->setBacklightDuty(restoreDuty);
+        targetBacklightDuty = restoreDuty;
     }
     displayDimmed = wasDimmed ? false : displayDimmed;
 }
@@ -119,6 +164,17 @@ void DisplayIdleService::updateScreensaver() {
     }
 }
 
+void DisplayIdleService::updateBacklight(std::shared_ptr<tt::hal::display::DisplayDevice> display) {
+    // Fade backlight gradually
+    if (currentBacklightDuty < targetBacklightDuty) {
+        currentBacklightDuty = std::min(currentBacklightDuty + FADE_STEP, targetBacklightDuty);
+        display->setBacklightDuty(currentBacklightDuty);
+    } else if (currentBacklightDuty > targetBacklightDuty) {
+        currentBacklightDuty = std::max(currentBacklightDuty - FADE_STEP, targetBacklightDuty);
+        display->setBacklightDuty(currentBacklightDuty);
+    }
+}
+
 void DisplayIdleService::tick() {
     if (!lvgl::lock(100)) {
         return;
@@ -139,8 +195,11 @@ void DisplayIdleService::tick() {
 
         // Only update if not stopping (prevents lag on touch)
         if (displayDimmed && screensaverOverlay && !stopScreensaverRequested.load(std::memory_order_acquire)) {
-            // Check if screensaver should auto-off after 5 minutes
-            if (!backlightOff) {
+            // Check for motion wake from screensaver
+            if (checkMotionWake()) {
+                stopScreensaverRequested.store(true, std::memory_order_release);
+            } else if (!backlightOff) {
+                // Check if screensaver should auto-off after 5 minutes
                 screensaverActiveCounter++;
                 if (screensaverActiveCounter >= SCREENSAVER_AUTO_OFF_TICKS) {
                     // Stop screensaver animation and turn off backlight
@@ -169,13 +228,40 @@ void DisplayIdleService::tick() {
 
     auto display = getDisplay();
     if (display != nullptr && display->supportsBacklightDuty()) {
+        // Update backlight with fading
+        updateBacklight(display);
+
+        // Decrement cooldowns
+        if (motionCooldownCounter > 0) {
+            motionCooldownCounter--;
+        }
+        if (screensaverReactivateCooldown > 0) {
+            screensaverReactivateCooldown--;
+        }
+
         if (!cachedDisplaySettings.backlightTimeoutEnabled || cachedDisplaySettings.backlightTimeoutMs == 0) {
             if (displayDimmed) {
-                display->setBacklightDuty(cachedDisplaySettings.backlightDuty);
+                targetBacklightDuty = cachedDisplaySettings.backlightDuty;
                 displayDimmed = false;
+                faceDownCounter = 0;
             }
         } else {
-            if (!displayDimmed && inactive_ms >= cachedDisplaySettings.backlightTimeoutMs) {
+            bool isFaceDown = checkFaceDown();
+
+            // Face-down detection with debounce
+            if (isFaceDown && !displayDimmed) {
+                faceDownCounter++;
+                if (faceDownCounter >= FACEDOWN_CONFIRM_TICKS) {
+                    // Confirmed face-down - dim display to low brightness
+                    targetBacklightDuty = LOW_BRIGHTNESS;
+                    displayDimmed = true;
+                    faceDownCounter = 0;
+                }
+            } else {
+                faceDownCounter = 0;  // Reset counter if not face-down
+            }
+
+            if (!displayDimmed && screensaverReactivateCooldown == 0 && (inactive_ms >= cachedDisplaySettings.backlightTimeoutMs)) {
                 if (!lvgl::lock(100)) {
                     return; // Retry on next tick
                 }
@@ -183,21 +269,32 @@ void DisplayIdleService::tick() {
                 lvgl::unlock();
                 // Turn off backlight for "None" screensaver (just black screen)
                 if (cachedDisplaySettings.screensaverType == settings::display::ScreensaverType::None) {
-                    display->setBacklightDuty(0);
+                    targetBacklightDuty = 0;
+                } else {
+                    targetBacklightDuty = LOW_BRIGHTNESS;  // Dim for screensaver
                 }
                 displayDimmed = true;
-            } else if (displayDimmed && (inactive_ms < kWakeActivityThresholdMs)) {
+            } else if (displayDimmed && motionCooldownCounter == 0 && (inactive_ms < kWakeActivityThresholdMs || checkMotionWake())) {
                 stopScreensaver();
+                motionCooldownCounter = MOTION_COOLDOWN_TICKS;
+                screensaverReactivateCooldown = SCREENSAVER_REACTIVATE_COOLDOWN_TICKS;
+                faceDownCounter = 0;
             }
         }
     }
 }
 
 bool DisplayIdleService::onStart(ServiceContext& service) {
+    instance = this;
     // Seed random number generator for varied screensaver patterns
     srand(static_cast<unsigned int>(time(nullptr)));
 
     cachedDisplaySettings = settings::display::loadOrGetDefault();
+    currentBacklightDuty = LOW_BRIGHTNESS;
+    targetBacklightDuty = LOW_BRIGHTNESS;
+    faceDownCounter = 0;
+    motionCooldownCounter = 0;
+    screensaverReactivateCooldown = 0;
 
     timer = std::make_unique<Timer>(Timer::Type::Periodic, kernel::millisToTicks(TICK_INTERVAL_MS), [this]{ this->tick(); });
     timer->setCallbackPriority(Thread::Priority::Lower);

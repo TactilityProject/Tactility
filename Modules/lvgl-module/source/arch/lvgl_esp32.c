@@ -52,13 +52,15 @@ error_t lvgl_arch_start() {
 error_t lvgl_arch_stop() {
     if (lvgl_module_config.on_stop) lvgl_module_config.on_stop();
 
+    // Set initialized to false BEFORE deinit to prevent concurrent
+    // lock calls from accessing the mutex after it's destroyed.
+    initialized = false;
+
     if (lvgl_port_deinit() != ESP_OK) {
         // Call on_start again to recover
         if (lvgl_module_config.on_start) lvgl_module_config.on_start();
         return ERROR_RESOURCE;
     }
-
-    initialized = false;
 
     return ERROR_NONE;
 }

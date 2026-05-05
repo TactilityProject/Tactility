@@ -27,6 +27,7 @@ public:
     bool setRegisters(uint8_t* bytePairs, size_t bytePairsSize) const;
 
     bool getBatteryVoltage(float& vbatMillis) const;
+    bool getBatteryPercentage(uint8_t& percentage) const;
     bool getChargeStatus(ChargeStatus& status) const;
     bool isChargingEnabled(bool& enabled) const;
     bool setChargingEnabled(bool enabled) const;

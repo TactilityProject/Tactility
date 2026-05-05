@@ -148,6 +148,8 @@ error_t thread_start(Thread* thread);
  */
 error_t thread_join(Thread* thread, TickType_t timeout, TickType_t poll_interval);
 
+error_t tt_thread_join(Thread* thread, TickType_t timeout, TickType_t poll_interval);
+
 /**
  * @brief Gets the FreeRTOS task handle associated with the thread.
  * @param[in] thread The thread instance.

@@ -4,6 +4,7 @@
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/wifiapsettings/WifiApSettings.h>
 #include <Tactility/app/wificonnect/WifiConnect.h>
+#include <Tactility/app/dialogbox/DialogBox.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/lvgl/LvglSync.h>

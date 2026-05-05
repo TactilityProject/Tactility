@@ -1,0 +1,5 @@
+description: NXP PCF8563 RTC
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "nxp,pcf8563"

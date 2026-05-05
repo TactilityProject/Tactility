@@ -26,4 +26,8 @@ bool isSupportedTextFile(const std::string& filename) {
         filename_lower.ends_with(".properties");
 }
 
+bool isSupportedAudioFile(const std::string& filename) {
+    return string::lowercase(filename).ends_with(".wav");
+}
+
 } // namespace tt::app::filebrowser
