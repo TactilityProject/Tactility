@@ -158,8 +158,6 @@ static void registerInternalApps() {
     addAppManifest(app::systeminfo::manifest);
     addAppManifest(app::timedatesettings::manifest);
     addAppManifest(app::timezone::manifest);
-    addAppManifest(app::btmanage::manifest);
-    addAppManifest(app::btpeersettings::manifest);
     addAppManifest(app::wifiapsettings::manifest);
     addAppManifest(app::wificonnect::manifest);
     addAppManifest(app::wifimanage::manifest);
@@ -195,6 +193,11 @@ static void registerInternalApps() {
     if (hal::hasDevice(hal::Device::Type::Power)) {
         addAppManifest(app::power::manifest);
     }
+
+#if defined(CONFIG_BT_ENABLED) && CONFIG_BT_ENABLED
+    addAppManifest(app::btmanage::manifest);
+    addAppManifest(app::btpeersettings::manifest);
+#endif
 }
 
 static void registerInstalledApp(std::string path) {

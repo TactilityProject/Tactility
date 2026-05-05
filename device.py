@@ -315,8 +315,8 @@ def write_bluetooth_variables(output_file, device_properties: ConfigParser):
         output_file.write("CONFIG_BT_ENABLED=y\n")
         output_file.write("CONFIG_BT_NIMBLE_ENABLED=y\n")
         if idf_target == "esp32p4":
-            output_file.write(f"CONFIG_BT_NIMBLE_TRANSPORT_UART=n\n")
-            output_file.write(f"CONFIG_ESP_HOSTED_ENABLE_BT_NIMBLE=y\n")
+            output_file.write("CONFIG_BT_NIMBLE_TRANSPORT_UART=n\n")
+            output_file.write("CONFIG_ESP_HOSTED_ENABLE_BT_NIMBLE=y\n")
         # Move NimBLE host buffers to SPIRAM when available, regardless of target.
         # The default (INTERNAL) mode causes heap fragmentation after a disable+deinit
         # cycle, preventing a subsequent nimble_port_init() from allocating its buffers
