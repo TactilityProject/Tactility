@@ -28,7 +28,7 @@
 
 		bmi270 {
 			compatible = "bosch,bmi270";
-			reg = <0x68>;
+			reg = <0x69>;
 		};
 
 		bm8563 {

@@ -292,6 +292,7 @@ error_t bluetooth_scan_stop(struct Device* device);
 bool    bluetooth_is_scanning(struct Device* device);
 error_t bluetooth_pair(struct Device* device, const BtAddr addr);
 error_t bluetooth_unpair(struct Device* device, const BtAddr addr);
+error_t bluetooth_get_paired_peers(struct Device* device, struct BtPeerRecord* out, size_t* count);
 error_t bluetooth_connect(struct Device* device, const BtAddr addr, enum BtProfileId profile);
 error_t bluetooth_disconnect(struct Device* device, const BtAddr addr, enum BtProfileId profile);
 error_t bluetooth_add_event_callback(struct Device* device, void* context, BtEventCallback callback);

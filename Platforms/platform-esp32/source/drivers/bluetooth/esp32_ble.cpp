@@ -99,7 +99,7 @@ void ble_publish_event(struct Device* device, struct BtEvent event) {
 }
 
 // ---- Advertising restart helper ----
-
+//TODO: Fix Restart name-only advertising after a rename.
 static void adv_restart_callback(void* arg) {
     struct Device* device = (struct Device*)arg;
     BleCtx* ctx = ble_get_ctx(device);

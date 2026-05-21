@@ -70,6 +70,7 @@ bool load(const std::string& addr_hex, PairedDevice& device) {
     device.autoConnect = !map.contains(KEY_AUTO_CONNECT) || (map[KEY_AUTO_CONNECT] == "true");
 
     if (map.contains(KEY_PROFILE_ID)) {
+        // TODO: Handle incorrect parsing input
         device.profileId = std::stoi(map[KEY_PROFILE_ID]);
     }
     return true;

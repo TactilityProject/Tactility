@@ -87,6 +87,8 @@ error_t ble_midi_ensure_keepalive(struct Device* device, esp_timer_cb_t cb, uint
             return ERROR_INVALID_STATE;
         }
     }
+    // Stop first in case timer is already running
+    esp_timer_stop(ctx->midi_keepalive_timer);
     int rc = esp_timer_start_periodic(ctx->midi_keepalive_timer, period_us);
     if (rc != ESP_OK) {
         LOG_E(TAG, "midi keepalive timer start failed (rc=%d)", rc);

@@ -134,15 +134,18 @@ static void bt_event_bridge(struct Device* /*device*/, void* /*context*/, struct
                             if (struct Device* dev = bluetooth_hid_device_get_device()) {
                                 bluetooth_hid_device_start(dev, BT_HID_DEVICE_MODE_KEYBOARD);
                             }
-                        } else if (settings::shouldSppAutoStart()) {
-                            LOGGER.info("Auto-starting SPP server");
-                            if (struct Device* dev = bluetooth_serial_get_device()) {
-                                bluetooth_serial_start(dev);
+                        } else {
+                            if (settings::shouldSppAutoStart()) {
+                                LOGGER.info("Auto-starting SPP server");
+                                if (struct Device* dev = bluetooth_serial_get_device()) {
+                                    bluetooth_serial_start(dev);
+                                }
                             }
-                        } else if (settings::shouldMidiAutoStart()) {
-                            LOGGER.info("Auto-starting MIDI server");
-                            if (struct Device* dev = bluetooth_midi_get_device()) {
-                                bluetooth_midi_start(dev);
+                            if (settings::shouldMidiAutoStart()) {
+                                LOGGER.info("Auto-starting MIDI server");
+                                if (struct Device* dev = bluetooth_midi_get_device()) {
+                                    bluetooth_midi_start(dev);
+                                }
                             }
                         }
                     });

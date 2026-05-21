@@ -52,6 +52,10 @@ error_t bluetooth_unpair(struct Device* device, const BtAddr addr) {
     return BT_API(device)->unpair(device, addr);
 }
 
+error_t bluetooth_get_paired_peers(struct Device* device, struct BtPeerRecord* out, size_t* count) {
+    return BT_API(device)->get_paired_peers(device, out, count);
+}
+
 // ---- Connect / disconnect ----
 
 error_t bluetooth_connect(struct Device* device, const BtAddr addr, enum BtProfileId profile) {
