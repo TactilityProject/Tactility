@@ -29,6 +29,7 @@ runs:
     - name: 'Merge binary'
       shell: bash
       run: |
+        python -m pip install esptool
         cd release/Tactility-${{ inputs.board_id }}
         bash ./merge.sh ${{ inputs.arch }}
         mv Binaries/merged_binary.bin ../Tactility-${{ inputs.board_id }}.bin
