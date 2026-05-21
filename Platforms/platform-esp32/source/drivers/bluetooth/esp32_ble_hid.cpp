@@ -334,8 +334,8 @@ void ble_hid_set_conn_handle(struct Device* device, uint16_t h) {
 // ---- GATT profile switch ----
 // device must be the HID device child Device*.
 
-void ble_hid_switch_profile(struct Device* device, BleHidProfile profile) {
-    if (profile == current_hid_profile) return;
+bool ble_hid_switch_profile(struct Device* device, BleHidProfile profile) {
+    if (profile == current_hid_profile) return true;
     LOG_I(TAG, "switchGattProfile: %d -> %d", (int)current_hid_profile, (int)profile);
 
     ble_gap_adv_stop();
@@ -366,11 +366,11 @@ void ble_hid_switch_profile(struct Device* device, BleHidProfile profile) {
         rc = ble_gatts_add_svcs(svcs);
         if (rc != 0) {
             LOG_E(TAG, "switchGattProfile: gatts_add_svcs failed rc=%d", rc);
-            return; // don't update profile — GATT state is inconsistent
+            return false; // don't update profile — GATT state is inconsistent
         }
     } else {
         LOG_E(TAG, "switchGattProfile: gatts_count_cfg failed rc=%d", rc);
-        return;
+        return false;
     }
 
     // ble_gatts_add_svcs() only adds definitions to a pending list.
@@ -380,7 +380,7 @@ void ble_hid_switch_profile(struct Device* device, BleHidProfile profile) {
     rc = ble_gatts_start();
     if (rc != 0) {
         LOG_E(TAG, "switchGattProfile: gatts_start failed rc=%d", rc);
-        return;
+        return false;
     }
 
     active_hid_rpt_map     = new_rpt_map;
@@ -399,6 +399,7 @@ void ble_hid_switch_profile(struct Device* device, BleHidProfile profile) {
     // bonded peers can reuse their cached handles and no indication is needed.
 
     current_hid_profile = profile;
+    return true;
 }
 
 void ble_hid_init_gatt() {
@@ -452,7 +453,11 @@ static error_t hid_device_start(struct Device* device, enum BtHidDeviceMode mode
     }
 
     hid_appearance = appearance;
-    ble_hid_switch_profile(device, profile);
+    if (!ble_hid_switch_profile(device, profile)) {
+        delete (BleHidDeviceCtx*)device_get_driver_data(device);
+        device_set_driver_data(device, nullptr);
+        return ERROR_INVALID_STATE;
+    }
     ble_hid_set_active(device, true);
     ble_start_advertising_hid(device, hid_appearance);
     return ERROR_NONE;
@@ -474,7 +479,9 @@ static error_t hid_device_stop(struct Device* device) {
     } else {
         // Not connected: GATT is mutable, switch profile immediately.
         if (current_hid_profile != BleHidProfile::None) {
-            ble_hid_switch_profile(device, BleHidProfile::None);
+            if (!ble_hid_switch_profile(device, BleHidProfile::None)) {
+                LOG_E(TAG, "hid_device_stop: switch to None failed — GATT state inconsistent");
+            }
         }
         delete hid_ctx;
         device_set_driver_data(device, nullptr);

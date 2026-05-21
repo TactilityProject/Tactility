@@ -182,7 +182,9 @@ static int gap_event_handler(struct ble_gap_event* event, void* arg) {
             // Skip during shutdown — ble_gatts_reset() is unsafe while nimble_port_stop() runs.
             if (was_hid && !ctx->hid_active.load() && current_hid_profile != BleHidProfile::None &&
                 ctx->radio_state.load() != BT_RADIO_STATE_OFF_PENDING) {
-                ble_hid_switch_profile(ctx->hid_device_child, BleHidProfile::None);
+                if (!ble_hid_switch_profile(ctx->hid_device_child, BleHidProfile::None)) {
+                    LOG_E(TAG, "disconnect: switch to None failed — GATT state inconsistent");
+                }
             }
             // Restart advertising whenever a service is active without a live connection.
             // Covers both normal disconnect and Windows discovery-only connections.
