@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # Usage:
 #   merge.sh [chip]
@@ -43,8 +43,10 @@ fi
 chip=${1:-esp32s3}
 
 # Take the flash_arg file contents and join each line in the file into a single line
-flash_args=`tr '\n' ' ' < Binaries/flash_args`
-cd Binaries
-$esptoolPath --chip "$chip" merge-bin --output merged_binary.bin $flash_args
-cd -
+flash_args="$(tr '\n' ' ' < Binaries/flash_args)"
+read -r -a flash_args_array <<< "$flash_args"
+(
+  cd Binaries || exit 1
+  "$esptoolPath" --chip "$chip" merge-bin --output merged_binary.bin "${flash_args_array[@]}"
+) || exit 1
 
