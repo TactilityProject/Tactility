@@ -191,7 +191,7 @@ def main(in_path: str, out_path: str, version: str):
         devices=[]
     )
     for artifact_directory in artifact_directories:
-        if artifact_directory.endswith("-symbols") or artifact_directory.startswith("TactilitySDK-"):
+        if artifact_directory.endswith("-symbols") or artifact_directory.endswith(".bin") or artifact_directory.startswith("TactilitySDK-"):
             continue
         device_id = artifact_directory.removeprefix("Tactility-")
         if not device_id:

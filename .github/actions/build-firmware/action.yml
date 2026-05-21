@@ -26,6 +26,12 @@ runs:
     - name: 'Release'
       shell: bash
       run: Buildscripts/release.sh ${{ inputs.board_id }}
+    - name: 'Merge binary'
+      shell: bash
+      run: |
+        cd release/Tactility-${{ inputs.board_id }}
+        bash ./merge.sh ${{ inputs.arch }}
+        mv Binaries/merged_binary.bin ../Tactility-${{ inputs.board_id }}.bin
     - name: 'Upload Artifact: Release'
       uses: actions/upload-artifact@v4
       with:
@@ -37,4 +43,10 @@ runs:
       with:
         name: Tactility-${{ inputs.board_id }}-symbols
         path: release/Tactility-${{ inputs.board_id }}-symbols
+        retention-days: 30
+    - name: 'Upload Artifact: Merged binary'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tactility-${{ inputs.board_id }}.bin
+        path: release/Tactility-${{ inputs.board_id }}.bin
         retention-days: 30
