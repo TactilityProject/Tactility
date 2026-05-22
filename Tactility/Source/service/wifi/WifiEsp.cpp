@@ -32,7 +32,7 @@ static const auto LOGGER = Logger("WifiService");
 
 constexpr auto WIFI_CONNECTED_BIT = BIT0;
 constexpr auto WIFI_FAIL_BIT = BIT1;
-constexpr auto AUTO_SCAN_INTERVAL = 10000; // ms
+constexpr auto AUTO_SCAN_INTERVAL = 30000; // ms
 
 // Forward declarations
 class Wifi;

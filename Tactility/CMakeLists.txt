@@ -13,6 +13,7 @@ list(APPEND REQUIRES_LIST
     lv_screenshot
     minitar
     minmea
+    qmi8658-module
 )
 
 if (DEFINED ENV{ESP_IDF_VERSION})
@@ -33,6 +34,9 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         fatfs
         lwip
         spi_flash
+        bm8563-module
+        esp_codec_dev
+        waveshare__esp32_s3_touch_amoled_2_06
     )
 
     if ("${IDF_TARGET}" STREQUAL "esp32s3")
@@ -57,15 +61,15 @@ tactility_add_module(Tactility
     REQUIRES ${REQUIRES_LIST}
 )
 
+
+
 if (DEFINED ENV{ESP_IDF_VERSION})
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(${COMPONENT_LIB} PUBLIC -Wno-unused-variable)
     endif ()
 
     if (NOT DEFINED TACTILITY_SKIP_SPIFFS)
-        # Read-only
-        fatfs_create_rawflash_image(system "${CMAKE_CURRENT_SOURCE_DIR}/../Data/system" FLASH_IN_PROJECT PRESERVE_TIME)
-        # Read-write
+        fatfs_create_spiflash_image(system "${CMAKE_CURRENT_SOURCE_DIR}/../Data/system" FLASH_IN_PROJECT PRESERVE_TIME)
         fatfs_create_spiflash_image(data "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data" FLASH_IN_PROJECT PRESERVE_TIME)
     endif ()
 

@@ -39,6 +39,14 @@ dependencies:
     rules:
       - if: "target in [esp32, esp32s3]"
   espressif/esp_lcd_gc9a01: "2.0.3"
+  waveshare/esp32_s3_touch_amoled_2_06:
+    version: "*"
+    rules:
+      - if: "target == esp32s3"
+  espressif/esp_lcd_co5300:
+    version: "*"
+    rules:
+      - if: "target == esp32s3"
   espressif/esp_lcd_jd9165:
     version: "1.0.3"
     rules:

@@ -5,46 +5,84 @@
 
 #include <esp_vfs_fat.h>
 #include <nvs_flash.h>
+#include <esp_log.h>
 #include <tactility/error.h>
 #include <tactility/filesystem/file_system.h>
+
+#include "esp_system.h"
 
 namespace tt {
 
 static const auto LOGGER = Logger("Partitions");
 
-// region file_system stub
+static wl_handle_t data_wl_handle = WL_INVALID_HANDLE;
+static wl_handle_t system_wl_handle = WL_INVALID_HANDLE;
 
-struct PartitionFsData {
-    const char* path;
-};
+static bool data_mounted = false;
+static bool system_mounted = false;
 
-static error_t mount(void* data) {
+static error_t mount_data(void* data) {
+    (void)data;
+    return data_mounted ? ERROR_NONE : ERROR_UNDEFINED;
+}
+
+static error_t unmount_data(void* data) {
+    (void)data;
     return ERROR_NOT_SUPPORTED;
 }
 
-static error_t unmount(void* data) {
-    return ERROR_NOT_SUPPORTED;
+static bool is_mounted_data(void* data) {
+    (void)data;
+    return data_mounted;
 }
 
-static bool is_mounted(void* data) {
-    return true;
-}
-
-static error_t get_path(void* data, char* out_path, size_t out_path_size) {
-    auto* fs_data = static_cast<PartitionFsData*>(data);
-    if (strlen(fs_data->path) >= out_path_size) return ERROR_BUFFER_OVERFLOW;
-    strncpy(out_path, fs_data->path, out_path_size);
+static error_t get_path_data(void* data, char* out_path, size_t out_path_size) {
+    (void)data;
+    const char* path = "/data";
+    if (strlen(path) >= out_path_size) return ERROR_BUFFER_OVERFLOW;
+    strncpy(out_path, path, out_path_size);
     return ERROR_NONE;
 }
 
-FileSystemApi partition_fs_api = {
-    .mount = mount,
-    .unmount = unmount,
-    .is_mounted = is_mounted,
-    .get_path = get_path
+static error_t mount_system(void* data) {
+    (void)data;
+    return system_mounted ? ERROR_NONE : ERROR_UNDEFINED;
+}
+
+static error_t unmount_system(void* data) {
+    (void)data;
+    return ERROR_NOT_SUPPORTED;
+}
+
+static bool is_mounted_system(void* data) {
+    (void)data;
+    return system_mounted;
+}
+
+static error_t get_path_system(void* data, char* out_path, size_t out_path_size) {
+    (void)data;
+    const char* path = "/system";
+    if (strlen(path) >= out_path_size) return ERROR_BUFFER_OVERFLOW;
+    strncpy(out_path, path, out_path_size);
+    return ERROR_NONE;
+}
+
+FileSystemApi data_fs_api = {
+    .mount = mount_data,
+    .unmount = unmount_data,
+    .is_mounted = is_mounted_data,
+    .get_path = get_path_data
 };
 
-// endregion file_system stub
+FileSystemApi system_fs_api = {
+    .mount = mount_system,
+    .unmount = unmount_system,
+    .is_mounted = is_mounted_system,
+    .get_path = get_path_system
+};
+
+static FileSystem* data_fs = nullptr;
+static FileSystem* system_fs = nullptr;
 
 static esp_err_t initNvsFlashSafely() {
     esp_err_t result = nvs_flash_init();
@@ -54,8 +92,6 @@ static esp_err_t initNvsFlashSafely() {
     }
     return result;
 }
-
-static wl_handle_t data_wl_handle = WL_INVALID_HANDLE;
 
 wl_handle_t getDataPartitionWlHandle() {
     return data_wl_handle;
@@ -71,41 +107,66 @@ size_t getSectorSize() {
 #elif defined(CONFIG_FATFS_SECTOR_4096)
     return 4096;
 #else
-#error Not implemented
+    #error Not implemented
 #endif
 }
 
 esp_err_t initPartitionsEsp() {
     LOGGER.info("Init partitions");
-    ESP_ERROR_CHECK(initNvsFlashSafely());
+
+    esp_err_t err = initNvsFlashSafely();
+    if (err != ESP_OK) {
+        LOGGER.error("Failed to init NVS flash");
+        return err;
+    }
+
+    const esp_partition_t* system_partition = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, "system"
+    );
+    const esp_partition_t* data_partition = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, "data"
+    );
+
+    if (system_partition == nullptr) {
+        LOGGER.error("System partition not found");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    if (data_partition == nullptr) {
+        LOGGER.error("Data partition not found");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    LOGGER.info("System partition: offset=0x%x size=0x%x", system_partition->address, system_partition->size);
+    LOGGER.info("Data partition: offset=0x%x size=0x%x", data_partition->address, data_partition->size);
 
     const esp_vfs_fat_mount_config_t mount_config = {
         .format_if_mount_failed = false,
         .max_files = 4,
-        .allocation_unit_size = getSectorSize(),
+        .allocation_unit_size = 4096,
         .disk_status_check_enable = false,
-        .use_one_fat = true,
+        .use_one_fat = false
     };
 
-    auto system_result = esp_vfs_fat_spiflash_mount_ro("/system", "system", &mount_config);
-    if (system_result != ESP_OK) {
-        LOGGER.error("Failed to mount /system ({})", esp_err_to_name(system_result));
+    err = esp_vfs_fat_spiflash_mount_rw_wl("/system", "system", &mount_config, &system_wl_handle);
+    if (err != ESP_OK) {
+        LOGGER.error("Failed to mount system partition: %s", esp_err_to_name(err));
     } else {
-        LOGGER.info("Mounted /system");
-        static auto system_fs_data = PartitionFsData("/system");
-        file_system_add(&partition_fs_api, &system_fs_data);
+        LOGGER.info("System partition mounted at /system");
+        system_mounted = true;
+        system_fs = file_system_add(&system_fs_api, nullptr);
     }
 
-    auto data_result = esp_vfs_fat_spiflash_mount_rw_wl("/data", "data", &mount_config, &data_wl_handle);
-    if (data_result != ESP_OK) {
-        LOGGER.error("Failed to mount /data ({})", esp_err_to_name(data_result));
+    err = esp_vfs_fat_spiflash_mount_rw_wl("/data", "data", &mount_config, &data_wl_handle);
+    if (err != ESP_OK) {
+        LOGGER.error("Failed to mount data partition: %s", esp_err_to_name(err));
     } else {
-        LOGGER.info("Mounted /data");
-        static auto data_fs_data = PartitionFsData("/data");
-        file_system_add(&partition_fs_api, &data_fs_data);
+        LOGGER.info("Data partition mounted at /data");
+        data_mounted = true;
+        data_fs = file_system_add(&data_fs_api, nullptr);
     }
 
-    return system_result == ESP_OK && data_result == ESP_OK;
+    return ESP_OK;
 }
 
 } // namespace

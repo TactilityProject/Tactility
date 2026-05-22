@@ -49,6 +49,31 @@ bool SpiSdCardDevice::applyGpioWorkAround() {
 bool SpiSdCardDevice::mountInternal(const std::string& newMountPath) {
     LOGGER.info("Mounting {}", newMountPath);
 
+    // Initialize SPI1 bus manually if needed
+    if (config->spiHost == SPI1_HOST) {
+        spi_bus_config_t buscfg = {
+            .mosi_io_num = GPIO_NUM_1,
+            .miso_io_num = GPIO_NUM_3,
+            .sclk_io_num = GPIO_NUM_2,
+            .quadwp_io_num = -1,
+            .quadhd_io_num = -1,
+            .max_transfer_sz = 4092,
+            .flags = 0,
+            .intr_flags = 0
+        };
+        
+        esp_err_t ret = spi_bus_initialize(SPI1_HOST, &buscfg, SPI_DMA_CH_AUTO);
+        if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
+            LOGGER.error("Failed to init SPI1 bus: %s", esp_err_to_name(ret));
+            return false;
+        }
+        if (ret == ESP_OK) {
+            LOGGER.info("SPI1 bus initialized successfully");
+        } else {
+            LOGGER.info("SPI1 bus already initialized");
+        }
+    }
+
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
         .format_if_mount_failed = config->formatOnMountFailed,
         .max_files = config->maxOpenFiles,
@@ -59,18 +84,15 @@ bool SpiSdCardDevice::mountInternal(const std::string& newMountPath) {
 
     // Init without card detect (CD) and write protect (WD)
     sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
-    slot_config.host_id = config->spiHost;
+    slot_config.host_id = (spi_host_device_t)config->spiHost;
     slot_config.gpio_cs = config->spiPinCs;
     slot_config.gpio_cd = config->spiPinCd;
     slot_config.gpio_wp = config->spiPinWp;
     slot_config.gpio_int = config->spiPinInt;
 
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-    // The following value is from T-Deck repo's UnitTest.ino project:
-    // https://github.com/Xinyuan-LilyGO/T-Deck/blob/master/examples/UnitTest/UnitTest.ino
-    // Observation: Using this automatically sets the bus to 20MHz
-    host.max_freq_khz = config->spiFrequencyKhz;
-    host.slot = config->spiHost;
+    host.max_freq_khz = config->spiFrequencyKhz > 0 ? config->spiFrequencyKhz : 20000;
+    host.slot = (spi_host_device_t)config->spiHost;
 
     esp_err_t result = esp_vfs_fat_sdspi_mount(newMountPath.c_str(), &host, &slot_config, &mount_config, &card);
 

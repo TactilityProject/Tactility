@@ -84,6 +84,20 @@ static const char* getPowerStatusIcon() {
 
     uint8_t charge = charge_level.valueAsUint8;
 
+    // Check if the device is currently charging
+    bool is_charging = false;
+    if (power->supportsMetric(hal::power::PowerDevice::MetricType::IsCharging)) {
+        hal::power::PowerDevice::MetricData is_charging_data;
+        if (power->getMetric(hal::power::PowerDevice::MetricType::IsCharging, is_charging_data)) {
+            is_charging = is_charging_data.valueAsBool;
+        }
+    }
+
+    // Show bolt icon while charging (even at 100%)
+    if (is_charging) {
+        return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_BOLT;
+    }
+
     if (charge >= 95) {
         return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_FULL;
     } else if (charge >= 80) {
@@ -223,7 +237,7 @@ public:
         assert(service);
         service->update();
 
-        updateTimer = std::make_unique<Timer>(Timer::Type::Periodic, pdMS_TO_TICKS(1000), [service] {
+        updateTimer = std::make_unique<Timer>(Timer::Type::Periodic, pdMS_TO_TICKS(30000), [service] {
             service->update();
         });
 

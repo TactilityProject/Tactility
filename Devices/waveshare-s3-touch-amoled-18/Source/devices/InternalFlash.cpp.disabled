@@ -1,0 +1,67 @@
+#include "InternalFlash.h"
+
+#include <esp_vfs_fat.h>
+#include <esp_partition.h>
+
+static wl_handle_t mounted_wl_handle = WL_INVALID_HANDLE;
+static bool is_mounted = false;
+
+wl_handle_t getInternalFlashWlHandle() {
+    return mounted_wl_handle;
+}
+
+bool isInternalFlashMounted() {
+    return is_mounted;
+}
+
+static bool mountInternalFlash() {
+    const esp_partition_t* data_partition = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA,
+        ESP_PARTITION_SUBTYPE_DATA_FAT,
+        nullptr
+    );
+
+    if (data_partition == nullptr) {
+        return false;
+    }
+
+    esp_vfs_fat_mount_config_t mount_config = {
+        .format_if_mount_failed = true,
+        .max_files = 5,
+        .allocation_unit_size = 0,
+        .disk_status_check_enable = false
+    };
+
+    wl_handle_t wl_handle = WL_INVALID_HANDLE;
+    esp_err_t err = esp_vfs_fat_spiflash_mount_rw_wl(
+        "/data",
+        data_partition->label,
+        &mount_config,
+        &wl_handle
+    );
+
+    if (err != ESP_OK) {
+        return false;
+    }
+
+    mounted_wl_handle = wl_handle;
+    is_mounted = true;
+    return true;
+}
+
+bool InternalFlashDevice::start() {
+    return mountInternalFlash();
+}
+
+bool InternalFlashDevice::stop() {
+    if (mounted_wl_handle != WL_INVALID_HANDLE) {
+        esp_vfs_fat_spiflash_unmount_rw_wl("/data", mounted_wl_handle);
+        mounted_wl_handle = WL_INVALID_HANDLE;
+        is_mounted = false;
+    }
+    return true;
+}
+
+std::shared_ptr<InternalFlashDevice> createInternalFlash() {
+    return std::make_shared<InternalFlashDevice>();
+}

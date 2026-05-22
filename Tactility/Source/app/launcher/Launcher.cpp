@@ -3,9 +3,11 @@
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppPaths.h>
 #include <Tactility/app/AppRegistration.h>
+#include <Tactility/app/dialogbox/DialogBox.h>
 #include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/BootSettings.h>
+#include <Tactility/Timer.h>
 
 #include <cstring>
 #include <lvgl.h>
@@ -16,7 +18,12 @@
 
 namespace tt::app::launcher {
 
+#define CHARGING_POLL_INTERVAL_MS 3000
+#define CHARGING_DIALOG_TIMEOUT_MS 2000
+
 static const auto LOGGER = Logger("Launcher");
+
+extern const AppManifest manifest;
 
 static uint32_t getButtonPadding(UiDensity density, uint32_t buttonSize) {
     if (density == LVGL_UI_DENSITY_COMPACT) {
@@ -27,6 +34,60 @@ static uint32_t getButtonPadding(UiDensity density, uint32_t buttonSize) {
 }
 
 class LauncherApp final : public App {
+
+    enum class ChargingState { Unknown, Charging, Discharging };
+    ChargingState previousChargingState = ChargingState::Unknown;
+
+    Timer pollTimer = Timer(Timer::Type::Periodic, kernel::millisToTicks(CHARGING_POLL_INTERVAL_MS), onPollTimer);
+
+    static void onPollTimer() {
+        auto app = optLauncherApp();
+        if (app != nullptr) {
+            app->pollPowerState();
+        }
+    }
+
+    static std::shared_ptr<LauncherApp> optLauncherApp() {
+        auto appContext = getCurrentAppContext();
+        if (appContext != nullptr && appContext->getManifest().appId == manifest.appId) {
+            return std::static_pointer_cast<LauncherApp>(appContext->getApp());
+        } else {
+            return nullptr;
+        }
+    }
+
+    void pollPowerState() {
+        auto power = hal::findFirstDevice<hal::power::PowerDevice>(hal::Device::Type::Power);
+        if (power == nullptr || !power->supportsMetric(hal::power::PowerDevice::MetricType::IsCharging)) {
+            return;
+        }
+
+        hal::power::PowerDevice::MetricData metric_data;
+        if (!power->getMetric(hal::power::PowerDevice::MetricType::IsCharging, metric_data)) {
+            return;
+        }
+
+        ChargingState currentState = metric_data.valueAsBool ? ChargingState::Charging : ChargingState::Discharging;
+
+        if (previousChargingState == ChargingState::Unknown) {
+            previousChargingState = currentState;
+            return;
+        }
+
+        if (currentState == previousChargingState) {
+            return;
+        }
+
+        if (currentState == ChargingState::Charging) {
+            LOGGER.info("Device plugged in");
+            dialogbox::start("Charging", "Device is plugged in", CHARGING_DIALOG_TIMEOUT_MS);
+        } else {
+            LOGGER.info("Device unplugged");
+            dialogbox::start("Charging", "Device is unplugged", CHARGING_DIALOG_TIMEOUT_MS);
+        }
+
+        previousChargingState = currentState;
+    }
 
     static lv_obj_t* createAppButton(lv_obj_t* parent, UiDensity uiDensity, const char* imageFile, const char* appId, int32_t itemMargin, bool isLandscape) {
         const auto button_size = lvgl_get_launcher_icon_font_height();
@@ -105,6 +166,16 @@ public:
             LOGGER.info("Starting {}", CONFIG_TT_AUTO_START_APP_ID);
             start(CONFIG_TT_AUTO_START_APP_ID);
         }
+
+        if (previousChargingState == ChargingState::Unknown) {
+            auto power = hal::findFirstDevice<hal::power::PowerDevice>(hal::Device::Type::Power);
+            if (power != nullptr && power->supportsMetric(hal::power::PowerDevice::MetricType::IsCharging)) {
+                hal::power::PowerDevice::MetricData metric_data;
+                if (power->getMetric(hal::power::PowerDevice::MetricType::IsCharging, metric_data)) {
+                    previousChargingState = metric_data.valueAsBool ? ChargingState::Charging : ChargingState::Discharging;
+                }
+            }
+        }
     }
 
     void onShow(AppContext& app, lv_obj_t* parent) override {
@@ -158,6 +229,12 @@ public:
             lv_label_set_text(power_label, LV_SYMBOL_POWER);
             lv_obj_set_style_text_color(power_label, lv_theme_get_color_primary(parent), LV_STATE_DEFAULT);
         }
+
+        pollTimer.start();
+    }
+
+    void onHide(AppContext& app) override {
+        pollTimer.stop();
     }
 };
 

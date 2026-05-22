@@ -1,0 +1,6 @@
+--flash_mode dout --flash_freq 80m --flash_size 32MB
+0x0 bootloader/bootloader.bin
+0x10000 $<TARGET_PROPERTY:__idf_build_target,EXECUTABLE_NAME>.bin
+0x8000 partition_table/partition-table.bin
+0x310000 system.bin
+0x35b000 data.bin

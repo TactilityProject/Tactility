@@ -1,0 +1,20 @@
+# Load esp32s3 ROM ELF symbols
+define target hookpost-remote
+set confirm off
+  # if $_streq((char *) 0x3ff194ad, "Mar  1 2021")
+  if (*(int*) 0x3ff194ad) == 0x2072614d && (*(int*) 0x3ff194b1) == 0x32203120 && (*(int*) 0x3ff194b5) == 0x313230
+    add-symbol-file /Users/oneillchampagnie/.espressif/tools/esp-rom-elfs/20241011esp32s3_rev0_rom.elf
+  else
+    echo Warning: Unknown esp32s3 ROM revision.\n
+  end
+set confirm on
+end
+
+
+# Load bootloader symbols
+set confirm off
+    add-symbol-file /Users/oneillchampagnie/Tactility/bootloader/bootloader.elf
+set confirm on
+
+# Load application symbols
+file /Users/oneillchampagnie/Tactility/Tactility.elf

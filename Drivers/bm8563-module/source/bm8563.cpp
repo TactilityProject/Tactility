@@ -106,7 +106,7 @@ error_t bm8563_set_datetime(Device* device, const Bm8563DateTime* dt) {
 
 Driver bm8563_driver = {
     .name = "bm8563",
-    .compatible = (const char*[]) { "belling,bm8563", nullptr },
+    .compatible = (const char*[]) { "belling,bm8563", "nxp,pcf85063", "nxp,pcf8563", nullptr },
     .start_device = start,
     .stop_device = stop,
     .api = nullptr,

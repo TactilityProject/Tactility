@@ -6,10 +6,13 @@
 #include <Tactility/RecursiveMutex.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>
+#include <Tactility/app/dialogbox/DialogBox.h>
 #include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/lvgl/Style.h>
+#include <Tactility/network/Ntp.h>
+#include <Tactility/settings/SystemSettings.h>
 #include <Tactility/settings/Time.h>
 
 #include <tactility/check.h>
@@ -57,6 +60,46 @@ static void statusbar_event(const lv_obj_class_t* class_p, lv_event_t* event);
 
 static void update_time(Statusbar* statusbar);
 static void update_main(Statusbar* statusbar);
+
+static std::string formatDateTimeString() {
+    time_t now = ::time(nullptr);
+    tm* tm_struct = localtime(&now);
+
+    settings::SystemSettings sysSettings;
+    settings::loadSystemSettings(sysSettings);
+
+    int month = tm_struct->tm_mon + 1;
+    int day = tm_struct->tm_mday;
+    int year = tm_struct->tm_year + 1900;
+
+    const auto& fmt = sysSettings.dateFormat;
+    char date_buf[32];
+    if (fmt == "DD/MM/YYYY") {
+        snprintf(date_buf, sizeof(date_buf), "%02d/%02d/%04d", day, month, year);
+    } else if (fmt == "YYYY-MM-DD") {
+        snprintf(date_buf, sizeof(date_buf), "%04d-%02d-%02d", year, month, day);
+    } else if (fmt == "YYYY/MM/DD") {
+        snprintf(date_buf, sizeof(date_buf), "%04d/%02d/%02d", year, month, day);
+    } else {
+        snprintf(date_buf, sizeof(date_buf), "%02d/%02d/%04d", month, day, year);
+    }
+
+    bool format24 = sysSettings.timeFormat24h;
+    int hours = format24 ? tm_struct->tm_hour : (tm_struct->tm_hour % 12 == 0 ? 12 : tm_struct->tm_hour % 12);
+    char time_buf[16];
+    snprintf(time_buf, sizeof(time_buf), "%d:%02d", hours, tm_struct->tm_min);
+
+    return std::string(date_buf) + "\n" + time_buf;
+}
+
+static void onStatusbarClicked(lv_event_t* e) {
+    if (network::ntp::isSynced()) {
+        std::string dateTimeStr = formatDateTimeString();
+        app::dialogbox::start("Date & Time", dateTimeStr, 5000);
+    } else {
+        app::dialogbox::start("Time Not Synced", "Network time has not been synchronized yet", 5000);
+    }
+}
 
 static TickType_t getNextUpdateTime() {
     time_t now = ::time(nullptr);
@@ -177,15 +220,16 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
     auto icon_padding = (ui_density != LVGL_UI_DENSITY_COMPACT) ? static_cast<uint32_t>(icon_size * 0.2f) : 2;
     lv_obj_set_style_pad_column(obj, icon_padding, LV_STATE_DEFAULT);
 
-    statusbar->time = lv_label_create(obj);
-    lv_obj_set_style_text_color(statusbar->time, lv_color_white(), LV_STATE_DEFAULT);
-    lv_obj_set_style_margin_left(statusbar->time, 4, LV_STATE_DEFAULT);
-    update_time(statusbar);
-
     auto* left_spacer = lv_obj_create(obj);
     lv_obj_set_size(left_spacer, 1, 1);
     obj_set_style_bg_invisible(left_spacer);
     lv_obj_set_flex_grow(left_spacer, 1);
+
+    statusbar->time = lv_label_create(obj);
+    lv_obj_set_style_text_color(statusbar->time, lv_color_white(), LV_STATE_DEFAULT);
+    lv_obj_set_style_margin_left(statusbar->time, 4, LV_STATE_DEFAULT);
+    lv_obj_set_style_margin_right(statusbar->time, 4, LV_STATE_DEFAULT);
+    update_time(statusbar);
 
     statusbar_data.mutex.lock(kernel::MAX_TICKS);
     for (int i = 0; i < STATUSBAR_ICON_LIMIT; ++i) {
@@ -199,6 +243,15 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
         update_icon(image, &(statusbar_data.icons[i]));
     }
     statusbar_data.mutex.unlock();
+
+    auto* right_spacer = lv_obj_create(obj);
+    lv_obj_set_size(right_spacer, 1, 1);
+    obj_set_style_bg_invisible(right_spacer);
+    lv_obj_set_flex_grow(right_spacer, 1);
+
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(obj, onStatusbarClicked, LV_EVENT_SHORT_CLICKED, nullptr);
+
     return obj;
 }
 

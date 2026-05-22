@@ -32,13 +32,18 @@ struct TimeZoneEntry {
 };
 
 static bool parseEntry(const std::string& input, std::string& outName, std::string& outCode) {
-    std::string partial_strip = input.substr(1, input.size() - 3);
-    auto first_end_quote = partial_strip.find('"');
-    if (first_end_quote == std::string::npos) {
+    auto first_quote = input.find('"');
+    auto second_quote = input.find('"', first_quote + 1);
+    if (first_quote == std::string::npos || second_quote == std::string::npos) {
         return false;
     } else {
-        outName = partial_strip.substr(0, first_end_quote);
-        outCode = partial_strip.substr(first_end_quote + 3);
+        outName = input.substr(first_quote + 1, second_quote - first_quote - 1);
+        auto third_quote = input.find('"', second_quote + 1);
+        auto fourth_quote = input.find('"', third_quote + 1);
+        if (third_quote == std::string::npos || fourth_quote == std::string::npos) {
+            return false;
+        }
+        outCode = input.substr(third_quote + 1, fourth_quote - third_quote - 1);
         return true;
     }
 }
@@ -124,7 +129,7 @@ class TimeZoneApp final : public App {
             LOGGER.error("Failed to open {}", path);
             return;
         }
-        char line[96];
+        char line[128];
         std::string name;
         std::string code;
         uint32_t count = 0;

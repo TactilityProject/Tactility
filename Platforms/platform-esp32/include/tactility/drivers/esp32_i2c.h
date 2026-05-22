@@ -3,6 +3,7 @@
 
 #include <tactility/drivers/gpio.h>
 #include <hal/i2c_types.h>
+#include <driver/i2c_master.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,6 +15,10 @@ struct Esp32I2cConfig {
     struct GpioPinSpec pinSda;
     struct GpioPinSpec pinScl;
 };
+
+struct Device;
+
+i2c_master_bus_handle_t esp32_i2c_get_bus_handle(struct Device* device);
 
 #ifdef __cplusplus
 }

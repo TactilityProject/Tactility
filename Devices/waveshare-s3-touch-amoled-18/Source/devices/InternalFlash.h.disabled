@@ -1,0 +1,27 @@
+#pragma once
+
+#include <memory>
+#include <esp_vfs_fat.h>
+
+class InternalFlashDevice {
+public:
+    InternalFlashDevice() = default;
+    virtual ~InternalFlashDevice() = default;
+
+    virtual bool start();
+    virtual bool stop();
+
+    virtual const char* getName() const { return "InternalFlash"; }
+    virtual bool isMounted() const { return mounted_wl_handle != WL_INVALID_HANDLE; }
+    virtual const char* getMountPath() const { return "/data"; }
+
+    static wl_handle_t getMountedWlHandle() { return mounted_wl_handle; }
+    static bool isMountedStatic() { return mounted_wl_handle != WL_INVALID_HANDLE; }
+};
+
+extern wl_handle_t mounted_wl_handle;
+extern bool is_mounted;
+
+extern wl_handle_t getInternalFlashWlHandle();
+extern bool isInternalFlashMounted();
+extern std::shared_ptr<InternalFlashDevice> createInternalFlash();
