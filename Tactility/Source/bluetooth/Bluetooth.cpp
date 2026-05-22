@@ -218,6 +218,7 @@ static void bt_event_bridge(struct Device* /*device*/, void* /*context*/, struct
                         settings::save(stored);
                     }
                 });
+            // TODO: Fix auto reconnect if user manually disconnects
             } else if (event.profile_state.state == BT_PROFILE_STATE_IDLE &&
                        event.profile_state.profile == BT_PROFILE_HID_HOST) {
                 // HID host disconnected — check if any peer has autoConnect and re-scan

@@ -1019,7 +1019,7 @@ static void destroy_child_device(struct Device*& child) {
 
 static error_t esp32_ble_start_device(struct Device* device) {
     BleCtx* ctx = new BleCtx();
-    ctx->radio_mutex = xSemaphoreCreateRecursiveMutex();
+    ctx->radio_mutex = xSemaphoreCreateMutex();
     ctx->cb_mutex    = xSemaphoreCreateMutex();
     ctx->radio_state.store(BT_RADIO_STATE_OFF);
     ctx->scan_active.store(false);
