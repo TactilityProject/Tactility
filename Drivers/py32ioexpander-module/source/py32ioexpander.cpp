@@ -68,7 +68,6 @@ static error_t stop(Device* device) {
 extern "C" {
 
 error_t py32_gpio_set_output(Device* device, uint8_t pin, bool value) {
-    if (device == nullptr || pin >= 16) return ERROR_INVALID_ARGUMENT;
     Device* i2c = device_get_parent(device);
     const uint8_t addr = GET_CONFIG(device)->address;
 
@@ -93,7 +92,6 @@ error_t py32_gpio_set_output(Device* device, uint8_t pin, bool value) {
 }
 
 error_t py32_gpio_get_input(Device* device, uint8_t pin, bool* value) {
-    if (device == nullptr || pin >= 16 || value == nullptr) return ERROR_INVALID_ARGUMENT;
     Device* i2c = device_get_parent(device);
     uint16_t in = 0;
     error_t err = i2c_controller_register16le_get(i2c, GET_CONFIG(device)->address, REG_GPIO_IN_L, &in, TIMEOUT);
@@ -103,14 +101,12 @@ error_t py32_gpio_get_input(Device* device, uint8_t pin, bool* value) {
 }
 
 error_t py32_led_set_count(Device* device, uint8_t count) {
-    if (device == nullptr || count > 32) return ERROR_INVALID_ARGUMENT;
     Device* i2c = device_get_parent(device);
     uint8_t cfg = count & 0x3FU;
     return i2c_controller_register8_set(i2c, GET_CONFIG(device)->address, REG_LED_CFG, cfg, TIMEOUT);
 }
 
 error_t py32_led_set_color(Device* device, uint8_t index, uint8_t r, uint8_t g, uint8_t b) {
-    if (device == nullptr || index >= 32) return ERROR_INVALID_ARGUMENT;
     Device* i2c = device_get_parent(device);
     // RGB565: [15:11]=R5 [10:5]=G6 [4:0]=B5, stored little-endian
     uint16_t rgb565 = static_cast<uint16_t>(((r >> 3U) << 11U) | ((g >> 2U) << 5U) | (b >> 3U));
@@ -119,7 +115,6 @@ error_t py32_led_set_color(Device* device, uint8_t index, uint8_t r, uint8_t g, 
 }
 
 error_t py32_led_refresh(Device* device) {
-    if (device == nullptr) return ERROR_INVALID_ARGUMENT;
     Device* i2c = device_get_parent(device);
     const uint8_t addr = GET_CONFIG(device)->address;
     // Read current LED_CFG (contains LED count), then set the REFRESH bit (6)
@@ -130,7 +125,6 @@ error_t py32_led_refresh(Device* device) {
 }
 
 error_t py32_led_disable(Device* device) {
-    if (device == nullptr) return ERROR_INVALID_ARGUMENT;
     // Write black to all 32 possible LED slots then refresh with count=32
     // Using the maximum count ensures no stale color data is displayed.
     static constexpr uint8_t BLACK[64] = {}; // 32 LEDs × 2 bytes, all zero
