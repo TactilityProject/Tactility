@@ -51,7 +51,9 @@ struct DtsDevice dts_devices[] = {
 	DTS_DEVICE_TERMINATOR
 };
 
+extern struct Module data_module;
 
 struct Module* dts_modules[] = {
+	&data_module,
 	NULL
 };
