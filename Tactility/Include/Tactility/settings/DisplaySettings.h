@@ -17,6 +17,7 @@ enum class ScreensaverType {
     BouncingBalls,
     Mystify,
     MatrixRain,
+    StackChan,
     Count           // Sentinel for bounds checking - must be last
 };
 

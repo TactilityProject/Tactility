@@ -26,6 +26,7 @@ const esp_elfsym stl_symbols[] = {
     { "_ZSt20__throw_length_errorPKc", (void*)&(std::__throw_length_error) },
     { "_ZSt19__throw_logic_errorPKc", (void*)&std::__throw_logic_error },
     { "_ZSt24__throw_out_of_range_fmtPKcz", (void*)&std::__throw_out_of_range_fmt },
+    { "_ZSt20__throw_system_errori", (void*)&std::__throw_system_error },
     // std::map / std::set (red-black tree internals)
     DEFINE_MODULE_SYMBOL(_ZSt18_Rb_tree_decrementPSt18_Rb_tree_node_base),
     DEFINE_MODULE_SYMBOL(_ZSt18_Rb_tree_incrementPSt18_Rb_tree_node_base),

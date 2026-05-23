@@ -1,0 +1,10 @@
+description: TI INA226 voltage/current monitor
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,ina226"
+
+properties:
+  shunt-milliohms:
+    required: true
+    description: Shunt resistor value in milliohms

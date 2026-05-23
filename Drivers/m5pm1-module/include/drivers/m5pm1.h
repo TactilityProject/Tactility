@@ -41,6 +41,8 @@ error_t m5pm1_is_charging(struct Device* device, bool* charging);
 error_t m5pm1_set_charge_enable(struct Device* device, bool enable);
 error_t m5pm1_set_boost_enable(struct Device* device, bool enable);  ///< 5V BOOST / Grove power
 error_t m5pm1_set_ldo_enable(struct Device* device, bool enable);    ///< 3.3V LDO
+/** PM1_G3: speaker amplifier enable (HIGH = on) */
+error_t m5pm1_set_speaker_enable(struct Device* device, bool enable);
 
 // ---------------------------------------------------------------------------
 // Temperature (internal chip sensor)

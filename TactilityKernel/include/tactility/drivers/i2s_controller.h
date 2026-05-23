@@ -29,6 +29,18 @@ enum I2sCommunicationFormat {
 #define I2S_CHANNEL_NONE -1
 
 /**
+ * @brief I2S TDM RX config (e.g. for ES7210 4-slot microphone ADC)
+ */
+struct I2sTdmRxConfig {
+    uint32_t sample_rate_hz;
+    uint32_t mclk_multiple;   // e.g. 256 → I2S_MCLK_MULTIPLE_256
+    uint8_t  bclk_div;        // e.g. 8; must not be 0
+    uint8_t  slot_count;      // number of TDM slots, e.g. 4; valid range: 1–16
+    uint8_t  bits_per_sample; // 16, 24, or 32
+    uint8_t  slot_bit_width;  // bit width of each TDM slot (0 = auto, matches bits_per_sample)
+};
+
+/**
  * @brief I2S Config
  */
 struct I2sConfig {
@@ -89,6 +101,16 @@ struct I2sControllerApi {
      * @retval ERROR_NONE when the operation was successful
      */
     error_t (*reset)(struct Device* device);
+
+    /**
+     * @brief Reconfigures the RX channel to TDM mode (e.g. for ES7210).
+     * Must be called after set_config() which creates the channel handles.
+     * @param[in] device the I2S controller device
+     * @param[in] config TDM parameters
+     * @retval ERROR_NONE when the operation was successful
+     * @retval ERROR_NOT_SUPPORTED if the driver does not implement TDM
+     */
+    error_t (*set_rx_tdm_config)(struct Device* device, const struct I2sTdmRxConfig* config);
 };
 
 /**
@@ -135,6 +157,16 @@ error_t i2s_controller_get_config(struct Device* device, struct I2sConfig* confi
  * @retval ERROR_NONE when the operation was successful
  */
 error_t i2s_controller_reset(struct Device* device);
+
+/**
+ * @brief Reconfigures the RX channel to TDM mode (e.g. for ES7210 4-slot mic ADC).
+ * Must be called after i2s_controller_set_config() which creates the channel handles.
+ * @param[in] device the I2S controller device
+ * @param[in] config TDM parameters
+ * @retval ERROR_NONE when the operation was successful
+ * @retval ERROR_NOT_SUPPORTED if the driver does not implement TDM
+ */
+error_t i2s_controller_set_rx_tdm_config(struct Device* device, const struct I2sTdmRxConfig* config);
 
 extern const struct DeviceType I2S_CONTROLLER_TYPE;
 

@@ -1,0 +1,5 @@
+description: M5Stack PY32 IO Expander (StackChan body module)
+
+include: ["i2c-device.yaml"]
+
+compatible: "m5stack,py32ioexpander"

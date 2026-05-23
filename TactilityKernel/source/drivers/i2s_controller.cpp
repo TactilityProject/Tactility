@@ -32,6 +32,12 @@ error_t i2s_controller_reset(struct Device* device) {
     return I2S_DRIVER_API(driver)->reset(device);
 }
 
+error_t i2s_controller_set_rx_tdm_config(struct Device* device, const struct I2sTdmRxConfig* config) {
+    const auto* driver = device_get_driver(device);
+    if (!I2S_DRIVER_API(driver)->set_rx_tdm_config) return ERROR_NOT_SUPPORTED;
+    return I2S_DRIVER_API(driver)->set_rx_tdm_config(device, config);
+}
+
 const struct DeviceType I2S_CONTROLLER_TYPE {
     .name = "i2s-controller"
 };

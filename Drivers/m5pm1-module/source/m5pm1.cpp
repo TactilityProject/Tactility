@@ -49,6 +49,8 @@ static constexpr uint8_t ADC_CH_TEMP = 6;
 
 // PM1_G2: LCD power enable on M5Stack StickS3
 static constexpr uint8_t LCD_POWER_BIT = (1U << 2U);
+// PM1_G3: Speaker amplifier enable on M5Stack StickS3
+static constexpr uint8_t SPEAKER_AMP_BIT = (1U << 3U);
 
 static constexpr TickType_t TIMEOUT = pdMS_TO_TICKS(50);
 
@@ -90,6 +92,13 @@ static error_t start(Device* device) {
         LOG_W(TAG, "Failed to disable I2C sleep (non-fatal)");
     }
 
+    // BOOST_EN → EXT_5V / Grove / Hat power rail always on
+    if (i2c_controller_register8_set_bits(i2c, addr, REG_PWR_CFG, PWR_CFG_BOOST_EN, TIMEOUT) == ERROR_NONE) {
+        LOG_I(TAG, "EXT_5V boost enabled");
+    } else {
+        LOG_W(TAG, "Failed to enable EXT_5V boost (non-fatal)");
+    }
+
     // PM1_G2 → LCD power enable (L3B rail on StickS3)
     // Sequence matches M5GFX: clear FUNC0 bit2, set MODE bit2 output, clear DRV bit2 push-pull, set OUT bit2 high
     bool lcd_ok =
@@ -102,6 +111,18 @@ static error_t start(Device* device) {
         LOG_I(TAG, "LCD power enabled via PM1_G2");
     } else {
         LOG_E(TAG, "Failed to enable LCD power via PM1_G2");
+    }
+
+    // PM1_G3 → speaker amp EN, initially LOW (amp off until audio starts)
+    bool spk_ok =
+        i2c_controller_register8_reset_bits(i2c, addr, REG_GPIO_FUNC0, SPEAKER_AMP_BIT, TIMEOUT) == ERROR_NONE &&
+        i2c_controller_register8_set_bits  (i2c, addr, REG_GPIO_MODE,  SPEAKER_AMP_BIT, TIMEOUT) == ERROR_NONE &&
+        i2c_controller_register8_reset_bits(i2c, addr, REG_GPIO_DRV,   SPEAKER_AMP_BIT, TIMEOUT) == ERROR_NONE &&
+        i2c_controller_register8_reset_bits(i2c, addr, REG_GPIO_OUT,   SPEAKER_AMP_BIT, TIMEOUT) == ERROR_NONE;
+    if (spk_ok) {
+        LOG_I(TAG, "Speaker amp pin configured");
+    } else {
+        LOG_W(TAG, "Failed to configure speaker amp pin");
     }
 
     return ERROR_NONE;
@@ -167,6 +188,16 @@ error_t m5pm1_set_ldo_enable(Device* device, bool enable) {
         return i2c_controller_register8_set_bits(device_get_parent(device), GET_CONFIG(device)->address, REG_PWR_CFG, PWR_CFG_LDO_EN, TIMEOUT);
     } else {
         return i2c_controller_register8_reset_bits(device_get_parent(device), GET_CONFIG(device)->address, REG_PWR_CFG, PWR_CFG_LDO_EN, TIMEOUT);
+    }
+}
+
+error_t m5pm1_set_speaker_enable(Device* device, bool enable) {
+    Device* i2c = device_get_parent(device);
+    const uint8_t addr = GET_CONFIG(device)->address;
+    if (enable) {
+        return i2c_controller_register8_set_bits(i2c, addr, REG_GPIO_OUT, SPEAKER_AMP_BIT, TIMEOUT);
+    } else {
+        return i2c_controller_register8_reset_bits(i2c, addr, REG_GPIO_OUT, SPEAKER_AMP_BIT, TIMEOUT);
     }
 }
 

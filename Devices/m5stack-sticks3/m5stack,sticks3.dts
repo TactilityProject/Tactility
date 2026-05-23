@@ -1,5 +1,6 @@
 /dts-v1/;
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
@@ -11,6 +12,10 @@
 / {
 	compatible = "root";
 	model = "M5Stack StickS3";
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
@@ -48,6 +53,15 @@
 		host = <SPI2_HOST>;
 		pin-mosi = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
+	};
+
+	//DIY SD Card - https://wiki.bruce.computer/wiring-diagrams/m5sticks3/sd-card/
+	spi1 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI3_HOST>;
+		pin-mosi = <&gpio0 6 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 4 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 5 GPIO_FLAG_NONE>;
 	};
 
 	// Speaker and microphone (ES8311)

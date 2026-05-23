@@ -1,7 +1,7 @@
 #include "Display.h"
 
 #include <Axp2101.h>
-#include <Ft5x06Touch.h>
+#include <Ft6x36Touch.h>
 #include <Ili934xDisplay.h>
 #include <Tactility/Logger.h>
 #include <Tactility/hal/i2c/I2c.h>
@@ -17,13 +17,14 @@ static void setBacklightDuty(uint8_t backlightDuty) {
 }
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
-    auto configuration = std::make_unique<Ft5x06Touch::Configuration>(
+    auto configuration = std::make_unique<Ft6x36Touch::Configuration>(
         I2C_NUM_0,
-        LCD_HORIZONTAL_RESOLUTION,
-        LCD_VERTICAL_RESOLUTION
+        GPIO_NUM_NC,
+        319,//LCD_HORIZONTAL_RESOLUTION,
+        239,//LCD_VERTICAL_RESOLUTION,
     );
 
-    auto touch = std::make_shared<Ft5x06Touch>(std::move(configuration));
+    auto touch = std::make_shared<Ft6x36Touch>(std::move(configuration));
     return std::reinterpret_pointer_cast<tt::hal::touch::TouchDevice>(touch);
 }
 

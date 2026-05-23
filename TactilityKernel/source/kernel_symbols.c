@@ -100,6 +100,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(i2s_controller_set_config),
     DEFINE_MODULE_SYMBOL(i2s_controller_get_config),
     DEFINE_MODULE_SYMBOL(i2s_controller_reset),
+    DEFINE_MODULE_SYMBOL(i2s_controller_set_rx_tdm_config),
     DEFINE_MODULE_SYMBOL(I2S_CONTROLLER_TYPE),
     // drivers/root
     DEFINE_MODULE_SYMBOL(root_is_model),

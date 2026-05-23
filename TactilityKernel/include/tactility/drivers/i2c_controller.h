@@ -218,6 +218,39 @@ error_t i2c_controller_register8_reset_bits(struct Device* device, uint8_t addre
  */
 error_t i2c_controller_register16le_get(struct Device* device, uint8_t address, uint8_t reg, uint16_t* value, TickType_t timeout);
 
+/**
+ * @brief Writes a little-endian 16-bit value to a register of an I2C device.
+ * @param[in] device the I2C controller device
+ * @param[in] address the 7-bit I2C address of the slave device
+ * @param[in] reg the register address
+ * @param[in] value the 16-bit value to write (low byte first)
+ * @param[in] timeout the maximum time to wait for the operation to complete
+ * @retval ERROR_NONE when the write operation was successful
+ */
+error_t i2c_controller_register16le_set(struct Device* device, uint8_t address, uint8_t reg, uint16_t value, TickType_t timeout);
+
+/**
+ * @brief Reads a big-endian 16-bit register value from an I2C device.
+ * @param[in] device the I2C controller device
+ * @param[in] address the 7-bit I2C address of the slave device
+ * @param[in] reg the register address of the high byte
+ * @param[out] value a pointer to the variable to store the 16-bit result
+ * @param[in] timeout the maximum time to wait for the operation to complete
+ * @retval ERROR_NONE when the read operation was successful
+ */
+error_t i2c_controller_register16be_get(struct Device* device, uint8_t address, uint8_t reg, uint16_t* value, TickType_t timeout);
+
+/**
+ * @brief Writes a big-endian 16-bit value to a register of an I2C device.
+ * @param[in] device the I2C controller device
+ * @param[in] address the 7-bit I2C address of the slave device
+ * @param[in] reg the register address
+ * @param[in] value the 16-bit value to write (high byte first)
+ * @param[in] timeout the maximum time to wait for the operation to complete
+ * @retval ERROR_NONE when the write operation was successful
+ */
+error_t i2c_controller_register16be_set(struct Device* device, uint8_t address, uint8_t reg, uint16_t value, TickType_t timeout);
+
 extern const struct DeviceType I2C_CONTROLLER_TYPE;
 
 #ifdef __cplusplus

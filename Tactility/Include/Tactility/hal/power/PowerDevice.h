@@ -40,6 +40,10 @@ public:
     virtual bool isAllowedToCharge() const { return false; }
     virtual void setAllowedToCharge(bool canCharge) { /* NO-OP*/ }
 
+    virtual bool supportsQuickCharge() const { return false; }
+    virtual bool isQuickChargeEnabled() const { return false; }
+    virtual void setQuickChargeEnabled(bool enabled) { /* NO-OP */ }
+
     virtual bool supportsPowerOff() const { return false; }
     virtual void powerOff() { /* NO-OP*/ }
 };

@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_sdmmc.h>
@@ -10,6 +11,10 @@
 / {
 	compatible = "root";
 	model = "Waveshare ESP32-S3-Geek";
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";

@@ -76,6 +76,8 @@ static std::string toString(ScreensaverType type) {
             return "Mystify";
         case MatrixRain:
             return "MatrixRain";
+        case StackChan:
+            return "StackChan";
         default:
             std::unreachable();
     }
@@ -93,6 +95,9 @@ static bool fromString(const std::string& str, ScreensaverType& type) {
         return true;
     } else if (str == "MatrixRain") {
         type = ScreensaverType::MatrixRain;
+        return true;
+    } else if (str == "StackChan") {
+        type = ScreensaverType::StackChan;
         return true;
     } else {
         return false;

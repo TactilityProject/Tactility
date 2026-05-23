@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_uart.h>
@@ -9,6 +10,10 @@
 / {
 	compatible = "root";
 	model = "CYD 8048S043C";
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";

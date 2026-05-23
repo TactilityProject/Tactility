@@ -286,7 +286,7 @@ public:
 
             screensaverDropdown = lv_dropdown_create(screensaver_wrapper);
             // Note: order correlates with settings::display::ScreensaverType enum order
-            lv_dropdown_set_options(screensaverDropdown, "None\nBouncing Balls\nMystify\nMatrix Rain");
+            lv_dropdown_set_options(screensaverDropdown, "None\nBouncing Balls\nMystify\nMatrix Rain\nStackChan");
             lv_obj_align(screensaverDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
             lv_obj_add_event_cb(screensaverDropdown, onScreensaverChanged, LV_EVENT_VALUE_CHANGED, this);
             lv_dropdown_set_selected(screensaverDropdown, static_cast<uint16_t>(displaySettings.screensaverType));

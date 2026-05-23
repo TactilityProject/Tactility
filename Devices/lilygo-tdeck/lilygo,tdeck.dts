@@ -1,10 +1,10 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
-#include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 
@@ -25,7 +25,7 @@
 	i2c_internal: i2c0 {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
-		clock-frequency = <400000>;
+		clock-frequency = <100000>;
 		pin-sda = <&gpio0 18 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 8 GPIO_FLAG_NONE>;
 	};

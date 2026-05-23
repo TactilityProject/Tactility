@@ -1,7 +1,5 @@
-file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
-
 idf_component_register(
-    SRCS ${SOURCE_FILES}
+    SRC_DIRS "Source"
     INCLUDE_DIRS "Source"
-    REQUIRES Tactility esp_lvgl_port driver
+    REQUIRES Tactility EspLcdCompat esp_lcd_touch_ft6336u driver
 )

@@ -1,5 +1,6 @@
 #include "devices/Display.h"
 #include "devices/SdCard.h"
+#include "devices/Power.h"
 
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
@@ -13,6 +14,7 @@ static constexpr auto* TAG = "Tab5";
 
 static DeviceVector createDevices() {
     return {
+        createPower(),
         createDisplay(),
         createSdCard(),
     };
@@ -195,6 +197,57 @@ static error_t initSound(::Device* i2c_controller, ::Device* io_expander0 = null
     return ERROR_NONE;
 }
 
+static error_t initMicrophone(::Device* i2c_controller) {
+    // ES7210 quad-channel microphone ADC at 0x40.
+    // Register sequence from M5Unified (M5Unified.cpp, _microphone_enabled_cb_tab5).
+    // Configures 4-slot TDM output at 48kHz/16-bit with MIC1+MIC2 active and MICBIAS enabled.
+    static constexpr uint8_t ES7210_I2C_ADDR = 0x40;
+    static constexpr uint8_t INIT_DATA[] = {
+        0x00, 0xFF, // RESET_CTL: full reset
+        0x00, 0x41, // RESET_CTL: release reset, keep CSM active
+        0x01, 0x1F, // CLK_ON_OFF: enable all clocks
+        0x06, 0x00, // DIGITAL_PDN: power up all digital blocks
+        0x07, 0x20, // ADC_OSR: OSR=256
+        0x08, 0x10, // MODE_CFG: I2S slave, TDM mode
+        0x09, 0x30, // TCT0_CHPINI: chopper init period
+        0x0A, 0x30, // TCT1_CHPINI
+        0x20, 0x0A, // ADC34_HPF2
+        0x21, 0x2A, // ADC34_HPF1
+        0x22, 0x0A, // ADC12_HPF2
+        0x23, 0x2A, // ADC12_HPF1
+        0x02, 0xC1, // CLK_CTRL: MCLK from I2S, PLL off
+        0x04, 0x01, // SDPOUT_CTL1: TDM output enable
+        0x05, 0x00, // SDPOUT_CTL0
+        0x11, 0x60, // DBIAS: adjust reference voltage for P4
+        0x40, 0x42, // ANALOG_SYS: enable analog supply
+        0x41, 0x70, // MICBIAS12: enable MICBIAS for MIC1+MIC2
+        0x42, 0x70, // MICBIAS34: enable MICBIAS for MIC3+MIC4
+        0x43, 0x1B, // MIC1_GAIN: +30 dB
+        0x44, 0x1B, // MIC2_GAIN: +30 dB
+        0x45, 0x00, // MIC3_GAIN: AEC ref, no gain
+        0x46, 0x00, // MIC4_GAIN: AEC ref, no gain
+        0x47, 0x00, // MIC1_LP
+        0x48, 0x00, // MIC2_LP
+        0x49, 0x00, // MIC3_LP
+        0x4A, 0x00, // MIC4_LP
+        0x4B, 0x00, // MIC12_PDN: power up MIC1+MIC2
+        0x4C, 0xFF, // MIC34_PDN: keep MIC3+MIC4 in power-down (AEC ref not needed)
+        0x01, 0x14, // CLK_ON_OFF: final clock config
+    };
+
+    error_t error = i2c_controller_write_register_array(
+        i2c_controller,
+        ES7210_I2C_ADDR,
+        INIT_DATA,
+        sizeof(INIT_DATA),
+        pdMS_TO_TICKS(1000)
+    );
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to init ES7210: %s", error_to_string(error));
+    }
+    return error;
+}
+
 static bool initBoot() {
     auto* i2c0 = device_find_by_name("i2c0");
     check(i2c0, "i2c0 not found");
@@ -210,6 +263,11 @@ static bool initBoot() {
     error_t error = initSound(i2c0, io_expander0);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to enable ES8388");
+    }
+
+    error = initMicrophone(i2c0);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to init ES7210");
     }
 
     return true;

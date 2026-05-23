@@ -85,6 +85,24 @@ error_t i2c_controller_register16le_get(Device* device, uint8_t address, uint8_t
     return ERROR_NONE;
 }
 
+error_t i2c_controller_register16le_set(Device* device, uint8_t address, uint8_t reg, uint16_t value, TickType_t timeout) {
+    uint8_t buf[2] = { static_cast<uint8_t>(value & 0xFF), static_cast<uint8_t>(value >> 8) };
+    return i2c_controller_write_register(device, address, reg, buf, 2, timeout);
+}
+
+error_t i2c_controller_register16be_get(Device* device, uint8_t address, uint8_t reg, uint16_t* value, TickType_t timeout) {
+    uint8_t buf[2] = {};
+    error_t err = i2c_controller_read_register(device, address, reg, buf, 2, timeout);
+    if (err != ERROR_NONE) return err;
+    *value = static_cast<uint16_t>((buf[0] << 8) | buf[1]);
+    return ERROR_NONE;
+}
+
+error_t i2c_controller_register16be_set(Device* device, uint8_t address, uint8_t reg, uint16_t value, TickType_t timeout) {
+    uint8_t buf[2] = { static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value & 0xFF) };
+    return i2c_controller_write_register(device, address, reg, buf, 2, timeout);
+}
+
 const struct DeviceType I2C_CONTROLLER_TYPE {
     .name = "i2c-controller"
 };

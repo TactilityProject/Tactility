@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <driver/i2s_std.h>
+#include <driver/i2s_tdm.h>
 #include <driver/i2s_common.h>
 
 #include <tactility/driver.h>
@@ -21,6 +22,8 @@ struct Esp32I2sInternal {
     Mutex mutex {};
     I2sConfig config {};
     bool config_set = false;
+    bool rx_tdm_mode = false;
+    I2sTdmRxConfig tdm_config {};
     GpioDescriptor* bclk_descriptor = nullptr;
     GpioDescriptor* ws_descriptor = nullptr;
     GpioDescriptor* data_out_descriptor = nullptr;
@@ -187,6 +190,7 @@ static error_t set_config(Device* device, const struct I2sConfig* config) {
 
     cleanup_channel_handles(internal);
     internal->config_set = false;
+    internal->rx_tdm_mode = false;
 
     // Create new channel handles
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(dts_config->port, I2S_ROLE_MASTER);
@@ -279,12 +283,135 @@ static error_t reset(Device* device) {
     return ERROR_NONE;
 }
 
+static error_t set_rx_tdm_config(Device* device, const struct I2sTdmRxConfig* config) {
+    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
+
+    if (config->bits_per_sample != 8 &&
+        config->bits_per_sample != 16 &&
+        config->bits_per_sample != 24 &&
+        config->bits_per_sample != 32) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
+    if (config->slot_count == 0 || config->slot_count > 16) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
+    if (config->bclk_div == 0) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
+    if (config->sample_rate_hz == 0) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
+    uint32_t bytes_per_sample = config->bits_per_sample / 8u;
+
+    // Size DMA buffers so that each descriptor covers at most 4096 bytes.
+    // Start at 512 frames and halve until one frame × slot_count × bytes fits.
+    uint32_t frame_num = 512u;
+    uint32_t dma_desc_num = 8u;
+    while (frame_num > 64u && frame_num * (uint32_t)config->slot_count * bytes_per_sample > 4096u) {
+        frame_num /= 2u;
+    }
+
+    // Reject if even the minimum frame count overflows one descriptor (slot_count too large).
+    if (frame_num * (uint32_t)config->slot_count * bytes_per_sample > 4096u) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
+    auto* internal = GET_DATA(device);
+    auto* dts_config = GET_CONFIG(device);
+    lock(internal);
+
+    // Tear down only the RX channel; TX stays in standard mode for playback.
+    if (internal->rx_handle) {
+        i2s_channel_disable(internal->rx_handle);
+        i2s_del_channel(internal->rx_handle);
+        internal->rx_handle = nullptr;
+    }
+
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(dts_config->port, I2S_ROLE_MASTER);
+    chan_cfg.dma_desc_num  = dma_desc_num;
+    chan_cfg.dma_frame_num = (uint32_t)frame_num;
+    i2s_chan_handle_t new_rx = nullptr;
+    esp_err_t esp_error = i2s_new_channel(&chan_cfg, nullptr, &new_rx);
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "TDM: failed to create RX channel: %s", esp_err_to_name(esp_error));
+        // RX channel is gone; caller must call set_config() to restore standard mode.
+        unlock(internal);
+        return ERROR_RESOURCE;
+    }
+
+    gpio_num_t mclk_pin     = get_native_pin(internal->mclk_descriptor);
+    gpio_num_t bclk_pin     = get_native_pin(internal->bclk_descriptor);
+    gpio_num_t ws_pin       = get_native_pin(internal->ws_descriptor);
+    gpio_num_t data_in_pin  = get_native_pin(internal->data_in_descriptor);
+
+    // slot_mask: bits 0..(slot_count-1) set; slot_count validated above (1-16)
+    i2s_tdm_slot_mask_t slot_mask = (i2s_tdm_slot_mask_t)((1u << config->slot_count) - 1u);
+
+    i2s_tdm_config_t tdm_cfg = {
+        .clk_cfg = {
+            .sample_rate_hz  = config->sample_rate_hz,
+            .clk_src         = I2S_CLK_SRC_DEFAULT,
+            .ext_clk_freq_hz = 0,
+            .mclk_multiple   = (i2s_mclk_multiple_t)config->mclk_multiple,
+            .bclk_div        = config->bclk_div,
+        },
+        .slot_cfg = {
+            .data_bit_width = to_esp32_bits_per_sample(config->bits_per_sample),
+            .slot_bit_width = (config->slot_bit_width == 0) ? I2S_SLOT_BIT_WIDTH_AUTO : (i2s_slot_bit_width_t)config->slot_bit_width,
+            .slot_mode      = I2S_SLOT_MODE_STEREO,
+            .slot_mask      = slot_mask,
+            .ws_width       = I2S_TDM_AUTO_WS_WIDTH,
+            .ws_pol         = false,
+            .bit_shift      = true,
+            .left_align     = false,
+            .big_endian     = false,
+            .bit_order_lsb  = false,
+            .skip_mask      = false,
+            .total_slot     = I2S_TDM_AUTO_SLOT_NUM,
+        },
+        .gpio_cfg = {
+            .mclk = mclk_pin,
+            .bclk = bclk_pin,
+            .ws   = ws_pin,
+            .dout = I2S_GPIO_UNUSED,
+            .din  = data_in_pin,
+            .invert_flags = {
+                .mclk_inv = is_pin_inverted(internal->mclk_descriptor),
+                .bclk_inv = is_pin_inverted(internal->bclk_descriptor),
+                .ws_inv   = is_pin_inverted(internal->ws_descriptor),
+            },
+        },
+    };
+
+    esp_error = i2s_channel_init_tdm_mode(new_rx, &tdm_cfg);
+    if (esp_error == ESP_OK) esp_error = i2s_channel_enable(new_rx);
+
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "TDM: failed to init/enable RX channel: %s", esp_err_to_name(esp_error));
+        i2s_del_channel(new_rx);
+        // RX channel is gone; caller must call set_config() to restore standard mode.
+        unlock(internal);
+        return esp_err_to_error(esp_error);
+    }
+
+    internal->rx_handle = new_rx;
+    internal->rx_tdm_mode = true;
+    memcpy(&internal->tdm_config, config, sizeof(I2sTdmRxConfig));
+    unlock(internal);
+    return ERROR_NONE;
+}
+
 const static I2sControllerApi esp32_i2s_api = {
     .read = read,
     .write = write,
     .set_config = set_config,
     .get_config = get_config,
-    .reset = reset
+    .reset = reset,
+    .set_rx_tdm_config = set_rx_tdm_config,
 };
 
 extern struct Module platform_esp32_module;

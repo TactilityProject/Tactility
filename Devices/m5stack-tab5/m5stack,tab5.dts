@@ -1,12 +1,14 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
-#include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_uart.h>
 #include <bindings/bmi270.h>
+#include <bindings/ina226.h>
 #include <bindings/pi4ioe5v6408.h>
 #include <bindings/rx8130ce.h>
 
@@ -49,6 +51,12 @@
 			compatible = "epson,rx8130ce";
 			reg = <0x32>;
 		};
+
+		ina226 {
+			compatible = "ti,ina226";
+			reg = <0x41>;
+			shunt-milliohms = <5>;
+		};
 	};
 
 	i2c_port_a: i2c1 {
@@ -76,5 +84,13 @@
 		pin-data-out = <&gpio0 26 GPIO_FLAG_NONE>;
 		pin-data-in = <&gpio0 28 GPIO_FLAG_NONE>;
 		pin-mclk = <&gpio0 30 GPIO_FLAG_NONE>;
+	};
+
+	uart_port_a: uart1 {
+		compatible = "espressif,esp32-uart";
+		status = "disabled";
+		port = <UART_NUM_1>;
+		pin-tx = <&gpio0 53 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 54 GPIO_FLAG_NONE>;
 	};
 };

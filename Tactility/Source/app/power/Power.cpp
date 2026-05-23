@@ -38,6 +38,8 @@ class PowerApp : public App {
 
     lv_obj_t* enableLabel = nullptr;
     lv_obj_t* enableSwitch = nullptr;
+    lv_obj_t* quickChargeLabel = nullptr;
+    lv_obj_t* quickChargeSwitch = nullptr;
     lv_obj_t* batteryVoltageLabel = nullptr;
     lv_obj_t* chargeStateLabel = nullptr;
     lv_obj_t* chargeLevelLabel = nullptr;
@@ -68,7 +70,29 @@ class PowerApp : public App {
         app->onPowerEnabledChanged(event);
     }
 
+    void onQuickChargeChanged(lv_event_t* event) {
+        lv_event_code_t code = lv_event_get_code(event);
+        auto* qc_switch = static_cast<lv_obj_t*>(lv_event_get_target(event));
+        if (code == LV_EVENT_VALUE_CHANGED) {
+            bool is_on = lv_obj_has_state(qc_switch, LV_STATE_CHECKED);
+
+            if (power->isQuickChargeEnabled() != is_on) {
+                power->setQuickChargeEnabled(is_on);
+                updateUi();
+            }
+        }
+    }
+
+    static void onQuickChargeChangedCallback(lv_event_t* event) {
+        auto* app = (PowerApp*)lv_event_get_user_data(event);
+        app->onQuickChargeChanged(event);
+    }
+
     void updateUi() {
+        if (chargeStateLabel == nullptr) {
+            return;
+        }
+
         const char* charge_state;
         hal::power::PowerDevice::MetricData metric_data;
         if (power->getMetric(hal::power::PowerDevice::MetricType::IsCharging, metric_data)) {
@@ -86,6 +110,9 @@ class PowerApp : public App {
 
         bool charging_enabled_set = power->supportsChargeControl();
         bool charging_enabled_and_allowed = power->supportsChargeControl() && power->isAllowedToCharge();
+
+        bool quick_charge_set = power->supportsQuickCharge();
+        bool quick_charge_enabled = power->supportsQuickCharge() && power->isQuickChargeEnabled();
 
         int32_t current;
         bool current_set = false;
@@ -112,6 +139,15 @@ class PowerApp : public App {
             lv_obj_add_flag(enableLabel, LV_OBJ_FLAG_HIDDEN);
         }
 
+        if (quick_charge_set) {
+            lv_obj_set_state(quickChargeSwitch, LV_STATE_CHECKED, quick_charge_enabled);
+            lv_obj_remove_flag(quickChargeSwitch, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(quickChargeLabel, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(quickChargeSwitch, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(quickChargeLabel, LV_OBJ_FLAG_HIDDEN);
+        }
+
         lv_label_set_text_fmt(chargeStateLabel, "Charging: %s", charge_state);
 
         if (battery_voltage_set) {
@@ -127,7 +163,7 @@ class PowerApp : public App {
         }
 
         if (current_set) {
-            lv_label_set_text_fmt(currentLabel, "Current: %ld mAh", current);
+            lv_label_set_text_fmt(currentLabel, "Current: %ld mA", current);
         } else {
             lv_label_set_text_fmt(currentLabel, "Current: N/A");
         }
@@ -157,7 +193,7 @@ public:
         lv_obj_set_flex_grow(wrapper, 1);
         lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
 
-        // Top row: enable/disable
+        // Row: charge enable/disable
         lv_obj_t* switch_container = lv_obj_create(wrapper);
         lv_obj_set_width(switch_container, LV_PCT(100));
         lv_obj_set_height(switch_container, LV_SIZE_CONTENT);
@@ -172,8 +208,25 @@ public:
         lv_obj_t* enable_switch = lv_switch_create(switch_container);
         lv_obj_add_event_cb(enable_switch, onPowerEnabledChangedCallback, LV_EVENT_VALUE_CHANGED, this);
         lv_obj_set_align(enable_switch, LV_ALIGN_RIGHT_MID);
-
         enableSwitch = enable_switch;
+
+        // Row: quick charge enable/disable
+        lv_obj_t* qc_container = lv_obj_create(wrapper);
+        lv_obj_set_width(qc_container, LV_PCT(100));
+        lv_obj_set_height(qc_container, LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_all(qc_container, 0, 0);
+        lv_obj_set_style_pad_gap(qc_container, 0, 0);
+        lvgl::obj_set_style_bg_invisible(qc_container);
+
+        quickChargeLabel = lv_label_create(qc_container);
+        lv_label_set_text(quickChargeLabel, "Quick charge");
+        lv_obj_set_align(quickChargeLabel, LV_ALIGN_LEFT_MID);
+
+        lv_obj_t* qc_switch = lv_switch_create(qc_container);
+        lv_obj_add_event_cb(qc_switch, onQuickChargeChangedCallback, LV_EVENT_VALUE_CHANGED, this);
+        lv_obj_set_align(qc_switch, LV_ALIGN_RIGHT_MID);
+        quickChargeSwitch = qc_switch;
+
         chargeStateLabel = lv_label_create(wrapper);
         chargeLevelLabel = lv_label_create(wrapper);
         batteryVoltageLabel = lv_label_create(wrapper);
@@ -186,6 +239,14 @@ public:
 
     void onHide(AppContext& app) override {
         update_timer.stop();
+        enableLabel = nullptr;
+        enableSwitch = nullptr;
+        quickChargeLabel = nullptr;
+        quickChargeSwitch = nullptr;
+        chargeStateLabel = nullptr;
+        chargeLevelLabel = nullptr;
+        batteryVoltageLabel = nullptr;
+        currentLabel = nullptr;
     }
 };
 

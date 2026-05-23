@@ -14,6 +14,7 @@ std::shared_ptr<EspLcdConfiguration> St7789Display::createEspLcdConfiguration(co
         .mirrorY = configuration.mirrorY,
         .invertColor = configuration.invertColor,
         .bufferSize = configuration.bufferSize,
+        .buffSpiram = configuration.buffSpiram,
         .touch = configuration.touch,
         .backlightDutyFunction = configuration.backlightDutyFunction,
         .resetPin = configuration.resetPin,

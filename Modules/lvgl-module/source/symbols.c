@@ -41,6 +41,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_color_white),
     DEFINE_MODULE_SYMBOL(lv_color_lighten),
     DEFINE_MODULE_SYMBOL(lv_color_darken),
+    DEFINE_MODULE_SYMBOL(lv_color_hsv_to_rgb),
+    DEFINE_MODULE_SYMBOL(lv_color_to_32),
     DEFINE_MODULE_SYMBOL(lv_obj_center),
     DEFINE_MODULE_SYMBOL(lv_obj_clean),
     DEFINE_MODULE_SYMBOL(lv_obj_create),
@@ -264,6 +266,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_chart_set_axis_range),
     DEFINE_MODULE_SYMBOL(lv_chart_set_update_mode),
     DEFINE_MODULE_SYMBOL(lv_chart_set_point_count),
+    DEFINE_MODULE_SYMBOL(lv_chart_refresh),
     // lv_dropdown
     DEFINE_MODULE_SYMBOL(lv_dropdown_create),
     DEFINE_MODULE_SYMBOL(lv_dropdown_add_option),

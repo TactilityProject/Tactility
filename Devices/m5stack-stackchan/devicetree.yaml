@@ -1,0 +1,7 @@
+dependencies:
+- Platforms/platform-esp32
+- Drivers/bmi270-module
+- Drivers/bm8563-module
+- Drivers/ina226-module
+- Drivers/py32ioexpander-module
+dts: m5stack,stackchan.dts

@@ -1,0 +1,123 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_uart.h>
+#include <bindings/bmi270.h>
+#include <bindings/bm8563.h>
+#include <bindings/ina226.h>
+#include <bindings/py32ioexpander.h>
+
+// Reference: https://docs.m5stack.com/en/StackChan
+/ {
+	compatible = "root";
+	model = "M5Stack StackChan";
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	i2c_internal {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_0>;
+		clock-frequency = <100000>;
+		pin-sda = <&gpio0 12 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 11 GPIO_FLAG_NONE>;
+
+		// PY32L020 body IO expander — controls WS2812C LED ring (12 LEDs)
+		py32 {
+			compatible = "m5stack,py32ioexpander";
+			reg = <0x6F>;
+		};
+
+		bmi270 {
+			compatible = "bosch,bmi270";
+			reg = <0x69>;
+		};
+
+		bm8563 {
+			compatible = "belling,bm8563";
+			reg = <0x51>;
+		};
+
+		ina226 {
+			compatible = "ti,ina226";
+			reg = <0x41>;
+			shunt-milliohms = <10>;
+		};
+
+		// AXP2101 PMIC @ 0x34 — initialized manually in initBoot()
+		// AW9523B GPIO expander @ 0x58 — initialized manually in initBoot() (same as CoreS3)
+		// AW88298 speaker amp @ 0x36 — initialized manually in initBoot()
+		// ES7210 microphone ADC @ 0x40 — initialized manually in initBoot()
+		// FT6336U capacitive touch @ 0x38 — used by Display driver (FT6x36 library)
+
+		// TODO: Si12T 3-zone head touch @ 0x68 — INT active-low, 10kΩ pull-up to 3.3V; driver not yet implemented
+		// TODO: GC0308 camera @ 0x21 — requires i2c_master driver, not yet available
+		// TODO: LTR-553ALS-WA proximity/light @ 0x23 — no driver yet
+		// TODO: BMM150 magnetometer @ 0x10 — accessible only via BMI270 aux I2C
+	};
+
+	i2c_port_a {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_1>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 2 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 1 GPIO_FLAG_NONE>;
+	};
+
+	i2c_port_b {
+		compatible = "espressif,esp32-i2c";
+		status = "disabled";
+		port = <I2C_NUM_1>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 9 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 8 GPIO_FLAG_NONE>;
+	};
+
+	i2c_port_c {
+		compatible = "espressif,esp32-i2c";
+		status = "disabled";
+		port = <I2C_NUM_1>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 18 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 17 GPIO_FLAG_NONE>;
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <&gpio0 37 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 35 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
+	};
+
+	// AW88298 speaker + ES7210 microphone
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk     = <&gpio0 34 GPIO_FLAG_NONE>;
+		pin-ws       = <&gpio0 33 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 13 GPIO_FLAG_NONE>;
+		pin-data-in  = <&gpio0 14 GPIO_FLAG_NONE>;
+		pin-mclk     = <&gpio0 0  GPIO_FLAG_NONE>;
+	};
+
+	// TODO: Servo UART (SCS9009, 1 Mbaud) — TX=GPIO6, RX=GPIO7
+	uart_port_a: uart1 {
+		compatible = "espressif,esp32-uart";
+		status = "disabled";
+		port = <UART_NUM_1>;
+		pin-tx = <&gpio0 1 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 2 GPIO_FLAG_NONE>;
+	};
+};

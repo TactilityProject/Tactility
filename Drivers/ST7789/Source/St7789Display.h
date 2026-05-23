@@ -25,6 +25,7 @@ public:
         std::function<void(uint8_t)> _Nullable backlightDutyFunction;
         gpio_num_t resetPin;
         bool lvglSwapBytes;
+        bool buffSpiram = false;
         lcd_rgb_element_order_t rgbElementOrder = LCD_RGB_ELEMENT_ORDER_RGB;
     };
 

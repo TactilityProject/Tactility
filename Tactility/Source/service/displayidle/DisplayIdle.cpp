@@ -6,6 +6,7 @@
 #include "BouncingBallsScreensaver.h"
 #include "MatrixRainScreensaver.h"
 #include "MystifyScreensaver.h"
+#include "StackChanScreensaver.h"
 
 #include <Tactility/Logger.h>
 #include <Tactility/CoreDefines.h>
@@ -99,6 +100,9 @@ void DisplayIdleService::activateScreensaver() {
         case settings::display::ScreensaverType::MatrixRain:
             screensaver = std::make_unique<MatrixRainScreensaver>();
             break;
+        case settings::display::ScreensaverType::StackChan:
+            screensaver = std::make_unique<StackChanScreensaver>();
+            break;
         case settings::display::ScreensaverType::None:
         default:
             // Just black screen, no animated screensaver
@@ -135,31 +139,31 @@ void DisplayIdleService::tick() {
 
     uint32_t inactive_ms = 0;
 
-        inactive_ms = lv_display_get_inactive_time(nullptr);
+    inactive_ms = lv_display_get_inactive_time(nullptr);
 
-        // Only update if not stopping (prevents lag on touch)
-        if (displayDimmed && screensaverOverlay && !stopScreensaverRequested.load(std::memory_order_acquire)) {
-            // Check if screensaver should auto-off after 5 minutes
-            if (!backlightOff) {
-                screensaverActiveCounter++;
-                if (screensaverActiveCounter >= SCREENSAVER_AUTO_OFF_TICKS) {
-                    // Stop screensaver animation and turn off backlight
-                    if (screensaver) {
-                        screensaver->stop();
-                        screensaver.reset();
-                    }
-                    auto display = getDisplay();
-                    if (display) {
-                        display->setBacklightDuty(0);
-                    }
-                    backlightOff = true;
-                } else {
-                    updateScreensaver();
+    // Only update if not stopping (prevents lag on touch)
+    if (displayDimmed && screensaverOverlay && !stopScreensaverRequested.load(std::memory_order_acquire)) {
+        // Check if screensaver should auto-off after 5 minutes
+        if (!backlightOff) {
+            screensaverActiveCounter++;
+            if (screensaverActiveCounter >= SCREENSAVER_AUTO_OFF_TICKS) {
+                // Stop screensaver animation and turn off backlight
+                if (screensaver) {
+                    screensaver->stop();
+                    screensaver.reset();
                 }
+                auto display = getDisplay();
+                if (display) {
+                    display->setBacklightDuty(0);
+                }
+                backlightOff = true;
+            } else {
+                updateScreensaver();
             }
         }
+    }
 
-        lvgl::unlock();
+    lvgl::unlock();
 
     // Check stop request early for faster response
     if (stopScreensaverRequested.load(std::memory_order_acquire)) {
