@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <driver/i2s_std.h>
-#include <driver/i2s_tdm.h>
 #include <driver/i2s_common.h>
+#include <soc/soc_caps.h>
+#ifdef SOC_I2S_SUPPORTS_TDM
+#include <driver/i2s_tdm.h>
+#endif
 
 #include <tactility/driver.h>
 #include <tactility/drivers/gpio_controller.h>
@@ -22,8 +25,10 @@ struct Esp32I2sInternal {
     Mutex mutex {};
     I2sConfig config {};
     bool config_set = false;
+#ifdef SOC_I2S_SUPPORTS_TDM
     bool rx_tdm_mode = false;
     I2sTdmRxConfig tdm_config {};
+#endif
     GpioDescriptor* bclk_descriptor = nullptr;
     GpioDescriptor* ws_descriptor = nullptr;
     GpioDescriptor* data_out_descriptor = nullptr;
@@ -190,7 +195,9 @@ static error_t set_config(Device* device, const struct I2sConfig* config) {
 
     cleanup_channel_handles(internal);
     internal->config_set = false;
+#ifdef SOC_I2S_SUPPORTS_TDM
     internal->rx_tdm_mode = false;
+#endif
 
     // Create new channel handles
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(dts_config->port, I2S_ROLE_MASTER);
@@ -283,6 +290,7 @@ static error_t reset(Device* device) {
     return ERROR_NONE;
 }
 
+#ifdef SOC_I2S_SUPPORTS_TDM
 static error_t set_rx_tdm_config(Device* device, const struct I2sTdmRxConfig* config) {
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
 
@@ -404,6 +412,7 @@ static error_t set_rx_tdm_config(Device* device, const struct I2sTdmRxConfig* co
     unlock(internal);
     return ERROR_NONE;
 }
+#endif // SOC_I2S_SUPPORTS_TDM
 
 const static I2sControllerApi esp32_i2s_api = {
     .read = read,
@@ -411,7 +420,11 @@ const static I2sControllerApi esp32_i2s_api = {
     .set_config = set_config,
     .get_config = get_config,
     .reset = reset,
+#ifdef SOC_I2S_SUPPORTS_TDM
     .set_rx_tdm_config = set_rx_tdm_config,
+#else
+    .set_rx_tdm_config = nullptr,
+#endif
 };
 
 extern struct Module platform_esp32_module;

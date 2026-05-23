@@ -260,10 +260,11 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         if config.dts:
             device_dir = os.path.dirname(os.path.normpath(config.dts))
             device_name = os.path.basename(device_dir)
-            device_module_name = device_name.replace('-', '_')
-            if not device_module_name.endswith("_module"):
-                device_module_name += "_module"
-            module_symbol_names.append(device_module_name)
+            if device_name:
+                device_module_name = device_name.replace('-', '_')
+                if not device_module_name.endswith("_module"):
+                    device_module_name += "_module"
+                module_symbol_names.append(device_module_name)
         for dependency in config.dependencies:
             dependency_name = os.path.basename(os.path.normpath(dependency))
             module_symbol_name = f"{dependency_name.replace('-', '_')}"
