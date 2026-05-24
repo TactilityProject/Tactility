@@ -12,7 +12,7 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-struct Module lilygo_thmi_s3_module = {
+struct Module lilygo_thmi_module = {
     .name = "lilygo-thmi",
     .start = start,
     .stop = stop,
