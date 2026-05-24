@@ -3,6 +3,13 @@ idf_component_register(
         "Libraries/TactilityC/include"
         "Libraries/TactilityKernel/include"
         "Libraries/lvgl/include"
+        "Modules/lvgl-module/include"
+        "Drivers/bm8563-module/include"
+        "Drivers/bmi270-module/include"
+        "Drivers/mpu6886-module/include"
+        "Drivers/pi4ioe5v6408-module/include"
+        "Drivers/qmi8658-module/include"
+        "Drivers/rx8130ce-module/include"
     REQUIRES esp_timer
 )
 
