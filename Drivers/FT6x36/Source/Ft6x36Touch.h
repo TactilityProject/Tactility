@@ -6,7 +6,7 @@
 
 #include <EspLcdTouch.h>
 
-class FT6x36Touch final : public EspLcdTouch {
+class Ft6x36Touch final : public EspLcdTouch {
 
 public:
 
@@ -60,7 +60,7 @@ private:
 
 public:
 
-    explicit FT6x36Touch(std::unique_ptr<Configuration> inConfiguration) : configuration(std::move(inConfiguration)) {
+    explicit Ft6x36Touch(std::unique_ptr<Configuration> inConfiguration) : configuration(std::move(inConfiguration)) {
         assert(configuration != nullptr);
     }
 
