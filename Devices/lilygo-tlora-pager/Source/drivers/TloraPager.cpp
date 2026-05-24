@@ -6,7 +6,7 @@
 
 extern "C" {
 
-extern struct Module device_module;
+extern struct Module lilygo_tlora_pager_module;
 
 static int start(Device* device) {
     return 0;
@@ -23,7 +23,7 @@ Driver tlora_pager_driver = {
     .stop_device = stop,
     .api = nullptr,
     .device_type = nullptr,
-    .owner = &device_module,
+    .owner = &lilygo_tlora_pager_module,
     .internal = nullptr
 };
 
