@@ -142,6 +142,16 @@ def write_core_variables(output_file, device_properties: ConfigParser):
         output_file.write("# Enable usage of MALLOC_CAP_EXEC on IRAM:\n")
         output_file.write("CONFIG_ESP_SYSTEM_MEMPROT_FEATURE=n\n")
         output_file.write("CONFIG_ESP_SYSTEM_MEMPROT_FEATURE_LOCK=n\n")
+    else:
+        # Original ESP32 has very limited IRAM (~328KB shared with Wi-Fi/BT).
+        # Disable Wi-Fi IRAM optimizations to free ~27KB; throughput impact is
+        # acceptable for these embedded devices. Also move heap/ringbuf ISR
+        # stubs to flash.
+        output_file.write("# Free IRAM on original ESP32\n")
+        output_file.write("CONFIG_ESP_WIFI_IRAM_OPT=n\n")
+        output_file.write("CONFIG_ESP_WIFI_RX_IRAM_OPT=n\n")
+        output_file.write("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH=y\n")
+        output_file.write("CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=y\n")
 
 def write_flash_variables(output_file, device_properties: ConfigParser):
     flash_size = get_property_or_exit(device_properties, "hardware", "flashSize")
