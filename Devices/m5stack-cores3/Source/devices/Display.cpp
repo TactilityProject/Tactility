@@ -17,15 +17,16 @@ static void setBacklightDuty(uint8_t backlightDuty) {
 }
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
-    auto configuration = std::make_unique<Ft6x36Touch::Configuration>(
+    auto configuration = std::make_unique<FT6x36Touch::Configuration>(
         I2C_NUM_0,
-        GPIO_NUM_NC,
         319,//LCD_HORIZONTAL_RESOLUTION,
         239,//LCD_VERTICAL_RESOLUTION,
+        false,
+        false,
+        false
     );
 
-    auto touch = std::make_shared<Ft6x36Touch>(std::move(configuration));
-    return std::reinterpret_pointer_cast<tt::hal::touch::TouchDevice>(touch);
+    return std::make_shared<FT6x36Touch>(std::move(configuration));
 }
 
 std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
