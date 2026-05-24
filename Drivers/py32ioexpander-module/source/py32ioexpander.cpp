@@ -110,7 +110,7 @@ error_t py32_led_set_count(Device* device, uint8_t count) {
 }
 
 error_t py32_led_set_color(Device* device, uint8_t index, uint8_t r, uint8_t g, uint8_t b) {
-    if (count > 32U) return ERROR_RESOURCE;
+    if (index > 32U) return ERROR_RESOURCE;
     Device* i2c = device_get_parent(device);
     // RGB565: [15:11]=R5 [10:5]=G6 [4:0]=B5, stored little-endian
     uint16_t rgb565 = static_cast<uint16_t>(((r >> 3U) << 11U) | ((g >> 2U) << 5U) | (b >> 3U));
