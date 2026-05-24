@@ -12,7 +12,7 @@
 
 #include <Tactility/hal/Configuration.h>
 #include <Axp2101Power.h>
-#include <AXP2101.h>
+#include <Axp2101.h>
 
 using namespace tt::hal;
 
