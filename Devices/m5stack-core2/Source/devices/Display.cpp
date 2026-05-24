@@ -4,15 +4,18 @@
 #include <Ili934xDisplay.h>
 
 std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
-    auto configuration = std::make_unique<Ft6x36Touch::Configuration>(
+    auto configuration = std::make_unique<FT6x36Touch::Configuration>(
         I2C_NUM_0,
-        GPIO_NUM_39,
         LCD_HORIZONTAL_RESOLUTION,
-        LCD_VERTICAL_RESOLUTION
+        LCD_VERTICAL_RESOLUTION,
+        false,
+        false,
+        false,
+        GPIO_NUM_NC,
+        GPIO_NUM_39
     );
 
-    auto touch = std::make_shared<Ft6x36Touch>(std::move(configuration));
-    return std::reinterpret_pointer_cast<tt::hal::touch::TouchDevice>(touch);
+    return std::make_shared<FT6x36Touch>(std::move(configuration));
 }
 
 std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
