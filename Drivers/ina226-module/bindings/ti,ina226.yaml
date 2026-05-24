@@ -6,5 +6,7 @@ compatible: "ti,ina226"
 
 properties:
   shunt-milliohms:
+    type: int
     required: true
+    minimum: 1
     description: Shunt resistor value in milliohms

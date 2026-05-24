@@ -68,6 +68,7 @@ static error_t stop(Device* device) {
 extern "C" {
 
 error_t py32_gpio_set_output(Device* device, uint8_t pin, bool value) {
+    if (pin > 15U) return ERROR_RESOURCE;
     Device* i2c = device_get_parent(device);
     const uint8_t addr = GET_CONFIG(device)->address;
 
@@ -92,6 +93,7 @@ error_t py32_gpio_set_output(Device* device, uint8_t pin, bool value) {
 }
 
 error_t py32_gpio_get_input(Device* device, uint8_t pin, bool* value) {
+    if (pin > 15U) return ERROR_RESOURCE;
     Device* i2c = device_get_parent(device);
     uint16_t in = 0;
     error_t err = i2c_controller_register16le_get(i2c, GET_CONFIG(device)->address, REG_GPIO_IN_L, &in, TIMEOUT);
@@ -101,12 +103,14 @@ error_t py32_gpio_get_input(Device* device, uint8_t pin, bool* value) {
 }
 
 error_t py32_led_set_count(Device* device, uint8_t count) {
+    if (count > 32U) return ERROR_RESOURCE;
     Device* i2c = device_get_parent(device);
     uint8_t cfg = count & 0x3FU;
     return i2c_controller_register8_set(i2c, GET_CONFIG(device)->address, REG_LED_CFG, cfg, TIMEOUT);
 }
 
 error_t py32_led_set_color(Device* device, uint8_t index, uint8_t r, uint8_t g, uint8_t b) {
+    if (count > 32U) return ERROR_RESOURCE;
     Device* i2c = device_get_parent(device);
     // RGB565: [15:11]=R5 [10:5]=G6 [4:0]=B5, stored little-endian
     uint16_t rgb565 = static_cast<uint16_t>(((r >> 3U) << 11U) | ((g >> 2U) << 5U) | (b >> 3U));

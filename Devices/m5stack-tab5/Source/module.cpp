@@ -17,16 +17,18 @@ constexpr auto HP_DETECT_POLL_MS = 1000;
 // hp_detect_timer is only touched from start()/stop(), which are called serially
 // by the module manager — no atomic needed for the handle itself.
 static TimerHandle_t hp_detect_timer = nullptr;
-static Device* io_expander0_cached = nullptr;
+static std::atomic<Device*> io_expander0_cached { nullptr };
 // Flags are written by the timer daemon task and read by start()/stop() — use atomics.
 static std::atomic<bool> hp_detect_last { false };
 static std::atomic<bool> hp_detect_initialized { false };
 
 static void headphoneDetectCallback(TimerHandle_t /*timer*/) {
-    if (!io_expander0_cached) {
-        io_expander0_cached = device_find_by_name("io_expander0");
+    Device* cached = io_expander0_cached.load(std::memory_order_acquire);
+    if (!cached) {
+        cached = device_find_by_name("io_expander0");
+        io_expander0_cached.store(cached, std::memory_order_release);
     }
-    auto* io_expander0 = io_expander0_cached;
+    auto* io_expander0 = cached;
     if (!io_expander0) {
         return; // Not ready yet, will retry on next tick
     }
@@ -105,7 +107,7 @@ static error_t stop() {
     // Always clear the handle — stale non-null handle is worse than a resource leak,
     // as it would cause start() to silently skip re-creating the timer.
     hp_detect_timer = nullptr;
-    io_expander0_cached = nullptr;
+    io_expander0_cached.store(nullptr, std::memory_order_release);
     return ERROR_NONE;
 }
 

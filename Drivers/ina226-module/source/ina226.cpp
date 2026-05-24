@@ -60,8 +60,18 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    const float shunt_ohms = GET_CONFIG(device)->shunt_milliohms / 1000.0f;
-    const uint16_t cal_value = static_cast<uint16_t>(0.00512f / (CURRENT_LSB * shunt_ohms));
+    const uint16_t shunt_milliohms = GET_CONFIG(device)->shunt_milliohms;
+    if (shunt_milliohms == 0) {
+        LOG_E(TAG, "Invalid shunt value: 0 mOhms");
+        return ERROR_INVALID_ARGUMENT;
+    }
+    const float shunt_ohms = shunt_milliohms / 1000.0f;
+    const float cal_f = 0.00512f / (CURRENT_LSB * shunt_ohms);
+    if (cal_f < 1.0f || cal_f > 65535.0f) {
+        LOG_E(TAG, "Calibration out of range (shunt=%u mOhms)", shunt_milliohms);
+        return ERROR_INVALID_ARGUMENT;
+    }
+    const uint16_t cal_value = static_cast<uint16_t>(cal_f);
     if (i2c_controller_register16be_set(i2c, addr, REG_CALIBRATION, cal_value, TIMEOUT) != ERROR_NONE) {
         LOG_E(TAG, "Failed to calibrate INA226");
         return ERROR_RESOURCE;

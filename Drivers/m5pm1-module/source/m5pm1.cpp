@@ -51,6 +51,7 @@ static constexpr uint8_t ADC_CH_TEMP = 6;
 static constexpr uint8_t LCD_POWER_BIT = (1U << 2U);
 // PM1_G3: Speaker amplifier enable on M5Stack StickS3
 static constexpr uint8_t SPEAKER_AMP_BIT = (1U << 3U);
+static constexpr uint8_t SPEAKER_AMP_FUNC_MASK = (0x3U << 6U); // GPIO3 function select bits
 
 static constexpr TickType_t TIMEOUT = pdMS_TO_TICKS(50);
 
@@ -115,7 +116,7 @@ static error_t start(Device* device) {
 
     // PM1_G3 → speaker amp EN, initially LOW (amp off until audio starts)
     bool spk_ok =
-        i2c_controller_register8_reset_bits(i2c, addr, REG_GPIO_FUNC0, SPEAKER_AMP_BIT, TIMEOUT) == ERROR_NONE &&
+        i2c_controller_register8_reset_bits(i2c, addr, REG_GPIO_FUNC0, SPEAKER_AMP_FUNC_MASK, TIMEOUT) == ERROR_NONE &&
         i2c_controller_register8_set_bits  (i2c, addr, REG_GPIO_MODE,  SPEAKER_AMP_BIT, TIMEOUT) == ERROR_NONE &&
         i2c_controller_register8_reset_bits(i2c, addr, REG_GPIO_DRV,   SPEAKER_AMP_BIT, TIMEOUT) == ERROR_NONE &&
         i2c_controller_register8_reset_bits(i2c, addr, REG_GPIO_OUT,   SPEAKER_AMP_BIT, TIMEOUT) == ERROR_NONE;

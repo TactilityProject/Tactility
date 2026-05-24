@@ -100,9 +100,15 @@ static bool initSpeaker(::Device* i2c, uint32_t sample_rate_hz) {
     const uint16_t reg06 = static_cast<uint16_t>(0x14C0U | reg06_idx);
 
     // Hardware reset AW88298 via AW9523B P0 bit 2: pull LOW (reset), then HIGH (release).
-    i2c_controller_register8_reset_bits(i2c, AW9523B_ADDR, AW9523B_P0_REG, 0b00000100, pdMS_TO_TICKS(100));
+    if (i2c_controller_register8_reset_bits(i2c, AW9523B_ADDR, AW9523B_P0_REG, 0b00000100, pdMS_TO_TICKS(100)) != ERROR_NONE) {
+        LOG_E(TAG, "AW9523B: failed to assert AW88298 reset");
+        return false;
+    }
     vTaskDelay(pdMS_TO_TICKS(10));
-    i2c_controller_register8_set_bits(i2c, AW9523B_ADDR, AW9523B_P0_REG, 0b00000100, pdMS_TO_TICKS(100));
+    if (i2c_controller_register8_set_bits(i2c, AW9523B_ADDR, AW9523B_P0_REG, 0b00000100, pdMS_TO_TICKS(100)) != ERROR_NONE) {
+        LOG_E(TAG, "AW9523B: failed to release AW88298 reset");
+        return false;
+    }
     vTaskDelay(pdMS_TO_TICKS(50));
 
     // Exact sequence from M5Unified _speaker_enabled_cb_cores3() — no I2C software reset.
