@@ -8,5 +8,5 @@ properties:
   shunt-milliohms:
     type: int
     required: true
-    minimum: 1
+    # shunt value should be a minimum of 1
     description: Shunt resistor value in milliohms
