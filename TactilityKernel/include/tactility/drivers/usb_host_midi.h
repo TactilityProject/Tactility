@@ -42,6 +42,7 @@ struct Device* usb_host_midi_get_device(void);
  * Replaces any previously registered callback. Pass NULL to disable.
  * @return true if a MIDI device was found and the callback was registered, false if no device is available.
  */
+// TODO: Make an interface that takes/releases control
 bool usb_midi_set_callback(usb_midi_message_cb_t callback, void* user_data);
 
 /** Returns true if a MIDI device is currently connected and streaming. */
