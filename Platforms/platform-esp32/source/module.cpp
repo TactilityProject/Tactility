@@ -25,6 +25,12 @@ extern Driver esp32_ble_serial_driver;
 extern Driver esp32_ble_midi_driver;
 extern Driver esp32_ble_hid_device_driver;
 #endif
+#if SOC_USB_OTG_SUPPORTED
+extern Driver esp32_usbhost_driver;
+extern Driver esp32_usbhost_hid_driver;
+extern Driver esp32_usbhost_midi_driver;
+extern Driver esp32_usbhost_msc_driver;
+#endif
 
 static error_t start() {
     /* We crash when construct fails, because if a single driver fails to construct,
@@ -43,12 +49,24 @@ static error_t start() {
     check(driver_construct_add(&esp32_ble_midi_driver) == ERROR_NONE);
     check(driver_construct_add(&esp32_ble_hid_device_driver) == ERROR_NONE);
 #endif
+#if SOC_USB_OTG_SUPPORTED
+    check(driver_construct_add(&esp32_usbhost_driver) == ERROR_NONE);
+    check(driver_construct_add(&esp32_usbhost_hid_driver) == ERROR_NONE);
+    check(driver_construct_add(&esp32_usbhost_midi_driver) == ERROR_NONE);
+    check(driver_construct_add(&esp32_usbhost_msc_driver) == ERROR_NONE);
+#endif
     return ERROR_NONE;
 }
 
 static error_t stop() {
     /* We crash when destruct fails, because if a single driver fails to destruct,
      * there is no guarantee that the previously destroyed drivers can be recovered */
+#if SOC_USB_OTG_SUPPORTED
+    check(driver_remove_destruct(&esp32_usbhost_msc_driver) == ERROR_NONE);
+    check(driver_remove_destruct(&esp32_usbhost_midi_driver) == ERROR_NONE);
+    check(driver_remove_destruct(&esp32_usbhost_hid_driver) == ERROR_NONE);
+    check(driver_remove_destruct(&esp32_usbhost_driver) == ERROR_NONE);
+#endif
 #if defined(CONFIG_BT_NIMBLE_ENABLED)
     check(driver_remove_destruct(&esp32_ble_hid_device_driver) == ERROR_NONE);
     check(driver_remove_destruct(&esp32_ble_midi_driver) == ERROR_NONE);

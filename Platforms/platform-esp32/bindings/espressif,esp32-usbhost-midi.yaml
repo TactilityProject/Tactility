@@ -1,0 +1,9 @@
+description: ESP32 USB Host MIDI class driver
+
+compatible: "espressif,esp32-usbhost-midi"
+
+properties:
+  _unused:
+    type: int
+    default: 0
+    description: Placeholder required by the binding schema; this driver has no device-tree configuration.

@@ -29,6 +29,7 @@ class View final {
     void showActions();
     void showActionsForDirectory();
     void showActionsForFile();
+    void showActionsForMountPoint();
 
     void viewFile(const std::string&path, const std::string&filename);
     void createDirEntryWidget(lv_obj_t* parent, dirent& dir_entry);
@@ -51,6 +52,7 @@ public:
     void onCopyPressed();
     void onCutPressed();
     void onPastePressed();
+    void onEjectPressed();
     void onDirEntryListScrollBegin();
     void onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle);
     void deinit(const AppContext& appContext);

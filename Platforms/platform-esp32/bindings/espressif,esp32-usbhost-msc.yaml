@@ -1,0 +1,9 @@
+description: ESP32 USB Host MSC class driver (mass storage)
+
+compatible: "espressif,esp32-usbhost-msc"
+
+properties:
+  _unused:
+    type: int
+    default: 0
+    description: Placeholder required by the binding schema; this driver has no device-tree configuration.

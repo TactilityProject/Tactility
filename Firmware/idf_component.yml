@@ -73,5 +73,13 @@ dependencies:
     rules:
       # More hardware might be supported - enable as needed
       - if: "target in [esp32s3]"
+  espressif/usb_host_hid:
+    version: "1.1.0"
+    rules:
+      - if: "target in [esp32s3, esp32p4]"
+  espressif/usb_host_msc:
+    version: "1.1.4"
+    rules:
+      - if: "target in [esp32s3, esp32p4]"
   idf: '5.5'
 

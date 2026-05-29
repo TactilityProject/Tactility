@@ -8,6 +8,9 @@
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_hid_device.h>
+#include <tactility/drivers/usb_host_hid.h>
+#include <tactility/drivers/usb_host_midi.h>
+#include <tactility/drivers/usb_host_msc.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
@@ -168,6 +171,19 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(bluetooth_hid_device_send_gamepad),
     DEFINE_MODULE_SYMBOL(bluetooth_hid_device_is_connected),
     DEFINE_MODULE_SYMBOL(BLUETOOTH_HID_DEVICE_TYPE),
+    // drivers/usb_host_hid
+    DEFINE_MODULE_SYMBOL(usb_host_hid_get_device),
+    DEFINE_MODULE_SYMBOL(usb_host_hid_is_connected),
+    DEFINE_MODULE_SYMBOL(USB_HOST_HID_TYPE),
+    // drivers/usb_host_midi
+    DEFINE_MODULE_SYMBOL(usb_host_midi_get_device),
+    DEFINE_MODULE_SYMBOL(usb_midi_set_callback),
+    DEFINE_MODULE_SYMBOL(usb_midi_is_connected),
+    DEFINE_MODULE_SYMBOL(USB_HOST_MIDI_TYPE),
+    // drivers/usb_host_msc
+    DEFINE_MODULE_SYMBOL(usb_host_msc_get_device),
+    DEFINE_MODULE_SYMBOL(usb_msc_eject),
+    DEFINE_MODULE_SYMBOL(USB_HOST_MSC_TYPE),
     // concurrent/dispatcher
     DEFINE_MODULE_SYMBOL(dispatcher_alloc),
     DEFINE_MODULE_SYMBOL(dispatcher_free),

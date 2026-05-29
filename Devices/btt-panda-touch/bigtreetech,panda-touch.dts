@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_usbhost.h>
 
 // Reference: https://github.com/bigtreetech/PandaTouch_PlatformIO/blob/master/docs/PINOUT.md
 / {
@@ -33,5 +34,24 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 4 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 3 GPIO_FLAG_NONE>;
+	};
+
+	usbhost0 {
+		compatible = "espressif,esp32-usbhost";
+
+		usbhosthid0 {
+			compatible = "espressif,esp32-usbhost-hid";
+			//status = "disabled";
+		};
+
+		usbhostmidi0 {
+			compatible = "espressif,esp32-usbhost-midi";
+			//status = "disabled";
+		};
+
+		usbhostmsc0 {
+			compatible = "espressif,esp32-usbhost-msc";
+			//status = "disabled";
+		};
 	};
 };

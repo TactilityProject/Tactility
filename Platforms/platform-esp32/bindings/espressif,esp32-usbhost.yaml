@@ -1,0 +1,15 @@
+description: ESP32 USB Host controller
+
+compatible: "espressif,esp32-usbhost"
+
+properties:
+  peripheral-map:
+    type: int
+    default: 0
+    description: |
+      Bitmask of USB OTG controllers to use. Only meaningful on ESP32-P4,
+      which has two independent USB DWC cores. On ESP32-S2/S3 this field
+      is ignored (single controller, always used).
+      Default 0 selects the default peripheral (P4 default: controller 0, HS/UTMI).
+      BIT(0) = controller 0 (HS, UTMI PHY - GPIO 49/50 aka USB2_OTG pins, e.g. USB-A on Tab5)
+      BIT(1) = controller 1 (FS, FSLS PHY - GPIO 24/25 aka USB1 pins, e.g. USB-C OTG on Tab5)

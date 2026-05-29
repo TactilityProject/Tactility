@@ -7,6 +7,7 @@
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
+#include <tactility/bindings/esp32_usbhost.h>
 #include <bindings/bmi270.h>
 #include <bindings/ina226.h>
 #include <bindings/pi4ioe5v6408.h>
@@ -92,5 +93,25 @@
 		port = <UART_NUM_1>;
 		pin-tx = <&gpio0 53 GPIO_FLAG_NONE>;
 		pin-rx = <&gpio0 54 GPIO_FLAG_NONE>;
+	};
+
+	usbhost0 {
+		compatible = "espressif,esp32-usbhost";
+		peripheral-map = <0>;
+
+		usbhosthid0 {
+			compatible = "espressif,esp32-usbhost-hid";
+			//status = "disabled";
+		};
+
+		usbhostmidi0 {
+			compatible = "espressif,esp32-usbhost-midi";
+			//status = "disabled";
+		};
+
+		usbhostmsc0 {
+			compatible = "espressif,esp32-usbhost-msc";
+			//status = "disabled";
+		};
 	};
 };
