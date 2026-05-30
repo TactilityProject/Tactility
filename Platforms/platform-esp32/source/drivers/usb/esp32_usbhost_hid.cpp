@@ -16,29 +16,13 @@
 #include <usb/hid_usage_mouse.h>
 #include <esp_timer.h>
 
-#include <lvgl.h>
-#include <esp_lvgl_port.h>
-
-#define USB_HID_CURSOR_PATH "A:/system/cursor.png"
-
-namespace tt::lvgl {
-    void hardware_keyboard_set_indev(lv_indev_t* device);
-}
-
 #define TAG "esp32_usbhost_hid"
 
-typedef struct {
-    uint32_t lv_key;
-    bool pressed;
-} key_event_t;
-
-constexpr auto KEY_QUEUE_SIZE        = 64;
-constexpr uint32_t KEY_REPEAT_DELAY_MS = 500;
-constexpr uint32_t KEY_REPEAT_RATE_MS  = 50;
-constexpr auto HID_EVENT_QUEUE_SIZE  = 8;
-constexpr auto HID_PROC_TASK_STACK   = 4096;
+constexpr auto HID_EVENT_QUEUE_SIZE   = 8;
+constexpr auto HID_PROC_TASK_STACK    = 4096;
 constexpr auto HID_PROC_TASK_PRIORITY = 5;
-constexpr auto HID_STOP_TIMEOUT_MS   = 2000;
+constexpr auto HID_STOP_TIMEOUT_MS    = 2000;
+constexpr auto MAX_SUBSCRIBERS        = 4;
 
 typedef struct {
     hid_host_device_handle_t handle;
@@ -47,37 +31,25 @@ typedef struct {
 } hid_dev_event_t;
 
 struct UsbHidCtx {
-    std::atomic<int32_t> mouse_x{0};
-    std::atomic<int32_t> mouse_y{0};
-    std::atomic<bool>    mouse_pressed{false};
     std::atomic<bool>    mouse_connected{false};
-    std::atomic<bool>    device_connected{false};  // true when any HID device (kb or mouse) is open
-    QueueHandle_t        key_queue          = nullptr;
+    std::atomic<bool>    device_connected{false};
     QueueHandle_t        hid_event_queue    = nullptr;
     TaskHandle_t         hid_proc_task      = nullptr;
     SemaphoreHandle_t    hid_proc_task_done = nullptr;
     std::atomic<bool>    hid_proc_running{false};
-
-    lv_indev_t* mouse_indev   = nullptr;
-    lv_indev_t* kb_indev      = nullptr;
-    lv_obj_t*   mouse_cursor  = nullptr;
 
     uint8_t  prev_keys[HID_KEYBOARD_KEY_MAX] = {};
     uint32_t pressed_lv_keys[256]            = {};
     bool caps_lock_active   = false;
     bool num_lock_active    = true;
     bool scroll_lock_active = false;
+    bool prev_mouse_button2 = false;
 
     std::atomic<hid_host_device_handle_t> kb_handle{nullptr};
     std::atomic<bool> kb_led_pending{false};
 
-    std::atomic<uint32_t> repeat_lv_key{0};
-    std::atomic<uint32_t> repeat_start_ms{0};
-
-    bool     prev_mouse_button2   = false;
-    bool     emit_repeat_release  = false;
-    uint32_t repeat_release_key   = 0;
-    std::atomic<uint32_t> repeat_last_ms{0};
+    QueueHandle_t    subscribers[MAX_SUBSCRIBERS] = {};
+    SemaphoreHandle_t sub_mutex                   = nullptr;
 };
 
 static const uint8_t keycode2ascii[57][2] = {
@@ -103,33 +75,33 @@ static uint32_t hid_keycode_to_lv_key(uint8_t modifier, uint8_t key_code,
     bool alt   = (modifier & HID_LEFT_ALT) || (modifier & HID_RIGHT_ALT);
 
     switch (key_code) {
-        case HID_KEY_ENTER:         return LV_KEY_ENTER;
-        case HID_KEY_ESC:           return LV_KEY_ESC;
-        case HID_KEY_DEL:           return LV_KEY_BACKSPACE;
-        case HID_KEY_DELETE:        return LV_KEY_DEL;
-        case HID_KEY_TAB:           return shift ? LV_KEY_PREV : LV_KEY_NEXT;
-        case HID_KEY_UP:            return LV_KEY_UP;
-        case HID_KEY_DOWN:          return LV_KEY_DOWN;
-        case HID_KEY_LEFT:          return LV_KEY_LEFT;
-        case HID_KEY_RIGHT:         return LV_KEY_RIGHT;
-        case HID_KEY_HOME:          return LV_KEY_HOME;
-        case HID_KEY_END:           return LV_KEY_END;
-        case HID_KEY_KEYPAD_ENTER:  return LV_KEY_ENTER;
+        case HID_KEY_ENTER:         return USB_HID_KEY_ENTER;
+        case HID_KEY_ESC:           return USB_HID_KEY_ESC;
+        case HID_KEY_DEL:           return USB_HID_KEY_BACKSPACE;
+        case HID_KEY_DELETE:        return USB_HID_KEY_DEL;
+        case HID_KEY_TAB:           return shift ? USB_HID_KEY_PREV : USB_HID_KEY_NEXT;
+        case HID_KEY_UP:            return USB_HID_KEY_UP;
+        case HID_KEY_DOWN:          return USB_HID_KEY_DOWN;
+        case HID_KEY_LEFT:          return USB_HID_KEY_LEFT;
+        case HID_KEY_RIGHT:         return USB_HID_KEY_RIGHT;
+        case HID_KEY_HOME:          return USB_HID_KEY_HOME;
+        case HID_KEY_END:           return USB_HID_KEY_END;
+        case HID_KEY_KEYPAD_ENTER:  return USB_HID_KEY_ENTER;
         case HID_KEY_KEYPAD_ADD:    return '+';
         case HID_KEY_KEYPAD_SUB:    return '-';
         case HID_KEY_KEYPAD_MUL:    return '*';
         case HID_KEY_KEYPAD_DIV:    return '/';
         case HID_KEY_KEYPAD_0:      return num_lock ? (uint32_t)'0' : 0u;
-        case HID_KEY_KEYPAD_1:      return num_lock ? (uint32_t)'1' : (uint32_t)LV_KEY_END;
-        case HID_KEY_KEYPAD_2:      return num_lock ? (uint32_t)'2' : (uint32_t)LV_KEY_DOWN;
+        case HID_KEY_KEYPAD_1:      return num_lock ? (uint32_t)'1' : (uint32_t)USB_HID_KEY_END;
+        case HID_KEY_KEYPAD_2:      return num_lock ? (uint32_t)'2' : (uint32_t)USB_HID_KEY_DOWN;
         case HID_KEY_KEYPAD_3:      return num_lock ? (uint32_t)'3' : 0u;
-        case HID_KEY_KEYPAD_4:      return num_lock ? (uint32_t)'4' : (uint32_t)LV_KEY_LEFT;
+        case HID_KEY_KEYPAD_4:      return num_lock ? (uint32_t)'4' : (uint32_t)USB_HID_KEY_LEFT;
         case HID_KEY_KEYPAD_5:      return num_lock ? (uint32_t)'5' : 0u;
-        case HID_KEY_KEYPAD_6:      return num_lock ? (uint32_t)'6' : (uint32_t)LV_KEY_RIGHT;
-        case HID_KEY_KEYPAD_7:      return num_lock ? (uint32_t)'7' : (uint32_t)LV_KEY_HOME;
-        case HID_KEY_KEYPAD_8:      return num_lock ? (uint32_t)'8' : (uint32_t)LV_KEY_UP;
+        case HID_KEY_KEYPAD_6:      return num_lock ? (uint32_t)'6' : (uint32_t)USB_HID_KEY_RIGHT;
+        case HID_KEY_KEYPAD_7:      return num_lock ? (uint32_t)'7' : (uint32_t)USB_HID_KEY_HOME;
+        case HID_KEY_KEYPAD_8:      return num_lock ? (uint32_t)'8' : (uint32_t)USB_HID_KEY_UP;
         case HID_KEY_KEYPAD_9:      return num_lock ? (uint32_t)'9' : 0u;
-        case HID_KEY_KEYPAD_DELETE: return num_lock ? (uint32_t)'.' : (uint32_t)LV_KEY_DEL;
+        case HID_KEY_KEYPAD_DELETE: return num_lock ? (uint32_t)'.' : (uint32_t)USB_HID_KEY_DEL;
         default: break;
     }
 
@@ -144,13 +116,27 @@ static uint32_t hid_keycode_to_lv_key(uint8_t modifier, uint8_t key_code,
     return 0;
 }
 
-static void enqueue_scroll(UsbHidCtx* ctx, uint32_t scroll_key, int ticks) {
-    if (!ctx->key_queue) return;
+static void publish_event(UsbHidCtx* ctx, const UsbHidEvent* evt) {
+    if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(10)) != pdTRUE) {
+        LOG_W(TAG, "publish_event: sub_mutex contended, event type=%d dropped", (int)evt->type);
+        return;
+    }
+    bool is_release = (evt->type == USB_HID_EVENT_KEY && !evt->key.pressed);
+    TickType_t send_timeout = is_release ? pdMS_TO_TICKS(10) : 0;
+    for (int i = 0; i < MAX_SUBSCRIBERS; i++) {
+        if (ctx->subscribers[i]) {
+            xQueueSend(ctx->subscribers[i], evt, send_timeout);
+        }
+    }
+    xSemaphoreGive(ctx->sub_mutex);
+}
+
+static void enqueue_scroll(UsbHidCtx* ctx, UsbHidKey scroll_key, int ticks) {
+    UsbHidEvent press   = { .type = USB_HID_EVENT_KEY, .key = { scroll_key, true  } };
+    UsbHidEvent release = { .type = USB_HID_EVENT_KEY, .key = { scroll_key, false } };
     for (int t = 0; t < ticks; t++) {
-        key_event_t press   = { scroll_key, true  };
-        key_event_t release = { scroll_key, false };
-        xQueueSend(ctx->key_queue, &press,   0);
-        xQueueSend(ctx->key_queue, &release, 0);
+        publish_event(ctx, &press);
+        publish_event(ctx, &release);
     }
 }
 
@@ -183,12 +169,9 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
                     if (!still_pressed) {
                         uint32_t lv_key = ctx->pressed_lv_keys[prev_hid];
                         ctx->pressed_lv_keys[prev_hid] = 0;
-                        if (lv_key && ctx->key_queue) {
-                            key_event_t evt = { lv_key, false };
-                            xQueueSend(ctx->key_queue, &evt, 0);
-                        }
-                        if (lv_key && lv_key == ctx->repeat_lv_key.load()) {
-                            ctx->repeat_lv_key.store(0);
+                        if (lv_key) {
+                            UsbHidEvent evt = { .type = USB_HID_EVENT_KEY, .key = { lv_key, false } };
+                            publish_event(ctx, &evt);
                         }
                     }
                 }
@@ -220,18 +203,15 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
                         bool is_pgdn = (hid_code == HID_KEY_PAGEDOWN) ||
                                        (!ctx->num_lock_active && hid_code == HID_KEY_KEYPAD_3);
                         if (is_pgup || is_pgdn) {
-                            enqueue_scroll(ctx, is_pgup ? LV_KEY_UP : LV_KEY_DOWN, 8);
+                            enqueue_scroll(ctx, is_pgup ? USB_HID_KEY_UP : USB_HID_KEY_DOWN, 8);
                             continue;
                         }
                         uint32_t lv_key = hid_keycode_to_lv_key(kb->modifier.val, hid_code,
                                                                   ctx->caps_lock_active, ctx->num_lock_active);
-                        if (lv_key && ctx->key_queue) {
-                            key_event_t evt = { lv_key, true };
-                            xQueueSend(ctx->key_queue, &evt, 0);
+                        if (lv_key) {
+                            UsbHidEvent evt = { .type = USB_HID_EVENT_KEY, .key = { lv_key, true } };
+                            publish_event(ctx, &evt);
                             ctx->pressed_lv_keys[hid_code] = lv_key;
-                            ctx->repeat_lv_key.store(lv_key);
-                            ctx->repeat_start_ms.store((uint32_t)(esp_timer_get_time() / 1000));
-                            ctx->repeat_last_ms.store(0);
                         }
                     }
                 }
@@ -241,32 +221,29 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
         } else if (params.proto == HID_PROTOCOL_MOUSE) {
             if (data_len < sizeof(hid_mouse_input_report_boot_t)) break;
             auto* ms = reinterpret_cast<const hid_mouse_input_report_boot_t*>(data);
-            lv_display_t* disp = lv_display_get_default();
-            if (disp) {
-                constexpr int32_t CURSOR_SIZE = 16;
-                int32_t w = lv_display_get_original_horizontal_resolution(disp);
-                int32_t h = lv_display_get_original_vertical_resolution(disp);
-                int32_t nx = ctx->mouse_x + ms->x_displacement;
-                int32_t ny = ctx->mouse_y + ms->y_displacement;
-                if (nx < 0) nx = 0;
-                if (nx > w - CURSOR_SIZE - 1) nx = w - CURSOR_SIZE - 1;
-                if (ny < 0) ny = 0;
-                if (ny > h - CURSOR_SIZE - 1) ny = h - CURSOR_SIZE - 1;
-                ctx->mouse_x = nx;
-                ctx->mouse_y = ny;
-            }
-            ctx->mouse_pressed = ms->buttons.button1;
 
-            if (ms->buttons.button2 != ctx->prev_mouse_button2) {
-                key_event_t evt = { LV_KEY_ESC, ms->buttons.button2 != 0 };
-                if (ctx->key_queue) xQueueSend(ctx->key_queue, &evt, 0);
-                ctx->prev_mouse_button2 = ms->buttons.button2 != 0;
+            if (ms->x_displacement != 0 || ms->y_displacement != 0) {
+                UsbHidEvent evt = { .type = USB_HID_EVENT_MOUSE_MOVE,
+                                    .mouse_move = { (int32_t)ms->x_displacement, (int32_t)ms->y_displacement } };
+                publish_event(ctx, &evt);
+            }
+            {
+                bool b1 = ms->buttons.button1 != 0;
+                bool b2 = ms->buttons.button2 != 0;
+                UsbHidEvent evt = { .type = USB_HID_EVENT_MOUSE_BTN, .mouse_btn = { b1, b2 } };
+                publish_event(ctx, &evt);
+
+                if (b2 != ctx->prev_mouse_button2) {
+                    UsbHidEvent key_evt = { .type = USB_HID_EVENT_KEY, .key = { USB_HID_KEY_ESC, b2 } };
+                    publish_event(ctx, &key_evt);
+                    ctx->prev_mouse_button2 = b2;
+                }
             }
 
-            if (data_len > sizeof(hid_mouse_input_report_boot_t) && ctx->key_queue) {
+            if (data_len > sizeof(hid_mouse_input_report_boot_t)) {
                 int8_t wheel = (int8_t)data[sizeof(hid_mouse_input_report_boot_t)];
                 if (wheel != 0) {
-                    uint32_t scroll_key = (wheel < 0) ? LV_KEY_UP : LV_KEY_DOWN;
+                    UsbHidKey scroll_key = (wheel < 0) ? USB_HID_KEY_UP : USB_HID_KEY_DOWN;
                     int ticks = (wheel < 0) ? -wheel : wheel;
                     if (ticks > 8) ticks = 8;
                     enqueue_scroll(ctx, scroll_key, ticks);
@@ -279,25 +256,21 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
         if (params.proto == HID_PROTOCOL_KEYBOARD) {
             memset(ctx->prev_keys, 0, sizeof(ctx->prev_keys));
             memset(ctx->pressed_lv_keys, 0, sizeof(ctx->pressed_lv_keys));
-            ctx->repeat_lv_key.store(0);
             ctx->kb_handle.store(nullptr);
             ctx->kb_led_pending.store(false);
-            if (lvgl_port_lock(pdMS_TO_TICKS(200))) {
-                tt::lvgl::hardware_keyboard_set_indev(nullptr);
-                lvgl_port_unlock();
-            } else {
-                LOG_W(TAG, "keyboard disconnect: LVGL lock timeout, keyboard indev not unregistered");
-            }
         } else if (params.proto == HID_PROTOCOL_MOUSE) {
             ctx->mouse_connected = false;
-            if (ctx->mouse_cursor && lvgl_port_lock(0)) {
-                lv_obj_add_flag(ctx->mouse_cursor, LV_OBJ_FLAG_HIDDEN);
-                lvgl_port_unlock();
-            }
         }
         hid_host_device_close(handle);
         if (!ctx->kb_handle.load() && !ctx->mouse_connected) {
             ctx->device_connected = false;
+        }
+        {
+            UsbHidEventType disc_type = (params.proto == HID_PROTOCOL_KEYBOARD)
+                ? USB_HID_EVENT_KEYBOARD_DISCONNECTED
+                : USB_HID_EVENT_MOUSE_DISCONNECTED;
+            UsbHidEvent evt = { .type = disc_type };
+            publish_event(ctx, &evt);
         }
         break;
 
@@ -308,80 +281,6 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
     default:
         break;
     }
-}
-
-static void mouse_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
-    auto* ctx = static_cast<UsbHidCtx*>(lv_indev_get_user_data(indev));
-    int32_t cx = ctx->mouse_x;
-    int32_t cy = ctx->mouse_y;
-
-    lv_display_t* disp = lv_display_get_default();
-    if (disp) {
-        int32_t ow = lv_display_get_original_horizontal_resolution(disp);
-        int32_t oh = lv_display_get_original_vertical_resolution(disp);
-        switch (lv_display_get_rotation(disp)) {
-            case LV_DISPLAY_ROTATION_0:
-                data->point.x = (lv_coord_t)cx;
-                data->point.y = (lv_coord_t)cy;
-                break;
-            case LV_DISPLAY_ROTATION_90:
-                data->point.x = (lv_coord_t)cy;
-                data->point.y = (lv_coord_t)(oh - cx - 1);
-                break;
-            case LV_DISPLAY_ROTATION_180:
-                data->point.x = (lv_coord_t)(ow - cx - 1);
-                data->point.y = (lv_coord_t)(oh - cy - 1);
-                break;
-            case LV_DISPLAY_ROTATION_270:
-                data->point.x = (lv_coord_t)(ow - cy - 1);
-                data->point.y = (lv_coord_t)cx;
-                break;
-        }
-    } else {
-        data->point.x = (lv_coord_t)cx;
-        data->point.y = (lv_coord_t)cy;
-    }
-
-    data->state = ctx->mouse_pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
-}
-
-static void keyboard_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
-    auto* ctx = static_cast<UsbHidCtx*>(lv_indev_get_user_data(indev));
-
-    if (ctx->emit_repeat_release) {
-        ctx->emit_repeat_release = false;
-        data->key = ctx->repeat_release_key;
-        data->state = LV_INDEV_STATE_RELEASED;
-        return;
-    }
-
-    key_event_t evt;
-    if (ctx->key_queue && xQueueReceive(ctx->key_queue, &evt, 0) == pdTRUE) {
-        data->key = evt.lv_key;
-        data->state = evt.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
-        data->continue_reading = (uxQueueMessagesWaiting(ctx->key_queue) > 0);
-        return;
-    }
-
-    uint32_t rkey = ctx->repeat_lv_key.load();
-    if (rkey != 0) {
-        uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
-        uint32_t elapsed = now_ms - ctx->repeat_start_ms.load();
-        if (elapsed >= KEY_REPEAT_DELAY_MS) {
-            uint32_t last = ctx->repeat_last_ms.load();
-            if (last == 0 || (now_ms - last) >= KEY_REPEAT_RATE_MS) {
-                ctx->repeat_last_ms.store(now_ms);
-                ctx->emit_repeat_release = true;
-                ctx->repeat_release_key  = rkey;
-                data->key   = rkey;
-                data->state = LV_INDEV_STATE_PRESSED;
-                data->continue_reading = true;
-                return;
-            }
-        }
-    }
-
-    data->state = LV_INDEV_STATE_RELEASED;
 }
 
 static void hid_driver_callback(hid_host_device_handle_t handle,
@@ -398,33 +297,6 @@ static void hid_driver_callback(hid_host_device_handle_t handle,
 static void hidProcTask(void* arg) {
     auto* ctx = static_cast<UsbHidCtx*>(arg);
     LOG_I(TAG, "HID proc task started");
-
-    while (!lv_is_initialized()) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-
-    if (lvgl_port_lock(0)) {
-        ctx->mouse_cursor = lv_image_create(lv_layer_sys());
-        lv_obj_remove_flag(ctx->mouse_cursor, LV_OBJ_FLAG_CLICKABLE);
-        lv_image_set_src(ctx->mouse_cursor, USB_HID_CURSOR_PATH);
-        lv_obj_add_flag(ctx->mouse_cursor, LV_OBJ_FLAG_HIDDEN);
-
-        ctx->mouse_indev = lv_indev_create();
-        lv_indev_set_type(ctx->mouse_indev, LV_INDEV_TYPE_POINTER);
-        lv_indev_set_read_cb(ctx->mouse_indev, mouse_read_cb);
-        lv_indev_set_user_data(ctx->mouse_indev, ctx);
-        lv_indev_set_cursor(ctx->mouse_indev, ctx->mouse_cursor);
-
-        ctx->kb_indev = lv_indev_create();
-        lv_indev_set_type(ctx->kb_indev, LV_INDEV_TYPE_KEYPAD);
-        lv_indev_set_read_cb(ctx->kb_indev, keyboard_read_cb);
-        lv_indev_set_user_data(ctx->kb_indev, ctx);
-        lv_indev_set_group(ctx->kb_indev, lv_group_get_default());
-        lvgl_port_unlock();
-        LOG_I(TAG, "LVGL input devices registered");
-    } else {
-        LOG_W(TAG, "could not acquire LVGL lock for indev registration");
-    }
 
     while (ctx->hid_proc_running) {
         hid_dev_event_t dev_evt;
@@ -464,31 +336,19 @@ static void hidProcTask(void* arg) {
                              | (ctx->caps_lock_active   ? 0x02 : 0)
                              | (ctx->scroll_lock_active ? 0x04 : 0);
                 hid_class_request_set_report(dev_evt.handle, HID_REPORT_TYPE_OUTPUT, 0, &leds, 1);
-                if (ctx->kb_indev && lvgl_port_lock(0)) {
-                    tt::lvgl::hardware_keyboard_set_indev(ctx->kb_indev);
-                    lvgl_port_unlock();
-                }
             } else if (params.proto == HID_PROTOCOL_MOUSE) {
                 ctx->mouse_connected = true;
-                if (ctx->mouse_cursor && lvgl_port_lock(0)) {
-                    lv_obj_remove_flag(ctx->mouse_cursor, LV_OBJ_FLAG_HIDDEN);
-                    lvgl_port_unlock();
-                }
             }
             ctx->device_connected = true;
+            {
+                UsbHidEventType conn_type = (params.proto == HID_PROTOCOL_KEYBOARD)
+                    ? USB_HID_EVENT_KEYBOARD_CONNECTED
+                    : USB_HID_EVENT_MOUSE_CONNECTED;
+                UsbHidEvent evt = { .type = conn_type };
+                publish_event(ctx, &evt);
+            }
             hid_host_device_start(dev_evt.handle);
         }
-    }
-
-    if (lvgl_port_lock(0)) {
-        if (ctx->mouse_indev)  { lv_indev_delete(ctx->mouse_indev);  ctx->mouse_indev  = nullptr; }
-        if (ctx->mouse_cursor) { lv_obj_delete(ctx->mouse_cursor);   ctx->mouse_cursor = nullptr; }
-        if (ctx->kb_indev)     {
-            tt::lvgl::hardware_keyboard_set_indev(nullptr);
-            lv_indev_delete(ctx->kb_indev);
-            ctx->kb_indev = nullptr;
-        }
-        lvgl_port_unlock();
     }
 
     LOG_I(TAG, "HID proc task stopped");
@@ -501,8 +361,40 @@ static bool api_hid_is_connected(struct Device* device) {
     return ctx && ctx->device_connected.load();
 }
 
+static bool api_hid_subscribe(struct Device* device, UsbHidQueueHandle event_queue) {
+    auto* ctx = static_cast<UsbHidCtx*>(device_get_driver_data(device));
+    if (!ctx || !event_queue) return false;
+    if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return false;
+    bool added = false;
+    for (int i = 0; i < MAX_SUBSCRIBERS; i++) {
+        if (!ctx->subscribers[i]) {
+            ctx->subscribers[i] = static_cast<QueueHandle_t>(event_queue);
+            added = true;
+            break;
+        }
+    }
+    xSemaphoreGive(ctx->sub_mutex);
+    if (!added) LOG_W(TAG, "subscriber list full");
+    return added;
+}
+
+static void api_hid_unsubscribe(struct Device* device, UsbHidQueueHandle event_queue) {
+    auto* ctx = static_cast<UsbHidCtx*>(device_get_driver_data(device));
+    if (!ctx || !event_queue) return;
+    if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
+    for (int i = 0; i < MAX_SUBSCRIBERS; i++) {
+        if (ctx->subscribers[i] == static_cast<QueueHandle_t>(event_queue)) {
+            ctx->subscribers[i] = nullptr;
+            break;
+        }
+    }
+    xSemaphoreGive(ctx->sub_mutex);
+}
+
 static const UsbHidApi hid_api = {
     .is_connected = api_hid_is_connected,
+    .subscribe    = api_hid_subscribe,
+    .unsubscribe  = api_hid_unsubscribe,
 };
 
 extern "C" {
@@ -510,9 +402,9 @@ extern "C" {
 static error_t start_device(struct Device* device) {
     auto* ctx = new UsbHidCtx();
 
-    ctx->key_queue = xQueueCreate(KEY_QUEUE_SIZE, sizeof(key_event_t));
-    if (!ctx->key_queue) {
-        LOG_E(TAG, "failed to create key queue");
+    ctx->sub_mutex = xSemaphoreCreateMutex();
+    if (!ctx->sub_mutex) {
+        LOG_E(TAG, "failed to create subscriber mutex");
         delete ctx;
         return ERROR_RESOURCE;
     }
@@ -520,7 +412,7 @@ static error_t start_device(struct Device* device) {
     ctx->hid_event_queue = xQueueCreate(HID_EVENT_QUEUE_SIZE, sizeof(hid_dev_event_t));
     if (!ctx->hid_event_queue) {
         LOG_E(TAG, "failed to create HID event queue");
-        vQueueDelete(ctx->key_queue);
+        vSemaphoreDelete(ctx->sub_mutex);
         delete ctx;
         return ERROR_RESOURCE;
     }
@@ -528,8 +420,8 @@ static error_t start_device(struct Device* device) {
     ctx->hid_proc_task_done = xSemaphoreCreateBinary();
     if (!ctx->hid_proc_task_done) {
         LOG_E(TAG, "failed to create task done semaphore");
-        vQueueDelete(ctx->key_queue);
         vQueueDelete(ctx->hid_event_queue);
+        vSemaphoreDelete(ctx->sub_mutex);
         delete ctx;
         return ERROR_RESOURCE;
     }
@@ -544,9 +436,9 @@ static error_t start_device(struct Device* device) {
     };
     if (hid_host_install(&hid_cfg) != ESP_OK) {
         LOG_E(TAG, "hid_host_install failed");
-        vQueueDelete(ctx->key_queue);
         vQueueDelete(ctx->hid_event_queue);
         vSemaphoreDelete(ctx->hid_proc_task_done);
+        vSemaphoreDelete(ctx->sub_mutex);
         delete ctx;
         return ERROR_RESOURCE;
     }
@@ -558,9 +450,9 @@ static error_t start_device(struct Device* device) {
         LOG_E(TAG, "failed to create hid_proc task");
         ctx->hid_proc_running = false;
         hid_host_uninstall();
-        vQueueDelete(ctx->key_queue);
         vQueueDelete(ctx->hid_event_queue);
         vSemaphoreDelete(ctx->hid_proc_task_done);
+        vSemaphoreDelete(ctx->sub_mutex);
         delete ctx;
         return ERROR_RESOURCE;
     }
@@ -577,29 +469,16 @@ static error_t stop_device(struct Device* device) {
     ctx->hid_proc_running = false;
 
     if (xSemaphoreTake(ctx->hid_proc_task_done, pdMS_TO_TICKS(HID_STOP_TIMEOUT_MS)) != pdTRUE) {
-        // Acquire LVGL lock BEFORE killing the task — the task may hold it.
-        bool have_lvgl = lvgl_port_lock(pdMS_TO_TICKS(200));
-        LOG_W(TAG, "HID proc task stop timed out, force terminating%s",
-              have_lvgl ? "" : " (LVGL lock unavailable — resources may leak)");
+        LOG_W(TAG, "HID proc task stop timed out, force terminating");
         vTaskDelete(ctx->hid_proc_task);
-        if (have_lvgl) {
-            if (ctx->mouse_indev)  { lv_indev_delete(ctx->mouse_indev);  ctx->mouse_indev  = nullptr; }
-            if (ctx->mouse_cursor) { lv_obj_delete(ctx->mouse_cursor);   ctx->mouse_cursor = nullptr; }
-            if (ctx->kb_indev)     {
-                tt::lvgl::hardware_keyboard_set_indev(nullptr);
-                lv_indev_delete(ctx->kb_indev);
-                ctx->kb_indev = nullptr;
-            }
-            lvgl_port_unlock();
-        }
     }
     ctx->hid_proc_task = nullptr;
     vSemaphoreDelete(ctx->hid_proc_task_done);
 
     hid_host_uninstall();
 
-    if (ctx->key_queue)       { vQueueDelete(ctx->key_queue);       ctx->key_queue       = nullptr; }
     if (ctx->hid_event_queue) { vQueueDelete(ctx->hid_event_queue); ctx->hid_event_queue = nullptr; }
+    if (ctx->sub_mutex)       { vSemaphoreDelete(ctx->sub_mutex);   ctx->sub_mutex        = nullptr; }
 
     device_set_driver_data(device, nullptr);
     delete ctx;

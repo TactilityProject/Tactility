@@ -7,6 +7,7 @@
 #include <Tactility/LogMessages.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Statusbar.h>
+#include <Tactility/lvgl/UsbHidInput.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/service/ServiceRegistration.h>
 #include <Tactility/Tactility.h>
@@ -191,12 +192,16 @@ bool GuiService::onStart(ServiceContext& service) {
 
     isStarted = true;
 
+    lvgl::startUsbHidInput();
+
     thread->start();
 
     return true;
 }
 
 void GuiService::onStop(ServiceContext& service) {
+    lvgl::stopUsbHidInput();
+
     lock();
 
     const auto loader = findLoaderService();

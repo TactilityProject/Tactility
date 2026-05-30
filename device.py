@@ -354,6 +354,8 @@ def write_usbhost_variables(output_file, device_properties: ConfigParser):
     has_usbhost = get_boolean_property_or_false(device_properties, "hardware", "usbHostEnabled")
     if has_usbhost:
         output_file.write("# USB Host\n")
+        output_file.write("CONFIG_FATFS_VOLUME_COUNT=6\n")
+        output_file.write("CONFIG_VFS_MAX_COUNT=10\n")
         output_file.write("CONFIG_USB_HOST_HUBS_SUPPORTED=y\n")
         output_file.write("CONFIG_USB_HOST_DEBOUNCE_DELAY_MS=500\n")
         output_file.write("CONFIG_USB_HOST_RESET_HOLD_MS=100\n")
