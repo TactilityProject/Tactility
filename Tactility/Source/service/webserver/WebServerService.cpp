@@ -67,15 +67,9 @@ static const char* getChipModelName(esp_chip_model_t model) {
         case CHIP_ESP32C2: return "ESP32-C2";
         case CHIP_ESP32C6: return "ESP32-C6";
         case CHIP_ESP32H2: return "ESP32-H2";
-#ifdef CHIP_ESP32P4
         case CHIP_ESP32P4: return "ESP32-P4";
-#endif
-#ifdef CHIP_ESP32C5
         case CHIP_ESP32C5: return "ESP32-C5";
-#endif
-#ifdef CHIP_ESP32C61
         case CHIP_ESP32C61: return "ESP32-C61";
-#endif
         default:           return "Unknown";
     }
 }
