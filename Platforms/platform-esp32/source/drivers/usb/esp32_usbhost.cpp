@@ -1,3 +1,6 @@
+#include <sdkconfig.h>
+#ifdef CONFIG_SOC_USB_OTG_SUPPORTED
+
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_usbhost.h>
@@ -152,3 +155,5 @@ Driver esp32_usbhost_driver = {
 };
 
 } // extern "C"
+
+#endif // CONFIG_SOC_USB_OTG_SUPPORTED

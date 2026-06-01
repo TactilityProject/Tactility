@@ -15,7 +15,6 @@
 #include <freertos/semphr.h>
 
 #include <lvgl.h>
-#include <esp_timer.h>
 
 namespace tt::lvgl {
 
@@ -41,7 +40,7 @@ struct UsbHidInputCtx {
     QueueHandle_t      key_queue     = nullptr;
     TaskHandle_t       task          = nullptr;
     SemaphoreHandle_t  task_done     = nullptr;
-    bool               running       = false;
+    std::atomic<bool>  running{false};
     std::atomic<bool>  subscribed{false};
 
     lv_indev_t* mouse_indev   = nullptr;
@@ -113,7 +112,7 @@ static void keyboard_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
         data->state = evt.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
         if (evt.pressed) {
             ctx->repeat_lv_key   = evt.lv_key;
-            ctx->repeat_start_ms = (uint32_t)(esp_timer_get_time() / 1000);
+            ctx->repeat_start_ms = lv_tick_get();
             ctx->repeat_last_ms  = 0;
         } else if (evt.lv_key == ctx->repeat_lv_key) {
             ctx->repeat_lv_key = 0;
@@ -124,7 +123,7 @@ static void keyboard_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
 
     uint32_t rkey = ctx->repeat_lv_key;
     if (rkey != 0) {
-        uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
+        uint32_t now_ms = lv_tick_get();
         if ((now_ms - ctx->repeat_start_ms) >= KEY_REPEAT_DELAY_MS) {
             uint32_t last = ctx->repeat_last_ms;
             if (last == 0 || (now_ms - last) >= KEY_REPEAT_RATE_MS) {
@@ -210,6 +209,18 @@ static void usbHidInputTask(void* arg) {
         case USB_HID_EVENT_MOUSE_BTN:
             ctx->mouse_btn1.store(hid_evt.mouse_btn.button1);
             break;
+        case USB_HID_EVENT_SCROLL: {
+            int32_t delta = hid_evt.scroll.delta;
+            uint32_t key = (delta < 0) ? USB_HID_KEY_UP : USB_HID_KEY_DOWN;
+            int ticks = (delta < 0) ? -delta : delta;
+            for (int t = 0; t < ticks; t++) {
+                KeyEvent press   = { key, true  };
+                KeyEvent release = { key, false };
+                xQueueSend(ctx->key_queue, &press,   0);
+                xQueueSend(ctx->key_queue, &release, 0);
+            }
+            break;
+        }
         case USB_HID_EVENT_KEYBOARD_CONNECTED:
             if (ctx->kb_indev && lock(pdMS_TO_TICKS(200))) {
                 hardware_keyboard_set_indev(ctx->kb_indev);

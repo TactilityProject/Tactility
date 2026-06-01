@@ -1,3 +1,6 @@
+#include <sdkconfig.h>
+#ifdef CONFIG_SOC_USB_OTG_SUPPORTED
+
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/usb_host_hid.h>
@@ -131,13 +134,9 @@ static void publish_event(UsbHidCtx* ctx, const UsbHidEvent* evt) {
     xSemaphoreGive(ctx->sub_mutex);
 }
 
-static void enqueue_scroll(UsbHidCtx* ctx, UsbHidKey scroll_key, int ticks) {
-    UsbHidEvent press   = { .type = USB_HID_EVENT_KEY, .key = { scroll_key, true  } };
-    UsbHidEvent release = { .type = USB_HID_EVENT_KEY, .key = { scroll_key, false } };
-    for (int t = 0; t < ticks; t++) {
-        publish_event(ctx, &press);
-        publish_event(ctx, &release);
-    }
+static void publish_scroll(UsbHidCtx* ctx, int32_t delta) {
+    UsbHidEvent evt = { .type = USB_HID_EVENT_SCROLL, .scroll = { delta } };
+    publish_event(ctx, &evt);
 }
 
 static void hid_interface_callback(hid_host_device_handle_t handle,
@@ -203,7 +202,7 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
                         bool is_pgdn = (hid_code == HID_KEY_PAGEDOWN) ||
                                        (!ctx->num_lock_active && hid_code == HID_KEY_KEYPAD_3);
                         if (is_pgup || is_pgdn) {
-                            enqueue_scroll(ctx, is_pgup ? USB_HID_KEY_UP : USB_HID_KEY_DOWN, 8);
+                            publish_scroll(ctx, is_pgup ? -8 : 8);
                             continue;
                         }
                         uint32_t lv_key = hid_keycode_to_lv_key(kb->modifier.val, hid_code,
@@ -243,10 +242,8 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
             if (data_len > sizeof(hid_mouse_input_report_boot_t)) {
                 int8_t wheel = (int8_t)data[sizeof(hid_mouse_input_report_boot_t)];
                 if (wheel != 0) {
-                    UsbHidKey scroll_key = (wheel < 0) ? USB_HID_KEY_UP : USB_HID_KEY_DOWN;
-                    int ticks = (wheel < 0) ? -wheel : wheel;
-                    if (ticks > 8) ticks = 8;
-                    enqueue_scroll(ctx, scroll_key, ticks);
+                    int32_t delta = (wheel < -8) ? -8 : (wheel > 8) ? 8 : (int32_t)wheel;
+                    publish_scroll(ctx, delta);
                 }
             }
         }
@@ -381,7 +378,10 @@ static bool api_hid_subscribe(struct Device* device, UsbHidQueueHandle event_que
 static void api_hid_unsubscribe(struct Device* device, UsbHidQueueHandle event_queue) {
     auto* ctx = static_cast<UsbHidCtx*>(device_get_driver_data(device));
     if (!ctx || !event_queue) return;
-    if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return;
+    if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        LOG_W(TAG, "unsubscribe: mutex timeout, subscriber slot may remain stale");
+        return;
+    }
     for (int i = 0; i < MAX_SUBSCRIBERS; i++) {
         if (ctx->subscribers[i] == static_cast<QueueHandle_t>(event_queue)) {
             ctx->subscribers[i] = nullptr;
@@ -498,3 +498,5 @@ Driver esp32_usbhost_hid_driver = {
 };
 
 } // extern "C"
+
+#endif // CONFIG_SOC_USB_OTG_SUPPORTED
