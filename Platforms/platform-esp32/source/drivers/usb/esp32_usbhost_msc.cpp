@@ -208,11 +208,13 @@ static void mscProcTask(void* arg) {
                 continue;
             }
             LOG_I(TAG, "USB drive mounted at %s", mount_path);
-            ctx->devs[slot]->mounted  = true;
             ctx->devs[slot]->fs_entry = file_system_add(&usb_fs_api, ctx->devs[slot]);
             if (!ctx->devs[slot]->fs_entry) {
-                LOG_W(TAG, "failed to register filesystem for %s", mount_path);
+                LOG_E(TAG, "failed to register filesystem for %s", mount_path);
+                free_msc_device(ctx, slot);
+                continue;
             }
+            ctx->devs[slot]->mounted = true;
 
         } else if (msg.id == MscMsgId::Disconnected) {
             taskENTER_CRITICAL(&ctx->devs_lock);

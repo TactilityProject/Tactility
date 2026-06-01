@@ -38,7 +38,7 @@ bool usb_midi_set_callback(usb_midi_message_cb_t callback, void* user_data) {
 bool usb_midi_is_connected(void) {
     struct Device* device = usb_host_midi_get_device();
     const struct UsbMidiApi* api = get_midi_api(device);
-    return api && api->is_connected(device);
+    return api && api->is_connected && api->is_connected(device);
 }
 
 } // extern "C"

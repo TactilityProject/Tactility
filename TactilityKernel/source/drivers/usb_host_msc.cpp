@@ -31,7 +31,7 @@ bool usb_msc_eject(const char* mount_path) {
     if (!mount_path) return false;
     struct Device* device = usb_host_msc_get_device();
     const struct UsbMscApi* api = get_msc_api(device);
-    return api && api->eject(device, mount_path);
+    return api && api->eject && api->eject(device, mount_path);
 }
 
 } // extern "C"

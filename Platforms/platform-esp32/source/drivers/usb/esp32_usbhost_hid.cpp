@@ -364,6 +364,10 @@ static bool api_hid_subscribe(struct Device* device, UsbHidQueueHandle event_que
     if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return false;
     bool added = false;
     for (int i = 0; i < MAX_SUBSCRIBERS; i++) {
+        if (ctx->subscribers[i] == static_cast<QueueHandle_t>(event_queue)) {
+            added = true;
+            break;
+        }
         if (!ctx->subscribers[i]) {
             ctx->subscribers[i] = static_cast<QueueHandle_t>(event_queue);
             added = true;

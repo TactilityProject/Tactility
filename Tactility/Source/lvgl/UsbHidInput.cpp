@@ -1,5 +1,7 @@
 #include <Tactility/lvgl/UsbHidInput.h>
 
+#ifdef ESP_PLATFORM
+
 #include <atomic>
 #include <Tactility/Assets.h>
 #include <Tactility/lvgl/Keyboard.h>
@@ -27,6 +29,7 @@ constexpr auto TASK_PRIORITY           = 5;
 constexpr auto STOP_TIMEOUT_MS         = 2000;
 constexpr uint32_t KEY_REPEAT_DELAY_MS = 500;
 constexpr uint32_t KEY_REPEAT_RATE_MS  = 50;
+constexpr int32_t CURSOR_SIZE = 16;
 
 typedef struct {
     uint32_t lv_key;
@@ -191,7 +194,6 @@ static void usbHidInputTask(void* arg) {
         }
         case USB_HID_EVENT_MOUSE_MOVE: {
             lv_display_t* disp = lv_display_get_default();
-            constexpr int32_t CURSOR_SIZE = 16;
             if (!disp) break;
             // Use logical (post-rotation) resolution so clamping matches LVGL's coordinate space
             int32_t w = lv_display_get_horizontal_resolution(disp);
@@ -213,6 +215,9 @@ static void usbHidInputTask(void* arg) {
             int32_t delta = hid_evt.scroll.delta;
             uint32_t key = (delta < 0) ? USB_HID_KEY_UP : USB_HID_KEY_DOWN;
             int ticks = (delta < 0) ? -delta : delta;
+            // Clamp to reasonable maximum to prevent queue overflow
+            constexpr int MAX_SCROLL_TICKS = 10;
+            if (ticks > MAX_SCROLL_TICKS) ticks = MAX_SCROLL_TICKS;
             for (int t = 0; t < ticks; t++) {
                 KeyEvent press   = { key, true  };
                 KeyEvent release = { key, false };
@@ -352,3 +357,5 @@ void stopUsbHidInput() {
 }
 
 } // namespace tt::lvgl
+
+#endif // ESP_PLATFORM

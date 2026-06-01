@@ -110,6 +110,10 @@ static void client_event_cb(const usb_host_client_event_msg_t* msg, void* arg) {
     auto* ctx = static_cast<UsbMidiCtx*>(arg);
 
     if (msg->event == USB_HOST_CLIENT_EVENT_NEW_DEV) {
+        if (ctx->dev_hdl != nullptr || ctx->connected.load()) {
+            LOG_W(TAG, "ignoring additional MIDI device while one is already active");
+            return;
+        }
         uint8_t addr = msg->new_dev.address;
         usb_device_handle_t dev_hdl = nullptr;
         if (usb_host_device_open(ctx->client_hdl, addr, &dev_hdl) != ESP_OK) return;
