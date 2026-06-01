@@ -25,6 +25,8 @@
 
 #include <tactility/lvgl_icon_statusbar.h>
 
+#include <cstring>
+
 namespace tt::service::statusbar {
 
 static const auto LOGGER = Logger("StatusbarService");
