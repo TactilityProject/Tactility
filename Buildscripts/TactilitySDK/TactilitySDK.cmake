@@ -11,7 +11,9 @@ macro(tactility_project project_name)
     project_elf($project_name)
 
     file(READ ${TACTILITY_SDK_PATH}/idf-version.txt TACTILITY_SDK_IDF_VERSION)
-    if (NOT "$ENV{ESP_IDF_VERSION}" STREQUAL "${TACTILITY_SDK_IDF_VERSION}")
+    string(REGEX REPLACE "^([0-9]+\\.[0-9]+).*" "\\1" TACTILITY_SDK_IDF_MAJOR_MINOR "${TACTILITY_SDK_IDF_VERSION}")
+    string(REGEX REPLACE "^([0-9]+\\.[0-9]+).*" "\\1" CURRENT_IDF_MAJOR_MINOR "$ENV{ESP_IDF_VERSION}")
+    if (NOT "${CURRENT_IDF_MAJOR_MINOR}" STREQUAL "${TACTILITY_SDK_IDF_MAJOR_MINOR}")
         message(FATAL_ERROR "ESP-IDF version of Tactility SDK (${TACTILITY_SDK_IDF_VERSION}) does not match current ESP-IDF version ($ENV{ESP_IDF_VERSION})")
     endif()
 
