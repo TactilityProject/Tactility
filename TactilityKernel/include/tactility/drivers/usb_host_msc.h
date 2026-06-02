@@ -18,9 +18,6 @@ struct UsbMscApi {
 
 extern const struct DeviceType USB_HOST_MSC_TYPE;
 
-/** Find the first ready USB MSC device. Returns NULL if unavailable. */
-struct Device* usb_host_msc_get_device(void);
-
 /**
  * Safely eject a mounted USB drive.
  * @param mount_path Full mount path (e.g. "/usb0").

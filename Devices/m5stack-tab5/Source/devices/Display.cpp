@@ -77,8 +77,8 @@ std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
         .mirrorY = false,
         .invertColor = false,
         .bufferSize = 0, // 0 = default (1/10 of screen)
-        .swRotate = (variant == Tab5Variant::St7123), // ST7123 MIPI-DSI panel does not support hardware swap_xy
-        .buffSpiram = (variant == Tab5Variant::St7123), // sw_rotate needs a 3rd buffer; use PSRAM to avoid OOM in internal SRAM
+        .swRotate = true,
+        .buffSpiram = true,
         .touch = touch,
         .backlightDutyFunction = driver::pwmbacklight::setBacklightDuty,
         .resetPin = LCD_PIN_RESET,

@@ -273,6 +273,14 @@ bool device_exists_of_type(const struct DeviceType* type);
  */
 struct Device* device_find_by_name(const char* name);
 
+/**
+ * Find the first started device of the given type.
+ *
+ * @param[in] type non-null device type pointer
+ * @return the first started device of the given type, or NULL if none found
+ */
+struct Device* device_find_first_active_by_type(const struct DeviceType* type);
+
 #ifdef __cplusplus
 }
 #endif

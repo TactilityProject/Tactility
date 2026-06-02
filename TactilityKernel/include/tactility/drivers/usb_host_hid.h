@@ -58,9 +58,6 @@ struct UsbHidApi {
 
 extern const struct DeviceType USB_HOST_HID_TYPE;
 
-/** Find the first ready USB HID device. Returns NULL if unavailable. */
-struct Device* usb_host_hid_get_device(void);
-
 /** Returns true if any HID device (keyboard or mouse) is currently connected. */
 bool usb_host_hid_is_connected(void);
 

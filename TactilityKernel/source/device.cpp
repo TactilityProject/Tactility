@@ -370,4 +370,16 @@ Device* device_find_by_name(const char* name) {
     return found;
 }
 
+Device* device_find_first_active_by_type(const DeviceType* type) {
+    Device* found = nullptr;
+    device_for_each_of_type(type, &found, [](Device* dev, void* ctx) -> bool {
+        if (device_is_ready(dev)) {
+            *static_cast<Device**>(ctx) = dev;
+            return false;
+        }
+        return true;
+    });
+    return found;
+}
+
 } // extern "C"

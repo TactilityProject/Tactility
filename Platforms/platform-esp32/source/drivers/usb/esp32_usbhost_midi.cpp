@@ -28,7 +28,7 @@ constexpr auto MIDI_TRANSFER_BUF_SIZE = 512;
 constexpr uint8_t MIDI_INTF_CLASS    = 0x01;
 constexpr uint8_t MIDI_INTF_SUBCLASS = 0x03;
 
-struct UsbMidiCtx {
+struct UsbMidiContext {
     usb_host_client_handle_t client_hdl   = nullptr;
     usb_device_handle_t      dev_hdl      = nullptr;
     usb_transfer_t*          transfer     = nullptr;
@@ -71,7 +71,7 @@ static bool find_midi_interface(const usb_config_desc_t* cfg, uint8_t* out_intf,
     return false;
 }
 
-static void dispatch_midi_packets(UsbMidiCtx* ctx, const uint8_t* buf, int len) {
+static void dispatch_midi_packets(UsbMidiContext* ctx, const uint8_t* buf, int len) {
     usb_midi_message_cb_t cb;
     void* arg;
     taskENTER_CRITICAL(&ctx->callback_lock);
@@ -94,7 +94,7 @@ static void dispatch_midi_packets(UsbMidiCtx* ctx, const uint8_t* buf, int len) 
 }
 
 static void midi_transfer_cb(usb_transfer_t* transfer) {
-    auto* ctx = static_cast<UsbMidiCtx*>(transfer->context);
+    auto* ctx = static_cast<UsbMidiContext*>(transfer->context);
     if (transfer->status == USB_TRANSFER_STATUS_COMPLETED && transfer->actual_num_bytes > 0) {
         dispatch_midi_packets(ctx, transfer->data_buffer, transfer->actual_num_bytes);
     }
@@ -107,7 +107,7 @@ static void midi_transfer_cb(usb_transfer_t* transfer) {
 }
 
 static void client_event_cb(const usb_host_client_event_msg_t* msg, void* arg) {
-    auto* ctx = static_cast<UsbMidiCtx*>(arg);
+    auto* ctx = static_cast<UsbMidiContext*>(arg);
 
     if (msg->event == USB_HOST_CLIENT_EVENT_NEW_DEV) {
         if (ctx->dev_hdl != nullptr || ctx->connected.load()) {
@@ -169,8 +169,8 @@ static void client_event_cb(const usb_host_client_event_msg_t* msg, void* arg) {
     }
 }
 
-static void midiClientTask(void* arg) {
-    auto* ctx = static_cast<UsbMidiCtx*>(arg);
+static void midi_client_task(void* arg) {
+    auto* ctx = static_cast<UsbMidiContext*>(arg);
     LOG_I(TAG, "MIDI client task started");
 
     while (ctx->running) {
@@ -190,7 +190,7 @@ static void midiClientTask(void* arg) {
 }
 
 static void api_set_callback(struct Device* device, usb_midi_message_cb_t callback, void* user_data) {
-    auto* ctx = static_cast<UsbMidiCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbMidiContext*>(device_get_driver_data(device));
     if (!ctx) return;
     taskENTER_CRITICAL(&ctx->callback_lock);
     ctx->callback     = callback;
@@ -199,7 +199,7 @@ static void api_set_callback(struct Device* device, usb_midi_message_cb_t callba
 }
 
 static bool api_is_connected(struct Device* device) {
-    auto* ctx = static_cast<UsbMidiCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbMidiContext*>(device_get_driver_data(device));
     return ctx && ctx->connected.load();
 }
 
@@ -211,7 +211,7 @@ static const UsbMidiApi midi_api = {
 extern "C" {
 
 static error_t start_device(struct Device* device) {
-    auto* ctx = new UsbMidiCtx();
+    auto* ctx = new UsbMidiContext();
 
     if (usb_host_transfer_alloc(MIDI_TRANSFER_BUF_SIZE, 0, &ctx->transfer) != ESP_OK) {
         LOG_E(TAG, "failed to allocate MIDI transfer");
@@ -244,7 +244,7 @@ static error_t start_device(struct Device* device) {
     }
 
     ctx->running = true;
-    BaseType_t result = xTaskCreate(midiClientTask, "midi_client", MIDI_TASK_STACK,
+    BaseType_t result = xTaskCreate(midi_client_task, "midi_client", MIDI_TASK_STACK,
                                     ctx, MIDI_TASK_PRIORITY, &ctx->task_handle);
     if (result != pdPASS) {
         LOG_E(TAG, "failed to create midi_client task");
@@ -262,7 +262,7 @@ static error_t start_device(struct Device* device) {
 }
 
 static error_t stop_device(struct Device* device) {
-    auto* ctx = static_cast<UsbMidiCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbMidiContext*>(device_get_driver_data(device));
     if (!ctx) return ERROR_NONE;
 
     ctx->running = false;

@@ -54,7 +54,7 @@ typedef struct {
     };
 } msc_msg_t;
 
-struct UsbMscCtx {
+struct UsbMscContext {
     msc_dev_entry_t*  devs[MAX_MSC_DEVICES] = {};
     portMUX_TYPE      devs_lock             = portMUX_INITIALIZER_UNLOCKED;
     QueueHandle_t     event_queue           = nullptr;
@@ -82,21 +82,21 @@ static const FileSystemApi usb_fs_api = {
     .get_path   = usb_fs_get_path,
 };
 
-static int find_free_slot(UsbMscCtx* ctx) {
+static int find_free_slot(UsbMscContext* ctx) {
     for (int i = 0; i < MAX_MSC_DEVICES; i++) {
         if (ctx->devs[i] == nullptr) return i;
     }
     return -1;
 }
 
-static int find_slot_by_handle(UsbMscCtx* ctx, msc_host_device_handle_t handle) {
+static int find_slot_by_handle(UsbMscContext* ctx, msc_host_device_handle_t handle) {
     for (int i = 0; i < MAX_MSC_DEVICES; i++) {
         if (ctx->devs[i] && ctx->devs[i]->device == handle) return i;
     }
     return -1;
 }
 
-static void free_msc_device(UsbMscCtx* ctx, int slot) {
+static void free_msc_device(UsbMscContext* ctx, int slot) {
     if (slot < 0 || slot >= MAX_MSC_DEVICES || !ctx->devs[slot]) return;
     if (ctx->devs[slot]->fs_entry) {
         ctx->devs[slot]->mounted = false;
@@ -113,14 +113,14 @@ static void free_msc_device(UsbMscCtx* ctx, int slot) {
     ctx->devs[slot] = nullptr;
 }
 
-static void free_all_msc_devices(UsbMscCtx* ctx) {
+static void free_all_msc_devices(UsbMscContext* ctx) {
     for (int i = 0; i < MAX_MSC_DEVICES; i++) {
         free_msc_device(ctx, i);
     }
 }
 
 static void msc_event_cb(const msc_host_event_t* event, void* arg) {
-    auto* ctx = static_cast<UsbMscCtx*>(arg);
+    auto* ctx = static_cast<UsbMscContext*>(arg);
     if (!ctx->event_queue) return;
     msc_msg_t msg = {};
     if (event->event == kMscDeviceConnected) {
@@ -138,8 +138,8 @@ static void msc_event_cb(const msc_host_event_t* event, void* arg) {
     }
 }
 
-static void mscProcTask(void* arg) {
-    auto* ctx = static_cast<UsbMscCtx*>(arg);
+static void msc_proc_task(void* arg) {
+    auto* ctx = static_cast<UsbMscContext*>(arg);
     LOG_I(TAG, "MSC proc task started");
 
     while (ctx->proc_running) {
@@ -234,7 +234,7 @@ static void mscProcTask(void* arg) {
 }
 
 static bool api_eject(struct Device* device, const char* mount_path) {
-    auto* ctx = static_cast<UsbMscCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbMscContext*>(device_get_driver_data(device));
     if (!ctx) return false;
 
     taskENTER_CRITICAL(&ctx->devs_lock);
@@ -252,7 +252,7 @@ static bool api_eject(struct Device* device, const char* mount_path) {
 
     if (found >= 0) {
         LOG_I(TAG, "ejecting USB drive at %s (slot %d)", mount_path, found);
-        // Free outside the lock; slot is already claimed (nullptr) so mscProcTask won't touch it.
+        // Free outside the lock; slot is already claimed (nullptr) so msc_proc_task won't touch it.
         if (entry->fs_entry) {
             entry->mounted = false;
             file_system_remove(entry->fs_entry);
@@ -279,7 +279,7 @@ static const UsbMscApi msc_api = {
 extern "C" {
 
 static error_t start_device(struct Device* device) {
-    auto* ctx = new UsbMscCtx();
+    auto* ctx = new UsbMscContext();
 
     ctx->event_queue = xQueueCreate(MSC_EVENT_QUEUE_SIZE, sizeof(msc_msg_t));
     if (!ctx->event_queue) {
@@ -313,7 +313,7 @@ static error_t start_device(struct Device* device) {
     }
 
     ctx->proc_running = true;
-    BaseType_t result = xTaskCreate(mscProcTask, "msc_proc", MSC_PROC_TASK_STACK,
+    BaseType_t result = xTaskCreate(msc_proc_task, "msc_proc", MSC_PROC_TASK_STACK,
                                     ctx, MSC_PROC_TASK_PRIORITY, &ctx->proc_task);
     if (result != pdPASS) {
         LOG_E(TAG, "failed to create msc_proc task");
@@ -331,7 +331,7 @@ static error_t start_device(struct Device* device) {
 }
 
 static error_t stop_device(struct Device* device) {
-    auto* ctx = static_cast<UsbMscCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbMscContext*>(device_get_driver_data(device));
     if (!ctx) return ERROR_NONE;
 
     ctx->proc_running = false;

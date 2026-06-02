@@ -34,9 +34,6 @@ struct UsbMidiApi {
 
 extern const struct DeviceType USB_HOST_MIDI_TYPE;
 
-/** Find the first ready USB MIDI device. Returns NULL if unavailable. */
-struct Device* usb_host_midi_get_device(void);
-
 /**
  * Register a callback for incoming MIDI messages.
  * Replaces any previously registered callback. Pass NULL to disable.

@@ -22,13 +22,13 @@ constexpr auto USB_LIB_EVENT_TIMEOUT_MS  = 500;
 constexpr auto USB_HOST_STOP_TIMEOUT_MS  = 3000;
 constexpr auto USB_HOST_STOP_RETRY_MS    = 1000;
 
-struct UsbHostCtx {
+struct UsbHostContext {
     TaskHandle_t      lib_task     = nullptr;
     SemaphoreHandle_t lib_task_done = nullptr;
 };
 
 static void usbLibTask(void* arg) {
-    auto* ctx = static_cast<UsbHostCtx*>(arg);
+    auto* ctx = static_cast<UsbHostContext*>(arg);
     LOG_I(TAG, "lib task started");
 
     while (true) {
@@ -82,7 +82,7 @@ static error_t start_device(struct Device* device) {
         return ERROR_RESOURCE;
     }
 
-    auto* ctx = new UsbHostCtx();
+    auto* ctx = new UsbHostContext();
 
     ctx->lib_task_done = xSemaphoreCreateBinary();
     if (!ctx->lib_task_done) {
@@ -108,7 +108,7 @@ static error_t start_device(struct Device* device) {
 }
 
 static error_t stop_device(struct Device* device) {
-    auto* ctx = static_cast<UsbHostCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbHostContext*>(device_get_driver_data(device));
     if (!ctx) return ERROR_NONE;
 
     xTaskNotifyGive(ctx->lib_task);

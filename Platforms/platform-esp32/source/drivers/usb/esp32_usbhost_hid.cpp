@@ -33,7 +33,7 @@ typedef struct {
     void* arg;
 } hid_dev_event_t;
 
-struct UsbHidCtx {
+struct UsbHidContext {
     std::atomic<bool>    mouse_connected{false};
     std::atomic<bool>    device_connected{false};
     QueueHandle_t        hid_event_queue    = nullptr;
@@ -71,7 +71,7 @@ static const uint8_t keycode2ascii[57][2] = {
     {'`', '~'}, {',', '<'}, {'.', '>'}, {'/', '?'},
 };
 
-static uint32_t hid_keycode_to_lv_key(uint8_t modifier, uint8_t key_code,
+static uint32_t hid_keycode_to_key(uint8_t modifier, uint8_t key_code,
                                        bool caps_lock, bool num_lock) {
     bool shift = (modifier & HID_LEFT_SHIFT) || (modifier & HID_RIGHT_SHIFT);
     bool ctrl  = (modifier & HID_LEFT_CONTROL) || (modifier & HID_RIGHT_CONTROL);
@@ -119,7 +119,7 @@ static uint32_t hid_keycode_to_lv_key(uint8_t modifier, uint8_t key_code,
     return 0;
 }
 
-static void publish_event(UsbHidCtx* ctx, const UsbHidEvent* evt) {
+static void publish_event(UsbHidContext* ctx, const UsbHidEvent* evt) {
     if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(10)) != pdTRUE) {
         LOG_W(TAG, "publish_event: sub_mutex contended, event type=%d dropped", (int)evt->type);
         return;
@@ -134,7 +134,7 @@ static void publish_event(UsbHidCtx* ctx, const UsbHidEvent* evt) {
     xSemaphoreGive(ctx->sub_mutex);
 }
 
-static void publish_scroll(UsbHidCtx* ctx, int32_t delta) {
+static void publish_scroll(UsbHidContext* ctx, int32_t delta) {
     UsbHidEvent evt = { .type = USB_HID_EVENT_SCROLL, .scroll = { delta } };
     publish_event(ctx, &evt);
 }
@@ -143,7 +143,7 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
                                    const hid_host_interface_event_t event,
                                    void* arg)
 {
-    auto* ctx = static_cast<UsbHidCtx*>(arg);
+    auto* ctx = static_cast<UsbHidContext*>(arg);
     uint8_t data[64] = {};
     size_t data_len = 0;
     hid_host_dev_params_t params;
@@ -205,7 +205,7 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
                             publish_scroll(ctx, is_pgup ? -8 : 8);
                             continue;
                         }
-                        uint32_t lv_key = hid_keycode_to_lv_key(kb->modifier.val, hid_code,
+                        uint32_t lv_key = hid_keycode_to_key(kb->modifier.val, hid_code,
                                                                   ctx->caps_lock_active, ctx->num_lock_active);
                         if (lv_key) {
                             UsbHidEvent evt = { .type = USB_HID_EVENT_KEY, .key = { lv_key, true } };
@@ -284,15 +284,15 @@ static void hid_driver_callback(hid_host_device_handle_t handle,
                                 const hid_host_driver_event_t event,
                                 void* arg)
 {
-    auto* ctx = static_cast<UsbHidCtx*>(arg);
+    auto* ctx = static_cast<UsbHidContext*>(arg);
     hid_dev_event_t evt = { handle, event, arg };
     if (ctx->hid_event_queue) {
         xQueueSend(ctx->hid_event_queue, &evt, 0);
     }
 }
 
-static void hidProcTask(void* arg) {
-    auto* ctx = static_cast<UsbHidCtx*>(arg);
+static void hid_proc_task(void* arg) {
+    auto* ctx = static_cast<UsbHidContext*>(arg);
     LOG_I(TAG, "HID proc task started");
 
     while (ctx->hid_proc_running) {
@@ -354,12 +354,12 @@ static void hidProcTask(void* arg) {
 }
 
 static bool api_hid_is_connected(struct Device* device) {
-    auto* ctx = static_cast<UsbHidCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbHidContext*>(device_get_driver_data(device));
     return ctx && ctx->device_connected.load();
 }
 
 static bool api_hid_subscribe(struct Device* device, UsbHidQueueHandle event_queue) {
-    auto* ctx = static_cast<UsbHidCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbHidContext*>(device_get_driver_data(device));
     if (!ctx || !event_queue) return false;
     if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return false;
     bool added = false;
@@ -380,7 +380,7 @@ static bool api_hid_subscribe(struct Device* device, UsbHidQueueHandle event_que
 }
 
 static void api_hid_unsubscribe(struct Device* device, UsbHidQueueHandle event_queue) {
-    auto* ctx = static_cast<UsbHidCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbHidContext*>(device_get_driver_data(device));
     if (!ctx || !event_queue) return;
     if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
         LOG_W(TAG, "unsubscribe: mutex timeout, subscriber slot may remain stale");
@@ -404,7 +404,7 @@ static const UsbHidApi hid_api = {
 extern "C" {
 
 static error_t start_device(struct Device* device) {
-    auto* ctx = new UsbHidCtx();
+    auto* ctx = new UsbHidContext();
 
     ctx->sub_mutex = xSemaphoreCreateMutex();
     if (!ctx->sub_mutex) {
@@ -448,7 +448,7 @@ static error_t start_device(struct Device* device) {
     }
 
     ctx->hid_proc_running = true;
-    BaseType_t result = xTaskCreate(hidProcTask, "hid_proc", HID_PROC_TASK_STACK,
+    BaseType_t result = xTaskCreate(hid_proc_task, "hid_proc", HID_PROC_TASK_STACK,
                                     ctx, HID_PROC_TASK_PRIORITY, &ctx->hid_proc_task);
     if (result != pdPASS) {
         LOG_E(TAG, "failed to create hid_proc task");
@@ -467,7 +467,7 @@ static error_t start_device(struct Device* device) {
 }
 
 static error_t stop_device(struct Device* device) {
-    auto* ctx = static_cast<UsbHidCtx*>(device_get_driver_data(device));
+    auto* ctx = static_cast<UsbHidContext*>(device_get_driver_data(device));
     if (!ctx) return ERROR_NONE;
 
     ctx->hid_proc_running = false;

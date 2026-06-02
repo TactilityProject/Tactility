@@ -16,7 +16,7 @@
 #include <Tactility/lvgl/Toolbar.h>
 #include <tactility/check.h>
 
-#include <tactility/module.h>
+#include <tactility/drivers/usb_host_msc.h>
 
 #include <cctype>
 #include <cstdio>
@@ -437,16 +437,9 @@ void View::onEjectPressed() {
     std::string mount_path = state->getSelectedChildPath();
     LOGGER.info("Ejecting {}", mount_path);
 
-    uintptr_t sym = 0;
-    if (module_resolve_symbol_global("usb_msc_eject", &sym) && sym != 0) {
-        auto eject_fn = reinterpret_cast<bool(*)(const char*)>(sym);
-        if (!eject_fn(mount_path.c_str())) {
-            LOGGER.warn("usb_msc_eject: {} not found", mount_path);
-            alertdialog::start("Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
-        }
-    } else {
-        LOGGER.warn("usb_msc_eject symbol not available");
-        alertdialog::start("Eject unavailable", "Eject functionality is not available.");
+    if (!usb_msc_eject(mount_path.c_str())) {
+        LOGGER.warn("usb_msc_eject: {} not found", mount_path);
+        alertdialog::start("Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
     }
 
     onNavigate();
