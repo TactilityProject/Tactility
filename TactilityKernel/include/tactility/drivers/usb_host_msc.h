@@ -20,10 +20,11 @@ extern const struct DeviceType USB_HOST_MSC_TYPE;
 
 /**
  * Safely eject a mounted USB drive.
+ * @param device non-null ready USB MSC device (from device_find_first_active_by_type).
  * @param mount_path Full mount path (e.g. "/usb0").
  * @return true if the drive was found and ejected.
  */
-bool usb_msc_eject(const char* mount_path);
+bool usb_msc_eject(struct Device* device, const char* mount_path);
 
 #ifdef __cplusplus
 }

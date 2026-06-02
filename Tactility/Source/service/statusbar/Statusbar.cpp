@@ -15,6 +15,7 @@
 #include <tactility/drivers/bluetooth.h>
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/bluetooth_midi.h>
+#include <tactility/device.h>
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/drivers/usb_host_msc.h>
@@ -213,7 +214,10 @@ class StatusbarService final : public Service {
     }
 
     void updateUsbIcon() {
-        bool connected = usb_host_hid_is_connected() || usb_midi_is_connected();
+        struct Device* hid_dev  = device_find_first_active_by_type(&USB_HOST_HID_TYPE);
+        struct Device* midi_dev = device_find_first_active_by_type(&USB_HOST_MIDI_TYPE);
+        bool connected = (hid_dev && usb_host_hid_is_connected(hid_dev)) ||
+                         (midi_dev && usb_midi_is_connected(midi_dev));
         if (!connected) {
             // MSC: scan filesystems for any mounted /usb* path
             file_system_for_each(&connected, [](struct FileSystem* fs, void* ctx) -> bool {

@@ -9,6 +9,7 @@
 
 #include <Tactility/Logger.h>
 
+#include <tactility/device.h>
 #include <tactility/drivers/usb_host_hid.h>
 
 #include <freertos/FreeRTOS.h>
@@ -181,7 +182,8 @@ static void usbHidInputTask(void* arg) {
         UsbHidEvent hid_evt;
         if (xQueueReceive(ctx->hid_queue, &hid_evt, pdMS_TO_TICKS(100)) != pdTRUE) {
             if (!ctx->subscribed) {
-                ctx->subscribed = usb_host_hid_subscribe(ctx->hid_queue);
+                struct Device* hid_dev = device_find_first_active_by_type(&USB_HOST_HID_TYPE);
+                if (hid_dev) ctx->subscribed = usb_host_hid_subscribe(hid_dev, ctx->hid_queue);
             }
             continue;
         }
@@ -302,13 +304,14 @@ void startUsbHidInput() {
         return;
     }
 
-    ctx->subscribed = usb_host_hid_subscribe(ctx->hid_queue);
+    struct Device* hid_dev = device_find_first_active_by_type(&USB_HOST_HID_TYPE);
+    if (hid_dev) ctx->subscribed = usb_host_hid_subscribe(hid_dev, ctx->hid_queue);
 
     ctx->running = true;
     if (xTaskCreate(usbHidInputTask, "usb_hid_inp", TASK_STACK, ctx, TASK_PRIORITY, &ctx->task) != pdPASS) {
         LOGGER.error("failed to create task");
         ctx->running = false;
-        usb_host_hid_unsubscribe(ctx->hid_queue);
+        if (hid_dev) usb_host_hid_unsubscribe(hid_dev, ctx->hid_queue);
         vQueueDelete(ctx->hid_queue);
         vQueueDelete(ctx->key_queue);
         vSemaphoreDelete(ctx->task_done);
@@ -346,7 +349,8 @@ void stopUsbHidInput() {
     ctx->task = nullptr;
 
     if (ctx->subscribed) {
-        usb_host_hid_unsubscribe(ctx->hid_queue);
+        struct Device* hid_dev = device_find_first_active_by_type(&USB_HOST_HID_TYPE);
+        if (hid_dev) usb_host_hid_unsubscribe(hid_dev, ctx->hid_queue);
     }
     vQueueDelete(ctx->hid_queue);
     vQueueDelete(ctx->key_queue);

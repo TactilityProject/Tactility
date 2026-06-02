@@ -16,6 +16,7 @@
 #include <Tactility/lvgl/Toolbar.h>
 #include <tactility/check.h>
 
+#include <tactility/device.h>
 #include <tactility/drivers/usb_host_msc.h>
 
 #include <cctype>
@@ -437,7 +438,8 @@ void View::onEjectPressed() {
     std::string mount_path = state->getSelectedChildPath();
     LOGGER.info("Ejecting {}", mount_path);
 
-    if (!usb_msc_eject(mount_path.c_str())) {
+    struct Device* msc_dev = device_find_first_active_by_type(&USB_HOST_MSC_TYPE);
+    if (!msc_dev || !usb_msc_eject(msc_dev, mount_path.c_str())) {
         LOGGER.warn("usb_msc_eject: {} not found", mount_path);
         alertdialog::start("Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
     }

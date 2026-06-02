@@ -37,13 +37,16 @@ extern const struct DeviceType USB_HOST_MIDI_TYPE;
 /**
  * Register a callback for incoming MIDI messages.
  * Replaces any previously registered callback. Pass NULL to disable.
- * @return true if a MIDI device was found and the callback was registered, false if no device is available.
+ * @param device non-null ready USB MIDI device.
  */
 // TODO: Make an interface that takes/releases control
-bool usb_midi_set_callback(usb_midi_message_cb_t callback, void* user_data);
+void usb_midi_set_callback(struct Device* device, usb_midi_message_cb_t callback, void* user_data);
 
-/** Returns true if a MIDI device is currently connected and streaming. */
-bool usb_midi_is_connected(void);
+/**
+ * Returns true if a MIDI device is currently connected and streaming.
+ * @param device non-null ready USB MIDI device.
+ */
+bool usb_midi_is_connected(struct Device* device);
 
 #ifdef __cplusplus
 }
