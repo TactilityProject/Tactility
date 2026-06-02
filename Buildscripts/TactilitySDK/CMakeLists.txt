@@ -2,6 +2,7 @@ idf_component_register(
     INCLUDE_DIRS
         "Libraries/TactilityC/include"
         "Libraries/TactilityKernel/include"
+        "Libraries/TactilityFreeRtos/include"
         "Libraries/lvgl/include"
         "Modules/lvgl-module/include"
         "Drivers/bm8563-module/include"
