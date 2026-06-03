@@ -197,6 +197,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_set_one_checked),
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_set_button_width),
     DEFINE_MODULE_SYMBOL(lv_buttonmatrix_set_selected_button),
+    DEFINE_MODULE_SYMBOL(lv_buttonmatrix_clear_button_ctrl),
     // lv_canvas
     DEFINE_MODULE_SYMBOL(lv_canvas_create),
     DEFINE_MODULE_SYMBOL(lv_canvas_fill_bg),
