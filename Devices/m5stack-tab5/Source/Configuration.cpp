@@ -1,6 +1,7 @@
 #include "devices/Display.h"
 #include "devices/SdCard.h"
 #include "devices/Power.h"
+#include "devices/Tab5Keyboard.h"
 
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
@@ -17,6 +18,7 @@ static DeviceVector createDevices() {
         createPower(),
         createDisplay(),
         createSdCard(),
+        std::make_shared<Tab5Keyboard>()
     };
 }
 
