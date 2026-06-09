@@ -23,6 +23,7 @@ class Tab5Keyboard final : public tt::hal::keyboard::KeyboardDevice {
     bool symActive  = false;  // held while Sym is physically down
     bool aaSticky   = false;  // latched on single Aa tap, cleared after next non-modifier key
     bool aaHeld     = false;  // true while Aa is physically held
+    bool aaTapped   = false;  // no non-modifier key was pressed while Aa was held
     bool ctrlHeld   = false;  // true while Ctrl is physically held
 
     // IRQ-driven event gating
@@ -51,8 +52,9 @@ class Tab5Keyboard final : public tt::hal::keyboard::KeyboardDevice {
 public:
     Tab5Keyboard() {
         queue = xQueueCreate(20, sizeof(uint32_t));
+        // queue == nullptr on OOM; startLvgl() checks and refuses to start
     }
-    ~Tab5Keyboard() override;  // defined in .cpp: calls removeIrqPin() + vQueueDelete(queue)
+    ~Tab5Keyboard() override;  // defined in .cpp: stops active session, then vQueueDelete(queue)
 
     std::string getName() const override { return "Tab5Keyboard"; }
     std::string getDescription() const override { return "M5Stack Tab5 Keyboard addon"; }

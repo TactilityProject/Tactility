@@ -236,13 +236,15 @@ void Tab5Keyboard::drainEvents() {
         }
         if (row == MOD_ROW_AA && col == MOD_COL_AA) {
             if (pressed) {
-                aaHeld = true;
+                aaHeld   = true;
+                aaTapped = true;  // assume tap until a real key is pressed while held
             } else {
-                // Tap (no non-modifier key consumed while held) → toggle sticky
-                if (aaHeld) {
+                // Only latch sticky if no non-modifier key was pressed during this hold
+                if (aaTapped) {
                     aaSticky = !aaSticky;
                 }
-                aaHeld = false;
+                aaHeld   = false;
+                aaTapped = false;
             }
             updateLeds();
             count--;
@@ -268,6 +270,8 @@ void Tab5Keyboard::drainEvents() {
                 const uint32_t lv_key   = tab5TranslateKey(m.keycode, modifier, ctrlHeld);
                 if (lv_key != 0U) {
                     if (pressed) {
+                        // A real key was pressed — this hold is a chord, not a tap
+                        aaTapped = false;
                         if (lv_key == LV_KEY_ESC) {
                             tt::app::stop();
                         } else {
@@ -354,16 +358,19 @@ void Tab5Keyboard::readCallback(lv_indev_t* indev, lv_indev_data_t* data) {
 // ---------------------------------------------------------------------------
 Tab5Keyboard::~Tab5Keyboard() {
     if (inputTimer) {
-        inputTimer->stop();
-        inputTimer = nullptr;
+        stopLvgl();  // tears down LVGL indev, IRQ, I2C bus
     }
-    removeIrqPin();
     if (queue) {
         vQueueDelete(queue);
+        queue = nullptr;
     }
 }
 
 bool Tab5Keyboard::startLvgl(lv_display_t* display) {
+    if (!queue) {
+        LOG_E("Tab5Keyboard", "Input queue allocation failed — cannot start");
+        return false;
+    }
     // Create LP I2C master bus (LP_I2C_NUM_0, GPIO 0/1) via new i2c_master API
     i2c_master_bus_config_t bus_cfg = {
         .i2c_port          = LP_I2C_NUM_0,
@@ -408,6 +415,7 @@ bool Tab5Keyboard::startLvgl(lv_display_t* display) {
     symActive    = false;
     aaSticky     = false;
     aaHeld       = false;
+    aaTapped     = false;
     ctrlHeld     = false;
     repeatKey    = 0;
     repeatRow    = 0xFF;
@@ -450,6 +458,9 @@ bool Tab5Keyboard::stopLvgl() {
     inputTimer = nullptr;
 
     removeIrqPin();
+    if (queue) {
+        xQueueReset(queue);  // discard unread keycodes so a restart begins with an empty buffer
+    }
     writeReg(REG_INT_CFG, 0x00);  // disable all interrupts
     symActive = false;
     aaSticky  = false;
