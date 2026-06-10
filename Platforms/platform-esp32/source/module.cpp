@@ -19,6 +19,7 @@ extern Driver esp32_sdmmc_driver;
 #endif
 extern Driver esp32_spi_driver;
 extern Driver esp32_uart_driver;
+extern Driver esp32_grove_driver;
 #if defined(CONFIG_BT_NIMBLE_ENABLED)
 extern Driver esp32_bluetooth_driver;
 extern Driver esp32_ble_serial_driver;
@@ -43,6 +44,7 @@ static error_t start() {
 #endif
     check(driver_construct_add(&esp32_spi_driver) == ERROR_NONE);
     check(driver_construct_add(&esp32_uart_driver) == ERROR_NONE);
+    check(driver_construct_add(&esp32_grove_driver) == ERROR_NONE);
 #if defined(CONFIG_BT_NIMBLE_ENABLED)
     check(driver_construct_add(&esp32_bluetooth_driver) == ERROR_NONE);
     check(driver_construct_add(&esp32_ble_serial_driver) == ERROR_NONE);
@@ -81,6 +83,7 @@ static error_t stop() {
 #endif
     check(driver_remove_destruct(&esp32_spi_driver) == ERROR_NONE);
     check(driver_remove_destruct(&esp32_uart_driver) == ERROR_NONE);
+    check(driver_remove_destruct(&esp32_grove_driver) == ERROR_NONE);
     return ERROR_NONE;
 }
 

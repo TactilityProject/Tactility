@@ -1,0 +1,29 @@
+description: ESP32 Grove Port
+
+compatible: "espressif,esp32-grove"
+
+properties:
+  defaultMode:
+    type: int
+    required: true
+    description: "One of enum Esp32GroveMode"
+  pinSclTx:
+    type: phandle-array
+    required: true
+    description: SCL (I2C) or TX (UART) pin
+  pinSdaRx:
+    type: phandle-array
+    required: true
+    description: SDA (I2C) or RX (UART) pin
+  uartPort:
+    type: int
+    required: true
+    description: UART port number
+  i2cPort:
+    type: int
+    required: true
+    description: I2C port number
+  i2cClockFrequency:
+    type: int
+    required: true
+    description: I2C clock frequency
