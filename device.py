@@ -316,6 +316,13 @@ def write_usb_variables(output_file, device_properties: ConfigParser):
         output_file.write("# TinyUSB\n")
         output_file.write("CONFIG_TINYUSB_MSC_ENABLED=y\n")
         output_file.write("CONFIG_TINYUSB_MSC_MOUNT_PATH=\"/sdcard\"\n")
+        idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
+        if idf_target == "esp32p4":
+            # P4 has two USB-DWC controllers (HS/UTMI and FS/FSLS). esp_tinyusb defaults to
+            # RHPORT_HS (UTMI), which is the same controller claimed by usbhost0's
+            # peripheral-map=<0> (USB-A). Force RHPORT_FS so TinyUSB device mode binds to
+            # the FS/FSLS controller (USB-C OTG on Tab5), avoiding the conflict.
+            output_file.write("CONFIG_TINYUSB_RHPORT_FS=y\n")
 
 def write_bluetooth_variables(output_file, device_properties: ConfigParser):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()

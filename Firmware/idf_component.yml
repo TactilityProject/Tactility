@@ -64,7 +64,7 @@ dependencies:
   espressif/esp_tinyusb:
     version: "1.7.6~1"
     rules:
-      - if: "target == esp32s3"
+      - if: "target in [esp32s3, esp32p4]"
   espressif/esp_lvgl_port: "2.7.2"
   lvgl/lvgl: "9.3.0"
   epdiy:

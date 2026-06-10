@@ -151,7 +151,7 @@ bool Tab5Keyboard::writeReg(uint8_t reg, uint8_t value) const {
 }
 
 // ---------------------------------------------------------------------------
-// LED helpers - LED0 = Sym indicator (green), LED1 = Aa indicator (amber)
+// LED helpers - LED0 = Sym indicator (green), LED1 = Aa indicator (red)
 // RGB register layout: [B, G, R] per LED, stride 4 (byte 3 reserved)
 // ---------------------------------------------------------------------------
 void Tab5Keyboard::updateLeds() {

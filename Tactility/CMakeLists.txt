@@ -35,7 +35,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         spi_flash
     )
 
-    if ("${IDF_TARGET}" STREQUAL "esp32s3")
+    if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
         list(APPEND REQUIRES_LIST esp_tinyusb)
     endif ()
 

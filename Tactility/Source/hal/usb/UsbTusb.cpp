@@ -12,6 +12,10 @@
 #include <tusb_msc_storage.h>
 #include <wear_levelling.h>
 
+#if CONFIG_IDF_TARGET_ESP32P4
+#include "hal/usb_wrap_ll.h"
+#endif
+
 #define EPNUM_MSC 1
 #define TUSB_DESC_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN)
 #define SECTOR_SIZE 512
@@ -104,6 +108,13 @@ static bool ensureDriverInstalled() {
     if (driverInstalled) {
         return true;
     }
+
+#if CONFIG_IDF_TARGET_ESP32P4
+    // Tab5's USB-C port is wired to FSLS PHY0, but the USB_WRAP (FS/FSLS) controller
+    // used by TinyUSB device mode defaults to FSLS PHY1. Route it to PHY0 before
+    // installing the TinyUSB driver.
+    usb_wrap_ll_phy_select(&USB_WRAP, 0);
+#endif
 
     const tinyusb_config_t tusb_cfg = {
         .device_descriptor = &descriptor_config,
@@ -198,6 +209,9 @@ bool tusbStartMassStorageWithFlash() {
 
 void tusbStop() {
     tinyusb_msc_storage_deinit();
+#if CONFIG_IDF_TARGET_ESP32P4
+    usb_wrap_ll_phy_select(&USB_WRAP, 1);
+#endif
 }
 
 bool tusbCanStartMassStorageWithFlash() {
