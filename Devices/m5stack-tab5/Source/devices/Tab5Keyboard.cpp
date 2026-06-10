@@ -1,5 +1,7 @@
 #include "Tab5Keyboard.h"
 #include <Tactility/app/App.h>
+#include <tactility/drivers/i2c_controller.h>
+#include <tactility/log.h>
 #include <esp_timer.h>
 #include <lvgl.h>
 
@@ -135,19 +137,14 @@ static uint32_t tab5TranslateKey(uint8_t keycode, uint8_t modifier, bool ctrl) {
 }
 
 // ---------------------------------------------------------------------------
-// I2C helpers - direct i2c_master API (LP_I2C_NUM_0, GPIO 0/1)
+// I2C helpers - use Tactility I2C controller API
 // ---------------------------------------------------------------------------
-bool Tab5Keyboard::readReg(uint8_t reg, uint8_t& value) const {
-    if (!i2cDev) return false;
-    const esp_err_t err = i2c_master_transmit_receive(i2cDev, &reg, 1, &value, 1, pdMS_TO_TICKS(50));
-    return err == ESP_OK;
+bool Tab5Keyboard::readReg(uint8_t reg, uint8_t& value) {
+    return i2c_controller_read_register(i2cController, I2C_ADDRESS, reg, &value, 1, pdMS_TO_TICKS(50)) == ERROR_NONE;
 }
 
-bool Tab5Keyboard::writeReg(uint8_t reg, uint8_t value) const {
-    if (!i2cDev) return false;
-    const uint8_t buf[2] = { reg, value };
-    const esp_err_t err = i2c_master_transmit(i2cDev, buf, 2, pdMS_TO_TICKS(50));
-    return err == ESP_OK;
+bool Tab5Keyboard::writeReg(uint8_t reg, uint8_t value) {
+    return i2c_controller_write_register(i2cController, I2C_ADDRESS, reg, &value, 1, pdMS_TO_TICKS(50)) == ERROR_NONE;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,11 +158,7 @@ void Tab5Keyboard::updateLeds() {
         0x00, 0x00, aaSticky ? uint8_t(0xA0) : uint8_t(0x00),          // LED1: red if Aa latched
     };
     // Write 7-byte block starting at REG_RGB_BASE
-    const uint8_t reg = REG_RGB_BASE;
-    uint8_t tx[8];
-    tx[0] = reg;
-    for (int i = 0; i < 7; i++) tx[i + 1] = buf[i];
-    i2c_master_transmit(i2cDev, tx, 8, pdMS_TO_TICKS(50));
+    i2c_controller_write_register(i2cController, I2C_ADDRESS, REG_RGB_BASE, buf, 7, pdMS_TO_TICKS(50));
 }
 
 // ---------------------------------------------------------------------------
@@ -371,41 +364,10 @@ bool Tab5Keyboard::startLvgl(lv_display_t* display) {
         LOG_E("Tab5Keyboard", "Input queue allocation failed — cannot start");
         return false;
     }
-    // Create LP I2C master bus (LP_I2C_NUM_0, GPIO 0/1) via new i2c_master API
-    i2c_master_bus_config_t bus_cfg = {
-        .i2c_port          = LP_I2C_NUM_0,
-        .sda_io_num        = GPIO_NUM_0,
-        .scl_io_num        = GPIO_NUM_1,
-        .clk_source        = static_cast<i2c_clock_source_t>(LP_I2C_SCLK_DEFAULT),
-        .glitch_ignore_cnt = 7,
-        .intr_priority     = 0,
-        .trans_queue_depth = 0,
-        .flags             = { .enable_internal_pullup = true },
-    };
-    if (i2c_new_master_bus(&bus_cfg, &i2cBus) != ESP_OK) {
-        LOG_E("Tab5Keyboard", "Failed to create LP I2C master bus");
-        return false;
-    }
-
-    i2c_device_config_t dev_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address  = I2C_ADDRESS,
-        .scl_speed_hz    = 100000,
-    };
-    if (i2c_master_bus_add_device(i2cBus, &dev_cfg, &i2cDev) != ESP_OK) {
-        LOG_E("Tab5Keyboard", "Failed to add keyboard device to LP I2C bus");
-        i2c_del_master_bus(i2cBus);
-        i2cBus = nullptr;
-        return false;
-    }
 
     // Set Normal mode explicitly — device may power up in a different mode
     if (!writeReg(REG_KEYBOARD_MODE, 0x00)) {
         LOG_E("Tab5Keyboard", "Failed to set keyboard mode");
-        i2c_master_bus_rm_device(i2cDev);
-        i2c_del_master_bus(i2cBus);
-        i2cDev = nullptr;
-        i2cBus = nullptr;
         return false;
     }
     writeReg(REG_EVENT_NUM, 0x00);  // flush event queue
@@ -426,10 +388,6 @@ bool Tab5Keyboard::startLvgl(lv_display_t* display) {
     // Enable Normal-mode interrupt (bit 0)
     if (!writeReg(REG_INT_CFG, 0x01)) {
         LOG_E("Tab5Keyboard", "Failed to configure interrupt register");
-        i2c_master_bus_rm_device(i2cDev);
-        i2c_del_master_bus(i2cBus);
-        i2cDev = nullptr;
-        i2cBus = nullptr;
         return false;
     }
 
@@ -470,38 +428,9 @@ bool Tab5Keyboard::stopLvgl() {
     lv_indev_delete(kbHandle);
     kbHandle = nullptr;
 
-    if (i2cDev) {
-        i2c_master_bus_rm_device(i2cDev);
-        i2cDev = nullptr;
-    }
-    if (i2cBus) {
-        i2c_del_master_bus(i2cBus);
-        i2cBus = nullptr;
-    }
     return true;
 }
 
 bool Tab5Keyboard::isAttached() const {
-    // If already started, just probe via the open bus handle
-    if (i2cBus) {
-        return i2c_master_probe(i2cBus, I2C_ADDRESS, pdMS_TO_TICKS(100)) == ESP_OK;
-    }
-    // Otherwise open a temporary bus to probe (LP I2C is not accessible via legacy API)
-    i2c_master_bus_config_t bus_cfg = {
-        .i2c_port          = LP_I2C_NUM_0,
-        .sda_io_num        = GPIO_NUM_0,
-        .scl_io_num        = GPIO_NUM_1,
-        .clk_source        = static_cast<i2c_clock_source_t>(LP_I2C_SCLK_DEFAULT),
-        .glitch_ignore_cnt = 7,
-        .intr_priority     = 0,
-        .trans_queue_depth = 0,
-        .flags             = { .enable_internal_pullup = true },
-    };
-    i2c_master_bus_handle_t probe_bus = nullptr;
-    if (i2c_new_master_bus(&bus_cfg, &probe_bus) != ESP_OK) {
-        return false;
-    }
-    const esp_err_t ret = i2c_master_probe(probe_bus, I2C_ADDRESS, pdMS_TO_TICKS(100));
-    i2c_del_master_bus(probe_bus);
-    return ret == ESP_OK;
+    return i2c_controller_has_device_at_address(i2cController, I2C_ADDRESS, pdMS_TO_TICKS(100)) == ERROR_NONE;
 }

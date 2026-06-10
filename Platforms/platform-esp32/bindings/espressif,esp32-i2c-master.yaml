@@ -2,7 +2,7 @@ description: ESP32 I2C Controller
 
 include: ["i2c-controller.yaml"]
 
-compatible: "espressif,esp32-i2c"
+compatible: "espressif,esp32-i2c-master"
 
 properties:
   port:
@@ -10,11 +10,17 @@ properties:
     required: true
     description: |
       The port number, defined by i2c_port_t.
-      Depending on the hardware, these values are available: I2C_NUM_0, I2C_NUM_1
+      Depending on the hardware, these values are available: I2C_NUM_0, I2C_NUM_1, LP_I2C_NUM_0
   clock-frequency:
     type: int
     required: true
     description: Initial clock frequency in Hz
+  clock-source:
+    type: int
+    default: 0
+    description: |
+      Clock source for the I2C peripheral.
+      If not specified, a default clock source will be used.
   pin-sda:
     type: phandle-array
     required: true
