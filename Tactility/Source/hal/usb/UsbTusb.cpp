@@ -134,6 +134,10 @@ static bool ensureDriverInstalled() {
 
     if (tinyusb_driver_install(&tusb_cfg) != ESP_OK) {
         LOGGER.error("Failed to install TinyUSB driver");
+#if CONFIG_IDF_TARGET_ESP32P4
+        // Roll back routing when TinyUSB did not start.
+        usb_wrap_ll_phy_select(&USB_WRAP, 1);
+#endif
         return false;
     }
 
