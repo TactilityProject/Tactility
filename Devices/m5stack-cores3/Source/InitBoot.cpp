@@ -146,8 +146,9 @@ bool initPowerControl() {
 bool initBoot() {
     LOGGER.info("initBoot()");
 
-    axp2101 = std::make_shared<Axp2101>(I2C_NUM_0);
-    aw9523 = std::make_shared<Aw9523>(I2C_NUM_0);
+    auto controller = device_find_by_name("i2c_internal");
+    axp2101 = std::make_shared<Axp2101>(controller);
+    aw9523 = std::make_shared<Aw9523>(controller);
 
     return initPowerControl() && initGpioExpander();
 }

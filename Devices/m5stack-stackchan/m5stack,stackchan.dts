@@ -67,30 +67,43 @@
 		// TODO: BMM150 magnetometer @ 0x10 — accessible only via BMI270 aux I2C
 	};
 
-	i2c_port_a {
-		compatible = "espressif,esp32-i2c";
-		port = <I2C_NUM_1>;
-		clock-frequency = <400000>;
-		pin-sda = <&gpio0 2 GPIO_FLAG_NONE>;
-		pin-scl = <&gpio0 1 GPIO_FLAG_NONE>;
+	// TODO: Servo UART (SCS9009, 1 Mbaud) — TX=GPIO6, RX=GPIO7
+	uart_port_a: uart1 {
+		compatible = "espressif,esp32-uart";
+		status = "disabled";
+		port = <UART_NUM_1>;
+		pin-tx = <&gpio0 6 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 7 GPIO_FLAG_NONE>;
 	};
 
-	i2c_port_b {
-		compatible = "espressif,esp32-i2c";
-		status = "disabled";
-		port = <I2C_NUM_1>;
-		clock-frequency = <400000>;
-		pin-sda = <&gpio0 9 GPIO_FLAG_NONE>;
-		pin-scl = <&gpio0 8 GPIO_FLAG_NONE>;
+	port_a: grove0 {
+		compatible = "espressif,esp32-grove";
+		defaultMode = <GROVE_MODE_I2C>;
+		pinSdaRx = <&gpio0 2 GPIO_FLAG_NONE>;
+		pinSclTx = <&gpio0 1 GPIO_FLAG_NONE>;
+		uartPort = <UART_NUM_2>;
+		i2cPort = <I2C_NUM_1>;
+		i2cClockFrequency = <400000>;
 	};
 
-	i2c_port_c {
-		compatible = "espressif,esp32-i2c";
-		status = "disabled";
-		port = <I2C_NUM_1>;
-		clock-frequency = <400000>;
-		pin-sda = <&gpio0 18 GPIO_FLAG_NONE>;
-		pin-scl = <&gpio0 17 GPIO_FLAG_NONE>;
+	port_b: grove1 {
+		compatible = "espressif,esp32-grove";
+		defaultMode = <GROVE_MODE_UART>;
+		pinSdaRx = <&gpio0 9 GPIO_FLAG_NONE>;
+		pinSclTx = <&gpio0 8 GPIO_FLAG_NONE>;
+		uartPort = <UART_NUM_2>;
+		i2cPort = <I2C_NUM_1>;
+		i2cClockFrequency = <400000>;
+	};
+
+	port_c: grove2 {
+		compatible = "espressif,esp32-grove";
+		defaultMode = <GROVE_MODE_DISABLED>;
+		pinSdaRx = <&gpio0 17 GPIO_FLAG_NONE>;
+		pinSclTx = <&gpio0 18 GPIO_FLAG_NONE>;
+		uartPort = <UART_NUM_2>;
+		i2cPort = <I2C_NUM_1>;
+		i2cClockFrequency = <400000>;
 	};
 
 	spi0 {
@@ -110,14 +123,5 @@
 		pin-data-out = <&gpio0 13 GPIO_FLAG_NONE>;
 		pin-data-in  = <&gpio0 14 GPIO_FLAG_NONE>;
 		pin-mclk     = <&gpio0 0  GPIO_FLAG_NONE>;
-	};
-
-	// TODO: Servo UART (SCS9009, 1 Mbaud) — TX=GPIO6, RX=GPIO7
-	uart_port_a: uart1 {
-		compatible = "espressif,esp32-uart";
-		status = "disabled";
-		port = <UART_NUM_1>;
-		pin-tx = <&gpio0 1 GPIO_FLAG_NONE>;
-		pin-rx = <&gpio0 2 GPIO_FLAG_NONE>;
 	};
 };

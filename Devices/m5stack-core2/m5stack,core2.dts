@@ -2,6 +2,7 @@
 
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_grove.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
@@ -37,12 +38,14 @@
 		};
 	};
 
-	i2c_port_a {
-		compatible = "espressif,esp32-i2c";
-		port = <I2C_NUM_1>;
-		clock-frequency = <400000>;
-		pin-sda = <&gpio0 32 GPIO_FLAG_NONE>;
-		pin-scl = <&gpio0 33 GPIO_FLAG_NONE>;
+	port_a: grove0 {
+		compatible = "espressif,esp32-grove";
+		defaultMode = <GROVE_MODE_I2C>;
+		pinSdaRx = <&gpio0 32 GPIO_FLAG_NONE>;
+		pinSclTx = <&gpio0 33 GPIO_FLAG_NONE>;
+		uartPort = <UART_NUM_1>;
+		i2cPort = <I2C_NUM_1>;
+		i2cClockFrequency = <400000>;
 	};
 
 	spi0 {
@@ -62,13 +65,5 @@
 		pin-ws = <&gpio0 0 GPIO_FLAG_NONE>;
 		pin-data-out = <&gpio0 2 GPIO_FLAG_NONE>;
 		pin-data-in = <&gpio0 34 GPIO_FLAG_NONE>;
-	};
-
-	uart_port_a: uart1 {
-		compatible = "espressif,esp32-uart";
-		status = "disabled";
-		port = <UART_NUM_1>;
-		pin-tx = <&gpio0 33 GPIO_FLAG_NONE>;
-		pin-rx = <&gpio0 32 GPIO_FLAG_NONE>;
 	};
 };

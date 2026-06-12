@@ -1,10 +1,11 @@
 #include <Axp192.h>
+#include <tactility/device.h>
 
 static std::shared_ptr<Axp192> axp192 = nullptr;
 
 std::shared_ptr<Axp192> createAxp192() {
     assert(axp192 == nullptr);
-    auto configuration = std::make_unique<Axp192::Configuration>(I2C_NUM_0);
+    auto configuration = std::make_unique<Axp192::Configuration>(device_find_by_name("i2c_internal"));
     axp192 = std::make_shared<Axp192>(std::move(configuration));
     return axp192;
 }

@@ -22,7 +22,7 @@ public:
         Enabled160s = 0b110000
     };
 
-    explicit Bq24295(i2c_port_t port) : I2cDevice(port, BQ24295_ADDRESS) {}
+    explicit Bq24295(::Device* controller) : I2cDevice(controller, BQ24295_ADDRESS) {}
 
     bool getWatchDogTimer(WatchDogTimer& out) const;
     bool setWatchDogTimer(WatchDogTimer in) const;

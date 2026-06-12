@@ -5,7 +5,7 @@
 
 static const auto LOGGER = tt::Logger("DRV2605");
 
-Drv2605::Drv2605(i2c_port_t port, bool autoPlayStartupBuzz) : I2cDevice(port, ADDRESS), autoPlayStartupBuzz(autoPlayStartupBuzz) {
+Drv2605::Drv2605(::Device* controller, bool autoPlayStartupBuzz) : I2cDevice(controller, ADDRESS), autoPlayStartupBuzz(autoPlayStartupBuzz) {
     check(init(), "Initialize DRV2605");
 
     if (autoPlayStartupBuzz) {

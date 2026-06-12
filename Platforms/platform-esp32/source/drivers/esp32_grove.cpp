@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_grove.h>
-
-#include "../../../../TactilityKernel/include/tactility/check.h"
+#include <tactility/drivers/esp32_i2c.h>
+#include <tactility/drivers/esp32_i2c_master.h>
+#include <tactility/drivers/esp32_uart.h>
+#include <tactility/log.h>
 
 #include <cstdio>
 #include <cstring>
 #include <new>
-#include <tactility/drivers/esp32_i2c.h>
-#include <tactility/drivers/esp32_uart.h>
-#include <tactility/log.h>
 
 #define TAG "esp32_grove"
 
@@ -54,7 +54,7 @@ static error_t stop_child(Device* device) {
         if (data->current_mode == GROVE_MODE_UART) {
             delete static_cast<Esp32UartConfig*>(data->child_config);
         } else if (data->current_mode == GROVE_MODE_I2C) {
-            delete static_cast<Esp32I2cConfig*>(data->child_config);
+            delete static_cast<Esp32I2cMasterConfig*>(data->child_config);
         }
         data->child_config = nullptr;
     }
@@ -89,13 +89,15 @@ static error_t start_child(Device* device, GroveMode mode) {
         data->child_device = nullptr;
         return ERROR_OUT_OF_MEMORY;
     }
-    std::snprintf(data->child_name, name_len, "%s_child", device->name);
-    data->child_device->name = data->child_name;
-    data->child_device->parent = device;
 
+    data->child_device->parent = device;
     const char* compatible = nullptr;
 
     if (mode == GROVE_MODE_UART) {
+        // Device name
+        std::snprintf(data->child_name, name_len, "%s_uart", device->name);
+        data->child_device->name = data->child_name;
+        // Device config
         auto* uart_cfg = new(std::nothrow) struct Esp32UartConfig();
         if (!uart_cfg) {
             delete[] data->child_name;
@@ -114,7 +116,11 @@ static error_t start_child(Device* device, GroveMode mode) {
         compatible = "espressif,esp32-uart";
         LOG_I(TAG, "%s: starting UART mode on port %d", device->name, (int)uart_cfg->port);
     } else if (mode == GROVE_MODE_I2C) {
-        auto* i2c_cfg = new(std::nothrow) struct Esp32I2cConfig();
+        // Device name
+        std::snprintf(data->child_name, name_len, "%s_i2c", device->name);
+        data->child_device->name = data->child_name;
+        // Device config
+        auto* i2c_cfg = new (std::nothrow) struct Esp32I2cMasterConfig();
         if (!i2c_cfg) {
             delete[] data->child_name;
             data->child_name = nullptr;
@@ -122,18 +128,21 @@ static error_t start_child(Device* device, GroveMode mode) {
             data->child_device = nullptr;
             return ERROR_OUT_OF_MEMORY;
         }
-        std::memset(i2c_cfg, 0, sizeof(Esp32I2cConfig));
-        i2c_cfg->port = config->i2cPort;
+        std::memset(i2c_cfg, 0, sizeof(Esp32I2cMasterConfig));
+        i2c_cfg->port = static_cast<i2c_port_num_t>(config->i2cPort);
         i2c_cfg->clockFrequency = config->i2cClockFrequency;
         i2c_cfg->pinSda = config->pinSdaRx;
         i2c_cfg->pinScl = config->pinSclTx;
+        i2c_cfg->clkSource = 0; // Default
         data->child_config = i2c_cfg;
-        compatible = "espressif,esp32-i2c";
-        LOG_I(TAG, "%s: starting I2C mode on port %d", device->name, (int)i2c_cfg->port);
+        compatible = "espressif,esp32-i2c-master";
+        LOG_I(TAG, "%s: starting I2C mode on port %d", device->name, (int)config->i2cPort);
     } else {
         LOG_E(TAG, "%s: unknown mode %d", device->name, mode);
-        delete[] data->child_name;
-        data->child_name = nullptr;
+        if (data->child_name != nullptr) {
+            delete[] data->child_name;
+            data->child_name = nullptr;
+        }
         delete data->child_device;
         data->child_device = nullptr;
         return ERROR_INVALID_ARGUMENT;
@@ -154,6 +163,7 @@ static error_t start_child(Device* device, GroveMode mode) {
 
 static error_t start_device(Device* device) {
     const auto* config = GET_CONFIG(device);
+
     auto* data = new(std::nothrow) Esp32GroveInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
     device_set_driver_data(device, data);

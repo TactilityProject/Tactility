@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tactility/hal/Device.h>
+#include <tactility/drivers/i2c_controller.h>
 #include "I2c.h"
 
 namespace tt::hal::i2c {
@@ -15,7 +16,7 @@ class I2cDevice : public Device {
 
 protected:
 
-    i2c_port_t port;
+    ::Device* controller;
     uint8_t address;
 
     static constexpr TickType_t DEFAULT_TIMEOUT = 1000 / portTICK_PERIOD_MS;
@@ -36,11 +37,11 @@ protected:
 
 public:
 
-    explicit I2cDevice(i2c_port_t port, uint32_t address) : port(port), address(address) {}
+    explicit I2cDevice(::Device* controller, uint32_t address) : controller(controller), address(address) {}
 
     Type getType() const override { return Type::I2c; }
 
-    i2c_port_t getPort() const { return port; }
+    ::Device* getController() const { return controller; }
 
     uint8_t getAddress() const { return address; }
 };

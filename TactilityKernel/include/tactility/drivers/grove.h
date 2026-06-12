@@ -19,6 +19,9 @@ enum GroveMode {
 
 /**
  * @brief API for Grove drivers.
+ *
+ * The grove driver is meant for external interfaces with two wires that can be used as UART, I2C or GPIO as needed.
+ * It can be used with the Grove connector, but also with others such as Stemma QT.
  */
 struct GroveApi {
     /**

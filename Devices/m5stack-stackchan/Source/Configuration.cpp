@@ -231,7 +231,7 @@ bool initBoot() {
     }
 
     // Keep Axp2101 C++ wrapper alive for Axp2101Power (backlight + battery)
-    axp2101 = std::make_shared<Axp2101>(I2C_NUM_0);
+    axp2101 = std::make_shared<Axp2101>(i2c);
     return true;
 }
 
