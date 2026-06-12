@@ -15,10 +15,10 @@
 #define TAG "esp32_grove"
 
 struct Esp32GroveInternal {
-    struct Device* child_device = nullptr;
+    Device* child_device = nullptr;
     void* child_config = nullptr;
     char* child_name = nullptr;
-    enum GroveMode current_mode = GROVE_MODE_DISABLED;
+    GroveMode current_mode = GROVE_MODE_DISABLED;
 };
 
 #define GET_CONFIG(device) ((const struct Esp32GroveConfig*)device->config)
@@ -26,7 +26,7 @@ struct Esp32GroveInternal {
 
 extern "C" {
 
-static error_t stop_child(struct Device* device) {
+static error_t stop_child(Device* device) {
     auto* data = GET_DATA(device);
     if (!data) return ERROR_NONE;
 
@@ -52,9 +52,9 @@ static error_t stop_child(struct Device* device) {
 
     if (data->child_config) {
         if (data->current_mode == GROVE_MODE_UART) {
-            delete (struct Esp32UartConfig*)data->child_config;
+            delete static_cast<Esp32UartConfig*>(data->child_config);
         } else if (data->current_mode == GROVE_MODE_I2C) {
-            delete (struct Esp32I2cConfig*)data->child_config;
+            delete static_cast<Esp32I2cConfig*>(data->child_config);
         }
         data->child_config = nullptr;
     }
@@ -66,7 +66,7 @@ static error_t stop_child(struct Device* device) {
     return ERROR_NONE;
 }
 
-static error_t start_child(struct Device* device, enum GroveMode mode) {
+static error_t start_child(Device* device, GroveMode mode) {
     const auto* config = GET_CONFIG(device);
     auto* data = GET_DATA(device);
 
@@ -76,11 +76,11 @@ static error_t start_child(struct Device* device, enum GroveMode mode) {
         return ERROR_NONE;
     }
 
-    data->child_device = new(std::nothrow) struct Device();
+    data->child_device = new(std::nothrow) Device();
     if (!data->child_device) {
         return ERROR_OUT_OF_MEMORY;
     }
-    std::memset(data->child_device, 0, sizeof(struct Device));
+    std::memset(data->child_device, 0, sizeof(Device));
 
     size_t name_len = std::strlen(device->name) + 10;
     data->child_name = new(std::nothrow) char[name_len];
@@ -104,7 +104,7 @@ static error_t start_child(struct Device* device, enum GroveMode mode) {
             data->child_device = nullptr;
             return ERROR_OUT_OF_MEMORY;
         }
-        std::memset(uart_cfg, 0, sizeof(struct Esp32UartConfig));
+        std::memset(uart_cfg, 0, sizeof(Esp32UartConfig));
         uart_cfg->port = config->uartPort;
         uart_cfg->pin_tx = config->pinSclTx;
         uart_cfg->pin_rx = config->pinSdaRx;
@@ -122,7 +122,7 @@ static error_t start_child(struct Device* device, enum GroveMode mode) {
             data->child_device = nullptr;
             return ERROR_OUT_OF_MEMORY;
         }
-        std::memset(i2c_cfg, 0, sizeof(struct Esp32I2cConfig));
+        std::memset(i2c_cfg, 0, sizeof(Esp32I2cConfig));
         i2c_cfg->port = config->i2cPort;
         i2c_cfg->clockFrequency = config->i2cClockFrequency;
         i2c_cfg->pinSda = config->pinSdaRx;
@@ -152,7 +152,7 @@ static error_t start_child(struct Device* device, enum GroveMode mode) {
     return ERROR_NONE;
 }
 
-static error_t start_device(struct Device* device) {
+static error_t start_device(Device* device) {
     const auto* config = GET_CONFIG(device);
     auto* data = new(std::nothrow) Esp32GroveInternal();
     if (!data) return ERROR_OUT_OF_MEMORY;
@@ -161,7 +161,7 @@ static error_t start_device(struct Device* device) {
     return start_child(device, config->defaultMode);
 }
 
-static error_t stop_device(struct Device* device) {
+static error_t stop_device(Device* device) {
     auto* data = GET_DATA(device);
     if (!data) return ERROR_NONE;
 
@@ -172,7 +172,7 @@ static error_t stop_device(struct Device* device) {
     return ERROR_NONE;
 }
 
-static error_t esp32_grove_set_mode(struct Device* device, enum GroveMode mode) {
+static error_t esp32_grove_set_mode(Device* device, enum GroveMode mode) {
     auto* data = GET_DATA(device);
     if (data->current_mode == mode) return ERROR_NONE;
 
@@ -182,18 +182,18 @@ static error_t esp32_grove_set_mode(struct Device* device, enum GroveMode mode) 
     return start_child(device, mode);
 }
 
-static error_t esp32_grove_get_mode(struct Device* device, enum GroveMode* mode) {
+static error_t esp32_grove_get_mode(Device* device, enum GroveMode* mode) {
     auto* data = GET_DATA(device);
     *mode = data->current_mode;
     return ERROR_NONE;
 }
 
-static const struct GroveApi esp32_grove_api = {
+static const GroveApi esp32_grove_api = {
     .set_mode = esp32_grove_set_mode,
     .get_mode = esp32_grove_get_mode
 };
 
-extern struct Module platform_esp32_module;
+extern Module platform_esp32_module;
 
 Driver esp32_grove_driver = {
     .name = "esp32_grove",
