@@ -1,5 +1,5 @@
 #include "CardputerKeyboard.h"
-#include <Tactility/hal/i2c/I2c.h>
+#include <tactility/drivers/i2c_controller.h>
 
 constexpr auto* TAG = "CardputerKeyb";
 
@@ -151,5 +151,5 @@ bool CardputerKeyboard::stopLvgl() {
 }
 
 bool CardputerKeyboard::isAttached() const {
-    return tt::hal::i2c::masterHasDeviceAtAddress(keypad->getPort(), keypad->getAddress(), 100);
+    return i2c_controller_has_device_at_address(keypad->getController(), keypad->getAddress(), 100) == ERROR_NONE;
 }
