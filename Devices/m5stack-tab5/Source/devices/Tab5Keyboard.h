@@ -1,7 +1,7 @@
 #pragma once
 #include <Tactility/hal/keyboard/KeyboardDevice.h>
 #include <Tactility/Timer.h>
-#include <driver/i2c_master.h>
+#include <tactility/device.h>
 #include <driver/gpio.h>
 #include <freertos/queue.h>
 
@@ -13,8 +13,7 @@ class Tab5Keyboard final : public tt::hal::keyboard::KeyboardDevice {
     static constexpr uint32_t REPEAT_INITIAL_MS = 400;
     static constexpr uint32_t REPEAT_RATE_MS    = 80;
 
-    i2c_master_bus_handle_t i2cBus = nullptr;
-    i2c_master_dev_handle_t i2cDev = nullptr;
+    ::Device* i2cController = nullptr;
 
     lv_indev_t* kbHandle = nullptr;
     QueueHandle_t queue = nullptr;
@@ -37,8 +36,8 @@ class Tab5Keyboard final : public tt::hal::keyboard::KeyboardDevice {
     uint32_t repeatStartMs  = 0;
     uint32_t repeatLastMs   = 0;
 
-    bool readReg(uint8_t reg, uint8_t& value) const;
-    bool writeReg(uint8_t reg, uint8_t value) const;
+    bool readReg(uint8_t reg, uint8_t& value);
+    bool writeReg(uint8_t reg, uint8_t value);
     void updateLeds();
 
     bool configureIrqPin();
@@ -50,7 +49,7 @@ class Tab5Keyboard final : public tt::hal::keyboard::KeyboardDevice {
     static void readCallback(lv_indev_t* indev, lv_indev_data_t* data);
 
 public:
-    Tab5Keyboard() {
+    explicit Tab5Keyboard(::Device* i2cController) : i2cController(i2cController) {
         queue = xQueueCreate(20, sizeof(uint32_t));
         // queue == nullptr on OOM; startLvgl() checks and refuses to start
     }

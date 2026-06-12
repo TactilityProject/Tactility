@@ -82,6 +82,17 @@ struct I2cControllerApi {
      * @retval ERROR_TIMEOUT when the operation timed out
      */
     error_t (*write_register)(struct Device* device, uint8_t address, uint8_t reg, const uint8_t* data, uint16_t dataSize, TickType_t timeout);
+
+    /**
+     * @brief Checks if a device responds at the given address, without performing a data transfer.
+     * Optional: set to NULL if the driver does not support a dedicated probe operation, in which case
+     * @ref i2c_controller_has_device_at_address falls back to a generic write-based probe.
+     * @param[in] device the I2C controller device
+     * @param[in] address the 7-bit I2C address to probe
+     * @param[in] timeout the maximum time to wait for the operation to complete
+     * @retval ERROR_NONE when a device acknowledged the address
+     */
+    error_t (*probe)(struct Device* device, uint8_t address, TickType_t timeout);
 };
 
 /**

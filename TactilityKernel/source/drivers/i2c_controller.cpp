@@ -73,8 +73,12 @@ error_t i2c_controller_write_register_array(Device* device, uint8_t address, con
 
 error_t i2c_controller_has_device_at_address(Device* device, uint8_t address, TickType_t timeout) {
     const auto* driver = device_get_driver(device);
+    auto* api = I2C_DRIVER_API(driver);
+    if (api->probe != nullptr) {
+        return api->probe(device, address, timeout);
+    }
     uint8_t message[2] = { 0, 0 };
-    return I2C_DRIVER_API(driver)->write(device, address, message, 2, timeout);
+    return api->write(device, address, message, 2, timeout);
 }
 
 error_t i2c_controller_register16le_get(Device* device, uint8_t address, uint8_t reg, uint16_t* value, TickType_t timeout) {

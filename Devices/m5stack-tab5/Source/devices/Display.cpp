@@ -13,7 +13,9 @@
 
 static const auto LOGGER = tt::Logger("Tab5Display");
 
-constexpr auto LCD_PIN_RESET = GPIO_NUM_0;  // Match P4 EV board reset line
+// LCD reset is wired to the PI4IOE5V6408 IO expander (io_expander0, bit 4), pulsed in
+// Configuration.cpp's initExpander0() before display creation - not a direct SoC GPIO.
+constexpr auto LCD_PIN_RESET = GPIO_NUM_NC;
 constexpr auto LCD_PIN_BACKLIGHT = GPIO_NUM_22;
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createGt911Touch() {

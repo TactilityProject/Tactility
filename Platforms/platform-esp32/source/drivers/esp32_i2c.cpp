@@ -175,16 +175,12 @@ static error_t start(Device* device) {
     check(gpio_descriptor_get_native_pin_number(sda_descriptor, &sda_pin) == ERROR_NONE);
     check(gpio_descriptor_get_native_pin_number(scl_descriptor, &scl_pin) == ERROR_NONE);
 
-    gpio_flags_t sda_flags, scl_flags;
-    check(gpio_descriptor_get_flags(sda_descriptor, &sda_flags) == ERROR_NONE);
-    check(gpio_descriptor_get_flags(scl_descriptor, &scl_flags) == ERROR_NONE);
-
     i2c_config_t esp_config = {
         .mode = I2C_MODE_MASTER,
         .sda_io_num = sda_pin,
         .scl_io_num = scl_pin,
-        .sda_pullup_en = (sda_flags & GPIO_FLAG_PULL_UP) != 0,
-        .scl_pullup_en = (scl_flags & GPIO_FLAG_PULL_UP) != 0,
+        .sda_pullup_en = (sda_spec.flags & GPIO_FLAG_PULL_UP) != 0,
+        .scl_pullup_en = (scl_spec.flags & GPIO_FLAG_PULL_UP) != 0,
         .master {
             .clk_speed = dts_config->clockFrequency
         },

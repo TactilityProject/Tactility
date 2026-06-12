@@ -14,11 +14,12 @@ using namespace tt::hal;
 static constexpr auto* TAG = "Tab5";
 
 static DeviceVector createDevices() {
+    ::Device* i2c2 = device_find_by_name("i2c2");
     return {
         createPower(),
         createDisplay(),
         createSdCard(),
-        std::make_shared<Tab5Keyboard>()
+        std::make_shared<Tab5Keyboard>(i2c2)
     };
 }
 
