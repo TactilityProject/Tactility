@@ -15,7 +15,7 @@ public:
     public:
 
         Configuration(
-            ::Device* controller,
+            i2c_port_t port,
             uint16_t xMax,
             uint16_t yMax,
             bool swapXy = false,
@@ -25,7 +25,7 @@ public:
             gpio_num_t pinInterrupt = GPIO_NUM_NC,
             unsigned int pinResetLevel = 0,
             unsigned int pinInterruptLevel = 0
-        ) : controller(controller),
+        ) : port(port),
             xMax(xMax),
             yMax(yMax),
             swapXy(swapXy),
@@ -37,7 +37,7 @@ public:
             pinInterruptLevel(pinInterruptLevel)
         {}
 
-        ::Device* controller;
+        i2c_port_t port;
         uint16_t xMax;
         uint16_t yMax;
         bool swapXy;
