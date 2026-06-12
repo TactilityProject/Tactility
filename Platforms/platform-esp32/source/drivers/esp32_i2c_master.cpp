@@ -19,6 +19,7 @@ struct Esp32I2cMasterInternal {
     GpioDescriptor* scl_descriptor = nullptr;
     i2c_master_bus_handle_t bus_handle = nullptr;
     i2c_master_dev_handle_t dev_handle = nullptr;
+    int current_address = -1;
 
     Esp32I2cMasterInternal(GpioDescriptor* sda_descriptor, GpioDescriptor* scl_descriptor) :
         sda_descriptor(sda_descriptor),
@@ -38,6 +39,18 @@ struct Esp32I2cMasterInternal {
 #define lock(data) mutex_lock(&data->mutex);
 #define unlock(data) mutex_unlock(&data->mutex);
 
+// Switches the device's target address only when it differs from the currently configured one.
+static esp_err_t ensure_address(Esp32I2cMasterInternal* driver_data, uint8_t address, int timeout_ms) {
+    if (driver_data->current_address == address) {
+        return ESP_OK;
+    }
+    esp_err_t esp_error = i2c_master_device_change_address(driver_data->dev_handle, address, timeout_ms);
+    if (esp_error == ESP_OK) {
+        driver_data->current_address = address;
+    }
+    return esp_error;
+}
+
 extern "C" {
 
 static int ticks_to_ms(TickType_t ticks) {
@@ -52,9 +65,14 @@ static error_t read(Device* device, uint8_t address, uint8_t* data, size_t data_
     int timeout_ms = ticks_to_ms(timeout);
 
     lock(driver_data);
-    esp_err_t esp_error = i2c_master_device_change_address(driver_data->dev_handle, address, timeout_ms);
-    if (esp_error == ESP_OK) {
+    esp_err_t esp_error = ensure_address(driver_data, address, timeout_ms);
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "change_address(0x%02X) failed: %s", address, esp_err_to_name(esp_error));
+    } else {
         esp_error = i2c_master_receive(driver_data->dev_handle, data, data_size, timeout_ms);
+        if (esp_error != ESP_OK) {
+            LOG_E(TAG, "receive(0x%02X) failed: %s", address, esp_err_to_name(esp_error));
+        }
     }
     unlock(driver_data);
     return esp_err_to_error(esp_error);
@@ -67,9 +85,14 @@ static error_t write(Device* device, uint8_t address, const uint8_t* data, uint1
     int timeout_ms = ticks_to_ms(timeout);
 
     lock(driver_data);
-    esp_err_t esp_error = i2c_master_device_change_address(driver_data->dev_handle, address, timeout_ms);
-    if (esp_error == ESP_OK) {
+    esp_err_t esp_error = ensure_address(driver_data, address, timeout_ms);
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "change_address(0x%02X) failed: %s", address, esp_err_to_name(esp_error));
+    } else {
         esp_error = i2c_master_transmit(driver_data->dev_handle, data, data_size, timeout_ms);
+        if (esp_error != ESP_OK) {
+            LOG_E(TAG, "transmit(0x%02X) failed: %s", address, esp_err_to_name(esp_error));
+        }
     }
     unlock(driver_data);
     return esp_err_to_error(esp_error);
@@ -82,9 +105,14 @@ static error_t write_read(Device* device, uint8_t address, const uint8_t* write_
     int timeout_ms = ticks_to_ms(timeout);
 
     lock(driver_data);
-    esp_err_t esp_error = i2c_master_device_change_address(driver_data->dev_handle, address, timeout_ms);
-    if (esp_error == ESP_OK) {
+    esp_err_t esp_error = ensure_address(driver_data, address, timeout_ms);
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "change_address(0x%02X) failed: %s", address, esp_err_to_name(esp_error));
+    } else {
         esp_error = i2c_master_transmit_receive(driver_data->dev_handle, write_data, write_data_size, read_data, read_data_size, timeout_ms);
+        if (esp_error != ESP_OK) {
+            LOG_E(TAG, "transmit_receive(0x%02X) failed: %s", address, esp_err_to_name(esp_error));
+        }
     }
     unlock(driver_data);
     return esp_err_to_error(esp_error);
@@ -97,9 +125,14 @@ static error_t read_register(Device* device, uint8_t address, uint8_t reg, uint8
     int timeout_ms = ticks_to_ms(timeout);
 
     lock(driver_data);
-    esp_err_t esp_error = i2c_master_device_change_address(driver_data->dev_handle, address, timeout_ms);
-    if (esp_error == ESP_OK) {
+    esp_err_t esp_error = ensure_address(driver_data, address, timeout_ms);
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "change_address(0x%02X) failed: %s", address, esp_err_to_name(esp_error));
+    } else {
         esp_error = i2c_master_transmit_receive(driver_data->dev_handle, &reg, 1, data, data_size, timeout_ms);
+        if (esp_error != ESP_OK) {
+            LOG_E(TAG, "read_register(0x%02X, reg=0x%02X) failed: %s", address, reg, esp_err_to_name(esp_error));
+        }
     }
     unlock(driver_data);
     return esp_err_to_error(esp_error);
@@ -112,13 +145,35 @@ static error_t write_register(Device* device, uint8_t address, uint8_t reg, cons
     int timeout_ms = ticks_to_ms(timeout);
 
     lock(driver_data);
-    esp_err_t esp_error = i2c_master_device_change_address(driver_data->dev_handle, address, timeout_ms);
-    if (esp_error == ESP_OK) {
+    esp_err_t esp_error = ensure_address(driver_data, address, timeout_ms);
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "change_address(0x%02X) failed: %s", address, esp_err_to_name(esp_error));
+    } else {
         i2c_master_transmit_multi_buffer_info_t buffers[2] = {
             {.write_buffer = &reg, .buffer_size = 1},
             {.write_buffer = data, .buffer_size = data_size}
         };
         esp_error = i2c_master_multi_buffer_transmit(driver_data->dev_handle, buffers, 2, timeout_ms);
+        if (esp_error != ESP_OK) {
+            LOG_E(TAG, "write_register(0x%02X, reg=0x%02X) failed: %s", address, reg, esp_err_to_name(esp_error));
+        }
+    }
+    unlock(driver_data);
+    return esp_err_to_error(esp_error);
+}
+
+static error_t probe(Device* device, uint8_t address, TickType_t timeout) {
+    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
+    auto* driver_data = GET_DATA(device);
+    int timeout_ms = ticks_to_ms(timeout);
+
+    lock(driver_data);
+    esp_err_t esp_error = i2c_master_probe(driver_data->bus_handle, address, timeout_ms);
+    if (esp_error == ESP_ERR_NOT_FOUND) {
+        // Expected outcome when no device acks - e.g. hot-plug attach polling
+        LOG_D(TAG, "probe(0x%02X): not found", address);
+    } else if (esp_error != ESP_OK) {
+        LOG_E(TAG, "probe(0x%02X) failed: %s", address, esp_err_to_name(esp_error));
     }
     unlock(driver_data);
     return esp_err_to_error(esp_error);
@@ -147,10 +202,6 @@ static error_t start(Device* device) {
     check(gpio_descriptor_get_native_pin_number(sda_descriptor, &sda_pin) == ERROR_NONE);
     check(gpio_descriptor_get_native_pin_number(scl_descriptor, &scl_pin) == ERROR_NONE);
 
-    gpio_flags_t sda_flags, scl_flags;
-    check(gpio_descriptor_get_flags(sda_descriptor, &sda_flags) == ERROR_NONE);
-    check(gpio_descriptor_get_flags(scl_descriptor, &scl_flags) == ERROR_NONE);
-
     i2c_master_bus_config_t bus_config = {
         .i2c_port = dts_config->port,
         .sda_io_num = sda_pin,
@@ -160,7 +211,7 @@ static error_t start(Device* device) {
         .intr_priority = 0,
         .trans_queue_depth = 0,
         .flags = {
-            .enable_internal_pullup = ((sda_flags & GPIO_FLAG_PULL_UP) != 0) || ((scl_flags & GPIO_FLAG_PULL_UP) != 0),
+            .enable_internal_pullup = ((sda_spec.flags & GPIO_FLAG_PULL_UP) != 0) || ((scl_spec.flags & GPIO_FLAG_PULL_UP) != 0),
             .allow_pd = 0,
         }
     };
@@ -240,7 +291,8 @@ static constexpr I2cControllerApi ESP32_I2C_MASTER_API = {
     .write = write,
     .write_read = write_read,
     .read_register = read_register,
-    .write_register = write_register
+    .write_register = write_register,
+    .probe = probe
 };
 
 extern Module platform_esp32_module;
