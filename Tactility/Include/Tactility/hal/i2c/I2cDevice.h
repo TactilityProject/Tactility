@@ -11,6 +11,7 @@ namespace tt::hal::i2c {
  * It helps to read and write registers.
  *
  * All read and write calls are thread-safe.
+ * @deprecated Use the device API from the Kernel project
  */
 class I2cDevice : public Device {
 
