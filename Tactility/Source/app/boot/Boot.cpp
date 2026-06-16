@@ -84,7 +84,7 @@ class BootApp : public App {
         auto mode = hal::usb::getUsbBootMode();  // Get mode before reset
         hal::usb::resetUsbBootMode();
         if (mode == hal::usb::BootMode::Flash) {
-            if (!hal::usb::startMassStorageWithFlash()) {
+            if (!hal::usb::startMassStorageWithFlash(true)) {
                 LOGGER.error("Unable to start flash mass storage");
                 return false;
             }

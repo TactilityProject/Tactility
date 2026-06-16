@@ -110,13 +110,13 @@ void rebootIntoMassStorageSdmmc() {
 }
 
 // NEW: Flash mass storage functions
-bool startMassStorageWithFlash() {
+bool startMassStorageWithFlash(bool fromBootMode) {
     if (!canStartNewMode()) {
         LOGGER.error("Can't start flash mass storage");
         return false;
     }
 
-    if (tusbStartMassStorageWithFlash()) {
+    if (tusbStartMassStorageWithFlash(fromBootMode)) {
         currentMode = Mode::MassStorageFlash;
         return true;
     } else {

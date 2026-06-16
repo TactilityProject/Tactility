@@ -198,12 +198,12 @@ bool tusbStartMassStorageWithSdmmc(bool fromBootMode) {
     return result == ESP_OK;
 }
 
-bool tusbStartMassStorageWithFlash() {
+bool tusbStartMassStorageWithFlash(bool fromBootMode) {
     LOGGER.info("Starting flash MSC");
     if (!ensureDriverInstalled()) {
         return false;
     }
-    startedFromBootMode = true;
+    startedFromBootMode = fromBootMode;
 
     wl_handle_t handle = tt::getDataPartitionWlHandle();
     if (handle == WL_INVALID_HANDLE) {
@@ -253,8 +253,8 @@ bool tusbCanStartMassStorageWithFlash() {
 #else
 
 bool tusbIsSupported() { return false; }
-bool tusbStartMassStorageWithSdmmc() { return false; }
-bool tusbStartMassStorageWithFlash() { return false; }
+bool tusbStartMassStorageWithSdmmc(bool /*fromBootMode*/) { return false; }
+bool tusbStartMassStorageWithFlash(bool /*fromBootMode*/) { return false; }
 void tusbStop() {}
 bool tusbCanStartMassStorageWithFlash() { return false; }
 
