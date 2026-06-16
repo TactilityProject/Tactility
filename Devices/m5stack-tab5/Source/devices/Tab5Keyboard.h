@@ -51,7 +51,7 @@ class Tab5Keyboard final : public tt::hal::keyboard::KeyboardDevice {
     static void IRAM_ATTR irqHandler(void* arg);
 
     void reinitDevice();
-    void applyAutoRotation(bool keyboardAttached);
+    bool applyAutoRotation(bool keyboardAttached);
     void checkAttachState();
 
     void drainEvents();

@@ -163,11 +163,11 @@ static bool ensureDriverInstalled() {
 
 bool tusbIsSupported() { return true; }
 
-bool tusbStartMassStorageWithSdmmc() {
+bool tusbStartMassStorageWithSdmmc(bool fromBootMode) {
     if (!ensureDriverInstalled()) {
         return false;
     }
-    startedFromBootMode = true;
+    startedFromBootMode = fromBootMode;
 
     auto* card = tt::hal::usb::getCard();
     if (card == nullptr) {

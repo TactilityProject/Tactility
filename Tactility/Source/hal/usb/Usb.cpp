@@ -69,13 +69,13 @@ bool isSupported() {
     return tusbIsSupported();
 }
 
-bool startMassStorageWithSdmmc() {
+bool startMassStorageWithSdmmc(bool fromBootMode) {
     if (!canStartNewMode()) {
         LOGGER.error("Can't start");
         return false;
     }
 
-    if (tusbStartMassStorageWithSdmmc()) {
+    if (tusbStartMassStorageWithSdmmc(fromBootMode)) {
         currentMode = Mode::MassStorageSdmmc;
         return true;
     } else {

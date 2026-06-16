@@ -89,7 +89,7 @@ class BootApp : public App {
                 return false;
             }
         } else if (mode == hal::usb::BootMode::Sdmmc) {
-            if (!hal::usb::startMassStorageWithSdmmc()) {
+            if (!hal::usb::startMassStorageWithSdmmc(true)) {
                 LOGGER.error("Unable to start SD mass storage");
                 return false;
             }

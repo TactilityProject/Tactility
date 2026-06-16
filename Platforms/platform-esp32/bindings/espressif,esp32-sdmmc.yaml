@@ -46,10 +46,12 @@ properties:
   slot:
     type: int
     default: 1
+    enum: [0, 1]
     description: SDMMC host slot number (SDMMC_HOST_SLOT_0 or SDMMC_HOST_SLOT_1). On ESP32-P4, slot 0 uses the dedicated (non-GPIO-matrix) pins.
   max-freq-khz:
     type: int
     default: 20000
+    minimum: 1
     description: Maximum SDMMC clock frequency in kHz (e.g. 40000 for SDMMC_FREQ_HIGHSPEED)
   wp-active-high:
     type: boolean

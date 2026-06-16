@@ -341,14 +341,14 @@ void Tab5Keyboard::processKeyboard() {
 // ones who changed it. Only affects the live LVGL rotation, never persisted
 // display settings.
 // ---------------------------------------------------------------------------
-void Tab5Keyboard::applyAutoRotation(bool keyboardAttached) {
+bool Tab5Keyboard::applyAutoRotation(bool keyboardAttached) {
     auto* display = lv_indev_get_display(kbHandle);
     if (display == nullptr) {
-        return;
+        return false;
     }
 
     if (!tt::lvgl::lock(pdMS_TO_TICKS(100))) {
-        return; // try again on the next attach-state check
+        return false; // retry next poll
     }
 
     if (keyboardAttached) {
@@ -367,6 +367,7 @@ void Tab5Keyboard::applyAutoRotation(bool keyboardAttached) {
     }
 
     tt::lvgl::unlock();
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -385,12 +386,14 @@ void Tab5Keyboard::checkAttachState() {
     if (attached == wasAttached) {
         return;
     }
-    wasAttached = attached;
 
     if (attached) {
         reinitDevice();
     }
-    applyAutoRotation(attached);
+    if (!applyAutoRotation(attached)) {
+        return; // keep prior state so transition is retried
+    }
+    wasAttached = attached;
 }
 
 // ---------------------------------------------------------------------------

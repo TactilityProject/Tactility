@@ -78,9 +78,9 @@ static void headphoneDetectCallback(TimerHandle_t /*timer*/) {
 // Detects a Tab5 Keyboard add-on that was plugged in after boot (so it wasn't started by
 // Lvgl.cpp's attachDevices()). Once lateStart() succeeds, this stops polling for good — there's
 // no support for re-detecting after the indev is torn down again.
-static void keyboardDetectCallback(TimerHandle_t /*timer*/) {
+static void keyboardDetectCallback(TimerHandle_t timer) {
     if (kb_late_started.load(std::memory_order_acquire)) {
-        xTimerStop(kb_detect_timer, 0);
+        xTimerStop(timer, 0);
         return;
     }
 
@@ -93,7 +93,7 @@ static void keyboardDetectCallback(TimerHandle_t /*timer*/) {
     if (keyboard->getLvglIndev() != nullptr) {
         // Already started (boot-time attach) — nothing left to do.
         kb_late_started.store(true, std::memory_order_release);
-        xTimerStop(kb_detect_timer, 0);
+        xTimerStop(timer, 0);
         return;
     }
 
@@ -105,7 +105,7 @@ static void keyboardDetectCallback(TimerHandle_t /*timer*/) {
     if (tab5_keyboard->lateStart()) {
         LOG_I(TAG, "kb_detect: keyboard attached post-boot, LVGL input started");
         kb_late_started.store(true, std::memory_order_release);
-        xTimerStop(kb_detect_timer, 0);
+        xTimerStop(timer, 0);
     }
 }
 
