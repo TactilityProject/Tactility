@@ -135,6 +135,10 @@ int __gtdf2(double a, double b);
 // GCC integer/bitwise helpers (compiler-rt)
 int __clzsi2(unsigned int x);
 
+// GCC 64-bit integer arithmetic helpers (needed for 64-bit div on 32-bit RISC-V)
+long long __divdi3(long long a, long long b);
+unsigned long long __udivdi3(unsigned long long a, unsigned long long b);
+
 } // extern "C"
 
 const esp_elfsym gcc_soft_float_symbols[] = {
@@ -260,6 +264,10 @@ const esp_elfsym gcc_soft_float_symbols[] = {
 
     // GCC integer/bitwise helpers
     ESP_ELFSYM_EXPORT(__clzsi2),
+
+    // GCC 64-bit integer arithmetic helpers
+    ESP_ELFSYM_EXPORT(__divdi3),
+    ESP_ELFSYM_EXPORT(__udivdi3),
 
     ESP_ELFSYM_END
 };

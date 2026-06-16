@@ -70,8 +70,6 @@
 extern "C" {
 
 extern double __floatsidf(int x);
-extern long long __divdi3(long long a, long long b);
-extern unsigned long long __udivdi3(unsigned long long a, unsigned long long b);
 extern void _esp_error_check_failed(esp_err_t rc, const char *file, int line, const char *function, const char *expression);
 
 const esp_elfsym main_symbols[] {
@@ -91,8 +89,6 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(esp_fill_random),
     // esp other
     ESP_ELFSYM_EXPORT(__floatsidf),
-    ESP_ELFSYM_EXPORT(__divdi3),
-    ESP_ELFSYM_EXPORT(__udivdi3),
     ESP_ELFSYM_EXPORT(_esp_error_check_failed),
     // unistd.h
     ESP_ELFSYM_EXPORT(usleep),
