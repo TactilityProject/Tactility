@@ -517,6 +517,10 @@ bool Tab5Keyboard::startLvgl(lv_display_t* display) {
     });
     inputTimer->start();
 
+    if (wasAttached) {
+        applyAutoRotation(true);
+    }
+
     return true;
 }
 
