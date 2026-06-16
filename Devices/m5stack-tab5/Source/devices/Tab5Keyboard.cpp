@@ -424,10 +424,6 @@ bool Tab5Keyboard::lateStart() {
 
     tt::lvgl::unlock();
 
-    if (started) {
-        applyAutoRotation(true);
-    }
-
     return started;
 }
 
