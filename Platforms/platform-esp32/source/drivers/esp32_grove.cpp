@@ -168,7 +168,13 @@ static error_t start_device(Device* device) {
     if (!data) return ERROR_OUT_OF_MEMORY;
     device_set_driver_data(device, data);
 
-    return start_child(device, config->defaultMode);
+    if (start_child(device, config->defaultMode) != ERROR_NONE) {
+        device_set_driver_data(device, nullptr);
+        delete data;
+        return ERROR_RESOURCE;
+    }
+
+    return ERROR_NONE;
 }
 
 static error_t stop_device(Device* device) {
