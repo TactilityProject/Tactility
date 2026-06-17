@@ -11,7 +11,8 @@ static const auto LOGGER = tt::Logger("CoreS3Display");
 static void setBacklightDuty(uint8_t backlightDuty) {
     const uint8_t voltage = 20 + ((8 * backlightDuty) / 255); // [0b00000, 0b11100] - under 20 is too dark
     // TODO: Refactor to use Axp2102 driver subproject. Reference: https://github.com/m5stack/M5Unified/blob/b8cfec7fed046242da7f7b8024a4e92004a51ff7/src/utility/AXP2101_Class.cpp#L42
-    if (!tt::hal::i2c::masterWriteRegister(I2C_NUM_0, AXP2101_ADDRESS, 0x99, &voltage, 1, 1000)) { // Sets DLD01
+    auto controller = device_find_by_name("i2c_internal");
+    if (i2c_controller_write_register(controller, AXP2101_ADDRESS, 0x99, &voltage, 1, 1000) != ERROR_NONE) { // Sets DLD01
         LOGGER.error("Failed to set display backlight voltage");
     }
 }

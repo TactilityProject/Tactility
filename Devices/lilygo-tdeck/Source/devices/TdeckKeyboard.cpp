@@ -1,13 +1,16 @@
 #include "TdeckKeyboard.h"
+
+#include "../../../../TactilityKernel/include/tactility/drivers/i2c_controller.h"
+
+#include <KeyboardBacklight/KeyboardBacklight.h>
+#include <Tactility/Logger.h>
+#include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/i2c/I2c.h>
+#include <Tactility/settings/DisplaySettings.h>
+#include <Tactility/settings/KeyboardSettings.h>
 #include <driver/i2c.h>
 #include <lvgl.h>
-#include <Tactility/settings/KeyboardSettings.h>
-#include <Tactility/settings/DisplaySettings.h>
-#include <Tactility/hal/display/DisplayDevice.h>
 #include <tactility/hal/Device.h>
-#include <Tactility/Logger.h>
-#include <KeyboardBacklight/KeyboardBacklight.h>
 
 using tt::hal::findFirstDevice;
 
@@ -91,5 +94,6 @@ bool TdeckKeyboard::stopLvgl() {
 }
 
 bool TdeckKeyboard::isAttached() const {
-    return tt::hal::i2c::masterHasDeviceAtAddress(TDECK_KEYBOARD_I2C_BUS_HANDLE, TDECK_KEYBOARD_SLAVE_ADDRESS, 100);
+    auto controller = device_find_by_name("i2c_internal");
+    return i2c_controller_has_device_at_address(controller, TDECK_KEYBOARD_SLAVE_ADDRESS, 100) == ERROR_NONE;
 }
