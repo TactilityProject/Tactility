@@ -156,7 +156,7 @@ bool TpagerKeyboard::stopLvgl() {
 }
 
 bool TpagerKeyboard::isAttached() const {
-    return tt::hal::i2c::masterHasDeviceAtAddress(keypad->getPort(), keypad->getAddress(), 100);
+    return i2c_controller_has_device_at_address(keypad->getController(), keypad->getAddress(), 100) == ERROR_NONE;
 }
 
 bool TpagerKeyboard::initBacklight(gpio_num_t pin, uint32_t frequencyHz, ledc_timer_t timer, ledc_channel_t channel) {
