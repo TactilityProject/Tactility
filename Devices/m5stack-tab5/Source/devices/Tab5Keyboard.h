@@ -32,6 +32,10 @@ class Tab5Keyboard final : public tt::hal::keyboard::KeyboardDevice {
     // Hot-plug attach-state polling (piggybacks on the 20ms inputTimer)
     bool wasAttached = false;
     uint32_t attachCheckTickCounter = 0;
+    // I2C probes can false-positive on a floating/half-connected bus (e.g. mid-unplug), so a
+    // state change is only acted on once it's seen on two consecutive ~1s checks in a row.
+    bool pendingAttachState = false;
+    uint8_t pendingAttachConfirmCount = 0;
     lv_display_rotation_t savedRotation = LV_DISPLAY_ROTATION_0;
     bool rotationOverrideActive = false;
 

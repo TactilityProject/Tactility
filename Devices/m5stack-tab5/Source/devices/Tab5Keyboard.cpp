@@ -384,8 +384,18 @@ void Tab5Keyboard::checkAttachState() {
 
     const bool attached = isAttached();
     if (attached == wasAttached) {
+        pendingAttachConfirmCount = 0;
         return;
     }
+
+    // Require the new state to be confirmed on a second consecutive check before acting -
+    // a single probe on a floating/half-connected bus (e.g. mid-unplug) can false-positive.
+    if (attached != pendingAttachState || pendingAttachConfirmCount == 0) {
+        pendingAttachState = attached;
+        pendingAttachConfirmCount = 1;
+        return;
+    }
+    pendingAttachConfirmCount = 0;
 
     if (attached) {
         reinitDevice();
