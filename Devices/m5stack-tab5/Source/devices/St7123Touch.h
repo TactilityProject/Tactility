@@ -2,7 +2,7 @@
 
 #include <EspLcdTouch.h>
 #include <Tactility/TactilityCore.h>
-#include <driver/i2c.h>
+#include <tactility/device.h>
 
 class St7123Touch final : public EspLcdTouch {
 
@@ -12,14 +12,14 @@ public:
     public:
 
         Configuration(
-            i2c_port_t port,
+            ::Device* controller,
             uint16_t xMax,
             uint16_t yMax,
             bool swapXy = false,
             bool mirrorX = false,
             bool mirrorY = false,
             gpio_num_t pinInterrupt = GPIO_NUM_NC
-        ) : port(port),
+        ) : controller(controller),
             xMax(xMax),
             yMax(yMax),
             swapXy(swapXy),
@@ -28,7 +28,7 @@ public:
             pinInterrupt(pinInterrupt)
         {}
 
-        i2c_port_t port;
+        ::Device* controller;
         uint16_t xMax;
         uint16_t yMax;
         bool swapXy;

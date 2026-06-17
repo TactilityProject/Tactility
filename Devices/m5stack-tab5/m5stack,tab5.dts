@@ -3,7 +3,6 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
-#include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_sdmmc.h>
@@ -28,11 +27,11 @@
 	};
 
 	i2c_internal: i2c0 {
-		compatible = "espressif,esp32-i2c";
+		compatible = "espressif,esp32-i2c-master";
 		port = <I2C_NUM_0>;
 		clock-frequency = <100000>;
-		pin-sda = <&gpio0 31 GPIO_FLAG_NONE>;
-		pin-scl = <&gpio0 32 GPIO_FLAG_NONE>;
+		pin-sda = <&gpio0 31 GPIO_FLAG_PULL_UP>;
+		pin-scl = <&gpio0 32 GPIO_FLAG_PULL_UP>;
 
 		io_expander0 {
 			compatible = "diodes,pi4ioe5v6408";
@@ -62,11 +61,11 @@
 	};
 
 	i2c_port_a: i2c1 {
-		compatible = "espressif,esp32-i2c";
+		compatible = "espressif,esp32-i2c-master";
 		port = <I2C_NUM_1>;
 		clock-frequency = <100000>;
-		pin-sda = <&gpio0 53 GPIO_FLAG_NONE>;
-		pin-scl = <&gpio0 54 GPIO_FLAG_NONE>;
+		pin-sda = <&gpio0 53 GPIO_FLAG_PULL_UP>;
+		pin-scl = <&gpio0 54 GPIO_FLAG_PULL_UP>;
 	};
 
 	i2c_keyboard: i2c2 {

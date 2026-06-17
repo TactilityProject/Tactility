@@ -1,6 +1,7 @@
 #include "St7123Touch.h"
 
 #include <Tactility/Logger.h>
+#include <tactility/drivers/esp32_i2c_master.h>
 #include <esp_lcd_touch_st7123.h>
 #include <esp_err.h>
 
@@ -8,11 +9,9 @@ static const auto LOGGER = tt::Logger("ST7123Touch");
 
 bool St7123Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
     esp_lcd_panel_io_i2c_config_t io_config = ESP_LCD_TOUCH_IO_I2C_ST7123_CONFIG();
-    return esp_lcd_new_panel_io_i2c(
-        static_cast<esp_lcd_i2c_bus_handle_t>(configuration->port),
-        &io_config,
-        &outHandle
-    ) == ESP_OK;
+    io_config.scl_speed_hz = esp32_i2c_master_get_clock_frequency(configuration->controller);
+    i2c_master_bus_handle_t bus = esp32_i2c_master_get_bus_handle(configuration->controller);
+    return esp_lcd_new_panel_io_i2c_v2(bus, &io_config, &outHandle) == ESP_OK;
 }
 
 bool St7123Touch::createTouchHandle(esp_lcd_panel_io_handle_t ioHandle, const esp_lcd_touch_config_t& config, esp_lcd_touch_handle_t& touchHandle) {

@@ -4,7 +4,7 @@
 #include "St7123Display.h"
 #include "St7123Touch.h"
 
-#include <Gt911Touch.h>
+#include <Gt911TouchNg.h>
 #include <PwmBacklight.h>
 #include <Tactility/Logger.h>
 #include <Tactility/hal/gpio/Gpio.h>
@@ -19,8 +19,9 @@ constexpr auto LCD_PIN_RESET = GPIO_NUM_NC;
 constexpr auto LCD_PIN_BACKLIGHT = GPIO_NUM_22;
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createGt911Touch() {
-    auto configuration = std::make_unique<Gt911Touch::Configuration>(
-        I2C_NUM_0,
+    ::Device* i2c0 = device_find_by_name("i2c0");
+    auto configuration = std::make_unique<Gt911TouchNg::Configuration>(
+        i2c0,
         720,
         1280,
         false,  // swapXY
@@ -30,12 +31,13 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createGt911Touch() {
         GPIO_NUM_NC  // "GPIO_NUM_23 cannot be used due to resistor to 3V3"
                      // https://github.com/espressif/esp-bsp/blob/ad668c765cbad177495a122181df0a70ff9f8f61/bsp/m5stack_tab5/src/m5stack_tab5.c#L76234
     );
-    return std::make_shared<Gt911Touch>(std::move(configuration));
+    return std::make_shared<Gt911TouchNg>(std::move(configuration));
 }
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createSt7123Touch() {
+    ::Device* i2c0 = device_find_by_name("i2c0");
     auto configuration = std::make_unique<St7123Touch::Configuration>(
-        I2C_NUM_0,
+        i2c0,
         720,
         1280,
         false,       // swapXY
