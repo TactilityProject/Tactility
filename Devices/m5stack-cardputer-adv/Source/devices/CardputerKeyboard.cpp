@@ -3,8 +3,6 @@
 
 constexpr auto* TAG = "CardputerKeyb";
 
-constexpr auto BACKLIGHT = GPIO_NUM_46;
-
 constexpr auto KB_ROWS = 14;
 constexpr auto KB_COLS = 4;
 
