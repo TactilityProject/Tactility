@@ -133,6 +133,9 @@ static error_t start_child(Device* device, GroveMode mode) {
         i2c_cfg->clockFrequency = config->i2cClockFrequency;
         i2c_cfg->pinSda = config->pinSdaRx;
         i2c_cfg->pinScl = config->pinSclTx;
+        // New driver seems to require pull-up setting
+        i2c_cfg->pinSda.flags |= GPIO_FLAG_PULL_UP;
+        i2c_cfg->pinScl.flags |= GPIO_FLAG_PULL_UP;
         i2c_cfg->clkSource = 0; // Default
         data->child_config = i2c_cfg;
         compatible = "espressif,esp32-i2c-master";
