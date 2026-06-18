@@ -1,5 +1,3 @@
-#ifdef ESP_PLATFORM
-
 #include <vector>
 
 #include <lvgl.h>
@@ -79,5 +77,3 @@ extern const AppManifest manifest = {
 };
 
 }
-
-#endif

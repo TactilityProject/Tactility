@@ -13,7 +13,6 @@
 #include <Tactility/LogMessages.h>
 #include <Tactility/Logger.h>
 #include <Tactility/MountPoints.h>
-#include <Tactility/Paths.h>
 #include <Tactility/app/AppManifestParsing.h>
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/file/File.h>
