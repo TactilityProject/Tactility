@@ -12,6 +12,8 @@
 
 ## Higher Priority
 
+- Require either SD card present or at least 8MB of flash. This way we can increase firmware size, ensure performance, and have a single location for storing data.
+- Consider storing data on SD card in `/tactility` folder (for usage with Launcher)
 - Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.
 - Add kernel listening mechanism so that the root device init can be notified when a device becomes available: 
   Callback for device/start stop with filtering on device type:
@@ -22,13 +24,11 @@
 - DTS: support for #defines
 - DTS: support for aliases
 - SPI kernel driver
-- iomux kernel driver
 - Kernel concepts for ELF loading (generic approach for GUI apps, console apps, libraries).
 - Fix glitches when installing app via App Hub with 4.3" Waveshare
 - TCA9534 keyboards should use interrupts
 - GT911 drivers should use interrupts if it's stable
 - Fix Cardputer (original): use LV_KEY_NEXT and _PREV in keyboard mapping instead of encoder driver hack (and check GPIO app if it then hangs too)
-- Logging with a function that uses std::format
 - Expose http::download() and main dispatcher to TactiltyC.
 - External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
   Check during installation process, but also when starting (SD card might have old app install from before Tactility OS update)
@@ -57,15 +57,11 @@
 - Make WiFi setup app that starts an access point and hosts a webpage to set up the device.
   This will be useful for devices without a screen, a small screen or a non-touch screen.
 - Unify the way displays are dimmed. Some implementations turn off the display when it's fully dimmed. Make this a separate functionality.
-- Try out ILI9342 https://github.com/jbrilha/esp_lcd_ili9342
-- All drivers (e.g. display, touch, etc.) should call stop() in their destructor, or at least assert that they should not be running.
 - Bug: Turn on WiFi (when testing it wasn't connected/connecting - just active). Open chat. Observe crash.
 - Bug: Crash handling app cannot be exited with an EncoderDevice. (current work-around is to manually reset the device)
-- I2C app should show error when I2C port is disabled when the scan button was manually pressed
 
 ## Lower Priority
 
-- The boot button on some devices can be used as GPIO_NUM_0 at runtime
 - Localize all apps
 - Support hot-plugging SD card (note: this is not possible if they require the CS pin hack)
 - Explore LVGL9's FreeRTOS functionality
@@ -95,7 +91,6 @@
 - Audio recording app
 - OTA updates
 - T-Deck Plus: Create separate device config?
-- Support for displays with different DPI. Consider the layer-based system like on Android.
 - If present, use LED to show boot/wifi status
 - Capacity based on voltage: estimation for various devices uses a linear voltage curve, but it should use a battery discharge curve.
 - Wrapper for lvgl slider widget that shows "+" and "-" buttons, and also the value in a label.
@@ -119,14 +114,5 @@
 - IR transceiver app
 - GPS app
 - Investigate CSI https://stevenmhernandez.github.io/ESP32-CSI-Tool/
-- Compile unix tools to ELF apps?
-- Todo list
 - Calendar
-- Display touch calibration
 - RSS reader
-- Static file web server (with option to specify path and port)
-- Port TamaFi https://github.com/cifertech/TamaFi
-
-# Notes on firmware size
-
-- adding esp_http_client (with esp_event) added about 100kB
