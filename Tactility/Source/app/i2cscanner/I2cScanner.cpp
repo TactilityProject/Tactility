@@ -1,7 +1,6 @@
 #include <Tactility/app/i2cscanner/I2cScannerPrivate.h>
 #include <Tactility/app/i2cscanner/I2cHelpers.h>
 
-#include <Tactility/Assets.h>
 #include <Tactility/app/AppContext.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <Tactility/Logger.h>
@@ -47,7 +46,6 @@ class I2cScannerApp final : public App {
 
     static void onSelectBusCallback(lv_event_t* event);
     static void onPressScanCallback(lv_event_t* event);
-    static void onScanTimerCallback();
 
     void onSelectBus(lv_event_t* event);
     void onPressScan(lv_event_t* event);
@@ -221,7 +219,7 @@ bool I2cScannerApp::shouldStopScanTimer() {
 void I2cScannerApp::onScanTimer() {
     logger.info("Scan thread started");
 
-    struct Device* safe_port;
+    Device* safe_port;
     if (!getPort(&safe_port)) {
         logger.error("Failed to get I2C port");
         onScanTimerFinished();
