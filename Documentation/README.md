@@ -120,6 +120,10 @@ The `tactility_add_module()` CMake macro (in `Buildscripts/module.cmake`) wraps 
 
 `device.py` reads `Devices/<id>/device.properties` and generates the `sdkconfig` file with all necessary ESP-IDF config (target chip, flash size, SPIRAM, LVGL fonts, Bluetooth, USB, etc.).
 
+### LVGL
+
+User interfaces should scale well for everything between very large (e.g. 1280x720) and small (e.g. 135x240) displays. Vertical and horizontal layouts are supported.
+
 ## Coding Style
 
 Two conventions coexist; which one to use depends on the project layer:
