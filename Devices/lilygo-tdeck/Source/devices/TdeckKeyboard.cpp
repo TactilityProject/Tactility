@@ -1,27 +1,18 @@
 #include "TdeckKeyboard.h"
 
-#include "../../../../TactilityKernel/include/tactility/drivers/i2c_controller.h"
-
 #include <KeyboardBacklight/KeyboardBacklight.h>
 #include <Tactility/Logger.h>
 #include <Tactility/hal/display/DisplayDevice.h>
-#include <Tactility/hal/i2c/I2c.h>
 #include <Tactility/settings/DisplaySettings.h>
 #include <Tactility/settings/KeyboardSettings.h>
-#include <driver/i2c.h>
 #include <lvgl.h>
-#include <tactility/hal/Device.h>
+#include <tactility/drivers/i2c_controller.h>
 
 using tt::hal::findFirstDevice;
 
 static const auto LOGGER = tt::Logger("TdeckKeyboard");
 
-constexpr auto TDECK_KEYBOARD_I2C_BUS_HANDLE = I2C_NUM_0;
-constexpr auto TDECK_KEYBOARD_SLAVE_ADDRESS = 0x55;
-
-static bool keyboard_i2c_read(uint8_t* output) {
-    return tt::hal::i2c::masterRead(TDECK_KEYBOARD_I2C_BUS_HANDLE, TDECK_KEYBOARD_SLAVE_ADDRESS, output, 1, 100 / portTICK_PERIOD_MS);
-}
+constexpr uint8_t TDECK_KEYBOARD_SLAVE_ADDRESS = 0x55;
 
 /**
  * The callback simulates press and release events, because the T-Deck
@@ -40,7 +31,8 @@ static void keyboard_read_callback(lv_indev_t* indev, lv_indev_data_t* data) {
     data->key = 0;
     data->state = LV_INDEV_STATE_RELEASED;
 
-    if (keyboard_i2c_read(&read_buffer)) {
+    auto* keyboard = static_cast<TdeckKeyboard*>(lv_indev_get_user_data(indev));
+    if (i2c_controller_read(keyboard->getI2cController(), TDECK_KEYBOARD_SLAVE_ADDRESS, &read_buffer, 1, 100 / portTICK_PERIOD_MS) == ERROR_NONE) {
         if (read_buffer == 0 && read_buffer != last_buffer) {
             if (LOGGER.isLoggingDebug()) {
                 LOGGER.debug("Released {}", last_buffer);
@@ -94,6 +86,5 @@ bool TdeckKeyboard::stopLvgl() {
 }
 
 bool TdeckKeyboard::isAttached() const {
-    auto controller = device_find_by_name("i2c_internal");
-    return i2c_controller_has_device_at_address(controller, TDECK_KEYBOARD_SLAVE_ADDRESS, 100) == ERROR_NONE;
+    return i2c_controller_has_device_at_address(i2cController, TDECK_KEYBOARD_SLAVE_ADDRESS, 100) == ERROR_NONE;
 }

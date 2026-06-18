@@ -1,10 +1,14 @@
 #include "Display.h"
 #include <Gt911Touch.h>
 #include <EpdiyDisplayHelper.h>
+#include <tactility/check.h>
+#include <tactility/device.h>
 
 std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
+    auto* i2c = device_find_by_name("i2c_internal");
+    check(i2c);
     auto configuration = std::make_unique<Gt911Touch::Configuration>(
-        I2C_NUM_0,
+        i2c,
         540,
         960,
         true,  // swapXy

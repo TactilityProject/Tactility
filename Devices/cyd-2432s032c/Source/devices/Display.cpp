@@ -3,10 +3,14 @@
 #include <Gt911Touch.h>
 #include <Ili934xDisplay.h>
 #include <PwmBacklight.h>
+#include <tactility/check.h>
+#include <tactility/device.h>
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
+    auto* i2c = device_find_by_name("i2c0");
+    check(i2c);
     auto configuration = std::make_unique<Gt911Touch::Configuration>(
-        I2C_NUM_0,
+        i2c,
         LCD_HORIZONTAL_RESOLUTION,
         LCD_VERTICAL_RESOLUTION
     );

@@ -2,7 +2,6 @@
 
 #include <tactility/hal/Device.h>
 #include <tactility/drivers/i2c_controller.h>
-#include "I2c.h"
 
 namespace tt::hal::i2c {
 

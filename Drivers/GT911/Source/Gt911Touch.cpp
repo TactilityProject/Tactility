@@ -1,31 +1,30 @@
 #include "Gt911Touch.h"
 
 #include <Tactility/Logger.h>
-#include <Tactility/hal/i2c/I2c.h>
 
 #include <esp_lcd_touch_gt911.h>
 #include <esp_err.h>
+#include <tactility/drivers/esp32_i2c.h>
+#include <tactility/drivers/i2c_controller.h>
 
 static const auto LOGGER = tt::Logger("GT911");
 
 bool Gt911Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
     esp_lcd_panel_io_i2c_config_t io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
 
-    /**
-     * When the interrupt pin is low, the address is 0x5D. Otherwise it is 0x14.
-     * There is not reset pin, and the current driver fails when you only specify the interrupt pin.
-     * Because of that, we don't use the interrupt pin and we'll simply scan the bus instead:
-     */
-    if (tt::hal::i2c::masterHasDeviceAtAddress(configuration->port, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS)) {
+    auto* i2c = configuration->i2cController;
+
+    if (i2c_controller_has_device_at_address(i2c, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS, pdMS_TO_TICKS(10)) == ERROR_NONE) {
         io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS;
-    } else if (tt::hal::i2c::masterHasDeviceAtAddress(configuration->port, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP)) {
+    } else if (i2c_controller_has_device_at_address(i2c, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP, pdMS_TO_TICKS(10)) == ERROR_NONE) {
         io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP;
     } else {
         LOGGER.error("No device found on I2C bus");
         return false;
     }
 
-    return esp_lcd_new_panel_io_i2c(configuration->port, &io_config, &outHandle) == ESP_OK;
+    auto port = static_cast<const Esp32I2cConfig*>(i2c->config)->port;
+    return esp_lcd_new_panel_io_i2c(port, &io_config, &outHandle) == ESP_OK;
 }
 
 bool Gt911Touch::createTouchHandle(esp_lcd_panel_io_handle_t ioHandle, const esp_lcd_touch_config_t& configuration, esp_lcd_touch_handle_t& panelHandle) {

@@ -8,6 +8,8 @@
 #include <PwmBacklight.h>
 #include <Tactility/Logger.h>
 #include <Tactility/hal/gpio/Gpio.h>
+#include <tactility/check.h>
+#include <tactility/device.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -19,8 +21,10 @@ constexpr auto LCD_PIN_RESET = GPIO_NUM_NC;
 constexpr auto LCD_PIN_BACKLIGHT = GPIO_NUM_22;
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createGt911Touch() {
+    auto* i2c = device_find_by_name("i2c0");
+    check(i2c);
     auto configuration = std::make_unique<Gt911Touch::Configuration>(
-        I2C_NUM_0,
+        i2c,
         720,
         1280,
         false,  // swapXY
