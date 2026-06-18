@@ -19,7 +19,8 @@ constexpr auto LCD_PIN_RESET = GPIO_NUM_NC;
 constexpr auto LCD_PIN_BACKLIGHT = GPIO_NUM_22;
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createGt911Touch() {
-    ::Device* i2c0 = device_find_by_name("i2c0");
+    auto* i2c0 = device_find_by_name("i2c0");
+    check(i2c0, "i2c0 not found");
     auto configuration = std::make_unique<Gt911TouchNg::Configuration>(
         i2c0,
         720,
@@ -35,7 +36,8 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createGt911Touch() {
 }
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createSt7123Touch() {
-    ::Device* i2c0 = device_find_by_name("i2c0");
+    auto* i2c0 = device_find_by_name("i2c0");
+    check(i2c0, "i2c0 not found");
     auto configuration = std::make_unique<St7123Touch::Configuration>(
         i2c0,
         720,
