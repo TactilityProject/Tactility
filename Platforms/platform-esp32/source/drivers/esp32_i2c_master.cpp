@@ -308,4 +308,8 @@ Driver esp32_i2c_master_driver = {
     .internal = nullptr
 };
 
+i2c_master_bus_handle_t esp32_i2c_master_get_bus_handle(Device* device) {
+    return GET_DATA(device)->bus_handle;
+}
+
 } // extern "C"

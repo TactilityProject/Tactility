@@ -2,9 +2,13 @@
 
 #include <Tactility/Logger.h>
 
+#include <esp_lcd_io_i2c.h>
 #include <esp_lcd_touch_gt911.h>
 #include <esp_err.h>
+#include <tactility/device.h>
+#include <tactility/driver.h>
 #include <tactility/drivers/esp32_i2c.h>
+#include <tactility/drivers/esp32_i2c_master.h>
 #include <tactility/drivers/i2c_controller.h>
 
 static const auto LOGGER = tt::Logger("GT911");
@@ -23,8 +27,17 @@ bool Gt911Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
         return false;
     }
 
-    auto port = static_cast<const Esp32I2cConfig*>(i2c->config)->port;
-    return esp_lcd_new_panel_io_i2c(port, &io_config, &outHandle) == ESP_OK;
+    auto* driver = device_get_driver(i2c);
+    if (driver_is_compatible(driver, "espressif,esp32-i2c")) {
+        auto port = static_cast<const Esp32I2cConfig*>(i2c->config)->port;
+        return esp_lcd_new_panel_io_i2c_v1(port, &io_config, &outHandle) == ESP_OK;
+    } else if (driver_is_compatible(driver, "espressif,esp32-i2c-master")) {
+        auto bus = esp32_i2c_master_get_bus_handle(i2c);
+        return esp_lcd_new_panel_io_i2c_v2(bus, &io_config, &outHandle) == ESP_OK;
+    }
+
+    LOGGER.error("Unsupported I2C driver");
+    return false;
 }
 
 bool Gt911Touch::createTouchHandle(esp_lcd_panel_io_handle_t ioHandle, const esp_lcd_touch_config_t& configuration, esp_lcd_touch_handle_t& panelHandle) {
