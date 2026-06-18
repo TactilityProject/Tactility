@@ -15,7 +15,7 @@ bool initBoot();
 using namespace tt::hal;
 
 static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
-    auto* i2c_internal = device_find_by_name("i2c_internal");
+    auto* i2c_internal = device_find_by_name("i2c0");
     check(i2c_internal);
     return {
         createPower(),

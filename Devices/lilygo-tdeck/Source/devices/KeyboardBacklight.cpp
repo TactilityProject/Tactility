@@ -1,6 +1,5 @@
 #include "KeyboardBacklight.h"
 #include <KeyboardBacklight/KeyboardBacklight.h>  // Driver
-#include <Tactility/hal/i2c/I2c.h>
 #include <Tactility/settings/KeyboardSettings.h>
 
 // TODO: Add Mutex and consider refactoring into a class

@@ -4,7 +4,6 @@
 #include <Ft5x06Touch.h>
 #include <Ili934xDisplay.h>
 #include <Tactility/Logger.h>
-#include <Tactility/hal/i2c/I2c.h>
 
 static const auto LOGGER = tt::Logger("CoreS3Display");
 

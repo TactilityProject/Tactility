@@ -4,7 +4,6 @@
 #include <Ft6x36Touch.h>
 #include <Ili934xDisplay.h>
 #include <Tactility/Logger.h>
-#include <Tactility/hal/i2c/I2c.h>
 
 static const auto LOGGER = tt::Logger("StackChanDisplay");
 

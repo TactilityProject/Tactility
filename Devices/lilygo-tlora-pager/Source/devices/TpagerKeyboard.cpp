@@ -1,6 +1,5 @@
 #include "TpagerKeyboard.h"
 
-#include <Tactility/hal/i2c/I2c.h>
 #include <Tactility/Logger.h>
 
 #include <driver/i2c.h>

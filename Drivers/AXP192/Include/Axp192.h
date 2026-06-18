@@ -3,7 +3,6 @@
 #include <axp192/axp192.h>
 #include <tactility/device.h>
 #include <Tactility/hal/power/PowerDevice.h>
-#include <Tactility/hal/i2c/I2c.h>
 
 #include <memory>
 
