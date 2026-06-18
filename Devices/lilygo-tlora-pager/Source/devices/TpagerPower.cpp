@@ -5,8 +5,6 @@
 
 static const auto LOGGER = tt::Logger("TpagerPower");
 
-constexpr auto TPAGER_GAUGE_I2C_BUS_HANDLE = I2C_NUM_0;
-
 TpagerPower::~TpagerPower() {}
 
 bool TpagerPower::supportsMetric(MetricType type) const {
