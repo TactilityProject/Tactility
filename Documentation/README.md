@@ -49,7 +49,7 @@ cd buildsim && ctest            # run all tests
 - **TactilityCore** — Former kernel subproject. Deprecated, replaced by TactilityKernel. Contains C++ utilities: Bundle (key-value data), string helpers, file I/O, crypto. Header convention: `<Tactility/*.h>` (UpperCamelCase).
 - **TactilityFreeRtos** — Thin C++ wrappers around FreeRTOS primitives.
 - **Tactility** — Main OS layer: app framework, service framework, HAL (deprecated, replaced by TactilityKernel), LVGL integration, networking and services (Wi-Fi, BLE, NTP, ESP-NOW), settings, i18n.
-- **TactilityC** — C bindings (`tt_*.h`) for TactilityCore and Tactilty subprojects, used by side-loaded ELF apps on ESP32. Deprecated, replaced by TactilityKernel.
+- **TactilityC** — C bindings (`tt_*.h`) for TactilityCore and Tactility subprojects, used by side-loaded ELF apps on ESP32. Deprecated, replaced by TactilityKernel.
 - **Firmware** — Entry point (`app_main`).
 
 ### Device/Driver/Module System (kernel layer, C API)
