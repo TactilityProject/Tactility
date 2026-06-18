@@ -1,5 +1,7 @@
 import configparser
+import glob
 import os
+import shutil
 import sys
 from configparser import ConfigParser
 
@@ -392,14 +394,42 @@ def write_properties(output_file, device_properties: ConfigParser, device_id: st
     write_custom_sdkconfig(output_file, device_properties)
     write_lvgl_variables(output_file, device_properties)
 
+def get_current_sdkconfig_target(sdkconfig_path: str):
+    if not os.path.isfile(sdkconfig_path):
+        return None
+    with open(sdkconfig_path, "r") as f:
+        for line in f:
+            if line.startswith("CONFIG_IDF_TARGET="):
+                return line.split("=", 1)[1].strip().strip('"')
+    return None
+
+def clean_build_dirs_on_platform_change(previous_target: str, new_target: str):
+    if previous_target is None or previous_target == new_target:
+        return
+    dirs_to_remove = []
+    if os.path.isdir("build"):
+        dirs_to_remove.append("build")
+    for d in glob.glob("cmake-build-*/"):
+        dirs_to_remove.append(d.rstrip("/"))
+    if not dirs_to_remove:
+        return
+    print(f"Platform changed ({previous_target} -> {new_target}), removing build dirs:")
+    for d in dirs_to_remove:
+        print(f"  {d}")
+        shutil.rmtree(d)
+
 def main(device_id: str, is_dev: bool):
     device_properties_path = get_properties_file_path(device_id)
     if not os.path.isfile(device_properties_path):
         exit_with_error(f"{device_id} is not a valid device identifier (could not found {device_properties_path})")
     output_file_path = "sdkconfig"
+    # Clean build dirs if target changes
+    device_properties = read_device_properties(device_id)
+    new_target = get_property_or_exit(device_properties, "hardware", "target").lower()
+    sdkconfig_target = get_current_sdkconfig_target(output_file_path)
+    clean_build_dirs_on_platform_change(sdkconfig_target, new_target)
     if os.path.isfile(output_file_path):
         os.remove(output_file_path)
-    device_properties = read_device_properties(device_id)
     with open(output_file_path, "w") as output_file:
         write_properties(output_file, device_properties, device_id, is_dev)
     if is_dev:
