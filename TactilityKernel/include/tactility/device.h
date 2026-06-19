@@ -26,6 +26,9 @@ struct DeviceType {
 
 /** Represents a piece of hardware */
 struct Device {
+    /** Device address. Can represent an index, a memory address, or some kind of offset */
+    int32_t address;
+
     /** The name of the device. Valid characters: a-z a-Z 0-9 - _ . */
     const char* name;
 

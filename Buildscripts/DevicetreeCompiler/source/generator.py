@@ -178,7 +178,9 @@ def write_device_structs(file, device: Device, parent_device: Device, bindings: 
     # Write config struct
     write_config(file, device, bindings, devices, type_name)
     # Write device struct
+    address_value = device.node_address if device.node_address is not None else "0"
     file.write(f"static struct Device {node_name}" " = {\n")
+    file.write(f"\t.address = {address_value},\n")
     file.write(f"\t.name = \"{device.node_name}\",\n") # Use original name
     file.write(f"\t.config = &{config_variable_name},\n")
     file.write(f"\t.parent = {parent_value},\n")
