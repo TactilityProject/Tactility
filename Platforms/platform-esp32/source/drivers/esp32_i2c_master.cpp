@@ -287,8 +287,7 @@ static error_t stop(Device* device) {
 }
 
 i2c_master_bus_handle_t esp32_i2c_master_get_bus_handle(struct Device* device) {
-    auto* data = GET_DATA(device);
-    return data ? data->bus_handle : nullptr;
+    return GET_DATA(device)->bus_handle;
 }
 
 uint32_t esp32_i2c_master_get_clock_frequency(struct Device* device) {
@@ -316,9 +315,5 @@ Driver esp32_i2c_master_driver = {
     .owner = &platform_esp32_module,
     .internal = nullptr
 };
-
-i2c_master_bus_handle_t esp32_i2c_master_get_bus_handle(Device* device) {
-    return GET_DATA(device)->bus_handle;
-}
 
 } // extern "C"
