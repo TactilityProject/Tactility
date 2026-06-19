@@ -12,8 +12,8 @@ extern "C" {
 
 struct Esp32GroveConfig {
     enum GroveMode defaultMode;
-    struct GpioPinSpec pinSdaRx;
-    struct GpioPinSpec pinSclTx;
+    struct GpioPinSpec pinSdaTx;
+    struct GpioPinSpec pinSclRx;
     uart_port_t uartPort;
     i2c_port_t i2cPort;
     uint32_t i2cClockFrequency;

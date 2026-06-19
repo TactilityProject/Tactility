@@ -80,8 +80,8 @@
 	port_a: grove0 {
 		compatible = "espressif,esp32-grove";
 		defaultMode = <GROVE_MODE_I2C>;
-		pinSdaRx = <&gpio0 2 GPIO_FLAG_NONE>;
-		pinSclTx = <&gpio0 1 GPIO_FLAG_NONE>;
+		pinSdaTx = <&gpio0 2 GPIO_FLAG_NONE>;
+		pinSclRx = <&gpio0 1 GPIO_FLAG_NONE>;
 		uartPort = <UART_NUM_2>;
 		i2cPort = <I2C_NUM_1>;
 		i2cClockFrequency = <400000>;
@@ -90,8 +90,8 @@
 	port_b: grove1 {
 		compatible = "espressif,esp32-grove";
 		defaultMode = <GROVE_MODE_UART>;
-		pinSdaRx = <&gpio0 9 GPIO_FLAG_NONE>;
-		pinSclTx = <&gpio0 8 GPIO_FLAG_NONE>;
+		pinSdaTx = <&gpio0 9 GPIO_FLAG_NONE>;
+		pinSclRx = <&gpio0 8 GPIO_FLAG_NONE>;
 		uartPort = <UART_NUM_2>;
 		i2cPort = <I2C_NUM_1>;
 		i2cClockFrequency = <400000>;
@@ -100,8 +100,8 @@
 	port_c: grove2 {
 		compatible = "espressif,esp32-grove";
 		defaultMode = <GROVE_MODE_DISABLED>;
-		pinSdaRx = <&gpio0 17 GPIO_FLAG_NONE>;
-		pinSclTx = <&gpio0 18 GPIO_FLAG_NONE>;
+		pinSdaTx = <&gpio0 17 GPIO_FLAG_NONE>;
+		pinSclRx = <&gpio0 18 GPIO_FLAG_NONE>;
 		uartPort = <UART_NUM_2>;
 		i2cPort = <I2C_NUM_1>;
 		i2cClockFrequency = <400000>;
