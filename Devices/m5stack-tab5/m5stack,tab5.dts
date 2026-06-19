@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_grove.h>
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_sdmmc.h>
@@ -60,12 +61,14 @@
 		};
 	};
 
-	i2c_port_a: i2c1 {
-		compatible = "espressif,esp32-i2c-master";
-		port = <I2C_NUM_1>;
-		clock-frequency = <100000>;
-		pin-sda = <&gpio0 53 GPIO_FLAG_PULL_UP>;
-		pin-scl = <&gpio0 54 GPIO_FLAG_PULL_UP>;
+	port_a: grove0 {
+		compatible = "espressif,esp32-grove";
+		defaultMode = <GROVE_MODE_I2C>;
+		pinSdaRx = <&gpio0 53 GPIO_FLAG_NONE>;
+		pinSclTx = <&gpio0 54 GPIO_FLAG_NONE>;
+		uartPort = <UART_NUM_1>;
+		i2cPort = <I2C_NUM_1>;
+		i2cClockFrequency = <100000>;
 	};
 
 	i2c_keyboard: i2c2 {
@@ -100,14 +103,6 @@
 		pin-data-out = <&gpio0 26 GPIO_FLAG_NONE>;
 		pin-data-in = <&gpio0 28 GPIO_FLAG_NONE>;
 		pin-mclk = <&gpio0 30 GPIO_FLAG_NONE>;
-	};
-
-	uart_port_a: uart1 {
-		compatible = "espressif,esp32-uart";
-		status = "disabled";
-		port = <UART_NUM_1>;
-		pin-tx = <&gpio0 53 GPIO_FLAG_NONE>;
-		pin-rx = <&gpio0 54 GPIO_FLAG_NONE>;
 	};
 
 	usbhost0 {

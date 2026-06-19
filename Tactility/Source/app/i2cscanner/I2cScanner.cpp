@@ -232,7 +232,7 @@ void I2cScannerApp::onScanTimer() {
         return;
     }
 
-    for (uint8_t address = 0; address < 128; ++address) {
+    for (uint8_t address = 1; address < 128; ++address) {
         if (i2c_controller_has_device_at_address(safe_port, address, 10 / portTICK_PERIOD_MS) == ERROR_NONE) {
             logger.info("Found device at address 0x{:02X}", address);
             if (!shouldStopScanTimer()) {
