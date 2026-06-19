@@ -12,6 +12,7 @@
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/drivers/usb_host_msc.h>
 #include <tactility/drivers/gpio_controller.h>
+#include <tactility/drivers/grove.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
 #include <tactility/drivers/root.h>
@@ -85,6 +86,10 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(gpio_controller_init_descriptors),
     DEFINE_MODULE_SYMBOL(gpio_controller_deinit_descriptors),
     DEFINE_MODULE_SYMBOL(GPIO_CONTROLLER_TYPE),
+    // drivers/grove
+    DEFINE_MODULE_SYMBOL(grove_set_mode),
+    DEFINE_MODULE_SYMBOL(grove_get_mode),
+    DEFINE_MODULE_SYMBOL(GROVE_TYPE),
     // drivers/i2c_controller
     DEFINE_MODULE_SYMBOL(i2c_controller_read),
     DEFINE_MODULE_SYMBOL(i2c_controller_write),
