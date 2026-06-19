@@ -108,8 +108,8 @@ static error_t start_child(Device* device, GroveMode mode) {
         }
         std::memset(uart_cfg, 0, sizeof(Esp32UartConfig));
         uart_cfg->port = config->uartPort;
-        uart_cfg->pin_tx = config->pinSdaRx;
-        uart_cfg->pin_rx = config->pinSclTx;
+        uart_cfg->pin_rx = config->pinSclRx;
+        uart_cfg->pin_tx = config->pinSdaTx;
         uart_cfg->pin_cts = GPIO_PIN_SPEC_NONE;
         uart_cfg->pin_rts = GPIO_PIN_SPEC_NONE;
         data->child_config = uart_cfg;
@@ -131,8 +131,8 @@ static error_t start_child(Device* device, GroveMode mode) {
         std::memset(i2c_cfg, 0, sizeof(Esp32I2cMasterConfig));
         i2c_cfg->port = static_cast<i2c_port_num_t>(config->i2cPort);
         i2c_cfg->clockFrequency = config->i2cClockFrequency;
-        i2c_cfg->pinSda = config->pinSdaRx;
-        i2c_cfg->pinScl = config->pinSclTx;
+        i2c_cfg->pinSda = config->pinSdaTx;
+        i2c_cfg->pinScl = config->pinSclRx;
         // New driver seems to require pull-up setting
         i2c_cfg->pinSda.flags |= GPIO_FLAG_PULL_UP;
         i2c_cfg->pinScl.flags |= GPIO_FLAG_PULL_UP;

@@ -64,8 +64,8 @@
 	port_a: grove0 {
 		compatible = "espressif,esp32-grove";
 		defaultMode = <GROVE_MODE_I2C>;
-		pinSdaRx = <&gpio0 53 GPIO_FLAG_NONE>;
-		pinSclTx = <&gpio0 54 GPIO_FLAG_NONE>;
+		pinSdaTx = <&gpio0 53 GPIO_FLAG_NONE>;
+		pinSclRx = <&gpio0 54 GPIO_FLAG_NONE>;
 		uartPort = <UART_NUM_1>;
 		i2cPort = <I2C_NUM_1>;
 		i2cClockFrequency = <100000>;
