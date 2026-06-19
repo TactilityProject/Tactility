@@ -108,8 +108,8 @@ static error_t start_child(Device* device, GroveMode mode) {
         }
         std::memset(uart_cfg, 0, sizeof(Esp32UartConfig));
         uart_cfg->port = config->uartPort;
-        uart_cfg->pin_tx = config->pinSclRx;
-        uart_cfg->pin_rx = config->pinSdaTx;
+        uart_cfg->pin_rx = config->pinSclRx;
+        uart_cfg->pin_tx = config->pinSdaTx;
         uart_cfg->pin_cts = GPIO_PIN_SPEC_NONE;
         uart_cfg->pin_rts = GPIO_PIN_SPEC_NONE;
         data->child_config = uart_cfg;
