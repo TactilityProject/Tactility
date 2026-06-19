@@ -4,7 +4,7 @@
 #include "St7123Display.h"
 #include "St7123Touch.h"
 
-#include <Gt911TouchNg.h>
+#include <Gt911Touch.h>
 #include <PwmBacklight.h>
 #include <Tactility/Logger.h>
 #include <Tactility/hal/gpio/Gpio.h>
@@ -34,14 +34,14 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createGt911Touch() {
         GPIO_NUM_NC  // "GPIO_NUM_23 cannot be used due to resistor to 3V3"
                      // https://github.com/espressif/esp-bsp/blob/ad668c765cbad177495a122181df0a70ff9f8f61/bsp/m5stack_tab5/src/m5stack_tab5.c#L76234
     );
-    return std::make_shared<Gt911TouchNg>(std::move(configuration));
+    return std::make_shared<Gt911Touch>(std::move(configuration));
 }
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createSt7123Touch() {
-    auto* i2c0 = device_find_by_name("i2c0");
-    check(i2c0, "i2c0 not found");
+    auto* i2c = device_find_by_name("i2c0");
+    check(i2c, "i2c0 not found");
     auto configuration = std::make_unique<St7123Touch::Configuration>(
-        i2c0,
+        i2c,
         720,
         1280,
         false,       // swapXY

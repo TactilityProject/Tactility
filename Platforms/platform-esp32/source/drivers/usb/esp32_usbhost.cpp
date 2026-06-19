@@ -71,7 +71,9 @@ static error_t start_device(struct Device* device) {
         .intr_flags          = ESP_INTR_FLAG_LEVEL1,
         .enum_filter_cb      = nullptr,
         .fifo_settings_custom = {},
+#if CONFIG_IDF_TARGET_ESP32P4
         .peripheral_map      = cfg->peripheral_map,
+#endif
     };
 
     esp_err_t ret = usb_host_install(&host_cfg);

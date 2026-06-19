@@ -26,7 +26,6 @@ macro(tactility_project project_name)
     set(COMPONENTS
         TactilityFreeRtos
         bm8563-module
-        bm8563-module
         bmi270-module
         mpu6886-module
         pi4ioe5v6408-module
