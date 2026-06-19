@@ -7,16 +7,20 @@
 
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/lvgl/LvglSync.h>
+#include <tactility/check.h>
+#include <tactility/device.h>
 
 bool initBoot();
 
 using namespace tt::hal;
 
 static std::vector<std::shared_ptr<tt::hal::Device>> createDevices() {
+    auto* i2c_internal = device_find_by_name("i2c0");
+    check(i2c_internal);
     return {
         createPower(),
         createDisplay(),
-        std::make_shared<TdeckKeyboard>(),
+        std::make_shared<TdeckKeyboard>(i2c_internal),
         std::make_shared<KeyboardBacklightDevice>(),
         std::make_shared<TrackballDevice>(),
         createSdCard()

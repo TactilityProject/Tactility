@@ -5,21 +5,22 @@
 #include <PwmBacklight.h>
 #include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
+#include <tactility/check.h>
+#include <tactility/device.h>
 
 constexpr auto LCD_PIN_RESET = GPIO_NUM_0;  // Match P4 EV board reset line
 constexpr auto LCD_PIN_BACKLIGHT = GPIO_NUM_23;
 constexpr auto LCD_HORIZONTAL_RESOLUTION = 1024;
 constexpr auto LCD_VERTICAL_RESOLUTION = 600;
 
-constexpr auto TOUCH_I2C_PORT = I2C_NUM_0;
-constexpr auto TOUCH_I2C_SDA = GPIO_NUM_7;
-constexpr auto TOUCH_I2C_SCL = GPIO_NUM_8;
 constexpr auto TOUCH_PIN_RESET = GPIO_NUM_NC;
 constexpr auto TOUCH_PIN_INTERRUPT = GPIO_NUM_NC;
 
 static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
+    auto* i2c = device_find_by_name("i2c_internal");
+    check(i2c);
     auto configuration = std::make_unique<Gt911Touch::Configuration>(
-        TOUCH_I2C_PORT,
+        i2c,
         LCD_HORIZONTAL_RESOLUTION,
         LCD_VERTICAL_RESOLUTION,
         false,  // swapXY

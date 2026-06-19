@@ -3,6 +3,8 @@
 #include <Gt911Touch.h>
 #include <PwmBacklight.h>
 #include <Tactility/Logger.h>
+#include <tactility/check.h>
+#include <tactility/device.h>
 
 #include <driver/gpio.h>
 #include <esp_err.h>
@@ -221,8 +223,10 @@ lvgl_port_display_rgb_cfg_t St7701Display::getLvglPortDisplayRgbConfig(esp_lcd_p
 
 std::shared_ptr<tt::hal::touch::TouchDevice> St7701Display::getTouchDevice() {
     if (touchDevice == nullptr) {
+        auto* i2c = device_find_by_name("i2c0");
+        check(i2c);
         auto configuration = std::make_unique<Gt911Touch::Configuration>(
-           I2C_NUM_0,
+           i2c,
            480,
            480
        );

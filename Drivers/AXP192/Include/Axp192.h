@@ -1,8 +1,8 @@
 #pragma once
 
 #include <axp192/axp192.h>
+#include <tactility/device.h>
 #include <Tactility/hal/power/PowerDevice.h>
-#include <Tactility/hal/i2c/I2c.h>
 
 #include <memory>
 
@@ -14,7 +14,7 @@ class Axp192 final : public tt::hal::power::PowerDevice {
 public:
 
     struct Configuration {
-        i2c_port_t port;
+        ::Device* controller;
         TickType_t readTimeout = 50 / portTICK_PERIOD_MS;
         TickType_t writeTimeout = 50 / portTICK_PERIOD_MS;
     };

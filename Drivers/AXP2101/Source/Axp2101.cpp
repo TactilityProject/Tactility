@@ -54,5 +54,5 @@ bool Axp2101::getVBusVoltage(float& out) const {
 }
 
 bool Axp2101::setRegisters(uint8_t* bytePairs, size_t bytePairsSize) const {
-    return tt::hal::i2c::masterWriteRegisterArray(port, address, bytePairs, bytePairsSize, DEFAULT_TIMEOUT);
+    return i2c_controller_write_register_array(controller, address, bytePairs, bytePairsSize, DEFAULT_TIMEOUT) == ERROR_NONE;
 }

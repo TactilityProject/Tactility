@@ -8,7 +8,7 @@ class Aw9523 : public tt::hal::i2c::I2cDevice {
 
 public:
 
-    explicit Aw9523(i2c_port_t port) : I2cDevice(port, AW9523_ADDRESS) {}
+    explicit Aw9523(::Device* controller) : I2cDevice(controller, AW9523_ADDRESS) {}
 
     std::string getName() const final { return "AW9523"; }
     std::string getDescription() const final { return "GPIO expander with LED driver and I2C interface."; }

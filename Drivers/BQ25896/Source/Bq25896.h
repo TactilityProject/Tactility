@@ -8,7 +8,7 @@ class Bq25896 final : public tt::hal::i2c::I2cDevice {
 
 public:
 
-    explicit Bq25896(i2c_port_t port) : I2cDevice(port, BQ25896_ADDRESS) {
+    explicit Bq25896(::Device* controller) : I2cDevice(controller, BQ25896_ADDRESS) {
         powerOn();
     }
 

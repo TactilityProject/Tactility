@@ -1,4 +1,5 @@
 #include "UnPhoneFeatures.h"
+#include <tactility/device.h>
 #include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/Preferences.h>
@@ -160,7 +161,7 @@ static bool unPhonePowerOn() {
     bootStats.printInfo();
     bootStats.notifyBootStart();
 
-    bq24295 = std::make_shared<Bq24295>(I2C_NUM_0);
+    bq24295 = std::make_shared<Bq24295>(device_find_by_name("i2c_internal"));
 
     unPhoneFeatures = std::make_shared<UnPhoneFeatures>(bq24295);
 

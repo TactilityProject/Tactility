@@ -19,7 +19,7 @@ public:
         CHARGE_STATUS_STANDBY = 0b00
     };
 
-    explicit Axp2101(i2c_port_t port) : I2cDevice(port, AXP2101_ADDRESS) {}
+    explicit Axp2101(::Device* controller) : I2cDevice(controller, AXP2101_ADDRESS) {}
 
     std::string getName() const override { return "AXP2101"; }
     std::string getDescription() const override { return "Power management with I2C interface."; }

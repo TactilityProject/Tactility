@@ -6,10 +6,6 @@
 #include <tactility/drivers/i2c_controller.h>
 
 #include <Tactility/hal/Configuration.h>
-#include <Tactility/hal/keyboard/KeyboardDevice.h>
-#include <Tactility/kernel/SystemEvents.h>
-#include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/settings/DisplaySettings.h>
 
 using namespace tt::hal;
 

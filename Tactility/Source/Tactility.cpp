@@ -13,7 +13,6 @@
 #include <Tactility/LogMessages.h>
 #include <Tactility/Logger.h>
 #include <Tactility/MountPoints.h>
-#include <Tactility/Paths.h>
 #include <Tactility/app/AppManifestParsing.h>
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/file/File.h>
@@ -27,6 +26,7 @@
 #include <Tactility/settings/TimePrivate.h>
 
 #include <tactility/concurrent/thread.h>
+#include <tactility/drivers/grove.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/hal_device_module.h>
@@ -94,6 +94,7 @@ namespace app {
     namespace files { extern const AppManifest manifest; }
     namespace fileselection { extern const AppManifest manifest; }
     namespace gpssettings { extern const AppManifest manifest; }
+    namespace grovesettings { extern const AppManifest manifest; }
     namespace i2cscanner { extern const AppManifest manifest; }
     namespace imageviewer { extern const AppManifest manifest; }
     namespace inputdialog { extern const AppManifest manifest; }
@@ -187,7 +188,11 @@ static void registerInternalApps() {
     addAppManifest(app::chat::manifest);
 #endif
 
-    if (device_exists_of_type(&UART_CONTROLLER_TYPE)) {
+    if (device_exists_of_type(&GROVE_TYPE)) {
+        addAppManifest(app::grovesettings::manifest);
+    }
+
+    if (device_exists_of_type(&UART_CONTROLLER_TYPE) || device_exists_of_type(&GROVE_TYPE)) {
         addAppManifest(app::addgps::manifest);
         addAppManifest(app::gpssettings::manifest);
     }

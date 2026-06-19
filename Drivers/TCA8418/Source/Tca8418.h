@@ -45,7 +45,7 @@ public:
 
     std::string getDescription() const final { return "I2C-controlled keyboard scan IC"; }
 
-    explicit Tca8418(i2c_port_t port) : I2cDevice(port, TCA8418_ADDRESS) {
+    explicit Tca8418(::Device* controller) : I2cDevice(controller, TCA8418_ADDRESS) {
         delta_micros = 0;
         last_update_micros = 0;
         this_update_micros = 0;

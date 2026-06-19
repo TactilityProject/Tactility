@@ -2,9 +2,10 @@
 
 #include <Tactility/hal/touch/TouchDevice.h>
 #include <Tactility/TactilityCore.h>
-#include <driver/i2c.h>
 
 #include <EspLcdTouch.h>
+
+struct Device;
 
 class Gt911Touch final : public EspLcdTouch {
 
@@ -14,7 +15,7 @@ public:
     public:
 
         Configuration(
-            i2c_port_t port,
+            ::Device* i2cController,
             uint16_t xMax,
             uint16_t yMax,
             bool swapXy = false,
@@ -24,7 +25,7 @@ public:
             gpio_num_t pinInterrupt = GPIO_NUM_NC,
             unsigned int pinResetLevel = 0,
             unsigned int pinInterruptLevel = 0
-        ) : port(port),
+        ) : i2cController(i2cController),
             xMax(xMax),
             yMax(yMax),
             swapXy(swapXy),
@@ -36,7 +37,7 @@ public:
             pinInterruptLevel(pinInterruptLevel)
         {}
 
-        i2c_port_t port;
+        ::Device* i2cController;
         uint16_t xMax;
         uint16_t yMax;
         bool swapXy;

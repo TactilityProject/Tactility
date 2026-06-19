@@ -62,7 +62,7 @@ class Drv2605 : public tt::hal::i2c::I2cDevice {
 
 public:
 
-    explicit Drv2605(i2c_port_t port, bool autoPlayStartupBuzz = true);
+    explicit Drv2605(::Device* controller, bool autoPlayStartupBuzz = true);
 
     std::string getName() const final { return "DRV2605"; }
     std::string getDescription() const final { return "Haptic driver for ERM/LRA with waveform library & auto-resonance tracking"; }

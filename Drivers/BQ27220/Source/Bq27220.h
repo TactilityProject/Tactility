@@ -89,7 +89,7 @@ public:
 
     std::string getDescription() const override { return "I2C-controlled CEDV battery fuel gauge"; }
 
-    explicit Bq27220(i2c_port_t port) : I2cDevice(port, BQ27220_ADDRESS), accessKey(0xFFFFFFFF) {}
+    explicit Bq27220(::Device* controller) : I2cDevice(controller, BQ27220_ADDRESS), accessKey(0xFFFFFFFF) {}
 
     bool configureCapacity(uint16_t designCapacity, uint16_t fullChargeCapacity);
     bool getVoltage(uint16_t &value);

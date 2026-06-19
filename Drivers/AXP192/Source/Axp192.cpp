@@ -1,10 +1,11 @@
 #include "Axp192.h"
+#include <tactility/drivers/i2c_controller.h>
 
 constexpr auto TAG = "Axp192Power";
 
 int32_t Axp192::i2cRead(void* handle, uint8_t address, uint8_t reg, uint8_t* buffer, uint16_t size) {
     const auto* device = static_cast<Axp192*>(handle);
-    if (tt::hal::i2c::masterReadRegister(device->configuration->port, address, reg, buffer, size, device->configuration->readTimeout)) {
+    if (i2c_controller_read_register(device->configuration->controller, address, reg, buffer, size, device->configuration->readTimeout) == ERROR_NONE) {
         return AXP192_OK;
     } else {
         return 1;
@@ -13,7 +14,7 @@ int32_t Axp192::i2cRead(void* handle, uint8_t address, uint8_t reg, uint8_t* buf
 
 int32_t Axp192::i2cWrite(void* handle, uint8_t address, uint8_t reg, const uint8_t* buffer, uint16_t size) {
     const auto* device = static_cast<Axp192*>(handle);
-    if (tt::hal::i2c::masterWriteRegister(device->configuration->port, address, reg, buffer, size, device->configuration->writeTimeout)) {
+    if (i2c_controller_write_register(device->configuration->controller, address, reg, buffer, size, device->configuration->writeTimeout) == ERROR_NONE) {
         return AXP192_OK;
     } else {
         return 1;

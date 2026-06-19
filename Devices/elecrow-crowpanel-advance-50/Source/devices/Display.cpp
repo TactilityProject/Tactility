@@ -2,12 +2,16 @@
 
 #include <Gt911Touch.h>
 #include <RgbDisplay.h>
+#include <tactility/check.h>
+#include <tactility/device.h>
 
 std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
     // Note for future changes: Reset pin is 38 and interrupt pin is 18
     // or INT = NC, schematic and other info floating around is kinda conflicting...
+    auto* i2c = device_find_by_name("i2c0");
+    check(i2c);
     auto configuration = std::make_unique<Gt911Touch::Configuration>(
-        I2C_NUM_0,
+        i2c,
         800,
         480
     );

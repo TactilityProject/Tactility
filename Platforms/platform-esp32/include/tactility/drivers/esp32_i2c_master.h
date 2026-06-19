@@ -10,6 +10,8 @@
 extern "C" {
 #endif
 
+struct Device;
+
 struct Esp32I2cMasterConfig {
     i2c_port_num_t port;
     uint32_t clockFrequency;
