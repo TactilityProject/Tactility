@@ -70,6 +70,10 @@ class DtsTransformer(Transformer):
         if isinstance(object[0], PropertyValue):
             return object[0]
         return PropertyValue(type="value", value=object[0])
+    def phandle_array_entry(self, tokens: list):
+        return tokens[0]
+    def phandle_array(self, tokens: list):
+        return PropertyValue(type="phandle-array", value=tokens)
     def array(self, object):
         return PropertyValue(type="array", value=object)
     def VALUE(self, token: Token):

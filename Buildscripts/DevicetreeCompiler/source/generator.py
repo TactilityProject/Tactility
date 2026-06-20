@@ -88,6 +88,7 @@ def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
                     value_list.append(property_to_string(DeviceProperty(name="", type=item.type, value=item.value), devices))
                 else:
                     value_list.append(str(item))
+            value_list.append("{ 0 }")
             return "{ " + ",".join(value_list) + " }"
         elif isinstance(property.value, str):
             # If it's a string, assume it's a #define and show it as-is
