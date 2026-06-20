@@ -20,8 +20,10 @@ def write_define(file, define: DefineC, verbose: bool):
 def get_device_node_name_safe(device: Device):
     if device.node_name == "/":
         return "root"
-    else:
-        return device.node_name.replace("-", "_")
+    name = device.node_name.replace("-", "_")
+    if device.node_address is not None:
+        name += "_" + device.node_address.replace("-", "_")
+    return name
 
 def get_device_type_name(device: Device, bindings: list[Binding]):
     device_binding = find_device_binding(device, bindings)

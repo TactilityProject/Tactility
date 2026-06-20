@@ -10,6 +10,7 @@ static const root_config_dt root_config = {
 };
 
 static struct Device root = {
+    .address = 0,
 	.name = "/",
 	.config = &root_config,
 	.parent = NULL,
