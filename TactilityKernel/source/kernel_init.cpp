@@ -16,6 +16,8 @@ static error_t start() {
     if (driver_construct_add(&root_driver) != ERROR_NONE) return ERROR_RESOURCE;
     extern Driver display_placeholder_driver;
     if (driver_construct_add(&display_placeholder_driver) != ERROR_NONE) return ERROR_RESOURCE;
+    extern Driver touch_placeholder_driver;
+    if (driver_construct_add(&touch_placeholder_driver) != ERROR_NONE) return ERROR_RESOURCE;
     extern Driver spi_peripheral_driver;
     if (driver_construct_add(&spi_peripheral_driver) != ERROR_NONE) return ERROR_RESOURCE;
     return ERROR_NONE;

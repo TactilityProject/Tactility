@@ -6,6 +6,7 @@
 
 #include "tactility/drivers/gpio_descriptor.h"
 #include <tactility/drivers/esp32_gpio_helpers.h>
+#include <tactility/drivers/gpio_controller.h>
 #include <cstring>
 #include <new>
 #include <soc/gpio_num.h>
@@ -115,6 +116,18 @@ static error_t start(Device* device) {
         delete data;
         LOG_E(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
         return ERROR_RESOURCE;
+    }
+
+    // Deselect all CS pins (drive high) before any SPI communication
+    const GpioPinSpec* cs = dts_config->cs_gpios;
+    while (cs->gpio_controller != nullptr) {
+        GpioDescriptor* desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_OWNER_SPI);
+        if (desc != nullptr) {
+            gpio_descriptor_set_flags(desc, GPIO_FLAG_DIRECTION_OUTPUT);
+            gpio_descriptor_set_level(desc, true);
+            gpio_descriptor_release(desc);
+        }
+        cs++;
     }
 
     data->initialized = true;

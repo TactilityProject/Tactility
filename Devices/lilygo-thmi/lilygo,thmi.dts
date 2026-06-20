@@ -23,9 +23,19 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 6 GPIO_FLAG_NONE>, // Display
+		           <&gpio0 2 GPIO_FLAG_NONE>; // Touch
 		pin-mosi = <&gpio0 3 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 4 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 1 GPIO_FLAG_NONE>;
+
+		display@0 {
+			compatible = "display-placeholder";
+		};
+
+		touch@1 {
+			compatible = "touch-placeholder";
+		};
 	};
 
 	sdmmc0 {

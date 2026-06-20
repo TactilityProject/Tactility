@@ -31,11 +31,11 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 42 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 47 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 41 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 48 GPIO_FLAG_NONE>;
-		pin-hd = <&gpio0 42 GPIO_FLAG_NONE>;
-	
+
 		sdcard {
 			compatible = "espressif,esp32-sdspi";
 			pin-cs = <&gpio0 42 GPIO_FLAG_NONE>;

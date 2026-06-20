@@ -112,16 +112,18 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 4 GPIO_FLAG_NONE>, // SD card
+		           <&gpio0 3 GPIO_FLAG_NONE>; // Display
 		pin-mosi = <&gpio0 37 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 35 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
-	
+
 		sdcard@0 {
 			compatible = "espressif,esp32-sdspi";
 			pin-cs = <&gpio0 4 GPIO_FLAG_NONE>;
 			frequency-khz = <20000>;
 		};
-	
+
 		display@1 {
 			compatible = "display-placeholder";
 		};

@@ -53,6 +53,7 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 41 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
 	
@@ -65,6 +66,7 @@
 	spi1 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI3_HOST>;
+		cs-gpios = <&gpio0 7 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 6 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 4 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 5 GPIO_FLAG_NONE>;

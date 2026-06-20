@@ -82,6 +82,7 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 42 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 44 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 43 GPIO_FLAG_NONE>;

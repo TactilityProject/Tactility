@@ -27,7 +27,6 @@ static DeviceVector createDevices() {
         bq27220,
         std::make_shared<Drv2605>(i2c),
         power,
-        createTpagerSdCard(),
         createDisplay(),
         keyboard,
         std::make_shared<TpagerEncoder>()

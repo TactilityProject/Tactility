@@ -5,6 +5,7 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/display_placeholder.h>
+#include <tactility/bindings/touch_placeholder.h>
 #include <tactility/bindings/esp32_uart.h>
 
 / {
@@ -22,9 +23,15 @@
         pin-mosi = <&gpio0 13 GPIO_FLAG_NONE>;
         pin-miso = <&gpio0 12 GPIO_FLAG_NONE>;
         pin-sclk = <&gpio0 14 GPIO_FLAG_NONE>;
+        cs-gpios = <&gpio0 15 GPIO_FLAG_NONE>, // Display
+                   <&gpio0 33 GPIO_FLAG_NONE>; // Touch
 
-		display {
+		display@0 {
 			compatible = "display-placeholder";
+		};
+
+		touch@1 {
+			compatible = "touch-placeholder";
 		};
     };
 
@@ -34,6 +41,7 @@
         pin-mosi = <&gpio0 23 GPIO_FLAG_NONE>;
         pin-miso = <&gpio0 19 GPIO_FLAG_NONE>;
         pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
+		cs-gpios = <&gpio0 5 GPIO_FLAG_NONE>;
 
 		sdcard {
 			compatible = "espressif,esp32-sdspi";

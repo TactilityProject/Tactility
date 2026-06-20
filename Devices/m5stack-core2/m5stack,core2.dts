@@ -53,6 +53,8 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 4 GPIO_FLAG_NONE>, // SD card
+				   <&gpio0 5 GPIO_FLAG_NONE>; // Display
 		pin-mosi = <&gpio0 23 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 38 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;

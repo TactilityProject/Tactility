@@ -31,12 +31,23 @@
 	sdcard_spi: spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 48 GPIO_FLAG_NONE>, // Display
+		           <&gpio0 38 GPIO_FLAG_NONE>, // Touch
+		           <&gpio0 43 GPIO_FLAG_NONE>; // SD card
 		pin-mosi = <&gpio0 40 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 41 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 39 GPIO_FLAG_NONE>;
 		max-transfer-size = <65536>;
-	
-		sdcard {
+
+		display@0 {
+			compatible = "display-placeholder";
+		};
+
+		touch@1 {
+			compatible = "touch-placeholder";
+		};
+
+		sdcard@2 {
 			compatible = "espressif,esp32-sdspi";
 			pin-cs = <&gpio0 43 GPIO_FLAG_NONE>;
 			frequency-khz = <20000>;
