@@ -17,16 +17,16 @@ static struct Device root = {
 	.internal = NULL
 };
 
-static const generic_device_config_dt test_device_0_config = {
+static const generic_device_config_dt test_device_config = {
 	0,
 	42,
 	"hello"
 };
 
-static struct Device test_device_0 = {
+static struct Device test_device = {
 	.address = 0,
 	.name = "test-device",
-	.config = &test_device_0_config,
+	.config = &test_device_config,
 	.parent = &root,
 	.internal = NULL
 };
@@ -49,7 +49,7 @@ static struct Device bool_test_device = {
 
 struct DtsDevice dts_devices[] = {
 	{ &root, "test,root", DTS_DEVICE_STATUS_OKAY },
-	{ &test_device_0, "test,generic-device", DTS_DEVICE_STATUS_OKAY },
+	{ &test_device, "test,generic-device", DTS_DEVICE_STATUS_OKAY },
 	{ &bool_test_device, "test,bool-device", DTS_DEVICE_STATUS_OKAY },
 	DTS_DEVICE_TERMINATOR
 };
