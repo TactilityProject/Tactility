@@ -22,7 +22,6 @@ bool Gt911Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
         io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS;
     } else if (i2c_controller_has_device_at_address(i2c, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP, pdMS_TO_TICKS(10)) == ERROR_NONE) {
         io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP;
-        io_config.scl_speed_hz = esp32_i2c_master_get_clock_frequency(configuration->i2cController);
     } else {
         LOGGER.error("No device found on I2C bus");
         return false;
@@ -34,6 +33,7 @@ bool Gt911Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
         return esp_lcd_new_panel_io_i2c_v1(port, &io_config, &outHandle) == ESP_OK;
     } else if (driver_is_compatible(driver, "espressif,esp32-i2c-master")) {
         auto bus = esp32_i2c_master_get_bus_handle(i2c);
+        io_config.scl_speed_hz = esp32_i2c_master_get_clock_frequency(configuration->i2cController);
         return esp_lcd_new_panel_io_i2c_v2(bus, &io_config, &outHandle) == ESP_OK;
     }
 
