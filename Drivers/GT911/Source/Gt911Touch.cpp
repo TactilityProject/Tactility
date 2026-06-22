@@ -27,18 +27,14 @@ bool Gt911Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
         return false;
     }
 
-    io_config.scl_speed_hz = esp32_i2c_master_get_clock_frequency(configuration->i2cController);
-
     // Legacy I2C implementation
     auto* driver = device_get_driver(i2c);
     if (driver_is_compatible(driver, "espressif,esp32-i2c")) {
         auto port = static_cast<const Esp32I2cConfig*>(i2c->config)->port;
         return esp_lcd_new_panel_io_i2c_v1(port, &io_config, &outHandle) == ESP_OK;
-    }
-
-    // Target I2C implementation
-    if (driver_is_compatible(driver, "espressif,esp32-i2c-master")) {
-        auto* bus = esp32_i2c_master_get_bus_handle(i2c);
+    } else if (driver_is_compatible(driver, "espressif,esp32-i2c-master")) {
+        auto bus = esp32_i2c_master_get_bus_handle(i2c);
+        io_config.scl_speed_hz = esp32_i2c_master_get_clock_frequency(configuration->i2cController);
         return esp_lcd_new_panel_io_i2c_v2(bus, &io_config, &outHandle) == ESP_OK;
     }
 
