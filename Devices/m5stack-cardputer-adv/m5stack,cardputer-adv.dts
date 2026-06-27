@@ -64,13 +64,15 @@
 	spi1 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI3_HOST>;
-		cs-gpios = <&gpio0 12 GPIO_FLAG_NONE>;
+		cs-gpios = <&gpio0 12 GPIO_FLAG_NONE>,
+		           <&gpio0 5 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 14 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
 	
 		sdcard@0 {
 			compatible = "espressif,esp32-sdspi";
+			status = "disabled";
 			frequency-khz = <20000>;
 		};
 	};
