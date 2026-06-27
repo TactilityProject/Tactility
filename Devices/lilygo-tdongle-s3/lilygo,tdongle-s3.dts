@@ -50,6 +50,7 @@
 		pin-d1 = <&gpio0 17 GPIO_FLAG_NONE>;
 		pin-d2 = <&gpio0 21 GPIO_FLAG_NONE>;
 		pin-d3 = <&gpio0 18 GPIO_FLAG_NONE>;
+		slot = <SDMMC_HOST_SLOT_1>;
 		bus-width = <4>;
 	};
 

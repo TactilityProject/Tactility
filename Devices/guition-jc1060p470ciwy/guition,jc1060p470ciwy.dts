@@ -54,6 +54,7 @@
 		pin-d1 = <&gpio0 40 GPIO_FLAG_NONE>;
 		pin-d2 = <&gpio0 41 GPIO_FLAG_NONE>;
 		pin-d3 = <&gpio0 42 GPIO_FLAG_NONE>;
+		slot = <SDMMC_HOST_SLOT_0>;
 		bus-width = <4>;
 		on-chip-ldo-chan = <4>;
 	};

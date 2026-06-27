@@ -45,6 +45,7 @@
 		pin-clk = <&gpio0 12 GPIO_FLAG_NONE>;
 		pin-cmd = <&gpio0 11 GPIO_FLAG_NONE>;
 		pin-d0 = <&gpio0 13 GPIO_FLAG_NONE>;
+		slot = <SDMMC_HOST_SLOT_1>;
 		bus-width = <1>;
 		pullups;
 	};
