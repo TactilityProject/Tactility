@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
@@ -8,12 +9,15 @@
 
 / {
 	compatible = "root";
-	model = "Elecrow CrowPanel Basic 5.0";
+	model = "Elecrow CrowPanel Basic 7.0";
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
 	};
+	ble0 {
+			compatible = "espressif,esp32-ble";
+		};
 
 	i2c0 {
 		compatible = "espressif,esp32-i2c";
