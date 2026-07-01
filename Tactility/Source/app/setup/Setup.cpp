@@ -1,12 +1,12 @@
 #include <tactility/lvgl_fonts.h>
+#include <tactility/lvgl_module.h>
 
 #include <Tactility/app/App.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/setup/Setup.h>
 
-#include "Tactility/StringUtils.h"
-
 #include <Tactility/Preferences.h>
+#include <Tactility/StringUtils.h>
 #include <Tactility/app/timezone/TimeZone.h>
 #include <Tactility/app/wifimanage/WifiManage.h>
 #include <Tactility/lvgl/LvglSync.h>
@@ -72,10 +72,9 @@ class SetupApp final : public App {
     void renderCurrent() {
         switch (phase) {
             case Phase::Welcome: {
-                lv_label_set_text(titleLabel, "Welcome!");
+                lv_label_set_text(titleLabel, "Welcome");
                 auto device_names = string::split(std::string(CONFIG_TT_DEVICE_NAME_SIMPLE), ",");
-                auto device_name = (device_names.size() < 3) ? string::join(device_names, " or ") : "device";
-                lv_label_set_text_fmt(descriptionLabel, "Let's set up your %s", device_name.c_str());
+                lv_label_set_text_fmt(descriptionLabel, "It's time to set up your %s!", device_names.front().c_str());
                 lv_obj_add_flag(skipButton, LV_OBJ_FLAG_HIDDEN);
                 lv_label_set_text(lv_obj_get_child(continueButton, 0), "Continue");
                 break;
@@ -136,7 +135,7 @@ public:
         steps = {
             {
                 .title = "Time Zone Setup",
-                .description = "Let's set your time zone.",
+                .description = "Let's set the time zone.",
                 .run = [] { timezone::start(true); }
             },
             {
@@ -164,7 +163,7 @@ public:
         lv_label_set_long_mode(descriptionLabel, LV_LABEL_LONG_WRAP);
         lv_obj_align(descriptionLabel, LV_ALIGN_CENTER, 0, 0);
 
-        int title_margin = lvgl_get_text_font_height(FONT_SIZE_LARGE) + 20;
+        int title_margin = lvgl_get_text_font_height(FONT_SIZE_LARGE);
         lv_obj_align_to(titleLabel, descriptionLabel, LV_ALIGN_OUT_TOP_MID, 0, -title_margin);
 
         skipButton = lv_button_create(parent);
@@ -185,10 +184,9 @@ public:
     }
 
     void onResult(AppContext& app, LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle) override {
-        if (lvgl::lock(100 / portTICK_PERIOD_MS)) {
-            advanceTo(stepIndex + 1);
-            lvgl::unlock();
-        }
+        lvgl_lock();
+        advanceTo(stepIndex + 1);
+        lvgl_unlock();
     }
 };
 
