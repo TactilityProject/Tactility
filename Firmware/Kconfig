@@ -4,8 +4,18 @@ menu "Tactility App"
         string "Device Name"
         default ""
         help
-            Human-readable device name, including vendor
-    config TT_DEVICE_ID
+            Human-readable device name, including vendor (e.g. "M5Stack Cardputer")
+    config TT_DEVICE_NAME_SIMPLE
+        string "Device Name (simple)"
+        default ""
+        help
+            Human-readable simple device name, excluding vendor (e.g. "Cardputer")
+     config TT_DEVICE_VENDOR
+         string "Device Vendor Name"
+         default ""
+         help
+             Human-readable device vendor name (e.g. "LilyGO")
+     config TT_DEVICE_ID
         string "Device Identifier"
         default ""
         help

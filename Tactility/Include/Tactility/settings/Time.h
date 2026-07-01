@@ -16,6 +16,9 @@ void setTimeZone(const std::string& name, const std::string& code);
  */
 std::string getTimeZoneName();
 
+/** @return true when a timezone has been explicitly set (as opposed to the default) */
+bool hasTimeZone();
+
 /**
  * Get the code of the timezone (see timezones.csv)
  */

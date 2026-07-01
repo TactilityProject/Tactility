@@ -49,6 +49,15 @@ std::string getTimeZoneName() {
     }
 }
 
+bool hasTimeZone() {
+    Preferences preferences(TIME_SETTINGS_NAMESPACE);
+    std::string timezone;
+    if (!preferences.optString(TIMEZONE_PREFERENCES_KEY_NAME, timezone)) {
+        return false;
+    }
+    return !timezone.empty();
+}
+
 std::string getTimeZoneCode() {
     Preferences preferences(TIME_SETTINGS_NAMESPACE);
     std::string result;

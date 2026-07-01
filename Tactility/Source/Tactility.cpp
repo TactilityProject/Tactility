@@ -103,6 +103,7 @@ namespace app {
     namespace power { extern const AppManifest manifest; }
     namespace selectiondialog { extern const AppManifest manifest; }
     namespace settings { extern const AppManifest manifest; }
+    namespace setup { extern const AppManifest manifest; }
     namespace systeminfo { extern const AppManifest manifest; }
     namespace timedatesettings { extern const AppManifest manifest; }
     namespace touchcalibration { extern const AppManifest manifest; }
@@ -156,6 +157,7 @@ static void registerInternalApps() {
     addAppManifest(app::notes::manifest);
     addAppManifest(app::settings::manifest);
     addAppManifest(app::selectiondialog::manifest);
+    addAppManifest(app::setup::manifest);
     addAppManifest(app::systeminfo::manifest);
     addAppManifest(app::timedatesettings::manifest);
     addAppManifest(app::touchcalibration::manifest);
