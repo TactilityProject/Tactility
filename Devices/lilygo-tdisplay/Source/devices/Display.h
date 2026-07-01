@@ -12,7 +12,7 @@ constexpr auto LCD_PIN_RESET = GPIO_NUM_23;
 constexpr auto LCD_PIN_BACKLIGHT = GPIO_NUM_4;
 constexpr auto LCD_HORIZONTAL_RESOLUTION = 135;
 constexpr auto LCD_VERTICAL_RESOLUTION = 240;
-constexpr auto LCD_BUFFER_HEIGHT = LCD_VERTICAL_RESOLUTION / 3;
+constexpr auto LCD_BUFFER_HEIGHT = LCD_VERTICAL_RESOLUTION / 6;
 constexpr auto LCD_BUFFER_SIZE = LCD_HORIZONTAL_RESOLUTION * LCD_BUFFER_HEIGHT;
 
 std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay();
