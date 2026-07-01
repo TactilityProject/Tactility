@@ -28,7 +28,6 @@ extern const AppManifest manifest;
 class LocaleSettingsApp final : public App {
     tt::i18n::TextResources textResources = tt::i18n::TextResources(TEXT_RESOURCE_PATH);
     RecursiveMutex mutex;
-    lv_obj_t* regionTextArea = nullptr;
     lv_obj_t* languageDropdown = nullptr;
     bool settingsUpdated = false;
 
@@ -98,33 +97,6 @@ public:
         lv_obj_set_width(main_wrapper, LV_PCT(100));
         lv_obj_set_flex_grow(main_wrapper, 1);
 
-        // Region
-
-        auto* region_wrapper = lv_obj_create(main_wrapper);
-        lv_obj_set_width(region_wrapper, LV_PCT(100));
-        lv_obj_set_height(region_wrapper, LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(region_wrapper, 8, 0);
-        lv_obj_set_style_border_width(region_wrapper, 0, 0);
-
-        auto* region_label = lv_label_create(region_wrapper);
-        lv_label_set_text(region_label, textResources[i18n::Text::REGION].c_str());
-        lv_obj_align(region_label, LV_ALIGN_LEFT_MID, 4, 0);
-
-        // Region text area for user input (e.g., US, EU, JP)
-        regionTextArea = lv_textarea_create(region_wrapper);
-        lv_obj_set_width(regionTextArea, 120);
-        lv_textarea_set_one_line(regionTextArea, true);
-        lv_textarea_set_max_length(regionTextArea, 50);
-        lv_textarea_set_placeholder_text(regionTextArea, "e.g. US, EU");
-        
-        // Load current region from settings
-        settings::SystemSettings sysSettings;
-        if (settings::loadSystemSettings(sysSettings)) {
-            lv_textarea_set_text(regionTextArea, sysSettings.region.c_str());
-        }
-        lv_obj_add_event_cb(regionTextArea, onRegionChanged, LV_EVENT_VALUE_CHANGED, this);
-        lv_obj_align(regionTextArea, LV_ALIGN_RIGHT_MID, 0, 0);
-
         // Language
 
         auto* language_wrapper = lv_obj_create(main_wrapper);
@@ -144,16 +116,6 @@ public:
         lv_dropdown_set_options(languageDropdown, language_options.c_str());
         lv_dropdown_set_selected(languageDropdown, static_cast<uint32_t>(settings::getLanguage()));
         lv_obj_add_event_cb(languageDropdown, onLanguageSet, LV_EVENT_VALUE_CHANGED, this);
-    }
-
-    void onHide(AppContext& app) override {
-        if (settingsUpdated && regionTextArea) {
-            settings::SystemSettings sysSettings;
-            if (settings::loadSystemSettings(sysSettings)) {
-                sysSettings.region = lv_textarea_get_text(regionTextArea);
-                settings::saveSystemSettings(sysSettings);
-            }
-        }
     }
 };
 
