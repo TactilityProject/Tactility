@@ -38,7 +38,7 @@ std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
         .backlightDutyFunction = driver::pwmbacklight::setBacklightDuty,
         .resetPin = GPIO_NUM_NC,
         .lvglSwapBytes = false,
-        .buffSpiram = true
+        .buffSpiram = false // Enabling leads to crashes when refreshing App Hub list
     };
 
     auto spi_configuration = std::make_shared<St7789Display::SpiConfiguration>(St7789Display::SpiConfiguration {
