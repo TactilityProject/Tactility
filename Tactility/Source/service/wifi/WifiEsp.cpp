@@ -926,11 +926,6 @@ public:
         // We want to try and scan more often in case of startup or scan lock failure
         wifi_singleton->autoConnectTimer->start();
 
-        if (settings::shouldEnableOnBoot()) {
-            LOGGER.info("Auto-enabling due to setting");
-            getMainDispatcher().dispatch([] { dispatchEnable(wifi_singleton); });
-        }
-
         return true;
     }
 

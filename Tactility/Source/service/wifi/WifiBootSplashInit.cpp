@@ -1,4 +1,8 @@
 #include <Tactility/service/wifi/WifiBootSplashInit.h>
+
+#include "Tactility/service/wifi/Wifi.h"
+#include "Tactility/service/wifi/WifiSettings.h"
+
 #include <Tactility/file/PropertiesFile.h>
 
 #include <Tactility/MountPoints.h>
@@ -116,7 +120,9 @@ static void importWifiApSettingsFromDir(const std::string& path) {
 }
 
 void bootSplashInit() {
+    LOGGER.info("bootSplashInit begin");
     getMainDispatcher().dispatch([] {
+        LOGGER.info("bootSplashInit dispatch begin");
         // First import any provisioning files placed on the system data partition.
         const std::string data_settings_path = file::getChildPath(file::MOUNT_POINT_DATA, "settings");
         importWifiApSettingsFromDir(data_settings_path);
@@ -127,7 +133,15 @@ void bootSplashInit() {
             const std::string sd_settings_path = file::getChildPath(sdcard_path, "settings");
             importWifiApSettingsFromDir(sd_settings_path);
         }
+
+        if (settings::shouldEnableOnBoot()) {
+            LOGGER.info("Auto-enabling due to setting");
+            getMainDispatcher().dispatch([] -> void { setEnabled(true); });
+        }
+
+        LOGGER.info("bootSplashInit dispatch end");
     });
+    LOGGER.info("bootSplashInit end");
 }
 
 }
