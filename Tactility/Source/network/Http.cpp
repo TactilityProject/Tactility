@@ -41,7 +41,7 @@ void download(
         config->auth_type = HTTP_AUTH_TYPE_NONE;
         config->cert_pem = reinterpret_cast<const char*>(certificate.get());
         config->cert_len = certificate_length;
-        config->tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_3;
+        config->tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_2;
         config->method = HTTP_METHOD_GET;
         config->timeout_ms = 5000;
         config->transport_type = HTTP_TRANSPORT_OVER_SSL;
