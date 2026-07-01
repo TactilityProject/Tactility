@@ -31,7 +31,7 @@ class TimeDateSettingsApp final : public App {
     }
 
     static void onTimeZonePressed(lv_event_t* event) {
-        timezone::start();
+        timezone::start(true);
     }
 
     static void onDateFormatChanged(lv_event_t* event) {
@@ -140,7 +140,6 @@ public:
             const auto name = timezone::getResultName(*bundle);
             const auto code = timezone::getResultCode(*bundle);
             LOGGER.info("Result name={} code={}", name, code);
-            settings::setTimeZone(name, code);
 
             if (!name.empty()) {
                 if (lvgl::lock(100 / portTICK_PERIOD_MS)) {

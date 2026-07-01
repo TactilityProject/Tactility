@@ -13,6 +13,7 @@
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/loader/Loader.h>
+#include <Tactility/settings/Time.h>
 
 #include <lvgl.h>
 #include <memory>
@@ -23,6 +24,7 @@ static const auto LOGGER = Logger("TimeZone");
 
 constexpr auto* RESULT_BUNDLE_CODE_INDEX = "code";
 constexpr auto* RESULT_BUNDLE_NAME_INDEX = "name";
+constexpr auto* PARAM_SAVE_TIME_ZONE = "saveTimeZone";
 
 extern const AppManifest manifest;
 
@@ -74,6 +76,7 @@ class TimeZoneApp final : public App {
     std::unique_ptr<Timer> updateTimer;
     lv_obj_t* listWidget = nullptr;
     lv_obj_t* filterTextareaWidget = nullptr;
+    bool saveTimeZone = false;
 
     static void onTextareaValueChangedCallback(lv_event_t* e) {
         auto* app = (TimeZoneApp*)lv_event_get_user_data(e);
@@ -103,6 +106,10 @@ class TimeZoneApp final : public App {
         LOGGER.info("Selected item at index {}", index);
 
         auto& entry = entries[index];
+
+        if (saveTimeZone) {
+            settings::setTimeZone(entry.name, entry.code);
+        }
 
         auto bundle = std::make_unique<Bundle>();
         setResultName(*bundle, entry.name);
@@ -222,6 +229,11 @@ public:
     }
 
     void onCreate(AppContext& app) override {
+        auto parameters = app.getParameters();
+        if (parameters != nullptr) {
+            parameters->optBool(PARAM_SAVE_TIME_ZONE, saveTimeZone);
+        }
+
         updateTimer = std::make_unique<Timer>(Timer::Type::Once, 500 / portTICK_PERIOD_MS, [this] {
             updateList();
         });
@@ -236,8 +248,10 @@ extern const AppManifest manifest = {
     .createApp = create<TimeZoneApp>
 };
 
-LaunchId start() {
-    return app::start(manifest.appId);
+LaunchId start(bool saveTimeZone) {
+    auto bundle = std::make_shared<Bundle>();
+    bundle->putBool(PARAM_SAVE_TIME_ZONE, saveTimeZone);
+    return app::start(manifest.appId, bundle);
 }
 
 }
