@@ -166,11 +166,11 @@ class StatusbarService final : public Service {
     }
 
     void updateBluetoothIcon() {
-        auto radio_state = tt::bluetooth::getRadioState();
-        struct Device* btdev = tt::bluetooth::findFirstDevice();
+        auto radio_state = bluetooth::getRadioState();
+        Device* btdev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
         bool scanning = btdev ? bluetooth_is_scanning(btdev) : false;
-        struct Device* serial_dev = bluetooth_serial_get_device();
-        struct Device* midi_dev = bluetooth_midi_get_device();
+        Device* serial_dev = bluetooth_serial_get_device();
+        Device* midi_dev = bluetooth_midi_get_device();
         bool connected = (serial_dev && bluetooth_serial_is_connected(serial_dev)) ||
                          (midi_dev && bluetooth_midi_is_connected(midi_dev));
         const char* desired_icon = getBluetoothStatusIcon(radio_state, scanning, connected);
@@ -213,8 +213,8 @@ class StatusbarService final : public Service {
     }
 
     void updateUsbIcon() {
-        struct Device* hid_dev  = device_find_first_active_by_type(&USB_HOST_HID_TYPE);
-        struct Device* midi_dev = device_find_first_active_by_type(&USB_HOST_MIDI_TYPE);
+        Device* hid_dev  = device_find_first_active_by_type(&USB_HOST_HID_TYPE);
+        Device* midi_dev = device_find_first_active_by_type(&USB_HOST_MIDI_TYPE);
         bool connected = (hid_dev && usb_host_hid_is_connected(hid_dev)) ||
                          (midi_dev && usb_midi_is_connected(midi_dev));
         if (!connected) {

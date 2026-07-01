@@ -1,0 +1,10 @@
+prefix="/usr/local"
+includedir="${prefix}/include/lvgl"
+libdir=${prefix}/lib
+
+Name: lvgl
+Description: Light and Versatile Graphics Library
+URL: https://lvgl.io/
+Version: 9.4.0
+Cflags: -I${includedir}
+Libs: -L${libdir} -llvgl

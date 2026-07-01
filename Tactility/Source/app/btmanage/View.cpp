@@ -16,8 +16,6 @@
 
 namespace tt::app::btmanage {
 
-static const auto LOGGER = Logger("BtManageView");
-
 static void onEnableSwitchChanged(lv_event_t* event) {
     auto* enable_switch = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool is_on = lv_obj_has_state(enable_switch, LV_STATE_CHECKED);
@@ -49,7 +47,7 @@ static void onEnableOnBootParentClicked(lv_event_t* event) {
 
 static void onScanButtonClicked(lv_event_t* event) {
     auto bt = std::static_pointer_cast<BtManage>(getCurrentApp());
-    struct Device* dev = bluetooth::findFirstDevice();
+    Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
     bool scanning = dev ? bluetooth_is_scanning(dev) : false;
     bt->getBindings().onScanToggled(!scanning);
 }
@@ -57,7 +55,6 @@ static void onScanButtonClicked(lv_event_t* event) {
 // region Peer list callbacks
 
 struct PeerListItemData {
-    View* view;
     size_t index;
     bool isPaired;
 };
@@ -102,7 +99,7 @@ void View::createPeerListItem(const bluetooth::PeerRecord& record, bool isPaired
 
     auto* button = lv_list_add_button(peers_list, nullptr, label.c_str());
 
-    auto* item_data = new PeerListItemData { this, index, isPaired };
+    auto* item_data = new PeerListItemData { index, isPaired };
     lv_obj_set_user_data(button, item_data);
     lv_obj_add_event_cb(button, onConnect, LV_EVENT_SHORT_CLICKED, item_data);
     lv_obj_add_event_cb(button, [](lv_event_t* e) {

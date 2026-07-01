@@ -291,6 +291,14 @@ struct Device* device_find_by_name(const char* name);
  */
 struct Device* device_find_first_active_by_type(const struct DeviceType* type);
 
+/**
+ * Find the first device of the given type.
+ *
+ * @param[in] type non-null device type pointer
+ * @return the first device of the given type, or NULL if none found
+ */
+struct Device* device_find_first_by_type(const struct DeviceType* type);
+
 #ifdef __cplusplus
 }
 #endif

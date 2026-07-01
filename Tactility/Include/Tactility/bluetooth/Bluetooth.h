@@ -34,9 +34,6 @@ bool stop(Device* dev);
 
 bool isRadioOnOrPending(Device* dev);
 
-/** Find the first ready BLE device in the kernel device registry. Returns nullptr if unavailable. */
-Device* findFirstDevice();
-
 /** @return the current radio state */
 RadioState getRadioState();
 

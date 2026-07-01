@@ -17,7 +17,8 @@ static const auto LOGGER = Logger("BtManage");
 extern const AppManifest manifest;
 
 static void onBtToggled(bool requestOn) {
-    Device* dev = bluetooth::findFirstDevice();
+#if defined(CONFIG_BT_NIMBLE_ENABLED)
+    Device* dev = device_find_first_by_type(&BLUETOOTH_TYPE);
     if (!dev) return;
     bool radio_on = bluetooth::isRadioOnOrPending(dev);
     if (requestOn && !radio_on) {
@@ -25,10 +26,11 @@ static void onBtToggled(bool requestOn) {
     } else if (!requestOn && radio_on) {
         bluetooth::stop(dev);
     }
+#endif
 }
 
 static void onScanToggled(bool enabled) {
-    struct Device* dev = bluetooth::findFirstDevice();
+    Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
     if (!dev) return;
     if (enabled) {
         bluetooth_scan_start(dev);
@@ -113,7 +115,7 @@ void BtManage::onBtEvent(const struct BtEvent& event) {
         case BT_EVENT_RADIO_STATE_CHANGED:
             if (event.radio_state == BT_RADIO_STATE_ON) {
                 getState().updatePairedPeers();
-                struct Device* dev = bluetooth::findFirstDevice();
+                Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
                 if (dev && !bluetooth_is_scanning(dev)) {
                     bluetooth_scan_start(dev);
                 }
@@ -142,7 +144,7 @@ void BtManage::onShow(AppContext& app, lv_obj_t* parent) {
     // Initialise state and view before subscribing to avoid incoming events
     // racing with state initialisation.
     state.setRadioState(bluetooth::getRadioState());
-    struct Device* dev = bluetooth::findFirstDevice();
+    Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
     state.setScanning(dev ? bluetooth_is_scanning(dev) : false);
     state.updateScanResults();
     state.updatePairedPeers();
