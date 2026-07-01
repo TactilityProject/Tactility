@@ -16,10 +16,15 @@ static const auto LOGGER = Logger("BtManage");
 
 extern const AppManifest manifest;
 
-static void onBtToggled(bool enabled) {
-    struct Device* dev = bluetooth::findFirstDevice();
+static void onBtToggled(bool requestOn) {
+    Device* dev = bluetooth::findFirstDevice();
     if (!dev) return;
-    bluetooth_set_radio_enabled(dev, enabled);
+    bool radio_on = bluetooth::isRadioOnOrPending(dev);
+    if (requestOn && !radio_on) {
+        bluetooth::start(dev);
+    } else if (!requestOn && radio_on) {
+        bluetooth::stop(dev);
+    }
 }
 
 static void onScanToggled(bool enabled) {
@@ -121,7 +126,7 @@ void BtManage::onBtEvent(const struct BtEvent& event) {
     requestViewUpdate();
 }
 
-static void onKernelBtEvent(struct Device* /*device*/, void* context, struct BtEvent event) {
+static void onKernelBtEvent(Device* /*device*/, void* context, BtEvent event) {
     // BT event callbacks can fire from the NimBLE host task (e.g. DISCONNECT during
     // nimble_port_stop shutdown). Calling onBtEvent() synchronously from the NimBLE
     // task would block it on the LVGL mutex (held by the LVGL task waiting in

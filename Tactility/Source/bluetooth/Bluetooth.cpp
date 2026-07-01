@@ -40,13 +40,10 @@ static std::vector<CachedAddr> scan_addr_cache; // parallel to scan_results_cach
 
 // ---- Device accessor ----
 
-struct Device* findFirstDevice() {
-    struct Device* found = nullptr;
+Device* findFirstDevice() {
+    Device* found = nullptr;
     device_for_each_of_type(&BLUETOOTH_TYPE, &found, [](struct Device* dev, void* ctx) -> bool {
-        if (device_is_ready(dev)) {
-            *static_cast<struct Device**>(ctx) = dev;
-            return false;
-        }
+        *static_cast<Device**>(ctx) = dev;
         return true;
     });
     return found;
@@ -110,7 +107,7 @@ static void cachePeerRecord(const BtPeerRecord& krecord) {
 // and settings management. Consumers should register their own callbacks via
 // bluetooth_add_event_callback() to receive events directly.
 
-static void bt_event_bridge(struct Device* /*device*/, void* /*context*/, struct BtEvent event) {
+static void bt_event_bridge(Device*, void* /*context*/, BtEvent event) {
     switch (event.type) {
         case BT_EVENT_RADIO_STATE_CHANGED:
             switch (event.radio_state) {
@@ -251,17 +248,74 @@ static void bt_event_bridge(struct Device* /*device*/, void* /*context*/, struct
 // ---- systemStart ----
 
 void systemStart() {
-    struct Device* dev = findFirstDevice();
+    Device* dev = findFirstDevice();
     if (dev == nullptr) {
         LOGGER.warn("systemStart: no BLE device found");
         return;
     }
-    bluetooth_add_event_callback(dev, nullptr, bt_event_bridge);
 
     if (settings::shouldEnableOnBoot()) {
-        LOGGER.info("Auto-enabling Bluetooth on boot");
-        bluetooth_set_radio_enabled(dev, true);
+        start(dev);
     }
+}
+
+bool isRadioOnOrPending(Device* dev) {
+    if (!device_is_ready(dev)) return false;
+    BtRadioState state;
+    if (bluetooth_get_radio_state(dev, &state) != ERROR_NONE) return false;
+    return state == BT_RADIO_STATE_ON || state == BT_RADIO_STATE_ON_PENDING;
+}
+
+bool start(Device* dev) {
+    LOGGER.info("Auto-enabling BLE on boot");
+    if (!device_is_ready(dev)) {
+        LOGGER.info("Starting BLE device");
+        if (device_start(dev) != ERROR_NONE) {
+            LOGGER.error("Failed to start BLE device");
+            return false;
+        }
+    }
+
+    // TODO: Fix bug where repeatedly calling start would add this callback multiple times
+    if (bluetooth_add_event_callback(dev, nullptr, bt_event_bridge) != ERROR_NONE) {
+        LOGGER.error("Failed to set BLE callback");
+    }
+
+    LOGGER.info("Enabling BT radio");
+    if (bluetooth_set_radio_enabled(dev, true) != ERROR_NONE) {
+        LOGGER.error("Failed to enable BLE radio");
+        return false;
+    }
+
+    LOGGER.info("BT enabled");
+    return true;
+}
+
+bool stop(Device* dev) {
+    BtRadioState state;
+    if (bluetooth_get_radio_state(dev, &state) != ERROR_NONE) {
+        return false;
+    }
+
+    if (state == BT_RADIO_STATE_OFF || state == BT_RADIO_STATE_OFF_PENDING) {
+        return true;
+    }
+
+    if (bluetooth_remove_event_callback(dev, bt_event_bridge) != ERROR_NONE) {
+        LOGGER.error("Failed to remove BLE callback");
+    }
+
+    if (bluetooth_set_radio_enabled(dev, false) != ERROR_NONE) {
+        LOGGER.error("Failed to disable BT radio");
+        return false;
+    }
+
+    if (device_stop(dev) != ERROR_NONE) {
+        LOGGER.error("Failed to stop BT device");
+        return false;
+    }
+
+    return true;
 }
 
 // ---- Public API ----
