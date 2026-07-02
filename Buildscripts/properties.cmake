@@ -28,7 +28,6 @@ function(READ_PROPERTIES_TO_MAP PROPERTY_FILE RESULT_VAR)
     endif ()
 
     file(STRINGS ${PROPERTY_FILE_ABS} lines)
-    set(current_section "")
     set(map_content "")
 
     foreach(line IN LISTS lines)
@@ -37,9 +36,7 @@ function(READ_PROPERTIES_TO_MAP PROPERTY_FILE RESULT_VAR)
             continue()
         endif ()
 
-        if (line MATCHES "^\\[.*\\]$")
-            set(current_section "${line}")
-        elseif (line MATCHES "^([^=]+)=(.*)$")
+        if (line MATCHES "^([^=]+)=(.*)$")
             set(key "${CMAKE_MATCH_1}")
             set(value "${CMAKE_MATCH_2}")
             string(STRIP "${key}" key)
@@ -49,7 +46,7 @@ function(READ_PROPERTIES_TO_MAP PROPERTY_FILE RESULT_VAR)
                 set(value "${CMAKE_MATCH_1}")
             endif ()
 
-            list(APPEND map_content "${current_section}${key}" "${value}")
+            list(APPEND map_content "${key}" "${value}")
         endif ()
     endforeach()
 

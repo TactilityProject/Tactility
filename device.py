@@ -1,9 +1,7 @@
-import configparser
 import glob
 import os
 import shutil
 import sys
-from configparser import ConfigParser
 
 if sys.platform == "win32":
     SHELL_COLOR_RED = ""
@@ -42,11 +40,17 @@ def read_file(path: str):
         return result
 
 def read_properties_file(path):
-    config = configparser.RawConfigParser()
-    # Don't convert keys to lowercase
-    config.optionxform = str
-    config.read(path)
-    return config
+    properties = {}
+    with open(path, "r") as file:
+        for line in file:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            key, sep, value = line.partition("=")
+            if not sep:
+                continue
+            properties[key.strip()] = value.strip()
+    return properties
 
 def read_device_properties(device_id):
     device_file_path = get_properties_file_path(device_id)
@@ -54,32 +58,24 @@ def read_device_properties(device_id):
         exit_with_error(f"Device file not found: {device_file_path}")
     return read_properties_file(device_file_path)
 
-def has_group(properties: ConfigParser, group: str):
-    return group in properties.sections()
+def has_group(properties: dict, group: str):
+    prefix = f"{group}."
+    return any(key.startswith(prefix) for key in properties)
 
-def get_property_or_exit(properties: ConfigParser, group: str, key: str):
-    if group not in properties.sections():
-        exit_with_error(f"Device properties does not contain group: {group}")
-    if key not in properties[group].keys():
-        exit_with_error(f"Device properties does not contain key: {key}")
-    return properties[group][key]
+def get_property_or_exit(properties: dict, group: str, key: str):
+    full_key = f"{group}.{key}"
+    if full_key not in properties:
+        exit_with_error(f"Device properties does not contain key: {full_key}")
+    return properties[full_key]
 
-def get_property_or_default(properties: ConfigParser, group: str, key: str, default):
-    if group not in properties.sections():
-        return default
-    if key not in properties[group].keys():
-        return default
-    return properties[group][key]
+def get_property_or_default(properties: dict, group: str, key: str, default):
+    return properties.get(f"{group}.{key}", default)
 
-def get_property_or_none(properties: ConfigParser, group: str, key: str):
+def get_property_or_none(properties: dict, group: str, key: str):
     return get_property_or_default(properties, group, key, None)
 
-def get_boolean_property_or_false(properties: ConfigParser, group: str, key: str):
-    if group not in properties.sections():
-        return False
-    if key not in properties[group].keys():
-        return False
-    return properties[group][key] == "true"
+def get_boolean_property_or_false(properties: dict, group: str, key: str):
+    return properties.get(f"{group}.{key}") == "true"
 
 def safe_int(value: str, error_message: str):
     try:
@@ -98,7 +94,7 @@ def write_defaults(output_file):
     default_properties = read_file(default_properties_path)
     output_file.write(default_properties)
 
-def write_partition_table(output_file, device_properties: ConfigParser, is_dev: bool):
+def write_partition_table(output_file, device_properties: dict, is_dev: bool):
     if is_dev:
         flash_size_number = 4
     else:
@@ -111,7 +107,7 @@ def write_partition_table(output_file, device_properties: ConfigParser, is_dev: 
     output_file.write(f"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions-{flash_size_number}mb.csv\"\n")
     output_file.write(f"CONFIG_PARTITION_TABLE_FILENAME=\"partitions-{flash_size_number}mb.csv\"\n")
 
-def write_tactility_variables(output_file, device_properties: ConfigParser, device_id: str):
+def write_tactility_variables(output_file, device_properties: dict, device_id: str):
     # Board and vendor
     board_vendor = get_property_or_exit(device_properties, "general", "vendor").replace("\"", "\\\"")
     board_name = get_property_or_exit(device_properties, "general", "name").replace("\"", "\\\"")
@@ -133,7 +129,7 @@ def write_tactility_variables(output_file, device_properties: ConfigParser, devi
         safe_auto_start_app_id = auto_start_app_id.replace("\"", "\\\"")
         output_file.write(f"CONFIG_TT_AUTO_START_APP_ID=\"{safe_auto_start_app_id}\"\n")
 
-def write_core_variables(output_file, device_properties: ConfigParser):
+def write_core_variables(output_file, device_properties: dict):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
     output_file.write("# Target\n")
     output_file.write(f"CONFIG_IDF_TARGET=\"{idf_target}\"\n")
@@ -157,7 +153,7 @@ def write_core_variables(output_file, device_properties: ConfigParser):
         output_file.write("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH=y\n")
         output_file.write("CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=y\n")
 
-def write_flash_variables(output_file, device_properties: ConfigParser):
+def write_flash_variables(output_file, device_properties: dict):
     flash_size = get_property_or_exit(device_properties, "hardware", "flashSize")
     if not flash_size.endswith("MB"):
         exit_with_error("Flash size should be written as xMB or xxMB (e.g. 4MB, 16MB)")
@@ -170,7 +166,7 @@ def write_flash_variables(output_file, device_properties: ConfigParser):
     if esptool_flash_freq is not None:
         output_file.write(f"CONFIG_ESPTOOLPY_FLASHFREQ_{esptool_flash_freq}=y\n")
 
-def write_spiram_variables(output_file, device_properties: ConfigParser):
+def write_spiram_variables(output_file, device_properties: dict):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
     has_spiram = get_property_or_exit(device_properties, "hardware", "spiRam")
     if has_spiram != "true":
@@ -202,7 +198,7 @@ def write_spiram_variables(output_file, device_properties: ConfigParser):
         output_file.write("CONFIG_SPIRAM_RODATA=y\n")
         output_file.write("CONFIG_SPIRAM_XIP_FROM_PSRAM=y\n")
 
-def write_performance_improvements(output_file, device_properties: ConfigParser):
+def write_performance_improvements(output_file, device_properties: dict):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
     if idf_target == "esp32s3":
         output_file.write("# Performance improvement: Fixes glitches in the RGB display driver when rendering new screens/apps\n")
@@ -220,7 +216,7 @@ def write_lvgl_variable_placeholders(output_file):
     output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=30\n")
     output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=12\n")
 
-def write_lvgl_variables(output_file, device_properties: ConfigParser):
+def write_lvgl_variables(output_file, device_properties: dict):
     output_file.write("# LVGL\n")
     if not has_group(device_properties, "lvgl") or not has_group(device_properties, "display"):
         write_lvgl_variable_placeholders(output_file)
@@ -314,7 +310,7 @@ def write_lvgl_variables(output_file, device_properties: ConfigParser):
         output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=32\n")
 
 
-def write_usb_variables(output_file, device_properties: ConfigParser):
+def write_usb_variables(output_file, device_properties: dict):
     has_tiny_usb = get_boolean_property_or_false(device_properties, "hardware", "tinyUsb")
     if has_tiny_usb:
         output_file.write("# TinyUSB\n")
@@ -328,7 +324,7 @@ def write_usb_variables(output_file, device_properties: ConfigParser):
             # the FS/FSLS controller (USB-C OTG on Tab5), avoiding the conflict.
             output_file.write("CONFIG_TINYUSB_RHPORT_FS=y\n")
 
-def write_bluetooth_variables(output_file, device_properties: ConfigParser):
+def write_bluetooth_variables(output_file, device_properties: dict):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
     has_bluetooth = get_boolean_property_or_false(device_properties, "hardware", "bluetooth")
     if has_bluetooth:
@@ -361,7 +357,7 @@ def write_bluetooth_variables(output_file, device_properties: ConfigParser):
         # rapid connect/disconnect/re-pair loop.
         output_file.write("CONFIG_BT_NIMBLE_NVS_PERSIST=y\n")
 
-def write_usbhost_variables(output_file, device_properties: ConfigParser):
+def write_usbhost_variables(output_file, device_properties: dict):
     has_usbhost = get_boolean_property_or_false(device_properties, "hardware", "usbHostEnabled")
     if has_usbhost:
         output_file.write("# USB Host\n")
@@ -373,15 +369,16 @@ def write_usbhost_variables(output_file, device_properties: ConfigParser):
         output_file.write("CONFIG_USB_HOST_RESET_RECOVERY_MS=100\n")
         output_file.write("CONFIG_USB_HOST_SET_ADDR_RECOVERY_MS=500\n")
 
-def write_custom_sdkconfig(output_file, device_properties: ConfigParser):
-    if "sdkconfig" in device_properties.sections():
+def write_custom_sdkconfig(output_file, device_properties: dict):
+    prefix = "sdkconfig."
+    sdkconfig_items = [(key[len(prefix):], value) for key, value in device_properties.items() if key.startswith(prefix)]
+    if sdkconfig_items:
         output_file.write("# Custom\n")
-        section = device_properties["sdkconfig"]
-        for key in section.keys():
-            value = section[key].replace("\"", "\\\"")
-            output_file.write(f"{key}={value}\n")
+        for key, value in sdkconfig_items:
+            escaped_value = value.replace("\"", "\\\"")
+            output_file.write(f"{key}={escaped_value}\n")
 
-def write_properties(output_file, device_properties: ConfigParser, device_id: str, is_dev: bool):
+def write_properties(output_file, device_properties: dict, device_id: str, is_dev: bool):
     write_defaults(output_file)
     output_file.write("\n\n")
     write_tactility_variables(output_file, device_properties, device_id)
