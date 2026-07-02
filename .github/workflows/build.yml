@@ -66,7 +66,6 @@ jobs:
           { id: m5stack-cores3, arch: esp32s3 },
           { id: m5stack-papers3, arch: esp32s3 },
           { id: m5stack-stackchan, arch: esp32s3 },
-          { id: m5stack-stickc-plus, arch: esp32 },
           { id: m5stack-stickc-plus2, arch: esp32 },
           { id: m5stack-sticks3, arch: esp32s3 },
           { id: m5stack-tab5, arch: esp32p4 },
