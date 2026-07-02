@@ -1,4 +1,3 @@
-import configparser
 import json
 import os
 import re
@@ -13,7 +12,7 @@ import tarfile
 from urllib.parse import urlparse
 
 ttbuild_path = ".tactility"
-ttbuild_version = "3.3.0"
+ttbuild_version = "4.0.0"
 ttbuild_cdn = "https://cdn.tactilityproject.org"
 ttbuild_sdk_json_validity = 3600  # seconds
 ttport = 6666
@@ -30,10 +29,10 @@ shell_color_cyan = "\033[36m"
 shell_color_reset = "\033[m"
 
 def print_help():
-    print("Usage: python tactility.py [action] [options]")
+    print("Usage: python tactility.py [app_path] [action] [options]")
     print("")
     print("Actions:")
-    print("  build [platform]              Build the app. Optionally specify a platform.")
+    print("  build [platform]               Build the app. Optionally specify a platform.")
     print("    Supported platforms are lower case. Example: esp32s3")
     print("    Supported platforms are read from manifest.properties")
     print("  clean                          Clean the build folders")
@@ -50,6 +49,10 @@ def print_help():
     print("  --local-sdk                    Use SDK specified by environment variable TACTILITY_SDK_PATH with platform subfolders matching target platforms.")
     print("  --skip-build                   Run everything except the idf.py/CMake commands")
     print("  --verbose                      Show extra console output")
+    print("")
+    print("Examples:")
+    print("  python tactility.py Apps/Snake build esp32s3 --verbose")
+    print("  python tactility.py Apps/Snake bir 192.168.1.50 esp32s3")
 
 # region Core
 
@@ -102,9 +105,17 @@ def get_url(ip, path):
     return f"http://{ip}:{ttport}{path}"
 
 def read_properties_file(path):
-    config = configparser.RawConfigParser()
-    config.read(path)
-    return config
+    properties = {}
+    with open(path, "r") as file:
+        for line in file:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            key, sep, value = line.partition("=")
+            if not sep:
+                continue
+            properties[key.strip()] = value.strip()
+    return properties
 
 #endregion Core
 
@@ -227,32 +238,12 @@ def read_manifest():
     return read_properties_file("manifest.properties")
 
 def validate_manifest(manifest):
-    # [manifest]
-    if not "manifest" in manifest:
-        exit_with_error("Invalid manifest format: [manifest] not found")
-    if not "version" in manifest["manifest"]:
-        exit_with_error("Invalid manifest format: [manifest] version not found")
-    # [target]
-    if not "target" in manifest:
-        exit_with_error("Invalid manifest format: [target] not found")
-    if not "sdk" in manifest["target"]:
-        exit_with_error("Invalid manifest format: [target] sdk not found")
-    if not "platforms" in manifest["target"]:
-        exit_with_error("Invalid manifest format: [target] platforms not found")
-    # [app]
-    if not "app" in manifest:
-        exit_with_error("Invalid manifest format: [app] not found")
-    if not "id" in manifest["app"]:
-        exit_with_error("Invalid manifest format: [app] id not found")
-    if not "versionName" in manifest["app"]:
-        exit_with_error("Invalid manifest format: [app] versionName not found")
-    if not "versionCode" in manifest["app"]:
-        exit_with_error("Invalid manifest format: [app] versionCode not found")
-    if not "name" in manifest["app"]:
-        exit_with_error("Invalid manifest format: [app] name not found")
+    for key in ("manifest.version", "target.sdk", "target.platforms", "app.id", "app.version.name", "app.version.code", "app.name"):
+        if key not in manifest:
+            exit_with_error(f"Invalid manifest format: {key} not found")
 
 def is_valid_manifest_platform(manifest, platform):
-    manifest_platforms = manifest["target"]["platforms"].split(",")
+    manifest_platforms = manifest["target.platforms"].split(",")
     return platform in manifest_platforms
 
 def validate_manifest_platform(manifest, platform):
@@ -261,7 +252,7 @@ def validate_manifest_platform(manifest, platform):
 
 def get_manifest_target_platforms(manifest, requested_platform):
     if requested_platform == "" or requested_platform is None:
-        return manifest["target"]["platforms"].split(",")
+        return manifest["target.platforms"].split(",")
     else:
         validate_manifest_platform(manifest, requested_platform)
         return [requested_platform]
@@ -422,7 +413,7 @@ def build_consecutively(version, platform, skip_build):
     shell_needed = sys.platform == "win32"
     build_command = ["idf.py", "-B", cmake_path, "elf"]
     if verbose:
-        print(f"Running command: {" ".join(build_command)}")
+        print(f"Running command: {' '.join(build_command)}")
     with subprocess.Popen(build_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=shell_needed) as process:
         build_output = wait_for_process(process)
         if process.returncode == 0:
@@ -451,7 +442,7 @@ def package_intermediate_binaries(target_path, platforms):
     for platform in platforms:
         elf_path = find_elf_file(platform)
         if elf_path is None:
-            print_error(f"ELF file not found at {elf_path}")
+            print_error(f"ELF file not found for {platform}")
             return False
         shutil.copy(elf_path, os.path.join(elf_dir, f"{platform}.elf"))
     return True
@@ -486,9 +477,8 @@ def package_all(platforms):
     # Create build/something.app
     try:
         tar_path = package_name(platforms)
-        tar = tarfile.open(tar_path, mode="w", format=tarfile.USTAR_FORMAT)
-        tar.add(os.path.join("build", "package-intermediate"), arcname="")
-        tar.close()
+        with tarfile.open(tar_path, mode="w", format=tarfile.USTAR_FORMAT) as tar:
+            tar.add(os.path.join("build", "package-intermediate"), arcname="")
         print_status_success(status)
         return True
     except Exception as e:
@@ -509,7 +499,7 @@ def build_action(manifest, platform_arg, skip_build):
     if use_local_sdk:
         global local_base_path
         local_base_path = os.environ.get("TACTILITY_SDK_PATH")
-        validate_local_sdks(platforms_to_build, manifest["target"]["sdk"])
+        validate_local_sdks(platforms_to_build, manifest["target.sdk"])
     
     if should_fetch_sdkconfig_files(platforms_to_build):
         fetch_sdkconfig_files(platforms_to_build)
@@ -518,7 +508,7 @@ def build_action(manifest, platform_arg, skip_build):
         sdk_json = read_sdk_json()
         validate_self(sdk_json)
     # Build
-    sdk_version = manifest["target"]["sdk"]
+    sdk_version = manifest["target.sdk"]
     if not use_local_sdk:
         if not sdk_download_all(sdk_version, platforms_to_build):
             exit_with_error("Failed to download one or more SDKs")
@@ -567,7 +557,7 @@ def get_device_info(ip):
         print_status_error(f"Device info request failed: {e}")
 
 def run_action(manifest, ip):
-    app_id = manifest["app"]["id"]
+    app_id = manifest["app.id"]
     print_status_busy("Running")
     url = get_url(ip, "/app/run")
     params = {'id': app_id}
@@ -611,7 +601,7 @@ def install_action(ip, platforms):
         return False
 
 def uninstall_action(manifest, ip):
-    app_id = manifest["app"]["id"]
+    app_id = manifest["app.id"]
     print_status_busy("Uninstalling")
     url = get_url(ip, "/app/uninstall")
     params = {'id': app_id}
@@ -645,6 +635,20 @@ if __name__ == "__main__":
     if "--local-sdk" in sys.argv:
         use_local_sdk = True
         sys.argv.remove("--local-sdk")
+    
+    # Check if the first argument is a path to an app directory
+    if len(sys.argv) > 2:
+        potential_app_dir = sys.argv[1]
+        if os.path.isdir(potential_app_dir) and os.path.isfile(os.path.join(potential_app_dir, "manifest.properties")):
+            if verbose:
+                print_status_success(f"Switching to app directory: {potential_app_dir}")
+            os.chdir(potential_app_dir)
+            sys.argv = [sys.argv[0]] + sys.argv[2:]
+    
+    if len(sys.argv) < 2:
+        print_help()
+        sys.exit(1)
+    
     action_arg = sys.argv[1]
 
     # Environment setup
@@ -653,7 +657,7 @@ if __name__ == "__main__":
         exit_with_error("manifest.properties not found")
     manifest = read_manifest()
     validate_manifest(manifest)
-    all_platform_targets = manifest["target"]["platforms"].split(",")
+    all_platform_targets = manifest["target.platforms"].split(",")
     # Update SDK cache (tool.json)
     if not use_local_sdk and should_update_tool_json() and not update_tool_json():
         exit_with_error("Failed to retrieve SDK info")
