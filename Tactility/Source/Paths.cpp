@@ -4,6 +4,7 @@
 #include <Tactility/MountPoints.h>
 
 #include <format>
+#include <tactility/check.h>
 #include <tactility/filesystem/file_system.h>
 
 namespace tt {
@@ -36,11 +37,15 @@ FileSystem* findSdcardFileSystem(bool mustBeMounted) {
 }
 
 std::string getSystemRootPath() {
+#ifdef CONFIG_TT_USER_DATA_LOCATION_INTERNAL
+    return file::MOUNT_POINT_DATA;
+#elif CONFIG_TT_USER_DATA_LOCATION_SD
     std::string root_path;
-    if (!findFirstMountedSdCardPath(root_path)) {
-        root_path = file::MOUNT_POINT_DATA;
-    }
+    check(findFirstMountedSdCardPath(root_path), "No SD card mounted");
     return root_path;
+#else
+#error CONFIG_TT_USER_DATA_* not set or unsupported
+#endif
 }
 
 std::string getTempPath() {

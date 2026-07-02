@@ -76,6 +76,7 @@ else ()
     add_compile_definitions(CONFIG_TT_DEVICE_NAME_SIMPLE="Simulator")
     add_compile_definitions(CONFIG_TT_LAUNCHER_APP_ID="Launcher")
     add_compile_definitions(CONFIG_TT_AUTO_START_APP_ID="")
+    add_compile_definitions(CONFIG_TT_USER_DATA_LOCATION_INTERNAL)
 endif ()
 
 project(Tactility)

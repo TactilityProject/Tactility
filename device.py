@@ -128,6 +128,14 @@ def write_tactility_variables(output_file, device_properties: dict, device_id: s
     if auto_start_app_id is not None:
         safe_auto_start_app_id = auto_start_app_id.replace("\"", "\\\"")
         output_file.write(f"CONFIG_TT_AUTO_START_APP_ID=\"{safe_auto_start_app_id}\"\n")
+    # User data location
+    user_data_location = get_property_or_exit(device_properties, "storage", "userDataLocation")
+    if user_data_location == "SD":
+        output_file.write("CONFIG_TT_USER_DATA_LOCATION_SD=y\n")
+    elif user_data_location == "Internal":
+        output_file.write("CONFIG_TT_USER_DATA_LOCATION_INTERNAL=y\n")
+    else:
+        exit_with_error(f"storage.userDataLocation must be 'SD' or 'Internal', but was: '{user_data_location}'")
 
 def write_core_variables(output_file, device_properties: dict):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
