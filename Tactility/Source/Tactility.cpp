@@ -3,7 +3,6 @@
 #endif
 
 #include <format>
-#include <map>
 
 #include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
@@ -17,7 +16,6 @@
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
-#include <Tactility/file/PropertiesFile.h>
 #include <Tactility/hal/HalPrivate.h>
 #include <Tactility/lvgl/LvglPrivate.h>
 #include <Tactility/network/NtpPrivate.h>
@@ -216,14 +214,8 @@ static void registerInstalledApp(std::string path) {
         return;
     }
 
-    std::map<std::string, std::string> properties;
-    if (!file::loadPropertiesFile(manifest_path, properties)) {
-        LOGGER.error("Failed to load manifest at {}", manifest_path);
-        return;
-    }
-
     app::AppManifest manifest;
-    if (!app::parseManifest(properties, manifest)) {
+    if (!app::parseManifest(manifest_path, manifest)) {
         LOGGER.error("Failed to parse manifest at {}", manifest_path);
         return;
     }

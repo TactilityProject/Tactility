@@ -4,7 +4,6 @@
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
-#include <Tactility/file/PropertiesFile.h>
 #include <tactility/hal/Device.h>
 #include <Tactility/Logger.h>
 #include <Tactility/Paths.h>
@@ -138,15 +137,8 @@ bool install(const std::string& path) {
         return false;
     }
 
-    std::map<std::string, std::string> properties;
-    if (!file::loadPropertiesFile(manifest_path, properties)) {
-        LOGGER.error("Failed to load manifest at {}", manifest_path);
-        cleanupInstallDirectory(app_target_path);
-        return false;
-    }
-
     AppManifest manifest;
-    if (!parseManifest(properties, manifest)) {
+    if (!parseManifest(manifest_path, manifest)) {
         LOGGER.warn("Invalid manifest");
         cleanupInstallDirectory(app_target_path);
         return false;
