@@ -15,7 +15,7 @@ namespace tt::settings {
 
 static const auto LOGGER = Logger("SystemSettings");
 
-constexpr auto* FILE_PATH_FORMAT = "{}/provisioning/system.properties";
+constexpr auto* FILE_PATH_FORMAT = "{}/settings/system.properties";
 
 static bool cached = false;
 static SystemSettings cachedSettings;
