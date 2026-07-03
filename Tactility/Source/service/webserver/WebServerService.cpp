@@ -1827,6 +1827,11 @@ void setWebServerEnabled(bool enabled) {
     }
 }
 
+bool isWebServerEnabled() {
+    WebServerService* instance = g_webServerInstance.load();
+    return instance != nullptr && instance->isEnabled();
+}
+
 } // namespace
 
 #endif // ESP_PLATFORM

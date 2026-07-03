@@ -29,7 +29,6 @@ class WebServerSettingsApp final : public App {
     settings::webserver::WebServerSettings originalSettings;
     bool updated = false;
     bool wifiSettingsChanged = false;
-    bool webServerEnabledChanged = false;
     lv_obj_t* dropdownWifiMode = nullptr;
     lv_obj_t* textAreaApPassword = nullptr;
     lv_obj_t* switchApOpenNetwork = nullptr;
@@ -61,11 +60,19 @@ class WebServerSettingsApp final : public App {
         getMainDispatcher().dispatch([app, enabled] {
             app->wsSettings.webServerEnabled = enabled;
             app->updated = true;
-            app->webServerEnabledChanged = true;
             if (lvgl::lock(100)) {
                 app->updateUrlDisplay();
                 lvgl::unlock();
             }
+
+            // Apply immediately instead of waiting for app exit
+            const auto copy = app->wsSettings;
+            if (!settings::webserver::save(copy)) {
+                LOGGER.warn("Failed to persist WebServer settings; changes may be lost on reboot");
+            }
+            service::webserver::getPubsub()->publish(service::webserver::WebServerEvent::WebServerSettingsChanged);
+            LOGGER.info("WebServer {}", enabled ? "enabling..." : "disabling...");
+            service::webserver::setWebServerEnabled(enabled);
         });
     }
 
@@ -173,6 +180,8 @@ class WebServerSettingsApp final : public App {
 public:
     void onCreate(AppContext& app) override {
         wsSettings = settings::webserver::loadOrGetDefault();
+        // Reflect the server's actual running state, in case it differs from the persisted setting
+        wsSettings.webServerEnabled = service::webserver::isWebServerEnabled();
         originalSettings = wsSettings;
     }
 
@@ -344,11 +353,11 @@ public:
             }
 
             // Save to flash only (settings sync at boot handles SD restore)
+            // Note: the enable/disable toggle already saved and applied itself immediately
             const auto copy = wsSettings;
             const bool wifiChanged = wifiSettingsChanged;
-            const bool webServerChanged = webServerEnabledChanged;
 
-            getMainDispatcher().dispatch([copy, wifiChanged, webServerChanged]{
+            getMainDispatcher().dispatch([copy, wifiChanged]{
                 // Save to flash (fast, low memory pressure)
                 if (!settings::webserver::save(copy)) {
                     LOGGER.warn("Failed to persist WebServer settings; changes may be lost on reboot");
@@ -360,12 +369,6 @@ public:
                 // Only reconnect WiFi if WiFi settings actually changed
                 if (wifiChanged) {
                     LOGGER.info("WiFi mode changed to {}", copy.wifiMode == settings::webserver::WiFiMode::AccessPoint ? "AP" : "Station");
-                }
-
-                // Control WebServer service immediately
-                if (webServerChanged) {
-                    LOGGER.info("WebServer {}", copy.webServerEnabled ? "enabling..." : "disabling...");
-                    service::webserver::setWebServerEnabled(copy.webServerEnabled);
                 }
             });
         }
