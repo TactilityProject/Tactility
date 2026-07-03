@@ -1,21 +1,15 @@
 #include <Tactility/service/ServicePaths.h>
 
 #include <Tactility/service/ServiceManifest.h>
-#include <Tactility/MountPoints.h>
+#include <Tactility/Paths.h>
 
 #include <cassert>
 #include <format>
 
-#ifdef ESP_PLATFORM
-constexpr auto PARTITION_PREFIX = std::string("/");
-#else
-constexpr auto PARTITION_PREFIX = std::string("");
-#endif
-
 namespace tt::service {
 
 std::string ServicePaths::getUserDataDirectory() const {
-    return std::format("{}{}/service/{}", PARTITION_PREFIX, file::DATA_PARTITION_NAME, manifest->id);
+    return std::format("{}/service/{}", tt::getUserDataPath(), manifest->id);
 }
 
 std::string ServicePaths::getUserDataPath(const std::string& childPath) const {
@@ -24,7 +18,7 @@ std::string ServicePaths::getUserDataPath(const std::string& childPath) const {
 }
 
 std::string ServicePaths::getAssetsDirectory() const {
-    return std::format("{}{}/service/{}/assets", PARTITION_PREFIX, file::SYSTEM_PARTITION_NAME, manifest->id);
+    return std::format("{}/service/{}/assets", tt::getUserDataPath(), manifest->id);
 }
 
 std::string ServicePaths::getAssetsPath(const std::string& childPath) const {

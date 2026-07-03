@@ -4,13 +4,16 @@
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
+#include <Tactility/Paths.h>
 
 namespace tt::bluetooth::settings {
 
 static const auto LOGGER = Logger("BluetoothSettings");
 
-// Use the same path as the old service so existing settings survive migration.
-constexpr auto* SETTINGS_PATH         = "/data/service/bluetooth/settings.properties";
+static std::string getSettingsPath() {
+    return getUserDataPath() + "/settings/bluetooth.settings";
+}
+
 constexpr auto* KEY_ENABLE_ON_BOOT    = "enableOnBoot";
 constexpr auto* KEY_SPP_AUTO_START    = "sppAutoStart";
 constexpr auto* KEY_MIDI_AUTO_START   = "midiAutoStart";
@@ -27,7 +30,7 @@ static bool cached_valid = false;
 
 static bool load(BluetoothSettings& out) {
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(SETTINGS_PATH, map)) {
+    if (!file::loadPropertiesFile(getSettingsPath(), map)) {
         return false;
     }
     auto it = map.find(KEY_ENABLE_ON_BOOT);
@@ -44,11 +47,11 @@ static bool load(BluetoothSettings& out) {
 
 static bool save(const BluetoothSettings& s) {
     std::map<std::string, std::string> map;
-    file::loadPropertiesFile(SETTINGS_PATH, map); // ignore failure — may not exist yet
+    file::loadPropertiesFile(getSettingsPath(), map); // ignore failure — may not exist yet
     map[KEY_ENABLE_ON_BOOT]  = s.enableOnBoot  ? "true" : "false";
     map[KEY_SPP_AUTO_START]  = s.sppAutoStart  ? "true" : "false";
     map[KEY_MIDI_AUTO_START] = s.midiAutoStart ? "true" : "false";
-    return file::savePropertiesFile(SETTINGS_PATH, map);
+    return file::savePropertiesFile(getSettingsPath(), map);
 }
 
 static BluetoothSettings getCachedOrLoad() {

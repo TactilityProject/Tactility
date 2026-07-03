@@ -21,14 +21,14 @@ static WifiSettings cachedSettings {
 
 static bool cached = false;
 
-static bool load(WifiSettings& settings) {
-    auto service_context = findServiceContext();
-    if (service_context == nullptr) {
-        return false;
-    }
+static bool hasWifiSettingsFile(std::shared_ptr<ServiceContext> context) {
+    std::string settings_path = context->getPaths()->getUserDataPath("settings.properties");
+    return file::isFile(settings_path);
+}
 
+static bool load(std::shared_ptr<ServiceContext> context, WifiSettings& settings) {
     std::map<std::string, std::string> map;
-    std::string settings_path = service_context->getPaths()->getUserDataPath("settings.properties");
+    std::string settings_path = context->getPaths()->getUserDataPath("settings.properties");
     if (!file::loadPropertiesFile(settings_path, map)) {
         return false;
     }
@@ -42,23 +42,22 @@ static bool load(WifiSettings& settings) {
     return true;
 }
 
-static bool save(const WifiSettings& settings) {
-    auto service_context = findServiceContext();
-    if (service_context == nullptr) {
-        return false;
-    }
+static bool save(std::shared_ptr<ServiceContext> context, const WifiSettings& settings) {
     std::map<std::string, std::string> map;
     map[SETTINGS_KEY_ENABLE_ON_BOOT] = settings.enableOnBoot ? "true" : "false";
-    std::string settings_path = service_context->getPaths()->getUserDataPath("settings.properties");
+    std::string settings_path = context->getPaths()->getUserDataPath("settings.properties");
     return file::savePropertiesFile(settings_path, map);
 }
 
 WifiSettings getCachedOrLoad() {
     if (!cached) {
-        if (!load(cachedSettings)) {
-            LOGGER.error("Failed to load");
-        } else {
-            cached = true;
+        auto context = findServiceContext();
+        if (context && hasWifiSettingsFile(context)) {
+            if (load(context, cachedSettings)) {
+                cached = true;
+            } else {
+                LOGGER.info("No settings found, using defaults");
+            }
         }
     }
 
@@ -67,8 +66,9 @@ WifiSettings getCachedOrLoad() {
 
 void setEnableOnBoot(bool enable) {
     cachedSettings.enableOnBoot = enable;
-    if (!save(cachedSettings)) {
-        LOGGER.error("Failed to save");
+    auto context = findServiceContext();
+    if (context && !save(context, cachedSettings)) {
+        LOGGER.error("Failed to save settings");
     }
 }
 

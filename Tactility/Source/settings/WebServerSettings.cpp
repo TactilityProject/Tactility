@@ -2,6 +2,7 @@
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/file/File.h>
 #include <Tactility/Logger.h>
+#include <Tactility/Paths.h>
 
 #include <charconv>
 #include <map>
@@ -17,8 +18,11 @@
 
 namespace tt::settings::webserver {
 
-static const auto LOGGER = tt::Logger("WebServerSettings");
-constexpr auto* SETTINGS_FILE = "/data/service/webserver/settings.properties";
+static const auto LOGGER = Logger("WebServerSettings");
+
+static std::string getSettingsFilePath() {
+    return getUserDataPath() + "/settings/webserver.properties";
+}
 
 // Property keys
 constexpr auto* KEY_WIFI_ENABLED = "wifiEnabled";
@@ -87,7 +91,7 @@ static bool isEmptyCredential(const std::string& value) {
 
 bool load(WebServerSettings& settings) {
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(SETTINGS_FILE, map)) {
+    if (!file::loadPropertiesFile(getSettingsFilePath(), map)) {
         return false;
     }
 
@@ -146,7 +150,7 @@ bool load(WebServerSettings& settings) {
 
         // Persist the generated password immediately
         map[KEY_AP_PASSWORD] = settings.apPassword;
-        if (file::savePropertiesFile(SETTINGS_FILE, map)) {
+        if (file::savePropertiesFile(getSettingsFilePath(), map)) {
             LOGGER.info("Generated and saved new secure AP password");
         } else {
             LOGGER.error("Failed to save generated AP password");
@@ -187,7 +191,7 @@ bool load(WebServerSettings& settings) {
         // We need to save these to the file so they're consistent across reboots
         map[KEY_WEBSERVER_USERNAME] = settings.webServerUsername;
         map[KEY_WEBSERVER_PASSWORD] = settings.webServerPassword;
-        if (file::savePropertiesFile(SETTINGS_FILE, map)) {
+        if (file::savePropertiesFile(getSettingsFilePath(), map)) {
             LOGGER.info("Generated and saved new secure credentials");
         } else {
             LOGGER.error("Failed to save generated credentials - auth may be inconsistent across reboots");
@@ -254,7 +258,7 @@ bool save(const WebServerSettings& settings) {
     map[KEY_WEBSERVER_PASSWORD] = settings.webServerPassword;
 
     // Save to flash storage only (no SD backup - settings sync at boot handles restore)
-    return file::savePropertiesFile(SETTINGS_FILE, map);
+    return file::savePropertiesFile(getSettingsFilePath(), map);
 }
 
 }

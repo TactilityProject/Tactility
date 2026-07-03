@@ -124,15 +124,8 @@ void bootSplashInit() {
     getMainDispatcher().dispatch([] {
         LOGGER.info("bootSplashInit dispatch begin");
         // First import any provisioning files placed on the system data partition.
-        const std::string data_settings_path = file::getChildPath(file::MOUNT_POINT_DATA, "settings");
+        const std::string data_settings_path = file::getChildPath(getUserDataPath(), "provisioning");
         importWifiApSettingsFromDir(data_settings_path);
-
-        // Then scan attached SD cards as before.
-        std::string sdcard_path;
-        if (findFirstMountedSdCardPath((sdcard_path))) {
-            const std::string sd_settings_path = file::getChildPath(sdcard_path, "settings");
-            importWifiApSettingsFromDir(sd_settings_path);
-        }
 
         if (settings::shouldEnableOnBoot()) {
             LOGGER.info("Auto-enabling due to setting");

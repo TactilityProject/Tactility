@@ -35,6 +35,9 @@
 #include <Tactility/InitEsp.h>
 #endif
 
+#include "Tactility/Paths.h"
+
+
 #include <Tactility/bluetooth/Bluetooth.h>
 
 namespace tt {
@@ -242,7 +245,7 @@ static void registerInstalledAppsFromFileSystems() {
         if (!file_system_is_mounted(fs)) return true;
         char path[128];
         if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
-        const auto app_path = std::format("{}/app", path);
+        const auto app_path = std::format("{}/tactility/app", path);
         if (!app_path.starts_with(file::MOUNT_POINT_SYSTEM) && file::isDirectory(app_path)) {
             LOGGER.info("Registering apps from {}", app_path);
             registerInstalledApps(app_path);
@@ -284,10 +287,11 @@ static void registerAndStartPrimaryServices() {
 #endif
 }
 
-void createTempDirectory(const std::string& rootPath) {
-    auto temp_path = std::format("{}/tmp", rootPath);
+void createTempDirectory() {
+    auto data_path = getUserDataPath();
+    auto temp_path = std::format("{}/tmp", data_path);
     if (!file::isDirectory(temp_path)) {
-        auto lock = file::getLock(rootPath)->asScopedLock();
+        auto lock = file::getLock(data_path)->asScopedLock();
         if (lock.lock(1000 / portTICK_PERIOD_MS)) {
             if (mkdir(temp_path.c_str(), 0777) == 0) {
                 LOGGER.info("Created {}", temp_path);
@@ -295,7 +299,7 @@ void createTempDirectory(const std::string& rootPath) {
                 LOGGER.error("Failed to create {}", temp_path);
             }
         } else {
-            LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, rootPath);
+            LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, data_path);
         }
     } else {
         LOGGER.info("Found existing {}", temp_path);
@@ -303,14 +307,7 @@ void createTempDirectory(const std::string& rootPath) {
 }
 
 void prepareFileSystems() {
-    file_system_for_each(nullptr, [](auto* fs, void* context) {
-        if (!file_system_is_mounted(fs)) return true;
-        char path[128];
-        if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
-        if (std::string(path) == file::MOUNT_POINT_SYSTEM) return true;
-        createTempDirectory(path);
-        return true;
-    });
+    createTempDirectory();
 }
 
 void registerApps() {

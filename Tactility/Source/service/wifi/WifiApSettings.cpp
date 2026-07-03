@@ -181,6 +181,10 @@ bool save(const WifiApSettings& apSettings) {
     }
 
     const auto file_path = getApPropertiesFilePath(service_context->getPaths(), apSettings.ssid);
+    if (!file::findOrCreateParentDirectory(file_path, 0755)) {
+        LOGGER.error("Failed to create {}", file_path);
+        return false;
+    }
 
     std::map<std::string, std::string> map;
 

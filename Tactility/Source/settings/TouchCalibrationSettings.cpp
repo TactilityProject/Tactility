@@ -2,6 +2,7 @@
 
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/Mutex.h>
+#include <Tactility/Paths.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -12,7 +13,10 @@
 
 namespace tt::settings::touch {
 
-constexpr auto* SETTINGS_FILE = "/data/settings/touch-calibration.properties";
+static std::string getSettingsFilePath() {
+    return getUserDataPath() + "/settings/touch-calibration.properties";
+}
+
 constexpr auto* SETTINGS_KEY_ENABLED = "enabled";
 constexpr auto* SETTINGS_KEY_X_MIN = "xMin";
 constexpr auto* SETTINGS_KEY_X_MAX = "xMax";
@@ -61,7 +65,7 @@ bool isValid(const TouchCalibrationSettings& settings) {
 
 bool load(TouchCalibrationSettings& settings) {
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(SETTINGS_FILE, map)) {
+    if (!file::loadPropertiesFile(getSettingsFilePath(), map)) {
         return false;
     }
 
@@ -112,7 +116,7 @@ bool save(const TouchCalibrationSettings& settings) {
     map[SETTINGS_KEY_Y_MIN] = std::to_string(settings.yMin);
     map[SETTINGS_KEY_Y_MAX] = std::to_string(settings.yMax);
 
-    if (!file::savePropertiesFile(SETTINGS_FILE, map)) {
+    if (!file::savePropertiesFile(getSettingsFilePath(), map)) {
         return false;
     }
 

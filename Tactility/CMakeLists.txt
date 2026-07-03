@@ -67,8 +67,10 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     if (NOT DEFINED TACTILITY_SKIP_SPIFFS)
         # Read-only
         fatfs_create_rawflash_image(system "${CMAKE_CURRENT_SOURCE_DIR}/../Data/system" FLASH_IN_PROJECT PRESERVE_TIME)
-        # Read-write
-        fatfs_create_spiflash_image(data "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data" FLASH_IN_PROJECT PRESERVE_TIME)
+        # Read-write (skipped when user data lives on the SD card instead of internal flash)
+        if (NOT CONFIG_TT_USER_DATA_LOCATION_SD)
+            fatfs_create_spiflash_image(data "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data" FLASH_IN_PROJECT PRESERVE_TIME)
+        endif ()
     endif ()
 
 endif ()

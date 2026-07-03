@@ -94,18 +94,28 @@ def write_defaults(output_file):
     default_properties = read_file(default_properties_path)
     output_file.write(default_properties)
 
+def get_user_data_location(device_properties: dict):
+    user_data_location = get_property_or_exit(device_properties, "storage", "userDataLocation")
+    if user_data_location not in ("SD", "Internal"):
+        exit_with_error(f"storage.userDataLocation must be 'SD' or 'Internal', but was: '{user_data_location}'")
+    return user_data_location
+
 def write_partition_table(output_file, device_properties: dict, is_dev: bool):
+    flash_size = get_property_or_exit(device_properties, "hardware", "flashSize")
+    if not flash_size.endswith("MB"):
+        exit_with_error("Flash size should be written as xMB or xxMB (e.g. 4MB, 16MB)")
+    flash_size_number = flash_size[:-2]
+    variant = "with-sd" if get_user_data_location(device_properties) == "SD" else "no-sd"
+    partition_filename = f"partitions-{flash_size_number}mb-{variant}.csv"
     if is_dev:
-        flash_size_number = 4
-    else:
-        flash_size = get_property_or_exit(device_properties, "hardware", "flashSize")
-        if not flash_size.endswith("MB"):
-            exit_with_error("Flash size should be written as xMB or xxMB (e.g. 4MB, 16MB)")
-        flash_size_number = flash_size[:-2]
+        dev_partition_filename = f"partitions-{flash_size_number}mb-{variant}-dev.csv"
+        if os.path.isfile(dev_partition_filename):
+            partition_filename = dev_partition_filename
+    print(f"Using partition table: {partition_filename}")
     output_file.write("# Partition Table\n")
     output_file.write("CONFIG_PARTITION_TABLE_CUSTOM=y\n")
-    output_file.write(f"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions-{flash_size_number}mb.csv\"\n")
-    output_file.write(f"CONFIG_PARTITION_TABLE_FILENAME=\"partitions-{flash_size_number}mb.csv\"\n")
+    output_file.write(f"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"{partition_filename}\"\n")
+    output_file.write(f"CONFIG_PARTITION_TABLE_FILENAME=\"{partition_filename}\"\n")
 
 def write_tactility_variables(output_file, device_properties: dict, device_id: str):
     # Board and vendor
@@ -129,13 +139,10 @@ def write_tactility_variables(output_file, device_properties: dict, device_id: s
         safe_auto_start_app_id = auto_start_app_id.replace("\"", "\\\"")
         output_file.write(f"CONFIG_TT_AUTO_START_APP_ID=\"{safe_auto_start_app_id}\"\n")
     # User data location
-    user_data_location = get_property_or_exit(device_properties, "storage", "userDataLocation")
-    if user_data_location == "SD":
+    if get_user_data_location(device_properties) == "SD":
         output_file.write("CONFIG_TT_USER_DATA_LOCATION_SD=y\n")
-    elif user_data_location == "Internal":
-        output_file.write("CONFIG_TT_USER_DATA_LOCATION_INTERNAL=y\n")
     else:
-        exit_with_error(f"storage.userDataLocation must be 'SD' or 'Internal', but was: '{user_data_location}'")
+        output_file.write("CONFIG_TT_USER_DATA_LOCATION_INTERNAL=y\n")
 
 def write_core_variables(output_file, device_properties: dict):
     idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()

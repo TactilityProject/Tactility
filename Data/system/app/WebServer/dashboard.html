@@ -485,7 +485,7 @@
                     <button class="btn btn-secondary btn-sm" onclick="goUp()" id="upBtn">Up</button>
                 </div>
                 <div class="toolbar-sep"></div>
-                <input type="text" id="pathInput" value="/data" onkeydown="if(event.key==='Enter')refreshFiles()">
+                <input type="text" id="pathInput" value="" onkeydown="if(event.key==='Enter')refreshFiles()">
                 <button class="btn btn-primary btn-sm" onclick="refreshFiles()">Go</button>
                 <div class="toolbar-sep"></div>
                 <div class="toolbar-group">
@@ -739,7 +739,6 @@ function renderDashboard(data) {
             <div class="card">
                 <h2>Quick Actions</h2>
                 <div class="actions">
-                    <button class="btn btn-primary" onclick="syncAssets(this)">Sync Assets</button>
                     ${data.features_enabled?.screenshot ? '<button class="btn btn-secondary" onclick="captureScreenshot(this)">Screenshot</button>' : ''}
                     <button class="btn btn-danger" onclick="rebootDevice(this)">Reboot</button>
                 </div>

@@ -2,6 +2,7 @@
 
 #include <Tactility/TactilityCore.h>
 #include <Tactility/TactilityPrivate.h>
+#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppPaths.h>
 #include <Tactility/CpuAffinity.h>
@@ -10,6 +11,7 @@
 #include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/Logger.h>
 #include <Tactility/lvgl/Style.h>
+#include <Tactility/Paths.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
@@ -43,6 +45,10 @@ class BootApp : public App {
     // potentially clears the underlying flag via setupUsbBootMode()/resetUsbBootMode().
     // onShow() reads this instead of the live flag to avoid a race between the two.
     static std::atomic<bool> isUsbBootSplash;
+
+    // Set by bootThreadCallback() when CONFIG_TT_USER_DATA_LOCATION_SD is defined but no SD card is mounted.
+    // onShow() reads this to show an error instead of the normal splash, and boot halts instead of starting the launcher.
+    static std::atomic<bool> sdCardMissing;
 
     Thread thread = Thread(
         "boot",
@@ -122,11 +128,20 @@ class BootApp : public App {
         setupDisplay(); // Set backlight
         prepareFileSystems();
 
+#ifdef CONFIG_TT_USER_DATA_LOCATION_SD
+        std::string sd_path;
+        if (!findFirstMountedSdCardPath(sd_path)) {
+            LOGGER.error("SD card not found");
+            sdCardMissing = true;
+        }
+#endif
+
         if (!setupUsbBootMode()) {
             LOGGER.info("initFromBootApp");
             registerApps();
             waitForMinimalSplashDuration(start_time);
-            stop(manifest.appId);
+            // When SD card is missing, wait for dialog result
+            if (!sdCardMissing) stop(manifest.appId);
             startNextApp();
         }
 
@@ -162,6 +177,11 @@ class BootApp : public App {
     }
 
     static void startNextApp() {
+        if (sdCardMissing) {
+            alertdialog::start("Error", "SD card not found.\nPlease insert one and reboot.", std::vector<const char*> { "Reboot" });
+            return;
+        }
+
 #ifdef ESP_PLATFORM
         if (esp_reset_reason() == ESP_RST_PANIC) {
             crashdiagnostics::start();
@@ -193,6 +213,12 @@ public:
 
     void onDestroy(AppContext& app) override {
         thread.join();
+    }
+
+    void onResult(AppContext& /*app*/, LaunchId /*launchId*/, Result /*result*/, std::unique_ptr<Bundle> /*bundle*/) override {
+#ifdef ESP_PLATFORM
+        esp_restart();
+#endif
     }
 
     void onShow(AppContext& app, lv_obj_t* parent) override {
@@ -232,6 +258,7 @@ public:
 };
 
 std::atomic<bool> BootApp::isUsbBootSplash = false;
+std::atomic<bool> BootApp::sdCardMissing = false;
 
 extern const AppManifest manifest = {
     .appId = "Boot",

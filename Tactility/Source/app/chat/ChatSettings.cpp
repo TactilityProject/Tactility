@@ -10,6 +10,7 @@
 #include <Tactility/crypt/Crypt.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/Logger.h>
+#include <Tactility/Paths.h>
 
 #include <esp_random.h>
 
@@ -23,6 +24,10 @@
 namespace tt::app::chat {
 
 static const auto LOGGER = Logger("ChatSettings");
+
+static std::string getSettingsFilePath() {
+    return getUserDataPath() + "/settings/chat.properties";
+}
 
 constexpr auto* KEY_SENDER_ID = "senderId";
 constexpr auto* KEY_NICKNAME = "nickname";
@@ -120,7 +125,7 @@ ChatSettingsData loadSettings() {
     ChatSettingsData settings = getDefaultSettings();
 
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(CHAT_SETTINGS_FILE, map)) {
+    if (!file::loadPropertiesFile(getSettingsFilePath(), map)) {
         settings.senderId = generateSenderId();
         return settings;
     }
@@ -171,11 +176,11 @@ bool saveSettings(const ChatSettingsData& settings) {
         map[KEY_ENCRYPTION_KEY] = "";
     }
 
-    return file::savePropertiesFile(CHAT_SETTINGS_FILE, map);
+    return file::savePropertiesFile(getSettingsFilePath(), map);
 }
 
 bool settingsFileExists() {
-    return access(CHAT_SETTINGS_FILE, F_OK) == 0;
+    return access(getSettingsFilePath().c_str(), F_OK) == 0;
 }
 
 } // namespace tt::app::chat

@@ -7,7 +7,6 @@
 #include <Tactility/Paths.h>
 #include <format>
 #include <string>
-#include <vector>
 
 namespace tt::settings {
 
@@ -18,14 +17,7 @@ constexpr auto* PROPERTIES_KEY_LAUNCHER_APP_ID = "launcherAppId";
 constexpr auto* PROPERTIES_KEY_AUTO_START_APP_ID = "autoStartAppId";
 
 static std::string getPropertiesFilePath() {
-    std::string sdcard_path;
-    if (findFirstMountedSdCardPath(sdcard_path)) {
-        std::string path = std::format(PROPERTIES_FILE_FORMAT, sdcard_path);
-        if (file::isFile(path)) {
-            return path;
-        }
-    }
-    return std::format(PROPERTIES_FILE_FORMAT, file::MOUNT_POINT_DATA);
+    return std::format(PROPERTIES_FILE_FORMAT, getUserDataPath());
 }
 
 bool loadBootSettings(BootSettings& properties) {

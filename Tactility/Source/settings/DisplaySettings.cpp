@@ -1,6 +1,7 @@
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <Tactility/file/PropertiesFile.h>
+#include <Tactility/Paths.h>
 #include <tactility/hal/Device.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 
@@ -10,7 +11,10 @@
 
 namespace tt::settings::display {
 
-constexpr auto* SETTINGS_FILE = "/data/settings/display.properties";
+static std::string getSettingsFilePath() {
+    return getUserDataPath() + "/settings/display.properties";
+}
+
 constexpr auto* SETTINGS_KEY_ORIENTATION = "orientation";
 constexpr auto* SETTINGS_KEY_GAMMA_CURVE = "gammaCurve";
 constexpr auto* SETTINGS_KEY_BACKLIGHT_DUTY = "backlightDuty";
@@ -106,7 +110,7 @@ static bool fromString(const std::string& str, ScreensaverType& type) {
 
 bool load(DisplaySettings& settings) {
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(SETTINGS_FILE, map)) {
+    if (!file::loadPropertiesFile(getSettingsFilePath(), map)) {
         return false;
     }
 
@@ -186,7 +190,7 @@ bool save(const DisplaySettings& settings) {
     map[SETTINGS_KEY_TIMEOUT_ENABLED] = settings.backlightTimeoutEnabled ? "1" : "0";
     map[SETTINGS_KEY_TIMEOUT_MS] = std::to_string(settings.backlightTimeoutMs);
     map[SETTINGS_KEY_SCREENSAVER_TYPE] = toString(settings.screensaverType);
-    return file::savePropertiesFile(SETTINGS_FILE, map);
+    return file::savePropertiesFile(getSettingsFilePath(), map);
 }
 
 lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {

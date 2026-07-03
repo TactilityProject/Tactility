@@ -131,30 +131,6 @@ class WebServerSettingsApp final : public App {
         });
     }
 
-    static void onSyncAssets(lv_event_t* e) {
-        auto* app = static_cast<WebServerSettingsApp*>(lv_event_get_user_data(e));
-        auto* btn = static_cast<lv_obj_t*>(lv_event_get_target_obj(e));
-        lv_obj_add_state(btn, LV_STATE_DISABLED);
-        LOGGER.info("Manual asset sync triggered");
-
-        getMainDispatcher().dispatch([app, btn]{
-            bool success = service::webserver::syncAssets();
-            if (success) {
-                LOGGER.info("Asset sync completed successfully");
-            } else {
-                LOGGER.error("Asset sync failed");
-            }
-            // Only re-enable if button still exists (user hasn't navigated away)
-            // Must acquire LVGL lock since we're not in an LVGL event callback context
-            if (lvgl::lock(1000)) {
-                if (lv_obj_is_valid(btn)) {
-                    lv_obj_remove_state(btn, LV_STATE_DISABLED);
-                }
-                lvgl::unlock();
-            }
-        });
-    }
-
     void updateUrlDisplay() {
         if (!labelUrlValue) return;
 
@@ -340,32 +316,6 @@ public:
         }
 
         updateUrlDisplay();
-
-        // Sync Assets button
-        auto* sync_wrapper = lv_obj_create(main_wrapper);
-        lv_obj_set_size(sync_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(sync_wrapper, 10, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(sync_wrapper, 1, LV_STATE_DEFAULT);
-        lv_obj_set_flex_flow(sync_wrapper, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_flex_cross_place(sync_wrapper, LV_FLEX_ALIGN_START, 0);
-        
-        auto* sync_label = lv_label_create(sync_wrapper);
-        lv_label_set_text(sync_label, "Asset Synchronization");
-        
-        auto* sync_info = lv_label_create(sync_wrapper);
-        lv_label_set_long_mode(sync_info, LV_LABEL_LONG_WRAP);
-        lv_obj_set_width(sync_info, LV_PCT(95));
-        if (lv_display_get_color_format(lv_obj_get_display(parent)) != LV_COLOR_FORMAT_L8) {
-            lv_obj_set_style_text_color(sync_info, lv_palette_main(LV_PALETTE_GREY), 0);
-        }
-        lv_label_set_text(sync_info, "Sync web assets between Data partition and SD card backup");
-        
-        auto* sync_button = lv_btn_create(sync_wrapper);
-        lv_obj_set_width(sync_button, LV_SIZE_CONTENT);
-        auto* sync_button_label = lv_label_create(sync_button);
-        lv_label_set_text(sync_button_label, "Sync Assets Now");
-        lv_obj_center(sync_button_label);
-        lv_obj_add_event_cb(sync_button, onSyncAssets, LV_EVENT_CLICKED, this);
 
         // Info text
         auto* info_label = lv_label_create(main_wrapper);

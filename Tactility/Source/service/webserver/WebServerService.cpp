@@ -207,11 +207,6 @@ bool WebServerService::onStart(ServiceContext& service) {
     statusbarIconId = lvgl::statusbar_icon_add();
     lvgl::statusbar_icon_set_visibility(statusbarIconId, false);
 
-    // Run asset synchronization on startup
-    if (!syncAssets()) {
-        LOGGER.warn("Asset sync failed, but continuing with available assets");
-    }
-
     // Load and cache settings once at boot
     bool serverEnabled;
     {
@@ -619,7 +614,7 @@ static bool isAllowedBasePath(const std::string& path, bool allowRoot = false) {
         return false;
     }
     if (allowRoot && path == "/") return true;
-    return path == "/data" || path.starts_with("/data/") || path == "/sdcard" || path.starts_with("/sdcard/");
+    return path.starts_with("/data") || path.starts_with("/system/app/WebServer") || path.starts_with("/sdcard");
 }
 
 // Normalize client-supplied path: URL-decode, trim quotes/control chars, ensure leading slash, collapse duplicate slashes
@@ -990,7 +985,6 @@ esp_err_t WebServerService::handleAdminPost(httpd_req_t* request) {
     }
 
     const char* uri = request->uri;
-    if (strncmp(uri, "/admin/sync", 11) == 0) return handleSync(request);
     if (strncmp(uri, "/admin/reboot", 13) == 0) return handleReboot(request);
     LOGGER.info("POST {} - not found in admin dispatcher", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
@@ -1460,10 +1454,7 @@ esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
     // Determine save location: prefer SD card root if mounted, otherwise /data
-    std::string save_path;
-    if (!findFirstMountedSdCardPath(save_path)) {
-        save_path = file::MOUNT_POINT_DATA;
-    }
+    std::string save_path = getUserDataRootPath();
 
     // Find next available filename with incrementing number
     std::string screenshot_path;
@@ -1683,25 +1674,9 @@ esp_err_t WebServerService::handleFsRename(httpd_req_t* request) {
 
 // endregion
 
-esp_err_t WebServerService::handleSync(httpd_req_t* request) {
-    
-    LOGGER.info("POST /sync");
-    
-    bool success = syncAssets();
-    
-    if (success) {
-        httpd_resp_sendstr(request, "Assets synchronized successfully");
-    } else {
-        httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Asset sync failed");
-    }
-    
-    return success ? ESP_OK : ESP_FAIL;
-}
-
 esp_err_t WebServerService::handleReboot(httpd_req_t* request) {
     
     LOGGER.info("POST /reboot");
-    
     httpd_resp_sendstr(request, "Rebooting...");
     
     // Reboot after a short delay to allow response to be sent
@@ -1724,7 +1699,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
 
     // Special case: serve favicon from system assets
     if (strcmp(uri, "/favicon.ico") == 0) {
-        const char* faviconPath = "/data/system/spinner.png";
+        const char* faviconPath = "/system/spinner.png";
         if (file::isFile(faviconPath)) {
             httpd_resp_set_type(request, "image/png");
             httpd_resp_set_hdr(request, "Cache-Control", "public, max-age=86400");
@@ -1767,11 +1742,9 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
         return ESP_FAIL;
     }
 
-    std::string dataPath = std::string("/data/webserver") + requestedPath;
+    std::string dataPath = std::string("/system/app/WebServer") + requestedPath;
     
     if (requestedPath == "/dashboard.html" && !file::isFile(dataPath.c_str())) {
-        // Dashboard doesn't exist, try default.html
-        dataPath = "/data/webserver/default.html";
         LOGGER.info("dashboard.html not found, serving default.html");
     }
     

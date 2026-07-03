@@ -15,9 +15,9 @@
 namespace tt::service::webserver {
 
 static const auto LOGGER = tt::Logger("AssetVersion");
-constexpr auto* DATA_VERSION_FILE = "/data/webserver/version.json";
+constexpr auto* DATA_VERSION_FILE = "/system/app/WebServer/version.json";
 constexpr auto* SD_VERSION_FILE = "/sdcard/tactility/webserver/version.json";
-constexpr auto* DATA_ASSETS_DIR = "/data/webserver";
+constexpr auto* DATA_ASSETS_DIR = "/system/app/WebServer";
 constexpr auto* SD_ASSETS_DIR = "/sdcard/tactility/webserver";
 
 static bool loadVersionFromFile(const char* path, AssetVersion& version) {
@@ -346,17 +346,6 @@ bool syncAssets() {
             }
             LOGGER.info("Created default Data assets structure (version 0)");
         }
-        return true;
-    }
-
-    // POST-FLASH RECOVERY: Data empty but SD card exists
-    if (!dataExists) {
-        LOGGER.info("Data partition empty - copying from SD card (recovery mode)");
-        if (!copyDirectory(SD_ASSETS_DIR, DATA_ASSETS_DIR)) {
-            LOGGER.error("Failed to copy assets from SD card to Data");
-            return false;
-        }
-        LOGGER.info("Recovery complete - assets restored from SD card");
         return true;
     }
 
