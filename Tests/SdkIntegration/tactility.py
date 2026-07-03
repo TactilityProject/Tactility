@@ -12,7 +12,7 @@ import tarfile
 from urllib.parse import urlparse
 
 ttbuild_path = ".tactility"
-ttbuild_version = "4.0.0"
+ttbuild_version = "4.1.0"
 ttbuild_cdn = "https://cdn.tactilityproject.org"
 ttbuild_sdk_json_validity = 3600  # seconds
 ttport = 6666
@@ -192,7 +192,7 @@ def fetch_sdkconfig_files(platform_targets):
     for platform in platform_targets:
         sdkconfig_filename = f"sdkconfig.app.{platform}"
         target_path = os.path.join(ttbuild_path, sdkconfig_filename)
-        if not download_file(f"{ttbuild_cdn}/{sdkconfig_filename}", target_path):
+        if not download_file(f"{ttbuild_cdn}/sdk/{sdkconfig_filename}", target_path):
             exit_with_error(f"Failed to download sdkconfig file for {platform}")
 
 #endregion SDK helpers
