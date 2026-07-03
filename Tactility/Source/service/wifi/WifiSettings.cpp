@@ -46,6 +46,10 @@ static bool save(std::shared_ptr<ServiceContext> context, const WifiSettings& se
     std::map<std::string, std::string> map;
     map[SETTINGS_KEY_ENABLE_ON_BOOT] = settings.enableOnBoot ? "true" : "false";
     std::string settings_path = context->getPaths()->getUserDataPath("settings.properties");
+    if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
+        LOGGER.error("Failed to create {}", settings_path);
+        return false;
+    }
     return file::savePropertiesFile(settings_path, map);
 }
 
@@ -56,7 +60,7 @@ WifiSettings getCachedOrLoad() {
             if (load(context, cachedSettings)) {
                 cached = true;
             } else {
-                LOGGER.info("No settings found, using defaults");
+                LOGGER.info("Failed to load settings, using defaults");
             }
         }
     }
