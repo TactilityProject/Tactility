@@ -1,5 +1,4 @@
 #include <Tactility/Logger.h>
-#include <Tactility/MountPoints.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
@@ -75,7 +74,7 @@ bool loadSystemSettings(SystemSettings& properties) {
 }
 
 bool saveSystemSettings(const SystemSettings& properties) {
-    auto file_path = std::format(FILE_PATH_FORMAT, file::MOUNT_POINT_DATA);
+    auto file_path = std::format(FILE_PATH_FORMAT, getUserDataPath());
     std::map<std::string, std::string> map;
     map["language"] = toString(properties.language);
     map["timeFormat24h"] = properties.timeFormat24h ? "true" : "false";
