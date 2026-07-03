@@ -293,7 +293,9 @@ void createTempDirectory() {
     if (!file::isDirectory(temp_path)) {
         auto lock = file::getLock(data_path)->asScopedLock();
         if (lock.lock(1000 / portTICK_PERIOD_MS)) {
-            if (mkdir(temp_path.c_str(), 0777) == 0) {
+            if (!file::findOrCreateParentDirectory(temp_path, 0777)) {
+                LOGGER.error("Failed to create {}", data_path);
+            } else if (mkdir(temp_path.c_str(), 0777) == 0) {
                 LOGGER.info("Created {}", temp_path);
             } else {
                 LOGGER.error("Failed to create {}", temp_path);
