@@ -105,7 +105,10 @@ def write_partition_table(output_file, device_properties: dict, is_dev: bool):
     if not flash_size.endswith("MB"):
         exit_with_error("Flash size should be written as xMB or xxMB (e.g. 4MB, 16MB)")
     flash_size_number = flash_size[:-2]
-    variant = "with-sd" if get_user_data_location(device_properties) == "SD" else "no-sd"
+    user_data_location = get_user_data_location(device_properties)
+    if flash_size_number == "4" and user_data_location == "Internal":
+        exit_with_error("4MB devices must use storage.userDataLocation=SD; there is no internal-storage partition table for 4MB flash")
+    variant = "with-sd" if user_data_location == "SD" else "no-sd"
     partition_filename = f"partitions-{flash_size_number}mb-{variant}.csv"
     if is_dev:
         dev_partition_filename = f"partitions-{flash_size_number}mb-{variant}-dev.csv"
