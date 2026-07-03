@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: "Build SDK"
         uses: ./.github/actions/build-sdk
         with:
@@ -81,6 +83,8 @@ jobs:
     needs: [ BuildSdk ]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: "Build Firmware"
         uses: ./.github/actions/build-firmware
         with:

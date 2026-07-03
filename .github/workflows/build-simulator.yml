@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: "Build"
         uses: ./.github/actions/build-simulator
         with:
@@ -21,6 +23,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: "Build"
         uses: ./.github/actions/build-simulator
         with:
