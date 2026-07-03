@@ -257,7 +257,6 @@ bool save(const WebServerSettings& settings) {
     map[KEY_WEBSERVER_USERNAME] = settings.webServerUsername;
     map[KEY_WEBSERVER_PASSWORD] = settings.webServerPassword;
 
-    // Save to flash storage only (no SD backup - settings sync at boot handles restore)
     return file::savePropertiesFile(getSettingsFilePath(), map);
 }
 
