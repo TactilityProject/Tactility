@@ -28,18 +28,4 @@
 		pin-sda = <&gpio0 19 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 45 GPIO_FLAG_NONE>;
 	};
-
-	spi0 {
-		compatible = "espressif,esp32-spi";
-		host = <SPI2_HOST>;
-		cs-gpios = <&gpio0 42 GPIO_FLAG_NONE>;
-		pin-mosi = <&gpio0 47 GPIO_FLAG_NONE>;
-		pin-miso = <&gpio0 41 GPIO_FLAG_NONE>;
-		pin-sclk = <&gpio0 48 GPIO_FLAG_NONE>;
-
-		sdcard@0 {
-			compatible = "espressif,esp32-sdspi";
-			frequency-khz = <20000>;
-		};
-	};
 };

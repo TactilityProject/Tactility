@@ -12,8 +12,24 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_io_additions.h>
 #include <esp_lcd_st7701.h>
+#include <esp_rom_gpio.h>
+#include <soc/spi_periph.h>
+#include <driver/spi_master.h>
 
 static const auto LOGGER = tt::Logger("St7701Display");
+
+// GPIO47/48 are physically shared between this bit-banged 3-wire command bus
+// and the SD card's real SPI2 bus (no alternate pins exist on this PCB).
+// esp_lcd_new_panel_io_3wire_spi() reconfigures them as plain GPIO via
+// gpio_config(), severing their SPI2 matrix routing. Reconnect them here once
+// the vendor init sequence is done, so SD card reads/writes keep working.
+// Safe only because nothing else calls into the ST7701 IO handle after boot.
+static void reclaimSpiPinsForSdCard() {
+    esp_rom_gpio_connect_out_signal(GPIO_NUM_47, spi_periph_signal[SPI2_HOST].spid_out, false, false);
+    esp_rom_gpio_connect_out_signal(GPIO_NUM_48, spi_periph_signal[SPI2_HOST].spiclk_out, false, false);
+    gpio_set_direction(GPIO_NUM_47, GPIO_MODE_OUTPUT);
+    gpio_set_direction(GPIO_NUM_48, GPIO_MODE_OUTPUT);
+}
 
 static const st7701_lcd_init_cmd_t st7701_lcd_init_cmds[] = {
     //  {cmd, { data }, data_size, delay_ms}
@@ -180,6 +196,8 @@ bool St7701Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_lc
         LOGGER.error("Failed to turn display on");
         return false;
     }
+
+    reclaimSpiPinsForSdCard();
 
     return true;
 }
