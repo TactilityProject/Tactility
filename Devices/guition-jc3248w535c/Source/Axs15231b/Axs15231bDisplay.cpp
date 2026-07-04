@@ -1,6 +1,5 @@
 #include "Axs15231bDisplay.h"
 
-#include <Tactility/Logger.h>
 #include <Tactility/hal/touch/TouchDevice.h>
 #include <Axs15231b/Axs15231bTouch.h>
 #include <EspLcdDisplayDriver.h>
@@ -9,8 +8,9 @@
 #include <esp_lcd_panel_commands.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_heap_caps.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("AXS15231B");
+constexpr auto* TAG = "AXS15231B";
 
 static const axs15231b_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xBB, (uint8_t[]){0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5A, 0xA5}, 8, 0},
@@ -74,7 +74,7 @@ void Axs15231bDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
                 MALLOC_CAP_SPIRAM);
             if (self->tempBuf == nullptr) {
                 if (!allocationErrorLogged) {
-                    LOGGER.error("Failed to allocate rotation buffer, drawing unrotated");
+                    LOG_E(TAG, "Failed to allocate rotation buffer, drawing unrotated");
                     allocationErrorLogged = true;
                 }
                 if (esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, self->configuration->horizontalResolution, self->configuration->verticalResolution, draw_buf) != ESP_OK) {
@@ -145,7 +145,7 @@ void Axs15231bDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
     if (ret != ESP_OK) {
         // If SPI transfer failed, on_color_trans_done won't fire.
         // Manually signal flush ready to prevent LVGL from hanging.
-        LOGGER.error("draw_bitmap failed: {}", esp_err_to_name(ret));
+        LOG_E(TAG, "draw_bitmap failed: %s", esp_err_to_name(ret));
         lv_display_flush_ready(drv);
     }
 }
@@ -169,13 +169,13 @@ void IRAM_ATTR Axs15231bDisplay::teIsrHandler(void* arg) {
 
 bool Axs15231bDisplay::setupTeSync() {
     if (configuration->tePin == GPIO_NUM_NC) {
-        LOGGER.info("TE pin not configured, skipping TE sync");
+        LOG_I(TAG, "TE pin not configured, skipping TE sync");
         return true;
     }
 
     teSyncSemaphore = xSemaphoreCreateBinary();
     if (teSyncSemaphore == nullptr) {
-        LOGGER.error("Failed to create TE sync semaphore");
+        LOG_E(TAG, "Failed to create TE sync semaphore");
         return false;
     }
 
@@ -187,7 +187,7 @@ bool Axs15231bDisplay::setupTeSync() {
     io_conf.pin_bit_mask = (1ULL << configuration->tePin);
 
     if (gpio_config(&io_conf) != ESP_OK) {
-        LOGGER.error("Failed to configure TE GPIO");
+        LOG_E(TAG, "Failed to configure TE GPIO");
         vSemaphoreDelete(teSyncSemaphore);
         teSyncSemaphore = nullptr;
         return false;
@@ -197,14 +197,14 @@ bool Axs15231bDisplay::setupTeSync() {
     if (err == ESP_OK) {
         isrServiceInstalledByUs = true;
     } else if (err != ESP_ERR_INVALID_STATE) {
-        LOGGER.error("Failed to install GPIO ISR service");
+        LOG_E(TAG, "Failed to install GPIO ISR service");
         vSemaphoreDelete(teSyncSemaphore);
         teSyncSemaphore = nullptr;
         return false;
     }
 
     if (gpio_isr_handler_add(configuration->tePin, teIsrHandler, (void*)teSyncSemaphore) != ESP_OK) {
-        LOGGER.error("Failed to add TE ISR handler");
+        LOG_E(TAG, "Failed to add TE ISR handler");
         gpio_intr_disable(configuration->tePin);
         if (isrServiceInstalledByUs) {
             gpio_uninstall_isr_service();
@@ -216,7 +216,7 @@ bool Axs15231bDisplay::setupTeSync() {
     }
 
     teIsrInstalled = true;
-    LOGGER.info("TE sync enabled on GPIO {}", (int)configuration->tePin);
+    LOG_I(TAG, "TE sync enabled on GPIO %d", (int)configuration->tePin);
     return true;
 }
 
@@ -285,19 +285,19 @@ bool Axs15231bDisplay::createPanelHandle() {
     };
 
     if (esp_lcd_new_panel_axs15231b(ioHandle, &panel_config, &panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to create axs15231b");
+        LOG_E(TAG, "Failed to create axs15231b");
         return false;
     }
 
     if (esp_lcd_panel_reset(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to reset panel");
+        LOG_E(TAG, "Failed to reset panel");
         esp_lcd_panel_del(panelHandle);
         panelHandle = nullptr;
         return false;
     }
 
     if (esp_lcd_panel_init(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to init panel");
+        LOG_E(TAG, "Failed to init panel");
         esp_lcd_panel_del(panelHandle);
         panelHandle = nullptr;
         return false;
@@ -305,28 +305,28 @@ bool Axs15231bDisplay::createPanelHandle() {
 
     //SWAPXY Doesn't work with the JC3248W535... Left in for future compatibility.
     if (esp_lcd_panel_swap_xy(panelHandle, configuration->swapXY) != ESP_OK) {
-        LOGGER.error("Failed to swap XY");
+        LOG_E(TAG, "Failed to swap XY");
         esp_lcd_panel_del(panelHandle);
         panelHandle = nullptr;
         return false;
     }
 
     if (esp_lcd_panel_mirror(panelHandle, configuration->mirrorX, configuration->mirrorY) != ESP_OK) {
-        LOGGER.error("Failed to mirror panel");
+        LOG_E(TAG, "Failed to mirror panel");
         esp_lcd_panel_del(panelHandle);
         panelHandle = nullptr;
         return false;
     }
 
     if (esp_lcd_panel_invert_color(panelHandle, configuration->invertColor) != ESP_OK) {
-        LOGGER.error("Failed to invert color");
+        LOG_E(TAG, "Failed to invert color");
         esp_lcd_panel_del(panelHandle);
         panelHandle = nullptr;
         return false;
     }
 
     if (esp_lcd_panel_disp_on_off(panelHandle, false) != ESP_OK) {
-        LOGGER.error("Failed to turn off panel");
+        LOG_E(TAG, "Failed to turn off panel");
         esp_lcd_panel_del(panelHandle);
         panelHandle = nullptr;
         return false;
@@ -343,19 +343,19 @@ Axs15231bDisplay::Axs15231bDisplay(std::unique_ptr<Configuration> inConfiguratio
 
 bool Axs15231bDisplay::start() {
     if (!createIoHandle()) {
-        LOGGER.error("Failed to create IO handle");
+        LOG_E(TAG, "Failed to create IO handle");
         return false;
     }
 
     if (!createPanelHandle()) {
-        LOGGER.error("Failed to create panel handle");
+        LOG_E(TAG, "Failed to create panel handle");
         esp_lcd_panel_io_del(ioHandle);
         ioHandle = nullptr;
         return false;
     }
 
     if (!setupTeSync()) {
-        LOGGER.warn("TE sync setup failed, continuing without TE synchronization");
+        LOG_W(TAG, "TE sync setup failed, continuing without TE synchronization");
     }
 
     return true;
@@ -372,12 +372,12 @@ bool Axs15231bDisplay::stop() {
     displayDriver.reset();
 
     if (panelHandle != nullptr && esp_lcd_panel_del(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to delete panel");
+        LOG_E(TAG, "Failed to delete panel");
     }
     panelHandle = nullptr;
 
     if (ioHandle != nullptr && esp_lcd_panel_io_del(ioHandle) != ESP_OK) {
-        LOGGER.error("Failed to delete IO");
+        LOG_E(TAG, "Failed to delete IO");
     }
     ioHandle = nullptr;
 
@@ -386,7 +386,7 @@ bool Axs15231bDisplay::stop() {
 
 bool Axs15231bDisplay::startLvgl() {
     if (lvglDisplay != nullptr) {
-        LOGGER.error("LVGL already started");
+        LOG_E(TAG, "LVGL already started");
         return false;
     }
 
@@ -399,7 +399,7 @@ bool Axs15231bDisplay::startLvgl() {
     buffer1 = (uint16_t*)heap_caps_malloc(bufferSize, MALLOC_CAP_SPIRAM);
     buffer2 = (uint16_t*)heap_caps_malloc(bufferSize, MALLOC_CAP_SPIRAM);
     if (buffer1 == nullptr || buffer2 == nullptr) {
-        LOGGER.error("Failed to allocate buffers");
+        LOG_E(TAG, "Failed to allocate buffers");
         heap_caps_free(buffer1);
         heap_caps_free(buffer2);
         buffer1 = nullptr;
@@ -419,7 +419,7 @@ bool Axs15231bDisplay::startLvgl() {
         .on_color_trans_done = onColorTransDone,
     };
     if (esp_lcd_panel_io_register_event_callbacks(ioHandle, &cbs, lvglDisplay) != ESP_OK) {
-        LOGGER.error("Failed to register panel IO callbacks");
+        LOG_E(TAG, "Failed to register panel IO callbacks");
         heap_caps_free(buffer1);
         heap_caps_free(buffer2);
         buffer1 = nullptr;
@@ -474,11 +474,11 @@ bool Axs15231bDisplay::stopLvgl() {
 
 std::shared_ptr<tt::hal::display::DisplayDriver> Axs15231bDisplay::getDisplayDriver() {
     if (lvglDisplay != nullptr) {
-        LOGGER.error("Cannot get DisplayDriver while LVGL is active - call stopLvgl() first");
+        LOG_E(TAG, "Cannot get DisplayDriver while LVGL is active - call stopLvgl() first");
         return nullptr;
     }
     if (panelHandle == nullptr) {
-        LOGGER.error("Cannot get DisplayDriver - display is not started");
+        LOG_E(TAG, "Cannot get DisplayDriver - display is not started");
         return nullptr;
     }
     if (displayDriver == nullptr) {

@@ -11,13 +11,14 @@
 #include <cstring>
 #include <lvgl.h>
 
+#include <tactility/log.h>
 #include <tactility/lvgl_fonts.h>
 #include <tactility/lvgl_icon_launcher.h>
 #include <tactility/lvgl_module.h>
 
 namespace tt::app::launcher {
 
-static const auto LOGGER = Logger("Launcher");
+constexpr auto* TAG = "Launcher";
 
 static uint32_t getButtonPadding(UiDensity density, uint32_t buttonSize) {
     if (density == LVGL_UI_DENSITY_COMPACT) {
@@ -143,7 +144,7 @@ public:
             strcmp(CONFIG_TT_AUTO_START_APP_ID, "") != 0 &&
             findAppManifestById(CONFIG_TT_AUTO_START_APP_ID) != nullptr
         ) {
-            LOGGER.info("Starting {}", CONFIG_TT_AUTO_START_APP_ID);
+            LOG_I(TAG, "Starting %s", CONFIG_TT_AUTO_START_APP_ID);
             start(CONFIG_TT_AUTO_START_APP_ID);
         } else if (
             // Auto-start due to user configuration
@@ -151,7 +152,7 @@ public:
             !boot_properties.autoStartAppId.empty() &&
             findAppManifestById(boot_properties.autoStartAppId) != nullptr
         ) {
-            LOGGER.info("Starting {}", boot_properties.autoStartAppId);
+            LOG_I(TAG, "Starting %s", boot_properties.autoStartAppId.c_str());
             start(boot_properties.autoStartAppId);
         } else {
             // No auto-start, consider running system setup

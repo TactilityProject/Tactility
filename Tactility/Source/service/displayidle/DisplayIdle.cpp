@@ -8,7 +8,7 @@
 #include "MystifyScreensaver.h"
 #include "StackChanScreensaver.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 #include <Tactility/CoreDefines.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/lvgl/LvglSync.h>
@@ -20,7 +20,7 @@
 
 namespace tt::service::displayidle {
 
-static const auto LOGGER = Logger("DisplayIdle");
+constexpr auto* TAG = "DisplayIdle";
 
 constexpr uint32_t kWakeActivityThresholdMs = 100;
 
@@ -224,7 +224,7 @@ void DisplayIdleService::onStop(ServiceContext& service) {
             }
         }
         if (screensaverOverlay) {
-            LOGGER.warn("Failed to stop screensaver during shutdown - potential resource leak");
+            LOG_W(TAG, "Failed to stop screensaver during shutdown - potential resource leak");
         }
     }
     screensaver.reset();

@@ -2,7 +2,6 @@
 #include <Tactility/app/files/View.h>
 
 #include <Tactility/LogMessages.h>
-#include <Tactility/Logger.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/app/ElfApp.h>
@@ -18,6 +17,7 @@
 
 #include <tactility/device.h>
 #include <tactility/drivers/usb_host_msc.h>
+#include <tactility/log.h>
 
 #include <cctype>
 #include <cstdio>
@@ -30,7 +30,7 @@
 
 namespace tt::app::files {
 
-static const auto LOGGER = Logger("Files");
+constexpr auto* TAG = "Files";
 
 // region Callbacks
 
@@ -202,11 +202,11 @@ void View::viewFile(const std::string& path, const std::string& filename) {
     if (kernel::getPlatform() == kernel::PlatformSimulator) {
         char cwd[PATH_MAX];
         if (getcwd(cwd, sizeof(cwd)) == nullptr) {
-            LOGGER.error("Failed to get current working directory");
+            LOG_E(TAG, "Failed to get current working directory");
             return;
         }
         if (!file_path.starts_with(cwd)) {
-            LOGGER.error("Can only work with files in working directory {}", cwd);
+            LOG_E(TAG, "Can only work with files in working directory %s", cwd);
             return;
         }
         processed_filepath = file_path.substr(strlen(cwd));
@@ -214,7 +214,7 @@ void View::viewFile(const std::string& path, const std::string& filename) {
         processed_filepath = file_path;
     }
 
-    LOGGER.info("Clicked {}", file_path);
+    LOG_I(TAG, "Clicked %s", file_path.c_str());
 
     if (isSupportedAppFile(filename)) {
 #ifdef ESP_PLATFORM
@@ -234,7 +234,7 @@ void View::viewFile(const std::string& path, const std::string& filename) {
             notes::start(processed_filepath.substr(1));
         }
     } else {
-        LOGGER.warn("Opening files of this type is not supported");
+        LOG_W(TAG, "Opening files of this type is not supported");
     }
 
     onNavigate();
@@ -260,7 +260,7 @@ void View::onDirEntryPressed(uint32_t index) {
         return;
     }
 
-    LOGGER.info("Pressed {} {}", dir_entry.d_name, dir_entry.d_type);
+    LOG_I(TAG, "Pressed %s %d", dir_entry.d_name, (int)dir_entry.d_type);
     state->setSelectedChildEntry(dir_entry.d_name);
 
     using namespace tt::file;
@@ -273,7 +273,7 @@ void View::onDirEntryPressed(uint32_t index) {
             break;
 
         case TT_DT_LNK:
-            LOGGER.warn("opening links is not supported");
+            LOG_W(TAG, "opening links is not supported");
             break;
 
         default:
@@ -289,7 +289,7 @@ void View::onDirEntryLongPressed(int32_t index) {
         return;
     }
 
-    LOGGER.info("Long-pressed {} {}", dir_entry.d_name, dir_entry.d_type);
+    LOG_I(TAG, "Long-pressed %s %d", dir_entry.d_name, (int)dir_entry.d_type);
     state->setSelectedChildEntry(dir_entry.d_name);
 
     if (state->getCurrentPath() == "/") {
@@ -310,7 +310,7 @@ void View::onDirEntryLongPressed(int32_t index) {
             break;
 
         case TT_DT_LNK:
-            LOGGER.warn("Opening links is not supported");
+            LOG_W(TAG, "Opening links is not supported");
             break;
 
         default:
@@ -369,7 +369,7 @@ void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
 
 void View::onNavigateUpPressed() {
     if (state->getCurrentPath() != "/") {
-        LOGGER.info("Navigating upwards");
+        LOG_I(TAG, "Navigating upwards");
         std::string new_absolute_path;
         if (string::getPathParent(state->getCurrentPath(), new_absolute_path)) {
             state->setEntriesForPath(new_absolute_path);
@@ -381,14 +381,14 @@ void View::onNavigateUpPressed() {
 
 void View::onRenamePressed() {
     std::string entry_name = state->getSelectedChildEntry();
-    LOGGER.info("Pending rename {}", entry_name);
+    LOG_I(TAG, "Pending rename %s", entry_name.c_str());
     state->setPendingAction(State::ActionRename);
     inputdialog::start("Rename", "", entry_name);
 }
 
 void View::onDeletePressed() {
     std::string file_path = state->getSelectedChildPath();
-    LOGGER.info("Pending delete {}", file_path);
+    LOG_I(TAG, "Pending delete %s", file_path.c_str());
     state->setPendingAction(State::ActionDelete);
     std::string message = "Do you want to delete this?\n" + file_path;
     const std::vector<std::string> choices = {"Yes", "No"};
@@ -396,13 +396,13 @@ void View::onDeletePressed() {
 }
 
 void View::onNewFilePressed() {
-    LOGGER.info("Creating new file");
+    LOG_I(TAG, "Creating new file");
     state->setPendingAction(State::ActionCreateFile);
     inputdialog::start("New File", "Enter filename:", "");
 }
 
 void View::onNewFolderPressed() {
-    LOGGER.info("Creating new folder");
+    LOG_I(TAG, "Creating new folder");
     state->setPendingAction(State::ActionCreateFolder);
     inputdialog::start("New Folder", "Enter folder name:", "");
 }
@@ -436,11 +436,11 @@ void View::showActionsForMountPoint() {
 
 void View::onEjectPressed() {
     std::string mount_path = state->getSelectedChildPath();
-    LOGGER.info("Ejecting {}", mount_path);
+    LOG_I(TAG, "Ejecting %s", mount_path.c_str());
 
     struct Device* msc_dev = device_find_first_active_by_type(&USB_HOST_MSC_TYPE);
     if (!msc_dev || !usb_msc_eject(msc_dev, mount_path.c_str())) {
-        LOGGER.warn("usb_msc_eject: {} not found", mount_path);
+        LOG_W(TAG, "usb_msc_eject: %s not found", mount_path.c_str());
         alertdialog::start("Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
     }
 
@@ -454,7 +454,7 @@ void View::update(size_t start_index) {
 
     auto scoped_lockable = lvgl::getSyncLock()->asScopedLock();
     if (!scoped_lockable.lock(lvgl::defaultLockTime)) {
-        LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "lvgl");
+        LOG_E(TAG, "Mutex acquisition timeout (%s)", "lvgl");
         return;
     }
 
@@ -580,20 +580,20 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
     }
 
     std::string filepath = state->getSelectedChildPath();
-    LOGGER.info("Result for {}", filepath);
+    LOG_I(TAG, "Result for %s", filepath.c_str());
 
     switch (state->getPendingAction()) {
         case State::ActionDelete: {
             if (alertdialog::getResultIndex(*bundle) == 0) {
                 if (file::isDirectory(filepath)) {
                     if (!file::deleteRecursively(filepath)) {
-                        LOGGER.warn("Failed to delete {}", filepath);
+                        LOG_W(TAG, "Failed to delete %s", filepath.c_str());
                     }
                 } else if (file::isFile(filepath)) {
                     auto lock = file::getLock(filepath);
                     lock->lock();
                     if (remove(filepath.c_str()) != 0) {
-                        LOGGER.warn("Failed to delete {}", filepath);
+                        LOG_W(TAG, "Failed to delete %s", filepath.c_str());
                     }
                     lock->unlock();
                 }
@@ -611,16 +611,16 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                 std::string rename_to = file::getChildPath(state->getCurrentPath(), new_name);
                 struct stat st;
                 if (stat(rename_to.c_str(), &st) == 0) {
-                    LOGGER.warn("Rename: destination already exists: \"{}\"", rename_to);
+                    LOG_W(TAG, "Rename: destination already exists: \"%s\"", rename_to.c_str());
                     lock->unlock();
                     state->setPendingAction(State::ActionNone);
                     alertdialog::start("Rename failed", "\"" + new_name + "\" already exists.");
                     break;
                 }
                 if (rename(filepath.c_str(), rename_to.c_str()) == 0) {
-                    LOGGER.info("Renamed \"{}\" to \"{}\"", filepath, rename_to);
+                    LOG_I(TAG, "Renamed \"%s\" to \"%s\"", filepath.c_str(), rename_to.c_str());
                 } else {
-                    LOGGER.error("Failed to rename \"{}\" to \"{}\"", filepath, rename_to);
+                    LOG_E(TAG, "Failed to rename \"%s\" to \"%s\"", filepath.c_str(), rename_to.c_str());
                 }
                 lock->unlock();
 
@@ -639,7 +639,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
 
                 struct stat st;
                 if (stat(new_file_path.c_str(), &st) == 0) {
-                    LOGGER.warn("File already exists: \"{}\"", new_file_path);
+                    LOG_W(TAG, "File already exists: \"%s\"", new_file_path.c_str());
                     lock->unlock();
                     break;
                 }
@@ -647,9 +647,9 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                 FILE* new_file = fopen(new_file_path.c_str(), "w");
                 if (new_file) {
                     fclose(new_file);
-                    LOGGER.info("Created file \"{}\"", new_file_path);
+                    LOG_I(TAG, "Created file \"%s\"", new_file_path.c_str());
                 } else {
-                    LOGGER.error("Failed to create file \"{}\"", new_file_path);
+                    LOG_E(TAG, "Failed to create file \"%s\"", new_file_path.c_str());
                 }
                 lock->unlock();
 
@@ -668,15 +668,15 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
 
                 struct stat st;
                 if (stat(new_folder_path.c_str(), &st) == 0) {
-                    LOGGER.warn("Folder already exists: \"{}\"", new_folder_path);
+                    LOG_W(TAG, "Folder already exists: \"%s\"", new_folder_path.c_str());
                     lock->unlock();
                     break;
                 }
 
                 if (mkdir(new_folder_path.c_str(), 0755) == 0) {
-                    LOGGER.info("Created folder \"{}\"", new_folder_path);
+                    LOG_I(TAG, "Created folder \"%s\"", new_folder_path.c_str());
                 } else {
-                    LOGGER.error("Failed to create folder \"{}\"", new_folder_path);
+                    LOG_E(TAG, "Failed to create folder \"%s\"", new_folder_path.c_str());
                 }
                 lock->unlock();
 
@@ -698,7 +698,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                     if (file::deleteRecursively(dst)) {
                         doPaste(clipboard->first, clipboard->second, dst);
                     } else {
-                        LOGGER.error("Overwrite: failed to remove existing destination: \"{}\"", dst);
+                        LOG_E(TAG, "Overwrite: failed to remove existing destination: \"%s\"", dst.c_str());
                         state->setPendingAction(State::ActionNone);
                         alertdialog::start(
                             "Overwrite failed",
@@ -717,7 +717,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
 void View::onCopyPressed() {
     std::string path = state->getSelectedChildPath();
     state->setClipboard(path, false);
-    LOGGER.info("Copied to clipboard: {}", path);
+    LOG_I(TAG, "Copied to clipboard: %s", path.c_str());
     onNavigate();
     update();
 }
@@ -725,7 +725,7 @@ void View::onCopyPressed() {
 void View::onCutPressed() {
     std::string path = state->getSelectedChildPath();
     state->setClipboard(path, true);
-    LOGGER.info("Cut to clipboard: {}", path);
+    LOG_I(TAG, "Cut to clipboard: %s", path.c_str());
     onNavigate();
     update();
 }
@@ -744,7 +744,7 @@ void View::onPastePressed() {
     // between this check and the write inside doPaste.  Acceptable on a
     // single-user embedded device; locking dst instead would be more correct.
     if (src == dst) {
-        LOGGER.info("Paste: source and destination are the same path, skipping");
+        LOG_I(TAG, "Paste: source and destination are the same path, skipping");
         return;
     }
     auto lock = file::getLock(src);
@@ -783,7 +783,7 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
                     success = true;
                 } else {
                     src_delete_failed = true;
-                    LOGGER.error("Cut: copied \"{}\" to \"{}\" but failed to remove source — manual cleanup required", src, dst);
+                    LOG_E(TAG, "Cut: copied \"%s\" to \"%s\" but failed to remove source — manual cleanup required", src.c_str(), dst.c_str());
                 }
             }
         }
@@ -793,7 +793,7 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
 
     const std::string filename = file::getLastPathSegment(src);
     if (success) {
-        LOGGER.info("{} \"{}\" to \"{}\"", is_cut ? "Moved" : "Copied", src, dst);
+        LOG_I(TAG, "%s \"%s\" to \"%s\"", is_cut ? "Moved" : "Copied", src.c_str(), dst.c_str());
         if (is_cut) {
             state->clearClipboard();
         }
@@ -801,7 +801,7 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start("Move incomplete", "\"" + filename + "\" was copied but the original could not be removed.\nPlease delete it manually.");
     } else {
-        LOGGER.error("Failed to {} \"{}\" to \"{}\"", is_cut ? "move" : "copy", src, dst);
+        LOG_E(TAG, "Failed to %s \"%s\" to \"%s\"", is_cut ? "move" : "copy", src.c_str(), dst.c_str());
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start(
             std::string("Failed to ") + (is_cut ? "move" : "copy"),

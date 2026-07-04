@@ -1,10 +1,10 @@
 #include "St7123Display.h"
 #include "st7123_init_data.h"
 
-#include <Tactility/Logger.h>
 #include <esp_lcd_st7123.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("St7123");
+constexpr auto* TAG = "St7123";
 
 St7123Display::~St7123Display() {
     // TODO: This should happen during ::stop(), but this isn't currently exposed
@@ -30,11 +30,11 @@ bool St7123Display::createMipiDsiBus() {
     };
 
     if (esp_ldo_acquire_channel(&ldo_mipi_phy_config, &ldoChannel) != ESP_OK) {
-        LOGGER.error("Failed to acquire LDO channel for MIPI DSI PHY");
+        LOG_E(TAG, "Failed to acquire LDO channel for MIPI DSI PHY");
         return false;
     }
 
-    LOGGER.info("Powered on");
+    LOG_I(TAG, "Powered on");
 
     const esp_lcd_dsi_bus_config_t bus_config = {
         .bus_id = 0,
@@ -44,13 +44,13 @@ bool St7123Display::createMipiDsiBus() {
     };
 
     if (esp_lcd_new_dsi_bus(&bus_config, &mipiDsiBus) != ESP_OK) {
-        LOGGER.error("Failed to create bus");
+        LOG_E(TAG, "Failed to create bus");
         esp_ldo_release_channel(ldoChannel);
         ldoChannel = nullptr;
         return false;
     }
 
-    LOGGER.info("Bus created");
+    LOG_I(TAG, "Bus created");
     return true;
 }
 
@@ -69,7 +69,7 @@ bool St7123Display::createIoHandle(esp_lcd_panel_io_handle_t& ioHandle) {
     };
 
     if (esp_lcd_new_panel_io_dbi(mipiDsiBus, &dbi_config, &ioHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel IO");
+        LOG_E(TAG, "Failed to create panel IO");
         esp_lcd_del_dsi_bus(mipiDsiBus);
         mipiDsiBus = nullptr;
         esp_ldo_release_channel(ldoChannel);
@@ -130,11 +130,11 @@ bool St7123Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, const 
     mutable_panel_config.vendor_config = &vendor_config;
 
     if (esp_lcd_new_panel_st7123(ioHandle, &mutable_panel_config, &panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel");
+        LOG_E(TAG, "Failed to create panel");
         return false;
     }
 
-    LOGGER.info("Panel created successfully");
+    LOG_I(TAG, "Panel created successfully");
     return true;
 }
 

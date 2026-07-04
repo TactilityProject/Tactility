@@ -1,14 +1,14 @@
-#include <Tactility/Logger.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/memorychecker/MemoryCheckerService.h>
 
 #include <tactility/lvgl_icon_statusbar.h>
+#include <tactility/log.h>
 
 namespace tt::service::memorychecker {
 
-static const auto LOGGER = Logger("MemoryChecker");
+constexpr auto* TAG = "MemoryChecker";
 
 // Total memory (in bytes) that should be free before warnings occur
 constexpr auto TOTAL_FREE_THRESHOLD = 10'000;
@@ -37,13 +37,13 @@ static bool isMemoryLow() {
     bool memory_low = false;
     const auto total_free = getInternalFree();
     if (total_free < TOTAL_FREE_THRESHOLD) {
-        LOGGER.warn("Internal memory low: {} bytes", total_free);
+        LOG_W(TAG, "Internal memory low: %d bytes", (int)total_free);
         memory_low = true;
     }
 
     const auto largest_block = getInternalLargestFreeBlock();
     if (largest_block < LARGEST_FREE_BLOCK_THRESHOLD) {
-        LOGGER.warn("Largest free internal memory block is {} bytes", largest_block);
+        LOG_W(TAG, "Largest free internal memory block is %d bytes", (int)largest_block);
         memory_low = true;
     }
 

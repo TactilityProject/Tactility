@@ -6,7 +6,7 @@
 
 #include <Tactility/Bundle.h>
 #include <tactility/check.h>
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 #include <Tactility/Mutex.h>
 
 #include <memory>
@@ -48,7 +48,7 @@ class AppInstance : public AppContext {
             return manifest->createApp();
         } else if (manifest->appLocation.isExternal()) {
             if (manifest->createApp != nullptr) {
-                Logger("AppInstance").warn("Manifest specifies createApp, but this is not used with external apps");
+                LOG_W("AppInstance", "Manifest specifies createApp, but this is not used with external apps");
             }
 #ifdef ESP_PLATFORM
             return createElfApp(manifest);

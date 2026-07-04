@@ -6,14 +6,14 @@
 
 #include <Gt911Touch.h>
 #include <PwmBacklight.h>
-#include <Tactility/Logger.h>
 #include <Tactility/hal/gpio/Gpio.h>
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-static const auto LOGGER = tt::Logger("Tab5Display");
+constexpr auto* TAG = "Tab5Display";
 
 // LCD reset is wired to the PI4IOE5V6408 IO expander (io_expander0, bit 4), pulsed in
 // Configuration.cpp's initExpander0() before display creation - not a direct SoC GPIO.
@@ -55,7 +55,7 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createSt7123Touch() {
 std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
     // Initialize PWM backlight
     if (!driver::pwmbacklight::init(LCD_PIN_BACKLIGHT, 5000, LEDC_TIMER_1, LEDC_CHANNEL_0)) {
-        LOGGER.warn("Failed to initialize backlight");
+        LOG_W(TAG, "Failed to initialize backlight");
     }
 
     Tab5Variant variant = detectVariant();

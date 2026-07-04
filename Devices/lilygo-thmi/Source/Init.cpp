@@ -2,7 +2,8 @@
 #include "devices/Display.h"
 
 #include "PwmBacklight.h"
-#include "Tactility/kernel/SystemEvents.h"
+#include <Tactility/kernel/SystemEvents.h>
+#include <tactility/log.h>
 #include <Tactility/TactilityCore.h>
 
 #define TAG "thmi"
@@ -32,14 +33,14 @@ static bool powerOn() {
 }
 
 bool initBoot() {
-    ESP_LOGI(TAG, "Powering on the board...");
+    LOG_I(TAG, "Powering on the board...");
     if (!powerOn()) {
-        ESP_LOGE(TAG, "Failed to power on the board.");
+        LOG_E(TAG, "Failed to power on the board.");
         return false;
     }
 
     if (!driver::pwmbacklight::init(DISPLAY_BL, 30000)) {
-        ESP_LOGE(TAG, "Failed to initialize backlight.");
+        LOG_E(TAG, "Failed to initialize backlight.");
         return false;
     }
 

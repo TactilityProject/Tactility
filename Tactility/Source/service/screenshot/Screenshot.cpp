@@ -2,17 +2,18 @@
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
 
-#include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
-#include <Tactility/service/screenshot/Screenshot.h>
 #include <Tactility/service/ServiceRegistration.h>
+#include <Tactility/service/screenshot/Screenshot.h>
 
 #include <lvgl.h>
 #include <memory>
 
+#include <tactility/log.h>
+
 namespace tt::service::screenshot {
 
-static const auto LOGGER = Logger("ScreenshotService");
+constexpr auto* TAG = "ScreenshotService";
 
 extern const ServiceManifest manifest;
 
@@ -23,7 +24,7 @@ std::shared_ptr<ScreenshotService> optScreenshotService() {
 void ScreenshotService::startApps(const std::string& path) {
     auto lock = mutex.asScopedLock();
     if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        LOGGER.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_W(TAG,LOG_MESSAGE_MUTEX_LOCK_FAILED);
         return;
     }
 
@@ -32,14 +33,14 @@ void ScreenshotService::startApps(const std::string& path) {
         mode = Mode::Apps;
         task->startApps(path);
     } else {
-        LOGGER.warn("Screenshot task already running");
+        LOG_W(TAG,"Screenshot task already running");
     }
 }
 
 void ScreenshotService::startTimed(const std::string& path, uint8_t delayInSeconds, uint8_t amount) {
     auto lock = mutex.asScopedLock();
     if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        LOGGER.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_W(TAG,LOG_MESSAGE_MUTEX_LOCK_FAILED);
         return;
     }
 
@@ -48,13 +49,13 @@ void ScreenshotService::startTimed(const std::string& path, uint8_t delayInSecon
         mode = Mode::Timed;
         task->startTimed(path, delayInSeconds, amount);
     } else {
-        LOGGER.warn("Screenshot task already running");
+        LOG_W(TAG,"Screenshot task already running");
     }
 }
 
 bool ScreenshotService::onStart(ServiceContext& serviceContext) {
     if (lv_screen_active() == nullptr) {
-        LOGGER.error("No display found");
+        LOG_E(TAG, "No display found");
         return false;
     }
 
@@ -64,7 +65,7 @@ bool ScreenshotService::onStart(ServiceContext& serviceContext) {
 void ScreenshotService::stop() {
     auto lock = mutex.asScopedLock();
     if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        LOGGER.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_W(TAG,LOG_MESSAGE_MUTEX_LOCK_FAILED);
         return;
     }
 
@@ -72,14 +73,14 @@ void ScreenshotService::stop() {
         task = nullptr;
         mode = Mode::None;
     } else {
-        LOGGER.warn("Screenshot task not running");
+        LOG_W(TAG,"Screenshot task not running");
     }
 }
 
 Mode ScreenshotService::getMode() const {
     auto lock = mutex.asScopedLock();
     if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        LOGGER.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_W(TAG,LOG_MESSAGE_MUTEX_LOCK_FAILED);
         return Mode::None;
     }
 

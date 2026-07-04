@@ -1,5 +1,5 @@
 #include "St7796i8080Display.h"
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 #include <driver/gpio.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
@@ -8,7 +8,7 @@
 #include <freertos/task.h>
 #include <lvgl.h>
 
-static const auto LOGGER = tt::Logger("St7796i8080Display");
+constexpr auto* TAG = "St7796i8080Display";
 static St7796i8080Display* g_display_instance = nullptr;
 
 St7796i8080Display::St7796i8080Display(const Configuration& config) 
@@ -16,13 +16,13 @@ St7796i8080Display::St7796i8080Display(const Configuration& config)
     
     // Validate configuration
     if (!configuration.isValid()) {
-        LOGGER.error("Invalid configuration: resolution must be set");
+        LOG_E(TAG, "Invalid configuration: resolution must be set");
         return;
     }
 }
 
 bool St7796i8080Display::createI80Bus() {
-    LOGGER.info("Creating I80 bus");
+    LOG_I(TAG, "Creating I80 bus");
     
     // Create I80 bus configuration
     esp_lcd_i80_bus_config_t bus_cfg = {
@@ -42,15 +42,15 @@ bool St7796i8080Display::createI80Bus() {
     };
     
     if (esp_lcd_new_i80_bus(&bus_cfg, &i80BusHandle) != ESP_OK) {
-        LOGGER.error("Failed to create I80 bus");
+        LOG_E(TAG, "Failed to create I80 bus");
         return false;
     }
-    
+
     return true;
 }
 
 bool St7796i8080Display::createPanelIO() {
-    LOGGER.info("Creating panel IO");
+    LOG_I(TAG, "Creating panel IO");
     
     // Create panel IO
     esp_lcd_panel_io_i80_config_t io_cfg = {
@@ -77,7 +77,7 @@ bool St7796i8080Display::createPanelIO() {
     };
 
     if (esp_lcd_new_panel_io_i80(i80BusHandle, &io_cfg, &ioHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel");
+        LOG_E(TAG, "Failed to create panel");
         return false;
     }
 
@@ -85,7 +85,7 @@ bool St7796i8080Display::createPanelIO() {
 }
 
 bool St7796i8080Display::createPanel() {
-    LOGGER.info("Configuring panel");
+    LOG_I(TAG, "Configuring panel");
     
     // Create ST7796 panel
     esp_lcd_panel_dev_config_t panel_config = {
@@ -100,43 +100,43 @@ bool St7796i8080Display::createPanel() {
     };
     
     if (esp_lcd_new_panel_st7796(ioHandle, &panel_config, &panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel");
+        LOG_E(TAG, "Failed to create panel");
         return false;
     }
-    
+
     // Reset panel
     if (esp_lcd_panel_reset(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to reset panel");
+        LOG_E(TAG, "Failed to reset panel");
         return false;
     }
-    
+
     // Initialize panel
     if (esp_lcd_panel_init(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to init panel");
+        LOG_E(TAG, "Failed to init panel");
         return false;
     }
-    
+
     // Set swap XY
     if (esp_lcd_panel_swap_xy(panelHandle, configuration.swapXY) != ESP_OK) {
-        LOGGER.error("Failed to swap XY ");
+        LOG_E(TAG, "Failed to swap XY ");
         return false;
     }
 
     // Set mirror
     if (esp_lcd_panel_mirror(panelHandle, configuration.mirrorX, configuration.mirrorY) != ESP_OK) {
-        LOGGER.error("Failed to set panel to mirror");
+        LOG_E(TAG, "Failed to set panel to mirror");
         return false;
     }
 
     // Set inversion
     if (esp_lcd_panel_invert_color(panelHandle, configuration.invertColor) != ESP_OK) {
-        LOGGER.error("Failed to set panel to invert");
+        LOG_E(TAG, "Failed to set panel to invert");
         return false;
     }
-    
+
     // Turn on display
     if (esp_lcd_panel_disp_on_off(panelHandle, true) != ESP_OK) {
-        LOGGER.error("Failed to turn display on");
+        LOG_E(TAG, "Failed to turn display on");
         return false;
     }
     
@@ -144,7 +144,7 @@ bool St7796i8080Display::createPanel() {
 }
 
 bool St7796i8080Display::start() {
-    LOGGER.info("Initializing I8080 ST7796 Display hardware...");
+    LOG_I(TAG, "Initializing I8080 ST7796 Display hardware...");
     
     // Calculate buffer size if needed
     configuration.calculateBufferSize();
@@ -153,7 +153,7 @@ bool St7796i8080Display::start() {
     size_t buffer_size = configuration.bufferSize * LV_COLOR_FORMAT_GET_SIZE(LV_COLOR_FORMAT_RGB565);
     displayBuffer = (uint8_t*)heap_caps_malloc(buffer_size, MALLOC_CAP_DMA);
     if (!displayBuffer) {
-        LOGGER.error("Failed to allocate display buffer");
+        LOG_E(TAG, "Failed to allocate display buffer");
         return false;
     }
 
@@ -175,7 +175,7 @@ bool St7796i8080Display::start() {
         return false;
     }
 
-    LOGGER.info("Display hardware initialized");
+    LOG_I(TAG, "Display hardware initialized");
     return true;
 }
 
@@ -214,17 +214,17 @@ bool St7796i8080Display::stop() {
 }
 
 bool St7796i8080Display::startLvgl() {
-    LOGGER.info("Initializing LVGL for ST7796 display");
+    LOG_I(TAG, "Initializing LVGL for ST7796 display");
 
     // Don't reinitialize hardware if it's already done
     if (!ioHandle) {
-        LOGGER.info("Hardware not initialized, calling start()");
+        LOG_I(TAG, "Hardware not initialized, calling start()");
         if (!start()) {
-            LOGGER.error("Hardware initialization failed");
+            LOG_E(TAG, "Hardware initialization failed");
             return false;
         }
     } else {
-        LOGGER.info("Hardware already initialized, skipping");
+        LOG_I(TAG, "Hardware already initialized, skipping");
     }
 
     // Create LVGL display using lvgl_port
@@ -257,12 +257,12 @@ bool St7796i8080Display::startLvgl() {
     // Create the LVGL display
     lvglDisplay = lvgl_port_add_disp(&display_cfg);
     if (!lvglDisplay) {
-        LOGGER.error("Failed to create LVGL display");
+        LOG_E(TAG, "Failed to create LVGL display");
         return false;
     }
 
     g_display_instance = this;
-    LOGGER.info("LVGL display created successfully");
+    LOG_I(TAG, "LVGL display created successfully");
     return true;
 }
 

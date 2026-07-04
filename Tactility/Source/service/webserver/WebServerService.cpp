@@ -7,7 +7,6 @@
 #include <Tactility/settings/WebServerSettings.h>
 #include <Tactility/MountPoints.h>
 #include <Tactility/file/File.h>
-#include <Tactility/Logger.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/Mutex.h>
 
@@ -52,9 +51,11 @@
 #include <mbedtls/base64.h>
 #include <sstream>
 
+#include <tactility/log.h>
+
 namespace tt::service::webserver {
 
-static const auto LOGGER = tt::Logger("WebServerService");
+constexpr auto* TAG = "WebServerService";
 
 // Helper to convert chip model enum to human-readable string
 static const char* getChipModelName(esp_chip_model_t model) {
@@ -142,14 +143,14 @@ static esp_err_t validateRequestAuth(httpd_req_t* request, bool& authPassed) {
 
     std::string auth_header(auth_len + 1, '\0');
     if (httpd_req_get_hdr_value_str(request, "Authorization", auth_header.data(), auth_len + 1) != ESP_OK) {
-        LOGGER.warn("Failed to read Authorization header");
+        LOG_W(TAG, "Failed to read Authorization header");
         return sendUnauthorized(request, "Authorization required");
     }
     auth_header.resize(auth_len);  // Remove null terminator from string length
 
     // Check for "Basic " prefix
     if (auth_header.rfind("Basic ", 0) != 0) {
-        LOGGER.warn("Authorization header is not Basic auth");
+        LOG_W(TAG, "Authorization header is not Basic auth");
         return sendUnauthorized(request, "Basic authorization required");
     }
 
@@ -170,7 +171,7 @@ static esp_err_t validateRequestAuth(httpd_req_t* request, bool& authPassed) {
                                      reinterpret_cast<const unsigned char*>(base64_creds.c_str()),
                                      base64_creds.length());
     if (ret != 0) {
-        LOGGER.warn("Failed to decode base64 credentials");
+        LOG_W(TAG, "Failed to decode base64 credentials");
         return sendUnauthorized(request, "Invalid credentials format");
     }
     decoded.resize(actual_len);
@@ -178,7 +179,7 @@ static esp_err_t validateRequestAuth(httpd_req_t* request, bool& authPassed) {
     // Parse username:password
     size_t colon_pos = decoded.find(':');
     if (colon_pos == std::string::npos) {
-        LOGGER.warn("Invalid credentials format (no colon separator)");
+        LOG_W(TAG, "Invalid credentials format (no colon separator)");
         return sendUnauthorized(request, "Invalid credentials format");
     }
 
@@ -189,7 +190,7 @@ static esp_err_t validateRequestAuth(httpd_req_t* request, bool& authPassed) {
     bool usernameMatch = secureCompare(username, settings.webServerUsername);
     bool passwordMatch = secureCompare(password, settings.webServerPassword);
     if (!usernameMatch || !passwordMatch) {
-        LOGGER.warn("Invalid credentials for user '{}'", username);
+        LOG_W(TAG, "Invalid credentials for user '%s'", username.c_str());
         return sendUnauthorized(request, "Invalid credentials");
     }
 
@@ -198,7 +199,7 @@ static esp_err_t validateRequestAuth(httpd_req_t* request, bool& authPassed) {
 }
 
 bool WebServerService::onStart(ServiceContext& service) {
-    LOGGER.info("Starting WebServer service...");
+    LOG_I(TAG, "Starting WebServer service...");
 
     // Register global instance
     g_webServerInstance.store(this);
@@ -228,10 +229,10 @@ bool WebServerService::onStart(ServiceContext& service) {
 
     // Start HTTP server only if enabled in settings (default: OFF to save memory)
     if (serverEnabled) {
-        LOGGER.info("WebServer enabled in settings, starting HTTP server...");
+        LOG_I(TAG, "WebServer enabled in settings, starting HTTP server...");
         setEnabled(true);
     } else {
-        LOGGER.info("WebServer disabled in settings, NOT starting HTTP server (saves ~10KB RAM)");
+        LOG_I(TAG, "WebServer disabled in settings, NOT starting HTTP server (saves ~10KB RAM)");
         setEnabled(false);
     }
 
@@ -288,15 +289,15 @@ bool WebServerService::startApMode() {
     }
 
     if (settings.wifiMode != settings::webserver::WiFiMode::AccessPoint) {
-        LOGGER.info("Not in AP mode, skipping AP WiFi initialization");
+        LOG_I(TAG, "Not in AP mode, skipping AP WiFi initialization");
         return true;  // Not an error, just not needed
     }
 
-    LOGGER.info("Starting WiFi in Access Point mode...");
+    LOG_I(TAG, "Starting WiFi in Access Point mode...");
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     if (esp_wifi_init(&cfg) != ESP_OK) {
-        LOGGER.error("esp_wifi_init() failed");
+        LOG_E(TAG, "esp_wifi_init() failed");
         return false;
     }
     apWifiInitialized = true;
@@ -304,14 +305,14 @@ bool WebServerService::startApMode() {
     // Create the AP network interface
     apNetif = esp_netif_create_default_wifi_ap();
     if (apNetif == nullptr) {
-        LOGGER.error("esp_netif_create_default_wifi_ap() failed");
+        LOG_E(TAG, "esp_netif_create_default_wifi_ap() failed");
         esp_wifi_deinit();
         apWifiInitialized = false;
         return false;
     }
 
     if (esp_wifi_set_mode(WIFI_MODE_AP) != ESP_OK) {
-        LOGGER.error("esp_wifi_set_mode(AP) failed");
+        LOG_E(TAG, "esp_wifi_set_mode(AP) failed");
         stopApMode();
         return false;
     }
@@ -324,19 +325,19 @@ bool WebServerService::startApMode() {
     ip_info.netmask.addr = ipaddr_addr("255.255.255.0");
 
     if (esp_netif_dhcps_stop(apNetif) != ESP_OK) {
-        LOGGER.error("esp_netif_dhcps_stop() failed");
+        LOG_E(TAG, "esp_netif_dhcps_stop() failed");
         stopApMode();
         return false;
     }
 
     if (esp_netif_set_ip_info(apNetif, &ip_info) != ESP_OK) {
-        LOGGER.error("esp_netif_set_ip_info() failed");
+        LOG_E(TAG, "esp_netif_set_ip_info() failed");
         stopApMode();
         return false;
     }
 
     if (esp_netif_dhcps_start(apNetif) != ESP_OK) {
-        LOGGER.error("esp_netif_dhcps_start() failed");
+        LOG_E(TAG, "esp_netif_dhcps_start() failed");
         stopApMode();
         return false;
     }
@@ -354,36 +355,36 @@ bool WebServerService::startApMode() {
     if (settings.apOpenNetwork) {
         // User explicitly chose an open network
         wifi_config.ap.authmode = WIFI_AUTH_OPEN;
-        LOGGER.info("AP configured with OPEN authentication (user choice)");
+        LOG_I(TAG, "AP configured with OPEN authentication (user choice)");
     } else if (settings.apPassword.length() >= 8 && settings.apPassword.length() <= 63) {
         wifi_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
         strncpy(reinterpret_cast<char*>(wifi_config.ap.password), settings.apPassword.c_str(), sizeof(wifi_config.ap.password) - 1);
         wifi_config.ap.password[sizeof(wifi_config.ap.password) - 1] = '\0';
-        LOGGER.info("AP configured with WPA2-PSK authentication");
+        LOG_I(TAG, "AP configured with WPA2-PSK authentication");
     } else {
         if (!settings.apPassword.empty()) {
-            LOGGER.warn("AP password invalid (must be 8-63 chars, got {}) - using OPEN mode", settings.apPassword.length());
+            LOG_W(TAG, "AP password invalid (must be 8-63 chars, got %zu) - using OPEN mode", settings.apPassword.length());
         }
         wifi_config.ap.authmode = WIFI_AUTH_OPEN;
-        LOGGER.warn("AP configured with OPEN authentication (no password)");
+        LOG_W(TAG, "AP configured with OPEN authentication (no password)");
     }
 
     wifi_config.ap.max_connection = 4;
     wifi_config.ap.channel = settings.apChannel;
 
     if (esp_wifi_set_config(WIFI_IF_AP, &wifi_config) != ESP_OK) {
-        LOGGER.error("esp_wifi_set_config(AP) failed");
+        LOG_E(TAG, "esp_wifi_set_config(AP) failed");
         stopApMode();
         return false;
     }
 
     if (esp_wifi_start() != ESP_OK) {
-        LOGGER.error("esp_wifi_start() failed");
+        LOG_E(TAG, "esp_wifi_start() failed");
         stopApMode();
         return false;
     }
 
-    LOGGER.info("WiFi AP started - SSID: '{}', Channel: {}, IP: 192.168.4.1", settings.apSsid, settings.apChannel);
+    LOG_I(TAG, "WiFi AP started - SSID: '%s', Channel: %u, IP: 192.168.4.1", settings.apSsid.c_str(), (unsigned)settings.apChannel);
     return true;
 }
 
@@ -395,15 +396,15 @@ void WebServerService::stopApMode() {
         }
         err = esp_wifi_stop();
         if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_STARTED) {
-            LOGGER.warn("esp_wifi_stop() in cleanup: {}", esp_err_to_name(err));
+            LOG_W(TAG, "esp_wifi_stop() in cleanup: %s", esp_err_to_name(err));
         }
-        LOGGER.info("WiFi AP stopped");
+        LOG_I(TAG, "WiFi AP stopped");
 
         err = esp_wifi_set_mode(WIFI_MODE_STA);
         if (err != ESP_OK) {
-            LOGGER.warn("esp_wifi_set_mode() in cleanup: {}", esp_err_to_name(err));
+            LOG_W(TAG, "esp_wifi_set_mode() in cleanup: %s", esp_err_to_name(err));
         }
-        LOGGER.info("Wifi mode set back to STA");
+        LOG_I(TAG, "Wifi mode set back to STA");
 
         apWifiInitialized = false;
     }
@@ -428,7 +429,7 @@ bool WebServerService::startServer() {
     // Start AP mode WiFi if configured
     if (settings.wifiMode == settings::webserver::WiFiMode::AccessPoint) {
         if (!startApMode()) {
-            LOGGER.error("Failed to start AP mode WiFi - HTTP server will not start");
+            LOG_E(TAG, "Failed to start AP mode WiFi - HTTP server will not start");
             return false;
         }
     }
@@ -505,19 +506,19 @@ bool WebServerService::startServer() {
     
     httpServer->start();
     if (!httpServer->isStarted()) {
-        LOGGER.error("Failed to start HTTP server on port {}", settings.webServerPort);
+        LOG_E(TAG, "Failed to start HTTP server on port %u", (unsigned)settings.webServerPort);
         httpServer.reset();
         return false;
     }
 
-    LOGGER.info("HTTP server started successfully on port {}", settings.webServerPort);
+    LOG_I(TAG, "HTTP server started successfully on port %u", (unsigned)settings.webServerPort);
     publish_event(this, WebServerEvent::WebServerStarted);
 
     // Show statusbar icon
     if (statusbarIconId >= 0) {
         lvgl::statusbar_icon_set_image(statusbarIconId, LVGL_ICON_STATUSBAR_CLOUD);
         lvgl::statusbar_icon_set_visibility(statusbarIconId, true);
-        LOGGER.info("WebServer statusbar icon shown ({} mode)",
+        LOG_I(TAG, "WebServer statusbar icon shown (%s mode)",
                  settings.wifiMode == settings::webserver::WiFiMode::AccessPoint ? "AP" : "Station");
     }
 
@@ -537,7 +538,7 @@ void WebServerService::stopServer() {
         stopApMode();
     }
 
-    LOGGER.info("HTTP server stopped");
+    LOG_I(TAG, "HTTP server stopped");
     publish_event(this, WebServerEvent::WebServerStopped);
 
     if (statusbarIconId >= 0) {
@@ -550,7 +551,7 @@ void WebServerService::stopServer() {
 
 
 esp_err_t WebServerService::handleRoot(httpd_req_t* request) {
-    LOGGER.info("GET / -> redirecting to /dashboard.html");
+    LOG_I(TAG, "GET / -> redirecting to /dashboard.html");
     httpd_resp_set_status(request, "302 Found");
     httpd_resp_set_hdr(request, "Location", "/dashboard.html");
     return httpd_resp_send(request, nullptr, 0);
@@ -722,7 +723,7 @@ static bool uriMatches(const char* uri, const char* route) {
 }
 
 esp_err_t WebServerService::handleFileBrowser(httpd_req_t* request) {
-    LOGGER.info("GET /filebrowser -> redirecting to /dashboard.html#files");
+    LOG_I(TAG, "GET /filebrowser -> redirecting to /dashboard.html#files");
     httpd_resp_set_status(request, "302 Found");
     httpd_resp_set_hdr(request, "Location", "/dashboard.html#files");
     return httpd_resp_send(request, nullptr, 0);
@@ -735,17 +736,17 @@ esp_err_t WebServerService::handleFsList(httpd_req_t* request) {
     if (qlen > 1) {
         std::unique_ptr<char[]> qbuf(new char[qlen]);
         if (httpd_req_get_url_query_str(request, qbuf.get(), qlen) == ESP_OK) {
-            LOGGER.info("GET /fs/list raw query: {}", qbuf.get());
+            LOG_I(TAG, "GET /fs/list raw query: %s", qbuf.get());
         }
     }
 
     if (!getQueryParam(request, "path", path) || path.empty()) path = "/";
     std::string norm = normalizePath(path);
-    LOGGER.info("GET /fs/list decoded path: '{}' normalized: '{}'", path, norm);
+    LOG_I(TAG, "GET /fs/list decoded path: '%s' normalized: '%s'", path.c_str(), norm.c_str());
 
     // Allow root path for listing mount points
     if (!isAllowedBasePath(norm, true)) {
-        LOGGER.warn("GET /fs/list - invalid path requested: '{}' normalized: '{}'", path, norm);
+        LOG_W(TAG, "GET /fs/list - invalid path requested: '%s' normalized: '%s'", path.c_str(), norm.c_str());
         httpd_resp_set_type(request, "application/json");
         httpd_resp_sendstr(request, "{\"error\":\"invalid path\"}");
         return ESP_OK;
@@ -811,7 +812,7 @@ esp_err_t WebServerService::handleFsDownload(httpd_req_t* request) {
     }
     std::string norm = normalizePath(path);
     if (!isAllowedBasePath(norm) || !file::isFile(norm)) {
-        LOGGER.warn("GET /fs/download - not found or invalid path: '{}' normalized: '{}'", path, norm);
+        LOG_W(TAG, "GET /fs/download - not found or invalid path: '%s' normalized: '%s'", path.c_str(), norm.c_str());
         httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
         return ESP_FAIL;
     }
@@ -859,7 +860,7 @@ esp_err_t WebServerService::handleFsUpload(httpd_req_t* request) {
     if (qlen > 1) {
         std::unique_ptr<char[]> qbuf(new char[qlen]);
         if (httpd_req_get_url_query_str(request, qbuf.get(), qlen) == ESP_OK) {
-            LOGGER.info("POST /fs/upload raw query: {}", qbuf.get());
+            LOG_I(TAG, "POST /fs/upload raw query: %s", qbuf.get());
         }
     }
 
@@ -872,10 +873,10 @@ esp_err_t WebServerService::handleFsUpload(httpd_req_t* request) {
     char content_type[64] = {0};
     httpd_req_get_hdr_value_str(request, "Content-Type", content_type, sizeof(content_type));
     std::string norm = normalizePath(path);
-    LOGGER.info("POST /fs/upload decoded path: '{}' normalized: '{}' Content-Length: {} Content-Type: {}", path, norm, (int)request->content_len, content_type[0] ? content_type : "(null)");
+    LOG_I(TAG, "POST /fs/upload decoded path: '%s' normalized: '%s' Content-Length: %d Content-Type: %s", path.c_str(), norm.c_str(), (int)request->content_len, content_type[0] ? content_type : "(null)");
 
     if (!isAllowedBasePath(norm)) {
-        LOGGER.warn("POST /fs/upload - invalid path requested: '{}' normalized: '{}'", path, norm);
+        LOG_W(TAG, "POST /fs/upload - invalid path requested: '%s' normalized: '%s'", path.c_str(), norm.c_str());
         httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "invalid path");
         return ESP_FAIL;
     }
@@ -902,18 +903,18 @@ esp_err_t WebServerService::handleFsUpload(httpd_req_t* request) {
             // Timeout - retry with backoff
             timeout_retries++;
             if (timeout_retries >= MAX_TIMEOUT_RETRIES) {
-                LOGGER.error("Upload recv timeout after {} retries", timeout_retries);
+                LOG_E(TAG, "Upload recv timeout after %d retries", timeout_retries);
                 fclose(fp);
                 remove(norm.c_str());  // Clean up partial file
                 httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "recv timeout");
                 return ESP_FAIL;
             }
-            LOGGER.warn("Upload recv timeout, retry {}/{}", timeout_retries, MAX_TIMEOUT_RETRIES);
+            LOG_W(TAG, "Upload recv timeout, retry %d/%d", timeout_retries, MAX_TIMEOUT_RETRIES);
             vTaskDelay(pdMS_TO_TICKS(100 * timeout_retries)); // Linear backoff
             continue;
         }
         if (ret <= 0) {
-            LOGGER.error("Upload recv failed with error {}", ret);
+            LOG_E(TAG, "Upload recv failed with error %d", ret);
             fclose(fp);
             remove(norm.c_str());  // Clean up partial file
             httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "recv failed");
@@ -951,7 +952,7 @@ esp_err_t WebServerService::handleFsGenericGet(httpd_req_t* request) {
     if (uriMatches(uri, "/fs/list")) return handleFsList(request);
     if (uriMatches(uri, "/fs/download")) return handleFsDownload(request);
     if (uriMatches(uri, "/fs/tree")) return handleFsTree(request);
-    LOGGER.warn("GET {} - not found in fs generic dispatcher", uri);
+    LOG_W(TAG, "GET %s - not found in fs generic dispatcher", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
     return ESP_FAIL;
 }
@@ -970,7 +971,7 @@ esp_err_t WebServerService::handleFsGenericPost(httpd_req_t* request) {
     if (uriMatches(uri, "/fs/delete")) return handleFsDelete(request);
     if (uriMatches(uri, "/fs/rename")) return handleFsRename(request);
     if (uriMatches(uri, "/fs/upload")) return handleFsUpload(request);
-    LOGGER.warn("POST {} - not found in fs generic dispatcher", uri);
+    LOG_W(TAG, "POST %s - not found in fs generic dispatcher", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
     return ESP_FAIL;
 }
@@ -986,7 +987,7 @@ esp_err_t WebServerService::handleAdminPost(httpd_req_t* request) {
 
     const char* uri = request->uri;
     if (strncmp(uri, "/admin/reboot", 13) == 0) return handleReboot(request);
-    LOGGER.info("POST {} - not found in admin dispatcher", uri);
+    LOG_I(TAG, "POST %s - not found in admin dispatcher", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
     return ESP_FAIL;
 }
@@ -1019,7 +1020,7 @@ esp_err_t WebServerService::handleApiGet(httpd_req_t* request) {
         return handleApiScreenshot(request);
     }
 
-    LOGGER.warn("GET {} - not found in api dispatcher", uri);
+    LOG_W(TAG, "GET %s - not found in api dispatcher", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
     return ESP_FAIL;
 }
@@ -1040,7 +1041,7 @@ esp_err_t WebServerService::handleApiPost(httpd_req_t* request) {
         return handleApiAppsUninstall(request);
     }
 
-    LOGGER.warn("POST {} - not found in api dispatcher", uri);
+    LOG_W(TAG, "POST %s - not found in api dispatcher", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
     return ESP_FAIL;
 }
@@ -1058,13 +1059,13 @@ esp_err_t WebServerService::handleApiPut(httpd_req_t* request) {
         return handleApiAppsInstall(request);
     }
 
-    LOGGER.warn("PUT {} - not found in api dispatcher", uri);
+    LOG_W(TAG, "PUT %s - not found in api dispatcher", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "not found");
     return ESP_FAIL;
 }
 
 esp_err_t WebServerService::handleApiSysinfo(httpd_req_t* request) {
-    LOGGER.info("GET /api/sysinfo");
+    LOG_I(TAG, "GET /api/sysinfo");
 
     std::ostringstream json;
     json << "{";
@@ -1214,7 +1215,7 @@ esp_err_t WebServerService::handleApiSysinfo(httpd_req_t* request) {
 
 // GET /api/apps - List installed apps
 esp_err_t WebServerService::handleApiApps(httpd_req_t* request) {
-    LOGGER.info("GET /api/apps");
+    LOG_I(TAG, "GET /api/apps");
 
     auto manifests = app::getAppManifests();
 
@@ -1255,7 +1256,7 @@ esp_err_t WebServerService::handleApiApps(httpd_req_t* request) {
 
 // POST /api/apps/run?id=xxx - Run an app
 esp_err_t WebServerService::handleApiAppsRun(httpd_req_t* request) {
-    LOGGER.info("POST /api/apps/run");
+    LOG_I(TAG, "POST /api/apps/run");
 
     std::string appId;
     if (!getQueryParam(request, "id", appId) || appId.empty()) {
@@ -1276,14 +1277,14 @@ esp_err_t WebServerService::handleApiAppsRun(httpd_req_t* request) {
 
     app::start(appId);
 
-    LOGGER.info("[200] /api/apps/run {}", appId);
+    LOG_I(TAG, "[200] /api/apps/run %s", appId.c_str());
     httpd_resp_sendstr(request, "ok");
     return ESP_OK;
 }
 
 // POST /api/apps/uninstall?id=xxx - Uninstall an app
 esp_err_t WebServerService::handleApiAppsUninstall(httpd_req_t* request) {
-    LOGGER.info("POST /api/apps/uninstall");
+    LOG_I(TAG, "POST /api/apps/uninstall");
 
     std::string appId;
     if (!getQueryParam(request, "id", appId) || appId.empty()) {
@@ -1293,7 +1294,7 @@ esp_err_t WebServerService::handleApiAppsUninstall(httpd_req_t* request) {
 
     auto manifest = app::findAppManifestById(appId);
     if (!manifest) {
-        LOGGER.info("[200] /api/apps/uninstall {} (app wasn't installed)", appId);
+        LOG_I(TAG, "[200] /api/apps/uninstall %s (app wasn't installed)", appId.c_str());
         httpd_resp_sendstr(request, "ok");
         return ESP_OK;
     }
@@ -1305,11 +1306,11 @@ esp_err_t WebServerService::handleApiAppsUninstall(httpd_req_t* request) {
     }
 
     if (app::uninstall(appId)) {
-        LOGGER.info("[200] /api/apps/uninstall {}", appId);
+        LOG_I(TAG, "[200] /api/apps/uninstall %s", appId.c_str());
         httpd_resp_sendstr(request, "ok");
         return ESP_OK;
     } else {
-        LOGGER.warn("[500] /api/apps/uninstall {}", appId);
+        LOG_W(TAG, "[500] /api/apps/uninstall %s", appId.c_str());
         httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "uninstall failed");
         return ESP_FAIL;
     }
@@ -1317,7 +1318,7 @@ esp_err_t WebServerService::handleApiAppsUninstall(httpd_req_t* request) {
 
 // PUT /api/apps/install - Install an app from multipart form upload
 esp_err_t WebServerService::handleApiAppsInstall(httpd_req_t* request) {
-    LOGGER.info("PUT /api/apps/install");
+    LOG_I(TAG, "PUT /api/apps/install");
 
     std::string boundary;
     if (!network::getMultiPartBoundaryOrSendError(request, boundary)) {
@@ -1340,14 +1341,14 @@ esp_err_t WebServerService::handleApiAppsInstall(httpd_req_t* request) {
 
     auto content_disposition_map = network::parseContentDisposition(content_headers);
     if (content_disposition_map.empty()) {
-        LOGGER.warn("parseContentDisposition returned empty map for: {}", content_headers_data);
+        LOG_W(TAG, "parseContentDisposition returned empty map for: %s", content_headers_data.c_str());
         httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "invalid content disposition");
         return ESP_FAIL;
     }
 
     auto filename_entry = content_disposition_map.find("filename");
     if (filename_entry == content_disposition_map.end()) {
-        LOGGER.warn("filename not found in content disposition map");
+        LOG_W(TAG, "filename not found in content disposition map");
         httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "filename parameter missing");
         return ESP_FAIL;
     }
@@ -1402,10 +1403,10 @@ esp_err_t WebServerService::handleApiAppsInstall(httpd_req_t* request) {
 
     // Cleanup temp file
     if (!file::deleteFile(file_path)) {
-        LOGGER.warn("Failed to delete temp file {}", file_path);
+        LOG_W(TAG, "Failed to delete temp file %s", file_path.c_str());
     }
 
-    LOGGER.info("[200] /api/apps/install -> {}", file_path);
+    LOG_I(TAG, "[200] /api/apps/install -> %s", file_path.c_str());
     httpd_resp_sendstr(request, "ok");
     return ESP_OK;
 }
@@ -1425,7 +1426,7 @@ static const char* radioStateToJsonString(wifi::RadioState state) {
 
 // GET /api/wifi - WiFi status
 esp_err_t WebServerService::handleApiWifi(httpd_req_t* request) {
-    LOGGER.info("GET /api/wifi");
+    LOG_I(TAG, "GET /api/wifi");
 
     auto state = wifi::getRadioState();
     auto ip = wifi::getIp();
@@ -1450,7 +1451,7 @@ esp_err_t WebServerService::handleApiWifi(httpd_req_t* request) {
 // GET /api/screenshot - Capture and return screenshot as PNG
 // Screenshots are saved to SD card root (if available) or /data with incrementing numbers
 esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
-    LOGGER.info("GET /api/screenshot");
+    LOG_I(TAG, "GET /api/screenshot");
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
     // Determine save location: prefer SD card root if mounted, otherwise /data
@@ -1471,7 +1472,7 @@ esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
         return ESP_FAIL;
     }
 
-    LOGGER.info("Screenshot will be saved to: {}", screenshot_path);
+    LOG_I(TAG, "Screenshot will be saved to: %s", screenshot_path.c_str());
 
     // LVGL's lodepng uses lv_fs which requires the "A:" prefix
     std::string lvgl_screenshot_path = lvgl::PATH_PREFIX + screenshot_path;
@@ -1482,13 +1483,13 @@ esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
         lvgl::unlock();
 
         if (!success) {
-            LOGGER.error("lv_screenshot_create failed for path: {}", lvgl_screenshot_path);
+            LOG_E(TAG, "lv_screenshot_create failed for path: %s", lvgl_screenshot_path.c_str());
             httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "screenshot capture failed");
             return ESP_FAIL;
         }
-        LOGGER.info("Screenshot captured successfully");
+        LOG_I(TAG, "Screenshot captured successfully");
     } else {
-        LOGGER.error("Could not acquire LVGL lock within 100ms");
+        LOG_E(TAG, "Could not acquire LVGL lock within 100ms");
         httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "could not acquire LVGL lock");
         return ESP_FAIL;
     }
@@ -1514,7 +1515,7 @@ esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
     httpd_resp_send_chunk(request, nullptr, 0);
 
     // File is kept on storage (not deleted) for user access
-    LOGGER.info("[200] /api/screenshot -> {}", screenshot_path);
+    LOG_I(TAG, "[200] /api/screenshot -> %s", screenshot_path.c_str());
     return ESP_OK;
 #else
     httpd_resp_send_err(request, HTTPD_501_METHOD_NOT_IMPLEMENTED, "screenshot feature not enabled");
@@ -1524,7 +1525,7 @@ esp_err_t WebServerService::handleApiScreenshot(httpd_req_t* request) {
 
 esp_err_t WebServerService::handleFsTree(httpd_req_t* request) {
 
-    LOGGER.info("GET /fs/tree");
+    LOG_I(TAG, "GET /fs/tree");
 
     std::ostringstream json;
     json << "{";
@@ -1569,7 +1570,7 @@ esp_err_t WebServerService::handleFsMkdir(httpd_req_t* request) {
         return ESP_FAIL;
     }
     std::string norm = normalizePath(path);
-    LOGGER.info("POST /fs/mkdir requested: '{}' normalized: '{}'", path, norm);
+    LOG_I(TAG, "POST /fs/mkdir requested: '%s' normalized: '%s'", path.c_str(), norm.c_str());
     if (!isAllowedBasePath(norm)) {
         httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "invalid path");
         return ESP_FAIL;
@@ -1592,7 +1593,7 @@ esp_err_t WebServerService::handleFsDelete(httpd_req_t* request) {
         return ESP_FAIL;
     }
     std::string norm = normalizePath(path);
-    LOGGER.info("POST /fs/delete requested: '{}' normalized: '{}'", path, norm);
+    LOG_I(TAG, "POST /fs/delete requested: '%s' normalized: '%s'", path.c_str(), norm.c_str());
     if (!isAllowedBasePath(norm)) {
         httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "invalid path");
         return ESP_FAIL;
@@ -1623,7 +1624,7 @@ esp_err_t WebServerService::handleFsRename(httpd_req_t* request) {
         return ESP_FAIL;
     }
     std::string norm = normalizePath(path);
-    LOGGER.info("POST /fs/rename requested: '{}' normalized: '{}' -> newName: '{}'", path.c_str(), norm.c_str(), newName.c_str());
+    LOG_I(TAG, "POST /fs/rename requested: '%s' normalized: '%s' -> newName: '%s'", path.c_str(), norm.c_str(), newName.c_str());
     if (!isAllowedBasePath(norm)) {
         httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "invalid path");
         return ESP_FAIL;
@@ -1662,7 +1663,7 @@ esp_err_t WebServerService::handleFsRename(httpd_req_t* request) {
     int r = rename(norm.c_str(), target.c_str());
     if (r != 0) {
         int e = errno;
-        LOGGER.warn("rename failed errno={} ({}) -> {} -> {}", e, strerror(e), norm, target);
+        LOG_W(TAG, "rename failed errno=%d (%s) -> %s -> %s", e, strerror(e), norm.c_str(), target.c_str());
         // Return errno string to client to aid debugging
         std::string msg = std::string("rename failed: ") + strerror(e);
         httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, msg.c_str());
@@ -1676,7 +1677,7 @@ esp_err_t WebServerService::handleFsRename(httpd_req_t* request) {
 
 esp_err_t WebServerService::handleReboot(httpd_req_t* request) {
     
-    LOGGER.info("POST /reboot");
+    LOG_I(TAG, "POST /reboot");
     httpd_resp_sendstr(request, "Rebooting...");
     
     // Reboot after a short delay to allow response to be sent
@@ -1695,7 +1696,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
     }
 
     const char* uri = request->uri;
-    LOGGER.info("GET {}", uri);
+    LOG_I(TAG, "GET %s", uri);
 
     // Special case: serve favicon from system assets
     if (strcmp(uri, "/favicon.ico") == 0) {
@@ -1721,7 +1722,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
                 fclose(fp);
                 lock->unlock();
                 httpd_resp_send_chunk(request, nullptr, 0);
-                LOGGER.info("[200] {} (favicon)", uri);
+                LOG_I(TAG, "[200] %s (favicon)", uri);
                 return ESP_OK;
             }
             lock->unlock();
@@ -1745,7 +1746,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
     std::string dataPath = std::string("/system/app/WebServer") + requestedPath;
     
     if (requestedPath == "/dashboard.html" && !file::isFile(dataPath.c_str())) {
-        LOGGER.info("dashboard.html not found, serving default.html");
+        LOG_I(TAG, "dashboard.html not found, serving default.html");
     }
     
     // Try to serve from Data partition first
@@ -1771,7 +1772,7 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
             lock->unlock();
 
             httpd_resp_send_chunk(request, nullptr, 0);  // End of chunks
-            LOGGER.info("[200] {} (from Data)", uri);
+            LOG_I(TAG, "[200] %s (from Data)", uri);
             return ESP_OK;
         }
         lock->unlock();
@@ -1800,14 +1801,14 @@ esp_err_t WebServerService::handleAssets(httpd_req_t* request) {
             lock->unlock();
             
             httpd_resp_send_chunk(request, nullptr, 0);  // End of chunks
-            LOGGER.info("[200] {} (from SD)", uri);
+            LOG_I(TAG, "[200] %s (from SD)", uri);
             return ESP_OK;
         }
         lock->unlock();
     }
     
     // File not found
-    LOGGER.warn("[404] {}", uri);
+    LOG_W(TAG, "[404] %s", uri);
     httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "File not found");
     return ESP_FAIL;
 }
@@ -1823,7 +1824,7 @@ void setWebServerEnabled(bool enabled) {
         instance->setEnabled(enabled);
         // Don't log here - startServer()/stopServer() already log the actual result
     } else {
-        LOGGER.warn("WebServer service not available, cannot {}", enabled ? "start" : "stop");
+        LOG_W(TAG, "WebServer service not available, cannot %s", enabled ? "start" : "stop");
     }
 }
 

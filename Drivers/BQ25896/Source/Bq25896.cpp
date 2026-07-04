@@ -1,15 +1,15 @@
 #include "Bq25896.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("BQ25896");
+constexpr auto* TAG = "BQ25896";
 
 void Bq25896::powerOff() {
-    LOGGER.info("Power off");
+    LOG_I(TAG, "Power off");
     bitOn(0x09, BIT(5));
 }
 
 void Bq25896::powerOn() {
-    LOGGER.info("Power on");
+    LOG_I(TAG, "Power on");
     bitOff(0x09, BIT(5));
 }

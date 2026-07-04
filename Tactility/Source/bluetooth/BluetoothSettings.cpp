@@ -2,13 +2,13 @@
 
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
-#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/Paths.h>
+#include <tactility/log.h>
 
 namespace tt::bluetooth::settings {
 
-static const auto LOGGER = Logger("BluetoothSettings");
+constexpr auto* TAG = "BluetoothSettings";
 
 static std::string getSettingsPath() {
     return getUserDataPath() + "/settings/bluetooth.settings";
@@ -60,7 +60,7 @@ static bool save(const BluetoothSettings& s) {
     map[KEY_MIDI_AUTO_START] = s.midiAutoStart ? "true" : "false";
     auto settings_path = getSettingsPath();
     if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
-        LOGGER.error("Failed to create parent dir for {}", settings_path);
+        LOG_E(TAG, "Failed to create parent dir for %s", settings_path.c_str());
         return false;
     }
     return file::savePropertiesFile(settings_path, map);
@@ -84,7 +84,7 @@ void setEnableOnBoot(bool enable) {
     cached.enableOnBoot = enable;
     cached_valid = true;
     settings_mutex.unlock();
-    if (!save(cached)) LOGGER.error("Failed to save");
+    if (!save(cached)) LOG_E(TAG, "Failed to save");
 }
 
 bool shouldEnableOnBoot() {
@@ -96,7 +96,7 @@ void setSppAutoStart(bool enable) {
     cached.sppAutoStart = enable;
     cached_valid = true;
     settings_mutex.unlock();
-    if (!save(cached)) LOGGER.error("Failed to save (setSppAutoStart)");
+    if (!save(cached)) LOG_E(TAG, "Failed to save (setSppAutoStart)");
 }
 
 bool shouldSppAutoStart() {
@@ -108,7 +108,7 @@ void setMidiAutoStart(bool enable) {
     cached.midiAutoStart = enable;
     cached_valid = true;
     settings_mutex.unlock();
-    if (!save(cached)) LOGGER.error("Failed to save (setMidiAutoStart)");
+    if (!save(cached)) LOG_E(TAG, "Failed to save (setMidiAutoStart)");
 }
 
 bool shouldMidiAutoStart() {

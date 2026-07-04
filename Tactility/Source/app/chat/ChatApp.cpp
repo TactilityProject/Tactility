@@ -8,18 +8,18 @@
 #include <Tactility/app/chat/ChatProtocol.h>
 
 #include <Tactility/app/AppManifest.h>
-#include <Tactility/Logger.h>
 #include <Tactility/lvgl/LvglSync.h>
 
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 #include <vector>
 
 namespace tt::app::chat {
 
-static const auto LOGGER = Logger("ChatApp");
+constexpr auto* TAG = "ChatApp";
 static constexpr uint8_t BROADCAST_ADDRESS[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
 void ChatApp::enableEspNow() {
@@ -98,12 +98,12 @@ void ChatApp::sendMessage(const std::string& text) {
 
     std::vector<uint8_t> wireMsg;
     if (!serializeTextMessage(settings.senderId, BROADCAST_ID, nickname, channel, text, wireMsg)) {
-        LOGGER.error("Failed to serialize message");
+        LOG_E(TAG, "Failed to serialize message");
         return;
     }
 
     if (!service::espnow::send(BROADCAST_ADDRESS, wireMsg.data(), wireMsg.size())) {
-        LOGGER.error("Failed to send message");
+        LOG_E(TAG, "Failed to send message");
         return;
     }
 
@@ -144,7 +144,7 @@ void ChatApp::applySettings(const std::string& nickname, const std::string& keyH
             }
             settings.hasEncryptionKey = true;
         } else {
-            LOGGER.warn("Invalid hex characters in encryption key");
+            LOG_W(TAG, "Invalid hex characters in encryption key");
         }
     } else if (keyHex.empty()) {
         if (settings.hasEncryptionKey) {
@@ -153,7 +153,7 @@ void ChatApp::applySettings(const std::string& nickname, const std::string& keyH
             needRestart = true;
         }
     } else {
-        LOGGER.warn("Key must be exactly {} hex characters, got {}", ESP_NOW_KEY_LEN * 2, keyHex.size());
+        LOG_W(TAG, "Key must be exactly %d hex characters, got %d", (int)(ESP_NOW_KEY_LEN * 2), (int)keyHex.size());
     }
 
     state.setLocalNickname(settings.nickname);

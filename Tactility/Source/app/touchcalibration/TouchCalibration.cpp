@@ -2,15 +2,16 @@
 
 #include <Tactility/app/touchcalibration/TouchCalibration.h>
 
-#include <Tactility/Logger.h>
 #include <Tactility/settings/TouchCalibrationSettings.h>
+
+#include <tactility/log.h>
 
 #include <algorithm>
 #include <lvgl.h>
 
 namespace tt::app::touchcalibration {
 
-static const auto LOGGER = Logger("TouchCalibration");
+constexpr auto* TAG = "TouchCalibration";
 
 extern const AppManifest manifest;
 
@@ -102,7 +103,7 @@ class TouchCalibrationApp final : public App {
             return;
         }
 
-        LOGGER.info("Saved calibration x=[{}, {}] y=[{}, {}]", xMin, xMax, yMin, yMax);
+        LOG_I(TAG, "Saved calibration x=[%d, %d] y=[%d, %d]", xMin, xMax, yMin, yMax);
         lv_label_set_text(titleLabel, "Calibration Complete");
         lv_label_set_text(hintLabel, "Touch anywhere to continue.");
         lv_obj_add_flag(target, LV_OBJ_FLAG_HIDDEN);

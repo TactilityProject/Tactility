@@ -3,11 +3,11 @@
 #include <Axp2101.h>
 #include <Ft5x06Touch.h>
 #include <Ili934xDisplay.h>
-#include <Tactility/Logger.h>
 
 #include <tactility/check.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("CoreS3Display");
+constexpr auto* TAG = "CoreS3Display";
 
 static void setBacklightDuty(uint8_t backlightDuty) {
     const uint8_t voltage = 20 + ((8 * backlightDuty) / 255); // [0b00000, 0b11100] - under 20 is too dark
@@ -15,7 +15,7 @@ static void setBacklightDuty(uint8_t backlightDuty) {
     auto controller = device_find_by_name("i2c_internal");
     check(controller);
     if (i2c_controller_write_register(controller, AXP2101_ADDRESS, 0x99, &voltage, 1, 1000) != ERROR_NONE) { // Sets DLD01
-        LOGGER.error("Failed to set display backlight voltage");
+        LOG_E(TAG, "Failed to set display backlight voltage");
     }
 }
 

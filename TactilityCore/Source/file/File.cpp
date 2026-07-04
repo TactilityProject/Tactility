@@ -4,7 +4,7 @@
 #include <fstream>
 #include <unistd.h>
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 #include <Tactility/StringUtils.h>
 
 namespace tt::hal::sdcard {
@@ -13,7 +13,7 @@ class SdCardDevice;
 
 namespace tt::file {
 
-static const auto LOGGER = Logger("file");
+constexpr auto* TAG = "file";
 
 class NoLock final : public Lock {
     bool lock(TickType_t timeout) const override { return true; }
@@ -25,7 +25,7 @@ static std::function<std::shared_ptr<Lock>(const std::string&)> findLockFunction
 
 std::shared_ptr<Lock> getLock(const std::string& path) {
     if (findLockFunction == nullptr) {
-        LOGGER.warn("File lock function not set!");
+        LOG_W(TAG, "File lock function not set!");
         return noLock;
     }
 
@@ -71,10 +71,10 @@ bool listDirectory(
     auto lock = getLock(path)->asScopedLock();
     lock.lock();
 
-    LOGGER.info("listDir start {}", path);
+    LOG_I(TAG, "listDir start %s", path.c_str());
     DIR* dir = opendir(path.c_str());
     if (dir == nullptr) {
-        LOGGER.error("Failed to open dir {}", path);
+        LOG_E(TAG, "Failed to open dir %s", path.c_str());
         return false;
     }
 
@@ -85,7 +85,7 @@ bool listDirectory(
 
     closedir(dir);
 
-    LOGGER.info("listDir stop {}", path);
+    LOG_I(TAG, "listDir stop %s", path.c_str());
     return true;
 }
 
@@ -98,10 +98,10 @@ int scandir(
     auto lock = getLock(path)->asScopedLock();
     lock.lock();
 
-    LOGGER.info("scandir start");
+    LOG_I(TAG, "scandir start");
     DIR* dir = opendir(path.c_str());
     if (dir == nullptr) {
-        LOGGER.error("Failed to open dir {}", path);
+        LOG_E(TAG, "Failed to open dir %s", path.c_str());
         return -1;
     }
 
@@ -118,7 +118,7 @@ int scandir(
         std::ranges::sort(outList, sortMethod);
     }
 
-    LOGGER.info("scandir finish");
+    LOG_I(TAG, "scandir finish");
     return outList.size();
 }
 
@@ -127,18 +127,18 @@ long getSize(FILE* file) {
     long original_offset = ftell(file);
 
     if (fseek(file, 0, SEEK_END) != 0) {
-        LOGGER.error("fseek failed");
+        LOG_E(TAG, "fseek failed");
         return -1;
     }
 
     long file_size = ftell(file);
     if (file_size == -1) {
-        LOGGER.error("Could not get file length");
+        LOG_E(TAG, "Could not get file length");
         return -1;
     }
 
     if (fseek(file, original_offset, SEEK_SET) != 0) {
-        LOGGER.error("fseek Failed");
+        LOG_E(TAG, "fseek Failed");
         return -1;
     }
 
@@ -154,26 +154,26 @@ static std::unique_ptr<uint8_t[]> readBinaryInternal(const std::string& filepath
     FILE* file = fopen(filepath.c_str(), "rb");
 
     if (file == nullptr) {
-        LOGGER.error("Failed to open {}", filepath);
+        LOG_E(TAG, "Failed to open %s", filepath.c_str());
         return nullptr;
     }
 
     long content_length = getSize(file);
     if (content_length == -1) {
-        LOGGER.error("Failed to determine content length for {}", filepath);
+        LOG_E(TAG, "Failed to determine content length for %s", filepath.c_str());
         return nullptr;
     }
 
     auto data = std::make_unique<uint8_t[]>(content_length + sizePadding);
     if (data == nullptr) {
-        LOGGER.error("Insufficient memory. Failed to allocate {} bytes.", content_length);
+        LOG_E(TAG, "Insufficient memory. Failed to allocate %ld bytes.", content_length);
         return nullptr;
     }
 
     size_t buffer_offset = 0;
     while (buffer_offset < content_length) {
         size_t bytes_read = fread(&data.get()[buffer_offset], 1, content_length - buffer_offset, file);
-        LOGGER.debug("Read {} bytes", bytes_read);
+        LOG_D(TAG, "Read %u bytes", (unsigned)bytes_read);
         if (bytes_read > 0) {
             buffer_offset += bytes_read;
         } else { // Something went wrong?
@@ -270,7 +270,7 @@ bool findOrCreateDirectory(const std::string& path, mode_t mode) {
     if (path.empty()) {
         return true;
     }
-    LOGGER.debug("findOrCreate: {} {}", path, mode);
+    LOG_D(TAG, "findOrCreate: %s %u", path.c_str(), (unsigned)mode);
 
     const char separator_to_find[] = {SEPARATOR, 0x00};
     auto first_index = path[0] == SEPARATOR ? 1 : 0;
@@ -282,10 +282,10 @@ bool findOrCreateDirectory(const std::string& path, mode_t mode) {
         auto to_create = is_last_segment ? path : path.substr(0, separator_index);
         should_break = is_last_segment;
         if (!findOrCreateDirectoryInternal(to_create, mode)) {
-            LOGGER.error("Failed to create {}", to_create);
+            LOG_E(TAG, "Failed to create %s", to_create.c_str());
             return false;
         } else {
-            LOGGER.debug("  - got: {}", to_create);
+            LOG_D(TAG, "  - got: %s", to_create.c_str());
         }
 
         // Find next file separator index
@@ -311,7 +311,7 @@ bool deleteRecursively(const std::string& path) {
     if (isDirectory(path)) {
         std::vector<dirent> entries;
         if (scandir(path, entries) < 0) {
-            LOGGER.error("Failed to scan directory {}", path);
+            LOG_E(TAG, "Failed to scan directory %s", path.c_str());
             return false;
         }
 
@@ -321,16 +321,16 @@ bool deleteRecursively(const std::string& path) {
                 return false;
             }
         }
-        LOGGER.info("Deleting {}", path);
+        LOG_I(TAG, "Deleting %s", path.c_str());
         return deleteDirectory(path);
     } else if (isFile(path)) {
-        LOGGER.info("Deleting {}", path);
+        LOG_I(TAG, "Deleting %s", path.c_str());
         return deleteFile(path);
     } else if (path == "/" || path == "." || path == "..") {
         // No-op
         return true;
     } else {
-        LOGGER.error("Failed to delete \"{}\": unknown type", path);
+        LOG_E(TAG, "Failed to delete \"%s\": unknown type", path.c_str());
         return false;
     }
 }

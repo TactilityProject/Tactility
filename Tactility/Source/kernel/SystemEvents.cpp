@@ -1,15 +1,15 @@
 #include <Tactility/kernel/SystemEvents.h>
 
-#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
 #include <tactility/check.h>
+#include <tactility/log.h>
 
 #include <Tactility/CoreDefines.h>
 #include <list>
 
 namespace tt::kernel {
 
-static const auto LOGGER = Logger("SystemEvents");
+constexpr auto* TAG = "SystemEvents";
 
 struct SubscriptionData {
     SystemEventSubscription id;
@@ -42,7 +42,7 @@ static const char* getEventName(SystemEvent event) {
 }
 
 void publishSystemEvent(SystemEvent event) {
-    LOGGER.info("{}", getEventName(event));
+    LOG_I(TAG, "%s", getEventName(event));
 
     if (mutex.lock(MAX_TICKS)) {
         for (auto& subscription : subscriptions) {

@@ -6,7 +6,6 @@
 #include <Tactility/app/App.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/kernel/Platform.h>
-#include <Tactility/Logger.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
@@ -15,11 +14,12 @@
 #include <Tactility/Paths.h>
 #include <Tactility/Timer.h>
 
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::screenshot {
 
-static const auto LOGGER = Logger("Screenshot");
+constexpr auto* TAG = "Screenshot";
 
 extern const AppManifest manifest;
 
@@ -100,27 +100,27 @@ void ScreenshotApp::onModeSet() {
 void ScreenshotApp::onStartPressed() {
     auto service = service::screenshot::optScreenshotService();
     if (service == nullptr) {
-        LOGGER.error("Service not found/running");
+        LOG_E(TAG, "Service not found/running");
         return;
     }
 
     if (service->isTaskStarted()) {
-        LOGGER.info("Stop screenshot");
+        LOG_I(TAG, "Stop screenshot");
         service->stop();
     } else {
         uint32_t selected = lv_dropdown_get_selected(modeDropdown);
         const char* path = lv_textarea_get_text(pathTextArea);
         if (selected == 0) {
-            LOGGER.info("Start timed screenshots");
+            LOG_I(TAG, "Start timed screenshots");
             const char* delay_text = lv_textarea_get_text(delayTextArea);
             int delay = atoi(delay_text);
             if (delay > 0) {
                 service->startTimed(path, delay, 1);
             } else {
-                LOGGER.warn("Ignored screenshot start because delay was 0");
+                LOG_W(TAG, "Ignored screenshot start because delay was 0");
             }
         } else {
-            LOGGER.info("Start app screenshots");
+            LOG_I(TAG, "Start app screenshots");
             service->startApps(path);
         }
     }
@@ -131,7 +131,7 @@ void ScreenshotApp::onStartPressed() {
 void ScreenshotApp::updateScreenshotMode() {
     auto service = service::screenshot::optScreenshotService();
     if (service == nullptr) {
-        LOGGER.error("Service not found/running");
+        LOG_E(TAG, "Service not found/running");
         return;
     }
 
@@ -154,7 +154,7 @@ void ScreenshotApp::updateScreenshotMode() {
 void ScreenshotApp::createModeSettingWidgets(lv_obj_t* parent) {
     auto service = service::screenshot::optScreenshotService();
     if (service == nullptr) {
-        LOGGER.error("Service not found/running");
+        LOG_E(TAG, "Service not found/running");
         return;
     }
 

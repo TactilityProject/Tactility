@@ -7,10 +7,9 @@
 #include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
 
+#include <Tactility/LogMessages.h>
 #include <Tactility/CpuAffinity.h>
 #include <Tactility/DispatcherThread.h>
-#include <Tactility/LogMessages.h>
-#include <Tactility/Logger.h>
 #include <Tactility/MountPoints.h>
 #include <Tactility/app/AppManifestParsing.h>
 #include <Tactility/app/AppRegistration.h>
@@ -30,6 +29,7 @@
 #include <tactility/filesystem/file_system.h>
 #include <tactility/hal_device_module.h>
 #include <tactility/kernel_init.h>
+#include <tactility/log.h>
 #include <tactility/lvgl_module.h>
 
 #ifdef ESP_PLATFORM
@@ -43,7 +43,7 @@
 
 namespace tt {
 
-static auto LOGGER = Logger("Tactility");
+constexpr auto* TAG = "Tactility";
 
 static const Configuration* config_instance = nullptr;
 static Dispatcher mainDispatcher;
@@ -140,7 +140,7 @@ namespace app {
 
 // List of all apps excluding Boot app (as Boot app calls this function indirectly)
 static void registerInternalApps() {
-    LOGGER.info("Registering internal apps");
+    LOG_I(TAG, "Registering internal apps");
 
     addAppManifest(app::alertdialog::manifest);
     addAppManifest(app::appdetails::manifest);
@@ -211,16 +211,16 @@ static void registerInternalApps() {
 }
 
 static void registerInstalledApp(std::string path) {
-    LOGGER.info("Registering app at {}", path);
+    LOG_I(TAG, "Registering app at %s", path.c_str());
     std::string manifest_path = path + "/manifest.properties";
     if (!file::isFile(manifest_path)) {
-        LOGGER.error("Manifest not found at {}", manifest_path);
+        LOG_E(TAG, "Manifest not found at %s", manifest_path.c_str());
         return;
     }
 
     app::AppManifest manifest;
     if (!app::parseManifest(manifest_path, manifest)) {
-        LOGGER.error("Failed to parse manifest at {}", manifest_path);
+        LOG_E(TAG, "Failed to parse manifest at %s", manifest_path.c_str());
         return;
     }
 
@@ -231,7 +231,7 @@ static void registerInstalledApp(std::string path) {
 }
 
 static void registerInstalledApps(const std::string& path) {
-    LOGGER.info("Registering apps from {}", path);
+    LOG_I(TAG, "Registering apps from %s", path.c_str());
 
     file::listDirectory(path, [&path](const auto& entry) {
         auto absolute_path = std::format("{}/{}", path, entry.d_name);
@@ -248,7 +248,7 @@ static void registerInstalledAppsFromFileSystems() {
         if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
         const auto app_path = std::format("{}/tactility/app", path);
         if (!app_path.starts_with(file::MOUNT_POINT_SYSTEM) && file::isDirectory(app_path)) {
-            LOGGER.info("Registering apps from {}", app_path);
+            LOG_I(TAG, "Registering apps from %s", app_path.c_str());
             registerInstalledApps(app_path);
         }
         return true;
@@ -256,7 +256,7 @@ static void registerInstalledAppsFromFileSystems() {
 }
 
 static void registerAndStartSecondaryServices() {
-    LOGGER.info("Registering and starting secondary system services");
+    LOG_I(TAG, "Registering and starting secondary system services");
     addService(service::loader::manifest);
     addService(service::gui::manifest);
     addService(service::statusbar::manifest);
@@ -273,7 +273,7 @@ static void registerAndStartSecondaryServices() {
 }
 
 static void registerAndStartPrimaryServices() {
-    LOGGER.info("Registering and starting primary system services");
+    LOG_I(TAG, "Registering and starting primary system services");
     addService(service::gps::manifest);
     addService(service::wifi::manifest);
 #ifdef ESP_PLATFORM
@@ -295,17 +295,17 @@ void createTempDirectory() {
         auto lock = file::getLock(data_path)->asScopedLock();
         if (lock.lock(1000 / portTICK_PERIOD_MS)) {
             if (!file::findOrCreateParentDirectory(temp_path, 0777)) {
-                LOGGER.error("Failed to create {}", data_path);
+                LOG_E(TAG, "Failed to create %s", data_path.c_str());
             } else if (mkdir(temp_path.c_str(), 0777) == 0) {
-                LOGGER.info("Created {}", temp_path);
+                LOG_I(TAG, "Created %s", temp_path.c_str());
             } else {
-                LOGGER.error("Failed to create {}", temp_path);
+                LOG_E(TAG, "Failed to create %s", temp_path.c_str());
             }
         } else {
-            LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, data_path);
+            LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, data_path.c_str());
         }
     } else {
-        LOGGER.info("Found existing {}", temp_path);
+        LOG_I(TAG, "Found existing %s", temp_path.c_str());
     }
 }
 
@@ -319,13 +319,13 @@ void registerApps() {
 }
 
 void run(const Configuration& config, Module* dtsModules[], DtsDevice dtsDevices[]) {
-    LOGGER.info("Tactility v{} on {} ({})", TT_VERSION, CONFIG_TT_DEVICE_NAME, CONFIG_TT_DEVICE_ID);
+    LOG_I(TAG, "Tactility v%s on %s (%s)", TT_VERSION, CONFIG_TT_DEVICE_NAME, CONFIG_TT_DEVICE_ID);
 
     assert(config.hardware);
 
-    LOGGER.info("Initializing kernel");
+    LOG_I(TAG, "Initializing kernel");
     if (kernel_init(dtsModules, dtsDevices) != ERROR_NONE) {
-        LOGGER.error("Failed to initialize kernel");
+        LOG_E(TAG, "Failed to initialize kernel");
         return;
     }
 
@@ -367,14 +367,14 @@ void run(const Configuration& config, Module* dtsModules[], DtsDevice dtsDevices
 
     registerAndStartSecondaryServices();
 
-    LOGGER.info("Core systems ready");
+    LOG_I(TAG, "Core systems ready");
 
-    LOGGER.info("Starting boot app");
+    LOG_I(TAG, "Starting boot app");
     // The boot app takes care of registering system apps, user services and user apps
     addAppManifest(app::boot::manifest);
     app::start(app::boot::manifest.appId);
 
-    LOGGER.info("Main dispatcher ready");
+    LOG_I(TAG, "Main dispatcher ready");
     while (true) {
         mainDispatcher.consume();
     }

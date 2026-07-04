@@ -2,8 +2,9 @@
 #include "devices/Display.h"
 
 #include "PwmBacklight.h"
-#include "Tactility/kernel/SystemEvents.h"
+#include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/TactilityCore.h>
+#include <tactility/log.h>
 
 #define TAG "tdisplay-s3"
 
@@ -28,14 +29,14 @@ static bool powerOn() {
 }
 
 bool initBoot() {
-    ESP_LOGI(TAG, "Powering on the board...");
+    LOG_I(TAG, "Powering on");
     if (!powerOn()) {
-        ESP_LOGE(TAG, "Failed to power on the board.");
+        LOG_E(TAG, "Power on failed");
         return false;
     }
 
     if (!driver::pwmbacklight::init(DISPLAY_BL, 30000)) {
-        ESP_LOGE(TAG, "Failed to initialize backlight.");
+        LOG_E(TAG, "Backlight init failed");
         return false;
     }
 

@@ -5,11 +5,11 @@
 #include <Tactility/hal/gps/GpsConfiguration.h>
 #include <Tactility/kernel/Kernel.h>
 #include <Tactility/kernel/SystemEvents.h>
-#include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/service/gps/GpsService.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("T-Deck");
+constexpr auto* TAG = "T-Deck";
 
 constexpr auto TDECK_POWERON_GPIO = GPIO_NUM_10;
 
@@ -37,9 +37,9 @@ static bool powerOn() {
 }
 
 bool initBoot() {
-    LOGGER.info(LOG_MESSAGE_POWER_ON_START);
+    LOG_I(TAG, LOG_MESSAGE_POWER_ON_START);
     if (!powerOn()) {
-        LOGGER.error(LOG_MESSAGE_POWER_ON_FAILED);
+        LOG_E(TAG, LOG_MESSAGE_POWER_ON_FAILED);
         return false;
     }
 
@@ -47,7 +47,7 @@ bool initBoot() {
      * when moving the brightness slider rapidly from a lower setting to 100%.
      * This is not a slider bug (data was debug-traced) */
     if (!driver::pwmbacklight::init(GPIO_NUM_42, 30000)) {
-        LOGGER.error("Backlight init failed");
+        LOG_E(TAG, "Backlight init failed");
         return false;
     }
 
@@ -58,9 +58,9 @@ bool initBoot() {
             gps_service->getGpsConfigurations(gps_configurations);
             if (gps_configurations.empty()) {
                 if (gps_service->addGpsConfiguration(tt::hal::gps::GpsConfiguration {.uartName = "uart0", .baudRate = 38400, .model = tt::hal::gps::GpsModel::UBLOX10})) {
-                    LOGGER.info("Configured internal GPS");
+                    LOG_I(TAG, "Configured internal GPS");
                 } else {
-                    LOGGER.error("Failed to configure internal GPS");
+                    LOG_E(TAG, "Failed to configure internal GPS");
                 }
             }
         }
@@ -69,23 +69,23 @@ bool initBoot() {
     tt::kernel::subscribeSystemEvent(tt::kernel::SystemEvent::BootSplash, [](tt::kernel::SystemEvent event) {
         auto kbBacklight = tt::hal::findDevice("Keyboard Backlight");
         if (kbBacklight != nullptr) {
-            LOGGER.info("{} starting", kbBacklight->getName());
+            LOG_I(TAG, "%s starting", kbBacklight->getName().c_str());
             auto kbDevice = std::static_pointer_cast<KeyboardBacklightDevice>(kbBacklight);
             if (kbDevice->start()) {
-                LOGGER.info("{} started", kbBacklight->getName());
+                LOG_I(TAG, "%s started", kbBacklight->getName().c_str());
             } else {
-                LOGGER.error("{} start failed", kbBacklight->getName());
+                LOG_E(TAG, "%s start failed", kbBacklight->getName().c_str());
             }
         }
 
         auto trackball = tt::hal::findDevice("Trackball");
         if (trackball != nullptr) {
-            LOGGER.info("{} starting", trackball->getName());
+            LOG_I(TAG, "%s starting", trackball->getName().c_str());
             auto tbDevice = std::static_pointer_cast<TrackballDevice>(trackball);
             if (tbDevice->start()) {
-                LOGGER.info("{} started", trackball->getName());
+                LOG_I(TAG, "%s started", trackball->getName().c_str());
             } else {
-                LOGGER.error("{} start failed", trackball->getName());
+                LOG_E(TAG, "%s start failed", trackball->getName().c_str());
             }
         }
     });

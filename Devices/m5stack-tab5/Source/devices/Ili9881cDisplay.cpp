@@ -1,10 +1,10 @@
 #include "Ili9881cDisplay.h"
 #include "ili9881_init_data.h"
 
-#include <Tactility/Logger.h>
 #include <esp_lcd_ili9881c.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("ILI9881C");
+constexpr auto* TAG = "ILI9881C";
 
 Ili9881cDisplay::~Ili9881cDisplay() {
     // TODO: This should happen during ::stop(), but this isn't currently exposed
@@ -30,11 +30,11 @@ bool Ili9881cDisplay::createMipiDsiBus() {
     };
     
     if (esp_ldo_acquire_channel(&ldo_mipi_phy_config, &ldoChannel) != ESP_OK) {
-        LOGGER.error("Failed to acquire LDO channel for MIPI DSI PHY");
+        LOG_E(TAG, "Failed to acquire LDO channel for MIPI DSI PHY");
         return false;
     }
-    
-    LOGGER.info("Powered on");
+
+    LOG_I(TAG, "Powered on");
 
     // Create bus
     // TODO: use MIPI_DSI_PHY_CLK_SRC_DEFAULT() in future ESP-IDF 6.0.0 update with esp_lcd_jd9165 library version 2.x
@@ -46,13 +46,13 @@ bool Ili9881cDisplay::createMipiDsiBus() {
     };
 
     if (esp_lcd_new_dsi_bus(&bus_config, &mipiDsiBus) != ESP_OK) {
-        LOGGER.error("Failed to create bus");
+        LOG_E(TAG, "Failed to create bus");
         esp_ldo_release_channel(ldoChannel);
         ldoChannel = nullptr;
         return false;
     }
 
-    LOGGER.info("Bus created");
+    LOG_I(TAG, "Bus created");
     return true;
 }
 
@@ -68,7 +68,7 @@ bool Ili9881cDisplay::createIoHandle(esp_lcd_panel_io_handle_t& ioHandle) {
     esp_lcd_dbi_io_config_t dbi_config = ILI9881C_PANEL_IO_DBI_CONFIG();
 
     if (esp_lcd_new_panel_io_dbi(mipiDsiBus, &dbi_config, &ioHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel IO");
+        LOG_E(TAG, "Failed to create panel IO");
         esp_lcd_del_dsi_bus(mipiDsiBus);
         mipiDsiBus = nullptr;
         esp_ldo_release_channel(ldoChannel);
@@ -135,11 +135,11 @@ bool Ili9881cDisplay::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, cons
     mutable_panel_config.vendor_config = &vendor_config;
 
     if (esp_lcd_new_panel_ili9881c(ioHandle, &mutable_panel_config, &panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel");
+        LOG_E(TAG, "Failed to create panel");
         return false;
     }
 
-    LOGGER.info("Panel created successfully");
+    LOG_I(TAG, "Panel created successfully");
     // Defer reset/init to base class applyConfiguration to avoid double initialization
     return true;
 }

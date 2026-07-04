@@ -1,6 +1,5 @@
 #include <Tactility/lvgl/Statusbar.h>
 
-#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/Timer.h>
 #include <Tactility/hal/power/PowerDevice.h>
@@ -27,9 +26,11 @@
 
 #include <cstring>
 
+#include <tactility/log.h>
+
 namespace tt::service::statusbar {
 
-static const auto LOGGER = Logger("StatusbarService");
+constexpr auto* TAG = "StatusbarService";
 
 // GPS
 extern const ServiceManifest manifest;
@@ -302,7 +303,7 @@ public:
 
     bool onStart(ServiceContext& serviceContext) override {
         if (lv_screen_active() == nullptr) {
-            LOGGER.error("No display found");
+            LOG_E(TAG, "No display found");
             return false;
         }
 

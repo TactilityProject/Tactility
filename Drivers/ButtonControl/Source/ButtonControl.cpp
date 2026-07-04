@@ -1,11 +1,11 @@
 #include "ButtonControl.h"
 
 #include <Tactility/app/App.h>
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 #include <esp_lvgl_port.h>
 
-static const auto LOGGER = tt::Logger("ButtonControl");
+constexpr auto* TAG = "ButtonControl";
 
 ButtonControl::ButtonControl(const std::vector<PinConfiguration>& pinConfigurations)
     : buttonQueue(20, sizeof(ButtonEvent)),
@@ -34,7 +34,7 @@ ButtonControl::ButtonControl(const std::vector<PinConfiguration>& pinConfigurati
         };
         esp_err_t err = gpio_config(&io_conf);
         if (err != ESP_OK) {
-            LOGGER.error("Failed to configure GPIO {}: {}", static_cast<int>(pin), esp_err_to_name(err));
+            LOG_E(TAG, "Failed to configure GPIO %d: %s", static_cast<int>(pin), esp_err_to_name(err));
             continue;
         }
 
@@ -103,10 +103,10 @@ void ButtonControl::updatePin(std::vector<PinConfiguration>::const_reference con
         if (state.pressState) {
             auto time_passed = now - state.pressStartTime;
             if (time_passed < 500) {
-                LOGGER.info("Short press ({}ms)", time_passed);
+                LOG_I(TAG, "Short press (%dms)", (int)time_passed);
                 state.triggerShortPress = true;
             } else {
-                LOGGER.info("Long press ({}ms)", time_passed);
+                LOG_I(TAG, "Long press (%dms)", (int)time_passed);
                 state.triggerLongPress = true;
             }
             state.pressState = false;
@@ -131,7 +131,7 @@ void ButtonControl::driverThreadMain() {
         if (event.pin == GPIO_NUM_NC) {
             break; // shutdown sentinel
         }
-        LOGGER.info("Pin {} {}", static_cast<int>(event.pin), event.pressed ? "down" : "up");
+        LOG_I(TAG, "Pin %d %s", static_cast<int>(event.pin), event.pressed ? "down" : "up");
         if (mutex.lock(portMAX_DELAY)) {
             // Update ALL PinConfiguration entries that share this physical pin.
             for (size_t i = 0; i < pinConfigurations.size(); i++) {
@@ -145,11 +145,11 @@ void ButtonControl::driverThreadMain() {
 }
 
 bool ButtonControl::startThread() {
-    LOGGER.info("Start");
+    LOG_I(TAG, "Start");
 
     esp_err_t err = gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        LOGGER.error("Failed to install GPIO ISR service: {}", esp_err_to_name(err));
+        LOG_E(TAG, "Failed to install GPIO ISR service: %s", esp_err_to_name(err));
         return false;
     }
 
@@ -159,7 +159,7 @@ bool ButtonControl::startThread() {
     for (auto& arg : isrArgs) {
         err = gpio_isr_handler_add(arg.pin, gpioIsrHandler, &arg);
         if (err != ESP_OK) {
-            LOGGER.error("Failed to add ISR for GPIO {}: {}", static_cast<int>(arg.pin), esp_err_to_name(err));
+            LOG_E(TAG, "Failed to add ISR for GPIO %d: %s", static_cast<int>(arg.pin), esp_err_to_name(err));
             for (int i = 0; i < handlersAdded; i++) {
                 gpio_isr_handler_remove(isrArgs[i].pin);
             }
@@ -178,7 +178,7 @@ bool ButtonControl::startThread() {
 }
 
 void ButtonControl::stopThread() {
-    LOGGER.info("Stop");
+    LOG_I(TAG, "Stop");
 
     for (const auto& arg : isrArgs) {
         gpio_isr_handler_remove(arg.pin);

@@ -6,7 +6,6 @@
 #include <Tactility/app/btmanage/View.h>
 #include <Tactility/app/btmanage/BtManagePrivate.h>
 #include <Tactility/app/btpeersettings/BtPeerSettings.h>
-#include <Tactility/Logger.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/bluetooth/Bluetooth.h>

@@ -1,12 +1,12 @@
 #include "Ili9488Display.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 #include <esp_lcd_ili9488.h>
 #include <esp_lcd_panel_commands.h>
 #include <esp_lvgl_port.h>
 
-static const auto LOGGER = tt::Logger("ILI9488");
+constexpr auto* TAG = "ILI9488";
 
 bool Ili9488Display::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
     const esp_lcd_panel_io_spi_config_t panel_io_config = {
@@ -50,37 +50,37 @@ bool Ili9488Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_l
     };
 
     if (esp_lcd_new_panel_ili9488(ioHandle, &panel_config, configuration->bufferSize, &panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel");
+        LOG_E(TAG, "Failed to create panel");
         return false;
     }
 
     if (esp_lcd_panel_reset(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to reset panel");
+        LOG_E(TAG, "Failed to reset panel");
         return false;
     }
 
     if (esp_lcd_panel_init(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to init panel");
+        LOG_E(TAG, "Failed to init panel");
         return false;
     }
 
     if (esp_lcd_panel_swap_xy(panelHandle, configuration->swapXY) != ESP_OK) {
-        LOGGER.error("Failed to swap XY ");
+        LOG_E(TAG, "Failed to swap XY ");
         return false;
     }
 
     if (esp_lcd_panel_mirror(panelHandle, configuration->mirrorX, configuration->mirrorY) != ESP_OK) {
-        LOGGER.error("Failed to set panel to mirror");
+        LOG_E(TAG, "Failed to set panel to mirror");
         return false;
     }
 
     if (esp_lcd_panel_invert_color(panelHandle, configuration->invertColor) != ESP_OK) {
-        LOGGER.error("Failed to set panel to invert");
+        LOG_E(TAG, "Failed to set panel to invert");
         return false;
     }
 
     if (esp_lcd_panel_disp_on_off(panelHandle, true) != ESP_OK) {
-        LOGGER.error("Failed to turn display on");
+        LOG_E(TAG, "Failed to turn display on");
         return false;
     }
 

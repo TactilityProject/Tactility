@@ -3,11 +3,11 @@
 #include <Tactility/app/AppPaths.h>
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/ElfApp.h>
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 #include <cstring>
 
-static const auto LOGGER = tt::Logger("tt_app");
+constexpr auto* TAG = "tt_app";
 
 extern "C" {
 
@@ -65,7 +65,7 @@ void tt_app_get_user_data_path(AppHandle handle, char* buffer, size_t* size) {
     const auto data_path = paths->getUserDataPath();
     const auto expected_length = data_path.length() + 1;
     if (*size < expected_length) {
-        LOGGER.error("Path buffer not large enough ({} < {})", *size, expected_length);
+        LOG_E(TAG, "Path buffer not large enough (%u < %u)", (unsigned)*size, (unsigned)expected_length);
         *size = 0;
         buffer[0] = 0;
         return;
@@ -83,7 +83,7 @@ void tt_app_get_user_data_child_path(AppHandle handle, const char* childPath, ch
     const auto resolved_path = paths->getUserDataPath(childPath);
     const auto resolved_path_length = resolved_path.length();
     if (*size < (resolved_path_length + 1)) {
-        LOGGER.error("Path buffer not large enough ({} < {})", *size, (resolved_path_length + 1));
+        LOG_E(TAG, "Path buffer not large enough (%u < %u)", (unsigned)*size, (unsigned)(resolved_path_length + 1));
         *size = 0;
         buffer[0] = 0;
         return;
@@ -101,7 +101,7 @@ void tt_app_get_assets_path(AppHandle handle, char* buffer, size_t* size) {
     const auto assets_path = paths->getAssetsPath();
     const auto expected_length = assets_path.length() + 1;
     if (*size < expected_length) {
-        LOGGER.error("Path buffer not large enough ({} < {})", *size, expected_length);
+        LOG_E(TAG, "Path buffer not large enough (%u < %u)", (unsigned)*size, (unsigned)expected_length);
         *size = 0;
         buffer[0] = 0;
         return;
@@ -119,7 +119,7 @@ void tt_app_get_assets_child_path(AppHandle handle, const char* childPath, char*
     const auto resolved_path = paths->getAssetsPath(childPath);
     const auto resolved_path_length = resolved_path.length();
     if (*size < (resolved_path_length + 1)) {
-        LOGGER.error("Path buffer not large enough ({} < {})", *size, (resolved_path_length + 1));
+        LOG_E(TAG, "Path buffer not large enough (%u < %u)", (unsigned)*size, (unsigned)(resolved_path_length + 1));
         *size = 0;
         buffer[0] = 0;
         return;

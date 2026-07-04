@@ -7,10 +7,9 @@
 #include <Tactility/lvgl/Keyboard.h>
 #include <Tactility/lvgl/LvglSync.h>
 
-#include <Tactility/Logger.h>
-
 #include <tactility/device.h>
 #include <tactility/drivers/usb_host_hid.h>
+#include <tactility/log.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -21,7 +20,7 @@
 
 namespace tt::lvgl {
 
-static const auto LOGGER = Logger("UsbHidInput");
+constexpr auto* TAG = "UsbHidInput";
 
 constexpr auto HID_EVENT_QUEUE_SIZE    = 64;
 constexpr auto KEY_EVENT_QUEUE_SIZE    = 64;
@@ -147,7 +146,7 @@ static void keyboard_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
 
 static void usbHidInputTask(void* arg) {
     auto* ctx = static_cast<UsbHidInputCtx*>(arg);
-    LOGGER.info("started");
+    LOG_I(TAG, "started");
 
     while (!lv_is_initialized()) {
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -172,9 +171,9 @@ static void usbHidInputTask(void* arg) {
         lv_indev_set_group(ctx->kb_indev, lv_group_get_default());
 
         unlock();
-        LOGGER.info("LVGL input devices registered");
+        LOG_I(TAG, "LVGL input devices registered");
     } else {
-        LOGGER.warn("could not acquire LVGL lock for indev registration");
+        LOG_W(TAG, "could not acquire LVGL lock for indev registration");
     }
 
     // Drain the HID event queue and route events to the appropriate destinations
@@ -270,7 +269,7 @@ static void usbHidInputTask(void* arg) {
         unlock();
     }
 
-    LOGGER.info("stopped");
+    LOG_I(TAG, "stopped");
     xSemaphoreGive(ctx->task_done);
     vTaskDelete(nullptr);
 }
@@ -282,14 +281,14 @@ void startUsbHidInput() {
 
     ctx->hid_queue = xQueueCreate(HID_EVENT_QUEUE_SIZE, sizeof(UsbHidEvent));
     if (!ctx->hid_queue) {
-        LOGGER.error("failed to create HID event queue");
+        LOG_E(TAG, "failed to create HID event queue");
         delete ctx;
         return;
     }
 
     ctx->key_queue = xQueueCreate(KEY_EVENT_QUEUE_SIZE, sizeof(KeyEvent));
     if (!ctx->key_queue) {
-        LOGGER.error("failed to create key event queue");
+        LOG_E(TAG, "failed to create key event queue");
         vQueueDelete(ctx->hid_queue);
         delete ctx;
         return;
@@ -297,7 +296,7 @@ void startUsbHidInput() {
 
     ctx->task_done = xSemaphoreCreateBinary();
     if (!ctx->task_done) {
-        LOGGER.error("failed to create task done semaphore");
+        LOG_E(TAG, "failed to create task done semaphore");
         vQueueDelete(ctx->hid_queue);
         vQueueDelete(ctx->key_queue);
         delete ctx;
@@ -309,7 +308,7 @@ void startUsbHidInput() {
 
     ctx->running = true;
     if (xTaskCreate(usbHidInputTask, "usb_hid_inp", TASK_STACK, ctx, TASK_PRIORITY, &ctx->task) != pdPASS) {
-        LOGGER.error("failed to create task");
+        LOG_E(TAG, "failed to create task");
         ctx->running = false;
         if (hid_dev) usb_host_hid_unsubscribe(hid_dev, ctx->hid_queue);
         vQueueDelete(ctx->hid_queue);
@@ -320,7 +319,7 @@ void startUsbHidInput() {
     }
 
     s_ctx = ctx;
-    LOGGER.info("started");
+    LOG_I(TAG, "started");
 }
 
 void stopUsbHidInput() {
@@ -331,7 +330,7 @@ void stopUsbHidInput() {
     ctx->running = false;
 
     if (xSemaphoreTake(ctx->task_done, pdMS_TO_TICKS(STOP_TIMEOUT_MS)) != pdTRUE) {
-        LOGGER.warn("task stop timed out, force terminating");
+        LOG_W(TAG, "task stop timed out, force terminating");
         vTaskDelete(ctx->task);
         // Task was killed before it could clean up LVGL objects; do it here to
         // prevent mouse_read_cb / keyboard_read_cb from running with a freed ctx.
@@ -357,7 +356,7 @@ void stopUsbHidInput() {
     vSemaphoreDelete(ctx->task_done);
     delete ctx;
 
-    LOGGER.info("stopped");
+    LOG_I(TAG, "stopped");
 }
 
 } // namespace tt::lvgl

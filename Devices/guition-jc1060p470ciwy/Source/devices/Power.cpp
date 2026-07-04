@@ -1,14 +1,14 @@
 #include "Power.h"
 
-#include <Tactility/Logger.h>
 #include <ChargeFromVoltage.h>
+#include <tactility/log.h>
 #include <esp_adc/adc_oneshot.h>
 #include <esp_adc/adc_cali.h>
 #include <esp_adc/adc_cali_scheme.h>
 
 using tt::hal::power::PowerDevice;
 
-static const auto LOGGER = tt::Logger("JcPower");
+constexpr auto* TAG = "JcPower";
 
 namespace {
 
@@ -71,7 +71,7 @@ private:
             .ulp_mode = ADC_ULP_MODE_DISABLE,
         };
         if (adc_oneshot_new_unit(&init_cfg, &adcHandle) != ESP_OK) {
-            LOGGER.error("ADC unit init failed");
+            LOG_E(TAG, "ADC unit init failed");
             return false;
         }
 
@@ -80,7 +80,7 @@ private:
             .bitwidth = ADC_BITWIDTH_DEFAULT,
         };
         if (adc_oneshot_config_channel(adcHandle, ADC_CHANNEL, &chan_cfg) != ESP_OK) {
-            LOGGER.error("ADC channel config failed");
+            LOG_E(TAG, "ADC channel config failed");
             adc_oneshot_del_unit(adcHandle);
             adcHandle = nullptr;
             return false;
@@ -100,7 +100,7 @@ private:
         };
         if (adc_cali_create_scheme_line_fitting(&cali_config, &caliHandle) == ESP_OK) {
             calScheme = CaliScheme::Line;
-            LOGGER.info("ADC calibration (line fitting) enabled");
+            LOG_I(TAG, "ADC calibration (line fitting) enabled");
             return true;
         }
 #endif
@@ -114,19 +114,19 @@ private:
         };
         if (adc_cali_create_scheme_curve_fitting(&curve_cfg, &caliHandle) == ESP_OK) {
             calScheme = CaliScheme::Curve;
-            LOGGER.info("ADC calibration (curve fitting) enabled");
+            LOG_I(TAG, "ADC calibration (curve fitting) enabled");
             return true;
         }
 #endif
 
-        LOGGER.warn("ADC calibration not available, using raw scaling");
+        LOG_W(TAG, "ADC calibration not available, using raw scaling");
         return false;
     }
 
     bool readBatteryMilliVolt(uint32_t& outMv) {
         int raw = 0;
         if (adc_oneshot_read(adcHandle, ADC_CHANNEL, &raw) != ESP_OK) {
-            LOGGER.error("ADC read failed");
+            LOG_E(TAG, "ADC read failed");
             return false;
         }
 

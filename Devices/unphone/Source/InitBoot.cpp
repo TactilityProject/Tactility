@@ -1,12 +1,12 @@
 #include "UnPhoneFeatures.h"
 #include <tactility/device.h>
-#include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/Preferences.h>
 #include <Tactility/TactilityCore.h>
 #include <esp_sleep.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("unPhone");
+constexpr auto* TAG = "unPhone";
 
 std::shared_ptr<UnPhoneFeatures> unPhoneFeatures;
 static std::unique_ptr<tt::Thread> powerThread;
@@ -49,10 +49,10 @@ public:
     }
 
     void printInfo() {
-        LOGGER.info("Device stats:");
-        LOGGER.info("  boot: {}", getValue(bootCountKey));
-        LOGGER.info("  power off: {}", getValue(powerOffCountKey));
-        LOGGER.info("  power sleep: {}", getValue(powerSleepKey));
+        LOG_I(TAG, "Device stats:");
+        LOG_I(TAG, "  boot: %d", (int)getValue(bootCountKey));
+        LOG_I(TAG, "  power off: %d", (int)getValue(powerOffCountKey));
+        LOG_I(TAG, "  power sleep: %d", (int)getValue(powerSleepKey));
     }
 };
 
@@ -92,11 +92,11 @@ static void updatePowerSwitch() {
     if (!unPhoneFeatures->isPowerSwitchOn()) {
         if (last_state != PowerState::Off) {
             last_state = PowerState::Off;
-            LOGGER.warn("Power off");
+            LOG_W(TAG, "Power off");
         }
 
         if (!unPhoneFeatures->isUsbPowerConnected()) { // and usb unplugged we go into shipping mode
-            LOGGER.warn("Shipping mode until USB connects");
+            LOG_W(TAG, "Shipping mode until USB connects");
 
 #if DEBUG_POWER_STATES
             unPhoneFeatures.setExpanderPower(true);
@@ -110,7 +110,7 @@ static void updatePowerSwitch() {
 
             unPhoneFeatures->setShipping(true); // tell BM to stop supplying power until USB connects
         } else { // When power switch is off, but USB is plugged in, we wait (deep sleep) until USB is unplugged.
-            LOGGER.warn("Waiting for USB disconnect to power off");
+            LOG_W(TAG, "Waiting for USB disconnect to power off");
 
 #if DEBUG_POWER_STATES
             powerInfoBuzz(2);
@@ -129,7 +129,7 @@ static void updatePowerSwitch() {
     } else {
         if (last_state != PowerState::On) {
             last_state = PowerState::On;
-            LOGGER.warn("Power on");
+            LOG_W(TAG, "Power on");
 
 #if DEBUG_POWER_STATES
             powerInfoBuzz(1);
@@ -166,7 +166,7 @@ static bool unPhonePowerOn() {
     unPhoneFeatures = std::make_shared<UnPhoneFeatures>(bq24295);
 
     if (!unPhoneFeatures->init()) {
-        LOGGER.error("UnPhoneFeatures init failed");
+        LOG_E(TAG, "UnPhoneFeatures init failed");
         return false;
     }
 
@@ -186,10 +186,10 @@ static bool unPhonePowerOn() {
 }
 
 bool initBoot() {
-    LOGGER.info(LOG_MESSAGE_POWER_ON_START);
+    LOG_I(TAG, LOG_MESSAGE_POWER_ON_START);
 
     if (!unPhonePowerOn()) {
-        LOGGER.error(LOG_MESSAGE_POWER_ON_FAILED);
+        LOG_E(TAG, LOG_MESSAGE_POWER_ON_FAILED);
         return false;
     }
 

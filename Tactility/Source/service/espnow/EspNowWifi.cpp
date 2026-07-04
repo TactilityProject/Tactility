@@ -4,16 +4,17 @@
 
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
 
-#include <Tactility/Logger.h>
 #include <Tactility/service/espnow/EspNow.h>
 #include <Tactility/service/wifi/Wifi.h>
 
 #include <esp_now.h>
 #include <esp_wifi.h>
 
+#include <tactility/log.h>
+
 namespace tt::service::espnow {
 
-static const auto LOGGER = Logger("EspNowService");
+constexpr auto* TAG = "EspNowService";
 static bool wifiStartedByEspNow = false;
 
 bool initWifi(const EspNowConfig& config) {
@@ -32,27 +33,27 @@ bool initWifi(const EspNowConfig& config) {
     if (wifiStartedByEspNow) {
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         if (esp_wifi_init(&cfg) != ESP_OK) {
-            LOGGER.error("esp_wifi_init() failed");
+            LOG_E(TAG,"esp_wifi_init() failed");
             return false;
         }
 
         if (esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK) {
-            LOGGER.error("esp_wifi_set_storage() failed");
+            LOG_E(TAG,"esp_wifi_set_storage() failed");
             return false;
         }
 
         if (esp_wifi_set_mode(mode) != ESP_OK) {
-            LOGGER.error("esp_wifi_set_mode() failed");
+            LOG_E(TAG,"esp_wifi_set_mode() failed");
             return false;
         }
 
         if (esp_wifi_start() != ESP_OK) {
-            LOGGER.error("esp_wifi_start() failed");
+            LOG_E(TAG,"esp_wifi_start() failed");
             return false;
         }
 
         if (esp_wifi_set_channel(config.channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
-            LOGGER.error("esp_wifi_set_channel() failed");
+            LOG_E(TAG,"esp_wifi_set_channel() failed");
             return false;
         }
     }
@@ -66,11 +67,11 @@ bool initWifi(const EspNowConfig& config) {
         }
 
         if (esp_wifi_set_protocol(wifi_interface, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N | WIFI_PROTOCOL_LR) != ESP_OK) {
-            LOGGER.warn("esp_wifi_set_protocol() for long range failed");
+            LOG_W(TAG,"esp_wifi_set_protocol() for long range failed");
         }
     }
 
-    LOGGER.info("WiFi initialized for ESP-NOW (wifi already running: {})", wifi_already_running ? "yes" : "no");
+    LOG_I(TAG, "WiFi initialized for ESP-NOW (wifi already running: %s)", wifi_already_running ? "yes" : "no");
     return true;
 }
 
@@ -79,9 +80,9 @@ bool deinitWifi() {
         esp_wifi_stop();
         esp_wifi_deinit();
         wifiStartedByEspNow = false;
-        LOGGER.info("WiFi stopped (was started by ESP-NOW)");
+        LOG_I(TAG, "WiFi stopped (was started by ESP-NOW)");
     } else {
-        LOGGER.info("WiFi left running (managed by WiFi service)");
+        LOG_I(TAG, "WiFi left running (managed by WiFi service)");
     }
     return true;
 }

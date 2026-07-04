@@ -9,7 +9,6 @@
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/usb/Usb.h>
 #include <Tactility/kernel/SystemEvents.h>
-#include <Tactility/Logger.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/Paths.h>
 #include <Tactility/service/loader/Loader.h>
@@ -17,6 +16,7 @@
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <lvgl.h>
+#include <tactility/log.h>
 
 #include <atomic>
 
@@ -31,7 +31,7 @@
 
 namespace tt::app::boot {
 
-static const auto LOGGER = Logger("Boot");
+constexpr auto* TAG = "Boot";
 
 extern const AppManifest manifest;
 
@@ -67,17 +67,17 @@ class BootApp : public App {
         if (settings::display::load(settings)) {
             if (hal_display->getGammaCurveCount() > 0) {
                 hal_display->setGammaCurve(settings.gammaCurve);
-                LOGGER.info("Gamma curve {}", settings.gammaCurve);
+                LOG_I(TAG, "Gamma curve %d", settings.gammaCurve);
             }
         } else {
             settings = settings::display::getDefault();
         }
 
         if (hal_display->supportsBacklightDuty()) {
-            LOGGER.info("Backlight {}", settings.backlightDuty);
+            LOG_I(TAG, "Backlight %d", settings.backlightDuty);
             hal_display->setBacklightDuty(settings.backlightDuty);
         } else {
-            LOGGER.info("No backlight");
+            LOG_I(TAG, "No backlight");
         }
     }
 
@@ -86,17 +86,17 @@ class BootApp : public App {
             return false;
         }
 
-        LOGGER.info("Rebooting into mass storage device mode");
+        LOG_I(TAG, "Rebooting into mass storage device mode");
         auto mode = hal::usb::getUsbBootMode();  // Get mode before reset
         hal::usb::resetUsbBootMode();
         if (mode == hal::usb::BootMode::Flash) {
             if (!hal::usb::startMassStorageWithFlash(true)) {
-                LOGGER.error("Unable to start flash mass storage");
+                LOG_E(TAG, "Unable to start flash mass storage");
                 return false;
             }
         } else if (mode == hal::usb::BootMode::Sdmmc) {
             if (!hal::usb::startMassStorageWithSdmmc(true)) {
-                LOGGER.error("Unable to start SD mass storage");
+                LOG_E(TAG, "Unable to start SD mass storage");
                 return false;
             }
         }
@@ -114,7 +114,7 @@ class BootApp : public App {
     }
 
     static int32_t bootThreadCallback() {
-        LOGGER.info("Starting boot thread");
+        LOG_I(TAG, "Starting boot thread");
         const auto start_time = kernel::getTicks();
 
         // Give the UI some time to redraw
@@ -124,20 +124,20 @@ class BootApp : public App {
         kernel::delayMillis(10);
 
         // TODO: Support for multiple displays
-        LOGGER.info("Setup display");
+        LOG_I(TAG, "Setup display");
         setupDisplay(); // Set backlight
         prepareFileSystems();
 
 #ifdef CONFIG_TT_USER_DATA_LOCATION_SD
         std::string sd_path;
         if (!findFirstMountedSdCardPath(sd_path)) {
-            LOGGER.error("SD card not found");
+            LOG_E(TAG, "SD card not found");
             sdCardMissing = true;
         }
 #endif
 
         if (!setupUsbBootMode()) {
-            LOGGER.info("initFromBootApp");
+            LOG_I(TAG, "initFromBootApp");
             registerApps();
             waitForMinimalSplashDuration(start_time);
             // When SD card is missing, wait for dialog result
@@ -147,7 +147,7 @@ class BootApp : public App {
 
         // This event will likely block as other systems are initialized
         // e.g. Wi-Fi reads AP configs from SD card
-        LOGGER.info("Publish event");
+        LOG_I(TAG, "Publish event");
         kernel::publishSystemEvent(kernel::SystemEvent::BootSplash);
 
         return 0;
@@ -162,13 +162,13 @@ class BootApp : public App {
 
         // When boot properties didn't specify an override, return default
         if (boot_properties.launcherAppId.empty()) {
-            LOGGER.error("Failed to load launcher configuration, or launcher not configured");
+            LOG_E(TAG, "Failed to load launcher configuration, or launcher not configured");
             return CONFIG_TT_LAUNCHER_APP_ID;
         }
 
         // If the app in the boot.properties does not exist, return default
         if (findAppManifestById(boot_properties.launcherAppId) == nullptr) {
-            LOGGER.error("Launcher app {} not found", boot_properties.launcherAppId);
+            LOG_E(TAG, "Launcher app %s not found", boot_properties.launcherAppId.c_str());
             return CONFIG_TT_LAUNCHER_APP_ID;
         }
 
@@ -239,7 +239,7 @@ public:
             logo = isUsbBootSplash ? "logo_usb.png" : "logo.png";
         }
         const auto logo_path = lvgl::PATH_PREFIX + paths->getAssetsPath(logo);
-        LOGGER.info("{}", logo_path);
+        LOG_I(TAG, "%s", logo_path.c_str());
         lv_image_set_src(image, logo_path.c_str());
 
 #ifdef ESP_PLATFORM

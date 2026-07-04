@@ -2,7 +2,7 @@
 
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 #include <dirent.h>
 #include <format>
@@ -13,7 +13,7 @@
 
 namespace tt::bluetooth::settings {
 
-static const auto LOGGER = Logger("BluetoothPairedDevice");
+constexpr auto* TAG = "BluetoothPairedDevice";
 
 // Use the same directory as the old service for backward compatibility.
 constexpr auto* DATA_DIR               = "/data/service/bluetooth";
@@ -34,7 +34,7 @@ std::string addrToHex(const std::array<uint8_t, 6>& addr) {
 
 static bool hexToAddr(const std::string& hex, std::array<uint8_t, 6>& addr) {
     if (hex.size() != 12) {
-        LOGGER.error("hexToAddr() length mismatch: expected 12, got {}", hex.size());
+        LOG_E(TAG, "hexToAddr() length mismatch: expected 12, got %d", (int)hex.size());
         return false;
     }
     char buf[3] = { 0 };
@@ -44,7 +44,7 @@ static bool hexToAddr(const std::string& hex, std::array<uint8_t, 6>& addr) {
         char* endptr = nullptr;
         addr[i] = static_cast<uint8_t>(strtoul(buf, &endptr, 16));
         if (endptr != buf + 2) {
-            LOGGER.error("hexToAddr() invalid hex at byte {}: '{}{}'", i, buf[0], buf[1]);
+            LOG_E(TAG, "hexToAddr() invalid hex at byte %d: '%c%c'", i, buf[0], buf[1]);
             return false;
         }
     }
@@ -88,7 +88,7 @@ bool save(const PairedDevice& device) {
     map[KEY_PROFILE_ID]   = std::to_string(device.profileId);
     auto file_path = getFilePath(addr_hex);
     if (!file::findOrCreateParentDirectory(file_path, 0755)) {
-        LOGGER.error("Failed to create parent dir for {}", file_path);
+        LOG_E(TAG, "Failed to create parent dir for %s", file_path.c_str());
         return false;
     }
     return file::savePropertiesFile(file_path, map);

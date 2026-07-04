@@ -1,13 +1,13 @@
 #include "EspLcdDisplay.h"
 #include "EspLcdDisplayDriver.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 #include <tactility/check.h>
 #include <Tactility/hal/touch/TouchDevice.h>
 #include <cassert>
 #include <esp_lvgl_port_disp.h>
 
-static const auto LOGGER = tt::Logger("EspLcdDisplay");
+constexpr auto* TAG = "EspLcdDisplay";
 
 EspLcdDisplay::~EspLcdDisplay() {
     check(
@@ -18,12 +18,12 @@ EspLcdDisplay::~EspLcdDisplay() {
 
 bool EspLcdDisplay::start() {
     if (!createIoHandle(ioHandle)) {
-        LOGGER.error("Failed to create IO handle");
+        LOG_E(TAG, "Failed to create IO handle");
         return false;
     }
 
     if (!createPanelHandle(ioHandle, panelHandle)) {
-        LOGGER.error("Failed to create panel handle");
+        LOG_E(TAG, "Failed to create panel handle");
         esp_lcd_panel_io_del(ioHandle);
         return false;
     }
@@ -46,7 +46,7 @@ bool EspLcdDisplay::stop() {
     }
 
     if (displayDriver != nullptr && displayDriver.use_count() > 1) {
-        LOGGER.warn("DisplayDriver is still in use.");
+        LOG_W(TAG, "DisplayDriver is still in use.");
     }
 
     return true;
@@ -56,7 +56,7 @@ bool EspLcdDisplay::startLvgl() {
     assert(lvglDisplay == nullptr);
 
     if (displayDriver != nullptr && displayDriver.use_count() > 1) {
-        LOGGER.warn("DisplayDriver is still in use.");
+        LOG_W(TAG, "DisplayDriver is still in use.");
     }
 
     auto lvgl_port_config  = getLvglPortDisplayConfig(ioHandle, panelHandle);

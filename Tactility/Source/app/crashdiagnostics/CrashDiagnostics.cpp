@@ -4,16 +4,16 @@
 #include <Tactility/app/crashdiagnostics/QrUrl.h>
 #include <Tactility/app/launcher/Launcher.h>
 #include <tactility/hal/Device.h>
-#include <Tactility/Logger.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/service/loader/Loader.h>
 
 #include <lvgl.h>
 #include <qrcode.h>
+#include <tactility/log.h>
 
 namespace tt::app::crashdiagnostics {
 
-static const auto LOGGER = Logger("CrashDiagnostics");
+constexpr auto* TAG = "CrashDiagnostics";
 
 extern const AppManifest manifest;
 
@@ -44,38 +44,38 @@ public:
         lv_obj_align(bottom_label, LV_ALIGN_BOTTOM_MID, 0, -2);
 
         std::string url = getUrlFromCrashData();
-        LOGGER.info("{}", url);
+        LOG_I(TAG, "%s", url.c_str());
         size_t url_length = url.length();
 
         int qr_version;
         if (!getQrVersionForBinaryDataLength(url_length, qr_version)) {
-            LOGGER.error("QR is too large");
+            LOG_E(TAG, "QR is too large");
             stop(manifest.appId);
             return;
         }
 
-        LOGGER.info("QR version {} (length: {})", qr_version, url_length);
+        LOG_I(TAG, "QR version %d (length: %d)", qr_version, (int)url_length);
         auto qrcodeData = std::make_shared<uint8_t[]>(qrcode_getBufferSize(qr_version));
         if (qrcodeData == nullptr) {
-            LOGGER.error("Failed to allocate QR buffer");
+            LOG_E(TAG, "Failed to allocate QR buffer");
             stop(manifest.appId);
             return;
         }
 
         QRCode qrcode;
-        LOGGER.info("QR init text");
+        LOG_I(TAG, "QR init text");
         if (qrcode_initText(&qrcode, qrcodeData.get(), qr_version, ECC_LOW, url.c_str()) != 0) {
-            LOGGER.error("QR init text failed");
+            LOG_E(TAG, "QR init text failed");
             stop(manifest.appId);
             return;
         }
 
-        LOGGER.info("QR size: {}", qrcode.size);
+        LOG_I(TAG, "QR size: %d", qrcode.size);
 
         // Calculate QR dot size
         int32_t top_label_height = lv_obj_get_height(top_label) + 2;
         int32_t bottom_label_height = lv_obj_get_height(bottom_label) + 2;
-        LOGGER.info("Create canvas");
+        LOG_I(TAG, "Create canvas");
         int32_t available_height = parent_height - top_label_height - bottom_label_height;
         int32_t available_width = lv_display_get_horizontal_resolution(display);
         int32_t smallest_size = std::min(available_height, available_width);
@@ -85,7 +85,7 @@ public:
         } else if (qrcode.size <= smallest_size) {
             pixel_size = 1;
         } else {
-            LOGGER.error("QR code won't fit screen");
+            LOG_E(TAG, "QR code won't fit screen");
             stop(manifest.appId);
             return;
         }
@@ -97,10 +97,10 @@ public:
         lv_obj_set_content_height(canvas, qrcode.size * pixel_size);
         lv_obj_set_content_width(canvas, qrcode.size * pixel_size);
 
-        LOGGER.info("Create draw buffer");
+        LOG_I(TAG, "Create draw buffer");
         auto* draw_buf = lv_draw_buf_create(pixel_size * qrcode.size, pixel_size * qrcode.size, LV_COLOR_FORMAT_RGB565, LV_STRIDE_AUTO);
         if (draw_buf == nullptr) {
-            LOGGER.error("Failed to allocate draw buffer");
+            LOG_E(TAG, "Failed to allocate draw buffer");
             stop(manifest.appId);
             return;
         }

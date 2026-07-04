@@ -1,8 +1,9 @@
 #include <Tactility/settings/WebServerSettings.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/file/File.h>
-#include <Tactility/Logger.h>
 #include <Tactility/Paths.h>
+
+#include <tactility/log.h>
 
 #include <charconv>
 #include <map>
@@ -18,7 +19,7 @@
 
 namespace tt::settings::webserver {
 
-static const auto LOGGER = Logger("WebServerSettings");
+constexpr auto* TAG = "WebServerSettings";
 
 static std::string getSettingsFilePath() {
     return getUserDataPath() + "/settings/webserver.properties";
@@ -147,7 +148,7 @@ bool load(WebServerSettings& settings) {
     // Skip this if user explicitly wants an open network.
     // Note: We only auto-generate for EMPTY passwords, not user-set ones.
     if (!settings.apOpenNetwork && isEmptyCredential(settings.apPassword)) {
-        LOGGER.info("AP password is empty - generating secure random password");
+        LOG_I(TAG, "AP password is empty - generating secure random password");
 
         // Generate 12-character random password (alphanumeric, ~71 bits of entropy)
         // WPA2 requires 8-63 characters, so 12 is well within range
@@ -156,9 +157,9 @@ bool load(WebServerSettings& settings) {
         // Persist the generated password immediately
         map[KEY_AP_PASSWORD] = settings.apPassword;
         if (file::savePropertiesFile(getSettingsFilePath(), map)) {
-            LOGGER.info("Generated and saved new secure AP password");
+            LOG_I(TAG, "Generated and saved new secure AP password");
         } else {
-            LOGGER.error("Failed to save generated AP password");
+            LOG_E(TAG, "Failed to save generated AP password");
         }
     }
 
@@ -186,7 +187,7 @@ bool load(WebServerSettings& settings) {
     if (settings.webServerAuthEnabled &&
         (isEmptyCredential(settings.webServerUsername) || isEmptyCredential(settings.webServerPassword))) {
 
-        LOGGER.info("Auth enabled with empty credentials - generating secure random credentials");
+        LOG_I(TAG, "Auth enabled with empty credentials - generating secure random credentials");
 
         // Generate 12-character random credentials (alphanumeric, ~71 bits of entropy each)
         settings.webServerUsername = generateRandomCredential(12);
@@ -197,9 +198,9 @@ bool load(WebServerSettings& settings) {
         map[KEY_WEBSERVER_USERNAME] = settings.webServerUsername;
         map[KEY_WEBSERVER_PASSWORD] = settings.webServerPassword;
         if (file::savePropertiesFile(getSettingsFilePath(), map)) {
-            LOGGER.info("Generated and saved new secure credentials");
+            LOG_I(TAG, "Generated and saved new secure credentials");
         } else {
-            LOGGER.error("Failed to save generated credentials - auth may be inconsistent across reboots");
+            LOG_E(TAG, "Failed to save generated credentials - auth may be inconsistent across reboots");
         }
     }
 
@@ -231,9 +232,9 @@ WebServerSettings loadOrGetDefault() {
         settings = getDefault();
         // Save defaults to flash so toggle states persist
         if (save(settings)) {
-            LOGGER.info("First boot - saved default settings (WiFi OFF WebServer OFF)");
+            LOG_I(TAG, "First boot - saved default settings (WiFi OFF WebServer OFF)");
         } else {
-            LOGGER.warn("First boot - failed to save default settings to flash");
+            LOG_W(TAG, "First boot - failed to save default settings to flash");
         }
     }
 
@@ -264,7 +265,7 @@ bool save(const WebServerSettings& settings) {
 
     auto settings_path = getSettingsFilePath();
     if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
-        LOGGER.error("Failed to create parent dir for {}", settings_path);
+        LOG_E(TAG, "Failed to create parent dir for %s", settings_path.c_str());
         return false;
     }
     return file::savePropertiesFile(settings_path, map);

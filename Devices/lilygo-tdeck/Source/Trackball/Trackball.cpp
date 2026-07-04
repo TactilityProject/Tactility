@@ -1,10 +1,10 @@
 #include "Trackball.h"
 
 #include <Tactility/Assets.h>
-#include <Tactility/Logger.h>
 #include <atomic>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("Trackball");
+constexpr auto* TAG = "Trackball";
 
 namespace trackball {
 
@@ -133,7 +133,7 @@ static void read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
 
 lv_indev_t* init(const TrackballConfig& config) {
     if (g_initialized.load(std::memory_order_relaxed)) {
-        LOGGER.warn("Already initialized");
+        LOG_W(TAG, "Already initialized");
         return g_indev;
     }
 
@@ -177,7 +177,7 @@ lv_indev_t* init(const TrackballConfig& config) {
             // ESP_ERR_INVALID_STATE means already installed, which is fine
             isr_service_installed = true;
         } else {
-            LOGGER.error("Failed to install GPIO ISR service: {}", esp_err_to_name(err));
+            LOG_E(TAG, "Failed to install GPIO ISR service: %s", esp_err_to_name(err));
             return nullptr;
         }
     }
@@ -190,7 +190,7 @@ lv_indev_t* init(const TrackballConfig& config) {
         io_conf.pin_bit_mask = (1ULL << dirPins[i]);
         esp_err_t err = gpio_config(&io_conf);
         if (err != ESP_OK) {
-            LOGGER.error("Failed to configure GPIO {}: {}", static_cast<int>(dirPins[i]), esp_err_to_name(err));
+            LOG_E(TAG, "Failed to configure GPIO %d: %s", static_cast<int>(dirPins[i]), esp_err_to_name(err));
             // Cleanup previously added handlers
             for (int j = 0; j < handlersAdded; j++) {
                 gpio_isr_handler_remove(dirPins[j]);
@@ -200,7 +200,7 @@ lv_indev_t* init(const TrackballConfig& config) {
 
         err = gpio_isr_handler_add(dirPins[i], trackball_isr_handler, reinterpret_cast<void*>(static_cast<intptr_t>(dirPins[i])));
         if (err != ESP_OK) {
-            LOGGER.error("Failed to add ISR for GPIO {}: {}", static_cast<int>(dirPins[i]), esp_err_to_name(err));
+            LOG_E(TAG, "Failed to add ISR for GPIO %d: %s", static_cast<int>(dirPins[i]), esp_err_to_name(err));
             // Cleanup previously added handlers
             for (int j = 0; j < handlersAdded; j++) {
                 gpio_isr_handler_remove(dirPins[j]);
@@ -215,7 +215,7 @@ lv_indev_t* init(const TrackballConfig& config) {
     io_conf.pin_bit_mask = (1ULL << config.pinClick);
     esp_err_t err = gpio_config(&io_conf);
     if (err != ESP_OK) {
-        LOGGER.error("Failed to configure button GPIO {}: {}", static_cast<int>(config.pinClick), esp_err_to_name(err));
+        LOG_E(TAG, "Failed to configure button GPIO %d: %s", static_cast<int>(config.pinClick), esp_err_to_name(err));
         // Cleanup direction handlers
         for (int i = 0; i < 4; i++) {
             gpio_isr_handler_remove(dirPins[i]);
@@ -225,7 +225,7 @@ lv_indev_t* init(const TrackballConfig& config) {
 
     err = gpio_isr_handler_add(config.pinClick, button_isr_handler, nullptr);
     if (err != ESP_OK) {
-        LOGGER.error("Failed to add button ISR: {}", esp_err_to_name(err));
+        LOG_E(TAG, "Failed to add button ISR: %s", esp_err_to_name(err));
         // Cleanup direction handlers
         for (int i = 0; i < 4; i++) {
             gpio_isr_handler_remove(dirPins[i]);
@@ -239,7 +239,7 @@ lv_indev_t* init(const TrackballConfig& config) {
     // Register as LVGL encoder input device for group navigation (default mode)
     g_indev = lv_indev_create();
     if (g_indev == nullptr) {
-        LOGGER.error("Failed to register LVGL input device");
+        LOG_E(TAG, "Failed to register LVGL input device");
         // Cleanup ISR handlers on failure
         const gpio_num_t pins[5] = {
             config.pinRight, config.pinUp, config.pinLeft,
@@ -255,7 +255,7 @@ lv_indev_t* init(const TrackballConfig& config) {
     lv_indev_set_type(g_indev, LV_INDEV_TYPE_ENCODER);
     lv_indev_set_read_cb(g_indev, read_cb);
     g_initialized.store(true, std::memory_order_relaxed);
-    LOGGER.info("Initialized with interrupts (R:{} U:{} L:{} D:{} Click:{})",
+    LOG_I(TAG, "Initialized with interrupts (R:%d U:%d L:%d D:%d Click:%d)",
              static_cast<int>(config.pinRight),
              static_cast<int>(config.pinUp),
              static_cast<int>(config.pinLeft),
@@ -276,7 +276,7 @@ static void createCursor() {
         // Set cursor image
         lv_image_set_src(g_cursor, TT_ASSETS_UI_CURSOR);
         lv_indev_set_cursor(g_indev, g_cursor);
-        LOGGER.debug("Cursor created");
+        LOG_D(TAG, "Cursor created");
     }
 }
 
@@ -287,7 +287,7 @@ static void destroyCursor() {
     // Delete the cursor object - this automatically detaches it from the indev
     lv_obj_delete(g_cursor);
     g_cursor = nullptr;
-    LOGGER.debug("Cursor destroyed");
+    LOG_D(TAG, "Cursor destroyed");
 }
 
 void deinit() {
@@ -317,14 +317,14 @@ void deinit() {
     g_initialized.store(false, std::memory_order_relaxed);
     g_mode.store(Mode::Encoder, std::memory_order_relaxed);
     g_enabled.store(true, std::memory_order_relaxed);
-    LOGGER.info("Deinitialized");
+    LOG_I(TAG, "Deinitialized");
 }
 
 void setEncoderSensitivity(uint8_t sensitivity) {
     if (sensitivity > 0) {
         // Only update the atomic - ISR reads from atomic, not g_config
         g_encoderSensitivity.store(sensitivity, std::memory_order_relaxed);
-        LOGGER.debug("Encoder sensitivity set to {}", sensitivity);
+        LOG_D(TAG, "Encoder sensitivity set to %d", sensitivity);
     }
 }
 
@@ -332,7 +332,7 @@ void setPointerSensitivity(uint8_t sensitivity) {
     if (sensitivity > 0) {
         // Only update the atomic - ISR reads from atomic, not g_config
         g_pointerSensitivity.store(sensitivity, std::memory_order_relaxed);
-        LOGGER.debug("Pointer sensitivity set to {}", sensitivity);
+        LOG_D(TAG, "Pointer sensitivity set to %d", sensitivity);
     }
 }
 
@@ -355,13 +355,13 @@ void setEnabled(bool enabled) {
         }
     }
 
-    LOGGER.info("{}", enabled ? "Enabled" : "Disabled");
+    LOG_I(TAG, "%s", enabled ? "Enabled" : "Disabled");
 }
 
 void setMode(Mode mode) {
     // Note: Must be called from LVGL thread (main thread) for thread safety
     if (!g_initialized.load(std::memory_order_relaxed) || g_indev == nullptr) {
-        LOGGER.warn("Cannot set mode - not initialized");
+        LOG_W(TAG, "Cannot set mode - not initialized");
         return;
     }
 
@@ -381,13 +381,13 @@ void setMode(Mode mode) {
         // Reset cursor to center when switching modes
         g_cursorX.store(SCREEN_WIDTH / 2, std::memory_order_relaxed);
         g_cursorY.store(SCREEN_HEIGHT / 2, std::memory_order_relaxed);
-        LOGGER.info("Switched to Pointer mode");
+        LOG_I(TAG, "Switched to Pointer mode");
     } else {
         // Switch to encoder mode
         destroyCursor();
         lv_indev_set_type(g_indev, LV_INDEV_TYPE_ENCODER);
         g_encoderDiff.store(0, std::memory_order_relaxed);  // Reset encoder diff
-        LOGGER.info("Switched to Encoder mode");
+        LOG_I(TAG, "Switched to Encoder mode");
     }
 }
 
