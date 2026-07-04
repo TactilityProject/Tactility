@@ -1,5 +1,6 @@
 #include <Tactility/LogMessages.h>
 #include <Tactility/TactilityCore.h>
+#include <tactility/log.h>
 #include <driver/ledc.h>
 
 constexpr auto* TAG = "Waveshare";
@@ -38,7 +39,7 @@ void initBacklight() {
 }
 
 bool initBoot() {
-    ESP_LOGI(TAG, LOG_MESSAGE_POWER_ON_START);
+    LOG_I(TAG, LOG_MESSAGE_POWER_ON_START);
     initBacklight();
     return true;
 }
