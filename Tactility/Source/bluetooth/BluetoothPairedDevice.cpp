@@ -83,7 +83,12 @@ bool save(const PairedDevice& device) {
     map[KEY_ADDR]         = addr_hex;
     map[KEY_AUTO_CONNECT] = device.autoConnect ? "true" : "false";
     map[KEY_PROFILE_ID]   = std::to_string(device.profileId);
-    return file::savePropertiesFile(getFilePath(addr_hex), map);
+    auto file_path = getFilePath(addr_hex);
+    if (!file::findOrCreateParentDirectory(file_path, 0755)) {
+        LOGGER.error("Failed to create parent dir for {}", file_path);
+        return false;
+    }
+    return file::savePropertiesFile(file_path, map);
 }
 
 bool remove(const std::string& addr_hex) {

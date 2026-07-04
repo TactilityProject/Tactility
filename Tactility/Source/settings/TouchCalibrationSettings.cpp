@@ -1,5 +1,6 @@
 #include <Tactility/settings/TouchCalibrationSettings.h>
 
+#include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/Paths.h>
@@ -116,7 +117,12 @@ bool save(const TouchCalibrationSettings& settings) {
     map[SETTINGS_KEY_Y_MIN] = std::to_string(settings.yMin);
     map[SETTINGS_KEY_Y_MAX] = std::to_string(settings.yMax);
 
-    if (!file::savePropertiesFile(getSettingsFilePath(), map)) {
+    auto settings_path = getSettingsFilePath();
+    if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
+        return false;
+    }
+
+    if (!file::savePropertiesFile(settings_path, map)) {
         return false;
     }
 

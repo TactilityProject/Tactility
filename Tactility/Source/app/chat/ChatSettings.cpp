@@ -8,6 +8,7 @@
 #include <Tactility/app/chat/ChatProtocol.h>
 
 #include <Tactility/crypt/Crypt.h>
+#include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/Logger.h>
 #include <Tactility/Paths.h>
@@ -176,7 +177,12 @@ bool saveSettings(const ChatSettingsData& settings) {
         map[KEY_ENCRYPTION_KEY] = "";
     }
 
-    return file::savePropertiesFile(getSettingsFilePath(), map);
+    auto settings_path = getSettingsFilePath();
+    if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
+        LOGGER.error("Failed to create parent dir for {}", settings_path);
+        return false;
+    }
+    return file::savePropertiesFile(settings_path, map);
 }
 
 bool settingsFileExists() {

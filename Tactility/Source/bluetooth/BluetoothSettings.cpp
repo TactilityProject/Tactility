@@ -51,7 +51,12 @@ static bool save(const BluetoothSettings& s) {
     map[KEY_ENABLE_ON_BOOT]  = s.enableOnBoot  ? "true" : "false";
     map[KEY_SPP_AUTO_START]  = s.sppAutoStart  ? "true" : "false";
     map[KEY_MIDI_AUTO_START] = s.midiAutoStart ? "true" : "false";
-    return file::savePropertiesFile(getSettingsPath(), map);
+    auto settings_path = getSettingsPath();
+    if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
+        LOGGER.error("Failed to create parent dir for {}", settings_path);
+        return false;
+    }
+    return file::savePropertiesFile(settings_path, map);
 }
 
 static BluetoothSettings getCachedOrLoad() {

@@ -80,6 +80,11 @@ bool saveSystemSettings(const SystemSettings& properties) {
     map["timeFormat24h"] = properties.timeFormat24h ? "true" : "false";
     map["dateFormat"] = properties.dateFormat;
 
+    if (!file::findOrCreateParentDirectory(file_path, 0755)) {
+        LOGGER.error("Failed to create parent dir for {}", file_path);
+        return false;
+    }
+
     if (!file::savePropertiesFile(file_path, map)) {
         LOGGER.error("Failed to save {}", file_path);
         return false;

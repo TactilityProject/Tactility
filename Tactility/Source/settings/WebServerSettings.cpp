@@ -257,7 +257,12 @@ bool save(const WebServerSettings& settings) {
     map[KEY_WEBSERVER_USERNAME] = settings.webServerUsername;
     map[KEY_WEBSERVER_PASSWORD] = settings.webServerPassword;
 
-    return file::savePropertiesFile(getSettingsFilePath(), map);
+    auto settings_path = getSettingsFilePath();
+    if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
+        LOGGER.error("Failed to create parent dir for {}", settings_path);
+        return false;
+    }
+    return file::savePropertiesFile(settings_path, map);
 }
 
 }
