@@ -2,12 +2,12 @@
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
 
-#include <Tactility/CpuAffinity.h>
 #include <Tactility/LogMessages.h>
-#include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/service/screenshot/ScreenshotTask.h>
-#include <Tactility/service/loader/Loader.h>
+#include <Tactility/CpuAffinity.h>
 #include <Tactility/TactilityCore.h>
+#include <Tactility/lvgl/LvglSync.h>
+#include <Tactility/service/loader/Loader.h>
+#include <Tactility/service/screenshot/ScreenshotTask.h>
 
 #include <lv_screenshot.h>
 

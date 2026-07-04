@@ -3,8 +3,8 @@
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/AppRegistration.h>
 
-#include <Tactility/DispatcherThread.h>
 #include <Tactility/LogMessages.h>
+#include <Tactility/DispatcherThread.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
 

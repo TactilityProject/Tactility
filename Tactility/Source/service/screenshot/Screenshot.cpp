@@ -3,8 +3,8 @@
 #if TT_FEATURE_SCREENSHOT_ENABLED
 
 #include <Tactility/LogMessages.h>
-#include <Tactility/service/screenshot/Screenshot.h>
 #include <Tactility/service/ServiceRegistration.h>
+#include <Tactility/service/screenshot/Screenshot.h>
 
 #include <lvgl.h>
 #include <memory>

@@ -4,11 +4,11 @@
 #include <Tactility/StringUtils.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
-#include <tactility/check.h>
 #include <Tactility/file/File.h>
 #include <Tactility/kernel/Platform.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
+#include <tactility/check.h>
 #include <tactility/log.h>
 
 #include <cstring>

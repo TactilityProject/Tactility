@@ -6,8 +6,8 @@
 
 #include <Tactility/service/wifi/Wifi.h>
 
-#include <Tactility/EventGroup.h>
 #include <Tactility/LogMessages.h>
+#include <Tactility/EventGroup.h>
 #include <Tactility/RecursiveMutex.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>

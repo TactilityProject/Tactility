@@ -7,9 +7,9 @@
 #include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
 
+#include <Tactility/LogMessages.h>
 #include <Tactility/CpuAffinity.h>
 #include <Tactility/DispatcherThread.h>
-#include <Tactility/LogMessages.h>
 #include <Tactility/MountPoints.h>
 #include <Tactility/app/AppManifestParsing.h>
 #include <Tactility/app/AppRegistration.h>

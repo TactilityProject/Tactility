@@ -2,14 +2,14 @@
 
 #include <cstring>
 
-#include <Tactility/app/AppInstance.h>
 #include <Tactility/LogMessages.h>
+#include <Tactility/Tactility.h>
+#include <Tactility/app/AppInstance.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/lvgl/UsbHidInput.h>
-#include <Tactility/service/loader/Loader.h>
 #include <Tactility/service/ServiceRegistration.h>
-#include <Tactility/Tactility.h>
+#include <Tactility/service/loader/Loader.h>
 
 #include <tactility/log.h>
 

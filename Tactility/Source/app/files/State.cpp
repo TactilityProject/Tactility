@@ -1,9 +1,9 @@
 #include <Tactility/app/files/State.h>
 
-#include <Tactility/file/File.h>
-#include <Tactility/file/FileLock.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/MountPoints.h>
+#include <Tactility/file/File.h>
+#include <Tactility/file/FileLock.h>
 #include <Tactility/kernel/Platform.h>
 #include <tactility/log.h>
 

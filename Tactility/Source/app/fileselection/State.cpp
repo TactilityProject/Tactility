@@ -5,9 +5,9 @@
 #include <Tactility/kernel/Platform.h>
 
 #include <Tactility/LogMessages.h>
-#include <tactility/log.h>
 #include <cstring>
 #include <dirent.h>
+#include <tactility/log.h>
 #include <unistd.h>
 #include <vector>
 

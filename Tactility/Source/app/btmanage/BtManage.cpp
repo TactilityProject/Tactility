@@ -1,11 +1,11 @@
 #include <Tactility/app/btmanage/BtManagePrivate.h>
 #include <Tactility/app/btmanage/View.h>
 
+#include <Tactility/LogMessages.h>
+#include <Tactility/Tactility.h>
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
-#include <Tactility/LogMessages.h>
 #include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/Tactility.h>
 
 #include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>

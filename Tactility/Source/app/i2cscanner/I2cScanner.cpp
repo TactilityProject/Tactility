@@ -1,15 +1,15 @@
 #include <Tactility/app/i2cscanner/I2cScannerPrivate.h>
 #include <Tactility/app/i2cscanner/I2cHelpers.h>
 
-#include <Tactility/app/AppContext.h>
-#include <tactility/drivers/i2c_controller.h>
 #include <Tactility/LogMessages.h>
-#include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/Preferences.h>
 #include <Tactility/RecursiveMutex.h>
-#include <Tactility/service/loader/Loader.h>
 #include <Tactility/Timer.h>
+#include <Tactility/app/AppContext.h>
+#include <Tactility/lvgl/LvglSync.h>
+#include <Tactility/lvgl/Toolbar.h>
+#include <Tactility/service/loader/Loader.h>
+#include <tactility/drivers/i2c_controller.h>
 
 #include <format>
 
