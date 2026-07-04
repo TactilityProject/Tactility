@@ -18,6 +18,7 @@ target_link_libraries(TactilityTests PRIVATE
     platform-posix
     hal-device-module
     lvgl-module
+    crypt-module
     lvgl
     SDL2::SDL2-static SDL2-static
 )

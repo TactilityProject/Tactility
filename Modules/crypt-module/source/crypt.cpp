@@ -1,19 +1,21 @@
-#include <Tactility/crypt/Crypt.h>
+// SPDX-License-Identifier: Apache-2.0
+#include <tactility/crypt.h>
 
-#include <Tactility/Logger.h>
 #include <tactility/check.h>
+#include <tactility/log.h>
 
 #include <mbedtls/aes.h>
+#include <mbedtls/platform_util.h>
 #include <cstring>
 #include <cstdint>
 
 #ifdef ESP_PLATFORM
-#include "esp_cpu.h"
 #include "esp_mac.h"
+#include "esp_random.h"
 #include "nvs_flash.h"
 #endif
 
-static const auto LOGGER = tt::Logger("Crypt");
+constexpr auto* TAG = "crypt";
 
 #define TT_NVS_NAMESPACE "tt_secure"
 
@@ -26,7 +28,7 @@ static void get_hardware_key(uint8_t key[32]) {
     uint8_t mac[8];
     // MAC can be 6 or 8 bytes
     size_t mac_length = esp_mac_addr_len_get(ESP_MAC_EFUSE_FACTORY);
-    LOGGER.info("Using MAC with length {}", mac_length);
+    LOG_I(TAG, "Using MAC with length %zu", mac_length);
     check(mac_length <= 8);
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_EFUSE_FACTORY));
 
@@ -65,24 +67,18 @@ static void get_nvs_key(uint8_t key[32]) {
     esp_err_t result = nvs_open(TT_NVS_NAMESPACE, NVS_READWRITE, &handle);
 
     if (result != ESP_OK) {
-        LOGGER.error("Failed to get key from NVS ({})", esp_err_to_name(result));
+        LOG_E(TAG, "Failed to get key from NVS (%s)", esp_err_to_name(result));
         check(false, "NVS error");
     }
 
     size_t length = 32;
     if (nvs_get_blob(handle, "key", key, &length) == ESP_OK) {
-        LOGGER.info("Fetched key from NVS ({} bytes)", length);
+        LOG_I(TAG, "Fetched key from NVS (%zu bytes)", length);
         check(length == 32);
     } else {
-        // TODO: Improved randomness
-        esp_cpu_cycle_count_t cycle_count = esp_cpu_get_cycle_count();
-        auto seed = cycle_count;
-        srand(seed);
-        for (int i = 0; i < 32; ++i) {
-            key[i] = (uint8_t)(rand());
-        }
+        esp_fill_random(key, 32);
         ESP_ERROR_CHECK(nvs_set_blob(handle, "key", key, 32));
-        LOGGER.info("Stored new key in NVS");
+        LOG_I(TAG, "Stored new key in NVS");
     }
 
     nvs_close(handle);
@@ -97,7 +93,7 @@ static void get_nvs_key(uint8_t key[32]) {
  * @param[in] length data length (all buffers must be at least this size)
  */
 static void xorKey(const uint8_t* inLeft, const uint8_t* inRight, uint8_t* out, size_t length) {
-    for (int i = 0; i < length; ++i) {
+    for (size_t i = 0; i < length; ++i) {
         out[i] = inLeft[i] ^ inRight[i];
     }
 }
@@ -108,8 +104,8 @@ static void xorKey(const uint8_t* inLeft, const uint8_t* inRight, uint8_t* out, 
  */
 static void getKey(uint8_t key[32]) {
 #if !defined(CONFIG_SECURE_BOOT) || !defined(CONFIG_SECURE_FLASH_ENC_ENABLED)
-    LOGGER.warn("Using tt_secure_* code with secure boot and/or flash encryption disabled.");
-    LOGGER.warn("An attacker with physical access to your ESP32 can decrypt your secure data.");
+    LOG_W(TAG, "Using tt_secure_* code with secure boot and/or flash encryption disabled.");
+    LOG_W(TAG, "An attacker with physical access to your ESP32 can decrypt your secure data.");
 #endif
 
 #ifdef ESP_PLATFORM
@@ -119,8 +115,10 @@ static void getKey(uint8_t key[32]) {
     get_hardware_key(hardware_key);
     get_nvs_key(nvs_key);
     xorKey(hardware_key, nvs_key, key, 32);
+    mbedtls_platform_zeroize(hardware_key, sizeof(hardware_key));
+    mbedtls_platform_zeroize(nvs_key, sizeof(nvs_key));
 #else
-    LOGGER.warn("Using unsafe key for debugging purposes.");
+    LOG_W(TAG, "Using unsafe key for debugging purposes.");
     memset(key, 0, 32);
 #endif
 }
@@ -161,7 +159,6 @@ static int aes256CryptCbc(
 }
 
 int crypt_encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
-    check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256)");
     uint8_t key[32];
     getKey(key);
 
@@ -169,11 +166,13 @@ int crypt_encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData,
     uint8_t iv_copy[16];
     memcpy(iv_copy, iv, sizeof(iv_copy));
 
-    return aes256CryptCbc(key, MBEDTLS_AES_ENCRYPT, dataLength, iv_copy, inData, outData);
+    int result = aes256CryptCbc(key, MBEDTLS_AES_ENCRYPT, dataLength, iv_copy, inData, outData);
+    mbedtls_platform_zeroize(key, sizeof(key));
+    mbedtls_platform_zeroize(iv_copy, sizeof(iv_copy));
+    return result;
 }
 
 int crypt_decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
-    check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256)");
     uint8_t key[32];
     getKey(key);
 
@@ -181,5 +180,8 @@ int crypt_decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData,
     uint8_t iv_copy[16];
     memcpy(iv_copy, iv, sizeof(iv_copy));
 
-    return aes256CryptCbc(key, MBEDTLS_AES_DECRYPT, dataLength, iv_copy, inData, outData);
+    int result = aes256CryptCbc(key, MBEDTLS_AES_DECRYPT, dataLength, iv_copy, inData, outData);
+    mbedtls_platform_zeroize(key, sizeof(key));
+    mbedtls_platform_zeroize(iv_copy, sizeof(iv_copy));
+    return result;
 }

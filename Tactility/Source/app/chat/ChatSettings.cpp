@@ -7,11 +7,12 @@
 #include <Tactility/app/chat/ChatSettings.h>
 #include <Tactility/app/chat/ChatProtocol.h>
 
-#include <Tactility/crypt/Crypt.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/Logger.h>
 #include <Tactility/Paths.h>
+
+#include <tactility/crypt.h>
 
 #include <esp_random.h>
 

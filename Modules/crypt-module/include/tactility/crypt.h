@@ -1,7 +1,7 @@
-/** @file Crypt.h
+// SPDX-License-Identifier: Apache-2.0
+/** @file crypt.h
  *
- * @brief Hardware-bound encryption methods.
- * @warning Enable secure boot and flash encryption to increase security.
+ * @brief Encryption helper functions.
  *
  * Offers AES 256 CBC encryption with built-in key.
  * The key is built from data including:
@@ -43,7 +43,7 @@ void crypt_get_iv(const void* data, size_t dataLength, uint8_t iv[16]);
  * @param[in] inData input data
  * @param[out] outData output data
  * @param[in] dataLength data length, a multiple of 16 (for both inData and outData)
- * @return the result of esp_aes_crypt_cbc() (MBEDTLS_ERR_*)
+ * @return the result of esp_aes_crypt_cbc() (MBEDTLS_ERR_*), or -1 if dataLength is not a positive multiple of 16
  */
 int crypt_encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength);
 
@@ -57,7 +57,7 @@ int crypt_encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData,
  * @param[in] inData input data
  * @param[out] outData output data
  * @param[in] dataLength data length, a multiple of 16 (for both inData and outData)
- * @return the result of esp_aes_crypt_cbc() (MBEDTLS_ERR_*)
+ * @return the result of esp_aes_crypt_cbc() (MBEDTLS_ERR_*), or -1 if dataLength is not a positive multiple of 16
  */
 int crypt_decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength);
 

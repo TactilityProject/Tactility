@@ -10,6 +10,7 @@ list(APPEND REQUIRES_LIST
     TactilityFreeRtos
     hal-device-module
     lvgl-module
+    crypt-module
     lv_screenshot
     minitar
     minmea

@@ -24,6 +24,7 @@
 #include <Tactility/settings/TimePrivate.h>
 
 #include <tactility/concurrent/thread.h>
+#include <tactility/crypt_module.h>
 #include <tactility/drivers/grove.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/filesystem/file_system.h>
@@ -330,6 +331,9 @@ void run(const Configuration& config, Module* dtsModules[], DtsDevice dtsDevices
 
     // hal-device-module
     check(module_construct_add_start(&hal_device_module) == ERROR_NONE);
+
+    // crypt-module
+    check(module_construct_add_start(&crypt_module) == ERROR_NONE);
 
     // Assign early so starting services can use it
     config_instance = &config;

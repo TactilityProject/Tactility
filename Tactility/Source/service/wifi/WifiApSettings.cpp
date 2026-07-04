@@ -2,9 +2,10 @@
 #include <Tactility/service/wifi/WifiApSettings.h>
 #include <Tactility/file/PropertiesFile.h>
 
-#include <Tactility/crypt/Crypt.h>
 #include <Tactility/file/File.h>
 #include <Tactility/Logger.h>
+
+#include <tactility/crypt.h>
 
 #include <Tactility/service/ServicePaths.h>
 #include <format>

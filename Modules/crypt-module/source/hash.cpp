@@ -1,4 +1,5 @@
-#include "Tactility/crypt/Hash.h"
+// SPDX-License-Identifier: Apache-2.0
+#include <tactility/hash.h>
 
 uint32_t djb2_str(const char* str) {
     uint32_t hash = 5381;
