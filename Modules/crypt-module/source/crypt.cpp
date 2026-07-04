@@ -6,6 +6,7 @@
 
 #include <mbedtls/aes.h>
 #include <mbedtls/platform_util.h>
+#include <mbedtls/sha256.h>
 #include <cstring>
 #include <cstdint>
 
@@ -13,11 +14,31 @@
 #include "esp_mac.h"
 #include "esp_random.h"
 #include "nvs_flash.h"
+#else
+#include <random>
 #endif
 
 constexpr auto* TAG = "crypt";
 
 #define TT_NVS_NAMESPACE "tt_secure"
+
+/**
+ * Fills a buffer with cryptographically secure random bytes.
+ * @param[out] out output buffer
+ * @param[in] length number of bytes to fill
+ */
+static void fill_random(uint8_t* out, size_t length) {
+#ifdef ESP_PLATFORM
+    esp_fill_random(out, length);
+#else
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dist(0, 255);
+    for (size_t i = 0; i < length; ++i) {
+        out[i] = static_cast<uint8_t>(dist(gen));
+    }
+#endif
+}
 
 #ifdef ESP_PLATFORM
 /**
@@ -76,7 +97,7 @@ static void get_nvs_key(uint8_t key[32]) {
         LOG_I(TAG, "Fetched key from NVS (%zu bytes)", length);
         check(length == 32);
     } else {
-        esp_fill_random(key, 32);
+        fill_random(key, 32);
         ESP_ERROR_CHECK(nvs_set_blob(handle, "key", key, 32));
         ESP_ERROR_CHECK(nvs_commit(handle));
         LOG_I(TAG, "Stored new key in NVS");
@@ -125,12 +146,14 @@ static void getKey(uint8_t key[32]) {
 }
 
 void crypt_get_iv(const void* data, size_t dataLength, uint8_t iv[16]) {
-    memset(iv, 0, 16);
-    auto* data_bytes = (uint8_t*)data;
-    for (int i = 0; i < dataLength; ++i) {
-        size_t safe_index = i % 16;
-        iv[safe_index] %= data_bytes[i];
-    }
+    uint8_t hash[32];
+    mbedtls_sha256(static_cast<const unsigned char*>(data), dataLength, hash, 0);
+    memcpy(iv, hash, 16);
+    mbedtls_platform_zeroize(hash, sizeof(hash));
+}
+
+void crypt_generate_iv(uint8_t iv[16]) {
+    fill_random(iv, 16);
 }
 
 static int aes256CryptCbc(

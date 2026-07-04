@@ -26,12 +26,31 @@ extern "C" {
 #endif
 
 /**
- * @brief Fills the IV with zeros and then creates an IV based on the input data.
+ * @brief Deterministically derives an IV from the given data (the first 16 bytes of its SHA-256 hash).
+ *
+ * Calling this again with the same data always produces the same IV - use this when there's nowhere
+ * to store a per-encryption IV alongside the ciphertext, and the caller can supply the same associated
+ * data (e.g. an identifier that's known at both encrypt and decrypt time, not the secret itself) on both
+ * ends. Because the IV doesn't change between encryptions with the same associated data, encrypting the
+ * same plaintext twice produces the same ciphertext - prefer crypt_generate_iv() when ciphertext can be
+ * stored alongside a random IV instead.
+ *
  * @param[in] data input data
  * @param[in] dataLength input data length
  * @param[out] iv output IV
  */
 void crypt_get_iv(const void* data, size_t dataLength, uint8_t iv[16]);
+
+/**
+ * @brief Fills the IV with cryptographically secure random bytes.
+ *
+ * Use this when the IV can be stored alongside the ciphertext (e.g. prefixed to it) and read back for
+ * decryption. This gives every encryption operation a unique, unpredictable IV, which is the standard
+ * and strongest way to use crypt_encrypt()/crypt_decrypt().
+ *
+ * @param[out] iv output IV
+ */
+void crypt_generate_iv(uint8_t iv[16]);
 
 /**
  * @brief Encrypt data.

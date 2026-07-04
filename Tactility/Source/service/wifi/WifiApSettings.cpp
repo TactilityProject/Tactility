@@ -57,40 +57,42 @@ static std::string getApPropertiesFilePath(std::shared_ptr<ServicePaths> paths, 
     return std::format(AP_SETTINGS_FORMAT, paths->getUserDataDirectory(), ssid);
 }
 
-static bool encrypt(const std::string& ssidInput, std::string& ssidOutput) {
+// The IV is derived from the SSID rather than the password/ciphertext, because the SSID is the one
+// value that's known and identical at both encrypt time (save) and decrypt time (load).
+static bool encrypt(const std::string& ssid, const std::string& plaintext, std::string& ciphertextOutput) {
     uint8_t iv[16];
-    const auto length = ssidInput.size();
+    const auto length = plaintext.size();
     constexpr size_t chunk_size = 16;
     const auto encrypted_length = ((length / chunk_size) + (length % chunk_size ? 1 : 0)) * chunk_size;
 
     auto* buffer = static_cast<uint8_t*>(malloc(encrypted_length));
 
-    crypt_get_iv(ssidInput.c_str(), ssidInput.size(), iv);
-    if (crypt_encrypt(iv, reinterpret_cast<const uint8_t*>(ssidInput.c_str()), buffer, encrypted_length) != 0) {
+    crypt_get_iv(ssid.c_str(), ssid.size(), iv);
+    if (crypt_encrypt(iv, reinterpret_cast<const uint8_t*>(plaintext.c_str()), buffer, encrypted_length) != 0) {
         LOG_E(TAG, "Failed to encrypt");
         free(buffer);
         return false;
     }
 
-    ssidOutput = toHexString(buffer, encrypted_length);
+    ciphertextOutput = toHexString(buffer, encrypted_length);
     free(buffer);
 
     return true;
 }
 
-static bool decrypt(const std::string& ssidInput, std::string& ssidOutput) {
-    assert(!ssidInput.empty());
-    assert(ssidInput.size() % 2 == 0);
-    auto* data = static_cast<uint8_t*>(malloc(ssidInput.size() / 2));
-    if (!readHex(ssidInput, data, ssidInput.size() / 2)) {
+static bool decrypt(const std::string& ssid, const std::string& ciphertextInput, std::string& plaintextOutput) {
+    assert(!ciphertextInput.empty());
+    assert(ciphertextInput.size() % 2 == 0);
+    auto* data = static_cast<uint8_t*>(malloc(ciphertextInput.size() / 2));
+    if (!readHex(ciphertextInput, data, ciphertextInput.size() / 2)) {
         LOG_E(TAG, "Failed to read hex");
         return false;
     }
 
     uint8_t iv[16];
-    crypt_get_iv(ssidInput.c_str(), ssidInput.size(), iv);
+    crypt_get_iv(ssid.c_str(), ssid.size(), iv);
 
-    auto result_length = ssidInput.size() / 2;
+    auto result_length = ciphertextInput.size() / 2;
     // Allocate correct length plus space for string null terminator
     auto* result = static_cast<uint8_t*>(malloc(result_length + 1));
     result[result_length] = 0;
@@ -99,18 +101,18 @@ static bool decrypt(const std::string& ssidInput, std::string& ssidOutput) {
         iv,
         data,
         result,
-        ssidInput.size() / 2
+        ciphertextInput.size() / 2
     );
 
     free(data);
 
     if (decrypt_result != 0) {
-        LOG_E(TAG, "Failed to decrypt credentials for \"%ss\": %d", ssidInput.c_str(), decrypt_result);
+        LOG_E(TAG, "Failed to decrypt credentials for \"%s\": %d", ssid.c_str(), decrypt_result);
         free(result);
         return false;
     }
 
-    ssidOutput = reinterpret_cast<char*>(result);
+    plaintextOutput = reinterpret_cast<char*>(result);
     free(result);
     return true;
 }
@@ -152,7 +154,7 @@ bool load(const std::string& ssid, WifiApSettings& apSettings) {
         const auto& encrypted_password = map[AP_PROPERTIES_KEY_PASSWORD];
         if (encrypted_password.empty()) {
             apSettings.password = "";
-        } else if (decrypt(encrypted_password, password_decrypted)) {
+        } else if (decrypt(ssid, encrypted_password, password_decrypted)) {
             apSettings.password = password_decrypted;
         } else {
             return false;
@@ -197,7 +199,7 @@ bool save(const WifiApSettings& apSettings) {
 
     std::string password_encrypted;
     if (!apSettings.password.empty()) {
-        if (!encrypt(apSettings.password, password_encrypted)) {
+        if (!encrypt(apSettings.ssid, apSettings.password, password_encrypted)) {
             return false;
         }
     } else {
