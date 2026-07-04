@@ -194,6 +194,7 @@ void GuiService::redraw() {
 }
 
 bool GuiService::onStart(ServiceContext& service) {
+    exitRequested = false;
     dispatcher = dispatcher_alloc();
 
     thread = new Thread(
@@ -235,6 +236,7 @@ void GuiService::onStop(ServiceContext& service) {
     auto* exit_item = new GuiDispatchItem{this, GuiDispatchType::Exit, nullptr};
     if (dispatcher_dispatch(dispatcher, exit_item, onGuiDispatch) != ERROR_NONE) {
         LOGGER.error("Failed to dispatch gui exit event");
+        check(false, "Failed to dispatch exit signal to thread.");
         delete exit_item;
     }
     thread->join();

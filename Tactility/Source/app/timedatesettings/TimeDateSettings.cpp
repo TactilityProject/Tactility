@@ -1,12 +1,15 @@
+#include "tactility/lvgl_module.h"
+
+
+#include <Tactility/Logger.h>
+#include <Tactility/RecursiveMutex.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/timezone/TimeZone.h>
-#include <Tactility/Logger.h>
-#include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/RecursiveMutex.h>
+#include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/loader/Loader.h>
-#include <Tactility/settings/Time.h>
 #include <Tactility/settings/SystemSettings.h>
+#include <Tactility/settings/Time.h>
 
 #include <lvgl.h>
 
@@ -150,11 +153,11 @@ public:
 
             // onShow() may not have (re)created the widgets yet: onResult() runs synchronously
             // on the loader thread and can race ahead of the async gui-task redraw.
-            if (!name.empty() && isShown) {
-                if (lvgl::lock(100 / portTICK_PERIOD_MS)) {
+            if (!name.empty() && lvgl_try_lock(100 / portTICK_PERIOD_MS)) {
+                if (isShown) {
                     lv_label_set_text(timeZoneLabel, name.c_str());
-                    lvgl::unlock();
                 }
+                lvgl_unlock();
             }
         }
     }
