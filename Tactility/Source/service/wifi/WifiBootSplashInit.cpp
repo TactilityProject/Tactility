@@ -120,21 +120,25 @@ static void importWifiApSettingsFromDir(const std::string& path) {
 }
 
 void bootSplashInit() {
-    LOGGER.info("bootSplashInit begin");
+    LOGGER.info("bootSplashInit dispatch");
     getMainDispatcher().dispatch([] {
         LOGGER.info("bootSplashInit dispatch begin");
-        // First import any provisioning files placed on the system data partition.
-        const std::string data_settings_path = file::getChildPath(getUserDataPath(), "provisioning");
-        importWifiApSettingsFromDir(data_settings_path);
+        // Import any provisioning files placed on the system data partition.
+        const std::string provisioning_path = file::getChildPath(getUserDataPath(), "provisioning");
+        if (file::isDirectory(provisioning_path)) {
+            importWifiApSettingsFromDir(provisioning_path);
+        } else {
+            LOGGER.info("Skip provisioning: no files at {}", provisioning_path);
+        }
 
+        // Dispatch WiFi on
         if (settings::shouldEnableOnBoot()) {
-            LOGGER.info("Auto-enabling due to setting");
+            LOGGER.info("Auto-enabling WiFi");
             getMainDispatcher().dispatch([] -> void { setEnabled(true); });
         }
 
         LOGGER.info("bootSplashInit dispatch end");
     });
-    LOGGER.info("bootSplashInit end");
 }
 
 }

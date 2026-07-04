@@ -22,8 +22,13 @@ struct DevelopmentSettings {
 };
 
 static bool load(DevelopmentSettings& settings) {
+    auto settings_path = getSettingsFilePath();
+    if (!file::isFile(settings_path)) {
+        return false;
+    }
+
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(getSettingsFilePath(), map)) {
+    if (!file::loadPropertiesFile(settings_path, map)) {
         return false;
     }
 

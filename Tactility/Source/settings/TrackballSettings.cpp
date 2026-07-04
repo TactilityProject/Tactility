@@ -24,8 +24,13 @@ constexpr uint8_t MIN_POINTER_SENSITIVITY = 1;
 constexpr uint8_t MAX_POINTER_SENSITIVITY = 10;
 
 bool load(TrackballSettings& settings) {
+    auto settings_path = getSettingsFilePath();
+    if (!file::isFile(settings_path)) {
+        return false;
+    }
+
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(getSettingsFilePath(), map)) {
+    if (!file::loadPropertiesFile(settings_path, map)) {
         return false;
     }
 

@@ -1,7 +1,6 @@
 #include <Tactility/MountPoints.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
-#include <Tactility/Logger.h>
 #include <Tactility/settings/BootSettings.h>
 
 #include <Tactility/Paths.h>
@@ -9,8 +8,6 @@
 #include <string>
 
 namespace tt::settings {
-
-constexpr auto* TAG = "BootSettings";
 
 constexpr auto* PROPERTIES_FILE_FORMAT = "{}/settings/boot.properties";
 constexpr auto* PROPERTIES_KEY_LAUNCHER_APP_ID = "launcherAppId";
@@ -22,6 +19,10 @@ static std::string getPropertiesFilePath() {
 
 bool loadBootSettings(BootSettings& properties) {
     const std::string path = getPropertiesFilePath();
+    if (!file::isFile(path)) {
+        return false;
+    }
+
     if (!file::loadPropertiesFile(path, [&properties](auto& key, auto& value) {
         if (key == PROPERTIES_KEY_AUTO_START_APP_ID) {
             properties.autoStartAppId = value;
@@ -29,7 +30,6 @@ bool loadBootSettings(BootSettings& properties) {
             properties.launcherAppId = value;
         }
     })) {
-        LOG_I(TAG, "No settings at %s", path.c_str());
         return false;
     }
 

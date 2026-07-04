@@ -60,8 +60,11 @@ bool hasFileForDevice(const std::string& addr_hex) {
 }
 
 bool load(const std::string& addr_hex, PairedDevice& device) {
+    auto file_path = getFilePath(addr_hex);
+    if (!file::isFile(file_path)) return false;
+
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(getFilePath(addr_hex), map)) return false;
+    if (!file::loadPropertiesFile(file_path, map)) return false;
     if (!map.contains(KEY_ADDR)) return false;
     if (!hexToAddr(map[KEY_ADDR], device.addr)) return false;
 

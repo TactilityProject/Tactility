@@ -127,6 +127,10 @@ bool load(const std::string& ssid, WifiApSettings& apSettings) {
         return false;
     }
     const auto file_path = getApPropertiesFilePath(service_context->getPaths(), ssid);
+    if (!file::isFile(file_path)) {
+        return false;
+    }
+
     std::map<std::string, std::string> map;
     if (!file::loadPropertiesFile(file_path, map)) {
         return false;

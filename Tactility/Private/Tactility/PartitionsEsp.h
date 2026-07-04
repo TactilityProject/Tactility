@@ -7,7 +7,7 @@
 
 namespace tt {
 
-esp_err_t initPartitionsEsp();
+bool initPartitionsEsp();
 wl_handle_t getDataPartitionWlHandle();
 
 } // namespace

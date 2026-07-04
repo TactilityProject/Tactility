@@ -35,6 +35,8 @@ constexpr auto* KEY_NICKNAME = "nickname";
 constexpr auto* KEY_ENCRYPTION_KEY = "encryptionKey";
 constexpr auto* KEY_CHAT_CHANNEL = "chatChannel";
 
+uint32_t defaultSenderId = 0;
+
 // IV_SEED provides basic obfuscation for stored encryption keys, not strong encryption.
 // The device master key (from crypt::getIv) provides the actual security.
 static constexpr auto* IV_SEED = "chat_key";
@@ -113,8 +115,9 @@ static uint32_t generateSenderId() {
 }
 
 ChatSettingsData getDefaultSettings() {
+    if (defaultSenderId == 0) defaultSenderId = generateSenderId();
     return ChatSettingsData{
-        .senderId = 0,
+        .senderId = defaultSenderId,
         .nickname = "Device",
         .encryptionKey = {},
         .hasEncryptionKey = false,
@@ -125,8 +128,14 @@ ChatSettingsData getDefaultSettings() {
 ChatSettingsData loadSettings() {
     ChatSettingsData settings = getDefaultSettings();
 
+    auto settings_path = getSettingsFilePath();
+    if (!file::isFile(settings_path)) {
+        settings.senderId = generateSenderId();
+        return settings;
+    }
+
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(getSettingsFilePath(), map)) {
+    if (!file::loadPropertiesFile(settings_path, map)) {
         settings.senderId = generateSenderId();
         return settings;
     }

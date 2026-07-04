@@ -47,6 +47,7 @@ FileSystemApi partition_fs_api = {
 // endregion file_system stub
 
 static esp_err_t initNvsFlashSafely() {
+    LOGGER.info("Init NVS");
     esp_err_t result = nvs_flash_init();
     if (result == ESP_ERR_NVS_NO_FREE_PAGES || result == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -75,7 +76,7 @@ size_t getSectorSize() {
 #endif
 }
 
-esp_err_t initPartitionsEsp() {
+bool initPartitionsEsp() {
     LOGGER.info("Init partitions");
     ESP_ERROR_CHECK(initNvsFlashSafely());
 
@@ -90,22 +91,25 @@ esp_err_t initPartitionsEsp() {
     auto system_result = esp_vfs_fat_spiflash_mount_ro("/system", "system", &mount_config);
     if (system_result != ESP_OK) {
         LOGGER.error("Failed to mount /system ({})", esp_err_to_name(system_result));
-    } else {
-        LOGGER.info("Mounted /system");
-        static auto system_fs_data = PartitionFsData("/system");
-        file_system_add(&partition_fs_api, &system_fs_data);
+        return false;
     }
+    LOGGER.info("Mounted /system");
+    static auto system_fs_data = PartitionFsData("/system");
+    file_system_add(&partition_fs_api, &system_fs_data);
 
+#ifdef CONFIG_TT_USER_DATA_LOCATION_INTERNAL
     auto data_result = esp_vfs_fat_spiflash_mount_rw_wl("/data", "data", &mount_config, &data_wl_handle);
     if (data_result != ESP_OK) {
         LOGGER.error("Failed to mount /data ({})", esp_err_to_name(data_result));
-    } else {
-        LOGGER.info("Mounted /data");
-        static auto data_fs_data = PartitionFsData("/data");
-        file_system_add(&partition_fs_api, &data_fs_data);
+        return false;
     }
 
-    return system_result == ESP_OK && data_result == ESP_OK;
+    LOGGER.info("Mounted /data");
+    static auto data_fs_data = PartitionFsData("/data");
+    file_system_add(&partition_fs_api, &data_fs_data);
+#endif
+
+    return true;
 }
 
 } // namespace

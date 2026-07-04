@@ -24,7 +24,6 @@ struct ChatSettingsData {
 
 ChatSettingsData loadSettings();
 bool saveSettings(const ChatSettingsData& settings);
-ChatSettingsData getDefaultSettings();
 bool settingsFileExists();
 
 } // namespace tt::app::chat
