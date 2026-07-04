@@ -33,7 +33,7 @@ static bool powerOn() {
 }
 
 bool initBoot() {
-    LOG_(TAG, "Powering on the board...");
+    LOG_I(TAG, "Powering on the board...");
     if (!powerOn()) {
         LOG_E(TAG, "Failed to power on the board.");
         return false;
