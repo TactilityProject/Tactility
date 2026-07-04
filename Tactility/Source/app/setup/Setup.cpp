@@ -53,6 +53,7 @@ class SetupApp final : public App {
     Phase phase = Phase::Welcome;
     size_t stepIndex = 0;
     std::vector<StepConfiguration> steps;
+    bool isShown = false;
 
     lv_obj_t* titleLabel = nullptr;
     lv_obj_t* descriptionLabel = nullptr;
@@ -105,7 +106,12 @@ class SetupApp final : public App {
             phase = Phase::Done;
         }
 
-        renderCurrent();
+        // Widgets may not exist yet: onShow() runs asynchronously on the GUI task and
+        // may not have (re)created them by the time onResult() advances the state.
+        // onShow() calls renderCurrent() itself once the widgets are ready.
+        if (isShown) {
+            renderCurrent();
+        }
     }
 
     void onSkipClicked() {
@@ -180,7 +186,12 @@ public:
         lv_obj_align(continueButton, LV_ALIGN_BOTTOM_RIGHT, -12, -12);
         lv_obj_add_event_cb(continueButton, onContinueClickedCallback, LV_EVENT_SHORT_CLICKED, this);
 
+        isShown = true;
         renderCurrent();
+    }
+
+    void onHide(AppContext& app) override {
+        isShown = false;
     }
 
     void onResult(AppContext& app, LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle) override {

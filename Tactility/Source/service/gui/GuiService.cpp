@@ -27,14 +27,49 @@ void warnIfRunningOnGuiTask(const char* context) {
     }
 }
 
+namespace {
+
+enum class GuiDispatchType { Show, Hide, Exit };
+
+struct GuiDispatchItem {
+    GuiService* service;
+    GuiDispatchType type;
+    std::shared_ptr<app::AppInstance> appInstance; // only used for Show
+};
+
+} // namespace
+
 // region AppManifest
 
+void GuiService::onGuiDispatch(void* context) {
+    std::unique_ptr<GuiDispatchItem> item(static_cast<GuiDispatchItem*>(context));
+    switch (item->type) {
+        case GuiDispatchType::Show:
+            item->service->showApp(item->appInstance);
+            break;
+        case GuiDispatchType::Hide:
+            item->service->hideApp();
+            break;
+        case GuiDispatchType::Exit:
+            item->service->exitRequested = true;
+            break;
+    }
+}
+
 void GuiService::onLoaderEvent(LoaderService::Event event) {
+    GuiDispatchItem* item;
     if (event == LoaderService::Event::ApplicationShowing) {
         auto app_instance = std::static_pointer_cast<app::AppInstance>(app::getCurrentAppContext());
-        showApp(app_instance);
+        item = new GuiDispatchItem{this, GuiDispatchType::Show, app_instance};
     } else if (event == LoaderService::Event::ApplicationHiding) {
-        hideApp();
+        item = new GuiDispatchItem{this, GuiDispatchType::Hide, nullptr};
+    } else {
+        return;
+    }
+
+    if (dispatcher_dispatch(dispatcher, item, onGuiDispatch) != ERROR_NONE) {
+        LOGGER.error("Failed to dispatch gui event");
+        delete item;
     }
 }
 
@@ -82,26 +117,8 @@ int32_t GuiService::guiMain() {
 
     lvgl::unlock();
 
-    while (true) {
-        uint32_t flags = 0;
-        if (service->threadFlags.wait(GUI_THREAD_FLAG_ALL, false, true, &flags, portMAX_DELAY)) {
-            // When service not started or starting -> exit
-            State service_state = getState(manifest.id);
-            if (service_state != State::Started && service_state != State::Starting) {
-                break;
-            }
-
-            // Process and dispatch draw call
-            if (flags & GUI_THREAD_FLAG_DRAW) {
-                service->threadFlags.clear(GUI_THREAD_FLAG_DRAW);
-                service->redraw();
-            }
-
-            if (flags & GUI_THREAD_FLAG_EXIT) {
-                service->threadFlags.clear(GUI_THREAD_FLAG_EXIT);
-                break;
-            }
-        }
+    while (!service->exitRequested) {
+        dispatcher_consume(service->dispatcher);
     }
 
     service->appRootWidget = nullptr;
@@ -177,6 +194,8 @@ void GuiService::redraw() {
 }
 
 bool GuiService::onStart(ServiceContext& service) {
+    dispatcher = dispatcher_alloc();
+
     thread = new Thread(
         GUI_TASK_NAME,
         4096, // Last known minimum was 2800 for launching desktop
@@ -211,8 +230,13 @@ void GuiService::onStop(ServiceContext& service) {
     appToRender = nullptr;
     isStarted = false;
 
-    threadFlags.set(GUI_THREAD_FLAG_EXIT);
     unlock();
+
+    auto* exit_item = new GuiDispatchItem{this, GuiDispatchType::Exit, nullptr};
+    if (dispatcher_dispatch(dispatcher, exit_item, onGuiDispatch) != ERROR_NONE) {
+        LOGGER.error("Failed to dispatch gui exit event");
+        delete exit_item;
+    }
     thread->join();
 
     if (lvgl::lock()) {
@@ -226,10 +250,8 @@ void GuiService::onStop(ServiceContext& service) {
     }
 
     delete thread;
-}
-
-void GuiService::requestDraw() {
-    threadFlags.set(GUI_THREAD_FLAG_DRAW);
+    dispatcher_free(dispatcher);
+    dispatcher = nullptr;
 }
 
 void GuiService::showApp(std::shared_ptr<app::AppInstance> app) {
@@ -253,7 +275,7 @@ void GuiService::showApp(std::shared_ptr<app::AppInstance> app) {
     }
 
     appToRender = std::move(app);
-    requestDraw();
+    redraw();
 }
 
 void GuiService::hideApp() {
