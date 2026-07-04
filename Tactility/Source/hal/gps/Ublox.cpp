@@ -215,7 +215,6 @@ static struct uBloxGnssModelInfo {
 
 GpsModel probe(::Device* uart) {
     LOG_I(TAG, "Probing for U-blox");
-    constexpr auto DETECTED_MESSAGE = "%s detected, using %s Module";
 
     uint8_t cfg_rate[] = {0xB5, 0x62, 0x06, 0x08, 0x00, 0x00, 0x00, 0x00};
     checksum(cfg_rate, sizeof(cfg_rate));
@@ -292,6 +291,7 @@ GpsModel probe(::Device* uart) {
                 }
             }
         }
+        #define DETECTED_MESSAGE "%s detected, using %s Module"
         if (strncmp(ublox_info.hwVersion, "00040007", 8) == 0) {
             LOG_I(TAG, DETECTED_MESSAGE, "U-blox 6", "6");
             return GpsModel::UBLOX6;

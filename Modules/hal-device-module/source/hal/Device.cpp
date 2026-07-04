@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <tactility/hal/Device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/hal_device.hpp>
-
+#include <tactility/hal/Device.h>
 #include <tactility/log.h>
+
 #include <Tactility/RecursiveMutex.h>
+
 #include <algorithm>
+#include <format>
 
 namespace tt::hal {
 
