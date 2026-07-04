@@ -26,8 +26,8 @@
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
 		clock-frequency = <400000>;
-		pin-sda = <&gpio0 8 GPIO_FLAG_NONE>;
-		pin-scl = <&gpio0 9 GPIO_FLAG_NONE>;
+		pin-sda = <&gpio0 8 GPIO_FLAG_PULL_UP>;
+		pin-scl = <&gpio0 9 GPIO_FLAG_PULL_UP>;
 	};
 
 	spi0 {
@@ -37,7 +37,7 @@
 		pin-mosi = <&gpio0 11 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 13 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 12 GPIO_FLAG_NONE>;
-	
+
 		sdcard@0 {
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;

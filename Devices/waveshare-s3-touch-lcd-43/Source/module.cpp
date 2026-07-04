@@ -12,7 +12,7 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-struct Module waveshare_s3_touch_lcd_43_module = {
+Module waveshare_s3_touch_lcd_43_module = {
     .name = "waveshare-s3-touch-lcd-43",
     .start = start,
     .stop = stop,
