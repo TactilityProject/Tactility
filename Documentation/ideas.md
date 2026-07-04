@@ -12,8 +12,6 @@
 
 ## Higher Priority
 
-- Require either SD card present or at least 8MB of flash. This way we can increase firmware size, ensure performance, and have a single location for storing data.
-- Consider storing data on SD card in `/tactility` folder (for usage with Launcher)
 - Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.
 - Add kernel listening mechanism so that the root device init can be notified when a device becomes available: 
   Callback for device/start stop with filtering on device type:
@@ -21,13 +19,10 @@
     - on_after_start: e.g. to initialize an I2S device via its I2C connection, once I2C becomes available
     - on_before_stop: e.g. to stop using a device that was started before
     - on_after_stop: ?
-- DTS: support for #defines
-- DTS: support for aliases
 - SPI kernel driver
 - Kernel concepts for ELF loading (generic approach for GUI apps, console apps, libraries).
 - Fix glitches when installing app via App Hub with 4.3" Waveshare
 - TCA9534 keyboards should use interrupts
-- GT911 drivers should use interrupts if it's stable
 - Fix Cardputer (original): use LV_KEY_NEXT and _PREV in keyboard mapping instead of encoder driver hack (and check GPIO app if it then hangs too)
 - Expose http::download() and main dispatcher to TactiltyC.
 - External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
@@ -36,15 +31,9 @@
   Create some kind of "intent" handler like on Android.
   The intent can have an action (e.g. view), a URL and an optional bundle.
   The manifest can provide the intent handler
-- When an SD card is detected, check if it has been initialized and assigned as data partition.
-  If the user choses to select it, then copy files from /data over to it.
-  Write the user choice to a file on the card.
-  File contains 3 statuses: ignore, data, .. initdata?
-  The latter is used for auto-selecting it as data partition.
 - Support direct installation of an `.app` file with `tactility.py install helloworld.app <ip>`
 - Support `tactility.py target <ip>` to remember the device IP address.
 - minitar/untarFile(): "entry->metadata.path" can escape its confined path (e.g. "../something")
-- Refactor elf loader code to make it multi-platform and to support multiple types of executables
 
 ## Medium Priority
 
@@ -91,7 +80,7 @@
 - Audio player app
 - Audio recording app
 - OTA updates
-- T-Deck Plus: Create separate device config?
+- T-Deck Plus: Create separate device config (pre-requisite: needs more kernel drivers so the driver count in the device project is reduced)
 - If present, use LED to show boot/wifi status
 - Capacity based on voltage: estimation for various devices uses a linear voltage curve, but it should use a battery discharge curve.
 - Wrapper for lvgl slider widget that shows "+" and "-" buttons, and also the value in a label.
