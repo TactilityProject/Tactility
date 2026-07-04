@@ -3,10 +3,10 @@
 
 #include <Gt911Touch.h>
 #include <PwmBacklight.h>
-#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/log.h>
 
 constexpr auto LCD_PIN_RESET = GPIO_NUM_0;  // Match P4 EV board reset line
 constexpr auto LCD_PIN_BACKLIGHT = GPIO_NUM_23;
@@ -36,7 +36,7 @@ static std::shared_ptr<tt::hal::touch::TouchDevice> createTouch() {
 std::shared_ptr<tt::hal::display::DisplayDevice> createDisplay() {
     // Initialize PWM backlight
     if (!driver::pwmbacklight::init(LCD_PIN_BACKLIGHT, 20000, LEDC_TIMER_1, LEDC_CHANNEL_0)) {
-        tt::Logger("jc1060p470ciwy").warn("Failed to initialize backlight");
+        LOG_W("jc1060p470ciwy", "Failed to initialize backlight");
     }
 
     auto touch = createTouch();

@@ -3,7 +3,6 @@
 
 #include <Tactility/app/AppContext.h>
 #include <tactility/drivers/i2c_controller.h>
-#include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
@@ -14,6 +13,7 @@
 
 #include <format>
 
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::i2cscanner {
@@ -22,7 +22,7 @@ extern const AppManifest manifest;
 
 class I2cScannerApp final : public App {
 
-    const Logger logger = Logger("I2cScanner");
+    static constexpr auto* TAG = "I2cScanner";
 
     static constexpr auto* START_SCAN_TEXT = "Scan";
     static constexpr auto* STOP_SCAN_TEXT = "Stop scan";
@@ -190,7 +190,7 @@ bool I2cScannerApp::getPort(struct Device** outPort) {
         mutex.unlock();
         return true;
     } else {
-        logger.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "getPort");
+        LOG_W(TAG, "Mutex acquisition timeout (%s)", "getPort");
         return false;
     }
 }
@@ -201,7 +201,7 @@ bool I2cScannerApp::addAddressToList(uint8_t address) {
         mutex.unlock();
         return true;
     } else {
-        logger.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "addAddressToList");
+        LOG_W(TAG, "Mutex acquisition timeout (%s)", "addAddressToList");
         return false;
     }
 }
@@ -217,24 +217,24 @@ bool I2cScannerApp::shouldStopScanTimer() {
 }
 
 void I2cScannerApp::onScanTimer() {
-    logger.info("Scan thread started");
+    LOG_I(TAG, "Scan thread started");
 
     Device* safe_port;
     if (!getPort(&safe_port)) {
-        logger.error("Failed to get I2C port");
+        LOG_E(TAG, "Failed to get I2C port");
         onScanTimerFinished();
         return;
     }
 
     if (!device_is_ready(safe_port)) {
-        logger.error("I2C port not started");
+        LOG_E(TAG, "I2C port not started");
         onScanTimerFinished();
         return;
     }
 
     for (uint8_t address = 1; address < 128; ++address) {
         if (i2c_controller_has_device_at_address(safe_port, address, 10 / portTICK_PERIOD_MS) == ERROR_NONE) {
-            logger.info("Found device at address 0x{:02X}", address);
+            LOG_I(TAG, "Found device at address 0x%02X", address);
             if (!shouldStopScanTimer()) {
                 addAddressToList(address);
             } else {
@@ -247,11 +247,11 @@ void I2cScannerApp::onScanTimer() {
         }
     }
 
-    logger.info("Scan thread finalizing");
+    LOG_I(TAG, "Scan thread finalizing");
 
     onScanTimerFinished();
 
-    logger.info("Scan timer done");
+    LOG_I(TAG, "Scan timer done");
 }
 
 bool I2cScannerApp::hasScanThread() {
@@ -262,7 +262,7 @@ bool I2cScannerApp::hasScanThread() {
         return has_thread;
     } else {
         // Unsafe way
-        logger.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "hasScanTimer");
+        LOG_W(TAG, "Mutex acquisition timeout (%s)", "hasScanTimer");
         return scanTimer != nullptr;
     }
 }
@@ -285,7 +285,7 @@ void I2cScannerApp::startScanning() {
         scanTimer->start();
         mutex.unlock();
     } else {
-        logger.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "startScanning");
+        LOG_W(TAG, "Mutex acquisition timeout (%s)", "startScanning");
     }
 }
 void I2cScannerApp::stopScanning() {
@@ -294,7 +294,7 @@ void I2cScannerApp::stopScanning() {
         scanState = ScanStateStopped;
         mutex.unlock();
     } else {
-        logger.error(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED);
     }
 }
 
@@ -317,7 +317,7 @@ void I2cScannerApp::selectBus(int32_t selected) {
         mutex.unlock();
     }
 
-    logger.info("Selected {}", selected);
+    LOG_I(TAG, "Selected %d", (int)selected);
     setLastBusIndex(selected);
 
     startScanning();
@@ -362,7 +362,7 @@ void I2cScannerApp::updateViews() {
 
         mutex.unlock();
     } else {
-        logger.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "updateViews");
+        LOG_W(TAG, "Mutex acquisition timeout (%s)", "updateViews");
     }
 }
 
@@ -371,7 +371,7 @@ void I2cScannerApp::updateViewsSafely() {
         updateViews();
         lvgl::unlock();
     } else {
-        logger.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "updateViewsSafely");
+        LOG_W(TAG, "Mutex acquisition timeout (%s)", "updateViewsSafely");
     }
 }
 
@@ -384,7 +384,7 @@ void I2cScannerApp::onScanTimerFinished() {
 
         updateViewsSafely();
     } else {
-        logger.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "onScanTimerFinished");
+        LOG_W(TAG, "Mutex acquisition timeout (%s)", "onScanTimerFinished");
     }
 }
 

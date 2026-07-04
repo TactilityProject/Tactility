@@ -3,7 +3,6 @@
 #include "tactility/device.h"
 
 #include <Tactility/LogMessages.h>
-#include <Tactility/Logger.h>
 #include <Tactility/app/App.h>
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
@@ -15,12 +14,13 @@
 #include <Tactility/lvgl/Toolbar.h>
 #include <tactility/check.h>
 #include <tactility/drivers/bluetooth.h>
+#include <tactility/log.h>
 
 #include <lvgl.h>
 
 namespace tt::app::btpeersettings {
 
-static const auto LOGGER = Logger("BtPeerSettings");
+constexpr auto* TAG = "BtPeerSettings";
 
 extern const AppManifest manifest;
 
@@ -77,7 +77,7 @@ class BtPeerSettings : public App {
         if (bluetooth::settings::load(self->addrHex, device)) {
             device.autoConnect = is_on;
             if (!bluetooth::settings::save(device)) {
-                LOGGER.error("Failed to save auto-connect setting");
+                LOG_E(TAG, "Failed to save auto-connect setting");
             }
         }
     }
@@ -88,7 +88,7 @@ class BtPeerSettings : public App {
                 updateViews();
                 lvgl::unlock();
             } else {
-                LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
+                LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
             }
         }
     }

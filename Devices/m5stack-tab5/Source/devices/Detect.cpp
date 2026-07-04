@@ -1,14 +1,14 @@
 #include "Detect.h"
 
-#include <Tactility/Logger.h>
 #include <tactility/device.h>
 #include <tactility/drivers/i2c_controller.h>
+#include <tactility/log.h>
 #include <esp_lcd_touch_gt911.h>
 #include <esp_lcd_touch_st7123.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-static const auto LOGGER = tt::Logger("Tab5Detect");
+constexpr auto* TAG = "Tab5Detect";
 
 Tab5Variant detectVariant() {
     // Allow time for touch IC to fully boot after expander reset in initBoot().
@@ -27,19 +27,19 @@ Tab5Variant detectVariant() {
         //   It may also appear at 0x14 (backup) if the pin happened to be driven low
         if (i2c_controller_has_device_at_address(i2c0, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS, PROBE_TIMEOUT) == ERROR_NONE ||
             i2c_controller_has_device_at_address(i2c0, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP, PROBE_TIMEOUT) == ERROR_NONE) {
-            LOGGER.info("Detected GT911 touch — using ILI9881C display");
+            LOG_I(TAG, "Detected GT911 touch — using ILI9881C display");
             return Tab5Variant::Ili9881c_Gt911;
         }
 
         // Probe for ST7123 touch (new variant)
         if (i2c_controller_has_device_at_address(i2c0, ESP_LCD_TOUCH_IO_I2C_ST7123_ADDRESS, PROBE_TIMEOUT) == ERROR_NONE) {
-            LOGGER.info("Detected ST7123 touch — using ST7123 display");
+            LOG_I(TAG, "Detected ST7123 touch — using ST7123 display");
             return Tab5Variant::St7123;
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    LOGGER.warn("No known touch controller detected, defaulting to ST7123");
+    LOG_W(TAG, "No known touch controller detected, defaulting to ST7123");
     return Tab5Variant::St7123;
 }

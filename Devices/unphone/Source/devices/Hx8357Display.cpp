@@ -2,19 +2,19 @@
 #include "Touch.h"
 
 #include <UnPhoneFeatures.h>
-#include <Tactility/Logger.h>
 
 #include <hx8357/disp_spi.h>
 #include <hx8357/hx8357.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("Hx8357Display");
+constexpr auto* TAG = "Hx8357Display";
 
 constexpr auto BUFFER_SIZE = (UNPHONE_LCD_HORIZONTAL_RESOLUTION * UNPHONE_LCD_DRAW_BUFFER_HEIGHT * LV_COLOR_DEPTH / 8);
 
 extern std::shared_ptr<UnPhoneFeatures> unPhoneFeatures;
 
 bool Hx8357Display::start() {
-    LOGGER.info("start");
+    LOG_I(TAG, "start");
 
     disp_spi_add_device(SPI2_HOST);
 
@@ -27,16 +27,16 @@ bool Hx8357Display::start() {
 }
 
 bool Hx8357Display::stop() {
-    LOGGER.info("stop");
+    LOG_I(TAG, "stop");
     disp_spi_remove_device();
     return true;
 }
 
 bool Hx8357Display::startLvgl() {
-    LOGGER.info("startLvgl");
+    LOG_I(TAG, "startLvgl");
 
     if (lvglDisplay != nullptr) {
-        LOGGER.warn("LVGL was already started");
+        LOG_W(TAG, "LVGL was already started");
         return false;
     }
 
@@ -59,7 +59,7 @@ bool Hx8357Display::startLvgl() {
     lv_display_set_flush_cb(lvglDisplay, hx8357_flush);
 
     if (lvglDisplay == nullptr) {
-        LOGGER.info("Failed");
+        LOG_I(TAG, "Failed");
         return false;
     }
 
@@ -74,10 +74,10 @@ bool Hx8357Display::startLvgl() {
 }
 
 bool Hx8357Display::stopLvgl() {
-    LOGGER.info("stopLvgl");
+    LOG_I(TAG, "stopLvgl");
 
     if (lvglDisplay == nullptr) {
-        LOGGER.warn("LVGL was already stopped");
+        LOG_W(TAG, "LVGL was already stopped");
         return false;
     }
 
@@ -86,7 +86,7 @@ bool Hx8357Display::stopLvgl() {
 
     auto touch_device = getTouchDevice();
     if (touch_device != nullptr && touch_device->getLvglIndev() != nullptr) {
-        LOGGER.info("Stopping touch device");
+        LOG_I(TAG, "Stopping touch device");
         touch_device->stopLvgl();
     }
 
@@ -102,7 +102,7 @@ bool Hx8357Display::stopLvgl() {
 std::shared_ptr<tt::hal::touch::TouchDevice> Hx8357Display::getTouchDevice() {
     if (touchDevice == nullptr) {
         touchDevice = std::reinterpret_pointer_cast<tt::hal::touch::TouchDevice>(createTouch());
-        LOGGER.info("Created touch device");
+        LOG_I(TAG, "Created touch device");
     }
 
     return touchDevice;

@@ -1,15 +1,16 @@
 #include <Tactility/service/ServiceRegistration.h>
 
-#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/service/ServiceInstance.h>
 #include <Tactility/service/ServiceManifest.h>
 
 #include <string>
 
+#include <tactility/log.h>
+
 namespace tt::service {
 
-static const auto LOGGER = Logger("ServiceRegistration");
+constexpr auto* TAG = "ServiceRegistration";
 
 typedef std::unordered_map<std::string, std::shared_ptr<const ServiceManifest>> ManifestMap;
 typedef std::unordered_map<std::string, std::shared_ptr<ServiceInstance>> ServiceInstanceMap;
@@ -25,13 +26,13 @@ void addService(std::shared_ptr<const ServiceManifest> manifest, bool autoStart)
     // We'll move the manifest pointer, but we'll need to id later
     const auto& id = manifest->id;
 
-    LOGGER.info("Adding {}", id);
+    LOG_I(TAG, "Adding %s", id.c_str());
 
     manifest_mutex.lock();
     if (service_manifest_map[id] == nullptr) {
         service_manifest_map[id] = std::move(manifest);
     } else {
-        LOGGER.error("Service id in use: {}", id);
+        LOG_E(TAG, "Service id in use: %s", id.c_str());
     }
     manifest_mutex.unlock();
 
@@ -62,10 +63,10 @@ static std::shared_ptr<ServiceInstance> findServiceInstanceById(const std::strin
 
 // TODO: Return proper error/status instead of BOOL?
 bool startService(const std::string& id) {
-    LOGGER.info("Starting {}", id);
+    LOG_I(TAG, "Starting %s", id.c_str());
     auto manifest = findManifestById(id);
     if (manifest == nullptr) {
-        LOGGER.error("manifest not found for service {}", id);
+        LOG_E(TAG, "manifest not found for service %s", id.c_str());
         return false;
     }
 
@@ -80,14 +81,14 @@ bool startService(const std::string& id) {
     if (service_instance->getService()->onStart(*service_instance)) {
         service_instance->setState(State::Started);
     } else {
-        LOGGER.error("Starting {} failed", id);
+        LOG_E(TAG, "Starting %s failed", id.c_str());
         service_instance->setState(State::Stopped);
         instance_mutex.lock();
         service_instance_map.erase(manifest->id);
         instance_mutex.unlock();
     }
 
-    LOGGER.info("Started {}", id);
+    LOG_I(TAG, "Started %s", id.c_str());
 
     return true;
 }
@@ -102,10 +103,10 @@ std::shared_ptr<Service> findServiceById(const std::string& id) {
 }
 
 bool stopService(const std::string& id) {
-    LOGGER.info("Stopping {}", id);
+    LOG_I(TAG, "Stopping %s", id.c_str());
     auto service_instance = findServiceInstanceById(id);
     if (service_instance == nullptr) {
-        LOGGER.warn("Service not running: {}", id);
+        LOG_W(TAG, "Service not running: %s", id.c_str());
         return false;
     }
 
@@ -118,10 +119,10 @@ bool stopService(const std::string& id) {
     instance_mutex.unlock();
 
     if (service_instance.use_count() > 1) {
-        LOGGER.warn("Possible memory leak: service {} still has {} references", service_instance->getManifest().id, service_instance.use_count() - 1);
+        LOG_W(TAG, "Possible memory leak: service %s still has %d references", service_instance->getManifest().id.c_str(), (int)(service_instance.use_count() - 1));
     }
 
-    LOGGER.info("Stopped {}", id);
+    LOG_I(TAG, "Stopped %s", id.c_str());
 
     return true;
 }

@@ -6,7 +6,6 @@
 #include <Tactility/app/timezone/TimeZone.h>
 
 #include <Tactility/LogMessages.h>
-#include <Tactility/Logger.h>
 #include <Tactility/MountPoints.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/Timer.h>
@@ -14,13 +13,14 @@
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/Time.h>
+#include <tactility/log.h>
 
 #include <lvgl.h>
 #include <memory>
 
 namespace tt::app::timezone {
 
-static const auto LOGGER = Logger("TimeZone");
+constexpr auto* TAG = "TimeZone";
 
 constexpr auto* RESULT_BUNDLE_CODE_INDEX = "code";
 constexpr auto* RESULT_BUNDLE_NAME_INDEX = "name";
@@ -103,7 +103,7 @@ class TimeZoneApp final : public App {
     }
 
     void onListItemSelected(std::size_t index) {
-        LOGGER.info("Selected item at index {}", index);
+        LOG_I(TAG, "Selected item at index %d", (int)index);
 
         auto& entry = entries[index];
 

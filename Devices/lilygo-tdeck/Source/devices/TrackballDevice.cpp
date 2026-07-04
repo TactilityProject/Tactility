@@ -1,10 +1,10 @@
 #include "TrackballDevice.h"
 #include <Trackball/Trackball.h>  // Driver
-#include <Tactility/Logger.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/settings/TrackballSettings.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("TrackballDevice");
+constexpr auto* TAG = "TrackballDevice";
 
 bool TrackballDevice::start() {
     if (initialized) {
@@ -40,7 +40,7 @@ bool TrackballDevice::start() {
         trackball::setEnabled(tbSettings.trackballEnabled);
         tt::lvgl::unlock();
     } else {
-        LOGGER.warn("Failed to acquire LVGL lock for trackball settings");
+        LOG_W(TAG, "Failed to acquire LVGL lock for trackball settings");
     }
 
     return true;

@@ -4,14 +4,14 @@
 #include <string>
 #include <vector>
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 namespace tt::json {
 
 class Reader {
 
     const cJSON* root;
-    Logger logger = Logger("json::Reader");
+    static constexpr auto* TAG = "json::Reader";
 
 public:
 
@@ -20,7 +20,7 @@ public:
     bool readString(const char* key, std::string& output) const {
         const auto* child = cJSON_GetObjectItemCaseSensitive(root, key);
         if (!cJSON_IsString(child)) {
-            logger.error("{} is not a string", key);
+            LOG_E(TAG, "%s is not a string", key);
             return false;
         }
         output = cJSON_GetStringValue(child);
@@ -48,7 +48,7 @@ public:
     bool readNumber(const char* key, double& output) const {
         const auto* child = cJSON_GetObjectItemCaseSensitive(root, key);
         if (!cJSON_IsNumber(child)) {
-            logger.error("{} is not a number", key);
+            LOG_E(TAG, "%s is not a number", key);
             return false;
         }
         output = cJSON_GetNumberValue(child);
@@ -58,16 +58,16 @@ public:
     bool readStringArray(const char* key, std::vector<std::string>& output) const {
         const auto* child = cJSON_GetObjectItemCaseSensitive(root, key);
         if (!cJSON_IsArray(child)) {
-            logger.error("{} is not an array", key);
+            LOG_E(TAG, "%s is not an array", key);
             return false;
         }
         const auto size = cJSON_GetArraySize(child);
-        logger.info("Processing {} array children", size);
+        LOG_I(TAG, "Processing %d array children", size);
         output.resize(size);
         for (int i = 0; i < size; ++i) {
             const auto string_json = cJSON_GetArrayItem(child, i);
             if (!cJSON_IsString(string_json)) {
-                logger.error("Array child of {} is not a string", key);
+                LOG_E(TAG, "Array child of %s is not a string", key);
                 return false;
             }
             output[i] = cJSON_GetStringValue(string_json);

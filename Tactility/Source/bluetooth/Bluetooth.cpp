@@ -9,7 +9,6 @@
 #include <Tactility/bluetooth/BluetoothSettings.h>
 #include <Tactility/bluetooth/BluetoothPrivate.h>
 
-#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/Tactility.h>
 #include <tactility/check.h>
@@ -18,6 +17,7 @@
 #include <tactility/drivers/bluetooth_hid_device.h>
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_serial.h>
+#include <tactility/log.h>
 
 #include <array>
 #include <cstring>
@@ -25,7 +25,7 @@
 
 namespace tt::bluetooth {
 
-static const auto LOGGER = Logger("Bluetooth");
+constexpr auto* TAG = "Bluetooth";
 
 // ---- Scan result cache (C++ PeerRecord list, updated from BT_EVENT_PEER_FOUND) ----
 
@@ -123,24 +123,24 @@ static void bt_event_bridge(Device*, void* /*context*/, BtEvent event) {
                             if (p.profileId == BT_PROFILE_HID_DEVICE) has_hid_device_auto = true;
                         }
                         if (has_hid_host_auto) {
-                            LOGGER.info("HID host auto-connect peer found — starting scan");
+                            LOG_I(TAG, "HID host auto-connect peer found — starting scan");
                             if (Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE)) {
                                 bluetooth_scan_start(dev);
                             }
                         } else if (has_hid_device_auto) {
-                            LOGGER.info("HID device auto-start (bonded peer found)");
+                            LOG_I(TAG, "HID device auto-start (bonded peer found)");
                             if (Device* dev = bluetooth_hid_device_get_device()) {
                                 bluetooth_hid_device_start(dev, BT_HID_DEVICE_MODE_KEYBOARD);
                             }
                         } else {
                             if (settings::shouldSppAutoStart()) {
-                                LOGGER.info("Auto-starting SPP server");
+                                LOG_I(TAG, "Auto-starting SPP server");
                                 if (Device* dev = bluetooth_serial_get_device()) {
                                     bluetooth_serial_start(dev);
                                 }
                             }
                             if (settings::shouldMidiAutoStart()) {
-                                LOGGER.info("Auto-starting MIDI server");
+                                LOG_I(TAG, "Auto-starting MIDI server");
                                 if (Device* dev = bluetooth_midi_get_device()) {
                                     bluetooth_midi_start(dev);
                                 }
@@ -186,7 +186,7 @@ static void bt_event_bridge(Device*, void* /*context*/, BtEvent event) {
                         dev.autoConnect = true;
                         dev.profileId   = profile_copy;
                         if (settings::save(dev)) {
-                            LOGGER.info("Saved paired peer {} (profile={})", hex, profile_copy);
+                            LOG_I(TAG, "Saved paired peer %s (profile=%d)", hex.c_str(), profile_copy);
                         }
                     }
                 });
@@ -251,7 +251,7 @@ static void bt_event_bridge(Device*, void* /*context*/, BtEvent event) {
 void systemStart() {
     Device* dev = findFirstRegisteredDevice();
     if (dev == nullptr) {
-        LOGGER.warn("systemStart: no BLE device found");
+        LOG_W(TAG, "systemStart: no BLE device found");
         return;
     }
 
@@ -268,29 +268,29 @@ bool isRadioOnOrPending(Device* dev) {
 }
 
 bool start(Device* dev) {
-    LOGGER.info("Auto-enabling BLE on boot");
+    LOG_I(TAG, "Auto-enabling BLE on boot");
     if (!device_is_ready(dev)) {
-        LOGGER.info("Starting BLE device");
+        LOG_I(TAG, "Starting BLE device");
         if (device_start(dev) != ERROR_NONE) {
-            LOGGER.error("Failed to start BLE device");
+            LOG_E(TAG, "Failed to start BLE device");
             return false;
         }
     }
 
     // TODO: Fix bug where repeatedly calling start would add this callback multiple times
     if (bluetooth_add_event_callback(dev, nullptr, bt_event_bridge) != ERROR_NONE) {
-        LOGGER.error("Failed to set BLE callback");
+        LOG_E(TAG, "Failed to set BLE callback");
     }
 
-    LOGGER.info("Enabling BT radio");
+    LOG_I(TAG, "Enabling BT radio");
     if (bluetooth_set_radio_enabled(dev, true) != ERROR_NONE) {
-        LOGGER.error("Failed to enable BLE radio");
+        LOG_E(TAG, "Failed to enable BLE radio");
         // Add bridge again
         bluetooth_remove_event_callback(dev, bt_event_bridge);
         return false;
     }
 
-    LOGGER.info("BT enabled");
+    LOG_I(TAG, "BT enabled");
     return true;
 }
 
@@ -305,18 +305,18 @@ bool stop(Device* dev) {
     }
 
     if (bluetooth_remove_event_callback(dev, bt_event_bridge) != ERROR_NONE) {
-        LOGGER.error("Failed to remove BLE callback");
+        LOG_E(TAG, "Failed to remove BLE callback");
     }
 
     if (bluetooth_set_radio_enabled(dev, false) != ERROR_NONE) {
-        LOGGER.error("Failed to disable BT radio");
+        LOG_E(TAG, "Failed to disable BT radio");
         // Re-register bridge
         bluetooth_add_event_callback(dev, nullptr, bt_event_bridge);
         return false;
     }
 
     if (device_stop(dev) != ERROR_NONE) {
-        LOGGER.error("Failed to stop BT device");
+        LOG_E(TAG, "Failed to stop BT device");
         return false;
     }
 
@@ -413,7 +413,7 @@ void unpair(const std::array<uint8_t, 6>& addr) {
 }
 
 void connect(const std::array<uint8_t, 6>& addr, int profileId) {
-    LOGGER.info("connect(profile={})", profileId);
+    LOG_I(TAG, "connect(profile=%d)", profileId);
     if (profileId == BT_PROFILE_HID_HOST) {
         hidHostConnect(addr);
     } else if (profileId == BT_PROFILE_HID_DEVICE) {
@@ -434,7 +434,7 @@ void connect(const std::array<uint8_t, 6>& addr, int profileId) {
 }
 
 void disconnect(const std::array<uint8_t, 6>& addr, int profileId) {
-    LOGGER.info("disconnect(profile={})", profileId);
+    LOG_I(TAG, "disconnect(profile=%d)", profileId);
     if (profileId == BT_PROFILE_HID_HOST) {
         hidHostDisconnect();
     } else if (profileId == BT_PROFILE_HID_DEVICE) {

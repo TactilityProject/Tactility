@@ -1,6 +1,6 @@
 #include "Ssd1306Display.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 #include <esp_lcd_panel_commands.h>
 #include <esp_lcd_panel_dev.h>
 #include <esp_lcd_panel_ssd1306.h>
@@ -10,7 +10,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-static const auto LOGGER = tt::Logger("Ssd1306Display");
+constexpr auto* TAG = "Ssd1306Display";
 
 // SSD1306 commands
 #define SSD1306_CMD_SET_CLOCK 0xD5
@@ -38,7 +38,7 @@ static bool ssd1306_i2c_send_cmd(i2c_port_t port, uint8_t addr, uint8_t cmd) {
     uint8_t data[2] = {0x00, cmd}; // 0x00 = command mode
     esp_err_t ret = i2c_master_write_to_device(port, addr, data, sizeof(data), pdMS_TO_TICKS(1000));
     if (ret != ESP_OK) {
-        LOGGER.error("Failed to send command 0x{:02X}: {}", cmd, ret);
+        LOG_E(TAG, "Failed to send command 0x%02X: %d", cmd, (int)ret);
         return false;
     }
     return true;
@@ -61,7 +61,7 @@ bool Ssd1306Display::createIoHandle(esp_lcd_panel_io_handle_t& ioHandle) {
     };
 
     if (esp_lcd_new_panel_io_i2c(static_cast<esp_lcd_i2c_bus_handle_t>(configuration->port), &io_config, &ioHandle) != ESP_OK) {
-        LOGGER.error("Failed to create IO handle");
+        LOG_E(TAG, "Failed to create IO handle");
         return false;
     }
 
@@ -106,7 +106,7 @@ bool Ssd1306Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_l
 #endif
 
     if (esp_lcd_new_panel_ssd1306(ioHandle, &panel_config, &panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel");
+        LOG_E(TAG, "Failed to create panel");
         return false;
     }
 
@@ -116,7 +116,7 @@ bool Ssd1306Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_l
     auto port = configuration->port;
     auto addr = configuration->deviceAddress;
     
-    LOGGER.info("Sending Heltec V3 custom init sequence");
+    LOG_I(TAG, "Sending Heltec V3 custom init sequence");
 
     // Display off while configuring
     ssd1306_i2c_send_cmd(port, addr, SSD1306_CMD_DISPLAY_OFF);
@@ -182,7 +182,7 @@ bool Ssd1306Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_l
 
     vTaskDelay(pdMS_TO_TICKS(100)); // Let display stabilize
 
-    LOGGER.info("Heltec V3 display initialized successfully");
+    LOG_I(TAG, "Heltec V3 display initialized successfully");
 
     return true;
 }

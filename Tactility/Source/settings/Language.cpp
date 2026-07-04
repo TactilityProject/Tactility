@@ -1,12 +1,13 @@
-#include <Tactility/Logger.h>
 #include <Tactility/settings/Language.h>
 #include <Tactility/settings/SystemSettings.h>
+
+#include <tactility/log.h>
 
 #include <utility>
 
 namespace tt::settings {
 
-static const auto LOGGER = Logger("Language");
+constexpr auto* TAG = "Language";
 
 void setLanguage(Language newLanguage) {
     SystemSettings properties;
@@ -40,7 +41,7 @@ std::string toString(Language language) {
         case Language::nl_NL:
             return "nl-NL";
         default:
-            LOGGER.error("Missing serialization for language {}", static_cast<int>(language));
+            LOG_E(TAG, "Missing serialization for language %d", static_cast<int>(language));
             std::unreachable();
     }
 }

@@ -1,16 +1,16 @@
 #include <Tactility/app/AppManifestParsing.h>
 #include <Tactility/app/AppManifestParsingInternal.h>
 
-#include <Tactility/Logger.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
 
 #include <algorithm>
+#include <tactility/log.h>
 
 namespace tt::app {
 
-static const auto LOGGER = Logger("AppManifest");
+constexpr auto* TAG = "AppManifest";
 
 constexpr bool validateString(const std::string& value, const std::function<bool(char)>& isValidChar) {
     return std::ranges::all_of(value, isValidChar);
@@ -19,7 +19,7 @@ constexpr bool validateString(const std::string& value, const std::function<bool
 bool getValueFromManifest(const std::map<std::string, std::string>& map, const std::string& key, std::string& output) {
     const auto iterator = map.find(key);
     if (iterator == map.end()) {
-        LOGGER.error("Failed to find {} in manifest", key);
+        LOG_E(TAG, "Failed to find %s in manifest", key.c_str());
         return false;
     }
     output = iterator->second;
@@ -70,13 +70,13 @@ static bool detectIsV1Format(const std::string& filePath) {
 }
 
 bool parseManifest(const std::string& filePath, AppManifest& manifest) {
-    LOGGER.info("Parsing manifest {}", filePath);
+    LOG_I(TAG, "Parsing manifest %s", filePath.c_str());
 
     bool is_v1_format = detectIsV1Format(filePath);
 
     std::map<std::string, std::string> properties;
     if (!file::loadPropertiesFile(filePath, properties)) {
-        LOGGER.error("Failed to load manifest at {}", filePath);
+        LOG_E(TAG, "Failed to load manifest at %s", filePath.c_str());
         return false;
     }
 

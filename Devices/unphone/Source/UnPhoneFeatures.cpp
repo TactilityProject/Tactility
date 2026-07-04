@@ -1,6 +1,5 @@
 #include "UnPhoneFeatures.h"
 
-#include <Tactility/Logger.h>
 #include <Tactility/app/App.h>
 #include <Tactility/kernel/Kernel.h>
 
@@ -8,8 +7,9 @@
 #include <driver/rtc_io.h>
 #include <esp_io_expander.h>
 #include <esp_sleep.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("unPhoneFeatures");
+constexpr auto* TAG = "unPhoneFeatures";
 
 namespace pin {
     static const gpio_num_t BUTTON1 = GPIO_NUM_45; // left button
@@ -42,7 +42,7 @@ static int32_t buttonHandlingThreadMain(const bool* interrupted) {
     while (!*interrupted) {
         if (xQueueReceive(interruptQueue, &pinNumber, portMAX_DELAY)) {
             // The buttons might generate more than 1 click because of how they are built
-            LOGGER.info("Pressed button {}", pinNumber);
+            LOG_I(TAG, "Pressed button %d", pinNumber);
             if (pinNumber == pin::BUTTON1) {
                 tt::app::stop();
             }
@@ -75,7 +75,7 @@ bool UnPhoneFeatures::initPowerSwitch() {
     };
 
     if (gpio_config(&config) != ESP_OK) {
-        LOGGER.error("Power pin init failed");
+        LOG_E(TAG, "Power pin init failed");
         return false;
     }
 
@@ -83,14 +83,14 @@ bool UnPhoneFeatures::initPowerSwitch() {
         rtc_gpio_pulldown_en(pin::POWER_SWITCH) == ESP_OK) {
         return true;
     } else {
-        LOGGER.error("Failed to set RTC for power switch");
+        LOG_E(TAG, "Failed to set RTC for power switch");
         return false;
     }
 }
 
 bool UnPhoneFeatures::initNavButtons() {
     if (!initGpioExpander()) {
-        LOGGER.error("GPIO expander init failed");
+        LOG_E(TAG, "GPIO expander init failed");
         return false;
     }
 
@@ -125,7 +125,7 @@ bool UnPhoneFeatures::initNavButtons() {
     };
 
     if (gpio_config(&config) != ESP_OK) {
-        LOGGER.error("Nav button pin init failed");
+        LOG_E(TAG, "Nav button pin init failed");
         return false;
     }
 
@@ -135,7 +135,7 @@ bool UnPhoneFeatures::initNavButtons() {
         gpio_isr_handler_add(pin::BUTTON2, navButtonInterruptHandler, reinterpret_cast<void*>(pin::BUTTON2)) != ESP_OK ||
         gpio_isr_handler_add(pin::BUTTON3, navButtonInterruptHandler, reinterpret_cast<void*>(pin::BUTTON3)) != ESP_OK
     ) {
-        LOGGER.error("Nav buttons ISR init failed");
+        LOG_E(TAG, "Nav buttons ISR init failed");
         return false;
     }
 
@@ -156,7 +156,7 @@ bool UnPhoneFeatures::initOutputPins() {
     };
 
     if (gpio_config(&config) != ESP_OK) {
-        LOGGER.error("Output pin init failed");
+        LOG_E(TAG, "Output pin init failed");
         return false;
     }
 
@@ -167,7 +167,7 @@ bool UnPhoneFeatures::initGpioExpander() {
     // ESP_IO_EXPANDER_I2C_TCA9555_ADDRESS_110 corresponds with 0x26 from the docs at
     // https://gitlab.com/hamishcunningham/unphonelibrary/-/blob/main/unPhone.h?ref_type=heads#L206
     if (esp_io_expander_new_i2c_tca95xx_16bit(I2C_NUM_0, ESP_IO_EXPANDER_I2C_TCA9555_ADDRESS_110, &ioExpander) != ESP_OK) {
-        LOGGER.error("IO expander init failed");
+        LOG_E(TAG, "IO expander init failed");
         return false;
     }
     assert(ioExpander != nullptr);
@@ -201,25 +201,25 @@ bool UnPhoneFeatures::initGpioExpander() {
 }
 
 bool UnPhoneFeatures::init() {
-    LOGGER.info("init");
+    LOG_I(TAG, "init");
 
     if (!initGpioExpander()) {
-        LOGGER.error("GPIO expander init failed");
+        LOG_E(TAG, "GPIO expander init failed");
         return false;
     }
 
     if (!initNavButtons()) {
-        LOGGER.error("Input pin init failed");
+        LOG_E(TAG, "Input pin init failed");
         return false;
     }
 
     if (!initOutputPins()) {
-        LOGGER.error("Output pin init failed");
+        LOG_E(TAG, "Output pin init failed");
         return false;
     }
 
     if (!initPowerSwitch()) {
-        LOGGER.error("Power button init failed");
+        LOG_E(TAG, "Power button init failed");
         return false;
     }
 
@@ -231,7 +231,7 @@ void UnPhoneFeatures::printInfo() const {
     batteryManagement->printInfo();
     bool backlight_power;
     const char* backlight_power_state = getBacklightPower(backlight_power) && backlight_power ? "on" : "off";
-    LOGGER.info("Backlight: {}", backlight_power_state);
+    LOG_I(TAG, "Backlight: %s", backlight_power_state);
 }
 
 bool UnPhoneFeatures::setRgbLed(bool red, bool green, bool blue) const {
@@ -286,11 +286,11 @@ void UnPhoneFeatures::turnPeripheralsOff() const {
 
 bool UnPhoneFeatures::setShipping(bool on) const {
     if (on) {
-        LOGGER.warn("setShipping: on");
+        LOG_W(TAG, "setShipping: on");
         batteryManagement->setWatchDogTimer(Bq24295::WatchDogTimer::Disabled);
         batteryManagement->setBatFetOn(false);
     } else {
-        LOGGER.warn("setShipping: off");
+        LOG_W(TAG, "setShipping: off");
         batteryManagement->setWatchDogTimer(Bq24295::WatchDogTimer::Enabled40s);
         batteryManagement->setBatFetOn(true);
     }

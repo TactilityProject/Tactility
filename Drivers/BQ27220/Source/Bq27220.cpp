@@ -1,9 +1,9 @@
 #include "Bq27220.h"
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 #include "esp_sleep.h"
 
-static const auto LOGGER = tt::Logger("BQ27220");
+constexpr auto* TAG = "BQ27220";
 
 #define ARRAYSIZE(a) (sizeof(a) / sizeof(*(a)))
 
@@ -93,14 +93,14 @@ bool Bq27220::configureCapacity(uint16_t designCapacity, uint16_t fullChargeCapa
     return performConfigUpdate([this, designCapacity, fullChargeCapacity]() {
         // Set the design capacity
         if (!writeConfig16(registers::ROM_DESIGN_CAPACITY, designCapacity)) {
-            LOGGER.error("Failed to set design capacity!");
+            LOG_E(TAG, "Failed to set design capacity!");
             return false;
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
 
         // Set full charge capacity
         if (!writeConfig16(registers::ROM_FULL_CHARGE_CAPACITY, fullChargeCapacity)) {
-            LOGGER.error("Failed to set full charge capacity!");
+            LOG_E(TAG, "Failed to set full charge capacity!");
             return false;
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -260,7 +260,7 @@ bool Bq27220::sendSubCommand(uint16_t subCmd, bool waitConfirm)
         }
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
-    LOGGER.error("Subcommand 0x{:04X} failed!", subCmd);
+    LOG_E(TAG, "Subcommand 0x%04X failed!", subCmd);
     return false;
 }
 
@@ -298,28 +298,28 @@ bool Bq27220::configPreamble(bool &isSealed) {
 
     // Check access settings
     if(!getOperationStatus(status)) {
-        LOGGER.error("Cannot read initial operation status!");
+        LOG_E(TAG, "Cannot read initial operation status!");
         return false;
     }
 
     if (status.reg.SEC == OperationStatusSecSealed) {
         isSealed = true;
         if (!unsealDevice()) {
-            LOGGER.error("Unsealing device failure!");
+            LOG_E(TAG, "Unsealing device failure!");
             return false;
         }
     }
 
     if (status.reg.SEC != OperationStatusSecFull) {
         if (!unsealFullAccess()) {
-            LOGGER.error("Unsealing full access failure!");
+            LOG_E(TAG, "Unsealing full access failure!");
             return false;
         }
     }
 
     // Send ENTER_CFG_UPDATE command (0x0090)
     if (!sendSubCommand(registers::SUBCMD_ENTER_CFG_UPDATE)) {
-        LOGGER.error("Config Update Subcommand failure!");
+        LOG_E(TAG, "Config Update Subcommand failure!");
     }
 
     // Confirm CFUPDATE mode by polling the OperationStatus() register until Bit 2 is set.
@@ -333,7 +333,7 @@ bool Bq27220::configPreamble(bool &isSealed) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
     if (!isConfigUpdate) {
-        LOGGER.error("Update Mode timeout, maybe the access key for full permissions is invalid!");
+        LOG_E(TAG, "Update Mode timeout, maybe the access key for full permissions is invalid!");
         return false;
     }
 
@@ -357,13 +357,13 @@ bool Bq27220::configEpilouge(const bool isSealed) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
     if (timeout == 0) {
-        LOGGER.error("Timed out waiting to exit update mode.");
+        LOG_E(TAG, "Timed out waiting to exit update mode.");
         return false;
     }
 
     // If the device was previously in SEALED state, return to SEALED mode by sending the Control(0x0030) subcommand
     if (isSealed) {
-        LOGGER.debug("Restore Safe Mode!");
+        LOG_D(TAG, "Restore Safe Mode!");
         exitSealMode();
     }
     return true;

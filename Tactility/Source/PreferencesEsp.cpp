@@ -1,19 +1,19 @@
 #ifdef ESP_PLATFORM
 
-#include <Tactility/Logger.h>
 #include <Tactility/Preferences.h>
 #include <Tactility/TactilityCore.h>
 
 #include <nvs_flash.h>
+#include <tactility/log.h>
 
 namespace tt {
 
-static const auto LOGGER = Logger("Preferences");
+constexpr auto* TAG = "Preferences";
 
 bool Preferences::optBool(const std::string& key, bool& out) const {
     nvs_handle_t handle;
     if (nvs_open(namespace_, NVS_READWRITE, &handle) != ESP_OK) {
-        LOGGER.error("Failed to open namespace {}", namespace_);
+        LOG_E(TAG, "Failed to open namespace %s", namespace_);
         return false;
     } else {
         uint8_t out_number;
@@ -29,7 +29,7 @@ bool Preferences::optBool(const std::string& key, bool& out) const {
 bool Preferences::optInt32(const std::string& key, int32_t& out) const {
     nvs_handle_t handle;
     if (nvs_open(namespace_, NVS_READWRITE, &handle) != ESP_OK) {
-        LOGGER.error("Failed to open namespace {}", namespace_);
+        LOG_E(TAG, "Failed to open namespace %s", namespace_);
         return false;
     } else {
         bool success = nvs_get_i32(handle, key.c_str(), &out) == ESP_OK;
@@ -41,7 +41,7 @@ bool Preferences::optInt32(const std::string& key, int32_t& out) const {
 bool Preferences::optInt64(const std::string& key, int64_t& out) const {
     nvs_handle_t handle;
     if (nvs_open(namespace_, NVS_READWRITE, &handle) != ESP_OK) {
-        LOGGER.error("Failed to open namespace {}", namespace_);
+        LOG_E(TAG, "Failed to open namespace %s", namespace_);
         return false;
     } else {
         bool success = nvs_get_i64(handle, key.c_str(), &out) == ESP_OK;
@@ -53,7 +53,7 @@ bool Preferences::optInt64(const std::string& key, int64_t& out) const {
 bool Preferences::optString(const std::string& key, std::string& out) const {
     nvs_handle_t handle;
     if (nvs_open(namespace_, NVS_READWRITE, &handle) != ESP_OK) {
-        LOGGER.error("Failed to open namespace {}", namespace_);
+        LOG_E(TAG, "Failed to open namespace %s", namespace_);
         return false;
     } else {
         size_t out_size = 256;
@@ -90,13 +90,13 @@ void Preferences::putBool(const std::string& key, bool value) {
     nvs_handle_t handle;
     if (nvs_open(namespace_, NVS_READWRITE, &handle) == ESP_OK) {
         if (nvs_set_u8(handle, key.c_str(), value) != ESP_OK) {
-            LOGGER.error("Failed to set {}:{}", namespace_, key);
+            LOG_E(TAG, "Failed to set %s:%s", namespace_, key.c_str());
         } else if (nvs_commit(handle) != ESP_OK) {
-            LOGGER.error("Failed to commit {}:{}", namespace_, key);
+            LOG_E(TAG, "Failed to commit %s:%s", namespace_, key.c_str());
         }
         nvs_close(handle);
     } else {
-        LOGGER.error("Failed to open namespace {}", namespace_);
+        LOG_E(TAG, "Failed to open namespace %s", namespace_);
     }
 }
 
@@ -104,13 +104,13 @@ void Preferences::putInt32(const std::string& key, int32_t value) {
     nvs_handle_t handle;
     if (nvs_open(namespace_, NVS_READWRITE, &handle) == ESP_OK) {
         if (nvs_set_i32(handle, key.c_str(), value) != ESP_OK) {
-            LOGGER.error("Failed to set {}:{}", namespace_, key);
+            LOG_E(TAG, "Failed to set %s:%s", namespace_, key.c_str());
         } else if (nvs_commit(handle) != ESP_OK) {
-            LOGGER.error("Failed to commit {}:{}", namespace_, key);
+            LOG_E(TAG, "Failed to commit %s:%s", namespace_, key.c_str());
         }
         nvs_close(handle);
     } else {
-        LOGGER.error("Failed to open namespace {}", namespace_);
+        LOG_E(TAG, "Failed to open namespace %s", namespace_);
     }
 }
 
@@ -118,13 +118,13 @@ void Preferences::putInt64(const std::string& key, int64_t value) {
     nvs_handle_t handle;
     if (nvs_open(namespace_, NVS_READWRITE, &handle) == ESP_OK) {
         if (nvs_set_i64(handle, key.c_str(), value) != ESP_OK) {
-            LOGGER.error("Failed to set {}:{}", namespace_, key);
+            LOG_E(TAG, "Failed to set %s:%s", namespace_, key.c_str());
         } else if (nvs_commit(handle) != ESP_OK) {
-            LOGGER.error("Failed to commit {}:{}", namespace_, key);
+            LOG_E(TAG, "Failed to commit %s:%s", namespace_, key.c_str());
         }
         nvs_close(handle);
     } else {
-        LOGGER.error("Failed to open namespace {}", namespace_);
+        LOG_E(TAG, "Failed to open namespace %s", namespace_);
     }
 }
 
@@ -132,13 +132,13 @@ void Preferences::putString(const std::string& key, const std::string& text) {
     nvs_handle_t handle;
     if (nvs_open(namespace_, NVS_READWRITE, &handle) == ESP_OK) {
         if (nvs_set_str(handle, key.c_str(), text.c_str()) != ESP_OK) {
-            LOGGER.error("Failed to set {}:{}", namespace_, key.c_str());
+            LOG_E(TAG, "Failed to set %s:%s", namespace_, key.c_str());
         } else if (nvs_commit(handle) != ESP_OK) {
-            LOGGER.error("Failed to commit {}:{}", namespace_, key);
+            LOG_E(TAG, "Failed to commit %s:%s", namespace_, key.c_str());
         }
         nvs_close(handle);
     } else {
-        LOGGER.error("Failed to open namespace {}", namespace_);
+        LOG_E(TAG, "Failed to open namespace %s", namespace_);
     }
 }
 

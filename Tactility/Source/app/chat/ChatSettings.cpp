@@ -10,7 +10,6 @@
 #include <Tactility/crypt/Crypt.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
-#include <Tactility/Logger.h>
 #include <Tactility/Paths.h>
 
 #include <esp_random.h>
@@ -20,11 +19,12 @@
 #include <iomanip>
 #include <map>
 #include <sstream>
+#include <tactility/log.h>
 #include <unistd.h>
 
 namespace tt::app::chat {
 
-static const auto LOGGER = Logger("ChatSettings");
+constexpr auto* TAG = "ChatSettings";
 
 static std::string getSettingsFilePath() {
     return getUserDataPath() + "/settings/chat.properties";
@@ -52,7 +52,7 @@ static std::string toHexString(const uint8_t* data, size_t length) {
 
 static bool readHex(const std::string& input, uint8_t* buffer, size_t length) {
     if (input.size() != length * 2) {
-        LOGGER.error("readHex() length mismatch");
+        LOG_E(TAG, "readHex() length mismatch");
         return false;
     }
 
@@ -63,7 +63,7 @@ static bool readHex(const std::string& input, uint8_t* buffer, size_t length) {
         char* endptr;
         unsigned long val = strtoul(hex, &endptr, 16);
         if (endptr != hex + 2) {
-            LOGGER.error("readHex() invalid hex character");
+            LOG_E(TAG, "readHex() invalid hex character");
             return false;
         }
         buffer[i] = static_cast<uint8_t>(val);
@@ -77,7 +77,7 @@ static bool encryptKey(const uint8_t key[ESP_NOW_KEY_LEN], std::string& hexOutpu
 
     uint8_t encrypted[ESP_NOW_KEY_LEN];
     if (crypt::encrypt(iv, key, encrypted, ESP_NOW_KEY_LEN) != 0) {
-        LOGGER.error("Failed to encrypt key");
+        LOG_E(TAG, "Failed to encrypt key");
         return false;
     }
 
@@ -99,7 +99,7 @@ static bool decryptKey(const std::string& hexInput, uint8_t key[ESP_NOW_KEY_LEN]
     crypt::getIv(IV_SEED, std::strlen(IV_SEED), iv);
 
     if (crypt::decrypt(iv, encrypted, key, ESP_NOW_KEY_LEN) != 0) {
-        LOGGER.error("Failed to decrypt key");
+        LOG_E(TAG, "Failed to decrypt key");
         return false;
     }
     return true;
@@ -188,7 +188,7 @@ bool saveSettings(const ChatSettingsData& settings) {
 
     auto settings_path = getSettingsFilePath();
     if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
-        LOGGER.error("Failed to create parent dir for {}", settings_path);
+        LOG_E(TAG, "Failed to create parent dir for %s", settings_path.c_str());
         return false;
     }
     return file::savePropertiesFile(settings_path, map);

@@ -1,11 +1,11 @@
 #include <Tactility/app/AppManifestParsing.h>
 #include <Tactility/app/AppManifestParsingInternal.h>
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 namespace tt::app {
 
-static const auto LOGGER = Logger("AppManifestV1");
+constexpr auto* TAG = "AppManifestV1";
 
 bool parseManifestV1(const std::map<std::string, std::string>& map, AppManifest& manifest) {
     // [manifest]
@@ -16,7 +16,7 @@ bool parseManifestV1(const std::map<std::string, std::string>& map, AppManifest&
     }
 
     if (!isValidManifestVersion(manifest_version)) {
-        LOGGER.error("Invalid version");
+        LOG_E(TAG, "Invalid version");
         return false;
     }
 
@@ -27,7 +27,7 @@ bool parseManifestV1(const std::map<std::string, std::string>& map, AppManifest&
     }
 
     if (!isValidId(manifest.appId)) {
-        LOGGER.error("Invalid app id");
+        LOG_E(TAG, "Invalid app id");
         return false;
     }
 
@@ -36,7 +36,7 @@ bool parseManifestV1(const std::map<std::string, std::string>& map, AppManifest&
     }
 
     if (!isValidName(manifest.appName)) {
-        LOGGER.error("Invalid app name");
+        LOG_E(TAG, "Invalid app name");
         return false;
     }
 
@@ -45,7 +45,7 @@ bool parseManifestV1(const std::map<std::string, std::string>& map, AppManifest&
     }
 
     if (!isValidAppVersionName(manifest.appVersionName)) {
-        LOGGER.error("Invalid app version name");
+        LOG_E(TAG, "Invalid app version name");
         return false;
     }
 
@@ -55,7 +55,7 @@ bool parseManifestV1(const std::map<std::string, std::string>& map, AppManifest&
     }
 
     if (!isValidAppVersionCode(version_code_string)) {
-        LOGGER.error("Invalid app version code");
+        LOG_E(TAG, "Invalid app version code");
         return false;
     }
 

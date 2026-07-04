@@ -1,11 +1,10 @@
 #include "TpagerKeyboard.h"
 
-#include <Tactility/Logger.h>
-
 #include <driver/i2c.h>
 #include <driver/gpio.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("TpagerKeyboard");
+constexpr auto* TAG = "TpagerKeyboard";
 
 constexpr auto BACKLIGHT = GPIO_NUM_46;
 
@@ -173,7 +172,7 @@ bool TpagerKeyboard::initBacklight(gpio_num_t pin, uint32_t frequencyHz, ledc_ti
     };
 
     if (ledc_timer_config(&ledc_timer) != ESP_OK) {
-        LOGGER.error("Backlight timer config failed");
+        LOG_E(TAG, "Backlight timer config failed");
         return false;
     }
 
@@ -192,7 +191,7 @@ bool TpagerKeyboard::initBacklight(gpio_num_t pin, uint32_t frequencyHz, ledc_ti
     };
 
     if (ledc_channel_config(&ledc_channel) != ESP_OK) {
-        LOGGER.error("Backlight channel config failed");
+        LOG_E(TAG, "Backlight channel config failed");
     }
 
     return true;
@@ -200,7 +199,7 @@ bool TpagerKeyboard::initBacklight(gpio_num_t pin, uint32_t frequencyHz, ledc_ti
 
 bool TpagerKeyboard::setBacklightDuty(uint8_t duty) {
     if (!backlightOkay) {
-        LOGGER.error("Backlight not ready");
+        LOG_E(TAG, "Backlight not ready");
         return false;
     }
     return (ledc_set_duty(LEDC_LOW_SPEED_MODE, backlightChannel, duty) == ESP_OK) &&

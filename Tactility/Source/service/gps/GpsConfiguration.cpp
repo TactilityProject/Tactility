@@ -1,25 +1,26 @@
 #include <Tactility/file/ObjectFile.h>
-#include <Tactility/Logger.h>
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/service/ServicePaths.h>
 
 #include <cstring>
 #include <unistd.h>
 
+#include <tactility/log.h>
+
 using tt::hal::gps::GpsDevice;
 
 namespace tt::service::gps {
 
-static const auto LOGGER = Logger("GpsService");
+constexpr auto* TAG = "GpsService";
 
 bool GpsService::getConfigurationFilePath(std::string& output) const {
     if (paths == nullptr) {
-        LOGGER.error("Can't add configuration: service not started");
+        LOG_E(TAG, "Can't add configuration: service not started");
         return false;
     }
 
     if (!file::findOrCreateDirectory(paths->getUserDataDirectory(), 0777)) {
-        LOGGER.error("Failed to find or create path {}", paths->getUserDataDirectory());
+        LOG_E(TAG, "Failed to find or create path %s", paths->getUserDataDirectory().c_str());
         return false;
     }
 
@@ -35,21 +36,21 @@ bool GpsService::getGpsConfigurations(std::vector<hal::gps::GpsConfiguration>& c
 
     // If file does not exist, return empty list
     if (access(path.c_str(), F_OK) != 0) {
-        LOGGER.warn("No configurations (file not found: {})", path);
+        LOG_W(TAG, "No configurations (file not found: %s)", path.c_str());
         return true;
     }
 
-    LOGGER.info("Reading configuration file {}", path);
+    LOG_I(TAG, "Reading configuration file %s", path.c_str());
     auto reader = file::ObjectFileReader(path, sizeof(hal::gps::GpsConfiguration));
     if (!reader.open()) {
-        LOGGER.error("Failed to open configuration file");
+        LOG_E(TAG, "Failed to open configuration file");
         return false;
     }
 
     hal::gps::GpsConfiguration configuration;
     while (reader.hasNext()) {
         if (!reader.readNext(&configuration)) {
-            LOGGER.error("Failed to read configuration");
+            LOG_E(TAG, "Failed to read configuration");
             reader.close();
             return false;
         } else {
@@ -68,12 +69,12 @@ bool GpsService::addGpsConfiguration(hal::gps::GpsConfiguration configuration) {
 
     auto appender = file::ObjectFileWriter(path, sizeof(hal::gps::GpsConfiguration), 1, true);
     if (!appender.open()) {
-        LOGGER.error("Failed to open/create configuration file");
+        LOG_E(TAG, "Failed to open/create configuration file");
         return false;
     }
 
     if (!appender.write(&configuration)) {
-        LOGGER.error("Failed to add configuration");
+        LOG_E(TAG, "Failed to add configuration");
         appender.close();
         return false;
     }
@@ -90,7 +91,7 @@ bool GpsService::removeGpsConfiguration(hal::gps::GpsConfiguration configuration
 
     std::vector<hal::gps::GpsConfiguration> configurations;
     if (!getGpsConfigurations(configurations)) {
-        LOGGER.error("Failed to get gps configurations");
+        LOG_E(TAG, "Failed to get gps configurations");
         return false;
     }
 
@@ -102,7 +103,7 @@ bool GpsService::removeGpsConfiguration(hal::gps::GpsConfiguration configuration
 
     auto writer = file::ObjectFileWriter(path, sizeof(hal::gps::GpsConfiguration), 1, false);
     if (!writer.open()) {
-        LOGGER.error("Failed to open configuration file");
+        LOG_E(TAG, "Failed to open configuration file");
         return false;
     }
 

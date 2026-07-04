@@ -7,12 +7,12 @@
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/Logger.h>
 #include <Tactility/service/development/DevelopmentService.h>
 #include <Tactility/service/development/DevelopmentSettings.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/service/wifi/Wifi.h>
 
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
 #include <cstring>
@@ -20,7 +20,7 @@
 
 namespace tt::app::development {
 
-static const auto LOGGER = Logger("Development");
+constexpr auto* TAG = "Development";
 extern const AppManifest manifest;
 
 class DevelopmentApp final : public App {
@@ -87,7 +87,7 @@ public:
     void onCreate(AppContext& appContext) override {
         service = service::development::findService();
         if (service == nullptr) {
-            LOGGER.error("Service not found");
+            LOG_E(TAG, "Service not found");
             stop(manifest.appId);
         }
     }

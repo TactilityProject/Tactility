@@ -3,7 +3,7 @@
 #include <tactility/driver.h>
 #include <tactility/drivers/hal_device.hpp>
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 #include <Tactility/RecursiveMutex.h>
 #include <algorithm>
 
@@ -12,13 +12,13 @@ namespace tt::hal {
 RecursiveMutex mutex;
 static Device::Id nextId = 0;
 
-static const auto LOGGER = Logger("Devices");
+constexpr auto* TAG = "Devices";
 
 Device::Device() : id(nextId++) {}
 
 static std::shared_ptr<Device::KernelDeviceHolder> createKernelDeviceHolder(const std::shared_ptr<Device>& device) {
     auto kernel_device_name = std::format("hal-device-{}", device->getId());
-    LOGGER.info("Registering {} with id {} as kernel device {}", device->getName(), device->getId(), kernel_device_name);
+    LOG_I(TAG, "Registering %s with id %u as kernel device %s", device->getName().c_str(), (unsigned)device->getId(), kernel_device_name.c_str());
     auto kernel_device_holder = std::make_shared<Device::KernelDeviceHolder>(kernel_device_name);
     auto* kernel_device = kernel_device_holder->device.get();
     check(device_construct(kernel_device) == ERROR_NONE);
@@ -49,7 +49,7 @@ void registerDevice(const std::shared_ptr<Device>& device) {
         auto kernel_device_holder = createKernelDeviceHolder(device);
         device->setKernelDeviceHolder(kernel_device_holder);
     } else {
-        LOGGER.warn("Device {} with id {} was already registered", device->getName(), device->getId());
+        LOG_W(TAG, "Device %s with id %u was already registered", device->getName().c_str(), (unsigned)device->getId());
     }
 }
 
@@ -63,7 +63,7 @@ void deregisterDevice(const std::shared_ptr<Device>& device) {
         destroyKernelDeviceHolder(kernel_device_holder);
         device->setKernelDeviceHolder(nullptr);
     } else {
-        LOGGER.warn("Device {} with id {} was not registered", device->getName(), device->getId());
+        LOG_W(TAG, "Device %s with id %u was not registered", device->getName().c_str(), (unsigned)device->getId());
     }
 }
 

@@ -1,6 +1,7 @@
 #include <Tactility/network/NtpPrivate.h>
-#include <Tactility/Logger.h>
 #include <Tactility/Preferences.h>
+
+#include <tactility/log.h>
 
 #include <memory>
 
@@ -13,7 +14,7 @@
 
 namespace tt::network::ntp {
 
-static const auto LOGGER = Logger("NTP");
+constexpr auto* TAG = "NTP";
 
 static bool processedSyncEvent = false;
 
@@ -25,14 +26,14 @@ void storeTimeInNvs() {
 
     auto preferences = std::make_unique<Preferences>("time");
     preferences->putInt64("syncTime", now);
-    LOGGER.info("Stored time {}", now);
+    LOG_I(TAG, "Stored time %ld", (long)now);
 }
 
 void setTimeFromNvs() {
     auto preferences = std::make_unique<Preferences>("time");
     time_t synced_time;
     if (preferences->optInt64("syncTime", synced_time)) {
-        LOGGER.info("Restoring last known time to {}", synced_time);
+        LOG_I(TAG, "Restoring last known time to %ld", (long)synced_time);
         timeval get_nvs_time;
         get_nvs_time.tv_sec = synced_time;
         settimeofday(&get_nvs_time, nullptr);
@@ -40,7 +41,7 @@ void setTimeFromNvs() {
 }
 
 static void onTimeSynced(timeval* tv) {
-    LOGGER.info("Time synced ({})", tv->tv_sec);
+    LOG_I(TAG, "Time synced (%ld)", (long)tv->tv_sec);
     processedSyncEvent = true;
     esp_netif_sntp_deinit();
     storeTimeInNvs();

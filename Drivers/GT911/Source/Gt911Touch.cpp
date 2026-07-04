@@ -1,6 +1,6 @@
 #include "Gt911Touch.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 #include <esp_lcd_io_i2c.h>
 #include <esp_lcd_touch_gt911.h>
@@ -11,7 +11,7 @@
 #include <tactility/drivers/esp32_i2c_master.h>
 #include <tactility/drivers/i2c_controller.h>
 
-static const auto LOGGER = tt::Logger("GT911");
+constexpr auto* TAG = "GT911";
 
 bool Gt911Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
     esp_lcd_panel_io_i2c_config_t io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
@@ -23,7 +23,7 @@ bool Gt911Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
     } else if (i2c_controller_has_device_at_address(i2c, ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP, pdMS_TO_TICKS(10)) == ERROR_NONE) {
         io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP;
     } else {
-        LOGGER.error("No device found on I2C bus");
+        LOG_E(TAG, "No device found on I2C bus");
         return false;
     }
 
@@ -38,7 +38,7 @@ bool Gt911Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
         return esp_lcd_new_panel_io_i2c_v2(bus, &io_config, &outHandle) == ESP_OK;
     }
 
-    LOGGER.error("Unsupported I2C driver");
+    LOG_E(TAG, "Unsupported I2C driver");
     return false;
 }
 

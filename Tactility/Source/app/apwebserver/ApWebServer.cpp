@@ -1,6 +1,5 @@
 #ifdef ESP_PLATFORM
 
-#include <Tactility/Logger.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/app/App.h>
 #include <Tactility/lvgl/Toolbar.h>
@@ -8,10 +7,11 @@
 #include <Tactility/settings/WebServerSettings.h>
 
 #include <lvgl.h>
+#include <tactility/log.h>
 
 namespace tt::app::apwebserver {
 
-static const auto LOGGER = tt::Logger("ApWebServerApp");
+constexpr auto* TAG = "ApWebServerApp";
 
 class ApWebServerApp final : public App {
     lv_obj_t* labelSsidValue = nullptr;
@@ -91,7 +91,7 @@ public:
         // Apply settings and start services
         getMainDispatcher().dispatch([apSettings] {
             if (!settings::webserver::save(apSettings)) {
-                LOGGER.error("Failed to save AP settings");
+                LOG_E(TAG, "Failed to save AP settings");
                 return;
             }
             service::webserver::getPubsub()->publish(service::webserver::WebServerEvent::WebServerSettingsChanged);
@@ -106,13 +106,13 @@ public:
 
         getMainDispatcher().dispatch([copy, webServerChanged] {
             if (!settings::webserver::save(copy)) {
-                LOGGER.warn("Failed to persist WebServer settings; changes may be lost on reboot");
+                LOG_W(TAG, "Failed to persist WebServer settings; changes may be lost on reboot");
             }
 
             service::webserver::getPubsub()->publish(service::webserver::WebServerEvent::WebServerSettingsChanged);
 
             if (webServerChanged) {
-                LOGGER.info("WebServer {}", copy.webServerEnabled ? "enabling..." : "disabling...");
+                LOG_I(TAG, "WebServer %s", copy.webServerEnabled ? "enabling..." : "disabling...");
                 service::webserver::setWebServerEnabled(copy.webServerEnabled);
             }
         });

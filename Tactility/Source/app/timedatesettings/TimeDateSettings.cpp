@@ -1,7 +1,6 @@
 #include "tactility/lvgl_module.h"
 
 
-#include <Tactility/Logger.h>
 #include <Tactility/RecursiveMutex.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/timezone/TimeZone.h>
@@ -13,11 +12,12 @@
 
 #include <lvgl.h>
 
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::timedatesettings {
 
-static const auto LOGGER = Logger("TimeDate");
+constexpr auto* TAG = "TimeDate";
 
 extern const AppManifest manifest;
 
@@ -149,7 +149,7 @@ public:
         if (result == Result::Ok && bundle != nullptr) {
             const auto name = timezone::getResultName(*bundle);
             const auto code = timezone::getResultCode(*bundle);
-            LOGGER.info("Result name={} code={}", name, code);
+            LOG_I(TAG, "Result name=%s code=%s", name.c_str(), code.c_str());
 
             // onShow() may not have (re)created the widgets yet: onResult() runs synchronously
             // on the loader thread and can race ahead of the async gui-task redraw.

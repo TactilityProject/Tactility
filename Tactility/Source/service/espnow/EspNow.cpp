@@ -7,18 +7,18 @@
 #include <Tactility/service/espnow/EspNow.h>
 #include <Tactility/service/espnow/EspNowService.h>
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 namespace tt::service::espnow {
 
-static const auto LOGGER = Logger("EspNow");
+constexpr auto* TAG = "EspNow";
 
 void enable(const EspNowConfig& config) {
     auto service = findService();
     if (service != nullptr) {
         service->enable(config);
     } else {
-        LOGGER.error("Service not found");
+        LOG_E(TAG, "Service not found");
     }
 }
 
@@ -27,7 +27,7 @@ void disable() {
     if (service != nullptr) {
         service->disable();
     } else {
-        LOGGER.error("Service not found");
+        LOG_E(TAG, "Service not found");
     }
 }
 
@@ -36,7 +36,7 @@ bool isEnabled() {
     if (service != nullptr) {
         return service->isEnabled();
     } else {
-        LOGGER.error("Service not found");
+        LOG_E(TAG, "Service not found");
         return false;
     }
 }
@@ -46,7 +46,7 @@ bool addPeer(const esp_now_peer_info_t& peer) {
     if (service != nullptr) {
         return service->addPeer(peer);
     } else {
-        LOGGER.error("Service not found");
+        LOG_E(TAG, "Service not found");
         return false;
     }
 }
@@ -56,7 +56,7 @@ bool send(const uint8_t* address, const uint8_t* buffer, size_t bufferLength) {
     if (service != nullptr) {
         return service->send(address, buffer, bufferLength);
     } else {
-        LOGGER.error("Service not found");
+        LOG_E(TAG, "Service not found");
         return false;
     }
 }
@@ -66,7 +66,7 @@ ReceiverSubscription subscribeReceiver(std::function<void(const esp_now_recv_inf
     if (service != nullptr) {
         return service->subscribeReceiver(onReceive);
     } else {
-        LOGGER.error("Service not found");
+        LOG_E(TAG, "Service not found");
         return -1;
     }
 }
@@ -76,7 +76,7 @@ void unsubscribeReceiver(ReceiverSubscription subscription) {
     if (service != nullptr) {
         service->unsubscribeReceiver(subscription);
     } else {
-        LOGGER.error("Service not found");
+        LOG_E(TAG, "Service not found");
     }
 }
 
@@ -85,7 +85,7 @@ uint32_t getVersion() {
     if (service != nullptr) {
         return service->getVersion();
     }
-    LOGGER.error("Service not found");
+    LOG_E(TAG, "Service not found");
     return 0;
 }
 

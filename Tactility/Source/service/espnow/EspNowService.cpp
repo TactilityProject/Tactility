@@ -4,7 +4,6 @@
 
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
 
-#include <Tactility/Logger.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/service/espnow/EspNowService.h>
 #include <Tactility/service/ServiceManifest.h>
@@ -15,11 +14,13 @@
 #include <esp_now.h>
 #include <esp_random.h>
 
+#include <tactility/log.h>
+
 namespace tt::service::espnow {
 
 extern const ServiceManifest manifest;
 
-static const auto LOGGER = Logger("EspNowService");
+constexpr auto* TAG = "EspNowService";
 static uint8_t BROADCAST_MAC[ESP_NOW_ETH_ALEN];
 
 constexpr TickType_t MAX_DELAY = 1000U / portTICK_PERIOD_MS;
@@ -60,17 +61,17 @@ void EspNowService::enableFromDispatcher(const EspNowConfig& config) {
     }
 
     if (!initWifi(config)) {
-        LOGGER.error("initWifi() failed");
+        LOG_E(TAG,"initWifi() failed");
         return;
     }
 
     if (esp_now_init() != ESP_OK) {
-        LOGGER.error("esp_now_init() failed");
+        LOG_E(TAG,"esp_now_init() failed");
         return;
     }
 
     if (esp_now_register_recv_cb(receiveCallback) != ESP_OK) {
-        LOGGER.error("esp_now_register_recv_cb() failed");
+        LOG_E(TAG,"esp_now_register_recv_cb() failed");
         return;
     }
 
@@ -80,15 +81,15 @@ void EspNowService::enableFromDispatcher(const EspNowConfig& config) {
     //#endif
 
     if (esp_now_set_pmk(config.masterKey) != ESP_OK) {
-        LOGGER.error("esp_now_set_pmk() failed");
+        LOG_E(TAG,"esp_now_set_pmk() failed");
         return;
     }
 
     espnowVersion = 0;
     if (esp_now_get_version(&espnowVersion) == ESP_OK) {
-        LOGGER.info("ESP-NOW version: {}.0", espnowVersion);
+        LOG_I(TAG, "ESP-NOW version: %u.0", (unsigned)espnowVersion);
     } else {
-        LOGGER.warn("Failed to get ESP-NOW version");
+        LOG_W(TAG, "Failed to get ESP-NOW version");
     }
 
     // Add default unencrypted broadcast peer
@@ -119,11 +120,11 @@ void EspNowService::disableFromDispatcher() {
     }
 
     if (esp_now_deinit() != ESP_OK) {
-        LOGGER.error("esp_now_deinit() failed");
+        LOG_E(TAG,"esp_now_deinit() failed");
     }
 
     if (!deinitWifi()) {
-        LOGGER.error("deinitWifi() failed");
+        LOG_E(TAG,"deinitWifi() failed");
     }
 
     espnowVersion = 0;
@@ -137,7 +138,7 @@ void EspNowService::disableFromDispatcher() {
 void EspNowService::receiveCallback(const esp_now_recv_info_t* receiveInfo, const uint8_t* data, int length) {
     auto service = findService();
     if (service == nullptr) {
-        LOGGER.error("Service not running");
+        LOG_E(TAG,"Service not running");
         return;
     }
     service->onReceive(receiveInfo, data, length);
@@ -147,7 +148,7 @@ void EspNowService::onReceive(const esp_now_recv_info_t* receiveInfo, const uint
     auto lock = mutex.asScopedLock();
     lock.lock();
 
-    LOGGER.debug("Received {} bytes", length);
+    LOG_D(TAG, "Received %d bytes", length);
 
     for (const auto& item: subscriptions) {
         item.onReceive(receiveInfo, data, length);
@@ -164,10 +165,10 @@ bool EspNowService::isEnabled() const {
 
 bool EspNowService::addPeer(const esp_now_peer_info_t& peer) {
     if (esp_now_add_peer(&peer) != ESP_OK) {
-        LOGGER.error("Failed to add peer");
+        LOG_E(TAG,"Failed to add peer");
         return false;
     } else {
-        LOGGER.info("Peer added");
+        LOG_I(TAG, "Peer added");
         return true;
     }
 }

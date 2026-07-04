@@ -1,9 +1,9 @@
 #include "Drv2605.h"
 
 #include <tactility/check.h>
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("DRV2605");
+constexpr auto* TAG = "DRV2605";
 
 Drv2605::Drv2605(::Device* controller, bool autoPlayStartupBuzz) : I2cDevice(controller, ADDRESS), autoPlayStartupBuzz(autoPlayStartupBuzz) {
     check(init(), "Initialize DRV2605");
@@ -17,14 +17,14 @@ Drv2605::Drv2605(::Device* controller, bool autoPlayStartupBuzz) : I2cDevice(con
 bool Drv2605::init() {
     uint8_t status;
     if (!readRegister8(static_cast<uint8_t>(Register::Status), status)) {
-        LOGGER.error("Failed to read status");
+        LOG_E(TAG, "Failed to read status");
         return false;
     }
     status >>= 5;
 
     ChipId chip_id = static_cast<ChipId>(status);
     if (chip_id != ChipId::DRV2604 && chip_id != ChipId::DRV2604L && chip_id != ChipId::DRV2605 && chip_id != ChipId::DRV2605L) {
-        LOGGER.error("Unknown chip id {:02x}", static_cast<uint8_t>(chip_id));
+        LOG_E(TAG, "Unknown chip id %02X", static_cast<uint8_t>(chip_id));
         return false;
     }
 
@@ -39,7 +39,7 @@ bool Drv2605::init() {
 
     uint8_t feedback;
     if (!readRegister(Register::Feedback, feedback)) {
-        LOGGER.error("Failed to read feedback");
+        LOG_E(TAG, "Failed to read feedback");
         return false;
     }
 

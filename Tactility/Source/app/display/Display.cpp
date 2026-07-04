@@ -6,7 +6,6 @@
 #include <Tactility/service/displayidle/DisplayIdleService.h>
 #endif
 
-#include <Tactility/Logger.h>
 #include <Tactility/app/App.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/touch/TouchDevice.h>
@@ -14,11 +13,12 @@
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <lvgl.h>
+#include <tactility/log.h>
 #include <tactility/lvgl_module.h>
 
 namespace tt::app::display {
 
-static const auto LOGGER = Logger("Display");
+constexpr auto* TAG = "Display";
 
 static std::shared_ptr<hal::display::DisplayDevice> getHalDisplay() {
     return hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
@@ -74,7 +74,7 @@ class DisplayApp final : public App {
         auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
         auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
         uint32_t selected_index = lv_dropdown_get_selected(dropdown);
-        LOGGER.info("Selected {}", selected_index);
+        LOG_I(TAG, "Selected %u", (unsigned)selected_index);
         auto selected_orientation = static_cast<settings::display::Orientation>(selected_index);
         if (selected_orientation != app->displaySettings.orientation) {
             app->displaySettings.orientation = selected_orientation;

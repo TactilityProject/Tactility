@@ -1,8 +1,8 @@
 #include "PwmBacklight.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("PwmBacklight");
+constexpr auto* TAG = "PwmBacklight";
 
 namespace driver::pwmbacklight {
 
@@ -16,7 +16,7 @@ bool init(gpio_num_t pin, uint32_t frequencyHz, ledc_timer_t timer, ledc_channel
     backlightTimer = timer;
     backlightChannel = channel;
 
-    LOGGER.info("Init");
+    LOG_I(TAG, "Init");
     ledc_timer_config_t ledc_timer = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_8_BIT,
@@ -27,7 +27,7 @@ bool init(gpio_num_t pin, uint32_t frequencyHz, ledc_timer_t timer, ledc_channel
     };
 
     if (ledc_timer_config(&ledc_timer) != ESP_OK) {
-        LOGGER.error("Timer config failed");
+        LOG_E(TAG, "Timer config failed");
         return false;
     }
 
@@ -46,7 +46,7 @@ bool init(gpio_num_t pin, uint32_t frequencyHz, ledc_timer_t timer, ledc_channel
     };
 
     if (ledc_channel_config(&ledc_channel) != ESP_OK) {
-        LOGGER.error("Channel config failed");
+        LOG_E(TAG, "Channel config failed");
         return false;
     }
 
@@ -57,7 +57,7 @@ bool init(gpio_num_t pin, uint32_t frequencyHz, ledc_timer_t timer, ledc_channel
 
 bool setBacklightDuty(uint8_t duty) {
     if (!isBacklightInitialized) {
-        LOGGER.error("Not initialized");
+        LOG_E(TAG, "Not initialized");
         return false;
     }
     return ledc_set_duty(LEDC_LOW_SPEED_MODE, backlightChannel, duty) == ESP_OK &&

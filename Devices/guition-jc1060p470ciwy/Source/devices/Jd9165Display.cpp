@@ -1,10 +1,10 @@
 #include "Jd9165Display.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 #include <esp_lcd_jd9165.h>
 
-static const auto LOGGER = tt::Logger("JD9165");
+constexpr auto* TAG = "JD9165";
 
 // MIPI DSI PHY power configuration
 #define MIPI_DSI_PHY_PWR_LDO_CHAN 3  // LDO_VO3 connects to VDD_MIPI_DPHY
@@ -87,11 +87,11 @@ bool Jd9165Display::createMipiDsiBus() {
     };
     
     if (esp_ldo_acquire_channel(&ldo_mipi_phy_config, &ldoChannel) != ESP_OK) {
-        LOGGER.error("Failed to acquire LDO channel for MIPI DSI PHY");
+        LOG_E(TAG, "Failed to acquire LDO channel for MIPI DSI PHY");
         return false;
     }
-    
-    LOGGER.info("MIPI DSI PHY powered on");
+
+    LOG_I(TAG, "MIPI DSI PHY powered on");
 
     // Create MIPI DSI bus
     // TODO: use MIPI_DSI_PHY_CLK_SRC_DEFAULT() in future ESP-IDF 6.0.0 update with esp_lcd_jd9165 library version 2.x
@@ -103,11 +103,11 @@ bool Jd9165Display::createMipiDsiBus() {
     };
 
     if (esp_lcd_new_dsi_bus(&bus_config, &mipiDsiBus) != ESP_OK) {
-        LOGGER.error("Failed to create MIPI DSI bus");
+        LOG_E(TAG, "Failed to create MIPI DSI bus");
         return false;
     }
 
-    LOGGER.info("MIPI DSI bus created");
+    LOG_I(TAG, "MIPI DSI bus created");
     return true;
 }
 
@@ -123,7 +123,7 @@ bool Jd9165Display::createIoHandle(esp_lcd_panel_io_handle_t& ioHandle) {
     esp_lcd_dbi_io_config_t dbi_config = JD9165_PANEL_IO_DBI_CONFIG();
 
     if (esp_lcd_new_panel_io_dbi(mipiDsiBus, &dbi_config, &ioHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel IO");
+        LOG_E(TAG, "Failed to create panel IO");
         return false;
     }
 
@@ -184,11 +184,11 @@ bool Jd9165Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, const 
     mutable_panel_config.vendor_config = &vendor_config;
 
     if (esp_lcd_new_panel_jd9165(ioHandle, &mutable_panel_config, &panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel");
+        LOG_E(TAG, "Failed to create panel");
         return false;
     }
 
-    LOGGER.info("JD9165 panel created successfully");
+    LOG_I(TAG, "JD9165 panel created successfully");
     // Defer reset/init to base class applyConfiguration to avoid double initialization
     return true;
 }

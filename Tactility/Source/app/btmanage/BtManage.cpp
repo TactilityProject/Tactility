@@ -3,16 +3,16 @@
 
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
-#include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/Tactility.h>
 
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::btmanage {
 
-static const auto LOGGER = Logger("BtManage");
+constexpr auto* TAG = "BtManage";
 
 extern const AppManifest manifest;
 
@@ -83,7 +83,7 @@ void BtManage::requestViewUpdate() {
             view.update();
             lvgl::unlock();
         } else {
-            LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
+            LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
         }
     }
     unlock();
@@ -91,7 +91,7 @@ void BtManage::requestViewUpdate() {
 
 void BtManage::onBtEvent(const struct BtEvent& event) {
     auto radio_state = bluetooth::getRadioState();
-    LOGGER.info("Update with state {}", bluetooth::radioStateToString(radio_state));
+    LOG_I(TAG, "Update with state %s", bluetooth::radioStateToString(radio_state));
     getState().setRadioState(radio_state);
     switch (event.type) {
         case BT_EVENT_SCAN_STARTED:
@@ -162,10 +162,10 @@ void BtManage::onShow(AppContext& app, lv_obj_t* parent) {
 
     auto radio_state = bluetooth::getRadioState();
     bool can_scan = radio_state == bluetooth::RadioState::On;
-    LOGGER.info("Radio: {}, Scanning: {}, Can scan: {}",
+    LOG_I(TAG, "Radio: %s, Scanning: %d, Can scan: %d",
         bluetooth::radioStateToString(radio_state),
-        dev ? bluetooth_is_scanning(dev) : false,
-        can_scan);
+        (int)(dev ? bluetooth_is_scanning(dev) : false),
+        (int)can_scan);
     if (can_scan && dev && !bluetooth_is_scanning(dev)) {
         bluetooth_scan_start(dev);
     }

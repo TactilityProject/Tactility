@@ -1,9 +1,9 @@
 #include "InitBoot.h"
 
-#include <Tactility/Logger.h>
 #include <Tactility/kernel/Kernel.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("CoreS3");
+constexpr auto* TAG = "CoreS3";
 
 std::shared_ptr<Axp2101> axp2101;
 std::shared_ptr<Aw9523> aw9523;
@@ -13,7 +13,7 @@ std::shared_ptr<Aw9523> aw9523;
  * and schematic: https://m5stack.oss-cn-shenzhen.aliyuncs.com/resource/docs/datasheet/core/K128%20CoreS3/Sch_M5_CoreS3_v1.0.pdf
  */
 bool initGpioExpander() {
-    LOGGER.info("AW9523 init");
+    LOG_I(TAG, "AW9523 init");
 
     /**
      * P0 pins:
@@ -58,33 +58,33 @@ bool initGpioExpander() {
 
     /* AW9523 P0 is in push-pull mode */
     if (!aw9523->writeCTL(0x10)) {
-        LOGGER.error("AW9523: Failed to set CTL");
+        LOG_E(TAG, "AW9523: Failed to set CTL");
         return false;
     }
 
     if (!aw9523->writeP0(p0_state)) {
-        LOGGER.error("AW9523: Failed to set P0");
+        LOG_E(TAG, "AW9523: Failed to set P0");
         return false;
     }
 
     if (!aw9523->writeP1(p1_state)) {
-        LOGGER.error("AW9523: Failed to set P1");
+        LOG_E(TAG, "AW9523: Failed to set P1");
         return false;
     }
 
     if (axp2101->isVBus()) {
         float voltage = 0.0f;
         axp2101->getVBusVoltage(voltage);
-        LOGGER.info("AXP2101: VBus at {:.2f}", voltage);
+        LOG_I(TAG, "AXP2101: VBus at %.2f", voltage);
     } else {
-        LOGGER.warn("AXP2101: VBus disabled");
+        LOG_W(TAG, "AXP2101: VBus disabled");
     }
 
     return true;
 }
 
 bool initPowerControl() {
-    LOGGER.info("Init power control (AXP2101)");
+    LOG_I(TAG, "Init power control (AXP2101)");
 
     // Source: https://github.com/m5stack/M5Unified/blob/b8cfec7fed046242da7f7b8024a4e92004a51ff7/src/utility/Power_Class.cpp#L61
     aw9523->bitOnP1(0b10000000); // SY7088 boost enable
@@ -135,16 +135,16 @@ bool initPowerControl() {
     };
 
     if (axp2101->setRegisters((uint8_t*)reg_data_array, sizeof(reg_data_array))) {
-        LOGGER.info("AXP2101 initialized with {} registers", sizeof(reg_data_array) / 2);
+        LOG_I(TAG, "AXP2101 initialized with %d registers", (int)(sizeof(reg_data_array) / 2));
         return true;
     } else {
-        LOGGER.error("AXP2101: Failed to set registers");
+        LOG_E(TAG, "AXP2101: Failed to set registers");
         return false;
     }
 }
 
 bool initBoot() {
-    LOGGER.info("initBoot()");
+    LOG_I(TAG, "initBoot()");
 
     auto controller = device_find_by_name("i2c_internal");
     axp2101 = std::make_shared<Axp2101>(controller);

@@ -2,9 +2,9 @@
 
 #include <Gt911Touch.h>
 #include <PwmBacklight.h>
-#include <Tactility/Logger.h>
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/log.h>
 
 #include <driver/gpio.h>
 #include <esp_err.h>
@@ -16,7 +16,7 @@
 #include <soc/spi_periph.h>
 #include <driver/spi_master.h>
 
-static const auto LOGGER = tt::Logger("St7701Display");
+constexpr auto* TAG = "St7701Display";
 
 // GPIO47/48 are physically shared between this bit-banged 3-wire command bus
 // and the SD card's real SPI2 bus (no alternate pins exist on this PCB).
@@ -171,29 +171,29 @@ bool St7701Display::createPanelHandle(esp_lcd_panel_io_handle_t ioHandle, esp_lc
     };
 
     if (esp_lcd_new_panel_st7701(ioHandle, &panel_config, &panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel");
+        LOG_E(TAG, "Failed to create panel");
         return false;
     }
 
     if (esp_lcd_panel_reset(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to reset panel");
+        LOG_E(TAG, "Failed to reset panel");
         return false;
     }
 
     if (esp_lcd_panel_init(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to init panel");
+        LOG_E(TAG, "Failed to init panel");
         return false;
     }
 
     if (esp_lcd_panel_invert_color(panelHandle, false) != ESP_OK) {
-        LOGGER.error("Failed to invert color");
+        LOG_E(TAG, "Failed to invert color");
         return false;
     }
 
     esp_lcd_panel_set_gap(panelHandle, 0, 0);
 
     if (esp_lcd_panel_disp_on_off(panelHandle, true) != ESP_OK) {
-        LOGGER.error("Failed to turn display on");
+        LOG_E(TAG, "Failed to turn display on");
         return false;
     }
 

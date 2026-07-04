@@ -1,7 +1,7 @@
 #include "Bq24295.h"
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("BQ24295");
+constexpr auto* TAG = "BQ24295";
 
 /** Reference:
  * https://www.ti.com/lit/ds/symlink/bq24295.pdf
@@ -50,7 +50,7 @@ bool Bq24295::setWatchDogTimer(WatchDogTimer in) const {
         uint8_t bits_to_set = 0b00110000 & static_cast<uint8_t>(in);
         uint8_t value_cleared = value & 0b11001111;
         uint8_t to_set = bits_to_set | value_cleared;
-        LOGGER.info("WatchDogTimer: {:02x} -> {:02x}", value, to_set);
+        LOG_I(TAG, "WatchDogTimer: %02X -> %02X", value, to_set);
         return writeRegister8(registers::CHARGE_TERMINATION, to_set);
     }
 
@@ -96,9 +96,9 @@ bool Bq24295::getVersion(uint8_t& value) const {
 void Bq24295::printInfo() const {
     uint8_t version, status, charge_termination;
     if (getStatus(status) && getVersion(version) && readChargeTermination(charge_termination)) {
-        LOGGER.info("Version {}, status {:02x}, charge termination {:02x}", version, status, charge_termination);
+        LOG_I(TAG, "Version %d, status %02X, charge termination %02X", version, status, charge_termination);
     } else {
-        LOGGER.error("Failed to retrieve version and/or status");
+        LOG_E(TAG, "Failed to retrieve version and/or status");
     }
 }
 

@@ -1,11 +1,10 @@
 #include "KeyboardBacklight.h"
 
-#include <Tactility/Logger.h>
-
 #include <cstring>
 #include <esp_log.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("KeyboardBacklight");
+constexpr auto* TAG = "KeyboardBacklight";
 
 namespace keyboardbacklight {
 
@@ -21,16 +20,16 @@ bool init(i2c_port_t i2cPort, uint8_t slaveAddress) {
     g_i2cPort = i2cPort;
     g_slaveAddress = slaveAddress;
     
-    LOGGER.info("Initialized on I2C port {}, address 0x{:02X}", static_cast<int>(g_i2cPort), g_slaveAddress);
-    
+    LOG_I(TAG, "Initialized on I2C port %d, address 0x%02X", static_cast<int>(g_i2cPort), (unsigned)g_slaveAddress);
+
     // Set a reasonable default brightness
     if (!setDefaultBrightness(127)) {
-        LOGGER.error("Failed to set default brightness");
+        LOG_E(TAG, "Failed to set default brightness");
         return false;
     }
 
     if (!setBrightness(127)) {
-        LOGGER.error("Failed to set brightness");
+        LOG_E(TAG, "Failed to set brightness");
         return false;
     }
     
@@ -39,16 +38,16 @@ bool init(i2c_port_t i2cPort, uint8_t slaveAddress) {
 
 bool setBrightness(uint8_t brightness) {
     if (g_i2cPort >= I2C_NUM_MAX) {
-        LOGGER.error("Not initialized");
+        LOG_E(TAG, "Not initialized");
         return false;
     }
-    
+
     // Skip if brightness is already at target value (avoid I2C spam on every keypress)
     if (brightness == g_currentBrightness) {
         return true;
     }
-    
-    LOGGER.info("Setting brightness to {} on I2C port {}, address 0x{:02X}", brightness, static_cast<int>(g_i2cPort), g_slaveAddress);
+
+    LOG_I(TAG, "Setting brightness to %d on I2C port %d, address 0x%02X", brightness, static_cast<int>(g_i2cPort), (unsigned)g_slaveAddress);
     
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
@@ -62,20 +61,20 @@ bool setBrightness(uint8_t brightness) {
     
     if (ret == ESP_OK) {
         g_currentBrightness = brightness;
-        LOGGER.info("Successfully set brightness to {}", brightness);
+        LOG_I(TAG, "Successfully set brightness to %d", brightness);
         return true;
     } else {
-        LOGGER.error("Failed to set brightness: {} (0x{:02X})", esp_err_to_name(ret), ret);
+        LOG_E(TAG, "Failed to set brightness: %s (0x%02X)", esp_err_to_name(ret), (unsigned)ret);
         return false;
     }
 }
 
 bool setDefaultBrightness(uint8_t brightness) {
     if (g_i2cPort >= I2C_NUM_MAX) {
-        LOGGER.error("Not initialized");
+        LOG_E(TAG, "Not initialized");
         return false;
     }
-    
+
     // Clamp to valid range for default brightness
     if (brightness < 30) {
         brightness = 30;
@@ -92,17 +91,17 @@ bool setDefaultBrightness(uint8_t brightness) {
     i2c_cmd_link_delete(cmd);
     
     if (ret == ESP_OK) {
-        LOGGER.debug("Set default brightness to {}", brightness);
+        LOG_D(TAG, "Set default brightness to %d", brightness);
         return true;
     } else {
-        LOGGER.error("Failed to set default brightness: {}", esp_err_to_name(ret));
+        LOG_E(TAG, "Failed to set default brightness: %s", esp_err_to_name(ret));
         return false;
     }
 }
 
 uint8_t getBrightness() {
     if (g_i2cPort >= I2C_NUM_MAX) {
-        LOGGER.error("Not initialized");
+        LOG_E(TAG, "Not initialized");
         return 0;
     }
 

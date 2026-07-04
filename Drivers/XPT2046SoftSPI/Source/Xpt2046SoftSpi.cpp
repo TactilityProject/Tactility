@@ -1,6 +1,6 @@
 #include "Xpt2046SoftSpi.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 #include <Tactility/settings/TouchCalibrationSettings.h>
 
 #include <algorithm>
@@ -11,7 +11,7 @@
 #include <freertos/task.h>
 #include <rom/ets_sys.h>
 
-static const auto LOGGER = tt::Logger("Xpt2046SoftSpi");
+constexpr auto* TAG = "Xpt2046SoftSpi";
 
 constexpr auto CMD_READ_Y = 0x90;
 constexpr auto CMD_READ_X = 0xD0;
@@ -27,7 +27,7 @@ Xpt2046SoftSpi::Xpt2046SoftSpi(std::unique_ptr<Configuration> inConfiguration)
 }
 
 bool Xpt2046SoftSpi::start() {
-    LOGGER.info("Starting Xpt2046SoftSpi touch driver");
+    LOG_I(TAG, "Starting Xpt2046SoftSpi touch driver");
 
     // Configure GPIO pins
     gpio_config_t io_conf = {};
@@ -42,7 +42,7 @@ bool Xpt2046SoftSpi::start() {
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
 
     if (gpio_config(&io_conf) != ESP_OK) {
-        LOGGER.error("Failed to configure output pins");
+        LOG_E(TAG, "Failed to configure output pins");
         return false;
     }
 
@@ -52,7 +52,7 @@ bool Xpt2046SoftSpi::start() {
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
 
     if (gpio_config(&io_conf) != ESP_OK) {
-        LOGGER.error("Failed to configure input pin");
+        LOG_E(TAG, "Failed to configure input pin");
         return false;
     }
 
@@ -61,8 +61,9 @@ bool Xpt2046SoftSpi::start() {
     gpio_set_level(configuration->clkPin, 0); // CLK low
     gpio_set_level(configuration->mosiPin, 0); // MOSI low
 
-    LOGGER.info(
-        "GPIO configured: MOSI={}, MISO={}, CLK={}, CS={}",
+    LOG_I(
+        TAG,
+        "GPIO configured: MOSI=%d, MISO=%d, CLK=%d, CS=%d",
         static_cast<int>(configuration->mosiPin),
         static_cast<int>(configuration->misoPin),
         static_cast<int>(configuration->clkPin),
@@ -73,7 +74,7 @@ bool Xpt2046SoftSpi::start() {
 }
 
 bool Xpt2046SoftSpi::stop() {
-    LOGGER.info("Stopping Xpt2046SoftSpi touch driver");
+    LOG_I(TAG, "Stopping Xpt2046SoftSpi touch driver");
 
     // Stop LVLG if needed
     if (lvglDevice != nullptr) {
@@ -86,13 +87,13 @@ bool Xpt2046SoftSpi::stop() {
 bool Xpt2046SoftSpi::startLvgl(lv_display_t* display) {
     (void)display;
     if (lvglDevice != nullptr) {
-        LOGGER.error("LVGL was already started");
+        LOG_E(TAG, "LVGL was already started");
         return false;
     }
 
     lvglDevice = lv_indev_create();
     if (lvglDevice == nullptr) {
-        LOGGER.error("Failed to create LVGL input device");
+        LOG_E(TAG, "Failed to create LVGL input device");
         return false;
     }
 
@@ -100,7 +101,7 @@ bool Xpt2046SoftSpi::startLvgl(lv_display_t* display) {
     lv_indev_set_read_cb(lvglDevice, touchReadCallback);
     lv_indev_set_user_data(lvglDevice, this);
 
-    LOGGER.info("Xpt2046SoftSpi touch driver started successfully");
+    LOG_I(TAG, "Xpt2046SoftSpi touch driver started successfully");
     return true;
 }
 

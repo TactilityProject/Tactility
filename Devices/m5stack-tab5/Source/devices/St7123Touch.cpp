@@ -1,11 +1,11 @@
 #include "St7123Touch.h"
 
-#include <Tactility/Logger.h>
 #include <tactility/drivers/esp32_i2c_master.h>
+#include <tactility/log.h>
 #include <esp_lcd_touch_st7123.h>
 #include <esp_err.h>
 
-static const auto LOGGER = tt::Logger("ST7123Touch");
+constexpr auto* TAG = "ST7123Touch";
 
 bool St7123Touch::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
     esp_lcd_panel_io_i2c_config_t io_config = ESP_LCD_TOUCH_IO_I2C_ST7123_CONFIG();
