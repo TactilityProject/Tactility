@@ -10,6 +10,7 @@
 
 #include <tactility/log.h>
 
+#include <cstring>
 #include <format>
 #include <iomanip>
 #include <ranges>
@@ -65,15 +66,22 @@ static bool encrypt(const std::string& ssid, const std::string& plaintext, std::
     constexpr size_t chunk_size = 16;
     const auto encrypted_length = ((length / chunk_size) + (length % chunk_size ? 1 : 0)) * chunk_size;
 
+    // crypt_encrypt reads encrypted_length bytes, but plaintext.c_str() only guarantees length + 1 bytes,
+    // so pad the input into a zero-filled buffer of encrypted_length first to avoid reading past it.
+    auto* padded_plaintext = static_cast<uint8_t*>(calloc(encrypted_length, 1));
+    memcpy(padded_plaintext, plaintext.c_str(), length);
+
     auto* buffer = static_cast<uint8_t*>(malloc(encrypted_length));
 
     crypt_get_iv(ssid.c_str(), ssid.size(), iv);
-    if (crypt_encrypt(iv, reinterpret_cast<const uint8_t*>(plaintext.c_str()), buffer, encrypted_length) != 0) {
+    if (crypt_encrypt(iv, padded_plaintext, buffer, encrypted_length) != 0) {
         LOG_E(TAG, "Failed to encrypt");
+        free(padded_plaintext);
         free(buffer);
         return false;
     }
 
+    free(padded_plaintext);
     ciphertextOutput = toHexString(buffer, encrypted_length);
     free(buffer);
 
@@ -86,6 +94,7 @@ static bool decrypt(const std::string& ssid, const std::string& ciphertextInput,
     auto* data = static_cast<uint8_t*>(malloc(ciphertextInput.size() / 2));
     if (!readHex(ciphertextInput, data, ciphertextInput.size() / 2)) {
         LOG_E(TAG, "Failed to read hex");
+        free(data);
         return false;
     }
 
