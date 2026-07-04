@@ -78,6 +78,7 @@ static void get_nvs_key(uint8_t key[32]) {
     } else {
         esp_fill_random(key, 32);
         ESP_ERROR_CHECK(nvs_set_blob(handle, "key", key, 32));
+        ESP_ERROR_CHECK(nvs_commit(handle));
         LOG_I(TAG, "Stored new key in NVS");
     }
 

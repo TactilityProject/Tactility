@@ -12,6 +12,7 @@ list(APPEND REQUIRES_LIST
 if (DEFINED ENV{ESP_IDF_VERSION})
     list(APPEND REQUIRES_LIST
         nvs_flash
+        esp_hw_support
         esp_rom
     )
 endif ()
