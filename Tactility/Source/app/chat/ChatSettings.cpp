@@ -78,7 +78,7 @@ static bool encryptKey(const uint8_t key[ESP_NOW_KEY_LEN], std::string& hexOutpu
 
     uint8_t encrypted[ESP_NOW_KEY_LEN];
     if (crypt_encrypt(iv, key, encrypted, ESP_NOW_KEY_LEN) != 0) {
-        LOGGER.error("Failed to encrypt key");
+        LOG_E(TAG, "Failed to encrypt key");
         return false;
     }
 
@@ -100,7 +100,7 @@ static bool decryptKey(const std::string& hexInput, uint8_t key[ESP_NOW_KEY_LEN]
     crypt_get_iv(IV_SEED, std::strlen(IV_SEED), iv);
 
     if (crypt_decrypt(iv, encrypted, key, ESP_NOW_KEY_LEN) != 0) {
-        LOGGER.error("Failed to decrypt key");
+        LOG_E(TAG, "Failed to decrypt key");
         return false;
     }
     return true;

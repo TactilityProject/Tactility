@@ -67,7 +67,7 @@ static bool encrypt(const std::string& ssidInput, std::string& ssidOutput) {
 
     crypt_get_iv(ssidInput.c_str(), ssidInput.size(), iv);
     if (crypt_encrypt(iv, reinterpret_cast<const uint8_t*>(ssidInput.c_str()), buffer, encrypted_length) != 0) {
-        LOGGER.error("Failed to encrypt");
+        LOG_E(TAG, "Failed to encrypt");
         free(buffer);
         return false;
     }
