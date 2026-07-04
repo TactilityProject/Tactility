@@ -2,13 +2,14 @@
 
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
-#include <Tactility/Logger.h>
 #include <Tactility/service/ServicePaths.h>
 #include <Tactility/service/wifi/WifiPrivate.h>
 
+#include <tactility/log.h>
+
 namespace tt::service::wifi::settings {
 
-static const auto LOGGER = Logger("WifiSettings");
+constexpr auto* TAG = "WifiSettings";
 constexpr auto* SETTINGS_KEY_ENABLE_ON_BOOT = "enableOnBoot";
 
 struct WifiSettings {
@@ -47,7 +48,7 @@ static bool save(std::shared_ptr<ServiceContext> context, const WifiSettings& se
     map[SETTINGS_KEY_ENABLE_ON_BOOT] = settings.enableOnBoot ? "true" : "false";
     std::string settings_path = context->getPaths()->getUserDataPath("settings.properties");
     if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
-        LOGGER.error("Failed to create {}", settings_path);
+        LOG_E(TAG, "Failed to create %s", settings_path.c_str());
         return false;
     }
     return file::savePropertiesFile(settings_path, map);
@@ -60,7 +61,7 @@ WifiSettings getCachedOrLoad() {
             if (load(context, cachedSettings)) {
                 cached = true;
             } else {
-                LOGGER.info("Failed to load settings, using defaults");
+                LOG_I(TAG, "Failed to load settings, using defaults");
             }
         }
     }
@@ -72,7 +73,7 @@ void setEnableOnBoot(bool enable) {
     cachedSettings.enableOnBoot = enable;
     auto context = findServiceContext();
     if (context && !save(context, cachedSettings)) {
-        LOGGER.error("Failed to save settings");
+        LOG_E(TAG, "Failed to save settings");
     }
 }
 

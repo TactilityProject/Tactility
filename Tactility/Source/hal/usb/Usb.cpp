@@ -5,14 +5,14 @@
 #include <Tactility/hal/usb/Usb.h>
 #include <Tactility/hal/usb/UsbTusb.h>
 
-#include <Tactility/Logger.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_sdcard.h>
+#include <tactility/log.h>
 
 namespace tt::hal::usb {
 
-static const auto LOGGER = Logger("USB");
+constexpr auto* TAG = "USB";
 
 constexpr auto BOOT_FLAG_SDMMC = 42;  // Existing
 constexpr auto BOOT_FLAG_FLASH = 43;  // For flash mode
@@ -38,7 +38,7 @@ sdmmc_card_t* getCard() {
     });
 
     if (card == nullptr) {
-        LOGGER.warn("Couldn't find a mounted SD card");
+        LOG_W(TAG, "Couldn't find a mounted SD card");
     }
 
     return card;
@@ -54,7 +54,7 @@ bool isSupported() {
 
 bool startMassStorageWithSdmmc(bool fromBootMode) {
     if (!canStartNewMode()) {
-        LOGGER.error("Can't start");
+        LOG_E(TAG, "Can't start");
         return false;
     }
 
@@ -62,7 +62,7 @@ bool startMassStorageWithSdmmc(bool fromBootMode) {
         currentMode = Mode::MassStorageSdmmc;
         return true;
     } else {
-        LOGGER.error("Failed to init mass storage");
+        LOG_E(TAG, "Failed to init mass storage");
         return false;
     }
 }
@@ -95,7 +95,7 @@ void rebootIntoMassStorageSdmmc() {
 // NEW: Flash mass storage functions
 bool startMassStorageWithFlash(bool fromBootMode) {
     if (!canStartNewMode()) {
-        LOGGER.error("Can't start flash mass storage");
+        LOG_E(TAG, "Can't start flash mass storage");
         return false;
     }
 
@@ -103,7 +103,7 @@ bool startMassStorageWithFlash(bool fromBootMode) {
         currentMode = Mode::MassStorageFlash;
         return true;
     } else {
-        LOGGER.error("Failed to init flash mass storage");
+        LOG_E(TAG, "Failed to init flash mass storage");
         return false;
     }
 }

@@ -1,22 +1,23 @@
 #include "Tactility/lvgl/LvglSync.h"
 
 #include <Tactility/LogMessages.h>
-#include <Tactility/Logger.h>
 #include <Tactility/app/App.h>
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
-#include <tactility/check.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/wifi/Wifi.h>
 #include <Tactility/service/wifi/WifiApSettings.h>
 
+#include <tactility/check.h>
+#include <tactility/log.h>
+
 #include <lvgl.h>
 
 namespace tt::app::wifiapsettings {
 
-static const auto LOGGER = Logger("WifiApSettings");
+constexpr auto* TAG = "WifiApSettings";
 
 extern const AppManifest manifest;
 
@@ -52,10 +53,10 @@ class WifiApSettings : public App {
         if (service::wifi::settings::load(self->ssid.c_str(), settings)) {
             settings.autoConnect = is_on;
             if (!service::wifi::settings::save(settings)) {
-                LOGGER.error("Failed to save settings");
+                LOG_E(TAG, "Failed to save settings");
             }
         } else {
-            LOGGER.error("Failed to load settings");
+            LOG_E(TAG, "Failed to load settings");
         }
     }
 
@@ -91,7 +92,7 @@ class WifiApSettings : public App {
                 updateViews();
                 lvgl::unlock();
             } else {
-                LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
+                LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
             }
         }
     }
@@ -194,7 +195,7 @@ public:
                 lv_obj_remove_state(auto_connect_switch, LV_STATE_CHECKED);
             }
         } else {
-            LOGGER.warn("No settings found");
+            LOG_W(TAG, "No settings found");
             lv_obj_add_flag(forget_button, LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(auto_connect_wrapper, LV_OBJ_FLAG_HIDDEN);
         }
@@ -225,11 +226,11 @@ public:
 
         std::string ssid = parameters->getString("ssid");
         if (!service::wifi::settings::remove(ssid.c_str())) {
-            LOGGER.error("Failed to remove SSID");
+            LOG_E(TAG, "Failed to remove SSID");
             return;
         }
 
-        LOGGER.info("Removed SSID");
+        LOG_I(TAG, "Removed SSID");
         if (
             service::wifi::getRadioState() == service::wifi::RadioState::ConnectionActive &&
             service::wifi::getConnectionTarget() == ssid

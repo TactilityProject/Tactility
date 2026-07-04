@@ -6,7 +6,6 @@
 #include <tactility/device.h>
 #include <tactility/drivers/uart_controller.h>
 
-#include <cstring>
 #include <minmea.h>
 
 namespace tt::hal::gps {
@@ -123,13 +122,13 @@ bool GpsDevice::start() {
     lock.lock();
 
     if (thread != nullptr && thread->getState() != Thread::State::Stopped) {
-        LOGGER.warn("Already started");
+        LOG_W(TAG, "Already started");
         return true;
     }
 
     threadInterrupted = false;
 
-    LOGGER.info("Starting thread");
+    LOG_I(TAG, "Starting thread");
     setState(State::PendingOn);
 
     thread = std::make_unique<Thread>(
@@ -142,7 +141,7 @@ bool GpsDevice::start() {
     thread->setPriority(tt::Thread::Priority::High);
     thread->start();
 
-    LOGGER.info("Starting finished");
+    LOG_I(TAG, "Starting finished");
     return true;
 }
 

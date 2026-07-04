@@ -9,9 +9,9 @@
 #include <Tactility/Assets.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/Logger.h>
 
 #include <lvgl.h>
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
 #include <esp_netif.h>
@@ -21,7 +21,7 @@
 
 namespace tt::app::webserversettings {
 
-static const auto LOGGER = tt::Logger("WebServerSettingsApp");
+constexpr auto* TAG = "WebServerSettingsApp";
 
 class WebServerSettingsApp final : public App {
 
@@ -68,10 +68,10 @@ class WebServerSettingsApp final : public App {
             // Apply immediately instead of waiting for app exit
             const auto copy = app->wsSettings;
             if (!settings::webserver::save(copy)) {
-                LOGGER.warn("Failed to persist WebServer settings; changes may be lost on reboot");
+                LOG_W(TAG, "Failed to persist WebServer settings; changes may be lost on reboot");
             }
             service::webserver::getPubsub()->publish(service::webserver::WebServerEvent::WebServerSettingsChanged);
-            LOGGER.info("WebServer {}", enabled ? "enabling..." : "disabling...");
+            LOG_I(TAG, "WebServer %s", enabled ? "enabling..." : "disabling...");
             service::webserver::setWebServerEnabled(enabled);
         });
     }
@@ -360,7 +360,7 @@ public:
             getMainDispatcher().dispatch([copy, wifiChanged]{
                 // Save to flash (fast, low memory pressure)
                 if (!settings::webserver::save(copy)) {
-                    LOGGER.warn("Failed to persist WebServer settings; changes may be lost on reboot");
+                    LOG_W(TAG, "Failed to persist WebServer settings; changes may be lost on reboot");
                 }
 
                 // Publish event immediately after save so WebServer cache refreshes BEFORE requests arrive
@@ -368,7 +368,7 @@ public:
 
                 // Only reconnect WiFi if WiFi settings actually changed
                 if (wifiChanged) {
-                    LOGGER.info("WiFi mode changed to {}", copy.wifiMode == settings::webserver::WiFiMode::AccessPoint ? "AP" : "Station");
+                    LOG_I(TAG, "WiFi mode changed to %s", copy.wifiMode == settings::webserver::WiFiMode::AccessPoint ? "AP" : "Station");
                 }
             });
         }
