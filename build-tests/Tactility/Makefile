@@ -439,6 +439,54 @@ Source/app/AppManifestParsing.cpp.s:
 	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/AppManifestParsing.cpp.s
 .PHONY : Source/app/AppManifestParsing.cpp.s
 
+Source/app/AppManifestParsingV1.o: Source/app/AppManifestParsingV1.cpp.o
+.PHONY : Source/app/AppManifestParsingV1.o
+
+# target to build an object file
+Source/app/AppManifestParsingV1.cpp.o:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/AppManifestParsingV1.cpp.o
+.PHONY : Source/app/AppManifestParsingV1.cpp.o
+
+Source/app/AppManifestParsingV1.i: Source/app/AppManifestParsingV1.cpp.i
+.PHONY : Source/app/AppManifestParsingV1.i
+
+# target to preprocess a source file
+Source/app/AppManifestParsingV1.cpp.i:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/AppManifestParsingV1.cpp.i
+.PHONY : Source/app/AppManifestParsingV1.cpp.i
+
+Source/app/AppManifestParsingV1.s: Source/app/AppManifestParsingV1.cpp.s
+.PHONY : Source/app/AppManifestParsingV1.s
+
+# target to generate assembly for a file
+Source/app/AppManifestParsingV1.cpp.s:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/AppManifestParsingV1.cpp.s
+.PHONY : Source/app/AppManifestParsingV1.cpp.s
+
+Source/app/AppManifestParsingV2.o: Source/app/AppManifestParsingV2.cpp.o
+.PHONY : Source/app/AppManifestParsingV2.o
+
+# target to build an object file
+Source/app/AppManifestParsingV2.cpp.o:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/AppManifestParsingV2.cpp.o
+.PHONY : Source/app/AppManifestParsingV2.cpp.o
+
+Source/app/AppManifestParsingV2.i: Source/app/AppManifestParsingV2.cpp.i
+.PHONY : Source/app/AppManifestParsingV2.i
+
+# target to preprocess a source file
+Source/app/AppManifestParsingV2.cpp.i:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/AppManifestParsingV2.cpp.i
+.PHONY : Source/app/AppManifestParsingV2.cpp.i
+
+Source/app/AppManifestParsingV2.s: Source/app/AppManifestParsingV2.cpp.s
+.PHONY : Source/app/AppManifestParsingV2.s
+
+# target to generate assembly for a file
+Source/app/AppManifestParsingV2.cpp.s:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/AppManifestParsingV2.cpp.s
+.PHONY : Source/app/AppManifestParsingV2.cpp.s
+
 Source/app/AppPaths.o: Source/app/AppPaths.cpp.o
 .PHONY : Source/app/AppPaths.o
 
@@ -1614,6 +1662,30 @@ Source/app/settings/Settings.s: Source/app/settings/Settings.cpp.s
 Source/app/settings/Settings.cpp.s:
 	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/settings/Settings.cpp.s
 .PHONY : Source/app/settings/Settings.cpp.s
+
+Source/app/setup/Setup.o: Source/app/setup/Setup.cpp.o
+.PHONY : Source/app/setup/Setup.o
+
+# target to build an object file
+Source/app/setup/Setup.cpp.o:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/setup/Setup.cpp.o
+.PHONY : Source/app/setup/Setup.cpp.o
+
+Source/app/setup/Setup.i: Source/app/setup/Setup.cpp.i
+.PHONY : Source/app/setup/Setup.i
+
+# target to preprocess a source file
+Source/app/setup/Setup.cpp.i:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/setup/Setup.cpp.i
+.PHONY : Source/app/setup/Setup.cpp.i
+
+Source/app/setup/Setup.s: Source/app/setup/Setup.cpp.s
+.PHONY : Source/app/setup/Setup.s
+
+# target to generate assembly for a file
+Source/app/setup/Setup.cpp.s:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tactility/CMakeFiles/Tactility.dir/build.make Tactility/CMakeFiles/Tactility.dir/Source/app/setup/Setup.cpp.s
+.PHONY : Source/app/setup/Setup.cpp.s
 
 Source/app/systeminfo/SystemInfo.o: Source/app/systeminfo/SystemInfo.cpp.o
 .PHONY : Source/app/systeminfo/SystemInfo.o
@@ -4037,6 +4109,12 @@ help:
 	@echo "... Source/app/AppManifestParsing.o"
 	@echo "... Source/app/AppManifestParsing.i"
 	@echo "... Source/app/AppManifestParsing.s"
+	@echo "... Source/app/AppManifestParsingV1.o"
+	@echo "... Source/app/AppManifestParsingV1.i"
+	@echo "... Source/app/AppManifestParsingV1.s"
+	@echo "... Source/app/AppManifestParsingV2.o"
+	@echo "... Source/app/AppManifestParsingV2.i"
+	@echo "... Source/app/AppManifestParsingV2.s"
 	@echo "... Source/app/AppPaths.o"
 	@echo "... Source/app/AppPaths.i"
 	@echo "... Source/app/AppPaths.s"
@@ -4184,6 +4262,9 @@ help:
 	@echo "... Source/app/settings/Settings.o"
 	@echo "... Source/app/settings/Settings.i"
 	@echo "... Source/app/settings/Settings.s"
+	@echo "... Source/app/setup/Setup.o"
+	@echo "... Source/app/setup/Setup.i"
+	@echo "... Source/app/setup/Setup.s"
 	@echo "... Source/app/systeminfo/SystemInfo.o"
 	@echo "... Source/app/systeminfo/SystemInfo.i"
 	@echo "... Source/app/systeminfo/SystemInfo.s"

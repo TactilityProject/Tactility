@@ -27,6 +27,8 @@ jobs:
         run: build/Tests/Tactility/TactilityTests
       - name: "Run TactilityKernel Tests"
         run: build/Tests/TactilityKernel/TactilityKernelTests
+      - name: "Run CryptModuleTests Tests"
+        run: build/Tests/crypt-module/CryptModuleTests
   DevicetreeTests:
     runs-on: ubuntu-latest
     steps:

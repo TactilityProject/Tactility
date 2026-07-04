@@ -109,6 +109,11 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
+  include("/home/ken/Projects/Tactility/build-tests/Modules/crypt-module/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
   include("/home/ken/Projects/Tactility/build-tests/Libraries/FreeRTOS-Kernel/cmake_install.cmake")
 endif()
 

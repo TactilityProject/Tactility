@@ -247,54 +247,6 @@ Source/StringUtils.cpp.s:
 	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f TactilityCore/CMakeFiles/TactilityCore.dir/build.make TactilityCore/CMakeFiles/TactilityCore.dir/Source/StringUtils.cpp.s
 .PHONY : Source/StringUtils.cpp.s
 
-Source/crypt/Crypt.o: Source/crypt/Crypt.cpp.o
-.PHONY : Source/crypt/Crypt.o
-
-# target to build an object file
-Source/crypt/Crypt.cpp.o:
-	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f TactilityCore/CMakeFiles/TactilityCore.dir/build.make TactilityCore/CMakeFiles/TactilityCore.dir/Source/crypt/Crypt.cpp.o
-.PHONY : Source/crypt/Crypt.cpp.o
-
-Source/crypt/Crypt.i: Source/crypt/Crypt.cpp.i
-.PHONY : Source/crypt/Crypt.i
-
-# target to preprocess a source file
-Source/crypt/Crypt.cpp.i:
-	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f TactilityCore/CMakeFiles/TactilityCore.dir/build.make TactilityCore/CMakeFiles/TactilityCore.dir/Source/crypt/Crypt.cpp.i
-.PHONY : Source/crypt/Crypt.cpp.i
-
-Source/crypt/Crypt.s: Source/crypt/Crypt.cpp.s
-.PHONY : Source/crypt/Crypt.s
-
-# target to generate assembly for a file
-Source/crypt/Crypt.cpp.s:
-	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f TactilityCore/CMakeFiles/TactilityCore.dir/build.make TactilityCore/CMakeFiles/TactilityCore.dir/Source/crypt/Crypt.cpp.s
-.PHONY : Source/crypt/Crypt.cpp.s
-
-Source/crypt/Hash.o: Source/crypt/Hash.cpp.o
-.PHONY : Source/crypt/Hash.o
-
-# target to build an object file
-Source/crypt/Hash.cpp.o:
-	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f TactilityCore/CMakeFiles/TactilityCore.dir/build.make TactilityCore/CMakeFiles/TactilityCore.dir/Source/crypt/Hash.cpp.o
-.PHONY : Source/crypt/Hash.cpp.o
-
-Source/crypt/Hash.i: Source/crypt/Hash.cpp.i
-.PHONY : Source/crypt/Hash.i
-
-# target to preprocess a source file
-Source/crypt/Hash.cpp.i:
-	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f TactilityCore/CMakeFiles/TactilityCore.dir/build.make TactilityCore/CMakeFiles/TactilityCore.dir/Source/crypt/Hash.cpp.i
-.PHONY : Source/crypt/Hash.cpp.i
-
-Source/crypt/Hash.s: Source/crypt/Hash.cpp.s
-.PHONY : Source/crypt/Hash.s
-
-# target to generate assembly for a file
-Source/crypt/Hash.cpp.s:
-	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f TactilityCore/CMakeFiles/TactilityCore.dir/build.make TactilityCore/CMakeFiles/TactilityCore.dir/Source/crypt/Hash.cpp.s
-.PHONY : Source/crypt/Hash.cpp.s
-
 Source/file/File.o: Source/file/File.cpp.o
 .PHONY : Source/file/File.o
 
@@ -413,12 +365,6 @@ help:
 	@echo "... Source/StringUtils.o"
 	@echo "... Source/StringUtils.i"
 	@echo "... Source/StringUtils.s"
-	@echo "... Source/crypt/Crypt.o"
-	@echo "... Source/crypt/Crypt.i"
-	@echo "... Source/crypt/Crypt.s"
-	@echo "... Source/crypt/Hash.o"
-	@echo "... Source/crypt/Hash.i"
-	@echo "... Source/crypt/Hash.s"
 	@echo "... Source/file/File.o"
 	@echo "... Source/file/File.i"
 	@echo "... Source/file/File.s"

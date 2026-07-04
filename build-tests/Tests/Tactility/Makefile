@@ -175,6 +175,30 @@ TactilityTests/fast:
 	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tests/Tactility/CMakeFiles/TactilityTests.dir/build.make Tests/Tactility/CMakeFiles/TactilityTests.dir/build
 .PHONY : TactilityTests/fast
 
+Source/AppManifestParsingTest.o: Source/AppManifestParsingTest.cpp.o
+.PHONY : Source/AppManifestParsingTest.o
+
+# target to build an object file
+Source/AppManifestParsingTest.cpp.o:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tests/Tactility/CMakeFiles/TactilityTests.dir/build.make Tests/Tactility/CMakeFiles/TactilityTests.dir/Source/AppManifestParsingTest.cpp.o
+.PHONY : Source/AppManifestParsingTest.cpp.o
+
+Source/AppManifestParsingTest.i: Source/AppManifestParsingTest.cpp.i
+.PHONY : Source/AppManifestParsingTest.i
+
+# target to preprocess a source file
+Source/AppManifestParsingTest.cpp.i:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tests/Tactility/CMakeFiles/TactilityTests.dir/build.make Tests/Tactility/CMakeFiles/TactilityTests.dir/Source/AppManifestParsingTest.cpp.i
+.PHONY : Source/AppManifestParsingTest.cpp.i
+
+Source/AppManifestParsingTest.s: Source/AppManifestParsingTest.cpp.s
+.PHONY : Source/AppManifestParsingTest.s
+
+# target to generate assembly for a file
+Source/AppManifestParsingTest.cpp.s:
+	cd /home/ken/Projects/Tactility/build-tests && $(MAKE) $(MAKESILENT) -f Tests/Tactility/CMakeFiles/TactilityTests.dir/build.make Tests/Tactility/CMakeFiles/TactilityTests.dir/Source/AppManifestParsingTest.cpp.s
+.PHONY : Source/AppManifestParsingTest.cpp.s
+
 Source/HalDeviceTest.o: Source/HalDeviceTest.cpp.o
 .PHONY : Source/HalDeviceTest.o
 
@@ -308,6 +332,9 @@ help:
 	@echo "... list_install_components"
 	@echo "... rebuild_cache"
 	@echo "... TactilityTests"
+	@echo "... Source/AppManifestParsingTest.o"
+	@echo "... Source/AppManifestParsingTest.i"
+	@echo "... Source/AppManifestParsingTest.s"
 	@echo "... Source/HalDeviceTest.o"
 	@echo "... Source/HalDeviceTest.i"
 	@echo "... Source/HalDeviceTest.s"

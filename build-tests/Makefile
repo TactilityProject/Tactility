@@ -318,6 +318,19 @@ lvgl-module/fast:
 .PHONY : lvgl-module/fast
 
 #=============================================================================
+# Target rules for targets named crypt-module
+
+# Build rule for target.
+crypt-module: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 crypt-module
+.PHONY : crypt-module
+
+# fast build rule for target.
+crypt-module/fast:
+	$(MAKE) $(MAKESILENT) -f Modules/crypt-module/CMakeFiles/crypt-module.dir/build.make Modules/crypt-module/CMakeFiles/crypt-module.dir/build
+.PHONY : crypt-module/fast
+
+#=============================================================================
 # Target rules for targets named freertos_kernel
 
 # Build rule for target.
@@ -629,6 +642,19 @@ TactilityTests/fast:
 	$(MAKE) $(MAKESILENT) -f Tests/Tactility/CMakeFiles/TactilityTests.dir/build.make Tests/Tactility/CMakeFiles/TactilityTests.dir/build
 .PHONY : TactilityTests/fast
 
+#=============================================================================
+# Target rules for targets named CryptModuleTests
+
+# Build rule for target.
+CryptModuleTests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CryptModuleTests
+.PHONY : CryptModuleTests
+
+# fast build rule for target.
+CryptModuleTests/fast:
+	$(MAKE) $(MAKESILENT) -f Tests/crypt-module/CMakeFiles/CryptModuleTests.dir/build.make Tests/crypt-module/CMakeFiles/CryptModuleTests.dir/build
+.PHONY : CryptModuleTests/fast
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -648,6 +674,7 @@ help:
 	@echo "... lib"
 	@echo "... sdl_headers_copy"
 	@echo "... uninstall"
+	@echo "... CryptModuleTests"
 	@echo "... FirmwareSim"
 	@echo "... QRCode"
 	@echo "... SDL2-static"
@@ -661,6 +688,7 @@ help:
 	@echo "... TactilityKernelTests"
 	@echo "... TactilityTests"
 	@echo "... cJSON"
+	@echo "... crypt-module"
 	@echo "... everest"
 	@echo "... freertos_kernel"
 	@echo "... freertos_kernel_port"
