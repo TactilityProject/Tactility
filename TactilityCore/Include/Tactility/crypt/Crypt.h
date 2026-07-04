@@ -1,4 +1,4 @@
-/** @file secure.h
+/** @file Crypt.h
  *
  * @brief Hardware-bound encryption methods.
  * @warning Enable secure boot and flash encryption to increase security.
@@ -18,11 +18,12 @@
  */
 #pragma once
 
-#include <cstdio>
-#include <cstdint>
-#include <string>
+#include <stddef.h>
+#include <stdint.h>
 
-namespace tt::crypt {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Fills the IV with zeros and then creates an IV based on the input data.
@@ -30,7 +31,7 @@ namespace tt::crypt {
  * @param[in] dataLength input data length
  * @param[out] iv output IV
  */
-void getIv(const void* data, size_t dataLength, uint8_t iv[16]);
+void crypt_get_iv(const void* data, size_t dataLength, uint8_t iv[16]);
 
 /**
  * @brief Encrypt data.
@@ -44,7 +45,7 @@ void getIv(const void* data, size_t dataLength, uint8_t iv[16]);
  * @param[in] dataLength data length, a multiple of 16 (for both inData and outData)
  * @return the result of esp_aes_crypt_cbc() (MBEDTLS_ERR_*)
  */
-int encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength);
+int crypt_encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength);
 
 /**
  * @brief Decrypt data.
@@ -58,7 +59,8 @@ int encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_
  * @param[in] dataLength data length, a multiple of 16 (for both inData and outData)
  * @return the result of esp_aes_crypt_cbc() (MBEDTLS_ERR_*)
  */
-int decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength);
+int crypt_decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength);
 
-
-} // namespace
+#ifdef __cplusplus
+}
+#endif

@@ -1,16 +1,18 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
+#include <stddef.h>
+#include <stdint.h>
 
-namespace tt::crypt {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Implementation of DJB2 hashing algorithm.
  * @param[in] str the string to calculate the hash for
  * @return the hash
  */
-uint32_t djb2(const char* str);
+uint32_t djb2_str(const char* str);
 
 /**
  * Implementation of DJB2 hashing algorithm.
@@ -18,6 +20,8 @@ uint32_t djb2(const char* str);
  * @param[in] length the size of data
  * @return the hash
  */
-uint32_t djb2(const void* data, size_t length);
+uint32_t djb2_data(const void* data, size_t length);
 
-} // namespace
+#ifdef __cplusplus
+}
+#endif

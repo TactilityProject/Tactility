@@ -62,8 +62,8 @@ static bool encrypt(const std::string& ssidInput, std::string& ssidOutput) {
 
     auto* buffer = static_cast<uint8_t*>(malloc(encrypted_length));
 
-    crypt::getIv(ssidInput.c_str(), ssidInput.size(), iv);
-    if (crypt::encrypt(iv, reinterpret_cast<const uint8_t*>(ssidInput.c_str()), buffer, encrypted_length) != 0) {
+    crypt_get_iv(ssidInput.c_str(), ssidInput.size(), iv);
+    if (crypt_encrypt(iv, reinterpret_cast<const uint8_t*>(ssidInput.c_str()), buffer, encrypted_length) != 0) {
         LOGGER.error("Failed to encrypt");
         free(buffer);
         return false;
@@ -85,14 +85,14 @@ static bool decrypt(const std::string& ssidInput, std::string& ssidOutput) {
     }
 
     uint8_t iv[16];
-    crypt::getIv(ssidInput.c_str(), ssidInput.size(), iv);
+    crypt_get_iv(ssidInput.c_str(), ssidInput.size(), iv);
 
     auto result_length = ssidInput.size() / 2;
     // Allocate correct length plus space for string null terminator
     auto* result = static_cast<uint8_t*>(malloc(result_length + 1));
     result[result_length] = 0;
 
-    int decrypt_result = crypt::decrypt(
+    int decrypt_result = crypt_decrypt(
         iv,
         data,
         result,

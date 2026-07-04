@@ -13,9 +13,7 @@
 #include "nvs_flash.h"
 #endif
 
-namespace tt::crypt {
-
-static const auto LOGGER = Logger("Crypt");
+static const auto LOGGER = tt::Logger("Crypt");
 
 #define TT_NVS_NAMESPACE "tt_secure"
 
@@ -127,7 +125,7 @@ static void getKey(uint8_t key[32]) {
 #endif
 }
 
-void getIv(const void* data, size_t dataLength, uint8_t iv[16]) {
+void crypt_get_iv(const void* data, size_t dataLength, uint8_t iv[16]) {
     memset(iv, 0, 16);
     auto* data_bytes = (uint8_t*)data;
     for (int i = 0; i < dataLength; ++i) {
@@ -162,7 +160,7 @@ static int aes256CryptCbc(
     return result;
 }
 
-int encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
+int crypt_encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
     check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256)");
     uint8_t key[32];
     getKey(key);
@@ -174,7 +172,7 @@ int encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_
     return aes256CryptCbc(key, MBEDTLS_AES_ENCRYPT, dataLength, iv_copy, inData, outData);
 }
 
-int decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
+int crypt_decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_t dataLength) {
     check(dataLength % 16 == 0, "Length is not a multiple of 16 bytes (for AES 256)");
     uint8_t key[32];
     getKey(key);
@@ -185,5 +183,3 @@ int decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData, size_
 
     return aes256CryptCbc(key, MBEDTLS_AES_DECRYPT, dataLength, iv_copy, inData, outData);
 }
-
-} // namespace

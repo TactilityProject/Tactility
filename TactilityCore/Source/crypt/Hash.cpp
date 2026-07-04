@@ -1,8 +1,6 @@
 #include "Tactility/crypt/Hash.h"
 
-namespace tt::crypt {
-
-uint32_t djb2(const char* str) {
+uint32_t djb2_str(const char* str) {
     uint32_t hash = 5381;
     char c = (char)*str++;
     while (c != 0) {
@@ -12,7 +10,7 @@ uint32_t djb2(const char* str) {
     return hash;
 }
 
-uint32_t djb2(const void* data, size_t length) {
+uint32_t djb2_data(const void* data, size_t length) {
     uint32_t hash = 5381;
     auto* data_bytes = static_cast<const uint8_t*>(data);
     uint8_t c = *data_bytes++;
@@ -24,5 +22,3 @@ uint32_t djb2(const void* data, size_t length) {
     }
     return hash;
 }
-
-} // namespace
