@@ -68,35 +68,6 @@ TEST_CASE("ServiceInstance construction and destruction") {
     CHECK_EQ(last_destroy_context, &context_marker);
 }
 
-TEST_CASE("service_instance_try_get/put reference counting") {
-    reset_counters();
-
-    static const ServiceManifest manifest = {
-        .id = "refcount-test",
-        .create_service = test_create_service,
-        .destroy_service = test_destroy_service
-    };
-
-    ServiceInstance instance = { .manifest = nullptr, .data = nullptr, .on_start = nullptr, .on_stop = nullptr, .internal = nullptr };
-    CHECK_EQ(service_instance_construct(&instance, &manifest), ERROR_NONE);
-
-    // Not started yet: claiming usage should fail
-    CHECK_FALSE(service_instance_try_get(&instance));
-
-    service_instance_set_state(&instance, SERVICE_STATE_STARTED);
-
-    CHECK(service_instance_try_get(&instance));
-    CHECK(service_instance_try_get(&instance));
-    service_instance_put(&instance);
-    service_instance_put(&instance);
-
-    // Extra put beyond the claimed count should not underflow
-    service_instance_put(&instance);
-
-    service_instance_set_state(&instance, SERVICE_STATE_STOPPED);
-    CHECK_EQ(service_instance_destruct(&instance), ERROR_NONE);
-}
-
 TEST_CASE("service_manager_add rejects duplicate ids") {
     reset_counters();
 

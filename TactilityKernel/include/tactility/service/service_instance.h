@@ -86,19 +86,6 @@ void* service_instance_get_data(struct ServiceInstance* instance);
  */
 ServiceState service_instance_get_state(struct ServiceInstance* instance);
 
-/**
- * @brief Try to claim usage for this service instance. Increases reference count internally.
- * @param instance non-null service instance pointer
- * @return true when the instance is started and ref count was increased.
- */
-bool service_instance_try_get(struct ServiceInstance* instance);
-
-/**
- * @brief Release a claim for usage of this service instance. Decreases reference count internally.
- * @param instance non-null service instance pointer
- */
-void service_instance_put(struct ServiceInstance* instance);
-
 #ifdef __cplusplus
 }
 #endif

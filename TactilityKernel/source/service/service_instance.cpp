@@ -12,7 +12,6 @@
 struct ServiceInstanceInternal {
     Mutex mutex {};
     ServiceState state = SERVICE_STATE_STOPPED;
-    uint32_t use_count = 0;
 };
 
 extern "C" {
@@ -82,24 +81,6 @@ void service_instance_set_state(ServiceInstance* instance, ServiceState state) {
 
 const ServiceManifest* service_context_get_manifest(ServiceContext* context) {
     return service_instance_get_manifest(context);
-}
-
-bool service_instance_try_get(struct ServiceInstance* instance) {
-    mutex_lock(&instance->internal->mutex);
-    bool acquired = instance->internal->state == SERVICE_STATE_STARTED;
-    if (acquired) {
-        instance->internal->use_count++;
-    }
-    mutex_unlock(&instance->internal->mutex);
-    return acquired;
-}
-
-void service_instance_put(struct ServiceInstance* instance) {
-    mutex_lock(&instance->internal->mutex);
-    if (instance->internal->use_count > 0) {
-        instance->internal->use_count--;
-    }
-    mutex_unlock(&instance->internal->mutex);
 }
 
 } // extern "C"

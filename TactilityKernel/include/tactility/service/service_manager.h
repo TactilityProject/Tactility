@@ -32,6 +32,13 @@ extern "C" {
 error_t service_manager_remove(const char* id);
 
 /**
+ * @brief Find a registered manifest by id.
+ * @param[in] id non-null service id
+ * @return the manifest, or NULL if not found
+ */
+const struct ServiceManifest* service_manager_find_manifest(const char* id);
+
+/**
  * @brief Start a registered service by id.
  * @param[in] id non-null service id
  * @retval ERROR_NOT_FOUND if no manifest with this id is registered
@@ -55,13 +62,6 @@ error_t service_manager_stop(const char* id);
  * @return the current state, or SERVICE_STATE_STOPPED if the id is unknown
  */
 ServiceState service_manager_get_state(const char* id);
-
-/**
- * @brief Find a registered manifest by id.
- * @param[in] id non-null service id
- * @return the manifest, or NULL if not found
- */
-const struct ServiceManifest* service_manager_find_manifest(const char* id);
 
 /**
  * @brief Find the context of a running service by id.
