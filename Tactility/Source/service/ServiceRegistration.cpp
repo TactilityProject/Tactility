@@ -1,43 +1,87 @@
 #include <Tactility/service/ServiceRegistration.h>
 
-#include <Tactility/Mutex.h>
 #include <Tactility/service/ServiceInstance.h>
 #include <Tactility/service/ServiceManifest.h>
 
-#include <string>
-
+#include <tactility/service/service_registration.h>
+#include <tactility/error.h>
 #include <tactility/log.h>
+
+#include <cassert>
 
 namespace tt::service {
 
 constexpr auto* TAG = "ServiceRegistration";
 
-typedef std::unordered_map<std::string, std::shared_ptr<const ServiceManifest>> ManifestMap;
-typedef std::unordered_map<std::string, std::shared_ptr<ServiceInstance>> ServiceInstanceMap;
+static State toCppState(ServiceState state) {
+    switch (state) {
+        case SERVICE_STATE_STARTING: return State::Starting;
+        case SERVICE_STATE_STARTED: return State::Started;
+        case SERVICE_STATE_STOPPING: return State::Stopping;
+        case SERVICE_STATE_STOPPED:
+        default: return State::Stopped;
+    }
+}
 
-static ManifestMap service_manifest_map;
-static ServiceInstanceMap service_instance_map;
+// Bridges the kernel's context-free C ServiceManifest/Service callbacks to the
+// C++ Service instances they wrap. Declared extern "C" to match the linkage of
+// the C function-pointer types they're assigned to (see e.g. gpio_controller.cpp).
+extern "C" {
 
-static Mutex manifest_mutex;
-static Mutex instance_mutex;
+static error_t cppOnStartTrampoline(::Service* cService, ::ServiceInstance* cContext) {
+    auto& servicePtr = *static_cast<std::shared_ptr<Service>*>(cService->data);
+    ServiceInstance context(cContext);
+    return servicePtr->onStart(context) ? ERROR_NONE : ERROR_RESOURCE;
+}
+
+static void cppOnStopTrampoline(::Service* cService, ::ServiceInstance* cContext) {
+    auto& servicePtr = *static_cast<std::shared_ptr<Service>*>(cService->data);
+    ServiceInstance context(cContext);
+    servicePtr->onStop(context);
+}
+
+static ::Service* cppCreateServiceTrampoline(void* context) {
+    auto& cppManifest = *static_cast<std::shared_ptr<const ServiceManifest>*>(context);
+    auto* cService = new ::Service();
+    cService->data = new std::shared_ptr(cppManifest->createService());
+    cService->on_start = cppOnStartTrampoline;
+    cService->on_stop = cppOnStopTrampoline;
+    return cService;
+}
+
+static void cppDestroyServiceTrampoline(::Service* cService, void* /*context*/) {
+    delete static_cast<std::shared_ptr<Service>*>(cService->data);
+    delete cService;
+}
+
+} // extern "C"
 
 void addService(std::shared_ptr<const ServiceManifest> manifest, bool autoStart) {
     assert(manifest != nullptr);
-    // We'll move the manifest pointer, but we'll need to id later
     const auto& id = manifest->id;
 
     LOG_I(TAG, "Adding %s", id.c_str());
 
-    manifest_mutex.lock();
-    if (service_manifest_map[id] == nullptr) {
-        service_manifest_map[id] = std::move(manifest);
-    } else {
+    if (service_registration_find_manifest(id.c_str()) != nullptr) {
         LOG_E(TAG, "Service id in use: %s", id.c_str());
+        return;
     }
-    manifest_mutex.unlock();
 
-    if (autoStart) {
-        startService(id);
+    // The bridging C manifest and the C++ manifest it carries in .context are
+    // intentionally never freed: services are registered once and live for the
+    // process lifetime (there is no removeService()), matching the previous
+    // implementation's static, never-erased manifest map.
+    auto* cppManifestPtr = new std::shared_ptr(manifest);
+    auto* cManifest = new ::ServiceManifest {
+        .id = (*cppManifestPtr)->id.c_str(),
+        .create_service = cppCreateServiceTrampoline,
+        .destroy_service = cppDestroyServiceTrampoline,
+        .context = cppManifestPtr
+    };
+
+    error_t error = service_registration_add(cManifest, autoStart);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to add service %s: %s", id.c_str(), error_to_string(error));
     }
 }
 
@@ -46,93 +90,53 @@ void addService(const ServiceManifest& manifest, bool autoStart) {
 }
 
 std::shared_ptr<const ServiceManifest> findManifestById(const std::string& id) {
-    manifest_mutex.lock();
-    auto iterator = service_manifest_map.find(id);
-    auto manifest = iterator != service_manifest_map.end() ? iterator->second : nullptr;
-    manifest_mutex.unlock();
-    return manifest;
+    const auto* cManifest = service_registration_find_manifest(id.c_str());
+    if (cManifest == nullptr) {
+        return nullptr;
+    }
+    return *static_cast<std::shared_ptr<const ServiceManifest>*>(cManifest->context);
 }
 
-static std::shared_ptr<ServiceInstance> findServiceInstanceById(const std::string& id) {
-    manifest_mutex.lock();
-    auto iterator = service_instance_map.find(id);
-    auto service = iterator != service_instance_map.end() ? iterator->second : nullptr;
-    manifest_mutex.unlock();
-    return service;
-}
-
-// TODO: Return proper error/status instead of BOOL?
 bool startService(const std::string& id) {
     LOG_I(TAG, "Starting %s", id.c_str());
-    auto manifest = findManifestById(id);
-    if (manifest == nullptr) {
-        LOG_E(TAG, "manifest not found for service %s", id.c_str());
+    error_t error = service_registration_start(id.c_str());
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Starting %s failed: %s", id.c_str(), error_to_string(error));
         return false;
     }
-
-    auto service_instance = std::make_shared<ServiceInstance>(manifest);
-
-    // Register first, so that a service can retrieve itself during onStart()
-    instance_mutex.lock();
-    service_instance_map[manifest->id] = service_instance;
-    instance_mutex.unlock();
-
-    service_instance->setState(State::Starting);
-    if (service_instance->getService()->onStart(*service_instance)) {
-        service_instance->setState(State::Started);
-    } else {
-        LOG_E(TAG, "Starting %s failed", id.c_str());
-        service_instance->setState(State::Stopped);
-        instance_mutex.lock();
-        service_instance_map.erase(manifest->id);
-        instance_mutex.unlock();
-    }
-
     LOG_I(TAG, "Started %s", id.c_str());
-
     return true;
 }
 
 std::shared_ptr<ServiceContext> findServiceContextById(const std::string& id) {
-    return findServiceInstanceById(id);
+    auto* cContext = service_registration_find_context(id.c_str());
+    if (cContext == nullptr) {
+        return nullptr;
+    }
+    return std::make_shared<ServiceInstance>(cContext);
 }
 
 std::shared_ptr<Service> findServiceById(const std::string& id) {
-    auto instance = findServiceInstanceById(id);
-    return instance != nullptr ? instance->getService() : nullptr;
+    auto* cService = service_registration_find_service(id.c_str());
+    if (cService == nullptr) {
+        return nullptr;
+    }
+    return *static_cast<std::shared_ptr<Service>*>(cService->data);
 }
 
 bool stopService(const std::string& id) {
     LOG_I(TAG, "Stopping %s", id.c_str());
-    auto service_instance = findServiceInstanceById(id);
-    if (service_instance == nullptr) {
+    error_t error = service_registration_stop(id.c_str());
+    if (error != ERROR_NONE) {
         LOG_W(TAG, "Service not running: %s", id.c_str());
         return false;
     }
-
-    service_instance->setState(State::Stopping);
-    service_instance->getService()->onStop(*service_instance);
-    service_instance->setState(State::Stopped);
-
-    instance_mutex.lock();
-    service_instance_map.erase(id);
-    instance_mutex.unlock();
-
-    if (service_instance.use_count() > 1) {
-        LOG_W(TAG, "Possible memory leak: service %s still has %d references", service_instance->getManifest().id.c_str(), (int)(service_instance.use_count() - 1));
-    }
-
     LOG_I(TAG, "Stopped %s", id.c_str());
-
     return true;
 }
 
 State getState(const std::string& id) {
-    auto service_instance = findServiceInstanceById(id);
-    if (service_instance == nullptr) {
-        return State::Stopped;
-    }
-    return service_instance->getState();
+    return toCppState(service_registration_get_state(id.c_str()));
 }
 
 } // namespace
