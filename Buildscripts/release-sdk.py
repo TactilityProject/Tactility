@@ -145,6 +145,7 @@ def main():
 
     # Modules
     add_module(target_path, "lvgl-module")
+    add_module(target_path, "crypt-module")
 
     # Drivers
     add_driver(target_path, "bm8563-module")
