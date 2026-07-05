@@ -1,0 +1,67 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c_master.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <bindings/xl9555.h>
+
+// Reference: https://github.com/Xinyuan-LilyGO/T-Deck-MAX
+// lib/TDeckMaxBoard/src/TDeckMaxBoard.h, docs/pinmap.md
+/ {
+	compatible = "root";
+	model = "LilyGO T-Deck Pro Max";
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	i2c0 {
+		// i2c-master (not the legacy i2c driver): the CST66xx touch code reads
+		// the panel through the new i2c-master bus handle.
+		compatible = "espressif,esp32-i2c-master";
+		port = <I2C_NUM_0>;
+		clock-frequency = <100000>;
+		pin-sda = <&gpio0 13 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 14 GPIO_FLAG_NONE>;
+
+		xl9555 {
+			compatible = "xlsemi,xl9555";
+			reg = <0x20>;
+		};
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		// All chip-selects on the shared bus, by index. The SPI driver drives
+		// every CS high on start, so each peripheral is deselected before any
+		// other one transacts. The SD card resolves its own CS from index 1.
+		cs-gpios = <&gpio0 34 GPIO_FLAG_NONE>, // 0: EPD display
+		           <&gpio0 48 GPIO_FLAG_NONE>, // 1: SD card
+		           <&gpio0 3 GPIO_FLAG_NONE>;  // 2: LoRa radio (SX1262, not wired up yet)
+		pin-mosi = <&gpio0 33 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 47 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
+		// The EPD pushes its whole 9600-byte framebuffer in one SPI write, which
+		// exceeds the default ~4 KB transfer limit. Raise the bus limit to fit it.
+		max-transfer-size = <65536>;
+
+		sdcard@1 {
+			// Replaces the old SpiSdCardDevice. CS comes from cs-gpios[1].
+			// "disabled" => constructed/added but not auto-started; Hal::init's
+			// mountAll() starts it before displays init (SPI displays must come
+			// up after the SD card is mounted on the shared bus).
+			compatible = "espressif,esp32-sdspi";
+			status = "disabled";
+			frequency-khz = <20000>;
+		};
+	};
+};
