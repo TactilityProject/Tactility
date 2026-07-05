@@ -6,7 +6,6 @@ file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
 list(APPEND REQUIRES_LIST
     TactilityKernel
-    TactilityCore
     TactilityFreeRtos
     hal-device-module
     lvgl-module

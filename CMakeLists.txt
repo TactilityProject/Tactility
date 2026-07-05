@@ -43,7 +43,6 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         "TactilityKernel"
         "Tactility"
         "TactilityC"
-        "TactilityCore"
         "TactilityFreeRtos"
         "Libraries/elf_loader"
         "Libraries/lv_screenshot"
@@ -84,7 +83,6 @@ project(Tactility)
 # Defined as regular project for PC and component for ESP
 if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Tactility)
-    add_subdirectory(TactilityCore)
     add_subdirectory(TactilityFreeRtos)
     add_subdirectory(TactilityKernel)
     add_subdirectory(Platforms/platform-posix)

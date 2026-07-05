@@ -8,7 +8,6 @@ list(APPEND REQUIRES_LIST
 
 list(APPEND PRIV_REQUIRES_LIST
     Tactility
-    TactilityCore
     TactilityKernel
     mbedtls
 )

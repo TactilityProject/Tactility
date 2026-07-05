@@ -1,4 +1,4 @@
-project(TactilityCoreTests)
+project(TactilityKernelTests)
 
 enable_language(C CXX ASM)
 

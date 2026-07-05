@@ -2,5 +2,5 @@ file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
 idf_component_register(SRCS ${SOURCE_FILES}
     INCLUDE_DIRS "Source"
-    REQUIRES EPDiyDisplay GT911 TactilityCore driver EstimatedPower
+    REQUIRES EPDiyDisplay GT911 Tactility driver EstimatedPower
 )

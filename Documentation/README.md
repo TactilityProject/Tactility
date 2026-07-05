@@ -41,10 +41,10 @@ Tests use Doctest and run on simulator (POSIX) target only:
 cmake -B buildsim -G Ninja
 ninja -C buildsim build-tests
 cd buildsim && ctest            # run all tests
-./buildsim/Tests/TactilityCore/TactilityCoreTests    # run a single test suite
 ./buildsim/Tests/TactilityKernel/TactilityKernelTests
 ./buildsim/Tests/Tactility/TactilityTests
 ./buildsim/Tests/TactilityFreeRtos/TactilityFreeRtosTests
+./buildsim/Tests/crypt-module/CryptModuleTests
 ```
 
 ## Architecture
@@ -52,10 +52,9 @@ cd buildsim && ctest            # run all tests
 ### Layer Stack (bottom to top)
 
 - **TactilityKernel** — C API kernel: device/driver/module lifecycle, concurrency primitives (thread, mutex, timer, dispatcher), filesystem, logging. Header convention: `<tactility/*.h>` (lowercase snake_case).
-- **TactilityCore** — Former kernel subproject. Deprecated, replaced by TactilityKernel. Contains C++ utilities: Bundle (key-value data), string helpers, file I/O, crypto. Header convention: `<Tactility/*.h>` (UpperCamelCase).
 - **TactilityFreeRtos** — Thin C++ wrappers around FreeRTOS primitives.
 - **Tactility** — Main OS layer: app framework, service framework, HAL (deprecated, replaced by TactilityKernel), LVGL integration, networking and services (Wi-Fi, BLE, NTP, ESP-NOW), settings, i18n.
-- **TactilityC** — C bindings (`tt_*.h`) for TactilityCore and Tactility subprojects, used by side-loaded ELF apps on ESP32. Deprecated, replaced by TactilityKernel.
+- **TactilityC** — C bindings (`tt_*.h`) for Tactility, used by side-loaded ELF apps on ESP32. Deprecated, replaced by TactilityKernel.
 - **Firmware** — Entry point (`app_main`).
 
 ### Device/Driver/Module System (kernel layer, C API)

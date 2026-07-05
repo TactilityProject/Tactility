@@ -86,7 +86,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     )
 else ()
     list(APPEND REQUIRES_LIST
-        TactilityCore
+        Tactility
         TactilityFreeRtos
         hal-device-module
         lvgl-module
