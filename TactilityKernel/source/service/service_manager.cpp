@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#include <tactility/service/service_registration.h>
+#include <tactility/service/service_manager.h>
 #include <tactility/concurrent/mutex.h>
 #include <tactility/log.h>
 
@@ -45,7 +45,7 @@ static InstanceLedger& get_instance_ledger() {
 
 extern "C" {
 
-error_t service_registration_add(const ServiceManifest* manifest, bool auto_start) {
+error_t service_manager_add(const ServiceManifest* manifest, bool auto_start) {
     mutex_lock(&manifest_ledger.mutex);
     if (manifest_ledger.manifests.contains(manifest->id)) {
         mutex_unlock(&manifest_ledger.mutex);
@@ -58,14 +58,14 @@ error_t service_registration_add(const ServiceManifest* manifest, bool auto_star
     LOG_I(TAG, "add %s", manifest->id);
 
     if (auto_start) {
-        return service_registration_start(manifest->id);
+        return service_manager_start(manifest->id);
     }
 
     return ERROR_NONE;
 }
 
-error_t service_registration_remove(const char* id) {
-    if (service_registration_find_context(id) != nullptr) {
+error_t service_manager_remove(const char* id) {
+    if (service_manager_find_context(id) != nullptr) {
         return ERROR_INVALID_STATE;
     }
 
@@ -82,7 +82,7 @@ error_t service_registration_remove(const char* id) {
     return ERROR_NONE;
 }
 
-error_t service_registration_start(const char* id) {
+error_t service_manager_start(const char* id) {
     mutex_lock(&manifest_ledger.mutex);
     const auto manifest_iterator = manifest_ledger.manifests.find(id);
     if (manifest_iterator == manifest_ledger.manifests.end()) {
@@ -98,7 +98,7 @@ error_t service_registration_start(const char* id) {
         return ERROR_INVALID_STATE;
     }
 
-    auto* instance = new(std::nothrow) ServiceInstance { .manifest = nullptr, .service = nullptr, .internal = nullptr };
+    auto* instance = new(std::nothrow) ServiceInstance { .manifest = nullptr, .data = nullptr, .on_start = nullptr, .on_stop = nullptr, .internal = nullptr };
     if (instance == nullptr) {
         mutex_unlock(&instance_ledger.mutex);
         return ERROR_OUT_OF_MEMORY;
@@ -118,8 +118,7 @@ error_t service_registration_start(const char* id) {
     service_instance_set_state(instance, SERVICE_STATE_STARTING);
 
     LOG_I(TAG, "start %s", id);
-    Service* service = instance->service;
-    error = (service->on_start != nullptr) ? service->on_start(service, instance) : ERROR_NONE;
+    error = (instance->on_start != nullptr) ? instance->on_start(instance) : ERROR_NONE;
 
     if (error == ERROR_NONE) {
         service_instance_set_state(instance, SERVICE_STATE_STARTED);
@@ -139,7 +138,7 @@ error_t service_registration_start(const char* id) {
     return ERROR_RESOURCE;
 }
 
-error_t service_registration_stop(const char* id) {
+error_t service_manager_stop(const char* id) {
     mutex_lock(&instance_ledger.mutex);
     const auto iterator = instance_ledger.instances.find(id);
     if (iterator == instance_ledger.instances.end()) {
@@ -153,9 +152,8 @@ error_t service_registration_stop(const char* id) {
 
     service_instance_set_state(instance, SERVICE_STATE_STOPPING);
 
-    Service* service = instance->service;
-    if (service->on_stop != nullptr) {
-        service->on_stop(service, instance);
+    if (instance->on_stop != nullptr) {
+        instance->on_stop(instance);
     }
 
     service_instance_set_state(instance, SERVICE_STATE_STOPPED);
@@ -170,7 +168,7 @@ error_t service_registration_stop(const char* id) {
     return ERROR_NONE;
 }
 
-ServiceState service_registration_get_state(const char* id) {
+ServiceState service_manager_get_state(const char* id) {
     mutex_lock(&instance_ledger.mutex);
     const auto iterator = instance_ledger.instances.find(id);
     if (iterator == instance_ledger.instances.end()) {
@@ -183,7 +181,7 @@ ServiceState service_registration_get_state(const char* id) {
     return service_instance_get_state(instance);
 }
 
-const ServiceManifest* service_registration_find_manifest(const char* id) {
+const ServiceManifest* service_manager_find_manifest(const char* id) {
     mutex_lock(&manifest_ledger.mutex);
     const auto iterator = manifest_ledger.manifests.find(id);
     const ServiceManifest* manifest = (iterator != manifest_ledger.manifests.end()) ? iterator->second : nullptr;
@@ -191,17 +189,12 @@ const ServiceManifest* service_registration_find_manifest(const char* id) {
     return manifest;
 }
 
-ServiceContext* service_registration_find_context(const char* id) {
+ServiceContext* service_manager_find_context(const char* id) {
     mutex_lock(&instance_ledger.mutex);
     const auto iterator = instance_ledger.instances.find(id);
     ServiceInstance* instance = (iterator != instance_ledger.instances.end()) ? iterator->second : nullptr;
     mutex_unlock(&instance_ledger.mutex);
     return instance;
-}
-
-Service* service_registration_find_service(const char* id) {
-    ServiceInstance* instance = service_registration_find_context(id);
-    return (instance != nullptr) ? instance->service : nullptr;
 }
 
 } // extern "C"

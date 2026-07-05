@@ -12,6 +12,7 @@
 struct ServiceInstanceInternal {
     Mutex mutex {};
     ServiceState state = SERVICE_STATE_STOPPED;
+    uint32_t use_count = 0;
 };
 
 extern "C" {
@@ -24,7 +25,10 @@ error_t service_instance_construct(ServiceInstance* instance, const ServiceManif
     mutex_construct(&instance->internal->mutex);
 
     instance->manifest = manifest;
-    instance->service = manifest->create_service(manifest->context);
+    instance->data = nullptr;
+    instance->on_start = nullptr;
+    instance->on_stop = nullptr;
+    manifest->create_service(instance, manifest->context);
 
     LOG_D(TAG, "construct %s", manifest->id);
     return ERROR_NONE;
@@ -42,8 +46,10 @@ error_t service_instance_destruct(ServiceInstance* instance) {
 
     LOG_D(TAG, "destruct %s", instance->manifest->id);
 
-    instance->manifest->destroy_service(instance->service, instance->manifest->context);
-    instance->service = nullptr;
+    instance->manifest->destroy_service(instance, instance->manifest->context);
+    instance->data = nullptr;
+    instance->on_start = nullptr;
+    instance->on_stop = nullptr;
 
     instance->internal = nullptr;
     mutex_destruct(&internal->mutex);
@@ -56,8 +62,8 @@ const ServiceManifest* service_instance_get_manifest(ServiceInstance* instance) 
     return instance->manifest;
 }
 
-Service* service_instance_get_service(ServiceInstance* instance) {
-    return instance->service;
+void* service_instance_get_data(ServiceInstance* instance) {
+    return instance->data;
 }
 
 ServiceState service_instance_get_state(ServiceInstance* instance) {
@@ -76,6 +82,24 @@ void service_instance_set_state(ServiceInstance* instance, ServiceState state) {
 
 const ServiceManifest* service_context_get_manifest(ServiceContext* context) {
     return service_instance_get_manifest(context);
+}
+
+bool service_instance_try_get(struct ServiceInstance* instance) {
+    mutex_lock(&instance->internal->mutex);
+    bool acquired = instance->internal->state == SERVICE_STATE_STARTED;
+    if (acquired) {
+        instance->internal->use_count++;
+    }
+    mutex_unlock(&instance->internal->mutex);
+    return acquired;
+}
+
+void service_instance_put(struct ServiceInstance* instance) {
+    mutex_lock(&instance->internal->mutex);
+    if (instance->internal->use_count > 0) {
+        instance->internal->use_count--;
+    }
+    mutex_unlock(&instance->internal->mutex);
 }
 
 } // extern "C"

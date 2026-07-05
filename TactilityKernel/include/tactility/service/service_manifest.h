@@ -2,25 +2,35 @@
 
 #pragma once
 
-#include <tactility/service/service.h>
+#include <tactility/error.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/**
- * Allocates and initializes a new Service instance.
- * @param[in] context the manifest's context (ServiceManifest::context)
- * @return the new service, never NULL
- */
-typedef struct Service* (*ServiceCreate)(void* context);
+// ServiceContext (declared in service_context.h) is a typedef alias of ServiceInstance,
+// so ServiceCreate/ServiceDestroy below are declared directly in terms of ServiceInstance
+// to avoid a conflicting forward-declaration of an unrelated "ServiceContext" struct tag.
+struct ServiceInstance;
 
 /**
- * Frees a Service instance that was created by the matching ServiceCreate function.
- * @param[in] service the service to free
+ * Initializes a newly-registered service instance in place.
+ * Implementations should set instance->data, instance->on_start and instance->on_stop
+ * as needed; all three may be left at their zeroed defaults (NULL) if the service has
+ * no state or lifecycle callbacks.
+ * @param[in,out] instance the instance to populate (manifest and internal are already set)
  * @param[in] context the manifest's context (ServiceManifest::context)
  */
-typedef void (*ServiceDestroy)(struct Service* service, void* context);
+typedef void (*ServiceCreate)(struct ServiceInstance* instance, void* context);
+
+/**
+ * Tears down state that was set up by the matching ServiceCreate function
+ * (e.g. frees instance->data). Should not clear instance->data/on_start/on_stop;
+ * the caller does that.
+ * @param[in,out] instance the instance to tear down
+ * @param[in] context the manifest's context (ServiceManifest::context)
+ */
+typedef void (*ServiceDestroy)(struct ServiceInstance* instance, void* context);
 
 /**
  * Describes a registrable service type.

@@ -20,7 +20,7 @@ extern "C" {
  * @retval ERROR_RESOURCE if auto_start is true and starting the service failed
  * @retval ERROR_NONE on success
  */
-error_t service_registration_add(const struct ServiceManifest* manifest, bool auto_start);
+    error_t service_manager_add(const struct ServiceManifest* manifest, bool auto_start);
 
 /**
  * @brief Unregister a previously-added manifest.
@@ -29,7 +29,7 @@ error_t service_registration_add(const struct ServiceManifest* manifest, bool au
  * @retval ERROR_NOT_FOUND if no manifest with this id is registered
  * @retval ERROR_NONE on success
  */
-error_t service_registration_remove(const char* id);
+error_t service_manager_remove(const char* id);
 
 /**
  * @brief Start a registered service by id.
@@ -39,7 +39,7 @@ error_t service_registration_remove(const char* id);
  * @retval ERROR_RESOURCE if the service's on_start callback failed
  * @retval ERROR_NONE on success
  */
-error_t service_registration_start(const char* id);
+error_t service_manager_start(const char* id);
 
 /**
  * @brief Stop a running service by id.
@@ -47,35 +47,28 @@ error_t service_registration_start(const char* id);
  * @retval ERROR_NOT_FOUND if no service with this id is running
  * @retval ERROR_NONE on success
  */
-error_t service_registration_stop(const char* id);
+error_t service_manager_stop(const char* id);
 
 /**
  * @brief Get the state of a service by id.
  * @param[in] id non-null service id
  * @return the current state, or SERVICE_STATE_STOPPED if the id is unknown
  */
-ServiceState service_registration_get_state(const char* id);
+ServiceState service_manager_get_state(const char* id);
 
 /**
  * @brief Find a registered manifest by id.
  * @param[in] id non-null service id
  * @return the manifest, or NULL if not found
  */
-const struct ServiceManifest* service_registration_find_manifest(const char* id);
+const struct ServiceManifest* service_manager_find_manifest(const char* id);
 
 /**
  * @brief Find the context of a running service by id.
  * @param[in] id non-null service id
  * @return the context, or NULL if the service isn't running
  */
-ServiceContext* service_registration_find_context(const char* id);
-
-/**
- * @brief Find the service instance of a running service by id.
- * @param[in] id non-null service id
- * @return the service, or NULL if not running
- */
-struct Service* service_registration_find_service(const char* id);
+ServiceContext* service_manager_find_context(const char* id);
 
 #ifdef __cplusplus
 }
