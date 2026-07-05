@@ -1,5 +1,7 @@
 #include <Tactility/bluetooth/BluetoothPairedDevice.h>
 
+#include "Tactility/Paths.h"
+
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <tactility/log.h>
@@ -16,12 +18,15 @@ namespace tt::bluetooth::settings {
 constexpr auto* TAG = "BluetoothPairedDevice";
 
 // Use the same directory as the old service for backward compatibility.
-constexpr auto* DATA_DIR               = "/data/service/bluetooth";
 constexpr auto* DEVICE_SETTINGS_FORMAT = "{}/{}.device.properties";
 constexpr auto* KEY_NAME        = "name";
 constexpr auto* KEY_ADDR        = "addr";
 constexpr auto* KEY_AUTO_CONNECT = "autoConnect";
 constexpr auto* KEY_PROFILE_ID  = "profileId";
+
+static std::string getSettingsFilePath() {
+    return getUserDataPath() + "/service/bluetooth";
+}
 
 std::string addrToHex(const std::array<uint8_t, 6>& addr) {
     std::stringstream stream;
@@ -52,7 +57,7 @@ static bool hexToAddr(const std::string& hex, std::array<uint8_t, 6>& addr) {
 }
 
 static std::string getFilePath(const std::string& addr_hex) {
-    return std::format(DEVICE_SETTINGS_FORMAT, DATA_DIR, addr_hex);
+    return std::format(DEVICE_SETTINGS_FORMAT, getSettingsFilePath(), addr_hex);
 }
 
 bool hasFileForDevice(const std::string& addr_hex) {
@@ -102,7 +107,10 @@ bool remove(const std::string& addr_hex) {
 
 std::vector<PairedDevice> loadAll() {
     std::vector<dirent> entries;
-    file::scandir(DATA_DIR, entries, [](const dirent* entry) -> int {
+    if (!file::isDirectory(getSettingsFilePath())) {
+        return {};
+    }
+    file::scandir(getSettingsFilePath(), entries, [](const dirent* entry) -> int {
         if (entry->d_type != file::TT_DT_REG && entry->d_type != file::TT_DT_UNKNOWN) return -1;
         std::string name = entry->d_name;
         return name.ends_with(".device.properties") ? 0 : -1;
