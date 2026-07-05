@@ -1,6 +1,4 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# README
 
 ## Project Overview
 
@@ -134,7 +132,7 @@ User interfaces should scale well for everything between very large (e.g. 1280x7
 Two conventions coexist; which one to use depends on the project layer:
 
 - **C code** (TactilityKernel, drivers): `lower_snake_case` for files, functions, variables. `UpperCamelCase` for types. Files in `source/`, `include/`, `private/` directories.
-- **C++ code** (TactilityCore, Tactility, apps, services): `UpperCamelCase` for files and types. `lowerCamelCase` for functions. Files in `Source/`, `Include/`, `Private/` directories.
+- **C++ code** (Tactility, apps, services): `UpperCamelCase` for files and types. `lowerCamelCase` for functions. Files in `Source/`, `Include/`, `Private/` directories.
 
 Formatting is enforced by `.clang-format` (LLVM-based, 4-space indent, no column limit).
 Never throw exceptions — use return types for error handling. Use `enum class` over plain `enum`.
