@@ -3,6 +3,7 @@
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppPaths.h>
 #include <Tactility/app/AppRegistration.h>
+#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/setup/Setup.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/power/PowerDevice.h>
@@ -35,6 +36,8 @@ static int32_t computeButtonMargin(int32_t available_span, int32_t total_button_
 }
 
 class LauncherApp final : public App {
+
+    LaunchId powerOffConfirmLaunchId = 0;
 
     static lv_obj_t* createAppButton(lv_obj_t* parent, UiDensity uiDensity, const char* imageFile, const char* appId, int32_t itemMargin, bool isLandscape) {
         const auto button_size = lvgl_get_launcher_icon_font_height();
@@ -114,7 +117,7 @@ class LauncherApp final : public App {
         }
     }
 
-    static void onPowerOffPressed(lv_event_t* e) {
+    static void performPowerOff() {
         auto power = hal::findFirstDevice<hal::power::PowerDevice>(hal::Device::Type::Power);
         if (power == nullptr || !power->supportsPowerOff()) {
             return;
@@ -124,6 +127,17 @@ class LauncherApp final : public App {
         showPoweredOffScreenAndWait(display.get());
 
         power->powerOff();
+    }
+
+    static void onPowerOffPressed(lv_event_t* e) {
+        auto* self = static_cast<LauncherApp*>(lv_event_get_user_data(e));
+        auto power = hal::findFirstDevice<hal::power::PowerDevice>(hal::Device::Type::Power);
+        if (power == nullptr || !power->supportsPowerOff()) {
+            return;
+        }
+
+        auto choices = std::vector { "Power off", "Cancel" };
+        self->powerOffConfirmLaunchId = alertdialog::start("Power off?", "Are you sure you want to power off?", choices);
     }
 
     // The screen object outlives the launcher's views (it's recreated by GuiService::redraw()
@@ -197,6 +211,16 @@ public:
         }
     }
 
+    void onResult(AppContext& appContext, LaunchId launchId, Result result, std::unique_ptr<Bundle> resultData) override {
+        if (launchId == powerOffConfirmLaunchId &&
+            result == Result::Ok &&
+            resultData != nullptr &&
+            alertdialog::getResultIndex(*resultData) == 0
+        ) {
+            performPowerOff();
+        }
+    }
+
     void onShow(AppContext& app, lv_obj_t* parent) override {
         auto* buttons_wrapper = lv_obj_create(parent);
 
@@ -241,7 +265,7 @@ public:
             auto* power_button = lv_button_create(parent);
             lv_obj_set_style_pad_all(power_button, 8, 0);
             lv_obj_align(power_button, LV_ALIGN_BOTTOM_MID, 0, -10);
-            lv_obj_add_event_cb(power_button, onPowerOffPressed, LV_EVENT_SHORT_CLICKED, nullptr);
+            lv_obj_add_event_cb(power_button, onPowerOffPressed, LV_EVENT_SHORT_CLICKED, this);
             lv_obj_set_style_shadow_width(power_button, 0, LV_STATE_DEFAULT);
             lv_obj_set_style_bg_opa(power_button, 0, LV_PART_MAIN);
 
