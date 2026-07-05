@@ -1,15 +1,12 @@
 #pragma once
 
+#include <tactility/service/service_instance.h>
+
 #include <memory>
 
 namespace tt::service {
 
-enum class State {
-    Starting,
-    Started,
-    Stopping,
-    Stopped
-};
+using State = ::ServiceState;
 
 // Forward declaration
 class ServiceContext;

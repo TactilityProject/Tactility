@@ -102,7 +102,7 @@ void attachDevices() {
     // We search for the manifest first, because during the initial start() during boot
     // the service won't be registered yet.
     if (service::findManifestById("Gui") != nullptr) {
-        if (service::getState("Gui") == service::State::Stopped) {
+        if (service::getState("Gui") == SERVICE_STATE_STOPPED) {
             service::startService("Gui");
         } else {
             LOG_E(TAG, "Gui service is not in Stopped state");
@@ -112,7 +112,7 @@ void attachDevices() {
     // We search for the manifest first, because during the initial start() during boot
     // the service won't be registered yet.
     if (service::findManifestById("Statusbar") != nullptr) {
-        if (service::getState("Statusbar") == service::State::Stopped) {
+        if (service::getState("Statusbar") == SERVICE_STATE_STOPPED) {
             service::startService("Statusbar");
         } else {
             LOG_E(TAG, "Statusbar service is not in Stopped state");

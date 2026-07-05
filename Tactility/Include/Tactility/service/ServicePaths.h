@@ -6,6 +6,7 @@
 #include <tactility/error.h>
 #include <tactility/service/service_paths.h>
 
+#include <cassert>
 #include <string>
 #include <memory>
 

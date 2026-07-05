@@ -13,16 +13,6 @@ namespace tt::service {
 
 constexpr auto* TAG = "ServiceRegistration";
 
-static State toCppState(ServiceState state) {
-    switch (state) {
-        case SERVICE_STATE_STARTING: return State::Starting;
-        case SERVICE_STATE_STARTED: return State::Started;
-        case SERVICE_STATE_STOPPING: return State::Stopping;
-        case SERVICE_STATE_STOPPED:
-        default: return State::Stopped;
-    }
-}
-
 // Bridges the kernel's context-free C ServiceManifest/Service callbacks to the
 // C++ Service instances they wrap. Declared extern "C" to match the linkage of
 // the C function-pointer types they're assigned to (see e.g. gpio_controller.cpp).
@@ -136,7 +126,7 @@ bool stopService(const std::string& id) {
 }
 
 State getState(const std::string& id) {
-    return toCppState(service_registration_get_state(id.c_str()));
+    return service_registration_get_state(id.c_str());
 }
 
 } // namespace
