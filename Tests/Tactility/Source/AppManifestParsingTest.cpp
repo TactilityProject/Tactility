@@ -1,4 +1,4 @@
-#include "../../TactilityCore/Source/TestFile.h"
+#include "TestFile.h"
 #include "../../Tactility/Private/Tactility/app/AppManifestParsing.h"
 #include "../../Tactility/Private/Tactility/app/AppManifestParsingInternal.h"
 

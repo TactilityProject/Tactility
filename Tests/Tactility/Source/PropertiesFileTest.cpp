@@ -1,4 +1,4 @@
-#include "../../TactilityCore/Source/TestFile.h"
+#include "TestFile.h"
 #include "../../Tactility/Include/Tactility/file/PropertiesFile.h"
 
 #include "doctest.h"
