@@ -4,7 +4,6 @@
 #include <Tactility/app/AppPaths.h>
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/app/setup/Setup.h>
-#include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/BootSettings.h>
 
@@ -66,26 +65,9 @@ class LauncherApp final : public App {
         return apps_button;
     }
 
-    static bool shouldShowPowerButton() {
-        bool show_power_button = false;
-        hal::findDevices<hal::power::PowerDevice>(hal::Device::Type::Power, [&show_power_button](const auto& device) {
-            if (device->supportsPowerOff()) {
-                show_power_button = true;
-                return false; // stop iterating
-            } else {
-                return true; // continue iterating
-            }
-        });
-        return show_power_button;
-    }
-
     static void onAppPressed(lv_event_t* e) {
         auto* appId = static_cast<const char*>(lv_event_get_user_data(e));
         start(appId);
-    }
-
-    static void onPowerOffPressed(lv_event_t* /*e*/) {
-        start("PowerOff");
     }
 
     // The screen object outlives the launcher's views (it's recreated by GuiService::redraw()
@@ -198,19 +180,6 @@ public:
         // handler is attached there, with buttons_wrapper passed through as user data.
         lv_obj_add_event_cb(lv_obj_get_screen(parent), onButtonsWrapperResized, LV_EVENT_SIZE_CHANGED, buttons_wrapper);
         lv_obj_add_event_cb(buttons_wrapper, onButtonsWrapperDeleted, LV_EVENT_DELETE, nullptr);
-
-        if (shouldShowPowerButton()) {
-            auto* power_button = lv_button_create(parent);
-            lv_obj_set_style_pad_all(power_button, 8, 0);
-            lv_obj_align(power_button, LV_ALIGN_BOTTOM_MID, 0, -10);
-            lv_obj_add_event_cb(power_button, onPowerOffPressed, LV_EVENT_SHORT_CLICKED, nullptr);
-            lv_obj_set_style_shadow_width(power_button, 0, LV_STATE_DEFAULT);
-            lv_obj_set_style_bg_opa(power_button, 0, LV_PART_MAIN);
-
-            auto* power_label = lv_label_create(power_button);
-            lv_label_set_text(power_label, LV_SYMBOL_POWER);
-            lv_obj_set_style_text_color(power_label, lv_theme_get_color_primary(parent), LV_STATE_DEFAULT);
-        }
     }
 };
 

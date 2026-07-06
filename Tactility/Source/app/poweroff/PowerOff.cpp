@@ -7,6 +7,7 @@
 #include <lvgl.h>
 #include <tactility/hal/Device.h>
 #include <tactility/lvgl_fonts.h>
+#include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::poweroff {
 
@@ -94,8 +95,9 @@ public:
 extern const AppManifest manifest = {
     .appId = "PowerOff",
     .appName = "Power Off",
-    .appCategory = Category::System,
-    .appFlags = AppManifest::Flags::HideStatusBar | AppManifest::Flags::Hidden,
+    .appIcon = LVGL_ICON_SHARED_POWER_SETTINGS_NEW,
+    .appCategory = Category::Settings,
+    .appFlags = AppManifest::Flags::HideStatusBar,
     .createApp = create<PowerOffApp>
 };
 
