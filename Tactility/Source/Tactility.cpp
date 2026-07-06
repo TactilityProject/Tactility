@@ -103,6 +103,7 @@ namespace app {
     namespace localesettings { extern const AppManifest manifest; }
     namespace notes { extern const AppManifest manifest; }
     namespace power { extern const AppManifest manifest; }
+    namespace poweroff { extern const AppManifest manifest; }
     namespace selectiondialog { extern const AppManifest manifest; }
     namespace settings { extern const AppManifest manifest; }
     namespace setup { extern const AppManifest manifest; }
@@ -157,6 +158,7 @@ static void registerInternalApps() {
     addAppManifest(app::launcher::manifest);
     addAppManifest(app::localesettings::manifest);
     addAppManifest(app::notes::manifest);
+    addAppManifest(app::poweroff::manifest);
     addAppManifest(app::settings::manifest);
     addAppManifest(app::selectiondialog::manifest);
     addAppManifest(app::setup::manifest);
