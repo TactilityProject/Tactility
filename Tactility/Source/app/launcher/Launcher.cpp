@@ -7,6 +7,7 @@
 #include <Tactility/app/setup/Setup.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/power/PowerDevice.h>
+#include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/BootSettings.h>
 
@@ -92,8 +93,16 @@ class LauncherApp final : public App {
      * synchronously, and waits for the display to confirm the draw physically
      * finished. On e-paper this is what's left showing once power cuts, so it
      * doubles as visual confirmation that the device shut down cleanly rather
-     * than crashed or hung. */
+     * than crashed or hung.
+     *
+     * Called from App::onResult, which runs on the loader dispatcher thread,
+     * not the LVGL thread — every LVGL call here must happen under the LVGL
+     * lock, same as DisplayIdleService's screensaver overlay. */
     static void showPoweredOffScreenAndWait(hal::display::DisplayDevice* display) {
+        if (!lvgl::lock(lvgl::defaultLockTime)) {
+            return;
+        }
+
         auto* screen = lv_obj_create(nullptr);
         lv_obj_set_style_bg_color(screen, lv_color_white(), 0);
         lv_obj_set_flex_flow(screen, LV_FLEX_FLOW_COLUMN);
@@ -115,6 +124,8 @@ class LauncherApp final : public App {
             }
             display->waitForFlushComplete();
         }
+
+        lvgl::unlock();
     }
 
     static void performPowerOff() {
