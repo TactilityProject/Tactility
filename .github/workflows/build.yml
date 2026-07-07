@@ -30,57 +30,20 @@ jobs:
         with:
           board_id: ${{ matrix.board.id }}
           arch: ${{ matrix.board.arch }}
-  BuildFirmware:
-    strategy:
-      matrix:
-        board: [
-          { id: btt-panda-touch, arch: esp32s3 },
-          { id: cyd-2432s024c, arch: esp32 },
-          { id: cyd-2432s024r, arch: esp32 },
-          { id: cyd-2432s028r, arch: esp32 },
-          { id: cyd-2432s028rv3, arch: esp32 },
-          { id: cyd-e32r28t, arch: esp32 },
-          { id: cyd-e32r32p, arch: esp32 },
-          { id: cyd-2432s032c, arch: esp32 },
-          { id: cyd-3248s035c, arch: esp32 },
-          { id: cyd-8048s043c, arch: esp32s3 },
-          { id: cyd-4848s040c, arch: esp32s3 },
-          { id: elecrow-crowpanel-advance-28, arch: esp32s3 },
-          { id: elecrow-crowpanel-advance-35, arch: esp32s3 },
-          { id: elecrow-crowpanel-advance-50, arch: esp32s3 },
-          { id: elecrow-crowpanel-basic-28, arch: esp32 },
-          { id: elecrow-crowpanel-basic-35, arch: esp32 },
-          { id: elecrow-crowpanel-basic-50, arch: esp32s3 },
-          { id: guition-jc1060p470ciwy, arch: esp32p4 },
-          { id: guition-jc2432w328c, arch: esp32 },
-          { id: guition-jc3248w535c, arch: esp32s3 },
-          { id: guition-jc8048w550c, arch: esp32s3 },
-          { id: heltec-wifi-lora-32-v3, arch: esp32s3 },
-          { id: lilygo-tdeck, arch: esp32s3 },
-          { id: lilygo-thmi, arch: esp32s3 },
-          { id: lilygo-tdongle-s3, arch: esp32s3 },
-          { id: lilygo-tdisplay-s3, arch: esp32s3 },
-          { id: lilygo-tlora-pager, arch: esp32s3 },
-          { id: lilygo-tdisplay, arch: esp32 },
-          { id: m5stack-cardputer, arch: esp32s3 },
-          { id: m5stack-cardputer-adv, arch: esp32s3 },
-          { id: m5stack-core2, arch: esp32 },
-          { id: m5stack-cores3, arch: esp32s3 },
-          { id: m5stack-papers3, arch: esp32s3 },
-          { id: m5stack-stackchan, arch: esp32s3 },
-          { id: m5stack-stickc-plus2, arch: esp32 },
-          { id: m5stack-sticks3, arch: esp32s3 },
-          { id: m5stack-tab5, arch: esp32p4 },
-          { id: unphone, arch: esp32s3 },
-          { id: waveshare-esp32-s3-geek, arch: esp32s3 },
-          { id: waveshare-s3-lcd-13, arch: esp32s3 },
-          { id: waveshare-s3-touch-lcd-128, arch: esp32s3 },
-          { id: waveshare-s3-touch-lcd-147, arch: esp32s3 },
-          { id: waveshare-s3-touch-lcd-43, arch: esp32s3 },
-          { id: wireless-tag-wt32-sc01-plus, arch: esp32s3 }
-        ]
+  GenerateDeviceMatrix:
     runs-on: ubuntu-latest
     needs: [ BuildSdk ]
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        run: python3 Buildscripts/gh-generate-device-matrix.py
+  BuildFirmware:
+    runs-on: ubuntu-latest
+    needs: GenerateDeviceMatrix
+    strategy:
+      matrix: ${{ fromJSON(needs.generate-device-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
         with:
