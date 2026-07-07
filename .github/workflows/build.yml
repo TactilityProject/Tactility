@@ -37,6 +37,8 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - id: set-matrix
         run: python3 Buildscripts/gh-generate-device-matrix.py
   BuildFirmware:
