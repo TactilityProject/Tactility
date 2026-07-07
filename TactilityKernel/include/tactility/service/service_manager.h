@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include <tactility/error.h>
-#include <tactility/service/service_context.h>
 #include <tactility/service/service_instance.h>
 #include <tactility/service/service_manifest.h>
 
@@ -64,11 +63,11 @@ error_t service_manager_stop(const char* id);
 ServiceState service_manager_get_state(const char* id);
 
 /**
- * @brief Find the context of a running service by id.
+ * @brief Find the service instance
  * @param[in] id non-null service id
- * @return the context, or NULL if the service isn't running
+ * @return the instance when found, otherwise return NULL
  */
-ServiceContext* service_manager_find_context(const char* id);
+struct ServiceInstance* service_manager_find_instance(const char* id);
 
 #ifdef __cplusplus
 }

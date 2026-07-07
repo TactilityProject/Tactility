@@ -65,7 +65,7 @@ error_t service_manager_add(const ServiceManifest* manifest, bool auto_start) {
 }
 
 error_t service_manager_remove(const char* id) {
-    if (service_manager_find_context(id) != nullptr) {
+    if (service_manager_get_state(id) != SERVICE_STATE_STOPPED) {
         return ERROR_INVALID_STATE;
     }
 
@@ -98,7 +98,7 @@ error_t service_manager_start(const char* id) {
         return ERROR_INVALID_STATE;
     }
 
-    auto* instance = new(std::nothrow) ServiceInstance { .manifest = nullptr, .data = nullptr, .on_start = nullptr, .on_stop = nullptr, .internal = nullptr };
+    auto* instance = new(std::nothrow) ServiceInstance { .manifest = nullptr, .data = nullptr, .internal = nullptr };
     if (instance == nullptr) {
         mutex_unlock(&instance_ledger.mutex);
         return ERROR_OUT_OF_MEMORY;
@@ -118,7 +118,7 @@ error_t service_manager_start(const char* id) {
     service_instance_set_state(instance, SERVICE_STATE_STARTING);
 
     LOG_I(TAG, "start %s", id);
-    error = (instance->on_start != nullptr) ? instance->on_start(instance) : ERROR_NONE;
+    error = (manifest->on_start != nullptr) ? manifest->on_start(instance, instance->data) : ERROR_NONE;
 
     if (error == ERROR_NONE) {
         service_instance_set_state(instance, SERVICE_STATE_STARTED);
@@ -152,8 +152,8 @@ error_t service_manager_stop(const char* id) {
 
     service_instance_set_state(instance, SERVICE_STATE_STOPPING);
 
-    if (instance->on_stop != nullptr) {
-        instance->on_stop(instance);
+    if (instance->manifest->on_stop != nullptr) {
+        instance->manifest->on_stop(instance, instance->data);
     }
 
     service_instance_set_state(instance, SERVICE_STATE_STOPPED);
@@ -189,10 +189,10 @@ const ServiceManifest* service_manager_find_manifest(const char* id) {
     return manifest;
 }
 
-ServiceContext* service_manager_find_context(const char* id) {
+ServiceInstance* service_manager_find_instance(const char* id) {
     mutex_lock(&instance_ledger.mutex);
     const auto iterator = instance_ledger.instances.find(id);
-    ServiceInstance* instance = (iterator != instance_ledger.instances.end()) ? iterator->second : nullptr;
+    auto* instance = (iterator != instance_ledger.instances.end()) ? iterator->second : nullptr;
     mutex_unlock(&instance_ledger.mutex);
     return instance;
 }

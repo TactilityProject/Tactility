@@ -9,28 +9,40 @@ extern "C" {
 #endif
 
 // ServiceContext (declared in service_context.h) is a typedef alias of ServiceInstance,
-// so ServiceCreate/ServiceDestroy below are declared directly in terms of ServiceInstance
-// to avoid a conflicting forward-declaration of an unrelated "ServiceContext" struct tag.
+// so the callback types below are declared directly in terms of ServiceInstance to avoid
+// a conflicting forward-declaration of an unrelated "ServiceContext" struct tag.
 struct ServiceInstance;
 
 /**
- * Initializes a newly-registered service instance in place.
- * Implementations should set instance->data, instance->on_start and instance->on_stop
- * as needed; all three may be left at their zeroed defaults (NULL) if the service has
- * no state or lifecycle callbacks.
- * @param[in,out] instance the instance to populate (manifest and internal are already set)
- * @param[in] context the manifest's context (ServiceManifest::context)
+ * Allocates and initializes the service's custom data.
+ * @param[in] manifest the manifest that owns this callback
+ * @return the service's custom data, or NULL if it has none
  */
-typedef void (*ServiceCreate)(struct ServiceInstance* instance, void* context);
+typedef void* (*ServiceCreate)(const struct ServiceManifest* manifest);
 
 /**
- * Tears down state that was set up by the matching ServiceCreate function
- * (e.g. frees instance->data). Should not clear instance->data/on_start/on_stop;
- * the caller does that.
- * @param[in,out] instance the instance to tear down
- * @param[in] context the manifest's context (ServiceManifest::context)
+ * Frees custom data that was set up by the matching ServiceCreate function.
+ * @param[in] data the custom data returned by create_service
+ * @param[in] manifest the manifest that owns this callback
  */
-typedef void (*ServiceDestroy)(struct ServiceInstance* instance, void* context);
+typedef void (*ServiceDestroy)(const struct ServiceManifest* manifest, void* data);
+
+/**
+ * Called when a service instance is starting.
+ * Can be NULL, in which case starting always succeeds.
+ * @param[in,out] instance the starting service instance (also its own ServiceContext)
+ * @param[in] data the custom data returned by create_service
+ * @return ERROR_NONE if the service started successfully
+ */
+typedef error_t (*ServiceOnStart)(struct ServiceInstance* instance, void* data);
+
+/**
+ * Called when a service instance is stopping.
+ * Can be NULL, in which case stopping is a no-op.
+ * @param[in,out] instance the stopping service instance (also its own ServiceContext)
+ * @param[in] data the custom data returned by create_service
+ */
+typedef void (*ServiceOnStop)(struct ServiceInstance* instance, void* data);
 
 /**
  * Describes a registrable service type.
@@ -39,12 +51,14 @@ typedef void (*ServiceDestroy)(struct ServiceInstance* instance, void* context);
 struct ServiceManifest {
     /** Unique service identifier. Should never be NULL. */
     const char* id;
-    /** Allocates and initializes a new Service instance. Should never be NULL. */
+    /** Allocates the service's custom data. Should never be NULL. */
     ServiceCreate create_service;
-    /** Frees a Service instance created by create_service. Should never be NULL. */
+    /** Frees the service's custom data. Should never be NULL. */
     ServiceDestroy destroy_service;
-    /** Opaque context passed to create_service and destroy_service. Can be NULL. */
-    void* context;
+    /** Called when a service instance starts. Can be NULL. */
+    ServiceOnStart on_start;
+    /** Called when a service instance stops. Can be NULL. */
+    ServiceOnStop on_stop;
 };
 
 #ifdef __cplusplus

@@ -26,19 +26,6 @@ struct ServiceInstance {
     /** Service-specific data, owned by the service implementation. Can be NULL. */
     void* data;
     /**
-     * Called when the service is starting.
-     * Can be NULL, in which case starting always succeeds.
-     * @param[in,out] instance this service instance (also its own ServiceContext)
-     * @return ERROR_NONE if the service started successfully
-     */
-    error_t (*on_start)(struct ServiceInstance* instance);
-    /**
-     * Called when the service is stopping.
-     * Can be NULL, in which case stopping is a no-op.
-     * @param[in,out] instance this service instance (also its own ServiceContext)
-     */
-    void (*on_stop)(struct ServiceInstance* instance);
-    /**
      * Internal state managed by the kernel.
      * ServiceInstance implementers should initialize this to NULL.
      * Do not access or modify directly; use service_instance_* functions.
@@ -48,7 +35,7 @@ struct ServiceInstance {
 
 /**
  * @brief Construct a service instance.
- * @details This calls manifest->create_service() to build the service.
+ * @details This calls manifest->create_service() to build the instance's data.
  * @param[in,out] instance a service instance with manifest set and internal set to NULL
  * @param[in] manifest non-null manifest to construct the instance from
  * @retval ERROR_OUT_OF_MEMORY if internal data allocation failed
@@ -58,7 +45,7 @@ error_t service_instance_construct(struct ServiceInstance* instance, const struc
 
 /**
  * @brief Destruct a service instance.
- * @details This calls manifest->destroy_service() on the service.
+ * @details This calls manifest->destroy_service() on the instance's data.
  * @param[in,out] instance non-null service instance pointer
  * @retval ERROR_INVALID_STATE if the instance is not stopped
  * @retval ERROR_NONE on success

@@ -23,6 +23,6 @@ public:
 };
 
 template<typename T>
-std::shared_ptr<Service> create() { return std::shared_ptr<T>(new T); }
+void* create(const ::ServiceManifest* /*manifest*/) { return new std::shared_ptr<Service>(std::shared_ptr<T>(new T)); }
 
 }
