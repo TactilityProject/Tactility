@@ -63,6 +63,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(device_exists_of_type),
     DEFINE_MODULE_SYMBOL(device_find_by_name),
     DEFINE_MODULE_SYMBOL(device_find_first_active_by_type),
+    DEFINE_MODULE_SYMBOL(device_find_first_by_type),
     // driver
     DEFINE_MODULE_SYMBOL(driver_construct),
     DEFINE_MODULE_SYMBOL(driver_destruct),
