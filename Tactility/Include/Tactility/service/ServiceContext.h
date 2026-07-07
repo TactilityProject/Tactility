@@ -2,29 +2,33 @@
 
 #include <memory>
 
+struct ServiceInstance;
+
 namespace tt::service {
 
 struct ServiceManifest;
 class ServicePaths;
 
 /**
- * The public representation of a service instance.
+ * Thin, non-owning wrapper around the running TactilityKernel service instance
+ * (::ServiceInstance, which the kernel API also calls ::ServiceContext).
  * @warning Do not store references or pointers to these! You can retrieve them via the Loader service.
  */
-class ServiceContext {
+class ServiceContext final {
 
-protected:
+    ::ServiceInstance* cContext;
 
-    virtual ~ServiceContext() = default;
+    std::shared_ptr<const ServiceManifest>& getCppManifest() const;
 
 public:
 
+    explicit ServiceContext(::ServiceInstance* cContext) : cContext(cContext) {}
+
     /** @return a reference to the service's manifest */
-    virtual const ServiceManifest& getManifest() const = 0;
+    const ServiceManifest& getManifest() const;
 
     /** Retrieve the paths that are relevant to this service */
-    virtual std::unique_ptr<ServicePaths> getPaths() const = 0;
+    std::unique_ptr<ServicePaths> getPaths() const;
 };
-
 
 } // namespace

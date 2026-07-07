@@ -1,6 +1,6 @@
 #include <Tactility/service/ServiceRegistration.h>
 
-#include <Tactility/service/ServiceInstance.h>
+#include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServiceManifest.h>
 
 #include <tactility/error.h>
@@ -20,13 +20,13 @@ extern "C" {
 
 static error_t cppOnStartTrampoline(::ServiceInstance* cContext) {
     auto& servicePtr = *static_cast<std::shared_ptr<Service>*>(cContext->data);
-    ServiceInstance context(cContext);
+    ServiceContext context(cContext);
     return servicePtr->onStart(context) ? ERROR_NONE : ERROR_RESOURCE;
 }
 
 static void cppOnStopTrampoline(::ServiceInstance* cContext) {
     auto& servicePtr = *static_cast<std::shared_ptr<Service>*>(cContext->data);
-    ServiceInstance context(cContext);
+    ServiceContext context(cContext);
     servicePtr->onStop(context);
 }
 
@@ -100,7 +100,7 @@ std::shared_ptr<ServiceContext> findServiceContextById(const std::string& id) {
     if (cContext == nullptr) {
         return nullptr;
     }
-    return std::make_shared<ServiceInstance>(cContext);
+    return std::make_shared<ServiceContext>(cContext);
 }
 
 std::shared_ptr<Service> findServiceById(const std::string& id) {
