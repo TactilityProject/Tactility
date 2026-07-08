@@ -2,10 +2,10 @@
 #include "devices/KeyboardBacklight.h"
 #include "devices/TrackballDevice.h"
 
+#include <Tactility/SystemEvents.h>
+#include <Tactility/LogMessages.h>
 #include <Tactility/hal/gps/GpsConfiguration.h>
 #include <Tactility/kernel/Kernel.h>
-#include <Tactility/kernel/SystemEvents.h>
-#include <Tactility/LogMessages.h>
 #include <Tactility/service/gps/GpsService.h>
 #include <tactility/log.h>
 

@@ -1,9 +1,8 @@
 #pragma once
 #ifdef ESP_PLATFORM
 
-#include <esp_http_server.h>
 #include <Tactility/RecursiveMutex.h>
-#include <Tactility/kernel/SystemEvents.h>
+#include <esp_http_server.h>
 
 namespace tt::network {
 

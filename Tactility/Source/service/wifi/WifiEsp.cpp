@@ -6,12 +6,12 @@
 
 #include <Tactility/service/wifi/Wifi.h>
 
-#include <Tactility/LogMessages.h>
+#include <Tactility/SystemEvents.h>
 #include <Tactility/EventGroup.h>
+#include <Tactility/LogMessages.h>
 #include <Tactility/RecursiveMutex.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>
-#include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/wifi/WifiBootSplashInit.h>
 #include <Tactility/service/wifi/WifiGlobals.h>

@@ -1,4 +1,4 @@
-#include <Tactility/kernel/SystemEvents.h>
+#include <Tactility/SystemEvents.h>
 
 #include <Tactility/Mutex.h>
 #include <tactility/check.h>

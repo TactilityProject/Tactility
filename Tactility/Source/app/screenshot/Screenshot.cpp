@@ -3,9 +3,9 @@
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
 
+#include <Tactility/Platform.h>
 #include <Tactility/app/App.h>
 #include <Tactility/app/AppManifest.h>
-#include <Tactility/kernel/Platform.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
