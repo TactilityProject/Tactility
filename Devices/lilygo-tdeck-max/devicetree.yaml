@@ -1,0 +1,4 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/xl9555-module
+dts: lilygo,tdeck-max.dts

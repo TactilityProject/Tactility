@@ -1,0 +1,58 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c_master.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <bindings/xl9555.h>
+
+// Reference: https://github.com/Xinyuan-LilyGO/T-Deck-MAX
+// lib/TDeckMaxBoard/src/TDeckMaxBoard.h, docs/pinmap.md
+/ {
+	compatible = "root";
+	model = "LilyGO T-Deck Max";
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	i2c0 {
+		compatible = "espressif,esp32-i2c-master";
+		port = <I2C_NUM_0>;
+		clock-frequency = <100000>;
+		pin-sda = <&gpio0 13 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 14 GPIO_FLAG_NONE>;
+
+		xl9555 {
+			compatible = "xlsemi,xl9555";
+			reg = <0x20>;
+		};
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 34 GPIO_FLAG_NONE>, // 0: EPD display
+		           <&gpio0 48 GPIO_FLAG_NONE>, // 1: SD card
+		           <&gpio0 3 GPIO_FLAG_NONE>;  // 2: LoRa radio (SX1262, not wired up yet)
+		pin-mosi = <&gpio0 33 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 47 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
+		// The EPD pushes its whole 9600-byte framebuffer in one SPI write, which
+		// exceeds the default ~4 KB transfer limit. Raise the bus limit to fit it.
+		max-transfer-size = <65536>;
+
+		sdcard@1 {
+			compatible = "espressif,esp32-sdspi";
+			status = "disabled";
+			frequency-khz = <20000>;
+		};
+	};
+};
