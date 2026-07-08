@@ -1,22 +1,14 @@
 #include "devices/Display.h"
 #include "devices/TdeckmaxKeyboard.h"
 
-#include <driver/gpio.h>
-
 #include <Tactility/hal/Configuration.h>
 #include <tactility/check.h>
 #include <tactility/delay.h>
 #include <tactility/device.h>
+#include <tactility/drivers/esp32_spi.h>
 #include <tactility/drivers/gpio_controller.h>
 
 using namespace tt::hal;
-
-// LoRa and SD card share the EPD's SPI bus but aren't wired up yet, so their
-// chip-select lines are left floating. Deassert them before the EPD driver
-// touches the bus, matching the vendor reference driver's own setup(), so a
-// floating CS can't make either chip latch EPD command bytes meant for it.
-constexpr auto LORA_PIN_CS = GPIO_NUM_3;
-constexpr auto SD_PIN_CS = GPIO_NUM_48;
 
 // Reset lines routed through the XL9555 IO expander (P-numbers from the vendor
 // lib/TDeckMaxBoard/src/TDeckMaxBoard.h). Both are active low.
@@ -62,16 +54,14 @@ static void initIoExpander() {
 }
 
 static bool initBoot() {
-    gpio_config_t config = {
-        .pin_bit_mask = (1ULL << LORA_PIN_CS) | (1ULL << SD_PIN_CS),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    gpio_config(&config);
-    gpio_set_level(LORA_PIN_CS, 1);
-    gpio_set_level(SD_PIN_CS, 1);
+    // The LoRa and SD chip-selects share the EPD's SPI bus but aren't wired up
+    // yet. spi0's start() already drives every cs-gpio high during kernel init;
+    // re-assert deselection before the EPD driver first transacts, as a cheap
+    // guard against either chip latching stray EPD command bytes (same pattern
+    // as the esp32_sdspi mount path).
+    auto* spi0 = device_find_by_name("spi0");
+    check(spi0 != nullptr);
+    esp32_spi_deselect_all_cs(spi0);
 
     initIoExpander();
 
