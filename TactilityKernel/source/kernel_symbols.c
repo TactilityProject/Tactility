@@ -18,6 +18,7 @@
 #include <tactility/drivers/root.h>
 #include <tactility/drivers/spi_controller.h>
 #include <tactility/drivers/uart_controller.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/error.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/module.h>
@@ -181,6 +182,22 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(bluetooth_hid_device_send_gamepad),
     DEFINE_MODULE_SYMBOL(bluetooth_hid_device_is_connected),
     DEFINE_MODULE_SYMBOL(BLUETOOTH_HID_DEVICE_TYPE),
+    // drivers/wifi
+    DEFINE_MODULE_SYMBOL(wifi_find_first_registered_device),
+    DEFINE_MODULE_SYMBOL(wifi_get_radio_state),
+    DEFINE_MODULE_SYMBOL(wifi_get_station_state),
+    DEFINE_MODULE_SYMBOL(wifi_get_access_point_state),
+    DEFINE_MODULE_SYMBOL(wifi_is_scanning),
+    DEFINE_MODULE_SYMBOL(wifi_scan),
+    DEFINE_MODULE_SYMBOL(wifi_get_scan_results),
+    DEFINE_MODULE_SYMBOL(wifi_station_get_ipv4_address),
+    DEFINE_MODULE_SYMBOL(wifi_station_get_target_ssid),
+    DEFINE_MODULE_SYMBOL(wifi_station_connect),
+    DEFINE_MODULE_SYMBOL(wifi_station_disconnect),
+    DEFINE_MODULE_SYMBOL(wifi_station_get_rssi),
+    DEFINE_MODULE_SYMBOL(wifi_add_event_callback),
+    DEFINE_MODULE_SYMBOL(wifi_remove_event_callback),
+    DEFINE_MODULE_SYMBOL(WIFI_TYPE),
     // drivers/usb_host_hid
     DEFINE_MODULE_SYMBOL(usb_host_hid_is_connected),
     DEFINE_MODULE_SYMBOL(USB_HOST_HID_TYPE),

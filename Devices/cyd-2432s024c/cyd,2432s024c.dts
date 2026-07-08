@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
@@ -10,6 +11,11 @@
 / {
 	compatible = "root";
 	model = "CYD 2432S024C";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";

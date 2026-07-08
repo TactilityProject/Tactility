@@ -9,7 +9,6 @@
 
 #include <Tactility/LogMessages.h>
 #include <Tactility/CpuAffinity.h>
-#include <Tactility/DispatcherThread.h>
 #include <Tactility/MountPoints.h>
 #include <Tactility/app/AppManifestParsing.h>
 #include <Tactility/app/AppRegistration.h>
@@ -46,7 +45,26 @@ namespace tt {
 constexpr auto* TAG = "Tactility";
 
 static const Configuration* config_instance = nullptr;
-static Dispatcher mainDispatcher;
+static DispatcherHandle_t mainDispatcherHandle = dispatcher_alloc();
+
+namespace {
+
+void mainDispatcherTrampoline(void* context) {
+    auto* function = static_cast<MainDispatcher::Function*>(context);
+    (*function)();
+    delete function;
+}
+
+} // namespace
+
+bool MainDispatcher::dispatch(Function function, TickType_t timeout) const {
+    auto* boxed = new Function(std::move(function));
+    if (dispatcher_dispatch_timed(handle, boxed, mainDispatcherTrampoline, timeout) != ERROR_NONE) {
+        delete boxed;
+        return false;
+    }
+    return true;
+}
 
 // region Default services
 namespace service {
@@ -376,7 +394,7 @@ void run(const Configuration& config, Module* dtsModules[], DtsDevice dtsDevices
 
     LOG_I(TAG, "Main dispatcher ready");
     while (true) {
-        mainDispatcher.consume();
+        dispatcher_consume(mainDispatcherHandle);
     }
 }
 
@@ -385,8 +403,8 @@ const Configuration* getConfiguration() {
     return config_instance;
 }
 
-Dispatcher& getMainDispatcher() {
-    return mainDispatcher;
+MainDispatcher getMainDispatcher() {
+    return MainDispatcher(mainDispatcherHandle);
 }
 
 } // namespace

@@ -18,7 +18,8 @@ namespace tt {
 
 class Thread final {
 
-    static constexpr size_t LOCAL_STORAGE_SELF_POINTER_INDEX = 0;
+    // Slot 0 is reserved by ESP-IDF's pthread API (see esp_wifi/lwip use of pthread_getspecific).
+    static constexpr size_t LOCAL_STORAGE_SELF_POINTER_INDEX = 1;
 
 public:
 
@@ -70,7 +71,7 @@ private:
         ESP_LOGI(TAG, "Stopped %s", thread->name.c_str());
 #endif
 
-        vTaskSetThreadLocalStoragePointer(nullptr, 0, nullptr);
+        vTaskSetThreadLocalStoragePointer(nullptr, LOCAL_STORAGE_SELF_POINTER_INDEX, nullptr);
         thread->taskHandle = nullptr;
 
         vTaskDelete(nullptr);

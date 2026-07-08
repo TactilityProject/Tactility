@@ -14,7 +14,7 @@ class State final {
     bool scanning = false;
     bool scannedAfterRadioOn = false;
     service::wifi::RadioState radioState;
-    std::vector<service::wifi::ApRecord> apRecords;
+    std::vector<WifiApRecord> apRecords;
     std::string connectSsid;
 
 public:
@@ -30,14 +30,14 @@ public:
 
     void updateApRecords();
 
-    template <std::invocable<const std::vector<service::wifi::ApRecord>&> Func>
+    template <std::invocable<const std::vector<WifiApRecord>&> Func>
     void withApRecords(Func&& onApRecords) const {
         mutex.withLock([&] {
             std::invoke(std::forward<Func>(onApRecords), apRecords);
         });
     }
 
-    std::vector<service::wifi::ApRecord> getApRecords() const {
+    std::vector<WifiApRecord> getApRecords() const {
         auto lock = mutex.asScopedLock();
         lock.lock();
         return apRecords;

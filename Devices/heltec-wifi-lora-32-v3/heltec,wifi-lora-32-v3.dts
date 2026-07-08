@@ -2,12 +2,18 @@
 
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 
 / {
 	compatible = "root";
 	model = "Heltec WiFi LoRa 32 V3";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
 
 	ble0 {
 		compatible = "espressif,esp32-ble";
