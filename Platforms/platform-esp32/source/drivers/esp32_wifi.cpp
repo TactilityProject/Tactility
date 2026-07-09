@@ -363,7 +363,8 @@ error_t api_station_get_target_ssid(Device* device, char* ssid) {
     auto* ctx = GET_CTX(device);
     if (ctx == nullptr || ssid == nullptr) return ERROR_INVALID_ARGUMENT;
     mutex_lock(&ctx->mutex);
-    strncpy(ssid, ctx->targetSsid, sizeof(ctx->targetSsid));
+    constexpr size_t ssid_buffer_size = sizeof(ctx->targetSsid);
+    strncpy(ssid, ctx->targetSsid, ssid_buffer_size);
     mutex_unlock(&ctx->mutex);
     return ERROR_NONE;
 }
