@@ -13,6 +13,7 @@
 #include <bindings/ina226.h>
 #include <bindings/pi4ioe5v6408.h>
 #include <bindings/rx8130ce.h>
+#include <bindings/sc2356.h>
 
 / {
 	compatible = "root";
@@ -59,6 +60,11 @@
 			compatible = "ti,ina226";
 			reg = <0x41>;
 			shunt-milliohms = <5>;
+		};
+
+		sc2356 {
+			compatible = "smartsens,sc2356";
+			reg = <0x36>;
 		};
 	};
 

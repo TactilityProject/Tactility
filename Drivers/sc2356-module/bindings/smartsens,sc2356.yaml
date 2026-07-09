@@ -1,0 +1,5 @@
+description: Smartsens SC2356 2MP MIPI CSI camera sensor
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "smartsens,sc2356"

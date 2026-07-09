@@ -8,6 +8,8 @@ Tactility is an operating system for the ESP32 microcontroller family. It runs o
 
 ### Simulator (Linux/macOS, no ESP-IDF needed)
 
+Simulator is not supported on Windows
+
 ```bash
 cmake -B buildsim -G Ninja
 ninja -C buildsim              # build firmware + tests

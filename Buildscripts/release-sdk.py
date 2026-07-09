@@ -88,6 +88,17 @@ def write_module_cmakelists(path, content):
     with open(path, 'w') as f:
         f.write(content)
 
+def driver_is_available(driver_name):
+    """
+    Some drivers only build for certain chip targets (e.g. sc2356-module is ESP32-P4 only,
+    since it depends on esp_video/esp_cam_sensor/PPA which are themselves chip-restricted).
+    Build output presence is the single source of truth for "does this driver support the
+    current target" - no separate manifest to keep in sync with the real CMakeLists.txt
+    REQUIRES/Kconfig guards.
+    """
+    binary_pattern = f'build/esp-idf/{driver_name}/lib{driver_name}.a'
+    return bool(glob.glob(binary_pattern))
+
 def add_driver(target_path, driver_name):
     mappings = get_driver_mappings(driver_name)
     map_copy(mappings, target_path)
@@ -99,6 +110,34 @@ def add_module(target_path, module_name):
     map_copy(mappings, target_path)
     cmakelists_content = create_module_cmakelists(module_name)
     write_module_cmakelists(os.path.join(target_path, f"Modules/{module_name}/CMakeLists.txt"), cmakelists_content)
+
+ALL_DRIVERS = [
+    "bm8563-module",
+    "bmi270-module",
+    "mpu6886-module",
+    "pi4ioe5v6408-module",
+    "qmi8658-module",
+    "rx8130ce-module",
+    "sc2356-module",
+]
+
+def generate_tactility_sdk_cmake(target_path, available_drivers):
+    src = os.path.join('Buildscripts', 'TactilitySDK', 'TactilitySDK.cmake')
+    with open(src) as f:
+        content = f.read()
+    components = "\n".join(f"        {d}" for d in available_drivers)
+    content = content.replace("        # DRIVER_COMPONENTS_PLACEHOLDER", components)
+    with open(os.path.join(target_path, 'TactilitySDK.cmake'), 'w') as f:
+        f.write(content)
+
+def generate_tactility_sdk_top_cmakelists(target_path, available_drivers):
+    src = os.path.join('Buildscripts', 'TactilitySDK', 'CMakeLists.txt')
+    with open(src) as f:
+        content = f.read()
+    include_dirs = "\n".join(f'        "Drivers/{d}/include"' for d in available_drivers)
+    content = content.replace("        # DRIVER_INCLUDE_DIRS_PLACEHOLDER", include_dirs)
+    with open(os.path.join(target_path, 'CMakeLists.txt'), 'w') as f:
+        f.write(content)
 
 def main():
     if len(sys.argv) < 2:
@@ -136,9 +175,6 @@ def main():
         # elf_loader
         {'src': 'Libraries/elf_loader/elf_loader.cmake', 'dst': 'Libraries/elf_loader/'},
         {'src': 'Libraries/elf_loader/license.txt', 'dst': 'Libraries/elf_loader/'},
-        # Final scripts
-        {'src': 'Buildscripts/TactilitySDK/TactilitySDK.cmake', 'dst': ''},
-        {'src': 'Buildscripts/TactilitySDK/CMakeLists.txt', 'dst': ''},
     ]
 
     map_copy(mappings, target_path)
@@ -147,13 +183,16 @@ def main():
     add_module(target_path, "lvgl-module")
     add_module(target_path, "crypt-module")
 
-    # Drivers
-    add_driver(target_path, "bm8563-module")
-    add_driver(target_path, "bmi270-module")
-    add_driver(target_path, "mpu6886-module")
-    add_driver(target_path, "pi4ioe5v6408-module")
-    add_driver(target_path, "qmi8658-module")
-    add_driver(target_path, "rx8130ce-module")
+    # Drivers - only ones actually built for this target (chip-restricted drivers like
+    # sc2356-module won't have a .a outside ESP32-P4)
+    available_drivers = [d for d in ALL_DRIVERS if driver_is_available(d)]
+    for driver_name in available_drivers:
+        add_driver(target_path, driver_name)
+
+    # Final scripts - generated (not copied verbatim) so COMPONENTS/INCLUDE_DIRS only list
+    # drivers actually available for this target
+    generate_tactility_sdk_cmake(target_path, available_drivers)
+    generate_tactility_sdk_top_cmakelists(target_path, available_drivers)
 
     # Output ESP-IDF SDK version to file
     esp_idf_version = os.environ.get("ESP_IDF_VERSION", "")

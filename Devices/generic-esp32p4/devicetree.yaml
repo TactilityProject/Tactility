@@ -7,4 +7,5 @@ dependencies:
   - Drivers/pi4ioe5v6408-module
   - Drivers/qmi8658-module
   - Drivers/rx8130ce-module
+  - Drivers/sc2356-module
 dts: generic,esp32p4.dts
