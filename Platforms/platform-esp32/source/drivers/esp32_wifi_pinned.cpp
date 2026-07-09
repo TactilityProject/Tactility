@@ -196,10 +196,10 @@ error_t api_scan(Device* device) {
 
     error_t result = ERROR_NONE;
     Device* child = ctx->child;
-    run_on_pinned_thread(ctx, [child, &result]() {
+    error_t err = run_on_pinned_thread(ctx, [child, &result]() {
         result = wifi_scan(child);
     });
-    return result;
+    return err != ERROR_NONE ? err : result;
 }
 
 error_t api_station_connect(Device* device, const char* ssid, const char* password, int32_t channel) {
@@ -208,10 +208,10 @@ error_t api_station_connect(Device* device, const char* ssid, const char* passwo
 
     error_t result = ERROR_NONE;
     Device* child = ctx->child;
-    run_on_pinned_thread(ctx, [child, ssid, password, channel, &result]() {
+    error_t err = run_on_pinned_thread(ctx, [child, ssid, password, channel, &result]() {
         result = wifi_station_connect(child, ssid, password, channel);
     });
-    return result;
+    return err != ERROR_NONE ? err : result;
 }
 
 error_t api_station_disconnect(Device* device) {
@@ -220,10 +220,10 @@ error_t api_station_disconnect(Device* device) {
 
     error_t result = ERROR_NONE;
     Device* child = ctx->child;
-    run_on_pinned_thread(ctx, [child, &result]() {
+    error_t err = run_on_pinned_thread(ctx, [child, &result]() {
         result = wifi_station_disconnect(child);
     });
-    return result;
+    return err != ERROR_NONE ? err : result;
 }
 
 const WifiApi esp32_wifi_pinned_api = {
@@ -273,18 +273,21 @@ error_t start_device(Device* device) {
     }
 
     error_t result = ERROR_NONE;
-    run_on_pinned_thread(ctx, [ctx, &result]() {
+    error_t err = run_on_pinned_thread(ctx, [ctx, &result]() {
         result = start_child_work(ctx);
     });
+    if (err == ERROR_NONE) {
+        err = result;
+    }
 
-    if (result != ERROR_NONE) {
+    if (err != ERROR_NONE) {
         dispatcher_dispatch(ctx->dispatcher, ctx, request_stop);
         thread_join(ctx->thread, portMAX_DELAY, 10);
         thread_free(ctx->thread);
         dispatcher_free(ctx->dispatcher);
         device_set_driver_data(device, nullptr);
         delete ctx;
-        return result;
+        return err;
     }
 
     return ERROR_NONE;
@@ -294,9 +297,12 @@ error_t stop_device(Device* device) {
     auto* ctx = GET_CTX(device);
     if (ctx == nullptr) return ERROR_NONE;
 
-    run_on_pinned_thread(ctx, [ctx]() {
+    error_t err = run_on_pinned_thread(ctx, [ctx]() {
         stop_child_work(ctx);
     });
+    if (err != ERROR_NONE) {
+        LOG_E(TAG, "%s: failed to stop child wifi device on pinned task: %s", device->name, error_to_string(err));
+    }
 
     dispatcher_dispatch(ctx->dispatcher, ctx, request_stop);
     thread_join(ctx->thread, portMAX_DELAY, 10);
@@ -305,7 +311,7 @@ error_t stop_device(Device* device) {
 
     device_set_driver_data(device, nullptr);
     delete ctx;
-    return ERROR_NONE;
+    return err;
 }
 
 } // namespace

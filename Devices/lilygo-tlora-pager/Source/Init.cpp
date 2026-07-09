@@ -1,6 +1,6 @@
 #include <Bq27220.h>
 #include <Tactility/LogMessages.h>
-#include <Tactility/kernel/SystemEvents.h>
+#include <Tactility/SystemEvents.h>
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/hal/gps/GpsConfiguration.h>
 

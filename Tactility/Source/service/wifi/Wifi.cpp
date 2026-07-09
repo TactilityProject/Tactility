@@ -128,6 +128,9 @@ void dispatchSetEnabled(bool enabled) {
 
         if (wifi_add_event_callback(state.device, nullptr, onWifiDeviceEvent) != ERROR_NONE) {
             LOG_E(TAG, "Failed to register WiFi event callback");
+            device_stop(state.device);
+            publishRadioState(WIFI_RADIO_STATE_OFF);
+            return;
         }
 
         state.pauseAutoConnect = false;
@@ -136,13 +139,13 @@ void dispatchSetEnabled(bool enabled) {
     } else {
         publishRadioState(WIFI_RADIO_STATE_OFF_PENDING);
 
-        wifi_remove_event_callback(state.device, onWifiDeviceEvent);
-
         if (device_stop(state.device) != ERROR_NONE) {
             LOG_E(TAG, "Failed to stop WiFi device");
             publishRadioState(WIFI_RADIO_STATE_ON);
             return;
         }
+
+        wifi_remove_event_callback(state.device, onWifiDeviceEvent);
 
         state.secureConnection = false;
         publishRadioState(WIFI_RADIO_STATE_OFF);
@@ -214,7 +217,6 @@ bool findAutoConnectAp(settings::WifiApSettings& out) {
             } else {
                 LOG_E(TAG, "Failed to load credentials for ssid %s", record.ssid);
             }
-            break;
         }
     }
     return false;
@@ -222,6 +224,20 @@ bool findAutoConnectAp(settings::WifiApSettings& out) {
 
 void dispatchAutoConnect() {
     LOG_I(TAG, "dispatchAutoConnect()");
+    if (state.pauseAutoConnect) {
+        // A manual disconnect() or an in-progress manual connect() has paused
+        // auto-connect. This is called on every SCAN_FINISHED, not just the
+        // auto-connect timer's own scans (e.g. WifiManage re-scans on show),
+        // so it must honor the pause instead of reconnecting unconditionally.
+        return;
+    }
+    RadioState radio_state = getRadioState();
+    if (radio_state == RadioState::ConnectionActive || radio_state == RadioState::ConnectionPending) {
+        // Already connected (or connecting): reconnecting to the same AP would just
+        // force a pointless disconnect/reconnect blip, e.g. when WifiManage's
+        // on-show scan finishes while we're already on the saved auto-connect AP.
+        return;
+    }
     settings::WifiApSettings target;
     if (findAutoConnectAp(target)) {
         LOG_I(TAG, "Auto-connecting to %s", target.ssid.c_str());
@@ -259,7 +275,11 @@ void onWifiDeviceEvent(Device* /*device*/, void* /*context*/, ::WifiEvent event)
 
         case WIFI_EVENT_TYPE_STATION_STATE_CHANGED:
             if (event.station_state == WIFI_STATION_STATE_DISCONNECTED) {
-                state.pauseAutoConnect = false;
+                // Don't touch pauseAutoConnect here: a deliberate disconnect() sets it
+                // and relies on it staying set until a new connection is established.
+                // Resetting it on every disconnect (including deliberate ones) would
+                // let auto-connect immediately reconnect the user. Attempts that fail
+                // while pending are unpaused via WIFI_EVENT_TYPE_STATION_CONNECTION_RESULT below.
                 kernel::publishSystemEvent(kernel::SystemEvent::NetworkDisconnected);
             }
             break;
@@ -278,12 +298,24 @@ void onWifiDeviceEvent(Device* /*device*/, void* /*context*/, ::WifiEvent event)
                         remember = false;
                     }
                 }
-                state.pauseAutoConnect = false;
+                {
+                    auto lock = state.mutex.asScopedLock();
+                    if (lock.lock(50 / portTICK_PERIOD_MS)) {
+                        state.pauseAutoConnect = false;
+                    }
+                }
                 LOG_I(TAG, "Connected to %s", target.ssid.c_str());
                 if (remember && !settings::save(target)) {
                     LOG_E(TAG, "Failed to store credentials");
                 }
                 kernel::publishSystemEvent(kernel::SystemEvent::NetworkConnected);
+            } else {
+                // The pending connection attempt (which paused auto-connect via connect())
+                // failed; unpause so auto-connect can try other saved APs.
+                auto lock = state.mutex.asScopedLock();
+                if (lock.lock(50 / portTICK_PERIOD_MS)) {
+                    state.pauseAutoConnect = false;
+                }
             }
             break;
 
