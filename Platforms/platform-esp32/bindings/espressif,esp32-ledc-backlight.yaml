@@ -1,0 +1,29 @@
+description: ESP32 LEDC-backed PWM backlight
+
+compatible: "espressif,esp32-ledc-backlight"
+
+properties:
+  pin-backlight:
+    type: phandles
+    required: true
+    description: Backlight PWM output pin
+  frequency-hz:
+    type: int
+    default: 30000
+    description: PWM frequency in Hz
+  brightness-level-range:
+    type: values
+    default: [0, 255]
+    description: Inclusive [min,max] brightness range. The minimum value turns the backlight off.
+  brightness-default:
+    type: int
+    default: 200
+    description: Default brightness level, applied by set_brightness_default(). Should fall within brightness-level-range.
+  ledc-timer:
+    type: int
+    default: 0
+    description: LEDC timer index, defined by ledc_timer_t
+  ledc-channel:
+    type: int
+    default: 0
+    description: LEDC channel index, defined by ledc_channel_t

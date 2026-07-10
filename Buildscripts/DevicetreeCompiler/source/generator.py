@@ -79,6 +79,11 @@ def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
                 value_list.append(str(item))
         return "{ " + ",".join(value_list) + " }"
     elif type == "phandle":
+        # Mirrors the string-passthrough convention "phandles" already uses for sentinel defaults
+        # like GPIO_PIN_SPEC_NONE: a binding default of "NULL" represents "no device referenced",
+        # not an actual node name to resolve.
+        if isinstance(property.value, str) and property.value == "NULL":
+            return "NULL"
         return find_phandle(devices, property.value)
     elif type == "phandles":
         value_list = list()

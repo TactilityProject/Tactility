@@ -1,0 +1,7 @@
+description: LilyGO T-Deck onboard keyboard controller
+
+include: ["i2c-device.yaml"]
+
+compatible: "lilygo,tdeck-keyboard"
+
+bus: i2c

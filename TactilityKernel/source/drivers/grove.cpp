@@ -6,17 +6,17 @@
 
 extern "C" {
 
-error_t grove_set_mode(struct Device* device, enum GroveMode mode) {
+error_t grove_set_mode(Device* device, GroveMode mode) {
     const auto* driver = device_get_driver(device);
     return GROVE_DRIVER_API(driver)->set_mode(device, mode);
 }
 
-error_t grove_get_mode(struct Device* device, enum GroveMode* mode) {
+error_t grove_get_mode(Device* device, GroveMode* mode) {
     const auto* driver = device_get_driver(device);
     return GROVE_DRIVER_API(driver)->get_mode(device, mode);
 }
 
-const struct DeviceType GROVE_TYPE {
+const DeviceType GROVE_TYPE {
     .name = "grove"
 };
 

@@ -34,7 +34,7 @@ static bool hasCalibratableTouchDevice() {
     return false;
 }
 
-class DisplayApp final : public App {
+class HalDisplayApp final : public App {
 
     settings::display::DisplaySettings displaySettings;
     bool displaySettingsUpdated = false;
@@ -44,7 +44,7 @@ class DisplayApp final : public App {
 
     static void onBacklightSliderEvent(lv_event_t* event) {
         auto* slider = static_cast<lv_obj_t*>(lv_event_get_target(event));
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto hal_display = getHalDisplay();
         assert(hal_display != nullptr);
 
@@ -59,7 +59,7 @@ class DisplayApp final : public App {
     static void onGammaSliderEvent(lv_event_t* event) {
         auto* slider = static_cast<lv_obj_t*>(lv_event_get_target(event));
         auto hal_display = hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         assert(hal_display != nullptr);
 
         if (hal_display->getGammaCurveCount() > 0) {
@@ -71,7 +71,7 @@ class DisplayApp final : public App {
     }
 
     static void onOrientationSet(lv_event_t* event) {
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
         uint32_t selected_index = lv_dropdown_get_selected(dropdown);
         LOG_I(TAG, "Selected %u", (unsigned)selected_index);
@@ -84,7 +84,7 @@ class DisplayApp final : public App {
     }
 
     static void onTimeoutSwitch(lv_event_t* event) {
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
         bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
         app->displaySettings.backlightTimeoutEnabled = enabled;
@@ -105,7 +105,7 @@ class DisplayApp final : public App {
     }
 
     static void onTimeoutChanged(lv_event_t* event) {
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
         uint32_t idx = lv_dropdown_get_selected(dropdown);
         // Map dropdown index to ms: 0=15s,1=30s,2=1m,3=2m,4=5m,5=Never
@@ -117,7 +117,7 @@ class DisplayApp final : public App {
     }
 
     static void onScreensaverChanged(lv_event_t* event) {
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
         uint32_t idx = lv_dropdown_get_selected(dropdown);
         // Validate index bounds before casting to enum
@@ -338,7 +338,7 @@ extern const AppManifest manifest = {
     .appName = "Display",
     .appIcon = LVGL_ICON_SHARED_DISPLAY_SETTINGS,
     .appCategory = Category::Settings,
-    .createApp = create<DisplayApp>
+    .createApp = create<HalDisplayApp>
 };
 
 } // namespace

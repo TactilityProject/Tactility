@@ -1,10 +1,11 @@
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/hal/display/DisplayDevice.h>
-#include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/service/loader/Loader.h>
 
 #include <lvgl.h>
+#include <tactility/device.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/hal/Device.h>
 #include <tactility/lvgl_fonts.h>
 #include <tactility/lvgl_icon_shared.h>
@@ -48,15 +49,15 @@ class PowerOffApp final : public App {
     }
 
     static void onYesPressed(lv_event_t* /*event*/) {
-        auto power = hal::findFirstDevice<hal::power::PowerDevice>(hal::Device::Type::Power);
-        if (power == nullptr || !power->supportsPowerOff()) {
+        auto* power = device_find_first_active_by_type(&POWER_SUPPLY_TYPE);
+        if (power == nullptr || !power_supply_supports_power_off(power)) {
             return;
         }
 
         auto display = hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
         showPoweredOffScreenAndWait(display.get());
 
-        power->powerOff();
+        power_supply_power_off(power);
     }
 
     static void onNoPressed(lv_event_t* /*event*/) {

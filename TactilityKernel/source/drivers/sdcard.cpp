@@ -3,7 +3,7 @@
 
 extern "C" {
 
-const struct DeviceType SDCARD_TYPE {
+const DeviceType SDCARD_TYPE {
     .name = "sdcard"
 };
 

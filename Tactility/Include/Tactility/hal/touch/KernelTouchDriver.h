@@ -7,7 +7,7 @@
 
 namespace tt::hal::touch {
 
-/** Wraps a TactilityKernel Device of type TOUCH_TYPE as a TouchDriver. */
+/** Wraps a TactilityKernel Device of type POINTER_TYPE as a TouchDriver. */
 class KernelTouchDriver final : public TouchDriver {
 
     ::Device* device;

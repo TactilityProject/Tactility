@@ -9,6 +9,8 @@
 #include <Tactility/service/ServiceRegistration.h>
 #include <Tactility/settings/DisplaySettings.h>
 
+#include <tactility/device.h>
+#include <tactility/drivers/backlight.h>
 #include <tactility/log.h>
 #include <tactility/lvgl_module.h>
 #include <tactility/module.h>
@@ -32,37 +34,36 @@ void attachDevices() {
     // Start displays (their related touch devices start automatically within)
 
     LOG_I(TAG, "Start displays");
-    auto displays = hal::findDevices<hal::display::DisplayDevice>(hal::Device::Type::Display);
-    for (const auto& display: displays) {
+    auto hal_displays= hal::findDevices<hal::display::DisplayDevice>(hal::Device::Type::Display);
+    for (const auto& display: hal_displays) {
         if (display->supportsLvgl()) {
             if (display->startLvgl()) {
                 LOG_I(TAG, "Started %s", display->getName().c_str());
-                auto lvgl_display = display->getLvglDisplay();
-                assert(lvgl_display != nullptr);
-                auto settings = settings::display::loadOrGetDefault();
-                lv_display_rotation_t rotation = settings::display::toLvglDisplayRotation(settings.orientation);
-                if (rotation != lv_display_get_rotation(lvgl_display)) {
-                    lv_display_set_rotation(lvgl_display, rotation);
-                }
             } else {
                 LOG_E(TAG, "Start failed for %s", display->getName().c_str());
             }
         }
     }
 
+    auto* primary_lvgl_display = lv_disp_get_default();
+    if (primary_lvgl_display != nullptr) {
+        LOG_I(TAG, "Set default display rotation");
+        auto settings = settings::display::loadOrGetDefault();
+        lv_display_rotation_t rotation = settings::display::toLvglDisplayRotation(settings.orientation);
+        if (rotation != lv_display_get_rotation(primary_lvgl_display)) {
+            lv_display_set_rotation(primary_lvgl_display, rotation);
+        }
+    }
+
     // Start touch
 
-    // TODO: Consider implementing support for multiple displays
-    auto primary_display = !displays.empty() ? displays[0] : nullptr;
-
-    // Start display-related peripherals
-    if (primary_display != nullptr) {
+    if (primary_lvgl_display != nullptr) {
         LOG_I(TAG, "Start touch devices");
         auto touch_devices = hal::findDevices<hal::touch::TouchDevice>(hal::Device::Type::Touch);
         for (const auto& touch_device: touch_devices) {
             // Start any touch devices that haven't been started yet
             if (touch_device->supportsLvgl() && touch_device->getLvglIndev() == nullptr) {
-                if (touch_device->startLvgl(primary_display->getLvglDisplay())) {
+                if (touch_device->startLvgl(primary_lvgl_display)) {
                     LOG_I(TAG, "Started %s", touch_device->getName().c_str());
                 } else {
                     LOG_E(TAG, "Start failed for %s", touch_device->getName().c_str());
@@ -75,7 +76,7 @@ void attachDevices() {
         auto keyboards = hal::findDevices<hal::keyboard::KeyboardDevice>(hal::Device::Type::Keyboard);
         for (const auto& keyboard: keyboards) {
             if (keyboard->isAttached()) {
-                if (keyboard->startLvgl(primary_display->getLvglDisplay())) {
+                if (keyboard->startLvgl(primary_lvgl_display)) {
                     lv_indev_t* keyboard_indev = keyboard->getLvglIndev();
                     hardware_keyboard_set_indev(keyboard_indev);
                     LOG_I(TAG, "Started %s", keyboard->getName().c_str());
@@ -89,7 +90,7 @@ void attachDevices() {
         LOG_I(TAG, "Start encoders");
         auto encoders = hal::findDevices<hal::encoder::EncoderDevice>(hal::Device::Type::Encoder);
         for (const auto& encoder: encoders) {
-            if (encoder->startLvgl(primary_display->getLvglDisplay())) {
+            if (encoder->startLvgl(primary_lvgl_display)) {
                 LOG_I(TAG, "Started %s", encoder->getName().c_str());
             } else {
                 LOG_E(TAG, "Start failed for %s", encoder->getName().c_str());

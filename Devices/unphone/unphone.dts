@@ -8,7 +8,7 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/display_placeholder.h>
-#include <tactility/bindings/touch_placeholder.h>
+#include <tactility/bindings/pointer_placeholder.h>
 
 / {
 	compatible = "root";
@@ -53,7 +53,7 @@
 		};
 
 		touch@1 {
-			compatible = "touch-placeholder";
+			compatible = "pointer-placeholder";
 		};
 
 		sdcard@2 {

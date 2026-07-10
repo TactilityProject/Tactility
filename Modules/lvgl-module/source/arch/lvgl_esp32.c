@@ -8,6 +8,8 @@
 #include <tactility/lvgl_module.h>
 
 extern struct LvglModuleConfig lvgl_module_config;
+extern void lvgl_devices_attach();
+extern void lvgl_devices_detach();
 
 static bool initialized = false;
 
@@ -44,6 +46,8 @@ error_t lvgl_arch_start() {
     // devices and services. The latter might start adding widgets immediately.
     initialized = true;
 
+    lvgl_devices_attach();
+
     if (lvgl_module_config.on_start) lvgl_module_config.on_start();
 
     return ERROR_NONE;
@@ -51,6 +55,8 @@ error_t lvgl_arch_start() {
 
 error_t lvgl_arch_stop() {
     if (lvgl_module_config.on_stop) lvgl_module_config.on_stop();
+
+    lvgl_devices_detach();
 
     if (lvgl_port_deinit() != ESP_OK) {
         // Call on_start again to recover

@@ -1,3 +1,6 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/st7789-module
+  - Drivers/gt911-module
+bindings: bindings
 dts: lilygo,tdeck.dts

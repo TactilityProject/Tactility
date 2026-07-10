@@ -4,10 +4,10 @@
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/loader/Loader.h>
 
-#include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/Timer.h>
 
-#include <tactility/hal/Device.h>
+#include <tactility/device.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/lvgl_icon_shared.h>
 
 #include <lvgl.h>
@@ -34,7 +34,7 @@ class PowerApp : public App {
 
     Timer update_timer = Timer(Timer::Type::Periodic, kernel::millisToTicks(1000),[]() { onTimer(); });
 
-    std::shared_ptr<hal::power::PowerDevice> power;
+    ::Device* power = nullptr;
 
     lv_obj_t* enableLabel = nullptr;
     lv_obj_t* enableSwitch = nullptr;
@@ -58,8 +58,8 @@ class PowerApp : public App {
         if (code == LV_EVENT_VALUE_CHANGED) {
             bool is_on = lv_obj_has_state(enable_switch, LV_STATE_CHECKED);
 
-            if (power->isAllowedToCharge() != is_on) {
-                power->setAllowedToCharge(is_on);
+            if (power_supply_is_allowed_to_charge(power) != is_on) {
+                power_supply_set_allowed_to_charge(power, is_on);
                 updateUi();
             }
         }
@@ -76,8 +76,8 @@ class PowerApp : public App {
         if (code == LV_EVENT_VALUE_CHANGED) {
             bool is_on = lv_obj_has_state(qc_switch, LV_STATE_CHECKED);
 
-            if (power->isQuickChargeEnabled() != is_on) {
-                power->setQuickChargeEnabled(is_on);
+            if (power_supply_is_quick_charge_enabled(power) != is_on) {
+                power_supply_set_quick_charge_enabled(power, is_on);
                 updateUi();
             }
         }
@@ -94,37 +94,37 @@ class PowerApp : public App {
         }
 
         const char* charge_state;
-        hal::power::PowerDevice::MetricData metric_data;
-        if (power->getMetric(hal::power::PowerDevice::MetricType::IsCharging, metric_data)) {
-            charge_state = metric_data.valueAsBool ? "yes" : "no";
+        PowerSupplyPropertyValue property_value;
+        if (power_supply_get_property(power, POWER_SUPPLY_PROP_IS_CHARGING, &property_value) == ERROR_NONE) {
+            charge_state = property_value.int_value ? "yes" : "no";
         } else {
             charge_state = "N/A";
         }
 
-        uint8_t charge_level;
+        int charge_level;
         bool charge_level_scaled_set = false;
-        if (power->getMetric(hal::power::PowerDevice::MetricType::ChargeLevel, metric_data)) {
-            charge_level = metric_data.valueAsUint8;
+        if (power_supply_get_property(power, POWER_SUPPLY_PROP_CAPACITY, &property_value) == ERROR_NONE) {
+            charge_level = property_value.int_value;
             charge_level_scaled_set = true;
         }
 
-        bool charging_enabled_set = power->supportsChargeControl();
-        bool charging_enabled_and_allowed = power->supportsChargeControl() && power->isAllowedToCharge();
+        bool charging_enabled_set = power_supply_supports_charge_control(power);
+        bool charging_enabled_and_allowed = charging_enabled_set && power_supply_is_allowed_to_charge(power);
 
-        bool quick_charge_set = power->supportsQuickCharge();
-        bool quick_charge_enabled = power->supportsQuickCharge() && power->isQuickChargeEnabled();
+        bool quick_charge_set = power_supply_supports_quick_charge(power);
+        bool quick_charge_enabled = quick_charge_set && power_supply_is_quick_charge_enabled(power);
 
-        int32_t current;
+        int current;
         bool current_set = false;
-        if (power->getMetric(hal::power::PowerDevice::MetricType::Current, metric_data)) {
-            current = metric_data.valueAsInt32;
+        if (power_supply_get_property(power, POWER_SUPPLY_PROP_CURRENT, &property_value) == ERROR_NONE) {
+            current = property_value.int_value;
             current_set = true;
         }
 
-        uint32_t battery_voltage;
+        int battery_voltage;
         bool battery_voltage_set = false;
-        if (power->getMetric(hal::power::PowerDevice::MetricType::BatteryVoltage, metric_data)) {
-            battery_voltage = metric_data.valueAsUint32;
+        if (power_supply_get_property(power, POWER_SUPPLY_PROP_VOLTAGE, &property_value) == ERROR_NONE) {
+            battery_voltage = property_value.int_value;
             battery_voltage_set = true;
         }
 
@@ -151,7 +151,7 @@ class PowerApp : public App {
         lv_label_set_text_fmt(chargeStateLabel, "Charging: %s", charge_state);
 
         if (battery_voltage_set) {
-            lv_label_set_text_fmt(batteryVoltageLabel, "Battery voltage: %lu mV", battery_voltage);
+            lv_label_set_text_fmt(batteryVoltageLabel, "Battery voltage: %d mV", battery_voltage);
         } else {
             lv_label_set_text_fmt(batteryVoltageLabel, "Battery voltage: N/A");
         }
@@ -163,7 +163,7 @@ class PowerApp : public App {
         }
 
         if (current_set) {
-            lv_label_set_text_fmt(currentLabel, "Current: %ld mA", current);
+            lv_label_set_text_fmt(currentLabel, "Current: %d mA", current);
         } else {
             lv_label_set_text_fmt(currentLabel, "Current: N/A");
         }
@@ -174,7 +174,7 @@ class PowerApp : public App {
 public:
 
     void onCreate(AppContext& app) override {
-        power = hal::findFirstDevice<hal::power::PowerDevice>(hal::Device::Type::Power);
+        power = device_find_first_active_by_type(&POWER_SUPPLY_TYPE);
     }
 
     void onShow(AppContext& app, lv_obj_t* parent) override {

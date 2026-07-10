@@ -1,0 +1,13 @@
+description: LilyGO T-Deck onboard keyboard backlight controller
+
+include: ["i2c-device.yaml"]
+
+compatible: "lilygo,tdeck-keyboard-backlight"
+
+bus: i2c
+
+properties:
+  brightness-default:
+    type: int
+    default: 127
+    description: Default brightness level, applied on start and by set_brightness_default(). Range 0-255.

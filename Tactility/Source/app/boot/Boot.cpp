@@ -1,8 +1,10 @@
 #include "Tactility/lvgl/Lvgl.h"
+#include "tactility/drivers/backlight.h"
+#include "tactility/drivers/display.h"
 
-#include <Tactility/SystemEvents.h>
 #include <Tactility/CpuAffinity.h>
 #include <Tactility/Paths.h>
+#include <Tactility/SystemEvents.h>
 #include <Tactility/TactilityPrivate.h>
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppPaths.h>
@@ -56,7 +58,7 @@ class BootApp : public App {
         getCpuAffinityConfiguration().system
     );
 
-    static void setupDisplay() {
+    static void setupHalDisplay() {
         const auto hal_display = getHalDisplay();
         if (hal_display == nullptr) {
             return;
@@ -77,6 +79,36 @@ class BootApp : public App {
             hal_display->setBacklightDuty(settings.backlightDuty);
         } else {
             LOG_I(TAG, "No backlight");
+        }
+    }
+
+    static void setupKernelDisplay() {
+        auto* display = device_find_first_by_type(&DISPLAY_TYPE);
+        if (display != nullptr) {
+            Device* backlight;
+            if (display_get_backlight(display, &backlight) == ERROR_NONE) {
+                if (!device_is_ready(backlight)) {
+                    if (device_start(backlight) != ERROR_NONE) {
+                        LOG_E(TAG, "Failed to start %s", backlight->name);
+                    }
+                }
+
+                settings::display::DisplaySettings settings;
+                if (settings::display::load(settings)) {
+                } else {
+                    settings = settings::display::getDefault();
+                }
+
+                if (backlight_set_brightness(backlight, settings.backlightDuty) == ERROR_NONE) {
+                    LOG_I(TAG, "Backlight for %s set to %d", display->name, settings.backlightDuty);
+                } else {
+                    LOG_E(TAG, "Failed to set brightness of %s", backlight->name);
+                }
+            } else {
+                LOG_I(TAG, "No backlight for %s", display->name);
+            }
+        } else {
+            LOG_I(TAG, "No kernel display");
         }
     }
 
@@ -124,7 +156,8 @@ class BootApp : public App {
 
         // TODO: Support for multiple displays
         LOG_I(TAG, "Setup display");
-        setupDisplay(); // Set backlight
+        setupHalDisplay();
+        setupKernelDisplay();
         prepareFileSystems();
 
 #ifdef CONFIG_TT_USER_DATA_LOCATION_SD

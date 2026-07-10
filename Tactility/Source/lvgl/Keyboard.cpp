@@ -1,7 +1,8 @@
 #include "Tactility/lvgl/Keyboard.h"
 #include "Tactility/service/gui/GuiService.h"
 
-#include <Tactility/service/espnow/EspNowService.h>
+#include <tactility/device.h>
+#include <tactility/drivers/keyboard.h>
 
 namespace tt::lvgl {
 
@@ -46,7 +47,7 @@ void software_keyboard_deactivate() {
 }
 
 bool hardware_keyboard_is_available() {
-    return keyboard_device != nullptr;
+    return keyboard_device != nullptr || device_find_first_by_type(&KEYBOARD_TYPE) != nullptr;
 }
 
 void hardware_keyboard_set_indev(lv_indev_t* device) {

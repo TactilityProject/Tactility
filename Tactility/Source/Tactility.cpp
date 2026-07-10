@@ -23,7 +23,9 @@
 
 #include <tactility/concurrent/thread.h>
 #include <tactility/crypt_module.h>
+#include <tactility/drivers/display.h>
 #include <tactility/drivers/grove.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/drivers/rtc.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/filesystem/file_system.h>
@@ -112,6 +114,7 @@ namespace app {
     namespace boot { extern const AppManifest manifest; }
     namespace development { extern const AppManifest manifest; }
     namespace display { extern const AppManifest manifest; }
+    namespace kerneldisplay { extern const AppManifest manifest; }
     namespace files { extern const AppManifest manifest; }
     namespace fileselection { extern const AppManifest manifest; }
     namespace gpssettings { extern const AppManifest manifest; }
@@ -169,7 +172,11 @@ static void registerInternalApps() {
     addAppManifest(app::apphubdetails::manifest);
     addAppManifest(app::applist::manifest);
     addAppManifest(app::appsettings::manifest);
-    addAppManifest(app::display::manifest);
+    if (device_exists_of_type(&DISPLAY_TYPE)) {
+        addAppManifest(app::kerneldisplay::manifest);
+    } else if (hal::hasDevice(hal::Device::Type::Display)) {
+        addAppManifest(app::display::manifest);
+    }
     addAppManifest(app::files::manifest);
     addAppManifest(app::fileselection::manifest);
     addAppManifest(app::i2cscanner::manifest);
@@ -178,7 +185,9 @@ static void registerInternalApps() {
     addAppManifest(app::launcher::manifest);
     addAppManifest(app::localesettings::manifest);
     addAppManifest(app::notes::manifest);
-    addAppManifest(app::poweroff::manifest);
+    if (device_exists_of_type(&POWER_SUPPLY_TYPE)) {
+        addAppManifest(app::poweroff::manifest);
+    }
     addAppManifest(app::settings::manifest);
     addAppManifest(app::selectiondialog::manifest);
     addAppManifest(app::setup::manifest);

@@ -67,6 +67,27 @@ struct DisplayApi {
     error_t (*swap_xy)(struct Device* device, bool swap_axes);
 
     /**
+     * @brief Gets whether the X and Y axes are currently swapped.
+     * @param[in] device the display device
+     * @return true if swapped
+     */
+    bool (*get_swap_xy)(struct Device* device);
+
+    /**
+     * @brief Gets whether the X axis is currently mirrored.
+     * @param[in] device the display device
+     * @return true if mirrored
+     */
+    bool (*get_mirror_x)(struct Device* device);
+
+    /**
+     * @brief Gets whether the Y axis is currently mirrored.
+     * @param[in] device the display device
+     * @return true if mirrored
+     */
+    bool (*get_mirror_y)(struct Device* device);
+
+    /**
      * @brief Sets a coordinate offset applied to all draw operations.
      * @param[in] device the display device
      * @retval ERROR_NONE when the operation was successful
@@ -129,6 +150,15 @@ struct DisplayApi {
      * @return the frame buffer count
      */
     uint8_t (*get_frame_buffer_count)(struct Device* device);
+
+    /**
+     * @brief Gets the backlight device associated with this display, if any.
+     * @param[in] device the display device
+     * @param[out] backlight the associated backlight device
+     * @retval ERROR_NONE when a backlight is available and *backlight was set
+     * @retval ERROR_NOT_SUPPORTED when this display has no associated backlight
+     */
+    error_t (*get_backlight)(struct Device* device, struct Device** backlight);
 };
 
 /**
@@ -155,6 +185,21 @@ error_t display_mirror(struct Device* device, bool x_axis, bool y_axis);
  * @brief Swaps the X and Y axes using the specified display.
  */
 error_t display_swap_xy(struct Device* device, bool swap_axes);
+
+/**
+ * @brief Gets whether the X and Y axes are currently swapped using the specified display.
+ */
+bool display_get_swap_xy(struct Device* device);
+
+/**
+ * @brief Gets whether the X axis is currently mirrored using the specified display.
+ */
+bool display_get_mirror_x(struct Device* device);
+
+/**
+ * @brief Gets whether the Y axis is currently mirrored using the specified display.
+ */
+bool display_get_mirror_y(struct Device* device);
 
 /**
  * @brief Sets a coordinate offset applied to all draw operations using the specified display.
@@ -200,6 +245,13 @@ void display_get_frame_buffer(struct Device* device, uint8_t index, void** out_b
  * @brief Gets the number of frame buffers exposed by the panel using the specified display.
  */
 uint8_t display_get_frame_buffer_count(struct Device* device);
+
+/**
+ * @brief Gets the backlight device associated with the specified display, if any.
+ * @retval ERROR_NONE when a backlight is available and *backlight was set
+ * @retval ERROR_NOT_SUPPORTED when the display has no associated backlight
+ */
+error_t display_get_backlight(struct Device* device, struct Device** backlight);
 
 extern const struct DeviceType DISPLAY_TYPE;
 

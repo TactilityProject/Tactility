@@ -6,17 +6,17 @@
 
 extern "C" {
 
-error_t rtc_get_time(struct Device* device, struct RtcDateTime* dt) {
+error_t rtc_get_time(Device* device, RtcDateTime* dt) {
     const auto* driver = device_get_driver(device);
     return RTC_DRIVER_API(driver)->get_time(device, dt);
 }
 
-error_t rtc_set_time(struct Device* device, const struct RtcDateTime* dt) {
+error_t rtc_set_time(Device* device, const RtcDateTime* dt) {
     const auto* driver = device_get_driver(device);
     return RTC_DRIVER_API(driver)->set_time(device, dt);
 }
 
-const struct DeviceType RTC_TYPE {
+const DeviceType RTC_TYPE {
     .name = "rtc"
 };
 
