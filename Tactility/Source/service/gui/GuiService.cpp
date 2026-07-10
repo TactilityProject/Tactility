@@ -63,6 +63,14 @@ void GuiService::onLoaderEvent(LoaderService::Event event) {
         auto app_instance = std::static_pointer_cast<app::AppInstance>(app::getCurrentAppContext());
         item = new GuiDispatchItem{this, GuiDispatchType::Show, app_instance};
     } else if (event == LoaderService::Event::ApplicationHiding) {
+        // hideDoneSem is a binary semaphore signaled by every hideApp() completion,
+        // including the one showApp() triggers internally (GuiDispatchType::Show, when an
+        // app is already being shown) - that release has no waiter and leaves a stale
+        // permit sitting available. Drain it before dispatching, or the acquire() below
+        // could consume that leftover permit instead of the one this specific Hide
+        // dispatch is about to produce, letting Destroyed run before the real onHide()
+        // for this app has finished.
+        hideDoneSem.acquire(0);
         item = new GuiDispatchItem{this, GuiDispatchType::Hide, nullptr};
     } else {
         return;
