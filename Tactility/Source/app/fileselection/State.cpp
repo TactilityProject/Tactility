@@ -2,12 +2,11 @@
 
 #include <Tactility/file/File.h>
 #include <Tactility/MountPoints.h>
-#include <Tactility/kernel/Platform.h>
+#include <Tactility/Platform.h>
 
-#include <Tactility/LogMessages.h>
-#include <cstring>
-#include <dirent.h>
 #include <tactility/log.h>
+
+#include <dirent.h>
 #include <unistd.h>
 #include <vector>
 

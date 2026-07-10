@@ -1,11 +1,10 @@
 #define LV_USE_PRIVATE_API 1 // For actual lv_obj_t declaration
 
-#include <Tactility/LogMessages.h>
+#include <Tactility/SystemEvents.h>
 #include <Tactility/PubSub.h>
 #include <Tactility/RecursiveMutex.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/Timer.h>
-#include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/lvgl/Style.h>
@@ -17,6 +16,7 @@
 #include <tactility/lvgl_module.h>
 
 #include <lvgl.h>
+#include <memory>
 
 namespace tt::lvgl {
 

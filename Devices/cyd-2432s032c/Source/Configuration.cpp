@@ -2,7 +2,7 @@
 #include <driver/gpio.h>
 
 #include <Tactility/hal/Configuration.h>
-#include <Tactility/kernel/SystemEvents.h>
+#include <Tactility/SystemEvents.h>
 #include <Tactility/lvgl/LvglSync.h>
 
 #include <PwmBacklight.h>

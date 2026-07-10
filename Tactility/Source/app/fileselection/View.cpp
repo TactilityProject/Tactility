@@ -5,7 +5,7 @@
 #include <Tactility/Tactility.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/file/File.h>
-#include <Tactility/kernel/Platform.h>
+#include <Tactility/Platform.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <tactility/check.h>

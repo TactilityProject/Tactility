@@ -1,5 +1,8 @@
 #include "devices/Display.h"
 #include "devices/TdeckmaxKeyboard.h"
+#include "devices/TdeckmaxPower.h"
+
+#include <Bq27220.h>
 
 #include <Tactility/hal/Configuration.h>
 #include <tactility/check.h>
@@ -81,6 +84,12 @@ static DeviceVector createDevices() {
     auto keypad = std::make_shared<Tca8418>(i2c);
     devices.push_back(keypad);
     devices.push_back(std::make_shared<TdeckmaxKeyboard>(keypad));
+
+    // Battery metrics from the BQ27220 fuel gauge (0x55); power-off via the
+    // SY6970 charger (0x6A). Enables the launcher's power-off button.
+    auto gauge = std::make_shared<Bq27220>(i2c);
+    devices.push_back(gauge);
+    devices.push_back(std::make_shared<TdeckmaxPower>(gauge, i2c));
 
     return devices;
 }

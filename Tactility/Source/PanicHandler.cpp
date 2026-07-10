@@ -86,7 +86,7 @@ const CrashData& getRtcCrashData() { return crashData; }
 // Stub implementation for RISC-V and other architectures
 // TODO: Implement crash data collection for RISC-V using frame pointer or EH frame
 
-#include <Tactility/kernel/PanicHandler.h>
+#include <Tactility/PanicHandler.h>
 
 static CrashData emptyCrashData = {};
 

@@ -6,7 +6,7 @@
 #include <memory>
 
 #ifdef ESP_PLATFORM
-#include <Tactility/kernel/SystemEvents.h>
+#include <Tactility/SystemEvents.h>
 #include <Tactility/TactilityCore.h>
 #include <esp_netif_sntp.h>
 #include <esp_sntp.h>

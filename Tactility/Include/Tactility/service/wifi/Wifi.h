@@ -6,52 +6,16 @@
 #include <string>
 #include <vector>
 
-#include "WifiApSettings.h"
+#include <tactility/drivers/wifi.h>
 
-#ifdef ESP_PLATFORM
-#include <esp_wifi.h>
-#else
-#include <cstdint>
-// From esp_wifi_types.h in ESP-IDF 5.2
-typedef enum {
-    WIFI_AUTH_OPEN = 0,         /**< authenticate mode : open */
-    WIFI_AUTH_WEP,              /**< authenticate mode : WEP */
-    WIFI_AUTH_WPA_PSK,          /**< authenticate mode : WPA_PSK */
-    WIFI_AUTH_WPA2_PSK,         /**< authenticate mode : WPA2_PSK */
-    WIFI_AUTH_WPA_WPA2_PSK,     /**< authenticate mode : WPA_WPA2_PSK */
-    WIFI_AUTH_ENTERPRISE,       /**< authenticate mode : WiFi EAP security */
-    WIFI_AUTH_WPA2_ENTERPRISE = WIFI_AUTH_ENTERPRISE,  /**< authenticate mode : WiFi EAP security */
-    WIFI_AUTH_WPA3_PSK,         /**< authenticate mode : WPA3_PSK */
-    WIFI_AUTH_WPA2_WPA3_PSK,    /**< authenticate mode : WPA2_WPA3_PSK */
-    WIFI_AUTH_WAPI_PSK,         /**< authenticate mode : WAPI_PSK */
-    WIFI_AUTH_OWE,              /**< authenticate mode : OWE */
-    WIFI_AUTH_WPA3_ENT_192,     /**< authenticate mode : WPA3_ENT_SUITE_B_192_BIT */
-    WIFI_AUTH_WPA3_EXT_PSK,     /**< authenticate mode : WPA3_PSK_EXT_KEY */
-    WIFI_AUTH_WPA3_EXT_PSK_MIXED_MODE, /**< authenticate mode: WPA3_PSK + WPA3_PSK_EXT_KEY */
-    WIFI_AUTH_MAX
-} wifi_auth_mode_t;
-#endif
+#include "WifiApSettings.h"
 
 namespace tt::service::wifi {
 
-enum class WifiEvent {
-    /** Radio was turned on */
-    RadioStateOn,
-    /** Radio is turning on. */
-    RadioStateOnPending,
-    /** Radio is turned off */
-    RadioStateOff,
-    /** Radio is turning off */
-    RadioStateOffPending,
-    /** Started scanning for access points */
-    ScanStarted,
-    /** Finished scanning for access points */ // TODO: 1 second validity
-    ScanFinished,
-    Disconnected,
-    ConnectionPending,
-    ConnectionSuccess,
-    ConnectionFailed
-};
+/** The kernel wifi driver's event type: a WifiEventType tag plus a union
+ * payload (radio_state/station_state/access_point_state/connection_error
+ * depending on the tag). See tactility/drivers/wifi.h. */
+using WifiEvent = ::WifiEvent;
 
 enum class RadioState {
     OnPending,
@@ -60,13 +24,6 @@ enum class RadioState {
     ConnectionActive,
     OffPending,
     Off,
-};
-
-struct ApRecord {
-    std::string ssid;
-    int8_t rssi;
-    int32_t channel;
-    wifi_auth_mode_t auth_mode;
 };
 
 /**
@@ -93,7 +50,7 @@ bool isScanning();
 std::string getConnectionTarget();
 
 /** @return the access points from the last scan (if any). It only contains public APs. */
-std::vector<ApRecord> getScanResults();
+std::vector<WifiApRecord> getScanResults();
 
 /**
  * @brief Overrides the default scan result size of 16.

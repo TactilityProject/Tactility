@@ -16,7 +16,6 @@
 #include "tt_lvgl_toolbar.h"
 #include "tt_preferences.h"
 #include "tt_time.h"
-#include "tt_wifi.h"
 
 #include "symbols/cplusplus.h"
 #include "symbols/esp_event.h"
@@ -360,16 +359,6 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(tt_timezone_get_code),
     ESP_ELFSYM_EXPORT(tt_timezone_is_format_24_hour),
     ESP_ELFSYM_EXPORT(tt_timezone_set_format_24_hour),
-    ESP_ELFSYM_EXPORT(tt_wifi_get_radio_state),
-    ESP_ELFSYM_EXPORT(tt_wifi_radio_state_to_string),
-    ESP_ELFSYM_EXPORT(tt_wifi_scan),
-    ESP_ELFSYM_EXPORT(tt_wifi_is_scanning),
-    ESP_ELFSYM_EXPORT(tt_wifi_get_connection_target),
-    ESP_ELFSYM_EXPORT(tt_wifi_set_enabled),
-    ESP_ELFSYM_EXPORT(tt_wifi_connect),
-    ESP_ELFSYM_EXPORT(tt_wifi_disconnect),
-    ESP_ELFSYM_EXPORT(tt_wifi_is_connnection_secure),
-    ESP_ELFSYM_EXPORT(tt_wifi_get_rssi),
     // tt::lvgl
     ESP_ELFSYM_EXPORT(tt_lvgl_spinner_create),
 

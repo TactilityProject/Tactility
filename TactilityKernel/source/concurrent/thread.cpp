@@ -10,7 +10,8 @@
 #include <cstring>
 #include <string>
 
-static const size_t LOCAL_STORAGE_SELF_POINTER_INDEX = 0;
+// Slot 0 is reserved by ESP-IDF's pthread API (see esp_wifi/lwip use of pthread_getspecific).
+static const size_t LOCAL_STORAGE_SELF_POINTER_INDEX = 1;
 static const char* TAG = "Thread";
 
 struct Thread {

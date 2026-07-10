@@ -1,4 +1,4 @@
-#include "Tactility/kernel/Platform.h"
+#include "../Include/Tactility/Platform.h"
 
 namespace tt::kernel {
 

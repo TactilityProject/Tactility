@@ -1,6 +1,6 @@
 #include <Tactility/settings/Time.h>
 
-#include <Tactility/kernel/SystemEvents.h>
+#include <Tactility/SystemEvents.h>
 #include <Tactility/Preferences.h>
 #include <Tactility/settings/SystemSettings.h>
 

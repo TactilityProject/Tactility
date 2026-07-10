@@ -1,4 +1,4 @@
-#include <Tactility/kernel/critical/Critical.h>
+#include <Tactility/Critical.h>
 
 #include <Tactility/freertoscompat/Task.h>
 #include <Tactility/kernel/Kernel.h>

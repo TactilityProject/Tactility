@@ -25,22 +25,19 @@ static void onConnect(const service::wifi::settings::WifiApSettings& ap_settings
 
 void WifiConnect::onWifiEvent(service::wifi::WifiEvent event) {
     State& state = getState();
-    switch (event) {
-        case service::wifi::WifiEvent::ConnectionFailed:
+    if (event.type == WIFI_EVENT_TYPE_STATION_CONNECTION_RESULT) {
+        if (event.connection_error == WIFI_STATION_CONNECTION_ERROR_NONE) {
+            if (state.isConnecting()) {
+                state.setConnecting(false);
+                stop(manifest.appId);
+            }
+        } else {
             if (state.isConnecting()) {
                 state.setConnecting(false);
                 state.setConnectionError(true);
                 requestViewUpdate();
             }
-            break;
-        case service::wifi::WifiEvent::ConnectionSuccess:
-            if (getState().isConnecting()) {
-                state.setConnecting(false);
-                stop(manifest.appId);
-            }
-            break;
-        default:
-            break;
+        }
     }
     requestViewUpdate();
 }

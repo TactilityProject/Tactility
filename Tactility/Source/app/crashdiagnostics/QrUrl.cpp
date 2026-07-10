@@ -1,7 +1,7 @@
 #ifdef ESP_PLATFORM
 
 #include <Tactility/app/crashdiagnostics/QrUrl.h>
-#include <Tactility/kernel/PanicHandler.h>
+#include <Tactility/PanicHandler.h>
 
 #include <sstream>
 #include <vector>

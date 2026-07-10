@@ -1,9 +1,9 @@
+#include <Tactility/SystemEvents.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/hal/Configuration.h>
-#include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/SdCard.h>
+#include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/touch/TouchDevice.h>
-#include <Tactility/kernel/SystemEvents.h>
 
 #include <tactility/check.h>
 #include <tactility/hal/Device.h>

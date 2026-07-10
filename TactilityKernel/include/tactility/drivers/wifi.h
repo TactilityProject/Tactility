@@ -200,6 +200,23 @@ struct WifiApi {
 
 extern const struct DeviceType WIFI_TYPE;
 
+/** @return the first registered WiFi device, regardless of started state, or NULL if none exists */
+struct Device* wifi_find_first_registered_device(void);
+
+error_t wifi_get_radio_state(struct Device* device, enum WifiRadioState* state);
+error_t wifi_get_station_state(struct Device* device, enum WifiStationState* state);
+error_t wifi_get_access_point_state(struct Device* device, enum WifiAccessPointState* state);
+bool wifi_is_scanning(struct Device* device);
+error_t wifi_scan(struct Device* device);
+error_t wifi_get_scan_results(struct Device* device, struct WifiApRecord* results, size_t* num_results);
+error_t wifi_station_get_ipv4_address(struct Device* device, char* ipv4);
+error_t wifi_station_get_target_ssid(struct Device* device, char* ssid);
+error_t wifi_station_connect(struct Device* device, const char* ssid, const char* password, int32_t channel);
+error_t wifi_station_disconnect(struct Device* device);
+error_t wifi_station_get_rssi(struct Device* device, int32_t* rssi);
+error_t wifi_add_event_callback(struct Device* device, void* callback_context, WifiEventCallback callback);
+error_t wifi_remove_event_callback(struct Device* device, WifiEventCallback callback);
+
 #ifdef __cplusplus
 }
 #endif

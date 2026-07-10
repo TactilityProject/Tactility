@@ -2,7 +2,7 @@
 #include "devices/Display.h"
 
 #include "PwmBacklight.h"
-#include <Tactility/kernel/SystemEvents.h>
+#include <Tactility/SystemEvents.h>
 #include <Tactility/TactilityCore.h>
 #include <tactility/log.h>
 

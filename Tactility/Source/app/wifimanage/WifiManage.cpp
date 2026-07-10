@@ -79,17 +79,16 @@ void WifiManage::onWifiEvent(service::wifi::WifiEvent event) {
     auto radio_state = service::wifi::getRadioState();
     LOG_I(TAG, "Update with state %s", service::wifi::radioStateToString(radio_state));
     getState().setRadioState(radio_state);
-    switch (event) {
-        using enum service::wifi::WifiEvent;
-        case ScanStarted:
+    switch (event.type) {
+        case WIFI_EVENT_TYPE_SCAN_STARTED:
             getState().setScanning(true);
             break;
-        case ScanFinished:
+        case WIFI_EVENT_TYPE_SCAN_FINISHED:
             getState().setScanning(false);
             getState().updateApRecords();
             break;
-        case RadioStateOn:
-            if (!service::wifi::isScanning()) {
+        case WIFI_EVENT_TYPE_RADIO_STATE_CHANGED:
+            if (event.radio_state == WIFI_RADIO_STATE_ON && !service::wifi::isScanning()) {
                 service::wifi::scan();
             }
             break;

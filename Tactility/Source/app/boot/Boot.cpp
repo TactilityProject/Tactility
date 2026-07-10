@@ -1,16 +1,15 @@
 #include "Tactility/lvgl/Lvgl.h"
 
-#include <Tactility/TactilityCore.h>
+#include <Tactility/SystemEvents.h>
+#include <Tactility/CpuAffinity.h>
+#include <Tactility/Paths.h>
 #include <Tactility/TactilityPrivate.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppPaths.h>
-#include <Tactility/CpuAffinity.h>
+#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/usb/Usb.h>
-#include <Tactility/kernel/SystemEvents.h>
 #include <Tactility/lvgl/Style.h>
-#include <Tactility/Paths.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
@@ -21,8 +20,8 @@
 #include <atomic>
 
 #ifdef ESP_PLATFORM
-#include "Tactility/app/crashdiagnostics/CrashDiagnostics.h"
-#include <Tactility/kernel/PanicHandler.h>
+#include <Tactility/app/crashdiagnostics/CrashDiagnostics.h>
+#include <Tactility/PanicHandler.h>
 #include <esp_system.h>
 #include <sdkconfig.h>
 #else

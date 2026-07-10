@@ -1,0 +1,8 @@
+description: ESP32 WiFi driver
+
+compatible: "espressif,esp32-wifi"
+
+properties:
+  _unused:
+    type: int
+    default: 0
