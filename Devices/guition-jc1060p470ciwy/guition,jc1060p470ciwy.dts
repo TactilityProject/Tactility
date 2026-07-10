@@ -6,6 +6,7 @@
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_sdmmc.h>
+#include <tactility/bindings/esp32_wifi.h>
 
 /**
  * For future reference:
@@ -18,6 +19,11 @@
 / {
 	compatible = "root";
 	model = "Guition JC1060P470C-I-W-Y";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi";
+		status = "disabled";
+	};
 
 	ble0 {
 		compatible = "espressif,esp32-ble";

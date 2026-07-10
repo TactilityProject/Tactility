@@ -66,6 +66,11 @@ class LauncherApp final : public App {
         return apps_button;
     }
 
+    static void onAppPressed(lv_event_t* e) {
+        auto* appId = static_cast<const char*>(lv_event_get_user_data(e));
+        start(appId);
+    }
+
     static bool shouldShowPowerButton() {
         bool show_power_button = false;
         hal::findDevices<hal::power::PowerDevice>(hal::Device::Type::Power, [&show_power_button](const auto& device) {
@@ -77,18 +82,6 @@ class LauncherApp final : public App {
             }
         });
         return show_power_button;
-    }
-
-    static void onAppPressed(lv_event_t* e) {
-        auto* appId = static_cast<const char*>(lv_event_get_user_data(e));
-        start(appId);
-    }
-
-    static void onPowerOffPressed(lv_event_t* e) {
-        auto power = hal::findFirstDevice<hal::power::PowerDevice>(hal::Device::Type::Power);
-        if (power != nullptr && power->supportsPowerOff()) {
-            power->powerOff();
-        }
     }
 
     // The screen object outlives the launcher's views (it's recreated by GuiService::redraw()
@@ -202,11 +195,13 @@ public:
         lv_obj_add_event_cb(lv_obj_get_screen(parent), onButtonsWrapperResized, LV_EVENT_SIZE_CHANGED, buttons_wrapper);
         lv_obj_add_event_cb(buttons_wrapper, onButtonsWrapperDeleted, LV_EVENT_DELETE, nullptr);
 
+        // Some devices (e.g. T-Lora Pager) have no other way to power off, so the
+        // button stays in the launcher; the confirmation flow lives in the PowerOff app.
         if (shouldShowPowerButton()) {
             auto* power_button = lv_button_create(parent);
             lv_obj_set_style_pad_all(power_button, 8, 0);
             lv_obj_align(power_button, LV_ALIGN_BOTTOM_MID, 0, -10);
-            lv_obj_add_event_cb(power_button, onPowerOffPressed, LV_EVENT_SHORT_CLICKED, nullptr);
+            lv_obj_add_event_cb(power_button, onAppPressed, LV_EVENT_SHORT_CLICKED, (void*)"PowerOff");
             lv_obj_set_style_shadow_width(power_button, 0, LV_STATE_DEFAULT);
             lv_obj_set_style_bg_opa(power_button, 0, LV_PART_MAIN);
 

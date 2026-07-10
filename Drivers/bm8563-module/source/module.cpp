@@ -21,13 +21,11 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-extern const ModuleSymbol bm8563_module_symbols[];
-
 Module bm8563_module = {
     .name = "bm8563",
     .start = start,
     .stop = stop,
-    .symbols = bm8563_module_symbols,
+    .symbols = nullptr,
     .internal = nullptr
 };
 

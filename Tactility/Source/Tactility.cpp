@@ -24,6 +24,7 @@
 #include <tactility/concurrent/thread.h>
 #include <tactility/crypt_module.h>
 #include <tactility/drivers/grove.h>
+#include <tactility/drivers/rtc.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/hal_device_module.h>
@@ -85,6 +86,7 @@ namespace service {
 #ifdef ESP_PLATFORM
     namespace displayidle { extern const ServiceManifest manifest; }
     namespace keyboardidle { extern const ServiceManifest manifest; }
+    namespace rtctime { extern const ServiceManifest manifest; }
 #endif
 #if TT_FEATURE_SCREENSHOT_ENABLED
     namespace screenshot { extern const ServiceManifest manifest; }
@@ -121,6 +123,7 @@ namespace app {
     namespace localesettings { extern const AppManifest manifest; }
     namespace notes { extern const AppManifest manifest; }
     namespace power { extern const AppManifest manifest; }
+    namespace poweroff { extern const AppManifest manifest; }
     namespace selectiondialog { extern const AppManifest manifest; }
     namespace settings { extern const AppManifest manifest; }
     namespace setup { extern const AppManifest manifest; }
@@ -175,6 +178,7 @@ static void registerInternalApps() {
     addAppManifest(app::launcher::manifest);
     addAppManifest(app::localesettings::manifest);
     addAppManifest(app::notes::manifest);
+    addAppManifest(app::poweroff::manifest);
     addAppManifest(app::settings::manifest);
     addAppManifest(app::selectiondialog::manifest);
     addAppManifest(app::setup::manifest);
@@ -280,6 +284,9 @@ static void registerAndStartSecondaryServices() {
     addService(service::statusbar::manifest);
     addService(service::memorychecker::manifest);
 #if defined(ESP_PLATFORM)
+    if (device_exists_of_type(&RTC_TYPE)) {
+        addService(service::rtctime::manifest);
+    }
     addService(service::displayidle::manifest);
 #if defined(CONFIG_TT_TDECK_WORKAROUND)
     addService(service::keyboardidle::manifest);

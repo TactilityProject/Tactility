@@ -29,6 +29,14 @@ public:
     /** For e-paper screens */
     virtual void requestFullRefresh() {}
 
+    /** Blocks until any frame already handed to this display has physically
+     * finished drawing. Displays that draw synchronously within their flush
+     * callback can rely on the default no-op; displays with an asynchronous
+     * refresh pipeline (e.g. e-paper, where a full refresh can take seconds)
+     * should override this so callers can safely do something irreversible
+     * (like cutting power) right after a screen update. */
+    virtual void waitForFlushComplete() {}
+
     /** Could return nullptr if not started */
     virtual std::shared_ptr<touch::TouchDevice> getTouchDevice() = 0;
 

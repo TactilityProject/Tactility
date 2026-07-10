@@ -395,4 +395,18 @@ Device* device_find_first_by_type(const DeviceType* type) {
     return found;
 }
 
+Device* device_find_first_by_compatible(const char* compatible) {
+    struct Ctx { Device* found; const char* compatible; };
+    Ctx ctx = { nullptr, compatible };
+    device_for_each(&ctx, [](Device* dev, void* raw_ctx) -> bool {
+        auto* c = static_cast<Ctx*>(raw_ctx);
+        if (device_is_compatible(dev, c->compatible)) {
+            c->found = dev;
+            return false;
+        }
+        return true;
+    });
+    return ctx.found;
+}
+
 } // extern "C"

@@ -299,6 +299,14 @@ struct Device* device_find_first_active_by_type(const struct DeviceType* type);
  */
 struct Device* device_find_first_by_type(const struct DeviceType* type);
 
+/**
+ * Find the first device whose driver matches the given compatible string.
+ *
+ * @param[in] compatible non-null compatible string to match
+ * @return the first matching device, or NULL if none found
+ */
+struct Device* device_find_first_by_compatible(const char* compatible);
+
 #ifdef __cplusplus
 }
 #endif

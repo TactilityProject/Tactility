@@ -21,13 +21,11 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-extern const ModuleSymbol rx8130ce_module_symbols[];
-
 Module rx8130ce_module = {
     .name = "rx8130ce",
     .start = start,
     .stop = stop,
-    .symbols = rx8130ce_module_symbols,
+    .symbols = nullptr,
     .internal = nullptr
 };
 

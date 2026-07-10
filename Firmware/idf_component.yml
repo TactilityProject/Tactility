@@ -1,4 +1,8 @@
 dependencies:
+  espressif/esp_video:
+    version: "2.2.0"
+    rules:
+      - if: "target in [esp32s3, esp32c6, esp32p4]"
   espressif/esp_hosted:
     version: "*"
     rules:

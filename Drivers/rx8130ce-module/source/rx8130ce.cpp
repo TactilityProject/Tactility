@@ -78,7 +78,7 @@ static error_t stop(Device* device) {
 
 extern "C" {
 
-error_t rx8130ce_get_datetime(Device* device, Rx8130ceDateTime* dt) {
+error_t rx8130ce_get_datetime(Device* device, RtcDateTime* dt) {
     auto* i2c_controller = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
 
@@ -107,7 +107,7 @@ error_t rx8130ce_get_datetime(Device* device, Rx8130ceDateTime* dt) {
     return ERROR_NONE;
 }
 
-error_t rx8130ce_set_datetime(Device* device, const Rx8130ceDateTime* dt) {
+error_t rx8130ce_set_datetime(Device* device, const RtcDateTime* dt) {
     if (dt->month < 1 || dt->month > 12 ||
         dt->day < 1 || dt->day > 31 ||
         dt->hour > 23 || dt->minute > 59 || dt->second > 59) {
@@ -151,13 +151,18 @@ error_t rx8130ce_set_datetime(Device* device, const Rx8130ceDateTime* dt) {
     return error;
 }
 
+RtcApi rx8130ce_rtc_api = {
+    .get_time = rx8130ce_get_datetime,
+    .set_time = rx8130ce_set_datetime
+};
+
 Driver rx8130ce_driver = {
     .name = "rx8130ce",
     .compatible = (const char*[]) { "epson,rx8130ce", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = nullptr,
-    .device_type = nullptr,
+    .api = &rx8130ce_rtc_api,
+    .device_type = &RTC_TYPE,
     .owner = &rx8130ce_module,
     .internal = nullptr
 };

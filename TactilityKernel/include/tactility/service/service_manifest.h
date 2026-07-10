@@ -12,6 +12,7 @@ extern "C" {
 // so the callback types below are declared directly in terms of ServiceInstance to avoid
 // a conflicting forward-declaration of an unrelated "ServiceContext" struct tag.
 struct ServiceInstance;
+struct ServiceManifest;
 
 /**
  * Allocates and initializes the service's custom data.

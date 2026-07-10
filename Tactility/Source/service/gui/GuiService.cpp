@@ -63,6 +63,14 @@ void GuiService::onLoaderEvent(LoaderService::Event event) {
         auto app_instance = std::static_pointer_cast<app::AppInstance>(app::getCurrentAppContext());
         item = new GuiDispatchItem{this, GuiDispatchType::Show, app_instance};
     } else if (event == LoaderService::Event::ApplicationHiding) {
+        // hideDoneSem is a binary semaphore signaled by every hideApp() completion,
+        // including the one showApp() triggers internally (GuiDispatchType::Show, when an
+        // app is already being shown) - that release has no waiter and leaves a stale
+        // permit sitting available. Drain it before dispatching, or the acquire() below
+        // could consume that leftover permit instead of the one this specific Hide
+        // dispatch is about to produce, letting Destroyed run before the real onHide()
+        // for this app has finished.
+        hideDoneSem.acquire(0);
         item = new GuiDispatchItem{this, GuiDispatchType::Hide, nullptr};
     } else {
         return;
@@ -71,6 +79,19 @@ void GuiService::onLoaderEvent(LoaderService::Event event) {
     if (dispatcher_dispatch(dispatcher, item, onGuiDispatch) != ERROR_NONE) {
         LOG_E(TAG, "Failed to dispatch gui event");
         delete item;
+        return;
+    }
+
+    if (event == LoaderService::Event::ApplicationHiding) {
+        // Block here (still on the Loader thread, inside publish()'s synchronous
+        // subscriber call) until hideApp() has actually run to completion on the GUI
+        // task. LoaderService::transitionAppToState(Hiding) must not return - and
+        // therefore the Destroyed transition right after it, which unloads an ELF app's
+        // code, must not run - until App::onHide() has fully finished. Bounded so a stuck
+        // GUI task can't wedge app shutdown forever.
+        if (!hideDoneSem.acquire(pdMS_TO_TICKS(5000))) {
+            LOG_E(TAG, "Timed out waiting for hideApp() to complete");
+        }
     }
 }
 
@@ -282,6 +303,14 @@ void GuiService::showApp(std::shared_ptr<app::AppInstance> app) {
 }
 
 void GuiService::hideApp() {
+    // Signals hideDoneSem on every return path (including the early-return guards below) -
+    // onLoaderEvent() blocks on this to know App::onHide() has actually finished before
+    // Loader proceeds to destroy the app (see hideDoneSem's declaration for why).
+    struct SignalOnExit {
+        Semaphore& sem;
+        ~SignalOnExit() { sem.release(); }
+    } signal_on_exit { hideDoneSem };
+
     auto lock = mutex.asScopedLock();
     lock.lock();
 

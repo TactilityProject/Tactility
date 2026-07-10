@@ -8,6 +8,7 @@
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_hid_device.h>
+#include <tactility/drivers/camera.h>
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/drivers/usb_host_msc.h>
@@ -16,6 +17,7 @@
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
 #include <tactility/drivers/root.h>
+#include <tactility/drivers/rtc.h>
 #include <tactility/drivers/spi_controller.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/drivers/wifi.h>
@@ -65,6 +67,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(device_find_by_name),
     DEFINE_MODULE_SYMBOL(device_find_first_active_by_type),
     DEFINE_MODULE_SYMBOL(device_find_first_by_type),
+    DEFINE_MODULE_SYMBOL(device_find_first_by_compatible),
     // driver
     DEFINE_MODULE_SYMBOL(driver_construct),
     DEFINE_MODULE_SYMBOL(driver_destruct),
@@ -118,6 +121,10 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(I2S_CONTROLLER_TYPE),
     // drivers/root
     DEFINE_MODULE_SYMBOL(root_is_model),
+    // drivers/rtc
+    DEFINE_MODULE_SYMBOL(rtc_get_time),
+    DEFINE_MODULE_SYMBOL(rtc_set_time),
+    DEFINE_MODULE_SYMBOL(RTC_TYPE),
     // drivers/spi_controller
     DEFINE_MODULE_SYMBOL(spi_controller_lock),
     DEFINE_MODULE_SYMBOL(spi_controller_try_lock),
@@ -182,6 +189,16 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(bluetooth_hid_device_send_gamepad),
     DEFINE_MODULE_SYMBOL(bluetooth_hid_device_is_connected),
     DEFINE_MODULE_SYMBOL(BLUETOOTH_HID_DEVICE_TYPE),
+    // drivers/camera
+    DEFINE_MODULE_SYMBOL(camera_open),
+    DEFINE_MODULE_SYMBOL(camera_close),
+    DEFINE_MODULE_SYMBOL(camera_get_frame),
+    DEFINE_MODULE_SYMBOL(camera_release_frame),
+    DEFINE_MODULE_SYMBOL(camera_get_width),
+    DEFINE_MODULE_SYMBOL(camera_get_height),
+    DEFINE_MODULE_SYMBOL(camera_set_rotation),
+    DEFINE_MODULE_SYMBOL(camera_capture_jpeg),
+    DEFINE_MODULE_SYMBOL(CAMERA_TYPE),
     // drivers/wifi
     DEFINE_MODULE_SYMBOL(wifi_find_first_registered_device),
     DEFINE_MODULE_SYMBOL(wifi_get_radio_state),

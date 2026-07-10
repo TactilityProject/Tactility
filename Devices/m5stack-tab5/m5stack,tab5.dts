@@ -9,14 +9,21 @@
 #include <tactility/bindings/esp32_sdmmc.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_usbhost.h>
+#include <tactility/bindings/esp32_wifi.h>
 #include <bindings/bmi270.h>
 #include <bindings/ina226.h>
 #include <bindings/pi4ioe5v6408.h>
 #include <bindings/rx8130ce.h>
+#include <bindings/sc2356.h>
 
 / {
 	compatible = "root";
 	model = "Tab5";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi";
+		status = "disabled";
+	};
 
 	ble0 {
 		compatible = "espressif,esp32-ble";
@@ -59,6 +66,11 @@
 			compatible = "ti,ina226";
 			reg = <0x41>;
 			shunt-milliohms = <5>;
+		};
+
+		sc2356 {
+			compatible = "smartsens,sc2356";
+			reg = <0x36>;
 		};
 	};
 

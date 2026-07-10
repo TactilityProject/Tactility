@@ -69,21 +69,6 @@
 		};
 	};
 
-	//DIY SD Card - https://wiki.bruce.computer/wiring-diagrams/m5sticks3/sd-card/
-	spi1 {
-		compatible = "espressif,esp32-spi";
-		host = <SPI3_HOST>;
-		cs-gpios = <&gpio0 7 GPIO_FLAG_NONE>;
-		pin-mosi = <&gpio0 6 GPIO_FLAG_NONE>;
-		pin-miso = <&gpio0 4 GPIO_FLAG_NONE>;
-		pin-sclk = <&gpio0 5 GPIO_FLAG_NONE>;
-	
-		sdcard@0 {
-			compatible = "espressif,esp32-sdspi";
-			frequency-khz = <20000>;
-		};
-	};
-
 	// Speaker and microphone (ES8311)
 	i2s0 {
 		compatible = "espressif,esp32-i2s";
