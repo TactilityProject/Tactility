@@ -9,6 +9,7 @@
 #include <tactility/bindings/esp32_sdmmc.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_usbhost.h>
+#include <tactility/bindings/esp32_wifi.h>
 #include <bindings/bmi270.h>
 #include <bindings/ina226.h>
 #include <bindings/pi4ioe5v6408.h>
@@ -18,6 +19,11 @@
 / {
 	compatible = "root";
 	model = "Tab5";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi";
+		status = "disabled";
+	};
 
 	ble0 {
 		compatible = "espressif,esp32-ble";
