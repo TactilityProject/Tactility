@@ -40,7 +40,7 @@ static constexpr int VIDEO_BUFFER_COUNT = 2;
 static bool s_video_initialized = false;
 static SemaphoreHandle_t s_video_init_mutex = nullptr;
 
-struct Sc2356State {
+struct Sc2356State : CameraHandleData {
     int fd;
     // Native sensor output dimensions (always 1280×720 from the sensor)
     uint32_t native_width;
@@ -53,7 +53,7 @@ struct Sc2356State {
     int last_dqbuf_index;
     jpeg_encoder_handle_t enc;
     i2c_master_bus_handle_t sccb_bus;
-    Sc2356Rotation rotation;
+    CameraRotation rotation;
     ppa_client_handle_t ppa;
     // PPA output buffer — fixed size, large enough for any rotation (native_width * native_height * 2)
     uint8_t* ppa_out_buf;
@@ -110,11 +110,11 @@ static SemaphoreHandle_t get_video_init_mutex() {
     return s_video_init_mutex;
 }
 
-static ppa_srm_rotation_angle_t to_ppa_rotation(Sc2356Rotation rotation) {
+static ppa_srm_rotation_angle_t to_ppa_rotation(CameraRotation rotation) {
     switch (rotation) {
-        case SC2356_ROTATION_90:  return PPA_SRM_ROTATION_ANGLE_90;
-        case SC2356_ROTATION_180: return PPA_SRM_ROTATION_ANGLE_180;
-        case SC2356_ROTATION_270: return PPA_SRM_ROTATION_ANGLE_270;
+        case CAMERA_ROTATION_90:  return PPA_SRM_ROTATION_ANGLE_90;
+        case CAMERA_ROTATION_180: return PPA_SRM_ROTATION_ANGLE_180;
+        case CAMERA_ROTATION_270: return PPA_SRM_ROTATION_ANGLE_270;
         default:                  return PPA_SRM_ROTATION_ANGLE_0;
     }
 }
@@ -126,6 +126,7 @@ error_t sc2356_open(Device* device, Sc2356Handle* out_handle) {
 
     auto* state = static_cast<Sc2356State*>(heap_caps_calloc(1, sizeof(Sc2356State), MALLOC_CAP_DEFAULT));
     if (!state) return ERROR_OUT_OF_MEMORY;
+    state->device = device;
     state->fd = -1;
     state->last_dqbuf_index = -1;
     state->rotation_mutex = xSemaphoreCreateMutex();
@@ -134,7 +135,7 @@ error_t sc2356_open(Device* device, Sc2356Handle* out_handle) {
         return ERROR_OUT_OF_MEMORY;
     }
 
-    state->rotation = SC2356_ROTATION_0;
+    state->rotation = CAMERA_ROTATION_0;
 
     // Retrieve bus handle from the parent I2C controller
     auto* i2c = device_get_parent(device);
@@ -218,7 +219,7 @@ error_t sc2356_open(Device* device, Sc2356Handle* out_handle) {
     state->native_height = fmt.fmt.pix.height;
 
     // Post-rotation dimensions (swapped for 90/270)
-    if (state->rotation == SC2356_ROTATION_90 || state->rotation == SC2356_ROTATION_270) {
+    if (state->rotation == CAMERA_ROTATION_90 || state->rotation == CAMERA_ROTATION_270) {
         state->width  = state->native_height;
         state->height = state->native_width;
     } else {
@@ -310,6 +311,13 @@ error_t sc2356_open(Device* device, Sc2356Handle* out_handle) {
     return ERROR_NONE;
 
 err_unmap:
+    {
+        // Stop streaming before unmapping - correct V4L2 cleanup order, avoids DMA-into-
+        // unmapped-buffer races. Harmless no-op if STREAMON never succeeded (e.g. it's the
+        // failure that brought us here).
+        int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        ioctl(state->fd, VIDIOC_STREAMOFF, &type);
+    }
     for (int i = 0; i < VIDEO_BUFFER_COUNT; i++) {
         if (state->buffers[i]) munmap(state->buffers[i], state->buf_lengths[i]);
     }
@@ -344,7 +352,7 @@ error_t sc2356_close(Sc2356Handle handle) {
     return ERROR_NONE;
 }
 
-error_t sc2356_set_rotation(Sc2356Handle handle, Sc2356Rotation rotation) {
+error_t sc2356_set_rotation(Sc2356Handle handle, CameraRotation rotation) {
     if (!handle) return ERROR_INVALID_ARGUMENT;
     auto* state = static_cast<Sc2356State*>(handle);
 
@@ -355,7 +363,7 @@ error_t sc2356_set_rotation(Sc2356Handle handle, Sc2356Rotation rotation) {
         return ERROR_NONE;
     }
 
-    bool needs_swap = (rotation == SC2356_ROTATION_90 || rotation == SC2356_ROTATION_270);
+    bool needs_swap = (rotation == CAMERA_ROTATION_90 || rotation == CAMERA_ROTATION_270);
 
     state->rotation = rotation;
     if (needs_swap) {
@@ -420,6 +428,10 @@ error_t sc2356_get_frame(Sc2356Handle handle, uint8_t** buf, size_t* len, uint32
 
     if (ppa_err != ESP_OK) {
         LOG_E(TAG, "ppa_do_scale_rotate_mirror failed: %s", esp_err_to_name(ppa_err));
+        // Buffer was already dequeued (VIDIOC_DQBUF above) - the caller receives an error
+        // and may never call sc2356_release_frame(), so return it to the queue here or
+        // repeated PPA failures exhaust VIDEO_BUFFER_COUNT and poll() blocks forever.
+        sc2356_release_frame(handle);
         return ERROR_RESOURCE;
     }
 
@@ -525,13 +537,24 @@ error_t sc2356_capture_jpeg(Sc2356Handle handle, uint8_t** out_buf, size_t* out_
     return ERROR_NONE;
 }
 
+CameraApi sc2356_camera_api = {
+    .open = sc2356_open,
+    .close = sc2356_close,
+    .get_frame = sc2356_get_frame,
+    .release_frame = sc2356_release_frame,
+    .get_width = sc2356_get_width,
+    .get_height = sc2356_get_height,
+    .set_rotation = sc2356_set_rotation,
+    .capture_jpeg = sc2356_capture_jpeg
+};
+
 Driver sc2356_driver = {
     .name = "sc2356",
     .compatible = (const char*[]) { "smartsens,sc2356", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = nullptr,
-    .device_type = nullptr,
+    .api = &sc2356_camera_api,
+    .device_type = &CAMERA_TYPE,
     .owner = &sc2356_module,
     .internal = nullptr
 };

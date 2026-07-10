@@ -74,26 +74,26 @@ static bool setSystemTimeFromRtc(Device* rtc) {
 
 static void writeRtcFromSystemTime(Device* rtc) {
     time_t now = time(nullptr);
-    tm* tm_struct = localtime(&now);
-    if (!tm_struct) {
-        LOG_E(TAG, "localtime failed");
+    tm tm_struct = {};
+    if (!localtime_r(&now, &tm_struct)) {
+        LOG_E(TAG, "localtime_r failed");
         return;
     }
 
     RtcDateTime dt = {
-        .year = static_cast<uint16_t>(tm_struct->tm_year + 1900),
-        .month = static_cast<uint8_t>(tm_struct->tm_mon + 1),
-        .day = static_cast<uint8_t>(tm_struct->tm_mday),
-        .hour = static_cast<uint8_t>(tm_struct->tm_hour),
-        .minute = static_cast<uint8_t>(tm_struct->tm_min),
-        .second = static_cast<uint8_t>(tm_struct->tm_sec)
+        .year = static_cast<uint16_t>(tm_struct.tm_year + 1900),
+        .month = static_cast<uint8_t>(tm_struct.tm_mon + 1),
+        .day = static_cast<uint8_t>(tm_struct.tm_mday),
+        .hour = static_cast<uint8_t>(tm_struct.tm_hour),
+        .minute = static_cast<uint8_t>(tm_struct.tm_min),
+        .second = static_cast<uint8_t>(tm_struct.tm_sec)
     };
 
     error_t err = rtc_set_time(rtc, &dt);
     if (err != ERROR_NONE) {
         LOG_E(TAG, "Failed to write system time to RTC");
     } else {
-        LOG_I(TAG, "RTC updated from NTP: %02d-%02d-%02d %02d:%02d:%02d", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
+        LOG_I(TAG, "RTC updated from system time: %02d-%02d-%02d %02d:%02d:%02d", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
     }
 }
 

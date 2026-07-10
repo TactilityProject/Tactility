@@ -8,6 +8,7 @@
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_hid_device.h>
+#include <tactility/drivers/camera.h>
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/drivers/usb_host_msc.h>
@@ -187,6 +188,16 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(bluetooth_hid_device_send_gamepad),
     DEFINE_MODULE_SYMBOL(bluetooth_hid_device_is_connected),
     DEFINE_MODULE_SYMBOL(BLUETOOTH_HID_DEVICE_TYPE),
+    // drivers/camera
+    DEFINE_MODULE_SYMBOL(camera_open),
+    DEFINE_MODULE_SYMBOL(camera_close),
+    DEFINE_MODULE_SYMBOL(camera_get_frame),
+    DEFINE_MODULE_SYMBOL(camera_release_frame),
+    DEFINE_MODULE_SYMBOL(camera_get_width),
+    DEFINE_MODULE_SYMBOL(camera_get_height),
+    DEFINE_MODULE_SYMBOL(camera_set_rotation),
+    DEFINE_MODULE_SYMBOL(camera_capture_jpeg),
+    DEFINE_MODULE_SYMBOL(CAMERA_TYPE),
     // drivers/usb_host_hid
     DEFINE_MODULE_SYMBOL(usb_host_hid_is_connected),
     DEFINE_MODULE_SYMBOL(USB_HOST_HID_TYPE),

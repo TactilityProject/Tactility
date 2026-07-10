@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <tactility/drivers/camera.h>
 #include <tactility/error.h>
 
 struct Device;
@@ -24,15 +25,7 @@ struct Sc2356Config {
  * output buffer are not guarded by a lock, so overlapping calls from multiple tasks on the same
  * handle will race.
  */
-typedef void* Sc2356Handle;
-
-/** Clockwise rotation applied to frames */
-typedef enum {
-    SC2356_ROTATION_0   = 0,
-    SC2356_ROTATION_90  = 90,
-    SC2356_ROTATION_180 = 180,
-    SC2356_ROTATION_270 = 270,
-} Sc2356Rotation;
+typedef CameraHandle Sc2356Handle;
 
 /**
  * Initialize the esp_video subsystem and open the MIPI CSI video device.
@@ -88,10 +81,10 @@ uint32_t sc2356_get_height(Sc2356Handle handle);
  * Change the clockwise rotation applied to subsequent frames.
  * Can be called at any time while the handle is open, including during streaming.
  * @param handle    handle returned by sc2356_open()
- * @param rotation  new rotation (SC2356_ROTATION_0/90/180/270)
+ * @param rotation  new rotation
  * @return ERROR_NONE on success
  */
-error_t sc2356_set_rotation(Sc2356Handle handle, Sc2356Rotation rotation);
+error_t sc2356_set_rotation(Sc2356Handle handle, CameraRotation rotation);
 
 /**
  * Capture one frame and JPEG-encode it using the hardware JPEG encoder.

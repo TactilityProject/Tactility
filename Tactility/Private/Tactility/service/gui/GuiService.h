@@ -7,6 +7,8 @@
 #include <Tactility/service/Service.h>
 #include <Tactility/service/loader/Loader.h>
 
+#include <Tactility/Semaphore.h>
+
 #include <tactility/concurrent/dispatcher.h>
 
 #include <cstdio>
@@ -29,6 +31,16 @@ class GuiService final : public Service {
     bool exitRequested = false;
     RecursiveMutex mutex;
     PubSub<loader::LoaderService::Event>::SubscriptionHandle loader_pubsub_subscription = nullptr;
+
+    // Signaled by hideApp() once App::onHide() has actually finished running on the GUI
+    // task. onLoaderEvent() blocks on this (still on the Loader thread, inside the
+    // synchronous pubsub publish() call) before returning from the ApplicationHiding
+    // branch, so LoaderService::transitionAppToState(Hiding) can't return - and therefore
+    // the immediately-following Destroyed transition (which unloads an ELF app's code via
+    // esp_elf_deinit) can't run - until onHide() has fully completed. Without this, the
+    // ELF's code/data can be unmapped while onHide() (and anything it spawned, like a
+    // camera capture task) is still executing it.
+    Semaphore hideDoneSem { 1, 0 };
 
     // Layers and Canvas
     lv_obj_t* appRootWidget = nullptr;

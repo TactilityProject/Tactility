@@ -111,33 +111,43 @@ def add_module(target_path, module_name):
     cmakelists_content = create_module_cmakelists(module_name)
     write_module_cmakelists(os.path.join(target_path, f"Modules/{module_name}/CMakeLists.txt"), cmakelists_content)
 
-ALL_DRIVERS = [
-    "bm8563-module",
-    "bmi270-module",
-    "mpu6886-module",
-    "pi4ioe5v6408-module",
-    "qmi8658-module",
-    "rx8130ce-module",
-    "sc2356-module",
-]
+def discover_all_drivers():
+    """
+    Discover all *-module directories under Drivers/ (not Modules/ - those are handled
+    separately via add_module). Sorted for deterministic output across OS/filesystem order.
+    """
+    pattern = os.path.join('Drivers', '*-module')
+    return sorted(
+        os.path.basename(p) for p in glob.glob(pattern) if os.path.isdir(p)
+    )
 
 def generate_tactility_sdk_cmake(target_path, available_drivers):
     src = os.path.join('Buildscripts', 'TactilitySDK', 'TactilitySDK.cmake')
     with open(src) as f:
         content = f.read()
+    placeholder = "        # DRIVER_COMPONENTS_PLACEHOLDER"
+    assert placeholder in content, \
+        f"Placeholder '{placeholder.strip()}' not found in {src} - template drifted, generator needs updating"
     components = "\n".join(f"        {d}" for d in available_drivers)
-    content = content.replace("        # DRIVER_COMPONENTS_PLACEHOLDER", components)
+    new_content = content.replace(placeholder, components)
+    assert placeholder not in new_content, \
+        f"Placeholder '{placeholder.strip()}' still present after replacement in {src}"
     with open(os.path.join(target_path, 'TactilitySDK.cmake'), 'w') as f:
-        f.write(content)
+        f.write(new_content)
 
 def generate_tactility_sdk_top_cmakelists(target_path, available_drivers):
     src = os.path.join('Buildscripts', 'TactilitySDK', 'CMakeLists.txt')
     with open(src) as f:
         content = f.read()
+    placeholder = "        # DRIVER_INCLUDE_DIRS_PLACEHOLDER"
+    assert placeholder in content, \
+        f"Placeholder '{placeholder.strip()}' not found in {src} - template drifted, generator needs updating"
     include_dirs = "\n".join(f'        "Drivers/{d}/include"' for d in available_drivers)
-    content = content.replace("        # DRIVER_INCLUDE_DIRS_PLACEHOLDER", include_dirs)
+    new_content = content.replace(placeholder, include_dirs)
+    assert placeholder not in new_content, \
+        f"Placeholder '{placeholder.strip()}' still present after replacement in {src}"
     with open(os.path.join(target_path, 'CMakeLists.txt'), 'w') as f:
-        f.write(content)
+        f.write(new_content)
 
 def main():
     if len(sys.argv) < 2:
@@ -185,7 +195,7 @@ def main():
 
     # Drivers - only ones actually built for this target (chip-restricted drivers like
     # sc2356-module won't have a .a outside ESP32-P4)
-    available_drivers = [d for d in ALL_DRIVERS if driver_is_available(d)]
+    available_drivers = [d for d in discover_all_drivers() if driver_is_available(d)]
     for driver_name in available_drivers:
         add_driver(target_path, driver_name)
 

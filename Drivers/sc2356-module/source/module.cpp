@@ -17,13 +17,11 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-extern const ModuleSymbol sc2356_module_symbols[];
-
 Module sc2356_module = {
     .name = "sc2356",
     .start = start,
     .stop = stop,
-    .symbols = sc2356_module_symbols,
+    .symbols = nullptr,
     .internal = nullptr
 };
 
