@@ -22,7 +22,7 @@ jobs:
         ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - name: "Build SDK"
@@ -36,7 +36,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - id: set-matrix
@@ -47,7 +47,7 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.GenerateDeviceMatrix.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - name: "Build Firmware"
@@ -62,7 +62,7 @@ jobs:
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "Bundle Artifacts"
         uses: ./.github/actions/bundle-artifacts
   PublishFirmwareSnapshot:
@@ -70,7 +70,7 @@ jobs:
     needs: [ BundleArtifacts ]
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "Publish Firmware Snapshot"
         env:
           CDN_ID: ${{ secrets.CDN_ID }}
@@ -84,7 +84,7 @@ jobs:
     needs: [ BundleArtifacts ]
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "Publish Firmware Stable"
         env:
           CDN_ID: ${{ secrets.CDN_ID }}
@@ -98,7 +98,7 @@ jobs:
     needs: [ BundleArtifacts ]
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "Publish SDKs"
         env:
           CDN_ID: ${{ secrets.CDN_ID }}
