@@ -13,7 +13,7 @@
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/settings/TrackballSettings.h>
 
-#include <Trackball/Trackball.h>
+#include <drivers/trackball.h>
 
 #include <driver/gpio.h>
 

@@ -1,10 +1,11 @@
-#include "Trackball.h"
+#include <drivers/trackball.h>
+#include <drivers/tdeck_trackball.h>
 
 #include <Tactility/Assets.h>
+
 #include <tactility/device.h>
 #include <tactility/log.h>
 
-#include <drivers/tdeck_trackball.h>
 
 constexpr auto* TAG = "Trackball";
 
