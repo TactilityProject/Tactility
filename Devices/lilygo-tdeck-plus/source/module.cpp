@@ -13,6 +13,7 @@
 #include <Tactility/settings/TrackballSettings.h>
 
 #include <lilygo/drivers/trackball.h>
+#include <lilygo/drivers/tdeck_power_on.h>
 
 #include <driver/gpio.h>
 
