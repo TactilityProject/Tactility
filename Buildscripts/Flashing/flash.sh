@@ -49,7 +49,7 @@ fi
 # Take the flash_arg file contents and join each line in the file into a single line
 flash_args=`grep \n Binaries/flash_args | awk '{print}' ORS=' '`
 cd Binaries
-$esptoolPath --port $1 erase_flash
-$esptoolPath --port $1 write_flash $flash_args
+$esptoolPath --port $1 erase-flash
+$esptoolPath --port $1 write-flash $flash_args
 cd -
 
