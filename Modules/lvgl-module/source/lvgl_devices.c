@@ -1,3 +1,6 @@
+#include "tactility/lvgl_module.h"
+
+
 #include <tactility/device.h>
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/keyboard.h>
@@ -12,6 +15,8 @@
 #define TAG "lvgl"
 
 void lvgl_devices_attach() {
+    lvgl_lock();
+
     lv_disp_t* lvgl_display = NULL;
     struct Device* kernel_display_device = device_find_first_by_type(&DISPLAY_TYPE);
     if (kernel_display_device != NULL) {
@@ -42,13 +47,32 @@ void lvgl_devices_attach() {
             LOG_E(TAG, "Failed to bind %s to LVGL", kernel_keyboard_device->name);
         }
     }
+
+    lvgl_unlock();
 }
 
 void lvgl_devices_detach() {
+    lvgl_lock();
+
     lv_indev_t* device = lv_indev_get_next(NULL);
     while (device != NULL) {
-        lv_indev_delete(device);
+        lv_indev_type_t type = lv_indev_get_type(device);
+        if (type == LV_INDEV_TYPE_POINTER) {
+            lvgl_pointer_remove(device);
+        } else if (type == LV_INDEV_TYPE_KEYPAD) {
+            lvgl_keyboard_remove(device);
+        } else {
+            lv_indev_delete(device);
+        }
         // Always get the first item, because getting the next one doesn't work as the current pointer just became corrupt
         device = lv_indev_get_next(NULL);
     }
+
+    lv_disp_t* display = lv_disp_get_next(NULL);
+    while (display != NULL) {
+        lv_display_delete(display);
+        display = lv_disp_get_next(NULL);
+    }
+
+    lvgl_lock();
 }

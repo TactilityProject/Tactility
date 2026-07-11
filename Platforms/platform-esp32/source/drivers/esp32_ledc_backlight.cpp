@@ -61,12 +61,18 @@ static error_t start(Device* device) {
     internal->brightness = config->brightness_range.min;
 
     device_set_driver_data(device, internal);
+
+    backlight_set_brightness_default(device); // Allowed to fail, we don't care about the result
+
     return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
+    backlight_set_brightness(device, 0); // Allowed to fail, we don't care about the result
+
     auto* internal = static_cast<Esp32LedcBacklightInternal*>(device_get_driver_data(device));
     free(internal);
+
     return ERROR_NONE;
 }
 

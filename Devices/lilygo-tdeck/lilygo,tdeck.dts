@@ -34,7 +34,7 @@
 
 	battery-sense {
 		compatible = "battery-sense";
-		io-channels = <&adc0 0>;
+		io-channel = <&adc0 0>;
 		reference-voltage-mv = <3300>;
 		multiplier = <2110>;
 	};

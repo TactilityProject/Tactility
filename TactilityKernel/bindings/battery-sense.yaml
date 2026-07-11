@@ -3,10 +3,10 @@ description: Battery voltage sense via an ADC channel behind a voltage divider
 compatible: "battery-sense"
 
 properties:
-  io-channels:
+  io-channel:
     type: phandles
     required: true
-    description: The ADC channel connected to the battery sense circuit, e.g. `<&adc1 3>`
+    description: The ADC object paired with a channel index e.g. `<&adc1 3>`
   reference-voltage-mv:
     type: int
     required: true

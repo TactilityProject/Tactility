@@ -74,7 +74,10 @@ static error_t start(Device* device) {
 
 static error_t stop(Device* device) {
     LOG_I(TAG, "stop %s", device->name);
-    adc_oneshot_del_unit(GET_HANDLE(device));
+    esp_err_t esp_error = adc_oneshot_del_unit(GET_HANDLE(device));
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "Deleting ADC unit failed: %s", esp_err_to_name(esp_error));
+    }
     device_set_driver_data(device, nullptr);
     return ERROR_NONE;
 }
