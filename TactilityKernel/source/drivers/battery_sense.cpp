@@ -11,20 +11,21 @@
 // Raw-to-millivolt conversion assumes a 12-bit ADC, since the generic ADC API doesn't expose resolution.
 #define ADC_MAX_RAW 4095
 
+// Rough LiPo discharge curve, used to estimate a charge percentage from the sensed voltage since
+// this driver has no calibrated fuel gauge to read one from directly.
+#define BATTERY_MIN_MV 3200
+#define BATTERY_MAX_MV 4200
+
 // The power-supply child's config pointer isn't set; it reads its settings from its parent's config instead.
 #define GET_PARENT_CONFIG(device) ((const BatterySenseConfig*)device_get_parent(device)->config)
 
 extern "C" {
 
 static bool supports_property(Device*, PowerSupplyProperty property) {
-    return property == POWER_SUPPLY_PROP_VOLTAGE;
+    return property == POWER_SUPPLY_PROP_VOLTAGE || property == POWER_SUPPLY_PROP_CAPACITY;
 }
 
-static error_t get_property(Device* device, PowerSupplyProperty property, PowerSupplyPropertyValue* out_value) {
-    if (property != POWER_SUPPLY_PROP_VOLTAGE) {
-        return ERROR_NOT_SUPPORTED;
-    }
-
+static error_t read_battery_mv(Device* device, int* out_mv) {
     const auto* config = GET_PARENT_CONFIG(device);
     int raw;
     error_t error = adc_channel_read_raw(&config->io_channel, &raw, portMAX_DELAY);
@@ -33,7 +34,28 @@ static error_t get_property(Device* device, PowerSupplyProperty property, PowerS
     }
 
     int64_t adc_mv = ((int64_t)raw * config->reference_voltage_mv) / ADC_MAX_RAW;
-    out_value->int_value = (int)((adc_mv * config->multiplier) / 1000);
+    *out_mv = (int)((adc_mv * config->multiplier) / 1000);
+    return ERROR_NONE;
+}
+
+static int estimate_capacity_from_mv(int battery_mv) {
+    if (battery_mv <= BATTERY_MIN_MV) return 0;
+    if (battery_mv >= BATTERY_MAX_MV) return 100;
+    return (battery_mv - BATTERY_MIN_MV) * 100 / (BATTERY_MAX_MV - BATTERY_MIN_MV);
+}
+
+static error_t get_property(Device* device, PowerSupplyProperty property, PowerSupplyPropertyValue* out_value) {
+    if (property != POWER_SUPPLY_PROP_VOLTAGE && property != POWER_SUPPLY_PROP_CAPACITY) {
+        return ERROR_NOT_SUPPORTED;
+    }
+
+    int battery_mv;
+    error_t error = read_battery_mv(device, &battery_mv);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+
+    out_value->int_value = (property == POWER_SUPPLY_PROP_VOLTAGE) ? battery_mv : estimate_capacity_from_mv(battery_mv);
     return ERROR_NONE;
 }
 
