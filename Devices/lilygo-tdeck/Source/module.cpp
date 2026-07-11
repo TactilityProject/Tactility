@@ -9,9 +9,11 @@
 #include <Tactility/hal/Configuration.h>
 #include <Tactility/hal/gps/GpsConfiguration.h>
 #include <Tactility/kernel/Kernel.h>
+#include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/gps/GpsService.h>
+#include <Tactility/settings/TrackballSettings.h>
 
-#include "devices/TrackballDevice.h"
+#include <Trackball/Trackball.h>
 
 #include <driver/gpio.h>
 
@@ -26,6 +28,7 @@ extern "C" {
 
 extern Driver tdeck_keyboard_driver;
 extern Driver tdeck_keyboard_backlight_driver;
+extern Driver tdeck_trackball_driver;
 
 static bool power_on() {
     gpio_config_t device_power_signal_config = {
@@ -66,16 +69,22 @@ void subscribe_events() {
         }
     });
 
+    // The kernel trackball device is already started by kernel_init(); this just registers it as an
+    // LVGL input device and applies persisted settings, both of which require LVGL to be up first.
     tt::kernel::subscribeSystemEvent(tt::kernel::SystemEvent::BootSplash, [](tt::kernel::SystemEvent event) {
-        auto trackball = tt::hal::findDevice("Trackball");
-        if (trackball != nullptr) {
-            LOG_I(TAG, "%s starting", trackball->getName().c_str());
-            auto tbDevice = std::static_pointer_cast<TrackballDevice>(trackball);
-            if (tbDevice->start()) {
-                LOG_I(TAG, "%s started", trackball->getName().c_str());
-            } else {
-                LOG_E(TAG, "%s start failed", trackball->getName().c_str());
+        auto tbSettings = tt::settings::trackball::loadOrGetDefault();
+        if (tt::lvgl::lock(100)) {
+            if (trackball::init() != nullptr) {
+                trackball::setMode(tbSettings.trackballMode == tt::settings::trackball::TrackballMode::Pointer
+                    ? trackball::Mode::Pointer
+                    : trackball::Mode::Encoder);
+                trackball::setEncoderSensitivity(tbSettings.encoderSensitivity);
+                trackball::setPointerSensitivity(tbSettings.pointerSensitivity);
+                trackball::setEnabled(tbSettings.trackballEnabled);
             }
+            tt::lvgl::unlock();
+        } else {
+            LOG_W(TAG, "Failed to acquire LVGL lock for trackball settings");
         }
     });
 }
@@ -97,6 +106,11 @@ static error_t start() {
         return ERROR_RESOURCE;
     }
 
+    if (driver_construct_add(&tdeck_trackball_driver) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to register trackball driver");
+        return ERROR_RESOURCE;
+    }
+
     subscribe_events();
 
     return ERROR_NONE;
@@ -110,6 +124,10 @@ static error_t stop() {
     }
     if (driver_remove_destruct(&tdeck_keyboard_backlight_driver) != ERROR_NONE) {
         LOG_E(TAG, "Failed to unregister keyboard backlight driver");
+        return ERROR_RESOURCE;
+    }
+    if (driver_remove_destruct(&tdeck_trackball_driver) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to unregister trackball driver");
         return ERROR_RESOURCE;
     }
     return ERROR_NONE;

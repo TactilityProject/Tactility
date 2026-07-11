@@ -1,6 +1,5 @@
 #pragma once
 
-#include <driver/gpio.h>
 #include <lvgl.h>
 
 namespace trackball {
@@ -14,24 +13,10 @@ enum class Mode {
 };
 
 /**
- * @brief Trackball configuration structure
+ * @brief Initialize trackball as an LVGL input device, backed by the kernel tdeck_trackball driver.
+ * @return LVGL input device pointer, or nullptr if the kernel device isn't found/started
  */
-struct TrackballConfig {
-    gpio_num_t pinRight;          // Right direction GPIO
-    gpio_num_t pinUp;             // Up direction GPIO
-    gpio_num_t pinLeft;           // Left direction GPIO
-    gpio_num_t pinDown;           // Down direction GPIO
-    gpio_num_t pinClick;          // Click/select button GPIO
-    uint8_t encoderSensitivity = 1;   // Encoder mode: steps per tick
-    uint8_t pointerSensitivity = 10;   // Pointer mode: pixels per tick
-};
-
-/**
- * @brief Initialize trackball as LVGL input device
- * @param config Trackball GPIO configuration
- * @return LVGL input device pointer, or nullptr on failure
- */
-lv_indev_t* init(const TrackballConfig& config);
+lv_indev_t* init();
 
 /**
  * @brief Deinitialize trackball

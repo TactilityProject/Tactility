@@ -18,6 +18,7 @@
 #include <bindings/st7789.h>
 #include <bindings/tdeck_keyboard.h>
 #include <bindings/tdeck_keyboard_backlight.h>
+#include <bindings/tdeck_trackball.h>
 
 // Reference: https://wiki.lilygo.cc/get_started/en/Wearable/T-Deck-Plus/T-Deck-Plus.html#Pin-Overview
 / {
@@ -51,6 +52,15 @@
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
+	};
+
+	trackball {
+		compatible = "lilygo,tdeck-trackball";
+		pin-right = <&gpio0 2 GPIO_FLAG_NONE>;
+		pin-up = <&gpio0 3 GPIO_FLAG_NONE>;
+		pin-left = <&gpio0 1 GPIO_FLAG_NONE>;
+		pin-down = <&gpio0 15 GPIO_FLAG_NONE>;
+		pin-click = <&gpio0 0 GPIO_FLAG_NONE>;
 	};
 
 	i2c_internal: i2c0 {
