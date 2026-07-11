@@ -2,6 +2,6 @@
 #pragma once
 
 #include <tactility/bindings/bindings.h>
-#include <drivers/tdeck_trackball.h>
+#include <lilygo/drivers/tdeck_trackball.h>
 
 DEFINE_DEVICETREE(tdeck_trackball, struct TdeckTrackballConfig)

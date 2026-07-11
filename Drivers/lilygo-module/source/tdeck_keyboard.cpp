@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <drivers/tdeck_keyboard.h>
+#include <lilygo/drivers/tdeck_keyboard.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
@@ -87,7 +87,7 @@ static const KeyboardApi tdeck_keyboard_api = {
     .read_key = tdeck_keyboard_read_key,
 };
 
-extern Module lilygo_tdeck_module;
+extern Module lilygo_module;
 
 Driver tdeck_keyboard_driver = {
     .name = "tdeck_keyboard",
@@ -96,6 +96,6 @@ Driver tdeck_keyboard_driver = {
     .stop_device = stop,
     .api = &tdeck_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
-    .owner = &lilygo_tdeck_module,
+    .owner = &lilygo_module,
     .internal = nullptr
 };

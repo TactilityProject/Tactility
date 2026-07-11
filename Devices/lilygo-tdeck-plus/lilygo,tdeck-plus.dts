@@ -21,10 +21,10 @@
 #include <lilygo/bindings/tdeck_keyboard_backlight.h>
 #include <lilygo/bindings/tdeck_trackball.h>
 
-// Reference: https://wiki.lilygo.cc/products/t-deck-series/t-deck/
+// Reference: https://wiki.lilygo.cc/products/t-deck-series/t-deck-plus/
 / {
 	compatible = "root";
-	model = "LilyGO T-Deck";
+	model = "LilyGO T-Deck Plus";
 
 	adc0 {
 		compatible = "espressif,esp32-adc-oneshot";
@@ -141,13 +141,10 @@
 		};
 	};
 
-	grove0 {
-		compatible = "espressif,esp32-grove";
-		defaultMode = <GROVE_MODE_I2C>;
-		pinSdaTx = <&gpio0 43 GPIO_FLAG_NONE>;
-		pinSclRx = <&gpio0 44 GPIO_FLAG_NONE>;
-		uartPort = <UART_NUM_1>;
-		i2cPort = <I2C_NUM_1>;
-		i2cClockFrequency = <400000>;
+	uart0 {
+		compatible = "espressif,esp32-uart";
+		port = <UART_NUM_1>;
+		pin-tx = <&gpio0 43 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 44 GPIO_FLAG_NONE>;
 	};
 };

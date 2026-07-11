@@ -1,5 +1,5 @@
-#include <drivers/trackball.h>
-#include <drivers/tdeck_trackball.h>
+#include <lilygo/drivers/trackball.h>
+#include <lilygo/drivers/tdeck_trackball.h>
 
 #include <Tactility/Assets.h>
 

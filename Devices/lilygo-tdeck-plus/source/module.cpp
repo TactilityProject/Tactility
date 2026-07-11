@@ -1,14 +1,12 @@
 #include <tactility/module.h>
-
-#include "lilygo/drivers/tdeck_power_on.h"
-#include "tactility/lvgl_module.h"
-
 #include <tactility/error.h>
 #include <tactility/log.h>
+#include <tactility/lvgl_module.h>
 
 #include <Tactility/SystemEvents.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/hal/Configuration.h>
+#include <Tactility/hal/gps/GpsConfiguration.h>
 #include <Tactility/kernel/Kernel.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/gps/GpsService.h>
@@ -16,7 +14,9 @@
 
 #include <lilygo/drivers/trackball.h>
 
-constexpr auto* TAG = "tdeck";
+#include <driver/gpio.h>
+
+constexpr auto* TAG = "tdeck-plus";
 
 // Legacy placeholder (required until legacy HAL is cleaned up everywhere)
 extern const tt::hal::Configuration hardwareConfiguration = {};
@@ -24,6 +24,21 @@ extern const tt::hal::Configuration hardwareConfiguration = {};
 extern "C" {
 
 void subscribe_events() {
+    tt::kernel::subscribeSystemEvent(tt::kernel::SystemEvent::BootSplash, [](tt::kernel::SystemEvent event) {
+        auto gps_service = tt::service::gps::findGpsService();
+        if (gps_service != nullptr) {
+            std::vector<tt::hal::gps::GpsConfiguration> gps_configurations;
+            gps_service->getGpsConfigurations(gps_configurations);
+            if (gps_configurations.empty()) {
+                if (gps_service->addGpsConfiguration(tt::hal::gps::GpsConfiguration {.uartName = "uart0", .baudRate = 38400, .model = tt::hal::gps::GpsModel::UBLOX10})) {
+                    LOG_I(TAG, "Configured internal GPS");
+                } else {
+                    LOG_E(TAG, "Failed to configure internal GPS");
+                }
+            }
+        }
+    });
+
     // The kernel trackball device is already started by kernel_init(); this just registers it as an
     // LVGL input device and applies persisted settings, both of which require LVGL to be up first.
     tt::kernel::subscribeSystemEvent(tt::kernel::SystemEvent::BootSplash, [](tt::kernel::SystemEvent event) {
@@ -60,8 +75,8 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-Module lilygo_tdeck_module = {
-    .name = "lilygo-tdeck",
+Module lilygo_tdeck_plus_module = {
+    .name = "lilygo-tdeck-plus",
     .start = start,
     .stop = stop,
     .symbols = nullptr,

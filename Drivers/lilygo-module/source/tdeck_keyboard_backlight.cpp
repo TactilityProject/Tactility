@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <drivers/tdeck_keyboard_backlight.h>
+#include <lilygo/drivers/tdeck_keyboard_backlight.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
@@ -108,7 +108,7 @@ static const BacklightApi tdeck_keyboard_backlight_api = {
     .get_max_brightness = tdeck_keyboard_backlight_get_max_brightness,
 };
 
-extern struct Module lilygo_tdeck_module;
+extern struct Module lilygo_module;
 
 Driver tdeck_keyboard_backlight_driver = {
     .name = "tdeck_keyboard_backlight",
@@ -117,6 +117,6 @@ Driver tdeck_keyboard_backlight_driver = {
     .stop_device = stop,
     .api = &tdeck_keyboard_backlight_api,
     .device_type = &BACKLIGHT_TYPE,
-    .owner = &lilygo_tdeck_module,
+    .owner = &lilygo_module,
     .internal = nullptr
 };

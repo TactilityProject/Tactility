@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <drivers/tdeck_trackball.h>
+#include <lilygo/drivers/tdeck_trackball.h>
 
-#include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/gpio_controller.h>
@@ -181,7 +180,7 @@ const struct DeviceType TDECK_TRACKBALL_TYPE {
     .name = "tdeck-trackball"
 };
 
-extern Module lilygo_tdeck_module;
+extern Module lilygo_module;
 
 Driver tdeck_trackball_driver = {
     .name = "tdeck_trackball",
@@ -190,7 +189,7 @@ Driver tdeck_trackball_driver = {
     .stop_device = stop,
     .api = &TDECK_TRACKBALL_API,
     .device_type = &TDECK_TRACKBALL_TYPE,
-    .owner = &lilygo_tdeck_module,
+    .owner = &lilygo_module,
     .internal = nullptr
 };
 

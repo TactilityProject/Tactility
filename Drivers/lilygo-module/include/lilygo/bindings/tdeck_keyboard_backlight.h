@@ -2,6 +2,6 @@
 #pragma once
 
 #include <tactility/bindings/bindings.h>
-#include <drivers/tdeck_keyboard_backlight.h>
+#include <lilygo/drivers/tdeck_keyboard_backlight.h>
 
 DEFINE_DEVICETREE(tdeck_keyboard_backlight, struct TdeckKeyboardBacklightConfig)

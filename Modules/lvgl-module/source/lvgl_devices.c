@@ -19,6 +19,11 @@ void lvgl_devices_attach() {
 
     lv_disp_t* lvgl_display = NULL;
     struct Device* kernel_display_device = device_find_first_by_type(&DISPLAY_TYPE);
+    // Placeholder drivers (boards not yet migrated to the kernel display driver) register with a
+    // NULL api: they exist so the devicetree node resolves, but have nothing for LVGL to bind to.
+    if (kernel_display_device != NULL && device_get_driver(kernel_display_device)->api == NULL) {
+        kernel_display_device = NULL;
+    }
     if (kernel_display_device != NULL) {
         struct LvglDisplayConfig lvgl_display_config = {};
         if (lvgl_display_add(kernel_display_device, &lvgl_display_config, &lvgl_display) == ERROR_NONE) {
@@ -29,6 +34,10 @@ void lvgl_devices_attach() {
     }
 
     struct Device* kernel_pointer_device = device_find_first_by_type(&POINTER_TYPE);
+    // Same placeholder situation as the display above.
+    if (kernel_pointer_device != NULL && device_get_driver(kernel_pointer_device)->api == NULL) {
+        kernel_pointer_device = NULL;
+    }
     lv_indev_t* lvgl_pointer_device;
     if (kernel_pointer_device != NULL) {
         if (lvgl_pointer_add(kernel_pointer_device, lvgl_display, &lvgl_pointer_device) == ERROR_NONE) {

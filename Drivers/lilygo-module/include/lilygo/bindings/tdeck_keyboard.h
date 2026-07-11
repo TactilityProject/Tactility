@@ -2,6 +2,6 @@
 #pragma once
 
 #include <tactility/bindings/bindings.h>
-#include <drivers/tdeck_keyboard.h>
+#include <lilygo/drivers/tdeck_keyboard.h>
 
 DEFINE_DEVICETREE(tdeck_keyboard, struct TdeckKeyboardConfig)
