@@ -1,23 +1,18 @@
-#include "../../../../TactilityKernel/include/tactility/drivers/display.h"
-#include "../../../../TactilityKernel/include/tactility/error.h"
-
-
-#include <Tactility/Tactility.h>
-
+#include <tactility/drivers/display.h>
+#include <tactility/error.h>
 #include <tactility/lvgl_icon_shared.h>
-
-#ifdef ESP_PLATFORM
-#include <Tactility/service/displayidle/DisplayIdleService.h>
-#endif
-
-#include <Tactility/app/App.h>
-#include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/settings/DisplaySettings.h>
-
 #include <tactility/device.h>
 #include <tactility/drivers/backlight.h>
 #include <tactility/log.h>
 #include <tactility/lvgl_module.h>
+
+#include <Tactility/Tactility.h>
+#ifdef ESP_PLATFORM
+#include <Tactility/service/displayidle/DisplayIdleService.h>
+#endif
+#include <Tactility/app/App.h>
+#include <Tactility/lvgl/Toolbar.h>
+#include <Tactility/settings/DisplaySettings.h>
 
 #include <lvgl.h>
 
@@ -28,6 +23,11 @@ constexpr auto* TAG = "KernelDisplay";
 static Device* getBacklightDevice() {
     Device* display = device_find_first_by_type(&DISPLAY_TYPE);
     check(display);
+    // Boards not yet migrated to the kernel display driver register a placeholder device (so the
+    // devicetree node resolves) with a NULL api - nothing for display_get_backlight() to act on.
+    if (device_get_driver(display)->api == nullptr) {
+        return nullptr;
+    }
     Device* backlight = nullptr;
     return display_get_backlight(display, &backlight) == ERROR_NONE ? backlight : nullptr;
 }
