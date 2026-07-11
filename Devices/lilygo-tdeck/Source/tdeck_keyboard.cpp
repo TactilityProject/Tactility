@@ -87,7 +87,7 @@ static const KeyboardApi tdeck_keyboard_api = {
     .read_key = tdeck_keyboard_read_key,
 };
 
-extern struct Module lilygo_tdeck_module;
+extern Module lilygo_tdeck_module;
 
 Driver tdeck_keyboard_driver = {
     .name = "tdeck_keyboard",

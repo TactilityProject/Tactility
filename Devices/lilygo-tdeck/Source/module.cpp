@@ -6,6 +6,7 @@
 
 #include <Tactility/SystemEvents.h>
 #include <Tactility/LogMessages.h>
+#include <Tactility/hal/Configuration.h>
 #include <Tactility/hal/gps/GpsConfiguration.h>
 #include <Tactility/kernel/Kernel.h>
 #include <Tactility/service/gps/GpsService.h>
@@ -17,6 +18,9 @@
 constexpr auto* TAG = "T-Deck";
 
 constexpr auto TDECK_POWERON_GPIO = GPIO_NUM_10;
+
+// Legacy placeholder (required until legacy HAL is cleaned up everywhere)
+extern const tt::hal::Configuration hardwareConfiguration = {};
 
 extern "C" {
 

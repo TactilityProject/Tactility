@@ -1,25 +1,42 @@
 /dts-v1/;
 
+#include <tactility/bindings/battery_sense.h>
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
 #include <tactility/bindings/esp32_ble.h>
-#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_grove.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_ledc_backlight.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
+#include <tactility/bindings/esp32_uart.h>
+
 #include <bindings/gt911.h>
+#include <bindings/st7789.h>
 #include <bindings/tdeck_keyboard.h>
 #include <bindings/tdeck_keyboard_backlight.h>
-#include <tactility/bindings/esp32_spi.h>
-#include <tactility/bindings/esp32_uart.h>
-#include <tactility/bindings/esp32_sdspi.h>
-#include <bindings/st7789.h>
 
 // Reference: https://wiki.lilygo.cc/get_started/en/Wearable/T-Deck-Plus/T-Deck-Plus.html#Pin-Overview
 / {
 	compatible = "root";
 	model = "LilyGO T-Deck";
+
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		clk-src = <ADC_RTC_CLK_SRC_DEFAULT>;
+		channels = <ADC_CHANNEL_3 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	battery-sense {
+		compatible = "battery-sense";
+		io-channels = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2110>;
+	};
 
 	wifi0 {
 		compatible = "espressif,esp32-wifi-pinned";

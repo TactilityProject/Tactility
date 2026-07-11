@@ -231,7 +231,7 @@ static void registerInternalApps() {
         addAppManifest(app::gpssettings::manifest);
     }
 
-    if (hal::hasDevice(hal::Device::Type::Power)) {
+    if (device_exists_of_type(&POWER_SUPPLY_TYPE)) {
         addAppManifest(app::power::manifest);
     }
 

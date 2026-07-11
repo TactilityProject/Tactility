@@ -2,7 +2,7 @@
 
 #include <Tactility/Mutex.h>
 #include <Tactility/Timer.h>
-#include <Tactility/hal/power/PowerDevice.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/filesystem/file_system.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/LvglSync.h>
@@ -90,10 +90,10 @@ static const char* getSdCardStatusIcon(bool mounted) {
 
 static const char* getPowerStatusIcon() {
     // TODO: Support multiple power devices?
-    std::shared_ptr<hal::power::PowerDevice> power;
-    hal::findDevices<hal::power::PowerDevice>(hal::Device::Type::Power, [&power](const auto& device) {
-        if (device->supportsMetric(hal::power::PowerDevice::MetricType::ChargeLevel)) {
-            power = device;
+    Device* power = nullptr;
+    device_for_each_of_type(&POWER_SUPPLY_TYPE, &power, [](Device* device, void* context) {
+        if (device_is_ready(device) && power_supply_supports_property(device, POWER_SUPPLY_PROP_CAPACITY)) {
+            *static_cast<Device**>(context) = device;
             return false;
         }
         return true;
@@ -103,12 +103,12 @@ static const char* getPowerStatusIcon() {
         return nullptr;
     }
 
-    hal::power::PowerDevice::MetricData charge_level;
-    if (!power->getMetric(hal::power::PowerDevice::MetricType::ChargeLevel, charge_level)) {
+    PowerSupplyPropertyValue charge_level;
+    if (power_supply_get_property(power, POWER_SUPPLY_PROP_CAPACITY, &charge_level) != ERROR_NONE) {
         return nullptr;
     }
 
-    uint8_t charge = charge_level.valueAsUint8;
+    int charge = charge_level.int_value;
 
     if (charge >= 95) {
         return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_FULL;

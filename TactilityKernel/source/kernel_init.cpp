@@ -20,6 +20,10 @@ static error_t start() {
     if (driver_construct_add(&pointer_placeholder_driver) != ERROR_NONE) return ERROR_RESOURCE;
     extern Driver spi_peripheral_driver;
     if (driver_construct_add(&spi_peripheral_driver) != ERROR_NONE) return ERROR_RESOURCE;
+    extern Driver battery_sense_driver;
+    if (driver_construct_add(&battery_sense_driver) != ERROR_NONE) return ERROR_RESOURCE;
+    extern Driver battery_sense_power_supply_driver;
+    if (driver_construct_add(&battery_sense_power_supply_driver) != ERROR_NONE) return ERROR_RESOURCE;
     return ERROR_NONE;
 }
 
