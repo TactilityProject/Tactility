@@ -4,13 +4,14 @@
 #include <Tactility/app/AppPaths.h>
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/app/setup/Setup.h>
-#include <Tactility/hal/power/PowerDevice.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/BootSettings.h>
 
 #include <cstring>
 #include <lvgl.h>
 
+#include <tactility/device.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/log.h>
 #include <tactility/lvgl_fonts.h>
 #include <tactility/lvgl_icon_launcher.h>
@@ -73,9 +74,9 @@ class LauncherApp final : public App {
 
     static bool shouldShowPowerButton() {
         bool show_power_button = false;
-        hal::findDevices<hal::power::PowerDevice>(hal::Device::Type::Power, [&show_power_button](const auto& device) {
-            if (device->supportsPowerOff()) {
-                show_power_button = true;
+        device_for_each_of_type(&POWER_SUPPLY_TYPE, &show_power_button, [](Device* device, void* context) {
+            if (device_is_ready(device) && power_supply_supports_power_off(device)) {
+                *static_cast<bool*>(context) = true;
                 return false; // stop iterating
             } else {
                 return true; // continue iterating
