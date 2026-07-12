@@ -20,24 +20,34 @@ struct DeviceInternal {
     Driver* driver = nullptr;
     /** The driver data for this device (e.g. a mutex) */
     void* driver_data = nullptr;
-    // The mutex for device operations. Recursive: device_start()/device_stop() hold this for
-    // their entire body (including the driver's start_device/stop_device callback), and some
-    // drivers (e.g. battery_sense.cpp) legitimately call device_add()/device_start() on a CHILD
-    // device from within their own start_device - device_add_child() then locks the PARENT (this
-    // same device) again on the same thread. A plain Mutex would deadlock here.
+    // The mutex for device operations. Recursive: some drivers (e.g. battery_sense.cpp)
+    // legitimately call device_add()/device_start() on a CHILD device from within their own
+    // start_device - device_add_child() then locks the PARENT (this same device) again on the
+    // same thread. A plain Mutex would deadlock here.
+    // NOTE: device_start()/device_stop() do NOT hold this across the driver's
+    // start_device/stop_device callback (see state.starting/state.stopping below) - that callback
+    // can add/remove child devices, which takes ledger_lock, and lookup helpers
+    // (device_get_by_name() etc.) take ledger_lock then this mutex via device_get(). Holding both
+    // at once in opposite orders would ABBA-deadlock against those lookups.
     struct RecursiveMutex mutex {};
     /** The device state */
     struct {
         int start_result = 0;
         bool started : 1 = false;
         bool added : 1 = false;
+        // Set while driver_bind()/driver_unbind() runs, with `mutex` released. Blocks concurrent
+        // device_start()/device_stop() calls from racing the same transition; state.stopping is
+        // also checked by device_get() so no new ref can be acquired while a stop is in flight.
+        bool starting : 1 = false;
+        bool stopping : 1 = false;
     } state;
     /** Attached child devices */
     std::vector<Device*> children {};
-    // Outstanding device_get() holders. Guarded by `mutex`. device_stop() refuses to proceed
-    // while this is > 0, which guarantees ref_count > 0 implies state.started == true - so by
-    // the time device_remove()/device_destruct() run (both already require !started), this is
-    // always already 0.
+    // Outstanding device_get() holders. Guarded by `mutex`. device_get() refuses new refs once
+    // state.stopping is set, and device_stop() refuses to set state.stopping while this is > 0 -
+    // together that guarantees ref_count > 0 implies state.started == true, so by the time
+    // device_remove()/device_destruct() run (both already require !started), this is always
+    // already 0.
     int32_t ref_count = 0;
 };
 
@@ -200,7 +210,21 @@ error_t device_start(Device* device) {
         return ERROR_NONE;
     }
 
+    // Already starting on another thread
+    if (internal->state.starting) {
+        unlock_internal(internal);
+        return ERROR_RESOURCE_BUSY;
+    }
+    internal->state.starting = true;
+    unlock_internal(internal);
+
+    // driver_bind() runs the driver's start_device callback, which may add/start child devices
+    // (device_add() takes ledger_lock) - `mutex` must stay released across this call. See the
+    // comment on `mutex` above.
     error_t bind_error = driver_bind(internal->driver, device);
+
+    lock_internal(internal);
+    internal->state.starting = false;
     internal->state.started = (bind_error == ERROR_NONE);
     internal->state.start_result = bind_error;
     unlock_internal(internal);
@@ -234,11 +258,26 @@ error_t device_stop(Device* device) {
         return ERROR_RESOURCE_BUSY;
     }
 
-    if (driver_unbind(internal->driver, device) != ERROR_NONE) {
+    // Already stopping on another thread
+    if (internal->state.stopping) {
+        unlock_internal(internal);
+        return ERROR_RESOURCE_BUSY;
+    }
+    internal->state.stopping = true;
+    unlock_internal(internal);
+
+    // driver_unbind() runs the driver's stop_device callback, which may remove/destruct child
+    // devices (device_remove() takes ledger_lock) - `mutex` must stay released across this call,
+    // same reasoning as device_start(). state.stopping keeps device_get() from handing out a new
+    // ref while ref_count is meant to stay at 0 during the unbind.
+    error_t unbind_error = driver_unbind(internal->driver, device);
+
+    lock_internal(internal);
+    internal->state.stopping = false;
+    if (unbind_error != ERROR_NONE) {
         unlock_internal(internal);
         return ERROR_RESOURCE;
     }
-
     internal->state.started = false;
     internal->state.start_result = 0;
     unlock_internal(internal);
@@ -355,7 +394,7 @@ bool device_is_constructed(const Device* device) {
 error_t device_get(Device* device) {
     auto* internal = device->internal;
     lock_internal(internal);
-    if (!internal->state.started) {
+    if (!internal->state.started || internal->state.stopping) {
         unlock_internal(internal);
         return ERROR_INVALID_STATE;
     }
@@ -488,6 +527,12 @@ error_t device_get_by_name(const char* name, Device** out_device) {
         ledger_unlock();
         return ERROR_NOT_FOUND;
     }
+    // device_get() takes internal->mutex while still holding ledger_lock here on purpose: it
+    // blocks device_remove() (which needs ledger_lock to erase `found`) for the span between
+    // finding the device and taking a ref on it, so `found` can't be torn down and freed out from
+    // under us in that window. This is the reverse lock order from device_start()/device_stop(),
+    // which release internal->mutex before touching ledger_lock - see the comment on
+    // DeviceInternal::mutex for why that asymmetry is deadlock-free.
     error_t error = device_get(found);
     ledger_unlock();
     if (error == ERROR_NONE) {
