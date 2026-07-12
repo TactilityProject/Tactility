@@ -8,7 +8,9 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/display_placeholder.h>
+#include <tactility/bindings/esp32_ledc_backlight.h>
+#include <bindings/ili9488.h>
+#include <bindings/gt911.h>
 
 / {
 	compatible = "root";
@@ -35,6 +37,22 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 15 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 16 GPIO_FLAG_NONE>;
+
+		touch {
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <320>;
+			y-max = <480>;
+		};
+	};
+
+	display_backlight {
+		compatible = "espressif,esp32-ledc-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pin-backlight = <&gpio0 38 GPIO_FLAG_NONE>;
+		frequency-hz = <512>;
 	};
 
 	spi0 {
@@ -43,9 +61,16 @@
 		cs-gpios = <&gpio0 40 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 42 GPIO_FLAG_NONE>;
-	
-		display {
-			compatible = "display-placeholder";
+
+		display@0 {
+			compatible = "ilitek,ili9488";
+			horizontal-resolution = <320>;
+			vertical-resolution = <480>;
+			invert-color;
+			color-conversion-buffer-size = <15360>;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 41 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
 		};
 	};
 
