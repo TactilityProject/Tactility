@@ -1,4 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
   - Drivers/st7789-module
+  - Drivers/m5stack-module
 dts: m5stack,cardputer.dts

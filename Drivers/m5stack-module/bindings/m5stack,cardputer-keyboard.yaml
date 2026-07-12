@@ -1,0 +1,21 @@
+description: >
+  M5Stack Cardputer internal GPIO matrix keyboard: 4 rows x 14 columns, scanned via 3
+  binary-encoded column-select output pins and 7 row input pins. Exposes a KEYBOARD_TYPE
+  device. Modifier keys (fn/shift/ctrl/opt/alt/tab) are consumed internally and never emitted
+  as their own key events. Regular keys emit their ASCII character (shifted variant when
+  shift or ctrl is held). With fn held: del -> forward delete, enter -> enter, ` -> escape,
+  , -> left, / -> right, ; -> previous (group navigation), . -> next (group navigation).
+
+compatible: "m5stack,cardputer-keyboard"
+
+properties:
+  pins-output:
+    type: phandle-array
+    element-type: "struct GpioPinSpec"
+    required: true
+    description: 3 GPIO pins driving the binary-encoded column-select lines, in scan-bit order
+  pins-input:
+    type: phandle-array
+    element-type: "struct GpioPinSpec"
+    required: true
+    description: 7 GPIO pins reading the row lines, in scan-bit order

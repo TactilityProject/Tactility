@@ -126,6 +126,14 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
+    // MISO is only actively driven by the selected slave; between commands (and briefly during
+    // slave selection/response) it floats, which can be read as spurious bits. A weak pull-up
+    // costs nothing against an actively-driven line and avoids that, e.g. on SD-over-SPI this
+    // shows up as CMD8/if_cond failing with a garbled/invalid response.
+    if (data->miso_descriptor != nullptr) {
+        gpio_descriptor_set_flags(data->miso_descriptor, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP);
+    }
+
     // Acquire and deselect all CS pins (drive high)
     for (uint8_t i = 0; i < dts_config->cs_gpios_count; i++) {
         const GpioPinSpec* cs = &dts_config->cs_gpios[i];

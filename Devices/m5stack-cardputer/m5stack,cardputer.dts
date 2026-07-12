@@ -1,6 +1,8 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/battery_sense.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
@@ -13,6 +15,7 @@
 #include <tactility/bindings/esp32_ledc_backlight.h>
 
 #include <bindings/st7789.h>
+#include <bindings/cardputer_keyboard.h>
 
 // Reference: https://docs.m5stack.com/en/core/Cardputer
 / {
@@ -32,6 +35,21 @@
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
+	};
+
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		clk-src = <ADC_RTC_CLK_SRC_DEFAULT>;
+		// GPIO10 (ADC1_CHANNEL_9 on ESP32-S3): battery voltage sense, behind a 1:2 divider.
+		channels = <ADC_CHANNEL_9 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2000>;
 	};
 
 	port_a: grove0 {
@@ -89,6 +107,20 @@
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;
 		};
+	};
+
+	keyboard {
+		compatible = "m5stack,cardputer-keyboard";
+		pins-output = <&gpio0 8 GPIO_FLAG_NONE>,
+		              <&gpio0 9 GPIO_FLAG_NONE>,
+		              <&gpio0 11 GPIO_FLAG_NONE>;
+		pins-input = <&gpio0 13 GPIO_FLAG_NONE>,
+		             <&gpio0 15 GPIO_FLAG_NONE>,
+		             <&gpio0 3 GPIO_FLAG_NONE>,
+		             <&gpio0 4 GPIO_FLAG_NONE>,
+		             <&gpio0 5 GPIO_FLAG_NONE>,
+		             <&gpio0 6 GPIO_FLAG_NONE>,
+		             <&gpio0 7 GPIO_FLAG_NONE>;
 	};
 
 	// Speaker and microphone

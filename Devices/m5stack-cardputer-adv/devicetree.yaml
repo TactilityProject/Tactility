@@ -2,4 +2,5 @@ dependencies:
 - Platforms/platform-esp32
 - Drivers/bmi270-module
 - Drivers/st7789-module
+- Drivers/m5stack-module
 dts: m5stack,cardputer-adv.dts

@@ -12,7 +12,7 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-struct Module m5stack_cardputer_module = {
+Module m5stack_cardputer_module = {
     .name = "m5stack-cardputer",
     .start = start,
     .stop = stop,
