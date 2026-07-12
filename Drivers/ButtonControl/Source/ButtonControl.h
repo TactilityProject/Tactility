@@ -3,7 +3,6 @@
 #include <Tactility/hal/encoder/EncoderDevice.h>
 #include <Tactility/hal/gpio/Gpio.h>
 #include <Tactility/MessageQueue.h>
-#include <Tactility/TactilityCore.h>
 #include <Tactility/Thread.h>
 
 #include <driver/gpio.h>
