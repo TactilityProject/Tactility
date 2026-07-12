@@ -2,13 +2,13 @@
 
 #include <tactility/driver.h>
 #include <tactility/device.h>
+#include <tactility/device_listener_internal.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
 
 #include <ranges>
 #include <cassert>
 #include <cstring>
-#include <sys/errno.h>
 #include <vector>
 
 #define TAG "device"
@@ -184,7 +184,14 @@ error_t device_start(Device* device) {
     error_t bind_error = driver_bind(device->internal->driver, device);
     device->internal->state.started = (bind_error == ERROR_NONE);
     device->internal->state.start_result = bind_error;
-    return bind_error == ERROR_NONE ? ERROR_NONE : ERROR_RESOURCE;
+
+    if (bind_error != ERROR_NONE) {
+        return ERROR_RESOURCE;
+    }
+
+    device_listener_notify(device, DEVICE_EVENT_STARTED);
+
+    return ERROR_NONE;
 }
 
 error_t device_stop(struct Device* device) {
@@ -203,6 +210,9 @@ error_t device_stop(struct Device* device) {
 
     device->internal->state.started = false;
     device->internal->state.start_result = 0;
+
+    device_listener_notify(device, DEVICE_EVENT_STOPPED);
+
     return ERROR_NONE;
 }
 
