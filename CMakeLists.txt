@@ -69,6 +69,10 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 
 else ()
     message("Building for sim target")
+    # Devices/simulator/Source/Simulator.cpp always defines its own hardwareConfiguration; without
+    # this, Firmware/Source/Main.cpp's #else branch also defines an empty one (its ESP32-only
+    # fallback for devices migrated off the deprecated HAL), causing a duplicate-definition link error.
+    add_compile_definitions(CONFIG_TT_USE_DEPRECATED_HAL)
     add_compile_definitions(CONFIG_TT_DEVICE_ID="simulator")
     add_compile_definitions(CONFIG_TT_DEVICE_NAME="Simulator")
     add_compile_definitions(CONFIG_TT_DEVICE_VENDOR="")
