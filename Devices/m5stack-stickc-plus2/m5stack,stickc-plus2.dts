@@ -7,7 +7,10 @@
 #include <tactility/bindings/esp32_uart.h>
 #include <bindings/mpu6886.h>
 #include <bindings/bm8563.h>
-#include <tactility/bindings/display_placeholder.h>
+#include <tactility/bindings/esp32_ledc_backlight.h>
+
+#include <bindings/st7789.h>
+#include <bindings/button_control.h>
 
 / {
 	compatible = "root";
@@ -49,16 +52,40 @@
 		pin-scl = <&gpio0 33 GPIO_FLAG_NONE>;
 	};
 
+	display_backlight {
+		compatible = "espressif,esp32-ledc-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pin-backlight = <&gpio0 27 GPIO_FLAG_NONE>;
+		frequency-hz = <512>;
+	};
+
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
 		cs-gpios = <&gpio0 5 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 15 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 13 GPIO_FLAG_NONE>;
-	
-		display {
-			compatible = "display-placeholder";
+
+		display@0 {
+			compatible = "sitronix,st7789";
+			horizontal-resolution = <135>;
+			vertical-resolution = <240>;
+			gap-x = <52>;
+			gap-y = <40>;
+			invert-color;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 14 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 12 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
 		};
+	};
+
+	buttons {
+		compatible = "tactility,button-control";
+		pin-primary = <&gpio0 37 GPIO_FLAG_NONE>;
+		pin-secondary = <&gpio0 39 GPIO_FLAG_NONE>;
 	};
 
 	uart_grove: uart1 {
