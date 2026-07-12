@@ -1,14 +1,9 @@
 #include <tactility/module.h>
 #include <tactility/error.h>
 
-#include <Tactility/hal/Configuration.h>
-
 #include <driver/gpio.h>
 
 constexpr auto* TAG = "StickCPlus2";
-
-// Legacy placeholder (required until legacy HAL is cleaned up everywhere)
-extern const tt::hal::Configuration hardwareConfiguration = {};
 
 extern "C" {
 

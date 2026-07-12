@@ -170,6 +170,12 @@ def write_core_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_ESP_WIFI_RX_IRAM_OPT=n\n")
         output_file.write("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH=y\n")
         output_file.write("CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=y\n")
+    # Usage of tt::hal can be disabled to simplify dependency wiring (device depends on TactilityKernel instead of Tactility)
+    use_deprecated_hal = get_property_or_none(device_properties, "dependencies", "useDeprecatedHal").lower()
+    if use_deprecated_hal is None or use_deprecated_hal == "true":
+        output_file.write("CONFIG_TT_USE_DEPRECATED_HAL=y\n")
+    else:
+        output_file.write("CONFIG_TT_USE_DEPRECATED_HAL=n\n")
 
 def write_flash_variables(output_file, device_properties: dict):
     flash_size = get_property_or_exit(device_properties, "hardware", "flashSize")

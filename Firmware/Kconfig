@@ -77,6 +77,12 @@ menu "Tactility App"
     config TT_TDECK_WORKAROUND
         bool "Temporary work-around until we fix the T-Deck keyboard and trackball settings"
         default n
+    config TT_USE_DEPRECATED_HAL
+        bool "When set to false, it ensures an empty tt::hal::hardwareConfig is made automatically"
+        default y
+        help
+            This allows for migrating projects that don't use the old HAL.
+            When set to 'n', the project has an option to not depend on Tactility and can depend on TactilityKernel instead.
     choice TT_USER_DATA_LOCATION
         prompt "User Data Location"
         default TT_USER_DATA_LOCATION_INTERNAL
