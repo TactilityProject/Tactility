@@ -11,7 +11,9 @@
 #include <tactility/bindings/esp32_uart.h>
 #include <bindings/bmi270.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/display_placeholder.h>
+#include <tactility/bindings/esp32_ledc_backlight.h>
+
+#include <bindings/st7789.h>
 
 // Reference: https://docs.m5stack.com/en/core/Cardputer-Adv
 / {
@@ -56,15 +58,36 @@
 		i2cClockFrequency = <400000>;
 	};
 
+	display_backlight {
+		compatible = "espressif,esp32-ledc-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pin-backlight = <&gpio0 38 GPIO_FLAG_NONE>;
+		frequency-hz = <512>;
+	};
+
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
 		cs-gpios = <&gpio0 37 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 35 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
-	
-		display {
-			compatible = "display-placeholder";
+
+		display@0 {
+			compatible = "sitronix,st7789";
+			horizontal-resolution = <240>;
+			vertical-resolution = <135>;
+			// Should be 52 according to https://github.com/m5stack/M5GFX/blob/master/src/M5GFX.cpp but this leaves a gap at the bottom
+			gap-x = <53>;
+			gap-y = <40>;
+			swap-xy;
+			mirror-x;
+			invert-color;
+			pixel-clock-hz = <62500000>;
+			pin-dc = <&gpio0 34 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 33 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
 		};
 	};
 
