@@ -18,30 +18,30 @@
 
 #include <cstdlib>
 
-#define TAG "CardputerAdvKeyboard"
+static constexpr const char* TAG = "CardputerAdvKeyboard";
 #define GET_CONFIG(device) (static_cast<const M5stackCardputerAdvKeyboardConfig*>((device)->config))
 
 static constexpr TickType_t I2C_TIMEOUT = pdMS_TO_TICKS(100);
 
 // Fixed by the board's wiring (see Tca8418::init(7, 8) in the pre-kernel driver).
-#define TCA8418_ROWS 7
-#define TCA8418_COLS 8
+static constexpr int TCA8418_ROWS = 7;
+static constexpr int TCA8418_COLS = 8;
 
-#define TCA8418_REG_CFG 0x01U
-#define TCA8418_REG_KEY_EVENT_A 0x04U
-#define TCA8418_REG_KP_GPIO1 0x1DU
-#define TCA8418_REG_KP_GPIO2 0x1EU
+static constexpr uint8_t TCA8418_REG_CFG = 0x01U;
+static constexpr uint8_t TCA8418_REG_KEY_EVENT_A = 0x04U;
+static constexpr uint8_t TCA8418_REG_KP_GPIO1 = 0x1DU;
+static constexpr uint8_t TCA8418_REG_KP_GPIO2 = 0x1EU;
 
 // AI=1, GPI_E_CFG=0, OVR_FLOW_M=0 (overflow disabled), INT_CFG=1, *_IEN=0 except KE_IEN=1.
-#define TCA8418_CFG_VALUE 0x99U
+static constexpr uint8_t TCA8418_CFG_VALUE = 0x99U;
 
 // Worst case per read_key() call: drain this many queued chip events in one go.
-#define CARDPUTER_ADV_MAX_EVENTS_PER_SCAN 10
-#define CARDPUTER_ADV_PENDING_CAPACITY 10
-#define CARDPUTER_ADV_ACTIVE_KEY_CAPACITY 4
+static constexpr int CARDPUTER_ADV_MAX_EVENTS_PER_SCAN = 10;
+static constexpr int CARDPUTER_ADV_PENDING_CAPACITY = 10;
+static constexpr int CARDPUTER_ADV_ACTIVE_KEY_CAPACITY = 4;
 
-#define CARDPUTER_ADV_ROWS 4
-#define CARDPUTER_ADV_COLS 14
+static constexpr int CARDPUTER_ADV_ROWS = 4;
+static constexpr int CARDPUTER_ADV_COLS = 14;
 
 // [row][col] on the 4x14 grid, matching the base Cardputer's physical layout. 0 means the cell
 // emits nothing (used for the sym/shift cells themselves, and unwired cells on this board).
@@ -235,9 +235,16 @@ static error_t cardputer_adv_keyboard_read_key(Device* device, KeyboardKeyData* 
         }
 
         bool pressed = (key_event & 0x80) != 0;
-        uint8_t code = (key_event & 0x7F) - 1;
+        uint8_t raw_code = key_event & 0x7F;
+        if (raw_code == 0) {
+            continue; // Invalid: code 0 underflows below when decremented.
+        }
+        uint8_t code = raw_code - 1;
         uint8_t wiring_row = code / 10;
         uint8_t wiring_col = code % 10;
+        if (wiring_row >= TCA8418_ROWS || wiring_col >= TCA8418_COLS) {
+            continue; // Out of range for the physical matrix: would index the keymaps out of bounds.
+        }
 
         uint8_t grid_row, grid_col;
         remap_to_grid(wiring_row, wiring_col, &grid_row, &grid_col);

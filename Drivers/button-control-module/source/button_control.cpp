@@ -120,7 +120,9 @@ static error_t start(Device* device) {
 
     error = acquire_button(config->pin_secondary, LV_KEY_NEXT, LV_KEY_PREV, &internal->secondary);
     if (error != ERROR_NONE) {
-        gpio_descriptor_release(internal->primary.descriptor);
+        if (internal->primary.in_use) {
+            gpio_descriptor_release(internal->primary.descriptor);
+        }
         free(internal);
         return error;
     }

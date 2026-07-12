@@ -16,16 +16,16 @@
 
 #include <cstdlib>
 
-#define TAG "CardputerKeyboard"
+static constexpr const char* TAG = "CardputerKeyboard";
 #define GET_CONFIG(device) (static_cast<const M5stackCardputerKeyboardConfig*>((device)->config))
 
-#define CARDPUTER_OUTPUT_COUNT 3
-#define CARDPUTER_INPUT_COUNT 7
-#define CARDPUTER_ROWS 4
-#define CARDPUTER_COLS 14
+static constexpr int CARDPUTER_OUTPUT_COUNT = 3;
+static constexpr int CARDPUTER_INPUT_COUNT = 7;
+static constexpr int CARDPUTER_ROWS = 4;
+static constexpr int CARDPUTER_COLS = 14;
 // Worst case per scan: the previously active key releases and a different key is now active,
 // i.e. one release event and one press event.
-#define CARDPUTER_PENDING_CAPACITY 2
+static constexpr int CARDPUTER_PENDING_CAPACITY = 2;
 
 enum CardputerKeyRole {
     CARDPUTER_KEY_CHAR,
@@ -121,7 +121,11 @@ static error_t start(Device* device) {
     for (int i = 0; i < CARDPUTER_OUTPUT_COUNT; i++) {
         const auto& pin = config->pins_output[i];
         auto* descriptor = gpio_descriptor_acquire(pin.gpio_controller, pin.pin, GPIO_OWNER_GPIO);
-        if (descriptor == nullptr || gpio_descriptor_set_flags(descriptor, pin.flags | GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE) {
+        if (descriptor != nullptr && gpio_descriptor_set_flags(descriptor, pin.flags | GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE) {
+            gpio_descriptor_release(descriptor);
+            descriptor = nullptr;
+        }
+        if (descriptor == nullptr) {
             LOG_E(TAG, "Failed to configure output pin %d", i);
             for (int j = 0; j < i; j++) {
                 gpio_descriptor_release(internal->output_descriptors[j]);
