@@ -25,6 +25,7 @@ typedef int error_t;
 #define ERROR_NOT_ALLOWED 11
 #define ERROR_BUFFER_OVERFLOW 12
 #define ERROR_OUT_OF_RANGE 13
+#define ERROR_RESOURCE_BUSY 14 // Rejected: device/driver has outstanding references and cannot be stopped/destructed yet
 
 /** Convert an error_t to a human-readable text. Useful for logging. */
 const char* error_to_string(error_t error);

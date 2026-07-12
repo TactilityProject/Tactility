@@ -12,17 +12,33 @@ static Module module = {
     .stop = nullptr
 };
 
-TEST_CASE("device_construct and device_destruct should set and unset the internal field") {
+TEST_CASE("device_construct and device_destruct should set and unset the constructed state") {
     Device device = { 0 };
 
     error_t error = device_construct(&device);
     CHECK_EQ(error, ERROR_NONE);
 
-    CHECK_NE(device.internal, nullptr);
+    CHECK_EQ(device_is_constructed(&device), true);
 
     CHECK_EQ(device_destruct(&device), ERROR_NONE);
 
-    CHECK_EQ(device.internal, nullptr);
+    CHECK_EQ(device_is_constructed(&device), false);
+}
+
+TEST_CASE("device_construct should be reusable after device_destruct on the same Device") {
+    Device device = { 0 };
+
+    CHECK_EQ(device_construct(&device), ERROR_NONE);
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
+
+    // Reconstruct on the same static Device: fresh allocation, behaves like a new device.
+    CHECK_EQ(device_construct(&device), ERROR_NONE);
+    CHECK_EQ(device_is_constructed(&device), true);
+    CHECK_EQ(device_is_added(&device), false);
+
+    CHECK_EQ(device_add(&device), ERROR_NONE);
+    CHECK_EQ(device_remove(&device), ERROR_NONE);
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
 }
 
 TEST_CASE("device_add should add the device to the list of all devices") {
