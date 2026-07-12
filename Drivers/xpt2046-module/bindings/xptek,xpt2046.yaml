@@ -1,0 +1,27 @@
+description: XPT2046 resistive touch controller
+
+bus: spi
+
+compatible: "xptek,xpt2046"
+
+properties:
+  x-max:
+    type: int
+    required: true
+    description: Maximum X coordinate reported by the controller (typically the panel's horizontal resolution)
+  y-max:
+    type: int
+    required: true
+    description: Maximum Y coordinate reported by the controller (typically the panel's vertical resolution)
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
