@@ -21,6 +21,13 @@ struct LvglDisplayCtx {
     bool base_swap_xy;
     bool base_mirror_x;
     bool base_mirror_y;
+    // True for DISPLAY_COLOR_FORMAT_RGB565_SWAPPED: the panel wants each 16-bit pixel high-byte-first
+    // over SPI, which this little-endian CPU's native RGB565 buffer isn't. LVGL's own
+    // LV_COLOR_FORMAT_RGB565_SWAPPED display format looked like the fit but isn't fully supported by
+    // the SW renderer (produced garbage on real hardware) - esp_lvgl_port's own approach is instead to
+    // render normal RGB565 and byte-swap the flushed rect in place just before sending it out, via
+    // lv_draw_sw_rgb565_swap(). Mirrored here.
+    bool byte_swap;
 };
 
 static void* lvgl_display_alloc_buffer(size_t size_bytes) {
@@ -43,16 +50,21 @@ static void lvgl_display_free_buffer(void* buf) {
 #endif
 }
 
-static bool lvgl_display_map_color_format(enum DisplayColorFormat in, lv_color_format_t* out) {
+// out_byte_swap is set whenever the LVGL-side buffer format doesn't already match the panel's
+// wire byte order and needs a post-render swap in the flush callback (see LvglDisplayCtx::byte_swap).
+static bool lvgl_display_map_color_format(enum DisplayColorFormat in, lv_color_format_t* out, bool* out_byte_swap) {
     switch (in) {
         case DISPLAY_COLOR_FORMAT_RGB565:
             *out = LV_COLOR_FORMAT_RGB565;
+            *out_byte_swap = false;
             return true;
         case DISPLAY_COLOR_FORMAT_RGB565_SWAPPED:
-            *out = LV_COLOR_FORMAT_RGB565_SWAPPED;
+            *out = LV_COLOR_FORMAT_RGB565;
+            *out_byte_swap = true;
             return true;
         case DISPLAY_COLOR_FORMAT_RGB888:
             *out = LV_COLOR_FORMAT_RGB888;
+            *out_byte_swap = false;
             return true;
         default:
             // DISPLAY_COLOR_FORMAT_BGR565/_SWAPPED: no LVGL equivalent (channel order, not byte order).
@@ -103,6 +115,9 @@ static void lvgl_display_rotation_event_cb(lv_event_t* e) {
 
 static void lvgl_display_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* color_map) {
     struct LvglDisplayCtx* ctx = (struct LvglDisplayCtx*)lv_display_get_driver_data(disp);
+    if (ctx->byte_swap) {
+        lv_draw_sw_rgb565_swap(color_map, lv_area_get_size(area));
+    }
     // LVGL's area is inclusive; DisplayApi's draw_bitmap wants an exclusive end.
     display_draw_bitmap(ctx->device, area->x1, area->y1, area->x2 + 1, area->y2 + 1, color_map);
     // DisplayApi has no async completion callback, so draw_bitmap is synchronous.
@@ -118,8 +133,9 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
     }
 
     lv_color_format_t lv_color_format;
+    bool byte_swap;
     enum DisplayColorFormat kernel_color_format = display_get_color_format(device);
-    if (!lvgl_display_map_color_format(kernel_color_format, &lv_color_format)) {
+    if (!lvgl_display_map_color_format(kernel_color_format, &lv_color_format, &byte_swap)) {
         LOG_E(TAG, "Unsupported color format %d (no LVGL equivalent)", (int)kernel_color_format);
         return ERROR_NOT_SUPPORTED;
     }
@@ -134,6 +150,7 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
         return ERROR_OUT_OF_MEMORY;
     }
     ctx->device = device;
+    ctx->byte_swap = byte_swap;
     ctx->base_swap_xy = display_get_swap_xy(device);
     ctx->base_mirror_x = display_get_mirror_x(device);
     ctx->base_mirror_y = display_get_mirror_y(device);

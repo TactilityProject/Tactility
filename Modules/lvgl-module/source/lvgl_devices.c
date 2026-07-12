@@ -25,7 +25,17 @@ void lvgl_devices_attach() {
         kernel_display_device = NULL;
     }
     if (kernel_display_device != NULL) {
-        struct LvglDisplayConfig lvgl_display_config = {};
+        // A full-frame buffer (buffer_height=0) needs one contiguous allocation of
+        // hres*vres*bpp bytes. Plain ESP32 boards without PSRAM only have ~100-150KB
+        // contiguous internal RAM, which a 240x320+ panel can already exceed - so
+        // lvgl_display_add() would fail with ERROR_OUT_OF_MEMORY and never register a
+        // display. Match the old deprecated-HAL drivers' convention of a partial buffer
+        // sized to 1/10th of the vertical resolution; it fits comfortably everywhere,
+        // including boards with PSRAM that could afford full-frame.
+        uint16_t vres = display_get_resolution_y(kernel_display_device);
+        struct LvglDisplayConfig lvgl_display_config = {
+            .buffer_height = vres > 10 ? vres / 10 : vres
+        };
         if (lvgl_display_add(kernel_display_device, &lvgl_display_config, &lvgl_display) == ERROR_NONE) {
             LOG_I(TAG, "Bound %s to LVGL", kernel_display_device->name);
         } else {

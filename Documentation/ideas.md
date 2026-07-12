@@ -37,6 +37,7 @@
 
 ## Medium Priority
 
+- Implement a LED kernel driver (single colour and RGB, plain GPIO and PWM)
 - Make USB host driver disabled by default, so it doesn't consume memory
 - Filtering for apps in App Hub:
   - apps that only work on a specific device
