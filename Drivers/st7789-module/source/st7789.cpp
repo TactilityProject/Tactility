@@ -17,6 +17,8 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_st7789.h>
 
+#include <freertos/semphr.h>
+
 #include <cstdlib>
 
 #define TAG "ST7789"
@@ -26,7 +28,21 @@
 struct St7789Internal {
     esp_lcd_panel_io_handle_t io_handle;
     esp_lcd_panel_handle_t panel_handle;
+    // Given from ISR context by on_color_trans_done() once a queued SPI transfer physically
+    // completes. draw_bitmap() blocks on this so it can honor DisplayApi's synchronous contract
+    // (see lvgl_display.c: the caller reuses/overwrites the color buffer as soon as draw_bitmap
+    // returns) - esp_lcd_panel_draw_bitmap() itself only queues the transfer and returns early.
+    SemaphoreHandle_t draw_done_semaphore;
 };
+
+// Fires for every completed SPI transaction on this IO (not just draw_bitmap's color transfers -
+// bring-up commands like reset/init/gap go through the same IO), called from ISR context.
+static bool IRAM_ATTR on_color_trans_done(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, void* user_ctx) {
+    auto* internal = static_cast<St7789Internal*>(user_ctx);
+    BaseType_t high_task_woken = pdFALSE;
+    xSemaphoreGiveFromISR(internal->draw_done_semaphore, &high_task_woken);
+    return high_task_woken == pdTRUE;
+}
 
 static int pin_or_unused(const struct GpioPinSpec& pin) {
     return pin.gpio_controller == nullptr ? -1 : static_cast<int>(pin.pin);
@@ -52,14 +68,20 @@ static error_t start(Device* device) {
         return ERROR_OUT_OF_MEMORY;
     }
 
+    internal->draw_done_semaphore = xSemaphoreCreateBinary();
+    if (internal->draw_done_semaphore == nullptr) {
+        free(internal);
+        return ERROR_OUT_OF_MEMORY;
+    }
+
     esp_lcd_panel_io_spi_config_t io_config = {
         .cs_gpio_num = pin_or_unused(cs_pin),
         .dc_gpio_num = pin_or_unused(config->pin_dc),
         .spi_mode = 0,
         .pclk_hz = config->pixel_clock_hz,
         .trans_queue_depth = config->transaction_queue_depth,
-        .on_color_trans_done = nullptr,
-        .user_ctx = nullptr,
+        .on_color_trans_done = on_color_trans_done,
+        .user_ctx = internal,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
         .cs_ena_pretrans = 0,
@@ -79,6 +101,7 @@ static error_t start(Device* device) {
     esp_err_t ret = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)spi_config->host, &io_config, &internal->io_handle);
     if (ret != ESP_OK) {
         LOG_E(TAG, "Failed to create panel IO: %s", esp_err_to_name(ret));
+        vSemaphoreDelete(internal->draw_done_semaphore);
         free(internal);
         return ERROR_RESOURCE;
     }
@@ -96,6 +119,7 @@ static error_t start(Device* device) {
     if (ret != ESP_OK) {
         LOG_E(TAG, "Failed to create panel: %s", esp_err_to_name(ret));
         esp_lcd_panel_io_del(internal->io_handle);
+        vSemaphoreDelete(internal->draw_done_semaphore);
         free(internal);
         return ERROR_RESOURCE;
     }
@@ -122,6 +146,7 @@ static error_t start(Device* device) {
         LOG_E(TAG, "Failed to bring up panel");
         esp_lcd_panel_del(internal->panel_handle);
         esp_lcd_panel_io_del(internal->io_handle);
+        vSemaphoreDelete(internal->draw_done_semaphore);
         free(internal);
         return ERROR_RESOURCE;
     }
@@ -142,6 +167,7 @@ static error_t stop(Device* device) {
         return ERROR_RESOURCE;
     }
 
+    vSemaphoreDelete(internal->draw_done_semaphore);
     free(internal);
     return ERROR_NONE;
 }
@@ -162,7 +188,22 @@ static error_t st7789_init(Device* device) {
 
 static error_t st7789_draw_bitmap(Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data) {
     auto* internal = static_cast<St7789Internal*>(device_get_driver_data(device));
-    return esp_lcd_panel_draw_bitmap(internal->panel_handle, x_start, y_start, x_end, y_end, color_data) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
+
+    // Drain any stale signal left over from a prior non-draw transaction (bring-up commands like
+    // reset/gap also complete through on_color_trans_done), so the take() below can only be
+    // satisfied by this draw's own transfer completing.
+    xSemaphoreTake(internal->draw_done_semaphore, 0);
+
+    if (esp_lcd_panel_draw_bitmap(internal->panel_handle, x_start, y_start, x_end, y_end, color_data) != ESP_OK) {
+        return ERROR_RESOURCE;
+    }
+
+    // Block until the SPI transfer physically completes: DisplayApi's draw_bitmap is a synchronous
+    // contract (see lvgl_display.c), so the caller must be able to safely reuse/overwrite
+    // color_data as soon as this call returns. esp_lcd_panel_draw_bitmap() only queues the
+    // transfer and returns once it's handed to the SPI peripheral, not once it's finished.
+    xSemaphoreTake(internal->draw_done_semaphore, portMAX_DELAY);
+    return ERROR_NONE;
 }
 
 static error_t st7789_mirror(Device* device, bool x_axis, bool y_axis) {
