@@ -118,6 +118,25 @@ def resolve_phandle_array_entries(device_property, devices):
             entries.append(str(item))
     return entries
 
+def validate_property_range(device: Device, binding_property, value) -> None:
+    """Enforces a binding's optional min/max on int-typed properties. Silently skips
+    values that aren't parseable as a plain integer literal (e.g. a passed-through
+    symbolic #define) - those can't be range-checked at compile time."""
+    if binding_property.min is None and binding_property.max is None:
+        return
+    try:
+        numeric_value = int(value, 0) if isinstance(value, str) else int(value)
+    except (TypeError, ValueError):
+        return
+    if binding_property.min is not None and numeric_value < binding_property.min:
+        raise DevicetreeException(
+            f"Device '{device.node_name}' property '{binding_property.name}' value {numeric_value} is below minimum {binding_property.min}"
+        )
+    if binding_property.max is not None and numeric_value > binding_property.max:
+        raise DevicetreeException(
+            f"Device '{device.node_name}' property '{binding_property.name}' value {numeric_value} is above maximum {binding_property.max}"
+        )
+
 def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], devices: list[Device]) -> list:
     compatible_property = find_device_property(device, "compatible")
     if compatible_property is None:
@@ -168,6 +187,7 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
 
         if device_property is None:
             if binding_property.default is not None:
+                validate_property_range(device, binding_property, binding_property.default)
                 temp_prop = DeviceProperty(
                     name=binding_property.name,
                     type=binding_property.type,
@@ -184,6 +204,7 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
             else:
                 raise DevicetreeException(f"Device {device.node_name} doesn't have property '{binding_property.name}' and no default value is set")
         else:
+            validate_property_range(device, binding_property, device_property.value)
             result.append(property_to_string(device_property, devices))
 
     return result, phandle_arrays

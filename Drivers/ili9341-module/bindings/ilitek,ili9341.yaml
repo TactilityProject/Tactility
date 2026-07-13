@@ -56,6 +56,8 @@ properties:
   gamma-curve:
     type: int
     default: 1
+    min: 0
+    max: 3
     description: Gamma curve preset index [0,3], sent via the MIPI DCS GAMSET (0x26) command at bring-up
   pin-dc:
     type: phandles
