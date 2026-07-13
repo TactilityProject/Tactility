@@ -132,7 +132,9 @@ namespace app {
     namespace setup { extern const AppManifest manifest; }
     namespace systeminfo { extern const AppManifest manifest; }
     namespace timedatesettings { extern const AppManifest manifest; }
+#ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
     namespace touchcalibration { extern const AppManifest manifest; }
+#endif
     namespace timezone { extern const AppManifest manifest; }
     namespace usbsettings { extern const AppManifest manifest; }
     namespace btmanage { extern const AppManifest manifest; }
@@ -193,7 +195,9 @@ static void registerInternalApps() {
     addAppManifest(app::setup::manifest);
     addAppManifest(app::systeminfo::manifest);
     addAppManifest(app::timedatesettings::manifest);
+#ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
     addAppManifest(app::touchcalibration::manifest);
+#endif
     addAppManifest(app::timezone::manifest);
     addAppManifest(app::wifiapsettings::manifest);
     addAppManifest(app::wificonnect::manifest);

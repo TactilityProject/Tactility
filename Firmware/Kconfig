@@ -102,4 +102,11 @@ menu "Tactility App"
        help
            The minimum time to show the splash screen in milliseconds.
            When set to 0, startup will continue to desktop as soon as boot operations are finished.
+    config TT_TOUCH_CALIBRATION_SUPPORTED
+        bool "Set true when a touch screen calibration app should be included"
+        default n
+    config TT_TOUCH_CALIBRATION_REQUIRED
+        bool "Set true when a touch screen calibration is required before the device is usable"
+        default n
+        depends on TT_TOUCH_CALIBRATION_SUPPORTED
 endmenu

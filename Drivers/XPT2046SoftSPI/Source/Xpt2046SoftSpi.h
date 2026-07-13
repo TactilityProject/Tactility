@@ -99,7 +99,6 @@ public:
     bool stopLvgl() override;
 
     bool supportsTouchDriver() override { return true; }
-    bool supportsCalibration() const override { return true; }
     std::shared_ptr<tt::hal::touch::TouchDriver> getTouchDriver() override;
     lv_indev_t* getLvglIndev() override { return lvglDevice; }
 

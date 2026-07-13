@@ -1,3 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/ili9341-module
+  - Drivers/xpt2046-module
 dts: cyd,2432s024r.dts

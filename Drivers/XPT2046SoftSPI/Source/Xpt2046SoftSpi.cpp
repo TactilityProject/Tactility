@@ -1,7 +1,6 @@
 #include "Xpt2046SoftSpi.h"
 
 #include <tactility/log.h>
-#include <Tactility/settings/TouchCalibrationSettings.h>
 
 #include <algorithm>
 
@@ -197,9 +196,6 @@ bool Xpt2046SoftSpi::getTouchPoint(Point& point) {
 
     uint16_t x = static_cast<uint16_t>(std::clamp(mappedX, 0, static_cast<int>(configuration->xMax)));
     uint16_t y = static_cast<uint16_t>(std::clamp(mappedY, 0, static_cast<int>(configuration->yMax)));
-
-    const auto calibration = tt::settings::touch::getActive();
-    tt::settings::touch::applyCalibration(calibration, configuration->xMax, configuration->yMax, x, y);
 
     point.x = x;
     point.y = y;

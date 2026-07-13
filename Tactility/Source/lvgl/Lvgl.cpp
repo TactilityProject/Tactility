@@ -8,11 +8,13 @@
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/ServiceRegistration.h>
 #include <Tactility/settings/DisplaySettings.h>
+#include <Tactility/settings/TouchCalibrationSettings.h>
 
 #include <tactility/device.h>
 #include <tactility/drivers/backlight.h>
 #include <tactility/log.h>
 #include <tactility/lvgl_module.h>
+#include <tactility/lvgl_pointer.h>
 #include <tactility/module.h>
 
 #include <lvgl.h>
@@ -67,6 +69,24 @@ void attachDevices() {
                     LOG_I(TAG, "Started %s", touch_device->getName().c_str());
                 } else {
                     LOG_E(TAG, "Start failed for %s", touch_device->getName().c_str());
+                }
+            }
+        }
+
+        // Apply touch calibration (kernel POINTER_TYPE model only - see tactility/lvgl_pointer.h)
+        LOG_I(TAG, "Apply touch calibration");
+        auto touch_calibration_settings = settings::touch::loadOrGetDefault();
+        if (touch_calibration_settings.enabled && settings::touch::isValid(touch_calibration_settings)) {
+            auto* pointer_indev = lvgl_pointer_get_default();
+            if (pointer_indev != nullptr) {
+                struct LvglPointerCalibration calibration = {
+                    .x_min = touch_calibration_settings.xMin,
+                    .x_max = touch_calibration_settings.xMax,
+                    .y_min = touch_calibration_settings.yMin,
+                    .y_max = touch_calibration_settings.yMax,
+                };
+                if (lvgl_pointer_set_calibration(pointer_indev, &calibration) != ERROR_NONE) {
+                    LOG_E(TAG, "Failed to apply saved touch calibration");
                 }
             }
         }

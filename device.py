@@ -62,20 +62,19 @@ def has_group(properties: dict, group: str):
     prefix = f"{group}."
     return any(key.startswith(prefix) for key in properties)
 
-def get_property_or_exit(properties: dict, group: str, key: str):
-    full_key = f"{group}.{key}"
-    if full_key not in properties:
-        exit_with_error(f"Device properties does not contain key: {full_key}")
-    return properties[full_key]
+def get_property_or_exit(properties: dict, key: str):
+    if key not in properties:
+        exit_with_error(f"Device properties does not contain key: {key}")
+    return properties[key]
 
-def get_property_or_default(properties: dict, group: str, key: str, default):
-    return properties.get(f"{group}.{key}", default)
+def get_property_or_default(properties: dict, key: str, default):
+    return properties.get(key, default)
 
-def get_property_or_none(properties: dict, group: str, key: str):
-    return get_property_or_default(properties, group, key, None)
+def get_property_or_none(properties: dict, key: str):
+    return get_property_or_default(properties, key, None)
 
-def get_boolean_property_or_false(properties: dict, group: str, key: str):
-    return properties.get(f"{group}.{key}") == "true"
+def get_boolean_property_or_false(properties: dict, key: str):
+    return properties.get(key) == "true"
 
 def safe_int(value: str, error_message: str):
     try:
@@ -95,13 +94,13 @@ def write_defaults(output_file):
     output_file.write(default_properties)
 
 def get_user_data_location(device_properties: dict):
-    user_data_location = get_property_or_exit(device_properties, "storage", "userDataLocation")
+    user_data_location = get_property_or_exit(device_properties, "storage.userDataLocation")
     if user_data_location not in ("SD", "Internal"):
         exit_with_error(f"storage.userDataLocation must be 'SD' or 'Internal', but was: '{user_data_location}'")
     return user_data_location
 
 def write_partition_table(output_file, device_properties: dict, is_dev: bool):
-    flash_size = get_property_or_exit(device_properties, "hardware", "flashSize")
+    flash_size = get_property_or_exit(device_properties, "hardware.flashSize")
     if not flash_size.endswith("MB"):
         exit_with_error("Flash size should be written as xMB or xxMB (e.g. 4MB, 16MB)")
     flash_size_number = flash_size[:-2]
@@ -122,8 +121,8 @@ def write_partition_table(output_file, device_properties: dict, is_dev: bool):
 
 def write_tactility_variables(output_file, device_properties: dict, device_id: str):
     # Board and vendor
-    board_vendor = get_property_or_exit(device_properties, "general", "vendor").replace("\"", "\\\"")
-    board_name = get_property_or_exit(device_properties, "general", "name").replace("\"", "\\\"")
+    board_vendor = get_property_or_exit(device_properties, "general.vendor").replace("\"", "\\\"")
+    board_name = get_property_or_exit(device_properties, "general.name").replace("\"", "\\\"")
     if board_name == board_vendor or board_vendor == "":
         output_file.write(f"CONFIG_TT_DEVICE_NAME=\"{board_name}\"\n")
     else:
@@ -134,10 +133,10 @@ def write_tactility_variables(output_file, device_properties: dict, device_id: s
     if device_id == "lilygo-tdeck":
         output_file.write("CONFIG_TT_TDECK_WORKAROUND=y\n")
     # Launcher app id
-    launcher_app_id = get_property_or_exit(device_properties, "apps", "launcherAppId").replace("\"", "\\\"")
+    launcher_app_id = get_property_or_exit(device_properties, "apps.launcherAppId").replace("\"", "\\\"")
     output_file.write(f"CONFIG_TT_LAUNCHER_APP_ID=\"{launcher_app_id}\"\n")
     # Auto start app id
-    auto_start_app_id = get_property_or_none(device_properties, "apps", "autoStartAppId")
+    auto_start_app_id = get_property_or_none(device_properties, "apps.autoStartAppId")
     if auto_start_app_id is not None:
         safe_auto_start_app_id = auto_start_app_id.replace("\"", "\\\"")
         output_file.write(f"CONFIG_TT_AUTO_START_APP_ID=\"{safe_auto_start_app_id}\"\n")
@@ -148,7 +147,7 @@ def write_tactility_variables(output_file, device_properties: dict, device_id: s
         output_file.write("CONFIG_TT_USER_DATA_LOCATION_INTERNAL=y\n")
 
 def write_core_variables(output_file, device_properties: dict):
-    idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
+    idf_target = get_property_or_exit(device_properties, "hardware.target").lower()
     output_file.write("# Target\n")
     output_file.write(f"CONFIG_IDF_TARGET=\"{idf_target}\"\n")
     output_file.write("# CPU\n")
@@ -171,28 +170,28 @@ def write_core_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH=y\n")
         output_file.write("CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=y\n")
     # Usage of tt::hal can be disabled to simplify dependency wiring (device depends on TactilityKernel instead of Tactility)
-    use_deprecated_hal = get_property_or_none(device_properties, "dependencies", "useDeprecatedHal")
+    use_deprecated_hal = get_property_or_none(device_properties, "dependencies.useDeprecatedHal")
     if use_deprecated_hal is None or use_deprecated_hal.lower() == "true":
         output_file.write("CONFIG_TT_USE_DEPRECATED_HAL=y\n")
     else:
         output_file.write("CONFIG_TT_USE_DEPRECATED_HAL=n\n")
 
 def write_flash_variables(output_file, device_properties: dict):
-    flash_size = get_property_or_exit(device_properties, "hardware", "flashSize")
+    flash_size = get_property_or_exit(device_properties, "hardware.flashSize")
     if not flash_size.endswith("MB"):
         exit_with_error("Flash size should be written as xMB or xxMB (e.g. 4MB, 16MB)")
     output_file.write("# Flash\n")
     flash_size_number = flash_size[:-2]
     output_file.write(f"CONFIG_ESPTOOLPY_FLASHSIZE_{flash_size_number}MB=y\n")
-    flash_mode = get_property_or_default(device_properties, "hardware", "flashMode", 'QIO')
+    flash_mode = get_property_or_default(device_properties, "hardware.flashMode", 'QIO')
     output_file.write(f"CONFIG_FLASHMODE_{flash_mode}=y\n")
-    esptool_flash_freq = get_property_or_none(device_properties, "hardware", "esptoolFlashFreq")
+    esptool_flash_freq = get_property_or_none(device_properties, "hardware.esptoolFlashFreq")
     if esptool_flash_freq is not None:
         output_file.write(f"CONFIG_ESPTOOLPY_FLASHFREQ_{esptool_flash_freq}=y\n")
 
 def write_spiram_variables(output_file, device_properties: dict):
-    idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
-    has_spiram = get_property_or_exit(device_properties, "hardware", "spiRam")
+    idf_target = get_property_or_exit(device_properties, "hardware.target").lower()
+    has_spiram = get_property_or_exit(device_properties, "hardware.spiRam")
     if has_spiram != "true":
         return
     output_file.write("# SPIRAM\n")
@@ -201,7 +200,7 @@ def write_spiram_variables(output_file, device_properties: dict):
     # Enable
     output_file.write("CONFIG_SPIRAM=y\n")
     output_file.write(f"CONFIG_{idf_target.upper()}_SPIRAM_SUPPORT=y\n")
-    mode = get_property_or_exit(device_properties, "hardware", "spiRamMode")
+    mode = get_property_or_exit(device_properties, "hardware.spiRamMode")
     if mode == "OPI":
         mode = "OCT"
     # Mode
@@ -209,7 +208,7 @@ def write_spiram_variables(output_file, device_properties: dict):
         output_file.write(f"CONFIG_SPIRAM_MODE_{mode}=y\n")
     else:
         output_file.write("CONFIG_SPIRAM_TYPE_AUTO=y\n")
-    speed = get_property_or_exit(device_properties, "hardware", "spiRamSpeed")
+    speed = get_property_or_exit(device_properties, "hardware.spiRamSpeed")
     # Speed
     output_file.write(f"CONFIG_SPIRAM_SPEED_{speed}=y\n")
     output_file.write(f"CONFIG_SPIRAM_SPEED={speed}\n")
@@ -223,7 +222,7 @@ def write_spiram_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_SPIRAM_XIP_FROM_PSRAM=y\n")
 
 def write_performance_improvements(output_file, device_properties: dict):
-    idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
+    idf_target = get_property_or_exit(device_properties, "hardware.target").lower()
     if idf_target == "esp32s3":
         output_file.write("# Performance improvement: Fixes glitches in the RGB display driver when rendering new screens/apps\n")
         output_file.write("CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y\n")
@@ -246,16 +245,16 @@ def write_lvgl_variables(output_file, device_properties: dict):
         write_lvgl_variable_placeholders(output_file)
         return
     # LVGL DPI overrides the real DPI settings
-    dpi_text = get_property_or_none(device_properties, "lvgl", "dpi")
+    dpi_text = get_property_or_none(device_properties, "lvgl.dpi")
     if dpi_text is None:
-        dpi_text = get_property_or_exit(device_properties, "display", "dpi")
+        dpi_text = get_property_or_exit(device_properties, "display.dpi")
     dpi = safe_int(dpi_text, f"DPI must be an integer, but was: '{dpi_text}'")
     output_file.write(f"CONFIG_LV_DPI_DEF={dpi}\n")
-    color_depth = get_property_or_exit(device_properties, "lvgl", "colorDepth")
+    color_depth = get_property_or_exit(device_properties, "lvgl.colorDepth")
     output_file.write(f"CONFIG_LV_COLOR_DEPTH={color_depth}\n")
     output_file.write(f"CONFIG_LV_COLOR_DEPTH_{color_depth}=y\n")
     output_file.write("CONFIG_LV_DISP_DEF_REFR_PERIOD=10\n")
-    theme = get_property_or_default(device_properties, "lvgl", "theme", "DefaultDark")
+    theme = get_property_or_default(device_properties, "lvgl.theme", "DefaultDark")
     if theme == "DefaultDark":
         output_file.write("CONFIG_LV_THEME_DEFAULT_DARK=y\n")
     elif theme == "DefaultLight":
@@ -264,7 +263,7 @@ def write_lvgl_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_LV_USE_THEME_MONO=y\n")
     else:
         exit_with_error(f"Unknown theme: {theme}")
-    font_height_text = get_property_or_default(device_properties, "lvgl", "fontSize", "14")
+    font_height_text = get_property_or_default(device_properties, "lvgl.fontSize", "14")
     font_height = safe_int(font_height_text, f"Font height must be an integer, but was: '{font_height_text}'")
     if font_height <= 12:
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_8=y\n")
@@ -333,14 +332,23 @@ def write_lvgl_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=72\n")
         output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=32\n")
 
+def write_touch_calibration_variables(output_file, device_properties: dict):
+    calibration_supported = get_property_or_none(device_properties, "touch.calibrationSupported")
+    if calibration_supported is not None and calibration_supported.lower() == "true":
+        output_file.write("# Touch calibration\n")
+        output_file.write("CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED=y\n")
+        calibration_required = get_property_or_none(device_properties, "touch.calibrationRequired")
+        if calibration_required is not None and calibration_required.lower() == "true":
+            output_file.write("CONFIG_TT_TOUCH_CALIBRATION_REQUIRED=y\n")
+
 
 def write_usb_variables(output_file, device_properties: dict):
-    has_tiny_usb = get_boolean_property_or_false(device_properties, "hardware", "tinyUsb")
+    has_tiny_usb = get_boolean_property_or_false(device_properties, "hardware.tinyUsb")
     if has_tiny_usb:
         output_file.write("# TinyUSB\n")
         output_file.write("CONFIG_TINYUSB_MSC_ENABLED=y\n")
         output_file.write("CONFIG_TINYUSB_MSC_MOUNT_PATH=\"/sdcard\"\n")
-        idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
+        idf_target = get_property_or_exit(device_properties, "hardware.target").lower()
         if idf_target == "esp32p4":
             # P4 has two USB-DWC controllers (HS/UTMI and FS/FSLS). esp_tinyusb defaults to
             # RHPORT_HS (UTMI), which is the same controller claimed by usbhost0's
@@ -349,8 +357,8 @@ def write_usb_variables(output_file, device_properties: dict):
             output_file.write("CONFIG_TINYUSB_RHPORT_FS=y\n")
 
 def write_bluetooth_variables(output_file, device_properties: dict):
-    idf_target = get_property_or_exit(device_properties, "hardware", "target").lower()
-    has_bluetooth = get_boolean_property_or_false(device_properties, "hardware", "bluetooth")
+    idf_target = get_property_or_exit(device_properties, "hardware.target").lower()
+    has_bluetooth = get_boolean_property_or_false(device_properties, "hardware.bluetooth")
     if has_bluetooth:
         output_file.write("# Bluetooth (NimBLE)\n")
         output_file.write("CONFIG_BT_ENABLED=y\n")
@@ -365,7 +373,7 @@ def write_bluetooth_variables(output_file, device_properties: dict):
         # and does not suffer from the same fragmentation — enabling reliable re-init.
         # Also frees significant internal RAM on memory-constrained targets (e.g. S3).
         # Dependency: CONFIG_SPIRAM_USE_CAPS_ALLOC || CONFIG_SPIRAM_USE_MALLOC (set by write_spiram_variables).
-        has_spiram = get_boolean_property_or_false(device_properties, "hardware", "spiRam")
+        has_spiram = get_boolean_property_or_false(device_properties, "hardware.spiRam")
         if has_spiram:
             output_file.write("CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y\n")
         # Expand NimBLE's GAP device name buffer to match BLE_DEVICE_NAME_MAX.
@@ -382,7 +390,7 @@ def write_bluetooth_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_BT_NIMBLE_NVS_PERSIST=y\n")
 
 def write_usbhost_variables(output_file, device_properties: dict):
-    has_usbhost = get_boolean_property_or_false(device_properties, "hardware", "usbHostEnabled")
+    has_usbhost = get_boolean_property_or_false(device_properties, "hardware.usbHostEnabled")
     if has_usbhost:
         output_file.write("# USB Host\n")
         output_file.write("CONFIG_FATFS_VOLUME_COUNT=6\n")
@@ -416,6 +424,7 @@ def write_properties(output_file, device_properties: dict, device_id: str, is_de
     write_usbhost_variables(output_file, device_properties)
     write_custom_sdkconfig(output_file, device_properties)
     write_lvgl_variables(output_file, device_properties)
+    write_touch_calibration_variables(output_file, device_properties)
 
 def get_current_sdkconfig_target(sdkconfig_path: str):
     if not os.path.isfile(sdkconfig_path):
@@ -448,7 +457,7 @@ def main(device_id: str, is_dev: bool):
     output_file_path = "sdkconfig"
     # Clean build dirs if target changes
     device_properties = read_device_properties(device_id)
-    new_target = get_property_or_exit(device_properties, "hardware", "target").lower()
+    new_target = get_property_or_exit(device_properties, "hardware.target").lower()
     sdkconfig_target = get_current_sdkconfig_target(output_file_path)
     clean_build_dirs_on_platform_change(sdkconfig_target, new_target)
     if os.path.isfile(output_file_path):

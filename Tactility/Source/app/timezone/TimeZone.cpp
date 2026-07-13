@@ -166,16 +166,16 @@ class TimeZoneApp final : public App {
     }
 
     void updateList() {
-        if (lvgl::lock(100 / portTICK_PERIOD_MS)) {
+        if (lvgl::lock(200 / portTICK_PERIOD_MS)) {
             std::string filter = string::lowercase(std::string(lv_textarea_get_text(filterTextareaWidget)));
-            readTimeZones(filter);
             lvgl::unlock();
+            readTimeZones(filter);
         } else {
-            LOG_E(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
+            LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "TimeZone LVGL");
             return;
         }
 
-        if (lvgl::lock(100 / portTICK_PERIOD_MS)) {
+        if (lvgl::lock(200 / portTICK_PERIOD_MS)) {
             if (mutex.lock(100 / portTICK_PERIOD_MS)) {
                 lv_obj_clean(listWidget);
 
@@ -189,6 +189,8 @@ class TimeZoneApp final : public App {
             }
 
             lvgl::unlock();
+        } else {
+            LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "TimeZone LVGL");
         }
     }
 
