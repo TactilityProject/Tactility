@@ -37,7 +37,7 @@
 	adc0 {
 		compatible = "espressif,esp32-adc-oneshot";
 		unit-id = <ADC_UNIT_1>;
-		channels = <ADC_CHANNEL_3 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+		channels = <ADC_CHANNEL_6 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
 	};
 
 	// Matches the deprecated HAL's old ChargeFromAdcVoltage config: adcMultiplier=2.11,
