@@ -18,6 +18,10 @@
 #include <lvgl.h>
 #include <tactility/lvgl_pointer.h>
 
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
+
 namespace tt::app::kerneldisplay {
 
 constexpr auto* TAG = "KernelDisplay";
@@ -100,9 +104,11 @@ class KernelDisplayApp final : public App {
         }
     }
 
+#if defined(CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED)
     static void onCalibrateTouchClicked(lv_event_t*) {
         app::touchcalibration::start();
     }
+#endif
 
     static void onScreensaverChanged(lv_event_t* event) {
         auto* app = static_cast<KernelDisplayApp*>(lv_event_get_user_data(event));
@@ -257,6 +263,7 @@ public:
             }
         }
 
+#if defined(CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED)
         if (lvgl_pointer_get_default() != nullptr) {
             auto* calibrate_wrapper = lv_obj_create(main_wrapper);
             lv_obj_set_size(calibrate_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
@@ -275,6 +282,7 @@ public:
             lv_label_set_text(calibrate_button_label, "Calibrate");
             lv_obj_center(calibrate_button_label);
         }
+#endif
     }
 
     void onHide(AppContext& app) override {

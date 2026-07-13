@@ -1,3 +1,6 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/xpt2046-softspi-module
+  - Drivers/st7789-i8080-module
+  - Drivers/button-control-module
 dts: lilygo,thmi.dts

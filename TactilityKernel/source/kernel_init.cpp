@@ -24,6 +24,8 @@ static error_t start() {
     if (driver_construct_add(&battery_sense_driver) != ERROR_NONE) return ERROR_RESOURCE;
     extern Driver battery_sense_power_supply_driver;
     if (driver_construct_add(&battery_sense_power_supply_driver) != ERROR_NONE) return ERROR_RESOURCE;
+    extern Driver gpio_hog_driver;
+    if (driver_construct_add(&gpio_hog_driver) != ERROR_NONE) return ERROR_RESOURCE;
     return ERROR_NONE;
 }
 

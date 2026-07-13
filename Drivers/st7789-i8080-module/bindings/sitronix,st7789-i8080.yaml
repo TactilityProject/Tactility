@@ -1,0 +1,63 @@
+description: Sitronix ST7789 display panel over an i8080 (parallel) bus
+
+compatible: "sitronix,st7789-i8080"
+
+bus: i8080
+
+properties:
+  horizontal-resolution:
+    type: int
+    required: true
+    description: Horizontal resolution in pixels
+  vertical-resolution:
+    type: int
+    required: true
+    description: Vertical resolution in pixels
+  gap-x:
+    type: int
+    default: 0
+    description: X offset applied to all draw operations
+  gap-y:
+    type: int
+    default: 0
+    description: Y offset applied to all draw operations
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  invert-color:
+    type: boolean
+    default: false
+    description: Invert the panel's color output
+  bgr-order:
+    type: boolean
+    default: false
+    description: Use BGR element order instead of RGB
+  pixel-clock-hz:
+    type: int
+    default: 16000000
+    description: i80 bus write-clock frequency in Hz
+  transaction-queue-depth:
+    type: int
+    default: 10
+    description: Size of the internal transaction queue
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Reset GPIO pin
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high
+  backlight:
+    type: phandle
+    default: NULL
+    description: Optional reference to this display's backlight device

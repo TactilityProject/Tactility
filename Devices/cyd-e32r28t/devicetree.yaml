@@ -1,3 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/ili9341-module
+  - Drivers/xpt2046-softspi-module
 dts: cyd,e32r28t.dts
