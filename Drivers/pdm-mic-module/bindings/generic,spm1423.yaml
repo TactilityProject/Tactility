@@ -1,0 +1,17 @@
+description: Generic PDM MEMS microphone (e.g. SPM1423), I2S PDM RX input
+
+compatible: "generic,spm1423"
+
+properties:
+  i2s:
+    type: text
+    required: true
+    description: "Name of the I2S controller device that carries audio data (e.g. 'i2s0'). Must be I2S controller 0 -- PDM RX is hardware-restricted to it on ESP32 targets."
+  channels:
+    type: int
+    default: 1
+    description: "Number of PDM mics wired (1 = mono, 2 = stereo)"
+  input-gain-x100:
+    type: int
+    default: 400
+    description: "Digital gain multiplier applied by audio_stream, as an integer percentage (100 = 1.0x, 400 = 4.0x). PDM mics have no hardware gain; default 400 matches M5Stack's own SPM1423 reference firmware (magnification=4)."

@@ -13,12 +13,12 @@ properties:
       Depending on the hardware, these values are available: I2S_NUM_0, I2S_NUM_1
   pin-bclk:
     type: phandles
-    required: true
-    description: Bit clock pin
+    default: GPIO_PIN_SPEC_NONE
+    description: Bit clock pin. Not used in PDM RX mode (e.g. a PDM microphone), where pin-ws carries the PDM clock instead.
   pin-ws:
     type: phandles
     required: true
-    description: Word (slot) select pin
+    description: Word (slot) select pin. Doubles as the PDM clock pin in PDM RX mode.
   pin-data-out:
     type: phandles
     default: GPIO_PIN_SPEC_NONE

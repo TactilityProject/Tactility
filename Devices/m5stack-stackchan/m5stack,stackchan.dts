@@ -13,6 +13,9 @@
 #include <bindings/bm8563.h>
 #include <bindings/ina226.h>
 #include <bindings/py32ioexpander.h>
+#include <bindings/aw9523b.h>
+#include <bindings/aw88298.h>
+#include <bindings/es7210.h>
 #include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/display_placeholder.h>
 
@@ -34,6 +37,17 @@
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
+	};
+
+	// AW88298 speaker + ES7210 microphone
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk     = <&gpio0 34 GPIO_FLAG_NONE>;
+		pin-ws       = <&gpio0 33 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 13 GPIO_FLAG_NONE>;
+		pin-data-in  = <&gpio0 14 GPIO_FLAG_NONE>;
+		pin-mclk     = <&gpio0 0  GPIO_FLAG_NONE>;
 	};
 
 	i2c_internal {
@@ -65,10 +79,37 @@
 			shunt-milliohms = <10>;
 		};
 
+		// AW9523B pin map (same wiring as CoreS3):
+		// P0_0 = touch reset, P0_1 = bus-out enable, P0_2 = AW88298 reset,
+		// P0_4 = SD card switch, P1_1 = LCD reset, P1_7 = boost enable (SY7088)
+		aw9523b: aw9523b {
+			compatible = "awinic,aw9523b";
+			reg = <0x58>;
+		};
+
+		aw88298 {
+			compatible = "awinic,aw88298";
+			reg = <0x36>;
+			i2s = "i2s0";
+			pin-reset = <&aw9523b 2 GPIO_FLAG_NONE>;
+		};
+
+		es7210 {
+			compatible = "everest,es7210";
+			reg = <0x40>;
+			i2s = "i2s0";
+			// Only MIC1/MIC2 are wired to real capsules (see schematic); MIC3/MIC4
+			// slots carry AEC_P/AEC_N reference signal, not microphone audio.
+			mic-mask = <3>;
+			// M5Unified applies a 4x post-gain "magnification" for this exact mic
+			// wiring (see M5Unified.cpp _mic_data_cb_cores3): the ES7210's own
+			// hardware ADC gain (already near-max via the default 90% input volume
+			// setting, ~34dB of its 0-37.5dB range) still isn't enough for these
+			// capsules on their own.
+			input-gain-x100 = <400>;
+		};
+
 		// AXP2101 PMIC @ 0x34 — initialized manually in initBoot()
-		// AW9523B GPIO expander @ 0x58 — initialized manually in initBoot() (same as CoreS3)
-		// AW88298 speaker amp @ 0x36 — initialized manually in initBoot()
-		// ES7210 microphone ADC @ 0x40 — initialized manually in initBoot()
 		// FT6336U capacitive touch @ 0x38 — used by Display driver (FT6x36 library)
 
 		// TODO: Si12T 3-zone head touch @ 0x68 — INT active-low, 10kΩ pull-up to 3.3V; driver not yet implemented
@@ -134,16 +175,5 @@
 			status = "disabled"; // Must be started after display
 			frequency-khz = <20000>;
 		};
-	};
-
-	// AW88298 speaker + ES7210 microphone
-	i2s0 {
-		compatible = "espressif,esp32-i2s";
-		port = <I2S_NUM_0>;
-		pin-bclk     = <&gpio0 34 GPIO_FLAG_NONE>;
-		pin-ws       = <&gpio0 33 GPIO_FLAG_NONE>;
-		pin-data-out = <&gpio0 13 GPIO_FLAG_NONE>;
-		pin-data-in  = <&gpio0 14 GPIO_FLAG_NONE>;
-		pin-mclk     = <&gpio0 0  GPIO_FLAG_NONE>;
 	};
 };

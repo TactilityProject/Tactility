@@ -16,6 +16,8 @@
 
 #include <bindings/st7789.h>
 #include <bindings/cardputer_keyboard.h>
+#include <bindings/dummy_i2s_amp.h>
+#include <bindings/pdm_mic.h>
 
 // Reference: https://docs.m5stack.com/en/core/Cardputer
 / {
@@ -123,8 +125,17 @@
 		             <&gpio0 7 GPIO_FLAG_NONE>;
 	};
 
-	// Speaker and microphone
-	// TODO: Microphone I2C init code from https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L936
+	// Speaker (std TX) and PDM mic (RX) share this single I2S controller. PDM RX is
+	// hardware-restricted to I2S controller 0 on ESP32 targets, and per schematic the
+	// mic's PDM CLK and the speaker's LRCLK both land on GPIO43 anyway -- splitting them
+	// across two controllers (as M5Stack's own reference firmware does) isn't possible
+	// here since Tactility's GPIO ownership model is exclusive-acquire-only (no pin
+	// sharing), and two I2S controllers both declaring GPIO43 would have one fail to
+	// start. Keeping both on one controller means only one acquire of GPIO43 happens;
+	// audio_codec_data_if_i2s.c's data_set_fmt() already tears down and recreates the
+	// channel on each codec open(), so opening one direction after the other naturally
+	// reconfigures the shared port/pin -- speaker and mic still cannot be used
+	// simultaneously, which matches the hardware reality.
 	i2s0 {
 		compatible = "espressif,esp32-i2s";
 		port = <I2S_NUM_0>;
@@ -132,5 +143,16 @@
 		pin-ws = <&gpio0 43 GPIO_FLAG_NONE>;
 		pin-data-out = <&gpio0 42 GPIO_FLAG_NONE>;
 		pin-data-in = <&gpio0 46 GPIO_FLAG_NONE>;
+	};
+
+	speaker0 {
+		compatible = "nsiway,ns4168";
+		i2s = "i2s0";
+	};
+
+	mic0 {
+		compatible = "generic,spm1423";
+		i2s = "i2s0";
+		channels = <1>;
 	};
 };

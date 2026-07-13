@@ -11,6 +11,8 @@
 #include <tactility/bindings/esp32_usbhost.h>
 #include <tactility/bindings/esp32_wifi.h>
 #include <bindings/bmi270.h>
+#include <bindings/es7210.h>
+#include <bindings/es8388.h>
 #include <bindings/ina226.h>
 #include <bindings/pi4ioe5v6408.h>
 #include <bindings/rx8130ce.h>
@@ -35,6 +37,17 @@
 		gpio-count = <57>;
 	};
 
+	// Declared before i2c0 so it starts before the es8388/es7210 codecs that reference it
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <&gpio0 27 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 29 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 26 GPIO_FLAG_NONE>;
+		pin-data-in = <&gpio0 28 GPIO_FLAG_NONE>;
+		pin-mclk = <&gpio0 30 GPIO_FLAG_NONE>;
+	};
+
 	i2c_internal: i2c0 {
 		compatible = "espressif,esp32-i2c-master";
 		port = <I2C_NUM_0>;
@@ -55,6 +68,23 @@
 		bmi270 {
 			compatible = "bosch,bmi270";
 			reg = <0x68>;
+		};
+
+		es8388 {
+			compatible = "everest,es8388";
+			reg = <0x10>;
+			i2s = "i2s0";
+		};
+
+		es7210 {
+			compatible = "everest,es7210";
+			reg = <0x40>;
+			i2s = "i2s0";
+			// Only TDM slots 0 and 2 (MIC1, MIC3) carry real signal on this board's
+			// 2-mic array; slots 1/3 are unconnected. Selecting just the wired mics
+			// keeps get_native_channels()/downmix proportional (see MicTest's
+			// empirical "Slot peaks" finding -- s0/s2 carry signal, s1/s3 don't).
+			mic-mask = <5>;
 		};
 
 		rx8130ce {
@@ -105,17 +135,6 @@
 		slot = <SDMMC_HOST_SLOT_0>;
 		max-freq-khz = <SDMMC_FREQ_HIGHSPEED>;
 		on-chip-ldo-chan = <4>;
-	};
-
-	// ES8388 and ES7210
-	i2s0 {
-		compatible = "espressif,esp32-i2s";
-		port = <I2S_NUM_0>;
-		pin-bclk = <&gpio0 27 GPIO_FLAG_NONE>;
-		pin-ws = <&gpio0 29 GPIO_FLAG_NONE>;
-		pin-data-out = <&gpio0 26 GPIO_FLAG_NONE>;
-		pin-data-in = <&gpio0 28 GPIO_FLAG_NONE>;
-		pin-mclk = <&gpio0 30 GPIO_FLAG_NONE>;
 	};
 
 	usbhost0 {

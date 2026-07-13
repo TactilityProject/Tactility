@@ -1,0 +1,15 @@
+description: Awinic AW88298 smart speaker power amplifier (output-only)
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "awinic,aw88298"
+
+properties:
+  i2s:
+    type: text
+    required: true
+    description: "Name of the I2S controller device that carries audio data (e.g. 'i2s0')"
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: "Hardware reset (RSTN) pin. The AW88298's I2C interface does not respond until this pin is released, so if wired, this driver asserts/releases reset itself before opening the codec, ensuring correct ordering relative to other devicetree devices. Omit if reset is tied high in hardware."

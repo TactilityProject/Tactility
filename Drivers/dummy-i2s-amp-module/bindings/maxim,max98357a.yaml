@@ -1,0 +1,13 @@
+description: Maxim MAX98357A class-D speaker amplifier (I2S input, optional GPIO enable)
+
+compatible: "maxim,max98357a"
+
+properties:
+  i2s:
+    type: text
+    required: true
+    description: "Name of the I2S controller device that carries audio data (e.g. 'i2s0')"
+  pin-enable:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: "Amplifier enable (SD) pin. Omit if the amplifier is always enabled."

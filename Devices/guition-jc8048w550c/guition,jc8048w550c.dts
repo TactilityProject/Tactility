@@ -9,6 +9,7 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
+#include <bindings/dummy_i2s_amp.h>
 
 / {
 	compatible = "root";
@@ -52,6 +53,11 @@
 		pin-bclk = <&gpio0 0 GPIO_FLAG_NONE>;
 		pin-ws = <&gpio0 18 GPIO_FLAG_NONE>;
 		pin-data-out = <&gpio0 17 GPIO_FLAG_NONE>;
+	};
+
+	speaker0 {
+		compatible = "nsiway,ns4168";
+		i2s = "i2s0";
 	};
 
 	spi0 {

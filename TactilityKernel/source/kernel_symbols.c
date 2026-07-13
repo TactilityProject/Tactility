@@ -4,6 +4,8 @@
 #include <tactility/concurrent/timer.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/audio_codec.h>
+#include <tactility/drivers/audio_stream.h>
 #include <tactility/drivers/bluetooth.h>
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/bluetooth_midi.h>
@@ -80,6 +82,32 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(driver_is_compatible),
     DEFINE_MODULE_SYMBOL(driver_find_compatible),
     DEFINE_MODULE_SYMBOL(driver_get_device_type),
+    // drivers/audio_codec
+    DEFINE_MODULE_SYMBOL(audio_codec_open),
+    DEFINE_MODULE_SYMBOL(audio_codec_close),
+    DEFINE_MODULE_SYMBOL(audio_codec_read),
+    DEFINE_MODULE_SYMBOL(audio_codec_write),
+    DEFINE_MODULE_SYMBOL(audio_codec_set_volume),
+    DEFINE_MODULE_SYMBOL(audio_codec_get_volume),
+    DEFINE_MODULE_SYMBOL(audio_codec_set_mute),
+    DEFINE_MODULE_SYMBOL(audio_codec_get_mute),
+    DEFINE_MODULE_SYMBOL(audio_codec_get_native_sample_rate),
+    DEFINE_MODULE_SYMBOL(audio_codec_get_native_channels),
+    DEFINE_MODULE_SYMBOL(audio_codec_get_capabilities),
+    DEFINE_MODULE_SYMBOL(AUDIO_CODEC_TYPE),
+    // drivers/audio_stream
+    DEFINE_MODULE_SYMBOL(audio_stream_open_input),
+    DEFINE_MODULE_SYMBOL(audio_stream_open_output),
+    DEFINE_MODULE_SYMBOL(audio_stream_read),
+    DEFINE_MODULE_SYMBOL(audio_stream_write),
+    DEFINE_MODULE_SYMBOL(audio_stream_close),
+    DEFINE_MODULE_SYMBOL(audio_stream_set_volume),
+    DEFINE_MODULE_SYMBOL(audio_stream_get_volume),
+    DEFINE_MODULE_SYMBOL(audio_stream_set_mute),
+    DEFINE_MODULE_SYMBOL(audio_stream_get_mute),
+    DEFINE_MODULE_SYMBOL(audio_stream_set_enabled),
+    DEFINE_MODULE_SYMBOL(audio_stream_get_enabled),
+    DEFINE_MODULE_SYMBOL(AUDIO_STREAM_TYPE),
     // drivers/gpio_controller
     DEFINE_MODULE_SYMBOL(gpio_descriptor_acquire),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_release),

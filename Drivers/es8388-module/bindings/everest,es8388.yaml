@@ -1,0 +1,11 @@
+description: Everest Semiconductor ES8388 audio codec (speaker output + line/mic input)
+
+include: ["i2c-device.yaml"]
+
+compatible: "everest,es8388"
+
+properties:
+  i2s:
+    type: text
+    required: true
+    description: "Name of the I2S controller device that carries audio data (e.g. 'i2s0')"

@@ -1,0 +1,5 @@
+description: Awinic AW9523B 16-bit I2C-bus I/O expander with LED driver
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "awinic,aw9523b"
