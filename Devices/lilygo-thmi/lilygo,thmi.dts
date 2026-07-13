@@ -41,11 +41,13 @@
 	power_on {
 		compatible = "tactility,gpio-hog";
 		pin = <&gpio0 14 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
 	};
 
 	power_en {
 		compatible = "tactility,gpio-hog";
 		pin = <&gpio0 10 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
 	};
 
 	adc0 {

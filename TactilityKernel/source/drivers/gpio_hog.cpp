@@ -24,9 +24,26 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    if (gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE ||
-        gpio_descriptor_set_level(descriptor, config->output_high) != ERROR_NONE) {
-        LOG_E(TAG, "Failed to configure hogged pin");
+    bool ok;
+    switch (config->mode) {
+        case GPIO_HOG_MODE_OUTPUT_HIGH:
+            ok = gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE &&
+                gpio_descriptor_set_level(descriptor, true) == ERROR_NONE;
+            break;
+        case GPIO_HOG_MODE_OUTPUT_LOW:
+            ok = gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE &&
+                gpio_descriptor_set_level(descriptor, false) == ERROR_NONE;
+            break;
+        case GPIO_HOG_MODE_INPUT:
+            ok = gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_INPUT) == ERROR_NONE;
+            break;
+        default:
+            ok = false;
+            break;
+    }
+
+    if (!ok) {
+        LOG_E(TAG, "Failed to configure hogged pin %u", config->pin.pin);
         gpio_descriptor_release(descriptor);
         return ERROR_RESOURCE;
     }

@@ -13,7 +13,9 @@ properties:
     type: phandles
     required: true
     description: The GPIO pin to hog
-  output-high:
-    type: boolean
-    default: true
-    description: Level to drive the pin to (true = high, false = low)
+  mode:
+    type: int
+    default: 0
+    description: |
+      Pin mode, see enum GpioHogMode in tactility/drivers/gpio_hog.h:
+      0 = GPIO_HOG_MODE_OUTPUT_HIGH, 1 = GPIO_HOG_MODE_OUTPUT_LOW, 2 = GPIO_HOG_MODE_INPUT.

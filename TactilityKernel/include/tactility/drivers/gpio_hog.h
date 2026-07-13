@@ -5,13 +5,17 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-
 #include <tactility/drivers/gpio.h>
+
+enum GpioHogMode {
+    GPIO_HOG_MODE_OUTPUT_HIGH,
+    GPIO_HOG_MODE_OUTPUT_LOW,
+    GPIO_HOG_MODE_INPUT,
+};
 
 struct GpioHogConfig {
     struct GpioPinSpec pin;
-    bool output_high;
+    enum GpioHogMode mode;
 };
 
 #ifdef __cplusplus
