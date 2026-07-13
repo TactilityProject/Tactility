@@ -11,7 +11,7 @@ idf_component_register(
 
 if (DEFINED ENV{ESP_IDF_VERSION})
     GET_PROPERTY_FILE_CONTENT("${CMAKE_CURRENT_LIST_DIR}/../../sdkconfig" sdkconfig_text)
-    GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_ESP_HOSTED_ENABLED" esp_host_enabled)
+    GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_ESP_HOSTED_ENABLED" esp_host_enabled "n")
     if (esp_host_enabled STREQUAL "y")
         idf_component_optional_requires(PRIVATE espressif__esp_hosted)
     endif ()
