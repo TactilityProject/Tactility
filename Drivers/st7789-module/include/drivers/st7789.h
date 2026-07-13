@@ -24,6 +24,8 @@ struct St7789Config {
     uint32_t bits_per_pixel;
     uint32_t pixel_clock_hz;
     uint8_t transaction_queue_depth;
+    // Gamma curve preset index [0,3], sent via the MIPI DCS GAMSET (0x26) command at bring-up.
+    uint8_t gamma_curve;
     struct GpioPinSpec pin_dc;
     struct GpioPinSpec pin_reset;
     bool reset_active_high;

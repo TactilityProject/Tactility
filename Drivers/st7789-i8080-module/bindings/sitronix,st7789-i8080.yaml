@@ -49,6 +49,10 @@ properties:
     type: int
     default: 10
     description: Size of the internal transaction queue
+  gamma-curve:
+    type: int
+    default: 1
+    description: Gamma curve preset index [0,3], sent via the MIPI DCS GAMSET (0x26) command at bring-up
   pin-reset:
     type: phandles
     default: GPIO_PIN_SPEC_NONE

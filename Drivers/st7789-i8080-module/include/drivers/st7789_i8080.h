@@ -23,6 +23,8 @@ struct St7789I8080Config {
     bool bgr_order;
     uint32_t pixel_clock_hz;
     uint8_t transaction_queue_depth;
+    // Gamma curve preset index [0,3], sent via the MIPI DCS GAMSET (0x26) command at bring-up.
+    uint8_t gamma_curve;
     struct GpioPinSpec pin_reset;
     bool reset_active_high;
     // Optional reference to this display's backlight device, NULL if none.
