@@ -118,6 +118,14 @@ struct Hx8357Internal {
     spi_device_handle_t spi_handle;
     gpio_num_t dc_pin;
     size_t max_transfer_size;
+    // Live MADCTL orientation bits, seeded from config at start() and updated in place by
+    // mirror()/swap_xy() - NOT reconstructed from the static config each call. swap_xy() and
+    // mirror() are invoked back-to-back by lvgl_display_apply_rotation() on every rotation
+    // change, so rebuilding from config would silently discard whichever bit the other call
+    // just set.
+    bool swap_xy;
+    bool mirror_x;
+    bool mirror_y;
 };
 
 static int pin_or_unused(const struct GpioPinSpec& pin) {
@@ -180,11 +188,11 @@ static void run_init_cmds(const Hx8357Internal* internal) {
     }
 }
 
-static void send_madctl(const Hx8357Internal* internal, const Hx8357Config* config) {
+static void send_madctl(const Hx8357Internal* internal) {
     uint8_t madctl = 0;
-    if (config->swap_xy) madctl |= (1 << MADCTL_BIT_PAGE_COLUMN_ORDER);
-    if (config->mirror_x) madctl |= (1 << MADCTL_BIT_COLUMN_ADDRESS_ORDER);
-    if (config->mirror_y) madctl |= (1 << MADCTL_BIT_PAGE_ADDRESS_ORDER);
+    if (internal->swap_xy) madctl |= (1 << MADCTL_BIT_PAGE_COLUMN_ORDER);
+    if (internal->mirror_x) madctl |= (1 << MADCTL_BIT_COLUMN_ADDRESS_ORDER);
+    if (internal->mirror_y) madctl |= (1 << MADCTL_BIT_PAGE_ADDRESS_ORDER);
     send_cmd(internal, HX8357_MADCTL);
     send_data(internal, &madctl, 1);
 }
@@ -272,8 +280,12 @@ static error_t start(Device* device) {
         vTaskDelay(pdMS_TO_TICKS(120));
     }
 
+    internal->swap_xy = config->swap_xy;
+    internal->mirror_x = config->mirror_x;
+    internal->mirror_y = config->mirror_y;
+
     run_init_cmds(internal);
-    send_madctl(internal, config);
+    send_madctl(internal);
     send_cmd(internal, config->invert_color ? HX8357_INVON : HX8357_INVOFF);
 
     device_set_driver_data(device, internal);
@@ -340,21 +352,16 @@ static error_t hx8357_draw_bitmap(Device* device, int32_t x_start, int32_t y_sta
 
 static error_t hx8357_mirror(Device* device, bool x_axis, bool y_axis) {
     auto* internal = static_cast<Hx8357Internal*>(device_get_driver_data(device));
-    auto* config = GET_CONFIG(device);
-    // Reads back through the same config the panel was started with; swap_xy/gap are unaffected.
-    Hx8357Config effective = *config;
-    effective.mirror_x = x_axis;
-    effective.mirror_y = y_axis;
-    send_madctl(internal, &effective);
+    internal->mirror_x = x_axis;
+    internal->mirror_y = y_axis;
+    send_madctl(internal);
     return ERROR_NONE;
 }
 
 static error_t hx8357_swap_xy(Device* device, bool swap_axes) {
     auto* internal = static_cast<Hx8357Internal*>(device_get_driver_data(device));
-    auto* config = GET_CONFIG(device);
-    Hx8357Config effective = *config;
-    effective.swap_xy = swap_axes;
-    send_madctl(internal, &effective);
+    internal->swap_xy = swap_axes;
+    send_madctl(internal);
     return ERROR_NONE;
 }
 
