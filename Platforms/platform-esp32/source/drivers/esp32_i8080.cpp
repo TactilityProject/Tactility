@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <soc/soc_caps.h>
+#if SOC_LCD_I80_SUPPORTED
+
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_i8080.h>
 #include <tactility/log.h>
@@ -130,6 +133,8 @@ static error_t start(Device* device) {
             gpio_descriptor_set_flags(desc, GPIO_FLAG_DIRECTION_OUTPUT);
             gpio_descriptor_set_level(desc, true);
             data->cs_descriptors.push_back(desc);
+        } else {
+            LOG_E(TAG, "Failed to acquire CS pin %u", i);
         }
     }
 
@@ -183,3 +188,5 @@ Driver esp32_i8080_driver = {
 };
 
 } // extern "C"
+
+#endif // SOC_LCD_I80_SUPPORTED

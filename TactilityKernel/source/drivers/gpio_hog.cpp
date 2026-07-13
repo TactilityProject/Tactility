@@ -12,7 +12,7 @@
 #define GET_CONFIG(device) (static_cast<const GpioHogConfig*>((device)->config))
 
 namespace {
-const struct DeviceType GPIO_HOG_TYPE { .name = "gpio_hog" };
+const DeviceType GPIO_HOG_TYPE { .name = "gpio_hog" };
 }
 
 static error_t start(Device* device) {

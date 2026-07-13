@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
+#include <soc/soc_caps.h>
+#if SOC_LCD_I80_SUPPORTED
+
 #include <tactility/drivers/i8080_controller.h>
 #include <tactility/drivers/gpio.h>
 
@@ -53,3 +56,5 @@ error_t esp32_i8080_get_bus_handle(struct Device* child_device, esp_lcd_i80_bus_
 #ifdef __cplusplus
 }
 #endif
+
+#endif // SOC_LCD_I80_SUPPORTED
