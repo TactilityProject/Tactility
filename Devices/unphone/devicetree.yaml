@@ -1,3 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/hx8357-module
+  - Drivers/xpt2046-module
 dts: unphone.dts

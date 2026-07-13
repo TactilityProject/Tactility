@@ -7,8 +7,8 @@
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/display_placeholder.h>
-#include <tactility/bindings/pointer_placeholder.h>
+#include <bindings/hx8357.h>
+#include <bindings/xpt2046.h>
 
 / {
 	compatible = "root";
@@ -37,7 +37,7 @@
 		pin-scl = <&gpio0 4 GPIO_FLAG_NONE>;
 	};
 
-	sdcard_spi: spi0 {
+	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
 		cs-gpios = <&gpio0 48 GPIO_FLAG_NONE>, // Display
@@ -49,11 +49,19 @@
 		max-transfer-size = <65536>;
 
 		display@0 {
-			compatible = "display-placeholder";
+			compatible = "himax,hx8357";
+			horizontal-resolution = <320>;
+			vertical-resolution = <480>;
+			mirror-x;
+			pixel-clock-hz = <26000000>;
+			pin-dc = <&gpio0 47 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 46 GPIO_FLAG_NONE>;
 		};
 
 		touch@1 {
-			compatible = "pointer-placeholder";
+			compatible = "xptek,xpt2046";
+			x-max = <320>;
+			y-max = <480>;
 		};
 
 		sdcard@2 {

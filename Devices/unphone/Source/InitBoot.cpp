@@ -2,7 +2,6 @@
 #include <tactility/device.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/Preferences.h>
-#include <Tactility/TactilityCore.h>
 #include <esp_sleep.h>
 #include <tactility/log.h>
 
@@ -161,7 +160,10 @@ static bool unPhonePowerOn() {
     bootStats.printInfo();
     bootStats.notifyBootStart();
 
-    bq24295 = std::make_shared<Bq24295>(device_find_by_name("i2c_internal"));
+    ::Device* i2c_internal = nullptr;
+    check(device_get_by_name("i2c_internal", &i2c_internal) == ERROR_NONE);
+    bq24295 = std::make_shared<Bq24295>(i2c_internal);
+    device_put(i2c_internal);
 
     unPhoneFeatures = std::make_shared<UnPhoneFeatures>(bq24295);
 
@@ -172,7 +174,9 @@ static bool unPhonePowerOn() {
 
     unPhoneFeatures->printInfo();
 
-    unPhoneFeatures->setBacklightPower(false);
+    // Kernel devicetree devices (incl. the hx8357 display) already started by kernel_init()
+    // before initBoot() runs, so it's safe to turn the backlight on here now.
+    unPhoneFeatures->setBacklightPower(true);
     unPhoneFeatures->setVibePower(false);
     unPhoneFeatures->setIrPower(false);
     unPhoneFeatures->setExpanderPower(false);

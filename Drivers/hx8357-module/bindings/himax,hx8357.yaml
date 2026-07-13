@@ -1,8 +1,13 @@
-description: Sitronix ST7789 display panel over an i8080 (parallel) bus
+description: >
+  Himax HX8357-D display panel. 24bpp/RGB888 only. No ESP-IDF esp_lcd component exists for this
+  controller, so this driver speaks the panel's raw SPI command protocol directly (bit-banged
+  DC line, blocking spi_device_transmit()) rather than wrapping esp_lcd_panel_io/esp_lcd_panel.
+  No bgr-order property: unlike the RGB565 panels (ili9341-module, st7789-module), there is no
+  DISPLAY_COLOR_FORMAT_BGR888 in the kernel model, so a BGR-wired panel isn't representable here.
 
-compatible: "sitronix,st7789-i8080"
+compatible: "himax,hx8357"
 
-bus: i8080
+bus: spi
 
 properties:
   horizontal-resolution:
@@ -27,7 +32,7 @@ properties:
     description: Swap the X and Y axes
   mirror-x:
     type: boolean
-    default: false
+    default: true
     description: Mirror the X axis
   mirror-y:
     type: boolean
@@ -37,22 +42,14 @@ properties:
     type: boolean
     default: false
     description: Invert the panel's color output
-  bgr-order:
-    type: boolean
-    default: false
-    description: Use BGR element order instead of RGB
   pixel-clock-hz:
     type: int
-    default: 16000000
-    description: i80 bus write-clock frequency in Hz
-  transaction-queue-depth:
-    type: int
-    default: 10
-    description: Size of the internal transaction queue
-  gamma-curve:
-    type: int
-    default: 1
-    description: Gamma curve preset index [0,3], sent via the MIPI DCS GAMSET (0x26) command at bring-up
+    default: 26000000
+    description: SPI pixel clock frequency in Hz
+  pin-dc:
+    type: phandles
+    required: true
+    description: Data/Command GPIO pin
   pin-reset:
     type: phandles
     default: GPIO_PIN_SPEC_NONE
