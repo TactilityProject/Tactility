@@ -17,9 +17,11 @@
 #include <functional>
 #include <vector>
 
+#ifdef ESP_PLATFORM
 #include <sdkconfig.h>
+#endif
 
-#if defined(CONFIG_TT_TOUCH_CALIBRATION_REQUIRED)
+#ifdef CONFIG_TT_TOUCH_CALIBRATION_REQUIRED
 #include <Tactility/app/touchcalibration/TouchCalibration.h>
 #endif
 
