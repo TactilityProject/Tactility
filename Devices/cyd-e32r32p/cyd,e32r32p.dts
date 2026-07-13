@@ -1,13 +1,16 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/battery_sense.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/display_placeholder.h>
-#include <tactility/bindings/pointer_placeholder.h>
+#include <tactility/bindings/esp32_ledc_backlight.h>
+#include <bindings/st7789.h>
+#include <bindings/xpt2046.h>
 
 / {
 	compatible = "root";
@@ -31,6 +34,31 @@
 		pin-scl = <&gpio0 25 GPIO_FLAG_NONE>;
 	};
 
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		channels = <ADC_CHANNEL_3 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	// Matches the deprecated HAL's old ChargeFromAdcVoltage config: adcMultiplier=2.11,
+	// adcRefVoltage=3.3 (default), voltageMin/Max=3.2/4.2 (default, same as battery-sense's own
+	// fixed curve - see TactilityKernel/source/drivers/battery_sense.cpp).
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2110>;
+	};
+
+	display_backlight {
+		compatible = "espressif,esp32-ledc-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pin-backlight = <&gpio0 27 GPIO_FLAG_NONE>;
+		frequency-hz = <40000>;
+	};
+
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
@@ -39,13 +67,23 @@
 		pin-mosi = <&gpio0 13 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 12 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 14 GPIO_FLAG_NONE>;
-	
+
 		display@0 {
-			compatible = "display-placeholder";
+			compatible = "sitronix,st7789";
+			horizontal-resolution = <240>;
+			vertical-resolution = <320>;
+			bgr-order;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 2 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
 		};
 
 		touch@1 {
-			compatible = "pointer-placeholder";
+			compatible = "xptek,xpt2046";
+			x-max = <240>;
+			y-max = <320>;
+			mirror-x;
+			mirror-y;
 		};
 	};
 
@@ -56,7 +94,7 @@
 		pin-mosi = <&gpio0 23 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 19 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
-	
+
 		sdcard@0 {
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;
