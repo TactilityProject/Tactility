@@ -129,8 +129,9 @@ static error_t start(Device* device) {
     // MISO is only actively driven by the selected slave; between commands (and briefly during
     // slave selection/response) it floats, which can be read as spurious bits. A weak pull-up
     // costs nothing against an actively-driven line and avoids that, e.g. on SD-over-SPI this
-    // shows up as CMD8/if_cond failing with a garbled/invalid response.
-    if (data->miso_descriptor != nullptr) {
+    // shows up as CMD8/if_cond failing with a garbled/invalid response. Opt-in per board though:
+    // it's been observed to instead prevent an SD card from responding to CMD0 at all elsewhere.
+    if (data->miso_descriptor != nullptr && dts_config->miso_pull_up) {
         gpio_descriptor_set_flags(data->miso_descriptor, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP);
     }
 
