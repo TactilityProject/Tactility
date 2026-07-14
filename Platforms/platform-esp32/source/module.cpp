@@ -19,6 +19,7 @@ extern Driver esp32_i2s_driver;
 #if SOC_LCD_I80_SUPPORTED
 extern Driver esp32_i8080_driver;
 #endif
+extern Driver esp32_gpio_backlight_driver;
 extern Driver esp32_ledc_backlight_driver;
 #if SOC_SDMMC_HOST_SUPPORTED
 extern Driver esp32_sdmmc_driver;
@@ -55,6 +56,7 @@ static error_t start() {
 #if SOC_LCD_I80_SUPPORTED
     check(driver_construct_add(&esp32_i8080_driver) == ERROR_NONE);
 #endif
+    check(driver_construct_add(&esp32_gpio_backlight_driver) == ERROR_NONE);
     check(driver_construct_add(&esp32_ledc_backlight_driver) == ERROR_NONE);
 #if SOC_SDMMC_HOST_SUPPORTED
     check(driver_construct_add(&esp32_sdmmc_driver) == ERROR_NONE);
@@ -110,6 +112,7 @@ static error_t stop() {
     check(driver_remove_destruct(&esp32_i8080_driver) == ERROR_NONE);
 #endif
     check(driver_remove_destruct(&esp32_ledc_backlight_driver) == ERROR_NONE);
+    check(driver_remove_destruct(&esp32_gpio_backlight_driver) == ERROR_NONE);
 #if SOC_SDMMC_HOST_SUPPORTED
     check(driver_remove_destruct(&esp32_sdmmc_driver) == ERROR_NONE);
 #endif

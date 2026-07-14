@@ -11,12 +11,10 @@
 #include <Tactility/service/displayidle/DisplayIdleService.h>
 #endif
 #include <Tactility/app/App.h>
-#include <Tactility/app/touchcalibration/TouchCalibration.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <lvgl.h>
-#include <tactility/lvgl_pointer.h>
 
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
@@ -103,12 +101,6 @@ class KernelDisplayApp final : public App {
             app->displaySettingsUpdated = true;
         }
     }
-
-#if defined(CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED)
-    static void onCalibrateTouchClicked(lv_event_t*) {
-        app::touchcalibration::start();
-    }
-#endif
 
     static void onScreensaverChanged(lv_event_t* event) {
         auto* app = static_cast<KernelDisplayApp*>(lv_event_get_user_data(event));
@@ -262,27 +254,6 @@ public:
                 lv_obj_add_state(screensaverDropdown, LV_STATE_DISABLED);
             }
         }
-
-#if defined(CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED)
-        if (lvgl_pointer_get_default() != nullptr) {
-            auto* calibrate_wrapper = lv_obj_create(main_wrapper);
-            lv_obj_set_size(calibrate_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-            lv_obj_set_style_pad_all(calibrate_wrapper, 0, LV_STATE_DEFAULT);
-            lv_obj_set_style_border_width(calibrate_wrapper, 0, LV_STATE_DEFAULT);
-
-            auto* calibrate_label = lv_label_create(calibrate_wrapper);
-            lv_label_set_text(calibrate_label, "Touch calibration");
-            lv_obj_align(calibrate_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-            auto* calibrate_button = lv_button_create(calibrate_wrapper);
-            lv_obj_align(calibrate_button, LV_ALIGN_RIGHT_MID, 0, 0);
-            lv_obj_add_event_cb(calibrate_button, onCalibrateTouchClicked, LV_EVENT_SHORT_CLICKED, this);
-
-            auto* calibrate_button_label = lv_label_create(calibrate_button);
-            lv_label_set_text(calibrate_button_label, "Calibrate");
-            lv_obj_center(calibrate_button_label);
-        }
-#endif
     }
 
     void onHide(AppContext& app) override {

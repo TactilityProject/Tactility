@@ -20,7 +20,6 @@
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/service/wifi/Wifi.h>
 #include <tactility/check.h>
-#include <tactility/filesystem/file_system.h>
 
 #include <tactility/lvgl_icon_statusbar.h>
 

@@ -1,0 +1,20 @@
+description: >
+  unPhone physical navigation buttons: 3 buttons wired directly to native ESP32 GPIO
+  pins. Button 1 (left) stops the currently running app on release; buttons 2 and 3
+  are read but currently have no assigned action.
+
+compatible: "unphone,nav-buttons"
+
+properties:
+  pin-button1:
+    type: phandles
+    required: true
+    description: GPIO pin connected to the left (button 1) nav button
+  pin-button2:
+    type: phandles
+    required: true
+    description: GPIO pin connected to the middle (button 2) nav button
+  pin-button3:
+    type: phandles
+    required: true
+    description: GPIO pin connected to the right (button 3) nav button

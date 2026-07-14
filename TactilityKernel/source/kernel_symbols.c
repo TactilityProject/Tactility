@@ -4,8 +4,10 @@
 #include <tactility/concurrent/timer.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/adc_controller.h>
 #include <tactility/drivers/audio_codec.h>
 #include <tactility/drivers/audio_stream.h>
+#include <tactility/drivers/backlight.h>
 #include <tactility/drivers/bluetooth.h>
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/bluetooth_midi.h>
@@ -14,13 +16,20 @@
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/drivers/usb_host_msc.h>
+#include <tactility/drivers/display.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/grove.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
+#include <tactility/drivers/i8080_controller.h>
+#include <tactility/drivers/keyboard.h>
+#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/drivers/root.h>
 #include <tactility/drivers/rtc.h>
+#include <tactility/drivers/sdcard.h>
 #include <tactility/drivers/spi_controller.h>
+#include <tactility/drivers/spi_peripheral.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/error.h>
@@ -94,6 +103,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(audio_codec_get_native_sample_rate),
     DEFINE_MODULE_SYMBOL(audio_codec_get_native_channels),
     DEFINE_MODULE_SYMBOL(audio_codec_get_capabilities),
+    DEFINE_MODULE_SYMBOL(audio_codec_get_input_gain_multiplier),
     DEFINE_MODULE_SYMBOL(AUDIO_CODEC_TYPE),
     // drivers/audio_stream
     DEFINE_MODULE_SYMBOL(audio_stream_open_input),
@@ -107,7 +117,40 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(audio_stream_get_mute),
     DEFINE_MODULE_SYMBOL(audio_stream_set_enabled),
     DEFINE_MODULE_SYMBOL(audio_stream_get_enabled),
+    DEFINE_MODULE_SYMBOL(audio_stream_is_supported),
+    DEFINE_MODULE_SYMBOL(audio_stream_set_change_callback),
     DEFINE_MODULE_SYMBOL(AUDIO_STREAM_TYPE),
+    // drivers/adc_controller
+    DEFINE_MODULE_SYMBOL(adc_controller_read_raw),
+    DEFINE_MODULE_SYMBOL(adc_channel_read_raw),
+    DEFINE_MODULE_SYMBOL(ADC_CONTROLLER_TYPE),
+    // drivers/backlight
+    DEFINE_MODULE_SYMBOL(backlight_set_brightness),
+    DEFINE_MODULE_SYMBOL(backlight_set_brightness_default),
+    DEFINE_MODULE_SYMBOL(backlight_get_brightness),
+    DEFINE_MODULE_SYMBOL(backlight_get_min_brightness),
+    DEFINE_MODULE_SYMBOL(backlight_get_max_brightness),
+    DEFINE_MODULE_SYMBOL(BACKLIGHT_TYPE),
+    // drivers/display
+    DEFINE_MODULE_SYMBOL(display_reset),
+    DEFINE_MODULE_SYMBOL(display_init),
+    DEFINE_MODULE_SYMBOL(display_draw_bitmap),
+    DEFINE_MODULE_SYMBOL(display_mirror),
+    DEFINE_MODULE_SYMBOL(display_swap_xy),
+    DEFINE_MODULE_SYMBOL(display_get_swap_xy),
+    DEFINE_MODULE_SYMBOL(display_get_mirror_x),
+    DEFINE_MODULE_SYMBOL(display_get_mirror_y),
+    DEFINE_MODULE_SYMBOL(display_set_gap),
+    DEFINE_MODULE_SYMBOL(display_invert_color),
+    DEFINE_MODULE_SYMBOL(display_disp_on_off),
+    DEFINE_MODULE_SYMBOL(display_disp_sleep),
+    DEFINE_MODULE_SYMBOL(display_get_color_format),
+    DEFINE_MODULE_SYMBOL(display_get_resolution_x),
+    DEFINE_MODULE_SYMBOL(display_get_resolution_y),
+    DEFINE_MODULE_SYMBOL(display_get_frame_buffer),
+    DEFINE_MODULE_SYMBOL(display_get_frame_buffer_count),
+    DEFINE_MODULE_SYMBOL(display_get_backlight),
+    DEFINE_MODULE_SYMBOL(DISPLAY_TYPE),
     // drivers/gpio_controller
     DEFINE_MODULE_SYMBOL(gpio_descriptor_acquire),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_release),
@@ -118,9 +161,14 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(gpio_descriptor_get_native_pin_number),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_get_pin_number),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_get_owner_type),
+    DEFINE_MODULE_SYMBOL(gpio_descriptor_add_callback),
+    DEFINE_MODULE_SYMBOL(gpio_descriptor_remove_callback),
+    DEFINE_MODULE_SYMBOL(gpio_descriptor_enable_interrupt),
+    DEFINE_MODULE_SYMBOL(gpio_descriptor_disable_interrupt),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_pin_count),
     DEFINE_MODULE_SYMBOL(gpio_controller_init_descriptors),
     DEFINE_MODULE_SYMBOL(gpio_controller_deinit_descriptors),
+    DEFINE_MODULE_SYMBOL(gpio_controller_get_controller_context),
     DEFINE_MODULE_SYMBOL(GPIO_CONTROLLER_TYPE),
     // drivers/grove
     DEFINE_MODULE_SYMBOL(grove_set_mode),
@@ -138,6 +186,10 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(i2c_controller_register8_get),
     DEFINE_MODULE_SYMBOL(i2c_controller_register8_set_bits),
     DEFINE_MODULE_SYMBOL(i2c_controller_register8_reset_bits),
+    DEFINE_MODULE_SYMBOL(i2c_controller_register16le_get),
+    DEFINE_MODULE_SYMBOL(i2c_controller_register16le_set),
+    DEFINE_MODULE_SYMBOL(i2c_controller_register16be_get),
+    DEFINE_MODULE_SYMBOL(i2c_controller_register16be_set),
     DEFINE_MODULE_SYMBOL(I2C_CONTROLLER_TYPE),
     // drivers/i2s_controller
     DEFINE_MODULE_SYMBOL(i2s_controller_read),
@@ -146,18 +198,53 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(i2s_controller_get_config),
     DEFINE_MODULE_SYMBOL(i2s_controller_reset),
     DEFINE_MODULE_SYMBOL(i2s_controller_set_rx_tdm_config),
+    DEFINE_MODULE_SYMBOL(i2s_controller_set_rx_pdm_config),
+    DEFINE_MODULE_SYMBOL(i2s_controller_disable_direction),
     DEFINE_MODULE_SYMBOL(I2S_CONTROLLER_TYPE),
+    // drivers/i8080_controller
+    DEFINE_MODULE_SYMBOL(I8080_CONTROLLER_TYPE),
+    // drivers/keyboard
+    DEFINE_MODULE_SYMBOL(keyboard_read_key),
+    DEFINE_MODULE_SYMBOL(KEYBOARD_TYPE),
+    // drivers/pointer
+    DEFINE_MODULE_SYMBOL(pointer_enter_sleep),
+    DEFINE_MODULE_SYMBOL(pointer_exit_sleep),
+    DEFINE_MODULE_SYMBOL(pointer_read_data),
+    DEFINE_MODULE_SYMBOL(pointer_get_touched_points),
+    DEFINE_MODULE_SYMBOL(pointer_set_swap_xy),
+    DEFINE_MODULE_SYMBOL(pointer_get_swap_xy),
+    DEFINE_MODULE_SYMBOL(pointer_set_mirror_x),
+    DEFINE_MODULE_SYMBOL(pointer_get_mirror_x),
+    DEFINE_MODULE_SYMBOL(pointer_set_mirror_y),
+    DEFINE_MODULE_SYMBOL(pointer_get_mirror_y),
+    DEFINE_MODULE_SYMBOL(POINTER_TYPE),
+    // drivers/power_supply
+    DEFINE_MODULE_SYMBOL(power_supply_supports_property),
+    DEFINE_MODULE_SYMBOL(power_supply_get_property),
+    DEFINE_MODULE_SYMBOL(power_supply_supports_charge_control),
+    DEFINE_MODULE_SYMBOL(power_supply_is_allowed_to_charge),
+    DEFINE_MODULE_SYMBOL(power_supply_set_allowed_to_charge),
+    DEFINE_MODULE_SYMBOL(power_supply_supports_quick_charge),
+    DEFINE_MODULE_SYMBOL(power_supply_is_quick_charge_enabled),
+    DEFINE_MODULE_SYMBOL(power_supply_set_quick_charge_enabled),
+    DEFINE_MODULE_SYMBOL(power_supply_supports_power_off),
+    DEFINE_MODULE_SYMBOL(power_supply_power_off),
+    DEFINE_MODULE_SYMBOL(POWER_SUPPLY_TYPE),
     // drivers/root
     DEFINE_MODULE_SYMBOL(root_is_model),
     // drivers/rtc
     DEFINE_MODULE_SYMBOL(rtc_get_time),
     DEFINE_MODULE_SYMBOL(rtc_set_time),
     DEFINE_MODULE_SYMBOL(RTC_TYPE),
+    // drivers/sdcard
+    DEFINE_MODULE_SYMBOL(SDCARD_TYPE),
     // drivers/spi_controller
     DEFINE_MODULE_SYMBOL(spi_controller_lock),
     DEFINE_MODULE_SYMBOL(spi_controller_try_lock),
     DEFINE_MODULE_SYMBOL(spi_controller_unlock),
     DEFINE_MODULE_SYMBOL(SPI_CONTROLLER_TYPE),
+    // drivers/spi_peripheral
+    DEFINE_MODULE_SYMBOL(SPI_PERIPHERAL_TYPE),
     // drivers/uart_controller
     DEFINE_MODULE_SYMBOL(uart_controller_open),
     DEFINE_MODULE_SYMBOL(uart_controller_close),
@@ -245,6 +332,8 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(WIFI_TYPE),
     // drivers/usb_host_hid
     DEFINE_MODULE_SYMBOL(usb_host_hid_is_connected),
+    DEFINE_MODULE_SYMBOL(usb_host_hid_subscribe),
+    DEFINE_MODULE_SYMBOL(usb_host_hid_unsubscribe),
     DEFINE_MODULE_SYMBOL(USB_HOST_HID_TYPE),
     // drivers/usb_host_midi
     DEFINE_MODULE_SYMBOL(usb_midi_set_callback),

@@ -208,7 +208,7 @@ static error_t start(Device* device) {
     const auto* spi_config = static_cast<const Esp32SpiConfig*>(parent->config);
     const auto* config = GET_CONFIG(device);
 
-    struct GpioPinSpec cs_pin;
+    GpioPinSpec cs_pin;
     if (esp32_spi_get_cs_pin(device, &cs_pin) != ERROR_NONE) {
         LOG_E(TAG, "Failed to resolve CS pin");
         return ERROR_RESOURCE;
@@ -251,14 +251,13 @@ static error_t start(Device* device) {
         .queue_size = 1,
     };
 
-    if (spi_bus_add_device((spi_host_device_t)spi_config->host, &device_config, &internal->spi_handle) != ESP_OK) {
+    if (spi_bus_add_device(spi_config->host, &device_config, &internal->spi_handle) != ESP_OK) {
         LOG_E(TAG, "Failed to add SPI device");
         free(internal);
         return ERROR_RESOURCE;
     }
 
-    // Hardware reset, in addition to the SWRESET the bring-up command list sends - matches the
-    // deprecated HAL's Hx8357Display::start(), which did both.
+    // Hardware reset, in addition to the SWRESET the bring-up command list sends
     int reset_pin = pin_or_unused(config->pin_reset);
     if (reset_pin != -1) {
         gpio_config_t reset_config = {

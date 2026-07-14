@@ -3,9 +3,9 @@
 #include <tactility/driver.h>
 #include <tactility/module.h>
 
-extern "C" {
-
 extern Driver hx8357_driver;
+
+extern "C" {
 
 static error_t start() {
     /* We crash when construct fails, because if a single driver fails to construct,

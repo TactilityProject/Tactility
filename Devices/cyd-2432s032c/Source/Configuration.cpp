@@ -7,7 +7,7 @@
 
 #include <PwmBacklight.h>
 
-static bool initBoot() {
+static bool init_boot() {
     if (!driver::pwmbacklight::init(LCD_PIN_BACKLIGHT)) {
         return false;
     }
@@ -42,6 +42,6 @@ static tt::hal::DeviceVector createDevices() {
 }
 
 extern const tt::hal::Configuration hardwareConfiguration = {
-    .initBoot = initBoot,
+    .initBoot = init_boot,
     .createDevices = createDevices
 };

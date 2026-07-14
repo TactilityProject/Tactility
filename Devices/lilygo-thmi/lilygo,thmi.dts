@@ -99,6 +99,7 @@
 			vertical-resolution = <320>;
 			pixel-clock-hz = <16000000>;
 			backlight = <&display_backlight>;
+			gamma-curve = <2>;
 		};
 	};
 
@@ -110,13 +111,6 @@
 		pin-cs = <&gpio0 2 GPIO_FLAG_NONE>;
 		x-max = <240>;
 		y-max = <320>;
-	};
-
-	// One-button mode: short press = select next, long press = press/enter (matches the
-	// deprecated HAL's old ButtonControl::createOneButtonControl(0)).
-	buttons {
-		compatible = "tactility,button-control";
-		pin-primary = <&gpio0 0 GPIO_FLAG_NONE>;
 	};
 
 	sdmmc0 {

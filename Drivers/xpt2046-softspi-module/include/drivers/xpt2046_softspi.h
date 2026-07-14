@@ -20,6 +20,10 @@ struct Xpt2046SoftSpiConfig {
     bool swap_xy;
     bool mirror_x;
     bool mirror_y;
+    /** Expose a power-supply child device that reads battery voltage/capacity off the chip's v-bat input */
+    bool power_supply;
+    /** Battery voltage (mV) considered 100% capacity, used to derive POWER_SUPPLY_PROP_CAPACITY */
+    uint32_t power_supply_reference_voltage_mv;
 };
 
 #ifdef __cplusplus

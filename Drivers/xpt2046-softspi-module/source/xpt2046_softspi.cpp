@@ -2,23 +2,33 @@
 #include <drivers/xpt2046_softspi.h>
 #include <xpt2046_softspi_module.h>
 
+#include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/pointer.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/delay.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
 
 #include <cstdlib>
+#include <new>
 
 #define TAG "XPT2046SoftSPI"
 #define GET_CONFIG(device) (static_cast<const Xpt2046SoftSpiConfig*>((device)->config))
+
+// Rough LiPo discharge curve floor, used together with the configured reference voltage
+// (the 100% point) to estimate a charge percentage from the sensed v-bat voltage.
+#define POWER_SUPPLY_MIN_MV 3200
 
 namespace {
 
 constexpr uint8_t CMD_READ_X = 0xD0;
 constexpr uint8_t CMD_READ_Y = 0x90;
+// BATTERY register (start=1, addr=010, 12-bit mode, single-ended, PD1=0/PD0=1 i.e. IRQ disabled
+// between conversions), same encoding as the hardware-SPI XPT2046 driver's default mode.
+constexpr uint8_t CMD_READ_BATTERY = 0xA7;
 
 constexpr int RAW_MIN_DEFAULT = 100;
 constexpr int RAW_MAX_DEFAULT = 1900;
@@ -39,7 +49,11 @@ struct Xpt2046SoftSpiInternal {
     bool touched;
     uint16_t x;
     uint16_t y;
+    Device* power_supply_device;
 };
+
+static error_t create_power_supply_child(Device* parent, Device*& out_child);
+static void destroy_power_supply_child(Device* child);
 
 // region Driver lifecycle
 
@@ -95,11 +109,27 @@ static error_t start(Device* device) {
     internal->mirror_y = config->mirror_y;
 
     device_set_driver_data(device, internal);
+
+    if (config->power_supply) {
+        error_t error = create_power_supply_child(device, internal->power_supply_device);
+        if (error != ERROR_NONE) {
+            LOG_E(TAG, "Failed to create power-supply device");
+            release_descriptors(internal);
+            free(internal);
+            return error;
+        }
+    }
+
     return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
     auto* internal = static_cast<Xpt2046SoftSpiInternal*>(device_get_driver_data(device));
+
+    if (internal->power_supply_device != nullptr) {
+        destroy_power_supply_child(internal->power_supply_device);
+    }
+
     release_descriptors(internal);
     free(internal);
     return ERROR_NONE;
@@ -142,6 +172,127 @@ static int read_spi_command(Xpt2046SoftSpiInternal* internal, uint8_t command) {
     gpio_descriptor_set_level(internal->cs, true);
 
     return result;
+}
+
+// endregion
+
+// region Power supply
+
+// The v-bat reading is noisy (bit-banged SPI, no dedicated sample/hold), so it's smoothed by
+// averaging over several samples rather than trusting a single conversion.
+#define POWER_SUPPLY_SAMPLE_COUNT 20
+
+// Same scaling as the hardware-SPI XPT2046 driver's esp_lcd_touch_xpt2046_read_battery_level():
+// the chip halves the v-bat voltage internally, and the raw code is relative to its internal
+// 2.507V reference over 12 bits.
+static int read_battery_mv(Xpt2046SoftSpiInternal* internal) {
+    int64_t raw_sum = 0;
+    for (int i = 0; i < POWER_SUPPLY_SAMPLE_COUNT; i++) {
+        raw_sum += read_spi_command(internal, CMD_READ_BATTERY);
+    }
+
+    int64_t raw_avg = raw_sum / POWER_SUPPLY_SAMPLE_COUNT;
+    return (int)((raw_avg * 4 * 2507) / 4096);
+}
+
+static bool ps_supports_property(Device*, PowerSupplyProperty property) {
+    return property == POWER_SUPPLY_PROP_VOLTAGE || property == POWER_SUPPLY_PROP_CAPACITY;
+}
+
+static int estimate_capacity_from_mv(int battery_mv, uint32_t reference_mv) {
+    if (battery_mv <= POWER_SUPPLY_MIN_MV) return 0;
+    if ((uint32_t)battery_mv >= reference_mv) return 100;
+    return (battery_mv - POWER_SUPPLY_MIN_MV) * 100 / ((int)reference_mv - POWER_SUPPLY_MIN_MV);
+}
+
+static error_t ps_get_property(Device* device, PowerSupplyProperty property, PowerSupplyPropertyValue* out_value) {
+    if (property != POWER_SUPPLY_PROP_VOLTAGE && property != POWER_SUPPLY_PROP_CAPACITY) {
+        return ERROR_NOT_SUPPORTED;
+    }
+
+    auto* parent = device_get_parent(device);
+    const auto* parent_config = GET_CONFIG(parent);
+    auto* parent_internal = static_cast<Xpt2046SoftSpiInternal*>(device_get_driver_data(parent));
+
+    int battery_mv = read_battery_mv(parent_internal);
+    out_value->int_value = (property == POWER_SUPPLY_PROP_VOLTAGE) ? battery_mv : estimate_capacity_from_mv(battery_mv, parent_config->power_supply_reference_voltage_mv);
+    return ERROR_NONE;
+}
+
+static bool ps_supports_charge_control(Device*) { return false; }
+static bool ps_is_allowed_to_charge(Device*) { return false; }
+static error_t ps_set_allowed_to_charge(Device*, bool) { return ERROR_NOT_SUPPORTED; }
+static bool ps_supports_quick_charge(Device*) { return false; }
+static bool ps_is_quick_charge_enabled(Device*) { return false; }
+static error_t ps_set_quick_charge_enabled(Device*, bool) { return ERROR_NOT_SUPPORTED; }
+static bool ps_supports_power_off(Device*) { return false; }
+static error_t ps_power_off(Device*) { return ERROR_NOT_SUPPORTED; }
+
+static constexpr PowerSupplyApi XPT2046_SOFTSPI_POWER_SUPPLY_API = {
+    .supports_property = ps_supports_property,
+    .get_property = ps_get_property,
+    .supports_charge_control = ps_supports_charge_control,
+    .is_allowed_to_charge = ps_is_allowed_to_charge,
+    .set_allowed_to_charge = ps_set_allowed_to_charge,
+    .supports_quick_charge = ps_supports_quick_charge,
+    .is_quick_charge_enabled = ps_is_quick_charge_enabled,
+    .set_quick_charge_enabled = ps_set_quick_charge_enabled,
+    .supports_power_off = ps_supports_power_off,
+    .power_off = ps_power_off,
+};
+
+// Registered (driver_construct_add() in module.cpp) so driver_bind() has a valid ->internal,
+// but never matched against a devicetree node: xpt2046_softspi wires it up directly by pointer.
+Driver xpt2046_softspi_power_supply_driver = {
+    .name = "xpt2046-softspi-power-supply",
+    .compatible = (const char*[]) { "xpt2046-softspi-power-supply", nullptr },
+    .start_device = nullptr,
+    .stop_device = nullptr,
+    .api = &XPT2046_SOFTSPI_POWER_SUPPLY_API,
+    .device_type = &POWER_SUPPLY_TYPE,
+    .owner = &xpt2046_softspi_module,
+    .internal = nullptr
+};
+
+static error_t create_power_supply_child(Device* parent, Device*& out_child) {
+    auto* child = new(std::nothrow) Device { .address = 0, .name = "xpt2046-softspi-power-supply", .config = nullptr, .parent = nullptr, .internal = nullptr };
+    if (child == nullptr) {
+        return ERROR_OUT_OF_MEMORY;
+    }
+
+    error_t error = device_construct(child);
+    if (error != ERROR_NONE) {
+        delete child;
+        return error;
+    }
+
+    device_set_parent(child, parent);
+    device_set_driver(child, &xpt2046_softspi_power_supply_driver);
+
+    error = device_add(child);
+    if (error != ERROR_NONE) {
+        device_destruct(child);
+        delete child;
+        return error;
+    }
+
+    error = device_start(child);
+    if (error != ERROR_NONE) {
+        device_remove(child);
+        device_destruct(child);
+        delete child;
+        return error;
+    }
+
+    out_child = child;
+    return ERROR_NONE;
+}
+
+static void destroy_power_supply_child(Device* child) {
+    check(device_stop(child) == ERROR_NONE);
+    check(device_remove(child) == ERROR_NONE);
+    check(device_destruct(child) == ERROR_NONE);
+    delete child;
 }
 
 // endregion
