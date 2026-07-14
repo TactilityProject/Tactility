@@ -18,6 +18,9 @@
 #include <esp_lcd_panel_rgb.h>
 #include <esp_lcd_panel_ops.h>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
 #include <cstdlib>
 
 #define TAG "RgbDisplay"
@@ -31,7 +34,27 @@ struct RgbDisplayInternal {
     esp_lcd_panel_handle_t panel_handle;
     void* frame_buffers[MAX_CACHED_FRAME_BUFFERS];
     uint8_t frame_buffer_count;
+    // Signaled by on_frame_buf_complete once per real DMA scan-out of a whole frame. Only
+    // waited on in draw_bitmap() when frame_buffer_count > 0 - see the comment there for why.
+    SemaphoreHandle_t frame_complete_semaphore;
 };
+
+// esp_lcd_rgb_panel's draw_bitmap() has a zero-copy path when color_data is one of the panel's
+// own frame buffers (as returned by esp_lcd_rgb_panel_get_frame_buffer()): it just repoints which
+// buffer is scanned out and returns almost instantly - well before the RGB peripheral's DMA has
+// actually finished scanning out the *previous* buffer, let alone started on this one. Callers in
+// full/direct LVGL render mode render straight into these real frame buffers, so if draw_bitmap()
+// returned that quickly, LVGL would be free to start overwriting the *other* buffer - which may
+// still be mid-scanout - producing visible tearing/flashing. on_frame_buf_complete fires once per
+// actual whole-frame DMA completion (continuously, at the panel's refresh rate, independent of
+// draw_bitmap calls), so waiting for the next occurrence after each draw_bitmap() genuinely
+// blocks until it's safe to start writing into the frame buffers again.
+static bool IRAM_ATTR on_frame_buf_complete(esp_lcd_panel_handle_t, const esp_lcd_rgb_panel_event_data_t*, void* user_ctx) {
+    auto* internal = static_cast<RgbDisplayInternal*>(user_ctx);
+    BaseType_t high_task_woken = pdFALSE;
+    xSemaphoreGiveFromISR(internal->frame_complete_semaphore, &high_task_woken);
+    return high_task_woken == pdTRUE;
+}
 
 static int pin_or_unused(const GpioPinSpec& pin) {
     return pin.gpio_controller == nullptr ? -1 : static_cast<int>(pin.pin);
@@ -204,6 +227,23 @@ static error_t start(Device* device) {
         return error;
     }
 
+    internal->frame_complete_semaphore = xSemaphoreCreateBinary();
+    if (internal->frame_complete_semaphore == nullptr) {
+        esp_lcd_panel_del(internal->panel_handle);
+        free(internal);
+        return ERROR_OUT_OF_MEMORY;
+    }
+
+    esp_lcd_rgb_panel_event_callbacks_t callbacks = {};
+    callbacks.on_frame_buf_complete = on_frame_buf_complete;
+    if (esp_lcd_rgb_panel_register_event_callbacks(internal->panel_handle, &callbacks, internal) != ESP_OK) {
+        LOG_E(TAG, "Failed to register panel event callbacks");
+        vSemaphoreDelete(internal->frame_complete_semaphore);
+        esp_lcd_panel_del(internal->panel_handle);
+        free(internal);
+        return ERROR_RESOURCE;
+    }
+
     device_set_driver_data(device, internal);
     return ERROR_NONE;
 }
@@ -213,10 +253,12 @@ static error_t stop(Device* device) {
 
     if (esp_lcd_panel_del(internal->panel_handle) != ESP_OK) {
         LOG_E(TAG, "Failed to delete panel");
+        vSemaphoreDelete(internal->frame_complete_semaphore);
         free(internal);
         return ERROR_RESOURCE;
     }
 
+    vSemaphoreDelete(internal->frame_complete_semaphore);
     free(internal);
     return ERROR_NONE;
 }
@@ -237,10 +279,27 @@ static error_t rgb_display_init(Device* device) {
 
 static error_t rgb_display_draw_bitmap(Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data) {
     auto* internal = static_cast<RgbDisplayInternal*>(device_get_driver_data(device));
-    // Unlike SPI/i80 panels, the RGB LCD peripheral continuously scans out its own frame
-    // buffer via DMA; draw_bitmap just copies into that buffer and returns; there's no
-    // separate "transfer complete" signal to wait for.
-    return esp_lcd_panel_draw_bitmap(internal->panel_handle, x_start, y_start, x_end, y_end, color_data) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
+
+    // Only block for scan-out completion when the caller could be writing straight into one of
+    // the panel's own frame buffers (see on_frame_buf_complete's comment above for why that
+    // matters). With no real frame buffer of ours involved (frame_buffer_count == 0, e.g. LVGL
+    // partial-render mode with its own separate buffer), draw_bitmap does a real memcpy into the
+    // panel's buffer and there's no reuse race to guard against, so don't pay the up-to-one-frame
+    // latency cost for every small partial update.
+    bool wait_for_scanout = internal->frame_buffer_count > 0;
+    if (wait_for_scanout) {
+        xSemaphoreTake(internal->frame_complete_semaphore, 0); // clear any already-pending signal
+    }
+
+    if (esp_lcd_panel_draw_bitmap(internal->panel_handle, x_start, y_start, x_end, y_end, color_data) != ESP_OK) {
+        return ERROR_RESOURCE;
+    }
+
+    if (wait_for_scanout) {
+        xSemaphoreTake(internal->frame_complete_semaphore, portMAX_DELAY);
+    }
+
+    return ERROR_NONE;
 }
 
 static error_t rgb_display_mirror(Device* device, bool x_axis, bool y_axis) {
