@@ -4,9 +4,9 @@ compatible: "nsiway,ns4168"
 
 properties:
   i2s:
-    type: text
+    type: phandle
     required: true
-    description: "Name of the I2S controller device that carries audio data (e.g. 'i2s0')"
+    description: "I2S controller device that carries audio data"
   pin-enable:
     type: phandles
     default: GPIO_PIN_SPEC_NONE

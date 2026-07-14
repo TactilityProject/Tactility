@@ -3,7 +3,7 @@
 A driver for the `ES8311` audio codec by Everest Semiconductor, wired as a dual
 in/out `AUDIO_CODEC_TYPE` device (speaker output + microphone input on the same
 chip). The I2C bus is the device's parent; the I2S controller carrying audio data
-is referenced by name.
+is referenced via a devicetree phandle.
 
 Wraps Espressif's `esp_codec_dev` ES8311 implementation.
 

@@ -6,15 +6,15 @@ compatible: "everest,es7210"
 
 properties:
   i2s:
-    type: text
+    type: phandle
     required: true
-    description: "Name of the I2S controller device that carries audio data (e.g. 'i2s0')"
+    description: "I2S controller device that carries audio data"
   mic-mask:
     type: int
     required: false
     default: 15
     description: "Bitmask of microphones to enable (bit0=MIC1 .. bit3=MIC4); defaults to all four"
-  input-gain-x100:
+  input-gain-percent:
     type: int
     default: 100
     description: "Extra digital gain multiplier applied by audio_stream on top of the ES7210's own 30dB hardware ADC gain, as an integer percentage (100 = 1.0x / no extra boost). devicetree has no float type, hence x100."

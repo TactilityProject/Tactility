@@ -147,12 +147,12 @@
 
 	speaker0 {
 		compatible = "nsiway,ns4168";
-		i2s = "i2s0";
+		i2s = <&i2s0>;
 	};
 
 	mic0 {
 		compatible = "generic,spm1423";
-		i2s = "i2s0";
+		i2s = <&i2s0>;
 		channels = <1>;
 	};
 };

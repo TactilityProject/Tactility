@@ -91,7 +91,7 @@
 	// enabled when powered, so no enable-gpio is wired here.
 	speaker0 {
 		compatible = "maxim,max98357a";
-		i2s = "i2s0";
+		i2s = <&i2s0>;
 	};
 
 	i2c_internal: i2c0 {
@@ -129,7 +129,7 @@
 		es7210 {
 			compatible = "everest,es7210";
 			reg = <0x40>;
-			i2s = "i2s1";
+			i2s = <&i2s1>;
 			mic-mask = <15>;
 		};
 	};

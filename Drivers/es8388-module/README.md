@@ -2,7 +2,7 @@
 
 A driver for the `ES8388` audio codec by Everest Semiconductor, wired as a dual
 in/out `AUDIO_CODEC_TYPE` device (speaker output + line/mic input). The I2C bus is
-the device's parent; the I2S controller carrying audio data is referenced by name.
+the device's parent; the I2S controller carrying audio data is referenced via a devicetree phandle.
 
 Wraps Espressif's `esp_codec_dev` ES8388 implementation.
 

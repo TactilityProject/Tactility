@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 /**
- * @brief AW9523B GPIO expander device configuration (set from devicetree).
+ * @brief AW9523B GPIO expander device configuration.
  *
  * 16 pins total: P0_0..P0_7 map to GpioDescriptor pin numbers 0..7, P1_0..P1_7
  * map to pin numbers 8..15. P0 defaults to open-drain per hardware reset; this

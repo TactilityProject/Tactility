@@ -57,7 +57,7 @@
 
 	speaker0 {
 		compatible = "nsiway,ns4168";
-		i2s = "i2s0";
+		i2s = <&i2s0>;
 	};
 
 	spi0 {

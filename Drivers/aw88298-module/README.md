@@ -2,7 +2,7 @@
 
 A driver for the `AW88298` smart speaker power amplifier by Awinic, wired as an
 output-only `AUDIO_CODEC_TYPE` device. The I2C bus is the device's parent; the I2S
-controller carrying audio data is referenced by name.
+controller carrying audio data is referenced via a devicetree phandle.
 
 Wraps Espressif's `esp_codec_dev` AW88298 implementation. If a hardware reset
 (`pin-reset`) is wired, this driver pulses it itself before opening the codec,

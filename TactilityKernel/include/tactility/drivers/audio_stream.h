@@ -50,7 +50,7 @@ enum AudioStreamChange {
     AUDIO_STREAM_CHANGE_ENABLED,
 };
 
-typedef void (*AudioStreamChangeCallback)(struct Device* device, enum AudioCodecDirection direction, enum AudioStreamChange change, void* userData);
+typedef void (*AudioStreamChangeCallback)(struct Device* device, enum AudioCodecDirection direction, enum AudioStreamChange change, void* user_data);
 
 /**
  * @brief API for the high-level full-duplex audio stream device.
@@ -162,7 +162,7 @@ struct AudioStreamApi {
     error_t (*is_supported)(struct Device* device, enum AudioCodecDirection direction, bool* supported);
 
     /** @brief See audio_stream_set_change_callback. */
-    error_t (*set_change_callback)(struct Device* device, AudioStreamChangeCallback callback, void* userData);
+    error_t (*set_change_callback)(struct Device* device, AudioStreamChangeCallback callback, void* user_data);
 };
 
 /** @brief See AudioStreamApi::open_input */
@@ -202,7 +202,7 @@ error_t audio_stream_get_enabled(struct Device* device, enum AudioCodecDirection
 error_t audio_stream_is_supported(struct Device* device, enum AudioCodecDirection direction, bool* supported);
 
 /** @brief See AudioStreamApi::set_change_callback */
-error_t audio_stream_set_change_callback(struct Device* device, AudioStreamChangeCallback callback, void* userData);
+error_t audio_stream_set_change_callback(struct Device* device, AudioStreamChangeCallback callback, void* user_data);
 
 extern const struct DeviceType AUDIO_STREAM_TYPE;
 

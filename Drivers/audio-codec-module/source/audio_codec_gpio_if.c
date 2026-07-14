@@ -120,10 +120,6 @@ const audio_codec_gpio_if_t* audio_codec_adapter_new_gpio(const struct GpioPinSp
 // Note: esp_codec_dev's generic audio_codec_delete_gpio_if() only frees the struct — it doesn't
 // know about our descriptor array, so we provide our own cleanup under a non-colliding name.
 int audio_codec_adapter_delete_gpio(const audio_codec_gpio_if_t* gpio_if) {
-    if (gpio_if == NULL) {
-        return ESP_CODEC_DEV_INVALID_ARG;
-    }
-
     struct GpioAdapterContext* context = (struct GpioAdapterContext*) gpio_if;
     for (size_t i = 0; i < context->pin_count; i++) {
         if (context->descriptors[i] != NULL) {

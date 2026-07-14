@@ -40,7 +40,7 @@
 	};
 
 	// AW88298 speaker + ES7210 microphone
-	i2s0 {
+	i2s0: i2s0 {
 		compatible = "espressif,esp32-i2s";
 		port = <I2S_NUM_0>;
 		pin-bclk     = <&gpio0 34 GPIO_FLAG_NONE>;
@@ -90,14 +90,14 @@
 		aw88298 {
 			compatible = "awinic,aw88298";
 			reg = <0x36>;
-			i2s = "i2s0";
+			i2s = <&i2s0>;
 			pin-reset = <&aw9523b 2 GPIO_FLAG_NONE>;
 		};
 
 		es7210 {
 			compatible = "everest,es7210";
 			reg = <0x40>;
-			i2s = "i2s0";
+			i2s = <&i2s0>;
 			// Only MIC1/MIC2 are wired to real capsules (see schematic); MIC3/MIC4
 			// slots carry AEC_P/AEC_N reference signal, not microphone audio.
 			mic-mask = <3>;
@@ -106,7 +106,7 @@
 			// hardware ADC gain (already near-max via the default 90% input volume
 			// setting, ~34dB of its 0-37.5dB range) still isn't enough for these
 			// capsules on their own.
-			input-gain-x100 = <400>;
+			input-gain-percent = <400>;
 		};
 
 		// AXP2101 PMIC @ 0x34 — initialized manually in initBoot()
