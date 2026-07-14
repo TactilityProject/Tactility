@@ -66,6 +66,7 @@
 	display_backlight {
 		compatible = "espressif,esp32-ledc-backlight";
 		pin-backlight = <&gpio0 2 GPIO_FLAG_NONE>;
+		frequency-hz = <512>;
 	};
 
 	display0 {
