@@ -29,6 +29,16 @@ constexpr auto* TAG = "esp32_ble";
 #include <tactility/log.h>
 #include <esp_timer.h>
 
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
+#include <esp_hosted.h>
+// esp_hosted_misc.h lacks its own extern "C" guard, so its declarations get C++
+// name-mangled when included from a .cpp file, causing "undefined reference" at
+// link time against the library's plain-C symbols.
+extern "C" {
+#include <esp_hosted_misc.h>
+}
+#endif
+
 // ble_store_config_init() is not declared in the public header in some IDF versions.
 extern "C" void ble_store_config_init(void);
 
@@ -446,7 +456,24 @@ static void on_sync() {
 
 static void dispatch_disable_timer_cb(void* arg) {
     BleCtx* ctx = (BleCtx*)arg;
+    // Matches api_set_radio_enabled()'s locking so the give-up teardown can't run
+    // concurrently with a user-initiated dispatch_enable()/dispatch_disable() on
+    // the same ctx (both would otherwise race nimble_port_stop()/deinit()).
+    xSemaphoreTake(ctx->radio_mutex, portMAX_DELAY);
     dispatch_disable(ctx);
+    xSemaphoreGive(ctx->radio_mutex);
+}
+
+// Runs on the NimBLE host task, but only once the event loop is idle again —
+// i.e. strictly after the ble_hs_reset()/ble_hs_sync() call that triggered the
+// giveup has fully returned (this event was queued behind it on g_eventq_dflt).
+// Safe to kick disable_timer here: no in-flight NimBLE call is touching
+// ble_hs_timer on this task anymore. See giveup_event's comment in BleCtx.
+static void giveup_event_cb(struct ble_npl_event* ev) {
+    BleCtx* ctx = (BleCtx*)ble_npl_event_get_arg(ev);
+    if (ctx != nullptr && ctx->disable_timer != nullptr) {
+        esp_timer_start_once(ctx->disable_timer, 0);
+    }
 }
 
 static void on_reset(int reason) {
@@ -458,11 +485,12 @@ static void on_reset(int reason) {
         int count = ctx->pending_reset_count.fetch_add(1) + 1;
         if (count == 3) {
             LOG_E(TAG, "BT controller unresponsive after 3 resets — giving up");
-            // Can't call nimble_port_stop() from the NimBLE host task.
-            // Fire a one-shot esp_timer (delay=0 → fires on esp_timer task immediately).
-            if (ctx->disable_timer != nullptr) {
-                esp_timer_start_once(ctx->disable_timer, 0);
-            }
+            // Do NOT fire disable_timer directly from here: ble_hs_reset() (our
+            // caller) unconditionally falls through to ble_hs_sync() right after
+            // reset_cb returns, which touches the unlocked global ble_hs_timer.
+            // Queue the giveup behind that on NimBLE's own event queue instead —
+            // see giveup_event_cb().
+            ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &ctx->giveup_event);
         }
     }
 }
@@ -470,6 +498,16 @@ static void on_reset(int reason) {
 static void host_task(void* param) {
     LOG_I(TAG, "BLE host task started");
     nimble_port_run();
+    // Signal that this task will not process any further NimBLE events (g_eventq_dflt
+    // is fully drained past the stop sentinel) before dispatch_disable() is allowed to
+    // proceed to nimble_port_deinit(). nimble_port_stop()'s own semaphore only confirms
+    // the stop event was serviced, not that the host task has stopped dequeuing events —
+    // a fresh HCI-ack-wait timeout can still queue and run ble_hs_ev_reset in that gap,
+    // racing against deinit freeing ble_hs_timer's callout (crash: ble_hs_timer_sched ->
+    // ble_npl_callout_is_active on a freed/zeroed callout).
+    if (s_ctx != nullptr && s_ctx->host_task_done_sem != nullptr) {
+        xSemaphoreGive(s_ctx->host_task_done_sem);
+    }
     // nimble_port_deinit() is called by dispatch_disable() after nimble_port_stop() returns.
     nimble_port_freertos_deinit();
 }
@@ -637,6 +675,31 @@ static void dispatch_enable(BleCtx* ctx) {
         ble_publish_event(ctx->device, e);
     }
 
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
+    // Over esp_hosted (SDIO to a co-processor, e.g. C6), the slave's on-chip BT
+    // controller is never auto-started at slave boot — it only comes up in
+    // response to these RPCs. Without them, HCI Reset (the first command NimBLE
+    // ever sends) is handed to esp_vhci_host_send_packet() on the slave with no
+    // controller underneath to consume it, so it's silently dropped and NimBLE
+    // times out (BLE_HS_ETIMEOUT_HCI) forever. Must run before nimble_port_init().
+    // esp_hosted_bt_controller_init/enable() both bail out immediately (no retry,
+    // no blocking) if the SDIO/SPI transport to the co-processor isn't marked up
+    // yet. On boot, BT can auto-enable before Wi-Fi has driven that bring-up, so
+    // explicitly (re)connect here and let it block until the slave handshake
+    // (the "Attempt connection with slave" / "Card init success" sequence)
+    // completes — esp_hosted_connect_to_slave() is a thin wrapper that's safe to
+    // call again if the transport is already up.
+    if (esp_hosted_connect_to_slave() != ESP_OK) {
+        LOG_W(TAG, "esp_hosted_connect_to_slave failed");
+    }
+    if (esp_hosted_bt_controller_init() != ESP_OK) {
+        LOG_W(TAG, "esp_hosted_bt_controller_init failed");
+    }
+    if (esp_hosted_bt_controller_enable() != ESP_OK) {
+        LOG_W(TAG, "esp_hosted_bt_controller_enable failed");
+    }
+#endif
+
     int rc = nimble_port_init();
     if (rc != 0) {
         LOG_E(TAG, "nimble_port_init failed (rc=%d)", rc);
@@ -647,6 +710,10 @@ static void dispatch_enable(BleCtx* ctx) {
         ble_publish_event(ctx->device, e);
         return;
     }
+
+    // npl_funcs only becomes valid after nimble_port_init() above; must (re-)init
+    // the giveup event each enable cycle, not once at device-start time.
+    ble_npl_event_init(&ctx->giveup_event, giveup_event_cb, ctx);
 
     ble_hs_cfg.sync_cb         = on_sync;
     ble_hs_cfg.reset_cb        = on_reset;
@@ -703,6 +770,13 @@ static void dispatch_enable(BleCtx* ctx) {
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
     ble_hci_gate_set_active(true);  // Open gate: NimBLE transport pool is ready
 #endif
+    // Drain any stale "done" signal left over from a previous cycle (e.g. if the
+    // last dispatch_disable() timed out waiting on it — see xSemaphoreTake below
+    // with pdMS_TO_TICKS(2000)) so dispatch_disable() only ever consumes the
+    // completion signal for THIS host task instance.
+    if (ctx->host_task_done_sem != nullptr) {
+        xSemaphoreTake(ctx->host_task_done_sem, 0);
+    }
     // Start NimBLE host task (on_sync will fire when ready)
     nimble_port_freertos_init(host_task);
 }
@@ -731,6 +805,18 @@ static void dispatch_disable(BleCtx* ctx) {
     // controller. Closing the gate before this point starves NimBLE of those events,
     // causing HCI timeouts and a cascade of resets that crash in ble_hs_timer_sched.
     nimble_port_stop();
+    // nimble_port_stop()'s internal semaphore only confirms the stop sentinel event was
+    // serviced — not that host_task()'s call to nimble_port_run() has returned. A reset
+    // event (e.g. from an independent HCI-ack-wait timeout) can still be running on the
+    // host task in that gap. Wait for host_task() to explicitly signal completion before
+    // freeing anything NimBLE still references (ble_hs_timer et al in nimble_port_deinit()),
+    // otherwise ble_hs_timer_sched() on the host task can dereference a freed callout —
+    // see host_task() for the crash this fixes.
+    if (ctx->host_task_done_sem != nullptr) {
+        if (xSemaphoreTake(ctx->host_task_done_sem, pdMS_TO_TICKS(2000)) != pdTRUE) {
+            LOG_W(TAG, "host task did not signal completion in time");
+        }
+    }
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
     // Close the gate NOW — after nimble_port_stop() returns the NimBLE host task has
     // exited and nimble_port_deinit() is about to zero npl_funcs. Any HCI packet
@@ -741,6 +827,16 @@ static void dispatch_disable(BleCtx* ctx) {
     }
 #endif
     nimble_port_deinit();
+
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
+    // Symmetric with the enable-side esp_hosted_bt_controller_init/enable() calls.
+    if (esp_hosted_bt_controller_disable() != ESP_OK) {
+        LOG_W(TAG, "esp_hosted_bt_controller_disable failed");
+    }
+    if (esp_hosted_bt_controller_deinit(true) != ESP_OK) {
+        LOG_W(TAG, "esp_hosted_bt_controller_deinit failed");
+    }
+#endif
 
     ctx->spp_conn_handle.store(BLE_HS_CONN_HANDLE_NONE);
     ctx->spp_active.store(false);
@@ -1048,6 +1144,10 @@ static error_t esp32_ble_start_device(struct Device* device) {
     ctx->scan_mutex           = xSemaphoreCreateMutex();
     ctx->scan_count           = 0;
     memset(ctx->scan_results, 0, sizeof(ctx->scan_results));
+    ctx->host_task_done_sem   = xSemaphoreCreateBinary();
+    if (ctx->host_task_done_sem == nullptr) {
+        LOG_E(TAG, "start_device: host_task_done_sem create failed");
+    }
 
     // Create the disable timer used to dispatch dispatchDisable off the NimBLE host task.
     esp_timer_create_args_t disable_args = {};
@@ -1085,12 +1185,19 @@ static error_t esp32_ble_stop_device(struct Device* device) {
     destroy_child_device(ctx->serial_child);
 
     if (ctx->radio_state.load() != BT_RADIO_STATE_OFF) {
+        xSemaphoreTake(ctx->radio_mutex, portMAX_DELAY);
         dispatch_disable(ctx);
+        xSemaphoreGive(ctx->radio_mutex);
     }
 
     if (ctx->scan_mutex != nullptr) {
         vSemaphoreDelete(ctx->scan_mutex);
         ctx->scan_mutex = nullptr;
+    }
+
+    if (ctx->host_task_done_sem != nullptr) {
+        vSemaphoreDelete(ctx->host_task_done_sem);
+        ctx->host_task_done_sem = nullptr;
     }
 
     if (ctx->disable_timer != nullptr) {

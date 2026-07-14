@@ -1,8 +1,11 @@
 dependencies:
-- Platforms/platform-esp32
-- Drivers/pi4ioe5v6408-module
-- Drivers/bmi270-module
-- Drivers/ina226-module
-- Drivers/rx8130ce-module
-- Drivers/sc2356-module
+  - Platforms/platform-esp32
+  - Drivers/pi4ioe5v6408-module
+  - Drivers/bmi270-module
+  - Drivers/es7210-module
+  - Drivers/es8388-module
+  - Drivers/audio-stream-module
+  - Drivers/ina226-module
+  - Drivers/rx8130ce-module
+  - Drivers/sc2356-module
 dts: m5stack,tab5.dts

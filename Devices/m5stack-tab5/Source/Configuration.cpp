@@ -140,57 +140,14 @@ static void initExpander1(::Device* io_expander1) {
     gpio_descriptor_release(ip2326_charge_enable_pin);
 }
 
-static error_t initSound(::Device* i2c_controller, ::Device* io_expander0 = nullptr) {
-    // Init data from M5Unified:
-    // https://github.com/m5stack/M5Unified/blob/master/src/M5Unified.cpp
-    static constexpr uint8_t ES8388_I2C_ADDR = 0x10;
-    static constexpr uint8_t ENABLED_BULK_DATA[] = {
-        0, 0x80, // RESET/ CSM POWER ON
-        0, 0x00,
-        0, 0x00,
-        0, 0x0E,
-        1, 0x00,
-        2, 0x0A, // CHIP POWER: power up all
-        3, 0xFF, // ADC POWER: power down all
-        4, 0x3C, // DAC POWER: power up and LOUT1/ROUT1/LOUT2/ROUT2 enable
-        5, 0x00, // ChipLowPower1
-        6, 0x00, // ChipLowPower2
-        7, 0x7C, // VSEL
-        8, 0x00, // set I2S slave mode
-        // reg9-22 == adc
-        23, 0x18, // I2S format (16bit)
-        24, 0x00, // I2S MCLK ratio (128)
-        25, 0x20, // DAC unmute
-        26, 0x00, // LDACVOL 0x00~0xC0
-        27, 0x00, // RDACVOL 0x00~0xC0
-        28, 0x08, // enable digital click free power up and down
-        29, 0x00,
-        38, 0x00, // DAC CTRL16
-        39, 0xB8, // LEFT Ch MIX
-        42, 0xB8, // RIGHTCh MIX
-        43, 0x08, // ADC and DAC separate
-        45, 0x00, //   0x00=1.5k VREF analog output / 0x10=40kVREF analog output
-        46, 0x21,
-        47, 0x21,
-        48, 0x21,
-        49, 0x21
-    };
-
-    error_t error = i2c_controller_write_register_array(
-        i2c_controller,
-        ES8388_I2C_ADDR,
-        ENABLED_BULK_DATA,
-        sizeof(ENABLED_BULK_DATA),
-        pdMS_TO_TICKS(1000)
-    );
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to enable ES8388: %s", error_to_string(error));
-        return error;
-    }
-
+// Audio codec register programming is owned by the es8388-module/es7210-module drivers
+// (registered as AUDIO_CODEC_TYPE devices, see m5stack,tab5.dts). This board still needs
+// to drive the external speaker amplifier's enable line via io_expander0, which is board
+// wiring glue rather than codec configuration, so it stays here.
+static error_t enableSpeakerAmplifier(::Device* io_expander0) {
     auto* speaker_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_OWNER_GPIO);
     check(speaker_enable_pin, "Failed to acquire speaker enable pin");
-    error = gpio_descriptor_set_level(speaker_enable_pin, true);
+    error_t error = gpio_descriptor_set_level(speaker_enable_pin, true);
     gpio_descriptor_release(speaker_enable_pin);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to enable amplifier: %s", error_to_string(error));
@@ -200,56 +157,6 @@ static error_t initSound(::Device* i2c_controller, ::Device* io_expander0 = null
     return ERROR_NONE;
 }
 
-static error_t initMicrophone(::Device* i2c_controller) {
-    // ES7210 quad-channel microphone ADC at 0x40.
-    // Register sequence from M5Unified (M5Unified.cpp, _microphone_enabled_cb_tab5).
-    // Configures 4-slot TDM output at 48kHz/16-bit with MIC1+MIC2 active and MICBIAS enabled.
-    static constexpr uint8_t ES7210_I2C_ADDR = 0x40;
-    static constexpr uint8_t INIT_DATA[] = {
-        0x00, 0xFF, // RESET_CTL: full reset
-        0x00, 0x41, // RESET_CTL: release reset, keep CSM active
-        0x01, 0x1F, // CLK_ON_OFF: enable all clocks
-        0x06, 0x00, // DIGITAL_PDN: power up all digital blocks
-        0x07, 0x20, // ADC_OSR: OSR=256
-        0x08, 0x10, // MODE_CFG: I2S slave, TDM mode
-        0x09, 0x30, // TCT0_CHPINI: chopper init period
-        0x0A, 0x30, // TCT1_CHPINI
-        0x20, 0x0A, // ADC34_HPF2
-        0x21, 0x2A, // ADC34_HPF1
-        0x22, 0x0A, // ADC12_HPF2
-        0x23, 0x2A, // ADC12_HPF1
-        0x02, 0xC1, // CLK_CTRL: MCLK from I2S, PLL off
-        0x04, 0x01, // SDPOUT_CTL1: TDM output enable
-        0x05, 0x00, // SDPOUT_CTL0
-        0x11, 0x60, // DBIAS: adjust reference voltage for P4
-        0x40, 0x42, // ANALOG_SYS: enable analog supply
-        0x41, 0x70, // MICBIAS12: enable MICBIAS for MIC1+MIC2
-        0x42, 0x70, // MICBIAS34: enable MICBIAS for MIC3+MIC4
-        0x43, 0x1B, // MIC1_GAIN: +30 dB
-        0x44, 0x1B, // MIC2_GAIN: +30 dB
-        0x45, 0x00, // MIC3_GAIN: AEC ref, no gain
-        0x46, 0x00, // MIC4_GAIN: AEC ref, no gain
-        0x47, 0x00, // MIC1_LP
-        0x48, 0x00, // MIC2_LP
-        0x49, 0x00, // MIC3_LP
-        0x4A, 0x00, // MIC4_LP
-        0x4B, 0x00, // MIC12_PDN: power up MIC1+MIC2
-        0x4C, 0xFF, // MIC34_PDN: keep MIC3+MIC4 in power-down (AEC ref not needed)
-        0x01, 0x14, // CLK_ON_OFF: final clock config
-    };
-
-    error_t error = i2c_controller_write_register_array(
-        i2c_controller,
-        ES7210_I2C_ADDR,
-        INIT_DATA,
-        sizeof(INIT_DATA),
-        pdMS_TO_TICKS(1000)
-    );
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to init ES7210: %s", error_to_string(error));
-    }
-    return error;
-}
 
 static esp_clock_output_mapping_handle_t camera_osc_handle = nullptr;
 
@@ -275,9 +182,6 @@ static void initCameraOsc() {
 }
 
 static bool initBoot() {
-    auto* i2c0 = device_find_by_name("i2c0");
-    check(i2c0, "i2c0 not found");
-
     auto* io_expander0 = device_find_by_name("io_expander0");
     check(io_expander0, "io_expander0 not found");
     auto* io_expander1 = device_find_by_name("io_expander1");
@@ -287,14 +191,9 @@ static bool initBoot() {
     initExpander0(io_expander0);
     initExpander1(io_expander1);
 
-    error_t error = initSound(i2c0, io_expander0);
+    error_t error = enableSpeakerAmplifier(io_expander0);
     if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to enable ES8388");
-    }
-
-    error = initMicrophone(i2c0);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to init ES7210");
+        LOG_E(TAG, "Failed to enable speaker amplifier");
     }
 
     return true;

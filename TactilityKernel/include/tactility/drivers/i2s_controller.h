@@ -41,6 +41,16 @@ struct I2sTdmRxConfig {
 };
 
 /**
+ * @brief I2S PDM RX config (e.g. for a PDM MEMS microphone such as the SPM1423).
+ * Only supported on I2S controller 0 on ESP32 targets -- PDM RX is hardware-restricted
+ * to that controller. PDM only supports 16-bit samples and mono or stereo.
+ */
+struct I2sPdmRxConfig {
+    uint32_t sample_rate_hz;
+    bool     stereo; // false = mono (single PDM mic), true = stereo (two PDM mics)
+};
+
+/**
  * @brief I2S Config
  */
 struct I2sConfig {
@@ -104,13 +114,40 @@ struct I2sControllerApi {
 
     /**
      * @brief Reconfigures the RX channel to TDM mode (e.g. for ES7210).
-     * Must be called after set_config() which creates the channel handles.
+     * Does not require set_config() to be called first -- TDM allocates its own RX
+     * channel handle independently of standard mode (calling set_config() first would
+     * leave its TX/RX channel pair bound to the shared BCLK/WS/MCLK pins, which then
+     * blocks this call from claiming them; callers should pick TDM or standard mode
+     * up front, not call both in sequence).
      * @param[in] device the I2S controller device
      * @param[in] config TDM parameters
      * @retval ERROR_NONE when the operation was successful
      * @retval ERROR_NOT_SUPPORTED if the driver does not implement TDM
      */
     error_t (*set_rx_tdm_config)(struct Device* device, const struct I2sTdmRxConfig* config);
+
+    /**
+     * @brief Reconfigures the RX channel to PDM mode (e.g. for a PDM MEMS microphone).
+     * Does not require set_config() to be called first -- PDM RX allocates its own
+     * channel handle independently of standard/TDM mode.
+     * @param[in] device the I2S controller device
+     * @param[in] config PDM parameters
+     * @retval ERROR_NONE when the operation was successful
+     * @retval ERROR_NOT_SUPPORTED if the driver/controller does not support PDM RX
+     */
+    error_t (*set_rx_pdm_config)(struct Device* device, const struct I2sPdmRxConfig* config);
+
+    /**
+     * @brief Disables and releases only the TX or only the RX channel, leaving the other
+     * direction (if active) running. Unlike reset(), which tears down both directions --
+     * unsuitable when a single controller carries an independent TX user (e.g. a speaker
+     * amp) and RX user (e.g. a PDM mic) that must be able to close without affecting each
+     * other.
+     * @param[in] device the I2S controller device
+     * @param[in] is_input true to disable the RX channel, false to disable the TX channel
+     * @retval ERROR_NONE when the operation was successful
+     */
+    error_t (*disable_direction)(struct Device* device, bool is_input);
 };
 
 /**
@@ -160,13 +197,33 @@ error_t i2s_controller_reset(struct Device* device);
 
 /**
  * @brief Reconfigures the RX channel to TDM mode (e.g. for ES7210 4-slot mic ADC).
- * Must be called after i2s_controller_set_config() which creates the channel handles.
+ * Does not require i2s_controller_set_config() to be called first -- see
+ * I2sControllerApi::set_rx_tdm_config for why standard mode and TDM mode are
+ * alternative setup paths rather than sequential steps.
  * @param[in] device the I2S controller device
  * @param[in] config TDM parameters
  * @retval ERROR_NONE when the operation was successful
  * @retval ERROR_NOT_SUPPORTED if the driver does not implement TDM
  */
 error_t i2s_controller_set_rx_tdm_config(struct Device* device, const struct I2sTdmRxConfig* config);
+
+/**
+ * @brief Reconfigures the RX channel to PDM mode (e.g. for a PDM MEMS microphone).
+ * @param[in] device the I2S controller device
+ * @param[in] config PDM parameters
+ * @retval ERROR_NONE when the operation was successful
+ * @retval ERROR_NOT_SUPPORTED if the driver/controller does not support PDM RX
+ */
+error_t i2s_controller_set_rx_pdm_config(struct Device* device, const struct I2sPdmRxConfig* config);
+
+/**
+ * @brief See I2sControllerApi::disable_direction. Falls back to the full reset() if the
+ * driver doesn't implement direction-aware teardown.
+ * @param[in] device the I2S controller device
+ * @param[in] is_input true to disable the RX channel, false to disable the TX channel
+ * @retval ERROR_NONE when the operation was successful
+ */
+error_t i2s_controller_disable_direction(struct Device* device, bool is_input);
 
 extern const struct DeviceType I2S_CONTROLLER_TYPE;
 

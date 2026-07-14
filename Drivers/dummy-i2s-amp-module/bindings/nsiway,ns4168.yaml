@@ -1,0 +1,13 @@
+description: Nsiway NS4168 class-D speaker amplifier (I2S input, optional GPIO enable)
+
+compatible: "nsiway,ns4168"
+
+properties:
+  i2s:
+    type: phandle
+    required: true
+    description: "I2S controller device that carries audio data"
+  pin-enable:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: "Amplifier enable (SD) pin. Omit if the amplifier is always enabled."

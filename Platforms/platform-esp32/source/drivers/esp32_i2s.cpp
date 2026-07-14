@@ -5,6 +5,9 @@
 #ifdef SOC_I2S_SUPPORTS_TDM
 #include <driver/i2s_tdm.h>
 #endif
+#ifdef SOC_I2S_SUPPORTS_PDM_RX
+#include <driver/i2s_pdm.h>
+#endif
 
 #include <tactility/driver.h>
 #include <tactility/drivers/gpio_controller.h>
@@ -191,6 +194,16 @@ static error_t set_config(Device* device, const struct I2sConfig* config) {
 
     auto* internal = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
+
+    // Standard mode always drives BCLK -- unlike PDM RX (which uses pin-ws as its clock
+    // line), there's no mode where BCLK is legitimately absent here. pin-bclk is optional
+    // in the devicetree binding only to support PDM-only controllers; reject a missing
+    // pin here rather than silently building an std_cfg with BCLK=-1.
+    if (internal->bclk_descriptor == nullptr) {
+        LOG_E(TAG, "Standard I2S mode requires pin-bclk");
+        return ERROR_INVALID_ARGUMENT;
+    }
+
     lock(internal);
 
     cleanup_channel_handles(internal);
@@ -290,6 +303,29 @@ static error_t reset(Device* device) {
     return ERROR_NONE;
 }
 
+static error_t disable_direction(Device* device, bool is_input) {
+    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
+
+    LOG_I(TAG, "disable_direction %s (%s)", device->name, is_input ? "rx" : "tx");
+    auto* driver_data = GET_DATA(device);
+    lock(driver_data);
+    if (is_input) {
+        if (driver_data->rx_handle) {
+            i2s_channel_disable(driver_data->rx_handle);
+            i2s_del_channel(driver_data->rx_handle);
+            driver_data->rx_handle = nullptr;
+        }
+    } else {
+        if (driver_data->tx_handle) {
+            i2s_channel_disable(driver_data->tx_handle);
+            i2s_del_channel(driver_data->tx_handle);
+            driver_data->tx_handle = nullptr;
+        }
+    }
+    unlock(driver_data);
+    return ERROR_NONE;
+}
+
 #ifdef SOC_I2S_SUPPORTS_TDM
 static error_t set_rx_tdm_config(Device* device, const struct I2sTdmRxConfig* config) {
     if (xPortInIsrContext()) return ERROR_ISR_STATUS;
@@ -330,6 +366,14 @@ static error_t set_rx_tdm_config(Device* device, const struct I2sTdmRxConfig* co
 
     auto* internal = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
+
+    // TDM, like standard mode, always drives BCLK -- reject rather than build a tdm_cfg
+    // with BCLK=-1 (see set_config() for the matching check/rationale).
+    if (internal->bclk_descriptor == nullptr) {
+        LOG_E(TAG, "TDM mode requires pin-bclk");
+        return ERROR_INVALID_ARGUMENT;
+    }
+
     lock(internal);
 
     // Tear down only the RX channel; TX stays in standard mode for playback.
@@ -414,6 +458,73 @@ static error_t set_rx_tdm_config(Device* device, const struct I2sTdmRxConfig* co
 }
 #endif // SOC_I2S_SUPPORTS_TDM
 
+#ifdef SOC_I2S_SUPPORTS_PDM_RX
+static error_t set_rx_pdm_config(Device* device, const struct I2sPdmRxConfig* config) {
+    if (xPortInIsrContext()) return ERROR_ISR_STATUS;
+
+    if (config->sample_rate_hz == 0) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
+    auto* internal = GET_DATA(device);
+    auto* dts_config = GET_CONFIG(device);
+
+    // PDM RX is hardware-restricted to I2S controller 0 on ESP32 targets.
+    if (dts_config->port != I2S_NUM_0) {
+        return ERROR_NOT_SUPPORTED;
+    }
+
+    lock(internal);
+
+    // Tear down only the RX channel; TX (if any) stays in its own mode for playback.
+    if (internal->rx_handle) {
+        i2s_channel_disable(internal->rx_handle);
+        i2s_del_channel(internal->rx_handle);
+        internal->rx_handle = nullptr;
+    }
+
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(dts_config->port, I2S_ROLE_MASTER);
+    i2s_chan_handle_t new_rx = nullptr;
+    esp_err_t esp_error = i2s_new_channel(&chan_cfg, nullptr, &new_rx);
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "PDM: failed to create RX channel: %s", esp_err_to_name(esp_error));
+        unlock(internal);
+        return ERROR_RESOURCE;
+    }
+
+    gpio_num_t clk_pin    = get_native_pin(internal->ws_descriptor);
+    gpio_num_t data_in_pin = get_native_pin(internal->data_in_descriptor);
+
+    i2s_slot_mode_t slot_mode = config->stereo ? I2S_SLOT_MODE_STEREO : I2S_SLOT_MODE_MONO;
+
+    i2s_pdm_rx_config_t pdm_cfg = {
+        .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(config->sample_rate_hz),
+        .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, slot_mode),
+        .gpio_cfg = {
+            .clk = clk_pin,
+            .din = data_in_pin,
+            .invert_flags = {
+                .clk_inv = is_pin_inverted(internal->ws_descriptor),
+            },
+        },
+    };
+
+    esp_error = i2s_channel_init_pdm_rx_mode(new_rx, &pdm_cfg);
+    if (esp_error == ESP_OK) esp_error = i2s_channel_enable(new_rx);
+
+    if (esp_error != ESP_OK) {
+        LOG_E(TAG, "PDM: failed to init/enable RX channel: %s", esp_err_to_name(esp_error));
+        i2s_del_channel(new_rx);
+        unlock(internal);
+        return esp_err_to_error(esp_error);
+    }
+
+    internal->rx_handle = new_rx;
+    unlock(internal);
+    return ERROR_NONE;
+}
+#endif // SOC_I2S_SUPPORTS_PDM_RX
+
 const static I2sControllerApi esp32_i2s_api = {
     .read = read,
     .write = write,
@@ -425,6 +536,12 @@ const static I2sControllerApi esp32_i2s_api = {
 #else
     .set_rx_tdm_config = nullptr,
 #endif
+#ifdef SOC_I2S_SUPPORTS_PDM_RX
+    .set_rx_pdm_config = set_rx_pdm_config,
+#else
+    .set_rx_pdm_config = nullptr,
+#endif
+    .disable_direction = disable_direction,
 };
 
 extern struct Module platform_esp32_module;

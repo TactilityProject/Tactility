@@ -68,6 +68,26 @@ struct BleCtx {
     // One-shot timer used to dispatch dispatchDisable off the NimBLE host task.
     // nimble_port_stop() must not be called from the NimBLE host task itself.
     esp_timer_handle_t disable_timer;
+    // Given by host_task() right after nimble_port_run() returns (i.e. the host
+    // task has fully drained g_eventq_dflt and will process no further NimBLE
+    // events). dispatch_disable() must wait on this before nimble_port_deinit(),
+    // otherwise a reset event still executing on the host task can dereference
+    // timer/callout state that deinit just freed. See on_reset()/dispatch_disable().
+    SemaphoreHandle_t host_task_done_sem;
+    // Posted to NimBLE's own default event queue (nimble_port_get_dflt_eventq())
+    // from on_reset() instead of kicking disable_timer directly. ble_hs_reset()
+    // calls reset_cb (on_reset) synchronously, then unconditionally falls through
+    // to ble_hs_sync() -> ble_hs_timer_sched(), which touches the global static
+    // ble_hs_timer with no locking. Firing disable_timer (and thus
+    // nimble_port_stop() -> ble_hs_stop() -> ble_npl_callout_deinit(&ble_hs_timer))
+    // from on_reset() races that in-flight ble_hs_sync() call on the SAME host
+    // task from a DIFFERENT task (esp_timer task), nulling out ble_hs_timer's
+    // callout mid-use -> null deref crash in ble_npl_callout_is_active(). Posting
+    // this event instead defers the giveup until the host task's event loop is
+    // idle again (FIFO-after the in-flight reset), so by the time disable_timer
+    // fires, ble_hs_sync() for this reset has already returned and there is no
+    // concurrent user of ble_hs_timer left on the host task.
+    struct ble_npl_event giveup_event;
 
     // BLE device name (set before or after radio enable; applied in dispatch_enable)
     char device_name[BLE_DEVICE_NAME_MAX + 1];
