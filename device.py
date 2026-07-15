@@ -450,10 +450,25 @@ def clean_build_dirs_on_platform_change(previous_target: str, new_target: str):
         print(f"  {d}")
         shutil.rmtree(d)
 
+def list_device_ids():
+    return sorted(
+        name for name in os.listdir(DEVICES_DIRECTORY)
+        if os.path.isfile(get_properties_file_path(name))
+    )
+
+def resolve_device_id(device_id: str):
+    device_ids = list_device_ids()
+    if device_id in device_ids:
+        return device_id
+    matches = [d for d in device_ids if device_id in d]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        exit_with_error(f"Ambiguous device identifier '{device_id}', matches: {', '.join(matches)}")
+    exit_with_error(f"{device_id} is not a valid device identifier (no exact or partial match found in {DEVICES_DIRECTORY}/)")
+
 def main(device_id: str, is_dev: bool):
-    device_properties_path = get_properties_file_path(device_id)
-    if not os.path.isfile(device_properties_path):
-        exit_with_error(f"{device_id} is not a valid device identifier (could not found {device_properties_path})")
+    device_id = resolve_device_id(device_id)
     output_file_path = "sdkconfig"
     # Clean build dirs if target changes
     device_properties = read_device_properties(device_id)

@@ -324,6 +324,9 @@ static error_t st7789_i8080_get_backlight(Device* device, Device** backlight) {
 // endregion
 
 static const DisplayApi st7789_i8080_display_api = {
+    .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY |
+        DISPLAY_CAPABILITY_CAP_SET_GAP | DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF |
+        DISPLAY_CAPABILITY_SLEEP | DISPLAY_CAPABILITY_BACKLIGHT,
     .reset = st7789_i8080_reset,
     .init = st7789_i8080_init,
     .draw_bitmap = st7789_i8080_draw_bitmap,
@@ -342,6 +345,7 @@ static const DisplayApi st7789_i8080_display_api = {
     .get_frame_buffer = st7789_i8080_get_frame_buffer,
     .get_frame_buffer_count = st7789_i8080_get_frame_buffer_count,
     .get_backlight = st7789_i8080_get_backlight,
+    .has_capability = nullptr,
 };
 
 Driver st7789_i8080_driver = {

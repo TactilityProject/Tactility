@@ -28,6 +28,13 @@ struct LvglDisplayConfig {
      * Ignored when the device exposes its own frame buffer(s).
      */
     bool double_buffer;
+
+    /**
+     * Rotate LVGL_rendered content in software instead of calling display_swap_xy()/display_mirror()
+     * on the device. Use this for panels whose driver can't rotate in hardware (e.g. RGB/DPI panels).
+     * Allocates one extra buffer sized like the primary draw buffer.
+     */
+    bool sw_rotate;
 };
 
 /**

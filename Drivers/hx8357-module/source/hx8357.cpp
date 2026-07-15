@@ -379,12 +379,9 @@ static bool hx8357_get_mirror_y(Device* device) {
     return GET_CONFIG(device)->mirror_y;
 }
 
-static error_t hx8357_set_gap(Device*, int32_t, int32_t) {
-    // Not supported by this controller's fixed CASET/PASET-per-draw protocol beyond the static
-    // gap-x/gap-y devicetree config already folded into draw_bitmap(); matches the deprecated
-    // HAL, which never exposed a runtime gap either.
-    return ERROR_NOT_SUPPORTED;
-}
+// set_gap is not exposed: this controller's fixed CASET/PASET-per-draw protocol only supports the
+// static gap-x/gap-y devicetree config already folded into draw_bitmap(); matches the deprecated
+// HAL, which never exposed a runtime gap either.
 
 static error_t hx8357_invert_color(Device* device, bool invert_color_data) {
     auto* internal = static_cast<Hx8357Internal*>(device_get_driver_data(device));
@@ -436,6 +433,9 @@ static error_t hx8357_get_backlight(Device* device, Device** backlight) {
 // endregion
 
 static const DisplayApi hx8357_display_api = {
+    .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY |
+        DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLEEP |
+        DISPLAY_CAPABILITY_BACKLIGHT,
     .reset = hx8357_reset,
     .init = hx8357_init,
     .draw_bitmap = hx8357_draw_bitmap,
@@ -444,7 +444,7 @@ static const DisplayApi hx8357_display_api = {
     .get_swap_xy = hx8357_get_swap_xy,
     .get_mirror_x = hx8357_get_mirror_x,
     .get_mirror_y = hx8357_get_mirror_y,
-    .set_gap = hx8357_set_gap,
+    .set_gap = nullptr,
     .invert_color = hx8357_invert_color,
     .disp_on_off = hx8357_disp_on_off,
     .disp_sleep = hx8357_disp_sleep,
@@ -454,6 +454,7 @@ static const DisplayApi hx8357_display_api = {
     .get_frame_buffer = hx8357_get_frame_buffer,
     .get_frame_buffer_count = hx8357_get_frame_buffer_count,
     .get_backlight = hx8357_get_backlight,
+    .has_capability = nullptr,
 };
 
 Driver hx8357_driver = {

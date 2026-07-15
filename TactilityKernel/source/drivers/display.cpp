@@ -6,6 +6,15 @@
 
 extern "C" {
 
+bool display_has_capability(struct Device* device, uint32_t capability) {
+    const auto* driver = device_get_driver(device);
+    const auto* api = DISPLAY_DRIVER_API(driver);
+    if (api->has_capability != nullptr) {
+        return api->has_capability(device, capability);
+    }
+    return (api->capabilities & capability) != 0;
+}
+
 error_t display_reset(Device* device) {
     const auto* driver = device_get_driver(device);
     return DISPLAY_DRIVER_API(driver)->reset(device);

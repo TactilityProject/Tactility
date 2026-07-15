@@ -34,8 +34,11 @@ struct RgbDisplayInternal {
     esp_lcd_panel_handle_t panel_handle;
     void* frame_buffers[MAX_CACHED_FRAME_BUFFERS];
     uint8_t frame_buffer_count;
+    // Size of each buffer in frame_buffers, in bytes - used to range-check whether a given
+    // draw_bitmap() color_data pointer is actually one of them (see rgb_display_draw_bitmap()).
+    size_t frame_buffer_size_bytes;
     // Signaled by on_frame_buf_complete once per real DMA scan-out of a whole frame. Only
-    // waited on in draw_bitmap() when frame_buffer_count > 0 - see the comment there for why.
+    // waited on in draw_bitmap() when color_data is one of frame_buffers - see the comment there for why.
     SemaphoreHandle_t frame_complete_semaphore;
 };
 
@@ -89,6 +92,8 @@ static error_t perform_hardware_reset(const RgbDisplayConfig* config) {
 
 static error_t cache_frame_buffers(RgbDisplayInternal* internal, const RgbDisplayConfig* config) {
     internal->frame_buffer_count = 0;
+    internal->frame_buffer_size_bytes = (size_t)config->horizontal_resolution * config->vertical_resolution *
+        (config->bits_per_pixel / 8);
     if (config->num_fbs == 0) {
         return ERROR_NONE;
     }
@@ -277,16 +282,26 @@ static error_t rgb_display_init(Device* device) {
     return esp_lcd_panel_init(internal->panel_handle) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 
+// Only block for scan-out completion when color_data is actually one of the panel's own frame
+// buffers (see on_frame_buf_complete's comment above for why that matters) - i.e. this specific
+// call is a zero-copy flip, not a plain CPU copy into the panel's buffer from a caller-owned one
+// (e.g. LVGL bound in owned-buffer mode), which has no reuse race to guard against and shouldn't
+// pay the up-to-one-frame latency cost for every partial update.
+static bool rgb_display_color_data_is_frame_buffer(const RgbDisplayInternal* internal, const void* color_data) {
+    const auto* ptr = static_cast<const uint8_t*>(color_data);
+    for (uint8_t i = 0; i < internal->frame_buffer_count; i++) {
+        const auto* base = static_cast<const uint8_t*>(internal->frame_buffers[i]);
+        if (ptr >= base && ptr < base + internal->frame_buffer_size_bytes) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static error_t rgb_display_draw_bitmap(Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data) {
     auto* internal = static_cast<RgbDisplayInternal*>(device_get_driver_data(device));
 
-    // Only block for scan-out completion when the caller could be writing straight into one of
-    // the panel's own frame buffers (see on_frame_buf_complete's comment above for why that
-    // matters). With no real frame buffer of ours involved (frame_buffer_count == 0, e.g. LVGL
-    // partial-render mode with its own separate buffer), draw_bitmap does a real memcpy into the
-    // panel's buffer and there's no reuse race to guard against, so don't pay the up-to-one-frame
-    // latency cost for every small partial update.
-    bool wait_for_scanout = internal->frame_buffer_count > 0;
+    bool wait_for_scanout = rgb_display_color_data_is_frame_buffer(internal, color_data);
     if (wait_for_scanout) {
         xSemaphoreTake(internal->frame_complete_semaphore, 0); // clear any already-pending signal
     }
@@ -324,11 +339,8 @@ static bool rgb_display_get_mirror_y(Device* device) {
     return GET_CONFIG(device)->mirror_y;
 }
 
-// RGB panels are raw scan-out framebuffers with no addressable-window concept the way MIPI/SPI
-// panels have, so there's no gap to set.
-static error_t rgb_display_set_gap(Device*, int32_t, int32_t) {
-    return ERROR_NOT_SUPPORTED;
-}
+// set_gap is not exposed: RGB panels are raw scan-out framebuffers with no addressable-window
+// concept the way MIPI/SPI panels have, so there's no gap to set.
 
 static error_t rgb_display_invert_color(Device* device, bool invert_color_data) {
     auto* internal = static_cast<RgbDisplayInternal*>(device_get_driver_data(device));
@@ -340,10 +352,8 @@ static error_t rgb_display_disp_on_off(Device* device, bool on_off) {
     return esp_lcd_panel_disp_on_off(internal->panel_handle, on_off) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 
-// RGB panels have no MIPI DCS command interface, so there's no sleep mode to enter.
-static error_t rgb_display_disp_sleep(Device*, bool) {
-    return ERROR_NOT_SUPPORTED;
-}
+// disp_sleep is not exposed: RGB panels have no MIPI DCS command interface, so there's no sleep
+// mode to enter.
 
 static enum DisplayColorFormat rgb_display_get_color_format(Device*) {
     return DISPLAY_COLOR_FORMAT_RGB565;
@@ -376,9 +386,28 @@ static error_t rgb_display_get_backlight(Device* device, Device** backlight) {
     return ERROR_NONE;
 }
 
+constexpr uint32_t RGB_DISPLAY_CAPABILITIES = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY |
+    DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_BACKLIGHT;
+
+// esp_lcd_panel_rgb only applies mirror()/swap_xy()'s rotate_mask when draw_bitmap()'s color_data
+// is copied into the frame buffer by CPU. When frame_buffer_count > 0, LVGL is bound directly onto
+// the panel's own frame buffers (see lvgl_display.c), so color_data always already *is* the frame
+// buffer and that copy - and with it the rotation - never happens. Report those two capabilities as
+// unavailable in that configuration so callers (e.g. lvgl_display.c) don't rely on a rotation that
+// silently does nothing.
+static bool rgb_display_has_capability(Device* device, uint32_t capability) {
+    auto* internal = static_cast<RgbDisplayInternal*>(device_get_driver_data(device));
+    uint32_t capabilities = RGB_DISPLAY_CAPABILITIES;
+    if (internal->frame_buffer_count > 0) {
+        capabilities &= ~(DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY);
+    }
+    return (capabilities & capability) != 0;
+}
+
 // endregion
 
 static const DisplayApi rgb_display_api = {
+    .capabilities = RGB_DISPLAY_CAPABILITIES,
     .reset = rgb_display_reset,
     .init = rgb_display_init,
     .draw_bitmap = rgb_display_draw_bitmap,
@@ -387,16 +416,17 @@ static const DisplayApi rgb_display_api = {
     .get_swap_xy = rgb_display_get_swap_xy,
     .get_mirror_x = rgb_display_get_mirror_x,
     .get_mirror_y = rgb_display_get_mirror_y,
-    .set_gap = rgb_display_set_gap,
+    .set_gap = nullptr,
     .invert_color = rgb_display_invert_color,
     .disp_on_off = rgb_display_disp_on_off,
-    .disp_sleep = rgb_display_disp_sleep,
+    .disp_sleep = nullptr,
     .get_color_format = rgb_display_get_color_format,
     .get_resolution_x = rgb_display_get_resolution_x,
     .get_resolution_y = rgb_display_get_resolution_y,
     .get_frame_buffer = rgb_display_get_frame_buffer,
     .get_frame_buffer_count = rgb_display_get_frame_buffer_count,
     .get_backlight = rgb_display_get_backlight,
+    .has_capability = rgb_display_has_capability,
 };
 
 Driver rgb_display_driver = {

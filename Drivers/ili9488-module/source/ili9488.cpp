@@ -291,6 +291,9 @@ static error_t ili9488_get_backlight(Device* device, Device** backlight) {
 // endregion
 
 static const DisplayApi ili9488_display_api = {
+    .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY |
+        DISPLAY_CAPABILITY_CAP_SET_GAP | DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF |
+        DISPLAY_CAPABILITY_SLEEP | DISPLAY_CAPABILITY_BACKLIGHT,
     .reset = ili9488_reset,
     .init = ili9488_init,
     .draw_bitmap = ili9488_draw_bitmap,
@@ -309,6 +312,7 @@ static const DisplayApi ili9488_display_api = {
     .get_frame_buffer = ili9488_get_frame_buffer,
     .get_frame_buffer_count = ili9488_get_frame_buffer_count,
     .get_backlight = ili9488_get_backlight,
+    .has_capability = nullptr,
 };
 
 Driver ili9488_driver = {
