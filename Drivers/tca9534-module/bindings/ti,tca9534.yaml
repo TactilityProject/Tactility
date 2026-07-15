@@ -1,0 +1,5 @@
+description: TI TCA9534 8-bit I2C-bus I/O expander
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,tca9534"
