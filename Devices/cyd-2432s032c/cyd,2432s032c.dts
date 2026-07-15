@@ -6,7 +6,9 @@
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/display_placeholder.h>
+#include <tactility/bindings/esp32_ledc_backlight.h>
+#include <bindings/ili9341.h>
+#include <bindings/gt911.h>
 
 / {
 	compatible = "root";
@@ -28,6 +30,21 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 33 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 32 GPIO_FLAG_NONE>;
+
+		touch {
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <240>;
+			y-max = <320>;
+		};
+	};
+
+	display_backlight {
+		compatible = "espressif,esp32-ledc-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pin-backlight = <&gpio0 27 GPIO_FLAG_NONE>;
 	};
 
 	spi0 {
@@ -36,9 +53,20 @@
 		cs-gpios = <&gpio0 15 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 13 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 14 GPIO_FLAG_NONE>;
-	
-		display {
-			compatible = "display-placeholder";
+
+		display@0 {
+			compatible = "ilitek,ili9341";
+			horizontal-resolution = <240>;
+			vertical-resolution = <320>;
+			swap-xy;
+			mirror-x;
+			mirror-y;
+			invert-color;
+			// Curve 0 doesn't apply cleanly at boot on this panel (uneven dark-gray gamma glitch); 1 does.
+			gamma-curve = <1>;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 2 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
 		};
 	};
 
