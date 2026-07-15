@@ -83,6 +83,17 @@ void disconnect();
 /** @return true if the connection isn't unencrypted. */
 bool isConnectionSecure();
 
+/**
+ * @brief Suspend or resume the periodic background auto-connect scan.
+ * @param[in] paused when true, the auto-connect timer stops issuing scans until resumed.
+ * Intended for narrow, short-lived windows where any WiFi/co-processor traffic would be
+ * unsafe (e.g. a known co-processor reboot in progress) - callers must resume when done.
+ * Independent of the internal connect()/disconnect() auto-connect pause bookkeeping: only
+ * a matching setAutoScanPaused(false) clears this, it is never cleared implicitly by a
+ * connection succeeding/failing or the radio being enabled.
+ */
+void setAutoScanPaused(bool paused);
+
 /** @return the RSSI value (negative number) or return 1 when not connected. */
 int getRssi();
 

@@ -2,13 +2,13 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
 
 #include <Tactility/Tactility.h>
 #include <Tactility/service/espnow/EspNowService.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
-#include <Tactility/service/espnow/EspNowWifi.h>
+#include <Tactility/service/espnow/EspNowBackend.h>
 
 #include <cstring>
 #include <esp_now.h>
@@ -60,33 +60,13 @@ void EspNowService::enableFromDispatcher(const EspNowConfig& config) {
         return;
     }
 
-    if (!initWifi(config)) {
-        LOG_E(TAG,"initWifi() failed");
+    if (!backend::init(config, receiveCallback)) {
+        LOG_E(TAG, "backend::init() failed");
         return;
     }
 
-    if (esp_now_init() != ESP_OK) {
-        LOG_E(TAG,"esp_now_init() failed");
-        return;
-    }
-
-    if (esp_now_register_recv_cb(receiveCallback) != ESP_OK) {
-        LOG_E(TAG,"esp_now_register_recv_cb() failed");
-        return;
-    }
-
-    //#if CONFIG_ESPNOW_ENABLE_POWER_SAVE
-    //    ESP_ERROR_CHECK( esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW) );
-    //    ESP_ERROR_CHECK( esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL) );
-    //#endif
-
-    if (esp_now_set_pmk(config.masterKey) != ESP_OK) {
-        LOG_E(TAG,"esp_now_set_pmk() failed");
-        return;
-    }
-
-    espnowVersion = 0;
-    if (esp_now_get_version(&espnowVersion) == ESP_OK) {
+    espnowVersion = backend::getVersion();
+    if (espnowVersion != 0) {
         LOG_I(TAG, "ESP-NOW version: %u.0", (unsigned)espnowVersion);
     } else {
         LOG_W(TAG, "Failed to get ESP-NOW version");
@@ -119,12 +99,8 @@ void EspNowService::disableFromDispatcher() {
         return;
     }
 
-    if (esp_now_deinit() != ESP_OK) {
-        LOG_E(TAG,"esp_now_deinit() failed");
-    }
-
-    if (!deinitWifi()) {
-        LOG_E(TAG,"deinitWifi() failed");
+    if (!backend::deinit()) {
+        LOG_E(TAG, "backend::deinit() failed");
     }
 
     espnowVersion = 0;
@@ -164,7 +140,7 @@ bool EspNowService::isEnabled() const {
 }
 
 bool EspNowService::addPeer(const esp_now_peer_info_t& peer) {
-    if (esp_now_add_peer(&peer) != ESP_OK) {
+    if (!backend::addPeer(peer)) {
         LOG_E(TAG,"Failed to add peer");
         return false;
     } else {
@@ -180,7 +156,7 @@ bool EspNowService::send(const uint8_t* address, const uint8_t* buffer, size_t b
     if (!isEnabled()) {
         return false;
     } else {
-        return esp_now_send(address, buffer, bufferLength) == ESP_OK;
+        return backend::send(address, buffer, bufferLength);
     }
 }
 
@@ -223,4 +199,4 @@ extern const ServiceManifest manifest = {
 
 }
 
-#endif // CONFIG_SOC_WIFI_SUPPORTED && !CONFIG_SLAVE_SOC_WIFI_SUPPORTED
+#endif // CONFIG_SOC_WIFI_SUPPORTED || CONFIG_SLAVE_SOC_WIFI_SUPPORTED

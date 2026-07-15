@@ -19,6 +19,7 @@
 #include <tactility/log.h>
 
 #include <algorithm>
+#include <atomic>
 
 namespace tt::service::wifi {
 
@@ -63,7 +64,14 @@ struct WifiServiceState {
     std::shared_ptr<PubSub<WifiEvent>> pubsub = std::make_shared<PubSub<WifiEvent>>();
     RecursiveMutex mutex;
     bool secureConnection = false;
+    // Internal: set by connect()/disconnect() while a manual attempt is in flight, cleared on
+    // connection success/failure. Distinct from externalScanPause below - the two must not
+    // clobber each other, otherwise a caller's explicit pause (e.g. AutoScanPauseGuard during a
+    // co-processor OTA) can be silently cleared by an unrelated connect/disconnect finishing.
     bool pauseAutoConnect = false;
+    // External: only setAutoScanPaused() may set/clear this. Read alongside pauseAutoConnect to
+    // gate scan scheduling (both must be false to scan).
+    std::atomic<bool> externalScanPause{false};
     bool connectionTargetRemember = false;
     settings::WifiApSettings connectionTarget;
     uint16_t scanRecordLimit = TT_WIFI_SCAN_RECORD_LIMIT;
@@ -224,11 +232,12 @@ bool findAutoConnectAp(settings::WifiApSettings& out) {
 
 void dispatchAutoConnect() {
     LOG_I(TAG, "dispatchAutoConnect()");
-    if (state.pauseAutoConnect) {
+    if (state.pauseAutoConnect || state.externalScanPause.load()) {
         // A manual disconnect() or an in-progress manual connect() has paused
-        // auto-connect. This is called on every SCAN_FINISHED, not just the
-        // auto-connect timer's own scans (e.g. WifiManage re-scans on show),
-        // so it must honor the pause instead of reconnecting unconditionally.
+        // auto-connect, or a caller (e.g. AutoScanPauseGuard) has externally paused it.
+        // This is called on every SCAN_FINISHED, not just the auto-connect timer's own
+        // scans (e.g. WifiManage re-scans on show), so it must honor the pause instead of
+        // reconnecting unconditionally.
         return;
     }
     RadioState radio_state = getRadioState();
@@ -249,7 +258,8 @@ void dispatchAutoConnect() {
 }
 
 bool shouldScanForAutoConnect() {
-    bool radio_scannable = getRadioState() == RadioState::On && !isScanning() && !state.pauseAutoConnect;
+    bool radio_scannable = getRadioState() == RadioState::On && !isScanning() &&
+        !state.pauseAutoConnect && !state.externalScanPause.load();
     if (!radio_scannable) return false;
 
     TickType_t current_time = kernel::getTicks();
@@ -414,6 +424,11 @@ void disconnect() {
     }
 
     getMainDispatcher().dispatch([] { dispatchDisconnect(); });
+}
+
+void setAutoScanPaused(bool paused) {
+    LOG_I(TAG, "setAutoScanPaused(%d)", (int)paused);
+    state.externalScanPause = paused;
 }
 
 void setScanRecords(uint16_t records) {
