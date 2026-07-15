@@ -12,20 +12,12 @@
 
 ## Higher Priority
 
-- When display orientation is changed, show a dialog that asks if it succeeded. If the user doesn't click "ok" then restore the previous settings.
+- Get rid of TactilityC in favour of TactilityKernel and kernel modules
+- Improve SPI kernel driver (implement read, write, transactions)
 - Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.
-- Add kernel listening mechanism so that the root device init can be notified when a device becomes available: 
-  Callback for device/start stop with filtering on device type:
-    - on_before_start: e.g. to do the CS pin hack for SD card on a shared bus
-    - on_after_start: e.g. to initialize an I2S device via its I2C connection, once I2C becomes available
-    - on_before_stop: e.g. to stop using a device that was started before
-    - on_after_stop: ?
-- SPI kernel driver
 - Kernel concepts for ELF loading (generic approach for GUI apps, console apps, libraries).
 - Fix glitches when installing app via App Hub with 4.3" Waveshare
 - TCA9534 keyboards should use interrupts
-- Fix Cardputer (original): use LV_KEY_NEXT and _PREV in keyboard mapping instead of encoder driver hack (and check GPIO app if it then hangs too)
-- Expose http::download() and main dispatcher to TactiltyC.
 - External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
   Check during installation process, but also when starting (SD card might have old app install from before Tactility OS update)
 - Make a URL handler. Use it for handling local files. Match file types with apps.
@@ -49,7 +41,6 @@
 - Make WiFi setup app that starts an access point and hosts a webpage to set up the device.
   This will be useful for devices without a screen, a small screen or a non-touch screen.
 - Unify the way displays are dimmed. Some implementations turn off the display when it's fully dimmed. Make this a separate functionality.
-- Bug: Turn on WiFi (when testing it wasn't connected/connecting - just active). Open chat. Observe crash.
 - Bug: Crash handling app cannot be exited with an EncoderDevice. (current work-around is to manually reset the device)
 
 ## Lower Priority
@@ -65,9 +56,6 @@
 - Fix system time to not be 1980 (use build year as a minimum). Consider keeping track of the last known time.
 - Use std::span or string_view in StringUtils https://youtu.be/FRkJCvHWdwQ?t=2754 
 - Mutex: Implement give/take from ISR support (works only for non-recursive ones)
-- Extend unPhone power driver: add charging status, usb connection status, etc.
-- Clear screen before turning on blacklight (e.g. T-Deck, CYD 2432S028R, etc.)
-- T-Deck: Use trackball as input device (with optional mouse functionality for LVGL)
 - Show a warning screen if firmware encryption or secure boot are off when saving WiFi credentials.
 - Remove flex_flow from app_container in Gui.cpp
 - ElfAppManifest: change name (remove "manifest" as it's confusing), remove icon and title, publish snapshot SDK on CDN
@@ -82,11 +70,7 @@
 - Audio player app
 - Audio recording app
 - OTA updates
-- T-Deck Plus: Create separate device config (pre-requisite: needs more kernel drivers so the driver count in the device project is reduced)
 - If present, use LED to show boot/wifi status
-- Capacity based on voltage: estimation for various devices uses a linear voltage curve, but it should use a battery discharge curve.
-- Wrapper for lvgl slider widget that shows "+" and "-" buttons, and also the value in a label.
-  Note: consider Spinbox
 - On crash, try to save the current log to flash or SD card? (this is risky, though, so ask in Discord first)
 - Support more than 1 hardware keyboard (see lvgl::hardware_keyboard_set_indev()). LVGL init currently calls keyboard init, but that part should probably be done from the KeyboardDevice base class.
 
