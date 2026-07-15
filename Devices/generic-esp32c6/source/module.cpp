@@ -3,17 +3,15 @@
 extern "C" {
 
 static error_t start() {
-    // Empty for now
     return ERROR_NONE;
 }
 
 static error_t stop() {
-    // Empty for now
     return ERROR_NONE;
 }
 
-struct Module generic_esp32s3_module = {
-    .name = "generic-esp32s3",
+struct Module generic_esp32c6_module = {
+    .name = "generic-esp32c6",
     .start = start,
     .stop = stop,
     .symbols = nullptr,
