@@ -93,7 +93,7 @@ static error_t perform_hardware_reset(const RgbDisplayConfig* config) {
 static error_t cache_frame_buffers(RgbDisplayInternal* internal, const RgbDisplayConfig* config) {
     internal->frame_buffer_count = 0;
     internal->frame_buffer_size_bytes = (size_t)config->horizontal_resolution * config->vertical_resolution *
-        (config->bits_per_pixel / 8);
+        ((config->bits_per_pixel + 7) / 8);
     if (config->num_fbs == 0) {
         return ERROR_NONE;
     }
@@ -401,7 +401,7 @@ static bool rgb_display_has_capability(Device* device, uint32_t capability) {
     if (internal->frame_buffer_count > 0) {
         capabilities &= ~(DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY);
     }
-    return (capabilities & capability) != 0;
+    return (capabilities & capability) == capability;
 }
 
 // endregion

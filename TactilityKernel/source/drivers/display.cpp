@@ -12,7 +12,7 @@ bool display_has_capability(struct Device* device, uint32_t capability) {
     if (api->has_capability != nullptr) {
         return api->has_capability(device, capability);
     }
-    return (api->capabilities & capability) != 0;
+    return (api->capabilities & capability) == capability;
 }
 
 error_t display_reset(Device* device) {

@@ -133,53 +133,6 @@ static void lvgl_display_rotation_event_cb(lv_event_t* e) {
     lvgl_display_apply_rotation(ctx, lv_display_get_rotation(disp));
 }
 
-// Maps a pre-rotation area (in LV_DISPLAY_ROTATION_0 coordinates) to the coordinates that
-// lv_draw_sw_rotate()'s output buffer occupies on the physical (unrotated) panel.
-static void lvgl_display_rotate_offsets(lv_display_t* disp, int32_t* x1, int32_t* y1, int32_t* x2, int32_t* y2) {
-    lv_display_rotation_t rotation = lv_display_get_rotation(disp);
-    if (rotation == LV_DISPLAY_ROTATION_0) {
-        return;
-    }
-
-    int32_t w = *x2 - *x1 + 1;
-    int32_t h = *y2 - *y1 + 1;
-    int32_t hres = lv_display_get_horizontal_resolution(disp);
-    int32_t vres = lv_display_get_vertical_resolution(disp);
-    if (rotation == LV_DISPLAY_ROTATION_90 || rotation == LV_DISPLAY_ROTATION_270) {
-        int32_t tmp = hres;
-        hres = vres;
-        vres = tmp;
-    }
-
-    int32_t out_x1, out_y1, out_x2, out_y2;
-    switch (rotation) {
-        case LV_DISPLAY_ROTATION_90:
-            out_y2 = vres - *x1 - 1;
-            out_x1 = *y1;
-            out_x2 = out_x1 + h - 1;
-            out_y1 = out_y2 - w + 1;
-            break;
-        case LV_DISPLAY_ROTATION_180:
-            out_y2 = vres - *y1 - 1;
-            out_y1 = out_y2 - h + 1;
-            out_x2 = hres - *x1 - 1;
-            out_x1 = out_x2 - w + 1;
-            break;
-        case LV_DISPLAY_ROTATION_270:
-            out_x1 = hres - *y2 - 1;
-            out_y2 = *x2;
-            out_x2 = out_x1 + h - 1;
-            out_y1 = out_y2 - w + 1;
-            break;
-        default:
-            return;
-    }
-    *x1 = out_x1;
-    *y1 = out_y1;
-    *x2 = out_x2;
-    *y2 = out_y2;
-}
-
 // Returns which of buf1/buf2 (the real frame buffers, when !owns_buffers) color_map falls inside.
 // Defaults to buf1, which also covers the single-frame-buffer (buf2 == NULL) case.
 static void* lvgl_display_fb_base(struct LvglDisplayCtx* ctx, const uint8_t* color_map) {
@@ -215,7 +168,12 @@ static void lvgl_display_flush_cb(lv_display_t* disp, const lv_area_t* area, uin
             lv_draw_sw_rotate(color_map, ctx->rotate_buf, w, h, w_stride, h_stride, rotation, color_format);
         }
         color_map = (uint8_t*)ctx->rotate_buf;
-        lvgl_display_rotate_offsets(disp, &x1, &y1, &x2, &y2);
+        lv_area_t rotated_area = { x1, y1, x2, y2 };
+        lv_display_rotate_area(disp, &rotated_area);
+        x1 = rotated_area.x1;
+        y1 = rotated_area.y1;
+        x2 = rotated_area.x2;
+        y2 = rotated_area.y2;
     }
 
     if (ctx->byte_swap) {
@@ -278,7 +236,9 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
     // at which point the concern doesn't apply anymore: frame_buffer_count > 0 mattering to
     // has_capability() at all implies the driver's mirror()/swap_xy() are real, non-null
     // implementations, and the copy-into-fb path honors them correctly once not fb-direct-bound.
-    bool would_bind_fb_direct = fb_count > 0 && ctx->has_swap_xy_cap && ctx->has_mirror_cap;
+    // sw_rotate is excluded too: it writes rotated pixels into ctx->rotate_buf, which
+    // lvgl_display_fb_base() doesn't recognize, so fb-direct must stay off in that case as well.
+    bool would_bind_fb_direct = fb_count > 0 && ctx->has_swap_xy_cap && ctx->has_mirror_cap && !ctx->sw_rotate;
     if (fb_count > 0 && !would_bind_fb_direct) {
         ctx->has_swap_xy_cap = true;
         ctx->has_mirror_cap = true;
