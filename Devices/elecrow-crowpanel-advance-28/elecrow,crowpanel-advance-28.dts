@@ -8,7 +8,9 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/display_placeholder.h>
+#include <tactility/bindings/esp32_ledc_backlight.h>
+#include <bindings/st7789.h>
+#include <bindings/ft5x06.h>
 
 / {
 	compatible = "root";
@@ -35,6 +37,18 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 15 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 16 GPIO_FLAG_NONE>;
+
+		touch0 {
+			compatible = "focaltech,ft5x06";
+			reg = <0x38>;
+			x-max = <240>;
+			y-max = <320>;
+		};
+	};
+
+	display_backlight {
+		compatible = "espressif,esp32-ledc-backlight";
+		pin-backlight = <&gpio0 38 GPIO_FLAG_NONE>;
 	};
 
 	spi0 {
@@ -43,9 +57,15 @@
 		cs-gpios = <&gpio0 40 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 42 GPIO_FLAG_NONE>;
-	
-		display {
-			compatible = "display-placeholder";
+
+		display@0 {
+			compatible = "sitronix,st7789";
+			horizontal-resolution = <240>;
+			vertical-resolution = <320>;
+			invert-color;
+			pixel-clock-hz = <62500000>;
+			pin-dc = <&gpio0 41 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
 		};
 	};
 
