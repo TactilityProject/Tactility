@@ -14,13 +14,13 @@ extern "C" {
  * @brief Optional capabilities of the display.
  */
 enum DisplayCapability {
-    DISPLAY_CAPABILITY_CAP_MIRROR      = 1 << 1,
-    DISPLAY_CAPABILITY_CAP_SWAP_XY     = 1 << 2,
-    DISPLAY_CAPABILITY_CAP_SET_GAP     = 1 << 3,
-    DISPLAY_CAPABILITY_INVERT_COLOR    = 1 << 4,
-    DISPLAY_CAPABILITY_ON_OFF          = 1 << 5,
-    DISPLAY_CAPABILITY_BACKLIGHT       = 1 << 6,
-    DISPLAY_CAPABILITY_SLEEP           = 1 << 7
+    DISPLAY_CAPABILITY_CAP_MIRROR      = 1 << 0,
+    DISPLAY_CAPABILITY_CAP_SWAP_XY     = 1 << 1,
+    DISPLAY_CAPABILITY_CAP_SET_GAP     = 1 << 2,
+    DISPLAY_CAPABILITY_INVERT_COLOR    = 1 << 3,
+    DISPLAY_CAPABILITY_ON_OFF          = 1 << 4,
+    DISPLAY_CAPABILITY_BACKLIGHT       = 1 << 5,
+    DISPLAY_CAPABILITY_SLEEP           = 1 << 6
 };
 
 /**
