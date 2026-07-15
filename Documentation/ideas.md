@@ -12,6 +12,7 @@
 
 ## Higher Priority
 
+- When display orientation is changed, show a dialog that asks if it succeeded. If the user doesn't click "ok" then restore the previous settings.
 - Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.
 - Add kernel listening mechanism so that the root device init can be notified when a device becomes available: 
   Callback for device/start stop with filtering on device type:

@@ -101,6 +101,7 @@
 		pin-sda = <&gpio0 18 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 8 GPIO_FLAG_NONE>;
 
+		// WARNING: Don't use the interrupt pin as it's unstable on some devices
 		touch {
 			compatible = "goodix,gt911";
 			reg = <0x5D>;
@@ -108,7 +109,6 @@
 			y-max = <320>;
 			swap-xy;
 			mirror-x;
-			pin-interrupt = <&gpio0 16 GPIO_FLAG_NONE>;
 		};
 
 		keyboard {
