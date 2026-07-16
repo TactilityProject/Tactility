@@ -62,19 +62,24 @@ static error_t rgb_led_pwm_get_color(Device* device, RgbLedColor* out_color) {
 
 static error_t rgb_led_pwm_enable(Device* device) {
     const auto* config = GET_CONFIG(device);
-    GET_INTERNAL(device)->enabled = true;
-
     error_t error = pwm_enable(config->pwm_red);
-    if (error == ERROR_NONE) {
-        error = pwm_enable(config->pwm_green);
-    }
-    if (error == ERROR_NONE) {
-        error = pwm_enable(config->pwm_blue);
-    }
     if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to enable LED");
+        return error;
     }
-    return error;
+    error = pwm_enable(config->pwm_green);
+    if (error != ERROR_NONE) {
+        pwm_disable(config->pwm_red);
+        return error;
+    }
+    error = pwm_enable(config->pwm_blue);
+    if (error != ERROR_NONE) {
+        pwm_disable(config->pwm_green);
+        pwm_disable(config->pwm_red);
+        LOG_E(TAG, "Failed to enable LED");
+        return error;
+    }
+    GET_INTERNAL(device)->enabled = true;
+    return ERROR_NONE;
 }
 
 static void rgb_led_pwm_disable(Device* device) {

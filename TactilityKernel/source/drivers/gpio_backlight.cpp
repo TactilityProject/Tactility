@@ -110,7 +110,10 @@ static error_t start(Device* device) {
 
     device_set_driver_data(device, internal);
 
-    gpio_backlight_set_brightness_default(device); // Allowed to fail, we don't care about the result
+    if (gpio_backlight_set_brightness_default(device) != ERROR_NONE) {
+        // Allowed to fail, we don't care about the result
+        LOG_W(TAG, "gpio_backlight_set_brightness_default(%s) failed", device->name);
+    }
 
     return ERROR_NONE;
 }

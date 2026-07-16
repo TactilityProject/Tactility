@@ -34,6 +34,10 @@ static error_t apply_brightness(Device* device, uint8_t brightness) {
         return ERROR_NONE;
     }
 
+    if (brightness > config->brightness_range.max) {
+        brightness = config->brightness_range.max;
+    }
+
     uint32_t period_ns;
     error_t error = pwm_get_period(config->pwm, &period_ns);
     if (error != ERROR_NONE) {
@@ -97,6 +101,11 @@ static error_t start(Device* device) {
     if (internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
+
+    if (config->brightness_range.max <= config->brightness_range.min) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
     device_set_driver_data(device, internal);
 
     pwm_backlight_set_brightness_default(device); // Allowed to fail, we don't care about the result
