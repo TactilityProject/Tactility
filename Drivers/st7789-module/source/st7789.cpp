@@ -165,17 +165,25 @@ static error_t start(Device* device) {
 static error_t stop(Device* device) {
     auto* internal = static_cast<St7789Internal*>(device_get_driver_data(device));
 
-    if (esp_lcd_panel_del(internal->panel_handle) != ESP_OK) {
-        LOG_E(TAG, "Failed to delete panel");
-        return ERROR_RESOURCE;
+    if (internal->panel_handle != nullptr) {
+        if (esp_lcd_panel_del(internal->panel_handle) != ESP_OK) {
+            LOG_E(TAG, "Failed to delete panel");
+            return ERROR_RESOURCE;
+        }
+        internal->panel_handle = nullptr;
     }
-    if (esp_lcd_panel_io_del(internal->io_handle) != ESP_OK) {
-        LOG_E(TAG, "Failed to delete panel IO");
-        return ERROR_RESOURCE;
+
+    if (internal->io_handle != nullptr) {
+        if (esp_lcd_panel_io_del(internal->io_handle) != ESP_OK) {
+            LOG_E(TAG, "Failed to delete panel IO");
+            return ERROR_RESOURCE;
+        }
+        internal->io_handle = nullptr;
     }
 
     vSemaphoreDelete(internal->draw_done_semaphore);
     free(internal);
+    device_set_driver_data(device, nullptr);
     return ERROR_NONE;
 }
 

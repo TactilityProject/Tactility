@@ -239,24 +239,30 @@ static error_t stop(Device* device) {
 
     if (internal->power_supply_device != nullptr) {
         destroy_power_supply_child(internal->power_supply_device);
+        internal->power_supply_device = nullptr;
     }
-
-    bool ok = true;
 
     // esp_lcd_touch_del() only releases the touch-side resources; the panel IO handle is owned
     // separately and needs its own deletion.
-    if (esp_lcd_touch_del(internal->touch_handle) != ESP_OK) {
-        LOG_E(TAG, "Failed to delete touch handle");
-        ok = false;
+    if (internal->touch_handle != nullptr) {
+        if (esp_lcd_touch_del(internal->touch_handle) != ESP_OK) {
+            LOG_E(TAG, "Failed to delete touch handle");
+            return ERROR_RESOURCE;
+        }
+        internal->touch_handle = nullptr;
     }
 
-    if (esp_lcd_panel_io_del(internal->io_handle) != ESP_OK) {
-        LOG_E(TAG, "Failed to delete panel IO handle");
-        ok = false;
+    if (internal->io_handle != nullptr) {
+        if (esp_lcd_panel_io_del(internal->io_handle) != ESP_OK) {
+            LOG_E(TAG, "Failed to delete panel IO handle");
+            return ERROR_RESOURCE;
+        }
+        internal->io_handle = nullptr;
     }
 
     free(internal);
-    return ok ? ERROR_NONE : ERROR_RESOURCE;
+    device_set_driver_data(device, nullptr);
+    return ERROR_NONE;
 }
 
 // endregion
