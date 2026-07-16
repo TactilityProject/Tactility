@@ -68,7 +68,7 @@
 		pin = <&gpio0 27 GPIO_FLAG_NONE>;
 		period-ns = <1953125>;
 		ledc-timer = <1>;
-		ledc-channel = <0>;
+		ledc-channel = <3>;
 	};
 
 	display_backlight {
