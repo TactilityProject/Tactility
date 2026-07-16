@@ -1,12 +1,13 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
-#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/display_placeholder.h>
 #include <tactility/bindings/rgb_led_pwm.h>
 
