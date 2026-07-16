@@ -56,7 +56,7 @@
 		pin = <&gpio0 4 GPIO_FLAG_NONE>;
 		period-ns = <500000>;
 		ledc-timer = <0>;
-		ledc-channel = <1>;
+		ledc-channel = <0>;
 		inverted;
 	};
 
@@ -65,7 +65,7 @@
 		pin = <&gpio0 16 GPIO_FLAG_NONE>;
 		period-ns = <500000>;
 		ledc-timer = <0>;
-		ledc-channel = <2>;
+		ledc-channel = <1>;
 		inverted;
 	};
 
@@ -74,7 +74,7 @@
 		pin = <&gpio0 17 GPIO_FLAG_NONE>;
 		period-ns = <500000>;
 		ledc-timer = <0>;
-		ledc-channel = <3>;
+		ledc-channel = <2>;
 		inverted;
 	};
 
@@ -92,7 +92,7 @@
 		compatible = "espressif,esp32-pwm-ledc";
 		pin = <&gpio0 27 GPIO_FLAG_NONE>;
 		period-ns = <33333>;
-		ledc-timer = <0>;
+		ledc-timer = <1>;
 		ledc-channel = <0>;
 	};
 
