@@ -5,7 +5,7 @@ dependencies:
     rules:
       - if: "target in [esp32s3, esp32c6, esp32p4]"
   espressif/esp_hosted:
-    version: "*"
+    version: "2.12.11
     rules:
       - if: "target == esp32p4"
   espressif/esp_wifi_remote:
