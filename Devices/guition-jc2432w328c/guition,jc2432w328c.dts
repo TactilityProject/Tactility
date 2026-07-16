@@ -76,7 +76,6 @@
 		pin-rx = <&gpio0 21 GPIO_FLAG_NONE>;
 	};
 
-
 	rgb_led_channel_red {
 		compatible = "espressif,esp32-pwm-ledc";
 		pin = <&gpio0 4 GPIO_FLAG_NONE>;

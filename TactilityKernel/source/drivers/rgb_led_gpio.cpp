@@ -126,9 +126,15 @@ static error_t start(Device* device) {
     device_set_driver_data(device, internal);
 
     if (config->enabled) {
-        rgb_led_gpio_enable(device); // Allowed to fail, we don't care about the result
+        if (rgb_led_gpio_enable(device) != ERROR_NONE) {
+            // Allowed to fail, we don't care about the result
+            LOG_W(TAG, "led_gpio_enable(%s) failed", device->name);
+        }
     } else {
-        apply_levels(device); // Allowed to fail, we don't care about the result
+        if (apply_levels(device) != ERROR_NONE) {
+            // Allowed to fail, we don't care about the result
+            LOG_W(TAG, "led_gpio_apply_levels(%s) failed", device->name);
+        }
     }
 
     return ERROR_NONE;

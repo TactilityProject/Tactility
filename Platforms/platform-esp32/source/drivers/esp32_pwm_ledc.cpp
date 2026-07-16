@@ -25,10 +25,11 @@ struct Esp32PwmLedcInternal {
 // region Helpers
 
 static uint32_t compute_freq_hz(uint32_t period_ns) {
-    return (uint32_t)(1000000000ULL / period_ns);
+    return period_ns > 0 ? (uint32_t)(1000000000ULL / period_ns) : 0;
 }
 
 static uint32_t compute_raw_duty(uint32_t duty_ns, uint32_t period_ns, ledc_timer_bit_t duty_resolution) {
+    if (period_ns == 0) return 0;
     uint64_t max_duty = 1ULL << duty_resolution;
     uint64_t raw_duty = ((uint64_t)duty_ns * max_duty) / period_ns;
     return (uint32_t)(raw_duty > max_duty ? max_duty : raw_duty);
