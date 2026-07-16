@@ -13,6 +13,7 @@
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_hid_device.h>
 #include <tactility/drivers/camera.h>
+#include <tactility/drivers/esp_hosted_ota.h>
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/drivers/usb_host_msc.h>
@@ -35,6 +36,7 @@
 #include <tactility/error.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/module.h>
+#include <tactility/wifi_auto_scan.h>
 #include <tactility/service/service_instance.h>
 #include <tactility/service/service_manager.h>
 #include <tactility/service/service_paths.h>
@@ -330,6 +332,16 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(wifi_add_event_callback),
     DEFINE_MODULE_SYMBOL(wifi_remove_event_callback),
     DEFINE_MODULE_SYMBOL(WIFI_TYPE),
+    // wifi_auto_scan
+    DEFINE_MODULE_SYMBOL(wifi_auto_scan_set_paused),
+    // drivers/esp_hosted_ota
+    DEFINE_MODULE_SYMBOL(esp_hosted_ota_wait_for_transport),
+    DEFINE_MODULE_SYMBOL(esp_hosted_ota_get_coprocessor_fwversion),
+    DEFINE_MODULE_SYMBOL(esp_hosted_ota_get_cp_info),
+    DEFINE_MODULE_SYMBOL(esp_hosted_ota_begin),
+    DEFINE_MODULE_SYMBOL(esp_hosted_ota_write),
+    DEFINE_MODULE_SYMBOL(esp_hosted_ota_end),
+    DEFINE_MODULE_SYMBOL(esp_hosted_ota_activate),
     // drivers/usb_host_hid
     DEFINE_MODULE_SYMBOL(usb_host_hid_is_connected),
     DEFINE_MODULE_SYMBOL(usb_host_hid_subscribe),

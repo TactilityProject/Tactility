@@ -17,6 +17,7 @@
 #include <tactility/device.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
+#include <tactility/wifi_auto_scan.h>
 
 #include <algorithm>
 #include <atomic>
@@ -340,6 +341,11 @@ void onWifiDeviceEvent(Device* /*device*/, void* /*context*/, ::WifiEvent event)
 
 } // namespace
 
+extern "C" void wifi_auto_scan_set_paused(bool paused) {
+    LOG_I(TAG, "wifi_auto_scan_set_paused(%d)", (int)paused);
+    state.externalScanPause = paused;
+}
+
 // region Public functions
 
 std::shared_ptr<PubSub<WifiEvent>> getPubsub() {
@@ -427,8 +433,7 @@ void disconnect() {
 }
 
 void setAutoScanPaused(bool paused) {
-    LOG_I(TAG, "setAutoScanPaused(%d)", (int)paused);
-    state.externalScanPause = paused;
+    wifi_auto_scan_set_paused(paused);
 }
 
 void setScanRecords(uint16_t records) {

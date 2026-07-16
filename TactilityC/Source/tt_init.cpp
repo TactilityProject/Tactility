@@ -2,6 +2,7 @@
 
 #include "tt_app.h"
 #include "tt_app_alertdialog.h"
+#include "tt_app_fileselection.h"
 #include "tt_app_selectiondialog.h"
 #include "tt_bundle.h"
 #include "tt_gps.h"
@@ -41,6 +42,7 @@
 #include <esp_netif.h>
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
+#include <esp_system.h>
 #include <fcntl.h>
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
@@ -274,6 +276,9 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(tt_app_get_parameters),
     ESP_ELFSYM_EXPORT(tt_app_set_result),
     ESP_ELFSYM_EXPORT(tt_app_has_result),
+    ESP_ELFSYM_EXPORT(tt_app_fileselection_start_for_existing_file),
+    ESP_ELFSYM_EXPORT(tt_app_fileselection_start_for_existing_or_new_file),
+    ESP_ELFSYM_EXPORT(tt_app_fileselection_get_result_path),
     ESP_ELFSYM_EXPORT(tt_app_selectiondialog_start),
     ESP_ELFSYM_EXPORT(tt_app_selectiondialog_get_result_index),
     ESP_ELFSYM_EXPORT(tt_app_alertdialog_start),
@@ -460,6 +465,8 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(ppa_do_scale_rotate_mirror),
     // esp_cache.h
     ESP_ELFSYM_EXPORT(esp_cache_msync),
+    // esp_system.h
+    ESP_ELFSYM_EXPORT(esp_restart),
 #endif
     // delimiter
     ESP_ELFSYM_END

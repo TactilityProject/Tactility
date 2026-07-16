@@ -40,7 +40,7 @@ extern "C" {
 
 namespace tt::app::espnowbridge {
 
-constexpr auto* TAG = "EspNowBridgeApp";
+constexpr auto* TAG = "EspNowBridge";
 constexpr size_t CHUNK_SIZE = 1500;
 constexpr uint32_t TRANSPORT_WAIT_TIMEOUT_MS = 5000;
 constexpr uint32_t UPDATE_TASK_STACK_SIZE = 8192;
@@ -229,17 +229,17 @@ static bool getCurrentVersionString(char* versionOut, size_t versionOutLen) {
 
 extern const AppManifest manifest;
 
-class EspNowBridgeApp;
+class EspNowBridge;
 
-static std::shared_ptr<EspNowBridgeApp> optApp() {
+static std::shared_ptr<EspNowBridge> optApp() {
     auto appContext = getCurrentAppContext();
     if (appContext != nullptr && appContext->getManifest().appId == manifest.appId) {
-        return std::static_pointer_cast<EspNowBridgeApp>(appContext->getApp());
+        return std::static_pointer_cast<EspNowBridge>(appContext->getApp());
     }
     return nullptr;
 }
 
-class EspNowBridgeApp final : public App, public std::enable_shared_from_this<EspNowBridgeApp> {
+class EspNowBridge final : public App, public std::enable_shared_from_this<EspNowBridge> {
     LaunchId pickFileLaunchId = 0;
     std::string pendingUpdateFilePath;
     PubSub<service::wifi::WifiEvent>::SubscriptionHandle wifiSubscription = nullptr;
@@ -303,8 +303,8 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
      *  guards against touching lv_obj_t* members that onHide() already tore down (this app's
      *  widget tree is destroyed on hide/app-switch, but the App object itself may outlive that
      *  via the shared_ptr). */
-    void dispatchToUi(std::function<void(EspNowBridgeApp&)> work) {
-        using Payload = std::pair<std::shared_ptr<EspNowBridgeApp>, std::function<void(EspNowBridgeApp&)>>;
+    void dispatchToUi(std::function<void(EspNowBridge&)> work) {
+        using Payload = std::pair<std::shared_ptr<EspNowBridge>, std::function<void(EspNowBridge&)>>;
         auto* payload = new Payload(shared_from_this(), std::move(work));
         lv_result_t result = lv_async_call([](void* userData) {
             auto* payload = static_cast<Payload*>(userData);
@@ -325,14 +325,14 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
      *  esp_hosted_slave_ota_write() was deep enough to risk a stack overflow there. All lv_obj_t*
      *  touches are marshaled back to the LVGL task via dispatchToUi(). */
     void performUpdate(const std::string& filePath) {
-        dispatchToUi([](EspNowBridgeApp& app) {
+        dispatchToUi([](EspNowBridge& app) {
             lv_obj_add_state(app.updateButton, LV_STATE_DISABLED);
             app.setProgress(0);
             app.setStatus("Waiting for co-processor link...");
         });
 
         if (!service::espnow::backend::waitForHostedTransport(TRANSPORT_WAIT_TIMEOUT_MS)) {
-            dispatchToUi([](EspNowBridgeApp& app) {
+            dispatchToUi([](EspNowBridge& app) {
                 app.setStatus("Co-processor link not available - update cancelled");
                 lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
             });
@@ -341,7 +341,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
 
         FILE* file = fopen(filePath.c_str(), "rb");
         if (file == nullptr) {
-            dispatchToUi([](EspNowBridgeApp& app) {
+            dispatchToUi([](EspNowBridge& app) {
                 app.setStatus("Failed to open selected file");
                 lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
             });
@@ -352,7 +352,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
         long fileSizeSigned = ftell(file);
         if (fileSizeSigned <= 0) {
             fclose(file);
-            dispatchToUi([](EspNowBridgeApp& app) {
+            dispatchToUi([](EspNowBridge& app) {
                 app.setStatus("Failed to determine file size");
                 lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
             });
@@ -371,7 +371,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
         bool isMergedBin = findAppPartitionInMergedBin(file, appOffset, partitionSize);
         if (isMergedBin && appOffset >= fileSize) {
             fclose(file);
-            dispatchToUi([](EspNowBridgeApp& app) {
+            dispatchToUi([](EspNowBridge& app) {
                 app.setStatus("Merged bin's app partition is outside the file - selected file looks truncated");
                 lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
             });
@@ -382,7 +382,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
         std::string parseError;
         if (!parseImageHeader(file, appOffset, newVersion, sizeof(newVersion), &parseError)) {
             fclose(file);
-            dispatchToUi([parseError](EspNowBridgeApp& app) {
+            dispatchToUi([parseError](EspNowBridge& app) {
                 app.setStatus(parseError);
                 lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
             });
@@ -398,7 +398,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
         LOG_I(TAG, "Pushing bridge firmware %s to co-processor (%zu bytes%s)...", newVersion, firmwareSize,
             isMergedBin ? ", extracted from merged bin" : "");
         std::string versionStr(newVersion);
-        dispatchToUi([versionStr](EspNowBridgeApp& app) {
+        dispatchToUi([versionStr](EspNowBridge& app) {
             app.setStatus(std::format("Pushing firmware {}...", versionStr));
         });
 
@@ -410,7 +410,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
         if (esp_hosted_slave_ota_begin() != ESP_OK) {
             fclose(file);
             heldAutoScanPauseGuard.reset();
-            dispatchToUi([](EspNowBridgeApp& app) {
+            dispatchToUi([](EspNowBridge& app) {
                 app.setStatus("Failed to start OTA on co-processor");
                 lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
             });
@@ -421,7 +421,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
             fclose(file);
             esp_hosted_slave_ota_end();
             heldAutoScanPauseGuard.reset();
-            dispatchToUi([](EspNowBridgeApp& app) {
+            dispatchToUi([](EspNowBridge& app) {
                 app.setStatus("Failed to seek to firmware start");
                 lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
             });
@@ -463,7 +463,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
             // ("Unrecoverable host sdio state") under sustained OTA write load.
             int percent = (int)((sent * 100) / firmwareSize);
             if (percent != lastReportedPercent) {
-                dispatchToUi([percent](EspNowBridgeApp& app) {
+                dispatchToUi([percent](EspNowBridge& app) {
                     app.setProgress(percent);
                 });
                 lastReportedPercent = percent;
@@ -475,7 +475,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
         if (writeFailed) {
             esp_hosted_slave_ota_end();
             heldAutoScanPauseGuard.reset();
-            dispatchToUi([](EspNowBridgeApp& app) {
+            dispatchToUi([](EspNowBridge& app) {
                 app.setStatus("Update failed while transferring firmware");
                 lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
             });
@@ -484,7 +484,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
 
         if (esp_hosted_slave_ota_end() != ESP_OK) {
             heldAutoScanPauseGuard.reset();
-            dispatchToUi([](EspNowBridgeApp& app) {
+            dispatchToUi([](EspNowBridge& app) {
                 app.setStatus("Failed to finalize OTA on co-processor");
                 lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
             });
@@ -502,7 +502,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
         if (activateSupported) {
             if (esp_hosted_slave_ota_activate() != ESP_OK) {
                 heldAutoScanPauseGuard.reset();
-                dispatchToUi([](EspNowBridgeApp& app) {
+                dispatchToUi([](EspNowBridge& app) {
                     app.setStatus("Failed to activate new firmware - co-processor still running old firmware");
                     lv_obj_clear_state(app.updateButton, LV_STATE_DISABLED);
                 });
@@ -520,7 +520,7 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
         // user-dismissed dialog instead of restarting immediately was tried and still let the
         // co-processor's own background traffic crash the host if the user didn't react fast
         // enough - restarting automatically removes human reaction time from the equation).
-        dispatchToUi([versionStr](EspNowBridgeApp& app) {
+        dispatchToUi([versionStr](EspNowBridge& app) {
             app.setStatus(std::format("Firmware {} activated - restarting Tactility...", versionStr));
         });
 
@@ -593,16 +593,16 @@ class EspNowBridgeApp final : public App, public std::enable_shared_from_this<Es
 
         // Subscribed only now that all widgets referenced by onWifiEvent() (via
         // refreshWifiPrompt()/refreshCurrentVersion()) exist - a weak reference is captured (not
-        // `this`) so a WiFi event racing app teardown can't touch a freed EspNowBridgeApp, and
+        // `this`) so a WiFi event racing app teardown can't touch a freed EspNowBridge, and
         // dispatchToUi() marshals onto the LVGL task and re-checks isShown before touching any
         // lv_obj_t* (onHide() destroys this app's whole widget tree on hide/app-switch).
-        std::weak_ptr<EspNowBridgeApp> weakSelf = weak_from_this();
+        std::weak_ptr<EspNowBridge> weakSelf = weak_from_this();
         wifiSubscription = service::wifi::getPubsub()->subscribe([weakSelf](auto /*event*/) {
             auto self = weakSelf.lock();
             if (self == nullptr) {
                 return;
             }
-            self->dispatchToUi([](EspNowBridgeApp& app) {
+            self->dispatchToUi([](EspNowBridge& app) {
                 app.onWifiEvent();
             });
         });
@@ -667,7 +667,7 @@ extern const AppManifest manifest = {
     .appName = "ESP-NOW Bridge",
     .appIcon = LVGL_ICON_SHARED_DEVICES,
     .appCategory = Category::Settings,
-    .createApp = create<EspNowBridgeApp>
+    .createApp = create<EspNowBridge>
 };
 
 } // namespace
