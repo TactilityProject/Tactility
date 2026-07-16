@@ -97,13 +97,14 @@ static constexpr BacklightApi PWM_BACKLIGHT_API = {
 // region Driver lifecycle
 
 static error_t start(Device* device) {
+    const auto* config = GET_CONFIG(device);
+    if (config->brightness_range.max <= config->brightness_range.min) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
     auto* internal = new(std::nothrow) PwmBacklightInternal { .brightness = GET_CONFIG(device)->brightness_range.min };
     if (internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
-    }
-
-    if (config->brightness_range.max <= config->brightness_range.min) {
-        return ERROR_INVALID_ARGUMENT;
     }
 
     device_set_driver_data(device, internal);
