@@ -1,0 +1,20 @@
+description: >
+  Generic PWM device that tracks period, duty cycle, polarity and enabled state in memory
+  without driving real hardware. Useful as a placeholder on boards without a real PWM
+  peripheral wired up yet, or in the POSIX simulator.
+
+compatible: "pwm-generic"
+
+properties:
+  period-ns:
+    type: int
+    required: true
+    description: The PWM period, in nanoseconds
+  duty-ns:
+    type: int
+    default: 0
+    description: The PWM duty cycle (active time within one period), in nanoseconds
+  inverted:
+    type: boolean
+    default: false
+    description: Whether the output polarity is inverted

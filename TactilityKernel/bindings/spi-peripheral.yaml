@@ -1,5 +1,0 @@
-description: SPI peripheral
-
-compatible: "spi-peripheral"
-
-properties: {}

@@ -2,13 +2,13 @@
 #pragma once
 
 #include <tactility/bindings/bindings.h>
-#include <tactility/drivers/spi_peripheral.h>
+#include <tactility/drivers/esp32_pwm_ledc.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-DEFINE_DEVICETREE(spi_peripheral, struct SpiPeripheralConfig)
+DEFINE_DEVICETREE(esp32_pwm_ledc, struct Esp32PwmLedcConfig)
 
 #ifdef __cplusplus
 }

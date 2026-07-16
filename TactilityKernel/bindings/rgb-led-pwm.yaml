@@ -1,0 +1,27 @@
+description: >
+  RGB LED driven by 3 PWM devices (e.g. espressif,esp32-pwm-ledc or pwm-generic),
+  one per channel, giving each channel dimming via the wrapped device's duty cycle.
+
+compatible: "rgb-led-pwm"
+
+properties:
+  pwm-red:
+    type: phandle
+    required: true
+    description: PWM device driving the red channel
+  pwm-green:
+    type: phandle
+    required: true
+    description: PWM device driving the green channel
+  pwm-blue:
+    type: phandle
+    required: true
+    description: PWM device driving the blue channel
+  enabled:
+    type: boolean
+    default: false
+    description: Whether the LED is turned on by default
+  default-color:
+    type: values
+    default: [255, 255, 255]
+    description: Color applied when the LED is turned on by default

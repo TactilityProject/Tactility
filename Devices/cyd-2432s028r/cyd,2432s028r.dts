@@ -7,7 +7,9 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/esp32_ledc_backlight.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <tactility/bindings/rgb_led_pwm.h>
 #include <bindings/ili9341.h>
 #include <bindings/xpt2046_softspi.h>
 
@@ -33,13 +35,57 @@
 		pin-scl = <&gpio0 22 GPIO_FLAG_NONE>;
 	};
 
+	rgb_led_channel_red {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 4 GPIO_FLAG_NONE>;
+		period-ns = <500000>;
+		ledc-timer = <0>;
+		ledc-channel = <1>;
+		inverted;
+	};
+
+	rgb_led_channel_green {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 16 GPIO_FLAG_NONE>;
+		period-ns = <500000>;
+		ledc-timer = <0>;
+		ledc-channel = <2>;
+		inverted;
+	};
+
+	rgb_led_channel_blue {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 17 GPIO_FLAG_NONE>;
+		period-ns = <500000>;
+		ledc-timer = <0>;
+		ledc-channel = <3>;
+		inverted;
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 21 GPIO_FLAG_NONE>;
+		period-ns = <1953125>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	rgb_led_pwm {
+		compatible = "rgb-led-pwm";
+		pwm-red = <&rgb_led_channel_red>;
+		pwm-green = <&rgb_led_channel_green>;
+		pwm-blue = <&rgb_led_channel_blue>;
+		// Default is red, and we want to reset it to off by default
+		default-color = <0 0 0>;
+		enabled;
+	};
+
 	display_backlight {
-		compatible = "espressif,esp32-ledc-backlight";
+		compatible = "pwm-backlight";
 		// Off by default so display power-on won't show the screen from before the last power loss.
 		// The display backlight is turned on during the boot process.
 		status = "disabled";
-		pin-backlight = <&gpio0 21 GPIO_FLAG_NONE>;
-		frequency-hz = <512>;
+		pwm = <&display_backlight_pwm>;
 	};
 
 	touch {

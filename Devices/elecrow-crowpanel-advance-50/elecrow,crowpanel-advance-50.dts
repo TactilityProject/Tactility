@@ -8,7 +8,7 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/esp32_gpio_backlight.h>
+#include <tactility/bindings/gpio_backlight.h>
 #include <bindings/rgb_display.h>
 #include <bindings/gt911.h>
 #include <bindings/tca9534.h>
@@ -70,8 +70,8 @@
 	};
 
 	display_backlight {
-		compatible = "espressif,esp32-gpio-backlight";
-		pin-backlight = <&io_expander0 1 GPIO_FLAG_NONE>;
+		compatible = "gpio-backlight";
+		pin = <&io_expander0 1 GPIO_FLAG_NONE>;
 	};
 
 	display0 {

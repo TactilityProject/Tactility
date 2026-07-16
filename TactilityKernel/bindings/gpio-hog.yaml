@@ -6,7 +6,7 @@ description: >
   HAL's initBoot() hook. Declare a gpio-hog node before the dependent device(s) in the .dts
   source so it runs first.
 
-compatible: "tactility,gpio-hog"
+compatible: "gpio-hog"
 
 properties:
   pin:

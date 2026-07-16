@@ -13,7 +13,7 @@
 #include <bindings/bq24295.h>
 #include <bindings/unphone_power_switch.h>
 #include <bindings/unphone_nav_buttons.h>
-#include <tactility/bindings/esp32_gpio_backlight.h>
+#include <tactility/bindings/gpio_backlight.h>
 #include <tactility/bindings/gpio_hog.h>
 
 / {
@@ -66,42 +66,42 @@
 	};
 
 	display_backlight {
-		compatible = "espressif,esp32-gpio-backlight";
-		pin-backlight = <&tca9535 2 GPIO_FLAG_NONE>;
+		compatible = "gpio-backlight";
+		pin = <&tca9535 2 GPIO_FLAG_NONE>;
 	};
 
 	usb_vsense {
-		compatible = "tactility,gpio-hog";
+		compatible = "gpio-hog";
 		pin = <&tca9535 14 GPIO_FLAG_NONE>;
 		mode = <GPIO_HOG_MODE_INPUT>;
 	};
 
 	vibration_motor {
-		compatible = "tactility,gpio-hog";
+		compatible = "gpio-hog";
 		pin = <&tca9535 7 GPIO_FLAG_NONE>;
 		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
 	};
 
 	ir_leds {
-		compatible = "tactility,gpio-hog";
+		compatible = "gpio-hog";
 		pin = <&gpio0 12 GPIO_FLAG_NONE>;
 		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
 	};
 
 	red_led {
-		compatible = "tactility,gpio-hog";
+		compatible = "gpio-hog";
 		pin = <&gpio0 13 GPIO_FLAG_NONE>;
 		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
 	};
 
 	green_led {
-		compatible = "tactility,gpio-hog";
+		compatible = "gpio-hog";
 		pin = <&tca9535 9 GPIO_FLAG_NONE>;
 		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
 	};
 
 	blue_led {
-		compatible = "tactility,gpio-hog";
+		compatible = "gpio-hog";
 		pin = <&tca9535 13 GPIO_FLAG_NONE>;
 		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
 	};

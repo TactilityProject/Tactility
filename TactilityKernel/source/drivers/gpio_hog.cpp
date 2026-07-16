@@ -62,7 +62,7 @@ extern Module root_module;
 
 Driver gpio_hog_driver = {
     .name = "gpio_hog",
-    .compatible = (const char*[]) { "tactility,gpio-hog", nullptr },
+    .compatible = (const char*[]) { "gpio-hog", nullptr },
     .start_device = start,
     .stop_device = stop,
     .api = nullptr,

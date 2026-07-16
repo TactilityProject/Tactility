@@ -3,14 +3,14 @@ description: >
   enable pin rather than a PWM-dimmable one. Brightness is treated as boolean: any
   value greater than 0 turns the backlight on, 0 turns it off.
 
-compatible: "espressif,esp32-gpio-backlight"
+compatible: "gpio-backlight"
 
 properties:
-  pin-backlight:
+  pin:
     type: phandles
     required: true
     description: Backlight enable output pin
-  default-on:
+  enabled:
     type: boolean
-    default: true
+    default: false
     description: Whether the backlight is turned on by set_brightness_default()

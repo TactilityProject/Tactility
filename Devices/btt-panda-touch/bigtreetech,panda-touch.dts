@@ -6,7 +6,8 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_usbhost.h>
-#include <tactility/bindings/esp32_ledc_backlight.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
 #include <bindings/rgb_display.h>
 #include <bindings/gt911.h>
 
@@ -55,9 +56,17 @@
 		pin-scl = <&gpio0 3 GPIO_FLAG_NONE>;
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 21 GPIO_FLAG_NONE>;
+		period-ns = <33333>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
 	display_backlight {
-		compatible = "espressif,esp32-ledc-backlight";
-		pin-backlight = <&gpio0 21 GPIO_FLAG_NONE>;
+		compatible = "pwm-backlight";
+		pwm = <&display_backlight_pwm>;
 	};
 
 	display0 {

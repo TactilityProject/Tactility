@@ -1,0 +1,33 @@
+description: ESP32 LEDC-backed generic PWM output
+
+compatible: "espressif,esp32-pwm-ledc"
+
+properties:
+  pin:
+    type: phandles
+    required: true
+    description: PWM output pin
+  period-ns:
+    type: int
+    required: true
+    description: The PWM period, in nanoseconds
+  duty-ns:
+    type: int
+    default: 0
+    description: The PWM duty cycle (active time within one period), in nanoseconds
+  inverted:
+    type: boolean
+    default: false
+    description: Whether the output polarity is inverted
+  duty-resolution:
+    type: int
+    default: 10
+    description: LEDC duty resolution in bits, defined by ledc_timer_bit_t
+  ledc-timer:
+    type: int
+    required: true
+    description: LEDC timer index, defined by ledc_timer_t
+  ledc-channel:
+    type: int
+    required: true
+    description: LEDC channel index, defined by ledc_channel_t

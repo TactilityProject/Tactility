@@ -1,0 +1,19 @@
+description: >
+  PWM-driven display backlight. Wraps any PWM_TYPE device (e.g. espressif,esp32-pwm-ledc or
+  pwm-generic) and maps the brightness-level-range onto its duty cycle.
+
+compatible: "pwm-backlight"
+
+properties:
+  pwm:
+    type: phandles
+    required: true
+    description: The PWM device driving the backlight
+  brightness-level-range:
+    type: values
+    default: [0, 255]
+    description: Inclusive [min,max] brightness range. The minimum value turns the backlight off.
+  brightness-default:
+    type: int
+    default: 200
+    description: Default brightness level, applied by set_brightness_default(). Should fall within brightness-level-range.

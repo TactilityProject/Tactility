@@ -8,7 +8,8 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/esp32_ledc_backlight.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
 #include <bindings/st7789.h>
 #include <bindings/ft5x06.h>
 
@@ -46,9 +47,17 @@
 		};
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 38 GPIO_FLAG_NONE>;
+		period-ns = <33333>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
 	display_backlight {
-		compatible = "espressif,esp32-ledc-backlight";
-		pin-backlight = <&gpio0 38 GPIO_FLAG_NONE>;
+		compatible = "pwm-backlight";
+		pwm = <&display_backlight_pwm>;
 	};
 
 	spi0 {

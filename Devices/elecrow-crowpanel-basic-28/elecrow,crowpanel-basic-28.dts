@@ -7,7 +7,8 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/esp32_ledc_backlight.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
 #include <bindings/ili9341.h>
 #include <bindings/xpt2046.h>
 
@@ -33,13 +34,20 @@
 		pin-scl = <&gpio0 21 GPIO_FLAG_NONE>;
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 27 GPIO_FLAG_NONE>;
+		period-ns = <25000>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
 	display_backlight {
-		compatible = "espressif,esp32-ledc-backlight";
+		compatible = "pwm-backlight";
 		// Off by default so display power-on won't show the screen from before the last power loss.
 		// The display backlight is turned on during the boot process.
 		status = "disabled";
-		pin-backlight = <&gpio0 27 GPIO_FLAG_NONE>;
-		frequency-hz = <40000>;
+		pwm = <&display_backlight_pwm>;
 	};
 
 	spi0 {

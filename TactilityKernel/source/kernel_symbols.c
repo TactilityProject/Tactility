@@ -29,7 +29,6 @@
 #include <tactility/drivers/rtc.h>
 #include <tactility/drivers/sdcard.h>
 #include <tactility/drivers/spi_controller.h>
-#include <tactility/drivers/spi_peripheral.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/error.h>
@@ -243,8 +242,6 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(spi_controller_try_lock),
     DEFINE_MODULE_SYMBOL(spi_controller_unlock),
     DEFINE_MODULE_SYMBOL(SPI_CONTROLLER_TYPE),
-    // drivers/spi_peripheral
-    DEFINE_MODULE_SYMBOL(SPI_PERIPHERAL_TYPE),
     // drivers/uart_controller
     DEFINE_MODULE_SYMBOL(uart_controller_open),
     DEFINE_MODULE_SYMBOL(uart_controller_close),

@@ -13,7 +13,8 @@
 #include <tactility/bindings/esp32_uart.h>
 #include <bindings/bmi270.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/esp32_ledc_backlight.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
 
 #include <bindings/st7789.h>
 #include <bindings/cardputer_adv_keyboard.h>
@@ -81,13 +82,20 @@
 		i2cClockFrequency = <400000>;
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 38 GPIO_FLAG_NONE>;
+		period-ns = <1953125>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
 	display_backlight {
-		compatible = "espressif,esp32-ledc-backlight";
+		compatible = "pwm-backlight";
 		// Off by default so display power-on won't show the screen from before the last power loss.
 		// The display backlight is turned on during the boot process.
 		status = "disabled";
-		pin-backlight = <&gpio0 38 GPIO_FLAG_NONE>;
-		frequency-hz = <512>;
+		pwm = <&display_backlight_pwm>;
 	};
 
 	spi0 {
