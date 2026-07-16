@@ -1,0 +1,21 @@
+description: >
+  Claims a GPIO pin and drives it to a fixed level for as long as the module is running, with
+  no further runtime behavior. Useful for board-level power-enable pins that must be asserted
+  before other devicetree devices try to use hardware gated by that pin - all devicetree
+  devices are constructed and started during kernel_init(), which runs before the deprecated
+  HAL's initBoot() hook. Declare a gpio-hog node before the dependent device(s) in the .dts
+  source so it runs first.
+
+compatible: "tactility,gpio-hog"
+
+properties:
+  pin:
+    type: phandles
+    required: true
+    description: The GPIO pin to hog
+  mode:
+    type: int
+    default: 0
+    description: |
+      Pin mode, see enum GpioHogMode in tactility/drivers/gpio_hog.h:
+      0 = GPIO_HOG_MODE_OUTPUT_HIGH, 1 = GPIO_HOG_MODE_OUTPUT_LOW, 2 = GPIO_HOG_MODE_INPUT.

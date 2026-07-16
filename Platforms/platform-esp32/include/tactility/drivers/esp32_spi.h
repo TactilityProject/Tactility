@@ -27,6 +27,14 @@ struct Esp32SpiConfig {
     struct GpioPinSpec* cs_gpios;
     /** The item count of cs_gpios */
     uint8_t cs_gpios_count;
+    /**
+     * Enables a weak internal pull-up on MISO, which floats between transactions/while
+     * another device on the bus is selected. Helps some SPI peripherals (a garbled/invalid
+     * response on CMD8/if_cond has been observed for SD-over-SPI on some boards) but has been
+     * observed to break others (e.g. prevents the SD card from responding to CMD0 at all on
+     * some boards) - opt in per board rather than defaulting it on for everyone.
+     */
+    bool miso_pull_up;
 };
 
 /**

@@ -11,6 +11,19 @@ extern "C" {
 #include <tactility/error.h>
 
 /**
+ * @brief Optional capabilities of the display.
+ */
+enum DisplayCapability {
+    DISPLAY_CAPABILITY_CAP_MIRROR      = 1 << 0,
+    DISPLAY_CAPABILITY_CAP_SWAP_XY     = 1 << 1,
+    DISPLAY_CAPABILITY_CAP_SET_GAP     = 1 << 2,
+    DISPLAY_CAPABILITY_INVERT_COLOR    = 1 << 3,
+    DISPLAY_CAPABILITY_ON_OFF          = 1 << 4,
+    DISPLAY_CAPABILITY_BACKLIGHT       = 1 << 5,
+    DISPLAY_CAPABILITY_SLEEP           = 1 << 6
+};
+
+/**
  * @brief Pixel color formats supported by display panel drivers.
  */
 enum DisplayColorFormat {
@@ -26,6 +39,8 @@ enum DisplayColorFormat {
  * @brief API for display panel drivers.
  */
 struct DisplayApi {
+    uint32_t capabilities;
+
     /**
      * @brief Performs a hardware reset of the panel (e.g. toggling a reset GPIO).
      * @param[in] device the display device
@@ -54,6 +69,7 @@ struct DisplayApi {
 
     /**
      * @brief Mirrors the image along the X and/or Y axis.
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @retval ERROR_NONE when the operation was successful
      */
@@ -61,6 +77,7 @@ struct DisplayApi {
 
     /**
      * @brief Swaps the X and Y axes (rotates the coordinate system).
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @retval ERROR_NONE when the operation was successful
      */
@@ -68,6 +85,7 @@ struct DisplayApi {
 
     /**
      * @brief Gets whether the X and Y axes are currently swapped.
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @return true if swapped
      */
@@ -75,6 +93,7 @@ struct DisplayApi {
 
     /**
      * @brief Gets whether the X axis is currently mirrored.
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @return true if mirrored
      */
@@ -82,6 +101,7 @@ struct DisplayApi {
 
     /**
      * @brief Gets whether the Y axis is currently mirrored.
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @return true if mirrored
      */
@@ -89,6 +109,7 @@ struct DisplayApi {
 
     /**
      * @brief Sets a coordinate offset applied to all draw operations.
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @retval ERROR_NONE when the operation was successful
      */
@@ -96,6 +117,7 @@ struct DisplayApi {
 
     /**
      * @brief Inverts the panel's color output.
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @retval ERROR_NONE when the operation was successful
      */
@@ -103,6 +125,7 @@ struct DisplayApi {
 
     /**
      * @brief Turns the panel's display output on or off.
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @retval ERROR_NONE when the operation was successful
      */
@@ -110,6 +133,7 @@ struct DisplayApi {
 
     /**
      * @brief Puts the panel into or out of its low-power sleep mode.
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @retval ERROR_NONE when the operation was successful
      */
@@ -153,13 +177,33 @@ struct DisplayApi {
 
     /**
      * @brief Gets the backlight device associated with this display, if any.
+     * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
      * @param[out] backlight the associated backlight device
      * @retval ERROR_NONE when a backlight is available and *backlight was set
      * @retval ERROR_NOT_SUPPORTED when this display has no associated backlight
      */
     error_t (*get_backlight)(struct Device* device, struct Device** backlight);
+
+    /**
+     * @brief Optional dynamic override for capability checks.
+     * @warning Nullable. When null, display_has_capability() checks the static `capabilities` field
+     * instead. When set, this is called in its place, letting a driver report capabilities that vary
+     * per device instance (e.g. depending on devicetree config) rather than being fixed for the driver.
+     * @param[in] device the display device
+     * @param[in] capability the bitset of DisplayCapability value(s) being queried
+     * @return true if all specified capabilities are available for this device instance
+     */
+    bool (*has_capability)(struct Device* device, uint32_t capability);
 };
+
+/**
+ * @brief Check if this display has 1 or more capabilities.
+ * @param device the display device
+ * @param capability the bitset of DisplayCapability value(s)
+ * @return true if all specified capabilities are available
+ */
+bool display_has_capability(struct Device* device, uint32_t capability);
 
 /**
  * @brief Performs a hardware reset of the panel using the specified display.

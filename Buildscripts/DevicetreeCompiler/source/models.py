@@ -40,6 +40,8 @@ class BindingProperty:
     description: str
     default: object = None
     element_type: str = None
+    min: object = None
+    max: object = None
 
 @dataclass
 class Binding:

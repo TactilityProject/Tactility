@@ -53,6 +53,12 @@ properties:
     type: int
     default: 10
     description: Size of the internal SPI transaction queue
+  gamma-curve:
+    type: int
+    default: 1
+    min: 0
+    max: 3
+    description: Gamma curve preset index [0,3], sent via the MIPI DCS GAMSET (0x26) command at bring-up
   pin-dc:
     type: phandles
     required: true
@@ -67,5 +73,5 @@ properties:
     description: Whether the reset pin is active high
   backlight:
     type: phandle
-    default: NULL
+    default: "NULL"
     description: Optional reference to this display's backlight device

@@ -22,13 +22,13 @@ static DeviceListenerLedger ledger;
 
 extern "C" {
 
-void device_listener_add(DeviceListenerCallback* callback, void* context) {
+void device_listener_add(DeviceListenerCallback callback, void* context) {
     ledger.lock();
     ledger.listeners.push_back(DeviceEventListener{ *callback, context });
     ledger.unlock();
 }
 
-void device_listener_remove(DeviceListenerCallback* callback) {
+void device_listener_remove(DeviceListenerCallback callback) {
     ledger.lock();
     const auto iterator = std::ranges::find_if(ledger.listeners, [callback](const DeviceEventListener& listener) {
         return listener.callback == *callback;

@@ -76,6 +76,139 @@ def test_compile_invalid_dts():
         print("PASSED")
         return True
 
+def write_minmax_config(tmp_dir, device_property_line, binding_min=0, binding_max=3, binding_default=1):
+    config_dir = os.path.join(tmp_dir, "minmax_data")
+    bindings_dir = os.path.join(config_dir, "bindings")
+    os.makedirs(bindings_dir)
+
+    with open(os.path.join(config_dir, "devicetree.yaml"), "w") as f:
+        f.write("dts: test.dts\nbindings: bindings")
+
+    with open(os.path.join(config_dir, "test.dts"), "w") as f:
+        f.write(f"""/dts-v1/;
+
+/ {{
+    compatible = "test,root";
+    model = "Test Model";
+
+    test-device@0 {{
+        compatible = "test,minmax-device";
+        {device_property_line}
+    }};
+}};
+""")
+
+    with open(os.path.join(bindings_dir, "test,root.yaml"), "w") as f:
+        f.write("description: Test root binding\ncompatible: \"test,root\"\nproperties:\n  model:\n    type: string\n")
+
+    with open(os.path.join(bindings_dir, "test,minmax-device.yaml"), "w") as f:
+        f.write(f"""description: Test min/max binding
+compatible: "test,minmax-device"
+properties:
+  ranged-prop:
+    type: int
+    default: {binding_default}
+    min: {binding_min}
+    max: {binding_max}
+""")
+
+    return config_dir
+
+def test_minmax_within_range_succeeds():
+    print("Running test_minmax_within_range_succeeds...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config_dir = write_minmax_config(tmp_dir, "ranged-prop = <2>;")
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir)
+
+        result = run_compiler(config_dir, output_dir)
+
+        if result.returncode != 0:
+            print(f"FAILED: Compilation should have succeeded: {result.stderr} {result.stdout}")
+            return False
+
+        print("PASSED")
+        return True
+
+def test_minmax_below_minimum_fails():
+    print("Running test_minmax_below_minimum_fails...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config_dir = write_minmax_config(tmp_dir, "ranged-prop = <-1>;")
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir)
+
+        result = run_compiler(config_dir, output_dir)
+
+        if result.returncode == 0:
+            print("FAILED: Compilation should have failed for a below-minimum value")
+            return False
+
+        if "below minimum" not in result.stdout:
+            print(f"FAILED: Expected 'below minimum' error message, got: {result.stdout}")
+            return False
+
+        print("PASSED")
+        return True
+
+def test_minmax_above_maximum_fails():
+    print("Running test_minmax_above_maximum_fails...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config_dir = write_minmax_config(tmp_dir, "ranged-prop = <7>;")
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir)
+
+        result = run_compiler(config_dir, output_dir)
+
+        if result.returncode == 0:
+            print("FAILED: Compilation should have failed for an above-maximum value")
+            return False
+
+        if "above maximum" not in result.stdout:
+            print(f"FAILED: Expected 'above maximum' error message, got: {result.stdout}")
+            return False
+
+        print("PASSED")
+        return True
+
+def test_minmax_out_of_range_default_fails():
+    print("Running test_minmax_out_of_range_default_fails...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Property omitted from the .dts entirely, so the (invalid) binding default is used.
+        config_dir = write_minmax_config(tmp_dir, "", binding_default=9)
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir)
+
+        result = run_compiler(config_dir, output_dir)
+
+        if result.returncode == 0:
+            print("FAILED: Compilation should have failed for an out-of-range default value")
+            return False
+
+        if "above maximum" not in result.stdout:
+            print(f"FAILED: Expected 'above maximum' error message, got: {result.stdout}")
+            return False
+
+        print("PASSED")
+        return True
+
+def test_minmax_symbolic_value_skips_validation():
+    print("Running test_minmax_symbolic_value_skips_validation...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # A passed-through symbolic constant can't be range-checked at compile time and must
+        # not be rejected just because a min/max is declared.
+        config_dir = write_minmax_config(tmp_dir, "ranged-prop = <SOME_DEFINE>;")
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir)
+
+        result = run_compiler(config_dir, output_dir)
+
+        if result.returncode != 0:
+            print(f"FAILED: Compilation should have succeeded for a symbolic value: {result.stderr} {result.stdout}")
+            return False
+
+        print("PASSED")
+        return True
+
 def test_compile_missing_config():
     print("Running test_compile_missing_config...")
     with tempfile.TemporaryDirectory() as output_dir:
@@ -96,7 +229,12 @@ if __name__ == "__main__":
     tests = [
         test_compile_success,
         test_compile_invalid_dts,
-        test_compile_missing_config
+        test_compile_missing_config,
+        test_minmax_within_range_succeeds,
+        test_minmax_below_minimum_fails,
+        test_minmax_above_maximum_fails,
+        test_minmax_out_of_range_default_fails,
+        test_minmax_symbolic_value_skips_validation
     ]
     
     failed = 0

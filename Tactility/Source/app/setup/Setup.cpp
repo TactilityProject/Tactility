@@ -17,6 +17,14 @@
 #include <functional>
 #include <vector>
 
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
+
+#ifdef CONFIG_TT_TOUCH_CALIBRATION_REQUIRED
+#include <Tactility/app/touchcalibration/TouchCalibration.h>
+#endif
+
 namespace tt::app::setup {
 
 extern const AppManifest manifest;
@@ -139,6 +147,13 @@ public:
 
     void onCreate(AppContext& app) override {
         steps = {
+#if defined(CONFIG_TT_TOUCH_CALIBRATION_REQUIRED)
+            {
+                .title = "Touch Calibration",
+                .description = "Let's calibrate the touch screen.",
+                .run = [] { touchcalibration::start(); }
+            },
+#endif
             {
                 .title = "Time Zone Setup",
                 .description = "Let's set the time zone.",

@@ -1,0 +1,64 @@
+description: >
+  Himax HX8357-D display panel. 24bpp/RGB888 only. No ESP-IDF esp_lcd component exists for this
+  controller, so this driver speaks the panel's raw SPI command protocol directly (bit-banged
+  DC line, blocking spi_device_transmit()) rather than wrapping esp_lcd_panel_io/esp_lcd_panel.
+  No bgr-order property: unlike the RGB565 panels (ili9341-module, st7789-module), there is no
+  DISPLAY_COLOR_FORMAT_BGR888 in the kernel model, so a BGR-wired panel isn't representable here.
+
+compatible: "himax,hx8357"
+
+bus: spi
+
+properties:
+  horizontal-resolution:
+    type: int
+    required: true
+    description: Horizontal resolution in pixels
+  vertical-resolution:
+    type: int
+    required: true
+    description: Vertical resolution in pixels
+  gap-x:
+    type: int
+    default: 0
+    description: X offset applied to all draw operations
+  gap-y:
+    type: int
+    default: 0
+    description: Y offset applied to all draw operations
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: true
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  invert-color:
+    type: boolean
+    default: false
+    description: Invert the panel's color output
+  pixel-clock-hz:
+    type: int
+    default: 26000000
+    description: SPI pixel clock frequency in Hz
+  pin-dc:
+    type: phandles
+    required: true
+    description: Data/Command GPIO pin
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Reset GPIO pin
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high
+  backlight:
+    type: phandle
+    default: "NULL"
+    description: Optional reference to this display's backlight device

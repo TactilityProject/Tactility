@@ -16,6 +16,10 @@
 
 #include <lvgl.h>
 
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
+
 namespace tt::app::kerneldisplay {
 
 constexpr auto* TAG = "KernelDisplay";
@@ -136,25 +140,28 @@ public:
         // DisplayApi has no gamma curve control yet.
 
         if (backlight != nullptr) {
-            auto* brightness_wrapper = lv_obj_create(main_wrapper);
-            lv_obj_set_size(brightness_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-            lv_obj_set_style_pad_hor(brightness_wrapper, 0, LV_STATE_DEFAULT);
-            lv_obj_set_style_border_width(brightness_wrapper, 0, LV_STATE_DEFAULT);
-            if (ui_density != LVGL_UI_DENSITY_COMPACT) {
-                lv_obj_set_style_pad_ver(brightness_wrapper, 4, LV_STATE_DEFAULT);
+            bool is_on_off_brightness = backlight_get_min_brightness(backlight) == 0 && backlight_get_max_brightness(backlight) == 1;
+            if (!is_on_off_brightness) {
+                auto* brightness_wrapper = lv_obj_create(main_wrapper);
+                lv_obj_set_size(brightness_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+                lv_obj_set_style_pad_hor(brightness_wrapper, 0, LV_STATE_DEFAULT);
+                lv_obj_set_style_border_width(brightness_wrapper, 0, LV_STATE_DEFAULT);
+                if (ui_density != LVGL_UI_DENSITY_COMPACT) {
+                    lv_obj_set_style_pad_ver(brightness_wrapper, 4, LV_STATE_DEFAULT);
+                }
+
+                auto* brightness_label = lv_label_create(brightness_wrapper);
+                lv_label_set_text(brightness_label, "Brightness");
+                lv_obj_align(brightness_label, LV_ALIGN_LEFT_MID, 0, 0);
+
+                auto* brightness_slider = lv_slider_create(brightness_wrapper);
+                lv_obj_set_width(brightness_slider, LV_PCT(50));
+                lv_obj_align(brightness_slider, LV_ALIGN_RIGHT_MID, 0, 0);
+                lv_slider_set_range(brightness_slider, backlight_get_min_brightness(backlight), backlight_get_max_brightness(backlight));
+                lv_obj_add_event_cb(brightness_slider, onBacklightSliderEvent, LV_EVENT_VALUE_CHANGED, this);
+
+                lv_slider_set_value(brightness_slider, displaySettings.backlightDuty, LV_ANIM_OFF);
             }
-
-            auto* brightness_label = lv_label_create(brightness_wrapper);
-            lv_label_set_text(brightness_label, "Brightness");
-            lv_obj_align(brightness_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-            auto* brightness_slider = lv_slider_create(brightness_wrapper);
-            lv_obj_set_width(brightness_slider, LV_PCT(50));
-            lv_obj_align(brightness_slider, LV_ALIGN_RIGHT_MID, 0, 0);
-            lv_slider_set_range(brightness_slider, backlight_get_min_brightness(backlight), backlight_get_max_brightness(backlight));
-            lv_obj_add_event_cb(brightness_slider, onBacklightSliderEvent, LV_EVENT_VALUE_CHANGED, this);
-
-            lv_slider_set_value(brightness_slider, displaySettings.backlightDuty, LV_ANIM_OFF);
         }
 
         // Orientation
@@ -250,9 +257,6 @@ public:
                 lv_obj_add_state(screensaverDropdown, LV_STATE_DISABLED);
             }
         }
-
-        // Note: no touch calibration section here - unlike HalDisplayApp, the kernel PointerApi has
-        // no calibration support yet.
     }
 
     void onHide(AppContext& app) override {

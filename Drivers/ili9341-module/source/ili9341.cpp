@@ -13,6 +13,7 @@
 
 #include <esp_err.h>
 #include <esp_lcd_io_spi.h>
+#include <esp_lcd_panel_commands.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_ili9341.h>
@@ -24,6 +25,11 @@
 #define TAG "ILI9341"
 
 #define GET_CONFIG(device) (static_cast<const Ili9341Config*>((device)->config))
+
+// Maps gamma-curve devicetree index [0,3] to the MIPI DCS GAMSET (0x26) parameter value. Mirrors
+// the deprecated HAL's EspLcdSpiDisplay::setGammaCurve() (Drivers/EspLcdCompat) - note the
+// non-linear mapping, not index+1.
+static const uint8_t GAMMA_CURVE_VALUES[4] = { 0x01, 0x04, 0x02, 0x08 };
 
 struct Ili9341Internal {
     esp_lcd_panel_io_handle_t io_handle;
@@ -140,6 +146,7 @@ static error_t start(Device* device) {
     ok = ok && (!config->swap_xy || esp_lcd_panel_swap_xy(internal->panel_handle, true) == ESP_OK);
     ok = ok && ((!config->mirror_x && !config->mirror_y) || esp_lcd_panel_mirror(internal->panel_handle, config->mirror_x, config->mirror_y) == ESP_OK);
     ok = ok && (!config->invert_color || esp_lcd_panel_invert_color(internal->panel_handle, true) == ESP_OK);
+    ok = ok && (config->gamma_curve >= 4 || esp_lcd_panel_io_tx_param(internal->io_handle, LCD_CMD_GAMSET, &GAMMA_CURVE_VALUES[config->gamma_curve], 1) == ESP_OK);
     ok = ok && esp_lcd_panel_disp_on_off(internal->panel_handle, true) == ESP_OK;
 
     if (!ok) {
@@ -293,6 +300,9 @@ static error_t ili9341_get_backlight(Device* device, Device** backlight) {
 // endregion
 
 static const DisplayApi ili9341_display_api = {
+    .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY |
+        DISPLAY_CAPABILITY_CAP_SET_GAP | DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF |
+        DISPLAY_CAPABILITY_SLEEP | DISPLAY_CAPABILITY_BACKLIGHT,
     .reset = ili9341_reset,
     .init = ili9341_init,
     .draw_bitmap = ili9341_draw_bitmap,
@@ -311,6 +321,7 @@ static const DisplayApi ili9341_display_api = {
     .get_frame_buffer = ili9341_get_frame_buffer,
     .get_frame_buffer_count = ili9341_get_frame_buffer_count,
     .get_backlight = ili9341_get_backlight,
+    .has_capability = nullptr,
 };
 
 Driver ili9341_driver = {

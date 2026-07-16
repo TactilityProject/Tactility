@@ -25,3 +25,11 @@ properties:
     type: boolean
     default: false
     description: Mirror the Y axis
+  power-supply:
+    type: boolean
+    default: false
+    description: Expose a power-supply device that reports battery voltage/capacity read from the XPT2046's v-bat input
+  power-supply-reference-voltage-mv:
+    type: int
+    default: 4200
+    description: Battery voltage (in mV) considered 100% capacity, used to compute POWER_SUPPLY_PROP_CAPACITY

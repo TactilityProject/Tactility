@@ -22,9 +22,9 @@ struct DeviceEventListener {
     void* callback_context;
 };
 
-void device_listener_add(DeviceListenerCallback* callback, void* context);
+void device_listener_add(DeviceListenerCallback callback, void* context);
 
-void device_listener_remove(DeviceListenerCallback* callback);
+void device_listener_remove(DeviceListenerCallback callback);
 
 #ifdef __cplusplus
 }

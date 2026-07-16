@@ -104,7 +104,8 @@
 		pin-mosi = <&gpio0 14 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
-	
+		miso-pull-up;
+
 		sdcard@0 {
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;

@@ -71,5 +71,5 @@ properties:
     description: Whether the reset pin is active high
   backlight:
     type: phandle
-    default: NULL
+    default: "NULL"
     description: Optional reference to this display's backlight device
