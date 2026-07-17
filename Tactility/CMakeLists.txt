@@ -40,11 +40,8 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     endif ()
 
     if ("${IDF_TARGET}" STREQUAL "esp32p4")
-        # EspNowBackendHosted.cpp / EspNowBridge.cpp App need esp_hosted.h / esp_hosted_ota.h / esp_hosted_misc.h.
+        # EspNowBackendHosted.cpp needs esp_hosted.h / esp_hosted_misc.h.
         list(APPEND REQUIRES_LIST espressif__esp_hosted)
-        # EspNowBridge.cpp App needs esp_app_format.h (esp_image_header_t) / esp_app_desc.h (esp_app_desc_t)
-        # for parsing the picked firmware image
-        list(APPEND REQUIRES_LIST bootloader_support esp_app_format)
     endif ()
 
 else ()
