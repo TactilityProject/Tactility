@@ -60,6 +60,18 @@ error_t display_set_gap(Device* device, int32_t x_gap, int32_t y_gap) {
     return DISPLAY_DRIVER_API(driver)->set_gap(device, x_gap, y_gap);
 }
 
+int32_t display_get_gap_x(Device* device) {
+    const auto* driver = device_get_driver(device);
+    const auto* api = DISPLAY_DRIVER_API(driver);
+    return api->get_gap_x != nullptr ? api->get_gap_x(device) : 0;
+}
+
+int32_t display_get_gap_y(Device* device) {
+    const auto* driver = device_get_driver(device);
+    const auto* api = DISPLAY_DRIVER_API(driver);
+    return api->get_gap_y != nullptr ? api->get_gap_y(device) : 0;
+}
+
 error_t display_invert_color(Device* device, bool invert_color_data) {
     const auto* driver = device_get_driver(device);
     return DISPLAY_DRIVER_API(driver)->invert_color(device, invert_color_data);
@@ -102,7 +114,11 @@ uint8_t display_get_frame_buffer_count(Device* device) {
 
 error_t display_get_backlight(Device* device, Device** backlight) {
     const auto* driver = device_get_driver(device);
-    return DISPLAY_DRIVER_API(driver)->get_backlight(device, backlight);
+    const auto* api = DISPLAY_DRIVER_API(driver);
+    if (api->get_backlight == nullptr) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    return api->get_backlight(device, backlight);
 }
 
 const struct DeviceType DISPLAY_TYPE {

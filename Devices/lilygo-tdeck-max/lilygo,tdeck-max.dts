@@ -7,7 +7,13 @@
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
 #include <bindings/xl9555.h>
+#include <bindings/cst66xx.h>
+#include <bindings/tca8418.h>
+#include <bindings/sy6970.h>
+#include <bindings/bq27220.h>
 
 // Reference: https://github.com/Xinyuan-LilyGO/T-Deck-MAX
 // lib/TDeckMaxBoard/src/TDeckMaxBoard.h, docs/pinmap.md
@@ -40,6 +46,88 @@
 			compatible = "xlsemi,xl9555";
 			reg = <0x20>;
 		};
+
+		// Vendor docs label this chip "CST328", but the vendor HynTouch driver probes
+		// cst66xx first and that is what answers on this board.
+		touch {
+			compatible = "hynitron,cst66xx";
+			reg = <0x1A>;
+			x-max = <240>;
+			y-max = <320>;
+			// Reset routed through the XL9555 IO expander (P07, active low).
+			pin-reset = <&xl9555 7 GPIO_FLAG_NONE>;
+		};
+
+		// TCA8418 4x10 matrix scanner. Keymaps are written in the vendor's row/column
+		// orientation (Xinyuan-LilyGO/T-Deck-MAX examples/factory/peri_keypad.cpp); the
+		// TCA8418 columns are wired in reverse of that order, hence reverse-columns.
+		// ALT (shift/uppercase) is row 2 col 0; SYM (symbol layer) is row 3 col 8.
+		keyboard {
+			compatible = "ti,tca8418";
+			reg = <0x34>;
+			rows = <4>;
+			columns = <10>;
+			reverse-columns;
+			keymap-lc = [
+				113 119 101 114 116 121 117 105 111 112 // q w e r t y u i o p
+				97 115 100 102 103 104 106 107 108 8    // a s d f g h j k l BACKSPACE
+				0 122 120 99 118 98 110 109 36 10       //   z x c v b n m $ ENTER
+				0 0 0 0 0 11 48 32 0 9                  //         PREV 0 SPC   NEXT
+			];
+			keymap-uc = [
+				81 87 69 82 84 89 85 73 79 80 // Q W E R T Y U I O P
+				65 83 68 70 71 72 74 75 76 8  // A S D F G H J K L BACKSPACE
+				0 90 88 67 86 66 78 77 36 10  //   Z X C V B N M $ ENTER
+				0 0 0 0 0 11 48 32 0 9        //         PREV 0 SPC   NEXT
+			];
+			keymap-sy = [
+				49 50 51 52 53 54 55 56 57 48 // 1 2 3 4 5 6 7 8 9 0
+				64 35 43 45 42 47 40 41 95 8  // @ # + - * / ( ) _ BACKSPACE
+				0 33 63 59 58 39 34 44 46 10  //   ! ? ; : ' " , . ENTER
+				0 0 0 0 0 11 48 32 0 9        //         PREV 0 SPC   NEXT
+			];
+			shift-row = <2>;
+			shift-col = <0>;
+			sym-row = <3>;
+			sym-col = <8>;
+			// Reset routed through the XL9555 IO expander (P11, active low).
+			pin-reset = <&xl9555 9 GPIO_FLAG_NONE>;
+		};
+
+		// Battery metrics from the BQ27220 fuel gauge; power-off via the SY6970 charger.
+		// Newer T-Deck Max revisions ship the SY6970 (0x6A) instead of the older BQ25896
+		// (0x6B); this board has the SY6970 (confirmed by I2C scan). The two are
+		// register-compatible for everything used here.
+		sy6970 {
+			compatible = "silergy,sy6970";
+			reg = <0x6A>;
+			charge-voltage-mv = <4288>;
+			charge-current-ma = <1024>;
+		};
+
+		bq27220 {
+			compatible = "ti,bq27220";
+			reg = <0x55>;
+		};
+	};
+
+	// Keyboard backlight (LED_PWM), GPIO42. The keypress-triggered flash/decay effect
+	// from the pre-migration driver isn't reproduced here - kernel drivers don't have a
+	// home for that kind of UI policy (same reasoning as the touch driver's dropped bezel
+	// keys). Off by default; app code can drive brightness via the generic pwm-backlight
+	// API if desired.
+	keyboard_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 42 GPIO_FLAG_NONE>;
+		period-ns = <33333>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	keyboard_backlight {
+		compatible = "pwm-backlight";
+		status = "disabled";
+		pwm = <&keyboard_backlight_pwm>;
 	};
 
 	spi0 {

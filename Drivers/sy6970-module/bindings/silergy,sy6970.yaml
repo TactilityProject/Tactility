@@ -1,0 +1,21 @@
+description: >
+  Silergy SY6970 Li-ion battery charger. Register-compatible with the BQ25896 for everything
+  used here. Creates a "power-supply" child device (see drivers/sy6970.h) exposing charging
+  status, charge enable/disable and ship-mode power-off; battery current/voltage/charge-level
+  are not available from this chip alone (they come from a separate fuel gauge, if present).
+
+include: ["i2c-device.yaml"]
+
+compatible: "silergy,sy6970"
+
+bus: i2c
+
+properties:
+  charge-voltage-mv:
+    type: int
+    default: 4288
+    description: Target battery charge voltage in mV (3840-4608, 16 mV steps)
+  charge-current-ma:
+    type: int
+    default: 1024
+    description: Target fast-charge current in mA (0-8128, 64 mA steps)

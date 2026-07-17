@@ -1,0 +1,45 @@
+description: AXS15231B touch controller (I2C side of the combined display+touch chip)
+
+include: ["i2c-device.yaml"]
+
+compatible: "axs,axs15231b-touch"
+
+bus: i2c
+
+properties:
+  x-max:
+    type: int
+    required: true
+    description: Maximum X coordinate reported by the controller (typically the panel's horizontal resolution)
+  y-max:
+    type: int
+    required: true
+    description: Maximum Y coordinate reported by the controller (typically the panel's vertical resolution)
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Reset GPIO pin
+  pin-interrupt:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Interrupt GPIO pin
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high
+  interrupt-active-high:
+    type: boolean
+    default: false
+    description: Whether the interrupt pin is active high

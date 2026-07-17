@@ -51,7 +51,6 @@ static void lvgl_pointer_calibration_apply(
     if (mapped_y < 0) mapped_y = 0;
     if (mapped_y > target_y_max) mapped_y = target_y_max;
 
-    LOG_I(TAG, "Calibration mapping: %d,%d -> %d,%d", *x, *y, (int)mapped_x, (int)mapped_y);
     *x = (uint16_t)mapped_x;
     *y = (uint16_t)mapped_y;
 }

@@ -17,15 +17,19 @@ extern "C" {
 struct PointerApi {
     /**
      * @brief Puts the pointer controller into its low-power sleep mode.
+     * @warning Function pointer should be null if not supported by the underlying protocol.
      * @param[in] device the pointer device
      * @retval ERROR_NONE when the operation was successful
+     * @retval ERROR_NOT_SUPPORTED when this controller has no sleep mode
      */
     error_t (*enter_sleep)(struct Device* device);
 
     /**
      * @brief Wakes the pointer controller from sleep mode.
+     * @warning Function pointer should be null if not supported by the underlying protocol.
      * @param[in] device the pointer device
      * @retval ERROR_NONE when the operation was successful
+     * @retval ERROR_NOT_SUPPORTED when this controller has no sleep mode
      */
     error_t (*exit_sleep)(struct Device* device);
 

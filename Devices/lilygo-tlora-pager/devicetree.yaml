@@ -1,4 +1,9 @@
 dependencies:
   - Platforms/platform-esp32
-bindings: ./
+  - Drivers/st7796-module
+  - Drivers/bq27220-module
+  - Drivers/tca8418-module
+  - Drivers/bq25896-module
+  - Drivers/drv2605-module
+  - Drivers/lilygo-module
 dts: lilygo,tlora-pager.dts

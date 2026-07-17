@@ -8,8 +8,10 @@
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
-#include <tactility/bindings/display_placeholder.h>
+#include <tactility/bindings/pwm_backlight.h>
 #include <tactility/bindings/rgb_led_pwm.h>
+#include <bindings/st7789.h>
+#include <bindings/cst816s.h>
 
 / {
 	compatible = "root";
@@ -31,6 +33,13 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 33 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 32 GPIO_FLAG_NONE>;
+
+		touch {
+			compatible = "hynitron,cst816s";
+			reg = <0x15>;
+			x-max = <240>;
+			y-max = <320>;
+		};
 	};
 
 	// CN1 header
@@ -42,15 +51,36 @@
 		pin-scl = <&gpio0 22 GPIO_FLAG_NONE>;
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 27 GPIO_FLAG_NONE>;
+		period-ns = <25000>;
+		ledc-timer = <1>;
+		ledc-channel = <3>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
 		cs-gpios = <&gpio0 15 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 13 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 14 GPIO_FLAG_NONE>;
-	
-		display {
-			compatible = "display-placeholder";
+
+		display@0 {
+			compatible = "sitronix,st7789";
+			horizontal-resolution = <240>;
+			vertical-resolution = <320>;
+			pixel-clock-hz = <62500000>;
+			pin-dc = <&gpio0 2 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
 		};
 	};
 

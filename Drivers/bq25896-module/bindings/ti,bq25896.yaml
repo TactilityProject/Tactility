@@ -1,0 +1,11 @@
+description: >
+  TI BQ25896 1-cell 3A buck battery charger with power path and PSEL. Creates a "power-supply"
+  child device (see drivers/bq25896.h) exposing ship-mode power-off only - matches the
+  deprecated HAL's Bq25896, which never read charging status/metrics from this chip (that came
+  from a separate fuel gauge, if present - see the bq27220 driver).
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,bq25896"
+
+bus: i2c

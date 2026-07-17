@@ -1,0 +1,41 @@
+description: >
+  Hynitron CST66xx capacitive touch controller. Vendor docs for the LilyGO T-Deck Max label
+  this chip "CST328", but the vendor HynTouch driver probes cst66xx first and that is what
+  answers on that board. This is a minimal, single-touch port of the vendor's
+  hyn_cst66xx.c protocol.
+
+include: ["i2c-device.yaml"]
+
+compatible: "hynitron,cst66xx"
+
+bus: i2c
+
+properties:
+  x-max:
+    type: int
+    required: true
+    description: Maximum X coordinate reported by the controller (typically the panel's horizontal resolution)
+  y-max:
+    type: int
+    required: true
+    description: Maximum Y coordinate reported by the controller (typically the panel's vertical resolution)
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  pin-reset:
+    type: phandles
+    required: true
+    description: Reset GPIO pin. The chip only re-initializes into normal reporting mode after a clean reset pulse.
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high

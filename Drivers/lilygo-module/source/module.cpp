@@ -8,6 +8,7 @@ extern "C" {
 extern Driver tdeck_keyboard_driver;
 extern Driver tdeck_keyboard_backlight_driver;
 extern Driver tdeck_trackball_driver;
+extern Driver tpager_encoder_driver;
 
 static error_t start() {
     /* We crash when construct fails, because if a single driver fails to construct,
@@ -15,6 +16,7 @@ static error_t start() {
     check(driver_construct_add(&tdeck_keyboard_driver) == ERROR_NONE);
     check(driver_construct_add(&tdeck_keyboard_backlight_driver) == ERROR_NONE);
     check(driver_construct_add(&tdeck_trackball_driver) == ERROR_NONE);
+    check(driver_construct_add(&tpager_encoder_driver) == ERROR_NONE);
     return ERROR_NONE;
 }
 
@@ -24,6 +26,7 @@ static error_t stop() {
     check(driver_remove_destruct(&tdeck_keyboard_driver) == ERROR_NONE);
     check(driver_remove_destruct(&tdeck_keyboard_backlight_driver) == ERROR_NONE);
     check(driver_remove_destruct(&tdeck_trackball_driver) == ERROR_NONE);
+    check(driver_remove_destruct(&tpager_encoder_driver) == ERROR_NONE);
     return ERROR_NONE;
 }
 

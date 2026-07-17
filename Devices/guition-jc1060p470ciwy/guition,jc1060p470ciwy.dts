@@ -7,13 +7,20 @@
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_sdmmc.h>
 #include <tactility/bindings/esp32_wifi.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
+#include <tactility/bindings/battery_sense.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/jd9165.h>
+#include <bindings/gt911.h>
 
 /**
  * For future reference:
  *  - ES8311 on I2C with PA PIN at GPIO 11
  *  - Built-in led at GPIO 26
  *  - Boot button at GPIO 21
- *  - LCD reset: GPIO 27
+ *  - LCD reset: GPIO 0 (matches P4 EV board reset line - deprecated HAL's old Display.cpp
+ *    comment claimed GPIO 27 here, but its actual LCD_PIN_RESET constant was GPIO_NUM_0)
  *  - LCD backlight: GPIO 23
  */
 / {
@@ -41,6 +48,13 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 7 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 8 GPIO_FLAG_NONE>;
+
+		touch0 {
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <1024>;
+			y-max = <600>;
+		};
 	};
 
 	i2s0 {
@@ -64,5 +78,117 @@
 		slot = <SDMMC_HOST_SLOT_0>;
 		bus-width = <4>;
 		on-chip-ldo-chan = <4>;
+	};
+
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_2>;
+		channels = <ADC_CHANNEL_4 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	// Matches the deprecated HAL's old Power.cpp: ADC2 CH4 behind an 85k/100k divider
+	// (multiplier = (85000+100000)/100000 = 1.850), reference-voltage-mv is the nominal
+	// full-scale value at ADC_ATTEN_DB_12 (battery-sense has no calibration path, unlike the
+	// old driver's adc_cali fallback).
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <1850>;
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 23 GPIO_FLAG_NONE>;
+		period-ns = <50000>;
+		ledc-timer = <1>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	display0 {
+		compatible = "jdi,jd9165";
+		horizontal-resolution = <1024>;
+		vertical-resolution = <600>;
+		pin-reset = <&gpio0 0 GPIO_FLAG_NONE>;
+		ldo-channel = <3>; // LDO_VO3 connects to VDD_MIPI_DPHY
+		ldo-voltage-mv = <2500>;
+		num-data-lanes = <2>;
+		lane-bit-rate-mbps = <750>;
+		dpi-clock-freq-mhz = <50>;
+		hsync-pulse-width = <20>;
+		hsync-back-porch = <160>;
+		hsync-front-porch = <160>;
+		vsync-pulse-width = <2>;
+		vsync-back-porch = <21>;
+		vsync-front-porch = <12>;
+		// Skips the wait-for-scanout in draw_bitmap(): prevents stalls/blank flashes when
+		// other tasks (e.g. flash writes) block timing, at the cost of tear-free rendering
+		// (matches the deprecated HAL's old Jd9165Display::getLvglPortDisplayDsiConfig(),
+		// which disabled esp_lvgl_port's avoid_tearing for the same reason).
+		allow-tearing;
+		backlight = <&display_backlight>;
+
+		// Vendor bring-up sequence from the ESP32-P4 Function EV Board reference, carried over
+		// unchanged from the deprecated HAL's old Jd9165Display.cpp. Framing is
+		// [cmd, data-len, delay-ms, data-len bytes of data...] - see jd9165-module's
+		// init-sequence binding property for the encoding.
+		init-sequence = [
+			0x30 1 0    0x00
+			0xF7 4 0    0x49 0x61 0x02 0x00
+			0x30 1 0    0x01
+			0x04 1 0    0x0C
+			0x05 1 0    0x00
+			0x06 1 0    0x00
+			0x0B 1 0    0x11
+			0x17 1 0    0x00
+			0x20 1 0    0x04
+			0x1F 1 0    0x05
+			0x23 1 0    0x00
+			0x25 1 0    0x19
+			0x28 1 0    0x18
+			0x29 1 0    0x04
+			0x2A 1 0    0x01
+			0x2B 1 0    0x04
+			0x2C 1 0    0x01
+			0x30 1 0    0x02
+			0x01 1 0    0x22
+			0x03 1 0    0x12
+			0x04 1 0    0x00
+			0x05 1 0    0x64
+			0x0A 1 0    0x08
+			0x0B 11 0   0x0A 0x1A 0x0B 0x0D 0x0D 0x11 0x10 0x06 0x08 0x1F 0x1D
+			0x0C 11 0   0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D
+			0x0D 11 0   0x16 0x1B 0x0B 0x0D 0x0D 0x11 0x10 0x07 0x09 0x1E 0x1C
+			0x0E 11 0   0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D
+			0x0F 11 0   0x16 0x1B 0x0D 0x0B 0x0D 0x11 0x10 0x1C 0x1E 0x09 0x07
+			0x10 11 0   0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D
+			0x11 11 0   0x0A 0x1A 0x0D 0x0B 0x0D 0x11 0x10 0x1D 0x1F 0x08 0x06
+			0x12 11 0   0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D 0x0D
+			0x14 4 0    0x00 0x00 0x11 0x11
+			0x18 1 0    0x99
+			0x30 1 0    0x06
+			0x12 14 0   0x36 0x2C 0x2E 0x3C 0x38 0x35 0x35 0x32 0x2E 0x1D 0x2B 0x21 0x16 0x29
+			0x13 14 0   0x36 0x2C 0x2E 0x3C 0x38 0x35 0x35 0x32 0x2E 0x1D 0x2B 0x21 0x16 0x29
+			0x30 1 0    0x0A
+			0x02 1 0    0x4F
+			0x0B 1 0    0x40
+			0x12 1 0    0x3E
+			0x13 1 0    0x78
+			0x30 1 0    0x0D
+			0x0D 1 0    0x04
+			0x10 1 0    0x0C
+			0x11 1 0    0x0C
+			0x12 1 0    0x0C
+			0x13 1 0    0x0C
+			0x30 1 0    0x00
+			0x3A 1 0    0x55
+			0x11 1 120  0x00
+			0x29 1 20   0x00
+		];
 	};
 };

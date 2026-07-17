@@ -1,0 +1,21 @@
+#include <tactility/module.h>
+
+extern "C" {
+
+static error_t start() {
+    return ERROR_NONE;
+}
+
+static error_t stop() {
+    return ERROR_NONE;
+}
+
+struct Module heltec_wifi_lora_32_v3_module = {
+    .name = "heltec-wifi-lora-32-v3",
+    .start = start,
+    .stop = stop,
+    .symbols = nullptr,
+    .internal = nullptr
+};
+
+}

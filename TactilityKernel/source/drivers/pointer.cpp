@@ -8,12 +8,20 @@ extern "C" {
 
 error_t pointer_enter_sleep(struct Device* device) {
     const auto* driver = device_get_driver(device);
-    return POINTER_DRIVER_API(driver)->enter_sleep(device);
+    const auto* api = POINTER_DRIVER_API(driver);
+    if (api->enter_sleep == nullptr) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    return api->enter_sleep(device);
 }
 
 error_t pointer_exit_sleep(Device* device) {
     const auto* driver = device_get_driver(device);
-    return POINTER_DRIVER_API(driver)->exit_sleep(device);
+    const auto* api = POINTER_DRIVER_API(driver);
+    if (api->exit_sleep == nullptr) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    return api->exit_sleep(device);
 }
 
 error_t pointer_read_data(Device* device, TickType_t timeout) {

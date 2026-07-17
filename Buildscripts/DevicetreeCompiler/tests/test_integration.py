@@ -209,6 +209,92 @@ def test_minmax_symbolic_value_skips_validation():
         print("PASSED")
         return True
 
+def write_array_config(tmp_dir, device_property_line):
+    config_dir = os.path.join(tmp_dir, "array_data")
+    bindings_dir = os.path.join(config_dir, "bindings")
+    os.makedirs(bindings_dir)
+
+    with open(os.path.join(config_dir, "devicetree.yaml"), "w") as f:
+        f.write("dts: test.dts\nbindings: bindings")
+
+    with open(os.path.join(config_dir, "test.dts"), "w") as f:
+        f.write(f"""/dts-v1/;
+
+/ {{
+    compatible = "test,root";
+    model = "Test Model";
+
+    test-device@0 {{
+        compatible = "test,array-device";
+        {device_property_line}
+    }};
+}};
+""")
+
+    with open(os.path.join(bindings_dir, "test,root.yaml"), "w") as f:
+        f.write("description: Test root binding\ncompatible: \"test,root\"\nproperties:\n  model:\n    type: string\n")
+
+    with open(os.path.join(bindings_dir, "test,array-device.yaml"), "w") as f:
+        f.write("""description: Test array binding
+compatible: "test,array-device"
+properties:
+  init-sequence:
+    type: array
+    element-type: uint8_t
+""")
+
+    return config_dir
+
+def test_array_property_generates_static_array_and_length():
+    print("Running test_array_property_generates_static_array_and_length...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config_dir = write_array_config(tmp_dir, "init-sequence = [0xFF 0x01 0x00 0x00 0x10 5 0];")
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir)
+
+        result = run_compiler(config_dir, output_dir)
+
+        if result.returncode != 0:
+            print(f"FAILED: Compilation should have succeeded: {result.stderr} {result.stdout}")
+            return False
+
+        with open(os.path.join(output_dir, "devicetree.c")) as f:
+            generated = f.read()
+
+        if "static uint8_t test_device_init_sequence[] = { 0xFF, 0x01, 0x00, 0x00, 0x10, 5, 0 };" not in generated:
+            print(f"FAILED: Expected static array declaration not found:\n{generated}")
+            return False
+
+        if "(uint8_t*)test_device_init_sequence" not in generated or "\t7\n" not in generated:
+            print(f"FAILED: Expected (pointer, length) config params not found:\n{generated}")
+            return False
+
+        print("PASSED")
+        return True
+
+def test_array_property_defaults_to_null_when_absent():
+    print("Running test_array_property_defaults_to_null_when_absent...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config_dir = write_array_config(tmp_dir, "")
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir)
+
+        result = run_compiler(config_dir, output_dir)
+
+        if result.returncode != 0:
+            print(f"FAILED: Compilation should have succeeded: {result.stderr} {result.stdout}")
+            return False
+
+        with open(os.path.join(output_dir, "devicetree.c")) as f:
+            generated = f.read()
+
+        if "NULL,\n\t0" not in generated:
+            print(f"FAILED: Expected NULL/0 defaults not found:\n{generated}")
+            return False
+
+        print("PASSED")
+        return True
+
 def test_compile_missing_config():
     print("Running test_compile_missing_config...")
     with tempfile.TemporaryDirectory() as output_dir:
@@ -234,7 +320,9 @@ if __name__ == "__main__":
         test_minmax_below_minimum_fails,
         test_minmax_above_maximum_fails,
         test_minmax_out_of_range_default_fails,
-        test_minmax_symbolic_value_skips_validation
+        test_minmax_symbolic_value_skips_validation,
+        test_array_property_generates_static_array_and_length,
+        test_array_property_defaults_to_null_when_absent
     ]
     
     failed = 0

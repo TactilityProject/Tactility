@@ -35,6 +35,15 @@ struct LvglDisplayConfig {
      * Allocates one extra buffer sized like the primary draw buffer.
      */
     bool sw_rotate;
+
+    /**
+     * Endianness of the 2 bytes of each RGB565/BGR565 pixel sent to the panel. False (default)
+     * keeps this little-endian CPU's native byte order (no-op). True swaps the 2 bytes of every
+     * pixel (big-endian) in the flush callback, via lv_draw_sw_rgb565_swap() - for panels that
+     * expect the opposite byte order over the bus. Ignored for color formats other than
+     * RGB565/BGR565 (e.g. RGB888, MONOCHROME).
+     */
+    bool swap_bytes;
 };
 
 /**

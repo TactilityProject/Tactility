@@ -1,3 +1,4 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/st7735-module
 dts: lilygo,tdongle-s3.dts

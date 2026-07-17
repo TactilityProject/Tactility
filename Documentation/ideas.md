@@ -12,6 +12,7 @@
 
 ## Higher Priority
 
+- Create `#define` for empty module (for modules that fully rely on device.properties and don't define drivers or have start/stop logic)
 - Get rid of TactilityC in favour of TactilityKernel and kernel modules
 - Improve SPI kernel driver (implement read, write, transactions)
 - Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.

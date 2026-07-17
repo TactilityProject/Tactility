@@ -138,10 +138,12 @@ static error_t start(Device* device) {
         esp_lcd_panel_init(internal->panel_handle) == ESP_OK &&
         (!config->invert_color || esp_lcd_panel_invert_color(internal->panel_handle, true) == ESP_OK);
 
+    // set_gap() just stores x_gap/y_gap and adds them as raw offsets wherever draw_bitmap()'s
+    // (already logical, post-swap) x/y land - independent of swap_xy/mirror state, so gap_x/gap_y
+    // are passed through unswapped (matches the deprecated HAL's St7796Display, which called
+    // esp_lcd_panel_set_gap(gapX, gapY) directly).
     if (ok) {
-        int gap_x = config->swap_xy ? config->gap_y : config->gap_x;
-        int gap_y = config->swap_xy ? config->gap_x : config->gap_y;
-        ok = (gap_x == 0 && gap_y == 0) || esp_lcd_panel_set_gap(internal->panel_handle, gap_x, gap_y) == ESP_OK;
+        ok = (config->gap_x == 0 && config->gap_y == 0) || esp_lcd_panel_set_gap(internal->panel_handle, config->gap_x, config->gap_y) == ESP_OK;
     }
     ok = ok && (!config->swap_xy || esp_lcd_panel_swap_xy(internal->panel_handle, true) == ESP_OK);
     ok = ok && ((!config->mirror_x && !config->mirror_y) || esp_lcd_panel_mirror(internal->panel_handle, config->mirror_x, config->mirror_y) == ESP_OK);
@@ -250,6 +252,15 @@ static error_t st7796_set_gap(Device* device, int32_t x_gap, int32_t y_gap) {
     return esp_lcd_panel_set_gap(internal->panel_handle, x_gap, y_gap) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 
+// Reads the devicetree-configured baseline, not live hardware state - see DisplayApi::get_gap_x().
+static int32_t st7796_get_gap_x(Device* device) {
+    return GET_CONFIG(device)->gap_x;
+}
+
+static int32_t st7796_get_gap_y(Device* device) {
+    return GET_CONFIG(device)->gap_y;
+}
+
 static error_t st7796_invert_color(Device* device, bool invert_color_data) {
     auto* internal = static_cast<St7796Internal*>(device_get_driver_data(device));
     return esp_lcd_panel_invert_color(internal->panel_handle, invert_color_data) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
@@ -317,6 +328,8 @@ static const DisplayApi st7796_display_api = {
     .get_mirror_x = st7796_get_mirror_x,
     .get_mirror_y = st7796_get_mirror_y,
     .set_gap = st7796_set_gap,
+    .get_gap_x = st7796_get_gap_x,
+    .get_gap_y = st7796_get_gap_y,
     .invert_color = st7796_invert_color,
     .disp_on_off = st7796_disp_on_off,
     .disp_sleep = st7796_disp_sleep,

@@ -37,8 +37,15 @@ void lvgl_devices_attach() {
         // sized to 1/10th of the vertical resolution; it fits comfortably everywhere,
         // including boards with PSRAM that could afford full-frame.
         uint16_t vres = display_get_resolution_y(kernel_display_device);
+        // _SWAPPED variants need it outright; plain BGR565 panels have also been found on real
+        // hardware to need it alongside their MADCTL BGR bit (see st7735-module/st7789-module).
+        enum DisplayColorFormat color_format = display_get_color_format(kernel_display_device);
+        bool swap_bytes = color_format == DISPLAY_COLOR_FORMAT_RGB565_SWAPPED ||
+            color_format == DISPLAY_COLOR_FORMAT_BGR565_SWAPPED ||
+            color_format == DISPLAY_COLOR_FORMAT_BGR565;
         struct LvglDisplayConfig lvgl_display_config = {
-            .buffer_height = vres > 10 ? vres / 10 : vres
+            .buffer_height = vres > 10 ? vres / 10 : vres,
+            .swap_bytes = swap_bytes
         };
         if (lvgl_display_add(kernel_display_device, &lvgl_display_config, &lvgl_display) == ERROR_NONE) {
             LOG_I(TAG, "Bound %s to LVGL", kernel_display_device->name);

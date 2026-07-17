@@ -138,10 +138,11 @@ static error_t start(Device* device) {
         esp_lcd_panel_init(internal->panel_handle) == ESP_OK &&
         (!config->invert_color || esp_lcd_panel_invert_color(internal->panel_handle, true) == ESP_OK);
 
+    // set_gap() just stores x_gap/y_gap and adds them as raw offsets wherever draw_bitmap()'s
+    // (already logical, post-swap) x/y land - independent of swap_xy/mirror state (confirmed via
+    // ESP-IDF's esp_lcd_panel_st7789.c), so gap_x/gap_y are passed through unswapped.
     if (ok) {
-        int gap_x = config->swap_xy ? config->gap_y : config->gap_x;
-        int gap_y = config->swap_xy ? config->gap_x : config->gap_y;
-        ok = (gap_x == 0 && gap_y == 0) || esp_lcd_panel_set_gap(internal->panel_handle, gap_x, gap_y) == ESP_OK;
+        ok = (config->gap_x == 0 && config->gap_y == 0) || esp_lcd_panel_set_gap(internal->panel_handle, config->gap_x, config->gap_y) == ESP_OK;
     }
     ok = ok && (!config->swap_xy || esp_lcd_panel_swap_xy(internal->panel_handle, true) == ESP_OK);
     ok = ok && ((!config->mirror_x && !config->mirror_y) || esp_lcd_panel_mirror(internal->panel_handle, config->mirror_x, config->mirror_y) == ESP_OK);
@@ -250,6 +251,15 @@ static error_t st7789_set_gap(Device* device, int32_t x_gap, int32_t y_gap) {
     return esp_lcd_panel_set_gap(internal->panel_handle, x_gap, y_gap) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 
+// Reads the devicetree-configured baseline, not live hardware state - see DisplayApi::get_gap_x().
+static int32_t st7789_get_gap_x(Device* device) {
+    return GET_CONFIG(device)->gap_x;
+}
+
+static int32_t st7789_get_gap_y(Device* device) {
+    return GET_CONFIG(device)->gap_y;
+}
+
 static error_t st7789_invert_color(Device* device, bool invert_color_data) {
     auto* internal = static_cast<St7789Internal*>(device_get_driver_data(device));
     return esp_lcd_panel_invert_color(internal->panel_handle, invert_color_data) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
@@ -265,10 +275,6 @@ static error_t st7789_disp_sleep(Device* device, bool sleep) {
     return esp_lcd_panel_disp_sleep(internal->panel_handle, sleep) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 
-// SPI panels have no direct-mapped frame buffer; every draw is an SPI transaction, so the color
-// format here is derived purely from the devicetree config (bgr_order), not queried from hardware.
-// Only 16bpp (RGB565/BGR565) is representable in DisplayColorFormat; other bit depths are not
-// distinguishable and fall back to the 16bpp mapping.
 static enum DisplayColorFormat st7789_get_color_format(Device* device) {
     const auto* config = GET_CONFIG(device);
     return config->bgr_order ? DISPLAY_COLOR_FORMAT_BGR565 : DISPLAY_COLOR_FORMAT_RGB565;
@@ -314,6 +320,8 @@ static const DisplayApi st7789_display_api = {
     .get_mirror_x = st7789_get_mirror_x,
     .get_mirror_y = st7789_get_mirror_y,
     .set_gap = st7789_set_gap,
+    .get_gap_x = st7789_get_gap_x,
+    .get_gap_y = st7789_get_gap_y,
     .invert_color = st7789_invert_color,
     .disp_on_off = st7789_disp_on_off,
     .disp_sleep = st7789_disp_sleep,

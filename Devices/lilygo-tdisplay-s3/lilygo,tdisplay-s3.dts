@@ -4,6 +4,13 @@
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
+#include <tactility/bindings/battery_sense.h>
+#include <tactility/bindings/esp32_i8080.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/st7789_i8080.h>
+#include <bindings/button_control.h>
 
 / {
 	compatible = "root";
@@ -22,5 +29,73 @@
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
+	};
+
+	// Board peripheral power rail (GPIO15). The kernel_init() module-start pass (source/module.cpp)
+	// asserts it before any devicetree device is constructed/started - see that file's start().
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		channels = <ADC_CHANNEL_3 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	// Matches the deprecated HAL's old Power.cpp (EstimatedPower/ChargeFromAdcVoltage default
+	// config): ADC1 CH3, 2:1 divider with +0.11 display voltage sag compensation
+	// (adcMultiplier = 2.11, so multiplier = 2110).
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2110>;
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 38 GPIO_FLAG_NONE>;
+		period-ns = <33333>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	i8080_0 {
+		compatible = "espressif,esp32-i8080";
+		pin-dc = <&gpio0 7 GPIO_FLAG_NONE>;
+		pin-wr = <&gpio0 8 GPIO_FLAG_NONE>;
+		pin-rd = <&gpio0 9 GPIO_FLAG_NONE>;
+		pin-d0 = <&gpio0 39 GPIO_FLAG_NONE>;
+		pin-d1 = <&gpio0 40 GPIO_FLAG_NONE>;
+		pin-d2 = <&gpio0 41 GPIO_FLAG_NONE>;
+		pin-d3 = <&gpio0 42 GPIO_FLAG_NONE>;
+		pin-d4 = <&gpio0 45 GPIO_FLAG_NONE>;
+		pin-d5 = <&gpio0 46 GPIO_FLAG_NONE>;
+		pin-d6 = <&gpio0 47 GPIO_FLAG_NONE>;
+		pin-d7 = <&gpio0 48 GPIO_FLAG_NONE>;
+		// horizontal-resolution * (vertical-resolution / 10 partial buffer) * 2 bytes/pixel
+		max-transfer-bytes = <10880>;
+		cs-gpios = <&gpio0 6 GPIO_FLAG_NONE>;
+
+		display@0 {
+			compatible = "sitronix,st7789-i8080";
+			horizontal-resolution = <170>;
+			vertical-resolution = <320>;
+			gap-x = <35>;
+			pixel-clock-hz = <10000000>;
+			pin-reset = <&gpio0 5 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
+	};
+
+	buttons {
+		compatible = "tactility,button-control";
+		pin-primary = <&gpio0 0 GPIO_FLAG_NONE>;
+		pin-secondary = <&gpio0 14 GPIO_FLAG_NONE>;
 	};
 };

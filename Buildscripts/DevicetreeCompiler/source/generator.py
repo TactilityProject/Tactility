@@ -161,7 +161,7 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
 
     node_name = get_device_node_name_safe(device)
     result = []
-    phandle_arrays = []
+    array_decls = []
     for binding_property in binding_properties:
         device_property = find_device_property(device, binding_property.name)
 
@@ -172,7 +172,35 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
             array_var = f"{node_name}_{prop_safe}"
             if device_property is not None:
                 entries = resolve_phandle_array_entries(device_property, devices)
-                phandle_arrays.append((array_var, binding_property.element_type, entries))
+                array_decls.append((array_var, binding_property.element_type, entries))
+                result.append(f"({binding_property.element_type}*){array_var}")
+                result.append(str(len(entries)))
+            elif binding_property.default is not None:
+                result.append("NULL")
+                result.append("0")
+            elif binding_property.required:
+                raise DevicetreeException(f"device {device.node_name} doesn't have property '{binding_property.name}'")
+            else:
+                result.append("NULL")
+                result.append("0")
+            continue
+
+        if binding_property.type == "array":
+            # A flat literal array (DTS `[ ... ]` syntax, e.g. a byte blob), as opposed to
+            # phandle-array's list of resolved device references. Emits the same
+            # (pointer, length) parameter pair, backed by a plain data array instead of one
+            # holding phandle-derived initializers.
+            if binding_property.element_type is None:
+                raise DevicetreeException(f"array property '{binding_property.name}' requires 'element-type' in binding")
+            prop_safe = binding_property.name.replace("-", "_")
+            array_var = f"{node_name}_{prop_safe}"
+            if device_property is not None:
+                if device_property.type != "array":
+                    raise DevicetreeException(
+                        f"Device '{device.node_name}' property '{binding_property.name}' must use '[ ... ]' array syntax"
+                    )
+                entries = [str(value) for value in device_property.value]
+                array_decls.append((array_var, binding_property.element_type, entries))
                 result.append(f"({binding_property.element_type}*){array_var}")
                 result.append(str(len(entries)))
             elif binding_property.default is not None:
@@ -207,17 +235,17 @@ def resolve_parameters_from_bindings(device: Device, bindings: list[Binding], de
             validate_property_range(device, binding_property, device_property.value)
             result.append(property_to_string(device_property, devices))
 
-    return result, phandle_arrays
+    return result, array_decls
 
 def write_config(file, device: Device, bindings: list[Binding], devices: list[Device], type_name: str):
     node_name = get_device_node_name_safe(device)
     config_type = f"{type_name}_config_dt"
     config_variable_name = f"{node_name}_config"
 
-    config_params, phandle_arrays = resolve_parameters_from_bindings(device, bindings, devices)
+    config_params, array_decls = resolve_parameters_from_bindings(device, bindings, devices)
 
-    # Write phandle-array variables before the config struct
-    for array_var, element_type, entries in phandle_arrays:
+    # Write phandle-array/array variables before the config struct
+    for array_var, element_type, entries in array_decls:
         entries_str = ", ".join(entries)
         file.write(f"static {element_type} {array_var}[] = {{ {entries_str} }};\n")
 

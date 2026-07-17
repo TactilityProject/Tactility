@@ -29,7 +29,7 @@ class PowerOffApp final : public App {
         lv_obj_set_flex_align(screen, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
         auto* title = lv_label_create(screen);
-        lv_label_set_text(title, "Tactility OS");
+        lv_label_set_text(title, "Tactility");
         lv_obj_set_style_text_font(title, lvgl_get_text_font(FONT_SIZE_LARGE), 0);
         lv_obj_set_style_text_color(title, lv_color_black(), 0);
 
@@ -48,16 +48,32 @@ class PowerOffApp final : public App {
         }
     }
 
+    static bool anyDeviceSupportsPowerOff() {
+        bool any_supported = false;
+        device_for_each_of_type(&POWER_SUPPLY_TYPE, &any_supported, [](Device* device, void* context) {
+            if (device_is_ready(device) && power_supply_supports_power_off(device)) {
+                *static_cast<bool*>(context) = true;
+                return false;
+            }
+            return true;
+        });
+        return any_supported;
+    }
+
     static void onYesPressed(lv_event_t* /*event*/) {
-        auto* power = device_find_first_active_by_type(&POWER_SUPPLY_TYPE);
-        if (power == nullptr || !power_supply_supports_power_off(power)) {
+        if (!anyDeviceSupportsPowerOff()) {
             return;
         }
 
         auto display = hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
         showPoweredOffScreenAndWait(display.get());
 
-        power_supply_power_off(power);
+        device_for_each_of_type(&POWER_SUPPLY_TYPE, nullptr, [](Device* device, void* /*context*/) {
+            if (device_is_ready(device) && power_supply_supports_power_off(device)) {
+                power_supply_power_off(device);
+            }
+            return true;
+        });
     }
 
     static void onNoPressed(lv_event_t* /*event*/) {
@@ -66,7 +82,7 @@ class PowerOffApp final : public App {
 
 public:
 
-    void onShow(AppContext& /*app*/, lv_obj_t* parent) override {
+    void onShow(AppContext&, lv_obj_t* parent) override {
         lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
@@ -77,7 +93,6 @@ public:
         auto* button_wrapper = lv_obj_create(parent);
         lv_obj_set_flex_flow(button_wrapper, LV_FLEX_FLOW_ROW);
         lv_obj_set_size(button_wrapper, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(button_wrapper, 0, 0);
         lv_obj_set_style_border_width(button_wrapper, 0, 0);
         lv_obj_set_flex_align(button_wrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 

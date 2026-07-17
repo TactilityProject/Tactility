@@ -5,6 +5,11 @@
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
+#include <tactility/bindings/battery_sense.h>
+#include <tactility/bindings/gpio_hog.h>
+#include <bindings/button_control.h>
+#include <bindings/ssd1306.h>
 
 / {
 	compatible = "root";
@@ -25,11 +30,87 @@
 		gpio-count = <49>;
 	};
 
+	// Board power-enable pins. Must be asserted before the dependent devices below start, since
+	// devicetree devices are constructed and started during kernel_init(), earlier than the
+	// deprecated HAL's initBoot() used to run. gpio-hog nodes run in declaration order, so they
+	// must stay before their dependents.
+	oled_power_en {
+		// Active low (external pull-up on the board).
+		compatible = "gpio-hog";
+		pin = <&gpio0 36 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
+	adc_ctrl_en {
+		compatible = "gpio-hog";
+		pin = <&gpio0 37 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
 	i2c_internal {
 		compatible = "espressif,esp32-i2c";
 		port = <I2C_NUM_0>;
 		clock-frequency = <200000>;
 		pin-sda = <&gpio0 17 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 18 GPIO_FLAG_NONE>;
+
+		display0 {
+			compatible = "solomon,ssd1306";
+			reg = <0x3C>;
+			horizontal-resolution = <128>;
+			vertical-resolution = <64>;
+			pin-reset = <&gpio0 21 GPIO_FLAG_NONE>;
+			// oled_power_en above only just asserted the OLED's power rail moments earlier in
+			// the same kernel_init() pass - matches the deprecated HAL's old
+			// enableOledPower()'s explicit 500ms settle delay before touching the chip.
+			power-on-delay-ms = <500>;
+
+			// Vendor bring-up sequence, carried over unchanged from the deprecated HAL's old
+			// Ssd1306Display.cpp (its own comment: "esp_lcd_panel_init() ... doesn't configure
+			// correctly for Heltec V3!"). Each byte is its own SSD1306 command - see
+			// ssd1306-module's init-sequence binding property for the encoding.
+			init-sequence = [
+				0xAE          // Display off while configuring
+				0xD5 0xF0     // Set oscillator frequency (~96 Hz) - must come early in the sequence
+				0xA8 0x3F     // Set multiplex ratio (vertical-resolution - 1 = 64 - 1)
+				0xD3 0x00     // Set display offset
+				0x40          // Set display start line = 0
+				0x8D 0x14     // Enable charge pump - must be before memory mode
+				0x20 0x00     // Horizontal addressing mode
+				0xA1          // Segment remap (Heltec V3 orientation)
+				0xC8          // Scan direction reversed
+				0xDA 0x12     // COM pin config (alternate, for 64-row displays)
+				0x81 0xCF     // Contrast
+				0xD9 0xF1     // Pre-charge period
+				0xDB 0x40     // VCOMH deselect level
+				0x21 0x00 0x7F // Column address range: 0 to (horizontal-resolution - 1)
+				0x22 0x00 0x07 // Page address range: 0 to 7 (for a 64-row display)
+				0xA7          // Display invert - required for this panel's wiring
+				0x2E          // Stop scroll
+				0xAF          // Display on
+			];
+		};
+	};
+
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		channels = <ADC_CHANNEL_3 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	// Matches the deprecated HAL's old Power.cpp: ADC1 CH3 behind a 2:1 divider, with +0.11
+	// added as display voltage sag compensation (adcMultiplier = 2.11, so multiplier = 2110).
+	// reference-voltage-mv is the nominal full-scale value at ADC_ATTEN_DB_12 (battery-sense has
+	// no calibration path, unlike the old driver's raw-scaling formula).
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2110>;
+	};
+
+	buttons {
+		compatible = "tactility,button-control";
+		pin-primary = <&gpio0 0 GPIO_FLAG_NONE>;
 	};
 };
