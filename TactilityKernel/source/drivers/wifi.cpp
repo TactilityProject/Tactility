@@ -68,6 +68,14 @@ error_t wifi_remove_event_callback(struct Device* device, WifiEventCallback call
     return WIFI_API(device)->remove_event_callback(device, callback);
 }
 
+error_t wifi_get_firmware_ops(struct Device* device, const struct FirmwareOps** ops, void** ctx) {
+    auto* api = WIFI_API(device);
+    if (api->get_firmware_ops == nullptr) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    return api->get_firmware_ops(device, ops, ctx);
+}
+
 const struct DeviceType WIFI_TYPE = {
     .name = "wifi"
 };

@@ -17,6 +17,10 @@
 #include <tactility/error_esp32.h>
 #include <tactility/log.h>
 
+#if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#include <tactility/drivers/esp32_esp_hosted_ota.h>
+#endif
+
 #include <algorithm>
 #include <cstring>
 #include <new>
@@ -489,6 +493,24 @@ error_t api_remove_event_callback(Device* device, WifiEventCallback callback) {
     return ERROR_NOT_FOUND;
 }
 
+error_t api_get_firmware_ops(Device* /*device*/, const FirmwareOps** ops, void** ctx) {
+    // ops/ctx are caller-supplied output pointers, reachable from external (ELF) apps via
+    // wifi_get_firmware_ops() - validate at this API boundary rather than trusting the caller.
+    if (ops == nullptr || ctx == nullptr) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+#if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+    // Only meaningful on a hosted board (P4+C6/C5 etc.) - this wifi device is backed by a real
+    // co-processor with its own updatable firmware there. On a native (non-hosted) chip, this
+    // device's "radio" is the chip's own built-in WiFi, nothing to update via this interface.
+    *ops = esp32_esp_hosted_ota_get_ops();
+    *ctx = nullptr; // esp32_esp_hosted_ota's FirmwareOps functions are all singleton/global, no per-call ctx needed
+    return ERROR_NONE;
+#else
+    return ERROR_NOT_SUPPORTED;
+#endif
+}
+
 const WifiApi esp32_wifi_api = {
     .get_radio_state = api_get_radio_state,
     .get_station_state = api_get_station_state,
@@ -502,7 +524,8 @@ const WifiApi esp32_wifi_api = {
     .station_disconnect = api_station_disconnect,
     .station_get_rssi = api_station_get_rssi,
     .add_event_callback = api_add_event_callback,
-    .remove_event_callback = api_remove_event_callback
+    .remove_event_callback = api_remove_event_callback,
+    .get_firmware_ops = api_get_firmware_ops
 };
 
 // ---- Driver lifecycle ----

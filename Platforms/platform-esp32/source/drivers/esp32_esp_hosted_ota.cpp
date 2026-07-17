@@ -4,7 +4,8 @@
 
 #if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
 
-#include <tactility/drivers/esp_hosted_ota.h>
+#include <tactility/drivers/esp32_esp_hosted_ota.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/error_esp32.h>
 #include <tactility/log.h>
 
@@ -20,6 +21,7 @@ extern "C" {
 #include <freertos/event_groups.h>
 
 #include <atomic>
+#include <cstring>
 
 #define TAG "esp32_esp_hosted_ota"
 
@@ -85,43 +87,7 @@ bool ensureHandlerRegistered() {
     return true;
 }
 
-} // namespace
-
-namespace {
-
-bool waitForTransport(uint32_t timeoutMs);
-error_t getCoprocessorFwversion(uint32_t* major, uint32_t* minor, uint32_t* patch);
-error_t getCpInfo(uint32_t* chipId, char* targetName, size_t targetNameLen);
-error_t otaBegin(void);
-error_t otaWrite(const uint8_t* data, size_t length);
-error_t otaEnd(void);
-error_t otaActivate(void);
-
-const EspHostedOtaApi api = {
-    .wait_for_transport = waitForTransport,
-    .get_coprocessor_fwversion = getCoprocessorFwversion,
-    .get_cp_info = getCpInfo,
-    .begin = otaBegin,
-    .write = otaWrite,
-    .end = otaEnd,
-    .activate = otaActivate,
-};
-
-} // namespace
-
-// Not a Driver/Device (see the header comment for why), so unlike esp32_wifi.cpp etc. there's no
-// driver_construct_add() call anywhere to force the linker to pull this translation unit out of
-// libplatform-esp32.a - nothing else in the program references any symbol defined here. A
-// self-registering static-init object was tried and silently never ran for exactly that reason.
-// Instead, module.cpp calls this explicitly (extern declaration there), the same way it directly
-// references every other platform-esp32 driver.
-extern "C" void esp32_esp_hosted_ota_init() {
-    esp_hosted_ota_register(&api);
-}
-
-namespace {
-
-bool waitForTransport(uint32_t timeoutMs) {
+bool waitReady(void* /*ctx*/, uint32_t timeoutMs) {
     esp_hosted_coprocessor_fwver_t probeVersion = {};
     if (esp_hosted_get_coprocessor_fwversion(&probeVersion) == ESP_OK) {
         // Already up (e.g. WiFi/BT brought it up earlier this boot).
@@ -178,38 +144,94 @@ bool waitForTransport(uint32_t timeoutMs) {
     }
 }
 
-error_t getCoprocessorFwversion(uint32_t* major, uint32_t* minor, uint32_t* patch) {
+error_t getInfo(void* /*ctx*/, FirmwareInfo* info) {
+    if (info == nullptr) {
+        return ERROR_INVALID_ARGUMENT;
+    }
     esp_hosted_coprocessor_fwver_t version = {};
     esp_err_t err = esp_hosted_get_coprocessor_fwversion(&version);
     if (err != ESP_OK) {
         return esp_err_to_error(err);
     }
-    *major = version.major1;
-    *minor = version.minor1;
-    *patch = version.patch1;
+    info->fw_major = version.major1;
+    info->fw_minor = version.minor1;
+    info->fw_patch = version.patch1;
+
+    // Chip identification is best-effort: report the version even if this fails (e.g. a slave
+    // firmware old enough to lack the esp_hosted_get_cp_info() RPC).
+    info->name[0] = '\0';
+    info->hw_id = 0;
+    uint32_t chipId = 0;
+    if (::esp_hosted_get_cp_info(&chipId, info->name, sizeof(info->name)) == ESP_OK) {
+        info->hw_id = chipId;
+    }
+
     return ERROR_NONE;
 }
 
-error_t getCpInfo(uint32_t* chipId, char* targetName, size_t targetNameLen) {
-    return esp_err_to_error(::esp_hosted_get_cp_info(chipId, targetName, targetNameLen));
+// esp_hosted's OTA API is a single global stream (esp_hosted_slave_ota_begin/write/end/activate
+// take no handle/context - there's exactly one co-processor). FirmwareUpdateHandle is an
+// intentionally-incomplete/opaque type (see wifi.h) so it can't be instantiated directly - this
+// sentinel object just gives begin()/write()/finish()/abort() a distinct, non-null address to
+// pass around and check against, matching the generic FirmwareOps shape.
+int otaHandleSentinelStorage = 0;
+FirmwareUpdateHandle* otaHandleSentinel = reinterpret_cast<FirmwareUpdateHandle*>(&otaHandleSentinelStorage);
+
+error_t beginUpdate(void* /*ctx*/, const FirmwareUpdateRequest* /*req*/, FirmwareUpdateHandle** handle) {
+    if (handle == nullptr) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    esp_err_t err = ::esp_hosted_slave_ota_begin();
+    if (err != ESP_OK) {
+        return esp_err_to_error(err);
+    }
+    *handle = otaHandleSentinel;
+    return ERROR_NONE;
 }
 
-error_t otaBegin(void) {
-    return esp_err_to_error(::esp_hosted_slave_ota_begin());
+error_t writeUpdate(FirmwareUpdateHandle* handle, const void* data, size_t len) {
+    if (handle != otaHandleSentinel) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    return esp_err_to_error(::esp_hosted_slave_ota_write(
+        const_cast<uint8_t*>(static_cast<const uint8_t*>(data)), static_cast<uint32_t>(len)));
 }
 
-error_t otaWrite(const uint8_t* data, size_t length) {
-    return esp_err_to_error(::esp_hosted_slave_ota_write(const_cast<uint8_t*>(data), static_cast<uint32_t>(length)));
-}
-
-error_t otaEnd(void) {
+error_t finishUpdate(FirmwareUpdateHandle* handle) {
+    if (handle != otaHandleSentinel) {
+        return ERROR_INVALID_ARGUMENT;
+    }
     return esp_err_to_error(::esp_hosted_slave_ota_end());
 }
 
-error_t otaActivate(void) {
+error_t abortUpdate(FirmwareUpdateHandle* handle) {
+    if (handle != otaHandleSentinel) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    // esp_hosted has no distinct abort call - end() is the only way to close out a begin(),
+    // successful or not (matches how the previous single-stream app code always called
+    // esp_hosted_slave_ota_end() on both the success and failure paths).
+    return esp_err_to_error(::esp_hosted_slave_ota_end());
+}
+
+error_t activate(void* /*ctx*/) {
     return esp_err_to_error(::esp_hosted_slave_ota_activate());
 }
 
+const FirmwareOps firmwareOps = {
+    .wait_ready = waitReady,
+    .get_info = getInfo,
+    .begin = beginUpdate,
+    .write = writeUpdate,
+    .finish = finishUpdate,
+    .abort = abortUpdate,
+    .activate = activate,
+};
+
 } // namespace
+
+const FirmwareOps* esp32_esp_hosted_ota_get_ops() {
+    return &firmwareOps;
+}
 
 #endif // CONFIG_SLAVE_SOC_WIFI_SUPPORTED

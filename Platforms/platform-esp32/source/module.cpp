@@ -32,9 +32,6 @@ extern Driver esp32_grove_driver;
 extern Driver esp32_wifi_driver;
 extern Driver esp32_wifi_pinned_driver;
 #endif
-#if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
-extern void esp32_esp_hosted_ota_init(void);
-#endif
 #if defined(CONFIG_BT_NIMBLE_ENABLED)
 extern Driver esp32_bluetooth_driver;
 extern Driver esp32_ble_serial_driver;
@@ -71,9 +68,6 @@ static error_t start() {
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
     check(driver_construct_add(&esp32_wifi_driver) == ERROR_NONE);
     check(driver_construct_add(&esp32_wifi_pinned_driver) == ERROR_NONE);
-#endif
-#if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
-    esp32_esp_hosted_ota_init();
 #endif
 #if defined(CONFIG_BT_NIMBLE_ENABLED)
     check(driver_construct_add(&esp32_bluetooth_driver) == ERROR_NONE);
