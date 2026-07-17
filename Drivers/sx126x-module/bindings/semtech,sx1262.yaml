@@ -1,0 +1,47 @@
+description: Semtech SX1262 sub-GHz LoRa and (G)FSK transceiver
+
+compatible: "semtech,sx1262"
+
+bus: spi
+
+properties:
+  reg:
+    type: int
+    required: true
+    description: Chip-select index on the parent SPI controller, must match the node's unit address
+  spi-frequency-khz:
+    type: int
+    default: 4000
+    description: SPI clock frequency in kHz
+  pin-reset:
+    type: phandles
+    required: true
+    description: NRESET line (must be an SoC GPIO)
+  pin-busy:
+    type: phandles
+    required: true
+    description: BUSY line (must be an SoC GPIO)
+  pin-dio1:
+    type: phandles
+    required: true
+    description: DIO1 interrupt line (must be an SoC GPIO)
+  pin-enable:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional module power enable, driven active while the device is started (any GPIO controller)
+  pin-antenna-select:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional antenna select, driven active while the device is started (any GPIO controller)
+  tcxo-millivolts:
+    type: int
+    default: 0
+    description: TCXO reference voltage on DIO3 in millivolts, 0 when no TCXO is fitted
+  use-regulator-ldo:
+    type: boolean
+    default: false
+    description: Use the LDO regulator instead of the DC-DC converter
+  dio2-as-rf-switch:
+    type: boolean
+    default: false
+    description: DIO2 drives the antenna TX/RX switch

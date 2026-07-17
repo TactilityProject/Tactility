@@ -7,6 +7,7 @@
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
+#include <bindings/sx1262.h>
 #include <bindings/xl9555.h>
 
 // Reference: https://github.com/Xinyuan-LilyGO/T-Deck-MAX
@@ -47,7 +48,7 @@
 		host = <SPI2_HOST>;
 		cs-gpios = <&gpio0 34 GPIO_FLAG_NONE>, // 0: EPD display
 		           <&gpio0 48 GPIO_FLAG_NONE>, // 1: SD card
-		           <&gpio0 3 GPIO_FLAG_NONE>;  // 2: LoRa radio (SX1262, not wired up yet)
+		           <&gpio0 3 GPIO_FLAG_NONE>;  // 2: LoRa radio (SX1262)
 		pin-mosi = <&gpio0 33 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 47 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
@@ -59,6 +60,23 @@
 			compatible = "espressif,esp32-sdspi";
 			status = "disabled";
 			frequency-khz = <20000>;
+		};
+
+		// SX1262 LoRa transceiver, wired per the vendor docs/pinmap.md and
+		// examples/LoRa_sx1262: CS/RST/DIO1/BUSY = GPIO 3/4/5/6, TCXO 2.4 V,
+		// DIO2 drives the antenna TX/RX switch. Module power (LORA_EN, P01)
+		// and antenna select (LORA_SEL, P04: high = internal antenna) are
+		// gated by the XL9555 IO expander.
+		radio@2 {
+			compatible = "semtech,sx1262";
+			reg = <2>;
+			pin-reset = <&gpio0 4 GPIO_FLAG_NONE>;
+			pin-dio1 = <&gpio0 5 GPIO_FLAG_NONE>;
+			pin-busy = <&gpio0 6 GPIO_FLAG_NONE>;
+			pin-enable = <&xl9555 1 GPIO_FLAG_NONE>;
+			pin-antenna-select = <&xl9555 4 GPIO_FLAG_NONE>;
+			tcxo-millivolts = <2400>;
+			dio2-as-rf-switch;
 		};
 	};
 };
