@@ -1,0 +1,20 @@
+description: >
+  M5Stack PaperS3 E-Ink display (EPDiy library, ED047TC1 panel over the board's dedicated
+  parallel bus - epd_board_m5papers3 hardcodes all of its pins internally, so this node takes
+  no pin properties of its own).
+
+compatible: "m5stack,papers3-display"
+
+properties:
+  temperature-celsius:
+    type: int
+    default: 20
+    description: Ambient temperature in °C, used for waveform timing compensation
+  draw-mode:
+    type: int
+    default: MODE_DU
+    description: Default EpdDrawMode waveform used for screen updates (e.g. MODE_DU, MODE_GC16)
+  rotation:
+    type: int
+    default: EPD_ROT_PORTRAIT
+    description: Fixed EpdRotation applied at start - not changeable at runtime (see driver README/comments)

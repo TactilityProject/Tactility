@@ -10,8 +10,10 @@
 #include <tactility/bindings/esp32_uart.h>
 #include <bindings/mpu6886.h>
 #include <bindings/bm8563.h>
+#include <bindings/axp192.h>
+#include <bindings/ft6x36.h>
+#include <bindings/ili9341.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/display_placeholder.h>
 
 // Reference: https://docs.m5stack.com/en/core/Core2
 / {
@@ -44,6 +46,19 @@
 			compatible = "belling,bm8563";
 			reg = <0x51>;
 		};
+
+		axp192 {
+			compatible = "x-powers,axp192";
+			reg = <0x34>;
+		};
+
+		touch {
+			compatible = "focaltech,ft6x36";
+			reg = <0x38>;
+			x-max = <320>;
+			y-max = <240>;
+			pin-interrupt = <&gpio0 39 GPIO_FLAG_NONE>;
+		};
 	};
 
 	port_a: grove0 {
@@ -66,12 +81,17 @@
 		pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
 	
 		display@0 {
-			compatible = "display-placeholder";
+			compatible = "ilitek,ili9341";
+			horizontal-resolution = <320>;
+			vertical-resolution = <240>;
+			invert-color;
+			bgr-order;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 15 GPIO_FLAG_NONE>;
 		};
 
 		sdcard@1 {
 			compatible = "espressif,esp32-sdspi";
-			status = "disabled"; // Must be started after display
 			frequency-khz = <20000>;
 		};
 	};

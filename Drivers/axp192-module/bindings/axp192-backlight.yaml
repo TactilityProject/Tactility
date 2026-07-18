@@ -1,0 +1,24 @@
+description: >
+  Backlight driven by a switchable/adjustable AXP192 power rail. Must be declared as a
+  child node of the axp192 device it dims. Maps the 0-255 brightness level onto the
+  rail's [min-millivolt,max-millivolt] voltage range; level 0 disables the rail outright.
+
+compatible: "axp192-backlight"
+
+properties:
+  rail:
+    type: int
+    required: true
+    description: The Axp192Rail powering the backlight (e.g. AXP192_RAIL_LDO2)
+  min-millivolt:
+    type: int
+    default: 0
+    description: Rail voltage at brightness level 0 (the rail is disabled rather than actually set to this value)
+  max-millivolt:
+    type: int
+    required: true
+    description: Rail voltage at the maximum brightness level (255)
+  brightness-default:
+    type: int
+    default: 255
+    description: Default brightness level, applied by set_brightness_default()

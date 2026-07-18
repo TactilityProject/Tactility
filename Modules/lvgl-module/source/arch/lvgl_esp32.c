@@ -18,9 +18,10 @@ bool lvgl_lock(void) {
     return lvgl_port_lock(portMAX_DELAY);
 }
 
-bool lvgl_try_lock(uint32_t timeout) {
+bool lvgl_try_lock(uint32_t timeoutTicks) {
     if (!initialized) return true; // We allow (fake) locking because it's safe to do so as LVGL is not running yet
-    return lvgl_port_lock(millis_to_ticks(timeout));
+    // lvgl_port_lock expects milliseconds
+    return lvgl_port_lock(timeoutTicks * portTICK_PERIOD_MS);
 }
 
 void lvgl_unlock(void) {

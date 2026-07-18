@@ -1,6 +1,0 @@
-dependencies:
-  - Platforms/platform-esp32
-  - Drivers/dummy-i2s-amp-module
-  - Drivers/audio-stream-module
-  - Drivers/axs15231b-module
-dts: guition,jc3248w535c.dts

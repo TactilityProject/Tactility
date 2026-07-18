@@ -2,4 +2,7 @@ dependencies:
 - Platforms/platform-esp32
 - Drivers/mpu6886-module
 - Drivers/bm8563-module
+- Drivers/axp192-module
+- Drivers/ft6x36-module
+- Drivers/ili9341-module
 dts: m5stack,core2.dts

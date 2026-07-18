@@ -12,6 +12,7 @@
 #include <Tactility/service/loader/Loader.h>
 
 #include <tactility/log.h>
+#include <tactility/lvgl_module.h>
 
 namespace tt::service::gui {
 
@@ -98,7 +99,7 @@ void GuiService::onLoaderEvent(LoaderService::Event event) {
 int32_t GuiService::guiMain() {
     auto service = findServiceById<GuiService>(manifest.id);
 
-    if (!lvgl::lock(5000)) {
+    if (!lvgl_try_lock(5000)) {
         LOG_E(TAG, "LVGL guiMain start failed as LVGL couldn't be locked");
         return 0;
     }
@@ -109,7 +110,7 @@ int32_t GuiService::guiMain() {
     auto* screen_root = lv_screen_active();
     if (screen_root == nullptr) {
         LOG_E(TAG, "No display found, exiting GUI task");
-        lvgl::unlock();
+        lvgl_unlock();
         return 0;
     }
 
@@ -137,7 +138,7 @@ int32_t GuiService::guiMain() {
 
     service->appRootWidget = app_container;
 
-    lvgl::unlock();
+    lvgl_unlock();
 
     while (!service->exitRequested) {
         dispatcher_consume(service->dispatcher);
@@ -177,40 +178,39 @@ void GuiService::redraw() {
         return;
     }
 
-    if (lvgl::lock(1000)) {
-        lv_obj_clean(appRootWidget);
+    while (!lvgl_try_lock(1000)) {
+        LOG_W(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "GuiService LVGL");
+    }
 
-        if (appToRender != nullptr) {
+    lv_obj_clean(appRootWidget);
 
-            // Create a default group which adds all objects automatically,
-            // and assign all indevs to it.
-            // This enables navigation with limited input, such as encoder wheels.
-            lv_group_t* group = lv_group_create();
-            auto* indev = lv_indev_get_next(nullptr);
-            while (indev) {
-                lv_indev_set_group(indev, group);
-                indev = lv_indev_get_next(indev);
-            }
-            lv_group_set_default(group);
+    if (appToRender != nullptr) {
 
-            app::Flags flags = std::static_pointer_cast<app::AppInstance>(appToRender)->getFlags();
-            if (flags.hideStatusbar) {
-                lv_obj_add_flag(statusbarWidget, LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_remove_flag(statusbarWidget, LV_OBJ_FLAG_HIDDEN);
-            }
+        // Create a default group which adds all objects automatically,
+        // and assign all indevs to it.
+        // This enables navigation with limited input, such as encoder wheels.
+        lv_group_t* group = lv_group_create();
+        auto* indev = lv_indev_get_next(nullptr);
+        while (indev) {
+            lv_indev_set_group(indev, group);
+            indev = lv_indev_get_next(indev);
+        }
+        lv_group_set_default(group);
 
-            lv_obj_t* container = createAppViews(appRootWidget);
-            appToRender->getApp()->onShow(*appToRender, container);
+        app::Flags flags = std::static_pointer_cast<app::AppInstance>(appToRender)->getFlags();
+        if (flags.hideStatusbar) {
+            lv_obj_add_flag(statusbarWidget, LV_OBJ_FLAG_HIDDEN);
         } else {
-            LOG_W(TAG, "Nothing to draw");
+            lv_obj_remove_flag(statusbarWidget, LV_OBJ_FLAG_HIDDEN);
         }
 
-        // Unlock GUI and LVGL
-        lvgl::unlock();
+        lv_obj_t* container = createAppViews(appRootWidget);
+        appToRender->getApp()->onShow(*appToRender, container);
     } else {
-        LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
+        LOG_W(TAG, "Nothing to draw");
     }
+
+    lvgl_unlock();
 
     unlock();
 }
@@ -263,15 +263,12 @@ void GuiService::onStop(ServiceContext& service) {
     }
     thread->join();
 
-    if (lvgl::lock()) {
-        if (keyboardGroup != nullptr) {
-            lv_group_delete(keyboardGroup);
-            keyboardGroup = nullptr;
-        }
-        lvgl::unlock();
-    } else {
-        LOG_E(TAG, "Failed to lock LVGL during GUI stop");
+    lvgl_lock();
+    if (keyboardGroup != nullptr) {
+        lv_group_delete(keyboardGroup);
+        keyboardGroup = nullptr;
     }
+    lvgl_unlock();
 
     delete thread;
     dispatcher_free(dispatcher);
@@ -326,9 +323,9 @@ void GuiService::hideApp() {
 
     // We must lock the LVGL port, because the viewport hide callbacks
     // might call LVGL APIs (e.g. to remove the keyboard from the screen root)
-    lvgl::lock(portMAX_DELAY);
+    lvgl_lock();
     appToRender->getApp()->onHide(*appToRender);
-    lvgl::unlock();
+    lvgl_unlock();
     appToRender = nullptr;
 }
 

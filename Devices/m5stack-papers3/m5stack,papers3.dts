@@ -6,9 +6,15 @@
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/battery_sense.h>
 #include <bindings/bmi270.h>
 #include <bindings/bm8563.h>
+#include <bindings/gt911.h>
 #include <tactility/bindings/esp32_sdspi.h>
+#include <bindings/papers3_power.h>
+#include <bindings/papers3_display.h>
 
 / {
 	compatible = "root";
@@ -45,6 +51,14 @@
 			compatible = "belling,bm8563";
 			reg = <0x51>;
 		};
+
+		touch {
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <540>;
+			y-max = <960>;
+			pin-interrupt = <&gpio0 48 GPIO_FLAG_NONE>;
+		};
 	};
 
 	spi0 {
@@ -55,10 +69,49 @@
 		pin-miso = <&gpio0 40 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 39 GPIO_FLAG_NONE>;
 		max-transfer-size = <4096>;
-	
+
 		sdcard@0 {
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;
 		};
+	};
+
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		channels = <ADC_CHANNEL_2 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2000>;
+	};
+
+	buzzer_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 21 GPIO_FLAG_NONE>;
+		period-ns = <1000000>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	power {
+		compatible = "m5stack,papers3-power";
+		pin-charge-status = <&gpio0 4 GPIO_FLAG_NONE>;
+		pin-usb-detect = <&gpio0 5 GPIO_FLAG_NONE>;
+		pin-power-off = <&gpio0 44 GPIO_FLAG_NONE>;
+		pwm = <&buzzer_pwm>;
+	};
+
+	// M5Stack PaperS3 E-Ink display (EPDiy library, ED047TC1 panel)
+	display {
+		compatible = "m5stack,papers3-display";
+		temperature-celsius = <20>;
+		// EPD_ROT_PORTRAIT rendered 180deg rotated on real hardware; INVERTED_PORTRAIT is
+		// exactly 180deg from it (verified against epdiy's _rotate()) and is this panel's
+		// correct orientation.
+		rotation = <EPD_ROT_INVERTED_PORTRAIT>;
 	};
 };

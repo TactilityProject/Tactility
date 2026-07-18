@@ -7,6 +7,7 @@
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_i2c.h>
 #include <tactility/drivers/esp32_i2c_master.h>
+#include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/pointer.h>
 #include <tactility/log.h>
@@ -17,6 +18,9 @@
 #include <esp_lcd_touch.h>
 #include <esp_lcd_touch_ft5x06.h>
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include <cstdlib>
 
 #define TAG "FT5x06"
@@ -25,10 +29,35 @@
 struct Ft5x06Internal {
     esp_lcd_panel_io_handle_t io_handle;
     esp_lcd_touch_handle_t touch_handle;
+    // Non-null when pin_reset is configured. Owned/pulsed by this driver instead of esp_lcd_touch
+    // (see pulse_reset() below) so the reset pin can live on any GPIO_CONTROLLER, not just native
+    // gpio0 - esp_lcd_touch's rst_gpio_num only accepts a native ESP32 GPIO number (it calls
+    // gpio_set_level() directly), and just reading a GpioPinSpec's raw pin index and handing it
+    // over as if it were one (the previous pin_or_nc() behavior below) silently toggles the wrong,
+    // unrelated physical pin whenever pin_reset actually points at an I2C expander.
+    GpioDescriptor* reset_descriptor;
+    bool reset_active_high;
 };
 
+// Only valid for pin_interrupt: esp_lcd_touch only ever reads this pin's level / attaches an ISR
+// to it, both of which esp_lcd_touch performs via ESP-IDF's native gpio_* calls, so - like
+// ili9341-module's cs/dc pins - it must be a real ESP32 GPIO. pin_reset has no such requirement and
+// must never go through this helper; see pulse_reset() instead.
 static inline gpio_num_t pin_or_nc(const struct GpioPinSpec& pin) {
     return pin.gpio_controller == nullptr ? GPIO_NUM_NC : static_cast<gpio_num_t>(pin.pin);
+}
+
+// See esp_lcd_ili9341-module's pulse_reset() for the full rationale; same idea, same 10ms/10ms
+// timing (matches esp_lcd_touch_ft5x06's own touch_ft5x06_reset()). esp_lcd_touch's rst_gpio_num is
+// always left at GPIO_NUM_NC (see start()), under which it just skips its own reset step entirely.
+static void pulse_reset(GpioDescriptor* descriptor, bool active_high) {
+    if (descriptor == nullptr) {
+        return;
+    }
+    gpio_descriptor_set_level(descriptor, active_high);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    gpio_descriptor_set_level(descriptor, !active_high);
+    vTaskDelay(pdMS_TO_TICKS(10));
 }
 
 // region Driver lifecycle
@@ -64,16 +93,40 @@ static error_t start(Device* device) {
         return ERROR_OUT_OF_MEMORY;
     }
 
+    internal->reset_descriptor = nullptr;
+    internal->reset_active_high = config->reset_active_high;
+    if (config->pin_reset.gpio_controller != nullptr) {
+        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_OWNER_GPIO);
+        if (internal->reset_descriptor == nullptr) {
+            LOG_E(TAG, "Failed to acquire reset GPIO descriptor");
+            free(internal);
+            return ERROR_RESOURCE;
+        }
+        if (gpio_descriptor_set_flags(internal->reset_descriptor, config->pin_reset.flags | GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to configure reset pin as output");
+            gpio_descriptor_release(internal->reset_descriptor);
+            free(internal);
+            return ERROR_RESOURCE;
+        }
+    }
+
     esp_err_t ret = create_io_handle(parent, &internal->io_handle);
     if (ret != ESP_OK) {
+        if (internal->reset_descriptor != nullptr) {
+            gpio_descriptor_release(internal->reset_descriptor);
+        }
         free(internal);
         return ERROR_RESOURCE;
     }
 
+    pulse_reset(internal->reset_descriptor, internal->reset_active_high);
+
     esp_lcd_touch_config_t touch_config = {
         .x_max = config->x_max,
         .y_max = config->y_max,
-        .rst_gpio_num = pin_or_nc(config->pin_reset),
+        // Always NC: pulse_reset() above already handled the physical pin (see its comment for
+        // why); esp_lcd_touch just skips its own no-op reset step when this is NC.
+        .rst_gpio_num = GPIO_NUM_NC,
         .int_gpio_num = pin_or_nc(config->pin_interrupt),
         .levels = {
             .reset = config->reset_active_high ? 1u : 0u,
@@ -94,6 +147,9 @@ static error_t start(Device* device) {
     if (ret != ESP_OK) {
         LOG_E(TAG, "Failed to create touch handle: %s", esp_err_to_name(ret));
         esp_lcd_panel_io_del(internal->io_handle);
+        if (internal->reset_descriptor != nullptr) {
+            gpio_descriptor_release(internal->reset_descriptor);
+        }
         free(internal);
         return ERROR_RESOURCE;
     }
@@ -121,6 +177,11 @@ static error_t stop(Device* device) {
             return ERROR_RESOURCE;
         }
         internal->io_handle = nullptr;
+    }
+
+    if (internal->reset_descriptor != nullptr) {
+        gpio_descriptor_release(internal->reset_descriptor);
+        internal->reset_descriptor = nullptr;
     }
 
     free(internal);

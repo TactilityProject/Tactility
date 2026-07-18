@@ -1,0 +1,5 @@
+description: X-Powers AXP192 power management IC
+
+include: ["i2c-device.yaml"]
+
+compatible: "x-powers,axp192"

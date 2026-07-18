@@ -7,6 +7,7 @@
 #include <tactility/driver.h>
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/esp32_spi.h>
+#include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/spi_controller.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
@@ -19,6 +20,7 @@
 #include <esp_lcd_ili9341.h>
 
 #include <freertos/semphr.h>
+#include <freertos/task.h>
 
 #include <cstdlib>
 
@@ -39,6 +41,10 @@ struct Ili9341Internal {
     // (see lvgl_display.c: the caller reuses/overwrites the color buffer as soon as draw_bitmap
     // returns) - esp_lcd_panel_draw_bitmap() itself only queues the transfer and returns early.
     SemaphoreHandle_t draw_done_semaphore;
+    // Non-null when pin_reset is configured. Owned/pulsed by this driver instead of esp_lcd (see
+    // pulse_reset() below) so the reset pin can live on any GPIO_CONTROLLER, not just native gpio0.
+    GpioDescriptor* reset_descriptor;
+    bool reset_active_high;
 };
 
 // Fires for every completed SPI transaction on this IO (not just draw_bitmap's color transfers -
@@ -50,8 +56,29 @@ static bool IRAM_ATTR on_color_trans_done(esp_lcd_panel_io_handle_t, esp_lcd_pan
     return high_task_woken == pdTRUE;
 }
 
+// Only valid for cs_gpio_num/dc_gpio_num: esp_lcd_panel_io_spi toggles DC synchronously with the
+// SPI/DMA hardware itself (gpio_set_level() on the raw pin number), which is only possible for a
+// native ESP32 GPIO - it cannot be routed through an I2C GPIO expander. pin_reset has no such
+// constraint (see pulse_reset() below) and must never go through this helper.
 static int pin_or_unused(const struct GpioPinSpec& pin) {
     return pin.gpio_controller == nullptr ? -1 : static_cast<int>(pin.pin);
+}
+
+// esp_lcd's reset_gpio_num has the same native-GPIO-only limitation as cs/dc (see pin_or_unused),
+// but unlike them it's just a plain static pulse, not something driven by SPI hardware timing - so
+// it's pulsed here through the generic gpio_descriptor API, which works for any GPIO_CONTROLLER
+// (native gpio0 or an I2C expander alike). esp_lcd's own reset_gpio_num is always left at -1 (see
+// start()), which makes it fall back to sending a SWRESET command instead - itself a valid and
+// commonly-recommended reset path, so this pulse plus that fallback is redundant-safe, not harmful.
+// Timing (10ms low, 10ms recovery) matches esp_lcd_ili9341's own hardware-reset path exactly.
+static void pulse_reset(GpioDescriptor* descriptor, bool active_high) {
+    if (descriptor == nullptr) {
+        return;
+    }
+    gpio_descriptor_set_level(descriptor, active_high);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    gpio_descriptor_set_level(descriptor, !active_high);
+    vTaskDelay(pdMS_TO_TICKS(10));
 }
 
 // region Driver lifecycle
@@ -78,6 +105,25 @@ static error_t start(Device* device) {
     if (internal->draw_done_semaphore == nullptr) {
         free(internal);
         return ERROR_OUT_OF_MEMORY;
+    }
+
+    internal->reset_descriptor = nullptr;
+    internal->reset_active_high = config->reset_active_high;
+    if (config->pin_reset.gpio_controller != nullptr) {
+        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_OWNER_GPIO);
+        if (internal->reset_descriptor == nullptr) {
+            LOG_E(TAG, "Failed to acquire reset GPIO descriptor");
+            vSemaphoreDelete(internal->draw_done_semaphore);
+            free(internal);
+            return ERROR_RESOURCE;
+        }
+        if (gpio_descriptor_set_flags(internal->reset_descriptor, config->pin_reset.flags | GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to configure reset pin as output");
+            gpio_descriptor_release(internal->reset_descriptor);
+            vSemaphoreDelete(internal->draw_done_semaphore);
+            free(internal);
+            return ERROR_RESOURCE;
+        }
     }
 
     esp_lcd_panel_io_spi_config_t io_config = {
@@ -107,13 +153,18 @@ static error_t start(Device* device) {
     esp_err_t ret = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)spi_config->host, &io_config, &internal->io_handle);
     if (ret != ESP_OK) {
         LOG_E(TAG, "Failed to create panel IO: %s", esp_err_to_name(ret));
+        if (internal->reset_descriptor != nullptr) {
+            gpio_descriptor_release(internal->reset_descriptor);
+        }
         vSemaphoreDelete(internal->draw_done_semaphore);
         free(internal);
         return ERROR_RESOURCE;
     }
 
     esp_lcd_panel_dev_config_t panel_config = {
-        .reset_gpio_num = pin_or_unused(config->pin_reset),
+        // Always -1: pulse_reset() handles the physical pin itself (see its comment for why), and
+        // esp_lcd_panel_reset() below falls back to a SWRESET command when this is -1.
+        .reset_gpio_num = -1,
         .rgb_ele_order = config->bgr_order ? LCD_RGB_ELEMENT_ORDER_BGR : LCD_RGB_ELEMENT_ORDER_RGB,
         .data_endian = LCD_RGB_DATA_ENDIAN_LITTLE,
         .bits_per_pixel = config->bits_per_pixel,
@@ -125,6 +176,9 @@ static error_t start(Device* device) {
     if (ret != ESP_OK) {
         LOG_E(TAG, "Failed to create panel: %s", esp_err_to_name(ret));
         esp_lcd_panel_io_del(internal->io_handle);
+        if (internal->reset_descriptor != nullptr) {
+            gpio_descriptor_release(internal->reset_descriptor);
+        }
         vSemaphoreDelete(internal->draw_done_semaphore);
         free(internal);
         return ERROR_RESOURCE;
@@ -133,6 +187,7 @@ static error_t start(Device* device) {
     // Bring-up sequence, order matches EspLcdDisplayV2::applyConfiguration (proven correct on real ILI9341 panels).
     // Every failure path below must clean up fully: unlike stop_device, this is never retried by the kernel
     // if start_device fails (see device_start() in TactilityKernel), so a partial failure here would leak.
+    pulse_reset(internal->reset_descriptor, internal->reset_active_high);
     bool ok =
         esp_lcd_panel_reset(internal->panel_handle) == ESP_OK &&
         esp_lcd_panel_init(internal->panel_handle) == ESP_OK &&
@@ -153,6 +208,9 @@ static error_t start(Device* device) {
         LOG_E(TAG, "Failed to bring up panel");
         esp_lcd_panel_del(internal->panel_handle);
         esp_lcd_panel_io_del(internal->io_handle);
+        if (internal->reset_descriptor != nullptr) {
+            gpio_descriptor_release(internal->reset_descriptor);
+        }
         vSemaphoreDelete(internal->draw_done_semaphore);
         free(internal);
         return ERROR_RESOURCE;
@@ -181,6 +239,11 @@ static error_t stop(Device* device) {
         internal->io_handle = nullptr;
     }
 
+    if (internal->reset_descriptor != nullptr) {
+        gpio_descriptor_release(internal->reset_descriptor);
+        internal->reset_descriptor = nullptr;
+    }
+
     vSemaphoreDelete(internal->draw_done_semaphore);
     free(internal);
     device_set_driver_data(device, nullptr);
@@ -193,6 +256,7 @@ static error_t stop(Device* device) {
 
 static error_t ili9341_reset(Device* device) {
     auto* internal = static_cast<Ili9341Internal*>(device_get_driver_data(device));
+    pulse_reset(internal->reset_descriptor, internal->reset_active_high);
     return esp_lcd_panel_reset(internal->panel_handle) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 
