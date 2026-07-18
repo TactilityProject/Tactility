@@ -116,17 +116,21 @@ bool waitReady(void* /*ctx*/, uint32_t timeoutMs) {
     // logged upstream as "Coprocessor Boot-up") - this is later than the transport/SDIO link
     // simply being up, and firing a custom RPC request before this point corrupts the RPC
     // channel for subsequent real calls (observed: esp_wifi_init() failing until reboot).
-    TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(timeoutMs);
+    // vTaskSetTimeOutState()/xTaskCheckForTimeOut() track elapsed ticks from a snapshot rather
+    // than comparing against a fixed deadline tick count, so this is correct across a tick-count
+    // wraparound (a fixed "now + timeout" deadline can wrap past TickType_t's max and compare as
+    // already-elapsed on the very next check).
+    TimeOut_t timeoutState;
+    vTaskSetTimeOutState(&timeoutState);
+    TickType_t remaining = pdMS_TO_TICKS(timeoutMs);
     while (true) {
         if (cpInitGeneration.load() != generationBeforeConnect) {
             return true;
         }
 
-        TickType_t now = xTaskGetTickCount();
-        if (now >= deadline) {
+        if (xTaskCheckForTimeOut(&timeoutState, &remaining) == pdTRUE) {
             return false;
         }
-        TickType_t remaining = deadline - now;
 
         // pdTRUE: consume the bit so a stale (pre-existing) signal doesn't let a *later* call
         // short-circuit past its own fresh wait. Safe for concurrent waiters because every waiter
@@ -177,12 +181,23 @@ error_t getInfo(void* /*ctx*/, FirmwareInfo* info) {
 int otaHandleSentinelStorage = 0;
 FirmwareUpdateHandle* otaHandleSentinel = reinterpret_cast<FirmwareUpdateHandle*>(&otaHandleSentinelStorage);
 
+// Guards against two overlapping OTA sessions (concurrent begin() calls) and against a stale
+// handle from a finished/aborted session still being accepted by write()/finish()/abort() - the
+// sentinel address alone can't distinguish "the one active session" from "a session that already
+// ended", since it's always the same pointer.
+std::atomic<bool> otaSessionActive{false};
+
 error_t beginUpdate(void* /*ctx*/, const FirmwareUpdateRequest* /*req*/, FirmwareUpdateHandle** handle) {
     if (handle == nullptr) {
         return ERROR_INVALID_ARGUMENT;
     }
+    bool expected = false;
+    if (!otaSessionActive.compare_exchange_strong(expected, true)) {
+        return ERROR_RESOURCE_BUSY;
+    }
     esp_err_t err = ::esp_hosted_slave_ota_begin();
     if (err != ESP_OK) {
+        otaSessionActive = false;
         return esp_err_to_error(err);
     }
     *handle = otaHandleSentinel;
@@ -190,7 +205,7 @@ error_t beginUpdate(void* /*ctx*/, const FirmwareUpdateRequest* /*req*/, Firmwar
 }
 
 error_t writeUpdate(FirmwareUpdateHandle* handle, const void* data, size_t len) {
-    if (handle != otaHandleSentinel) {
+    if (handle != otaHandleSentinel || !otaSessionActive.load()) {
         return ERROR_INVALID_ARGUMENT;
     }
     return esp_err_to_error(::esp_hosted_slave_ota_write(
@@ -198,16 +213,18 @@ error_t writeUpdate(FirmwareUpdateHandle* handle, const void* data, size_t len) 
 }
 
 error_t finishUpdate(FirmwareUpdateHandle* handle) {
-    if (handle != otaHandleSentinel) {
+    if (handle != otaHandleSentinel || !otaSessionActive.load()) {
         return ERROR_INVALID_ARGUMENT;
     }
+    otaSessionActive = false;
     return esp_err_to_error(::esp_hosted_slave_ota_end());
 }
 
 error_t abortUpdate(FirmwareUpdateHandle* handle) {
-    if (handle != otaHandleSentinel) {
+    if (handle != otaHandleSentinel || !otaSessionActive.load()) {
         return ERROR_INVALID_ARGUMENT;
     }
+    otaSessionActive = false;
     // esp_hosted has no distinct abort call - end() is the only way to close out a begin(),
     // successful or not (matches how the previous single-stream app code always called
     // esp_hosted_slave_ota_end() on both the success and failure paths).

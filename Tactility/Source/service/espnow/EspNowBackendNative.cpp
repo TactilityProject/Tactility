@@ -86,13 +86,18 @@ static bool initWifi(const EspNowConfig& config) {
 
         // Preserve whatever protocol mask the interface already had (e.g. set by WifiService if
         // it owns this interface) so it can be restored in deinitWifi() - esp_wifi_set_protocol()
-        // below otherwise permanently stomps it, even when ESP-NOW doesn't own the radio.
+        // below otherwise permanently stomps it, even when ESP-NOW doesn't own the radio. Skip
+        // applying long-range at all if the snapshot fails: without a saved mask to restore,
+        // changing the protocol would permanently alter an externally-managed interface with no
+        // way to undo it later.
         uint8_t previousBitmap = 0;
         bool hadPreviousBitmap = esp_wifi_get_protocol(wifi_interface, &previousBitmap) == ESP_OK;
 
-        if (esp_wifi_set_protocol(wifi_interface, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N | WIFI_PROTOCOL_LR) != ESP_OK) {
+        if (!hadPreviousBitmap) {
+            LOG_W(TAG, "esp_wifi_get_protocol() failed - skipping long-range (can't safely restore protocol mask later)");
+        } else if (esp_wifi_set_protocol(wifi_interface, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N | WIFI_PROTOCOL_LR) != ESP_OK) {
             LOG_W(TAG,"esp_wifi_set_protocol() for long range failed");
-        } else if (hadPreviousBitmap) {
+        } else {
             longRangeProtocolApplied = true;
             longRangeInterface = wifi_interface;
             savedProtocolBitmap = previousBitmap;

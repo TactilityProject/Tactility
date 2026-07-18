@@ -49,6 +49,10 @@ extern "C" {
 
 /* req: ESPNOW_BRIDGE_REQ_INIT */
 typedef struct __attribute__((packed)) {
+    uint32_t txn_id;       /* echoed back verbatim in the matching resp_status_t/resp_init_t so a
+                             * response arriving after its request already timed out (e.g. a slow
+                             * REQ_INIT retry) can't be mistaken for the answer to a newer request
+                             * of the same type - see EspNowBackendHosted.cpp's doRequest(). */
     uint8_t pmk[ESPNOW_BRIDGE_KEY_LEN];
     uint8_t channel;      /* 0 = use current STA/AP channel */
     uint8_t long_range;   /* bool as uint8_t: fixed 1-byte width for this hand-synced wire struct */
@@ -56,19 +60,27 @@ typedef struct __attribute__((packed)) {
                             * mode+interface the slave should bring up and register ESP-NOW against */
 } espnow_bridge_req_init_t;
 
+/* req: ESPNOW_BRIDGE_REQ_DEINIT */
+typedef struct __attribute__((packed)) {
+    uint32_t txn_id;       /* see espnow_bridge_req_init_t::txn_id */
+} espnow_bridge_req_deinit_t;
+
 /* resp: ESPNOW_BRIDGE_RESP_DEINIT / RESP_ADD_PEER / RESP_SEND */
 typedef struct __attribute__((packed)) {
+    uint32_t txn_id;   /* copied from the request this responds to */
     int32_t esp_err;   /* raw esp_err_t from the slave-side call */
 } espnow_bridge_resp_status_t;
 
 /* resp: ESPNOW_BRIDGE_RESP_INIT */
 typedef struct __attribute__((packed)) {
+    uint32_t txn_id;         /* copied from the request this responds to */
     int32_t esp_err;        /* raw esp_err_t from the slave-side esp_now_init() call */
     uint32_t espnow_version; /* esp_now_get_version() result, 0 if esp_err != ESP_OK */
 } espnow_bridge_resp_init_t;
 
 /* req: ESPNOW_BRIDGE_REQ_ADD_PEER */
 typedef struct __attribute__((packed)) {
+    uint32_t txn_id;       /* see espnow_bridge_req_init_t::txn_id */
     uint8_t peer_addr[ESPNOW_BRIDGE_ETH_ALEN];
     uint8_t lmk[ESPNOW_BRIDGE_KEY_LEN];
     uint8_t channel;
@@ -80,6 +92,7 @@ typedef struct __attribute__((packed)) {
 
 /* req: ESPNOW_BRIDGE_REQ_SEND */
 typedef struct __attribute__((packed)) {
+    uint32_t txn_id;       /* see espnow_bridge_req_init_t::txn_id */
     uint8_t dest_addr[ESPNOW_BRIDGE_ETH_ALEN];
     uint8_t broadcast;    /* bool as uint8_t; true: dest_addr ignored, esp_now_send(NULL, ...) */
     uint16_t data_len;

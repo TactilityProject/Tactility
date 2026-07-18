@@ -17,12 +17,20 @@ extern "C" {
  * never cleared implicitly by a connection succeeding/failing or the radio being enabled, only a
  * matching wifi_auto_scan_set_paused(false) clears it.
  *
- * Implemented by the Tactility WiFi service (Tactility/Source/service/wifi/Wifi.cpp), declared
- * here so both internal and external (SDK) apps can call it through one stable symbol.
+ * The real implementation lives in the Tactility WiFi service
+ * (Tactility/Source/service/wifi/Wifi.cpp), a layer above TactilityKernel - TactilityKernel
+ * can't call up into it directly (and mustn't link against it: TactilityKernelTests links
+ * TactilityKernel alone, without Tactility). Tactility registers its implementation at startup
+ * via wifi_auto_scan_register(); until then (or on a build that never links Tactility, e.g. a
+ * bare-kernel target) this is a no-op, same as WifiApi::get_firmware_ops() returning
+ * ERROR_NOT_SUPPORTED when nothing is registered.
  *
  * @param[in] paused when true, the auto-connect timer stops issuing scans until resumed
  */
 void wifi_auto_scan_set_paused(bool paused);
+
+/** @brief Register the real implementation. Called once by the Tactility WiFi service. */
+void wifi_auto_scan_register(void (*set_paused)(bool paused));
 
 #ifdef __cplusplus
 }

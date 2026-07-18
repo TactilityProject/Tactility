@@ -339,12 +339,12 @@ void onWifiDeviceEvent(Device* /*device*/, void* /*context*/, ::WifiEvent event)
     publish(event);
 }
 
-} // namespace
-
-extern "C" void wifi_auto_scan_set_paused(bool paused) {
-    LOG_I(TAG, "wifi_auto_scan_set_paused(%d)", (int)paused);
+void autoScanSetPaused(bool paused) {
+    LOG_I(TAG, "autoScanSetPaused(%d)", (int)paused);
     state.externalScanPause = paused;
 }
+
+} // namespace
 
 // region Public functions
 
@@ -433,7 +433,7 @@ void disconnect() {
 }
 
 void setAutoScanPaused(bool paused) {
-    wifi_auto_scan_set_paused(paused);
+    autoScanSetPaused(paused);
 }
 
 void setScanRecords(uint16_t records) {
@@ -499,6 +499,8 @@ public:
     bool onStart(ServiceContext& /*service*/) override {
         check(!started);
 
+        wifi_auto_scan_register(autoScanSetPaused);
+
         state.device = wifi_find_first_registered_device();
         if (state.device == nullptr) {
             LOG_W(TAG, "No WiFi device found");
@@ -535,6 +537,8 @@ public:
         state.secureConnection = false;
         state.pauseAutoConnect = false;
         state.device = nullptr;
+
+        wifi_auto_scan_register(nullptr);
     }
 };
 

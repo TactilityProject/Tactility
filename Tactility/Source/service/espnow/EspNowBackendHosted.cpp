@@ -42,6 +42,12 @@ static Semaphore responseSemaphore(1, 0);
 // callback that would need the lock.
 static std::atomic<esp_err_t> lastResponseErr{ESP_FAIL};
 static std::atomic<bool> waitingForResponse{false};
+// The txn_id doRequest() is currently waiting a response for. Response handlers only accept a
+// response (release the semaphore) if its txn_id matches - otherwise a delayed response to a
+// prior, already-timed-out request (e.g. a REQ_INIT retry's earlier attempt) can't be mistaken
+// for the answer to whatever request is active now, even a later request of the same type.
+static std::atomic<uint32_t> activeTxnId{0};
+static std::atomic<uint32_t> nextTxnId{1};
 
 // Written by init()/deinit() on the caller's task, read by onEvtRecv() on esp_hosted's dispatch
 // task - atomic so a callback removal during deinit() can't race a concurrent RX event dispatch
@@ -55,29 +61,29 @@ static void onRespGeneric(uint32_t msgId, const uint8_t* data, size_t dataLen, v
     (void)msgId; (void)ctx;
     if (dataLen != sizeof(espnow_bridge_resp_status_t)) {
         LOG_E(TAG, "Malformed response (%zu bytes)", dataLen);
-        lastResponseErr = ESP_FAIL;
-    } else {
-        const auto* resp = reinterpret_cast<const espnow_bridge_resp_status_t*>(data);
-        lastResponseErr = static_cast<esp_err_t>(resp->esp_err);
+        return;
     }
-    if (waitingForResponse) {
-        responseSemaphore.release();
+    const auto* resp = reinterpret_cast<const espnow_bridge_resp_status_t*>(data);
+    if (!waitingForResponse || resp->txn_id != activeTxnId.load()) {
+        return; // stale response for a request that's no longer (or never was) being waited on
     }
+    lastResponseErr = static_cast<esp_err_t>(resp->esp_err);
+    responseSemaphore.release();
 }
 
 static void onRespInit(uint32_t msgId, const uint8_t* data, size_t dataLen, void* ctx) {
     (void)msgId; (void)ctx;
     if (dataLen != sizeof(espnow_bridge_resp_init_t)) {
         LOG_E(TAG, "Malformed RESP_INIT (%zu bytes)", dataLen);
-        lastResponseErr = ESP_FAIL;
-    } else {
-        const auto* resp = reinterpret_cast<const espnow_bridge_resp_init_t*>(data);
-        lastResponseErr = static_cast<esp_err_t>(resp->esp_err);
-        lastReportedInitVersion = resp->espnow_version;
+        return;
     }
-    if (waitingForResponse) {
-        responseSemaphore.release();
+    const auto* resp = reinterpret_cast<const espnow_bridge_resp_init_t*>(data);
+    if (!waitingForResponse || resp->txn_id != activeTxnId.load()) {
+        return; // stale response for a request that's no longer (or never was) being waited on
     }
+    lastResponseErr = static_cast<esp_err_t>(resp->esp_err);
+    lastReportedInitVersion = resp->espnow_version;
+    responseSemaphore.release();
 }
 
 static void onEvtRecv(uint32_t msgId, const uint8_t* data, size_t dataLen, void* ctx) {
@@ -127,8 +133,15 @@ static void onEvtSendStatus(uint32_t msgId, const uint8_t* data, size_t dataLen,
     }
 }
 
-/** Sends a request and blocks (holding requestMutex) until the matching response arrives or times out. */
-static esp_err_t doRequest(uint32_t reqMsgId, const uint8_t* reqData, size_t reqDataLen) {
+/** Sends a request and blocks (holding requestMutex) until the matching response arrives or
+ *  times out. Every request struct's first field is `uint32_t txn_id`; doRequest() stamps a
+ *  fresh transaction id directly into that leading 4 bytes of reqData (memcpy rather than a
+ *  `uint32_t*` into the packed struct, which trips -Waddress-of-packed-member even though the
+ *  first field of every one of these structs is always naturally aligned) before sending - the
+ *  matching response handler (onRespGeneric/onRespInit) only accepts a response whose txn_id
+ *  equals this call's, so a late response to an earlier, already-timed-out request (e.g. a
+ *  REQ_INIT retry) can't be mistaken for the answer to this request. */
+static esp_err_t doRequest(uint32_t reqMsgId, uint8_t* reqData, size_t reqDataLen) {
     auto lock = requestMutex.asScopedLock();
     lock.lock();
 
@@ -137,6 +150,10 @@ static esp_err_t doRequest(uint32_t reqMsgId, const uint8_t* reqData, size_t req
     // request's acquire() below return immediately with a stale lastResponseErr/version instead
     // of actually waiting for its own response.
     while (responseSemaphore.acquire(0)) {}
+
+    uint32_t txnId = nextTxnId.fetch_add(1);
+    memcpy(reqData, &txnId, sizeof(txnId));
+    activeTxnId = txnId;
 
     waitingForResponse = true;
     esp_err_t sendErr = esp_hosted_send_custom_data(reqMsgId, reqData, reqDataLen);
@@ -210,7 +227,7 @@ bool init(const EspNowConfig& config, esp_now_recv_cb_t recvCallback) {
 
     esp_err_t err = ESP_FAIL;
     for (int attempt = 1; attempt <= MAX_INIT_ATTEMPTS; attempt++) {
-        err = doRequest(ESPNOW_BRIDGE_REQ_INIT, reinterpret_cast<const uint8_t*>(&req), sizeof(req));
+        err = doRequest(ESPNOW_BRIDGE_REQ_INIT, reinterpret_cast<uint8_t*>(&req), sizeof(req));
         if (err == ESP_OK) {
             break;
         }
@@ -238,7 +255,8 @@ bool init(const EspNowConfig& config, esp_now_recv_cb_t recvCallback) {
 }
 
 bool deinit() {
-    esp_err_t err = doRequest(ESPNOW_BRIDGE_REQ_DEINIT, nullptr, 0);
+    espnow_bridge_req_deinit_t req = {};
+    esp_err_t err = doRequest(ESPNOW_BRIDGE_REQ_DEINIT, reinterpret_cast<uint8_t*>(&req), sizeof(req));
     userRecvCallback = nullptr;
     espnowVersion = 0;
     if (err != ESP_OK) {
@@ -256,7 +274,7 @@ bool addPeer(const esp_now_peer_info_t& peer) {
     req.encrypt = peer.encrypt;
     req.ifidx = (peer.ifidx == WIFI_IF_AP) ? ESPNOW_BRIDGE_MODE_ACCESS_POINT : ESPNOW_BRIDGE_MODE_STATION;
 
-    esp_err_t err = doRequest(ESPNOW_BRIDGE_REQ_ADD_PEER, reinterpret_cast<const uint8_t*>(&req), sizeof(req));
+    esp_err_t err = doRequest(ESPNOW_BRIDGE_REQ_ADD_PEER, reinterpret_cast<uint8_t*>(&req), sizeof(req));
     if (err != ESP_OK) {
         LOG_E(TAG, "Remote esp_now_add_peer() failed: %d", err);
         return false;
@@ -282,7 +300,7 @@ bool send(const uint8_t* address, const uint8_t* buffer, size_t bufferLength) {
     // validates data_len against sizeof(espnow_bridge_req_send_t) exactly, so a truncated wire
     // length was always rejected as ESP_ERR_INVALID_SIZE (this made every send fail while
     // receive still worked fine, since RX events aren't size-truncated the same way).
-    esp_err_t err = doRequest(ESPNOW_BRIDGE_REQ_SEND, reinterpret_cast<const uint8_t*>(&req), sizeof(req));
+    esp_err_t err = doRequest(ESPNOW_BRIDGE_REQ_SEND, reinterpret_cast<uint8_t*>(&req), sizeof(req));
     return err == ESP_OK;
 }
 
