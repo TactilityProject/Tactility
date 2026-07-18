@@ -69,9 +69,7 @@ static gpio_num_t pin_or_nc(const struct GpioPinSpec& pin) {
 
 // Unpacks the devicetree's flat [cmd, data_len, delay_ms, data_len bytes...] encoding (produced
 // by the devicetree compiler's "array" property type - see init-sequence in
-// bindings/axs,axs15231b.yaml) into a heap-allocated axs15231b_lcd_init_cmd_t array. Each entry's
-// .data points directly into `bytes`, which is the devicetree's static const buffer and outlives
-// the device, so no per-entry copy is needed.
+// bindings/axs,axs15231b.yaml) into a heap-allocated axs15231b_lcd_init_cmd_t array.
 static bool parse_init_sequence(const uint8_t* bytes, uint32_t length, axs15231b_lcd_init_cmd_t** out_cmds, uint16_t* out_count) {
     uint32_t count = 0;
     for (uint32_t offset = 0; offset < length; count++) {
@@ -283,17 +281,23 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    // Bring-up sequence. swap_xy is intentionally not called (and not exposed in DisplayApi
-    // below): it doesn't work on this chip/panel combination (confirmed on real hardware by the
-    // original deprecated-HAL driver). Every failure path below must clean up fully: unlike
-    // stop_device, this is never retried by the kernel if start_device fails (see device_start()
-    // in TactilityKernel), so a partial failure here would leak.
+    // Bring-up sequence. swap_xy is intentionally not called (and not exposed in DisplayApi below):
+    // It doesn't work on this chip/panel combination.
+    //
+    // esp_lcd_axs15231b's disp_on_off callback is wired up backwards: its body branches on a
+    // parameter it names "off" (true -> DISPOFF, false -> DISPON), but esp_lcd_panel_disp_on_off()
+    // forwards its "on_off" argument straight through with no inversion - so passing true here
+    // actually switches the panel OFF. Pass false to really turn it on (confirmed against the
+    // deleted deprecated-HAL driver, which called this same function with false for the same
+    // reason). See axs15231b_disp_on_off() below, which un-inverts this for DisplayApi callers.
+    //
+    // (note: all of this was tested on guition-jc3248w535c only)
     bool ok =
         esp_lcd_panel_reset(internal->panel_handle) == ESP_OK &&
         esp_lcd_panel_init(internal->panel_handle) == ESP_OK &&
         esp_lcd_panel_mirror(internal->panel_handle, config->mirror_x, config->mirror_y) == ESP_OK &&
         esp_lcd_panel_invert_color(internal->panel_handle, config->invert_color) == ESP_OK &&
-        esp_lcd_panel_disp_on_off(internal->panel_handle, true) == ESP_OK;
+        esp_lcd_panel_disp_on_off(internal->panel_handle, false) == ESP_OK;
 
     if (!ok) {
         LOG_E(TAG, "Failed to bring up panel");
@@ -404,7 +408,8 @@ static error_t axs15231b_invert_color(Device* device, bool invert_color_data) {
 
 static error_t axs15231b_disp_on_off(Device* device, bool on_off) {
     auto* internal = static_cast<Axs15231bDisplayInternal*>(device_get_driver_data(device));
-    return esp_lcd_panel_disp_on_off(internal->panel_handle, on_off) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
+    // Inverted: see the comment on the disp_on_off call in start() above.
+    return esp_lcd_panel_disp_on_off(internal->panel_handle, !on_off) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 
 // _SWAPPED (not plain RGB565): the panel expects each 16-bit pixel high-byte-first over the QSPI
