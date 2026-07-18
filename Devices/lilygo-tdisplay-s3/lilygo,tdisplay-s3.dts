@@ -39,9 +39,6 @@
 		channels = <ADC_CHANNEL_3 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
 	};
 
-	// Matches the deprecated HAL's old Power.cpp (EstimatedPower/ChargeFromAdcVoltage default
-	// config): ADC1 CH3, 2:1 divider with +0.11 display voltage sag compensation
-	// (adcMultiplier = 2.11, so multiplier = 2110).
 	battery-sense {
 		compatible = "battery-sense";
 		io-channel = <&adc0 0>;
