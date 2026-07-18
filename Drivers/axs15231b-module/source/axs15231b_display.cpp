@@ -448,8 +448,14 @@ static error_t axs15231b_get_backlight(Device* device, Device** backlight) {
 // endregion
 
 static const DisplayApi axs15231b_display_api = {
+    // REQUIRES_FULL_FRAME: this panel's QSPI command set has no row-address (RASET) command at
+    // all (see draw_bitmap() above) - only a column range (CASET) plus a RAMWR/RAMWRC choice that
+    // resets vs. continues an internal row auto-increment counter. A sub-region write leaves that
+    // counter unsynchronized with the logical area actually intended, which is what produced the
+    // sheared/stretched image before this flag existed (the deleted deprecated-HAL driver worked
+    // around the same limitation by unconditionally flushing the full frame on every redraw).
     .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_INVERT_COLOR |
-        DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_BACKLIGHT,
+        DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_BACKLIGHT | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME,
     .reset = axs15231b_reset,
     .init = axs15231b_init,
     .draw_bitmap = axs15231b_draw_bitmap,

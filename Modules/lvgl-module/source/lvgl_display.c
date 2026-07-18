@@ -319,7 +319,8 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
         render_mode = LV_DISPLAY_RENDER_MODE_FULL;
         buf_size_bytes = (size_t)hres * vres * bpp;
     } else {
-        uint16_t buf_height = config->buffer_height > 0 ? config->buffer_height : vres;
+        uint16_t buf_height = config->force_full_frame || config->buffer_height == 0
+            ? vres : config->buffer_height;
         buf_size_bytes = (size_t)hres * buf_height * bpp;
 
         ctx->buf1 = lvgl_display_alloc_buffer(buf_size_bytes);
@@ -336,7 +337,7 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
             }
         }
         ctx->owns_buffers = true;
-        render_mode = LV_DISPLAY_RENDER_MODE_PARTIAL;
+        render_mode = config->force_full_frame ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL;
     }
 
     ctx->buf_size_bytes = buf_size_bytes;

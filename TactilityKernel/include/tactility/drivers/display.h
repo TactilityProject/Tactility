@@ -20,7 +20,14 @@ enum DisplayCapability {
     DISPLAY_CAPABILITY_INVERT_COLOR    = 1 << 3,
     DISPLAY_CAPABILITY_ON_OFF          = 1 << 4,
     DISPLAY_CAPABILITY_BACKLIGHT       = 1 << 5,
-    DISPLAY_CAPABILITY_SLEEP           = 1 << 6
+    DISPLAY_CAPABILITY_SLEEP           = 1 << 6,
+    /**
+     * Panel can only be written a full frame at a time (e.g. no row-address command, relying on
+     * an internal auto-increment counter reset by writing the whole frame from the top every
+     * time) - draw_bitmap() must always be called with the full resolution, never a sub-region.
+     * LVGL-facing callers (see lvgl_display.c) must use LV_DISPLAY_RENDER_MODE_FULL for such panels.
+     */
+    DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME = 1 << 7
 };
 
 /**

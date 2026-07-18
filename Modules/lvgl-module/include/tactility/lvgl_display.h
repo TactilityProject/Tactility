@@ -44,6 +44,15 @@ struct LvglDisplayConfig {
      * RGB565/BGR565 (e.g. RGB888, MONOCHROME).
      */
     bool swap_bytes;
+
+    /**
+     * Forces LV_DISPLAY_RENDER_MODE_FULL with a full-resolution buffer, ignoring buffer_height,
+     * and always flushes the entire display rather than per-tile dirty regions. Set this when the
+     * device reports DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME - see that capability's doc comment.
+     * Ignored when the device exposes its own frame buffer(s) (already always-full-frame) or uses
+     * the LV_COLOR_FORMAT_I1 path (already always-full-frame).
+     */
+    bool force_full_frame;
 };
 
 /**

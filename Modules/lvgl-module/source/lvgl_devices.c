@@ -45,7 +45,8 @@ void lvgl_devices_attach() {
             color_format == DISPLAY_COLOR_FORMAT_BGR565;
         struct LvglDisplayConfig lvgl_display_config = {
             .buffer_height = vres > 10 ? vres / 10 : vres,
-            .swap_bytes = swap_bytes
+            .swap_bytes = swap_bytes,
+            .force_full_frame = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME)
         };
         if (lvgl_display_add(kernel_display_device, &lvgl_display_config, &lvgl_display) == ERROR_NONE) {
             LOG_I(TAG, "Bound %s to LVGL", kernel_display_device->name);
