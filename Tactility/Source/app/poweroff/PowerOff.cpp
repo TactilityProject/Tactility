@@ -45,6 +45,9 @@ class PowerOffApp final : public App {
                 lv_refr_now(lvgl_display);
             }
             display->waitForFlushComplete();
+        } else {
+            // TODO: Wait for sync with kernel display device
+            vTaskDelay(2000);
         }
     }
 
