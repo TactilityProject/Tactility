@@ -71,14 +71,21 @@ static int pin_or_unused(const struct GpioPinSpec& pin) {
 // start()), which makes it fall back to sending a SWRESET command instead - itself a valid and
 // commonly-recommended reset path, so this pulse plus that fallback is redundant-safe, not harmful.
 // Timing (10ms low, 10ms recovery) matches esp_lcd_ili9341's own hardware-reset path exactly.
-static void pulse_reset(GpioDescriptor* descriptor, bool active_high) {
+static error_t pulse_reset(GpioDescriptor* descriptor, bool active_high) {
     if (descriptor == nullptr) {
-        return;
+        return ERROR_NONE;
     }
-    gpio_descriptor_set_level(descriptor, active_high);
+    error_t error = gpio_descriptor_set_level(descriptor, active_high);
+    if (error != ERROR_NONE) {
+        return error;
+    }
     vTaskDelay(pdMS_TO_TICKS(10));
-    gpio_descriptor_set_level(descriptor, !active_high);
+    error = gpio_descriptor_set_level(descriptor, !active_high);
+    if (error != ERROR_NONE) {
+        return error;
+    }
     vTaskDelay(pdMS_TO_TICKS(10));
+    return ERROR_NONE;
 }
 
 // region Driver lifecycle
@@ -187,8 +194,8 @@ static error_t start(Device* device) {
     // Bring-up sequence, order matches EspLcdDisplayV2::applyConfiguration (proven correct on real ILI9341 panels).
     // Every failure path below must clean up fully: unlike stop_device, this is never retried by the kernel
     // if start_device fails (see device_start() in TactilityKernel), so a partial failure here would leak.
-    pulse_reset(internal->reset_descriptor, internal->reset_active_high);
     bool ok =
+        pulse_reset(internal->reset_descriptor, internal->reset_active_high) == ERROR_NONE &&
         esp_lcd_panel_reset(internal->panel_handle) == ESP_OK &&
         esp_lcd_panel_init(internal->panel_handle) == ESP_OK &&
         (!config->invert_color || esp_lcd_panel_invert_color(internal->panel_handle, true) == ESP_OK);
@@ -256,7 +263,10 @@ static error_t stop(Device* device) {
 
 static error_t ili9341_reset(Device* device) {
     auto* internal = static_cast<Ili9341Internal*>(device_get_driver_data(device));
-    pulse_reset(internal->reset_descriptor, internal->reset_active_high);
+    error_t error = pulse_reset(internal->reset_descriptor, internal->reset_active_high);
+    if (error != ERROR_NONE) {
+        return error;
+    }
     return esp_lcd_panel_reset(internal->panel_handle) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 

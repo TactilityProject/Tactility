@@ -10,7 +10,8 @@
 
 #include <new>
 
-#define TAG "Axp192Backlight"
+constexpr auto* TAG = "Axp192Backlight";
+
 #define GET_CONFIG(device) (static_cast<const Axp192BacklightConfig*>((device)->config))
 #define GET_INTERNAL(device) (static_cast<Axp192BacklightInternal*>(device_get_driver_data(device)))
 
@@ -95,7 +96,12 @@ static error_t start(Device* device) {
 
     device_set_driver_data(device, internal);
 
-    axp192_backlight_set_brightness_default(device); // Allowed to fail, we don't care about the result
+    error_t error = axp192_backlight_set_brightness_default(device);
+    if (error != ERROR_NONE) {
+        device_set_driver_data(device, nullptr);
+        delete internal;
+        return error;
+    }
 
     return ERROR_NONE;
 }

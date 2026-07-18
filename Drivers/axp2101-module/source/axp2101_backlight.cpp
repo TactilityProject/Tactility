@@ -22,6 +22,11 @@ struct Axp2101BacklightInternal {
 
 // region BacklightApi
 
+// Step size of axp2101_set_ldo_voltage()'s underlying register encoding (see axp2101.cpp's LDO_RANGE table).
+static uint16_t get_ldo_voltage_step(Axp2101Ldo ldo) {
+    return ldo == AXP2101_CPUSLDO ? 50U : 100U;
+}
+
 static error_t apply_brightness(Device* device, uint8_t brightness) {
     const auto* config = GET_CONFIG(device);
     auto* axp2101 = device_get_parent(device);
@@ -30,10 +35,19 @@ static error_t apply_brightness(Device* device, uint8_t brightness) {
         return axp2101_set_ldo_enabled(axp2101, config->ldo, false);
     }
 
-    uint16_t millivolt = static_cast<uint16_t>(
+    uint16_t step = get_ldo_voltage_step(config->ldo);
+    uint16_t raw_millivolt = static_cast<uint16_t>(
         config->min_millivolt +
         (static_cast<uint32_t>(brightness) * (config->max_millivolt - config->min_millivolt)) / 255U
     );
+    // Round to the nearest valid step; the LDO's voltage range always starts at a multiple of every
+    // supported step, so rounding from zero keeps the result on a valid boundary.
+    uint16_t millivolt = static_cast<uint16_t>(((raw_millivolt + step / 2U) / step) * step);
+    if (millivolt < config->min_millivolt) {
+        millivolt = config->min_millivolt;
+    } else if (millivolt > config->max_millivolt) {
+        millivolt = config->max_millivolt;
+    }
 
     error_t error = axp2101_set_ldo_voltage(axp2101, config->ldo, millivolt);
     if (error != ERROR_NONE) {

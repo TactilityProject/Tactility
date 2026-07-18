@@ -57,14 +57,16 @@ class PowerOffApp final : public App {
 
         Device* display;
         error_t error = device_get_first_by_type(&DISPLAY_TYPE, &display);
+        // TODO: remove this logic path when all displays have been migrated to kernel display drivers
         if (error != ERROR_NONE) {
-            // Power off now
+            // No display, power off now
             device_for_each_of_type(&POWER_SUPPLY_TYPE, nullptr, [](Device* device, void* /*context*/) {
                 if (device_is_ready(device) && power_supply_supports_power_off(device)) {
                     power_supply_power_off(device);
                 }
                 return true;
             });
+            return;
         }
 
         bool is_slow_refresh = display_has_capability(display, DISPLAY_CAPABILITY_SLOW_REFRESH);
@@ -77,10 +79,9 @@ class PowerOffApp final : public App {
         }
 
         getMainDispatcher().dispatch([is_slow_refresh] {
-            // Safety margin for driver.
-            // Not necessary for LilyGO Paper S3, but other drivers with async rendering might need it.
+            // Not necessary for LilyGO Paper S3, but other drivers with async rendering might need us to wait a bit.
             if (is_slow_refresh) {
-                vTaskDelay(2000);
+                vTaskDelay(pdMS_TO_TICKS(2000));
             }
             device_for_each_of_type(&POWER_SUPPLY_TYPE, nullptr, [](Device* device, void* /*context*/) {
                 if (device_is_ready(device) && power_supply_supports_power_off(device)) {

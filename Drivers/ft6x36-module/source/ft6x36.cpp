@@ -50,14 +50,21 @@ static inline gpio_num_t pin_or_nc(const struct GpioPinSpec& pin) {
 // See ili9341-module's pulse_reset() for the full rationale; same idea, same 10ms/10ms timing.
 // esp_lcd_touch's rst_gpio_num is always left at GPIO_NUM_NC (see start()), under which it just
 // skips its own reset step entirely.
-static void pulse_reset(GpioDescriptor* descriptor, bool active_high) {
+static error_t pulse_reset(GpioDescriptor* descriptor, bool active_high) {
     if (descriptor == nullptr) {
-        return;
+        return ERROR_NONE;
     }
-    gpio_descriptor_set_level(descriptor, active_high);
+    error_t error = gpio_descriptor_set_level(descriptor, active_high);
+    if (error != ERROR_NONE) {
+        return error;
+    }
     vTaskDelay(pdMS_TO_TICKS(10));
-    gpio_descriptor_set_level(descriptor, !active_high);
+    error = gpio_descriptor_set_level(descriptor, !active_high);
+    if (error != ERROR_NONE) {
+        return error;
+    }
     vTaskDelay(pdMS_TO_TICKS(10));
+    return ERROR_NONE;
 }
 
 // region Driver lifecycle
@@ -119,7 +126,15 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    pulse_reset(internal->reset_descriptor, internal->reset_active_high);
+    if (pulse_reset(internal->reset_descriptor, internal->reset_active_high) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to pulse reset pin");
+        esp_lcd_panel_io_del(internal->io_handle);
+        if (internal->reset_descriptor != nullptr) {
+            gpio_descriptor_release(internal->reset_descriptor);
+        }
+        free(internal);
+        return ERROR_RESOURCE;
+    }
 
     esp_lcd_touch_config_t touch_config = {
         .x_max = config->x_max,

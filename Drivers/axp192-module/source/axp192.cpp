@@ -11,7 +11,6 @@
 
 #include <new>
 
-#define TAG "AXP192"
 #define GET_CONFIG(device) (static_cast<const Axp192Config*>((device)->config))
 
 /** Reference: https://github.com/tuupola/axp192 (register map and ADC/voltage formulas) */
@@ -54,7 +53,7 @@ static error_t read_adc_raw(Device* device, uint8_t reg, uint16_t* raw) {
     if (err != ERROR_NONE) {
         return err;
     }
-    *raw = static_cast<uint16_t>((buffer[0] << 4U) + buffer[1]);
+    *raw = static_cast<uint16_t>((buffer[0] << 4U) + (buffer[1] & 0x0FU));
     return ERROR_NONE;
 }
 

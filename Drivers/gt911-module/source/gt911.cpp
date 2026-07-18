@@ -19,7 +19,7 @@
 
 #include <cstdlib>
 
-#define TAG "GT911"
+constexpr auto* TAG = "GT911";
 #define GET_CONFIG(device) (static_cast<const Gt911Config*>((device)->config))
 
 struct Gt911Internal {
@@ -27,7 +27,7 @@ struct Gt911Internal {
     esp_lcd_touch_handle_t touch_handle;
 };
 
-static inline gpio_num_t pin_or_nc(const struct GpioPinSpec& pin) {
+static gpio_num_t pin_or_nc(const GpioPinSpec& pin) {
     return pin.gpio_controller == nullptr ? GPIO_NUM_NC : static_cast<gpio_num_t>(pin.pin);
 }
 

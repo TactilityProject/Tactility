@@ -512,8 +512,10 @@ static error_t start(Device* device) {
     auto address = GET_CONFIG(device)->address;
     // Battery/VBUS voltage ADC channels are off by default; axp2101_get_battery_voltage()
     // and axp2101_get_vbus_voltage() need them on to read anything but 0.
-    if (i2c_controller_register8_set_bits(parent, address, REG_ADC_CHANNEL_CTRL, (1U << 0U) | (1U << 2U), TIMEOUT) != ERROR_NONE) {
+    error_t error = i2c_controller_register8_set_bits(parent, address, REG_ADC_CHANNEL_CTRL, (1U << 0U) | (1U << 2U), TIMEOUT);
+    if (error != ERROR_NONE) {
         LOG_W(TAG, "Failed to enable battery/VBUS ADC channels");
+        return error;
     }
 
     auto* internal = new(std::nothrow) Axp2101Internal();
@@ -521,7 +523,7 @@ static error_t start(Device* device) {
         return ERROR_OUT_OF_MEMORY;
     }
 
-    error_t error = create_power_supply_child(device, internal->power_supply_device);
+    error = create_power_supply_child(device, internal->power_supply_device);
     if (error != ERROR_NONE) {
         delete internal;
         return error;
