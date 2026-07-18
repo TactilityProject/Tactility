@@ -1,0 +1,7 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/ili9341-module
+  - Drivers/ft5x06-module
+  - Drivers/es8311-module
+  - Drivers/audio-stream-module
+dts: es3c28p.dts
