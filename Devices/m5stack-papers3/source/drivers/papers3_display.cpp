@@ -4,6 +4,7 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/display.h>
+#include <tactility/error.h>
 #include <tactility/log.h>
 #include <tactility/module.h>
 
@@ -11,9 +12,29 @@
 #include <epdiy.h>
 
 #include <cstdlib>
+#include <cstring>
 
 #define TAG "Papers3Display"
 #define GET_CONFIG(device) (static_cast<const Papers3DisplayConfig*>((device)->config))
+
+// Maps each src byte (8px, MSB-first, bit=1 -> white/0x0F) to the 4 packed dst bytes
+// (2px/byte, EPDiy MODE_PACKING_2PPB nibble order) it produces, replacing a per-pixel
+// branch loop with a table lookup.
+static uint32_t s_unpack_lut[256];
+
+static void init_unpack_lut() {
+    for (uint32_t byte = 0; byte < 256; byte++) {
+        uint8_t dst[4];
+        for (int32_t pair = 0; pair < 4; pair++) {
+            const uint8_t bit0 = (byte >> (7 - pair * 2)) & 0x01U;
+            const uint8_t bit1 = (byte >> (7 - pair * 2 - 1)) & 0x01U;
+            const uint8_t p0 = bit0 ? 0x0FU : 0x00U;
+            const uint8_t p1 = bit1 ? 0x0FU : 0x00U;
+            dst[pair] = static_cast<uint8_t>((p1 << 4U) | p0);
+        }
+        memcpy(&s_unpack_lut[byte], dst, sizeof(dst));
+    }
+}
 
 extern "C" {
 
@@ -82,7 +103,13 @@ static error_t papers3_display_draw_bitmap(Device* device, int32_t x_start, int3
     for (int32_t row = 0; row < height; row++) {
         const uint8_t* src_row = src + static_cast<size_t>(row) * src_stride;
         uint8_t* dst_row = internal->packed_buffer + static_cast<size_t>(row) * packed_stride;
-        for (int32_t col = 0; col < width; col += 2) {
+        int32_t col = 0;
+        // Bulk path: one LUT lookup + 4-byte copy per 8 source pixels.
+        for (; col + 8 <= width; col += 8) {
+            memcpy(dst_row + col / 2, &s_unpack_lut[src_row[col / 8]], 4);
+        }
+        // Tail: fewer than 8 pixels left (width not a multiple of 8).
+        for (; col < width; col += 2) {
             const uint8_t bit0 = (src_row[col / 8] >> (7 - (col % 8))) & 0x01U;
             const uint8_t p0 = bit0 ? 0x0FU : 0x00U;
             uint8_t p1 = 0;
@@ -103,13 +130,14 @@ static error_t papers3_display_draw_bitmap(Device* device, int32_t x_start, int3
 
     power_on(internal);
     epd_draw_rotated_image(update_area, internal->packed_buffer, internal->framebuffer);
-    epd_hl_update_screen(
+    auto draw_result = epd_hl_update_area(
         &internal->hl_state,
         static_cast<EpdDrawMode>(config->draw_mode | MODE_PACKING_2PPB),
-        config->temperature_celsius
+        config->temperature_celsius,
+        update_area
     );
 
-    return ERROR_NONE;
+    return draw_result == EPD_DRAW_SUCCESS ? ERROR_NONE : ERROR_RESOURCE;
 }
 
 static error_t papers3_display_disp_on_off(Device* device, bool on_off) {
@@ -185,6 +213,12 @@ static const DisplayApi papers3_display_api = {
 static error_t start(Device* device) {
     const auto* config = GET_CONFIG(device);
 
+    static bool s_lut_initialized = false;
+    if (!s_lut_initialized) {
+        init_unpack_lut();
+        s_lut_initialized = true;
+    }
+
     auto* internal = static_cast<Papers3DisplayInternal*>(malloc(sizeof(Papers3DisplayInternal)));
     if (internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
@@ -234,8 +268,6 @@ static error_t stop(Device* device) {
         internal->powered = false;
     }
 
-    // Deinitialize EPDiy low-level hardware. The HL framebuffer (s_hl_state) is intentionally
-    // kept alive - see the comment on s_hl_initialized above - and reused on the next start().
     epd_deinit();
 
     free(internal->packed_buffer);
