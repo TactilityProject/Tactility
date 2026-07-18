@@ -1,8 +1,4 @@
 #include <tactility/module.h>
-#include <Tactility/hal/Configuration.h>
-
-// Legacy placeholder (required until legacy HAL is cleaned up everywhere)
-extern const tt::hal::Configuration hardwareConfiguration = {};
 
 extern "C" {
 
