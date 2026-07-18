@@ -445,17 +445,29 @@ static error_t axs15231b_get_backlight(Device* device, Device** backlight) {
     return ERROR_NONE;
 }
 
+// REQUIRES_FULL_FRAME is the only capability that varies per device instance (via the
+// requires-full-frame devicetree property, see axs15231b_display.h) - a sub-region draw_bitmap()
+// call desyncs this chip's row auto-increment counter, since its QSPI command set has no
+// row-address command, but that's been confirmed needed on some boards' wiring/panel combination
+// and not assumed true for every AXS15231B board (see start()'s notes on what's been tested where).
+// Every other bit stays fixed for the driver, mirrored here from axs15231b_display_api.capabilities.
+static bool axs15231b_has_capability(Device* device, uint32_t capability) {
+    uint32_t static_capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_INVERT_COLOR |
+        DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_BACKLIGHT;
+    if (GET_CONFIG(device)->requires_full_frame) {
+        static_capabilities |= DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME;
+    }
+    return (static_capabilities & capability) == capability;
+}
+
 // endregion
 
 static const DisplayApi axs15231b_display_api = {
-    // REQUIRES_FULL_FRAME: this panel's QSPI command set has no row-address (RASET) command at
-    // all (see draw_bitmap() above) - only a column range (CASET) plus a RAMWR/RAMWRC choice that
-    // resets vs. continues an internal row auto-increment counter. A sub-region write leaves that
-    // counter unsynchronized with the logical area actually intended, which is what produced the
-    // sheared/stretched image before this flag existed (the deleted deprecated-HAL driver worked
-    // around the same limitation by unconditionally flushing the full frame on every redraw).
+    // Mirrors axs15231b_has_capability()'s static_capabilities for callers that read this field
+    // directly instead of going through display_has_capability()/has_capability(). Excludes
+    // REQUIRES_FULL_FRAME - see axs15231b_has_capability() above, which is the source of truth.
     .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_INVERT_COLOR |
-        DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_BACKLIGHT | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME,
+        DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_BACKLIGHT,
     .reset = axs15231b_reset,
     .init = axs15231b_init,
     .draw_bitmap = axs15231b_draw_bitmap,
@@ -474,7 +486,7 @@ static const DisplayApi axs15231b_display_api = {
     .get_frame_buffer = axs15231b_get_frame_buffer,
     .get_frame_buffer_count = axs15231b_get_frame_buffer_count,
     .get_backlight = axs15231b_get_backlight,
-    .has_capability = nullptr,
+    .has_capability = axs15231b_has_capability,
 };
 
 Driver axs15231b_display_driver = {

@@ -37,6 +37,8 @@ struct Axs15231bDisplayConfig {
     const uint8_t* init_sequence;
     uint32_t init_sequence_length;
 
+    bool requires_full_frame;
+
     // Optional reference to this display's backlight device, NULL if none.
     struct Device* backlight;
 };

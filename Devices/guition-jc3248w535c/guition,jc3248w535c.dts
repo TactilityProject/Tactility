@@ -90,6 +90,10 @@
 			vertical-resolution = <480>;
 			pin-te = <&gpio0 38 GPIO_FLAG_NONE>;
 			backlight = <&display_backlight>;
+			// Confirmed on real hardware: a sub-region draw desyncs this panel's row
+			// auto-increment counter (no QSPI row-address command exists to resync it),
+			// producing a sheared/doubled image - see requires-full-frame's binding doc.
+			requires-full-frame;
 
 			// Vendor bring-up sequence, carried over unchanged from the deprecated HAL's old
 			// Axs15231bDisplay.cpp. Framing is [cmd, data-length, delay-ms, data-length bytes of

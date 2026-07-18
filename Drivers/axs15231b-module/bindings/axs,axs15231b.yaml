@@ -61,6 +61,14 @@ properties:
       Custom vendor bring-up sequence, flattened into bytes as a run of
       [cmd, data-length, delay-ms, data-length bytes of data...] entries. Omit to use the
       AXS15231B component's own built-in default sequence.
+  requires-full-frame:
+    type: boolean
+    default: false
+    description: >
+      Whether this panel needs full-frame-only draws (DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME) -
+      a sub-region draw_bitmap() call desyncs this chip's row auto-increment counter, since its
+      QSPI command set has no row-address command.
+      It's not certain that this is required for all driver implementations, so it's a config option for now.
   backlight:
     type: phandle
     default: "NULL"
