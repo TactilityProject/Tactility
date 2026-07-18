@@ -123,7 +123,7 @@ static error_t papers3_display_disp_on_off(Device* device, bool on_off) {
     return ERROR_NONE;
 }
 
-static enum DisplayColorFormat papers3_display_get_color_format(Device*) {
+static DisplayColorFormat papers3_display_get_color_format(Device*) {
     return DISPLAY_COLOR_FORMAT_MONOCHROME;
 }
 
@@ -156,7 +156,7 @@ static uint8_t papers3_display_get_frame_buffer_count(Device*) {
 // endregion
 
 static const DisplayApi papers3_display_api = {
-    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME,
+    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME | DISPLAY_CAPABILITY_SLOW_REFRESH,
     .reset = papers3_display_reset,
     .init = papers3_display_init,
     .draw_bitmap = papers3_display_draw_bitmap,

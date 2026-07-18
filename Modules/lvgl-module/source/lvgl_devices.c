@@ -1,6 +1,3 @@
-#include "tactility/lvgl_module.h"
-
-
 #include <tactility/device.h>
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/keyboard.h>
@@ -8,6 +5,7 @@
 #include <tactility/log.h>
 #include <tactility/lvgl_display.h>
 #include <tactility/lvgl_keyboard.h>
+#include <tactility/lvgl_module.h>
 #include <tactility/lvgl_pointer.h>
 
 #include <lvgl.h>
@@ -18,6 +16,7 @@ void lvgl_devices_attach() {
     lvgl_lock();
 
     lv_disp_t* lvgl_display = NULL;
+    bool display_updates_slowly = false;
     struct Device* kernel_display_device = NULL;
     device_get_first_by_type(&DISPLAY_TYPE, &kernel_display_device);
 
@@ -29,24 +28,17 @@ void lvgl_devices_attach() {
     }
 
     if (kernel_display_device != NULL) {
-        // A full-frame buffer (buffer_height=0) needs one contiguous allocation of
-        // hres*vres*bpp bytes. Plain ESP32 boards without PSRAM only have ~100-150KB
-        // contiguous internal RAM, which a 240x320+ panel can already exceed - so
-        // lvgl_display_add() would fail with ERROR_OUT_OF_MEMORY and never register a
-        // display. Match the old deprecated-HAL drivers' convention of a partial buffer
-        // sized to 1/10th of the vertical resolution; it fits comfortably everywhere,
-        // including boards with PSRAM that could afford full-frame.
         uint16_t vres = display_get_resolution_y(kernel_display_device);
-        // _SWAPPED variants need it outright; plain BGR565 panels have also been found on real
-        // hardware to need it alongside their MADCTL BGR bit (see st7735-module/st7789-module).
         enum DisplayColorFormat color_format = display_get_color_format(kernel_display_device);
         bool swap_bytes = color_format == DISPLAY_COLOR_FORMAT_RGB565_SWAPPED ||
             color_format == DISPLAY_COLOR_FORMAT_BGR565_SWAPPED ||
             color_format == DISPLAY_COLOR_FORMAT_BGR565;
+        bool display_requires_full_frame = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME);
+        display_updates_slowly = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_SLOW_REFRESH);
         struct LvglDisplayConfig lvgl_display_config = {
             .buffer_height = vres > 10 ? vres / 10 : vres,
             .swap_bytes = swap_bytes,
-            .force_full_frame = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME)
+            .force_full_frame = display_requires_full_frame
         };
         if (lvgl_display_add(kernel_display_device, &lvgl_display_config, &lvgl_display) == ERROR_NONE) {
             LOG_I(TAG, "Bound %s to LVGL", kernel_display_device->name);
@@ -58,7 +50,6 @@ void lvgl_devices_attach() {
 
     struct Device* kernel_pointer_device = NULL;
     device_get_first_by_type(&POINTER_TYPE, &kernel_pointer_device);
-    // Same placeholder situation as the display above.
     if (kernel_pointer_device != NULL && device_get_driver(kernel_pointer_device)->api == NULL) {
         device_put(kernel_pointer_device);
         kernel_pointer_device = NULL;
@@ -67,6 +58,10 @@ void lvgl_devices_attach() {
         lv_indev_t* lvgl_pointer_device;
         if (lvgl_pointer_add(kernel_pointer_device, lvgl_display, &lvgl_pointer_device) == ERROR_NONE) {
             LOG_I(TAG, "Bound %s to LVGL", kernel_pointer_device->name);
+            // Slow panels cause taps to be missed due to the long update time, prevent that
+            if (display_updates_slowly ) {
+                lv_indev_set_long_press_time(lvgl_pointer_device, 2000);
+            }
         } else {
             LOG_E(TAG, "Failed to bind %s to LVG", kernel_pointer_device->name);
         }

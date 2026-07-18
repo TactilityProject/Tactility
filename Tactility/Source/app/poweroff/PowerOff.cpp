@@ -1,3 +1,7 @@
+#include "Tactility/Tactility.h"
+#include "tactility/drivers/display.h"
+
+
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/hal/display/DisplayDevice.h>
@@ -16,13 +20,7 @@ extern const AppManifest manifest;
 
 class PowerOffApp final : public App {
 
-    /** Replaces the screen with a plain "powered off" message, forces it to draw
-     * synchronously, and waits for the display to confirm the draw physically
-     * finished. On e-paper this is what's left showing once power cuts, so it
-     * doubles as visual confirmation that the device shut down cleanly rather
-     * than crashed or hung. Called from an LVGL button click callback, so it's
-     * already running on the LVGL thread. */
-    static void showPoweredOffScreenAndWait(hal::display::DisplayDevice* display) {
+    static void showPoweredOffScreen() {
         auto* screen = lv_obj_create(nullptr);
         lv_obj_set_style_bg_color(screen, lv_color_white(), 0);
         lv_obj_set_flex_flow(screen, LV_FLEX_FLOW_COLUMN);
@@ -38,17 +36,6 @@ class PowerOffApp final : public App {
         lv_obj_set_style_text_color(subtitle, lv_color_black(), 0);
 
         lv_screen_load(screen);
-
-        if (display != nullptr) {
-            auto* lvgl_display = display->getLvglDisplay();
-            if (lvgl_display != nullptr) {
-                lv_refr_now(lvgl_display);
-            }
-            display->waitForFlushComplete();
-        } else {
-            // TODO: Wait for sync with kernel display device
-            vTaskDelay(2000);
-        }
     }
 
     static bool anyDeviceSupportsPowerOff() {
@@ -68,14 +55,39 @@ class PowerOffApp final : public App {
             return;
         }
 
-        auto display = hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
-        showPoweredOffScreenAndWait(display.get());
+        Device* display;
+        error_t error = device_get_first_by_type(&DISPLAY_TYPE, &display);
+        if (error != ERROR_NONE) {
+            // Power off now
+            device_for_each_of_type(&POWER_SUPPLY_TYPE, nullptr, [](Device* device, void* /*context*/) {
+                if (device_is_ready(device) && power_supply_supports_power_off(device)) {
+                    power_supply_power_off(device);
+                }
+                return true;
+            });
+        }
 
-        device_for_each_of_type(&POWER_SUPPLY_TYPE, nullptr, [](Device* device, void* /*context*/) {
-            if (device_is_ready(device) && power_supply_supports_power_off(device)) {
-                power_supply_power_off(device);
+        bool is_slow_refresh = display_has_capability(display, DISPLAY_CAPABILITY_SLOW_REFRESH);
+        if (is_slow_refresh) {
+            auto* lvgl_display = lv_display_get_default();
+            showPoweredOffScreen();
+            if (lvgl_display != nullptr) {
+                lv_refr_now(lvgl_display);
             }
-            return true;
+        }
+
+        getMainDispatcher().dispatch([is_slow_refresh] {
+            // Safety margin for driver.
+            // Not necessary for LilyGO Paper S3, but other drivers with async rendering might need it.
+            if (is_slow_refresh) {
+                vTaskDelay(2000);
+            }
+            device_for_each_of_type(&POWER_SUPPLY_TYPE, nullptr, [](Device* device, void* /*context*/) {
+                if (device_is_ready(device) && power_supply_supports_power_off(device)) {
+                    power_supply_power_off(device);
+                }
+                return true;
+            });
         });
     }
 
