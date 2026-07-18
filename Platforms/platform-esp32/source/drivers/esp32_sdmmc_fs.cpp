@@ -15,7 +15,7 @@
 #include <sdmmc_cmd.h>
 #include <string>
 
-#if SOC_SD_PWR_CTRL_SUPPORTED
+#if SOC_SDMMC_IO_POWER_EXTERNAL
 #include <sd_pwr_ctrl_by_on_chip_ldo.h>
 #endif
 
@@ -27,7 +27,7 @@ struct Esp32SdmmcFsData {
     const std::string mount_path;
     const Esp32SdmmcConfig* config;
     sdmmc_card_t* card;
-#if SOC_SD_PWR_CTRL_SUPPORTED
+#if SOC_SDMMC_IO_POWER_EXTERNAL
     sd_pwr_ctrl_handle_t pwr_ctrl_handle;
 #endif
 
@@ -35,7 +35,7 @@ struct Esp32SdmmcFsData {
         mount_path(mount_path),
         config(config),
         card(nullptr)
-#if SOC_SD_PWR_CTRL_SUPPORTED
+#if SOC_SDMMC_IO_POWER_EXTERNAL
         ,pwr_ctrl_handle(nullptr)
 #endif
     {}
@@ -81,11 +81,11 @@ static error_t mount(void* data) {
     host.slot = config->slot;
     host.max_freq_khz = config->max_freq_khz;
 
-#if SOC_SD_PWR_CTRL_SUPPORTED
+#if SOC_SDMMC_IO_POWER_EXTERNAL
     // Treat non-positive values as disabled to remain safe with zero-initialized configs.
     if (config->on_chip_ldo_chan > 0) {
         sd_pwr_ctrl_ldo_config_t ldo_config = {
-            .ldo_chan_id = (uint32_t)config->on_chip_ldo_chan,
+            .ldo_chan_id = static_cast<int>(config->on_chip_ldo_chan),
         };
         esp_err_t pwr_err = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &fs_data->pwr_ctrl_handle);
         if (pwr_err != ESP_OK) {
@@ -130,7 +130,7 @@ static error_t mount(void* data) {
         } else {
             LOG_E(TAG, "Mounting failed: %s", esp_err_to_name(result));
         }
-#if SOC_SD_PWR_CTRL_SUPPORTED
+#if SOC_SDMMC_IO_POWER_EXTERNAL
         if (fs_data->pwr_ctrl_handle) {
             sd_pwr_ctrl_del_on_chip_ldo(fs_data->pwr_ctrl_handle);
             fs_data->pwr_ctrl_handle = nullptr;
@@ -156,7 +156,7 @@ static error_t unmount(void* data) {
 
     fs_data->card = nullptr;
 
-#if SOC_SD_PWR_CTRL_SUPPORTED
+#if SOC_SDMMC_IO_POWER_EXTERNAL
     if (fs_data->pwr_ctrl_handle) {
         sd_pwr_ctrl_del_on_chip_ldo(fs_data->pwr_ctrl_handle);
         fs_data->pwr_ctrl_handle = nullptr;
