@@ -499,7 +499,7 @@ public:
     bool onStart(ServiceContext& /*service*/) override {
         check(!started);
 
-        wifi_auto_scan_register(autoScanSetPaused);
+        wifi_auto_scan_set_paused_function(autoScanSetPaused);
 
         state.device = wifi_find_first_registered_device();
         if (state.device == nullptr) {
@@ -538,7 +538,7 @@ public:
         state.pauseAutoConnect = false;
         state.device = nullptr;
 
-        wifi_auto_scan_register(nullptr);
+        wifi_auto_scan_set_paused_function(nullptr);
     }
 };
 

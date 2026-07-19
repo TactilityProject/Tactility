@@ -4,7 +4,7 @@
 
 static void (*registeredSetPaused)(bool paused) = NULL;
 
-void wifi_auto_scan_register(void (*set_paused)(bool paused)) {
+void wifi_auto_scan_set_paused_function(void (*set_paused)(bool paused)) {
     registeredSetPaused = set_paused;
 }
 
