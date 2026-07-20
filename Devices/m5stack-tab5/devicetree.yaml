@@ -8,4 +8,7 @@ dependencies:
   - Drivers/ina226-module
   - Drivers/rx8130ce-module
   - Drivers/sc2356-module
+  - Drivers/ili9881c-module
+  - Drivers/st7123-module
+  - Drivers/gt911-module
 dts: m5stack,tab5.dts

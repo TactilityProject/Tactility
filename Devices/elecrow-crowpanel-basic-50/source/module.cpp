@@ -1,19 +1,12 @@
+#include <tactility/error.h>
 #include <tactility/module.h>
 
 extern "C" {
 
-static error_t start() {
-    return ERROR_NONE;
-}
-
-static error_t stop() {
-    return ERROR_NONE;
-}
-
-struct Module elecrow_crowpanel_basic_50_module = {
+Module elecrow_crowpanel_basic_50_module = {
     .name = "elecrow-crowpanel-basic-50",
-    .start = start,
-    .stop = stop,
+    .start = [] -> error_t { return ERROR_NONE; },
+    .stop = [] -> error_t { return ERROR_NONE; },
     .symbols = nullptr,
     .internal = nullptr
 };

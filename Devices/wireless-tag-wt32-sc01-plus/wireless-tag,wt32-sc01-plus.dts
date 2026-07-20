@@ -7,6 +7,11 @@
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_i8080.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/ft6x36.h>
+#include <bindings/st7796_i8080.h>
 
 / {
 	compatible = "root";
@@ -33,6 +38,58 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 6 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 5 GPIO_FLAG_NONE>;
+
+		touch0 {
+			compatible = "focaltech,ft6x36";
+			reg = <0x38>;
+			x-max = <320>;
+			y-max = <480>;
+			pin-interrupt = <&gpio0 7 GPIO_FLAG_NONE>;
+		};
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 45 GPIO_FLAG_NONE>;
+		period-ns = <25000>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	i8080_0 {
+		compatible = "espressif,esp32-i8080";
+		pin-dc = <&gpio0 0 GPIO_FLAG_NONE>;
+		pin-wr = <&gpio0 47 GPIO_FLAG_NONE>;
+		pin-d0 = <&gpio0 9 GPIO_FLAG_NONE>;
+		pin-d1 = <&gpio0 46 GPIO_FLAG_NONE>;
+		pin-d2 = <&gpio0 3 GPIO_FLAG_NONE>;
+		pin-d3 = <&gpio0 8 GPIO_FLAG_NONE>;
+		pin-d4 = <&gpio0 18 GPIO_FLAG_NONE>;
+		pin-d5 = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-d6 = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-d7 = <&gpio0 15 GPIO_FLAG_NONE>;
+		// horizontal-resolution * vertical-resolution / 10 (partial buffer) * 2 bytes/pixel
+		max-transfer-bytes = <30720>;
+
+		display@0 {
+			compatible = "sitronix,st7796-i8080";
+			horizontal-resolution = <320>;
+			vertical-resolution = <480>;
+			pixel-clock-hz = <20000000>;
+			mirror-x;
+			invert-color;
+			bgr-order;
+			pin-reset = <&gpio0 4 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
 	};
 
 	spi0 {
@@ -42,7 +99,7 @@
 		pin-mosi = <&gpio0 40 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 38 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 39 GPIO_FLAG_NONE>;
-	
+
 		sdcard@0 {
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;

@@ -11,7 +11,6 @@
 #include <lvgl.h>
 #include <utility>
 
-#include <tactility/hal/Device.h>
 #include <tactility/lvgl_fonts.h>
 #include <tactility/lvgl_icon_shared.h>
 #include <tactility/lvgl_module.h>
@@ -55,22 +54,6 @@ static size_t getSpiTotal() {
     return heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
 #else
     return 8192 * 1024;
-#endif
-}
-
-static size_t getPsramMinFree() {
-#ifdef ESP_PLATFORM
-    return heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM);
-#else
-    return 4096 * 1024;
-#endif
-}
-
-static size_t getPsramLargestBlock() {
-#ifdef ESP_PLATFORM
-    return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
-#else
-    return 4096 * 1024;
 #endif
 }
 
@@ -212,20 +195,13 @@ static void clearContainer(lv_obj_t* container) {
     lv_obj_clean(container);
 }
 
-static void addRtosTask(lv_obj_t* parent, const TaskStatus_t& task, uint32_t totalRuntime) {
+static void addRtosTask(lv_obj_t* parent, const TaskStatus_t& task) {
     auto* label = lv_label_create(parent);
     const char* name = (task.pcTaskName == nullptr || task.pcTaskName[0] == 0) ? "(unnamed)" : task.pcTaskName;
-
-    // If totalRuntime provided, show CPU percentage; otherwise just show state
-    if (totalRuntime > 0) {
-        float cpu_percent = (task.ulRunTimeCounter * 100.0f) / totalRuntime;
-        lv_label_set_text_fmt(label, "%s: %.1f%%", name, cpu_percent);
-    } else {
-        lv_label_set_text_fmt(label, "%s (%s)", name, getTaskState(task));
-    }
+    lv_label_set_text_fmt(label, "%s (%s)", name, getTaskState(task));
 }
 
-static void updateRtosTasks(lv_obj_t* parent, bool showCpuPercent) {
+static void updateRtosTasks(lv_obj_t* parent) {
     clearContainer(parent);
 
     UBaseType_t count = uxTaskGetNumberOfTasks();
@@ -238,33 +214,14 @@ static void updateRtosTasks(lv_obj_t* parent, bool showCpuPercent) {
     uint32_t totalRuntime = 0;
     UBaseType_t actual = uxTaskGetSystemState(tasks, count, &totalRuntime);
 
-    // Sort by CPU usage if showing percentages, otherwise keep original order
-    if (showCpuPercent) {
-        std::sort(tasks, tasks + actual, [](const TaskStatus_t& a, const TaskStatus_t& b) {
-            return a.ulRunTimeCounter > b.ulRunTimeCounter;
-        });
-    }
-
     for (int i = 0; i < actual; ++i) {
-        addRtosTask(parent, tasks[i], showCpuPercent ? totalRuntime : 0);
+        addRtosTask(parent, tasks[i]);
     }
 
     free(tasks);
 }
 
 #endif
-
-static void addDevice(lv_obj_t* parent, const std::shared_ptr<hal::Device>& device) {
-    auto* label = lv_label_create(parent);
-    lv_label_set_text(label, device->getName().c_str());
-}
-
-static void addDevices(lv_obj_t* parent) {
-    auto devices = hal::getDevices();
-    for (const auto& device: devices) {
-        addDevice(parent, device);
-    }
-}
 
 static lv_obj_t* createTab(lv_obj_t* tabview, const char* name) {
     auto* tab = lv_tabview_add_tab(tabview, name);
@@ -293,7 +250,6 @@ class SystemInfoApp final : public App {
             auto lock = lvgl::getSyncLock()->asScopedLock();
             lock.lock();
             app->updateMemory();
-            app->updatePsram();
         }
     });
 
@@ -313,11 +269,7 @@ class SystemInfoApp final : public App {
     MemoryBarWidgets systemStorageBar;
 
     lv_obj_t* tasksContainer = nullptr;
-    lv_obj_t* cpuContainer = nullptr;
     lv_obj_t* psramContainer = nullptr;
-    lv_obj_t* cpuSummaryLabel = nullptr;  // Shows overall CPU utilization
-    lv_obj_t* taskCountLabel = nullptr;   // Shows active task count
-    lv_obj_t* uptimeLabel = nullptr;      // Shows system uptime
 
     bool hasExternalMem = false;
     bool hasDataStorage = false;
@@ -358,209 +310,8 @@ class SystemInfoApp final : public App {
     void updateTasks() {
 #if configUSE_TRACE_FACILITY
         if (tasksContainer) {
-            updateRtosTasks(tasksContainer, false);  // Tasks tab: show state
+            updateRtosTasks(tasksContainer);  // Tasks tab: show state
         }
-
-        if (cpuContainer) {
-            updateRtosTasks(cpuContainer, true);  // CPU tab: show percentages
-            
-            // Update CPU summary at top of tab
-            // Note: FreeRTOS runtime stats accumulate since boot, so percentages 
-            // are averages over entire uptime, not instantaneous usage
-            if (cpuSummaryLabel && taskCountLabel && uptimeLabel) {
-                UBaseType_t count = uxTaskGetNumberOfTasks();
-                auto* tasks = (TaskStatus_t*)malloc(sizeof(TaskStatus_t) * count);
-                if (tasks) {
-                    uint32_t totalRuntime = 0;
-                    UBaseType_t actual = uxTaskGetSystemState(tasks, count, &totalRuntime);
-                    
-                    if (totalRuntime > 0 && actual > 0) {
-                        // Calculate total CPU usage (100% - idle = usage)
-                        uint32_t idleTime = 0;
-                        for (int i = 0; i < actual; ++i) {
-                            const char* name = tasks[i].pcTaskName;
-                            if (name && (strcmp(name, "IDLE0") == 0 || strcmp(name, "IDLE1") == 0)) {
-                                idleTime += tasks[i].ulRunTimeCounter;
-                            }
-                        }
-                        
-                        float cpuUsage = ((totalRuntime - idleTime) * 100.0f) / totalRuntime;
-                        auto summary_text = std::format("Overall CPU Usage: {:.1f}% (avg since boot)", cpuUsage);
-                        lv_label_set_text(cpuSummaryLabel, summary_text.c_str());
-                        
-                        // Show total task count
-                        auto core_text = std::format("Active Tasks: {} total", actual);
-                        lv_label_set_text(taskCountLabel, core_text.c_str());
-                        
-                        // Use actual system tick count for uptime
-                        TickType_t ticks = xTaskGetTickCount();
-                        float uptime_sec = static_cast<float>(ticks) / configTICK_RATE_HZ;
-                        auto uptime_text = std::format("System Uptime: {:.1f} min", uptime_sec / 60.0f);
-                        lv_label_set_text(uptimeLabel, uptime_text.c_str());
-                    } else {
-                        lv_label_set_text(cpuSummaryLabel, "Overall CPU Usage: --.-%");
-                        lv_label_set_text(taskCountLabel, "Active Tasks: --");
-                        lv_label_set_text(uptimeLabel, "System Uptime: --");
-                    }
-                    
-                    free(tasks);
-                }
-            }
-        }
-#endif
-    }
-
-    void updatePsram() {
-#ifdef ESP_PLATFORM
-        if (!psramContainer || !hasExternalMem) return;
-
-        clearContainer(psramContainer);
-
-        size_t free_mem = getSpiFree();
-        size_t total = getSpiTotal();
-        size_t used = total - free_mem;
-        size_t min_free = getPsramMinFree();
-        size_t largest_block = getPsramLargestBlock();
-        size_t peak_usage = total - min_free;
-
-        // Safety check - if no PSRAM, show error
-        if (total == 0) {
-            auto* error_label = lv_label_create(psramContainer);
-            lv_label_set_text(error_label, "No PSRAM detected");
-            return;
-        }
-
-        // Summary
-        auto* summary_label = lv_label_create(psramContainer);
-        lv_label_set_text(summary_label, "PSRAM Usage Summary");
-        lv_obj_set_style_pad_bottom(summary_label, 8, 0);
-
-        // Current usage
-        auto* usage_label = lv_label_create(psramContainer);
-        float used_mb = used / (1024.0f * 1024.0f);
-        float total_mb = total / (1024.0f * 1024.0f);
-        float used_percent = (used * 100.0f) / total;
-        auto usage_text = std::format("Current: {:.2f} / {:.2f} MB ({:.1f}% used)",
-            used_mb, total_mb, used_percent);
-        lv_label_set_text(usage_label, usage_text.c_str());
-
-        // Peak usage
-        auto* peak_label = lv_label_create(psramContainer);
-        float peak_mb = peak_usage / (1024.0f * 1024.0f);
-        float peak_percent = (peak_usage * 100.0f) / total;
-        auto peak_text = std::format("Peak: {:.2f} MB ({:.1f}% of total)",
-            peak_mb, peak_percent);
-        lv_label_set_text(peak_label, peak_text.c_str());
-
-        // Minimum free (lowest point)
-        auto* min_free_label = lv_label_create(psramContainer);
-        float min_free_mb = min_free / (1024.0f * 1024.0f);
-        auto min_free_text = std::format("Min Free: {:.2f} MB", min_free_mb);
-        lv_label_set_text(min_free_label, min_free_text.c_str());
-
-        // Largest contiguous block
-        auto* largest_label = lv_label_create(psramContainer);
-        float largest_mb = largest_block / (1024.0f * 1024.0f);
-        auto largest_text = std::format("Largest Block: {:.2f} MB", largest_mb);
-        lv_label_set_text(largest_label, largest_text.c_str());
-
-        // Spacer
-        auto* spacer = lv_obj_create(psramContainer);
-        lv_obj_set_size(spacer, LV_PCT(100), 16);
-        lv_obj_set_style_bg_opa(spacer, 0, 0);
-        lv_obj_set_style_border_width(spacer, 0, 0);
-
-        // PSRAM Configuration section
-        auto* config_header = lv_label_create(psramContainer);
-        lv_label_set_text(config_header, "PSRAM Configuration");
-        lv_obj_set_style_pad_bottom(config_header, 8, 0);
-
-        // Get threshold from sdkconfig
-#ifdef CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL
-        const int threshold = CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL;
-#else
-        const int threshold = 16384; // Default ESP-IDF value
-#endif
-
-        // Display threshold configuration
-        auto* threshold_info = lv_label_create(psramContainer);
-        if (threshold >= 1024) {
-            lv_label_set_text_fmt(threshold_info, "• Threshold: >=%d KB -> PSRAM", threshold / 1024);
-        } else {
-            lv_label_set_text_fmt(threshold_info, "• Threshold: >=%d bytes -> PSRAM", threshold);
-        }
-
-        auto* internal_info = lv_label_create(psramContainer);
-        if (threshold >= 1024) {
-            lv_label_set_text_fmt(internal_info, "• Allocations <%d KB -> Internal RAM", threshold / 1024);
-        } else {
-            lv_label_set_text_fmt(internal_info, "• Allocations <%d bytes -> Internal RAM", threshold);
-        }
-
-        auto* note_label = lv_label_create(psramContainer);
-        lv_label_set_text(note_label, "• DMA buffers always use Internal RAM");
-
-        // Spacer after config
-        auto* spacer_config = lv_obj_create(psramContainer);
-        lv_obj_set_size(spacer_config, LV_PCT(100), 16);
-        lv_obj_set_style_bg_opa(spacer_config, 0, 0);
-        lv_obj_set_style_border_width(spacer_config, 0, 0);
-
-        // Known PSRAM consumers header
-        auto* consumers_label = lv_label_create(psramContainer);
-        lv_label_set_text(consumers_label, "PSRAM Allocation Strategy");
-        lv_obj_set_style_pad_bottom(consumers_label, 8, 0);
-
-        // Explain what's in PSRAM
-        auto* strategy_note = lv_label_create(psramContainer);
-        lv_label_set_text(strategy_note, "Apps don't pre-allocate to PSRAM.\nThey use LVGL dynamic allocation:");
-        lv_obj_set_style_text_color(strategy_note, lv_palette_main(LV_PALETTE_GREY), 0);
-
-        // List what automatically goes to PSRAM
-        auto* lvgl_label = lv_label_create(psramContainer);
-        lv_label_set_text(lvgl_label, "• All LVGL widgets (buttons, labels, etc.)");
-
-        auto* framebuffer_label = lv_label_create(psramContainer);
-        lv_label_set_text(framebuffer_label, "• Display framebuffers");
-
-        auto* wifi_label = lv_label_create(psramContainer);
-        lv_label_set_text(wifi_label, "• WiFi/Network buffers");
-
-        auto* file_label = lv_label_create(psramContainer);
-        lv_label_set_text(file_label, "• File I/O buffers");
-
-        auto* task_label = lv_label_create(psramContainer);
-        lv_label_set_text(task_label, "• Task stacks (when enabled)");
-
-        auto* general_label = lv_label_create(psramContainer);
-        if (threshold >= 1024) {
-            lv_label_set_text_fmt(general_label, "• All allocations >=%d KB", threshold / 1024);
-        } else {
-            lv_label_set_text_fmt(general_label, "• All allocations >=%d bytes", threshold);
-        }
-
-        // Spacer
-        auto* spacer_apps = lv_obj_create(psramContainer);
-        lv_obj_set_size(spacer_apps, LV_PCT(100), 16);
-        lv_obj_set_style_bg_opa(spacer_apps, 0, 0);
-        lv_obj_set_style_border_width(spacer_apps, 0, 0);
-
-        // App behavior explanation
-        auto* app_behavior_label = lv_label_create(psramContainer);
-        lv_label_set_text(app_behavior_label, "App Memory Behavior");
-        lv_obj_set_style_pad_bottom(app_behavior_label, 8, 0);
-
-        auto* app_note1 = lv_label_create(psramContainer);
-        lv_label_set_text(app_note1, "• Apps allocate UI when opened (10-50 KB)");
-
-        auto* app_note2 = lv_label_create(psramContainer);
-        lv_label_set_text(app_note2, "• All app UI goes to PSRAM automatically");
-
-        auto* app_note3 = lv_label_create(psramContainer);
-        lv_label_set_text(app_note3, "• Apps deallocate when closed (no caching)");
-
-        auto* app_note4 = lv_label_create(psramContainer);
-        lv_label_set_text(app_note4, "• One app open at a time = 10-50 KB in PSRAM");
 #endif
     }
 
@@ -583,11 +334,8 @@ class SystemInfoApp final : public App {
 
         // Create tabs
         auto* memory_tab = createTab(tabview, "Memory");
-        auto* psram_tab = createTab(tabview, "PSRAM");
-        auto* cpu_tab = createTab(tabview, "CPU");
         auto* storage_tab = createTab(tabview, "Storage");
         auto* tasks_tab = createTab(tabview, "Tasks");
-        auto* devices_tab = createTab(tabview, "Devices");
         auto* about_tab = createTab(tabview, "About");
 
         // Memory tab content
@@ -596,16 +344,6 @@ class SystemInfoApp final : public App {
         hasExternalMem = getSpiTotal() > 0;
         if (hasExternalMem) {
             externalMemBar = createMemoryBar(memory_tab, "External");
-        }
-
-        // PSRAM tab content (only if PSRAM exists)
-        if (hasExternalMem) {
-            psramContainer = lv_obj_create(psram_tab);
-            lv_obj_set_size(psramContainer, LV_PCT(100), LV_SIZE_CONTENT);
-            lv_obj_set_style_pad_all(psramContainer, 8, LV_STATE_DEFAULT);
-            lv_obj_set_style_border_width(psramContainer, 0, LV_STATE_DEFAULT);
-            lv_obj_set_flex_flow(psramContainer, LV_FLEX_FLOW_COLUMN);
-            lv_obj_set_style_bg_opa(psramContainer, 0, LV_STATE_DEFAULT);
         }
 
 #ifdef ESP_PLATFORM
@@ -632,26 +370,6 @@ class SystemInfoApp final : public App {
 #endif
 
 #if configUSE_TRACE_FACILITY
-        // CPU tab - summary at top
-        cpuSummaryLabel = lv_label_create(cpu_tab);
-        lv_label_set_text(cpuSummaryLabel, "Overall CPU Usage: --.-%");
-        lv_obj_set_style_pad_bottom(cpuSummaryLabel, 4, 0);
-        
-        taskCountLabel = lv_label_create(cpu_tab);
-        lv_label_set_text(taskCountLabel, "Active Tasks: --.-%");
-        
-        uptimeLabel = lv_label_create(cpu_tab);
-        lv_label_set_text(uptimeLabel, "System Uptime: --.-%");
-        lv_obj_set_style_pad_bottom(uptimeLabel, 8, 0);
-        
-        // CPU tab - container for task list (dynamic updates)
-        cpuContainer = lv_obj_create(cpu_tab);
-        lv_obj_set_size(cpuContainer, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(cpuContainer, 8, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(cpuContainer, 0, LV_STATE_DEFAULT);
-        lv_obj_set_flex_flow(cpuContainer, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_bg_opa(cpuContainer, 0, LV_STATE_DEFAULT);
-
         // Tasks tab - container for dynamic updates
         tasksContainer = lv_obj_create(tasks_tab);
         lv_obj_set_size(tasksContainer, LV_PCT(100), LV_SIZE_CONTENT);
@@ -661,8 +379,6 @@ class SystemInfoApp final : public App {
         lv_obj_set_style_bg_opa(tasksContainer, 0, LV_STATE_DEFAULT);
 #endif
 
-        addDevices(devices_tab);
-
         // Build info
         auto* tactility_version = lv_label_create(about_tab);
         lv_label_set_text_fmt(tactility_version, "Tactility v%s", TT_VERSION);
@@ -671,14 +387,18 @@ class SystemInfoApp final : public App {
         lv_label_set_text_fmt(esp_idf_version, "ESP-IDF v%d.%d.%d", ESP_IDF_VERSION_MAJOR, ESP_IDF_VERSION_MINOR, ESP_IDF_VERSION_PATCH);
 #endif
 
+        auto* device_vendor = lv_label_create(about_tab);
+        lv_label_set_text_fmt(device_vendor, "Hardware vendor: %s", CONFIG_TT_DEVICE_VENDOR);
+        auto* device_device_name = lv_label_create(about_tab);
+        lv_label_set_text_fmt(device_device_name, "Hardware model: %s", CONFIG_TT_DEVICE_NAME_SIMPLE);
+
         // Initial updates
         updateMemory();
         updateStorage();  // Storage: one-time update on show (doesn't change frequently)
         updateTasks();
-        updatePsram();    // PSRAM: detailed breakdown
 
         // Start timers (only run while app is visible, stopped in onHide)
-        memoryTimer.start();   // Memory & PSRAM: every 10s
+        memoryTimer.start();   // Memory: every 10s
         tasksTimer.start();    // Tasks/CPU: every 15s
     }
 

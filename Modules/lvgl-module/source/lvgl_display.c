@@ -51,9 +51,13 @@ struct LvglDisplayCtx {
 
 static void* lvgl_display_alloc_buffer(size_t size_bytes) {
 #ifdef ESP_PLATFORM
-    void* buf = heap_caps_aligned_alloc(4, size_bytes, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+    // Must match LV_DRAW_BUF_ALIGN (can be > 4 - e.g. 64, tied to the cache line size for
+    // DMA2D/PPA coherency on some targets - see sdkconfig's CONFIG_LV_DRAW_BUF_ALIGN). A buffer
+    // allocated less strictly than that fails lv_display_set_buffers()'s alignment assert, which
+    // is configured to LV_ASSERT_HANDLER (while(1);) rather than a clean abort - i.e. a silent hang.
+    void* buf = heap_caps_aligned_alloc(LV_DRAW_BUF_ALIGN, size_bytes, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
     if (buf == NULL) {
-        buf = heap_caps_aligned_alloc(4, size_bytes, MALLOC_CAP_DEFAULT);
+        buf = heap_caps_aligned_alloc(LV_DRAW_BUF_ALIGN, size_bytes, MALLOC_CAP_DEFAULT);
     }
     return buf;
 #else
@@ -173,7 +177,13 @@ static void* lvgl_display_fb_base(struct LvglDisplayCtx* ctx, const uint8_t* col
     uint32_t area_size_px = (uint32_t)(x2 - x1 + 1) * (uint32_t)(y2 - y1 + 1);
 
     lv_display_rotation_t rotation = lv_display_get_rotation(disp);
-    if (ctx->sw_rotate && rotation != LV_DISPLAY_ROTATION_0) {
+    bool rotating = ctx->sw_rotate && rotation != LV_DISPLAY_ROTATION_0;
+
+    // In FULL mode, a refresh cycle can call this once per still-unjoined invalidated area (see
+    // the comment below) before the frame is complete - rotating per-tile here would only ever
+    // reflect the last tile written, not the accumulated whole frame. Rotate the whole buffer in
+    // one shot instead, right before presenting (see the FULL-mode branch below).
+    if (rotating && ctx->render_mode != LV_DISPLAY_RENDER_MODE_FULL) {
         // sw_rotate is only ever requested for displays lacking real HW mirror/swap_xy capability
         // (see lvgl_devices.c), and lvgl_display_add() only binds fb-direct (owns_buffers == false)
         // when that capability is present - so this is always the owns_buffers == true case.
@@ -227,6 +237,21 @@ static void* lvgl_display_fb_base(struct LvglDisplayCtx* ctx, const uint8_t* col
             }
             uint16_t hres = display_get_resolution_x(ctx->device);
             uint16_t vres = display_get_resolution_y(ctx->device);
+
+            if (rotating) {
+                // fb_base now holds the whole completed frame, but still in LVGL's *logical*
+                // (rotated) w/h - rotate it as one block into rotate_buf, matching the panel's
+                // fixed physical w/h, before presenting.
+                lv_color_format_t color_format = lv_display_get_color_format(disp);
+                bool swapped_wh = rotation == LV_DISPLAY_ROTATION_90 || rotation == LV_DISPLAY_ROTATION_270;
+                int32_t logical_w = swapped_wh ? (int32_t)vres : (int32_t)hres;
+                int32_t logical_h = swapped_wh ? (int32_t)hres : (int32_t)vres;
+                uint32_t src_stride = lv_draw_buf_width_to_stride(logical_w, color_format);
+                uint32_t dest_stride = lv_draw_buf_width_to_stride(hres, color_format);
+                lv_draw_sw_rotate(fb_base, ctx->rotate_buf, logical_w, logical_h, src_stride, dest_stride, rotation, color_format);
+                fb_base = (uint8_t*)ctx->rotate_buf;
+            }
+
             display_draw_bitmap(ctx->device, 0, 0, hres, vres, fb_base);
         }
     } else if (ctx->owns_buffers) {

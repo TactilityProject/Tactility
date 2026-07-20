@@ -3,3 +3,16 @@ description: M5Stack M5PM1 Power Management IC
 include: ["i2c-device.yaml"]
 
 compatible: "m5stack,m5pm1"
+
+properties:
+  power-supply-reference-voltage-mv:
+    type: int
+    default: 4200
+    description: Battery voltage (in mV) considered 100% capacity, used to compute POWER_SUPPLY_PROP_CAPACITY
+  speaker-amp-enable-at-boot:
+    type: boolean
+    default: false
+    description: >
+      Enable the speaker amplifier (PM1_G3) at driver start. Off by default -- the pin is
+      configured but left low -- to avoid a pop and needless power draw before audio starts;
+      boards without dynamic amp control from their audio path can turn this on.

@@ -4,4 +4,6 @@ dependencies:
   - Drivers/m5pm1-module
   - Drivers/es8311-module
   - Drivers/audio-stream-module
+  - Drivers/st7789-module
+  - Drivers/button-control-module
 dts: m5stack,sticks3.dts

@@ -13,6 +13,10 @@ extern "C" {
 
 struct M5pm1Config {
     uint8_t address;
+    /** Battery voltage (mV) considered 100% capacity, used to derive POWER_SUPPLY_PROP_CAPACITY */
+    uint32_t power_supply_reference_voltage_mv;
+    /** Enable the speaker amplifier (PM1_G3) at driver start, instead of leaving it low */
+    bool speaker_amp_enable_at_boot;
 };
 
 // ---------------------------------------------------------------------------

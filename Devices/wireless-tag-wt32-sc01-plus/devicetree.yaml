@@ -1,3 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/ft6x36-module
+  - Drivers/st7796-i8080-module
 dts: wireless-tag,wt32-sc01-plus.dts

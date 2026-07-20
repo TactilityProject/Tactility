@@ -128,8 +128,8 @@ extern const AppManifest manifest = {
     .appId = "PowerOff",
     .appName = "Power Off",
     .appIcon = LVGL_ICON_SHARED_POWER_SETTINGS_NEW,
-    .appCategory = Category::Settings,
-    .appFlags = AppManifest::Flags::HideStatusBar,
+    .appCategory = Category::System,
+    .appFlags = AppManifest::Flags::HideStatusBar | AppManifest::Flags::Hidden,
     .createApp = create<PowerOffApp>
 };
 

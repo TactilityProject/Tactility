@@ -8,6 +8,10 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/gpio_hog.h>
+#include <bindings/ch422g.h>
+#include <bindings/gt911.h>
+#include <bindings/rgb_display.h>
 
 / {
 	compatible = "root";
@@ -34,6 +38,36 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 8 GPIO_FLAG_PULL_UP>;
 		pin-scl = <&gpio0 9 GPIO_FLAG_PULL_UP>;
+
+		ch422g {
+			compatible = "wch,ch422g";
+			reg = <0x24>;
+
+			pin1_hog {
+				compatible = "gpio-hog";
+				pin = <&ch422g 1 GPIO_FLAG_NONE>;
+				mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+			};
+
+			pin2_hog {
+				compatible = "gpio-hog";
+				pin = <&ch422g 2 GPIO_FLAG_NONE>;
+				mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+			};
+
+			pin3_hog {
+				compatible = "gpio-hog";
+				pin = <&ch422g 3 GPIO_FLAG_NONE>;
+				mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+			};
+		};
+
+		touch0 {
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <800>;
+			y-max = <480>;
+		};
 	};
 
 	spi0 {
@@ -48,6 +82,43 @@
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;
 		};
+	};
+
+	display0 {
+		compatible = "espressif,esp32-rgb-display";
+		horizontal-resolution = <800>;
+		vertical-resolution = <480>;
+		pixel-clock-hz = <16000000>;
+		hsync-pulse-width = <4>;
+		hsync-back-porch = <8>;
+		hsync-front-porch = <8>;
+		vsync-pulse-width = <4>;
+		vsync-back-porch = <8>;
+		vsync-front-porch = <8>;
+		pclk-active-neg;
+		num-fbs = <2>;
+		double-fb;
+		bounce-buffer-size-px = <8000>;
+		pin-hsync = <&gpio0 46 GPIO_FLAG_NONE>;
+		pin-vsync = <&gpio0 3 GPIO_FLAG_NONE>;
+		pin-de = <&gpio0 5 GPIO_FLAG_NONE>;
+		pin-pclk = <&gpio0 7 GPIO_FLAG_NONE>;
+		pin-data0 = <&gpio0 14 GPIO_FLAG_NONE>; // B3
+		pin-data1 = <&gpio0 38 GPIO_FLAG_NONE>; // B4
+		pin-data2 = <&gpio0 18 GPIO_FLAG_NONE>; // B5
+		pin-data3 = <&gpio0 17 GPIO_FLAG_NONE>; // B6
+		pin-data4 = <&gpio0 10 GPIO_FLAG_NONE>; // B7
+		pin-data5 = <&gpio0 39 GPIO_FLAG_NONE>; // G2
+		pin-data6 = <&gpio0 0 GPIO_FLAG_NONE>; // G3
+		pin-data7 = <&gpio0 45 GPIO_FLAG_NONE>; // G4
+		pin-data8 = <&gpio0 48 GPIO_FLAG_NONE>; // G5
+		pin-data9 = <&gpio0 47 GPIO_FLAG_NONE>; // G6
+		pin-data10 = <&gpio0 21 GPIO_FLAG_NONE>; // G7
+		pin-data11 = <&gpio0 1 GPIO_FLAG_NONE>; // R3
+		pin-data12 = <&gpio0 2 GPIO_FLAG_NONE>; // R4
+		pin-data13 = <&gpio0 42 GPIO_FLAG_NONE>; // R5
+		pin-data14 = <&gpio0 41 GPIO_FLAG_NONE>; // R6
+		pin-data15 = <&gpio0 40 GPIO_FLAG_NONE>; // R7
 	};
 
 	uart1 {

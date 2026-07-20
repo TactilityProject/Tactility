@@ -10,3 +10,16 @@ properties:
     required: true
     # shunt value should be a minimum of 1
     description: Shunt resistor value in milliohms
+  power-supply:
+    type: boolean
+    default: false
+    description: Expose a power-supply device that reports battery voltage/capacity read from the INA226's bus voltage input
+  power-supply-reference-voltage-mv:
+    type: int
+    default: 4200
+    description: Battery voltage (in mV) considered 100% capacity, used to compute POWER_SUPPLY_PROP_CAPACITY
+  power-supply-min-voltage-mv:
+    type: int
+    default: 3200
+    description: Battery voltage (in mV) considered 0% capacity, used to compute POWER_SUPPLY_PROP_CAPACITY.
+      Depends on the pack's cell count - the default is a rough 1S LiPo floor.

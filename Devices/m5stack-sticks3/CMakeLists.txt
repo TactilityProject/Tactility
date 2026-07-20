@@ -1,7 +1,7 @@
-file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
+file(GLOB_RECURSE SOURCE_FILES source/*.c*)
 
 idf_component_register(
     SRCS ${SOURCE_FILES}
-    INCLUDE_DIRS "Source"
-    REQUIRES Tactility esp_lvgl_port esp_lcd ST7789 PwmBacklight ButtonControl vfs fatfs m5pm1-module
+    INCLUDE_DIRS "source"
+    REQUIRES TactilityKernel
 )

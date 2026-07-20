@@ -6,10 +6,13 @@
 #include <tactility/bindings/esp32_grove.h>
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
 #include <tactility/bindings/esp32_sdmmc.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_usbhost.h>
 #include <tactility/bindings/esp32_wifi.h>
+#include <tactility/bindings/gpio_hog.h>
+#include <tactility/bindings/pwm_backlight.h>
 #include <bindings/bmi270.h>
 #include <bindings/es7210.h>
 #include <bindings/es8388.h>
@@ -37,6 +40,19 @@
 		gpio-count = <57>;
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 22 GPIO_FLAG_NONE>;
+		period-ns = <200000>; // 5000 Hz
+		ledc-timer = <1>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		pwm = <&display_backlight_pwm>;
+	};
+
 	// Declared before i2c0 so it starts before the es8388/es7210 codecs that reference it
 	i2s0 {
 		compatible = "espressif,esp32-i2s";
@@ -55,12 +71,12 @@
 		pin-sda = <&gpio0 31 GPIO_FLAG_PULL_UP>;
 		pin-scl = <&gpio0 32 GPIO_FLAG_PULL_UP>;
 
-		io_expander0 {
+		io_expander0: io_expander0 {
 			compatible = "diodes,pi4ioe5v6408";
 			reg = <0x43>;
 		};
 
-		io_expander1 {
+		io_expander1: io_expander1 {
 			compatible = "diodes,pi4ioe5v6408";
 			reg = <0x44>;
 		};
@@ -98,12 +114,52 @@
 			compatible = "ti,ina226";
 			reg = <0x41>;
 			shunt-milliohms = <5>;
+			// 2S NP-F550 pack
+			power-supply;
+			power-supply-reference-voltage-mv = <8400>;
+			power-supply-min-voltage-mv = <6400>;
 		};
 
 		sc2356 {
 			compatible = "smartsens,sc2356";
 			reg = <0x36>;
 		};
+	};
+
+	exp0_rf_internal_external {
+		compatible = "gpio-hog";
+		pin = <&io_expander0 0 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
+	exp0_external_5v_bus_enable {
+		compatible = "gpio-hog";
+		pin = <&io_expander0 2 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	exp0_camera_reset {
+		compatible = "gpio-hog";
+		pin = <&io_expander0 6 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	exp1_c6_wlan_enable {
+		compatible = "gpio-hog";
+		pin = <&io_expander1 0 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	exp1_usb_a_5v_enable {
+		compatible = "gpio-hog";
+		pin = <&io_expander1 3 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	exp1_ip2326_chg_stat_led {
+		compatible = "gpio-hog";
+		pin = <&io_expander1 6 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
 	};
 
 	port_a: grove0 {
@@ -145,17 +201,14 @@
 
 		usbhosthid0 {
 			compatible = "espressif,esp32-usbhost-hid";
-			//status = "disabled";
 		};
 
 		usbhostmidi0 {
 			compatible = "espressif,esp32-usbhost-midi";
-			//status = "disabled";
 		};
 
 		usbhostmsc0 {
 			compatible = "espressif,esp32-usbhost-msc";
-			//status = "disabled";
 		};
 	};
 };

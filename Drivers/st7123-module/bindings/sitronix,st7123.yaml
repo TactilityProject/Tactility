@@ -1,0 +1,127 @@
+description: >
+  Sitronix ST7123 MIPI-DSI display panel, driven over ESP-IDF's esp_lcd_st7123 component
+  (DPI/DBI interface, ESP32-P4 and other SOC_MIPI_DSI_SUPPORTED targets only). Owns the MIPI DSI
+  PHY LDO channel and DSI bus directly, so unlike SPI/RGB panels it has no parent bus controller
+  device.
+
+compatible: "sitronix,st7123"
+
+properties:
+  horizontal-resolution:
+    type: int
+    required: true
+    description: Horizontal resolution in pixels
+  vertical-resolution:
+    type: int
+    required: true
+    description: Vertical resolution in pixels
+  bits-per-pixel:
+    type: int
+    default: 16
+    description: Color depth in bits per pixel (16, 18 or 24)
+  bgr-order:
+    type: boolean
+    default: false
+    description: Use BGR element order instead of RGB
+  invert-color:
+    type: boolean
+    default: false
+    description: Invert the panel's color output
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Reset GPIO pin. Falls back to a software reset (sent over the DBI command
+      interface) if not set.
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high
+  ldo-channel:
+    type: int
+    required: true
+    description: LDO channel index powering the MIPI DSI PHY (chan_id in esp_ldo_channel_config_t)
+  ldo-voltage-mv:
+    type: int
+    required: true
+    description: Voltage to supply to the MIPI DSI PHY LDO channel, in mV
+  dsi-bus-id:
+    type: int
+    default: 0
+    description: Which DSI controller to use, index from 0
+  num-data-lanes:
+    type: int
+    default: 2
+    description: Number of MIPI DSI data lanes. 0 falls back to the maximum available.
+  lane-bit-rate-mbps:
+    type: int
+    required: true
+    description: MIPI DSI lane bit rate, in Mbps
+  dpi-clock-freq-mhz:
+    type: int
+    required: true
+    description: MIPI DPI clock frequency, in MHz
+  hsync-pulse-width:
+    type: int
+    required: true
+    description: Horizontal sync width, in PCLK periods
+  hsync-back-porch:
+    type: int
+    required: true
+    description: Number of PCLK periods between hsync and the start of line active data
+  hsync-front-porch:
+    type: int
+    required: true
+    description: Number of PCLK periods between the end of active data and the next hsync
+  vsync-pulse-width:
+    type: int
+    required: true
+    description: Vertical sync width, in lines
+  vsync-back-porch:
+    type: int
+    required: true
+    description: Number of invalid lines between vsync and the start of the frame
+  vsync-front-porch:
+    type: int
+    required: true
+    description: Number of invalid lines between the end of the frame and the next vsync
+  num-fbs:
+    type: int
+    default: 1
+    description: Number of screen-sized frame buffers to allocate (0 or 1 = single-buffered)
+  use-dma2d:
+    type: boolean
+    default: true
+    description: Use DMA2D to copy user buffers into the frame buffer when necessary (only
+      meaningful on SOC_DMA2D_SUPPORTED targets - must be false otherwise)
+  disable-lp:
+    type: boolean
+    default: false
+    description: Disable MIPI DSI low-power mode
+  allow-tearing:
+    type: boolean
+    default: false
+    description: By default, when draw_bitmap's color_data is one of the panel's own frame
+      buffers (i.e. LVGL is bound directly onto them), draw_bitmap waits for a full scan-out to
+      complete before returning so the caller can't start overwriting a buffer still being
+      displayed. Set this to trade away that tear-free guarantee for lower latency (e.g. when
+      other tasks occasionally block timing for long enough that waiting causes visible stalls).
+  init-sequence:
+    type: array
+    element-type: uint8_t
+    description: >
+      Custom vendor bring-up sequence, flattened into bytes as a run of
+      [cmd, data-length, delay-ms, data-length bytes of data...] entries, e.g.
+      `init-sequence = [0x11 0 120  0x29 0 20];`.
+      Omit to use the ST7123 component's own built-in default sequence.
+  backlight:
+    type: phandle
+    default: "NULL"
+    description: Optional reference to this display's backlight device

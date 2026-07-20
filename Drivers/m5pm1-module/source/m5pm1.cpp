@@ -1,13 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/m5pm1.h>
 #include <m5pm1_module.h>
+#include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/driver.h>
 #include <tactility/drivers/i2c_controller.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#define TAG "M5PM1"
+#include <new>
+
+constexpr auto* TAG = "M5PM1";
+
+// Rough LiPo discharge curve floor, used together with the configured reference voltage
+// (the 100% point) to estimate a charge percentage from the sensed battery voltage.
+static constexpr uint16_t POWER_SUPPLY_MIN_MV = 3200;
 
 // ---------------------------------------------------------------------------
 // Register map
@@ -58,6 +67,127 @@ static constexpr TickType_t TIMEOUT = pdMS_TO_TICKS(50);
 #define GET_CONFIG(device) (static_cast<const M5pm1Config*>((device)->config))
 
 // ---------------------------------------------------------------------------
+// Power supply child device
+// ---------------------------------------------------------------------------
+
+static int estimate_capacity_from_mv(uint16_t battery_mv, uint32_t reference_mv) {
+    if (battery_mv <= POWER_SUPPLY_MIN_MV) return 0;
+    if (battery_mv >= reference_mv) return 100;
+    return (battery_mv - POWER_SUPPLY_MIN_MV) * 100 / ((int)reference_mv - POWER_SUPPLY_MIN_MV);
+}
+
+static bool ps_supports_property(Device*, PowerSupplyProperty property) {
+    return property == POWER_SUPPLY_PROP_IS_CHARGING ||
+        property == POWER_SUPPLY_PROP_VOLTAGE ||
+        property == POWER_SUPPLY_PROP_CAPACITY;
+}
+
+static error_t ps_get_property(Device* device, PowerSupplyProperty property, PowerSupplyPropertyValue* out_value) {
+    // device_get_parent() here is the m5pm1 device itself (this child's parent), not the I2C bus.
+    auto* parent = device_get_parent(device);
+
+    if (property == POWER_SUPPLY_PROP_IS_CHARGING) {
+        bool charging;
+        error_t error = m5pm1_is_charging(parent, &charging);
+        if (error != ERROR_NONE) return error;
+        out_value->int_value = charging ? 1 : 0;
+        return ERROR_NONE;
+    }
+
+    if (property == POWER_SUPPLY_PROP_VOLTAGE || property == POWER_SUPPLY_PROP_CAPACITY) {
+        uint16_t battery_mv;
+        error_t error = m5pm1_get_battery_voltage(parent, &battery_mv);
+        if (error != ERROR_NONE) return error;
+        out_value->int_value = (property == POWER_SUPPLY_PROP_VOLTAGE)
+            ? battery_mv
+            : estimate_capacity_from_mv(battery_mv, GET_CONFIG(parent)->power_supply_reference_voltage_mv);
+        return ERROR_NONE;
+    }
+
+    return ERROR_NOT_SUPPORTED;
+}
+
+static bool ps_supports_charge_control(Device*) { return false; }
+static bool ps_is_allowed_to_charge(Device*) { return false; }
+static error_t ps_set_allowed_to_charge(Device*, bool) { return ERROR_NOT_SUPPORTED; }
+static bool ps_supports_quick_charge(Device*) { return false; }
+static bool ps_is_quick_charge_enabled(Device*) { return false; }
+static error_t ps_set_quick_charge_enabled(Device*, bool) { return ERROR_NOT_SUPPORTED; }
+static bool ps_supports_power_off(Device*) { return true; }
+static error_t ps_power_off(Device* device) { return m5pm1_shutdown(device_get_parent(device)); }
+
+static constexpr PowerSupplyApi M5PM1_POWER_SUPPLY_API = {
+    .supports_property = ps_supports_property,
+    .get_property = ps_get_property,
+    .supports_charge_control = ps_supports_charge_control,
+    .is_allowed_to_charge = ps_is_allowed_to_charge,
+    .set_allowed_to_charge = ps_set_allowed_to_charge,
+    .supports_quick_charge = ps_supports_quick_charge,
+    .is_quick_charge_enabled = ps_is_quick_charge_enabled,
+    .set_quick_charge_enabled = ps_set_quick_charge_enabled,
+    .supports_power_off = ps_supports_power_off,
+    .power_off = ps_power_off,
+};
+
+// Registered (driver_construct_add() in module.cpp) so driver_bind() has a valid ->internal,
+// but never matched against a devicetree node: m5pm1_driver wires it up directly by pointer.
+Driver m5pm1_power_supply_driver = {
+    .name = "m5pm1-power-supply",
+    .compatible = (const char*[]) { "m5pm1-power-supply", nullptr },
+    .start_device = nullptr,
+    .stop_device = nullptr,
+    .api = &M5PM1_POWER_SUPPLY_API,
+    .device_type = &POWER_SUPPLY_TYPE,
+    .owner = &m5pm1_module,
+    .internal = nullptr
+};
+
+struct M5pm1Internal {
+    Device* power_supply_device = nullptr;
+};
+
+static error_t create_power_supply_child(Device* parent, Device*& out_child) {
+    auto* child = new(std::nothrow) Device { .address = 0, .name = "m5pm1-power-supply", .config = nullptr, .parent = nullptr, .internal = nullptr };
+    if (child == nullptr) {
+        return ERROR_OUT_OF_MEMORY;
+    }
+
+    error_t error = device_construct(child);
+    if (error != ERROR_NONE) {
+        delete child;
+        return error;
+    }
+
+    device_set_parent(child, parent);
+    device_set_driver(child, &m5pm1_power_supply_driver);
+
+    error = device_add(child);
+    if (error != ERROR_NONE) {
+        device_destruct(child);
+        delete child;
+        return error;
+    }
+
+    error = device_start(child);
+    if (error != ERROR_NONE) {
+        device_remove(child);
+        device_destruct(child);
+        delete child;
+        return error;
+    }
+
+    out_child = child;
+    return ERROR_NONE;
+}
+
+static void destroy_power_supply_child(Device* child) {
+    check(device_stop(child) == ERROR_NONE);
+    check(device_remove(child) == ERROR_NONE);
+    check(device_destruct(child) == ERROR_NONE);
+    delete child;
+}
+
+// ---------------------------------------------------------------------------
 // Driver lifecycle
 // ---------------------------------------------------------------------------
 
@@ -82,6 +212,19 @@ static error_t start(Device* device) {
         }
         vTaskDelay(pdMS_TO_TICKS(20 * (attempt + 1)));
     }
+
+    auto* internal = new(std::nothrow) M5pm1Internal();
+    if (internal == nullptr) {
+        return ERROR_OUT_OF_MEMORY;
+    }
+
+    error_t error = create_power_supply_child(device, internal->power_supply_device);
+    if (error != ERROR_NONE) {
+        delete internal;
+        return error;
+    }
+
+    device_set_driver_data(device, internal);
 
     if (!awake) {
         LOG_E(TAG, "M5PM1 not responding — LCD power will not be enabled");
@@ -126,10 +269,22 @@ static error_t start(Device* device) {
         LOG_W(TAG, "Failed to configure speaker amp pin");
     }
 
+    if (spk_ok && GET_CONFIG(device)->speaker_amp_enable_at_boot) {
+        if (i2c_controller_register8_set_bits(i2c, addr, REG_GPIO_OUT, SPEAKER_AMP_BIT, TIMEOUT) == ERROR_NONE) {
+            LOG_I(TAG, "Speaker amp enabled at boot");
+        } else {
+            LOG_W(TAG, "Failed to enable speaker amp at boot");
+        }
+    }
+
     return ERROR_NONE;
 }
 
 static error_t stop(Device* device) {
+    auto* internal = static_cast<M5pm1Internal*>(device_get_driver_data(device));
+    destroy_power_supply_child(internal->power_supply_device);
+    device_set_driver_data(device, nullptr);
+    delete internal;
     return ERROR_NONE;
 }
 

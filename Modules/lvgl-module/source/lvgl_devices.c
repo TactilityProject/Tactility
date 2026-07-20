@@ -35,8 +35,17 @@ void lvgl_devices_attach() {
             color_format == DISPLAY_COLOR_FORMAT_BGR565;
         bool display_requires_full_frame = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME);
         display_updates_slowly = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_SLOW_REFRESH);
+        // Without CAP_SWAP_XY the driver can't rotate 90/270 in hardware (display_swap_xy() is
+        // null and silently skipped by lvgl_display_apply_rotation()) - LVGL would still switch
+        // its own logical w/h for those rotations, mismatching the panel's fixed physical
+        // orientation (e.g. RGB/DPI panels, whose video timing is fixed at panel-init time).
+        // sw_rotate makes LVGL rotate the rendered pixels in software instead, so the driver
+        // itself is never asked to do something it can't.
+        bool can_hw_rotate = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_CAP_SWAP_XY) &&
+            display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_CAP_MIRROR);
         struct LvglDisplayConfig lvgl_display_config = {
             .buffer_height = vres > 10 ? vres / 10 : vres,
+            .sw_rotate = !can_hw_rotate,
             .swap_bytes = swap_bytes,
             .force_full_frame = display_requires_full_frame
         };
