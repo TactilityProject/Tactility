@@ -7,5 +7,5 @@ file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
 tactility_add_module(jd9853-module
     SRCS ${SOURCE_FILES}
     INCLUDE_DIRS include/
-    REQUIRES TactilityKernel platform-esp32 JD9853 esp_lcd driver
+    REQUIRES TactilityKernel platform-esp32 esp_lcd
 )

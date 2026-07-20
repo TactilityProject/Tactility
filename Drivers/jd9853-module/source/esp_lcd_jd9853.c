@@ -1,5 +1,5 @@
+#include <esp_lcd_jd9853.h>
 #include <stdio.h>
-#include "esp_lcd_jd9853.h"
 /*
  * SPDX-FileCopyrightText: 2022-2023 Espressif Systems (Shanghai) CO LTD
  *
@@ -8,16 +8,16 @@
 
 #include <stdlib.h>
 #include <sys/cdefs.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_lcd_panel_interface.h"
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_vendor.h"
-#include "esp_lcd_panel_ops.h"
-#include "esp_lcd_panel_commands.h"
-#include "driver/gpio.h"
-#include "esp_log.h"
-#include "esp_check.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_lcd_panel_interface.h>
+#include <esp_lcd_panel_io.h>
+#include <esp_lcd_panel_vendor.h>
+#include <esp_lcd_panel_ops.h>
+#include <esp_lcd_panel_commands.h>
+#include <driver/gpio.h>
+#include <esp_log.h>
+#include <esp_check.h>
 
 static const char *TAG = "JD9853";
 
