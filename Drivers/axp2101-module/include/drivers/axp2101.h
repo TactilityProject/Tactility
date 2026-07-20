@@ -15,6 +15,29 @@ extern "C" {
 struct Axp2101Config {
     /** Address on bus */
     uint8_t address;
+    /** LDOx output voltage in mV, applied at driver start when non-zero, independently of the
+     *  matching xEnabled flag. 0 leaves the channel's voltage untouched. Field order here MUST
+     *  match the property order in bindings/x-powers,axp2101.yaml: the devicetree compiler
+     *  emits positional (non-designated) initializers, so a mismatch silently shifts every
+     *  value into the wrong field. */
+    uint16_t aldo1_millivolt;
+    bool aldo1_enabled;
+    uint16_t aldo2_millivolt;
+    bool aldo2_enabled;
+    uint16_t aldo3_millivolt;
+    bool aldo3_enabled;
+    uint16_t aldo4_millivolt;
+    bool aldo4_enabled;
+    uint16_t bldo1_millivolt;
+    bool bldo1_enabled;
+    uint16_t bldo2_millivolt;
+    bool bldo2_enabled;
+    uint16_t cpusldo_millivolt;
+    bool cpusldo_enabled;
+    uint16_t dldo1_millivolt;
+    bool dldo1_enabled;
+    uint16_t dldo2_millivolt;
+    bool dldo2_enabled;
 };
 
 /** Switchable/adjustable DCDC (buck) converters of the AXP2101. */

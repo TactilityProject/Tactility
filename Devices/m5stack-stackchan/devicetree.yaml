@@ -5,6 +5,9 @@ dependencies:
   - Drivers/ina226-module
   - Drivers/py32ioexpander-module
   - Drivers/aw9523b-module
+  - Drivers/axp2101-module
+  - Drivers/ft6x36-module
+  - Drivers/ili9341-module
   - Drivers/aw88298-module
   - Drivers/es7210-module
   - Drivers/audio-stream-module

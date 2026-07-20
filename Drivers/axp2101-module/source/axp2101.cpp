@@ -49,15 +49,24 @@ struct Axp2101VoltRange {
     uint8_t code_base;
 };
 
+/** Validates millivolts against a single known range and encodes it. No search: caller has
+ *  already picked which range applies (e.g. by channel). */
+static error_t encode_single_range(uint16_t millivolts, const Axp2101VoltRange& range, uint8_t* out_code) {
+    if (millivolts < range.min || millivolts > range.max || (millivolts - range.min) % range.step != 0U) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    *out_code = static_cast<uint8_t>(range.code_base + (millivolts - range.min) / range.step);
+    return ERROR_NONE;
+}
+
+/** Finds which of several (possibly non-contiguous) sub-ranges of a single channel contains
+ *  millivolts, and encodes it. Only meaningful when ranges all belong to the SAME channel
+ *  (e.g. DCDC3's three piecewise sub-ranges) - never pass ranges from different channels,
+ *  since their spans can legitimately overlap and this would silently pick the first match. */
 static error_t encode_ranged_voltage(uint16_t millivolts, const Axp2101VoltRange* ranges, size_t range_count, uint8_t* out_code) {
     for (size_t i = 0; i < range_count; i++) {
-        const Axp2101VoltRange& range = ranges[i];
-        if (millivolts >= range.min && millivolts <= range.max) {
-            if ((millivolts - range.min) % range.step != 0U) {
-                return ERROR_INVALID_ARGUMENT;
-            }
-            *out_code = static_cast<uint8_t>(range.code_base + (millivolts - range.min) / range.step);
-            return ERROR_NONE;
+        if (millivolts >= ranges[i].min && millivolts <= ranges[i].max) {
+            return encode_single_range(millivolts, ranges[i], out_code);
         }
     }
     return ERROR_INVALID_ARGUMENT;
@@ -253,8 +262,9 @@ error_t axp2101_set_ldo_voltage(Device* device, Axp2101Ldo ldo, uint16_t millivo
     };
 
     uint8_t code;
-    error_t err = encode_ranged_voltage(millivolts, &LDO_RANGE[ldo], 1, &code);
+    error_t err = encode_single_range(millivolts, LDO_RANGE[ldo], &code);
     if (err != ERROR_NONE) {
+        LOG_E(TAG, "Failed to encode");
         return err;
     }
 
@@ -516,6 +526,43 @@ static error_t start(Device* device) {
     if (error != ERROR_NONE) {
         LOG_W(TAG, "Failed to enable battery/VBUS ADC channels");
         return error;
+    }
+
+    // All 9 LDO channels: each is only touched when BOTH its voltage is set (non-zero) AND its
+    // matching xEnabled flag is set - boards that need it enable/voltage-set the channel via
+    // config instead of per-board imperative code. Order matches enum Axp2101Ldo.
+    static constexpr Axp2101Ldo LDO_CHANNELS[9] = {
+        AXP2101_ALDO1, AXP2101_ALDO2, AXP2101_ALDO3, AXP2101_ALDO4,
+        AXP2101_BLDO1, AXP2101_BLDO2, AXP2101_CPUSLDO, AXP2101_DLDO1, AXP2101_DLDO2,
+    };
+    static constexpr const char* LDO_NAMES[9] = {
+        "ALDO1", "ALDO2", "ALDO3", "ALDO4", "BLDO1", "BLDO2", "CPUSLDO", "DLDO1", "DLDO2",
+    };
+    const auto* config = GET_CONFIG(device);
+    const uint16_t ldo_millivolts[9] = {
+        config->aldo1_millivolt, config->aldo2_millivolt, config->aldo3_millivolt, config->aldo4_millivolt,
+        config->bldo1_millivolt, config->bldo2_millivolt, config->cpusldo_millivolt,
+        config->dldo1_millivolt, config->dldo2_millivolt,
+    };
+    const bool ldo_enabled[9] = {
+        config->aldo1_enabled, config->aldo2_enabled, config->aldo3_enabled, config->aldo4_enabled,
+        config->bldo1_enabled, config->bldo2_enabled, config->cpusldo_enabled,
+        config->dldo1_enabled, config->dldo2_enabled,
+    };
+    for (size_t i = 0; i < 9; i++) {
+        if (ldo_millivolts[i] != 0) {
+            if (axp2101_set_ldo_voltage(device, LDO_CHANNELS[i], ldo_millivolts[i]) != ERROR_NONE) {
+                LOG_E(TAG, "Failed to set %s voltage", LDO_NAMES[i]);
+                return ERROR_RESOURCE;
+            }
+        }
+
+        if (ldo_enabled[i]) {
+            if (axp2101_set_ldo_enabled(device, LDO_CHANNELS[i], true) != ERROR_NONE) {
+                LOG_E(TAG, "Failed to enable %s", LDO_NAMES[i]);
+                return ERROR_RESOURCE;
+            }
+        }
     }
 
     auto* internal = new(std::nothrow) Axp2101Internal();

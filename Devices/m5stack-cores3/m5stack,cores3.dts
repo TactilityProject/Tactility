@@ -69,6 +69,16 @@
 		axp2101: axp2101 {
 			compatible = "x-powers,axp2101";
 			reg = <0x34>;
+			aldo1-millivolt = <1800>;
+			aldo1-enabled;
+			aldo2-millivolt = <3300>;
+			aldo2-enabled;
+			aldo3-millivolt = <3300>;
+			aldo3-enabled;
+			aldo4-millivolt = <3300>;
+			aldo4-enabled;
+			bldo1-enabled;
+			bldo2-enabled;
 
 			// LCD backlight (DLDO1). Raw register codes [20,28] map to [2500,3300]mV;
 			// below 2500mV the backlight was considered "too dark" to be useful.

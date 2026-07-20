@@ -3,3 +3,86 @@ description: X-Powers AXP2101 power management IC
 include: ["i2c-device.yaml"]
 
 compatible: "x-powers,axp2101"
+
+properties:
+  aldo1-millivolt:
+    type: int
+    default: 0
+    description: ALDO1 output voltage in mV (500-3500, step 100), applied at driver start if
+      non-zero. 0 leaves the channel's voltage untouched.
+  aldo1-enabled:
+    type: boolean
+    default: false
+    description: Enable ALDO1 at driver start.
+  aldo2-millivolt:
+    type: int
+    default: 0
+    description: ALDO2 output voltage in mV (500-3500, step 100), applied at driver start if
+      non-zero. 0 leaves the channel's voltage untouched.
+  aldo2-enabled:
+    type: boolean
+    default: false
+    description: Enable ALDO2 at driver start.
+  aldo3-millivolt:
+    type: int
+    default: 0
+    description: ALDO3 output voltage in mV (500-3500, step 100), applied at driver start if
+      non-zero. 0 leaves the channel's voltage untouched.
+  aldo3-enabled:
+    type: boolean
+    default: false
+    description: Enable ALDO3 at driver start.
+  aldo4-millivolt:
+    type: int
+    default: 0
+    description: ALDO4 output voltage in mV (500-3500, step 100), applied at driver start if
+      non-zero. 0 leaves the channel's voltage untouched.
+  aldo4-enabled:
+    type: boolean
+    default: false
+    description: Enable ALDO4 at driver start.
+  bldo1-millivolt:
+    type: int
+    default: 0
+    description: BLDO1 output voltage in mV (500-3500, step 100), applied at driver start if
+      non-zero. 0 leaves the channel's voltage untouched.
+  bldo1-enabled:
+    type: boolean
+    default: false
+    description: Enable BLDO1 at driver start.
+  bldo2-millivolt:
+    type: int
+    default: 0
+    description: BLDO2 output voltage in mV (500-3500, step 100), applied at driver start if
+      non-zero. 0 leaves the channel's voltage untouched.
+  bldo2-enabled:
+    type: boolean
+    default: false
+    description: Enable BLDO2 at driver start.
+  cpusldo-millivolt:
+    type: int
+    default: 0
+    description: CPUSLDO output voltage in mV (500-1400, step 50), applied at driver start if
+      non-zero. 0 leaves the channel's voltage untouched.
+  cpusldo-enabled:
+    type: boolean
+    default: false
+    description: Enable CPUSLDO at driver start.
+  dldo1-millivolt:
+    type: int
+    default: 0
+    description: DLDO1 output voltage in mV (500-3400, step 100), applied at driver start if
+      non-zero. 0 leaves the channel's voltage untouched.
+  dldo1-enabled:
+    type: boolean
+    default: false
+    description: Enable DLDO1 at driver start.
+  dldo2-millivolt:
+    type: int
+    default: 0
+    description: DLDO2 output voltage in mV (500-3400, step 100), applied at driver start if
+      non-zero. 0 leaves the channel's voltage untouched.
+  dldo2-enabled:
+    type: boolean
+    default: false
+    description: Enable DLDO2 at driver start.
