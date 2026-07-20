@@ -3,5 +3,5 @@ file(GLOB_RECURSE SOURCE_FILES source/*.c*)
 idf_component_register(
     SRCS ${SOURCE_FILES}
     INCLUDE_DIRS "source"
-    REQUIRES TactilityKernel axp2101-module py32ioexpander-module
+    REQUIRES TactilityKernel py32ioexpander-module
 )

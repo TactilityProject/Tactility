@@ -264,7 +264,7 @@ error_t axp2101_set_ldo_voltage(Device* device, Axp2101Ldo ldo, uint16_t millivo
     uint8_t code;
     error_t err = encode_single_range(millivolts, LDO_RANGE[ldo], &code);
     if (err != ERROR_NONE) {
-        LOG_E(TAG, "Failed to encode");
+        LOG_E(TAG, "Failed to encode %u mV", millivolts);
         return err;
     }
 
@@ -528,9 +528,9 @@ static error_t start(Device* device) {
         return error;
     }
 
-    // All 9 LDO channels: each is only touched when BOTH its voltage is set (non-zero) AND its
-    // matching xEnabled flag is set - boards that need it enable/voltage-set the channel via
-    // config instead of per-board imperative code. Order matches enum Axp2101Ldo.
+    // All 9 LDO channels: voltage and enable states are applied independently if configured.
+    // Boards that need it enable/voltage-set the channel via config instead of per-board imperative code.
+    // Order matches enum Axp2101Ldo.
     static constexpr Axp2101Ldo LDO_CHANNELS[9] = {
         AXP2101_ALDO1, AXP2101_ALDO2, AXP2101_ALDO3, AXP2101_ALDO4,
         AXP2101_BLDO1, AXP2101_BLDO2, AXP2101_CPUSLDO, AXP2101_DLDO1, AXP2101_DLDO2,
@@ -551,16 +551,18 @@ static error_t start(Device* device) {
     };
     for (size_t i = 0; i < 9; i++) {
         if (ldo_millivolts[i] != 0) {
-            if (axp2101_set_ldo_voltage(device, LDO_CHANNELS[i], ldo_millivolts[i]) != ERROR_NONE) {
+            error_t err = axp2101_set_ldo_voltage(device, LDO_CHANNELS[i], ldo_millivolts[i]);
+            if (err != ERROR_NONE) {
                 LOG_E(TAG, "Failed to set %s voltage", LDO_NAMES[i]);
-                return ERROR_RESOURCE;
+                return err;
             }
         }
 
         if (ldo_enabled[i]) {
-            if (axp2101_set_ldo_enabled(device, LDO_CHANNELS[i], true) != ERROR_NONE) {
+            error_t err = axp2101_set_ldo_enabled(device, LDO_CHANNELS[i], true);
+            if (err != ERROR_NONE) {
                 LOG_E(TAG, "Failed to enable %s", LDO_NAMES[i]);
-                return ERROR_RESOURCE;
+                return err;
             }
         }
     }

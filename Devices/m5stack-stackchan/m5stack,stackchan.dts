@@ -94,7 +94,7 @@
 
 		// Same rail assignment as CoreS3: ALDO1=AW88298, ALDO2=ES7210, ALDO3=camera
 		// (not yet implemented, but harmless to power), ALDO4=TF/SD card. BLDO1/BLDO2 are
-		// enabled with no specific voltage requirement - see the module's device_listener.
+		// enabled with no specific voltage requirement.
 		axp2101 {
 			compatible = "x-powers,axp2101";
 			reg = <0x34>;
@@ -109,8 +109,6 @@
 			bldo1-enabled;
 			bldo2-enabled;
 
-			// LCD backlight (DLDO1). Raw register codes [20,28] from the deprecated driver
-			// map to [2500,3300]mV.
 			display_backlight: backlight {
 				compatible = "axp2101-backlight";
 				ldo = <AXP2101_DLDO1>;

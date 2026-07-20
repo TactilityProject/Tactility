@@ -1,4 +1,3 @@
-#include <drivers/axp2101.h>
 #include <drivers/py32ioexpander.h>
 
 #include <tactility/check.h>
@@ -7,6 +6,9 @@
 #include <tactility/module.h>
 
 #include <cstring>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 extern "C" {
 
