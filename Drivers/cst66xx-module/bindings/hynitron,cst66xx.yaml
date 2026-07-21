@@ -35,7 +35,3 @@ properties:
     type: phandles
     required: true
     description: Reset GPIO pin. The chip only re-initializes into normal reporting mode after a clean reset pulse.
-  reset-active-high:
-    type: boolean
-    default: false
-    description: Whether the reset pin is active high

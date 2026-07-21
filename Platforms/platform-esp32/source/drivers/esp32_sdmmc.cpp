@@ -84,18 +84,18 @@ static error_t start(Device* device) {
 
     // Acquire pins from the specified GPIO pin specs. Optional pins are allowed.
     bool pins_ok =
-        acquire_pin_or_set_null(sdmmc_config->pin_clk, &data->pin_clk_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_cmd, &data->pin_cmd_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_d0, &data->pin_d0_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_d1, &data->pin_d1_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_d2, &data->pin_d2_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_d3, &data->pin_d3_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_d4, &data->pin_d4_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_d5, &data->pin_d5_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_d6, &data->pin_d6_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_d7, &data->pin_d7_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_cd, &data->pin_cd_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_wp, &data->pin_wp_descriptor);
+        acquire_pin_or_set_null(sdmmc_config->pin_clk, GPIO_FLAG_DIRECTION_INPUT, &data->pin_clk_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_cmd, GPIO_FLAG_DIRECTION_INPUT, &data->pin_cmd_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_d0, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_d0_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_d1, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_d1_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_d2, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_d2_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_d3, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_d3_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_d4, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_d4_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_d5, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_d5_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_d6, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_d6_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_d7, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_d7_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_cd, GPIO_FLAG_DIRECTION_INPUT, &data->pin_cd_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_wp, GPIO_FLAG_DIRECTION_INPUT, &data->pin_wp_descriptor);
 
     if (!pins_ok) {
         LOG_E(TAG, "Failed to acquire required one or more pins");

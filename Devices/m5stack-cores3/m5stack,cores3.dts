@@ -89,7 +89,7 @@
 			aw9523_sdcard_switch {
 				compatible = "gpio-hog";
 				pin = <&aw9523b 4 GPIO_FLAG_NONE>;
-				mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+				mode = <GPIO_HOG_MODE_INPUT>;
 			};
 
 			aw9523_boost_enable {
@@ -205,5 +205,4 @@
 			backlight = <&display_backlight>;
 		};
 	};
-
 };

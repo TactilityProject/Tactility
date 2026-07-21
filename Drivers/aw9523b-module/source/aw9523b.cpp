@@ -69,7 +69,10 @@ static error_t set_level(GpioDescriptor* descriptor, bool high) {
     uint8_t bit = 1U << (descriptor->pin % 8U);
     uint8_t reg = portRegister(isPort1, AW9523B_REG_OUTPUT_P0, AW9523B_REG_OUTPUT_P1);
 
-    if (high) {
+    // This chip has no output polarity register: active-low must be inverted in software.
+    bool physical_high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !high : high;
+
+    if (physical_high) {
         return i2c_controller_register8_set_bits(parent, address, reg, bit, portMAX_DELAY);
     } else {
         return i2c_controller_register8_reset_bits(parent, address, reg, bit, portMAX_DELAY);
@@ -90,7 +93,8 @@ static error_t get_level(GpioDescriptor* descriptor, bool* high) {
         return err;
     }
 
-    *high = (bits & bit) != 0;
+    bool physical_high = (bits & bit) != 0;
+    *high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !physical_high : physical_high;
     return ERROR_NONE;
 }
 
@@ -126,6 +130,7 @@ static error_t get_flags(GpioDescriptor* descriptor, gpio_flags_t* flags) {
 
     // Config register is inverted: 0 = output, 1 = input.
     *flags = (val & bit) ? GPIO_FLAG_DIRECTION_INPUT : GPIO_FLAG_DIRECTION_OUTPUT;
+    *flags |= (descriptor->flags & GPIO_FLAG_ACTIVE_LOW);
     return ERROR_NONE;
 }
 

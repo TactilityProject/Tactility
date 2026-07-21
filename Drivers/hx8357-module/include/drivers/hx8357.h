@@ -23,7 +23,6 @@ struct Hx8357Config {
     uint32_t pixel_clock_hz;
     struct GpioPinSpec pin_dc;
     struct GpioPinSpec pin_reset;
-    bool reset_active_high;
     // Optional reference to this display's backlight device, NULL if none.
     struct Device* backlight;
 };

@@ -36,14 +36,14 @@ static void apply_gt911_int_workaround() {
         LOG_W(TAG, "display_detect: gpio0 not found, GT911 INT workaround not applied");
         return;
     }
-    auto* int_pin = gpio_descriptor_acquire(gpio0, 23, GPIO_OWNER_GPIO);
+    auto* int_pin = gpio_descriptor_acquire(gpio0, 23, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
     device_put(gpio0);
     if (int_pin == nullptr) {
         LOG_W(TAG, "display_detect: failed to acquire GPIO23 for GT911 INT workaround");
         return;
     }
     gpio_descriptor_set_flags(int_pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_PULL_UP);
-    gpio_descriptor_set_level(int_pin, false);
+    gpio_descriptor_set_level(int_pin, true);
     gpio_descriptor_release(int_pin);
 }
 
@@ -67,8 +67,6 @@ static void create_gt911_touch(Device* i2c0) {
         // Reset is pulsed via io_expander0 (detect.cpp's pulse_display_reset_pins), not a direct SoC GPIO.
         .pin_reset = GPIO_PIN_SPEC_NONE,
         .pin_interrupt = GPIO_PIN_SPEC_NONE,
-        .reset_active_high = false,
-        .interrupt_active_high = false,
     };
     gt911_device.config = &gt911_config;
 
@@ -103,7 +101,6 @@ void tab5_create_devices_v1(Device* i2c0) {
         // LCD reset is pulsed via io_expander0 (detect.cpp's pulse_display_reset_pins), not a
         // direct SoC GPIO.
         .pin_reset = GPIO_PIN_SPEC_NONE,
-        .reset_active_high = false,
         .ldo_channel = 3,
         .ldo_voltage_mv = 2500,
         .dsi_bus_id = 0,

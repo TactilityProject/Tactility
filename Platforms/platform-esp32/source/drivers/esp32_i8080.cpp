@@ -68,17 +68,17 @@ static error_t start(Device* device) {
     const auto* config = GET_CONFIG(device);
 
     bool pins_ok =
-        acquire_pin_or_set_null(config->pin_dc, &data->dc_descriptor) &&
-        acquire_pin_or_set_null(config->pin_wr, &data->wr_descriptor) &&
-        acquire_pin_or_set_null(config->pin_rd, &data->rd_descriptor) &&
-        acquire_pin_or_set_null(config->pin_d0, &data->d0_descriptor) &&
-        acquire_pin_or_set_null(config->pin_d1, &data->d1_descriptor) &&
-        acquire_pin_or_set_null(config->pin_d2, &data->d2_descriptor) &&
-        acquire_pin_or_set_null(config->pin_d3, &data->d3_descriptor) &&
-        acquire_pin_or_set_null(config->pin_d4, &data->d4_descriptor) &&
-        acquire_pin_or_set_null(config->pin_d5, &data->d5_descriptor) &&
-        acquire_pin_or_set_null(config->pin_d6, &data->d6_descriptor) &&
-        acquire_pin_or_set_null(config->pin_d7, &data->d7_descriptor);
+        acquire_pin_or_set_null(config->pin_dc, GPIO_FLAG_DIRECTION_INPUT, &data->dc_descriptor) &&
+        acquire_pin_or_set_null(config->pin_wr, GPIO_FLAG_DIRECTION_INPUT, &data->wr_descriptor) &&
+        acquire_pin_or_set_null(config->pin_rd, GPIO_FLAG_DIRECTION_INPUT, &data->rd_descriptor) &&
+        acquire_pin_or_set_null(config->pin_d0, GPIO_FLAG_DIRECTION_OUTPUT, &data->d0_descriptor) &&
+        acquire_pin_or_set_null(config->pin_d1, GPIO_FLAG_DIRECTION_OUTPUT, &data->d1_descriptor) &&
+        acquire_pin_or_set_null(config->pin_d2, GPIO_FLAG_DIRECTION_OUTPUT, &data->d2_descriptor) &&
+        acquire_pin_or_set_null(config->pin_d3, GPIO_FLAG_DIRECTION_OUTPUT, &data->d3_descriptor) &&
+        acquire_pin_or_set_null(config->pin_d4, GPIO_FLAG_DIRECTION_OUTPUT, &data->d4_descriptor) &&
+        acquire_pin_or_set_null(config->pin_d5, GPIO_FLAG_DIRECTION_OUTPUT, &data->d5_descriptor) &&
+        acquire_pin_or_set_null(config->pin_d6, GPIO_FLAG_DIRECTION_OUTPUT, &data->d6_descriptor) &&
+        acquire_pin_or_set_null(config->pin_d7, GPIO_FLAG_DIRECTION_OUTPUT, &data->d7_descriptor);
 
     if (!pins_ok) {
         LOG_E(TAG, "Failed to acquire required i8080 pins");
@@ -124,14 +124,13 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    // Acquire and deselect all CS pins (drive high)
+    // Acquire and deselect all CS pins
     for (uint8_t i = 0; i < config->cs_gpios_count; i++) {
         const GpioPinSpec* cs = &config->cs_gpios[i];
         if (cs->gpio_controller == nullptr) continue;
-        GpioDescriptor* desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_OWNER_GPIO);
+        GpioDescriptor* desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
         if (desc != nullptr) {
-            gpio_descriptor_set_flags(desc, GPIO_FLAG_DIRECTION_OUTPUT);
-            gpio_descriptor_set_level(desc, true);
+            gpio_descriptor_set_level(desc, false); // logical low = physical high
             data->cs_descriptors.push_back(desc);
         } else {
             LOG_E(TAG, "Failed to acquire CS pin %u", i);

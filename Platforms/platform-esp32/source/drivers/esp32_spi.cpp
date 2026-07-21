@@ -86,11 +86,11 @@ static error_t start(Device* device) {
 
     // Acquire pins from the specified GPIO pin specs. Optional pins are allowed.
     bool pins_ok =
-        acquire_pin_or_set_null(dts_config->pin_sclk, &data->sclk_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_mosi, &data->mosi_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_miso, &data->miso_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_wp, &data->wp_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_hd, &data->hd_descriptor);
+        acquire_pin_or_set_null(dts_config->pin_sclk, GPIO_FLAG_DIRECTION_OUTPUT, &data->sclk_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_mosi, GPIO_FLAG_DIRECTION_OUTPUT, &data->mosi_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_miso, GPIO_FLAG_DIRECTION_INPUT, &data->miso_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_wp, GPIO_FLAG_DIRECTION_INPUT, &data->wp_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_hd, GPIO_FLAG_DIRECTION_INPUT, &data->hd_descriptor);
 
     if (!pins_ok) {
         LOG_E(TAG, "Failed to acquire required SPI pins");
@@ -135,17 +135,17 @@ static error_t start(Device* device) {
         gpio_descriptor_set_flags(data->miso_descriptor, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP);
     }
 
-    // Acquire and deselect all CS pins (drive high)
+    // Acquire CS pins
     for (uint8_t i = 0; i < dts_config->cs_gpios_count; i++) {
         const GpioPinSpec* cs = &dts_config->cs_gpios[i];
         if (cs->gpio_controller == nullptr) continue;
-        GpioDescriptor* desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_OWNER_SPI);
+        GpioDescriptor* desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_SPI);
         if (desc != nullptr) {
-            gpio_descriptor_set_flags(desc, GPIO_FLAG_DIRECTION_OUTPUT);
-            gpio_descriptor_set_level(desc, true);
             data->cs_descriptors.push_back(desc);
         }
     }
+
+    esp32_spi_deselect_all_cs(device);
 
     data->initialized = true;
     return ERROR_NONE;
@@ -155,7 +155,7 @@ void esp32_spi_deselect_all_cs(Device* device) {
     auto* data = GET_DATA(device);
     if (data == nullptr) return;
     for (auto* desc : data->cs_descriptors) {
-        gpio_descriptor_set_level(desc, true);
+        gpio_descriptor_set_level(desc, false);
     }
 }
 

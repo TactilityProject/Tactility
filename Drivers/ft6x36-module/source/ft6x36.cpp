@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/ft6x36.h>
+
 #include <ft6x36_module.h>
 
 #include <tactility/check.h>
@@ -7,6 +8,7 @@
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_i2c.h>
 #include <tactility/drivers/esp32_i2c_master.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/pointer.h>
@@ -30,13 +32,7 @@ struct Ft6x36Internal {
     esp_lcd_panel_io_handle_t io_handle;
     esp_lcd_touch_handle_t touch_handle;
     // Non-null when pin_reset is configured. Owned/pulsed by this driver instead of esp_lcd_touch
-    // (see pulse_reset() below) so the reset pin can live on any GPIO_CONTROLLER, not just native
-    // gpio0 - esp_lcd_touch's rst_gpio_num only accepts a native ESP32 GPIO number (it calls
-    // gpio_set_level() directly), and just reading a GpioPinSpec's raw pin index and handing it
-    // over as if it were one (the previous pin_or_nc() behavior below) silently toggles the wrong,
-    // unrelated physical pin whenever pin_reset actually points at an I2C expander.
     GpioDescriptor* reset_descriptor;
-    bool reset_active_high;
 };
 
 // Only valid for pin_interrupt: esp_lcd_touch only ever reads this pin's level / attaches an ISR
@@ -50,16 +46,18 @@ static inline gpio_num_t pin_or_nc(const struct GpioPinSpec& pin) {
 // See ili9341-module's pulse_reset() for the full rationale; same idea, same 10ms/10ms timing.
 // esp_lcd_touch's rst_gpio_num is always left at GPIO_NUM_NC (see start()), under which it just
 // skips its own reset step entirely.
-static error_t pulse_reset(GpioDescriptor* descriptor, bool active_high) {
+static error_t pulse_reset(GpioDescriptor* descriptor) {
     if (descriptor == nullptr) {
         return ERROR_NONE;
     }
-    error_t error = gpio_descriptor_set_level(descriptor, active_high);
+    // Logical high (physical low, because of earlier GPIO_FLAG_ACTIVE_LOW)
+    error_t error = gpio_descriptor_set_level(descriptor, true);
     if (error != ERROR_NONE) {
         return error;
     }
-    vTaskDelay(pdMS_TO_TICKS(50));
-    error = gpio_descriptor_set_level(descriptor, !active_high);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    // Logical low (physical high, because of earlier GPIO_FLAG_ACTIVE_LOW)
+    error = gpio_descriptor_set_level(descriptor, false);
     if (error != ERROR_NONE) {
         return error;
     }
@@ -101,17 +99,10 @@ static error_t start(Device* device) {
     }
 
     internal->reset_descriptor = nullptr;
-    internal->reset_active_high = config->reset_active_high;
     if (config->pin_reset.gpio_controller != nullptr) {
-        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_OWNER_GPIO);
+        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
         if (internal->reset_descriptor == nullptr) {
             LOG_E(TAG, "Failed to acquire reset GPIO descriptor");
-            free(internal);
-            return ERROR_RESOURCE;
-        }
-        if (gpio_descriptor_set_flags(internal->reset_descriptor, config->pin_reset.flags | GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE) {
-            LOG_E(TAG, "Failed to configure reset pin as output");
-            gpio_descriptor_release(internal->reset_descriptor);
             free(internal);
             return ERROR_RESOURCE;
         }
@@ -126,7 +117,7 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    if (pulse_reset(internal->reset_descriptor, internal->reset_active_high) != ERROR_NONE) {
+    if (pulse_reset(internal->reset_descriptor) != ERROR_NONE) {
         LOG_E(TAG, "Failed to pulse reset pin");
         esp_lcd_panel_io_del(internal->io_handle);
         if (internal->reset_descriptor != nullptr) {
@@ -143,9 +134,10 @@ static error_t start(Device* device) {
         // why); esp_lcd_touch just skips its own no-op reset step when this is NC.
         .rst_gpio_num = GPIO_NUM_NC,
         .int_gpio_num = pin_or_nc(config->pin_interrupt),
+        // FT6x36's reset and interrupt lines are both fixed active-low in hardware.
         .levels = {
-            .reset = config->reset_active_high ? 1u : 0u,
-            .interrupt = config->interrupt_active_high ? 1u : 0u,
+            .reset = 0u,
+            .interrupt = 0u,
         },
         .flags = {
             .swap_xy = config->swap_xy ? 1u : 0u,

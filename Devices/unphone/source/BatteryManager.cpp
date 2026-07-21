@@ -21,10 +21,8 @@ bool BatteryManager::initGpioExpander() {
         return false;
     }
 
-    expanderPowerPin = gpio_descriptor_acquire(expander, expanderpin::EXPANDER_POWER, GPIO_OWNER_GPIO);
+    expanderPowerPin = gpio_descriptor_acquire(expander, expanderpin::EXPANDER_POWER, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     check(expanderPowerPin != nullptr);
-    gpio_descriptor_set_flags(expanderPowerPin, GPIO_FLAG_DIRECTION_OUTPUT);
-
     device_put(expander);
 
     return true;

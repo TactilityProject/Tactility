@@ -50,8 +50,6 @@ static void create_st7123_touch(Device* i2c0) {
         // Reset is pulsed via io_expander0 (detect.cpp's pulse_display_reset_pins), not a direct SoC GPIO.
         .pin_reset = GPIO_PIN_SPEC_NONE,
         .pin_interrupt = pin_interrupt,
-        .reset_active_high = false,
-        .interrupt_active_high = false,
     };
     st7123_touch_device.config = &st7123_touch_config;
 
@@ -82,7 +80,6 @@ void tab5_create_devices_v2(Device* i2c0) {
         .mirror_x = false,
         .mirror_y = false,
         .pin_reset = GPIO_PIN_SPEC_NONE,
-        .reset_active_high = false,
         .ldo_channel = 3,
         .ldo_voltage_mv = 2500,
         .dsi_bus_id = 0,

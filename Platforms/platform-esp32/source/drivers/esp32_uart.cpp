@@ -284,10 +284,10 @@ static error_t open(Device* device) {
 
     // Acquire pins from the specified GPIO pin specs. Optional pins are allowed.
     bool pins_ok =
-        acquire_pin_or_set_null(dts_config->pin_tx, &driver_data->tx_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_rx, &driver_data->rx_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_cts, &driver_data->cts_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_rts, &driver_data->rts_descriptor);
+        acquire_pin_or_set_null(dts_config->pin_tx, GPIO_FLAG_DIRECTION_OUTPUT, &driver_data->tx_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_rx, GPIO_FLAG_DIRECTION_INPUT, &driver_data->rx_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_cts, GPIO_FLAG_DIRECTION_INPUT, &driver_data->cts_descriptor) &&
+        acquire_pin_or_set_null(dts_config->pin_rts, GPIO_FLAG_DIRECTION_OUTPUT, &driver_data->rts_descriptor);
 
     if (!pins_ok) {
         LOG_E(TAG, "%s failed to acquire UART pins", device->name);

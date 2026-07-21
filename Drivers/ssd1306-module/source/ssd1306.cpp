@@ -119,9 +119,10 @@ static void perform_hardware_reset(const Ssd1306Config* config) {
     };
     gpio_config(&io_conf);
 
-    gpio_set_level(pin, config->reset_active_high ? 1 : 0);
+    // SSD1306's reset line is fixed active-low in hardware.
+    gpio_set_level(pin, 0);
     vTaskDelay(pdMS_TO_TICKS(10));
-    gpio_set_level(pin, config->reset_active_high ? 0 : 1);
+    gpio_set_level(pin, 1);
     vTaskDelay(pdMS_TO_TICKS(100));
 }
 

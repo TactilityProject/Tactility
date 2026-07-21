@@ -9,8 +9,8 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/display.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
-#include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
 
@@ -70,17 +70,16 @@ static error_t perform_hardware_reset(const RgbDisplayConfig* config) {
         return ERROR_NONE;
     }
 
-    auto* descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_OWNER_GPIO);
+    auto* descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
     if (descriptor == nullptr) {
         LOG_E(TAG, "Failed to acquire reset GPIO descriptor");
         return ERROR_RESOURCE;
     }
 
-    bool ok = gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE;
-    ok = ok && gpio_descriptor_set_level(descriptor, config->reset_active_high) == ERROR_NONE;
+    bool ok = gpio_descriptor_set_level(descriptor, true) == ERROR_NONE;
     if (ok) {
         delay_millis(100);
-        ok = gpio_descriptor_set_level(descriptor, !config->reset_active_high) == ERROR_NONE;
+        ok = gpio_descriptor_set_level(descriptor, false) == ERROR_NONE;
         delay_millis(10);
     }
 

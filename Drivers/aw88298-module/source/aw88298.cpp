@@ -253,15 +253,14 @@ error_t start_device(Device* device) {
     // (unlike a board Configuration.cpp initBoot() callback, which only runs after ALL
     // devicetree devices, including this one, have already started).
     if (config->reset_pin.gpio_controller != nullptr) {
-        auto* reset_descriptor = gpio_descriptor_acquire(config->reset_pin.gpio_controller, config->reset_pin.pin, GPIO_OWNER_GPIO);
+        auto* reset_descriptor = gpio_descriptor_acquire(config->reset_pin.gpio_controller, config->reset_pin.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
         if (reset_descriptor == nullptr) {
             LOG_E(TAG, "Failed to acquire reset pin descriptor");
             goto cleanup;
         }
-        gpio_descriptor_set_flags(reset_descriptor, GPIO_FLAG_DIRECTION_OUTPUT);
-        gpio_descriptor_set_level(reset_descriptor, false);
-        vTaskDelay(pdMS_TO_TICKS(10));
         gpio_descriptor_set_level(reset_descriptor, true);
+        vTaskDelay(pdMS_TO_TICKS(10));
+        gpio_descriptor_set_level(reset_descriptor, false);
         vTaskDelay(pdMS_TO_TICKS(50));
         gpio_descriptor_release(reset_descriptor);
     }

@@ -39,10 +39,6 @@ properties:
     default: GPIO_PIN_SPEC_NONE
     description: Reset GPIO pin. Falls back to a software reset (sent over the DBI command
       interface) if not set.
-  reset-active-high:
-    type: boolean
-    default: false
-    description: Whether the reset pin is active high
   ldo-channel:
     type: int
     required: true

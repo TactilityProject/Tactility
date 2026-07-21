@@ -238,7 +238,8 @@ static error_t start(Device* device) {
         .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
         .data_endian = LCD_RGB_DATA_ENDIAN_LITTLE,
         .bits_per_pixel = config->bits_per_pixel,
-        .flags = { .reset_active_high = config->reset_active_high },
+        // ST7701's reset line is fixed active-low in hardware.
+        .flags = { .reset_active_high = false },
         .vendor_config = &vendor_config,
     };
 

@@ -68,7 +68,3 @@ properties:
     type: phandles
     default: GPIO_PIN_SPEC_NONE
     description: Optional reset GPIO pin, pulsed once at start (20 ms assert, 60 ms settle)
-  reset-active-high:
-    type: boolean
-    default: false
-    description: Whether the reset pin is active high

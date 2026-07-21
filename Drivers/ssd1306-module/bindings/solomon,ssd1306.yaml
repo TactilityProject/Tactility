@@ -23,10 +23,6 @@ properties:
     type: phandles
     default: GPIO_PIN_SPEC_NONE
     description: Reset GPIO pin
-  reset-active-high:
-    type: boolean
-    default: false
-    description: Whether the reset pin is active high
   power-on-delay-ms:
     type: int
     default: 0

@@ -57,18 +57,15 @@ static void on_click(void* arg) {
 // region Pin acquisition
 
 static error_t acquire_pin(const GpioPinSpec& spec, GpioInterruptType interrupt_type, void (*callback)(void*), void* arg, GpioDescriptor** out_descriptor) {
-    auto* descriptor = gpio_descriptor_acquire(spec.gpio_controller, spec.pin, GPIO_OWNER_GPIO);
+    gpio_flags_t flags = GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP;
+    flags = GPIO_FLAG_INTERRUPT_TO_OPTIONS(flags, interrupt_type);
+
+    auto* descriptor = gpio_descriptor_acquire(spec.gpio_controller, spec.pin, flags, GPIO_OWNER_GPIO);
     if (descriptor == nullptr) {
         return ERROR_RESOURCE;
     }
 
-    gpio_flags_t flags = GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP;
-    flags = GPIO_FLAG_INTERRUPT_TO_OPTIONS(flags, interrupt_type);
-
-    error_t error = gpio_descriptor_set_flags(descriptor, flags);
-    if (error == ERROR_NONE) {
-        error = gpio_descriptor_add_callback(descriptor, callback, arg);
-    }
+    error_t error = gpio_descriptor_add_callback(descriptor, callback, arg);
     if (error == ERROR_NONE) {
         error = gpio_descriptor_enable_interrupt(descriptor);
     }

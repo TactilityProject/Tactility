@@ -90,15 +90,9 @@ static constexpr BacklightApi GPIO_BACKLIGHT_API = {
 static error_t start(Device* device) {
     const auto* config = GET_CONFIG(device);
 
-    auto* descriptor = gpio_descriptor_acquire(config->pin.gpio_controller, config->pin.pin, GPIO_OWNER_GPIO);
+    auto* descriptor = gpio_descriptor_acquire(config->pin.gpio_controller, config->pin.pin, config->pin.flags | GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (descriptor == nullptr) {
         LOG_E(TAG, "Failed to acquire GPIO descriptor");
-        return ERROR_RESOURCE;
-    }
-
-    if (gpio_descriptor_set_flags(descriptor, config->pin.flags | GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE) {
-        LOG_E(TAG, "Failed to configure backlight pin as output");
-        gpio_descriptor_release(descriptor);
         return ERROR_RESOURCE;
     }
 

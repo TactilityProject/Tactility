@@ -23,7 +23,6 @@ struct St7123Config {
     // Reset pin for the panel. GPIO_PIN_SPEC_NONE falls back to a software reset sent over the
     // DBI command interface (see esp_lcd_st7123's panel_st7123_reset()).
     struct GpioPinSpec pin_reset;
-    bool reset_active_high;
 
     // LDO channel powering the MIPI DSI PHY - the PHY has no power of its own until this is
     // acquired, so it must happen before the DSI bus is created. Both fields are int32_t (not

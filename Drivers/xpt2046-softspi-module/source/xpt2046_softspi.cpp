@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/xpt2046_softspi.h>
+
 #include <xpt2046_softspi_module.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/pointer.h>
 #include <tactility/drivers/power_supply.h>
@@ -15,7 +17,7 @@
 #include <cstdlib>
 #include <new>
 
-#define TAG "XPT2046SoftSPI"
+constexpr auto* TAG = "XPT2046SoftSPI";
 #define GET_CONFIG(device) (static_cast<const Xpt2046SoftSpiConfig*>((device)->config))
 
 // Rough LiPo discharge curve floor, used together with the configured reference voltage
@@ -73,10 +75,10 @@ static error_t start(Device* device) {
     }
     *internal = {};
 
-    internal->mosi = gpio_descriptor_acquire(config->pin_mosi.gpio_controller, config->pin_mosi.pin, GPIO_OWNER_GPIO);
-    internal->miso = gpio_descriptor_acquire(config->pin_miso.gpio_controller, config->pin_miso.pin, GPIO_OWNER_GPIO);
-    internal->sck = gpio_descriptor_acquire(config->pin_sck.gpio_controller, config->pin_sck.pin, GPIO_OWNER_GPIO);
-    internal->cs = gpio_descriptor_acquire(config->pin_cs.gpio_controller, config->pin_cs.pin, GPIO_OWNER_GPIO);
+    internal->mosi = gpio_descriptor_acquire(config->pin_mosi.gpio_controller, config->pin_mosi.pin, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
+    internal->miso = gpio_descriptor_acquire(config->pin_miso.gpio_controller, config->pin_miso.pin, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP, GPIO_OWNER_GPIO);
+    internal->sck = gpio_descriptor_acquire(config->pin_sck.gpio_controller, config->pin_sck.pin, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
+    internal->cs = gpio_descriptor_acquire(config->pin_cs.gpio_controller, config->pin_cs.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
 
     if (internal->mosi == nullptr || internal->miso == nullptr || internal->sck == nullptr || internal->cs == nullptr) {
         LOG_E(TAG, "Failed to acquire GPIO descriptors");
@@ -85,15 +87,8 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    bool ok =
-        gpio_descriptor_set_flags(internal->mosi, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE &&
-        gpio_descriptor_set_flags(internal->sck, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE &&
-        gpio_descriptor_set_flags(internal->cs, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE &&
-        gpio_descriptor_set_flags(internal->miso, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP) == ERROR_NONE;
-
     // Idle state: CS high (deselected), SCK/MOSI low.
-    ok = ok &&
-        gpio_descriptor_set_level(internal->cs, true) == ERROR_NONE &&
+    bool ok = gpio_descriptor_set_level(internal->cs, false) == ERROR_NONE &&
         gpio_descriptor_set_level(internal->sck, false) == ERROR_NONE &&
         gpio_descriptor_set_level(internal->mosi, false) == ERROR_NONE;
 
@@ -146,7 +141,7 @@ static error_t stop(Device* device) {
 static int read_spi_command(Xpt2046SoftSpiInternal* internal, uint8_t command) {
     int result = 0;
 
-    gpio_descriptor_set_level(internal->cs, false);
+    gpio_descriptor_set_level(internal->cs, true);
     delay_micros(1);
 
     for (int i = 7; i >= 0; i--) {
@@ -169,7 +164,7 @@ static int read_spi_command(Xpt2046SoftSpiInternal* internal, uint8_t command) {
         delay_micros(1);
     }
 
-    gpio_descriptor_set_level(internal->cs, true);
+    gpio_descriptor_set_level(internal->cs, false);
 
     return result;
 }

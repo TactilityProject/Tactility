@@ -67,9 +67,9 @@ static error_t start(Device* device) {
     auto* config = GET_CONFIG(device);
 
     bool pins_ok =
-        acquire_pin_or_set_null(config->pin_cd, &data->pin_cd_descriptor) &&
-        acquire_pin_or_set_null(config->pin_wp, &data->pin_wp_descriptor) &&
-        acquire_pin_or_set_null(config->pin_int, &data->pin_int_descriptor);
+        acquire_pin_or_set_null(config->pin_cd, GPIO_FLAG_DIRECTION_INPUT, &data->pin_cd_descriptor) &&
+        acquire_pin_or_set_null(config->pin_wp, GPIO_FLAG_DIRECTION_INPUT, &data->pin_wp_descriptor) &&
+        acquire_pin_or_set_null(config->pin_int, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_int_descriptor);
 
     if (!pins_ok) {
         LOG_E(TAG, "Failed to acquire one or more pins");

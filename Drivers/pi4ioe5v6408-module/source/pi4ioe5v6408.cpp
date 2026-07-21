@@ -47,7 +47,10 @@ static error_t set_level(GpioDescriptor* descriptor, bool high) {
     auto address = GET_CONFIG(device)->address;
     uint8_t bit = 1 << descriptor->pin;
 
-    if (high) {
+    // This chip has no output polarity register: active-low must be inverted in software.
+    bool physical_high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !high : high;
+
+    if (physical_high) {
         return i2c_controller_register8_set_bits(parent, address, PI4_REGISTER_OUTPUT_LEVEL, bit, portMAX_DELAY);
     } else {
         return i2c_controller_register8_reset_bits(parent, address, PI4_REGISTER_OUTPUT_LEVEL, bit, portMAX_DELAY);
@@ -65,7 +68,8 @@ static error_t get_level(GpioDescriptor* descriptor, bool* high) {
         return err;
     }
 
-    *high = (bits & (1 << descriptor->pin)) != 0;
+    bool physical_high = (bits & (1 << descriptor->pin)) != 0;
+    *high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !physical_high : physical_high;
     return ERROR_NONE;
 }
 
@@ -160,6 +164,8 @@ static error_t get_flags(GpioDescriptor* descriptor, gpio_flags_t* flags) {
     if (val & bit) {
         f |= GPIO_FLAG_HIGH_IMPEDANCE;
     }
+
+    f |= (descriptor->flags & GPIO_FLAG_ACTIVE_LOW);
 
     *flags = f;
     return ERROR_NONE;

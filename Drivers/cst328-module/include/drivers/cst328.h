@@ -17,7 +17,6 @@ struct Cst328Config {
     bool mirror_x;
     bool mirror_y;
     struct GpioPinSpec pin_reset;
-    bool reset_active_high;
 };
 
 #ifdef __cplusplus

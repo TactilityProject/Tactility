@@ -59,10 +59,6 @@ properties:
     type: phandles
     default: GPIO_PIN_SPEC_NONE
     description: Reset GPIO pin
-  reset-active-high:
-    type: boolean
-    default: false
-    description: Whether the reset pin is active high
   backlight:
     type: phandle
     default: "NULL"

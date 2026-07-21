@@ -1,6 +1,5 @@
 #include "detect.h"
 
-#include "../../../../TactilityKernel/include/tactility/log.h"
 #include "devices_common.h"
 #include "devices_v1.h"
 #include "devices_v2.h"
@@ -8,6 +7,7 @@
 
 #include <tactility/device.h>
 #include <tactility/device_listener.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/log.h>
 
@@ -36,8 +36,8 @@ constexpr auto GPIO_EXP0_PIN_LCD_RESET = 4;
 constexpr auto GPIO_EXP0_PIN_TOUCH_RESET = 5;
 
 bool pulse_display_reset_pins(Device* io_expander0) {
-    auto* lcd_reset_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_LCD_RESET, GPIO_OWNER_GPIO);
-    auto* touch_reset_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_TOUCH_RESET, GPIO_OWNER_GPIO);
+    auto* lcd_reset_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_LCD_RESET, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
+    auto* touch_reset_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_TOUCH_RESET, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
     if (lcd_reset_pin == nullptr || touch_reset_pin == nullptr) {
         LOG_E(TAG, "display_detect: failed to acquire LCD/touch reset pins on io_expander0");
         if (lcd_reset_pin != nullptr) {
@@ -51,11 +51,11 @@ bool pulse_display_reset_pins(Device* io_expander0) {
 
     gpio_descriptor_set_flags(lcd_reset_pin, GPIO_FLAG_DIRECTION_OUTPUT);
     gpio_descriptor_set_flags(touch_reset_pin, GPIO_FLAG_DIRECTION_OUTPUT);
-    gpio_descriptor_set_level(lcd_reset_pin, false);
-    gpio_descriptor_set_level(touch_reset_pin, false);
-    vTaskDelay(pdMS_TO_TICKS(10));
     gpio_descriptor_set_level(lcd_reset_pin, true);
     gpio_descriptor_set_level(touch_reset_pin, true);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    gpio_descriptor_set_level(lcd_reset_pin, false);
+    gpio_descriptor_set_level(touch_reset_pin, false);
 
     gpio_descriptor_release(lcd_reset_pin);
     gpio_descriptor_release(touch_reset_pin);

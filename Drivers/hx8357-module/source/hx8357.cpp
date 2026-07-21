@@ -264,9 +264,10 @@ static error_t start(Device* device) {
             free(internal);
             return ERROR_RESOURCE;
         }
-        gpio_set_level(static_cast<gpio_num_t>(reset_pin), config->reset_active_high ? 1 : 0);
+        // HX8357's reset line is fixed active-low in hardware.
+        gpio_set_level(static_cast<gpio_num_t>(reset_pin), 0);
         vTaskDelay(pdMS_TO_TICKS(10));
-        gpio_set_level(static_cast<gpio_num_t>(reset_pin), config->reset_active_high ? 0 : 1);
+        gpio_set_level(static_cast<gpio_num_t>(reset_pin), 1);
         vTaskDelay(pdMS_TO_TICKS(120));
     }
 

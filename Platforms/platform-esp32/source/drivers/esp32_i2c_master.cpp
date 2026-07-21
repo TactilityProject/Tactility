@@ -184,14 +184,14 @@ static error_t start(Device* device) {
     auto dts_config = GET_CONFIG(device);
 
     auto& sda_spec = dts_config->pinSda;
-    auto& scl_spec = dts_config->pinScl;
-    auto* sda_descriptor = gpio_descriptor_acquire(sda_spec.gpio_controller, sda_spec.pin, GPIO_OWNER_GPIO);
+    auto* sda_descriptor = gpio_descriptor_acquire(sda_spec.gpio_controller, sda_spec.pin, GPIO_FLAG_DIRECTION_INPUT_OUTPUT, GPIO_OWNER_GPIO);
     if (!sda_descriptor) {
         LOG_E(TAG, "Failed to acquire pin %u", sda_spec.pin);
         return ERROR_RESOURCE;
     }
 
-    auto* scl_descriptor = gpio_descriptor_acquire(scl_spec.gpio_controller, scl_spec.pin, GPIO_OWNER_GPIO);
+    auto& scl_spec = dts_config->pinScl;
+    auto* scl_descriptor = gpio_descriptor_acquire(scl_spec.gpio_controller, scl_spec.pin, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (!scl_descriptor) {
         LOG_E(TAG, "Failed to acquire pin %u", scl_spec.pin);
         gpio_descriptor_release(sda_descriptor);

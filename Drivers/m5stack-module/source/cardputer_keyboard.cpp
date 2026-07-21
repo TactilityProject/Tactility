@@ -2,11 +2,13 @@
 // Matrix-scan and keymap logic ported from the M5Stack Cardputer keyboard driver at
 // https://github.com/m5stack/M5Cardputer-UserDemo/tree/main/main/hal/keyboard (MIT licensed).
 #include <drivers/cardputer_keyboard.h>
+
 #include <m5stack_module.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/keyboard.h>
 #include <tactility/error.h>
@@ -120,11 +122,7 @@ static error_t start(Device* device) {
 
     for (int i = 0; i < CARDPUTER_OUTPUT_COUNT; i++) {
         const auto& pin = config->pins_output[i];
-        auto* descriptor = gpio_descriptor_acquire(pin.gpio_controller, pin.pin, GPIO_OWNER_GPIO);
-        if (descriptor != nullptr && gpio_descriptor_set_flags(descriptor, pin.flags | GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE) {
-            gpio_descriptor_release(descriptor);
-            descriptor = nullptr;
-        }
+        auto* descriptor = gpio_descriptor_acquire(pin.gpio_controller, pin.pin, pin.flags | GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
         if (descriptor == nullptr) {
             LOG_E(TAG, "Failed to configure output pin %d", i);
             for (int j = 0; j < i; j++) {
@@ -141,8 +139,9 @@ static error_t start(Device* device) {
         const auto& pin = config->pins_input[i];
         // Rows float high and are pulled low through a pressed key by the active output line,
         // so an internal pull-up is required regardless of what the devicetree pin flags say.
-        auto* descriptor = gpio_descriptor_acquire(pin.gpio_controller, pin.pin, GPIO_OWNER_GPIO);
-        if (descriptor == nullptr || gpio_descriptor_set_flags(descriptor, pin.flags | GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP) != ERROR_NONE) {
+        auto flags = pin.flags | GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP;
+        auto* descriptor = gpio_descriptor_acquire(pin.gpio_controller, pin.pin, flags, GPIO_OWNER_GPIO);
+        if (descriptor == nullptr) {
             LOG_E(TAG, "Failed to configure input pin %d", i);
             for (int j = 0; j < CARDPUTER_OUTPUT_COUNT; j++) {
                 gpio_descriptor_release(internal->output_descriptors[j]);

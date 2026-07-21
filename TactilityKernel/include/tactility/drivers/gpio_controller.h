@@ -2,12 +2,12 @@
 
 #pragma once
 
+#include "gpio.h"
+#include <tactility/error.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "gpio.h"
-#include <tactility/error.h>
 
 struct Device;
 struct GpioDescriptor;
@@ -87,6 +87,12 @@ struct GpioControllerApi {
 struct GpioDescriptor* gpio_descriptor_acquire(
     struct Device* controller,
     gpio_pin_t pin_number,
+    gpio_flags_t flags,
+    enum GpioOwnerType owner
+);
+
+struct GpioDescriptor* gpio_descriptor_acquire_pin_spec(
+    struct GpioPinSpec const* pin_spec,
     enum GpioOwnerType owner
 );
 
@@ -139,6 +145,15 @@ error_t gpio_descriptor_set_flags(struct GpioDescriptor* descriptor, gpio_flags_
  * @return ERROR_NONE if successful
  */
 error_t gpio_descriptor_get_flags(struct GpioDescriptor* descriptor, gpio_flags_t* flags);
+
+/**
+ * @brief Gets the configuration options for a GPIO pin.
+ * @param[in] descriptor the pin descriptor
+ * @param[out] flags 1 or more flags to check
+ * @param[out] has_flags true when all flags are available
+ * @return ERROR_NONE if successful
+ */
+error_t gpio_descriptor_has_flags(struct GpioDescriptor* descriptor, gpio_flags_t flags, bool* has_flags);
 
 /**
  * @brief Gets the native pin number associated with a descriptor.

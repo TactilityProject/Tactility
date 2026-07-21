@@ -36,30 +36,26 @@ struct Ft5x06Internal {
     // over as if it were one (the previous pin_or_nc() behavior below) silently toggles the wrong,
     // unrelated physical pin whenever pin_reset actually points at an I2C expander.
     GpioDescriptor* reset_descriptor;
-    bool reset_active_high;
 };
 
 // Only valid for pin_interrupt: esp_lcd_touch only ever reads this pin's level / attaches an ISR
 // to it, both of which esp_lcd_touch performs via ESP-IDF's native gpio_* calls, so - like
 // ili9341-module's cs/dc pins - it must be a real ESP32 GPIO. pin_reset has no such requirement and
 // must never go through this helper; see pulse_reset() instead.
-static inline gpio_num_t pin_or_nc(const struct GpioPinSpec& pin) {
+static inline gpio_num_t pin_or_nc(const GpioPinSpec& pin) {
     return pin.gpio_controller == nullptr ? GPIO_NUM_NC : static_cast<gpio_num_t>(pin.pin);
 }
 
-// See esp_lcd_ili9341-module's pulse_reset() for the full rationale; same idea, same 10ms/10ms
-// timing (matches esp_lcd_touch_ft5x06's own touch_ft5x06_reset()). esp_lcd_touch's rst_gpio_num is
-// always left at GPIO_NUM_NC (see start()), under which it just skips its own reset step entirely.
-static error_t pulse_reset(GpioDescriptor* descriptor, bool active_high) {
+static error_t pulse_reset(GpioDescriptor* descriptor) {
     if (descriptor == nullptr) {
         return ERROR_NONE;
     }
-    error_t error = gpio_descriptor_set_level(descriptor, active_high);
+    error_t error = gpio_descriptor_set_level(descriptor, true);
     if (error != ERROR_NONE) {
         return error;
     }
     vTaskDelay(pdMS_TO_TICKS(10));
-    error = gpio_descriptor_set_level(descriptor, !active_high);
+    error = gpio_descriptor_set_level(descriptor, false);
     if (error != ERROR_NONE) {
         return error;
     }
@@ -101,17 +97,10 @@ static error_t start(Device* device) {
     }
 
     internal->reset_descriptor = nullptr;
-    internal->reset_active_high = config->reset_active_high;
     if (config->pin_reset.gpio_controller != nullptr) {
-        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_OWNER_GPIO);
+        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
         if (internal->reset_descriptor == nullptr) {
             LOG_E(TAG, "Failed to acquire reset GPIO descriptor");
-            free(internal);
-            return ERROR_RESOURCE;
-        }
-        if (gpio_descriptor_set_flags(internal->reset_descriptor, config->pin_reset.flags | GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE) {
-            LOG_E(TAG, "Failed to configure reset pin as output");
-            gpio_descriptor_release(internal->reset_descriptor);
             free(internal);
             return ERROR_RESOURCE;
         }
@@ -126,7 +115,7 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    if (pulse_reset(internal->reset_descriptor, internal->reset_active_high) != ERROR_NONE) {
+    if (pulse_reset(internal->reset_descriptor) != ERROR_NONE) {
         LOG_E(TAG, "Failed to pulse reset pin");
         esp_lcd_panel_io_del(internal->io_handle);
         if (internal->reset_descriptor != nullptr) {
@@ -143,9 +132,10 @@ static error_t start(Device* device) {
         // why); esp_lcd_touch just skips its own no-op reset step when this is NC.
         .rst_gpio_num = GPIO_NUM_NC,
         .int_gpio_num = pin_or_nc(config->pin_interrupt),
+        // FT5x06's reset and interrupt lines are both fixed active-low in hardware.
         .levels = {
-            .reset = config->reset_active_high ? 1u : 0u,
-            .interrupt = config->interrupt_active_high ? 1u : 0u,
+            .reset = 0u,
+            .interrupt = 0u,
         },
         .flags = {
             .swap_xy = config->swap_xy ? 1u : 0u,

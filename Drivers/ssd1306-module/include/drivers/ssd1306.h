@@ -22,7 +22,6 @@ struct Ssd1306Config {
 
     // Reset pin. GPIO_PIN_SPEC_NONE skips the reset toggle entirely.
     struct GpioPinSpec pin_reset;
-    bool reset_active_high;
 
     // See the 'power-on-delay-ms' binding property.
     uint32_t power_on_delay_ms;

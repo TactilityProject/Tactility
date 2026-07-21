@@ -19,8 +19,6 @@ struct Axs5106Config {
     bool mirror_y;
     struct GpioPinSpec pin_reset;
     struct GpioPinSpec pin_interrupt;
-    bool reset_active_high;
-    bool interrupt_active_high;
     // Timeout (ms) for the register-address write half of a read, and for the data-read half,
     // done as two separate I2C transactions - matches the vendor factory demo's
     // i2c_master_transmit()/i2c_master_receive() split (each with its own 100ms timeout),

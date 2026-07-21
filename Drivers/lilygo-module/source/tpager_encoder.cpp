@@ -3,6 +3,7 @@
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/log.h>
@@ -33,14 +34,7 @@ static error_t read_delta(Device* device, int32_t* out_pulses) {
 
 static error_t get_button_pressed(Device* device, bool* out_pressed) {
     auto* internal = GET_INTERNAL(device);
-    bool high = true;
-    error_t error = gpio_descriptor_get_level(internal->pin_enter, &high);
-    if (error != ERROR_NONE) {
-        return error;
-    }
-    // Active low: pressed when level is low.
-    *out_pressed = !high;
-    return ERROR_NONE;
+    return gpio_descriptor_get_level(internal->pin_enter, out_pressed);
 }
 
 error_t tpager_encoder_read_delta(Device* device, int32_t* out_pulses) {
@@ -148,21 +142,12 @@ static error_t start(Device* device) {
         return error;
     }
 
-    internal->pin_enter = gpio_descriptor_acquire(config->pin_enter.gpio_controller, config->pin_enter.pin, GPIO_OWNER_GPIO);
+    internal->pin_enter = gpio_descriptor_acquire(config->pin_enter.gpio_controller, config->pin_enter.pin, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
     if (internal->pin_enter == nullptr) {
         pcnt_unit_stop(internal->pcnt_unit);
         pcnt_del_unit(internal->pcnt_unit);
         delete internal;
         return ERROR_RESOURCE;
-    }
-
-    error = gpio_descriptor_set_flags(internal->pin_enter, GPIO_FLAG_DIRECTION_INPUT);
-    if (error != ERROR_NONE) {
-        gpio_descriptor_release(internal->pin_enter);
-        pcnt_unit_stop(internal->pcnt_unit);
-        pcnt_del_unit(internal->pcnt_unit);
-        delete internal;
-        return error;
     }
 
     device_set_driver_data(device, internal);

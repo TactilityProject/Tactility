@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <tactility/drivers/rgb_led.h>
 #include <tactility/drivers/rgb_led_gpio.h>
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
-#include <tactility/drivers/gpio_descriptor.h>
+#include <tactility/error.h>
 #include <tactility/log.h>
 #include <tactility/module.h>
 
 #include <new>
 
-#define TAG "RgbLedGpio"
+constexpr auto* TAG = "RgbLedGpio";
 #define GET_CONFIG(device) (static_cast<const RgbLedGpioConfig*>((device)->config))
 #define GET_INTERNAL(device) (static_cast<RgbLedGpioInternal*>(device_get_driver_data(device)))
 
@@ -77,35 +79,24 @@ static constexpr RgbLedApi RGB_LED_GPIO_API = {
 static error_t start(Device* device) {
     const auto* config = GET_CONFIG(device);
 
-    auto* descriptor_red = gpio_descriptor_acquire(config->pin_red.gpio_controller, config->pin_red.pin, GPIO_OWNER_GPIO);
+    auto* descriptor_red = gpio_descriptor_acquire(config->pin_red.gpio_controller, config->pin_red.pin, config->pin_red.flags | GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (descriptor_red == nullptr) {
         LOG_E(TAG, "Failed to acquire red GPIO descriptor");
         return ERROR_RESOURCE;
     }
 
-    auto* descriptor_green = gpio_descriptor_acquire(config->pin_green.gpio_controller, config->pin_green.pin, GPIO_OWNER_GPIO);
+    auto* descriptor_green = gpio_descriptor_acquire(config->pin_green.gpio_controller, config->pin_green.pin, config->pin_green.flags | GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (descriptor_green == nullptr) {
         LOG_E(TAG, "Failed to acquire green GPIO descriptor");
         gpio_descriptor_release(descriptor_red);
         return ERROR_RESOURCE;
     }
 
-    auto* descriptor_blue = gpio_descriptor_acquire(config->pin_blue.gpio_controller, config->pin_blue.pin, GPIO_OWNER_GPIO);
+    auto* descriptor_blue = gpio_descriptor_acquire(config->pin_blue.gpio_controller, config->pin_blue.pin, config->pin_blue.flags | GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (descriptor_blue == nullptr) {
         LOG_E(TAG, "Failed to acquire blue GPIO descriptor");
         gpio_descriptor_release(descriptor_red);
         gpio_descriptor_release(descriptor_green);
-        return ERROR_RESOURCE;
-    }
-
-    bool ok = gpio_descriptor_set_flags(descriptor_red, config->pin_red.flags | GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE &&
-        gpio_descriptor_set_flags(descriptor_green, config->pin_green.flags | GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE &&
-        gpio_descriptor_set_flags(descriptor_blue, config->pin_blue.flags | GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE;
-    if (!ok) {
-        LOG_E(TAG, "Failed to configure LED pins as outputs");
-        gpio_descriptor_release(descriptor_red);
-        gpio_descriptor_release(descriptor_green);
-        gpio_descriptor_release(descriptor_blue);
         return ERROR_RESOURCE;
     }
 

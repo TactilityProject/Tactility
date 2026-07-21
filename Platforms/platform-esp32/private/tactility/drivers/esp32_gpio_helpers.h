@@ -15,7 +15,7 @@ void release_pin(GpioDescriptor** gpio_descriptor);
  * If the pin spec is invalid, the pointer is set to null.
  * @return true if the pin was acquired successfully
  */
-bool acquire_pin_or_set_null(const GpioPinSpec& pin_spec, GpioDescriptor** gpio_descriptor);
+bool acquire_pin_or_set_null(const GpioPinSpec& pin_spec, gpio_flags_t direction_flags, GpioDescriptor** gpio_descriptor);
 
 /**
  * Safely acquire the native pin value.

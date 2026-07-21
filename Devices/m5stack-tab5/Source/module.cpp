@@ -1,4 +1,5 @@
 #include <tactility/module.h>
+
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/device_listener.h>
@@ -25,13 +26,10 @@ constexpr auto GPIO_EXP0_PIN_HEADPHONE_DETECT = 7;
 static void tab5_init_expander0(Device* io_expander0) {
     // Speaker and heapdhone pins are managed at runtime, so we can't have them as a hog in the dts file
     // We have to init them manually.
-    auto* speaker_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_OWNER_GPIO);
+    auto* speaker_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     check(speaker_enable_pin);
-    auto* headphone_detect_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_HEADPHONE_DETECT, GPIO_OWNER_GPIO);
+    auto* headphone_detect_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_HEADPHONE_DETECT, GPIO_FLAG_DIRECTION_INPUT, GPIO_OWNER_GPIO);
     check(headphone_detect_pin);
-
-    gpio_descriptor_set_flags(speaker_enable_pin, GPIO_FLAG_DIRECTION_OUTPUT);
-    gpio_descriptor_set_flags(headphone_detect_pin, GPIO_FLAG_DIRECTION_INPUT);
 
     gpio_descriptor_set_level(speaker_enable_pin, false);
 
@@ -40,7 +38,7 @@ static void tab5_init_expander0(Device* io_expander0) {
 }
 
 static void tab5_enable_speaker_amp(Device* io_expander0) {
-    auto* speaker_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_OWNER_GPIO);
+    auto* speaker_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     check(speaker_enable_pin, "Failed to acquire speaker enable pin");
     error_t error = gpio_descriptor_set_level(speaker_enable_pin, true);
     gpio_descriptor_release(speaker_enable_pin);

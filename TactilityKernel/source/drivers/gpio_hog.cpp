@@ -18,32 +18,31 @@ const DeviceType GPIO_HOG_TYPE { .name = "gpio_hog" };
 static error_t start(Device* device) {
     const auto* config = GET_CONFIG(device);
 
-    auto* descriptor = gpio_descriptor_acquire(config->pin.gpio_controller, config->pin.pin, GPIO_OWNER_HOG);
+    gpio_flags_t flags = 0;
+    bool initial_high = false;
+    switch (config->mode) {
+        case GPIO_HOG_MODE_OUTPUT_HIGH:
+            flags = GPIO_FLAG_DIRECTION_OUTPUT;
+            initial_high = true;
+            break;
+        case GPIO_HOG_MODE_OUTPUT_LOW:
+            flags = GPIO_FLAG_DIRECTION_OUTPUT;
+            break;
+        case GPIO_HOG_MODE_INPUT:
+            flags = GPIO_FLAG_DIRECTION_INPUT;
+            break;
+        default:
+            return ERROR_RESOURCE;
+    }
+
+    auto* descriptor = gpio_descriptor_acquire(config->pin.gpio_controller, config->pin.pin, flags, GPIO_OWNER_HOG);
     if (descriptor == nullptr) {
         LOG_E(TAG, "Failed to acquire GPIO descriptor");
         return ERROR_RESOURCE;
     }
 
-    bool ok;
-    switch (config->mode) {
-        case GPIO_HOG_MODE_OUTPUT_HIGH:
-            ok = gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE &&
-                gpio_descriptor_set_level(descriptor, true) == ERROR_NONE;
-            break;
-        case GPIO_HOG_MODE_OUTPUT_LOW:
-            ok = gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE &&
-                gpio_descriptor_set_level(descriptor, false) == ERROR_NONE;
-            break;
-        case GPIO_HOG_MODE_INPUT:
-            ok = gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_INPUT) == ERROR_NONE;
-            break;
-        default:
-            ok = false;
-            break;
-    }
-
-    if (!ok) {
-        LOG_E(TAG, "Failed to configure hogged pin %u", config->pin.pin);
+    if (gpio_descriptor_set_level(descriptor, initial_high) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to set initial level to %d", (int)initial_high);
         gpio_descriptor_release(descriptor);
         return ERROR_RESOURCE;
     }

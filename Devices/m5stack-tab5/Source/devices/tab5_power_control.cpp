@@ -3,6 +3,7 @@
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/power_supply.h>
 #include <tactility/log.h>
@@ -51,15 +52,12 @@ static error_t ps_set_allowed_to_charge(Device* device, bool allowed) {
     auto* internal = static_cast<Tab5PowerControlInternal*>(device_get_driver_data(device));
     auto* io_expander1 = device_get_parent(device);
 
-    auto* pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_IP2326_CHG_EN, GPIO_OWNER_GPIO);
+    auto* pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_IP2326_CHG_EN, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (pin == nullptr) {
         LOG_W(TAG, "Failed to acquire CHG_EN pin");
         return ERROR_RESOURCE;
     }
-    error_t error = gpio_descriptor_set_flags(pin, GPIO_FLAG_DIRECTION_OUTPUT);
-    if (error == ERROR_NONE) {
-        error = gpio_descriptor_set_level(pin, allowed);
-    }
+    auto error = gpio_descriptor_set_level(pin, allowed);
     gpio_descriptor_release(pin);
     if (error != ERROR_NONE) {
         LOG_W(TAG, "Failed to set CHG_EN pin");
@@ -83,15 +81,12 @@ static error_t ps_set_quick_charge_enabled(Device* device, bool enabled) {
     auto* internal = static_cast<Tab5PowerControlInternal*>(device_get_driver_data(device));
     auto* io_expander1 = device_get_parent(device);
 
-    auto* pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_IP2326_NCHG_QC_EN, GPIO_OWNER_GPIO);
+    auto* pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_IP2326_NCHG_QC_EN, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (pin == nullptr) {
         LOG_W(TAG, "Failed to acquire nCHG_QC_EN pin");
         return ERROR_RESOURCE;
     }
-    error_t error = gpio_descriptor_set_flags(pin, GPIO_FLAG_DIRECTION_OUTPUT);
-    if (error == ERROR_NONE) {
-        error = gpio_descriptor_set_level(pin, !enabled); // active-low
-    }
+    auto error = gpio_descriptor_set_level(pin, !enabled); // active-low
     gpio_descriptor_release(pin);
     if (error != ERROR_NONE) {
         LOG_W(TAG, "Failed to set nCHG_QC_EN pin");
@@ -108,7 +103,7 @@ static bool ps_supports_power_off(Device*) {
 
 static error_t ps_power_off(Device* device) {
     auto* io_expander1 = device_get_parent(device);
-    auto* pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_DEVICE_POWER, GPIO_OWNER_GPIO);
+    auto* pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_DEVICE_POWER, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (pin == nullptr) {
         LOG_E(TAG, "Failed to acquire DEVICE_POWER pin");
         return ERROR_RESOURCE;
@@ -153,9 +148,8 @@ static error_t start(Device* device) {
     // as an idle-low output up front so it's in a known state (previously done by Configuration.cpp's
     // initExpander1(), now owned here - see that function's comment for why it no longer touches it).
     auto* io_expander1 = device_get_parent(device);
-    auto* device_power_pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_DEVICE_POWER, GPIO_OWNER_GPIO);
+    auto* device_power_pin = gpio_descriptor_acquire(io_expander1, GPIO_EXP1_PIN_DEVICE_POWER, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (device_power_pin != nullptr) {
-        gpio_descriptor_set_flags(device_power_pin, GPIO_FLAG_DIRECTION_OUTPUT);
         gpio_descriptor_set_level(device_power_pin, false);
         gpio_descriptor_release(device_power_pin);
     } else {

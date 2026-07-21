@@ -22,12 +22,18 @@ struct Esp32GpioInternal {
 extern "C" {
 
 static error_t set_level(GpioDescriptor* descriptor, bool high) {
-    auto esp_error = gpio_set_level(static_cast<gpio_num_t>(descriptor->pin), high);
+    // ESP32 GPIO has no hardware output-invert for plain digital I/O: active-low is a
+    // software-only concept, tracked in descriptor->flags rather than any hw register.
+    bool level_to_set = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !high : high;
+
+    auto esp_error = gpio_set_level(static_cast<gpio_num_t>(descriptor->pin), level_to_set);
     return esp_err_to_error(esp_error);
 }
 
 static error_t get_level(GpioDescriptor* descriptor, bool* high) {
-    *high = gpio_get_level(static_cast<gpio_num_t>(descriptor->pin)) != 0;
+    bool physical_level = gpio_get_level(static_cast<gpio_num_t>(descriptor->pin)) != 0;
+    *high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !physical_level : physical_level;
+
     return ERROR_NONE;
 }
 
@@ -88,9 +94,9 @@ static error_t get_flags(GpioDescriptor* descriptor, gpio_flags_t* flags) {
         output |= GPIO_FLAG_DIRECTION_OUTPUT;
     }
 
-    if (esp_config.oe_inv) {
-        output |= GPIO_FLAG_ACTIVE_LOW;
-    }
+    // oe_inv is the output-enable-signal invert bit (GPIO-matrix routing), unrelated to
+    // active-low data level; that's a software-only concept tracked in descriptor->flags.
+    output |= (descriptor->flags & GPIO_FLAG_ACTIVE_LOW);
 
     *flags = output;
     return ERROR_NONE;

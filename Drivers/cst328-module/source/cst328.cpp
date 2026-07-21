@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/cst328.h>
+
 #include <cst328_module.h>
 
 #include <tactility/check.h>
 #include <tactility/delay.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/pointer.h>
@@ -55,12 +57,11 @@ static bool query(Device* i2c, uint8_t address, uint8_t b0, uint8_t b1, uint8_t*
 // chip's own software reset command instead.
 static void perform_reset(Device* i2c, uint8_t address, const Cst328Config* config) {
     if (config->pin_reset.gpio_controller != nullptr) {
-        auto* rst = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_OWNER_GPIO);
+        auto* rst = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
         if (rst != nullptr) {
-            gpio_descriptor_set_flags(rst, GPIO_FLAG_DIRECTION_OUTPUT);
-            gpio_descriptor_set_level(rst, config->reset_active_high);
+            gpio_descriptor_set_level(rst, true);
             delay_millis(100);
-            gpio_descriptor_set_level(rst, !config->reset_active_high);
+            gpio_descriptor_set_level(rst, false);
             gpio_descriptor_release(rst);
             delay_millis(100);
             return;

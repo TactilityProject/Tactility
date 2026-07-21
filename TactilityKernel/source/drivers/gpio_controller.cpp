@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 
 #include <tactility/concurrent/mutex.h>
@@ -9,6 +10,7 @@
 #include <cstdlib>
 #include <new>
 
+constexpr auto* TAG = "gpio";
 #define GPIO_INTERNAL_API(driver) ((struct GpioControllerApi*)(driver)->api)
 
 extern "C" {
@@ -31,6 +33,7 @@ struct GpioControllerData {
         for (uint32_t i = 0; i < pin_count; ++i) {
             descriptors[i].controller = device;
             descriptors[i].pin = static_cast<gpio_pin_t>(i);
+            descriptors[i].flags = 0;
             descriptors[i].owner_type = GPIO_OWNER_NONE;
             descriptors[i].controller_context = this->controller_context;
         }
@@ -48,6 +51,7 @@ struct GpioControllerData {
 GpioDescriptor* gpio_descriptor_acquire(
     Device* controller,
     gpio_pin_t pin_number,
+    gpio_flags_t flags,
     GpioOwnerType owner
 ) {
     check(owner != GPIO_OWNER_NONE);
@@ -56,20 +60,46 @@ GpioDescriptor* gpio_descriptor_acquire(
 
     mutex_lock(&data->mutex);
     if (pin_number >= data->pin_count) {
+        LOG_E(TAG, "%s: pin %lu is out of range (> %lu)", controller->name, pin_number, data->pin_count);
         mutex_unlock(&data->mutex);
         return nullptr;
     }
 
     GpioDescriptor* desc = &data->descriptors[pin_number];
     if (desc->owner_type != GPIO_OWNER_NONE) {
+        LOG_E(TAG, "%s: pin %lu is in use", controller->name, pin_number);
         mutex_unlock(&data->mutex);
         return nullptr;
     }
 
     desc->owner_type = owner;
+    desc->flags = flags;
     mutex_unlock(&data->mutex);
 
+    // Init flags by implementation
+    auto init_result = gpio_descriptor_set_flags(desc, flags);
+    if (init_result != ERROR_NONE) {
+        LOG_E(TAG, "%s: pin %d failed to set flags to %08lx", controller->name, pin_number, flags);
+        mutex_lock(&data->mutex);
+        desc->owner_type = GPIO_OWNER_NONE;
+        desc->flags = 0;
+        mutex_unlock(&data->mutex);
+        return nullptr;
+    }
+
     return desc;
+}
+
+GpioDescriptor* gpio_descriptor_acquire_pin_spec(
+    GpioPinSpec const* pin_spec,
+    GpioOwnerType owner
+) {
+    return gpio_descriptor_acquire(
+        pin_spec->gpio_controller,
+        pin_spec->pin,
+        pin_spec->flags,
+        owner
+    );
 }
 
 error_t gpio_descriptor_release(GpioDescriptor* descriptor) {
@@ -131,6 +161,17 @@ error_t gpio_descriptor_set_flags(GpioDescriptor* descriptor, gpio_flags_t flags
 error_t gpio_descriptor_get_flags(GpioDescriptor* descriptor, gpio_flags_t* flags) {
     const auto* driver = device_get_driver(descriptor->controller);
     return GPIO_INTERNAL_API(driver)->get_flags(descriptor, flags);
+}
+
+error_t gpio_descriptor_has_flags(GpioDescriptor* descriptor, gpio_flags_t flags, bool* has_flags) {
+    const auto* driver = device_get_driver(descriptor->controller);
+    gpio_flags_t available_flags = 0;
+    error_t result = GPIO_INTERNAL_API(driver)->get_flags(descriptor, &available_flags);
+    if (result != ERROR_NONE) {
+        return result;
+    }
+    *has_flags = (available_flags & flags) == flags;
+    return ERROR_NONE;
 }
 
 error_t gpio_descriptor_get_pin_number(GpioDescriptor* descriptor, gpio_pin_t* pin) {

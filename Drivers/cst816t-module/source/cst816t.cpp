@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/cst816t.h>
+
 #include <cst816t_module.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
-#include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/pointer.h>
 #include <tactility/error.h>
@@ -44,15 +45,12 @@ struct Cst816tInternal {
 // Timings match the reference driver linked above: it holds RST high for 100ms (well past the
 // datasheet's Tpor/Tron minimum of 100ms), pulses it low for 10ms (Trst minimum is 0.1ms), then
 // waits another 100ms (Tron) for the chip to finish reinitializing before any I2C traffic.
-static error_t reset_pulse(GpioDescriptor* descriptor, bool active_high) {
-    bool idle_level = !active_high;
-
-    bool ok = gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE;
-    ok = ok && gpio_descriptor_set_level(descriptor, idle_level) == ERROR_NONE;
+static error_t reset_pulse(GpioDescriptor* descriptor) {
+    ok = ok && gpio_descriptor_set_level(descriptor, false) == ERROR_NONE;
     vTaskDelay(pdMS_TO_TICKS(100));
-    ok = ok && gpio_descriptor_set_level(descriptor, active_high) == ERROR_NONE;
+    ok = ok && gpio_descriptor_set_level(descriptor, true) == ERROR_NONE;
     vTaskDelay(pdMS_TO_TICKS(10));
-    ok = ok && gpio_descriptor_set_level(descriptor, idle_level) == ERROR_NONE;
+    ok = ok && gpio_descriptor_set_level(descriptor, false) == ERROR_NONE;
     vTaskDelay(pdMS_TO_TICKS(100));
 
     return ok ? ERROR_NONE : ERROR_RESOURCE;
@@ -77,14 +75,14 @@ static error_t start(Device* device) {
     internal->y = 0;
 
     if (config->pin_reset.gpio_controller != nullptr) {
-        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_OWNER_GPIO);
+        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
         if (internal->reset_descriptor == nullptr) {
             LOG_E(TAG, "Failed to acquire reset pin");
             free(internal);
             return ERROR_RESOURCE;
         }
 
-        if (reset_pulse(internal->reset_descriptor, config->reset_active_high) != ERROR_NONE) {
+        if (reset_pulse(internal->reset_descriptor) != ERROR_NONE) {
             LOG_E(TAG, "Failed to pulse reset pin");
             gpio_descriptor_release(internal->reset_descriptor);
             free(internal);

@@ -17,7 +17,7 @@ struct GpioAdapterContext {
 
 static struct GpioAdapterContext* g_context = NULL;
 
-static struct GpioDescriptor* acquire_descriptor(int16_t gpio) {
+static struct GpioDescriptor* acquire_descriptor(int16_t gpio, gpio_flags_t flags) {
     if (g_context == NULL || gpio < 0 || (size_t) gpio >= g_context->pin_count) {
         return NULL;
     }
@@ -31,7 +31,7 @@ static struct GpioDescriptor* acquire_descriptor(int16_t gpio) {
         return NULL;
     }
 
-    struct GpioDescriptor* descriptor = gpio_descriptor_acquire(spec->gpio_controller, spec->pin, GPIO_OWNER_GPIO);
+    struct GpioDescriptor* descriptor = gpio_descriptor_acquire(spec->gpio_controller, spec->pin, flags, GPIO_OWNER_GPIO);
     if (descriptor != NULL) {
         gpio_descriptor_set_flags(descriptor, spec->flags);
         g_context->descriptors[gpio] = descriptor;
@@ -40,16 +40,7 @@ static struct GpioDescriptor* acquire_descriptor(int16_t gpio) {
 }
 
 static int gpio_setup(int16_t gpio, audio_gpio_dir_t dir, audio_gpio_mode_t mode) {
-    struct GpioDescriptor* descriptor = acquire_descriptor(gpio);
-    if (descriptor == NULL) {
-        return ESP_CODEC_DEV_NOT_FOUND;
-    }
-
-    gpio_flags_t flags = GPIO_FLAG_NONE;
-    gpio_descriptor_get_flags(descriptor, &flags);
-    flags &= ~(GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_PULL_UP | GPIO_FLAG_PULL_DOWN);
-
-    flags |= (dir == AUDIO_GPIO_DIR_OUT) ? GPIO_FLAG_DIRECTION_OUTPUT : GPIO_FLAG_DIRECTION_INPUT;
+    gpio_flags_t flags = (dir == AUDIO_GPIO_DIR_OUT) ? GPIO_FLAG_DIRECTION_OUTPUT : GPIO_FLAG_DIRECTION_INPUT;
     if ((mode & AUDIO_GPIO_MODE_PULL_UP) != 0) {
         flags |= GPIO_FLAG_PULL_UP;
     }
@@ -57,11 +48,19 @@ static int gpio_setup(int16_t gpio, audio_gpio_dir_t dir, audio_gpio_mode_t mode
         flags |= GPIO_FLAG_PULL_DOWN;
     }
 
+    struct GpioDescriptor* descriptor = acquire_descriptor(gpio, flags);
+    if (descriptor == NULL) {
+        return ESP_CODEC_DEV_NOT_FOUND;
+    }
+
+    gpio_descriptor_get_flags(descriptor, &flags);
+    flags &= ~(GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_PULL_UP | GPIO_FLAG_PULL_DOWN);
+
     return (gpio_descriptor_set_flags(descriptor, flags) == ERROR_NONE) ? ESP_CODEC_DEV_OK : ESP_CODEC_DEV_DRV_ERR;
 }
 
 static int gpio_set(int16_t gpio, bool high) {
-    struct GpioDescriptor* descriptor = acquire_descriptor(gpio);
+    struct GpioDescriptor* descriptor = acquire_descriptor(gpio, GPIO_FLAG_DIRECTION_OUTPUT);
     if (descriptor == NULL) {
         return ESP_CODEC_DEV_NOT_FOUND;
     }
@@ -72,7 +71,7 @@ static int gpio_set(int16_t gpio, bool high) {
 // acquire and a legitimate low reading are indistinguishable to the caller; log so the
 // failure is at least visible.
 static bool gpio_get(int16_t gpio) {
-    struct GpioDescriptor* descriptor = acquire_descriptor(gpio);
+    struct GpioDescriptor* descriptor = acquire_descriptor(gpio, GPIO_FLAG_DIRECTION_INPUT);
     if (descriptor == NULL) {
         LOG_E(TAG, "gpio_get: failed to acquire descriptor for pin %d", gpio);
         return false;

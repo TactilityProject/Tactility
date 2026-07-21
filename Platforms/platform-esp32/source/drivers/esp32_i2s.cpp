@@ -65,11 +65,11 @@ struct Esp32I2sInternal {
         auto& data_out_spec = dts_config->pin_data_out;
         auto& mclk_spec = dts_config->pin_mclk;
 
-        bool success = acquire_pin_or_set_null(ws_spec, &ws_descriptor) &&
-            acquire_pin_or_set_null(bclk_spec, &bclk_descriptor) &&
-            acquire_pin_or_set_null(data_in_spec, &data_in_descriptor) &&
-            acquire_pin_or_set_null(data_out_spec, &data_out_descriptor) &&
-            acquire_pin_or_set_null(mclk_spec, &mclk_descriptor);
+        bool success = acquire_pin_or_set_null(ws_spec, GPIO_FLAG_DIRECTION_OUTPUT, &ws_descriptor) &&
+            acquire_pin_or_set_null(bclk_spec, GPIO_FLAG_DIRECTION_OUTPUT, &bclk_descriptor) &&
+            acquire_pin_or_set_null(data_in_spec, GPIO_FLAG_DIRECTION_INPUT, &data_in_descriptor) &&
+            acquire_pin_or_set_null(data_out_spec, GPIO_FLAG_DIRECTION_OUTPUT, &data_out_descriptor) &&
+            acquire_pin_or_set_null(mclk_spec, GPIO_FLAG_DIRECTION_OUTPUT, &mclk_descriptor);
 
         if (!success) {
             cleanup_pins();

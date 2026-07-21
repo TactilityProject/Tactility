@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/button_control.h>
+
 #include <button_control_module.h>
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/keyboard.h>
 #include <tactility/error.h>
@@ -72,15 +74,9 @@ static error_t acquire_button(const GpioPinSpec& pin, uint32_t short_press_key, 
         return ERROR_NONE;
     }
 
-    auto* descriptor = gpio_descriptor_acquire(pin.gpio_controller, pin.pin, GPIO_OWNER_GPIO);
+    auto* descriptor = gpio_descriptor_acquire(pin.gpio_controller, pin.pin, GPIO_FLAG_DIRECTION_INPUT, GPIO_OWNER_GPIO);
     if (descriptor == nullptr) {
         LOG_E(TAG, "Failed to acquire GPIO descriptor");
-        return ERROR_RESOURCE;
-    }
-
-    if (gpio_descriptor_set_flags(descriptor, pin.flags | GPIO_FLAG_DIRECTION_INPUT) != ERROR_NONE) {
-        LOG_E(TAG, "Failed to configure GPIO as input");
-        gpio_descriptor_release(descriptor);
         return ERROR_RESOURCE;
     }
 

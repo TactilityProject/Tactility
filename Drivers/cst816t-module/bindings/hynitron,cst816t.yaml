@@ -35,11 +35,3 @@ properties:
     type: phandles
     default: GPIO_PIN_SPEC_NONE
     description: Interrupt GPIO pin (currently unused - reads are polled via read_data())
-  reset-active-high:
-    type: boolean
-    default: false
-    description: Whether the reset pin is active high
-  interrupt-active-high:
-    type: boolean
-    default: false
-    description: Whether the interrupt pin is active high

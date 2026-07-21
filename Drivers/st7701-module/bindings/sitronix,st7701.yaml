@@ -233,10 +233,6 @@ properties:
     default: GPIO_PIN_SPEC_NONE
     description: Optional hardware reset pin for the panel. Falls back to a software reset
       (sent over the 3-wire bus) if not set.
-  reset-active-high:
-    type: boolean
-    default: false
-    description: Whether the reset pin is active high
   mirror-by-cmd:
     type: boolean
     default: false

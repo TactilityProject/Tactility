@@ -192,7 +192,7 @@ static void destroy_power_supply_child(Device* child) {
 // region Driver lifecycle
 
 static error_t acquire_input(const GpioPinSpec& pin, GpioDescriptor** out_descriptor) {
-    auto* descriptor = gpio_descriptor_acquire(pin.gpio_controller, pin.pin, GPIO_OWNER_GPIO);
+    auto* descriptor = gpio_descriptor_acquire_pin_spec(&pin, GPIO_OWNER_GPIO);
     if (descriptor == nullptr) {
         return ERROR_RESOURCE;
     }
@@ -226,7 +226,7 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    internal->power_off_descriptor = gpio_descriptor_acquire(config->pin_power_off.gpio_controller, config->pin_power_off.pin, GPIO_OWNER_GPIO);
+    internal->power_off_descriptor = gpio_descriptor_acquire_pin_spec(config, GPIO_OWNER_GPIO);
     if (internal->power_off_descriptor == nullptr ||
         gpio_descriptor_set_flags(internal->power_off_descriptor, config->pin_power_off.flags | GPIO_FLAG_DIRECTION_OUTPUT) != ERROR_NONE) {
         LOG_E(TAG, "Failed to configure power-off pin");

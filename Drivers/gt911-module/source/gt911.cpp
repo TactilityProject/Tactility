@@ -84,9 +84,10 @@ static error_t start(Device* device) {
         .y_max = config->y_max,
         .rst_gpio_num = pin_or_nc(config->pin_reset),
         .int_gpio_num = pin_or_nc(config->pin_interrupt),
+        // GT911's reset and interrupt lines are both fixed active-low in hardware.
         .levels = {
-            .reset = config->reset_active_high ? 1u : 0u,
-            .interrupt = config->interrupt_active_high ? 1u : 0u,
+            .reset = 0u,
+            .interrupt = 0u,
         },
         .flags = {
             .swap_xy = config->swap_xy ? 1u : 0u,

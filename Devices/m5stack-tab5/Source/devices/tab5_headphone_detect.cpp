@@ -1,6 +1,7 @@
 #include "tab5_headphone_detect.h"
 
 #include <tactility/device.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/log.h>
 
@@ -35,7 +36,7 @@ static void headphone_detect_callback(TimerHandle_t /*timer*/) {
         return; // Not ready yet, will retry on next tick
     }
 
-    auto* hp_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_HEADPHONE_DETECT, GPIO_OWNER_GPIO);
+    auto* hp_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_HEADPHONE_DETECT, GPIO_FLAG_DIRECTION_INPUT, GPIO_OWNER_GPIO);
     if (!hp_pin) {
         LOG_W(TAG, "hp_detect: HP_DET pin busy");
         return;
@@ -53,7 +54,7 @@ static void headphone_detect_callback(TimerHandle_t /*timer*/) {
     LOG_D(TAG, "hp_detect: HP_DET=%d", (int)hp);
 
     if (!hp_detect_initialized || hp != hp_detect_last) {
-        auto* spk_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_OWNER_GPIO);
+        auto* spk_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
         if (!spk_pin) {
             LOG_W(TAG, "hp_detect: SPK_EN pin busy, will retry");
             return;

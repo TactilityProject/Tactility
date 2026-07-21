@@ -27,7 +27,6 @@ struct Tca8418Config {
     uint8_t sym_row;
     uint8_t sym_col;
     struct GpioPinSpec pin_reset;
-    bool reset_active_high;
 };
 
 #ifdef __cplusplus

@@ -19,8 +19,6 @@ struct Cst816tConfig {
     bool mirror_y;
     struct GpioPinSpec pin_reset;
     struct GpioPinSpec pin_interrupt;
-    bool reset_active_high;
-    bool interrupt_active_high;
 };
 
 #ifdef __cplusplus

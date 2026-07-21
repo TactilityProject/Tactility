@@ -88,7 +88,6 @@ struct St7701Config {
     // Optional hardware reset pin for the panel. GPIO_PIN_SPEC_NONE falls back to a software
     // reset sent over the 3-wire bus (see esp_lcd_st7701's panel_st7701_reset()).
     struct GpioPinSpec pin_reset;
-    bool reset_active_high;
 
     // See the 'mirror-by-cmd' and 'auto-del-panel-io' binding properties.
     bool mirror_by_cmd;

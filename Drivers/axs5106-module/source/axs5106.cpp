@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/axs5106.h>
+
 #include <axs5106_module.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
-#include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/pointer.h>
 #include <tactility/error.h>
@@ -41,16 +42,10 @@ struct Axs5106Internal {
 
 // region Driver lifecycle
 
-// Matches the vendor demo's touch_axs5106_reset(): pulse the reset pin active for 10ms, then
-// release it for 10ms before any I2C traffic. No separate init step follows - the vendor demo's
-// touch_axs5106_init() is a no-op too.
-static error_t reset_pulse(GpioDescriptor* descriptor, bool active_high) {
-    bool idle_level = !active_high;
-
-    bool ok = gpio_descriptor_set_flags(descriptor, GPIO_FLAG_DIRECTION_OUTPUT) == ERROR_NONE;
-    ok = ok && gpio_descriptor_set_level(descriptor, active_high) == ERROR_NONE;
+static error_t reset_pulse(GpioDescriptor* descriptor) {
+    ok = ok && gpio_descriptor_set_level(descriptor, true) == ERROR_NONE;
     vTaskDelay(pdMS_TO_TICKS(10));
-    ok = ok && gpio_descriptor_set_level(descriptor, idle_level) == ERROR_NONE;
+    ok = ok && gpio_descriptor_set_level(descriptor, false) == ERROR_NONE;
     vTaskDelay(pdMS_TO_TICKS(10));
 
     return ok ? ERROR_NONE : ERROR_RESOURCE;
@@ -73,14 +68,14 @@ static error_t start(Device* device) {
     internal->point_count = 0;
 
     if (config->pin_reset.gpio_controller != nullptr) {
-        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_OWNER_GPIO);
+        internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
         if (internal->reset_descriptor == nullptr) {
             LOG_E(TAG, "Failed to acquire reset pin");
             free(internal);
             return ERROR_RESOURCE;
         }
 
-        if (reset_pulse(internal->reset_descriptor, config->reset_active_high) != ERROR_NONE) {
+        if (reset_pulse(internal->reset_descriptor) != ERROR_NONE) {
             LOG_E(TAG, "Failed to pulse reset pin");
             gpio_descriptor_release(internal->reset_descriptor);
             free(internal);

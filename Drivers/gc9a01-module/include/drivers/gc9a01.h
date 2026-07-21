@@ -25,7 +25,6 @@ struct Gc9a01Config {
     uint8_t transaction_queue_depth;
     struct GpioPinSpec pin_dc;
     struct GpioPinSpec pin_reset;
-    bool reset_active_high;
     // Optional reference to this display's backlight device, NULL if none.
     struct Device* backlight;
 };

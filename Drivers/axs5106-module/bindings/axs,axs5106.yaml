@@ -35,14 +35,6 @@ properties:
     type: phandles
     default: GPIO_PIN_SPEC_NONE
     description: Interrupt GPIO pin
-  reset-active-high:
-    type: boolean
-    default: false
-    description: Whether the reset pin is active high
-  interrupt-active-high:
-    type: boolean
-    default: false
-    description: Whether the interrupt pin is active high
   transmit-timeout:
     type: int
     default: 100

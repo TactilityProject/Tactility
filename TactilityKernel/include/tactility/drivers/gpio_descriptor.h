@@ -9,6 +9,8 @@ struct GpioDescriptor {
     struct Device* controller;
     /** @brief Physical pin number */
     gpio_pin_t pin;
+    /** @brief Pin flags: initialized by config, might be updated by user via gpio_descriptor_set_flags() */
+    gpio_flags_t flags;
     /** @brief Current owner */
     enum GpioOwnerType owner_type;
     /**

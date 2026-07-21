@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/cst66xx.h>
+
 #include <cst66xx_module.h>
 
 #include <tactility/check.h>
 #include <tactility/delay.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
-#include <tactility/drivers/gpio_controller.h>
+#include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_descriptor.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/pointer.h>
@@ -61,15 +62,18 @@ static void perform_hardware_reset(const Cst66xxConfig* config) {
         return;
     }
 
-    auto* rst = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_OWNER_GPIO);
+    // Not requesting GPIO_FLAG_ACTIVE_LOW here: some GPIO expanders (e.g. xl9555/tca95xx/
+    // tca9534) can only invert what's read back from an input, not what's driven on an
+    // output, so they reject ACTIVE_LOW combined with OUTPUT. Drive the raw physical level
+    // instead: this pin's reset line is active-low, so low asserts and high releases.
+    auto* rst = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
     if (rst == nullptr) {
         return;
     }
 
-    gpio_descriptor_set_flags(rst, GPIO_FLAG_DIRECTION_OUTPUT);
-    gpio_descriptor_set_level(rst, config->reset_active_high);
+    gpio_descriptor_set_level(rst, false);
     delay_millis(10);
-    gpio_descriptor_set_level(rst, !config->reset_active_high);
+    gpio_descriptor_set_level(rst, true);
     gpio_descriptor_release(rst);
     // The reset pulse exits boot mode; give the controller time to re-init.
     delay_millis(80);
