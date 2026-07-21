@@ -139,11 +139,13 @@ static error_t start(Device* device) {
         esp_lcd_panel_init(internal->panel_handle) == ESP_OK &&
         (!config->invert_color || esp_lcd_panel_invert_color(internal->panel_handle, true) == ESP_OK);
 
-    // set_gap() just stores x_gap/y_gap and adds them as raw offsets wherever draw_bitmap()'s
-    // (already logical, post-swap) x/y land - independent of swap_xy/mirror state (confirmed via
-    // ESP-IDF's esp_lcd_panel_st7789.c, same pattern), so gap_x/gap_y are passed through unswapped.
+    // set_gap()'s x/y map straight to the physical CASET/RASET column/row registers, not to
+    // draw_bitmap()'s logical (post-swap) x/y - swap_xy transposes which physical axis those
+    // registers address, so the configured gaps must swap with it too
+    int32_t gap_x = config->swap_xy ? config->gap_y : config->gap_x;
+    int32_t gap_y = config->swap_xy ? config->gap_x : config->gap_y;
     if (ok) {
-        ok = (config->gap_x == 0 && config->gap_y == 0) || esp_lcd_panel_set_gap(internal->panel_handle, config->gap_x, config->gap_y) == ESP_OK;
+        ok = (gap_x == 0 && gap_y == 0) || esp_lcd_panel_set_gap(internal->panel_handle, gap_x, gap_y) == ESP_OK;
     }
     ok = ok && (!config->swap_xy || esp_lcd_panel_swap_xy(internal->panel_handle, true) == ESP_OK);
     ok = ok && ((!config->mirror_x && !config->mirror_y) || esp_lcd_panel_mirror(internal->panel_handle, config->mirror_x, config->mirror_y) == ESP_OK);
@@ -253,12 +255,18 @@ static error_t st7735_set_gap(Device* device, int32_t x_gap, int32_t y_gap) {
 }
 
 // Reads the devicetree-configured baseline, not live hardware state - see DisplayApi::get_gap_x().
+// Must match what start() actually programmed into the panel (physical CASET/RASET-space, swapped
+// when swap_xy is set) - lvgl_display.c treats this as the LV_DISPLAY_ROTATION_0 baseline and
+// re-applies it verbatim, so returning the raw unswapped config here would silently clobber
+// start()'s gap back to the wrong axes as soon as a display is bound.
 static int32_t st7735_get_gap_x(Device* device) {
-    return GET_CONFIG(device)->gap_x;
+    const auto* config = GET_CONFIG(device);
+    return config->swap_xy ? config->gap_y : config->gap_x;
 }
 
 static int32_t st7735_get_gap_y(Device* device) {
-    return GET_CONFIG(device)->gap_y;
+    const auto* config = GET_CONFIG(device);
+    return config->swap_xy ? config->gap_x : config->gap_y;
 }
 
 static error_t st7735_invert_color(Device* device, bool invert_color_data) {
