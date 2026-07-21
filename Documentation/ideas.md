@@ -13,6 +13,8 @@
 
 ## Higher Priority
 
+- LilyGO T-Dongle S3: 1 button control, stop auto-launching web server
+- Core2: support power off via software
 - Create `#define` for empty module (for modules that fully rely on device.properties and don't define drivers or have start/stop logic)
 - Get rid of TactilityC in favour of TactilityKernel and kernel modules
 - Improve SPI kernel driver (implement read, write, transactions)
