@@ -101,9 +101,8 @@ static error_t acquire_button(const GpioPinSpec& pin, void (*callback)(void*), v
         return ERROR_RESOURCE;
     }
 
-    if (error == ERROR_NONE) {
-        error = gpio_descriptor_add_callback(descriptor, callback, arg);
-    }
+    auto error = gpio_descriptor_add_callback(descriptor, callback, arg);
+
     if (error == ERROR_NONE) {
         error = gpio_descriptor_enable_interrupt(descriptor);
     }
