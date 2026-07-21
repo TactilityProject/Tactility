@@ -24,6 +24,7 @@ static constexpr uint8_t REG_FIFO_EN       = 0x23; // FIFO enable
 static constexpr uint8_t REG_WHO_AM_I      = 0x75; // chip ID — expect 0x19
 
 static constexpr uint8_t WHO_AM_I_VALUE    = 0x19;
+static constexpr uint8_t WHO_AM_I_ATTEMPTS = 5;
 
 // Configuration values
 // GYRO_CONFIG: FS_SEL=3 (±2000°/s), FCHOICE_B=00 → 0x18
@@ -54,10 +55,16 @@ static error_t start(Device* device) {
 
     auto address = GET_CONFIG(device)->address;
 
-    // Verify chip ID
+    // Verify chip ID: it might take more than 1 attempt at power up (on M5Stack Core2)
     uint8_t who_am_i = 0;
-    if (i2c_controller_register8_get(i2c_controller, address, REG_WHO_AM_I, &who_am_i, I2C_TIMEOUT_TICKS) != ERROR_NONE
-        || who_am_i != WHO_AM_I_VALUE) {
+    for (int i = 0; i < WHO_AM_I_ATTEMPTS; i++) {
+        if (i2c_controller_register8_get(i2c_controller, address, REG_WHO_AM_I, &who_am_i, I2C_TIMEOUT_TICKS) == ERROR_NONE) {
+            break;
+        }
+        vTaskDelay(10);
+    }
+
+    if (who_am_i != WHO_AM_I_VALUE) {
         LOG_E(TAG, "WHO_AM_I mismatch: got 0x%02X, expected 0x%02X", who_am_i, WHO_AM_I_VALUE);
         return ERROR_RESOURCE;
     }
