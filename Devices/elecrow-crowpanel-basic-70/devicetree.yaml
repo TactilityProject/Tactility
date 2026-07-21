@@ -1,0 +1,3 @@
+dependencies:
+  - Platforms/platform-esp32
+dts: elecrow,crowpanel-basic-70.dts
