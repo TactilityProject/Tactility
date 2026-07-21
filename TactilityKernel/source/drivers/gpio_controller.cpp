@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#include <tactility/concurrent/mutex.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
-
-#include <tactility/concurrent/mutex.h>
 #include <tactility/drivers/gpio_descriptor.h>
 
 #include <cstdlib>

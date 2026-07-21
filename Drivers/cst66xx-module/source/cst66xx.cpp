@@ -8,7 +8,7 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/gpio.h>
-#include <tactility/drivers/gpio_descriptor.h>
+#include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/pointer.h>
 #include <tactility/error.h>
