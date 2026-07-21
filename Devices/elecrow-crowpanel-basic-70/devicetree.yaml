@@ -1,3 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/rgb-display-module
+  - Drivers/gt911-module
 dts: elecrow,crowpanel-basic-70.dts
