@@ -4,7 +4,11 @@
 
 Tactility is an operating system for the ESP32 microcontroller family. It runs on 40+ supported devices (CYD boards, LilyGO, M5Stack, Elecrow, etc.) and includes a desktop simulator. Built with C++23, ESP-IDF, LVGL, and FreeRTOS.
 
-## Build Commands
+## Building
+
+### Git
+
+The repository uses git submodules. Make sure to use `--recurse-submodules` on relevant git commands.
 
 ### Simulator (Linux/macOS, no ESP-IDF needed)
 

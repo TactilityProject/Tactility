@@ -9,17 +9,17 @@
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
-#include <bindings/bmi270.h>
-#include <bindings/bm8563.h>
-#include <bindings/ina226.h>
-#include <bindings/py32ioexpander.h>
+#include <bindings/aw88298.h>
 #include <bindings/aw9523b.h>
 #include <bindings/axp2101.h>
 #include <bindings/axp2101_backlight.h>
-#include <bindings/ft6x36.h>
-#include <bindings/aw88298.h>
+#include <bindings/bm8563.h>
+#include <bindings/bmi270.h>
 #include <bindings/es7210.h>
+#include <bindings/ft6x36.h>
 #include <bindings/ili9341.h>
+#include <bindings/ina226.h>
+#include <bindings/py32ioexpander.h>
 #include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/gpio_hog.h>
 
@@ -44,7 +44,7 @@
 	};
 
 	// AW88298 speaker + ES7210 microphone
-	i2s0: i2s0 {
+	i2s0 {
 		compatible = "espressif,esp32-i2s";
 		port = <I2S_NUM_0>;
 		pin-bclk     = <&gpio0 34 GPIO_FLAG_NONE>;
@@ -84,12 +84,38 @@
 			power-supply;
 		};
 
-		// AW9523B pin map (same wiring as CoreS3):
 		// P0_0 = touch reset, P0_1 = bus-out enable, P0_2 = AW88298 reset,
 		// P0_4 = SD card switch, P1_1 = LCD reset, P1_7 = boost enable (SY7088)
-		aw9523b: aw9523b {
+		aw9523b {
 			compatible = "awinic,aw9523b";
 			reg = <0x58>;
+
+			// Bus-out enable, AW88298 (audio amp) reset, SD card power switch and boost enable
+			// (SY7088) are AW9523B pins with no owning peripheral driver yet.
+			aw9523_bus_out_enable {
+				compatible = "gpio-hog";
+				pin = <&aw9523b 1 GPIO_FLAG_NONE>;
+				mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+			};
+
+			aw9523_sdcard_switch {
+				compatible = "gpio-hog";
+				pin = <&aw9523b 4 GPIO_FLAG_NONE>;
+				mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+			};
+
+			aw9523_boost_enable {
+				compatible = "gpio-hog";
+				pin = <&aw9523b 15 GPIO_FLAG_NONE>;
+				mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+			};
+		};
+
+		aw88298 {
+			compatible = "awinic,aw88298";
+			reg = <0x36>;
+			i2s = <&i2s0>;
+			pin-reset = <&aw9523b 2 GPIO_FLAG_NONE>;
 		};
 
 		// Same rail assignment as CoreS3: ALDO1=AW88298, ALDO2=ES7210, ALDO3=camera
@@ -109,7 +135,7 @@
 			bldo1-enabled;
 			bldo2-enabled;
 
-			display_backlight: backlight {
+			display_backlight {
 				compatible = "axp2101-backlight";
 				ldo = <AXP2101_DLDO1>;
 				min-millivolt = <2500>;
@@ -117,19 +143,12 @@
 			};
 		};
 
-		touch0 {
+		touch {
 			compatible = "focaltech,ft6x36";
 			reg = <0x38>;
 			x-max = <319>;
 			y-max = <239>;
 			pin-reset = <&aw9523b 0 GPIO_FLAG_NONE>;
-		};
-
-		aw88298 {
-			compatible = "awinic,aw88298";
-			reg = <0x36>;
-			i2s = <&i2s0>;
-			pin-reset = <&aw9523b 2 GPIO_FLAG_NONE>;
 		};
 
 		es7210 {
@@ -151,27 +170,6 @@
 		// TODO: GC0308 camera @ 0x21 — requires i2c_master driver, not yet available
 		// TODO: LTR-553ALS-WA proximity/light @ 0x23 — no driver yet
 		// TODO: BMM150 magnetometer @ 0x10 — accessible only via BMI270 aux I2C
-	};
-
-	// Bus-out enable and SD card power switch are AW9523B pins with no owning peripheral
-	// driver. Touch reset, AW88298 reset and LCD reset are handled directly by their own
-	// device's pin-reset property instead (see touch0/aw88298/display@0 above/below).
-	aw9523_bus_out_enable {
-		compatible = "gpio-hog";
-		pin = <&aw9523b 1 GPIO_FLAG_NONE>;
-		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
-	};
-
-	aw9523_sdcard_switch {
-		compatible = "gpio-hog";
-		pin = <&aw9523b 4 GPIO_FLAG_NONE>;
-		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
-	};
-
-	aw9523_boost_enable {
-		compatible = "gpio-hog";
-		pin = <&aw9523b 15 GPIO_FLAG_NONE>;
-		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
 	};
 
 	// TODO: Servo UART (SCS9009, 1 Mbaud) — TX=GPIO6, RX=GPIO7

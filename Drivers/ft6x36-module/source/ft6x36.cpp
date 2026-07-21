@@ -58,12 +58,12 @@ static error_t pulse_reset(GpioDescriptor* descriptor, bool active_high) {
     if (error != ERROR_NONE) {
         return error;
     }
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(50));
     error = gpio_descriptor_set_level(descriptor, !active_high);
     if (error != ERROR_NONE) {
         return error;
     }
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(300));
     return ERROR_NONE;
 }
 

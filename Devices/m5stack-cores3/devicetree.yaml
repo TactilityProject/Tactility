@@ -1,9 +1,11 @@
 dependencies:
 - Platforms/platform-esp32
-- Drivers/bmi270-module
-- Drivers/bm8563-module
-- Drivers/axp2101-module
+- Drivers/aw88298-module
 - Drivers/aw9523b-module
+- Drivers/axp2101-module
+- Drivers/bm8563-module
+- Drivers/bmi270-module
+- Drivers/es7210-module
 - Drivers/ft5x06-module
 - Drivers/ili9341-module
 dts: m5stack,cores3.dts
