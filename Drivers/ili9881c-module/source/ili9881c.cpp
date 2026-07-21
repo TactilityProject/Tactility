@@ -44,6 +44,11 @@ struct Ili9881cInternal {
     // draw_bitmap() when color_data is one of frame_buffers and avoid_tearing is set - see the
     // comment there for why.
     SemaphoreHandle_t frame_complete_semaphore;
+    // Signaled by on_color_trans_done once the panel driver's own copy/DMA2D transfer of a
+    // draw_bitmap() call's pixels into the target frame buffer completes. Unlike
+    // frame_complete_semaphore this is always waited on (regardless of allow_tearing or whether
+    // color_data is a real frame buffer) - see the comment on draw_bitmap() for why.
+    SemaphoreHandle_t color_trans_done_semaphore;
     // Heap-allocated only when the devicetree supplies a custom init_sequence (see
     // parse_init_sequence()) - nullptr otherwise, since the vendor's built-in default sequence
     // needs no parsing. Its .data pointers alias directly into the devicetree's static const
@@ -67,6 +72,30 @@ static bool on_refresh_done(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data
     BaseType_t high_task_woken = pdFALSE;
     xSemaphoreGiveFromISR(internal->frame_complete_semaphore, &high_task_woken);
     return high_task_woken == pdTRUE;
+}
+
+// esp_lcd_dpi_panel_draw_bitmap() copies (memcpy, or DMA2D when use_dma2d is set) the caller's
+// pixels into the target frame buffer and returns immediately - the copy itself finishes
+// asynchronously. Calling draw_bitmap() again before that copy completes hits the panel driver's
+// own re-entrancy guard and logs "previous draw operation is not finished" (lcd.dsi). This is
+// unconditional, unlike frame_complete_semaphore's tearing-avoidance wait: it protects the copy
+// itself, not scan-out, so it must be waited on regardless of allow_tearing or which buffer
+// color_data is.
+//
+// Unlike on_refresh_done (always ISR, from the VSYNC interrupt), esp_lcd_panel_dpi.c invokes this
+// callback from two different contexts depending on the copy path: synchronously from the calling
+// task for the CPU-memcpy and fb-direct (zero-copy) paths, but from an ISR (async_fbcpy_done_cb,
+// the DMA2D completion interrupt) when use_dma2d is set. Giving a semaphore with the ISR-only API
+// from task context is undefined behavior on FreeRTOS, so the context must be checked at runtime.
+static bool on_color_trans_done(esp_lcd_panel_handle_t, esp_lcd_dpi_panel_event_data_t*, void* user_ctx) {
+    auto* internal = static_cast<Ili9881cInternal*>(user_ctx);
+    if (xPortInIsrContext()) {
+        BaseType_t high_task_woken = pdFALSE;
+        xSemaphoreGiveFromISR(internal->color_trans_done_semaphore, &high_task_woken);
+        return high_task_woken == pdTRUE;
+    }
+    xSemaphoreGive(internal->color_trans_done_semaphore);
+    return false;
 }
 
 static int pin_or_unused(const GpioPinSpec& pin) {
@@ -309,10 +338,27 @@ static error_t start(Device* device) {
         return ERROR_OUT_OF_MEMORY;
     }
 
+    internal->color_trans_done_semaphore = xSemaphoreCreateBinary();
+    if (internal->color_trans_done_semaphore == nullptr) {
+        vSemaphoreDelete(internal->frame_complete_semaphore);
+        esp_lcd_panel_del(internal->panel_handle);
+        esp_lcd_panel_io_del(internal->io_handle);
+        esp_lcd_del_dsi_bus(internal->dsi_bus_handle);
+        esp_ldo_release_channel(internal->ldo_handle);
+        free(internal->parsed_init_cmds);
+        free(internal);
+        return ERROR_OUT_OF_MEMORY;
+    }
+    // The panel starts out idle (no draw_bitmap() call in flight), so the first draw_bitmap()
+    // must not block waiting for a completion event that will never come.
+    xSemaphoreGive(internal->color_trans_done_semaphore);
+
     esp_lcd_dpi_panel_event_callbacks_t callbacks = {};
     callbacks.on_refresh_done = on_refresh_done;
+    callbacks.on_color_trans_done = on_color_trans_done;
     if (esp_lcd_dpi_panel_register_event_callbacks(internal->panel_handle, &callbacks, internal) != ESP_OK) {
         LOG_E(TAG, "Failed to register panel event callbacks");
+        vSemaphoreDelete(internal->color_trans_done_semaphore);
         vSemaphoreDelete(internal->frame_complete_semaphore);
         esp_lcd_panel_del(internal->panel_handle);
         esp_lcd_panel_io_del(internal->io_handle);
@@ -363,6 +409,7 @@ static error_t stop(Device* device) {
     }
 
     vSemaphoreDelete(internal->frame_complete_semaphore);
+    vSemaphoreDelete(internal->color_trans_done_semaphore);
     free(internal->parsed_init_cmds);
     free(internal);
     device_set_driver_data(device, nullptr);
@@ -402,14 +449,31 @@ static bool ili9881c_color_data_is_frame_buffer(const Ili9881cInternal* internal
 static error_t ili9881c_draw_bitmap(Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data) {
     auto* internal = static_cast<Ili9881cInternal*>(device_get_driver_data(device));
 
+    // Wait for the previous draw_bitmap()'s copy/DMA2D transfer to finish before issuing a new
+    // one - see on_color_trans_done's comment for why this is unconditional (unlike the
+    // tearing-avoidance wait below). The semaphore starts pre-given (see start()), so the first
+    // call doesn't block here.
+    xSemaphoreTake(internal->color_trans_done_semaphore, portMAX_DELAY);
+
     bool wait_for_scanout = !GET_CONFIG(device)->allow_tearing && ili9881c_color_data_is_frame_buffer(internal, color_data);
     if (wait_for_scanout) {
         xSemaphoreTake(internal->frame_complete_semaphore, 0); // clear any already-pending signal
     }
 
     if (esp_lcd_panel_draw_bitmap(internal->panel_handle, x_start, y_start, x_end, y_end, color_data) != ESP_OK) {
+        xSemaphoreGive(internal->color_trans_done_semaphore);
         return ERROR_RESOURCE;
     }
+
+    // Also wait for *this* call's own copy to finish before returning: color_data may be a
+    // caller-owned buffer (e.g. LVGL's draw buffer in owned-buffer/PARTIAL mode), and the
+    // CPU-memcpy/DMA2D copy paths both read directly from it asynchronously - draw_bitmap()
+    // returning early would let the caller start overwriting color_data (DisplayApi's contract
+    // treats draw_bitmap as synchronous - see lvgl_display_flush_cb()'s lv_display_flush_ready()
+    // call right after) while that read is still in flight. on_color_trans_done() re-gives the
+    // semaphore here, restoring the pre-given/idle state for the next call.
+    xSemaphoreTake(internal->color_trans_done_semaphore, portMAX_DELAY);
+    xSemaphoreGive(internal->color_trans_done_semaphore);
 
     if (wait_for_scanout) {
         xSemaphoreTake(internal->frame_complete_semaphore, portMAX_DELAY);

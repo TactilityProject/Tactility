@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <tactility/lvgl_display.h>
 
+#include <tactility/lvgl_ppa.h>
+
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/display.h>
@@ -37,6 +39,13 @@ struct LvglDisplayCtx {
     // display_mirror(); rotate_buf holds the rotated pixels and is sized like buf1.
     bool sw_rotate;
     void* rotate_buf;
+    // Lazily created on the first sw_rotate flush that needs it (see lvgl_display_rotate_tile()).
+    // Stays NULL - and every rotate falls back to rotate_buf/lv_draw_sw_rotate() - when the target
+    // has no PPA (lvgl_ppa_is_supported()), the color format has no PPA color mode
+    // (lvgl_ppa_supports_color_format()), or creating the PPA client/buffer failed once already.
+    void* ppa_handle;
+    bool ppa_unavailable;
+    bool ppa_eligible;
     // Size of buf1/buf2 (each) - used by lvgl_display_fb_base() to range-check which real buffer
     // (for the fb-direct case) a given color_map pointer falls into.
     size_t buf_size_bytes;
@@ -166,7 +175,37 @@ static void* lvgl_display_fb_base(struct LvglDisplayCtx* ctx, const uint8_t* col
     return ctx->buf1;
 }
 
-    static void lvgl_display_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* color_map) {
+// Tries to rotate the tightly-packed w x h block at in_buff via PPA, returning the PPA output
+// buffer on success or NULL if this tile/format/target can't use it - in which case the caller
+// must fall back to lv_draw_sw_rotate() into ctx->rotate_buf. Lazily creates the PPA client on the
+// first eligible call, sized to ctx->buf_size_bytes (the largest tile or full-frame buffer this
+// display will ever flush - see lvgl_display_add()); once creation fails once, ppa_unavailable
+// latches so later tiles don't retry it. Never asks PPA to byte-swap: lvgl_display_flush_cb()
+// applies ctx->byte_swap itself, once, at a single point regardless of which rotation path ran -
+// simpler than tracking whether it was already done by PPA (PARTIAL mode) vs. already done
+// per-tile before FULL mode's whole-frame rotate (see the two call sites).
+static void* lvgl_display_try_ppa_rotate(struct LvglDisplayCtx* ctx, const uint8_t* in_buff, int32_t w, int32_t h,
+                                          lv_display_rotation_t rotation, lv_color_format_t color_format) {
+    if (!ctx->ppa_eligible || ctx->ppa_unavailable) {
+        return NULL;
+    }
+    // PPA reads pic_w/pic_h in pixels with no separate stride - only safe when the tile has no
+    // row padding beyond w * bytes-per-pixel (see lvgl_ppa.h).
+    uint32_t bpp = lv_color_format_get_size(color_format);
+    if (lv_draw_buf_width_to_stride(w, color_format) != (uint32_t)w * bpp) {
+        return NULL;
+    }
+    if (ctx->ppa_handle == NULL) {
+        ctx->ppa_handle = lvgl_ppa_get_or_create(ctx->buf_size_bytes);
+        if (ctx->ppa_handle == NULL) {
+            ctx->ppa_unavailable = true;
+            return NULL;
+        }
+    }
+    return lvgl_ppa_rotate(ctx->ppa_handle, in_buff, w, h, rotation, color_format, false);
+}
+
+static void lvgl_display_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* color_map) {
     struct LvglDisplayCtx* ctx = (struct LvglDisplayCtx*)lv_display_get_driver_data(disp);
     bool is_i1 = lv_display_get_color_format(disp) == LV_COLOR_FORMAT_I1;
 
@@ -190,14 +229,20 @@ static void* lvgl_display_fb_base(struct LvglDisplayCtx* ctx, const uint8_t* col
         lv_color_format_t color_format = lv_display_get_color_format(disp);
         int32_t w = x2 - x1 + 1;
         int32_t h = y2 - y1 + 1;
-        uint32_t w_stride = lv_draw_buf_width_to_stride(w, color_format);
-        uint32_t h_stride = lv_draw_buf_width_to_stride(h, color_format);
-        if (rotation == LV_DISPLAY_ROTATION_180) {
-            lv_draw_sw_rotate(color_map, ctx->rotate_buf, w, h, w_stride, w_stride, rotation, color_format);
+
+        void* ppa_out = lvgl_display_try_ppa_rotate(ctx, color_map, w, h, rotation, color_format);
+        if (ppa_out != NULL) {
+            color_map = (uint8_t*)ppa_out;
         } else {
-            lv_draw_sw_rotate(color_map, ctx->rotate_buf, w, h, w_stride, h_stride, rotation, color_format);
+            uint32_t w_stride = lv_draw_buf_width_to_stride(w, color_format);
+            uint32_t h_stride = lv_draw_buf_width_to_stride(h, color_format);
+            if (rotation == LV_DISPLAY_ROTATION_180) {
+                lv_draw_sw_rotate(color_map, ctx->rotate_buf, w, h, w_stride, w_stride, rotation, color_format);
+            } else {
+                lv_draw_sw_rotate(color_map, ctx->rotate_buf, w, h, w_stride, h_stride, rotation, color_format);
+            }
+            color_map = (uint8_t*)ctx->rotate_buf;
         }
-        color_map = (uint8_t*)ctx->rotate_buf;
         lv_area_t rotated_area = { x1, y1, x2, y2 };
         lv_display_rotate_area(disp, &rotated_area);
         x1 = rotated_area.x1;
@@ -246,10 +291,16 @@ static void* lvgl_display_fb_base(struct LvglDisplayCtx* ctx, const uint8_t* col
                 bool swapped_wh = rotation == LV_DISPLAY_ROTATION_90 || rotation == LV_DISPLAY_ROTATION_270;
                 int32_t logical_w = swapped_wh ? (int32_t)vres : (int32_t)hres;
                 int32_t logical_h = swapped_wh ? (int32_t)hres : (int32_t)vres;
-                uint32_t src_stride = lv_draw_buf_width_to_stride(logical_w, color_format);
-                uint32_t dest_stride = lv_draw_buf_width_to_stride(hres, color_format);
-                lv_draw_sw_rotate(fb_base, ctx->rotate_buf, logical_w, logical_h, src_stride, dest_stride, rotation, color_format);
-                fb_base = (uint8_t*)ctx->rotate_buf;
+
+                void* ppa_out = lvgl_display_try_ppa_rotate(ctx, fb_base, logical_w, logical_h, rotation, color_format);
+                if (ppa_out != NULL) {
+                    fb_base = (uint8_t*)ppa_out;
+                } else {
+                    uint32_t src_stride = lv_draw_buf_width_to_stride(logical_w, color_format);
+                    uint32_t dest_stride = lv_draw_buf_width_to_stride(hres, color_format);
+                    lv_draw_sw_rotate(fb_base, ctx->rotate_buf, logical_w, logical_h, src_stride, dest_stride, rotation, color_format);
+                    fb_base = (uint8_t*)ctx->rotate_buf;
+                }
             }
 
             display_draw_bitmap(ctx->device, 0, 0, hres, vres, fb_base);
@@ -291,6 +342,13 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
     ctx->device = device;
     ctx->byte_swap = config->swap_bytes;
     ctx->sw_rotate = config->sw_rotate;
+    // Only relevant when sw_rotate is set - lvgl_display_try_ppa_rotate() also checks
+    // ctx->ppa_eligible directly, so this is safe to compute unconditionally.
+    ctx->ppa_eligible = lvgl_ppa_is_supported() && lvgl_ppa_supports_color_format(lv_color_format);
+    if (config->sw_rotate && !ctx->ppa_eligible) {
+        LOG_I(TAG, "PPA not available for this display (supported=%d, color_format=%d) - using lv_draw_sw_rotate()",
+              (int)lvgl_ppa_is_supported(), (int)lv_color_format);
+    }
     ctx->has_swap_xy_cap = display_has_capability(device, DISPLAY_CAPABILITY_CAP_SWAP_XY);
     ctx->has_mirror_cap = display_has_capability(device, DISPLAY_CAPABILITY_CAP_MIRROR);
     ctx->has_set_gap_cap = display_has_capability(device, DISPLAY_CAPABILITY_CAP_SET_GAP);
@@ -423,6 +481,9 @@ void lvgl_display_remove(lv_display_t* display) {
         }
         if (ctx->rotate_buf != NULL) {
             lvgl_display_free_buffer(ctx->rotate_buf);
+        }
+        if (ctx->ppa_handle != NULL) {
+            lvgl_ppa_delete(ctx->ppa_handle);
         }
         free(ctx);
     }

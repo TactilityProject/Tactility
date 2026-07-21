@@ -95,10 +95,10 @@ void tab5_create_devices_v2(Device* i2c0) {
         .vsync_pulse_width = 2,
         .vsync_back_porch = 8,
         .vsync_front_porch = 220,
-        .num_fbs = 1,
-        .use_dma2d = false,
+        .num_fbs = 2,
+        .use_dma2d = true,
         .disable_lp = false,
-        .allow_tearing = true,
+        .allow_tearing = true, // matches old lvgl_port_display_dsi_cfg_t.avoid_tearing = 0 (disabled = don't wait)
         .init_sequence = display_init_bytes.data(),
         .init_sequence_length = (uint32_t)display_init_bytes.size(),
         .backlight = backlight,
