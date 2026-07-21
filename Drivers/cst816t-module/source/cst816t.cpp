@@ -46,7 +46,7 @@ struct Cst816tInternal {
 // datasheet's Tpor/Tron minimum of 100ms), pulses it low for 10ms (Trst minimum is 0.1ms), then
 // waits another 100ms (Tron) for the chip to finish reinitializing before any I2C traffic.
 static error_t reset_pulse(GpioDescriptor* descriptor) {
-    ok = ok && gpio_descriptor_set_level(descriptor, false) == ERROR_NONE;
+    bool ok = gpio_descriptor_set_level(descriptor, false) == ERROR_NONE;
     vTaskDelay(pdMS_TO_TICKS(100));
     ok = ok && gpio_descriptor_set_level(descriptor, true) == ERROR_NONE;
     vTaskDelay(pdMS_TO_TICKS(10));

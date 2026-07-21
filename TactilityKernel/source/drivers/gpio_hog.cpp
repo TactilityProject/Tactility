@@ -35,13 +35,13 @@ static error_t start(Device* device) {
             return ERROR_RESOURCE;
     }
 
-    auto* descriptor = gpio_descriptor_acquire(config->pin.gpio_controller, config->pin.pin, flags, GPIO_OWNER_HOG);
+    auto* descriptor = gpio_descriptor_acquire(config->pin.gpio_controller, config->pin.pin, config->pin.flags | flags, GPIO_OWNER_HOG);
     if (descriptor == nullptr) {
         LOG_E(TAG, "Failed to acquire GPIO descriptor");
         return ERROR_RESOURCE;
     }
 
-    if (gpio_descriptor_set_level(descriptor, initial_high) != ERROR_NONE) {
+    if (initial_high && gpio_descriptor_set_level(descriptor, initial_high) != ERROR_NONE) {
         LOG_E(TAG, "Failed to set initial level to %d", (int)initial_high);
         gpio_descriptor_release(descriptor);
         return ERROR_RESOURCE;

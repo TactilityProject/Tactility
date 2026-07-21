@@ -31,9 +31,10 @@ static struct GpioDescriptor* acquire_descriptor(int16_t gpio, gpio_flags_t flag
         return NULL;
     }
 
-    struct GpioDescriptor* descriptor = gpio_descriptor_acquire(spec->gpio_controller, spec->pin, flags, GPIO_OWNER_GPIO);
+    struct GpioDescriptor* descriptor = gpio_descriptor_acquire(
+        spec->gpio_controller, spec->pin, spec->flags | flags, GPIO_OWNER_GPIO
+    );
     if (descriptor != NULL) {
-        gpio_descriptor_set_flags(descriptor, spec->flags);
         g_context->descriptors[gpio] = descriptor;
     }
     return descriptor;
@@ -55,6 +56,13 @@ static int gpio_setup(int16_t gpio, audio_gpio_dir_t dir, audio_gpio_mode_t mode
 
     gpio_descriptor_get_flags(descriptor, &flags);
     flags &= ~(GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_PULL_UP | GPIO_FLAG_PULL_DOWN);
+    flags |= (dir == AUDIO_GPIO_DIR_OUT) ? GPIO_FLAG_DIRECTION_OUTPUT : GPIO_FLAG_DIRECTION_INPUT;
+    if ((mode & AUDIO_GPIO_MODE_PULL_UP) != 0) {
+        flags |= GPIO_FLAG_PULL_UP;
+    }
+    if ((mode & AUDIO_GPIO_MODE_PULL_DOWN) != 0) {
+        flags |= GPIO_FLAG_PULL_DOWN;
+    }
 
     return (gpio_descriptor_set_flags(descriptor, flags) == ERROR_NONE) ? ESP_CODEC_DEV_OK : ESP_CODEC_DEV_DRV_ERR;
 }

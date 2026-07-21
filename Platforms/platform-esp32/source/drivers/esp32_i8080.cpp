@@ -68,9 +68,9 @@ static error_t start(Device* device) {
     const auto* config = GET_CONFIG(device);
 
     bool pins_ok =
-        acquire_pin_or_set_null(config->pin_dc, GPIO_FLAG_DIRECTION_INPUT, &data->dc_descriptor) &&
-        acquire_pin_or_set_null(config->pin_wr, GPIO_FLAG_DIRECTION_INPUT, &data->wr_descriptor) &&
-        acquire_pin_or_set_null(config->pin_rd, GPIO_FLAG_DIRECTION_INPUT, &data->rd_descriptor) &&
+        acquire_pin_or_set_null(config->pin_dc, GPIO_FLAG_DIRECTION_OUTPUT, &data->dc_descriptor) &&
+        acquire_pin_or_set_null(config->pin_wr, GPIO_FLAG_DIRECTION_OUTPUT, &data->wr_descriptor) &&
+        acquire_pin_or_set_null(config->pin_rd, GPIO_FLAG_DIRECTION_OUTPUT, &data->rd_descriptor) &&
         acquire_pin_or_set_null(config->pin_d0, GPIO_FLAG_DIRECTION_OUTPUT, &data->d0_descriptor) &&
         acquire_pin_or_set_null(config->pin_d1, GPIO_FLAG_DIRECTION_OUTPUT, &data->d1_descriptor) &&
         acquire_pin_or_set_null(config->pin_d2, GPIO_FLAG_DIRECTION_OUTPUT, &data->d2_descriptor) &&
@@ -91,7 +91,6 @@ static error_t start(Device* device) {
     // RD is never toggled by the i80 LCD peripheral (write-only bus); drive it high once so the
     // panel doesn't see spurious read strobes.
     if (data->rd_descriptor != nullptr) {
-        gpio_descriptor_set_flags(data->rd_descriptor, GPIO_FLAG_DIRECTION_OUTPUT);
         gpio_descriptor_set_level(data->rd_descriptor, true);
     }
 
