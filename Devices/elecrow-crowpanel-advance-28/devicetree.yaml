@@ -1,3 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/st7789-module
+  - Drivers/ft5x06-module
 dts: elecrow,crowpanel-advance-28.dts

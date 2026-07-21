@@ -2,12 +2,13 @@
 
 #include <Tactility/network/HttpServer.h>
 
-#include <Tactility/Logger.h>
 #include <Tactility/service/wifi/Wifi.h>
+
+#include <tactility/log.h>
 
 namespace tt::network {
 
-static const auto LOGGER = Logger("HttpServer");
+constexpr auto* TAG = "HttpServer";
 
 static constexpr size_t INTERNAL_URI_HANDLER_COUNT = 2;
 
@@ -19,14 +20,14 @@ bool HttpServer::startInternal() {
     config.max_uri_handlers = handlers.size() + INTERNAL_URI_HANDLER_COUNT;
 
     if (httpd_start(&server, &config) != ESP_OK) {
-        LOGGER.error("Failed to start http server on port {}", port);
+        LOG_E(TAG, "Failed to start http server on port %u", (unsigned)port);
         return false;
     }
 
     bool allRegistered = true;
     for (std::vector<httpd_uri_t>::reference handler : handlers) {
         if (httpd_register_uri_handler(server, &handler) != ESP_OK) {
-            LOGGER.error("Failed to register URI handler: {}", handler.uri);
+            LOG_E(TAG, "Failed to register URI handler: %s", handler.uri);
             allRegistered = false;
         }
     }
@@ -36,17 +37,17 @@ bool HttpServer::startInternal() {
         return false;
     }
 
-    LOGGER.info("Started on port {}", config.server_port);
+    LOG_I(TAG, "Started on port %u", (unsigned)config.server_port);
     return true;
 }
 
 void HttpServer::stopInternal() {
-    LOGGER.info("Stopping server");
+    LOG_I(TAG, "Stopping server");
     if (server != nullptr) {
         if (httpd_stop(server) == ESP_OK) {
             server = nullptr;
         } else {
-            LOGGER.warn("Error while stopping");
+            LOG_W(TAG, "Error while stopping");
         }
     }
 }
@@ -56,7 +57,7 @@ bool HttpServer::start() {
     lock.lock();
 
     if (isStarted()) {
-        LOGGER.warn("Already started");
+        LOG_W(TAG, "Already started");
         return true;
     }
 
@@ -68,7 +69,7 @@ void HttpServer::stop() {
     lock.lock();
 
     if (!isStarted()) {
-        LOGGER.warn("Not started");
+        LOG_W(TAG, "Not started");
         return;
     }
 

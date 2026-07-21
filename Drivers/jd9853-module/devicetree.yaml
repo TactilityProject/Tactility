@@ -1,0 +1,4 @@
+dependencies:
+  - TactilityKernel
+  - Platforms/platform-esp32
+bindings: bindings

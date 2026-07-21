@@ -1,0 +1,74 @@
+description: >
+  Texas Instruments TCA8418 I2C keypad matrix scanner. Exposed as a generic KEYBOARD_TYPE
+  device: the driver only scans the matrix and reports raw key events, while the character
+  layout comes entirely from the keymap-lc/keymap-uc/keymap-sy devicetree properties, so the
+  same driver works for any board's physical key layout.
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,tca8418"
+
+bus: i2c
+
+properties:
+  rows:
+    type: int
+    required: true
+    description: Number of keypad matrix rows wired (max 8)
+  columns:
+    type: int
+    required: true
+    description: Number of keypad matrix columns wired (max 10)
+  reverse-columns:
+    type: boolean
+    default: false
+    description: >
+      Some boards wire columns in reverse of their silkscreen/keymap order; when true, the raw
+      hardware column is mirrored (columns-1-col) before indexing into the keymap arrays and
+      before comparing against shift-row/shift-col/sym-row/sym-col.
+  keymap-lc:
+    type: array
+    element-type: uint8_t
+    required: true
+    description: >
+      Base (lowercase) layer keymap, rows*columns bytes in row-major order (already in
+      silkscreen/keymap column order - see reverse-columns). 0 = no key at this position (e.g.
+      a blank matrix position, or a position handled as a modifier via shift-row/shift-col/
+      sym-row/sym-col instead). Non-zero bytes are sent as-is via KeyboardKeyData::key (ASCII
+      or an LVGL LV_KEY_* code).
+  keymap-uc:
+    type: array
+    element-type: uint8_t
+    description: >
+      Uppercase/shift layer keymap, same shape as keymap-lc. Omit if this keyboard has no
+      separate uppercase layer (shift-row/shift-col should then also be left unset).
+  keymap-sy:
+    type: array
+    element-type: uint8_t
+    description: >
+      Symbol layer keymap, same shape as keymap-lc. Omit if this keyboard has no symbol layer
+      (sym-row/sym-col should then also be left unset).
+  shift-row:
+    type: int
+    default: 255
+    description: Matrix row (keymap column order) of the shift/uppercase modifier key, 255 if none
+  shift-col:
+    type: int
+    default: 255
+    description: Matrix column (keymap column order) of the shift/uppercase modifier key, 255 if none
+  sym-row:
+    type: int
+    default: 255
+    description: Matrix row (keymap column order) of the symbol-layer modifier key, 255 if none
+  sym-col:
+    type: int
+    default: 255
+    description: Matrix column (keymap column order) of the symbol-layer modifier key, 255 if none
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional reset GPIO pin, pulsed once at start (20 ms assert, 60 ms settle)
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high

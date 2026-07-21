@@ -1,3 +1,8 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/st7789-module
+  - Drivers/m5stack-module
+  - Drivers/dummy-i2s-amp-module
+  - Drivers/pdm-mic-module
+  - Drivers/audio-stream-module
 dts: m5stack,cardputer.dts

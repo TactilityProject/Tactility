@@ -6,10 +6,10 @@ file(GLOB_RECURSE SOURCE_FILES Source/*.c*)
 
 list(APPEND REQUIRES_LIST
     TactilityKernel
-    TactilityCore
     TactilityFreeRtos
     hal-device-module
     lvgl-module
+    crypt-module
     lv_screenshot
     minitar
     minmea
@@ -37,6 +37,11 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 
     if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
         list(APPEND REQUIRES_LIST esp_tinyusb)
+    endif ()
+
+    if ("${IDF_TARGET}" STREQUAL "esp32p4")
+        # EspNowBackendHosted.cpp needs esp_hosted.h / esp_hosted_misc.h.
+        list(APPEND REQUIRES_LIST espressif__esp_hosted)
     endif ()
 
 else ()
@@ -67,8 +72,10 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     if (NOT DEFINED TACTILITY_SKIP_SPIFFS)
         # Read-only
         fatfs_create_rawflash_image(system "${CMAKE_CURRENT_SOURCE_DIR}/../Data/system" FLASH_IN_PROJECT PRESERVE_TIME)
-        # Read-write
-        fatfs_create_spiflash_image(data "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data" FLASH_IN_PROJECT PRESERVE_TIME)
+        # Read-write (skipped when user data lives on the SD card instead of internal flash)
+        if (NOT CONFIG_TT_USER_DATA_LOCATION_SD)
+            fatfs_create_spiflash_image(data "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data" FLASH_IN_PROJECT PRESERVE_TIME)
+        endif ()
     endif ()
 
 endif ()

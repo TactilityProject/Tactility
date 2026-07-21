@@ -9,7 +9,6 @@
 #include <Tactility/bluetooth/BluetoothPrivate.h>
 
 #include <Tactility/Assets.h>
-#include <Tactility/Logger.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/lvgl/Keyboard.h>
 #include <Tactility/lvgl/LvglSync.h>
@@ -22,6 +21,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <lvgl.h>
+#include <tactility/log.h>
 
 #include <algorithm>
 #include <array>
@@ -30,12 +30,9 @@
 #include <memory>
 #include <vector>
 
-#define TAG "BtHidHost"
-#include <esp_log.h>
-
 namespace tt::bluetooth {
 
-static const auto LOGGER = Logger("BtHidHost");
+constexpr auto* TAG = "BtHidHost";
 
 // ---- Report type ----
 
@@ -229,7 +226,7 @@ static void hidHostHandleMouseReport(const uint8_t* data, uint16_t len) {
     if (hid_host_ctx && hid_host_ctx->mouseIndev == nullptr) {
         getMainDispatcher().dispatch([] {
             if (!hid_host_ctx || hid_host_ctx->mouseIndev != nullptr) return;
-            if (!tt::lvgl::lock(1000)) { LOGGER.warn("LVGL lock failed for mouse indev"); return; }
+            if (!tt::lvgl::lock(1000)) { LOG_W(TAG, "LVGL lock failed for mouse indev"); return; }
             auto* ms = lv_indev_create();
             lv_indev_set_type(ms, LV_INDEV_TYPE_POINTER);
             lv_indev_set_read_cb(ms, hidHostMouseReadCb);
@@ -241,7 +238,7 @@ static void hidHostHandleMouseReport(const uint8_t* data, uint16_t len) {
             hid_host_ctx->mouseIndev  = ms;
             hid_host_ctx->mouseCursor = cur;
             tt::lvgl::unlock();
-            LOGGER.info("Mouse indev registered");
+            LOG_I(TAG, "Mouse indev registered");
         });
     }
 }
@@ -251,11 +248,11 @@ static void hidHostHandleMouseReport(const uint8_t* data, uint16_t len) {
 static void hidEncRetryTimerCb(void* /*arg*/) {
     if (hid_host_ctx) {
         if (!hid_host_ctx->typeResolutionDone) {
-            LOGGER.warn("Post-encryption delay — type resolution timed out, proceeding");
+            LOG_W(TAG, "Post-encryption delay — type resolution timed out, proceeding");
             hid_host_ctx->typeResolutionDone = true;
             hid_host_ctx->subscribeIdx = 0;
         } else {
-            LOGGER.info("Post-encryption delay complete — starting CCCD subscriptions");
+            LOG_I(TAG, "Post-encryption delay complete — starting CCCD subscriptions");
         }
         hidHostSubscribeNext(*hid_host_ctx);
     }
@@ -336,7 +333,7 @@ static void applyReportMapTypes(HidHostCtx& ctx) {
             if (zeroRptIdx < collOrder.size()) rpt.type = collOrder[zeroRptIdx];
             zeroRptIdx++;
         }
-        LOGGER.info("Report val_handle={} reportId={} type={}", rpt.valHandle, rpt.reportId, (int)rpt.type);
+        LOG_I(TAG, "Report val_handle=%d reportId=%d type=%d", rpt.valHandle, rpt.reportId, (int)rpt.type);
     }
     ctx.rptMap.clear();
 }
@@ -365,7 +362,7 @@ static void hidHostStartRptRefRead(HidHostCtx& ctx) {
                 uint8_t rpt_ref[2] = {};
                 os_mbuf_copydata(attr->om, 0, 2, rpt_ref);
                 ctx.inputRpts[ctx.rptRefReadIdx].reportId = rpt_ref[0];
-                LOGGER.info("Report[{}] val_handle={} reportId={}", ctx.rptRefReadIdx,
+                LOG_I(TAG, "Report[%d] val_handle=%d reportId=%d", ctx.rptRefReadIdx,
                             ctx.inputRpts[ctx.rptRefReadIdx].valHandle, rpt_ref[0]);
             }
         }
@@ -374,7 +371,7 @@ static void hidHostStartRptRefRead(HidHostCtx& ctx) {
         return 0;
     }, nullptr);
     if (rc != 0) {
-        LOGGER.warn("rptRef read[{}] failed rc={} — skipping", ctx.rptRefReadIdx, rc);
+        LOG_W(TAG, "rptRef read[%d] failed rc=%d — skipping", ctx.rptRefReadIdx, rc);
         ctx.rptRefReadIdx++;
         hidHostStartRptRefRead(ctx);
     }
@@ -384,7 +381,7 @@ static void hidHostStartRptRefRead(HidHostCtx& ctx) {
 
 static void hidHostReadReportMap(HidHostCtx& ctx) {
     if (ctx.rptMapHandle == 0) {
-        LOGGER.info("No Report Map char — skipping type resolution");
+        LOG_I(TAG, "No Report Map char — skipping type resolution");
         ctx.typeResolutionDone = true;
         ctx.subscribeIdx = 0;
         hidHostSubscribeNext(ctx);
@@ -404,10 +401,10 @@ static void hidHostReadReportMap(HidHostCtx& ctx) {
                 return 0;
             }
             if (!ctx.rptMap.empty()) {
-                LOGGER.info("Report map read ({} bytes)", ctx.rptMap.size());
+                LOG_I(TAG, "Report map read (%d bytes)", (int)ctx.rptMap.size());
                 applyReportMapTypes(ctx);
             } else {
-                LOGGER.warn("Report map read failed — types remain Unknown");
+                LOG_W(TAG, "Report map read failed — types remain Unknown");
             }
             ctx.typeResolutionDone = true;
             ctx.subscribeIdx = 0;
@@ -415,7 +412,7 @@ static void hidHostReadReportMap(HidHostCtx& ctx) {
             return 0;
         }, nullptr);
     if (rc != 0) {
-        LOGGER.warn("Report map read_long failed rc={} — skipping", rc);
+        LOG_W(TAG, "Report map read_long failed rc=%d — skipping", rc);
         ctx.typeResolutionDone = true;
         ctx.subscribeIdx = 0;
         hidHostSubscribeNext(ctx);
@@ -434,22 +431,22 @@ static int hidHostCccdWriteCb(uint16_t conn_handle, const struct ble_gatt_error*
         if ((error->status == BLE_HS_ATT_ERR(BLE_ATT_ERR_INSUFFICIENT_AUTHEN) ||
              error->status == BLE_HS_ATT_ERR(BLE_ATT_ERR_INSUFFICIENT_ENC))
             && !ctx.securityInitiated) {
-            LOGGER.info("CCCD auth required — initiating security");
+            LOG_I(TAG, "CCCD auth required — initiating security");
             ctx.securityInitiated = true;
             ble_gap_security_initiate(conn_handle);
             return 0;
         }
         if (error->status == BLE_HS_ETIMEOUT) {
-            LOGGER.warn("CCCD write timed out for report[{}] — skipping", ctx.subscribeIdx);
+            LOG_W(TAG, "CCCD write timed out for report[%d] — skipping", ctx.subscribeIdx);
             ctx.subscribeIdx++;
             hidHostSubscribeNext(ctx);
             return 0;
         }
         if (error->status == BLE_HS_ENOTCONN) {
-            LOGGER.warn("CCCD write failed — not connected");
+            LOG_W(TAG, "CCCD write failed — not connected");
             return 0;
         }
-        LOGGER.warn("CCCD write failed status={}", error->status);
+        LOG_W(TAG, "CCCD write failed status=%d", error->status);
     }
     ctx.subscribeIdx++;
     hidHostSubscribeNext(ctx);
@@ -459,11 +456,11 @@ static int hidHostCccdWriteCb(uint16_t conn_handle, const struct ble_gatt_error*
 static void hidHostSubscribeNext(HidHostCtx& ctx) {
     if (ctx.subscribeIdx >= (int)ctx.inputRpts.size()) {
         if (ctx.readyBlockFired) {
-            LOGGER.info("Subscribe ready block already ran — ignoring duplicate");
+            LOG_I(TAG, "Subscribe ready block already ran — ignoring duplicate");
             return;
         }
         ctx.readyBlockFired = true;
-        LOGGER.info("All {} reports subscribed — ready", ctx.inputRpts.size());
+        LOG_I(TAG, "All %d reports subscribed — ready", (int)ctx.inputRpts.size());
         if (hid_enc_retry_timer) esp_timer_stop(hid_enc_retry_timer);
 
         if (!hid_host_key_queue) {
@@ -471,14 +468,14 @@ static void hidHostSubscribeNext(HidHostCtx& ctx) {
         }
         getMainDispatcher().dispatch([] {
             if (!hid_host_ctx || hid_host_ctx->kbIndev != nullptr) return;
-            if (!tt::lvgl::lock(1000)) { LOGGER.warn("LVGL lock failed for kb indev"); return; }
+            if (!tt::lvgl::lock(1000)) { LOG_W(TAG, "LVGL lock failed for kb indev"); return; }
             auto* kb = lv_indev_create();
             lv_indev_set_type(kb, LV_INDEV_TYPE_KEYPAD);
             lv_indev_set_read_cb(kb, hidHostKeyboardReadCb);
             hid_host_ctx->kbIndev = kb;
             tt::lvgl::hardware_keyboard_set_indev(kb);
             tt::lvgl::unlock();
-            LOGGER.info("Keyboard indev registered");
+            LOG_I(TAG, "Keyboard indev registered");
         });
 
         auto peer_addr = ctx.peerAddr;
@@ -502,8 +499,8 @@ static void hidHostSubscribeNext(HidHostCtx& ctx) {
             }
             device.name = name;
             settings::save(device);
-            if (struct Device* dev = findFirstDevice()) {
-                struct BtEvent e = {};
+            if (Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE)) {
+                BtEvent e = {};
                 e.type = BT_EVENT_PROFILE_STATE_CHANGED;
                 e.profile_state.state = BT_PROFILE_STATE_CONNECTED;
                 e.profile_state.profile = BT_PROFILE_HID_HOST;
@@ -523,7 +520,7 @@ static void hidHostSubscribeNext(HidHostCtx& ctx) {
                                    &notify_val, sizeof(notify_val),
                                    hidHostCccdWriteCb, nullptr);
     if (rc != 0) {
-        LOGGER.warn("gattc_write_flat CCCD failed rc={}", rc);
+        LOG_W(TAG, "gattc_write_flat CCCD failed rc=%d", rc);
         ctx.subscribeIdx++;
         hidHostSubscribeNext(ctx);
     }
@@ -554,7 +551,7 @@ static int hidHostDscDiscCb(uint16_t conn_handle, const struct ble_gatt_error* e
             int rc = ble_gattc_disc_all_dscs(ctx.connHandle, next_rpt.valHandle, end,
                                               hidHostDscDiscCb, nullptr);
             if (rc != 0) {
-                LOGGER.warn("disc_all_dscs[{}] failed rc={}", next_idx, rc);
+                LOG_W(TAG, "disc_all_dscs[%d] failed rc=%d", next_idx, rc);
                 ctx.rptRefReadIdx = 0;
                 hidHostStartRptRefRead(ctx);
             }
@@ -588,14 +585,14 @@ static int hidHostChrDiscCb(uint16_t conn_handle, const struct ble_gatt_error* e
             HidHostInputRpt rpt = {};
             rpt.valHandle = chr->val_handle;
             ctx.inputRpts.push_back(rpt);
-            LOGGER.info("Input Report chr val_handle={}", chr->val_handle);
+            LOG_I(TAG, "Input Report chr val_handle=%d", chr->val_handle);
         } else if (uuid16 == 0x2A4B) {
             ctx.rptMapHandle = chr->val_handle;
         }
     } else if (error->status == BLE_HS_EDONE) {
         std::sort(ctx.allChrDefHandles.begin(), ctx.allChrDefHandles.end());
         if (ctx.inputRpts.empty()) {
-            LOGGER.warn("No Input Report chars — disconnecting");
+            LOG_W(TAG, "No Input Report chars — disconnecting");
             ble_gap_terminate(ctx.connHandle, BLE_ERR_REM_USER_CONN_TERM);
             return 0;
         }
@@ -605,7 +602,7 @@ static int hidHostChrDiscCb(uint16_t conn_handle, const struct ble_gatt_error* e
         int rc = ble_gattc_disc_all_dscs(ctx.connHandle, first.valHandle, end,
                                           hidHostDscDiscCb, nullptr);
         if (rc != 0) {
-            LOGGER.warn("disc_all_dscs[0] failed rc={}", rc);
+            LOG_W(TAG, "disc_all_dscs[0] failed rc=%d", rc);
             ctx.rptRefReadIdx = 0;
             hidHostStartRptRefRead(ctx);
         }
@@ -625,18 +622,18 @@ static int hidHostSvcDiscCb(uint16_t conn_handle, const struct ble_gatt_error* e
         if (ble_uuid_u16(&svc->uuid.u) == 0x1812) {
             ctx.hidSvcStart = svc->start_handle;
             ctx.hidSvcEnd   = svc->end_handle;
-            LOGGER.info("HID service start={} end={}", ctx.hidSvcStart, ctx.hidSvcEnd);
+            LOG_I(TAG, "HID service start=%d end=%d", ctx.hidSvcStart, ctx.hidSvcEnd);
         }
     } else if (error->status == BLE_HS_EDONE) {
         if (ctx.hidSvcStart == 0) {
-            LOGGER.warn("No HID service found — disconnecting");
+            LOG_W(TAG, "No HID service found — disconnecting");
             ble_gap_terminate(ctx.connHandle, BLE_ERR_REM_USER_CONN_TERM);
             return 0;
         }
         int rc = ble_gattc_disc_all_chrs(ctx.connHandle, ctx.hidSvcStart, ctx.hidSvcEnd,
                                           hidHostChrDiscCb, nullptr);
         if (rc != 0) {
-            LOGGER.warn("disc_all_chrs failed rc={}", rc);
+            LOG_W(TAG, "disc_all_chrs failed rc=%d", rc);
             ble_gap_terminate(ctx.connHandle, BLE_ERR_REM_USER_CONN_TERM);
         }
     }
@@ -653,16 +650,16 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
         case BLE_GAP_EVENT_CONNECT:
             if (event->connect.status == 0) {
                 ctx.connHandle = event->connect.conn_handle;
-                LOGGER.info("Connected (handle={})", ctx.connHandle);
+                LOG_I(TAG, "Connected (handle=%d)", ctx.connHandle);
                 int rc = ble_gattc_disc_all_svcs(ctx.connHandle, hidHostSvcDiscCb, nullptr);
                 if (rc != 0) {
-                    LOGGER.warn("disc_all_svcs failed rc={}", rc);
+                    LOG_W(TAG, "disc_all_svcs failed rc=%d", rc);
                     ble_gap_terminate(ctx.connHandle, BLE_ERR_REM_USER_CONN_TERM);
                 }
             } else {
-                LOGGER.warn("Connect failed status={}", event->connect.status);
+                LOG_W(TAG, "Connect failed status=%d", event->connect.status);
                 hid_host_ctx.reset();
-                if (struct Device* dev = findFirstDevice()) {
+                if (Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE)) {
                     bluetooth_set_hid_host_active(dev, false);
                     struct BtEvent e = {};
                     e.type = BT_EVENT_PROFILE_STATE_CHANGED;
@@ -674,7 +671,7 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
             break;
 
         case BLE_GAP_EVENT_DISCONNECT: {
-            LOGGER.info("Disconnected reason={}", event->disconnect.reason);
+            LOG_I(TAG, "Disconnected reason=%d", event->disconnect.reason);
             lv_indev_t* saved_kb     = hid_host_ctx ? hid_host_ctx->kbIndev     : nullptr;
             lv_indev_t* saved_mouse  = hid_host_ctx ? hid_host_ctx->mouseIndev  : nullptr;
             lv_obj_t*   saved_cursor = hid_host_ctx ? hid_host_ctx->mouseCursor : nullptr;
@@ -687,7 +684,7 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
             hid_host_mouse_btn.store(false);
             hid_host_mouse_active.store(false);
 
-            if (struct Device* dev = findFirstDevice()) {
+            if (Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE)) {
                 bluetooth_set_hid_host_active(dev, false);
                 struct BtEvent e = {};
                 e.type = BT_EVENT_PROFILE_STATE_CHANGED;
@@ -698,7 +695,7 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
 
             getMainDispatcher().dispatch([saved_kb, saved_mouse, saved_cursor, saved_queue] {
                 if (!tt::lvgl::lock(1000)) {
-                    LOGGER.warn("Failed to acquire LVGL lock for indev cleanup");
+                    LOG_W(TAG, "Failed to acquire LVGL lock for indev cleanup");
                     if (saved_queue) vQueueDelete(saved_queue);
                     return;
                 }
@@ -717,7 +714,7 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
         case BLE_GAP_EVENT_ENC_CHANGE:
             if (event->enc_change.conn_handle == ctx.connHandle) {
                 if (event->enc_change.status == 0) {
-                    LOGGER.info("Encryption established — retrying CCCD in 500ms");
+                    LOG_I(TAG, "Encryption established — retrying CCCD in 500ms");
                     ctx.subscribeIdx = 0;
                     if (hid_enc_retry_timer) {
                         esp_timer_stop(hid_enc_retry_timer);
@@ -726,7 +723,7 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
                         hidHostSubscribeNext(ctx);
                     }
                 } else {
-                    LOGGER.warn("Encryption failed status={}", event->enc_change.status);
+                    LOG_W(TAG, "Encryption failed status=%d", event->enc_change.status);
                 }
             }
             break;
@@ -743,7 +740,7 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
                             case HidReportType::Keyboard:  hidHostHandleKeyboardReport(buf, len); break;
                             case HidReportType::Mouse:     hidHostHandleMouseReport(buf, len); break;
                             case HidReportType::Consumer:
-                                LOGGER.info("Consumer report len={}", len);
+                                LOG_I(TAG, "Consumer report len=%d", len);
                                 break;
                             case HidReportType::Unknown:
                                 if      (len >= 6) hidHostHandleKeyboardReport(buf, len);
@@ -766,11 +763,11 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
 
 void hidHostConnect(const std::array<uint8_t, 6>& addr) {
     if (getRadioState() != RadioState::On) {
-        LOGGER.warn("hidHostConnect: radio not on");
+        LOG_W(TAG, "hidHostConnect: radio not on");
         return;
     }
     if (hid_host_ctx) {
-        LOGGER.warn("hidHostConnect: already connecting/connected");
+        LOG_W(TAG, "hidHostConnect: already connecting/connected");
         return;
     }
 
@@ -789,13 +786,13 @@ void hidHostConnect(const std::array<uint8_t, 6>& addr) {
         args.dispatch_method = ESP_TIMER_TASK;
         args.name            = "hid_enc_retry";
         if (esp_timer_create(&args, &hid_enc_retry_timer) != ESP_OK) {
-            LOGGER.error("Failed to create hid_enc_retry timer");
+            LOG_E(TAG, "Failed to create hid_enc_retry timer");
             hid_enc_retry_timer = nullptr;
         }
     }
 
     // Notify driver that a HID host central connection is starting.
-    if (struct Device* dev = findFirstDevice()) bluetooth_set_hid_host_active(dev, true);
+    if (Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE)) bluetooth_set_hid_host_active(dev, true);
 
     // Look up the addr_type from the cached scan results.
     ble_addr_t ble_addr = {};
@@ -813,19 +810,19 @@ void hidHostConnect(const std::array<uint8_t, 6>& addr) {
 
     int rc = ble_gap_connect(own_addr_type, &ble_addr, 5000, nullptr, hidHostGapCb, nullptr);
     if (rc != 0) {
-        LOGGER.warn("ble_gap_connect failed rc={}", rc);
+        LOG_W(TAG, "ble_gap_connect failed rc=%d", rc);
         hid_host_ctx.reset();
-        if (struct Device* dev = findFirstDevice()) {
+        if (Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE)) {
             bluetooth_set_hid_host_active(dev, false);
             // Fire IDLE so bt_event_bridge can start a new scan and retry.
-            struct BtEvent e = {};
+            BtEvent e = {};
             e.type = BT_EVENT_PROFILE_STATE_CHANGED;
             e.profile_state.state   = BT_PROFILE_STATE_IDLE;
             e.profile_state.profile = BT_PROFILE_HID_HOST;
             bluetooth_fire_event(dev, e);
         }
     } else {
-        LOGGER.info("Connecting...");
+        LOG_I(TAG, "Connecting...");
     }
 }
 
@@ -858,7 +855,7 @@ void autoConnectHidHost() {
         if (settings::load(settings::addrToHex(r.addr), stored) &&
             stored.autoConnect &&
             stored.profileId == BT_PROFILE_HID_HOST) {
-            LOGGER.info("Auto-connecting HID host to {}", settings::addrToHex(r.addr));
+            LOG_I(TAG, "Auto-connecting HID host to %s", settings::addrToHex(r.addr).c_str());
             hidHostConnect(r.addr);
             return;
         }
@@ -869,9 +866,9 @@ void autoConnectHidHost() {
     auto peers = settings::loadAll();
     for (const auto& peer : peers) {
         if (peer.autoConnect && peer.profileId == BT_PROFILE_HID_HOST) {
-            if (struct Device* dev = findFirstDevice()) {
+            if (Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE)) {
                 if (!bluetooth_is_scanning(dev)) {
-                    LOGGER.info("Auto-connect HID host: device not in scan, retrying scan");
+                    LOG_I(TAG, "Auto-connect HID host: device not in scan, retrying scan");
                     bluetooth_scan_start(dev);
                 }
             }

@@ -1,0 +1,25 @@
+description: LilyGO T-Deck 5-way GPIO trackball (4 directions + click button)
+
+compatible: "lilygo,tdeck-trackball"
+
+properties:
+  pin-right:
+    type: phandles
+    required: true
+    description: Right-direction GPIO pin
+  pin-up:
+    type: phandles
+    required: true
+    description: Up-direction GPIO pin
+  pin-left:
+    type: phandles
+    required: true
+    description: Left-direction GPIO pin
+  pin-down:
+    type: phandles
+    required: true
+    description: Down-direction GPIO pin
+  pin-click:
+    type: phandles
+    required: true
+    description: Click button GPIO pin

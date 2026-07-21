@@ -3,7 +3,6 @@
 #include <Tactility/service/webserver/AssetVersion.h>
 
 #include <Tactility/file/File.h>
-#include <Tactility/Logger.h>
 
 #include <cJSON.h>
 #include <cstdio>
@@ -12,75 +11,77 @@
 #include <memory>
 #include <esp_random.h>
 
+#include <tactility/log.h>
+
 namespace tt::service::webserver {
 
-static const auto LOGGER = tt::Logger("AssetVersion");
-constexpr auto* DATA_VERSION_FILE = "/data/webserver/version.json";
+constexpr auto* TAG = "AssetVersion";
+constexpr auto* DATA_VERSION_FILE = "/system/app/WebServer/version.json";
 constexpr auto* SD_VERSION_FILE = "/sdcard/tactility/webserver/version.json";
-constexpr auto* DATA_ASSETS_DIR = "/data/webserver";
+constexpr auto* DATA_ASSETS_DIR = "/system/app/WebServer";
 constexpr auto* SD_ASSETS_DIR = "/sdcard/tactility/webserver";
 
 static bool loadVersionFromFile(const char* path, AssetVersion& version) {
     if (!file::isFile(path)) {
-        LOGGER.warn("Version file not found: {}", path);
+        LOG_W(TAG, "Version file not found: %s", path);
         return false;
     }
-    
+
     // Read file content
     std::string content;
     {
         auto lock = file::getLock(path);
         lock->lock(portMAX_DELAY);
-        
+
         FILE* fp = fopen(path, "r");
         if (!fp) {
-            LOGGER.error("Failed to open version file: {}", path);
+            LOG_E(TAG, "Failed to open version file: %s", path);
             lock->unlock();
             return false;
         }
-        
+
         char buffer[256];
         size_t bytesRead = fread(buffer, 1, sizeof(buffer) - 1, fp);
         bool readError = ferror(fp) != 0;
         fclose(fp);
         lock->unlock();
-        
+
         if (readError) {
-            LOGGER.error("Error reading version file: {}", path);
+            LOG_E(TAG, "Error reading version file: %s", path);
             return false;
         }
         if (bytesRead == 0) {
-            LOGGER.error("Version file is empty: {}", path);
+            LOG_E(TAG, "Version file is empty: %s", path);
             return false;
         }
         buffer[bytesRead] = '\0';
         content = buffer;
     }
-    
+
     // Parse JSON
     cJSON* json = cJSON_Parse(content.c_str());
     if (json == nullptr) {
-        LOGGER.error("Failed to parse version JSON: {}", path);
+        LOG_E(TAG, "Failed to parse version JSON: %s", path);
         return false;
     }
-    
+
     cJSON* versionItem = cJSON_GetObjectItem(json, "version");
     if (versionItem == nullptr || !cJSON_IsNumber(versionItem)) {
-        LOGGER.error("Invalid version JSON format: {}", path);
+        LOG_E(TAG, "Invalid version JSON format: %s", path);
         cJSON_Delete(json);
         return false;
     }
-    
+
     double versionValue = versionItem->valuedouble;
     if (versionValue < 0 || versionValue > UINT32_MAX) {
-        LOGGER.error("Version out of valid range [0, {}]: {}", UINT32_MAX, path);
+        LOG_E(TAG, "Version out of valid range [0, %u]: %s", (unsigned)UINT32_MAX, path);
         cJSON_Delete(json);
         return false;
     }
     version.version = static_cast<uint32_t>(versionValue);
     cJSON_Delete(json);
-    
-    LOGGER.info("Loaded version {} from {}", version.version, path);
+
+    LOG_I(TAG, "Loaded version %u from %s", (unsigned)version.version, path);
     return true;
 }
 
@@ -92,23 +93,23 @@ static bool saveVersionToFile(const char* path, const AssetVersion& version) {
         dirPath = dirPath.substr(0, lastSlash);
         if (!file::isDirectory(dirPath.c_str())) {
             if (!file::findOrCreateDirectory(dirPath.c_str(), 0755)) {
-                LOGGER.error("Failed to create directory: {}", dirPath);
+                LOG_E(TAG, "Failed to create directory: %s", dirPath.c_str());
                 return false;
             }
         }
     }
-    
+
     // Create JSON
     cJSON* json = cJSON_CreateObject();
     if (json == nullptr) {
-        LOGGER.error("Failed to create JSON object for version");
+        LOG_E(TAG, "Failed to create JSON object for version");
         return false;
     }
     cJSON_AddNumberToObject(json, "version", version.version);
-    
+
     char* jsonString = cJSON_Print(json);
     if (jsonString == nullptr) {
-        LOGGER.error("Failed to serialize version JSON");
+        LOG_E(TAG, "Failed to serialize version JSON");
         cJSON_Delete(json);
         return false;
     }
@@ -126,12 +127,12 @@ static bool saveVersionToFile(const char* path, const AssetVersion& version) {
             success = (written == len);
             if (success) {
                 if (fflush(fp) != 0) {
-                    LOGGER.error("Failed to flush version file: {}", path);
+                    LOG_E(TAG, "Failed to flush version file: %s", path);
                     success = false;
                 } else {
                     int fd = fileno(fp);
                     if (fd >= 0 && fsync(fd) != 0) {
-                        LOGGER.error("Failed to fsync version file: {}", path);
+                        LOG_E(TAG, "Failed to fsync version file: %s", path);
                         success = false;
                     }
                 }
@@ -145,9 +146,9 @@ static bool saveVersionToFile(const char* path, const AssetVersion& version) {
     cJSON_Delete(json);
     
     if (success) {
-        LOGGER.info("Saved version {} to {}", version.version, path);
+        LOG_I(TAG, "Saved version %u to %s", (unsigned)version.version, path);
     } else {
-        LOGGER.error("Failed to write version file: {}", path);
+        LOG_E(TAG, "Failed to write version file: %s", path);
     }
     
     return success;
@@ -180,15 +181,15 @@ bool hasSdAssets() {
 static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
     constexpr int MAX_DEPTH = 16;
     if (depth >= MAX_DEPTH) {
-        LOGGER.error("Max directory depth exceeded: {}", src);
+        LOG_E(TAG, "Max directory depth exceeded: %s", src);
         return false;
     }
-    LOGGER.info("Copying directory: {} -> {}", src, dst);
-    
+    LOG_I(TAG, "Copying directory: %s -> %s", src, dst);
+
     // Create destination directory
     if (!file::isDirectory(dst)) {
         if (!file::findOrCreateDirectory(dst, 0755)) {
-            LOGGER.error("Failed to create destination directory: {}", dst);
+            LOG_E(TAG, "Failed to create destination directory: %s", dst);
             return false;
         }
     }
@@ -216,7 +217,7 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
                 isDir = S_ISDIR(st.st_mode);
                 isReg = S_ISREG(st.st_mode);
             } else {
-                LOGGER.warn("Failed to stat entry, skipping: {}", srcPath);
+                LOG_W(TAG, "Failed to stat entry, skipping: %s", srcPath.c_str());
                 return;
             }
         }
@@ -233,14 +234,14 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
 
             FILE* srcFile = fopen(srcPath.c_str(), "rb");
             if (!srcFile) {
-                LOGGER.error("Failed to open source file: {}", srcPath);
+                LOG_E(TAG, "Failed to open source file: %s", srcPath.c_str());
                 copySuccess = false;
                 return;
             }
 
             FILE* tempFile = fopen(tempPath.c_str(), "wb");
             if (!tempFile) {
-                LOGGER.error("Failed to create temp file: {}", tempPath);
+                LOG_E(TAG, "Failed to create temp file: %s", tempPath.c_str());
                 fclose(srcFile);
                 copySuccess = false;
                 return;
@@ -254,7 +255,7 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
             while ((bytesRead = fread(buffer.get(), 1, COPY_BUF_SIZE, srcFile)) > 0) {
                 size_t bytesWritten = fwrite(buffer.get(), 1, bytesRead, tempFile);
                 if (bytesWritten != bytesRead) {
-                    LOGGER.error("Failed to write to temp file: {}", tempPath);
+                    LOG_E(TAG, "Failed to write to temp file: %s", tempPath.c_str());
                     fileCopySuccess = false;
                     copySuccess = false;
                     break;
@@ -262,7 +263,7 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
             }
 
             if (fileCopySuccess && ferror(srcFile)) {
-                LOGGER.error("Error reading source file: {}", srcPath);
+                LOG_E(TAG, "Error reading source file: %s", srcPath.c_str());
                 fileCopySuccess = false;
                 copySuccess = false;
             }
@@ -272,13 +273,13 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
             // Flush and sync temp file before closing
             if (fileCopySuccess) {
                 if (fflush(tempFile) != 0) {
-                    LOGGER.error("Failed to flush temp file: {}", tempPath);
+                    LOG_E(TAG, "Failed to flush temp file: %s", tempPath.c_str());
                     fileCopySuccess = false;
                     copySuccess = false;
                 } else {
                     int fd = fileno(tempFile);
                     if (fd >= 0 && fsync(fd) != 0) {
-                        LOGGER.error("Failed to fsync temp file: {}", tempPath);
+                        LOG_E(TAG, "Failed to fsync temp file: %s", tempPath.c_str());
                         fileCopySuccess = false;
                         copySuccess = false;
                     }
@@ -292,7 +293,7 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
                 remove(dstPath.c_str());
                 // Rename temp file to destination
                 if (rename(tempPath.c_str(), dstPath.c_str()) != 0) {
-                    LOGGER.error("Failed to rename temp file {} to {}", tempPath, dstPath);
+                    LOG_E(TAG, "Failed to rename temp file %s to %s", tempPath.c_str(), dstPath.c_str());
                     remove(tempPath.c_str());
                     fileCopySuccess = false;
                     copySuccess = false;
@@ -303,13 +304,13 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
             }
 
             if (fileCopySuccess) {
-                LOGGER.info("Copied file: {}", entry.d_name);
+                LOG_I(TAG, "Copied file: %s", entry.d_name);
             }
         }
     });
-    
+
     if (!listSuccess) {
-        LOGGER.error("Failed to list source directory: {}", src);
+        LOG_E(TAG, "Failed to list source directory: %s", src);
         return false;
     }
     
@@ -317,7 +318,7 @@ static bool copyDirectory(const char* src, const char* dst, int depth = 0) {
 }
 
 bool syncAssets() {
-    LOGGER.info("Starting asset synchronization...");
+    LOG_I(TAG, "Starting asset synchronization...");
 
     // Check if Data partition and SD card exist
     bool dataExists = hasDataAssets();
@@ -325,38 +326,27 @@ bool syncAssets() {
 
     // FIRST BOOT SCENARIO: Data has version 0, SD card is missing
     if (dataExists && !sdExists) {
-        LOGGER.info("First boot - Data exists but SD card backup missing");
-        LOGGER.warn("Skipping SD backup during boot - will be created on first settings save");
-        LOGGER.warn("This avoids watchdog timeout if SD card is slow or corrupted");
+        LOG_I(TAG, "First boot - Data exists but SD card backup missing");
+        LOG_W(TAG, "Skipping SD backup during boot - will be created on first settings save");
+        LOG_W(TAG, "This avoids watchdog timeout if SD card is slow or corrupted");
         return true;  // Don't block boot - defer copy to runtime
     }
 
     // NO SD CARD: Just ensure Data has default structure
     if (!sdExists) {
-        LOGGER.warn("No SD card available - creating default Data structure if needed");
+        LOG_W(TAG, "No SD card available - creating default Data structure if needed");
         if (!dataExists) {
             if (!file::findOrCreateDirectory(DATA_ASSETS_DIR, 0755)) {
-                LOGGER.error("Failed to create Data assets directory");
+                LOG_E(TAG, "Failed to create Data assets directory");
                 return false;
             }
             AssetVersion defaultVersion(0);  // Start at version 0 - SD card updates will be version 1+
             if (!saveDataVersion(defaultVersion)) {
-                LOGGER.error("Failed to save default Data version");
+                LOG_E(TAG, "Failed to save default Data version");
                 return false;
             }
-            LOGGER.info("Created default Data assets structure (version 0)");
+            LOG_I(TAG, "Created default Data assets structure (version 0)");
         }
-        return true;
-    }
-
-    // POST-FLASH RECOVERY: Data empty but SD card exists
-    if (!dataExists) {
-        LOGGER.info("Data partition empty - copying from SD card (recovery mode)");
-        if (!copyDirectory(SD_ASSETS_DIR, DATA_ASSETS_DIR)) {
-            LOGGER.error("Failed to copy assets from SD card to Data");
-            return false;
-        }
-        LOGGER.info("Recovery complete - assets restored from SD card");
         return true;
     }
 
@@ -366,39 +356,39 @@ bool syncAssets() {
     bool hasSdVer = loadSdVersion(sdVersion);
 
     if (!hasDataVer) {
-        LOGGER.warn("No Data version.json - assuming version 0");
+        LOG_W(TAG, "No Data version.json - assuming version 0");
         dataVersion.version = 0;
         if (!saveDataVersion(dataVersion)) {
-            LOGGER.warn("Failed to save default Data version (non-fatal)");
+            LOG_W(TAG, "Failed to save default Data version (non-fatal)");
         }
     }
 
     if (!hasSdVer) {
-        LOGGER.warn("No SD version.json - assuming version 0");
+        LOG_W(TAG, "No SD version.json - assuming version 0");
         sdVersion.version = 0;
         // DON'T save to SD during boot - defer to runtime
-        LOGGER.warn("Skipping SD version.json creation during boot - will be created on first settings save");
+        LOG_W(TAG, "Skipping SD version.json creation during boot - will be created on first settings save");
     }
 
-    LOGGER.info("Version comparison - Data: {}, SD: {}", dataVersion.version, sdVersion.version);
+    LOG_I(TAG, "Version comparison - Data: %u, SD: %u", (unsigned)dataVersion.version, (unsigned)sdVersion.version);
 
     if (sdVersion.version > dataVersion.version) {
         // Firmware update - copy SD -> Data
-        LOGGER.info("SD card newer (v{} > v{}) - copying assets SD -> Data (firmware update)",
-                 sdVersion.version, dataVersion.version);
+        LOG_I(TAG, "SD card newer (v%u > v%u) - copying assets SD -> Data (firmware update)",
+                 (unsigned)sdVersion.version, (unsigned)dataVersion.version);
         if (!copyDirectory(SD_ASSETS_DIR, DATA_ASSETS_DIR)) {
-            LOGGER.error("Failed to copy assets from SD to Data");
+            LOG_E(TAG, "Failed to copy assets from SD to Data");
             return false;
         }
-        LOGGER.info("Firmware update complete - assets updated from SD card");
+        LOG_I(TAG, "Firmware update complete - assets updated from SD card");
     } else if (dataVersion.version > sdVersion.version) {
         // User customization - backup Data -> SD
-        LOGGER.warn("Data newer (v{} > v{}) - deferring SD backup to avoid boot watchdog",
-                 dataVersion.version, sdVersion.version);
-        LOGGER.warn("SD backup will occur on first WebServer settings save");
+        LOG_W(TAG, "Data newer (v%u > v%u) - deferring SD backup to avoid boot watchdog",
+                 (unsigned)dataVersion.version, (unsigned)sdVersion.version);
+        LOG_W(TAG, "SD backup will occur on first WebServer settings save");
         return true;  // Don't block boot - defer copy to runtime
     } else {
-        LOGGER.info("Versions match (v{}) - no sync needed", dataVersion.version);
+        LOG_I(TAG, "Versions match (v%u) - no sync needed", (unsigned)dataVersion.version);
     }
 
     return true;

@@ -16,9 +16,9 @@ namespace tt::app {
 
 std::string AppPaths::getUserDataPath() const {
     if (manifest.appLocation.isInternal()) {
-        return std::format("{}{}/user/app/{}", PARTITION_PREFIX, file::DATA_PARTITION_NAME, manifest.appId);
+        return std::format("{}{}/tactility/user/app/{}", PARTITION_PREFIX, file::DATA_PARTITION_NAME, manifest.appId);
     } else {
-        return std::format("{}/user/app/{}", file::getFirstPathSegment(manifest.appLocation.getPath()), manifest.appId);
+        return std::format("{}/tactility/user/app/{}", file::getFirstPathSegment(manifest.appLocation.getPath()), manifest.appId);
     }
 }
 

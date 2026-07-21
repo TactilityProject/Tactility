@@ -1,0 +1,5 @@
+description: TI TCA9535 16-bit I2C-bus I/O expander (PCA9555-register-compatible)
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,tca9535"

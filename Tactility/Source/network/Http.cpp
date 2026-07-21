@@ -1,9 +1,10 @@
 #include <Tactility/Tactility.h>
 #include <Tactility/file/File.h>
-#include <Tactility/Logger.h>
 #include <Tactility/network/Http.h>
 
 #include "Tactility/service/gui/GuiService.h"
+
+#include <tactility/log.h>
 
 #ifdef ESP_PLATFORM
 #include <Tactility/network/EspHttpClient.h>
@@ -12,7 +13,7 @@
 
 namespace tt::network::http {
 
-static const auto LOGGER = Logger("HTTP");
+constexpr auto* TAG = "HTTP";
 
 void download(
     const std::string& url,
@@ -22,10 +23,10 @@ void download(
     const std::function<void(const char* errorMessage)>& onError
 ) {
     service::gui::warnIfRunningOnGuiTask("HTTP");
-    LOGGER.info("Downloading from {} to {}", url, downloadFilePath);
+    LOG_I(TAG, "Downloading from %s to %s", url.c_str(), downloadFilePath.c_str());
 #ifdef ESP_PLATFORM
     getMainDispatcher().dispatch([url, certFilePath, downloadFilePath, onSuccess, onError] {
-        LOGGER.info("Loading certificate");
+        LOG_I(TAG, "Loading certificate");
         auto certificate = file::readString(certFilePath);
         if (certificate == nullptr) {
             onError("Failed to read certificate");
@@ -41,7 +42,7 @@ void download(
         config->auth_type = HTTP_AUTH_TYPE_NONE;
         config->cert_pem = reinterpret_cast<const char*>(certificate.get());
         config->cert_len = certificate_length;
-        config->tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_3;
+        config->tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_2;
         config->method = HTTP_METHOD_GET;
         config->timeout_ms = 5000;
         config->transport_type = HTTP_TRANSPORT_OVER_SSL;
@@ -71,14 +72,14 @@ void download(
 
         auto lock = file::getLock(downloadFilePath)->asScopedLock();
         lock.lock();
-        LOGGER.info("opening {}", downloadFilePath);
+        LOG_I(TAG, "opening %s", downloadFilePath.c_str());
         auto* file = fopen(downloadFilePath.c_str(), "wb");
         if (file == nullptr) {
             onError("Failed to open file");
             return;
         }
 
-        LOGGER.info("Writing {} bytes to {}", bytes_left, downloadFilePath);
+        LOG_I(TAG, "Writing %d bytes to %s", bytes_left, downloadFilePath.c_str());
         char buffer[512];
         while (bytes_left > 0) {
             int data_read = client->read(buffer, 512);
@@ -96,7 +97,7 @@ void download(
             taskYIELD();
         }
         fclose(file);
-        LOGGER.info("Downloaded {} to {}", url, downloadFilePath);
+        LOG_I(TAG, "Downloaded %s to %s", url.c_str(), downloadFilePath.c_str());
         onSuccess();
     });
 #else

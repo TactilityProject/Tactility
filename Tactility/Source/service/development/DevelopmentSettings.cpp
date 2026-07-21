@@ -1,15 +1,21 @@
 #ifdef ESP_PLATFORM
+#include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
-#include <Tactility/Logger.h>
+#include <Tactility/Paths.h>
 #include <Tactility/service/development/DevelopmentSettings.h>
 #include <map>
 #include <string>
 
+#include <tactility/log.h>
+
 namespace tt::service::development {
 
-static const auto LOGGER = Logger("DevSettings");
+constexpr auto* TAG = "DevSettings";
 
-constexpr auto* SETTINGS_FILE = "/data/settings/development.properties";
+static std::string getSettingsFilePath() {
+    return getUserDataPath() + "/settings/development.properties";
+}
+
 constexpr auto* SETTINGS_KEY_ENABLE_ON_BOOT = "enableOnBoot";
 
 struct DevelopmentSettings {
@@ -17,8 +23,13 @@ struct DevelopmentSettings {
 };
 
 static bool load(DevelopmentSettings& settings) {
+    auto settings_path = getSettingsFilePath();
+    if (!file::isFile(settings_path)) {
+        return false;
+    }
+
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(SETTINGS_FILE, map)) {
+    if (!file::loadPropertiesFile(settings_path, map)) {
         return false;
     }
 
@@ -34,13 +45,18 @@ static bool load(DevelopmentSettings& settings) {
 static bool save(const DevelopmentSettings& settings) {
     std::map<std::string, std::string> map;
     map[SETTINGS_KEY_ENABLE_ON_BOOT] = settings.enableOnBoot ? "true" : "false";
-    return file::savePropertiesFile(SETTINGS_FILE, map);
+    auto settings_path = getSettingsFilePath();
+    if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
+        LOG_E(TAG, "Failed to create parent dir for %s", settings_path.c_str());
+        return false;
+    }
+    return file::savePropertiesFile(settings_path, map);
 }
 
 void setEnableOnBoot(bool enable) {
     DevelopmentSettings properties { .enableOnBoot = enable };
     if (!save(properties)) {
-        LOGGER.error("Failed to save {}", SETTINGS_FILE);
+        LOG_E(TAG, "Failed to save %s", getSettingsFilePath().c_str());
     }
 }
 

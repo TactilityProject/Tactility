@@ -1,33 +1,126 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/esp32_uart.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <tactility/bindings/rgb_led_pwm.h>
+#include <bindings/ili9341.h>
+#include <bindings/xpt2046.h>
 
 / {
     compatible = "root";
 	model = "CYD 2432S024R";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
 
     gpio0 {
         compatible = "espressif,esp32-gpio";
         gpio-count = <40>;
     };
 
-    display_spi: spi0 {
+	rgb_led_channel_red {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 4 GPIO_FLAG_NONE>;
+		period-ns = <500000>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+		inverted;
+	};
+
+	rgb_led_channel_green {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 16 GPIO_FLAG_NONE>;
+		period-ns = <500000>;
+		ledc-timer = <0>;
+		ledc-channel = <1>;
+		inverted;
+	};
+
+	rgb_led_channel_blue {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 17 GPIO_FLAG_NONE>;
+		period-ns = <500000>;
+		ledc-timer = <0>;
+		ledc-channel = <2>;
+		inverted;
+	};
+
+	rgb_led_pwm {
+		compatible = "rgb-led-pwm";
+		pwm-red = <&rgb_led_channel_red>;
+		pwm-green = <&rgb_led_channel_green>;
+		pwm-blue = <&rgb_led_channel_blue>;
+		// Default is red, and we want to reset it to off by default
+		default-color = <0 0 0>;
+		enabled;
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 27 GPIO_FLAG_NONE>;
+		period-ns = <1953125>;
+		ledc-timer = <1>;
+		ledc-channel = <3>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
+    spi0 {
         compatible = "espressif,esp32-spi";
         host = <SPI2_HOST>;
         pin-mosi = <&gpio0 13 GPIO_FLAG_NONE>;
         pin-miso = <&gpio0 12 GPIO_FLAG_NONE>;
         pin-sclk = <&gpio0 14 GPIO_FLAG_NONE>;
+        cs-gpios = <&gpio0 15 GPIO_FLAG_NONE>, // Display
+                   <&gpio0 33 GPIO_FLAG_NONE>; // Touch
+
+		display@0 {
+			compatible = "ilitek,ili9341";
+			horizontal-resolution = <240>;
+			vertical-resolution = <320>;
+			swap-xy;
+			mirror-x;
+			mirror-y;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 2 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
+
+		touch@1 {
+			compatible = "xptek,xpt2046";
+			x-max = <240>;
+			y-max = <320>;
+			swap-xy;
+			mirror-y;
+		};
     };
 
-    sdcard_spi: spi1 {
+    spi1 {
         compatible = "espressif,esp32-spi";
         host = <SPI3_HOST>;
         pin-mosi = <&gpio0 23 GPIO_FLAG_NONE>;
         pin-miso = <&gpio0 19 GPIO_FLAG_NONE>;
         pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
+		cs-gpios = <&gpio0 5 GPIO_FLAG_NONE>;
+
+		sdcard@0 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
     };
 
     uart1 {

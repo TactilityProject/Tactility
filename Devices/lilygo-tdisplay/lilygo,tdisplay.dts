@@ -1,23 +1,68 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
-#include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/st7789.h>
+#include <bindings/button_control.h>
 
 / {
 	compatible = "root";
 	model = "LilyGO T-Display";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 4 GPIO_FLAG_NONE>;
+		period-ns = <1953125>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 5 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 19 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
+
+		display@0 {
+			compatible = "sitronix,st7789";
+			horizontal-resolution = <135>;
+			vertical-resolution = <240>;
+			gap-x = <52>;
+			gap-y = <40>;
+			invert-color;
+			pixel-clock-hz = <62500000>;
+			pin-dc = <&gpio0 16 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 23 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
+	};
+
+	buttons {
+		compatible = "tactility,button-control";
+		pin-primary = <&gpio0 35 GPIO_FLAG_NONE>;
+		pin-secondary = <&gpio0 0 GPIO_FLAG_NONE>;
 	};
 };

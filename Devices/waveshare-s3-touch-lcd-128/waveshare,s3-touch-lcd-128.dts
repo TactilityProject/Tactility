@@ -2,18 +2,30 @@
 
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <bindings/qmi8658.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/cst816t.h>
+#include <bindings/gc9a01.h>
 
 // Reference: https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-1.28
 / {
 	compatible = "root";
 	model = "Waveshare S3 Touch LCD 1.28";
 
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
 	ble0 {
 		compatible = "espressif,esp32-ble";
+		status = "disabled";
 	};
 
 	gpio0 {
@@ -32,21 +44,53 @@
 			compatible = "qst,qmi8658";
 			reg = <0x6B>;
 		};
+
+		touch0 {
+			compatible = "hynitron,cst816t";
+			reg = <0x15>;
+			x-max = <240>;
+			y-max = <240>;
+			mirror-x;
+			mirror-y;
+			pin-reset = <&gpio0 13 GPIO_FLAG_NONE>;
+			pin-interrupt = <&gpio0 5 GPIO_FLAG_NONE>;
+		};
 	};
 
-	display_spi: spi0 {
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 2 GPIO_FLAG_NONE>;
+		period-ns = <3906250>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 9 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 11 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 12 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 10 GPIO_FLAG_NONE>;
-	};
 
-	sdcard_spi: spi1 {
-		compatible = "espressif,esp32-spi";
-		host = <SPI3_HOST>;
-		pin-mosi = <&gpio0 16 GPIO_FLAG_NONE>;
-		pin-miso = <&gpio0 15 GPIO_FLAG_NONE>;
-		pin-sclk = <&gpio0 17 GPIO_FLAG_NONE>;
+		display@0 {
+			compatible = "galaxycore,gc9a01";
+			horizontal-resolution = <240>;
+			vertical-resolution = <240>;
+			mirror-y;
+			invert-color;
+			bgr-order;
+			pin-dc = <&gpio0 8 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 14 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
 	};
 };

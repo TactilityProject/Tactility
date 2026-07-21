@@ -1,0 +1,24 @@
+description: >
+  Backlight driven by a switchable/adjustable AXP2101 LDO. Must be declared as a
+  child node of the axp2101 device it dims. Maps the 0-255 brightness level onto
+  the LDO's [min-millivolt,max-millivolt] voltage range; level 0 disables the LDO outright.
+
+compatible: "axp2101-backlight"
+
+properties:
+  ldo:
+    type: int
+    required: true
+    description: The Axp2101Ldo powering the backlight (e.g. AXP2101_DLDO1)
+  min-millivolt:
+    type: int
+    default: 0
+    description: LDO voltage at brightness level 0 (the LDO is disabled rather than actually set to this value)
+  max-millivolt:
+    type: int
+    required: true
+    description: LDO voltage at the maximum brightness level (255)
+  brightness-default:
+    type: int
+    default: 255
+    description: Default brightness level, applied by set_brightness_default()

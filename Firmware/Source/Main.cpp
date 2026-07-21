@@ -9,8 +9,13 @@
 #include <Simulator.h>
 #endif
 
+#ifdef CONFIG_TT_USE_DEPRECATED_HAL
 // Each board project declares this variable
 extern const tt::hal::Configuration hardwareConfiguration;
+#else
+// Legacy placeholder (required until legacy HAL is cleaned up everywhere)
+extern const tt::hal::Configuration hardwareConfiguration = {};
+#endif
 
 extern "C" {
 

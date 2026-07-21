@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_grove.h>
 #include <tactility/bindings/esp32_i2c.h>
@@ -9,11 +10,20 @@
 #include <tactility/bindings/esp32_uart.h>
 #include <bindings/mpu6886.h>
 #include <bindings/bm8563.h>
+#include <bindings/axp192.h>
+#include <bindings/ft6x36.h>
+#include <bindings/ili9341.h>
+#include <tactility/bindings/esp32_sdspi.h>
 
 // Reference: https://docs.m5stack.com/en/core/Core2
 / {
 	compatible = "root";
 	model = "M5Stack Core2";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
@@ -36,6 +46,19 @@
 			compatible = "belling,bm8563";
 			reg = <0x51>;
 		};
+
+		axp192 {
+			compatible = "x-powers,axp192";
+			reg = <0x34>;
+		};
+
+		touch {
+			compatible = "focaltech,ft6x36";
+			reg = <0x38>;
+			x-max = <320>;
+			y-max = <240>;
+			pin-interrupt = <&gpio0 39 GPIO_FLAG_NONE>;
+		};
 	};
 
 	port_a: grove0 {
@@ -51,9 +74,26 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 5 GPIO_FLAG_NONE>, // Display
+				   <&gpio0 4 GPIO_FLAG_NONE>; // SD card
 		pin-mosi = <&gpio0 23 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 38 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
+	
+		display@0 {
+			compatible = "ilitek,ili9341";
+			horizontal-resolution = <320>;
+			vertical-resolution = <240>;
+			invert-color;
+			bgr-order;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 15 GPIO_FLAG_NONE>;
+		};
+
+		sdcard@1 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
 	};
 
 	// NS4168: Speaker and microphone

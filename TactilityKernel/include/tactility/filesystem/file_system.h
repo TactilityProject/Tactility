@@ -101,6 +101,20 @@ bool file_system_is_mounted(struct FileSystem* fs);
  */
 error_t file_system_get_path(struct FileSystem* fs, char* out_path, size_t out_path_size);
 
+/**
+ * @brief Sets the owner device of the file system.
+ * @param[in] fs the FileSystem object
+ * @param[in] owner the owning device, or NULL
+ */
+void file_system_set_owner(struct FileSystem* fs, struct Device* owner);
+
+/**
+ * @brief Gets the owner device of the file system.
+ * @param[in] fs the FileSystem object
+ * @return the owning device, or NULL if not set
+ */
+struct Device* file_system_get_owner(struct FileSystem* fs);
+
 #ifdef __cplusplus
 }
 #endif

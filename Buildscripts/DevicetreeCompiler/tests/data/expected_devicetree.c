@@ -10,21 +10,23 @@ static const root_config_dt root_config = {
 };
 
 static struct Device root = {
+	.address = 0,
 	.name = "/",
 	.config = &root_config,
 	.parent = NULL,
 	.internal = NULL
 };
 
-static const generic_device_config_dt test_device@0_config = {
+static const generic_device_config_dt test_device_config = {
 	0,
 	42,
 	"hello"
 };
 
-static struct Device test_device@0 = {
-	.name = "test-device@0",
-	.config = &test_device@0_config,
+static struct Device test_device = {
+	.address = 0,
+	.name = "test-device",
+	.config = &test_device_config,
 	.parent = &root,
 	.internal = NULL
 };
@@ -38,6 +40,7 @@ static const bool_device_config_dt bool_test_device_config = {
 };
 
 static struct Device bool_test_device = {
+	.address = 0,
 	.name = "bool-test-device",
 	.config = &bool_test_device_config,
 	.parent = &root,
@@ -46,7 +49,7 @@ static struct Device bool_test_device = {
 
 struct DtsDevice dts_devices[] = {
 	{ &root, "test,root", DTS_DEVICE_STATUS_OKAY },
-	{ &test_device@0, "test,generic-device", DTS_DEVICE_STATUS_OKAY },
+	{ &test_device, "test,generic-device", DTS_DEVICE_STATUS_OKAY },
 	{ &bool_test_device, "test,bool-device", DTS_DEVICE_STATUS_OKAY },
 	DTS_DEVICE_TERMINATOR
 };

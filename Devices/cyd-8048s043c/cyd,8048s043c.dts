@@ -2,17 +2,29 @@
 
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/rgb_display.h>
+#include <bindings/gt911.h>
 
 / {
 	compatible = "root";
 	model = "CYD 8048S043C";
 
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
 	ble0 {
 		compatible = "espressif,esp32-ble";
+		status = "disabled";
 	};
 
 	gpio0 {
@@ -26,6 +38,16 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 19 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 20 GPIO_FLAG_NONE>;
+
+		touch0 {
+			// Reset pin 38 and interrupt pin 18 (or INT = NC) exist on the board but are not
+			// wired up here - conflicting schematic info, unverified (matches the original
+			// deprecated-HAL config).
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <800>;
+			y-max = <480>;
+		};
 	};
 
 	i2c_external {
@@ -39,9 +61,66 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 10 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 11 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 13 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 12 GPIO_FLAG_NONE>;
+
+		sdcard@0 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 2 GPIO_FLAG_NONE>;
+		period-ns = <33333>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	display0 {
+		compatible = "espressif,esp32-rgb-display";
+		horizontal-resolution = <800>;
+		vertical-resolution = <480>;
+		pixel-clock-hz = <16000000>;
+		hsync-pulse-width = <4>;
+		hsync-back-porch = <8>;
+		hsync-front-porch = <8>;
+		vsync-pulse-width = <4>;
+		vsync-back-porch = <8>;
+		vsync-front-porch = <8>;
+		pclk-active-neg;
+		num-fbs = <2>;
+		double-fb;
+		bounce-buffer-size-px = <8000>;
+		pin-hsync = <&gpio0 39 GPIO_FLAG_NONE>;
+		pin-vsync = <&gpio0 41 GPIO_FLAG_NONE>;
+		pin-de = <&gpio0 40 GPIO_FLAG_NONE>;
+		pin-pclk = <&gpio0 42 GPIO_FLAG_NONE>;
+		pin-data0 = <&gpio0 8 GPIO_FLAG_NONE>; // B3
+		pin-data1 = <&gpio0 3 GPIO_FLAG_NONE>; // B4
+		pin-data2 = <&gpio0 46 GPIO_FLAG_NONE>; // B5
+		pin-data3 = <&gpio0 9 GPIO_FLAG_NONE>; // B6
+		pin-data4 = <&gpio0 1 GPIO_FLAG_NONE>; // B7
+		pin-data5 = <&gpio0 5 GPIO_FLAG_NONE>; // G2
+		pin-data6 = <&gpio0 6 GPIO_FLAG_NONE>; // G3
+		pin-data7 = <&gpio0 7 GPIO_FLAG_NONE>; // G4
+		pin-data8 = <&gpio0 15 GPIO_FLAG_NONE>; // G5
+		pin-data9 = <&gpio0 16 GPIO_FLAG_NONE>; // G6
+		pin-data10 = <&gpio0 4 GPIO_FLAG_NONE>; // G7
+		pin-data11 = <&gpio0 45 GPIO_FLAG_NONE>; // R3
+		pin-data12 = <&gpio0 48 GPIO_FLAG_NONE>; // R4
+		pin-data13 = <&gpio0 47 GPIO_FLAG_NONE>; // R5
+		pin-data14 = <&gpio0 21 GPIO_FLAG_NONE>; // R6
+		pin-data15 = <&gpio0 14 GPIO_FLAG_NONE>; // R7
+		backlight = <&display_backlight>;
 	};
 
 	uart1 {

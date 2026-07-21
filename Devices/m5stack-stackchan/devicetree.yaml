@@ -1,7 +1,14 @@
 dependencies:
-- Platforms/platform-esp32
-- Drivers/bmi270-module
-- Drivers/bm8563-module
-- Drivers/ina226-module
-- Drivers/py32ioexpander-module
+  - Platforms/platform-esp32
+  - Drivers/bmi270-module
+  - Drivers/bm8563-module
+  - Drivers/ina226-module
+  - Drivers/py32ioexpander-module
+  - Drivers/aw9523b-module
+  - Drivers/axp2101-module
+  - Drivers/ft6x36-module
+  - Drivers/ili9341-module
+  - Drivers/aw88298-module
+  - Drivers/es7210-module
+  - Drivers/audio-stream-module
 dts: m5stack,stackchan.dts

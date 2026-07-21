@@ -1,15 +1,12 @@
 #pragma once
 
+#include <tactility/service/service_instance.h>
+
 #include <memory>
 
 namespace tt::service {
 
-enum class State {
-    Starting,
-    Started,
-    Stopping,
-    Stopped
-};
+using State = ::ServiceState;
 
 // Forward declaration
 class ServiceContext;
@@ -26,6 +23,6 @@ public:
 };
 
 template<typename T>
-std::shared_ptr<Service> create() { return std::shared_ptr<T>(new T); }
+void* create(const ::ServiceManifest* /*manifest*/) { return new std::shared_ptr<Service>(std::shared_ptr<T>(new T)); }
 
 }

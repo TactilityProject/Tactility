@@ -9,7 +9,7 @@ namespace tt::service {
 // Forward declarations
 class ServiceContext;
 
-typedef std::shared_ptr<Service>(*CreateService)();
+using CreateService = ::ServiceCreate;
 
 /** A ledger that describes the main parts of a service. */
 struct ServiceManifest {

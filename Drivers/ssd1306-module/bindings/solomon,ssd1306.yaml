@@ -1,0 +1,52 @@
+description: Solomon Systech SSD1306 monochrome OLED display panel (I2C interface)
+
+include: ["i2c-device.yaml"]
+
+compatible: "solomon,ssd1306"
+
+bus: i2c
+
+properties:
+  horizontal-resolution:
+    type: int
+    required: true
+    description: Horizontal resolution in pixels (typically 128)
+  vertical-resolution:
+    type: int
+    required: true
+    description: Vertical resolution in pixels (typically 32 or 64)
+  invert-color:
+    type: boolean
+    default: false
+    description: Invert the panel's color output
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Reset GPIO pin
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high
+  power-on-delay-ms:
+    type: int
+    default: 0
+    description: >
+      Extra delay before reset/init, in milliseconds. Useful when the panel's power rail is
+      gated by a gpio-hog node: devicetree devices (including gpio-hog) are constructed and
+      started during kernel_init(), with no built-in settle time between one device starting
+      and the next, so a panel whose power was only just enabled a moment earlier may need this
+      to let its rail stabilize before communication starts. 0 (the default) adds no delay.
+  init-sequence:
+    type: array
+    element-type: uint8_t
+    description: >
+      Custom vendor bring-up sequence: a flat list of command bytes, each sent as its own
+      single-byte SSD1306 command (some standalone, some acting as a parameter to the byte
+      before them - this chip's protocol doesn't distinguish the two at the wire level, and
+      neither does this encoding). Omit to use the SSD1306 component's own generic
+      esp_lcd_panel_init() sequence instead - note that some panels are known not to
+      initialize correctly through it (see e.g. the Heltec WiFi LoRa 32 V3's own required
+      override), so most boards should supply their own sequence here.
+
+# No 'backlight' property: SSD1306 is a self-emitting OLED panel with no backlight to control,
+# unlike this repo's other display bindings.

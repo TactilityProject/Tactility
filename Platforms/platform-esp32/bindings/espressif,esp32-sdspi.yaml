@@ -1,0 +1,23 @@
+description: ESP32 SD card over SPI
+
+compatible: "espressif,esp32-sdspi"
+
+bus: spi
+
+properties:
+  pin-cd:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Card detect GPIO
+  pin-wp:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Write protect GPIO
+  pin-int:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Interrupt GPIO
+  frequency-khz:
+    type: int
+    required: true
+    description: SPI clock frequency in kHz

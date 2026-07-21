@@ -1,0 +1,19 @@
+description: Battery voltage sense via an ADC channel behind a voltage divider
+
+compatible: "battery-sense"
+
+properties:
+  io-channel:
+    type: phandles
+    required: true
+    description: The ADC object paired with a channel index e.g. `<&adc1 3>`
+  reference-voltage-mv:
+    type: int
+    required: true
+    description: The ADC's effective full-scale reference voltage at the channel's configured attenuation, in mV.
+  multiplier:
+    type: int
+    default: 1000
+    description: |
+      Voltage divider correction factor, fixed-point with 3 decimals (1000 = 1.000, i.e. no division).
+      battery_mv = adc_mv * multiplier / 1000.

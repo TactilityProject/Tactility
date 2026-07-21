@@ -1,14 +1,19 @@
 #include <Tactility/service/wifi/WifiBootSplashInit.h>
+
+#include "Tactility/service/wifi/Wifi.h"
+#include "Tactility/service/wifi/WifiSettings.h"
+
 #include <Tactility/file/PropertiesFile.h>
 
 #include <Tactility/MountPoints.h>
 #include <Tactility/file/File.h>
-#include <Tactility/Logger.h>
 #include <Tactility/service/wifi/WifiApSettings.h>
 
 #include <Tactility/Paths.h>
 #include <Tactility/Tactility.h>
-#include <Tactility/hal/sdcard/SdCardDevice.h>
+
+#include <tactility/log.h>
+
 #include <dirent.h>
 #include <format>
 #include <map>
@@ -17,7 +22,7 @@
 
 namespace tt::service::wifi {
 
-static const auto LOGGER = Logger("WifiBootSplashInit");
+constexpr auto* TAG = "WifiBootSplashInit";
 
 constexpr auto* AP_PROPERTIES_KEY_SSID = "ssid";
 constexpr auto* AP_PROPERTIES_KEY_PASSWORD = "password";
@@ -36,13 +41,13 @@ struct ApProperties {
 static void importWifiAp(const std::string& filePath) {
     std::map<std::string, std::string> map;
     if (!file::loadPropertiesFile(filePath, map)) {
-        LOGGER.error("Failed to load AP properties at {}", filePath);
+        LOG_E(TAG, "Failed to load AP properties at %s", filePath.c_str());
         return;
     }
 
     const auto ssid_iterator = map.find(AP_PROPERTIES_KEY_SSID);
     if (ssid_iterator == map.end()) {
-        LOGGER.error("{} is missing ssid", filePath);
+        LOG_E(TAG, "%s is missing ssid", filePath.c_str());
         return;
     }
     const auto ssid = ssid_iterator->second;
@@ -66,18 +71,18 @@ static void importWifiAp(const std::string& filePath) {
         );
 
         if (!settings::save(settings)) {
-            LOGGER.error("Failed to save settings for {}", ssid);
+            LOG_E(TAG, "Failed to save settings for %s", ssid.c_str());
         } else {
-            LOGGER.info("Imported {} from {}", ssid, filePath);
+            LOG_I(TAG, "Imported %s from %s", ssid.c_str(), filePath.c_str());
         }
     }
 
     const auto auto_remove_iterator = map.find(AP_PROPERTIES_KEY_AUTO_REMOVE);
     if (auto_remove_iterator != map.end() && auto_remove_iterator->second == "true") {
         if (!remove(filePath.c_str())) {
-            LOGGER.error("Failed to auto-remove {}", filePath);
+            LOG_E(TAG, "Failed to auto-remove %s", filePath.c_str());
         } else {
-            LOGGER.info("Auto-removed {}", filePath);
+            LOG_I(TAG, "Auto-removed %s", filePath.c_str());
         }
     }
 }
@@ -106,7 +111,7 @@ static void importWifiApSettingsFromDir(const std::string& path) {
     }
 
     if (dirent_list.empty()) {
-        LOGGER.warn("No AP files found at {}", path);
+        LOG_W(TAG, "No AP files found at %s", path.c_str());
         return;
     }
 
@@ -117,17 +122,24 @@ static void importWifiApSettingsFromDir(const std::string& path) {
 }
 
 void bootSplashInit() {
+    LOG_I(TAG, "bootSplashInit dispatch");
     getMainDispatcher().dispatch([] {
-        // First import any provisioning files placed on the system data partition.
-        const std::string data_settings_path = file::getChildPath(file::MOUNT_POINT_DATA, "settings");
-        importWifiApSettingsFromDir(data_settings_path);
-
-        // Then scan attached SD cards as before.
-        std::string sdcard_path;
-        if (findFirstMountedSdCardPath((sdcard_path))) {
-            const std::string sd_settings_path = file::getChildPath(sdcard_path, "settings");
-            importWifiApSettingsFromDir(sd_settings_path);
+        LOG_I(TAG, "bootSplashInit dispatch begin");
+        // Import any provisioning files placed on the system data partition.
+        const std::string provisioning_path = file::getChildPath(getUserDataPath(), "provisioning");
+        if (file::isDirectory(provisioning_path)) {
+            importWifiApSettingsFromDir(provisioning_path);
+        } else {
+            LOG_I(TAG, "Skip provisioning: no files at %s", provisioning_path.c_str());
         }
+
+        // Dispatch WiFi on
+        if (settings::shouldEnableOnBoot()) {
+            LOG_I(TAG, "Auto-enabling WiFi");
+            getMainDispatcher().dispatch([] -> void { setEnabled(true); });
+        }
+
+        LOG_I(TAG, "bootSplashInit dispatch end");
     });
 }
 

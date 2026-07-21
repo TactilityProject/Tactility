@@ -1,13 +1,13 @@
 #include "EspLcdDisplayV2.h"
 #include "EspLcdDisplayDriver.h"
 
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 #include <tactility/check.h>
 #include <Tactility/hal/touch/TouchDevice.h>
 #include <cassert>
 #include <esp_lvgl_port_disp.h>
 
-static const auto LOGGER = tt::Logger("EspLcdDispV2");
+constexpr auto* TAG = "EspLcdDispV2";
 
 inline unsigned int getBufferSize(const std::shared_ptr<EspLcdConfiguration>& configuration) {
     if (configuration->bufferSize != DEFAULT_BUFFER_SIZE) {
@@ -26,17 +26,17 @@ EspLcdDisplayV2::~EspLcdDisplayV2() {
 
 bool EspLcdDisplayV2::applyConfiguration() const {
     if (esp_lcd_panel_reset(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to reset panel");
+        LOG_E(TAG, "Failed to reset panel");
         return false;
     }
 
     if (esp_lcd_panel_init(panelHandle) != ESP_OK) {
-        LOGGER.error("Failed to init panel");
+        LOG_E(TAG, "Failed to init panel");
         return false;
     }
 
     if (configuration->invertColor && esp_lcd_panel_invert_color(panelHandle, configuration->invertColor) != ESP_OK) {
-        LOGGER.error("Failed to set panel to invert");
+        LOG_E(TAG, "Failed to set panel to invert");
         return false;
     }
 
@@ -45,28 +45,28 @@ bool EspLcdDisplayV2::applyConfiguration() const {
     int gap_y = configuration->swapXY ? configuration->gapX : configuration->gapY;
     bool should_set_gap = gap_x != 0 || gap_y != 0;
     if (should_set_gap && esp_lcd_panel_set_gap(panelHandle, gap_x, gap_y) != ESP_OK) {
-        LOGGER.error("Failed to set panel gap");
+        LOG_E(TAG, "Failed to set panel gap");
         return false;
     }
 
     if (configuration->swapXY && esp_lcd_panel_swap_xy(panelHandle, configuration->swapXY) != ESP_OK) {
-        LOGGER.error("Failed to swap XY ");
+        LOG_E(TAG, "Failed to swap XY ");
         return false;
     }
 
     bool should_set_mirror = configuration->mirrorX || configuration->mirrorY;
     if (should_set_mirror && esp_lcd_panel_mirror(panelHandle, configuration->mirrorX, configuration->mirrorY) != ESP_OK) {
-        LOGGER.error("Failed to set panel to mirror");
+        LOG_E(TAG, "Failed to set panel to mirror");
         return false;
     }
 
     if (configuration->invertColor && esp_lcd_panel_invert_color(panelHandle, configuration->invertColor) != ESP_OK) {
-        LOGGER.error("Failed to set panel to invert");
+        LOG_E(TAG, "Failed to set panel to invert");
         return false;
     }
 
     if (esp_lcd_panel_disp_on_off(panelHandle, true) != ESP_OK) {
-        LOGGER.error("Failed to turn display on");
+        LOG_E(TAG, "Failed to turn display on");
         return false;
     }
 
@@ -75,14 +75,14 @@ bool EspLcdDisplayV2::applyConfiguration() const {
 
 bool EspLcdDisplayV2::start() {
     if (!createIoHandle(ioHandle)) {
-        LOGGER.error("Failed to create IO handle");
+        LOG_E(TAG, "Failed to create IO handle");
         return false;
     }
 
     esp_lcd_panel_dev_config_t panel_config = createPanelConfig(configuration, configuration->resetPin);
 
     if (!createPanelHandle(ioHandle, panel_config, panelHandle)) {
-        LOGGER.error("Failed to create panel handle");
+        LOG_E(TAG, "Failed to create panel handle");
         esp_lcd_panel_io_del(ioHandle);
         ioHandle = nullptr;
         return false;
@@ -114,7 +114,7 @@ bool EspLcdDisplayV2::stop() {
     }
 
     if (displayDriver != nullptr && displayDriver.use_count() > 1) {
-        LOGGER.warn("DisplayDriver is still in use.");
+        LOG_W(TAG, "DisplayDriver is still in use.");
     }
 
     return true;
@@ -124,7 +124,7 @@ bool EspLcdDisplayV2::startLvgl() {
     assert(lvglDisplay == nullptr);
 
     if (displayDriver != nullptr && displayDriver.use_count() > 1) {
-        LOGGER.warn("DisplayDriver is still in use.");
+        LOG_W(TAG, "DisplayDriver is still in use.");
     }
 
     auto lvgl_port_config  = getLvglPortDisplayConfig(configuration, ioHandle, panelHandle);

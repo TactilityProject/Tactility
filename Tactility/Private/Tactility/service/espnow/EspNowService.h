@@ -4,7 +4,7 @@
 #include <sdkconfig.h>
 #endif
 
-#ifdef CONFIG_ESP_WIFI_ENABLED
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
 
 #include <Tactility/service/Service.h>
 #include <Tactility/service/espnow/EspNow.h>
@@ -75,4 +75,4 @@ std::shared_ptr<EspNowService> findService();
 
 }
 
-#endif // ESP_PLATFORM
+#endif // CONFIG_SOC_WIFI_SUPPORTED || CONFIG_SLAVE_SOC_WIFI_SUPPORTED

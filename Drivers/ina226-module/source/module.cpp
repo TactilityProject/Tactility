@@ -6,17 +6,20 @@
 extern "C" {
 
 extern Driver ina226_driver;
+extern Driver ina226_power_supply_driver;
 
 static error_t start() {
     /* We crash when construct fails, because if a single driver fails to construct,
      * there is no guarantee that the previously constructed drivers can be destroyed */
     check(driver_construct_add(&ina226_driver) == ERROR_NONE);
+    check(driver_construct_add(&ina226_power_supply_driver) == ERROR_NONE);
     return ERROR_NONE;
 }
 
 static error_t stop() {
     /* We crash when destruct fails, because if a single driver fails to destruct,
      * there is no guarantee that the previously destroyed drivers can be recovered */
+    check(driver_remove_destruct(&ina226_power_supply_driver) == ERROR_NONE);
     check(driver_remove_destruct(&ina226_driver) == ERROR_NONE);
     return ERROR_NONE;
 }

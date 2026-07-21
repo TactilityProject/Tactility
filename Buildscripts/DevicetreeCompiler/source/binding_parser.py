@@ -45,6 +45,9 @@ def parse_binding(file_path: str, binding_dirs: list[str]) -> Binding:
             required=details.get('required', False),
             description=details.get('description', '').strip(),
             default=details.get('default', None),
+            element_type=details.get('element-type', None),
+            min=details.get('min', None),
+            max=details.get('max', None),
         )
         properties_dict[name] = prop
     filename = os.path.basename(file_path)

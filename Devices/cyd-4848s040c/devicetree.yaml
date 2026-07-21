@@ -1,3 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/st7701-module
+  - Drivers/gt911-module
 dts: cyd,4848s040c.dts

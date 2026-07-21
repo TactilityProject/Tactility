@@ -97,6 +97,9 @@ public:
 // Global accessor for controlling the WebServer service
 void setWebServerEnabled(bool enabled);
 
+// Returns whether the HTTP server is actually running right now (not just the persisted setting)
+bool isWebServerEnabled();
+
 // Get the pubsub for subscribing to WebServer events
 std::shared_ptr<PubSub<WebServerEvent>> getPubsub();
 

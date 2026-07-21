@@ -1,0 +1,5 @@
+description: TI BQ24295 single-cell USB battery charger
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,bq24295"

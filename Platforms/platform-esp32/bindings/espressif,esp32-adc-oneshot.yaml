@@ -1,0 +1,30 @@
+description: ESP32 ADC Controller (oneshot mode)
+
+include: ["adc-controller.yaml"]
+
+compatible: "espressif,esp32-adc-oneshot"
+
+properties:
+  unit-id:
+    type: int
+    required: true
+    description: |
+      The ADC unit, defined by adc_unit_t (e.g. ADC_UNIT_1, ADC_UNIT_2).
+  clk-src:
+    type: int
+    default: 0
+    description: |
+      Clock source, defined by adc_oneshot_clk_src_t. 0 selects the default clock source.
+  ulp-mode:
+    type: int
+    default: 0
+    description: |
+      ULP control mode, defined by adc_ulp_mode_t. 0 means ADC_ULP_MODE_DISABLE.
+  channels:
+    type: phandle-array
+    element-type: "struct Esp32AdcOneshotChannelConfig"
+    default: "{ }"
+    description: |
+      Per-channel configuration. Each entry is written as <channel atten bitwidth>,
+      e.g. <ADC_CHANNEL_3 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>.
+      A consumer device refers to a channel with a phandle and channel number, e.g. `<&adc0 3>`.

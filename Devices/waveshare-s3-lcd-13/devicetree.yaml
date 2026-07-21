@@ -1,4 +1,5 @@
 dependencies:
 - Platforms/platform-esp32
 - Drivers/qmi8658-module
+- Drivers/st7789-module
 dts: waveshare,s3-lcd-13.dts

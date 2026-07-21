@@ -1,0 +1,64 @@
+description: ESP32 i8080 (8080-series parallel) LCD bus controller
+
+include: ["i8080-controller.yaml"]
+
+compatible: "espressif,esp32-i8080"
+
+properties:
+  pin-dc:
+    type: phandles
+    required: true
+    description: Data/Command GPIO pin
+  pin-wr:
+    type: phandles
+    required: true
+    description: Write-strobe GPIO pin
+  pin-rd:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Read-strobe GPIO pin. Optional - driven high once and left alone if provided, since this bus only ever writes.
+  pin-d0:
+    type: phandles
+    required: true
+    description: Data bus bit 0 GPIO pin
+  pin-d1:
+    type: phandles
+    required: true
+    description: Data bus bit 1 GPIO pin
+  pin-d2:
+    type: phandles
+    required: true
+    description: Data bus bit 2 GPIO pin
+  pin-d3:
+    type: phandles
+    required: true
+    description: Data bus bit 3 GPIO pin
+  pin-d4:
+    type: phandles
+    required: true
+    description: Data bus bit 4 GPIO pin
+  pin-d5:
+    type: phandles
+    required: true
+    description: Data bus bit 5 GPIO pin
+  pin-d6:
+    type: phandles
+    required: true
+    description: Data bus bit 6 GPIO pin
+  pin-d7:
+    type: phandles
+    required: true
+    description: Data bus bit 7 GPIO pin
+  max-transfer-bytes:
+    type: int
+    required: true
+    description: |
+      Maximum size in bytes of a single transfer over this bus. Sized for the attached
+      panel's buffer (e.g. horizontal-resolution * vertical-resolution / N * bytes-per-pixel
+      for an N-th sized partial buffer) - there is no bus-level default since it's entirely
+      dependent on what's attached.
+  cs-gpios:
+    type: phandle-array
+    element-type: "struct GpioPinSpec"
+    default: "{ }"
+    description: Null-terminated array of chip select GPIO pin specs for peripherals on this bus

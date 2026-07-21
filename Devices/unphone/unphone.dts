@@ -2,16 +2,32 @@
 
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <bindings/hx8357.h>
+#include <bindings/xpt2046.h>
+#include <bindings/tca95xx.h>
+#include <bindings/bq24295.h>
+#include <bindings/unphone_power_switch.h>
+#include <bindings/unphone_nav_buttons.h>
+#include <tactility/bindings/gpio_backlight.h>
+#include <tactility/bindings/gpio_hog.h>
 
 / {
 	compatible = "root";
 	model = "unPhone";
 
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
 	ble0 {
 		compatible = "espressif,esp32-ble";
+		status = "disabled";
 	};
 
 	gpio0 {
@@ -25,14 +41,103 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 3 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 4 GPIO_FLAG_NONE>;
+
+		tca9535 {
+			compatible = "ti,tca9535";
+			reg = <0x26>;
+		};
+
+		bq24295 {
+			compatible = "ti,bq24295";
+			reg = <0x6B>;
+		};
 	};
 
-	sdcard_spi: spi0 {
+	power_switch {
+		compatible = "unphone,power-switch";
+		pin = <&gpio0 18 GPIO_FLAG_NONE>;
+	};
+
+	nav_buttons {
+		compatible = "unphone,nav-buttons";
+		pin-button1 = <&gpio0 45 GPIO_FLAG_NONE>; // left button
+		pin-button2 = <&gpio0 0 GPIO_FLAG_NONE>; // middle button
+		pin-button3 = <&gpio0 21 GPIO_FLAG_NONE>; // right button
+	};
+
+	display_backlight {
+		compatible = "gpio-backlight";
+		pin = <&tca9535 2 GPIO_FLAG_NONE>;
+	};
+
+	usb_vsense {
+		compatible = "gpio-hog";
+		pin = <&tca9535 14 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_INPUT>;
+	};
+
+	vibration_motor {
+		compatible = "gpio-hog";
+		pin = <&tca9535 7 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
+	ir_leds {
+		compatible = "gpio-hog";
+		pin = <&gpio0 12 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
+	red_led {
+		compatible = "gpio-hog";
+		pin = <&gpio0 13 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
+	green_led {
+		compatible = "gpio-hog";
+		pin = <&tca9535 9 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
+	blue_led {
+		compatible = "gpio-hog";
+		pin = <&tca9535 13 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
+	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 48 GPIO_FLAG_NONE>, // Display
+		           <&gpio0 38 GPIO_FLAG_NONE>, // Touch
+		           <&gpio0 43 GPIO_FLAG_NONE>; // SD card
 		pin-mosi = <&gpio0 40 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 41 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 39 GPIO_FLAG_NONE>;
 		max-transfer-size = <65536>;
+
+		display@0 {
+			compatible = "himax,hx8357";
+			horizontal-resolution = <320>;
+			vertical-resolution = <480>;
+			mirror-x;
+			pixel-clock-hz = <26000000>;
+			pin-dc = <&gpio0 47 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 46 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
+
+		touch@1 {
+			compatible = "xptek,xpt2046";
+			x-max = <320>;
+			y-max = <480>;
+			power-supply;
+		};
+
+		sdcard@2 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
 	};
 };

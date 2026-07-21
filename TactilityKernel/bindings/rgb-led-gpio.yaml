@@ -1,0 +1,27 @@
+description: >
+  RGB LED driven by 3 plain digital GPIO pins. Each channel is on/off only (no dimming):
+  a color component greater than 0 turns that channel's pin on.
+
+compatible: "rgb-led-gpio"
+
+properties:
+  pin-red:
+    type: phandles
+    required: true
+    description: Red channel output pin
+  pin-green:
+    type: phandles
+    required: true
+    description: Green channel output pin
+  pin-blue:
+    type: phandles
+    required: true
+    description: Blue channel output pin
+  enabled:
+    type: boolean
+    default: false
+    description: Whether the LED is turned on by default
+  default-color:
+    type: values
+    default: [255, 255, 255]
+    description: Color applied when the LED is turned on by default

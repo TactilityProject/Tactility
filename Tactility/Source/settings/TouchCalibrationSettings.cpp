@@ -1,9 +1,9 @@
 #include <Tactility/settings/TouchCalibrationSettings.h>
 
+#include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
-#include <Tactility/Mutex.h>
+#include <Tactility/Paths.h>
 
-#include <algorithm>
 #include <cstdlib>
 #include <cerrno>
 #include <climits>
@@ -12,17 +12,15 @@
 
 namespace tt::settings::touch {
 
-constexpr auto* SETTINGS_FILE = "/data/settings/touch-calibration.properties";
+static std::string getSettingsFilePath() {
+    return getUserDataPath() + "/settings/touch-calibration.properties";
+}
+
 constexpr auto* SETTINGS_KEY_ENABLED = "enabled";
 constexpr auto* SETTINGS_KEY_X_MIN = "xMin";
 constexpr auto* SETTINGS_KEY_X_MAX = "xMax";
 constexpr auto* SETTINGS_KEY_Y_MIN = "yMin";
 constexpr auto* SETTINGS_KEY_Y_MAX = "yMax";
-
-static bool runtimeCalibrationEnabled = true;
-static bool cacheInitialized = false;
-static TouchCalibrationSettings cachedSettings;
-static tt::Mutex cacheMutex;
 
 static bool toBool(const std::string& value) {
     return value == "1" || value == "true" || value == "True";
@@ -60,8 +58,13 @@ bool isValid(const TouchCalibrationSettings& settings) {
 }
 
 bool load(TouchCalibrationSettings& settings) {
+    auto settings_path = getSettingsFilePath();
+    if (!file::isFile(settings_path)) {
+        return false;
+    }
+
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(SETTINGS_FILE, map)) {
+    if (!file::loadPropertiesFile(settings_path, map)) {
         return false;
     }
 
@@ -112,62 +115,12 @@ bool save(const TouchCalibrationSettings& settings) {
     map[SETTINGS_KEY_Y_MIN] = std::to_string(settings.yMin);
     map[SETTINGS_KEY_Y_MAX] = std::to_string(settings.yMax);
 
-    if (!file::savePropertiesFile(SETTINGS_FILE, map)) {
+    auto settings_path = getSettingsFilePath();
+    if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
         return false;
     }
 
-    auto lock = cacheMutex.asScopedLock();
-    lock.lock();
-    cachedSettings = settings;
-    cacheInitialized = true;
-    return true;
-}
-
-TouchCalibrationSettings getActive() {
-    auto lock = cacheMutex.asScopedLock();
-    lock.lock();
-    if (!cacheInitialized) {
-        cachedSettings = loadOrGetDefault();
-        cacheInitialized = true;
-    }
-    if (!runtimeCalibrationEnabled) {
-        auto disabled = cachedSettings;
-        disabled.enabled = false;
-        return disabled;
-    }
-    return cachedSettings;
-}
-
-void setRuntimeCalibrationEnabled(bool enabled) {
-    auto lock = cacheMutex.asScopedLock();
-    lock.lock();
-    runtimeCalibrationEnabled = enabled;
-}
-
-void invalidateCache() {
-    auto lock = cacheMutex.asScopedLock();
-    lock.lock();
-    cacheInitialized = false;
-}
-
-bool applyCalibration(const TouchCalibrationSettings& settings, uint16_t xMax, uint16_t yMax, uint16_t& x, uint16_t& y) {
-    if (!settings.enabled || !isValid(settings)) {
-        return false;
-    }
-
-    const int32_t in_x = static_cast<int32_t>(x);
-    const int32_t in_y = static_cast<int32_t>(y);
-
-    const int64_t mapped_x = (static_cast<int64_t>(in_x) - static_cast<int64_t>(settings.xMin)) *
-        static_cast<int64_t>(xMax) /
-        (static_cast<int64_t>(settings.xMax) - static_cast<int64_t>(settings.xMin));
-    const int64_t mapped_y = (static_cast<int64_t>(in_y) - static_cast<int64_t>(settings.yMin)) *
-        static_cast<int64_t>(yMax) /
-        (static_cast<int64_t>(settings.yMax) - static_cast<int64_t>(settings.yMin));
-
-    x = static_cast<uint16_t>(std::clamp<int64_t>(mapped_x, 0, static_cast<int64_t>(xMax)));
-    y = static_cast<uint16_t>(std::clamp<int64_t>(mapped_y, 0, static_cast<int64_t>(yMax)));
-    return true;
+    return file::savePropertiesFile(settings_path, map);
 }
 
 } // namespace tt::settings::touch

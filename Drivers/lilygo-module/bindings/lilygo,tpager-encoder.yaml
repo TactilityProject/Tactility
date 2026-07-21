@@ -1,0 +1,22 @@
+description: >
+  LilyGO T-Lora Pager encoder wheel next to the display - a 2-phase quadrature encoder
+  (decoded via the ESP32 hardware PCNT peripheral) plus a separate click/enter button.
+  Reports raw, unscaled pulses and button level: the pulses-per-detent scaling and enter-press
+  debounce are UI concerns layered on top by the consumer (see tpager_encoder_input.h), not
+  something this driver knows about.
+
+compatible: "lilygo,tpager-encoder"
+
+properties:
+  pin-a:
+    type: phandles
+    required: true
+    description: Quadrature phase A GPIO pin
+  pin-b:
+    type: phandles
+    required: true
+    description: Quadrature phase B GPIO pin
+  pin-enter:
+    type: phandles
+    required: true
+    description: Click/enter button GPIO pin (active low)

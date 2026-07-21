@@ -1,6 +1,4 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# README
 
 ## Project Overview
 
@@ -9,6 +7,11 @@ Tactility is an operating system for the ESP32 microcontroller family. It runs o
 ## Build Commands
 
 ### Simulator (Linux/macOS, no ESP-IDF needed)
+
+> [!IMPORTANT]
+> The simulator does **NOT** build or run on native Windows (Win32/PowerShell/cmd). This is
+> a hard platform limitation, not a missing tool or PATH issue — do not attempt `cmake -B
+> buildsim` on Windows, it will not work. WSL is a separate, Linux environment and is fine.
 
 ```bash
 cmake -B buildsim -G Ninja
@@ -27,6 +30,29 @@ idf.py flash monitor            # flash and monitor
 
 Device IDs are the folder names under `Devices/` (e.g. `lilygo-tdeck`, `m5stack-cores3`, `cyd-2432s028r`).
 
+#### Windows: activating the ESP-IDF environment
+
+On native Windows, `idf.py` is not on PATH by default — it must be activated per-shell first.
+The install script places a PowerShell profile activator per IDF version at
+`%IDF_TOOL_PATH%\Microsoft.v<version>.PowerShell_profile.ps1` (path controlled by the
+`IDF_TOOL_PATH` environment variable, set to wherever ESP-IDF's tools were installed, e.g.
+`C:\Espressif\tools`). Source it before running any `idf.py` command:
+
+```powershell
+. "$env:IDF_TOOL_PATH\Microsoft.v5.5.2.PowerShell_profile.ps1"   # match the installed IDF version
+Set-Location "<repo-root>"
+idf.py build 2>&1 | Select-Object -Last 250
+```
+
+This is Windows-specific setup (the main dev works on Linux, where `idf.py` is normally
+already on PATH via `export.sh`/`. ./export.sh` or a shell profile).
+
+### Devicetree
+
+A device implementation has a `.dts` file.
+The parser at `Buildscripts/DevicetreeCompiler/` converts DTS into C code.
+It's called from the `Firmware/` build process.
+
 ### Tests
 
 Tests use Doctest and run on simulator (POSIX) target only:
@@ -35,10 +61,10 @@ Tests use Doctest and run on simulator (POSIX) target only:
 cmake -B buildsim -G Ninja
 ninja -C buildsim build-tests
 cd buildsim && ctest            # run all tests
-./buildsim/Tests/TactilityCore/TactilityCoreTests    # run a single test suite
 ./buildsim/Tests/TactilityKernel/TactilityKernelTests
 ./buildsim/Tests/Tactility/TactilityTests
 ./buildsim/Tests/TactilityFreeRtos/TactilityFreeRtosTests
+./buildsim/Tests/crypt-module/CryptModuleTests
 ```
 
 ## Architecture
@@ -46,10 +72,9 @@ cd buildsim && ctest            # run all tests
 ### Layer Stack (bottom to top)
 
 - **TactilityKernel** — C API kernel: device/driver/module lifecycle, concurrency primitives (thread, mutex, timer, dispatcher), filesystem, logging. Header convention: `<tactility/*.h>` (lowercase snake_case).
-- **TactilityCore** — Former kernel subproject. Deprecated, replaced by TactilityKernel. Contains C++ utilities: Bundle (key-value data), string helpers, file I/O, crypto. Header convention: `<Tactility/*.h>` (UpperCamelCase).
 - **TactilityFreeRtos** — Thin C++ wrappers around FreeRTOS primitives.
 - **Tactility** — Main OS layer: app framework, service framework, HAL (deprecated, replaced by TactilityKernel), LVGL integration, networking and services (Wi-Fi, BLE, NTP, ESP-NOW), settings, i18n.
-- **TactilityC** — C bindings (`tt_*.h`) for TactilityCore and Tactility subprojects, used by side-loaded ELF apps on ESP32. Deprecated, replaced by TactilityKernel.
+- **TactilityC** — C bindings (`tt_*.h`) for Tactility, used by side-loaded ELF apps on ESP32. Deprecated, replaced by TactilityKernel.
 - **Firmware** — Entry point (`app_main`).
 
 ### Device/Driver/Module System (kernel layer, C API)
@@ -129,7 +154,7 @@ User interfaces should scale well for everything between very large (e.g. 1280x7
 Two conventions coexist; which one to use depends on the project layer:
 
 - **C code** (TactilityKernel, drivers): `lower_snake_case` for files, functions, variables. `UpperCamelCase` for types. Files in `source/`, `include/`, `private/` directories.
-- **C++ code** (TactilityCore, Tactility, apps, services): `UpperCamelCase` for files and types. `lowerCamelCase` for functions. Files in `Source/`, `Include/`, `Private/` directories.
+- **C++ code** (Tactility, apps, services): `UpperCamelCase` for files and types. `lowerCamelCase` for functions. Files in `Source/`, `Include/`, `Private/` directories.
 
 Formatting is enforced by `.clang-format` (LLVM-based, 4-space indent, no column limit).
 Never throw exceptions — use return types for error handling. Use `enum class` over plain `enum`.

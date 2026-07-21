@@ -2,6 +2,7 @@
 
 #include <tactility/hal/Device.h>
 #include <cstdint>
+#include <string>
 
 namespace tt::hal::power {
 
@@ -9,8 +10,8 @@ class PowerDevice : public Device {
 
 public:
 
-    PowerDevice() = default;
-    ~PowerDevice() override = default;
+    PowerDevice();
+    ~PowerDevice() override;
 
     Type getType() const override { return Type::Power; }
 
@@ -46,6 +47,17 @@ public:
 
     virtual bool supportsPowerOff() const { return false; }
     virtual void powerOff() { /* NO-OP*/ }
+
+private:
+
+    /** Creates the kernel-level power_supply device that exposes this instance to TactilityKernel. */
+    void createPowerSupplyDevice();
+
+    /** Destroys the kernel-level power_supply device created by createPowerSupplyDevice(). */
+    void destroyPowerSupplyDevice();
+
+    std::string kernelDeviceName;
+    KernelDevice kernelDevice {};
 };
 
 }

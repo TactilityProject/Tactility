@@ -29,6 +29,7 @@ class DtsTransformer(Transformer):
     def device(self, tokens: list):
         node_name = None
         node_alias = None
+        node_address = None
         status = None
         properties = list()
         child_devices = list()
@@ -37,6 +38,8 @@ class DtsTransformer(Transformer):
                 node_name = item.value
             elif type(item) is Token and item.type == 'NODE_ALIAS':
                 node_alias = item.value
+            elif type(item) is Token and item.type == 'NODE_ADDRESS':
+                node_address = item.value
             elif type(item) is DeviceProperty:
                 if item.name == "status":
                     status = item.value
@@ -44,7 +47,7 @@ class DtsTransformer(Transformer):
                     properties.append(item)
             elif type(item) is Device:
                 child_devices.append(item)
-        return Device(node_name, node_alias, status, properties, child_devices)
+        return Device(node_name, node_alias, node_address, status, properties, child_devices)
     def device_property(self, objects: List[object]):
         name = objects[0]
         # Boolean property has no value as the value is implied to be true
@@ -67,6 +70,10 @@ class DtsTransformer(Transformer):
         if isinstance(object[0], PropertyValue):
             return object[0]
         return PropertyValue(type="value", value=object[0])
+    def phandle_array_entry(self, tokens: list):
+        return tokens[0]
+    def phandle_array(self, tokens: list):
+        return PropertyValue(type="phandle-array", value=tokens)
     def array(self, object):
         return PropertyValue(type="array", value=object)
     def VALUE(self, token: Token):

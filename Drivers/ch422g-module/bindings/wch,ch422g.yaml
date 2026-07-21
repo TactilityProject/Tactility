@@ -1,0 +1,8 @@
+description: >
+  WCH CH422G I2C IO expander. Exposes EXIO0-7 as a GPIO_CONTROLLER_TYPE device. The chip
+  has no per-pin direction register and no readback for its output register, so only
+  output pins are supported; the driver keeps a local shadow of the last written value.
+
+include: ["i2c-device.yaml"]
+
+compatible: "wch,ch422g"

@@ -2,13 +2,13 @@
 
 #include <Tactility/app/AppManifest.h>
 
-#include <map>
 #include <string>
 
 namespace tt::app {
 
 bool isValidId(const std::string& id);
 
-bool parseManifest(const std::map<std::string, std::string>& map, AppManifest& manifest);
+/** Parses a manifest.properties file, auto-detecting the V1 (sectioned) or V2 (flat) format from its first line. */
+bool parseManifest(const std::string& filePath, AppManifest& manifest);
 
 }

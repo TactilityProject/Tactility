@@ -2,11 +2,15 @@
 #include <Tactility/service/wifi/WifiApSettings.h>
 #include <Tactility/file/PropertiesFile.h>
 
-#include <Tactility/crypt/Crypt.h>
 #include <Tactility/file/File.h>
-#include <Tactility/Logger.h>
+
+#include <tactility/crypt.h>
 
 #include <Tactility/service/ServicePaths.h>
+
+#include <tactility/log.h>
+
+#include <cstring>
 #include <format>
 #include <iomanip>
 #include <ranges>
@@ -15,7 +19,7 @@
 
 namespace tt::service::wifi::settings {
 
-static const auto LOGGER = Logger("WifiApSettings");
+constexpr auto* TAG = "WifiApSettings";
 
 constexpr auto* AP_SETTINGS_FORMAT = "{}/{}.ap.properties";
 
@@ -34,7 +38,7 @@ std::string toHexString(const uint8_t *data, int length) {
 
 bool readHex(const std::string& input, uint8_t* buffer, int length) {
     if (input.size() / 2 != length) {
-        LOGGER.error("readHex() length mismatch");
+        LOG_E(TAG, "readHex() length mismatch");
         return false;
     }
 
@@ -54,60 +58,70 @@ static std::string getApPropertiesFilePath(std::shared_ptr<ServicePaths> paths, 
     return std::format(AP_SETTINGS_FORMAT, paths->getUserDataDirectory(), ssid);
 }
 
-static bool encrypt(const std::string& ssidInput, std::string& ssidOutput) {
+// The IV is derived from the SSID rather than the password/ciphertext, because the SSID is the one
+// value that's known and identical at both encrypt time (save) and decrypt time (load).
+static bool encrypt(const std::string& ssid, const std::string& plaintext, std::string& ciphertextOutput) {
     uint8_t iv[16];
-    const auto length = ssidInput.size();
+    const auto length = plaintext.size();
     constexpr size_t chunk_size = 16;
     const auto encrypted_length = ((length / chunk_size) + (length % chunk_size ? 1 : 0)) * chunk_size;
 
+    // crypt_encrypt reads encrypted_length bytes, but plaintext.c_str() only guarantees length + 1 bytes,
+    // so pad the input into a zero-filled buffer of encrypted_length first to avoid reading past it.
+    auto* padded_plaintext = static_cast<uint8_t*>(calloc(encrypted_length, 1));
+    memcpy(padded_plaintext, plaintext.c_str(), length);
+
     auto* buffer = static_cast<uint8_t*>(malloc(encrypted_length));
 
-    crypt::getIv(ssidInput.c_str(), ssidInput.size(), iv);
-    if (crypt::encrypt(iv, reinterpret_cast<const uint8_t*>(ssidInput.c_str()), buffer, encrypted_length) != 0) {
-        LOGGER.error("Failed to encrypt");
+    crypt_get_iv(ssid.c_str(), ssid.size(), iv);
+    if (crypt_encrypt(iv, padded_plaintext, buffer, encrypted_length) != 0) {
+        LOG_E(TAG, "Failed to encrypt");
+        free(padded_plaintext);
         free(buffer);
         return false;
     }
 
-    ssidOutput = toHexString(buffer, encrypted_length);
+    free(padded_plaintext);
+    ciphertextOutput = toHexString(buffer, encrypted_length);
     free(buffer);
 
     return true;
 }
 
-static bool decrypt(const std::string& ssidInput, std::string& ssidOutput) {
-    assert(!ssidInput.empty());
-    assert(ssidInput.size() % 2 == 0);
-    auto* data = static_cast<uint8_t*>(malloc(ssidInput.size() / 2));
-    if (!readHex(ssidInput, data, ssidInput.size() / 2)) {
-        LOGGER.error("Failed to read hex");
+static bool decrypt(const std::string& ssid, const std::string& ciphertextInput, std::string& plaintextOutput) {
+    assert(!ciphertextInput.empty());
+    assert(ciphertextInput.size() % 2 == 0);
+    auto* data = static_cast<uint8_t*>(malloc(ciphertextInput.size() / 2));
+    if (!readHex(ciphertextInput, data, ciphertextInput.size() / 2)) {
+        LOG_E(TAG, "Failed to read hex");
+        free(data);
         return false;
     }
 
     uint8_t iv[16];
-    crypt::getIv(ssidInput.c_str(), ssidInput.size(), iv);
+    crypt_get_iv(ssid.c_str(), ssid.size(), iv);
 
-    auto result_length = ssidInput.size() / 2;
+    auto result_length = ciphertextInput.size() / 2;
     // Allocate correct length plus space for string null terminator
     auto* result = static_cast<uint8_t*>(malloc(result_length + 1));
     result[result_length] = 0;
 
-    int decrypt_result = crypt::decrypt(
+    int decrypt_result = crypt_decrypt(
         iv,
         data,
         result,
-        ssidInput.size() / 2
+        ciphertextInput.size() / 2
     );
 
     free(data);
 
     if (decrypt_result != 0) {
-        LOGGER.error("Failed to decrypt credentials for \"{}s\": {}", ssidInput, decrypt_result);
+        LOG_E(TAG, "Failed to decrypt credentials for \"%s\": %d", ssid.c_str(), decrypt_result);
         free(result);
         return false;
     }
 
-    ssidOutput = reinterpret_cast<char*>(result);
+    plaintextOutput = reinterpret_cast<char*>(result);
     free(result);
     return true;
 }
@@ -127,6 +141,10 @@ bool load(const std::string& ssid, WifiApSettings& apSettings) {
         return false;
     }
     const auto file_path = getApPropertiesFilePath(service_context->getPaths(), ssid);
+    if (!file::isFile(file_path)) {
+        return false;
+    }
+
     std::map<std::string, std::string> map;
     if (!file::loadPropertiesFile(file_path, map)) {
         return false;
@@ -145,7 +163,7 @@ bool load(const std::string& ssid, WifiApSettings& apSettings) {
         const auto& encrypted_password = map[AP_PROPERTIES_KEY_PASSWORD];
         if (encrypted_password.empty()) {
             apSettings.password = "";
-        } else if (decrypt(encrypted_password, password_decrypted)) {
+        } else if (decrypt(ssid, encrypted_password, password_decrypted)) {
             apSettings.password = password_decrypted;
         } else {
             return false;
@@ -181,12 +199,16 @@ bool save(const WifiApSettings& apSettings) {
     }
 
     const auto file_path = getApPropertiesFilePath(service_context->getPaths(), apSettings.ssid);
+    if (!file::findOrCreateParentDirectory(file_path, 0755)) {
+        LOG_E(TAG, "Failed to create %s", file_path.c_str());
+        return false;
+    }
 
     std::map<std::string, std::string> map;
 
     std::string password_encrypted;
     if (!apSettings.password.empty()) {
-        if (!encrypt(apSettings.password, password_encrypted)) {
+        if (!encrypt(apSettings.ssid, apSettings.password, password_encrypted)) {
             return false;
         }
     } else {

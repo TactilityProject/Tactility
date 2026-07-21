@@ -1,4 +1,11 @@
 function(GET_PROPERTY_VALUE PROPERTIES_CONTENT_VAR KEY_NAME RESULT_VAR)
+    # Optional 4th arg: default value returned when key is missing, instead of erroring.
+    set(has_default FALSE)
+    if (${ARGC} GREATER 3)
+        set(has_default TRUE)
+        set(default_value "${ARGV3}")
+    endif ()
+
     # Search for the key and its value in the properties content
     # Supports KEY=VALUE, KEY="VALUE", and optional spaces around =
     # Use parentheses to capture the value
@@ -6,6 +13,8 @@ function(GET_PROPERTY_VALUE PROPERTIES_CONTENT_VAR KEY_NAME RESULT_VAR)
     # So we look for the key at the beginning of the string or after a newline.
     if ("${${PROPERTIES_CONTENT_VAR}}" MATCHES "(^|\n)${KEY_NAME}[ \t]*=[ \t]*\"?([^\n\"]*)\"?")
         set(${RESULT_VAR} "${CMAKE_MATCH_2}" PARENT_SCOPE)
+    elseif (has_default)
+        set(${RESULT_VAR} "${default_value}" PARENT_SCOPE)
     else ()
         message(FATAL_ERROR "Property '${KEY_NAME}' not found in the properties content.")
     endif ()
@@ -28,7 +37,6 @@ function(READ_PROPERTIES_TO_MAP PROPERTY_FILE RESULT_VAR)
     endif ()
 
     file(STRINGS ${PROPERTY_FILE_ABS} lines)
-    set(current_section "")
     set(map_content "")
 
     foreach(line IN LISTS lines)
@@ -37,9 +45,7 @@ function(READ_PROPERTIES_TO_MAP PROPERTY_FILE RESULT_VAR)
             continue()
         endif ()
 
-        if (line MATCHES "^\\[.*\\]$")
-            set(current_section "${line}")
-        elseif (line MATCHES "^([^=]+)=(.*)$")
+        if (line MATCHES "^([^=]+)=(.*)$")
             set(key "${CMAKE_MATCH_1}")
             set(value "${CMAKE_MATCH_2}")
             string(STRIP "${key}" key)
@@ -49,7 +55,7 @@ function(READ_PROPERTIES_TO_MAP PROPERTY_FILE RESULT_VAR)
                 set(value "${CMAKE_MATCH_1}")
             endif ()
 
-            list(APPEND map_content "${current_section}${key}" "${value}")
+            list(APPEND map_content "${key}" "${value}")
         endif ()
     endforeach()
 

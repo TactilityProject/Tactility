@@ -1,0 +1,8 @@
+description: ESP32 WiFi driver wrapper that marshals state-changing calls onto the WiFi task's CPU core
+
+compatible: "espressif,esp32-wifi-pinned"
+
+properties:
+  _unused:
+    type: int
+    default: 0

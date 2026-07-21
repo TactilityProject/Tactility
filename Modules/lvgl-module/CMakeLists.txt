@@ -44,7 +44,7 @@ READ_PROPERTIES_TO_MAP(
     device_properties
 )
 # Read UI density
-GET_VALUE_FROM_MAP(device_properties "[lvgl]uiDensity" ui_density)
+GET_VALUE_FROM_MAP(device_properties "lvgl.uiDensity" ui_density)
 # Define UiDensity enum value
 if (ui_density)
     if (ui_density STREQUAL "default")
@@ -52,7 +52,7 @@ if (ui_density)
     elseif (ui_density STREQUAL "compact")
         set(ui_density_variable "LVGL_UI_DENSITY_COMPACT")
     else ()
-        message(FATAL_ERROR "Invalid [lvgl]uiDensity: '${ui_density}'. Must be either 'default' or 'compact'")
+        message(FATAL_ERROR "Invalid lvgl.uiDensity: '${ui_density}'. Must be either 'default' or 'compact'")
     endif ()
     message("UI density set to '${ui_density}' via properties")
 else ()

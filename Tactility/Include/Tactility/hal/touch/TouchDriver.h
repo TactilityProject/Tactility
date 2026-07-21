@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace tt::hal::touch {
 
 class TouchDriver {

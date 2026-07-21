@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <algorithm>
+#include <tactility/device.h>
 #include <tactility/concurrent/mutex.h>
 #include <tactility/concurrent/recursive_mutex.h>
 #include <tactility/filesystem/file_system.h>
@@ -10,6 +11,7 @@
 struct FileSystem {
     const FileSystemApi* api;
     void* data;
+    Device* owner;
 };
 
 // Global list of file systems and its mutex
@@ -42,6 +44,7 @@ FileSystem* file_system_add(const FileSystemApi* fs_api, void* data) {
     check(fs != nullptr);
     fs->api = fs_api;
     fs->data = data;
+    fs->owner = nullptr;
     ledger.file_systems.push_back(fs);
     
     ledger.unlock();
@@ -88,6 +91,14 @@ bool file_system_is_mounted(FileSystem* fs) {
 
 error_t file_system_get_path(FileSystem* fs, char* out_path, size_t out_path_size) {
     return fs->api->get_path(fs->data, out_path, out_path_size);
+}
+
+void file_system_set_owner(FileSystem* fs, Device* owner) {
+    fs->owner = owner;
+}
+
+Device* file_system_get_owner(FileSystem* fs) {
+    return fs->owner;
 }
 
 }

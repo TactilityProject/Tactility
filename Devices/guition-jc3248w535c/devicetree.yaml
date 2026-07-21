@@ -1,3 +1,0 @@
-dependencies:
-  - Platforms/platform-esp32
-dts: guition,jc3248w535c.dts

@@ -1,0 +1,192 @@
+/dts-v1/;
+
+#include <tactility/bindings/battery_sense.h>
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
+#include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_grove.h>
+#include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
+#include <tactility/bindings/esp32_uart.h>
+
+#include <bindings/gt911.h>
+#include <bindings/st7789.h>
+#include <bindings/es7210.h>
+#include <bindings/dummy_i2s_amp.h>
+
+#include <lilygo/bindings/tdeck_keyboard.h>
+#include <lilygo/bindings/tdeck_keyboard_backlight.h>
+#include <lilygo/bindings/tdeck_trackball.h>
+
+// Reference: https://wiki.lilygo.cc/products/t-deck-series/t-deck-plus/
+/ {
+	compatible = "root";
+	model = "LilyGO T-Deck Plus";
+
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		clk-src = <ADC_RTC_CLK_SRC_DEFAULT>;
+		channels = <ADC_CHANNEL_3 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2110>;
+	};
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+		status = "disabled";
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	trackball {
+		compatible = "lilygo,tdeck-trackball";
+		pin-right = <&gpio0 2 GPIO_FLAG_NONE>;
+		pin-up = <&gpio0 3 GPIO_FLAG_NONE>;
+		pin-left = <&gpio0 1 GPIO_FLAG_NONE>;
+		pin-down = <&gpio0 15 GPIO_FLAG_NONE>;
+		pin-click = <&gpio0 0 GPIO_FLAG_NONE>;
+	};
+
+	// i2s0 and i2s1 are declared before i2c0 so i2s1 has started before the es7210 codec (below) references it.
+	// Speaker I2S (MAX98357A amplifier)
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <&gpio0 7 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 5 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 6 GPIO_FLAG_NONE>;
+	};
+
+	// Microphone I2S (ES7210), separate port from the speaker
+	i2s1 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_1>;
+		pin-bclk = <&gpio0 47 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 21 GPIO_FLAG_NONE>;
+		pin-data-in = <&gpio0 14 GPIO_FLAG_NONE>;
+		pin-mclk = <&gpio0 48 GPIO_FLAG_NONE>;
+	};
+
+	// MAX98357A class-D speaker amplifier. No I2C. Per schematic, SD_MODE/GAIN_SLOT is
+	// tied via fixed resistors (R21/R22), not driven by an MCU GPIO -- the amp is always
+	// enabled when powered, so no enable-gpio is wired here.
+	speaker0 {
+		compatible = "maxim,max98357a";
+		i2s = <&i2s0>;
+	};
+
+	i2c_internal: i2c0 {
+		compatible = "espressif,esp32-i2c";
+		port = <I2C_NUM_0>;
+		clock-frequency = <100000>;
+		pin-sda = <&gpio0 18 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 8 GPIO_FLAG_NONE>;
+
+		// WARNING: Don't use the interrupt pin as it's unstable on some devices
+		touch {
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <240>;
+			y-max = <320>;
+			swap-xy;
+			mirror-x;
+		};
+
+		keyboard {
+			compatible = "lilygo,tdeck-keyboard";
+			reg = <0x55>;
+		};
+
+		keyboard_backlight {
+			compatible = "lilygo,tdeck-keyboard-backlight";
+			reg = <0x55>;
+		};
+
+		// ES7210 microphone ADC. Per schematic all 4 MSM381A3729H9CP mic capsules are
+		// populated (MIC1-4), and AD0/AD1 are unconnected (default low -> address 0x40).
+		// Stock LilyGO firmware drives MIC1/MIC2 at 0dB and MIC3/MIC4 at 37.5dB gain --
+		// the es7210 driver here applies a single gain to all active mics, so per-pair
+		// gain differentiation is not yet replicated.
+		es7210 {
+			compatible = "everest,es7210";
+			reg = <0x40>;
+			i2s = <&i2s1>;
+			mic-mask = <15>;
+		};
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 42 GPIO_FLAG_NONE>;
+		// 32 KHz and higher causes the screen to start dimming again above 80% brightness
+		// when moving the brightness slider rapidly from a lower setting to 100% (debug-traced, not a slider bug).
+		period-ns = <33333>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so dispaly power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 12 GPIO_FLAG_NONE>, // Display
+		            <&gpio0 39 GPIO_FLAG_NONE>, // SD card
+					<&gpio0 9 GPIO_FLAG_NONE>;  // Radio
+		pin-mosi = <&gpio0 41 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 38 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
+
+		display@0 {
+			compatible = "sitronix,st7789";
+			horizontal-resolution = <320>;
+			vertical-resolution = <240>;
+			swap-xy;
+			mirror-x;
+			invert-color;
+			pixel-clock-hz = <62500000>;
+			pin-dc = <&gpio0 11 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
+
+		// Must be started after display
+		sdcard@1 {
+			compatible = "espressif,esp32-sdspi";
+			status = "disabled";
+			frequency-khz = <20000>;
+		};
+	};
+
+	uart0 {
+		compatible = "espressif,esp32-uart";
+		port = <UART_NUM_1>;
+		pin-tx = <&gpio0 43 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 44 GPIO_FLAG_NONE>;
+	};
+};

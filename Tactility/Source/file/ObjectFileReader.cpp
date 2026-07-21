@@ -2,43 +2,43 @@
 #include <Tactility/file/ObjectFilePrivate.h>
 
 #include <cstring>
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 namespace tt::file {
 
-static const auto LOGGER = Logger("ObjectFileReader");
+constexpr auto* TAG = "ObjectFileReader";
 
 bool ObjectFileReader::open() {
     auto opening_file = std::unique_ptr<FILE, FileCloser>(fopen(filePath.c_str(), "r"));
     if (opening_file == nullptr) {
-        LOGGER.error("Failed to open file {}", filePath.c_str());
+        LOG_E(TAG, "Failed to open file %s", filePath.c_str());
         return false;
     }
 
     FileHeader file_header;
     if (fread(&file_header, sizeof(FileHeader), 1, opening_file.get()) != 1) {
-        LOGGER.error("Failed to read file header from {}", filePath);
+        LOG_E(TAG, "Failed to read file header from %s", filePath.c_str());
         return false;
     }
 
     if (file_header.identifier != OBJECT_FILE_IDENTIFIER) {
-        LOGGER.error("Invalid file type for {}", filePath);
+        LOG_E(TAG, "Invalid file type for %s", filePath.c_str());
         return false;
     }
 
     if (file_header.version != OBJECT_FILE_VERSION) {
-        LOGGER.error("Unknown version for {}: {}", filePath, file_header.identifier);
+        LOG_E(TAG, "Unknown version for %s: %u", filePath.c_str(), (unsigned)file_header.identifier);
         return false;
     }
 
     ContentHeader content_header;
     if (fread(&content_header, sizeof(ContentHeader), 1, opening_file.get()) != 1) {
-        LOGGER.error("Failed to read content header from {}", filePath);
+        LOG_E(TAG, "Failed to read content header from %s", filePath.c_str());
         return false;
     }
 
     if (recordSize != content_header.recordSize) {
-        LOGGER.error("Record size mismatch for {}: expected {}, got {}", filePath, recordSize, content_header.recordSize);
+        LOG_E(TAG, "Record size mismatch for %s: expected %u, got %u", filePath.c_str(), (unsigned)recordSize, (unsigned)content_header.recordSize);
         return false;
     }
 
@@ -47,8 +47,8 @@ bool ObjectFileReader::open() {
 
     file = std::move(opening_file);
 
-    LOGGER.debug("File version: {}", file_header.version);
-    LOGGER.debug("Content: version = {}, size = {} bytes, count = {}", content_header.recordVersion, content_header.recordSize, content_header.recordCount);
+    LOG_D(TAG, "File version: %u", (unsigned)file_header.version);
+    LOG_D(TAG, "Content: version = %u, size = %u bytes, count = %u", (unsigned)content_header.recordVersion, (unsigned)content_header.recordSize, (unsigned)content_header.recordCount);
 
     return true;
 }
@@ -63,7 +63,7 @@ void ObjectFileReader::close() {
 
 bool ObjectFileReader::readNext(void* output) {
     if (file == nullptr) {
-        LOGGER.error("File not open");
+        LOG_E(TAG, "File not open");
         return false;
     }
 

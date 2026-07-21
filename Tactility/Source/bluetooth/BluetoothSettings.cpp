@@ -2,15 +2,18 @@
 
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
-#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
+#include <Tactility/Paths.h>
+#include <tactility/log.h>
 
 namespace tt::bluetooth::settings {
 
-static const auto LOGGER = Logger("BluetoothSettings");
+constexpr auto* TAG = "BluetoothSettings";
 
-// Use the same path as the old service so existing settings survive migration.
-constexpr auto* SETTINGS_PATH         = "/data/service/bluetooth/settings.properties";
+static std::string getSettingsPath() {
+    return getUserDataPath() + "/settings/bluetooth.settings";
+}
+
 constexpr auto* KEY_ENABLE_ON_BOOT    = "enableOnBoot";
 constexpr auto* KEY_SPP_AUTO_START    = "sppAutoStart";
 constexpr auto* KEY_MIDI_AUTO_START   = "midiAutoStart";
@@ -26,8 +29,13 @@ static BluetoothSettings cached;
 static bool cached_valid = false;
 
 static bool load(BluetoothSettings& out) {
+    auto settings_path = getSettingsPath();
+    if (!file::isFile(settings_path)) {
+        return false;
+    }
+
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(SETTINGS_PATH, map)) {
+    if (!file::loadPropertiesFile(settings_path, map)) {
         return false;
     }
     auto it = map.find(KEY_ENABLE_ON_BOOT);
@@ -44,11 +52,18 @@ static bool load(BluetoothSettings& out) {
 
 static bool save(const BluetoothSettings& s) {
     std::map<std::string, std::string> map;
-    file::loadPropertiesFile(SETTINGS_PATH, map); // ignore failure — may not exist yet
+    if (file::isFile(getSettingsPath())) {
+        file::loadPropertiesFile(getSettingsPath(), map);
+    }
     map[KEY_ENABLE_ON_BOOT]  = s.enableOnBoot  ? "true" : "false";
     map[KEY_SPP_AUTO_START]  = s.sppAutoStart  ? "true" : "false";
     map[KEY_MIDI_AUTO_START] = s.midiAutoStart ? "true" : "false";
-    return file::savePropertiesFile(SETTINGS_PATH, map);
+    auto settings_path = getSettingsPath();
+    if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
+        LOG_E(TAG, "Failed to create parent dir for %s", settings_path.c_str());
+        return false;
+    }
+    return file::savePropertiesFile(settings_path, map);
 }
 
 static BluetoothSettings getCachedOrLoad() {
@@ -69,7 +84,7 @@ void setEnableOnBoot(bool enable) {
     cached.enableOnBoot = enable;
     cached_valid = true;
     settings_mutex.unlock();
-    if (!save(cached)) LOGGER.error("Failed to save");
+    if (!save(cached)) LOG_E(TAG, "Failed to save");
 }
 
 bool shouldEnableOnBoot() {
@@ -81,7 +96,7 @@ void setSppAutoStart(bool enable) {
     cached.sppAutoStart = enable;
     cached_valid = true;
     settings_mutex.unlock();
-    if (!save(cached)) LOGGER.error("Failed to save (setSppAutoStart)");
+    if (!save(cached)) LOG_E(TAG, "Failed to save (setSppAutoStart)");
 }
 
 bool shouldSppAutoStart() {
@@ -93,7 +108,7 @@ void setMidiAutoStart(bool enable) {
     cached.midiAutoStart = enable;
     cached_valid = true;
     settings_mutex.unlock();
-    if (!save(cached)) LOGGER.error("Failed to save (setMidiAutoStart)");
+    if (!save(cached)) LOG_E(TAG, "Failed to save (setMidiAutoStart)");
 }
 
 bool shouldMidiAutoStart() {

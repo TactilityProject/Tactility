@@ -43,6 +43,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_color_darken),
     DEFINE_MODULE_SYMBOL(lv_color_hsv_to_rgb),
     DEFINE_MODULE_SYMBOL(lv_color_to_32),
+    DEFINE_MODULE_SYMBOL(lv_color_mix),
     DEFINE_MODULE_SYMBOL(lv_obj_center),
     DEFINE_MODULE_SYMBOL(lv_obj_clean),
     DEFINE_MODULE_SYMBOL(lv_obj_create),
@@ -334,6 +335,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_display_set_rotation),
     DEFINE_MODULE_SYMBOL(lv_display_set_offset),
     DEFINE_MODULE_SYMBOL(lv_display_trigger_activity),
+    DEFINE_MODULE_SYMBOL(lv_display_add_event_cb),
+    DEFINE_MODULE_SYMBOL(lv_display_remove_event_cb_with_user_data),
     // lv_pct
     DEFINE_MODULE_SYMBOL(lv_pct),
     DEFINE_MODULE_SYMBOL(lv_pct_to_px),

@@ -1,6 +1,6 @@
 #include <Tactility/settings/Time.h>
 
-#include <Tactility/kernel/SystemEvents.h>
+#include <Tactility/SystemEvents.h>
 #include <Tactility/Preferences.h>
 #include <Tactility/settings/SystemSettings.h>
 
@@ -47,6 +47,15 @@ std::string getTimeZoneName() {
     } else {
         return "Europe/Amsterdam";
     }
+}
+
+bool hasTimeZone() {
+    Preferences preferences(TIME_SETTINGS_NAMESPACE);
+    std::string timezone;
+    if (!preferences.optString(TIMEZONE_PREFERENCES_KEY_NAME, timezone)) {
+        return false;
+    }
+    return !timezone.empty();
 }
 
 std::string getTimeZoneCode() {

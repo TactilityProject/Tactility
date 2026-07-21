@@ -1,4 +1,3 @@
-#include <Tactility/Logger.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/app/AppManifest.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
@@ -10,11 +9,12 @@
 #include "tactility/drivers/uart_controller.h"
 #include <cstring>
 #include <lvgl.h>
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::addgps {
 
-static const auto LOGGER = Logger("AddGps");
+constexpr auto* TAG = "AddGps";
 
 class AddGpsApp final : public App {
 
@@ -50,7 +50,7 @@ class AddGpsApp final : public App {
             return;
         }
 
-        LOGGER.info("Saving: uart={}, model={}, baud={}", new_configuration.uartName, (uint32_t)new_configuration.model, new_configuration.baudRate);
+        LOG_I(TAG, "Saving: uart=%s, model=%d, baud=%u", new_configuration.uartName, (int)new_configuration.model, (unsigned)new_configuration.baudRate);
 
         auto service = service::gps::findGpsService();
         std::vector<tt::hal::gps::GpsConfiguration> configurations;

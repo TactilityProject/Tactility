@@ -8,6 +8,8 @@
 #include <tactility/lvgl_module.h>
 
 extern struct LvglModuleConfig lvgl_module_config;
+extern void lvgl_devices_attach();
+extern void lvgl_devices_detach();
 
 static bool initialized = false;
 
@@ -16,9 +18,10 @@ bool lvgl_lock(void) {
     return lvgl_port_lock(portMAX_DELAY);
 }
 
-bool lvgl_try_lock(uint32_t timeout) {
+bool lvgl_try_lock(uint32_t timeoutTicks) {
     if (!initialized) return true; // We allow (fake) locking because it's safe to do so as LVGL is not running yet
-    return lvgl_port_lock(millis_to_ticks(timeout));
+    // lvgl_port_lock expects milliseconds
+    return lvgl_port_lock(timeoutTicks * portTICK_PERIOD_MS);
 }
 
 void lvgl_unlock(void) {
@@ -44,6 +47,8 @@ error_t lvgl_arch_start() {
     // devices and services. The latter might start adding widgets immediately.
     initialized = true;
 
+    lvgl_devices_attach();
+
     if (lvgl_module_config.on_start) lvgl_module_config.on_start();
 
     return ERROR_NONE;
@@ -51,6 +56,8 @@ error_t lvgl_arch_start() {
 
 error_t lvgl_arch_stop() {
     if (lvgl_module_config.on_stop) lvgl_module_config.on_stop();
+
+    lvgl_devices_detach();
 
     if (lvgl_port_deinit() != ESP_OK) {
         // Call on_start again to recover

@@ -4,9 +4,7 @@
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
-#include <Tactility/file/PropertiesFile.h>
 #include <tactility/hal/Device.h>
-#include <Tactility/Logger.h>
 #include <Tactility/Paths.h>
 
 #include <cerrno>
@@ -17,21 +15,22 @@
 #include <unistd.h>
 
 #include <minitar.h>
+#include <tactility/log.h>
 
 namespace tt::app {
 
-static const auto LOGGER = Logger("App");
+constexpr auto* TAG = "App";
 
 static bool untarFile(minitar* mp, const minitar_entry* entry, const std::string& destinationPath) {
     const auto absolute_path = destinationPath + "/" + entry->metadata.path;
     if (!file::findOrCreateDirectory(destinationPath, 0777)) {
-        LOGGER.error("Can't find or create directory {}", destinationPath.c_str());
+        LOG_E(TAG, "Can't find or create directory %s", destinationPath.c_str());
         return false;
     }
 
     // minitar_read_contents(&mp, &entry, file_buffer, entry.metadata.size);
     if (!minitar_read_contents_to_file(mp, entry, absolute_path.c_str())) {
-        LOGGER.error("Failed to write data to {}", absolute_path.c_str());
+        LOG_E(TAG, "Failed to write data to %s", absolute_path.c_str());
         return false;
     }
 
@@ -60,32 +59,32 @@ static bool untar(const std::string& tarPath, const std::string& destinationPath
 
     do {
         if (minitar_read_entry(&mp, &entry) == 0) {
-            LOGGER.info("Extracting {}", entry.metadata.path);
+            LOG_I(TAG, "Extracting %s", entry.metadata.path);
             if (entry.metadata.type == MTAR_DIRECTORY) {
                 if (!strcmp(entry.metadata.name, ".") || !strcmp(entry.metadata.name, "..") || !strcmp(entry.metadata.name, "/")) continue;
                 if (!untarDirectory(&entry, destinationPath)) {
-                    LOGGER.error("Failed to create directory {}/{}: {}", destinationPath, entry.metadata.name, strerror(errno));
+                    LOG_E(TAG, "Failed to create directory %s/%s: %s", destinationPath.c_str(), entry.metadata.name, strerror(errno));
                     success = false;
                     break;
                 }
             } else if (entry.metadata.type == MTAR_REGULAR) {
                 if (!untarFile(&mp, &entry, destinationPath)) {
-                    LOGGER.error("Failed to extract file {}: {}", entry.metadata.path, strerror(errno));
+                    LOG_E(TAG, "Failed to extract file %s: %s", entry.metadata.path, strerror(errno));
                     success = false;
                     break;
                 }
             } else if (entry.metadata.type == MTAR_SYMLINK) {
-                LOGGER.error("SYMLINK not supported");
+                LOG_E(TAG, "SYMLINK not supported");
             } else if (entry.metadata.type == MTAR_HARDLINK) {
-                LOGGER.error("HARDLINK not supported");
+                LOG_E(TAG, "HARDLINK not supported");
             } else if (entry.metadata.type == MTAR_FIFO) {
-                LOGGER.error("FIFO not supported");
+                LOG_E(TAG, "FIFO not supported");
             } else if (entry.metadata.type == MTAR_BLKDEV) {
-                LOGGER.error("BLKDEV not supported");
+                LOG_E(TAG, "BLKDEV not supported");
             } else if (entry.metadata.type == MTAR_CHRDEV) {
-                LOGGER.error("CHRDEV not supported");
+                LOG_E(TAG, "CHRDEV not supported");
             } else {
-                LOGGER.error("Unknown entry type: {}", static_cast<int>(entry.metadata.type));
+                LOG_E(TAG, "Unknown entry type: %d", static_cast<int>(entry.metadata.type));
                 success = false;
                 break;
             }
@@ -97,7 +96,7 @@ static bool untar(const std::string& tarPath, const std::string& destinationPath
 
 void cleanupInstallDirectory(const std::string& path) {
     if (!file::deleteRecursively(path)) {
-        LOGGER.warn("Failed to delete existing installation at {}", path);
+        LOG_W(TAG, "Failed to delete existing installation at %s", path.c_str());
     }
 }
 
@@ -106,16 +105,16 @@ bool install(const std::string& path) {
     // the lock with the display. We don't want to lock the display for very long.
 
     auto app_parent_path = getAppInstallPath();
-    LOGGER.info("Installing app {} to {}", path, app_parent_path);
+    LOG_I(TAG, "Installing app %s to %s", path.c_str(), app_parent_path.c_str());
 
     auto filename = file::getLastPathSegment(path);
     const std::string app_target_path = std::format("{}/{}", app_parent_path, filename);
     if (file::isDirectory(app_target_path) && !file::deleteRecursively(app_target_path)) {
-        LOGGER.warn("Failed to delete {}", app_target_path);
+        LOG_W(TAG, "Failed to delete %s", app_target_path.c_str());
     }
 
     if (!file::findOrCreateDirectory(app_target_path, 0777)) {
-        LOGGER.info("Failed to create directory {}", app_target_path);
+        LOG_I(TAG, "Failed to create directory %s", app_target_path.c_str());
         return false;
     }
 
@@ -123,9 +122,9 @@ bool install(const std::string& path) {
     auto source_path_lock = file::getLock(path)->asScopedLock();
     target_path_lock.lock();
     source_path_lock.lock();
-    LOGGER.info("Extracting app from {} to {}", path, app_target_path);
+    LOG_I(TAG, "Extracting app from %s to %s", path.c_str(), app_target_path.c_str());
     if (!untar(path, app_target_path)) {
-        LOGGER.error("Failed to extract");
+        LOG_E(TAG, "Failed to extract");
         return false;
     }
     source_path_lock.unlock();
@@ -133,21 +132,14 @@ bool install(const std::string& path) {
 
     auto manifest_path = app_target_path + "/manifest.properties";
     if (!file::isFile(manifest_path)) {
-        LOGGER.error("Manifest not found at {}", manifest_path);
-        cleanupInstallDirectory(app_target_path);
-        return false;
-    }
-
-    std::map<std::string, std::string> properties;
-    if (!file::loadPropertiesFile(manifest_path, properties)) {
-        LOGGER.error("Failed to load manifest at {}", manifest_path);
+        LOG_E(TAG, "Manifest not found at %s", manifest_path.c_str());
         cleanupInstallDirectory(app_target_path);
         return false;
     }
 
     AppManifest manifest;
-    if (!parseManifest(properties, manifest)) {
-        LOGGER.warn("Invalid manifest");
+    if (!parseManifest(manifest_path, manifest)) {
+        LOG_W(TAG, "Invalid manifest");
         cleanupInstallDirectory(app_target_path);
         return false;
     }
@@ -160,7 +152,7 @@ bool install(const std::string& path) {
     const std::string renamed_target_path = std::format("{}/{}", app_parent_path, manifest.appId);
     if (file::isDirectory(renamed_target_path)) {
         if (!file::deleteRecursively(renamed_target_path)) {
-            LOGGER.warn("Failed to delete existing installation at {}", renamed_target_path);
+            LOG_W(TAG, "Failed to delete existing installation at %s", renamed_target_path.c_str());
             cleanupInstallDirectory(app_target_path);
             return false;
         }
@@ -171,7 +163,7 @@ bool install(const std::string& path) {
     target_path_lock.unlock();
 
     if (!rename_success) {
-        LOGGER.error(R"(Failed to rename "{}" to "{}")", app_target_path, manifest.appId);
+        LOG_E(TAG, R"(Failed to rename "%s" to "%s")", app_target_path.c_str(), manifest.appId.c_str());
         cleanupInstallDirectory(app_target_path);
         return false;
     }
@@ -184,7 +176,7 @@ bool install(const std::string& path) {
 }
 
 bool uninstall(const std::string& appId) {
-    LOGGER.info("Uninstalling app {}", appId);
+    LOG_I(TAG, "Uninstalling app %s", appId.c_str());
 
     // If the app was running, then stop it
     if (isRunning(appId)) {
@@ -193,7 +185,7 @@ bool uninstall(const std::string& appId) {
 
     auto app_path = getAppInstallPath(appId);
     if (!file::isDirectory(app_path)) {
-        LOGGER.error("App {} not found at {}", appId, app_path);
+        LOG_E(TAG, "App %s not found at %s", appId.c_str(), app_path.c_str());
         return false;
     }
 
@@ -202,7 +194,7 @@ bool uninstall(const std::string& appId) {
     }
 
     if (!removeAppManifest(appId)) {
-        LOGGER.warn("Failed to remove app {} from registry", appId);
+        LOG_W(TAG, "Failed to remove app %s from registry", appId.c_str());
     }
 
     return true;

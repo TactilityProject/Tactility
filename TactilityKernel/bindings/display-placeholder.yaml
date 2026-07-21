@@ -1,0 +1,5 @@
+description: Display placeholder
+
+compatible: "display-placeholder"
+
+properties: {}

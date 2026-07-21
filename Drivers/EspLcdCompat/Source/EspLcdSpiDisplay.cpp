@@ -1,12 +1,12 @@
 #include "EspLcdSpiDisplay.h"
 
 #include <esp_lcd_panel_commands.h>
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
-static const auto LOGGER = tt::Logger("EspLcdSpiDisplay");
+constexpr auto* TAG = "EspLcdSpiDisplay";
 
 bool EspLcdSpiDisplay::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
-    LOGGER.info("createIoHandle");
+    LOG_I(TAG, "createIoHandle");
 
     const esp_lcd_panel_io_spi_config_t panel_io_config = {
         .cs_gpio_num = spiConfiguration->csPin,
@@ -33,7 +33,7 @@ bool EspLcdSpiDisplay::createIoHandle(esp_lcd_panel_io_handle_t& outHandle) {
     };
 
     if (esp_lcd_new_panel_io_spi(spiConfiguration->spiHostDevice, &panel_io_config, &outHandle) != ESP_OK) {
-        LOGGER.error("Failed to create panel");
+        LOG_E(TAG, "Failed to create panel");
         return false;
     }
 
@@ -65,6 +65,6 @@ void EspLcdSpiDisplay::setGammaCurve(uint8_t index) {
     auto io_handle = getIoHandle();
     assert(io_handle != nullptr);
     if (esp_lcd_panel_io_tx_param(io_handle, LCD_CMD_GAMSET, param, 1) != ESP_OK) {
-        LOGGER.error("Failed to set gamma");
+        LOG_E(TAG, "Failed to set gamma");
     }
 }

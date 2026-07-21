@@ -38,6 +38,20 @@ error_t i2s_controller_set_rx_tdm_config(struct Device* device, const struct I2s
     return I2S_DRIVER_API(driver)->set_rx_tdm_config(device, config);
 }
 
+error_t i2s_controller_set_rx_pdm_config(struct Device* device, const struct I2sPdmRxConfig* config) {
+    const auto* driver = device_get_driver(device);
+    if (!I2S_DRIVER_API(driver)->set_rx_pdm_config) return ERROR_NOT_SUPPORTED;
+    return I2S_DRIVER_API(driver)->set_rx_pdm_config(device, config);
+}
+
+error_t i2s_controller_disable_direction(struct Device* device, bool isInput) {
+    const auto* driver = device_get_driver(device);
+    if (!I2S_DRIVER_API(driver)->disable_direction) {
+        return I2S_DRIVER_API(driver)->reset(device);
+    }
+    return I2S_DRIVER_API(driver)->disable_direction(device, isInput);
+}
+
 const struct DeviceType I2S_CONTROLLER_TYPE {
     .name = "i2s-controller"
 };

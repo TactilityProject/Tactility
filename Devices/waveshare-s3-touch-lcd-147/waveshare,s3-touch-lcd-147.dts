@@ -2,17 +2,30 @@
 
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/axs5106.h>
+#include <bindings/button_control.h>
+#include <bindings/jd9853.h>
 
 // Reference: https://www.waveshare.com/wiki/ESP32-S3-Touch-LCD-1.47
 / {
 	compatible = "root";
 	model = "Waveshare S3 Touch LCD 1.47";
 
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
 	ble0 {
 		compatible = "espressif,esp32-ble";
+		status = "disabled";
 	};
 
 	gpio0 {
@@ -26,20 +39,69 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 42 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 41 GPIO_FLAG_NONE>;
+
+		touch0 {
+			compatible = "axs,axs5106";
+			reg = <0x63>;
+			x-max = <172>;
+			y-max = <320>;
+			mirror-x;
+			pin-reset = <&gpio0 47 GPIO_FLAG_NONE>;
+			pin-interrupt = <&gpio0 48 GPIO_FLAG_NONE>;
+		};
 	};
 
-	display_spi: spi0 {
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 46 GPIO_FLAG_NONE>;
+		period-ns = <100000>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 21 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 38 GPIO_FLAG_NONE>;
+
+		display@0 {
+			compatible = "jadard,jd9853";
+			horizontal-resolution = <172>;
+			vertical-resolution = <320>;
+			gap-x = <34>;
+			invert-color;
+			pin-dc = <&gpio0 45 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 40 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
 	};
 
-	sdcard_spi: spi1 {
+	spi1 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI3_HOST>;
+		cs-gpios = <&gpio0 14 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 15 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 17 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 16 GPIO_FLAG_NONE>;
+
+		sdcard@0 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
+	};
+
+	buttons {
+		compatible = "tactility,button-control";
+		pin-primary = <&gpio0 0 GPIO_FLAG_NONE>;
 	};
 };

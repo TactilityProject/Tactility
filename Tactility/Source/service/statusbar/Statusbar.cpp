@@ -1,11 +1,9 @@
 #include <Tactility/lvgl/Statusbar.h>
 
-#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
-#include <Tactility/Paths.h>
 #include <Tactility/Timer.h>
-#include <Tactility/hal/power/PowerDevice.h>
-#include <Tactility/hal/sdcard/SdCardDevice.h>
+#include <tactility/drivers/power_supply.h>
+#include <tactility/filesystem/file_system.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/ServiceContext.h>
@@ -22,15 +20,16 @@
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/service/wifi/Wifi.h>
 #include <tactility/check.h>
-#include <tactility/filesystem/file_system.h>
 
 #include <tactility/lvgl_icon_statusbar.h>
 
 #include <cstring>
 
+#include <tactility/log.h>
+
 namespace tt::service::statusbar {
 
-static const auto LOGGER = Logger("StatusbarService");
+constexpr auto* TAG = "StatusbarService";
 
 // GPS
 extern const ServiceManifest manifest;
@@ -90,10 +89,10 @@ static const char* getSdCardStatusIcon(bool mounted) {
 
 static const char* getPowerStatusIcon() {
     // TODO: Support multiple power devices?
-    std::shared_ptr<hal::power::PowerDevice> power;
-    hal::findDevices<hal::power::PowerDevice>(hal::Device::Type::Power, [&power](const auto& device) {
-        if (device->supportsMetric(hal::power::PowerDevice::MetricType::ChargeLevel)) {
-            power = device;
+    Device* power = nullptr;
+    device_for_each_of_type(&POWER_SUPPLY_TYPE, &power, [](Device* device, void* context) {
+        if (device_is_ready(device) && power_supply_supports_property(device, POWER_SUPPLY_PROP_CAPACITY)) {
+            *static_cast<Device**>(context) = device;
             return false;
         }
         return true;
@@ -103,12 +102,12 @@ static const char* getPowerStatusIcon() {
         return nullptr;
     }
 
-    hal::power::PowerDevice::MetricData charge_level;
-    if (!power->getMetric(hal::power::PowerDevice::MetricType::ChargeLevel, charge_level)) {
+    PowerSupplyPropertyValue charge_level;
+    if (power_supply_get_property(power, POWER_SUPPLY_PROP_CAPACITY, &charge_level) != ERROR_NONE) {
         return nullptr;
     }
 
-    uint8_t charge = charge_level.valueAsUint8;
+    int charge = charge_level.int_value;
 
     if (charge >= 95) {
         return LVGL_ICON_STATUSBAR_BATTERY_ANDROID_FRAME_FULL;
@@ -167,11 +166,11 @@ class StatusbarService final : public Service {
     }
 
     void updateBluetoothIcon() {
-        auto radio_state = tt::bluetooth::getRadioState();
-        struct Device* btdev = tt::bluetooth::findFirstDevice();
+        auto radio_state = bluetooth::getRadioState();
+        Device* btdev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
         bool scanning = btdev ? bluetooth_is_scanning(btdev) : false;
-        struct Device* serial_dev = bluetooth_serial_get_device();
-        struct Device* midi_dev = bluetooth_midi_get_device();
+        Device* serial_dev = bluetooth_serial_get_device();
+        Device* midi_dev = bluetooth_midi_get_device();
         bool connected = (serial_dev && bluetooth_serial_is_connected(serial_dev)) ||
                          (midi_dev && bluetooth_midi_is_connected(midi_dev));
         const char* desired_icon = getBluetoothStatusIcon(radio_state, scanning, connected);
@@ -214,8 +213,8 @@ class StatusbarService final : public Service {
     }
 
     void updateUsbIcon() {
-        struct Device* hid_dev  = device_find_first_active_by_type(&USB_HOST_HID_TYPE);
-        struct Device* midi_dev = device_find_first_active_by_type(&USB_HOST_MIDI_TYPE);
+        Device* hid_dev  = device_find_first_active_by_type(&USB_HOST_HID_TYPE);
+        Device* midi_dev = device_find_first_active_by_type(&USB_HOST_MIDI_TYPE);
         bool connected = (hid_dev && usb_host_hid_is_connected(hid_dev)) ||
                          (midi_dev && usb_midi_is_connected(midi_dev));
         if (!connected) {
@@ -239,11 +238,21 @@ class StatusbarService final : public Service {
     }
 
     void updateSdCardIcon() {
-        auto* sdcard_fs = findSdcardFileSystem(false);
-        // TODO: Support multiple SD cards
-        if (sdcard_fs != nullptr) {
-            auto mounted = file_system_is_mounted(sdcard_fs);
-            auto* desired_icon = getSdCardStatusIcon(mounted);
+        struct SdCardState { bool found; bool mounted; };
+        SdCardState state = { false, false };
+
+        file_system_for_each(&state, [](FileSystem* fs, void* context) {
+            auto* s = static_cast<SdCardState*>(context);
+            char path[64];
+            if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
+            if (strncmp(path, "/sdcard", 7) != 0) return true;
+            s->found = true;
+            s->mounted = file_system_is_mounted(fs);
+            return false;
+        });
+
+        if (state.found) {
+            auto* desired_icon = getSdCardStatusIcon(state.mounted);
             if (sdcard_last_icon != desired_icon) {
                 lvgl::statusbar_icon_set_image(sdcard_icon_id, desired_icon);
                 lvgl::statusbar_icon_set_visibility(sdcard_icon_id, true);
@@ -293,7 +302,7 @@ public:
 
     bool onStart(ServiceContext& serviceContext) override {
         if (lv_screen_active() == nullptr) {
-            LOGGER.error("No display found");
+            LOG_E(TAG, "No display found");
             return false;
         }
 

@@ -1,21 +1,25 @@
 #include <Tactility/app/AppManifestParsing.h>
+#include <Tactility/app/AppManifestParsingInternal.h>
 
-#include <Tactility/Logger.h>
+#include <Tactility/StringUtils.h>
+#include <Tactility/file/File.h>
+#include <Tactility/file/PropertiesFile.h>
+
 #include <algorithm>
-#include <regex>
+#include <tactility/log.h>
 
 namespace tt::app {
 
-static const auto LOGGER = Logger("AppManifest");
+constexpr auto* TAG = "AppManifest";
 
 constexpr bool validateString(const std::string& value, const std::function<bool(char)>& isValidChar) {
     return std::ranges::all_of(value, isValidChar);
 }
 
-static bool getValueFromManifest(const std::map<std::string, std::string>& map, const std::string& key, std::string& output) {
+bool getValueFromManifest(const std::map<std::string, std::string>& map, const std::string& key, std::string& output) {
     const auto iterator = map.find(key);
     if (iterator == map.end()) {
-        LOGGER.error("Failed to find {} in manifest", key);
+        LOG_E(TAG, "Failed to find %s in manifest", key.c_str());
         return false;
     }
     output = iterator->second;
@@ -28,97 +32,61 @@ bool isValidId(const std::string& id) {
     });
 }
 
-static bool isValidManifestVersion(const std::string& version) {
+bool isValidManifestVersion(const std::string& version) {
     return !version.empty() && validateString(version, [](const char c) {
         return std::isalnum(c) != 0 || c == '.';
     });
 }
 
-static bool isValidAppVersionName(const std::string& version) {
+bool isValidAppVersionName(const std::string& version) {
     return !version.empty() && validateString(version, [](const char c) {
         return std::isalnum(c) != 0 || c == '.' || c == '-' || c == '_';
     });
 }
 
-static bool isValidAppVersionCode(const std::string& version) {
+bool isValidAppVersionCode(const std::string& version) {
     return !version.empty() && validateString(version, [](const char c) {
         return std::isdigit(c) != 0;
     });
 }
 
-static bool isValidName(const std::string& name) {
+bool isValidName(const std::string& name) {
     return name.size() >= 2 && validateString(name, [](const char c) {
         return std::isalnum(c) != 0 || c == ' ' || c == '-';
     });
 }
 
-bool parseManifest(const std::map<std::string, std::string>& map, AppManifest& manifest) {
-    LOGGER.info("Parsing manifest");
+/** The V1 format's first line is always the literal "[manifest]" section header; V2 files are flat from the first line onward. */
+static bool detectIsV1Format(const std::string& filePath) {
+    std::string first_line;
+    bool got_first_line = false;
+    file::readLines(filePath, true, [&first_line, &got_first_line](const char* line) {
+        if (!got_first_line) {
+            first_line = string::trim(std::string(line), " \t\r\n");
+            got_first_line = true;
+        }
+    });
+    return first_line == "[manifest]";
+}
 
-    // [manifest]
+bool parseManifest(const std::string& filePath, AppManifest& manifest) {
+    LOG_I(TAG, "Parsing manifest %s", filePath.c_str());
 
-    std::string manifest_version;
-    if (!getValueFromManifest(map, "[manifest]version", manifest_version)) {
+    bool is_v1_format = detectIsV1Format(filePath);
+
+    std::map<std::string, std::string> properties;
+    if (!file::loadPropertiesFile(filePath, properties)) {
+        LOG_E(TAG, "Failed to load manifest at %s", filePath.c_str());
         return false;
     }
 
-    if (!isValidManifestVersion(manifest_version)) {
-        LOGGER.error("Invalid version");
+    bool success = is_v1_format
+        ? parseManifestV1(properties, manifest)
+        : parseManifestV2(properties, manifest);
+
+    if (!success) {
         return false;
     }
-
-    // [app]
-
-    if (!getValueFromManifest(map, "[app]id", manifest.appId)) {
-        return false;
-    }
-
-    if (!isValidId(manifest.appId)) {
-        LOGGER.error("Invalid app id");
-        return false;
-    }
-
-    if (!getValueFromManifest(map, "[app]name", manifest.appName)) {
-        return false;
-    }
-
-    if (!isValidName(manifest.appName)) {
-        LOGGER.error("Invalid app name");
-        return false;
-    }
-
-    if (!getValueFromManifest(map, "[app]versionName", manifest.appVersionName)) {
-        return false;
-    }
-
-    if (!isValidAppVersionName(manifest.appVersionName)) {
-        LOGGER.error("Invalid app version name");
-        return false;
-    }
-
-    std::string version_code_string;
-    if (!getValueFromManifest(map, "[app]versionCode", version_code_string)) {
-        return false;
-    }
-
-    if (!isValidAppVersionCode(version_code_string)) {
-        LOGGER.error("Invalid app version code");
-        return false;
-    }
-
-    manifest.appVersionCode = std::stoull(version_code_string);
-
-    // [target]
-
-    if (!getValueFromManifest(map, "[target]sdk", manifest.targetSdk)) {
-        return false;
-    }
-
-    if (!getValueFromManifest(map, "[target]platforms", manifest.targetPlatforms)) {
-        return false;
-    }
-
-    // Defaults
 
     manifest.appCategory = Category::User;
     manifest.appLocation = Location::external("");

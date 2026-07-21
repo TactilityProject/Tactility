@@ -6,35 +6,24 @@
 #include <Tactility/service/displayidle/DisplayIdleService.h>
 #endif
 
-#include <Tactility/Logger.h>
 #include <Tactility/app/App.h>
 #include <Tactility/hal/display/DisplayDevice.h>
-#include <Tactility/hal/touch/TouchDevice.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <lvgl.h>
+#include <tactility/log.h>
 #include <tactility/lvgl_module.h>
 
 namespace tt::app::display {
 
-static const auto LOGGER = Logger("Display");
+constexpr auto* TAG = "Display";
 
 static std::shared_ptr<hal::display::DisplayDevice> getHalDisplay() {
     return hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
 }
 
-static bool hasCalibratableTouchDevice() {
-    auto touch_devices = hal::findDevices<hal::touch::TouchDevice>(hal::Device::Type::Touch);
-    for (const auto& touch_device : touch_devices) {
-        if (touch_device != nullptr && touch_device->supportsCalibration()) {
-            return true;
-        }
-    }
-    return false;
-}
-
-class DisplayApp final : public App {
+class HalDisplayApp final : public App {
 
     settings::display::DisplaySettings displaySettings;
     bool displaySettingsUpdated = false;
@@ -44,7 +33,7 @@ class DisplayApp final : public App {
 
     static void onBacklightSliderEvent(lv_event_t* event) {
         auto* slider = static_cast<lv_obj_t*>(lv_event_get_target(event));
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto hal_display = getHalDisplay();
         assert(hal_display != nullptr);
 
@@ -59,7 +48,7 @@ class DisplayApp final : public App {
     static void onGammaSliderEvent(lv_event_t* event) {
         auto* slider = static_cast<lv_obj_t*>(lv_event_get_target(event));
         auto hal_display = hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         assert(hal_display != nullptr);
 
         if (hal_display->getGammaCurveCount() > 0) {
@@ -71,10 +60,10 @@ class DisplayApp final : public App {
     }
 
     static void onOrientationSet(lv_event_t* event) {
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
         uint32_t selected_index = lv_dropdown_get_selected(dropdown);
-        LOGGER.info("Selected {}", selected_index);
+        LOG_I(TAG, "Selected %u", (unsigned)selected_index);
         auto selected_orientation = static_cast<settings::display::Orientation>(selected_index);
         if (selected_orientation != app->displaySettings.orientation) {
             app->displaySettings.orientation = selected_orientation;
@@ -84,7 +73,7 @@ class DisplayApp final : public App {
     }
 
     static void onTimeoutSwitch(lv_event_t* event) {
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
         bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
         app->displaySettings.backlightTimeoutEnabled = enabled;
@@ -105,7 +94,7 @@ class DisplayApp final : public App {
     }
 
     static void onTimeoutChanged(lv_event_t* event) {
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
         uint32_t idx = lv_dropdown_get_selected(dropdown);
         // Map dropdown index to ms: 0=15s,1=30s,2=1m,3=2m,4=5m,5=Never
@@ -117,7 +106,7 @@ class DisplayApp final : public App {
     }
 
     static void onScreensaverChanged(lv_event_t* event) {
-        auto* app = static_cast<DisplayApp*>(lv_event_get_user_data(event));
+        auto* app = static_cast<HalDisplayApp*>(lv_event_get_user_data(event));
         auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
         uint32_t idx = lv_dropdown_get_selected(dropdown);
         // Validate index bounds before casting to enum
@@ -129,10 +118,6 @@ class DisplayApp final : public App {
             app->displaySettings.screensaverType = selected_type;
             app->displaySettingsUpdated = true;
         }
-    }
-
-    static void onCalibrateTouchClicked(lv_event_t*) {
-        app::start("TouchCalibration");
     }
 
 public:
@@ -294,25 +279,6 @@ public:
                 lv_obj_add_state(screensaverDropdown, LV_STATE_DISABLED);
             }
         }
-
-        if (hasCalibratableTouchDevice()) {
-            auto* calibrate_wrapper = lv_obj_create(main_wrapper);
-            lv_obj_set_size(calibrate_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-            lv_obj_set_style_pad_all(calibrate_wrapper, 0, LV_STATE_DEFAULT);
-            lv_obj_set_style_border_width(calibrate_wrapper, 0, LV_STATE_DEFAULT);
-
-            auto* calibrate_label = lv_label_create(calibrate_wrapper);
-            lv_label_set_text(calibrate_label, "Touch calibration");
-            lv_obj_align(calibrate_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-            auto* calibrate_button = lv_button_create(calibrate_wrapper);
-            lv_obj_align(calibrate_button, LV_ALIGN_RIGHT_MID, 0, 0);
-            lv_obj_add_event_cb(calibrate_button, onCalibrateTouchClicked, LV_EVENT_SHORT_CLICKED, this);
-
-            auto* calibrate_button_label = lv_label_create(calibrate_button);
-            lv_label_set_text(calibrate_button_label, "Calibrate");
-            lv_obj_center(calibrate_button_label);
-        }
     }
 
     void onHide(AppContext& app) override {
@@ -338,7 +304,7 @@ extern const AppManifest manifest = {
     .appName = "Display",
     .appIcon = LVGL_ICON_SHARED_DISPLAY_SETTINGS,
     .appCategory = Category::Settings,
-    .createApp = create<DisplayApp>
+    .createApp = create<HalDisplayApp>
 };
 
 } // namespace

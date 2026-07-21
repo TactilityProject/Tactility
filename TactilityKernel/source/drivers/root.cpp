@@ -7,7 +7,7 @@
 
 extern "C" {
 
-bool root_is_model(const struct Device* device, const char* buffer) {
+bool root_is_model(const Device* device, const char* buffer) {
     auto* config = static_cast<const RootConfig*>(device->config);
     return strcmp(config->model, buffer) == 0;
 }

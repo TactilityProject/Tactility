@@ -1,0 +1,12 @@
+description: >
+  M5Stack Cardputer Adv keyboard, a TCA8418 I2C keypad-scan IC wired as a 7x8 matrix behind
+  a 4x14 key grid identical to the base Cardputer's. Exposes a KEYBOARD_TYPE device.
+  Sym (fn) and shift are consumed internally and never emitted as their own key events;
+  sym+shift together toggles caps lock. Regular keys emit their lowercase/uppercase/sym-layer
+  ASCII character or LVGL navigation key depending on which layer is active.
+
+include: ["i2c-device.yaml"]
+
+compatible: "m5stack,cardputer-adv-keyboard"
+
+bus: i2c

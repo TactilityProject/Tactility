@@ -1,0 +1,36 @@
+description: >
+  GPIO button(s) that emulate UI navigation keys, for boards with only 1 or 2 physical
+  buttons instead of a full keyboard or touchscreen. Exposes a KEYBOARD_TYPE device: each
+  button's short/long press is translated to an LVGL navigation key, decided once the
+  button is released (so a long press is only recognized after release, matching how long
+  a button was actually held).
+
+compatible: "tactility,button-control"
+
+properties:
+  pin-primary:
+    type: phandles
+    required: true
+    description: >
+      Primary button GPIO pin. One-button mode (pin-secondary absent): short press = select
+      next, long press = press/enter. Two-button mode (pin-secondary present): short press =
+      press/enter, long press = close app.
+  pin-secondary:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: >
+      Optional secondary button GPIO pin. When present, enables two-button mode: short press
+      = select next, long press = select previous. When absent, the device runs in
+      one-button mode (see pin-primary).
+  active-low:
+    type: boolean
+    default: true
+    description: Whether a pressed button reads as a logic low level
+  debounce-ms:
+    type: int
+    default: 20
+    description: Minimum time between recognized level changes, for software debouncing
+  long-press-ms:
+    type: int
+    default: 500
+    description: Minimum hold duration (from press to release) recognized as a long press

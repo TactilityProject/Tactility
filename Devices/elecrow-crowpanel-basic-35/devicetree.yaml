@@ -1,3 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/ili9488-module
+  - Drivers/xpt2046-module
 dts: elecrow,crowpanel-basic-35.dts

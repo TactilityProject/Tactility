@@ -1,16 +1,16 @@
 #include <Tactility/hal/gps/Ublox.h>
 #include <Tactility/hal/gps/UbloxMessages.h>
 #include <Tactility/kernel/Kernel.h>
-#include <Tactility/Logger.h>
 
 #include <tactility/device.h>
 #include <tactility/drivers/uart_controller.h>
+#include <tactility/log.h>
 
 #include <cstring>
 
 namespace tt::hal::gps::ublox {
 
-static const auto LOGGER = Logger("Ublox");
+constexpr auto* TAG = "Ublox";
 
 bool initUblox6(::Device* uart);
 bool initUblox789(::Device* uart, GpsModel model);
@@ -21,7 +21,7 @@ bool initUblox10(::Device* uart);
         auto msglen = makePacket(TYPE, ID, DATA, sizeof(DATA), BUFFER); \
         uart_controller_write_bytes(UART, BUFFER, msglen, TIMEOUT_MILLIS / portTICK_PERIOD_MS); \
         if (getAck(UART, TYPE, ID, TIMEOUT_MILLIS) != GpsResponse::Ok) { \
-            LOGGER.info("Sending packet failed: {}", #ERRMSG); \
+            LOG_I(TAG, "Sending packet failed: %s", #ERRMSG); \
         } \
     } while (0)
 
@@ -85,7 +85,7 @@ GpsResponse getAck(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t wa
     while (kernel::getTicks() - startTime < waitTicks) {
         if (ack > 9) {
 #ifdef GPS_DEBUG
-            LOGGER.info("Got ACK for class {:02X} message {:02X} in {}ms", class_id, msg_id, kernel::getMillis() - startTime);
+            LOG_I(TAG, "Got ACK for class %02X message %02X in %zums", class_id, msg_id, kernel::getMillis() - startTime);
 #endif
             return GpsResponse::Ok; // ACK received
         }
@@ -98,7 +98,7 @@ GpsResponse getAck(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t wa
                 if (sCounter == 26) {
 #ifdef GPS_DEBUG
 
-                    LOGGER.info("%s", debugmsg.c_str());
+                    LOG_I(TAG, "%s", debugmsg.c_str());
 #endif
                     return GpsResponse::FrameErrors;
                 }
@@ -113,9 +113,9 @@ GpsResponse getAck(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t wa
             } else {
                 if (ack == 3 && b == 0x00) { // UBX-ACK-NAK message
 #ifdef GPS_DEBUG
-                    LOGGER.info("%s", debugmsg.c_str());
+                    LOG_I(TAG, "%s", debugmsg.c_str());
 #endif
-                    LOGGER.warn("Got NAK for class {:02X} message {:02X}", class_id, msg_id);
+                    LOG_W(TAG, "Got NAK for class %02X message %02X", class_id, msg_id);
                     return GpsResponse::NotAck; // NAK received
                 }
                 ack = 0; // Reset the acknowledgement counter
@@ -123,8 +123,8 @@ GpsResponse getAck(::Device* uart, uint8_t class_id, uint8_t msg_id, uint32_t wa
         }
     }
 #ifdef GPS_DEBUG
-    LOGGER.info("%s", debugmsg.c_str());
-    LOGGER.warn("No response for class %02X message %02X", class_id, msg_id);
+    LOG_I(TAG, "%s", debugmsg.c_str());
+    LOG_W(TAG, "No response for class %02X message %02X", class_id, msg_id);
 #endif
     return GpsResponse::None; // No response received within timeout
 }
@@ -190,7 +190,7 @@ static int getAck(::Device* uart, uint8_t* buffer, uint16_t size, uint8_t reques
                     } else {
                         // return payload length
 #ifdef GPS_DEBUG
-                        LOGGER.info("Got ACK for class {:02X} message {:02X} in {}ms", requestedClass, requestedId, kernel::getMillis() - startTime);
+                        LOG_I(TAG, "Got ACK for class %02X message %02X in %zums", requestedClass, requestedId, kernel::getMillis() - startTime);
 #endif
                         return needRead;
                     }
@@ -214,8 +214,7 @@ static struct uBloxGnssModelInfo {
 } ublox_info;
 
 GpsModel probe(::Device* uart) {
-    LOGGER.info("Probing for U-blox");
-    constexpr auto DETECTED_MESSAGE = "{} detected, using {} Module";
+    LOG_I(TAG, "Probing for U-blox");
 
     uint8_t cfg_rate[] = {0xB5, 0x62, 0x06, 0x08, 0x00, 0x00, 0x00, 0x00};
     checksum(cfg_rate, sizeof(cfg_rate));
@@ -224,10 +223,10 @@ GpsModel probe(::Device* uart) {
     // Check that the returned response class and message ID are correct
     GpsResponse response = getAck(uart, 0x06, 0x08, 750);
     if (response == GpsResponse::None) {
-        LOGGER.warn("No GNSS Module");
+        LOG_W(TAG, "No GNSS Module");
         return GpsModel::Unknown;
     } else if (response == GpsResponse::FrameErrors) {
-        LOGGER.warn("UBlox Frame Errors");
+        LOG_W(TAG, "UBlox Frame Errors");
     }
 
     uint8_t buffer[256];
@@ -265,12 +264,12 @@ GpsModel probe(::Device* uart) {
                 break;
         }
 
-        LOGGER.info("Module Info:");
-        LOGGER.info("Soft version: {}", ublox_info.swVersion);
-        LOGGER.info("Hard version: {}", ublox_info.hwVersion);
-        LOGGER.info("Extensions: {}", ublox_info.extensionNo);
+        LOG_I(TAG, "Module Info:");
+        LOG_I(TAG, "Soft version: %s", ublox_info.swVersion);
+        LOG_I(TAG, "Hard version: %s", ublox_info.hwVersion);
+        LOG_I(TAG, "Extensions: %u", ublox_info.extensionNo);
         for (int i = 0; i < ublox_info.extensionNo; i++) {
-            LOGGER.info("  %s", ublox_info.extension[i]);
+            LOG_I(TAG, "  %s", ublox_info.extension[i]);
         }
 
         memset(buffer, 0, sizeof(buffer));
@@ -283,29 +282,30 @@ GpsModel probe(::Device* uart) {
                 char* ptr = nullptr;
                 memset(buffer, 0, sizeof(buffer));
                 strncpy((char*)buffer, &(ublox_info.extension[i][8]), sizeof(buffer));
-                LOGGER.info("Protocol Version: {}", (char*)buffer);
+                LOG_I(TAG, "Protocol Version: %s", (char*)buffer);
                 if (strlen((char*)buffer)) {
                     ublox_info.protocol_version = strtoul((char*)buffer, &ptr, 10);
-                    LOGGER.info("ProtVer={}", ublox_info.protocol_version);
+                    LOG_I(TAG, "ProtVer=%u", ublox_info.protocol_version);
                 } else {
                     ublox_info.protocol_version = 0;
                 }
             }
         }
+        #define DETECTED_MESSAGE "%s detected, using %s Module"
         if (strncmp(ublox_info.hwVersion, "00040007", 8) == 0) {
-            LOGGER.info(DETECTED_MESSAGE, "U-blox 6", "6");
+            LOG_I(TAG, DETECTED_MESSAGE, "U-blox 6", "6");
             return GpsModel::UBLOX6;
         } else if (strncmp(ublox_info.hwVersion, "00070000", 8) == 0) {
-            LOGGER.info(DETECTED_MESSAGE, "U-blox 7", "7");
+            LOG_I(TAG, DETECTED_MESSAGE, "U-blox 7", "7");
             return GpsModel::UBLOX7;
         } else if (strncmp(ublox_info.hwVersion, "00080000", 8) == 0) {
-            LOGGER.info(DETECTED_MESSAGE, "U-blox 8", "8");
+            LOG_I(TAG, DETECTED_MESSAGE, "U-blox 8", "8");
             return GpsModel::UBLOX8;
         } else if (strncmp(ublox_info.hwVersion, "00190000", 8) == 0) {
-            LOGGER.info(DETECTED_MESSAGE, "U-blox 9", "9");
+            LOG_I(TAG, DETECTED_MESSAGE, "U-blox 9", "9");
             return GpsModel::UBLOX9;
         } else if (strncmp(ublox_info.hwVersion, "000A0000", 8) == 0) {
-            LOGGER.info(DETECTED_MESSAGE, "U-blox 10", "10");
+            LOG_I(TAG, DETECTED_MESSAGE, "U-blox 10", "10");
             return GpsModel::UBLOX10;
         }
     }
@@ -314,7 +314,7 @@ GpsModel probe(::Device* uart) {
 }
 
 bool init(::Device* uart, GpsModel model) {
-    LOGGER.info("U-blox init");
+    LOG_I(TAG, "U-blox init");
     switch (model) {
         case GpsModel::UBLOX6:
             return initUblox6(uart);
@@ -325,7 +325,7 @@ bool init(::Device* uart, GpsModel model) {
         case GpsModel::UBLOX10:
             return initUblox10(uart);
         default:
-            LOGGER.error("Unknown or unsupported U-blox model");
+            LOG_E(TAG, "Unknown or unsupported U-blox model");
             return false;
     }
 }
@@ -374,9 +374,9 @@ bool initUblox10(::Device* uart) {
     auto packet_size = makePacket(0x06, 0x09, _message_SAVE_10, sizeof(_message_SAVE_10), buffer);
     uart_controller_write_bytes(uart, buffer, packet_size, 2000 / portTICK_PERIOD_MS);
     if (getAck(uart, 0x06, 0x09, 2000) != GpsResponse::Ok) {
-        LOGGER.warn("Unable to save GNSS module config");
+        LOG_W(TAG, "Unable to save GNSS module config");
     } else {
-        LOGGER.info("GNSS module configuration saved!");
+        LOG_I(TAG, "GNSS module configuration saved!");
     }
     return true;
 }
@@ -384,7 +384,7 @@ bool initUblox10(::Device* uart) {
 bool initUblox789(::Device* uart, GpsModel model) {
     uint8_t buffer[256];
     if (model == GpsModel::UBLOX7) {
-        LOGGER.debug("Set GPS+SBAS");
+        LOG_D(TAG, "Set GPS+SBAS");
         auto msglen = makePacket(0x06, 0x3e, _message_GNSS_7, sizeof(_message_GNSS_7), buffer);
         uart_controller_write_bytes(uart, buffer, msglen, 800 / portTICK_PERIOD_MS);
     } else { // 8,9
@@ -394,12 +394,12 @@ bool initUblox789(::Device* uart, GpsModel model) {
 
     if (getAck(uart, 0x06, 0x3e, 800) == GpsResponse::NotAck) {
         // It's not critical if the module doesn't acknowledge this configuration.
-        LOGGER.debug("reconfigure GNSS - defaults maintained. Is this module GPS-only?");
+        LOG_D(TAG, "reconfigure GNSS - defaults maintained. Is this module GPS-only?");
     } else {
         if (model == GpsModel::UBLOX7) {
-            LOGGER.info("GPS+SBAS configured");
+            LOG_I(TAG, "GPS+SBAS configured");
         } else { // 8,9
-            LOGGER.info("GPS+SBAS+GLONASS+Galileo configured");
+            LOG_I(TAG, "GPS+SBAS+GLONASS+Galileo configured");
         }
         // Documentation say, we need wait at least 0.5s after reconfiguration of GNSS module, before sending next
         // commands for the M8 it tends to be more. 1 sec should be enough
@@ -448,9 +448,9 @@ bool initUblox789(::Device* uart, GpsModel model) {
     auto packet_size = makePacket(0x06, 0x09, _message_SAVE, sizeof(_message_SAVE), buffer);
     uart_controller_write_bytes(uart, buffer, packet_size, 2000 / portTICK_PERIOD_MS);
     if (getAck(uart, 0x06, 0x09, 2000) != GpsResponse::Ok) {
-        LOGGER.warn("Unable to save GNSS module config");
+        LOG_W(TAG, "Unable to save GNSS module config");
     } else {
-        LOGGER.info("GNSS module configuration saved!");
+        LOG_I(TAG, "GNSS module configuration saved!");
     }
     return true;
 }
@@ -482,9 +482,9 @@ bool initUblox6(::Device* uart) {
     auto packet_size = makePacket(0x06, 0x09, _message_SAVE, sizeof(_message_SAVE), buffer);
     uart_controller_write_bytes(uart, buffer, packet_size, 2000);
     if (getAck(uart, 0x06, 0x09, 2000) != GpsResponse::Ok) {
-        LOGGER.warn("Unable to save GNSS module config");
+        LOG_W(TAG, "Unable to save GNSS module config");
     } else {
-        LOGGER.info("GNSS module config saved!");
+        LOG_I(TAG, "GNSS module config saved!");
     }
     return true;
 }

@@ -9,7 +9,6 @@
 #include <Tactility/bluetooth/BluetoothSettings.h>
 #include <Tactility/bluetooth/BluetoothPrivate.h>
 
-#include <Tactility/Logger.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/Tactility.h>
 #include <tactility/check.h>
@@ -18,6 +17,7 @@
 #include <tactility/drivers/bluetooth_hid_device.h>
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_serial.h>
+#include <tactility/log.h>
 
 #include <array>
 #include <cstring>
@@ -25,7 +25,7 @@
 
 namespace tt::bluetooth {
 
-static const auto LOGGER = Logger("Bluetooth");
+constexpr auto* TAG = "Bluetooth";
 
 // ---- Scan result cache (C++ PeerRecord list, updated from BT_EVENT_PEER_FOUND) ----
 
@@ -40,17 +40,15 @@ static std::vector<CachedAddr> scan_addr_cache; // parallel to scan_results_cach
 
 // ---- Device accessor ----
 
-struct Device* findFirstDevice() {
-    struct Device* found = nullptr;
-    device_for_each_of_type(&BLUETOOTH_TYPE, &found, [](struct Device* dev, void* ctx) -> bool {
-        if (device_is_ready(dev)) {
-            *static_cast<struct Device**>(ctx) = dev;
-            return false;
-        }
+Device* findFirstRegisteredDevice() {
+    Device* found = nullptr;
+    device_for_each_of_type(&BLUETOOTH_TYPE, &found, [](Device* dev, void* ctx) -> bool {
+        *static_cast<Device**>(ctx) = dev;
         return true;
     });
     return found;
 }
+
 
 // ---- Scan cache helpers ----
 
@@ -110,7 +108,7 @@ static void cachePeerRecord(const BtPeerRecord& krecord) {
 // and settings management. Consumers should register their own callbacks via
 // bluetooth_add_event_callback() to receive events directly.
 
-static void bt_event_bridge(struct Device* /*device*/, void* /*context*/, struct BtEvent event) {
+static void bt_event_bridge(Device*, void* /*context*/, BtEvent event) {
     switch (event.type) {
         case BT_EVENT_RADIO_STATE_CHANGED:
             switch (event.radio_state) {
@@ -125,25 +123,25 @@ static void bt_event_bridge(struct Device* /*device*/, void* /*context*/, struct
                             if (p.profileId == BT_PROFILE_HID_DEVICE) has_hid_device_auto = true;
                         }
                         if (has_hid_host_auto) {
-                            LOGGER.info("HID host auto-connect peer found — starting scan");
-                            if (struct Device* dev = findFirstDevice()) {
+                            LOG_I(TAG, "HID host auto-connect peer found — starting scan");
+                            if (Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE)) {
                                 bluetooth_scan_start(dev);
                             }
                         } else if (has_hid_device_auto) {
-                            LOGGER.info("HID device auto-start (bonded peer found)");
-                            if (struct Device* dev = bluetooth_hid_device_get_device()) {
+                            LOG_I(TAG, "HID device auto-start (bonded peer found)");
+                            if (Device* dev = bluetooth_hid_device_get_device()) {
                                 bluetooth_hid_device_start(dev, BT_HID_DEVICE_MODE_KEYBOARD);
                             }
                         } else {
                             if (settings::shouldSppAutoStart()) {
-                                LOGGER.info("Auto-starting SPP server");
-                                if (struct Device* dev = bluetooth_serial_get_device()) {
+                                LOG_I(TAG, "Auto-starting SPP server");
+                                if (Device* dev = bluetooth_serial_get_device()) {
                                     bluetooth_serial_start(dev);
                                 }
                             }
                             if (settings::shouldMidiAutoStart()) {
-                                LOGGER.info("Auto-starting MIDI server");
-                                if (struct Device* dev = bluetooth_midi_get_device()) {
+                                LOG_I(TAG, "Auto-starting MIDI server");
+                                if (Device* dev = bluetooth_midi_get_device()) {
                                     bluetooth_midi_start(dev);
                                 }
                             }
@@ -188,7 +186,7 @@ static void bt_event_bridge(struct Device* /*device*/, void* /*context*/, struct
                         dev.autoConnect = true;
                         dev.profileId   = profile_copy;
                         if (settings::save(dev)) {
-                            LOGGER.info("Saved paired peer {} (profile={})", hex, profile_copy);
+                            LOG_I(TAG, "Saved paired peer %s (profile=%d)", hex.c_str(), profile_copy);
                         }
                     }
                 });
@@ -233,7 +231,7 @@ static void bt_event_bridge(struct Device* /*device*/, void* /*context*/, struct
                         }
                     }
                     if (has_auto) {
-                        if (struct Device* dev = findFirstDevice()) {
+                        if (Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE)) {
                             if (!bluetooth_is_scanning(dev)) {
                                 bluetooth_scan_start(dev);
                             }
@@ -251,17 +249,78 @@ static void bt_event_bridge(struct Device* /*device*/, void* /*context*/, struct
 // ---- systemStart ----
 
 void systemStart() {
-    struct Device* dev = findFirstDevice();
+    Device* dev = findFirstRegisteredDevice();
     if (dev == nullptr) {
-        LOGGER.warn("systemStart: no BLE device found");
+        LOG_W(TAG, "systemStart: no BLE device found");
         return;
     }
-    bluetooth_add_event_callback(dev, nullptr, bt_event_bridge);
 
     if (settings::shouldEnableOnBoot()) {
-        LOGGER.info("Auto-enabling Bluetooth on boot");
-        bluetooth_set_radio_enabled(dev, true);
+        start(dev);
     }
+}
+
+bool isRadioOnOrPending(Device* dev) {
+    if (!device_is_ready(dev)) return false;
+    BtRadioState state;
+    if (bluetooth_get_radio_state(dev, &state) != ERROR_NONE) return false;
+    return state == BT_RADIO_STATE_ON || state == BT_RADIO_STATE_ON_PENDING;
+}
+
+bool start(Device* dev) {
+    LOG_I(TAG, "Auto-enabling BLE on boot");
+    if (!device_is_ready(dev)) {
+        LOG_I(TAG, "Starting BLE device");
+        if (device_start(dev) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to start BLE device");
+            return false;
+        }
+    }
+
+    // TODO: Fix bug where repeatedly calling start would add this callback multiple times
+    if (bluetooth_add_event_callback(dev, nullptr, bt_event_bridge) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to set BLE callback");
+    }
+
+    LOG_I(TAG, "Enabling BT radio");
+    if (bluetooth_set_radio_enabled(dev, true) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to enable BLE radio");
+        // Add bridge again
+        bluetooth_remove_event_callback(dev, bt_event_bridge);
+        return false;
+    }
+
+    LOG_I(TAG, "BT enabled");
+    return true;
+}
+
+bool stop(Device* dev) {
+    BtRadioState state;
+    if (bluetooth_get_radio_state(dev, &state) != ERROR_NONE) {
+        return false;
+    }
+
+    if (state == BT_RADIO_STATE_OFF || state == BT_RADIO_STATE_OFF_PENDING) {
+        return true;
+    }
+
+    if (bluetooth_remove_event_callback(dev, bt_event_bridge) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to remove BLE callback");
+    }
+
+    if (bluetooth_set_radio_enabled(dev, false) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to disable BT radio");
+        // Re-register bridge
+        bluetooth_add_event_callback(dev, nullptr, bt_event_bridge);
+        return false;
+    }
+
+    if (device_stop(dev) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to stop BT device");
+        return false;
+    }
+
+    return true;
 }
 
 // ---- Public API ----
@@ -278,7 +337,7 @@ const char* radioStateToString(RadioState state) {
 }
 
 RadioState getRadioState() {
-    struct Device* dev = findFirstDevice();
+    Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
     if (dev == nullptr) return RadioState::Off;
     BtRadioState state = BT_RADIO_STATE_OFF;
     bluetooth_get_radio_state(dev, &state);
@@ -346,7 +405,7 @@ void pair(const std::array<uint8_t, 6>& /*addr*/) {
 }
 
 void unpair(const std::array<uint8_t, 6>& addr) {
-    struct Device* dev = findFirstDevice();
+    Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
     if (dev != nullptr) {
         bluetooth_unpair(dev, addr.data());
     }
@@ -354,20 +413,20 @@ void unpair(const std::array<uint8_t, 6>& addr) {
 }
 
 void connect(const std::array<uint8_t, 6>& addr, int profileId) {
-    LOGGER.info("connect(profile={})", profileId);
+    LOG_I(TAG, "connect(profile=%d)", profileId);
     if (profileId == BT_PROFILE_HID_HOST) {
         hidHostConnect(addr);
     } else if (profileId == BT_PROFILE_HID_DEVICE) {
-        if (struct Device* dev = bluetooth_hid_device_get_device()) {
+        if (Device* dev = bluetooth_hid_device_get_device()) {
             bluetooth_hid_device_start(dev, BT_HID_DEVICE_MODE_KEYBOARD);
         }
     } else if (profileId == BT_PROFILE_SPP) {
-        if (struct Device* dev = bluetooth_serial_get_device()) {
+        if (Device* dev = bluetooth_serial_get_device()) {
             bluetooth_serial_start(dev);
             settings::setSppAutoStart(true);
         }
     } else if (profileId == BT_PROFILE_MIDI) {
-        if (struct Device* dev = bluetooth_midi_get_device()) {
+        if (Device* dev = bluetooth_midi_get_device()) {
             bluetooth_midi_start(dev);
             settings::setMidiAutoStart(true);
         }
@@ -375,15 +434,15 @@ void connect(const std::array<uint8_t, 6>& addr, int profileId) {
 }
 
 void disconnect(const std::array<uint8_t, 6>& addr, int profileId) {
-    LOGGER.info("disconnect(profile={})", profileId);
+    LOG_I(TAG, "disconnect(profile=%d)", profileId);
     if (profileId == BT_PROFILE_HID_HOST) {
         hidHostDisconnect();
     } else if (profileId == BT_PROFILE_HID_DEVICE) {
-        if (struct Device* dev = bluetooth_hid_device_get_device()) {
+        if (Device* dev = bluetooth_hid_device_get_device()) {
             bluetooth_hid_device_stop(dev);
         }
     } else {
-        struct Device* dev = findFirstDevice();
+        Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
         if (dev == nullptr) return;
         bluetooth_disconnect(dev, addr.data(), (BtProfileId)profileId);
     }

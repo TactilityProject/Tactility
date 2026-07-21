@@ -1,8 +1,10 @@
 #include <Tactility/bluetooth/BluetoothPairedDevice.h>
 
+#include "Tactility/Paths.h"
+
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 #include <dirent.h>
 #include <format>
@@ -13,15 +15,18 @@
 
 namespace tt::bluetooth::settings {
 
-static const auto LOGGER = Logger("BluetoothPairedDevice");
+constexpr auto* TAG = "BluetoothPairedDevice";
 
 // Use the same directory as the old service for backward compatibility.
-constexpr auto* DATA_DIR               = "/data/service/bluetooth";
 constexpr auto* DEVICE_SETTINGS_FORMAT = "{}/{}.device.properties";
 constexpr auto* KEY_NAME        = "name";
 constexpr auto* KEY_ADDR        = "addr";
 constexpr auto* KEY_AUTO_CONNECT = "autoConnect";
 constexpr auto* KEY_PROFILE_ID  = "profileId";
+
+static std::string getSettingsFilePath() {
+    return getUserDataPath() + "/service/bluetooth";
+}
 
 std::string addrToHex(const std::array<uint8_t, 6>& addr) {
     std::stringstream stream;
@@ -34,7 +39,7 @@ std::string addrToHex(const std::array<uint8_t, 6>& addr) {
 
 static bool hexToAddr(const std::string& hex, std::array<uint8_t, 6>& addr) {
     if (hex.size() != 12) {
-        LOGGER.error("hexToAddr() length mismatch: expected 12, got {}", hex.size());
+        LOG_E(TAG, "hexToAddr() length mismatch: expected 12, got %d", (int)hex.size());
         return false;
     }
     char buf[3] = { 0 };
@@ -44,7 +49,7 @@ static bool hexToAddr(const std::string& hex, std::array<uint8_t, 6>& addr) {
         char* endptr = nullptr;
         addr[i] = static_cast<uint8_t>(strtoul(buf, &endptr, 16));
         if (endptr != buf + 2) {
-            LOGGER.error("hexToAddr() invalid hex at byte {}: '{}{}'", i, buf[0], buf[1]);
+            LOG_E(TAG, "hexToAddr() invalid hex at byte %d: '%c%c'", i, buf[0], buf[1]);
             return false;
         }
     }
@@ -52,7 +57,7 @@ static bool hexToAddr(const std::string& hex, std::array<uint8_t, 6>& addr) {
 }
 
 static std::string getFilePath(const std::string& addr_hex) {
-    return std::format(DEVICE_SETTINGS_FORMAT, DATA_DIR, addr_hex);
+    return std::format(DEVICE_SETTINGS_FORMAT, getSettingsFilePath(), addr_hex);
 }
 
 bool hasFileForDevice(const std::string& addr_hex) {
@@ -60,8 +65,11 @@ bool hasFileForDevice(const std::string& addr_hex) {
 }
 
 bool load(const std::string& addr_hex, PairedDevice& device) {
+    auto file_path = getFilePath(addr_hex);
+    if (!file::isFile(file_path)) return false;
+
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(getFilePath(addr_hex), map)) return false;
+    if (!file::loadPropertiesFile(file_path, map)) return false;
     if (!map.contains(KEY_ADDR)) return false;
     if (!hexToAddr(map[KEY_ADDR], device.addr)) return false;
 
@@ -83,7 +91,12 @@ bool save(const PairedDevice& device) {
     map[KEY_ADDR]         = addr_hex;
     map[KEY_AUTO_CONNECT] = device.autoConnect ? "true" : "false";
     map[KEY_PROFILE_ID]   = std::to_string(device.profileId);
-    return file::savePropertiesFile(getFilePath(addr_hex), map);
+    auto file_path = getFilePath(addr_hex);
+    if (!file::findOrCreateParentDirectory(file_path, 0755)) {
+        LOG_E(TAG, "Failed to create parent dir for %s", file_path.c_str());
+        return false;
+    }
+    return file::savePropertiesFile(file_path, map);
 }
 
 bool remove(const std::string& addr_hex) {
@@ -94,7 +107,10 @@ bool remove(const std::string& addr_hex) {
 
 std::vector<PairedDevice> loadAll() {
     std::vector<dirent> entries;
-    file::scandir(DATA_DIR, entries, [](const dirent* entry) -> int {
+    if (!file::isDirectory(getSettingsFilePath())) {
+        return {};
+    }
+    file::scandir(getSettingsFilePath(), entries, [](const dirent* entry) -> int {
         if (entry->d_type != file::TT_DT_REG && entry->d_type != file::TT_DT_UNKNOWN) return -1;
         std::string name = entry->d_name;
         return name.ends_with(".device.properties") ? 0 : -1;

@@ -52,7 +52,7 @@ static error_t stop(Device* device) {
 
 extern "C" {
 
-error_t bm8563_get_datetime(Device* device, Bm8563DateTime* dt) {
+error_t bm8563_get_datetime(Device* device, RtcDateTime* dt) {
     auto* i2c_controller = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
 
@@ -78,7 +78,7 @@ error_t bm8563_get_datetime(Device* device, Bm8563DateTime* dt) {
     return ERROR_NONE;
 }
 
-error_t bm8563_set_datetime(Device* device, const Bm8563DateTime* dt) {
+error_t bm8563_set_datetime(Device* device, const RtcDateTime* dt) {
     if (dt->year < 2000 || dt->year > 2199 ||
         dt->month < 1 || dt->month > 12 ||
         dt->day < 1 || dt->day > 31 ||
@@ -104,13 +104,18 @@ error_t bm8563_set_datetime(Device* device, const Bm8563DateTime* dt) {
     return i2c_controller_write_register(i2c_controller, address, REG_SECONDS, buf, sizeof(buf), I2C_TIMEOUT_TICKS);
 }
 
+RtcApi bm8563_rtc_api = {
+    .get_time = bm8563_get_datetime,
+    .set_time = bm8563_set_datetime
+};
+
 Driver bm8563_driver = {
     .name = "bm8563",
     .compatible = (const char*[]) { "belling,bm8563", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = nullptr,
-    .device_type = nullptr,
+    .api = &bm8563_rtc_api,
+    .device_type = &RTC_TYPE,
     .owner = &bm8563_module,
     .internal = nullptr
 };

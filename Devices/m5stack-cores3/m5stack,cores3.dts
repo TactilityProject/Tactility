@@ -2,6 +2,7 @@
 
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_grove.h>
 #include <tactility/bindings/esp32_i2c.h>
@@ -10,14 +11,30 @@
 #include <tactility/bindings/esp32_uart.h>
 #include <bindings/bmi270.h>
 #include <bindings/bm8563.h>
+#include <bindings/axp2101.h>
+#include <bindings/axp2101_backlight.h>
+#include <bindings/aw9523b.h>
+#include <bindings/ft5x06.h>
+#include <bindings/ili9341.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/gpio_hog.h>
+
+// SD card is not supported because of a hardware problem:
+// The display uses pin 35 as input (MISO), but the SPI bus (and SD card) uses the same pin as DC (output).
 
 // Reference: https://docs.m5stack.com/en/core/CoreS3
 / {
 	compatible = "root";
 	model = "M5Stack CoreS3";
 
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
 	ble0 {
 		compatible = "espressif,esp32-ble";
+		status = "disabled";
 	};
 
 	gpio0 {
@@ -41,6 +58,71 @@
 			compatible = "belling,bm8563";
 			reg = <0x51>;
 		};
+
+		// P0_0 = touch reset, P0_1 = bus-out enable, P0_2 = AW88298 reset,
+		// P0_4 = SD card switch, P1_1 = LCD reset, P1_7 = boost enable (SY7088)
+		aw9523b: aw9523b {
+			compatible = "awinic,aw9523b";
+			reg = <0x58>;
+		};
+
+		axp2101: axp2101 {
+			compatible = "x-powers,axp2101";
+			reg = <0x34>;
+			aldo1-millivolt = <1800>;
+			aldo1-enabled;
+			aldo2-millivolt = <3300>;
+			aldo2-enabled;
+			aldo3-millivolt = <3300>;
+			aldo3-enabled;
+			aldo4-millivolt = <3300>;
+			aldo4-enabled;
+			bldo1-enabled;
+			bldo2-enabled;
+
+			// LCD backlight (DLDO1). Raw register codes [20,28] map to [2500,3300]mV;
+			// below 2500mV the backlight was considered "too dark" to be useful.
+			backlight {
+				compatible = "axp2101-backlight";
+				ldo = <AXP2101_DLDO1>;
+				min-millivolt = <2500>;
+				max-millivolt = <3300>;
+			};
+		};
+
+		touch {
+			compatible = "focaltech,ft5x06";
+			reg = <0x38>;
+			x-max = <320>;
+			y-max = <240>;
+			pin-reset = <&aw9523b 0 GPIO_FLAG_NONE>;
+		};
+	};
+
+	// Bus-out enable, AW88298 (audio amp) reset, SD card power switch and boost enable
+	// (SY7088) are AW9523B pins with no owning peripheral driver yet.
+	aw9523_bus_out_enable {
+		compatible = "gpio-hog";
+		pin = <&aw9523b 1 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	aw9523_aw88298_reset {
+		compatible = "gpio-hog";
+		pin = <&aw9523b 2 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	aw9523_sdcard_switch {
+		compatible = "gpio-hog";
+		pin = <&aw9523b 4 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	aw9523_boost_enable {
+		compatible = "gpio-hog";
+		pin = <&aw9523b 15 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
 	};
 
 	port_a: grove0 {
@@ -76,9 +158,22 @@
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 3 GPIO_FLAG_NONE>, // Display
+		           <&gpio0 4 GPIO_FLAG_NONE>; // SD card
 		pin-mosi = <&gpio0 37 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 35 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
+
+		display@0 {
+			compatible = "ilitek,ili9341";
+			horizontal-resolution = <320>;
+			vertical-resolution = <240>;
+			invert-color;
+			bgr-order;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 35 GPIO_FLAG_NONE>;
+			pin-reset = <&aw9523b 9 GPIO_FLAG_NONE>;
+		};
 	};
 
 	// TODO: Enable speaker via ES7210 I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L417

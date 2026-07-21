@@ -1,5 +1,7 @@
 #include <Tactility/settings/TrackballSettings.h>
+#include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
+#include <Tactility/Paths.h>
 
 #include <map>
 #include <string>
@@ -7,7 +9,10 @@
 
 namespace tt::settings::trackball {
 
-constexpr auto* SETTINGS_FILE = "/data/settings/trackball.properties";
+static std::string getSettingsFilePath() {
+    return getUserDataPath() + "/settings/trackball.properties";
+}
+
 constexpr auto* KEY_TRACKBALL_ENABLED = "trackballEnabled";
 constexpr auto* KEY_TRACKBALL_MODE = "trackballMode";
 constexpr auto* KEY_ENCODER_SENSITIVITY = "encoderSensitivity";
@@ -19,8 +24,13 @@ constexpr uint8_t MIN_POINTER_SENSITIVITY = 1;
 constexpr uint8_t MAX_POINTER_SENSITIVITY = 10;
 
 bool load(TrackballSettings& settings) {
+    auto settings_path = getSettingsFilePath();
+    if (!file::isFile(settings_path)) {
+        return false;
+    }
+
     std::map<std::string, std::string> map;
-    if (!file::loadPropertiesFile(SETTINGS_FILE, map)) {
+    if (!file::loadPropertiesFile(settings_path, map)) {
         return false;
     }
 
@@ -80,7 +90,11 @@ bool save(const TrackballSettings& settings) {
     map[KEY_TRACKBALL_MODE] = (settings.trackballMode == TrackballMode::Pointer) ? "1" : "0";
     map[KEY_ENCODER_SENSITIVITY] = std::to_string(std::clamp(settings.encoderSensitivity, MIN_ENCODER_SENSITIVITY, MAX_ENCODER_SENSITIVITY));
     map[KEY_POINTER_SENSITIVITY] = std::to_string(std::clamp(settings.pointerSensitivity, MIN_POINTER_SENSITIVITY, MAX_POINTER_SENSITIVITY));
-    return file::savePropertiesFile(SETTINGS_FILE, map);
+    auto settings_path = getSettingsFilePath();
+    if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
+        return false;
+    }
+    return file::savePropertiesFile(settings_path, map);
 }
 
 }

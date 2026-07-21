@@ -5,11 +5,11 @@
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/Logger.h>
 #include <Tactility/service/gps/GpsService.h>
 #include <Tactility/service/gps/GpsState.h>
 #include <Tactility/service/loader/Loader.h>
 
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
 #include <cstring>
@@ -26,7 +26,7 @@ extern const AppManifest manifest;
 
 class GpsSettingsApp final : public App {
 
-    const Logger logger = Logger("GpsSettings");
+    static constexpr auto* TAG = "GpsSettings";
 
     std::unique_ptr<Timer> timer;
     std::shared_ptr<GpsSettingsApp*> appReference = std::make_shared<GpsSettingsApp*>(this);
@@ -101,7 +101,7 @@ class GpsSettingsApp final : public App {
         std::vector<tt::hal::gps::GpsConfiguration> configurations;
         auto gps_service = service::gps::findGpsService();
         if (gps_service && gps_service->getGpsConfigurations(configurations)) {
-            Logger("GpsSettings").info("Found service and configs {} {}", index, configurations.size());
+            LOG_I(TAG, "Found service and configs %d %d", index, (int)configurations.size());
             if (index < configurations.size()) {
                 if (gps_service->removeGpsConfiguration(configurations[index])) {
                     app->updateViews();
@@ -163,7 +163,7 @@ class GpsSettingsApp final : public App {
             // Update toolbar
             switch (state) {
                 case service::gps::State::OnPending:
-                    logger.debug("OnPending");
+                    LOG_D(TAG, "OnPending");
                     lv_obj_remove_flag(spinnerWidget, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_state(switchWidget, LV_STATE_CHECKED);
                     lv_obj_add_state(switchWidget, LV_STATE_DISABLED);
@@ -172,7 +172,7 @@ class GpsSettingsApp final : public App {
                     lv_obj_add_flag(addGpsWrapper, LV_OBJ_FLAG_HIDDEN);
                     break;
                 case service::gps::State::On:
-                    logger.debug("On");
+                    LOG_D(TAG, "On");
                     lv_obj_add_flag(spinnerWidget, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_state(switchWidget, LV_STATE_CHECKED);
                     lv_obj_remove_state(switchWidget, LV_STATE_DISABLED);
@@ -181,7 +181,7 @@ class GpsSettingsApp final : public App {
                     lv_obj_add_flag(addGpsWrapper, LV_OBJ_FLAG_HIDDEN);
                     break;
                 case service::gps::State::OffPending:
-                    logger.debug("OffPending");
+                    LOG_D(TAG, "OffPending");
                     lv_obj_remove_flag(spinnerWidget, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_remove_state(switchWidget, LV_STATE_CHECKED);
                     lv_obj_add_state(switchWidget, LV_STATE_DISABLED);
@@ -190,7 +190,7 @@ class GpsSettingsApp final : public App {
                     lv_obj_remove_flag(addGpsWrapper, LV_OBJ_FLAG_HIDDEN);
                     break;
                 case service::gps::State::Off:
-                    logger.debug("Off");
+                    LOG_D(TAG, "Off");
                     lv_obj_add_flag(spinnerWidget, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_remove_state(switchWidget, LV_STATE_CHECKED);
                     lv_obj_remove_state(switchWidget, LV_STATE_DISABLED);

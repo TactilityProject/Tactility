@@ -22,7 +22,7 @@ set(DEVICETREE_LOCATION "${PROJECT_ROOT}/Devices/${TACTILITY_DEVICE_ID}")
 # Fixes the sdkconfig bluetooth enable options from getting nuked on non-P4+C6 builds when idf build runs
 if (DEFINED ENV{ESP_IDF_VERSION})
     file(READ "${DEVICETREE_LOCATION}/device.properties" device_properties_content)
-    if (device_properties_content MATCHES "bluetooth=true")
+    if (device_properties_content MATCHES "hardware\\.bluetooth=true")
         list(APPEND REQUIRES_LIST bt)
     endif()
 endif()
@@ -86,10 +86,11 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     )
 else ()
     list(APPEND REQUIRES_LIST
-        TactilityCore
+        Tactility
         TactilityFreeRtos
         hal-device-module
         lvgl-module
+        crypt-module
         SDL2::SDL2-static
         SDL2-static
     )
@@ -101,21 +102,33 @@ endif ()
 # Devicetree code generation
 #
 
-add_custom_target(AlwaysRun
-    COMMAND ${CMAKE_COMMAND} -E rm -f "${GENERATED_DIR}/devicetree.c"
-)
-add_custom_command(
-    OUTPUT "${GENERATED_DIR}/devicetree.c"
-        "${GENERATED_DIR}/devicetree.h"
+# A plain add_custom_command(OUTPUT ...) only reruns when its explicit DEPENDS (devicetree.yaml)
+# changes, since ninja computes dirtiness up front, before any command in this invocation runs.
+# The devicetree's real inputs span many files (dts, bindings yaml, driver headers) that a single
+# DEPENDS can't enumerate, so this used to be forced to always-rerun via a separate "AlwaysRun"
+# custom target that deleted devicetree.c first (DEPENDS on a *target* only creates an order-only
+# ninja edge). That delete was invisible to ninja's DAG: on an up-to-date build, ninja would still
+# run AlwaysRun (custom targets with no real output are always considered dirty) and delete the
+# file, but *not* rerun the generation edge (its own explicit input hadn't changed) or recompile
+# devicetree.c.obj (also considered clean) - silently leaving devicetree.c missing on disk until
+# some later, unrelated build finally noticed and regenerated it. In between, any build that did
+# need to (re)compile devicetree.c.obj hit "No such file or directory".
+#
+# add_custom_target(... COMMAND ...) has no such problem: unlike add_custom_command(OUTPUT ...),
+# a custom target with a COMMAND always reruns on every ninja invocation, so generation and the
+# stale artifact removal happen atomically in one edge. BYPRODUCTS tells ninja which files this
+# target produces, so it still wires a proper (non-order-only) dependency for the sources that
+# consume them.
+add_custom_target(Generated ALL
     COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/DevicetreeCompiler/compile.py"
         "${DEVICETREE_LOCATION}" "${GENERATED_DIR}"
+    BYPRODUCTS "${GENERATED_DIR}/devicetree.c" "${GENERATED_DIR}/devicetree.h"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    DEPENDS AlwaysRun "${DEVICETREE_LOCATION}/devicetree.yaml" # AlwaysRun ensures it always gets built
     COMMENT "Generating devicetree source files..."
 )
-add_custom_target(Generated DEPENDS "${GENERATED_DIR}/devicetree.c")
 set_source_files_properties("${GENERATED_DIR}/devicetree.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${GENERATED_DIR}/devicetree.h" PROPERTIES GENERATED TRUE)
 # Update target for generated code
 target_sources(${COMPONENT_LIB} PRIVATE "${GENERATED_DIR}/devicetree.c")
 target_include_directories(${COMPONENT_LIB} PRIVATE "${GENERATED_DIR}")
+add_dependencies(${COMPONENT_LIB} Generated)

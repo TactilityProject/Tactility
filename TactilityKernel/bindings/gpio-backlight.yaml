@@ -1,0 +1,16 @@
+description: >
+  Simple GPIO-driven on/off backlight, for panels whose backlight is a single digital
+  enable pin rather than a PWM-dimmable one. Brightness is treated as boolean: any
+  value greater than 0 turns the backlight on, 0 turns it off.
+
+compatible: "gpio-backlight"
+
+properties:
+  pin:
+    type: phandles
+    required: true
+    description: Backlight enable output pin
+  enabled:
+    type: boolean
+    default: false
+    description: Whether the backlight is turned on by set_brightness_default()

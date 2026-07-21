@@ -22,7 +22,9 @@ jobs:
         ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: "Build SDK"
         uses: ./.github/actions/build-sdk
         with:
@@ -79,10 +81,26 @@ jobs:
           { id: waveshare-s3-touch-lcd-43, arch: esp32s3 },
           { id: wireless-tag-wt32-sc01-plus, arch: esp32s3 }
         ]
+  GenerateDeviceMatrix:
     runs-on: ubuntu-latest
     needs: [ BuildSdk ]
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - id: set-matrix
+        run: python3 Buildscripts/gh-generate-device-matrix.py
+  BuildFirmware:
+    runs-on: ubuntu-latest
+    needs: GenerateDeviceMatrix
+    strategy:
+      matrix: ${{ fromJSON(needs.GenerateDeviceMatrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: "Build Firmware"
         uses: ./.github/actions/build-firmware
         with:
@@ -95,7 +113,9 @@ jobs:
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: "Bundle Artifacts"
         uses: ./.github/actions/bundle-artifacts
   PublishFirmwareSnapshot:
@@ -103,7 +123,7 @@ jobs:
     needs: [ BundleArtifacts ]
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "Publish Firmware Snapshot"
         env:
           CDN_ID: ${{ secrets.CDN_ID }}
@@ -117,7 +137,7 @@ jobs:
     needs: [ BundleArtifacts ]
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "Publish Firmware Stable"
         env:
           CDN_ID: ${{ secrets.CDN_ID }}
@@ -131,7 +151,7 @@ jobs:
     needs: [ BundleArtifacts ]
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "Publish SDKs"
         env:
           CDN_ID: ${{ secrets.CDN_ID }}

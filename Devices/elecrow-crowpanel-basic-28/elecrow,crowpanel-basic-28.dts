@@ -1,14 +1,25 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/ili9341.h>
+#include <bindings/xpt2046.h>
 
 / {
 	compatible = "root";
 	model = "Elecrow CrowPanel Basic 2.8";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
@@ -23,21 +34,63 @@
 		pin-scl = <&gpio0 21 GPIO_FLAG_NONE>;
 	};
 
-	display_spi: spi0 {
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 27 GPIO_FLAG_NONE>;
+		period-ns = <25000>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 15 GPIO_FLAG_NONE>, // Display
+		            <&gpio0 33 GPIO_FLAG_NONE>; // Touch
 		pin-mosi = <&gpio0 13 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 12 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 14 GPIO_FLAG_NONE>;
 		max-transfer-size = <65536>;
+
+		display@0 {
+			compatible = "ilitek,ili9341";
+			horizontal-resolution = <240>;
+			vertical-resolution = <320>;
+			mirror-x;
+			bgr-order;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 2 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
+
+		touch@1 {
+			compatible = "xptek,xpt2046";
+			x-max = <240>;
+			y-max = <320>;
+			mirror-x;
+		};
 	};
 
-	sdcard_spi: spi1 {
+	spi1 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI3_HOST>;
+		cs-gpios = <&gpio0 5 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 23 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 19 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 18 GPIO_FLAG_NONE>;
+
+		sdcard@0 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
 	};
 
 	uart1 {

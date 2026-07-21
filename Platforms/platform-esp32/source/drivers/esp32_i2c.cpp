@@ -238,7 +238,8 @@ static constexpr I2cControllerApi ESP32_I2C_API = {
     .write = write,
     .write_read = write_read,
     .read_register = read_register,
-    .write_register = write_register
+    .write_register = write_register,
+    .probe = nullptr
 };
 
 extern Module platform_esp32_module;

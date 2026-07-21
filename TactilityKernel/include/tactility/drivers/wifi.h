@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include <tactility/error.h>
+#include <tactility/firmware/firmware.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -196,9 +197,36 @@ struct WifiApi {
      * @return ERROR_NONE on success
      */
     error_t (*remove_event_callback)(struct Device* device, WifiEventCallback callback);
+
+    /**
+     * Get this device's co-processor firmware update interface, if it has one.
+     * @param[in] device the wifi device
+     * @param[out] ops filled in with the FirmwareOps vtable and its ctx, if supported
+     * @return ERROR_NONE on success, ERROR_NOT_SUPPORTED if this device has no updatable
+     * co-processor (ops is left untouched in that case)
+     */
+    error_t (*get_firmware_ops)(struct Device* device, const struct FirmwareOps** ops, void** ctx);
 };
 
 extern const struct DeviceType WIFI_TYPE;
+
+/** @return the first registered WiFi device, regardless of started state, or NULL if none exists */
+struct Device* wifi_find_first_registered_device(void);
+
+error_t wifi_get_radio_state(struct Device* device, enum WifiRadioState* state);
+error_t wifi_get_station_state(struct Device* device, enum WifiStationState* state);
+error_t wifi_get_access_point_state(struct Device* device, enum WifiAccessPointState* state);
+bool wifi_is_scanning(struct Device* device);
+error_t wifi_scan(struct Device* device);
+error_t wifi_get_scan_results(struct Device* device, struct WifiApRecord* results, size_t* num_results);
+error_t wifi_station_get_ipv4_address(struct Device* device, char* ipv4);
+error_t wifi_station_get_target_ssid(struct Device* device, char* ssid);
+error_t wifi_station_connect(struct Device* device, const char* ssid, const char* password, int32_t channel);
+error_t wifi_station_disconnect(struct Device* device);
+error_t wifi_station_get_rssi(struct Device* device, int32_t* rssi);
+error_t wifi_add_event_callback(struct Device* device, void* callback_context, WifiEventCallback callback);
+error_t wifi_remove_event_callback(struct Device* device, WifiEventCallback callback);
+error_t wifi_get_firmware_ops(struct Device* device, const struct FirmwareOps** ops, void** ctx);
 
 #ifdef __cplusplus
 }

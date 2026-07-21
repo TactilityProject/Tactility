@@ -2,15 +2,16 @@
 #include <Tactility/file/FileLock.h>
 
 #include <Tactility/file/File.h>
-#include <Tactility/Logger.h>
 #include <Tactility/settings/Language.h>
+
+#include <tactility/log.h>
 
 #include <format>
 #include <utility>
 
 namespace tt::i18n {
 
-static const auto LOGGER = Logger("I18n");
+constexpr auto* TAG = "I18n";
 
 static std::string getFallbackLocale() {
     return "en-US";
@@ -39,7 +40,7 @@ static std::string getI18nDataFilePath(const std::string& path) {
     if (file::isFile(desired_file_path)) {
         return desired_file_path;
     } else {
-        LOGGER.warn("Translations not found for {} at {}", locale, desired_file_path);
+        LOG_W(TAG, "Translations not found for %s at %s", locale.c_str(), desired_file_path.c_str());
     }
 
     auto fallback_locale = getFallbackLocale();
@@ -47,7 +48,7 @@ static std::string getI18nDataFilePath(const std::string& path) {
     if (file::isFile(fallback_file_path)) {
         return fallback_file_path;
     } else {
-        LOGGER.warn("Fallback translations not found for {} at {}", fallback_locale, fallback_file_path);
+        LOG_W(TAG, "Fallback translations not found for %s at %s", fallback_locale.c_str(), fallback_file_path.c_str());
         return "";
     }
 }
@@ -60,7 +61,7 @@ bool TextResources::load() {
     // Resolve the language file that we need (depends on system language selection)
     auto file_path = getI18nDataFilePath(path);
     if (file_path.empty()) {
-        LOGGER.error("Couldn't find i18n data for {}", path);
+        LOG_E(TAG, "Couldn't find i18n data for %s", path.c_str());
         return false;
     }
 
@@ -69,7 +70,7 @@ bool TextResources::load() {
     });
 
     if (new_data.empty()) {
-        LOGGER.error("Couldn't find i18n data for {}", path);
+        LOG_E(TAG, "Couldn't find i18n data for %s", path.c_str());
         return false;
     }
 

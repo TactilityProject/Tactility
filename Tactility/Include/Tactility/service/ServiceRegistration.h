@@ -40,7 +40,7 @@ State getState(const std::string& id);
  * @param[in] id the id as defined in the manifest
  * @return the matching manifest or nullptr when it wasn't found
  */
-std::shared_ptr<const ServiceManifest> findManifestById(const std::string& id);
+const ::ServiceManifest* findManifestById(const std::string& id);
 
 /** Find a ServiceContext by its manifest id.
  * @param[in] id the id as defined in the manifest

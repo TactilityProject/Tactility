@@ -1,38 +1,133 @@
 /dts-v1/;
 
 #include <tactility/bindings/root.h>
+#include <tactility/bindings/battery_sense.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_sdmmc.h>
-#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_i8080.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <tactility/bindings/gpio_hog.h>
+#include <bindings/button_control.h>
+#include <bindings/st7789_i8080.h>
+#include <bindings/xpt2046_softspi.h>
 
 / {
 	compatible = "root";
 	model = "LilyGO T-HMI";
 
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
 	ble0 {
 		compatible = "espressif,esp32-ble";
+		status = "disabled";
 	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
 	};
-	
-	spi0 {
-		compatible = "espressif,esp32-spi";
-		host = <SPI2_HOST>;
+
+	// Board power-enable pins. Must be asserted before the i8080 bus/display below start, since
+	// devicetree devices are constructed and started earlier (kernel_init()) than the deprecated
+	// HAL's initBoot() used to run. gpio-hog nodes run in declaration order, so they must stay
+	// before the i8080 bus node.
+	power_on {
+		compatible = "gpio-hog";
+		pin = <&gpio0 14 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	power_en {
+		compatible = "gpio-hog";
+		pin = <&gpio0 10 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		channels = <ADC_CHANNEL_4 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	// Battery voltage sits behind a 2:1 divider before reaching the ADC (see the deprecated HAL's
+	// old Power.cpp: adcReadValue() * 2). 3300mV matches its uncalibrated fallback reference
+	// voltage. Charge-percent curve is battery-sense's own fixed 3200-4200mV estimate (see
+	// TactilityKernel/source/drivers/battery_sense.cpp) rather than the old driver's 3300-4200mV
+	// ChargeFromVoltage curve - a shared kernel driver, not a per-board tunable.
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2000>;
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 38 GPIO_FLAG_NONE>;
+		period-ns = <33333>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	i8080_0 {
+		compatible = "espressif,esp32-i8080";
+		pin-dc = <&gpio0 7 GPIO_FLAG_NONE>;
+		pin-wr = <&gpio0 8 GPIO_FLAG_NONE>;
+		pin-d0 = <&gpio0 48 GPIO_FLAG_NONE>;
+		pin-d1 = <&gpio0 47 GPIO_FLAG_NONE>;
+		pin-d2 = <&gpio0 39 GPIO_FLAG_NONE>;
+		pin-d3 = <&gpio0 40 GPIO_FLAG_NONE>;
+		pin-d4 = <&gpio0 41 GPIO_FLAG_NONE>;
+		pin-d5 = <&gpio0 42 GPIO_FLAG_NONE>;
+		pin-d6 = <&gpio0 45 GPIO_FLAG_NONE>;
+		pin-d7 = <&gpio0 46 GPIO_FLAG_NONE>;
+		// horizontal-resolution * vertical-resolution / 10 (partial buffer) * 2 bytes/pixel
+		max-transfer-bytes = <15360>;
+		cs-gpios = <&gpio0 6 GPIO_FLAG_NONE>;
+
+		display@0 {
+			compatible = "sitronix,st7789-i8080";
+			horizontal-resolution = <240>;
+			vertical-resolution = <320>;
+			pixel-clock-hz = <16000000>;
+			backlight = <&display_backlight>;
+			gamma-curve = <2>;
+		};
+	};
+
+	touch {
+		compatible = "xptek,xpt2046-softspi";
 		pin-mosi = <&gpio0 3 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 4 GPIO_FLAG_NONE>;
-		pin-sclk = <&gpio0 1 GPIO_FLAG_NONE>;
+		pin-sck = <&gpio0 1 GPIO_FLAG_NONE>;
+		pin-cs = <&gpio0 2 GPIO_FLAG_NONE>;
+		x-max = <240>;
+		y-max = <320>;
 	};
 
 	sdmmc0 {
 		compatible = "espressif,esp32-sdmmc";
+		status = "disabled"; // Late-init is required, otherwise mounting fails
 		pin-clk = <&gpio0 12 GPIO_FLAG_NONE>;
 		pin-cmd = <&gpio0 11 GPIO_FLAG_NONE>;
 		pin-d0 = <&gpio0 13 GPIO_FLAG_NONE>;
+		slot = <SDMMC_HOST_SLOT_1>;
 		bus-width = <1>;
 		pullups;
 	};

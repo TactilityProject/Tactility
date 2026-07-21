@@ -1,29 +1,36 @@
 #include <Tactility/app/btmanage/BtManagePrivate.h>
 #include <Tactility/app/btmanage/View.h>
 
+#include <Tactility/LogMessages.h>
+#include <Tactility/Tactility.h>
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppManifest.h>
-#include <Tactility/Logger.h>
-#include <Tactility/LogMessages.h>
 #include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/Tactility.h>
 
+#include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
 namespace tt::app::btmanage {
 
-static const auto LOGGER = Logger("BtManage");
+constexpr auto* TAG = "BtManage";
 
 extern const AppManifest manifest;
 
-static void onBtToggled(bool enabled) {
-    struct Device* dev = bluetooth::findFirstDevice();
+static void onBtToggled(bool requestOn) {
+#if defined(CONFIG_BT_NIMBLE_ENABLED)
+    Device* dev = device_find_first_by_type(&BLUETOOTH_TYPE);
     if (!dev) return;
-    bluetooth_set_radio_enabled(dev, enabled);
+    bool radio_on = bluetooth::isRadioOnOrPending(dev);
+    if (requestOn && !radio_on) {
+        bluetooth::start(dev);
+    } else if (!requestOn && radio_on) {
+        bluetooth::stop(dev);
+    }
+#endif
 }
 
 static void onScanToggled(bool enabled) {
-    struct Device* dev = bluetooth::findFirstDevice();
+    Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
     if (!dev) return;
     if (enabled) {
         bluetooth_scan_start(dev);
@@ -76,7 +83,7 @@ void BtManage::requestViewUpdate() {
             view.update();
             lvgl::unlock();
         } else {
-            LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
+            LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
         }
     }
     unlock();
@@ -84,7 +91,7 @@ void BtManage::requestViewUpdate() {
 
 void BtManage::onBtEvent(const struct BtEvent& event) {
     auto radio_state = bluetooth::getRadioState();
-    LOGGER.info("Update with state {}", bluetooth::radioStateToString(radio_state));
+    LOG_I(TAG, "Update with state %s", bluetooth::radioStateToString(radio_state));
     getState().setRadioState(radio_state);
     switch (event.type) {
         case BT_EVENT_SCAN_STARTED:
@@ -108,7 +115,7 @@ void BtManage::onBtEvent(const struct BtEvent& event) {
         case BT_EVENT_RADIO_STATE_CHANGED:
             if (event.radio_state == BT_RADIO_STATE_ON) {
                 getState().updatePairedPeers();
-                struct Device* dev = bluetooth::findFirstDevice();
+                Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
                 if (dev && !bluetooth_is_scanning(dev)) {
                     bluetooth_scan_start(dev);
                 }
@@ -121,7 +128,7 @@ void BtManage::onBtEvent(const struct BtEvent& event) {
     requestViewUpdate();
 }
 
-static void onKernelBtEvent(struct Device* /*device*/, void* context, struct BtEvent event) {
+static void onKernelBtEvent(Device* /*device*/, void* context, BtEvent event) {
     // BT event callbacks can fire from the NimBLE host task (e.g. DISCONNECT during
     // nimble_port_stop shutdown). Calling onBtEvent() synchronously from the NimBLE
     // task would block it on the LVGL mutex (held by the LVGL task waiting in
@@ -137,7 +144,7 @@ void BtManage::onShow(AppContext& app, lv_obj_t* parent) {
     // Initialise state and view before subscribing to avoid incoming events
     // racing with state initialisation.
     state.setRadioState(bluetooth::getRadioState());
-    struct Device* dev = bluetooth::findFirstDevice();
+    Device* dev = device_find_first_active_by_type(&BLUETOOTH_TYPE);
     state.setScanning(dev ? bluetooth_is_scanning(dev) : false);
     state.updateScanResults();
     state.updatePairedPeers();
@@ -155,10 +162,10 @@ void BtManage::onShow(AppContext& app, lv_obj_t* parent) {
 
     auto radio_state = bluetooth::getRadioState();
     bool can_scan = radio_state == bluetooth::RadioState::On;
-    LOGGER.info("Radio: {}, Scanning: {}, Can scan: {}",
+    LOG_I(TAG, "Radio: %s, Scanning: %d, Can scan: %d",
         bluetooth::radioStateToString(radio_state),
-        dev ? bluetooth_is_scanning(dev) : false,
-        can_scan);
+        (int)(dev ? bluetooth_is_scanning(dev) : false),
+        (int)can_scan);
     if (can_scan && dev && !bluetooth_is_scanning(dev)) {
         bluetooth_scan_start(dev);
     }

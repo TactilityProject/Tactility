@@ -3,6 +3,7 @@
 
 build/
 buildsim/
+build-*/
 cmake-*/
 CMakeCache.txt
 *.cbp

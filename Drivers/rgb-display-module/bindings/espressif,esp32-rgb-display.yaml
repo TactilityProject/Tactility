@@ -1,0 +1,224 @@
+description: >
+  ESP32 RGB (parallel timing-driven) LCD panel, built on ESP-IDF's esp_lcd_rgb_panel
+  component. Unlike SPI/i8080 panels, an RGB panel has no command interface and owns its
+  GPIOs directly rather than sitting behind a shared bus controller device.
+
+compatible: "espressif,esp32-rgb-display"
+
+properties:
+  horizontal-resolution:
+    type: int
+    required: true
+    description: Horizontal resolution in pixels
+  vertical-resolution:
+    type: int
+    required: true
+    description: Vertical resolution in pixels
+  pixel-clock-hz:
+    type: int
+    required: true
+    description: Pixel clock frequency in Hz
+  hsync-pulse-width:
+    type: int
+    required: true
+    description: Horizontal sync width, in PCLK periods
+  hsync-back-porch:
+    type: int
+    required: true
+    description: Number of PCLK periods between hsync and the start of line active data
+  hsync-front-porch:
+    type: int
+    required: true
+    description: Number of PCLK periods between the end of active data and the next hsync
+  vsync-pulse-width:
+    type: int
+    required: true
+    description: Vertical sync width, in lines
+  vsync-back-porch:
+    type: int
+    required: true
+    description: Number of invalid lines between vsync and the start of the frame
+  vsync-front-porch:
+    type: int
+    required: true
+    description: Number of invalid lines between the end of the frame and the next vsync
+  hsync-idle-low:
+    type: boolean
+    default: false
+    description: The hsync signal is low in the idle state
+  vsync-idle-low:
+    type: boolean
+    default: false
+    description: The vsync signal is low in the idle state
+  de-idle-high:
+    type: boolean
+    default: false
+    description: The DE signal is high in the idle state
+  pclk-active-neg:
+    type: boolean
+    default: false
+    description: Whether display data is clocked out on the falling edge of PCLK
+  pclk-idle-high:
+    type: boolean
+    default: false
+    description: The PCLK signal stays high in the idle phase
+  data-width:
+    type: int
+    default: 16
+    description: Number of parallel data lines wired (8 or 16)
+  bits-per-pixel:
+    type: int
+    default: 0
+    description: Frame buffer color depth in bpp. 0 defaults to data-width.
+  num-fbs:
+    type: int
+    default: 1
+    description: Number of screen-sized frame buffers to allocate (0 or 1 = single-buffered)
+  bounce-buffer-size-px:
+    type: int
+    default: 0
+    description: Non-zero enables the DRAM bounce-buffer DMA path, sized in pixels
+  sram-trans-align:
+    type: int
+    default: 8
+    description: Alignment of buffers allocated in internal SRAM
+  psram-trans-align:
+    type: int
+    default: 64
+    description: Alignment of buffers allocated in PSRAM
+  pin-hsync:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: HSYNC GPIO pin, optional for panels that only need DE (data-enable) sync
+  pin-vsync:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: VSYNC GPIO pin, optional for panels that only need DE (data-enable) sync
+  pin-de:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data-enable GPIO pin, optional
+  pin-pclk:
+    type: phandles
+    required: true
+    description: Pixel-clock GPIO pin
+  pin-disp:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional display-enable control GPIO pin
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional hardware reset pin for the panel's own driver IC, pulsed once at start()
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high
+  pin-data0:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 0 GPIO pin
+  pin-data1:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 1 GPIO pin
+  pin-data2:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 2 GPIO pin
+  pin-data3:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 3 GPIO pin
+  pin-data4:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 4 GPIO pin
+  pin-data5:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 5 GPIO pin
+  pin-data6:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 6 GPIO pin
+  pin-data7:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 7 GPIO pin
+  pin-data8:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 8 GPIO pin
+  pin-data9:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 9 GPIO pin
+  pin-data10:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 10 GPIO pin
+  pin-data11:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 11 GPIO pin
+  pin-data12:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 12 GPIO pin
+  pin-data13:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 13 GPIO pin
+  pin-data14:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 14 GPIO pin
+  pin-data15:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 15 GPIO pin
+  disp-active-low:
+    type: boolean
+    default: false
+    description: A low level on the display-enable control signal turns the screen on
+  refresh-on-demand:
+    type: boolean
+    default: false
+    description: Only refresh the frame buffer on explicit draw_bitmap calls
+  fb-in-psram:
+    type: boolean
+    default: true
+    description: Allocate the frame buffer from PSRAM, preferentially
+  double-fb:
+    type: boolean
+    default: false
+    description: Allocate two screen-sized frame buffers (equivalent to num-fbs = 2)
+  no-fb:
+    type: boolean
+    default: false
+    description: Don't allocate a frame buffer; bounce buffer must be filled manually
+  bb-invalidate-cache:
+    type: boolean
+    default: false
+    description: Invalidate cache on bounce-buffer reads (can be dangerous with multi-core writers)
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  invert-color:
+    type: boolean
+    default: false
+    description: Invert the panel's color output
+  backlight:
+    type: phandle
+    default: "NULL"
+    description: Optional reference to this display's backlight device

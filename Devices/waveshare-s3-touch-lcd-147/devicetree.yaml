@@ -1,3 +1,6 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/axs5106-module
+  - Drivers/button-control-module
+  - Drivers/jd9853-module
 dts: waveshare,s3-touch-lcd-147.dts

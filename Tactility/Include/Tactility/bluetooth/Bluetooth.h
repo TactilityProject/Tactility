@@ -26,8 +26,13 @@ struct PeerRecord {
     int profileId = 0;
 };
 
-/** Find the first ready BLE device in the kernel device registry. Returns nullptr if unavailable. */
-struct Device* findFirstDevice();
+// Wrapper around device start & radio on
+bool start(Device* dev);
+
+// Wrapper around device stop & radio off
+bool stop(Device* dev);
+
+bool isRadioOnOrPending(Device* dev);
 
 /** @return the current radio state */
 RadioState getRadioState();

@@ -2,16 +2,28 @@
 
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/st7701.h>
+#include <bindings/gt911.h>
 
 / {
 	compatible = "root";
 	model = "CYD 4848S040C";
 
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
 	ble0 {
 		compatible = "espressif,esp32-ble";
+		status = "disabled";
 	};
 
 	gpio0 {
@@ -25,14 +37,137 @@
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 19 GPIO_FLAG_NONE>;
 		pin-scl = <&gpio0 45 GPIO_FLAG_NONE>;
+
+		touch0 {
+			// No reset/interrupt pin wired up here, matching the original deprecated-HAL
+			// config (Gt911Touch::Configuration was constructed with no reset/interrupt pin
+			// arguments on this board).
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <480>;
+			y-max = <480>;
+		};
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 38 GPIO_FLAG_NONE>;
+		period-ns = <1000000>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		pwm = <&display_backlight_pwm>;
+	};
+
+	display0 {
+		compatible = "sitronix,st7701";
+		horizontal-resolution = <480>;
+		vertical-resolution = <480>;
+		pixel-clock-hz = <14000000>;
+		hsync-pulse-width = <10>;
+		hsync-back-porch = <10>;
+		hsync-front-porch = <20>;
+		vsync-pulse-width = <10>;
+		vsync-back-porch = <10>;
+		vsync-front-porch = <10>;
+		num-fbs = <2>;
+		double-fb;
+		bounce-buffer-size-px = <4800>;
+		bb-invalidate-cache;
+		pin-hsync = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-vsync = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-de = <&gpio0 18 GPIO_FLAG_NONE>;
+		pin-pclk = <&gpio0 21 GPIO_FLAG_NONE>;
+		pin-data0 = <&gpio0 4 GPIO_FLAG_NONE>; // B1
+		pin-data1 = <&gpio0 5 GPIO_FLAG_NONE>; // B2
+		pin-data2 = <&gpio0 6 GPIO_FLAG_NONE>; // B3
+		pin-data3 = <&gpio0 7 GPIO_FLAG_NONE>; // B4
+		pin-data4 = <&gpio0 15 GPIO_FLAG_NONE>; // B5
+		pin-data5 = <&gpio0 8 GPIO_FLAG_NONE>; // G1
+		pin-data6 = <&gpio0 20 GPIO_FLAG_NONE>; // G2
+		pin-data7 = <&gpio0 3 GPIO_FLAG_NONE>; // G3
+		pin-data8 = <&gpio0 46 GPIO_FLAG_NONE>; // G4
+		pin-data9 = <&gpio0 9 GPIO_FLAG_NONE>; // G5
+		pin-data10 = <&gpio0 10 GPIO_FLAG_NONE>; // G6
+		pin-data11 = <&gpio0 11 GPIO_FLAG_NONE>; // R1
+		pin-data12 = <&gpio0 12 GPIO_FLAG_NONE>; // R2
+		pin-data13 = <&gpio0 13 GPIO_FLAG_NONE>; // R3
+		pin-data14 = <&gpio0 14 GPIO_FLAG_NONE>; // R4
+		pin-data15 = <&gpio0 0 GPIO_FLAG_NONE>; // R5
+
+		// 3-wire bit-banged command bus. GPIO47/48 are physically shared with this board's SD
+		// card SPI2 bus (MOSI/SCLK) - no alternate pins exist on this PCB. No SD card device is
+		// declared in this devicetree yet (CS/MISO pins are unverified), but if one is added on
+		// SPI2_HOST later, declare it *after* this node: starting that SPI bus unconditionally
+		// reprograms the GPIO matrix for its MOSI/SCLK pins (see esp32_spi.cpp's start()),
+		// which reclaims them from this display's bit-banged use without any extra code.
+		pin-cs = <&gpio0 39 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 48 GPIO_FLAG_NONE>;
+		pin-sda = <&gpio0 47 GPIO_FLAG_NONE>;
+		mirror-by-cmd;
+
+		init-sequence = [
+			// Vendor bring-up sequence for this panel. Framing is
+			// [cmd, data-len, delay-ms, data-len bytes of data...] - see st7701-module's
+			// init-sequence binding property for the encoding.
+			0xFF 5  0    0x77 0x01 0x00 0x00 0x10
+			0xC0 2  0    0x3B 0x00
+			0xC1 2  0    0x0D 0x02
+			0xC2 2  0    0x31 0x05
+			0xCD 1  0    0x00
+			// Positive Voltage Gamma Control
+			0xB0 16 0    0x00 0x11 0x18 0x0E 0x11 0x06 0x07 0x08 0x07 0x22 0x04 0x12 0x0F 0xAA 0x31 0x18
+			// Negative Voltage Gamma Control
+			0xB1 16 0    0x00 0x11 0x19 0x0E 0x12 0x07 0x08 0x08 0x08 0x22 0x04 0x11 0x11 0xA9 0x32 0x18
+			// Page1
+			0xFF 5  0    0x77 0x01 0x00 0x00 0x11
+			0xB0 1  0    0x60 // Vop=4.7375v
+			0xB1 1  0    0x32 // VCOM=32
+			0xB2 1  0    0x07 // VGH=15v
+			0xB3 1  0    0x80
+			0xB5 1  0    0x49 // VGL=-10.17v
+			0xB7 1  0    0x85
+			0xB8 1  0    0x21 // AVDD=6.6 & AVCL=-4.6
+			0xC1 1  0    0x78
+			0xC2 1  0    0x78
+			0xE0 3  0    0x00 0x1B 0x02
+			0xE1 11 0    0x08 0xA0 0x00 0x00 0x07 0xA0 0x00 0x00 0x00 0x44 0x44
+			0xE2 12 0    0x11 0x11 0x44 0x44 0xED 0xA0 0x00 0x00 0xEC 0xA0 0x00 0x00
+			0xE3 4  0    0x00 0x00 0x11 0x11
+			0xE4 2  0    0x44 0x44
+			0xE5 16 0    0x0A 0xE9 0xD8 0xA0 0x0C 0xEB 0xD8 0xA0 0x0E 0xED 0xD8 0xA0 0x10 0xEF 0xD8 0xA0
+			0xE6 4  0    0x00 0x00 0x11 0x11
+			0xE7 2  0    0x44 0x44
+			0xE8 16 0    0x09 0xE8 0xD8 0xA0 0x0B 0xEA 0xD8 0xA0 0x0D 0xEC 0xD8 0xA0 0x0F 0xEE 0xD8 0xA0
+			0xEB 7  0    0x02 0x00 0xE4 0xE4 0x88 0x00 0x40
+			0xEC 2  0    0x3C 0x00
+			0xED 16 0    0xAB 0x89 0x76 0x54 0x02 0xFF 0xFF 0xFF 0xFF 0xFF 0xFF 0x20 0x45 0x67 0x98 0xBA
+			// VAP & VAN
+			0xFF 5  0    0x77 0x01 0x00 0x00 0x13
+			0xE5 1  0    0xE4
+			0xFF 5  0    0x77 0x01 0x00 0x00 0x00
+			0x3A 1  10   0x60 // 0x70 RGB888, 0x60 RGB666, 0x50 RGB565
+			0x11 0  120       // Sleep Out
+			0x29 0  0         // Display On
+		];
+
+		backlight = <&display_backlight>;
 	};
 
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 42 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 47 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 41 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 48 GPIO_FLAG_NONE>;
-		pin-hd = <&gpio0 42 GPIO_FLAG_NONE>;
+
+		sdcard@0 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
 	};
 };

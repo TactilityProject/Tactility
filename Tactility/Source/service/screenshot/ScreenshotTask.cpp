@@ -2,21 +2,22 @@
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
 
-#include <Tactility/CpuAffinity.h>
-#include <Tactility/Logger.h>
 #include <Tactility/LogMessages.h>
-#include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/service/screenshot/ScreenshotTask.h>
-#include <Tactility/service/loader/Loader.h>
+#include <Tactility/CpuAffinity.h>
 #include <Tactility/TactilityCore.h>
+#include <Tactility/lvgl/LvglSync.h>
+#include <Tactility/service/loader/Loader.h>
+#include <Tactility/service/screenshot/ScreenshotTask.h>
 
 #include <lv_screenshot.h>
 
 #include <format>
 
+#include <tactility/log.h>
+
 namespace tt::service::screenshot {
 
-static const auto LOGGER = Logger("ScreenshotTask");
+constexpr auto* TAG = "ScreenshotTask";
 
 ScreenshotTask::~ScreenshotTask() {
     if (thread) {
@@ -27,7 +28,7 @@ ScreenshotTask::~ScreenshotTask() {
 bool ScreenshotTask::isInterrupted() {
     auto lock = mutex.asScopedLock();
     if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        LOGGER.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_W(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED);
         return true;
     }
     return interrupted;
@@ -36,7 +37,7 @@ bool ScreenshotTask::isInterrupted() {
 bool ScreenshotTask::isFinished() {
     auto lock = mutex.asScopedLock();
     if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        LOGGER.warn(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_W(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED);
         return false;
     }
     return finished;
@@ -51,13 +52,13 @@ void ScreenshotTask::setFinished() {
 static void makeScreenshot(const std::string& filename) {
     if (lvgl::lock(50 / portTICK_PERIOD_MS)) {
         if (lv_screenshot_create(lv_scr_act(), LV_100ASK_SCREENSHOT_SV_PNG, filename.c_str())) {
-            LOGGER.info("Screenshot saved to {}", filename);
+            LOG_I(TAG, "Screenshot saved to %s", filename.c_str());
         } else {
-            LOGGER.error("Screenshot not saved to {}", filename);
+            LOG_E(TAG, "Screenshot not saved to %s", filename.c_str());
         }
         lvgl::unlock();
     } else {
-        LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
+        LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
     }
 }
 
@@ -103,7 +104,7 @@ void ScreenshotTask::taskMain() {
 void ScreenshotTask::taskStart() {
     auto lock = mutex.asScopedLock();
     if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED);
         return;
     }
 
@@ -123,7 +124,7 @@ void ScreenshotTask::taskStart() {
 void ScreenshotTask::startApps(const std::string& path) {
     auto lock = mutex.asScopedLock();
     if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED);
         return;
     }
 
@@ -133,14 +134,14 @@ void ScreenshotTask::startApps(const std::string& path) {
         work.path = path;
         taskStart();
     } else {
-        LOGGER.error("Task was already running");
+        LOG_E(TAG, "Task was already running");
     }
 }
 
 void ScreenshotTask::startTimed(const std::string& path, uint8_t delay_in_seconds, uint8_t amount) {
     auto lock = mutex.asScopedLock();
     if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+        LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED);
         return;
     }
 
@@ -152,7 +153,7 @@ void ScreenshotTask::startTimed(const std::string& path, uint8_t delay_in_second
         work.path = path;
         taskStart();
     } else {
-        LOGGER.error("Task was already running");
+        LOG_E(TAG, "Task was already running");
     }
 }
 

@@ -27,7 +27,7 @@ class View final {
     void updateScanning();
     void updateNetworkList();
     void updateConnectToHidden();
-    void createSsidListItem(const service::wifi::ApRecord& record, bool isConnecting, size_t index);
+    void createSsidListItem(const WifiApRecord& record, bool isConnecting, size_t index);
 
     static void showDetails(lv_event_t* event);
     static void connect(lv_event_t* event);

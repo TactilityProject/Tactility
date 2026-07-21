@@ -1,5 +1,10 @@
 #pragma once
 
+#include <Tactility/app/App.h>
+#include <Tactility/Bundle.h>
+
+#include <string>
+
 namespace tt::app::fileselection {
 
 /**

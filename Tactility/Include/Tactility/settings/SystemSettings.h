@@ -5,10 +5,9 @@
 namespace tt::settings {
 
 struct SystemSettings {
-    Language language;
-    bool timeFormat24h;
-    std::string dateFormat;  // MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD, YYYY/MM/DD
-    std::string region;      // (US, EU, JP, etc.)
+    Language language = Language::en_US;
+    bool timeFormat24h = true;
+    std::string dateFormat = std::string("DD/MM/YYYY"); // MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD, YYYY/MM/DD
 };
 
 bool loadSystemSettings(SystemSettings& properties);

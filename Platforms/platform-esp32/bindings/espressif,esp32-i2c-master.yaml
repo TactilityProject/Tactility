@@ -22,8 +22,8 @@ properties:
       Clock source for the I2C peripheral.
       If not specified, a default clock source will be used.
   pin-sda:
-    type: phandle-array
+    type: phandles
     required: true
   pin-scl:
-    type: phandle-array
+    type: phandles
     required: true

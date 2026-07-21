@@ -1,7 +1,6 @@
 #include "Tactility/file/FileLock.h"
 
-#include <Tactility/hal/sdcard/SdCardDevice.h>
-#include <Tactility/Mutex.h>
+#include <Tactility/hal/SdCard.h>
 
 namespace tt::file {
 

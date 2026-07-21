@@ -1,0 +1,47 @@
+description: Sitronix ST7123 in-cell capacitive touch controller, driven over ESP-IDF's
+  esp_lcd_touch_st7123 component
+
+include: ["i2c-device.yaml"]
+
+compatible: "sitronix,st7123-touch"
+
+bus: i2c
+
+properties:
+  x-max:
+    type: int
+    required: true
+    description: Maximum X coordinate reported by the controller (typically the panel's horizontal resolution)
+  y-max:
+    type: int
+    required: true
+    description: Maximum Y coordinate reported by the controller (typically the panel's vertical resolution)
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Reset GPIO pin. Most boards wire this through an IO expander and handle the
+      reset pulse themselves rather than through this driver - leave unset in that case.
+  pin-interrupt:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Interrupt GPIO pin
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high
+  interrupt-active-high:
+    type: boolean
+    default: false
+    description: Whether the interrupt pin is active high

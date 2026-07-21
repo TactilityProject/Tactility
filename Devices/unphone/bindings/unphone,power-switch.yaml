@@ -1,0 +1,11 @@
+description: >
+  unPhone physical power slide switch. Reflects whether the switch is in the "on"
+  position and can arm deep-sleep wakeup for when the switch is moved to "on".
+
+compatible: "unphone,power-switch"
+
+properties:
+  pin:
+    type: phandles
+    required: true
+    description: GPIO pin connected to the power switch

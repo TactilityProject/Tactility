@@ -10,7 +10,9 @@ jobs:
   Linux:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: "Build"
         uses: ./.github/actions/build-simulator
         with:
@@ -20,7 +22,9 @@ jobs:
   macOS:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: "Build"
         uses: ./.github/actions/build-simulator
         with:

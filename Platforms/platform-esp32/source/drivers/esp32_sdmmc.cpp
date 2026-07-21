@@ -10,6 +10,7 @@
 #include <tactility/drivers/esp32_sdmmc.h>
 #include <tactility/drivers/esp32_sdmmc_fs.h>
 #include <tactility/drivers/gpio_descriptor.h>
+#include <tactility/drivers/sdcard.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
 
@@ -115,6 +116,7 @@ static error_t start(Device* device) {
     }
 
     data->file_system = file_system_add(&esp32_sdmmc_fs_api, data->esp32_sdmmc_fs_handle);
+    file_system_set_owner(data->file_system, device);
     if (file_system_mount(data->file_system) != ERROR_NONE) {
         // Error is not recoverable at the time, but it might be recoverable later,
         // so we don't return start() failure.
@@ -176,7 +178,7 @@ Driver esp32_sdmmc_driver = {
     .start_device = start,
     .stop_device = stop,
     .api = nullptr,
-    .device_type = nullptr,
+    .device_type = &SDCARD_TYPE,
     .owner = &platform_esp32_module,
     .internal = nullptr
 };

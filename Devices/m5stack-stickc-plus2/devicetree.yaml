@@ -2,4 +2,6 @@ dependencies:
 - Platforms/platform-esp32
 - Drivers/mpu6886-module
 - Drivers/bm8563-module
+- Drivers/st7789-module
+- Drivers/button-control-module
 dts: m5stack,stickc-plus2.dts

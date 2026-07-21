@@ -1,16 +1,20 @@
-#include <Tactility/Tactility.h>
-
 #include <Tactility/app/touchcalibration/TouchCalibration.h>
 
-#include <Tactility/Logger.h>
+#if defined(CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED)
+
+#include <Tactility/Tactility.h>
 #include <Tactility/settings/TouchCalibrationSettings.h>
+
+#include <tactility/log.h>
+#include <tactility/lvgl_module.h>
+#include <tactility/lvgl_pointer.h>
 
 #include <algorithm>
 #include <lvgl.h>
 
 namespace tt::app::touchcalibration {
 
-static const auto LOGGER = Logger("TouchCalibration");
+constexpr auto* TAG = "TouchCalibration";
 
 extern const AppManifest manifest;
 
@@ -29,6 +33,7 @@ class TouchCalibrationApp final : public App {
 
     Sample samples[4] = {};
     uint8_t sampleCount = 0;
+    bool calibrationApplied = false;
 
     lv_obj_t* root = nullptr;
     lv_obj_t* target = nullptr;
@@ -72,12 +77,33 @@ class TouchCalibrationApp final : public App {
     }
 
     void finishCalibration() {
-        constexpr int32_t MIN_RANGE = 20;
+        const int32_t xLow = (static_cast<int32_t>(samples[0].x) + static_cast<int32_t>(samples[3].x)) / 2;
+        const int32_t xHigh = (static_cast<int32_t>(samples[1].x) + static_cast<int32_t>(samples[2].x)) / 2;
+        const int32_t yLow = (static_cast<int32_t>(samples[0].y) + static_cast<int32_t>(samples[1].y)) / 2;
+        const int32_t yHigh = (static_cast<int32_t>(samples[2].y) + static_cast<int32_t>(samples[3].y)) / 2;
 
-        const int32_t xMin = (static_cast<int32_t>(samples[0].x) + static_cast<int32_t>(samples[3].x)) / 2;
-        const int32_t xMax = (static_cast<int32_t>(samples[1].x) + static_cast<int32_t>(samples[2].x)) / 2;
-        const int32_t yMin = (static_cast<int32_t>(samples[0].y) + static_cast<int32_t>(samples[1].y)) / 2;
-        const int32_t yMax = (static_cast<int32_t>(samples[2].y) + static_cast<int32_t>(samples[3].y)) / 2;
+        // Targets sit TARGET_MARGIN in from each edge (see getTargetPoint()), not at the screen
+        // edges themselves - xLow/xHigh/yLow/yHigh are raw samples at those inset positions, not
+        // at 0/width or 0/height. Extrapolate them out to the true edges so the saved range (which
+        // lvgl_pointer.h maps onto the full [0, resolution) display range) lines up correctly
+        // across the whole screen instead of being off by a margin's worth of scale and offset.
+        const auto width = lv_obj_get_content_width(root);
+        const auto height = lv_obj_get_content_height(root);
+        const int32_t xSpan = static_cast<int32_t>(width) - 2 * TARGET_MARGIN;
+        const int32_t ySpan = static_cast<int32_t>(height) - 2 * TARGET_MARGIN;
+
+        if (xSpan <= 0 || ySpan <= 0) {
+            lv_label_set_text(titleLabel, "Calibration Failed");
+            lv_label_set_text(hintLabel, "Screen too small. Tap to close.");
+            lv_obj_add_flag(target, LV_OBJ_FLAG_HIDDEN);
+            setResult(Result::Error);
+            return;
+        }
+
+        const int32_t xMin = xLow - (xHigh - xLow) * TARGET_MARGIN / xSpan;
+        const int32_t xMax = xHigh + (xHigh - xLow) * TARGET_MARGIN / xSpan;
+        const int32_t yMin = yLow - (yHigh - yLow) * TARGET_MARGIN / ySpan;
+        const int32_t yMax = yHigh + (yHigh - yLow) * TARGET_MARGIN / ySpan;
 
         settings::touch::TouchCalibrationSettings settings = settings::touch::getDefault();
         settings.enabled = true;
@@ -86,7 +112,7 @@ class TouchCalibrationApp final : public App {
         settings.yMin = yMin;
         settings.yMax = yMax;
 
-        if ((xMax - xMin) < MIN_RANGE || (yMax - yMin) < MIN_RANGE || !settings::touch::isValid(settings)) {
+        if (!settings::touch::isValid(settings)) {
             lv_label_set_text(titleLabel, "Calibration Failed");
             lv_label_set_text(hintLabel, "Range invalid. Tap to close.");
             lv_obj_add_flag(target, LV_OBJ_FLAG_HIDDEN);
@@ -102,7 +128,21 @@ class TouchCalibrationApp final : public App {
             return;
         }
 
-        LOGGER.info("Saved calibration x=[{}, {}] y=[{}, {}]", xMin, xMax, yMin, yMax);
+        LvglPointerCalibration calibration = {
+            .x_min = xMin,
+            .x_max = xMax,
+            .y_min = yMin,
+            .y_max = yMax,
+        };
+        lvgl_lock();
+        auto* indev = lvgl_pointer_get_default();
+        if (indev != nullptr) {
+            lvgl_pointer_set_calibration(indev, &calibration);
+        }
+        lvgl_unlock();
+        calibrationApplied = true;
+
+        LOG_I(TAG, "Saved calibration x=[%d, %d] y=[%d, %d]", xMin, xMax, yMin, yMax);
         lv_label_set_text(titleLabel, "Calibration Complete");
         lv_label_set_text(hintLabel, "Touch anywhere to continue.");
         lv_obj_add_flag(target, LV_OBJ_FLAG_HIDDEN);
@@ -140,14 +180,36 @@ public:
 
     void onCreate(AppContext& app) override {
         (void)app;
-        settings::touch::setRuntimeCalibrationEnabled(false);
-        settings::touch::invalidateCache();
+        // Clear any active calibration so the taps sampled below are raw, uncalibrated coordinates.
+        lvgl_lock();
+        auto* indev = lvgl_pointer_get_default();
+        if (indev != nullptr) {
+            lvgl_pointer_set_calibration(indev, nullptr);
+        }
+        lvgl_unlock();
     }
 
     void onDestroy(AppContext& app) override {
         (void)app;
-        settings::touch::setRuntimeCalibrationEnabled(true);
-        settings::touch::invalidateCache();
+        // finishCalibration() already applied a new calibration on success. On cancel/failure,
+        // restore whatever calibration was on disk before onCreate() cleared it above.
+        if (calibrationApplied) {
+            return;
+        }
+
+        settings::touch::TouchCalibrationSettings settings;
+        lvgl_lock();
+        auto* indev = lvgl_pointer_get_default();
+        if (indev != nullptr && settings::touch::load(settings) && settings.enabled && settings::touch::isValid(settings)) {
+            LvglPointerCalibration calibration = {
+                .x_min = settings.xMin,
+                .x_max = settings.xMax,
+                .y_min = settings.yMin,
+                .y_max = settings.yMax,
+            };
+            lvgl_pointer_set_calibration(indev, &calibration);
+        }
+        lvgl_unlock();
     }
 
     void onShow(AppContext& app, lv_obj_t* parent) override {
@@ -195,9 +257,11 @@ public:
 extern const AppManifest manifest = {
     .appId = "TouchCalibration",
     .appName = "Touch Calibration",
-    .appCategory = Category::System,
-    .appFlags = AppManifest::Flags::HideStatusBar | AppManifest::Flags::Hidden,
+    .appCategory = Category::Settings,
+    .appFlags = AppManifest::Flags::HideStatusBar,
     .createApp = create<TouchCalibrationApp>
 };
 
 } // namespace tt::app::touchcalibration
+
+#endif // defined(CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED)

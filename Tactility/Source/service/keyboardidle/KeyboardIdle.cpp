@@ -9,9 +9,8 @@
 #include <Tactility/settings/KeyboardSettings.h>
 #include <Tactility/Timer.h>
 
-namespace keyboardbacklight {
-    bool setBrightness(uint8_t brightness);
-}
+#include <tactility/device.h>
+#include <tactility/drivers/backlight.h>
 
 namespace tt::service::keyboardidle {
 
@@ -23,6 +22,17 @@ class KeyboardIdleService final : public Service {
 
     static std::shared_ptr<hal::keyboard::KeyboardDevice> getKeyboard() {
         return hal::findFirstDevice<hal::keyboard::KeyboardDevice>(hal::Device::Type::Keyboard);
+    }
+
+    static Device* getKeyboardBacklight() {
+        return device_find_by_name("keyboard_backlight");
+    }
+
+    void setKeyboardBacklightBrightness(uint8_t brightness) {
+        Device* backlight = getKeyboardBacklight();
+        if (backlight != nullptr) {
+            backlight_set_brightness(backlight, brightness);
+        }
     }
 
     void tick() {
@@ -42,15 +52,15 @@ class KeyboardIdleService final : public Service {
             // If timeout disabled, ensure backlight restored if we had dimmed it
             if (!cachedKeyboardSettings.backlightTimeoutEnabled || cachedKeyboardSettings.backlightTimeoutMs == 0) {
                 if (keyboardDimmed) {
-                    keyboardbacklight::setBrightness(cachedKeyboardSettings.backlightEnabled ? cachedKeyboardSettings.backlightBrightness : 0);
+                    setKeyboardBacklightBrightness(cachedKeyboardSettings.backlightEnabled ? cachedKeyboardSettings.backlightBrightness : 0);
                     keyboardDimmed = false;
                 }
             } else {
                 if (!keyboardDimmed && inactive_ms >= cachedKeyboardSettings.backlightTimeoutMs) {
-                    keyboardbacklight::setBrightness(0);
+                    setKeyboardBacklightBrightness(0);
                     keyboardDimmed = true;
                 } else if (keyboardDimmed && inactive_ms < 100) {
-                    keyboardbacklight::setBrightness(cachedKeyboardSettings.backlightEnabled ? cachedKeyboardSettings.backlightBrightness : 0);
+                    setKeyboardBacklightBrightness(cachedKeyboardSettings.backlightEnabled ? cachedKeyboardSettings.backlightBrightness : 0);
                     keyboardDimmed = false;
                 }
             }
@@ -62,7 +72,8 @@ public:
         // Load settings once at startup and cache them
         // This eliminates file I/O from timer callback (prevents watchdog timeout)
         cachedKeyboardSettings = settings::keyboard::loadOrGetDefault();
-        
+        setKeyboardBacklightBrightness(cachedKeyboardSettings.backlightEnabled ? cachedKeyboardSettings.backlightBrightness : 0);
+
         // Note: Settings changes require service restart to take effect
         // TODO: Add KeyboardSettingsChanged events for dynamic updates
         
@@ -80,7 +91,7 @@ public:
         // Ensure keyboard restored on stop
         auto keyboard = getKeyboard();
         if (keyboard && keyboardDimmed) {
-            keyboardbacklight::setBrightness(cachedKeyboardSettings.backlightEnabled ? cachedKeyboardSettings.backlightBrightness : 0);
+            setKeyboardBacklightBrightness(cachedKeyboardSettings.backlightEnabled ? cachedKeyboardSettings.backlightBrightness : 0);
             keyboardDimmed = false;
         }
     }

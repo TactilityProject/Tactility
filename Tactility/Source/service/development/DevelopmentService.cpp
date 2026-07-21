@@ -7,7 +7,6 @@
 #include <Tactility/file/File.h>
 #include <Tactility/network/HttpdReq.h>
 #include <Tactility/network/Url.h>
-#include <Tactility/Logger.h>
 #include <Tactility/Paths.h>
 #include <Tactility/service/development/DevelopmentSettings.h>
 #include <Tactility/service/ServiceRegistration.h>
@@ -16,11 +15,13 @@
 #include <ranges>
 #include <sstream>
 
+#include <tactility/log.h>
+
 namespace tt::service::development {
 
 extern const ServiceManifest manifest;
 
-static const auto LOGGER = Logger("DevService");
+constexpr auto* TAG = "DevService";
 
 bool DevelopmentService::onStart(ServiceContext& service) {
     std::stringstream stream;
@@ -66,26 +67,26 @@ bool DevelopmentService::isEnabled() const {
 // region endpoints
 
 esp_err_t DevelopmentService::handleGetInfo(httpd_req_t* request) {
-    LOGGER.info("GET /device");
+    LOG_I(TAG, "GET /device");
 
     if (httpd_resp_set_type(request, "application/json") != ESP_OK) {
-        LOGGER.warn("Failed to send header");
+        LOG_W(TAG, "Failed to send header");
         return ESP_FAIL;
     }
 
     auto* service = static_cast<DevelopmentService*>(request->user_ctx);
 
     if (httpd_resp_sendstr(request, service->deviceResponse.c_str()) != ESP_OK) {
-        LOGGER.warn("Failed to send response body");
+        LOG_W(TAG, "Failed to send response body");
         return ESP_FAIL;
     }
 
-    LOGGER.info("[200] /device");
+    LOG_I(TAG, "[200] /device");
     return ESP_OK;
 }
 
 esp_err_t DevelopmentService::handleAppRun(httpd_req_t* request) {
-    LOGGER.info("POST /app/run");
+    LOG_I(TAG, "POST /app/run");
 
     std::string query;
     if (!network::getQueryOrSendError(request, query)) {
@@ -95,7 +96,7 @@ esp_err_t DevelopmentService::handleAppRun(httpd_req_t* request) {
     auto parameters = network::parseUrlQuery(query);
     auto id_key_pos = parameters.find("id");
     if (id_key_pos == parameters.end()) {
-        LOGGER.warn("[400] /app/run id not specified");
+        LOG_W(TAG, "[400] /app/run id not specified");
         httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "id not specified");
         return ESP_FAIL;
     }
@@ -107,14 +108,14 @@ esp_err_t DevelopmentService::handleAppRun(httpd_req_t* request) {
 
     app::start(app_id);
 
-    LOGGER.info("[200] /app/run {}", id_key_pos->second);
+    LOG_I(TAG, "[200] /app/run %s", id_key_pos->second.c_str());
     httpd_resp_send(request, nullptr, 0);
 
     return ESP_OK;
 }
 
 esp_err_t DevelopmentService::handleAppInstall(httpd_req_t* request) {
-    LOGGER.info("PUT /app/install");
+    LOG_I(TAG, "PUT /app/install");
 
     std::string boundary;
     if (!network::getMultiPartBoundaryOrSendError(request, boundary)) {
@@ -175,7 +176,7 @@ esp_err_t DevelopmentService::handleAppInstall(httpd_req_t* request) {
     content_left -= boundary_and_newlines_after_file.length();
 
     if (content_left != 0) {
-        LOGGER.warn("We have more bytes at the end of the request parsing?!");
+        LOG_W(TAG, "We have more bytes at the end of the request parsing?!");
     }
 
     if (!app::install(file_path)) {
@@ -184,10 +185,10 @@ esp_err_t DevelopmentService::handleAppInstall(httpd_req_t* request) {
     }
 
     if (!file::deleteFile(file_path)) {
-        LOGGER.warn("Failed to delete {}", file_path);
+        LOG_W(TAG, "Failed to delete %s", file_path.c_str());
     }
 
-    LOGGER.info("[200] /app/install -> {}", file_path);
+    LOG_I(TAG, "[200] /app/install -> %s", file_path.c_str());
 
     httpd_resp_send(request, nullptr, 0);
 
@@ -195,7 +196,7 @@ esp_err_t DevelopmentService::handleAppInstall(httpd_req_t* request) {
 }
 
 esp_err_t DevelopmentService::handleAppUninstall(httpd_req_t* request) {
-    LOGGER.info("PUT /app/uninstall");
+    LOG_I(TAG, "PUT /app/uninstall");
 
     std::string query;
     if (!network::getQueryOrSendError(request, query)) {
@@ -205,23 +206,23 @@ esp_err_t DevelopmentService::handleAppUninstall(httpd_req_t* request) {
     auto parameters = network::parseUrlQuery(query);
     auto id_key_pos = parameters.find("id");
     if (id_key_pos == parameters.end()) {
-        LOGGER.warn("[400] /app/uninstall id not specified");
+        LOG_W(TAG, "[400] /app/uninstall id not specified");
         httpd_resp_send_err(request, HTTPD_400_BAD_REQUEST, "id not specified");
         return ESP_FAIL;
     }
 
     if (!app::findAppManifestById(id_key_pos->second)) {
-        LOGGER.info("[200] /app/uninstall {} (app wasn't installed)", id_key_pos->second);
+        LOG_I(TAG, "[200] /app/uninstall %s (app wasn't installed)", id_key_pos->second.c_str());
         httpd_resp_send(request, nullptr, 0);
         return ESP_OK;
     }
 
     if (app::uninstall(id_key_pos->second)) {
-        LOGGER.info("[200] /app/uninstall {}", id_key_pos->second);
+        LOG_I(TAG, "[200] /app/uninstall %s", id_key_pos->second.c_str());
         httpd_resp_send(request, nullptr, 0);
         return ESP_OK;
     } else {
-        LOGGER.warn("[500] /app/uninstall {}", id_key_pos->second);
+        LOG_W(TAG, "[500] /app/uninstall %s", id_key_pos->second.c_str());
         httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to uninstall");
         return ESP_FAIL;
     }

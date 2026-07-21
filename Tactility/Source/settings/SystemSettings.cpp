@@ -1,36 +1,42 @@
-#include <Tactility/Logger.h>
-#include <Tactility/MountPoints.h>
 #include <Tactility/Mutex.h>
+#include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/settings/Language.h>
 #include <Tactility/settings/SystemSettings.h>
 
+#include "Tactility/Paths.h"
+
+#include <tactility/log.h>
+
 #include <format>
 
 namespace tt::settings {
 
-static const auto LOGGER = Logger("SystemSettings");
+constexpr auto* TAG = "SystemSettings";
 
 constexpr auto* FILE_PATH_FORMAT = "{}/settings/system.properties";
 
-static Mutex mutex;
 static bool cached = false;
 static SystemSettings cachedSettings;
 
+static bool hasSystemSettingsFile() {
+    auto file_path = std::format(FILE_PATH_FORMAT, getUserDataPath());
+    return file::isFile(file_path);
+}
+
 static bool loadSystemSettingsFromFile(SystemSettings& properties) {
-    auto file_path = std::format(FILE_PATH_FORMAT, file::MOUNT_POINT_DATA);
-    LOGGER.info("System settings loading from {}", file_path);
+    auto file_path = std::format(FILE_PATH_FORMAT, getUserDataPath());
+    LOG_I(TAG, "System settings loading from %s", file_path.c_str());
     std::map<std::string, std::string> map;
     if (!file::loadPropertiesFile(file_path, map)) {
-        LOGGER.error("Failed to load {}", file_path);
         return false;
     }
 
     auto language_entry = map.find("language");
     if (language_entry != map.end()) {
         if (!fromString(language_entry->second, properties.language)) {
-            LOGGER.warn("Unknown language \"{}\" in {}", language_entry->second, file_path);
+            LOG_W(TAG, "Unknown language \"%s\" in %s", language_entry->second.c_str(), file_path.c_str());
             properties.language = Language::en_US;
         }
     } else {
@@ -47,29 +53,21 @@ static bool loadSystemSettingsFromFile(SystemSettings& properties) {
     if (date_format_entry != map.end() && !date_format_entry->second.empty()) {
         properties.dateFormat = date_format_entry->second;
     } else {
-        LOGGER.info("dateFormat missing or empty, using default MM/DD/YYYY (likely from older system.properties)");
+        LOG_I(TAG, "dateFormat missing or empty, using default MM/DD/YYYY (likely from older system.properties)");
         properties.dateFormat = "MM/DD/YYYY";
     }
 
-    // Load region
-    auto region_entry = map.find("region");
-    if (region_entry != map.end() && !region_entry->second.empty()) {
-        properties.region = region_entry->second;
-    } else {
-        LOGGER.info("Region missing or empty, using default EU");
-        properties.region = "EU";
-    }
-
-    LOGGER.info("System settings loaded");
+    LOG_I(TAG, "System settings loaded");
     return true;
 }
 
 bool loadSystemSettings(SystemSettings& properties) {
-    if (!cached) {
-        if (!loadSystemSettingsFromFile(cachedSettings)) {
-            return false;
+    if (!cached && hasSystemSettingsFile()) {
+        if (loadSystemSettingsFromFile(cachedSettings)) {
+            cached = true;
+        } else {
+            LOG_E(TAG, "Failed to load");
         }
-        cached = true;
     }
 
     properties = cachedSettings;
@@ -77,15 +75,19 @@ bool loadSystemSettings(SystemSettings& properties) {
 }
 
 bool saveSystemSettings(const SystemSettings& properties) {
-    auto file_path = std::format(FILE_PATH_FORMAT, file::MOUNT_POINT_DATA);
+    auto file_path = std::format(FILE_PATH_FORMAT, getUserDataPath());
     std::map<std::string, std::string> map;
     map["language"] = toString(properties.language);
     map["timeFormat24h"] = properties.timeFormat24h ? "true" : "false";
     map["dateFormat"] = properties.dateFormat;
-    map["region"] = properties.region;
+
+    if (!file::findOrCreateParentDirectory(file_path, 0755)) {
+        LOG_E(TAG, "Failed to create parent dir for %s", file_path.c_str());
+        return false;
+    }
 
     if (!file::savePropertiesFile(file_path, map)) {
-        LOGGER.error("Failed to save {}", file_path);
+        LOG_E(TAG, "Failed to save %s", file_path.c_str());
         return false;
     }
 

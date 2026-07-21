@@ -1,0 +1,23 @@
+description: >
+  Texas Instruments DRV2605/DRV2604 (and low-voltage L-variant) haptic motor driver for ERM/LRA
+  actuators, with an onboard waveform effect library. Brought up in open-loop ERM mode (matches
+  the deprecated HAL's Drv2605 - closed-loop/LRA configuration isn't ported). Exposes a generic
+  "haptic" device (see tactility/drivers/haptic.h) for playing further effects at runtime.
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,drv2605"
+
+bus: i2c
+
+properties:
+  autoplay:
+    type: boolean
+    default: true
+    description: Play startup-waveform once at start-up (e.g. a startup "buzz" to confirm the motor works)
+  startup-waveform:
+    type: array
+    element-type: uint8_t
+    description: >
+      Effect sequence (waveform library indices, 0 ends the sequence) played once at start-up
+      when autoplay is set. Up to 8 bytes. Omit for the default 3x strong-click "buzz" ({1,1,1}).

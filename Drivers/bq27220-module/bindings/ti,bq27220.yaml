@@ -1,0 +1,12 @@
+description: >
+  Texas Instruments BQ27220 CEDV battery fuel gauge. Creates a "power-supply" child device
+  (see drivers/bq27220.h) exposing battery current, voltage, charge-level and charging status
+  (derived from the BatteryStatus register's DSG/discharge flag); charge control and power-off
+  are not available from this chip alone (they come from a separate charger, if present - see
+  the sy6970 driver).
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,bq27220"
+
+bus: i2c

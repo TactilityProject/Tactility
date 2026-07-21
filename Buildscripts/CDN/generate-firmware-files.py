@@ -2,11 +2,9 @@ import subprocess
 from datetime import datetime, UTC
 import os
 import sys
-import configparser
 from dataclasses import dataclass, asdict
 import json
 import shutil
-from configparser import RawConfigParser
 
 VERBOSE = False
 DEVICES_FOLDER = "Devices"
@@ -68,32 +66,29 @@ def exit_with_error(message):
     sys.exit(1)
 
 def read_properties_file(path):
-    config = configparser.RawConfigParser()
-    # Don't convert keys to lowercase
-    config.optionxform = str
-    config.read(path)
-    return config
+    properties = {}
+    with open(path, "r") as file:
+        for line in file:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            key, sep, value = line.partition("=")
+            if not sep:
+                continue
+            properties[key.strip()] = value.strip()
+    return properties
 
-def get_property_or_none(properties: RawConfigParser, group: str, key: str):
-    if group not in properties.sections():
-        return None
-    if key not in properties[group].keys():
-        return None
-    return properties[group][key]
+def get_property_or_none(properties: dict, group: str, key: str):
+    return properties.get(f"{group}.{key}")
 
-def get_boolean_property_or_false(properties: RawConfigParser, group: str, key: str):
-    if group not in properties.sections():
-        return False
-    if key not in properties[group].keys():
-        return False
-    return properties[group][key] == "true"
+def get_boolean_property_or_false(properties: dict, group: str, key: str):
+    return properties.get(f"{group}.{key}") == "true"
 
-def get_property_or_exit(properties: RawConfigParser, group: str, key: str):
-    if group not in properties.sections():
-        exit_with_error(f"Device properties does not contain group: {group}")
-    if key not in properties[group].keys():
-        exit_with_error(f"Device properties does not contain key: {key}")
-    return properties[group][key]
+def get_property_or_exit(properties: dict, group: str, key: str):
+    full_key = f"{group}.{key}"
+    if full_key not in properties:
+        exit_with_error(f"Device properties does not contain key: {full_key}")
+    return properties[full_key]
 
 def read_device_properties(device_id):
     mapping_file_path = os.path.join(DEVICES_FOLDER, device_id, "device.properties")
@@ -129,7 +124,7 @@ def to_manifest_chip_name(name):
         return ""
 
 
-def process_device(in_path: str, out_path: str, device_directory: str, device_id: str, device_properties: RawConfigParser, version: str):
+def process_device(in_path: str, out_path: str, device_directory: str, device_id: str, device_properties: dict, version: str):
     in_device_path = os.path.join(in_path, device_directory)
     in_device_binaries_path = os.path.join(in_device_path, "Binaries")
     if not os.path.isdir(in_device_binaries_path):

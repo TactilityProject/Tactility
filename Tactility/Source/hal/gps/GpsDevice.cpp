@@ -1,26 +1,25 @@
 #include <Tactility/hal/gps/GpsDevice.h>
 #include <Tactility/hal/gps/GpsInit.h>
 #include <Tactility/hal/gps/Probe.h>
-#include <Tactility/Logger.h>
+#include <tactility/log.h>
 
 #include <tactility/device.h>
 #include <tactility/drivers/uart_controller.h>
 
-#include <cstring>
 #include <minmea.h>
 
 namespace tt::hal::gps {
 
 constexpr uint32_t GPS_UART_BUFFER_SIZE = 256;
 
-static const auto LOGGER = Logger("GpsDevice");
+constexpr auto* TAG = "GpsDevice";
 
 int32_t GpsDevice::threadMain() {
     uint8_t buffer[GPS_UART_BUFFER_SIZE];
 
     auto* uart = device_find_by_name(configuration.uartName);
     if (uart == nullptr) {
-        LOGGER.error("Failed to find UART {}", configuration.uartName);
+        LOG_E(TAG, "Failed to find UART %s", configuration.uartName);
         return -1;
     }
 
@@ -33,13 +32,13 @@ int32_t GpsDevice::threadMain() {
 
     error_t error = uart_controller_set_config(uart, &uartConfig);
     if (error != ERROR_NONE) {
-        LOGGER.error("Failed to configure UART {}: {}", configuration.uartName, error_to_string(error));
+        LOG_E(TAG, "Failed to configure UART %s: %s", configuration.uartName, error_to_string(error));
         return -1;
     }
 
     error = uart_controller_open(uart);
     if (error != ERROR_NONE) {
-        LOGGER.error("Failed to open UART {}: {}", configuration.uartName, error_to_string(error));
+        LOG_E(TAG, "Failed to open UART %s: %s", configuration.uartName, error_to_string(error));
         return -1;
     }
 
@@ -47,7 +46,7 @@ int32_t GpsDevice::threadMain() {
     if (model == GpsModel::Unknown) {
         model = probe(uart);
         if (model == GpsModel::Unknown) {
-            LOGGER.error("Probe failed");
+            LOG_E(TAG, "Probe failed");
             setState(State::Error);
             return -1;
         }
@@ -57,7 +56,7 @@ int32_t GpsDevice::threadMain() {
     mutex.unlock();
 
     if (!init(uart, model)) {
-        LOGGER.error("Init failed");
+        LOG_E(TAG, "Init failed");
         setState(State::Error);
         return -1;
     }
@@ -76,7 +75,7 @@ int32_t GpsDevice::threadMain() {
 
         if (bytes_read > 0U) {
 
-            LOGGER.info("[{}] {}", bytes_read, reinterpret_cast<const char*>(buffer));
+            LOG_I(TAG, "[%d] %s", (int)bytes_read, reinterpret_cast<const char*>(buffer));
 
             switch (minmea_sentence_id((char*)buffer, false)) {
                 case MINMEA_SENTENCE_RMC:
@@ -87,11 +86,9 @@ int32_t GpsDevice::threadMain() {
                             (*subscription.onData)(getId(), rmc_frame);
                         }
                         mutex.unlock();
-                        if (LOGGER.isLoggingDebug()) {
-                            LOGGER.debug("RMC {} lat, {} lon, {} m/s", minmea_tocoord(&rmc_frame.latitude), minmea_tocoord(&rmc_frame.longitude), minmea_tofloat(&rmc_frame.speed));
-                        }
+                        LOG_D(TAG, "RMC %f lat, %f lon, %f m/s", minmea_tocoord(&rmc_frame.latitude), minmea_tocoord(&rmc_frame.longitude), minmea_tofloat(&rmc_frame.speed));
                     } else {
-                        LOGGER.error("RMC parse error: {}", reinterpret_cast<const char*>(buffer));
+                        LOG_E(TAG, "RMC parse error: %s", reinterpret_cast<const char*>(buffer));
                     }
                     break;
                 case MINMEA_SENTENCE_GGA:
@@ -102,11 +99,9 @@ int32_t GpsDevice::threadMain() {
                             (*subscription.onData)(getId(), gga_frame);
                         }
                         mutex.unlock();
-                        if (LOGGER.isLoggingDebug()) {
-                            LOGGER.debug("GGA {} lat, {} lon", minmea_tocoord(&gga_frame.latitude), minmea_tocoord(&gga_frame.longitude));
-                        }
+                        LOG_D(TAG, "GGA %f lat, %f lon", minmea_tocoord(&gga_frame.latitude), minmea_tocoord(&gga_frame.longitude));
                     } else {
-                        LOGGER.error("GGA parse error: {}", reinterpret_cast<const char*>(buffer));
+                        LOG_E(TAG, "GGA parse error: %s", reinterpret_cast<const char*>(buffer));
                     }
                     break;
                 default:
@@ -116,7 +111,7 @@ int32_t GpsDevice::threadMain() {
     }
 
     if (uart_controller_close(uart) != ERROR_NONE) {
-        LOGGER.warn("Failed to stop UART {}", configuration.uartName);
+        LOG_W(TAG, "Failed to stop UART %s", configuration.uartName);
     }
 
     return 0;
@@ -127,13 +122,13 @@ bool GpsDevice::start() {
     lock.lock();
 
     if (thread != nullptr && thread->getState() != Thread::State::Stopped) {
-        LOGGER.warn("Already started");
+        LOG_W(TAG, "Already started");
         return true;
     }
 
     threadInterrupted = false;
 
-    LOGGER.info("Starting thread");
+    LOG_I(TAG, "Starting thread");
     setState(State::PendingOn);
 
     thread = std::make_unique<Thread>(
@@ -146,7 +141,7 @@ bool GpsDevice::start() {
     thread->setPriority(tt::Thread::Priority::High);
     thread->start();
 
-    LOGGER.info("Starting finished");
+    LOG_I(TAG, "Starting finished");
     return true;
 }
 

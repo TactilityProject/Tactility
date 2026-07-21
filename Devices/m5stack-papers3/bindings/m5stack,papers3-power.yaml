@@ -1,0 +1,23 @@
+description: >
+  M5Stack PaperS3 charge/power control: charge IC status readback and shutdown-pulse power off.
+  Battery voltage/capacity are handled separately by a generic battery-sense node.
+
+compatible: "m5stack,papers3-power"
+
+properties:
+  pin-charge-status:
+    type: phandles
+    required: true
+    description: Charge IC status pin (active-low - 0 = charging, 1 = full/no USB)
+  pin-usb-detect:
+    type: phandles
+    required: true
+    description: USB VBUS detect pin (1 = USB connected)
+  pin-power-off:
+    type: phandles
+    required: true
+    description: Shutdown control pin - pulled high to trigger power-off
+  pwm:
+    type: phandles
+    required: true
+    description: Tone generator (PWM_TYPE device) used for the power-off confirmation beep

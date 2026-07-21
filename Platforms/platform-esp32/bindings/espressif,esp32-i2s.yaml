@@ -12,22 +12,22 @@ properties:
       The port number, defined by i2s_port_t.
       Depending on the hardware, these values are available: I2S_NUM_0, I2S_NUM_1
   pin-bclk:
-    type: phandle-array
-    required: true
-    description: Bit clock pin
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Bit clock pin. Not used in PDM RX mode (e.g. a PDM microphone), where pin-ws carries the PDM clock instead.
   pin-ws:
-    type: phandle-array
+    type: phandles
     required: true
-    description: Word (slot) select pin
+    description: Word (slot) select pin. Doubles as the PDM clock pin in PDM RX mode.
   pin-data-out:
-    type: phandle-array
+    type: phandles
     default: GPIO_PIN_SPEC_NONE
     description: Data output pin
   pin-data-in:
-    type: phandle-array
+    type: phandles
     default: GPIO_PIN_SPEC_NONE
     description: Data input pin
   pin-mclk:
-    type: phandle-array
+    type: phandles
     default: GPIO_PIN_SPEC_NONE
     description: Master clock pin

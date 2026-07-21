@@ -8,11 +8,11 @@ properties:
     required: true
     description: "One of enum Esp32GroveMode"
   pinSdaTx:
-    type: phandle-array
+    type: phandles
     required: true
     description: SDA (I2C) or TX (UART) pin
   pinSclRx:
-    type: phandle-array
+    type: phandles
     required: true
     description: SCL (I2C) or RX (UART) pin
   uartPort:

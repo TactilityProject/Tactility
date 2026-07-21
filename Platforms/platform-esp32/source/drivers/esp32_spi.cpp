@@ -6,9 +6,11 @@
 
 #include "tactility/drivers/gpio_descriptor.h"
 #include <tactility/drivers/esp32_gpio_helpers.h>
+#include <tactility/drivers/gpio_controller.h>
 #include <cstring>
 #include <new>
 #include <soc/gpio_num.h>
+#include <vector>
 
 #define TAG "esp32_spi"
 
@@ -21,12 +23,15 @@ struct Esp32SpiInternal {
     RecursiveMutex mutex = {};
     bool initialized = false;
 
-    // Pin descriptors
+    // Bus pin descriptors
     GpioDescriptor* sclk_descriptor = nullptr;
     GpioDescriptor* mosi_descriptor = nullptr;
     GpioDescriptor* miso_descriptor = nullptr;
     GpioDescriptor* wp_descriptor = nullptr;
     GpioDescriptor* hd_descriptor = nullptr;
+
+    // CS pin descriptors
+    std::vector<GpioDescriptor*> cs_descriptors;
 
     explicit Esp32SpiInternal() {
         recursive_mutex_construct(&mutex);
@@ -43,6 +48,10 @@ struct Esp32SpiInternal {
         release_pin(&miso_descriptor);
         release_pin(&wp_descriptor);
         release_pin(&hd_descriptor);
+        for (auto*& desc : cs_descriptors) {
+            release_pin(&desc);
+        }
+        cs_descriptors.clear();
     }
 };
 
@@ -117,8 +126,37 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
+    // MISO is only actively driven by the selected slave; between commands (and briefly during
+    // slave selection/response) it floats, which can be read as spurious bits. A weak pull-up
+    // costs nothing against an actively-driven line and avoids that, e.g. on SD-over-SPI this
+    // shows up as CMD8/if_cond failing with a garbled/invalid response. Opt-in per board though:
+    // it's been observed to instead prevent an SD card from responding to CMD0 at all elsewhere.
+    if (data->miso_descriptor != nullptr && dts_config->miso_pull_up) {
+        gpio_descriptor_set_flags(data->miso_descriptor, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP);
+    }
+
+    // Acquire and deselect all CS pins (drive high)
+    for (uint8_t i = 0; i < dts_config->cs_gpios_count; i++) {
+        const GpioPinSpec* cs = &dts_config->cs_gpios[i];
+        if (cs->gpio_controller == nullptr) continue;
+        GpioDescriptor* desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_OWNER_SPI);
+        if (desc != nullptr) {
+            gpio_descriptor_set_flags(desc, GPIO_FLAG_DIRECTION_OUTPUT);
+            gpio_descriptor_set_level(desc, true);
+            data->cs_descriptors.push_back(desc);
+        }
+    }
+
     data->initialized = true;
     return ERROR_NONE;
+}
+
+void esp32_spi_deselect_all_cs(Device* device) {
+    auto* data = GET_DATA(device);
+    if (data == nullptr) return;
+    for (auto* desc : data->cs_descriptors) {
+        gpio_descriptor_set_level(desc, true);
+    }
 }
 
 static error_t stop(Device* device) {
@@ -133,6 +171,16 @@ static error_t stop(Device* device) {
     driver_data->cleanup_pins();
     device_set_driver_data(device, nullptr);
     delete driver_data;
+    return ERROR_NONE;
+}
+
+error_t esp32_spi_get_cs_pin(Device* child_device, GpioPinSpec* out_pin) {
+    auto* parent = device_get_parent(child_device);
+    if (parent == nullptr || device_get_type(parent) != &SPI_CONTROLLER_TYPE) return ERROR_INVALID_STATE;
+    auto* config = GET_CONFIG(parent);
+    int32_t index = child_device->address;
+    if (index < 0 || index >= config->cs_gpios_count) return ERROR_OUT_OF_RANGE;
+    *out_pin = config->cs_gpios[index];
     return ERROR_NONE;
 }
 

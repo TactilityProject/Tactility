@@ -1,0 +1,14 @@
+#include <tactility/error.h>
+#include <tactility/module.h>
+
+extern "C" {
+
+Module waveshare_s3_lcd_13_module = {
+    .name = "waveshare-s3-lcd-13",
+    .start = [] -> error_t { return ERROR_NONE; },
+    .stop = [] -> error_t { return ERROR_NONE; },
+    .symbols = nullptr,
+    .internal = nullptr
+};
+
+}

@@ -3,20 +3,23 @@
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppPaths.h>
 #include <Tactility/app/AppRegistration.h>
-#include <Tactility/hal/power/PowerDevice.h>
+#include <Tactility/app/setup/Setup.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/settings/BootSettings.h>
 
 #include <cstring>
 #include <lvgl.h>
 
+#include <tactility/device.h>
+#include <tactility/drivers/power_supply.h>
+#include <tactility/log.h>
 #include <tactility/lvgl_fonts.h>
 #include <tactility/lvgl_icon_launcher.h>
 #include <tactility/lvgl_module.h>
 
 namespace tt::app::launcher {
 
-static const auto LOGGER = Logger("Launcher");
+constexpr auto* TAG = "Launcher";
 
 static uint32_t getButtonPadding(UiDensity density, uint32_t buttonSize) {
     if (density == LVGL_UI_DENSITY_COMPACT) {
@@ -64,29 +67,22 @@ class LauncherApp final : public App {
         return apps_button;
     }
 
+    static void onAppPressed(lv_event_t* e) {
+        auto* appId = static_cast<const char*>(lv_event_get_user_data(e));
+        start(appId);
+    }
+
     static bool shouldShowPowerButton() {
         bool show_power_button = false;
-        hal::findDevices<hal::power::PowerDevice>(hal::Device::Type::Power, [&show_power_button](const auto& device) {
-            if (device->supportsPowerOff()) {
-                show_power_button = true;
+        device_for_each_of_type(&POWER_SUPPLY_TYPE, &show_power_button, [](Device* device, void* context) {
+            if (device_is_ready(device) && power_supply_supports_power_off(device)) {
+                *static_cast<bool*>(context) = true;
                 return false; // stop iterating
             } else {
                 return true; // continue iterating
             }
         });
         return show_power_button;
-    }
-
-    static void onAppPressed(lv_event_t* e) {
-        auto* appId = static_cast<const char*>(lv_event_get_user_data(e));
-        start(appId);
-    }
-
-    static void onPowerOffPressed(lv_event_t* e) {
-        auto power = hal::findFirstDevice<hal::power::PowerDevice>(hal::Device::Type::Power);
-        if (power != nullptr && power->supportsPowerOff()) {
-            power->powerOff();
-        }
     }
 
     // The screen object outlives the launcher's views (it's recreated by GuiService::redraw()
@@ -137,22 +133,26 @@ public:
 
     void onCreate(AppContext& app) override {
         settings::BootSettings boot_properties;
-        if (settings::loadBootSettings(boot_properties)) {
-            if (
-                !boot_properties.autoStartAppId.empty() &&
-                findAppManifestById(boot_properties.autoStartAppId) != nullptr
-            ) {
-                LOGGER.info("Starting {}", boot_properties.autoStartAppId);
-                start(boot_properties.autoStartAppId);
-            } else {
-                LOGGER.info("No auto-start app configured. Skipping default auto-start due to boot.properties presence.");
-            }
-        } else if (
+        if (
+            // Auto-start due to built-in requirement
             strcmp(CONFIG_TT_AUTO_START_APP_ID, "") != 0 &&
             findAppManifestById(CONFIG_TT_AUTO_START_APP_ID) != nullptr
         ) {
-            LOGGER.info("Starting {}", CONFIG_TT_AUTO_START_APP_ID);
+            LOG_I(TAG, "Starting %s", CONFIG_TT_AUTO_START_APP_ID);
             start(CONFIG_TT_AUTO_START_APP_ID);
+        } else if (
+            // Auto-start due to user configuration
+            settings::loadBootSettings(boot_properties) &&
+            !boot_properties.autoStartAppId.empty() &&
+            findAppManifestById(boot_properties.autoStartAppId) != nullptr
+        ) {
+            LOG_I(TAG, "Starting %s", boot_properties.autoStartAppId.c_str());
+            start(boot_properties.autoStartAppId);
+        } else {
+            // No auto-start, consider running system setup
+            if (!setup::isCompleted()) {
+                setup::start();
+            }
         }
     }
 
@@ -196,11 +196,13 @@ public:
         lv_obj_add_event_cb(lv_obj_get_screen(parent), onButtonsWrapperResized, LV_EVENT_SIZE_CHANGED, buttons_wrapper);
         lv_obj_add_event_cb(buttons_wrapper, onButtonsWrapperDeleted, LV_EVENT_DELETE, nullptr);
 
+        // Some devices (e.g. T-Lora Pager) have no other way to power off, so the
+        // button stays in the launcher; the confirmation flow lives in the PowerOff app.
         if (shouldShowPowerButton()) {
             auto* power_button = lv_button_create(parent);
             lv_obj_set_style_pad_all(power_button, 8, 0);
             lv_obj_align(power_button, LV_ALIGN_BOTTOM_MID, 0, -10);
-            lv_obj_add_event_cb(power_button, onPowerOffPressed, LV_EVENT_SHORT_CLICKED, nullptr);
+            lv_obj_add_event_cb(power_button, onAppPressed, LV_EVENT_SHORT_CLICKED, (void*)"PowerOff");
             lv_obj_set_style_shadow_width(power_button, 0, LV_STATE_DEFAULT);
             lv_obj_set_style_bg_opa(power_button, 0, LV_PART_MAIN);
 

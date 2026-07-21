@@ -1,6 +1,7 @@
 /dts-v1/;
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
@@ -8,18 +9,42 @@
 #include <tactility/bindings/esp32_uart.h>
 #include <bindings/bmi270.h>
 #include <bindings/m5pm1.h>
+#include <bindings/es8311.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+
+#include <bindings/st7789.h>
+#include <bindings/button_control.h>
 
 / {
 	compatible = "root";
 	model = "M5Stack StickS3";
 
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
 	ble0 {
 		compatible = "espressif,esp32-ble";
+		status = "disabled";
 	};
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
+	};
+
+	// Speaker and microphone (ES8311)
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 15 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 14 GPIO_FLAG_NONE>;
+		pin-data-in = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-mclk = <&gpio0 18 GPIO_FLAG_NONE>;
 	};
 
 	i2c_internal {
@@ -32,11 +57,19 @@
 		m5pm1 {
 			compatible = "m5stack,m5pm1";
 			reg = <0x6E>;
+			power-supply-reference-voltage-mv = <4200>;
+			speaker-amp-enable-at-boot;
 		};
 
 		bmi270 {
 			compatible = "bosch,bmi270";
 			reg = <0x68>;
+		};
+
+		es8311 {
+			compatible = "everest,es8311";
+			reg = <0x18>;
+			i2s = <&i2s0>;
 		};
 	};
 
@@ -48,31 +81,47 @@
 		pin-scl = <&gpio0 10 GPIO_FLAG_NONE>;
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 38 GPIO_FLAG_NONE>;
+		period-ns = <1953125>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 41 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 39 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 40 GPIO_FLAG_NONE>;
+
+		display@0 {
+			compatible = "sitronix,st7789";
+			horizontal-resolution = <135>;
+			vertical-resolution = <240>;
+			gap-x = <52>;
+			gap-y = <40>;
+			invert-color;
+			pixel-clock-hz = <40000000>;
+			pin-dc = <&gpio0 45 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 21 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
 	};
 
-	//DIY SD Card - https://wiki.bruce.computer/wiring-diagrams/m5sticks3/sd-card/
-	spi1 {
-		compatible = "espressif,esp32-spi";
-		host = <SPI3_HOST>;
-		pin-mosi = <&gpio0 6 GPIO_FLAG_NONE>;
-		pin-miso = <&gpio0 4 GPIO_FLAG_NONE>;
-		pin-sclk = <&gpio0 5 GPIO_FLAG_NONE>;
-	};
-
-	// Speaker and microphone (ES8311)
-	i2s0 {
-		compatible = "espressif,esp32-i2s";
-		port = <I2S_NUM_0>;
-		pin-bclk = <&gpio0 17 GPIO_FLAG_NONE>;
-		pin-ws = <&gpio0 15 GPIO_FLAG_NONE>;
-		pin-data-out = <&gpio0 14 GPIO_FLAG_NONE>;
-		pin-data-in = <&gpio0 16 GPIO_FLAG_NONE>;
-		pin-mclk = <&gpio0 18 GPIO_FLAG_NONE>;
+	buttons {
+		compatible = "tactility,button-control";
+		pin-primary = <&gpio0 11 GPIO_FLAG_NONE>;
+		pin-secondary = <&gpio0 12 GPIO_FLAG_NONE>;
 	};
 
 	uart_grove: uart1 {

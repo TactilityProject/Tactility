@@ -6,23 +6,25 @@
 #include <Tactility/app/timezone/TimeZone.h>
 
 #include <Tactility/LogMessages.h>
-#include <Tactility/Logger.h>
 #include <Tactility/MountPoints.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/Timer.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
 #include <Tactility/service/loader/Loader.h>
+#include <Tactility/settings/Time.h>
+#include <tactility/log.h>
 
 #include <lvgl.h>
 #include <memory>
 
 namespace tt::app::timezone {
 
-static const auto LOGGER = Logger("TimeZone");
+constexpr auto* TAG = "TimeZone";
 
 constexpr auto* RESULT_BUNDLE_CODE_INDEX = "code";
 constexpr auto* RESULT_BUNDLE_NAME_INDEX = "name";
+constexpr auto* PARAM_SAVE_TIME_ZONE = "saveTimeZone";
 
 extern const AppManifest manifest;
 
@@ -74,6 +76,7 @@ class TimeZoneApp final : public App {
     std::unique_ptr<Timer> updateTimer;
     lv_obj_t* listWidget = nullptr;
     lv_obj_t* filterTextareaWidget = nullptr;
+    bool saveTimeZone = false;
 
     static void onTextareaValueChangedCallback(lv_event_t* e) {
         auto* app = (TimeZoneApp*)lv_event_get_user_data(e);
@@ -100,9 +103,13 @@ class TimeZoneApp final : public App {
     }
 
     void onListItemSelected(std::size_t index) {
-        LOGGER.info("Selected item at index {}", index);
+        LOG_I(TAG, "Selected item at index %d", (int)index);
 
         auto& entry = entries[index];
+
+        if (saveTimeZone) {
+            settings::setTimeZone(entry.name, entry.code);
+        }
 
         auto bundle = std::make_unique<Bundle>();
         setResultName(*bundle, entry.name);
@@ -121,7 +128,7 @@ class TimeZoneApp final : public App {
         auto path = std::string(file::MOUNT_POINT_SYSTEM) + "/timezones.csv";
         auto* file = fopen(path.c_str(), "rb");
         if (file == nullptr) {
-            LOGGER.error("Failed to open {}", path);
+            LOG_E(TAG, "Failed to open %s", path.c_str());
             return;
         }
         char line[96];
@@ -142,7 +149,7 @@ class TimeZoneApp final : public App {
                     }
                 }
             } else {
-                LOGGER.error("Parse error at line {}", count);
+                LOG_E(TAG, "Parse error at line %llu", count);
             }
         }
 
@@ -152,23 +159,23 @@ class TimeZoneApp final : public App {
             entries = std::move(new_entries);
             mutex.unlock();
         } else {
-            LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED);
+            LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED);
         }
 
-        LOGGER.info("Processed {} entries", count);
+        LOG_I(TAG, "Processed %llu entries", count);
     }
 
     void updateList() {
-        if (lvgl::lock(100 / portTICK_PERIOD_MS)) {
+        if (lvgl::lock(200 / portTICK_PERIOD_MS)) {
             std::string filter = string::lowercase(std::string(lv_textarea_get_text(filterTextareaWidget)));
-            readTimeZones(filter);
             lvgl::unlock();
+            readTimeZones(filter);
         } else {
-            LOGGER.error(LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "LVGL");
+            LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "TimeZone LVGL");
             return;
         }
 
-        if (lvgl::lock(100 / portTICK_PERIOD_MS)) {
+        if (lvgl::lock(200 / portTICK_PERIOD_MS)) {
             if (mutex.lock(100 / portTICK_PERIOD_MS)) {
                 lv_obj_clean(listWidget);
 
@@ -182,6 +189,8 @@ class TimeZoneApp final : public App {
             }
 
             lvgl::unlock();
+        } else {
+            LOG_E(TAG, LOG_MESSAGE_MUTEX_LOCK_FAILED_FMT, "TimeZone LVGL");
         }
     }
 
@@ -222,6 +231,11 @@ public:
     }
 
     void onCreate(AppContext& app) override {
+        auto parameters = app.getParameters();
+        if (parameters != nullptr) {
+            parameters->optBool(PARAM_SAVE_TIME_ZONE, saveTimeZone);
+        }
+
         updateTimer = std::make_unique<Timer>(Timer::Type::Once, 500 / portTICK_PERIOD_MS, [this] {
             updateList();
         });
@@ -230,14 +244,16 @@ public:
 
 extern const AppManifest manifest = {
     .appId = "TimeZone",
-    .appName = "Select timezone",
+    .appName = "Select Time zone",
     .appCategory = Category::System,
     .appFlags = AppManifest::Flags::Hidden,
     .createApp = create<TimeZoneApp>
 };
 
-LaunchId start() {
-    return app::start(manifest.appId);
+LaunchId start(bool saveTimeZone) {
+    auto bundle = std::make_shared<Bundle>();
+    bundle->putBool(PARAM_SAVE_TIME_ZONE, saveTimeZone);
+    return app::start(manifest.appId, bundle);
 }
 
 }

@@ -31,6 +31,8 @@ const char* error_to_string(error_t error) {
             return "not allowed";
         case ERROR_BUFFER_OVERFLOW:
             return "buffer overflow";
+        case ERROR_RESOURCE_BUSY:
+            return "resource busy";
         default:
             return "unknown";
     }

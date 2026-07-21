@@ -1,3 +1,7 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/dummy-i2s-amp-module
+  - Drivers/audio-stream-module
+  - Drivers/rgb-display-module
+  - Drivers/gt911-module
 dts: guition,jc8048w550c.dts

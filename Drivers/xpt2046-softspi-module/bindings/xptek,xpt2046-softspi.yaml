@@ -1,0 +1,52 @@
+description: >
+  XPT2046 resistive touch controller driven over bit-banged (software) SPI on plain GPIO
+  pins, for boards where no hardware SPI peripheral is available for touch (e.g. both
+  SPI2_HOST and SPI3_HOST are already claimed by the display and SD card).
+
+compatible: "xptek,xpt2046-softspi"
+
+properties:
+  pin-mosi:
+    type: phandles
+    required: true
+    description: MOSI (controller-out, peripheral-in) GPIO pin
+  pin-miso:
+    type: phandles
+    required: true
+    description: MISO (controller-in, peripheral-out) GPIO pin
+  pin-sck:
+    type: phandles
+    required: true
+    description: Clock GPIO pin
+  pin-cs:
+    type: phandles
+    required: true
+    description: Chip-select GPIO pin
+  x-max:
+    type: int
+    required: true
+    description: Maximum X coordinate reported by the controller (typically the panel's horizontal resolution)
+  y-max:
+    type: int
+    required: true
+    description: Maximum Y coordinate reported by the controller (typically the panel's vertical resolution)
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  power-supply:
+    type: boolean
+    default: false
+    description: Expose a power-supply device that reports battery voltage/capacity read from the XPT2046's v-bat input
+  power-supply-reference-voltage-mv:
+    type: int
+    default: 4200
+    description: Battery voltage (in mV) considered 100% capacity, used to compute POWER_SUPPLY_PROP_CAPACITY

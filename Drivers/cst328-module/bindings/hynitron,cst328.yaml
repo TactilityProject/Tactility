@@ -1,0 +1,32 @@
+description: >
+  Hynitron CST328 capacitive touch controller (register-compatible with the CST226SE, per
+  LilyGO's SensorLib TouchClassCST226). Supports up to 5 simultaneous touch points and
+  self-reports its panel resolution during bring-up.
+
+include: ["i2c-device.yaml"]
+
+compatible: "hynitron,cst328"
+
+bus: i2c
+
+properties:
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis (against the chip's own self-reported resolution)
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis (against the chip's own self-reported resolution)
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional reset GPIO pin. Falls back to a software reset command if not set.
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high

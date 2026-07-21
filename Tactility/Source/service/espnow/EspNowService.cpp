@@ -2,24 +2,25 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
 
-#include <Tactility/Logger.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/service/espnow/EspNowService.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
-#include <Tactility/service/espnow/EspNowWifi.h>
+#include <Tactility/service/espnow/EspNowBackend.h>
 
 #include <cstring>
 #include <esp_now.h>
 #include <esp_random.h>
 
+#include <tactility/log.h>
+
 namespace tt::service::espnow {
 
 extern const ServiceManifest manifest;
 
-static const auto LOGGER = Logger("EspNowService");
+constexpr auto* TAG = "EspNowService";
 static uint8_t BROADCAST_MAC[ESP_NOW_ETH_ALEN];
 
 constexpr TickType_t MAX_DELAY = 1000U / portTICK_PERIOD_MS;
@@ -59,36 +60,16 @@ void EspNowService::enableFromDispatcher(const EspNowConfig& config) {
         return;
     }
 
-    if (!initWifi(config)) {
-        LOGGER.error("initWifi() failed");
+    if (!backend::init(config, receiveCallback)) {
+        LOG_E(TAG, "backend::init() failed");
         return;
     }
 
-    if (esp_now_init() != ESP_OK) {
-        LOGGER.error("esp_now_init() failed");
-        return;
-    }
-
-    if (esp_now_register_recv_cb(receiveCallback) != ESP_OK) {
-        LOGGER.error("esp_now_register_recv_cb() failed");
-        return;
-    }
-
-    //#if CONFIG_ESPNOW_ENABLE_POWER_SAVE
-    //    ESP_ERROR_CHECK( esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW) );
-    //    ESP_ERROR_CHECK( esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL) );
-    //#endif
-
-    if (esp_now_set_pmk(config.masterKey) != ESP_OK) {
-        LOGGER.error("esp_now_set_pmk() failed");
-        return;
-    }
-
-    espnowVersion = 0;
-    if (esp_now_get_version(&espnowVersion) == ESP_OK) {
-        LOGGER.info("ESP-NOW version: {}.0", espnowVersion);
+    espnowVersion = backend::getVersion();
+    if (espnowVersion != 0) {
+        LOG_I(TAG, "ESP-NOW version: %u.0", (unsigned)espnowVersion);
     } else {
-        LOGGER.warn("Failed to get ESP-NOW version");
+        LOG_W(TAG, "Failed to get ESP-NOW version");
     }
 
     // Add default unencrypted broadcast peer
@@ -118,12 +99,8 @@ void EspNowService::disableFromDispatcher() {
         return;
     }
 
-    if (esp_now_deinit() != ESP_OK) {
-        LOGGER.error("esp_now_deinit() failed");
-    }
-
-    if (!deinitWifi()) {
-        LOGGER.error("deinitWifi() failed");
+    if (!backend::deinit()) {
+        LOG_E(TAG, "backend::deinit() failed");
     }
 
     espnowVersion = 0;
@@ -137,7 +114,7 @@ void EspNowService::disableFromDispatcher() {
 void EspNowService::receiveCallback(const esp_now_recv_info_t* receiveInfo, const uint8_t* data, int length) {
     auto service = findService();
     if (service == nullptr) {
-        LOGGER.error("Service not running");
+        LOG_E(TAG,"Service not running");
         return;
     }
     service->onReceive(receiveInfo, data, length);
@@ -147,7 +124,7 @@ void EspNowService::onReceive(const esp_now_recv_info_t* receiveInfo, const uint
     auto lock = mutex.asScopedLock();
     lock.lock();
 
-    LOGGER.debug("Received {} bytes", length);
+    LOG_D(TAG, "Received %d bytes", length);
 
     for (const auto& item: subscriptions) {
         item.onReceive(receiveInfo, data, length);
@@ -163,11 +140,11 @@ bool EspNowService::isEnabled() const {
 }
 
 bool EspNowService::addPeer(const esp_now_peer_info_t& peer) {
-    if (esp_now_add_peer(&peer) != ESP_OK) {
-        LOGGER.error("Failed to add peer");
+    if (!backend::addPeer(peer)) {
+        LOG_E(TAG,"Failed to add peer");
         return false;
     } else {
-        LOGGER.info("Peer added");
+        LOG_I(TAG, "Peer added");
         return true;
     }
 }
@@ -179,7 +156,7 @@ bool EspNowService::send(const uint8_t* address, const uint8_t* buffer, size_t b
     if (!isEnabled()) {
         return false;
     } else {
-        return esp_now_send(address, buffer, bufferLength) == ESP_OK;
+        return backend::send(address, buffer, bufferLength);
     }
 }
 
@@ -222,4 +199,4 @@ extern const ServiceManifest manifest = {
 
 }
 
-#endif // CONFIG_SOC_WIFI_SUPPORTED && !CONFIG_SLAVE_SOC_WIFI_SUPPORTED
+#endif // CONFIG_SOC_WIFI_SUPPORTED || CONFIG_SLAVE_SOC_WIFI_SUPPORTED

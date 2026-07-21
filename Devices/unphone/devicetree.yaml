@@ -1,3 +1,8 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/hx8357-module
+  - Drivers/xpt2046-module
+  - Drivers/tca95xx-16bit-module
+  - Drivers/bq24295-module
+bindings: bindings
 dts: unphone.dts

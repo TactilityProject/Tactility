@@ -37,13 +37,17 @@ value: VALUE
 values: VALUE+
 array: NUMBER+
 
-property_value: quoted_text_array | QUOTED_TEXT | "<" value ">" | "<" values ">" | "[" array "]" | PHANDLE
+phandle_array_entry: "<" values ">"
+phandle_array: phandle_array_entry ("," phandle_array_entry)+
+
+property_value: quoted_text_array | QUOTED_TEXT | phandle_array | "<" value ">" | "<" values ">" | "[" array "]" | PHANDLE
 device_property: PROPERTY_NAME ["=" property_value] ";"
 
-NODE_ALIAS: /[a-zA-Z0-9_\-\/@]+/
-NODE_NAME: /[a-zA-Z0-9_\-\/@]+/
+NODE_ALIAS: /[a-zA-Z0-9_\-\/]+/
+NODE_NAME: /[a-zA-Z0-9_\-\/]+/
+NODE_ADDRESS: /[0-9a-zA-Z_]+/
 
-device: (NODE_ALIAS ":")? NODE_NAME "{" (device | device_property)* "};"
+device: (NODE_ALIAS ":")? NODE_NAME ("@" NODE_ADDRESS)? "{" (device | device_property)* "};"
 
 dts_version: /[0-9a-zA-Z\-]+/
 

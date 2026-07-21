@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout repo"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: "Configure Project"
@@ -19,20 +19,20 @@ jobs:
         run: cmake -S ./ -B build
       - name: "Build Tests"
         run: cmake --build build --target build-tests
-      - name: "Run TactilityCore Tests"
-        run: build/Tests/TactilityCore/TactilityCoreTests
       - name: "Run TactilityFreeRtos Tests"
         run: build/Tests/TactilityFreeRtos/TactilityFreeRtosTests
-      - name: "Run TactilityHeadless Tests"
+      - name: "Run Tactility Tests"
         run: build/Tests/Tactility/TactilityTests
       - name: "Run TactilityKernel Tests"
         run: build/Tests/TactilityKernel/TactilityKernelTests
+      - name: "Run CryptModuleTests Tests"
+        run: build/Tests/crypt-module/CryptModuleTests
   DevicetreeTests:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
+          persist-credentials: false
           submodules: recursive
       - name: "Install Python Dependencies"
         shell: bash

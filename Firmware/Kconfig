@@ -4,8 +4,18 @@ menu "Tactility App"
         string "Device Name"
         default ""
         help
-            Human-readable device name, including vendor
-    config TT_DEVICE_ID
+            Human-readable device name, including vendor (e.g. "M5Stack Cardputer")
+    config TT_DEVICE_NAME_SIMPLE
+        string "Device Name (simple)"
+        default ""
+        help
+            Human-readable simple device name, excluding vendor (e.g. "Cardputer")
+     config TT_DEVICE_VENDOR
+         string "Device Vendor Name"
+         default ""
+         help
+             Human-readable device vendor name (e.g. "LilyGO")
+     config TT_DEVICE_ID
         string "Device Identifier"
         default ""
         help
@@ -67,6 +77,24 @@ menu "Tactility App"
     config TT_TDECK_WORKAROUND
         bool "Temporary work-around until we fix the T-Deck keyboard and trackball settings"
         default n
+    config TT_USE_DEPRECATED_HAL
+        bool "When set to false, it ensures an empty tt::hal::hardwareConfig is made automatically"
+        default y
+        help
+            This allows for migrating projects that don't use the old HAL.
+            When set to 'n', the project has an option to not depend on Tactility and can depend on TactilityKernel instead.
+    choice TT_USER_DATA_LOCATION
+        prompt "User Data Location"
+        default TT_USER_DATA_LOCATION_INTERNAL
+        help
+            Where user data is stored on this device.
+            "Internal Flash" assumes /data always exists.
+            "SD Card" looks for the first mounted SD card at runtime and requires one to be present.
+        config TT_USER_DATA_LOCATION_SD
+            bool "SD Card"
+        config TT_USER_DATA_LOCATION_INTERNAL
+            bool "Internal Flash"
+    endchoice
     config TT_SPLASH_DURATION
        int "Splash Duration (ms)"
        default 1000
@@ -74,4 +102,11 @@ menu "Tactility App"
        help
            The minimum time to show the splash screen in milliseconds.
            When set to 0, startup will continue to desktop as soon as boot operations are finished.
+    config TT_TOUCH_CALIBRATION_SUPPORTED
+        bool "Set true when a touch screen calibration app should be included"
+        default n
+    config TT_TOUCH_CALIBRATION_REQUIRED
+        bool "Set true when a touch screen calibration is required before the device is usable"
+        default n
+        depends on TT_TOUCH_CALIBRATION_SUPPORTED
 endmenu

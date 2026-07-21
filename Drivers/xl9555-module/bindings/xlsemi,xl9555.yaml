@@ -1,0 +1,5 @@
+description: XLSEMI XL9555 16-bit I2C-bus I/O expander (PCA9555-register-compatible)
+
+include: ["i2c-device.yaml"]
+
+compatible: "xlsemi,xl9555"

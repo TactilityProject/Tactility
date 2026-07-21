@@ -2,18 +2,28 @@
 
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_sdmmc.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/pwm_backlight.h>
+#include <bindings/st7735.h>
 
 / {
 	compatible = "root";
 	model = "LilyGO T-Dongle S3";
 
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+
 	ble0 {
 		compatible = "espressif,esp32-ble";
+		status = "disabled";
 	};
 
 	gpio0 {
@@ -29,11 +39,42 @@
 		pin-scl = <&gpio0 43 GPIO_FLAG_NONE>;
 	};
 
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 38 GPIO_FLAG_NONE>;
+		period-ns = <83333>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		// Off by default so display power-on won't show the screen from before the last power loss.
+		// The display backlight is turned on during the boot process.
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
+	};
+
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 4 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 3 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 5 GPIO_FLAG_NONE>;
+
+		display@0 {
+			compatible = "sitronix,st7735";
+			horizontal-resolution = <80>;
+			vertical-resolution = <160>;
+			gap-x = <26>;
+			gap-y = <1>;
+			invert-color;
+			bgr-order;
+			pixel-clock-hz = <27000000>;
+			pin-dc = <&gpio0 2 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 1 GPIO_FLAG_NONE>;
+			backlight = <&display_backlight>;
+		};
 	};
 
 	sdmmc0 {
@@ -44,6 +85,7 @@
 		pin-d1 = <&gpio0 17 GPIO_FLAG_NONE>;
 		pin-d2 = <&gpio0 21 GPIO_FLAG_NONE>;
 		pin-d3 = <&gpio0 18 GPIO_FLAG_NONE>;
+		slot = <SDMMC_HOST_SLOT_1>;
 		bus-width = <4>;
 	};
 

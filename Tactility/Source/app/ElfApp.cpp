@@ -4,17 +4,17 @@
 #include <Tactility/app/ElfApp.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
-#include <Tactility/Logger.h>
 #include <Tactility/service/loader/Loader.h>
 #include <Tactility/StringUtils.h>
 
 #include <esp_elf.h>
 #include <string>
+#include <tactility/log.h>
 #include <utility>
 
 namespace tt::app {
 
-static auto LOGGER = Logger("ElfApp");
+constexpr auto* TAG = "ElfApp";
 
 static std::string getErrorCodeString(int error_code) {
     switch (error_code) {
@@ -71,7 +71,7 @@ private:
 
     bool startElf() {
         const std::string elf_path = std::format("{}/elf/{}.elf", appPath, CONFIG_IDF_TARGET);
-        LOGGER.info("Starting ELF {}", elf_path);
+        LOG_I(TAG, "Starting ELF %s", elf_path.c_str());
         assert(elfFileData == nullptr);
 
         size_t size = 0;
@@ -85,7 +85,7 @@ private:
 
         if (esp_elf_init(&elf) != ESP_OK) {
             lastError = "Failed to initialize";
-            LOGGER.error("{}", lastError);
+            LOG_E(TAG, "%s", lastError.c_str());
             elfFileData  = nullptr;
             return false;
         }
@@ -94,7 +94,7 @@ private:
         if (relocate_result != 0) {
             // Note: the result code maps to values from cstdlib's errno.h
             lastError = getErrorCodeString(-relocate_result);
-            LOGGER.error("Application failed to load: {}", lastError);
+            LOG_E(TAG, "Application failed to load: %s", lastError.c_str());
             elfFileData  = nullptr;
             return false;
         }
@@ -104,7 +104,7 @@ private:
 
         if (esp_elf_request(&elf, 0, argc, argv) != ESP_OK) {
             lastError = "Executable returned error code";
-            LOGGER.error("{}", lastError);
+            LOG_E(TAG, "%s", lastError.c_str());
             esp_elf_deinit(&elf);
             elfFileData  = nullptr;
             return false;
@@ -115,7 +115,7 @@ private:
     }
 
     void stopElf() {
-        LOGGER.info("Cleaning up ELF");
+        LOG_I(TAG, "Cleaning up ELF");
 
         if (shouldCleanupElf) {
             esp_elf_deinit(&elf);
@@ -163,7 +163,7 @@ public:
     }
 
     void onDestroy(AppContext& appContext) override {
-        LOGGER.info("Cleaning up app");
+        LOG_I(TAG, "Cleaning up app");
         if (manifest != nullptr) {
             if (manifest->onDestroy != nullptr) {
                 manifest->onDestroy(&appContext, data);
@@ -222,7 +222,7 @@ void setElfAppParameters(
 }
 
 std::shared_ptr<App> createElfApp(const std::shared_ptr<AppManifest>& manifest) {
-    LOGGER.info("createElfApp");
+    LOG_I(TAG, "createElfApp");
     assert(manifest != nullptr);
     assert(manifest->appLocation.isExternal());
     return std::make_shared<ElfApp>(manifest->appLocation.getPath());

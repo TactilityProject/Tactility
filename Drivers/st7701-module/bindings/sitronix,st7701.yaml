@@ -1,0 +1,263 @@
+description: >
+  Sitronix ST7701 display panel, driven over ESP-IDF's esp_lcd_st7701 component. Like
+  espressif,esp32-rgb-display, pixel data goes out over the RGB (parallel timing-driven)
+  interface, but the panel also has its own command interface: a bit-banged 3-wire SPI bus
+  (CS/SCL/SDA over plain GPIOs) used to push the vendor bring-up sequence and, optionally,
+  runtime commands (mirror, display on/off).
+
+compatible: "sitronix,st7701"
+
+properties:
+  horizontal-resolution:
+    type: int
+    required: true
+    description: Horizontal resolution in pixels
+  vertical-resolution:
+    type: int
+    required: true
+    description: Vertical resolution in pixels
+  pixel-clock-hz:
+    type: int
+    required: true
+    description: Pixel clock frequency in Hz
+  hsync-pulse-width:
+    type: int
+    required: true
+    description: Horizontal sync width, in PCLK periods
+  hsync-back-porch:
+    type: int
+    required: true
+    description: Number of PCLK periods between hsync and the start of line active data
+  hsync-front-porch:
+    type: int
+    required: true
+    description: Number of PCLK periods between the end of active data and the next hsync
+  vsync-pulse-width:
+    type: int
+    required: true
+    description: Vertical sync width, in lines
+  vsync-back-porch:
+    type: int
+    required: true
+    description: Number of invalid lines between vsync and the start of the frame
+  vsync-front-porch:
+    type: int
+    required: true
+    description: Number of invalid lines between the end of the frame and the next vsync
+  hsync-idle-low:
+    type: boolean
+    default: false
+    description: The hsync signal is low in the idle state
+  vsync-idle-low:
+    type: boolean
+    default: false
+    description: The vsync signal is low in the idle state
+  de-idle-high:
+    type: boolean
+    default: false
+    description: The DE signal is high in the idle state
+  pclk-active-neg:
+    type: boolean
+    default: false
+    description: Whether display data is clocked out on the falling edge of PCLK
+  pclk-idle-high:
+    type: boolean
+    default: false
+    description: The PCLK signal stays high in the idle phase
+  data-width:
+    type: int
+    default: 16
+    description: Number of parallel data lines wired (8 or 16)
+  bits-per-pixel:
+    type: int
+    default: 16
+    description: Color depth in bits per pixel (16, 18 or 24 - the ST7701 has no "match data-width" default)
+  num-fbs:
+    type: int
+    default: 1
+    description: Number of screen-sized frame buffers to allocate (0 or 1 = single-buffered)
+  bounce-buffer-size-px:
+    type: int
+    default: 0
+    description: Non-zero enables the DRAM bounce-buffer DMA path, sized in pixels
+  sram-trans-align:
+    type: int
+    default: 8
+    description: Alignment of buffers allocated in internal SRAM
+  psram-trans-align:
+    type: int
+    default: 64
+    description: Alignment of buffers allocated in PSRAM
+  pin-hsync:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: HSYNC GPIO pin, optional for panels that only need DE (data-enable) sync
+  pin-vsync:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: VSYNC GPIO pin, optional for panels that only need DE (data-enable) sync
+  pin-de:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data-enable GPIO pin, optional
+  pin-pclk:
+    type: phandles
+    required: true
+    description: Pixel-clock GPIO pin
+  pin-disp:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional display-enable control GPIO pin
+  pin-data0:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 0 GPIO pin
+  pin-data1:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 1 GPIO pin
+  pin-data2:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 2 GPIO pin
+  pin-data3:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 3 GPIO pin
+  pin-data4:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 4 GPIO pin
+  pin-data5:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 5 GPIO pin
+  pin-data6:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 6 GPIO pin
+  pin-data7:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 7 GPIO pin
+  pin-data8:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 8 GPIO pin
+  pin-data9:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 9 GPIO pin
+  pin-data10:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 10 GPIO pin
+  pin-data11:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 11 GPIO pin
+  pin-data12:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 12 GPIO pin
+  pin-data13:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 13 GPIO pin
+  pin-data14:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 14 GPIO pin
+  pin-data15:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Data bus bit 15 GPIO pin
+  disp-active-low:
+    type: boolean
+    default: false
+    description: A low level on the display-enable control signal turns the screen on
+  refresh-on-demand:
+    type: boolean
+    default: false
+    description: Only refresh the frame buffer on explicit draw_bitmap calls
+  fb-in-psram:
+    type: boolean
+    default: true
+    description: Allocate the frame buffer from PSRAM, preferentially
+  double-fb:
+    type: boolean
+    default: false
+    description: Allocate two screen-sized frame buffers (equivalent to num-fbs = 2)
+  no-fb:
+    type: boolean
+    default: false
+    description: Don't allocate a frame buffer; bounce buffer must be filled manually
+  bb-invalidate-cache:
+    type: boolean
+    default: false
+    description: Invalidate cache on bounce-buffer reads (can be dangerous with multi-core writers)
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  invert-color:
+    type: boolean
+    default: false
+    description: Invert the panel's color output
+  pin-cs:
+    type: phandles
+    required: true
+    description: Chip-select GPIO pin for the bit-banged 3-wire command bus
+  pin-scl:
+    type: phandles
+    required: true
+    description: Clock GPIO pin for the bit-banged 3-wire command bus
+  pin-sda:
+    type: phandles
+    required: true
+    description: Data GPIO pin for the bit-banged 3-wire command bus (write-only, no MISO)
+  scl-active-edge:
+    type: boolean
+    default: false
+    description: Sample data on the falling edge of SCL instead of the rising edge
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional hardware reset pin for the panel. Falls back to a software reset
+      (sent over the 3-wire bus) if not set.
+  reset-active-high:
+    type: boolean
+    default: false
+    description: Whether the reset pin is active high
+  mirror-by-cmd:
+    type: boolean
+    default: false
+    description: Implement mirror() by sending an LCD command instead of flipping the RGB
+      peripheral's scan direction in software
+  auto-del-panel-io:
+    type: boolean
+    default: false
+    description: Release the 3-wire command bus (and its pins) right after bring-up. Only
+      useful when those pins are physically shared with the RGB data/sync pins; leave false
+      if the 3-wire bus has its own dedicated pins, since runtime commands (mirror-by-cmd,
+      disp-on-off without a dedicated pin-disp) need the bus to stay alive.
+  init-sequence:
+    type: array
+    element-type: uint8_t
+    description: >
+      Custom vendor bring-up sequence, flattened into bytes as a run of
+      [cmd, data-length, delay-ms, data-length bytes of data...] entries, e.g.
+      `init-sequence = [0xFF 5 0  0x77 0x01 0x00 0x00 0x10  0x11 0 120  0x29 0 0];`.
+      Omit to use the ST7701 component's own built-in default sequence.
+  backlight:
+    type: phandle
+    default: "NULL"
+    description: Optional reference to this display's backlight device

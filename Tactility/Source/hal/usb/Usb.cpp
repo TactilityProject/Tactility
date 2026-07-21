@@ -3,15 +3,16 @@
 #include <soc/soc_caps.h>
 
 #include <Tactility/hal/usb/Usb.h>
-#include <Tactility/hal/sdcard/SpiSdCardDevice.h>
 #include <Tactility/hal/usb/UsbTusb.h>
 
-#include <Tactility/Logger.h>
-#include <tactility/drivers/esp32_sdmmc.h>
+#include <tactility/device.h>
+#include <tactility/driver.h>
+#include <tactility/drivers/esp32_sdcard.h>
+#include <tactility/log.h>
 
 namespace tt::hal::usb {
 
-static const auto LOGGER = Logger("USB");
+constexpr auto* TAG = "USB";
 
 constexpr auto BOOT_FLAG_SDMMC = 42;  // Existing
 constexpr auto BOOT_FLAG_FLASH = 43;  // For flash mode
@@ -24,41 +25,23 @@ static Mode currentMode = Mode::Default;
 static RTC_NOINIT_ATTR BootModeData bootModeData;
 
 sdmmc_card_t* getCard() {
-    sdmmc_card_t* sdcard = nullptr;
+    sdmmc_card_t* card = nullptr;
 
-    // Find old HAL SD card device:
-    auto sdcards = findDevices<sdcard::SpiSdCardDevice>(Device::Type::SdCard);
-    for (auto& device : sdcards) {
-        auto sdcard_device= std::static_pointer_cast<sdcard::SpiSdCardDevice>(device);
-        if (sdcard_device != nullptr && sdcard_device->isMounted() && sdcard_device->getCard() != nullptr) {
-            sdcard = sdcard_device->getCard();
-            break;
-        }
+    device_for_each(&card, [](auto* device, void* context) {
+        auto* driver = device_get_driver(device);
+        if (driver == nullptr) return true;
+        if (!driver_is_compatible(driver, "espressif,esp32-sdspi") &&
+            !driver_is_compatible(driver, "espressif,esp32-sdmmc")) return true;
+        auto** out = static_cast<sdmmc_card_t**>(context);
+        *out = esp32_sdcard_get_card(device);
+        return *out == nullptr;
+    });
+
+    if (card == nullptr) {
+        LOG_W(TAG, "Couldn't find a mounted SD card");
     }
 
-#if SOC_SDMMC_HOST_SUPPORTED
-    // Find ESP32 SDMMC device:
-    if (sdcard == nullptr) {
-        device_for_each(&sdcard, [](auto* device, void* context) {
-            if (device_is_ready(device) && device_is_compatible(device, "espressif,esp32-sdmmc")) {
-                auto** sdcard = static_cast<sdmmc_card_t**>(context);
-                auto* sdmmc_card = esp32_sdmmc_get_card(device);
-                if (sdmmc_card) {
-                    *sdcard = sdmmc_card;
-                    return false;
-                }
-                return true;
-            }
-            return true;
-        });
-    }
-#endif
-
-    if (sdcard == nullptr) {
-        LOGGER.warn("Couldn't find a mounted SD card");
-    }
-
-    return sdcard;
+    return card;
 }
 
 static bool canStartNewMode() {
@@ -71,7 +54,7 @@ bool isSupported() {
 
 bool startMassStorageWithSdmmc(bool fromBootMode) {
     if (!canStartNewMode()) {
-        LOGGER.error("Can't start");
+        LOG_E(TAG, "Can't start");
         return false;
     }
 
@@ -79,7 +62,7 @@ bool startMassStorageWithSdmmc(bool fromBootMode) {
         currentMode = Mode::MassStorageSdmmc;
         return true;
     } else {
-        LOGGER.error("Failed to init mass storage");
+        LOG_E(TAG, "Failed to init mass storage");
         return false;
     }
 }
@@ -112,7 +95,7 @@ void rebootIntoMassStorageSdmmc() {
 // NEW: Flash mass storage functions
 bool startMassStorageWithFlash(bool fromBootMode) {
     if (!canStartNewMode()) {
-        LOGGER.error("Can't start flash mass storage");
+        LOG_E(TAG, "Can't start flash mass storage");
         return false;
     }
 
@@ -120,7 +103,7 @@ bool startMassStorageWithFlash(bool fromBootMode) {
         currentMode = Mode::MassStorageFlash;
         return true;
     } else {
-        LOGGER.error("Failed to init flash mass storage");
+        LOG_E(TAG, "Failed to init flash mass storage");
         return false;
     }
 }
