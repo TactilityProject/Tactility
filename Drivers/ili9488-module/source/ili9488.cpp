@@ -246,6 +246,21 @@ static error_t ili9488_set_gap(Device* device, int32_t x_gap, int32_t y_gap) {
     return esp_lcd_panel_set_gap(internal->panel_handle, x_gap, y_gap) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 
+// Reads the devicetree-configured baseline, not live hardware state - see DisplayApi::get_gap_x().
+// Must match what start() actually programmed into the panel (physical CASET/RASET-space, swapped
+// when swap_xy is set) - lvgl_display.c treats this as the LV_DISPLAY_ROTATION_0 baseline and
+// re-applies it verbatim, so returning the raw unswapped config here would silently clobber
+// start()'s gap back to the wrong axes as soon as a display is bound.
+static int32_t ili9488_get_gap_x(Device* device) {
+    const auto* config = GET_CONFIG(device);
+    return config->swap_xy ? config->gap_y : config->gap_x;
+}
+
+static int32_t ili9488_get_gap_y(Device* device) {
+    const auto* config = GET_CONFIG(device);
+    return config->swap_xy ? config->gap_x : config->gap_y;
+}
+
 static error_t ili9488_invert_color(Device* device, bool invert_color_data) {
     auto* internal = static_cast<Ili9488Internal*>(device_get_driver_data(device));
     return esp_lcd_panel_invert_color(internal->panel_handle, invert_color_data) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
@@ -311,6 +326,8 @@ static const DisplayApi ili9488_display_api = {
     .get_mirror_x = ili9488_get_mirror_x,
     .get_mirror_y = ili9488_get_mirror_y,
     .set_gap = ili9488_set_gap,
+    .get_gap_x = ili9488_get_gap_x,
+    .get_gap_y = ili9488_get_gap_y,
     .invert_color = ili9488_invert_color,
     .disp_on_off = ili9488_disp_on_off,
     .disp_sleep = ili9488_disp_sleep,
