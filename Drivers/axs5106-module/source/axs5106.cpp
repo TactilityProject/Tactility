@@ -43,7 +43,7 @@ struct Axs5106Internal {
 // region Driver lifecycle
 
 static error_t reset_pulse(GpioDescriptor* descriptor) {
-    ok = ok && gpio_descriptor_set_level(descriptor, true) == ERROR_NONE;
+    bool ok = gpio_descriptor_set_level(descriptor, true) == ERROR_NONE;
     vTaskDelay(pdMS_TO_TICKS(10));
     ok = ok && gpio_descriptor_set_level(descriptor, false) == ERROR_NONE;
     vTaskDelay(pdMS_TO_TICKS(10));
