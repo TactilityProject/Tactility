@@ -1,8 +1,11 @@
 dependencies:
 - Platforms/platform-esp32
+- Drivers/audio-stream-module
+- Drivers/pdm-mic-module
+- Drivers/dummy-i2s-amp-module
 - Drivers/mpu6886-module
 - Drivers/bm8563-module
 - Drivers/axp192-module
-- Drivers/ft6x36-module
+- Drivers/ft5x06-module
 - Drivers/ili9341-module
 dts: m5stack,core2.dts
