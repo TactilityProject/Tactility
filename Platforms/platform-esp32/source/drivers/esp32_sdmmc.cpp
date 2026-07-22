@@ -14,7 +14,7 @@
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
 
-#define TAG "esp32_sdmmc"
+constexpr auto* TAG = "esp32_sdmmc";
 
 #define GET_CONFIG(device) ((const struct Esp32SdmmcConfig*)device->config)
 #define GET_DATA(device) ((struct Esp32SdmmcInternal*)device_get_driver_data(device))
@@ -85,7 +85,7 @@ static error_t start(Device* device) {
     // Acquire pins from the specified GPIO pin specs. Optional pins are allowed.
     bool pins_ok =
         acquire_pin_or_set_null(sdmmc_config->pin_clk, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_clk_descriptor) &&
-        acquire_pin_or_set_null(sdmmc_config->pin_cmd, GPIO_FLAG_DIRECTION_OUTPUT, &data->pin_cmd_descriptor) &&
+        acquire_pin_or_set_null(sdmmc_config->pin_cmd, GPIO_FLAG_DIRECTION_INPUT_OUTPUT, &data->pin_cmd_descriptor) &&
         acquire_pin_or_set_null(sdmmc_config->pin_d0, GPIO_FLAG_DIRECTION_INPUT_OUTPUT, &data->pin_d0_descriptor) &&
         acquire_pin_or_set_null(sdmmc_config->pin_d1, GPIO_FLAG_DIRECTION_INPUT_OUTPUT, &data->pin_d1_descriptor) &&
         acquire_pin_or_set_null(sdmmc_config->pin_d2, GPIO_FLAG_DIRECTION_INPUT_OUTPUT, &data->pin_d2_descriptor) &&
