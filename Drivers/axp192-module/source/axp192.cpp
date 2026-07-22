@@ -12,6 +12,7 @@
 #include <new>
 
 #define GET_CONFIG(device) (static_cast<const Axp192Config*>((device)->config))
+constexpr auto* TAG = "AXP192";
 
 /** Reference: https://github.com/tuupola/axp192 (register map and ADC/voltage formulas) */
 static constexpr uint8_t REG_MODE_CHGSTATUS = 0x01U;               // bit6: battery is charging
@@ -404,9 +405,72 @@ static void destroy_power_supply_child(Device* child) {
 
 // endregion
 
+// region Devicetree-configured bring-up
+
+static error_t apply_rail_config(Device* device, Axp192Rail rail, uint16_t voltage_mv, bool enable) {
+    if (voltage_mv != 0U) {
+        error_t error = axp192_set_rail_voltage(device, rail, voltage_mv);
+        if (error != ERROR_NONE) {
+            return error;
+        }
+    }
+    return axp192_set_rail_enabled(device, rail, enable);
+}
+
+// Applies the devicetree's rail voltage/enable and GPIO1 PWM settings, replacing what boards
+// (e.g. m5stack-core2) used to do by hand via a device_listener after DEVICE_EVENT_STARTED.
+static error_t apply_devicetree_config(Device* device) {
+    const auto* config = GET_CONFIG(device);
+
+    error_t error = apply_rail_config(device, AXP192_RAIL_DCDC1, config->dcdc1_voltage_mv, config->dcdc1_enable);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    error = apply_rail_config(device, AXP192_RAIL_DCDC2, config->dcdc2_voltage_mv, config->dcdc2_enable);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    error = apply_rail_config(device, AXP192_RAIL_DCDC3, config->dcdc3_voltage_mv, config->dcdc3_enable);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    error = apply_rail_config(device, AXP192_RAIL_LDO2, config->ldo2_voltage_mv, config->ldo2_enable);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    error = apply_rail_config(device, AXP192_RAIL_LDO3, config->ldo3_voltage_mv, config->ldo3_enable);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    error = axp192_set_rail_enabled(device, AXP192_RAIL_EXTEN, config->exten_enable);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+
+    if (config->gpio1_pwm) {
+        error = axp192_set_pwm1_duty_cycle(device, config->gpio1_pwm1_duty_cycle);
+        if (error != ERROR_NONE) {
+            return error;
+        }
+        error = axp192_set_gpio1_pwm1_output(device);
+        if (error != ERROR_NONE) {
+            return error;
+        }
+    }
+
+    return ERROR_NONE;
+}
+
+// endregion
+
 static error_t start(Device* device) {
     auto* parent = device_get_parent(device);
     check(device_get_type(parent) == &I2C_CONTROLLER_TYPE);
+
+    if (apply_devicetree_config(device) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to apply devicetree-configured rail/GPIO1 settings");
+        return ERROR_RESOURCE;
+    }
 
     auto* internal = new(std::nothrow) Axp192Internal();
     if (internal == nullptr) {

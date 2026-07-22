@@ -1,5 +1,6 @@
 dependencies:
   - Platforms/platform-esp32
+  - Drivers/audio-stream-module
   - Drivers/aw88298-module
   - Drivers/aw9523b-module
   - Drivers/axp2101-module

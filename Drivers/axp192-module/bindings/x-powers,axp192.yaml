@@ -3,3 +3,64 @@ description: X-Powers AXP192 power management IC
 include: ["i2c-device.yaml"]
 
 compatible: "x-powers,axp192"
+
+properties:
+  dcdc1-voltage:
+    type: int
+    default: 0
+    description: DCDC1 rail voltage in mV (700-3500). 0 leaves the voltage untouched.
+  dcdc1-enable:
+    type: boolean
+    default: false
+    description: >
+      Enable the DCDC1 rail. Unconditionally applied like any other boolean devicetree property -
+      false actively disables it, so a board whose SoC is powered from DCDC1 must set this.
+  dcdc2-voltage:
+    type: int
+    default: 0
+    description: DCDC2 rail voltage in mV (700-2275). 0 leaves the voltage untouched.
+  dcdc2-enable:
+    type: boolean
+    default: false
+    description: Enable the DCDC2 rail. See dcdc1-enable for why false actively disables it.
+  dcdc3-voltage:
+    type: int
+    default: 0
+    description: DCDC3 rail voltage in mV (700-3500). 0 leaves the voltage untouched.
+  dcdc3-enable:
+    type: boolean
+    default: false
+    description: Enable the DCDC3 rail. See dcdc1-enable for why false actively disables it.
+  ldo2-voltage:
+    type: int
+    default: 0
+    description: LDO2 rail voltage in mV (1800-3300). 0 leaves the voltage untouched.
+  ldo2-enable:
+    type: boolean
+    default: false
+    description: Enable the LDO2 rail. See dcdc1-enable for why false actively disables it.
+  ldo3-voltage:
+    type: int
+    default: 0
+    description: LDO3 rail voltage in mV (1800-3300). 0 leaves the voltage untouched.
+  ldo3-enable:
+    type: boolean
+    default: false
+    description: Enable the LDO3 rail. See dcdc1-enable for why false actively disables it.
+  exten-enable:
+    type: boolean
+    default: false
+    description: >
+      Enable the EXTEN output switch. No voltage control (see AXP192_RAIL_EXTEN); see
+      dcdc1-enable for why false actively disables it.
+  gpio1-pwm:
+    type: boolean
+    default: false
+    description: Configure GPIO1 as the PWM1 output instead of GPIO/ADC input/output.
+  gpio1-pwm1-duty-cycle:
+    type: int
+    default: 0
+    min: 0
+    max: 255
+    description: >
+      PWM1 duty cycle (0 = always low, 255 = always high). Only applied when gpio1-pwm is set.

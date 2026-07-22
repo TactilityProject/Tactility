@@ -15,6 +15,32 @@ extern "C" {
 struct Axp192Config {
     /** Address on bus */
     uint8_t address;
+    /**
+     * Rail voltage/enable settings, applied once at driver start (see axp192_set_rail_voltage()/
+     * axp192_set_rail_enabled()). Each "enable" flag is unconditionally applied - false (the yaml
+     * default) actively disables the rail, same as every other boolean devicetree property in
+     * this codebase (e.g. reset-active-high, swap-xy: absence means false, not "leave alone").
+     * A board must explicitly set every rail it needs kept on, including ones a board's hardware
+     * happens to power up with by default (e.g. DCDC1, which is the SoC's own supply on some
+     * boards) - see m5stack-core2's devicetree for a worked example. Voltage of 0 means "don't
+     * call axp192_set_rail_voltage() for this rail" (0mV is outside every rail's valid range).
+     */
+    uint16_t dcdc1_voltage_mv;
+    bool dcdc1_enable;
+    uint16_t dcdc2_voltage_mv;
+    bool dcdc2_enable;
+    uint16_t dcdc3_voltage_mv;
+    bool dcdc3_enable;
+    uint16_t ldo2_voltage_mv;
+    bool ldo2_enable;
+    uint16_t ldo3_voltage_mv;
+    bool ldo3_enable;
+    /** EXTEN has no voltage control (see AXP192_RAIL_EXTEN), hence no exten_voltage_mv field. */
+    bool exten_enable;
+    /** Configures GPIO1 as the PWM1 output (see axp192_set_gpio1_pwm1_output()). */
+    bool gpio1_pwm;
+    /** Applied only when gpio1_pwm is true (see axp192_set_pwm1_duty_cycle()). */
+    uint8_t gpio1_pwm1_duty_cycle;
 };
 
 /** Switchable/adjustable power rails of the AXP192. */

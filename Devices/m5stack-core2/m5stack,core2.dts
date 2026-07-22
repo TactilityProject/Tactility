@@ -6,14 +6,16 @@
 #include <tactility/bindings/esp32_grove.h>
 #include <tactility/bindings/esp32_i2c.h>
 #include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <bindings/mpu6886.h>
 #include <bindings/bm8563.h>
 #include <bindings/axp192.h>
-#include <bindings/ft6x36.h>
+#include <bindings/ft5x06.h>
 #include <bindings/ili9341.h>
-#include <tactility/bindings/esp32_sdspi.h>
+#include <bindings/dummy_i2s_amp.h>
+#include <bindings/pdm_mic.h>
 
 // Reference: https://docs.m5stack.com/en/core/Core2
 / {
@@ -50,10 +52,23 @@
 		axp192 {
 			compatible = "x-powers,axp192";
 			reg = <0x34>;
+			dcdc1-enable; // ESP32 + peripherals main 3V3 rail - must stay on
+			dcdc1-voltage = <3300>;
+			dcdc3-enable; // LCD backlight
+			dcdc3-voltage = <3300>;
+			ldo2-enable; // LCD logic + SD card
+			ldo2-voltage = <3300>;
+			// ldo3 (vibration motor) intentionally left disabled
+			exten-enable; // 5V boost (speaker amp etc.)
+			gpio1-pwm; // GPIO1 as PWM1 output, drives the notification LED
+			gpio1-pwm1-duty-cycle = <255>; // 255 = LED off
 		};
 
+		// FT6x36 driver doesn't reliably work when power cycling,
+		// or when the driver was powering on with its own power supply (not USB-C).
+		// The driver would not find the device and init would fail.
 		touch {
-			compatible = "focaltech,ft6x36";
+			compatible = "focaltech,ft5x06";
 			reg = <0x38>;
 			x-max = <320>;
 			y-max = <240>;
@@ -96,8 +111,6 @@
 		};
 	};
 
-	// NS4168: Speaker and microphone
-	// TODO: Init microphone via I2C: https://github.com/m5stack/M5Unified/blob/a6256725481f1bc366655fa48cf03b6095e30ad1/src/M5Unified.cpp#L391C19-L391C44
 	i2s0 {
 		compatible = "espressif,esp32-i2s";
 		port = <I2S_NUM_0>;
@@ -105,5 +118,16 @@
 		pin-ws = <&gpio0 0 GPIO_FLAG_NONE>;
 		pin-data-out = <&gpio0 2 GPIO_FLAG_NONE>;
 		pin-data-in = <&gpio0 34 GPIO_FLAG_NONE>;
+	};
+
+	speaker0 {
+		compatible = "nsiway,ns4168";
+		i2s = <&i2s0>;
+	};
+
+	mic0 {
+		compatible = "generic,spm1423";
+		i2s = <&i2s0>;
+		channels = <1>;
 	};
 };
