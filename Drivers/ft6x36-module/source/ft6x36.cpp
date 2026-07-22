@@ -55,7 +55,7 @@ static error_t pulse_reset(GpioDescriptor* descriptor) {
     if (error != ERROR_NONE) {
         return error;
     }
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(50));
     // Logical low (physical high, because of earlier GPIO_FLAG_ACTIVE_LOW)
     error = gpio_descriptor_set_level(descriptor, false);
     if (error != ERROR_NONE) {
