@@ -96,9 +96,8 @@
 		vsync-back-porch = <8>;
 		vsync-front-porch = <8>;
 		pclk-active-neg;
-		num-fbs = <2>;
-		double-fb;
-		bounce-buffer-size-px = <8000>;
+		num-fbs = <1>;
+		bounce-buffer-size-px = <4000>;
 		pin-hsync = <&gpio0 46 GPIO_FLAG_NONE>;
 		pin-vsync = <&gpio0 3 GPIO_FLAG_NONE>;
 		pin-de = <&gpio0 5 GPIO_FLAG_NONE>;
