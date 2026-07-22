@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <tactility/check.h>
 #include <tactility/driver.h>
 #include <tactility/module.h>
 
 extern "C" {
 
 extern Driver mpu6886_driver;
+
+static const Driver* mpu6886_drivers[] = {
+    &mpu6886_driver,
+    nullptr
+};
 
 static error_t start() {
     /* We crash when construct fails, because if a single driver fails to construct,
@@ -25,10 +29,8 @@ extern const ModuleSymbol mpu6886_module_symbols[];
 
 Module mpu6886_module = {
     .name = "mpu6886",
-    .start = start,
-    .stop = stop,
+    .drivers = mpu6886_drivers,
     .symbols = mpu6886_module_symbols,
-    .internal = nullptr
 };
 
 } // extern "C"

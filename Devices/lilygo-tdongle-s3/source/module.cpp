@@ -2,22 +2,8 @@
 
 extern "C" {
 
-static error_t start() {
-    // Empty for now
-    return ERROR_NONE;
-}
-
-static error_t stop() {
-    // Empty for now
-    return ERROR_NONE;
-}
-
-struct Module lilygo_tdongle_s3_module = {
-    .name = "lilygo-tdongle-s3",
-    .start = start,
-    .stop = stop,
-    .symbols = nullptr,
-    .internal = nullptr
+Module lilygo_tdongle_s3_module = {
+    .name = "lilygo-tdongle-s3"
 };
 
 }

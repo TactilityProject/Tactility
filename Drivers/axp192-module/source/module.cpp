@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/axp192.h>
-#include <tactility/check.h>
 #include <tactility/driver.h>
 #include <tactility/module.h>
 
@@ -9,6 +8,13 @@ extern "C" {
 extern Driver axp192_driver;
 extern Driver axp192_power_supply_driver;
 extern Driver axp192_backlight_driver;
+
+static const Driver* axp192_drivers[] = {
+    &axp192_driver,
+    &axp192_power_supply_driver,
+    &axp192_backlight_driver,
+    nullptr
+};
 
 const struct ModuleSymbol axp192_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(axp192_is_rail_enabled),
@@ -27,28 +33,9 @@ const struct ModuleSymbol axp192_module_symbols[] = {
     MODULE_SYMBOL_TERMINATOR
 };
 
-static error_t start() {
-    /* We crash when construct fails, because if a single driver fails to construct,
-     * there is no guarantee that the previously constructed drivers can be destroyed */
-    check(driver_construct_add(&axp192_driver) == ERROR_NONE);
-    check(driver_construct_add(&axp192_power_supply_driver) == ERROR_NONE);
-    check(driver_construct_add(&axp192_backlight_driver) == ERROR_NONE);
-    return ERROR_NONE;
-}
-
-static error_t stop() {
-    /* We crash when destruct fails, because if a single driver fails to destruct,
-     * there is no guarantee that the previously destroyed drivers can be recovered */
-    check(driver_remove_destruct(&axp192_backlight_driver) == ERROR_NONE);
-    check(driver_remove_destruct(&axp192_power_supply_driver) == ERROR_NONE);
-    check(driver_remove_destruct(&axp192_driver) == ERROR_NONE);
-    return ERROR_NONE;
-}
-
 Module axp192_module = {
     .name = "axp192",
-    .start = start,
-    .stop = stop,
+    .drivers = axp192_drivers,
     .symbols = axp192_module_symbols,
     .internal = nullptr
 };

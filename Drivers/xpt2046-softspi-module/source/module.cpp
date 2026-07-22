@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <tactility/check.h>
 #include <tactility/driver.h>
 #include <tactility/module.h>
 
@@ -8,28 +7,15 @@ extern "C" {
 extern Driver xpt2046_softspi_driver;
 extern Driver xpt2046_softspi_power_supply_driver;
 
-static error_t start() {
-    /* We crash when construct fails, because if a single driver fails to construct,
-     * there is no guarantee that the previously constructed drivers can be destroyed */
-    check(driver_construct_add(&xpt2046_softspi_driver) == ERROR_NONE);
-    check(driver_construct_add(&xpt2046_softspi_power_supply_driver) == ERROR_NONE);
-    return ERROR_NONE;
-}
-
-static error_t stop() {
-    /* We crash when destruct fails, because if a single driver fails to destruct,
-     * there is no guarantee that the previously destroyed drivers can be recovered */
-    check(driver_remove_destruct(&xpt2046_softspi_power_supply_driver) == ERROR_NONE);
-    check(driver_remove_destruct(&xpt2046_softspi_driver) == ERROR_NONE);
-    return ERROR_NONE;
-}
+static const Driver* xpt2046_softspi_drivers[] = {
+    &xpt2046_softspi_driver,
+    &xpt2046_softspi_power_supply_driver,
+    nullptr
+};
 
 Module xpt2046_softspi_module = {
     .name = "xpt2046_softspi",
-    .start = start,
-    .stop = stop,
-    .symbols = nullptr,
-    .internal = nullptr
+    .drivers = xpt2046_softspi_drivers
 };
 
 } // extern "C"

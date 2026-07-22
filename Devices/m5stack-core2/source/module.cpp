@@ -1,4 +1,3 @@
-#include <tactility/error.h>
 #include <tactility/module.h>
 
 extern "C" {
@@ -7,11 +6,7 @@ extern "C" {
 // and axp192-module's start()), replacing what used to be done by hand here via a
 // DEVICE_EVENT_STARTED device_listener.
 Module m5stack_core2_module = {
-    .name = "m5stack-core2",
-    .start = [] -> error_t { return ERROR_NONE; },
-    .stop = [] -> error_t { return ERROR_NONE; },
-    .symbols = nullptr,
-    .internal = nullptr
+    .name = "m5stack-core2"
 };
 
 }

@@ -18,9 +18,6 @@
 
 constexpr auto* TAG = "tdeck";
 
-// Legacy placeholder (required until legacy HAL is cleaned up everywhere)
-extern const tt::hal::Configuration hardwareConfiguration = {};
-
 extern "C" {
 
 void subscribe_events() {
@@ -63,9 +60,7 @@ static error_t stop() {
 Module lilygo_tdeck_module = {
     .name = "lilygo-tdeck",
     .start = start,
-    .stop = stop,
-    .symbols = nullptr,
-    .internal = nullptr
+    .stop = stop
 };
 
 }

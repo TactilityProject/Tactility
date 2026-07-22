@@ -30,16 +30,17 @@ static error_t start() {
 }
 
 static error_t stop() {
-    // Empty for now
+    if (gpio_set_level(POWER_ON_PIN, 0) != ESP_OK) {
+        return ERROR_RESOURCE;
+    }
+
     return ERROR_NONE;
 }
 
-struct Module lilygo_tdisplay_s3_module = {
+Module lilygo_tdisplay_s3_module = {
     .name = "lilygo-tdisplay-s3",
     .start = start,
-    .stop = stop,
-    .symbols = nullptr,
-    .internal = nullptr
+    .stop = stop
 };
 
 }
