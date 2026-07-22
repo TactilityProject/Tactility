@@ -7,7 +7,7 @@ extern "C" {
 extern Driver ina226_driver;
 extern Driver ina226_power_supply_driver;
 
-static const Driver* ina226_drivers[] = {
+static Driver* const ina226_drivers[] = {
     &ina226_driver,
     &ina226_power_supply_driver,
     nullptr

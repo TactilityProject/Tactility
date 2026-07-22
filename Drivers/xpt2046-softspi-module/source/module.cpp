@@ -7,7 +7,7 @@ extern "C" {
 extern Driver xpt2046_softspi_driver;
 extern Driver xpt2046_softspi_power_supply_driver;
 
-static const Driver* xpt2046_softspi_drivers[] = {
+static Driver* const xpt2046_softspi_drivers[] = {
     &xpt2046_softspi_driver,
     &xpt2046_softspi_power_supply_driver,
     nullptr

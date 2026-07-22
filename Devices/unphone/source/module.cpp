@@ -47,7 +47,7 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-static const Driver* unphone_drivers[] = {
+static Driver* const unphone_drivers[] = {
     &unphone_nav_buttons_driver,
     &unphone_power_switch_driver,
     nullptr

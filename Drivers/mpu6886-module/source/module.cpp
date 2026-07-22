@@ -6,24 +6,10 @@ extern "C" {
 
 extern Driver mpu6886_driver;
 
-static const Driver* mpu6886_drivers[] = {
+static Driver* const mpu6886_drivers[] = {
     &mpu6886_driver,
     nullptr
 };
-
-static error_t start() {
-    /* We crash when construct fails, because if a single driver fails to construct,
-     * there is no guarantee that the previously constructed drivers can be destroyed */
-    check(driver_construct_add(&mpu6886_driver) == ERROR_NONE);
-    return ERROR_NONE;
-}
-
-static error_t stop() {
-    /* We crash when destruct fails, because if a single driver fails to destruct,
-     * there is no guarantee that the previously destroyed drivers can be recovered */
-    check(driver_remove_destruct(&mpu6886_driver) == ERROR_NONE);
-    return ERROR_NONE;
-}
 
 extern const ModuleSymbol mpu6886_module_symbols[];
 

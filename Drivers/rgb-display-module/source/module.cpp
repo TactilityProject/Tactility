@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver rgb_display_driver;
 
-static const Driver* rgbd_display_drivers[] = {
+static Driver* const rgbd_display_drivers[] = {
     &rgb_display_driver,
     nullptr
 };

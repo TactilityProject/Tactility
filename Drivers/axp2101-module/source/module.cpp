@@ -9,7 +9,7 @@ extern Driver axp2101_driver;
 extern Driver axp2101_power_supply_driver;
 extern Driver axp2101_backlight_driver;
 
-static const Driver* axp2101_drivers[] = {
+static Driver* const axp2101_drivers[] = {
     &axp2101_driver,
     &axp2101_power_supply_driver,
     &axp2101_backlight_driver,

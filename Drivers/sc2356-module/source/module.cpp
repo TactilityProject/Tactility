@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver sc2356_driver;
 
-static const Driver* sc2356_drivers[] = {
+static Driver* const sc2356_drivers[] = {
     &sc2356_driver,
     nullptr
 };

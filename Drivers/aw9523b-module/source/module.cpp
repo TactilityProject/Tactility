@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver aw9523b_driver;
 
-static const Driver* aw9523b_drivers[] = {
+static Driver* const aw9523b_drivers[] = {
     &aw9523b_driver,
     nullptr
 };

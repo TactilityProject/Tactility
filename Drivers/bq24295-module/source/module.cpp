@@ -7,7 +7,7 @@ extern "C" {
 extern Driver bq24295_driver;
 extern Driver bq24295_power_supply_driver;
 
-static const Driver* bq24295_drivers[] = {
+static Driver* const bq24295_drivers[] = {
     &bq24295_driver,
     &bq24295_power_supply_driver,
     nullptr

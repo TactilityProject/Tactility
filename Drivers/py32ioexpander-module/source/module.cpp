@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver py32ioexpander_driver;
 
-static const Driver* py32ioexpander_drivers[] = {
+static Driver* const py32ioexpander_drivers[] = {
     &py32ioexpander_driver,
     nullptr
 };

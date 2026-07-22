@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver axs5106_driver;
 
-static const Driver* axs5106_drivers[] = {
+static Driver* const axs5106_drivers[] = {
     &axs5106_driver,
     nullptr
 };

@@ -57,7 +57,7 @@ struct Module {
      * When the module is started, these drivers are constructed and added to the module.
      * When the module is stopped, these drivers are removed from the module and destroyed.
      */
-    const struct Driver** drivers;
+    struct Driver* const* drivers;
     /**
      * A list of symbols exported by the module.
      * Should be terminated by MODULE_SYMBOL_TERMINATOR.

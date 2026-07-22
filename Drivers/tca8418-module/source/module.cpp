@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver tca8418_driver;
 
-static const Driver* tca8418_drivers[] = {
+static Driver* const tca8418_drivers[] = {
     &tca8418_driver,
     nullptr
 };

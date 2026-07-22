@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver ili9488_driver;
 
-static const Driver* ili9488_drivers[] = {
+static Driver* const ili9488_drivers[] = {
     &ili9488_driver,
     nullptr
 };

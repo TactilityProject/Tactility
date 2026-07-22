@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver pi4ioe5v6408_driver;
 
-static const Driver* pi4ioe5v6408_drivers[] = {
+static Driver* const pi4ioe5v6408_drivers[] = {
     &pi4ioe5v6408_driver,
     nullptr
 };

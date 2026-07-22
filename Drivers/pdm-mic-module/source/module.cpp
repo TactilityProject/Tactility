@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver pdm_mic_driver;
 
-static const Driver* pdm_mic_drivers[] = {
+static Driver* const pdm_mic_drivers[] = {
     &pdm_mic_driver,
     nullptr
 };

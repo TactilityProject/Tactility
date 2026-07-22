@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver gt911_driver;
 
-static const Driver* gt911_drivers[] = {
+static Driver* const gt911_drivers[] = {
     &gt911_driver,
     nullptr
 };

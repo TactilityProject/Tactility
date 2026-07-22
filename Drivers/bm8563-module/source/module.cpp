@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver bm8563_driver;
 
-static const Driver* bm8563_drivers[] = {
+static Driver* const bm8563_drivers[] = {
     &bm8563_driver,
     nullptr
 };

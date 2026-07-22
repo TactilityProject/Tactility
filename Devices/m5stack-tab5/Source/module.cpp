@@ -79,7 +79,7 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
-static const Driver* tab5_drivers[] = {
+static Driver* const tab5_drivers[] = {
     &tab5_keyboard_driver,
     &tab5_power_control_driver,
     nullptr
@@ -89,7 +89,7 @@ Module m5stack_tab5_module = {
     .name = "m5stack-tab5",
     .start = start,
     .stop = stop,
-    .drivers = const_cast<const Driver**>(tab5_drivers)
+    .drivers = tab5_drivers
 };
 
 }

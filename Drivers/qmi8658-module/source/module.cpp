@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver qmi8658_driver;
 
-static const Driver* qmi8658_drivers[] = {
+static Driver* const qmi8658_drivers[] = {
     &qmi8658_driver,
     nullptr
 };

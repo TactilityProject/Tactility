@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver button_control_driver;
 
-static const Driver* button_control_drivers[] = {
+static Driver* const button_control_drivers[] = {
     &button_control_driver,
     nullptr
 };

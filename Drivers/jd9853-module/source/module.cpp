@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver jd9853_driver;
 
-static const Driver* jd9853_drivers[] = {
+static Driver* const jd9853_drivers[] = {
     &jd9853_driver,
     nullptr
 };

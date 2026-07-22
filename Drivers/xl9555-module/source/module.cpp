@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver xl9555_driver;
 
-static const Driver* xl9555_drivers[] = {
+static Driver* const xl9555_drivers[] = {
     &xl9555_driver,
     nullptr
 };

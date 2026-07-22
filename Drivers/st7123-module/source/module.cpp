@@ -7,7 +7,7 @@ extern "C" {
 extern Driver st7123_driver;
 extern Driver st7123_touch_driver;
 
-static const Driver* st7123_drivers[] = {
+static Driver* const st7123_drivers[] = {
     &st7123_driver,
     &st7123_touch_driver,
     nullptr

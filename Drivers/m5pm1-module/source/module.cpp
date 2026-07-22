@@ -7,7 +7,7 @@ extern "C" {
 extern Driver m5pm1_driver;
 extern Driver m5pm1_power_supply_driver;
 
-static const Driver* m5pm1_drivers[] = {
+static Driver* const m5pm1_drivers[] = {
     &m5pm1_driver,
     &m5pm1_power_supply_driver,
     nullptr

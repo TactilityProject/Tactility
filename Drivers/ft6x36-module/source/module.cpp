@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver ft6x36_driver;
 
-static const Driver* ft6x36_drivers[] = {
+static Driver* const ft6x36_drivers[] = {
     &ft6x36_driver,
     nullptr
 };

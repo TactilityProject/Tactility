@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver dummy_i2s_amp_driver;
 
-static const Driver* dummy_drivers[] = {
+static Driver* const dummy_drivers[] = {
     &dummy_i2s_amp_driver,
     nullptr
 };

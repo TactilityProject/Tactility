@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver hal_device_driver;
 
-static const Driver* hal_device_drivers[] = {
+static Driver* const hal_device_drivers[] = {
     &hal_device_driver,
     nullptr
 };

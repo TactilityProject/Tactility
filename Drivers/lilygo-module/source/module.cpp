@@ -9,7 +9,7 @@ extern Driver tdeck_keyboard_backlight_driver;
 extern Driver tdeck_trackball_driver;
 extern Driver tpager_encoder_driver;
 
-static const Driver* lilygo_drivers[] = {
+static Driver* const lilygo_drivers[] = {
     &tdeck_keyboard_driver,
     &tdeck_keyboard_backlight_driver,
     &tdeck_trackball_driver,

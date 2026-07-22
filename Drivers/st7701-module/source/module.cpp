@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver st7701_driver;
 
-static const Driver* st7701_drivers[] = {
+static Driver* const st7701_drivers[] = {
     &st7701_driver,
     nullptr
 };

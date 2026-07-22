@@ -7,7 +7,7 @@ extern "C" {
 extern Driver sy6970_driver;
 extern Driver sy6970_power_supply_driver;
 
-static const Driver* sy6970_drivers[] = {
+static Driver* const sy6970_drivers[] = {
     &sy6970_driver,
     &sy6970_power_supply_driver,
     nullptr

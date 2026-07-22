@@ -70,7 +70,7 @@ error_t module_start(Module* module) {
         auto* driver_location = module->drivers;
         while (*driver_location != nullptr) {
             auto driver = *driver_location;
-            driver_construct_add(driver);
+            check(driver_construct_add(driver) == ERROR_NONE);
             driver_location++;
         }
     }
@@ -92,11 +92,12 @@ error_t module_stop(Module* module) {
     if (!internal->started) return ERROR_NONE;
 
     if (module->drivers != nullptr) {
-        auto* driver_location = module->drivers;
-        while (*driver_location != nullptr) {
-            auto driver = *driver_location;
-            driver_remove_destruct(driver);
-            driver_location++;
+        size_t count = 0;
+        while (module->drivers[count] != nullptr) {
+            count++;
+        }
+        for (size_t i = count; i-- > 0;) {
+            check(driver_remove_destruct(module->drivers[i]) == ERROR_NONE);
         }
     }
 
@@ -105,7 +106,6 @@ error_t module_stop(Module* module) {
         if (error != ERROR_NONE) {
             return error;
         }
-
     }
 
     internal->started = false;

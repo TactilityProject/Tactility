@@ -4,7 +4,7 @@
 
 extern Driver hx8357_driver;
 
-static const Driver* hx8357_drivers[] = {
+static Driver* const hx8357_drivers[] = {
     &hx8357_driver,
     nullptr
 };

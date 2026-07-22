@@ -6,7 +6,7 @@ extern "C" {
 
 extern Driver rx8130ce_driver;
 
-static const Driver* rx8130ce_drivers[] = {
+static Driver* const rx8130ce_drivers[] = {
     &rx8130ce_driver,
     nullptr
 };

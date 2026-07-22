@@ -8,7 +8,7 @@ extern Driver aw88298_driver;
 
 extern const ModuleSymbol aw88298_module_symbols[];
 
-static const Driver* aw88298_drivers[] = {
+static Driver* const aw88298_drivers[] = {
     &aw88298_driver,
     nullptr
 };
