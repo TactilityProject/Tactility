@@ -41,7 +41,7 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    if (initial_high && gpio_descriptor_set_level(descriptor, initial_high) != ERROR_NONE) {
+    if (config->mode != GPIO_HOG_MODE_INPUT && gpio_descriptor_set_level(descriptor, initial_high) != ERROR_NONE) {
         LOG_E(TAG, "Failed to set initial level to %d", (int)initial_high);
         gpio_descriptor_release(descriptor);
         return ERROR_RESOURCE;
