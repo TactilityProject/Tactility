@@ -4,7 +4,6 @@
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/Paths.h>
 #include <tactility/hal/Device.h>
-#include <Tactility/hal/display/DisplayDevice.h>
 
 #include <map>
 #include <string>

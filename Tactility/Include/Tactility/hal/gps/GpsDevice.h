@@ -46,7 +46,10 @@ private:
         std::shared_ptr<std::function<void(Device::Id id, const minmea_sentence_rmc&)>> onData;
     };
 
-    const GpsConfiguration configuration;
+    ::Device* uartDevice;
+    uint32_t baudRate;
+    GpsModel model;
+
     RecursiveMutex mutex;
     std::unique_ptr<Thread> thread;
     bool threadInterrupted = false;
@@ -54,7 +57,6 @@ private:
     std::vector<RmcSubscription> rmcSubscriptions;
     GgaSubscriptionId lastSatelliteSubscriptionId = 0;
     RmcSubscriptionId lastRmcSubscriptionId = 0;
-    GpsModel model = GpsModel::Unknown;
     State state = State::Off;
 
     int32_t threadMain();
@@ -65,9 +67,18 @@ private:
 
 public:
 
-    explicit GpsDevice(GpsConfiguration configuration) : configuration(std::move(configuration)) {}
+    explicit GpsDevice(
+        ::Device* uartDevice,
+        uint32_t baudRate,
+        GpsModel model // Choosing "Unknown" will result in a probe
+    ) : uartDevice(uartDevice), baudRate(baudRate), model(model) {
+        assert(uartDevice != nullptr);
+        device_get(uartDevice);
+    };
 
-    ~GpsDevice() override = default;
+    ~GpsDevice() override {
+        device_put(uartDevice);
+    }
 
     Type getType() const override { return Type::Gps; }
 

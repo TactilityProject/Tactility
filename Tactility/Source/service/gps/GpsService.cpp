@@ -157,8 +157,17 @@ bool GpsService::startReceiving() {
     }
 
     for (const auto& configuration: configurations) {
-        auto device = std::make_shared<GpsDevice>(configuration);
-        addGpsDevice(device);
+        ::Device* uart_device;
+        if (device_get_by_name(configuration.uartName, &uart_device) == ERROR_NONE) {
+            auto gps_device = std::make_shared<GpsDevice>(
+                uart_device,
+                configuration.baudRate,
+                configuration.model
+            );
+            addGpsDevice(gps_device);
+        } else {
+            LOG_E(TAG, "Failed to find device %s", configuration.uartName);
+        }
     }
 
     // Reset times before starting devices to avoid race with incoming data

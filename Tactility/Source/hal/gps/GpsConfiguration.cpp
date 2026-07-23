@@ -2,8 +2,6 @@
 #include "Tactility/service/gps/GpsService.h"
 #include "Tactility/file/ObjectFile.h"
 
-#include <Tactility/TactilityCore.h>
-
 namespace tt::hal::gps {
 
 const char* toString(GpsModel model) {

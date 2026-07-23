@@ -2,7 +2,6 @@
 #include "hal/SdlKeyboard.h"
 #include "hal/SimulatorPower.h"
 
-#include <Tactility/hal/Configuration.h>
 
 #define TAG "hardware"
 

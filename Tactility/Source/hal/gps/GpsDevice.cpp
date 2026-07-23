@@ -17,34 +17,27 @@ constexpr auto* TAG = "GpsDevice";
 int32_t GpsDevice::threadMain() {
     uint8_t buffer[GPS_UART_BUFFER_SIZE];
 
-    auto* uart = device_find_by_name(configuration.uartName);
-    if (uart == nullptr) {
-        LOG_E(TAG, "Failed to find UART %s", configuration.uartName);
-        return -1;
-    }
-
-    struct UartConfig uartConfig = {
-        .baud_rate = configuration.baudRate,
+    UartConfig uartConfig = {
+        .baud_rate = baudRate,
         .data_bits = UART_CONTROLLER_DATA_8_BITS,
         .parity = UART_CONTROLLER_PARITY_DISABLE,
         .stop_bits = UART_CONTROLLER_STOP_BITS_1
     };
 
-    error_t error = uart_controller_set_config(uart, &uartConfig);
+    error_t error = uart_controller_set_config(uartDevice, &uartConfig);
     if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to configure UART %s: %s", configuration.uartName, error_to_string(error));
+        LOG_E(TAG, "Failed to configure UART %s: %s", uartDevice->name, error_to_string(error));
         return -1;
     }
 
-    error = uart_controller_open(uart);
+    error = uart_controller_open(uartDevice);
     if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to open UART %s: %s", configuration.uartName, error_to_string(error));
+        LOG_E(TAG, "Failed to open UART %s: %s", uartDevice->name, error_to_string(error));
         return -1;
     }
 
-    GpsModel model = configuration.model;
     if (model == GpsModel::Unknown) {
-        model = probe(uart);
+        model = probe(uartDevice);
         if (model == GpsModel::Unknown) {
             LOG_E(TAG, "Probe failed");
             setState(State::Error);
@@ -52,10 +45,9 @@ int32_t GpsDevice::threadMain() {
         }
     }
     mutex.lock();
-    this->model = model;
     mutex.unlock();
 
-    if (!init(uart, model)) {
+    if (!init(uartDevice, model)) {
         LOG_E(TAG, "Init failed");
         setState(State::Error);
         return -1;
@@ -66,7 +58,7 @@ int32_t GpsDevice::threadMain() {
     // Reference: https://gpsd.gitlab.io/gpsd/NMEA.html
     while (!isThreadInterrupted()) {
         size_t bytes_read = 0;
-        uart_controller_read_until(uart, buffer, GPS_UART_BUFFER_SIZE, '\n', true, &bytes_read, 100 / portTICK_PERIOD_MS);
+        uart_controller_read_until(uartDevice, buffer, GPS_UART_BUFFER_SIZE, '\n', true, &bytes_read, 100 / portTICK_PERIOD_MS);
 
         // Thread might've been interrupted in the meanwhile
         if (isThreadInterrupted()) {
@@ -110,8 +102,8 @@ int32_t GpsDevice::threadMain() {
         }
     }
 
-    if (uart_controller_close(uart) != ERROR_NONE) {
-        LOG_W(TAG, "Failed to stop UART %s", configuration.uartName);
+    if (uart_controller_close(uartDevice) != ERROR_NONE) {
+        LOG_W(TAG, "Failed to stop UART %s", uartDevice->name);
     }
 
     return 0;

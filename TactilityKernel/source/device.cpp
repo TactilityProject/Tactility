@@ -585,6 +585,20 @@ error_t device_get_first_active_by_type(const DeviceType* type, Device** out_dev
     return error;
 }
 
+bool device_has_active_by_type(const struct DeviceType* type) {
+    ledger_lock();
+    bool found = false;
+    for (auto* device : ledger.devices) {
+        auto* driver = device->internal->driver;
+        if (driver != nullptr && driver->device_type == type && device->internal->state.started) {
+            found = true;
+            break;
+        }
+    }
+    ledger_unlock();
+    return found;
+}
+
 error_t device_get_first_by_compatible(const char* compatible, Device** out_device) {
     ledger_lock();
     Device* found = nullptr;

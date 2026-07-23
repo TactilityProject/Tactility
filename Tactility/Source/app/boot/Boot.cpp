@@ -9,7 +9,6 @@
 #include <Tactility/app/AppContext.h>
 #include <Tactility/app/AppPaths.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
-#include <Tactility/hal/display/DisplayDevice.h>
 #include <Tactility/hal/usb/Usb.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/service/loader/Loader.h>
@@ -36,10 +35,6 @@ constexpr auto* TAG = "Boot";
 
 extern const AppManifest manifest;
 
-static std::shared_ptr<hal::display::DisplayDevice> getHalDisplay() {
-    return hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
-}
-
 class BootApp : public App {
 
     // Snapshot of hal::usb::isUsbBootMode(), taken before the boot thread starts and
@@ -58,31 +53,7 @@ class BootApp : public App {
         getCpuAffinityConfiguration().system
     );
 
-    static void setupHalDisplay() {
-        const auto hal_display = getHalDisplay();
-        if (hal_display == nullptr) {
-            return;
-        }
-
-        settings::display::DisplaySettings settings;
-        if (settings::display::load(settings)) {
-            if (hal_display->getGammaCurveCount() > 0) {
-                hal_display->setGammaCurve(settings.gammaCurve);
-                LOG_I(TAG, "Gamma curve %d", settings.gammaCurve);
-            }
-        } else {
-            settings = settings::display::getDefault();
-        }
-
-        if (hal_display->supportsBacklightDuty()) {
-            LOG_I(TAG, "Backlight %d", settings.backlightDuty);
-            hal_display->setBacklightDuty(settings.backlightDuty);
-        } else {
-            LOG_I(TAG, "No backlight");
-        }
-    }
-
-    static void setupKernelDisplay() {
+    static void setupDisplay() {
         auto* display = device_find_first_by_type(&DISPLAY_TYPE);
         // Boards not yet migrated to the kernel display driver register a placeholder device (so
         // the devicetree node resolves) with a NULL api - nothing for this function to act on.
@@ -161,8 +132,8 @@ class BootApp : public App {
 
         // TODO: Support for multiple displays
         LOG_I(TAG, "Setup display");
-        setupHalDisplay();
-        setupKernelDisplay();
+        setupDisplay();
+        LOG_I(TAG, "Prepare file systems");
         prepareFileSystems();
 
 #ifdef CONFIG_TT_USER_DATA_LOCATION_SD

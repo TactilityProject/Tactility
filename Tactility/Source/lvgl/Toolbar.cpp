@@ -3,6 +3,8 @@
 #include <Tactility/Tactility.h>
 #include <Tactility/lvgl/Toolbar.h>
 
+#include "tactility/drivers/pointer.h"
+
 #include <Tactility/lvgl/Spinner.h>
 #include <Tactility/service/loader/Loader.h>
 
@@ -154,7 +156,7 @@ lv_obj_t* toolbar_create(lv_obj_t* parent, const std::string& title) {
     // If we don't have a touch device, we assume there's some other kind of input like a keyboard, an encoder or button control
     // In that scenario we want to automatically have the close button selected so the user doesn't have to press the widget selection
     // an extra time for every screen.
-    if (!hal::hasDevice(hal::Device::Type::Touch)) {
+    if (!device_has_active_by_type(&POINTER_TYPE)) {
         lv_group_focus_obj(toolbar->close_button);
     }
 

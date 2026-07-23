@@ -1,9 +1,8 @@
 #ifdef ESP_PLATFORM
 
-#include <Tactility/Timer.h>
 #include <Tactility/Tactility.h>
+#include <Tactility/Timer.h>
 #include <Tactility/app/AppManifest.h>
-#include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/lvgl/Toolbar.h>
@@ -14,6 +13,7 @@
 
 #include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
+#include <tactility/lvgl_module.h>
 
 #include <cstring>
 #include <lvgl.h>
@@ -33,7 +33,7 @@ class DevelopmentApp final : public App {
     Timer timer = Timer(Timer::Type::Periodic, pdMS_TO_TICKS(1000), [this] {
         auto lock = lvgl::getSyncLock()->asScopedLock();
         // TODO: There's a crash when this is called when the app is being destroyed
-        if (lock.lock(lvgl::defaultLockTime) && lvgl::isStarted()) {
+        if (lock.lock(lvgl::defaultLockTime) && module_is_started(&lvgl_module)) {
             updateViewState();
         }
     });
