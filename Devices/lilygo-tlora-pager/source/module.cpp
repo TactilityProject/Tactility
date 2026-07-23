@@ -15,18 +15,15 @@
 
 constexpr auto* TAG = "T-Lora Pager";
 
-// Legacy placeholder (required until legacy HAL is cleaned up everywhere). All board
-// peripherals are kernel drivers now (see the .dts): display (st7796), battery (bq27220),
-// charger power-off (bq25896), haptics (drv2605), keyboard (tca8418) and the encoder wheel
-// (lilygo,tpager-encoder, bound to LVGL below).
-extern const tt::hal::Configuration hardwareConfiguration = {};
-
 extern "C" {
 
-static void subscribe_events() {
+tt::kernel::SystemEventSubscription event_subscription;
+
+static error_t start() {
+
     LOG_I(TAG, LOG_MESSAGE_POWER_ON_START);
 
-    tt::kernel::subscribeSystemEvent(tt::kernel::SystemEvent::BootSplash, [](tt::kernel::SystemEvent) {
+    event_subscription = tt::kernel::subscribeSystemEvent(tt::kernel::SystemEvent::BootSplash, [](tt::kernel::SystemEvent) {
         // The kernel tpager_encoder device is already started by kernel_init(); this just
         // registers it as an LVGL input device, which requires LVGL to be up first.
         lvgl_lock();
@@ -50,23 +47,18 @@ static void subscribe_events() {
             }
         }
     });
-}
-
-static error_t start() {
-    subscribe_events();
     return ERROR_NONE;
 }
 
 static error_t stop() {
+    tt::kernel::unsubscribeSystemEvent(event_subscription);
     return ERROR_NONE;
 }
 
-struct Module lilygo_tlora_pager_module = {
+Module lilygo_tlora_pager_module = {
     .name = "lilygo-tlora-pager",
     .start = start,
-    .stop = stop,
-    .symbols = nullptr,
-    .internal = nullptr
+    .stop = stop
 };
 
 }

@@ -3,12 +3,16 @@
 #include <new>
 #include <tactility/concurrent/mutex.h>
 #include <tactility/module.h>
+
+#include "tactility/driver.h"
+
 #include <vector>
 
-#define TAG "module"
+constexpr auto* TAG = "module";
 
 struct ModuleInternal {
     bool started = false;
+    bool drivers_ready = false;
 };
 
 struct ModuleLedger {
@@ -56,33 +60,62 @@ error_t module_start(Module* module) {
     if (internal == nullptr) return ERROR_INVALID_STATE;
     if (internal->started) return ERROR_NONE;
 
-    error_t error = module->start();
-    internal->started = (error == ERROR_NONE);
-    return error;
+    if (module->start != nullptr) {
+        auto error = module->start();
+        if (error != ERROR_NONE) {
+            return error;
+        }
+    }
+
+    if (module->drivers != nullptr && !internal->drivers_ready) {
+        auto* driver_location = module->drivers;
+        while (*driver_location != nullptr) {
+            auto driver = *driver_location;
+            check(driver_construct_add(driver) == ERROR_NONE);
+            driver_location++;
+        }
+        internal->drivers_ready = true;
+    }
+
+    internal->started = true;
+    return ERROR_NONE;
 }
 
-bool module_is_started(struct Module* module) {
+bool module_is_started(Module* module) {
     auto* internal = module->internal;
     return internal != nullptr && internal->started;
 }
 
-error_t module_stop(struct Module* module) {
+error_t module_stop(Module* module) {
     LOG_I(TAG, "stop %s", module->name);
 
     auto* internal = module->internal;
     if (internal == nullptr) return ERROR_INVALID_STATE;
     if (!internal->started) return ERROR_NONE;
 
-    error_t error = module->stop();
-    if (error != ERROR_NONE) {
-        return error;
+    if (module->drivers != nullptr && internal->drivers_ready) {
+        size_t count = 0;
+        while (module->drivers[count] != nullptr) {
+            count++;
+        }
+        for (size_t i = count; i-- > 0;) {
+            check(driver_remove_destruct(module->drivers[i]) == ERROR_NONE);
+        }
+        internal->drivers_ready = false;
+    }
+
+    if (module->stop != nullptr) {
+        auto error = module->stop();
+        if (error != ERROR_NONE) {
+            return error;
+        }
     }
 
     internal->started = false;
-    return error;
+    return ERROR_NONE;
 }
 
-error_t module_construct_add_start(struct Module* module) {
+error_t module_construct_add_start(Module* module) {
     error_t error = module_construct(module);
     if (error != ERROR_NONE) return error;
     error = module_add(module);

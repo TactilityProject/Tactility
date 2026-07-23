@@ -16,7 +16,7 @@
 #include "devices/tab5_power_control.h"
 #include "devices/tab_5_camera.h"
 
-#define TAG "Tab5"
+constexpr auto* TAG = "Tab5";
 
 // PI4IOE5V6408-0 (0x43) bit 1
 constexpr auto GPIO_EXP0_PIN_SPEAKER_ENABLE = 1;
@@ -65,44 +65,31 @@ static void on_io_expander0_started(Device* device, DeviceEvent event, void* con
 extern "C" {
 
 static error_t start() {
-
-    /* Crash when construct fails, because if a single driver fails to construct,
-     * there is no guarantee that the previously constructed drivers can be destroyed */
-    check(driver_construct_add(&tab5_keyboard_driver) == ERROR_NONE);
-    check(driver_construct_add(&tab5_power_control_driver) == ERROR_NONE);
-
     tab5_detect_start();
-
     tab5_camera_init();
-
     device_listener_add(on_io_expander0_started, nullptr);
-
     tab5_headphone_detect_start();
-
     return ERROR_NONE;
 }
 
 static error_t stop() {
     tab5_headphone_detect_stop();
-
     device_listener_remove(on_io_expander0_started);
-
     tab5_detect_stop();
-
-    /* Crash when destruct fails, because if a single driver fails to destruct,
-     * there is no guarantee that the previously destroyed drivers can be recovered */
-    check(driver_remove_destruct(&tab5_keyboard_driver) == ERROR_NONE);
-    check(driver_remove_destruct(&tab5_power_control_driver) == ERROR_NONE);
-
     return ERROR_NONE;
 }
+
+static Driver* const tab5_drivers[] = {
+    &tab5_keyboard_driver,
+    &tab5_power_control_driver,
+    nullptr
+};
 
 Module m5stack_tab5_module = {
     .name = "m5stack-tab5",
     .start = start,
     .stop = stop,
-    .symbols = nullptr,
-    .internal = nullptr
+    .drivers = tab5_drivers
 };
 
 }

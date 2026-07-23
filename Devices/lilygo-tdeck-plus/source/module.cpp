@@ -19,9 +19,6 @@
 
 constexpr auto* TAG = "tdeck-plus";
 
-// Legacy placeholder (required until legacy HAL is cleaned up everywhere)
-extern const tt::hal::Configuration hardwareConfiguration = {};
-
 extern "C" {
 
 void subscribe_events() {

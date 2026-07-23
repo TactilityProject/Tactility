@@ -38,29 +38,26 @@ static void on_device_event(Device* device, DeviceEvent event, void* context) {
 }
 
 static error_t start() {
-    /* We crash when construct fails, because if a single driver fails to construct,
-     * there is no guarantee that the previously constructed drivers can be destroyed */
-    check(driver_construct_add(&unphone_power_switch_driver) == ERROR_NONE);
-    check(driver_construct_add(&unphone_nav_buttons_driver) == ERROR_NONE);
     device_listener_add(on_device_event, nullptr);
     return ERROR_NONE;
 }
 
 static error_t stop() {
     device_listener_remove(&on_device_event);
-    /* We crash when destruct fails, because if a single driver fails to destruct,
-     * there is no guarantee that the previously destroyed drivers can be recovered */
-    check(driver_remove_destruct(&unphone_nav_buttons_driver) == ERROR_NONE);
-    check(driver_remove_destruct(&unphone_power_switch_driver) == ERROR_NONE);
     return ERROR_NONE;
 }
 
-struct Module unphone_module = {
+static Driver* const unphone_drivers[] = {
+    &unphone_nav_buttons_driver,
+    &unphone_power_switch_driver,
+    nullptr
+};
+
+Module unphone_module = {
     .name = "unphone",
     .start = start,
     .stop = stop,
-    .symbols = nullptr,
-    .internal = nullptr
+    .drivers = unphone_drivers
 };
 
 }
