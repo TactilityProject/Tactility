@@ -12,6 +12,7 @@ constexpr auto* TAG = "module";
 
 struct ModuleInternal {
     bool started = false;
+    bool drivers_ready = false;
 };
 
 struct ModuleLedger {
@@ -66,13 +67,14 @@ error_t module_start(Module* module) {
         }
     }
 
-    if (module->drivers != nullptr) {
+    if (module->drivers != nullptr && !internal->drivers_ready) {
         auto* driver_location = module->drivers;
         while (*driver_location != nullptr) {
             auto driver = *driver_location;
             check(driver_construct_add(driver) == ERROR_NONE);
             driver_location++;
         }
+        internal->drivers_ready = true;
     }
 
     internal->started = true;
@@ -91,7 +93,7 @@ error_t module_stop(Module* module) {
     if (internal == nullptr) return ERROR_INVALID_STATE;
     if (!internal->started) return ERROR_NONE;
 
-    if (module->drivers != nullptr) {
+    if (module->drivers != nullptr && internal->drivers_ready) {
         size_t count = 0;
         while (module->drivers[count] != nullptr) {
             count++;
@@ -99,6 +101,7 @@ error_t module_stop(Module* module) {
         for (size_t i = count; i-- > 0;) {
             check(driver_remove_destruct(module->drivers[i]) == ERROR_NONE);
         }
+        internal->drivers_ready = false;
     }
 
     if (module->stop != nullptr) {
