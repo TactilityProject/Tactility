@@ -11,6 +11,7 @@
 #include <tactility/bindings/pwm_backlight.h>
 #include <bindings/xl9555.h>
 #include <bindings/cst66xx.h>
+#include <bindings/gdeq031t10.h>
 #include <bindings/tca8418.h>
 #include <bindings/sy6970.h>
 #include <bindings/bq27220.h>
@@ -142,6 +143,17 @@
 		// The EPD pushes its whole 9600-byte framebuffer in one SPI write, which
 		// exceeds the default ~4 KB transfer limit. Raise the bus limit to fit it.
 		max-transfer-size = <65536>;
+
+		display@0 {
+			compatible = "gooddisplay,gdeq031t10";
+			pin-dc = <&gpio0 35 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 9 GPIO_FLAG_NONE>;
+			pin-busy = <&gpio0 37 GPIO_FLAG_NONE>;
+			clock-speed-hz = <10000000>;
+			// Default to a fast (~1s) refresh for the automatic ghost-clears so the
+			// full-screen flash they cause is as short as possible.
+			refresh-mode = <GDEQ031T10_REFRESH_FAST>;
+		};
 
 		sdcard@1 {
 			compatible = "espressif,esp32-sdspi";

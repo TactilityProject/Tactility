@@ -1,0 +1,44 @@
+description: >
+  GoodDisplay GDEQ031T10 (UC8253-family controller) 3.1" 240x320 SPI e-paper panel, as used on
+  the LilyGO T-Deck Pro/Max. No ESP-IDF esp_lcd component exists for this controller, so this
+  driver speaks the panel's raw SPI command protocol directly (bit-banged DC/BUSY lines, blocking
+  spi_device_polling_transmit()) rather than wrapping esp_lcd_panel_io/esp_lcd_panel. Command
+  sequence and timings ported from the vendor reference driver in Xinyuan-LilyGO/T-Deck-MAX
+  (examples/Elink_paper/GDEQ031T10_Arduino).
+
+compatible: "gooddisplay,gdeq031t10"
+
+bus: spi
+
+properties:
+  pin-dc:
+    type: phandles
+    required: true
+    description: Data/Command GPIO pin
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: >
+      Optional hardware reset GPIO pin. This controller family has no software-reset command, so
+      when this pin is absent the panel is never hardware-reset - bring-up relies on its
+      power-on-reset default state, and deep sleep (which can only be woken via reset) is never
+      used, falling back to the lighter charge-pump-off standby instead.
+  pin-busy:
+    type: phandles
+    required: true
+    description: Busy GPIO pin (input; high = panel ready)
+  clock-speed-hz:
+    type: int
+    default: 4000000
+    description: SPI clock frequency in Hz
+  refresh-mode:
+    type: int
+    default: GDEQ031T10_REFRESH_FULL
+    description: >
+      Waveform mode used for automatic (non-explicit) refreshes: GDEQ031T10_REFRESH_FULL,
+      GDEQ031T10_REFRESH_FAST, GDEQ031T10_REFRESH_SLOW, or GDEQ031T10_REFRESH_PARTIAL. Explicit
+      full refreshes (first draw, mode changes, periodic ghost-clears) always use FULL.
+  mirror-180:
+    type: boolean
+    default: false
+    description: Panel is mounted upside down relative to the reference orientation

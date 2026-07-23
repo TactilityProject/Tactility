@@ -2,6 +2,7 @@ dependencies:
   - Platforms/platform-esp32
   - Drivers/xl9555-module
   - Drivers/cst66xx-module
+  - Drivers/gdeq031t10-module
   - Drivers/tca8418-module
   - Drivers/sy6970-module
   - Drivers/bq27220-module
