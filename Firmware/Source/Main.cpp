@@ -1,6 +1,5 @@
 #include <Tactility/Tactility.h>
 
-#include <tactility/driver.h>
 #include <devicetree.h>
 
 #ifdef ESP_PLATFORM
@@ -9,30 +8,15 @@
 #include <Simulator.h>
 #endif
 
-#ifdef CONFIG_TT_USE_DEPRECATED_HAL
-// Each board project declares this variable
-extern const tt::hal::Configuration hardwareConfiguration;
-#else
-// Legacy placeholder (required until legacy HAL is cleaned up everywhere)
-extern const tt::hal::Configuration hardwareConfiguration = {};
-#endif
-
 extern "C" {
 
 void app_main() {
-    static const tt::Configuration config = {
-        /**
-         * Auto-select a board based on the ./sdkconfig.board.* file
-         * that you copied to ./sdkconfig before you opened this project.
-         */
-        .hardware = &hardwareConfiguration
-    };
 
 #ifdef ESP_PLATFORM
     tt_init_tactility_c(); // ELF bindings for side-loading on ESP32
 #endif
 
-    tt::run(config, dts_modules, dts_devices);
+    tt::run(dts_modules, dts_devices);
 }
 
 } // extern

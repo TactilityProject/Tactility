@@ -37,12 +37,33 @@ struct KeyboardApi {
      * @retval ERROR_NONE when the operation was successful
      */
     error_t (*read_key)(struct Device* device, struct KeyboardKeyData* data);
+
+    /**
+     * @brief Returns the baclight if the keyboard has one.
+     * @warning Returns a referenced device. Must call device_put() afterwards.
+     * @param[in] device the keyboard device
+     * @param[out] backlight_device the output backlight device
+     * @retval ERROR_NONE when the backlight_device was set
+     * @retval ERROR_NOT_SUPPORTED when this device has no backlight
+     */
+    error_t (*get_backlight)(struct Device* device, struct Device** backlight_device);
 };
 
 /**
  * @brief Reads the next pending key event using the specified keyboard device.
  */
 error_t keyboard_read_key(struct Device* device, struct KeyboardKeyData* data);
+
+/**
+ * @brief Returns the backlight if the keyboard has one.
+ * @warning Returns a referenced device. Must call device_put() afterwards.
+ * @param[in] device the keyboard device
+ * @param[out] backlight_device the output backlight device
+ * @retval ERROR_NONE when the backlight_device was set
+ * @retval ERROR_NOT_SUPPORTED when this device has no backlight
+ */
+error_t keyboard_get_backlight(struct Device* device, struct Device** backlight_device);
+
 
 extern const struct DeviceType KEYBOARD_TYPE;
 

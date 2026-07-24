@@ -95,9 +95,9 @@ else ()
     list(APPEND REQUIRES_LIST
         Tactility
         TactilityFreeRtos
-        hal-device-module
         lvgl-module
         crypt-module
+        gps-module
         SDL2::SDL2-static
         SDL2-static
     )

@@ -5,10 +5,10 @@
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/lvgl/Toolbar.h>
-#include <Tactility/service/gps/GpsService.h>
-#include <Tactility/service/gps/GpsState.h>
 #include <Tactility/service/loader/Loader.h>
 
+#include <tactility/drivers/gps.h>
+#include <tactility/gps_service.h>
 #include <tactility/log.h>
 #include <tactility/lvgl_icon_shared.h>
 
@@ -29,7 +29,6 @@ class GpsSettingsApp final : public App {
     static constexpr auto* TAG = "GpsSettings";
 
     std::unique_ptr<Timer> timer;
-    std::shared_ptr<GpsSettingsApp*> appReference = std::make_shared<GpsSettingsApp*>(this);
     lv_obj_t* statusWrapper = nullptr;
     lv_obj_t* statusLabelWidget = nullptr;
     lv_obj_t* statusLatitudeValue = nullptr;
@@ -44,17 +43,6 @@ class GpsSettingsApp final : public App {
     lv_obj_t* gpsConfigWrapper = nullptr;
     lv_obj_t* addGpsWrapper = nullptr;
     bool hasSetInfo = false;
-    PubSub<service::gps::State>::SubscriptionHandle serviceStateSubscription = nullptr;
-    std::shared_ptr<service::gps::GpsService> service;
-
-    void onServiceStateChanged() {
-        auto lock = lvgl::getSyncLock()->asScopedLock();
-        if (lock.lock(100 / portTICK_PERIOD_MS)) {
-            if (!updateTimerState()) {
-                updateViews();
-            }
-        }
-    }
 
     static void onGpsToggledCallback(lv_event_t* event) {
         auto* app = (GpsSettingsApp*)lv_event_get_user_data(event);
@@ -70,22 +58,12 @@ class GpsSettingsApp final : public App {
         app::start(addgps::manifest.appId);
     }
 
-    void startReceivingUpdates() {
-        timer->start();
-        updateViews();
-    }
-
-    void stopReceivingUpdates() {
-        timer->stop();
-        updateViews();
-    }
-
-    void createInfoView(hal::gps::GpsModel model) {
+    void createInfoView(GpsModel model) {
         auto* label = lv_label_create(infoContainerWidget);
-        if (model == hal::gps::GpsModel::Unknown) {
+        if (model == GpsModel::GPS_MODEL_UNKNOWN) {
             lv_label_set_text(label, "Model: auto-detect");
         } else {
-            lv_label_set_text_fmt(label, "Model: %s", toString(model));
+            lv_label_set_text_fmt(label, "Model: %s", gps_model_to_string(model));
         }
     }
 
@@ -98,21 +76,21 @@ class GpsSettingsApp final : public App {
         // TODO: Find a better way to cast void* to int, or find a different way to pass the index
         memcpy(&index, &index_as_voidptr, sizeof(int));
 
-        std::vector<tt::hal::gps::GpsConfiguration> configurations;
-        auto gps_service = service::gps::findGpsService();
-        if (gps_service && gps_service->getGpsConfigurations(configurations)) {
-            LOG_I(TAG, "Found service and configs %d %d", index, (int)configurations.size());
-            if (index < configurations.size()) {
-                if (gps_service->removeGpsConfiguration(configurations[index])) {
-                    app->updateViews();
-                } else {
-                    alertdialog::start("Error", "Failed to remove configuration");
-                }
+        std::vector<GpsConfiguration> configurations;
+        gps_service_for_each_configuration(&configurations, [](const GpsConfiguration* configuration, size_t, void* context) {
+            static_cast<std::vector<GpsConfiguration>*>(context)->push_back(*configuration);
+        });
+
+        if (index < (int)configurations.size()) {
+            if (gps_service_remove_configuration(&configurations[index]) == ERROR_NONE) {
+                app->updateViews();
+            } else {
+                alertdialog::start("Error", "Failed to remove configuration");
             }
         }
     }
 
-    void createGpsView(const hal::gps::GpsConfiguration& configuration, int index) {
+    void createGpsView(const GpsConfiguration& configuration, int index) {
         auto* wrapper = lv_obj_create(gpsConfigWrapper);
         lv_obj_set_size(wrapper, LV_PCT(100), LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_ROW);
@@ -129,16 +107,16 @@ class GpsSettingsApp final : public App {
         lv_obj_set_flex_flow(left_wrapper, LV_FLEX_FLOW_COLUMN);
 
         auto* uart_label = lv_label_create(left_wrapper);
-        lv_label_set_text_fmt(uart_label, "UART: %s", configuration.uartName);
+        lv_label_set_text_fmt(uart_label, "UART: %s", configuration.uart_name);
 
         auto* baud_label = lv_label_create(left_wrapper);
-        lv_label_set_text_fmt(baud_label, "Baud: %lu", configuration.baudRate);
+        lv_label_set_text_fmt(baud_label, "Baud: %lu", configuration.baud_rate);
 
         auto* model_label = lv_label_create(left_wrapper);
-        if (configuration.model == hal::gps::GpsModel::Unknown) {
+        if (configuration.model == GpsModel::GPS_MODEL_UNKNOWN) {
             lv_label_set_text(model_label, "Model: auto-detect");
         } else {
-            lv_label_set_text_fmt(model_label, "Model: %s", toString(configuration.model));
+            lv_label_set_text_fmt(model_label, "Model: %s", gps_model_to_string(configuration.model));
         }
 
         // Right wrapper
@@ -158,11 +136,11 @@ class GpsSettingsApp final : public App {
     void updateViews() {
         auto lock = lvgl::getSyncLock()->asScopedLock();
         if (lock.lock(100 / portTICK_PERIOD_MS)) {
-            auto state = service->getState();
+            auto state = gps_service_get_state();
 
             // Update toolbar
             switch (state) {
-                case service::gps::State::OnPending:
+                case GpsServiceState::GPS_SERVICE_STATE_ON_PENDING:
                     LOG_D(TAG, "OnPending");
                     lv_obj_remove_flag(spinnerWidget, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_state(switchWidget, LV_STATE_CHECKED);
@@ -171,7 +149,7 @@ class GpsSettingsApp final : public App {
                     lv_obj_add_flag(gpsConfigWrapper, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(addGpsWrapper, LV_OBJ_FLAG_HIDDEN);
                     break;
-                case service::gps::State::On:
+                case GpsServiceState::GPS_SERVICE_STATE_ON:
                     LOG_D(TAG, "On");
                     lv_obj_add_flag(spinnerWidget, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_state(switchWidget, LV_STATE_CHECKED);
@@ -180,7 +158,7 @@ class GpsSettingsApp final : public App {
                     lv_obj_add_flag(gpsConfigWrapper, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(addGpsWrapper, LV_OBJ_FLAG_HIDDEN);
                     break;
-                case service::gps::State::OffPending:
+                case GpsServiceState::GPS_SERVICE_STATE_OFF_PENDING:
                     LOG_D(TAG, "OffPending");
                     lv_obj_remove_flag(spinnerWidget, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_remove_state(switchWidget, LV_STATE_CHECKED);
@@ -189,7 +167,7 @@ class GpsSettingsApp final : public App {
                     lv_obj_remove_flag(gpsConfigWrapper, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_remove_flag(addGpsWrapper, LV_OBJ_FLAG_HIDDEN);
                     break;
-                case service::gps::State::Off:
+                case GpsServiceState::GPS_SERVICE_STATE_OFF:
                     LOG_D(TAG, "Off");
                     lv_obj_add_flag(spinnerWidget, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_remove_state(switchWidget, LV_STATE_CHECKED);
@@ -201,18 +179,17 @@ class GpsSettingsApp final : public App {
             }
 
             // Update status label and device info
-            if (state == service::gps::State::On) {
+            if (state == GpsServiceState::GPS_SERVICE_STATE_ON) {
                 if (!hasSetInfo) {
-                    auto devices = hal::findDevices<hal::gps::GpsDevice>(hal::Device::Type::Gps);
-                    for (auto& device : devices) {
-                        createInfoView(device->getModel());
-                        hasSetInfo = true;
-                    }
+                    gps_service_for_each_device(this, [](Device* device, void* context) {
+                        static_cast<GpsSettingsApp*>(context)->createInfoView(gps_get_model(device));
+                    });
+                    hasSetInfo = true;
                 }
 
                 minmea_sentence_rmc rmc;
                 char buffer[64];
-                if (service->getCoordinates(rmc)) {
+                if (gps_service_get_coordinates(&rmc)) {
                     lv_label_set_text(statusLabelWidget, "Lock acquired");
                     lv_obj_set_style_text_color(statusLabelWidget, lv_color_hex(0x00ff00), 0);
 
@@ -268,7 +245,7 @@ class GpsSettingsApp final : public App {
                 }
 
                 minmea_sentence_gga gga;
-                if (service->getGga(gga)) {
+                if (gps_service_get_gga(&gga)) {
                     float altitude = minmea_tofloat(&gga.altitude);
                     if (!isnan(altitude)) {
                         snprintf(buffer, sizeof(buffer), "%.1f m", altitude);
@@ -296,13 +273,13 @@ class GpsSettingsApp final : public App {
 
             if (!lv_obj_has_flag(gpsConfigWrapper, LV_OBJ_FLAG_HIDDEN)) {
                 lv_obj_clean(gpsConfigWrapper);
-                std::vector<tt::hal::gps::GpsConfiguration> configurations;
-                auto gps_service = tt::service::gps::findGpsService();
-                if (gps_service && gps_service->getGpsConfigurations(configurations)) {
-                    int index = 0;
-                    for (auto& configuration : configurations) {
-                        createGpsView(configuration, index++);
-                    }
+                std::vector<GpsConfiguration> configurations;
+                gps_service_for_each_configuration(&configurations, [](const GpsConfiguration* configuration, size_t, void* context) {
+                    static_cast<std::vector<GpsConfiguration>*>(context)->push_back(*configuration);
+                });
+                int index = 0;
+                for (auto& configuration : configurations) {
+                    createGpsView(configuration, index++);
                 }
             } else {
                 lv_obj_clean(gpsConfigWrapper);
@@ -310,34 +287,20 @@ class GpsSettingsApp final : public App {
         }
     }
 
-    /** @return true if the views were updated */
-    bool updateTimerState() {
-        bool is_on = service->getState() == service::gps::State::On;
-        if (is_on && !timer->isRunning()) {
-            startReceivingUpdates();
-            return true;
-        } else if (!is_on && timer->isRunning()) {
-            stopReceivingUpdates();
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     void onGpsToggled(lv_event_t* event) {
         bool wants_on = lv_obj_has_state(switchWidget, LV_STATE_CHECKED);
-        auto state = service->getState();
-        bool is_on = (state == service::gps::State::On) || (state == service::gps::State::OnPending);
+        auto state = gps_service_get_state();
+        bool is_on = (state == GpsServiceState::GPS_SERVICE_STATE_ON) || (state == GpsServiceState::GPS_SERVICE_STATE_ON_PENDING);
 
         if (wants_on != is_on) {
             // start/stop are potentially blocking calls, so we use a dispatcher to not block the UI
             if (wants_on) {
                 getMainDispatcher().dispatch([this] {
-                    service->startReceiving();
+                    gps_service_start_receiving();
                 });
             } else {
                 getMainDispatcher().dispatch([this] {
-                    service->stopReceiving();
+                    gps_service_stop_receiving();
                 });
             }
         }
@@ -368,10 +331,11 @@ class GpsSettingsApp final : public App {
 public:
 
     GpsSettingsApp() {
+        // Runs continuously while the screen is shown - there's no push notification for GPS
+        // service state changes, so this is the only way this screen finds out about them.
         timer = std::make_unique<Timer>(Timer::Type::Periodic, kernel::secondsToTicks(1), [this] {
             updateViews();
         });
-        service = service::gps::findGpsService();
     }
 
     void onShow(AppContext& app, lv_obj_t* parent) override {
@@ -419,10 +383,6 @@ public:
         statusHeadingValue = createInfoRow(infoContainerWidget, "Heading", lv_color_hex(0xff88ff));
         statusSatellitesValue = createInfoRow(infoContainerWidget, "Satellites", lv_color_hex(0xffffff));
 
-        serviceStateSubscription = service->getStatePubsub()->subscribe([this](auto) {
-            onServiceStateChanged();
-        });
-
         gpsConfigWrapper = lv_obj_create(main_wrapper);
         lv_obj_set_size(gpsConfigWrapper, LV_PCT(100), LV_SIZE_CONTENT);
         lv_obj_set_style_border_width(gpsConfigWrapper, 0, 0);
@@ -442,13 +402,12 @@ public:
         lv_obj_add_event_cb(add_gps_button, onAddGpsCallback, LV_EVENT_SHORT_CLICKED, this);
         lv_obj_align(add_gps_button, LV_ALIGN_TOP_MID, 0, 0);
 
-        updateTimerState();
+        timer->start();
         updateViews();
     }
 
     void onHide(AppContext& app) override {
-        service->getStatePubsub()->unsubscribe(serviceStateSubscription);
-        serviceStateSubscription = nullptr;
+        timer->stop();
     }
 };
 

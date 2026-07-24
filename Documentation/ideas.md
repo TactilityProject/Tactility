@@ -13,6 +13,7 @@
 
 ## Higher Priority
 
+- Remove and migrate `Include/Tactility/kernel/Kernel.h` into `tactility/delay.h`
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
 - LilyGO T-Dongle S3: 1 button control, stop auto-launching web server
 - Core2: support power off via software

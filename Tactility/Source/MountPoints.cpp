@@ -1,7 +1,6 @@
 #include "Tactility/MountPoints.h"
 
 #include "Tactility/TactilityConfig.h"
-#include <tactility/hal/Device.h>
 
 #include <Tactility/file/File.h>
 

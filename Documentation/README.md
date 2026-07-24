@@ -77,7 +77,7 @@ cd buildsim && ctest            # run all tests
 
 - **TactilityKernel** — C API kernel: device/driver/module lifecycle, concurrency primitives (thread, mutex, timer, dispatcher), filesystem, logging. Header convention: `<tactility/*.h>` (lowercase snake_case).
 - **TactilityFreeRtos** — Thin C++ wrappers around FreeRTOS primitives.
-- **Tactility** — Main OS layer: app framework, service framework, HAL (deprecated, replaced by TactilityKernel), LVGL integration, networking and services (Wi-Fi, BLE, NTP, ESP-NOW), settings, i18n.
+- **Tactility** — Main OS layer: app framework, service framework, LVGL integration, networking and services (Wi-Fi, BLE, NTP, ESP-NOW), settings, i18n.
 - **TactilityC** — C bindings (`tt_*.h`) for Tactility, used by side-loaded ELF apps on ESP32. Deprecated, replaced by TactilityKernel.
 - **Firmware** — Entry point (`app_main`).
 
@@ -100,33 +100,27 @@ Apps implement `tt::app::App` (or just provide callbacks). Each app has an `AppM
 
 Services implement `tt::service::Service` with a `ServiceManifest`. Services are long-running background processes (GUI, Wi-Fi, loader, statusbar, GPS, etc.).
 
-### HAL Layer
-
-#### Deprecated HAL
-
-Located in Tactility folder.
-
-`tt::hal::Configuration` is declared per-device board (in `Devices/<id>/Source/Configuration.cpp`). It provides `initBoot` for early hardware setup and `createDevices` to instantiate HAL device wrappers (display, touch, power, keyboard, etc.).
-
-#### Current HAL
-
-Located in TactilityKernel. Based on Linux driver subsystems.
+### Hardware Abstraction Layer
 
 #### Driver
 
 A driver generally consists of:
-- Registration of driver in parent module (optional)
+- Registration of driver in parent module (optional, but desirable)
 - YAML bindings in the `bindings/` folder
 - An `#include` that is used in the `.dts` file. The include is in `[projectname]/bindings/[drivername].h`
-- The driver implementation: a `.cpp` and `.h` file. The implementation is C++, but the header exposes pure C functions.
+- The driver implementation: a `.cpp` and `.h` file. The implementation is C++, but the header exposes pure C functions. C implementations are allowed, but C++ is preferred.
 
-Drivers can be stored in:
+Drivers are part of a kernel module.
+
+Modules with drivers can be stored in:
 - TactilityKernel
-- A subproject in Platforms/ folder
-- A subproject in Devices/ folder
-- A subproject in Drivers/ folder. This is a kernel module. Naming is lower case and postfixed with `-module`
+- A subproject in `Platforms` folder
+- A subproject in `Devices` folder
+- A subproject in `Drivers` folder
 
 #### Kernel Modules
+
+Kernel module names are lower case and postfixed with `-module`.
 
 Projects that are kernel modules:
 
@@ -169,6 +163,6 @@ Pointers are expected to be non-null unless documented otherwise.
 
 - `#ifdef ESP_PLATFORM` guards ESP32-specific code; the simulator uses POSIX equivalents.
 - The `Drivers/` directory contains hardware drivers (display controllers, touch controllers, PMICs, etc.) — each is its own CMake component.
-- `Modules/` contains cross-cutting modules: `hal-device-module` (device lifecycle) and `lvgl-module` (LVGL task management).
+- `Modules/` contains cross-cutting modules. e.g.`lvgl-module` (LVGL task management).
 - `Data/system/` and `Data/data/` are flashed as FAT filesystem images on ESP32.
 - Translations are in `Translations/` as CSV files, generated via `generate.py`.

@@ -388,9 +388,18 @@ error_t device_get_first_by_type(const struct DeviceType* type, struct Device** 
  * @param[in] type non-null device type pointer
  * @param[out] out_device receives the found device on success; untouched on failure
  * @retval ERROR_NOT_FOUND if no started device of that type exists
- * @retval ERROR_NONE on success; caller must call device_put(*out_device) exactly once
+ * @retval ERROR_NONE if a started device of that type exists; must call device_put() exactly once afterwards.
  */
 error_t device_get_first_active_by_type(const struct DeviceType* type, struct Device** out_device);
+
+/**
+ * Check if there is an active device of the provided type.
+ *
+ * @param[in] type non-null device type pointer
+ * @retval ERROR_NOT_FOUND if no started device of that type exists
+ * @retval ERROR_NONE if a started device of that type exists
+ */
+bool device_has_active_by_type(const struct DeviceType* type);
 
 /**
  * Find the first device whose driver matches the given compatible string and atomically take a

@@ -4,7 +4,6 @@
 #include <Tactility/app/AppRegistration.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
-#include <tactility/hal/Device.h>
 #include <Tactility/Paths.h>
 
 #include <cerrno>

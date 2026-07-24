@@ -2,31 +2,27 @@
 
 #include <Tactility/service/displayidle/DisplayIdleService.h>
 
-#include "Screensaver.h"
 #include "BouncingBallsScreensaver.h"
 #include "MatrixRainScreensaver.h"
 #include "MystifyScreensaver.h"
+#include "Screensaver.h"
 #include "StackChanScreensaver.h"
 
-#include <tactility/log.h>
-#include <Tactility/CoreDefines.h>
-#include <Tactility/hal/display/DisplayDevice.h>
-#include <Tactility/lvgl/LvglSync.h>
-#include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
 #include <cstdlib>
 #include <ctime>
+
+#include <tactility/log.h>
+#include <tactility/drivers/display.h>
+#include <tactility/drivers/backlight.h>
+#include <tactility/lvgl_module.h>
 
 namespace tt::service::displayidle {
 
 constexpr auto* TAG = "DisplayIdle";
 
 constexpr uint32_t kWakeActivityThresholdMs = 100;
-
-static std::shared_ptr<hal::display::DisplayDevice> getDisplay() {
-    return hal::findFirstDevice<hal::display::DisplayDevice>(hal::Device::Type::Display);
-}
 
 void DisplayIdleService::stopScreensaverCb(lv_event_t* e) {
     auto* self = static_cast<DisplayIdleService*>(lv_event_get_user_data(e));
@@ -35,8 +31,34 @@ void DisplayIdleService::stopScreensaverCb(lv_event_t* e) {
     lv_display_trigger_activity(nullptr);
 }
 
+static void setBacklightBrightness(uint8_t brightness) {
+    ::Device* display;
+    if (device_get_first_active_by_type(&DISPLAY_TYPE, &display) == ERROR_NONE) {
+        ::Device* backlight;
+        if (display_get_backlight(display, &backlight) == ERROR_NONE) {
+            device_get(backlight);
+            backlight_set_brightness(backlight, brightness);
+            device_put(backlight);
+        }
+        device_put(display);
+    }
+}
+
+static bool hasDisplayWithBacklight() {
+    ::Device* display;
+    bool result = false;
+    if (device_get_first_active_by_type(&DISPLAY_TYPE, &display) == ERROR_NONE) {
+        ::Device* backlight;
+        if (display_get_backlight(display, &backlight) == ERROR_NONE) {
+            result = true;
+        }
+        device_put(display);
+    }
+    return result;
+}
+
 void DisplayIdleService::stopScreensaver() {
-    if (!lvgl::lock(100)) {
+    if (!lvgl_try_lock(100)) {
         // Lock failed - keep flag set to retry on next tick
         return;
     }
@@ -52,7 +74,7 @@ void DisplayIdleService::stopScreensaver() {
         lv_obj_delete(screensaverOverlay);
         screensaverOverlay = nullptr;
     }
-    lvgl::unlock();
+    lvgl_unlock();
     stopScreensaverRequested.store(false, std::memory_order_relaxed);
 
     // Reset auto-off state
@@ -60,10 +82,10 @@ void DisplayIdleService::stopScreensaver() {
     backlightOff = false;
 
     // Restore backlight if display was dimmed
-    auto display = getDisplay();
-    if (display && wasDimmed) {
-        display->setBacklightDuty(restoreDuty);
+    if (wasDimmed) {
+        setBacklightBrightness(restoreDuty);
     }
+
     displayDimmed = wasDimmed ? false : displayDimmed;
 }
 
@@ -124,11 +146,11 @@ void DisplayIdleService::updateScreensaver() {
 }
 
 void DisplayIdleService::tick() {
-    if (!lvgl::lock(100)) {
+    if (!lvgl_try_lock(100)) {
         return;
     }
     if (lv_display_get_default() == nullptr) {
-        lvgl::unlock();
+        lvgl_unlock();
         return;
     }
 
@@ -152,10 +174,7 @@ void DisplayIdleService::tick() {
                     screensaver->stop();
                     screensaver.reset();
                 }
-                auto display = getDisplay();
-                if (display) {
-                    display->setBacklightDuty(0);
-                }
+                setBacklightBrightness(0);
                 backlightOff = true;
             } else {
                 updateScreensaver();
@@ -163,7 +182,7 @@ void DisplayIdleService::tick() {
         }
     }
 
-    lvgl::unlock();
+    lvgl_unlock();
 
     // Check stop request early for faster response
     if (stopScreensaverRequested.load(std::memory_order_acquire)) {
@@ -171,23 +190,22 @@ void DisplayIdleService::tick() {
         return;
     }
 
-    auto display = getDisplay();
-    if (display != nullptr && display->supportsBacklightDuty()) {
+    if (hasDisplayWithBacklight()) {
         if (!cachedDisplaySettings.backlightTimeoutEnabled || cachedDisplaySettings.backlightTimeoutMs == 0) {
             if (displayDimmed) {
-                display->setBacklightDuty(cachedDisplaySettings.backlightDuty);
+                setBacklightBrightness(cachedDisplaySettings.backlightDuty);
                 displayDimmed = false;
             }
         } else {
             if (!displayDimmed && inactive_ms >= cachedDisplaySettings.backlightTimeoutMs) {
-                if (!lvgl::lock(100)) {
+                if (!lvgl_try_lock(100)) {
                     return; // Retry on next tick
                 }
                 activateScreensaver();
-                lvgl::unlock();
+                lvgl_unlock();
                 // Turn off backlight for "None" screensaver (just black screen)
                 if (cachedDisplaySettings.screensaverType == settings::display::ScreensaverType::None) {
-                    display->setBacklightDuty(0);
+                    setBacklightBrightness(0);
                 }
                 displayDimmed = true;
             } else if (displayDimmed && (inactive_ms < kWakeActivityThresholdMs)) {
@@ -231,7 +249,7 @@ void DisplayIdleService::onStop(ServiceContext& service) {
 }
 
 void DisplayIdleService::startScreensaver() {
-    if (!lvgl::lock(100)) {
+    if (!lvgl_try_lock(100)) {
         return;
     }
 
@@ -240,12 +258,11 @@ void DisplayIdleService::startScreensaver() {
     cachedDisplaySettings = settings::display::loadOrGetDefault();
 
     activateScreensaver();
-    lvgl::unlock();
+    lvgl_unlock();
 
     // Turn off backlight for "None" screensaver
-    auto display = getDisplay();
-    if (display && cachedDisplaySettings.screensaverType == settings::display::ScreensaverType::None) {
-        display->setBacklightDuty(0);
+    if (hasDisplayWithBacklight() && cachedDisplaySettings.screensaverType == settings::display::ScreensaverType::None) {
+        setBacklightBrightness(0);
     }
     displayDimmed = true;
 }

@@ -13,6 +13,8 @@
 #include <tactility/lvgl_module.h>
 
 extern struct LvglModuleConfig lvgl_module_config;
+extern void lvgl_devices_attach();
+extern void lvgl_devices_detach();
 
 // Mutex for LVGL drawing
 static struct RecursiveMutex lvgl_mutex;
@@ -71,6 +73,9 @@ static void lvgl_task(void* arg) {
 
     check(!lvgl_task_is_interrupt_requested());
 
+    // Must run from this task (like on_start below), otherwise the display doesn't work.
+    lvgl_devices_attach();
+
     // on_start must be called from the task, otherwise the display doesn't work
     if (lvgl_module_config.on_start) lvgl_module_config.on_start();
 
@@ -88,6 +93,8 @@ static void lvgl_task(void* arg) {
     }
 
     if (lvgl_module_config.on_stop) lvgl_module_config.on_stop();
+
+    lvgl_devices_detach();
 
     task_lock();
     lvgl_task_handle = NULL;

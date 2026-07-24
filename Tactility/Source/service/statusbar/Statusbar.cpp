@@ -1,25 +1,27 @@
 #include <Tactility/lvgl/Statusbar.h>
 
+#include <tactility/lvgl_module.h>
+#include "tactility/module.h"
+
 #include <Tactility/Mutex.h>
 #include <Tactility/Timer.h>
-#include <tactility/drivers/power_supply.h>
-#include <tactility/filesystem/file_system.h>
-#include <Tactility/lvgl/Lvgl.h>
+#include <Tactility/bluetooth/Bluetooth.h>
 #include <Tactility/lvgl/LvglSync.h>
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServicePaths.h>
 #include <Tactility/service/ServiceRegistration.h>
-#include <Tactility/bluetooth/Bluetooth.h>
-#include <tactility/drivers/bluetooth.h>
-#include <tactility/drivers/bluetooth_serial.h>
-#include <tactility/drivers/bluetooth_midi.h>
+#include <Tactility/service/wifi/Wifi.h>
+#include <tactility/gps_service.h>
+#include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/drivers/bluetooth.h>
+#include <tactility/drivers/bluetooth_midi.h>
+#include <tactility/drivers/bluetooth_serial.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/drivers/usb_host_msc.h>
-#include <Tactility/service/gps/GpsService.h>
-#include <Tactility/service/wifi/Wifi.h>
-#include <tactility/check.h>
+#include <tactility/filesystem/file_system.h>
 
 #include <tactility/lvgl_icon_statusbar.h>
 
@@ -152,8 +154,8 @@ class StatusbarService final : public Service {
     }
 
     void updateGpsIcon() {
-        auto gps_state = gps::findGpsService()->getState();
-        bool show_icon = (gps_state == gps::State::OnPending) || (gps_state == gps::State::On);
+        auto gps_state = gps_service_get_state();
+        bool show_icon = (gps_state == GpsServiceState::GPS_SERVICE_STATE_ON_PENDING) || (gps_state == GpsServiceState::GPS_SERVICE_STATE_ON);
         if (gps_last_state != show_icon) {
             if (show_icon) {
                 lvgl::statusbar_icon_set_image(gps_icon_id, LVGL_ICON_STATUSBAR_LOCATION_ON);
@@ -267,15 +269,15 @@ class StatusbarService final : public Service {
     }
 
     void update() {
-        if (lvgl::isStarted()) {
-            if (lvgl::lock(100)) {
+        if (module_is_started(&lvgl_module)) {
+            if (lvgl_try_lock(100)) {
                 updateGpsIcon();
                 updateBluetoothIcon();
                 updateWifiIcon();
                 updateSdCardIcon();
                 updatePowerStatusIcon();
                 updateUsbIcon();
-                lvgl::unlock();
+                lvgl_unlock();
             }
         }
     }

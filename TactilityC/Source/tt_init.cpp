@@ -5,13 +5,7 @@
 #include "tt_app_fileselection.h"
 #include "tt_app_selectiondialog.h"
 #include "tt_bundle.h"
-#include "tt_gps.h"
-#include "tt_hal_device.h"
-#include "tt_hal_display.h"
-#include "tt_hal_touch.h"
-#include "tt_hal_uart.h"
 #include <tt_lock.h>
-#include "tt_lvgl.h"
 #include "tt_lvgl_keyboard.h"
 #include "tt_lvgl_spinner.h"
 #include "tt_lvgl_toolbar.h"
@@ -299,42 +293,6 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(tt_bundle_put_bool),
     ESP_ELFSYM_EXPORT(tt_bundle_put_int32),
     ESP_ELFSYM_EXPORT(tt_bundle_put_string),
-    ESP_ELFSYM_EXPORT(tt_gps_has_coordinates),
-    ESP_ELFSYM_EXPORT(tt_gps_get_coordinates),
-    ESP_ELFSYM_EXPORT(tt_hal_device_find),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_alloc),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_draw_bitmap),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_free),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_get_colorformat),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_get_pixel_height),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_get_pixel_width),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_lock),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_unlock),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_supported),
-    ESP_ELFSYM_EXPORT(tt_hal_display_driver_get_frame_buffers),
-    ESP_ELFSYM_EXPORT(tt_hal_touch_driver_supported),
-    ESP_ELFSYM_EXPORT(tt_hal_touch_driver_alloc),
-    ESP_ELFSYM_EXPORT(tt_hal_touch_driver_free),
-    ESP_ELFSYM_EXPORT(tt_hal_touch_driver_get_touched_points),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_get_count),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_get_name),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_alloc),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_free),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_start),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_is_started),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_stop),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_read_bytes),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_read_byte),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_write_bytes),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_available),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_set_baud_rate),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_get_baud_rate),
-    ESP_ELFSYM_EXPORT(tt_hal_uart_flush_input),
-    ESP_ELFSYM_EXPORT(tt_lvgl_is_started),
-    ESP_ELFSYM_EXPORT(tt_lvgl_lock),
-    ESP_ELFSYM_EXPORT(tt_lvgl_unlock),
-    ESP_ELFSYM_EXPORT(tt_lvgl_start),
-    ESP_ELFSYM_EXPORT(tt_lvgl_stop),
     ESP_ELFSYM_EXPORT(tt_lvgl_software_keyboard_show),
     ESP_ELFSYM_EXPORT(tt_lvgl_software_keyboard_hide),
     ESP_ELFSYM_EXPORT(tt_lvgl_software_keyboard_is_enabled),
