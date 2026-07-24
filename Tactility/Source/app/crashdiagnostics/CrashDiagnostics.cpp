@@ -3,12 +3,12 @@
 #include <Tactility/app/crashdiagnostics/QrHelpers.h>
 #include <Tactility/app/crashdiagnostics/QrUrl.h>
 #include <Tactility/app/launcher/Launcher.h>
-#include <tactility/hal/Device.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/service/loader/Loader.h>
 
 #include <lvgl.h>
 #include <qrcode.h>
+#include <tactility/drivers/pointer.h>
 #include <tactility/log.h>
 
 namespace tt::app::crashdiagnostics {
@@ -36,7 +36,7 @@ public:
         lv_obj_align(top_label, LV_ALIGN_TOP_MID, 0, 2);
 
         auto* bottom_label = lv_label_create(parent);
-        if (hal::hasDevice(hal::Device::Type::Touch)) {
+        if (device_has_active_by_type(&POINTER_TYPE)) {
             lv_label_set_text(bottom_label, "Tap screen to continue");
         } else {
             lv_label_set_text(bottom_label, "Reboot device to continue");

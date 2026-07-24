@@ -7,7 +7,6 @@
 
 #include <tactility/check.h>
 #include <tactility/dts.h>
-#include <tactility/hal_device_module.h>
 #include <tactility/kernel_init.h>
 
 typedef struct {
@@ -29,7 +28,7 @@ void test_task(void* parameter) {
     // overrides
     context.setOption("no-breaks", true); // don't break in the debugger when assertions fail
 
-    Module* dts_modules[] = { &platform_posix_module, &hal_device_module, nullptr };
+    Module* dts_modules[] = { &platform_posix_module, nullptr };
     DtsDevice dts_devices[] = { DTS_DEVICE_TERMINATOR };
     check(kernel_init(dts_modules, dts_devices) == ERROR_NONE);
 

@@ -3,7 +3,6 @@
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/Paths.h>
-#include <tactility/hal/Device.h>
 
 #include <map>
 #include <string>

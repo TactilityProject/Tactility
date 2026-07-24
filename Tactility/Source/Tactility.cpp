@@ -29,7 +29,7 @@
 #include <tactility/drivers/rtc.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/filesystem/file_system.h>
-#include <tactility/hal_device_module.h>
+#include <tactility/gps_service.h>
 #include <tactility/kernel_init.h>
 #include <tactility/log.h>
 #include <tactility/lvgl_module.h>
@@ -74,7 +74,6 @@ bool MainDispatcher::dispatch(Function function, TickType_t timeout) const {
 namespace service {
     // Primary
     namespace audio { extern const ServiceManifest manifest; }
-    namespace gps { extern const ServiceManifest manifest; }
     namespace wifi { extern const ServiceManifest manifest; }
 #ifdef ESP_PLATFORM
     namespace development { extern const ServiceManifest manifest; }
@@ -319,7 +318,6 @@ static void registerAndStartPrimaryServices() {
     if (device_exists_of_type(&AUDIO_STREAM_TYPE)) {
         addService(service::audio::manifest);
     }
-    addService(service::gps::manifest);
     addService(service::wifi::manifest);
 #ifdef ESP_PLATFORM
     addService(service::development::manifest);
@@ -372,11 +370,11 @@ void run(Module* dtsModules[], DtsDevice dtsDevices[]) {
         return;
     }
 
-    // hal-device-module
-    check(module_construct_add_start(&hal_device_module) == ERROR_NONE);
-
     // crypt-module
     check(module_construct_add_start(&crypt_module) == ERROR_NONE);
+
+    // gps-module
+    check(module_construct_add_start(&gps_module) == ERROR_NONE);
 
 #ifdef ESP_PLATFORM
     initEsp();

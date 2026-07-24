@@ -1,6 +1,5 @@
 #include "Main.h"
 #include <Tactility/Thread.h>
-#include <Tactility/TactilityCore.h>
 
 #include "FreeRTOS.h"
 #include "task.h"
