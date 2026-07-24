@@ -40,6 +40,7 @@ struct KeyboardApi {
 
     /**
      * @brief Returns the baclight if the keyboard has one.
+     * @warning Returns a referenced device. Must call device_put() afterwards.
      * @param[in] device the keyboard device
      * @param[out] backlight_device the output backlight device
      * @retval ERROR_NONE when the backlight_device was set
@@ -55,6 +56,7 @@ error_t keyboard_read_key(struct Device* device, struct KeyboardKeyData* data);
 
 /**
  * @brief Returns the backlight if the keyboard has one.
+ * @warning Returns a referenced device. Must call device_put() afterwards.
  * @param[in] device the keyboard device
  * @param[out] backlight_device the output backlight device
  * @retval ERROR_NONE when the backlight_device was set

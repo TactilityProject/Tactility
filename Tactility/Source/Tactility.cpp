@@ -406,7 +406,7 @@ void run(Module* dtsModules[], DtsDevice dtsDevices[]) {
     });
     check(module_construct(&lvgl_module) == ERROR_NONE);
     check(module_add(&lvgl_module) == ERROR_NONE);
-    module_start(&lvgl_module);
+    check(module_start(&lvgl_module) == ERROR_NONE);
 
     registerAndStartSecondaryServices();
 

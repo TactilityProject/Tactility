@@ -10,6 +10,7 @@
 #include <tactility/time.h>
 
 #include <cstring>
+#include <cstdlib>
 
 namespace gps_ublox {
 

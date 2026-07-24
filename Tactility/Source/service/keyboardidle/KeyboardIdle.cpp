@@ -22,6 +22,7 @@ class KeyboardIdleService final : public Service {
     bool keyboardDimmed = false;
     settings::keyboard::KeyboardSettings cachedKeyboardSettings;
 
+    // TODO: This only works for the fist active keyboard. Update it so it works for all keyboards with a backlight.
     static Device* getKeyboardBacklight() {
         ::Device* keyboard;
         if (device_get_first_active_by_type(&KEYBOARD_TYPE, &keyboard) == ERROR_NONE) {
@@ -31,13 +32,19 @@ class KeyboardIdleService final : public Service {
             return backlight; // WARNING: did not increase refcount
         }
         // TODO: Remove after all drivers are migrated
-        return device_find_by_name("keyboard_backlight");
+        ::Device* backlight;
+        if (device_get_by_name("keyboard_backlight", &backlight) != ERROR_NONE) {
+            return nullptr;
+        }
+
+        return backlight;
     }
 
     void setKeyboardBacklightBrightness(uint8_t brightness) {
         Device* backlight = getKeyboardBacklight();
         if (backlight != nullptr) {
             backlight_set_brightness(backlight, brightness);
+            device_put(backlight);
         }
     }
 
@@ -50,6 +57,9 @@ class KeyboardIdleService final : public Service {
         if (lvgl_try_lock(100)) {
             inactive_ms = lv_display_get_inactive_time(nullptr);
             lvgl_unlock();
+        } else {
+            // Assume it's not used
+            inactive_ms = 100;
         }
 
         // Handle keyboard backlight
