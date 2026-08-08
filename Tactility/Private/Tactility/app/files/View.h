@@ -2,8 +2,7 @@
 
 #include "./State.h"
 
-#include <Tactility/app/AppManifest.h>
-
+#include <cstdint>
 #include <lvgl.h>
 #include <memory>
 
@@ -11,7 +10,8 @@ namespace tt::app::files {
 
 class View final {
     std::shared_ptr<State> state;
-    
+    uint32_t appInstanceId = 0;
+
     size_t current_start_index = 0;
     size_t last_loaded_index = 0;
     const size_t MAX_BATCH = 50;
@@ -24,7 +24,7 @@ class View final {
     lv_obj_t* paste_button = nullptr;
 
     std::string installAppPath = { 0 };
-    LaunchId installAppLaunchId = 0;
+    uint32_t installDialogId = 0;
 
     void showActions();
     void showActionsForDirectory();
@@ -39,9 +39,10 @@ public:
 
     explicit View(const std::shared_ptr<State>& state) : state(state) {}
 
-    void init(const AppContext& appContext, lv_obj_t* parent);
+    void init(uint32_t appInstanceId, lv_obj_t* parent);
     void update(size_t start_index = 0);
 
+    void onBackPressed();
     void onNavigateUpPressed();
     void onDirEntryPressed(uint32_t index);
     void onDirEntryLongPressed(int32_t index);
@@ -54,8 +55,8 @@ public:
     void onPastePressed();
     void onEjectPressed();
     void onDirEntryListScrollBegin();
-    void onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle);
-    void deinit(const AppContext& appContext);
+    void onResult(uint32_t launchId, int32_t result);
+    void deinit();
 
 private:
 

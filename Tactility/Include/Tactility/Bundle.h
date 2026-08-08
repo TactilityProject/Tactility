@@ -6,43 +6,30 @@
 
 #include <cstdint>
 #include <string>
-#include <unordered_map>
 
 namespace tt {
 
 /**
  * A dictionary that maps keys (strings) onto several atomary types.
+ * Thin C++ wrapper around TactilityKernel's C Bundle (tactility/bundle.h).
  */
 class Bundle final {
 
-    typedef uint32_t Hash;
-
-    enum class Type {
-        Bool,
-        Int32,
-        Int64,
-        String,
-    };
-
-    typedef struct {
-        Type type;
-        union {
-            bool value_bool;
-            int32_t value_int32;
-            int64_t value_int64;
-        };
-        std::string value_string;
-    } Value;
-
-    std::unordered_map<std::string, Value> entries;
+    // Actually a TactilityKernel ::Bundle* (tactility/bundle.h), cast in Bundle.cpp - kept as
+    // void* here rather than a forward-declared `struct Bundle*` so this header doesn't put a
+    // second, unqualified `Bundle` name in scope: any TU with `using namespace tt;` in effect
+    // (e.g. tests) would then find both `::Bundle` and `tt::Bundle` for a bare `Bundle` lookup
+    // and fail with "reference to 'Bundle' is ambiguous".
+    void* handle;
 
 public:
 
-    Bundle() = default;
+    Bundle();
 
-    Bundle(const Bundle& bundle) {
-        this->entries = bundle.entries;
-    }
+    Bundle(const Bundle& bundle);
+    Bundle& operator=(const Bundle& bundle);
+
+    ~Bundle();
 
     bool getBool(const std::string& key) const;
     int32_t getInt32(const std::string& key) const;

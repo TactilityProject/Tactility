@@ -510,7 +510,7 @@ public:
             LOG_W(TAG, "No WiFi device found");
         }
 
-        if (system_event_subscribe(KERNEL_EVENT_BOOT_COMPLETED, onBootCompleted, nullptr) == ERROR_NONE) {
+        if (system_event_callback_add(KERNEL_EVENT_BOOT_COMPLETED, onBootCompleted, nullptr) == ERROR_NONE) {
             state.bootEventSubscribed = true;
         }
 
@@ -531,7 +531,7 @@ public:
         state.autoConnectTimer = nullptr; // Must release as it holds a reference via its callback.
 
         if (state.bootEventSubscribed) {
-            system_event_unsubscribe(KERNEL_EVENT_BOOT_COMPLETED, onBootCompleted);
+            system_event_callback_remove(KERNEL_EVENT_BOOT_COMPLETED, onBootCompleted);
             state.bootEventSubscribed = false;
         }
 

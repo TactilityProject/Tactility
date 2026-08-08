@@ -3,7 +3,6 @@
 #include <tactility/concurrent/dispatcher.h>
 #include <tactility/device.h>
 #include <tactility/module.h>
-#include <Tactility/app/AppManifest.h>
 
 #include <functional>
 

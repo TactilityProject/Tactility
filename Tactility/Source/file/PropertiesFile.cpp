@@ -1,50 +1,31 @@
 #include "Tactility/file/PropertiesFile.h"
 
-#include <Tactility/StringUtils.h>
 #include <Tactility/file/File.h>
-#include <tactility/log.h>
+
+#include <tactility/properties_file.h>
 
 namespace tt::file {
 
-constexpr auto* TAG = "PropertiesFile";
-
-bool getKeyValuePair(const std::string& input, std::string& key, std::string& value) {
-    auto index = input.find('=');
-    if (index == std::string::npos) {
+bool loadPropertiesFile(const std::string& filePath, std::function<void(const std::string& key, const std::string& value)> callback) {
+    // Matches the original semantics: a missing file is a real failure the caller checks for
+    // (e.g. "no saved settings yet"), unlike properties_file_open() itself, which treats a
+    // missing file as a fresh, empty store to be created on close().
+    if (!isFile(filePath)) {
         return false;
     }
-    key = input.substr(0, index);
-    value = input.substr(index + 1);
-    return true;
-}
 
-bool loadPropertiesFile(const std::string& filePath, std::function<void(const std::string& key, const std::string& value)> callback) {
-    // Reading properties is a common operation; make this debug-level to avoid
-    // flooding the serial console under frequent polling.
-    LOG_D(TAG, "Reading properties file %s", filePath.c_str());
-    uint16_t line_count = 0;
-    std::string key_prefix = "";
-    // Malformed lines are skipped, valid lines are loaded and callback is called
-    return readLines(filePath, true, [&key_prefix, &line_count, &filePath, &callback](const std::string& line) {
-        line_count++;
-        std::string key, value;
-        // Trim all whitespace including \r\n (Windows line endings)
-        auto trimmed_line = string::trim(line, " \t\r\n");
-        if (!trimmed_line.starts_with("#") && !trimmed_line.empty()) {
-            if (trimmed_line.starts_with("[")) {
-                key_prefix = trimmed_line;
-            } else {
-                if (getKeyValuePair(trimmed_line, key, value)) {
-                   std::string trimmed_key = key_prefix + string::trim(key, " \t");
-                   std::string trimmed_value = string::trim(value, " \t");
-                   callback(trimmed_key, trimmed_value);
-               } else {
-                   LOG_E(TAG, "Failed to parse line %d of %s (skipped)", line_count, filePath.c_str());
-                   // Continue loading other lines
-               }
-            }
-        }
-    });
+    PropertiesFile* file = properties_file_open(filePath.c_str());
+    if (file == nullptr) {
+        return false;
+    }
+
+    properties_file_for_each(file, [](const char* key, const char* value, void* context) {
+        auto* typed_callback = static_cast<std::function<void(const std::string&, const std::string&)>*>(context);
+        (*typed_callback)(key, value);
+    }, &callback);
+
+    properties_file_close(file);
+    return true;
 }
 
 bool loadPropertiesFile(const std::string& filePath, std::map<std::string, std::string>& outProperties) {
@@ -54,19 +35,16 @@ bool loadPropertiesFile(const std::string& filePath, std::map<std::string, std::
 }
 
 bool savePropertiesFile(const std::string& filePath, const std::map<std::string, std::string>& properties) {
-    FileMutexGuard guard(filePath);
-
-    LOG_I(TAG, "Saving properties file %s", filePath.c_str());
-
-    FILE* file = fopen(filePath.c_str(), "w");
+    PropertiesFile* file = properties_file_open(filePath.c_str());
     if (file == nullptr) {
-        LOG_E(TAG, "Failed to open %s", filePath.c_str());
         return false;
     }
 
-    for (const auto& [key, value]: properties) { fprintf(file, "%s=%s\n", key.c_str(), value.c_str()); }
+    for (const auto& [key, value] : properties) {
+        properties_file_set(file, key.c_str(), value.c_str());
+    }
 
-    fclose(file);
+    properties_file_close(file);
     return true;
 }
 

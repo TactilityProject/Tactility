@@ -5,8 +5,9 @@
 #include <Tactility/LogMessages.h>
 #include <Tactility/CpuAffinity.h>
 #include <Tactility/TactilityCore.h>
-#include <Tactility/service/loader/Loader.h>
 #include <Tactility/service/screenshot/ScreenshotTask.h>
+
+#include <app/manager.h>
 
 #include <tactility/delay.h>
 #include <tactility/log.h>
@@ -66,7 +67,7 @@ static void makeScreenshot(const std::string& filename) {
 
 void ScreenshotTask::taskMain() {
     uint8_t screenshots_taken = 0;
-    std::string last_app_id;
+    uint32_t last_app_instance_id = 0;
 
     while (!isInterrupted()) {
         if (work.type == TASK_WORK_TYPE_DELAY) {
@@ -85,15 +86,13 @@ void ScreenshotTask::taskMain() {
                 }
             }
         } else if (work.type == TASK_WORK_TYPE_APPS) {
-            auto appContext = app::getCurrentAppContext();
-            if (appContext != nullptr) {
-                const app::AppManifest& manifest = appContext->getManifest();
-                if (manifest.appId != last_app_id) {
-                    delay_millis(100);
-                    last_app_id = manifest.appId;
-                    auto filename = std::format("{}/screenshot-{}.png", work.path, manifest.appId);
-                    makeScreenshot(filename);
-                }
+            AppInstanceId app_instance_id = 0;
+            bool has_topmost = app_manager_get_topmost_instance_id(&app_instance_id) == ERROR_NONE;
+            if (has_topmost && app_instance_id != last_app_instance_id) {
+                delay_millis(100);
+                last_app_instance_id = app_instance_id;
+                auto filename = std::format("{}/screenshot-{}.png", work.path, app_instance_id);
+                makeScreenshot(filename);
             }
             // Ensure the LVGL widgets are rendered as the app just started
             delay_millis(250);

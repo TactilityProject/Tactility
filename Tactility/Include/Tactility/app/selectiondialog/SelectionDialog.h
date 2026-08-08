@@ -1,28 +1,28 @@
 #pragma once
 
-#include <Tactility/app/App.h>
-#include <Tactility/Bundle.h>
+#include "app/instance.h"
 
+
+#include <cstdint>
 #include <string>
 #include <vector>
 
 /**
- * Start the app by its ID and provide:
- *  - an optional title
- *  - 2 or more items
- *
- *  If you provide 0 items, the app will auto-close.
- *  If you provide 1 item, the app will auto-close with result index 0
+ * Show a dialog with a title and a list of selectable items.
  */
 namespace tt::app::selectiondialog {
 
-LaunchId start(const std::string& title, const std::vector<std::string>& items);
-
 /**
- * Get the index of the item that the user selected.
- *
- * @return a value greater than 0 when a selection was done, or -1 when the app was closed without selecting an item.
+ * Show a selection dialog with the provided title and items, as a modal child of
+ * @a callerAppInstanceId (a new-model app - see app/manager.h). The caller receives the
+ * result as an APP_EVENT_RESULT in its own event loop: result is the selected item's index
+ * (>= 0), -1 if 0 items were provided (an error - the dialog auto-closes without showing
+ * anything), or a value not matching any item (currently always 1) if the dialog was
+ * dismissed without a selection. No result_bundle. If exactly 1 item is provided, the dialog
+ * auto-closes with result index 0 without showing anything. The caller is responsible for
+ * calling app_manager_stop() on the returned instance id once it has handled the result.
+ * @return the new dialog's app instance id
  */
-int32_t getResultIndex(const Bundle& bundle);
+AppInstanceId start(AppInstanceId callerAppInstanceId, const std::string& title, const std::vector<std::string>& items);
 
 }

@@ -5,6 +5,8 @@
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/file/File.h>
 
+#include <app/event.h>
+
 #include <tactility/check.h>
 #include <tactility/log.h>
 
@@ -15,7 +17,6 @@
 #include <unistd.h>
 
 #ifdef ESP_PLATFORM
-#include <Tactility/service/loader/Loader.h>
 #endif
 
 namespace tt::app::fileselection {
@@ -37,6 +38,16 @@ static void onNavigateUpPressedCallback(lv_event_t* event) {
 }
 
 // endregion
+
+void View::onBackPressedCallback(lv_event_t* event) {
+    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    // Async, non-blocking - must NOT call app_manager_stop() directly here: that bound-waits
+    // (thread_join) for this app's own thread to finish, which needs the LVGL lock
+    // (window_manager_remove()) - but this callback runs ON the LVGL task, which would
+    // deadlock against itself.
+    AppEvent closeEvent { .type = APP_EVENT_CLOSE, .timestamp = 0, .result = {} };
+    app_event_emit(view->appInstanceId, &closeEvent);
+}
 
 void View::onTapFile(const std::string& path, const std::string& filename) {
     std::string file_path = path + "/" + filename;
@@ -183,6 +194,8 @@ void View::init(lv_obj_t* parent, Mode mode) {
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     auto* toolbar = lvgl_toolbar_create(parent, "Select File");
+    // The global toolbar nav callback only knows how to stop old-model apps.
+    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, &onBackPressedCallback, this);
     navigate_up_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_UP, &onNavigateUpPressedCallback, this);
 
     auto* wrapper = lv_obj_create(parent);

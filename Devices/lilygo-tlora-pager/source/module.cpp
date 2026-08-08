@@ -17,12 +17,12 @@ static void on_boot_completed(struct SystemEvent* /*event*/, void* /*context*/) 
 }
 
 static error_t start() {
-    system_event_subscribe(KERNEL_EVENT_BOOT_COMPLETED, on_boot_completed, nullptr);
+    system_event_callback_add(KERNEL_EVENT_BOOT_COMPLETED, on_boot_completed, nullptr);
     return ERROR_NONE;
 }
 
 static error_t stop() {
-    system_event_unsubscribe(KERNEL_EVENT_BOOT_COMPLETED, on_boot_completed);
+    system_event_callback_remove(KERNEL_EVENT_BOOT_COMPLETED, on_boot_completed);
     return ERROR_NONE;
 }
 

@@ -133,7 +133,7 @@ static void statusbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj) 
 
     if (!statusbar_data.time_update_timer->isRunning()) {
         statusbar_data.time_update_timer->start();
-        system_event_subscribe(KERNEL_EVENT_TIME_CHANGED, onTimeChanged, nullptr);
+        system_event_callback_add(KERNEL_EVENT_TIME_CHANGED, onTimeChanged, nullptr);
     }
 }
 

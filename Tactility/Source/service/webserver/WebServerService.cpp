@@ -8,12 +8,7 @@
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/Mutex.h>
 
-#include <tactility/check.h>
-
 #include <Tactility/TactilityConfig.h>
-#include <Tactility/app/AppRegistration.h>
-#include <Tactility/app/AppManifest.h>
-#include <Tactility/app/App.h>
 #include <Tactility/service/wifi/Wifi.h>
 #include <Tactility/network/HttpdReq.h>
 #include <Tactility/network/Url.h>
@@ -21,6 +16,7 @@
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/StringUtils.h>
 
+#include <tactility/check.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
 
@@ -30,6 +26,10 @@
 #if TT_FEATURE_SCREENSHOT_ENABLED
 #include <lv_screenshot.h>
 #endif
+
+#include "app/install.h"
+#include "app/manager.h"
+
 
 #include <atomic>
 #include <cctype>
@@ -41,8 +41,8 @@
 #include <esp_netif.h>
 #include <esp_system.h>
 #include <esp_vfs_fat.h>
-#include <esp_wifi_default.h>
 #include <esp_wifi.h>
+#include <esp_wifi_default.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <iomanip>
@@ -50,6 +50,7 @@
 #include <mbedtls/base64.h>
 #include <ranges>
 #include <sstream>
+#include <vector>
 
 namespace tt::service::webserver {
 
@@ -1215,32 +1216,30 @@ esp_err_t WebServerService::handleApiSysinfo(httpd_req_t* request) {
 esp_err_t WebServerService::handleApiApps(httpd_req_t* request) {
     LOG_I(TAG, "GET /api/apps");
 
-    auto manifests = app::getAppManifests();
+    std::vector<const ::AppManifest*> manifests;
+    app_manager_for_each_manifest([](const ::AppManifest* manifest, void* context) {
+        static_cast<std::vector<const ::AppManifest*>*>(context)->push_back(manifest);
+    }, &manifests);
 
     std::ostringstream json;
     json << "{\"apps\":[";
 
     bool first = true;
-    for (const auto& manifest : manifests) {
+    for (const auto* manifest : manifests) {
         if (!first) json << ",";
         first = false;
 
         json << "{";
-        json << "\"id\":\"" << escapeJson(manifest->appId) << "\",";
-        json << "\"name\":\"" << escapeJson(manifest->appName) << "\",";
-        json << "\"version\":\"" << escapeJson(manifest->appVersionName) << "\",";
+        json << "\"id\":\"" << escapeJson(manifest->id) << "\",";
+        json << "\"name\":\"" << escapeJson(manifest->name) << "\",";
 
         const char* category = "user";
-        if (manifest->appCategory == app::Category::System) category = "system";
-        else if (manifest->appCategory == app::Category::Settings) category = "settings";
+        if (manifest->category == APP_CATEGORY_SYSTEM) category = "system";
+        else if (manifest->category == APP_CATEGORY_SETTINGS) category = "settings";
         json << "\"category\":\"" << category << "\",";
 
-        json << "\"isExternal\":" << (manifest->appLocation.isExternal() ? "true" : "false") << ",";
-        json << "\"hidden\":" << ((manifest->appFlags & app::AppManifest::Flags::Hidden) ? "true" : "false");
-
-        if (!manifest->appIcon.empty()) {
-            json << ",\"icon\":\"" << escapeJson(manifest->appIcon) << "\"";
-        }
+        json << "\"isExternal\":" << (manifest->location.type == APP_LOCATION_PATH ? "true" : "false") << ",";
+        json << "\"hidden\":" << ((manifest->flags & APP_MANIFEST_FLAG_HIDDEN) ? "true" : "false");
 
         json << "}";
     }
@@ -1262,18 +1261,16 @@ esp_err_t WebServerService::handleApiAppsRun(httpd_req_t* request) {
         return ESP_FAIL;
     }
 
-    auto manifest = app::findAppManifestById(appId);
-    if (!manifest) {
+    auto* manifest = app_manager_find_manifest(appId.c_str());
+    if (manifest == nullptr) {
         httpd_resp_send_err(request, HTTPD_404_NOT_FOUND, "app not found");
         return ESP_FAIL;
     }
 
-    // Stop if already running
-    if (app::isRunning(appId)) {
-        app::stopAll(appId);
-    }
-
-    app::start(appId);
+    // Every app instance gets its own task now, so there's no "stop the existing one first" -
+    // this just starts a fresh instance alongside whatever's already running.
+    AppInstanceId instance_id = 0;
+    app_manager_start(appId.c_str(), &instance_id);
 
     LOG_I(TAG, "[200] /api/apps/run %s", appId.c_str());
     httpd_resp_sendstr(request, "ok");
@@ -1290,20 +1287,20 @@ esp_err_t WebServerService::handleApiAppsUninstall(httpd_req_t* request) {
         return ESP_FAIL;
     }
 
-    auto manifest = app::findAppManifestById(appId);
-    if (!manifest) {
+    auto* manifest = app_manager_find_manifest(appId.c_str());
+    if (manifest == nullptr) {
         LOG_I(TAG, "[200] /api/apps/uninstall %s (app wasn't installed)", appId.c_str());
         httpd_resp_sendstr(request, "ok");
         return ESP_OK;
     }
 
-    // Only allow uninstalling external apps
-    if (manifest->appLocation.isInternal()) {
+    // Only allow uninstalling external (side-loaded) apps
+    if (manifest->location.type != APP_LOCATION_PATH) {
         httpd_resp_send_err(request, HTTPD_403_FORBIDDEN, "cannot uninstall system apps");
         return ESP_FAIL;
     }
 
-    if (app::uninstall(appId)) {
+    if (app_uninstall(appId.c_str()) == ERROR_NONE) {
         LOG_I(TAG, "[200] /api/apps/uninstall %s", appId.c_str());
         httpd_resp_sendstr(request, "ok");
         return ESP_OK;
@@ -1393,7 +1390,7 @@ esp_err_t WebServerService::handleApiAppsInstall(httpd_req_t* request) {
     }
 
     // Install the app
-    if (!app::install(file_path)) {
+    if (app_install(file_path.c_str()) != ERROR_NONE) {
         file::deleteFile(file_path);
         httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "installation failed");
         return ESP_FAIL;

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <Tactility/app/App.h>
+#include <cstdint>
 
 namespace tt::app::timedatesettings {
 
-LaunchId start();
+uint32_t start();
 
 }

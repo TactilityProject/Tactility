@@ -18,13 +18,19 @@ macro(tactility_project project_name)
     endif()
 
     set(EXTRA_COMPONENT_DIRS
-        "Libraries/TactilityFreeRtos"
-        "Modules"
-        "Drivers"
+        "${TACTILITY_SDK_PATH}/Libraries/TactilityFreeRtos"
+        "${TACTILITY_SDK_PATH}/Modules"
+        "${TACTILITY_SDK_PATH}/Drivers"
     )
 
     set(COMPONENTS
         TactilityFreeRtos
+        app-module
+        crypt-module
+        gps-module
+        lvgl-module
+        lvgl-window-manager-module
+        service-module
         # DRIVER_COMPONENTS_PLACEHOLDER
     )
 

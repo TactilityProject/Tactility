@@ -1,14 +1,19 @@
+#include <app/install.h>
+#include <app/event.h>
+
+#include <lvgl/lvgl.h>
+#include <lvgl/widgets/toolbar.h>
+
 #include <Tactility/app/files/SupportedFiles.h>
 #include <Tactility/app/files/View.h>
-#include <Tactility/Platform.h>
-#include <Tactility/StringUtils.h>
-#include <Tactility/Tactility.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/imageviewer/ImageViewer.h>
 #include <Tactility/app/inputdialog/InputDialog.h>
 #include <Tactility/app/notes/Notes.h>
 #include <Tactility/file/File.h>
-#include <Tactility/lvgl/Toolbar.h>
+#include <Tactility/Platform.h>
+#include <Tactility/StringUtils.h>
+#include <Tactility/Tactility.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
@@ -16,16 +21,10 @@
 #include <tactility/filesystem/file_mutex.h>
 #include <tactility/log.h>
 
-#include <lvgl/lvgl.h>
-
 #include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <unistd.h>
-
-#ifdef ESP_PLATFORM
-#include <Tactility/service/loader/Loader.h>
-#endif
 
 namespace tt::app::files {
 
@@ -36,6 +35,11 @@ constexpr auto* TAG = "Files";
 static void dirEntryListScrollBeginCallback(lv_event_t* event) {
     auto* view = static_cast<files::View*>(lv_event_get_user_data(event));
     view->onDirEntryListScrollBegin();
+}
+
+static void onBackPressedCallback(lv_event_t* event) {
+    auto* view = static_cast<files::View*>(lv_event_get_user_data(event));
+    view->onBackPressed();
 }
 
 static void onDirEntryPressedCallback(lv_event_t* event) {
@@ -225,8 +229,8 @@ void View::viewFile(const std::string& path, const std::string& filename) {
         // install(filename);
         auto message = std::format("Do you want to install {}?", filename);
         installAppPath = processed_filepath;
-        auto choices = std::vector {"Yes", "No"};
-        installAppLaunchId = alertdialog::start("Install?", message, choices);
+        auto choices = std::vector<std::string> {"Yes", "No"};
+        installDialogId = alertdialog::start(appInstanceId, "Install?", message, choices);
 #endif
     } else if (isSupportedImageFile(filename)) {
         imageviewer::start(processed_filepath);
@@ -371,6 +375,15 @@ void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
     lv_obj_add_event_cb(button, &onDirEntryLongPressedCallback, LV_EVENT_LONG_PRESSED, this);
 }
 
+void View::onBackPressed() {
+    // Async, non-blocking - must NOT call app_manager_stop() directly here: that bound-waits
+    // (thread_join) for this app's own thread to finish, which needs the LVGL lock
+    // (window_manager_remove()) - but this callback runs ON the LVGL task, which would
+    // deadlock against itself.
+    AppEvent event { .type = APP_EVENT_CLOSE, .timestamp = 0, .result = {} };
+    app_event_emit(appInstanceId, &event);
+}
+
 void View::onNavigateUpPressed() {
     if (state->getCurrentPath() != "/") {
         LOG_I(TAG, "Navigating upwards");
@@ -387,7 +400,7 @@ void View::onRenamePressed() {
     std::string entry_name = state->getSelectedChildEntry();
     LOG_I(TAG, "Pending rename %s", entry_name.c_str());
     state->setPendingAction(State::ActionRename);
-    inputdialog::start("Rename", "", entry_name);
+    inputdialog::start(appInstanceId, "Rename", "", entry_name);
 }
 
 void View::onDeletePressed() {
@@ -396,19 +409,19 @@ void View::onDeletePressed() {
     state->setPendingAction(State::ActionDelete);
     std::string message = "Do you want to delete this?\n" + file_path;
     const std::vector<std::string> choices = {"Yes", "No"};
-    alertdialog::start("Are you sure?", message, choices);
+    alertdialog::start(appInstanceId, "Are you sure?", message, choices);
 }
 
 void View::onNewFilePressed() {
     LOG_I(TAG, "Creating new file");
     state->setPendingAction(State::ActionCreateFile);
-    inputdialog::start("New File", "Enter filename:", "");
+    inputdialog::start(appInstanceId, "New File", "Enter filename:", "");
 }
 
 void View::onNewFolderPressed() {
     LOG_I(TAG, "Creating new folder");
     state->setPendingAction(State::ActionCreateFolder);
-    inputdialog::start("New Folder", "Enter folder name:", "");
+    inputdialog::start(appInstanceId, "New Folder", "Enter folder name:", "");
 }
 
 void View::showActions() {
@@ -445,7 +458,7 @@ void View::onEjectPressed() {
     Device* msc_dev = nullptr;
     if (device_get_first_active_by_type(&USB_HOST_MSC_TYPE, &msc_dev) != ERROR_NONE || !usb_msc_eject(msc_dev, mount_path.c_str())) {
         LOG_W(TAG, "usb_msc_eject: %s not found", mount_path.c_str());
-        alertdialog::start("Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
+        alertdialog::start(appInstanceId, "Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
     }
 
     if (msc_dev) {
@@ -528,11 +541,15 @@ void View::update(size_t start_index) {
     lvgl_unlock();
 }
 
-void View::init(const AppContext& appContext, lv_obj_t* parent) {
+void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
+    this->appInstanceId = appInstanceId;
+
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl::toolbar_create(parent, appContext);
+    auto* toolbar = lvgl_toolbar_create(parent, "Files");
+    // The global toolbar nav callback only knows how to stop old-model apps.
+    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressedCallback, this);
     navigate_up_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_UP, &onNavigateUpPressedCallback, this);
     new_file_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_FILE, &onNewFilePressedCallback, this);
     new_folder_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_DIRECTORY, &onNewFolderPressedCallback, this);
@@ -574,26 +591,23 @@ void View::onNavigate() {
     }
 }
 
-void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bundle) {
-    if (result != Result::Ok || bundle == nullptr) {
-        return;
-    }
-
-    if (
-        launchId == installAppLaunchId &&
-        result == Result::Ok &&
-        alertdialog::getResultIndex(*bundle) == 0
-    ) {
-        install(installAppPath);
+void View::onResult(uint32_t launchId, int32_t result) {
+    if (launchId == installDialogId && result == 0) {
+        app_install(installAppPath.c_str());
         return;
     }
 
     std::string filepath = state->getSelectedChildPath();
     LOG_I(TAG, "Result for %s", filepath.c_str());
 
+    // Text-entry result (rename/new file/new folder); empty for Cancel, or for a dialog that
+    // doesn't produce text (delete/paste confirmations) - those switch cases below only look at
+    // `result`, not this.
+    std::string resultText = (result == 0) ? inputdialog::getLastText() : std::string();
+
     switch (state->getPendingAction()) {
         case State::ActionDelete: {
-            if (alertdialog::getResultIndex(*bundle) == 0) {
+            if (result == 0) {
                 if (file::isDirectory(filepath)) {
                     if (!file::deleteRecursively(filepath)) {
                         LOG_W(TAG, "Failed to delete %s", filepath.c_str());
@@ -611,7 +625,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
             break;
         }
         case State::ActionRename: {
-            auto new_name = inputdialog::getResult(*bundle);
+            std::string new_name = resultText;
             if (!new_name.empty() && new_name != state->getSelectedChildEntry()) {
                 std::string rename_to = file::getChildPath(state->getCurrentPath(), new_name);
                 {
@@ -620,7 +634,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                     if (stat(rename_to.c_str(), &st) == 0) {
                         LOG_W(TAG, "Rename: destination already exists: \"%s\"", rename_to.c_str());
                         state->setPendingAction(State::ActionNone);
-                        alertdialog::start("Rename failed", "\"" + new_name + "\" already exists.");
+                        alertdialog::start(appInstanceId, "Rename failed", "\"" + new_name + "\" already exists.");
                         break;
                     }
                     if (rename(filepath.c_str(), rename_to.c_str()) == 0) {
@@ -636,7 +650,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
             break;
         }
         case State::ActionCreateFile: {
-            auto filename = inputdialog::getResult(*bundle);
+            std::string filename = resultText;
             if (!filename.empty()) {
                 std::string new_file_path = file::getChildPath(state->getCurrentPath(), filename);
 
@@ -664,7 +678,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
             break;
         }
         case State::ActionCreateFolder: {
-            auto foldername = inputdialog::getResult(*bundle);
+            std::string foldername = resultText;
             if (!foldername.empty()) {
                 std::string new_folder_path = file::getChildPath(state->getCurrentPath(), foldername);
 
@@ -690,7 +704,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
             break;
         }
         case State::ActionPaste: {
-            if (alertdialog::getResultIndex(*bundle) == 0) {
+            if (result == 0) {
                 auto clipboard = state->getClipboard();
                 if (clipboard.has_value()) {
                     std::string dst = state->getPendingPasteDst();
@@ -712,6 +726,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                         LOG_W(TAG, "Overwrite: destination \"%s\" changed since confirmation, aborting", dst.c_str());
                         state->setPendingAction(State::ActionNone);
                         alertdialog::start(
+                            appInstanceId,
                             "Overwrite aborted",
                             "\"" + file::getLastPathSegment(dst) + "\" changed while the dialog was open. Please try again."
                         );
@@ -729,6 +744,7 @@ void View::onResult(LaunchId launchId, Result result, std::unique_ptr<Bundle> bu
                         LOG_E(TAG, "Overwrite: failed to remove existing destination: \"%s\"", dst.c_str());
                         state->setPendingAction(State::ActionNone);
                         alertdialog::start(
+                            appInstanceId,
                             "Overwrite failed",
                             "Could not remove \"" + file::getLastPathSegment(dst) + "\" before overwriting."
                         );
@@ -793,7 +809,7 @@ void View::onPastePressed() {
         state->setPendingPasteDstStat(dst_stat);
         state->setPendingAction(State::ActionPaste);
         const std::vector<std::string> choices = {"Overwrite", "Cancel"};
-        alertdialog::start("File exists", "Overwrite \"" + entry_name + "\"?", choices);
+        alertdialog::start(appInstanceId, "File exists", "Overwrite \"" + entry_name + "\"?", choices);
         return;
     }
 
@@ -834,11 +850,12 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
         }
     } else if (src_delete_failed) {
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
-        alertdialog::start("Move incomplete", "\"" + filename + "\" was copied but the original could not be removed.\nPlease delete it manually.");
+        alertdialog::start(appInstanceId, "Move incomplete", "\"" + filename + "\" was copied but the original could not be removed.\nPlease delete it manually.");
     } else {
         LOG_E(TAG, "Failed to %s \"%s\" to \"%s\"", is_cut ? "move" : "copy", src.c_str(), dst.c_str());
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start(
+            appInstanceId,
             std::string("Failed to ") + (is_cut ? "move" : "copy"),
             "\"" + filename + "\" could not be " + (is_cut ? "moved." : "copied.")
         );
@@ -848,7 +865,7 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     update();
 }
 
-void View::deinit(const AppContext& appContext) {
+void View::deinit() {
     lv_obj_remove_event_cb(dir_entry_list, dirEntryListScrollBeginCallback);
 }
 

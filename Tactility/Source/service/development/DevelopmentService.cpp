@@ -1,21 +1,21 @@
 #ifdef ESP_PLATFORM
 
-#include <Tactility/service/development/DevelopmentService.h>
+#include <app/install.h>
+#include <app/manager.h>
 
-#include <Tactility/app/App.h>
-#include <Tactility/app/AppRegistration.h>
+#include <tactility/log.h>
+
+#include <Tactility/Paths.h>
+#include <Tactility/StringUtils.h>
 #include <Tactility/file/File.h>
 #include <Tactility/network/HttpdReq.h>
 #include <Tactility/network/Url.h>
-#include <Tactility/Paths.h>
-#include <Tactility/service/development/DevelopmentSettings.h>
 #include <Tactility/service/ServiceRegistration.h>
-#include <Tactility/StringUtils.h>
+#include <Tactility/service/development/DevelopmentSettings.h>
+#include <Tactility/service/development/DevelopmentService.h>
 
 #include <ranges>
 #include <sstream>
-
-#include <tactility/log.h>
 
 namespace tt::service::development {
 
@@ -101,12 +101,19 @@ esp_err_t DevelopmentService::handleAppRun(httpd_req_t* request) {
         return ESP_FAIL;
     }
 
-    const auto& app_id = id_key_pos->second;
-    if (app::isRunning(app_id)) {
-        app::stopAll(app_id);
+    char app_id[32];
+    AppInstanceId instance_id;
+    // Warning: possible app closure between getting app id and instance id
+    if (
+        app_manager_get_topmost_app_id(app_id, sizeof(app_id)) == ERROR_NONE &&
+        app_manager_get_topmost_instance_id(&instance_id) == ERROR_NONE
+    ) {
+        if (strcmp(id_key_pos->second.c_str(), app_id) == 0) {
+            app_manager_stop(instance_id);
+        }
     }
 
-    app::start(app_id);
+    app_manager_start(app_id, &instance_id);
 
     LOG_I(TAG, "[200] /app/run %s", id_key_pos->second.c_str());
     httpd_resp_send(request, nullptr, 0);
@@ -186,7 +193,7 @@ esp_err_t DevelopmentService::handleAppInstall(httpd_req_t* request) {
         LOG_W(TAG, "We have more bytes at the end of the request parsing?!");
     }
 
-    if (!app::install(file_path)) {
+    if (!app_install(file_path.c_str())) {
         httpd_resp_send_err(request, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to install");
         return ESP_FAIL;
     }
@@ -218,13 +225,13 @@ esp_err_t DevelopmentService::handleAppUninstall(httpd_req_t* request) {
         return ESP_FAIL;
     }
 
-    if (!app::findAppManifestById(id_key_pos->second)) {
+    if (!app_manager_find_manifest(id_key_pos->second.c_str())) {
         LOG_I(TAG, "[200] /app/uninstall %s (app wasn't installed)", id_key_pos->second.c_str());
         httpd_resp_send(request, nullptr, 0);
         return ESP_OK;
     }
 
-    if (app::uninstall(id_key_pos->second)) {
+    if (app_uninstall(id_key_pos->second.c_str())) {
         LOG_I(TAG, "[200] /app/uninstall %s", id_key_pos->second.c_str());
         httpd_resp_send(request, nullptr, 0);
         return ESP_OK;

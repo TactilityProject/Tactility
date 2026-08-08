@@ -13,13 +13,26 @@
 #include <Tactility/bluetooth/BluetoothPairedDevice.h>
 #include <Tactility/Tactility.h>
 
+#include <app/event.h>
+#include <lvgl/widgets/toolbar.h>
+
 namespace tt::app::btmanage {
+
+static void onBackPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    // Async, non-blocking - must NOT call app_manager_stop() directly here: that bound-waits
+    // (thread_join) for this app's own thread to finish, which needs the LVGL lock
+    // (window_manager_remove()) - but this callback runs ON the LVGL task, which would
+    // deadlock against itself.
+    AppEvent closeEvent { .type = APP_EVENT_CLOSE, .timestamp = 0, .result = {} };
+    app_event_emit(ctx->appInstanceId, &closeEvent);
+}
 
 static void onEnableSwitchChanged(lv_event_t* event) {
     auto* enable_switch = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool is_on = lv_obj_has_state(enable_switch, LV_STATE_CHECKED);
-    auto bt = std::static_pointer_cast<BtManage>(getCurrentApp());
-    bt->getBindings().onBtToggled(is_on);
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    ctx->bindings.onBtToggled(ctx, is_on);
 }
 
 static void onEnableOnBootSwitchChanged(lv_event_t* event) {
@@ -45,39 +58,40 @@ static void onEnableOnBootParentClicked(lv_event_t* event) {
 }
 
 static void onScanButtonClicked(lv_event_t* event) {
-    auto bt = std::static_pointer_cast<BtManage>(getCurrentApp());
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     Device* dev = nullptr;
     device_get_first_active_by_type(&BLUETOOTH_TYPE, &dev);
     bool scanning = dev ? bluetooth_is_scanning(dev) : false;
     if (dev) {
         device_put(dev);
     }
-    bt->getBindings().onScanToggled(!scanning);
+    ctx->bindings.onScanToggled(ctx, !scanning);
 }
 
 // region Peer list callbacks
 
 struct PeerListItemData {
+    void* context;
+    State* state;
+    Bindings* bindings;
     size_t index;
     bool isPaired;
 };
 
 void View::onConnect(lv_event_t* event) {
     auto* data = static_cast<PeerListItemData*>(lv_event_get_user_data(event));
-    auto bt = std::static_pointer_cast<BtManage>(getCurrentApp());
-    auto& state = bt->getState();
 
     if (data->isPaired) {
         // Open the per-device settings screen for paired devices
-        auto peers = state.getPairedPeers();
+        auto peers = data->state->getPairedPeers();
         if (data->index < peers.size()) {
             btpeersettings::start(bluetooth::settings::addrToHex(peers[data->index].addr));
         }
     } else {
         // Unrecognised scan result — initiate pairing
-        auto peers = state.getScanResults();
+        auto peers = data->state->getScanResults();
         if (data->index < peers.size()) {
-            bt->getBindings().onPairPeer(peers[data->index].addr);
+            data->bindings->onPairPeer(data->context, peers[data->index].addr);
         }
     }
 }
@@ -102,7 +116,7 @@ void View::createPeerListItem(const bluetooth::PeerRecord& record, bool isPaired
 
     auto* button = lv_list_add_button(peers_list, nullptr, label.c_str());
 
-    auto* item_data = new PeerListItemData { index, isPaired };
+    auto* item_data = new PeerListItemData { context, state, bindings, index, isPaired };
     lv_obj_set_user_data(button, item_data);
     lv_obj_add_event_cb(button, onConnect, LV_EVENT_SHORT_CLICKED, item_data);
     lv_obj_add_event_cb(button, [](lv_event_t* e) {
@@ -210,26 +224,28 @@ void View::updatePeerList() {
         lv_obj_set_style_margin_ver(scan_button, 4, LV_STATE_DEFAULT);
         auto* scan_label = lv_label_create(scan_button);
         lv_label_set_text(scan_label, state->isScanning() ? "Stop scan" : "Scan");
-        lv_obj_add_event_cb(scan_button, onScanButtonClicked, LV_EVENT_SHORT_CLICKED, nullptr);
+        lv_obj_add_event_cb(scan_button, onScanButtonClicked, LV_EVENT_SHORT_CLICKED, context);
     }
 }
 
 // endregion Secondary updates
 
-void View::init(const AppContext& app, lv_obj_t* parent) {
+void View::init(void* newContext, lv_obj_t* parent) {
+    context = newContext;
+
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     root = parent;
-    paths = app.getPaths();
 
     // Toolbar
-    auto* toolbar = lvgl::toolbar_create(parent, app);
+    auto* toolbar = lvgl_toolbar_create(parent, "Bluetooth");
+    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, context);
 
     scanning_spinner = lvgl_toolbar_add_spinner_action(toolbar);
 
     enable_switch = lvgl_toolbar_add_switch_action(toolbar);
-    lv_obj_add_event_cb(enable_switch, onEnableSwitchChanged, LV_EVENT_VALUE_CHANGED, nullptr);
+    lv_obj_add_event_cb(enable_switch, onEnableSwitchChanged, LV_EVENT_VALUE_CHANGED, context);
 
     // Peer list
     peers_list = lv_list_create(parent);

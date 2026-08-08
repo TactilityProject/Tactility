@@ -9,18 +9,16 @@
 #include "ChatState.h"
 #include "ChatSettings.h"
 
-#include <Tactility/app/AppContext.h>
-
 #include <esp_now.h>
 #include <lvgl.h>
 
 namespace tt::app::chat {
 
-class ChatApp;
+struct Context;
 
 class ChatView {
 
-    ChatApp* app;
+    Context* app;
     ChatState* state;
 
     lv_obj_t* toolbar = nullptr;
@@ -45,6 +43,7 @@ class ChatView {
 
     static void addMessageToList(lv_obj_t* msgList, const StoredMessage& msg);
 
+    static void onBackPressed(lv_event_t* e);
     static void onSendClicked(lv_event_t* e);
     static void onSettingsClicked(lv_event_t* e);
     static void onSettingsSave(lv_event_t* e);
@@ -54,7 +53,7 @@ class ChatView {
     static void onChannelCancel(lv_event_t* e);
 
 public:
-    ChatView(ChatApp* app, ChatState* state) : app(app), state(state) {}
+    ChatView(Context* app, ChatState* state) : app(app), state(state) {}
     ~ChatView() = default;
 
     ChatView(const ChatView&) = delete;
@@ -62,7 +61,7 @@ public:
     ChatView(ChatView&&) = delete;
     ChatView& operator=(ChatView&&) = delete;
 
-    void init(AppContext& appContext, lv_obj_t* parent);
+    void init(lv_obj_t* parent);
 
     void displayMessage(const StoredMessage& msg);
     void refreshMessageList();

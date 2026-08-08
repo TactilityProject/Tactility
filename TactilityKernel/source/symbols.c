@@ -1,3 +1,4 @@
+#include <tactility/bundle.h>
 #include <tactility/concurrent/dispatcher.h>
 #include <tactility/concurrent/event_group.h>
 #include <tactility/concurrent/thread.h>
@@ -41,6 +42,8 @@
 #include <tactility/filesystem/file_system.h>
 #include <tactility/memory.h>
 #include <tactility/module.h>
+#include <tactility/preferences.h>
+#include <tactility/properties_file.h>
 #include <tactility/wifi_auto_scan.h>
 
 #ifndef ESP_PLATFORM
@@ -471,6 +474,48 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(module_is_started),
     DEFINE_MODULE_SYMBOL(module_resolve_symbol),
     DEFINE_MODULE_SYMBOL(module_resolve_symbol_global),
+    // bundle
+    DEFINE_MODULE_SYMBOL(bundle_alloc),
+    DEFINE_MODULE_SYMBOL(bundle_clone),
+    DEFINE_MODULE_SYMBOL(bundle_free),
+    DEFINE_MODULE_SYMBOL(bundle_get_bool),
+    DEFINE_MODULE_SYMBOL(bundle_get_int32),
+    DEFINE_MODULE_SYMBOL(bundle_get_int64),
+    DEFINE_MODULE_SYMBOL(bundle_get_string),
+    DEFINE_MODULE_SYMBOL(bundle_has_bool),
+    DEFINE_MODULE_SYMBOL(bundle_has_int32),
+    DEFINE_MODULE_SYMBOL(bundle_has_int64),
+    DEFINE_MODULE_SYMBOL(bundle_has_string),
+    DEFINE_MODULE_SYMBOL(bundle_opt_bool),
+    DEFINE_MODULE_SYMBOL(bundle_opt_int32),
+    DEFINE_MODULE_SYMBOL(bundle_opt_int64),
+    DEFINE_MODULE_SYMBOL(bundle_opt_string),
+    DEFINE_MODULE_SYMBOL(bundle_put_bool),
+    DEFINE_MODULE_SYMBOL(bundle_put_int32),
+    DEFINE_MODULE_SYMBOL(bundle_put_int64),
+    DEFINE_MODULE_SYMBOL(bundle_put_string),
+    // preferences
+    DEFINE_MODULE_SYMBOL(preferences_open),
+    DEFINE_MODULE_SYMBOL(preferences_close),
+    DEFINE_MODULE_SYMBOL(preferences_has_bool),
+    DEFINE_MODULE_SYMBOL(preferences_has_int32),
+    DEFINE_MODULE_SYMBOL(preferences_has_int64),
+    DEFINE_MODULE_SYMBOL(preferences_has_string),
+    DEFINE_MODULE_SYMBOL(preferences_opt_bool),
+    DEFINE_MODULE_SYMBOL(preferences_opt_int32),
+    DEFINE_MODULE_SYMBOL(preferences_opt_int64),
+    DEFINE_MODULE_SYMBOL(preferences_opt_string),
+    DEFINE_MODULE_SYMBOL(preferences_put_bool),
+    DEFINE_MODULE_SYMBOL(preferences_put_int32),
+    DEFINE_MODULE_SYMBOL(preferences_put_int64),
+    DEFINE_MODULE_SYMBOL(preferences_put_string),
+    // properties_file
+    DEFINE_MODULE_SYMBOL(properties_file_open),
+    DEFINE_MODULE_SYMBOL(properties_file_close),
+    DEFINE_MODULE_SYMBOL(properties_file_has),
+    DEFINE_MODULE_SYMBOL(properties_file_get),
+    DEFINE_MODULE_SYMBOL(properties_file_set),
+    DEFINE_MODULE_SYMBOL(properties_file_for_each),
     // terminator
     MODULE_SYMBOL_TERMINATOR
 };

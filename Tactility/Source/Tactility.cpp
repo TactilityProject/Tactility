@@ -1,28 +1,41 @@
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
 #include <Tactility/InitEsp.h>
+#include <app_esp32/module.h>
 #endif
 
 #include <format>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <app/event.h>
+#include <app/install.h>
+#include <app/manager.h>
+#include <app/manifest.h>
+#include <app/module.h>
 
 #include <Tactility/Tactility.h>
+
+#include <Tactility/CpuAffinity.h>
+#include <Tactility/LogMessages.h>
+#include <Tactility/MountPoints.h>
+#include <Tactility/Paths.h>
 #include <Tactility/TactilityConfig.h>
 #include <Tactility/bluetooth/Bluetooth.h>
-#include <Tactility/CpuAffinity.h>
-#include <Tactility/MountPoints.h>
-#include <Tactility/app/AppManifestParsing.h>
-#include <Tactility/app/AppRegistration.h>
 #include <Tactility/file/File.h>
-#include <Tactility/LogMessages.h>
-#include <Tactility/lvgl/TrackballInit.h>
 #include <Tactility/hal/SdCard.h>
+#include <Tactility/lvgl/Statusbar.h>
+#include <Tactility/lvgl/TrackballInit.h>
+#include <Tactility/lvgl/UsbHidInput.h>
 #include <Tactility/network/NtpPrivate.h>
-#include <Tactility/Paths.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
 #include <Tactility/service/audio/Audio.h>
 #include <Tactility/settings/TimePrivate.h>
 #include <Tactility/settings/TouchCalibrationSettings.h>
+
+#include <crypt/module.h>
 
 #include <gps/module.h>
 #include <gps_generic/module.h>
@@ -33,6 +46,9 @@
 #include <lvgl/lvgl.h>
 #include <lvgl/module.h>
 #include <lvgl/widgets/toolbar.h>
+
+#include <lvgl_window_manager/module.h>
+#include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/concurrent/thread.h>
 #include <tactility/device.h>
@@ -88,8 +104,6 @@ namespace service {
     namespace espnow { extern const ServiceManifest manifest; }
 #endif
     // Secondary (UI)
-    namespace gui { extern const ServiceManifest manifest; }
-    namespace loader { extern const ServiceManifest manifest; }
     namespace memorychecker { extern const ServiceManifest manifest; }
     namespace statusbar { extern const ServiceManifest manifest; }
 #ifdef ESP_PLATFORM
@@ -110,64 +124,66 @@ namespace service {
 
 // region Default apps
 
+// All apps below are converted to the new app-module + window-manager model, so their manifest
+// is the new, global ::AppManifest, not this namespace's old tt::app::AppManifest.
 namespace app {
-    namespace addgps { extern const AppManifest manifest; }
-    namespace alertdialog { extern const AppManifest manifest; }
-    namespace apphub { extern const AppManifest manifest; }
-    namespace apphubdetails { extern const AppManifest manifest; }
-    namespace appdetails { extern const AppManifest manifest; }
-    namespace applist { extern const AppManifest manifest; }
-    namespace appsettings { extern const AppManifest manifest; }
-    namespace audiosettings { extern const AppManifest manifest; }
-    namespace boot { extern const AppManifest manifest; }
-    namespace development { extern const AppManifest manifest; }
-    namespace display { extern const AppManifest manifest; }
-    namespace kerneldisplay { extern const AppManifest manifest; }
-    namespace files { extern const AppManifest manifest; }
-    namespace fileselection { extern const AppManifest manifest; }
-    namespace gpssettings { extern const AppManifest manifest; }
-    namespace grovesettings { extern const AppManifest manifest; }
-    namespace i2cscanner { extern const AppManifest manifest; }
-    namespace imageviewer { extern const AppManifest manifest; }
-    namespace inputdialog { extern const AppManifest manifest; }
-    namespace launcher { extern const AppManifest manifest; }
-    namespace localesettings { extern const AppManifest manifest; }
-    namespace notes { extern const AppManifest manifest; }
-    namespace power { extern const AppManifest manifest; }
-    namespace poweroff { extern const AppManifest manifest; }
-    namespace selectiondialog { extern const AppManifest manifest; }
-    namespace settings { extern const AppManifest manifest; }
-    namespace setup { extern const AppManifest manifest; }
-    namespace systeminfo { extern const AppManifest manifest; }
-    namespace timedatesettings { extern const AppManifest manifest; }
+    namespace addgps { extern const ::AppManifest manifest; }
+    namespace alertdialog { extern const ::AppManifest manifest; }
+    namespace apphub { extern const ::AppManifest manifest; }
+    namespace apphubdetails { extern const ::AppManifest manifest; }
+    namespace appdetails { extern const ::AppManifest manifest; }
+    namespace applist { extern const ::AppManifest manifest; }
+    namespace appsettings { extern const ::AppManifest manifest; }
+    namespace audiosettings { extern const ::AppManifest manifest; }
+    namespace boot { extern const ::AppManifest manifest; }
+    namespace development { extern const ::AppManifest manifest; }
+    namespace display { extern const ::AppManifest manifest; }
+    namespace kerneldisplay { extern const ::AppManifest manifest; }
+    namespace files { extern const ::AppManifest manifest; }
+    namespace fileselection { extern const ::AppManifest manifest; }
+    namespace gpssettings { extern const ::AppManifest manifest; }
+    namespace grovesettings { extern const ::AppManifest manifest; }
+    namespace i2cscanner { extern const ::AppManifest manifest; }
+    namespace imageviewer { extern const ::AppManifest manifest; }
+    namespace inputdialog { extern const ::AppManifest manifest; }
+    namespace launcher { extern const ::AppManifest manifest; }
+    namespace localesettings { extern const ::AppManifest manifest; }
+    namespace notes { extern const ::AppManifest manifest; }
+    namespace power { extern const ::AppManifest manifest; }
+    namespace poweroff { extern const ::AppManifest manifest; }
+    namespace selectiondialog { extern const ::AppManifest manifest; }
+    namespace settings { extern const ::AppManifest manifest; }
+    namespace setup { extern const ::AppManifest manifest; }
+    namespace systeminfo { extern const ::AppManifest manifest; }
+    namespace timedatesettings { extern const ::AppManifest manifest; }
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
-    namespace touchcalibration { extern const AppManifest manifest; }
+    namespace touchcalibration { extern const ::AppManifest manifest; }
 #endif
-    namespace timezone { extern const AppManifest manifest; }
-    namespace usbsettings { extern const AppManifest manifest; }
-    namespace btmanage { extern const AppManifest manifest; }
-    namespace btpeersettings { extern const AppManifest manifest; }
-    namespace wifiapsettings { extern const AppManifest manifest; }
-    namespace wificonnect { extern const AppManifest manifest; }
-    namespace wifimanage { extern const AppManifest manifest; }
+    namespace timezone { extern const ::AppManifest manifest; }
+    namespace usbsettings { extern const ::AppManifest manifest; }
+    namespace btmanage { extern const ::AppManifest manifest; }
+    namespace btpeersettings { extern const ::AppManifest manifest; }
+    namespace wifiapsettings { extern const ::AppManifest manifest; }
+    namespace wificonnect { extern const ::AppManifest manifest; }
+    namespace wifimanage { extern const ::AppManifest manifest; }
 
 #ifdef ESP_PLATFORM
-    namespace apwebserver { extern const AppManifest manifest; }
-    namespace crashdiagnostics { extern const AppManifest manifest; }
-    namespace webserversettings { extern const AppManifest manifest; }
+    namespace apwebserver { extern const ::AppManifest manifest; }
+    namespace crashdiagnostics { extern const ::AppManifest manifest; }
+    namespace webserversettings { extern const ::AppManifest manifest; }
 #if CONFIG_TT_TDECK_WORKAROUND == 1
-    namespace keyboardsettings { extern const AppManifest manifest; } // T-Deck only for now
+    namespace keyboardsettings { extern const ::AppManifest manifest; } // T-Deck only for now
 #endif
 #endif
 
-    namespace trackballsettings { extern const AppManifest manifest; } // T-Deck only for now
+    namespace trackballsettings { extern const ::AppManifest manifest; } // T-Deck only for now
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
-    namespace screenshot { extern const AppManifest manifest; }
+    namespace screenshot { extern const ::AppManifest manifest; }
 #endif
 
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
-    namespace chat { extern const AppManifest manifest; }
+    namespace chat { extern const ::AppManifest manifest; }
 #endif
 }
 
@@ -177,118 +193,90 @@ namespace app {
 static void registerInternalApps() {
     LOG_I(TAG, "Registering internal apps");
 
-    addAppManifest(app::alertdialog::manifest);
-    addAppManifest(app::appdetails::manifest);
-    addAppManifest(app::apphub::manifest);
-    addAppManifest(app::apphubdetails::manifest);
-    addAppManifest(app::applist::manifest);
-    addAppManifest(app::appsettings::manifest);
+    app_manager_add(&app::alertdialog::manifest);
+    app_manager_add(&app::appdetails::manifest);
+    app_manager_add(&app::apphub::manifest);
+    app_manager_add(&app::apphubdetails::manifest);
+    app_manager_add(&app::applist::manifest);
+    app_manager_add(&app::appsettings::manifest);
     if (service::audio::isAvailable()) {
-        addAppManifest(app::audiosettings::manifest);
+        app_manager_add(&app::audiosettings::manifest);
     }
     if (device_exists_of_type(&DISPLAY_TYPE)) {
-        addAppManifest(app::kerneldisplay::manifest);
+        app_manager_add(&app::kerneldisplay::manifest);
     }
-    addAppManifest(app::files::manifest);
-    addAppManifest(app::fileselection::manifest);
-    addAppManifest(app::i2cscanner::manifest);
-    addAppManifest(app::imageviewer::manifest);
-    addAppManifest(app::inputdialog::manifest);
-    addAppManifest(app::launcher::manifest);
-    addAppManifest(app::localesettings::manifest);
-    addAppManifest(app::notes::manifest);
+    app_manager_add(&app::files::manifest);
+    app_manager_add(&app::fileselection::manifest);
+    app_manager_add(&app::i2cscanner::manifest);
+    app_manager_add(&app::imageviewer::manifest);
+    app_manager_add(&app::inputdialog::manifest);
+    app_manager_add(&app::launcher::manifest);
+    app_manager_add(&app::localesettings::manifest);
+    app_manager_add(&app::notes::manifest);
     if (device_exists_of_type(&POWER_SUPPLY_TYPE)) {
-        addAppManifest(app::poweroff::manifest);
+        app_manager_add(&app::poweroff::manifest);
     }
-    addAppManifest(app::settings::manifest);
-    addAppManifest(app::selectiondialog::manifest);
-    addAppManifest(app::setup::manifest);
-    addAppManifest(app::systeminfo::manifest);
-    addAppManifest(app::timedatesettings::manifest);
+    app_manager_add(&app::settings::manifest);
+    app_manager_add(&app::selectiondialog::manifest);
+    app_manager_add(&app::setup::manifest);
+    app_manager_add(&app::systeminfo::manifest);
+    app_manager_add(&app::timedatesettings::manifest);
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
-    addAppManifest(app::touchcalibration::manifest);
+    app_manager_add(&app::touchcalibration::manifest);
 #endif
-    addAppManifest(app::timezone::manifest);
-    addAppManifest(app::wifiapsettings::manifest);
-    addAppManifest(app::wificonnect::manifest);
-    addAppManifest(app::wifimanage::manifest);
+    app_manager_add(&app::timezone::manifest);
+    app_manager_add(&app::wifiapsettings::manifest);
+    app_manager_add(&app::wificonnect::manifest);
+    app_manager_add(&app::wifimanage::manifest);
 
 #ifdef ESP_PLATFORM
-    addAppManifest(app::apwebserver::manifest);
-    addAppManifest(app::webserversettings::manifest);
-    addAppManifest(app::crashdiagnostics::manifest);
-    addAppManifest(app::development::manifest);
+    app_manager_add(&app::apwebserver::manifest);
+    app_manager_add(&app::webserversettings::manifest);
+    app_manager_add(&app::crashdiagnostics::manifest);
+    app_manager_add(&app::development::manifest);
 #if defined(CONFIG_TT_TDECK_WORKAROUND)
-        addAppManifest(app::keyboardsettings::manifest);
+        app_manager_add(&app::keyboardsettings::manifest);
 #endif
 #endif
 
     if (device_exists_of_type(&TRACKBALL_TYPE)) {
-        addAppManifest(app::trackballsettings::manifest);
+        app_manager_add(&app::trackballsettings::manifest);
     }
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED
-    addAppManifest(app::usbsettings::manifest);
+    app_manager_add(&app::usbsettings::manifest);
 #endif
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
-    addAppManifest(app::screenshot::manifest);
+    app_manager_add(&app::screenshot::manifest);
 #endif
 
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
-    addAppManifest(app::chat::manifest);
+    app_manager_add(&app::chat::manifest);
 #endif
 
     if (device_exists_of_type(&GROVE_TYPE)) {
-        addAppManifest(app::grovesettings::manifest);
+        app_manager_add(&app::grovesettings::manifest);
     }
 
     if (device_exists_of_type(&UART_CONTROLLER_TYPE) || device_exists_of_type(&GROVE_TYPE)) {
-        addAppManifest(app::addgps::manifest);
-        addAppManifest(app::gpssettings::manifest);
+        app_manager_add(&app::addgps::manifest);
+        app_manager_add(&app::gpssettings::manifest);
     }
 
     if (device_exists_of_type(&POWER_SUPPLY_TYPE)) {
-        addAppManifest(app::power::manifest);
+        app_manager_add(&app::power::manifest);
     }
 
 #if defined(CONFIG_BT_ENABLED) && CONFIG_BT_ENABLED
-    addAppManifest(app::btmanage::manifest);
-    addAppManifest(app::btpeersettings::manifest);
+    app_manager_add(&app::btmanage::manifest);
+    app_manager_add(&app::btpeersettings::manifest);
 #endif
 }
 
-static void registerInstalledApp(std::string path) {
-    LOG_I(TAG, "Registering app at %s", path.c_str());
-    std::string manifest_path = path + "/manifest.properties";
-    if (!file::isFile(manifest_path)) {
-        LOG_E(TAG, "Manifest not found at %s", manifest_path.c_str());
-        return;
-    }
-
-    app::AppManifest manifest;
-    if (!app::parseManifest(manifest_path, manifest)) {
-        LOG_E(TAG, "Failed to parse manifest at %s", manifest_path.c_str());
-        return;
-    }
-
-    manifest.appCategory = app::Category::User;
-    manifest.appLocation = app::Location::external(path);
-
-    app::addAppManifest(manifest);
-}
-
-static void registerInstalledApps(const std::string& path) {
-    LOG_I(TAG, "Registering apps from %s", path.c_str());
-
-    file::listDirectory(path, [&path](const auto& entry) {
-        auto absolute_path = std::format("{}/{}", path, entry.d_name);
-        if (file::isDirectory(absolute_path)) {
-            registerInstalledApp(absolute_path);
-        }
-    });
-}
-
+// Registers every mounted filesystem's app install directory with app-module (see
+// app_manager_install_path_add()/app_manager_install_path_scan() in app/install.h), then scans
+// them once to register whatever's already installed there.
 static void registerInstalledAppsFromFileSystems() {
     file_system_for_each(nullptr, [](auto* fs, void* context) {
         if (!file_system_is_mounted(fs)) return true;
@@ -296,11 +284,12 @@ static void registerInstalledAppsFromFileSystems() {
         if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
         const auto app_path = std::format("{}/tactility/app", path);
         if (!app_path.starts_with(file::MOUNT_POINT_SYSTEM) && file::isDirectory(app_path)) {
-            LOG_I(TAG, "Registering apps from %s", app_path.c_str());
-            registerInstalledApps(app_path);
+            LOG_I(TAG, "Registering install path %s", app_path.c_str());
+            app_manager_install_path_add(app_path.c_str());
         }
         return true;
     });
+    app_manager_install_path_scan();
 }
 
 static void registerAndStartServices() {
@@ -319,7 +308,6 @@ static void registerAndStartServices() {
 #ifdef ESP_PLATFORM
     addService(service::webserver::manifest);
 #endif
-    addService(service::loader::manifest);
 #if defined(ESP_PLATFORM)
     if (device_exists_of_type(&RTC_TYPE)) {
         addService(service::rtctime::manifest);
@@ -360,7 +348,39 @@ void registerApps() {
 }
 
 static void stopAppFromToolbar(lv_event_t*) {
-    app::stop();
+    // Default nav action for any toolbar that doesn't override it itself. Prefer the topmost
+    // new-model app if one is showing; fall back to the old system otherwise (this is what
+    // every not-yet-converted app's toolbar still relies on).
+    AppInstanceId topmost = 0;
+    check(app_manager_get_topmost_instance_id(&topmost) == ERROR_NONE);
+    // Async, non-blocking - must NOT call app_manager_stop() directly here: that
+    // bound-waits (thread_join) for the app's own thread to finish, which needs the LVGL
+    // lock to clean up - but this callback runs ON the LVGL task, which would deadlock
+    // against itself.
+    AppEvent event { .type = APP_EVENT_CLOSE, .timestamp = 0, .result = {} };
+    app_event_emit(topmost, &event);
+}
+
+static lv_obj_t* windowManagerScreenInit(lv_obj_t* root) {
+    lv_obj_t* vertical_container = lv_obj_create(root);
+    lv_obj_set_size(vertical_container, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_flex_flow(vertical_container, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(vertical_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_gap(vertical_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(vertical_container, lv_color_black(), LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(vertical_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(vertical_container, 0, LV_STATE_DEFAULT);
+
+    lvgl::statusbar_create(vertical_container);
+
+    auto* app_container = lv_obj_create(vertical_container);
+    lv_obj_set_style_pad_all(app_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(app_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_width(app_container, LV_PCT(100));
+    lv_obj_set_flex_grow(app_container, 1);
+    lv_obj_set_flex_flow(app_container, LV_FLEX_FLOW_COLUMN);
+
+    return app_container;
 }
 
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
@@ -391,10 +411,12 @@ static void applySavedTouchCalibration() {
 #endif // CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
 
 static void onLvglStarted() {
+    window_manager_configure(windowManagerScreenInit);
+    check(module_ensure_started(&lvgl_window_manager_module) == ERROR_NONE);
+
     ToolbarConfig toolbar_config = { .nav_action_callback = stopAppFromToolbar };
     lvgl_toolbar_configure(&toolbar_config);
 
-    addService(service::gui::manifest);
     addService(service::statusbar::manifest);
     addService(service::memorychecker::manifest);
 #if defined(ESP_PLATFORM)
@@ -407,6 +429,7 @@ static void onLvglStarted() {
     addService(service::screenshot::manifest);
 #endif
 
+    lvgl::startUsbHidInput();
     lvgl::initTrackball();
 
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
@@ -417,6 +440,10 @@ static void onLvglStarted() {
 }
 
 static void onLvglStopped() {
+    module_stop(&lvgl_window_manager_module);
+
+    lvgl::stopUsbHidInput();
+
 #if TT_FEATURE_SCREENSHOT_ENABLED
     check(service::removeService(service::screenshot::manifest.id));
 #endif
@@ -428,7 +455,6 @@ static void onLvglStopped() {
 #endif
     check(service::removeService(service::memorychecker::manifest.id));
     check(service::removeService(service::statusbar::manifest.id));
-    check(service::removeService(service::gui::manifest.id));
 
     memory_print_stats();
 }
@@ -446,6 +472,11 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     check(module_ensure_started(&gps_module) == ERROR_NONE);
     check(module_ensure_started(&gps_generic_module) == ERROR_NONE);
     check(module_ensure_started(&gps_meshtastic_module) == ERROR_NONE);
+    // Registers the APP_LOCATION_MEMORY app loader (boot/launcher need it below).
+    check(module_ensure_started(&app_module) == ERROR_NONE);
+#ifdef ESP_PLATFORM
+    check(module_ensure_started(&app_esp32_module) == ERROR_NONE);
+#endif
 
 #ifdef ESP_PLATFORM
     initEsp();
@@ -481,9 +512,11 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     LOG_I(TAG, "Core systems ready");
 
     LOG_I(TAG, "Starting boot app");
-    // The boot app takes care of registering system apps, user services and user apps
-    addAppManifest(app::boot::manifest);
-    app::start(app::boot::manifest.appId);
+    // The boot app takes care of registering system apps, user services and user apps.
+    // It's a new-model (app-module + window-manager) app now, replacing the old app::start().
+    app_manager_add(&app::boot::manifest);
+    uint32_t boot_instance_id = 0;
+    app_manager_start(app::boot::manifest.id, &boot_instance_id);
 
     LOG_I(TAG, "Main dispatcher ready");
     while (true) {

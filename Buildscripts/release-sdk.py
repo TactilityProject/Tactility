@@ -167,7 +167,7 @@ def main():
         {'src': 'TactilityC/CMakeLists.txt', 'dst': 'Libraries/TactilityC/'},
         {'src': 'TactilityC/LICENSE*.*', 'dst': 'Libraries/TactilityC/'},
         # TactilityFreeRtos
-        {'src': 'TactilityFreeRtos/Include/**', 'dst': 'Libraries/TactilityFreeRtos/include/'},
+        {'src': 'TactilityFreeRtos/Include/**', 'dst': 'Libraries/TactilityFreeRtos/Include/'},
         {'src': 'TactilityFreeRtos/CMakeLists.txt', 'dst': 'Libraries/TactilityFreeRtos/'},
         {'src': 'TactilityFreeRtos/LICENSE*.*', 'dst': 'Libraries/TactilityFreeRtos/'},
         # TactilityKernel
@@ -197,9 +197,11 @@ def main():
     map_copy(mappings, target_path)
 
     # Modules
-    add_module(target_path, "lvgl-module")
+    add_module(target_path, "app-module")
     add_module(target_path, "crypt-module")
     add_module(target_path, "gps-module")
+    add_module(target_path, "lvgl-module")
+    add_module(target_path, "lvgl-window-manager-module")
     add_module(target_path, "service-module")
 
     # Drivers - only ones actually built for this target (chip-restricted drivers like

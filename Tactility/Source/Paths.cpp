@@ -1,6 +1,7 @@
 #include <Tactility/Paths.h>
 
-#include <Tactility/app/AppManifestParsing.h>
+#include "../../Modules/app-module/private/app/private/app_metadata_parsing_internal.h"
+
 #include <Tactility/MountPoints.h>
 
 #include <format>
@@ -71,12 +72,12 @@ std::string getUserHomePath() {
 }
 
 std::string getAppInstallPath(const std::string& appId) {
-    assert(app::isValidId(appId));
+    assert(app_metadata_is_valid_id(appId.c_str()));
     return std::format("{}/{}", getAppInstallPath(), appId);
 }
 
 std::string getAppUserPath(const std::string& appId) {
-    assert(app::isValidId(appId));
+    assert(app_metadata_is_valid_id(appId.c_str()));
     return std::format("{}/app/{}", getUserHomePath(), appId);
 }
 

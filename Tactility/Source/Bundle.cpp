@@ -1,113 +1,113 @@
 #include "Tactility/Bundle.h"
 
+#include <tactility/bundle.h>
+
+#include <vector>
+
 namespace tt {
 
+namespace {
+::Bundle* as_kernel(void* handle) { return static_cast<::Bundle*>(handle); }
+} // namespace
+
+Bundle::Bundle() : handle(bundle_alloc()) {}
+
+Bundle::Bundle(const Bundle& bundle) : handle(bundle_clone(as_kernel(bundle.handle))) {}
+
+Bundle& Bundle::operator=(const Bundle& bundle) {
+    if (this != &bundle) {
+        ::Bundle* cloned = bundle_clone(as_kernel(bundle.handle));
+        bundle_free(as_kernel(handle));
+        handle = cloned;
+    }
+    return *this;
+}
+
+Bundle::~Bundle() {
+    bundle_free(as_kernel(handle));
+}
+
 bool Bundle::getBool(const std::string& key) const {
-    return this->entries.find(key)->second.value_bool;
+    return bundle_get_bool(as_kernel(handle), key.c_str());
 }
 
 int32_t Bundle::getInt32(const std::string& key) const {
-    return this->entries.find(key)->second.value_int32;
+    return bundle_get_int32(as_kernel(handle), key.c_str());
 }
 
 int64_t Bundle::getInt64(const std::string& key) const {
-    return this->entries.find(key)->second.value_int64;
+    return bundle_get_int64(as_kernel(handle), key.c_str());
 }
 
 std::string Bundle::getString(const std::string& key) const {
-    return this->entries.find(key)->second.value_string;
+    // bundle_get_string() needs a bounded buffer; grow and retry until it fits.
+    std::vector<char> buffer(64);
+    while (true) {
+        error_t error = bundle_get_string(as_kernel(handle), key.c_str(), buffer.data(), buffer.size());
+        if (error == ERROR_NONE) {
+            return std::string(buffer.data());
+        }
+        buffer.resize(buffer.size() * 2);
+    }
 }
 
 bool Bundle::hasBool(const std::string& key) const {
-    auto entry = this->entries.find(key);
-    return entry != std::end(this->entries) && entry->second.type == Type::Bool;
+    return bundle_has_bool(as_kernel(handle), key.c_str());
 }
 
 bool Bundle::hasInt32(const std::string& key) const {
-    auto entry = this->entries.find(key);
-    return entry != std::end(this->entries) && entry->second.type == Type::Int32;
+    return bundle_has_int32(as_kernel(handle), key.c_str());
 }
 
 bool Bundle::hasInt64(const std::string& key) const {
-    auto entry = this->entries.find(key);
-    return entry != std::end(this->entries) && entry->second.type == Type::Int64;
+    return bundle_has_int64(as_kernel(handle), key.c_str());
 }
 
 bool Bundle::hasString(const std::string& key) const {
-    auto entry = this->entries.find(key);
-    return entry != std::end(this->entries) && entry->second.type == Type::String;
+    return bundle_has_string(as_kernel(handle), key.c_str());
 }
 
 bool Bundle::optBool(const std::string& key, bool& out) const {
-    auto entry = this->entries.find(key);
-    if (entry != std::end(this->entries) && entry->second.type == Type::Bool) {
-        out = entry->second.value_bool;
-        return true;
-    } else {
-        return false;
-    }
+    return bundle_opt_bool(as_kernel(handle), key.c_str(), &out);
 }
 
 bool Bundle::optInt32(const std::string& key, int32_t& out) const {
-    auto entry = this->entries.find(key);
-    if (entry != std::end(this->entries) && entry->second.type == Type::Int32) {
-        out = entry->second.value_int32;
-        return true;
-    } else {
-        return false;
-    }
+    return bundle_opt_int32(as_kernel(handle), key.c_str(), &out);
 }
 
 bool Bundle::optInt64(const std::string& key, int64_t& out) const {
-    auto entry = this->entries.find(key);
-    if (entry != std::end(this->entries) && entry->second.type == Type::Int64) {
-        out = entry->second.value_int64;
-        return true;
-    } else {
-        return false;
-    }
+    return bundle_opt_int64(as_kernel(handle), key.c_str(), &out);
 }
 
 bool Bundle::optString(const std::string& key, std::string& out) const {
-    auto entry = this->entries.find(key);
-    if (entry != std::end(this->entries) && entry->second.type == Type::String) {
-        out = entry->second.value_string;
-        return true;
-    } else {
-        return false;
+    std::vector<char> buffer(64);
+    while (true) {
+        error_t error = bundle_opt_string(as_kernel(handle), key.c_str(), buffer.data(), buffer.size());
+        if (error == ERROR_NONE) {
+            out = buffer.data();
+            return true;
+        }
+        if (error == ERROR_NOT_FOUND) {
+            return false;
+        }
+        buffer.resize(buffer.size() * 2);
     }
 }
 
 void Bundle::putBool(const std::string& key, bool value) {
-    this->entries[key] = {
-        .type = Type::Bool,
-        .value_bool = value,
-        .value_string = ""
-    };
+    bundle_put_bool(as_kernel(handle), key.c_str(), value);
 }
 
 void Bundle::putInt32(const std::string& key, int32_t value) {
-    this->entries[key] = {
-        .type = Type::Int32,
-        .value_int32 = value,
-        .value_string = ""
-    };
+    bundle_put_int32(as_kernel(handle), key.c_str(), value);
 }
 
 void Bundle::putInt64(const std::string& key, int64_t value) {
-    this->entries[key] = {
-        .type = Type::Int64,
-        .value_int64 = value,
-        .value_string = ""
-    };
+    bundle_put_int64(as_kernel(handle), key.c_str(), value);
 }
 
 void Bundle::putString(const std::string& key, const std::string& value) {
-    this->entries[key] = {
-        .type = Type::String,
-        .value_bool = false,
-        .value_string = value
-    };
+    bundle_put_string(as_kernel(handle), key.c_str(), value.c_str());
 }
 
 } // namespace

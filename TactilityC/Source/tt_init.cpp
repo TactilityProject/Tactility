@@ -1,11 +1,8 @@
 #ifdef ESP_PLATFORM
 
-#include "tt_app.h"
 #include "tt_app_alertdialog.h"
 #include "tt_app_fileselection.h"
 #include "tt_app_selectiondialog.h"
-#include "tt_bundle.h"
-#include "tt_preferences.h"
 #include "tt_time.h"
 
 #include "symbols/cplusplus.h"
@@ -274,40 +271,11 @@ const esp_elfsym main_symbols[] {
     ESP_ELFSYM_EXPORT(esp_log_timestamp),
     ESP_ELFSYM_EXPORT(esp_err_to_name),
     // Tactility
-    ESP_ELFSYM_EXPORT(tt_app_start),
-    ESP_ELFSYM_EXPORT(tt_app_start_with_bundle),
-    ESP_ELFSYM_EXPORT(tt_app_stop),
-    ESP_ELFSYM_EXPORT(tt_app_register),
-    ESP_ELFSYM_EXPORT(tt_app_get_parameters),
-    ESP_ELFSYM_EXPORT(tt_app_set_result),
-    ESP_ELFSYM_EXPORT(tt_app_has_result),
     ESP_ELFSYM_EXPORT(tt_app_fileselection_start_for_existing_file),
     ESP_ELFSYM_EXPORT(tt_app_fileselection_start_for_existing_or_new_file),
     ESP_ELFSYM_EXPORT(tt_app_fileselection_get_result_path),
     ESP_ELFSYM_EXPORT(tt_app_selectiondialog_start),
-    ESP_ELFSYM_EXPORT(tt_app_selectiondialog_get_result_index),
     ESP_ELFSYM_EXPORT(tt_app_alertdialog_start),
-    ESP_ELFSYM_EXPORT(tt_app_alertdialog_get_result_index),
-    ESP_ELFSYM_EXPORT(tt_app_get_user_data_path),
-    ESP_ELFSYM_EXPORT(tt_app_get_user_data_child_path),
-    ESP_ELFSYM_EXPORT(tt_app_get_assets_path),
-    ESP_ELFSYM_EXPORT(tt_app_get_assets_child_path),
-    ESP_ELFSYM_EXPORT(tt_bundle_alloc),
-    ESP_ELFSYM_EXPORT(tt_bundle_free),
-    ESP_ELFSYM_EXPORT(tt_bundle_opt_bool),
-    ESP_ELFSYM_EXPORT(tt_bundle_opt_int32),
-    ESP_ELFSYM_EXPORT(tt_bundle_opt_string),
-    ESP_ELFSYM_EXPORT(tt_bundle_put_bool),
-    ESP_ELFSYM_EXPORT(tt_bundle_put_int32),
-    ESP_ELFSYM_EXPORT(tt_bundle_put_string),
-    ESP_ELFSYM_EXPORT(tt_preferences_alloc),
-    ESP_ELFSYM_EXPORT(tt_preferences_free),
-    ESP_ELFSYM_EXPORT(tt_preferences_opt_bool),
-    ESP_ELFSYM_EXPORT(tt_preferences_opt_int32),
-    ESP_ELFSYM_EXPORT(tt_preferences_opt_string),
-    ESP_ELFSYM_EXPORT(tt_preferences_put_bool),
-    ESP_ELFSYM_EXPORT(tt_preferences_put_int32),
-    ESP_ELFSYM_EXPORT(tt_preferences_put_string),
     ESP_ELFSYM_EXPORT(tt_timezone_set),
     ESP_ELFSYM_EXPORT(tt_timezone_get_name),
     ESP_ELFSYM_EXPORT(tt_timezone_get_code),

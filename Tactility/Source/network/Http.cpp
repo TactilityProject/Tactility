@@ -2,8 +2,6 @@
 #include <Tactility/file/File.h>
 #include <Tactility/network/Http.h>
 
-#include "Tactility/service/gui/GuiService.h"
-
 #include <tactility/log.h>
 
 #ifdef ESP_PLATFORM
@@ -22,7 +20,6 @@ void download(
     const std::function<void()>& onSuccess,
     const std::function<void(const char* errorMessage)>& onError
 ) {
-    service::gui::warnIfRunningOnGuiTask("HTTP");
     LOG_I(TAG, "Downloading from %s to %s", url.c_str(), downloadFilePath.c_str());
 #ifdef ESP_PLATFORM
     getMainDispatcher().dispatch([url, certFilePath, downloadFilePath, onSuccess, onError] {

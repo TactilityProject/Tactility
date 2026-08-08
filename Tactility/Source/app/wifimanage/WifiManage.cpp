@@ -1,21 +1,39 @@
 #include <Tactility/app/wifimanage/View.h>
 #include <Tactility/app/wifimanage/WifiManagePrivate.h>
 
-#include <Tactility/app/AppContext.h>
 #include <Tactility/app/wifiapsettings/WifiApSettings.h>
 #include <Tactility/app/wificonnect/WifiConnect.h>
-#include <Tactility/service/loader/Loader.h>
+
+#include <app/event.h>
+#include <app/manager.h>
+#include <app/manifest.h>
+
+#include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/log.h>
 
-#include <lvgl/icons/shared.h>
 #include <lvgl/lvgl.h>
 
 namespace tt::app::wifimanage {
 
 constexpr auto* TAG = "WifiManage";
 
-extern const AppManifest manifest;
+extern const ::AppManifest manifest;
+
+namespace {
+
+struct Context {
+    uint32_t appInstanceId;
+    PubSub<service::wifi::WifiEvent>::SubscriptionHandle wifiSubscription = nullptr;
+    Mutex mutex;
+    Bindings bindings {};
+    State state;
+    View view = View(&bindings, &state);
+
+    void lock() { mutex.lock(); }
+    void unlock() { mutex.unlock(); }
+};
+
 
 static void onConnect(const std::string& ssid) {
     service::wifi::settings::WifiApSettings settings;
@@ -44,45 +62,25 @@ static void onConnectToHidden() {
     wificonnect::start();
 }
 
-WifiManage::WifiManage() {
-    bindings = (Bindings) {
-        .onWifiToggled = onWifiToggled,
-        .onConnectSsid = onConnect,
-        .onDisconnect = onDisconnect,
-        .onShowApSettings = onShowApSettings,
-        .onConnectToHidden = onConnectToHidden
-    };
+void requestViewUpdate(Context* ctx) {
+    ctx->lock();
+    lvgl_lock();
+    ctx->view.update();
+    lvgl_unlock();
+    ctx->unlock();
 }
 
-void WifiManage::lock() {
-    mutex.lock();
-}
-
-void WifiManage::unlock() {
-    mutex.unlock();
-}
-
-void WifiManage::requestViewUpdate() {
-    lock();
-    if (isViewEnabled) {
-        lvgl_lock();
-        view.update();
-        lvgl_unlock();
-    }
-    unlock();
-}
-
-void WifiManage::onWifiEvent(service::wifi::WifiEvent event) {
+void onWifiEvent(Context* ctx, service::wifi::WifiEvent event) {
     auto radio_state = service::wifi::getRadioState();
     LOG_I(TAG, "Update with state %s", service::wifi::radioStateToString(radio_state));
-    getState().setRadioState(radio_state);
+    ctx->state.setRadioState(radio_state);
     switch (event.type) {
         case WIFI_EVENT_TYPE_SCAN_STARTED:
-            getState().setScanning(true);
+            ctx->state.setScanning(true);
             break;
         case WIFI_EVENT_TYPE_SCAN_FINISHED:
-            getState().setScanning(false);
-            getState().updateApRecords();
+            ctx->state.setScanning(false);
+            ctx->state.updateApRecords();
             break;
         case WIFI_EVENT_TYPE_RADIO_STATE_CHANGED:
             if (event.radio_state == WIFI_RADIO_STATE_ON && !service::wifi::isScanning()) {
@@ -93,26 +91,43 @@ void WifiManage::onWifiEvent(service::wifi::WifiEvent event) {
             break;
     }
 
-    requestViewUpdate();
+    requestViewUpdate(ctx);
 }
 
-void WifiManage::onShow(AppContext& app, lv_obj_t* parent) {
-    wifiSubscription = service::wifi::getPubsub()->subscribe([this](auto event) {
-        onWifiEvent(event);
+void createWidgets(lv_obj_t* parent, void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->lock();
+    ctx->state.setConnectSsid("Connected"); // TODO update with proper SSID
+    ctx->view.init(ctx->appInstanceId, parent);
+    ctx->view.update();
+    ctx->unlock();
+}
+
+int32_t appMain(uint32_t appInstanceId, int argc, char* argv[]) {
+    Context ctx;
+    ctx.appInstanceId = appInstanceId;
+    ctx.bindings = (Bindings) {
+        .onWifiToggled = onWifiToggled,
+        .onConnectSsid = onConnect,
+        .onDisconnect = onDisconnect,
+        .onShowApSettings = onShowApSettings,
+        .onConnectToHidden = onConnectToHidden
+    };
+
+    ctx.wifiSubscription = service::wifi::getPubsub()->subscribe([&ctx](auto event) {
+        onWifiEvent(&ctx, event);
     });
 
     // State update (it has its own locking)
-    state.setRadioState(service::wifi::getRadioState());
-    state.setScanning(service::wifi::isScanning());
-    state.updateApRecords();
+    ctx.state.setRadioState(service::wifi::getRadioState());
+    ctx.state.setScanning(service::wifi::isScanning());
+    ctx.state.updateApRecords();
 
-    // View update
-    lock();
-    isViewEnabled = true;
-    state.setConnectSsid("Connected"); // TODO update with proper SSID
-    view.init(app, parent);
-    view.update();
-    unlock();
+    AppEventSubscription sub {};
+    sub.app_instance_id = appInstanceId;
+    app_event_subscribe(&sub);
+
+    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
 
     service::wifi::RadioState radio_state = service::wifi::getRadioState();
     bool can_scan = radio_state == service::wifi::RadioState::On ||
@@ -127,26 +142,47 @@ void WifiManage::onShow(AppContext& app, lv_obj_t* parent) {
     if (can_scan && !service::wifi::isScanning()) {
         service::wifi::scan();
     }
-}
 
-void WifiManage::onHide(AppContext& app) {
-    lock();
-    service::wifi::getPubsub()->unsubscribe(wifiSubscription);
-    wifiSubscription = nullptr;
-    isViewEnabled = false;
-    unlock();
-}
+    bool shouldClose = false;
+    while (!shouldClose) {
+        AppEvent event {};
+        if (app_event_await(&sub, &event, portMAX_DELAY) != ERROR_NONE) {
+            break;
+        }
+        switch (event.type) {
+            case APP_EVENT_CLOSE:
+                app_manager_finish(appInstanceId);
+                shouldClose = true;
+                break;
+            default:
+                break;
+        }
+    }
 
-extern const AppManifest manifest = {
-    .appId = "WifiManage",
-    .appName = "Wi-Fi",
-    .appIcon = LVGL_ICON_SHARED_WIFI,
-    .appCategory = Category::Settings,
-    .createApp = create<WifiManage>
-};
+    ctx.lock();
+    service::wifi::getPubsub()->unsubscribe(ctx.wifiSubscription);
+    ctx.wifiSubscription = nullptr;
+    ctx.unlock();
 
-LaunchId start() {
-    return app::start(manifest.appId);
+    window_manager_remove(window);
+    app_event_unsubscribe(&sub);
+
+    return 0;
 }
 
 } // namespace
+
+uint32_t start(uint32_t callerAppInstanceId) {
+    uint32_t instanceId = 0;
+    app_manager_start_for_result(manifest.id, callerAppInstanceId, 0, nullptr, &instanceId);
+    return instanceId;
+}
+
+extern const ::AppManifest manifest = {
+    .id = "WifiManage",
+    .name = "Wi-Fi",
+    .category = APP_CATEGORY_SETTINGS,
+    .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) }
+};
+
+} // namespace tt::app::wifimanage

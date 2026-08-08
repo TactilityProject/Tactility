@@ -2,12 +2,12 @@ idf_component_register(
     INCLUDE_DIRS
         "Libraries/TactilityC/include"
         "Libraries/TactilityKernel/include"
-        "Libraries/TactilityFreeRtos/include"
+        "Libraries/TactilityFreeRtos/Include"
         "Libraries/lvgl/include"
         "Libraries/minmea/include"
         "Modules/lvgl-module/include"
         # DRIVER_INCLUDE_DIRS_PLACEHOLDER
-    REQUIRES esp_timer
+    REQUIRES esp_timer minitar app-module crypt-module gps-module lvgl-module lvgl-window-manager-module service-module
 )
 
 # Regular and core features

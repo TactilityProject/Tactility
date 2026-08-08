@@ -25,4 +25,9 @@ else()
     target_include_directories(QRCode
         PUBLIC src
     )
+
+    # qrcode.h polyfills bool/true/false for pre-C23 compilers - on a host compiler that
+    # defaults to C23 (where bool is a keyword), that polyfill itself fails to compile. Pin to
+    # C11 for the simulator build only; ESP-IDF's own toolchain default is unaffected.
+    set_target_properties(QRCode PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 endif()

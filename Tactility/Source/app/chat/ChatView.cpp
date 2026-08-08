@@ -8,7 +8,9 @@
 #include <Tactility/app/chat/ChatAppPrivate.h>
 #include <Tactility/app/chat/ChatProtocol.h>
 
-#include <Tactility/lvgl/Toolbar.h>
+#include <app/event.h>
+
+#include <lvgl/widgets/toolbar.h>
 
 #include <cstdio>
 #include <cstring>
@@ -144,11 +146,23 @@ void ChatView::createChannelPanel(lv_obj_t* parent) {
     lv_label_set_text(cancelLbl, "Cancel");
 }
 
-void ChatView::init(AppContext& appContext, lv_obj_t* parent) {
+void ChatView::onBackPressed(lv_event_t* e) {
+    auto* self = static_cast<ChatView*>(lv_event_get_user_data(e));
+    // Async, non-blocking - must NOT call app_manager_stop() directly here: that bound-waits
+    // (thread_join) for this app's own thread to finish, which needs the LVGL lock
+    // (window_manager_remove()) - but this callback runs ON the LVGL task, which would
+    // deadlock against itself.
+    AppEvent closeEvent { .type = APP_EVENT_CLOSE, .timestamp = 0, .result = {} };
+    app_event_emit(self->app->appInstanceId, &closeEvent);
+}
+
+void ChatView::init(lv_obj_t* parent) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    toolbar = lvgl::toolbar_create(parent, appContext);
+    toolbar = lvgl_toolbar_create(parent, "Chat");
+    // The global toolbar nav callback only knows how to stop old-model apps.
+    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, this);
     lvgl_toolbar_add_text_button_action(toolbar, LV_SYMBOL_LIST, onChannelClicked, this);
     lvgl_toolbar_add_text_button_action(toolbar, LV_SYMBOL_SETTINGS, onSettingsClicked, this);
     updateToolbarTitle();
@@ -245,14 +259,14 @@ void ChatView::onSendClicked(lv_event_t* e) {
     auto* self = static_cast<ChatView*>(lv_event_get_user_data(e));
     auto* text = lv_textarea_get_text(self->inputField);
     if (text && strlen(text) > 0) {
-        self->app->sendMessage(std::string(text));
+        sendMessage(self->app, std::string(text));
         lv_textarea_set_text(self->inputField, "");
     }
 }
 
 void ChatView::onSettingsClicked(lv_event_t* e) {
     auto* self = static_cast<ChatView*>(lv_event_get_user_data(e));
-    self->showSettings(self->app->getSettings());
+    self->showSettings(self->app->settings);
 }
 
 void ChatView::onSettingsSave(lv_event_t* e) {
@@ -262,7 +276,8 @@ void ChatView::onSettingsSave(lv_event_t* e) {
     auto* keyHex = lv_textarea_get_text(self->keyInput);
 
     if (nickname && strlen(nickname) > 0) {
-        self->app->applySettings(
+        applySettings(
+            self->app,
             std::string(nickname),
             keyHex ? std::string(keyHex) : std::string()
         );
@@ -284,7 +299,7 @@ void ChatView::onChannelSave(lv_event_t* e) {
     auto* self = static_cast<ChatView*>(lv_event_get_user_data(e));
     auto* text = lv_textarea_get_text(self->channelInput);
     if (text && strlen(text) > 0) {
-        self->app->switchChannel(std::string(text));
+        switchChannel(self->app, std::string(text));
     }
     self->hideChannelSelector();
 }

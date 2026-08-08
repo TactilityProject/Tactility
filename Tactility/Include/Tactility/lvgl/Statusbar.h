@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Tactility/app/AppContext.h>
-
 #include <lvgl.h>
+
+#include <string>
 
 namespace tt::lvgl {
 

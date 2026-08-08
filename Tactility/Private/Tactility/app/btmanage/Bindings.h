@@ -5,11 +5,13 @@
 
 namespace tt::app::btmanage {
 
-typedef void (*OnBtToggled)(bool enable);
-typedef void (*OnScanToggled)(bool enable);
+// `context` is this app instance's Context* (see BtManagePrivate.h) - the new app-module has no
+// global "current app" accessor, so callbacks need it threaded through explicitly.
+typedef void (*OnBtToggled)(void* context, bool enable);
+typedef void (*OnScanToggled)(void* context, bool enable);
 typedef void (*OnConnectPeer)(const std::array<uint8_t, 6>& addr, int profileId);
 typedef void (*OnDisconnectPeer)(const std::array<uint8_t, 6>& addr, int profileId);
-typedef void (*OnPairPeer)(const std::array<uint8_t, 6>& addr);
+typedef void (*OnPairPeer)(void* context, const std::array<uint8_t, 6>& addr);
 typedef void (*OnForgetPeer)(const std::array<uint8_t, 6>& addr);
 
 struct Bindings {

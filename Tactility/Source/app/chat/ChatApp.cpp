@@ -6,11 +6,15 @@
 
 #include <Tactility/app/chat/ChatAppPrivate.h>
 #include <Tactility/app/chat/ChatProtocol.h>
-#include <Tactility/app/AppManifest.h>
+
+#include <app/event.h>
+#include <app/manager.h>
+#include <app/manifest.h>
+
+#include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/log.h>
 
-#include <lvgl/icons/shared.h>
 #include <lvgl/lvgl.h>
 
 #include <algorithm>
@@ -20,56 +24,34 @@
 
 namespace tt::app::chat {
 
+extern const ::AppManifest manifest;
+
 constexpr auto* TAG = "ChatApp";
 static constexpr uint8_t BROADCAST_ADDRESS[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
-void ChatApp::enableEspNow() {
+void enableEspNow(Context* ctx) {
     static uint8_t defaultKey[ESP_NOW_KEY_LEN] = {};
     auto config = service::espnow::EspNowConfig(
-        settings.hasEncryptionKey ? settings.encryptionKey.data() : defaultKey,
+        ctx->settings.hasEncryptionKey ? ctx->settings.encryptionKey.data() : defaultKey,
         service::espnow::Mode::Station,
         1, // Channel 1 default; actual channel determined by WiFi if connected
         false,
-        settings.hasEncryptionKey
+        ctx->settings.hasEncryptionKey
     );
     service::espnow::enable(config);
 }
 
-void ChatApp::disableEspNow() {
+void disableEspNow(Context* ctx) {
+    (void)ctx;
     if (service::espnow::isEnabled()) {
         service::espnow::disable();
     }
 }
 
-void ChatApp::onCreate(AppContext& appContext) {
-    isFirstLaunch = !settingsFileExists();
-    settings = loadSettings();
-    state.setLocalNickname(settings.nickname);
-    if (!settings.chatChannel.empty()) {
-        state.setCurrentChannel(settings.chatChannel);
-    }
-    enableEspNow();
+namespace {
 
-    receiveSubscription = service::espnow::subscribeReceiver(
-        [this](const esp_now_recv_info_t* receiveInfo, const uint8_t* data, int length) {
-            onReceive(receiveInfo, data, length);
-        }
-    );
-}
 
-void ChatApp::onDestroy(AppContext& appContext) {
-    service::espnow::unsubscribeReceiver(receiveSubscription);
-    disableEspNow();
-}
-
-void ChatApp::onShow(AppContext& context, lv_obj_t* parent) {
-    view.init(context, parent);
-    if (isFirstLaunch) {
-        view.showSettings(settings);
-    }
-}
-
-void ChatApp::onReceive(const esp_now_recv_info_t* receiveInfo, const uint8_t* data, int length) {
+void onReceive(Context* ctx, const esp_now_recv_info_t* receiveInfo, const uint8_t* data, int length) {
     if (length <= 0) return;
 
     ParsedMessage parsed;
@@ -82,21 +64,31 @@ void ChatApp::onReceive(const esp_now_recv_info_t* receiveInfo, const uint8_t* d
     msg.target = parsed.target;
     msg.isOwn = false;
 
-    state.addMessage(msg);
+    ctx->state.addMessage(msg);
 
     lvgl_lock();
-    view.displayMessage(msg);
+    ctx->view.displayMessage(msg);
     lvgl_unlock();
 }
 
-void ChatApp::sendMessage(const std::string& text) {
+void createWidgets(lv_obj_t* parent, void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->view.init(parent);
+    if (ctx->isFirstLaunch) {
+        ctx->view.showSettings(ctx->settings);
+    }
+}
+
+} // namespace
+
+void sendMessage(Context* ctx, const std::string& text) {
     if (text.empty()) return;
 
-    std::string nickname = state.getLocalNickname();
-    std::string channel = state.getCurrentChannel();
+    std::string nickname = ctx->state.getLocalNickname();
+    std::string channel = ctx->state.getCurrentChannel();
 
     std::vector<uint8_t> wireMsg;
-    if (!serializeTextMessage(settings.senderId, BROADCAST_ID, nickname, channel, text, wireMsg)) {
+    if (!serializeTextMessage(ctx->settings.senderId, BROADCAST_ID, nickname, channel, text, wireMsg)) {
         LOG_E(TAG, "Failed to serialize message");
         return;
     }
@@ -111,18 +103,18 @@ void ChatApp::sendMessage(const std::string& text) {
     msg.target = channel;
     msg.isOwn = true;
 
-    state.addMessage(msg);
+    ctx->state.addMessage(msg);
 
     lvgl_lock();
-    view.displayMessage(msg);
+    ctx->view.displayMessage(msg);
     lvgl_unlock();
 }
 
-void ChatApp::applySettings(const std::string& nickname, const std::string& keyHex) {
+void applySettings(Context* ctx, const std::string& nickname, const std::string& keyHex) {
     bool needRestart = false;
 
     // Trim nickname to protocol limit
-    settings.nickname = nickname.substr(0, MAX_NICKNAME_LEN);
+    ctx->settings.nickname = nickname.substr(0, MAX_NICKNAME_LEN);
 
     // Parse hex key
     if (keyHex.size() == ESP_NOW_KEY_LEN * 2) {
@@ -134,50 +126,103 @@ void ChatApp::applySettings(const std::string& nickname, const std::string& keyH
                 newKey[i] = static_cast<uint8_t>(strtoul(hex, nullptr, 16));
             }
             // Restart if key changed OR if encryption is being enabled
-            bool wasEnabled = settings.hasEncryptionKey;
-            if (!wasEnabled || !std::equal(newKey, newKey + ESP_NOW_KEY_LEN, settings.encryptionKey.begin())) {
-                std::copy(newKey, newKey + ESP_NOW_KEY_LEN, settings.encryptionKey.begin());
+            bool wasEnabled = ctx->settings.hasEncryptionKey;
+            if (!wasEnabled || !std::equal(newKey, newKey + ESP_NOW_KEY_LEN, ctx->settings.encryptionKey.begin())) {
+                std::copy(newKey, newKey + ESP_NOW_KEY_LEN, ctx->settings.encryptionKey.begin());
                 needRestart = true;
             }
-            settings.hasEncryptionKey = true;
+            ctx->settings.hasEncryptionKey = true;
         } else {
             LOG_W(TAG, "Invalid hex characters in encryption key");
         }
     } else if (keyHex.empty()) {
-        if (settings.hasEncryptionKey) {
-            settings.encryptionKey.fill(0);
-            settings.hasEncryptionKey = false;
+        if (ctx->settings.hasEncryptionKey) {
+            ctx->settings.encryptionKey.fill(0);
+            ctx->settings.hasEncryptionKey = false;
             needRestart = true;
         }
     } else {
         LOG_W(TAG, "Key must be exactly %d hex characters, got %d", (int)(ESP_NOW_KEY_LEN * 2), (int)keyHex.size());
     }
 
-    state.setLocalNickname(settings.nickname);
-    saveSettings(settings);
+    ctx->state.setLocalNickname(ctx->settings.nickname);
+    saveSettings(ctx->settings);
 
     if (needRestart) {
-        disableEspNow();
-        enableEspNow();
+        disableEspNow(ctx);
+        enableEspNow(ctx);
     }
 }
 
-void ChatApp::switchChannel(const std::string& chatChannel) {
+void switchChannel(Context* ctx, const std::string& chatChannel) {
     const auto trimmedChannel = chatChannel.substr(0, MAX_TARGET_LEN);
-    state.setCurrentChannel(trimmedChannel);
-    settings.chatChannel = trimmedChannel;
-    saveSettings(settings);
+    ctx->state.setCurrentChannel(trimmedChannel);
+    ctx->settings.chatChannel = trimmedChannel;
+    saveSettings(ctx->settings);
 
     lvgl_lock();
-    view.refreshMessageList();
+    ctx->view.refreshMessageList();
     lvgl_unlock();
 }
 
-extern const AppManifest manifest = {
-    .appId = "Chat",
-    .appName = "Chat",
-    .appIcon = LVGL_ICON_SHARED_FORUM,
-    .createApp = create<ChatApp>
+namespace {
+
+int32_t appMain(uint32_t appInstanceId, int argc, char* argv[]) {
+    Context ctx {};
+    ctx.appInstanceId = appInstanceId;
+    ctx.isFirstLaunch = !settingsFileExists();
+    ctx.settings = loadSettings();
+    ctx.state.setLocalNickname(ctx.settings.nickname);
+    if (!ctx.settings.chatChannel.empty()) {
+        ctx.state.setCurrentChannel(ctx.settings.chatChannel);
+    }
+    enableEspNow(&ctx);
+
+    ctx.receiveSubscription = service::espnow::subscribeReceiver(
+        [&ctx](const esp_now_recv_info_t* receiveInfo, const uint8_t* data, int length) {
+            onReceive(&ctx, receiveInfo, data, length);
+        }
+    );
+
+
+    AppEventSubscription sub {};
+    sub.app_instance_id = appInstanceId;
+    app_event_subscribe(&sub);
+
+    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+
+    bool shouldClose = false;
+    while (!shouldClose) {
+        AppEvent event {};
+        if (app_event_await(&sub, &event, portMAX_DELAY) != ERROR_NONE) {
+            break;
+        }
+        switch (event.type) {
+            case APP_EVENT_CLOSE:
+                app_manager_finish(appInstanceId);
+                shouldClose = true;
+                break;
+            default:
+                break;
+        }
+    }
+
+    window_manager_remove(window);
+    app_event_unsubscribe(&sub);
+
+    service::espnow::unsubscribeReceiver(ctx.receiveSubscription);
+    disableEspNow(&ctx);
+
+    return 0;
+}
+
+} // namespace
+
+extern const ::AppManifest manifest = {
+    .id = "Chat",
+    .name = "Chat",
+    .category = APP_CATEGORY_USER,
+    .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) }
 };
 
 } // namespace tt::app::chat

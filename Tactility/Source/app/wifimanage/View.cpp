@@ -11,6 +11,9 @@
 #include <Tactility/service/wifi/WifiSettings.h>
 #include <Tactility/Tactility.h>
 
+#include <app/event.h>
+#include <lvgl/widgets/toolbar.h>
+
 #include <tactility/log.h>
 #include <lvgl/lvgl.h>
 
@@ -18,7 +21,15 @@ namespace tt::app::wifimanage {
 
 constexpr auto* TAG = "WifiManageView";
 
-std::shared_ptr<WifiManage> optWifiManage();
+static void onBackPressed(lv_event_t* event) {
+    auto* appInstanceId = static_cast<uint32_t*>(lv_event_get_user_data(event));
+    // Async, non-blocking - must NOT call app_manager_stop() directly here: that bound-waits
+    // (thread_join) for this app's own thread to finish, which needs the LVGL lock
+    // (window_manager_remove()) - but this callback runs ON the LVGL task, which would
+    // deadlock against itself.
+    AppEvent closeEvent { .type = APP_EVENT_CLOSE, .timestamp = 0, .result = {} };
+    app_event_emit(*appInstanceId, &closeEvent);
+}
 
 static uint8_t mapRssiToPercentage(int rssi) {
     auto abs_rssi = std::abs(rssi);
@@ -35,11 +46,8 @@ static uint8_t mapRssiToPercentage(int rssi) {
 static void onEnableSwitchChanged(lv_event_t* event) {
     auto* enable_switch = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool is_on = lv_obj_has_state(enable_switch, LV_STATE_CHECKED);
-
-    auto wifi = std::static_pointer_cast<WifiManage>(getCurrentApp());
-    auto bindings = wifi->getBindings();
-
-    bindings.onWifiToggled(is_on);
+    auto* bindings = static_cast<Bindings*>(lv_event_get_user_data(event));
+    bindings->onWifiToggled(is_on);
 }
 
 static void onEnableOnBootSwitchChanged(lv_event_t* event) {
@@ -289,18 +297,18 @@ void View::updateEnableOnBootToggle() {
 
 // region Main
 
-void View::init(const AppContext& app, lv_obj_t* parent) {
+void View::init(uint32_t newAppInstanceId, lv_obj_t* parent) {
+    appInstanceId = newAppInstanceId;
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     root = parent;
 
-    paths = app.getPaths();
-
     // Toolbar
 
-    lv_obj_t* toolbar = lvgl::toolbar_create(parent, app);
+    lv_obj_t* toolbar = lvgl_toolbar_create(parent, "Wi-Fi");
+    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, &appInstanceId);
 
     scanning_spinner = lvgl_toolbar_add_spinner_action(toolbar);
 

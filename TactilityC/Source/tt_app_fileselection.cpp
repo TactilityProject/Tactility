@@ -1,28 +1,25 @@
 #include "tt_app_fileselection.h"
-#include <Tactility/app/App.h>
 #include <Tactility/app/fileselection/FileSelection.h>
-#include <Tactility/Bundle.h>
 
 #include <cstring>
 #include <string>
 
 extern "C" {
 
-AppLaunchId tt_app_fileselection_start_for_existing_file() {
-    return tt::app::fileselection::startForExistingFile();
+AppInstanceId tt_app_fileselection_start_for_existing_file(AppInstanceId app_id) {
+    return tt::app::fileselection::startForExistingFile(app_id);
 }
 
-AppLaunchId tt_app_fileselection_start_for_existing_or_new_file() {
-    return tt::app::fileselection::startForExistingOrNewFile();
+AppInstanceId tt_app_fileselection_start_for_existing_or_new_file(AppInstanceId app_id) {
+    return tt::app::fileselection::startForExistingOrNewFile(app_id);
 }
 
-bool tt_app_fileselection_get_result_path(BundleHandle handle, char* buffer, uint32_t bufferSize) {
-    auto path = tt::app::fileselection::getResultPath(*(tt::Bundle*)handle);
-    if (path.empty() || bufferSize == 0) {
+bool tt_app_fileselection_get_result_path(char* buffer, uint32_t bufferSize) {
+    const std::string path = tt::app::fileselection::getLastPath();
+    if (path.length() + 1 > bufferSize) {
         return false;
     }
-    strncpy(buffer, path.c_str(), bufferSize - 1);
-    buffer[bufferSize - 1] = '\0';
+    std::strcpy(buffer, path.c_str());
     return true;
 }
 

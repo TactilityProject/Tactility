@@ -1,9 +1,9 @@
 #pragma once
 
-#include <Tactility/app/App.h>
+#include <cstdint>
 
 namespace tt::app::btmanage {
 
-LaunchId start();
+uint32_t start();
 
 } // namespace tt::app::btmanage

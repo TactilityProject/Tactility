@@ -12,6 +12,20 @@
 
 ## Higher Priority
 
+- Move "# Fix error "PSRAM space not enough for the Flash instructions" on boot:" fix from T-Deck and others to device.py
+- Make it possible to override stack size for an app via config file (loaded at boot), and make it possible to set preferred memory location (e.g. internal/external)
+- Put task stacks in PSRAM when possible.
+- Wrap file operations like fopen/fclose with file_mutex
+- Add bold fonts for e-ink readability improvement
+- Split up Claude instructions: https://code.claude.com/docs/en/memory#import-additional-files
+  and add https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md
+- Move test projects to their relevant subproject
+- tt_alertdialog start() etc is broken as it can't fetch the app instance id. Fetch automatically via thread context?
+- Migrate Tactility/Paths.cpp functions to TactilityKernel
+- app_manager_find_manifest() should make a copy, not return a pointer.
+- Httpd.cpp: warn if running on same CPU core (or task) as UI/LVGL/window manager.
+- Improve Setup: Show "Step done" screen
+- Improve Setup: Add keyboard/keypad navigation explanation
 - display.h API: get_backlight does not change ref counting, but it should
 - bluetooth: various getters for child devices do not change ref counting, but they should
 - Improve kernel_init.cpp (and other modules): create driver_ensure_added() and driver_ensure_destructed()
@@ -38,6 +52,8 @@
 
 ## Medium Priority
 
+- Consider using https://github.com/Graphify-Labs/graphify
+- Consider implementing LVGL gridnav in apps https://lvgl.io/docs/open/9.3/details/auxiliary-modules/gridnav.html
 - Implement a LED kernel driver (single colour and RGB, plain GPIO and PWM)
 - Make USB host driver disabled by default, so it doesn't consume memory
 - Filtering for apps in App Hub:

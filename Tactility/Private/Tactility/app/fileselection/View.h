@@ -3,14 +3,13 @@
 #include "./State.h"
 #include "./FileSelectionPrivate.h"
 
-#include <Tactility/app/AppManifest.h>
-
 #include <lvgl.h>
 #include <memory>
 
 namespace tt::app::fileselection {
 
 class View final {
+    uint32_t appInstanceId;
     std::shared_ptr<State> state;
 
     lv_obj_t* dir_entry_list = nullptr;
@@ -22,11 +21,15 @@ class View final {
     void onTapFile(const std::string&path, const std::string&filename);
     static void onSelectButtonPressed(lv_event_t* event);
     static void onPathTextChanged(lv_event_t* event);
+    /** Emits an async APP_EVENT_CLOSE for appInstanceId - see FileSelection.cpp's appMain() for
+     * why this indirection (rather than calling app_manager_stop() here) is required. */
+    static void onBackPressedCallback(lv_event_t* event);
     void createDirEntryWidget(lv_obj_t* parent, dirent& dir_entry);
 
 public:
 
-    explicit View(const std::shared_ptr<State>& state, std::function<void(const std::string& path)> onFileSelected) :
+    explicit View(uint32_t appInstanceId, const std::shared_ptr<State>& state, std::function<void(const std::string& path)> onFileSelected) :
+        appInstanceId(appInstanceId),
         state(state),
         on_file_selected(std::move(onFileSelected))
     {}

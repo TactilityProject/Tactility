@@ -15,6 +15,8 @@ target_link_libraries(TactilityTests PRIVATE
     TactilityKernel
     platform-posix
     lvgl-module
+    lvgl-window-manager-module
+    app-module
     crypt-module
     gps-module
     gps-generic-module

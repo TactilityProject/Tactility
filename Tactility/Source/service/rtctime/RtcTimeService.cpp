@@ -120,7 +120,7 @@ bool RtcTimeService::onStart(ServiceContext& serviceContext) {
         system_event_emit(KERNEL_EVENT_TIME_CHANGED, nullptr, 0);
     }
 
-    if (system_event_subscribe(KERNEL_EVENT_TIME_CHANGED, &RtcTimeService::onTimeChangedTrampoline, this) == ERROR_NONE) {
+    if (system_event_callback_add(KERNEL_EVENT_TIME_CHANGED, &RtcTimeService::onTimeChangedTrampoline, this) == ERROR_NONE) {
         timeEventSubscribed = true;
     }
 
@@ -129,7 +129,7 @@ bool RtcTimeService::onStart(ServiceContext& serviceContext) {
 
 void RtcTimeService::onStop(ServiceContext& serviceContext) {
     if (timeEventSubscribed) {
-        system_event_unsubscribe(KERNEL_EVENT_TIME_CHANGED, &RtcTimeService::onTimeChangedTrampoline);
+        system_event_callback_remove(KERNEL_EVENT_TIME_CHANGED, &RtcTimeService::onTimeChangedTrampoline);
         timeEventSubscribed = false;
     }
 

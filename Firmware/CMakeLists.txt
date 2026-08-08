@@ -96,6 +96,8 @@ else ()
         Tactility
         TactilityFreeRtos
         lvgl-module
+        lvgl-window-manager-module
+        app-module
         crypt-module
         gps-module
         gps-generic-module
