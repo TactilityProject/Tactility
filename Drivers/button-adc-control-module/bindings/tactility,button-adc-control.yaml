@@ -1,0 +1,22 @@
+description: >
+  Buttons behind an ADC resistor ladder, where each button occupies a distinct raw-value
+  band on a shared ADC channel. Exposes a KEYBOARD_TYPE device: presses and releases
+  translate to LVGL navigation keys, so apps can be driven without a touchscreen.
+
+compatible: "tactility,button-adc-control"
+
+properties:
+  buttons:
+    type: phandle-array
+    required: true
+    element-type: "struct AdcButtonControlConfig"
+    description: >
+      One entry per button: <adc_phandle channel band_high band_low key>. A button is
+      pressed while band_low < raw <= band_high, where raw is the 12-bit ADC reading on
+      the referenced channel. band_high/band_low are the exclusive/inclusive edges of the
+      button's band as recorded on the hardware ladder; the bottom-most band uses INT32_MIN
+      as its band_low. The key is an LVGL key code (e.g. LV_KEY_ESC).
+  debounce-ms:
+    type: int
+    default: 20
+    description: Minimum time between recognized state changes, for software debouncing

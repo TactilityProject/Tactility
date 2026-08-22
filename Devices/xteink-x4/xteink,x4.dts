@@ -1,0 +1,77 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/battery_sense.h>
+
+#include <bindings/button_adc_control.h>
+#include <bindings/xteink_x4_power.h>
+
+#include <lvgl.h>
+
+/ {
+	compatible = "root";
+	model = "Xteink X4";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+		status = "disabled";
+	};
+	
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		channels = <ADC_CHANNEL_0 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>,
+		           <ADC_CHANNEL_1 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>,
+		           <ADC_CHANNEL_2 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <22>;
+	};
+
+	buttons {
+		compatible = "tactility,button-adc-control";
+		debounce-ms = <20>;
+		buttons = <&adc0 1 3803 3103 LV_KEY_ESC>,
+		          <&adc0 1 3103 2093 LV_KEY_ENTER>,
+		          <&adc0 1 2093 749 LV_KEY_PREV>,
+		          <&adc0 1 749 -2147483648 LV_KEY_NEXT>,
+		          <&adc0 2 3168 1123 LV_KEY_UP>,
+		          <&adc0 2 1123 -2147483648 LV_KEY_DOWN>;
+	};
+
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2000>;
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 12 GPIO_FLAG_NONE>;
+		pin-mosi = <&gpio0 10 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 7 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 8 GPIO_FLAG_NONE>;
+		max-transfer-size = <4096>;
+
+		sdcard@0 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
+	};
+
+	power {
+		compatible = "xteink,x4-power";
+		pin-usb-detect = <&gpio0 20 GPIO_FLAG_NONE>;
+		pin-power-off = <&gpio0 13 GPIO_FLAG_NONE>;
+		pin-power-button = <&gpio0 3 GPIO_FLAG_PULL_UP>;
+	};
+};

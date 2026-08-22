@@ -12,6 +12,19 @@ else:
     SHELL_COLOR_ORANGE = "\033[93m"
     SHELL_COLOR_RESET = "\033[m"
 
+# Maximum core clock (MHz) per target
+CPU_FREQUENCIES_MHZ = {
+    "esp32": 240,
+    "esp32s2": 240,
+    "esp32s3": 240,
+    "esp32c3": 160,
+    "esp32c6": 160,
+    "esp32h2": 96,
+    "esp32p4": 360,
+    "esp32c2": 120,
+    "esp32c5": 240,
+}
+
 DEVICES_DIRECTORY = "Devices"
 
 def print_warning(message):
@@ -148,13 +161,13 @@ def write_tactility_variables(output_file, device_properties: dict, device_id: s
 
 def write_core_variables(output_file, device_properties: dict):
     idf_target = get_property_or_exit(device_properties, "hardware.target").lower()
+    cpu_frequency = get_property_or_default(device_properties, "hardware.cpuFreq",
+                                            CPU_FREQUENCIES_MHZ.get(idf_target, 240))
     output_file.write("# Target\n")
     output_file.write(f"CONFIG_IDF_TARGET=\"{idf_target}\"\n")
     output_file.write("# CPU\n")
-    output_file.write("CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y\n")
-    output_file.write("CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240\n")
-    output_file.write(f"CONFIG_{idf_target.upper()}_DEFAULT_CPU_FREQ_240=y\n")
-    output_file.write(f"CONFIG_{idf_target.upper()}_DEFAULT_CPU_FREQ_MHZ=240\n")
+    output_file.write(f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{cpu_frequency}=y\n")
+    output_file.write(f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ={cpu_frequency}\n")
     if idf_target != "esp32": # Not available on original ESP32
         output_file.write("# Enable usage of MALLOC_CAP_EXEC on IRAM:\n")
         output_file.write("CONFIG_ESP_SYSTEM_MEMPROT_FEATURE=n\n")
@@ -177,7 +190,8 @@ def write_flash_variables(output_file, device_properties: dict):
     flash_size_number = flash_size[:-2]
     output_file.write(f"CONFIG_ESPTOOLPY_FLASHSIZE_{flash_size_number}MB=y\n")
     flash_mode = get_property_or_default(device_properties, "hardware.flashMode", 'QIO')
-    output_file.write(f"CONFIG_FLASHMODE_{flash_mode}=y\n")
+    output_file.write(f"CONFIG_ESPTOOLPY_FLASHMODE_{flash_mode}=y\n")
+    output_file.write(f"CONFIG_ESPTOOLPY_FLASHMODE=\"{flash_mode.lower()}\"\n")
     esptool_flash_freq = get_property_or_none(device_properties, "hardware.esptoolFlashFreq")
     if esptool_flash_freq is not None:
         output_file.write(f"CONFIG_ESPTOOLPY_FLASHFREQ_{esptool_flash_freq}=y\n")

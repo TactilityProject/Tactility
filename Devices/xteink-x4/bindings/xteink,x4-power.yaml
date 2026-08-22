@@ -1,0 +1,36 @@
+description: >
+  Xteink X4 charge/power control: USB VBUS detection, battery-latch power off and the
+  GPIO3 power button (deep-sleep wake source and long-press sleep, mirroring the
+  M5Paper's power button in the reference firmware).
+  Battery voltage/capacity are handled separately by a generic battery-sense node.
+
+compatible: "xteink,x4-power"
+
+properties:
+  pin-usb-detect:
+    type: phandles
+    required: true
+    description: USB VBUS detect pin (1 = USB connected). Doubles as the charge indicator as the charge IC exposes no status pin.
+  pin-power-off:
+    type: phandles
+    required: true
+    description: Battery MOSFET latch pin, is driven HIGH at boot to keep the rail on, driven LOW and held to power off on battery
+  pin-power-button:
+    type: phandles
+    required: true
+    description: Power button pin (active-low, pulled up). Arms the deep-sleep GPIO wake source and triggers sleep when held.
+  power-button-hold-ms:
+    type: int
+    default: 400
+    description: How long the power button must be held (ms) before the device sleeps. Matches the reference firmware's default long-press duration.
+  wake-hold-ms:
+    type: int
+    default: 0
+    description: >
+      Battery cold-boot wake verification. On battery the only boot path is the power
+      button re-engaging the latch, so the driver polls the button for this many ms after
+      it starts: a boot that never shows a press is treated as a stray tap and the device
+      returns to sleep. USB-powered boots (flash, plug-in) and deep-sleep GPIO wakes are
+      always accepted regardless of this value. 0 (default) disables the check - enable
+      only once the firmware is confirmed stable, since a boot that fails verification
+      powers back off immediately.
