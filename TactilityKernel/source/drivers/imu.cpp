@@ -6,11 +6,6 @@
 
 extern "C" {
 
-error_t imu_read(Device* device, ImuData* data) {
-    const auto* driver = device_get_driver(device);
-    return IMU_DRIVER_API(driver)->read(device, data);
-}
-
 error_t imu_read_accel(Device* device, ImuAccelData* data) {
     const auto* driver = device_get_driver(device);
     auto* api = IMU_DRIVER_API(driver);

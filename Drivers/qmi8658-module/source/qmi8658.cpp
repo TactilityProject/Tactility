@@ -95,30 +95,6 @@ static error_t stop(Device* device) {
 
 extern "C" {
 
-error_t qmi8658_read(Device* device, ImuData* data) {
-    auto* i2c_controller = device_get_parent(device);
-    auto address = GET_CONFIG(device)->address;
-
-    // Burst-read 12 bytes starting at AX_L (0x35): accel X/Y/Z then gyro X/Y/Z
-    // QMI8658 is little-endian (LSB first), same as BMI270
-    uint8_t buf[12] = {};
-    error_t error = i2c_controller_read_register(i2c_controller, address, REG_AX_L, buf, sizeof(buf), I2C_TIMEOUT_TICKS);
-    if (error != ERROR_NONE) return error;
-
-    auto toI16 = [](uint8_t lo, uint8_t hi) -> int16_t {
-        return static_cast<int16_t>(static_cast<uint16_t>(hi) << 8 | lo);
-    };
-
-    data->ax = toI16(buf[0],  buf[1])  * ACCEL_SCALE;
-    data->ay = toI16(buf[2],  buf[3])  * ACCEL_SCALE;
-    data->az = toI16(buf[4],  buf[5])  * ACCEL_SCALE;
-    data->gx = toI16(buf[6],  buf[7])  * GYRO_SCALE;
-    data->gy = toI16(buf[8],  buf[9])  * GYRO_SCALE;
-    data->gz = toI16(buf[10], buf[11]) * GYRO_SCALE;
-
-    return ERROR_NONE;
-}
-
 error_t qmi8658_read_accel(Device* device, ImuAccelData* data) {
     auto* i2c_controller = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
@@ -173,7 +149,6 @@ error_t qmi8658_read_temperature(Device* device, float* temperature_c) {
 }
 
 ImuApi qmi8658_imu_api = {
-    .read = qmi8658_read,
     .read_accel = qmi8658_read_accel,
     .read_gyro = qmi8658_read_gyro,
     .read_temperature = qmi8658_read_temperature

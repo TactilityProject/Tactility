@@ -127,31 +127,6 @@ static error_t stop(Device* device) {
 
 extern "C" {
 
-error_t mpu6886_read(Device* device, ImuData* data) {
-    auto* i2c_controller = device_get_parent(device);
-    auto address = GET_CONFIG(device)->address;
-
-    // MPU6886 is big-endian (MSB first), unlike BMI270
-    auto toI16 = [](uint8_t hi, uint8_t lo) -> int16_t {
-        return static_cast<int16_t>(static_cast<uint16_t>(hi) << 8 | lo);
-    };
-
-    // Burst read: accel (6) + temp (2) + gyro (6) = 14 bytes at 0x3B
-    uint8_t buf[14] = {};
-    error_t error = i2c_controller_read_register(i2c_controller, address, REG_ACCEL_XOUT_H, buf, sizeof(buf), I2C_TIMEOUT_TICKS);
-    if (error != ERROR_NONE) return error;
-
-    data->ax = toI16(buf[0], buf[1]) * ACCEL_SCALE;
-    data->ay = toI16(buf[2], buf[3]) * ACCEL_SCALE;
-    data->az = toI16(buf[4], buf[5]) * ACCEL_SCALE;
-    // buf[6..7] = temperature (skipped)
-    data->gx = toI16(buf[8], buf[9]) * GYRO_SCALE;
-    data->gy = toI16(buf[10], buf[11]) * GYRO_SCALE;
-    data->gz = toI16(buf[12], buf[13]) * GYRO_SCALE;
-
-    return ERROR_NONE;
-}
-
 error_t mpu6886_read_accel(Device* device, ImuAccelData* data) {
     auto* i2c_controller = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
@@ -206,7 +181,6 @@ error_t mpu6886_read_temperature(Device* device, float* temperature_c) {
 }
 
 ImuApi mpu6886_imu_api = {
-    .read = mpu6886_read,
     .read_accel = mpu6886_read_accel,
     .read_gyro = mpu6886_read_gyro,
     .read_temperature = mpu6886_read_temperature

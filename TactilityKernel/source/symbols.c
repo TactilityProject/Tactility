@@ -242,7 +242,6 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     // drivers/i8080_controller
     DEFINE_MODULE_SYMBOL(I8080_CONTROLLER_TYPE),
     // drivers/imu
-    DEFINE_MODULE_SYMBOL(imu_read),
     DEFINE_MODULE_SYMBOL(imu_read_accel),
     DEFINE_MODULE_SYMBOL(imu_read_gyro),
     DEFINE_MODULE_SYMBOL(imu_read_temperature),

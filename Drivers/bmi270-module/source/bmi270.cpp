@@ -153,31 +153,6 @@ static error_t stop(Device* device) {
 
 extern "C" {
 
-error_t bmi270_read(Device* device, ImuData* data) {
-    auto* i2c_controller = device_get_parent(device);
-
-    auto address = GET_CONFIG(device)->address;
-
-    // Burst-read 12 bytes: acc X/Y/Z (6 bytes) + gyro X/Y/Z (6 bytes)
-    // Registers: 0x0C–0x17 are contiguous for acc+gyro in I2C mode (no dummy byte)
-    uint8_t buffer[12] = {};
-    error_t error = i2c_controller_read_register(i2c_controller, address, REG_DATA_ACC, buffer, sizeof(buffer), I2C_TIMEOUT_TICKS);
-    if (error != ERROR_NONE) return error;
-
-    auto toI16 = [](uint8_t lo, uint8_t hi) -> int16_t {
-        return static_cast<int16_t>(static_cast<uint16_t>(hi) << 8 | lo);
-    };
-
-    data->ax = toI16(buffer[0],  buffer[1])  * ACCEL_SCALE;
-    data->ay = toI16(buffer[2],  buffer[3])  * ACCEL_SCALE;
-    data->az = toI16(buffer[4],  buffer[5])  * ACCEL_SCALE;
-    data->gx = toI16(buffer[6],  buffer[7])  * GYRO_SCALE;
-    data->gy = toI16(buffer[8],  buffer[9])  * GYRO_SCALE;
-    data->gz = toI16(buffer[10], buffer[11]) * GYRO_SCALE;
-
-    return ERROR_NONE;
-}
-
 error_t bmi270_read_accel(Device* device, ImuAccelData* data) {
     auto* i2c_controller = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
@@ -233,7 +208,6 @@ error_t bmi270_read_temperature(Device* device, float* temperature_c) {
 }
 
 ImuApi bmi270_imu_api = {
-    .read = bmi270_read,
     .read_accel = bmi270_read_accel,
     .read_gyro = bmi270_read_gyro,
     .read_temperature = bmi270_read_temperature

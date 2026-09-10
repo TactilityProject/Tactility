@@ -17,14 +17,6 @@ struct Mpu6886Config {
 };
 
 /**
- * Read accelerometer and gyroscope data.
- * @param[in]  device mpu6886 device
- * @param[out] data   Pointer to ImuData to populate (±8g / ±2000°/s range)
- * @return ERROR_NONE on success
- */
-error_t mpu6886_read(struct Device* device, struct ImuData* data);
-
-/**
  * Read accelerometer data only.
  * @param[in]  device mpu6886 device
  * @param[out] data   Pointer to ImuAccelData to populate (±8g range)

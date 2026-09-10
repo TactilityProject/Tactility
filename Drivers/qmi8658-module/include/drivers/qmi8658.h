@@ -17,14 +17,6 @@ struct Qmi8658Config {
 };
 
 /**
- * Read accelerometer and gyroscope data.
- * @param[in]  device qmi8658 device
- * @param[out] data   Pointer to ImuData to populate (±8g / ±2048°/s range)
- * @return ERROR_NONE on success
- */
-error_t qmi8658_read(struct Device* device, struct ImuData* data);
-
-/**
  * Read accelerometer data only.
  * @param[in]  device qmi8658 device
  * @param[out] data   Pointer to ImuAccelData to populate (±8g range)

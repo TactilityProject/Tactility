@@ -17,14 +17,6 @@ struct Bmi270Config {
 };
 
 /**
- * Read accelerometer and gyroscope data.
- * @param[in] device bmi270 device
- * @param[out] data Pointer to ImuData structure to store the data (±8g / ±2000°/s range)
- * @return ERROR_NONE on success
- */
-error_t bmi270_read(struct Device* device, struct ImuData* data);
-
-/**
  * Read accelerometer data only.
  * @param[in] device bmi270 device
  * @param[out] data Pointer to ImuAccelData structure to store the data (±8g range)

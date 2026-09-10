@@ -8,11 +8,6 @@
 extern "C" {
 #endif
 
-struct ImuData {
-    float ax, ay, az; // acceleration, in g
-    float gx, gy, gz; // angular rate, in °/s
-};
-
 struct ImuAccelData {
     float ax, ay, az; // acceleration, in g
 };
@@ -21,23 +16,21 @@ struct ImuGyroData {
     float gx, gy, gz; // angular rate, in °/s
 };
 
+/** Convenience aggregate - not filled by a single I2C transaction, see imu_read_accel()/
+ *  imu_read_gyro() (a caller wanting both must call each separately). */
+struct ImuData {
+    struct ImuAccelData accel;
+    struct ImuGyroData gyro;
+};
+
 /**
  * @brief API for IMU (accelerometer + gyroscope) drivers.
  *
  * @note read_accel(), read_gyro() and read_temperature() are each a single-register-window I2C
- * transaction, cheaper than read() when a caller only needs one of the three. All three are
- * optional per driver: a driver that can't service one leaves it NULL, and the matching
- * imu_read_*() wrapper returns ERROR_NOT_SUPPORTED.
+ * transaction. All three are optional per driver: a driver that can't service one leaves it
+ * NULL, and the matching imu_read_*() wrapper returns ERROR_NOT_SUPPORTED.
  */
 struct ImuApi {
-    /**
-     * @brief Reads the current accelerometer and gyroscope data.
-     * @param[in] device the IMU device
-     * @param[out] data pointer to store the current reading
-     * @return ERROR_NONE on success
-     */
-    error_t (*read)(struct Device* device, struct ImuData* data);
-
     /**
      * @brief Reads only the current accelerometer data.
      * @param[in] device the IMU device
@@ -65,11 +58,6 @@ struct ImuApi {
      */
     error_t (*read_temperature)(struct Device* device, float* temperature_c);
 };
-
-/**
- * @brief Reads the current accelerometer and gyroscope data using the specified IMU device.
- */
-error_t imu_read(struct Device* device, struct ImuData* data);
 
 /**
  * @brief Reads only the current accelerometer data using the specified IMU device.
