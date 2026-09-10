@@ -186,25 +186,16 @@ bool writeString(const std::string& filepath, const std::string& content) {
     return true;
 }
 
-static bool findOrCreateDirectoryInternal(std::string path, mode_t mode) {
+static bool findOrCreateDirectoryInternal(const std::string& path, mode_t mode) {
+    // Checked before creating, not after: on the SD card's mount root, the FATFS VFS's mkdir()
+    // doesn't fail with EEXIST for an already-mounted root (it returns some other errno), so an
+    // mkdir-first/errno-check approach never recognizes it as already there.
     struct stat dir_stat;
-    if (mkdir(path.c_str(), mode) == 0) {
-        return true;
+    if (stat(path.c_str(), &dir_stat) == 0) {
+        return S_ISDIR(dir_stat.st_mode);
     }
 
-    if (errno != EEXIST) {
-        return false;
-    }
-
-    if (stat(path.c_str(), &dir_stat) != 0) {
-        return false;
-    }
-
-    if (!S_ISDIR(dir_stat.st_mode)) {
-        return false;
-    }
-
-    return true;
+    return mkdir(path.c_str(), mode) == 0;
 }
 
 std::string getLastPathSegment(const std::string& path) {
