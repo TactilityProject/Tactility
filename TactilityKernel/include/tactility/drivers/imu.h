@@ -16,13 +16,6 @@ struct ImuGyroData {
     float gx, gy, gz; // angular rate, in °/s
 };
 
-/** Convenience aggregate - not filled by a single I2C transaction, see imu_read_accel()/
- *  imu_read_gyro() (a caller wanting both must call each separately). */
-struct ImuData {
-    struct ImuAccelData accel;
-    struct ImuGyroData gyro;
-};
-
 /**
  * @brief API for IMU (accelerometer + gyroscope) drivers.
  *
