@@ -118,6 +118,12 @@ def write_partition_table(output_file, device_properties: dict, is_dev: bool):
     output_file.write("CONFIG_PARTITION_TABLE_CUSTOM=y\n")
     output_file.write(f"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"{partition_filename}\"\n")
     output_file.write(f"CONFIG_PARTITION_TABLE_FILENAME=\"{partition_filename}\"\n")
+    idf_target = get_property_or_exit(device_properties, "hardware.target").lower()
+    if idf_target == "esp32p4":
+        # ESP-IDF 6.1's P4 bootloader (0x6140 bytes) no longer fits under the default
+        # CONFIG_PARTITION_TABLE_OFFSET=0x8000 budget (max 0x6000), regardless of device config.
+        # The partition CSVs leave their offsets blank so they auto-place relative to this value.
+        output_file.write("CONFIG_PARTITION_TABLE_OFFSET=0x10000\n")
 
 def write_tactility_variables(output_file, device_properties: dict, device_id: str):
     # Board and vendor
@@ -176,6 +182,14 @@ def write_core_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_ESP_WIFI_RX_IRAM_OPT=n\n")
         output_file.write("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH=y\n")
         output_file.write("CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=y\n")
+    if idf_target == "esp32p4":
+        # EspNowBackendHosted.cpp's esp_hosted_send_custom_data()/esp_hosted_register_custom_callback()
+        # need esp_hosted's peer-data feature enabled to exist at all.
+        output_file.write("CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA=y\n")
+        # ESP-IDF 6.1 defaults to requiring chip rev >=v3.1; boards in this repo (e.g. m5stack-tab5)
+        # ship v1.0 silicon, which that bootloader refuses to boot.
+        output_file.write("CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y\n")
+        output_file.write("CONFIG_ESP32P4_REV_MIN_100=y\n")
 def write_flash_variables(output_file, device_properties: dict):
     flash_size = get_property_or_exit(device_properties, "hardware.flashSize")
     if not flash_size.endswith("MB"):
@@ -411,7 +425,10 @@ def write_bluetooth_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_BT_NIMBLE_ENABLED=y\n")
         if idf_target == "esp32p4":
             output_file.write("CONFIG_BT_NIMBLE_TRANSPORT_UART=n\n")
-            output_file.write("CONFIG_ESP_HOSTED_ENABLE_BT_NIMBLE=y\n")
+            # esp_hosted 3.0 removed the legacy ESP_HOSTED_ENABLE_BT_NIMBLE knob in favor
+            # of a stack-agnostic feature flag; the app binds NimBLE to it explicitly via
+            # esp_hosted_bt_host_stack_setup() (see esp32_ble.cpp).
+            output_file.write("CONFIG_ESP_HOSTED_HOST_FEAT_BT=y\n")
         # Move NimBLE host buffers to SPIRAM when available, regardless of target.
         # The default (INTERNAL) mode causes heap fragmentation after a disable+deinit
         # cycle, preventing a subsequent nimble_port_init() from allocating its buffers

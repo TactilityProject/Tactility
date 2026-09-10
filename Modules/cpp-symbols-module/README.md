@@ -44,8 +44,32 @@ Non-template helpers shared by every `std::map`/`std::set` instantiation:
 
 ### `std::string`
 
-- `basic_string::_M_replace_cold` - the rarely-taken slow path of `std::string::replace`,
-  split out of the header-inlined fast path.
+Most of the common out-of-line member set (this class ends up entirely out-of-line for any app
+built at C++17 or earlier - see `extern template class basic_string<char>` in libstdc++'s
+`bits/basic_string.tcc`):
+
+- `_M_replace_cold`, `_M_replace`, `_M_mutate`, `_M_append`, `_M_erase`, `_M_assign`,
+  `_M_create`, `_M_dispose`, `_M_construct<const char*>`
+- `substr`, `find`, `reserve`, `append` (both overloads), `assign`, `push_back`, `pop_back`,
+  `operator=(basic_string&&)`
+- `_S_copy`, `_S_move` (static helpers)
+- Free functions returning `basic_string<char>` by value: `__str_concat`, `operator+(basic_string
+  const&, const char*)`
+
+- `(basic_string const&, pos, len)` and `(const char*, allocator const&)` constructors -
+  implemented directly rather than exported by address (see below), since GCC doesn't emit a
+  standalone definition for either.
+
+**Not supported: the move constructor.** Like the two constructors above, GCC never emits a
+standalone out-of-line definition for it in a C++20+ build - it's a pure header-inline forwarder
+with no real function body to take the address of, even when this module's own code is made to
+call it directly. If it turns out to be needed, implement it the same way as the other two: write
+a small function whose body does the equivalent construction via placement-new (`new (self)
+std::string(...)`), and register its address manually under the mangled name(s) in `SYMBOLS[]`
+(the compiler inlines the real header logic into that function, producing a genuine addressable
+symbol - the same trick used for `_M_replace_cold` and friends, except *we* supply the body
+instead of pointing at one the library already provides). An app whose loaded ELF needs it will
+still fail with `Can't find common ...C1.../...C2.../...C5...`.
 
 ## Adding a new symbol
 

@@ -22,10 +22,17 @@ idf_component_register(
 
 if (DEFINED ENV{ESP_IDF_VERSION})
     GET_PROPERTY_FILE_CONTENT("${CMAKE_CURRENT_LIST_DIR}/../../sdkconfig" sdkconfig_text)
-    GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_ESP_HOSTED_ENABLED" esp_host_enabled "n")
+    GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_ESP_HOSTED_HOST" esp_host_enabled "n")
     if (esp_host_enabled STREQUAL "y")
         idf_component_optional_requires(PRIVATE espressif__esp_hosted)
     endif ()
 endif ()
 
 idf_component_optional_requires(PRIVATE bt usb espressif__usb_host_hid espressif__usb_host_msc)
+
+if ("${IDF_TARGET}" STREQUAL "esp32p4")
+    # Force-links esp32p4_libc_compat.c's __issignalingf() shim - nothing references it until
+    # espressif__esp_ipa is scanned much later in link order, by which point this archive is
+    # already passed over.
+    target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,-u,__issignalingf")
+endif ()

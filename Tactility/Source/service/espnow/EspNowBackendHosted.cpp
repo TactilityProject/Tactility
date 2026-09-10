@@ -2,7 +2,7 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_ESP_HOSTED_ENABLED)
+#if defined(CONFIG_ESP_HOSTED_HOST)
 
 #include <Tactility/service/espnow/EspNowBackend.h>
 #include <Tactility/service/espnow/EspNowHostedTransport.h>
@@ -310,4 +310,4 @@ uint32_t getVersion() {
 
 }
 
-#endif // CONFIG_ESP_HOSTED_ENABLED
+#endif // CONFIG_ESP_HOSTED_HOST

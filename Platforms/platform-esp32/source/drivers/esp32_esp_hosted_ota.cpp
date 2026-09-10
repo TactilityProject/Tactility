@@ -2,7 +2,7 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_ESP_HOSTED_ENABLED)
+#if defined(CONFIG_ESP_HOSTED_HOST)
 
 #include <tactility/drivers/esp32_esp_hosted_ota.h>
 #include <tactility/drivers/wifi.h>
@@ -251,4 +251,4 @@ const FirmwareOps* esp32_esp_hosted_ota_get_ops() {
     return &firmwareOps;
 }
 
-#endif // CONFIG_ESP_HOSTED_ENABLED
+#endif // CONFIG_ESP_HOSTED_HOST

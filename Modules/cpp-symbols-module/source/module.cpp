@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <new>
 #include <string>
+#include <utility>
 
 #if defined(__GLIBCXX__) || defined(ESP_PLATFORM)
 #define TT_CPP_SYMBOLS_AVAILABLE 1
@@ -42,8 +43,54 @@ extern "C" {
 #ifdef ESP_PLATFORM
     // string - same 32-bit-ABI mangling caveat as operator new/delete above.
     void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE15_M_replace_coldEPcjPKcjj(void*, char*, unsigned int, char const*, unsigned int, unsigned int);
+    void* _ZNKSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE6substrEjj(void*, const void*, unsigned int, unsigned int);
+    char* _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9_M_createERjj(void*, unsigned int*, unsigned int);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE7reserveEj(void*, unsigned int);
+    unsigned int _ZNKSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE4findEcj(const void*, char, unsigned int);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE10_M_disposeEv(void*);
+    void* _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE10_M_replaceEjjPKcj(void*, unsigned int, unsigned int, const char*, unsigned int);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPKcEEvT_S8_St20forward_iterator_tag(void*, const char*, const char*, char);
+    void* _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE6appendEPKc(void*, const char*);
+    void* _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE6appendEPKcj(void*, const char*, unsigned int);
+    void* _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE6assignEPKc(void*, const char*);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE7_S_copyEPcPKcj(char*, const char*, unsigned int);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE7_S_moveEPcPKcj(char*, const char*, unsigned int);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE8_M_eraseEjj(void*, unsigned int, unsigned int);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE8pop_backEv(void*);
+    void* _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9_M_appendEPKcj(void*, const char*, unsigned int);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9_M_assignERKS4_(void*, const void*);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9_M_mutateEjjPKcj(void*, unsigned int, unsigned int, const char*, unsigned int);
+    void _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9push_backEc(void*, char);
+    void* _ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEaSEOS4_(void*, void*);
+    // Non-members: return basic_string<char> by value, so the first param is the hidden
+    // return-value pointer (Itanium ABI), same convention as substr() above.
+    void* _ZSt12__str_concatINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEET_PKNS6_10value_typeENS6_9size_typeES9_SA_RKNS6_14allocator_typeE(void*, const char*, unsigned int, const char*, unsigned int, const void*);
+    void* _ZStplIcSt11char_traitsIcESaIcEENSt7__cxx1112basic_stringIT_T0_T1_EERKS8_PKS5_(void*, const void*, const char*);
 #endif
 }
+
+#ifdef ESP_PLATFORM
+namespace {
+// basic_string(basic_string const&, pos, len) has no out-of-line definition anywhere to take the
+// address of - unlike everything else above, GCC never emits one for this ctor under C++20+ (it's
+// a pure header-inline forwarder around _M_construct(), confirmed by trying to force an
+// instantiation and finding no resulting linkable symbol). Implemented directly instead: this
+// function's placement-new triggers the compiler to inline the real construction logic here,
+// producing a genuine addressable definition, registered below under the mangled name(s) the ELF
+// loader actually looks up.
+void construct_basic_string_from_substring(void* self, const void* str, unsigned int pos, unsigned int len) {
+    new (self) std::string(*static_cast<const std::string*>(str), pos, len);
+}
+// Same story for basic_string(const char*, allocator<char> const&).
+void construct_basic_string_from_cstr(void* self, const char* s, const void* alloc) {
+    new (self) std::string(s, *static_cast<const std::allocator<char>*>(alloc));
+}
+// Same story for the move constructor, basic_string(basic_string&&).
+void construct_basic_string_move(void* self, void* other) {
+    new (self) std::string(std::move(*static_cast<std::string*>(other)));
+}
+}
+#endif
 #endif
 
 static const ModuleSymbol SYMBOLS[] = {
@@ -76,6 +123,37 @@ static const ModuleSymbol SYMBOLS[] = {
 #ifdef ESP_PLATFORM
     // string - Note: You have to use the mangled names here
     DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE15_M_replace_coldEPcjPKcjj),
+    DEFINE_MODULE_SYMBOL(_ZNKSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE6substrEjj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9_M_createERjj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE7reserveEj),
+    DEFINE_MODULE_SYMBOL(_ZNKSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE4findEcj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE10_M_disposeEv),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE10_M_replaceEjjPKcj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPKcEEvT_S8_St20forward_iterator_tag),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE6appendEPKc),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE6appendEPKcj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE6assignEPKc),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE7_S_copyEPcPKcj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE7_S_moveEPcPKcj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE8_M_eraseEjj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE8pop_backEv),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9_M_appendEPKcj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9_M_assignERKS4_),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9_M_mutateEjjPKcj),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9push_backEc),
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEaSEOS4_),
+    // C1/C2/C5: complete-object, base-object, and comdat-folded aliases of the same constructor.
+    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC1ERKS4_jj", (void*)&construct_basic_string_from_substring },
+    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC2ERKS4_jj", (void*)&construct_basic_string_from_substring },
+    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC5ERKS4_jj", (void*)&construct_basic_string_from_substring },
+    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC1IS3_EEPKcRKS3_", (void*)&construct_basic_string_from_cstr },
+    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC2IS3_EEPKcRKS3_", (void*)&construct_basic_string_from_cstr },
+    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC5IS3_EEPKcRKS3_", (void*)&construct_basic_string_from_cstr },
+    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC1EOS4_", (void*)&construct_basic_string_move },
+    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC2EOS4_", (void*)&construct_basic_string_move },
+    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC5EOS4_", (void*)&construct_basic_string_move },
+    DEFINE_MODULE_SYMBOL(_ZSt12__str_concatINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEET_PKNS6_10value_typeENS6_9size_typeES9_SA_RKNS6_14allocator_typeE),
+    DEFINE_MODULE_SYMBOL(_ZStplIcSt11char_traitsIcESaIcEENSt7__cxx1112basic_stringIT_T0_T1_EERKS8_PKS5_),
 #endif
 #endif // TT_CPP_SYMBOLS_AVAILABLE
     MODULE_SYMBOL_TERMINATOR
