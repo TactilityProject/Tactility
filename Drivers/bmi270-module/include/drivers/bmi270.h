@@ -2,6 +2,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <tactility/drivers/imu.h>
 #include <tactility/error.h>
 
 struct Device;
@@ -15,18 +16,37 @@ struct Bmi270Config {
     uint8_t address;
 };
 
-struct Bmi270Data {
-    float ax, ay, az; // acceleration in g (±8g range)
-    float gx, gy, gz; // angular rate in °/s (±2000°/s range)
-};
-
 /**
  * Read accelerometer and gyroscope data.
  * @param[in] device bmi270 device
- * @param[out] data Pointer to Bmi270Data structure to store the data
+ * @param[out] data Pointer to ImuData structure to store the data (±8g / ±2000°/s range)
  * @return ERROR_NONE on success
  */
-error_t bmi270_read(struct Device* device, struct Bmi270Data* data);
+error_t bmi270_read(struct Device* device, struct ImuData* data);
+
+/**
+ * Read accelerometer data only.
+ * @param[in] device bmi270 device
+ * @param[out] data Pointer to ImuAccelData structure to store the data (±8g range)
+ * @return ERROR_NONE on success
+ */
+error_t bmi270_read_accel(struct Device* device, struct ImuAccelData* data);
+
+/**
+ * Read gyroscope data only.
+ * @param[in] device bmi270 device
+ * @param[out] data Pointer to ImuGyroData structure to store the data (±2000°/s range)
+ * @return ERROR_NONE on success
+ */
+error_t bmi270_read_gyro(struct Device* device, struct ImuGyroData* data);
+
+/**
+ * Read the chip's on-die temperature.
+ * @param[in] device bmi270 device
+ * @param[out] temperature_c Pointer to store the temperature, in °C
+ * @return ERROR_NONE on success
+ */
+error_t bmi270_read_temperature(struct Device* device, float* temperature_c);
 
 #ifdef __cplusplus
 }

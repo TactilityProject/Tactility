@@ -2,6 +2,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <tactility/drivers/imu.h>
 #include <tactility/error.h>
 
 struct Device;
@@ -15,18 +16,37 @@ struct Qmi8658Config {
     uint8_t address;
 };
 
-struct Qmi8658Data {
-    float ax, ay, az; // acceleration in g (±8g range)
-    float gx, gy, gz; // angular rate in °/s (±2048°/s range)
-};
-
 /**
  * Read accelerometer and gyroscope data.
  * @param[in]  device qmi8658 device
- * @param[out] data   Pointer to Qmi8658Data to populate
+ * @param[out] data   Pointer to ImuData to populate (±8g / ±2048°/s range)
  * @return ERROR_NONE on success
  */
-error_t qmi8658_read(struct Device* device, struct Qmi8658Data* data);
+error_t qmi8658_read(struct Device* device, struct ImuData* data);
+
+/**
+ * Read accelerometer data only.
+ * @param[in]  device qmi8658 device
+ * @param[out] data   Pointer to ImuAccelData to populate (±8g range)
+ * @return ERROR_NONE on success
+ */
+error_t qmi8658_read_accel(struct Device* device, struct ImuAccelData* data);
+
+/**
+ * Read gyroscope data only.
+ * @param[in]  device qmi8658 device
+ * @param[out] data   Pointer to ImuGyroData to populate (±2048°/s range)
+ * @return ERROR_NONE on success
+ */
+error_t qmi8658_read_gyro(struct Device* device, struct ImuGyroData* data);
+
+/**
+ * Read the chip's on-die temperature.
+ * @param[in]  device qmi8658 device
+ * @param[out] temperature_c Pointer to store the temperature, in °C
+ * @return ERROR_NONE on success
+ */
+error_t qmi8658_read_temperature(struct Device* device, float* temperature_c);
 
 #ifdef __cplusplus
 }

@@ -23,6 +23,7 @@
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
 #include <tactility/drivers/i8080_controller.h>
+#include <tactility/drivers/imu.h>
 #include <tactility/drivers/keyboard.h>
 #include <tactility/drivers/lora.h>
 #include <tactility/drivers/pointer.h>
@@ -240,6 +241,12 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(I2S_CONTROLLER_TYPE),
     // drivers/i8080_controller
     DEFINE_MODULE_SYMBOL(I8080_CONTROLLER_TYPE),
+    // drivers/imu
+    DEFINE_MODULE_SYMBOL(imu_read),
+    DEFINE_MODULE_SYMBOL(imu_read_accel),
+    DEFINE_MODULE_SYMBOL(imu_read_gyro),
+    DEFINE_MODULE_SYMBOL(imu_read_temperature),
+    DEFINE_MODULE_SYMBOL(IMU_TYPE),
     // drivers/keyboard
     DEFINE_MODULE_SYMBOL(keyboard_read_key),
     DEFINE_MODULE_SYMBOL(KEYBOARD_TYPE),

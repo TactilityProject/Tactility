@@ -16,6 +16,7 @@ static constexpr uint8_t REG_ACCEL_CONFIG2 = 0x1D; // accel low-pass filter
 static constexpr uint8_t REG_INT_PIN_CFG   = 0x37; // interrupt pin config
 static constexpr uint8_t REG_INT_ENABLE    = 0x38; // interrupt enable
 static constexpr uint8_t REG_ACCEL_XOUT_H  = 0x3B; // first accel output register
+static constexpr uint8_t REG_TEMP_OUT_H    = 0x41; // temperature output register
 static constexpr uint8_t REG_GYRO_XOUT_H   = 0x43; // first gyro output register
 static constexpr uint8_t REG_USER_CTRL     = 0x6A; // user control (DMP, FIFO, I2C)
 static constexpr uint8_t REG_PWR_MGMT_1    = 0x6B; // power management 1
@@ -126,7 +127,7 @@ static error_t stop(Device* device) {
 
 extern "C" {
 
-error_t mpu6886_read(Device* device, Mpu6886Data* data) {
+error_t mpu6886_read(Device* device, ImuData* data) {
     auto* i2c_controller = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
 
@@ -151,13 +152,73 @@ error_t mpu6886_read(Device* device, Mpu6886Data* data) {
     return ERROR_NONE;
 }
 
+error_t mpu6886_read_accel(Device* device, ImuAccelData* data) {
+    auto* i2c_controller = device_get_parent(device);
+    auto address = GET_CONFIG(device)->address;
+
+    auto toI16 = [](uint8_t hi, uint8_t lo) -> int16_t {
+        return static_cast<int16_t>(static_cast<uint16_t>(hi) << 8 | lo);
+    };
+
+    uint8_t buf[6] = {};
+    error_t error = i2c_controller_read_register(i2c_controller, address, REG_ACCEL_XOUT_H, buf, sizeof(buf), I2C_TIMEOUT_TICKS);
+    if (error != ERROR_NONE) return error;
+
+    data->ax = toI16(buf[0], buf[1]) * ACCEL_SCALE;
+    data->ay = toI16(buf[2], buf[3]) * ACCEL_SCALE;
+    data->az = toI16(buf[4], buf[5]) * ACCEL_SCALE;
+
+    return ERROR_NONE;
+}
+
+error_t mpu6886_read_gyro(Device* device, ImuGyroData* data) {
+    auto* i2c_controller = device_get_parent(device);
+    auto address = GET_CONFIG(device)->address;
+
+    auto toI16 = [](uint8_t hi, uint8_t lo) -> int16_t {
+        return static_cast<int16_t>(static_cast<uint16_t>(hi) << 8 | lo);
+    };
+
+    uint8_t buf[6] = {};
+    error_t error = i2c_controller_read_register(i2c_controller, address, REG_GYRO_XOUT_H, buf, sizeof(buf), I2C_TIMEOUT_TICKS);
+    if (error != ERROR_NONE) return error;
+
+    data->gx = toI16(buf[0], buf[1]) * GYRO_SCALE;
+    data->gy = toI16(buf[2], buf[3]) * GYRO_SCALE;
+    data->gz = toI16(buf[4], buf[5]) * GYRO_SCALE;
+
+    return ERROR_NONE;
+}
+
+error_t mpu6886_read_temperature(Device* device, float* temperature_c) {
+    auto* i2c_controller = device_get_parent(device);
+    auto address = GET_CONFIG(device)->address;
+
+    uint8_t buf[2] = {};
+    error_t error = i2c_controller_read_register(i2c_controller, address, REG_TEMP_OUT_H, buf, sizeof(buf), I2C_TIMEOUT_TICKS);
+    if (error != ERROR_NONE) return error;
+
+    auto raw = static_cast<int16_t>(static_cast<uint16_t>(buf[0]) << 8 | buf[1]);
+
+    // Datasheet: temperature = raw / 326.8 + 25 (°C)
+    *temperature_c = static_cast<float>(raw) / 326.8f + 25.0f;
+    return ERROR_NONE;
+}
+
+ImuApi mpu6886_imu_api = {
+    .read = mpu6886_read,
+    .read_accel = mpu6886_read_accel,
+    .read_gyro = mpu6886_read_gyro,
+    .read_temperature = mpu6886_read_temperature
+};
+
 Driver mpu6886_driver = {
     .name = "mpu6886",
     .compatible = (const char*[]) { "invensense,mpu6886", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = nullptr,
-    .device_type = nullptr,
+    .api = &mpu6886_imu_api,
+    .device_type = &IMU_TYPE,
     .owner = &mpu6886_module,
     .internal = nullptr
 };
