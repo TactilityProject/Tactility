@@ -70,6 +70,14 @@ static int pin_or_unused(const GpioPinSpec& pin) {
     return pin.gpio_controller == nullptr ? -1 : static_cast<int>(pin.pin);
 }
 
+static lcd_color_format_t color_format_from_bpp(uint8_t bits_per_pixel) {
+    switch (bits_per_pixel) {
+        case 16: return LCD_COLOR_FMT_RGB565;
+        case 24: return LCD_COLOR_FMT_RGB888;
+        default: return static_cast<lcd_color_format_t>(0);
+    }
+}
+
 // Pulses the panel's own driver-IC reset line, if configured. Transient: the descriptor is
 // released immediately after, since nothing else needs to touch this pin afterward.
 static error_t perform_hardware_reset(const RgbDisplayConfig* config) {
@@ -166,33 +174,35 @@ static error_t start(Device* device) {
             }
         },
         .data_width = config->data_width,
-        .bits_per_pixel = config->bits_per_pixel,
+        .in_color_format = color_format_from_bpp(config->bits_per_pixel),
         .num_fbs = config->num_fbs,
         .bounce_buffer_size_px = config->bounce_buffer_size_px,
-        .sram_trans_align = config->sram_trans_align,
-        .psram_trans_align = config->psram_trans_align,
-        .hsync_gpio_num = pin_or_unused(config->pin_hsync),
-        .vsync_gpio_num = pin_or_unused(config->pin_vsync),
-        .de_gpio_num = pin_or_unused(config->pin_de),
-        .pclk_gpio_num = pin_or_unused(config->pin_pclk),
-        .disp_gpio_num = pin_or_unused(config->pin_disp),
+        // No device configures sram-trans-align/psram-trans-align differently from their YAML
+        // defaults (8/64), so the single dma_burst_size that replaced both can just take the
+        // larger (PSRAM) alignment - safe for SRAM-only allocations too, just less tightly packed.
+        .dma_burst_size = config->psram_trans_align,
+        .hsync_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_hsync)),
+        .vsync_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_vsync)),
+        .de_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_de)),
+        .pclk_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_pclk)),
+        .disp_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_disp)),
         .data_gpio_nums = {
-            pin_or_unused(config->pin_data0),
-            pin_or_unused(config->pin_data1),
-            pin_or_unused(config->pin_data2),
-            pin_or_unused(config->pin_data3),
-            pin_or_unused(config->pin_data4),
-            pin_or_unused(config->pin_data5),
-            pin_or_unused(config->pin_data6),
-            pin_or_unused(config->pin_data7),
-            pin_or_unused(config->pin_data8),
-            pin_or_unused(config->pin_data9),
-            pin_or_unused(config->pin_data10),
-            pin_or_unused(config->pin_data11),
-            pin_or_unused(config->pin_data12),
-            pin_or_unused(config->pin_data13),
-            pin_or_unused(config->pin_data14),
-            pin_or_unused(config->pin_data15),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data0)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data1)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data2)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data3)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data4)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data5)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data6)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data7)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data8)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data9)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data10)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data11)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data12)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data13)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data14)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data15)),
         },
         .flags = {
             .disp_active_low = config->disp_active_low,
@@ -209,7 +219,7 @@ static error_t start(Device* device) {
     // marked unused rather than left as the aggregate-init default of 0 (which would look like
     // "GPIO0 is wired to this line").
     for (size_t i = 16; i < sizeof(panel_config.data_gpio_nums) / sizeof(panel_config.data_gpio_nums[0]); i++) {
-        panel_config.data_gpio_nums[i] = -1;
+        panel_config.data_gpio_nums[i] = GPIO_NUM_NC;
     }
 
     esp_err_t ret = esp_lcd_new_rgb_panel(&panel_config, &internal->panel_handle);

@@ -6,7 +6,6 @@
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
-#include <tactility/drivers/esp32_i2c.h>
 #include <tactility/drivers/esp32_i2c_master.h>
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
@@ -73,14 +72,10 @@ static esp_err_t create_io_handle(Device* parent, esp_lcd_panel_io_handle_t* out
     esp_lcd_panel_io_i2c_config_t io_config = ESP_LCD_TOUCH_IO_I2C_FT6x36_CONFIG();
 
     auto* parent_driver = device_get_driver(parent);
-    if (driver_is_compatible(parent_driver, "espressif,esp32-i2c")) {
-        auto port = static_cast<const Esp32I2cConfig*>(parent->config)->port;
-        return esp_lcd_new_panel_io_i2c_v1(port, &io_config, out_handle);
-    }
     if (driver_is_compatible(parent_driver, "espressif,esp32-i2c-master")) {
         auto bus = esp32_i2c_master_get_bus_handle(parent);
         io_config.scl_speed_hz = esp32_i2c_master_get_clock_frequency(parent);
-        return esp_lcd_new_panel_io_i2c_v2(bus, &io_config, out_handle);
+        return esp_lcd_new_panel_io_i2c(bus, &io_config, out_handle);
     }
 
     LOG_E(TAG, "Unsupported I2C driver");

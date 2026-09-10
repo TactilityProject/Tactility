@@ -251,13 +251,13 @@ static error_t start(Device* device) {
     };
 
     const esp_lcd_panel_dev_config_t panel_config = {
-        .reset_gpio_num = pin_or_unused(config->pin_reset),
         .rgb_ele_order = config->bgr_order ? LCD_RGB_ELEMENT_ORDER_BGR : LCD_RGB_ELEMENT_ORDER_RGB,
         .data_endian = LCD_RGB_DATA_ENDIAN_LITTLE,
         .bits_per_pixel = config->bits_per_pixel,
+        .reset_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_reset)),
+        .vendor_config = &vendor_config,
         // ILI9881C's reset line is fixed active-low in hardware.
         .flags = { .reset_active_high = false },
-        .vendor_config = &vendor_config,
     };
 
     if (esp_lcd_new_panel_ili9881c(internal->io_handle, &panel_config, &internal->panel_handle) != ESP_OK) {
@@ -355,7 +355,7 @@ static error_t start(Device* device) {
     xSemaphoreGive(internal->color_trans_done_semaphore);
 
     esp_lcd_dpi_panel_event_callbacks_t callbacks = {};
-    callbacks.on_refresh_done = on_refresh_done;
+    callbacks.on_frame_buf_complete = on_refresh_done;
     callbacks.on_color_trans_done = on_color_trans_done;
     if (esp_lcd_dpi_panel_register_event_callbacks(internal->panel_handle, &callbacks, internal) != ESP_OK) {
         LOG_E(TAG, "Failed to register panel event callbacks");

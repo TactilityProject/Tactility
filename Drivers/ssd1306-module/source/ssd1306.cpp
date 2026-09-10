@@ -6,7 +6,6 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/display.h>
-#include <tactility/drivers/esp32_i2c.h>
 #include <tactility/drivers/esp32_i2c_master.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/error.h>
@@ -52,28 +51,24 @@ static esp_err_t create_io_handle(Device* parent, uint8_t address, esp_lcd_panel
     // with, unlike the multi-byte-per-command SPI/QSPI panels elsewhere in this repo.
     esp_lcd_panel_io_i2c_config_t io_config = {
         .dev_addr = address,
-        .on_color_trans_done = nullptr,
-        .user_ctx = nullptr,
+        .scl_speed_hz = 0,
         .control_phase_bytes = 1,
         .dc_bit_offset = 6,
         .lcd_cmd_bits = 0,
         .lcd_param_bits = 0,
+        .on_color_trans_done = nullptr,
+        .user_ctx = nullptr,
         .flags = {
             .dc_low_on_data = false,
             .disable_control_phase = false,
         },
-        .scl_speed_hz = 0,
     };
 
     auto* parent_driver = device_get_driver(parent);
-    if (driver_is_compatible(parent_driver, "espressif,esp32-i2c")) {
-        auto port = static_cast<const Esp32I2cConfig*>(parent->config)->port;
-        return esp_lcd_new_panel_io_i2c_v1(port, &io_config, out_handle);
-    }
     if (driver_is_compatible(parent_driver, "espressif,esp32-i2c-master")) {
         auto bus = esp32_i2c_master_get_bus_handle(parent);
         io_config.scl_speed_hz = esp32_i2c_master_get_clock_frequency(parent);
-        return esp_lcd_new_panel_io_i2c_v2(bus, &io_config, out_handle);
+        return esp_lcd_new_panel_io_i2c(bus, &io_config, out_handle);
     }
 
     LOG_E(TAG, "Unsupported I2C driver");
@@ -164,15 +159,14 @@ static error_t start(Device* device) {
         .height = static_cast<uint8_t>(config->vertical_resolution),
     };
 
-    // color_space (not rgb_ele_order): this deprecated union member is the only one whose type
-    // can express ESP_LCD_COLOR_SPACE_MONOCHROME - rgb_ele_order's own enum only covers RGB/BGR.
+    // No rgb_ele_order set: the built-in ssd1306 vendor driver is monochrome and never reads it
+    // (only bits_per_pixel, checked to be exactly 1 - see esp_lcd_panel_ssd1306.c).
     esp_lcd_panel_dev_config_t panel_config = {
-        .reset_gpio_num = -1, // always -1: reset is handled manually above, not by the panel itself
-        .color_space = ESP_LCD_COLOR_SPACE_MONOCHROME,
         .data_endian = LCD_RGB_DATA_ENDIAN_BIG,
         .bits_per_pixel = 1,
-        .flags = { .reset_active_high = false },
+        .reset_gpio_num = GPIO_NUM_NC, // reset is handled manually above, not by the panel itself
         .vendor_config = &ssd1306_config,
+        .flags = { .reset_active_high = false },
     };
 
     if (esp_lcd_new_panel_ssd1306(internal->io_handle, &panel_config, &internal->panel_handle) != ESP_OK) {
