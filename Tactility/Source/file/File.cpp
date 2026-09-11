@@ -1,5 +1,6 @@
 #include <Tactility/file/File.h>
 
+#include <cerrno>
 #include <cstring>
 #include <fstream>
 #include <unistd.h>
@@ -195,7 +196,10 @@ static bool findOrCreateDirectoryInternal(const std::string& path, mode_t mode) 
         return S_ISDIR(dir_stat.st_mode);
     }
 
-    return mkdir(path.c_str(), mode) == 0;
+    if (mkdir(path.c_str(), mode) == 0) {
+        return true;
+    }
+    return errno == EEXIST && stat(path.c_str(), &dir_stat) == 0 && S_ISDIR(dir_stat.st_mode);
 }
 
 std::string getLastPathSegment(const std::string& path) {

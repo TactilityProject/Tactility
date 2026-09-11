@@ -688,13 +688,22 @@ static void dispatch_enable(BleCtx* ctx) {
     }
     esp_hosted_bt_host_stack_cfg_t hosted_bt_cfg = ESP_HOSTED_BT_HOST_STACK_CONFIG_DEFAULT();
     if (esp_hosted_bt_host_stack_setup(&hosted_bt_cfg) != ESP_OK) {
-        LOG_W(TAG, "esp_hosted_bt_host_stack_setup failed");
+        LOG_E(TAG, "esp_hosted_bt_host_stack_setup failed");
+        ctx->radio_state.store(BT_RADIO_STATE_OFF);
+        struct BtEvent e = {};
+        e.type = BT_EVENT_RADIO_STATE_CHANGED;
+        e.radio_state = BT_RADIO_STATE_OFF;
+        ble_publish_event(ctx->device, e);
+        return;
     }
 #endif
 
     int rc = nimble_port_init();
     if (rc != 0) {
         LOG_E(TAG, "nimble_port_init failed (rc=%d)", rc);
+#if defined(CONFIG_ESP_HOSTED_HOST)
+        esp_hosted_bt_host_stack_teardown();
+#endif
         ctx->radio_state.store(BT_RADIO_STATE_OFF);
         struct BtEvent e = {};
         e.type = BT_EVENT_RADIO_STATE_CHANGED;

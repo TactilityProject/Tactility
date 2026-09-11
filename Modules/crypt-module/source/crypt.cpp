@@ -156,19 +156,17 @@ static void getKey(uint8_t key[32]) {
 // psa_crypto_init() is safe to call more than once (subsequent calls are a cheap no-op); ESP-IDF
 // calls it during startup already, but the simulator has no equivalent, so call it here too
 // rather than depend on init order across callers.
-static void ensure_psa_crypto_init() {
-    static bool initialized = false;
-    if (!initialized) {
-        psa_crypto_init();
-        initialized = true;
-    }
+static psa_status_t ensure_psa_crypto_init() {
+    return psa_crypto_init();
 }
 
 void crypt_get_iv(const void* data, size_t dataLength, uint8_t iv[16]) {
-    ensure_psa_crypto_init();
+    check(ensure_psa_crypto_init() == PSA_SUCCESS);
     uint8_t hash[32];
     size_t hash_length;
-    psa_hash_compute(PSA_ALG_SHA_256, static_cast<const uint8_t*>(data), dataLength, hash, sizeof(hash), &hash_length);
+    check(psa_hash_compute(PSA_ALG_SHA_256, static_cast<const uint8_t*>(data),
+        dataLength, hash, sizeof(hash), &hash_length) == PSA_SUCCESS);
+    check(hash_length == sizeof(hash));
     memcpy(iv, hash, 16);
     mbedtls_platform_zeroize(hash, sizeof(hash));
 }

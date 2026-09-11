@@ -40,6 +40,13 @@ runs:
       uses: jwlawson/actions-setup-cmake@v2
       with:
         cmake-version: '3.31.x'
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    - name: Install mbedtls codegen Python dependencies
+      shell: bash
+      run: pip install -r Libraries/mbedtls/scripts/driver.requirements.txt
     - name: "Prepare Project"
       shell: bash
       run: cmake -S ./ -B buildsim
