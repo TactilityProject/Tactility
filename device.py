@@ -425,10 +425,7 @@ def write_bluetooth_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_BT_NIMBLE_ENABLED=y\n")
         if idf_target == "esp32p4":
             output_file.write("CONFIG_BT_NIMBLE_TRANSPORT_UART=n\n")
-            # esp_hosted 3.0 removed the legacy ESP_HOSTED_ENABLE_BT_NIMBLE knob in favor
-            # of a stack-agnostic feature flag; the app binds NimBLE to it explicitly via
-            # esp_hosted_bt_host_stack_setup() (see esp32_ble.cpp).
-            output_file.write("CONFIG_ESP_HOSTED_HOST_FEAT_BT=y\n")
+            output_file.write("CONFIG_ESP_HOSTED_ENABLE_BT_NIMBLE=y\n")
         # Move NimBLE host buffers to SPIRAM when available, regardless of target.
         # The default (INTERNAL) mode causes heap fragmentation after a disable+deinit
         # cycle, preventing a subsequent nimble_port_init() from allocating its buffers

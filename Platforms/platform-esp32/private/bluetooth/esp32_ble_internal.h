@@ -172,5 +172,18 @@ extern size_t         active_hid_rpt_map_len; // esp32_ble_hid.cpp
 extern uint16_t       hid_appearance;         // esp32_ble_hid.cpp
 extern BleHidProfile  current_hid_profile;    // esp32_ble_hid.cpp
 
+// ---- HCI gate (ble_hci_gate.c) — P4/esp-hosted only ----
+// Controls whether hci_rx_handler forwards packets to NimBLE.
+// Set true after nimble_port_init(), false before nimble_port_stop().
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
+#ifdef __cplusplus
+extern "C" {
+#endif
+void ble_hci_gate_set_active(bool active);
+bool ble_hci_gate_wait_idle(int max_ms);
+#ifdef __cplusplus
+}
+#endif
+#endif // CONFIG_ESP_HOSTED_ENABLED
 
 #endif // CONFIG_BT_NIMBLE_ENABLED

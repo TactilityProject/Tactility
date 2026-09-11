@@ -29,9 +29,11 @@ constexpr auto* TAG = "esp32_ble";
 #include <tactility/log.h>
 #include <esp_timer.h>
 
-#if defined(CONFIG_ESP_HOSTED_HOST)
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
 #include <esp_hosted.h>
-#include <esp_hosted_bt_host_stack.h>
+extern "C" {
+#include <esp_hosted_misc.h>
+}
 #endif
 
 // ble_store_config_init() is not declared in the public header in some IDF versions.
@@ -679,31 +681,21 @@ static void dispatch_enable(BleCtx* ctx) {
         ble_publish_event(ctx->device, e);
     }
 
-#if defined(CONFIG_ESP_HOSTED_HOST)
-    // Over esp_hosted, the co-processor's BT controller only comes up via
-    // esp_hosted_bt_host_stack_setup() below, which needs the SDIO/SPI transport already up -
-    // BT can auto-enable before Wi-Fi has driven that bring-up, so (re)connect here first.
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
     if (esp_hosted_connect_to_slave() != ESP_OK) {
         LOG_W(TAG, "esp_hosted_connect_to_slave failed");
     }
-    esp_hosted_bt_host_stack_cfg_t hosted_bt_cfg = ESP_HOSTED_BT_HOST_STACK_CONFIG_DEFAULT();
-    if (esp_hosted_bt_host_stack_setup(&hosted_bt_cfg) != ESP_OK) {
-        LOG_E(TAG, "esp_hosted_bt_host_stack_setup failed");
-        ctx->radio_state.store(BT_RADIO_STATE_OFF);
-        struct BtEvent e = {};
-        e.type = BT_EVENT_RADIO_STATE_CHANGED;
-        e.radio_state = BT_RADIO_STATE_OFF;
-        ble_publish_event(ctx->device, e);
-        return;
+    if (esp_hosted_bt_controller_init() != ESP_OK) {
+        LOG_W(TAG, "esp_hosted_bt_controller_init failed");
+    }
+    if (esp_hosted_bt_controller_enable() != ESP_OK) {
+        LOG_W(TAG, "esp_hosted_bt_controller_enable failed");
     }
 #endif
 
     int rc = nimble_port_init();
     if (rc != 0) {
         LOG_E(TAG, "nimble_port_init failed (rc=%d)", rc);
-#if defined(CONFIG_ESP_HOSTED_HOST)
-        esp_hosted_bt_host_stack_teardown();
-#endif
         ctx->radio_state.store(BT_RADIO_STATE_OFF);
         struct BtEvent e = {};
         e.type = BT_EVENT_RADIO_STATE_CHANGED;
@@ -768,6 +760,9 @@ static void dispatch_enable(BleCtx* ctx) {
     ble_svc_gap_device_name_set(ctx->device_name);
     ble_att_set_preferred_mtu(BLE_ATT_MTU_MAX);
 
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
+    ble_hci_gate_set_active(true);  // Open gate: NimBLE transport pool is ready
+#endif
     // Drain any stale "done" signal left over from a previous cycle (e.g. if the
     // last dispatch_disable() timed out waiting on it — see xSemaphoreTake below
     // with pdMS_TO_TICKS(2000)) so dispatch_disable() only ever consumes the
@@ -798,9 +793,9 @@ static void dispatch_disable(BleCtx* ctx) {
     // Blocking: waits for nimble_port_run() to exit.
     // Do NOT call ble_gap_adv_stop()/disc_cancel() before — if controller is
     // unresponsive they generate more HCI timeouts before the stop takes effect.
-    // The HCI link must stay bound here: nimble_port_stop() → ble_hs_stop() sends
+    // The HCI gate must stay OPEN here: nimble_port_stop() → ble_hs_stop() sends
     // HCI commands and needs to receive the command-complete events back from the
-    // controller. Unbinding before this point starves NimBLE of those events,
+    // controller. Closing the gate before this point starves NimBLE of those events,
     // causing HCI timeouts and a cascade of resets that crash in ble_hs_timer_sched.
     nimble_port_stop();
     // nimble_port_stop()'s internal semaphore only confirms the stop sentinel event was
@@ -815,16 +810,26 @@ static void dispatch_disable(BleCtx* ctx) {
             LOG_W(TAG, "host task did not signal completion in time");
         }
     }
-#if defined(CONFIG_ESP_HOSTED_HOST)
-    // Unbind before nimble_port_deinit() zeros npl_funcs. Unlike the old ble_hci_gate.c this
-    // repo carried for esp_hosted 2.x, esp_hosted 3.x exposes no drain/wait-for-in-flight
-    // primitive here, so a packet already inside the RX callback at this exact moment is a
-    // small theoretical race this migration cannot close without patching esp_hosted itself.
-    if (esp_hosted_bt_host_stack_teardown() != ESP_OK) {
-        LOG_W(TAG, "esp_hosted_bt_host_stack_teardown failed");
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
+    // Close the gate NOW — after nimble_port_stop() returns the NimBLE host task has
+    // exited and nimble_port_deinit() is about to zero npl_funcs. Any HCI packet
+    // arriving after this point must not reach ble_transport_alloc_evt().
+    ble_hci_gate_set_active(false);
+    if (!ble_hci_gate_wait_idle(20)) {
+        LOG_W(TAG, "HCI gate drain timed out");
     }
 #endif
     nimble_port_deinit();
+
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
+    // Symmetric with the enable-side esp_hosted_bt_controller_init/enable() calls.
+    if (esp_hosted_bt_controller_disable() != ESP_OK) {
+        LOG_W(TAG, "esp_hosted_bt_controller_disable failed");
+    }
+    if (esp_hosted_bt_controller_deinit(true) != ESP_OK) {
+        LOG_W(TAG, "esp_hosted_bt_controller_deinit failed");
+    }
+#endif
 
     ctx->spp_conn_handle.store(BLE_HS_CONN_HANDLE_NONE);
     ctx->spp_active.store(false);

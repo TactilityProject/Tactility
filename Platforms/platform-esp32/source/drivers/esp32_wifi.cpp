@@ -20,7 +20,7 @@
 
 #include <TactilityCpp/Allocator.h>
 
-#if defined(CONFIG_ESP_HOSTED_HOST)
+#if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
 #include <tactility/drivers/esp32_esp_hosted_ota.h>
 #endif
 
@@ -583,7 +583,7 @@ error_t api_get_firmware_ops(Device* /*device*/, const FirmwareOps** ops, void**
     if (ops == nullptr || ctx == nullptr) {
         return ERROR_INVALID_ARGUMENT;
     }
-#if defined(CONFIG_ESP_HOSTED_HOST)
+#if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
     // Only meaningful on a hosted board (P4+C6/C5 etc.) - this wifi device is backed by a real
     // co-processor with its own updatable firmware there. On a native (non-hosted) chip, this
     // device's "radio" is the chip's own built-in WiFi, nothing to update via this interface.
