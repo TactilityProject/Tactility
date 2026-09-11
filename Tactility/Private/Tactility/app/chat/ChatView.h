@@ -4,7 +4,7 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
 
 #include "ChatState.h"
 #include "ChatSettings.h"
@@ -75,4 +75,4 @@ public:
 
 } // namespace tt::app::chat
 
-#endif // CONFIG_SOC_WIFI_SUPPORTED || CONFIG_SLAVE_SOC_WIFI_SUPPORTED
+#endif // CONFIG_SOC_WIFI_SUPPORTED || CONFIG_ESP_HOSTED_ENABLED

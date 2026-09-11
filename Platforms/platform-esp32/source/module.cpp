@@ -337,7 +337,7 @@ extern Driver esp32_sdspi_driver;
 extern Driver esp32_spi_driver;
 extern Driver esp32_uart_driver;
 extern Driver esp32_grove_driver;
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
 extern Driver esp32_wifi_driver;
 extern Driver esp32_wifi_pinned_driver;
 #endif
@@ -387,7 +387,7 @@ static Driver* const platform_esp32_drivers[] = {
     &esp32_spi_driver,
     &esp32_uart_driver,
     &esp32_grove_driver,
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
     &esp32_wifi_driver,
     &esp32_wifi_pinned_driver,
 #endif

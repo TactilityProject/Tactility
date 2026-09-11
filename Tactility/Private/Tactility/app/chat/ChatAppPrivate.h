@@ -4,7 +4,7 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
 
 #include "ChatState.h"
 #include "ChatView.h"
@@ -37,4 +37,4 @@ void switchChannel(Context* ctx, const std::string& chatChannel);
 
 } // namespace tt::app::chat
 
-#endif // CONFIG_SOC_WIFI_SUPPORTED || CONFIG_SLAVE_SOC_WIFI_SUPPORTED
+#endif // CONFIG_SOC_WIFI_SUPPORTED || CONFIG_ESP_HOSTED_ENABLED

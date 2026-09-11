@@ -4,7 +4,7 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
 
 #include <cstdint>
 
@@ -30,4 +30,4 @@ bool waitForHostedTransport(uint32_t timeoutMs);
 
 }
 
-#endif // CONFIG_SLAVE_SOC_WIFI_SUPPORTED
+#endif // CONFIG_ESP_HOSTED_ENABLED
