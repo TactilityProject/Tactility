@@ -11,12 +11,9 @@ static Driver* const qmi8658_drivers[] = {
     nullptr
 };
 
-extern const ModuleSymbol qmi8658_module_symbols[];
-
 Module qmi8658_module = {
     .name = "qmi8658",
-    .drivers = qmi8658_drivers,
-    .symbols = qmi8658_module_symbols,
+    .drivers = qmi8658_drivers
 };
 
 } // extern "C"
