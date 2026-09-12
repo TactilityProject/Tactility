@@ -323,7 +323,6 @@ static const ModuleSymbol platform_esp32_symbols[] = {
 
 extern Driver esp32_adc_oneshot_driver;
 extern Driver esp32_gpio_driver;
-extern Driver esp32_i2c_driver;
 extern Driver esp32_i2c_master_driver;
 extern Driver esp32_i2s_driver;
 #if SOC_LCD_I80_SUPPORTED
@@ -373,7 +372,6 @@ extern Driver esp32_usb_cdc_device_driver;
 static Driver* const platform_esp32_drivers[] = {
     &esp32_adc_oneshot_driver,
     &esp32_gpio_driver,
-    &esp32_i2c_driver,
     &esp32_i2c_master_driver,
     &esp32_i2s_driver,
 #if SOC_LCD_I80_SUPPORTED
