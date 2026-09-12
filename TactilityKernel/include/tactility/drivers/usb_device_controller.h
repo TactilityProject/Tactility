@@ -183,6 +183,9 @@ error_t usb_device_controller_allocate_interfaces(struct Device* device, uint8_t
                                                    struct UsbInterfaceAllocation* out_allocation);
 error_t usb_device_controller_claim(struct Device* device, enum UsbDeviceClass usb_class,
                                      const struct UsbDeviceClaimConfig* config);
+
+/** Detail string (e.g. an esp_err_t name) for the most recent claim() failure, or "" if none. */
+const char* usb_device_controller_get_last_error(void);
 error_t usb_device_controller_release(struct Device* device, enum UsbDeviceClass usb_class);
 enum UsbDeviceClass usb_device_controller_get_active_class(struct Device* device);
 bool usb_device_controller_is_cdc_enabled(struct Device* device);

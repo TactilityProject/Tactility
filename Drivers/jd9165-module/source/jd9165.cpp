@@ -73,12 +73,10 @@ static int pin_or_unused(const GpioPinSpec& pin) {
     return pin.gpio_controller == nullptr ? -1 : static_cast<int>(pin.pin);
 }
 
+// RGB666 has no ESP-IDF 6.1 lcd_color_format_t equivalent (LL only implements RGB565/RGB888),
+// so 18bpp is rejected in start() below rather than silently mis-driving the panel.
 static lcd_color_format_t color_format_from_bits_per_pixel(uint8_t bits_per_pixel) {
-    switch (bits_per_pixel) {
-        case 18: return LCD_COLOR_FMT_RGB666;
-        case 24: return LCD_COLOR_FMT_RGB888;
-        default: return LCD_COLOR_FMT_RGB565;
-    }
+    return bits_per_pixel == 24 ? LCD_COLOR_FMT_RGB888 : LCD_COLOR_FMT_RGB565;
 }
 
 // Unpacks the devicetree's flat [cmd, data_len, delay_ms, data_len bytes...] encoding (produced
@@ -126,6 +124,10 @@ static bool parse_init_sequence(const uint8_t* bytes, uint32_t length, jd9165_lc
 
 static error_t start(Device* device) {
     const auto* config = GET_CONFIG(device);
+    if (config->bits_per_pixel == 18) {
+        LOG_E(TAG, "18bpp (RGB666) is unsupported on this ESP-IDF version");
+        return ERROR_NOT_SUPPORTED;
+    }
 
     auto* internal = static_cast<Jd9165Internal*>(malloc(sizeof(Jd9165Internal)));
     if (internal == nullptr) {
@@ -162,7 +164,7 @@ static error_t start(Device* device) {
         .bus_id = config->dsi_bus_id,
         .num_data_lanes = config->num_data_lanes,
         .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
-        .lane_bit_rate_mbps = config->lane_bit_rate_mbps,
+        .lane_bit_rate_mbps = static_cast<float>(config->lane_bit_rate_mbps),
     };
     if (esp_lcd_new_dsi_bus(&bus_config, &internal->dsi_bus_handle) != ESP_OK) {
         LOG_E(TAG, "Failed to create MIPI DSI bus");
@@ -190,8 +192,7 @@ static error_t start(Device* device) {
     const esp_lcd_dpi_panel_config_t dpi_config = {
         .virtual_channel = 0,
         .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-        .dpi_clock_freq_mhz = config->dpi_clock_freq_mhz,
-        .pixel_format = (lcd_color_rgb_pixel_format_t)0, // deprecated field - in/out_color_format below take precedence
+        .dpi_clock_freq_mhz = static_cast<float>(config->dpi_clock_freq_mhz),
         .in_color_format = color_format,
         .out_color_format = color_format,
         .num_fbs = config->num_fbs,
@@ -206,7 +207,6 @@ static error_t start(Device* device) {
             .vsync_front_porch = config->vsync_front_porch,
         },
         .flags = {
-            .use_dma2d = config->use_dma2d,
             .disable_lp = config->disable_lp,
         },
     };
@@ -221,13 +221,13 @@ static error_t start(Device* device) {
     };
 
     const esp_lcd_panel_dev_config_t panel_config = {
-        .reset_gpio_num = pin_or_unused(config->pin_reset),
         .rgb_ele_order = config->bgr_order ? LCD_RGB_ELEMENT_ORDER_BGR : LCD_RGB_ELEMENT_ORDER_RGB,
         .data_endian = LCD_RGB_DATA_ENDIAN_LITTLE,
         .bits_per_pixel = config->bits_per_pixel,
+        .reset_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_reset)),
+        .vendor_config = &vendor_config,
         // JD9165's reset line is fixed active-low in hardware.
         .flags = { .reset_active_high = false },
-        .vendor_config = &vendor_config,
     };
 
     if (esp_lcd_new_panel_jd9165(internal->io_handle, &panel_config, &internal->panel_handle) != ESP_OK) {
@@ -238,6 +238,10 @@ static error_t start(Device* device) {
         free(internal->parsed_init_cmds);
         free(internal);
         return ERROR_RESOURCE;
+    }
+
+    if (config->use_dma2d) {
+        esp_lcd_dpi_panel_enable_dma2d(internal->panel_handle);
     }
 
     // Bring-up sequence: reset() pulses (or software-resets) the panel and init() pushes
@@ -310,7 +314,7 @@ static error_t start(Device* device) {
     }
 
     esp_lcd_dpi_panel_event_callbacks_t callbacks = {};
-    callbacks.on_refresh_done = on_refresh_done;
+    callbacks.on_frame_buf_complete = on_refresh_done;
     if (esp_lcd_dpi_panel_register_event_callbacks(internal->panel_handle, &callbacks, internal) != ESP_OK) {
         LOG_E(TAG, "Failed to register panel event callbacks");
         vSemaphoreDelete(internal->frame_complete_semaphore);
@@ -494,12 +498,16 @@ static const DisplayApi jd9165_display_api = {
     .reset = jd9165_reset,
     .init = jd9165_init,
     .draw_bitmap = jd9165_draw_bitmap,
+    .clear = nullptr,
+    .refresh = nullptr,
     .mirror = jd9165_mirror,
     .swap_xy = nullptr,
     .get_swap_xy = nullptr,
     .get_mirror_x = jd9165_get_mirror_x,
     .get_mirror_y = jd9165_get_mirror_y,
     .set_gap = nullptr,
+    .get_gap_x = nullptr,
+    .get_gap_y = nullptr,
     .invert_color = jd9165_invert_color,
     .disp_on_off = jd9165_disp_on_off,
     .disp_sleep = nullptr,

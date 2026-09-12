@@ -15,7 +15,11 @@ static Driver* const bq27220_drivers[] = {
 
 Module bq27220_module = {
     .name = "bq27220",
-    .drivers = bq27220_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = bq27220_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

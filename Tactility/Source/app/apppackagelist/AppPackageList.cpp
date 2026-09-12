@@ -28,7 +28,7 @@ namespace {
 struct Context {
     uint32_t appInstanceId;
     // Must outlive the widgets - button user-data points into this, not a createWidgets()-local vector.
-    std::vector<std::string> packageIds;
+    std::vector<std::string> packageIds = {};
 };
 
 void onPackagePressed(lv_event_t* e) {

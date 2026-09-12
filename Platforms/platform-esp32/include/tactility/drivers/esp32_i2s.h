@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 struct Esp32I2sConfig {
-    i2s_port_t port;
+    int port;
     struct GpioPinSpec pin_bclk;
     struct GpioPinSpec pin_ws;
     struct GpioPinSpec pin_data_out;

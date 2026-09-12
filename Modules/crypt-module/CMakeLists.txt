@@ -22,3 +22,7 @@ tactility_add_module(crypt-module
     INCLUDE_DIRS include/
     REQUIRES ${REQUIRES_LIST}
 )
+
+if (NOT DEFINED ENV{ESP_IDF_VERSION})
+    target_include_directories(crypt-module PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../../Libraries/mbedtls/tf-psa-crypto/drivers/builtin/include")
+endif ()

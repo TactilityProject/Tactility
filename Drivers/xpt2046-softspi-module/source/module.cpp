@@ -15,7 +15,11 @@ static Driver* const xpt2046_softspi_drivers[] = {
 
 Module xpt2046_softspi_module = {
     .name = "xpt2046_softspi",
-    .drivers = xpt2046_softspi_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = xpt2046_softspi_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

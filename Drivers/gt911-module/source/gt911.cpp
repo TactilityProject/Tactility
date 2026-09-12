@@ -5,7 +5,6 @@
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
-#include <tactility/drivers/esp32_i2c.h>
 #include <tactility/drivers/esp32_i2c_master.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
@@ -87,14 +86,10 @@ static esp_err_t create_io_handle(Device* parent, esp_lcd_panel_io_handle_t* out
     }
 
     auto* parent_driver = device_get_driver(parent);
-    if (driver_is_compatible(parent_driver, "espressif,esp32-i2c")) {
-        auto port = static_cast<const Esp32I2cConfig*>(parent->config)->port;
-        return esp_lcd_new_panel_io_i2c_v1(port, &io_config, out_handle);
-    }
     if (driver_is_compatible(parent_driver, "espressif,esp32-i2c-master")) {
         auto bus = esp32_i2c_master_get_bus_handle(parent);
         io_config.scl_speed_hz = esp32_i2c_master_get_clock_frequency(parent);
-        return esp_lcd_new_panel_io_i2c_v2(bus, &io_config, out_handle);
+        return esp_lcd_new_panel_io_i2c(bus, &io_config, out_handle);
     }
 
     LOG_E(TAG, "Unsupported I2C driver");
@@ -232,7 +227,19 @@ static error_t gt911_read_data(Device* device, TickType_t timeout) {
 
 static bool gt911_get_touched_points(Device* device, uint16_t* x, uint16_t* y, uint16_t* strength, uint8_t* point_count, uint8_t max_point_count) {
     auto* internal = static_cast<Gt911Internal*>(device_get_driver_data(device));
-    return esp_lcd_touch_get_coordinates(internal->touch_handle, x, y, strength, point_count, max_point_count);
+    esp_lcd_touch_point_data_t points[CONFIG_ESP_LCD_TOUCH_MAX_POINTS];
+    uint8_t clamped_max_point_count = max_point_count < CONFIG_ESP_LCD_TOUCH_MAX_POINTS ? max_point_count : CONFIG_ESP_LCD_TOUCH_MAX_POINTS;
+    if (esp_lcd_touch_get_data(internal->touch_handle, points, point_count, clamped_max_point_count) != ESP_OK) {
+        return false;
+    }
+    for (uint8_t i = 0; i < *point_count; i++) {
+        x[i] = points[i].x;
+        y[i] = points[i].y;
+        if (strength != nullptr) {
+            strength[i] = points[i].strength;
+        }
+    }
+    return *point_count > 0;
 }
 
 static error_t gt911_set_swap_xy(Device* device, bool swap) {

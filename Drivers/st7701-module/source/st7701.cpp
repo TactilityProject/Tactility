@@ -69,6 +69,14 @@ static int pin_or_unused(const GpioPinSpec& pin) {
     return pin.gpio_controller == nullptr ? -1 : static_cast<int>(pin.pin);
 }
 
+static lcd_color_format_t color_format_from_bpp(uint8_t bits_per_pixel) {
+    switch (bits_per_pixel) {
+        case 16: return LCD_COLOR_FMT_RGB565;
+        case 24: return LCD_COLOR_FMT_RGB888;
+        default: return static_cast<lcd_color_format_t>(0);
+    }
+}
+
 // Unpacks the devicetree's flat [cmd, data_len, delay_ms, data_len bytes...] encoding (produced
 // by the devicetree compiler's "array" property type - see init-sequence in
 // bindings/sitronix,st7701.yaml) into a heap-allocated st7701_lcd_init_cmd_t array. Each entry's
@@ -177,33 +185,37 @@ static error_t start(Device* device) {
             }
         },
         .data_width = config->data_width,
-        .bits_per_pixel = config->bits_per_pixel,
+        .in_color_format = color_format_from_bpp(config->bits_per_pixel),
+        .out_color_format = color_format_from_bpp(config->bits_per_pixel),
         .num_fbs = config->num_fbs,
+        .user_fbs = {},
         .bounce_buffer_size_px = config->bounce_buffer_size_px,
-        .sram_trans_align = config->sram_trans_align,
-        .psram_trans_align = config->psram_trans_align,
-        .hsync_gpio_num = pin_or_unused(config->pin_hsync),
-        .vsync_gpio_num = pin_or_unused(config->pin_vsync),
-        .de_gpio_num = pin_or_unused(config->pin_de),
-        .pclk_gpio_num = pin_or_unused(config->pin_pclk),
-        .disp_gpio_num = pin_or_unused(config->pin_disp),
+        // No device configures sram-trans-align/psram-trans-align differently from their YAML
+        // defaults (8/64), so the single dma_burst_size that replaced both can just take the
+        // larger (PSRAM) alignment - safe for SRAM-only allocations too, just less tightly packed.
+        .dma_burst_size = config->psram_trans_align,
+        .hsync_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_hsync)),
+        .vsync_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_vsync)),
+        .de_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_de)),
+        .pclk_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_pclk)),
+        .disp_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_disp)),
         .data_gpio_nums = {
-            pin_or_unused(config->pin_data0),
-            pin_or_unused(config->pin_data1),
-            pin_or_unused(config->pin_data2),
-            pin_or_unused(config->pin_data3),
-            pin_or_unused(config->pin_data4),
-            pin_or_unused(config->pin_data5),
-            pin_or_unused(config->pin_data6),
-            pin_or_unused(config->pin_data7),
-            pin_or_unused(config->pin_data8),
-            pin_or_unused(config->pin_data9),
-            pin_or_unused(config->pin_data10),
-            pin_or_unused(config->pin_data11),
-            pin_or_unused(config->pin_data12),
-            pin_or_unused(config->pin_data13),
-            pin_or_unused(config->pin_data14),
-            pin_or_unused(config->pin_data15),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data0)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data1)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data2)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data3)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data4)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data5)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data6)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data7)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data8)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data9)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data10)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data11)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data12)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data13)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data14)),
+            static_cast<gpio_num_t>(pin_or_unused(config->pin_data15)),
         },
         .flags = {
             .disp_active_low = config->disp_active_low,
@@ -219,7 +231,7 @@ static error_t start(Device* device) {
     // more data lines than that, the tail of the array must be explicitly marked unused rather
     // than left as the aggregate-init default of 0 (which would look like "GPIO0 is wired here").
     for (size_t i = 16; i < sizeof(rgb_config.data_gpio_nums) / sizeof(rgb_config.data_gpio_nums[0]); i++) {
-        rgb_config.data_gpio_nums[i] = -1;
+        rgb_config.data_gpio_nums[i] = GPIO_NUM_NC;
     }
 
     st7701_vendor_config_t vendor_config = {
@@ -234,13 +246,13 @@ static error_t start(Device* device) {
     };
 
     esp_lcd_panel_dev_config_t panel_config = {
-        .reset_gpio_num = pin_or_unused(config->pin_reset),
         .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
         .data_endian = LCD_RGB_DATA_ENDIAN_LITTLE,
         .bits_per_pixel = config->bits_per_pixel,
+        .reset_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_reset)),
+        .vendor_config = &vendor_config,
         // ST7701's reset line is fixed active-low in hardware.
         .flags = { .reset_active_high = false },
-        .vendor_config = &vendor_config,
     };
 
     ret = esp_lcd_new_panel_st7701(internal->io_handle, &panel_config, &internal->panel_handle);
@@ -278,7 +290,7 @@ static error_t start(Device* device) {
 
     internal->frame_buffer_count = 0;
     internal->frame_buffer_size_bytes = (size_t)config->horizontal_resolution * config->vertical_resolution *
-        ((config->bits_per_pixel + 7) / 8);
+        ((config->bits_per_pixel + 7) / 64);
     if (config->num_fbs > 0) {
         // esp_lcd_rgb_panel_get_frame_buffer() is variadic: the number of out-pointer arguments
         // passed must match fb_num exactly, so this can't be a loop.
@@ -512,12 +524,16 @@ static const DisplayApi st7701_display_api = {
     .reset = st7701_reset,
     .init = st7701_init,
     .draw_bitmap = st7701_draw_bitmap,
+    .clear = nullptr,
+    .refresh = nullptr,
     .mirror = st7701_mirror,
     .swap_xy = st7701_swap_xy,
     .get_swap_xy = st7701_get_swap_xy,
     .get_mirror_x = st7701_get_mirror_x,
     .get_mirror_y = st7701_get_mirror_y,
     .set_gap = nullptr,
+    .get_gap_x = nullptr,
+    .get_gap_y = nullptr,
     .invert_color = st7701_invert_color,
     .disp_on_off = st7701_disp_on_off,
     .disp_sleep = nullptr,

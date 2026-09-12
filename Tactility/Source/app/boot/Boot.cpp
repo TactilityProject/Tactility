@@ -1,3 +1,4 @@
+#include "Tactility/app/alertdialog/AlertDialog.h"
 #include "tactility/memory.h"
 #include "tactility/system_event.h"
 
@@ -56,6 +57,10 @@ std::atomic<bool> isUsbBootSplash = false;
 // window to an error screen and halts before starting the next app.
 std::atomic<bool> sdCardMissing = false;
 
+// Set when setupUsbBootMode() fails
+std::atomic<bool> usbBootModeFailed = false;
+std::string usbBootModeFailedReason;
+
 uint32_t bootAppInstanceId = 0;
 WindowId bootWindowId = 0;
 
@@ -108,6 +113,8 @@ void setupDisplay() {
     device_put(display);
 }
 
+// Returns true if either the MSC screen or the failure screen now owns the display, in which
+// case the caller must not proceed to the normal boot path (registerApps()/startNextApp()).
 bool setupUsbBootMode() {
     if (!hal::usb::isUsbBootMode()) {
         return false;
@@ -116,16 +123,18 @@ bool setupUsbBootMode() {
     LOG_I(TAG, "Rebooting into mass storage device mode");
     auto mode = hal::usb::getUsbBootMode();  // Get mode before reset
     hal::usb::resetUsbBootMode();
+    delay_millis(3000);
+
+    bool started = false;
     if (mode == hal::usb::BootMode::Flash) {
-        if (!hal::usb::startMassStorageWithFlash(true)) {
-            LOG_E(TAG, "Unable to start flash mass storage");
-            return false;
-        }
+        started = hal::usb::startMassStorageWithFlash(true);
     } else if (mode == hal::usb::BootMode::Sdmmc) {
-        if (!hal::usb::startMassStorageWithSdmmc(true)) {
-            LOG_E(TAG, "Unable to start SD mass storage");
-            return false;
-        }
+        started = hal::usb::startMassStorageWithSdmmc(true);
+    }
+
+    if (!started) {
+        usbBootModeFailedReason = hal::usb::getLastError();
+        usbBootModeFailed = true;
     }
 
     return true;
@@ -237,6 +246,36 @@ void showSdCardMissingScreen() {
     bootWindowId = window_manager_create(bootAppInstanceId, createSdCardMissingWidgets, nullptr);
 }
 
+void createUsbBootModeFailedWidgets(lv_obj_t* root, void*) {
+    lvgl::obj_set_style_bg_blacken(root);
+    lv_obj_set_style_border_width(root, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(root, 0, LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(root, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    auto* label = lv_label_create(root);
+    lv_label_set_text(label, std::format("Failed to start USB mass storage:\n{}", usbBootModeFailedReason).c_str());
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(label, lv_color_white(), LV_STATE_DEFAULT);
+
+    auto* button = lv_button_create(root);
+    lv_obj_set_style_margin_top(button, 16, LV_STATE_DEFAULT);
+    auto* button_label = lv_label_create(button);
+    lv_label_set_text(button_label, "Reboot");
+    lv_obj_add_event_cb(button, [](lv_event_t*) {
+#ifdef ESP_PLATFORM
+        esp_restart();
+#endif
+    }, LV_EVENT_SHORT_CLICKED, nullptr);
+}
+
+void showUsbBootModeFailedScreen() {
+    if (bootWindowId != 0) {
+        window_manager_remove(bootWindowId);
+    }
+    bootWindowId = window_manager_create(bootAppInstanceId, createUsbBootModeFailedWidgets, nullptr);
+}
+
 void startNextApp() {
     if (sdCardMissing) {
         showSdCardMissingScreen();
@@ -278,8 +317,10 @@ void runBootSequence(TickType_t startTime) {
 #endif
 
     if (setupUsbBootMode()) {
-        // Stay open: the splash's "Return to OS" button is this app's only way to leave mass
-        // storage mode, so it must not self-close here like the normal boot path does below.
+        if (usbBootModeFailed) {
+            showUsbBootModeFailedScreen();
+        }
+        // Stay open: the splash's "Return to OS" button or the failure screen's "Reboot" button.
         return;
     }
 

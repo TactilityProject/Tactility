@@ -13,7 +13,11 @@ static Driver* const py32ioexpander_drivers[] = {
 
 Module py32ioexpander_module = {
     .name = "py32ioexpander",
-    .drivers = py32ioexpander_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = py32ioexpander_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

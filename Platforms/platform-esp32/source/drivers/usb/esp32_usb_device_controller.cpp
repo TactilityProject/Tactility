@@ -12,8 +12,10 @@
 #include <freertos/task.h>
 
 #include <tinyusb.h>
+#include <tinyusb_default_config.h>
 #include <tusb.h>
 
+#include <cstdio>
 #include <cstring>
 
 #if CONFIG_IDF_TARGET_ESP32P4
@@ -32,6 +34,15 @@
 static constexpr size_t COMPOSITE_CONFIG_DESCRIPTOR_MAX = TUD_CONFIG_DESC_LEN + 96 + TUD_CDC_DESC_LEN;
 // Worst case: primary's own table (lang/mfr/product/serial/interface = 5) + CDC's own interface string.
 static constexpr size_t COMPOSITE_STRING_DESCRIPTOR_MAX = 6;
+
+// Detail for the most recent claim() failure - the console can be unreachable by the time this
+// fails (route_phy_for_device_mode() already reassigned the PHY away from it), so callers read
+// this instead of relying on the LOG_E above having been visible.
+static char last_claim_error[48] = "";
+
+extern "C" const char* usb_device_controller_get_last_error() {
+    return last_claim_error;
+}
 
 // ---- Controller state ----
 // One TinyUSB device-mode slot, shared by every USB device class (each a separate child device
@@ -256,13 +267,14 @@ static error_t claim(struct Device* device, enum UsbDeviceClass usb_class, const
     }
 
     ctx->composite_tusb_cfg = {};
-    ctx->composite_tusb_cfg.device_descriptor = &ctx->composite_device_descriptor;
-    ctx->composite_tusb_cfg.string_descriptor = ctx->composite_string_descriptor;
-    ctx->composite_tusb_cfg.string_descriptor_count = string_count;
-    ctx->composite_tusb_cfg.external_phy = false;
+    ctx->composite_tusb_cfg.descriptor.device = &ctx->composite_device_descriptor;
+    ctx->composite_tusb_cfg.descriptor.string = ctx->composite_string_descriptor;
+    ctx->composite_tusb_cfg.descriptor.string_count = (int)string_count;
+    ctx->composite_tusb_cfg.phy.skip_setup = false;
+    ctx->composite_tusb_cfg.task = TINYUSB_TASK_DEFAULT(); // task.size/priority can't be left 0 - rejected by tinyusb_task_check_config()
 #if (TUD_OPT_HIGH_SPEED)
-    ctx->composite_tusb_cfg.fs_configuration_descriptor = ctx->composite_fs_config_descriptor;
-    ctx->composite_tusb_cfg.hs_configuration_descriptor = ctx->composite_hs_config_descriptor;
+    ctx->composite_tusb_cfg.descriptor.full_speed_config = ctx->composite_fs_config_descriptor;
+    ctx->composite_tusb_cfg.descriptor.high_speed_config = ctx->composite_hs_config_descriptor;
     // The qualifier descriptor's class triad must mirror the device descriptor's (same IAD
     // reasoning). Built here rather than supplied per-primary since its content is boilerplate
     // (same bMaxPacketSize0/bNumConfigurations for every class) and the controller already knows
@@ -278,18 +290,20 @@ static error_t claim(struct Device* device, enum UsbDeviceClass usb_class, const
         .bNumConfigurations = 0x01,
         .bReserved          = 0x00,
     };
-    ctx->composite_tusb_cfg.qualifier_descriptor = &ctx->composite_device_qualifier;
+    ctx->composite_tusb_cfg.descriptor.qualifier = &ctx->composite_device_qualifier;
 #else
-    ctx->composite_tusb_cfg.configuration_descriptor = ctx->composite_fs_config_descriptor;
+    ctx->composite_tusb_cfg.descriptor.full_speed_config = ctx->composite_fs_config_descriptor;
 #endif
-    ctx->composite_tusb_cfg.self_powered = false;
-    ctx->composite_tusb_cfg.vbus_monitor_io = 0;
+    ctx->composite_tusb_cfg.phy.self_powered = false;
+    ctx->composite_tusb_cfg.phy.vbus_monitor_io = 0;
 
     route_phy_for_device_mode();
     ctx->phy_routed = true;
 
-    if (tinyusb_driver_install(&ctx->composite_tusb_cfg) != ESP_OK) {
-        LOG_E(TAG, "claim: tinyusb_driver_install failed for class %d", usb_class);
+    esp_err_t install_result = tinyusb_driver_install(&ctx->composite_tusb_cfg);
+    if (install_result != ESP_OK) {
+        LOG_E(TAG, "claim: tinyusb_driver_install failed for class %d: %s", usb_class, esp_err_to_name(install_result));
+        snprintf(last_claim_error, sizeof(last_claim_error), "tinyusb_driver_install: %s", esp_err_to_name(install_result));
         if (ctx->phy_routed) {
             restore_default_phy_route();
             ctx->phy_routed = false;

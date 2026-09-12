@@ -3,7 +3,12 @@
 extern "C" {
 
 Module waveshare_s3_touch_lcd_43_module = {
-    .name = "waveshare-s3-touch-lcd-43"
+    .name = "waveshare-s3-touch-lcd-43",
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

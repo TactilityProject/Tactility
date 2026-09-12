@@ -9,7 +9,7 @@
 #include <tactility/log.h>
 
 #include <tinyusb.h>
-#include <tusb_cdc_acm.h>
+#include <tinyusb_cdc_acm.h>
 #include <esp_log.h>
 
 #include <cstdarg>
@@ -112,15 +112,14 @@ static error_t cdc_device_build_contribution(struct Device* device, struct Devic
 static error_t cdc_device_start_console(struct Device* device) {
     (void)device;
     const tinyusb_config_cdcacm_t acm_cfg = {
-        .usb_dev = TINYUSB_USBDEV_0,
         .cdc_port = TINYUSB_CDC_ACM_0,
         .callback_rx = nullptr,
         .callback_rx_wanted_char = nullptr,
         .callback_line_state_changed = nullptr,
         .callback_line_coding_changed = nullptr,
     };
-    if (tusb_cdc_acm_init(&acm_cfg) != ESP_OK) {
-        LOG_E(TAG, "tusb_cdc_acm_init failed - CDC console unavailable");
+    if (tinyusb_cdcacm_init(&acm_cfg) != ESP_OK) {
+        LOG_E(TAG, "tinyusb_cdcacm_init failed - CDC console unavailable");
         return ERROR_RESOURCE;
     }
     previous_vprintf = esp_log_set_vprintf(cdc_mirroring_vprintf);
@@ -135,7 +134,7 @@ static error_t cdc_device_stop_console(struct Device* device) {
     }
     esp_log_set_vprintf(previous_vprintf ? previous_vprintf : vprintf);
     previous_vprintf = nullptr;
-    tusb_cdc_acm_deinit(TINYUSB_CDC_ACM_0);
+    tinyusb_cdcacm_deinit(TINYUSB_CDC_ACM_0);
     cdc_console_installed = false;
     return ERROR_NONE;
 }

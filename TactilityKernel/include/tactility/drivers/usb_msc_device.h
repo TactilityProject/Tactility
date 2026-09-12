@@ -85,6 +85,9 @@ error_t usb_msc_device_start(struct Device* device, enum UsbMscDeviceSource sour
 error_t usb_msc_device_stop(struct Device* device);
 bool    usb_msc_device_is_connected(struct Device* device);
 
+/** Detail string for the most recent usb_msc_device_start() failure, or "" if none. */
+const char* usb_msc_device_get_last_error(void);
+
 #ifdef __cplusplus
 }
 #endif

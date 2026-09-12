@@ -40,6 +40,7 @@
 #include <esp_vfs_fat.h>
 #include <esp_wifi.h>
 #include <esp_wifi_default.h>
+#include <tactility/drivers/esp32_wifi_radio.h>
 #include <lwip/ip4_addr.h>
 #endif
 
@@ -295,9 +296,11 @@ bool WebServerService::startApMode() {
 
     LOG_I(TAG, "Starting WiFi in Access Point mode...");
 
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    if (esp_wifi_init(&cfg) != ESP_OK) {
-        LOG_E(TAG, "esp_wifi_init() failed");
+    // Acquires the shared radio (see esp32_wifi_radio.h): merges into WIFI_MODE_APSTA if Station
+    // mode already owns the radio, instead of calling esp_wifi_init()/start() ourselves and
+    // colliding with it.
+    if (!esp32_wifi_radio_acquire(WIFI_MODE_AP)) {
+        LOG_E(TAG, "Failed to acquire WiFi radio for AP mode");
         return false;
     }
     apWifiInitialized = true;
@@ -306,13 +309,6 @@ bool WebServerService::startApMode() {
     apNetif = esp_netif_create_default_wifi_ap();
     if (apNetif == nullptr) {
         LOG_E(TAG, "esp_netif_create_default_wifi_ap() failed");
-        esp_wifi_deinit();
-        apWifiInitialized = false;
-        return false;
-    }
-
-    if (esp_wifi_set_mode(WIFI_MODE_AP) != ESP_OK) {
-        LOG_E(TAG, "esp_wifi_set_mode(AP) failed");
         stopApMode();
         return false;
     }
@@ -378,34 +374,20 @@ bool WebServerService::startApMode() {
         return false;
     }
 
-    if (esp_wifi_start() != ESP_OK) {
-        LOG_E(TAG, "esp_wifi_start() failed");
-        stopApMode();
-        return false;
-    }
-
     LOG_I(TAG, "WiFi AP started - SSID: '%s', Channel: %u, IP: 192.168.4.1", settings.apSsid.c_str(), (unsigned)settings.apChannel);
     return true;
 }
 
 void WebServerService::stopApMode() {
     if (apWifiInitialized) {
-        esp_err_t err;
+        // Detach netif from the internal WiFi event handlers before releasing the radio, otherwise
+        // esp_netif_destroy() can race with esp_wifi_stop()'s own netif teardown (matches the same
+        // guard in esp32_wifi.cpp's bring_down_wifi()).
         if (apNetif != nullptr) {
             esp_wifi_clear_default_wifi_driver_and_handlers(apNetif);
         }
-        err = esp_wifi_stop();
-        if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_STARTED) {
-            LOG_W(TAG, "esp_wifi_stop() in cleanup: %s", esp_err_to_name(err));
-        }
+        esp32_wifi_radio_release(WIFI_MODE_AP);
         LOG_I(TAG, "WiFi AP stopped");
-
-        err = esp_wifi_set_mode(WIFI_MODE_STA);
-        if (err != ESP_OK) {
-            LOG_W(TAG, "esp_wifi_set_mode() in cleanup: %s", esp_err_to_name(err));
-        }
-        LOG_I(TAG, "Wifi mode set back to STA");
-
         apWifiInitialized = false;
     }
 

@@ -7,5 +7,5 @@ file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
 tactility_add_module(lilygo-module
     SRCS ${SOURCE_FILES}
     INCLUDE_DIRS include/
-    REQUIRES TactilityKernel lvgl driver
+    REQUIRES TactilityKernel lvgl driver esp_driver_gpio
 )

@@ -815,6 +815,7 @@ Device audio_stream_device = {
     .name = "audio-stream0",
     .config = nullptr,
     .parent = nullptr,
+    .flags = 0,
     .internal = nullptr,
 };
 

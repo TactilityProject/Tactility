@@ -13,7 +13,11 @@ static Driver* const button_control_drivers[] = {
 
 Module button_control_module = {
     .name = "button-control",
-    .drivers = button_control_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = button_control_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

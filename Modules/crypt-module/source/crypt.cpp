@@ -4,9 +4,14 @@
 #include <tactility/check.h>
 #include <tactility/log.h>
 
-#include <mbedtls/aes.h>
+#ifdef ESP_PLATFORM
+#include <aes/esp_aes.h>
+#else
+#define MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
+#include <mbedtls/private/aes.h>
+#endif
+#include <psa/crypto.h>
 #include <mbedtls/platform_util.h>
-#include <mbedtls/sha256.h>
 #include <cstring>
 #include <cstdint>
 
@@ -21,6 +26,9 @@
 constexpr auto* TAG = "crypt";
 
 #define TT_NVS_NAMESPACE "tt_secure"
+
+constexpr int AES_MODE_ENCRYPT = 1;
+constexpr int AES_MODE_DECRYPT = 0;
 
 /**
  * Fills a buffer with cryptographically secure random bytes.
@@ -145,9 +153,20 @@ static void getKey(uint8_t key[32]) {
 #endif
 }
 
+// psa_crypto_init() is safe to call more than once (subsequent calls are a cheap no-op); ESP-IDF
+// calls it during startup already, but the simulator has no equivalent, so call it here too
+// rather than depend on init order across callers.
+static psa_status_t ensure_psa_crypto_init() {
+    return psa_crypto_init();
+}
+
 void crypt_get_iv(const void* data, size_t dataLength, uint8_t iv[16]) {
+    check(ensure_psa_crypto_init() == PSA_SUCCESS);
     uint8_t hash[32];
-    mbedtls_sha256(static_cast<const unsigned char*>(data), dataLength, hash, 0);
+    size_t hash_length;
+    check(psa_hash_compute(PSA_ALG_SHA_256, static_cast<const uint8_t*>(data),
+        dataLength, hash, sizeof(hash), &hash_length) == PSA_SUCCESS);
+    check(hash_length == sizeof(hash));
     memcpy(iv, hash, 16);
     mbedtls_platform_zeroize(hash, sizeof(hash));
 }
@@ -170,15 +189,23 @@ static int aes256CryptCbc(
         return -1; // TODO: Proper error code from mbed lib?
     }
 
+#ifdef ESP_PLATFORM
+    esp_aes_context master;
+    esp_aes_init(&master);
+    esp_aes_setkey(&master, key, 256);
+    int result = esp_aes_crypt_cbc(&master, mode, length, iv, input, output);
+    esp_aes_free(&master);
+#else
     mbedtls_aes_context master;
     mbedtls_aes_init(&master);
-    if (mode == MBEDTLS_AES_ENCRYPT) {
+    if (mode == AES_MODE_ENCRYPT) {
         mbedtls_aes_setkey_enc(&master, key, 256);
     } else {
         mbedtls_aes_setkey_dec(&master, key, 256);
     }
     int result = mbedtls_aes_crypt_cbc(&master, mode, length, iv, input, output);
     mbedtls_aes_free(&master);
+#endif
     return result;
 }
 
@@ -190,7 +217,7 @@ int crypt_encrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData,
     uint8_t iv_copy[16];
     memcpy(iv_copy, iv, sizeof(iv_copy));
 
-    int result = aes256CryptCbc(key, MBEDTLS_AES_ENCRYPT, dataLength, iv_copy, inData, outData);
+    int result = aes256CryptCbc(key, AES_MODE_ENCRYPT, dataLength, iv_copy, inData, outData);
     mbedtls_platform_zeroize(key, sizeof(key));
     mbedtls_platform_zeroize(iv_copy, sizeof(iv_copy));
     return result;
@@ -204,7 +231,7 @@ int crypt_decrypt(const uint8_t iv[16], const uint8_t* inData, uint8_t* outData,
     uint8_t iv_copy[16];
     memcpy(iv_copy, iv, sizeof(iv_copy));
 
-    int result = aes256CryptCbc(key, MBEDTLS_AES_DECRYPT, dataLength, iv_copy, inData, outData);
+    int result = aes256CryptCbc(key, AES_MODE_DECRYPT, dataLength, iv_copy, inData, outData);
     mbedtls_platform_zeroize(key, sizeof(key));
     mbedtls_platform_zeroize(iv_copy, sizeof(iv_copy));
     return result;

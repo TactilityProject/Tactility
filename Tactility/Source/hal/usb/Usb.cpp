@@ -67,6 +67,10 @@ bool startMassStorageWithSdmmc(bool fromBootMode) {
     }
 }
 
+const char* getLastError() {
+    return tusbGetLastError();
+}
+
 void stop() {
     if (canStartNewMode()) {
         return;

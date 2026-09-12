@@ -12,6 +12,8 @@
 #include <freertos/task.h>
 #include <wear_levelling.h>
 
+#include <cstdio>
+
 #include <tactility/device.h>
 #include <tactility/drivers/esp32_sdcard.h>
 #include <tactility/drivers/usb_msc_device.h>
@@ -24,6 +26,8 @@ namespace tt::hal::usb {
 // Set when mass storage was started as part of the dedicated reboot-into-MSC boot flow.
 // Used to decide whether ejecting the volume should automatically reboot back to normal OS.
 static bool startedFromBootMode = false;
+
+static char lastErrorMessage[96] = "";
 
 static sdmmc_card_t* getCard() {
     sdmmc_card_t* card = nullptr;
@@ -70,12 +74,14 @@ bool tusbStartMassStorageWithSdmmc(bool fromBootMode) {
     auto* device = usb_msc_device_get();
     if (device == nullptr) {
         LOG_E(TAG, "USB MSC device not available");
+        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "USB MSC device not available");
         return false;
     }
 
     auto* card = tt::hal::usb::getCard();
     if (card == nullptr) {
         LOG_E(TAG, "SD card not mounted");
+        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "SD card not mounted");
         device_put(device);
         return false;
     }
@@ -86,6 +92,7 @@ bool tusbStartMassStorageWithSdmmc(bool fromBootMode) {
         tt::hal::usb::onMountChanged, nullptr);
     if (result != ERROR_NONE) {
         LOG_E(TAG, "TinyUSB SDMMC init failed: %s", error_to_string(result));
+        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "SDMMC init failed: %s (%s)", error_to_string(result), usb_msc_device_get_last_error());
     } else {
         LOG_I(TAG, "TinyUSB SDMMC init success");
     }
@@ -100,12 +107,14 @@ bool tusbStartMassStorageWithFlash(bool fromBootMode) {
     auto* device = usb_msc_device_get();
     if (device == nullptr) {
         LOG_E(TAG, "USB MSC device not available");
+        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "USB MSC device not available");
         return false;
     }
 
     wl_handle_t handle = tt::getDataPartitionWlHandle();
     if (handle == WL_INVALID_HANDLE) {
         LOG_E(TAG, "WL not mounted for /data");
+        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "WL not mounted for /data");
         device_put(device);
         return false;
     }
@@ -116,11 +125,16 @@ bool tusbStartMassStorageWithFlash(bool fromBootMode) {
         &handle, tt::hal::usb::onMountChanged, nullptr);
     if (result != ERROR_NONE) {
         LOG_E(TAG, "TinyUSB flash init failed: %s", error_to_string(result));
+        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "Flash init failed: %s (%s)", error_to_string(result), usb_msc_device_get_last_error());
     } else {
         LOG_I(TAG, "TinyUSB flash init success");
     }
     device_put(device);
     return result == ERROR_NONE;
+}
+
+const char* tusbGetLastError() {
+    return tt::hal::usb::lastErrorMessage;
 }
 
 void tusbStop() {
@@ -142,6 +156,7 @@ bool tusbStartMassStorageWithSdmmc(bool /*fromBootMode*/) { return false; }
 bool tusbStartMassStorageWithFlash(bool /*fromBootMode*/) { return false; }
 void tusbStop() {}
 bool tusbCanStartMassStorageWithFlash() { return false; }
+const char* tusbGetLastError() { return ""; }
 
 #endif // CONFIG_TINYUSB_MSC_ENABLED
 

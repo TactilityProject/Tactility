@@ -5,7 +5,6 @@
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
-#include <tactility/drivers/esp32_i2c.h>
 #include <tactility/drivers/esp32_i2c_master.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/pointer.h>
@@ -36,17 +35,29 @@ static inline gpio_num_t pin_or_nc(const struct GpioPinSpec& pin) {
 // CST816S always sits at a fixed I2C address, unlike GT911's strapping-dependent address,
 // so no bus probing is needed here.
 static esp_err_t create_io_handle(Device* parent, esp_lcd_panel_io_handle_t* out_handle) {
-    esp_lcd_panel_io_i2c_config_t io_config = ESP_LCD_TOUCH_IO_I2C_CST816S_CONFIG();
+    // Not using ESP_LCD_TOUCH_IO_I2C_CST816S_CONFIG(): its designated-initializer field order (and
+    // missing transaction_timeout_ms) predates this SDK's esp_lcd_panel_io_i2c_config_t layout.
+    esp_lcd_panel_io_i2c_config_t io_config = {
+        .dev_addr = ESP_LCD_TOUCH_IO_I2C_CST816S_ADDRESS,
+        .scl_speed_hz = 100000,
+        .control_phase_bytes = 1,
+        .dc_bit_offset = 0,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 0,
+        .on_color_trans_done = nullptr,
+        .user_ctx = nullptr,
+        .flags = {
+            .dc_low_on_data = 0,
+            .disable_control_phase = 1,
+        },
+        .transaction_timeout_ms = 0,
+    };
 
     auto* parent_driver = device_get_driver(parent);
-    if (driver_is_compatible(parent_driver, "espressif,esp32-i2c")) {
-        auto port = static_cast<const Esp32I2cConfig*>(parent->config)->port;
-        return esp_lcd_new_panel_io_i2c_v1(port, &io_config, out_handle);
-    }
     if (driver_is_compatible(parent_driver, "espressif,esp32-i2c-master")) {
         auto bus = esp32_i2c_master_get_bus_handle(parent);
         io_config.scl_speed_hz = esp32_i2c_master_get_clock_frequency(parent);
-        return esp_lcd_new_panel_io_i2c_v2(bus, &io_config, out_handle);
+        return esp_lcd_new_panel_io_i2c(bus, &io_config, out_handle);
     }
 
     LOG_E(TAG, "Unsupported I2C driver");
@@ -151,7 +162,19 @@ static error_t cst816s_read_data(Device* device, TickType_t timeout) {
 
 static bool cst816s_get_touched_points(Device* device, uint16_t* x, uint16_t* y, uint16_t* strength, uint8_t* point_count, uint8_t max_point_count) {
     auto* internal = static_cast<Cst816sInternal*>(device_get_driver_data(device));
-    return esp_lcd_touch_get_coordinates(internal->touch_handle, x, y, strength, point_count, max_point_count);
+    esp_lcd_touch_point_data_t points[CONFIG_ESP_LCD_TOUCH_MAX_POINTS];
+    uint8_t clamped_max_point_count = max_point_count < CONFIG_ESP_LCD_TOUCH_MAX_POINTS ? max_point_count : CONFIG_ESP_LCD_TOUCH_MAX_POINTS;
+    if (esp_lcd_touch_get_data(internal->touch_handle, points, point_count, clamped_max_point_count) != ESP_OK) {
+        return false;
+    }
+    for (uint8_t i = 0; i < *point_count; i++) {
+        x[i] = points[i].x;
+        y[i] = points[i].y;
+        if (strength != nullptr) {
+            strength[i] = points[i].strength;
+        }
+    }
+    return *point_count > 0;
 }
 
 static error_t cst816s_set_swap_xy(Device* device, bool swap) {

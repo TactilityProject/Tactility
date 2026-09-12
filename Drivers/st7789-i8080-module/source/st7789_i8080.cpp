@@ -113,7 +113,7 @@ static error_t start(Device* device) {
     }
 
     esp_lcd_panel_io_i80_config_t io_config = {
-        .cs_gpio_num = pin_or_unused(cs_pin),
+        .cs_gpio_num = static_cast<gpio_num_t>(pin_or_unused(cs_pin)),
         .pclk_hz = config->pixel_clock_hz,
         .trans_queue_depth = config->transaction_queue_depth,
         .on_color_trans_done = on_color_trans_done,
@@ -144,13 +144,13 @@ static error_t start(Device* device) {
     }
 
     esp_lcd_panel_dev_config_t panel_config = {
-        .reset_gpio_num = pin_or_unused(config->pin_reset),
         .rgb_ele_order = config->bgr_order ? LCD_RGB_ELEMENT_ORDER_BGR : LCD_RGB_ELEMENT_ORDER_RGB,
         .data_endian = LCD_RGB_DATA_ENDIAN_LITTLE,
         .bits_per_pixel = 16,
+        .reset_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_reset)),
+        .vendor_config = nullptr,
         // ST7789's reset line is fixed active-low in hardware.
         .flags = { .reset_active_high = false },
-        .vendor_config = nullptr,
     };
 
     ret = esp_lcd_new_panel_st7789(internal->io_handle, &panel_config, &internal->panel_handle);
@@ -352,6 +352,8 @@ static const DisplayApi st7789_i8080_display_api = {
     .reset = st7789_i8080_reset,
     .init = st7789_i8080_init,
     .draw_bitmap = st7789_i8080_draw_bitmap,
+    .clear = nullptr,
+    .refresh = nullptr,
     .mirror = st7789_i8080_mirror,
     .swap_xy = st7789_i8080_swap_xy,
     .get_swap_xy = st7789_i8080_get_swap_xy,

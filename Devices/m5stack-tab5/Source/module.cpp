@@ -92,7 +92,9 @@ Module m5stack_tab5_module = {
     .name = "m5stack-tab5",
     .start = start,
     .stop = stop,
-    .drivers = tab5_drivers
+    .drivers = tab5_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

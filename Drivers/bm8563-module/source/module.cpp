@@ -13,7 +13,11 @@ static Driver* const bm8563_drivers[] = {
 
 Module bm8563_module = {
     .name = "bm8563",
-    .drivers = bm8563_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = bm8563_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

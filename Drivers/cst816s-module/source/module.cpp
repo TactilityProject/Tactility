@@ -13,7 +13,11 @@ static Driver* const cst816s_drivers[] = {
 
 Module cst816s_module = {
     .name = "cst816s",
-    .drivers = cst816s_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = cst816s_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

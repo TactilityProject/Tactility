@@ -13,7 +13,11 @@ static Driver* const ssd1306_drivers[] = {
 
 Module ssd1306_module = {
     .name = "ssd1306",
-    .drivers = ssd1306_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = ssd1306_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

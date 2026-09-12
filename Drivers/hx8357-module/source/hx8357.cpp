@@ -443,6 +443,8 @@ static const DisplayApi hx8357_display_api = {
     .reset = hx8357_reset,
     .init = hx8357_init,
     .draw_bitmap = hx8357_draw_bitmap,
+    .clear = nullptr,
+    .refresh = nullptr,
     .mirror = hx8357_mirror,
     .swap_xy = hx8357_swap_xy,
     .get_swap_xy = hx8357_get_swap_xy,
@@ -452,6 +454,8 @@ static const DisplayApi hx8357_display_api = {
     // static gap-x/gap-y devicetree config already folded into draw_bitmap(); matches the deprecated
     // HAL, which never exposed a runtime gap either.
     .set_gap = nullptr,
+    .get_gap_x = nullptr,
+    .get_gap_y = nullptr,
     .invert_color = hx8357_invert_color,
     .disp_on_off = hx8357_disp_on_off,
     .disp_sleep = hx8357_disp_sleep,

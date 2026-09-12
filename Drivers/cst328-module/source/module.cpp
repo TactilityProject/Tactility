@@ -13,7 +13,11 @@ static Driver* const cst328_drivers[] = {
 
 Module cst328_module = {
     .name = "cst328",
-    .drivers = cst328_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = cst328_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

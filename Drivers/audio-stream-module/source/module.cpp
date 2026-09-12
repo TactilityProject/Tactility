@@ -44,7 +44,9 @@ Module audio_stream_module = {
     .name = "audio-stream",
     .start = start,
     .stop = stop,
-    .symbols = audio_stream_module_symbols
+    .drivers = nullptr,
+    .symbols = audio_stream_module_symbols,
+    .internal = nullptr
 };
 
 }

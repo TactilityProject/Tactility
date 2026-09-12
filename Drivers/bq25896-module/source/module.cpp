@@ -15,7 +15,11 @@ static Driver* const bq25896_drivers[] = {
 
 Module bq25896_module = {
     .name = "bq25896",
-    .drivers = bq25896_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = bq25896_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

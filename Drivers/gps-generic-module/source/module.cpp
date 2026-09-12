@@ -5,7 +5,11 @@ extern "C" {
 
 Module gps_meshtastic_module = {
     .name = "gps-meshtastic",
-    .drivers = nullptr
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

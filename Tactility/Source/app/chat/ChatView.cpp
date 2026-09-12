@@ -2,7 +2,7 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
 
 #include <Tactility/app/chat/ChatView.h>
 #include <Tactility/app/chat/ChatAppPrivate.h>
@@ -306,4 +306,4 @@ void ChatView::onChannelCancel(lv_event_t* e) {
 
 } // namespace tt::app::chat
 
-#endif // CONFIG_SOC_WIFI_SUPPORTED || CONFIG_SLAVE_SOC_WIFI_SUPPORTED
+#endif // CONFIG_SOC_WIFI_SUPPORTED || CONFIG_ESP_HOSTED_ENABLED

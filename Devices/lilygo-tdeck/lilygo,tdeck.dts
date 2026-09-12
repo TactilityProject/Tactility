@@ -6,7 +6,7 @@
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
 #include <tactility/bindings/esp32_grove.h>
-#include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_i2s.h>
 #include <tactility/bindings/esp32_pwm_ledc.h>
 #include <tactility/bindings/pwm_backlight.h>
@@ -95,7 +95,7 @@
 	};
 
 	i2c_internal: i2c0 {
-		compatible = "espressif,esp32-i2c";
+		compatible = "espressif,esp32-i2c-master";
 		port = <I2C_NUM_0>;
 		clock-frequency = <100000>;
 		pin-sda = <&gpio0 18 GPIO_FLAG_NONE>;

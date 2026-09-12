@@ -36,8 +36,11 @@ const struct ModuleSymbol axp2101_module_symbols[] = {
 
 Module axp2101_module = {
     .name = "axp2101",
+    .start = nullptr,
+    .stop = nullptr,
     .drivers = axp2101_drivers,
-    .symbols = axp2101_module_symbols
+    .symbols = axp2101_module_symbols,
+    .internal = nullptr
 };
 
 }

@@ -13,7 +13,11 @@ static Driver* const sx126x_drivers[] = {
 
 Module sx126x_module = {
     .name = "sx126x",
-    .drivers = sx126x_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = sx126x_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

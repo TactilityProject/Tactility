@@ -13,7 +13,11 @@ static Driver* const gc9a01_drivers[] = {
 
 Module gc9a01_module = {
     .name = "gc9a01",
-    .drivers = gc9a01_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = gc9a01_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

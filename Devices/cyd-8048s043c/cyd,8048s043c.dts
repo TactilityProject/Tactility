@@ -4,7 +4,7 @@
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
-#include <tactility/bindings/esp32_i2c.h>
+#include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
@@ -31,7 +31,7 @@
 	};
 
 	i2c_internal {
-		compatible = "espressif,esp32-i2c";
+		compatible = "espressif,esp32-i2c-master";
 		port = <I2C_NUM_0>;
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 19 GPIO_FLAG_NONE>;
@@ -49,7 +49,7 @@
 	};
 
 	i2c_external {
-		compatible = "espressif,esp32-i2c";
+		compatible = "espressif,esp32-i2c-master";
 		port = <I2C_NUM_1>;
 		clock-frequency = <400000>;
 		pin-sda = <&gpio0 17 GPIO_FLAG_NONE>;

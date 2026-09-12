@@ -37,7 +37,10 @@ static error_t stop() {
 Module lilygo_tdisplay_s3_module = {
     .name = "lilygo-tdisplay-s3",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

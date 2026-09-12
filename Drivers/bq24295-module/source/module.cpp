@@ -15,7 +15,11 @@ static Driver* const bq24295_drivers[] = {
 
 Module bq24295_module = {
     .name = "bq24295",
-    .drivers = bq24295_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = bq24295_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

@@ -22,7 +22,11 @@ static error_t init_power() {
 
 Module m5stack_stickc_plus2_module = {
     .name = "m5stack-stickc-plus2",
-    .start = init_power
+    .start = init_power,
+    .stop = nullptr,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

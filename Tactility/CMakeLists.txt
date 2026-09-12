@@ -66,7 +66,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         esp_http_client
         esp-tls
         esp_wifi
-        json # Effectively cJSON
+        espressif__cjson
         nvs_flash
         spiffs
         vfs

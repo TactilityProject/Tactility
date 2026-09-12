@@ -13,7 +13,11 @@ static Driver* const gpio_trackball_drivers[] = {
 
 Module gpio_trackball_module = {
     .name = "gpio-trackball",
-    .drivers = gpio_trackball_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = gpio_trackball_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

@@ -15,7 +15,11 @@ static Driver* const xpt2046_drivers[] = {
 
 Module xpt2046_module = {
     .name = "xpt2046",
-    .drivers = xpt2046_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = xpt2046_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

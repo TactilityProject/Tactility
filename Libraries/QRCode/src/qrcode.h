@@ -37,7 +37,7 @@
 #ifndef __QRCODE_H_
 #define __QRCODE_H_
 
-#ifndef __cplusplus
+#if !defined(__cplusplus) && (!defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L)
 typedef unsigned char bool;
 static const bool false = 0;
 static const bool true = 1;

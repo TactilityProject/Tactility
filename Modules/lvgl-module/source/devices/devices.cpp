@@ -98,7 +98,7 @@ void lvgl_devices_attach() {
     lv_disp_t* lvgl_display = NULL;
     bool display_updates_slowly = false;
 
-    struct LvglDeviceList display_devices = {0};
+    struct LvglDeviceList display_devices = {};
     device_for_each_of_type(&DISPLAY_TYPE, &display_devices, lvgl_device_list_collect);
     for (size_t i = 0; i < display_devices.count; i++) {
         struct Device* kernel_display_device = display_devices.devices[i];
@@ -126,6 +126,7 @@ void lvgl_devices_attach() {
         bool prefer_external_ram_buffer = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM);
         struct LvglDisplayConfig lvgl_display_config = {
             .buffer_height = (uint16_t)(vres > 10 ? vres / 10 : vres),
+            .double_buffer = false,
             .sw_rotate = !can_hw_rotate,
             .swap_bytes = swap_bytes,
             .force_full_frame = display_requires_full_frame,
@@ -161,7 +162,7 @@ void lvgl_devices_attach() {
         }
     }
 
-    struct LvglDeviceList pointer_devices = {0};
+    struct LvglDeviceList pointer_devices = {};
     device_for_each_of_type(&POINTER_TYPE, &pointer_devices, lvgl_device_list_collect);
     for (size_t i = 0; i < pointer_devices.count; i++) {
         struct Device* kernel_pointer_device = pointer_devices.devices[i];
@@ -187,7 +188,7 @@ void lvgl_devices_attach() {
         }
     }
 
-    struct LvglDeviceList keyboard_devices = {0};
+    struct LvglDeviceList keyboard_devices = {};
     device_for_each_of_type(&KEYBOARD_TYPE, &keyboard_devices, lvgl_device_list_collect);
     for (size_t i = 0; i < keyboard_devices.count; i++) {
         struct Device* kernel_keyboard_device = keyboard_devices.devices[i];

@@ -92,6 +92,7 @@ HttpDownloadEvent http_download_run(const std::string& url, const std::string& c
     config.method = HTTP_METHOD_GET;
     config.timeout_ms = 5000;
     config.transport_type = HTTP_TRANSPORT_OVER_SSL;
+    config.addr_type = HTTP_ADDR_TYPE_INET;
 
     // Total free can look fine while a fragmented heap still can't satisfy one large-enough
     // allocation. Logging both makes a future ALLOC_FAILED here diagnosable from the log alone.

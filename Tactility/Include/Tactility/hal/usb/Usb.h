@@ -16,6 +16,8 @@ enum class BootMode {
 };
 
 bool startMassStorageWithSdmmc(bool fromBootMode = false);
+// Reason the most recent startMassStorageWith*() call failed, or "" if it succeeded.
+const char* getLastError();
 void stop();
 Mode getMode();
 bool isSupported();

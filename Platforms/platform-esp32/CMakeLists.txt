@@ -16,7 +16,7 @@ idf_component_register(
     SRCS ${SOURCES}
     INCLUDE_DIRS "include/"
     PRIV_INCLUDE_DIRS "private/"
-    REQUIRES TactilityKernel TactilityKernelCpp driver esp_adc esp_driver_i2c esp_lcd vfs fatfs esp_wifi esp_netif esp_event
+    REQUIRES TactilityKernel TactilityKernelCpp driver esp_adc esp_driver_i2c esp_driver_i2s esp_driver_ledc esp_driver_uart esp_lcd vfs fatfs esp_wifi esp_netif esp_event
     PRIV_REQUIRES ${PRIV_REQUIRES_LIST}
 )
 
@@ -29,3 +29,10 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 endif ()
 
 idf_component_optional_requires(PRIVATE bt usb espressif__usb_host_hid espressif__usb_host_msc)
+
+if ("${IDF_TARGET}" STREQUAL "esp32p4")
+    # Force-links esp32p4_libc_compat.c's __issignalingf() shim - nothing references it until
+    # espressif__esp_ipa is scanned much later in link order, by which point this archive is
+    # already passed over.
+    target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,-u,__issignalingf")
+endif ()

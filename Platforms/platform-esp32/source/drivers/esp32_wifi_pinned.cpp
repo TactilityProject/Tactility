@@ -2,7 +2,7 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
 
 #include <esp_wifi.h> // for WIFI_TASK_CORE_ID
 
@@ -271,7 +271,8 @@ const WifiApi esp32_wifi_pinned_api = {
     .station_disconnect = api_station_disconnect,
     .station_get_rssi = api_station_get_rssi,
     .event_subscribe = api_event_subscribe,
-    .event_unsubscribe = api_event_unsubscribe
+    .event_unsubscribe = api_event_unsubscribe,
+    .get_firmware_ops = nullptr
 };
 
 // ---- Driver lifecycle ----
@@ -365,4 +366,4 @@ Driver esp32_wifi_pinned_driver = {
 
 } // extern "C"
 
-#endif // CONFIG_SOC_WIFI_SUPPORTED or CONFIG_SLAVE_SOC_WIFI_SUPPORTED
+#endif // CONFIG_SOC_WIFI_SUPPORTED or CONFIG_ESP_HOSTED_ENABLED

@@ -110,8 +110,8 @@ static error_t start(Device* device) {
         },
         .bus_width = 8,
         .max_transfer_bytes = static_cast<size_t>(config->max_transfer_bytes),
-        .psram_trans_align = 64,
-        .sram_trans_align = 4
+        .dma_burst_size = 64,
+        .flags = { .allow_pd = 0 },
     };
 
     esp_err_t ret = esp_lcd_new_i80_bus(&bus_cfg, &data->bus_handle);

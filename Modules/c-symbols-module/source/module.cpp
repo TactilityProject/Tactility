@@ -12,6 +12,14 @@
 
 extern "C" {
 
+#if CONFIG_IDF_TARGET_ESP32P4
+// Newlib doesn't provide this (only Picolibc does); a compat shim is force-linked into the
+// firmware for espressif__esp_ipa's sake - see
+// Platforms/platform-esp32/source/drivers/esp32p4_libc_compat.c. Side-loaded apps built against
+// Newlib need it resolved the same way.
+extern int __issignalingf(float);
+#endif
+
 static const ModuleSymbol SYMBOLS[] = {
     // stdlib.h
     DEFINE_MODULE_SYMBOL(malloc),
@@ -61,6 +69,9 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(fmaxf),
     DEFINE_MODULE_SYMBOL(fminf),
     DEFINE_MODULE_SYMBOL(roundf),
+#if CONFIG_IDF_TARGET_ESP32P4
+    DEFINE_MODULE_SYMBOL(__issignalingf),
+#endif
     // Explicit signatures: libstdc++/libc++'s <cmath> float/double/long double overloads make a
     // bare `&acos` etc. ambiguous. esp-idf newlib's plain, unoverloaded functions match these signatures
     // exactly, so the cast is a no-op there - one list works for all platforms:

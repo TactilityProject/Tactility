@@ -230,6 +230,7 @@ static error_t start_device(struct Device* device) {
     const usb_host_client_config_t client_cfg = {
         .is_synchronous    = false,
         .max_num_event_msg = 5,
+        .flags = { .notify_dev_removed = 0, .reserved31 = 0 },
         .async = {
             .client_event_callback = client_event_cb,
             .callback_arg          = ctx,

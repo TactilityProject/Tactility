@@ -121,7 +121,7 @@ namespace service {
     namespace audio { extern const ServiceManifest manifest; }
     namespace wifi { extern const ServiceManifest manifest; }
     namespace development { extern const ServiceManifest manifest; }
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
     namespace espnow { extern const ServiceManifest manifest; }
 #endif
     // Secondary (UI)
@@ -200,7 +200,7 @@ namespace app {
     namespace screenshot { extern const ::AppManifest manifest; }
 #endif
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
     namespace chat { extern const ::AppManifest manifest; }
 #endif
 }
@@ -269,7 +269,7 @@ static void registerInternalApps() {
     app_manager_add(&app::screenshot::manifest);
 #endif
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
     app_manager_add(&app::chat::manifest);
 #endif
 
@@ -319,7 +319,7 @@ static void registerAndStartServices() {
     addService(service::development::manifest);
     addService(service::webserver::manifest);
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
     addService(service::espnow::manifest);
 #endif
 #if defined(ESP_PLATFORM)

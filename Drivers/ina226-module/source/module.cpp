@@ -17,8 +17,11 @@ extern const ModuleSymbol ina226_module_symbols[];
 
 Module ina226_module = {
     .name = "ina226",
+    .start = nullptr,
+    .stop = nullptr,
     .drivers = ina226_drivers,
     .symbols = ina226_module_symbols,
+    .internal = nullptr
 };
 
 } // extern "C"

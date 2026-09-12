@@ -13,7 +13,11 @@ extern "C" {
 
 Module hx8357_module = {
     .name = "hx8357",
-    .drivers = hx8357_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = hx8357_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

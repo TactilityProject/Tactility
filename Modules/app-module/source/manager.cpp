@@ -84,7 +84,7 @@ error_t app_manager_add_package(const PackageManifest* package, const char* cons
         LOG_E(TAG, "Package with id '%s' is already registered", package->id);
         return ERROR_INVALID_ARGUMENT;
     }
-    AppPackageRecord record { .package = *package };
+    AppPackageRecord record { .package = *package, .app_ids = {} };
     record.app_ids.reserve(app_id_count);
     for (size_t i = 0; i < app_id_count; i++) {
         record.app_ids.emplace_back(app_ids[i]);
@@ -324,7 +324,7 @@ void app_manager_install_path_scan(void) {
     mutex_lock(&registry.mutex);
     std::unordered_map<std::string, KnownPackage> known_packages;
     for (const auto& [id, record] : registry.scanned) {
-        KnownPackage known { .path = record->path };
+        KnownPackage known { .path = record->path, .manifest_ids = {} };
         for (const auto& manifest : record->manifests) {
             known.manifest_ids.emplace_back(manifest.id);
         }

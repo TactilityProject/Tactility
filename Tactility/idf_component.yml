@@ -1,4 +1,5 @@
 dependencies:
+  espressif/cjson: "^1.7.19"
   espressif/esp_codec_dev: "1.5.10"
   espressif/esp_video:
     version: "2.2.0"
@@ -9,19 +10,19 @@ dependencies:
     rules:
       - if: "target == esp32p4"
   espressif/esp_wifi_remote:
-    version: "1.2.3"
+    version: "1.6.4"
     rules:
       - if: "target == esp32p4"
   espressif/esp_lcd_ili9341:
-    version: "2.0.1"
+    version: "2.1.0"
     rules:
       - if: "target in [esp32, esp32s3]"
   atanisoft/esp_lcd_ili9488:
-    version: "1.0.10"
+    version: "1.1.1"
     rules:
       - if: "target in [esp32, esp32s3]"
-  teriyakigod/esp_lcd_st7735:
-    version: "0.0.1"
+  waveshare/esp_lcd_st7735:
+    version: "2.0.0"
     rules:
       - if: "target in [esp32, esp32s3]"
   espressif/elf_loader: "1.3.3"
@@ -30,22 +31,22 @@ dependencies:
     version: "1.0.6"
     rules:
       - if: "target in [esp32, esp32s3]"
-  espressif/esp_lcd_touch_cst816s: "1.0.3"
-  espressif/esp_lcd_touch_gt911: "1.1.3"
+  espressif/esp_lcd_touch_cst816s: "1.1.2"
+  espressif/esp_lcd_touch_gt911: "1.2.1"
   espressif/esp_lcd_touch_ft5x06: "1.0.6~1"
   espressif/esp_lcd_axs15231b: "2.0.2"
   lambage/esp_lcd_touch_ft6336u: "1.0.8"
   espressif/esp_lcd_st7701:
-    version: "1.1.3"
+    version: "2.0.2~2"
     rules:
       - if: "target in [esp32s3, esp32p4]"
   espressif/esp_lcd_st7796:
     version: "1.3.4"
     rules:
       - if: "target in [esp32, esp32s3]"
-  espressif/esp_lcd_gc9a01: "2.0.3"
+  espressif/esp_lcd_gc9a01: "2.0.4"
   espressif/esp_lcd_jd9165:
-    version: "1.0.3"
+    version: "2.0.2"
     rules:
       # More hardware seems to be supported - enable as needed
       - if: "target in [esp32p4]"
@@ -71,7 +72,7 @@ dependencies:
       - if: "target in [esp32p4]"
   espressif/esp_lcd_panel_io_additions: "1.0.1"
   espressif/esp_tinyusb:
-    version: "1.7.6~1"
+    version: "2.2.1"
     rules:
       - if: "target in [esp32s3, esp32p4]"
   espressif/esp_lvgl_port: "2.7.2"
@@ -91,8 +92,8 @@ dependencies:
     rules:
       - if: "target in [esp32s3, esp32p4]"
   jgromes/radiolib:
-    version: "7.3.0"
+    version: "7.7.1"
     rules:
       - if: "target in [esp32, esp32s3, esp32p4]"
-  idf: '5.5.2'
+  idf: '6.1.0'
 

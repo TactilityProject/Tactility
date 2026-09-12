@@ -334,7 +334,7 @@ error_t sc2356_open(Device* device, Sc2356Handle* out_handle) {
 
     // Create hardware JPEG encoder once; reused across all sc2356_capture_jpeg() calls
     {
-        jpeg_encode_engine_cfg_t eng_cfg = { .intr_priority = 0, .timeout_ms = 1000 };
+        jpeg_encode_engine_cfg_t eng_cfg = { .intr_priority = 0, .timeout_ms = 1000, .flags = {} };
         esp_err_t je = jpeg_new_encoder_engine(&eng_cfg, &state->enc);
         if (je != ESP_OK) {
             LOG_E(TAG, "jpeg_new_encoder_engine failed: %s", esp_err_to_name(je));
@@ -553,6 +553,7 @@ error_t sc2356_capture_jpeg(Sc2356Handle handle, uint8_t** out_buf, size_t* out_
         .src_type      = JPEG_ENCODE_IN_FORMAT_RGB565,
         .sub_sample    = JPEG_DOWN_SAMPLING_YUV420,
         .image_quality = quality,
+        .pixel_reverse = false,
     };
     uint32_t encoded_size = 0;
     esp_err_t esp_err = jpeg_encoder_process(state->enc, &enc_cfg, frame,

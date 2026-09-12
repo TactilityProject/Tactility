@@ -363,7 +363,7 @@ struct Axp192Internal {
 };
 
 static error_t create_power_supply_child(Device* parent, Device*& out_child) {
-    auto* child = new(std::nothrow) Device { .address = 0, .name = "axp192-power-supply", .config = nullptr, .parent = nullptr, .internal = nullptr };
+    auto* child = new(std::nothrow) Device { .address = 0, .name = "axp192-power-supply", .config = nullptr, .parent = nullptr, .flags = 0, .internal = nullptr };
     if (child == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }

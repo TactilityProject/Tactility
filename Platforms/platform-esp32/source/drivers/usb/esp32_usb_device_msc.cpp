@@ -9,13 +9,23 @@
 #include <tactility/log.h>
 
 #include <tinyusb.h>
-#include <tusb_msc_storage.h>
+#include <tinyusb_msc.h>
 #include <wear_levelling.h>
 
+#include <cstdio>
 #include <cstring>
 
 #define TAG "esp32_usb_device_msc"
 #define GET_CONFIG(device) ((const Esp32UsbDeviceChildConfig*)(device)->config)
+
+// Detail for the most recent msc_device_start() failure - the console can be unreachable by the
+// time this fails (the controller already reassigned the PHY away from it), so callers read this
+// instead of relying on the LOG_E calls below having been visible.
+static char last_msc_error[48] = "";
+
+extern "C" const char* usb_msc_device_get_last_error() {
+    return last_msc_error;
+}
 
 // ---- MSC device descriptor set ----
 
@@ -62,6 +72,7 @@ static uint8_t msc_hs_configuration_descriptor[TUD_MSC_DESC_LEN];
 struct UsbMscDeviceCtx {
     UsbMscDeviceMountChangedCallback mount_changed_cb = nullptr;
     void* mount_changed_context = nullptr;
+    tinyusb_msc_storage_handle_t storage_handle = nullptr;
     bool storage_active = false;
 };
 
@@ -70,12 +81,20 @@ struct UsbMscDeviceCtx {
 // device-mode slot the controller already enforces.
 static struct Device* active_msc_device = nullptr;
 
-static void storage_mount_changed_cb(tinyusb_msc_event_t* event) {
+// esp_tinyusb 2.x's MOUNT_COMPLETE event fires for either owner taking the storage. Kernel-facing
+// UsbMscDeviceMountChangedCallback's `mounted` (\see usb_msc_device.h) means "mounted into our own
+// filesystem" (the pre-2.x meaning, kept for callers like the boot-into-MSC flow that reboot back
+// to normal OS once mounted==true) - i.e. ownership has passed to TINYUSB_MSC_STORAGE_MOUNT_APP,
+// the opposite of the initial USB-owned state this driver starts storage in.
+static void storage_mount_changed_cb(tinyusb_msc_storage_handle_t handle, tinyusb_msc_event_t* event, void* arg) {
+    (void)handle;
+    (void)arg;
+    if (event->id != TINYUSB_MSC_EVENT_MOUNT_COMPLETE) return;
     if (active_msc_device == nullptr) return;
     auto* ctx = static_cast<UsbMscDeviceCtx*>(device_get_driver_data(active_msc_device));
     if (ctx == nullptr) return;
 
-    const bool mounted = event->mount_changed_data.is_mounted;
+    const bool mounted = event->mount_point == TINYUSB_MSC_STORAGE_MOUNT_APP;
     LOG_I(TAG, "%s", mounted ? "MSC mounted" : "MSC unmounted");
     if (ctx->mount_changed_cb != nullptr) {
         ctx->mount_changed_cb(mounted, ctx->mount_changed_context);
@@ -131,6 +150,7 @@ static error_t msc_device_start(struct Device* device, enum UsbMscDeviceSource s
 
     error_t claim_result = usb_device_controller_claim(controller, USB_DEVICE_CLASS_MSC, &claim_config);
     if (claim_result != ERROR_NONE) {
+        snprintf(last_msc_error, sizeof(last_msc_error), "claim: %s", usb_device_controller_get_last_error());
         return claim_result;
     }
 
@@ -139,44 +159,66 @@ static error_t msc_device_start(struct Device* device, enum UsbMscDeviceSource s
     ctx->mount_changed_context = context;
     active_msc_device = device;
 
-    esp_err_t result;
-    if (source == USB_MSC_DEVICE_SOURCE_SDMMC) {
-        const tinyusb_msc_sdmmc_config_t config_sdmmc = {
-            .card = static_cast<sdmmc_card_t*>(source_handle),
-            .callback_mount_changed = storage_mount_changed_cb,
-            .callback_premount_changed = nullptr,
-            .mount_config = {
-                .format_if_mount_failed = false,
-                .max_files = 5,
-                .allocation_unit_size = 0,
-                .disk_status_check_enable = false,
-                .use_one_fat = false,
-            },
-        };
-        result = tinyusb_msc_storage_init_sdmmc(&config_sdmmc);
-    } else {
-        const tinyusb_msc_spiflash_config_t config_flash = {
-            .wl_handle = *static_cast<wl_handle_t*>(source_handle),
-            .callback_mount_changed = storage_mount_changed_cb,
-            .callback_premount_changed = nullptr,
-            .mount_config = {
-                .format_if_mount_failed = false,
-                .max_files = 5,
-                .allocation_unit_size = 0,
-                .disk_status_check_enable = false,
-                .use_one_fat = false,
-            },
-        };
-        result = tinyusb_msc_storage_init_spiflash(&config_flash);
-    }
-
+    // esp_tinyusb 2.x auto-remounts storage on every tud_mount_cb()/tud_umount_cb(), including
+    // the bus resets that happen as a normal part of USB enumeration - not just a genuine host
+    // eject. Left enabled, that fires a spurious "mounted into our own fs" transition almost
+    // immediately after claim(), which callers like the boot-into-MSC flow read as "the host is
+    // done with it" and act on right away. Disabling it restores the old (pre-2.x) behavior:
+    // mount_point only changes via an explicit host SCSI eject or our own start/stop calls.
+    const tinyusb_msc_driver_config_t driver_cfg = {
+        .user_flags = { .val = 1 }, // auto_mount_off
+        .callback = storage_mount_changed_cb,
+        .callback_arg = nullptr,
+    };
+    esp_err_t result = tinyusb_msc_install_driver(&driver_cfg);
     if (result != ESP_OK) {
-        LOG_E(TAG, "storage init failed: %s", esp_err_to_name(result));
+        LOG_E(TAG, "MSC driver install failed: %s", esp_err_to_name(result));
+        snprintf(last_msc_error, sizeof(last_msc_error), "install_driver: %s", esp_err_to_name(result));
         active_msc_device = nullptr;
         usb_device_controller_release(controller, USB_DEVICE_CLASS_MSC);
         return ERROR_RESOURCE;
     }
 
+    const tinyusb_msc_fatfs_config_t fat_fs_config = {
+        .base_path = nullptr, // use CONFIG_TINYUSB_MSC_MOUNT_PATH default
+        .config = {
+            .format_if_mount_failed = false,
+            .max_files = 5,
+            .allocation_unit_size = 0,
+            .disk_status_check_enable = false,
+            .use_one_fat = false,
+        },
+        .do_not_format = false,
+        .format_flags = 0, // FM_ANY
+    };
+
+    tinyusb_msc_storage_handle_t handle = nullptr;
+    if (source == USB_MSC_DEVICE_SOURCE_SDMMC) {
+        const tinyusb_msc_storage_config_t config_sdmmc = {
+            .medium = { .card = static_cast<sdmmc_card_t*>(source_handle) },
+            .fat_fs = fat_fs_config,
+            .mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB,
+        };
+        result = tinyusb_msc_new_storage_sdmmc(&config_sdmmc, &handle);
+    } else {
+        const tinyusb_msc_storage_config_t config_flash = {
+            .medium = { .wl_handle = *static_cast<wl_handle_t*>(source_handle) },
+            .fat_fs = fat_fs_config,
+            .mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB,
+        };
+        result = tinyusb_msc_new_storage_spiflash(&config_flash, &handle);
+    }
+
+    if (result != ESP_OK) {
+        LOG_E(TAG, "storage init failed: %s", esp_err_to_name(result));
+        snprintf(last_msc_error, sizeof(last_msc_error), "new_storage: %s", esp_err_to_name(result));
+        tinyusb_msc_uninstall_driver();
+        active_msc_device = nullptr;
+        usb_device_controller_release(controller, USB_DEVICE_CLASS_MSC);
+        return ERROR_RESOURCE;
+    }
+
+    ctx->storage_handle = handle;
     ctx->storage_active = true;
     return ERROR_NONE;
 }
@@ -194,8 +236,10 @@ static error_t msc_device_stop(struct Device* device) {
     auto* controller = device_get_parent(device);
     usb_device_controller_release(controller, USB_DEVICE_CLASS_MSC);
 
-    tinyusb_msc_storage_deinit();
+    tinyusb_msc_delete_storage(ctx->storage_handle);
+    tinyusb_msc_uninstall_driver();
 
+    ctx->storage_handle = nullptr;
     ctx->storage_active = false;
     ctx->mount_changed_cb = nullptr;
     ctx->mount_changed_context = nullptr;

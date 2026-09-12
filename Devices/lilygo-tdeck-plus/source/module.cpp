@@ -27,6 +27,9 @@ Module lilygo_tdeck_plus_module = {
     .name = "lilygo-tdeck-plus",
     .start = start,
     .stop = stop,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

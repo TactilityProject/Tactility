@@ -3,7 +3,6 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_grove.h>
-#include <tactility/drivers/esp32_i2c.h>
 #include <tactility/drivers/esp32_i2c_master.h>
 #include <tactility/drivers/esp32_uart.h>
 #include <tactility/log.h>

@@ -2,7 +2,7 @@
 #include <sdkconfig.h>
 #endif
 
-#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
 
 #include <esp_event.h>
 #include <esp_netif.h>
@@ -13,6 +13,7 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_wifi.h>
+#include <tactility/drivers/esp32_wifi_radio.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/error_esp32.h>
 #include <tactility/log.h>
@@ -20,7 +21,7 @@
 
 #include <TactilityCpp/Allocator.h>
 
-#if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
 #include <tactility/drivers/esp32_esp_hosted_ota.h>
 #endif
 
@@ -68,6 +69,14 @@ struct Esp32WifiCtx {
 
 #define GET_CTX(device) (static_cast<Esp32WifiCtx*>(device_get_driver_data(device)))
 
+// Shared radio ownership state for esp32_wifi_radio_acquire()/release() (see esp32_wifi_radio.h).
+// Station mode (this driver) and the WebServer's Access Point mode both acquire/release their own
+// mode bit rather than calling esp_wifi_init()/deinit() directly, so neither tears down the radio
+// out from under the other.
+Mutex g_radioMutex{};
+int g_radioOwnerCount = 0;
+wifi_mode_t g_radioMode = WIFI_MODE_NULL;
+
 WifiAuthenticationType to_wifi_authentication_type(wifi_auth_mode_t mode) {
     switch (mode) {
         case WIFI_AUTH_OPEN: return WIFI_AUTHENTICATION_TYPE_OPEN;
@@ -81,8 +90,6 @@ WifiAuthenticationType to_wifi_authentication_type(wifi_auth_mode_t mode) {
         case WIFI_AUTH_WAPI_PSK: return WIFI_AUTHENTICATION_TYPE_WAPI_PSK;
         case WIFI_AUTH_OWE: return WIFI_AUTHENTICATION_TYPE_OWE;
         case WIFI_AUTH_WPA3_ENT_192: return WIFI_AUTHENTICATION_TYPE_WPA3_ENT_192;
-        case WIFI_AUTH_WPA3_EXT_PSK: return WIFI_AUTHENTICATION_TYPE_WPA3_EXT_PSK;
-        case WIFI_AUTH_WPA3_EXT_PSK_MIXED_MODE: return WIFI_AUTHENTICATION_TYPE_WPA3_EXT_PSK_MIXED_MODE;
         default: return WIFI_AUTHENTICATION_TYPE_OPEN;
     }
 }
@@ -192,21 +199,19 @@ error_t bring_up_wifi(Esp32WifiCtx* ctx) {
 
     // Warning: this is the memory-intensive operation. It uses over 100kB of
     // RAM with default settings.
-    wifi_init_config_t init_config = WIFI_INIT_CONFIG_DEFAULT();
-    esp_err_t err = esp_wifi_init(&init_config);
-    if (err != ESP_OK) {
-        LOG_E(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
+    if (!esp32_wifi_radio_acquire(WIFI_MODE_STA)) {
+        LOG_E(TAG, "Failed to acquire WiFi radio for station mode");
         esp_netif_destroy(ctx->netif);
         ctx->netif = nullptr;
-        return esp_err_to_error(err);
+        return ERROR_RESOURCE;
     }
 
     esp_wifi_set_storage(WIFI_STORAGE_RAM);
 
-    err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &on_wifi_or_ip_event, ctx, &ctx->wifiEventHandler);
+    esp_err_t err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &on_wifi_or_ip_event, ctx, &ctx->wifiEventHandler);
     if (err != ESP_OK) {
         LOG_E(TAG, "Failed to register WIFI_EVENT handler: %s", esp_err_to_name(err));
-        esp_wifi_deinit();
+        esp32_wifi_radio_release(WIFI_MODE_STA);
         esp_netif_destroy(ctx->netif);
         ctx->netif = nullptr;
         return esp_err_to_error(err);
@@ -217,34 +222,7 @@ error_t bring_up_wifi(Esp32WifiCtx* ctx) {
         LOG_E(TAG, "Failed to register IP_EVENT handler: %s", esp_err_to_name(err));
         esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, ctx->wifiEventHandler);
         ctx->wifiEventHandler = nullptr;
-        esp_wifi_deinit();
-        esp_netif_destroy(ctx->netif);
-        ctx->netif = nullptr;
-        return esp_err_to_error(err);
-    }
-
-    err = esp_wifi_set_mode(WIFI_MODE_STA);
-    if (err != ESP_OK) {
-        LOG_E(TAG, "esp_wifi_set_mode failed: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, ctx->ipEventHandler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, ctx->wifiEventHandler);
-        ctx->ipEventHandler = nullptr;
-        ctx->wifiEventHandler = nullptr;
-        esp_wifi_deinit();
-        esp_netif_destroy(ctx->netif);
-        ctx->netif = nullptr;
-        return esp_err_to_error(err);
-    }
-
-    err = esp_wifi_start();
-    if (err != ESP_OK) {
-        LOG_E(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
-        esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, ctx->ipEventHandler);
-        esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, ctx->wifiEventHandler);
-        ctx->ipEventHandler = nullptr;
-        ctx->wifiEventHandler = nullptr;
-        esp_wifi_set_mode(WIFI_MODE_NULL);
-        esp_wifi_deinit();
+        esp32_wifi_radio_release(WIFI_MODE_STA);
         esp_netif_destroy(ctx->netif);
         ctx->netif = nullptr;
         return esp_err_to_error(err);
@@ -285,9 +263,6 @@ void bring_down_wifi(Esp32WifiCtx* ctx) {
         esp_wifi_clear_default_wifi_driver_and_handlers(ctx->netif);
     }
 
-    esp_wifi_stop();
-    esp_wifi_set_mode(WIFI_MODE_NULL);
-
     if (ctx->wifiEventHandler != nullptr) {
         esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, ctx->wifiEventHandler);
         ctx->wifiEventHandler = nullptr;
@@ -297,7 +272,7 @@ void bring_down_wifi(Esp32WifiCtx* ctx) {
         ctx->ipEventHandler = nullptr;
     }
 
-    esp_wifi_deinit();
+    esp32_wifi_radio_release(WIFI_MODE_STA);
 
     if (ctx->netif != nullptr) {
         esp_netif_destroy(ctx->netif);
@@ -585,7 +560,7 @@ error_t api_get_firmware_ops(Device* /*device*/, const FirmwareOps** ops, void**
     if (ops == nullptr || ctx == nullptr) {
         return ERROR_INVALID_ARGUMENT;
     }
-#if defined(CONFIG_SLAVE_SOC_WIFI_SUPPORTED)
+#if defined(CONFIG_ESP_HOSTED_ENABLED)
     // Only meaningful on a hosted board (P4+C6/C5 etc.) - this wifi device is backed by a real
     // co-processor with its own updatable firmware there. On a native (non-hosted) chip, this
     // device's "radio" is the chip's own built-in WiFi, nothing to update via this interface.
@@ -626,6 +601,7 @@ error_t start_device(Device* device) {
     ctx->device = device;
     mutex_construct(&ctx->mutex);
     mutex_construct(&ctx->subscriptionsMutex);
+    mutex_construct(&g_radioMutex);
     device_set_driver_data(device, ctx);
 
     return ERROR_NONE;
@@ -659,6 +635,7 @@ error_t stop_device(Device* device) {
     device_set_driver_data(device, nullptr);
     mutex_destruct(&ctx->subscriptionsMutex);
     mutex_destruct(&ctx->mutex);
+    mutex_destruct(&g_radioMutex);
     ctx->~Esp32WifiCtx();
     tt::OptExternalAllocator<Esp32WifiCtx>().deallocate(ctx, 1);
 
@@ -668,6 +645,72 @@ error_t stop_device(Device* device) {
 } // namespace
 
 extern "C" {
+
+bool esp32_wifi_radio_acquire(wifi_mode_t mode_bit) {
+    mutex_lock(&g_radioMutex);
+
+    bool first_owner = g_radioOwnerCount == 0;
+    if (first_owner) {
+        wifi_init_config_t init_config = WIFI_INIT_CONFIG_DEFAULT();
+        esp_err_t err = esp_wifi_init(&init_config);
+        if (err != ESP_OK) {
+            LOG_E(TAG, "esp32_wifi_radio_acquire: esp_wifi_init failed: %s", esp_err_to_name(err));
+            mutex_unlock(&g_radioMutex);
+            return false;
+        }
+    }
+
+    auto new_mode = static_cast<wifi_mode_t>(g_radioMode | mode_bit);
+    esp_err_t err = esp_wifi_set_mode(new_mode);
+    if (err != ESP_OK) {
+        LOG_E(TAG, "esp32_wifi_radio_acquire: esp_wifi_set_mode failed: %s", esp_err_to_name(err));
+        if (first_owner) {
+            esp_wifi_deinit();
+        }
+        mutex_unlock(&g_radioMutex);
+        return false;
+    }
+
+    if (first_owner) {
+        err = esp_wifi_start();
+        if (err != ESP_OK) {
+            LOG_E(TAG, "esp32_wifi_radio_acquire: esp_wifi_start failed: %s", esp_err_to_name(err));
+            esp_wifi_set_mode(WIFI_MODE_NULL);
+            esp_wifi_deinit();
+            mutex_unlock(&g_radioMutex);
+            return false;
+        }
+    }
+
+    g_radioMode = new_mode;
+    g_radioOwnerCount++;
+    mutex_unlock(&g_radioMutex);
+    return true;
+}
+
+void esp32_wifi_radio_release(wifi_mode_t mode_bit) {
+    mutex_lock(&g_radioMutex);
+
+    if (g_radioOwnerCount <= 0) {
+        mutex_unlock(&g_radioMutex);
+        return; // Guards against a mismatched acquire/release pair.
+    }
+
+    g_radioMode = static_cast<wifi_mode_t>(g_radioMode & ~mode_bit);
+    g_radioOwnerCount--;
+
+    if (g_radioOwnerCount <= 0) {
+        esp_wifi_stop();
+        esp_wifi_set_mode(WIFI_MODE_NULL);
+        esp_wifi_deinit();
+        g_radioOwnerCount = 0;
+        g_radioMode = WIFI_MODE_NULL;
+    } else {
+        esp_wifi_set_mode(g_radioMode);
+    }
+
+    mutex_unlock(&g_radioMutex);
+}
 
 extern Module platform_esp32_module;
 
@@ -684,4 +727,4 @@ Driver esp32_wifi_driver = {
 
 } // extern "C"
 
-#endif // CONFIG_SOC_WIFI_SUPPORTED or CONFIG_SLAVE_SOC_WIFI_SUPPORTED
+#endif // CONFIG_SOC_WIFI_SUPPORTED or CONFIG_ESP_HOSTED_ENABLED

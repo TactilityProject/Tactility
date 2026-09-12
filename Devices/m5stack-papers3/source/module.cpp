@@ -16,7 +16,11 @@ static Driver* const papers3_drivers[] = {
 
 Module m5stack_papers3_module = {
     .name = "m5stack-papers3",
-    .drivers = papers3_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = papers3_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

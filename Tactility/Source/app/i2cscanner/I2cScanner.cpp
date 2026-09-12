@@ -426,7 +426,9 @@ extern const ::AppManifest manifest = {
     .id = "tactility.i2cscanner",
     .name = "I2C Scanner",
     .category = APP_CATEGORY_SYSTEM,
-    .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) }
+    .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) },
+    .flags = 0,
+    .stack = {}
 };
 
 uint32_t start() {

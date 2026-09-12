@@ -15,8 +15,11 @@ extern const ModuleSymbol dummy_i2s_amp_module_symbols[];
 
 Module dummy_i2s_amp_module = {
     .name = "dummy_i2s_amp",
+    .start = nullptr,
+    .stop = nullptr,
     .drivers = dummy_drivers,
-    .symbols = dummy_i2s_amp_module_symbols
+    .symbols = dummy_i2s_amp_module_symbols,
+    .internal = nullptr
 };
 
 }

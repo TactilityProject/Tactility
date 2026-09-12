@@ -13,7 +13,11 @@ static Driver* const jd9853_drivers[] = {
 
 Module jd9853_module = {
     .name = "jd9853",
-    .drivers = jd9853_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = jd9853_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

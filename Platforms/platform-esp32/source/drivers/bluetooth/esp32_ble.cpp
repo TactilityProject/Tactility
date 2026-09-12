@@ -31,9 +31,6 @@ constexpr auto* TAG = "esp32_ble";
 
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
 #include <esp_hosted.h>
-// esp_hosted_misc.h lacks its own extern "C" guard, so its declarations get C++
-// name-mangled when included from a .cpp file, causing "undefined reference" at
-// link time against the library's plain-C symbols.
 extern "C" {
 #include <esp_hosted_misc.h>
 }
@@ -685,19 +682,6 @@ static void dispatch_enable(BleCtx* ctx) {
     }
 
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
-    // Over esp_hosted (SDIO to a co-processor, e.g. C6), the slave's on-chip BT
-    // controller is never auto-started at slave boot — it only comes up in
-    // response to these RPCs. Without them, HCI Reset (the first command NimBLE
-    // ever sends) is handed to esp_vhci_host_send_packet() on the slave with no
-    // controller underneath to consume it, so it's silently dropped and NimBLE
-    // times out (BLE_HS_ETIMEOUT_HCI) forever. Must run before nimble_port_init().
-    // esp_hosted_bt_controller_init/enable() both bail out immediately (no retry,
-    // no blocking) if the SDIO/SPI transport to the co-processor isn't marked up
-    // yet. On boot, BT can auto-enable before Wi-Fi has driven that bring-up, so
-    // explicitly (re)connect here and let it block until the slave handshake
-    // (the "Attempt connection with slave" / "Card init success" sequence)
-    // completes — esp_hosted_connect_to_slave() is a thin wrapper that's safe to
-    // call again if the transport is already up.
     if (esp_hosted_connect_to_slave() != ESP_OK) {
         LOG_W(TAG, "esp_hosted_connect_to_slave failed");
     }
@@ -1121,7 +1105,7 @@ const BluetoothApi nimble_bluetooth_api = {
 
 static void create_child_device(struct Device* parent, const char* name,
                                 Driver* drv, struct Device*& out) {
-    out = new Device { .address = 0, .name = name, .config = nullptr, .parent = nullptr, .internal = nullptr };
+    out = new Device { .address = 0, .name = name, .config = nullptr, .parent = nullptr, .flags = 0, .internal = nullptr };
     device_construct(out);
     device_set_parent(out, parent);
     device_set_driver(out, drv);

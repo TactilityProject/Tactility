@@ -83,8 +83,8 @@ static error_t start(Device* device) {
     }
 
     esp_lcd_panel_io_spi_config_t io_config = {
-        .cs_gpio_num = pin_or_unused(cs_pin),
-        .dc_gpio_num = pin_or_unused(config->pin_dc),
+        .cs_gpio_num = static_cast<gpio_num_t>(pin_or_unused(cs_pin)),
+        .dc_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_dc)),
         .spi_mode = 0,
         .pclk_hz = config->pixel_clock_hz,
         .trans_queue_depth = config->transaction_queue_depth,
@@ -101,6 +101,7 @@ static error_t start(Device* device) {
             .octal_mode = 0,
             .quad_mode = 0,
             .sio_mode = 1,
+            .psram_dma_direct = 0,
             .lsb_first = 0,
             .cs_high_active = 0,
         },
@@ -115,13 +116,13 @@ static error_t start(Device* device) {
     }
 
     esp_lcd_panel_dev_config_t panel_config = {
-        .reset_gpio_num = pin_or_unused(config->pin_reset),
         .rgb_ele_order = config->bgr_order ? LCD_RGB_ELEMENT_ORDER_BGR : LCD_RGB_ELEMENT_ORDER_RGB,
         .data_endian = LCD_RGB_DATA_ENDIAN_LITTLE,
         .bits_per_pixel = config->bits_per_pixel,
+        .reset_gpio_num = static_cast<gpio_num_t>(pin_or_unused(config->pin_reset)),
+        .vendor_config = nullptr,
         // ST7789's reset line is fixed active-low in hardware.
         .flags = { .reset_active_high = false },
-        .vendor_config = nullptr,
     };
 
     ret = esp_lcd_new_panel_st7789(internal->io_handle, &panel_config, &internal->panel_handle);
@@ -362,6 +363,8 @@ static const DisplayApi st7789_display_api = {
     .reset = st7789_reset,
     .init = st7789_init,
     .draw_bitmap = st7789_draw_bitmap,
+    .clear = nullptr,
+    .refresh = nullptr,
     .mirror = st7789_mirror,
     .swap_xy = st7789_swap_xy,
     .get_swap_xy = st7789_get_swap_xy,
