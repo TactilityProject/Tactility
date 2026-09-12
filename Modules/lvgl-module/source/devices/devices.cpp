@@ -26,6 +26,35 @@ struct LvglDeviceList {
     size_t count;
 };
 
+/**
+ * Fires periodically while a slow-refresh display (e.g. e-paper) is bound. Once
+ * lv_display_get_inactive_time(), the time since the last real input event tracked in lv_indev.c,
+ * crosses this threshold, invalidates the whole active screen so LVGL redraws every widget
+ * through its own draw_bitmap() calls, clearing ghosting that normal partial redraws leave behind
+ * over time. Checking real input activity rather than time since last draw means a redraw during
+ * active use, such as a blinking cursor, never resets the timer, so this only ever acts once
+ * genuinely idle.
+ */
+constexpr uint32_t IDLE_REPAINT_MS = 5000;
+
+struct IdleRepaintContext {
+    lv_display_t* lvgl_display;
+    struct Device* kernel_display_device;
+    lv_timer_t* timer;
+    // Set once the invalidate+lv_refr_now() repaint has run for the current idle stretch, so it
+    // isn't redone every tick while still idle.
+    bool repaint_done_since_activity;
+    // Set only once display_refresh() itself returns ERROR_NONE, tracked separately from
+    // repaint_done_since_activity so a failed refresh (e.g. ERROR_RESOURCE) keeps getting retried
+    // on later idle ticks instead of being silently skipped for the rest of the idle stretch.
+    bool refresh_done_since_activity;
+};
+
+// One slot per display bound in lvgl_devices_attach()'s loop below that turns out to be
+// DISPLAY_CAPABILITY_SLOW_REFRESH; a board with multiple such displays needs independent idle
+// tracking for each; slots are 1:1 with idle_repaint_contexts' index, not a compacted list.
+static IdleRepaintContext idle_repaint_contexts[LVGL_DEVICES_MAX_PER_TYPE] = {};
+
 extern "C" {
 
 static bool lvgl_device_list_collect(struct Device* device, void* context) {
@@ -34,6 +63,33 @@ static bool lvgl_device_list_collect(struct Device* device, void* context) {
         list->devices[list->count++] = device;
     }
     return true;
+}
+
+static void idle_repaint_timer_cb(lv_timer_t* timer) {
+    auto* ctx = static_cast<IdleRepaintContext*>(lv_timer_get_user_data(timer));
+    if (lv_display_get_inactive_time(ctx->lvgl_display) < IDLE_REPAINT_MS) {
+        ctx->repaint_done_since_activity = false;
+        ctx->refresh_done_since_activity = false;
+        return;
+    }
+    if (!ctx->repaint_done_since_activity) {
+        ctx->repaint_done_since_activity = true;
+        lv_obj_invalidate(lv_display_get_screen_active(ctx->lvgl_display));
+        // lv_refr_now() runs the redraw synchronously, so display_refresh() below sees the
+        // now-current framebuffer instead of stale content from before the invalidate.
+        lv_refr_now(ctx->lvgl_display);
+    }
+    if (ctx->refresh_done_since_activity) {
+        return;
+    }
+    // Under PARTIAL render mode the repaint above still tiles into ordinary sub-threshold
+    // draw_bitmap() calls that stay in fast MODE_DU, which alone never fully clears prior
+    // ghosting even when it draws the correct pixels. This forces the quality pass that clears
+    // it. Tracked separately from the repaint so a failure here (e.g. ERROR_RESOURCE) retries on
+    // the next idle tick instead of also repeating the repaint, which succeeded already.
+    if (display_refresh(ctx->kernel_display_device) == ERROR_NONE) {
+        ctx->refresh_done_since_activity = true;
+    }
 }
 
 void lvgl_devices_attach() {
@@ -60,7 +116,7 @@ void lvgl_devices_attach() {
             color_format == DISPLAY_COLOR_FORMAT_BGR565;
         bool display_requires_full_frame = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME);
         // Without CAP_SWAP_XY the driver can't rotate 90/270 in hardware (display_swap_xy() is
-        // null and silently skipped by lvgl_display_apply_rotation()) - LVGL would still switch
+        // null and silently skipped by lvgl_display_apply_rotation()). LVGL would still switch
         // its own logical w/h for those rotations, mismatching the panel's fixed physical
         // orientation (e.g. RGB/DPI panels, whose video timing is fixed at panel-init time).
         // sw_rotate makes LVGL rotate the rendered pixels in software instead, so the driver
@@ -79,6 +135,22 @@ void lvgl_devices_attach() {
         lv_disp_t* added_display = NULL;
         if (lvgl_display_add(kernel_display_device, &lvgl_display_config, &added_display) == ERROR_NONE) {
             LOG_I(TAG, "Bound %s to LVGL", kernel_display_device->name);
+            // Slow-refresh panels accumulate ghosting from normal partial redraws over time, and
+            // worse from content an app drew directly via draw_bitmap() outside LVGL's own screen
+            // model, which LVGL has no way to know needs repainting. This function runs both at
+            // boot and whenever an app that stopped LVGL closes, so clearing here covers both
+            // cases without extra plumbing at app-close time specifically.
+            if (display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_SLOW_REFRESH)) {
+                display_clear(kernel_display_device);
+                IdleRepaintContext* ctx = &idle_repaint_contexts[i];
+                if (ctx->timer == nullptr) {
+                    ctx->lvgl_display = added_display;
+                    ctx->kernel_display_device = kernel_display_device;
+                    ctx->repaint_done_since_activity = false;
+                    ctx->refresh_done_since_activity = false;
+                    ctx->timer = lv_timer_create(idle_repaint_timer_cb, 1000, ctx);
+                }
+            }
             // Pointers/keyboards below bind to the first display bound here, matching that display's
             // refresh behavior.
             if (lvgl_display == NULL) {
@@ -180,6 +252,14 @@ void lvgl_devices_detach() {
         }
         // Always get the first item, because getting the next one doesn't work as the current pointer just became corrupt
         indev = lv_indev_get_next(NULL);
+    }
+
+    for (size_t i = 0; i < LVGL_DEVICES_MAX_PER_TYPE; i++) {
+        IdleRepaintContext* ctx = &idle_repaint_contexts[i];
+        if (ctx->timer != nullptr) {
+            lv_timer_delete(ctx->timer);
+            *ctx = {};
+        }
     }
 
     lv_disp_t* display = lv_disp_get_next(NULL);
