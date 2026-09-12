@@ -424,7 +424,9 @@ extern const ::AppManifest manifest = {
     .id = "tactility.webserversettings",
     .name = "Web Server",
     .category = APP_CATEGORY_SYSTEM,
-    .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) }
+    .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) },
+    .flags = 0,
+    .stack = {}
 };
 
 }
