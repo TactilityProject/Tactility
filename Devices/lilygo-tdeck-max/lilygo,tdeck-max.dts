@@ -174,6 +174,7 @@
 			// Default to a fast (~1s) refresh for the automatic ghost-clears so the
 			// full-screen flash they cause is as short as possible.
 			refresh-mode = <GDEQ031T10_REFRESH_FAST>;
+			backlight = <&display_backlight>;
 		};
 
 		sdcard@1 {
@@ -206,6 +207,20 @@
 		usbdevicemsc0 {
 			compatible = "espressif,esp32-usbdevice-msc";
 		};
+	};
+
+	display_backlight_pwm {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 41 GPIO_FLAG_NONE>;
+		period-ns = <33333>;
+		ledc-timer = <1>;
+		ledc-channel = <1>;
+	};
+
+	display_backlight {
+		compatible = "pwm-backlight";
+		status = "disabled";
+		pwm = <&display_backlight_pwm>;
 	};
 
 	uart_gps {
