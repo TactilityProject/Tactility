@@ -102,7 +102,9 @@ Module simulator_module = {
     .name = "simulator",
     .start = start,
     .stop = stop,
-    .drivers = simulator_drivers
+    .drivers = simulator_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

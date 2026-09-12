@@ -25,7 +25,10 @@ static error_t stop() {
 Module lilygo_tdeck_module = {
     .name = "lilygo-tdeck",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

@@ -13,7 +13,11 @@ static Driver* const ft6x36_drivers[] = {
 
 Module ft6x36_module = {
     .name = "ft6x36",
-    .drivers = ft6x36_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = ft6x36_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

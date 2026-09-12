@@ -13,7 +13,11 @@ static Driver* const pi4ioe5v6408_drivers[] = {
 
 Module pi4ioe5v6408_module = {
     .name = "pi4ioe5v6408",
-    .drivers = pi4ioe5v6408_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = pi4ioe5v6408_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

@@ -15,7 +15,11 @@ static Driver* const sy6970_drivers[] = {
 
 Module sy6970_module = {
     .name = "sy6970",
-    .drivers = sy6970_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = sy6970_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

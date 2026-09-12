@@ -15,7 +15,11 @@ static Driver* const m5stack_drivers[] = {
 
 Module m5stack_module = {
     .name = "m5stack",
-    .drivers = m5stack_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = m5stack_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

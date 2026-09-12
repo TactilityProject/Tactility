@@ -26,7 +26,10 @@ static error_t stop() {
 Module lilygo_tlora_pager_module = {
     .name = "lilygo-tlora-pager",
     .start = start,
-    .stop = stop
+    .stop = stop,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

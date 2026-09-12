@@ -13,7 +13,11 @@ static Driver* const rgbd_display_drivers[] = {
 
 Module rgb_display_module = {
     .name = "rgb_display",
-    .drivers = rgbd_display_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = rgbd_display_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

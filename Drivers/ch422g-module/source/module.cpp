@@ -13,7 +13,11 @@ static Driver* const ch422g_drivers[] = {
 
 Module ch422g_module = {
     .name = "ch422g",
-    .drivers = ch422g_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = ch422g_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

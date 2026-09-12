@@ -3,7 +3,12 @@
 extern "C" {
 
 Module m5stack_cardputer_module = {
-    .name = "m5stack-cardputer"
+    .name = "m5stack-cardputer",
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

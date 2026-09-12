@@ -15,8 +15,11 @@ extern const ModuleSymbol es7210_module_symbols[];
 
 Module es7210_module = {
     .name = "es7210",
+    .start = nullptr,
+    .stop = nullptr,
     .drivers = es7210_drivers,
     .symbols = es7210_module_symbols,
+    .internal = nullptr
 };
 
 }

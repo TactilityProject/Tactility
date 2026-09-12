@@ -15,8 +15,11 @@ extern const ModuleSymbol es8311_module_symbols[];
 
 Module es8311_module = {
     .name = "es8311",
+    .start = nullptr,
+    .stop = nullptr,
     .drivers = es8311_drivers,
-    .symbols = es8311_module_symbols
+    .symbols = es8311_module_symbols,
+    .internal = nullptr
 };
 
 }

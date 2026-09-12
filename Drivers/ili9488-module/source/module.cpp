@@ -13,7 +13,11 @@ static Driver* const ili9488_drivers[] = {
 
 Module ili9488_module = {
     .name = "ili9488",
-    .drivers = ili9488_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = ili9488_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

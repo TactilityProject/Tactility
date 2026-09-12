@@ -15,7 +15,11 @@ static Driver* const lilygo_drivers[] = {
 
 Module lilygo_module = {
     .name = "lilygo",
-    .drivers = lilygo_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = lilygo_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

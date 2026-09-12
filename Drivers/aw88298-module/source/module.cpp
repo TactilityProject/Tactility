@@ -15,8 +15,11 @@ static Driver* const aw88298_drivers[] = {
 
 Module aw88298_module = {
     .name = "aw88298",
+    .start = nullptr,
+    .stop = nullptr,
     .drivers = aw88298_drivers,
-    .symbols = aw88298_module_symbols
+    .symbols = aw88298_module_symbols,
+    .internal = nullptr
 };
 
 }

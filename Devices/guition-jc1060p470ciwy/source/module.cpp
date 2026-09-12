@@ -3,7 +3,12 @@
 extern "C" {
 
 Module guition_jc1060p470ciwy_module = {
-    .name = "guition-jc1060p470ciwy"
+    .name = "guition-jc1060p470ciwy",
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

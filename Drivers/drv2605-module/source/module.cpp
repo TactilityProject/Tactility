@@ -13,7 +13,11 @@ static Driver* const drv2605_drivers[] = {
 
 Module drv2605_module = {
     .name = "drv2605",
-    .drivers = drv2605_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = drv2605_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

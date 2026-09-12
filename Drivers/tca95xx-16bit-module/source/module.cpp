@@ -13,7 +13,11 @@ static Driver* const tca95xx_drivers[] = {
 
 Module tca95xx_16bit_module = {
     .name = "tca95xx",
-    .drivers = tca95xx_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = tca95xx_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

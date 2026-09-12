@@ -13,7 +13,11 @@ static Driver* const esp_epaper_drivers[] = {
 
 Module esp_epaper_module = {
     .name = "esp_epaper",
-    .drivers = esp_epaper_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = esp_epaper_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

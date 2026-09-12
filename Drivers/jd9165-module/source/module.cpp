@@ -13,7 +13,11 @@ static Driver* const jd9165_drivers[] = {
 
 Module jd9165_module = {
     .name = "jd9165",
-    .drivers = jd9165_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = jd9165_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

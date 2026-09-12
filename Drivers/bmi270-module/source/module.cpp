@@ -13,7 +13,11 @@ static Driver* const bmi270_drivers[] = {
 
 Module bmi270_module = {
     .name = "bmi270",
-    .drivers = bmi270_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = bmi270_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

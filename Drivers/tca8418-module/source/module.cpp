@@ -13,7 +13,11 @@ static Driver* const tca8418_drivers[] = {
 
 Module tca8418_module = {
     .name = "tca8418",
-    .drivers = tca8418_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = tca8418_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

@@ -13,7 +13,11 @@ static Driver* const aw9523b_drivers[] = {
 
 Module aw9523b_module = {
     .name = "aw9523b",
-    .drivers = aw9523b_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = aw9523b_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

@@ -13,7 +13,11 @@ static Driver* const axs5106_drivers[] = {
 
 Module axs5106_module = {
     .name = "axs5106",
-    .drivers = axs5106_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = axs5106_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

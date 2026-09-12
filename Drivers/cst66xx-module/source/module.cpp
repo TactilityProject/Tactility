@@ -13,7 +13,11 @@ static Driver* const cst66xx_drivers[] = {
 
 Module cst66xx_module = {
     .name = "cst66xx",
-    .drivers = cst66xx_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = cst66xx_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

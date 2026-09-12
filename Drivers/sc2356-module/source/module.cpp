@@ -13,7 +13,11 @@ static Driver* const sc2356_drivers[] = {
 
 Module sc2356_module = {
     .name = "sc2356",
-    .drivers = sc2356_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = sc2356_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

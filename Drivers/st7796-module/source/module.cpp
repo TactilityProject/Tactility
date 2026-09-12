@@ -13,7 +13,11 @@ static Driver* const st7796_drivers[] = {
 
 Module st7796_module = {
     .name = "st7796",
-    .drivers = st7796_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = st7796_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

@@ -15,8 +15,11 @@ extern const ModuleSymbol es8388_module_symbols[];
 
 Module es8388_module = {
     .name = "es8388",
+    .start = nullptr,
+    .stop = nullptr,
     .drivers = es8388_drivers,
-    .symbols = es8388_module_symbols
+    .symbols = es8388_module_symbols,
+    .internal = nullptr
 };
 
 }

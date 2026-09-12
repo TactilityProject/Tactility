@@ -13,7 +13,11 @@ static Driver* const gpio_encoder_drivers[] = {
 
 Module gpio_encoder_module = {
     .name = "gpio-encoder",
-    .drivers = gpio_encoder_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = gpio_encoder_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

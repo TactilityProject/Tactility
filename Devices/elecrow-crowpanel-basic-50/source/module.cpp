@@ -3,7 +3,12 @@
 extern "C" {
 
 Module elecrow_crowpanel_basic_50_module = {
-    .name = "elecrow-crowpanel-basic-50"
+    .name = "elecrow-crowpanel-basic-50",
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

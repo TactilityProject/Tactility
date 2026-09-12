@@ -57,7 +57,9 @@ Module unphone_module = {
     .name = "unphone",
     .start = start,
     .stop = stop,
-    .drivers = unphone_drivers
+    .drivers = unphone_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

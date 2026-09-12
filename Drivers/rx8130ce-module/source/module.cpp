@@ -13,7 +13,11 @@ static Driver* const rx8130ce_drivers[] = {
 
 Module rx8130ce_module = {
     .name = "rx8130ce",
-    .drivers = rx8130ce_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = rx8130ce_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

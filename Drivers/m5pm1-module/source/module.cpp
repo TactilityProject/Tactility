@@ -17,8 +17,11 @@ extern const ModuleSymbol m5pm1_module_symbols[];
 
 Module m5pm1_module = {
     .name = "m5pm1",
+    .start = nullptr,
+    .stop = nullptr,
     .drivers = m5pm1_drivers,
-    .symbols = m5pm1_module_symbols
+    .symbols = m5pm1_module_symbols,
+    .internal = nullptr
 };
 
 } // extern "C"

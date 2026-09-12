@@ -13,7 +13,11 @@ static Driver* const gdeq031t10_drivers[] = {
 
 Module gdeq031t10_module = {
     .name = "gdeq031t10",
-    .drivers = gdeq031t10_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = gdeq031t10_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

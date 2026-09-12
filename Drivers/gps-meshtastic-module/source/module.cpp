@@ -13,7 +13,11 @@ static Driver* const meshtastic_generic_drivers[] = {
 
 Module gps_generic_module = {
     .name = "gps-meshtastic",
-    .drivers = meshtastic_generic_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = meshtastic_generic_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

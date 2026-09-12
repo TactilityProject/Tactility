@@ -13,7 +13,11 @@ static Driver* const gt911_drivers[] = {
 
 Module gt911_module = {
     .name = "gt911",
-    .drivers = gt911_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = gt911_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 } // extern "C"

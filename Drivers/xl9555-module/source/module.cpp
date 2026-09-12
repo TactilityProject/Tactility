@@ -13,7 +13,11 @@ static Driver* const xl9555_drivers[] = {
 
 Module xl9555_module = {
     .name = "xl9555",
-    .drivers = xl9555_drivers
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = xl9555_drivers,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }
