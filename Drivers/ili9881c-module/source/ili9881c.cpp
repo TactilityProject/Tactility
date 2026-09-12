@@ -180,6 +180,7 @@ static error_t start(Device* device) {
     esp_ldo_channel_config_t ldo_config = {
         .chan_id = config->ldo_channel,
         .voltage_mv = config->ldo_voltage_mv,
+        .voltage_stable_delay_us = 0,
         .flags = {},
     };
     if (esp_ldo_acquire_channel(&ldo_config, &internal->ldo_handle) != ESP_OK) {
@@ -194,6 +195,7 @@ static error_t start(Device* device) {
         .num_data_lanes = config->num_data_lanes,
         .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
         .lane_bit_rate_mbps = static_cast<float>(config->lane_bit_rate_mbps),
+        .flags = {},
     };
     if (esp_lcd_new_dsi_bus(&bus_config, &internal->dsi_bus_handle) != ESP_OK) {
         LOG_E(TAG, "Failed to create MIPI DSI bus");
@@ -569,6 +571,8 @@ static const DisplayApi ili9881c_display_api = {
     .get_mirror_x = ili9881c_get_mirror_x,
     .get_mirror_y = ili9881c_get_mirror_y,
     .set_gap = nullptr,
+    .get_gap_x = nullptr,
+    .get_gap_y = nullptr,
     .invert_color = ili9881c_invert_color,
     .disp_on_off = ili9881c_disp_on_off,
     .disp_sleep = nullptr,

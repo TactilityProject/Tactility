@@ -167,7 +167,7 @@ static int32_t gps_thread_main(void* context) {
         if (bytes_read > 0U) {
             switch (minmea_sentence_id(reinterpret_cast<char*>(buffer), false)) {
                 case MINMEA_SENTENCE_RMC: {
-                    GpsEvent event { .type = GPS_EVENT_MESSAGE_RMC };
+                    GpsEvent event { .type = GPS_EVENT_MESSAGE_RMC, .data = {} };
                     if (minmea_parse_rmc(&event.data.rmc, reinterpret_cast<char*>(buffer))) {
                         notify_subscribers(internal, event);
                     } else {
@@ -176,7 +176,7 @@ static int32_t gps_thread_main(void* context) {
                     break;
                 }
                 case MINMEA_SENTENCE_GGA: {
-                    GpsEvent event { .type = GPS_EVENT_MESSAGE_GGA };
+                    GpsEvent event { .type = GPS_EVENT_MESSAGE_GGA, .data = {} };
                     if (minmea_parse_gga(&event.data.gga, reinterpret_cast<char*>(buffer))) {
                         notify_subscribers(internal, event);
                     } else {
@@ -196,7 +196,7 @@ static int32_t gps_thread_main(void* context) {
 
     // Wake any subscribers still awaiting an event so they don't block forever on a device that's
     // going away, then drop them - stop() is about to free `internal`.
-    notify_subscribers(internal, GpsEvent { .type = GPS_EVENT_UNSUBSCRIBED });
+    notify_subscribers(internal, GpsEvent { .type = GPS_EVENT_UNSUBSCRIBED, .data = {} });
     recursive_mutex_lock(&internal->mutex);
     internal->subscribers = nullptr;
     recursive_mutex_unlock(&internal->mutex);
@@ -340,5 +340,6 @@ Driver meshtastic_gps_driver = {
     .stop_device = stop,
     .api = &generic_gps_api,
     .device_type = &GPS_TYPE,
-    .owner = &gps_meshtastic_module
+    .owner = &gps_meshtastic_module,
+    .internal = nullptr
 };

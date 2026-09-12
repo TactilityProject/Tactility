@@ -186,7 +186,9 @@ static error_t start(Device* device) {
         },
         .data_width = config->data_width,
         .in_color_format = color_format_from_bpp(config->bits_per_pixel),
+        .out_color_format = color_format_from_bpp(config->bits_per_pixel),
         .num_fbs = config->num_fbs,
+        .user_fbs = {},
         .bounce_buffer_size_px = config->bounce_buffer_size_px,
         // No device configures sram-trans-align/psram-trans-align differently from their YAML
         // defaults (8/64), so the single dma_burst_size that replaced both can just take the
@@ -288,7 +290,7 @@ static error_t start(Device* device) {
 
     internal->frame_buffer_count = 0;
     internal->frame_buffer_size_bytes = (size_t)config->horizontal_resolution * config->vertical_resolution *
-        ((config->bits_per_pixel + 7) / 8);
+        ((config->bits_per_pixel + 7) / 32);
     if (config->num_fbs > 0) {
         // esp_lcd_rgb_panel_get_frame_buffer() is variadic: the number of out-pointer arguments
         // passed must match fb_num exactly, so this can't be a loop.
@@ -528,6 +530,8 @@ static const DisplayApi st7701_display_api = {
     .get_mirror_x = st7701_get_mirror_x,
     .get_mirror_y = st7701_get_mirror_y,
     .set_gap = nullptr,
+    .get_gap_x = nullptr,
+    .get_gap_y = nullptr,
     .invert_color = st7701_invert_color,
     .disp_on_off = st7701_disp_on_off,
     .disp_sleep = nullptr,

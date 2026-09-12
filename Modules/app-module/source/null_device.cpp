@@ -30,6 +30,8 @@ const AppFileOps NULL_OPS = {
     .close = null_close,
     .await = null_await,
     .poll = null_poll,
+    .retain = nullptr,
+    .release = nullptr,
 };
 
 constexpr AppFile NULL_FILE = { .ops = &NULL_OPS, .object = nullptr };

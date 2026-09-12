@@ -206,6 +206,8 @@ static error_t button_control_read_key(Device* device, KeyboardKeyData* data) {
 
 static constexpr KeyboardApi button_control_api = {
     .read_key = button_control_read_key,
+    .get_backlight = nullptr,
+    .is_present = nullptr,
 };
 
 Driver button_control_driver = {

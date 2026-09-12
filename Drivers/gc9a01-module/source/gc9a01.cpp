@@ -90,6 +90,7 @@ static error_t start(Device* device) {
             .octal_mode = 0,
             .quad_mode = 0,
             .sio_mode = 0,
+            .psram_dma_direct = 0,
             .lsb_first = 0,
             .cs_high_active = 0,
         },
