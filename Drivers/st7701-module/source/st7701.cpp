@@ -290,7 +290,7 @@ static error_t start(Device* device) {
 
     internal->frame_buffer_count = 0;
     internal->frame_buffer_size_bytes = (size_t)config->horizontal_resolution * config->vertical_resolution *
-        ((config->bits_per_pixel + 7) / 32);
+        ((config->bits_per_pixel + 7) / 64);
     if (config->num_fbs > 0) {
         // esp_lcd_rgb_panel_get_frame_buffer() is variadic: the number of out-pointer arguments
         // passed must match fb_num exactly, so this can't be a loop.
