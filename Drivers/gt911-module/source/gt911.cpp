@@ -227,7 +227,19 @@ static error_t gt911_read_data(Device* device, TickType_t timeout) {
 
 static bool gt911_get_touched_points(Device* device, uint16_t* x, uint16_t* y, uint16_t* strength, uint8_t* point_count, uint8_t max_point_count) {
     auto* internal = static_cast<Gt911Internal*>(device_get_driver_data(device));
-    return esp_lcd_touch_get_coordinates(internal->touch_handle, x, y, strength, point_count, max_point_count);
+    esp_lcd_touch_point_data_t points[CONFIG_ESP_LCD_TOUCH_MAX_POINTS];
+    uint8_t clamped_max_point_count = max_point_count < CONFIG_ESP_LCD_TOUCH_MAX_POINTS ? max_point_count : CONFIG_ESP_LCD_TOUCH_MAX_POINTS;
+    if (esp_lcd_touch_get_data(internal->touch_handle, points, point_count, clamped_max_point_count) != ESP_OK) {
+        return false;
+    }
+    for (uint8_t i = 0; i < *point_count; i++) {
+        x[i] = points[i].x;
+        y[i] = points[i].y;
+        if (strength != nullptr) {
+            strength[i] = points[i].strength;
+        }
+    }
+    return *point_count > 0;
 }
 
 static error_t gt911_set_swap_xy(Device* device, bool swap) {
