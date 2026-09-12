@@ -1105,7 +1105,7 @@ const BluetoothApi nimble_bluetooth_api = {
 
 static void create_child_device(struct Device* parent, const char* name,
                                 Driver* drv, struct Device*& out) {
-    out = new Device { .address = 0, .name = name, .config = nullptr, .parent = nullptr, .internal = nullptr };
+    out = new Device { .address = 0, .name = name, .config = nullptr, .parent = nullptr, .flags = 0, .internal = nullptr };
     device_construct(out);
     device_set_parent(out, parent);
     device_set_driver(out, drv);

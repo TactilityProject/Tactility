@@ -35,7 +35,7 @@ struct Context {
     // is a plain (non-atomic) field safely shared between the LVGL thread (writer, before
     // emitting APP_EVENT_CLOSE) and this dialog's own thread (reader, after waking from it).
     int32_t resultCode = 1; // Cancelled - safety-net default if closed without pressing a button
-    std::string resultText;
+    std::string resultText = {};
 };
 
 struct ButtonContext {

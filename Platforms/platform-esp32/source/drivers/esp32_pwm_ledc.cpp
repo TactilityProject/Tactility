@@ -97,6 +97,7 @@ static error_t apply_channel(Device* device) {
         .flags = {
             .output_invert = internal->inverted ? 1u : 0u,
         },
+        .deconfigure = false,
     };
     if (ledc_channel_config(&channel_config) != ESP_OK) {
         LOG_E(TAG, "Failed to configure LEDC channel");

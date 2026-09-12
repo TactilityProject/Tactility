@@ -264,7 +264,7 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
                 publish_event(ctx, &evt);
 
                 if (b2 != ctx->prev_mouse_button2) {
-                    UsbHidEvent key_evt = { .type = USB_HID_EVENT_KEY, .key = { USB_HID_KEY_ESC, b2 } };
+                    UsbHidEvent key_evt = { .type = USB_HID_EVENT_KEY, .key = { USB_HID_KEY_ESC, b2, false, false } };
                     publish_event(ctx, &key_evt);
                     ctx->prev_mouse_button2 = b2;
                 }
@@ -298,7 +298,7 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
             UsbHidEventType disc_type = (params.proto == HID_PROTOCOL_KEYBOARD)
                 ? USB_HID_EVENT_KEYBOARD_DISCONNECTED
                 : USB_HID_EVENT_MOUSE_DISCONNECTED;
-            UsbHidEvent evt = { .type = disc_type };
+            UsbHidEvent evt = { .type = disc_type, .scroll = {} };
             publish_event(ctx, &evt);
         }
         break;
