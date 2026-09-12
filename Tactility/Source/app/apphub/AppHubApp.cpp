@@ -339,8 +339,8 @@ extern const ::AppManifest manifest = {
     .flags = 0,
     .stack = {
         .depth = 10240,
-        .desired_memory_capability = 0
-    }
+        .desired_memory_capability = 0,
+    },
 };
 
 } // namespace tt::app::apphub
