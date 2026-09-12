@@ -82,6 +82,30 @@ struct DisplayApi {
     error_t (*draw_bitmap)(struct Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data);
 
     /**
+     * @brief Fully wipes/resets the panel's visible image, independent of anything previously
+     * drawn via draw_bitmap(). Intended for panels where content drawn outside the normal
+     * screen/widget model, such as an app writing directly via draw_bitmap(), can leave residue
+     * that nothing else knows to repaint. E-paper ghosting is the main case.
+     * @warning Nullable. When null, this display has no dedicated clear operation. Callers should
+     * fall back to redrawing (e.g. a full-frame draw_bitmap()) if a clear is needed.
+     * @param[in] device the display device
+     * @retval ERROR_NONE when the operation was successful
+     */
+    error_t (*clear)(struct Device* device);
+
+    /**
+     * @brief Forces a full-quality redraw of whatever is already in the panel's buffer, without
+     * changing its content. Unlike clear(), which wipes the image first, this is for e-paper
+     * panels doing a GC16-equivalent pass to clear ghosting left by earlier fast or partial
+     * draw_bitmap() calls, as periodic maintenance while content is otherwise correct but has
+     * accumulated visible residue from the panel's own display technology.
+     * @warning Nullable. When null, this display has no such maintenance pass.
+     * @param[in] device the display device
+     * @retval ERROR_NONE when the operation was successful
+     */
+    error_t (*refresh)(struct Device* device);
+
+    /**
      * @brief Mirrors the image along the X and/or Y axis.
      * @warning Function pointer should be null if capability not available.
      * @param[in] device the display device
@@ -253,6 +277,20 @@ error_t display_init(struct Device* device);
  * @brief Draws pixel data into the given rectangle using the specified display.
  */
 error_t display_draw_bitmap(struct Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data);
+
+/**
+ * @brief Fully wipes/resets the panel's visible image using the specified display. See
+ * DisplayApi::clear() for details.
+ * @retval ERROR_NOT_SUPPORTED when this display has no clear() implementation
+ */
+error_t display_clear(struct Device* device);
+
+/**
+ * @brief Forces a full-quality redraw of the panel's current content using the specified display.
+ * See DisplayApi::refresh() for details.
+ * @retval ERROR_NOT_SUPPORTED when this display has no refresh() implementation
+ */
+error_t display_refresh(struct Device* device);
 
 /**
  * @brief Mirrors the image along the X and/or Y axis using the specified display.
