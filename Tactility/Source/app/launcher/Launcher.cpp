@@ -261,7 +261,6 @@ void runAutoStartIsolated() {
 
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
-    runAutoStartIsolated();
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
@@ -270,6 +269,8 @@ int32_t appMain(int argc, char* argv[]) {
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
     WindowId window = window_manager_create(appInstanceId, createWidgets, nullptr);
+
+    runAutoStartIsolated();
 
     // The launcher is meant to stay resident (it's the home screen) - it only gives up its
     // thread when app-module's scheduler asks it to (e.g. another new-model app is started).
