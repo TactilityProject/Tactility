@@ -335,7 +335,12 @@ extern const ::AppManifest manifest = {
     .id = "tactility.apphub",
     .name = "App Hub",
     .category = APP_CATEGORY_SYSTEM,
-    .location = {APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain)}
+    .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(appMain) },
+    .flags = 0,
+    .stack = {
+        .depth = 10240,
+        .desired_memory_capability = 0
+    }
 };
 
 } // namespace tt::app::apphub
