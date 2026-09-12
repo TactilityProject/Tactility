@@ -11,6 +11,7 @@
 static constexpr uint8_t REG_CHIP_ID = 0x00; // read: expect 0x24
 static constexpr uint8_t REG_DATA_ACC = 0x0C; // 6 bytes: acc X/Y/Z LSB/MSB
 static constexpr uint8_t REG_DATA_GYR = 0x12; // 6 bytes: gyr X/Y/Z LSB/MSB
+static constexpr uint8_t REG_TEMPERATURE = 0x22; // 2 bytes: on-die temperature, 0x8000 = invalid
 static constexpr uint8_t REG_INTERNAL_ST = 0x21; // bit0: init done
 static constexpr uint8_t REG_ACC_CONF = 0x40; // ODR + BWP + filter_perf
 static constexpr uint8_t REG_ACC_RANGE = 0x41; // range selector
@@ -152,14 +153,11 @@ static error_t stop(Device* device) {
 
 extern "C" {
 
-error_t bmi270_read(Device* device, Bmi270Data* data) {
+error_t bmi270_read_accel(Device* device, ImuAccelData* data) {
     auto* i2c_controller = device_get_parent(device);
-
     auto address = GET_CONFIG(device)->address;
 
-    // Burst-read 12 bytes: acc X/Y/Z (6 bytes) + gyro X/Y/Z (6 bytes)
-    // Registers: 0x0C–0x17 are contiguous for acc+gyro in I2C mode (no dummy byte)
-    uint8_t buffer[12] = {};
+    uint8_t buffer[6] = {};
     error_t error = i2c_controller_read_register(i2c_controller, address, REG_DATA_ACC, buffer, sizeof(buffer), I2C_TIMEOUT_TICKS);
     if (error != ERROR_NONE) return error;
 
@@ -167,23 +165,61 @@ error_t bmi270_read(Device* device, Bmi270Data* data) {
         return static_cast<int16_t>(static_cast<uint16_t>(hi) << 8 | lo);
     };
 
-    data->ax = toI16(buffer[0],  buffer[1])  * ACCEL_SCALE;
-    data->ay = toI16(buffer[2],  buffer[3])  * ACCEL_SCALE;
-    data->az = toI16(buffer[4],  buffer[5])  * ACCEL_SCALE;
-    data->gx = toI16(buffer[6],  buffer[7])  * GYRO_SCALE;
-    data->gy = toI16(buffer[8],  buffer[9])  * GYRO_SCALE;
-    data->gz = toI16(buffer[10], buffer[11]) * GYRO_SCALE;
+    data->ax = toI16(buffer[0], buffer[1]) * ACCEL_SCALE;
+    data->ay = toI16(buffer[2], buffer[3]) * ACCEL_SCALE;
+    data->az = toI16(buffer[4], buffer[5]) * ACCEL_SCALE;
 
     return ERROR_NONE;
 }
+
+error_t bmi270_read_gyro(Device* device, ImuGyroData* data) {
+    auto* i2c_controller = device_get_parent(device);
+    auto address = GET_CONFIG(device)->address;
+
+    uint8_t buffer[6] = {};
+    error_t error = i2c_controller_read_register(i2c_controller, address, REG_DATA_GYR, buffer, sizeof(buffer), I2C_TIMEOUT_TICKS);
+    if (error != ERROR_NONE) return error;
+
+    auto toI16 = [](uint8_t lo, uint8_t hi) -> int16_t {
+        return static_cast<int16_t>(static_cast<uint16_t>(hi) << 8 | lo);
+    };
+
+    data->gx = toI16(buffer[0], buffer[1]) * GYRO_SCALE;
+    data->gy = toI16(buffer[2], buffer[3]) * GYRO_SCALE;
+    data->gz = toI16(buffer[4], buffer[5]) * GYRO_SCALE;
+
+    return ERROR_NONE;
+}
+
+error_t bmi270_read_temperature(Device* device, float* temperature_c) {
+    auto* i2c_controller = device_get_parent(device);
+    auto address = GET_CONFIG(device)->address;
+
+    uint8_t buffer[2] = {};
+    error_t error = i2c_controller_read_register(i2c_controller, address, REG_TEMPERATURE, buffer, sizeof(buffer), I2C_TIMEOUT_TICKS);
+    if (error != ERROR_NONE) return error;
+
+    uint16_t raw = static_cast<uint16_t>(buffer[1]) << 8 | buffer[0];
+    if (raw == 0x8000) return ERROR_NOT_FOUND; // sensor reports "invalid" (not enabled/not ready)
+
+    // Datasheet: temperature = raw / 512 + 23 (°C), raw is a signed 16-bit value
+    *temperature_c = static_cast<int16_t>(raw) / 512.0f + 23.0f;
+    return ERROR_NONE;
+}
+
+ImuApi bmi270_imu_api = {
+    .read_accel = bmi270_read_accel,
+    .read_gyro = bmi270_read_gyro,
+    .read_temperature = bmi270_read_temperature
+};
 
 Driver bmi270_driver = {
     .name = "bmi270",
     .compatible = (const char*[]) { "bosch,bmi270", nullptr},
     .start_device = start,
     .stop_device = stop,
-    .api = nullptr,
-    .device_type = nullptr,
+    .api = &bmi270_imu_api,
+    .device_type = &IMU_TYPE,
     .owner = &bmi270_module,
     .internal = nullptr
 };

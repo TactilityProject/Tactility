@@ -11,12 +11,9 @@ static Driver* const bmi270_drivers[] = {
     nullptr
 };
 
-extern const ModuleSymbol bmi270_module_symbols[];
-
 Module bmi270_module = {
     .name = "bmi270",
-    .drivers = bmi270_drivers,
-    .symbols = bmi270_module_symbols
+    .drivers = bmi270_drivers
 };
 
 }

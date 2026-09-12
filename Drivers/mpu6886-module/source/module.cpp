@@ -11,12 +11,9 @@ static Driver* const mpu6886_drivers[] = {
     nullptr
 };
 
-extern const ModuleSymbol mpu6886_module_symbols[];
-
 Module mpu6886_module = {
     .name = "mpu6886",
-    .drivers = mpu6886_drivers,
-    .symbols = mpu6886_module_symbols,
+    .drivers = mpu6886_drivers
 };
 
 } // extern "C"
