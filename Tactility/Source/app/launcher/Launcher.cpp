@@ -17,6 +17,8 @@
 #include <tactility/device.h>
 #include <tactility/drivers/pointer.h>
 #include <tactility/drivers/power_supply.h>
+#include <tactility/freertos/semphr.h>
+#include <tactility/freertos/task.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
 
@@ -233,9 +235,33 @@ void runAutoStart() {
     }
 }
 
+constexpr size_t AUTO_START_STACK_DEPTH = 4096 / sizeof(StackType_t);
+
+struct AutoStartTaskContext {
+    SemaphoreHandle_t done;
+};
+
+void autoStartTaskMain(void* param) {
+    auto* context = static_cast<AutoStartTaskContext*>(param);
+    runAutoStart();
+    xSemaphoreGive(context->done);
+    vTaskDelete(nullptr);
+}
+
+// runAutoStart() reads from flash, and apps run on PSRAM when available.
+// Launcher stays in memory, so we prefer to keep the PSRAM task and temporarily run an IRAM task for auto start logic.
+void runAutoStartIsolated() {
+    AutoStartTaskContext context { .done = xSemaphoreCreateBinary() };
+    check(context.done != nullptr);
+    TaskHandle_t auto_start_task = nullptr;
+    check(xTaskCreate(autoStartTaskMain, "LauncherAutoStart", AUTO_START_STACK_DEPTH, &context, tskIDLE_PRIORITY, &auto_start_task) == pdPASS);
+    xSemaphoreTake(context.done, portMAX_DELAY);
+    vSemaphoreDelete(context.done);
+}
+
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
-    runAutoStart();
+    runAutoStartIsolated();
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
