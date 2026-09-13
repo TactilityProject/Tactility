@@ -1,0 +1,30 @@
+version: "2.0.0"
+description: "E-Paper display driver for ESP-IDF with LVGL 9 integration. Supports BW, 3-color, and 6-color panels with Floyd-Steinberg dithering."
+url: "https://github.com/tuanpmt/esp_epaper"
+repository: "https://github.com/tuanpmt/esp_epaper.git"
+documentation: "https://github.com/tuanpmt/esp_epaper/blob/master/README.md"
+issues: "https://github.com/tuanpmt/esp_epaper/issues"
+maintainers:
+  - "tuanpmt"
+
+dependencies:
+  idf:
+    version: ">=5.0.0"
+  lvgl/lvgl:
+    version: "^9.0.0"
+    public: true
+
+targets:
+  - esp32
+  - esp32s2
+  - esp32s3
+  - esp32c3
+  - esp32c6
+  - esp32p4
+
+license: "MIT"
+
+examples:
+  - path: examples/esp32s3_epaper_154
+  - path: examples/esp32s3_photopainter
+  - path: examples/esp32_wroom_generic

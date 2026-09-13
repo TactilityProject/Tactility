@@ -16,6 +16,3 @@
 [submodule "Libraries/cJSON/cJSON"]
 	path = Libraries/cJSON/cJSON
 	url = https://github.com/DaveGamble/cJSON.git
-[submodule "Libraries/esp_epaper"]
-	path = Libraries/esp_epaper
-	url = https://github.com/NellowTCS/esp_epaper.git
