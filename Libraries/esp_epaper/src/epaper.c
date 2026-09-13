@@ -238,8 +238,10 @@ esp_err_t epd_update(epd_handle_t handle, const uint8_t *buffer, epd_update_mode
         }
     }
 
-    // Copy to framebuffer
-    memcpy(dev->framebuffer, buffer, dev->buffer_size);
+    // Copy to framebuffer (callers may pass the internal framebuffer itself)
+    if (buffer != dev->framebuffer) {
+        memcpy(dev->framebuffer, buffer, dev->buffer_size);
+    }
 
     // For partial mode on first call, do a full refresh to set base image
     if (mode == EPD_UPDATE_PARTIAL && !dev->partial_ready) {
