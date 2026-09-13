@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include <epaper_config.h>
@@ -37,6 +38,11 @@ struct EspEpaperConfig {
      * counter-clockwise (LV_DISPLAY_ROTATION_*). Not changeable at runtime.
      */
     uint8_t rotation;
+    /** Mirror the panel horizontally. Fixed at start; the underlying esp_epaper component applies
+     * it at epd_init() time with no runtime setter. */
+    bool mirror_x;
+    /** Mirror the panel vertically. Fixed at start, same as mirror_x. */
+    bool mirror_y;
 };
 
 #ifdef __cplusplus

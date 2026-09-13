@@ -63,3 +63,13 @@ properties:
       so LVGL renders in rotated space and the driver rotates the 1bpp frame
       back to the panel's native layout before updating. Not changeable at
       runtime.
+  mirror-x:
+    type: boolean
+    default: false
+    description: >
+      Mirror the panel horizontally. Applied once at start via the underlying
+      esp_epaper component's epd_init(); not changeable at runtime.
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the panel vertically. Same fixed-at-start behavior as mirror-x.

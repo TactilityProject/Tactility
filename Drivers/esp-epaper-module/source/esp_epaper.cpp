@@ -33,6 +33,9 @@ struct EspEpaperInternal {
     epd_panel_info_t info;
     /** Scratch buffer in native panel layout, for rotated frames (rotation != 0). */
     uint8_t* rotate_buffer;
+    /** Copy of the last frame sent to epd_update(), in native panel layout - refresh() resends
+     * this at EPD_UPDATE_FULL to clear ghosting without new content from LVGL. */
+    uint8_t* last_frame_buffer;
     /** Serializes panel/SPI access between draw_bitmap and power state changes. */
     SemaphoreHandle_t panel_mutex;
     /** disp_on_off state; the panel is in deep sleep while false. */
@@ -138,12 +141,66 @@ static error_t esp_epaper_draw_bitmap(Device* device, int32_t x_start, int32_t y
         source = internal->rotate_buffer;
     }
 
+    memcpy(internal->last_frame_buffer, source, internal->info.buffer_size);
+
     spi_controller_lock(internal->spi_controller);
     const esp_err_t ret = epd_update(internal->epd, source, config->update_mode);
     spi_controller_unlock(internal->spi_controller);
     xSemaphoreGive(internal->panel_mutex);
     if (ret != ESP_OK) {
         LOG_E(TAG, "epd_update failed: %s", esp_err_to_name(ret));
+        return ERROR_RESOURCE;
+    }
+    return ERROR_NONE;
+}
+
+// Resends the last drawn frame at EPD_UPDATE_FULL (ignoring config->update_mode) to clear
+// ghosting left by earlier fast/partial draw_bitmap() calls, without changing visible content.
+// Called periodically by lvgl-module's idle-repaint mechanism for displays with
+// DISPLAY_CAPABILITY_SLOW_REFRESH (see Modules/lvgl-module/source/devices/devices.cpp).
+static error_t esp_epaper_refresh(Device* device) {
+    auto* internal = static_cast<EspEpaperInternal*>(device_get_driver_data(device));
+
+    xSemaphoreTake(internal->panel_mutex, portMAX_DELAY);
+    if (!internal->display_on) {
+        xSemaphoreGive(internal->panel_mutex);
+        return ERROR_NONE;
+    }
+
+    spi_controller_lock(internal->spi_controller);
+    const esp_err_t ret = epd_update(internal->epd, internal->last_frame_buffer, EPD_UPDATE_FULL);
+    spi_controller_unlock(internal->spi_controller);
+    xSemaphoreGive(internal->panel_mutex);
+    if (ret != ESP_OK) {
+        LOG_E(TAG, "epd_update (refresh) failed: %s", esp_err_to_name(ret));
+        return ERROR_RESOURCE;
+    }
+    return ERROR_NONE;
+}
+
+// White-fills the panel with a full-quality pass, via the library's epd_clear()/epd_fill()
+// (fills its own internal framebuffer with 0xFF, then epd_update()s it at EPD_UPDATE_FULL).
+// Keeps last_frame_buffer in sync so a later refresh() resends white rather than stale content.
+static error_t esp_epaper_clear(Device* device) {
+    auto* internal = static_cast<EspEpaperInternal*>(device_get_driver_data(device));
+
+    xSemaphoreTake(internal->panel_mutex, portMAX_DELAY);
+    if (!internal->display_on) {
+        xSemaphoreGive(internal->panel_mutex);
+        return ERROR_NONE;
+    }
+
+    spi_controller_lock(internal->spi_controller);
+    const esp_err_t ret = epd_clear(internal->epd);
+    spi_controller_unlock(internal->spi_controller);
+
+    if (ret == ESP_OK) {
+        memset(internal->last_frame_buffer, 0xFF, internal->info.buffer_size);
+    }
+    xSemaphoreGive(internal->panel_mutex);
+
+    if (ret != ESP_OK) {
+        LOG_E(TAG, "epd_clear failed: %s", esp_err_to_name(ret));
         return ERROR_RESOURCE;
     }
     return ERROR_NONE;
@@ -207,8 +264,8 @@ static const DisplayApi esp_epaper_display_api = {
     .reset = esp_epaper_reset,
     .init = esp_epaper_init,
     .draw_bitmap = esp_epaper_draw_bitmap,
-    .clear = nullptr,
-    .refresh = nullptr,
+    .clear = esp_epaper_clear,
+    .refresh = esp_epaper_refresh,
     .mirror = nullptr,
     .swap_xy = nullptr,
     .get_swap_xy = nullptr,
@@ -237,6 +294,9 @@ static void free_internal(EspEpaperInternal* internal) {
     }
     if (internal->rotate_buffer != nullptr) {
         free(internal->rotate_buffer);
+    }
+    if (internal->last_frame_buffer != nullptr) {
+        free(internal->last_frame_buffer);
     }
     if (internal->panel_mutex != nullptr) {
         vSemaphoreDelete(internal->panel_mutex);
@@ -284,6 +344,8 @@ static error_t start(Device* device) {
     epd_config.panel.type = panel_type;
     epd_config.panel.width = config->width;
     epd_config.panel.height = config->height;
+    epd_config.panel.mirror_x = config->mirror_x;
+    epd_config.panel.mirror_y = config->mirror_y;
 
     epd_handle_t epd = nullptr;
     if (epd_init(&epd_config, &epd) != ESP_OK) {
@@ -330,6 +392,14 @@ static error_t start(Device* device) {
             free_internal(internal);
             return ERROR_OUT_OF_MEMORY;
         }
+    }
+
+    // Zero-initialized so a refresh() before the first draw_bitmap() is a harmless all-white pass.
+    internal->last_frame_buffer = static_cast<uint8_t*>(calloc(1, internal->info.buffer_size));
+    if (internal->last_frame_buffer == nullptr) {
+        LOG_E(TAG, "Failed to allocate %lu-byte last-frame buffer", internal->info.buffer_size);
+        free_internal(internal);
+        return ERROR_OUT_OF_MEMORY;
     }
 
     internal->display_on = true;
