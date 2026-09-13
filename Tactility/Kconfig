@@ -64,6 +64,11 @@ menu "Tactility App"
         range 0 200
         help
             Shared icon size in pixels
+    config TT_LVGL_STATUSBAR_COLORS_INVERTED
+        bool "Statusbar colors inverted"
+        default n
+        help
+            Invert the statusbar's foreground/background colors
     config TT_AUTO_START_APP_ID
         string "Auto Start App ID"
         default ""

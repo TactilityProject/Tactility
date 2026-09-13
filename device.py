@@ -286,6 +286,9 @@ def write_lvgl_variables(output_file, device_properties: dict):
     output_file.write(f"CONFIG_LV_COLOR_DEPTH={color_depth}\n")
     output_file.write(f"CONFIG_LV_COLOR_DEPTH_{color_depth}=y\n")
     output_file.write("CONFIG_LV_DISP_DEF_REFR_PERIOD=10\n")
+    has_statusbar_colors_inverted = get_boolean_property_or_false(device_properties, "lvgl.statusbarColorsInverted")
+    if has_statusbar_colors_inverted:
+        output_file.write("CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED=y\n")
     theme = get_property_or_default(device_properties, "lvgl.theme", "DefaultDark")
     if theme == "DefaultDark":
         output_file.write("CONFIG_LV_THEME_DEFAULT_DARK=y\n")
