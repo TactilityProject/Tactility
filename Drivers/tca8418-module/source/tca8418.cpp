@@ -221,8 +221,8 @@ static void handle_key_event(Tca8418Internal* internal, const Tca8418Config* con
             uint32_t chr = keymap_lookup(keymap, keymap_length, row, vcol, config->columns);
             if (chr != 0) {
                 uint32_t index = static_cast<uint32_t>(row) * config->columns + vcol;
-                LOG_I(TAG, "key index=%u value=0x%08X ('%c')", index, static_cast<unsigned int>(chr),
-                      (chr >= 0x20 && chr < 0x7F) ? static_cast<char>(chr) : '.');
+                LOG_D(TAG, "key index=%u value=0x%08X ('%c')", index, static_cast<unsigned int>(chr),
+                      (chr >= 0x20 && chr < 0x7F) ? static_cast<char>(chr) : '?');
 
                 // LVGL only registers a key on a RELEASED->PRESSED edge, so every keystroke is
                 // queued as an immediate press+release pair.
