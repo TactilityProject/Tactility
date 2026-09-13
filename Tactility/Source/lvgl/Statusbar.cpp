@@ -16,9 +16,14 @@
 #include <lvgl/lvgl.h>
 
 #include <memory>
+
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
+
 namespace tt::lvgl {
 
-#ifdef CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED && CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED
+#if defined(CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED) && CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED
 constexpr bool STATUSBAR_COLORS_INVERTED = true;
 #else
 constexpr bool STATUSBAR_COLORS_INVERTED = false;
