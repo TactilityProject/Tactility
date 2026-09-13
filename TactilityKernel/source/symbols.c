@@ -204,6 +204,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(gpio_controller_init_descriptors),
     DEFINE_MODULE_SYMBOL(gpio_controller_deinit_descriptors),
     DEFINE_MODULE_SYMBOL(gpio_controller_get_controller_context),
+    DEFINE_MODULE_SYMBOL(gpio_controller_get_level),
     DEFINE_MODULE_SYMBOL(GPIO_CONTROLLER_TYPE),
     // drivers/grove
     DEFINE_MODULE_SYMBOL(grove_set_mode),

@@ -202,6 +202,16 @@ error_t gpio_descriptor_disable_interrupt(struct GpioDescriptor* descriptor);
 error_t gpio_controller_get_pin_count(struct Device* device, uint32_t* count);
 
 /**
+ * @brief Gets the logical level of a GPIO pin directly by pin number, without acquiring it first.
+ * @param[in] device the GPIO controller device
+ * @param[in] pin the pin number
+ * @param[out] high pointer to store the pin level
+ * @retval ERROR_OUT_OF_RANGE if pin is not a valid pin number for this controller
+ * @return ERROR_NONE if successful
+ */
+error_t gpio_controller_get_level(struct Device* device, gpio_pin_t pin, bool* high);
+
+/**
  * @brief Initializes GPIO descriptors for a controller.
  * @param[in,out] device the GPIO controller device
  * @param[in] controller_context pointer to store in the controller's internal data
