@@ -28,23 +28,24 @@ properties:
       before comparing against shift-row/shift-col/sym-row/sym-col.
   keymap-lc:
     type: array
-    element-type: uint8_t
+    element-type: uint32_t
     required: true
     description: >
-      Base (lowercase) layer keymap, rows*columns bytes in row-major order (already in
+      Base (lowercase) layer keymap, rows*columns values in row-major order (already in
       silkscreen/keymap column order - see reverse-columns). 0 = no key at this position (e.g.
       a blank matrix position, or a position handled as a modifier via shift-row/shift-col/
-      sym-row/sym-col instead). Non-zero bytes are sent as-is via KeyboardKeyData::key (a Unicode
-      codepoint - byte range covers Latin-1 - for character and non-character keys).
+      sym-row/sym-col instead). Non-zero values are sent as-is via KeyboardKeyData::key (any
+      Unicode codepoint, including the CodePoint enum's non-character values) for character and
+      non-character keys.
   keymap-uc:
     type: array
-    element-type: uint8_t
+    element-type: uint32_t
     description: >
       Uppercase/shift layer keymap, same shape as keymap-lc. Omit if this keyboard has no
       separate uppercase layer (shift-row/shift-col should then also be left unset).
   keymap-sy:
     type: array
-    element-type: uint8_t
+    element-type: uint32_t
     description: >
       Symbol layer keymap, same shape as keymap-lc. Omit if this keyboard has no symbol layer
       (sym-row/sym-col should then also be left unset).

@@ -16,11 +16,11 @@ struct Tca8418Config {
     uint8_t rows;
     uint8_t columns;
     bool reverse_columns;
-    const uint8_t* keymap_lc;
+    const uint32_t* keymap_lc;
     uint32_t keymap_lc_length;
-    const uint8_t* keymap_uc;
+    const uint32_t* keymap_uc;
     uint32_t keymap_uc_length;
-    const uint8_t* keymap_sy;
+    const uint32_t* keymap_sy;
     uint32_t keymap_sy_length;
     uint8_t shift_row;
     uint8_t shift_col;

@@ -177,7 +177,7 @@ static error_t stop(Device* device) {
 
 // region KeyboardApi
 
-static uint8_t keymap_lookup(const uint8_t* keymap, uint32_t keymap_length, uint8_t row, uint8_t vcol, uint8_t columns) {
+static uint32_t keymap_lookup(const uint32_t* keymap, uint32_t keymap_length, uint8_t row, uint8_t vcol, uint8_t columns) {
     uint32_t index = static_cast<uint32_t>(row) * columns + vcol;
     if (keymap == nullptr || index >= keymap_length) {
         return 0;
@@ -209,7 +209,7 @@ static void handle_key_event(Tca8418Internal* internal, const Tca8418Config* con
         } else if (is_sym) {
             internal->sym_pressed = true;
         } else {
-            const uint8_t* keymap = config->keymap_lc;
+            const uint32_t* keymap = config->keymap_lc;
             uint32_t keymap_length = config->keymap_lc_length;
             if (internal->sym_pressed) {
                 keymap = config->keymap_sy;
@@ -218,8 +218,12 @@ static void handle_key_event(Tca8418Internal* internal, const Tca8418Config* con
                 keymap = config->keymap_uc;
                 keymap_length = config->keymap_uc_length;
             }
-            uint8_t chr = keymap_lookup(keymap, keymap_length, row, vcol, config->columns);
+            uint32_t chr = keymap_lookup(keymap, keymap_length, row, vcol, config->columns);
             if (chr != 0) {
+                uint32_t index = static_cast<uint32_t>(row) * config->columns + vcol;
+                LOG_I(TAG, "key index=%u value=0x%08X ('%c')", index, static_cast<unsigned int>(chr),
+                      (chr >= 0x20 && chr < 0x7F) ? static_cast<char>(chr) : '.');
+
                 // LVGL only registers a key on a RELEASED->PRESSED edge, so every keystroke is
                 // queued as an immediate press+release pair.
                 push_pending(internal, chr, true);
@@ -275,6 +279,8 @@ static error_t tca8418_read_key(Device* device, KeyboardKeyData* data) {
 
 static constexpr KeyboardApi tca8418_api = {
     .read_key = tca8418_read_key,
+    .get_backlight = nullptr,
+    .is_present = nullptr,
 };
 
 Driver tca8418_driver = {
