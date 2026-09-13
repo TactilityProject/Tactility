@@ -285,10 +285,6 @@ static const ModuleSymbol platform_esp32_symbols[] = {
     DEFINE_MODULE_SYMBOL(__gtdf2),
     DEFINE_MODULE_SYMBOL(__divdi3),
     DEFINE_MODULE_SYMBOL(__moddi3),
-    DEFINE_MODULE_SYMBOL(__udivdi3),
-    DEFINE_MODULE_SYMBOL(__atomic_load_8),
-    DEFINE_MODULE_SYMBOL(__atomic_store_8),
-    DEFINE_MODULE_SYMBOL(__atomic_exchange_8),
 #else
     DEFINE_MODULE_SYMBOL(__adddf3),
     DEFINE_MODULE_SYMBOL(__subdf3),
@@ -319,6 +315,10 @@ static const ModuleSymbol platform_esp32_symbols[] = {
     DEFINE_MODULE_SYMBOL(__gtdf2),
     DEFINE_MODULE_SYMBOL(__clzsi2),
     DEFINE_MODULE_SYMBOL(__divdi3),
+    DEFINE_MODULE_SYMBOL(__udivdi3),
+    DEFINE_MODULE_SYMBOL(__atomic_load_8),
+    DEFINE_MODULE_SYMBOL(__atomic_store_8),
+    DEFINE_MODULE_SYMBOL(__atomic_exchange_8),
 #endif
     MODULE_SYMBOL_TERMINATOR,
 };
