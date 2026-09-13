@@ -37,7 +37,7 @@
 
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
-		gpio-count = <57>;
+		gpio-count = <55>;
 	};
 
 	display_backlight_pwm {
