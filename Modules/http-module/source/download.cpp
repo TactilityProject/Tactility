@@ -12,7 +12,7 @@
 namespace {
 
 constexpr auto* TAG = "http-download";
-constexpr size_t DOWNLOAD_TASK_STACK_DEPTH = 4608 / sizeof(StackType_t);
+constexpr size_t DOWNLOAD_TASK_STACK_DEPTH = 5120;
 
 struct DownloadContext {
     std::string url;
