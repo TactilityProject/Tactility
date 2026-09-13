@@ -503,6 +503,7 @@ static void usb_hid_keyboard_device_construct(UsbHidContext* ctx) {
         .name = "usb_keyboard0",
         .config = nullptr,
         .parent = nullptr,
+        .flags = 0,
         .internal = nullptr,
     };
 

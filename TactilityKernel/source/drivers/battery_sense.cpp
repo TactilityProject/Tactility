@@ -91,7 +91,7 @@ Driver battery_sense_power_supply_driver = {
     .api = &BATTERY_SENSE_POWER_SUPPLY_API,
     .device_type = &POWER_SUPPLY_TYPE,
     .owner = nullptr,
-    .internal = nullptr
+    .internal = nullptr,
 };
 
 struct BatterySenseInternal {
@@ -99,7 +99,15 @@ struct BatterySenseInternal {
 };
 
 static error_t create_power_supply_child(Device* parent, Device*& out_child) {
-    auto* child = new(std::nothrow) Device { .address = 0, .name = "battery-sense-power-supply", .config = nullptr, .parent = nullptr, .internal = nullptr };
+    auto* child = new(std::nothrow) Device {
+        .address = 0,
+        .name = "battery-sense-power-supply",
+        .config = nullptr,
+        .parent = nullptr,
+        .flags = 0,
+        .internal = nullptr,
+    };
+
     if (child == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
