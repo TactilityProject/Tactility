@@ -22,6 +22,12 @@ extern "C" {
     // libstdc++ exports these under different (m-suffixed) mangled names, so they don't apply there.
     extern void* _Znwj(uint32_t size); // operator new(unsigned int)
     extern void _ZdlPvj(void* p, uint64_t size); // operator delete(void*, unsigned int)
+    extern void* _Znaj(uint32_t size); // operator new[](unsigned int)
+    extern void _ZdaPvj(void* p, uint64_t size); // operator delete[](void*, unsigned int)
+    // Unsized forms: the compiler picks these over the sized ones above depending on context
+    // (e.g. trivially-destructible types needing no array cookie), so both must be exported.
+    extern void _ZdlPv(void* p); // operator delete(void*)
+    extern void _ZdaPv(void* p); // operator delete[](void*)
 #endif
     extern void __cxa_pure_virtual();
     // cxx_guards.cpp
@@ -99,6 +105,10 @@ static const ModuleSymbol SYMBOLS[] = {
 #ifdef ESP_PLATFORM
     DEFINE_MODULE_SYMBOL(_Znwj), // operator new(unsigned int)
     DEFINE_MODULE_SYMBOL(_ZdlPvj), // operator delete(void*, unsigned int)
+    DEFINE_MODULE_SYMBOL(_Znaj), // operator new[](unsigned int)
+    DEFINE_MODULE_SYMBOL(_ZdaPvj), // operator delete[](void*, unsigned int)
+    DEFINE_MODULE_SYMBOL(_ZdlPv), // operator delete(void*)
+    DEFINE_MODULE_SYMBOL(_ZdaPv), // operator delete[](void*)
 #endif
     { "_ZSt7nothrow", (void*)&std::nothrow },
     DEFINE_MODULE_SYMBOL(__cxa_pure_virtual), // class-related, see https://arobenko.github.io/bare_metal_cpp/

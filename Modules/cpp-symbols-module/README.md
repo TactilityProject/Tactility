@@ -16,6 +16,9 @@ instead of `_Znwj`), so this module doesn't build for the POSIX simulator.
 ### Compiler/runtime ABI support
 
 - `operator new(unsigned int)` / `operator delete(void*, unsigned int)` (`_Znwj` / `_ZdlPvj`)
+- `operator new[](unsigned int)` / `operator delete[](void*, unsigned int)` (`_Znaj` / `_ZdaPvj`)
+- `operator delete(void*)` / `operator delete[](void*)` (`_ZdlPv` / `_ZdaPv`) - the unsized forms,
+  used instead of the above when the compiler determines no size is needed
 - `std::nothrow`
 - `__cxa_pure_virtual` - called through a pure-virtual slot before a derived class's vtable is
   fully constructed; see [Bare metal C++](https://arobenko.github.io/bare_metal_cpp/).
