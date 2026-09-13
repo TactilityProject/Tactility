@@ -256,7 +256,7 @@ static error_t v3_read_key(Device* device, KeyboardKeyData* data) {
     auto* internal = static_cast<Cl32V4KeyboardInternal*>(device_get_driver_data(device));
 
     Cl32V4KeyEvent event;
-    if (!pop_pending(internal, &event)) {
+    if (internal->pending_count == 0) {
         drain_events(device_get_parent(device), internal);
     }
 
