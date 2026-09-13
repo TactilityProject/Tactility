@@ -1,34 +1,10 @@
 # ESP E-Paper Component
 
+Forked from https://github.com/NellowTCS/esp_epaper which is a fork of https://github.com/tuanpmt/esp_epaper
+
 [![Component Registry](https://components.espressif.com/components/tuanpmt/esp_epaper/badge.svg)](https://components.espressif.com/components/tuanpmt/esp_epaper)
 
 A flexible e-paper display driver component for ESP-IDF with LVGL 9 integration. Designed for IoT devices, electronic shelf labels, photo frames, and low-power display applications.
-
-## Supported Boards
-
-<table>
-  <tr>
-    <td colspan="2" align="center">
-      <img src="assets/epaper.jpg" alt="E-Paper Overview" width="400"/>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="assets/esp32s3-epaper-1.54.jpg" alt="ESP32-S3-ePaper-1.54" width="300"/>
-      <br/>
-      <b>ESP32-S3-ePaper-1.54</b><br/>
-      200x200 Black/White with partial refresh<br/>
-      <a href="https://www.waveshare.com/wiki/ESP32-S3-ePaper-1.54">Waveshare Wiki</a>
-    </td>
-    <td width="50%">
-      <img src="assets/esp32s3-photopainter.jpg" alt="ESP32-S3-PhotoPainter" width="300"/>
-      <br/>
-      <b>ESP32-S3-PhotoPainter</b><br/>
-      800x480 6-Color with Floyd-Steinberg dithering<br/>
-      <a href="https://www.waveshare.com/wiki/ESP32-S3-PhotoPainter">Waveshare Wiki</a>
-    </td>
-  </tr>
-</table>
 
 ## Key Features
 

@@ -1,6 +1,0 @@
-dependencies:
-  idf:
-    version: ">=5.3"
-  lvgl/lvgl:
-    version: "^9"
-
