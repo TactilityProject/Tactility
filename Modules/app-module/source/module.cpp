@@ -26,6 +26,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_event_subscribe_with_app_id),
     DEFINE_MODULE_SYMBOL(app_event_unsubscribe),
     DEFINE_MODULE_SYMBOL(app_event_poll),
+    DEFINE_MODULE_SYMBOL(app_event_emit_close),
     // app/execute
     DEFINE_MODULE_SYMBOL(app_execute),
     DEFINE_MODULE_SYMBOL(app_execute_for_result),

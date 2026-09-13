@@ -84,8 +84,9 @@ extern "C" {
     // GCC integer arithmetic helpers (needed on 32-bit targets for 64-bit ops)
     long long __divdi3(long long a, long long b);
     long long __moddi3(long long a, long long b);
-    unsigned long long __udivdi3(unsigned long long a, unsigned long long b);
-    unsigned long long __umoddi3(unsigned long long a, unsigned long long b);
+    unsigned long long (__atomic_load_8)(const volatile void*, int);
+    void (__atomic_store_8)(volatile void*, unsigned long long, int);
+    unsigned long long (__atomic_exchange_8)(volatile void*, unsigned long long, int);
 #else
     extern double __adddf3(double a, double b);
     extern double __subdf3(double a, double b);
@@ -286,6 +287,9 @@ static const ModuleSymbol platform_esp32_symbols[] = {
     DEFINE_MODULE_SYMBOL(__moddi3),
     DEFINE_MODULE_SYMBOL(__udivdi3),
     DEFINE_MODULE_SYMBOL(__umoddi3),
+    DEFINE_MODULE_SYMBOL(__atomic_load_8),
+    DEFINE_MODULE_SYMBOL(__atomic_store_8),
+    DEFINE_MODULE_SYMBOL(__atomic_exchange_8),
 #else
     DEFINE_MODULE_SYMBOL(__adddf3),
     DEFINE_MODULE_SYMBOL(__subdf3),
