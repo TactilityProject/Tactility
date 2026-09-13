@@ -54,6 +54,7 @@ static void create_gt911_touch(Device* i2c0) {
         .name = "touch0",
         .config = nullptr,
         .parent = nullptr,
+        .flags = {},
         .internal = nullptr,
     };
 
@@ -86,6 +87,7 @@ void tab5_create_devices_v1(Device* i2c0) {
         .name = "display0",
         .config = nullptr,
         .parent = nullptr,
+        .flags = {},
         .internal = nullptr,
     };
 

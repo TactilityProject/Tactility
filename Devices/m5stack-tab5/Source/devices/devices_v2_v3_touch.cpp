@@ -19,6 +19,7 @@ void create_st7123_touch(Device* i2c0) {
         .name = "touch0",
         .config = nullptr,
         .parent = nullptr,
+        .flags = {},
         .internal = nullptr,
     };
 

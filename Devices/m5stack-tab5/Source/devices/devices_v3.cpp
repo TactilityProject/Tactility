@@ -27,6 +27,7 @@ void tab5_create_devices_v3(Device* i2c0) {
         .name = "display0",
         .config = nullptr,
         .parent = nullptr,
+        .flags = {},
         .internal = nullptr,
     };
 

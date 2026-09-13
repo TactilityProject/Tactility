@@ -25,6 +25,7 @@ static void tab5_create_power_control(Device* io_expander1) {
         .name = "power_control0",
         .config = nullptr,
         .parent = nullptr,
+        .flags = {},
         .internal = nullptr,
     };
 
