@@ -1,6 +1,7 @@
 #ifndef _EPAPER_SPI_H_
 #define _EPAPER_SPI_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "esp_err.h"
 #include "driver/spi_master.h"
@@ -8,6 +9,10 @@
 
 typedef struct {
     spi_device_handle_t spi;
+    spi_host_device_t host;
+    /** True if epd_spi_init() called spi_bus_initialize() successfully (vs. the bus already
+     * being initialized by someone else) - only an owned bus gets freed on deinit. */
+    bool owns_bus;
     int pin_dc;
     int pin_rst;
     int pin_busy;

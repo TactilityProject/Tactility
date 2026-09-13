@@ -48,12 +48,17 @@ esp_err_t epd_spi_init(epd_spi_t *spi, const epd_pin_config_t *pins, const epd_s
         .max_transfer_sz = SPI_MAX_CHUNK_SIZE,  // Match chunk size
     };
     
+    spi->host = spi_cfg->host;
+
     esp_err_t ret = spi_bus_initialize(spi_cfg->host, &buscfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
         ESP_LOGE(TAG, "SPI bus init failed: %s", esp_err_to_name(ret));
         return ret;
     }
-    
+    // ESP_ERR_INVALID_STATE means the host was already initialized by someone else - this
+    // component doesn't own it and must not free it on deinit.
+    spi->owns_bus = (ret == ESP_OK);
+
     // Add SPI device
     spi_device_interface_config_t devcfg = {
         .clock_speed_hz = spi_cfg->speed_hz,
@@ -61,13 +66,17 @@ esp_err_t epd_spi_init(epd_spi_t *spi, const epd_pin_config_t *pins, const epd_s
         .spics_io_num = -1,  // Manual CS control
         .queue_size = 1,
     };
-    
+
     ret = spi_bus_add_device(spi_cfg->host, &devcfg, &spi->spi);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "SPI device add failed: %s", esp_err_to_name(ret));
+        if (spi->owns_bus) {
+            spi_bus_free(spi->host);
+            spi->owns_bus = false;
+        }
         return ret;
     }
-    
+
     ESP_LOGI(TAG, "SPI initialized");
     return ESP_OK;
 }
@@ -77,6 +86,12 @@ esp_err_t epd_spi_deinit(epd_spi_t *spi)
     if (spi->spi) {
         spi_bus_remove_device(spi->spi);
         spi->spi = NULL;
+    }
+    // spi_bus_free() requires all devices removed first, and only the owner of a host may free
+    // it - see spi_master.h's spi_bus_free() docs.
+    if (spi->owns_bus) {
+        spi_bus_free(spi->host);
+        spi->owns_bus = false;
     }
     return ESP_OK;
 }

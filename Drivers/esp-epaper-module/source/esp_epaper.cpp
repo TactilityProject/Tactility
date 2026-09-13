@@ -394,13 +394,15 @@ static error_t start(Device* device) {
         }
     }
 
-    // Zero-initialized so a refresh() before the first draw_bitmap() is a harmless all-white pass.
-    internal->last_frame_buffer = static_cast<uint8_t*>(calloc(1, internal->info.buffer_size));
+    // White-initialized (0xFF - see draw_bitmap()'s bit-polarity comment) so a refresh() before
+    // the first draw_bitmap() is a harmless all-white pass rather than all-black.
+    internal->last_frame_buffer = static_cast<uint8_t*>(malloc(internal->info.buffer_size));
     if (internal->last_frame_buffer == nullptr) {
         LOG_E(TAG, "Failed to allocate %lu-byte last-frame buffer", internal->info.buffer_size);
         free_internal(internal);
         return ERROR_OUT_OF_MEMORY;
     }
+    memset(internal->last_frame_buffer, 0xFF, internal->info.buffer_size);
 
     internal->display_on = true;
     device_set_driver_data(device, internal);
