@@ -13,6 +13,7 @@ static error_t start() {
 
 static error_t stop() {
     cl32_power_detect_stop();
+    cl32_teardown_devices();
     return ERROR_NONE;
 }
 

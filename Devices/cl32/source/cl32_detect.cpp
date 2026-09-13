@@ -23,6 +23,11 @@ constexpr auto* TAG = "cl32-detect";
 static Cl32HardwareRevision cl32_revision = Cl32HardwareRevision::Unknown;
 
 static Device cl32_v4_power_device {};
+static bool cl32_v4_power_created = false;
+
+// The probe-once latch for on_i2c0_started(). File-scope (not function-local) so
+// cl32_teardown_devices() can reset it for a later start/probe cycle.
+static bool did_probe = false;
 
 static void create_v2_devices(Device* i2c0) {
     cl32_create_keyboard(i2c0);
@@ -32,13 +37,13 @@ static void create_v3_devices(Device* i2c0) {
     cl32_v3_create_keyboard(i2c0);
 }
 
-static void create_v4_power_device(Device* i2c0) {
+static bool create_v4_power_device(Device* i2c0) {
     cl32_v4_power_device = Device { .address = 0, .name = "cl32-v4-power", .config = nullptr, .parent = nullptr, .flags = 0, .internal = nullptr };
 
     error_t error = device_construct(&cl32_v4_power_device);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to construct cl32-v4-power: %s", error_to_string(error));
-        return;
+        return false;
     }
 
     device_set_parent(&cl32_v4_power_device, i2c0);
@@ -48,7 +53,7 @@ static void create_v4_power_device(Device* i2c0) {
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to add cl32-v4-power: %s", error_to_string(error));
         device_destruct(&cl32_v4_power_device);
-        return;
+        return false;
     }
 
     error = device_start(&cl32_v4_power_device);
@@ -56,13 +61,27 @@ static void create_v4_power_device(Device* i2c0) {
         LOG_E(TAG, "Failed to start cl32-v4-power: %s", error_to_string(error));
         device_remove(&cl32_v4_power_device);
         device_destruct(&cl32_v4_power_device);
-        return;
+        return false;
     }
+
+    return true;
 }
 
 static void create_v4_devices(Device* i2c0) {
     cl32_v4_create_keyboard(i2c0);
-    create_v4_power_device(i2c0);
+    cl32_v4_power_created = create_v4_power_device(i2c0);
+}
+
+// Stops, removes and destructs cl32_v4_power_device if it was successfully created.
+// cl32_v4_power_driver's own stop() tears down its power-supply child device.
+static void destroy_v4_power_device() {
+    if (!cl32_v4_power_created) {
+        return;
+    }
+    device_stop(&cl32_v4_power_device);
+    device_remove(&cl32_v4_power_device);
+    device_destruct(&cl32_v4_power_device);
+    cl32_v4_power_created = false;
 }
 
 static Cl32HardwareRevision cl32_detect(Device* i2c0) {
@@ -85,7 +104,6 @@ static Cl32HardwareRevision cl32_detect(Device* i2c0) {
 static void on_i2c0_started(Device* device, DeviceEvent event, void* context) {
     (void)context;
 
-    static bool did_probe = false;
     if (did_probe || event != DEVICE_EVENT_STARTED || strcmp(device->name, "i2c0") != 0) {
         return;
     }
@@ -111,6 +129,22 @@ static void on_i2c0_started(Device* device, DeviceEvent event, void* context) {
 
 Cl32HardwareRevision cl32_hardware_revision() {
     return cl32_revision;
+}
+
+void cl32_teardown_devices() {
+    // Revision 2/3 keyboards bind the shared ti,tca8418 driver (owned by tca8418-module), so they
+    // don't block cl32_module's own driver destruction - torn down anyway for symmetry and so a
+    // later start can recreate them cleanly.
+    cl32_destroy_keyboard();
+    cl32_v3_destroy_keyboard();
+
+    // Revision 4 devices bind cl32-owned drivers (cl32_v4_keyboard_driver, cl32_v4_power_driver).
+    // Must be torn down before cl32_module's driver-removal loop runs, or driver_destruct() finds
+    // a started device still using the driver and fails.
+    cl32_v4_destroy_keyboard();
+    destroy_v4_power_device();
+
+    did_probe = false;
 }
 
 void cl32_power_detect_start() {

@@ -320,14 +320,15 @@ Driver cl32_v4_keyboard_driver = {
 };
 
 static Device cl32_v4_keyboard_device {};
+static bool cl32_v4_keyboard_created = false;
 
-void cl32_v4_create_keyboard(Device* i2c0) {
+bool cl32_v4_create_keyboard(Device* i2c0) {
     cl32_v4_keyboard_device = Device { .address = 0, .name = "cl32-v4-keyboard", .config = nullptr, .parent = nullptr, .flags = 0, .internal = nullptr };
 
     error_t error = device_construct(&cl32_v4_keyboard_device);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to construct keyboard: %s", error_to_string(error));
-        return;
+        return false;
     }
 
     device_set_parent(&cl32_v4_keyboard_device, i2c0);
@@ -337,7 +338,7 @@ void cl32_v4_create_keyboard(Device* i2c0) {
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to add keyboard: %s", error_to_string(error));
         device_destruct(&cl32_v4_keyboard_device);
-        return;
+        return false;
     }
 
     error = device_start(&cl32_v4_keyboard_device);
@@ -345,6 +346,19 @@ void cl32_v4_create_keyboard(Device* i2c0) {
         LOG_E(TAG, "Failed to start keyboard: %s", error_to_string(error));
         device_remove(&cl32_v4_keyboard_device);
         device_destruct(&cl32_v4_keyboard_device);
+        return false;
+    }
+
+    cl32_v4_keyboard_created = true;
+    return true;
+}
+
+void cl32_v4_destroy_keyboard() {
+    if (!cl32_v4_keyboard_created) {
         return;
     }
+    device_stop(&cl32_v4_keyboard_device);
+    device_remove(&cl32_v4_keyboard_device);
+    device_destruct(&cl32_v4_keyboard_device);
+    cl32_v4_keyboard_created = false;
 }
