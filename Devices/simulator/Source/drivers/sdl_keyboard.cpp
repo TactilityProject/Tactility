@@ -16,8 +16,6 @@ static error_t stop(Device*) { return ERROR_NONE; }
 // region KeyboardApi
 
 static error_t sdl_keyboard_read_key(Device*, KeyboardKeyData* data) {
-    sdl_input_pump();
-
     uint32_t key = 0;
     if (sdl_input_pop_key(&key)) {
         data->key = key;

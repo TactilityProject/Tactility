@@ -17,8 +17,7 @@ jobs:
         uses: ./.github/actions/build-simulator
         with:
           os_name: linux
-          platform_name: amd64
-          publish: true
+          architecture: x86_64
   macOS:
     runs-on: macos-latest
     steps:
@@ -29,6 +28,4 @@ jobs:
         uses: ./.github/actions/build-simulator
         with:
           os_name: macos
-          platform_name: aarch64
-          # macOS simulator currently fails due to main thread requirement for rendering
-          publish: false
+          architecture: aarch64
