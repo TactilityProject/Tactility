@@ -52,7 +52,7 @@ runs:
       run: cmake --build buildsim --target Tactility
     - name: 'Release'
       shell: bash
-      run: Buildscripts/release-simulator.sh buildsim release/Simulator-${{ inputs.os_name }}-${{ inputs.platform_name }}
+      run: Buildscripts/release-simulator.sh buildsim release/Simulator-${{ inputs.os_name }}-${{ inputs.architecture }}
     - name: 'Upload Artifact'
       uses: actions/upload-artifact@v4
       with:
