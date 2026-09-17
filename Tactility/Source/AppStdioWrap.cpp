@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Paired with -Wl,--wrap=read/write/close - see Tactility/CMakeLists.txt (POSIX) and the
-// top-level CMakeLists.txt (ESP32) for where that's applied. On a platform where it isn't
-// (currently: macOS, whose linker doesn't support --wrap), these are simply never called - real
-// read()/write()/close() calls go straight through unredirected.
+// Paired with -Wl,--wrap=read/write/close on POSIX (Tactility/CMakeLists.txt) and ESP32
+// (top-level CMakeLists.txt); self-registered via dyld interpose below on Apple, whose linker
+// doesn't support --wrap.
 #include <app/io.h>
 
 #include <sys/types.h>
@@ -24,21 +23,64 @@ int __wrap_close(int fd) {
 
 }
 
+#ifdef __APPLE__
+
+// --wrap also synthesizes __real_read/write/close automatically; dyld interpose doesn't, so
+// io.cpp's TT_APP_IO_WRAPS_STDIO fallback needs them defined here. dlsym(RTLD_NEXT, ...) is the
+// standard way to reach the true libSystem implementation despite the interpose below: a direct
+// call to read/write/close from this file would just recurse into __wrap_read/write/close, since
+// interpose rewrites every reference to those symbols in the process, this file included.
+#include <dlfcn.h>
+
+extern "C" {
+
+ssize_t __real_read(int fd, void* buffer, size_t size) {
+    static auto real = reinterpret_cast<ssize_t (*)(int, void*, size_t)>(dlsym(RTLD_NEXT, "read"));
+    return real(fd, buffer, size);
+}
+
+ssize_t __real_write(int fd, const void* buffer, size_t size) {
+    static auto real = reinterpret_cast<ssize_t (*)(int, const void*, size_t)>(dlsym(RTLD_NEXT, "write"));
+    return real(fd, buffer, size);
+}
+
+int __real_close(int fd) {
+    static auto real = reinterpret_cast<int (*)(int)>(dlsym(RTLD_NEXT, "close"));
+    return real(fd);
+}
+
+}
+
+// <mach-o/dyld-interposing.h> isn't a public SDK header (it ships with dyld's own source, not
+// Xcode/Command Line Tools), so this reimplements its DYLD_INTERPOSE macro locally; reused below
+// for the printf-family interposes too.
+#define TT_DYLD_INTERPOSE(replacement, replacee) \
+    __attribute__((used)) static struct { const void* replacement; const void* replacee; } \
+        tt_interpose_##replacee __attribute__((section("__DATA,__interpose"))) = { \
+            (const void*)(unsigned long)&(replacement), (const void*)(unsigned long)&(replacee) \
+        };
+
+TT_DYLD_INTERPOSE(__wrap_read, read)
+TT_DYLD_INTERPOSE(__wrap_write, write)
+TT_DYLD_INTERPOSE(__wrap_close, close)
+
+#endif // __APPLE__
+
 // region glibc stdio wraps
 //
-// glibc's printf/fprintf/etc are compiled into libc.so and call an internal, non-exported write()
-// alias - --wrap=write (above) can't reach that call, only calls WE make to the public symbol.
-// These wraps instead redirect calls WE make to printf/fprintf/etc, the same trick as read/write/
-// close above. Newlib (ESP-IDF) doesn't have this gap - its stdio does call the wrappable syscall
-// stubs - so Tactility/CMakeLists.txt only applies the matching -Wl,--wrap= flags on POSIX.
+// libc's printf/fprintf/etc are compiled into the C library and call an internal, non-exported
+// write() alias - --wrap=write/the read/write/close interpose above can't reach that call, only
+// calls WE make to the public symbol. These wraps instead redirect calls WE make to printf/
+// fprintf/etc, the same trick as read/write/close above. Newlib (ESP-IDF) doesn't have this gap -
+// its stdio does call the wrappable syscall stubs - so this block is POSIX-only.
 //
 // Scoped to the printf/getc families only: fread/fwrite take an arbitrary FILE* and are already
 // used sitewide for real file I/O (e.g. File.cpp's readBinaryInternal), so wrapping them would
 // route every such call through this file's stdin/stdout check - a correctness risk for unrelated
-// code that isn't worth taking here. putc/getc are excluded too since glibc defines them as
+// code that isn't worth taking here. putc/getc are excluded too since libc defines them as
 // macros, not real calls, so wrapping those symbols wouldn't reliably intercept them.
 
-#if !defined(ESP_PLATFORM) && !defined(__APPLE__)
+#if !defined(ESP_PLATFORM)
 
 #include <cstdarg>
 #include <cstdio>
@@ -53,6 +95,43 @@ int __real_fputc(int c, FILE* stream);
 int __real_fgetc(FILE* stream);
 char* __real_fgets(char* buffer, int size, FILE* stream);
 }
+
+#ifdef __APPLE__
+
+// --wrap synthesizes these automatically elsewhere; on Apple they're defined here via
+// dlsym(RTLD_NEXT, ...) instead - see the read/write/close __real_* block above for why.
+#include <dlfcn.h>
+
+extern "C" {
+
+int __real_vfprintf(FILE* stream, const char* format, va_list args) {
+    static auto real = reinterpret_cast<int (*)(FILE*, const char*, va_list)>(dlsym(RTLD_NEXT, "vfprintf"));
+    return real(stream, format, args);
+}
+
+int __real_fputs(const char* s, FILE* stream) {
+    static auto real = reinterpret_cast<int (*)(const char*, FILE*)>(dlsym(RTLD_NEXT, "fputs"));
+    return real(s, stream);
+}
+
+int __real_fputc(int c, FILE* stream) {
+    static auto real = reinterpret_cast<int (*)(int, FILE*)>(dlsym(RTLD_NEXT, "fputc"));
+    return real(c, stream);
+}
+
+int __real_fgetc(FILE* stream) {
+    static auto real = reinterpret_cast<int (*)(FILE*)>(dlsym(RTLD_NEXT, "fgetc"));
+    return real(stream);
+}
+
+char* __real_fgets(char* buffer, int size, FILE* stream) {
+    static auto real = reinterpret_cast<char* (*)(char*, int, FILE*)>(dlsym(RTLD_NEXT, "fgets"));
+    return real(buffer, size, stream);
+}
+
+}
+
+#endif // __APPLE__
 
 namespace {
 
@@ -195,6 +274,20 @@ char* __wrap_fgets(char* buffer, int size, FILE* stream) {
 
 }
 
-#endif // !ESP_PLATFORM && !__APPLE__
+#ifdef __APPLE__
+TT_DYLD_INTERPOSE(__wrap_vprintf, vprintf)
+TT_DYLD_INTERPOSE(__wrap_printf, printf)
+TT_DYLD_INTERPOSE(__wrap_vfprintf, vfprintf)
+TT_DYLD_INTERPOSE(__wrap_fprintf, fprintf)
+TT_DYLD_INTERPOSE(__wrap_puts, puts)
+TT_DYLD_INTERPOSE(__wrap_fputs, fputs)
+TT_DYLD_INTERPOSE(__wrap_putchar, putchar)
+TT_DYLD_INTERPOSE(__wrap_fputc, fputc)
+TT_DYLD_INTERPOSE(__wrap_getchar, getchar)
+TT_DYLD_INTERPOSE(__wrap_fgetc, fgetc)
+TT_DYLD_INTERPOSE(__wrap_fgets, fgets)
+#endif // __APPLE__
+
+#endif // !ESP_PLATFORM
 
 // endregion
