@@ -9,8 +9,8 @@
  * No-op'ing the call instead leaves every task's pthread_attr_t at its pthread_attr_init() default,
  * so pthread_create() gives it a real, properly sized stack.
  *
- * Linked via -Wl,--wrap=pthread_attr_setstack (Tactility/CMakeLists.txt) on non-Apple platforms;
- * reused as a dyld interpose target below on Apple platforms, whose linker lacks --wrap.
+ * Linked via -Wl,--wrap=pthread_attr_setstack (this module's own CMakeLists.txt) on non-Apple
+ * platforms; reused as a dyld interpose target below on Apple platforms, whose linker lacks --wrap.
  */
 int __wrap_pthread_attr_setstack(pthread_attr_t* attr, void* stackaddr, size_t stacksize) {
     (void)attr;

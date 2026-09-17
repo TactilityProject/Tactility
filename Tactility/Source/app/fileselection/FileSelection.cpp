@@ -85,7 +85,7 @@ int32_t appMain(int argc, char* argv[]) {
 
     if (ctx.resultCode == 0) {
         // The parent captures this via an AppStream bound to our stdout (see startWithMode()) -
-        // see AppStdioWrap.cpp for how printf() itself gets routed there on POSIX.
+        // see Modules/app-module/source/stdio_wrap.cpp for how printf() itself gets routed there on POSIX.
         LOG_I(TAG, "Result: %s", ctx.resultPath.c_str());
         printf("%s", ctx.resultPath.c_str());
     }

@@ -185,34 +185,9 @@ else ()
     # Exports Tactility's own symbols (-rdynamic) so a dlopen()ed app-posix-module app can resolve
     # calls back into it - the OS-native equivalent of app-esp32-module's custom symbol resolver.
     set_target_properties(Tactility PROPERTIES ENABLE_EXPORTS ON)
-    # Routes every pthread_attr_setstack() call (FreeRTOS's POSIX port hands each task a stack
-    # carved out of its own heap through this) to __wrap_pthread_attr_setstack() in
-    # Platforms/platform-posix/source/pthread_stack_wrap.c, which no-ops it - see that file for why.
-    # --wrap is a GNU ld option; Apple's linker doesn't support it, so that file instead
-    # self-registers a dyld interpose for this symbol on Apple, needing no link flag here.
-    if (NOT APPLE)
-        target_link_options(Tactility PRIVATE "-Wl,--wrap=pthread_attr_setstack")
-        # Routes every read()/write()/close() call to Tactility/Source/AppStdioWrap.cpp's
-        # __wrap_read/write/close(), which forward into app_io_read/write/close() - the fd-table
-        # dispatch that lets an app's own stdio (e.g. a fileselection dialog's printf'd result
-        # path) reach an AppStream a parent bound via app_manager_start_with_streams(). Mirrors
-        # what ESP-IDF's build already does for the ESP32 target (see top-level CMakeLists.txt).
-        # On Apple, AppStdioWrap.cpp self-registers the same routing via dyld interpose instead.
-        target_link_options(Tactility PRIVATE "-Wl,--wrap=read" "-Wl,--wrap=write" "-Wl,--wrap=close")
-        # glibc's printf/fprintf/etc don't call the public write() symbol internally (they're
-        # already compiled into libc.so, out of --wrap's reach), so the read/write/close wrap
-        # above can't see them. Newlib (ESP-IDF) doesn't have this gap - its stdio does call the
-        # wrappable syscall stubs - so this block is POSIX-only. Wrapping these symbols instead
-        # redirects OUR OWN calls to them (the only ones --wrap can rewrite) through
-        # AppStdioWrap.cpp's __wrap_* functions, which check the target stream (stdout/stdin) and
-        # fall back to the real libc function for any other FILE*. Apple gets the same routing via
-        # dyld interpose, self-registered in that file - see its own #ifdef __APPLE__ block.
-        target_link_options(Tactility PRIVATE
-            "-Wl,--wrap=printf" "-Wl,--wrap=fprintf" "-Wl,--wrap=vprintf" "-Wl,--wrap=vfprintf"
-            "-Wl,--wrap=puts" "-Wl,--wrap=fputs" "-Wl,--wrap=putchar" "-Wl,--wrap=fputc"
-            "-Wl,--wrap=getchar" "-Wl,--wrap=fgetc" "-Wl,--wrap=fgets"
-        )
-    endif ()
+    # pthread_attr_setstack and read/write/close/printf-family aren't wrapped here: linking
+    # platform-posix and app-module already brings those wraps along (see their own
+    # CMakeLists.txt files).
 endif ()
 
 #

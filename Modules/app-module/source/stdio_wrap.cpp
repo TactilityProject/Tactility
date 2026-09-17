@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Paired with -Wl,--wrap=read/write/close on POSIX (Tactility/CMakeLists.txt) and ESP32
+// Paired with -Wl,--wrap=read/write/close on POSIX (this module's own CMakeLists.txt) and ESP32
 // (top-level CMakeLists.txt); self-registered via dyld interpose below on Apple, whose linker
 // doesn't support --wrap.
 #include <app/io.h>
@@ -69,14 +69,14 @@ TT_DYLD_INTERPOSE(__wrap_close, close)
 // region glibc stdio wraps
 //
 // libc's printf/fprintf/etc are compiled into the C library and call an internal, non-exported
-// write() alias - --wrap=write/the read/write/close interpose above can't reach that call, only
-// calls WE make to the public symbol. These wraps instead redirect calls WE make to printf/
-// fprintf/etc, the same trick as read/write/close above. Newlib (ESP-IDF) doesn't have this gap -
-// its stdio does call the wrappable syscall stubs - so this block is POSIX-only.
+// write() alias, which --wrap=write/the read/write/close interpose above can't reach: only calls
+// WE make to the public symbol. These wraps instead redirect calls WE make to printf/fprintf/etc,
+// the same trick as read/write/close above. Newlib (ESP-IDF) doesn't have this gap: its stdio does
+// call the wrappable syscall stubs, so this block is POSIX-only.
 //
 // Scoped to the printf/getc families only: fread/fwrite take an arbitrary FILE* and are already
 // used sitewide for real file I/O (e.g. File.cpp's readBinaryInternal), so wrapping them would
-// route every such call through this file's stdin/stdout check - a correctness risk for unrelated
+// route every such call through this file's stdin/stdout check, a correctness risk for unrelated
 // code that isn't worth taking here. putc/getc are excluded too since libc defines them as
 // macros, not real calls, so wrapping those symbols wouldn't reliably intercept them.
 
@@ -99,7 +99,7 @@ char* __real_fgets(char* buffer, int size, FILE* stream);
 #ifdef __APPLE__
 
 // --wrap synthesizes these automatically elsewhere; on Apple they're defined here via
-// dlsym(RTLD_NEXT, ...) instead - see the read/write/close __real_* block above for why.
+// dlsym(RTLD_NEXT, ...) instead. See the read/write/close __real_* block above for why.
 #include <dlfcn.h>
 
 extern "C" {
