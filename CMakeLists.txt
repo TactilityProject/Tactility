@@ -62,9 +62,13 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     # to every target; PanicHandler.cpp branches internally per architecture.
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=esp_panic_handler" APPEND)
 
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=read" APPEND)
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=write" APPEND)
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=close" APPEND)
+    # Wraps newlib's reentrant syscall stubs, not the plain read()/write()/close() newlib itself
+    # implements as thin wrappers around them. newlib's own stdio (fflush()'s buffer-flush path in particular)
+    # calls these _r stubs directly, bypassing the plain names entirely.
+    # See Modules/app-module/source/stdio_wrap.cpp's own comment for the exact call chain.
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_read_r" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_write_r" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_close_r" APPEND)
 
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_button_create" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_dropdown_create" APPEND)

@@ -16,7 +16,6 @@ static error_t stop(Device*) { return ERROR_NONE; }
 // region PointerApi
 
 static error_t sdl_pointer_read_data(Device*, TickType_t) {
-    sdl_input_pump();
     return ERROR_NONE;
 }
 

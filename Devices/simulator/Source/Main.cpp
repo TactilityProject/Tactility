@@ -10,13 +10,13 @@ constexpr auto* TAG = "FreeRTOS";
 
 namespace simulator {
 
-MainFunction mainFunction = nullptr;
+static MainFunction mainFunction = nullptr;
 
 void setMain(MainFunction newMainFunction) {
     mainFunction = newMainFunction;
 }
 
-static void freertosMainTask(void* parameter) {
+static void freertosMainTask(void*) {
     LOG_I(TAG, "starting app_main()");
     assert(simulator::mainFunction);
     mainFunction();

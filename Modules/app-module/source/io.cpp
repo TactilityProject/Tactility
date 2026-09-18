@@ -8,13 +8,42 @@
 #include <cerrno>
 
 #if defined(TT_APP_IO_WRAPS_STDIO)
+#ifdef ESP_PLATFORM
+// Newlib's stdio (fflush()'s buffer-flush path, in particular) calls the reentrant _read_r/
+// _write_r/_close_r syscall stubs directly. The plain read()/write()/close() newlib provides are
+// just thin wrappers around them (esp-idf's components/newlib/src/syscalls.c: `write(fd, dst,
+// size) { return _write_r(__getreent(), fd, dst, size); }`). Wrapping the _r stubs catches both;
+// wrapping the plain names would only catch direct write()-style callers.
+#include <reent.h>
+extern "C" {
+ssize_t __real__read_r(struct _reent* r, int fd, void* buffer, size_t size);
+ssize_t __real__write_r(struct _reent* r, int fd, const void* buffer, size_t size);
+int __real__close_r(struct _reent* r, int fd);
+}
+namespace {
+ssize_t real_read(int fd, void* buffer, size_t size) { return __real__read_r(__getreent(), fd, buffer, size); }
+ssize_t real_write(int fd, const void* buffer, size_t size) { return __real__write_r(__getreent(), fd, buffer, size); }
+int real_close(int fd) { return __real__close_r(__getreent(), fd); }
+} // namespace
+#else
 extern "C" {
 ssize_t __real_read(int fd, void* buffer, size_t size);
 ssize_t __real_write(int fd, const void* buffer, size_t size);
 int __real_close(int fd);
 }
+namespace {
+ssize_t real_read(int fd, void* buffer, size_t size) { return __real_read(fd, buffer, size); }
+ssize_t real_write(int fd, const void* buffer, size_t size) { return __real_write(fd, buffer, size); }
+int real_close(int fd) { return __real_close(fd); }
+} // namespace
+#endif
 #else
 #include <unistd.h>
+namespace {
+ssize_t real_read(int fd, void* buffer, size_t size) { return ::read(fd, buffer, size); }
+ssize_t real_write(int fd, const void* buffer, size_t size) { return ::write(fd, buffer, size); }
+int real_close(int fd) { return ::close(fd); }
+} // namespace
 #endif
 
 namespace {
@@ -56,11 +85,7 @@ ssize_t app_io_read(int fd, void* buffer, size_t size) {
         errno = EBADF;
         return -1;
     }
-#if defined(TT_APP_IO_WRAPS_STDIO)
-    return __real_read(fd, buffer, size);
-#else
-    return ::read(fd, buffer, size);
-#endif
+    return real_read(fd, buffer, size);
 }
 
 ssize_t app_io_write(int fd, const void* buffer, size_t size) {
@@ -78,22 +103,14 @@ ssize_t app_io_write(int fd, const void* buffer, size_t size) {
         // output is currently being intercepted. Without this, a log line emitted while any app
         // instance has its stdout captured would vanish from the console entirely instead of
         // just also being visible to the capturing parent.
-#if defined(TT_APP_IO_WRAPS_STDIO)
-        __real_write(fd, buffer, size);
-#else
-        ::write(fd, buffer, size);
-#endif
+        real_write(fd, buffer, size);
         return result;
     }
     if (table != nullptr && app_fd_table_is_app_owned(table, fd)) {
         errno = EBADF;
         return -1;
     }
-#if defined(TT_APP_IO_WRAPS_STDIO)
-    return __real_write(fd, buffer, size);
-#else
-    return ::write(fd, buffer, size);
-#endif
+    return real_write(fd, buffer, size);
 }
 
 int app_io_close(int fd) {
@@ -108,11 +125,7 @@ int app_io_close(int fd) {
             return -1;
         }
     }
-#if defined(TT_APP_IO_WRAPS_STDIO)
-    return __real_close(fd);
-#else
-    return ::close(fd);
-#endif
+    return real_close(fd);
 }
 
 } // extern "C"

@@ -19,9 +19,9 @@ struct SdlPointerState {
 
 /**
  * @brief Drains all pending SDL events exactly once, updating the pointer state and key queue
- * below. Safe to call from both the sdl-pointer and sdl-keyboard drivers' polling functions:
- * SDL_PollEvent() drains a single global queue, so whichever driver is polled first on a given
- * LVGL indev tick pumps events for both.
+ * below. Must be called only from the real OS main thread (sdl_bridge_run_main_loop()): SDL
+ * requires event pumping to happen there on macOS. The getters below are safe to call from a
+ * different thread (the lvgl task, via sdl-pointer/sdl-keyboard's polling functions).
  */
 void sdl_input_pump(void);
 

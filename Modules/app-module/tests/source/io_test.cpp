@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -63,6 +64,11 @@ int32_t stdout_writer_app_main(int, char*[]) {
         }
         sent += static_cast<size_t>(written);
     }
+    return 0;
+}
+
+int32_t stdout_printf_app_main(int, char*[]) {
+    printf("hello");
     return 0;
 }
 
@@ -178,6 +184,41 @@ TEST_CASE("app_start_with_streams pipes a child's app_io_write() calls into a pa
     app_stream_unsubscribe(&child_stdout);
     task_event_group_destruct(&event_group);
     app_manager_remove("test.io.writer");
+}
+
+TEST_CASE("app_start_with_streams pipes a child's plain printf() calls into a parent-owned AppStream") {
+    ensure_memory_loader_registered();
+
+    AppManifest manifest { "test.io.printf_writer", "PrintfWriter", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(stdout_printf_app_main) } };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    TaskEventGroup event_group {};
+    task_event_group_construct(&event_group);
+
+    uint8_t storage[64];
+    AppStream child_stdout {};
+
+    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
+    AppInstanceId child_id = 0;
+    REQUIRE_EQ(app_start_with_streams("test.io.printf_writer", &binding, 1, &child_id), ERROR_NONE);
+
+    std::vector<uint8_t> received;
+    while (app_stream_await(&child_stdout, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(1000)) == ERROR_NONE) {
+        uint8_t chunk[16];
+        size_t n = app_stream_read(&child_stdout, chunk, sizeof(chunk));
+        if (n == 0) {
+            break; // EOF
+        }
+        received.insert(received.end(), chunk, chunk + n);
+    }
+
+    REQUIRE_EQ(received.size(), 5u);
+    CHECK_EQ(std::memcmp(received.data(), "hello", 5), 0);
+
+    REQUIRE(wait_for_state(child_id, APP_INSTANCE_STATE_STOPPED, 1000));
+    app_stream_unsubscribe(&child_stdout);
+    task_event_group_destruct(&event_group);
+    app_manager_remove("test.io.printf_writer");
 }
 
 TEST_CASE("a write blocked on a full stream wakes with an error once the consumer closes it") {
