@@ -1,11 +1,42 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Paired with -Wl,--wrap=read/write/close on POSIX (this module's own CMakeLists.txt) and ESP32
-// (top-level CMakeLists.txt); self-registered via dyld interpose below on Apple, whose linker
-// doesn't support --wrap.
+// Paired with -Wl,--wrap= on POSIX (this module's own CMakeLists.txt) and ESP32 (top-level
+// CMakeLists.txt); self-registered via dyld interpose below on Apple, whose linker doesn't
+// support --wrap.
 #include <app/io.h>
 
 #include <sys/types.h>
+
+#ifdef ESP_PLATFORM
+
+// Newlib's own stdio (fflush()'s buffer-flush path, in particular) calls the reentrant
+// _read_r/_write_r/_close_r syscall stubs directly, not the plain read()/write()/close() newlib
+// itself provides as thin wrappers around them (see e.g. esp-idf's components/newlib/src/
+// syscalls.c: `write(fd, dst, size) { return _write_r(__getreent(), fd, dst, size); }`)
+// Wrapping the plain names only catches direct write()-style callers, not newlib's own internal
+// stdio calls, so the _r stubs are wrapped here instead.
+#include <reent.h>
+
+extern "C" {
+
+ssize_t __wrap__read_r(struct _reent* r, int fd, void* buffer, size_t size) {
+    (void)r;
+    return app_io_read(fd, buffer, size);
+}
+
+ssize_t __wrap__write_r(struct _reent* r, int fd, const void* buffer, size_t size) {
+    (void)r;
+    return app_io_write(fd, buffer, size);
+}
+
+int __wrap__close_r(struct _reent* r, int fd) {
+    (void)r;
+    return app_io_close(fd);
+}
+
+}
+
+#else
 
 extern "C" {
 
@@ -22,6 +53,8 @@ int __wrap_close(int fd) {
 }
 
 }
+
+#endif // ESP_PLATFORM
 
 #ifdef __APPLE__
 

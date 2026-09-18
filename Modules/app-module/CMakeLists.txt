@@ -10,6 +10,7 @@ tactility_add_module(app-module
     INCLUDE_DIRS include/
     REQUIRES TactilityKernel service-module minitar
     PRIV_REQUIRES TactilityKernelCpp
+    WHOLE_ARCHIVE
 )
 
 # Tells source/io.cpp its real-syscall fallback must go through __real_read/write/close() rather
