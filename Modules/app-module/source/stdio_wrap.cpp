@@ -31,6 +31,7 @@ int __wrap_close(int fd) {
 // call to read/write/close from this file would just recurse into __wrap_read/write/close, since
 // interpose rewrites every reference to those symbols in the process, this file included.
 #include <dlfcn.h>
+#include <unistd.h>
 
 extern "C" {
 
