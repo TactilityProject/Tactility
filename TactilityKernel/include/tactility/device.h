@@ -113,6 +113,7 @@ error_t device_remove(struct Device* device);
  *          device's lock for its entire body, so doing so would deadlock.
  * @param[in,out] device non-null device pointer
  * @retval ERROR_INVALID_STATE if the device is already started or not added
+ * @retval ERROR_NOT_FOUND probe() reported the device isn't present
  * @retval ERROR_RESOURCE when driver binding fails
  * @retval ERROR_NONE on success
  */
@@ -388,6 +389,32 @@ bool device_has_active_by_type(const struct DeviceType* type);
  * @retval ERROR_NONE on success; caller must call device_put(*out_device) exactly once
  */
 error_t device_get_first_by_compatible(const char* compatible, struct Device** out_device);
+
+/** Consecutive device_hotplug_poll_once() calls a probe() result must hold before it takes effect. */
+#define DEVICE_HOTPLUG_DEBOUNCE_COUNT 2
+
+/**
+ * Registers @a device with the hotplug poller (see device_hotplug_poll_once()): started once
+ * probe() (or immediately if NULL) reports present, stopped when it reports absent. A device
+ * never registered here is never touched by the poller.
+ * @warning Call only at boot, before polling starts.
+ */
+void device_hotplug_register(struct Device* device);
+
+/** Reverses device_hotplug_register(). No-op if not registered. */
+void device_hotplug_unregister(struct Device* device);
+
+/**
+ * Starts/stops every device_hotplug_register()'d device per its driver's probe() (or
+ * unconditionally, once, if probe is NULL), debounced across DEVICE_HOTPLUG_DEBOUNCE_COUNT
+ * calls. Never removes/destructs a device.
+ * @retval ERROR_NONE on success
+ * @retval (other) a mandatory (probe == NULL) device failed to start
+ */
+error_t device_hotplug_poll_once(void);
+
+/** Starts a periodic timer that calls device_hotplug_poll_once(). */
+void device_hotplug_start_polling(void);
 
 #ifdef __cplusplus
 }

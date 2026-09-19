@@ -7,6 +7,7 @@
 #include <tactility/log.h>
 #include <tactility/check.h>
 #include <tactility/concurrent/recursive_mutex.h>
+#include <tactility/concurrent/timer.h>
 
 #include <ranges>
 #include <cassert>
@@ -43,6 +44,11 @@ struct DeviceInternal {
     } state;
     /** Attached child devices */
     std::vector<Device*> children {};
+    // device_hotplug_poll_once() debounce state.
+    struct {
+        uint8_t consecutive = 0; // probe() results differing from `present` so far
+        bool present = false;
+    } hotplug;
     // Outstanding device_get() holders. Guarded by `mutex`. Independent of state.started -
     // device_get()/device_put() bracket construct/destruct, not start/stop, so a ref can be held
     // across a device_stop(). device_destruct() refuses to run while this is > 0.
@@ -225,7 +231,7 @@ error_t device_start(Device* device) {
     unlock_internal(internal);
 
     if (bind_error != ERROR_NONE) {
-        return ERROR_RESOURCE;
+        return bind_error == ERROR_NOT_FOUND ? ERROR_NOT_FOUND : ERROR_RESOURCE;
     }
 
     device_listener_notify(device, DEVICE_EVENT_STARTED);
@@ -557,6 +563,84 @@ error_t device_get_first_by_compatible(const char* compatible, Device** out_devi
         *out_device = found;
     }
     return error;
+}
+
+struct HotplugAction {
+    Device* device;
+    bool start;     // vs. stop
+    bool mandatory; // probe == nullptr; a start failure here is a real error
+};
+
+// Boot-time-only writes, so no lock: registration finishes before polling starts.
+static std::vector<Device*> hotplug_registered_devices;
+
+static Timer* hotplug_timer = nullptr;
+
+static void hotplug_timer_callback(void*) {
+    device_hotplug_poll_once();
+}
+
+void device_hotplug_register(Device* device) {
+    hotplug_registered_devices.push_back(device);
+}
+
+void device_hotplug_unregister(Device* device) {
+    const auto iterator = std::ranges::find(hotplug_registered_devices, device);
+    if (iterator != hotplug_registered_devices.end()) {
+        hotplug_registered_devices.erase(iterator);
+    }
+}
+
+error_t device_hotplug_poll_once(void) {
+    // Collect actions first: start_device()/stop_device() may add/remove child devices
+    // (ledger_lock), so don't call them mid-iteration.
+    std::vector<HotplugAction> actions;
+    for (Device* device : hotplug_registered_devices) {
+        auto* internal = device->internal;
+        auto* driver = internal->driver;
+        if (driver == nullptr) {
+            continue;
+        }
+
+        if (driver->probe == nullptr) {
+            if (!internal->state.started) {
+                actions.push_back({ device, true, true });
+            }
+            continue;
+        }
+
+        bool present = driver->probe(device);
+        if (present == internal->hotplug.present) {
+            internal->hotplug.consecutive = 0;
+            continue;
+        }
+
+        if (++internal->hotplug.consecutive < DEVICE_HOTPLUG_DEBOUNCE_COUNT) {
+            continue;
+        }
+
+        internal->hotplug.present = present;
+        internal->hotplug.consecutive = 0;
+        actions.push_back({ device, present, false });
+    }
+
+    error_t first_mandatory_error = ERROR_NONE;
+    for (const auto& action : actions) {
+        error_t error = action.start ? device_start(action.device) : device_stop(action.device);
+        if (action.mandatory && action.start && error != ERROR_NONE && first_mandatory_error == ERROR_NONE) {
+            first_mandatory_error = error;
+        }
+    }
+
+    return first_mandatory_error;
+}
+
+void device_hotplug_start_polling(void) {
+    if (hotplug_timer != nullptr) {
+        return;
+    }
+    hotplug_timer = timer_alloc(TIMER_TYPE_PERIODIC, pdMS_TO_TICKS(500), hotplug_timer_callback, nullptr);
+    timer_start(hotplug_timer);
 }
 
 } // extern "C"

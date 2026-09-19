@@ -129,6 +129,11 @@ error_t driver_bind(Driver* driver, Device* device) {
         goto error;
     }
 
+    if (driver->probe != nullptr && !driver->probe(device)) {
+        error = ERROR_NOT_FOUND;
+        goto error;
+    }
+
     if (driver->start_device != nullptr) {
         error = driver->start_device(device);
         if (error != ERROR_NONE) {
