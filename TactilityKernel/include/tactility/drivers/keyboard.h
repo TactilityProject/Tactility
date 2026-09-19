@@ -14,12 +14,9 @@ extern "C" {
 /**
  * @brief Named Unicode codepoints for KeyboardKeyData::key.
  *
- * Keys that produce an ordinary character use that character's own codepoint directly (e.g. 'a',
- * ' ') and don't need a name here. These are the standard Unicode symbol codepoints used instead
- * of LVGL's LV_KEY_* sentinels for keys with no character of their own (arrows, Home/End,
- * Tab/Shift+Tab-as-focus-navigation), plus names for the handful of C0 control keys every driver
- * needs (Enter/Escape/Backspace/Delete/Tab). Modules/lvgl-module/source/devices/keyboard.cpp
- * translates these back into LV_KEY_* internally for LVGL.
+ * Some common codepoints.
+ * There are no official codepoints for arrow keys, so we use the symbols as placeholder.
+ * Subsystems like LVGL can translate these special codepoints to specific actions.
  */
 typedef enum {
     CODEPOINT_ENTER       = '\r',
@@ -137,19 +134,18 @@ struct KeyboardApi {
     error_t (*get_backlight)(struct Device* device, struct Device** backlight_device);
 
     /**
-     * @brief Optional: reports whether the keyboard is physically present right now.
-     * Only meaningful for hot-pluggable/detachable keyboards (e.g. a removable accessory) whose
-     * kernel device is constructed and started once at boot regardless of physical attachment.
-     * Leave NULL for a keyboard that's always physically present whenever its device is active
-     * (the common case; callers must treat NULL the same as "always present").
-     * @param[in] device the keyboard device
-     * @return true if physically attached/present
+     * @deprecated Use Driver::probe + device_hotplug_register() instead (see DEVICE_FLAG_HOTPLUG)
+     * The kernel then starts/stops the device itself instead of leaving it started forever.
+     * When DEVICE_FLAG_HOTPLUG is used, use device_is_ready() only for checking if a keyboard is usable.
      */
     bool (*is_present)(struct Device* device);
 };
 
 /**
- * @brief Reads the next pending key event using the specified keyboard device.
+ * @brief Reads the next pending key event using the specified keyboard device. Also fans the
+ * result out to every keyboard_subscribe()'d subscriber, same as keyboard_emit_key().
+ * @retval ERROR_NONE @a data filled - key == 0 if nothing is pending
+ * @retval ERROR_INVALID_STATE @a device isn't currently started (e.g. hotplug-absent)
  * @retval ERROR_NOT_SUPPORTED the driver has no KeyboardApi::read_key (it pushes events via
  * keyboard_emit_key() instead)
  */
@@ -177,8 +173,7 @@ void keyboard_emit_key(struct Device* device, struct KeyboardKeyData data);
 error_t keyboard_get_backlight(struct Device* device, struct Device** backlight_device);
 
 /**
- * @brief Whether the keyboard device is physically present right now.
- * Returns true when the driver doesn't implement KeyboardApi::is_present
+ * @deprecated See KeyboardApi::is_present.
  * @param[in] device the keyboard device
  */
 bool keyboard_is_present(struct Device* device);

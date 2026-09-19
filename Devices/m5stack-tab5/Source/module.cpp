@@ -13,7 +13,7 @@
 #include "devices/detect.h"
 #include "devices/tab5_headphone_detect.h"
 #include "devices/tab5_keyboard.h"
-#include "devices/tab5_keyboard_attach_detect.h"
+#include "devices/tab5_keyboard_lvgl_rotation.h"
 #include "devices/tab5_power_control.h"
 #include "devices/tab_5_camera.h"
 
@@ -70,12 +70,12 @@ static error_t start() {
     tab5_camera_init();
     device_listener_add(on_io_expander0_started, nullptr);
     tab5_headphone_detect_start();
-    tab5_keyboard_attach_detect_start();
+    tab5_keyboard_lvgl_rotation_start();
     return ERROR_NONE;
 }
 
 static error_t stop() {
-    tab5_keyboard_attach_detect_stop();
+    tab5_keyboard_lvgl_rotation_stop();
     tab5_headphone_detect_stop();
     device_listener_remove(on_io_expander0_started);
     tab5_detect_stop();

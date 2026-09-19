@@ -24,11 +24,13 @@ struct Driver {
     /** Function to deinitialize the driver for a device */
     error_t (*stop_device)(struct Device* dev);
     /**
-     * Optional: reports whether the hardware is physically present. Checked by driver_bind()
-     * and periodically by device_hotplug_poll_once(). NULL means always present.
+     * Optional: reports whether the hardware is physically present. Checked by driver_bind() and periodically by device_hotplug_poll_once().
+     * NULL means always present.
+     * @retval ERROR_NONE the hardware is present
+     * @retval (other) not present (or the probe itself failed - treated the same)
      * @warning Must not call device_add()/device_remove() - may run while the ledger is locked.
      */
-    bool (*probe)(struct Device* device);
+    error_t (*probe)(struct Device* device);
     /** Contains the driver's functions */
     const void* api;
     /** Which type of devices this driver creates (can be NULL) */

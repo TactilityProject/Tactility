@@ -13,7 +13,7 @@ static bool probe_present = false;
 static int probe_driver_start_called = 0;
 static int probe_driver_stop_called = 0;
 
-static bool probe_driver_probe(Device*) { return probe_present; }
+static error_t probe_driver_probe(Device*) { return probe_present ? ERROR_NONE : ERROR_NOT_FOUND; }
 static error_t probe_driver_start(Device*) { probe_driver_start_called++; return ERROR_NONE; }
 static error_t probe_driver_stop(Device*) { probe_driver_stop_called++; return ERROR_NONE; }
 

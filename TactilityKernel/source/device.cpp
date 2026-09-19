@@ -581,6 +581,9 @@ static void hotplug_timer_callback(void*) {
 }
 
 void device_hotplug_register(Device* device) {
+    if (device->internal->driver != nullptr && device->internal->driver->probe != nullptr) {
+        device->flags |= DEVICE_FLAG_HOTPLUG;
+    }
     hotplug_registered_devices.push_back(device);
 }
 
@@ -592,10 +595,15 @@ void device_hotplug_unregister(Device* device) {
 }
 
 error_t device_hotplug_poll_once(void) {
+    // Snapshot: a device's start_device() may register another device (e.g. dynamically
+    // constructing a child once its own DEVICE_EVENT_STARTED fires), which would otherwise
+    // reallocate hotplug_registered_devices while this loop iterates it.
+    std::vector<Device*> devices = hotplug_registered_devices;
+
     // Collect actions first: start_device()/stop_device() may add/remove child devices
     // (ledger_lock), so don't call them mid-iteration.
     std::vector<HotplugAction> actions;
-    for (Device* device : hotplug_registered_devices) {
+    for (Device* device : devices) {
         auto* internal = device->internal;
         auto* driver = internal->driver;
         if (driver == nullptr) {
@@ -609,7 +617,7 @@ error_t device_hotplug_poll_once(void) {
             continue;
         }
 
-        bool present = driver->probe(device);
+        bool present = driver->probe(device) == ERROR_NONE;
         if (present == internal->hotplug.present) {
             internal->hotplug.consecutive = 0;
             continue;

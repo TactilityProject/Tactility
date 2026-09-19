@@ -63,6 +63,30 @@ static Driver fake_emit_only_keyboard_driver = {
     .internal = nullptr,
 };
 
+TEST_CASE("keyboard_read_key returns ERROR_INVALID_STATE, without touching the driver, on a device that isn't started") {
+    read_key_call_count = 0;
+
+    static Device fake_device {
+        .name = "fake_keyboard_device_not_started",
+        .config = nullptr,
+        .parent = nullptr,
+    };
+
+    CHECK_EQ(driver_construct_add(&fake_keyboard_driver), ERROR_NONE);
+    CHECK_EQ(device_construct_add(&fake_device, "keyboard_test,fake"), ERROR_NONE);
+    // Deliberately not started - a hotplug-managed keyboard can be constructed+added long before
+    // (or after) its driver is actually running, but LVGL's indev still polls it unconditionally.
+
+    KeyboardKeyData out { .key = 'x' };
+    CHECK_EQ(keyboard_read_key(&fake_device, &out), ERROR_INVALID_STATE);
+    CHECK_EQ(out.key, 0);
+    CHECK_EQ(read_key_call_count, 0);
+
+    CHECK_EQ(device_remove(&fake_device), ERROR_NONE);
+    CHECK_EQ(device_destruct(&fake_device), ERROR_NONE);
+    CHECK_EQ(driver_remove_destruct(&fake_keyboard_driver), ERROR_NONE);
+}
+
 TEST_CASE("keyboard_poll's default implementation fans out a read_key result to other subscribers") {
     read_key_call_count = 0;
 
@@ -97,6 +121,39 @@ TEST_CASE("keyboard_poll's default implementation fans out a read_key result to 
 
     CHECK_EQ(keyboard_unsubscribe(&fake_device, &sub_a), ERROR_NONE);
     CHECK_EQ(keyboard_unsubscribe(&fake_device, &sub_b), ERROR_NONE);
+    CHECK_EQ(device_stop(&fake_device), ERROR_NONE);
+    CHECK_EQ(device_remove(&fake_device), ERROR_NONE);
+    CHECK_EQ(device_destruct(&fake_device), ERROR_NONE);
+    CHECK_EQ(driver_remove_destruct(&fake_keyboard_driver), ERROR_NONE);
+}
+
+TEST_CASE("keyboard_read_key fans out to subscribers even when called directly") {
+    read_key_call_count = 0;
+
+    static Device fake_device {
+        .name = "fake_keyboard_device_read_key_fanout",
+        .config = nullptr,
+        .parent = nullptr,
+    };
+
+    CHECK_EQ(driver_construct_add(&fake_keyboard_driver), ERROR_NONE);
+    CHECK_EQ(device_construct_add(&fake_device, "keyboard_test,fake"), ERROR_NONE);
+    CHECK_EQ(device_start(&fake_device), ERROR_NONE);
+
+    KeyboardEventSubscription sub {};
+    CHECK_EQ(keyboard_subscribe(&fake_device, &sub), ERROR_NONE);
+
+    KeyboardKeyData out {};
+    CHECK_EQ(keyboard_read_key(&fake_device, &out), ERROR_NONE);
+    CHECK_EQ(out.key, 'a');
+
+    // sub never called keyboard_poll() itself - it received this via keyboard_read_key()'s fan-out.
+    KeyboardKeyData polled {};
+    CHECK_EQ(keyboard_poll(&fake_device, &sub, &polled), ERROR_NONE);
+    CHECK_EQ(polled.key, 'a');
+    CHECK_EQ(read_key_call_count, 1);
+
+    CHECK_EQ(keyboard_unsubscribe(&fake_device, &sub), ERROR_NONE);
     CHECK_EQ(device_stop(&fake_device), ERROR_NONE);
     CHECK_EQ(device_remove(&fake_device), ERROR_NONE);
     CHECK_EQ(device_destruct(&fake_device), ERROR_NONE);

@@ -11,37 +11,27 @@ extern "C" {
 #include <tactility/drivers/gpio.h>
 
 struct Tab5KeyboardConfig {
-    // Fixed 0x6D on this keyboard accessory - kept as a field for parity/documentation with
-    // other dynamically-constructed devices in this project, not used to probe the bus.
+    /** Fixed 0x6D - not used to probe the bus, kept only for parity with other dynamic devices. */
     uint8_t address;
-    // Native SoC GPIO (e.g. gpio0 pin 50) wired directly to the keyboard's INT line - not routed
-    // through an IO expander, since it needs a real hardware ISR for responsive key events.
-    // GPIO_PIN_SPEC_NONE falls back to polling REG_INT_STAT instead.
+    /**
+     * Wired directly to a native SoC GPIO (not an IO expander) for a real ISR.
+     * GPIO_PIN_SPEC_NONE falls back to polling REG_INT_STAT.
+     */
     struct GpioPinSpec pin_interrupt;
 };
 
 extern struct Driver tab5_keyboard_driver;
 
-// Constructs and starts the keyboard accessory device on i2c2. Called from display_detect.cpp's
-// on_display_detect_event() once i2c2 is up.
+/**
+ * @brief Constructs (but doesn't start) the keyboard device on i2c2 and registers it with the
+ * kernel's hotplug poller. Called once i2c2 is up (see display_detect.cpp).
+ */
 void tab5_create_keyboard(struct Device* i2c2);
 
-// Returns true if the keyboard accessory currently ACKs on the I2C bus. Cheap bus probe, no
-// debouncing - callers wanting hot-plug-stable state (e.g. tab5_keyboard_attach_detect.cpp)
-// should debounce across their own polling interval.
-bool tab5_keyboard_is_attached(struct Device* device);
-
-// (Re)applies the device's register configuration - RGB mode, brightness, interrupt config, LED
-// state. Volatile on this chip: reset to power-on defaults whenever the keyboard is unplugged and
-// reconnected, so callers must call this again after confirming a reattach (see
-// tab5_keyboard_attach_detect.cpp).
-void tab5_keyboard_reinit(struct Device* device);
-
-// Emits a release for every currently-held key (a hardware release can't arrive once the keyboard
-// is unplugged), then clears held-key/software-repeat/modifier state. Callers must call this on
-// confirmed detach (see tab5_keyboard_attach_detect.cpp) so a key held across an unplug doesn't
-// leave consumers with a stuck key or spurious repeats/modifiers after reattach.
-void tab5_keyboard_reset_state(struct Device* device);
+/** @brief Proxy for device_is_started().
+ * @deprecated Use device_is_started()
+ */
+error_t tab5_keyboard_is_attached(struct Device* device);
 
 #ifdef __cplusplus
 }

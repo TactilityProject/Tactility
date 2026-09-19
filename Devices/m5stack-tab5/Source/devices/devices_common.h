@@ -10,6 +10,10 @@
 // device_construct_add_start(), but with a device_set_parent() call inserted between construct and add
 bool construct_add_start(Device* device, Device* parent, const char* compatible);
 
+// Same as construct_add_start(), but doesn't start the device - for a device registered with
+// device_hotplug_register() instead, whose driver has a Driver::probe deciding if/when it starts.
+bool construct_add(Device* device, Device* parent, const char* compatible);
+
 // Unpacks a vendor-typed init-cmd array (ili9881c_lcd_init_cmd_t / st7123_lcd_init_cmd_t - same
 // field layout) into the flattened [cmd, data_len, delay_ms, data_len bytes...] byte encoding that
 // ili9881c-module/st7123-module's init-sequence config field expects (the same encoding a

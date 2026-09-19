@@ -16,6 +16,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/task.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -262,9 +263,13 @@ static bool write_reg_fast(Device* device, uint8_t reg, uint8_t value) {
     return i2c_controller_write_register(parent, I2C_ADDRESS, reg, &value, 1, pdMS_TO_TICKS(2)) == ERROR_NONE;
 }
 
-bool tab5_keyboard_is_attached(Device* device) {
+static error_t probe(Device* device) {
     auto* parent = device_get_parent(device);
-    return i2c_controller_has_device_at_address(parent, I2C_ADDRESS, pdMS_TO_TICKS(5)) == ERROR_NONE;
+    return i2c_controller_has_device_at_address(parent, I2C_ADDRESS, pdMS_TO_TICKS(5));
+}
+
+error_t tab5_keyboard_is_attached(Device* device) {
+    return device_is_ready(device);
 }
 
 // ---------------------------------------------------------------------------
@@ -462,7 +467,7 @@ static void drain_events(Device* device, Tab5KeyboardInternal* internal) {
 // mode and interrupt configuration are volatile and reset to power-on defaults when the keyboard
 // is unplugged and reconnected.
 // ---------------------------------------------------------------------------
-void tab5_keyboard_reinit(Device* device) {
+static void tab5_keyboard_reinit(Device* device) {
     auto* internal = static_cast<Tab5KeyboardInternal*>(device_get_driver_data(device));
     write_reg_fast(device, REG_KEYBOARD_MODE, 0x00); // Normal mode
     write_reg_fast(device, REG_EVENT_NUM, 0x00);     // flush event queue
@@ -476,7 +481,7 @@ void tab5_keyboard_reinit(Device* device) {
     }
 }
 
-void tab5_keyboard_reset_state(Device* device) {
+static void tab5_keyboard_reset_state(Device* device) {
     auto* internal = static_cast<Tab5KeyboardInternal*>(device_get_driver_data(device));
 
     for (uint8_t idx = 0; idx < 70U; idx++) {
@@ -594,28 +599,26 @@ static error_t start(Device* device) {
     // device_get_driver_data().
     device_set_driver_data(device, internal);
 
-    // This device is constructed speculatively at boot so it can be hot-plug-detected later - if
-    // the keyboard isn't physically attached yet, skip reinit here (tab5_keyboard_attach_detect.cpp
-    // calls it again once attach is confirmed) rather than issuing register writes that are certain
-    // to fail: unlike tab5_keyboard_is_attached()'s plain probe, write_register() logs at error
-    // level on failure (see esp32_i2c_master.cpp), which would be misleading noise for what's just
-    // "not plugged in yet".
-    if (tab5_keyboard_is_attached(device)) {
-        tab5_keyboard_reinit(device);
-    }
+    // Driver::probe (tab5_keyboard_is_attached) already confirmed presence before driver_bind()
+    // called this.
+    tab5_keyboard_reinit(device);
 
     return ERROR_NONE;
 }
+
+// How long to give LVGL's own indev timer to drain the release events tab5_keyboard_reset_state()
+// pushes below before the queue carrying them is deleted - longer than LVGL's default indev poll
+// period so a key held across an unplug doesn't read as stuck forever.
+static constexpr uint32_t STOP_DRAIN_GRACE_MS = 50;
 
 static error_t stop(Device* device) {
     auto* internal = static_cast<Tab5KeyboardInternal*>(device_get_driver_data(device));
 
     remove_irq_pin(internal);
     write_reg(device, REG_INT_CFG, 0x00); // disable all interrupts
-    internal->sym_active = false;
-    internal->aa_sticky = false;
-    internal->aa_held = false;
-    update_leds(device, internal); // turn LEDs off
+
+    tab5_keyboard_reset_state(device);
+    vTaskDelay(pdMS_TO_TICKS(STOP_DRAIN_GRACE_MS));
 
     vQueueDelete(internal->queue);
     free(internal);
@@ -659,7 +662,6 @@ static error_t tab5_keyboard_read_key(Device* device, KeyboardKeyData* data) {
 static const KeyboardApi tab5_keyboard_api = {
     .read_key = tab5_keyboard_read_key,
     .get_backlight = nullptr,
-    .is_present = tab5_keyboard_is_attached,
 };
 
 // Defined in module.cpp - this driver is registered directly by m5stack-tab5's own module,
@@ -671,6 +673,7 @@ Driver tab5_keyboard_driver = {
     .compatible = (const char*[]) { "m5stack,tab5-keyboard", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = probe,
     .api = &tab5_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
     .owner = &m5stack_tab5_module,
@@ -684,10 +687,10 @@ static Device tab5_keyboard_device {};
 
 // The keyboard accessory is a kernel driver device (m5stack,tab5-keyboard, defined directly in
 // this project). Unlike the display/touch, it isn't gated on the display-variant detection at
-// all (it lives on i2c2, a separate bus) - lvgl-module binds its indev unconditionally at boot
-// regardless of physical attach state. Hot-plug attach/detach handling (register reinit, LVGL
-// rotation) lives in tab5_keyboard_attach_detect.cpp, not this driver - see module.cpp for where
-// that gets started.
+// all (it lives on i2c2, a separate bus). Registered with the kernel's hotplug poller instead of
+// started here - Driver::probe (tab5_keyboard_is_attached) decides when it starts/stops. LVGL
+// rotation-on-attach lives in tab5_keyboard_attach_detect.cpp, not this driver - see module.cpp
+// for where that gets started.
 void tab5_create_keyboard(Device* i2c2) {
     tab5_keyboard_device = Device {
         .address = 0,
@@ -715,7 +718,9 @@ void tab5_create_keyboard(Device* i2c2) {
 
     // Parented to i2c2 itself (not root, unlike the display): the keyboard driver's start() uses
     // device_get_parent() as its I2C bus controller.
-    construct_add_start(&tab5_keyboard_device, i2c2, "m5stack,tab5-keyboard");
+    if (construct_add(&tab5_keyboard_device, i2c2, "m5stack,tab5-keyboard")) {
+        device_hotplug_register(&tab5_keyboard_device);
+    }
 }
 
 // endregion

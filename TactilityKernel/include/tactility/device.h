@@ -35,7 +35,7 @@ typedef uint8_t device_flags_t;
 
 #define DEVICE_FLAG_VIRTUAL         BIT(2)  /* No physical hardware */
 #define DEVICE_FLAG_REMOVABLE       BIT(3)  /* May disappear (USB, SDIO, etc.) */
-#define DEVICE_FLAG_HOTPLUG         BIT(4)  /* Supports hotplug */
+#define DEVICE_FLAG_HOTPLUG         BIT(4)  /* Automatically set by device_hotplug_register() when the driver has a probe */
 
 /** Represents a piece of hardware */
 struct Device {
@@ -395,8 +395,9 @@ error_t device_get_first_by_compatible(const char* compatible, struct Device** o
 
 /**
  * Registers @a device with the hotplug poller (see device_hotplug_poll_once()): started once
- * probe() (or immediately if NULL) reports present, stopped when it reports absent. A device
- * never registered here is never touched by the poller.
+ * probe() (or immediately if NULL) reports present, stopped when it reports absent. Sets
+ * DEVICE_FLAG_HOTPLUG on @a device if its driver has a `probe`. A device never registered here
+ * is never touched by the poller.
  * @warning Call only at boot, before polling starts.
  */
 void device_hotplug_register(struct Device* device);
