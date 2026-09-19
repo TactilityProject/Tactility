@@ -77,11 +77,11 @@ struct KeyboardKeyData {
     bool alt;
     /**
      * @brief Standard USB HID keyboard usage code for this key (USB HID Usage Tables, page 0x07),
-     * or 0 if this driver doesn't compute one (most don't - `key` is the only field most consumers
-     * need). Populated by drivers whose hardware layout maps cleanly onto HID usage codes, so
-     * consumers that want to mirror physical key presses as real HID reports (e.g. USB HID output)
-     * don't have to reverse-engineer one out of `key`'s codepoint encoding - which is lossy for
-     * keys with no Unicode/LVGL representation at all, e.g. F1-F12.
+     * or 0 if this driver doesn't compute one (most don't - `key` is the only field most consumers need).
+     * Populated by drivers whose hardware layout maps cleanly onto HID usage codes, so consumers that
+     * want to mirror physical key presses as real HID reports (e.g. USB HID output) don't have to
+     * reverse-engineer one out of `key`'s codepoint encoding.
+     * Encoding is lossy for keys with no Unicode/LVGL representation at all, e.g. F1-F12.
      */
     uint8_t hid_keycode;
     /**
@@ -92,11 +92,34 @@ struct KeyboardKeyData {
 };
 
 /**
+ * @brief Number of key events that can be queued per subscription in the default
+ * subscribe/unsubscribe/poll implementation before older subscribers' fanned-out events start
+ * being dropped for that subscriber (silently, preserving FIFO order of what's already queued).
+ */
+#define KEYBOARD_EVENT_QUEUE_CAPACITY 4
+
+/**
+ * @brief Caller-owned subscription node for keyboard_subscribe()/keyboard_unsubscribe()/
+ * keyboard_poll().
+ * @warning `internal` is private to keyboard.cpp; do not read or write it directly.
+ */
+struct KeyboardEventSubscription {
+    struct {
+        struct Device* device;
+        struct KeyboardKeyData queue[KEYBOARD_EVENT_QUEUE_CAPACITY];
+        uint8_t head;
+        uint8_t count;
+        struct KeyboardEventSubscription* next;
+    } internal;
+};
+
+/**
  * @brief API for keyboard drivers.
  */
 struct KeyboardApi {
     /**
      * @brief Reads the next pending key event, if any.
+     * May be NULL if the driver instead pushes events itself via keyboard_emit_key() (e.g. from a dedicated interrupt-handling task).
      * @param[in] device the keyboard device
      * @param[out] data the key event data
      * @retval ERROR_NONE when the operation was successful
@@ -104,7 +127,7 @@ struct KeyboardApi {
     error_t (*read_key)(struct Device* device, struct KeyboardKeyData* data);
 
     /**
-     * @brief Returns the baclight if the keyboard has one.
+     * @brief Returns the backlight if the keyboard has one.
      * @warning Returns a referenced device. Must call device_put() afterwards.
      * @param[in] device the keyboard device
      * @param[out] backlight_device the output backlight device
@@ -114,10 +137,10 @@ struct KeyboardApi {
     error_t (*get_backlight)(struct Device* device, struct Device** backlight_device);
 
     /**
-     * @brief Optional: reports whether the keyboard is physically present right now. Only
-     * meaningful for hot-pluggable/detachable keyboards (e.g. a removable accessory) whose
-     * kernel device is constructed and started once at boot regardless of physical attachment -
-     * leave NULL for a keyboard that's always physically present whenever its device is active
+     * @brief Optional: reports whether the keyboard is physically present right now.
+     * Only meaningful for hot-pluggable/detachable keyboards (e.g. a removable accessory) whose
+     * kernel device is constructed and started once at boot regardless of physical attachment.
+     * Leave NULL for a keyboard that's always physically present whenever its device is active
      * (the common case; callers must treat NULL the same as "always present").
      * @param[in] device the keyboard device
      * @return true if physically attached/present
@@ -127,8 +150,21 @@ struct KeyboardApi {
 
 /**
  * @brief Reads the next pending key event using the specified keyboard device.
+ * @retval ERROR_NOT_SUPPORTED the driver has no KeyboardApi::read_key (it pushes events via
+ * keyboard_emit_key() instead)
  */
 error_t keyboard_read_key(struct Device* device, struct KeyboardKeyData* data);
+
+/**
+ * @brief Push a key event from @a device to every current subscriber (see keyboard_subscribe()).
+ * For a driver whose hardware delivers key events asynchronously (e.g. from a dedicated
+ * interrupt-handling task) rather than on demand - KeyboardApi::read_key may be left NULL when
+ * the driver calls this instead.
+ * @warning Not ISR-safe (takes a mutex); call from a task, not directly from interrupt context.
+ * @param[in] device the keyboard device the event originated from
+ * @param[in] data the key event
+ */
+void keyboard_emit_key(struct Device* device, struct KeyboardKeyData data);
 
 /**
  * @brief Returns the backlight if the keyboard has one.
@@ -141,12 +177,33 @@ error_t keyboard_read_key(struct Device* device, struct KeyboardKeyData* data);
 error_t keyboard_get_backlight(struct Device* device, struct Device** backlight_device);
 
 /**
- * @brief Whether the keyboard device is physically present right now. True when the driver
- * doesn't implement KeyboardApi::is_present (i.e. it's always physically present whenever its
- * device is active) - see that field's doc comment.
+ * @brief Whether the keyboard device is physically present right now.
+ * Returns true when the driver doesn't implement KeyboardApi::is_present
  * @param[in] device the keyboard device
  */
 bool keyboard_is_present(struct Device* device);
+
+/**
+ * @brief Register @a sub for async key events from @a device, derived from `read_key`.
+ * @param[in,out] sub subscription to register; owns the storage, must stay alive (and stationary)
+ * until unsubscribed
+ * @retval ERROR_NONE on success
+ */
+error_t keyboard_subscribe(struct Device* device, struct KeyboardEventSubscription* sub);
+
+/**
+ * @brief Remove a subscription previously registered with keyboard_subscribe().
+ * @retval ERROR_NONE on success
+ */
+error_t keyboard_unsubscribe(struct Device* device, struct KeyboardEventSubscription* sub);
+
+/**
+ * @brief Non-blocking: pop the next event for @a sub if one is already queued.
+ * @warning Never blocks.
+ * @retval ERROR_NONE @a out_data was filled
+ * @retval ERROR_TIMEOUT nothing queued right now
+ */
+error_t keyboard_poll(struct Device* device, struct KeyboardEventSubscription* sub, struct KeyboardKeyData* out_data);
 
 extern const struct DeviceType KEYBOARD_TYPE;
 
