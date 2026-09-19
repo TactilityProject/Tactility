@@ -100,6 +100,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL_SIGNATURE(round, double (*)(double)),
     // cassert / cstdio
     DEFINE_MODULE_SYMBOL(abort),
+    DEFINE_MODULE_SYMBOL(clearerr),
     DEFINE_MODULE_SYMBOL(fclose),
     DEFINE_MODULE_SYMBOL(feof),
     DEFINE_MODULE_SYMBOL(ferror),

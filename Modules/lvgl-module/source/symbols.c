@@ -155,6 +155,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_margin_left),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_margin_right),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_margin_all),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_style_min_width),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_pad_all),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_pad_hor),
     DEFINE_MODULE_SYMBOL(lv_obj_set_style_pad_ver),
