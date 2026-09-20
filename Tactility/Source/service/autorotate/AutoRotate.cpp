@@ -15,8 +15,7 @@ void AutoRotateService::tick() {
     if (settingsReloadRequested.load(std::memory_order_acquire)) {
         auto reloaded = settings::display::loadOrGetDefault();
         if (!lvgl_try_lock(100)) {
-            return; // Retry on next tick - request stays pending so orientationMath doesn't
-                    // silently drift out of sync with cachedDisplaySettings.orientation
+            return; // stays pending - keeps orientationMath in sync with cachedDisplaySettings
         }
         cachedDisplaySettings = reloaded;
         orientationMath.reset(settings::display::toLvglDisplayRotation(cachedDisplaySettings.orientation));
@@ -55,8 +54,7 @@ void AutoRotateService::tick() {
     lv_display_set_rotation(lv_display_get_default(), rotation);
     lvgl_unlock();
 
-    // Re-load and merge rather than writing back the cached snapshot, so unrelated settings
-    // changed elsewhere (e.g. the Display app) since this cache was populated aren't clobbered.
+    // Re-load rather than write back the cached snapshot, so a concurrent Display app save isn't clobbered.
     auto settings_to_save = settings::display::loadOrGetDefault();
     settings_to_save.orientation = orientation;
     cachedDisplaySettings.orientation = orientation;
@@ -69,8 +67,7 @@ bool AutoRotateService::onStart(ServiceContext& service) {
         orientationMath.reset(settings::display::toLvglDisplayRotation(cachedDisplaySettings.orientation));
         lvgl_unlock();
     } else {
-        // Couldn't sync orientationMath's initial state - request a reload so the first tick()
-        // retries instead of running with a mismatched classifier baseline.
+        // Lock failed - defer the sync to tick()'s reload path instead of a mismatched baseline.
         settingsReloadRequested.store(true, std::memory_order_release);
     }
 
