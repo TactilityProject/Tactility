@@ -92,6 +92,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_clean),
     DEFINE_MODULE_SYMBOL(lv_obj_create),
     DEFINE_MODULE_SYMBOL(lv_obj_delete),
+    DEFINE_MODULE_SYMBOL(lv_obj_delete_async),
     DEFINE_MODULE_SYMBOL(lv_obj_add_event_cb),
     DEFINE_MODULE_SYMBOL(lv_obj_add_flag),
     DEFINE_MODULE_SYMBOL(lv_obj_add_state),
