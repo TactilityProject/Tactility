@@ -109,9 +109,11 @@ error_t keyboard_subscribe(Device* device, KeyboardEventSubscription* sub) {
     mutex_lock(&subscriptions_mutex.handle);
 
     // Avoid cyclic subscription list that would loop forever
-    if (subscriptions == sub) {
-        mutex_unlock(&subscriptions_mutex.handle);
-        return ERROR_INVALID_STATE;
+    for (auto* current = subscriptions; current != nullptr; current = current->internal.next) {
+        if (current == sub) {
+            mutex_unlock(&subscriptions_mutex.handle);
+            return ERROR_INVALID_STATE;
+        }
     }
 
     sub->internal.device = device;

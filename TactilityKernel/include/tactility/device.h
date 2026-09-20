@@ -397,12 +397,16 @@ error_t device_get_first_by_compatible(const char* compatible, struct Device** o
  * Registers @a device with the hotplug poller (see device_hotplug_poll_once()): started once
  * probe() (or immediately if NULL) reports present, stopped when it reports absent. Sets
  * DEVICE_FLAG_HOTPLUG on @a device if its driver has a `probe`. A device never registered here
- * is never touched by the poller.
- * @warning Call only at boot, before polling starts.
+ * is never touched by the poller. No-op if already registered. Safe to call concurrently with
+ * device_hotplug_poll_once() and with device_hotplug_unregister().
  */
 void device_hotplug_register(struct Device* device);
 
-/** Reverses device_hotplug_register(). No-op if not registered. */
+/**
+ * Reverses device_hotplug_register(), clearing DEVICE_FLAG_HOTPLUG. No-op if not registered.
+ * Safe to call concurrently with device_hotplug_poll_once(); call this before
+ * device_remove()/device_destruct() if a registered device is being permanently torn down.
+ */
 void device_hotplug_unregister(struct Device* device);
 
 /**

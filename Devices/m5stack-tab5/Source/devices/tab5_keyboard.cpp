@@ -268,10 +268,6 @@ static error_t probe(Device* device) {
     return i2c_controller_has_device_at_address(parent, I2C_ADDRESS, pdMS_TO_TICKS(5));
 }
 
-error_t tab5_keyboard_is_attached(Device* device) {
-    return device_is_ready(device);
-}
-
 // ---------------------------------------------------------------------------
 // LED helpers - LED0 = Sym indicator (blue), LED1 = Aa indicator (red)
 // RGB register layout: [B, G, R] per LED, stride 4 (byte 3 reserved)

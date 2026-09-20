@@ -28,11 +28,6 @@ extern struct Driver tab5_keyboard_driver;
  */
 void tab5_create_keyboard(struct Device* i2c2);
 
-/** @brief Proxy for device_is_started().
- * @deprecated Use device_is_started()
- */
-error_t tab5_keyboard_is_attached(struct Device* device);
-
 #ifdef __cplusplus
 }
 #endif

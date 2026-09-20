@@ -24,8 +24,12 @@ static void apply_rotation(bool attached) {
             rotation_override_active = true;
             lv_display_set_rotation(display, LV_DISPLAY_ROTATION_90);
         }
-    } else if (rotation_override_active && lv_display_get_rotation(display) == LV_DISPLAY_ROTATION_90) {
-        lv_display_set_rotation(display, saved_rotation);
+    } else if (rotation_override_active) {
+        // Ownership of the rotation ends here regardless - only restore it if the display is
+        // still at what we set it to (the user may have changed it manually while attached).
+        if (lv_display_get_rotation(display) == LV_DISPLAY_ROTATION_90) {
+            lv_display_set_rotation(display, saved_rotation);
+        }
         rotation_override_active = false;
     }
 
@@ -49,5 +53,6 @@ void tab5_keyboard_lvgl_rotation_start() {
 }
 
 void tab5_keyboard_lvgl_rotation_stop() {
+    apply_rotation(false);
     device_listener_remove(on_device_event);
 }
