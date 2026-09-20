@@ -54,6 +54,7 @@
 #include <Tactility/settings/TouchCalibrationSettings.h>
 #endif
 
+#include <audio_decoder/module.h>
 #include <c_symbols/module.h>
 #include <cjson_symbols/module.h>
 #include <cpp_symbols/module.h>
@@ -534,6 +535,7 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     check(module_ensure_started(&http_module) == ERROR_NONE);
     check(module_ensure_started(&app_module) == ERROR_NONE);
     check(module_ensure_started(&crypt_module) == ERROR_NONE);
+    check(module_ensure_started(&audio_decoder_module) == ERROR_NONE);
     check(module_ensure_started(&mbedtls_module) == ERROR_NONE);
     check(module_ensure_started(&gps_module) == ERROR_NONE);
     check(module_ensure_started(&gps_generic_module) == ERROR_NONE);

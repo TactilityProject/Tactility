@@ -1,4 +1,5 @@
 app-module
+audio-decoder-module
 cjson-module
 crypt-module
 gps-module
