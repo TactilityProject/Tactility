@@ -634,6 +634,12 @@ static error_t stop_device(struct Device* device) {
     if (auto kb_handle = ctx->kb_handle.load()) {
         hid_host_device_close(kb_handle);
     }
+    // Must also close the Consumer Control interface if one is open - hid_host_uninstall() below
+    // can fail while any HID interface remains registered, and its callback still references ctx
+    // (about to be deleted).
+    if (auto consumer_handle = ctx->consumer_handle.load()) {
+        hid_host_device_close(consumer_handle);
+    }
     usb_hid_keyboard_device_destruct(ctx);
 
     ctx->hid_proc_running = false;

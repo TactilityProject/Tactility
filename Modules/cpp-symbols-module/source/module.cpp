@@ -558,11 +558,11 @@ double** copy_move_backward_a2_double_ptr(double** first, double** last, double*
 StringBoolPair* move_backward_string_bool_pairs(StringBoolPair* first, StringBoolPair* last, StringBoolPair* out) {
     return std::move_backward(first, last, out);
 }
-short max_short_init_list(const void* self) {
-    return std::max(*static_cast<const std::initializer_list<short>*>(self));
+short max_short_init_list(std::initializer_list<short> values) {
+    return std::max(values);
 }
-short min_short_init_list(const void* self) {
-    return std::min(*static_cast<const std::initializer_list<short>*>(self));
+short min_short_init_list(std::initializer_list<short> values) {
+    return std::min(values);
 }
 void advance_string_ptr_ptr(std::string*** it, int n) { std::advance(*it, n); }
 void advance_char_ptr_ptr(char*** it, int n) { std::advance(*it, n); }

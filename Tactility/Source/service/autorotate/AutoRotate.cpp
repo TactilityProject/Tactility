@@ -12,13 +12,16 @@ namespace tt::service::autorotate {
 using settings::display::Orientation;
 
 void AutoRotateService::tick() {
-    if (settingsReloadRequested.exchange(false, std::memory_order_acquire)) {
-        cachedDisplaySettings = settings::display::loadOrGetDefault();
+    if (settingsReloadRequested.load(std::memory_order_acquire)) {
+        auto reloaded = settings::display::loadOrGetDefault();
         if (!lvgl_try_lock(100)) {
-            return; // Retry on next tick
+            return; // Retry on next tick - request stays pending so orientationMath doesn't
+                    // silently drift out of sync with cachedDisplaySettings.orientation
         }
+        cachedDisplaySettings = reloaded;
         orientationMath.reset(settings::display::toLvglDisplayRotation(cachedDisplaySettings.orientation));
         lvgl_unlock();
+        settingsReloadRequested.store(false, std::memory_order_release);
     }
 
     if (!cachedDisplaySettings.autoRotateEnabled) {
@@ -65,6 +68,10 @@ bool AutoRotateService::onStart(ServiceContext& service) {
     if (lvgl_try_lock(100)) {
         orientationMath.reset(settings::display::toLvglDisplayRotation(cachedDisplaySettings.orientation));
         lvgl_unlock();
+    } else {
+        // Couldn't sync orientationMath's initial state - request a reload so the first tick()
+        // retries instead of running with a mismatched classifier baseline.
+        settingsReloadRequested.store(true, std::memory_order_release);
     }
 
     timer = std::make_unique<Timer>(Timer::Type::Periodic, millis_to_ticks(TICK_INTERVAL_MS), [this]{ this->tick(); });
