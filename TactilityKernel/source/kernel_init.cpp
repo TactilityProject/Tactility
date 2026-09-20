@@ -65,13 +65,16 @@ error_t kernel_init(Module* const dts_modules[], const DtsDevice dts_devices[]) 
         dts_module++;
     }
 
+    // Starting is deferred to device_hotplug_poll_once() below so probe() can run first.
+    // DISABLED devices are never registered, so the poller never starts them.
     const DtsDevice* dts_device = dts_devices;
     while (dts_device->device != nullptr) {
         if (dts_device->status == DTS_DEVICE_STATUS_OKAY) {
-            if (device_construct_add_start(dts_device->device, dts_device->compatible) != ERROR_NONE) {
-                LOG_E(TAG, "kernel_init failed to construct+add+start device: %s (%s)", dts_device->device->name, dts_device->compatible);
+            if (device_construct_add(dts_device->device, dts_device->compatible) != ERROR_NONE) {
+                LOG_E(TAG, "kernel_init failed to construct+add device: %s (%s)", dts_device->device->name, dts_device->compatible);
                 return ERROR_RESOURCE;
             }
+            device_hotplug_register(dts_device->device);
         } else if (dts_device->status == DTS_DEVICE_STATUS_DISABLED) {
             if (device_construct_add(dts_device->device, dts_device->compatible) != ERROR_NONE) {
                 LOG_E(TAG, "kernel_init failed to construct+add device: %s (%s)", dts_device->device->name, dts_device->compatible);
@@ -82,6 +85,13 @@ error_t kernel_init(Module* const dts_modules[], const DtsDevice dts_devices[]) 
         }
         dts_device++;
     }
+
+    // A mandatory (probe == NULL) device's start failure aborts boot, as before.
+    if (device_hotplug_poll_once() != ERROR_NONE) {
+        LOG_E(TAG, "kernel_init failed to start a mandatory device");
+        return ERROR_RESOURCE;
+    }
+    device_hotplug_start_polling();
 
     LOG_I(TAG, "init done");
     return ERROR_NONE;
