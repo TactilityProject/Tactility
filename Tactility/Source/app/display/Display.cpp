@@ -3,6 +3,7 @@
 #include <tactility/device.h>
 #include <tactility/drivers/backlight.h>
 #include <tactility/drivers/display.h>
+#include <tactility/drivers/imu.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
 
@@ -10,6 +11,7 @@
 #ifdef ESP_PLATFORM
 #include <Tactility/service/displayidle/DisplayIdleService.h>
 #endif
+#include <Tactility/service/autorotate/AutoRotateService.h>
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <app/event.h>
@@ -41,6 +43,9 @@ struct Context {
     lv_obj_t* timeoutSwitch = nullptr;
     lv_obj_t* timeoutDropdown = nullptr;
     lv_obj_t* screensaverDropdown = nullptr;
+    lv_obj_t* orientationDropdown = nullptr;
+    lv_obj_t* autoRotateSwitch = nullptr;
+    lv_obj_t* mountRotationDropdown = nullptr;
 };
 
 
@@ -88,6 +93,36 @@ void onOrientationSet(lv_event_t* event) {
         ctx->displaySettingsUpdated = true;
         lv_display_set_rotation(lv_display_get_default(), settings::display::toLvglDisplayRotation(selected_orientation));
     }
+}
+
+void onAutoRotateSwitch(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
+    bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    ctx->displaySettings.autoRotateEnabled = enabled;
+    ctx->displaySettingsUpdated = true;
+    if (ctx->mountRotationDropdown) {
+        if (enabled) {
+            lv_obj_clear_state(ctx->mountRotationDropdown, LV_STATE_DISABLED);
+        } else {
+            lv_obj_add_state(ctx->mountRotationDropdown, LV_STATE_DISABLED);
+        }
+    }
+    if (ctx->orientationDropdown) {
+        if (enabled) {
+            lv_obj_add_state(ctx->orientationDropdown, LV_STATE_DISABLED);
+        } else {
+            lv_obj_clear_state(ctx->orientationDropdown, LV_STATE_DISABLED);
+        }
+    }
+}
+
+void onMountRotationSet(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
+    uint32_t selected_index = lv_dropdown_get_selected(dropdown);
+    ctx->displaySettings.autoRotateMountRotation = static_cast<settings::display::Orientation>(selected_index);
+    ctx->displaySettingsUpdated = true;
 }
 
 void onTimeoutSwitch(lv_event_t* event) {
@@ -143,6 +178,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     ctx->displaySettings = settings::display::loadOrGetDefault();
     auto ui_density = lvgl_get_ui_density();
+    bool has_imu = device_exists_of_type(&IMU_TYPE);
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
@@ -200,13 +236,55 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_label_set_text(orientation_label, "Orientation");
     lv_obj_align(orientation_label, LV_ALIGN_LEFT_MID, 0, 0);
 
-    auto* orientation_dropdown = lv_dropdown_create(orientation_wrapper);
+    ctx->orientationDropdown = lv_dropdown_create(orientation_wrapper);
     // Note: order correlates with settings::display::Orientation item order
-    lv_dropdown_set_options(orientation_dropdown, "Landscape\nPortrait Right\nLandscape Flipped\nPortrait Left");
-    lv_obj_align(orientation_dropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_add_event_cb(orientation_dropdown, onOrientationSet, LV_EVENT_VALUE_CHANGED, ctx);
+    lv_dropdown_set_options(ctx->orientationDropdown, "Landscape\nPortrait Right\nLandscape Flipped\nPortrait Left");
+    lv_obj_align(ctx->orientationDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_add_event_cb(ctx->orientationDropdown, onOrientationSet, LV_EVENT_VALUE_CHANGED, ctx);
     // Set the dropdown to match current orientation enum
-    lv_dropdown_set_selected(orientation_dropdown, static_cast<uint16_t>(ctx->displaySettings.orientation));
+    lv_dropdown_set_selected(ctx->orientationDropdown, static_cast<uint16_t>(ctx->displaySettings.orientation));
+    if (has_imu && ctx->displaySettings.autoRotateEnabled) {
+        lv_obj_add_state(ctx->orientationDropdown, LV_STATE_DISABLED);
+    }
+
+    // Auto-rotate (IMU-driven)
+
+    if (has_imu) {
+        auto* auto_rotate_wrapper = lv_obj_create(main_wrapper);
+        lv_obj_set_size(auto_rotate_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_all(auto_rotate_wrapper, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_border_width(auto_rotate_wrapper, 0, LV_STATE_DEFAULT);
+
+        auto* auto_rotate_label = lv_label_create(auto_rotate_wrapper);
+        lv_label_set_text(auto_rotate_label, "Auto-rotate");
+        lv_obj_align(auto_rotate_label, LV_ALIGN_LEFT_MID, 0, 0);
+
+        ctx->autoRotateSwitch = lv_switch_create(auto_rotate_wrapper);
+        if (ctx->displaySettings.autoRotateEnabled) {
+            lv_obj_add_state(ctx->autoRotateSwitch, LV_STATE_CHECKED);
+        }
+        lv_obj_align(ctx->autoRotateSwitch, LV_ALIGN_RIGHT_MID, 0, 0);
+        lv_obj_add_event_cb(ctx->autoRotateSwitch, onAutoRotateSwitch, LV_EVENT_VALUE_CHANGED, ctx);
+
+        auto* mount_rotation_wrapper = lv_obj_create(main_wrapper);
+        lv_obj_set_size(mount_rotation_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_all(mount_rotation_wrapper, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_border_width(mount_rotation_wrapper, 0, LV_STATE_DEFAULT);
+
+        auto* mount_rotation_label = lv_label_create(mount_rotation_wrapper);
+        lv_label_set_text(mount_rotation_label, "Sensor mounting");
+        lv_obj_align(mount_rotation_label, LV_ALIGN_LEFT_MID, 0, 0);
+
+        ctx->mountRotationDropdown = lv_dropdown_create(mount_rotation_wrapper);
+        // Note: order correlates with settings::display::Orientation item order
+        lv_dropdown_set_options(ctx->mountRotationDropdown, "Landscape\nPortrait Right\nLandscape Flipped\nPortrait Left");
+        lv_obj_align(ctx->mountRotationDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
+        lv_obj_add_event_cb(ctx->mountRotationDropdown, onMountRotationSet, LV_EVENT_VALUE_CHANGED, ctx);
+        lv_dropdown_set_selected(ctx->mountRotationDropdown, static_cast<uint16_t>(ctx->displaySettings.autoRotateMountRotation));
+        if (!ctx->displaySettings.autoRotateEnabled) {
+            lv_obj_add_state(ctx->mountRotationDropdown, LV_STATE_DISABLED);
+        }
+    }
 
     // Screen timeout
     // Note: DisplayIdleService doesn't act on these settings for kernel-driver displays yet
@@ -299,6 +377,11 @@ void persistIfUpdated(Context& ctx) {
                 displayIdle->reloadSettings();
             }
 #endif
+            // Notify AutoRotate service to reload settings
+            auto autoRotate = service::autorotate::findService();
+            if (autoRotate) {
+                autoRotate->reloadSettings();
+            }
         });
     }
 }

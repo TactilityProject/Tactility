@@ -86,6 +86,7 @@
 // Audio service exports to external ELF apps (Source/service/audio/AudioExports.cpp).
 extern "C" Module tactility_audio_module;
 #include <tactility/drivers/grove.h>
+#include <tactility/drivers/imu.h>
 #include <tactility/drivers/power_supply.h>
 #include <tactility/drivers/rtc.h>
 #include <tactility/drivers/trackball.h>
@@ -124,6 +125,7 @@ bool MainDispatcher::dispatch(Function function, TickType_t timeout) const {
 namespace service {
     // Primary
     namespace audio { extern const ServiceManifest manifest; }
+    namespace autorotate { extern const ServiceManifest manifest; }
     namespace wifi { extern const ServiceManifest manifest; }
     namespace development { extern const ServiceManifest manifest; }
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
@@ -452,6 +454,9 @@ static void onLvglStarted() {
 #if defined(ESP_PLATFORM)
     addService(service::displayidle::manifest);
 #endif
+    if (device_exists_of_type(&IMU_TYPE)) {
+        addService(service::autorotate::manifest);
+    }
 #if defined(CONFIG_TT_TDECK_WORKAROUND)
     addService(service::keyboardidle::manifest);
 #endif
@@ -474,6 +479,9 @@ static void onLvglStopped() {
     lvgl::stopKeyboardDeviceListener();
     lvgl::stopUsbHidInput();
 
+    if (device_exists_of_type(&IMU_TYPE)) {
+        check(service::removeService(service::autorotate::manifest.id));
+    }
 #if TT_FEATURE_SCREENSHOT_ENABLED
     check(service::removeService(service::screenshot::manifest.id));
 #endif
