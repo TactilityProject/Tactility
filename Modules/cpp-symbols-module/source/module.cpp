@@ -443,8 +443,12 @@ void* allocate_cstr_storage(void* self, unsigned int n, const void* hint) {
 using StringBoolPair = std::pair<std::string, bool>;
 using StringBoolPairVector = std::vector<StringBoolPair>;
 bool empty_string_bool_pair_vector(const void* self) { return static_cast<const StringBoolPairVector*>(self)->empty(); }
-// erase(begin(), end()) calls _M_erase_at_end(pointer) internally - forces its instantiation.
-void clear_string_bool_pair_vector(void* self) {
+// erase(begin(), end()) calls _M_erase_at_end(pointer) internally, forcing its instantiation
+// under the mangled name registered directly via DEFINE_MODULE_SYMBOL below - this function
+// itself is never called or registered, it exists purely so that call happens somewhere in this
+// TU. [[gnu::used]] keeps the compiler from dead-stripping it as an uncalled anonymous-namespace
+// function, which would silently drop the instantiation it exists to force.
+[[gnu::used]] void clear_string_bool_pair_vector(void* self) {
     auto* v = static_cast<StringBoolPairVector*>(self);
     v->erase(v->begin(), v->end());
 }
@@ -725,7 +729,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE6resizeEjc),
     DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE9_S_assignEPcjc),
     DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC1EPKcjRKS3_),
-    { "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE20resize_and_overwriteIRZNS_9to_stringElEUlPcjE_EEvjT_", (void*)&construct_to_string_result_long },
+    DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE20resize_and_overwriteIRZNS_9to_stringElEUlPcjE_EEvjT_),
     { "_ZNSt7__cxx119to_stringEl", (void*)&construct_to_string_result_long },
 
     // std::deque<char>/<double>/<basic_string<char>> and std::stack<T, deque<T>>
@@ -805,7 +809,7 @@ static const ModuleSymbol SYMBOLS[] = {
     { "_ZNSt12_Vector_baseISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEbESaIS7_EED2Ev", (void*)&destroy_vector_base_of_string_bool_pairs },
     { "_ZNSt6vectorISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEbESaIS7_EE12_Guard_allocD1Ev", (void*)&(destroy_guard_alloc<StringBoolPair>) },
     { "_ZNSt6vectorISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEbESaIS7_EE12emplace_backIJS7_EEERS7_DpOT_", (void*)&emplace_back_string_bool_pair_vector },
-    { "_ZNSt6vectorISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEbESaIS7_EE15_M_erase_at_endEPS7_", (void*)&clear_string_bool_pair_vector },
+    DEFINE_MODULE_SYMBOL(_ZNSt6vectorISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEbESaIS7_EE15_M_erase_at_endEPS7_),
     { "_ZNSt6vectorISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEbESaIS7_EE17_M_realloc_appendIJS7_EEEvDpOT_", (void*)&realloc_append_string_bool_pair_vector },
     DEFINE_MODULE_SYMBOL(_ZNSt6vectorISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEbESaIS7_EE4backEv),
     { "_ZNSt6vectorISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEbESaIS7_EED1Ev", (void*)&destroy_vector_of_string_bool_pairs },
