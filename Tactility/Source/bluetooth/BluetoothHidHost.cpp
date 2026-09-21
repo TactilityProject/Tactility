@@ -81,15 +81,10 @@ static std::atomic<int32_t> hid_host_mouse_y{0};
 static std::atomic<bool>    hid_host_mouse_btn{false};
 static std::atomic<bool>    hid_host_mouse_active{false};
 
-// ---- Dynamic KEYBOARD_TYPE device ----
-//
-// While a BLE HID keyboard is connected, a KEYBOARD_TYPE child device is constructed so the
-// rest of the system (lvgl_hardware_keyboard_is_available(), Tactility's
-// KeyboardDeviceListener) sees a real hardware keyboard through the same generic device model
-// as any other keyboard - mirroring the USB HID host's dynamic keyboard device. Real key
-// events are delivered exclusively through this device; there is no separate custom LVGL
-// keypad indev, so the on-screen software keyboard is correctly suppressed while the BLE
-// keyboard is connected and restored when it disconnects.
+// Mirrors the USB HID host's dynamic keyboard device: while a BLE HID keyboard is connected, a
+// KEYBOARD_TYPE child device is constructed so lvgl_hardware_keyboard_is_available() and
+// KeyboardDeviceListener see it like any other keyboard, correctly suppressing/restoring the
+// on-screen keyboard.
 
 constexpr auto BLE_HID_KB_QUEUE_SIZE = 16;
 
@@ -154,11 +149,8 @@ static void bleKbDeviceConstruct() {
         return;
     }
 
-    // The kernel requires driver_construct() before a driver is bound to a device (it
-    // allocates the driver's internal use-count state). Platform drivers get this from
-    // module init; this driver lives in the Tactility layer, so construct it once here.
-    // Never destruct it: it is a static, app-lifetime object (destructing also requires an
-    // owner module).
+    // No owner module to construct this driver at init, so do it once here, lazily. Never
+    // destructed: it's a static, app-lifetime object.
     static bool s_driver_constructed = false;
     if (!s_driver_constructed) {
         if (driver_construct(&s_ble_kb_driver) != ERROR_NONE) {
@@ -379,19 +371,10 @@ static void hidEncRetryTimerCb(void* /*arg*/) {
     if (hid_host_ctx) {
         auto& ctx = *hid_host_ctx;
         if (!ctx.typeResolutionDone) {
-            // Discovery (service/characteristic/descriptor/report map) is still in flight.
-            // Never force the subscribe/ready block to run before discovery completes: doing
-            // so raced the discovery chain and fired the ready block with an empty report
-            // list, so no reports were ever subscribed and no keyboard device was created.
-            // Instead keep waiting (bounded), and only proceed with whatever is known after
-            // the retries run out - a peer whose discovery genuinely stalled still ends up
-            // with a working connection for any reports that were resolved.
-            // Once inputRpts is populated, cap at 6 retries (~3s) - discovery from here is
-            // just the report-map read, expected to be quick. But if characteristic discovery
-            // itself hasn't produced any reports yet, typeResolutionDone forcing proceed here
-            // would permanently latch readyBlockFired on zero reports (see below) before that
-            // discovery had a chance to populate inputRpts - keep waiting instead, bounded by
-            // a much higher cap so a peer that genuinely has no reports doesn't hang forever.
+            // Discovery is still in flight; forcing the subscribe/ready block early would fire
+            // it with an empty report list and never create a keyboard device. Wait (bounded)
+            // for inputRpts to populate; once it has, discovery is just the quick report-map
+            // read left, so cap retries much lower.
             bool have_reports = !ctx.inputRpts.empty();
             int retry_cap = have_reports ? 6 : 40; // ~3s vs ~20s
             if (ctx.encRetryCount < retry_cap) {
@@ -854,10 +837,8 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
                 device_put(dev);
             }
 
-            // Destruct the dynamic keyboard device on the main dispatcher (device events
-            // trigger KeyboardDeviceListener's LVGL work, which must not run on the NimBLE
-            // host task). Its STOPPING event detaches the LVGL indev before the event queue
-            // is freed, and the software keyboard becomes available again.
+            // Runs on the main dispatcher: KeyboardDeviceListener's LVGL work must not run on
+            // the NimBLE host task.
             getMainDispatcher().dispatch([] {
                 bleKbDeviceDestruct();
             });

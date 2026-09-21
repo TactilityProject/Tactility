@@ -53,9 +53,8 @@ struct UsbHidContext {
     std::atomic<hid_host_device_handle_t> kb_handle{nullptr};
     std::atomic<bool> kb_led_pending{false};
 
-    // Consumer Control interface (e.g. headset buttons, media keyboards): non-boot HID
-    // interfaces whose report descriptor maps to a Consumer-page button bitmap via the
-    // kernel's generic hid_consumer parser. One consumer interface at a time.
+    // Consumer Control interface (headset buttons, media keys), decoded via hid_consumer.
+    // One at a time.
     HidConsumerMap consumer_map = {};
     std::atomic<hid_host_device_handle_t> consumer_handle{nullptr};
     uint16_t consumer_prev_usages[HID_CONSUMER_MAX_USAGES] = {};
@@ -255,9 +254,8 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
         } else if (params.proto == HID_PROTOCOL_MOUSE) {
             ctx->mouse_connected = false;
         } else if (ctx->consumer_handle.load() == handle) {
-            // Synthesize a release for anything still pressed - otherwise a headset unplugged
-            // mid-press (e.g. holding volume down) leaves the app-side state (audio service
-            // latch/repeat) believing the button is still held forever.
+            // Synthesize releases on disconnect, or a mid-press unplug latches the app-side
+            // state (audio service latch/repeat) forever.
             for (size_t j = 0; j < ctx->consumer_prev_count; j++) {
                 UsbHidEvent evt = { .type = USB_HID_EVENT_CONSUMER,
                                     .consumer = { ctx->consumer_prev_usages[j], false } };
@@ -320,11 +318,8 @@ static void hid_proc_task(void* arg) {
             if (hid_host_device_get_params(dev_evt.handle, &params) != ESP_OK) continue;
 
             if (params.proto != HID_PROTOCOL_KEYBOARD && params.proto != HID_PROTOCOL_MOUSE) {
-                // Non-boot HID interface. Standard Consumer Control (headset buttons, media
-                // keyboards) declares subclass/protocol 0 and lands here. The interface must
-                // be opened before its report descriptor can be requested ("Interface is not
-                // ready" otherwise), so: open, parse, and close again when the descriptor
-                // turns out not to be a Consumer-page button bitmap.
+                // Non-boot interfaces (e.g. Consumer Control) must be opened before their
+                // report descriptor is readable; close again if it's not a consumer bitmap.
                 const hid_host_device_config_t probe_cfg = {
                     .callback = hid_interface_callback,
                     .callback_arg = ctx,
@@ -595,9 +590,8 @@ static error_t stop_device(struct Device* device) {
     if (auto kb_handle = ctx->kb_handle.load()) {
         hid_host_device_close(kb_handle);
     }
-    // Must also close the Consumer Control interface if one is open - hid_host_uninstall() below
-    // can fail while any HID interface remains registered, and its callback still references ctx
-    // (about to be deleted).
+    // hid_host_uninstall() below can fail with any interface still registered, and its callback
+    // still references ctx, about to be deleted.
     if (auto consumer_handle = ctx->consumer_handle.load()) {
         hid_host_device_close(consumer_handle);
     }
