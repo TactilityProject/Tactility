@@ -99,30 +99,19 @@ struct AudioStreamHandleImpl : AudioStreamHandleData {
     uint8_t codec_channels = 0;
     uint8_t bytes_per_frame = 0;     // app-side frame size (config.channels)
     uint8_t codec_bytes_per_frame = 0; // codec-side frame size (codec_channels)
-    // The codec this handle streams to, bound at open time. All read/write calls target this
-    // codec rather than the AudioStreamData slot, because the slot can be re-bound mid-handle
-    // when a codec device event changes the preferred codec (see on_codec_device_event) --
-    // resampling/bookkeeping fields above describe THIS codec, so I/O must never silently
-    // switch to another one underneath. Nulled by the listener when this codec's device is
-    // being removed, so close_stream() skips audio_codec_close() on soon-freed memory.
+    // Bound at open time; the AudioStreamData slot can be re-bound mid-handle by
+    // on_codec_device_event, but I/O must keep targeting this codec. Nulled when this codec's
+    // device is being removed, so close_stream() skips audio_codec_close() on soon-freed memory.
     Device* codec = nullptr;
     float input_gain = 1.0f; // fixed digital gain multiplier, input direction only (see audio_codec_get_input_gain_multiplier)
     std::vector<uint8_t> codec_buffer;    // raw codec-rate/codec-channel PCM, scratch
     std::vector<uint8_t> convert_buffer;  // intermediate scratch for the second conversion stage
 
-    // Lifetime guard: close_stream() (the app closing/re-closing its own handle) and
-    // on_codec_device_event() (a codec hotplug event finding this handle still open on the
-    // codec being removed) can both need to wait for in-flight I/O on this SAME handle to
-    // drain, concurrently and independently of each other - e.g. the Settings UI disables
-    // output at the same moment a USB headset is unplugged. `closing` keeps new I/O calls out,
-    // `busy_count` tracks I/O calls currently in flight, `drain_semaphore`/
-    // `listener_drain_semaphore` let each side block on its OWN semaphore until busy_count
-    // hits zero (a single shared semaphore only wakes one waiter), and `lifetime_refs` tracks
-    // how many of {the implicit open-handle reference, a waiting close_stream(), a waiting
-    // listener} are still outstanding - whichever side's decrement brings it to zero is the one
-    // that actually deletes `handle`, so neither side can free it while the other is still
-    // waiting on it. All fields here are only touched while `AudioStreamData::mutex` is held,
-    // except for the give/take on the two semaphores themselves.
+    // Lets close_stream() and on_codec_device_event() independently wait for this handle's
+    // in-flight I/O to drain without racing each other or double-freeing it: each waits on its
+    // own semaphore (a shared one would only wake one of them), and lifetime_refs ensures
+    // whichever finishes last is the one that deletes `handle`. All fields here are only
+    // touched while `AudioStreamData::mutex` is held, except the semaphore give/take themselves.
     bool listener_closed = false;
     bool closing = false;
     int busy_count = 0;
@@ -152,13 +141,9 @@ struct AudioStreamData {
     // through them, so close (possibly forced by set_enabled) can't race with read/write.
     SemaphoreHandle_t mutex = nullptr;
 
-    // While open_input/open_output holds the reservation placeholder, open_stream() is
-    // mid-flight calling audio_codec_open() against a codec pointer it captured before that
-    // call - a codec device STOPPED event during that window can't null anything out (there's
-    // no handle yet to mark listener_closed), so on_codec_device_event() instead polls this
-    // field until the open resolves before letting its caller free the codec's memory. Set to
-    // the codec being opened while a reservation is in flight for that direction; cleared once
-    // open_stream() commits or aborts the reservation.
+    // Set to the codec being opened while open_stream() holds the reservation placeholder in
+    // open_input/open_output; there's no handle yet to mark listener_closed, so a STOPPED event
+    // during that window instead polls this field until the open resolves.
     Device* input_reservation_codec = nullptr;
     Device* output_reservation_codec = nullptr;
 
@@ -259,13 +244,10 @@ Device* codec_for_direction(AudioStreamData* data, AudioCodecDirection direction
     return result;
 }
 
-// Marks an I/O operation as in-flight on `handle`, preventing close_stream() from freeing it
-// underneath us, and hands back the codec to use for this call. Returns false (and does
-// nothing further) if the handle is closing/closed -- callers must bail out with an error in
-// that case. Reads handle->codec under the same lock as the validity check (rather than
-// letting the caller read it unlocked beforehand) so the two can never observe inconsistent
-// state relative to on_codec_device_event()'s mutex-protected null-out. Must be paired with
-// io_end().
+// Marks I/O as in-flight on `handle` and hands back the codec to use, preventing close_stream()
+// from freeing it underneath us. Returns false if the handle is closing/closed (caller must
+// bail with an error). Reads handle->codec under the same lock as the validity check so it can't
+// race on_codec_device_event's mutex-protected null-out. Must be paired with io_end().
 bool io_begin(AudioStreamData* data, AudioStreamHandleImpl* handle, Device** out_codec) {
     xSemaphoreTake(data->mutex, portMAX_DELAY);
     bool is_input = (handle->direction == AUDIO_CODEC_DIR_INPUT);
@@ -280,12 +262,9 @@ bool io_begin(AudioStreamData* data, AudioStreamHandleImpl* handle, Device** out
     return true;
 }
 
-// Drops one lifetime reference (see AudioStreamHandleImpl's comment) and, if this was the last
-// one, deletes handle's two semaphores (whichever are still allocated - nulled out first, so
-// nothing else can observe a dangling pointer to them) and returns true so the caller frees the
-// handle itself. Does NOT touch handle->codec/audio_codec_close() - that's close_stream()'s own
-// business logic, done unconditionally by whichever call is the one actually closing the stream,
-// independent of who ends up owning final deletion.
+// Drops one lifetime reference; on the last one, deletes handle's semaphores (nulled out first
+// so nothing else can observe a dangling pointer) and returns true so the caller frees `handle`
+// itself. Never touches handle->codec: that stays close_stream()'s own responsibility.
 bool release_lifetime_ref(AudioStreamData* data, AudioStreamHandleImpl* handle) {
     xSemaphoreTake(data->mutex, portMAX_DELAY);
     handle->lifetime_refs--;
@@ -312,12 +291,8 @@ bool release_lifetime_ref(AudioStreamData* data, AudioStreamHandleImpl* handle) 
 void io_end(AudioStreamData* data, AudioStreamHandleImpl* handle) {
     xSemaphoreTake(data->mutex, portMAX_DELAY);
     handle->busy_count--;
-    // Give while still holding data->mutex: both drain_semaphore and listener_drain_semaphore
-    // are only ever deleted by their respective owner after first nulling the field out under
-    // this same mutex (see close_stream() and on_codec_device_event()), so reading the field
-    // and giving it inside one critical section here means this can never target an
-    // already-deleted semaphore - xSemaphoreGive() never blocks, so this doesn't risk holding
-    // the mutex for long.
+    // Give under data->mutex: semaphore fields are only nulled under this same mutex before
+    // deletion, so this can't target an already-freed semaphore.
     if (handle->busy_count == 0) {
         if (handle->closing && handle->drain_semaphore != nullptr) {
             xSemaphoreGive(handle->drain_semaphore);
@@ -329,31 +304,14 @@ void io_end(AudioStreamData* data, AudioStreamHandleImpl* handle) {
     xSemaphoreGive(data->mutex);
 }
 
-// Tracks codec hotplug: when a codec device starts (e.g. USB headphones attached) or stops
-// (detached), re-evaluate which codec each direction should bind. If the preference changed:
-// - the direction's codec slot is swapped, so subsequent opens (and volume/mute calls, which
-//   replay their cached values on open) target the new codec;
-// - a stream open on the old codec is marked listener_closed: in-flight I/O finishes on the
-//   old codec, new I/O returns errors, and the owning app's close_stream() call (triggered by
-//   those errors, or its normal stop path) drains, releases the old codec, and frees the
-//   handle. The open slot is cleared so an immediate re-open can use the new codec;
-// - if the old codec's device is being removed (STOPPED), the open handle's codec pointer is
-//   nulled first -- its driver's stop_device releases the hardware, and the Device memory is
-//   freed after this callback returns, so close_stream() must not call into it. Since
-//   read/write_stream capture `handle->codec` into a local before taking the mutex (io_begin),
-//   an in-flight call can still be running audio_codec_read/write against the old codec Device
-//   after this function nulls the pointer and returns -- device_stop() (which fired this
-//   STOPPED event) proceeds straight to freeing that memory once we return, so this function
-//   waits (bounded -- see below) for that handle's in-flight I/O to drain first.
-//
-// This runs on whichever task started/stopped the codec device. The STOPPED-case drain wait is
-// bounded rather than portMAX_DELAY: read/write_stream's own I/O calls carry a caller-supplied
-// timeout, so in-flight I/O against the dying codec returns (success, error, or timeout) within
-// a bounded time on its own -- an unbounded wait here risks deadlocking hotplug teardown if
-// that I/O is blocked on the very interface being removed. DEVICE_EVENT_STOPPED is used rather
-// than STOPPING because the device only leaves the ready state (and is skipped by
-// find_first_codec_supporting) after STOPPING has been notified -- a re-scan during STOPPING
-// would re-discover the dying device.
+// Re-binds each direction's codec on hotplug. A stream open on the old codec is marked
+// listener_closed so it drains and closes safely; for STOPPED, the codec pointer is nulled
+// first too, since the Device memory is freed right after this callback returns and an
+// in-flight read/write may still be using it (io_begin captured the pointer before the null-out).
+// The wait below is bounded because read/write's own timeout guarantees it finishes on its own;
+// an unbounded wait here could deadlock hotplug teardown. DEVICE_EVENT_STOPPED (not STOPPING) is
+// used because the device only drops out of find_first_codec_supporting's candidates once
+// STOPPING has already been notified.
 void on_codec_device_event(Device* dev, DeviceEvent event, void* context) {
     auto* data = static_cast<AudioStreamData*>(context);
     if (data == nullptr || data->self == nullptr) {
@@ -394,11 +352,9 @@ void on_codec_device_event(Device* dev, DeviceEvent event, void* context) {
                 // STOPPED event's source) frees that Device's memory right after we return.
                 must_drain = (open_handle->busy_count > 0);
                 if (must_drain) {
-                    // Own semaphore, not drain_semaphore - close_stream() can be waiting on that
-                    // one concurrently for this same handle (see AudioStreamHandleImpl's
-                    // comment); a shared semaphore only wakes one waiter. Take our own lifetime
-                    // reference too, so a concurrent close_stream() can't free `handle` out from
-                    // under this wait - whichever of us finishes last actually deletes it.
+                    // Own semaphore, since close_stream() can be waiting on drain_semaphore
+                    // concurrently for this same handle. Take a lifetime ref too so a concurrent
+                    // close_stream() can't free `handle` out from under this wait.
                     open_handle->listener_drain_semaphore = xSemaphoreCreateBinary();
                     open_handle->lifetime_refs++;
                 }
@@ -411,15 +367,8 @@ void on_codec_device_event(Device* dev, DeviceEvent event, void* context) {
         xSemaphoreGive(data->mutex);
 
         if (must_drain && drained_handle->listener_drain_semaphore != nullptr) {
-            // Bounded: in-flight I/O carries its own caller-supplied timeout and returns on its
-            // own within that bound (2s comfortably covers every timeout this codebase's own
-            // callers use), so this can't hang teardown indefinitely for them. There is no
-            // cancellation primitive in the codec API to forcibly abort an in-flight
-            // audio_codec_read/write call, so this bound is a real, accepted risk (not fully
-            // eliminated) for a caller that passes portMAX_DELAY or a timeout longer than this
-            // wait: proceeding after the bound frees memory that call may still be using. If
-            // that becomes a real scenario, the fix is a codec-level cancellation API, not a
-            // longer wait here.
+            // Bounded to 2s (comfortably covers every timeout this codebase's callers use), since
+            // there's no way to cancel an in-flight audio_codec_read/write call.
             xSemaphoreTake(drained_handle->listener_drain_semaphore, pdMS_TO_TICKS(2000));
             if (release_lifetime_ref(data, drained_handle)) {
                 delete drained_handle;
@@ -427,10 +376,9 @@ void on_codec_device_event(Device* dev, DeviceEvent event, void* context) {
         }
 
         if (must_wait_for_open) {
-            // open_stream() is between reserving the slot and audio_codec_open() returning --
-            // there's no handle yet to mark listener_closed/drain, so poll for the reservation
-            // to resolve instead. Bounded for the same reason as the drain wait above: whatever
-            // codec call open_stream() is blocked in carries its own timeout.
+            // open_stream() is between reserving the slot and audio_codec_open() returning, so
+            // there's no handle yet to mark listener_closed/drain: poll for the reservation to
+            // resolve instead. Bounded for the same reason as the drain wait above.
             for (int waited_ms = 0; waited_ms < 2000; waited_ms += 20) {
                 xSemaphoreTake(data->mutex, portMAX_DELAY);
                 bool resolved = (*reservation_codec != current);
@@ -495,10 +443,8 @@ error_t open_stream(Device* device, const struct AudioStreamConfig* config, Audi
     // above while we do the (potentially slow) codec open below outside the lock.
     auto* reservation = reinterpret_cast<AudioStreamHandleImpl*>(1);
     *slot = reservation;
-    // Records that this codec has an open in flight, so a concurrent codec STOPPED event
-    // (on_codec_device_event) waits for the open to resolve before its caller frees the
-    // codec's memory -- there's no handle yet at this point for the event to mark
-    // listener_closed on, so it can't protect this window the normal way.
+    // See input_reservation_codec's comment: no handle exists yet for a concurrent STOPPED
+    // event to mark listener_closed on, so it polls this instead.
     Device** reservation_codec = is_input ? &data->input_reservation_codec : &data->output_reservation_codec;
     *reservation_codec = codec;
     xSemaphoreGive(data->mutex);
@@ -512,10 +458,9 @@ error_t open_stream(Device* device, const struct AudioStreamConfig* config, Audi
         return ERROR_RESOURCE;
     }
 
-    // The codec must be opened with its native channel layout (e.g. 4 for a 4-slot TDM mic
-    // ADC) -- opening it with the app's requested channel count can silently corrupt the
-    // stream (ES7210 in TDM mode halves its configured bit depth for <= 2 channels). We
-    // convert between the codec's layout and the app's requested channel count ourselves.
+    // Must open with the codec's native channel layout (e.g. 4 for a 4-slot TDM mic ADC):
+    // opening with the app's count can silently corrupt the stream (ES7210 TDM halves its bit
+    // depth for <= 2 channels). We convert to the app's requested layout ourselves.
     uint8_t codec_channels = config->channels;
     if (audio_codec_get_native_channels(codec, direction, &codec_channels) != ERROR_NONE || codec_channels == 0) {
         codec_channels = config->channels;
