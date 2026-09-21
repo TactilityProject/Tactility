@@ -12,15 +12,16 @@ namespace tt::service::autorotate {
 using settings::display::Orientation;
 
 void AutoRotateService::tick() {
-    if (settingsReloadRequested.load(std::memory_order_acquire)) {
+    if (settingsReloadRequested.exchange(false, std::memory_order_acq_rel)) {
         auto reloaded = settings::display::loadOrGetDefault();
         if (!lvgl_try_lock(100)) {
-            return; // stays pending - keeps orientationMath in sync with cachedDisplaySettings
+            // Put the request back - a reloadSettings() call racing this exchange must not be lost.
+            settingsReloadRequested.store(true, std::memory_order_release);
+            return;
         }
         cachedDisplaySettings = reloaded;
         orientationMath.reset(settings::display::toLvglDisplayRotation(cachedDisplaySettings.orientation));
         lvgl_unlock();
-        settingsReloadRequested.store(false, std::memory_order_release);
     }
 
     if (!cachedDisplaySettings.autoRotateEnabled) {
