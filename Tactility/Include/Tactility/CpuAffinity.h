@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Tactility/freertoscompat/RTOS.h>
+#include <tactility/freertos/freertos.h>
 
 namespace tt {
 

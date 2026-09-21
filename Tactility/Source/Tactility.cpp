@@ -172,7 +172,9 @@ namespace app {
     namespace selectiondialog { extern const ::AppManifest manifest; }
     namespace settings { extern const ::AppManifest manifest; }
     namespace setup { extern const ::AppManifest manifest; }
+    namespace shell { extern const ::AppManifest manifest; }
     namespace systeminfo { extern const ::AppManifest manifest; }
+    namespace terminal { extern const ::AppManifest manifest; }
     namespace timedatesettings { extern const ::AppManifest manifest; }
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
     namespace touchcalibration { extern const ::AppManifest manifest; }
@@ -237,8 +239,10 @@ static void registerInternalApps() {
     app_manager_add(&app::settings::manifest);
     app_manager_add(&app::selectiondialog::manifest);
     app_manager_add(&app::setup::manifest);
+    app_manager_add(&app::shell::manifest);
     app_manager_add(&app::systeminfo::manifest);
     app_manager_add(&app::timedatesettings::manifest);
+    app_manager_add(&app::terminal::manifest);
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
     app_manager_add(&app::touchcalibration::manifest);
 #endif
@@ -462,7 +466,7 @@ static void onLvglStarted() {
     applySavedTouchCalibration();
 #endif
 
-    memory_print_stats();
+    memory_log_stats();
 }
 
 static void onLvglStopped() {
@@ -493,7 +497,7 @@ static void onLvglStopped() {
 
     module_stop(&lvgl_window_manager_module);
 
-    memory_print_stats();
+    memory_log_stats();
 }
 
 void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {

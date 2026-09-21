@@ -33,8 +33,9 @@ enum AppManifestFlags {
 
 /** Largest stack depth (in words) an app may request. Keeps `depth * sizeof(StackType_t)` safely
  * bounded and stops one app from claiming an unreasonable share of available RAM. A depth beyond
- * this must be rejected outright, not silently truncated or clamped. */
-#define APP_STACK_SIZE_MAX 16384
+ * this must be rejected outright, not silently truncated or clamped. 64KB on a platform where
+ * StackType_t is one byte (e.g. ESP32) - enough for e.g. a recursive-descent shell interpreter. */
+#define APP_STACK_SIZE_MAX 65536
 
 struct AppStackConfig {
     /** Stack depth (in words, matching FreeRTOS's configSTACK_DEPTH_TYPE) for this app's task.

@@ -194,7 +194,7 @@ error_t app_stream_subscribe(AppStream* stream, void* buffer, size_t buffer_capa
         return ERROR_NOT_FOUND;
     }
     stream->producer_task = iterator->second.task;
-    error_t bind_result = app_fd_table_bind(&iterator->second.fd_table, producer_fd, &STREAM_OPS, stream);
+    error_t bind_result = app_fd_table_bind(&iterator->second.fd_table, producer_fd, &STREAM_OPS, stream, /*suppress_console_tee=*/false);
     mutex_unlock(&ledger.mutex);
 
     if (bind_result != ERROR_NONE) {

@@ -71,7 +71,7 @@ void app_fd_table_teardown(AppFdTable* table) {
     mutex_destruct(&table->mutex);
 }
 
-error_t app_fd_table_bind(AppFdTable* table, int fd, const AppFileOps* ops, void* object) {
+error_t app_fd_table_bind(AppFdTable* table, int fd, const AppFileOps* ops, void* object, bool suppress_console_tee) {
     if (!fd_in_range(fd)) {
         return ERROR_OUT_OF_RANGE;
     }
@@ -81,7 +81,7 @@ error_t app_fd_table_bind(AppFdTable* table, int fd, const AppFileOps* ops, void
     AppFdSlot& slot = table->slots[fd];
     AppFile old = slot.file;
     bool had_old = slot.in_use;
-    slot.file = { .ops = ops, .object = object };
+    slot.file = { .ops = ops, .object = object, .suppress_console_tee = suppress_console_tee };
     slot.in_use = true;
     slot.ever_used = true;
     mutex_unlock(&table->mutex);

@@ -412,7 +412,7 @@ error_t app_scheduler_start(AppInstanceId app_instance_id, AppLocation location,
     vTaskPrioritySet(task_handle, APP_TASK_PRIORITY);
     vTaskResume(task_handle);
 
-    memory_print_stats();
+    memory_log_stats();
 
     return ERROR_NONE;
 }

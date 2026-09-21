@@ -58,9 +58,10 @@ void app_fd_table_teardown(struct AppFdTable* table);
 /**
  * Installs {ops, object} at @a fd, closing whatever was previously there first (the null device
  * counts as "previously there" for fds 0-2, so this doubles as their initial stdio binding).
+ * @param[in] suppress_console_tee see AppFile::suppress_console_tee
  * @retval ERROR_OUT_OF_RANGE @a fd is outside [0, APP_MAX_FDS)
  */
-error_t app_fd_table_bind(struct AppFdTable* table, int fd, const struct AppFileOps* ops, void* object);
+error_t app_fd_table_bind(struct AppFdTable* table, int fd, const struct AppFileOps* ops, void* object, bool suppress_console_tee);
 
 /**
  * Installs {ops, object} at the lowest unused fd >= 3.

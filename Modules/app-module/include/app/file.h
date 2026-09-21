@@ -45,6 +45,11 @@ struct AppFileOps {
 struct AppFile {
     const struct AppFileOps* ops;
     void* object;
+    /** If true, app_io_write() skips its usual tee to the real underlying fd. Set by
+     * app_io_bind_self() - an instance replacing its own I/O (e.g. a terminal app owning its
+     * fd 0/1/2) wants exclusive ownership, unlike a parent's AppStreamBinding, which observes
+     * output that should still also reach the real console. */
+    bool suppress_console_tee;
 };
 
 #ifdef __cplusplus

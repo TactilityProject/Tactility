@@ -96,14 +96,17 @@ ssize_t app_io_write(int fd, const void* buffer, size_t size) {
         if (file.ops->release != nullptr) {
             file.ops->release(file.object);
         }
-        // Tee to the real fd too: a bound stream only exists because a parent explicitly asked
-        // to capture this app instance's own output (see AppStreamBinding), but generic code
-        // running on that same instance's thread - most commonly the platform's own logging
+        // Tee to the real fd too: a bound stream normally exists because a parent explicitly
+        // asked to capture this app instance's own output (see AppStreamBinding), but generic
+        // code running on that same instance's thread - most commonly the platform's own logging
         // (LOG_I/etc, which calls write() the same as anything else) - has no way to know its
         // output is currently being intercepted. Without this, a log line emitted while any app
         // instance has its stdout captured would vanish from the console entirely instead of
-        // just also being visible to the capturing parent.
-        real_write(fd, buffer, size);
+        // just also being visible to the capturing parent. An instance that bound its own fd
+        // (see app_io_bind_self()) opts out - it wants exclusive ownership, not a silent tap.
+        if (!file.suppress_console_tee) {
+            real_write(fd, buffer, size);
+        }
         return result;
     }
     if (table != nullptr && app_fd_table_is_app_owned(table, fd)) {
@@ -126,6 +129,30 @@ int app_io_close(int fd) {
         }
     }
     return real_close(fd);
+}
+
+error_t app_io_await(int fd, AppFileWait wait, TickType_t timeout) {
+    AppFdTable* table = current_app_fd_table();
+    if (table == nullptr) {
+        return ERROR_NOT_FOUND;
+    }
+    AppFile file {};
+    if (!app_fd_table_get_and_retain(table, fd, &file)) {
+        return ERROR_NOT_FOUND;
+    }
+    error_t result = file.ops->await(file.object, wait, timeout);
+    if (file.ops->release != nullptr) {
+        file.ops->release(file.object);
+    }
+    return result;
+}
+
+error_t app_io_bind_self(int fd, const AppFileOps* ops, void* object) {
+    AppFdTable* table = current_app_fd_table();
+    if (table == nullptr) {
+        return ERROR_NOT_FOUND;
+    }
+    return app_fd_table_bind(table, fd, ops, object, /*suppress_console_tee=*/true);
 }
 
 } // extern "C"

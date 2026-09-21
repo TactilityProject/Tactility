@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+
 #pragma once
 
 #define LVGL_ICON_LAUNCHER_APPS "\xEE\x97\x83"
