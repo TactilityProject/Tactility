@@ -19,6 +19,11 @@ static std::atomic<bool> listener_active { false };
 static void apply_rotation(bool attached) {
     lvgl_lock();
 
+    if (attached && !listener_active.load(std::memory_order_acquire)) {
+        lvgl_unlock();
+        return;
+    }
+
     auto* display = lv_display_get_default();
     if (display == nullptr) {
         lvgl_unlock();
