@@ -61,9 +61,7 @@ void tab5_keyboard_lvgl_rotation_start() {
 }
 
 void tab5_keyboard_lvgl_rotation_stop() {
-    // Must run before apply_rotation()/device_listener_remove(): a DEVICE_EVENT_STARTED already
-    // snapshotted by device_listener_notify() before this call can still invoke on_device_event()
-    // after device_listener_remove() returns - this flag makes that late callback a no-op.
+    // Set before apply_rotation()/device_listener_remove(): a late in-flight callback must no-op.
     listener_active.store(false, std::memory_order_release);
     apply_rotation(false);
     device_listener_remove(on_device_event, nullptr);

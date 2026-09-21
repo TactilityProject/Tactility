@@ -38,12 +38,8 @@ extern "C" {
     extern void _ZdaPv(void* p); // operator delete[](void*)
 #endif
     // cxx_guards.cpp
-    // Itanium ABI's __guard type is a 64-bit int (only the first byte is the actual init flag;
-    // the rest is implementation-defined, used here by libstdc++ for a fast-path atomic check).
-    // Pulling in <memory> (for std::shared_ptr, added below) drags in bits/atomic_wait.h, which
-    // declares these three with this exact `long long*` signature - a `void*` declaration used to
-    // work because nothing else in this TU forced that header's declaration into scope, but the
-    // two must now match exactly or GCC treats them as conflicting redeclarations.
+    // bits/atomic_wait.h (pulled in via <memory>) declares these as long long*; must match
+    // exactly or GCC treats them as conflicting redeclarations.
     extern int __cxa_guard_acquire(long long* pg);
     extern void __cxa_guard_release(long long* pg) throw();
     extern void __cxa_guard_abort(long long* pg) throw();
@@ -174,12 +170,8 @@ extern "C" {
     // in-place construction path std::map<string,string>::operator[] uses internally.
     void _ZNSt4pairIKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES5_EC1IJRS6_EJEEESt21piecewise_construct_tSt5tupleIJDpT_EESB_IJDpT0_EE(void*, const void*, void*, void*);
 
-    // Private helpers with no independently-callable name (can't take their address
-    // directly - they're private members / SFINAE-constrained template overloads).
-    // The forcing wrappers above (destroy_deque_char and friends) already make GCC
-    // emit real out-of-line definitions for each of these as a side effect of calling
-    // the public API; once emitted, a plain extern declaration resolves at link time
-    // even though this TU can never call them by name itself.
+    // No addressable name of their own (private members / SFINAE overloads); the forcing
+    // wrappers above make GCC emit real definitions, resolved here by mangled name.
     void _ZNSt11_Deque_baseIcSaIcEEC2Ev(void*);
     void _ZNSt11_Deque_baseIcSaIcEED2Ev(void*);
     void _ZNSt11_Deque_baseIcSaIcEE15_M_create_nodesEPPcS3_(void*, char**, char**);
@@ -227,32 +219,21 @@ extern "C" {
     void _ZNSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE10_M_destroyEv(void*);
     void _ZNSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE10_M_releaseEv(void*);
     void _ZNSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE19_M_release_last_useEv(void*);
-    // Vtable for the abstract _Sp_counted_base<Lock_policy> itself (not a derived
-    // _Sp_counted_ptr<T,...>'s vtable, which does vary per pointee type) - a vtable has no valid
-    // C++ spelling, but a `V` (weak vague-linkage) symbol like this one is a real extern-able
-    // linker symbol once something forces its emission (see the shared_count forcing wrappers).
+    // Base _Sp_counted_base<Lock_policy> vtable (not a derived _Sp_counted_ptr<T,...>'s, which
+    // varies per pointee type); exported as a weak symbol once the shared_count wrappers below
+    // force its emission.
     extern void* _ZTVSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE1EE;
     extern void* _ZTVSt16_Sp_counted_baseILN9__gnu_cxx12_Lock_policyE2EE;
 #endif
 }
 
 namespace {
-// __cxa_pure_virtual used to be a plain `extern` reference to libstdc++.a(pure.o)'s definition
-// (just `entry; l32r; callx8` to std::terminate() - confirmed by disassembling pure.o directly).
-// That stopped linking on ESP_PLATFORM once this file grew enough new libstdc++ surface area
-// (deque/vector<pair>/shared_ptr/function below) to transitively pull in locale/codecvt
-// machinery: some of those archive members (e.g. lt1-codecvt.o, for their own pure-virtual
-// destructor scaffolding) carry their own weak-undefined reference to the same name, and
-// something in how GNU ld scans this larger set of archives now resolves the whole program's
-// __cxa_pure_virtual lookup against one of those weak-undefined placeholders instead of ever
-// pulling pure.o's real definition in - silently leaving the exported function pointer null (no
-// link error, since a weak-undefined reference is optional; confirmed with `nm`/the link map -
-// pure.o never appears in the final link at all once this happens). Rather than fight
-// archive-scan ordering, this reimplements the three-instruction real behavior directly so it no
-// longer depends on pulling in pure.o at all. Deliberately NOT gated behind #ifdef ESP_PLATFORM
-// (unlike the rest of this anonymous namespace) - the original plain `extern` this replaces was
-// unconditional (also exported on the POSIX/simulator build, which needs its own __cxa_pure_virtual
-// too), and std::terminate() is available on both.
+// Reimplements __cxa_pure_virtual's terminate() call directly rather than linking against
+// libstdc++.a(pure.o): once this file's locale/codecvt-pulling surface area (deque/vector<pair>/
+// shared_ptr/function below) grows large enough, some archive members carry their own
+// weak-undefined __cxa_pure_virtual reference that ld can resolve against instead of pure.o,
+// silently leaving the exported symbol null. Unconditional (not gated behind #ifdef
+// ESP_PLATFORM): also needed on the POSIX/simulator build.
 [[noreturn]] void pure_virtual_called() {
     std::terminate();
 }
@@ -499,13 +480,9 @@ void assign_shared_count_mutex(void* self, const void* other) {
 // those names carry only the Lock_policy (not the pointee type T), so this generic forcing works
 // for every app's shared_ptr<AnyType> without needing to know AnyType.
 //
-// The raw-pointer __shared_count<Lp>::__shared_count<T*>(T*) constructor itself is deliberately
-// NOT forced/exported here even though its mangled name does embed a pointee type T: the app's
-// own compiler already emits a local, weak-linkage definition of that exact constructor in the
-// app's own ELF whenever it does `shared_ptr<T>(new T(...))`, and the loader falls back to an
-// app-local definition when the firmware doesn't provide one (esp_elf.c's relocate loop: tries
-// the firmware's exported-symbol table first, falls back to the symbol's own local address when
-// st_shndx != SHN_UNDEF) - so nothing needs to be added here for it to work.
+// The raw-pointer __shared_count<Lp>::__shared_count<T*>(T*) constructor is deliberately NOT
+// exported here: the app's own compiler already emits a local weak-linkage definition of it, and
+// esp_elf.c's relocate loop falls back to that when the firmware doesn't provide one.
 
 // std::function<int(char*, unsigned int)> - no extern-template instantiation anywhere, so forced
 // via the public API on a real object, same pattern as everything else above.
@@ -515,12 +492,8 @@ void swap_char_buffer_fn(void* self, void* other) { static_cast<CharBufferFn*>(s
 void construct_char_buffer_fn_copy(void* self, const void* other) { new (self) CharBufferFn(*static_cast<const CharBufferFn*>(other)); }
 void* assign_char_buffer_fn_nullptr(void* self) { return &(*static_cast<CharBufferFn*>(self) = nullptr); }
 
-// _Guard_alloc is a private RAII rollback guard nested inside vector<T>::_M_realloc_append's own
-// body (rolls back the new buffer if appending throws mid-copy) - not derivable-into like
-// _Vector_base above, since it's private to vector<T> itself rather than a protected base. Its
-// layout is fixed by the header ({pointer storage, size_type len, _Base& vect}) and its destructor
-// body is just "deallocate storage via the vector's allocator if non-null", so this replicates
-// that logic directly against the same layout instead of calling the inaccessible real dtor.
+// _Guard_alloc's dtor is private to vector<T> itself (unlike _Vector_base above), so this
+// replicates its fixed layout/dtor logic directly instead of calling the inaccessible real one.
 template <typename T>
 struct GuardAllocLayout {
     T* storage;
@@ -604,7 +577,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(_ZdaPv), // operator delete[](void*)
 #endif
     { "_ZSt7nothrow", (void*)&std::nothrow },
-    { "__cxa_pure_virtual", (void*)&pure_virtual_called }, // class-related, see https://arobenko.github.io/bare_metal_cpp/ - own impl, see comment above pure_virtual_called
+    { "__cxa_pure_virtual", (void*)&pure_virtual_called }, // see comment above pure_virtual_called
     DEFINE_MODULE_SYMBOL(__cxa_guard_acquire),
     DEFINE_MODULE_SYMBOL(__cxa_guard_release),
     DEFINE_MODULE_SYMBOL(__cxa_guard_abort),

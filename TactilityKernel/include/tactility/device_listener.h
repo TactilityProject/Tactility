@@ -25,10 +25,8 @@ struct DeviceEventListener {
 
 void device_listener_add(DeviceListenerCallback callback, void* context);
 
-// Removes the (callback, context) pair added via device_listener_add(). Matching on context too
-// (not just callback) matters when the same callback is registered for multiple instances (e.g.
-// one per device of the same type): removing one instance's listener must not also remove
-// another instance's, which a callback-only match would do by finding whichever was added first.
+// Removes the (callback, context) pair added via device_listener_add(). Matches on context too,
+// so removing one instance's listener doesn't remove another instance's that shares the callback.
 void device_listener_remove(DeviceListenerCallback callback, void* context);
 
 #ifdef __cplusplus
