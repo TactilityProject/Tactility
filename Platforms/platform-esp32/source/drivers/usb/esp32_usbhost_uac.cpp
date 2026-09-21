@@ -1,18 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // USB Audio Class 1.0 output codec, as a class client beneath the shared
-// esp32_usbhost controller (which solely owns usb_host_install()).
-//
-// The devicetree child (compatible "espressif,esp32-usbhost-uac") is only the
-// manager: start_device() installs the UAC class client and spawns the event
-// task. When a headset whose output interface supports 48 kHz / 16-bit /
-// stereo PCM attaches (TX_CONNECTED), a dynamic "usb_uac0" device of type
-// AUDIO_CODEC_TYPE is constructed (see esp32_usbhost_hid.cpp's "usb_keyboard0"
-// for the pattern), so the audio-stream aggregate discovers it like any other
-// output codec and re-binds output to it. On disconnect the dynamic device is
-// stopped and destructed, and audio-stream falls back to the board codec.
-// RX is intentionally not opened: advertising it as a dedicated input codec
-// would displace the board's onboard microphone.
+// esp32_usbhost controller. On attach of a headset supporting 48 kHz/16-bit/
+// stereo PCM output, registers a dynamic "usb_uac0" AUDIO_CODEC_TYPE device
+// (see esp32_usbhost_hid.cpp's "usb_keyboard0" for the pattern) so
+// audio-stream discovers and re-binds to it; falls back to the board codec
+// on disconnect. RX is intentionally unopened, to not displace the onboard mic.
 #include <sdkconfig.h>
 #include <soc/soc_caps.h>
 
@@ -134,8 +127,7 @@ bool supports_native_format(uac_host_device_handle_t handle) {
 
 void queue_driver_event(uint8_t address, uint8_t interface_number,
                         uac_host_driver_event_t type, void* arg) {
-    // RX is intentionally not opened: advertising it as a dedicated input
-    // codec would displace the board's onboard microphone.
+    // RX intentionally unopened (see file header).
     if (type != UAC_HOST_DRIVER_EVENT_TX_CONNECTED) {
         return;
     }

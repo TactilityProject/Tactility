@@ -8,11 +8,8 @@
 
 #include <esp_log.h>
 
-// Registers the Kconfig-selected default audio decoders (trimmed to MP3+PCM, see
-// Buildscripts/sdkconfig/default.properties) once at module start, so
-// esp_audio_simple_dec_open() is ready for any app to use without each one remembering to
-// register decoders itself - registration is idempotent-per-boot and cheap, but the actual
-// decoder object code only needs to exist once in the firmware, not duplicated per app.
+// Registers Kconfig-selected decoders once so any app can use esp_audio_simple_dec_open()
+// without registering itself.
 static error_t audio_decoder_module_start(void) {
     esp_audio_err_t dec_register_result = esp_audio_dec_register_default();
     if (dec_register_result != ESP_AUDIO_ERR_OK) {
