@@ -110,22 +110,25 @@ struct AudioStreamHandleImpl : AudioStreamHandleData {
     std::vector<uint8_t> codec_buffer;    // raw codec-rate/codec-channel PCM, scratch
     std::vector<uint8_t> convert_buffer;  // intermediate scratch for the second conversion stage
 
-    // Lifetime guard: close_stream() can be triggered from a different task than the one
-    // doing read()/write() (e.g. the Settings UI disabling output while SfxEngine's audio
-    // task is mid-write). `closing` keeps new I/O calls out, `busy_count` tracks I/O calls
-    // currently in flight, and `drain_semaphore` lets close_stream() block until they finish
-    // before freeing the handle. All three are only touched while `AudioStreamData::mutex`
-    // is held, except for the give/take on drain_semaphore itself.
-
-    // Set by on_codec_device_event when the preferred codec for this handle's direction
-    // changed (codec hotplug) and the handle was open at the time. New I/O is rejected like
-    // `closing`, in-flight I/O finishes on `codec` above, and the owning app's next error /
-    // close_stream() call drains and releases the old codec and frees the handle. Unlike
-    // `closing` it never means another close_stream() is already in flight.
+    // Lifetime guard: close_stream() (the app closing/re-closing its own handle) and
+    // on_codec_device_event() (a codec hotplug event finding this handle still open on the
+    // codec being removed) can both need to wait for in-flight I/O on this SAME handle to
+    // drain, concurrently and independently of each other - e.g. the Settings UI disables
+    // output at the same moment a USB headset is unplugged. `closing` keeps new I/O calls out,
+    // `busy_count` tracks I/O calls currently in flight, `drain_semaphore`/
+    // `listener_drain_semaphore` let each side block on its OWN semaphore until busy_count
+    // hits zero (a single shared semaphore only wakes one waiter), and `lifetime_refs` tracks
+    // how many of {the implicit open-handle reference, a waiting close_stream(), a waiting
+    // listener} are still outstanding - whichever side's decrement brings it to zero is the one
+    // that actually deletes `handle`, so neither side can free it while the other is still
+    // waiting on it. All fields here are only touched while `AudioStreamData::mutex` is held,
+    // except for the give/take on the two semaphores themselves.
     bool listener_closed = false;
     bool closing = false;
     int busy_count = 0;
+    int lifetime_refs = 1; // the implicit reference held by the open handle itself
     SemaphoreHandle_t drain_semaphore = nullptr;
+    SemaphoreHandle_t listener_drain_semaphore = nullptr;
 };
 
 struct AudioStreamData {
@@ -277,11 +280,51 @@ bool io_begin(AudioStreamData* data, AudioStreamHandleImpl* handle, Device** out
     return true;
 }
 
+// Drops one lifetime reference (see AudioStreamHandleImpl's comment) and, if this was the last
+// one, deletes handle's two semaphores (whichever are still allocated - nulled out first, so
+// nothing else can observe a dangling pointer to them) and returns true so the caller frees the
+// handle itself. Does NOT touch handle->codec/audio_codec_close() - that's close_stream()'s own
+// business logic, done unconditionally by whichever call is the one actually closing the stream,
+// independent of who ends up owning final deletion.
+bool release_lifetime_ref(AudioStreamData* data, AudioStreamHandleImpl* handle) {
+    xSemaphoreTake(data->mutex, portMAX_DELAY);
+    handle->lifetime_refs--;
+    bool last_ref = (handle->lifetime_refs == 0);
+    SemaphoreHandle_t drain_to_delete = nullptr;
+    SemaphoreHandle_t listener_drain_to_delete = nullptr;
+    if (last_ref) {
+        drain_to_delete = handle->drain_semaphore;
+        listener_drain_to_delete = handle->listener_drain_semaphore;
+        handle->drain_semaphore = nullptr;
+        handle->listener_drain_semaphore = nullptr;
+    }
+    xSemaphoreGive(data->mutex);
+
+    if (drain_to_delete != nullptr) {
+        vSemaphoreDelete(drain_to_delete);
+    }
+    if (listener_drain_to_delete != nullptr) {
+        vSemaphoreDelete(listener_drain_to_delete);
+    }
+    return last_ref;
+}
+
 void io_end(AudioStreamData* data, AudioStreamHandleImpl* handle) {
     xSemaphoreTake(data->mutex, portMAX_DELAY);
     handle->busy_count--;
-    if ((handle->closing || handle->listener_closed) && handle->busy_count == 0) {
-        xSemaphoreGive(handle->drain_semaphore);
+    // Give while still holding data->mutex: both drain_semaphore and listener_drain_semaphore
+    // are only ever deleted by their respective owner after first nulling the field out under
+    // this same mutex (see close_stream() and on_codec_device_event()), so reading the field
+    // and giving it inside one critical section here means this can never target an
+    // already-deleted semaphore - xSemaphoreGive() never blocks, so this doesn't risk holding
+    // the mutex for long.
+    if (handle->busy_count == 0) {
+        if (handle->closing && handle->drain_semaphore != nullptr) {
+            xSemaphoreGive(handle->drain_semaphore);
+        }
+        if (handle->listener_closed && handle->listener_drain_semaphore != nullptr) {
+            xSemaphoreGive(handle->listener_drain_semaphore);
+        }
     }
     xSemaphoreGive(data->mutex);
 }
@@ -350,6 +393,15 @@ void on_codec_device_event(Device* dev, DeviceEvent event, void* context) {
                 // we just nulled out -- wait for it before returning, since our caller (the
                 // STOPPED event's source) frees that Device's memory right after we return.
                 must_drain = (open_handle->busy_count > 0);
+                if (must_drain) {
+                    // Own semaphore, not drain_semaphore - close_stream() can be waiting on that
+                    // one concurrently for this same handle (see AudioStreamHandleImpl's
+                    // comment); a shared semaphore only wakes one waiter. Take our own lifetime
+                    // reference too, so a concurrent close_stream() can't free `handle` out from
+                    // under this wait - whichever of us finishes last actually deletes it.
+                    open_handle->listener_drain_semaphore = xSemaphoreCreateBinary();
+                    open_handle->lifetime_refs++;
+                }
                 drained_handle = open_handle;
             }
             open_handle->listener_closed = true;
@@ -358,7 +410,7 @@ void on_codec_device_event(Device* dev, DeviceEvent event, void* context) {
         *codec_slot = preferred;
         xSemaphoreGive(data->mutex);
 
-        if (must_drain && drained_handle->drain_semaphore != nullptr) {
+        if (must_drain && drained_handle->listener_drain_semaphore != nullptr) {
             // Bounded: in-flight I/O carries its own caller-supplied timeout and returns on its
             // own within that bound (2s comfortably covers every timeout this codebase's own
             // callers use), so this can't hang teardown indefinitely for them. There is no
@@ -368,7 +420,10 @@ void on_codec_device_event(Device* dev, DeviceEvent event, void* context) {
             // wait: proceeding after the bound frees memory that call may still be using. If
             // that becomes a real scenario, the fix is a codec-level cancellation API, not a
             // longer wait here.
-            xSemaphoreTake(drained_handle->drain_semaphore, pdMS_TO_TICKS(2000));
+            xSemaphoreTake(drained_handle->listener_drain_semaphore, pdMS_TO_TICKS(2000));
+            if (release_lifetime_ref(data, drained_handle)) {
+                delete drained_handle;
+            }
         }
 
         if (must_wait_for_open) {
@@ -755,11 +810,13 @@ error_t close_stream(AudioStreamHandle handle_base) {
         audio_codec_close(codec);
     }
 
-    if (handle->drain_semaphore != nullptr) {
-        vSemaphoreDelete(handle->drain_semaphore);
+    // Releases this call's (the app's) lifetime reference. If a codec-hotplug listener is
+    // concurrently waiting to drain this same handle (see AudioStreamHandleImpl's comment), its
+    // own reference keeps `handle` alive until it finishes too - only the last release actually
+    // deletes it.
+    if (release_lifetime_ref(data, handle)) {
+        delete handle;
     }
-
-    delete handle;
     return ERROR_NONE;
 }
 
