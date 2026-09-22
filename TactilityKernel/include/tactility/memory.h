@@ -47,6 +47,18 @@ extern const struct MemoryPolicy MEMORY_POLICY_DEFAULT;
 void memory_log_stats(void);
 
 /**
+ * @brief Total size of the main heap, in bytes.
+ * @return the heap's total size, or 0 if unavailable on this platform
+ */
+size_t memory_heap_total(void);
+
+/**
+ * @brief Currently free space in the main heap, in bytes.
+ * @return the heap's free size, or 0 if unavailable on this platform
+ */
+size_t memory_heap_free(void);
+
+/**
  * @brief Allocates memory that satisfies the given policy.
  * @param[in] size number of bytes to allocate
  * @param[in] policy the allocation constraints

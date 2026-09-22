@@ -187,6 +187,8 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(memory_realloc_with_policy),
     DEFINE_MODULE_SYMBOL(memory_calloc_with_policy),
     DEFINE_MODULE_SYMBOL(memory_free),
+    DEFINE_MODULE_SYMBOL(memory_heap_free),
+    DEFINE_MODULE_SYMBOL(memory_heap_total),
     // drivers/gpio_controller
     DEFINE_MODULE_SYMBOL(gpio_descriptor_acquire),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_release),
