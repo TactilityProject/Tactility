@@ -3,6 +3,11 @@
 
 #ifdef ESP_PLATFORM
 #include <esp_heap_caps.h>
+#elif defined(__APPLE__)
+#include <cstdint>
+#include <mach/mach.h>
+#include <mach/mach_host.h>
+#include <sys/sysctl.h>
 #else
 #include <cstdint>
 #include <cstdio>
@@ -27,6 +32,23 @@ void memory_log_stats() {
     size_t ext_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     size_t ext_total = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
     LOG_I(TAG, "External: %zu / %zu available", ext_free, ext_total);
+#elif defined(__APPLE__)
+    // No sysconf(_SC_PHYS_PAGES/_SC_AVPHYS_PAGES) on macOS: total comes from sysctl, free from
+    // the Mach host VM statistics.
+    uint64_t mem_size = 0;
+    size_t mem_size_len = sizeof(mem_size);
+    vm_size_t page_size = 0;
+    vm_statistics64_data_t vm_stats {};
+    mach_msg_type_number_t vm_stats_count = HOST_VM_INFO64_COUNT;
+    mach_port_t host = mach_host_self();
+    if (sysctlbyname("hw.memsize", &mem_size, &mem_size_len, nullptr, 0) != 0 ||
+        host_page_size(host, &page_size) != KERN_SUCCESS ||
+        host_statistics64(host, HOST_VM_INFO64, reinterpret_cast<host_info64_t>(&vm_stats), &vm_stats_count) != KERN_SUCCESS) {
+        LOG_W(TAG, "Heap: host memory stats unavailable");
+    } else {
+        const uint64_t heap_free = static_cast<uint64_t>(vm_stats.free_count + vm_stats.inactive_count) * page_size;
+        LOG_I(TAG, "Heap: %llu / %llu available", static_cast<unsigned long long>(heap_free), static_cast<unsigned long long>(mem_size));
+    }
 #else
     const long phys_pages = sysconf(_SC_PHYS_PAGES);
     const long avphys_pages = sysconf(_SC_AVPHYS_PAGES);
