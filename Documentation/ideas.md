@@ -9,7 +9,6 @@
 
 ## Higher Priority
 
-- App List: Close when app was started
 - App List: Support marking apps as favourite
 - Shell interpreter works recursive-descent algorithm, which requires a big stack size. Can we optimize this?
 - CrashDiagnostics shouldn't show a QR when there's no callstack

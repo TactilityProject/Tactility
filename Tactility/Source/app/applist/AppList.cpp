@@ -8,7 +8,6 @@
 
 #include <tactility/check.h>
 
-#include <lvgl.h>
 #include <algorithm>
 #include <cstring>
 #include <vector>
@@ -26,10 +25,14 @@ struct Context {
 };
 
 void onAppPressed(lv_event_t* e) {
-    // Fire-and-forget top-level navigation, same as Launcher's own app-launch buttons.
+    // Launch the selected app and close AppList
     const auto* manifest = static_cast<const ::AppManifest*>(lv_event_get_user_data(e));
     uint32_t instanceId = 0;
-    app_start(manifest->id, 0, nullptr, &instanceId);
+    if (app_start(manifest->id, 0, nullptr, &instanceId) == ERROR_NONE) {
+        lv_obj_t* list = lv_obj_get_parent(lv_event_get_target_obj(e));
+        auto* ctx = static_cast<Context*>(lv_obj_get_user_data(list));
+        app_event_emit_close(ctx->appInstanceId);
+    }
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -66,6 +69,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_t* list = lv_list_create(parent);
     lv_obj_set_width(list, LV_PCT(100));
     lv_obj_set_flex_grow(list, 1);
+    // Lets onAppPressed() reach Context::appInstanceId to close this app after a launch.
+    lv_obj_set_user_data(list, ctx);
 
     std::vector<const ::AppManifest*> manifests;
     app_manager_for_each_manifest(collectManifest, &manifests);
