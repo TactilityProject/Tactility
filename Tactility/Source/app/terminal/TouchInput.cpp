@@ -3,14 +3,7 @@
 #include <tactility/device.h>
 #include <tactility/drivers/pointer.h>
 
-TouchInput::TouchInput(bool keyboardPresent) {
-    if (keyboardPresent) {
-        return;
-    }
-    if (device_get_first_active_by_type(&POINTER_TYPE, &device_) != ERROR_NONE) {
-        device_ = nullptr;
-    }
-}
+TouchInput::TouchInput() = default;
 
 TouchInput::~TouchInput() {
     if (device_ != nullptr) {
@@ -18,7 +11,16 @@ TouchInput::~TouchInput() {
     }
 }
 
-bool TouchInput::touched() const {
+bool TouchInput::touched(bool keyboardPresent) {
+    if (keyboardPresent) {
+        return false;
+    }
+    if (!probed_) {
+        probed_ = true;
+        if (device_get_first_active_by_type(&POINTER_TYPE, &device_) != ERROR_NONE) {
+            device_ = nullptr;
+        }
+    }
     if (device_ == nullptr || pointer_read_data(device_, 0) != ERROR_NONE) {
         return false;
     }

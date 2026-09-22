@@ -40,12 +40,12 @@ int cmdPrintf(int argc, char** argv) {
             }
 
             switch (*p) {
-                case 'n': printf("\n"); break;
-                case 't': printf("\t"); break;
-                case 'r': printf("\r"); break;
-                case 'e': Shell::writeRaw("\x1B", 1); break; // \e, a common shorthand for ESC
+                case 'n': putchar('\n'); break;
+                case 't': putchar('\t'); break;
+                case 'r': putchar('\r'); break;
+                case 'e': putchar('\x1B'); break; // \e, a common shorthand for ESC
                 case 'a': break;                               // bell: nothing to ring
-                case '\\': printf("\\"); break;
+                case '\\': putchar('\\'); break;
                 default: {
                     const char text[3] = { '\\', *p, '\0' };
                     printf("%s", text);

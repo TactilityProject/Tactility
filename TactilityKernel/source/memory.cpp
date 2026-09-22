@@ -28,8 +28,8 @@ void memory_log_stats() {
     size_t ext_total = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
     LOG_I(TAG, "External: %zu / %zu available", ext_free, ext_total);
 #else
-    auto heap_total = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
-    auto heap_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
+    const size_t heap_total = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
+    const size_t heap_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
     LOG_I(TAG, "Heap: %zu / %zu available", heap_free, heap_total);
 #endif
 }

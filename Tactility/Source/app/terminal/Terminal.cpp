@@ -159,7 +159,7 @@ void ioTask(void* arg) {
         const bool viewMoved = params->keyboards->pump(handleKey);
         params->renderer->render(viewMoved);
 
-        if (params->touch->touched()) {
+        if (params->touch->touched(!params->keyboards->empty())) {
             LOG_I(TAG, "Touch detected - stopping");
             stopRequested = true;
         }
@@ -177,7 +177,7 @@ void runTerminal(Device* display) {
     stopRequested = false;
 
     KeyboardInput keyboards;
-    TouchInput touch(!keyboards.empty());
+    TouchInput touch;
 
     if (vterm_init() != ERROR_NONE) {
         LOG_E(TAG, "vterm_init failed");
@@ -234,7 +234,7 @@ void runTerminal(Device* display) {
     }
 
     if (ioHandle != nullptr) {
-        xSemaphoreTake(ioParams.doneSem, pdMS_TO_TICKS(1000));
+        xSemaphoreTake(ioParams.doneSem, portMAX_DELAY);
     }
     if (ioParams.doneSem != nullptr) {
         vSemaphoreDelete(ioParams.doneSem);

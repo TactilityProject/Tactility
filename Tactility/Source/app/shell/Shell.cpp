@@ -83,13 +83,9 @@ void shutdown() {
 }
 
 void forEachCommand(void* context, void (*callback)(const Command&, void*)) {
-    for (int i = 0; i < COMMAND_COUNT; i++) {
-        callback(COMMANDS[i], context);
+    for (const auto & i : COMMANDS) {
+        callback(i, context);
     }
-}
-
-void writeRaw(const void* data, size_t length) {
-    printf("%.*s", length, reinterpret_cast<const char*>(data));
 }
 
 namespace {

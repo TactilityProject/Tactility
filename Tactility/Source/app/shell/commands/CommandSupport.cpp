@@ -303,18 +303,25 @@ int runElf(const char* resolvedPath, int argc, char** argv) {
         uint8_t drain[256];
 
         while (!childDone) {
-            if (!ownStdinClosed &&
-                app_io_await(STDIN_FILENO, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(ELF_PUMP_INTERVAL_MS)) == ERROR_NONE) {
-                char ch = 0;
-                const ssize_t n = app_io_read(STDIN_FILENO, &ch, 1);
-                if (n == 1) {
-                    app_stream_write(&stdinStream, &ch, 1);
-                } else {
-                    // The terminal running this shell hung up (touch-to-exit): propagate that to
-                    // the child the same way, since it never sees this app's own stdin directly.
-                    app_stream_close(&stdinStream);
-                    ownStdinClosed = true;
+            bool waited = false;
+            if (!ownStdinClosed) {
+                const error_t awaited = app_io_await(STDIN_FILENO, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(ELF_PUMP_INTERVAL_MS));
+                waited = true;
+                if (awaited == ERROR_NONE) {
+                    char ch = 0;
+                    const ssize_t n = app_io_read(STDIN_FILENO, &ch, 1);
+                    if (n == 1) {
+                        app_stream_write(&stdinStream, &ch, 1);
+                    } else {
+                        // The terminal running this shell hung up (touch-to-exit): propagate that to
+                        // the child the same way, since it never sees this app's own stdin directly.
+                        app_stream_close(&stdinStream);
+                        ownStdinClosed = true;
+                    }
                 }
+            }
+            if (!waited) {
+                vTaskDelay(pdMS_TO_TICKS(ELF_PUMP_INTERVAL_MS));
             }
 
             size_t n;

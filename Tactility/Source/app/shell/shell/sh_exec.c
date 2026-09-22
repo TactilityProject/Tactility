@@ -384,6 +384,7 @@ static sh_var *clone_vars(sh_var *v)
         sh_var *c = malloc(sizeof(*c));
         c->name = strdup(v->name);
         c->value = strdup(v->value);
+        c->exported = v->exported;
         c->next = NULL;
         *tail = c;
         tail = &c->next;

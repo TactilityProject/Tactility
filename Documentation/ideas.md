@@ -7,6 +7,9 @@
 
 ## Higher Priority
 
+- App List: Close when app was started
+- App List: Support marking apps as favourite
+- Shell interpreter works recursive-descent algorithm, which requires a big stack size. Can we optimize this?
 - CrashDiagnostics shouldn't show a QR when there's no callstack
 - stopAppFromToolbar() in Tactility.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
 - Warn if file operations are done from prohibited tasks (e.g. lvgl task)

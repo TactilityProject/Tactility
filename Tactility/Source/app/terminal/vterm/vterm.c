@@ -439,8 +439,8 @@ static int vterm_handle_escape(vterm_t *vt, char c)
                 sscanf(vt->escape_buf, "%d;%d", &row, &col);
                 vt->cursor_y = (row > 0 ? row - 1 : 0);
                 vt->cursor_x = (col > 0 ? col - 1 : 0);
-                if (vt->cursor_y >= VTERM_ROWS) vt->cursor_y = VTERM_ROWS - 1;
-                if (vt->cursor_x >= VTERM_COLS) vt->cursor_x = VTERM_COLS - 1;
+                if (vt->cursor_y >= effective_rows()) vt->cursor_y = effective_rows() - 1;
+                if (vt->cursor_x >= effective_cols()) vt->cursor_x = effective_cols() - 1;
             }
             break;
         case 'A': { // Cursor Up

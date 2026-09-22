@@ -215,7 +215,8 @@ void LineEditor::insert(char c) {
         // cursor itself, wrapping to the next row when it runs out of width. drawnRows has to
         // follow that, or a later refresh() would erase fewer rows than the line occupies.
         write(&c, 1);
-        drawnRows = static_cast<int>((strlen(prompt) + length) / terminalColumns()) + 1;
+        const size_t total = promptWidth + length;
+        drawnRows = (total == 0) ? 1 : static_cast<int>((total - 1) / terminalColumns()) + 1;
         drawnCursorRow = drawnRows - 1;
     } else {
         refresh();

@@ -232,9 +232,14 @@ error_t app_stream_unsubscribe(AppStream* stream) {
     auto iterator = ledger.instances.find(stream->producer_id);
     if (iterator != ledger.instances.end()) {
         AppFdTable* table = &iterator->second.fd_table;
-        AppFile current {};
-        if (app_fd_table_get(table, stream->producer_fd, &current) && current.object == stream) {
-            app_fd_table_close(table, stream->producer_fd); // -> stream_file_close() -> app_stream_close()
+        // Closes producer_fd and any fd bound via app_stream_bind_alias_fd(): all share this same
+        // stream object, and app_fd_table_teardown() finding one afterwards would dispatch into
+        // a destructed mutex otherwise.
+        for (int fd = 0; fd < APP_MAX_FDS; fd++) {
+            AppFile current {};
+            if (app_fd_table_get(table, fd, &current) && current.object == stream) {
+                app_fd_table_close(table, fd); // -> stream_file_close() -> app_stream_close()
+            }
         }
     }
     mutex_unlock(&ledger.mutex);

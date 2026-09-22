@@ -179,6 +179,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(file_system_is_mounted),
     DEFINE_MODULE_SYMBOL(file_system_get_path),
     DEFINE_MODULE_SYMBOL(file_system_for_each),
+    DEFINE_MODULE_SYMBOL(file_system_for_each_mounted),
     // memory
     DEFINE_MODULE_SYMBOL(MEMORY_POLICY_DEFAULT),
     DEFINE_MODULE_SYMBOL(memory_log_stats),
@@ -255,6 +256,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(KEYBOARD_TYPE),
     // drivers/paths
     DEFINE_MODULE_SYMBOL(paths_get_data_path),
+    DEFINE_MODULE_SYMBOL(paths_get_temp_path),
     // drivers/pointer
     DEFINE_MODULE_SYMBOL(pointer_enter_sleep),
     DEFINE_MODULE_SYMBOL(pointer_exit_sleep),

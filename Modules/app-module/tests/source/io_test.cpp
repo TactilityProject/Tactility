@@ -44,6 +44,18 @@ bool wait_for_state(AppInstanceId id, AppInstanceState target, uint32_t timeout_
     return app_manager_get_state(id) == target;
 }
 
+bool wait_for_flag(std::atomic<bool>& flag, uint32_t timeout_ms) {
+    uint32_t waited = 0;
+    while (waited < timeout_ms) {
+        if (flag.load(std::memory_order_acquire)) {
+            return true;
+        }
+        delay_millis(10);
+        waited += 10;
+    }
+    return flag.load(std::memory_order_acquire);
+}
+
 std::atomic<ssize_t> g_stdio_write_result { -2 };
 std::atomic<ssize_t> g_stdio_read_result { -2 };
 
@@ -92,10 +104,12 @@ int32_t blocked_writer_app_main(int, char*[]) {
 
 std::atomic<error_t> g_await_before_write { ERROR_NONE };
 std::atomic<error_t> g_await_after_write { ERROR_TIMEOUT };
+std::atomic<bool> g_await_first_done { false };
 std::atomic<bool> g_await_done { false };
 
 int32_t await_reader_app_main(int, char*[]) {
     g_await_before_write.store(app_io_await(STDIN_FILENO, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(50)), std::memory_order_release);
+    g_await_first_done.store(true, std::memory_order_release);
     g_await_after_write.store(app_io_await(STDIN_FILENO, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(1000)), std::memory_order_release);
     g_await_done.store(true, std::memory_order_release);
     return 0;
@@ -248,6 +262,7 @@ TEST_CASE("app_io_await blocks until the bound stream becomes readable or times 
     ensure_memory_loader_registered();
     g_await_before_write.store(ERROR_NONE, std::memory_order_relaxed);
     g_await_after_write.store(ERROR_TIMEOUT, std::memory_order_relaxed);
+    g_await_first_done.store(false, std::memory_order_relaxed);
     g_await_done.store(false, std::memory_order_relaxed);
 
     AppManifest manifest { "test.io.await", "Await", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(await_reader_app_main) } };
@@ -262,9 +277,10 @@ TEST_CASE("app_io_await blocks until the bound stream becomes readable or times 
     AppInstanceId child_id = 0;
     REQUIRE_EQ(app_start_with_streams("test.io.await", &binding, 1, &child_id), ERROR_NONE);
 
-    // The child's first await (50ms, on an empty stream) has time to time out before anything is
-    // written here.
-    delay_millis(150);
+    // Wait for the child's first await (50ms, on an empty stream) to actually return before
+    // writing: a fixed delay doesn't prove that, and under slow scheduling the write could land
+    // first, making the first await succeed and the second one time out instead.
+    REQUIRE(wait_for_flag(g_await_first_done, 1000));
     CHECK_FALSE(g_await_done.load(std::memory_order_acquire));
 
     app_stream_write(&child_stdin, "x", 1);

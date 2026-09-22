@@ -2,9 +2,8 @@
 
 #include <app/paths.h>
 
-#include <tactility/filesystem/file_system.h>
-
 #include <tactility/log.h>
+#include <tactility/paths.h>
 #include <tactility/freertos/freertos.h>
 
 #include <dirent.h>
@@ -23,20 +22,6 @@ constexpr auto* APP_ID = "tactility.shell";
 namespace {
 
 char currentDirectory[ShellFs::MAX_PATH] = "/";
-
-struct FirstMount {
-    char path[ShellFs::MAX_PATH];
-    bool found;
-};
-
-bool takeFirstMount(FileSystem* fs, void* context) {
-    auto* first = static_cast<FirstMount*>(context);
-    if (file_system_get_path(fs, first->path, sizeof(first->path)) == ERROR_NONE) {
-        first->found = true;
-        return false;
-    }
-    return true;
-}
 
 /**
  * Collapses `.` and `..` segments in an absolute path, in place.
@@ -115,9 +100,12 @@ bool appDataPath(char* buf, size_t* size) {
 }
 
 void init() {
-    FirstMount first { .path = "/", .found = false };
-    file_system_for_each_mounted(&first, takeFirstMount);
-    snprintf(currentDirectory, sizeof(currentDirectory), "%s", first.found ? first.path : "/");
+    char dataPath[ShellFs::MAX_PATH];
+    if (paths_get_data_path(dataPath, sizeof(dataPath)) == ERROR_NONE) {
+        snprintf(currentDirectory, sizeof(currentDirectory), "%s", dataPath);
+    } else {
+        snprintf(currentDirectory, sizeof(currentDirectory), "/");
+    }
 }
 
 const char* cwd() {
@@ -534,7 +522,10 @@ Result writeFile(const char* resolvedPath, const char* data, size_t length, bool
     return (written == length) ? Result::Ok : Result::IoError;
 }
 
-uint64_t treeSize(const char* resolvedPath) {
+static uint64_t treeSizeAt(const char* resolvedPath, int depth) {
+    if (depth > MAX_RECURSION_DEPTH) {
+        return 0;
+    }
     if (!isDirectory(resolvedPath)) {
         struct stat info;
         return (stat(resolvedPath, &info) == 0) ? static_cast<uint64_t>(info.st_size) : 0;
@@ -580,11 +571,15 @@ uint64_t treeSize(const char* resolvedPath) {
     for (int i = 0; i < children->count; i++) {
         char childPath[MAX_PATH];
         snprintf(childPath, sizeof(childPath), "%s/%s", resolvedPath, children->names[i]);
-        total += treeSize(childPath);
+        total += treeSizeAt(childPath, depth + 1);
     }
 
     free(children);
     return total;
+}
+
+uint64_t treeSize(const char* resolvedPath) {
+    return treeSizeAt(resolvedPath, 0);
 }
 
 } // namespace ShellFs

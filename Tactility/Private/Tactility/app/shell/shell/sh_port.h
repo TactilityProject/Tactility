@@ -41,9 +41,12 @@ typedef struct {
 int  sh_redir_apply(const sh_redir_rt *items, int n, sh_redir_saved *saved);
 void sh_redir_restore(sh_redir_saved *saved);
 
-// Fill buf with a scratch temp-file path used for temp-file pipe semantics.
-// `which` (0/1) selects between two distinct names so a pipeline stage can read
-// one temp while writing another.
+// Fill buf with a scratch temp-file path used for temp-file pipe semantics (pipelines,
+// here-docs, command substitution). Each call must return a path distinct from every other
+// currently-live one; `which` is a caller-computed hint only and callers may pick overlapping
+// values, so an implementation that echoes `which` straight into the filename risks collisions
+// between unrelated call sites - the caller never relies on `which` producing the same path
+// again, so a purely internal counter is a valid, safer implementation.
 void sh_port_tmpfile(int which, char *buf, int bufsz);
 
 // Working directory (cd / pwd builtins).

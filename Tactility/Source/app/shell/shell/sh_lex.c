@@ -298,6 +298,10 @@ int sh_lex(const char *src, sh_toklist *tl)
             i++;
             for (int k = 0; k < npend; k++) {
                 int dt = pend_tok[k];
+                if (dt + 1 >= tl->count || tl->toks[dt + 1].type != T_WORD ||
+                    tl->toks[dt + 1].text == NULL) {
+                    continue; // no delimiter word; sh_parse reports the error
+                }
                 int quoted = 0;
                 char *delim = heredoc_delim(tl->toks[dt + 1].text, &quoted);
                 collect_heredoc(src, &i, delim, pend_dash[k], tl, dt);

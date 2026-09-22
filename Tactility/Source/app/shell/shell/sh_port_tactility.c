@@ -30,8 +30,17 @@ void sh_port_tmpfile(int which, char* buf, int bufsz)
      * next, so this needs a writable location. The shell's own data directory is used rather than
      * the working directory: the cwd may be a read-only mount, or somewhere the user would rather
      * not have scratch files appear.
+     *
+     * `which` is ignored in favour of an internal counter: exec_pipe(), redir_begin() (here-docs)
+     * and command_subst() each compute their own `which` independently, with overlapping values
+     * (e.g. a here-doc and the outermost command substitution both use 2), so two of these nested
+     * together could collide on the same file. No caller re-derives a path by calling this again
+     * with the same `which` - each stores the returned buffer and reuses that - so nothing depends
+     * on `which` itself, only on every call getting a distinct path.
      */
-    shell_bridge_temp_path(which, buf, bufsz);
+    (void)which;
+    static int next_id = 0;
+    shell_bridge_temp_path(next_id++, buf, bufsz);
 }
 
 int sh_port_chdir(const char* path)

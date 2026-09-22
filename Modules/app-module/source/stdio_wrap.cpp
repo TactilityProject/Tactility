@@ -1,27 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Paired with -Wl,--wrap= on ESP32 (top-level CMakeLists.txt). On POSIX, --wrap only redirects
-// references made by code linked into this same binary - it never defines a symbol under the
-// plain name, so it can't reach a dlopen()ed app's own printf()/write() calls, which resolve
-// against the process's normal (non-wrapped) symbol table. So POSIX instead defines these under
-// their real names directly: on Apple via dyld interpose below (its linker doesn't support
-// --wrap and Mach-O's two-level namespace needs interpose to also catch libSystem's own internal
-// calls); on other POSIX (Linux/glibc) via plain strong definitions, since ELF's default flat
-// symbol resolution already gives the main executable's own symbols priority over libc.so's for
-// every caller process-wide - including a dlopen()ed app's unresolved references - with no
-// interpose-equivalent needed.
+// ESP32 uses -Wl,--wrap=. POSIX can't: --wrap doesn't reach a dlopen()ed app's own printf/write
+// calls, so these are defined under their real names instead - dyld interpose on Apple, plain
+// strong definitions elsewhere (ELF gives the main executable's symbols priority process-wide).
 #include <app/io.h>
 
 #include <sys/types.h>
 
 #ifdef ESP_PLATFORM
 
-// Newlib's own stdio (fflush()'s buffer-flush path, in particular) calls the reentrant
-// _read_r/_write_r/_close_r syscall stubs directly, not the plain read()/write()/close() newlib
-// itself provides as thin wrappers around them (see e.g. esp-idf's components/newlib/src/
-// syscalls.c: `write(fd, dst, size) { return _write_r(__getreent(), fd, dst, size); }`)
-// Wrapping the plain names only catches direct write()-style callers, not newlib's own internal
-// stdio calls, so the _r stubs are wrapped here instead.
+// Newlib's own stdio calls the reentrant _read_r/_write_r/_close_r stubs directly, not the plain
+// read/write/close wrappers, so those stubs are wrapped instead of the plain names.
 #include <reent.h>
 
 extern "C" {
@@ -61,10 +50,7 @@ int __wrap_close(int fd) {
 
 }
 
-// dlsym(RTLD_NEXT, ...) is the standard way to reach the true libc implementation regardless of
-// how the plain name is routed to our own code below: a direct call to read/write/close from this
-// file would just recurse into our own override (via interpose on Apple, or directly on Linux,
-// since it's the same symbol name).
+// dlsym(RTLD_NEXT, ...) avoids recursing into our own override below.
 #include <dlfcn.h>
 #include <unistd.h>
 
@@ -89,9 +75,7 @@ int __real_close(int fd) {
 
 #ifdef __APPLE__
 
-// <mach-o/dyld-interposing.h> isn't a public SDK header (it ships with dyld's own source, not
-// Xcode/Command Line Tools), so this reimplements its DYLD_INTERPOSE macro locally; reused below
-// for the printf-family interposes too.
+// <mach-o/dyld-interposing.h> isn't a public SDK header, so reimplemented locally.
 #define TT_DYLD_INTERPOSE(replacement, replacee) \
     __attribute__((used)) static struct { const void* replacement; const void* replacee; } \
         tt_interpose_##replacee __attribute__((section("__DATA,__interpose"))) = { \
@@ -126,17 +110,13 @@ int close(int fd) {
 
 // region glibc stdio wraps
 //
-// libc's printf/fprintf/etc are compiled into the C library and call an internal, non-exported
-// write() alias, which --wrap=write/the read/write/close interpose above can't reach: only calls
-// WE make to the public symbol. These wraps instead redirect calls WE make to printf/fprintf/etc,
-// the same trick as read/write/close above. Newlib (ESP-IDF) doesn't have this gap: its stdio does
-// call the wrappable syscall stubs, so this block is POSIX-only.
+// libc's printf/fprintf/etc call an internal, non-exported write() alias that the read/write/close
+// wraps above can't reach, so these redirect calls to printf/fprintf/etc directly. POSIX-only:
+// newlib's stdio already goes through the wrappable syscall stubs.
 //
-// Scoped to the printf/getc families only: fread/fwrite take an arbitrary FILE* and are already
-// used sitewide for real file I/O (e.g. File.cpp's readBinaryInternal), so wrapping them would
-// route every such call through this file's stdin/stdout/stderr check, a correctness risk for
-// unrelated code that isn't worth taking here. putc/getc are excluded too since libc defines them
-// as macros, not real calls, so wrapping those symbols wouldn't reliably intercept them.
+// Scoped to printf/getc: fread/fwrite are used sitewide for real file I/O, so wrapping them would
+// be a correctness risk for unrelated code. putc/getc are macros, not real calls, so wrapping
+// those symbols wouldn't reliably intercept them.
 
 #if !defined(ESP_PLATFORM)
 
@@ -154,8 +134,6 @@ int __real_fgetc(FILE* stream);
 char* __real_fgets(char* buffer, int size, FILE* stream);
 }
 
-// See the read/write/close __real_* block above for why dlsym(RTLD_NEXT, ...) rather than a
-// direct call.
 #include <dlfcn.h>
 
 extern "C" {
@@ -202,9 +180,6 @@ void writeAllTo(int fd, const void* data, size_t size) {
     }
 }
 
-// Formats into stdout/stderr via app_io_write() rather than through a FILE*'s own buffering,
-// since that buffering is exactly what glibc's internal write() call sidesteps --wrap for in the
-// first place.
 int formatTo(int fd, const char* format, va_list args) {
     char stackBuffer[256];
     va_list argsForStack;
