@@ -6,7 +6,6 @@
 #else
 #include <cstdint>
 #include <cstdio>
-#include <sys/sysinfo.h>
 #include <unistd.h>
 #endif
 

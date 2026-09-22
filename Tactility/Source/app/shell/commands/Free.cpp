@@ -5,8 +5,6 @@
 #include <unistd.h>
 #ifdef ESP_PLATFORM
 #include <esp_heap_caps.h>
-#else
-#include <sys/sysinfo.h>
 #endif
 
 #ifndef ESP_PLATFORM
