@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import glob
 import os
 import shutil
@@ -264,14 +266,15 @@ def write_lvgl_variable_placeholders(output_file):
     output_file.write("CONFIG_LV_DPI_DEF=100\n")
     output_file.write("CONFIG_LV_FONT_MONTSERRAT_8=y\n")
     output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_8=y\n")
-    output_file.write("CONFIG_TT_FONT_IBMPLEXMONO_10=y\n")
-    output_file.write("CONFIG_TT_TERMINAL_FONT_SIZE=10\n")
     output_file.write("CONFIG_TT_LVGL_FONT_SIZE_SMALL=8\n")
     output_file.write("CONFIG_TT_LVGL_FONT_SIZE_DEFAULT=8\n")
     output_file.write("CONFIG_TT_LVGL_FONT_SIZE_LARGE=8\n")
     output_file.write("CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE=12\n")
     output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=30\n")
     output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=12\n")
+    # Terminal fonts are currently tied to LVGL settings
+    output_file.write("CONFIG_TT_FONT_IBMPLEXMONO_12=y\n")
+    output_file.write("CONFIG_TT_TERMINAL_FONT_SIZE=12\n")
 
 def write_lvgl_variables(output_file, device_properties: dict):
     output_file.write("# LVGL\n")

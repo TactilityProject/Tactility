@@ -4,6 +4,7 @@
 #ifdef ESP_PLATFORM
 #include <esp_heap_caps.h>
 #else
+#include <cstdint>
 #include <cstdio>
 #include <sys/sysinfo.h>
 #include <unistd.h>
@@ -28,9 +29,16 @@ void memory_log_stats() {
     size_t ext_total = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
     LOG_I(TAG, "External: %zu / %zu available", ext_free, ext_total);
 #else
-    const size_t heap_total = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
-    const size_t heap_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
-    LOG_I(TAG, "Heap: %zu / %zu available", heap_free, heap_total);
+    const long phys_pages = sysconf(_SC_PHYS_PAGES);
+    const long avphys_pages = sysconf(_SC_AVPHYS_PAGES);
+    const long page_size = sysconf(_SC_PAGESIZE);
+    if (phys_pages < 0 || avphys_pages < 0 || page_size < 0) {
+        LOG_W(TAG, "Heap: sysconf() unavailable");
+    } else {
+        const uint64_t heap_total = static_cast<uint64_t>(phys_pages) * static_cast<uint64_t>(page_size);
+        const uint64_t heap_free = static_cast<uint64_t>(avphys_pages) * static_cast<uint64_t>(page_size);
+        LOG_I(TAG, "Heap: %llu / %llu available", static_cast<unsigned long long>(heap_free), static_cast<unsigned long long>(heap_total));
+    }
 #endif
 }
 
