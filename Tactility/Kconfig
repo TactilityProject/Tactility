@@ -31,7 +31,7 @@ menu "Tactility App"
     config TT_TERMINAL_FONT_SIZE
         int "Terminal font size"
         default 14
-        range 10 28
+        range 12 28
         help
             Terminal font size in pixels
     config TT_LVGL_FONT_SIZE_SMALL
