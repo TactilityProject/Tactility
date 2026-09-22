@@ -1,5 +1,13 @@
 # Third-Party Notices 
 
+### BreezyBox
+
+This project used code from the BreezyBox project.
+
+Website: https://github.com/valdanylchuk/breezybox
+
+License: [MIT License](https://github.com/valdanylchuk/breezybox/blob/main/LICENSE)
+
 ### ESP-IDF
 
 This project uses ESP-IDF to compile the ESP32 firmware.

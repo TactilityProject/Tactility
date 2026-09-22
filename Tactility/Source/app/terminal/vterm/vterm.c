@@ -26,7 +26,7 @@
 
 // The single "Hot" buffer used by the display and the active writer
 // Must be 32-bit aligned for the optimized renderer
-static vterm_cell_t *s_iram_buffer = NULL;
+static vterm_cell_t* s_iram_buffer = NULL;
 
 typedef struct {
     // If this VT is active, this points to s_iram_buffer.
@@ -70,10 +70,10 @@ volatile int s_active_vt = 0;
  * shell keep a scrollback history without vterm having to own one. */
 static void (*s_scroll_callback)(void) = NULL;
 
-void vterm_set_scroll_callback(void (*callback)(void))
-{
+void vterm_set_scroll_callback(void (*callback)(void)) {
     s_scroll_callback = callback;
 }
+
 static void (*s_on_switch_cb)(int new_vt) = NULL;
 
 /*
@@ -86,11 +86,20 @@ static void (*s_on_switch_cb)(int new_vt) = NULL;
  * VTERM_ROWS - by which point far more than a screenful has already been written off the bottom,
  * invisibly, with nothing to show for it.
  */
-static int effective_rows(void)
-{
+static int effective_rows(void) {
     int rows;
     vterm_get_size(&rows, NULL);
     return rows;
+}
+
+/* Same idea as effective_rows(), but for columns: wrap-triggering logic must consult this rather
+ * than VTERM_COLS directly, or a panel with fewer columns never wraps until the cursor reaches
+ * column VTERM_COLS - by which point text has been written off the right edge of the visible
+ * grid, invisibly, instead of wrapping onto the next line. */
+static int effective_cols(void) {
+    int cols;
+    vterm_get_size(NULL, &cols);
+    return cols;
 }
 
 // Forward declarations
@@ -174,10 +183,10 @@ static void vterm_putchar_internal(vterm_t *vt, char c)
             cell->attr = vt->current_attr;
             cell++;
             vt->cursor_x++;
-        } while (vt->cursor_x < VTERM_COLS && (vt->cursor_x % 8) != 0);
-        if (vt->cursor_x >= VTERM_COLS) {
+        } while (vt->cursor_x < effective_cols() && (vt->cursor_x % 8) != 0);
+        if (vt->cursor_x >= effective_cols()) {
             // Park at the last column with the wrap deferred, rather than moving off the row.
-            vt->cursor_x = VTERM_COLS - 1;
+            vt->cursor_x = effective_cols() - 1;
             vt->pending_wrap = 1;
         }
         break;
@@ -185,7 +194,7 @@ static void vterm_putchar_internal(vterm_t *vt, char c)
         if (c >= 32 && c < 127) {
             cell->ch = c;
             cell->attr = vt->current_attr;
-            if (vt->cursor_x + 1 >= VTERM_COLS) {
+            if (vt->cursor_x + 1 >= effective_cols()) {
                 // Last column written: stay here and wrap only if something else arrives.
                 vt->pending_wrap = 1;
             } else {
@@ -631,6 +640,46 @@ error_t vterm_init(void)
     return ERROR_NONE;
 }
 
+/*
+ * Frees everything vterm_init() allocates, and clears every module-global vterm_init() sets, so a
+ * caller that runs once per app instance (the terminal app: vterm_init() on every launch, no guard
+ * against re-entry) doesn't leak the IRAM buffer, the vterm array, or each VT's queue/mutex/PSRAM
+ * storage on every relaunch.
+ */
+void vterm_deinit(void)
+{
+    if (s_vterms != NULL) {
+        for (int i = 0; i < VTERM_COUNT; i++) {
+            vterm_t *vt = &s_vterms[i];
+            if (vt->input_queue != NULL) {
+                vQueueDelete(vt->input_queue);
+            }
+            if (vt->mutex != NULL) {
+                vSemaphoreDelete(vt->mutex);
+            }
+#if VTERM_COUNT > 1
+            if (vt->storage_cells != NULL) {
+                memory_free(vt->storage_cells);
+            }
+#endif
+        }
+        memory_free(s_vterms);
+        s_vterms = NULL;
+    }
+
+    if (s_iram_buffer != NULL) {
+        memory_free(s_iram_buffer);
+        s_iram_buffer = NULL;
+    }
+
+    s_active_vt = 0;
+    s_scroll_callback = NULL;
+    s_on_switch_cb = NULL;
+
+    vterm_clear_size_override();
+    mutex_destruct(&s_input_mux);
+}
+
 vterm_cell_t *vterm_get_direct_buffer(void)
 {
     return s_iram_buffer;
@@ -684,9 +733,10 @@ void vterm_write(int vt_id, const char *data, size_t len)
     int escape_mode = vt->escape_state;
     int pending_wrap = vt->pending_wrap;
 
+    const int cols = effective_cols();
     vterm_cell_t *cells_base = vt->cells;
     vterm_cell_t *cursor_ptr = &cells_base[cy * VTERM_COLS + cx];
-    vterm_cell_t *row_end = &cells_base[cy * VTERM_COLS + VTERM_COLS];
+    vterm_cell_t *row_end = &cells_base[cy * VTERM_COLS + cols];
 
     while (p < end) {
         char c = *p++;
@@ -703,13 +753,13 @@ void vterm_write(int vt_id, const char *data, size_t len)
             if (pending_wrap) {
                 pending_wrap = 0;
                 cx = 0; cy++;
-                if (cy >= VTERM_ROWS) {
+                if (cy >= effective_rows()) {
                     vt->cursor_x = cx; vt->cursor_y = cy;
                     vterm_scroll(vt);
                     cy = vt->cursor_y;
                 }
                 cursor_ptr = &cells_base[cy * VTERM_COLS + cx];
-                row_end = &cells_base[cy * VTERM_COLS + VTERM_COLS];
+                row_end = &cells_base[cy * VTERM_COLS + cols];
             }
 
             cursor_ptr->ch = c;
@@ -744,7 +794,7 @@ void vterm_write(int vt_id, const char *data, size_t len)
             cx = vt->cursor_x;
             cy = vt->cursor_y;
             cursor_ptr = &cells_base[cy * VTERM_COLS + cx];
-            row_end = &cells_base[cy * VTERM_COLS + VTERM_COLS];
+            row_end = &cells_base[cy * VTERM_COLS + cols];
         }
     }
 

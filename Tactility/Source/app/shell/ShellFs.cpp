@@ -18,43 +18,24 @@
 
 constexpr auto* TAG = "ShellFs";
 
-/** Must match manifest.properties' app.id. */
-constexpr auto* APP_ID = "tactility.breezybox";
+constexpr auto* APP_ID = "tactility.shell";
 
 namespace {
 
 char currentDirectory[ShellFs::MAX_PATH] = "/";
-
-struct MountCollector {
-    void* context;
-    void (*callback)(const char* path, void* context);
-};
-
-bool collectMount(FileSystem* fs, void* context) {
-    auto* collector = static_cast<MountCollector*>(context);
-
-    if (!file_system_is_mounted(fs)) {
-        return true;
-    }
-
-    char path[ShellFs::MAX_PATH];
-    if (file_system_get_path(fs, path, sizeof(path)) == ERROR_NONE) {
-        collector->callback(path, collector->context);
-    }
-    return true;
-}
 
 struct FirstMount {
     char path[ShellFs::MAX_PATH];
     bool found;
 };
 
-void takeFirstMount(const char* path, void* context) {
+bool takeFirstMount(FileSystem* fs, void* context) {
     auto* first = static_cast<FirstMount*>(context);
-    if (!first->found) {
-        snprintf(first->path, sizeof(first->path), "%s", path);
+    if (file_system_get_path(fs, first->path, sizeof(first->path)) == ERROR_NONE) {
         first->found = true;
+        return false;
     }
+    return true;
 }
 
 /**
@@ -134,13 +115,9 @@ bool appDataPath(char* buf, size_t* size) {
 }
 
 void init() {
-    FirstMount first { "/", false };
-    forEachMount(&first, takeFirstMount);
+    FirstMount first { .path = "/", .found = false };
+    file_system_for_each_mounted(&first, takeFirstMount);
     snprintf(currentDirectory, sizeof(currentDirectory), "%s", first.found ? first.path : "/");
-    // Deliberately not logged: the log backend writes to stdout, which is piped to the terminal app
-    // running this one, so anything logged from here appears on screen as though the shell had
-    // printed it. The remaining LOG_W calls in this file report real faults, which is worth that
-    // intrusion.
 }
 
 const char* cwd() {
@@ -178,11 +155,6 @@ bool resolvePath(const char* path, char* out, size_t outSize) {
 
 bool isRoot(const char* resolved) {
     return resolved != nullptr && strcmp(resolved, "/") == 0;
-}
-
-void forEachMount(void* context, void (*callback)(const char* path, void* context)) {
-    MountCollector collector { context, callback };
-    file_system_for_each(&collector, collectMount);
 }
 
 bool isDirectory(const char* resolvedPath) {
@@ -244,51 +216,6 @@ bool exists(const char* resolvedPath) {
 
     struct stat info;
     return stat(resolvedPath, &info) == 0;
-}
-
-bool bundledBinaryDir(char* out, size_t outSize) {
-    return app_paths_get_assets_path(APP_ID, "bin", out, outSize) == ERROR_NONE;
-}
-
-bool bundledBinaryPath(const char* name, char* out, size_t outSize) {
-    if (name == nullptr || name[0] == '\0') {
-        return false;
-    }
-    // A bare name only: anything with a separator is a path and belongs to the caller's own lookup.
-    if (strchr(name, '/') != nullptr) {
-        return false;
-    }
-
-    // Try the name as given, then with .elf appended, so both `grep` and `grep.elf` work.
-    const char* suffixes[] = { "", ".elf" };
-    for (const char* suffix : suffixes) {
-        char relative[128];
-        const int written = snprintf(relative, sizeof(relative), "bin/%s%s", name, suffix);
-        if (written < 0 || static_cast<size_t>(written) >= sizeof(relative)) {
-            continue;
-        }
-
-        if (app_paths_get_assets_path(APP_ID, relative, out, outSize) == ERROR_NONE && exists(out)) {
-            return true;
-        }
-    }
-
-    out[0] = '\0';
-    return false;
-}
-
-bool isElf(const char* resolvedPath) {
-    FILE* file = fopen(resolvedPath, "rb");
-    if (file == nullptr) {
-        return false;
-    }
-
-    unsigned char magic[4] = {};
-    const size_t read = fread(magic, 1, sizeof(magic), file);
-    fclose(file);
-
-    return read == sizeof(magic) &&
-        magic[0] == 0x7F && magic[1] == 'E' && magic[2] == 'L' && magic[3] == 'F';
 }
 
 bool streamFile(const char* resolvedPath, void* context, bool (*callback)(const char*, size_t, void*)) {
@@ -492,7 +419,7 @@ Result removeTreeAt(const char* path, int depth) {
     }
     if (skippedLongName) {
         // The directory still holds entries this code declined to touch, so removing it would fail
-        // anyway - report the real reason rather than a bare "not empty".
+        // anyway; report the real reason rather than a bare "not empty".
         LOG_W(TAG, "'%s' contains a name longer than %u bytes; not removed",
                  path, (unsigned)MAX_ENTRY_NAME);
         return Result::NotEmpty;

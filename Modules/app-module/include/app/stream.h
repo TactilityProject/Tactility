@@ -76,6 +76,16 @@ struct AppStream {
 error_t app_stream_subscribe(struct AppStream* stream, void* buffer, size_t buffer_capacity, struct TaskEventGroup* event_group, AppInstanceId producer_id, int producer_fd);
 
 /**
+ * Binds an already-subscribed @a stream at a second fd (@a alias_fd) too, so writes to either fd
+ * land in the same buffer in true write-time order (e.g. aliasing stderr onto a stdout stream, the
+ * way a real tty is one device for both unless redirected). Safe to leave bound until the app
+ * instance exits; teardown closes it like any other fd, and AppStream's close is idempotent.
+ * @retval ERROR_NOT_FOUND no instance with @a stream's producer_id is running
+ * @retval ERROR_OUT_OF_RANGE @a alias_fd is out of range
+ */
+error_t app_stream_bind_alias_fd(struct AppStream* stream, int alias_fd);
+
+/**
  * Removes @a stream's binding from whichever fd table it was installed in (further use of that
  * fd then fails), wakes and waits for every AppFileOps call currently in flight against
  * @a stream to finish, then releases its two bits back to the event_group given to

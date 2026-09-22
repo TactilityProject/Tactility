@@ -5,7 +5,7 @@
  * (the esp_console registry plus its ELF loader) and keeps its cwd in breezy_vfs. Neither exists
  * here: commands live in Shell's own table and the working directory belongs to ShellFs.
  *
- * sh_redir.c is used unchanged - it implements redirection by swapping the stdin/stdout/stderr
+ * sh_redir.c is used unchanged: it implements redirection by swapping the stdin/stdout/stderr
  * FILE* lvalues rather than juggling file descriptors, which works as long as stdio actually points
  * at the terminal app running this one. app_start_for_result_with_streams() arranges that, piping
  * this app's fd 0/1/2 before its task begins.

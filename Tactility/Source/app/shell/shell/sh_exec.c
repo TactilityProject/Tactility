@@ -24,7 +24,7 @@ static int run_argv(sh_state *st, int argc, char **argv, int exempt)
     int found = 0;
     status = sh_port_run_external(argc, argv, &found);
     if (!found) {
-        fprintf(stderr, "%s: not found\n", argv[0]);
+        fprintf(stderr, "\x1B[91m%s: not found\x1B[0m\n", argv[0]);
         return 127;
     }
     return status;

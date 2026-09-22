@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Paired with -Wl,--wrap= on POSIX (this module's own CMakeLists.txt) and ESP32 (top-level
-// CMakeLists.txt); self-registered via dyld interpose below on Apple, whose linker doesn't
-// support --wrap.
+// Paired with -Wl,--wrap= on ESP32 (top-level CMakeLists.txt). On POSIX, --wrap only redirects
+// references made by code linked into this same binary - it never defines a symbol under the
+// plain name, so it can't reach a dlopen()ed app's own printf()/write() calls, which resolve
+// against the process's normal (non-wrapped) symbol table. So POSIX instead defines these under
+// their real names directly: on Apple via dyld interpose below (its linker doesn't support
+// --wrap and Mach-O's two-level namespace needs interpose to also catch libSystem's own internal
+// calls); on other POSIX (Linux/glibc) via plain strong definitions, since ELF's default flat
+// symbol resolution already gives the main executable's own symbols priority over libc.so's for
+// every caller process-wide - including a dlopen()ed app's unresolved references - with no
+// interpose-equivalent needed.
 #include <app/io.h>
 
 #include <sys/types.h>
@@ -54,15 +61,10 @@ int __wrap_close(int fd) {
 
 }
 
-#endif // ESP_PLATFORM
-
-#ifdef __APPLE__
-
-// --wrap also synthesizes __real_read/write/close automatically; dyld interpose doesn't, so
-// io.cpp's TT_APP_IO_WRAPS_STDIO fallback needs them defined here. dlsym(RTLD_NEXT, ...) is the
-// standard way to reach the true libSystem implementation despite the interpose below: a direct
-// call to read/write/close from this file would just recurse into __wrap_read/write/close, since
-// interpose rewrites every reference to those symbols in the process, this file included.
+// dlsym(RTLD_NEXT, ...) is the standard way to reach the true libc implementation regardless of
+// how the plain name is routed to our own code below: a direct call to read/write/close from this
+// file would just recurse into our own override (via interpose on Apple, or directly on Linux,
+// since it's the same symbol name).
 #include <dlfcn.h>
 #include <unistd.h>
 
@@ -85,6 +87,8 @@ int __real_close(int fd) {
 
 }
 
+#ifdef __APPLE__
+
 // <mach-o/dyld-interposing.h> isn't a public SDK header (it ships with dyld's own source, not
 // Xcode/Command Line Tools), so this reimplements its DYLD_INTERPOSE macro locally; reused below
 // for the printf-family interposes too.
@@ -98,7 +102,27 @@ TT_DYLD_INTERPOSE(__wrap_read, read)
 TT_DYLD_INTERPOSE(__wrap_write, write)
 TT_DYLD_INTERPOSE(__wrap_close, close)
 
+#else
+
+extern "C" {
+
+ssize_t read(int fd, void* buffer, size_t size) {
+    return __wrap_read(fd, buffer, size);
+}
+
+ssize_t write(int fd, const void* buffer, size_t size) {
+    return __wrap_write(fd, buffer, size);
+}
+
+int close(int fd) {
+    return __wrap_close(fd);
+}
+
+}
+
 #endif // __APPLE__
+
+#endif // ESP_PLATFORM
 
 // region glibc stdio wraps
 //
@@ -110,9 +134,9 @@ TT_DYLD_INTERPOSE(__wrap_close, close)
 //
 // Scoped to the printf/getc families only: fread/fwrite take an arbitrary FILE* and are already
 // used sitewide for real file I/O (e.g. File.cpp's readBinaryInternal), so wrapping them would
-// route every such call through this file's stdin/stdout check, a correctness risk for unrelated
-// code that isn't worth taking here. putc/getc are excluded too since libc defines them as
-// macros, not real calls, so wrapping those symbols wouldn't reliably intercept them.
+// route every such call through this file's stdin/stdout/stderr check, a correctness risk for
+// unrelated code that isn't worth taking here. putc/getc are excluded too since libc defines them
+// as macros, not real calls, so wrapping those symbols wouldn't reliably intercept them.
 
 #if !defined(ESP_PLATFORM)
 
@@ -130,10 +154,8 @@ int __real_fgetc(FILE* stream);
 char* __real_fgets(char* buffer, int size, FILE* stream);
 }
 
-#ifdef __APPLE__
-
-// --wrap synthesizes these automatically elsewhere; on Apple they're defined here via
-// dlsym(RTLD_NEXT, ...) instead. See the read/write/close __real_* block above for why.
+// See the read/write/close __real_* block above for why dlsym(RTLD_NEXT, ...) rather than a
+// direct call.
 #include <dlfcn.h>
 
 extern "C" {
@@ -165,15 +187,13 @@ char* __real_fgets(char* buffer, int size, FILE* stream) {
 
 }
 
-#endif // __APPLE__
-
 namespace {
 
-void writeAllToStdout(const void* data, size_t size) {
+void writeAllTo(int fd, const void* data, size_t size) {
     const auto* bytes = static_cast<const char*>(data);
     size_t remaining = size;
     while (remaining > 0) {
-        ssize_t written = app_io_write(STDOUT_FILENO, bytes, remaining);
+        ssize_t written = app_io_write(fd, bytes, remaining);
         if (written <= 0) {
             break;
         }
@@ -182,9 +202,10 @@ void writeAllToStdout(const void* data, size_t size) {
     }
 }
 
-// Formats into stdout via app_io_write() rather than through a FILE*'s own buffering, since that
-// buffering is exactly what glibc's internal write() call sidesteps --wrap for in the first place.
-int formatToStdout(const char* format, va_list args) {
+// Formats into stdout/stderr via app_io_write() rather than through a FILE*'s own buffering,
+// since that buffering is exactly what glibc's internal write() call sidesteps --wrap for in the
+// first place.
+int formatTo(int fd, const char* format, va_list args) {
     char stackBuffer[256];
     va_list argsForStack;
     va_copy(argsForStack, args);
@@ -194,7 +215,7 @@ int formatToStdout(const char* format, va_list args) {
         return needed;
     }
     if (static_cast<size_t>(needed) < sizeof(stackBuffer)) {
-        writeAllToStdout(stackBuffer, static_cast<size_t>(needed));
+        writeAllTo(fd, stackBuffer, static_cast<size_t>(needed));
         return needed;
     }
     auto heapBuffer = std::make_unique<char[]>(static_cast<size_t>(needed) + 1);
@@ -202,7 +223,7 @@ int formatToStdout(const char* format, va_list args) {
     va_copy(argsForHeap, args);
     vsnprintf(heapBuffer.get(), static_cast<size_t>(needed) + 1, format, argsForHeap);
     va_end(argsForHeap);
-    writeAllToStdout(heapBuffer.get(), static_cast<size_t>(needed));
+    writeAllTo(fd, heapBuffer.get(), static_cast<size_t>(needed));
     return needed;
 }
 
@@ -210,25 +231,32 @@ int readOneFromStdin(char& out) {
     return static_cast<int>(app_io_read(STDIN_FILENO, &out, 1));
 }
 
+int targetFdOf(FILE* stream) {
+    if (stream == stdout) return STDOUT_FILENO;
+    if (stream == stderr) return STDERR_FILENO;
+    return -1;
+}
+
 } // namespace
 
 extern "C" {
 
 int __wrap_vprintf(const char* format, va_list args) {
-    return formatToStdout(format, args);
+    return formatTo(STDOUT_FILENO, format, args);
 }
 
 int __wrap_printf(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int result = formatToStdout(format, args);
+    int result = formatTo(STDOUT_FILENO, format, args);
     va_end(args);
     return result;
 }
 
 int __wrap_vfprintf(FILE* stream, const char* format, va_list args) {
-    if (stream == stdout) {
-        return formatToStdout(format, args);
+    int fd = targetFdOf(stream);
+    if (fd >= 0) {
+        return formatTo(fd, format, args);
     }
     return __real_vfprintf(stream, format, args);
 }
@@ -236,20 +264,22 @@ int __wrap_vfprintf(FILE* stream, const char* format, va_list args) {
 int __wrap_fprintf(FILE* stream, const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int result = (stream == stdout) ? formatToStdout(format, args) : __real_vfprintf(stream, format, args);
+    int fd = targetFdOf(stream);
+    int result = (fd >= 0) ? formatTo(fd, format, args) : __real_vfprintf(stream, format, args);
     va_end(args);
     return result;
 }
 
 int __wrap_puts(const char* s) {
-    writeAllToStdout(s, strlen(s));
-    writeAllToStdout("\n", 1);
+    writeAllTo(STDOUT_FILENO, s, strlen(s));
+    writeAllTo(STDOUT_FILENO, "\n", 1);
     return 0;
 }
 
 int __wrap_fputs(const char* s, FILE* stream) {
-    if (stream == stdout) {
-        writeAllToStdout(s, strlen(s));
+    int fd = targetFdOf(stream);
+    if (fd >= 0) {
+        writeAllTo(fd, s, strlen(s));
         return 0;
     }
     return __real_fputs(s, stream);
@@ -257,13 +287,16 @@ int __wrap_fputs(const char* s, FILE* stream) {
 
 int __wrap_putchar(int c) {
     auto ch = static_cast<char>(c);
-    writeAllToStdout(&ch, 1);
+    writeAllTo(STDOUT_FILENO, &ch, 1);
     return c;
 }
 
 int __wrap_fputc(int c, FILE* stream) {
-    if (stream == stdout) {
-        return __wrap_putchar(c);
+    int fd = targetFdOf(stream);
+    if (fd >= 0) {
+        auto ch = static_cast<char>(c);
+        writeAllTo(fd, &ch, 1);
+        return c;
     }
     return __real_fputc(c, stream);
 }
@@ -320,6 +353,64 @@ TT_DYLD_INTERPOSE(__wrap_fputc, fputc)
 TT_DYLD_INTERPOSE(__wrap_getchar, getchar)
 TT_DYLD_INTERPOSE(__wrap_fgetc, fgetc)
 TT_DYLD_INTERPOSE(__wrap_fgets, fgets)
+#else
+
+extern "C" {
+
+int vprintf(const char* format, va_list args) {
+    return __wrap_vprintf(format, args);
+}
+
+int printf(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int result = __wrap_vprintf(format, args);
+    va_end(args);
+    return result;
+}
+
+int vfprintf(FILE* stream, const char* format, va_list args) {
+    return __wrap_vfprintf(stream, format, args);
+}
+
+int fprintf(FILE* stream, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int result = __wrap_vfprintf(stream, format, args);
+    va_end(args);
+    return result;
+}
+
+int puts(const char* s) {
+    return __wrap_puts(s);
+}
+
+int fputs(const char* s, FILE* stream) {
+    return __wrap_fputs(s, stream);
+}
+
+int putchar(int c) {
+    return __wrap_putchar(c);
+}
+
+int fputc(int c, FILE* stream) {
+    return __wrap_fputc(c, stream);
+}
+
+int getchar() {
+    return __wrap_getchar();
+}
+
+int fgetc(FILE* stream) {
+    return __wrap_fgetc(stream);
+}
+
+char* fgets(char* buffer, int size, FILE* stream) {
+    return __wrap_fgets(buffer, size, stream);
+}
+
+}
+
 #endif // __APPLE__
 
 #endif // !ESP_PLATFORM

@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <tactility/paths.h>
+
 /**
  * Filesystem access for the shell, over Tactility's real mounts.
  *
@@ -18,7 +20,7 @@
  */
 namespace ShellFs {
 
-constexpr size_t MAX_PATH = 256;
+constexpr size_t MAX_PATH = FILE_MAX_PATH_LENGTH;
 
 /** Sets the working directory to the first available mount. */
 void init();
@@ -27,7 +29,7 @@ void init();
  * Writes the app's own writable data directory into `buf`, creating it if needed.
  *
  * Used for scratch files (pipeline staging) that should not land in whatever directory the user
- * happens to be standing in - which may also be a read-only mount.
+ * happens to be standing in, which may also be a read-only mount.
  *
  * @return false if the path did not fit
  */
@@ -50,9 +52,6 @@ bool isRoot(const char* resolved);
  * @return false if the path does not exist or is not a directory
  */
 bool changeDirectory(const char* path);
-
-/** Calls `callback` with each mount point path. Used to list the synthetic root. */
-void forEachMount(void* context, void (*callback)(const char* path, void* context));
 
 /**
  * Reads a whole file into a newly allocated buffer.
@@ -79,35 +78,6 @@ bool isDirectory(const char* resolvedPath);
 
 /** True if the path exists at all, file or directory. */
 bool exists(const char* resolvedPath);
-
-/**
- * True if the file starts with the ELF magic number.
- *
- * Used to tell a loadable binary from a shell script. The filesystem is FAT and has no execute bit,
- * so content is the only thing available to go on.
- */
-bool isElf(const char* resolvedPath);
-
-/**
- * Finds a binary bundled in the app's assets, by bare name.
- *
- * This stands in for a PATH search: `grep foo file` finds the bundled grep without the user
- * needing to know where it lives. Both the exact name and name + ".elf" are tried.
- *
- * @return false if no such binary is bundled
- */
-bool bundledBinaryPath(const char* name, char* out, size_t outSize);
-
-/**
- * Writes the directory the bundled binaries live in.
- *
- * Exported to the shell as $BIN, so the location is reachable without typing the whole assets path:
- * `ls $BIN`, `cat $BIN/LICENSE.tuilib`. bundledBinaryPath() covers running them; this covers
- * looking at them.
- *
- * @return false if the path could not be determined
- */
-bool bundledBinaryDir(char* out, size_t outSize);
 
 /**
  * Streams a file to a callback in chunks.

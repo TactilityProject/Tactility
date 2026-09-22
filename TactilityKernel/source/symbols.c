@@ -181,7 +181,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(file_system_for_each),
     // memory
     DEFINE_MODULE_SYMBOL(MEMORY_POLICY_DEFAULT),
-    DEFINE_MODULE_SYMBOL(memory_print_stats),
+    DEFINE_MODULE_SYMBOL(memory_log_stats),
     DEFINE_MODULE_SYMBOL(memory_alloc_with_policy),
     DEFINE_MODULE_SYMBOL(memory_realloc_with_policy),
     DEFINE_MODULE_SYMBOL(memory_calloc_with_policy),

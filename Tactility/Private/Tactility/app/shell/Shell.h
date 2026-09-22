@@ -29,6 +29,16 @@ void shutdown();
 void execute(const char* line);
 
 /**
+ * True once the interpreter has run the `exit` builtin (sh_builtins.c sets this; not a command in
+ * Shell's own table). main()'s input loop checks this after each execute() call, since the
+ * interpreter itself has no way to unwind past sh_run_string() and stop reading more input.
+ */
+bool shouldExit();
+
+/** The status `exit` was given (0 if none), valid once shouldExit() is true. */
+int exitCode();
+
+/**
  * Looks up and runs a single builtin with an already-expanded argv.
  *
  * Called by the interpreter (via sh_port_run_external) once it has finished expanding a command
@@ -63,27 +73,6 @@ void forEachCommand(void* context, void (*callback)(const Command& command, void
  */
 bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outListed);
 
-/** Prints formatted text to the terminal. */
-void print(const char* format, ...) __attribute__((format(printf, 1, 2)));
-
-/** Writes a string to the terminal verbatim, without printf interpretation. */
-void write(const char* text);
-
-/**
- * Writes exactly `length` bytes to stdout, respecting the current redirect target - unlike
- * fwrite(), which this app's stdio wrapping does not intercept (see AppStdioWrap.cpp), so bytes
- * written through it never reach an AppStream capturing this app's own stdout (e.g. the terminal
- * app piping it to the screen). Safe for a byte that isn't valid C-string content (e.g. a literal
- * NUL), unlike write()/print(), which assume one.
- */
 void writeRaw(const void* data, size_t length);
-
-/**
- * True when stdout still points at the terminal rather than at a redirect target.
- *
- * Commands that format output for a screen — line-ending translation, replacing unprintable bytes —
- * must not do so when the output is going into a file.
- */
-bool outputIsTerminal();
 
 } // namespace Shell

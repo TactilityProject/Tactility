@@ -75,6 +75,18 @@ void file_system_for_each(void* callback_context, bool (*callback)(FileSystem* f
     ledger.unlock();
 }
 
+void file_system_for_each_mounted(void* callback_context, bool (*callback)(FileSystem* fs, void* context)) {
+    auto& ledger = get_ledger();
+    ledger.lock();
+    for (auto* fs : ledger.file_systems) {
+        if (!file_system_is_mounted(fs)) {
+            continue;
+        }
+        if (!callback(fs, callback_context)) break;
+    }
+    ledger.unlock();
+}
+
 error_t file_system_mount(FileSystem* fs) {
     // Assuming 'device' is accessible or passed via a different mechanism
     // as it's required by the FileSystemApi signatures.

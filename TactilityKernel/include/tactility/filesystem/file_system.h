@@ -71,6 +71,13 @@ void file_system_remove(struct FileSystem* fs);
 void file_system_for_each(void* callback_context, bool (*callback)(struct FileSystem* fs, void* context));
 
 /**
+ * @brief Iterates over registered file systems that are currently mounted.
+ * @param[in] callback_context context passed to the callback
+ * @param[in] callback function called for each mounted file system. Return true to continue, false to stop.
+ */
+void file_system_for_each_mounted(void* callback_context, bool (*callback)(struct FileSystem* fs, void* context));
+
+/**
  * @brief Mounts the file system.
  * @param[in] fs the FileSystem object
  * @return ERROR_NONE on success, or an error code

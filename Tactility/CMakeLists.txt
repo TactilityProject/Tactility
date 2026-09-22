@@ -32,6 +32,7 @@ list(APPEND REQUIRES_LIST
     c-symbols-module
     cpp-symbols-module
     crypt-module
+    font-module
     freertos-module
     gps-module
     http-module
@@ -210,3 +211,21 @@ set_source_files_properties("${GENERATED_DIR}/devicetree.h" PROPERTIES GENERATED
 target_sources(${COMPONENT_LIB} PRIVATE "${GENERATED_DIR}/devicetree.c")
 target_include_directories(${COMPONENT_LIB} PRIVATE "${GENERATED_DIR}")
 add_dependencies(${COMPONENT_LIB} Generated)
+
+#
+# Terminal font
+#
+
+if (DEFINED ENV{ESP_IDF_VERSION})
+    GET_PROPERTY_FILE_CONTENT("${CMAKE_CURRENT_LIST_DIR}/../sdkconfig" sdkconfig_text)
+    GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_TERMINAL_FONT_SIZE" terminal_font_size)
+else ()
+    # Default values for simulator
+    set(terminal_font_size 14)
+endif ()
+
+message("Terminal font size: ${terminal_font_size}")
+target_compile_definitions(${COMPONENT_LIB} PUBLIC
+    "-DTT_TERMINAL_FONT_SIZE=${terminal_font_size}"
+    "-DTT_TERMINAL_FONT_SYMBOL=ibmplexmono_${terminal_font_size}_font"
+)

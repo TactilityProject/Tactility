@@ -48,6 +48,7 @@ typedef struct {
 } __attribute__((packed)) vterm_cell_t;
 
 error_t vterm_init(void);
+void vterm_deinit(void);
 void vterm_switch(int vt_id);
 int vterm_get_active(void);
 int vterm_input_feed(char c);

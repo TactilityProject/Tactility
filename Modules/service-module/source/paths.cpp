@@ -8,7 +8,7 @@
 extern "C" {
 
 error_t service_paths_get_user_data_directory(const char* service_id, char* out_path, size_t out_path_size) {
-    char root[192];
+    char root[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = paths_get_data_path(root, sizeof(root));
     if (error != ERROR_NONE) {
         return error;
@@ -21,7 +21,7 @@ error_t service_paths_get_user_data_directory(const char* service_id, char* out_
 }
 
 error_t service_paths_get_user_data_path(const char* service_id, const char* child_path, char* out_path, size_t out_path_size) {
-    char directory[224];
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = service_paths_get_user_data_directory(service_id, directory, sizeof(directory));
     if (error != ERROR_NONE) {
         return error;
@@ -34,7 +34,7 @@ error_t service_paths_get_user_data_path(const char* service_id, const char* chi
 }
 
 error_t service_paths_get_assets_directory(const char* service_id, char* out_path, size_t out_path_size) {
-    char directory[224];
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = service_paths_get_user_data_directory(service_id, directory, sizeof(directory));
     if (error != ERROR_NONE) {
         return error;
@@ -47,7 +47,7 @@ error_t service_paths_get_assets_directory(const char* service_id, char* out_pat
 }
 
 error_t service_paths_get_assets_path(const char* service_id, const char* child_path, char* out_path, size_t out_path_size) {
-    char directory[224];
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = service_paths_get_assets_directory(service_id, directory, sizeof(directory));
     if (error != ERROR_NONE) {
         return error;

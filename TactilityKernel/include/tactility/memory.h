@@ -47,12 +47,6 @@ extern const struct MemoryPolicy MEMORY_POLICY_DEFAULT;
 void memory_log_stats(void);
 
 /**
- * @brief Print heap usage to stdout.
- * No-op on platforms without heap capability tracking.
- */
-void memory_print_stats(void);
-
-/**
  * @brief Allocates memory that satisfies the given policy.
  * @param[in] size number of bytes to allocate
  * @param[in] policy the allocation constraints

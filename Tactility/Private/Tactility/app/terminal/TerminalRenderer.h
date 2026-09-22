@@ -10,7 +10,7 @@ struct Device;
  * Owns everything about the terminal grid that doesn't depend on how pixels actually reach the
  * panel: glyph painting, the shadow buffer used to skip unchanged cells, and cursor blink state.
  * A subclass supplies the panel/frame dimension relationship and how the off-screen frame buffer
- * gets onto the display - see TerminalRendererPpa (hardware rotate, for a landscape terminal on a
+ * gets onto the display: see TerminalRendererPpa (hardware rotate, for a landscape terminal on a
  * portrait panel) and TerminalRendererGeneric (direct blit, panel's native orientation, no extra
  * hardware needed).
  *
@@ -29,7 +29,7 @@ public:
      *
      * @param display the display device to draw to
      *
-     * Glyphs are drawn at their native size - never scaled up or down.
+     * Glyphs are drawn at their native size, never scaled up or down.
      */
     virtual bool begin(Device* display) = 0;
 
@@ -39,8 +39,8 @@ public:
     /**
      * Repaints changed cells and presents the frame. Pass true to redraw everything.
      *
-     * Also drives the cursor blink, so this must be called regularly even when nothing has changed
-     * — the blink phase advances on wall-clock time rather than on frame count.
+     * Also drives the cursor blink, so this must be called regularly even when nothing has changed.
+     * The blink phase advances on wall-clock time rather than on frame count.
      */
     void render(bool force = false);
 
@@ -61,13 +61,6 @@ protected:
      * frameWidth/frameHeight first.
      */
     bool allocateCommon(Device* display);
-
-    /**
-     * Picks haxornarrow18 or haxormedium10 based on panelWidth/panelHeight, setting glyphWidth/
-     * glyphHeight/glyphBytesPerRow/glyphBitmap. Called by allocateCommon() before the cell grid is
-     * sized, so panelWidth/panelHeight must already be set.
-     */
-    void selectFont();
 
     /** Frees frameBuffer, the shadow grid, and the borrowed hw double buffer, if any. */
     void freeCommon();
@@ -115,17 +108,10 @@ protected:
     int cols = 0;
     int rowCount = 0;
 
-    // Cell size on screen. Glyphs are drawn at native size, so this equals glyphWidth/glyphHeight.
+    // Cell size on screen. Glyphs are drawn at native size, so this equals TT_TERMINAL_FONT_SYMBOL's
+    // glyph_width/glyph_height (see TerminalRenderer.cpp).
     int cellWidth = 0;
     int cellHeight = 0;
-
-    // Font selected by selectFont(): haxornarrow18 (10x23) normally, haxormedium10 (6x11) on panels
-    // too small to show a useful amount of text at the full size. glyphBytesPerRow is
-    // ceil(glyphWidth / 8); each glyph row is that many bytes, MSB of the first byte leftmost.
-    int glyphWidth = 8;
-    int glyphHeight = 16;
-    int glyphBytesPerRow = 1;
-    const uint8_t* glyphBitmap = nullptr;
 
     // Pixel offset of the grid within the frame. The cell size rarely divides the panel exactly,
     // so the remainder is split between opposite edges rather than left as a strip at one end.

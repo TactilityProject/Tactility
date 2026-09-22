@@ -2,6 +2,15 @@
 
 #include <Tactility/app/terminal/Scrollback.h>
 
+#include <font/fonts.h>
+#include <font/render.h>
+
+// The font struct to use, e.g. ibmplexmono_14_font (see font/fonts.h) - set per device/build via
+// a compile definition; that font's Kconfig entry (Modules/font-module/Kconfig) must be enabled.
+#ifndef TT_TERMINAL_FONT_SYMBOL
+#error TT_TERMINAL_FONT_SYMBOL is not set
+#endif
+
 #include <tactility/drivers/display.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
@@ -20,32 +29,15 @@ extern "C" {
 
 constexpr auto* TAG = "TermRender";
 
-// Haxor Narrow 10x23 and a smaller Haxor Medium 6x11 variant, generated alongside vterm by
-// Buildscripts/generate-font.py. Glyphs run contiguously from 0x20, so each bitmap is indexed as
-// glyph[(ch - 0x20) * height * bytesPerRow + row * bytesPerRow + byte].
-extern "C" const uint8_t haxornarrow18_glyph_bitmap[];
-extern "C" const uint8_t haxormedium10_glyph_bitmap[];
-
 namespace {
-
-constexpr unsigned char GLYPH_FIRST = 0x20;
-constexpr unsigned char GLYPH_LAST = 0x7E;
-
-// Panels at or below this bounding box (in either orientation) get the half-sized font, since
-// the full 8x16 Terminus leaves too little screen for a useful amount of text.
-constexpr int SMALL_FONT_MAX_SHORT_SIDE = 240;
-constexpr int SMALL_FONT_MAX_LONG_SIDE = 320;
 
 // Half-period of the cursor blink: on for this long, then off for this long.
 constexpr uint32_t CURSOR_BLINK_INTERVAL_MS = 500;
 
 /*
- * The 16 ANSI colours come from vterm rather than being duplicated here.
- *
- * There used to be a second table at this point, which meant vterm_set_palette() changed a table
- * nothing drew from - the API existed and did nothing visible. Reading vterm's makes it the single
- * source of truth, so a program that recolours the terminal (plasma sets a 16-entry RGB565 ramp)
- * actually affects what appears.
+ * The 16 ANSI colours come from vterm rather than being duplicated here, so vterm's palette stays
+ * the single source of truth: a program that recolours the terminal (plasma sets a 16-entry RGB565
+ * ramp) actually affects what appears.
  *
  * Index is vterm's 4-bit colour: 0-7 normal, 8-15 bright.
  */
@@ -55,30 +47,11 @@ inline uint16_t paletteColour(uint8_t index) {
 
 } // namespace
 
-void TerminalRenderer::selectFont() {
-    const int shortSide = (panelWidth < panelHeight) ? panelWidth : panelHeight;
-    const int longSide = (panelWidth < panelHeight) ? panelHeight : panelWidth;
-
-    if (shortSide <= SMALL_FONT_MAX_SHORT_SIDE && longSide <= SMALL_FONT_MAX_LONG_SIDE) {
-        glyphWidth = 6;
-        glyphHeight = 11;
-        glyphBytesPerRow = 1;
-        glyphBitmap = haxormedium10_glyph_bitmap;
-    } else {
-        glyphWidth = 10;
-        glyphHeight = 23;
-        glyphBytesPerRow = 2;
-        glyphBitmap = haxornarrow18_glyph_bitmap;
-    }
-}
-
 bool TerminalRenderer::allocateCommon(Device* displayDevice) {
     display = displayDevice;
 
-    selectFont();
-
-    cellWidth = glyphWidth;
-    cellHeight = glyphHeight;
+    cellWidth = TT_TERMINAL_FONT_SYMBOL.glyph_width;
+    cellHeight = TT_TERMINAL_FONT_SYMBOL.glyph_height;
 
     cols = frameWidth / cellWidth;
     rowCount = frameHeight / cellHeight;
@@ -94,8 +67,8 @@ bool TerminalRenderer::allocateCommon(Device* displayDevice) {
     }
 
     /*
-     * The grid rarely divides the panel exactly - 720 pixels of height at 32 pixels a cell leaves
-     * half a cell over - so the slack is split between the two edges rather than all left at the
+     * The grid rarely divides the panel exactly (720 pixels of height at 32 pixels a cell leaves
+     * half a cell over), so the slack is split between the two edges rather than all left at the
      * bottom, where it shows as a strip of dead space below the last row.
      */
     originX = (frameWidth - cols * cellWidth) / 2;
@@ -168,22 +141,8 @@ void TerminalRenderer::paintCell(int row, int col, char ch, uint8_t attr) {
     const uint16_t fg = paletteColour(VTERM_ATTR_FG(attr));
     const uint16_t bg = paletteColour(VTERM_ATTR_BG(attr));
 
-    // Anything outside the font's range renders as blank rather than as garbage. The comparison
-    // uses an unsigned value so that a byte above 0x7F cannot come out negative and pass the
-    // lower-bound test.
-    const unsigned char raw = static_cast<unsigned char>(ch);
-    const unsigned char glyphChar = (raw >= GLYPH_FIRST && raw <= GLYPH_LAST) ? raw : ' ';
-    const uint8_t* glyph = &glyphBitmap[(glyphChar - GLYPH_FIRST) * glyphHeight * glyphBytesPerRow];
-
-    for (int y = 0; y < glyphHeight; y++) {
-        const uint8_t* bits = &glyph[y * glyphBytesPerRow];
-        uint16_t* out = &frameBuffer[(originY + row * cellHeight + y) * frameWidth + originX + col * cellWidth];
-
-        for (int x = 0; x < glyphWidth; x++) {
-            // The font stores the leftmost pixel of each row byte in the most significant bit.
-            out[x] = (bits[x / 8] & (0x80U >> (x % 8))) ? fg : bg;
-        }
-    }
+    uint16_t* out = &frameBuffer[(originY + row * cellHeight) * frameWidth + originX + col * cellWidth];
+    font_render_char(&TT_TERMINAL_FONT_SYMBOL, ch, fg, bg, out, frameWidth);
 }
 
 void TerminalRenderer::paintCursor(int row, int col) {
@@ -266,7 +225,7 @@ void TerminalRenderer::render(bool force) {
     vterm_get_cursor(vterm_get_active(), &col, &row, &visible);
 
     // Typing should not make the cursor flicker off mid-keystroke, so restart the blink cycle
-    // whenever it moves - the cursor is then solid for a full interval at its new position.
+    // whenever it moves: the cursor is then solid for a full interval at its new position.
     if (row != cursorRow || col != cursorCol) {
         cursorRow = row;
         cursorCol = col;
@@ -285,7 +244,7 @@ void TerminalRenderer::render(bool force) {
         changed = true;
     }
 
-    // Presenting is a whole-frame operation, so it only runs when something actually changed - an
+    // Presenting is a whole-frame operation, so it only runs when something actually changed; an
     // idle prompt costs only the comparison loop and the blink toggle.
     if (changed) {
         present();

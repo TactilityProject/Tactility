@@ -54,4 +54,17 @@ error_t paths_get_data_path(char* out_path, size_t out_path_size) {
     return ERROR_NONE;
 }
 
+error_t paths_get_temp_path(char* out_path, size_t out_path_size) {
+    char data_path[64];
+    error_t error = paths_get_data_root_path(data_path, sizeof(data_path));
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    int written = std::snprintf(out_path, out_path_size, "%s/tactility/tmp", data_path);
+    if (written < 0 || (size_t)written >= out_path_size) {
+        return ERROR_BUFFER_OVERFLOW;
+    }
+    return ERROR_NONE;
+}
+
 } // extern "C"

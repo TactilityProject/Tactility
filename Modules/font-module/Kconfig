@@ -1,0 +1,32 @@
+menu "Fonts"
+    config TT_FONT_IBMPLEXMONO_12
+        bool "IBM Plex Mono 12 (7x12)"
+        default n
+        help
+            Include the ibmplexmono12 bitmap font.
+    config TT_FONT_IBMPLEXMONO_14
+        bool "IBM Plex Mono 14 (8x14)"
+        default n
+        help
+            Include the ibmplexmono14 bitmap font.
+    config TT_FONT_IBMPLEXMONO_16
+        bool "IBM Plex Mono 16 (10x16)"
+        default n
+        help
+            Include the ibmplexmono16 bitmap font.
+    config TT_FONT_IBMPLEXMONO_18
+        bool "IBM Plex Mono 18 (11x18)"
+        default n
+        help
+            Include the ibmplexmono18 bitmap font.
+    config TT_FONT_IBMPLEXMONO_24
+        bool "IBM Plex Mono 24 (14x24)"
+        default n
+        help
+            Include the ibmplexmono24 bitmap font.
+    config TT_FONT_IBMPLEXMONO_28
+        bool "IBM Plex Mono 28 (17x28)"
+        default n
+        help
+            Include the ibmplexmono28 bitmap font.
+endmenu

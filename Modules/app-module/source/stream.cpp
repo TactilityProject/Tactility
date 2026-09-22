@@ -205,6 +205,25 @@ error_t app_stream_subscribe(AppStream* stream, void* buffer, size_t buffer_capa
     return bind_result;
 }
 
+error_t app_stream_bind_alias_fd(AppStream* stream, int alias_fd) {
+    if (alias_fd < 0 || alias_fd >= APP_MAX_FDS) {
+        return ERROR_OUT_OF_RANGE;
+    }
+
+    // Same locking rationale as app_stream_subscribe(): held across the fd-table lookup and bind
+    // so this can't race app_fd_table_teardown().
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    auto iterator = ledger.instances.find(stream->producer_id);
+    if (iterator == ledger.instances.end()) {
+        mutex_unlock(&ledger.mutex);
+        return ERROR_NOT_FOUND;
+    }
+    error_t result = app_fd_table_bind(&iterator->second.fd_table, alias_fd, &STREAM_OPS, stream, /*suppress_console_tee=*/false);
+    mutex_unlock(&ledger.mutex);
+    return result;
+}
+
 error_t app_stream_unsubscribe(AppStream* stream) {
     // Held across the fd-table lookup, get, and close. See app_stream_subscribe()'s own
     // comment on why this must stay exclusive with app_fd_table_teardown().

@@ -27,6 +27,7 @@ constexpr auto HID_PROC_TASK_STACK    = 4096;
 constexpr auto HID_PROC_TASK_PRIORITY = 5;
 constexpr auto HID_STOP_TIMEOUT_MS    = 2000;
 constexpr auto MAX_SUBSCRIBERS        = 4;
+constexpr auto USB_HID_KB_QUEUE_SIZE  = 16;
 
 typedef struct {
     hid_host_device_handle_t handle;
@@ -436,9 +437,47 @@ static const UsbHidApi hid_api = {
 extern "C" {
 
 // region Dynamic KEYBOARD_TYPE device
+//
+// While a physical USB keyboard is connected, a KEYBOARD_TYPE child device is constructed so the
+// rest of the system (lvgl_hardware_keyboard_is_available(), Tactility's KeyboardDeviceListener)
+// sees a real hardware keyboard through the same generic device model as any other keyboard. Real
+// key events are queued here and drained by read_key(), same as every other keyboard driver in
+// the tree (tab5, tdeck, sdl) - none of them push via keyboard_emit_key() either, since
+// keyboard_read_key() already fans a read_key() result out to keyboard_subscribe()'d subscribers
+// itself.
+
+static error_t usb_hid_kb_device_start(Device* device) {
+    auto* queue = xQueueCreate(USB_HID_KB_QUEUE_SIZE, sizeof(KeyboardKeyData));
+    if (queue == nullptr) {
+        return ERROR_RESOURCE;
+    }
+    device_set_driver_data(device, queue);
+    return ERROR_NONE;
+}
+
+static error_t usb_hid_kb_device_stop(Device* device) {
+    auto* queue = static_cast<QueueHandle_t>(device_get_driver_data(device));
+    vQueueDelete(queue);
+    device_set_driver_data(device, nullptr);
+    return ERROR_NONE;
+}
+
+static error_t usb_hid_kb_device_read_key(Device* device, KeyboardKeyData* data) {
+    auto* queue = static_cast<QueueHandle_t>(device_get_driver_data(device));
+    if (queue == nullptr) {
+        *data = {};
+        return ERROR_NONE;
+    }
+    if (xQueueReceive(queue, data, 0) != pdTRUE) {
+        *data = {};
+        return ERROR_NONE;
+    }
+    data->continue_reading = uxQueueMessagesWaiting(queue) > 0;
+    return ERROR_NONE;
+}
 
 static const KeyboardApi esp32_usbhost_hid_keyboard_api = {
-    .read_key = nullptr,
+    .read_key = usb_hid_kb_device_read_key,
     .get_backlight = nullptr,
     .is_present = nullptr,
 };
@@ -446,8 +485,8 @@ static const KeyboardApi esp32_usbhost_hid_keyboard_api = {
 Driver esp32_usbhost_hid_keyboard_driver = {
     .name = "esp32_usbhost_hid_keyboard",
     .compatible = (const char*[]) { nullptr },
-    .start_device = nullptr,
-    .stop_device = nullptr,
+    .start_device = usb_hid_kb_device_start,
+    .stop_device = usb_hid_kb_device_stop,
     .probe = nullptr,
     .api = &esp32_usbhost_hid_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
@@ -505,8 +544,9 @@ static void usb_hid_keyboard_publish_key(UsbHidContext* ctx, uint32_t lv_key, bo
     if (!ctx->kb_device_active) {
         return;
     }
+    auto* queue = static_cast<QueueHandle_t>(device_get_driver_data(&ctx->kb_device));
     KeyboardKeyData data = { lv_key, pressed, false, ctrl, alt, hid_keycode, hid_modifier };
-    keyboard_emit_key(&ctx->kb_device, data);
+    xQueueSend(queue, &data, 0);
 }
 
 // endregion

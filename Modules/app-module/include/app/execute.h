@@ -94,6 +94,8 @@ error_t app_execute_for_result_with_streams(
  */
 bool app_is_executable(struct AppLocation location);
 
+bool app_is_executable_path(const char* path);
+
 #ifdef __cplusplus
 }
 #endif

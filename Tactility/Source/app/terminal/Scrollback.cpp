@@ -160,7 +160,7 @@ bool rowForDisplay(int screenRow, int screenRows, void* out) {
  * C entry point for vterm's scroll hook.
  *
  * vterm takes a plain function pointer from C code, so the C++ member cannot be handed over
- * directly - this thin wrapper gives it the linkage it needs.
+ * directly; this thin wrapper gives it the linkage it needs.
  */
 extern "C" void scrollback_capture_top_line() {
     Scrollback::captureTopLine();

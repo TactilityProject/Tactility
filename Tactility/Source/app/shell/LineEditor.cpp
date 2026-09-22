@@ -11,9 +11,9 @@ namespace {
 
 // Straight to this app's own fd 1 rather than through Shell::print()/fwrite(): the prompt, echo
 // and cursor movement belong to the terminal itself and must never end up in a command's redirect
-// target - sh_redir.c only ever swaps the stdout/stderr/stdin FILE*, never fd 1 itself, which is
+// target. sh_redir.c only ever swaps the stdout/stderr/stdin FILE*, never fd 1 itself, which is
 // always piped to the terminal app running it. fwrite() would also miss this app's own stdio
-// wrapping entirely (see AppStdioWrap.cpp), leaving nothing for that pipe to carry.
+// wrapping entirely (see stdio_wrap.cpp), leaving nothing for that pipe to carry.
 void write(const char* text, size_t length) {
     const char* bytes = text;
     size_t remaining = length;
@@ -86,8 +86,8 @@ void LineEditor::refresh() {
     const size_t promptLength = promptWidth;
 
     // A prompt plus a long line wraps across several screen rows. "\r" only returns to the start of
-    // the current row and CSI K only erases that row, so redrawing from there left the earlier rows
-    // in place and pushed a fresh copy down the screen - one duplicate per keystroke.
+    // the current row and CSI K only erases that row, so redrawing from there would leave the
+    // earlier rows in place and push a fresh copy down the screen: one duplicate per keystroke.
     //
     // The cursor is therefore walked up to the row where the line starts, and every row it occupies
     // is cleared before reprinting.
@@ -131,11 +131,8 @@ void LineEditor::refresh() {
     /*
      * No nudge is needed to make an exactly-full line wrap.
      *
-     * This used to write " \r" when the text filled a row exactly, because the old terminal moved
-     * the cursor off the row as soon as the last column was written and the position had to be
-     * forced back to something predictable. vterm defers the wrap now - the cursor stays on the
-     * last column until another character arrives - so writing that space created a row that was
-     * not really there, which is what made backspacing a wrapped line duplicate it.
+     * vterm defers the wrap: the cursor stays on the last column of a full row until another
+     * character arrives, so nothing needs to force it onto a row that is not really there yet.
      */
 
     // Put the cursor back where it belongs if it isn't at the end.
@@ -157,9 +154,9 @@ void LineEditor::refresh() {
          * Return to column 0, then step right to the target column.
          *
          * The step is omitted when the target *is* column 0: "ESC[0C" does not mean "move zero
-         * columns" - a missing or zero parameter means one, per the standard - so emitting it
-         * would move the cursor one cell too far. That is what made the cursor skip a character
-         * either side of a line wrap and need two presses to cross it.
+         * columns" (a missing or zero parameter means one, per the standard), so emitting it
+         * would move the cursor one cell too far, making it skip a character either side of a line
+         * wrap and need two presses to cross it.
          */
         const unsigned targetColumn = static_cast<unsigned>(target % columns);
         if (targetColumn == 0) {
@@ -214,7 +211,7 @@ void LineEditor::insert(char c) {
     buffer[length] = '\0';
 
     if (cursor == length) {
-        // Appending at the end is the common case and needs no redraw - the terminal advances the
+        // Appending at the end is the common case and needs no redraw: the terminal advances the
         // cursor itself, wrapping to the next row when it runs out of width. drawnRows has to
         // follow that, or a later refresh() would erase fewer rows than the line occupies.
         write(&c, 1);
@@ -337,30 +334,30 @@ bool LineEditor::feed(char c, const char** outLine) {
             backspace();
             return false;
 
-        case 0x01: // Ctrl+A - start of line
+        case 0x01: // Ctrl+A: start of line
             cursor = 0;
             refresh();
             return false;
 
-        case 0x05: // Ctrl+E - end of line
+        case 0x05: // Ctrl+E: end of line
             cursor = length;
             refresh();
             return false;
 
-        case 0x0B: // Ctrl+K - erase to end of line
+        case 0x0B: // Ctrl+K: erase to end of line
             length = cursor;
             buffer[length] = '\0';
             refresh();
             return false;
 
-        case 0x15: // Ctrl+U - erase whole line
+        case 0x15: // Ctrl+U: erase whole line
             length = 0;
             cursor = 0;
             buffer[0] = '\0';
             refresh();
             return false;
 
-        case 0x03: // Ctrl+C - abandon this line without running it
+        case 0x03: // Ctrl+C: abandon this line without running it
             write("^C\r\n");
             buffer[0] = '\0';
             length = 0;
@@ -369,7 +366,7 @@ bool LineEditor::feed(char c, const char** outLine) {
             write(prompt);
             return false;
 
-        case 0x0C: // Ctrl+L - clear screen and redraw
+        case 0x0C: // Ctrl+L: clear screen and redraw
             write("\x1B[2J\x1B[H");
             refresh();
             return false;
