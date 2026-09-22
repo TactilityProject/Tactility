@@ -209,6 +209,14 @@
 		usbhostmsc0 {
 			compatible = "espressif,esp32-usbhost-msc";
 		};
+
+		// USB headphones/headsets (UAC 1.0, 48 kHz / 16-bit / stereo PCM output).
+		// The manager installs the class client; a dynamic "usb_uac0" codec device
+		// appears per connected headset and the audio-stream aggregate re-binds
+		// output to it.
+		usbhostaudio0 {
+			compatible = "espressif,esp32-usbhost-uac";
+		};
 	};
 
 	usbdevice0 {

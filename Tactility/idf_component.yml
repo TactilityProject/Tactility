@@ -1,6 +1,7 @@
 dependencies:
   espressif/cjson: "^1.7.19"
   espressif/esp_codec_dev: "1.5.10"
+  espressif/esp_audio_codec: "2.4.0"
   espressif/esp_video:
     version: "2.2.0"
     rules:
@@ -87,6 +88,11 @@ dependencies:
     version: "1.1.0"
     rules:
       - if: "target in [esp32s3, esp32p4]"
+  # USB Audio Class host client: USB headphones/headsets output.
+  espressif/usb_host_uac:
+    version: "1.5.0"
+    rules:
+      - if: "target in [esp32s3, esp32p4]"
   espressif/usb_host_msc:
     version: "1.1.4"
     rules:
@@ -96,4 +102,3 @@ dependencies:
     rules:
       - if: "target in [esp32, esp32s3, esp32p4]"
   idf: '6.1.0'
-

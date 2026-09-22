@@ -4,6 +4,7 @@ set(DOCTESTINC ${PROJECT_SOURCE_DIR}/Doctest/Include)
 
 enable_testing()
 add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/service-module/tests ${CMAKE_CURRENT_BINARY_DIR}/service-module)
+add_subdirectory(${CMAKE_SOURCE_DIR}/Drivers/audio-stream-module/tests ${CMAKE_CURRENT_BINARY_DIR}/audio-stream-module)
 add_subdirectory(${CMAKE_SOURCE_DIR}/TactilityFreeRtos/Tests ${CMAKE_CURRENT_BINARY_DIR}/TactilityFreeRtos)
 add_subdirectory(${CMAKE_SOURCE_DIR}/TactilityKernel/tests ${CMAKE_CURRENT_BINARY_DIR}/TactilityKernel)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Tactility/Tests ${CMAKE_CURRENT_BINARY_DIR}/Tactility)
@@ -14,6 +15,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/http-module/tests ${CMAKE_CURRENT_B
 
 add_custom_target(build-tests)
 add_dependencies(build-tests ServiceModuleTests)
+add_dependencies(build-tests AudioStreamModuleTests)
 add_dependencies(build-tests TactilityFreeRtosTests)
 add_dependencies(build-tests TactilityTests)
 add_dependencies(build-tests TactilityKernelTests)

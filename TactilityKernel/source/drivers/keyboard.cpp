@@ -7,6 +7,55 @@
 
 #define KEYBOARD_DRIVER_API(driver) ((struct KeyboardApi*)driver->api)
 
+// USB HID Usage Tables (page 0x07) key codes used by keyboard_key_from_hid_usage(). Values
+// match the HID_KEY_* constants in Espressif's usb/hid_usage_keyboard.h.
+enum {
+    HID_KEYCODE_ENTER         = 0x28,
+    HID_KEYCODE_ESC           = 0x29,
+    HID_KEYCODE_BACKSPACE     = 0x2A,
+    HID_KEYCODE_TAB           = 0x2B,
+    HID_KEYCODE_HOME          = 0x4A,
+    HID_KEYCODE_DELETE        = 0x4C,
+    HID_KEYCODE_END           = 0x4D,
+    HID_KEYCODE_RIGHT         = 0x4F,
+    HID_KEYCODE_LEFT          = 0x50,
+    HID_KEYCODE_DOWN          = 0x51,
+    HID_KEYCODE_UP            = 0x52,
+    HID_KEYCODE_KEYPAD_DIV    = 0x54,
+    HID_KEYCODE_KEYPAD_MUL    = 0x55,
+    HID_KEYCODE_KEYPAD_SUB    = 0x56,
+    HID_KEYCODE_KEYPAD_ADD    = 0x57,
+    HID_KEYCODE_KEYPAD_ENTER  = 0x58,
+    HID_KEYCODE_KEYPAD_1      = 0x59,
+    HID_KEYCODE_KEYPAD_2      = 0x5A,
+    HID_KEYCODE_KEYPAD_3      = 0x5B,
+    HID_KEYCODE_KEYPAD_4      = 0x5C,
+    HID_KEYCODE_KEYPAD_5      = 0x5D,
+    HID_KEYCODE_KEYPAD_6      = 0x5E,
+    HID_KEYCODE_KEYPAD_7      = 0x5F,
+    HID_KEYCODE_KEYPAD_8      = 0x60,
+    HID_KEYCODE_KEYPAD_9      = 0x61,
+    HID_KEYCODE_KEYPAD_0      = 0x62,
+    HID_KEYCODE_KEYPAD_DELETE = 0x63,
+};
+
+// Unshifted/shifted ASCII for usage codes 0x00-0x38, in usage-code order.
+static const uint8_t hid_keycode_to_ascii[57][2] = {
+    {0, 0}, {0, 0}, {0, 0}, {0, 0},
+    {'a', 'A'}, {'b', 'B'}, {'c', 'C'}, {'d', 'D'}, {'e', 'E'},
+    {'f', 'F'}, {'g', 'G'}, {'h', 'H'}, {'i', 'I'}, {'j', 'J'},
+    {'k', 'K'}, {'l', 'L'}, {'m', 'M'}, {'n', 'N'}, {'o', 'O'},
+    {'p', 'P'}, {'q', 'Q'}, {'r', 'R'}, {'s', 'S'}, {'t', 'T'},
+    {'u', 'U'}, {'v', 'V'}, {'w', 'W'}, {'x', 'X'}, {'y', 'Y'},
+    {'z', 'Z'},
+    {'1', '!'}, {'2', '@'}, {'3', '#'}, {'4', '$'}, {'5', '%'},
+    {'6', '^'}, {'7', '&'}, {'8', '*'}, {'9', '('}, {'0', ')'},
+    {'\r', '\r'}, {0, 0}, {'\b', 0}, {'\t', '\t'}, {' ', ' '},
+    {'-', '_'}, {'=', '+'}, {'[', '{'}, {']', '}'},
+    {'\\', '|'}, {'\\', '|'}, {';', ':'}, {'\'', '"'},
+    {'`', '~'}, {',', '<'}, {'.', '>'}, {'/', '?'},
+};
+
 // Subscriptions, filtered by `device` on fan-out.
 static KeyboardEventSubscription* subscriptions = nullptr;
 
@@ -46,6 +95,53 @@ static bool try_pop(KeyboardEventSubscription* sub, KeyboardKeyData* out_data) {
 }
 
 extern "C" {
+
+uint32_t keyboard_key_from_hid_usage(uint8_t hid_modifier, uint8_t hid_keycode,
+                                     bool caps_lock, bool num_lock) {
+    bool shift = (hid_modifier & KEYBOARD_HID_MOD_LEFT_SHIFT) || (hid_modifier & KEYBOARD_HID_MOD_RIGHT_SHIFT);
+
+    switch (hid_keycode) {
+        case HID_KEYCODE_ENTER:         return CODEPOINT_ENTER;
+        case HID_KEYCODE_ESC:           return CODEPOINT_ESCAPE;
+        case HID_KEYCODE_BACKSPACE:     return CODEPOINT_BACKSPACE;
+        case HID_KEYCODE_DELETE:        return CODEPOINT_DELETE;
+        case HID_KEYCODE_TAB:           return CODEPOINT_TAB;
+        case HID_KEYCODE_UP:            return CODEPOINT_ARROW_UP;
+        case HID_KEYCODE_DOWN:          return CODEPOINT_ARROW_DOWN;
+        case HID_KEYCODE_LEFT:          return CODEPOINT_ARROW_LEFT;
+        case HID_KEYCODE_RIGHT:         return CODEPOINT_ARROW_RIGHT;
+        case HID_KEYCODE_HOME:          return CODEPOINT_HOME;
+        case HID_KEYCODE_END:           return CODEPOINT_END;
+        case HID_KEYCODE_KEYPAD_ENTER:  return CODEPOINT_ENTER;
+        case HID_KEYCODE_KEYPAD_ADD:    return '+';
+        case HID_KEYCODE_KEYPAD_SUB:    return '-';
+        case HID_KEYCODE_KEYPAD_MUL:    return '*';
+        case HID_KEYCODE_KEYPAD_DIV:    return '/';
+        case HID_KEYCODE_KEYPAD_0:      return num_lock ? (uint32_t)'0' : 0u;
+        case HID_KEYCODE_KEYPAD_1:      return num_lock ? (uint32_t)'1' : (uint32_t)CODEPOINT_END;
+        case HID_KEYCODE_KEYPAD_2:      return num_lock ? (uint32_t)'2' : (uint32_t)CODEPOINT_ARROW_DOWN;
+        case HID_KEYCODE_KEYPAD_3:      return num_lock ? (uint32_t)'3' : 0u;
+        case HID_KEYCODE_KEYPAD_4:      return num_lock ? (uint32_t)'4' : (uint32_t)CODEPOINT_ARROW_LEFT;
+        case HID_KEYCODE_KEYPAD_5:      return num_lock ? (uint32_t)'5' : 0u;
+        case HID_KEYCODE_KEYPAD_6:      return num_lock ? (uint32_t)'6' : (uint32_t)CODEPOINT_ARROW_RIGHT;
+        case HID_KEYCODE_KEYPAD_7:      return num_lock ? (uint32_t)'7' : (uint32_t)CODEPOINT_HOME;
+        case HID_KEYCODE_KEYPAD_8:      return num_lock ? (uint32_t)'8' : (uint32_t)CODEPOINT_ARROW_UP;
+        case HID_KEYCODE_KEYPAD_9:      return num_lock ? (uint32_t)'9' : 0u;
+        case HID_KEYCODE_KEYPAD_DELETE: return num_lock ? (uint32_t)'.' : (uint32_t)CODEPOINT_DELETE;
+        default: break;
+    }
+
+    // Ctrl and Alt do not suppress the key: the modifiers are reported alongside it in
+    // KeyboardKeyData (ctrl/alt), so the plain character still comes through and a consumer
+    // that wants a control code derives it. See KeyboardKeyData::ctrl's doc comment.
+    if (hid_keycode < (sizeof(hid_keycode_to_ascii) / sizeof(hid_keycode_to_ascii[0]))) {
+        bool is_letter = (hid_keycode >= 0x04 && hid_keycode <= 0x1D);
+        bool effective_shift = is_letter ? (shift ^ caps_lock) : shift;
+        uint8_t ch = hid_keycode_to_ascii[hid_keycode][effective_shift ? 1 : 0];
+        if (ch != 0) return (uint32_t)ch;
+    }
+    return 0;
+}
 
 error_t keyboard_read_key(Device* device, KeyboardKeyData* data) {
     // Under the hotplug poller a keyboard device can be constructed but not started (probe

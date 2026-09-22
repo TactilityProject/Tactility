@@ -119,7 +119,7 @@ def main():
     shared.generate_tactility_sdk_top_cmakelists(target_path)
 
     # Output ESP-IDF SDK version to file
-    with open(os.path.join(target_path, "idf-version.txt"), "a") as f:
+    with open(os.path.join(target_path, "idf-version.txt"), "w") as f:
         f.write(esp_idf_version)
 
 if __name__ == "__main__":

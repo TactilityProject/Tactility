@@ -6,11 +6,23 @@
 #include <lvgl/lvgl.h>
 #include <lvgl.h>
 
+#include <atomic>
+
 static lv_display_rotation_t saved_rotation = LV_DISPLAY_ROTATION_0;
 static bool rotation_override_active = false;
+// device_listener_remove() doesn't wait for an in-flight on_device_event() callback to finish -
+// a DEVICE_EVENT_STARTED already snapshotted by device_listener_notify() can still fire after
+// stop() has run. This flag makes such a late callback a no-op instead of re-applying the
+// override after shutdown.
+static std::atomic<bool> listener_active { false };
 
 static void apply_rotation(bool attached) {
     lvgl_lock();
+
+    if (attached && !listener_active.load(std::memory_order_acquire)) {
+        lvgl_unlock();
+        return;
+    }
 
     auto* display = lv_display_get_default();
     if (display == nullptr) {
@@ -37,7 +49,7 @@ static void apply_rotation(bool attached) {
 }
 
 static void on_device_event(Device* device, DeviceEvent event, void*) {
-    if (!device_is_compatible(device, "m5stack,tab5-keyboard")) {
+    if (!listener_active.load(std::memory_order_acquire) || !device_is_compatible(device, "m5stack,tab5-keyboard")) {
         return;
     }
     if (event == DEVICE_EVENT_STARTED) {
@@ -49,10 +61,13 @@ static void on_device_event(Device* device, DeviceEvent event, void*) {
 
 void tab5_keyboard_lvgl_rotation_start() {
     rotation_override_active = false;
+    listener_active.store(true, std::memory_order_release);
     device_listener_add(on_device_event, nullptr);
 }
 
 void tab5_keyboard_lvgl_rotation_stop() {
+    // Set before apply_rotation()/device_listener_remove(): a late in-flight callback must no-op.
+    listener_active.store(false, std::memory_order_release);
     apply_rotation(false);
-    device_listener_remove(on_device_event);
+    device_listener_remove(on_device_event, nullptr);
 }

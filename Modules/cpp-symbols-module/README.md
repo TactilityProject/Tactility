@@ -7,9 +7,11 @@ instantiation, not a plain function call. Apps still `#include <new>`/`<map>`/`<
 directly; this module only makes sure the actual out-of-line definitions resolve when their ELF
 is loaded into the firmware.
 
-ESP32-only: several of these symbols are mangled for a 32-bit ABI (`j` = `unsigned int`, used
-here to represent `size_t`). On a 64-bit host those would mangle differently (e.g. `_Znwm`
-instead of `_Znwj`), so this module doesn't build for the POSIX simulator.
+Most of this module is ESP32-only: several of these symbols are mangled for a 32-bit ABI (`j` =
+`unsigned int`, used here to represent `size_t`) that only applies there - a 64-bit host mangles
+them differently (e.g. `_Znwm` instead of `_Znwj`). Those sections are gated behind `#ifdef
+ESP_PLATFORM` in `source/module.cpp`; symbols outside that gate (e.g. `__cxa_pure_virtual`,
+`__cxa_guard_*`) build and export on the POSIX simulator too.
 
 ## Supported symbols
 
@@ -74,15 +76,73 @@ symbol - the same trick used for `_M_replace_cold` and friends, except *we* supp
 instead of pointing at one the library already provides). An app whose loaded ELF needs it will
 still fail with `Can't find common ...C1.../...C2.../...C5...`.
 
+### `std::deque<char>` / `<double>` / `<basic_string<char>>`, `std::stack`
+
+Non-template `_Deque_base`/`_Deque_iterator` internals plus each element type's own out-of-line
+member set (push_back/pop_back/emplace_back, map reallocation, iterator arithmetic). Needed by any
+app using `std::stack` (whose default underlying container is `std::deque`). None of this has an
+`extern template` instantiation in libstdc++.a, so every member here is forced into existence by
+a wrapper that calls the real public deque/stack API on a real object (see `source/module.cpp`).
+
+### `std::_Rb_tree<std::string, ...>`, `std::map<std::string, std::string>`
+
+The `std::map<string, string>` instantiation's own non-template-shared internals (on top of the
+generic `_Rb_tree_increment`/`_Rb_tree_insert_and_rebalance` helpers above), plus
+`operator[]`/piecewise-construct support for in-place node construction.
+
+### `std::vector<const char*>`, `std::vector<std::pair<std::string, bool>>`
+
+Same `_M_check_len`/`_Guard_alloc`/`emplace_back`/`_M_realloc_append` pattern as `vector<string>`
+and `vector<unsigned char>` above, for two more element types apps instantiate over.
+
+### `std::shared_ptr<T>` control block
+
+`__shared_count::operator=`, `_Sp_counted_base`'s virtual dispatch, and its vtable, for both lock
+policies (atomic and mutex-based - which one an app's build selects isn't controlled by this
+firmware, so both are exported). Forced via `std::shared_ptr<int>` rather than any real app type,
+since none of these three carry a pointee type in their mangled name.
+
+**Not exported: the raw-pointer constructor** (`__shared_count<Lp>::__shared_count<T*>(T*)`),
+because its mangled name does embed the pointee type `T` - no single firmware-side entry can serve
+every app's `shared_ptr<AppDefinedType>`. This isn't a gap in practice: the app's own compiler
+already emits a local, weak-linkage definition of that exact constructor in the app's own ELF
+(standard behavior for an implicitly-instantiated template), and the ELF loader falls back to an
+app-local definition whenever firmware doesn't provide one, so it resolves without any firmware
+export at all. Confirmed by loading an app holding a `shared_ptr` to one of its own types with
+nothing shared_ptr-specific exported here beyond the generic pieces above.
+
+### `std::function<int(char*, unsigned int)>`
+
+`operator()`, `swap`, copy constructor, and `operator=(nullptr)` for this one call signature.
+
+### Misc algorithm/iterator template instantiations
+
+`__copy_move_a2`, `__copy_move_backward_a2`, `__relocate_a_1`, `__advance`, `iter_swap`,
+`transform`, `std::min`/`std::max<short>` - pulled in by `std::stack`/`vector<pair<...>>` usage
+above rather than needed standalone.
+
 ## Adding a new symbol
 
-1. Find the mangled name (`nm`/`c++filt`, or the linker's "undefined reference" error from an
-   app build).
+1. Find the mangled name. `TactilityApps/Tools/check-app-symbols.py <path/to/App.app.elf>` reports
+   every symbol an app's ELF actually needs firmware to resolve - it already excludes symbols the
+   app's own ELF defines locally (e.g. an implicitly-instantiated template like a `shared_ptr<T>`
+   constructor over an app-defined `T`), so if it doesn't list something, it doesn't need adding
+   here even if the mangled name shows up in the ELF's relocations.
 2. Add an `extern "C"` declaration for it in `source/module.cpp` if the name isn't already a
-   valid identifier you can reference directly (mangled names usually are, e.g. `_ZSt19...`).
+   valid identifier you can reference directly (mangled names usually are, e.g. `_ZSt19...`). If a
+   plain `extern` declaration compiles but fails to *link*, the symbol likely has no `extern
+   template` instantiation anywhere in libstdc++.a (true for `deque`, `vector<pair<...>>`,
+   `shared_ptr`'s control block, `std::function`, and most algorithm templates) - write a small
+   wrapper that calls the real public API on a real object instead (see any of the existing
+   `construct_*`/`destroy_*` functions in this file for the pattern), and register the wrapper's
+   address rather than the mangled name directly.
 3. Add a `DEFINE_MODULE_SYMBOL(...)` entry (or a manual `{ "mangled_name", (void*)&expr }` pair
    when the address isn't reachable through the mangled identifier itself, e.g. `std::nothrow`
    or the `__throw_*` functions).
+4. Rebuild the firmware and confirm with `nm`/`check-app-symbols.py` that the symbol resolves to
+   a real, non-null defined address - a reference that merely compiles and links without error can
+   still silently resolve to the wrong (e.g. an unrelated weak-undefined stub) or a null definition
+   if something else in the link graph shifts which archive member satisfies it first.
 
 ## License
 

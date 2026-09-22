@@ -54,7 +54,9 @@
 #include <Tactility/settings/TouchCalibrationSettings.h>
 #endif
 
+#include <audio_decoder/module.h>
 #include <c_symbols/module.h>
+#include <cjson_symbols/module.h>
 #include <cpp_symbols/module.h>
 #include <crypt/module.h>
 #include <font/module.h>
@@ -81,7 +83,12 @@
 #include <tactility/device.h>
 #include <tactility/drivers/audio_stream.h>
 #include <tactility/drivers/display.h>
+
+
+// Audio service exports to external ELF apps (Source/service/audio/AudioExports.cpp).
+extern "C" Module tactility_audio_module;
 #include <tactility/drivers/grove.h>
+#include <tactility/drivers/imu.h>
 #include <tactility/drivers/power_supply.h>
 #include <tactility/drivers/rtc.h>
 #include <tactility/drivers/trackball.h>
@@ -121,6 +128,7 @@ bool MainDispatcher::dispatch(Function function, TickType_t timeout) const {
 namespace service {
     // Primary
     namespace audio { extern const ServiceManifest manifest; }
+    namespace autorotate { extern const ServiceManifest manifest; }
     namespace wifi { extern const ServiceManifest manifest; }
     namespace development { extern const ServiceManifest manifest; }
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
@@ -444,6 +452,9 @@ static void onLvglStarted() {
 #if defined(ESP_PLATFORM)
     addService(service::displayidle::manifest);
 #endif
+    if (device_exists_of_type(&IMU_TYPE)) {
+        addService(service::autorotate::manifest);
+    }
 #if defined(CONFIG_TT_TDECK_WORKAROUND)
     addService(service::keyboardidle::manifest);
 #endif
@@ -466,6 +477,9 @@ static void onLvglStopped() {
     lvgl::stopKeyboardDeviceListener();
     lvgl::stopUsbHidInput();
 
+    if (device_exists_of_type(&IMU_TYPE)) {
+        check(service::removeService(service::autorotate::manifest.id));
+    }
 #if TT_FEATURE_SCREENSHOT_ENABLED
     check(service::removeService(service::screenshot::manifest.id));
 #endif
@@ -506,6 +520,7 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
 
     // C/C++/Posix symbols
     check(module_ensure_started(&c_symbols_module) == ERROR_NONE);
+    check(module_ensure_started(&cjson_module) == ERROR_NONE);
 #if TT_IS_POSIX or defined(ESP_PLATFORM) // esp-idf supports certain posix symbols
     check(module_ensure_started(&posix_symbols_module) == ERROR_NONE);
 #endif
@@ -518,6 +533,7 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     check(module_ensure_started(&font_module) == ERROR_NONE);
     check(module_ensure_started(&app_module) == ERROR_NONE);
     check(module_ensure_started(&crypt_module) == ERROR_NONE);
+    check(module_ensure_started(&audio_decoder_module) == ERROR_NONE);
     check(module_ensure_started(&mbedtls_module) == ERROR_NONE);
     check(module_ensure_started(&gps_module) == ERROR_NONE);
     check(module_ensure_started(&gps_generic_module) == ERROR_NONE);
@@ -527,6 +543,7 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
 #elif TT_IS_POSIX
     check(module_ensure_started(&app_posix_module) == ERROR_NONE);
 #endif
+    check(module_ensure_started(&tactility_audio_module) == ERROR_NONE);
 
 #ifdef ESP_PLATFORM
     initEsp();

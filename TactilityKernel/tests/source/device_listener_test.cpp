@@ -43,8 +43,8 @@ TEST_CASE("device_listener_notify invokes every registered listener with its own
     CHECK_EQ(calls_b[0].first, &context_b);
     CHECK_EQ(calls_b[0].second, DEVICE_EVENT_STARTED);
 
-    device_listener_remove(listener_a);
-    device_listener_remove(listener_b);
+    device_listener_remove(listener_a, &context_a);
+    device_listener_remove(listener_b, &context_b);
 }
 
 TEST_CASE("device_listener_remove stops further notifications for that callback only") {
@@ -55,7 +55,7 @@ TEST_CASE("device_listener_remove stops further notifications for that callback 
     device_listener_add(listener_a, &context_a);
     device_listener_add(listener_b, &context_b);
 
-    device_listener_remove(listener_a);
+    device_listener_remove(listener_a, &context_a);
 
     auto* fake_device = reinterpret_cast<Device*>(0x1000);
     device_listener_notify(fake_device, DEVICE_EVENT_STOPPED);
@@ -63,7 +63,7 @@ TEST_CASE("device_listener_remove stops further notifications for that callback 
     CHECK_EQ(calls_a.size(), 0);
     CHECK_EQ(calls_b.size(), 1);
 
-    device_listener_remove(listener_b);
+    device_listener_remove(listener_b, &context_b);
 }
 
 TEST_CASE("device_listener_remove on an unregistered callback is a no-op") {
@@ -72,14 +72,35 @@ TEST_CASE("device_listener_remove on an unregistered callback is a no-op") {
     device_listener_add(listener_b, &context_b);
 
     // listener_a was never added, so removing it must not disturb listener_b.
-    device_listener_remove(listener_a);
+    device_listener_remove(listener_a, &context_b);
 
     auto* fake_device = reinterpret_cast<Device*>(0x1000);
     device_listener_notify(fake_device, DEVICE_EVENT_STARTED);
 
     CHECK_EQ(calls_b.size(), 1);
 
-    device_listener_remove(listener_b);
+    device_listener_remove(listener_b, &context_b);
+}
+
+TEST_CASE("device_listener_remove matches on context, not just callback") {
+    reset_calls();
+    int context_a = 1;
+    int context_b = 2;
+
+    // Same callback registered twice for two different "instances".
+    device_listener_add(listener_a, &context_a);
+    device_listener_add(listener_a, &context_b);
+
+    // Removing the first instance must not remove the second.
+    device_listener_remove(listener_a, &context_a);
+
+    auto* fake_device = reinterpret_cast<Device*>(0x1000);
+    device_listener_notify(fake_device, DEVICE_EVENT_STARTED);
+
+    CHECK_EQ(calls_a.size(), 1);
+    CHECK_EQ(calls_a[0].first, &context_b);
+
+    device_listener_remove(listener_a, &context_b);
 }
 
 static bool reentrant_add_triggered = false;
@@ -114,6 +135,6 @@ TEST_CASE("device_listener_notify is safe when a listener adds another listener 
     CHECK_EQ(calls_a.size(), 2);
     CHECK_EQ(calls_b.size(), 1);
 
-    device_listener_remove(reentrant_listener);
-    device_listener_remove(listener_b);
+    device_listener_remove(reentrant_listener, &context_a);
+    device_listener_remove(listener_b, &context_a);
 }

@@ -46,7 +46,14 @@ enum GpioOwnerType {
     /** @brief Pin is claimed by a regular consumer */
     GPIO_OWNER_GPIO,
     /** @brief Pin is owned by SPI. This is a special case because of CS pin transfer from hog to SPI controller. */
-    GPIO_OWNER_SPI
+    GPIO_OWNER_SPI,
+    /**
+     * @brief Pin is claimed by a native ESP-IDF peripheral bus (I2C, SPI, I2S, UART, SDMMC, SDSPI, ...)
+     * that configures and reserves the pin itself via its own driver calls.
+     * gpio_descriptor_acquire() skips its own pin configuration for this owner, since applying it
+     * first would make the peripheral's own reservation look like a conflict with itself.
+     */
+    GPIO_OWNER_PERIPHERAL
 };
 
 /** The index of a GPIO pin on a GPIO Controller */

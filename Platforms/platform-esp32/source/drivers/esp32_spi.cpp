@@ -86,11 +86,11 @@ static error_t start(Device* device) {
 
     // Acquire pins from the specified GPIO pin specs. Optional pins are allowed.
     bool pins_ok =
-        acquire_pin_or_set_null(dts_config->pin_sclk, GPIO_FLAG_DIRECTION_OUTPUT, &data->sclk_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_mosi, GPIO_FLAG_DIRECTION_OUTPUT, &data->mosi_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_miso, GPIO_FLAG_DIRECTION_INPUT, &data->miso_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_wp, GPIO_FLAG_DIRECTION_INPUT, &data->wp_descriptor) &&
-        acquire_pin_or_set_null(dts_config->pin_hd, GPIO_FLAG_DIRECTION_INPUT, &data->hd_descriptor);
+        acquire_pin_or_set_null(dts_config->pin_sclk, GPIO_FLAG_DIRECTION_OUTPUT, &data->sclk_descriptor, GPIO_OWNER_PERIPHERAL) &&
+        acquire_pin_or_set_null(dts_config->pin_mosi, GPIO_FLAG_DIRECTION_OUTPUT, &data->mosi_descriptor, GPIO_OWNER_PERIPHERAL) &&
+        acquire_pin_or_set_null(dts_config->pin_miso, GPIO_FLAG_DIRECTION_INPUT, &data->miso_descriptor, GPIO_OWNER_PERIPHERAL) &&
+        acquire_pin_or_set_null(dts_config->pin_wp, GPIO_FLAG_DIRECTION_INPUT, &data->wp_descriptor, GPIO_OWNER_PERIPHERAL) &&
+        acquire_pin_or_set_null(dts_config->pin_hd, GPIO_FLAG_DIRECTION_INPUT, &data->hd_descriptor, GPIO_OWNER_PERIPHERAL);
 
     if (!pins_ok) {
         LOG_E(TAG, "Failed to acquire required SPI pins");

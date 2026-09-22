@@ -5,12 +5,28 @@
 #include <tactility/log.h>
 #include <tactility/module.h>
 
+#ifdef ESP_PLATFORM
+#include <esp_audio_dec_default.h>
+#include <esp_audio_simple_dec_default.h>
+#endif
+
 extern "C" {
 
 extern Driver audio_stream_driver;
 extern Device audio_stream_device;
 
 static error_t start() {
+#ifdef ESP_PLATFORM
+    /* Firmware-owned decoder registration, before any app can open a decode stream.
+     * External ELF apps reach the decoders through this module's symbol table. */
+    esp_audio_err_t dec_result = esp_audio_dec_register_default();
+    esp_audio_err_t simple_result = esp_audio_simple_dec_register_default();
+    if (dec_result != ESP_AUDIO_ERR_OK || simple_result != ESP_AUDIO_ERR_OK) {
+        LOG_E("AudioStream", "Decoder registration failed: dec=%d simple=%d",
+              (int) dec_result, (int) simple_result);
+    }
+#endif
+
     /* We crash when construct fails, because if a single driver fails to construct,
      * there is no guarantee that the previously constructed drivers can be destroyed */
     check(driver_construct_add(&audio_stream_driver) == ERROR_NONE);

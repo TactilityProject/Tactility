@@ -45,4 +45,21 @@ void setInputMuted(bool muted);
 bool isOutputMuted();
 void setOutputMuted(bool muted);
 
+/**
+ * Requests a media transport Play/Pause toggle, e.g. from a headset button or media
+ * keyboard. Safe to call from any task. A media app consumes the request via
+ * consumePlayPauseRequest() on its own thread (e.g. a poll timer) and toggles playback.
+ */
+void requestPlayPause();
+
+/**
+ * Returns and clears a pending Play/Pause request. Returns false when nothing was
+ * requested; safe to poll.
+ */
+bool consumePlayPauseRequest();
+
+/** Clears any pending Play/Pause request without acting on it (e.g. when a media app
+ *  opens, so a request made while it was closed does not fire on open). */
+void clearPlayPauseRequest();
+
 } // namespace tt::service::audio

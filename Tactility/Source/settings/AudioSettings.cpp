@@ -117,7 +117,7 @@ bool save(const AudioSettings& settings) {
     map[SETTINGS_KEY_OUTPUT_VOLUME] = toString(settings.outputVolume);
 
     std::string settings_path;
-    if (getSettingsFilePath(settings_path)) {
+    if (!getSettingsFilePath(settings_path)) {
         return false;
     }
 

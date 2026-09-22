@@ -3,8 +3,10 @@
 #ifdef ESP_PLATFORM
 
 #include <Tactility/Assets.h>
+#include <Tactility/service/audio/Audio.h>
 
 #include <tactility/device.h>
+#include <tactility/drivers/hid_consumer.h>
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
@@ -68,6 +70,37 @@ struct UsbHidInputCtx {
 };
 
 static UsbHidInputCtx* s_ctx = nullptr;
+
+// Routes Consumer Control usages (headset buttons, media keyboards) to the audio service.
+// Only usages demonstrated on real hardware are acted on; everything else is logged at
+// debug level and dropped. Runs on this file's HID pump task.
+constexpr float MEDIA_VOLUME_STEP_PERCENT = 5.0f;
+
+static void handleConsumerUsage(uint16_t usage, bool pressed) {
+    if (!pressed) {
+        return;
+    }
+    switch (usage) {
+        case HID_CONSUMER_USAGE_VOLUME_INCREMENT:
+        case HID_CONSUMER_USAGE_VOLUME_DECREMENT: {
+            // Free-function API: no-ops when the audio service is not registered.
+            float volume = service::audio::getOutputVolume();
+            volume += (usage == HID_CONSUMER_USAGE_VOLUME_INCREMENT)
+                ? MEDIA_VOLUME_STEP_PERCENT
+                : -MEDIA_VOLUME_STEP_PERCENT;
+            if (volume < 0.0f) volume = 0.0f;
+            if (volume > 100.0f) volume = 100.0f;
+            service::audio::setOutputVolume(volume);
+            break;
+        }
+        case HID_CONSUMER_USAGE_PLAY_PAUSE:
+            service::audio::requestPlayPause();
+            break;
+        default:
+            LOG_D(TAG, "unhandled consumer usage 0x%02X", usage);
+            break;
+    }
+}
 
 static void mouse_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     auto* ctx = static_cast<UsbHidInputCtx*>(lv_indev_get_user_data(indev));
@@ -230,6 +263,9 @@ static void usbHidInputTask(void* arg) {
             }
             break;
         }
+        case USB_HID_EVENT_CONSUMER:
+                handleConsumerUsage(hid_evt.consumer.usage, hid_evt.consumer.pressed);
+                break;
         case USB_HID_EVENT_KEYBOARD_CONNECTED:
             if (ctx->kb_indev && lvgl_try_lock(pdMS_TO_TICKS(200))) {
                 lvgl_keyboard_enable(ctx->kb_indev);

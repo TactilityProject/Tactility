@@ -28,10 +28,10 @@ void device_listener_add(DeviceListenerCallback callback, void* context) {
     ledger.unlock();
 }
 
-void device_listener_remove(DeviceListenerCallback callback) {
+void device_listener_remove(DeviceListenerCallback callback, void* context) {
     ledger.lock();
-    const auto iterator = std::ranges::find_if(ledger.listeners, [callback](const DeviceEventListener& listener) {
-        return listener.callback == *callback;
+    const auto iterator = std::ranges::find_if(ledger.listeners, [callback, context](const DeviceEventListener& listener) {
+        return listener.callback == *callback && listener.callback_context == context;
     });
     if (iterator != ledger.listeners.end()) {
         ledger.listeners.erase(iterator);

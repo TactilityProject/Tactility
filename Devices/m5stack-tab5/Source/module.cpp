@@ -77,7 +77,7 @@ static error_t start() {
 static error_t stop() {
     tab5_keyboard_lvgl_rotation_stop();
     tab5_headphone_detect_stop();
-    device_listener_remove(on_io_expander0_started);
+    device_listener_remove(on_io_expander0_started, nullptr);
     tab5_detect_stop();
     return ERROR_NONE;
 }

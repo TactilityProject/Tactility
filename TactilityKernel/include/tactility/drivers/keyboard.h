@@ -179,6 +179,39 @@ error_t keyboard_get_backlight(struct Device* device, struct Device** backlight_
 bool keyboard_is_present(struct Device* device);
 
 /**
+ * @brief Standard USB HID keyboard modifier bits (boot report byte 0), matching the layout
+ * documented on KeyboardKeyData::hid_modifier.
+ */
+typedef enum {
+    KEYBOARD_HID_MOD_LEFT_CTRL   = 1 << 0,
+    KEYBOARD_HID_MOD_LEFT_SHIFT  = 1 << 1,
+    KEYBOARD_HID_MOD_LEFT_ALT    = 1 << 2,
+    KEYBOARD_HID_MOD_LEFT_GUI    = 1 << 3,
+    KEYBOARD_HID_MOD_RIGHT_CTRL  = 1 << 4,
+    KEYBOARD_HID_MOD_RIGHT_SHIFT = 1 << 5,
+    KEYBOARD_HID_MOD_RIGHT_ALT   = 1 << 6,
+    KEYBOARD_HID_MOD_RIGHT_GUI   = 1 << 7,
+} KeyboardHidModifier;
+
+/**
+ * @brief Maps a USB HID keyboard usage code (HID Usage Tables page 0x07) plus boot-report
+ * modifier byte to the Unicode codepoint contract of KeyboardKeyData::key.
+ *
+ * Shared by every transport that carries standard HID keyboard reports (USB HID host, BLE HID
+ * host) so they produce identical key events. A key that produces an ordinary character yields
+ * that character's codepoint, shifted/caps-locked as appropriate; keys with no character of
+ * their own yield their CodePoint enum value. Ctrl/Alt do not suppress the key - callers that
+ * need the chord report the modifiers alongside (see KeyboardKeyData::ctrl).
+ *
+ * @param[in] hid_modifier boot report byte 0 (KeyboardHidModifier bits)
+ * @param[in] hid_keycode usage code, e.g. 0x04 for 'a'
+ * @param[in] caps_lock whether Caps Lock is currently active on the keyboard
+ * @param[in] num_lock whether Num Lock is currently active on the keyboard
+ * @return the codepoint, or 0 when the key has no mapping
+ */
+uint32_t keyboard_key_from_hid_usage(uint8_t hid_modifier, uint8_t hid_keycode, bool caps_lock, bool num_lock);
+
+/**
  * @brief Register @a sub for async key events from @a device, derived from `read_key`.
  * @param[in,out] sub subscription to register; owns the storage, must stay alive (and stationary)
  * until unsubscribed

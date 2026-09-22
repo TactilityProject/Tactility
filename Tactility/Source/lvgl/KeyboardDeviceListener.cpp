@@ -118,7 +118,7 @@ void stopKeyboardDeviceListener() {
         auto lock = bindingsMutex().asScopedLock();
         lock.lock();
         listenerActive() = false;
-        device_listener_remove(onDeviceEvent);
+        device_listener_remove(onDeviceEvent, nullptr);
         remaining = std::move(bindings());
         bindings().clear();
     }
