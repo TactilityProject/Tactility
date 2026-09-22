@@ -2,6 +2,8 @@
 
 ## Before release
 
+- Tactility/Source/service/autorotate/AutoRotate.cpp  
+  TODO: Display settings app might be saving DisplaySettings at the same time. This might corrupt the settings file.
 - Try out speed optimizations: https://docs.espressif.com/projects/esp-faq/en/latest/software-framework/peripherals/lcd.html
   (relates to CONFIG_ESP32S3_DATA_CACHE_LINE_64B that is in use for RGB displays via the `device.properties` fix/workaround)
 
