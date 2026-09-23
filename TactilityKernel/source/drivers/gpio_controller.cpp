@@ -75,6 +75,12 @@ GpioDescriptor* gpio_descriptor_acquire(
     desc->flags = flags;
     mutex_unlock(&data->mutex);
 
+    // Peripheral bus owns pin configuration itself; skip ours to avoid conflicting with its
+    // own reservation.
+    if (owner == GPIO_OWNER_PERIPHERAL) {
+        return desc;
+    }
+
     // Init flags by implementation
     auto init_result = gpio_descriptor_set_flags(desc, flags);
     if (init_result != ERROR_NONE) {

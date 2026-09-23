@@ -78,6 +78,6 @@ TEST_CASE("memory_calloc_with_policy should honor alignment and zero-initialize"
     memory_free(ptr);
 }
 
-TEST_CASE("memory_print_stats should not crash") {
-    memory_print_stats();
+TEST_CASE("memory_log_stats should not crash") {
+    memory_log_stats();
 }

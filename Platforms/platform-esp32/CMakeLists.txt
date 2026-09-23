@@ -28,7 +28,10 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     endif ()
 endif ()
 
-idf_component_optional_requires(PRIVATE bt usb espressif__usb_host_hid espressif__usb_host_msc)
+idf_component_optional_requires(PRIVATE bt usb espressif__usb_host_hid espressif__usb_host_msc espressif__esp_audio_codec)
+if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
+    idf_component_optional_requires(PRIVATE espressif__usb_host_uac)
+endif ()
 
 if ("${IDF_TARGET}" STREQUAL "esp32p4")
     # Force-links esp32p4_libc_compat.c's __issignalingf() shim - nothing references it until

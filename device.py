@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import glob
 import os
 import shutil
@@ -270,6 +272,9 @@ def write_lvgl_variable_placeholders(output_file):
     output_file.write("CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE=12\n")
     output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=30\n")
     output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=12\n")
+    # Terminal fonts are currently tied to LVGL settings
+    output_file.write("CONFIG_TT_FONT_IBMPLEXMONO_12=y\n")
+    output_file.write("CONFIG_TT_TERMINAL_FONT_SIZE=12\n")
 
 def write_lvgl_variables(output_file, device_properties: dict):
     output_file.write("# LVGL\n")
@@ -306,6 +311,8 @@ def write_lvgl_variables(output_file, device_properties: dict):
     font_height_text = get_property_or_default(device_properties, "lvgl.fontSize", "14")
     font_height = safe_int(font_height_text, f"Font height must be an integer, but was: '{font_height_text}'")
     if font_height <= 12:
+        output_file.write("CONFIG_TT_FONT_IBMPLEXMONO_12=y\n")
+        output_file.write("CONFIG_TT_TERMINAL_FONT_SIZE=12\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_8=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_12=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_16=y\n")
@@ -317,6 +324,8 @@ def write_lvgl_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=30\n")
         output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=12\n")
     elif font_height <= 14:
+        output_file.write("CONFIG_TT_FONT_IBMPLEXMONO_14=y\n")
+        output_file.write("CONFIG_TT_TERMINAL_FONT_SIZE=14\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_10=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_14=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_18=y\n")
@@ -328,6 +337,8 @@ def write_lvgl_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=36\n")
         output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=16\n")
     elif font_height <= 16:
+        output_file.write("CONFIG_TT_FONT_IBMPLEXMONO_16=y\n")
+        output_file.write("CONFIG_TT_TERMINAL_FONT_SIZE=16\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_12=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_16=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_22=y\n")
@@ -339,6 +350,8 @@ def write_lvgl_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=42\n")
         output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=16\n")
     elif font_height <= 18:
+        output_file.write("CONFIG_TT_FONT_IBMPLEXMONO_18=y\n")
+        output_file.write("CONFIG_TT_TERMINAL_FONT_SIZE=18\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_14=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_18=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_24=y\n")
@@ -350,6 +363,8 @@ def write_lvgl_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=48\n")
         output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=20\n")
     elif font_height <= 24:
+        output_file.write("CONFIG_TT_FONT_IBMPLEXMONO_24=y\n")
+        output_file.write("CONFIG_TT_TERMINAL_FONT_SIZE=24\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_18=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_24=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_30=y\n")
@@ -361,6 +376,8 @@ def write_lvgl_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE=64\n")
         output_file.write("CONFIG_TT_LVGL_SHARED_ICON_SIZE=24\n")
     else:
+        output_file.write("CONFIG_TT_FONT_IBMPLEXMONO_28=y\n")
+        output_file.write("CONFIG_TT_TERMINAL_FONT_SIZE=28\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_20=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_28=y\n")
         output_file.write("CONFIG_LV_FONT_MONTSERRAT_36=y\n")

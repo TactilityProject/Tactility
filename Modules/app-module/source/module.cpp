@@ -33,6 +33,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_execute_with_streams),
     DEFINE_MODULE_SYMBOL(app_execute_for_result_with_streams),
     DEFINE_MODULE_SYMBOL(app_is_executable),
+    DEFINE_MODULE_SYMBOL(app_is_executable_path),
     // app/install
     DEFINE_MODULE_SYMBOL(app_get_install_path),
     DEFINE_MODULE_SYMBOL(app_install),
@@ -41,6 +42,8 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_io_read),
     DEFINE_MODULE_SYMBOL(app_io_write),
     DEFINE_MODULE_SYMBOL(app_io_close),
+    DEFINE_MODULE_SYMBOL(app_io_await),
+    DEFINE_MODULE_SYMBOL(app_io_bind_self),
     // app/manager
     DEFINE_MODULE_SYMBOL(app_manager_stop),
     DEFINE_MODULE_SYMBOL(app_manager_get_state),
@@ -76,6 +79,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_start_with_streams),
     DEFINE_MODULE_SYMBOL(app_start_for_result_with_streams),
     // app/stream
+    DEFINE_MODULE_SYMBOL(app_stream_bind_alias_fd),
     DEFINE_MODULE_SYMBOL(app_stream_subscribe),
     DEFINE_MODULE_SYMBOL(app_stream_unsubscribe),
     DEFINE_MODULE_SYMBOL(app_stream_await),

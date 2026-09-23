@@ -44,6 +44,18 @@ error_t app_execute_for_result_with_streams(AppLocation location, AppStackConfig
     return app_manager_start_internal(nullptr, location, stack, parent_instance_id, argc, argv, bindings, binding_count, out_app_instance_id);
 }
 
+bool app_is_executable_path(const char* path) {
+    const AppLoaderApi* loader = find_loader_api(APP_LOCATION_PATH);
+    if (loader == nullptr || loader->is_executable == nullptr) {
+        return false;
+    }
+    AppLocation location = {
+        .type = APP_LOCATION_PATH,
+        .location = (void*)path,
+    };
+    return loader->is_executable(location);
+}
+
 bool app_is_executable(AppLocation location) {
     const AppLoaderApi* loader = find_loader_api(location.type);
     if (loader == nullptr || loader->is_executable == nullptr) {

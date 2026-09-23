@@ -15,6 +15,7 @@
 #include <tactility/delay.h>
 #include <tactility/freertos/task.h>
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -107,6 +108,11 @@ int32_t stream_writer_app_main(int, char*[]) {
         }
         sent += static_cast<size_t>(written);
     }
+    return 7;
+}
+
+int32_t printf_stream_writer_app_main(int, char*[]) {
+    printf("loc");
     return 7;
 }
 
@@ -320,4 +326,54 @@ TEST_CASE("app_execute_for_result_with_streams delivers both the stream data and
     app_manager_stop(child_id);
     app_manager_stop(parent_id);
     app_manager_remove("test.app.execute.parent_streams");
+}
+
+TEST_CASE("app_execute_for_result_with_streams pipes a child's plain printf() calls too") {
+    ensure_memory_loader_registered();
+
+    AppManifest parent_manifest { "test.app.execute.printf_parent", "Parent", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(location_app_main) } };
+    REQUIRE_EQ(app_manager_add(&parent_manifest), ERROR_NONE);
+
+    uint32_t parent_id = 0;
+    REQUIRE_EQ(app_start("test.app.execute.printf_parent", 0, nullptr, &parent_id), ERROR_NONE);
+    CHECK(wait_for_state(parent_id, APP_INSTANCE_STATE_ACTIVE, 1000));
+
+    TaskEventGroup parent_event_group {};
+    task_event_group_construct(&parent_event_group);
+    AppEventSubscription parent_sub {};
+    REQUIRE_EQ(app_event_subscribe_with_app_id(&parent_sub, &parent_event_group, parent_id), ERROR_NONE);
+
+    uint8_t storage[64];
+    AppStream child_stdout {};
+    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &parent_event_group };
+
+    AppLocation location { APP_LOCATION_MEMORY, reinterpret_cast<void*>(printf_stream_writer_app_main) };
+    uint32_t child_id = 0;
+    REQUIRE_EQ(app_execute_for_result_with_streams(location, AppStackConfig {}, 0, nullptr, &binding, 1, parent_id, &child_id), ERROR_NONE);
+
+    std::vector<uint8_t> received;
+    while (app_stream_await(&child_stdout, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(1000)) == ERROR_NONE) {
+        uint8_t chunk[16];
+        size_t n = app_stream_read(&child_stdout, chunk, sizeof(chunk));
+        if (n == 0) {
+            break; // EOF
+        }
+        received.insert(received.end(), chunk, chunk + n);
+    }
+    REQUIRE_EQ(received.size(), 3u);
+    CHECK_EQ(std::memcmp(received.data(), "loc", 3), 0);
+
+    REQUIRE_EQ(task_event_group_wait(&parent_event_group, parent_sub.bit, false, nullptr, pdMS_TO_TICKS(2000)), ERROR_NONE);
+    AppEvent event {};
+    REQUIRE_EQ(app_event_poll(&parent_sub, &event), ERROR_NONE);
+    CHECK_EQ(event.type, APP_EVENT_RESULT);
+    CHECK_EQ(event.result.launch_id, child_id);
+    CHECK_EQ(event.result.result, 7);
+
+    app_stream_unsubscribe(&child_stdout);
+    app_event_unsubscribe(&parent_sub);
+    task_event_group_destruct(&parent_event_group);
+    app_manager_stop(child_id);
+    app_manager_stop(parent_id);
+    app_manager_remove("test.app.execute.printf_parent");
 }

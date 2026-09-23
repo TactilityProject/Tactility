@@ -25,6 +25,8 @@ constexpr auto* SETTINGS_KEY_BACKLIGHT_DUTY = "backlightDuty";
 constexpr auto* SETTINGS_KEY_TIMEOUT_ENABLED = "backlightTimeoutEnabled";
 constexpr auto* SETTINGS_KEY_TIMEOUT_MS = "backlightTimeoutMs";
 constexpr auto* SETTINGS_KEY_SCREENSAVER_TYPE = "screensaverType";
+constexpr auto* SETTINGS_KEY_AUTO_ROTATE_ENABLED = "autoRotateEnabled";
+constexpr auto* SETTINGS_KEY_AUTO_ROTATE_MOUNT_ROTATION = "autoRotateMountRotation";
 
 static Orientation getDefaultOrientation() {
     auto* display = lv_display_get_default();
@@ -162,12 +164,26 @@ bool load(DisplaySettings& settings) {
         fromString(screensaver_entry->second, screensaver_type);
     }
 
+    bool auto_rotate_enabled = false;
+    auto auto_rotate_enabled_entry = map.find(SETTINGS_KEY_AUTO_ROTATE_ENABLED);
+    if (auto_rotate_enabled_entry != map.end()) {
+        auto_rotate_enabled = (auto_rotate_enabled_entry->second == "1" || auto_rotate_enabled_entry->second == "true" || auto_rotate_enabled_entry->second == "True");
+    }
+
+    auto mount_rotation_entry = map.find(SETTINGS_KEY_AUTO_ROTATE_MOUNT_ROTATION);
+    Orientation mount_rotation = Orientation::Landscape;
+    if (mount_rotation_entry != map.end()) {
+        fromString(mount_rotation_entry->second, mount_rotation);
+    }
+
     settings.orientation = orientation;
     settings.gammaCurve = gamma_curve;
     settings.backlightDuty = backlight_duty;
     settings.backlightTimeoutEnabled = timeout_enabled;
     settings.backlightTimeoutMs = timeout_ms;
     settings.screensaverType = screensaver_type;
+    settings.autoRotateEnabled = auto_rotate_enabled;
+    settings.autoRotateMountRotation = mount_rotation;
 
     return true;
 }
@@ -179,7 +195,9 @@ DisplaySettings getDefault() {
         .backlightDuty = 200,
         .backlightTimeoutEnabled = false,
         .backlightTimeoutMs = 60000,
-        .screensaverType = ScreensaverType::BouncingBalls
+        .screensaverType = ScreensaverType::BouncingBalls,
+        .autoRotateEnabled = false,
+        .autoRotateMountRotation = Orientation::Landscape
     };
 }
 
@@ -199,6 +217,8 @@ bool save(const DisplaySettings& settings) {
     map[SETTINGS_KEY_TIMEOUT_ENABLED] = settings.backlightTimeoutEnabled ? "1" : "0";
     map[SETTINGS_KEY_TIMEOUT_MS] = std::to_string(settings.backlightTimeoutMs);
     map[SETTINGS_KEY_SCREENSAVER_TYPE] = toString(settings.screensaverType);
+    map[SETTINGS_KEY_AUTO_ROTATE_ENABLED] = settings.autoRotateEnabled ? "1" : "0";
+    map[SETTINGS_KEY_AUTO_ROTATE_MOUNT_ROTATION] = toString(settings.autoRotateMountRotation);
     auto settings_path = getSettingsFilePath();
     if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
         return false;
@@ -206,18 +226,20 @@ bool save(const DisplaySettings& settings) {
     return file::savePropertiesFile(settings_path, map);
 }
 
-lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {
+static bool isOriginallyLandscape() {
     auto* lvgl_display = lv_display_get_default();
     auto rotation = lv_display_get_rotation(lvgl_display);
-    bool is_originally_landscape;
     // The lvgl resolution code compensates for rotation. We have to revert the compensation to get the real display resolution
     // TODO: Use info from display driver
     if (rotation == LV_DISPLAY_ROTATION_0 || rotation == LV_DISPLAY_ROTATION_180) {
-        is_originally_landscape = lv_display_get_physical_horizontal_resolution(lvgl_display) > lv_display_get_physical_vertical_resolution(lvgl_display);
+        return lv_display_get_physical_horizontal_resolution(lvgl_display) > lv_display_get_physical_vertical_resolution(lvgl_display);
     } else {
-        is_originally_landscape = lv_display_get_physical_horizontal_resolution(lvgl_display) < lv_display_get_physical_vertical_resolution(lvgl_display);
+        return lv_display_get_physical_horizontal_resolution(lvgl_display) < lv_display_get_physical_vertical_resolution(lvgl_display);
     }
-    if (is_originally_landscape) {
+}
+
+lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {
+    if (isOriginallyLandscape()) {
         // Landscape display
         switch (orientation) {
             case Orientation::Landscape:
@@ -244,6 +266,36 @@ lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {
                 return LV_DISPLAY_ROTATION_180;
             default:
                 return LV_DISPLAY_ROTATION_0;
+        }
+    }
+}
+
+Orientation fromLvglDisplayRotation(lv_display_rotation_t rotation) {
+    if (isOriginallyLandscape()) {
+        switch (rotation) {
+            case LV_DISPLAY_ROTATION_0:
+                return Orientation::Landscape;
+            case LV_DISPLAY_ROTATION_90:
+                return Orientation::Portrait;
+            case LV_DISPLAY_ROTATION_180:
+                return Orientation::LandscapeFlipped;
+            case LV_DISPLAY_ROTATION_270:
+                return Orientation::PortraitFlipped;
+            default:
+                return Orientation::Landscape;
+        }
+    } else {
+        switch (rotation) {
+            case LV_DISPLAY_ROTATION_0:
+                return Orientation::Portrait;
+            case LV_DISPLAY_ROTATION_90:
+                return Orientation::Landscape;
+            case LV_DISPLAY_ROTATION_180:
+                return Orientation::PortraitFlipped;
+            case LV_DISPLAY_ROTATION_270:
+                return Orientation::LandscapeFlipped;
+            default:
+                return Orientation::Landscape;
         }
     }
 }

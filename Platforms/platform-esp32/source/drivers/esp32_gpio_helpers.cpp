@@ -9,13 +9,13 @@ void release_pin(GpioDescriptor** gpio_descriptor) {
     *gpio_descriptor = nullptr;
 }
 
-bool acquire_pin_or_set_null(const GpioPinSpec& pin_spec, gpio_flags_t direction_flags, GpioDescriptor** gpio_descriptor) {
+bool acquire_pin_or_set_null(const GpioPinSpec& pin_spec, gpio_flags_t direction_flags, GpioDescriptor** gpio_descriptor, GpioOwnerType owner) {
     if (pin_spec.gpio_controller == nullptr) {
         *gpio_descriptor = nullptr;
         return true;
     }
 
-    *gpio_descriptor = gpio_descriptor_acquire(pin_spec.gpio_controller, pin_spec.pin, pin_spec.flags | direction_flags, GPIO_OWNER_GPIO);
+    *gpio_descriptor = gpio_descriptor_acquire(pin_spec.gpio_controller, pin_spec.pin, pin_spec.flags | direction_flags, owner);
     if (*gpio_descriptor == nullptr) {
         LOG_E(TAG, "Failed to acquire pin %u from %s", pin_spec.pin, pin_spec.gpio_controller->name);
     }

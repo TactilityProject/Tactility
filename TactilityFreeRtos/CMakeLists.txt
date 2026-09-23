@@ -16,6 +16,6 @@ else()
     )
 
     target_link_libraries(TactilityFreeRtos
-        INTERFACE freertos_kernel
+        INTERFACE freertos_kernel TactilityKernel
     )
 endif()

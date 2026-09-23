@@ -48,6 +48,8 @@ enum AudioStreamChange {
     AUDIO_STREAM_CHANGE_VOLUME,
     AUDIO_STREAM_CHANGE_MUTE,
     AUDIO_STREAM_CHANGE_ENABLED,
+    /** @brief The codec bound for the direction changed (e.g. USB headphones attached/detached). */
+    AUDIO_STREAM_CHANGE_CODEC,
 };
 
 typedef void (*AudioStreamChangeCallback)(struct Device* device, enum AudioCodecDirection direction, enum AudioStreamChange change, void* user_data);

@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -43,6 +44,18 @@ bool wait_for_state(AppInstanceId id, AppInstanceState target, uint32_t timeout_
     return app_manager_get_state(id) == target;
 }
 
+bool wait_for_flag(std::atomic<bool>& flag, uint32_t timeout_ms) {
+    uint32_t waited = 0;
+    while (waited < timeout_ms) {
+        if (flag.load(std::memory_order_acquire)) {
+            return true;
+        }
+        delay_millis(10);
+        waited += 10;
+    }
+    return flag.load(std::memory_order_acquire);
+}
+
 std::atomic<ssize_t> g_stdio_write_result { -2 };
 std::atomic<ssize_t> g_stdio_read_result { -2 };
 
@@ -66,6 +79,11 @@ int32_t stdout_writer_app_main(int, char*[]) {
     return 0;
 }
 
+int32_t stdout_printf_app_main(int, char*[]) {
+    printf("hello");
+    return 0;
+}
+
 std::atomic<bool> g_blocked_writer_saw_error { false };
 std::atomic<bool> g_blocked_writer_done { false };
 
@@ -81,6 +99,19 @@ int32_t blocked_writer_app_main(int, char*[]) {
         sent += static_cast<size_t>(written);
     }
     g_blocked_writer_done.store(true, std::memory_order_release);
+    return 0;
+}
+
+std::atomic<error_t> g_await_before_write { ERROR_NONE };
+std::atomic<error_t> g_await_after_write { ERROR_TIMEOUT };
+std::atomic<bool> g_await_first_done { false };
+std::atomic<bool> g_await_done { false };
+
+int32_t await_reader_app_main(int, char*[]) {
+    g_await_before_write.store(app_io_await(STDIN_FILENO, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(50)), std::memory_order_release);
+    g_await_first_done.store(true, std::memory_order_release);
+    g_await_after_write.store(app_io_await(STDIN_FILENO, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(1000)), std::memory_order_release);
+    g_await_done.store(true, std::memory_order_release);
     return 0;
 }
 
@@ -108,6 +139,53 @@ int32_t real_file_io_app_main(int, char*[]) {
     g_real_file_close_result.store(app_io_close(real_fd), std::memory_order_release);
 
     ::unlink(path);
+    return 0;
+}
+
+struct SelfBoundObject {
+    char written[16] = {};
+    size_t written_len = 0;
+};
+
+ssize_t self_bound_write(void* object, const void* buffer, size_t size) {
+    auto* obj = static_cast<SelfBoundObject*>(object);
+    size_t n = size < sizeof(obj->written) ? size : sizeof(obj->written);
+    memcpy(obj->written, buffer, n);
+    obj->written_len = n;
+    return static_cast<ssize_t>(n);
+}
+
+ssize_t self_bound_read(void*, void* buffer, size_t size) {
+    const char reply[] = "yo";
+    size_t n = size < sizeof(reply) - 1 ? size : sizeof(reply) - 1;
+    memcpy(buffer, reply, n);
+    return static_cast<ssize_t>(n);
+}
+
+error_t self_bound_close(void*) { return ERROR_NONE; }
+error_t self_bound_await(void*, AppFileWait, TickType_t) { return ERROR_NONE; }
+uint32_t self_bound_poll(void*) { return APP_FILE_READABLE | APP_FILE_WRITABLE; }
+
+const AppFileOps SELF_BOUND_OPS = {
+    .read = self_bound_read,
+    .write = self_bound_write,
+    .close = self_bound_close,
+    .await = self_bound_await,
+    .poll = self_bound_poll,
+    .retain = nullptr,
+    .release = nullptr,
+};
+
+SelfBoundObject g_self_bound_object;
+std::atomic<error_t> g_self_bind_result { ERROR_UNDEFINED };
+std::atomic<ssize_t> g_self_bound_write_result { -2 };
+std::atomic<ssize_t> g_self_bound_read_result { -2 };
+char g_self_bound_read_buffer[16] = {};
+
+int32_t self_bind_app_main(int, char*[]) {
+    g_self_bind_result.store(app_io_bind_self(STDOUT_FILENO, &SELF_BOUND_OPS, &g_self_bound_object), std::memory_order_release);
+    g_self_bound_write_result.store(app_io_write(STDOUT_FILENO, "hi", 2), std::memory_order_release);
+    g_self_bound_read_result.store(app_io_read(STDOUT_FILENO, g_self_bound_read_buffer, sizeof(g_self_bound_read_buffer) - 1), std::memory_order_release);
     return 0;
 }
 
@@ -178,6 +256,42 @@ TEST_CASE("app_start_with_streams pipes a child's app_io_write() calls into a pa
     app_stream_unsubscribe(&child_stdout);
     task_event_group_destruct(&event_group);
     app_manager_remove("test.io.writer");
+}
+
+TEST_CASE("app_io_await blocks until the bound stream becomes readable or times out") {
+    ensure_memory_loader_registered();
+    g_await_before_write.store(ERROR_NONE, std::memory_order_relaxed);
+    g_await_after_write.store(ERROR_TIMEOUT, std::memory_order_relaxed);
+    g_await_first_done.store(false, std::memory_order_relaxed);
+    g_await_done.store(false, std::memory_order_relaxed);
+
+    AppManifest manifest { "test.io.await", "Await", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(await_reader_app_main) } };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    TaskEventGroup event_group {};
+    task_event_group_construct(&event_group);
+
+    uint8_t storage[16];
+    AppStream child_stdin {};
+    AppStreamBinding binding { STDIN_FILENO, &child_stdin, storage, sizeof(storage), &event_group };
+    AppInstanceId child_id = 0;
+    REQUIRE_EQ(app_start_with_streams("test.io.await", &binding, 1, &child_id), ERROR_NONE);
+
+    // Wait for the child's first await (50ms, on an empty stream) to actually return before
+    // writing: a fixed delay doesn't prove that, and under slow scheduling the write could land
+    // first, making the first await succeed and the second one time out instead.
+    REQUIRE(wait_for_flag(g_await_first_done, 1000));
+    CHECK_FALSE(g_await_done.load(std::memory_order_acquire));
+
+    app_stream_write(&child_stdin, "x", 1);
+
+    REQUIRE(wait_for_state(child_id, APP_INSTANCE_STATE_STOPPED, 1000));
+    CHECK_EQ(g_await_before_write.load(std::memory_order_acquire), ERROR_TIMEOUT);
+    CHECK_EQ(g_await_after_write.load(std::memory_order_acquire), ERROR_NONE);
+
+    app_stream_unsubscribe(&child_stdin);
+    task_event_group_destruct(&event_group);
+    app_manager_remove("test.io.await");
 }
 
 TEST_CASE("a write blocked on a full stream wakes with an error once the consumer closes it") {
@@ -272,6 +386,36 @@ TEST_CASE("app_io_read/write/close pass through a real file fd app-module never 
     CHECK_EQ(g_real_file_close_result.load(std::memory_order_acquire), 0);
 
     app_manager_remove("test.io.real_file");
+}
+
+TEST_CASE("app_io_bind_self installs a custom AppFileOps used by subsequent app_io_read/write") {
+    ensure_memory_loader_registered();
+    g_self_bind_result.store(ERROR_UNDEFINED, std::memory_order_relaxed);
+    g_self_bound_write_result.store(-2, std::memory_order_relaxed);
+    g_self_bound_read_result.store(-2, std::memory_order_relaxed);
+    g_self_bound_object = SelfBoundObject {};
+    memset(g_self_bound_read_buffer, 0, sizeof(g_self_bound_read_buffer));
+
+    AppManifest manifest { "test.io.self_bind", "SelfBind", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(self_bind_app_main) } };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    AppInstanceId instance_id = 0;
+    REQUIRE_EQ(app_start("test.io.self_bind", 0, nullptr, &instance_id), ERROR_NONE);
+    REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 1000));
+
+    CHECK_EQ(g_self_bind_result.load(std::memory_order_acquire), ERROR_NONE);
+    CHECK_EQ(g_self_bound_write_result.load(std::memory_order_acquire), 2);
+    CHECK_EQ(g_self_bound_object.written_len, 2u);
+    CHECK_EQ(std::memcmp(g_self_bound_object.written, "hi", 2), 0);
+    CHECK_EQ(g_self_bound_read_result.load(std::memory_order_acquire), 2);
+    CHECK_EQ(std::memcmp(g_self_bound_read_buffer, "yo", 2), 0);
+
+    app_manager_remove("test.io.self_bind");
+}
+
+TEST_CASE("app_io_bind_self returns ERROR_NOT_FOUND when called outside a running app instance") {
+    SelfBoundObject object;
+    CHECK_EQ(app_io_bind_self(STDOUT_FILENO, &SELF_BOUND_OPS, &object), ERROR_NOT_FOUND);
 }
 
 TEST_CASE("closing an already-closed app fd reports EBADF instead of falling through to the platform") {

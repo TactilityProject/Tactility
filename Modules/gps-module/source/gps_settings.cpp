@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <gps/gps_settings.h>
+
+#include "tactility/paths.h"
+
 #include <gps/private/gps_ledger.h>
 
 #include <service/paths.h>
@@ -76,7 +79,7 @@ static error_t write_configurations(const std::vector<GpsConfiguration>& configu
         return ERROR_RESOURCE;
     }
 
-    char path[256];
+    char path[FILE_MAX_PATH_STRING_LENGTH];
     if (!get_configuration_path(path, sizeof(path))) {
         return ERROR_RESOURCE;
     }

@@ -94,7 +94,7 @@ static error_t start() {
 }
 
 static error_t stop() {
-    device_listener_remove(on_root_started);
+    device_listener_remove(on_root_started, nullptr);
     return ERROR_NONE;
 }
 

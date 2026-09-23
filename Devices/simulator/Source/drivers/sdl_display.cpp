@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "sdl_display.h"
+#include "sdl_bridge.h"
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
@@ -141,8 +142,10 @@ static bool sdl_display_lazy_init(Device* device, SdlDisplayInternal* internal) 
     return true;
 }
 
-static error_t sdl_display_draw_bitmap(Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data) {
-    auto* internal = static_cast<SdlDisplayInternal*>(device_get_driver_data(device));
+// Only ever called from sdl_bridge_run_main_loop() on the real main thread - required for
+// SDL/Cocoa window creation and rendering on macOS.
+error_t sdl_display_execute_draw_bitmap(Device* device, void* internal_ptr, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data) {
+    auto* internal = static_cast<SdlDisplayInternal*>(internal_ptr);
 
     if (internal->init_failed) {
         return ERROR_RESOURCE;
@@ -164,6 +167,16 @@ static error_t sdl_display_draw_bitmap(Device* device, int32_t x_start, int32_t 
 
     sdl_display_present_now();
     return ERROR_NONE;
+}
+
+static error_t sdl_display_draw_bitmap(Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data) {
+    auto* internal = static_cast<SdlDisplayInternal*>(device_get_driver_data(device));
+
+    if (internal->init_failed) {
+        return ERROR_RESOURCE;
+    }
+
+    return sdl_bridge_present(device, internal, x_start, y_start, x_end, y_end, color_data);
 }
 
 static enum DisplayColorFormat sdl_display_get_color_format(Device*) {

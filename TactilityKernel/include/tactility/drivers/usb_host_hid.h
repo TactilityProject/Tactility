@@ -34,6 +34,7 @@ typedef enum {
     USB_HID_EVENT_MOUSE_MOVE,
     USB_HID_EVENT_MOUSE_BTN,
     USB_HID_EVENT_SCROLL,
+    USB_HID_EVENT_CONSUMER,
     USB_HID_EVENT_KEYBOARD_CONNECTED,
     USB_HID_EVENT_KEYBOARD_DISCONNECTED,
     USB_HID_EVENT_MOUSE_CONNECTED,
@@ -58,6 +59,11 @@ typedef struct {
         struct { int32_t dx; int32_t dy; }         mouse_move;
         struct { bool button1; bool button2; }     mouse_btn;
         struct { int32_t delta; }                  scroll;
+        /**
+         * @brief A Consumer Control usage press or release (HID Usage Tables section 15),
+         * e.g. headset buttons. `usage` is the raw Consumer-page usage code, not a key code.
+         */
+        struct { uint16_t usage; bool pressed; }   consumer;
     };
 } UsbHidEvent;
 

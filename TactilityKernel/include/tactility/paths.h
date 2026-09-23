@@ -9,6 +9,9 @@
 extern "C" {
 #endif
 
+#define FILE_MAX_PATH_LENGTH 255
+#define FILE_MAX_PATH_STRING_LENGTH (FILE_MAX_PATH_LENGTH + 1)
+
 /**
  * @brief Get the root path for user data. Survives OS upgrades.
  * @param[out] out_path buffer to store the path (no trailing "/")
@@ -18,6 +21,16 @@ extern "C" {
  * @retval ERROR_NONE on success
  */
 error_t paths_get_data_path(char* out_path, size_t out_path_size);
+
+/**
+ * @brief Get the path for temporary files, under the data path (no trailing "/").
+ * @param[out] out_path buffer to store the path (no trailing "/")
+ * @param[in] out_path_size size of the output buffer
+ * @retval ERROR_NOT_FOUND if the configured storage location isn't available (e.g. no SD card)
+ * @retval ERROR_BUFFER_OVERFLOW if out_path_size is too small
+ * @retval ERROR_NONE on success
+ */
+error_t paths_get_temp_path(char* out_path, size_t out_path_size);
 
 #ifdef __cplusplus
 }

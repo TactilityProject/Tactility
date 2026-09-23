@@ -3,6 +3,8 @@
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
 
+#include <atomic>
+
 namespace tt::service::audio {
 
 extern const ServiceManifest manifest;
@@ -102,6 +104,28 @@ void setOutputMuted(bool muted) {
     if (auto service = tryFindAudioService()) {
         service->setOutputMuted(muted);
     }
+}
+
+// Media transport request latch: set from any task (e.g. the USB HID consumer routing a
+// headset Play/Pause button), consumed on the media app's own thread. A latch rather than
+// a pubsub topic keeps the surface minimal: one expected consumer (the foreground media
+// app) polls it.
+static std::atomic<bool> s_play_pause_requested(false);
+
+void requestPlayPause() {
+    // Toggle rather than store(true): each call represents one physical toggle-press, so two
+    // presses before consumption must cancel out (net "no pending toggle"), not collapse to a
+    // single one.
+    bool expected = s_play_pause_requested.load();
+    while (!s_play_pause_requested.compare_exchange_weak(expected, !expected)) {}
+}
+
+bool consumePlayPauseRequest() {
+    return s_play_pause_requested.exchange(false);
+}
+
+void clearPlayPauseRequest() {
+    s_play_pause_requested.store(false);
 }
 
 } // namespace tt::service::audio

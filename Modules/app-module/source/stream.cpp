@@ -194,7 +194,7 @@ error_t app_stream_subscribe(AppStream* stream, void* buffer, size_t buffer_capa
         return ERROR_NOT_FOUND;
     }
     stream->producer_task = iterator->second.task;
-    error_t bind_result = app_fd_table_bind(&iterator->second.fd_table, producer_fd, &STREAM_OPS, stream);
+    error_t bind_result = app_fd_table_bind(&iterator->second.fd_table, producer_fd, &STREAM_OPS, stream, /*suppress_console_tee=*/false);
     mutex_unlock(&ledger.mutex);
 
     if (bind_result != ERROR_NONE) {
@@ -205,6 +205,25 @@ error_t app_stream_subscribe(AppStream* stream, void* buffer, size_t buffer_capa
     return bind_result;
 }
 
+error_t app_stream_bind_alias_fd(AppStream* stream, int alias_fd) {
+    if (alias_fd < 0 || alias_fd >= APP_MAX_FDS) {
+        return ERROR_OUT_OF_RANGE;
+    }
+
+    // Same locking rationale as app_stream_subscribe(): held across the fd-table lookup and bind
+    // so this can't race app_fd_table_teardown().
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    auto iterator = ledger.instances.find(stream->producer_id);
+    if (iterator == ledger.instances.end()) {
+        mutex_unlock(&ledger.mutex);
+        return ERROR_NOT_FOUND;
+    }
+    error_t result = app_fd_table_bind(&iterator->second.fd_table, alias_fd, &STREAM_OPS, stream, /*suppress_console_tee=*/false);
+    mutex_unlock(&ledger.mutex);
+    return result;
+}
+
 error_t app_stream_unsubscribe(AppStream* stream) {
     // Held across the fd-table lookup, get, and close. See app_stream_subscribe()'s own
     // comment on why this must stay exclusive with app_fd_table_teardown().
@@ -213,9 +232,14 @@ error_t app_stream_unsubscribe(AppStream* stream) {
     auto iterator = ledger.instances.find(stream->producer_id);
     if (iterator != ledger.instances.end()) {
         AppFdTable* table = &iterator->second.fd_table;
-        AppFile current {};
-        if (app_fd_table_get(table, stream->producer_fd, &current) && current.object == stream) {
-            app_fd_table_close(table, stream->producer_fd); // -> stream_file_close() -> app_stream_close()
+        // Closes producer_fd and any fd bound via app_stream_bind_alias_fd(): all share this same
+        // stream object, and app_fd_table_teardown() finding one afterwards would dispatch into
+        // a destructed mutex otherwise.
+        for (int fd = 0; fd < APP_MAX_FDS; fd++) {
+            AppFile current {};
+            if (app_fd_table_get(table, fd, &current) && current.object == stream) {
+                app_fd_table_close(table, fd); // -> stream_file_close() -> app_stream_close()
+            }
         }
     }
     mutex_unlock(&ledger.mutex);

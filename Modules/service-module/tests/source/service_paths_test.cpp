@@ -8,7 +8,7 @@
 #include <string>
 
 TEST_CASE("paths_get_data_path returns a non-empty path") {
-    char buffer[192];
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
     REQUIRE_EQ(paths_get_data_path(buffer, sizeof(buffer)), ERROR_NONE);
     CHECK_GT(std::strlen(buffer), 0);
 }
@@ -19,10 +19,10 @@ TEST_CASE("paths_get_data_path reports overflow for a too-small buffer") {
 }
 
 TEST_CASE("service_paths_get_user_data_directory includes the service id") {
-    char root[192];
+    char root[FILE_MAX_PATH_STRING_LENGTH];
     REQUIRE_EQ(paths_get_data_path(root, sizeof(root)), ERROR_NONE);
 
-    char buffer[224];
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
     CHECK_EQ(service_paths_get_user_data_directory("my-service", buffer, sizeof(buffer)), ERROR_NONE);
 
     std::string expected = std::string(root) + "/service/my-service";
@@ -30,7 +30,7 @@ TEST_CASE("service_paths_get_user_data_directory includes the service id") {
 }
 
 TEST_CASE("service_paths_get_user_data_path appends the child path") {
-    char directory[224];
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
     REQUIRE_EQ(service_paths_get_user_data_directory("my-service", directory, sizeof(directory)), ERROR_NONE);
 
     char buffer[256];
@@ -41,10 +41,10 @@ TEST_CASE("service_paths_get_user_data_path appends the child path") {
 }
 
 TEST_CASE("service_paths_get_assets_directory is nested under the user data directory") {
-    char directory[224];
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
     REQUIRE_EQ(service_paths_get_user_data_directory("my-service", directory, sizeof(directory)), ERROR_NONE);
 
-    char buffer[256];
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
     CHECK_EQ(service_paths_get_assets_directory("my-service", buffer, sizeof(buffer)), ERROR_NONE);
 
     std::string expected = std::string(directory) + "/assets";
@@ -52,10 +52,10 @@ TEST_CASE("service_paths_get_assets_directory is nested under the user data dire
 }
 
 TEST_CASE("service_paths_get_assets_path appends the child path") {
-    char directory[224];
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
     REQUIRE_EQ(service_paths_get_assets_directory("my-service", directory, sizeof(directory)), ERROR_NONE);
 
-    char buffer[256];
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
     CHECK_EQ(service_paths_get_assets_path("my-service", "icon.png", buffer, sizeof(buffer)), ERROR_NONE);
 
     std::string expected = std::string(directory) + "/icon.png";

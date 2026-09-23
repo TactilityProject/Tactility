@@ -17,20 +17,19 @@ target_include_directories(TactilityTests PRIVATE ${DOCTESTINC})
 target_include_directories(TactilityTests PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../Include)
 target_include_directories(TactilityTests PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../Private)
 
+# TerminalRenderer*.cpp needs this; Tactility's own CMakeLists.txt derives it from sdkconfig, but
+# this target only ever builds for the POSIX simulator (see Tests/tests.md), so it just hardcodes
+# that same file's own POSIX default rather than reimplementing the sdkconfig lookup here too.
+target_compile_definitions(TactilityTests PRIVATE
+    "-DTT_TERMINAL_FONT_SIZE=14"
+    "-DTT_TERMINAL_FONT_SYMBOL=ibmplexmono_14_font"
+)
+
 add_test(NAME TactilityTests COMMAND TactilityTests)
 
-# Matches Tactility/CMakeLists.txt's own set of --wrap flags: this binary also compiles
-# AppStdioWrap.cpp and links app-module (whose io.cpp calls __real_read/write/close() on
-# non-Apple POSIX - see TT_APP_IO_WRAPS_STDIO in Modules/app-module/CMakeLists.txt), so it
-# needs the same wraps applied or those go unresolved.
-if (NOT APPLE)
-    target_link_options(TactilityTests PRIVATE
-        "-Wl,--wrap=pthread_attr_setstack" "-Wl,--wrap=read" "-Wl,--wrap=write" "-Wl,--wrap=close"
-        "-Wl,--wrap=printf" "-Wl,--wrap=fprintf" "-Wl,--wrap=vprintf" "-Wl,--wrap=vfprintf"
-        "-Wl,--wrap=puts" "-Wl,--wrap=fputs" "-Wl,--wrap=putchar" "-Wl,--wrap=fputc"
-        "-Wl,--wrap=getchar" "-Wl,--wrap=fgetc" "-Wl,--wrap=fgets"
-    )
-endif ()
+# No --wrap flags declared here: linking platform-posix and app-module below already brings all
+# of pthread_attr_setstack/read/write/close/the printf family along (see their own CMakeLists.txt
+# files).
 
 target_link_libraries(TactilityTests PRIVATE
     TactilityKernel
@@ -41,9 +40,12 @@ target_link_libraries(TactilityTests PRIVATE
     lvgl-module
     lvgl-window-manager-module
     app-module
+    audio-decoder-module
     c-symbols-module
+    cjson-module
     cpp-symbols-module
     crypt-module
+    font-module
     freertos-module
     gps-module
     http-module

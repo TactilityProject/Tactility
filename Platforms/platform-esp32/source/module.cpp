@@ -117,6 +117,7 @@ extern "C" {
     int __clzsi2(unsigned int x);
     // GCC 64-bit integer arithmetic helpers (needed for 64-bit div on 32-bit RISC-V)
     long long __divdi3(long long a, long long b);
+    long long __moddi3(long long a, long long b);
     unsigned long long __udivdi3(unsigned long long a, unsigned long long b);
     unsigned long long (__atomic_load_8)(const volatile void*, int);
     void (__atomic_store_8)(volatile void*, unsigned long long, int);
@@ -315,6 +316,7 @@ static const ModuleSymbol platform_esp32_symbols[] = {
     DEFINE_MODULE_SYMBOL(__gtdf2),
     DEFINE_MODULE_SYMBOL(__clzsi2),
     DEFINE_MODULE_SYMBOL(__divdi3),
+    DEFINE_MODULE_SYMBOL(__moddi3),
     DEFINE_MODULE_SYMBOL(__udivdi3),
     DEFINE_MODULE_SYMBOL(__atomic_load_8),
     DEFINE_MODULE_SYMBOL(__atomic_store_8),
@@ -354,6 +356,10 @@ extern Driver esp32_usbhost_hid_driver;
 extern Driver esp32_usbhost_hid_keyboard_driver;
 extern Driver esp32_usbhost_midi_driver;
 extern Driver esp32_usbhost_msc_driver;
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
+extern Driver esp32_usbhost_uac_driver;
+extern Driver usb_uac_codec_driver;
+#endif
 #endif
 #if SOC_USB_OTG_SUPPORTED && (CONFIG_TINYUSB_HID_COUNT || CONFIG_TINYUSB_MSC_ENABLED || CONFIG_TINYUSB_MIDI_COUNT || CONFIG_TINYUSB_CDC_ENABLED)
 extern Driver esp32_usb_device_controller_driver;
@@ -403,6 +409,10 @@ static Driver* const platform_esp32_drivers[] = {
     &esp32_usbhost_hid_keyboard_driver,
     &esp32_usbhost_midi_driver,
     &esp32_usbhost_msc_driver,
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
+    &esp32_usbhost_uac_driver,
+    &usb_uac_codec_driver,
+#endif
 #endif
 #if SOC_USB_OTG_SUPPORTED && (CONFIG_TINYUSB_HID_COUNT || CONFIG_TINYUSB_MSC_ENABLED || CONFIG_TINYUSB_MIDI_COUNT || CONFIG_TINYUSB_CDC_ENABLED)
     &esp32_usb_device_controller_driver,

@@ -152,5 +152,5 @@ void cl32_power_detect_start() {
 }
 
 void cl32_power_detect_stop() {
-    device_listener_remove(on_i2c0_started);
+    device_listener_remove(on_i2c0_started, nullptr);
 }

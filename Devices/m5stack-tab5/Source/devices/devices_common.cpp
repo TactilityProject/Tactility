@@ -9,7 +9,7 @@ constexpr auto* TAG = "Tab5";
 // Mirrors device_construct_add_start(), but with a device_set_parent() call inserted between
 // construct and add - device_set_parent() asserts on device->internal (only valid after
 // construct), and device_construct_add_start() doesn't expose a hook to call it before add().
-bool construct_add_start(Device* device, Device* parent, const char* compatible) {
+bool construct_add(Device* device, Device* parent, const char* compatible) {
     error_t error = device_construct(device);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "display_detect: failed to construct %s: %s", device->name, error_to_string(error));
@@ -33,7 +33,15 @@ bool construct_add_start(Device* device, Device* parent, const char* compatible)
         return false;
     }
 
-    error = device_start(device);
+    return true;
+}
+
+bool construct_add_start(Device* device, Device* parent, const char* compatible) {
+    if (!construct_add(device, parent, compatible)) {
+        return false;
+    }
+
+    error_t error = device_start(device);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "display_detect: failed to start %s: %s", device->name, error_to_string(error));
         device_remove(device);

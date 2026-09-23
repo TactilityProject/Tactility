@@ -41,10 +41,10 @@ struct MemoryPolicy {
 extern const struct MemoryPolicy MEMORY_POLICY_DEFAULT;
 
 /**
- * @brief Logs current heap usage (internal and external, when applicable).
+ * @brief Writes current heap usage to log at info level.
  * No-op on platforms without heap capability tracking.
  */
-void memory_print_stats();
+void memory_log_stats(void);
 
 /**
  * @brief Allocates memory that satisfies the given policy.

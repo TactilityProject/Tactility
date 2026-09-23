@@ -44,8 +44,11 @@ constexpr auto* KEY_WEBSERVER_PASSWORD = "webServerPassword";
 
 std::string generateDefaultApSsid() {
 #ifdef ESP_PLATFORM
+    // ESP_MAC_BASE (not ESP_MAC_WIFI_STA) since chips without local WiFi silicon
+    // (e.g. ESP32-P4, which uses an external co-processor over ESP-Hosted) have no
+    // WiFi-station MAC type in eFuse; the base factory MAC exists on every chip.
     uint8_t mac[6];
-    if (esp_read_mac(mac, ESP_MAC_WIFI_STA) != ESP_OK) {
+    if (esp_read_mac(mac, ESP_MAC_BASE) != ESP_OK) {
         return "Tactility-0000";
     }
     char ssid[16];

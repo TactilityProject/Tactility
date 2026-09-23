@@ -44,10 +44,11 @@ def generate_icon_fonts(font_file, font_sizes, symbols, output):
         generate(2, size, font_file, symbols, output)
 
 def generate_icon_names(codepoint_map: dict, codepoint_names: list, variable_name: str):
-    filename = f"lvgl_icon_{variable_name}.h"
+    filename = f"{variable_name}.h"
     print(f"Generating {filename}")
-    output_path = os.path.join("..", "include", "tactility", filename)
+    output_path = os.path.join("..", "include", "lvgl", "icons", filename)
     with open(output_path, 'w') as f:
+        f.write("// SPDX-License-Identifier: Apache-2.0\n\n")
         f.write("#pragma once\n\n")
         for name in codepoint_names:
             safe_name = name.lower()

@@ -3,6 +3,7 @@
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/hid_consumer.h>
 #include <tactility/drivers/keyboard.h>
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/log.h>
@@ -53,6 +54,13 @@ struct UsbHidContext {
     std::atomic<hid_host_device_handle_t> kb_handle{nullptr};
     std::atomic<bool> kb_led_pending{false};
 
+    // Consumer Control interface (headset buttons, media keys), decoded via hid_consumer.
+    // One at a time.
+    HidConsumerMap consumer_map = {};
+    std::atomic<hid_host_device_handle_t> consumer_handle{nullptr};
+    uint16_t consumer_prev_usages[HID_CONSUMER_MAX_USAGES] = {};
+    size_t consumer_prev_count = 0;
+
     QueueHandle_t    subscribers[MAX_SUBSCRIBERS] = {};
     SemaphoreHandle_t sub_mutex                   = nullptr;
 
@@ -69,91 +77,13 @@ static void usb_hid_keyboard_device_destruct(UsbHidContext* ctx);
 static void usb_hid_keyboard_publish_key(UsbHidContext* ctx, uint32_t lv_key, bool pressed, bool ctrl, bool alt, uint8_t hid_keycode, uint8_t hid_modifier);
 }
 
-static const uint8_t keycode2ascii[57][2] = {
-    {0, 0}, {0, 0}, {0, 0}, {0, 0},
-    {'a', 'A'}, {'b', 'B'}, {'c', 'C'}, {'d', 'D'}, {'e', 'E'},
-    {'f', 'F'}, {'g', 'G'}, {'h', 'H'}, {'i', 'I'}, {'j', 'J'},
-    {'k', 'K'}, {'l', 'L'}, {'m', 'M'}, {'n', 'N'}, {'o', 'O'},
-    {'p', 'P'}, {'q', 'Q'}, {'r', 'R'}, {'s', 'S'}, {'t', 'T'},
-    {'u', 'U'}, {'v', 'V'}, {'w', 'W'}, {'x', 'X'}, {'y', 'Y'},
-    {'z', 'Z'},
-    {'1', '!'}, {'2', '@'}, {'3', '#'}, {'4', '$'}, {'5', '%'},
-    {'6', '^'}, {'7', '&'}, {'8', '*'}, {'9', '('}, {'0', ')'},
-    {'\r', '\r'}, {0, 0}, {'\b', 0}, {'\t', '\t'}, {' ', ' '},
-    {'-', '_'}, {'=', '+'}, {'[', '{'}, {']', '}'},
-    {'\\', '|'}, {'\\', '|'}, {';', ':'}, {'\'', '"'},
-    {'`', '~'}, {',', '<'}, {'.', '>'}, {'/', '?'},
-};
-
-// Every key returns a real Unicode codepoint per KeyboardKeyData::key's contract - never an
-// LV_KEY_* (or USB_HID_KEY_*, which mirrors it) constant. Keys with no ordinary character of
-// their own use the CodePoint enum's standard Unicode symbol for the concept. lvgl-module's
-// keyboard.cpp translates all of these back to LVGL's own sentinels (CODEPOINT_ESCAPE/BACKSPACE/
-// DELETE already equal their LV_KEY_* counterpart numerically, so no translation is needed for
-// those).
-static uint32_t hid_keycode_to_key(uint8_t modifier, uint8_t key_code,
-                                       bool caps_lock, bool num_lock) {
-    bool shift = (modifier & HID_LEFT_SHIFT) || (modifier & HID_RIGHT_SHIFT);
-    bool ctrl  = (modifier & HID_LEFT_CONTROL) || (modifier & HID_RIGHT_CONTROL);
-    bool alt   = (modifier & HID_LEFT_ALT) || (modifier & HID_RIGHT_ALT);
-
-    switch (key_code) {
-        case HID_KEY_ENTER:         return CODEPOINT_ENTER;
-        case HID_KEY_ESC:           return CODEPOINT_ESCAPE;
-        case HID_KEY_DEL:           return CODEPOINT_BACKSPACE;
-        case HID_KEY_DELETE:        return CODEPOINT_DELETE;
-        case HID_KEY_TAB:           return '\t';
-        case HID_KEY_UP:            return CODEPOINT_ARROW_UP;
-        case HID_KEY_DOWN:          return CODEPOINT_ARROW_DOWN;
-        case HID_KEY_LEFT:          return CODEPOINT_ARROW_LEFT;
-        case HID_KEY_RIGHT:         return CODEPOINT_ARROW_RIGHT;
-        case HID_KEY_HOME:          return CODEPOINT_HOME;
-        case HID_KEY_END:           return CODEPOINT_END;
-        case HID_KEY_KEYPAD_ENTER:  return CODEPOINT_ENTER;
-        case HID_KEY_KEYPAD_ADD:    return '+';
-        case HID_KEY_KEYPAD_SUB:    return '-';
-        case HID_KEY_KEYPAD_MUL:    return '*';
-        case HID_KEY_KEYPAD_DIV:    return '/';
-        case HID_KEY_KEYPAD_0:      return num_lock ? (uint32_t)'0' : 0u;
-        case HID_KEY_KEYPAD_1:      return num_lock ? (uint32_t)'1' : (uint32_t)CODEPOINT_END;
-        case HID_KEY_KEYPAD_2:      return num_lock ? (uint32_t)'2' : (uint32_t)CODEPOINT_ARROW_DOWN;
-        case HID_KEY_KEYPAD_3:      return num_lock ? (uint32_t)'3' : 0u;
-        case HID_KEY_KEYPAD_4:      return num_lock ? (uint32_t)'4' : (uint32_t)CODEPOINT_ARROW_LEFT;
-        case HID_KEY_KEYPAD_5:      return num_lock ? (uint32_t)'5' : 0u;
-        case HID_KEY_KEYPAD_6:      return num_lock ? (uint32_t)'6' : (uint32_t)CODEPOINT_ARROW_RIGHT;
-        case HID_KEY_KEYPAD_7:      return num_lock ? (uint32_t)'7' : (uint32_t)CODEPOINT_HOME;
-        case HID_KEY_KEYPAD_8:      return num_lock ? (uint32_t)'8' : (uint32_t)CODEPOINT_ARROW_UP;
-        case HID_KEY_KEYPAD_9:      return num_lock ? (uint32_t)'9' : 0u;
-        case HID_KEY_KEYPAD_DELETE: return num_lock ? (uint32_t)'.' : (uint32_t)CODEPOINT_DELETE;
-        default: break;
-    }
-
-    /*
-     * Ctrl and Alt no longer suppress the key.
-     *
-     * They used to return 0 here, which meant a chord like Ctrl+C produced nothing at all and a
-     * terminal application could never see it. The modifiers are now reported alongside the key in
-     * UsbHidEvent instead, so the plain character still comes through and a consumer that wants a
-     * control code derives it. Alt is passed through on the same basis.
-     */
-    (void)ctrl;
-    (void)alt;
-
-    if (key_code < (sizeof(keycode2ascii) / sizeof(keycode2ascii[0]))) {
-        bool is_letter = (key_code >= 0x04 && key_code <= 0x1D);
-        bool effective_shift = is_letter ? (shift ^ caps_lock) : shift;
-        uint8_t ch = keycode2ascii[key_code][effective_shift ? 1 : 0];
-        if (ch != 0) return (uint32_t)ch;
-    }
-    return 0;
-}
-
 static void publish_event(UsbHidContext* ctx, const UsbHidEvent* evt) {
     if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(10)) != pdTRUE) {
         LOG_W(TAG, "publish_event: sub_mutex contended, event type=%d dropped", (int)evt->type);
         return;
     }
-    bool is_release = (evt->type == USB_HID_EVENT_KEY && !evt->key.pressed);
+    bool is_release = (evt->type == USB_HID_EVENT_KEY && !evt->key.pressed)
+        || (evt->type == USB_HID_EVENT_CONSUMER && !evt->consumer.pressed);
     TickType_t send_timeout = is_release ? pdMS_TO_TICKS(10) : 0;
     for (int i = 0; i < MAX_SUBSCRIBERS; i++) {
         if (ctx->subscribers[i]) {
@@ -237,8 +167,8 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
                             publish_scroll(ctx, is_pgup ? -8 : 8);
                             continue;
                         }
-                        uint32_t lv_key = hid_keycode_to_key(kb->modifier.val, hid_code,
-                                                                  ctx->caps_lock_active, ctx->num_lock_active);
+                        uint32_t lv_key = keyboard_key_from_hid_usage(kb->modifier.val, hid_code,
+                                                                      ctx->caps_lock_active, ctx->num_lock_active);
                         if (lv_key) {
                             usb_hid_keyboard_publish_key(ctx, lv_key, true, with_ctrl, with_alt, hid_code, kb->modifier.val);
                             ctx->pressed_lv_keys[hid_code] = lv_key;
@@ -277,6 +207,41 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
                     publish_scroll(ctx, delta);
                 }
             }
+        } else if (ctx->consumer_handle.load() == handle) {
+            // Consumer Control bitmap: guard the report ID here so hid_consumer_decode_report's
+            // zero result always means "nothing pressed" (releases), never "not our report".
+            if (ctx->consumer_map.has_report_id
+                && (data_len < 1 || data[0] != ctx->consumer_map.report_id)) {
+                break;
+            }
+            uint16_t usages[HID_CONSUMER_MAX_USAGES];
+            size_t count = hid_consumer_decode_report(&ctx->consumer_map, data, data_len,
+                                                      usages, HID_CONSUMER_MAX_USAGES);
+            // Publish transitions against the previously pressed set.
+            for (size_t i = 0; i < count; i++) {
+                bool was_pressed = false;
+                for (size_t j = 0; j < ctx->consumer_prev_count; j++) {
+                    if (ctx->consumer_prev_usages[j] == usages[i]) { was_pressed = true; break; }
+                }
+                if (!was_pressed) {
+                    UsbHidEvent evt = { .type = USB_HID_EVENT_CONSUMER,
+                                        .consumer = { usages[i], true } };
+                    publish_event(ctx, &evt);
+                }
+            }
+            for (size_t j = 0; j < ctx->consumer_prev_count; j++) {
+                bool still_pressed = false;
+                for (size_t i = 0; i < count; i++) {
+                    if (usages[i] == ctx->consumer_prev_usages[j]) { still_pressed = true; break; }
+                }
+                if (!still_pressed) {
+                    UsbHidEvent evt = { .type = USB_HID_EVENT_CONSUMER,
+                                        .consumer = { ctx->consumer_prev_usages[j], false } };
+                    publish_event(ctx, &evt);
+                }
+            }
+            memcpy(ctx->consumer_prev_usages, usages, count * sizeof(uint16_t));
+            ctx->consumer_prev_count = count;
         }
         break;
 
@@ -289,12 +254,23 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
             usb_hid_keyboard_device_destruct(ctx);
         } else if (params.proto == HID_PROTOCOL_MOUSE) {
             ctx->mouse_connected = false;
+        } else if (ctx->consumer_handle.load() == handle) {
+            // Synthesize releases on disconnect, or a mid-press unplug latches the app-side
+            // state (audio service latch/repeat) forever.
+            for (size_t j = 0; j < ctx->consumer_prev_count; j++) {
+                UsbHidEvent evt = { .type = USB_HID_EVENT_CONSUMER,
+                                    .consumer = { ctx->consumer_prev_usages[j], false } };
+                publish_event(ctx, &evt);
+            }
+            ctx->consumer_handle.store(nullptr);
+            ctx->consumer_prev_count = 0;
         }
         hid_host_device_close(handle);
-        if (!ctx->kb_handle.load() && !ctx->mouse_connected) {
+        if (!ctx->kb_handle.load() && !ctx->mouse_connected
+            && ctx->consumer_handle.load() == nullptr) {
             ctx->device_connected = false;
         }
-        {
+        if (params.proto == HID_PROTOCOL_KEYBOARD || params.proto == HID_PROTOCOL_MOUSE) {
             UsbHidEventType disc_type = (params.proto == HID_PROTOCOL_KEYBOARD)
                 ? USB_HID_EVENT_KEYBOARD_DISCONNECTED
                 : USB_HID_EVENT_MOUSE_DISCONNECTED;
@@ -343,7 +319,37 @@ static void hid_proc_task(void* arg) {
             if (hid_host_device_get_params(dev_evt.handle, &params) != ESP_OK) continue;
 
             if (params.proto != HID_PROTOCOL_KEYBOARD && params.proto != HID_PROTOCOL_MOUSE) {
-                LOG_D(TAG, "ignoring HID interface with unhandled proto=%d", params.proto);
+                // Non-boot interfaces (e.g. Consumer Control) must be opened before their
+                // report descriptor is readable; close again if it's not a consumer bitmap.
+                const hid_host_device_config_t probe_cfg = {
+                    .callback = hid_interface_callback,
+                    .callback_arg = ctx,
+                };
+                if (hid_host_device_open(dev_evt.handle, &probe_cfg) != ESP_OK) {
+                    LOG_W(TAG, "hid_host_device_open failed for non-boot interface");
+                    continue;
+                }
+                size_t desc_len = 0;
+                const uint8_t* desc = hid_host_get_report_descriptor(dev_evt.handle, &desc_len);
+                HidConsumerMap map = {};
+                if (desc == nullptr || !hid_consumer_parse_descriptor(desc, desc_len, &map)) {
+                    hid_host_device_close(dev_evt.handle);
+                    LOG_D(TAG, "ignoring HID interface with unhandled proto=%d", params.proto);
+                    continue;
+                }
+                if (ctx->consumer_handle.load() != nullptr) {
+                    hid_host_device_close(dev_evt.handle);
+                    LOG_W(TAG, "a Consumer Control interface is already connected; ignoring another");
+                    continue;
+                }
+                LOG_I(TAG, "HID Consumer Control connected (%d usages)", (int) map.usage_count);
+
+                // No boot-protocol switch: consumer devices only implement report protocol.
+                ctx->consumer_map = map;
+                ctx->consumer_prev_count = 0;
+                ctx->consumer_handle.store(dev_evt.handle);
+                ctx->device_connected = true;
+                hid_host_device_start(dev_evt.handle);
                 continue;
             }
             LOG_I(TAG, "HID device connected (proto=%d)", params.proto);
@@ -440,11 +446,11 @@ extern "C" {
 //
 // While a physical USB keyboard is connected, a KEYBOARD_TYPE child device is constructed so the
 // rest of the system (lvgl_hardware_keyboard_is_available(), Tactility's KeyboardDeviceListener)
-// sees a real hardware keyboard through the same generic device model as any other keyboard, e.g.
-// Devices/m5stack-tab5/Source/devices/tab5_keyboard.cpp. Real key events are delivered exclusively
-// through this device (kb_handle's hid_interface_callback pushes into its queue below); the
-// generic UsbHidEvent publish/subscribe channel above is unaffected for mouse move/button/scroll
-// and the right-click-as-ESC synthesis it already does.
+// sees a real hardware keyboard through the same generic device model as any other keyboard. Real
+// key events are queued here and drained by read_key(), same as every other keyboard driver in
+// the tree (tab5, tdeck, sdl) - none of them push via keyboard_emit_key() either, since
+// keyboard_read_key() already fans a read_key() result out to keyboard_subscribe()'d subscribers
+// itself.
 
 static error_t usb_hid_kb_device_start(Device* device) {
     auto* queue = xQueueCreate(USB_HID_KB_QUEUE_SIZE, sizeof(KeyboardKeyData));
@@ -487,6 +493,7 @@ Driver esp32_usbhost_hid_keyboard_driver = {
     .compatible = (const char*[]) { nullptr },
     .start_device = usb_hid_kb_device_start,
     .stop_device = usb_hid_kb_device_stop,
+    .probe = nullptr,
     .api = &esp32_usbhost_hid_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
     .owner = nullptr,
@@ -622,6 +629,11 @@ static error_t stop_device(struct Device* device) {
     // hid_interface_callback() for this handle can race the queue delete below.
     if (auto kb_handle = ctx->kb_handle.load()) {
         hid_host_device_close(kb_handle);
+    }
+    // hid_host_uninstall() below can fail with any interface still registered, and its callback
+    // still references ctx, about to be deleted.
+    if (auto consumer_handle = ctx->consumer_handle.load()) {
+        hid_host_device_close(consumer_handle);
     }
     usb_hid_keyboard_device_destruct(ctx);
 

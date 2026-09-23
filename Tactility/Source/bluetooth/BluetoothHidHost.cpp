@@ -13,6 +13,10 @@
 
 #include <tactility/log.h>
 
+#include <tactility/device.h>
+#include <tactility/driver.h>
+#include <tactility/drivers/keyboard.h>
+
 #include <host/ble_gap.h>
 #include <host/ble_gatt.h>
 #include <host/ble_hs.h>
@@ -61,7 +65,7 @@ struct HidHostCtx {
     bool securityInitiated     = false;
     bool typeResolutionDone    = false;
     bool readyBlockFired       = false;
-    lv_indev_t* kbIndev        = nullptr;
+    uint8_t encRetryCount       = 0;
     lv_indev_t* mouseIndev     = nullptr;
     lv_obj_t*   mouseCursor    = nullptr;
     std::array<uint8_t, 6> peerAddr = {};
@@ -70,8 +74,6 @@ struct HidHostCtx {
 // ---- Globals ----
 
 static std::unique_ptr<HidHostCtx> hid_host_ctx;
-static QueueHandle_t hid_host_key_queue = nullptr;
-static uint8_t hid_host_prev_keys[6] = {};
 static esp_timer_handle_t hid_enc_retry_timer = nullptr;
 
 static std::atomic<int32_t> hid_host_mouse_x{0};
@@ -79,8 +81,148 @@ static std::atomic<int32_t> hid_host_mouse_y{0};
 static std::atomic<bool>    hid_host_mouse_btn{false};
 static std::atomic<bool>    hid_host_mouse_active{false};
 
-#define HID_HOST_KEY_QUEUE_SIZE 64
-struct HidHostKeyEvt { uint32_t key; bool pressed; };
+// Mirrors the USB HID host's dynamic keyboard device: while a BLE HID keyboard is connected, a
+// KEYBOARD_TYPE child device is constructed so lvgl_hardware_keyboard_is_available() and
+// KeyboardDeviceListener see it like any other keyboard, correctly suppressing/restoring the
+// on-screen keyboard.
+
+constexpr auto BLE_HID_KB_QUEUE_SIZE = 16;
+
+static Device s_ble_kb_device = {};
+static bool s_ble_kb_device_active = false;
+static uint8_t s_ble_kb_prev_keys[6] = {};
+// The key published on press for each s_ble_kb_prev_keys slot, so release reuses the same
+// mapping (Shift etc. affect the pressed key's identity; the usage code alone doesn't).
+static uint32_t s_ble_kb_prev_published_keys[6] = {};
+
+static error_t bleKbDeviceStart(Device* device) {
+    auto* queue = xQueueCreate(BLE_HID_KB_QUEUE_SIZE, sizeof(KeyboardKeyData));
+    if (queue == nullptr) {
+        return ERROR_RESOURCE;
+    }
+    device_set_driver_data(device, queue);
+    return ERROR_NONE;
+}
+
+static error_t bleKbDeviceStop(Device* device) {
+    auto* queue = static_cast<QueueHandle_t>(device_get_driver_data(device));
+    if (queue != nullptr) {
+        vQueueDelete(queue);
+    }
+    device_set_driver_data(device, nullptr);
+    return ERROR_NONE;
+}
+
+static error_t bleKbDeviceReadKey(Device* device, KeyboardKeyData* data) {
+    auto* queue = static_cast<QueueHandle_t>(device_get_driver_data(device));
+    if (queue == nullptr) {
+        *data = {};
+        return ERROR_NONE;
+    }
+    if (xQueueReceive(queue, data, 0) != pdTRUE) {
+        *data = {};
+        return ERROR_NONE;
+    }
+    data->continue_reading = uxQueueMessagesWaiting(queue) > 0;
+    return ERROR_NONE;
+}
+
+static const KeyboardApi s_ble_kb_api = {
+    .read_key = bleKbDeviceReadKey,
+    .get_backlight = nullptr,
+    .is_present = nullptr,
+};
+
+static Driver s_ble_kb_driver = {
+    .name = "tactility_ble_hid_keyboard",
+    .compatible = (const char*[]) { nullptr },
+    .start_device = bleKbDeviceStart,
+    .stop_device = bleKbDeviceStop,
+    .api = &s_ble_kb_api,
+    .device_type = &KEYBOARD_TYPE,
+    .owner = nullptr,
+    .internal = nullptr,
+};
+
+static void bleKbDeviceConstruct() {
+    if (s_ble_kb_device_active) {
+        return;
+    }
+
+    // No owner module to construct this driver at init, so do it once here, lazily. Never
+    // destructed: it's a static, app-lifetime object.
+    static bool s_driver_constructed = false;
+    if (!s_driver_constructed) {
+        if (driver_construct(&s_ble_kb_driver) != ERROR_NONE) {
+            LOG_E(TAG, "failed to construct BLE keyboard driver");
+            return;
+        }
+        s_driver_constructed = true;
+    }
+
+    s_ble_kb_device = Device {
+        .address = 0,
+        .name = "ble_keyboard0",
+        .config = nullptr,
+        .parent = nullptr,
+        .flags = 0,
+        .internal = nullptr,
+    };
+
+    if (device_construct(&s_ble_kb_device) != ERROR_NONE) {
+        LOG_E(TAG, "failed to construct BLE keyboard device");
+        return;
+    }
+    Device* parent = nullptr;
+    if (device_get_first_active_by_type(&BLUETOOTH_TYPE, &parent) == ERROR_NONE) {
+        device_set_parent(&s_ble_kb_device, parent);
+        device_put(parent);
+    }
+    device_set_driver(&s_ble_kb_device, &s_ble_kb_driver);
+    if (device_add(&s_ble_kb_device) != ERROR_NONE) {
+        LOG_E(TAG, "failed to add BLE keyboard device");
+        device_destruct(&s_ble_kb_device);
+        return;
+    }
+    if (device_start(&s_ble_kb_device) != ERROR_NONE) {
+        LOG_E(TAG, "failed to start BLE keyboard device");
+        device_remove(&s_ble_kb_device);
+        device_destruct(&s_ble_kb_device);
+        return;
+    }
+
+    s_ble_kb_device_active = true;
+}
+
+static void bleKbDeviceDestruct() {
+    if (!s_ble_kb_device_active) {
+        return;
+    }
+    s_ble_kb_device_active = false;
+
+    device_stop(&s_ble_kb_device);
+    device_remove(&s_ble_kb_device);
+    device_destruct(&s_ble_kb_device);
+}
+
+static void bleKbPublishKey(uint32_t key, bool pressed, bool ctrl, bool alt,
+                            uint8_t hid_keycode, uint8_t hid_modifier) {
+    if (!s_ble_kb_device_active) {
+        return;
+    }
+    auto* queue = static_cast<QueueHandle_t>(device_get_driver_data(&s_ble_kb_device));
+    if (queue == nullptr) {
+        return;
+    }
+    KeyboardKeyData data = {};
+    data.key = key;
+    data.pressed = pressed;
+    data.ctrl = ctrl;
+    data.alt = alt;
+    data.hid_keycode = hid_keycode;
+    data.hid_modifier = hid_modifier;
+    xQueueSend(queue, &data, 0);
+}
 
 // ---- Forward declarations ----
 
@@ -90,77 +232,56 @@ static void hidHostReadReportMap(HidHostCtx& ctx);
 static uint16_t getDescEndHandle(const HidHostCtx& ctx, uint16_t valHandle);
 
 // ---- Keycode mapping ----
-
-static uint32_t hidHostMapKeycode(uint8_t mod, uint8_t kc) {
-    bool shift = (mod & 0x22) != 0;
-    switch (kc) {
-        case 0x28: return LV_KEY_ENTER;
-        case 0x29: return LV_KEY_ESC;
-        case 0x2A: return LV_KEY_BACKSPACE;
-        case 0x4C: return LV_KEY_DEL;
-        case 0x2B: return shift ? (uint32_t)LV_KEY_PREV : (uint32_t)LV_KEY_NEXT;
-        case 0x52: return LV_KEY_UP;
-        case 0x51: return LV_KEY_DOWN;
-        case 0x50: return LV_KEY_LEFT;
-        case 0x4F: return LV_KEY_RIGHT;
-        case 0x4A: return LV_KEY_HOME;
-        case 0x4D: return LV_KEY_END;
-        default: break;
-    }
-    if (kc >= 0x04 && kc <= 0x1D) {
-        uint32_t c = static_cast<uint32_t>('a' + (kc - 0x04));
-        return shift ? (c - 0x20) : c;
-    }
-    if (kc >= 0x1E && kc <= 0x27) {
-        static const char nums[]  = "1234567890";
-        static const char snums[] = "!@#$%^&*()";
-        int i = kc - 0x1E;
-        return shift ? static_cast<uint32_t>(snums[i]) : static_cast<uint32_t>(nums[i]);
-    }
-    if (kc == 0x2C) return ' ';
-    return 0;
-}
-
-static void hidHostKeyboardReadCb(lv_indev_t* /*indev*/, lv_indev_data_t* data) {
-    if (!hid_host_key_queue) { data->state = LV_INDEV_STATE_RELEASED; return; }
-    HidHostKeyEvt evt = {};
-    if (xQueueReceive(hid_host_key_queue, &evt, 0) == pdTRUE) {
-        data->key   = evt.key;
-        data->state = evt.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
-        data->continue_reading = (uxQueueMessagesWaiting(hid_host_key_queue) > 0);
-    } else {
-        data->state = LV_INDEV_STATE_RELEASED;
-    }
-}
+//
+// Mapping from HID usage codes to codepoints is shared with the USB HID host in
+// TactilityKernel's keyboard driver (keyboard_key_from_hid_usage), so both transports
+// produce identical KeyboardKeyData events. Caps/Num Lock state is not tracked here: that
+// would require writing the HID output report (LEDs) over GATT, which this driver does not
+// do; shift/ctrl/alt modifiers are honored.
 
 static void hidHostHandleKeyboardReport(const uint8_t* data, uint16_t len) {
-    if (len < 3 || !hid_host_key_queue) return;
+    // Boot-protocol style report: [0]=modifier, [1]=reserved, [2..]=usage codes.
+    if (len < 3 || !s_ble_kb_device_active) {
+        return;
+    }
     uint8_t mod = data[0];
     const uint8_t* curr = &data[2];
     int nkeys = std::min((int)(len - 2), 6);
+    bool ctrl = (mod & KEYBOARD_HID_MOD_LEFT_CTRL) || (mod & KEYBOARD_HID_MOD_RIGHT_CTRL);
+    bool alt  = (mod & KEYBOARD_HID_MOD_LEFT_ALT) || (mod & KEYBOARD_HID_MOD_RIGHT_ALT);
+
+    uint32_t next_published_keys[6] = {};
 
     for (int i = 0; i < 6; i++) {
-        uint8_t kc = hid_host_prev_keys[i];
+        uint8_t kc = s_ble_kb_prev_keys[i];
         if (kc == 0) continue;
         bool still = false;
         for (int j = 0; j < nkeys; j++) { if (curr[j] == kc) { still = true; break; } }
         if (!still) {
-            uint32_t lv = hidHostMapKeycode(0, kc);
-            if (lv) { HidHostKeyEvt e{lv, false}; xQueueSend(hid_host_key_queue, &e, 0); }
+            // Release with the same mapped key that was published on press, not a fresh
+            // no-modifier mapping - Shift etc. affect the pressed key's identity.
+            uint32_t key = s_ble_kb_prev_published_keys[i];
+            if (key) bleKbPublishKey(key, false, ctrl, alt, kc, mod);
         }
     }
     for (int i = 0; i < nkeys; i++) {
         uint8_t kc = curr[i];
         if (kc == 0) continue;
         bool had = false;
-        for (int j = 0; j < 6; j++) { if (hid_host_prev_keys[j] == kc) { had = true; break; } }
+        int prev_idx = -1;
+        for (int j = 0; j < 6; j++) { if (s_ble_kb_prev_keys[j] == kc) { had = true; prev_idx = j; break; } }
+        uint32_t key;
         if (!had) {
-            uint32_t lv = hidHostMapKeycode(mod, kc);
-            if (lv) { HidHostKeyEvt e{lv, true}; xQueueSend(hid_host_key_queue, &e, 0); }
+            key = keyboard_key_from_hid_usage(mod, kc, false, false);
+            if (key) bleKbPublishKey(key, true, ctrl, alt, kc, mod);
+        } else {
+            key = s_ble_kb_prev_published_keys[prev_idx];
         }
+        next_published_keys[i] = key;
     }
-    std::memcpy(hid_host_prev_keys, curr, nkeys);
-    if (nkeys < 6) std::memset(hid_host_prev_keys + nkeys, 0, 6 - nkeys);
+    std::memcpy(s_ble_kb_prev_keys, curr, nkeys);
+    if (nkeys < 6) std::memset(s_ble_kb_prev_keys + nkeys, 0, 6 - nkeys);
+    std::memcpy(s_ble_kb_prev_published_keys, next_published_keys, sizeof(next_published_keys));
 }
 
 static void hidHostMouseReadCb(lv_indev_t* /*indev*/, lv_indev_data_t* data) {
@@ -248,10 +369,23 @@ static void hidHostHandleMouseReport(const uint8_t* data, uint16_t len) {
 
 static void hidEncRetryTimerCb(void* /*arg*/) {
     if (hid_host_ctx) {
-        if (!hid_host_ctx->typeResolutionDone) {
-            LOG_W(TAG, "Post-encryption delay — type resolution timed out, proceeding");
-            hid_host_ctx->typeResolutionDone = true;
-            hid_host_ctx->subscribeIdx = 0;
+        auto& ctx = *hid_host_ctx;
+        if (!ctx.typeResolutionDone) {
+            // Discovery is still in flight; forcing the subscribe/ready block early would fire
+            // it with an empty report list and never create a keyboard device. Wait (bounded)
+            // for inputRpts to populate; once it has, discovery is just the quick report-map
+            // read left, so cap retries much lower.
+            bool have_reports = !ctx.inputRpts.empty();
+            int retry_cap = have_reports ? 6 : 40; // ~3s vs ~20s
+            if (ctx.encRetryCount < retry_cap) {
+                ctx.encRetryCount++;
+                esp_timer_start_once(hid_enc_retry_timer, 500 * 1000);
+                return;
+            }
+            LOG_W(TAG, "Discovery stalled after %d retries — proceeding with %d reports",
+                  (int)ctx.encRetryCount, (int)ctx.inputRpts.size());
+            ctx.typeResolutionDone = true;
+            ctx.subscribeIdx = 0;
         } else {
             LOG_I(TAG, "Post-encryption delay complete — starting CCCD subscriptions");
         }
@@ -464,21 +598,23 @@ static void hidHostSubscribeNext(HidHostCtx& ctx) {
         LOG_I(TAG, "All %d reports subscribed — ready", (int)ctx.inputRpts.size());
         if (hid_enc_retry_timer) esp_timer_stop(hid_enc_retry_timer);
 
-        if (!hid_host_key_queue) {
-            hid_host_key_queue = xQueueCreate(HID_HOST_KEY_QUEUE_SIZE, sizeof(HidHostKeyEvt));
+        // Construct the dynamic KEYBOARD_TYPE device when the peer has a keyboard report, so
+        // KeyboardDeviceListener binds an LVGL keypad indev to it and
+        // lvgl_hardware_keyboard_is_available() reports a hardware keyboard. "Unknown" report
+        // types (report map read failed) are included because the notification handler's
+        // length heuristic routes 6+ byte reports of unknown type to the keyboard path.
+        bool has_keyboard_report = false;
+        for (const auto& rpt : ctx.inputRpts) {
+            if (rpt.type == HidReportType::Keyboard || rpt.type == HidReportType::Unknown) {
+                has_keyboard_report = true;
+                break;
+            }
         }
-        getMainDispatcher().dispatch([] {
-            if (!hid_host_ctx || hid_host_ctx->kbIndev != nullptr) return;
-            if (!lvgl_try_lock(1000)) { LOG_W(TAG, "LVGL lock failed for kb indev"); return; }
-
-            auto* kb = lv_indev_create();
-            lv_indev_set_type(kb, LV_INDEV_TYPE_KEYPAD);
-            lv_indev_set_read_cb(kb, hidHostKeyboardReadCb);
-            hid_host_ctx->kbIndev = kb;
-            lvgl_hardware_keyboard_add_custom(kb);
-            lvgl_unlock();
-            LOG_I(TAG, "Keyboard indev registered");
-        });
+        if (has_keyboard_report) {
+            getMainDispatcher().dispatch([] {
+                bleKbDeviceConstruct();
+            });
+        }
 
         auto peer_addr = ctx.peerAddr;
         getMainDispatcher().dispatch([peer_addr] {
@@ -662,6 +798,7 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
                 }
             } else {
                 LOG_W(TAG, "Connect failed status=%d", event->connect.status);
+                if (hid_enc_retry_timer) esp_timer_stop(hid_enc_retry_timer);
                 hid_host_ctx.reset();
                 Device* dev;
                 if (device_get_first_active_by_type(&BLUETOOTH_TYPE, &dev) == ERROR_NONE) {
@@ -678,13 +815,12 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
 
         case BLE_GAP_EVENT_DISCONNECT: {
             LOG_I(TAG, "Disconnected reason=%d", event->disconnect.reason);
-            lv_indev_t* saved_kb     = hid_host_ctx ? hid_host_ctx->kbIndev     : nullptr;
+            if (hid_enc_retry_timer) esp_timer_stop(hid_enc_retry_timer);
             lv_indev_t* saved_mouse  = hid_host_ctx ? hid_host_ctx->mouseIndev  : nullptr;
             lv_obj_t*   saved_cursor = hid_host_ctx ? hid_host_ctx->mouseCursor : nullptr;
-            QueueHandle_t saved_queue = hid_host_key_queue;
             hid_host_ctx.reset();
-            hid_host_key_queue = nullptr;
-            std::memset(hid_host_prev_keys, 0, sizeof(hid_host_prev_keys));
+            std::memset(s_ble_kb_prev_keys, 0, sizeof(s_ble_kb_prev_keys));
+            std::memset(s_ble_kb_prev_published_keys, 0, sizeof(s_ble_kb_prev_published_keys));
             hid_host_mouse_x.store(0);
             hid_host_mouse_y.store(0);
             hid_host_mouse_btn.store(false);
@@ -701,20 +837,20 @@ static int hidHostGapCb(struct ble_gap_event* event, void* /*arg*/) {
                 device_put(dev);
             }
 
-            getMainDispatcher().dispatch([saved_kb, saved_mouse, saved_cursor, saved_queue] {
+            // Runs on the main dispatcher: KeyboardDeviceListener's LVGL work must not run on
+            // the NimBLE host task.
+            getMainDispatcher().dispatch([] {
+                bleKbDeviceDestruct();
+            });
+
+            getMainDispatcher().dispatch([saved_mouse, saved_cursor] {
                 if (!lvgl_try_lock(1000)) {
                     LOG_W(TAG, "Failed to acquire LVGL lock for indev cleanup");
-                    if (saved_queue) vQueueDelete(saved_queue);
                     return;
-                }
-                if (saved_kb) {
-                    lvgl_hardware_keyboard_remove_custom(saved_kb);
-                    lv_indev_delete(saved_kb);
                 }
                 if (saved_mouse)  lv_indev_delete(saved_mouse);
                 if (saved_cursor) lv_obj_delete(saved_cursor);
                 lvgl_unlock();
-                if (saved_queue) vQueueDelete(saved_queue);
             });
             break;
         }
@@ -783,6 +919,8 @@ void hidHostConnect(const std::array<uint8_t, 6>& addr) {
     hid_host_mouse_y.store(0);
     hid_host_mouse_btn.store(false);
     hid_host_mouse_active.store(false);
+    std::memset(s_ble_kb_prev_keys, 0, sizeof(s_ble_kb_prev_keys));
+    std::memset(s_ble_kb_prev_published_keys, 0, sizeof(s_ble_kb_prev_published_keys));
 
     hid_host_ctx = std::make_unique<HidHostCtx>();
     hid_host_ctx->peerAddr = addr;

@@ -28,6 +28,12 @@ menu "Tactility App"
             The applications that gives access to other application.
             This is the first thing that starts after the boot screen.
             The user can override it with a boot.properties file
+    config TT_TERMINAL_FONT_SIZE
+        int "Terminal font size"
+        default 14
+        range 12 28
+        help
+            Terminal font size in pixels
     config TT_LVGL_FONT_SIZE_SMALL
         int "Small font size"
         default 10

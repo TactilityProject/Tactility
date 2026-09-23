@@ -3,7 +3,7 @@
 
 #include "kernel/Kernel.h"
 
-#include <Tactility/freertoscompat/RTOS.h>
+#include <tactility/freertos/freertos.h>
 #include <functional>
 #include <memory>
 

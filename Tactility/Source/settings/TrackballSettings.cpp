@@ -1,4 +1,7 @@
 #include <Tactility/settings/TrackballSettings.h>
+
+#include "tactility/paths.h"
+
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
 
@@ -11,7 +14,7 @@
 namespace tt::settings::trackball {
 
 static std::string getSettingsFilePath() {
-    char path[256];
+    char path[FILE_MAX_PATH_STRING_LENGTH];
     if (app_paths_get_user_data_path("tactility.trackballsettings", "trackball.properties", path, sizeof(path)) != ERROR_NONE) {
         return "";
     }
