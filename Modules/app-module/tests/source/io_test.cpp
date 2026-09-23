@@ -214,7 +214,9 @@ TEST_CASE("an app's stdio fds default to the null device: write succeeds and dis
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     AppInstanceId instance_id = 0;
-    REQUIRE_EQ(app_start("test.io.unbound", 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.unbound", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 1000));
 
     CHECK_EQ(g_stdio_write_result.load(std::memory_order_acquire), 1);
@@ -237,7 +239,10 @@ TEST_CASE("app_start_with_streams pipes a child's app_io_write() calls into a pa
 
     AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
     AppInstanceId child_id = 0;
-    REQUIRE_EQ(app_start_with_streams("test.io.writer", &binding, 1, &child_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.writer", &context), ERROR_NONE);
+    app_start_context_set_streams(&context, &binding, 1);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     std::vector<uint8_t> received;
     while (app_stream_await(&child_stdout, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(1000)) == ERROR_NONE) {
@@ -275,7 +280,10 @@ TEST_CASE("app_io_await blocks until the bound stream becomes readable or times 
     AppStream child_stdin {};
     AppStreamBinding binding { STDIN_FILENO, &child_stdin, storage, sizeof(storage), &event_group };
     AppInstanceId child_id = 0;
-    REQUIRE_EQ(app_start_with_streams("test.io.await", &binding, 1, &child_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.await", &context), ERROR_NONE);
+    app_start_context_set_streams(&context, &binding, 1);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     // Wait for the child's first await (50ms, on an empty stream) to actually return before
     // writing: a fixed delay doesn't prove that, and under slow scheduling the write could land
@@ -310,7 +318,10 @@ TEST_CASE("a write blocked on a full stream wakes with an error once the consume
 
     AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
     AppInstanceId child_id = 0;
-    REQUIRE_EQ(app_start_with_streams("test.io.blocked", &binding, 1, &child_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.blocked", &context), ERROR_NONE);
+    app_start_context_set_streams(&context, &binding, 1);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     // Never drained: the child fills the 4-byte buffer and blocks awaiting space for the rest.
     delay_millis(200);
@@ -346,7 +357,10 @@ TEST_CASE("app_stream_unsubscribe is safe to call while a write is actively bloc
 
     AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
     AppInstanceId child_id = 0;
-    REQUIRE_EQ(app_start_with_streams("test.io.unsub_race", &binding, 1, &child_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.unsub_race", &context), ERROR_NONE);
+    app_start_context_set_streams(&context, &binding, 1);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     // Give the child time to fill the 4-byte buffer and block inside app_io_write(), already
     // dispatched through app_fd_table_get_and_retain() and currently waiting in
@@ -377,7 +391,9 @@ TEST_CASE("app_io_read/write/close pass through a real file fd app-module never 
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     AppInstanceId instance_id = 0;
-    REQUIRE_EQ(app_start("test.io.real_file", 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.real_file", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 1000));
 
     CHECK_EQ(g_real_file_write_result.load(std::memory_order_acquire), 2);
@@ -400,7 +416,9 @@ TEST_CASE("app_io_bind_self installs a custom AppFileOps used by subsequent app_
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     AppInstanceId instance_id = 0;
-    REQUIRE_EQ(app_start("test.io.self_bind", 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.self_bind", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 1000));
 
     CHECK_EQ(g_self_bind_result.load(std::memory_order_acquire), ERROR_NONE);
@@ -428,7 +446,9 @@ TEST_CASE("closing an already-closed app fd reports EBADF instead of falling thr
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     AppInstanceId instance_id = 0;
-    REQUIRE_EQ(app_start("test.io.double_close", 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.double_close", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 1000));
 
     CHECK_EQ(g_double_close_first_result.load(std::memory_order_acquire), 0);

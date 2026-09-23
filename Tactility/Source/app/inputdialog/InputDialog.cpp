@@ -156,7 +156,11 @@ uint32_t start(uint32_t callerAppInstanceId, const std::string& title, const std
         .event_group = eventGroup,
     };
     uint32_t instanceId = 0;
-    app_start_for_result_with_streams(manifest.id, 3, argv, &binding, 1, callerAppInstanceId, &instanceId);
+    AppStartContext context = app_start_context_for_manifest(&manifest);
+    app_start_context_set_arguments_ext(&context, 3, argv);
+    app_start_context_set_streams(&context, &binding, 1);
+    app_start_context_set_parent(&context, callerAppInstanceId);
+    app_start_with_context(&context, &instanceId);
     return instanceId;
 }
 

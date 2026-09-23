@@ -4,8 +4,16 @@
 #include <app/manager.h>
 
 /**
- * This file contains functions to start and run apps that were registered to the app manager.
- * It differs from execute.h which runs executables from a specific path.
+ * This file contains functions to start and run apps.
+ * When an AppManifest is provided, it can start apps that were registered with the app manager.
+ * It can also start app binaries directly.
+ *
+ * Steps:
+ *  - Create an AppStartContext by using one of the helper functions:
+ *    - app_start_context_for_manifest() for manager-registered apps
+ *    - app_start_context_for_location() for plain binaries
+ *  - Optionally modify AppStartContext with with one of the helper functions. (e.g. to add parameters)
+ *  - Call app_start_with_context() to start the execution.
  */
 
 #ifdef __cplusplus
@@ -44,6 +52,10 @@ struct AppStartContext app_start_context_for_location(struct AppLocation locatio
  * @retval ERROR_NONE on success
  */
 error_t app_start_context_from_id(const char* id, struct AppStartContext* out_context);
+
+/** Overrides the task's stack allocation config (defaults to the manifest's own, or zeroed/
+ * scheduler-default for a location-based context). See AppStackConfig. */
+void app_start_context_set_stack(struct AppStartContext* context, struct AppStackConfig stack);
 
 /** @param[in] argv @a argc strings, borrowed only until app_manager_start_internal() returns. It makes its own deep copy. */
 void app_start_context_set_arguments_ext(struct AppStartContext* context, int argc, const char* const argv[]);

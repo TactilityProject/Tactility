@@ -133,7 +133,7 @@ int32_t appMain(int argc, char* argv[]) {
 
 namespace {
 
-// Builds argv = [title, message, buttonLabels...] for app_start_for_result().
+// Builds argv = [title, message, buttonLabels...] for app_start_with_context().
 std::vector<const char*> buildArgv(const std::string& title, const std::string& message, const std::vector<std::string>& buttonLabels) {
     std::vector<const char*> argv { title.c_str(), message.c_str() };
     for (const auto& label: buttonLabels) {
@@ -147,7 +147,10 @@ std::vector<const char*> buildArgv(const std::string& title, const std::string& 
 uint32_t start(uint32_t callerAppInstanceId, const std::string& title, const std::string& message, const std::vector<std::string>& buttonLabels) {
     auto argv = buildArgv(title, message, buttonLabels);
     uint32_t instanceId = 0;
-    app_start_for_result(manifest.id, static_cast<int>(argv.size()), argv.data(), callerAppInstanceId, &instanceId);
+    AppStartContext context = app_start_context_for_manifest(&manifest);
+    app_start_context_set_arguments_ext(&context, static_cast<int>(argv.size()), argv.data());
+    app_start_context_set_parent(&context, callerAppInstanceId);
+    app_start_with_context(&context, &instanceId);
     return instanceId;
 }
 

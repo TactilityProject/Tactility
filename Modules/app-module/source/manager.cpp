@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <app/manager.h>
 #include <app/package_manifest.h>
-#include <app/private/arguments.h>
 #include <app/private/binary_path.h>
 #include <app/private/fd_table.h>
 #include <app/private/fs.h>
@@ -139,18 +138,11 @@ void app_manager_for_each_package(AppPackageVisitorFn visitor, void* context) {
 
 error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId* out_app_instance_id) {
     const AppManifest* manifest = context->manifest;
-    int argc = context->argc;
     const AppStreamBinding* bindings = context->bindings;
     size_t binding_count = context->binding_count;
     AppInstanceId parent_instance_id = context->parent_id;
 
-    char** argv = app_arguments_copy(argc, context->argv);
-    if (argc > 0 && argv == nullptr) {
-        return ERROR_OUT_OF_MEMORY;
-    }
-
     if (binding_count != 0 && bindings == nullptr) {
-        app_arguments_free(argc, argv);
         return ERROR_INVALID_ARGUMENT;
     }
 
@@ -158,8 +150,16 @@ error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId
 
     mutex_lock(&ledger.mutex);
     AppInstanceId target_id = ledger.next_instance_id++;
-    AppInstanceRecord record { .id = target_id, .manifest = manifest, .state = APP_INSTANCE_STATE_STARTING, .task = nullptr };
+    AppInstanceRecord record {
+        .id = target_id,
+        .manifest = manifest,
+        .state = APP_INSTANCE_STATE_STARTING,
+        .task = nullptr,
+    };
     record.parent_id = parent_instance_id;
+    for (int i = 0; context->environment != nullptr && context->environment[i] != nullptr; i++) {
+        record.env.emplace_back(context->environment[i]);
+    }
     ledger.instances[target_id] = record;
     // Construct on the map-resident copy, not `record`: fds[] point into slots[] by address
     // (fd_table.h), so constructing on the stack-local record would leave them dangling.
@@ -181,12 +181,11 @@ error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId
             app_fd_table_teardown(&ledger.instances[target_id].fd_table);
             ledger.instances.erase(target_id);
             mutex_unlock(&ledger.mutex);
-            app_arguments_free(argc, argv);
             return bind_result;
         }
     }
 
-    error_t error = app_scheduler_start(target_id, context->location, context->stack, argc, argv);
+    error_t error = app_scheduler_start(target_id, context);
     if (error != ERROR_NONE) {
         for (size_t j = 0; j < binding_count; j++) {
             app_stream_unsubscribe(bindings[j].stream);

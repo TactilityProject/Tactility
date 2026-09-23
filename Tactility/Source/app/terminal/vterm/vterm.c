@@ -733,10 +733,6 @@ void vterm_write(int vt_id, const char *data, size_t len)
 
     xSemaphoreTake(vt->mutex, portMAX_DELAY);
 
-    if (len > 0 && vt->cells == s_iram_buffer) {
-        s_dirty = true;
-    }
-
     const char *p = data;
     const char *end = data + len;
 
@@ -818,6 +814,10 @@ void vterm_write(int vt_id, const char *data, size_t len)
     vt->escape_state = escape_mode;
     vt->pending_wrap = pending_wrap;
 
+    // Set only after the cells are final, so a reader that consumes the flag sees complete content.
+    if (len > 0 && vt->cells == s_iram_buffer) {
+        __atomic_store_n(&s_dirty, true, __ATOMIC_RELEASE);
+    }
 
     xSemaphoreGive(vt->mutex);
 }
@@ -886,9 +886,7 @@ void vterm_get_cursor(int vt_id, int *col, int *row, int *visible) {
 }
 
 bool vterm_take_dirty(void) {
-    bool was_dirty = s_dirty;
-    s_dirty = false;
-    return was_dirty;
+    return __atomic_exchange_n(&s_dirty, false, __ATOMIC_ACQ_REL);
 }
 
 int vterm_getchar(int vt_id, int timeout_ms) {

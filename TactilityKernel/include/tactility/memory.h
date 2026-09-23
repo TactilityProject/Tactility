@@ -48,12 +48,17 @@ void memory_log_stats(void);
 
 /**
  * @brief Total size of the main heap, in bytes.
+ * @note On ESP-IDF this is the actual capacity memory_alloc_with_policy() draws from. On other
+ * platforms (no heap capability tracking), this returns system-wide physical memory instead -
+ * not the process's own allocatable heap - so it can report plenty of "free" memory while
+ * memory_alloc_with_policy() still fails under a process limit.
  * @return the heap's total size, or 0 if unavailable on this platform
  */
 size_t memory_heap_total(void);
 
 /**
  * @brief Currently free space in the main heap, in bytes.
+ * @note See memory_heap_total()'s own note - the same system-wide-vs-process-heap caveat applies.
  * @return the heap's free size, or 0 if unavailable on this platform
  */
 size_t memory_heap_free(void);

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <app/env.h>
 #include <app/event.h>
 #include <app/execute.h>
 #include <app/install.h>
@@ -21,6 +22,11 @@ extern "C" {
 extern ServiceManifest app_internal_loader_service_manifest;
 
 static const ModuleSymbol SYMBOLS[] = {
+    // app/env
+    DEFINE_MODULE_SYMBOL(app_env_set),
+    DEFINE_MODULE_SYMBOL(app_env_unset),
+    DEFINE_MODULE_SYMBOL(app_env_get),
+    DEFINE_MODULE_SYMBOL(app_env_put),
     // app/event
     DEFINE_MODULE_SYMBOL(app_event_subscribe),
     DEFINE_MODULE_SYMBOL(app_event_subscribe_with_app_id),

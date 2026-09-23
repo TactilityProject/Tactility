@@ -80,7 +80,8 @@ AppInstanceId start_idle_app(const char* id) {
     manifest.location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(idle_app_main) };
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
     AppInstanceId instance_id = 0;
-    REQUIRE_EQ(app_start(id, 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context = app_start_context_for_manifest(&manifest);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_ACTIVE, 1000));
     return instance_id;
 }

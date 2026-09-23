@@ -53,8 +53,12 @@ size_t memory_heap_free() {
     vm_size_t page_size = 0;
     vm_statistics64_data_t vm_stats {};
     mach_msg_type_number_t vm_stats_count = HOST_VM_INFO64_COUNT;
-    if (host_page_size(host, &page_size) != KERN_SUCCESS ||
-        host_statistics64(host, HOST_VM_INFO64, reinterpret_cast<host_info64_t>(&vm_stats), &vm_stats_count) != KERN_SUCCESS) {
+    kern_return_t result = host_page_size(host, &page_size);
+    if (result == KERN_SUCCESS) {
+        result = host_statistics64(host, HOST_VM_INFO64, reinterpret_cast<host_info64_t>(&vm_stats), &vm_stats_count);
+    }
+    mach_port_deallocate(mach_task_self(), host);
+    if (result != KERN_SUCCESS) {
         return 0;
     }
     return static_cast<size_t>(static_cast<uint64_t>(vm_stats.free_count + vm_stats.inactive_count) * page_size);
@@ -69,11 +73,14 @@ size_t memory_heap_free() {
 }
 
 void memory_log_stats() {
-    LOG_I(TAG, "Heap: %zu / %zu available", memory_heap_free(), memory_heap_total());
 #ifdef ESP_PLATFORM
+    LOG_I(TAG, "Heap: %zu / %zu available", memory_heap_free(), memory_heap_total());
     size_t ext_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     size_t ext_total = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
     LOG_I(TAG, "External: %zu / %zu available", ext_free, ext_total);
+#else
+    // Not the process's own heap capacity - see memory_heap_total()'s doc comment.
+    LOG_I(TAG, "System memory: %zu / %zu available", memory_heap_free(), memory_heap_total());
 #endif
 }
 

@@ -10,9 +10,9 @@ extern "C" {
 
 /**
  * Shared core behind every app_start*() (app/manager.h) and app_execute*()
- * (app/execute.h) entry point: deep-copies @a context->argv, allocates an instance id, installs
- * @a context->bindings into the new instance's fd table before app_scheduler_start() is called,
- * then starts it. @a context->manifest may be NULL for a location-based start with no manifest.
+ * (app/execute.h) entry point: allocates an instance id, installs @a context->bindings into the
+ * new instance's fd table, then starts it via app_scheduler_start() (which deep-copies @a
+ * context->argv itself). @a context->manifest may be NULL for a location-based start with no manifest.
  * @retval ERROR_INVALID_ARGUMENT @a context->binding_count is nonzero but @a context->bindings is NULL
  * @retval ERROR_NOT_FOUND no AppLoaderApi is registered for @a context->location.type
  * @retval ERROR_OUT_OF_RANGE a binding's producer_fd is out of range

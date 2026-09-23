@@ -378,7 +378,9 @@ int32_t appMain(int argc, char* argv[]) {
 void start(const std::string& ssid, const std::string& password) {
     const char* argv[] = { ssid.c_str(), password.c_str() };
     uint32_t instanceId = 0;
-    app_start(manifest.id, 2, argv, &instanceId);
+    AppStartContext context = app_start_context_for_manifest(&manifest);
+    app_start_context_set_arguments_ext(&context, 2, argv);
+    app_start_with_context(&context, &instanceId);
 }
 
 extern const ::AppManifest manifest = {

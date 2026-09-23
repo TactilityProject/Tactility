@@ -8,6 +8,7 @@
 #include <app/io.h>
 #include <app/manager.h>
 #include <app/scheduler.h>
+#include <app/start.h>
 #include <app/stream.h>
 
 #include <tactility/error.h>
@@ -273,10 +274,11 @@ int runElf(const char* resolvedPath, int argc, char** argv) {
 
     AppLocation location { APP_LOCATION_PATH, const_cast<char*>(resolvedPath) };
     AppInstanceId childId = 0;
-    error_t result = app_execute_for_result_with_streams(
-        location, AppStackConfig {}, passedArgc, rewritten,
-        bindings, sizeof(bindings) / sizeof(bindings[0]),
-        app_scheduler_current_app_id(), &childId);
+    AppStartContext context = app_start_context_for_location(location);
+    app_start_context_set_arguments_ext(&context, passedArgc, rewritten);
+    app_start_context_set_streams(&context, bindings, sizeof(bindings) / sizeof(bindings[0]));
+    app_start_context_set_parent(&context, app_scheduler_current_app_id());
+    error_t result = app_start_with_context(&context, &childId);
     if (result == ERROR_NONE) {
         app_stream_bind_alias_fd(&stdoutStream, STDERR_FILENO);
     }

@@ -5,6 +5,7 @@
 #include <app/paths.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -28,10 +29,12 @@ public:
         return ids;
     }
 
-    void save(const std::vector<std::string>& ids) const {
+    /** @return false if the data root is unavailable or the write itself failed - the previous
+     * file, if any, is left untouched either way. */
+    bool save(const std::vector<std::string>& ids) const {
         const std::string path = filePath();
         if (path.empty()) {
-            return;
+            return false;
         }
         file::findOrCreateParentDirectory(path, 0777);
         std::string content;
@@ -39,14 +42,31 @@ public:
             content += id;
             content += '\n';
         }
-        file::writeString(path, content);
+        // Written to a temp file and renamed into place, so a write that fails partway through
+        // can't truncate or corrupt the existing file.
+        const std::string tempPath = path + ".tmp";
+        if (!file::writeString(tempPath, content)) {
+            remove(tempPath.c_str());
+            return false;
+        }
+        // FatFs (ESP32's internal "/data" filesystem) rejects rename() onto an existing
+        // destination instead of replacing it, unlike POSIX - remove it first so this works the
+        // second and every later time, not just the first.
+        remove(path.c_str());
+        if (rename(tempPath.c_str(), path.c_str()) != 0) {
+            remove(tempPath.c_str());
+            return false;
+        }
+        return true;
     }
 
     static bool contains(const std::vector<std::string>& ids, const char* id) {
         return std::ranges::find(ids, id) != ids.end();
     }
 
-    void toggle(const char* id) const {
+    /** @return false if the new list failed to persist (see save()) - the caller should tell the
+     * user, since the next load() will not reflect this toggle. */
+    bool toggle(const char* id) const {
         auto ids = load();
         auto it = std::ranges::find(ids, id);
         if (it != ids.end()) {
@@ -54,7 +74,7 @@ public:
         } else {
             ids.emplace_back(id);
         }
-        save(ids);
+        return save(ids);
     }
 
 private:

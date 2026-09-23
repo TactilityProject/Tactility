@@ -1294,7 +1294,8 @@ error_t WebServerService::handleApiAppsRun(HttpServerRequest* request, void*) {
     // Every app instance gets its own task now, so there's no "stop the existing one first" -
     // this just starts a fresh instance alongside whatever's already running.
     AppInstanceId instance_id = 0;
-    app_start(appId.c_str(), 0, nullptr, &instance_id);
+    AppStartContext context = app_start_context_for_manifest(&manifest);
+    app_start_with_context(&context, &instance_id);
 
     LOG_I(TAG, "[200] /api/apps/run %s", appId.c_str());
     http_server_request_send_string(request, "ok");

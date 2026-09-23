@@ -579,7 +579,8 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     // It's a new-model (app-module + window-manager) app now, replacing the old app::start().
     app_manager_add(&app::boot::manifest);
     uint32_t boot_instance_id = 0;
-    app_start(app::boot::manifest.id, 0, nullptr, &boot_instance_id);
+    AppStartContext boot_context = app_start_context_for_manifest(&app::boot::manifest);
+    app_start_with_context(&boot_context, &boot_instance_id);
 
     LOG_I(TAG, "Main dispatcher ready");
     while (true) {

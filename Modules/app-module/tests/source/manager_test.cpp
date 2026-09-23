@@ -185,7 +185,9 @@ TEST_CASE("app_start activates an app instance, app_manager_stop terminates it")
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     uint32_t instance_id = 0;
-    REQUIRE_EQ(app_start("test.app.a", 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context_a;
+    REQUIRE_EQ(app_start_context_from_id("test.app.a", &context_a), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context_a, &instance_id), ERROR_NONE);
     CHECK(wait_for_state(instance_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     CHECK_EQ(app_manager_stop(instance_id), ERROR_NONE);
@@ -203,11 +205,15 @@ TEST_CASE("app_start never touches another already-running app - every instance 
     REQUIRE_EQ(app_manager_add(&manifest_c), ERROR_NONE);
 
     uint32_t id_b = 0;
-    REQUIRE_EQ(app_start("test.app.b", 0, nullptr, &id_b), ERROR_NONE);
+    AppStartContext context_b;
+    REQUIRE_EQ(app_start_context_from_id("test.app.b", &context_b), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context_b, &id_b), ERROR_NONE);
     CHECK(wait_for_state(id_b, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     uint32_t id_c = 0;
-    REQUIRE_EQ(app_start("test.app.c", 0, nullptr, &id_c), ERROR_NONE);
+    AppStartContext context_c;
+    REQUIRE_EQ(app_start_context_from_id("test.app.c", &context_c), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context_c, &id_c), ERROR_NONE);
     CHECK(wait_for_state(id_c, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     // b is untouched by c starting - both stay Active at once, each with its own task.
@@ -226,11 +232,15 @@ TEST_CASE("app_start always creates a fresh instance, even for the same manifest
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     uint32_t id_first = 0;
-    REQUIRE_EQ(app_start("test.app.twice", 0, nullptr, &id_first), ERROR_NONE);
+    AppStartContext context_first;
+    REQUIRE_EQ(app_start_context_from_id("test.app.twice", &context_first), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context_first, &id_first), ERROR_NONE);
     CHECK(wait_for_state(id_first, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     uint32_t id_second = 0;
-    REQUIRE_EQ(app_start("test.app.twice", 0, nullptr, &id_second), ERROR_NONE);
+    AppStartContext context_second;
+    REQUIRE_EQ(app_start_context_from_id("test.app.twice", &context_second), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context_second, &id_second), ERROR_NONE);
     CHECK(wait_for_state(id_second, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     CHECK_NE(id_first, id_second);
@@ -259,7 +269,10 @@ TEST_CASE("app_start_with_parameters deep-copies argv before the app instance re
         std::string ssid = "MyNetwork";
         std::string password = "hunter2";
         const char* argv[] = { ssid.c_str(), password.c_str() };
-        REQUIRE_EQ(app_start("test.app.args", 2, argv, &instance_id), ERROR_NONE);
+        AppStartContext context;
+        REQUIRE_EQ(app_start_context_from_id("test.app.args", &context), ERROR_NONE);
+        app_start_context_set_arguments_ext(&context, 2, argv);
+        REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     }
     CHECK(wait_for_state(instance_id, APP_INSTANCE_STATE_ACTIVE, 1000));
     REQUIRE(wait_for_arguments_stashed(1000));
@@ -306,7 +319,8 @@ TEST_CASE("app_manager_for_each_manifest visits every registered manifest, inclu
 
 TEST_CASE("app_start fails for an unregistered manifest id") {
     uint32_t instance_id = 0;
-    CHECK_EQ(app_start("test.app.nonexistent", 0, nullptr, &instance_id), ERROR_NOT_FOUND);
+    AppStartContext context;
+    CHECK_EQ(app_start_context_from_id("test.app.nonexistent", &context), ERROR_NOT_FOUND);
 }
 
 TEST_CASE("app_start runs an APP_LOCATION_MEMORY app via its function pointer, through the real internal loader") {
@@ -321,7 +335,9 @@ TEST_CASE("app_start runs an APP_LOCATION_MEMORY app via its function pointer, t
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     uint32_t instance_id = 0;
-    REQUIRE_EQ(app_start("test.app.memory", 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.memory", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     CHECK(wait_for_state(instance_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     CHECK_EQ(app_manager_stop(instance_id), ERROR_NONE);
@@ -339,7 +355,9 @@ TEST_CASE("app_start_for_result delivers APP_EVENT_RESULT to the parent, which s
     REQUIRE_EQ(app_manager_add(&child_manifest), ERROR_NONE);
 
     uint32_t parent_id = 0;
-    REQUIRE_EQ(app_start("test.app.parent", 0, nullptr, &parent_id), ERROR_NONE);
+    AppStartContext parent_context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.parent", &parent_context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&parent_context, &parent_id), ERROR_NONE);
     CHECK(wait_for_state(parent_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     TaskEventGroup parent_event_group {};
@@ -350,7 +368,11 @@ TEST_CASE("app_start_for_result delivers APP_EVENT_RESULT to the parent, which s
 
     const char* argv[] = { "42" };
     uint32_t child_id = 0;
-    REQUIRE_EQ(app_start_for_result("test.app.child", 1, argv, parent_id, &child_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.child", &context), ERROR_NONE);
+    app_start_context_set_arguments_ext(&context, 1, argv);
+    app_start_context_set_parent(&context, parent_id);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     // Launching a modal child never touches the parent's own task/state.
     CHECK_EQ(app_manager_get_state(parent_id), APP_INSTANCE_STATE_ACTIVE);
@@ -379,7 +401,9 @@ TEST_CASE("app_start_for_result delivers the child's own return value as the res
     REQUIRE_EQ(app_manager_add(&child_manifest), ERROR_NONE);
 
     uint32_t parent_id = 0;
-    REQUIRE_EQ(app_start("test.app.parent2", 0, nullptr, &parent_id), ERROR_NONE);
+    AppStartContext parent_context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.parent2", &parent_context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&parent_context, &parent_id), ERROR_NONE);
     CHECK(wait_for_state(parent_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     TaskEventGroup parent_event_group {};
@@ -391,7 +415,10 @@ TEST_CASE("app_start_for_result delivers the child's own return value as the res
     uint32_t child_id = 0;
     // No parameters - fake_run falls through to its normal CLOSE loop instead of acting as a
     // dialog.
-    REQUIRE_EQ(app_start_for_result("test.app.child2", 0, nullptr, parent_id, &child_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.child2", &context), ERROR_NONE);
+    app_start_context_set_parent(&context, parent_id);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
     CHECK(wait_for_state(child_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     app_manager_stop(child_id); // force-close
@@ -421,14 +448,18 @@ TEST_CASE("app_manager_get_topmost_instance_id returns NOT_FOUND when nothing is
     REQUIRE_EQ(app_manager_add(&manifest_b), ERROR_NONE);
 
     uint32_t id_a = 0;
-    REQUIRE_EQ(app_start("test.app.top_a", 0, nullptr, &id_a), ERROR_NONE);
+    AppStartContext context_a;
+    REQUIRE_EQ(app_start_context_from_id("test.app.top_a", &context_a), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context_a, &id_a), ERROR_NONE);
     CHECK(wait_for_state(id_a, APP_INSTANCE_STATE_ACTIVE, 1000));
     CHECK_EQ(topmost_instance_id(), id_a);
 
     // a stays Active - b just has a higher (more recently allocated) instance id, so it becomes
     // topmost without a superseding/saving.
     uint32_t id_b = 0;
-    REQUIRE_EQ(app_start("test.app.top_b", 0, nullptr, &id_b), ERROR_NONE);
+    AppStartContext context_b;
+    REQUIRE_EQ(app_start_context_from_id("test.app.top_b", &context_b), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context_b, &id_b), ERROR_NONE);
     CHECK(wait_for_state(id_b, APP_INSTANCE_STATE_ACTIVE, 1000));
     CHECK_EQ(topmost_instance_id(), id_b);
 
@@ -441,7 +472,10 @@ TEST_CASE("app_manager_get_topmost_instance_id returns NOT_FOUND when nothing is
     // its persistent CLOSE loop branch instead of instantly resolving like a real dialog would -
     // needed here so there's a reliable window to observe it as topmost.
     uint32_t id_c = 0;
-    REQUIRE_EQ(app_start_for_result("test.app.top_a", 0, nullptr, id_b, &id_c), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.top_a", &context), ERROR_NONE);
+    app_start_context_set_parent(&context, id_b);
+    REQUIRE_EQ(app_start_with_context(&context, &id_c), ERROR_NONE);
     CHECK(wait_for_state(id_c, APP_INSTANCE_STATE_ACTIVE, 1000));
     CHECK_EQ(topmost_instance_id(), id_c);
 
@@ -462,7 +496,9 @@ TEST_CASE("app_start honors a custom AppManifest::stack.depth") {
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     uint32_t instance_id = 0;
-    REQUIRE_EQ(app_start("test.app.stack.custom", 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.stack.custom", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     CHECK(wait_for_state(instance_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     CHECK_EQ(app_manager_stop(instance_id), ERROR_NONE);
@@ -481,7 +517,9 @@ TEST_CASE("app_start still works when AppManifest::stack is left at its zero-val
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     uint32_t instance_id = 0;
-    REQUIRE_EQ(app_start("test.app.stack.default", 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.stack.default", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     CHECK(wait_for_state(instance_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     CHECK_EQ(app_manager_stop(instance_id), ERROR_NONE);
@@ -501,7 +539,9 @@ TEST_CASE("app_manager_get_topmost_app_id returns BUFFER_OVERFLOW for a too-smal
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
 
     uint32_t id = 0;
-    REQUIRE_EQ(app_start("test.app.top_overflow", 0, nullptr, &id), ERROR_NONE);
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.top_overflow", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &id), ERROR_NONE);
     CHECK(wait_for_state(id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     // "test.app.top_overflow" doesn't fit in a 4-byte buffer.

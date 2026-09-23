@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <graphics/pixel_buffer.h>
 
+#include <tactility/log.h>
 #include <tactility/memory.h>
 
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 
 #ifdef ESP_PLATFORM
 #include <esp_cache.h>
+static const char* TAG = "PixelBuffer";
 #endif
 
 struct PixelBuffer {
@@ -131,30 +133,58 @@ void pixel_buffer_clear(struct PixelBuffer* buffer) {
     memset(buffer->data, 0, buffer->stride_bytes * (size_t)buffer->height);
 }
 
-void pixel_buffer_msync(struct PixelBuffer* buffer, int x, int y, int width, int height) {
 #ifdef ESP_PLATFORM
+// esp_cache_msync() requires both the address and size to be cache-line (64-byte) aligned unless
+// ESP_CACHE_MSYNC_FLAG_UNALIGNED is passed. An owned buffer's allocation is padded to a 64-byte
+// multiple (see pixel_buffer_create()), so [addr, addr+bytes) can be widened out to the nearest
+// cache-line boundaries and still stay inside the allocation. A wrapped (non-owned) buffer's true
+// bounds beyond its own logical size are unknown, so its range is left as-is and
+// ESP_CACHE_MSYNC_FLAG_UNALIGNED is passed instead, letting the cache API handle the misalignment
+// without this code guessing at memory it doesn't own.
+static esp_err_t pixel_buffer_msync_range(struct PixelBuffer* buffer, uint8_t* addr, size_t bytes) {
+    if (buffer->owns_data) {
+        const size_t offset = (size_t)(addr - buffer->data);
+        const size_t aligned_offset = offset & ~(size_t)63;
+        size_t aligned_end = (offset + bytes + 63) & ~(size_t)63;
+        const size_t capacity = (buffer->stride_bytes * (size_t)buffer->height + 63) & ~(size_t)63;
+        if (aligned_end > capacity) {
+            aligned_end = capacity;
+        }
+        return esp_cache_msync(buffer->data + aligned_offset, aligned_end - aligned_offset, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    }
+    return esp_cache_msync(addr, bytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+}
+#endif
+
+bool pixel_buffer_msync(struct PixelBuffer* buffer, int x, int y, int width, int height) {
+#ifdef ESP_PLATFORM
+    bool ok = true;
     const bool contiguous = x == 0 && width == buffer->width;
     if (contiguous) {
-        size_t bytes = buffer->stride_bytes * (size_t)height;
-        if (buffer->owns_data) {
-            // pixel_buffer_create()'s allocation is padded up to this same cache-line multiple.
-            bytes = (bytes + 63) & ~(size_t)63;
-        }
-        esp_cache_msync(pixel_buffer_get_row(buffer, y), bytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+        uint8_t* addr = pixel_buffer_get_row(buffer, y);
+        const size_t bytes = buffer->stride_bytes * (size_t)height;
+        ok = pixel_buffer_msync_range(buffer, addr, bytes) == ESP_OK;
     } else {
         const size_t rowBytes = pixel_buffer_row_stride_bytes(buffer->format, width);
         const size_t xBytes = pixel_buffer_row_stride_bytes(buffer->format, x);
         for (int row = 0; row < height; row++) {
             uint8_t* rowPtr = (uint8_t*)pixel_buffer_get_row(buffer, y + row) + xBytes;
-            esp_cache_msync(rowPtr, rowBytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+            if (pixel_buffer_msync_range(buffer, rowPtr, rowBytes) != ESP_OK) {
+                ok = false;
+            }
         }
     }
+    if (!ok) {
+        LOG_E(TAG, "esp_cache_msync failed for %dx%d region at (%d, %d)", width, height, x, y);
+    }
+    return ok;
 #else
     (void)buffer;
     (void)x;
     (void)y;
     (void)width;
     (void)height;
+    return true;
 #endif
 }
 

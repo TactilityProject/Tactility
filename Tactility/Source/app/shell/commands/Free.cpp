@@ -9,9 +9,12 @@
 
 int cmdFree(int /*unused*/, char** /*unused*/) {
     puts("                   total            free");
-    printf("Heap     %15zu %15zu\n", memory_heap_total(), memory_heap_free());
 #ifdef ESP_PLATFORM
+    printf("Heap     %15zu %15zu\n", memory_heap_total(), memory_heap_free());
     printf("External %15zu %15zu\n", heap_caps_get_total_size(MALLOC_CAP_SPIRAM), heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+#else
+    // Not the process's own heap capacity - see memory_heap_total()'s doc comment.
+    printf("System   %15zu %15zu\n", memory_heap_total(), memory_heap_free());
 #endif
     return 0;
 }

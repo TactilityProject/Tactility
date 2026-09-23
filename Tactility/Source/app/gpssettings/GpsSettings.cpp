@@ -74,7 +74,8 @@ void onAddGpsPressed(lv_event_t* event) {
     // this app; rebuildDeviceList() runs fresh whenever this app is resumed regardless).
     (void)ctx;
     uint32_t instanceId = 0;
-    app_start(addgps::manifest.id, 0, nullptr, &instanceId);
+    AppStartContext context = app_start_context_for_manifest(&addgps::manifest);
+    app_start_with_context(&context, &instanceId);
 }
 
 void onDeviceButtonPressed(lv_event_t* event) {

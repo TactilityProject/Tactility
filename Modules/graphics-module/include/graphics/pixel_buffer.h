@@ -47,11 +47,14 @@ void pixel_buffer_clear(struct PixelBuffer* buffer);
 
 /**
  * Flushes CPU cache writes for the width x height pixel rect at (x, y) out to memory (cache-to-
- * memory writeback) so DMA/hardware reading the buffer sees the latest data. No-op when not built
- * for ESP-IDF. Pass (0, 0, pixel_buffer_get_width(buffer), pixel_buffer_get_height(buffer)) to
- * sync the whole buffer. For MONOCHROME buffers, x and width must be multiples of 8.
+ * memory writeback) so DMA/hardware reading the buffer sees the latest data. Always returns true
+ * (no-op) when not built for ESP-IDF. Pass (0, 0, pixel_buffer_get_width(buffer),
+ * pixel_buffer_get_height(buffer)) to sync the whole buffer. For MONOCHROME buffers, x and width
+ * must be multiples of 8.
+ * @return false if the underlying esp_cache_msync() call failed (logged); the caller should treat
+ * the buffer's contents as possibly stale to hardware in that case.
  */
-void pixel_buffer_msync(struct PixelBuffer* buffer, int x, int y, int width, int height);
+bool pixel_buffer_msync(struct PixelBuffer* buffer, int x, int y, int width, int height);
 
 /**
  * How a richer colour reduces to a lossy target format (matters for MONOCHROME destinations, and

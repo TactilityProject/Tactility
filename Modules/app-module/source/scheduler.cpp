@@ -47,7 +47,7 @@ struct TaskContext {
     const AppLoaderApi* loader;
     void* runtime;
     AppInstanceId app_instance_id;
-    int argc;
+    /** Nullable, null-terminated. */
     char** argv;
     AppCompletionSignal* completion;
     StackType_t* stackBuffer;
@@ -207,7 +207,7 @@ void app_task_main(void* context) {
 
     set_state(ctx->app_instance_id, APP_INSTANCE_STATE_ACTIVE);
 
-    int32_t result = ctx->loader->run(ctx->runtime, ctx->app_instance_id, ctx->argc, ctx->argv);
+    int32_t result = ctx->loader->run(ctx->runtime, ctx->app_instance_id, app_arguments_count_null_terminated(ctx->argv), ctx->argv);
 
     // The platform might buffer stdout (e.g. esp-idf with newlib)
     // Do a manual flush to ensure data has been written:
@@ -224,7 +224,7 @@ void app_task_main(void* context) {
     // response to APP_EVENT_CLOSE.
     set_state(ctx->app_instance_id, APP_INSTANCE_STATE_STOPPED);
 
-    app_arguments_free(ctx->argc, ctx->argv);
+    app_arguments_free_null_terminated(ctx->argv);
 
     AppInstanceId app_instance_id = ctx->app_instance_id;
     AppCompletionSignal* completion = ctx->completion;
@@ -271,11 +271,14 @@ void app_task_main(void* context) {
 
 extern "C" {
 
-error_t app_scheduler_start(AppInstanceId app_instance_id, AppLocation location, AppStackConfig stack, int argc, char* argv[]) {
+error_t app_scheduler_start(AppInstanceId app_instance_id, const AppStartContext* start_context) {
+    const AppLocation location = start_context->location;
+    const AppStackConfig stack = start_context->stack;
+    const int argc = start_context->argc;
+
     const AppLoaderApi* loader = find_loader_api(location.type);
     if (loader == nullptr) {
         LOG_E(TAG, "[instance %lu] No app loader is registered (service '%s' not found)", app_instance_id, loader_service_id_for(location.type));
-        app_arguments_free(argc, argv);
         return ERROR_NOT_FOUND;
     }
 
@@ -283,7 +286,6 @@ error_t app_scheduler_start(AppInstanceId app_instance_id, AppLocation location,
     error_t load_result = loader->load(location, &runtime);
     if (load_result != ERROR_NONE) {
         LOG_E(TAG, "[instance %lu] Failed to load app: %s", app_instance_id, error_to_string(load_result));
-        app_arguments_free(argc, argv);
         return load_result;
     }
 
@@ -291,33 +293,27 @@ error_t app_scheduler_start(AppInstanceId app_instance_id, AppLocation location,
     if (completion == nullptr) {
         LOG_E(TAG, "[instance %lu] Failed to allocate app", app_instance_id);
         loader->unload(runtime);
-        app_arguments_free(argc, argv);
         return ERROR_OUT_OF_MEMORY;
     }
+
     completion->semaphore = xSemaphoreCreateBinary();
     if (completion->semaphore == nullptr) {
         LOG_E(TAG, "[instance %lu] Failed to allocate app", app_instance_id);
         delete completion;
         loader->unload(runtime);
-        app_arguments_free(argc, argv);
         return ERROR_OUT_OF_MEMORY;
-    }
-
-    // Same bound package_manifest_parse() enforces on manifest.properties-declared depths - a
-    // manifest built directly in C++ (not parsed from a file) must be held to it too.
-    if (stack.depth > APP_STACK_SIZE_MAX) {
-        LOG_E(TAG, "[instance %lu] stack depth %u exceeds APP_STACK_SIZE_MAX(%u)", app_instance_id, stack.depth, APP_STACK_SIZE_MAX);
-        vSemaphoreDelete(completion->semaphore);
-        delete completion;
-        loader->unload(runtime);
-        app_arguments_free(argc, argv);
-        return ERROR_INVALID_ARGUMENT;
     }
 
     if (stack.depth == 0) {
         LOG_W(TAG, "[instance %lu] using default stack depth", app_instance_id);
     }
     size_t effective_stack_depth = stack.depth != 0 ? stack.depth : APP_DEFAULT_STACK_DEPTH;
+
+    char** argv = app_arguments_copy(argc, start_context->argv);
+    if (argc > 0 && argv == nullptr) {
+        LOG_W(TAG, "[instance %lu] Failed to allocate app", app_instance_id);
+        return ERROR_OUT_OF_MEMORY;
+    }
 
 #ifdef ESP_PLATFORM
     // ESP-IDF's FreeRTOS port has configSUPPORT_STATIC_ALLOCATION, POSIX doesn't
@@ -332,7 +328,7 @@ error_t app_scheduler_start(AppInstanceId app_instance_id, AppLocation location,
         stack_buffer = static_cast<StackType_t*>(memory_alloc_with_policy(effective_stack_depth * sizeof(StackType_t), &internal_policy));
     }
     if (stack_buffer == nullptr) {
-        LOG_E(TAG, "[instance %lu] Failed to allocate app stack", app_instance_id);
+        LOG_E(TAG, "[instance %lu] Failed to allocate app", app_instance_id);
         vSemaphoreDelete(completion->semaphore);
         delete completion;
         loader->unload(runtime);
@@ -359,11 +355,10 @@ error_t app_scheduler_start(AppInstanceId app_instance_id, AppLocation location,
         .loader = loader,
         .runtime = runtime,
         .app_instance_id = app_instance_id,
-        .argc = argc,
         .argv = argv,
         .completion = completion,
         .stackBuffer = stack_buffer,
-        .taskTcb = task_tcb
+        .taskTcb = task_tcb,
     };
 
     if (context == nullptr) {
