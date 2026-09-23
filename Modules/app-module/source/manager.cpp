@@ -137,8 +137,14 @@ void app_manager_for_each_package(AppPackageVisitorFn visitor, void* context) {
     mutex_unlock(&ledger.mutex);
 }
 
-error_t app_manager_start_internal(const AppManifest* manifest, AppLocation location, AppStackConfig stack, AppInstanceId parent_instance_id, int argc, const char* const argv_in[], const AppStreamBinding* bindings, size_t binding_count, AppInstanceId* out_app_instance_id) {
-    char** argv = app_arguments_copy(argc, argv_in);
+error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId* out_app_instance_id) {
+    const AppManifest* manifest = context->manifest;
+    int argc = context->argc;
+    const AppStreamBinding* bindings = context->bindings;
+    size_t binding_count = context->binding_count;
+    AppInstanceId parent_instance_id = context->parent_id;
+
+    char** argv = app_arguments_copy(argc, context->argv);
     if (argc > 0 && argv == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
@@ -180,7 +186,7 @@ error_t app_manager_start_internal(const AppManifest* manifest, AppLocation loca
         }
     }
 
-    error_t error = app_scheduler_start(target_id, location, stack, argc, argv);
+    error_t error = app_scheduler_start(target_id, context->location, context->stack, argc, argv);
     if (error != ERROR_NONE) {
         for (size_t j = 0; j < binding_count; j++) {
             app_stream_unsubscribe(bindings[j].stream);

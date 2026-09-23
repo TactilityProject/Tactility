@@ -66,6 +66,12 @@ typedef struct {
 static vterm_t *s_vterms = NULL;
 volatile int s_active_vt = 0;
 
+// Set whenever a write or switch touches the active VT's visible content; vterm_take_dirty()
+// reads and clears it. Best-effort (no lock): a write racing a read can at worst cost one extra,
+// harmless render pass next tick, never a missed one, since a set is never cleared except by the
+// reader consuming it.
+static volatile bool s_dirty = true;
+
 /* Tactility: called with the top line still intact, just before it scrolls off. Lets the
  * shell keep a scrollback history without vterm having to own one. */
 static void (*s_scroll_callback)(void) = NULL;
@@ -629,6 +635,7 @@ error_t vterm_init(void)
 
     // 3. Set up initial active VT (0)
     s_active_vt = 0;
+    s_dirty = true;
 #if VTERM_COUNT > 1
     // Load VT0 storage into IRAM
     memcpy(s_iram_buffer, s_vterms[0].storage_cells, BUFFER_SIZE_BYTES);
@@ -673,6 +680,7 @@ void vterm_deinit(void)
     }
 
     s_active_vt = 0;
+    s_dirty = true;
     s_scroll_callback = NULL;
     s_on_switch_cb = NULL;
 
@@ -707,6 +715,7 @@ void vterm_switch(int vt_id)
     new_vt->cells = s_iram_buffer; // New now points to IRAM
 
     s_active_vt = vt_id;
+    s_dirty = true;
 
     xSemaphoreGive(new_vt->mutex);
     xSemaphoreGive(old_vt->mutex);
@@ -723,6 +732,11 @@ void vterm_write(int vt_id, const char *data, size_t len)
     vterm_t *vt = &s_vterms[vt_id];
 
     xSemaphoreTake(vt->mutex, portMAX_DELAY);
+
+    if (len > 0 && vt->cells == s_iram_buffer) {
+        s_dirty = true;
+    }
+
     const char *p = data;
     const char *end = data + len;
 
@@ -869,6 +883,12 @@ void vterm_get_cursor(int vt_id, int *col, int *row, int *visible) {
         if (row) *row = vt->cursor_y;
         if (visible) *visible = vt->cursor_visible;
     }
+}
+
+bool vterm_take_dirty(void) {
+    bool was_dirty = s_dirty;
+    s_dirty = false;
+    return was_dirty;
 }
 
 int vterm_getchar(int vt_id, int timeout_ms) {

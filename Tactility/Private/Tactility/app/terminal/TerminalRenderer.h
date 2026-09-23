@@ -1,22 +1,22 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 struct Device;
+struct PixelBuffer;
 
 /**
  * Draws the active vterm's cell grid to a display device.
  *
- * Owns everything about the terminal grid that doesn't depend on how pixels actually reach the
- * panel: glyph painting, the shadow buffer used to skip unchanged cells, and cursor blink state.
- * A subclass supplies the panel/frame dimension relationship and how the off-screen frame buffer
- * gets onto the display: see TerminalRendererPpa (hardware rotate, for a landscape terminal on a
- * portrait panel) and TerminalRendererGeneric (direct blit, panel's native orientation, no extra
- * hardware needed).
+ * Glyph painting, the shadow buffer, cursor blink, and per-row dirty-tracking live here. A
+ * subclass supplies the panel/frame relationship and how a row reaches the display: see
+ * TerminalRendererPpa (hardware rotate) and TerminalRendererGeneric (direct blit).
  *
- * Because presenting a frame is a whole-buffer operation, redraws are frame-based rather than
- * per-row: changed cells are painted into the off-screen buffer, and the whole buffer is only
- * pushed when something actually changed.
+ * Painted and presented one row at a time, so frameBuffer only ever holds a single row.
+ * presentRegion()/finishFrame() accumulate rows and flip/push the whole buffer once per frame - a
+ * per-row push would show a mix of stale and fresh rows, since a hw double buffer's zero-copy
+ * path flips on any write regardless of the sub-rect given.
  *
  * Must be used only while LVGL is stopped, since it writes to the display directly.
  */
@@ -24,13 +24,7 @@ class TerminalRenderer {
 public:
     virtual ~TerminalRenderer() = default;
 
-    /**
-     * Allocates buffers.
-     *
-     * @param display the display device to draw to
-     *
-     * Glyphs are drawn at their native size, never scaled up or down.
-     */
+    /** Allocates buffers. Glyphs are drawn at native size, never scaled. */
     virtual bool begin(Device* display) = 0;
 
     /** Releases all resources. */
@@ -38,9 +32,7 @@ public:
 
     /**
      * Repaints changed cells and presents the frame. Pass true to redraw everything.
-     *
-     * Also drives the cursor blink, so this must be called regularly even when nothing has changed.
-     * The blink phase advances on wall-clock time rather than on frame count.
+     * Also drives the cursor blink, so must be called regularly even when nothing has changed.
      */
     void render(bool force = false);
 
@@ -52,43 +44,96 @@ protected:
     void paintCell(int row, int col, char ch, uint8_t attr);
     void paintCursor(int row, int col);
 
-    /** Pushes frameBuffer (frameWidth x frameHeight) onto the display. */
-    virtual void present() = 0;
+    /**
+     * Turns frameBuffer's current row (pixels [yStart, yEnd)) into panel-oriented pixels and
+     * hands them to presentRegion() - or writes directly into the hw double buffer and sets
+     * hwBufferDirty itself, skipping presentRegion().
+     */
+    virtual void present(int yStart, int yEnd) = 0;
 
     /**
-     * Common begin() work: computes the cell grid from frameWidth/frameHeight and allocates
-     * frameBuffer + the shadow grid. The subclass must set display/panelWidth/panelHeight/
-     * frameWidth/frameHeight first.
+     * Common begin() work: computes the cell grid and allocates frameBuffer (one row) + shadow.
+     * The subclass must set display/panelWidth/panelHeight/frameWidth/frameHeight first.
      */
     bool allocateCommon(Device* display);
 
-    /** Frees frameBuffer, the shadow grid, and the borrowed hw double buffer, if any. */
+    /** Frees frameBuffer, fullFrameBuffer, shadow, and the borrowed hw double buffer, if any. */
     void freeCommon();
 
     /**
-     * If the display reports two panel-sized frame buffers, borrows them as hwFrameBuffers[0/1]
-     * and sets usingHwFrameBuffer, so the display controller can scan out one while the next frame
-     * is written into the other. Both buffers are panelWidth x panelHeight regardless of whether
-     * the subclass rotates into them.
+     * Zeroes frameBuffer and presents it across the full panel height once, blanking the
+     * letterbox margins. Call from begin(), after allocateCommon() and any subclass output buffer
+     * are ready.
      */
+    void clearPanelOnce();
+
+    /**
+     * Queries DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME and DISPLAY_COLOR_FORMAT_MONOCHROME
+     * (monochrome always implies full-frame here, regardless of the driver's own flag). If either
+     * applies and there's no hw double buffer, allocates a panel-sized buffer for
+     * presentRegion()/finishFrame() to accumulate into, since such a display can't take a partial
+     * display_draw_bitmap() rect. Call from begin(), after acquireHwDoubleBuffer() and any
+     * subclass output buffer are ready.
+     * @retval false allocation failed; the subclass's begin() should fail too
+     */
+    bool allocateFullFrameBufferIfNeeded();
+
+    /**
+     * Places src's full regionW x regionH extent at (regionX, regionY) via pixel_buffer_blit().
+     * Accumulates into hwFrameBuffers or fullFrameBuffer (see finishFrame()) when either applies,
+     * otherwise pushes directly via display_draw_bitmap() as a genuine partial update.
+     */
+    void presentRegion(struct PixelBuffer* src, int regionX, int regionY, int regionW, int regionH);
+
+    /**
+     * Seeds hwFrameBuffers[backBufferIndex] from the other buffer on the first write since the
+     * last flip, since only rows touched this frame get repainted afterward. A subclass writing
+     * directly into hwFrameBuffers (bypassing presentRegion()) must call this itself first.
+     */
+    void ensureBackBufferSeeded();
+
+    /**
+     * Call once after render()'s row loop. Pushes whichever buffer accumulated writes this
+     * frame, whole, and flips backBufferIndex in the hw case.
+     */
+    void finishFrame();
+
+    /** Wraps the display's two panel-sized frame buffers as hwFrameBuffers[0/1] (non-owning - see
+     * pixel_buffer_wrap()) and sets usingHwFrameBuffer, if it reports any. */
     bool acquireHwDoubleBuffer();
 
     Device* display = nullptr;
 
-    // Off-screen buffer glyphs are painted into, before being pushed to the display.
-    uint16_t* frameBuffer = nullptr;
+    // True for a monochrome display. frameBuffer/hwFrameBuffers/fullFrameBuffer format-handling
+    // all lives in graphics-module now (see paintCell()/presentRegion()).
+    bool monochrome = false;
+
+    // Scratch buffer glyphs are painted into before being pushed. Sized for one text row, not the
+    // whole frame.
+    PixelBuffer* frameBuffer = nullptr;
     int frameWidth = 0;
     int frameHeight = 0;
+
+    // Pixel y of the row currently being painted; paintCell() subtracts it to index into the
+    // small, reused frameBuffer.
+    int currentRowYOffset = 0;
 
     // Panel dimensions in its own native orientation.
     int panelWidth = 0;
     int panelHeight = 0;
 
-    // Either the panel's own double buffers (see acquireHwDoubleBuffer()), or left unset if a
-    // subclass needs its own single output buffer instead.
-    uint16_t* hwFrameBuffers[2] = { nullptr, nullptr };
+    // The panel's own double buffers (acquireHwDoubleBuffer()), wrapped non-owning, or unset if a
+    // subclass uses its own output buffer instead.
+    PixelBuffer* hwFrameBuffers[2] = { nullptr, nullptr };
     int backBufferIndex = 1;
     bool usingHwFrameBuffer = false;
+    // Set when hwFrameBuffers[backBufferIndex] has unflushed writes; finishFrame() flips only then.
+    bool hwBufferDirty = false;
+
+    // See allocateFullFrameBufferIfNeeded()/presentRegion()/finishFrame().
+    bool fullFrameRequired = false;
+    PixelBuffer* fullFrameBuffer = nullptr;
+    bool fullFrameDirty = false;
 
     // Copy of what has been painted, used to skip unchanged cells.
     struct Cell {

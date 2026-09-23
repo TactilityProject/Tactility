@@ -25,6 +25,7 @@ extern "C" {
  * @retval ERROR_NOT_FOUND no AppLoaderApi is registered for @a location.type
  * @retval ERROR_NONE on success
  */
+[[deprecated("Use app_start_with_context()")]]
 error_t app_execute(
     struct AppLocation location,
     struct AppStackConfig stack,
@@ -39,6 +40,7 @@ error_t app_execute(
  * @retval ERROR_NOT_FOUND no AppLoaderApi is registered for @a location.type
  * @retval ERROR_NONE on success
  */
+[[deprecated("Use app_start_with_context()")]]
 error_t app_execute_for_result(
     struct AppLocation location,
     struct AppStackConfig stack,
@@ -57,6 +59,7 @@ error_t app_execute_for_result(
  * @retval ERROR_RESOURCE a binding's event_group has no free bits left to claim
  * @retval ERROR_NONE on success
  */
+[[deprecated("Use app_start_with_context()")]]
 error_t app_execute_with_streams(
     struct AppLocation location,
     struct AppStackConfig stack,
@@ -75,6 +78,7 @@ error_t app_execute_with_streams(
  * @retval ERROR_RESOURCE a binding's event_group has no free bits left to claim
  * @retval ERROR_NONE on success
  */
+[[deprecated("Use app_start_with_context()")]]
 error_t app_execute_for_result_with_streams(
     struct AppLocation location,
     struct AppStackConfig stack,

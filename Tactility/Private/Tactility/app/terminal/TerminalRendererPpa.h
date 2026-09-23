@@ -17,13 +17,13 @@ public:
     void end() override;
 
 protected:
-    void present() override;
+    void present(int yStart, int yEnd) override;
 
 private:
     // ppa_client_handle_t, kept opaque here so driver/ppa.h stays confined to the .cpp.
     void* ppaClient = nullptr;
 
-    // Output side when the panel has no hw double buffer: one PSRAM buffer rotated into and
-    // pushed manually.
-    uint16_t* rotatedBuffer = nullptr;
+    // No-hw-double-buffer fallback: one small PSRAM buffer, sized for one row's rotated
+    // footprint, rotated into and pushed manually per row.
+    PixelBuffer* rotatedRowBuffer = nullptr;
 };

@@ -59,6 +59,12 @@ void vterm_get_size(int *rows, int *cols);
 void vterm_set_size_override(int rows, int cols);
 void vterm_clear_size_override(void);
 void vterm_get_cursor(int vt_id, int *col, int *row, int *visible);
+
+// True if the active VT's cells or cursor changed since the last call to this function (any
+// vterm_write() into it, or a vterm_switch() that made it active) - consumes (clears) the flag.
+// A renderer's own blink-timer-driven cursor toggle is not tracked here; that stays its own
+// responsibility, since it happens without vterm ever being written to.
+bool vterm_take_dirty(void);
 void vterm_set_switch_callback(void (*cb)(int new_vt));
 
 // Tactility addition: called just before a line scrolls off the top, while it is still readable

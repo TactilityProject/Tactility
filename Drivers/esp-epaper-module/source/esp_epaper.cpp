@@ -260,7 +260,7 @@ static uint8_t esp_epaper_get_frame_buffer_count(Device*) {
 }
 
 static const DisplayApi esp_epaper_display_api = {
-    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH,
+    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME,
     .reset = esp_epaper_reset,
     .init = esp_epaper_init,
     .draw_bitmap = esp_epaper_draw_bitmap,

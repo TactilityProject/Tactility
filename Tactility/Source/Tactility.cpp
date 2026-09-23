@@ -59,12 +59,12 @@
 #include <cjson_symbols/module.h>
 #include <cpp_symbols/module.h>
 #include <crypt/module.h>
-#include <font/module.h>
 #include <freertos/module.h>
 
 #include <gps/module.h>
 #include <gps_generic/module.h>
 #include <gps_meshtastic/module.h>
+#include <graphics/module.h>
 #include <http/module.h>
 #include <mbedtls/module.h>
 #include <pthread/module.h>
@@ -530,7 +530,7 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     check(module_ensure_started(&pthread_module) == ERROR_NONE);
     // Other libraries
     check(module_ensure_started(&http_module) == ERROR_NONE);
-    check(module_ensure_started(&font_module) == ERROR_NONE);
+    check(module_ensure_started(&graphics_module) == ERROR_NONE);
     check(module_ensure_started(&app_module) == ERROR_NONE);
     check(module_ensure_started(&crypt_module) == ERROR_NONE);
     check(module_ensure_started(&audio_decoder_module) == ERROR_NONE);

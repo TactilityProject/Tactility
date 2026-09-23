@@ -74,6 +74,15 @@ static const ModuleSymbol SYMBOLS[] = {
     // app/scheduler
     DEFINE_MODULE_SYMBOL(app_scheduler_current_app_id),
     // app/start
+    DEFINE_MODULE_SYMBOL(app_start_context_for_manifest),
+    DEFINE_MODULE_SYMBOL(app_start_context_for_location),
+    DEFINE_MODULE_SYMBOL(app_start_context_from_id),
+    DEFINE_MODULE_SYMBOL(app_start_context_set_arguments_ext),
+    DEFINE_MODULE_SYMBOL(app_start_context_set_arguments),
+    DEFINE_MODULE_SYMBOL(app_start_context_set_streams),
+    DEFINE_MODULE_SYMBOL(app_start_context_set_parent),
+    DEFINE_MODULE_SYMBOL(app_start_context_set_environment),
+    DEFINE_MODULE_SYMBOL(app_start_with_context),
     DEFINE_MODULE_SYMBOL(app_start),
     DEFINE_MODULE_SYMBOL(app_start_for_result),
     DEFINE_MODULE_SYMBOL(app_start_with_streams),

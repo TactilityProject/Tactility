@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-extern struct Module font_module;
+extern struct Module graphics_module;
 
 #ifdef __cplusplus
 }

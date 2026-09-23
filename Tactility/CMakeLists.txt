@@ -34,9 +34,9 @@ list(APPEND REQUIRES_LIST
     cjson-module
     cpp-symbols-module
     crypt-module
-    font-module
     freertos-module
     gps-module
+    graphics-module
     http-module
     mbedtls-module
     posix-symbols-module
@@ -76,7 +76,6 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         fatfs
         lwip
         spi_flash
-        esp_mm # esp_cache.h, used by the terminal renderers
     )
 
     if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")

@@ -3,9 +3,8 @@
 #include <Tactility/app/terminal/TerminalRenderer.h>
 
 /**
- * Draws the terminal directly in the display's native orientation: no rotation, so no PPA (or
- * other rotation hardware) needed. Works on any display; see TerminalRendererPpa for the
- * PPA-accelerated alternative used on panels (e.g. Tab5) that are natively portrait but want a
+ * Draws the terminal directly in the display's native orientation: no rotation, so no PPA needed.
+ * See TerminalRendererPpa for the PPA-accelerated alternative for a portrait panel that wants a
  * landscape terminal.
  */
 class TerminalRendererGeneric : public TerminalRenderer {
@@ -16,5 +15,5 @@ public:
     void end() override;
 
 protected:
-    void present() override;
+    void present(int yStart, int yEnd) override;
 };

@@ -1,7 +1,7 @@
 /*
  * ibmplexmono14.c - ibmplexmono14 FixedWidthFont
  *
- * Rasterized from a TTF with Modules/font-module/scripts/generate.py.
+ * Rasterized from a TTF with Modules/graphics-module/scripts/generate.py.
  * Each glyph is 8 pixels wide and 14 pixels tall, stored as 14 rows of
  * 1 byte each (bit 7 of the first byte = leftmost pixel).
  */
@@ -12,7 +12,7 @@
 #include <sdkconfig.h>
 #endif
 
-// See Modules/font-module/Kconfig: undefined (POSIX, or an ESP-IDF build predating
+// See Modules/graphics-module/Kconfig: undefined (POSIX, or an ESP-IDF build predating
 // this font's Kconfig entry) is treated the same as enabled.
 #if !defined(CONFIG_TT_FONT_IBMPLEXMONO_14) || CONFIG_TT_FONT_IBMPLEXMONO_14
 
