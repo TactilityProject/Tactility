@@ -83,6 +83,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_start_context_for_manifest),
     DEFINE_MODULE_SYMBOL(app_start_context_for_location),
     DEFINE_MODULE_SYMBOL(app_start_context_from_id),
+    DEFINE_MODULE_SYMBOL(app_start_context_set_stack),
     DEFINE_MODULE_SYMBOL(app_start_context_set_arguments_ext),
     DEFINE_MODULE_SYMBOL(app_start_context_set_arguments),
     DEFINE_MODULE_SYMBOL(app_start_context_set_streams),
