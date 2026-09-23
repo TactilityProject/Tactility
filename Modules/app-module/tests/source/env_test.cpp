@@ -133,6 +133,16 @@ int32_t env_child_main(int, char**) {
 // env_child_main() as a modal child (app_start_context_set_parent()) with its own explicit
 // environment that overrides one of the parent's variables and adds a new one.
 int32_t env_parent_main(int, char**) {
+    // Subscribed before the child is started, not after: env_child_main() can finish and set
+    // child_results_ready before this task gets back around to subscribing, so the test thread
+    // is free to call app_manager_stop() (APP_EVENT_CLOSE) the moment it observes that - which
+    // would otherwise have no subscriber to deliver to, leaving this task stuck in its wait loop
+    // until the stop call's own timeout.
+    TaskEventGroup event_group {};
+    task_event_group_construct(&event_group);
+    AppEventSubscription sub {};
+    app_event_subscribe(&sub, &event_group);
+
     app_env_set("INHERITED_VAR", "parent_value", true);
     app_env_set("OVERRIDE_VAR", "parent_value", true);
 
@@ -147,10 +157,6 @@ int32_t env_parent_main(int, char**) {
 
     // Same subscribe-until-close contract as every other fake app in this test suite; the test
     // thread stops this (the parent) once it has observed child_results_ready.
-    TaskEventGroup event_group {};
-    task_event_group_construct(&event_group);
-    AppEventSubscription sub {};
-    app_event_subscribe(&sub, &event_group);
     while (true) {
         if (task_event_group_wait_any(&event_group, nullptr, pdMS_TO_TICKS(5000)) != ERROR_NONE) {
             break; // safety net so a bug here can't hang the test suite
