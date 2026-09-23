@@ -2,6 +2,7 @@
 #include <app/manager.h>
 #include <app/package_manifest.h>
 #include <app/private/binary_path.h>
+#include <app/private/env_internal.h>
 #include <app/private/fd_table.h>
 #include <app/private/fs.h>
 #include <app/private/ledger.h>
@@ -157,9 +158,15 @@ error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId
         .task = nullptr,
     };
     record.parent_id = parent_instance_id;
-    for (int i = 0; context->environment != nullptr && context->environment[i] != nullptr; i++) {
-        record.env.emplace_back(context->environment[i]);
+
+    // Inherit the parent environment
+    if (parent_instance_id != 0) {
+        auto parent_iterator = ledger.instances.find(parent_instance_id);
+        if (parent_iterator != ledger.instances.end()) {
+            record.env = parent_iterator->second.env;
+        }
     }
+    app_env_apply(record.env, context->environment);
     ledger.instances[target_id] = record;
     // Construct on the map-resident copy, not `record`: fds[] point into slots[] by address
     // (fd_table.h), so constructing on the stack-local record would leave them dangling.

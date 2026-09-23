@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <app/env.h>
+#include <app/private/env_internal.h>
 #include <app/private/ledger.h>
 #include <app/scheduler.h>
 
@@ -42,6 +43,23 @@ std::vector<std::string>::iterator find_entry(std::vector<std::string>& env, con
 }
 
 } // namespace
+
+void app_env_apply(std::vector<std::string>& env, const char* const* overlay) {
+    for (int i = 0; overlay != nullptr && overlay[i] != nullptr; i++) {
+        const char* separator = strchr(overlay[i], '=');
+        if (separator == nullptr || separator == overlay[i]) {
+            continue; // matches app_env_put()'s own rejection of a nameless/equals-less entry
+        }
+        const size_t name_len = static_cast<size_t>(separator - overlay[i]);
+        const std::string name(overlay[i], name_len);
+        auto iterator = find_entry(env, name.c_str(), name_len);
+        if (iterator == env.end()) {
+            env.emplace_back(overlay[i]);
+        } else {
+            *iterator = overlay[i];
+        }
+    }
+}
 
 extern "C" {
 
