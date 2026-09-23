@@ -312,6 +312,9 @@ error_t app_scheduler_start(AppInstanceId app_instance_id, const AppStartContext
     char** argv = app_arguments_copy(argc, start_context->argv);
     if (argc > 0 && argv == nullptr) {
         LOG_W(TAG, "[instance %lu] Failed to allocate app", app_instance_id);
+        vSemaphoreDelete(completion->semaphore);
+        delete completion;
+        loader->unload(runtime);
         return ERROR_OUT_OF_MEMORY;
     }
 
