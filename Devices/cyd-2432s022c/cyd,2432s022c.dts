@@ -97,12 +97,4 @@
 			frequency-khz = <20000>;
 		};
 	};
-
-	usbdevice0 {
-		compatible = "espressif,esp32-usbdevice";
-
-		usbdevicemsc0 {
-			compatible = "espressif,esp32-usbdevice-msc";
-		};
-	};
 };
