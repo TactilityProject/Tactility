@@ -70,6 +70,21 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_write_r" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_close_r" APPEND)
 
+    # ioctl()/getcwd()/chdir() have no reentrant _r stubs either; esp_libc's realpath.c and
+    # vfs_calls.c define the plain names directly (getcwd()/chdir() as stubs - esp_libc has no
+    # real per-process cwd of its own - which is exactly what these wraps replace).
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=ioctl" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=getcwd" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=chdir" APPEND)
+
+    # opendir()/readdir()/closedir() likewise define the plain names directly (vfs_calls.c);
+    # wrapped so opendir("/") synthesizes a listing of Tactility's own registered filesystems
+    # instead of ENOENT, since esp_vfs_register() itself refuses "/" as a real mount prefix.
+    # See Platforms/platform-esp32/source/root_dir.cpp.
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=opendir" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=readdir" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=closedir" APPEND)
+
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_button_create" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_dropdown_create" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_list_create" APPEND)
@@ -138,6 +153,7 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Modules/pthread-module)
     add_subdirectory(Modules/service-module)
     add_subdirectory(Modules/app-module)
+    add_subdirectory(Modules/coreutils-module)
     add_subdirectory(Modules/app-posix-module)
     add_subdirectory(Modules/lvgl-window-manager-module)
     add_subdirectory(Drivers/gps-generic-module)

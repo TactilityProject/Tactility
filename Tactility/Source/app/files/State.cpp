@@ -1,7 +1,5 @@
 #include <Tactility/app/files/State.h>
 
-#include <Tactility/Platform.h>
-#include <Tactility/MountPoints.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
 #include <tactility/log.h>
@@ -16,17 +14,7 @@ namespace tt::app::files {
 constexpr auto* TAG = "Files";
 
 State::State() {
-    if (kernel::getPlatform() == kernel::PlatformSimulator) {
-        char cwd[PATH_MAX];
-        if (getcwd(cwd, sizeof(cwd)) != nullptr) {
-            setEntriesForPath(cwd);
-        } else {
-            LOG_E(TAG, "Failed to get current work directory files");
-            setEntriesForPath("/");
-        }
-    } else {
-        setEntriesForPath("/");
-    }
+    setEntriesForPath("/");
 }
 
 std::string State::getSelectedChildPath() const {
@@ -42,32 +30,31 @@ bool State::setEntriesForPath(const std::string& path) {
 
     LOG_I(TAG, "Changing path: %s -> %s", current_path.c_str(), path.c_str());
 
-    /**
-     * On PC, the root entry point ("/") is a folder.
-     * On ESP32, the root entry point contains the various mount points.
-     */
-    bool get_mount_points = (kernel::getPlatform() == kernel::PlatformEsp) && (path == "/");
-    if (get_mount_points) {
-        LOG_I(TAG, "Setting custom root");
-        dir_entries = file::getFileSystemDirents();
-        current_path = path;
-        selected_child_entry = "";
-        action = ActionNone;
-        return true;
-    } else {
-        dir_entries.clear();
-        int count = file::scandir(path, dir_entries, &file::direntFilterDotEntries, file::direntSortAlphaAndType);
-        if (count >= 0) {
-            LOG_I(TAG, "%s has %d entries", path.c_str(), count);
-            current_path = path;
-            selected_child_entry = "";
-            action = ActionNone;
-            return true;
-        } else {
-            LOG_E(TAG, "Failed to fetch entries for %s", path.c_str());
-            return false;
-        }
+    dir_entries.clear();
+    int count = file::scandir(path, dir_entries, nullptr, file::direntSortAlphaAndType);
+    if (count == 0) {
+        LOG_E(TAG, "Failed to fetch entries for %s", path.c_str());
+        return false;
     }
+
+    // Remove "." and ".."
+    if (dir_entries.size() > 2) {
+        auto first = dir_entries.begin();
+        auto second = first + 1;
+        if (strcmp(".", first->d_name) == 0) {
+            dir_entries.erase(first);
+        }
+        if (strcmp("..", second->d_name) == 0) {
+            dir_entries.erase(second);
+        }
+        dir_entries.erase(dir_entries.begin());
+    }
+
+    LOG_I(TAG, "%s has %d entries", path.c_str(), dir_entries.size());
+    current_path = path;
+    selected_child_entry = "";
+    action = ActionNone;
+    return true;
 }
 
 bool State::setEntriesForChildPath(const std::string& childPath) {

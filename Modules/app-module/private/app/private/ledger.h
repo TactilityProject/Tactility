@@ -39,11 +39,18 @@ struct AppCompletionSignal {
     int refcount = 1;
 };
 
+/** An app instance's environment, as "NAME=VALUE" strings. OptExternalAllocator since it's
+ * unbounded (apps can add entries at runtime via app_env_*()), shared by AppInstanceRecord::env
+ * and app_env_apply()/env_internal.h. */
+using AppEnv = std::vector<std::string, tt::OptExternalAllocator<std::string>>;
+
 /** A registered/running app instance, as tracked internally by app-module. */
 struct AppInstanceRecord {
     uint32_t id;
-    /** NULL for an instance started via app_execute() (app/execute.h; no manifest involved). */
-    const AppManifest* manifest;
+    /** Empty for an instance started via app_execute() (app/execute.h; no manifest involved).
+     * Never a pointer into the ledger: this record outlives any single AppManifest lookup, and an
+     * external app's manifest can be freed (uninstalled) while this instance keeps running. */
+    std::string manifestId;
     AppInstanceState state;
     /** The FreeRTOS task currently executing AppLoaderApi::run() for this instance; NULL when not running. */
     TaskHandle_t task;
@@ -63,20 +70,25 @@ struct AppInstanceRecord {
     /** This instance's environment, as "NAME=VALUE" strings - seeded from AppStartContext's own
      * `environment` by app_manager_start_internal(), then mutable at runtime via app_env_*()
      * (app/env.h). Protected by AppLedger::mutex, same as every other field here. */
-    std::vector<std::string> env {};
+    AppEnv env {};
+
+    /** This instance's current working directory - inherited from the parent instance (like
+     * `env`, above) by app_manager_start_internal(), then mutable at runtime via
+     * app_dir_set_cwd() (app/dir.h). Always an absolute path. Protected by AppLedger::mutex. */
+    std::string cwd = "/";
 };
 
 /** A registered installed package - see app_manager_add_package() (app/manager.h). */
 struct AppPackageRecord {
     struct PackageManifest package;
-    std::vector<std::string> app_ids;
+    // OptExternalAllocator: matches AppLedger::packages - not on the app start/stop hot path.
+    std::vector<std::string, tt::OptExternalAllocator<std::string>> app_ids;
 };
 
 struct AppLedger {
     std::unordered_map<std::string, const AppManifest*> manifests;
-    // OptExternalAllocator: bigger entries than `manifests`, and unlike `instances` isn't on the app start/stop hot path.
     std::unordered_map<std::string, AppPackageRecord, std::hash<std::string>, std::equal_to<std::string>, tt::OptExternalAllocator<std::pair<const std::string, AppPackageRecord>>> packages;
-    std::unordered_map<uint32_t, AppInstanceRecord> instances;
+    std::unordered_map<uint32_t, AppInstanceRecord, std::hash<uint32_t>, std::equal_to<uint32_t>, tt::OptExternalAllocator<std::pair<const uint32_t, AppInstanceRecord>>> instances;
     uint32_t next_instance_id = 1;
     Mutex mutex {};
 

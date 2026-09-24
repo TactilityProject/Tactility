@@ -43,6 +43,10 @@ struct AppStream {
     uint32_t writable_bit;
     bool closed;
     int active_operations;
+
+    /** Reported by APP_IOCTL_GET_WINDOW_SIZE; 0 until app_stream_set_window_size() is called. */
+    uint16_t columns;
+    uint16_t rows;
 };
 
 /**
@@ -90,6 +94,13 @@ size_t app_stream_write(struct AppStream* stream, const void* buffer, size_t buf
 
 /** Marks @a stream closed: readers see EOF, writers fail. Does not free @a stream's storage. */
 error_t app_stream_close(struct AppStream* stream);
+
+/**
+ * Sets the dimensions a consumer reading @a stream's bound fd(s) sees via
+ * app_io_ioctl(fd, APP_IOCTL_GET_WINDOW_SIZE, ...). Callable any time after
+ * app_stream_subscribe(), including before the consumer app has started reading.
+ */
+void app_stream_set_window_size(struct AppStream* stream, uint16_t columns, uint16_t rows);
 
 #ifdef __cplusplus
 }

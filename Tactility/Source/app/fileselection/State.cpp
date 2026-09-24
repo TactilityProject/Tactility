@@ -2,7 +2,6 @@
 
 #include <Tactility/file/File.h>
 #include <Tactility/MountPoints.h>
-#include <Tactility/Platform.h>
 
 #include <tactility/log.h>
 
@@ -15,17 +14,7 @@ namespace tt::app::fileselection {
 constexpr auto* TAG = "FileSelection";
 
 State::State() {
-    if (kernel::getPlatform() == kernel::PlatformSimulator) {
-        char cwd[PATH_MAX];
-        if (getcwd(cwd, sizeof(cwd)) != nullptr) {
-            setEntriesForPath(cwd);
-        } else {
-            LOG_E(TAG, "Failed to get current work directory files");
-            setEntriesForPath("/");
-        }
-    } else {
-        setEntriesForPath("/");
-    }
+    setEntriesForPath("/");
 }
 
 std::string State::getSelectedChildPath() const {
@@ -41,27 +30,15 @@ bool State::setEntriesForPath(const std::string& path) {
         return false;
     }
 
-    /**
-     * ESP32 does not have a root directory, so we have to create it manually.
-     * We'll add the NVS Flash partitions and the binding for the sdcard.
-     */
-    bool show_custom_root = (kernel::getPlatform() == kernel::PlatformEsp) && (path == "/");
-    if (show_custom_root) {
-        dir_entries = file::getFileSystemDirents();
+    dir_entries.clear();
+    int count = file::scandir(path, dir_entries, &file::direntFilterDotEntries, file::direntSortAlphaAndType);
+    if (count >= 0) {
         current_path = path;
         selected_child_entry = "";
         return true;
     } else {
-        dir_entries.clear();
-        int count = file::scandir(path, dir_entries, &file::direntFilterDotEntries, file::direntSortAlphaAndType);
-        if (count >= 0) {
-            current_path = path;
-            selected_child_entry = "";
-            return true;
-        } else {
-            LOG_E(TAG, "Failed to fetch entries for %s", path.c_str());
-            return false;
-        }
+        LOG_E(TAG, "Failed to fetch entries for %s", path.c_str());
+        return false;
     }
 }
 

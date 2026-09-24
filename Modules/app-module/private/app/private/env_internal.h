@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include <string>
-#include <vector>
+#include <app/private/ledger.h>
 
 /**
  * Applies @a overlay (a NULL-terminated array of "NAME=VALUE" strings, e.g.
@@ -11,4 +10,4 @@
  * app instance's inherited-from-parent environment (the base) with its own explicit environment
  * (the overlay).
  */
-void app_env_apply(std::vector<std::string>& env, const char* const* overlay);
+void app_env_apply(AppEnv& env, const char* const* overlay);

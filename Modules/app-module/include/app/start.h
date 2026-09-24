@@ -26,7 +26,10 @@ extern "C" {
  * @warning Fields are for internal use only. Do not read or write them directly.
  */
 struct AppStartContext {
-    const struct AppManifest* manifest;
+    /** Empty string means no manifest, which means it's a location-based binary start.
+     * If it's non-empty, then the app is represented by a package and it will run in a context where
+     * features like app_paths_* are available. */
+    AppId id;
     struct AppLocation location;
     struct AppStackConfig stack;
     int argc;

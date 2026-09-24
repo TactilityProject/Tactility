@@ -27,7 +27,7 @@ constexpr uint32_t SHELL_PUMP_INTERVAL_MS = 50;
 
 } // namespace
 
-void runShell(int columns, volatile bool* stopRequested) {
+void runShell(int columns, int rows, volatile bool* stopRequested) {
     static uint8_t stdinBuffer[256];
     static uint8_t stdoutBuffer[1024];
     AppStream stdinStream {};
@@ -36,25 +36,23 @@ void runShell(int columns, volatile bool* stopRequested) {
     TaskEventGroup eventGroup {};
     task_event_group_construct(&eventGroup);
 
+    // Queried by the shell app via app_io_ioctl(STDOUT_FILENO, APP_IOCTL_GET_WINDOW_SIZE, ...).
+    // Passed into the binding rather than set on the stream after app_start_with_context()
+    // returns: that would race the child's own first read of it (see AppStreamBinding::window_size).
+    const AppWindowSize windowSize { static_cast<uint16_t>(columns), static_cast<uint16_t>(rows) };
+
     AppStreamBinding bindings[] = {
-        { STDIN_FILENO, &stdinStream, stdinBuffer, sizeof(stdinBuffer), &eventGroup },
-        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, sizeof(stdoutBuffer), &eventGroup },
+        { STDIN_FILENO, &stdinStream, stdinBuffer, sizeof(stdinBuffer), &eventGroup, {} },
+        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, sizeof(stdoutBuffer), &eventGroup, windowSize },
     };
 
     AppEventSubscription eventSub {};
     app_event_subscribe(&eventSub, &eventGroup);
 
-    // There is no ioctl(TIOCGWINSZ) here, so the shell app learns the real width this way instead
-    // (see its own LineEditor::setTerminalColumns()).
-    char columnsArg[8];
-    snprintf(columnsArg, sizeof(columnsArg), "%d", columns);
-    const char* argv[] = { "shell", columnsArg };
-
     AppInstanceId shellId = 0;
     AppStartContext context;
     error_t result = app_start_context_from_id("shell", &context);
     if (result == ERROR_NONE) {
-        app_start_context_set_arguments_ext(&context, 2, argv);
         app_start_context_set_streams(&context, bindings, sizeof(bindings) / sizeof(bindings[0]));
         app_start_context_set_parent(&context, app_scheduler_current_app_id());
         result = app_start_with_context(&context, &shellId);

@@ -95,6 +95,10 @@ struct AppStreamBinding {
     void* buffer;
     size_t buffer_capacity;
     struct TaskEventGroup* event_group;
+    /** Applied while subscribing, before the child task is created - a child's main() can run to
+     * completion before app_start_with_context() even returns, so setting this on the stream
+     * afterwards can already be too late. {0, 0} (the default) leaves it unset. */
+    struct AppWindowSize window_size;
 };
 
 /**

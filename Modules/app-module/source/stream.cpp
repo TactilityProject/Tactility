@@ -130,6 +130,26 @@ void stream_file_release(void* object) {
     mutex_unlock(&stream->mutex);
 }
 
+error_t stream_file_ioctl(void* object, AppIoctlRequest request, void* arg) {
+    if (request != APP_IOCTL_GET_WINDOW_SIZE) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    auto* stream = static_cast<AppStream*>(object);
+    auto* size = static_cast<AppWindowSize*>(arg);
+    mutex_lock(&stream->mutex);
+    // Unset (never given a real size by app_stream_set_window_size()) reports as unsupported
+    // rather than a bogus 0x0, so a caller trying several fds in turn (stdin/stdout/stderr) falls
+    // through to one that actually has an answer instead of stopping at the first "success".
+    if (stream->columns == 0 && stream->rows == 0) {
+        mutex_unlock(&stream->mutex);
+        return ERROR_NOT_SUPPORTED;
+    }
+    size->columns = stream->columns;
+    size->rows = stream->rows;
+    mutex_unlock(&stream->mutex);
+    return ERROR_NONE;
+}
+
 constexpr AppFileOps STREAM_OPS = {
     .read = stream_file_read,
     .write = stream_file_write,
@@ -138,6 +158,7 @@ constexpr AppFileOps STREAM_OPS = {
     .poll = stream_file_poll,
     .retain = stream_file_retain,
     .release = stream_file_release,
+    .ioctl = stream_file_ioctl,
 };
 
 } // namespace
@@ -177,6 +198,8 @@ error_t app_stream_subscribe(AppStream* stream, void* buffer, size_t buffer_capa
     stream->buffer.count = 0;
     stream->closed = false;
     stream->active_operations = 0;
+    stream->columns = 0;
+    stream->rows = 0;
     mutex_construct(&stream->mutex);
 
     // Held across the fd-table lookup and bind so this can't race app_fd_table_teardown():
@@ -332,6 +355,13 @@ error_t app_stream_close(AppStream* stream) {
     task_event_group_signal(event_group, readable_bit);
     task_event_group_signal(event_group, writable_bit);
     return ERROR_NONE;
+}
+
+void app_stream_set_window_size(AppStream* stream, uint16_t columns, uint16_t rows) {
+    mutex_lock(&stream->mutex);
+    stream->columns = columns;
+    stream->rows = rows;
+    mutex_unlock(&stream->mutex);
 }
 
 } // extern "C"

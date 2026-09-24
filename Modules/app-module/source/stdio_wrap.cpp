@@ -3,14 +3,109 @@
 // ESP32 uses -Wl,--wrap=. POSIX can't: --wrap doesn't reach a dlopen()ed app's own printf/write
 // calls, so these are defined under their real names instead - dyld interpose on Apple, plain
 // strong definitions elsewhere (ELF gives the main executable's symbols priority process-wide).
+#include <app/dir.h>
 #include <app/io.h>
 
+#include <tactility/paths.h>
+
+#include <cerrno>
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
+#include <sys/ioctl.h>
 #include <sys/types.h>
+
+// Neither platform's headers declare TIOCGWINSZ/struct winsize (ESP-IDF's sys/ioctl.h has no
+// terminal ioctls at all; the guard is only for POSIX, where <sys/ioctl.h> already provides them).
+#ifndef TIOCGWINSZ
+#define TIOCGWINSZ 0x5413
+struct winsize {
+    unsigned short ws_row;
+    unsigned short ws_col;
+    unsigned short ws_xpixel;
+    unsigned short ws_ypixel;
+};
+#endif
+
+namespace {
+
+// Shared by both platforms' ioctl wraps: true (with *out filled) if this was a window-size query
+// on an app-owned fd, so the caller can skip falling through to the real syscall.
+bool tryAppWindowSize(int fd, unsigned long request, void* arg, struct winsize* out) {
+    if (request != TIOCGWINSZ || arg == nullptr) {
+        return false;
+    }
+    AppWindowSize size {};
+    if (app_io_ioctl(fd, APP_IOCTL_GET_WINDOW_SIZE, &size) != ERROR_NONE) {
+        return false;
+    }
+    out->ws_row = size.rows;
+    out->ws_col = size.columns;
+    out->ws_xpixel = 0;
+    out->ws_ypixel = 0;
+    return true;
+}
+
+// getcwd(): app_dir_get_cwd() distinguishes "not an app instance" (ERROR_NOT_FOUND, caller falls
+// through to the real syscall) from "buffer too small" (ERROR_BUFFER_OVERFLOW, a real failure to
+// report), so no separate probe is needed here.
+bool tryAppGetCwd(char* buf, size_t size, char** out, int* outErrno) {
+    if (buf == nullptr) {
+        return false;
+    }
+    const error_t result = app_dir_get_cwd(buf, size);
+    if (result == ERROR_NONE) {
+        *out = buf;
+        return true;
+    }
+    if (result == ERROR_BUFFER_OVERFLOW) {
+        *out = nullptr;
+        *outErrno = ERANGE;
+        return true;
+    }
+    return false; // ERROR_NOT_FOUND: not an app instance.
+}
+
+// chdir(): app_dir_set_cwd() requires an already-absolute path and reports both "not an app
+// instance" and "no such directory" as ERROR_NOT_FOUND, so app_dir_get_cwd() is used first as a
+// cheap, unambiguous "is this an app instance" probe (it's needed anyway, to resolve a relative
+// path) - only once that confirms an app instance is calling is app_dir_set_cwd()'s own result
+// treated as a real success/failure to report, rather than a reason to fall through.
+bool tryAppChdir(const char* path, int* outResult, int* outErrno) {
+    if (path == nullptr || path[0] == '\0') {
+        return false;
+    }
+    char cwd[FILE_MAX_PATH_STRING_LENGTH];
+    if (app_dir_get_cwd(cwd, sizeof(cwd)) != ERROR_NONE) {
+        return false; // not an app instance
+    }
+
+    char resolved[FILE_MAX_PATH_STRING_LENGTH];
+    const int written = (path[0] == '/') ? snprintf(resolved, sizeof(resolved), "%s", path)
+        : (strcmp(cwd, "/") == 0) ? snprintf(resolved, sizeof(resolved), "/%s", path)
+        : snprintf(resolved, sizeof(resolved), "%s/%s", cwd, path);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(resolved)) {
+        *outResult = -1;
+        *outErrno = ENAMETOOLONG;
+        return true;
+    }
+
+    if (app_dir_set_cwd(resolved) == ERROR_NONE) {
+        *outResult = 0;
+    } else {
+        *outResult = -1;
+        *outErrno = ENOENT;
+    }
+    return true;
+}
+
+} // namespace
 
 #ifdef ESP_PLATFORM
 
 // Newlib's own stdio calls the reentrant _read_r/_write_r/_close_r stubs directly, not the plain
-// read/write/close wrappers, so those stubs are wrapped instead of the plain names.
+// read/write/close wrappers, so those stubs are wrapped instead of the plain names. ioctl() has no
+// such stub (esp_libc's vfs_calls.c defines the plain name directly), so it is wrapped as-is below.
 #include <reent.h>
 
 extern "C" {
@@ -30,9 +125,54 @@ int __wrap__close_r(struct _reent* r, int fd) {
     return app_io_close(fd);
 }
 
+int __real_ioctl(int fd, int request, void* arg);
+
+int __wrap_ioctl(int fd, int request, ...) {
+    va_list args;
+    va_start(args, request);
+    void* arg = va_arg(args, void*);
+    va_end(args);
+
+    struct winsize windowSize {};
+    if (tryAppWindowSize(fd, static_cast<unsigned long>(request), arg, &windowSize)) {
+        *static_cast<struct winsize*>(arg) = windowSize;
+        return 0;
+    }
+    return __real_ioctl(fd, request, arg);
+}
+
+char* __real_getcwd(char* buf, size_t size);
+int __real_chdir(const char* path);
+
+char* __wrap_getcwd(char* buf, size_t size) {
+    char* result;
+    int err;
+    if (tryAppGetCwd(buf, size, &result, &err)) {
+        if (result == nullptr) {
+            errno = err;
+        }
+        return result;
+    }
+    return __real_getcwd(buf, size);
+}
+
+int __wrap_chdir(const char* path) {
+    int result;
+    int err;
+    if (tryAppChdir(path, &result, &err)) {
+        if (result != 0) {
+            errno = err;
+        }
+        return result;
+    }
+    return __real_chdir(path);
+}
+
 }
 
 #else
+
+extern "C" int __real_ioctl(int fd, unsigned long request, void* arg);
 
 extern "C" {
 
@@ -48,11 +188,56 @@ int __wrap_close(int fd) {
     return app_io_close(fd);
 }
 
+int __wrap_ioctl(int fd, unsigned long request, ...) {
+    va_list args;
+    va_start(args, request);
+    void* arg = va_arg(args, void*);
+    va_end(args);
+
+    struct winsize windowSize {};
+    if (tryAppWindowSize(fd, request, arg, &windowSize)) {
+        *static_cast<struct winsize*>(arg) = windowSize;
+        return 0;
+    }
+    return __real_ioctl(fd, request, arg);
+}
+
 }
 
 // dlsym(RTLD_NEXT, ...) avoids recursing into our own override below.
 #include <dlfcn.h>
 #include <unistd.h>
+
+extern "C" char* __real_getcwd(char* buf, size_t size);
+extern "C" int __real_chdir(const char* path);
+
+extern "C" {
+
+char* __wrap_getcwd(char* buf, size_t size) {
+    char* result;
+    int err;
+    if (tryAppGetCwd(buf, size, &result, &err)) {
+        if (result == nullptr) {
+            errno = err;
+        }
+        return result;
+    }
+    return __real_getcwd(buf, size);
+}
+
+int __wrap_chdir(const char* path) {
+    int result;
+    int err;
+    if (tryAppChdir(path, &result, &err)) {
+        if (result != 0) {
+            errno = err;
+        }
+        return result;
+    }
+    return __real_chdir(path);
+}
+
+}
 
 extern "C" {
 
@@ -71,6 +256,21 @@ int __real_close(int fd) {
     return real(fd);
 }
 
+int __real_ioctl(int fd, unsigned long request, void* arg) {
+    static auto real = reinterpret_cast<int (*)(int, unsigned long, void*)>(dlsym(RTLD_NEXT, "ioctl"));
+    return real(fd, request, arg);
+}
+
+char* __real_getcwd(char* buf, size_t size) {
+    static auto real = reinterpret_cast<char* (*)(char*, size_t)>(dlsym(RTLD_NEXT, "getcwd"));
+    return real(buf, size);
+}
+
+int __real_chdir(const char* path) {
+    static auto real = reinterpret_cast<int (*)(const char*)>(dlsym(RTLD_NEXT, "chdir"));
+    return real(path);
+}
+
 }
 
 #ifdef __APPLE__
@@ -84,7 +284,10 @@ int __real_close(int fd) {
 
 TT_DYLD_INTERPOSE(__wrap_read, read)
 TT_DYLD_INTERPOSE(__wrap_write, write)
+TT_DYLD_INTERPOSE(__wrap_ioctl, ioctl)
 TT_DYLD_INTERPOSE(__wrap_close, close)
+TT_DYLD_INTERPOSE(__wrap_getcwd, getcwd)
+TT_DYLD_INTERPOSE(__wrap_chdir, chdir)
 
 #else
 
@@ -100,6 +303,22 @@ ssize_t write(int fd, const void* buffer, size_t size) {
 
 int close(int fd) {
     return __wrap_close(fd);
+}
+
+int ioctl(int fd, unsigned long request, ...) {
+    va_list args;
+    va_start(args, request);
+    void* arg = va_arg(args, void*);
+    va_end(args);
+    return __wrap_ioctl(fd, request, arg);
+}
+
+char* getcwd(char* buf, size_t size) {
+    return __wrap_getcwd(buf, size);
+}
+
+int chdir(const char* path) {
+    return __wrap_chdir(path);
 }
 
 }

@@ -55,7 +55,7 @@ static void reset_counters() {
 TEST_CASE("file_system_mount/unmount delegate to the api and reflect is_mounted state") {
     reset_counters();
     char path_data[] = "some/path";
-    FileSystem* fs = file_system_add(&test_api, path_data);
+    FileSystem* fs = file_system_add("path_data", &test_api, path_data);
 
     CHECK_EQ(file_system_is_mounted(fs), false);
     CHECK_EQ(file_system_mount(fs), ERROR_NONE);
@@ -73,7 +73,7 @@ TEST_CASE("file_system_mount propagates api failure without changing state on it
     reset_counters();
     mount_result = ERROR_RESOURCE;
     char path_data[] = "some/path";
-    FileSystem* fs = file_system_add(&test_api, path_data);
+    FileSystem* fs = file_system_add("path_data", &test_api, path_data);
 
     CHECK_EQ(file_system_mount(fs), ERROR_RESOURCE);
     // The fake api still flips mounted_state; file_system itself has no independent state,
@@ -87,7 +87,7 @@ TEST_CASE("file_system_mount propagates api failure without changing state on it
 TEST_CASE("file_system_get_path forwards to the api with the caller's buffer size") {
     reset_counters();
     char path_data[] = "mount/point";
-    FileSystem* fs = file_system_add(&test_api, path_data);
+    FileSystem* fs = file_system_add("path_data", &test_api, path_data);
 
     char small_buffer[4];
     CHECK_EQ(file_system_get_path(fs, small_buffer, sizeof(small_buffer)), ERROR_BUFFER_OVERFLOW);
@@ -102,7 +102,7 @@ TEST_CASE("file_system_get_path forwards to the api with the caller's buffer siz
 TEST_CASE("file_system_set_owner/get_owner round-trip and default to null") {
     reset_counters();
     char path_data[] = "some/path";
-    FileSystem* fs = file_system_add(&test_api, path_data);
+    FileSystem* fs = file_system_add("path_data", &test_api, path_data);
 
     CHECK_EQ(file_system_get_owner(fs), nullptr);
 
@@ -121,9 +121,9 @@ TEST_CASE("file_system_for_each visits every registered file system") {
     char path_a[] = "a";
     char path_b[] = "b";
     char path_c[] = "c";
-    FileSystem* fs_a = file_system_add(&test_api, path_a);
-    FileSystem* fs_b = file_system_add(&test_api, path_b);
-    FileSystem* fs_c = file_system_add(&test_api, path_c);
+    FileSystem* fs_a = file_system_add("a", &test_api, path_a);
+    FileSystem* fs_b = file_system_add("b", &test_api, path_b);
+    FileSystem* fs_c = file_system_add("c", &test_api, path_c);
 
     std::vector<FileSystem*> visited;
     file_system_for_each(&visited, [](FileSystem* fs, void* context) {
@@ -131,7 +131,8 @@ TEST_CASE("file_system_for_each visits every registered file system") {
         return true;
     });
 
-    CHECK_EQ(visited.size(), 3);
+    // Not asserted as an exact total: other code (e.g. a platform module's own start()) may have
+    // registered filesystems of its own into this same process-wide ledger before this test ran.
     CHECK(std::find(visited.begin(), visited.end(), fs_a) != visited.end());
     CHECK(std::find(visited.begin(), visited.end(), fs_b) != visited.end());
     CHECK(std::find(visited.begin(), visited.end(), fs_c) != visited.end());
@@ -145,8 +146,8 @@ TEST_CASE("file_system_for_each stops early when the callback returns false") {
     reset_counters();
     char path_a[] = "a";
     char path_b[] = "b";
-    FileSystem* fs_a = file_system_add(&test_api, path_a);
-    FileSystem* fs_b = file_system_add(&test_api, path_b);
+    FileSystem* fs_a = file_system_add("a", &test_api, path_a);
+    FileSystem* fs_b = file_system_add("b", &test_api, path_b);
 
     int visit_count = 0;
     file_system_for_each(&visit_count, [](FileSystem*, void* context) {
@@ -164,8 +165,8 @@ TEST_CASE("file_system_remove drops the file system from subsequent iteration") 
     reset_counters();
     char path_a[] = "a";
     char path_b[] = "b";
-    FileSystem* fs_a = file_system_add(&test_api, path_a);
-    FileSystem* fs_b = file_system_add(&test_api, path_b);
+    FileSystem* fs_a = file_system_add("a", &test_api, path_a);
+    FileSystem* fs_b = file_system_add("b", &test_api, path_b);
 
     file_system_remove(fs_a);
 
@@ -175,8 +176,37 @@ TEST_CASE("file_system_remove drops the file system from subsequent iteration") 
         return true;
     });
 
-    CHECK_EQ(visited.size(), 1);
-    CHECK_EQ(visited[0], fs_b);
+    // Not asserted as an exact total; see the same note in the "visits every registered file
+    // system" test above.
+    CHECK(std::find(visited.begin(), visited.end(), fs_a) == visited.end());
+    CHECK(std::find(visited.begin(), visited.end(), fs_b) != visited.end());
 
     file_system_remove(fs_b);
+}
+
+TEST_CASE("file_system_find_by_name finds a registered file system by its name, and NULL otherwise") {
+    reset_counters();
+    char path_a[] = "a";
+    char path_b[] = "b";
+    FileSystem* fs_a = file_system_add("data", &test_api, path_a);
+    FileSystem* fs_b = file_system_add("system", &test_api, path_b);
+
+    CHECK_EQ(file_system_find_by_name("data"), fs_a);
+    CHECK_EQ(file_system_find_by_name("system"), fs_b);
+    CHECK_EQ(file_system_find_by_name("sdcard"), nullptr);
+
+    file_system_remove(fs_a);
+    file_system_remove(fs_b);
+
+    CHECK_EQ(file_system_find_by_name("data"), nullptr);
+}
+
+TEST_CASE("file_system_get_name returns the name a file system was registered with") {
+    reset_counters();
+    char path_data[] = "some/path";
+    FileSystem* fs = file_system_add("sdcard", &test_api, path_data);
+
+    CHECK_EQ(std::strcmp(file_system_get_name(fs), "sdcard"), 0);
+
+    file_system_remove(fs);
 }

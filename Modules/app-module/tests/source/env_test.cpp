@@ -270,7 +270,7 @@ TEST_CASE("app_env_* report ERROR_NOT_FOUND when the calling task isn't a runnin
 }
 
 TEST_CASE("app_env_apply overlays NAME=VALUE entries, overriding existing names and appending new ones") {
-    std::vector<std::string> env = { "INHERITED=parent", "OVERRIDE=parent" };
+    AppEnv env = { "INHERITED=parent", "OVERRIDE=parent" };
     const char* overlay[] = { "OVERRIDE=child", "NEW=child", nullptr };
     app_env_apply(env, overlay);
 
@@ -281,14 +281,14 @@ TEST_CASE("app_env_apply overlays NAME=VALUE entries, overriding existing names 
 }
 
 TEST_CASE("app_env_apply is a no-op for a NULL overlay") {
-    std::vector<std::string> env = { "A=1" };
+    AppEnv env = { "A=1" };
     app_env_apply(env, nullptr);
     CHECK_EQ(env.size(), 1);
     CHECK_EQ(env[0], "A=1");
 }
 
 TEST_CASE("app_env_apply skips a malformed overlay entry") {
-    std::vector<std::string> env = { "A=1" };
+    AppEnv env = { "A=1" };
     const char* overlay[] = { "NOEQUALS", "=NONAME", nullptr };
     app_env_apply(env, overlay);
     CHECK_EQ(env.size(), 1);

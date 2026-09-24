@@ -3,10 +3,8 @@
 
 #if TT_FEATURE_SCREENSHOT_ENABLED
 
-#include <Tactility/Platform.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/service/screenshot/Screenshot.h>
-#include <Tactility/DeprecatedPaths.h>
 #include <Tactility/Timer.h>
 
 #include <app/event.h>
@@ -17,7 +15,9 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
+#include <tactility/filesystem/fs.h>
 #include <tactility/log.h>
+#include <tactility/paths.h>
 
 #include <lvgl.h>
 #include <lvgl/lvgl.h>
@@ -80,23 +80,30 @@ void onStartPressed(lv_event_t* event) {
 
     if (service->isTaskStarted()) {
         LOG_I(TAG, "Stop screenshot");
-        service->stop();
-    } else {
-        uint32_t selected = lv_dropdown_get_selected(ctx->modeDropdown);
-        const char* path = lv_textarea_get_text(ctx->pathTextArea);
-        if (selected == 0) {
-            LOG_I(TAG, "Start timed screenshots");
-            const char* delay_text = lv_textarea_get_text(ctx->delayTextArea);
-            int delay = atoi(delay_text);
-            if (delay > 0) {
-                service->startTimed(path, delay, 1);
-            } else {
-                LOG_W(TAG, "Ignored screenshot start because delay was 0");
-            }
+        return;
+    }
+
+    uint32_t selected = lv_dropdown_get_selected(ctx->modeDropdown);
+    const char* path = lv_textarea_get_text(ctx->pathTextArea);
+
+    error_t result = directory_make(path, true);
+    if (result != ERROR_NONE && result != ERROR_ALREADY_EXISTS) {
+        LOG_E(TAG, "Task failed to start: couldn't create directory at %s", path);
+        return;
+    }
+
+    if (selected == 0) {
+        LOG_I(TAG, "Start timed screenshots");
+        const char* delay_text = lv_textarea_get_text(ctx->delayTextArea);
+        int delay = atoi(delay_text);
+        if (delay > 0) {
+            service->startTimed(path, delay, 1);
         } else {
-            LOG_I(TAG, "Start app screenshots");
-            service->startApps(path);
+            LOG_W(TAG, "Ignored screenshot start because delay was 0");
         }
+    } else {
+        LOG_I(TAG, "Start app screenshots");
+        service->startApps(path);
     }
 
     updateScreenshotMode(ctx);
@@ -157,16 +164,12 @@ void createFilePathWidgets(Context* ctx, lv_obj_t* parent) {
     ctx->pathTextArea = lv_textarea_create(path_wrapper);
     lv_textarea_set_one_line(ctx->pathTextArea, true);
     lv_obj_set_flex_grow(ctx->pathTextArea, 1);
-    if (kernel::getPlatform() == kernel::PlatformEsp) {
-        std::string sdcard_path;
-        if (findFirstMountedSdCardPath(sdcard_path)) {
-            std::string lvgl_mount_path = lvgl::PATH_PREFIX + sdcard_path + "/screenshots";
-            lv_textarea_set_text(ctx->pathTextArea, lvgl_mount_path.c_str());
-        } else {
-            lv_textarea_set_text(ctx->pathTextArea, "Error: no SD card");
-        }
-    } else { // PC
-        lv_textarea_set_text(ctx->pathTextArea, lvgl::PATH_PREFIX);
+    char data_path[FILE_MAX_PATH_STRING_LENGTH];
+    if (paths_get_data_path(data_path, sizeof(data_path)) == ERROR_NONE) {
+        std::string lvgl_mount_path = std::string(data_path) + "/screenshots";
+        lv_textarea_set_text(ctx->pathTextArea, lvgl_mount_path.c_str());
+    } else {
+        lv_textarea_set_text(ctx->pathTextArea, "Error: no data path");
     }
 }
 

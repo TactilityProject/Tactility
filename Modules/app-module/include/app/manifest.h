@@ -13,6 +13,9 @@ extern "C" {
 // Character count, excluding null terminator
 #define APP_MANIFEST_ID_LENGTH 32
 
+/** Fixed-capacity buffer for an AppManifest::id value - always NUL-terminated. */
+typedef char AppId[APP_MANIFEST_ID_LENGTH + 1];
+
 // Character count, excluding null terminator
 #define APP_MANIFEST_NAME_LENGTH 32
 
@@ -28,7 +31,9 @@ enum AppManifestFlags {
     /** Excluded from generic app-browsing UIs (AppList, Settings) - for apps only ever reached
      * by direct navigation (modal dialogs, detail views that require parameters, wizard/
      * bootstrap steps). */
-    APP_MANIFEST_FLAG_HIDDEN = 1 >> 0,
+    APP_MANIFEST_FLAG_HIDDEN = 1 << 0,
+    /** No window-manager dependency - safe to start from a context with no GUI available. */
+    APP_MANIFEST_FLAG_HEADLESS = 1 << 1,
 };
 
 /** Largest stack depth (in words) an app may request. Keeps `depth * sizeof(StackType_t)` safely
@@ -50,7 +55,7 @@ struct AppStackConfig {
 /** Describes a registrable app. One manifest exists per app id. */
 struct AppManifest {
     /** Unique app identifier. Must be NULL-terminated. */
-    char id[APP_MANIFEST_ID_LENGTH + 1];
+    AppId id;
     /** Human-readable name. Must be NULL-terminated. */
     char name[APP_MANIFEST_NAME_LENGTH + 1];
     enum AppCategory category;

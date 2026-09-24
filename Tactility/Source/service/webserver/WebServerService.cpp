@@ -1285,8 +1285,8 @@ error_t WebServerService::handleApiAppsRun(HttpServerRequest* request, void*) {
         return ERROR_UNDEFINED;
     }
 
-    AppManifest manifest;
-    if (app_manager_find_manifest(appId.c_str(), &manifest) != ERROR_NONE) {
+    AppStartContext context;
+    if (app_start_context_from_id(appId.c_str(), &context) != ERROR_NONE) {
         http_server_request_send_error(request, 404, "app not found");
         return ERROR_UNDEFINED;
     }
@@ -1294,7 +1294,6 @@ error_t WebServerService::handleApiAppsRun(HttpServerRequest* request, void*) {
     // Every app instance gets its own task now, so there's no "stop the existing one first" -
     // this just starts a fresh instance alongside whatever's already running.
     AppInstanceId instance_id = 0;
-    AppStartContext context = app_start_context_for_manifest(&manifest);
     app_start_with_context(&context, &instance_id);
 
     LOG_I(TAG, "[200] /api/apps/run %s", appId.c_str());

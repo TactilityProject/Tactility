@@ -25,7 +25,7 @@ bool entry_matches_name(const std::string& entry, const char* name, size_t name_
 // Finds the calling app instance's environment under the ledger lock.
 // On a non-NULL return, the lock is left held for the caller to keep mutating/reading it,
 // and must be released via mutex_unlock(&app_ledger().mutex) before returning to app_env_*()'s own caller.
-std::vector<std::string>* lock_current_env() {
+AppEnv* lock_current_env() {
     auto& ledger = app_ledger();
     mutex_lock(&ledger.mutex);
     auto iterator = ledger.instances.find(app_scheduler_current_app_id());
@@ -36,7 +36,7 @@ std::vector<std::string>* lock_current_env() {
     return &iterator->second.env;
 }
 
-std::vector<std::string>::iterator find_entry(std::vector<std::string>& env, const char* name, size_t name_len) {
+AppEnv::iterator find_entry(AppEnv& env, const char* name, size_t name_len) {
     return std::find_if(env.begin(), env.end(), [&](const std::string& entry) {
         return entry_matches_name(entry, name, name_len);
     });
@@ -44,7 +44,7 @@ std::vector<std::string>::iterator find_entry(std::vector<std::string>& env, con
 
 } // namespace
 
-void app_env_apply(std::vector<std::string>& env, const char* const* overlay) {
+void app_env_apply(AppEnv& env, const char* const* overlay) {
     for (int i = 0; overlay != nullptr && overlay[i] != nullptr; i++) {
         const char* separator = strchr(overlay[i], '=');
         if (separator == nullptr || separator == overlay[i]) {
@@ -68,7 +68,7 @@ error_t app_env_set(const char* name, const char* value, bool overwrite) {
         return ERROR_INVALID_ARGUMENT;
     }
 
-    std::vector<std::string>* env = lock_current_env();
+    AppEnv* env = lock_current_env();
     if (env == nullptr) {
         return ERROR_NOT_FOUND;
     }
@@ -89,7 +89,7 @@ error_t app_env_unset(const char* name) {
         return ERROR_INVALID_ARGUMENT;
     }
 
-    std::vector<std::string>* env = lock_current_env();
+    AppEnv* env = lock_current_env();
     if (env == nullptr) {
         return ERROR_NOT_FOUND;
     }
@@ -107,7 +107,7 @@ const char* app_env_get(const char* name) {
         return nullptr;
     }
 
-    std::vector<std::string>* env = lock_current_env();
+    AppEnv* env = lock_current_env();
     if (env == nullptr) {
         return nullptr;
     }

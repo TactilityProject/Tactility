@@ -11,12 +11,9 @@
  */
 namespace Shell {
 
-using CommandFunction = int (*)(int argc, char** argv);
-
 struct Command {
     const char* name;
     const char* help;
-    CommandFunction function;
 };
 
 /** Registers the builtin command set. */

@@ -7,11 +7,13 @@
 
 #include <tactility/concurrent/mutex.h>
 
+#include <cstring>
+
 extern "C" {
 
 AppStartContext app_start_context_for_manifest(const AppManifest* manifest) {
     AppStartContext context = {};
-    context.manifest = manifest;
+    memcpy(context.id, manifest->id, sizeof(context.id));
     context.location = manifest->location;
     context.stack = manifest->stack;
     return context;
@@ -19,7 +21,7 @@ AppStartContext app_start_context_for_manifest(const AppManifest* manifest) {
 
 AppStartContext app_start_context_for_location(AppLocation location) {
     AppStartContext context = {};
-    context.manifest = nullptr;
+    context.id[0] = '\0';
     context.location = location;
     context.stack = {};
     return context;
@@ -28,6 +30,8 @@ AppStartContext app_start_context_for_location(AppLocation location) {
 error_t app_start_context_from_id(const char* id, AppStartContext* out_context) {
     auto& ledger = app_ledger();
 
+    // Copies everything needed out while still holding the lock, so no pointer into the ledger's
+    // manifest ever escapes it - a concurrent uninstall can't free anything this reads.
     mutex_lock(&ledger.mutex);
     auto manifest_iterator = ledger.manifests.find(id);
     if (manifest_iterator == ledger.manifests.end()) {
@@ -35,9 +39,11 @@ error_t app_start_context_from_id(const char* id, AppStartContext* out_context) 
         return ERROR_NOT_FOUND;
     }
     const AppManifest* manifest = manifest_iterator->second;
+    *out_context = {};
+    memcpy(out_context->id, manifest->id, sizeof(out_context->id));
+    out_context->location = manifest->location;
+    out_context->stack = manifest->stack;
     mutex_unlock(&ledger.mutex);
-
-    *out_context = app_start_context_for_manifest(manifest);
     return ERROR_NONE;
 }
 

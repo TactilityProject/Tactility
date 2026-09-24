@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <app/manager.h>
 #include <app/package_manifest.h>
-#include <app/private/binary_path.h>
 #include <app/private/env_internal.h>
 #include <app/private/fd_table.h>
 #include <app/private/fs.h>
 #include <app/private/ledger.h>
 #include <app/private/manager_internal.h>
+#include <app/private/manifest_set.h>
 #include <app/private/package_manifest_parsing.h>
 #include <app/private/scheduler.h>
 
@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
+#include <ranges>
 #include <unordered_map>
 #include <vector>
 
@@ -70,7 +71,7 @@ error_t app_manager_find_manifest(const char* id, AppManifest* out_manifest) {
 void app_manager_for_each_manifest(AppManifestVisitorFn visitor, void* context) {
     auto& ledger = app_ledger();
     mutex_lock(&ledger.mutex);
-    for (auto& [id, manifest] : ledger.manifests) {
+    for (auto& manifest: ledger.manifests | std::views::values) {
         visitor(manifest, context);
     }
     mutex_unlock(&ledger.mutex);
@@ -138,7 +139,6 @@ void app_manager_for_each_package(AppPackageVisitorFn visitor, void* context) {
 }
 
 error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId* out_app_instance_id) {
-    const AppManifest* manifest = context->manifest;
     const AppStreamBinding* bindings = context->bindings;
     size_t binding_count = context->binding_count;
     AppInstanceId parent_instance_id = context->parent_id;
@@ -153,17 +153,18 @@ error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId
     AppInstanceId target_id = ledger.next_instance_id++;
     AppInstanceRecord record {
         .id = target_id,
-        .manifest = manifest,
+        .manifestId = context->id,
         .state = APP_INSTANCE_STATE_STARTING,
         .task = nullptr,
     };
     record.parent_id = parent_instance_id;
 
-    // Inherit the parent environment
+    // Inherit the parent's environment and working directory
     if (parent_instance_id != 0) {
         auto parent_iterator = ledger.instances.find(parent_instance_id);
         if (parent_iterator != ledger.instances.end()) {
             record.env = parent_iterator->second.env;
+            record.cwd = parent_iterator->second.cwd;
         }
     }
     app_env_apply(record.env, context->environment);
@@ -173,10 +174,15 @@ error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId
     app_fd_table_construct(&ledger.instances[target_id].fd_table);
     mutex_unlock(&ledger.mutex);
 
-    LOG_I(TAG, "[instance %d] starting %s with parent %d", target_id, manifest != nullptr ? manifest->id : "<unregistered>", parent_instance_id);
+    LOG_I(TAG, "[instance %d] starting %s with parent %d", target_id, context->id[0] != '\0' ? context->id : "<unregistered>", parent_instance_id);
 
     for (size_t i = 0; i < binding_count; i++) {
         error_t bind_result = app_stream_subscribe(bindings[i].stream, bindings[i].buffer, bindings[i].buffer_capacity, bindings[i].event_group, target_id, bindings[i].producer_fd);
+        if (bind_result == ERROR_NONE) {
+            // Before app_scheduler_start() below creates the task, so the child can never
+            // observe this stream's window size as unset (see AppStreamBinding::window_size).
+            app_stream_set_window_size(bindings[i].stream, bindings[i].window_size.columns, bindings[i].window_size.rows);
+        }
         if (bind_result != ERROR_NONE) {
             LOG_E(TAG, "[instance %d] Failed to bind stream at fd %d: %s", target_id, bindings[i].producer_fd, error_to_string(bind_result));
             // Undo bindings[0..i): teardown() below only closes the fd, not the event bits
@@ -253,23 +259,22 @@ error_t app_manager_get_topmost_app_id(char* buffer, size_t buffer_size) {
         return result;
     }
 
+    // Copied out while still holding the lock, not just the pointer/length: the instance (and its
+    // manifestId string) can be erased by a concurrent app_manager_stop() the moment this unlocks.
     auto& ledger = app_ledger();
     mutex_lock(&ledger.mutex);
     auto iterator = ledger.instances.find(topmost_id);
-    const AppManifest* manifest = (iterator != ledger.instances.end()) ? iterator->second.manifest : nullptr;
-    const char* app_id = manifest != nullptr ? manifest->id : nullptr;
-    mutex_unlock(&ledger.mutex);
-
-    if (app_id == nullptr) {
+    if (iterator == ledger.instances.end() || iterator->second.manifestId.empty()) {
+        mutex_unlock(&ledger.mutex);
         return ERROR_NOT_FOUND;
     }
-
-    size_t length = strlen(app_id);
-    if (length >= buffer_size) {
-        buffer[0] = '\0';
+    const std::string& manifest_id = iterator->second.manifestId;
+    if (manifest_id.size() >= buffer_size) {
+        mutex_unlock(&ledger.mutex);
         return ERROR_BUFFER_OVERFLOW;
     }
-    memcpy(buffer, app_id, length + 1);
+    memcpy(buffer, manifest_id.c_str(), manifest_id.size() + 1);
+    mutex_unlock(&ledger.mutex);
     return ERROR_NONE;
 }
 
@@ -277,14 +282,15 @@ error_t app_manager_get_topmost_app_id(char* buffer, size_t buffer_size) {
 
 namespace {
 
-// Owns the AppManifests (and their backing location-path strings) that app_manager_add() only
-// keeps non-owning pointers to. Separate from app_install.cpp's registry: scanning only
-// adds/removes registrations, never touches disk or running instances. AppManifest::id/name own
-// their own storage directly (fixed arrays), so this doesn't need to separately own those.
+// Owns the AppManifests that app_manager_add() only keeps non-owning pointers to.
+// Separate from app_install.cpp's registry: scanning only adds/removes registrations,
+// never touches disk or running instances.
 struct ScannedPackageManifest {
-    std::string path;                     // scanned directory
-    std::vector<AppManifest> manifests;   // one per AppManifest the package declared
-    std::vector<std::string> locations;   // backs manifests[i].location.location, same indices
+    std::string path;   // scanned directory
+    AppManifestSet owned;
+
+    ScannedPackageManifest(std::string scanned_path, const AppManifestBinding* bindings, size_t count)
+        : path(std::move(scanned_path)), owned(path, bindings, count) {}
 };
 
 struct InstallPathRegistry {
@@ -337,7 +343,7 @@ void app_manager_install_path_scan(void) {
     std::unordered_map<std::string, KnownPackage> known_packages;
     for (const auto& [id, record] : registry.scanned) {
         KnownPackage known { .path = record->path, .manifest_ids = {} };
-        for (const auto& manifest : record->manifests) {
+        for (const auto& manifest : record->owned.manifests) {
             known.manifest_ids.emplace_back(manifest.id);
         }
         known_packages.emplace(id, std::move(known));
@@ -370,17 +376,7 @@ void app_manager_install_path_scan(void) {
             continue;
         }
 
-        auto record = std::make_unique<ScannedPackageManifest>();
-        record->path = app_dir;
-        // Sized once, up front: manifests[i].location.location points into locations[i].c_str(),
-        // which would dangle if either vector reallocated afterward.
-        record->manifests.resize(app_bindings.size());
-        record->locations.resize(app_bindings.size());
-        for (size_t i = 0; i < app_bindings.size(); i++) {
-            record->manifests[i] = app_bindings[i].manifest;
-            record->locations[i] = app_resolve_binary_path(app_dir, app_bindings[i].binary);
-            record->manifests[i].location = { APP_LOCATION_PATH, const_cast<char*>(record->locations[i].c_str()) };
-        }
+        auto record = std::make_unique<ScannedPackageManifest>(app_dir, app_bindings.data(), app_bindings.size());
         new_package_ids.emplace_back(package.id);
         new_packages.push_back(package);
         new_records.push_back(std::move(record));
@@ -413,29 +409,31 @@ void app_manager_install_path_scan(void) {
             continue;
         }
 
+        auto& manifests = record->owned.manifests;
+
         size_t added_count = 0;
-        for (; added_count < record->manifests.size(); added_count++) {
-            if (app_manager_add(&record->manifests[added_count]) != ERROR_NONE) {
-                LOG_E(TAG, "Failed to register app %s (duplicate id?)", record->manifests[added_count].id);
+        for (; added_count < manifests.size(); added_count++) {
+            if (app_manager_add(&manifests[added_count]) != ERROR_NONE) {
+                LOG_E(TAG, "Failed to register app %s (duplicate id?)", manifests[added_count].id);
                 break;
             }
         }
-        if (added_count != record->manifests.size()) {
+        if (added_count != manifests.size()) {
             // All-or-nothing: unregister whatever this package already added before failing.
             for (size_t j = 0; j < added_count; j++) {
-                app_manager_remove(record->manifests[j].id);
+                app_manager_remove(manifests[j].id);
             }
             continue;
         }
 
         std::vector<const char*> app_id_ptrs;
-        app_id_ptrs.reserve(record->manifests.size());
-        for (const auto& app_manifest : record->manifests) {
+        app_id_ptrs.reserve(manifests.size());
+        for (const auto& app_manifest : manifests) {
             app_id_ptrs.push_back(app_manifest.id);
         }
         if (app_manager_add_package(&new_packages[r], app_id_ptrs.data(), app_id_ptrs.size()) != ERROR_NONE) {
             LOG_E(TAG, "Failed to register package %s (duplicate id?)", new_packages[r].id);
-            for (const auto& app_manifest : record->manifests) {
+            for (const auto& app_manifest : manifests) {
                 app_manager_remove(app_manifest.id);
             }
             continue;
@@ -465,10 +463,7 @@ error_t app_manager_install_path_uninstall(const char* app_id) {
         return ERROR_NOT_FOUND;
     }
 
-    // Pointer, not a copy: the ledger's own AppInstanceRecord::manifest pointers (set by
-    // app_manager_add() from this exact vector) are compared against it by address below, same
-    // as the pre-existing single-manifest version of this function did.
-    const std::vector<AppManifest>* manifests = &iterator->second->manifests;
+    const auto* manifests = &iterator->second->owned.manifests;
     auto path = iterator->second->path;
     mutex_unlock(&registry.mutex);
 
@@ -479,7 +474,7 @@ error_t app_manager_install_path_uninstall(const char* app_id) {
     mutex_lock(&ledger.mutex);
     for (const auto& [id, record] : ledger.instances) {
         for (const auto& manifest : *manifests) {
-            if (record.manifest == &manifest) {
+            if (record.manifestId == manifest.id) {
                 instance_ids.push_back(id);
                 break;
             }

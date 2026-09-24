@@ -10,16 +10,15 @@
 
 static error_t paths_get_data_root_path(char* out_path, size_t out_path_size) {
 #if defined(CONFIG_TT_USER_DATA_LOCATION_INTERNAL)
-#ifdef ESP_PLATFORM
-    const char* mount_point = "/data";
-#else
-    const char* mount_point = "data";
-#endif
-    if (std::strlen(mount_point) + 1 > out_path_size) {
-        return ERROR_BUFFER_OVERFLOW;
+    // Registered by platform-esp32/platform-posix's own module start() (see file_system_add()'s
+    // "data" name), rather than a literal here: on POSIX that filesystem's real path is resolved
+    // once via realpath() at registration time, not recomputed against whatever the caller's own
+    // notion of "current directory" (real or virtual) happens to be right now.
+    FileSystem* found = file_system_find_by_name("data");
+    if (found == nullptr) {
+        return ERROR_NOT_FOUND;
     }
-    std::strcpy(out_path, mount_point);
-    return ERROR_NONE;
+    return file_system_get_path(found, out_path, out_path_size);
 #elif defined(CONFIG_TT_USER_DATA_LOCATION_SD)
     FileSystem* found = nullptr;
     file_system_for_each(&found, [](FileSystem* fs, void* context) {
@@ -42,7 +41,9 @@ static error_t paths_get_data_root_path(char* out_path, size_t out_path_size) {
 extern "C" {
 
 error_t paths_get_data_path(char* out_path, size_t out_path_size) {
-    char root[64];
+    // Sized for a real, realpath()-resolved absolute path (see paths_get_data_root_path()'s
+    // CONFIG_TT_USER_DATA_LOCATION_INTERNAL branch), not just the short literal this used to be.
+    char root[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = paths_get_data_root_path(root, sizeof(root));
     if (error != ERROR_NONE) {
         return error;
@@ -55,7 +56,7 @@ error_t paths_get_data_path(char* out_path, size_t out_path_size) {
 }
 
 error_t paths_get_temp_path(char* out_path, size_t out_path_size) {
-    char data_path[64];
+    char data_path[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = paths_get_data_root_path(data_path, sizeof(data_path));
     if (error != ERROR_NONE) {
         return error;
