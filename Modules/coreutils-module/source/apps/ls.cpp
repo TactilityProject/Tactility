@@ -30,7 +30,7 @@ bool looksExecutable(const char* name) {
         return false;
     }
     // TODO: Consider using app_is_executable
-    return strcmp(dot, ".sh") || strcmp(dot, ".elf") == 0 || strcmp(dot, ".so") == 0;
+    return strcmp(dot, ".sh") == 0 || strcmp(dot, ".elf") == 0 || strcmp(dot, ".so") == 0;
 }
 
 void collectEntry(const DirectoryEntry* entry, void* context) {
