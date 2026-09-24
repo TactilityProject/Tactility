@@ -99,6 +99,9 @@ struct AppStreamBinding {
      * completion before app_start_with_context() even returns, so setting this on the stream
      * afterwards can already be too late. {0, 0} (the default) leaves it unset. */
     struct AppWindowSize window_size;
+    /** A second fd to alias onto this same stream (see app_stream_bind_alias_fd()), bound in the
+     * same pre-task-creation window as the subscribe above. -1 (the default) binds no alias. */
+    int alias_fd = -1;
 };
 
 /**

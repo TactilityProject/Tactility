@@ -9,6 +9,7 @@
 
 ## Higher Priority
 
+- coreutils apps: Only emit colour escapes when stdout is the terminal (command_support.h color() function)
 - DisplayApi::get_frame_buffer should be nullable and have a default behaviour of assigning NULL to the output pointer. 
   get_frame_buffer_count should be NULLable too, document it explicitly
 - Shell interpreter works recursive-descent algorithm, which requires a big stack size. Can we optimize this?

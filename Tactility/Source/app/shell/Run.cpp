@@ -1,4 +1,7 @@
 #include <Tactility/app/shell/Run.h>
+
+#include "tactility/memory.h"
+
 #include <Tactility/app/shell/Shell.h>
 #include <Tactility/app/shell/ShellFs.h>
 
@@ -111,7 +114,7 @@ bool shouldMakeAbsolute(const char* argument, char* out, size_t outSize) {
 }
 
 // How often the pump loop below checks for a new keystroke while a launched app instance runs.
-constexpr uint32_t APP_PUMP_INTERVAL_MS = 50;
+constexpr uint32_t APP_PUMP_INTERVAL_MS = 10;
 
 // Returned by runApp() when the child never started, as opposed to a real exit status.
 constexpr int RUN_APP_START_FAILED = -1;
@@ -128,8 +131,17 @@ bool lastByteWasNewline = true;
  * @return the child's exit status, or RUN_APP_START_FAILED if it never started
  */
 int runApp(AppStartContext& context) {
-    static uint8_t stdinBuffer[256];
-    static uint8_t stdoutBuffer[1024];
+    constexpr size_t STDIN_BUFFER_SIZE = 256;
+    constexpr size_t STDOUT_BUFFER_SIZE = 1024;
+    constexpr MemoryPolicy policy = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
+    auto* stdinBuffer = static_cast<uint8_t*>(memory_alloc_with_policy(STDIN_BUFFER_SIZE, &policy));
+    auto* stdoutBuffer = static_cast<uint8_t*>(memory_alloc_with_policy(STDOUT_BUFFER_SIZE, &policy));
+    if (stdinBuffer == nullptr || stdoutBuffer == nullptr) {
+        memory_free(stdinBuffer);
+        memory_free(stdoutBuffer);
+        return RUN_APP_START_FAILED;
+    }
+
     AppStream stdinStream {};
     AppStream stdoutStream {};
 
@@ -145,8 +157,8 @@ int runApp(AppStartContext& context) {
     app_io_ioctl(STDOUT_FILENO, APP_IOCTL_GET_WINDOW_SIZE, &windowSize);
 
     AppStreamBinding bindings[] = {
-        { STDIN_FILENO, &stdinStream, stdinBuffer, sizeof(stdinBuffer), &eventGroup, {} },
-        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, sizeof(stdoutBuffer), &eventGroup, windowSize },
+        { STDIN_FILENO, &stdinStream, stdinBuffer, STDIN_BUFFER_SIZE, &eventGroup, {} },
+        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, STDOUT_BUFFER_SIZE, &eventGroup, windowSize, STDERR_FILENO },
     };
 
     AppEventSubscription eventSub {};
@@ -160,9 +172,10 @@ int runApp(AppStartContext& context) {
     if (result != ERROR_NONE) {
         app_event_unsubscribe(&eventSub);
         task_event_group_destruct(&eventGroup);
+        free(stdinBuffer);
+        free(stdoutBuffer);
         return RUN_APP_START_FAILED;
     }
-    app_stream_bind_alias_fd(&stdoutStream, STDERR_FILENO);
 
     // Polls stdin rather than blocking: a non-interactive/early-exiting child stops reading it, so
     // a plain read() would block forever with no way to notice the child exited.
@@ -170,6 +183,7 @@ int runApp(AppStartContext& context) {
                               // without observing the matching APP_EVENT_RESULT
     bool childDone = false;
     bool ownStdinClosed = false;
+    // TODO: Consider PSRAM
     uint8_t drain[256];
 
     while (!childDone) {
@@ -225,6 +239,9 @@ int runApp(AppStartContext& context) {
 
     app_event_unsubscribe(&eventSub);
     task_event_group_destruct(&eventGroup);
+
+    memory_free(stdinBuffer);
+    memory_free(stdoutBuffer);
 
     return childResult;
 }

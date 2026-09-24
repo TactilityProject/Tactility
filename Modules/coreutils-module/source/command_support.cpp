@@ -151,42 +151,8 @@ const char* const COLOUR_EXEC = "\x1B[92m";     // bright green
 const char* const COLOUR_SIZE = "\x1B[90m";     // grey, so it recedes behind the names
 const char* const COLOUR_ERROR = "\x1B[91m";    // bright red
 
-bool looksExecutable(const char* name) {
-    const char* dot = strrchr(name, '.');
-    if (dot == nullptr) {
-        return false;
-    }
-    return strcmp(dot, ".elf") == 0 || strcmp(dot, ".sh") == 0;
-}
-
-bool printMount(FileSystem* fs, void*) {
-    char path[FILE_MAX_PATH_STRING_LENGTH];
-    if (file_system_get_path(fs, path, sizeof(path)) == ERROR_NONE) {
-        printf("%s%s%s\n", COLOUR_DIR, path, COLOUR_RESET);
-    }
-    return true;
-}
-
-void printEntry(const DirectoryEntry* entry, void*) {
-    if (entry->is_directory) {
-        printf("%s%s/%s\n", COLOUR_DIR, entry->name, COLOUR_RESET);
-        return;
-    }
-
-    const char* nameColour = looksExecutable(entry->name) ? COLOUR_EXEC : "";
-    const char* nameReset = looksExecutable(entry->name) ? COLOUR_RESET : "";
-
-    /*
-     * The padding is applied to the name alone rather than to the coloured string: the escape
-     * sequences are zero-width on screen but count towards printf's field width, so a coloured
-     * "%-24s" would come out short by however many bytes the colour codes take.
-     */
-    char padded[64];
-    snprintf(padded, sizeof(padded), "%-24s", entry->name);
-
-    printf("%s%s%s %s%u%s\n",
-                 nameColour, padded, nameReset,
-                 COLOUR_SIZE, (unsigned)entry->size, COLOUR_RESET);
+const char* color(const char* sequence) {
+    return stdoutIsTerminal() ? sequence : "";
 }
 
 bool buildTarget(const char* sourcePath, const char* targetArg, char* out, size_t outSize) {

@@ -80,6 +80,8 @@ void onStartPressed(lv_event_t* event) {
 
     if (service->isTaskStarted()) {
         LOG_I(TAG, "Stop screenshot");
+        service->stop();
+        updateScreenshotMode(ctx);
         return;
     }
 

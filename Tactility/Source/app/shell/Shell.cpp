@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 extern "C" {
 #include <Tactility/app/shell/shell/sh.h>
@@ -81,8 +82,20 @@ void shutdown() {
 }
 
 void forEachCommand(void* context, void (*callback)(const Command&, void*)) {
-    CommandRelay relay { context, callback };
-    app_manager_for_each_manifest(visitManifestAsCommand, &relay);
+    struct CommandId { AppId id; };
+    std::vector<CommandId> ids;
+    // First gather all IDs, so we don't keep the ledger lock while calling callback()
+    app_manager_for_each_manifest([](const AppManifest* manifest, void* context) {
+        if ((manifest->flags & APP_MANIFEST_FLAG_HEADLESS) != 0
+            && manifest->location.type == APP_LOCATION_MEMORY) {
+            auto& ids = *static_cast<std::vector<CommandId>*>(context);
+            ids.emplace_back();
+            memcpy(ids.back().id, manifest->id, sizeof(AppId));
+        }
+    }, &ids);
+    for (const auto& [id] : ids) {
+        callback(Command { .name = id, .help = "" }, context);
+    }
 }
 
 namespace {

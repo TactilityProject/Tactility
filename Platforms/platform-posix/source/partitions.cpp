@@ -74,9 +74,8 @@ FileSystem* registerDirectoryFs(const char* name, const char* relativePath, Dire
 error_t platform_posix_start_partitions() {
     registerDirectoryFs("system", "system", &system_fs_data);
     registerDirectoryFs("data", "data", &data_fs_data);
-    // "data"/"system" live somewhere under here (wherever the process was launched from). Unlike
-    // ESP32, POSIX genuinely has a real "/", so it gets registered too - discoverable the same
-    // way as any other named filesystem, e.g. via `df`/file_system_for_each().
+    // "data"/"system" live somewhere under here (wherever the process was launched from). U
+    // Unlike ESP32, POSIX genuinely has a real "/", so it gets registered too.
     registerDirectoryFs("root", "/", &root_fs_data);
     return ERROR_NONE;
 }

@@ -31,9 +31,7 @@ struct RootDir {
     uint16_t dd_rsv;
     int count;
     int position;
-    // Borrowed, not copied: file_system_add()'s own contract already requires a name to outlive
-    // its FileSystem (typically a string literal), which outlives this snapshot in turn.
-    const char* names[ROOT_DIR_MAX_ENTRIES];
+    char names[ROOT_DIR_MAX_ENTRIES][64];
     struct dirent entry;
 };
 
@@ -42,12 +40,24 @@ bool isRootDir(DIR* pdir) {
     return dir->dd_vfs_idx == ROOT_DIR_VFS_IDX && dir->dd_rsv == ROOT_DIR_MAGIC;
 }
 
+// Copies the mount path's top-level segment rather than using file_system_get_name(): the
+// registered name isn't always the mount point, and isn't guaranteed to be a string literal
+// that outlives this snapshot.
 bool collectMountName(FileSystem* fs, void* context) {
     auto* dir = static_cast<RootDir*>(context);
     if (dir->count >= ROOT_DIR_MAX_ENTRIES) {
         return false;
     }
-    dir->names[dir->count++] = file_system_get_name(fs);
+    char path[64];
+    if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) {
+        return true;
+    }
+    const char* top = (path[0] == '/') ? path + 1 : path;
+    if (top[0] == '\0' || strchr(top, '/') != nullptr) {
+        return true; // not a top-level mount point
+    }
+    snprintf(dir->names[dir->count], sizeof(dir->names[0]), "%s", top);
+    dir->count++;
     return true;
 }
 

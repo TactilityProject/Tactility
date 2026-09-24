@@ -9,20 +9,6 @@
 
 namespace coreutils::du {
 
-namespace {
-
-// There is no filesystem at "/": file_system_for_each_mounted() callback that sums and prints
-// one mount's own tree size, since path_tree_size("/") itself has nothing to open.
-bool printMountSize(FileSystem* fs, void*) {
-    char path[FILE_MAX_PATH_STRING_LENGTH];
-    if (file_system_get_path(fs, path, sizeof(path)) == ERROR_NONE) {
-        printf("%u\t%s\n", (unsigned)path_tree_size(path), path);
-    }
-    return true;
-}
-
-} // namespace
-
 static int32_t main(int argc, char* argv[]) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (!resolvePathArg("du", argc > 1 ? argv[1] : "", path, sizeof(path))) {

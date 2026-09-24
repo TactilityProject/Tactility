@@ -345,7 +345,7 @@ static void registerAndStartServices() {
 }
 
 void prepareFileSystems() {
-    char temp_path[64];
+    char temp_path[FILE_MAX_PATH_STRING_LENGTH];
     if (paths_get_temp_path(temp_path, sizeof(temp_path)) != ERROR_NONE) {
         LOG_E(TAG, "Failed to determine temp path");
         return;

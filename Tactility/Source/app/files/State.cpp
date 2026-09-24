@@ -37,18 +37,9 @@ bool State::setEntriesForPath(const std::string& path) {
         return false;
     }
 
-    // Remove "." and ".."
-    if (dir_entries.size() > 2) {
-        auto first = dir_entries.begin();
-        auto second = first + 1;
-        if (strcmp(".", first->d_name) == 0) {
-            dir_entries.erase(first);
-        }
-        if (strcmp("..", second->d_name) == 0) {
-            dir_entries.erase(second);
-        }
-        dir_entries.erase(dir_entries.begin());
-    }
+    std::erase_if(dir_entries, [](const dirent& entry) {
+        return strcmp(".", entry.d_name) == 0 || strcmp("..", entry.d_name) == 0;
+    });
 
     LOG_I(TAG, "%s has %d entries", path.c_str(), dir_entries.size());
     current_path = path;

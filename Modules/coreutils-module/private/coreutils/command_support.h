@@ -45,16 +45,7 @@ extern const char* const COLOUR_SIZE;
 extern const char* const COLOUR_ERROR;
 
 /** Returns the escape sequence, or an empty string when output is not the terminal. */
-const char* colour(const char* sequence);
-
-/** True if the name looks like something that can be run. */
-bool looksExecutable(const char* name);
-
-/** ls/df: file_system_for_each_mounted() callback that prints one mounted filesystem's path. */
-bool printMount(struct FileSystem* fs, void*);
-
-/** ls: prints one directory entry. */
-void printEntry(const DirectoryEntry* entry, void*);
+const char* color(const char* sequence);
 
 /**
  * Builds the destination for cp/mv. When the target is an existing directory the source's basename

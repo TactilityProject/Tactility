@@ -60,74 +60,87 @@ error_t directory_remove_tree_at(const char* path, int depth) {
         bool skipped_long_name;
     };
 
-    auto* collected = static_cast<Collected*>(calloc(1, sizeof(Collected)));
-    if (collected == nullptr) {
-        return ERROR_RESOURCE;
-    }
-
-    {
-        DIR* dir = opendir(path);
-        if (dir == nullptr) {
-            free(collected);
-            // Not a directory: fall through to removing it as a plain file.
-            return file_remove(path);
+    // Looped rather than re-calling itself at the same depth: MAX_RECURSION_DEPTH only bounds
+    // recursion into subdirectories below, so a same-depth call here would grow the stack by one
+    // frame per MAX_ENTRIES_PER_PASS entries, unbounded by anything - a directory with a few
+    // thousand files could overflow it.
+    for (;;) {
+        auto* collected = static_cast<Collected*>(calloc(1, sizeof(Collected)));
+        if (collected == nullptr) {
+            return ERROR_RESOURCE;
         }
 
-        for (struct dirent* entry = readdir(dir); entry != nullptr; entry = readdir(dir)) {
-            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+        {
+            DIR* dir = opendir(path);
+            if (dir == nullptr) {
+                free(collected);
+                // Not a directory: fall through to removing it as a plain file.
+                return file_remove(path);
+            }
+
+            for (struct dirent* entry = readdir(dir); entry != nullptr; entry = readdir(dir)) {
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                    continue;
+                }
+                if (collected->count >= MAX_ENTRIES_PER_PASS) {
+                    collected->overflowed = true;
+                    break;
+                }
+
+                const size_t name_length = strlen(entry->d_name);
+                if (name_length >= MAX_ENTRY_NAME) {
+                    collected->skipped_long_name = true;
+                    continue;
+                }
+
+                memcpy(collected->names[collected->count], entry->d_name, name_length + 1);
+                collected->count++;
+            }
+            closedir(dir);
+        }
+
+        error_t result = ERROR_NONE;
+        for (int i = 0; i < collected->count; i++) {
+            char child_path[FILE_MAX_PATH_STRING_LENGTH];
+            // Reject truncated paths
+            const int written = snprintf(child_path, sizeof(child_path), "%s/%s", path, collected->names[i]);
+            if (written < 0 || static_cast<size_t>(written) >= sizeof(child_path)) {
+                result = ERROR_BUFFER_OVERFLOW;
                 continue;
             }
-            if (collected->count >= MAX_ENTRIES_PER_PASS) {
-                collected->overflowed = true;
-                break;
+
+            struct stat child_info;
+            const bool is_real_directory = lstat(child_path, &child_info) == 0 && S_ISDIR(child_info.st_mode);
+            const error_t child_result = is_real_directory
+                ? directory_remove_tree_at(child_path, depth + 1)
+                : file_remove(child_path);
+
+            if (child_result != ERROR_NONE) {
+                result = child_result;
             }
-
-            const size_t name_length = strlen(entry->d_name);
-            if (name_length >= MAX_ENTRY_NAME) {
-                collected->skipped_long_name = true;
-                continue;
-            }
-
-            memcpy(collected->names[collected->count], entry->d_name, name_length + 1);
-            collected->count++;
         }
-        closedir(dir);
-    }
 
-    error_t result = ERROR_NONE;
-    for (int i = 0; i < collected->count; i++) {
-        char child_path[FILE_MAX_PATH_STRING_LENGTH];
-        snprintf(child_path, sizeof(child_path), "%s/%s", path, collected->names[i]);
+        const bool overflowed = collected->overflowed;
+        const bool skipped_long_name = collected->skipped_long_name;
+        free(collected);
 
-        const error_t child_result = directory_exists(child_path)
-            ? directory_remove_tree_at(child_path, depth + 1)
-            : file_remove(child_path);
-
-        if (child_result != ERROR_NONE) {
-            result = child_result;
+        // A directory with more entries than one pass could hold needs another sweep.
+        if (overflowed && result == ERROR_NONE && !skipped_long_name) {
+            continue;
         }
-    }
+        if (result != ERROR_NONE) {
+            return result;
+        }
+        if (skipped_long_name) {
+            // The directory still holds entries this code declined to touch, so removing it would
+            // fail anyway; report the real reason rather than a bare "not empty".
+            LOG_W(TAG, "'%s' contains a name longer than %u bytes; not removed",
+                     path, (unsigned)MAX_ENTRY_NAME);
+            return ERROR_NOT_EMPTY;
+        }
 
-    const bool overflowed = collected->overflowed;
-    const bool skipped_long_name = collected->skipped_long_name;
-    free(collected);
-
-    // A directory with more entries than one pass could hold needs another sweep.
-    if (overflowed && result == ERROR_NONE && !skipped_long_name) {
-        return directory_remove_tree_at(path, depth);
+        return directory_remove(path);
     }
-    if (result != ERROR_NONE) {
-        return result;
-    }
-    if (skipped_long_name) {
-        // The directory still holds entries this code declined to touch, so removing it would fail
-        // anyway; report the real reason rather than a bare "not empty".
-        LOG_W(TAG, "'%s' contains a name longer than %u bytes; not removed",
-                 path, (unsigned)MAX_ENTRY_NAME);
-        return ERROR_NOT_EMPTY;
-    }
-
-    return directory_remove(path);
 }
 
 uint64_t path_tree_size_at(const char* path, int depth) {
@@ -269,7 +282,11 @@ error_t directory_make(const char* path, bool create_parents) {
 
     // Walk the path creating each component, temporarily truncating at every separator.
     char working[FILE_MAX_PATH_STRING_LENGTH];
-    snprintf(working, sizeof(working), "%s", path);
+    // Reject truncated paths
+    const int written = snprintf(working, sizeof(working), "%s", path);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(working)) {
+        return ERROR_BUFFER_OVERFLOW;
+    }
 
     for (char* p = working + 1; *p != '\0'; p++) {
         if (*p != '/') {
@@ -310,6 +327,23 @@ error_t directory_remove_tree(const char* path) {
 }
 
 error_t file_copy(const char* source, const char* target, bool overwrite) {
+    // Reject a copy when the source and target are the same file.
+    if (strcmp(source, target) == 0) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
+    // Source and target are the same, but don't have the same name:
+    struct stat source_info, target_info;
+    if (
+        stat(source, &source_info) == 0 &&
+        stat(target, &target_info) == 0 &&
+        source_info.st_ino != 0 &&
+        source_info.st_dev == target_info.st_dev &&
+        source_info.st_ino == target_info.st_ino
+    ) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+
     if (!overwrite && path_exists(target)) {
         return ERROR_ALREADY_EXISTS;
     }

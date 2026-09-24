@@ -43,7 +43,7 @@ void runShell(int columns, int rows, volatile bool* stopRequested) {
 
     AppStreamBinding bindings[] = {
         { STDIN_FILENO, &stdinStream, stdinBuffer, sizeof(stdinBuffer), &eventGroup, {} },
-        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, sizeof(stdoutBuffer), &eventGroup, windowSize },
+        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, sizeof(stdoutBuffer), &eventGroup, windowSize, STDERR_FILENO },
     };
 
     AppEventSubscription eventSub {};
@@ -64,9 +64,6 @@ void runShell(int columns, int rows, volatile bool* stopRequested) {
         *stopRequested = true;
         return;
     }
-
-    // Aliased onto stdout so stdout/stderr writes keep their real order once relayed below.
-    app_stream_bind_alias_fd(&stdoutStream, STDERR_FILENO);
 
     bool shellStdinClosed = false;
     bool shellDone = false;

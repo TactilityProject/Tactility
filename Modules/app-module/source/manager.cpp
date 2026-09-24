@@ -182,6 +182,9 @@ error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId
             // Before app_scheduler_start() below creates the task, so the child can never
             // observe this stream's window size as unset (see AppStreamBinding::window_size).
             app_stream_set_window_size(bindings[i].stream, bindings[i].window_size.columns, bindings[i].window_size.rows);
+            if (bindings[i].alias_fd >= 0) {
+                bind_result = app_stream_bind_alias_fd(bindings[i].stream, bindings[i].alias_fd);
+            }
         }
         if (bind_result != ERROR_NONE) {
             LOG_E(TAG, "[instance %d] Failed to bind stream at fd %d: %s", target_id, bindings[i].producer_fd, error_to_string(bind_result));

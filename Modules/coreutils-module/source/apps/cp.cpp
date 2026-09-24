@@ -5,6 +5,7 @@
 #include <tactility/filesystem/fs.h>
 
 #include <cstdio>
+#include <cstring>
 
 namespace coreutils::cp {
 
@@ -19,13 +20,18 @@ static int32_t main(int argc, char* argv[]) {
         return 1;
     }
     if (directory_exists(source)) {
-        printf("cp: directories are not supported\n");
+        fprintf(stderr, "cp: directories are not supported\n");
         return 1;
     }
 
     char target[FILE_MAX_PATH_STRING_LENGTH];
     if (!buildTarget(source, argv[2], target, sizeof(target))) {
-        printf("cp: path too long\n");
+        fprintf(stderr, "cp: path too long\n");
+        return 1;
+    }
+
+    if (strcmp(source, target) == 0) {
+        fprintf(stderr, "cp: '%s' and '%s' are the same file\n", argv[1], argv[2]);
         return 1;
     }
 

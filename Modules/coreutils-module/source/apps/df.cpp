@@ -8,6 +8,14 @@
 
 namespace coreutils::df {
 
+static bool printMount(FileSystem* fs, void*) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (file_system_get_path(fs, path, sizeof(path)) == ERROR_NONE) {
+        printf("%s%s%s\n", color(COLOUR_DIR), path, color(COLOUR_RESET));
+    }
+    return true;
+}
+
 static int32_t main(int, char*[]) {
     // Only mount points are listed: ESP-IDF's VFS has no statvfs and Tactility's FileSystem API
     // exposes paths but not capacity, so there is no honest way to report free space here.
