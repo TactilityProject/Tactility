@@ -5,9 +5,10 @@ dependencies:
   - Drivers/aw9523b-module
   - Drivers/axp2101-module
   - Drivers/bm8563-module
+  - Drivers/gc0308-module
   - Drivers/bmi270-module
   - Drivers/es7210-module
-  - Drivers/ft6x36-module
+  - Drivers/ft5x06-module
   - Drivers/ili9341-module
   - Drivers/ina226-module
   - Drivers/py32ioexpander-module

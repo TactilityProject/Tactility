@@ -1,0 +1,45 @@
+description: GalaxyCore GC0308 0.3MP camera sensor
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "galaxycore,gc0308"
+
+properties:
+  rotation-offset:
+    type: int
+    enum: [ 0, 90, 180, 270 ]
+    default: 0
+    description: Clockwise mounting correction in degrees (0, 90, 180 or 270).
+  xclk-frequency-hz:
+    type: int
+    default: 20000000
+    description: DVP sensor master clock frequency.
+  pin-d0:
+    type: phandles
+  pin-d1:
+    type: phandles
+  pin-d2:
+    type: phandles
+  pin-d3:
+    type: phandles
+  pin-d4:
+    type: phandles
+  pin-d5:
+    type: phandles
+  pin-d6:
+    type: phandles
+  pin-d7:
+    type: phandles
+  pin-vsync:
+    type: phandles
+  pin-de:
+    type: phandles
+  pin-pclk:
+    type: phandles
+  pin-xclk:
+    type: phandles
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: >
+      Reset GPIO pin. Pulsed (asserted then released, with a settle delay) before the sensor is probed in start_device. Typically wired through a board's IO expander rather than a direct SoC GPIO, so it's handled here via the generic gpio_descriptor API.

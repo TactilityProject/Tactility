@@ -19,10 +19,11 @@
 #include <bindings/bm8563.h>
 #include <bindings/bmi270.h>
 #include <bindings/es7210.h>
-#include <bindings/ft6x36.h>
+#include <bindings/ft5x06.h>
 #include <bindings/ili9341.h>
 #include <bindings/ina226.h>
 #include <bindings/py32ioexpander.h>
+#include <bindings/gc0308.h>
 
 // Reference: https://docs.m5stack.com/en/StackChan
 / {
@@ -69,6 +70,7 @@
 		bmi270 {
 			compatible = "bosch,bmi270";
 			reg = <0x69>;
+			invert-x;
 		};
 
 		bm8563 {
@@ -143,10 +145,10 @@
 		};
 
 		touch {
-			compatible = "focaltech,ft6x36";
+			compatible = "focaltech,ft5x06";
 			reg = <0x38>;
-			x-max = <319>;
-			y-max = <239>;
+			x-max = <320>;
+			y-max = <240>;
 			pin-reset = <&aw9523b 0 GPIO_FLAG_NONE>;
 		};
 
@@ -165,8 +167,27 @@
 			input-gain-percent = <400>;
 		};
 
+		gc0308 {
+			compatible = "galaxycore,gc0308";
+			reg = <0x21>;
+			rotation-offset = <0>;
+			xclk-frequency-hz = <20000000>;
+			pin-d0 = <&gpio0 39 GPIO_FLAG_NONE>;
+			pin-d1 = <&gpio0 40 GPIO_FLAG_NONE>;
+			pin-d2 = <&gpio0 41 GPIO_FLAG_NONE>;
+			pin-d3 = <&gpio0 42 GPIO_FLAG_NONE>;
+			pin-d4 = <&gpio0 15 GPIO_FLAG_NONE>;
+			pin-d5 = <&gpio0 16 GPIO_FLAG_NONE>;
+			pin-d6 = <&gpio0 48 GPIO_FLAG_NONE>;
+			pin-d7 = <&gpio0 47 GPIO_FLAG_NONE>;
+			pin-vsync = <&gpio0 46 GPIO_FLAG_NONE>;
+			pin-de = <&gpio0 38 GPIO_FLAG_NONE>;
+			pin-pclk = <&gpio0 45 GPIO_FLAG_NONE>;
+			pin-xclk = <&gpio0 2 GPIO_FLAG_NONE>;
+			pin-reset = <&aw9523b 8 GPIO_FLAG_ACTIVE_LOW>;
+		};
+
 		// TODO: Si12T 3-zone head touch @ 0x68 — INT active-low, 10kΩ pull-up to 3.3V; driver not yet implemented
-		// TODO: GC0308 camera @ 0x21 — requires i2c_master driver, not yet available
 		// TODO: LTR-553ALS-WA proximity/light @ 0x23 — no driver yet
 		// TODO: BMM150 magnetometer @ 0x10 — accessible only via BMI270 aux I2C
 	};

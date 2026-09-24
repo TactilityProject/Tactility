@@ -111,6 +111,9 @@ shared_symbol_code_point_names = [
     "usb", # Power (settings) app
     "wifi", # WiFi (settings) app
     "bluetooth", # Bluetooth (settings) app
+    "terminal",
+    "logo_dev",
+    "camera",
 ]
 
 # Get more from https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded

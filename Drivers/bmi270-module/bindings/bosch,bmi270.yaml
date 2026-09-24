@@ -1,5 +1,31 @@
 description: Bosch BMI270 6-axis IMU
 
-include: ["i2c-device.yaml"]
+include: [ "i2c-device.yaml" ]
 
 compatible: "bosch,bmi270"
+
+properties:
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  swap-xz:
+    type: boolean
+    default: false
+    description: Swap the X and Z axes
+  swap-yz:
+    type: boolean
+    default: false
+    description: Swap the Y and Z axes
+  invert-x:
+    type: boolean
+    default: false
+    description: Invert the X axis
+  invert-y:
+    type: boolean
+    default: false
+    description: Invert the Y axis
+  invert-z:
+    type: boolean
+    default: false
+    description: Invert the Z axis

@@ -1,5 +1,8 @@
 # ST7123 display + touch controller
 
+- Datasheet: https://m5stack-doc.oss-cn-shenzhen.aliyuncs.com/1132/ST7123_SPEC_Preliminary_V0.5.pdf
+- Datasheet: https://m5stack-doc.oss-cn-shenzhen.aliyuncs.com/1132/ST7123-TDDI-Interface-Protocol-V01.11.pdf.pdf
+
 Two drivers for the Sitronix `ST7123`, sharing this module since they're the same physical chip
 family and commonly used together:
 

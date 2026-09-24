@@ -31,6 +31,30 @@ struct Context {
     Favourites favourites;
 };
 
+struct IconEntry {
+    const char* id;
+    const char* icon;
+};
+
+constexpr IconEntry ICONS[] = {
+    {"tactility.apphub",            LVGL_ICON_SHARED_DOWNLOAD},
+    {"tactility.camera",            LVGL_ICON_SHARED_CAMERA},
+    {"tactility.chat",              LVGL_ICON_SHARED_FORUM},
+    {"tactility.i2cscanner",        LVGL_ICON_SHARED_CABLE},
+    {"tactility.notes",             LVGL_ICON_SHARED_EDIT_NOTE},
+    {"tactility.screenshot",        LVGL_ICON_SHARED_IMAGE},
+    {"tactility.systeminfo",        LVGL_ICON_SHARED_DEVICES},
+    {"tactility.terminal",          LVGL_ICON_SHARED_TERMINAL},
+    {"tactility.webserversettings", LVGL_ICON_SHARED_CLOUD},
+};
+
+const char* appIcon(const ::AppManifest* manifest) {
+    for (const auto& entry : ICONS) {
+        if (!strcmp(manifest->id, entry.id)) return entry.icon;
+    }
+    return LVGL_ICON_SHARED_DEPLOYED_CODE;
+}
+
 void populateList(lv_obj_t* list);
 
 // Named (not a lambda) so lv_async_call_cancel() below has a stable function pointer to match against.
@@ -95,7 +119,7 @@ void onHelpPressed(lv_event_t* event) {
 lv_obj_t* createAppWidget(const ::AppManifest* manifest, lv_obj_t* list, bool favourite) {
     // Plain "*" prefix, not an icon: shared Material Symbols font is subsetted and has no star glyph.
     const std::string label = favourite ? (std::string("* ") + manifest->name) : manifest->name;
-    lv_obj_t* btn = lv_list_add_button(list, LVGL_ICON_SHARED_TOOLBAR, label.c_str());
+    lv_obj_t* btn = lv_list_add_button(list, appIcon(manifest), label.c_str());
     lv_obj_t* image = lv_obj_get_child(btn, 0);
     lv_obj_set_style_text_font(image, lvgl_get_shared_icon_font(), LV_PART_MAIN);
     // Not read by any event here (those get the manifest via their own callback user data) - lets

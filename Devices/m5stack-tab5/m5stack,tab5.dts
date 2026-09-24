@@ -122,6 +122,7 @@
 
 		sc2356 {
 			compatible = "smartsens,sc2356";
+			rotation-offset = <270>;
 			reg = <0x36>;
 			// Pulsed by the sc2356 driver itself in start_device, not a gpio-hog: the driver's
 			// I2C probe otherwise races a bare hog's pin release with no settle delay (the hog

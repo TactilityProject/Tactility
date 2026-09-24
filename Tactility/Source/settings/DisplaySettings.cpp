@@ -228,14 +228,8 @@ bool save(const DisplaySettings& settings) {
 
 static bool isOriginallyLandscape() {
     auto* lvgl_display = lv_display_get_default();
-    auto rotation = lv_display_get_rotation(lvgl_display);
-    // The lvgl resolution code compensates for rotation. We have to revert the compensation to get the real display resolution
-    // TODO: Use info from display driver
-    if (rotation == LV_DISPLAY_ROTATION_0 || rotation == LV_DISPLAY_ROTATION_180) {
-        return lv_display_get_physical_horizontal_resolution(lvgl_display) > lv_display_get_physical_vertical_resolution(lvgl_display);
-    } else {
-        return lv_display_get_physical_horizontal_resolution(lvgl_display) < lv_display_get_physical_vertical_resolution(lvgl_display);
-    }
+    return lv_display_get_original_horizontal_resolution(lvgl_display) >
+           lv_display_get_original_vertical_resolution(lvgl_display);
 }
 
 lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {

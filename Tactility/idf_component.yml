@@ -1,11 +1,15 @@
 dependencies:
   espressif/cjson: "^1.7.19"
   espressif/esp_codec_dev: "1.5.10"
-  espressif/esp_audio_codec: "2.4.0"
+  espressif/esp_audio_codec: "2.5.0"
   espressif/esp_video:
     version: "2.2.0"
     rules:
       - if: "target in [esp32s3, esp32c6, esp32p4]"
+  espressif/esp_new_jpeg:
+    version: "^1.0.2"
+    rules:
+      - if: "target in [esp32, esp32s3]"
   espressif/esp_hosted:
     version: "2.12.11"
     rules:

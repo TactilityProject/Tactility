@@ -64,6 +64,10 @@ struct Sc2356State : CameraHandleData {
 
 #define GET_CONFIG(device) (static_cast<const Sc2356Config*>((device)->config))
 
+static CameraRotation add_rotation(CameraRotation rotation, uint16_t offset) {
+    return static_cast<CameraRotation>((static_cast<uint16_t>(rotation) + offset) % 360);
+}
+
 // Reset timings per the SC2356/SC202CS datasheet's power-up sequence: hold reset asserted for at
 // least 1ms, then wait for the sensor's internal power-on/clock startup (datasheet specifies a
 // minimum before the first SCCB transaction - 10ms gives comfortable margin) before probing.
@@ -390,17 +394,18 @@ error_t sc2356_close(Sc2356Handle handle) {
 error_t sc2356_set_rotation(Sc2356Handle handle, CameraRotation rotation) {
     if (!handle) return ERROR_INVALID_ARGUMENT;
     auto* state = static_cast<Sc2356State*>(handle);
+    CameraRotation effective_rotation = add_rotation(rotation, GET_CONFIG(state->device)->rotation_offset);
 
     xSemaphoreTake(state->rotation_mutex, portMAX_DELAY);
 
-    if (state->rotation == rotation) {
+    if (state->rotation == effective_rotation) {
         xSemaphoreGive(state->rotation_mutex);
         return ERROR_NONE;
     }
 
-    bool needs_swap = (rotation == CAMERA_ROTATION_90 || rotation == CAMERA_ROTATION_270);
+    bool needs_swap = (effective_rotation == CAMERA_ROTATION_90 || effective_rotation == CAMERA_ROTATION_270);
 
-    state->rotation = rotation;
+    state->rotation = effective_rotation;
     if (needs_swap) {
         state->width  = state->native_height;
         state->height = state->native_width;

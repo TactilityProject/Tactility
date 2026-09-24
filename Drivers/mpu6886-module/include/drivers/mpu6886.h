@@ -14,6 +14,12 @@ extern "C" {
 struct Mpu6886Config {
     /** Address on bus */
     uint8_t address;
+    bool swap_xy;
+    bool swap_xz;
+    bool swap_yz;
+    bool invert_x;
+    bool invert_y;
+    bool invert_z;
 };
 
 /**

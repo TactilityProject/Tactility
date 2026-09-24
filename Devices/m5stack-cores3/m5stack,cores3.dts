@@ -20,6 +20,7 @@
 #include <bindings/es7210.h>
 #include <bindings/ft5x06.h>
 #include <bindings/ili9341.h>
+#include <bindings/gc0308.h>
 
 // SD card is not supported because of a hardware problem:
 // The display uses pin 35 as input (MISO), but the SPI bus (and SD card) uses the same pin as DC (output).
@@ -64,6 +65,7 @@
 		bmi270 {
 			compatible = "bosch,bmi270";
 			reg = <0x69>;
+			invert-x;
 		};
 
 		bm8563 {
@@ -150,6 +152,26 @@
 			// setting, ~34dB of its 0-37.5dB range) still isn't enough for these
 			// capsules on their own.
 			input-gain-percent = <400>;
+		};
+
+		gc0308 {
+			compatible = "galaxycore,gc0308";
+			reg = <0x21>;
+			rotation-offset = <0>;
+			xclk-frequency-hz = <20000000>;
+			pin-d0 = <&gpio0 39 GPIO_FLAG_NONE>;
+			pin-d1 = <&gpio0 40 GPIO_FLAG_NONE>;
+			pin-d2 = <&gpio0 41 GPIO_FLAG_NONE>;
+			pin-d3 = <&gpio0 42 GPIO_FLAG_NONE>;
+			pin-d4 = <&gpio0 15 GPIO_FLAG_NONE>;
+			pin-d5 = <&gpio0 16 GPIO_FLAG_NONE>;
+			pin-d6 = <&gpio0 48 GPIO_FLAG_NONE>;
+			pin-d7 = <&gpio0 47 GPIO_FLAG_NONE>;
+			pin-vsync = <&gpio0 46 GPIO_FLAG_NONE>;
+			pin-de = <&gpio0 38 GPIO_FLAG_NONE>;
+			pin-pclk = <&gpio0 45 GPIO_FLAG_NONE>;
+			pin-xclk = <&gpio0 2 GPIO_FLAG_NONE>;
+			pin-reset = <&aw9523b 8 GPIO_FLAG_ACTIVE_LOW>;
 		};
 	};
 

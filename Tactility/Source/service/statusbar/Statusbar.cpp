@@ -11,6 +11,7 @@
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/drivers/bluetooth.h>
+#include <tactility/drivers/bluetooth_hid_device.h>
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/power_supply.h>
@@ -180,13 +181,18 @@ class StatusbarService final : public Service {
 
         Device* serial_dev = bluetooth_serial_get();
         Device* midi_dev = bluetooth_midi_get();
+        Device* hid_dev = bluetooth_hid_device_get();
         bool connected = (serial_dev && bluetooth_serial_is_connected(serial_dev)) ||
-                         (midi_dev && bluetooth_midi_is_connected(midi_dev));
+                         (midi_dev && bluetooth_midi_is_connected(midi_dev)) ||
+                         (hid_dev && bluetooth_hid_device_is_connected(hid_dev));
         if (serial_dev) {
             device_put(serial_dev);
         }
         if (midi_dev) {
             device_put(midi_dev);
+        }
+        if (hid_dev) {
+            device_put(hid_dev);
         }
         const char* desired_icon = getBluetoothStatusIcon(radio_state, scanning, connected);
         if (bt_last_icon != desired_icon) {

@@ -14,6 +14,12 @@ extern "C" {
 struct Qmi8658Config {
     /** I2C address (0x6A when SA0=low, 0x6B when SA0=high) */
     uint8_t address;
+    bool swap_xy;
+    bool swap_xz;
+    bool swap_yz;
+    bool invert_x;
+    bool invert_y;
+    bool invert_z;
 };
 
 /**

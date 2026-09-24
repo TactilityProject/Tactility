@@ -5,6 +5,8 @@
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/log.h>
 
+#include <algorithm>
+
 #define TAG "QMI8658"
 
 // Register map (QMI8658 datasheet)
@@ -107,9 +109,21 @@ error_t qmi8658_read_accel(Device* device, ImuAccelData* data) {
         return static_cast<int16_t>(static_cast<uint16_t>(hi) << 8 | lo);
     };
 
-    data->ax = toI16(buf[0], buf[1]) * ACCEL_SCALE;
-    data->ay = toI16(buf[2], buf[3]) * ACCEL_SCALE;
-    data->az = toI16(buf[4], buf[5]) * ACCEL_SCALE;
+    float axes[3] = {
+        toI16(buf[0], buf[1]) * ACCEL_SCALE,
+        toI16(buf[2], buf[3]) * ACCEL_SCALE,
+        toI16(buf[4], buf[5]) * ACCEL_SCALE,
+    };
+    const auto& config = *GET_CONFIG(device);
+    if (config.swap_xy) std::swap(axes[0], axes[1]);
+    if (config.swap_xz) std::swap(axes[0], axes[2]);
+    if (config.swap_yz) std::swap(axes[1], axes[2]);
+    if (config.invert_x) axes[0] = -axes[0];
+    if (config.invert_y) axes[1] = -axes[1];
+    if (config.invert_z) axes[2] = -axes[2];
+    data->ax = axes[0];
+    data->ay = axes[1];
+    data->az = axes[2];
 
     return ERROR_NONE;
 }

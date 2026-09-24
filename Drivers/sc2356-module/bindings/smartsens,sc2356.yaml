@@ -5,11 +5,13 @@ include: [ "i2c-device.yaml" ]
 compatible: "smartsens,sc2356"
 
 properties:
+  rotation-offset:
+    type: int
+    enum: [ 0, 90, 180, 270 ]
+    default: 0
+    description: Clockwise mounting correction in degrees (0, 90, 180 or 270).
   pin-reset:
     type: phandles
     default: GPIO_PIN_SPEC_NONE
     description: >
-      Reset GPIO pin. Pulsed (asserted then released, with a settle delay) before the sensor is
-      probed in start_device. Typically wired through a board's IO expander rather than a direct
-      SoC GPIO, so it's handled here via the generic gpio_descriptor API rather than
-      esp_video_init's csi_config.reset_pin (which only accepts native SoC GPIOs).
+      Reset GPIO pin. Pulsed (asserted then released, with a settle delay) before the sensor is probed in start_device. Typically wired through a board's IO expander rather than a direct SoC GPIO, so it's handled here via the generic gpio_descriptor API rather than esp_video_init's csi_config.reset_pin (which only accepts native SoC GPIOs).

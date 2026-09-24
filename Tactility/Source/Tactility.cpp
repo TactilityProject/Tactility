@@ -82,6 +82,7 @@
 #include <tactility/concurrent/thread.h>
 #include <tactility/device.h>
 #include <tactility/drivers/audio_stream.h>
+#include <tactility/drivers/camera.h>
 #include <tactility/drivers/display.h>
 
 
@@ -165,6 +166,7 @@ namespace app {
     namespace apppackagelist { extern const ::AppManifest manifest; }
     namespace audiosettings { extern const ::AppManifest manifest; }
     namespace boot { extern const ::AppManifest manifest; }
+    namespace camera { extern const ::AppManifest manifest; }
     namespace development { extern const ::AppManifest manifest; }
     namespace display { extern const ::AppManifest manifest; }
     namespace files { extern const ::AppManifest manifest; }
@@ -224,6 +226,9 @@ static void registerInternalApps() {
     LOG_I(TAG, "Registering internal apps");
 
     app_manager_add(&app::alertdialog::manifest);
+    if (device_exists_of_type(&CAMERA_TYPE)) {
+        app_manager_add(&app::camera::manifest);
+    }
     app_manager_add(&app::apppackagedetails::manifest);
     app_manager_add(&app::apphub::manifest);
     app_manager_add(&app::apphubdetails::manifest);

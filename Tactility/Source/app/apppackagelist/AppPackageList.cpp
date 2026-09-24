@@ -42,7 +42,7 @@ void onBackPressed(lv_event_t* event) {
 }
 
 void createPackageWidget(const char* packageId, lv_obj_t* list) {
-    lv_obj_t* btn = lv_list_add_button(list, LVGL_ICON_SHARED_TOOLBAR, packageId);
+    lv_obj_t* btn = lv_list_add_button(list, LVGL_ICON_SHARED_DEPLOYED_CODE, packageId);
     lv_obj_t* image = lv_obj_get_child(btn, 0);
     lv_obj_set_style_text_font(image, lvgl_get_shared_icon_font(), LV_PART_MAIN);
     lv_obj_add_event_cb(btn, &onPackagePressed, LV_EVENT_SHORT_CLICKED, const_cast<char*>(packageId));
