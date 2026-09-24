@@ -13,7 +13,7 @@ extern "C" {
 // Character count, excluding null terminator
 #define APP_MANIFEST_ID_LENGTH 32
 
-/** Fixed-capacity buffer for an AppManifest::id value - always NUL-terminated. */
+/** Fixed-capacity buffer for an AppManifest::id value. Always NUL-terminated. */
 typedef char AppId[APP_MANIFEST_ID_LENGTH + 1];
 
 // Character count, excluding null terminator
@@ -28,11 +28,9 @@ enum AppCategory {
 
 /** Bit flags for AppManifest::flags. */
 enum AppManifestFlags {
-    /** Excluded from generic app-browsing UIs (AppList, Settings) - for apps only ever reached
-     * by direct navigation (modal dialogs, detail views that require parameters, wizard/
-     * bootstrap steps). */
+    /** Excluded from generic app-browsing UIs (e.g. AppList, Settings) */
     APP_MANIFEST_FLAG_HIDDEN = 1 << 0,
-    /** No window-manager dependency - safe to start from a context with no GUI available. */
+    /** No window-manager dependency. Safe to start from a context with no GUI available. */
     APP_MANIFEST_FLAG_HEADLESS = 1 << 1,
 };
 

@@ -97,8 +97,8 @@ error_t app_stream_close(struct AppStream* stream);
 
 /**
  * Sets the dimensions a consumer reading @a stream's bound fd(s) sees via
- * app_io_ioctl(fd, APP_IOCTL_GET_WINDOW_SIZE, ...). Callable any time after
- * app_stream_subscribe(), including before the consumer app has started reading.
+ * app_io_ioctl(fd, APP_IOCTL_GET_WINDOW_SIZE, ...).
+ * Callable any time after app_stream_subscribe(), including before the consumer app has started reading.
  */
 void app_stream_set_window_size(struct AppStream* stream, uint16_t columns, uint16_t rows);
 

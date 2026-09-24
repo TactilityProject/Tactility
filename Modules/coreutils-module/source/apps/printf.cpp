@@ -11,9 +11,6 @@ namespace coreutils::printf {
  * Only the conversions a shell script realistically uses are handled (%s, %d, %%). This is not a
  * general printf, and the format is never handed to the C library, since a script-supplied format
  * string with an unexpected conversion would read arbitrary stack.
- *
- * Calls into ::printf() throughout: this function's own enclosing namespace is also named
- * `printf`, so an unqualified call here would resolve to that namespace, not <cstdio>'s printf().
  */
 static int32_t main(int argc, char* argv[]) {
     if (argc < 2) {

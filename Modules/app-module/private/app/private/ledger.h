@@ -47,41 +47,36 @@ using AppEnv = std::vector<std::string, tt::OptExternalAllocator<std::string>>;
 /** A registered/running app instance, as tracked internally by app-module. */
 struct AppInstanceRecord {
     uint32_t id;
-    /** Empty for an instance started via app_execute() (app/execute.h; no manifest involved).
-     * Never a pointer into the ledger: this record outlives any single AppManifest lookup, and an
-     * external app's manifest can be freed (uninstalled) while this instance keeps running. */
+    /** Empty for a manifest-less app_execute() instance. Not a pointer into the ledger:
+     * an external app's manifest can be freed while this instance keeps running. */
     std::string manifestId;
     AppInstanceState state;
-    /** The FreeRTOS task currently executing AppLoaderApi::run() for this instance; NULL when not running. */
+    /** Task currently running AppLoaderApi::run() for this instance; NULL when not running. */
     TaskHandle_t task;
 
-    /** 0 for a top-level launch (app_start()). Non-zero for a modal child launched via
-     * app_start_for_result() - the instance that receives this child's APP_EVENT_RESULT. */
+    /** 0 for a top-level launch. Non-zero for a modal child: The instance that receives its
+     * APP_EVENT_RESULT (see app_start_for_result()). */
     uint32_t parent_id = 0;
 
-    /** This instance's completion signal - see AppCompletionSignal. Set once by
-     * app_scheduler_start(), never reassigned. */
+    /** See AppCompletionSignal. Set once by app_scheduler_start(), never reassigned. */
     AppCompletionSignal* completion = nullptr;
 
-    /** This instance's fd table. Constructed by app_manager_start_internal() before insertion
-     * into AppLedger::instances, torn down (every open fd closed) when the instance's task exits. */
+    /** Constructed before insertion into AppLedger::instances, torn down on task exit. */
     AppFdTable fd_table {};
 
-    /** This instance's environment, as "NAME=VALUE" strings - seeded from AppStartContext's own
-     * `environment` by app_manager_start_internal(), then mutable at runtime via app_env_*()
-     * (app/env.h). Protected by AppLedger::mutex, same as every other field here. */
+    /** "NAME=VALUE" strings, seeded from AppStartContext::environment, mutable via app_env_*()
+     * (app/env.h). */
     AppEnv env {};
 
-    /** This instance's current working directory - inherited from the parent instance (like
-     * `env`, above) by app_manager_start_internal(), then mutable at runtime via
-     * app_dir_set_cwd() (app/dir.h). Always an absolute path. Protected by AppLedger::mutex. */
+    /** Inherited from the parent instance, like `env`. Mutable via app_dir_set_cwd() (app/dir.h).
+     * Always absolute. */
     std::string cwd = "/";
 };
 
 /** A registered installed package - see app_manager_add_package() (app/manager.h). */
 struct AppPackageRecord {
     struct PackageManifest package;
-    // OptExternalAllocator: matches AppLedger::packages - not on the app start/stop hot path.
+    // OptExternalAllocator: matches AppLedger::packages, not on the app start/stop hot path.
     std::vector<std::string, tt::OptExternalAllocator<std::string>> app_ids;
 };
 

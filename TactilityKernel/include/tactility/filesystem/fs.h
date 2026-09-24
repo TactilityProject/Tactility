@@ -14,7 +14,7 @@ extern "C" {
  * @brief Path-level filesystem operations, all taking an already-resolved absolute path.
  *
  * Distinct from file_system.h, which is the mount-level API (registering/mounting a
- * FileSystem). These wrap the platform's own POSIX-style calls directly - ESP-IDF's VFS makes
+ * FileSystem). These wrap the platform's own POSIX-style calls directly. ESP-IDF's VFS makes
  * that work unmodified on-device, same as the simulator.
  */
 
@@ -28,7 +28,7 @@ bool directory_exists(const char* path);
  * @brief Reads a whole file into a caller-owned buffer.
  * @param[in] path the file to read
  * @param[out] bytes buffer to fill
- * @param[in,out] out_size in: @a bytes's capacity; out: the number of bytes read
+ * @param[in,out] out_size in: @a bytes's capacity. out: the number of bytes read
  * @retval ERROR_NONE on success
  * @retval ERROR_NOT_FOUND the file doesn't exist / couldn't be opened
  * @retval ERROR_BUFFER_OVERFLOW the file is larger than @a out_size's incoming capacity
@@ -81,7 +81,7 @@ error_t directory_remove(const char* path);
 
 /**
  * @brief Recursively deletes a directory and everything under it (or a plain file at @a path).
- * @warning Depth is bounded - a directory tree deeper than that is left partially deleted rather
+ * @warning Depth is bounded. A directory tree deeper than that is left partially deleted rather
  * than overflowing the stack.
  * @retval ERROR_NONE on success
  * @retval ERROR_NOT_FOUND @a path doesn't exist

@@ -12,12 +12,9 @@
 
 /**
  * Owns AppManifest copies (and their backing location-path strings) that app_manager's ledger
- * only keeps non-owning pointers to. Sized once, up front: AppManifest::location.location points
- * into the parallel `locations` vector, which would dangle if either vector reallocated after
- * construction - so neither vector is ever resized again once built.
- * OptExternalAllocator: this isn't on the app start/stop hot path, so prefer PSRAM for it, same
- * as AppLedger::packages and app_install()/app_manager_install_path_scan()'s own transient
- * AppManifestBinding vectors.
+ * only holds non-owning pointers to. Built once and never resized:
+ * AppManifest::location.location points into `locations`, which a reallocation would dangle.
+ * OptExternalAllocator since this is off the app start/stop hot path, so PSRAM is fine.
  */
 struct AppManifestSet {
     std::vector<AppManifest, tt::OptExternalAllocator<AppManifest>> manifests;
