@@ -36,24 +36,6 @@ struct CommandRelay {
     void (*callback)(const Shell::Command&, void*);
 };
 
-// AppManifestVisitorFn: runs under app_ledger()'s lock (see app_manager_for_each_manifest()'s own
-// contract), so this only ever reads scalar manifest fields and forwards a copy - never calls back
-// into app_manager_*() or invokes the command function itself.
-void visitManifestAsCommand(const AppManifest* manifest, void* context) {
-    // Only headless, in-memory apps are shell-runnable: a GUI app has no business starting from a
-    // context with no display, and a PATH-located manifest's location.location is a path string,
-    // not a callable function pointer.
-    if ((manifest->flags & APP_MANIFEST_FLAG_HEADLESS) == 0 || manifest->location.type != APP_LOCATION_MEMORY) {
-        return;
-    }
-    auto* relay = static_cast<CommandRelay*>(context);
-    const Shell::Command command {
-        manifest->id,
-        "", // AppManifest carries no separate help/description text.
-    };
-    relay->callback(command, relay->context);
-}
-
 } // namespace
 
 namespace Shell {

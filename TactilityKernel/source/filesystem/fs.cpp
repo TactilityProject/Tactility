@@ -5,8 +5,8 @@
 #include <tactility/paths.h>
 
 #include <dirent.h>
-#include <sys/stat.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <cerrno>
 #include <cstdio>
@@ -109,9 +109,7 @@ error_t directory_remove_tree_at(const char* path, int depth) {
                 continue;
             }
 
-            struct stat child_info;
-            const bool is_real_directory = lstat(child_path, &child_info) == 0 && S_ISDIR(child_info.st_mode);
-            const error_t child_result = is_real_directory
+            const error_t child_result = directory_exists(child_path)
                 ? directory_remove_tree_at(child_path, depth + 1)
                 : file_remove(child_path);
 
