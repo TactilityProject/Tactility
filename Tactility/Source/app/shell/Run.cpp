@@ -157,7 +157,7 @@ int runApp(AppStartContext& context) {
     app_io_ioctl(STDOUT_FILENO, APP_IOCTL_GET_WINDOW_SIZE, &windowSize);
 
     AppStreamBinding bindings[] = {
-        { STDIN_FILENO, &stdinStream, stdinBuffer, STDIN_BUFFER_SIZE, &eventGroup, {} },
+        { STDIN_FILENO, &stdinStream, stdinBuffer, STDIN_BUFFER_SIZE, &eventGroup, {}, -1 },
         { STDOUT_FILENO, &stdoutStream, stdoutBuffer, STDOUT_BUFFER_SIZE, &eventGroup, windowSize, STDERR_FILENO },
     };
 

@@ -42,7 +42,7 @@ void runShell(int columns, int rows, volatile bool* stopRequested) {
     const AppWindowSize windowSize { static_cast<uint16_t>(columns), static_cast<uint16_t>(rows) };
 
     AppStreamBinding bindings[] = {
-        { STDIN_FILENO, &stdinStream, stdinBuffer, sizeof(stdinBuffer), &eventGroup, {} },
+        { STDIN_FILENO, &stdinStream, stdinBuffer, sizeof(stdinBuffer), &eventGroup, {}, -1 },
         { STDOUT_FILENO, &stdoutStream, stdoutBuffer, sizeof(stdoutBuffer), &eventGroup, windowSize, STDERR_FILENO },
     };
 

@@ -203,8 +203,8 @@ TEST_CASE("app_stream_subscribe applies AppStreamBinding::window_size before the
         task_event_group_construct(&event_group);
 
         AppStreamBinding bindings[] = {
-            { STDIN_FILENO, &stdin_stream, stdin_buffer, sizeof(stdin_buffer), &event_group, {} },
-            { STDOUT_FILENO, &stdout_stream, stdout_buffer, sizeof(stdout_buffer), &event_group, { 123, 45 } },
+            { STDIN_FILENO, &stdin_stream, stdin_buffer, sizeof(stdin_buffer), &event_group, {}, -1 },
+            { STDOUT_FILENO, &stdout_stream, stdout_buffer, sizeof(stdout_buffer), &event_group, { 123, 45 }, -1 },
         };
 
         AppInstanceId instance_id = 0;

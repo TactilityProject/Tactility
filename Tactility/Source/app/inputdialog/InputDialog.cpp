@@ -154,6 +154,7 @@ uint32_t start(uint32_t callerAppInstanceId, const std::string& title, const std
         .buffer = buffer,
         .buffer_capacity = bufferCapacity,
         .event_group = eventGroup,
+        .alias_fd = -1,
     };
     uint32_t instanceId = 0;
     AppStartContext context = app_start_context_for_manifest(&manifest);
