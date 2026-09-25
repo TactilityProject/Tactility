@@ -1,5 +1,5 @@
 dependencies:
   - Platforms/platform-esp32
-  - Drivers/st7789-i8080-module
+  - Drivers/st7789-soft-i8080-module
   - Drivers/cst816s-module
 dts: cyd,2432s022c.dts

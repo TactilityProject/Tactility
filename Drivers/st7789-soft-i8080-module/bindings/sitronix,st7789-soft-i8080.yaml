@@ -1,0 +1,97 @@
+description: Sitronix ST7789 display panel driven over a bit-banged 8-bit parallel (8080) interface.
+
+compatible: "sitronix,st7789-soft-i8080"
+
+properties:
+  horizontal-resolution:
+    type: int
+    required: true
+    description: Horizontal resolution in pixels
+  vertical-resolution:
+    type: int
+    required: true
+    description: Vertical resolution in pixels
+  gap-x:
+    type: int
+    default: 0
+    description: X offset applied to all draw operations
+  gap-y:
+    type: int
+    default: 0
+    description: Y offset applied to all draw operations
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  invert-color:
+    type: boolean
+    default: false
+    description: Invert the panel's color output
+  bgr-order:
+    type: boolean
+    default: false
+    description: Use BGR element order instead of RGB
+  pin-d0:
+    type: phandles
+    required: true
+    description: Parallel data bus bit 0 GPIO pin
+  pin-d1:
+    type: phandles
+    required: true
+    description: Parallel data bus bit 1 GPIO pin
+  pin-d2:
+    type: phandles
+    required: true
+    description: Parallel data bus bit 2 GPIO pin
+  pin-d3:
+    type: phandles
+    required: true
+    description: Parallel data bus bit 3 GPIO pin
+  pin-d4:
+    type: phandles
+    required: true
+    description: Parallel data bus bit 4 GPIO pin
+  pin-d5:
+    type: phandles
+    required: true
+    description: Parallel data bus bit 5 GPIO pin
+  pin-d6:
+    type: phandles
+    required: true
+    description: Parallel data bus bit 6 GPIO pin
+  pin-d7:
+    type: phandles
+    required: true
+    description: Parallel data bus bit 7 GPIO pin
+  pin-cs:
+    type: phandles
+    required: true
+    description: Chip-select GPIO pin (active low)
+  pin-dc:
+    type: phandles
+    required: true
+    description: Data/command select GPIO pin
+  pin-wr:
+    type: phandles
+    required: true
+    description: Write strobe GPIO pin (data latched on the rising edge)
+  pin-rd:
+    type: phandles
+    required: true
+    description: Read strobe GPIO pin (active low, kept high)
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional hardware reset GPIO pin (active low)
+  backlight:
+    type: phandle
+    default: "NULL"
+    description: Optional reference to this display's backlight device

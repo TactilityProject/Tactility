@@ -6,11 +6,10 @@
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/esp32_i8080.h>
 #include <tactility/bindings/esp32_pwm_ledc.h>
 #include <tactility/bindings/pwm_backlight.h>
 #include <tactility/bindings/esp32_usbdevice.h>
-#include <bindings/st7789_i8080.h>
+#include <bindings/st7789_soft_i8080.h>
 #include <bindings/cst816s.h>
 
 / {
@@ -57,11 +56,10 @@
 		pwm = <&display_backlight_pwm>;
 	};
 
-	i8080_0 {
-		compatible = "espressif,esp32-i8080";
-		pin-dc = <&gpio0 16 GPIO_FLAG_NONE>;
-		pin-wr = <&gpio0 4 GPIO_FLAG_NONE>;
-		pin-rd = <&gpio0 2 GPIO_FLAG_NONE>;
+display {
+		compatible = "sitronix,st7789-soft-i8080";
+		horizontal-resolution = <240>;
+		vertical-resolution = <320>;
 		pin-d0 = <&gpio0 15 GPIO_FLAG_NONE>;
 		pin-d1 = <&gpio0 13 GPIO_FLAG_NONE>;
 		pin-d2 = <&gpio0 12 GPIO_FLAG_NONE>;
@@ -70,17 +68,11 @@
 		pin-d5 = <&gpio0 25 GPIO_FLAG_NONE>;
 		pin-d6 = <&gpio0 33 GPIO_FLAG_NONE>;
 		pin-d7 = <&gpio0 32 GPIO_FLAG_NONE>;
-		// 240 * (320 / 10 partial buffer) * 2 bytes/pixel = 15360 bytes
-		max-transfer-bytes = <15360>;
-		cs-gpios = <&gpio0 17 GPIO_FLAG_NONE>;
-
-		display@0 {
-			compatible = "sitronix,st7789-i8080";
-			horizontal-resolution = <240>;
-			vertical-resolution = <320>;
-			pixel-clock-hz = <25000000>;
-			backlight = <&display_backlight>;
-		};
+		pin-cs = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-dc = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-wr = <&gpio0 4 GPIO_FLAG_NONE>;
+		pin-rd = <&gpio0 2 GPIO_FLAG_NONE>;
+		backlight = <&display_backlight>;
 	};
 
 	spi1 {
