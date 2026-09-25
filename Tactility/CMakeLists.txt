@@ -29,6 +29,7 @@ list(APPEND REQUIRES_LIST
     lvgl-module
     lvgl-window-manager-module
     app-module
+    coreutils-module
     audio-decoder-module
     c-symbols-module
     cjson-module

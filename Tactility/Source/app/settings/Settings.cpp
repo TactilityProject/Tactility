@@ -23,14 +23,23 @@ namespace {
 
 struct Context {
     uint32_t appInstanceId;
+    // Owned copies backing every button's user data, so a button never references the ledger
+    // directly - safe even if an external app is uninstalled while Settings stays open. Built
+    // once, in createWidgets() below (this list is never repopulated).
+    std::vector<::AppManifest> manifests;
 };
 
 void onAppPressed(lv_event_t* e) {
     // Fire-and-forget top-level navigation, same as AppList's own app-launch buttons.
     const auto* manifest = static_cast<const ::AppManifest*>(lv_event_get_user_data(e));
     uint32_t instanceId = 0;
-    AppStartContext context = app_start_context_for_manifest(manifest);
-    app_start_with_context(&context, &instanceId);
+    // Re-resolved by id against the live ledger, not the (possibly stale) cached manifest above:
+    // fails gracefully if the app was uninstalled since this button was built, instead of handing
+    // app_manager_start_internal() a pointer it would store for the new instance's whole lifetime.
+    AppStartContext context;
+    if (app_start_context_from_id(manifest->id, &context) == ERROR_NONE) {
+        app_start_with_context(&context, &instanceId);
+    }
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -49,8 +58,8 @@ void createWidget(const ::AppManifest* manifest, lv_obj_t* list) {
 }
 
 void collectManifest(const ::AppManifest* manifest, void* context) {
-    auto* manifests = static_cast<std::vector<const ::AppManifest*>*>(context);
-    manifests->push_back(manifest);
+    auto* manifests = static_cast<std::vector<::AppManifest>*>(context);
+    manifests->push_back(*manifest);
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -66,15 +75,16 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_width(list, LV_PCT(100));
     lv_obj_set_flex_grow(list, 1);
 
-    std::vector<const ::AppManifest*> manifests;
-    app_manager_for_each_manifest(collectManifest, &manifests);
-    std::ranges::sort(manifests, [](const ::AppManifest* a, const ::AppManifest* b) {
-        return strcmp(a->name, b->name) < 0;
+    std::vector<::AppManifest> collected;
+    app_manager_for_each_manifest(collectManifest, &collected);
+    std::ranges::sort(collected, [](const ::AppManifest& a, const ::AppManifest& b) {
+        return strcmp(a.name, b.name) < 0;
     });
+    ctx->manifests = std::move(collected);
 
-    for (const auto* manifest: manifests) {
-        if (manifest->category == APP_CATEGORY_SETTINGS && (manifest->flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
-            createWidget(manifest, list);
+    for (const auto& manifest: ctx->manifests) {
+        if (manifest.category == APP_CATEGORY_SETTINGS && (manifest.flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
+            createWidget(&manifest, list);
         }
     }
 }

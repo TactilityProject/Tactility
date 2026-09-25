@@ -237,7 +237,7 @@ TEST_CASE("app_start_with_streams pipes a child's app_io_write() calls into a pa
     uint8_t storage[64];
     AppStream child_stdout {};
 
-    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
+    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group, {}, -1 };
     AppInstanceId child_id = 0;
     AppStartContext context;
     REQUIRE_EQ(app_start_context_from_id("test.io.writer", &context), ERROR_NONE);
@@ -278,7 +278,7 @@ TEST_CASE("app_io_await blocks until the bound stream becomes readable or times 
 
     uint8_t storage[16];
     AppStream child_stdin {};
-    AppStreamBinding binding { STDIN_FILENO, &child_stdin, storage, sizeof(storage), &event_group };
+    AppStreamBinding binding { STDIN_FILENO, &child_stdin, storage, sizeof(storage), &event_group, {}, -1 };
     AppInstanceId child_id = 0;
     AppStartContext context;
     REQUIRE_EQ(app_start_context_from_id("test.io.await", &context), ERROR_NONE);
@@ -316,7 +316,7 @@ TEST_CASE("a write blocked on a full stream wakes with an error once the consume
     uint8_t storage[4]; // smaller than the 10 bytes blocked_writer_app_main sends
     AppStream child_stdout {};
 
-    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
+    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group, {}, -1 };
     AppInstanceId child_id = 0;
     AppStartContext context;
     REQUIRE_EQ(app_start_context_from_id("test.io.blocked", &context), ERROR_NONE);
@@ -355,7 +355,7 @@ TEST_CASE("app_stream_unsubscribe is safe to call while a write is actively bloc
     uint8_t storage[4]; // smaller than the 10 bytes blocked_writer_app_main sends
     AppStream child_stdout {};
 
-    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
+    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group, {}, -1 };
     AppInstanceId child_id = 0;
     AppStartContext context;
     REQUIRE_EQ(app_start_context_from_id("test.io.unsub_race", &context), ERROR_NONE);

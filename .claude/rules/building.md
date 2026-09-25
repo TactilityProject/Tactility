@@ -49,7 +49,7 @@ already on PATH via `export.sh`/`. ./export.sh` or a shell profile).
 
 A device implementation has a `.dts` file.
 The parser at `Buildscripts/DevicetreeCompiler/` converts DTS into C code.
-It's called from the `Firmware/` build process.
+It's called from the `Tactility/` build process.
 
 ## Tests
 

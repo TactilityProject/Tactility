@@ -180,7 +180,7 @@ void LineEditor::complete() {
         return;
     }
 
-    char suffix[ShellFs::MAX_PATH];
+    char suffix[FILE_MAX_PATH_STRING_LENGTH];
     bool listed = false;
     if (!Shell::complete(buffer, suffix, sizeof(suffix), &listed)) {
         return;

@@ -16,6 +16,9 @@ extern "C" {
 #define PACKAGE_MANIFEST_VERSION_NAME_LENGTH 16
 #define PACKAGE_MANIFEST_REQUIRES_DEVICE_ID_LENGTH 64
 
+/** Fixed-capacity buffer for a PackageManifest::id value - always NUL-terminated. */
+typedef char PackageId[PACKAGE_MANIFEST_ID_LENGTH + 1];
+
 /** Character count, excluding null terminator, for AppManifestBinding::binary. */
 #define APP_MANIFEST_BINARY_LENGTH 31
 
@@ -32,7 +35,7 @@ struct PackageManifest {
      * AppManifest ids.
      * Must be NULL-terminated.
      */
-    char id[PACKAGE_MANIFEST_ID_LENGTH + 1];
+    PackageId id;
 
     /**
      * The package version as it is displayed to the user (e.g. "1.2.0")

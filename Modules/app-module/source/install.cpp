@@ -4,9 +4,9 @@
 #include <app/manager.h>
 #include <app/package_manifest.h>
 
-#include <app/private/binary_path.h>
 #include <app/private/fs.h>
 #include <app/private/ledger.h>
+#include <app/private/manifest_set.h>
 #include <app/private/package_manifest_parsing.h>
 
 #include <TactilityCpp/Allocator.h>
@@ -227,15 +227,15 @@ void release_staging_lock(const std::string& path) {
 
 // endregion
 
-// region Installed-package registry: owns the AppManifests (and their backing location-path
-// strings) that app_manager's ledger only keeps non-owning pointers to (see app_manager_add()'s
-// contract). AppManifest::id/name own their own storage directly (fixed arrays), so this doesn't
-// need to separately own those.
+// region Installed-package registry
 
+// Owns the AppManifests (via AppManifestSet) that app_manager's ledger only keeps non-owning pointers to.
 struct InstalledPackageRecord {
-    std::string path;                     // install directory
-    std::vector<AppManifest> manifests;   // one per AppManifest the package declared
-    std::vector<std::string> locations;   // backs manifests[i].location.location, same indices
+    std::string path;   // install directory
+    AppManifestSet owned;
+
+    InstalledPackageRecord(std::string install_path, const AppManifestBinding* bindings, size_t count)
+        : path(std::move(install_path)), owned(path, bindings, count) {}
 };
 
 struct InstallRegistry {
@@ -256,18 +256,8 @@ InstallRegistry& install_registry() {
 error_t register_installed_package_locked(const PackageManifest& package, const std::string& install_path, const AppManifestBinding* bindings, size_t count) {
     auto& registry = install_registry();
 
-    auto record = std::make_unique<InstalledPackageRecord>();
-    record->path = install_path;
-    // Sized once, up front: manifests[i].location.location points into locations[i].c_str(),
-    // which would dangle if either vector reallocated afterward.
-    record->manifests.resize(count);
-    record->locations.resize(count);
-
-    for (size_t i = 0; i < count; i++) {
-        record->manifests[i] = bindings[i].manifest;
-        record->locations[i] = app_resolve_binary_path(install_path, bindings[i].binary);
-        record->manifests[i].location = { APP_LOCATION_PATH, const_cast<char*>(record->locations[i].c_str()) };
-    }
+    auto record = std::make_unique<InstalledPackageRecord>(install_path, bindings, count);
+    auto& manifests = record->owned.manifests;
 
     for (size_t i = 0; i < count; i++) {
         // The caller's earlier uninstall_locked() call is meant to have already cleared any stale registration for this id
@@ -276,16 +266,16 @@ error_t register_installed_package_locked(const PackageManifest& package, const 
         // right before add, so a duplicate id can never turn a filesystem-level install success into a reported failure.
         // Only if installed (APP_LOCATION_PATH) - never steal a built-in's id.
         AppManifest existing {};
-        if (app_manager_find_manifest(record->manifests[i].id, &existing) == ERROR_NONE && existing.location.type == APP_LOCATION_PATH) {
-            app_manager_remove(record->manifests[i].id);
+        if (app_manager_find_manifest(manifests[i].id, &existing) == ERROR_NONE && existing.location.type == APP_LOCATION_PATH) {
+            app_manager_remove(manifests[i].id);
         }
 
-        error_t add_result = app_manager_add(&record->manifests[i]);
+        error_t add_result = app_manager_add(&manifests[i]);
         if (add_result != ERROR_NONE) {
-            LOG_E(TAG, "Failed to register app '%s': %s", record->manifests[i].id, error_to_string(add_result));
+            LOG_E(TAG, "Failed to register app '%s': %s", manifests[i].id, error_to_string(add_result));
             // All-or-nothing: unregister whatever this package already added before failing.
             for (size_t j = 0; j < i; j++) {
-                app_manager_remove(record->manifests[j].id);
+                app_manager_remove(manifests[j].id);
             }
             return add_result;
         }
@@ -294,14 +284,14 @@ error_t register_installed_package_locked(const PackageManifest& package, const 
     std::vector<const char*> app_id_ptrs;
     app_id_ptrs.reserve(count);
     for (size_t i = 0; i < count; i++) {
-        app_id_ptrs.push_back(record->manifests[i].id);
+        app_id_ptrs.push_back(manifests[i].id);
     }
     app_manager_remove_package(package.id);
     error_t add_package_result = app_manager_add_package(&package, app_id_ptrs.data(), app_id_ptrs.size());
     if (add_package_result != ERROR_NONE) {
         LOG_E(TAG, "Failed to register package '%s': %s", package.id, error_to_string(add_package_result));
         for (size_t i = 0; i < count; i++) {
-            app_manager_remove(record->manifests[i].id);
+            app_manager_remove(manifests[i].id);
         }
         return add_package_result;
     }
@@ -310,17 +300,18 @@ error_t register_installed_package_locked(const PackageManifest& package, const 
     return ERROR_NONE;
 }
 
-// Stops every currently-running instance of @a manifest. Collects matching instance ids while
-// holding the ledger lock, then calls app_manager_stop() on each after releasing it: that call
-// bound-joins the instance's thread, which must not happen while the ledger mutex (also taken by
-// the instance's own thread_main()) is held, or the two threads would deadlock each other.
-void stop_all_instances_of(const AppManifest* manifest) {
+// Stops every currently-running instance of the manifest identified by @a manifest_id. Collects
+// matching instance ids while holding the ledger lock, then calls app_manager_stop() on each after
+// releasing it: that call bound-joins the instance's thread, which must not happen while the
+// ledger mutex (also taken by the instance's own thread_main()) is held, or the two threads would
+// deadlock each other.
+void stop_all_instances_of(const char* manifest_id) {
     std::vector<uint32_t> instance_ids;
 
     auto& ledger = app_ledger();
     mutex_lock(&ledger.mutex);
     for (const auto& [id, record]: ledger.instances) {
-        if (record.manifest == manifest) {
+        if (record.manifestId == manifest_id) {
             instance_ids.push_back(id);
         }
     }
@@ -339,12 +330,12 @@ error_t uninstall_locked(const std::string& package_id) {
         return ERROR_NOT_FOUND;
     }
 
-    for (const auto& manifest : iterator->second->manifests) {
+    for (const auto& manifest : iterator->second->owned.manifests) {
         // Can't uninstall in-memory apps
         if (manifest.location.type != APP_LOCATION_PATH) {
             continue;
         }
-        stop_all_instances_of(&manifest);
+        stop_all_instances_of(manifest.id);
         app_manager_remove(manifest.id);
     }
     app_manager_remove_package(package_id.c_str());

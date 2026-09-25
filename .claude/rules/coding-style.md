@@ -14,7 +14,7 @@ Do not add redundant null checks for parameters with an explicit non-null precon
 Code Comments (important!):
 
 - Should be minimal, but must contain critical information.
+- Must not contain interjections " - " or ";"
 - Must not explain how code was before, or how it was changed.
-- Should avoid explaining what was not implemented.
-- Must avoid referring to designs of other subsystems.
-- Must avoid interjections: avoid hyphens or braces to interject.
+- Must avoid explaining what was not implemented.
+- Must not refer to designs of other subsystems.

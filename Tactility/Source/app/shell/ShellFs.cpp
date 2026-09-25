@@ -1,18 +1,14 @@
 #include <Tactility/app/shell/ShellFs.h>
 
+#include <app/dir.h>
 #include <app/paths.h>
 
-#include <tactility/log.h>
+#include <tactility/filesystem/fs.h>
 #include <tactility/paths.h>
-#include <tactility/freertos/freertos.h>
 
-#include <dirent.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
-#include <cerrno>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 
 constexpr auto* TAG = "ShellFs";
@@ -20,8 +16,6 @@ constexpr auto* TAG = "ShellFs";
 constexpr auto* APP_ID = "tactility.shell";
 
 namespace {
-
-char currentDirectory[ShellFs::MAX_PATH] = "/";
 
 /**
  * Collapses `.` and `..` segments in an absolute path, in place.
@@ -67,7 +61,7 @@ void normalizePath(char* path) {
     }
 
     // Rebuild into a scratch buffer first: the segments still point into `path`.
-    char rebuilt[ShellFs::MAX_PATH];
+    char rebuilt[FILE_MAX_PATH_STRING_LENGTH];
     size_t offset = 0;
     for (int i = 0; i < depth && offset + 1 < sizeof(rebuilt); i++) {
         rebuilt[offset++] = '/';
@@ -100,31 +94,38 @@ bool appDataPath(char* buf, size_t* size) {
 }
 
 void init() {
-    char dataPath[ShellFs::MAX_PATH];
-    if (paths_get_data_path(dataPath, sizeof(dataPath)) == ERROR_NONE) {
-        snprintf(currentDirectory, sizeof(currentDirectory), "%s", dataPath);
-    } else {
-        snprintf(currentDirectory, sizeof(currentDirectory), "/");
+    char dataPath[FILE_MAX_PATH_STRING_LENGTH];
+    if (paths_get_data_path(dataPath, sizeof(dataPath)) == ERROR_NONE && app_dir_set_cwd(dataPath) == ERROR_NONE) {
+        return;
     }
+    app_dir_set_cwd("/");
 }
 
 const char* cwd() {
-    return currentDirectory;
+    // The shell's cwd lives in app-module (app/dir.h), inherited by every app instance the shell
+    // starts (coreutils included), so `cd` here is what keeps `pwd` and e.g. bare `ls` agreeing.
+    static char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    if (app_dir_get_cwd(buffer, sizeof(buffer)) != ERROR_NONE) {
+        return "/";
+    }
+    return buffer;
 }
 
 bool resolvePath(const char* path, char* out, size_t outSize) {
+    const char* current = cwd();
+
     if (path == nullptr || path[0] == '\0') {
-        snprintf(out, outSize, "%s", currentDirectory);
+        snprintf(out, outSize, "%s", current);
         return true;
     }
 
     int written;
     if (path[0] == '/') {
         written = snprintf(out, outSize, "%s", path);
-    } else if (strcmp(currentDirectory, "/") == 0) {
+    } else if (strcmp(current, "/") == 0) {
         written = snprintf(out, outSize, "/%s", path);
     } else {
-        written = snprintf(out, outSize, "%s/%s", currentDirectory, path);
+        written = snprintf(out, outSize, "%s/%s", current, path);
     }
 
     if (written < 0 || static_cast<size_t>(written) >= outSize) {
@@ -141,445 +142,12 @@ bool resolvePath(const char* path, char* out, size_t outSize) {
     return true;
 }
 
-bool isRoot(const char* resolved) {
-    return resolved != nullptr && strcmp(resolved, "/") == 0;
-}
-
-bool isDirectory(const char* resolvedPath) {
-    if (isRoot(resolvedPath)) {
-        return true;
-    }
-
-    struct stat info;
-    return stat(resolvedPath, &info) == 0 && S_ISDIR(info.st_mode);
-}
-
 bool changeDirectory(const char* path) {
-    char resolved[MAX_PATH];
+    char resolved[FILE_MAX_PATH_STRING_LENGTH];
     if (!resolvePath(path, resolved, sizeof(resolved))) {
         return false;
     }
-    if (!isDirectory(resolved)) {
-        return false;
-    }
-    snprintf(currentDirectory, sizeof(currentDirectory), "%s", resolved);
-    return true;
-}
-
-char* readFile(const char* resolvedPath, size_t* outSize) {
-    FILE* file = fopen(resolvedPath, "rb");
-    if (file == nullptr) {
-        return nullptr;
-    }
-
-    fseek(file, 0, SEEK_END);
-    const long size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    if (size < 0) {
-        fclose(file);
-        return nullptr;
-    }
-
-    char* buffer = static_cast<char*>(malloc(static_cast<size_t>(size) + 1));
-    if (buffer == nullptr) {
-        fclose(file);
-        return nullptr;
-    }
-
-    const size_t read = fread(buffer, 1, static_cast<size_t>(size), file);
-    fclose(file);
-
-    buffer[read] = '\0';
-    if (outSize != nullptr) {
-        *outSize = read;
-    }
-    return buffer;
-}
-
-bool exists(const char* resolvedPath) {
-    if (isRoot(resolvedPath)) {
-        return true;
-    }
-
-    struct stat info;
-    return stat(resolvedPath, &info) == 0;
-}
-
-bool streamFile(const char* resolvedPath, void* context, bool (*callback)(const char*, size_t, void*)) {
-    FILE* file = fopen(resolvedPath, "rb");
-    if (file == nullptr) {
-        return false;
-    }
-
-    char chunk[512];
-    for (;;) {
-        const size_t read = fread(chunk, 1, sizeof(chunk), file);
-        if (read == 0) {
-            break;
-        }
-        if (!callback(chunk, read, context)) {
-            break;
-        }
-    }
-
-    fclose(file);
-    return true;
-}
-
-bool listDirectory(const char* resolvedPath, void* context, void (*callback)(const Entry&, void*)) {
-    DIR* dir = opendir(resolvedPath);
-    if (dir == nullptr) {
-        return false;
-    }
-
-    for (struct dirent* entry = readdir(dir); entry != nullptr; entry = readdir(dir)) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue;
-        }
-
-        char childPath[MAX_PATH];
-        const int written = (strcmp(resolvedPath, "/") == 0)
-            ? snprintf(childPath, sizeof(childPath), "/%s", entry->d_name)
-            : snprintf(childPath, sizeof(childPath), "%s/%s", resolvedPath, entry->d_name);
-
-        Entry item { entry->d_name, false, 0 };
-        if (written > 0 && static_cast<size_t>(written) < sizeof(childPath)) {
-            struct stat info;
-            if (stat(childPath, &info) == 0) {
-                item.isDirectory = S_ISDIR(info.st_mode);
-                item.size = static_cast<size_t>(info.st_size);
-            }
-        }
-
-        callback(item, context);
-    }
-
-    closedir(dir);
-    return true;
-}
-
-const char* describe(Result result) {
-    switch (result) {
-        case Result::Ok: return "ok";
-        case Result::NotFound: return "no such file or directory";
-        case Result::Locked: return "filesystem busy";
-        case Result::Exists: return "already exists";
-        case Result::NotEmpty: return "directory not empty";
-        case Result::IoError: return "I/O error";
-    }
-    return "unknown error";
-}
-
-Result makeDirectory(const char* resolvedPath, bool createParents) {
-    if (!createParents) {
-        if (mkdir(resolvedPath, 0755) != 0) {
-            return (errno == EEXIST) ? Result::Exists : Result::IoError;
-        }
-        return Result::Ok;
-    }
-
-    // Walk the path creating each component, temporarily truncating at every separator.
-    char working[MAX_PATH];
-    snprintf(working, sizeof(working), "%s", resolvedPath);
-
-    for (char* p = working + 1; *p != '\0'; p++) {
-        if (*p != '/') {
-            continue;
-        }
-        *p = '\0';
-        // EEXIST is expected for every parent that is already there.
-        if (mkdir(working, 0755) != 0 && errno != EEXIST) {
-            return Result::IoError;
-        }
-        *p = '/';
-    }
-
-    if (mkdir(working, 0755) != 0 && errno != EEXIST) {
-        return Result::IoError;
-    }
-    return Result::Ok;
-}
-
-Result removeFile(const char* resolvedPath) {
-    if (unlink(resolvedPath) != 0) {
-        return (errno == ENOENT) ? Result::NotFound : Result::IoError;
-    }
-    return Result::Ok;
-}
-
-Result removeDirectory(const char* resolvedPath) {
-    if (rmdir(resolvedPath) != 0) {
-        if (errno == ENOENT) {
-            return Result::NotFound;
-        }
-        return (errno == ENOTEMPTY || errno == EEXIST) ? Result::NotEmpty : Result::IoError;
-    }
-    return Result::Ok;
-}
-
-namespace {
-
-// Bound on how deep removeTree() will recurse. The shell task has a fixed stack and each level
-// costs a MAX_PATH buffer, so a pathological tree is refused rather than overflowing it.
-constexpr int MAX_RECURSION_DEPTH = 16;
-
-// Entries collected per directory pass, and the longest filename handled. dirent allows 255-byte
-// names; storing them at full width would cost 16KB per recursion level, so the cap is lower and
-// over-long names are reported rather than silently mishandled.
-constexpr int MAX_ENTRIES_PER_PASS = 64;
-constexpr size_t MAX_ENTRY_NAME = 64;
-
-Result removeTreeAt(const char* path, int depth) {
-    if (depth > MAX_RECURSION_DEPTH) {
-        return Result::IoError;
-    }
-
-    // Names are capped at MAX_ENTRY_NAME rather than dirent's full 256 bytes, which would make this
-    // a 16KB allocation per recursion level. Anything longer is skipped rather than stored
-    // truncated: a truncated name resolves to a *different* path, and deleting the wrong file is a
-    // far worse outcome than refusing to delete an unusually named one.
-    struct Collected {
-        char names[MAX_ENTRIES_PER_PASS][MAX_ENTRY_NAME];
-        int count;
-        bool overflowed;
-        bool skippedLongName;
-    };
-
-    auto* collected = static_cast<Collected*>(calloc(1, sizeof(Collected)));
-    if (collected == nullptr) {
-        return Result::IoError;
-    }
-
-    {
-        DIR* dir = opendir(path);
-        if (dir == nullptr) {
-            free(collected);
-            // Not a directory: fall through to removing it as a plain file.
-            return removeFile(path);
-        }
-
-        for (struct dirent* entry = readdir(dir); entry != nullptr; entry = readdir(dir)) {
-            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-                continue;
-            }
-            if (collected->count >= MAX_ENTRIES_PER_PASS) {
-                collected->overflowed = true;
-                break;
-            }
-
-            const size_t nameLength = strlen(entry->d_name);
-            if (nameLength >= MAX_ENTRY_NAME) {
-                collected->skippedLongName = true;
-                continue;
-            }
-
-            memcpy(collected->names[collected->count], entry->d_name, nameLength + 1);
-            collected->count++;
-        }
-        closedir(dir);
-    }
-
-    Result result = Result::Ok;
-    for (int i = 0; i < collected->count; i++) {
-        char childPath[MAX_PATH];
-        snprintf(childPath, sizeof(childPath), "%s/%s", path, collected->names[i]);
-
-        const Result childResult = isDirectory(childPath)
-            ? removeTreeAt(childPath, depth + 1)
-            : removeFile(childPath);
-
-        if (childResult != Result::Ok) {
-            result = childResult;
-        }
-    }
-
-    const bool overflowed = collected->overflowed;
-    const bool skippedLongName = collected->skippedLongName;
-    free(collected);
-
-    // A directory with more entries than one pass could hold needs another sweep.
-    if (overflowed && result == Result::Ok && !skippedLongName) {
-        return removeTreeAt(path, depth);
-    }
-    if (result != Result::Ok) {
-        return result;
-    }
-    if (skippedLongName) {
-        // The directory still holds entries this code declined to touch, so removing it would fail
-        // anyway; report the real reason rather than a bare "not empty".
-        LOG_W(TAG, "'%s' contains a name longer than %u bytes; not removed",
-                 path, (unsigned)MAX_ENTRY_NAME);
-        return Result::NotEmpty;
-    }
-
-    return removeDirectory(path);
-}
-
-} // namespace
-
-Result removeTree(const char* resolvedPath) {
-    return removeTreeAt(resolvedPath, 0);
-}
-
-Result copyFile(const char* resolvedSource, const char* resolvedTarget, bool overwrite) {
-    // Defined below; a zero-length source is completed by creating an empty target.
-    Result touchFile(const char* resolvedPath);
-
-    if (!overwrite && exists(resolvedTarget)) {
-        return Result::Exists;
-    }
-
-    // Copies in chunks, carrying the file offset between them, since source and target can live
-    // on different mounts.
-    long offset = 0;
-    for (;;) {
-        char chunk[512];
-        size_t read = 0;
-
-        {
-            FILE* source = fopen(resolvedSource, "rb");
-            if (source == nullptr) {
-                return Result::NotFound;
-            }
-            if (fseek(source, offset, SEEK_SET) != 0) {
-                fclose(source);
-                return Result::IoError;
-            }
-            read = fread(chunk, 1, sizeof(chunk), source);
-            fclose(source);
-        }
-
-        if (read == 0) {
-            break;
-        }
-
-        {
-            // "wb" for the first chunk so an overwrite truncates; "ab" to extend after that.
-            FILE* target = fopen(resolvedTarget, (offset == 0) ? "wb" : "ab");
-            if (target == nullptr) {
-                return Result::IoError;
-            }
-            const size_t written = fwrite(chunk, 1, read, target);
-            fclose(target);
-            if (written != read) {
-                return Result::IoError;
-            }
-        }
-
-        offset += static_cast<long>(read);
-
-        if (read < sizeof(chunk)) {
-            break;
-        }
-    }
-
-    // A zero-length source never entered the write branch above, so create the target explicitly.
-    if (offset == 0) {
-        return touchFile(resolvedTarget);
-    }
-    return Result::Ok;
-}
-
-Result moveFile(const char* resolvedSource, const char* resolvedTarget, bool overwrite) {
-    if (!overwrite && exists(resolvedTarget)) {
-        return Result::Exists;
-    }
-
-    {
-        if (rename(resolvedSource, resolvedTarget) == 0) {
-            return Result::Ok;
-        }
-    }
-
-    // rename() only works within a filesystem; across mounts it fails with EXDEV and the move has
-    // to be done the long way.
-    const Result copied = copyFile(resolvedSource, resolvedTarget, overwrite);
-    if (copied != Result::Ok) {
-        return copied;
-    }
-    return removeFile(resolvedSource);
-}
-
-Result touchFile(const char* resolvedPath) {
-    // "ab" creates the file when missing and leaves existing content alone.
-    FILE* file = fopen(resolvedPath, "ab");
-    if (file == nullptr) {
-        return Result::IoError;
-    }
-    fclose(file);
-    return Result::Ok;
-}
-
-Result writeFile(const char* resolvedPath, const char* data, size_t length, bool append) {
-    FILE* file = fopen(resolvedPath, append ? "ab" : "wb");
-    if (file == nullptr) {
-        return Result::IoError;
-    }
-
-    const size_t written = fwrite(data, 1, length, file);
-    fclose(file);
-    return (written == length) ? Result::Ok : Result::IoError;
-}
-
-static uint64_t treeSizeAt(const char* resolvedPath, int depth) {
-    if (depth > MAX_RECURSION_DEPTH) {
-        return 0;
-    }
-    if (!isDirectory(resolvedPath)) {
-        struct stat info;
-        return (stat(resolvedPath, &info) == 0) ? static_cast<uint64_t>(info.st_size) : 0;
-    }
-
-    struct Accumulator {
-        uint64_t bytes;
-    };
-    Accumulator accumulator { 0 };
-
-    listDirectory(resolvedPath, &accumulator, [](const Entry& entry, void* context) {
-        // Only files are summed here; directories are recursed into by the caller below.
-        if (!entry.isDirectory) {
-            static_cast<Accumulator*>(context)->bytes += entry.size;
-        }
-    });
-
-    // Collect subdirectory names first, then recurse.
-    // Same name-length cap as removeTreeAt: a truncated name would size a different path.
-    struct Children {
-        char names[32][MAX_ENTRY_NAME];
-        int count;
-    };
-    auto* children = static_cast<Children*>(calloc(1, sizeof(Children)));
-    if (children == nullptr) {
-        return accumulator.bytes;
-    }
-
-    listDirectory(resolvedPath, children, [](const Entry& entry, void* context) {
-        auto* list = static_cast<Children*>(context);
-        if (!entry.isDirectory || list->count >= static_cast<int>(sizeof(list->names) / sizeof(list->names[0]))) {
-            return;
-        }
-        const size_t nameLength = strlen(entry.name);
-        if (nameLength >= MAX_ENTRY_NAME) {
-            return;
-        }
-        memcpy(list->names[list->count], entry.name, nameLength + 1);
-        list->count++;
-    });
-
-    uint64_t total = accumulator.bytes;
-    for (int i = 0; i < children->count; i++) {
-        char childPath[MAX_PATH];
-        snprintf(childPath, sizeof(childPath), "%s/%s", resolvedPath, children->names[i]);
-        total += treeSizeAt(childPath, depth + 1);
-    }
-
-    free(children);
-    return total;
-}
-
-uint64_t treeSize(const char* resolvedPath) {
-    return treeSizeAt(resolvedPath, 0);
+    return app_dir_set_cwd(resolved) == ERROR_NONE;
 }
 
 } // namespace ShellFs

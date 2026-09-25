@@ -16,7 +16,6 @@
 
 #if TT_IS_POSIX
 #include <app_posix/module.h>
-#include <Tactility/PartitionsPosix.h>
 #endif
 
 #include <format>
@@ -29,6 +28,8 @@
 #include <app/manifest.h>
 #include <app/module.h>
 #include <app/start.h>
+
+#include <coreutils/module.h>
 
 #include <Tactility/Tactility.h>
 
@@ -69,7 +70,6 @@
 #include <mbedtls/module.h>
 #include <pthread/module.h>
 
-#include <crypt/module.h>
 #include <lvgl/devices/keyboard.h>
 #include <lvgl/devices/pointer.h>
 #include <lvgl/lvgl.h>
@@ -182,7 +182,7 @@ namespace app {
     namespace selectiondialog { extern const ::AppManifest manifest; }
     namespace settings { extern const ::AppManifest manifest; }
     namespace setup { extern const ::AppManifest manifest; }
-    namespace shell { extern const ::AppManifest manifest; }
+    namespace shell { extern const ::AppManifest manifest; extern const ::AppManifest sh_manifest; }
     namespace systeminfo { extern const ::AppManifest manifest; }
     namespace terminal { extern const ::AppManifest manifest; }
     namespace timedatesettings { extern const ::AppManifest manifest; }
@@ -250,6 +250,7 @@ static void registerInternalApps() {
     app_manager_add(&app::selectiondialog::manifest);
     app_manager_add(&app::setup::manifest);
     app_manager_add(&app::shell::manifest);
+    app_manager_add(&app::shell::sh_manifest);
     app_manager_add(&app::systeminfo::manifest);
     app_manager_add(&app::timedatesettings::manifest);
     app_manager_add(&app::terminal::manifest);
@@ -344,7 +345,7 @@ static void registerAndStartServices() {
 }
 
 void prepareFileSystems() {
-    char temp_path[64];
+    char temp_path[FILE_MAX_PATH_STRING_LENGTH];
     if (paths_get_temp_path(temp_path, sizeof(temp_path)) != ERROR_NONE) {
         LOG_E(TAG, "Failed to determine temp path");
         return;
@@ -532,6 +533,7 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     check(module_ensure_started(&http_module) == ERROR_NONE);
     check(module_ensure_started(&graphics_module) == ERROR_NONE);
     check(module_ensure_started(&app_module) == ERROR_NONE);
+    check(module_ensure_started(&coreutils_module) == ERROR_NONE);
     check(module_ensure_started(&crypt_module) == ERROR_NONE);
     check(module_ensure_started(&audio_decoder_module) == ERROR_NONE);
     check(module_ensure_started(&mbedtls_module) == ERROR_NONE);
@@ -547,8 +549,6 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
 
 #ifdef ESP_PLATFORM
     initEsp();
-#elif TT_IS_POSIX
-    check(initPartitionsPosix(), "Failed to init partitions");
 #endif
 
     settings::initTimeZone();

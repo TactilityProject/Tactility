@@ -37,10 +37,9 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     set(EXTRA_COMPONENT_DIRS
         # Tactility must be discovered first: its CMakeLists.txt calls init_tactility_globals(),
         # which other components' CMakeLists.txt (e.g. lvgl-module) rely on having already run to
-        # read back TACTILITY_DEVICE_ID/TACTILITY_DEVICE_PROJECT via get_property(). ESP-IDF's
-        # requirements-discovery pass processes EXTRA_COMPONENT_DIRS in an isolated sub-process, in
-        # the order listed here, so this must stay first now that Firmware no longer exists as a
-        # separate component.
+        # read back TACTILITY_DEVICE_ID/TACTILITY_DEVICE_PROJECT via get_property().
+        # ESP-IDF's requirements-discovery pass processes EXTRA_COMPONENT_DIRS in an isolated sub-process,
+        # in the order listed here, so this must stay first now that Firmware no longer exists as a separate component.
         "Tactility"
         "Devices/${TACTILITY_DEVICE_PROJECT}"
         "Drivers"
@@ -58,17 +57,30 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 
     set(EXCLUDE_COMPONENTS "Simulator")
 
-    # panic_info_t is architecture-independent (esp_private/panic_internal.h) so this wrap applies
-    # to every target; PanicHandler.cpp branches internally per architecture.
+    # panic_info_t is architecture-independent (esp_private/panic_internal.h), wrap applies to every target; PanicHandler.cpp branches internally per architecture.
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=esp_panic_handler" APPEND)
 
-    # Wraps newlib's reentrant syscall stubs, not the plain read()/write()/close() newlib itself
-    # implements as thin wrappers around them. newlib's own stdio (fflush()'s buffer-flush path in particular)
+    # Wraps newlib's reentrant syscall stubs, not the plain read()/write()/close() newlib itself.
+    # Implements as thin wrappers around them. newlib's own stdio (fflush()'s buffer-flush path in particular)
     # calls these _r stubs directly, bypassing the plain names entirely.
     # See Modules/app-module/source/stdio_wrap.cpp's own comment for the exact call chain.
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_read_r" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_write_r" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_close_r" APPEND)
+
+    # ioctl()/getcwd()/chdir() have no reentrant _r stubs either.
+    # esp_libc's realpath.c and vfs_calls.c define the plain names directly (getcwd()/chdir() as stubs.
+    # esp_libc has no real per-process cwd of its own - which is exactly what these wraps replace).
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=ioctl" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=getcwd" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=chdir" APPEND)
+
+    # opendir()/readdir()/closedir() also define the plain names directly (vfs_calls.c).
+    # Wrapped so opendir("/") synthesizes a listing of own registered filesystems instead of ENOENT.
+    # See Platforms/platform-esp32/source/root_dir.cpp.
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=opendir" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=readdir" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=closedir" APPEND)
 
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_button_create" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_dropdown_create" APPEND)
@@ -138,6 +150,7 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Modules/pthread-module)
     add_subdirectory(Modules/service-module)
     add_subdirectory(Modules/app-module)
+    add_subdirectory(Modules/coreutils-module)
     add_subdirectory(Modules/app-posix-module)
     add_subdirectory(Modules/lvgl-window-manager-module)
     add_subdirectory(Drivers/gps-generic-module)

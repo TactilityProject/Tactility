@@ -40,6 +40,7 @@ target_link_libraries(TactilityTests PRIVATE
     lvgl-module
     lvgl-window-manager-module
     app-module
+    coreutils-module
     audio-decoder-module
     c-symbols-module
     cjson-module

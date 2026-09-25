@@ -229,7 +229,7 @@ TEST_CASE("app_execute_with_streams pipes a manifest-less child's app_io_write()
 
     uint8_t storage[64];
     AppStream child_stdout {};
-    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
+    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group, {}, -1 };
 
     AppInstanceId child_id = 0;
     AppStartContext context = app_start_context_for_location(location);
@@ -264,7 +264,7 @@ TEST_CASE("app_execute_with_streams passes argv through to the started app") {
 
     uint8_t storage[64];
     AppStream child_stdout {};
-    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
+    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group, {}, -1 };
 
     const char* argv[] = { "hello" };
     AppInstanceId child_id = 0;
@@ -310,7 +310,7 @@ TEST_CASE("app_execute_for_result_with_streams delivers both the stream data and
 
     uint8_t storage[64];
     AppStream child_stdout {};
-    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &parent_event_group };
+    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &parent_event_group, {}, -1 };
 
     AppLocation location { APP_LOCATION_MEMORY, reinterpret_cast<void*>(stream_writer_app_main) };
     uint32_t child_id = 0;
@@ -365,7 +365,7 @@ TEST_CASE("app_execute_for_result_with_streams pipes a child's plain printf() ca
 
     uint8_t storage[64];
     AppStream child_stdout {};
-    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &parent_event_group };
+    AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &parent_event_group, {}, -1 };
 
     AppLocation location { APP_LOCATION_MEMORY, reinterpret_cast<void*>(printf_stream_writer_app_main) };
     uint32_t child_id = 0;
