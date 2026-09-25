@@ -1,0 +1,13 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/sx126x-module
+  - Drivers/xl9555-module
+  - Drivers/cst66xx-module
+  - Drivers/gdeq031t10-module
+  - Drivers/tca8418-module
+  - Drivers/sy6970-module
+  - Drivers/bq27220-module
+  - Drivers/drv2605-module
+  - Drivers/gps-generic-module
+dts: lilygo,tdeck-max.dts
+dts-only: true

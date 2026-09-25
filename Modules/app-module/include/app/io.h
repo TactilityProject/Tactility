@@ -36,6 +36,13 @@ int app_io_close(int fd);
 error_t app_io_await(int fd, AppFileWait wait, TickType_t timeout);
 
 /**
+ * FD-table dispatch for AppFileOps::ioctl().
+ * @retval ERROR_NOT_FOUND @a fd isn't bound in the calling task's own app instance fd table
+ * @retval ERROR_NOT_SUPPORTED the object bound at @a fd has no ioctl() implementation
+ */
+error_t app_io_ioctl(int fd, AppIoctlRequest request, void* arg);
+
+/**
  * Installs a custom AppFileOps at @a fd in the calling task's own app instance fd table.
  * Unlike AppStreamBinding, writes are never teed to the real underlying fd.
  * @warning Must be called from the app instance's own task.

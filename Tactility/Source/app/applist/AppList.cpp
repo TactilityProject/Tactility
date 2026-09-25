@@ -29,6 +29,7 @@ namespace {
 struct Context {
     uint32_t appInstanceId;
     Favourites favourites;
+    std::vector<::AppManifest> manifests;
 };
 
 struct IconEntry {
@@ -72,8 +73,8 @@ void onListDeleted(lv_event_t* e) {
 void onAppPressed(lv_event_t* e) {
     const auto* manifest = static_cast<const ::AppManifest*>(lv_event_get_user_data(e));
     uint32_t instanceId = 0;
-    AppStartContext context = app_start_context_for_manifest(manifest);
-    if (app_start_with_context(&context, &instanceId) == ERROR_NONE) {
+    AppStartContext context;
+    if (app_start_context_from_id(manifest->id, &context) == ERROR_NONE && app_start_with_context(&context, &instanceId) == ERROR_NONE) {
         lv_obj_t* list = lv_obj_get_parent(lv_event_get_target_obj(e));
         auto* ctx = static_cast<Context*>(lv_obj_get_user_data(list));
         app_event_emit_close(ctx->appInstanceId);
@@ -132,8 +133,8 @@ lv_obj_t* createAppWidget(const ::AppManifest* manifest, lv_obj_t* list, bool fa
 }
 
 void collectManifest(const ::AppManifest* manifest, void* context) {
-    auto* manifests = static_cast<std::vector<const ::AppManifest*>*>(context);
-    manifests->push_back(manifest);
+    auto* manifests = static_cast<std::vector<::AppManifest>*>(context);
+    manifests->push_back(*manifest);
 }
 
 void populateList(lv_obj_t* list) {
@@ -157,23 +158,26 @@ void populateList(lv_obj_t* list) {
     auto* ctx = static_cast<Context*>(lv_obj_get_user_data(list));
     const std::vector<std::string> favouriteIds = ctx->favourites.load();
 
-    std::vector<const ::AppManifest*> manifests;
-    app_manager_for_each_manifest(collectManifest, &manifests);
-    std::ranges::sort(manifests, [&](const ::AppManifest* a, const ::AppManifest* b) {
-        const bool aFavourite = Favourites::contains(favouriteIds, a->id);
-        const bool bFavourite = Favourites::contains(favouriteIds, b->id);
+    std::vector<::AppManifest> collected;
+    app_manager_for_each_manifest(collectManifest, &collected);
+    std::ranges::sort(collected, [&](const ::AppManifest& a, const ::AppManifest& b) {
+        const bool aFavourite = Favourites::contains(favouriteIds, a.id);
+        const bool bFavourite = Favourites::contains(favouriteIds, b.id);
         if (aFavourite != bFavourite) {
             return aFavourite;
         }
-        return strcmp(a->name, b->name) < 0;
+        return strcmp(a.name, b.name) < 0;
     });
+    // Old buttons (and every pointer into the previous ctx->manifests) are already gone via
+    // lv_obj_clean() above, so this is safe to replace wholesale before building new ones.
+    ctx->manifests = std::move(collected);
 
     lv_obj_t* focusedButton = nullptr;
-    for (const auto* manifest: manifests) {
-        bool is_valid_category = (manifest->category == APP_CATEGORY_USER) || (manifest->category == APP_CATEGORY_SYSTEM);
-        if (is_valid_category && (manifest->flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
-            lv_obj_t* btn = createAppWidget(manifest, list, Favourites::contains(favouriteIds, manifest->id));
-            if (!focusedAppId.empty() && focusedAppId == manifest->id) {
+    for (const auto& manifest: ctx->manifests) {
+        bool is_valid_category = (manifest.category == APP_CATEGORY_USER) || (manifest.category == APP_CATEGORY_SYSTEM);
+        if (is_valid_category && (manifest.flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
+            lv_obj_t* btn = createAppWidget(&manifest, list, Favourites::contains(favouriteIds, manifest.id));
+            if (!focusedAppId.empty() && focusedAppId == manifest.id) {
                 focusedButton = btn;
             }
         }

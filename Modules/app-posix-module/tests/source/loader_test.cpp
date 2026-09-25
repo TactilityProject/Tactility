@@ -128,8 +128,8 @@ int32_t printf_parent_app_main(int, char*[]) {
     AppInstanceId self_id = app_scheduler_current_app_id();
 
     AppStreamBinding bindings[] = {
-        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, sizeof(stdoutBuffer), &event_group },
-        { STDERR_FILENO, &stderrStream, stderrBuffer, sizeof(stderrBuffer), &event_group },
+        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, sizeof(stdoutBuffer), &event_group, {}, -1 },
+        { STDERR_FILENO, &stderrStream, stderrBuffer, sizeof(stderrBuffer), &event_group, {}, -1 },
     };
 
     AppLocation location { APP_LOCATION_PATH, const_cast<char*>(PRINTF_FIXTURE_APP_PATH) };

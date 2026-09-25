@@ -4,43 +4,32 @@
 
 - Tactility/Source/service/autorotate/AutoRotate.cpp  
   TODO: Display settings app might be saving DisplaySettings at the same time. This might corrupt the settings file.
-- Try out speed optimizations: https://docs.espressif.com/projects/esp-faq/en/latest/software-framework/peripherals/lcd.html
-  (relates to CONFIG_ESP32S3_DATA_CACHE_LINE_64B that is in use for RGB displays via the `device.properties` fix/workaround)
 
 ## Higher Priority
 
-- DisplayApi::get_frame_buffer should be nullable and have a default behaviour of assigning NULL to the output pointer. 
-  get_frame_buffer_count should be NULLable too, document it explicitly
-- Shell interpreter works recursive-descent algorithm, which requires a big stack size. Can we optimize this?
+- coreutils apps: Only emit colour escapes when stdout is the terminal (command_support.h color() function)
 - CrashDiagnostics shouldn't show a QR when there's no callstack
-- stopAppFromToolbar() in Tactility.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
-- Warn if file operations are done from prohibited tasks (e.g. lvgl task)
 - Move USB host task stacks to SPIRAM when available: esp32_usbhost*.cpp
 - Get rid of WiFi service (Wifi.cpp/h) in Tactility.cpp
-- Make it more clear to end-users that an SD card is required to run Tactility
 - Add bold fonts for e-ink readability improvement
-- Improve Setup: Show "Step done" screen
 - Improve Setup: Add keyboard/keypad navigation explanation
-- Improve kernel_init.cpp (and other modules): create driver_ensure_added() and driver_ensure_destructed()
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
-- LilyGO T-Dongle S3: 1 button control, stop auto-launching web server
-- Core2: support power off via software
-- Create `#define` for empty module (for modules that fully rely on device.properties and don't define drivers or have start/stop logic)
 - Improve SPI kernel driver (implement read, write, transactions)
-- Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.
 - TCA9534 keyboards should use interrupts
 - External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
   Check during installation process, but also when starting (SD card might have old app install from before Tactility OS update)
-- Make a URL handler. Use it for handling local files. Match file types with apps.
-  Create some kind of "intent" handler like on Android.
-  The intent can have an action (e.g. view), a URL and an optional bundle.
-  The manifest can provide the intent handler
 - Support direct installation of an `.app` file with `tactility.py install helloworld.app <ip>`
-- Support `tactility.py target <ip>` to remember the device IP address.
 - minitar/untarFile(): "entry->metadata.path" can escape its confined path (e.g. "../something")
 
 ## Medium Priority
 
+- Core2: support power off via software
+- Improve Setup: Show "Step done" screen
+- Make it more clear to end-users that an SD card is required to run Tactility
+- Warn if file operations are done from prohibited tasks (e.g. lvgl task)
+- Shell interpreter works recursive-descent algorithm, which requires a big stack size. Can we optimize this?
+- stopAppFromToolbar() in Tactility.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
+- Consider not unpacking `.app` files and executing them directly. Might want to cache file offsets. Cache file must be pinned to app version.
 - lvgl-module's spinner relies on hard-coded spinner asset from Tactility main project.
 - esp_lvgl_port settings has a large stack size (~9kB) to fix stackoverflow when LVGL events (e.g. button click) do actions like file operations do actions like file operations. Can we reduce the callstack?
 - `struct Driver` has an `.owner`, but it's not always set. Either validate on Module construct that it matches, or otherwise set it during module start. The problem: NULL parent currently means that driver is not removable. This clashes with setting it dynamically. Consider some kind of flag to determine removability.
@@ -52,6 +41,14 @@
 - Bug: Crash handling app cannot be exited with an EncoderDevice. (current work-around is to manually reset the device)
 - Refactor HttpServer into C code and move implementation to http-module
 - Use GPS time to set/update the current time
+- Make a URL handler. Use it for handling local files. Match file types with apps.
+  Create some kind of "intent" handler like on Android.
+  The intent can have an action (e.g. view), a URL and an optional bundle.
+  The manifest can provide the intent handler
+- LilyGO T-Dongle S3: 1 button control, stop auto-launching web server
+- Core2: support power off via software
+- Try out speed optimizations: https://docs.espressif.com/projects/esp-faq/en/latest/software-framework/peripherals/lcd.html
+  (relates to CONFIG_ESP32S3_DATA_CACHE_LINE_64B that is in use for RGB displays via the `device.properties` fix/workaround)
 
 ## Lower Priority
 

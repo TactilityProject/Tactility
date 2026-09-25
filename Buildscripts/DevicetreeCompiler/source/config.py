@@ -2,15 +2,18 @@ from dataclasses import dataclass, field
 import yaml
 import os
 
+from .exception import DevicetreeException
+
 @dataclass
 class DeviceTreeConfig:
     dependencies: list[str] = field(default_factory=list)
     bindings: list[str] = field(default_factory=list)
     dts: str = ""
+    dts_only: bool = False
 
 def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
     """
-    Parses devicetree.yaml and recursively finds dependencies.
+    Parses module.yaml and recursively finds dependencies.
     Returns a list of DeviceTreeConfig objects in post-order (dependencies first).
     """
     config = DeviceTreeConfig([], [], "")
@@ -22,9 +25,9 @@ def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
             return
         visited.add(abs_path)
 
-        # Try to see if it's a directory and contains devicetree.yaml
+        # Try to see if it's a directory and contains module.yaml
         if os.path.isdir(abs_path):
-            abs_path = os.path.join(abs_path, "devicetree.yaml")
+            abs_path = os.path.join(abs_path, "module.yaml")
 
         with open(abs_path, 'r') as f:
             data = yaml.safe_load(f) or {}
@@ -40,6 +43,10 @@ def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
             config.dependencies += deps
             dts_path = data.get("dts", "")
             config.dts = os.path.join(current_path, dts_path)
+            dts_only = data.get("dts-only", False)
+            if not isinstance(dts_only, bool):
+                raise DevicetreeException(f"'dts-only' must be a boolean, got {dts_only!r}")
+            config.dts_only = dts_only
 
         bindings = data.get("bindings", "")
         if bindings:

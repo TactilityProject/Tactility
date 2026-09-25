@@ -1,14 +1,17 @@
 #include <Tactility/app/shell/LineEditor.h>
 #include <Tactility/app/shell/Shell.h>
 #include <Tactility/app/shell/ShellFs.h>
+#include <Tactility/app/shell/Run.h>
 
+#include <app/io.h>
 #include <app/manifest.h>
+
+#include <tactility/filesystem/fs.h>
 
 #include <tactility/memory.h>
 #include <tactility/freertos/freertos.h>
 
 #include <cstdio>
-#include <cstdlib>
 #include <unistd.h>
 
 namespace tt::app::shell {
@@ -21,11 +24,21 @@ namespace tt::app::shell {
  */
 constexpr auto* PROMPT = "\x1B[96m$\x1B[0m ";
 
-int main(int argc, char* argv[]) {
-    // Passed by the terminal app running this one, since there is no ioctl(TIOCGWINSZ) here.
-    if (argc > 1) {
-        LineEditor::setTerminalColumns(atoi(argv[1]));
+// Mirrors a real terminal's ioctl(fd, TIOCGWINSZ, ...) idiom: try each stdio fd in turn, since
+// whichever ones are piped to the terminal app depends on the caller (see app_stream_bind_alias_fd
+// in terminal/Shell.cpp, which aliases stderr onto the same stream as stdout).
+int getTerminalColumns() {
+    AppWindowSize size {};
+    if (app_io_ioctl(STDIN_FILENO, APP_IOCTL_GET_WINDOW_SIZE, &size) == ERROR_NONE ||
+        app_io_ioctl(STDOUT_FILENO, APP_IOCTL_GET_WINDOW_SIZE, &size) == ERROR_NONE ||
+        app_io_ioctl(STDERR_FILENO, APP_IOCTL_GET_WINDOW_SIZE, &size) == ERROR_NONE) {
+        return size.columns;
     }
+    return 0;
+}
+
+int main(int, char*[]) {
+    LineEditor::setTerminalColumns(getTerminalColumns());
 
     // Unbuffered so typed characters and command output appear as they are written rather than at
     // the next newline or flush. This app's stdout is a pipe, not a tty, so libc would otherwise
@@ -48,6 +61,8 @@ int main(int argc, char* argv[]) {
         const char* line = nullptr;
         if (editor.feed(c, &line)) {
             Shell::execute(line);
+            // Print \n if output didn't end with it, to make the shell more readable.
+            endLineIfNeeded();
             if (Shell::shouldExit()) {
                 break;
             }
@@ -65,8 +80,38 @@ extern const ::AppManifest manifest = {
     .name = "Shell",
     .category = APP_CATEGORY_SYSTEM,
     .location = {  .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(main) },
-    .flags = APP_MANIFEST_FLAG_HIDDEN,
-    .stack = { .depth = 16 * 1024, .desired_memory_capability = MEMORY_CAPABILITY_INTERNAL },
+    .flags = APP_MANIFEST_FLAG_HIDDEN | APP_MANIFEST_FLAG_HEADLESS,
+    .stack = { .depth = 11 * 1024, .desired_memory_capability = 0 },
+};
+
+static int32_t shMain(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("usage: sh <script> [args...]\n");
+        return 1;
+    }
+
+    char resolved[FILE_MAX_PATH_STRING_LENGTH];
+    if (!ShellFs::resolvePath(argv[1], resolved, sizeof(resolved))) {
+        printf("sh: %s: path too long\n", argv[1]);
+        return 1;
+    }
+
+    if (!path_exists(resolved)) {
+        printf("sh: %s: not found\n", argv[1]);
+        return 1;
+    }
+
+    // Shift so the script sees itself as $0 and its own arguments as $1..$N.
+    return runScript(resolved, argc - 1, argv + 1);
+}
+
+extern const ::AppManifest sh_manifest = {
+    .id = "sh",
+    .name = "sh",
+    .category = APP_CATEGORY_SYSTEM,
+    .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(shMain) },
+    .flags = APP_MANIFEST_FLAG_HIDDEN | APP_MANIFEST_FLAG_HEADLESS,
+    .stack = { .depth = 0, .desired_memory_capability = 0 },
 };
 
 }

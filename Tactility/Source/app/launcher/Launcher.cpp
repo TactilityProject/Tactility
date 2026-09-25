@@ -212,25 +212,23 @@ void createWidgets(lv_obj_t* parent, void*) {
 
 void runAutoStart() {
     settings::BootSettings boot_properties;
-    AppManifest manifest;
+    AppStartContext context;
     if (
         // Auto-start due to built-in requirement
         strcmp(CONFIG_TT_AUTO_START_APP_ID, "") != 0 &&
-        app_manager_find_manifest(CONFIG_TT_AUTO_START_APP_ID, &manifest) == ERROR_NONE
+        app_start_context_from_id(CONFIG_TT_AUTO_START_APP_ID, &context) == ERROR_NONE
     ) {
         LOG_I(TAG, "Starting %s", CONFIG_TT_AUTO_START_APP_ID);
         uint32_t app_launch_id;
-        AppStartContext context = app_start_context_for_manifest(&manifest);
         app_start_with_context(&context, &app_launch_id);
     } else if (
         // Auto-start due to user configuration
         settings::loadBootSettings(boot_properties) &&
         !boot_properties.autoStartAppId.empty() &&
-        app_manager_find_manifest(boot_properties.autoStartAppId.c_str(), &manifest) == ERROR_NONE
+        app_start_context_from_id(boot_properties.autoStartAppId.c_str(), &context) == ERROR_NONE
     ) {
         LOG_I(TAG, "Starting %s", boot_properties.autoStartAppId.c_str());
         uint32_t app_launch_id;
-        AppStartContext context = app_start_context_for_manifest(&manifest);
         app_start_with_context(&context, &app_launch_id);
     } else {
         // No auto-start, consider running system setup

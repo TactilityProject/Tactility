@@ -30,7 +30,7 @@ Kernel module names are lower case and postfixed with `-module`.
 Projects that are kernel modules:
 
 1. Declare a `struct Module`
-2. Contain a `devicetree.yaml` file that declares a list of dependencies (for parsing the devicetree) and specifies the bindings folder that contains the drivers' YAML definitions. For example:
+2. Contain a `module.yaml` file that declares a list of dependencies (for parsing the devicetree) and specifies the bindings folder that contains the drivers' YAML definitions. For example:
 ```yaml
 dependencies:
   - TactilityKernel

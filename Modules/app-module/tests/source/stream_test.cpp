@@ -2,6 +2,7 @@
 #include "doctest.h"
 
 #include <app/event.h>
+#include <app/io.h>
 #include <app/loader.h>
 #include <app/manager.h>
 #include <app/start.h>
@@ -12,6 +13,7 @@
 
 #include <tactility/delay.h>
 
+#include <atomic>
 #include <cstring>
 
 extern ServiceManifest app_internal_loader_service_manifest;
@@ -56,6 +58,20 @@ int32_t idle_app_main(int, char*[]) {
 
     app_event_unsubscribe(&sub);
     task_event_group_destruct(&event_group);
+    return 0;
+}
+
+std::atomic<int> g_probe_columns { -1 };
+
+// Mirrors runApp()'s window-size probe (Tactility/Source/app/shell/Run.cpp): the very first thing
+// this does, on its own fresh task, is read back APP_IOCTL_GET_WINDOW_SIZE on its own stdout. A
+// child this fast can finish before app_start_with_context() even returns to its caller, which is
+// exactly what AppStreamBinding::window_size exists to survive.
+int32_t window_size_probe_main(int, char*[]) {
+    AppWindowSize size {};
+    g_probe_columns = (app_io_ioctl(STDOUT_FILENO, APP_IOCTL_GET_WINDOW_SIZE, &size) == ERROR_NONE)
+        ? size.columns
+        : -1;
     return 0;
 }
 
@@ -161,4 +177,49 @@ TEST_CASE("app_stream_subscribe over an existing subscription atomically replace
     task_event_group_destruct(&event_group);
     app_manager_stop(producer_id);
     app_manager_remove("test.stream.replace");
+}
+
+TEST_CASE("app_stream_subscribe applies AppStreamBinding::window_size before the child task exists") {
+    // Guards against a real bug: a fast-finishing child (like coreutils' `help`) can run its whole
+    // main() to completion before app_start_with_context() even returns to its caller, so setting
+    // the window size on the stream *afterwards* (as opposed to passing it in the binding) is a
+    // race the child can lose every time on some schedulers, not just occasionally.
+    ensure_memory_loader_registered();
+    AppManifest manifest {};
+    std::strncpy(manifest.id, "test.stream.windowsize", sizeof(manifest.id) - 1);
+    std::strncpy(manifest.name, "test.stream.windowsize", sizeof(manifest.name) - 1);
+    manifest.category = APP_CATEGORY_USER;
+    manifest.location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(window_size_probe_main) };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    for (int i = 0; i < 20; i++) {
+        g_probe_columns = -1;
+
+        uint8_t stdin_buffer[64];
+        uint8_t stdout_buffer[64];
+        AppStream stdin_stream {};
+        AppStream stdout_stream {};
+        TaskEventGroup event_group {};
+        task_event_group_construct(&event_group);
+
+        AppStreamBinding bindings[] = {
+            { STDIN_FILENO, &stdin_stream, stdin_buffer, sizeof(stdin_buffer), &event_group, {}, -1 },
+            { STDOUT_FILENO, &stdout_stream, stdout_buffer, sizeof(stdout_buffer), &event_group, { 123, 45 }, -1 },
+        };
+
+        AppInstanceId instance_id = 0;
+        AppStartContext context = app_start_context_for_manifest(&manifest);
+        app_start_context_set_streams(&context, bindings, 2);
+        REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
+
+        REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 1000));
+        CHECK_EQ(g_probe_columns.load(), 123);
+
+        app_stream_unsubscribe(&stdin_stream);
+        app_stream_unsubscribe(&stdout_stream);
+        task_event_group_destruct(&event_group);
+        app_manager_stop(instance_id);
+    }
+
+    app_manager_remove("test.stream.windowsize");
 }

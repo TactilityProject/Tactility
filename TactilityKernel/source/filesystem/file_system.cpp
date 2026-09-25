@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <algorithm>
+#include <cstring>
 #include <tactility/concurrent/recursive_mutex.h>
 #include <tactility/device.h>
 #include <tactility/filesystem/file_system.h>
@@ -12,6 +13,7 @@ struct FileSystem {
     const FileSystemApi* api;
     void* data;
     Device* owner;
+    const char* name;
 };
 
 // Global list of file systems and its mutex
@@ -35,20 +37,35 @@ static FileSystemsLedger& get_ledger() {
 
 extern "C" {
 
-FileSystem* file_system_add(const FileSystemApi* fs_api, void* data) {
+FileSystem* file_system_add(const char* name, const FileSystemApi* fs_api, void* data) {
     auto& ledger = get_ledger();
     check(!ledger.is_locked()); // ensure file_system_for_each() doesn't add a filesystem while iterating
     ledger.lock();
-    
+
     auto* fs = new(std::nothrow) struct FileSystem();
     check(fs != nullptr);
     fs->api = fs_api;
     fs->data = data;
     fs->owner = nullptr;
+    fs->name = name;
     ledger.file_systems.push_back(fs);
-    
+
     ledger.unlock();
     return fs;
+}
+
+FileSystem* file_system_find_by_name(const char* name) {
+    auto& ledger = get_ledger();
+    ledger.lock();
+    FileSystem* found = nullptr;
+    for (auto* fs : ledger.file_systems) {
+        if (fs->name != nullptr && strcmp(fs->name, name) == 0) {
+            found = fs;
+            break;
+        }
+    }
+    ledger.unlock();
+    return found;
 }
 
 void file_system_remove(FileSystem* fs) {
@@ -113,6 +130,10 @@ bool file_system_is_mounted(FileSystem* fs) {
 
 error_t file_system_get_path(FileSystem* fs, char* out_path, size_t out_path_size) {
     return fs->api->get_path(fs->data, out_path, out_path_size);
+}
+
+const char* file_system_get_name(FileSystem* fs) {
+    return fs->name;
 }
 
 void file_system_set_owner(FileSystem* fs, Device* owner) {

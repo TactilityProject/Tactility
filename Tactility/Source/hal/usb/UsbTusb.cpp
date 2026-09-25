@@ -1,7 +1,7 @@
 #ifdef ESP_PLATFORM
 
 #include "Tactility/hal/usb/UsbTusb.h"
-#include <Tactility/PartitionsEsp.h>
+#include <tactility/partitions_esp32.h>
 
 #include <sdkconfig.h>
 
@@ -111,7 +111,7 @@ bool tusbStartMassStorageWithFlash(bool fromBootMode) {
         return false;
     }
 
-    wl_handle_t handle = tt::getDataPartitionWlHandle();
+    wl_handle_t handle = get_data_partition_wl_handle();
     if (handle == WL_INVALID_HANDLE) {
         LOG_E(TAG, "WL not mounted for /data");
         snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "WL not mounted for /data");
@@ -146,7 +146,7 @@ void tusbStop() {
 }
 
 bool tusbCanStartMassStorageWithFlash() {
-    return tusbIsSupported() && (tt::getDataPartitionWlHandle() != WL_INVALID_HANDLE);
+    return tusbIsSupported() && (get_data_partition_wl_handle() != WL_INVALID_HANDLE);
 }
 
 #else

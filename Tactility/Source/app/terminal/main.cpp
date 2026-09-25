@@ -51,7 +51,7 @@ extern const ::AppManifest manifest = {
     .category = APP_CATEGORY_SYSTEM,
     .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(main) },
     .flags = 0,
-    .stack = { .depth = 4096, .desired_memory_capability = 0 },
+    .stack = { .depth = 5120, .desired_memory_capability = 0 },
 };
 
 }

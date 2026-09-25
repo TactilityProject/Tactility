@@ -115,7 +115,7 @@ static error_t start(Device* device) {
         return ERROR_OUT_OF_MEMORY;
     }
 
-    data->file_system = file_system_add(&esp32_sdspi_fs_api, data->fs_handle);
+    data->file_system = file_system_add("sdcard", &esp32_sdspi_fs_api, data->fs_handle);
     file_system_set_owner(data->file_system, device);
     if (file_system_mount(data->file_system) != ERROR_NONE) {
         LOG_E(TAG, "Failed to mount SD card filesystem");

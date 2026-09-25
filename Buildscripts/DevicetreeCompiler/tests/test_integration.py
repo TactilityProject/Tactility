@@ -59,7 +59,7 @@ def test_compile_invalid_dts():
         output_dir = os.path.join(tmp_dir, "output")
         os.makedirs(output_dir)
         
-        with open(os.path.join(bad_data_dir, "devicetree.yaml"), "w") as f:
+        with open(os.path.join(bad_data_dir, "module.yaml"), "w") as f:
             f.write("dts: bad.dts\nbindings: bindings")
         
         with open(os.path.join(bad_data_dir, "bad.dts"), "w") as f:
@@ -81,7 +81,7 @@ def write_minmax_config(tmp_dir, device_property_line, binding_min=0, binding_ma
     bindings_dir = os.path.join(config_dir, "bindings")
     os.makedirs(bindings_dir)
 
-    with open(os.path.join(config_dir, "devicetree.yaml"), "w") as f:
+    with open(os.path.join(config_dir, "module.yaml"), "w") as f:
         f.write("dts: test.dts\nbindings: bindings")
 
     with open(os.path.join(config_dir, "test.dts"), "w") as f:
@@ -214,7 +214,7 @@ def write_array_config(tmp_dir, device_property_line):
     bindings_dir = os.path.join(config_dir, "bindings")
     os.makedirs(bindings_dir)
 
-    with open(os.path.join(config_dir, "devicetree.yaml"), "w") as f:
+    with open(os.path.join(config_dir, "module.yaml"), "w") as f:
         f.write("dts: test.dts\nbindings: bindings")
 
     with open(os.path.join(config_dir, "test.dts"), "w") as f:

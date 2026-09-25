@@ -108,6 +108,8 @@ error_t parse_app_manifest(const std::map<std::string, std::string>& properties,
         out_manifest.stack.depth = static_cast<uint16_t>(stack_size);
     }
 
+    out_manifest.flags = 0;
+
     // <index>.hidden (optional; defaults to false)
     auto hidden_iterator = properties.find(prefix + "hidden");
     if (hidden_iterator != properties.end()) {
@@ -115,7 +117,21 @@ error_t parse_app_manifest(const std::map<std::string, std::string>& properties,
             LOG_E(TAG, "Invalid %shidden", prefix.c_str());
             return ERROR_INVALID_ARGUMENT;
         }
-        out_manifest.flags = hidden_iterator->second == "true" ? APP_MANIFEST_FLAG_HIDDEN : 0;
+        if (hidden_iterator->second == "true") {
+            out_manifest.flags |= APP_MANIFEST_FLAG_HIDDEN;
+        }
+    }
+
+    // <index>.headless (optional; defaults to false)
+    auto headless_iterator = properties.find(prefix + "headless");
+    if (headless_iterator != properties.end()) {
+        if (!app_package_manifest_is_valid_bool(headless_iterator->second)) {
+            LOG_E(TAG, "Invalid %sheadless", prefix.c_str());
+            return ERROR_INVALID_ARGUMENT;
+        }
+        if (headless_iterator->second == "true") {
+            out_manifest.flags |= APP_MANIFEST_FLAG_HEADLESS;
+        }
     }
 
     out_manifest.category = APP_CATEGORY_USER;

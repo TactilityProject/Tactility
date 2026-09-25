@@ -4,12 +4,13 @@
 
 #include <Tactility/LogMessages.h>
 #include <Tactility/CpuAffinity.h>
-#include <Tactility/TactilityCore.h>
 #include <Tactility/service/screenshot/ScreenshotTask.h>
+#include <Tactility/lvgl/Lvgl.h>
 
 #include <app/manager.h>
 
 #include <tactility/delay.h>
+#include <tactility/error.h>
 #include <tactility/log.h>
 
 #include <lvgl/lvgl.h>
@@ -52,12 +53,13 @@ void ScreenshotTask::setFinished() {
     finished = true;
 }
 
-static void makeScreenshot(const std::string& filename) {
+static void makeScreenshot(const std::string& path) {
     if (lvgl_try_lock(50 / portTICK_PERIOD_MS)) {
-        if (lv_screenshot_create(lv_scr_act(), LV_100ASK_SCREENSHOT_SV_PNG, filename.c_str())) {
-            LOG_I(TAG, "Screenshot saved to %s", filename.c_str());
+        std::string lvgl_path = std::string(lvgl::PATH_PREFIX) + path;
+        if (lv_screenshot_create(lv_scr_act(), LV_100ASK_SCREENSHOT_SV_PNG, lvgl_path.c_str())) {
+            LOG_I(TAG, "Screenshot saved to %s", path.c_str());
         } else {
-            LOG_E(TAG, "Screenshot not saved to %s", filename.c_str());
+            LOG_E(TAG, "Screenshot not saved to %s", path.c_str());
         }
         lvgl_unlock();
     } else {

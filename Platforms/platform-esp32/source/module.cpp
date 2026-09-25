@@ -125,6 +125,8 @@ extern "C" {
 #endif
 }
 
+error_t platform_esp32_start_partitions();
+
 extern "C" {
 
 static const ModuleSymbol platform_esp32_symbols[] = {
@@ -434,7 +436,7 @@ static Driver* const platform_esp32_drivers[] = {
 
 Module platform_esp32_module = {
     .name = "platform-esp32",
-    .start = nullptr,
+    .start = platform_esp32_start_partitions,
     .stop = nullptr,
     .drivers = platform_esp32_drivers,
     .symbols = platform_esp32_symbols,

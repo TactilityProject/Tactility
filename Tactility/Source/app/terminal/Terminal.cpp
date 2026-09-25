@@ -227,7 +227,7 @@ void runTerminal(Device* display) {
 #ifdef ESP_PLATFORM
         esp_log_level_set("ELF", ESP_LOG_WARN);
 #endif
-        runShell(renderer.columns(), &stopRequested);
+        runShell(renderer.columns(), renderer.rows(), &stopRequested);
 #ifdef ESP_PLATFORM
         esp_log_level_set("ELF", ESP_LOG_INFO);
 #endif

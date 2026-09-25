@@ -3,8 +3,6 @@
 #include <tactility/log.h>
 #include <tactility/check.h>
 
-#include <Tactility/PartitionsEsp.h>
-
 #include "esp_event.h"
 #include "esp_netif.h"
 
@@ -19,7 +17,6 @@ static void initNetwork() {
 }
 
 void initEsp() {
-    check(initPartitionsEsp(), "Failed to init partitions");
     initNetwork();
 }
 

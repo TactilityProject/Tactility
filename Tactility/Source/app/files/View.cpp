@@ -14,7 +14,6 @@
 #include <Tactility/app/inputdialog/InputDialog.h>
 #include <Tactility/app/notes/Notes.h>
 #include <Tactility/file/File.h>
-#include <Tactility/Platform.h>
 #include <Tactility/StringUtils.h>
 
 #include <tactility/check.h>
@@ -199,12 +198,7 @@ void View::viewFile(const std::string& path, const std::string& filename) {
     } else if (isSupportedImageFile(filename)) {
         imageviewer::start(file_path);
     } else if (isSupportedTextFile(filename)) {
-        if (kernel::getPlatform() == kernel::PlatformEsp) {
-            notes::start(file_path);
-        } else {
-            // Remove forward slash, because we need a relative path
-            notes::start(file_path.substr(1));
-        }
+        notes::start(file_path);
     } else if (isExecutablePath(file_path)) {
         runFile(file_path);
     } else {

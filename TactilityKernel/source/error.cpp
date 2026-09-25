@@ -33,6 +33,10 @@ const char* error_to_string(error_t error) {
             return "buffer overflow";
         case ERROR_RESOURCE_BUSY:
             return "resource busy";
+        case ERROR_ALREADY_EXISTS:
+            return "already exists";
+        case ERROR_NOT_EMPTY:
+            return "not empty";
         default:
             return "unknown";
     }

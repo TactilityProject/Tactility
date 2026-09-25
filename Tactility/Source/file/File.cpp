@@ -8,13 +8,9 @@
 #include <tactility/log.h>
 #include <Tactility/StringUtils.h>
 
-namespace tt::hal::sdcard {
-class SdCardDevice;
-}
-
 namespace tt::file {
 
-constexpr auto* TAG = "file";
+constexpr auto* TAG = "File";
 
 std::string getChildPath(const std::string& basePath, const std::string& childPath) {
     // Postfix with "/" when the current path isn't "/"

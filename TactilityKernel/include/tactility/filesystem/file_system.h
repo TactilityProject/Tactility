@@ -50,11 +50,27 @@ struct FileSystemApi {
 
 /**
  * @brief Registers a new file system.
+ * @param[in] name identifies this file system for file_system_find_by_name(), e.g. "data",
+ * "system", "sdcard". Not copied - must outlive the FileSystem (a string literal, typically).
  * @param[in] fs_api the file system API implementation
  * @param[in] data private data for the file system
  * @return the registered FileSystem object
  */
-struct FileSystem* file_system_add(const struct FileSystemApi* fs_api, void* data);
+struct FileSystem* file_system_add(const char* name, const struct FileSystemApi* fs_api, void* data);
+
+/**
+ * @brief Finds a registered file system by the name it was added with.
+ * @param[in] name see file_system_add()
+ * @return the FileSystem, or NULL if no registered file system has this name
+ */
+struct FileSystem* file_system_find_by_name(const char* name);
+
+/**
+ * @brief Gets the name a file system was registered with.
+ * @param[in] fs the FileSystem object
+ * @return the name passed to file_system_add() - never NULL for a valid FileSystem
+ */
+const char* file_system_get_name(struct FileSystem* fs);
 
 /**
  * @brief Removes a registered file system.

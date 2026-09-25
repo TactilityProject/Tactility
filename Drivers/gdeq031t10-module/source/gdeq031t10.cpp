@@ -525,14 +525,6 @@ static uint16_t gdeq031t10_get_resolution_y(Device*) {
     return HEIGHT;
 }
 
-static void gdeq031t10_get_frame_buffer(Device*, uint8_t, void** out_buffer) {
-    *out_buffer = nullptr;
-}
-
-static uint8_t gdeq031t10_get_frame_buffer_count(Device*) {
-    return 0;
-}
-
 // endregion
 
 static error_t gdeq031t10_get_backlight(Device* device, Device** backlight) {
@@ -575,8 +567,8 @@ static const DisplayApi gdeq031t10_display_api = {
     .get_color_format = gdeq031t10_get_color_format,
     .get_resolution_x = gdeq031t10_get_resolution_x,
     .get_resolution_y = gdeq031t10_get_resolution_y,
-    .get_frame_buffer = gdeq031t10_get_frame_buffer,
-    .get_frame_buffer_count = gdeq031t10_get_frame_buffer_count,
+    .get_frame_buffer = nullptr,
+    .get_frame_buffer_count = nullptr,
     .get_backlight = gdeq031t10_get_backlight,
     .has_capability = gdeq031t10_has_capability,
 };

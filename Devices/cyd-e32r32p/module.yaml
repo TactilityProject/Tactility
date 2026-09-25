@@ -1,0 +1,6 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/st7789-module
+  - Drivers/xpt2046-module
+dts: cyd,e32r32p.dts
+dts-only: true

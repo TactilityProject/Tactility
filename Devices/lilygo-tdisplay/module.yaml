@@ -1,0 +1,6 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/st7789-module
+  - Drivers/button-control-module
+dts: lilygo,tdisplay.dts
+dts-only: true

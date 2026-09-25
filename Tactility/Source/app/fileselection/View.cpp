@@ -1,8 +1,5 @@
 #include <Tactility/app/fileselection/View.h>
-#include <Tactility/Platform.h>
 #include <Tactility/StringUtils.h>
-#include <Tactility/Tactility.h>
-#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/file/File.h>
 
 #include <app/event.h>
@@ -46,31 +43,8 @@ void View::onBackPressedCallback(lv_event_t* event) {
 
 void View::onTapFile(const std::string& path, const std::string& filename) {
     std::string file_path = path + "/" + filename;
-
-    // For PC we need to make the path relative to the current work directory,
-    // because that's how LVGL maps its 'drive letter' to the file system.
-    std::string processed_filepath;
-    if (kernel::getPlatform() == kernel::PlatformSimulator) {
-        char cwd[PATH_MAX];
-        if (getcwd(cwd, sizeof(cwd)) == nullptr) {
-            LOG_E(TAG, "Failed to get current working directory");
-            return;
-        }
-        if (!file_path.starts_with(cwd)) {
-            LOG_E(TAG, "Can only work with files in working directory %s", cwd);
-            return;
-        }
-        // MountPoints.h's MOUNT_POINT_DATA/MOUNT_POINT_SYSTEM have no leading slash on POSIX
-        // (fopen() resolves relative to cwd there), unlike ESP32's real VFS mount points - so
-        // strip the separator too, not just cwd itself.
-        processed_filepath = file_path.substr(strlen(cwd) + 1);
-    } else {
-        processed_filepath = file_path;
-    }
-
-    LOG_D(TAG, "Clicked %s", processed_filepath.c_str());
-
-    lv_textarea_set_text(path_textarea, processed_filepath.c_str());
+    LOG_D(TAG, "Clicked %s", file_path.c_str());
+    lv_textarea_set_text(path_textarea, file_path.c_str());
 }
 
 void View::onDirEntryPressed(uint32_t index) {

@@ -1,0 +1,4 @@
+dependencies:
+  - Platforms/platform-esp32
+dts: generic,esp32s3.dts
+dts-only: true

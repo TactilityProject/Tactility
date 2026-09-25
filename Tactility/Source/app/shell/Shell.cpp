@@ -1,23 +1,21 @@
 #include <Tactility/app/shell/Shell.h>
-
-#include "Tactility/file/File.h"
-
-#include <Tactility/app/shell/LineEditor.h>
+#include <Tactility/app/shell/Run.h>
 #include <Tactility/app/shell/ShellFs.h>
-#include <Tactility/app/shell/commands/CommandSupport.h>
-#include <Tactility/app/shell/commands/Commands.h>
 
 #include <app/execute.h>
+#include <app/manager.h>
 
 #include <tactility/filesystem/file_system.h>
+#include <tactility/filesystem/fs.h>
 #include <tactility/paths.h>
 
-#include <unistd.h>
+#include <sys/stat.h>
 
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <memory>
+#include <vector>
 
 extern "C" {
 #include <Tactility/app/shell/shell/sh.h>
@@ -31,29 +29,12 @@ namespace {
 // that `X=1` at the prompt is still set on the next line.
 sh_state interpreter;
 
-const Shell::Command COMMANDS[] = {
-    { "help",  "Show this list",                 cmdHelp },
-    { "which", "Locate a command",               cmdWhich },
-    { "ls",    "List directory",                 cmdLs },
-    { "cat",   "Print file contents",            cmdCat },
-    { "head",  "Show first lines [-n N]",        cmdHead },
-    { "tail",  "Show last lines [-n N]",         cmdTail },
-    { "wc",    "Count lines, words and bytes",   cmdWc },
-    { "mkdir", "Create directory [-p]",          cmdMkdir },
-    { "rm",    "Remove file or directory [-r]",  cmdRm },
-    { "cp",    "Copy file",                      cmdCp },
-    { "mv",    "Move or rename file",            cmdMv },
-    { "touch", "Create an empty file",           cmdTouch },
-    { "df",    "List mounted filesystems",       cmdDf },
-    { "du",    "Show size of a file or tree",    cmdDu },
-    { "sh",    "Run a script file",              cmdSh },
-    { "date",  "Show the current date and time", cmdDate },
-    { "printf","Format and print",              cmdPrintf },
-    { "clear", "Clear the screen",               cmdClear },
-    { "free",  "Show memory usage",              cmdFree },
+// Relays a Shell::Command, built on the fly from a registered AppManifest, out to forEachCommand()'s
+// own caller-supplied callback.
+struct CommandRelay {
+    void* context;
+    void (*callback)(const Shell::Command&, void*);
 };
-
-constexpr int COMMAND_COUNT = sizeof(COMMANDS) / sizeof(COMMANDS[0]);
 
 } // namespace
 
@@ -83,8 +64,19 @@ void shutdown() {
 }
 
 void forEachCommand(void* context, void (*callback)(const Command&, void*)) {
-    for (const auto & i : COMMANDS) {
-        callback(i, context);
+    struct CommandId { AppId id; };
+    std::vector<CommandId> ids;
+    // First gather all IDs, so we don't keep the ledger lock while calling callback()
+    app_manager_for_each_manifest([](const AppManifest* manifest, void* context) {
+        if ((manifest->flags & APP_MANIFEST_FLAG_HEADLESS) != 0
+            && manifest->location.type == APP_LOCATION_MEMORY) {
+            auto& ids = *static_cast<std::vector<CommandId>*>(context);
+            ids.emplace_back();
+            memcpy(ids.back().id, manifest->id, sizeof(AppId));
+        }
+    }, &ids);
+    for (const auto& [id] : ids) {
+        callback(Command { .name = id, .help = "" }, context);
     }
 }
 
@@ -94,11 +86,11 @@ namespace {
 struct Candidates {
     const char* word;
     size_t wordLength;
-    char common[ShellFs::MAX_PATH];
+    char common[FILE_MAX_PATH_STRING_LENGTH];
     bool haveCommon;
     int count;
     // Printed lazily, so a unique match completes silently without disturbing the prompt.
-    char first[ShellFs::MAX_PATH];
+    char first[FILE_MAX_PATH_STRING_LENGTH];
 };
 
 void offerCandidate(Candidates& candidates, const char* name) {
@@ -127,8 +119,8 @@ void offerCommand(const Shell::Command& command, void* context) {
     offerCandidate(*static_cast<Candidates*>(context), command.name);
 }
 
-void offerEntry(const ShellFs::Entry& entry, void* context) {
-    offerCandidate(*static_cast<Candidates*>(context), entry.name);
+void offerEntry(const DirectoryEntry* entry, void* context) {
+    offerCandidate(*static_cast<Candidates*>(context), entry->name);
 }
 
 void printCandidateCommand(const Shell::Command& command, void* context) {
@@ -138,10 +130,10 @@ void printCandidateCommand(const Shell::Command& command, void* context) {
     }
 }
 
-void printCandidateEntry(const ShellFs::Entry& entry, void* context) {
+void printCandidateEntry(const DirectoryEntry* entry, void* context) {
     auto* candidates = static_cast<Candidates*>(context);
-    if (strncmp(entry.name, candidates->word, candidates->wordLength) == 0) {
-        printf("%s%s  ", entry.name, entry.isDirectory ? "/" : "");
+    if (strncmp(entry->name, candidates->word, candidates->wordLength) == 0) {
+        printf("%s%s  ", entry->name, entry->is_directory ? "/" : "");
     }
 }
 
@@ -161,13 +153,13 @@ bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outLis
     candidates.wordLength = strlen(wordStart);
 
     // Paths complete against a directory, which may be named in the word itself ("ls /data/fo").
-    char directory[ShellFs::MAX_PATH] = {};
+    char directory[FILE_MAX_PATH_STRING_LENGTH] = {};
     const char* namePart = wordStart;
 
     if (!isFirstWord) {
         const char* slash = strrchr(wordStart, '/');
         if (slash != nullptr) {
-            char prefix[ShellFs::MAX_PATH];
+            char prefix[FILE_MAX_PATH_STRING_LENGTH];
             const size_t prefixLength = static_cast<size_t>(slash - wordStart);
             if (prefixLength >= sizeof(prefix)) {
                 return false;
@@ -190,18 +182,8 @@ bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outLis
 
     if (isFirstWord) {
         forEachCommand(&candidates, offerCommand);
-    } else if (ShellFs::isRoot(directory)) {
-        // The synthetic root lists mounts rather than directory entries.
-        file_system_for_each_mounted(&candidates, [](FileSystem* fs, void* context) {
-            char path[ShellFs::MAX_PATH];
-            if (file_system_get_path(fs, path, sizeof(path)) == ERROR_NONE) {
-                const char* name = strrchr(path, '/');
-                offerCandidate(*static_cast<Candidates*>(context), (name != nullptr) ? name + 1 : path);
-            }
-            return true;
-        });
     } else {
-        ShellFs::listDirectory(directory, &candidates, offerEntry);
+        directory_list(directory, &candidates, offerEntry);
     }
 
     if (candidates.count == 0) {
@@ -219,9 +201,9 @@ bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outLis
         const size_t used = strlen(outSuffix);
         if (used + 1 < suffixSize) {
             const bool directoryMatch = !isFirstWord && [&] {
-                char full[ShellFs::MAX_PATH];
+                char full[FILE_MAX_PATH_STRING_LENGTH];
                 const int written = snprintf(full, sizeof(full), "%s/%s", directory, candidates.first);
-                return written > 0 && static_cast<size_t>(written) < sizeof(full) && ShellFs::isDirectory(full);
+                return written > 0 && static_cast<size_t>(written) < sizeof(full) && directory_exists(full);
             }();
             outSuffix[used] = directoryMatch ? '/' : ' ';
             outSuffix[used + 1] = '\0';
@@ -234,17 +216,8 @@ bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outLis
         printf("\n");
         if (isFirstWord) {
             forEachCommand(&candidates, printCandidateCommand);
-        } else if (ShellFs::isRoot(directory)) {
-            file_system_for_each_mounted(&candidates, [](FileSystem* fs, void*) {
-                char path[ShellFs::MAX_PATH];
-                if (file_system_get_path(fs, path, sizeof(path)) == ERROR_NONE) {
-                    const char* name = strrchr(path, '/');
-                    printf("%s  ", (name != nullptr) ? name + 1 : path);
-                }
-                return true;
-            });
         } else {
-            ShellFs::listDirectory(directory, &candidates, printCandidateEntry);
+            directory_list(directory, &candidates, printCandidateEntry);
         }
         printf("\n");
         *outListed = true;
@@ -254,24 +227,42 @@ bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outLis
 }
 
 int runCommand(int argc, char** argv, int* found) {
-    for (int i = 0; i < COMMAND_COUNT; i++) {
-        if (strcmp(argv[0], COMMANDS[i].name) == 0) {
-            *found = 1;
-            return COMMANDS[i].function(argc, argv);
+    // Resolved via forEachCommand() (iterate registered manifests, filter to headless-safe ones)
+    // rather than a direct app_manager_find_manifest() lookup, so completion/help and dispatch stay
+    // backed by the exact same set. The match is only captured here (a plain copy - name/help are
+    // borrowed pointers into the manifest) and run after forEachCommand() returns, once
+    // app_ledger()'s lock (held for the whole enumeration) is released: runFromMemory() starts a
+    // real app instance by id, which itself needs the ledger.
+    struct Match {
+        const char* id;
+        bool found;
+        Command command;
+    };
+    Match match { argv[0], false, {} };
+    forEachCommand(&match, [](const Command& command, void* context) {
+        auto* match = static_cast<Match*>(context);
+        if (!match->found && strcmp(command.name, match->id) == 0) {
+            match->found = true;
+            match->command = command;
         }
+    });
+
+    if (match.found) {
+        *found = 1;
+        return runFromMemory(argv[0], argc, argv);
     }
 
     // Not a builtin: try it as a file. A name containing '/' is taken as a path; a bare name is
     // looked up in the app's bundled binaries, which stands in for a PATH search. A bare name that
     // matches nothing there stays a fast "command not found" rather than a directory scan.
-    char resolved[ShellFs::MAX_PATH];
+    char resolved[FILE_MAX_PATH_STRING_LENGTH];
     bool haveFile = false;
 
     if (strchr(argv[0], '/') != nullptr) {
         haveFile = ShellFs::resolvePath(argv[0], resolved, sizeof(resolved)) &&
-            ShellFs::exists(resolved) && !ShellFs::isDirectory(resolved);
+            path_exists(resolved) && !directory_exists(resolved);
     } else {
-        // TODO: check if there is a binary by iterating over installed applications, and/or search across PATH variable entries
+        // TODO: search across PATH variable entries
     }
 
     if (haveFile) {
@@ -347,7 +338,7 @@ void shell_bridge_temp_path(int which, char* buf, int bufsz) {
     // Pipeline staging files go in the shared temp directory: the working directory could be a
     // read-only mount, and scratch files appearing wherever the user happens to be standing is
     // unfriendly. Falls back to the cwd only if the temp path is unavailable.
-    char directory[ShellFs::MAX_PATH];
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
 
     if (paths_get_temp_path(directory, sizeof(directory)) == ERROR_NONE) {
         snprintf(buf, bufsz, "%s/.sh_pipe_%d", directory, which);
@@ -369,11 +360,35 @@ int shell_bridge_resolve(const char* path, char* buf, int bufsz) {
 }
 
 char* shell_bridge_read_file(const char* path, size_t* outSize) {
-    char resolved[ShellFs::MAX_PATH];
+    char resolved[FILE_MAX_PATH_STRING_LENGTH];
     if (!ShellFs::resolvePath(path, resolved, sizeof(resolved))) {
         return nullptr;
     }
-    return ShellFs::readFile(resolved, outSize);
+
+    struct stat info;
+    if (stat(resolved, &info) != 0 || info.st_size < 0) {
+        return nullptr;
+    }
+
+    // file_read_binary() reads into a caller-owned, bounded buffer rather than allocating one
+    // itself; the size to allocate is known up front from stat(), plus one byte to NUL-terminate.
+    const size_t capacity = static_cast<size_t>(info.st_size);
+    auto* buffer = static_cast<char*>(malloc(capacity + 1));
+    if (buffer == nullptr) {
+        return nullptr;
+    }
+
+    size_t size = capacity;
+    if (file_read_binary(resolved, reinterpret_cast<uint8_t*>(buffer), &size) != ERROR_NONE) {
+        free(buffer);
+        return nullptr;
+    }
+
+    buffer[size] = '\0';
+    if (outSize != nullptr) {
+        *outSize = size;
+    }
+    return buffer;
 }
 
 } // extern "C"

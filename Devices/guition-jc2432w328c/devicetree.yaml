@@ -1,5 +1,0 @@
-dependencies:
-  - Platforms/platform-esp32
-  - Drivers/st7789-module
-  - Drivers/cst816s-module
-dts: guition,jc2432w328c.dts
