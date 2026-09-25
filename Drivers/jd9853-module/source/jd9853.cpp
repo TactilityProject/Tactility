@@ -318,14 +318,6 @@ static uint16_t jd9853_get_resolution_y(Device* device) {
     return GET_CONFIG(device)->vertical_resolution;
 }
 
-static void jd9853_get_frame_buffer(Device*, uint8_t, void** out_buffer) {
-    *out_buffer = nullptr;
-}
-
-static uint8_t jd9853_get_frame_buffer_count(Device*) {
-    return 0;
-}
-
 static error_t jd9853_get_backlight(Device* device, Device** backlight) {
     auto* configured_backlight = GET_CONFIG(device)->backlight;
     if (configured_backlight == nullptr) {
@@ -360,8 +352,8 @@ static const DisplayApi jd9853_display_api = {
     .get_color_format = jd9853_get_color_format,
     .get_resolution_x = jd9853_get_resolution_x,
     .get_resolution_y = jd9853_get_resolution_y,
-    .get_frame_buffer = jd9853_get_frame_buffer,
-    .get_frame_buffer_count = jd9853_get_frame_buffer_count,
+    .get_frame_buffer = nullptr,
+    .get_frame_buffer_count = nullptr,
     .get_backlight = jd9853_get_backlight,
     .has_capability = nullptr,
 };

@@ -12,7 +12,7 @@
 
 static uint32_t getToolbarHeight(UiDensity uiDensity) {
     if (uiDensity == LVGL_UI_DENSITY_COMPACT) {
-        return lvgl_get_text_font_height(FONT_SIZE_DEFAULT) * 1.4f;
+        return lvgl_get_text_font_height(FONT_SIZE_DEFAULT) * 1.6f;
     } else {
         return lvgl_get_text_font_height(FONT_SIZE_LARGE) * 2.2f;
     }
@@ -29,7 +29,7 @@ static const _lv_font_t* getToolbarFont(UiDensity uiDensity) {
 static uint32_t getActionIconPadding(UiDensity uiDensity) {
     auto toolbar_height = getToolbarHeight(uiDensity);
     // Minimal 8 pixels total padding for selection/animation (4+4 pixels)
-    return (uiDensity != LVGL_UI_DENSITY_COMPACT) ? (uint32_t)(toolbar_height * 0.2f) : 8;
+    return (uiDensity != LVGL_UI_DENSITY_COMPACT) ? (uint32_t)(toolbar_height * 0.2f) : 10;
 }
 
 /**

@@ -305,14 +305,6 @@ static uint16_t gc9a01_get_resolution_y(Device* device) {
     return GET_CONFIG(device)->vertical_resolution;
 }
 
-static void gc9a01_get_frame_buffer(Device*, uint8_t, void** out_buffer) {
-    *out_buffer = nullptr;
-}
-
-static uint8_t gc9a01_get_frame_buffer_count(Device*) {
-    return 0;
-}
-
 static error_t gc9a01_get_backlight(Device* device, Device** backlight) {
     auto* configured_backlight = GET_CONFIG(device)->backlight;
     if (configured_backlight == nullptr) {
@@ -347,8 +339,8 @@ static const DisplayApi gc9a01_display_api = {
     .get_color_format = gc9a01_get_color_format,
     .get_resolution_x = gc9a01_get_resolution_x,
     .get_resolution_y = gc9a01_get_resolution_y,
-    .get_frame_buffer = gc9a01_get_frame_buffer,
-    .get_frame_buffer_count = gc9a01_get_frame_buffer_count,
+    .get_frame_buffer = nullptr,
+    .get_frame_buffer_count = nullptr,
     .get_backlight = gc9a01_get_backlight,
     .has_capability = nullptr,
 };

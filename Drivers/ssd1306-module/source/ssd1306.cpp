@@ -308,14 +308,6 @@ static uint16_t ssd1306_get_resolution_y(Device* device) {
     return GET_CONFIG(device)->vertical_resolution;
 }
 
-static void ssd1306_get_frame_buffer(Device*, uint8_t, void** out_buffer) {
-    *out_buffer = nullptr;
-}
-
-static uint8_t ssd1306_get_frame_buffer_count(Device*) {
-    return 0;
-}
-
 // get_backlight is not exposed: SSD1306 is a self-emitting OLED panel with no backlight.
 
 // endregion
@@ -341,8 +333,8 @@ static const DisplayApi ssd1306_display_api = {
     .get_color_format = ssd1306_get_color_format,
     .get_resolution_x = ssd1306_get_resolution_x,
     .get_resolution_y = ssd1306_get_resolution_y,
-    .get_frame_buffer = ssd1306_get_frame_buffer,
-    .get_frame_buffer_count = ssd1306_get_frame_buffer_count,
+    .get_frame_buffer = nullptr,
+    .get_frame_buffer_count = nullptr,
     .get_backlight = nullptr,
     .has_capability = nullptr,
 };
