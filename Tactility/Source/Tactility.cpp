@@ -166,7 +166,6 @@ namespace app {
     namespace apppackagelist { extern const ::AppManifest manifest; }
     namespace audiosettings { extern const ::AppManifest manifest; }
     namespace boot { extern const ::AppManifest manifest; }
-    namespace camera { extern const ::AppManifest manifest; }
     namespace development { extern const ::AppManifest manifest; }
     namespace display { extern const ::AppManifest manifest; }
     namespace files { extern const ::AppManifest manifest; }
@@ -202,6 +201,7 @@ namespace app {
     namespace webserversettings { extern const ::AppManifest manifest; }
 #ifdef ESP_PLATFORM
     namespace apwebserver { extern const ::AppManifest manifest; }
+    namespace camera { extern const ::AppManifest manifest; }
     namespace crashdiagnostics { extern const ::AppManifest manifest; }
 #if CONFIG_TT_TDECK_WORKAROUND == 1
     namespace keyboardsettings { extern const ::AppManifest manifest; } // T-Deck only for now
@@ -226,9 +226,6 @@ static void registerInternalApps() {
     LOG_I(TAG, "Registering internal apps");
 
     app_manager_add(&app::alertdialog::manifest);
-    if (device_exists_of_type(&CAMERA_TYPE)) {
-        app_manager_add(&app::camera::manifest);
-    }
     app_manager_add(&app::apppackagedetails::manifest);
     app_manager_add(&app::apphub::manifest);
     app_manager_add(&app::apphubdetails::manifest);
@@ -271,6 +268,9 @@ static void registerInternalApps() {
     app_manager_add(&app::webserversettings::manifest);
 #ifdef ESP_PLATFORM
     app_manager_add(&app::apwebserver::manifest);
+    if (device_exists_of_type(&CAMERA_TYPE)) {
+        app_manager_add(&app::camera::manifest);
+    }
     app_manager_add(&app::crashdiagnostics::manifest);
 #if defined(CONFIG_TT_TDECK_WORKAROUND)
         app_manager_add(&app::keyboardsettings::manifest);
