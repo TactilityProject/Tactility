@@ -1,4 +1,3 @@
-#ifdef ESP_PLATFORM
 #include <Tactility/Tactility.h>
 
 #include <app/event.h>
@@ -13,7 +12,6 @@
 #include <cstring>
 #include <ctime>
 
-#include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -256,7 +254,8 @@ void cameraTaskEntry(void* arg) {
 
     size_t frameSz = (size_t)camera_get_width(handle) * camera_get_height(handle) * 2;
     for (int i = 0; i < 2; i++) {
-        ctx->displayBuf[i] = static_cast<uint8_t*>(heap_caps_malloc(frameSz, MALLOC_CAP_SPIRAM));
+        const MemoryPolicy policy { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
+        ctx->displayBuf[i] = static_cast<uint8_t*>(memory_alloc_with_policy(frameSz, &policy));
         if (!ctx->displayBuf[i]) {
             LOG_E("Camera", "Failed to alloc display buffer %d", i);
             xSemaphoreTake(ctx->camHandleMutex, portMAX_DELAY);
@@ -295,6 +294,11 @@ void cameraTaskEntry(void* arg) {
         }
 
         int idx = ctx->publishedDisplayBufIdx < 0 ? 0 : ctx->publishedDisplayBufIdx ^ 1;
+        if (frameLen > frameSz || (size_t)frameWidth * frameHeight * 2 > frameSz) {
+            LOG_E("Camera", "Frame too large: %zu bytes (%ux%u)", frameLen, (unsigned)frameWidth, (unsigned)frameHeight);
+            camera_release_frame(handle);
+            continue;
+        }
         memcpy(ctx->displayBuf[idx], frameBuf, frameLen);
         camera_release_frame(handle);
         ctx->displayBufIdx = idx;
@@ -492,5 +496,3 @@ extern const ::AppManifest manifest = {
 };
 
 } // namespace tt::app::camera
-
-#endif

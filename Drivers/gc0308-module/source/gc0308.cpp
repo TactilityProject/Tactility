@@ -55,6 +55,10 @@ struct Gc0308State : CameraHandleData {
 
 #define GET_CONFIG(device) (static_cast<const Gc0308Config*>((device)->config))
 
+static gpio_num_t pin_or_nc(const GpioPinSpec& pin) {
+    return pin.gpio_controller == nullptr ? GPIO_NUM_NC : static_cast<gpio_num_t>(pin.pin);
+}
+
 static CameraRotation add_rotation(CameraRotation rotation, uint16_t offset) {
     return static_cast<CameraRotation>((static_cast<uint16_t>(rotation) + offset) % 360);
 }
@@ -183,7 +187,7 @@ error_t gc0308_open(Device* device, Gc0308Handle* out_handle) {
                     .vsync_io = static_cast<gpio_num_t>(config->pin_vsync.pin),
                     .de_io = static_cast<gpio_num_t>(config->pin_de.pin),
                     .pclk_io = static_cast<gpio_num_t>(config->pin_pclk.pin),
-                    .xclk_io = static_cast<gpio_num_t>(config->pin_xclk.pin),
+                    .xclk_io = pin_or_nc(config->pin_xclk),
                 },
                 .xclk_freq = config->xclk_frequency_hz,
             };

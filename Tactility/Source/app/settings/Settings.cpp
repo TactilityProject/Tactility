@@ -56,7 +56,7 @@ const char* appIcon(const ::AppManifest* manifest) {
     for (const auto& entry : ICONS) {
         if (!strcmp(manifest->id, entry.id)) return entry.icon;
     }
-    return LVGL_ICON_SHARED_TOOLBAR;
+    return LVGL_ICON_SHARED_DEPLOYED_CODE;
 }
 
 void onAppPressed(lv_event_t* e) {

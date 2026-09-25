@@ -110,7 +110,7 @@ error_t gc0308_set_rotation(Gc0308Handle handle, CameraRotation rotation);
 
 /**
  * Capture one frame and JPEG-encode it using the hardware JPEG encoder.
- * Allocates output buffer in SPIRAM; caller must free it with heap_caps_free().
+ * Allocates output buffer in SPIRAM; caller must free it with memory_free().
  * @param handle     handle returned by gc0308_open()
  * @param out_buf    out: pointer to JPEG-encoded data (caller must free)
  * @param out_len    out: byte length of JPEG data
