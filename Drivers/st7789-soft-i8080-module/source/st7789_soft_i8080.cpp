@@ -315,15 +315,18 @@ static error_t st7789_soft_i8080_swap_xy(Device* device, bool swap_axes) {
 }
 
 static bool st7789_soft_i8080_get_swap_xy(Device* device) {
-    return GET_CONFIG(device)->swap_xy;
+    auto* internal = static_cast<St7789SoftI8080Internal*>(device_get_driver_data(device));
+    return (internal->madctl & 0x20) != 0;
 }
 
 static bool st7789_soft_i8080_get_mirror_x(Device* device) {
-    return GET_CONFIG(device)->mirror_x;
+    auto* internal = static_cast<St7789SoftI8080Internal*>(device_get_driver_data(device));
+    return (internal->madctl & 0x40) != 0;
 }
 
 static bool st7789_soft_i8080_get_mirror_y(Device* device) {
-    return GET_CONFIG(device)->mirror_y;
+    auto* internal = static_cast<St7789SoftI8080Internal*>(device_get_driver_data(device));
+    return (internal->madctl & 0x80) != 0;
 }
 
 static int32_t st7789_soft_i8080_get_gap_x(Device* device) {

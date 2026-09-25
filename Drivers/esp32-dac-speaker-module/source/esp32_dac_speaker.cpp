@@ -245,7 +245,7 @@ error_t write(Device* device, const void* buffer, size_t size, size_t* bytes_wri
         size_t loaded = 0;
         esp_err_t result = dac_continuous_write(data->handle, data->scratch, chunk, &loaded, timeout_ms);
         if (result != ESP_OK) {
-            *bytes_written = frames_done * frame_size;
+            *bytes_written = (frames_done + loaded) * frame_size;
             return result == ESP_ERR_TIMEOUT ? ERROR_TIMEOUT : ERROR_RESOURCE;
         }
 
