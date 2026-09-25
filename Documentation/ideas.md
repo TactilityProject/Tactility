@@ -10,21 +10,13 @@
 ## Higher Priority
 
 - coreutils apps: Only emit colour escapes when stdout is the terminal (command_support.h color() function)
-- Shell interpreter works recursive-descent algorithm, which requires a big stack size. Can we optimize this?
 - CrashDiagnostics shouldn't show a QR when there's no callstack
-- stopAppFromToolbar() in Tactility.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
-- Warn if file operations are done from prohibited tasks (e.g. lvgl task)
 - Move USB host task stacks to SPIRAM when available: esp32_usbhost*.cpp
 - Get rid of WiFi service (Wifi.cpp/h) in Tactility.cpp
-- Make it more clear to end-users that an SD card is required to run Tactility
 - Add bold fonts for e-ink readability improvement
-- Improve Setup: Show "Step done" screen
 - Improve Setup: Add keyboard/keypad navigation explanation
-- Improve kernel_init.cpp (and other modules): create driver_ensure_added() and driver_ensure_destructed()
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
 - LilyGO T-Dongle S3: 1 button control, stop auto-launching web server
-- Core2: support power off via software
-- Create `#define` for empty module (for modules that fully rely on device.properties and don't define drivers or have start/stop logic)
 - Improve SPI kernel driver (implement read, write, transactions)
 - Add font design tokens such as "regular", "title" and "smaller". Perhaps via the LVGL kernel module.
 - TCA9534 keyboards should use interrupts
@@ -40,6 +32,12 @@
 
 ## Medium Priority
 
+- Core2: support power off via software
+- Improve Setup: Show "Step done" screen
+- Make it more clear to end-users that an SD card is required to run Tactility
+- Warn if file operations are done from prohibited tasks (e.g. lvgl task)
+- Shell interpreter works recursive-descent algorithm, which requires a big stack size. Can we optimize this?
+- stopAppFromToolbar() in Tactility.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
 - Consider not unpacking `.app` files and executing them directly. Might want to cache file offsets. Cache file must be pinned to app version.
 - lvgl-module's spinner relies on hard-coded spinner asset from Tactility main project.
 - esp_lvgl_port settings has a large stack size (~9kB) to fix stackoverflow when LVGL events (e.g. button click) do actions like file operations do actions like file operations. Can we reduce the callstack?
