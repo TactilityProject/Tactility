@@ -10,7 +10,9 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <lvgl/widgets/toolbar.h>
+
 #include <tactility/check.h>
+#include <tactility/error.h>
 #include <tactility/log.h>
 
 #include <lvgl.h>
@@ -86,6 +88,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_label_set_long_mode(message_label, LV_LABEL_LONG_WRAP);
 
     auto* textarea = lv_textarea_create(parent);
+    // Ensures showing selection state for keyboard/encoder devices
+    lv_obj_set_style_margin_hor(textarea, 4, LV_STATE_DEFAULT);
+    lv_obj_set_width(textarea, LV_PCT(80));
     lv_obj_align_to(textarea, message_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 4);
     lv_textarea_set_one_line(textarea, true);
     if (argv[2][0] != '\0') {
@@ -99,6 +104,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_align(button_wrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_border_width(button_wrapper, 0, 0);
     lv_obj_align(button_wrapper, LV_ALIGN_BOTTOM_MID, 0, -4);
+    // Ensures showing selection state for keyboard/encoder devices
+    lv_obj_set_style_pad_column(button_wrapper, 12, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_ver(button_wrapper, 6, LV_STATE_DEFAULT);
 
     createButton(ctx, button_wrapper, "OK", textarea);
     createButton(ctx, button_wrapper, "Cancel", nullptr);
@@ -106,7 +114,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
-    Context ctx { appInstanceId };
+    Context ctx { .appInstanceId = appInstanceId };
     ctx.argc = argc;
     ctx.argv = argv;
 

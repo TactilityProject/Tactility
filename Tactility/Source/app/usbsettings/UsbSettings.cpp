@@ -53,6 +53,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_align(wrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_size(wrapper, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_align(wrapper, LV_ALIGN_CENTER, 0, 0);
+    // Ensures showing selection state for keyboard/encoder devices
+    lv_obj_set_style_pad_all(wrapper, 6, LV_ALIGN_DEFAULT);
 
     bool hasSd = hal::usb::canRebootIntoMassStorageSdmmc();
     bool hasFlash = hal::usb::canRebootIntoMassStorageFlash();

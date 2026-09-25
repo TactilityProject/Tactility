@@ -84,10 +84,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_t* button_wrapper = lv_obj_create(parent);
     lv_obj_set_flex_flow(button_wrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_size(button_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(button_wrapper, 0, 0);
     lv_obj_set_flex_align(button_wrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_border_width(button_wrapper, 0, 0);
     lv_obj_align(button_wrapper, LV_ALIGN_BOTTOM_MID, 0, -4);
+    // Ensures showing selection state for keyboard/encoder devices
+    lv_obj_set_style_pad_all(button_wrapper, 0, LV_ALIGN_DEFAULT);
+    lv_obj_set_style_pad_column(button_wrapper, 12, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_ver(button_wrapper, 4, LV_STATE_DEFAULT);
 
     for (int32_t index = 0; index < argc - 2; index++) {
         createButton(ctx, button_wrapper, argv[2 + index], index);

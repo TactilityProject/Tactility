@@ -325,8 +325,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* wrapper = lv_obj_create(main_wrapper);
     lv_obj_set_width(wrapper, LV_PCT(100));
     lv_obj_set_height(wrapper, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(wrapper, 0, 0);
     lv_obj_set_style_border_width(wrapper, 0, 0);
+    // Ensures showing selection state for keyboard/encoder devices
+    lv_obj_set_style_pad_all(wrapper, 6, LV_ALIGN_DEFAULT);
 
     auto* scan_button = lv_button_create(wrapper);
     lv_obj_set_width(scan_button, LV_PCT(48));
