@@ -141,7 +141,8 @@ void pixel_buffer_clear(struct PixelBuffer* buffer) {
 // bounds beyond its own logical size are unknown, so its range is left as-is and
 // ESP_CACHE_MSYNC_FLAG_UNALIGNED is passed instead, letting the cache API handle the misalignment
 // without this code guessing at memory it doesn't own.
-static esp_err_t pixel_buffer_msync_range(struct PixelBuffer* buffer, uint8_t* addr, size_t bytes) {
+static bool pixel_buffer_msync_range(struct PixelBuffer* buffer, uint8_t* addr, size_t bytes) {
+    esp_err_t err;
     if (buffer->owns_data) {
         const size_t offset = (size_t)(addr - buffer->data);
         const size_t aligned_offset = offset & ~(size_t)63;
@@ -150,9 +151,14 @@ static esp_err_t pixel_buffer_msync_range(struct PixelBuffer* buffer, uint8_t* a
         if (aligned_end > capacity) {
             aligned_end = capacity;
         }
-        return esp_cache_msync(buffer->data + aligned_offset, aligned_end - aligned_offset, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+        err = esp_cache_msync(buffer->data + aligned_offset, aligned_end - aligned_offset, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    } else {
+        err = esp_cache_msync(addr, bytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
     }
-    return esp_cache_msync(addr, bytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+    // esp_cache_msync() reports ESP_ERR_NOT_SUPPORTED for ranges not mapped through a cache
+    // (plain internal DRAM on ESP32-class cores). There is nothing to sync there, so treat it
+    // as success rather than failing the present.
+    return err == ESP_OK || err == ESP_ERR_NOT_SUPPORTED;
 }
 #endif
 
@@ -163,13 +169,13 @@ bool pixel_buffer_msync(struct PixelBuffer* buffer, int x, int y, int width, int
     if (contiguous) {
         uint8_t* addr = pixel_buffer_get_row(buffer, y);
         const size_t bytes = buffer->stride_bytes * (size_t)height;
-        ok = pixel_buffer_msync_range(buffer, addr, bytes) == ESP_OK;
+        ok = pixel_buffer_msync_range(buffer, addr, bytes);
     } else {
         const size_t rowBytes = pixel_buffer_row_stride_bytes(buffer->format, width);
         const size_t xBytes = pixel_buffer_row_stride_bytes(buffer->format, x);
         for (int row = 0; row < height; row++) {
             uint8_t* rowPtr = (uint8_t*)pixel_buffer_get_row(buffer, y + row) + xBytes;
-            if (pixel_buffer_msync_range(buffer, rowPtr, rowBytes) != ESP_OK) {
+            if (!pixel_buffer_msync_range(buffer, rowPtr, rowBytes)) {
                 ok = false;
             }
         }
