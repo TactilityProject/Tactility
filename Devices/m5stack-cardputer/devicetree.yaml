@@ -6,3 +6,4 @@ dependencies:
   - Drivers/pdm-mic-module
   - Drivers/audio-stream-module
 dts: m5stack,cardputer.dts
+dts-only: true

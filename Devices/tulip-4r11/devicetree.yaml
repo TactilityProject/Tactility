@@ -5,3 +5,4 @@ dependencies:
   - Drivers/dummy-i2s-amp-module
   - Drivers/audio-stream-module
 dts: tulip-4r11.dts
+dts-only: true

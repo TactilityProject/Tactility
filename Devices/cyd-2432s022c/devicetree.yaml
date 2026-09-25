@@ -5,3 +5,4 @@ dependencies:
   - Drivers/esp32-dac-speaker-module
   - Drivers/audio-stream-module
 dts: cyd,2432s022c.dts
+dts-only: true

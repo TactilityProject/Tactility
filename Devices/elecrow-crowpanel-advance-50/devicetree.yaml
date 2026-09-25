@@ -4,3 +4,4 @@ dependencies:
   - Drivers/gt911-module
   - Drivers/tca9534-module
 dts: elecrow,crowpanel-advance-50.dts
+dts-only: true

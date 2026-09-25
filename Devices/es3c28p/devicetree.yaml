@@ -5,3 +5,4 @@ dependencies:
   - Drivers/es8311-module
   - Drivers/audio-stream-module
 dts: es3c28p.dts
+dts-only: true

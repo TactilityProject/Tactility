@@ -4,3 +4,4 @@ dependencies:
 - Drivers/st7789-module
 - Drivers/m5stack-module
 dts: m5stack,cardputer-adv.dts
+dts-only: true

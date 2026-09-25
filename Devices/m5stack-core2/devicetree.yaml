@@ -9,3 +9,4 @@ dependencies:
 - Drivers/ft5x06-module
 - Drivers/ili9341-module
 dts: m5stack,core2.dts
+dts-only: true

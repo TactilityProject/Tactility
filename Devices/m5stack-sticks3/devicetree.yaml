@@ -7,3 +7,4 @@ dependencies:
   - Drivers/st7789-module
   - Drivers/button-control-module
 dts: m5stack,sticks3.dts
+dts-only: true

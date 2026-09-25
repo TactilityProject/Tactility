@@ -10,3 +10,4 @@ dependencies:
   - Drivers/drv2605-module
   - Drivers/gps-generic-module
 dts: lilygo,tdeck-max.dts
+dts-only: true

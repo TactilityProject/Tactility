@@ -3,3 +3,4 @@ dependencies:
   - Drivers/ssd1306-module
   - Drivers/button-control-module
 dts: heltec,wifi-lora-32-v3.dts
+dts-only: true

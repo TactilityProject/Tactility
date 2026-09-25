@@ -4,3 +4,4 @@ dependencies:
   - Drivers/gt911-module
   - Drivers/rgb-display-module
 dts: waveshare,s3-touch-lcd-43.dts
+dts-only: true

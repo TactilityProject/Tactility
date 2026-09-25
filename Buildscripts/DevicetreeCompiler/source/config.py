@@ -7,6 +7,7 @@ class DeviceTreeConfig:
     dependencies: list[str] = field(default_factory=list)
     bindings: list[str] = field(default_factory=list)
     dts: str = ""
+    dts_only: bool = False
 
 def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
     """
@@ -40,6 +41,7 @@ def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
             config.dependencies += deps
             dts_path = data.get("dts", "")
             config.dts = os.path.join(current_path, dts_path)
+            config.dts_only = data.get("dts-only", False)
 
         bindings = data.get("bindings", "")
         if bindings:

@@ -359,7 +359,7 @@ def generate_devicetree_c(filename: str, items: list[object], bindings: list[Bin
         # Gather module symbols
         module_symbol_names = []
         # Device's own module goes first (started before its dependency modules)
-        if config.dts:
+        if config.dts and not config.dts_only:
             device_dir = os.path.dirname(os.path.normpath(config.dts))
             device_name = os.path.basename(device_dir)
             if device_name:

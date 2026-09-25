@@ -4,3 +4,4 @@ dependencies:
 - Drivers/cst816t-module
 - Drivers/gc9a01-module
 dts: waveshare,s3-touch-lcd-128.dts
+dts-only: true
