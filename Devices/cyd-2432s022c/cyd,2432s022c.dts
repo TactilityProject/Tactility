@@ -11,6 +11,7 @@
 #include <tactility/bindings/esp32_usbdevice.h>
 #include <bindings/st7789_soft_i8080.h>
 #include <bindings/cst816s.h>
+#include <bindings/esp32_dac_speaker.h>
 
 / {
 	compatible = "root";
@@ -88,5 +89,11 @@ display {
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;
 		};
+	};
+
+	speaker {
+		compatible = "espressif,esp32-dac-speaker";
+		pin = <&gpio0 26 GPIO_FLAG_NONE>;
+		sample-rate = <16000>;
 	};
 };

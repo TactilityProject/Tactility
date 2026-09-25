@@ -2,4 +2,6 @@ dependencies:
   - Platforms/platform-esp32
   - Drivers/st7789-soft-i8080-module
   - Drivers/cst816s-module
+  - Drivers/esp32-dac-speaker-module
+  - Drivers/audio-stream-module
 dts: cyd,2432s022c.dts

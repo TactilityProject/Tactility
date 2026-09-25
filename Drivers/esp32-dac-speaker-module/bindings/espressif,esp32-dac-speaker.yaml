@@ -1,0 +1,13 @@
+description: ESP32 internal DAC driving an external analog audio amplifier (8-bit mono PCM output)
+
+compatible: "espressif,esp32-dac-speaker"
+
+properties:
+  pin:
+    type: phandles
+    required: true
+    description: DAC output pin (ESP32 - GPIO25 = DAC1, GPIO26 = DAC2)
+  sample-rate:
+    type: int
+    default: 16000
+    description: Native output sample rate in Hz (8-bit mono PCM only)
