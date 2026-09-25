@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 import yaml
 import os
 
+from .exception import DevicetreeException
+
 @dataclass
 class DeviceTreeConfig:
     dependencies: list[str] = field(default_factory=list)
@@ -41,7 +43,10 @@ def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
             config.dependencies += deps
             dts_path = data.get("dts", "")
             config.dts = os.path.join(current_path, dts_path)
-            config.dts_only = data.get("dts-only", False)
+            dts_only = data.get("dts-only", False)
+            if not isinstance(dts_only, bool):
+                raise DevicetreeException(f"'dts-only' must be a boolean, got {dts_only!r}")
+            config.dts_only = dts_only
 
         bindings = data.get("bindings", "")
         if bindings:

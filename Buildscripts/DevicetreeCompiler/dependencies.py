@@ -28,8 +28,10 @@ if __name__ == "__main__":
 
     # Device module is added first because it's started first:
     # It creates the root device, so it must exist before its children.
-    device_dependency = os.path.basename(os.path.normpath(yaml_directory))
-    print(device_dependency)
+    # Skipped for dts-only devices: they have no CMakeLists.txt, so there's no component to require.
+    if not config.dts_only:
+        device_dependency = os.path.basename(os.path.normpath(yaml_directory))
+        print(device_dependency)
     for dependency in config.dependencies:
         dependency_name = os.path.basename(os.path.normpath(dependency))
         print(dependency_name)
