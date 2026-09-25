@@ -56,7 +56,11 @@ bool pulse_display_reset_pins(Device* io_expander0) {
     gpio_descriptor_set_level(lcd_reset_pin, true);
     gpio_descriptor_set_level(touch_reset_pin, true);
     vTaskDelay(pdMS_TO_TICKS(10));
-    gpio_descriptor_set_flags(lcd_reset_pin, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP);
+    if (gpio_descriptor_set_flags(lcd_reset_pin, GPIO_FLAG_DIRECTION_INPUT | GPIO_FLAG_PULL_UP) != ERROR_NONE) {
+        gpio_descriptor_release(lcd_reset_pin);
+        gpio_descriptor_release(touch_reset_pin);
+        return false;
+    }
     gpio_descriptor_set_level(touch_reset_pin, false);
 
     gpio_descriptor_release(lcd_reset_pin);

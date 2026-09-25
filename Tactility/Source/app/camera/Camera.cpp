@@ -1,3 +1,4 @@
+#ifdef ESP_PLATFORM
 #include <Tactility/Tactility.h>
 
 #include <app/event.h>
@@ -491,3 +492,5 @@ extern const ::AppManifest manifest = {
 };
 
 } // namespace tt::app::camera
+
+#endif

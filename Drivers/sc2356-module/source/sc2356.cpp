@@ -174,7 +174,7 @@ error_t sc2356_open(Device* device, Sc2356Handle* out_handle) {
         return ERROR_OUT_OF_MEMORY;
     }
 
-    state->rotation = CAMERA_ROTATION_0;
+    state->rotation = add_rotation(CAMERA_ROTATION_0, GET_CONFIG(device)->rotation_offset);
 
     // Retrieve bus handle from the parent I2C controller
     auto* i2c = device_get_parent(device);

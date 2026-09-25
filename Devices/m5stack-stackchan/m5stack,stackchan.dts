@@ -183,7 +183,6 @@
 			pin-vsync = <&gpio0 46 GPIO_FLAG_NONE>;
 			pin-de = <&gpio0 38 GPIO_FLAG_NONE>;
 			pin-pclk = <&gpio0 45 GPIO_FLAG_NONE>;
-			pin-xclk = <&gpio0 2 GPIO_FLAG_NONE>;
 			pin-reset = <&aw9523b 8 GPIO_FLAG_ACTIVE_LOW>;
 		};
 

@@ -166,7 +166,9 @@ namespace app {
     namespace apppackagelist { extern const ::AppManifest manifest; }
     namespace audiosettings { extern const ::AppManifest manifest; }
     namespace boot { extern const ::AppManifest manifest; }
+#ifdef ESP_PLATFORM
     namespace camera { extern const ::AppManifest manifest; }
+#endif
     namespace development { extern const ::AppManifest manifest; }
     namespace display { extern const ::AppManifest manifest; }
     namespace files { extern const ::AppManifest manifest; }
@@ -226,9 +228,11 @@ static void registerInternalApps() {
     LOG_I(TAG, "Registering internal apps");
 
     app_manager_add(&app::alertdialog::manifest);
+#ifdef ESP_PLATFORM
     if (device_exists_of_type(&CAMERA_TYPE)) {
         app_manager_add(&app::camera::manifest);
     }
+#endif
     app_manager_add(&app::apppackagedetails::manifest);
     app_manager_add(&app::apphub::manifest);
     app_manager_add(&app::apphubdetails::manifest);
