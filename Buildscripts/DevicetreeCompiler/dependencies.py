@@ -6,7 +6,7 @@ from source.config import parse_config
 
 def print_help():
     print("Usage: python dependencies.py [path]\n")
-    print("\t[in_file]                 the path where the root devicetree.yaml file is")
+    print("\t[in_file]                 the path where the root module.yaml file is")
 
 if __name__ == "__main__":
     if "--help" in sys.argv:

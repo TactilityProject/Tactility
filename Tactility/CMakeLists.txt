@@ -114,10 +114,10 @@ execute_process(
 #
 
 # REQUIRES_LIST below is computed once, at configure time. Without this, editing
-# devicetree.yaml (e.g. adding a driver dependency) doesn't trigger a cmake reconfigure,
+# module.yaml (e.g. adding a driver dependency) doesn't trigger a cmake reconfigure,
 # so the new component's include dirs never reach the compiler until a fullclean.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${DEVICETREE_LOCATION}/devicetree.yaml"
+    "${DEVICETREE_LOCATION}/module.yaml"
     "${DEVICETREE_LOCATION}/device.properties" # due to the "hardware.bluetooth = true" search in this file from this CMakeLists.txt
 )
 

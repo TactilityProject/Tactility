@@ -7,4 +7,4 @@ The kernel uses a Linux-inspired device model:
 - **Device** (`struct Device`): represents hardware. Lifecycle: `device_construct` → `device_add` → `device_start`. Has a parent-child tree, driver binding, and locking.
 - **DeviceType** (`struct DeviceType`): enables discovering devices by category (e.g. `DISPLAY_TYPE`, `TOUCH_TYPE`, `UART_CONTROLLER_TYPE`).
 
-Devices are defined via **devicetree** `.dts` files in each `Devices/<id>/` folder. A custom devicetree compiler (`Buildscripts/DevicetreeCompiler/compile.py`) generates C code from these files. Each device folder also has a `devicetree.yaml` specifying dependencies and the `.dts` file.
+Devices are defined via **devicetree** `.dts` files in each `Devices/<id>/` folder. A custom devicetree compiler (`Buildscripts/DevicetreeCompiler/compile.py`) generates C code from these files. Each device folder also has a `module.yaml` specifying dependencies and the `.dts` file.

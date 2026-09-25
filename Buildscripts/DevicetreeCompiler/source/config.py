@@ -13,7 +13,7 @@ class DeviceTreeConfig:
 
 def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
     """
-    Parses devicetree.yaml and recursively finds dependencies.
+    Parses module.yaml and recursively finds dependencies.
     Returns a list of DeviceTreeConfig objects in post-order (dependencies first).
     """
     config = DeviceTreeConfig([], [], "")
@@ -25,9 +25,9 @@ def parse_config(file_path: str, project_root: str) -> DeviceTreeConfig:
             return
         visited.add(abs_path)
 
-        # Try to see if it's a directory and contains devicetree.yaml
+        # Try to see if it's a directory and contains module.yaml
         if os.path.isdir(abs_path):
-            abs_path = os.path.join(abs_path, "devicetree.yaml")
+            abs_path = os.path.join(abs_path, "module.yaml")
 
         with open(abs_path, 'r') as f:
             data = yaml.safe_load(f) or {}
