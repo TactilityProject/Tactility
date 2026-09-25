@@ -2,6 +2,7 @@
 #pragma once
 
 #include <app/manifest.h>
+#include <app/start.h>
 
 #include <tactility/error.h>
 
@@ -20,14 +21,11 @@ extern "C" {
  * Loads and starts an app instance: spawns a dedicated task that calls
  * AppLoaderApi::load()/run(), marking the instance ACTIVE for the duration of run().
  * @param[in] app_instance_id id already allocated in the ledger for this instance
- * @param[in] location the location of the app
- * @param[in] stack stack allocation config for the app's task
- * @param[in] argc the amount of arguments to pass to the app's main function
- * @param[in] argv the array of arguments to pass to the app's main function - ownership is
- * taken by the scheduler regardless of outcome (freed once the spawned task's run() returns, or
- * immediately on a failure to start it)
+ * @param[in] context describes what to start and how (location/stack/argc/argv). @a
+ * context->argv is deep-copied internally (see app_arguments_copy()), so it and the strings it
+ * points to may be freed/go out of scope immediately after this call returns.
  */
-error_t app_scheduler_start(AppInstanceId app_instance_id, struct AppLocation location, struct AppStackConfig stack, int argc, char* argv[]);
+error_t app_scheduler_start(AppInstanceId app_instance_id, const struct AppStartContext* context);
 
 /**
  * Permanently stops an app instance (APP_EVENT_CLOSE if it was running), bound-waits for its

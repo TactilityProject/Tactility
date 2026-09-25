@@ -1,13 +1,9 @@
 #include <Tactility/app/terminal/TerminalRendererGeneric.h>
 
+#include <graphics/pixel_buffer.h>
+
 #include <tactility/drivers/display.h>
 #include <tactility/log.h>
-
-#ifdef ESP_PLATFORM
-#include <esp_cache.h>
-#endif
-
-#include <cstring>
 
 constexpr auto* TAG = "TermRenderGen";
 
@@ -19,7 +15,6 @@ bool TerminalRendererGeneric::begin(Device* displayDevice) {
     panelWidth = display_get_resolution_x(displayDevice);
     panelHeight = display_get_resolution_y(displayDevice);
 
-    // No rotation hardware here, so the terminal is drawn in the panel's own orientation.
     frameWidth = panelWidth;
     frameHeight = panelHeight;
 
@@ -27,8 +22,14 @@ bool TerminalRendererGeneric::begin(Device* displayDevice) {
         return false;
     }
 
-    // Best-effort: falls back to pushing frameBuffer directly in present() if unavailable.
-    acquireHwDoubleBuffer();
+    acquireHwDoubleBuffer(); // best-effort; present() falls back to pushing frameBuffer directly
+
+    if (!allocateFullFrameBufferIfNeeded()) {
+        freeCommon();
+        return false;
+    }
+
+    clearPanelOnce();
 
     LOG_I(TAG, "Terminal %dx%d cells (%dx%d px) on %dx%d panel",
              cols, rowCount, cellWidth, cellHeight, panelWidth, panelHeight);
@@ -39,21 +40,7 @@ void TerminalRendererGeneric::end() {
     freeCommon();
 }
 
-void TerminalRendererGeneric::present() {
-    const size_t frameBytes = static_cast<size_t>(frameWidth) * frameHeight * sizeof(uint16_t);
-#ifdef ESP_PLATFORM
-    esp_cache_msync(frameBuffer, frameBytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
-#endif
-
-    if (usingHwFrameBuffer) {
-        uint16_t* out = hwFrameBuffers[backBufferIndex];
-        memcpy(out, frameBuffer, frameBytes);
-#ifdef ESP_PLATFORM
-        esp_cache_msync(out, frameBytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
-#endif
-        display_draw_bitmap(display, 0, 0, frameWidth, frameHeight, out);
-        backBufferIndex = 1 - backBufferIndex;
-    } else {
-        display_draw_bitmap(display, 0, 0, frameWidth, frameHeight, frameBuffer);
-    }
+void TerminalRendererGeneric::present(int yStart, int yEnd) {
+    pixel_buffer_msync(frameBuffer, 0, 0, frameWidth, yEnd - yStart);
+    presentRegion(frameBuffer, 0, yStart, frameWidth, yEnd - yStart);
 }

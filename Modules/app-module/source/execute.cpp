@@ -3,6 +3,7 @@
 
 #include <app/loader.h>
 #include <app/location.h>
+#include <app/start.h>
 #include <app/private/manager_internal.h>
 
 #include <service/instance.h>
@@ -29,19 +30,35 @@ const AppLoaderApi* find_loader_api(AppLocationType type) {
 extern "C" {
 
 error_t app_execute(AppLocation location, AppStackConfig stack, int argc, const char* const argv[], AppInstanceId* out_app_instance_id) {
-    return app_manager_start_internal(nullptr, location, stack, 0, argc, argv, nullptr, 0, out_app_instance_id);
+    AppStartContext context = app_start_context_for_location(location);
+    context.stack = stack;
+    app_start_context_set_arguments_ext(&context, argc, argv);
+    return app_manager_start_internal(&context, out_app_instance_id);
 }
 
 error_t app_execute_for_result(AppLocation location, AppStackConfig stack, int argc, const char* const argv[], AppInstanceId parent_instance_id, AppInstanceId* out_app_instance_id) {
-    return app_manager_start_internal(nullptr, location, stack, parent_instance_id, argc, argv, nullptr, 0, out_app_instance_id);
+    AppStartContext context = app_start_context_for_location(location);
+    context.stack = stack;
+    app_start_context_set_arguments_ext(&context, argc, argv);
+    app_start_context_set_parent(&context, parent_instance_id);
+    return app_manager_start_internal(&context, out_app_instance_id);
 }
 
 error_t app_execute_with_streams(AppLocation location, AppStackConfig stack, int argc, const char* const argv[], const AppStreamBinding* bindings, size_t binding_count, AppInstanceId* out_app_instance_id) {
-    return app_manager_start_internal(nullptr, location, stack, 0, argc, argv, bindings, binding_count, out_app_instance_id);
+    AppStartContext context = app_start_context_for_location(location);
+    context.stack = stack;
+    app_start_context_set_arguments_ext(&context, argc, argv);
+    app_start_context_set_streams(&context, bindings, binding_count);
+    return app_manager_start_internal(&context, out_app_instance_id);
 }
 
 error_t app_execute_for_result_with_streams(AppLocation location, AppStackConfig stack, int argc, const char* const argv[], const AppStreamBinding* bindings, size_t binding_count, AppInstanceId parent_instance_id, AppInstanceId* out_app_instance_id) {
-    return app_manager_start_internal(nullptr, location, stack, parent_instance_id, argc, argv, bindings, binding_count, out_app_instance_id);
+    AppStartContext context = app_start_context_for_location(location);
+    context.stack = stack;
+    app_start_context_set_arguments_ext(&context, argc, argv);
+    app_start_context_set_streams(&context, bindings, binding_count);
+    app_start_context_set_parent(&context, parent_instance_id);
+    return app_manager_start_internal(&context, out_app_instance_id);
 }
 
 bool app_is_executable_path(const char* path) {

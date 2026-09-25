@@ -146,7 +146,10 @@ error_t DevelopmentService::handleAppRun(HttpServerRequest* request, void*) {
         }
     }
 
-    app_start(id_key_pos->second.c_str(), 0, nullptr, &instance_id);
+    AppStartContext context;
+    if (app_start_context_from_id(id_key_pos->second.c_str(), &context) == ERROR_NONE) {
+        app_start_with_context(&context, &instance_id);
+    }
 
     LOG_I(TAG, "[200] /app/run %s", id_key_pos->second.c_str());
     http_server_request_send(request, nullptr, 0);

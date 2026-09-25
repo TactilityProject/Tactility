@@ -1,6 +1,7 @@
 #include <app/event.h>
 #include <app/execute.h>
 #include <app/install.h>
+#include <app/start.h>
 #include <app/stream.h>
 
 #include <lvgl/lvgl.h>
@@ -224,7 +225,8 @@ void View::runFile(const std::string& file_path) {
 
     AppLocation location { APP_LOCATION_PATH, const_cast<char*>(file_path.c_str()) };
     AppInstanceId instance_id = 0;
-    if (app_execute(location, AppStackConfig {}, 0, nullptr, &instance_id) != ERROR_NONE) {
+    AppStartContext context = app_start_context_for_location(location);
+    if (app_start_with_context(&context, &instance_id) != ERROR_NONE) {
         LOG_W(TAG, "Failed to run %s", file_path.c_str());
         alertdialog::start(appInstanceId, "Run failed", "Could not run \"" + file::getLastPathSegment(file_path) + "\".");
     }

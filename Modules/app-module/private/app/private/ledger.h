@@ -59,6 +59,11 @@ struct AppInstanceRecord {
     /** This instance's fd table. Constructed by app_manager_start_internal() before insertion
      * into AppLedger::instances, torn down (every open fd closed) when the instance's task exits. */
     AppFdTable fd_table {};
+
+    /** This instance's environment, as "NAME=VALUE" strings - seeded from AppStartContext's own
+     * `environment` by app_manager_start_internal(), then mutable at runtime via app_env_*()
+     * (app/env.h). Protected by AppLedger::mutex, same as every other field here. */
+    std::vector<std::string> env {};
 };
 
 /** A registered installed package - see app_manager_add_package() (app/manager.h). */

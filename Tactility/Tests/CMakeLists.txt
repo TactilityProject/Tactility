@@ -45,9 +45,9 @@ target_link_libraries(TactilityTests PRIVATE
     cjson-module
     cpp-symbols-module
     crypt-module
-    font-module
     freertos-module
     gps-module
+    graphics-module
     http-module
     mbedtls-module
     posix-symbols-module

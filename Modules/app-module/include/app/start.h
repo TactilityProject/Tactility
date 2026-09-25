@@ -4,13 +4,86 @@
 #include <app/manager.h>
 
 /**
- * This file contains functions to start and run apps that were registered to the app manager.
- * It differs from execute.h which runs executables from a specific path.
+ * This file contains functions to start and run apps.
+ * When an AppManifest is provided, it can start apps that were registered with the app manager.
+ * It can also start app binaries directly.
+ *
+ * Steps:
+ *  - Create an AppStartContext by using one of the helper functions:
+ *    - app_start_context_for_manifest() for manager-registered apps
+ *    - app_start_context_for_location() for plain binaries
+ *  - Optionally modify AppStartContext with with one of the helper functions. (e.g. to add parameters)
+ *  - Call app_start_with_context() to start the execution.
  */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * Identifies what app_manager_start_internal() should launch and how.
+ * Construct via app_start_context_from_manifest()/app_start_context_from_location()
+ * @warning Fields are for internal use only. Do not read or write them directly.
+ */
+struct AppStartContext {
+    const struct AppManifest* manifest;
+    struct AppLocation location;
+    struct AppStackConfig stack;
+    int argc;
+    const char* const* argv;
+    const struct AppStreamBinding* bindings;
+    size_t binding_count;
+    AppInstanceId parent_id;
+    /** NULL-terminated array of "KEY=VALUE" strings, like POSIX environ. */
+    char* const* environment;
+};
+
+/** Builds a context for starting a manifest already registered via app_manager_add(). */
+struct AppStartContext app_start_context_for_manifest(const struct AppManifest* manifest);
+
+/** Builds a context for starting @a location directly, with no registered manifest.
+ * Stack defaults to zeroed (the scheduler's default). */
+struct AppStartContext app_start_context_for_location(struct AppLocation location);
+
+/**
+ * Looks up @a id in the manifest registry and builds a context for it (see
+ * app_start_context_from_manifest()).
+ * @retval ERROR_NOT_FOUND no manifest with this id is registered
+ * @retval ERROR_NONE on success
+ */
+error_t app_start_context_from_id(const char* id, struct AppStartContext* out_context);
+
+/** Overrides the task's stack allocation config (defaults to the manifest's own, or zeroed/
+ * scheduler-default for a location-based context). See AppStackConfig. */
+void app_start_context_set_stack(struct AppStartContext* context, struct AppStackConfig stack);
+
+/** @param[in] argv @a argc strings, borrowed only until app_manager_start_internal() returns. It makes its own deep copy. */
+void app_start_context_set_arguments_ext(struct AppStartContext* context, int argc, const char* const argv[]);
+
+/** @param[in] arguments null-terminated string array, borrowed only until app_manager_start_internal() returns. It makes its own deep copy. */
+void app_start_context_set_arguments(struct AppStartContext* context, const char* const arguments[]);
+
+/** @param[in] bindings @a binding_count entries; see app_start_with_streams() for ownership. */
+void app_start_context_set_streams(struct AppStartContext* context, const struct AppStreamBinding* bindings, size_t binding_count);
+
+/** See app_start_for_result() for the parent/result-delivery contract. */
+void app_start_context_set_parent(struct AppStartContext* context, AppInstanceId parent_id);
+
+/** @param[in] environment NULL-terminated array of "KEY=VALUE" strings, borrowed only until
+ * app_start_with_context() returns. */
+void app_start_context_set_environment(struct AppStartContext* context, char* const environment[]);
+
+/**
+ * Starts an app from @a context, built via app_start_context_for_manifest()/
+ * app_start_context_for_location()/app_start_context_from_id() and app_start_context_set_*().
+ * Replaces app_start()/app_start_for_result()/app_start_with_streams()/
+ * app_start_for_result_with_streams().
+ * @retval ERROR_NOT_FOUND no AppLoaderApi is registered for @a context->location.type
+ * @retval ERROR_OUT_OF_RANGE a binding's producer_fd is out of range
+ * @retval ERROR_RESOURCE a binding's event_group has no free bits left to claim
+ * @retval ERROR_NONE on success
+ */
+error_t app_start_with_context(struct AppStartContext* context, AppInstanceId* out_app_instance_id);
 
 /**
  * Starts @a id, a manifest already registered via app_manager_add(), passing @a argc/@a argv to
@@ -23,6 +96,7 @@ extern "C" {
  * @retval ERROR_NOT_FOUND no manifest with this id is registered, or no AppLoaderApi is registered
  * @retval ERROR_NONE on success
  */
+[[deprecated("Use app_start_with_context()")]]
 error_t app_start(const char* id, int argc, const char* const argv[], AppInstanceId* out_app_instance_id);
 
 /**
@@ -40,6 +114,7 @@ error_t app_start(const char* id, int argc, const char* const argv[], AppInstanc
  * @retval ERROR_NOT_FOUND no manifest with this id is registered, or no AppLoaderApi is registered
  * @retval ERROR_NONE on success
  */
+[[deprecated("Use app_start_with_context()")]]
 error_t app_start_for_result(const char* id, int argc, const char* const argv[], AppInstanceId parent_instance_id, AppInstanceId* out_app_instance_id);
 
 /**
@@ -54,6 +129,7 @@ error_t app_start_for_result(const char* id, int argc, const char* const argv[],
  * @retval ERROR_RESOURCE a binding's event_group has no free bits left to claim
  * @retval ERROR_NONE on success
  */
+[[deprecated("Use app_start_with_context()")]]
 error_t app_start_with_streams(const char* id, const struct AppStreamBinding* bindings, size_t binding_count, AppInstanceId* out_app_instance_id);
 
 /**
@@ -69,6 +145,7 @@ error_t app_start_with_streams(const char* id, const struct AppStreamBinding* bi
  * @retval ERROR_RESOURCE a binding's event_group has no free bits left to claim
  * @retval ERROR_NONE on success
  */
+[[deprecated("Use app_start_with_context()")]]
 error_t app_start_for_result_with_streams(const char* id, int argc, const char* const argv[], const struct AppStreamBinding* bindings, size_t binding_count, AppInstanceId parent_instance_id, AppInstanceId* out_app_instance_id);
 
 #ifdef __cplusplus

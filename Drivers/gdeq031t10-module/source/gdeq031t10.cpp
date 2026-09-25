@@ -26,7 +26,7 @@ constexpr auto* TAG = "GDEQ031T10";
 #define GET_CONFIG(device) (static_cast<const Gdeq031t10Config*>((device)->config))
 
 /** Capabilities every instance has; see gdeq031t10_has_capability() for the per-board ones. */
-#define GDEQ031T10_STATIC_CAPABILITIES (DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH)
+#define GDEQ031T10_STATIC_CAPABILITIES (DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME)
 
 static constexpr int WIDTH = 240;
 static constexpr int HEIGHT = 320;

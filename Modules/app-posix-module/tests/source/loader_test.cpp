@@ -80,7 +80,9 @@ int32_t parent_app_main(int, char*[]) {
     app_manager_add(&fixture_manifest);
 
     AppInstanceId fixture_id = 0;
-    app_start_for_result("test.posix.fixture", 0, nullptr, self_id, &fixture_id);
+    AppStartContext context = app_start_context_for_manifest(&fixture_manifest);
+    app_start_context_set_parent(&context, self_id);
+    app_start_with_context(&context, &fixture_id);
 
     while (true) {
         if (task_event_group_wait_any(&event_group, nullptr, pdMS_TO_TICKS(5000)) != ERROR_NONE) {
@@ -132,7 +134,10 @@ int32_t printf_parent_app_main(int, char*[]) {
 
     AppLocation location { APP_LOCATION_PATH, const_cast<char*>(PRINTF_FIXTURE_APP_PATH) };
     AppInstanceId childId = 0;
-    app_execute_for_result_with_streams(location, AppStackConfig {}, 0, nullptr, bindings, 2, self_id, &childId);
+    AppStartContext context = app_start_context_for_location(location);
+    app_start_context_set_streams(&context, bindings, 2);
+    app_start_context_set_parent(&context, self_id);
+    app_start_with_context(&context, &childId);
 
     uint8_t drain[256];
     bool childDone = false;
@@ -181,7 +186,9 @@ TEST_CASE("app-posix-module's loader-path service dlopen()s a .so whose printf()
     REQUIRE_EQ(app_manager_add(&parent_manifest), ERROR_NONE);
 
     AppInstanceId parent_id = 0;
-    REQUIRE_EQ(app_start("test.posix.printf_parent", 0, nullptr, &parent_id), ERROR_NONE);
+    AppStartContext parent_context;
+    REQUIRE_EQ(app_start_context_from_id("test.posix.printf_parent", &parent_context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&parent_context, &parent_id), ERROR_NONE);
     REQUIRE(wait_for_state(parent_id, APP_INSTANCE_STATE_STOPPED, 3000));
 
     CHECK_EQ(g_printf_fixture_output, "hello from dlopen'd app\n");
@@ -201,7 +208,9 @@ TEST_CASE("app-posix-module's loader-path service dlopen()s a .so and calls its 
     REQUIRE_EQ(app_manager_add(&parent_manifest), ERROR_NONE);
 
     AppInstanceId parent_id = 0;
-    REQUIRE_EQ(app_start("test.posix.parent", 0, nullptr, &parent_id), ERROR_NONE);
+    AppStartContext parent_context;
+    REQUIRE_EQ(app_start_context_from_id("test.posix.parent", &parent_context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&parent_context, &parent_id), ERROR_NONE);
     REQUIRE(wait_for_state(parent_id, APP_INSTANCE_STATE_STOPPED, 3000));
 
     CHECK(g_fixture_result_received.load(std::memory_order_acquire));

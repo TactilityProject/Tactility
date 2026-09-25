@@ -124,7 +124,9 @@ int32_t appMain(int argc, char* argv[]) {
 void start(const std::string& file) {
     const char* argv[] = { file.c_str() };
     uint32_t instanceId = 0;
-    app_start(manifest.id, 1, argv, &instanceId);
+    AppStartContext context = app_start_context_for_manifest(&manifest);
+    app_start_context_set_arguments_ext(&context, 1, argv);
+    app_start_with_context(&context, &instanceId);
 }
 
 extern const ::AppManifest manifest = {

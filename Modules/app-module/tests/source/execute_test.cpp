@@ -141,7 +141,8 @@ TEST_CASE("app_execute runs a location with no manifest at all, and reports no t
 
     AppLocation location { APP_LOCATION_MEMORY, reinterpret_cast<void*>(location_app_main) };
     uint32_t instance_id = 0;
-    REQUIRE_EQ(app_execute(location, AppStackConfig {}, 0, nullptr, &instance_id), ERROR_NONE);
+    AppStartContext context = app_start_context_for_location(location);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     CHECK(wait_for_state(instance_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     CHECK_EQ(topmost_instance_id(), instance_id);
@@ -158,13 +159,15 @@ TEST_CASE("app_execute doesn't disturb app_manager_get_topmost_app_id for a norm
 
     AppLocation location { APP_LOCATION_MEMORY, reinterpret_cast<void*>(location_app_main) };
     uint32_t unregistered_id = 0;
-    REQUIRE_EQ(app_execute(location, AppStackConfig {}, 0, nullptr, &unregistered_id), ERROR_NONE);
+    AppStartContext context = app_start_context_for_location(location);
+    REQUIRE_EQ(app_start_with_context(&context, &unregistered_id), ERROR_NONE);
     CHECK(wait_for_state(unregistered_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     AppManifest manifest { "test.app.execute.after", "After", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(location_app_main) } };
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
     uint32_t registered_id = 0;
-    REQUIRE_EQ(app_start("test.app.execute.after", 0, nullptr, &registered_id), ERROR_NONE);
+    AppStartContext registered_context = app_start_context_for_manifest(&manifest);
+    REQUIRE_EQ(app_start_with_context(&registered_context, &registered_id), ERROR_NONE);
     CHECK(wait_for_state(registered_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     char buffer[64];
@@ -183,7 +186,9 @@ TEST_CASE("app_execute_for_result delivers APP_EVENT_RESULT to the parent, with 
     REQUIRE_EQ(app_manager_add(&parent_manifest), ERROR_NONE);
 
     uint32_t parent_id = 0;
-    REQUIRE_EQ(app_start("test.app.execute.parent", 0, nullptr, &parent_id), ERROR_NONE);
+    AppStartContext parent_context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.execute.parent", &parent_context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&parent_context, &parent_id), ERROR_NONE);
     CHECK(wait_for_state(parent_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     TaskEventGroup parent_event_group {};
@@ -195,7 +200,10 @@ TEST_CASE("app_execute_for_result delivers APP_EVENT_RESULT to the parent, with 
     AppLocation location { APP_LOCATION_MEMORY, reinterpret_cast<void*>(location_app_main) };
     const char* argv[] = { "42" }; // location_app_main's single-arg shortcut - returns 42 immediately
     uint32_t child_id = 0;
-    REQUIRE_EQ(app_execute_for_result(location, AppStackConfig {}, 1, argv, parent_id, &child_id), ERROR_NONE);
+    AppStartContext context = app_start_context_for_location(location);
+    app_start_context_set_arguments_ext(&context, 1, argv);
+    app_start_context_set_parent(&context, parent_id);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     REQUIRE_EQ(task_event_group_wait(&parent_event_group, parent_sub.bit, false, nullptr, pdMS_TO_TICKS(2000)), ERROR_NONE);
     AppEvent event {};
@@ -224,7 +232,9 @@ TEST_CASE("app_execute_with_streams pipes a manifest-less child's app_io_write()
     AppStreamBinding binding { STDOUT_FILENO, &child_stdout, storage, sizeof(storage), &event_group };
 
     AppInstanceId child_id = 0;
-    REQUIRE_EQ(app_execute_with_streams(location, AppStackConfig {}, 0, nullptr, &binding, 1, &child_id), ERROR_NONE);
+    AppStartContext context = app_start_context_for_location(location);
+    app_start_context_set_streams(&context, &binding, 1);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     std::vector<uint8_t> received;
     while (app_stream_await(&child_stdout, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(1000)) == ERROR_NONE) {
@@ -258,7 +268,10 @@ TEST_CASE("app_execute_with_streams passes argv through to the started app") {
 
     const char* argv[] = { "hello" };
     AppInstanceId child_id = 0;
-    REQUIRE_EQ(app_execute_with_streams(location, AppStackConfig {}, 1, argv, &binding, 1, &child_id), ERROR_NONE);
+    AppStartContext context = app_start_context_for_location(location);
+    app_start_context_set_arguments_ext(&context, 1, argv);
+    app_start_context_set_streams(&context, &binding, 1);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     std::vector<uint8_t> received;
     while (app_stream_await(&child_stdout, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(1000)) == ERROR_NONE) {
@@ -285,7 +298,9 @@ TEST_CASE("app_execute_for_result_with_streams delivers both the stream data and
     REQUIRE_EQ(app_manager_add(&parent_manifest), ERROR_NONE);
 
     uint32_t parent_id = 0;
-    REQUIRE_EQ(app_start("test.app.execute.parent_streams", 0, nullptr, &parent_id), ERROR_NONE);
+    AppStartContext parent_context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.execute.parent_streams", &parent_context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&parent_context, &parent_id), ERROR_NONE);
     CHECK(wait_for_state(parent_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     TaskEventGroup parent_event_group {};
@@ -299,7 +314,10 @@ TEST_CASE("app_execute_for_result_with_streams delivers both the stream data and
 
     AppLocation location { APP_LOCATION_MEMORY, reinterpret_cast<void*>(stream_writer_app_main) };
     uint32_t child_id = 0;
-    REQUIRE_EQ(app_execute_for_result_with_streams(location, AppStackConfig {}, 0, nullptr, &binding, 1, parent_id, &child_id), ERROR_NONE);
+    AppStartContext context = app_start_context_for_location(location);
+    app_start_context_set_streams(&context, &binding, 1);
+    app_start_context_set_parent(&context, parent_id);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     std::vector<uint8_t> received;
     while (app_stream_await(&child_stdout, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(1000)) == ERROR_NONE) {
@@ -335,7 +353,9 @@ TEST_CASE("app_execute_for_result_with_streams pipes a child's plain printf() ca
     REQUIRE_EQ(app_manager_add(&parent_manifest), ERROR_NONE);
 
     uint32_t parent_id = 0;
-    REQUIRE_EQ(app_start("test.app.execute.printf_parent", 0, nullptr, &parent_id), ERROR_NONE);
+    AppStartContext parent_context;
+    REQUIRE_EQ(app_start_context_from_id("test.app.execute.printf_parent", &parent_context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&parent_context, &parent_id), ERROR_NONE);
     CHECK(wait_for_state(parent_id, APP_INSTANCE_STATE_ACTIVE, 1000));
 
     TaskEventGroup parent_event_group {};
@@ -349,7 +369,10 @@ TEST_CASE("app_execute_for_result_with_streams pipes a child's plain printf() ca
 
     AppLocation location { APP_LOCATION_MEMORY, reinterpret_cast<void*>(printf_stream_writer_app_main) };
     uint32_t child_id = 0;
-    REQUIRE_EQ(app_execute_for_result_with_streams(location, AppStackConfig {}, 0, nullptr, &binding, 1, parent_id, &child_id), ERROR_NONE);
+    AppStartContext context = app_start_context_for_location(location);
+    app_start_context_set_streams(&context, &binding, 1);
+    app_start_context_set_parent(&context, parent_id);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
 
     std::vector<uint8_t> received;
     while (app_stream_await(&child_stdout, APP_FILE_WAIT_READABLE, pdMS_TO_TICKS(1000)) == ERROR_NONE) {

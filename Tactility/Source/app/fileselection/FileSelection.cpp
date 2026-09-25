@@ -107,7 +107,11 @@ uint32_t startWithMode(const char* modeArg, uint32_t callerAppInstanceId, AppStr
         .event_group = eventGroup,
     };
     uint32_t instanceId = 0;
-    app_start_for_result_with_streams(manifest.id, 1, argv, &binding, 1, callerAppInstanceId, &instanceId);
+    AppStartContext context = app_start_context_for_manifest(&manifest);
+    app_start_context_set_arguments_ext(&context, 1, argv);
+    app_start_context_set_streams(&context, &binding, 1);
+    app_start_context_set_parent(&context, callerAppInstanceId);
+    app_start_with_context(&context, &instanceId);
     return instanceId;
 }
 

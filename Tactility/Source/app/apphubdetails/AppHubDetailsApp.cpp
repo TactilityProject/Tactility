@@ -352,7 +352,10 @@ void start(const apphub::AppHubEntry& entry) {
         argv.push_back(platform.c_str());
     }
     uint32_t instanceId = 0;
-    app_start_for_result(manifest.id, static_cast<int>(argv.size()), argv.data(), /*parent_instance_id=*/0, &instanceId);
+    AppStartContext context = app_start_context_for_manifest(&manifest);
+    app_start_context_set_arguments_ext(&context, static_cast<int>(argv.size()), argv.data());
+    app_start_context_set_parent(&context, /*parent_instance_id=*/0);
+    app_start_with_context(&context, &instanceId);
 }
 
 extern const ::AppManifest manifest = {

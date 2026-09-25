@@ -1,5 +1,7 @@
 #include <Tactility/app/terminal/TerminalRendererPpa.h>
 
+#include <graphics/pixel_buffer.h>
+
 #include <tactility/drivers/display.h>
 #include <tactility/log.h>
 
@@ -10,11 +12,6 @@
 #if defined(ESP_PLATFORM) && SOC_PPA_SUPPORTED
 
 #include <driver/ppa.h>
-
-#include <esp_cache.h>
-#include <esp_heap_caps.h>
-
-#include <cstring>
 
 constexpr auto* TAG = "TermRenderPpa";
 
@@ -27,7 +24,6 @@ TerminalRendererPpa::~TerminalRendererPpa() {
 }
 
 bool TerminalRendererPpa::begin(Device* displayDevice) {
-    // These report the panel's native orientation, which on Tab5 is portrait.
     panelWidth = display_get_resolution_x(displayDevice);
     panelHeight = display_get_resolution_y(displayDevice);
 
@@ -39,16 +35,21 @@ bool TerminalRendererPpa::begin(Device* displayDevice) {
         return false;
     }
 
-    // Output: either the panel's own double buffers, or one PSRAM buffer we push manually.
+    if (monochrome) {
+        // No PPA hardware here rotates packed 1bpp data - refuse rather than feed it bits it was
+        // never designed for.
+        LOG_E(TAG, "Monochrome displays are not supported by the PPA-rotated renderer");
+        freeCommon();
+        return false;
+    }
+
     if (!acquireHwDoubleBuffer()) {
-        const size_t frameBytes = static_cast<size_t>(frameWidth) * frameHeight * sizeof(uint16_t);
-        rotatedBuffer = static_cast<uint16_t*>(heap_caps_aligned_alloc(64, frameBytes, MALLOC_CAP_SPIRAM));
-        if (rotatedBuffer == nullptr) {
+        rotatedRowBuffer = pixel_buffer_create(display_get_color_format(displayDevice), cellHeight, panelHeight);
+        if (rotatedRowBuffer == nullptr) {
             LOG_E(TAG, "Failed to allocate rotation output buffer");
             end();
             return false;
         }
-        memset(rotatedBuffer, 0, frameBytes);
     }
 
     ppa_client_config_t ppaConfig = {
@@ -65,6 +66,13 @@ bool TerminalRendererPpa::begin(Device* displayDevice) {
     }
     ppaClient = client;
 
+    if (!allocateFullFrameBufferIfNeeded()) {
+        end();
+        return false;
+    }
+
+    clearPanelOnce();
+
     LOG_I(TAG, "Terminal %dx%d cells (%dx%d px), %dx%d landscape on %dx%d panel",
              cols, rowCount, cellWidth, cellHeight,
              frameWidth, frameHeight, panelWidth, panelHeight);
@@ -76,28 +84,37 @@ void TerminalRendererPpa::end() {
         ppa_unregister_client(static_cast<ppa_client_handle_t>(ppaClient));
         ppaClient = nullptr;
     }
-    if (rotatedBuffer != nullptr) {
-        heap_caps_free(rotatedBuffer);
-        rotatedBuffer = nullptr;
+    if (rotatedRowBuffer != nullptr) {
+        pixel_buffer_free(rotatedRowBuffer);
+        rotatedRowBuffer = nullptr;
     }
     freeCommon();
 }
 
-void TerminalRendererPpa::present() {
-    const size_t frameBytes = static_cast<size_t>(frameWidth) * frameHeight * sizeof(uint16_t);
-    esp_cache_msync(frameBuffer, frameBytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+void TerminalRendererPpa::present(int yStart, int yEnd) {
+    const int rowPixelHeight = yEnd - yStart;
+    pixel_buffer_msync(frameBuffer, 0, 0, frameWidth, rowPixelHeight);
+    void* data = pixel_buffer_get_data(frameBuffer);
 
-    uint16_t* out = usingHwFrameBuffer ? hwFrameBuffers[backBufferIndex] : rotatedBuffer;
+    // Rotates straight into hwFrameBuffers[backBufferIndex] below, bypassing presentRegion() - so
+    // it must seed that buffer itself before this row overwrites part of it.
+    if (usingHwFrameBuffer) {
+        ensureBackBufferSeeded();
+    }
 
-    // Rotate the landscape frame 90 degrees into the panel's portrait orientation. No scaling:
-    // the buffer was sized as the panel's transpose, so it maps 1:1.
+    // A 90-degree rotation swaps axes: this source y-row becomes an output x-strip.
+    // UNVERIFIED on hardware: assumes increasing source y maps to increasing output x. If rows
+    // land mirrored/reversed, flip this single line to `frameHeight - yEnd` instead.
+    const int rotatedX = yStart;
+
+    // frameBuffer holds only one row, so it's described to PPA as its own self-contained picture.
     ppa_srm_oper_config_t srmConfig = {
         .in = {
-            .buffer = frameBuffer,
+            .buffer = data,
             .pic_w = static_cast<uint32_t>(frameWidth),
-            .pic_h = static_cast<uint32_t>(frameHeight),
+            .pic_h = static_cast<uint32_t>(rowPixelHeight),
             .block_w = static_cast<uint32_t>(frameWidth),
-            .block_h = static_cast<uint32_t>(frameHeight),
+            .block_h = static_cast<uint32_t>(rowPixelHeight),
             .block_offset_x = 0,
             .block_offset_y = 0,
             .srm_cm = PPA_SRM_COLOR_MODE_RGB565,
@@ -105,11 +122,15 @@ void TerminalRendererPpa::present() {
             .yuv_std = PPA_COLOR_CONV_STD_RGB_YUV_BT601,
         },
         .out = {
-            .buffer = out,
-            .buffer_size = static_cast<uint32_t>(panelWidth * panelHeight * 2),
-            .pic_w = static_cast<uint32_t>(panelWidth),
+            .buffer = usingHwFrameBuffer ? pixel_buffer_get_data(hwFrameBuffers[backBufferIndex]) : pixel_buffer_get_data(rotatedRowBuffer),
+            .buffer_size = usingHwFrameBuffer
+                ? static_cast<uint32_t>(panelWidth * panelHeight * 2)
+                : static_cast<uint32_t>(rowPixelHeight * panelHeight * 2),
+            // hw case: sub-block of the full panel-sized buffer. fallback: rotatedRowBuffer is
+            // its own small canvas, starting at (0,0).
+            .pic_w = usingHwFrameBuffer ? static_cast<uint32_t>(panelWidth) : static_cast<uint32_t>(rowPixelHeight),
             .pic_h = static_cast<uint32_t>(panelHeight),
-            .block_offset_x = 0,
+            .block_offset_x = usingHwFrameBuffer ? static_cast<uint32_t>(rotatedX) : 0u,
             .block_offset_y = 0,
             .srm_cm = PPA_SRM_COLOR_MODE_RGB565,
             .yuv_range = PPA_COLOR_RANGE_LIMIT,
@@ -133,10 +154,11 @@ void TerminalRendererPpa::present() {
         return;
     }
 
-    display_draw_bitmap(display, 0, 0, panelWidth, panelHeight, out);
-
     if (usingHwFrameBuffer) {
-        backBufferIndex = 1 - backBufferIndex;
+        // PPA already wrote straight into hwFrameBuffers[backBufferIndex] at the right offset.
+        hwBufferDirty = true;
+    } else {
+        presentRegion(rotatedRowBuffer, rotatedX, 0, rowPixelHeight, panelHeight);
     }
 }
 
@@ -155,7 +177,7 @@ bool TerminalRendererPpa::begin(Device*) {
 void TerminalRendererPpa::end() {
 }
 
-void TerminalRendererPpa::present() {
+void TerminalRendererPpa::present(int, int) {
 }
 
 #endif

@@ -59,12 +59,12 @@
 #include <cjson_symbols/module.h>
 #include <cpp_symbols/module.h>
 #include <crypt/module.h>
-#include <font/module.h>
 #include <freertos/module.h>
 
 #include <gps/module.h>
 #include <gps_generic/module.h>
 #include <gps_meshtastic/module.h>
+#include <graphics/module.h>
 #include <http/module.h>
 #include <mbedtls/module.h>
 #include <pthread/module.h>
@@ -530,7 +530,7 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     check(module_ensure_started(&pthread_module) == ERROR_NONE);
     // Other libraries
     check(module_ensure_started(&http_module) == ERROR_NONE);
-    check(module_ensure_started(&font_module) == ERROR_NONE);
+    check(module_ensure_started(&graphics_module) == ERROR_NONE);
     check(module_ensure_started(&app_module) == ERROR_NONE);
     check(module_ensure_started(&crypt_module) == ERROR_NONE);
     check(module_ensure_started(&audio_decoder_module) == ERROR_NONE);
@@ -579,7 +579,8 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     // It's a new-model (app-module + window-manager) app now, replacing the old app::start().
     app_manager_add(&app::boot::manifest);
     uint32_t boot_instance_id = 0;
-    app_start(app::boot::manifest.id, 0, nullptr, &boot_instance_id);
+    AppStartContext boot_context = app_start_context_for_manifest(&app::boot::manifest);
+    app_start_with_context(&boot_context, &boot_instance_id);
 
     LOG_I(TAG, "Main dispatcher ready");
     while (true) {

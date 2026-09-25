@@ -51,9 +51,14 @@ void runShell(int columns, volatile bool* stopRequested) {
     const char* argv[] = { "shell", columnsArg };
 
     AppInstanceId shellId = 0;
-    error_t result = app_start_for_result_with_streams(
-        "shell", 2, argv, bindings, sizeof(bindings) / sizeof(bindings[0]),
-        app_scheduler_current_app_id(), &shellId);
+    AppStartContext context;
+    error_t result = app_start_context_from_id("shell", &context);
+    if (result == ERROR_NONE) {
+        app_start_context_set_arguments_ext(&context, 2, argv);
+        app_start_context_set_streams(&context, bindings, sizeof(bindings) / sizeof(bindings[0]));
+        app_start_context_set_parent(&context, app_scheduler_current_app_id());
+        result = app_start_with_context(&context, &shellId);
+    }
     if (result != ERROR_NONE) {
         LOG_E(TAG, "Failed to start shell app");
         app_event_unsubscribe(&eventSub);

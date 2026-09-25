@@ -291,7 +291,10 @@ void startNextApp() {
 
     auto launcher_app_id = getLauncherAppId();
     uint32_t launcher_instance_id = 0;
-    app_start(launcher_app_id.c_str(), 0, nullptr, &launcher_instance_id);
+    AppStartContext context;
+    if (app_start_context_from_id(launcher_app_id.c_str(), &context) == ERROR_NONE) {
+        app_start_with_context(&context, &launcher_instance_id);
+    }
 }
 
 void runBootSequence(TickType_t startTime) {

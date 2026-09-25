@@ -118,14 +118,14 @@ def write_c_file(path: str, output: str, width: int, height: int, bytes_per_row:
     config_macro = f"CONFIG_TT_FONT_{name.upper()}_{size_digits}"
     with open(path, "w") as f:
         f.write(f"/*\n * {os.path.basename(path)} - {output} FixedWidthFont\n")
-        f.write(f" *\n * Rasterized from a TTF with Modules/font-module/scripts/generate.py.\n")
+        f.write(f" *\n * Rasterized from a TTF with Modules/graphics-module/scripts/generate.py.\n")
         f.write(f" * Each glyph is {width} pixels wide and {height} pixels tall, stored as {height} rows of\n")
         f.write(f" * {bytes_per_row} byte{'s' if bytes_per_row != 1 else ''} each (bit 7 of the first byte = leftmost pixel).\n */\n\n")
         f.write(f"#include <font/{output}.h>\n\n")
         f.write("#ifdef ESP_PLATFORM\n")
         f.write("#include <sdkconfig.h>\n")
         f.write("#endif\n\n")
-        f.write(f"// See Modules/font-module/Kconfig: undefined (POSIX, or an ESP-IDF build predating\n")
+        f.write(f"// See Modules/graphics-module/Kconfig: undefined (POSIX, or an ESP-IDF build predating\n")
         f.write(f"// this font's Kconfig entry) is treated the same as enabled.\n")
         f.write(f"#if !defined({config_macro}) || {config_macro}\n\n")
         f.write(f"// Glyph bitmap data: {glyph_count} characters (0x20-0x7E), {glyph_bytes} bytes each = {total_bytes} bytes\n")
