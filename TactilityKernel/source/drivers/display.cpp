@@ -122,12 +122,21 @@ uint16_t display_get_resolution_y(Device* device) {
 
 void display_get_frame_buffer(Device* device, uint8_t index, void** out_buffer) {
     const auto* driver = device_get_driver(device);
-    DISPLAY_DRIVER_API(driver)->get_frame_buffer(device, index, out_buffer);
+    const auto* api = DISPLAY_DRIVER_API(driver);
+    if (api->get_frame_buffer == nullptr) {
+        *out_buffer = nullptr;
+        return;
+    }
+    api->get_frame_buffer(device, index, out_buffer);
 }
 
 uint8_t display_get_frame_buffer_count(Device* device) {
     const auto* driver = device_get_driver(device);
-    return DISPLAY_DRIVER_API(driver)->get_frame_buffer_count(device);
+    const auto* api = DISPLAY_DRIVER_API(driver);
+    if (api->get_frame_buffer_count == nullptr) {
+        return 0;
+    }
+    return api->get_frame_buffer_count(device);
 }
 
 error_t display_get_backlight(Device* device, Device** backlight) {

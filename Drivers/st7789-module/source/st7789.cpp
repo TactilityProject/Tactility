@@ -337,14 +337,6 @@ static uint16_t st7789_get_resolution_y(Device* device) {
     return GET_CONFIG(device)->vertical_resolution;
 }
 
-static void st7789_get_frame_buffer(Device*, uint8_t, void** out_buffer) {
-    *out_buffer = nullptr;
-}
-
-static uint8_t st7789_get_frame_buffer_count(Device*) {
-    return 0;
-}
-
 static error_t st7789_get_backlight(Device* device, Device** backlight) {
     auto* configured_backlight = GET_CONFIG(device)->backlight;
     if (configured_backlight == nullptr) {
@@ -379,8 +371,8 @@ static const DisplayApi st7789_display_api = {
     .get_color_format = st7789_get_color_format,
     .get_resolution_x = st7789_get_resolution_x,
     .get_resolution_y = st7789_get_resolution_y,
-    .get_frame_buffer = st7789_get_frame_buffer,
-    .get_frame_buffer_count = st7789_get_frame_buffer_count,
+    .get_frame_buffer = nullptr,
+    .get_frame_buffer_count = nullptr,
     .get_backlight = st7789_get_backlight,
     .has_capability = nullptr,
 };

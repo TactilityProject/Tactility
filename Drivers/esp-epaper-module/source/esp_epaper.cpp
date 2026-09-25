@@ -251,14 +251,6 @@ static uint16_t esp_epaper_get_resolution_y(Device* device) {
     return esp_epaper_get_display_height(internal, GET_CONFIG(device)->rotation);
 }
 
-static void esp_epaper_get_frame_buffer(Device*, uint8_t, void** out_buffer) {
-    *out_buffer = nullptr;
-}
-
-static uint8_t esp_epaper_get_frame_buffer_count(Device*) {
-    return 0;
-}
-
 static const DisplayApi esp_epaper_display_api = {
     .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME,
     .reset = esp_epaper_reset,
@@ -280,8 +272,8 @@ static const DisplayApi esp_epaper_display_api = {
     .get_color_format = esp_epaper_get_color_format,
     .get_resolution_x = esp_epaper_get_resolution_x,
     .get_resolution_y = esp_epaper_get_resolution_y,
-    .get_frame_buffer = esp_epaper_get_frame_buffer,
-    .get_frame_buffer_count = esp_epaper_get_frame_buffer_count,
+    .get_frame_buffer = nullptr,
+    .get_frame_buffer_count = nullptr,
     .get_backlight = nullptr,
     .has_capability = nullptr,
 };

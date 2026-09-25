@@ -10,8 +10,6 @@
 ## Higher Priority
 
 - coreutils apps: Only emit colour escapes when stdout is the terminal (command_support.h color() function)
-- DisplayApi::get_frame_buffer should be nullable and have a default behaviour of assigning NULL to the output pointer. 
-  get_frame_buffer_count should be NULLable too, document it explicitly
 - Shell interpreter works recursive-descent algorithm, which requires a big stack size. Can we optimize this?
 - CrashDiagnostics shouldn't show a QR when there's no callstack
 - stopAppFromToolbar() in Tactility.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
@@ -42,6 +40,7 @@
 
 ## Medium Priority
 
+- Consider not unpacking `.app` files and executing them directly. Might want to cache file offsets. Cache file must be pinned to app version.
 - lvgl-module's spinner relies on hard-coded spinner asset from Tactility main project.
 - esp_lvgl_port settings has a large stack size (~9kB) to fix stackoverflow when LVGL events (e.g. button click) do actions like file operations do actions like file operations. Can we reduce the callstack?
 - `struct Driver` has an `.owner`, but it's not always set. Either validate on Module construct that it matches, or otherwise set it during module start. The problem: NULL parent currently means that driver is not removable. This clashes with setting it dynamically. Consider some kind of flag to determine removability.

@@ -191,14 +191,6 @@ static uint16_t sdl_display_get_resolution_y(Device* device) {
     return GET_CONFIG(device)->vertical_resolution;
 }
 
-static void sdl_display_get_frame_buffer(Device*, uint8_t, void** out_buffer) {
-    *out_buffer = nullptr;
-}
-
-static uint8_t sdl_display_get_frame_buffer_count(Device*) {
-    return 0;
-}
-
 // endregion
 
 static const DisplayApi sdl_display_api = {
@@ -220,8 +212,8 @@ static const DisplayApi sdl_display_api = {
     .get_color_format = sdl_display_get_color_format,
     .get_resolution_x = sdl_display_get_resolution_x,
     .get_resolution_y = sdl_display_get_resolution_y,
-    .get_frame_buffer = sdl_display_get_frame_buffer,
-    .get_frame_buffer_count = sdl_display_get_frame_buffer_count,
+    .get_frame_buffer = nullptr,
+    .get_frame_buffer_count = nullptr,
     .get_backlight = nullptr,
     .has_capability = nullptr,
 };

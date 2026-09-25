@@ -315,17 +315,6 @@ static uint16_t papers3_display_get_resolution_y(Device*) {
     return static_cast<uint16_t>(epd_rotated_display_height());
 }
 
-static void papers3_display_get_frame_buffer(Device*, uint8_t, void** out_buffer) {
-    // Not exposed via the generic fb-direct path: EPDiy's framebuffer is its own 4bpp packed
-    // format, not the DISPLAY_COLOR_FORMAT_GRAYSCALE8 (1 byte/pixel) this driver reports.
-    // See get_frame_buffer_count() and draw_bitmap()'s conversion.
-    *out_buffer = nullptr;
-}
-
-static uint8_t papers3_display_get_frame_buffer_count(Device*) {
-    return 0;
-}
-
 // endregion
 
 static const DisplayApi papers3_display_api = {
@@ -352,8 +341,9 @@ static const DisplayApi papers3_display_api = {
     .get_color_format = papers3_display_get_color_format,
     .get_resolution_x = papers3_display_get_resolution_x,
     .get_resolution_y = papers3_display_get_resolution_y,
-    .get_frame_buffer = papers3_display_get_frame_buffer,
-    .get_frame_buffer_count = papers3_display_get_frame_buffer_count,
+    // EPDiy's frame buffer is 4bpp packed, not the GRAYSCALE8 format this driver reports, so it is not exposed
+    .get_frame_buffer = nullptr,
+    .get_frame_buffer_count = nullptr,
     .get_backlight = nullptr,
     .has_capability = nullptr,
 };

@@ -218,6 +218,7 @@ struct DisplayApi {
 
     /**
      * @brief Gets a pointer to one of the panel's frame buffers, for panels that expose direct frame buffer access.
+     * @warning Nullable. When null, display_get_frame_buffer() sets *out_buffer to NULL.
      * @param[in] device the display device
      * @param[in] index the frame buffer index (see get_frame_buffer_count())
      * @param[out] out_buffer the buffer pointer
@@ -226,6 +227,7 @@ struct DisplayApi {
 
     /**
      * @brief Gets the number of frame buffers exposed by the panel via get_frame_buffer(). 0 when unsupported.
+     * @warning Nullable. When null, display_get_frame_buffer_count() returns 0.
      * @param[in] device the display device
      * @return the frame buffer count
      */
@@ -366,11 +368,13 @@ uint16_t display_get_resolution_y(struct Device* device);
 
 /**
  * @brief Gets a pointer to one of the panel's frame buffers using the specified display.
+ * @param[out] out_buffer set to NULL when the display doesn't expose frame buffers
  */
 void display_get_frame_buffer(struct Device* device, uint8_t index, void** out_buffer);
 
 /**
  * @brief Gets the number of frame buffers exposed by the panel using the specified display.
+ * @return the frame buffer count, or 0 when the display doesn't expose frame buffers
  */
 uint8_t display_get_frame_buffer_count(struct Device* device);
 
