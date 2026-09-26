@@ -112,66 +112,98 @@ static int t_binop(const char *a, const char *op, const char *b, int *err)
     return 0;
 }
 
-typedef struct { char **a; int n; int i; int err; } tparse;
+// Operator-precedence evaluation with explicit value/operator stacks, so a
+// long run of `!` or `(` arguments can't exhaust the native stack. Operators:
+// '!' (prefix, binds to the following primary or group), 'a' (-a) above 'o'
+// (-o), and '(' as a group marker. Both sides of -a/-o are always evaluated,
+// matching dash.
+typedef struct {
+    char *ops;
+    int  *vals;
+    int nops, nvals, cap;
+} tstack;
 
-static int t_oexpr(tparse *t);
+static void t_push_op(tstack *t, char op) { t->ops[t->nops++] = op; }
+static void t_push_val(tstack *t, int v)  { t->vals[t->nvals++] = v; }
 
-static int t_primary(tparse *t)
+// Apply the binary operator on top of the op stack.
+static void t_reduce(tstack *t)
 {
-    if (t->i >= t->n) return 0;                // missing expression -> false
-    char *s = t->a[t->i];
-    if (strcmp(s, "(") == 0) {
-        t->i++;
-        int r = t_oexpr(t);
-        if (t->i >= t->n || strcmp(t->a[t->i], ")") != 0) { t->err = 1; return r; }
-        t->i++;
-        return r;
-    }
-    if (t_is_unop(s) && t->i + 1 < t->n) {
-        int r = t_unop(s[1], t->a[t->i + 1]);
-        t->i += 2;
-        return r;
-    }
-    if (t->i + 1 < t->n && t_is_binop(t->a[t->i + 1])) {
-        if (t->i + 2 >= t->n) { t->err = 1; return 0; }
-        int r = t_binop(t->a[t->i], t->a[t->i + 1], t->a[t->i + 2], &t->err);
-        t->i += 3;
-        return r;
-    }
-    int r = s[0] != 0;
-    t->i++;
-    return r;
+    char op = t->ops[--t->nops];
+    int rhs = t->vals[--t->nvals];
+    int lhs = t->vals[--t->nvals];
+    t_push_val(t, op == 'a' ? (rhs && lhs) : (rhs || lhs));
 }
 
-static int t_nexpr(tparse *t)
+// Push a finished operand, applying any '!' waiting directly in front of it.
+static void t_push_operand(tstack *t, int v)
 {
-    if (t->i < t->n && strcmp(t->a[t->i], "!") == 0) {
-        t->i++;
-        return !t_nexpr(t);
-    }
-    return t_primary(t);
+    while (t->nops > 0 && t->ops[t->nops - 1] == '!') { t->nops--; v = !v; }
+    t_push_val(t, v);
 }
 
-static int t_aexpr(tparse *t)
+// Evaluate argv[0..n). Returns 1/0 (true/false); sets *err on a syntax error;
+// *consumed receives how many arguments were used.
+static int t_evaluate(char **a, int n, int *err, int *consumed)
 {
-    int r = t_nexpr(t);
-    while (t->i < t->n && strcmp(t->a[t->i], "-a") == 0) {
-        t->i++;
-        int rhs = t_nexpr(t);
-        r = rhs && r;
-    }
-    return r;
-}
+    tstack t;
+    t.cap = n + 1;
+    t.ops = malloc(t.cap);
+    t.vals = malloc(t.cap * sizeof(int));
+    t.nops = t.nvals = 0;
 
-static int t_oexpr(tparse *t)
-{
-    int r = t_aexpr(t);
-    while (t->i < t->n && strcmp(t->a[t->i], "-o") == 0) {
-        t->i++;
-        int rhs = t_aexpr(t);
-        r = rhs || r;
+    int i = 0;
+    int expect_operand = 1;
+    for (;;) {
+        if (expect_operand) {
+            if (i >= n) { t_push_operand(&t, 0); expect_operand = 0; break; }   // missing expression -> false
+            char *s = a[i];
+            if (strcmp(s, "!") == 0) { t_push_op(&t, '!'); i++; continue; }
+            if (strcmp(s, "(") == 0) { t_push_op(&t, '('); i++; continue; }
+            int r;
+            if (t_is_unop(s) && i + 1 < n) {
+                r = t_unop(s[1], a[i + 1]);
+                i += 2;
+            } else if (i + 1 < n && t_is_binop(a[i + 1])) {
+                if (i + 2 >= n) { *err = 1; i = n; r = 0; }
+                else { r = t_binop(a[i], a[i + 1], a[i + 2], err); i += 3; }
+            } else {
+                r = s[0] != 0;
+                i++;
+            }
+            t_push_operand(&t, r);
+            expect_operand = 0;
+            continue;
+        }
+        if (i < n && (strcmp(a[i], "-a") == 0 || strcmp(a[i], "-o") == 0)) {
+            char op = a[i][1];
+            while (t.nops > 0 && t.ops[t.nops - 1] != '(' && (op == 'o' || t.ops[t.nops - 1] == 'a')) t_reduce(&t);
+            t_push_op(&t, op);
+            i++;
+            expect_operand = 1;
+            continue;
+        }
+        if (i < n && strcmp(a[i], ")") == 0) {
+            while (t.nops > 0 && t.ops[t.nops - 1] != '(') t_reduce(&t);
+            if (t.nops == 0) break;   // unmatched ')': left for the caller to reject
+            t.nops--;                 // the '('
+            i++;
+            int v = t.vals[--t.nvals];
+            t_push_operand(&t, v);
+            continue;
+        }
+        break;
     }
-    return r;
+    while (t.nops > 0) {
+        if (t.ops[t.nops - 1] == '(') { *err = 1; t.nops--; continue; }   // missing ')'
+        if (t.ops[t.nops - 1] == '!') { t.nops--; continue; }
+        t_reduce(&t);
+    }
+    int result = t.nvals > 0 ? t.vals[t.nvals - 1] : 0;
+    free(t.ops);
+    free(t.vals);
+    *consumed = i;
+    return result;
 }
 
 // Evaluate a test expression (argv/argc already stripped of the program name
@@ -189,9 +221,9 @@ static int eval_test(int argc, char **argv)
         return err ? 2 : (r ? 0 : 1);
     }
 
-    tparse t = { argv, argc, 0, 0 };
-    int r = t_oexpr(&t);
-    if (t.err || t.i != t.n) return 2;
+    int err = 0, consumed = 0;
+    int r = t_evaluate(argv, argc, &err, &consumed);
+    if (err || consumed != argc) return 2;
     return r ? 0 : 1;
 }
 
@@ -247,60 +279,6 @@ static int builtin_echo(int argc, char **argv)
     }
     if (newline) fputc('\n', stdout);
     return 0;
-}
-
-// ---- eval / source ---------------------------------------------------------
-
-static int builtin_eval(sh_state *st, int argc, char **argv)
-{
-    if (argc < 2) return 0;
-    int len = 0;
-    for (int i = 1; i < argc; i++) len += (int)strlen(argv[i]) + 1;
-    char *joined = malloc(len + 1);
-    joined[0] = 0;
-    for (int i = 1; i < argc; i++) {
-        if (i > 1) strcat(joined, " ");
-        strcat(joined, argv[i]);
-    }
-    int rc = sh_run_string(st, joined);
-    free(joined);
-    // A syntax error in eval'd text is fatal in a non-interactive shell
-    // (dash aborts with status 2); a runtime failure inside is not.
-    if (st->parse_error) { st->exiting = 1; st->exit_code = 2; }
-    return rc;
-}
-
-static int builtin_source(sh_state *st, int argc, char **argv)
-{
-    if (argc < 2) { fprintf(stderr, "%s: filename argument required\n", argv[0]); return 2; }
-    /* Tactility: read through the bridge rather than fopen() directly. The shell's working
-     * directory is tracked in ShellFs and is unrelated to the C library's, so a relative path
-     * would otherwise resolve against the wrong place - and file access has to take the mount
-     * lock, since the display and SD card can share a bus. */
-    size_t len = 0;
-    char *src = shell_bridge_read_file(argv[1], &len);
-    if (!src) { fprintf(stderr, "%s: %s: cannot open\n", argv[0], argv[1]); return 1; }
-
-    // Extra args set the positional params for the duration (dash behavior).
-    char **sp = NULL; int snp = 0, replaced = 0;
-    if (argc > 2) {
-        sp = st->pos; snp = st->npos;
-        st->pos = NULL; st->npos = 0;
-        sh_set_positional(st, NULL, argv + 2, argc - 2);
-        replaced = 1;
-    }
-    int rc = sh_run_string(st, src);
-    if (replaced) {
-        for (int i = 0; i < st->npos; i++) free(st->pos[i]);
-        free(st->pos);
-        st->pos = sp; st->npos = snp;
-    }
-    free(src);
-    // `return` inside a sourced file stops the file, not the whole shell.
-    if (st->returning) { rc = st->return_code; st->returning = 0; }
-    // A syntax error in the sourced file is fatal (dash aborts with status 2).
-    if (st->parse_error) { st->exiting = 1; st->exit_code = 2; }
-    return rc;
 }
 
 // ---- read ------------------------------------------------------------------
@@ -514,11 +492,6 @@ int sh_run_builtin(sh_state *st, int argc, char **argv, int *status)
         return 1;
     }
 
-    if (strcmp(cmd, "eval") == 0)   { *status = builtin_eval(st, argc, argv); return 1; }
-    if (strcmp(cmd, ".") == 0 || strcmp(cmd, "source") == 0) {
-        *status = builtin_source(st, argc, argv);
-        return 1;
-    }
     if (strcmp(cmd, "read") == 0) { *status = builtin_read(st, argc, argv); return 1; }
 
     if (strcmp(cmd, "break") == 0 || strcmp(cmd, "continue") == 0) {

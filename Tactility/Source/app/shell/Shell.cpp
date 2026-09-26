@@ -91,6 +91,9 @@ struct Candidates {
     int count;
     // Printed lazily, so a unique match completes silently without disturbing the prompt.
     char first[FILE_MAX_PATH_STRING_LENGTH];
+    // A bare first word only runs registered commands, so a plain file there would complete to
+    // something that can't run. Directories are still offered, to continue typing a path into.
+    bool directoriesOnly;
 };
 
 void offerCandidate(Candidates& candidates, const char* name) {
@@ -120,7 +123,11 @@ void offerCommand(const Shell::Command& command, void* context) {
 }
 
 void offerEntry(const DirectoryEntry* entry, void* context) {
-    offerCandidate(*static_cast<Candidates*>(context), entry->name);
+    auto* candidates = static_cast<Candidates*>(context);
+    if (candidates->directoriesOnly && !entry->is_directory) {
+        return;
+    }
+    offerCandidate(*candidates, entry->name);
 }
 
 void printCandidateCommand(const Shell::Command& command, void* context) {
@@ -132,6 +139,9 @@ void printCandidateCommand(const Shell::Command& command, void* context) {
 
 void printCandidateEntry(const DirectoryEntry* entry, void* context) {
     auto* candidates = static_cast<Candidates*>(context);
+    if (candidates->directoriesOnly && !entry->is_directory) {
+        return;
+    }
     if (strncmp(entry->name, candidates->word, candidates->wordLength) == 0) {
         printf("%s%s  ", entry->name, entry->is_directory ? "/" : "");
     }
@@ -148,43 +158,42 @@ bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outLis
     const bool isFirstWord = (wordStart == nullptr);
     wordStart = isFirstWord ? line : wordStart + 1;
 
+    // A first word names a command or, like "./tool" or "app/tool", a file to run.
+    const bool includeCommands = isFirstWord && strchr(wordStart, '/') == nullptr;
+
     Candidates candidates {};
-    candidates.word = wordStart;
-    candidates.wordLength = strlen(wordStart);
+    candidates.directoriesOnly = includeCommands;
 
     // Paths complete against a directory, which may be named in the word itself ("ls /data/fo").
     char directory[FILE_MAX_PATH_STRING_LENGTH] = {};
     const char* namePart = wordStart;
 
-    if (!isFirstWord) {
-        const char* slash = strrchr(wordStart, '/');
-        if (slash != nullptr) {
-            char prefix[FILE_MAX_PATH_STRING_LENGTH];
-            const size_t prefixLength = static_cast<size_t>(slash - wordStart);
-            if (prefixLength >= sizeof(prefix)) {
-                return false;
-            }
-            memcpy(prefix, wordStart, prefixLength);
-            prefix[prefixLength] = '\0';
-
-            // A leading "/foo" leaves an empty prefix, which means the root itself.
-            if (!ShellFs::resolvePath(prefixLength == 0 ? "/" : prefix, directory, sizeof(directory))) {
-                return false;
-            }
-            namePart = slash + 1;
-        } else {
-            snprintf(directory, sizeof(directory), "%s", ShellFs::cwd());
+    const char* slash = strrchr(wordStart, '/');
+    if (slash != nullptr) {
+        char prefix[FILE_MAX_PATH_STRING_LENGTH];
+        const size_t prefixLength = static_cast<size_t>(slash - wordStart);
+        if (prefixLength >= sizeof(prefix)) {
+            return false;
         }
+        memcpy(prefix, wordStart, prefixLength);
+        prefix[prefixLength] = '\0';
 
-        candidates.word = namePart;
-        candidates.wordLength = strlen(namePart);
-    }
-
-    if (isFirstWord) {
-        forEachCommand(&candidates, offerCommand);
+        // A leading "/foo" leaves an empty prefix, which means the root itself.
+        if (!ShellFs::resolvePath(prefixLength == 0 ? "/" : prefix, directory, sizeof(directory))) {
+            return false;
+        }
+        namePart = slash + 1;
     } else {
-        directory_list(directory, &candidates, offerEntry);
+        snprintf(directory, sizeof(directory), "%s", ShellFs::cwd());
     }
+
+    candidates.word = namePart;
+    candidates.wordLength = strlen(namePart);
+
+    if (includeCommands) {
+        forEachCommand(&candidates, offerCommand);
+    }
+    directory_list(directory, &candidates, offerEntry);
 
     if (candidates.count == 0) {
         return false;
@@ -200,11 +209,9 @@ bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outLis
     if (candidates.count == 1) {
         const size_t used = strlen(outSuffix);
         if (used + 1 < suffixSize) {
-            const bool directoryMatch = !isFirstWord && [&] {
-                char full[FILE_MAX_PATH_STRING_LENGTH];
-                const int written = snprintf(full, sizeof(full), "%s/%s", directory, candidates.first);
-                return written > 0 && static_cast<size_t>(written) < sizeof(full) && directory_exists(full);
-            }();
+            char full[FILE_MAX_PATH_STRING_LENGTH];
+            const int written = snprintf(full, sizeof(full), "%s/%s", directory, candidates.first);
+            const bool directoryMatch = written > 0 && static_cast<size_t>(written) < sizeof(full) && directory_exists(full);
             outSuffix[used] = directoryMatch ? '/' : ' ';
             outSuffix[used + 1] = '\0';
         }
@@ -214,11 +221,10 @@ bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outLis
     // Several matches and nothing more to add: show what they are.
     if (outSuffix[0] == '\0') {
         printf("\n");
-        if (isFirstWord) {
+        if (includeCommands) {
             forEachCommand(&candidates, printCandidateCommand);
-        } else {
-            directory_list(directory, &candidates, printCandidateEntry);
         }
+        directory_list(directory, &candidates, printCandidateEntry);
         printf("\n");
         *outListed = true;
     }
@@ -269,9 +275,17 @@ int runCommand(int argc, char** argv, int* found) {
         *found = 1;
         // ELF binaries and shell scripts are told apart by content rather than by extension,
         // since the filesystem is FAT and carries no execute bit to consult.
-        return app_is_executable_path(resolved)
-            ? runElf(resolved, argc, argv)
-            : runScript(resolved, argc, argv);
+        if (app_is_executable_path(resolved)) {
+            return runElf(resolved, argc, argv);
+        }
+        // A script runs in its own `sh` app instance, so it gets its own task and stack rather
+        // than nesting another interpreter on this one's.
+        std::vector<char*> shArgv;
+        shArgv.push_back(const_cast<char*>("sh"));
+        for (int i = 0; i < argc; i++) {
+            shArgv.push_back(argv[i]);
+        }
+        return runFromMemory("sh", static_cast<int>(shArgv.size()), shArgv.data());
     }
 
     *found = 0;
@@ -279,9 +293,8 @@ int runCommand(int argc, char** argv, int* found) {
 }
 
 int runScriptSource(const char* source, int argc, char** argv) {
-    // Scripts run on their own interpreter state rather than the session's. A script is reached
-    // from inside sh_run_string(): the interpreter calls runCommand() for the `sh foo` line while
-    // the outer parse is still in progress, and a fresh state keeps the two runs independent.
+    // Scripts run on their own interpreter state rather than the session's: each runs in its own
+    // `sh` app instance, and a fresh state keeps it independent of the interactive session.
     //
     // The consequence is that a script cannot see or modify the session's variables. `.` and
     // `source` remain the way to run something in the current shell, which is what they are for.

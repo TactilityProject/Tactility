@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     T_WORD,      // a raw word, quotes preserved (resolved later by sh_expand)
     T_SEMI,      // ;
@@ -38,3 +42,7 @@ typedef struct sh_toklist {
 // Tokenize src into tl. Returns 0 on success, -1 on lex error.
 int  sh_lex(const char *src, sh_toklist *tl);
 void sh_toklist_free(sh_toklist *tl);
+
+#ifdef __cplusplus
+}
+#endif

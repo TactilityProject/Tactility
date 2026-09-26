@@ -12,6 +12,7 @@
 #include <tactility/freertos/freertos.h>
 
 #include <cstdio>
+#include <new>
 #include <unistd.h>
 
 namespace tt::app::shell {
@@ -49,8 +50,16 @@ int main(int, char*[]) {
 
     puts("Type 'exit' to quit shell.");
 
-    LineEditor editor;
-    editor.begin(PROMPT);
+    // Heap-allocated: its history buffer is several KB, which the interpreter needs on the stack
+    constexpr MemoryPolicy policy = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
+    void* editorMemory = memory_alloc_with_policy(sizeof(LineEditor), &policy);
+    if (editorMemory == nullptr) {
+        puts("shell: out of memory");
+        Shell::shutdown();
+        return 1;
+    }
+    auto* editor = new (editorMemory) LineEditor();
+    editor->begin(PROMPT);
 
     // Blocks until a byte arrives or the terminal app running this one closes its end (touch to
     // exit), which read() reports the same way any closed pipe does: 0, ending this loop. Typing
@@ -59,16 +68,19 @@ int main(int, char*[]) {
     char c;
     while (read(STDIN_FILENO, &c, 1) == 1) {
         const char* line = nullptr;
-        if (editor.feed(c, &line)) {
+        if (editor->feed(c, &line)) {
             Shell::execute(line);
             // Print \n if output didn't end with it, to make the shell more readable.
             endLineIfNeeded();
             if (Shell::shouldExit()) {
                 break;
             }
-            editor.begin(PROMPT);
+            editor->begin(PROMPT);
         }
     }
+
+    editor->~LineEditor();
+    memory_free(editorMemory);
 
     const int exitCode = Shell::exitCode();
     Shell::shutdown();
@@ -81,7 +93,7 @@ extern const ::AppManifest manifest = {
     .category = APP_CATEGORY_SYSTEM,
     .location = {  .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(main) },
     .flags = APP_MANIFEST_FLAG_HIDDEN | APP_MANIFEST_FLAG_HEADLESS,
-    .stack = { .depth = 11 * 1024, .desired_memory_capability = 0 },
+    .stack = { .depth = 6144, .desired_memory_capability = 0 },
 };
 
 static int32_t shMain(int argc, char* argv[]) {
@@ -111,7 +123,7 @@ extern const ::AppManifest sh_manifest = {
     .category = APP_CATEGORY_SYSTEM,
     .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(shMain) },
     .flags = APP_MANIFEST_FLAG_HIDDEN | APP_MANIFEST_FLAG_HEADLESS,
-    .stack = { .depth = 0, .desired_memory_capability = 0 },
+    .stack = { .depth = 8192, .desired_memory_capability = 0 },
 };
 
 }

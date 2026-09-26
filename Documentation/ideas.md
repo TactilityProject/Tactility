@@ -27,7 +27,6 @@
 - Improve Setup: Show "Step done" screen
 - Make it more clear to end-users that an SD card is required to run Tactility
 - Warn if file operations are done from prohibited tasks (e.g. lvgl task)
-- Shell interpreter works recursive-descent algorithm, which requires a big stack size. Can we optimize this?
 - stopAppFromToolbar() in Tactility.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
 - Consider not unpacking `.app` files and executing them directly. Might want to cache file offsets. Cache file must be pinned to app version.
 - lvgl-module's spinner relies on hard-coded spinner asset from Tactility main project.

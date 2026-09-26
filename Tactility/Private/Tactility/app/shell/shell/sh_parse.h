@@ -1,6 +1,10 @@
 #pragma once
 #include "sh_lex.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     N_LIST,     // sequence of and_or nodes (children), run in order
     N_ANDOR,    // binary: left <op> right, op in { &&, || }
@@ -85,3 +89,7 @@ typedef struct node {
 // sets *errmsg to a static description.
 node *sh_parse(sh_toklist *tl, const char **errmsg);
 void  sh_free_node(node *n);
+
+#ifdef __cplusplus
+}
+#endif

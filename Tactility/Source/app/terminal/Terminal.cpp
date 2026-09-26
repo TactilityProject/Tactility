@@ -16,6 +16,8 @@
 #include <tactility/freertos/semphr.h>
 #include <tactility/freertos/task.h>
 
+#include <atomic>
+
 #ifdef ESP_PLATFORM
 #include <esp_log.h>
 #endif
@@ -26,9 +28,9 @@ extern "C" {
 
 constexpr auto* TAG = "terminal";
 
-// Redraw cadence. A text grid only changes when something is written, so this is a polling
-// interval rather than a frame rate.
-constexpr uint32_t RENDER_INTERVAL_MS = 33;
+// Keyboard polling and redraw cadence. Shell output wakes the I/O task early, so this mostly bounds
+// how long a keypress waits to be picked up.
+constexpr uint32_t RENDER_INTERVAL_MS = 16;
 
 // The I/O task polls the keyboards, paints the screen, and watches for the touch-to-exit gesture.
 // It runs a step above this app's own task: input, drawing and the exit gesture must keep working
@@ -47,6 +49,10 @@ namespace {
 /** Set once the shell should wind down (touch-to-exit; see ioTask()). Read by runTerminal()'s own
  * pump loop, which closes the shell app's stdin to unstick it (see that loop's own comment). */
 volatile bool stopRequested = false;
+
+/** Set once runShell() has returned. The I/O task keeps running until then, because runShell()
+ * notifies it about output until the very end. */
+std::atomic<bool> shellFinished = false;
 
 /**
  * Translates a kernel keyboard event into the byte a terminal expects.
@@ -153,19 +159,23 @@ struct IoTaskParams {
 void ioTask(void* arg) {
     auto* params = static_cast<IoTaskParams*>(arg);
 
-    while (!stopRequested) {
+    while (!shellFinished) {
         // A scroll replaces every row at once, so the renderer is told to repaint rather than rely
         // on its per-cell comparison.
         const bool viewMoved = params->keyboards->pump(handleKey);
         params->renderer->render(viewMoved);
 
-        if (params->touch->touched(!params->keyboards->empty())) {
+        if (!stopRequested && params->touch->touched(!params->keyboards->empty())) {
             LOG_I(TAG, "Touch detected - stopping");
             stopRequested = true;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(RENDER_INTERVAL_MS));
+        // runShell() notifies this task when output arrives, so it is drawn without waiting out the interval
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(RENDER_INTERVAL_MS));
     }
+
+    // The shell's last output can arrive after the final pass above, so draw once more
+    params->renderer->render(false);
 
     xSemaphoreGive(params->doneSem);
     vTaskDelete(nullptr);
@@ -175,6 +185,7 @@ void ioTask(void* arg) {
 
 void runTerminal(Device* display) {
     stopRequested = false;
+    shellFinished = false;
 
     KeyboardInput keyboards;
     TouchInput touch;
@@ -227,7 +238,9 @@ void runTerminal(Device* display) {
 #ifdef ESP_PLATFORM
         esp_log_level_set("ELF", ESP_LOG_WARN);
 #endif
-        runShell(renderer.columns(), renderer.rows(), &stopRequested);
+        runShell(renderer.columns(), renderer.rows(), &stopRequested, ioHandle);
+        shellFinished = true;
+        xTaskNotifyGive(ioHandle);
 #ifdef ESP_PLATFORM
         esp_log_level_set("ELF", ESP_LOG_INFO);
 #endif

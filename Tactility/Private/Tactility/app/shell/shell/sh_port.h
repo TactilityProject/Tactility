@@ -5,6 +5,10 @@
 
 #include <stdio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Run an external (non-builtin) command with a fully-expanded argv.
 // Returns the command's exit status. Sets *found to 1 if the command existed,
 // 0 if it could not be located (so the core can report "not found").
@@ -52,3 +56,7 @@ void sh_port_tmpfile(int which, char *buf, int bufsz);
 // Working directory (cd / pwd builtins).
 int  sh_port_chdir(const char *path);       // 0 on success
 void sh_port_getcwd(char *buf, int bufsz);
+
+#ifdef __cplusplus
+}
+#endif

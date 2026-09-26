@@ -61,38 +61,48 @@ static int bracket_match(const char **pp, unsigned char c)
     return negate ? !matched : matched;
 }
 
+// Iterative with a single backtrack point: on a mismatch, the most recent '*'
+// absorbs one more character. That is sufficient for '*' semantics and keeps
+// the native stack flat regardless of how many stars the pattern has.
 int sh_pattern_match(const char *p, const char *s)
 {
-    while (*p) {
-        if (*p == '[') {
-            const char *pp = p + 1;
-            int r = bracket_match(&pp, (unsigned char)*s);
-            if (r >= 0) {
-                if (!*s || !r) return 0;
-                p = pp; s++;
+    const char *star_p = NULL;   // pattern position just after the last '*'
+    const char *star_s = NULL;   // subject position that '*' currently ends at
+    for (;;) {
+        if (*p) {
+            if (*p == '[') {
+                const char *pp = p + 1;
+                int r = bracket_match(&pp, (unsigned char)*s);
+                if (r >= 0) {
+                    if (*s && r) { p = pp; s++; continue; }
+                    goto mismatch;
+                }
+                // fall through: unterminated bracket, '[' is literal
+            }
+            if (*p == '*') {
+                p++;
+                if (!*p) return 1;             // trailing '*' matches the rest
+                star_p = p;
+                star_s = s;
                 continue;
             }
-            // fall through: unterminated bracket, '[' is literal
-        }
-        if (*p == '*') {
-            p++;
-            if (!*p) return 1;                 // trailing '*' matches the rest
-            for (const char *t = s; ; t++) {
-                if (sh_pattern_match(p, t)) return 1;
-                if (!*t) return 0;
+            if (*p == '?') {
+                if (*s) { p++; s++; continue; }
+                goto mismatch;
             }
-        } else if (*p == '?') {
-            if (!*s) return 0;
-            p++; s++;
-        } else if (*p == '\\' && p[1]) {
-            if (*s != p[1]) return 0;
-            p += 2; s++;
-        } else {
-            if (*s != *p) return 0;
-            p++; s++;
+            if (*p == '\\' && p[1]) {
+                if (*s == p[1]) { p += 2; s++; continue; }
+                goto mismatch;
+            }
+            if (*s == *p) { p++; s++; continue; }
+        } else if (!*s) {
+            return 1;
         }
+    mismatch:
+        if (!star_p || !*star_s) return 0;
+        p = star_p;
+        s = ++star_s;
     }
-    return *s == 0;
 }
 
 char *sh_strip_prefix(const char *s, const char *p, int longest)

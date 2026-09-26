@@ -333,9 +333,9 @@ int chdir(const char* path) {
 // wraps above can't reach, so these redirect calls to printf/fprintf/etc directly. POSIX-only:
 // newlib's stdio already goes through the wrappable syscall stubs.
 //
-// Scoped to printf/getc: fread/fwrite are used sitewide for real file I/O, so wrapping them would
-// be a correctness risk for unrelated code. putc/getc are macros, not real calls, so wrapping
-// those symbols wouldn't reliably intercept them.
+// Only the process' original stdin/stdout/stderr are routed to the app's fds; every other stream
+// (real file I/O, including fwrite() to a file) goes straight to libc. fread() is not wrapped.
+// putc/getc are macros, not real calls, so wrapping those symbols wouldn't reliably intercept them.
 
 #if !defined(ESP_PLATFORM)
 
@@ -349,6 +349,7 @@ extern "C" {
 int __real_vfprintf(FILE* stream, const char* format, va_list args);
 int __real_fputs(const char* s, FILE* stream);
 int __real_fputc(int c, FILE* stream);
+size_t __real_fwrite(const void* data, size_t size, size_t count, FILE* stream);
 int __real_fgetc(FILE* stream);
 char* __real_fgets(char* buffer, int size, FILE* stream);
 }
@@ -370,6 +371,11 @@ int __real_fputs(const char* s, FILE* stream) {
 int __real_fputc(int c, FILE* stream) {
     static auto real = reinterpret_cast<int (*)(int, FILE*)>(dlsym(RTLD_NEXT, "fputc"));
     return real(c, stream);
+}
+
+size_t __real_fwrite(const void* data, size_t size, size_t count, FILE* stream) {
+    static auto real = reinterpret_cast<size_t (*)(const void*, size_t, size_t, FILE*)>(dlsym(RTLD_NEXT, "fwrite"));
+    return real(data, size, count, stream);
 }
 
 int __real_fgetc(FILE* stream) {
@@ -425,9 +431,16 @@ int readOneFromStdin(char& out) {
     return static_cast<int>(app_io_read(STDIN_FILENO, &out, 1));
 }
 
+// The process' own streams, captured before anything can reassign stdin/stdout/stderr. A caller
+// that points stdout at a file (e.g. the shell's redirection) must get real file I/O, so only these
+// original streams are routed to the app's fds.
+FILE* const originalStdin = stdin;
+FILE* const originalStdout = stdout;
+FILE* const originalStderr = stderr;
+
 int targetFdOf(FILE* stream) {
-    if (stream == stdout) return STDOUT_FILENO;
-    if (stream == stderr) return STDERR_FILENO;
+    if (stream == originalStdout) return STDOUT_FILENO;
+    if (stream == originalStderr) return STDERR_FILENO;
     return -1;
 }
 
@@ -435,14 +448,17 @@ int targetFdOf(FILE* stream) {
 
 extern "C" {
 
+int __wrap_vfprintf(FILE* stream, const char* format, va_list args);
+int __wrap_fputc(int c, FILE* stream);
+
 int __wrap_vprintf(const char* format, va_list args) {
-    return formatTo(STDOUT_FILENO, format, args);
+    return __wrap_vfprintf(stdout, format, args);
 }
 
 int __wrap_printf(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int result = formatTo(STDOUT_FILENO, format, args);
+    int result = __wrap_vfprintf(stdout, format, args);
     va_end(args);
     return result;
 }
@@ -465,6 +481,9 @@ int __wrap_fprintf(FILE* stream, const char* format, ...) {
 }
 
 int __wrap_puts(const char* s) {
+    if (targetFdOf(stdout) < 0) {
+        return __real_fputs(s, stdout) < 0 ? EOF : __real_fputc('\n', stdout);
+    }
     writeAllTo(STDOUT_FILENO, s, strlen(s));
     writeAllTo(STDOUT_FILENO, "\n", 1);
     return 0;
@@ -480,9 +499,7 @@ int __wrap_fputs(const char* s, FILE* stream) {
 }
 
 int __wrap_putchar(int c) {
-    auto ch = static_cast<char>(c);
-    writeAllTo(STDOUT_FILENO, &ch, 1);
-    return c;
+    return __wrap_fputc(c, stdout);
 }
 
 int __wrap_fputc(int c, FILE* stream) {
@@ -495,20 +512,29 @@ int __wrap_fputc(int c, FILE* stream) {
     return __real_fputc(c, stream);
 }
 
-int __wrap_getchar() {
+size_t __wrap_fwrite(const void* data, size_t size, size_t count, FILE* stream) {
+    int fd = targetFdOf(stream);
+    if (fd < 0) {
+        return __real_fwrite(data, size, count, stream);
+    }
+    writeAllTo(fd, data, size * count);
+    return count;
+}
+
+int __wrap_fgetc(FILE* stream) {
+    if (stream != originalStdin) {
+        return __real_fgetc(stream);
+    }
     char c;
     return readOneFromStdin(c) == 1 ? static_cast<unsigned char>(c) : EOF;
 }
 
-int __wrap_fgetc(FILE* stream) {
-    if (stream == stdin) {
-        return __wrap_getchar();
-    }
-    return __real_fgetc(stream);
+int __wrap_getchar() {
+    return __wrap_fgetc(stdin);
 }
 
 char* __wrap_fgets(char* buffer, int size, FILE* stream) {
-    if (stream != stdin) {
+    if (stream != originalStdin) {
         return __real_fgets(buffer, size, stream);
     }
     if (size <= 0) {
@@ -544,6 +570,7 @@ TT_DYLD_INTERPOSE(__wrap_puts, puts)
 TT_DYLD_INTERPOSE(__wrap_fputs, fputs)
 TT_DYLD_INTERPOSE(__wrap_putchar, putchar)
 TT_DYLD_INTERPOSE(__wrap_fputc, fputc)
+TT_DYLD_INTERPOSE(__wrap_fwrite, fwrite)
 TT_DYLD_INTERPOSE(__wrap_getchar, getchar)
 TT_DYLD_INTERPOSE(__wrap_fgetc, fgetc)
 TT_DYLD_INTERPOSE(__wrap_fgets, fgets)
@@ -589,6 +616,10 @@ int putchar(int c) {
 
 int fputc(int c, FILE* stream) {
     return __wrap_fputc(c, stream);
+}
+
+size_t fwrite(const void* data, size_t size, size_t count, FILE* stream) {
+    return __wrap_fwrite(data, size, count, stream);
 }
 
 int getchar() {

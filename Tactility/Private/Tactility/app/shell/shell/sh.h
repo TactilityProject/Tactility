@@ -6,6 +6,10 @@
 
 #include <stdio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // ---- shell state -----------------------------------------------------------
 
 struct node;   // forward (AST body of a function)
@@ -118,13 +122,6 @@ void sh_fields_init(sh_fields *f);
 void sh_fields_push(sh_fields *f, const char *s);
 void sh_fields_free(sh_fields *f);
 
-// Expand one raw word token into zero or more fields (word splitting applies to
-// unquoted expansions). Appends to `out`.
-void sh_expand_word(sh_state *st, const char *raw, sh_fields *out);
-// Expand a raw word to a single string (no splitting) - for redirect targets
-// and assignment values. Caller frees the returned string.
-char *sh_expand_single(sh_state *st, const char *raw);
-// Expand a here-doc body: parameter/command expansion and backslash escaping of
-// $ ` \ (double-quote semantics), preserving newlines and literal quotes.
-// Caller frees the returned string.
-char *sh_expand_heredoc(sh_state *st, const char *raw);
+#ifdef __cplusplus
+}
+#endif
