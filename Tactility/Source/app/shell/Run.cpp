@@ -130,20 +130,34 @@ bool lastByteWasNewline = true;
  *
  * @return the child's exit status, or RUN_APP_START_FAILED if it never started
  */
+/** Copies what a child wrote to one of its output streams to `target`, which may be redirected. */
+void drainOutput(AppStream& stream, FILE* target, uint8_t* buffer, size_t size) {
+    size_t n;
+    while ((n = app_stream_read(&stream, buffer, size)) > 0) {
+        fprintf(target, "%.*s", static_cast<int>(n), reinterpret_cast<const char*>(buffer));
+        lastByteWasNewline = buffer[n - 1] == '\n';
+    }
+}
+
 int runApp(AppStartContext& context) {
     constexpr size_t STDIN_BUFFER_SIZE = 256;
     constexpr size_t STDOUT_BUFFER_SIZE = 1024;
+    constexpr size_t STDERR_BUFFER_SIZE = 256;
     constexpr MemoryPolicy policy = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
     auto* stdinBuffer = static_cast<uint8_t*>(memory_alloc_with_policy(STDIN_BUFFER_SIZE, &policy));
     auto* stdoutBuffer = static_cast<uint8_t*>(memory_alloc_with_policy(STDOUT_BUFFER_SIZE, &policy));
-    if (stdinBuffer == nullptr || stdoutBuffer == nullptr) {
+    auto* stderrBuffer = static_cast<uint8_t*>(memory_alloc_with_policy(STDERR_BUFFER_SIZE, &policy));
+    if (stdinBuffer == nullptr || stdoutBuffer == nullptr || stderrBuffer == nullptr) {
         memory_free(stdinBuffer);
         memory_free(stdoutBuffer);
+        memory_free(stderrBuffer);
         return RUN_APP_START_FAILED;
     }
 
     AppStream stdinStream {};
     AppStream stdoutStream {};
+    // Kept apart from stdout, so `$(...)` captures only a child's stdout, like any shell
+    AppStream stderrStream {};
 
     TaskEventGroup eventGroup {};
     task_event_group_construct(&eventGroup);
@@ -158,7 +172,8 @@ int runApp(AppStartContext& context) {
 
     AppStreamBinding bindings[] = {
         { STDIN_FILENO, &stdinStream, stdinBuffer, STDIN_BUFFER_SIZE, &eventGroup, {}, -1 },
-        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, STDOUT_BUFFER_SIZE, &eventGroup, windowSize, STDERR_FILENO },
+        { STDOUT_FILENO, &stdoutStream, stdoutBuffer, STDOUT_BUFFER_SIZE, &eventGroup, windowSize, -1 },
+        { STDERR_FILENO, &stderrStream, stderrBuffer, STDERR_BUFFER_SIZE, &eventGroup, windowSize, -1 },
     };
 
     AppEventSubscription eventSub {};
@@ -172,8 +187,9 @@ int runApp(AppStartContext& context) {
     if (result != ERROR_NONE) {
         app_event_unsubscribe(&eventSub);
         task_event_group_destruct(&eventGroup);
-        free(stdinBuffer);
-        free(stdoutBuffer);
+        memory_free(stdinBuffer);
+        memory_free(stdoutBuffer);
+        memory_free(stderrBuffer);
         return RUN_APP_START_FAILED;
     }
 
@@ -207,11 +223,8 @@ int runApp(AppStartContext& context) {
             vTaskDelay(pdMS_TO_TICKS(APP_PUMP_INTERVAL_MS));
         }
 
-        size_t n;
-        while ((n = app_stream_read(&stdoutStream, drain, sizeof(drain))) > 0) {
-            printf("%.*s", static_cast<int>(n), reinterpret_cast<const char*>(drain));
-            lastByteWasNewline = drain[n - 1] == '\n';
-        }
+        drainOutput(stdoutStream, stdout, drain, sizeof(drain));
+        drainOutput(stderrStream, stderr, drain, sizeof(drain));
 
         AppEvent event {};
         while (app_event_poll(&eventSub, &event) == ERROR_NONE) {
@@ -223,17 +236,15 @@ int runApp(AppStartContext& context) {
     }
 
     // The child may have exited right after its last write, before the loop above's last read.
-    size_t n;
-    while ((n = app_stream_read(&stdoutStream, drain, sizeof(drain))) > 0) {
-        printf("%.*s", static_cast<int>(n), reinterpret_cast<const char*>(drain));
-        lastByteWasNewline = drain[n - 1] == '\n';
-    }
+    drainOutput(stdoutStream, stdout, drain, sizeof(drain));
+    drainOutput(stderrStream, stderr, drain, sizeof(drain));
 
     // Must run before app_manager_stop() reaps the child: only app_stream_unsubscribe() guarantees
     // the fd binding is gone and no AppFileOps call is still in flight, which is what makes these
     // stack-local AppStreams safe to let go out of scope below.
     app_stream_unsubscribe(&stdinStream);
     app_stream_unsubscribe(&stdoutStream);
+    app_stream_unsubscribe(&stderrStream);
 
     app_manager_stop(childId);
 
@@ -242,6 +253,7 @@ int runApp(AppStartContext& context) {
 
     memory_free(stdinBuffer);
     memory_free(stdoutBuffer);
+    memory_free(stderrBuffer);
 
     return childResult;
 }
@@ -260,7 +272,14 @@ int runElf(const char* resolvedPath, int argc, char** argv) {
     // per-process cwd for fopen() to resolve against (no chdir() at all), and the shell's own cwd
     // lives in ShellFs, meaning nothing to libc. shouldMakeAbsolute() decides which arguments qualify.
     char* rewritten[32];
-    char storage[8][FILE_MAX_PATH_STRING_LENGTH];
+    constexpr int STORAGE_COUNT = 8;
+    // On the heap: the loader runs on this task's stack right after, and needs the room
+    constexpr MemoryPolicy policy = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
+    auto* storage = static_cast<char*>(memory_alloc_with_policy(STORAGE_COUNT * FILE_MAX_PATH_STRING_LENGTH, &policy));
+    if (storage == nullptr) {
+        printf("%s: out of memory\n", argv[0]);
+        return 126;
+    }
     int stored = 0;
 
     const int passedArgc = (argc < static_cast<int>(sizeof(rewritten) / sizeof(rewritten[0])))
@@ -271,12 +290,13 @@ int runElf(const char* resolvedPath, int argc, char** argv) {
         rewritten[i] = argv[i];
 
         // argv[0] is the binary itself, already resolved by the caller.
-        if (i == 0 || stored >= 8) {
+        if (i == 0 || stored >= STORAGE_COUNT) {
             continue;
         }
 
-        if (shouldMakeAbsolute(argv[i], storage[stored], FILE_MAX_PATH_STRING_LENGTH)) {
-            rewritten[i] = storage[stored];
+        char* slot = storage + stored * FILE_MAX_PATH_STRING_LENGTH;
+        if (shouldMakeAbsolute(argv[i], slot, FILE_MAX_PATH_STRING_LENGTH)) {
+            rewritten[i] = slot;
             stored++;
         }
     }
@@ -298,6 +318,7 @@ int runElf(const char* resolvedPath, int argc, char** argv) {
     app_start_context_set_arguments_ext(&context, passedArgc, rewritten);
 
     const int result = runApp(context);
+    memory_free(storage);
 
     int exitCode;
     if (result == RUN_APP_START_FAILED) {

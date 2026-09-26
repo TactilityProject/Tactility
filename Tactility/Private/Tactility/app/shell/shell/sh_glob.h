@@ -4,6 +4,10 @@
 // ${v#..}/${v%..} strip operators and, later, by `case` and pathname globbing.
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Match string `s` against shell pattern `p` using '*' (any run, incl. empty)
 // and '?' (exactly one char). Backslash escapes the next metacharacter.
 // Returns 1 on match, 0 otherwise.
@@ -22,3 +26,7 @@ char *sh_strip_suffix(const char *s, const char *p, int longest);
 // the word literal, dash-style.
 #include "sh.h"
 int sh_glob_pathnames(const char *pat, sh_fields *out);
+
+#ifdef __cplusplus
+}
+#endif

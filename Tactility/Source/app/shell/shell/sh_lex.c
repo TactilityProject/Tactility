@@ -39,33 +39,75 @@ typedef struct { char *buf; int len; int cap; } wbuf;
 // src[j+1]=='('), copying the whole balanced expression verbatim into `w`.
 // Parens inside single/double quotes don't affect nesting; nested $() do.
 // sh_expand later runs the inner command. Returns the index past the ')'.
+//
+// Nesting ($( inside "..." inside $(...)) is tracked with an explicit context
+// stack, so arbitrarily deep input can't exhaust the native stack. Each $(
+// context carries its own paren depth.
+typedef struct { char kind; int depth; } scan_ctx;   // kind: '(' command, '"' double quote
+
+typedef struct {
+    scan_ctx fixed[16];
+    scan_ctx *items;
+    int cap;
+    int top;
+} scan_ctx_stack;
+
+static void push_ctx(scan_ctx_stack *cs, char kind, int depth)
+{
+    if (cs->top == cs->cap) {
+        scan_ctx *grown = malloc(cs->cap * 2 * sizeof(scan_ctx));
+        memcpy(grown, cs->items, cs->cap * sizeof(scan_ctx));
+        if (cs->items != cs->fixed) free(cs->items);
+        cs->items = grown;
+        cs->cap *= 2;
+    }
+    cs->items[cs->top].kind = kind;
+    cs->items[cs->top].depth = depth;
+    cs->top++;
+}
+
 static int scan_cmdsub(const char *src, int j, wbuf *w)
 {
+    scan_ctx_stack cs;
+    cs.items = cs.fixed;
+    cs.cap = 16;
+    cs.top = 0;
+    push_ctx(&cs, '(', 1);
     WPUT(w, src[j]); j++;      // '$'
     WPUT(w, src[j]); j++;      // '('
-    int depth = 1;
-    while (src[j] && depth > 0) {
+
+    while (src[j] && cs.top > 0) {
         char d = src[j];
+        scan_ctx *c = &cs.items[cs.top - 1];
+        if (c->kind == '"') {
+            if (d == '$' && src[j + 1] == '(') {
+                WPUT(w, d); j++; WPUT(w, src[j]); j++;
+                push_ctx(&cs, '(', 1);
+            } else if (d == '\\' && src[j + 1]) {
+                WPUT(w, d); j++; WPUT(w, src[j]); j++;
+            } else {
+                WPUT(w, d); j++;
+                if (d == '"') cs.top--;
+            }
+            continue;
+        }
         if (d == '\'') {
             WPUT(w, d); j++;
             while (src[j] && src[j] != '\'') { WPUT(w, src[j]); j++; }
             if (src[j] == '\'') { WPUT(w, src[j]); j++; }
         } else if (d == '"') {
             WPUT(w, d); j++;
-            while (src[j] && src[j] != '"') {
-                if (src[j] == '$' && src[j + 1] == '(') { j = scan_cmdsub(src, j, w); }
-                else if (src[j] == '\\' && src[j + 1]) { WPUT(w, src[j]); j++; WPUT(w, src[j]); j++; }
-                else { WPUT(w, src[j]); j++; }
-            }
-            if (src[j] == '"') { WPUT(w, src[j]); j++; }
+            push_ctx(&cs, '"', 0);
         } else if (d == '\\' && src[j + 1]) {
             WPUT(w, d); j++; WPUT(w, src[j]); j++;
         } else {
-            if (d == '(') depth++;
-            else if (d == ')') depth--;
+            if (d == '(') c->depth++;
+            else if (d == ')') c->depth--;
             WPUT(w, d); j++;
+            if (c->depth == 0) cs.top--;
         }
     }
+    if (cs.items != cs.fixed) free(cs.items);
     return j;
 }
 

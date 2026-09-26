@@ -58,8 +58,9 @@ void forEachCommand(void* context, void (*callback)(const Command& command, void
 /**
  * Completes the final word of `line`.
  *
- * The first word completes against command names, any later word against filesystem paths — which
- * is why this lives here rather than in LineEditor: it needs both the command table and ShellFs.
+ * Every word completes against filesystem paths, and a first word without a '/' against command
+ * names as well. That is why this lives here rather than in LineEditor: it needs both the command
+ * table and ShellFs.
  *
  * On a unique match, `outSuffix` receives the text to append. On several, the common prefix shared
  * by all of them is returned instead (which may be empty), and the candidates are printed.
