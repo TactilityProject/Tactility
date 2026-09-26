@@ -392,7 +392,8 @@ char* __real_fgets(char* buffer, int size, FILE* stream) {
 
 namespace {
 
-void writeAllTo(int fd, const void* data, size_t size) {
+/** @return the number of bytes written, less than `size` if the fd stopped accepting data */
+size_t writeAllTo(int fd, const void* data, size_t size) {
     const auto* bytes = static_cast<const char*>(data);
     size_t remaining = size;
     while (remaining > 0) {
@@ -403,6 +404,7 @@ void writeAllTo(int fd, const void* data, size_t size) {
         bytes += written;
         remaining -= static_cast<size_t>(written);
     }
+    return size - remaining;
 }
 
 int formatTo(int fd, const char* format, va_list args) {
@@ -517,8 +519,10 @@ size_t __wrap_fwrite(const void* data, size_t size, size_t count, FILE* stream) 
     if (fd < 0) {
         return __real_fwrite(data, size, count, stream);
     }
-    writeAllTo(fd, data, size * count);
-    return count;
+    if (size == 0 || count == 0) {
+        return 0;
+    }
+    return writeAllTo(fd, data, size * count) / size;
 }
 
 int __wrap_fgetc(FILE* stream) {
