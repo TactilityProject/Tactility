@@ -63,6 +63,7 @@
 #include <freertos/module.h>
 
 #include <gps/module.h>
+#include <wifi/module.h>
 #include <gps_generic/module.h>
 #include <gps_meshtastic/module.h>
 #include <graphics/module.h>
@@ -130,7 +131,6 @@ namespace service {
     // Primary
     namespace audio { extern const ServiceManifest manifest; }
     namespace autorotate { extern const ServiceManifest manifest; }
-    namespace wifi { extern const ServiceManifest manifest; }
     namespace development { extern const ServiceManifest manifest; }
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
     namespace espnow { extern const ServiceManifest manifest; }
@@ -335,7 +335,7 @@ static void registerAndStartServices() {
     if (device_exists_of_type(&AUDIO_STREAM_TYPE)) {
         addService(service::audio::manifest);
     }
-    addService(service::wifi::manifest);
+    check(module_ensure_started(&wifi_module) == ERROR_NONE);
     addService(service::development::manifest);
     addService(service::webserver::manifest);
 

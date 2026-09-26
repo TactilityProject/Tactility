@@ -15,9 +15,10 @@
 #include <Tactility/network/HttpServerReq.h>
 #include <Tactility/network/HttpdReq.h>
 #include <Tactility/network/Url.h>
-#include <Tactility/service/wifi/Wifi.h>
 
 #include <tactility/check.h>
+#include <tactility/device.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
 
@@ -1433,14 +1434,17 @@ error_t WebServerService::handleApiAppsInstall(HttpServerRequest* request, void*
 }
 
 // Helper to convert radio state to string
-static const char* radioStateToJsonString(wifi::RadioState state) {
-    switch (state) {
-        case wifi::RadioState::On: return "on";
-        case wifi::RadioState::OnPending: return "turning_on";
-        case wifi::RadioState::Off: return "off";
-        case wifi::RadioState::OffPending: return "turning_off";
-        case wifi::RadioState::ConnectionPending: return "connecting";
-        case wifi::RadioState::ConnectionActive: return "connected";
+static const char* radioStateToJsonString(WifiRadioState radioState, WifiStationState stationState) {
+    switch (radioState) {
+        case WIFI_RADIO_STATE_ON:
+            switch (stationState) {
+                case WIFI_STATION_STATE_CONNECTION_PENDING: return "connecting";
+                case WIFI_STATION_STATE_CONNECTED: return "connected";
+                default: return "on";
+            }
+        case WIFI_RADIO_STATE_ON_PENDING: return "turning_on";
+        case WIFI_RADIO_STATE_OFF: return "off";
+        case WIFI_RADIO_STATE_OFF_PENDING: return "turning_off";
         default: return "unknown";
     }
 }
@@ -1449,15 +1453,41 @@ static const char* radioStateToJsonString(wifi::RadioState state) {
 error_t WebServerService::handleApiWifi(HttpServerRequest* request, void*) {
     LOG_I(TAG, "GET /api/wifi");
 
-    auto state = wifi::getRadioState();
-    auto ip = wifi::getIp();
-    auto ssid = wifi::getConnectionTarget();
-    auto rssi = wifi::getRssi();
-    bool secure = wifi::isConnectionSecure();
+    WifiRadioState radio_state = WIFI_RADIO_STATE_OFF;
+    WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
+    char ip[16] = {};
+    char ssid[33] = {};
+    int32_t rssi = 1;
+    bool secure = false;
+
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) == ERROR_NONE) {
+        wifi_get_radio_state(wifi_device, &radio_state);
+        wifi_get_station_state(wifi_device, &station_state);
+        if (station_state != WIFI_STATION_STATE_DISCONNECTED) {
+            wifi_station_get_target_ssid(wifi_device, ssid);
+        }
+        if (station_state == WIFI_STATION_STATE_CONNECTED) {
+            wifi_station_get_ipv4_address(wifi_device, ip);
+            wifi_station_get_rssi(wifi_device, &rssi);
+            // The driver doesn't report the active connection's authentication, so derive it from the last scan
+            WifiApRecord records[16];
+            size_t record_count = std::size(records);
+            if (wifi_get_scan_results(wifi_device, records, &record_count) == ERROR_NONE) {
+                for (size_t i = 0; i < record_count; ++i) {
+                    if (strcmp(records[i].ssid, ssid) == 0) {
+                        secure = records[i].authentication_type != WIFI_AUTHENTICATION_TYPE_OPEN;
+                        break;
+                    }
+                }
+            }
+        }
+        device_put(wifi_device);
+    }
 
     std::ostringstream json;
     json << "{";
-    json << "\"state\":\"" << radioStateToJsonString(state) << "\",";
+    json << "\"state\":\"" << radioStateToJsonString(radio_state, station_state) << "\",";
     json << "\"ip\":\"" << escapeJson(ip) << "\",";
     json << "\"ssid\":\"" << escapeJson(ssid) << "\",";
     json << "\"rssi\":" << rssi << ",";

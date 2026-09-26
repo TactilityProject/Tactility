@@ -5,7 +5,6 @@
 
 #include <Tactility/PubSub.h>
 #include <Tactility/Mutex.h>
-#include <Tactility/service/wifi/Wifi.h>
 
 // Context (the app's actual runtime state) is defined inside WifiManage.cpp's own anonymous
 // namespace - View.cpp doesn't need it (Bindings*/State* pointers and a raw appInstanceId are

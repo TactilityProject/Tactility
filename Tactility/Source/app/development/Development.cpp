@@ -3,7 +3,6 @@
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/service/development/DevelopmentService.h>
 #include <Tactility/service/development/DevelopmentSettings.h>
-#include <Tactility/service/wifi/Wifi.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -14,6 +13,8 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
+#include <tactility/device.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
 #include <lvgl.h>
@@ -78,13 +79,21 @@ void onEnableOnBootSwitchChanged(lv_event_t* event) {
 }
 
 void updateViewState(Context* ctx) {
+    WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
+    char ip[16] = {};
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) == ERROR_NONE) {
+        wifi_get_station_state(wifi_device, &station_state);
+        wifi_station_get_ipv4_address(wifi_device, ip);
+        device_put(wifi_device);
+    }
+
     if (!ctx->service->isEnabled()) {
         lv_label_set_text(ctx->statusLabel, "Service disabled");
-    } else if (service::wifi::getRadioState() != service::wifi::RadioState::ConnectionActive) {
+    } else if (station_state != WIFI_STATION_STATE_CONNECTED) {
         lv_label_set_text(ctx->statusLabel, "Waiting for connection...");
     } else { // enabled and connected to wifi
-        auto ip = service::wifi::getIp();
-        if (ip.empty()) {
+        if (ip[0] == '\0') {
             lv_label_set_text(ctx->statusLabel, "Waiting for IP...");
         } else {
             const std::string status = std::format("Available at {}", ip);

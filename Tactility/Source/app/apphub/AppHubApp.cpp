@@ -4,7 +4,6 @@
 #include <Tactility/app/apphub/AppHubEntry.h>
 #include <Tactility/app/apphubdetails/AppHubDetailsApp.h>
 #include <Tactility/file/File.h>
-#include <Tactility/service/wifi/Wifi.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -16,6 +15,8 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
+#include <tactility/device.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
 #include <lvgl/lvgl.h>
@@ -174,7 +175,14 @@ void refresh(Context* ctx) {
     lv_obj_add_flag(ctx->refreshButton, LV_OBJ_FLAG_HIDDEN);
     lvgl_unlock();
 
-    if (service::wifi::getRadioState() != service::wifi::RadioState::ConnectionActive) {
+    WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) == ERROR_NONE) {
+        wifi_get_station_state(wifi_device, &station_state);
+        device_put(wifi_device);
+    }
+
+    if (station_state != WIFI_STATION_STATE_CONNECTED) {
         lvgl_lock();
         showNoInternet(ctx);
         lvgl_unlock();

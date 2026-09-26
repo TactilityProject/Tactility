@@ -3,6 +3,7 @@
 
 #include <Tactility/app/wifiapsettings/WifiApSettings.h>
 #include <Tactility/app/wificonnect/WifiConnect.h>
+#include <Tactility/Tactility.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -12,8 +13,12 @@
 
 #include <lvgl_window_manager/window_manager.h>
 
+#include <wifi/wifi_autoconnect.h>
+#include <wifi/wifi_settings.h>
+
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
 #include <lvgl/lvgl.h>
@@ -47,11 +52,47 @@ struct Context {
 };
 
 
+/** Turns the radio on when needed and connects. Runs on the main dispatcher, as turning the radio on blocks. */
+static void connectToAp(const WifiApSettings& ap) {
+    getMainDispatcher().dispatch([ap] {
+        Device* wifi_device = nullptr;
+        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+            LOG_W(TAG, "No WiFi device found");
+            return;
+        }
+        error_t result = wifi_set_radio_on(wifi_device);
+        if (result == ERROR_NONE) {
+            result = wifi_station_connect(wifi_device, ap.ssid, ap.password, ap.channel);
+        }
+        if (result != ERROR_NONE) {
+            LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
+        }
+        device_put(wifi_device);
+    });
+}
+
+static void disconnectFromAp() {
+    // Keeps auto-connect from immediately reconnecting
+    wifi_autoconnect_pause_until_connected();
+    getMainDispatcher().dispatch([] {
+        Device* wifi_device = nullptr;
+        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+            LOG_W(TAG, "No WiFi device found");
+            return;
+        }
+        error_t result = wifi_station_disconnect(wifi_device);
+        if (result != ERROR_NONE) {
+            LOG_E(TAG, "Failed to disconnect (%s)", error_to_string(result));
+        }
+        device_put(wifi_device);
+    });
+}
+
 static void onConnect(const std::string& ssid) {
-    service::wifi::settings::WifiApSettings settings;
-    if (service::wifi::settings::load(ssid, settings)) {
+    WifiApSettings settings;
+    if (wifi_settings_load(ssid.c_str(), &settings) == ERROR_NONE) {
         LOG_I(TAG, "Connecting with known credentials");
-        service::wifi::connect(settings, false);
+        connectToAp(settings);
     } else {
         LOG_I(TAG, "Starting connection dialog");
         wificonnect::start(ssid);
@@ -63,11 +104,22 @@ static void onShowApSettings(const std::string& ssid) {
 }
 
 static void onDisconnect() {
-    service::wifi::disconnect();
+    disconnectFromAp();
 }
 
 static void onWifiToggled(bool enabled) {
-    service::wifi::setEnabled(enabled);
+    getMainDispatcher().dispatch([enabled] {
+        Device* wifi_device = nullptr;
+        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+            LOG_W(TAG, "No WiFi device found");
+            return;
+        }
+        error_t result = enabled ? wifi_set_radio_on(wifi_device) : wifi_set_radio_off(wifi_device);
+        if (result != ERROR_NONE) {
+            LOG_E(TAG, "Failed to set radio state (%s)", error_to_string(result));
+        }
+        device_put(wifi_device);
+    });
 }
 
 static void onConnectToHidden() {
@@ -85,21 +137,43 @@ void updateView(Context* ctx) {
     lvgl_unlock();
 }
 
-void onWifiEvent(Context* ctx, WifiEvent event) {
-    auto radio_state = service::wifi::getRadioState();
-    LOG_I(TAG, "Update with state %s", service::wifi::radioStateToString(radio_state));
+void updateStateFromDevice(Context* ctx) {
+    WifiRadioState radio_state = WIFI_RADIO_STATE_OFF;
+    WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
+    char ssid[33] = {};
+    wifi_get_radio_state(ctx->wifiDevice, &radio_state);
+    wifi_get_station_state(ctx->wifiDevice, &station_state);
+    if (station_state != WIFI_STATION_STATE_DISCONNECTED) {
+        wifi_station_get_target_ssid(ctx->wifiDevice, ssid);
+    }
     ctx->state.setRadioState(radio_state);
+    ctx->state.setStationState(station_state);
+    ctx->state.setConnectionTarget(ssid);
+}
+
+void scanIfIdle(Context* ctx) {
+    if (!wifi_is_scanning(ctx->wifiDevice)) {
+        error_t result = wifi_scan(ctx->wifiDevice);
+        if (result != ERROR_NONE) {
+            LOG_I(TAG, "Can't start scan (%s)", error_to_string(result));
+        }
+    }
+}
+
+void onWifiEvent(Context* ctx, WifiEvent event) {
+    updateStateFromDevice(ctx);
+    LOG_I(TAG, "Update with radio state %d, station state %d", (int)ctx->state.getRadioState(), (int)ctx->state.getStationState());
     switch (event.type) {
         case WIFI_EVENT_TYPE_SCAN_STARTED:
             ctx->state.setScanning(true);
             break;
         case WIFI_EVENT_TYPE_SCAN_FINISHED:
             ctx->state.setScanning(false);
-            ctx->state.updateApRecords();
+            ctx->state.updateApRecords(ctx->wifiDevice);
             break;
         case WIFI_EVENT_TYPE_RADIO_STATE_CHANGED:
-            if (event.radio_state == WIFI_RADIO_STATE_ON && !service::wifi::isScanning()) {
-                service::wifi::scan();
+            if (event.radio_state == WIFI_RADIO_STATE_ON) {
+                scanIfIdle(ctx);
             }
             break;
         default:
@@ -136,11 +210,6 @@ int32_t appMain(int argc, char* argv[]) {
         .onConnectToHidden = onConnectToHidden
     };
 
-    // State update (it has its own locking)
-    ctx.state.setRadioState(service::wifi::getRadioState());
-    ctx.state.setScanning(service::wifi::isScanning());
-    ctx.state.updateApRecords();
-
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
     ctx.eventGroup = &event_group;
@@ -163,20 +232,17 @@ int32_t appMain(int argc, char* argv[]) {
         LOG_W(TAG, "No WiFi device found");
     }
 
+    // State update (it has its own locking)
+    if (ctx.wifiDevice != nullptr) {
+        updateStateFromDevice(&ctx);
+        ctx.state.setScanning(wifi_is_scanning(ctx.wifiDevice));
+        ctx.state.updateApRecords(ctx.wifiDevice);
+    }
+
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
-    service::wifi::RadioState radio_state = service::wifi::getRadioState();
-    bool can_scan = radio_state == service::wifi::RadioState::On ||
-        radio_state == service::wifi::RadioState::ConnectionPending ||
-        radio_state == service::wifi::RadioState::ConnectionActive;
-    std::string connection_target = service::wifi::getConnectionTarget();
-    LOG_I(TAG, "Radio: %s, Scanning: %d, Connected to: %s, Can scan: %d",
-        service::wifi::radioStateToString(radio_state),
-        (int)service::wifi::isScanning(),
-        connection_target.empty() ? "(none)" : connection_target.c_str(),
-        (int)can_scan);
-    if (can_scan && !service::wifi::isScanning()) {
-        service::wifi::scan();
+    if (ctx.wifiDevice != nullptr && ctx.state.getRadioState() == WIFI_RADIO_STATE_ON) {
+        scanIfIdle(&ctx);
     }
 
     bool shouldClose = false;
@@ -195,6 +261,10 @@ int32_t appMain(int argc, char* argv[]) {
             if (device_get_first_by_type(&WIFI_TYPE, &retry_device) == ERROR_NONE) {
                 if (wifi_event_subscribe(retry_device, &ctx.wifiEventSub, &event_group) == ERROR_NONE) {
                     ctx.wifiDevice = retry_device;
+                    updateStateFromDevice(&ctx);
+                    ctx.state.setScanning(wifi_is_scanning(ctx.wifiDevice));
+                    ctx.state.updateApRecords(ctx.wifiDevice);
+                    ctx.needsRefresh = true;
                 } else {
                     device_put(retry_device);
                 }

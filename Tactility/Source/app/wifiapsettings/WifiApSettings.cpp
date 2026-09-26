@@ -1,7 +1,6 @@
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/lvgl/Style.h>
-#include <Tactility/service/wifi/Wifi.h>
-#include <Tactility/service/wifi/WifiApSettings.h>
+#include <Tactility/Tactility.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -11,11 +10,15 @@
 
 #include <lvgl_window_manager/window_manager.h>
 
+#include <wifi/wifi_autoconnect.h>
+#include <wifi/wifi_settings.h>
+
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
 namespace tt::app::wifiapsettings {
@@ -46,6 +49,53 @@ struct Context {
 
 void updateViews(Context* ctx);
 
+/** Turns the radio on when needed and connects. Runs on the main dispatcher, as turning the radio on blocks. */
+void connectToAp(const WifiApSettings& ap) {
+    getMainDispatcher().dispatch([ap] {
+        Device* wifi_device = nullptr;
+        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+            LOG_W(TAG, "No WiFi device found");
+            return;
+        }
+        error_t result = wifi_set_radio_on(wifi_device);
+        if (result == ERROR_NONE) {
+            result = wifi_station_connect(wifi_device, ap.ssid, ap.password, ap.channel);
+        }
+        if (result != ERROR_NONE) {
+            LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
+        }
+        device_put(wifi_device);
+    });
+}
+
+void disconnectFromAp() {
+    // Keeps auto-connect from immediately reconnecting
+    wifi_autoconnect_pause_until_connected();
+    getMainDispatcher().dispatch([] {
+        Device* wifi_device = nullptr;
+        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+            LOG_W(TAG, "No WiFi device found");
+            return;
+        }
+        error_t result = wifi_station_disconnect(wifi_device);
+        if (result != ERROR_NONE) {
+            LOG_E(TAG, "Failed to disconnect (%s)", error_to_string(result));
+        }
+        device_put(wifi_device);
+    });
+}
+
+/** @return true when the station is connected to this app's SSID */
+bool isConnectedToSsid(Context* ctx) {
+    if (ctx->wifiDevice == nullptr) return false;
+    WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
+    char ssid[33] = {};
+    return wifi_get_station_state(ctx->wifiDevice, &station_state) == ERROR_NONE &&
+        station_state == WIFI_STATION_STATE_CONNECTED &&
+        wifi_station_get_target_ssid(ctx->wifiDevice, ssid) == ERROR_NONE &&
+        ctx->ssid == ssid;
+}
+
 void onBackPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     app_event_emit_close(ctx->appInstanceId);
@@ -61,10 +111,10 @@ void onToggleAutoConnect(lv_event_t* event) {
     auto* enable_switch = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool is_on = lv_obj_has_state(enable_switch, LV_STATE_CHECKED);
 
-    service::wifi::settings::WifiApSettings settings;
-    if (service::wifi::settings::load(ctx->ssid.c_str(), settings)) {
-        settings.autoConnect = is_on;
-        if (!service::wifi::settings::save(settings)) {
+    WifiApSettings settings;
+    if (wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE) {
+        settings.auto_connect = is_on;
+        if (wifi_settings_save(&settings) != ERROR_NONE) {
             LOG_E(TAG, "Failed to save settings");
         }
     } else {
@@ -74,22 +124,23 @@ void onToggleAutoConnect(lv_event_t* event) {
 
 void onPressConnect(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    service::wifi::settings::WifiApSettings settings;
-    if (service::wifi::settings::load(ctx->ssid.c_str(), settings)) {
+    WifiApSettings settings;
+    if (wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE) {
         auto* button = lv_event_get_target_obj(event);
         lv_obj_add_state(button, LV_STATE_DISABLED);
-        service::wifi::connect(settings, false);
+        connectToAp(settings);
     }
 }
 
-void onPressDisconnect(lv_event_t*) {
-    if (service::wifi::getRadioState() == service::wifi::RadioState::ConnectionActive) {
-        service::wifi::disconnect();
+void onPressDisconnect(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    if (isConnectedToSsid(ctx)) {
+        disconnectFromAp();
     }
 }
 
 void updateConnectButton(Context* ctx) {
-    if (service::wifi::getConnectionTarget() == ctx->ssid && service::wifi::getRadioState() == service::wifi::RadioState::ConnectionActive) {
+    if (isConnectedToSsid(ctx)) {
         lv_obj_remove_flag(ctx->disconnectButton, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(ctx->connectButton, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_state(ctx->disconnectButton, LV_STATE_DISABLED);
@@ -101,19 +152,23 @@ void updateConnectButton(Context* ctx) {
 }
 
 void updateBusySpinner(Context* ctx) {
-    if (service::wifi::getRadioState() == service::wifi::RadioState::ConnectionPending) {
+    WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
+    if (ctx->wifiDevice != nullptr) {
+        wifi_get_station_state(ctx->wifiDevice, &station_state);
+    }
+    if (station_state == WIFI_STATION_STATE_CONNECTION_PENDING) {
         lv_obj_remove_flag(ctx->busySpinner, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(ctx->busySpinner, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
-// Touches the filesystem (service::wifi::settings::load()) - callers must not run this on the
+// Touches the filesystem (wifi_settings_load()) - callers must not run this on the
 // LVGL task (see updateViews()'s callers).
 void updateAutoConnectSection(Context* ctx) {
-    service::wifi::settings::WifiApSettings settings;
-    if (service::wifi::settings::load(ctx->ssid.c_str(), settings)) {
-        if (settings.autoConnect) {
+    WifiApSettings settings;
+    if (wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE) {
+        if (settings.auto_connect) {
             lv_obj_add_state(ctx->autoConnectSwitch, LV_STATE_CHECKED);
         } else {
             lv_obj_remove_state(ctx->autoConnectSwitch, LV_STATE_CHECKED);
@@ -241,7 +296,7 @@ int32_t appMain(int argc, char* argv[]) {
 
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
-    // The file-I/O-touching part of the view (updateAutoConnectSection()'s settings::load())
+    // The file-I/O-touching part of the view (updateAutoConnectSection()'s wifi_settings_load())
     // runs here, on this app's own task, not the LVGL task createWidgets()
     requestViewUpdate(&ctx);
 
@@ -269,15 +324,12 @@ int32_t appMain(int argc, char* argv[]) {
                     break;
                 case APP_EVENT_RESULT:
                     if (event.result.launch_id == ctx.forgetDialogId && event.result.result == 0) { // 0 = Yes
-                        if (!service::wifi::settings::remove(ctx.ssid.c_str())) {
+                        if (wifi_settings_remove(ctx.ssid.c_str()) != ERROR_NONE) {
                             LOG_E(TAG, "Failed to remove SSID");
                         } else {
                             LOG_I(TAG, "Removed SSID");
-                            if (
-                                service::wifi::getRadioState() == service::wifi::RadioState::ConnectionActive &&
-                                service::wifi::getConnectionTarget() == ctx.ssid
-                            ) {
-                                service::wifi::disconnect();
+                            if (isConnectedToSsid(&ctx)) {
+                                disconnectFromAp();
                             }
                             shouldClose = true;
                         }

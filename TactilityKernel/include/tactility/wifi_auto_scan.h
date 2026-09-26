@@ -8,17 +8,17 @@ extern "C" {
 #endif
 
 /**
- * @brief Suspend or resume WifiService's periodic background auto-connect scan.
+ * @brief Suspend or resume the wifi-module's periodic background auto-connect scan.
  *
  * Not a device operation - see tactility/drivers/wifi.h for the actual radio API. This exists
  * for narrow, short-lived windows where any WiFi/co-processor traffic would be unsafe (e.g. a
  * known co-processor reboot in progress during an OTA update) - callers must resume when done.
- * Independent of WifiService's own internal connect()/disconnect() pause bookkeeping: it is
+ * Independent of wifi_autoconnect_pause_until_connected(): it is
  * never cleared implicitly by a connection succeeding/failing or the radio being enabled, only a
  * matching wifi_auto_scan_set_paused(false) clears it.
  *
- * The real implementation lives in the Tactility WiFi service
- * (Tactility/Source/service/wifi/Wifi.cpp), a layer above TactilityKernel - TactilityKernel
+ * The real implementation lives in the wifi-module's auto-connect service
+ * (Modules/wifi-module/source/wifi_autoconnect.cpp), a layer above TactilityKernel - TactilityKernel
  * can't call up into it directly (and mustn't link against it: TactilityKernelTests links
  * TactilityKernel alone, without Tactility). Tactility registers its implementation at startup
  * via wifi_auto_scan_set_paused_function(); until then (or on a build that never links Tactility, e.g. a
@@ -29,7 +29,7 @@ extern "C" {
  */
 void wifi_auto_scan_set_paused(bool paused);
 
-/** @brief Register the real implementation. Called once by the Tactility WiFi service. */
+/** @brief Register the real implementation. Called by the wifi-module auto-connect service. */
 void wifi_auto_scan_set_paused_function(void (*set_paused)(bool paused));
 
 #ifdef __cplusplus

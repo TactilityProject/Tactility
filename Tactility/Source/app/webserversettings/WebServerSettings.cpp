@@ -1,7 +1,6 @@
 #include <Tactility/Tactility.h>
 #include <Tactility/settings/WebServerSettings.h>
 #include <Tactility/service/webserver/WebServerService.h>
-#include <Tactility/service/wifi/Wifi.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -11,6 +10,8 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
+#include <tactility/device.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
 #include <lvgl.h>
@@ -164,8 +165,13 @@ void updateUrlDisplay(Context* ctx) {
         url += "192.168.4.1";
     } else {
         // Station mode - try to get actual IP
-        std::string ip = service::wifi::getIp();
-        if (!ip.empty()) {
+        char ip[16] = {};
+        Device* wifi_device = nullptr;
+        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) == ERROR_NONE) {
+            wifi_station_get_ipv4_address(wifi_device, ip);
+            device_put(wifi_device);
+        }
+        if (ip[0] != '\0') {
             url += ip;
         } else {
             url = "Not connected";

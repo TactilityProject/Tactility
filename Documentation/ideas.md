@@ -10,7 +10,6 @@
 - coreutils apps: Only emit colour escapes when stdout is the terminal (command_support.h color() function)
 - CrashDiagnostics shouldn't show a QR when there's no callstack
 - Move USB host task stacks to SPIRAM when available: esp32_usbhost*.cpp
-- Get rid of WiFi service (Wifi.cpp/h) in Tactility.cpp
 - Add bold fonts for e-ink readability improvement
 - Improve Setup: Add keyboard/keypad navigation explanation
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
@@ -23,6 +22,7 @@
 
 ## Medium Priority
 
+- netutils-module: ping, wget, ifconfig, nslookup, etc.
 - Core2: support power off via software
 - Improve Setup: Show "Step done" screen
 - Make it more clear to end-users that an SD card is required to run Tactility
