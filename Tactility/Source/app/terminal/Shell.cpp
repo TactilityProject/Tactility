@@ -22,12 +22,23 @@ namespace {
 
 constexpr auto* TAG = "terminal";
 
-// How often the pump loop below checks for new keyboard input while draining the shell app.
+// The pump loop wakes on keyboard input and shell output. This bound only matters for noticing a
+// stop request, or for polling input if no event bit could be claimed for it.
 constexpr uint32_t SHELL_PUMP_INTERVAL_MS = 50;
+
+struct InputSignal {
+    TaskEventGroup* group;
+    uint32_t bit;
+};
+
+void signalInput(void* context) {
+    auto* signal = static_cast<InputSignal*>(context);
+    task_event_group_signal(signal->group, signal->bit);
+}
 
 } // namespace
 
-void runShell(int columns, int rows, volatile bool* stopRequested) {
+void runShell(int columns, int rows, volatile bool* stopRequested, TaskHandle_t renderTask) {
     static uint8_t stdinBuffer[256];
     static uint8_t stdoutBuffer[1024];
     AppStream stdinStream {};
@@ -65,20 +76,36 @@ void runShell(int columns, int rows, volatile bool* stopRequested) {
         return;
     }
 
+    // Keyboard input wakes the loop below through the same event group as the shell's output.
+    InputSignal inputSignal { &eventGroup, 0 };
+    const bool inputSignalled = task_event_group_claim_bit(&eventGroup, &inputSignal.bit) == ERROR_NONE;
+    if (inputSignalled) {
+        vterm_set_input_callback(signalInput, &inputSignal);
+    }
+
     bool shellStdinClosed = false;
     bool shellDone = false;
     uint8_t drain[256];
 
     while (!shellDone) {
-        const int c = vterm_getchar(vterm_get_active(), pdMS_TO_TICKS(SHELL_PUMP_INTERVAL_MS));
-        if (c >= 0 && !shellStdinClosed) {
-            const char ch = static_cast<char>(c);
-            app_stream_write(&stdinStream, &ch, 1);
+        task_event_group_wait_any(&eventGroup, nullptr, pdMS_TO_TICKS(SHELL_PUMP_INTERVAL_MS));
+
+        int c;
+        while ((c = vterm_getchar(vterm_get_active(), 0)) >= 0) {
+            if (!shellStdinClosed) {
+                const char ch = static_cast<char>(c);
+                app_stream_write(&stdinStream, &ch, 1);
+            }
         }
 
+        bool wroteOutput = false;
         size_t n;
         while ((n = app_stream_read(&stdoutStream, drain, sizeof(drain))) > 0) {
             vterm_write_translated(reinterpret_cast<const char*>(drain), n);
+            wroteOutput = true;
+        }
+        if (wroteOutput) {
+            xTaskNotifyGive(renderTask);
         }
 
         // The shell app never sees stopRequested directly: its stdin is closed instead, which
@@ -100,6 +127,12 @@ void runShell(int columns, int rows, volatile bool* stopRequested) {
     size_t n;
     while ((n = app_stream_read(&stdoutStream, drain, sizeof(drain))) > 0) {
         vterm_write_translated(reinterpret_cast<const char*>(drain), n);
+    }
+    xTaskNotifyGive(renderTask);
+
+    if (inputSignalled) {
+        vterm_set_input_callback(nullptr, nullptr);
+        task_event_group_release_bit(&eventGroup, inputSignal.bit);
     }
 
     // Only app_stream_unsubscribe() guarantees the fd-table binding is gone and no AppFileOps call

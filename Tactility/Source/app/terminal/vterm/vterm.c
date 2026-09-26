@@ -81,6 +81,8 @@ void vterm_set_scroll_callback(void (*callback)(void)) {
 }
 
 static void (*s_on_switch_cb)(int new_vt) = NULL;
+static void (*s_on_input_cb)(void *context) = NULL;
+static void *s_on_input_context = NULL;
 
 /*
  * How many rows the writing task should treat as the bottom of the screen.
@@ -683,6 +685,8 @@ void vterm_deinit(void)
     s_dirty = true;
     s_scroll_callback = NULL;
     s_on_switch_cb = NULL;
+    s_on_input_cb = NULL;
+    s_on_input_context = NULL;
 
     vterm_clear_size_override();
     mutex_destruct(&s_input_mux);
@@ -847,6 +851,11 @@ void vterm_write_translated(const char *data, size_t size)
 
 // Helpers
 void vterm_set_switch_callback(void (*cb)(int)) { s_on_switch_cb = cb; }
+void vterm_set_input_callback(void (*cb)(void *), void *context) {
+    s_on_input_cb = NULL;
+    s_on_input_context = context;
+    s_on_input_cb = cb;
+}
 int vterm_get_active(void) { return s_active_vt; }
 // Per-task size override (for SSH sessions with different terminal dimensions)
 static TaskHandle_t s_size_override_task = NULL;
@@ -898,7 +907,10 @@ int vterm_getchar(int vt_id, int timeout_ms) {
 }
 
 void vterm_send_input(int vt_id, char c) {
-    if (vt_id >= 0 && vt_id < VTERM_COUNT) xQueueSend(s_vterms[vt_id].input_queue, &c, 0);
+    if (vt_id < 0 || vt_id >= VTERM_COUNT) return;
+    xQueueSend(s_vterms[vt_id].input_queue, &c, 0);
+    void (*cb)(void *) = s_on_input_cb;
+    if (cb) cb(s_on_input_context);
 }
 
 void vterm_input_flush(int vt_id) {
