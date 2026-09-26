@@ -121,6 +121,15 @@ constexpr int RUN_APP_START_FAILED = -1;
 
 bool lastByteWasNewline = true;
 
+/** Copies what a child wrote to one of its output streams to `target`, which may be redirected. */
+void drainOutput(AppStream& stream, FILE* target, uint8_t* buffer, size_t size) {
+    size_t n;
+    while ((n = app_stream_read(&stream, buffer, size)) > 0) {
+        fwrite(buffer, 1, n, target);   // byte-counted: output may contain NUL bytes
+        lastByteWasNewline = buffer[n - 1] == '\n';
+    }
+}
+
 /**
  * Runs an app instance to completion, piping its stdio to/from this task's own, like a shell
  * piping a child process. `context` must already have its location and arguments set.
@@ -130,15 +139,6 @@ bool lastByteWasNewline = true;
  *
  * @return the child's exit status, or RUN_APP_START_FAILED if it never started
  */
-/** Copies what a child wrote to one of its output streams to `target`, which may be redirected. */
-void drainOutput(AppStream& stream, FILE* target, uint8_t* buffer, size_t size) {
-    size_t n;
-    while ((n = app_stream_read(&stream, buffer, size)) > 0) {
-        fprintf(target, "%.*s", static_cast<int>(n), reinterpret_cast<const char*>(buffer));
-        lastByteWasNewline = buffer[n - 1] == '\n';
-    }
-}
-
 int runApp(AppStartContext& context) {
     constexpr size_t STDIN_BUFFER_SIZE = 256;
     constexpr size_t STDOUT_BUFFER_SIZE = 1024;

@@ -558,6 +558,8 @@ ExecGroup::~ExecGroup()
     st.npos = savedPositionalCount;
     free(st.arg0);
     st.arg0 = savedArg0;
+    free(st.cwd);
+    st.cwd = savedLogicalCwd;
     sh_port_chdir(savedCwd.c_str());
     savedFlow.restore(st);
     st.opt_errexit = savedErrexit;
@@ -589,6 +591,7 @@ Step ExecGroup::step(Machine& m)
     char cwd[512];
     sh_port_getcwd(cwd, sizeof(cwd));
     savedCwd = cwd;
+    savedLogicalCwd = st.cwd ? strdup(st.cwd) : nullptr;
     savedFlow = FlowFlags::save(st);
     savedErrexit = st.opt_errexit;
     savedNounset = st.opt_nounset;
@@ -1021,7 +1024,9 @@ Step CommandSubst::step(Machine& m)
     std::string output;
     if (FILE* file = fopen(tempFile.c_str(), "rb")) {
         int c;
-        while ((c = fgetc(file)) != EOF) output.push_back(static_cast<char>(c));
+        while ((c = fgetc(file)) != EOF) {
+            if (c != '\0') output.push_back(static_cast<char>(c));   // values are C strings, so NUL bytes are dropped (like bash)
+        }
         fclose(file);
     }
     remove(tempFile.c_str());

@@ -171,7 +171,11 @@ void expand_at_star(sh_state* st, bool star, bool quoted, FieldBuilder& b, Field
     }
 
     // $@ : one field per positional param.
-    if (n == 0) return;   // "$@" with no params vanishes (prefix field kept)
+    if (n == 0) {
+        // "$@" with no params vanishes; a non-empty prefix ("x$@") keeps the field.
+        if (quoted && !star && b.text.empty()) b.started = false;
+        return;
+    }
     for (int i = 0; i < n; i++) {
         if (i > 0) b.emit(out);
         if (quoted) {

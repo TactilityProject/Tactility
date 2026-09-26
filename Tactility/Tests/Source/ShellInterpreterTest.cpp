@@ -77,6 +77,20 @@ TEST_CASE("shell: quoting and word splitting") {
     CHECK_EQ(sh.var("escaped"), "$x");
 }
 
+TEST_CASE("shell: quoted $@ without parameters") {
+    Shell sh;
+    sh.run(
+        "set --\n"
+        "n=0; for a in \"$@\"; do n=$((n+1)); done\n"
+        "p=0; for a in x\"$@\"; do p=$((p+1)); v=$a; done\n"
+        "s=0; for a in \"$*\"; do s=$((s+1)); done"
+    );
+    CHECK_EQ(sh.var("n"), "0");
+    CHECK_EQ(sh.var("p"), "1");
+    CHECK_EQ(sh.var("v"), "x");
+    CHECK_EQ(sh.var("s"), "1");
+}
+
 TEST_CASE("shell: IFS splitting") {
     Shell sh;
     sh.run("IFS=:; set -- $(echo a:b:c); n=$#; second=$2");
@@ -310,6 +324,12 @@ TEST_CASE("shell: nested command substitution") {
     CHECK_EQ(sh.var("x"), "deep");
     CHECK_EQ(sh.var("y"), "a");
     CHECK_EQ(sh.var("z"), "tick");
+}
+
+TEST_CASE("shell: command substitution drops NUL bytes") {
+    Shell sh;
+    sh.run("x=$(echo 'a\\0b')");
+    CHECK_EQ(sh.var("x"), "ab");
 }
 
 TEST_CASE("shell: eval") {

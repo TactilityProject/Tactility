@@ -68,7 +68,8 @@ bool vterm_take_dirty(void);
 void vterm_set_switch_callback(void (*cb)(int new_vt));
 
 // Tactility addition: called after each byte is queued by vterm_send_input(), so a reader can wait
-// on its own event source instead of polling vterm_getchar(). Pass NULL to remove.
+// on its own event source instead of polling vterm_getchar(). Pass NULL to remove. Returns only
+// once a callback already in progress has finished, so the previous context may be released after.
 void vterm_set_input_callback(void (*cb)(void *context), void *context);
 
 // Tactility addition: called just before a line scrolls off the top, while it is still readable

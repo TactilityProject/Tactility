@@ -210,6 +210,7 @@ struct ExecGroup {
     int savedPositionalCount = 0;
     char* savedArg0 = nullptr;
     std::string savedCwd;
+    char* savedLogicalCwd = nullptr;   // sh_state::cwd, which `cd` replaces
     FlowFlags savedFlow {};
     int savedErrexit = 0;
     int savedNounset = 0;

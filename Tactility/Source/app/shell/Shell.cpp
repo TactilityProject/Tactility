@@ -91,6 +91,9 @@ struct Candidates {
     int count;
     // Printed lazily, so a unique match completes silently without disturbing the prompt.
     char first[FILE_MAX_PATH_STRING_LENGTH];
+    // A bare first word only runs registered commands, so a plain file there would complete to
+    // something that can't run. Directories are still offered, to continue typing a path into.
+    bool directoriesOnly;
 };
 
 void offerCandidate(Candidates& candidates, const char* name) {
@@ -120,7 +123,11 @@ void offerCommand(const Shell::Command& command, void* context) {
 }
 
 void offerEntry(const DirectoryEntry* entry, void* context) {
-    offerCandidate(*static_cast<Candidates*>(context), entry->name);
+    auto* candidates = static_cast<Candidates*>(context);
+    if (candidates->directoriesOnly && !entry->is_directory) {
+        return;
+    }
+    offerCandidate(*candidates, entry->name);
 }
 
 void printCandidateCommand(const Shell::Command& command, void* context) {
@@ -132,6 +139,9 @@ void printCandidateCommand(const Shell::Command& command, void* context) {
 
 void printCandidateEntry(const DirectoryEntry* entry, void* context) {
     auto* candidates = static_cast<Candidates*>(context);
+    if (candidates->directoriesOnly && !entry->is_directory) {
+        return;
+    }
     if (strncmp(entry->name, candidates->word, candidates->wordLength) == 0) {
         printf("%s%s  ", entry->name, entry->is_directory ? "/" : "");
     }
@@ -152,6 +162,7 @@ bool complete(const char* line, char* outSuffix, size_t suffixSize, bool* outLis
     const bool includeCommands = isFirstWord && strchr(wordStart, '/') == nullptr;
 
     Candidates candidates {};
+    candidates.directoriesOnly = includeCommands;
 
     // Paths complete against a directory, which may be named in the word itself ("ls /data/fo").
     char directory[FILE_MAX_PATH_STRING_LENGTH] = {};

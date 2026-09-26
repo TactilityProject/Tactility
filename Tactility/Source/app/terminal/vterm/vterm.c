@@ -83,6 +83,8 @@ void vterm_set_scroll_callback(void (*callback)(void)) {
 static void (*s_on_switch_cb)(int new_vt) = NULL;
 static void (*s_on_input_cb)(void *context) = NULL;
 static void *s_on_input_context = NULL;
+// Held while the input callback is replaced or invoked, so replacing it waits for a call in progress.
+static struct Mutex s_input_cb_mux;
 
 /*
  * How many rows the writing task should treat as the bottom of the screen.
@@ -596,6 +598,7 @@ static struct Mutex s_input_mux;
 error_t vterm_init(void)
 {
     mutex_construct(&s_input_mux);
+    mutex_construct(&s_input_cb_mux);
 
     const struct MemoryPolicy internal_policy = { .required = MEMORY_CAPABILITY_INTERNAL, .desired = 0, .alignment = 0 };
 
@@ -690,6 +693,7 @@ void vterm_deinit(void)
 
     vterm_clear_size_override();
     mutex_destruct(&s_input_mux);
+    mutex_destruct(&s_input_cb_mux);
 }
 
 vterm_cell_t *vterm_get_direct_buffer(void)
@@ -852,9 +856,10 @@ void vterm_write_translated(const char *data, size_t size)
 // Helpers
 void vterm_set_switch_callback(void (*cb)(int)) { s_on_switch_cb = cb; }
 void vterm_set_input_callback(void (*cb)(void *), void *context) {
-    s_on_input_cb = NULL;
-    s_on_input_context = context;
+    mutex_lock(&s_input_cb_mux);
     s_on_input_cb = cb;
+    s_on_input_context = context;
+    mutex_unlock(&s_input_cb_mux);
 }
 int vterm_get_active(void) { return s_active_vt; }
 // Per-task size override (for SSH sessions with different terminal dimensions)
@@ -909,8 +914,9 @@ int vterm_getchar(int vt_id, int timeout_ms) {
 void vterm_send_input(int vt_id, char c) {
     if (vt_id < 0 || vt_id >= VTERM_COUNT) return;
     xQueueSend(s_vterms[vt_id].input_queue, &c, 0);
-    void (*cb)(void *) = s_on_input_cb;
-    if (cb) cb(s_on_input_context);
+    mutex_lock(&s_input_cb_mux);
+    if (s_on_input_cb) s_on_input_cb(s_on_input_context);
+    mutex_unlock(&s_input_cb_mux);
 }
 
 void vterm_input_flush(int vt_id) {

@@ -25,10 +25,7 @@ target_compile_definitions(TactilityTests PRIVATE
     "-DTT_TERMINAL_FONT_SYMBOL=ibmplexmono_14_font"
 )
 
-# The POSIX platform registers its "data" filesystem relative to the working directory, and the
-# shell interpreter tests need it for temp files (command substitution, pipelines).
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data)
-add_test(NAME TactilityTests COMMAND TactilityTests WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME TactilityTests COMMAND TactilityTests)
 
 # No --wrap flags declared here: linking platform-posix and app-module below already brings all
 # of pthread_attr_setstack/read/write/close/the printf family along (see their own CMakeLists.txt

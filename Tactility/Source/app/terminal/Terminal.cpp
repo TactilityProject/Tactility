@@ -16,6 +16,8 @@
 #include <tactility/freertos/semphr.h>
 #include <tactility/freertos/task.h>
 
+#include <atomic>
+
 #ifdef ESP_PLATFORM
 #include <esp_log.h>
 #endif
@@ -50,7 +52,7 @@ volatile bool stopRequested = false;
 
 /** Set once runShell() has returned. The I/O task keeps running until then, because runShell()
  * notifies it about output until the very end. */
-volatile bool shellFinished = false;
+std::atomic<bool> shellFinished = false;
 
 /**
  * Translates a kernel keyboard event into the byte a terminal expects.
@@ -171,6 +173,9 @@ void ioTask(void* arg) {
         // runShell() notifies this task when output arrives, so it is drawn without waiting out the interval
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(RENDER_INTERVAL_MS));
     }
+
+    // The shell's last output can arrive after the final pass above, so draw once more
+    params->renderer->render(false);
 
     xSemaphoreGive(params->doneSem);
     vTaskDelete(nullptr);
