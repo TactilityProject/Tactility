@@ -45,6 +45,7 @@ list(APPEND REQUIRES_LIST
     gps-generic-module
     gps-meshtastic-module
     service-module
+    wifi-module
     # Libraries/*
     lv_screenshot
     minitar

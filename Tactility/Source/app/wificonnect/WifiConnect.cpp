@@ -1,8 +1,6 @@
 #include <Tactility/app/wificonnect/WifiConnect.h>
 
-#include <Tactility/service/wifi/Wifi.h>
-#include <Tactility/service/wifi/WifiApSettings.h>
-#include <Tactility/service/wifi/WifiGlobals.h>
+#include <Tactility/Tactility.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -12,12 +10,15 @@
 
 #include <lvgl_window_manager/window_manager.h>
 
+#include <wifi/wifi_settings.h>
+
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
 #include <lvgl.h>
@@ -39,6 +40,9 @@ struct Context {
 
     bool connecting = false;
     bool connectionError = false;
+    // The access point of the pending connection attempt, saved when it succeeds and rememberAp is set
+    WifiApSettings pendingAp;
+    bool rememberAp = false;
 
     lv_obj_t* ssid_textarea = nullptr;
     lv_obj_t* ssid_error = nullptr;
@@ -73,6 +77,14 @@ void onWifiEvent(Context* ctx, WifiEvent event) {
             if (ctx->connecting) {
                 ctx->connecting = false;
                 shouldClose = true;
+                if (ctx->rememberAp) {
+                    // Dispatch it, so file IO doesn't block the UI
+                    getMainDispatcher().dispatch([ap = ctx->pendingAp] {
+                        if (wifi_settings_save(&ap) != ERROR_NONE) {
+                            LOG_E(TAG, "Failed to store credentials");
+                        }
+                    });
+                }
             }
         } else {
             if (ctx->connecting) {
@@ -133,7 +145,7 @@ void onConnectPressed(lv_event_t* event) {
 
     const char* ssid = lv_textarea_get_text(ctx->ssid_textarea);
     size_t ssid_len = strlen(ssid);
-    if (ssid_len > TT_WIFI_SSID_LIMIT) {
+    if (ssid_len > WIFI_SETTINGS_SSID_LIMIT) {
         LOG_E(TAG, "SSID too long");
         lv_label_set_text(ctx->ssid_error, "SSID too long");
         lv_obj_remove_flag(ctx->ssid_error, LV_OBJ_FLAG_HIDDEN);
@@ -142,7 +154,7 @@ void onConnectPressed(lv_event_t* event) {
 
     const char* password = lv_textarea_get_text(ctx->password_textarea);
     size_t password_len = strlen(password);
-    if (password_len > TT_WIFI_CREDENTIALS_PASSWORD_LIMIT) {
+    if (password_len > WIFI_SETTINGS_PASSWORD_LIMIT) {
         LOG_E(TAG, "Password too long");
         lv_label_set_text(ctx->password_error, "Password too long");
         lv_obj_remove_flag(ctx->password_error, LV_OBJ_FLAG_HIDDEN);
@@ -153,14 +165,32 @@ void onConnectPressed(lv_event_t* event) {
 
     setLoading(ctx, true);
 
-    service::wifi::settings::WifiApSettings settings;
-    settings.password = password;
-    settings.ssid = ssid;
+    // Lengths were validated above
+    WifiApSettings settings {};
+    strcpy(settings.ssid, ssid);
+    strcpy(settings.password, password);
     settings.channel = 0;
-    settings.autoConnect = TT_WIFI_AUTO_CONNECT; // No UI yet, so use global setting
+    settings.auto_connect = WIFI_SETTINGS_AUTO_CONNECT_DEFAULT; // No UI yet, so use global setting
 
     ctx->connecting = true;
-    service::wifi::connect(settings, store);
+    ctx->pendingAp = settings;
+    ctx->rememberAp = store;
+
+    getMainDispatcher().dispatch([settings] {
+        Device* wifi_device = nullptr;
+        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+            LOG_W(TAG, "No WiFi device found");
+            return;
+        }
+        error_t result = wifi_set_radio_on(wifi_device);
+        if (result == ERROR_NONE) {
+            result = wifi_station_connect(wifi_device, settings.ssid, settings.password, settings.channel);
+        }
+        if (result != ERROR_NONE) {
+            LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
+        }
+        device_put(wifi_device);
+    });
 }
 
 void createBottomButtons(Context* ctx, lv_obj_t* parent) {

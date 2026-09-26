@@ -5,11 +5,12 @@
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) && !defined(CONFIG_ESP_HOSTED_ENABLED)
 
 #include <Tactility/service/espnow/EspNowBackend.h>
-#include <Tactility/service/wifi/Wifi.h>
 
 #include <esp_now.h>
 #include <esp_wifi.h>
 
+#include <tactility/device.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
 namespace tt::service::espnow::backend {
@@ -23,8 +24,15 @@ static uint8_t savedProtocolBitmap = 0;
 static bool deinitWifi();
 
 static bool initWifi(const EspNowConfig& config) {
-    auto wifi_state = wifi::getRadioState();
-    bool wifi_already_running = (wifi_state != wifi::RadioState::Off && wifi_state != wifi::RadioState::OffPending);
+    WifiRadioState radio_state = WIFI_RADIO_STATE_OFF;
+    WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) == ERROR_NONE) {
+        wifi_get_radio_state(wifi_device, &radio_state);
+        wifi_get_station_state(wifi_device, &station_state);
+        device_put(wifi_device);
+    }
+    bool wifi_already_running = (radio_state != WIFI_RADIO_STATE_OFF && radio_state != WIFI_RADIO_STATE_OFF_PENDING);
 
     wifi_mode_t mode;
     if (config.mode == Mode::Station) {
@@ -70,7 +78,7 @@ static bool initWifi(const EspNowConfig& config) {
             return false;
         }
     } else if (config.channel != 0 &&
-            wifi_state != wifi::RadioState::ConnectionActive && wifi_state != wifi::RadioState::ConnectionPending) {
+            station_state == WIFI_STATION_STATE_DISCONNECTED) {
         // WifiService already owns the radio but isn't associated to an AP: an unassociated STA's
         // operating channel is otherwise left undefined/wherever it last scanned to, which silently
         // breaks ESP-NOW (esp_now_send() reports success but nothing reaches a peer sitting on a

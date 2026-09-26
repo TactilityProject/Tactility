@@ -6,8 +6,6 @@
 #include <Tactility/app/wifimanage/View.h>
 #include <Tactility/app/wifimanage/WifiManagePrivate.h>
 #include <Tactility/lvgl/Style.h>
-#include <Tactility/service/wifi/Wifi.h>
-#include <Tactility/service/wifi/WifiSettings.h>
 #include <Tactility/Tactility.h>
 
 #include <app/event.h>
@@ -15,6 +13,8 @@
 
 #include <tactility/log.h>
 #include <lvgl/lvgl.h>
+
+#include <wifi/wifi_settings.h>
 
 namespace tt::app::wifimanage {
 
@@ -49,7 +49,7 @@ static void onEnableOnBootSwitchChanged(lv_event_t* event) {
     bool is_on = lv_obj_has_state(enable_switch, LV_STATE_CHECKED);
     // Dispatch it, so file IO doesn't block the UI
     getMainDispatcher().dispatch([is_on] {
-        service::wifi::settings::setEnableOnBoot(is_on);
+        wifi_settings_set_enable_on_boot(is_on);
     });
 }
 
@@ -80,7 +80,7 @@ void View::connect(lv_event_t* event) {
         LOG_I(TAG, "Clicked %zu/%zu", index, ap_records.size() - 1);
         std::string ssid = ap_records[index].ssid;
         LOG_I(TAG, "Clicked AP: %s", ssid.c_str());
-        std::string connection_target = service::wifi::getConnectionTarget();
+        std::string connection_target = self->state->getConnectionTarget();
         if (connection_target == ssid) {
             self->bindings->onDisconnect();
         } else {
@@ -117,7 +117,7 @@ void View::createSsidListItem(const WifiApRecord& record, bool isConnecting, siz
         const auto label = std::format("{} {}{}%", std::string(record.ssid), auth_info, percentage);
         auto* button = lv_list_add_button(networks_list, nullptr, label.c_str());
         lv_obj_set_user_data(button, reinterpret_cast<void*>(index));
-        if (service::wifi::settings::contains(record.ssid)) {
+        if (wifi_settings_contains(record.ssid)) {
             lv_obj_add_event_cb(button, showDetails, LV_EVENT_SHORT_CLICKED, this);
         } else {
             lv_obj_add_event_cb(button, connect, LV_EVENT_SHORT_CLICKED, this);
@@ -130,19 +130,10 @@ void View::updateConnectToHidden() {
         return;
     }
 
-    using enum service::wifi::RadioState;
-    switch (state->getRadioState()) {
-        case On:
-        case ConnectionPending:
-        case ConnectionActive:
-            lv_obj_remove_flag(connect_to_hidden, LV_OBJ_FLAG_HIDDEN);
-            break;
-
-        case OnPending:
-        case OffPending:
-        case Off:
-            lv_obj_add_flag(connect_to_hidden, LV_OBJ_FLAG_HIDDEN);
-            break;
+    if (state->getRadioState() == WIFI_RADIO_STATE_ON) {
+        lv_obj_remove_flag(connect_to_hidden, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(connect_to_hidden, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
@@ -174,19 +165,17 @@ void View::updateNetworkList() {
     updateEnableOnBootToggle();
 
     switch (state->getRadioState()) {
-        using enum service::wifi::RadioState;
-        case OnPending:
-        case On:
-        case ConnectionPending:
-        case ConnectionActive: {
+        case WIFI_RADIO_STATE_ON_PENDING:
+        case WIFI_RADIO_STATE_ON: {
 
-            std::string connection_target = service::wifi::getConnectionTarget();
+            std::string connection_target = state->getConnectionTarget();
+            auto station_state = state->getStationState();
 
             // Make safe copy
             auto ap_records = state->getApRecords();
 
             bool is_connected = !connection_target.empty() &&
-                state->getRadioState() == ConnectionActive;
+                station_state == WIFI_STATION_STATE_CONNECTED;
             bool added_connected = false;
             if (is_connected && !ap_records.empty()) {
                 for (int i = 0; i < ap_records.size(); ++i) {
@@ -208,7 +197,7 @@ void View::updateNetworkList() {
                     if (!used_ssids.contains(record.ssid)) {
                         bool connection_target_match = (record.ssid == connection_target);
                         bool is_connecting = connection_target_match
-                            && state->getRadioState() == ConnectionPending &&
+                            && station_state == WIFI_STATION_STATE_CONNECTION_PENDING &&
                             !connection_target.empty();
                         bool skip = connection_target_match && added_connected;
                         if (!skip) {
@@ -245,7 +234,7 @@ void View::updateNetworkList() {
 }
 
 void View::updateScanning() {
-    if (state->getRadioState() == service::wifi::RadioState::On && state->isScanning()) {
+    if (state->getRadioState() == WIFI_RADIO_STATE_ON && state->getStationState() == WIFI_STATION_STATE_DISCONNECTED && state->isScanning()) {
         lv_obj_remove_flag(scanning_spinner, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(scanning_spinner, LV_OBJ_FLAG_HIDDEN);
@@ -255,21 +244,18 @@ void View::updateScanning() {
 void View::updateWifiToggle() {
     lv_obj_clear_state(enable_switch, LV_STATE_ANY);
     switch (state->getRadioState()) {
-        using enum service::wifi::RadioState;
-        case On:
-        case ConnectionPending:
-        case ConnectionActive:
+        case WIFI_RADIO_STATE_ON:
             lv_obj_add_state(enable_switch, LV_STATE_CHECKED);
             break;
-        case OnPending:
+        case WIFI_RADIO_STATE_ON_PENDING:
             lv_obj_add_state(enable_switch, LV_STATE_CHECKED);
             lv_obj_add_state(enable_switch, LV_STATE_DISABLED);
             break;
-        case Off:
+        case WIFI_RADIO_STATE_OFF:
             lv_obj_remove_state(enable_switch, LV_STATE_CHECKED);
             lv_obj_remove_state(enable_switch, LV_STATE_DISABLED);
             break;
-        case OffPending:
+        case WIFI_RADIO_STATE_OFF_PENDING:
             lv_obj_remove_state(enable_switch, LV_STATE_CHECKED);
             lv_obj_add_state(enable_switch, LV_STATE_DISABLED);
             break;
@@ -279,7 +265,7 @@ void View::updateWifiToggle() {
 void View::updateEnableOnBootToggle() {
     if (enable_on_boot_switch != nullptr) {
         lv_obj_clear_state(enable_on_boot_switch, LV_STATE_ANY);
-        if (service::wifi::settings::shouldEnableOnBoot()) {
+        if (wifi_settings_get_enable_on_boot()) {
             lv_obj_add_state(enable_on_boot_switch, LV_STATE_CHECKED);
         } else {
             lv_obj_remove_state(enable_on_boot_switch, LV_STATE_CHECKED);

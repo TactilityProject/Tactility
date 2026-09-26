@@ -6,7 +6,7 @@
 #include <Tactility/app/timezone/TimeZone.h>
 #include <Tactility/app/wifimanage/WifiManage.h>
 #include <Tactility/file/File.h>
-#include <Tactility/service/wifi/Wifi.h>
+#include <Tactility/Tactility.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -17,6 +17,8 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
+#include <tactility/device.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
 #include <lvgl/fonts.h>
@@ -221,7 +223,13 @@ int32_t appMain(int argc, char* argv[]) {
             .title = "Wi-Fi Setup",
             .description = "Let's connect to a Wi-Fi access point.",
             .run = [&ctx] {
-                service::wifi::setEnabled(true);
+                getMainDispatcher().dispatch([] {
+                    Device* wifi_device = nullptr;
+                    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) == ERROR_NONE) {
+                        wifi_set_radio_on(wifi_device);
+                        device_put(wifi_device);
+                    }
+                });
                 ctx.pendingStepDialogId = wifimanage::start(ctx.appInstanceId);
             }
         }

@@ -6,7 +6,6 @@
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServicePaths.h>
 #include <Tactility/service/ServiceRegistration.h>
-#include <Tactility/service/wifi/Wifi.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
@@ -18,6 +17,7 @@
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/drivers/usb_host_msc.h>
+#include <tactility/drivers/wifi.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
 
@@ -49,23 +49,35 @@ const char* getWifiStatusIconForRssi(int rssi) {
     }
 }
 
-static const char* getWifiStatusIcon(wifi::RadioState state) {
-    int rssi;
-    switch (state) {
-        using enum wifi::RadioState;
-        case On:
-        case OnPending:
-        case ConnectionPending:
-            return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_0_BAR;
-        case OffPending:
-        case Off:
-            return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_OFF;
-        case ConnectionActive:
-            rssi = wifi::getRssi();
-            return getWifiStatusIconForRssi(rssi);
-        default:
-            check(false, "not implemented");
+static const char* getWifiStatusIcon() {
+    Device* device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &device) != ERROR_NONE) {
+        return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_OFF;
     }
+
+    WifiRadioState radio_state = WIFI_RADIO_STATE_OFF;
+    WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
+    int32_t rssi = 1;
+    wifi_get_radio_state(device, &radio_state);
+    wifi_get_station_state(device, &station_state);
+    if (station_state == WIFI_STATION_STATE_CONNECTED) {
+        wifi_station_get_rssi(device, &rssi);
+    }
+    device_put(device);
+
+    switch (radio_state) {
+        case WIFI_RADIO_STATE_OFF:
+        case WIFI_RADIO_STATE_OFF_PENDING:
+            return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_OFF;
+        case WIFI_RADIO_STATE_ON_PENDING:
+            return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_0_BAR;
+        case WIFI_RADIO_STATE_ON:
+            if (station_state == WIFI_STATION_STATE_CONNECTED) {
+                return getWifiStatusIconForRssi(rssi);
+            }
+            return LVGL_ICON_STATUSBAR_SIGNAL_WIFI_0_BAR;
+    }
+    check(false, "not implemented");
 }
 
 static const char* getBluetoothStatusIcon(tt::bluetooth::RadioState state, bool scanning, bool connected) {
@@ -207,8 +219,7 @@ class StatusbarService final : public Service {
     }
 
     void updateWifiIcon() {
-        wifi::RadioState radio_state = wifi::getRadioState();
-        const char* desired_icon = getWifiStatusIcon(radio_state);
+        const char* desired_icon = getWifiStatusIcon();
         if (wifi_last_icon != desired_icon) {
             if (desired_icon != nullptr) {
                 lvgl::statusbar_icon_set_image(wifi_icon_id, desired_icon);
