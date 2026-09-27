@@ -82,6 +82,9 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=tcgetattr" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=tcsetattr" APPEND)
 
+    # exit() from an app ends only that app (see app_scheduler_exit_current()) instead of aborting.
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=exit" APPEND)
+
     # opendir()/readdir()/closedir() also define the plain names directly (vfs_calls.c).
     # Wrapped so opendir("/") synthesizes a listing of own registered filesystems instead of ENOENT.
     # See Platforms/platform-esp32/source/root_dir.cpp.

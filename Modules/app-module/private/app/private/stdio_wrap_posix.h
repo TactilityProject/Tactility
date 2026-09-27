@@ -22,6 +22,7 @@ int __wrap_fstat(int fd, struct stat* st);
 int __wrap_poll(struct pollfd* fds, nfds_t nfds, int timeout);
 int __wrap_tcgetattr(int fd, struct termios* p);
 int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p);
+[[noreturn]] void __wrap_exit(int status);
 
 int __wrap_vprintf(const char* format, va_list args);
 int __wrap_printf(const char* format, ...);

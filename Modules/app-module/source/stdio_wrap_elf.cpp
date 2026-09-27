@@ -51,6 +51,10 @@ int tcsetattr(int fd, int optional_actions, const struct termios* p) {
     return __wrap_tcsetattr(fd, optional_actions, p);
 }
 
+void exit(int status) {
+    __wrap_exit(status);
+}
+
 int vprintf(const char* format, va_list args) {
     return __wrap_vprintf(format, args);
 }

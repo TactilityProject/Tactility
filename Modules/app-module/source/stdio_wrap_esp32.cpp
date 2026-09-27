@@ -4,6 +4,7 @@
 #include <app/private/stdio_wrap.h>
 
 #include <app/io.h>
+#include <app/scheduler.h>
 
 #include <cerrno>
 #include <cstdarg>
@@ -111,6 +112,14 @@ int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p) {
         return result;
     }
     return __real_tcsetattr(fd, optional_actions, p);
+}
+
+// Called by an app, newlib's exit() would reach _exit(), which aborts the whole device
+[[noreturn]] void __real_exit(int status);
+
+[[noreturn]] void __wrap_exit(int status) {
+    app_scheduler_exit_current(status);
+    __real_exit(status);
 }
 
 }

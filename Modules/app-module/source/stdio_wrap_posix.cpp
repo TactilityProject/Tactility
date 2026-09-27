@@ -8,6 +8,7 @@
 #include <app/private/stdio_wrap_posix.h>
 
 #include <app/io.h>
+#include <app/scheduler.h>
 
 #include <cerrno>
 #include <cstring>
@@ -69,6 +70,12 @@ int __real_tcgetattr(int fd, struct termios* p) {
 int __real_tcsetattr(int fd, int optional_actions, const struct termios* p) {
     static auto real = reinterpret_cast<int (*)(int, int, const struct termios*)>(dlsym(RTLD_NEXT, "tcsetattr"));
     return real(fd, optional_actions, p);
+}
+
+[[noreturn]] void __real_exit(int status) {
+    static auto real = reinterpret_cast<void (*)(int)>(dlsym(RTLD_NEXT, "exit"));
+    real(status);
+    __builtin_unreachable();
 }
 
 ssize_t __wrap_read(int fd, void* buffer, size_t size) {
@@ -151,6 +158,12 @@ int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p) {
         return result;
     }
     return __real_tcsetattr(fd, optional_actions, p);
+}
+
+// Called by an app, the real exit() would end the whole simulator
+void __wrap_exit(int status) {
+    app_scheduler_exit_current(status);
+    __real_exit(status);
 }
 
 }

@@ -21,6 +21,7 @@
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -253,7 +254,37 @@ int32_t closed_stdin_posix_calls_app_main(int, char*[]) {
     return 0;
 }
 
+std::atomic<bool> g_exit_before { false };
+std::atomic<bool> g_exit_after { false };
+
+int32_t exit_app_main(int, char*[]) {
+    g_exit_before.store(true, std::memory_order_release);
+    exit(42);
+    g_exit_after.store(true, std::memory_order_release);
+    return 0;
+}
+
 } // namespace
+
+TEST_CASE("exit() in an app ends only that app instance") {
+    ensure_memory_loader_registered();
+    g_exit_before.store(false, std::memory_order_relaxed);
+    g_exit_after.store(false, std::memory_order_relaxed);
+
+    AppManifest manifest { "test.io.exit", "Exit", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(exit_app_main) } };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    AppInstanceId instance_id = 0;
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.exit", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
+    REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 2000));
+
+    CHECK(g_exit_before.load(std::memory_order_acquire));
+    CHECK_FALSE(g_exit_after.load(std::memory_order_acquire));
+
+    app_manager_remove("test.io.exit");
+}
 
 TEST_CASE("fstat, termios and poll on a closed app stdin fail with EBADF/POLLNVAL instead of reaching the real fd") {
     ensure_memory_loader_registered();

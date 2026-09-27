@@ -3,6 +3,7 @@
 
 #include <app/private/stdio_wrap_posix.h>
 
+#include <cstdlib>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
@@ -23,6 +24,7 @@ TT_DYLD_INTERPOSE(__wrap_fstat, fstat)
 TT_DYLD_INTERPOSE(__wrap_poll, poll)
 TT_DYLD_INTERPOSE(__wrap_tcgetattr, tcgetattr)
 TT_DYLD_INTERPOSE(__wrap_tcsetattr, tcsetattr)
+TT_DYLD_INTERPOSE(__wrap_exit, exit)
 
 TT_DYLD_INTERPOSE(__wrap_vprintf, vprintf)
 TT_DYLD_INTERPOSE(__wrap_printf, printf)

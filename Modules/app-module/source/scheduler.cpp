@@ -17,6 +17,7 @@
 #include <tactility/log.h>
 #include <tactility/memory.h>
 
+#include <csetjmp>
 #include <cstdint>
 #include <cstdio>
 #include <new>
@@ -95,6 +96,16 @@ void set_state(AppInstanceId app_instance_id, AppInstanceState state) {
     }
     mutex_unlock(&ledger.mutex);
 }
+
+// Where app_scheduler_exit_current() returns to in app_task_main(), with the exit status.
+struct AppExitPoint {
+    jmp_buf jump;
+    int32_t status;
+};
+
+// Per thread rather than looked up by app_scheduler_current_app_id(): on the simulator, that reads
+// the scheduled FreeRTOS task even from a foreign thread, which must never jump into an app's stack.
+thread_local AppExitPoint* current_exit_point = nullptr;
 
 void set_task(AppInstanceId app_instance_id, TaskHandle_t task) {
     auto& ledger = app_ledger();
@@ -207,7 +218,16 @@ void app_task_main(void* context) {
 
     set_state(ctx->app_instance_id, APP_INSTANCE_STATE_ACTIVE);
 
-    int32_t result = ctx->loader->run(ctx->runtime, ctx->app_instance_id, app_arguments_count_null_terminated(ctx->argv), ctx->argv);
+    // exit() called on this task returns here instead of ending the whole process
+    AppExitPoint exit_point {};
+    current_exit_point = &exit_point;
+    int32_t result;
+    if (setjmp(exit_point.jump) == 0) {
+        result = ctx->loader->run(ctx->runtime, ctx->app_instance_id, app_arguments_count_null_terminated(ctx->argv), ctx->argv);
+    } else {
+        result = exit_point.status;
+    }
+    current_exit_point = nullptr;
 
     // The platform might buffer stdout (e.g. esp-idf with newlib)
     // Do a manual flush to ensure data has been written:
@@ -456,6 +476,16 @@ error_t app_scheduler_stop(AppInstanceId app_instance_id, TickType_t join_timeou
 AppInstanceId app_scheduler_current_app_id(void) {
     void* value = pvTaskGetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX);
     return reinterpret_cast<uintptr_t>(value);
+}
+
+void app_scheduler_exit_current(int32_t status) {
+    AppExitPoint* exit_point = current_exit_point;
+    if (exit_point == nullptr) {
+        return;
+    }
+    fflush(stdout);
+    exit_point->status = status;
+    longjmp(exit_point->jump, 1);
 }
 
 } // extern "C"
