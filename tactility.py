@@ -15,7 +15,7 @@ import tarfile
 from urllib.parse import urlparse
 
 ttbuild_path = ".tactility"
-ttbuild_version = "7.0.0"
+ttbuild_version = "7.0.1"
 ttbuild_cdn = "https://cdn.tactilityproject.org"
 ttbuild_sdk_json_validity = 3600  # seconds
 ttport = 6666
@@ -480,8 +480,9 @@ def safe_extract_zip(zip_ref, target_dir):
             raise ValueError(f"Invalid zip entry: {member.filename}")
     zip_ref.extractall(target_dir)
 
-def sdk_download(version, platform):
-    sdk_root_dir = get_sdk_root_dir(version, platform)
+def sdk_download(version, platform, sdk_root_dir=None):
+    if sdk_root_dir is None:
+        sdk_root_dir = get_sdk_root_dir(version, platform)
     os.makedirs(sdk_root_dir, exist_ok=True)
     sdk_index_url = get_sdk_url(version, "index.json")
     print(f"Downloading SDK version {version} for {platform}")
@@ -514,7 +515,21 @@ def sdk_download_all(version, platforms):
     for platform in platforms:
         if sdk_exists(version, platform) and not sdk_has_sdkconfig(version, platform):
             print_warning(f"Cached SDK version {version} for {platform} is outdated (no sdkconfig.app.{platform}), downloading it again")
-            shutil.rmtree(get_sdk_root_dir(version, platform))
+            # Downloaded next to the cache, so a failed download keeps the cached SDK
+            sdk_root_dir = get_sdk_root_dir(version, platform)
+            replacement_root_dir = f"{sdk_root_dir}.new"
+            shutil.rmtree(replacement_root_dir, ignore_errors=True)
+            if not sdk_download(version, platform, replacement_root_dir):
+                shutil.rmtree(replacement_root_dir, ignore_errors=True)
+                return False
+            replacement_sdkconfig = os.path.join(replacement_root_dir, "TactilitySDK", f"sdkconfig.app.{platform}")
+            if not platform.startswith("posix") and not os.path.isfile(replacement_sdkconfig):
+                shutil.rmtree(replacement_root_dir, ignore_errors=True)
+                print_error(f"SDK version {version} for {platform} does not contain sdkconfig.app.{platform}, which this tool requires. Use a newer SDK version.")
+                return False
+            shutil.rmtree(sdk_root_dir)
+            shutil.move(replacement_root_dir, sdk_root_dir)
+            continue
         if not sdk_exists(version, platform):
             if not sdk_download(version, platform):
                 return False
