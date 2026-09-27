@@ -26,11 +26,33 @@
 
 constexpr auto* TAG = "app_scheduler";
 
-// Slot 0 is reserved by ESP-IDF's pthread API (see TactilityKernel's Thread wrapper for the
-// same convention/comment) - app tasks use slot 1 to stash their own app_instance_id, so any
-// code running on an app's own task can retrieve it via app_scheduler_current_app_id() without
-// needing it threaded through as a parameter.
+// The app instance whose task this thread is, so code running on an app's own task can retrieve it via
+// app_scheduler_current_app_id() without it being threaded through as a parameter.
+#ifdef ESP_PLATFORM
+// A FreeRTOS task-local slot rather than thread_local, which faults before the scheduler starts
+// (e.g. a write() during early boot). Slot 0 is reserved by ESP-IDF's pthread API.
 constexpr size_t APP_INSTANCE_ID_THREAD_SLOT_INDEX = 1;
+
+AppInstanceId get_current_app_id() {
+    return reinterpret_cast<uintptr_t>(pvTaskGetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX));
+}
+
+void set_current_app_id(AppInstanceId app_instance_id) {
+    vTaskSetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX, reinterpret_cast<void*>(static_cast<uintptr_t>(app_instance_id)));
+}
+#else
+// thread_local rather than a FreeRTOS task-local slot: on the simulator, that slot is read from whichever
+// task is scheduled, even by a foreign thread (e.g. SDL's), which must never be mistaken for an app.
+thread_local AppInstanceId current_app_id = 0;
+
+AppInstanceId get_current_app_id() {
+    return current_app_id;
+}
+
+void set_current_app_id(AppInstanceId app_instance_id) {
+    current_app_id = app_instance_id;
+}
+#endif
 
 // Matches TactilityKernel's Thread wrapper's THREAD_PRIORITY_NORMAL.
 constexpr UBaseType_t APP_TASK_PRIORITY = 4;
@@ -99,9 +121,7 @@ void set_state(AppInstanceId app_instance_id, AppInstanceState state) {
     mutex_unlock(&ledger.mutex);
 }
 
-// Set while this thread is an app instance's task running AppLoaderApi::run(). Per thread rather than
-// looked up by app_scheduler_current_app_id(): on the simulator, that reads the scheduled FreeRTOS task
-// even from a foreign thread, which must never end an app's task.
+// Set while this thread is an app instance's task running AppLoaderApi::run().
 thread_local TaskContext* current_task_context = nullptr;
 
 #ifndef ESP_PLATFORM
@@ -243,8 +263,8 @@ void app_task_main(void* context) {
     current_deferred_unload = &deferred_unload;
 #endif
 
-    check(pvTaskGetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX) == nullptr);
-    vTaskSetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX, reinterpret_cast<void*>(static_cast<uintptr_t>(ctx->app_instance_id)));
+    check(get_current_app_id() == 0);
+    set_current_app_id(ctx->app_instance_id);
 
     // Debug logging so it's invisible by default
     // When logging happens, it can distort the application stdout, which breaks apps that use
@@ -266,7 +286,7 @@ void finish_app_task(TaskContext* ctx, int32_t result, bool exiting) {
     // Do a manual flush to ensure data has been written:
     fflush(stdout);
 
-    vTaskSetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX, nullptr);
+    set_current_app_id(0);
 
 #ifndef ESP_PLATFORM
     if (exiting) {
@@ -521,11 +541,14 @@ error_t app_scheduler_stop(AppInstanceId app_instance_id, TickType_t join_timeou
 }
 
 AppInstanceId app_scheduler_current_app_id(void) {
-    void* value = pvTaskGetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX);
-    return reinterpret_cast<uintptr_t>(value);
+    return get_current_app_id();
 }
 
 void app_scheduler_exit_current(int32_t status) {
+    // Checked first: thread_local can't be read before the scheduler starts on ESP32
+    if (get_current_app_id() == 0) {
+        return;
+    }
     TaskContext* ctx = current_task_context;
     if (ctx == nullptr) {
         return;
