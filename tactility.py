@@ -309,6 +309,8 @@ def validate_local_sdks(platforms, version):
         sdk_dir = os.path.join(sdk_parent_dir, "TactilitySDK")
         if not os.path.isdir(sdk_dir):
             exit_with_error(f"Local SDK folder missing for {platform}: {sdk_dir}")
+        if not sdk_has_sdkconfig(version, platform):
+            exit_with_error(f"Local SDK for {platform} does not contain sdkconfig.app.{platform}, which this tool requires. Rebuild it with the current SDK release scripts.")
 
 def get_sdk_root_dir(version, platform):
     global ttbuild_cdn
@@ -338,8 +340,15 @@ def update_tool_json(version):
     os.makedirs(os.path.dirname(json_filepath), exist_ok=True)
     return download_file(get_sdk_url(version, "tactility.py.json"), json_filepath)
 
+def get_sdk_sdkconfig_path(version, platform):
+    return os.path.join(get_sdk_dir(version, platform), f"sdkconfig.app.{platform}")
+
+# ESP32 SDKs built before the sdkconfig was bundled lack it and can't build apps. POSIX SDKs never need one.
+def sdk_has_sdkconfig(version, platform):
+    return platform.startswith("posix") or os.path.isfile(get_sdk_sdkconfig_path(version, platform))
+
 def copy_sdk_sdkconfig(version, platform):
-    sdkconfig_path = os.path.join(get_sdk_dir(version, platform), f"sdkconfig.app.{platform}")
+    sdkconfig_path = get_sdk_sdkconfig_path(version, platform)
     if not os.path.isfile(sdkconfig_path):
         exit_with_error(f"SDK does not contain {sdkconfig_path}")
     shutil.copy(sdkconfig_path, "sdkconfig")
@@ -501,8 +510,14 @@ def sdk_download(version, platform):
 
 def sdk_download_all(version, platforms):
     for platform in platforms:
+        if sdk_exists(version, platform) and not sdk_has_sdkconfig(version, platform):
+            print_warning(f"Cached SDK version {version} for {platform} is outdated (no sdkconfig.app.{platform}), downloading it again")
+            shutil.rmtree(get_sdk_root_dir(version, platform))
         if not sdk_exists(version, platform):
             if not sdk_download(version, platform):
+                return False
+            if not sdk_has_sdkconfig(version, platform):
+                print_error(f"SDK version {version} for {platform} does not contain sdkconfig.app.{platform}, which this tool requires. Use a newer SDK version.")
                 return False
         else:
             if verbose:

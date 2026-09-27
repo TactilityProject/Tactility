@@ -68,6 +68,7 @@ void forEachCommand(void* context, void (*callback)(const Command&, void*)) {
     struct CommandId { AppId id; };
     struct InstalledCommand {
         char name[APP_MANIFEST_BINARY_LENGTH + 1];
+        AppId id;
         char path[FILE_MAX_PATH_STRING_LENGTH];
     };
     struct Gathered {
@@ -99,16 +100,17 @@ void forEachCommand(void* context, void (*callback)(const Command&, void*)) {
             }
             memcpy(command.name, fileName, nameLength);
             command.name[nameLength] = '\0';
+            memcpy(command.id, manifest->id, sizeof(AppId));
             strcpy(command.path, path);
             gathered.installed.push_back(command);
         }
     }, &gathered);
     // Built-ins first, so they win a name clash with an installed app
     for (const auto& [id] : gathered.ids) {
-        callback(Command { .name = id, .help = "", .path = nullptr }, context);
+        callback(Command { .name = id, .help = "", .id = id, .path = nullptr }, context);
     }
     for (const auto& command : gathered.installed) {
-        callback(Command { .name = command.name, .help = "", .path = command.path }, context);
+        callback(Command { .name = command.name, .help = "", .id = command.id, .path = command.path }, context);
     }
 }
 
@@ -271,20 +273,22 @@ int runCommand(int argc, char** argv, int* found) {
     // borrowed pointers into the manifest) and run after forEachCommand() returns, once
     // app_ledger()'s lock (held for the whole enumeration) is released: runFromMemory() starts a
     // real app instance by id, which itself needs the ledger.
-    // An installed app's binary path is copied, as forEachCommand()'s storage for it is gone by then.
+    // An installed app's id and binary path are copied, as forEachCommand()'s storage for them is gone by then.
     struct Match {
-        const char* id;
+        const char* name;
         bool found;
-        Command command;
+        bool installed;
+        AppId id;
         char path[FILE_MAX_PATH_STRING_LENGTH];
     };
-    Match match { argv[0], false, {}, {} };
+    Match match { argv[0], false, false, {}, {} };
     forEachCommand(&match, [](const Command& command, void* context) {
         auto* match = static_cast<Match*>(context);
-        if (!match->found && strcmp(command.name, match->id) == 0) {
+        if (!match->found && strcmp(command.name, match->name) == 0) {
             match->found = true;
-            match->command = command;
             if (command.path != nullptr) {
+                match->installed = true;
+                snprintf(match->id, sizeof(match->id), "%s", command.id);
                 snprintf(match->path, sizeof(match->path), "%s", command.path);
             }
         }
@@ -292,8 +296,8 @@ int runCommand(int argc, char** argv, int* found) {
 
     if (match.found) {
         *found = 1;
-        if (match.command.path != nullptr) {
-            return runElf(match.path, argc, argv);
+        if (match.installed) {
+            return runInstalled(match.id, match.path, argc, argv);
         }
         return runFromMemory(argv[0], argc, argv);
     }

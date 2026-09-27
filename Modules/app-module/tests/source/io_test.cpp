@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -230,7 +231,55 @@ int32_t posix_calls_app_main(int, char*[]) {
     return 0;
 }
 
+std::atomic<bool> g_closed_fstat_ebadf { false };
+std::atomic<bool> g_closed_tcgetattr_ebadf { false };
+std::atomic<bool> g_closed_tcsetattr_ebadf { false };
+std::atomic<int> g_closed_poll_result { -2 };
+std::atomic<int> g_closed_poll_revents { -2 };
+
+// Must never reach the process's real fd 0 (the host terminal on the simulator).
+int32_t closed_stdin_posix_calls_app_main(int, char*[]) {
+    app_io_close(STDIN_FILENO);
+
+    struct stat st {};
+    g_closed_fstat_ebadf.store(fstat(STDIN_FILENO, &st) == -1 && errno == EBADF, std::memory_order_release);
+    struct termios t {};
+    g_closed_tcgetattr_ebadf.store(tcgetattr(STDIN_FILENO, &t) == -1 && errno == EBADF, std::memory_order_release);
+    g_closed_tcsetattr_ebadf.store(tcsetattr(STDIN_FILENO, TCSANOW, &t) == -1 && errno == EBADF, std::memory_order_release);
+
+    struct pollfd fds { STDIN_FILENO, POLLIN, 0 };
+    g_closed_poll_result.store(poll(&fds, 1, 1000), std::memory_order_release);
+    g_closed_poll_revents.store(fds.revents, std::memory_order_release);
+    return 0;
+}
+
 } // namespace
+
+TEST_CASE("fstat, termios and poll on a closed app stdin fail with EBADF/POLLNVAL instead of reaching the real fd") {
+    ensure_memory_loader_registered();
+    g_closed_fstat_ebadf.store(false, std::memory_order_relaxed);
+    g_closed_tcgetattr_ebadf.store(false, std::memory_order_relaxed);
+    g_closed_tcsetattr_ebadf.store(false, std::memory_order_relaxed);
+    g_closed_poll_result.store(-2, std::memory_order_relaxed);
+    g_closed_poll_revents.store(-2, std::memory_order_relaxed);
+
+    AppManifest manifest { "test.io.closed_posix_calls", "ClosedPosixCalls", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(closed_stdin_posix_calls_app_main) } };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    AppInstanceId instance_id = 0;
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.closed_posix_calls", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
+    REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 2000));
+
+    CHECK(g_closed_fstat_ebadf.load(std::memory_order_acquire));
+    CHECK(g_closed_tcgetattr_ebadf.load(std::memory_order_acquire));
+    CHECK(g_closed_tcsetattr_ebadf.load(std::memory_order_acquire));
+    CHECK_EQ(g_closed_poll_result.load(std::memory_order_acquire), 1);
+    CHECK_EQ(g_closed_poll_revents.load(std::memory_order_acquire), POLLNVAL);
+
+    app_manager_remove("test.io.closed_posix_calls");
+}
 
 TEST_CASE("fstat, termios and poll on a bound app stdin report a raw character device that becomes readable") {
     ensure_memory_loader_registered();

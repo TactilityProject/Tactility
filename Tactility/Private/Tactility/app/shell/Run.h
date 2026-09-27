@@ -18,6 +18,12 @@ int runScript(const char* resolvedPath, int argc, char** argv);
 int runElf(const char* resolvedPath, int argc, char** argv);
 
 /**
+ * Runs an installed app's binary like runElf(), but started from its registered manifest @a id,
+ * so it gets the stack and memory configuration that manifest declares.
+ */
+int runInstalled(const char* id, const char* resolvedPath, int argc, char** argv);
+
+/**
  * Runs a registered, in-memory app (APP_LOCATION_MEMORY) as its own app instance, the same way
  * runElf() runs a loaded binary as one: its own task and fd table, stdio piped through this app's
  * own. Used for shell commands resolved via Shell::forEachCommand() instead of calling their

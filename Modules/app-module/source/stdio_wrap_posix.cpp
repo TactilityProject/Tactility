@@ -122,8 +122,9 @@ int __wrap_chdir(const char* path) {
 }
 
 int __wrap_fstat(int fd, struct stat* st) {
-    if (tryAppFstat(fd, st)) {
-        return 0;
+    int result;
+    if (tryAppFstat(fd, st, &result)) {
+        return result;
     }
     return __real_fstat(fd, st);
 }
@@ -137,16 +138,17 @@ int __wrap_poll(struct pollfd* fds, nfds_t nfds, int timeout) {
 }
 
 int __wrap_tcgetattr(int fd, struct termios* p) {
-    if (isAppFd(fd)) {
-        fillAppTermios(p);
-        return 0;
+    int result;
+    if (tryAppTcgetattr(fd, p, &result)) {
+        return result;
     }
     return __real_tcgetattr(fd, p);
 }
 
 int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p) {
-    if (isAppFd(fd)) {
-        return 0;
+    int result;
+    if (tryAppTcsetattr(fd, &result)) {
+        return result;
     }
     return __real_tcsetattr(fd, optional_actions, p);
 }

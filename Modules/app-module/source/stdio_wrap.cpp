@@ -81,29 +81,68 @@ bool tryAppChdir(const char* path, int* outResult, int* outErrno) {
     return true;
 }
 
-bool isAppFd(int fd) {
+AppFdState getAppFdState(int fd) {
     uint32_t bits;
-    return app_io_poll(fd, &bits) == ERROR_NONE;
+    switch (app_io_poll(fd, &bits)) {
+        case ERROR_NONE:
+            return AppFdState::Bound;
+        case ERROR_INVALID_STATE:
+            return AppFdState::Closed;
+        default:
+            return AppFdState::NotAppFd;
+    }
 }
 
 // App fds report as character devices, which also makes isatty() true for them.
-bool tryAppFstat(int fd, struct stat* st) {
-    if (st == nullptr || !isAppFd(fd)) {
+bool tryAppFstat(int fd, struct stat* st, int* outResult) {
+    const AppFdState state = getAppFdState(fd);
+    if (state == AppFdState::NotAppFd) {
         return false;
+    }
+    if (state == AppFdState::Closed) {
+        errno = EBADF;
+        *outResult = -1;
+        return true;
     }
     memset(st, 0, sizeof(*st));
     st->st_mode = S_IFCHR | 0666;
+    *outResult = 0;
     return true;
 }
 
 // App fd input is always raw and unechoed, and a written '\n' also returns the cursor.
-// tcsetattr() accepts any settings without applying them.
-void fillAppTermios(struct termios* t) {
+bool tryAppTcgetattr(int fd, struct termios* t, int* outResult) {
+    const AppFdState state = getAppFdState(fd);
+    if (state == AppFdState::NotAppFd) {
+        return false;
+    }
+    if (state == AppFdState::Closed) {
+        errno = EBADF;
+        *outResult = -1;
+        return true;
+    }
     memset(t, 0, sizeof(*t));
     t->c_oflag = OPOST | ONLCR;
     t->c_cflag = CS8 | CREAD;
     t->c_cc[VMIN] = 1;
     t->c_cc[VTIME] = 0;
+    *outResult = 0;
+    return true;
+}
+
+// Accepts any settings without applying them.
+bool tryAppTcsetattr(int fd, int* outResult) {
+    const AppFdState state = getAppFdState(fd);
+    if (state == AppFdState::NotAppFd) {
+        return false;
+    }
+    if (state == AppFdState::Closed) {
+        errno = EBADF;
+        *outResult = -1;
+        return true;
+    }
+    *outResult = 0;
+    return true;
 }
 
 namespace {
@@ -118,18 +157,22 @@ bool tryAppPoll(struct pollfd* fds, nfds_t nfds, int timeout, PollFunction realP
     if (fds == nullptr) {
         return false;
     }
+    // A closed app fd is always ready (POLLNVAL), so the wait below always has a bound fd to await
     int firstAppIndex = -1;
+    bool hasAppFd = false;
     nfds_t activeCount = 0;
     for (nfds_t i = 0; i < nfds; i++) {
         if (fds[i].fd < 0) {
             continue;
         }
         activeCount++;
-        if (firstAppIndex < 0 && isAppFd(fds[i].fd)) {
+        const AppFdState state = getAppFdState(fds[i].fd);
+        hasAppFd = hasAppFd || state != AppFdState::NotAppFd;
+        if (firstAppIndex < 0 && state == AppFdState::Bound) {
             firstAppIndex = static_cast<int>(i);
         }
     }
-    if (firstAppIndex < 0) {
+    if (!hasAppFd) {
         return false;
     }
 
@@ -143,13 +186,16 @@ bool tryAppPoll(struct pollfd* fds, nfds_t nfds, int timeout, PollFunction realP
                 continue;
             }
             uint32_t bits;
-            if (app_io_poll(fds[i].fd, &bits) == ERROR_NONE) {
+            const error_t pollResult = app_io_poll(fds[i].fd, &bits);
+            if (pollResult == ERROR_NONE) {
                 if ((fds[i].events & POLLIN) && (bits & APP_FILE_READABLE)) {
                     fds[i].revents |= POLLIN;
                 }
                 if ((fds[i].events & POLLOUT) && (bits & APP_FILE_WRITABLE)) {
                     fds[i].revents |= POLLOUT;
                 }
+            } else if (pollResult == ERROR_INVALID_STATE) {
+                fds[i].revents = POLLNVAL;
             } else {
                 realPoll(&fds[i], 1, 0);
             }

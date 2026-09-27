@@ -267,7 +267,11 @@ void endLineIfNeeded() {
     }
 }
 
-int runElf(const char* resolvedPath, int argc, char** argv) {
+namespace {
+
+// Shared by runElf() and runInstalled(): only how @a context is initialized differs, a manifest's
+// stack/memory config for a registered app vs. none for a plain binary.
+int runBinary(AppStartContext context, const char* resolvedPath, int argc, char** argv) {
     // Relative-looking arguments are made absolute before the binary sees them: ESP-IDF has no
     // per-process cwd for fopen() to resolve against (no chdir() at all), and the shell's own cwd
     // lives in ShellFs, meaning nothing to libc. shouldMakeAbsolute() decides which arguments qualify.
@@ -313,8 +317,6 @@ int runElf(const char* resolvedPath, int argc, char** argv) {
     // until the binary happens to exit.
     fflush(stdout);
 
-    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(resolvedPath) };
-    AppStartContext context = app_start_context_for_location(location);
     app_start_context_set_arguments_ext(&context, passedArgc, rewritten);
 
     const int result = runApp(context);
@@ -332,6 +334,22 @@ int runElf(const char* resolvedPath, int argc, char** argv) {
 
     fflush(stdout);
     return exitCode;
+}
+
+} // namespace
+
+int runElf(const char* resolvedPath, int argc, char** argv) {
+    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(resolvedPath) };
+    return runBinary(app_start_context_for_location(location), resolvedPath, argc, argv);
+}
+
+int runInstalled(const char* id, const char* resolvedPath, int argc, char** argv) {
+    AppStartContext context;
+    if (app_start_context_from_id(id, &context) != ERROR_NONE) {
+        printf("%s: not found\n", argv[0]);
+        return 127;
+    }
+    return runBinary(context, resolvedPath, argc, argv);
 }
 
 int runFromMemory(const char* id, int argc, char** argv) {

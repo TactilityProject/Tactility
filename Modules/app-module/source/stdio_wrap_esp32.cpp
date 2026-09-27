@@ -77,8 +77,9 @@ int __wrap_chdir(const char* path) {
 int __real__fstat_r(struct _reent* r, int fd, struct stat* st);
 
 int __wrap__fstat_r(struct _reent* r, int fd, struct stat* st) {
-    if (tryAppFstat(fd, st)) {
-        return 0;
+    int result;
+    if (tryAppFstat(fd, st, &result)) {
+        return result;
     }
     return __real__fstat_r(r, fd, st);
 }
@@ -97,16 +98,17 @@ int __real_tcgetattr(int fd, struct termios* p);
 int __real_tcsetattr(int fd, int optional_actions, const struct termios* p);
 
 int __wrap_tcgetattr(int fd, struct termios* p) {
-    if (isAppFd(fd)) {
-        fillAppTermios(p);
-        return 0;
+    int result;
+    if (tryAppTcgetattr(fd, p, &result)) {
+        return result;
     }
     return __real_tcgetattr(fd, p);
 }
 
 int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p) {
-    if (isAppFd(fd)) {
-        return 0;
+    int result;
+    if (tryAppTcsetattr(fd, &result)) {
+        return result;
     }
     return __real_tcsetattr(fd, optional_actions, p);
 }

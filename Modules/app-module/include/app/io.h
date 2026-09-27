@@ -38,7 +38,8 @@ error_t app_io_await(int fd, AppFileWait wait, TickType_t timeout);
 /**
  * FD-table dispatch for AppFileOps::poll(): reports readiness without blocking.
  * @param[out] out_bits APP_FILE_READABLE and/or APP_FILE_WRITABLE
- * @retval ERROR_NOT_FOUND @a fd isn't bound in the calling task's own app instance fd table
+ * @retval ERROR_NOT_FOUND @a fd isn't an app fd of the calling task's own app instance
+ * @retval ERROR_INVALID_STATE @a fd is an app fd that was already closed
  * @retval ERROR_NONE on success
  */
 error_t app_io_poll(int fd, uint32_t* out_bits);

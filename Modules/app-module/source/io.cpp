@@ -154,7 +154,7 @@ error_t app_io_poll(int fd, uint32_t* out_bits) {
     }
     AppFile file {};
     if (!app_fd_table_get_and_retain(table, fd, &file)) {
-        return ERROR_NOT_FOUND;
+        return app_fd_table_is_app_owned(table, fd) ? ERROR_INVALID_STATE : ERROR_NOT_FOUND;
     }
     *out_bits = file.ops->poll(file.object);
     if (file.ops->release != nullptr) {
