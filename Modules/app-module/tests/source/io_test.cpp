@@ -13,6 +13,9 @@
 #include <tactility/delay.h>
 
 #include <fcntl.h>
+#include <poll.h>
+#include <sys/stat.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include <atomic>
@@ -203,7 +206,72 @@ int32_t double_close_app_main(int, char*[]) {
     return 0;
 }
 
+std::atomic<bool> g_posix_stdin_is_char_device { false };
+std::atomic<int> g_posix_tcgetattr_result { -2 };
+std::atomic<bool> g_posix_stdin_is_raw { false };
+std::atomic<int> g_posix_tcsetattr_result { -2 };
+std::atomic<int> g_posix_poll_before_write { -2 };
+std::atomic<int> g_posix_poll_after_write { -2 };
+std::atomic<bool> g_posix_poll_first_done { false };
+
+int32_t posix_calls_app_main(int, char*[]) {
+    struct stat st {};
+    g_posix_stdin_is_char_device.store(fstat(STDIN_FILENO, &st) == 0 && S_ISCHR(st.st_mode), std::memory_order_release);
+
+    struct termios t {};
+    g_posix_tcgetattr_result.store(tcgetattr(STDIN_FILENO, &t), std::memory_order_release);
+    g_posix_stdin_is_raw.store((t.c_lflag & (ICANON | ECHO)) == 0, std::memory_order_release);
+    g_posix_tcsetattr_result.store(tcsetattr(STDIN_FILENO, TCSANOW, &t), std::memory_order_release);
+
+    struct pollfd fds { STDIN_FILENO, POLLIN, 0 };
+    g_posix_poll_before_write.store(poll(&fds, 1, 50), std::memory_order_release);
+    g_posix_poll_first_done.store(true, std::memory_order_release);
+    g_posix_poll_after_write.store(poll(&fds, 1, 1000), std::memory_order_release);
+    return 0;
+}
+
 } // namespace
+
+TEST_CASE("fstat, termios and poll on a bound app stdin report a raw character device that becomes readable") {
+    ensure_memory_loader_registered();
+    g_posix_stdin_is_char_device.store(false, std::memory_order_relaxed);
+    g_posix_tcgetattr_result.store(-2, std::memory_order_relaxed);
+    g_posix_stdin_is_raw.store(false, std::memory_order_relaxed);
+    g_posix_tcsetattr_result.store(-2, std::memory_order_relaxed);
+    g_posix_poll_before_write.store(-2, std::memory_order_relaxed);
+    g_posix_poll_after_write.store(-2, std::memory_order_relaxed);
+    g_posix_poll_first_done.store(false, std::memory_order_relaxed);
+
+    AppManifest manifest { "test.io.posix_calls", "PosixCalls", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(posix_calls_app_main) } };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    TaskEventGroup event_group {};
+    task_event_group_construct(&event_group);
+
+    uint8_t storage[16];
+    AppStream child_stdin {};
+    AppStreamBinding binding { STDIN_FILENO, &child_stdin, storage, sizeof(storage), &event_group, {}, -1 };
+    AppInstanceId child_id = 0;
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.io.posix_calls", &context), ERROR_NONE);
+    app_start_context_set_streams(&context, &binding, 1);
+    REQUIRE_EQ(app_start_with_context(&context, &child_id), ERROR_NONE);
+
+    REQUIRE(wait_for_flag(g_posix_poll_first_done, 1000));
+    app_stream_write(&child_stdin, "x", 1);
+
+    REQUIRE(wait_for_state(child_id, APP_INSTANCE_STATE_STOPPED, 1000));
+    CHECK(g_posix_stdin_is_char_device.load(std::memory_order_acquire));
+    CHECK_EQ(g_posix_tcgetattr_result.load(std::memory_order_acquire), 0);
+    CHECK(g_posix_stdin_is_raw.load(std::memory_order_acquire));
+    CHECK_EQ(g_posix_tcsetattr_result.load(std::memory_order_acquire), 0);
+    CHECK_EQ(g_posix_poll_before_write.load(std::memory_order_acquire), 0);
+    CHECK_EQ(g_posix_poll_after_write.load(std::memory_order_acquire), 1);
+
+    app_stream_unsubscribe(&child_stdin);
+    task_event_group_destruct(&event_group);
+    app_manager_remove("test.io.posix_calls");
+}
 
 TEST_CASE("an app's stdio fds default to the null device: write succeeds and discards, read reports EOF") {
     ensure_memory_loader_registered();

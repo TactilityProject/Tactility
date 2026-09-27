@@ -434,11 +434,24 @@ static int vterm_handle_escape(vterm_t *vt, char c)
 
         switch (c) {
         case 'm': vterm_apply_sgr(vt, vt->escape_buf); break;
-        case 'J':
-            if (strcmp(vt->escape_buf, "2") == 0 || strcmp(vt->escape_buf, "") == 0) {
+        case 'J': { // Erase in Display
+            int mode = 0;
+            if (vt->escape_buf[0]) mode = atoi(vt->escape_buf);
+            if (mode == 2) {
                 vterm_clear_internal(vt);
+                break;
+            }
+            int cursor = vt->cursor_y * VTERM_COLS + vt->cursor_x;
+            int start = 0, end = VTERM_ROWS * VTERM_COLS;
+            if (mode == 0) start = cursor; // Cursor to end of screen
+            else if (mode == 1) end = cursor + 1; // Start of screen to cursor
+            else break;
+            for (int i = start; i < end; i++) {
+                vt->cells[i].ch = ' ';
+                vt->cells[i].attr = vt->current_attr;
             }
             break;
+        }
         case 'H':
         case 'f':
             if (vt->escape_buf[0] == '\0' || strcmp(vt->escape_buf, "1;1") == 0) {

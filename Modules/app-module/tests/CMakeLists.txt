@@ -10,7 +10,7 @@ target_include_directories(AppModuleTests PRIVATE ${DOCTESTINC} ${CMAKE_CURRENT_
 
 add_test(NAME AppModuleTests COMMAND AppModuleTests)
 
-# No --wrap flags or stdio_wrap.cpp source needed here: linking app-module below already brings
+# No --wrap flags or stdio_wrap sources needed here: linking app-module below already brings
 # both along (see its own CMakeLists.txt).
 
 target_link_libraries(AppModuleTests PUBLIC

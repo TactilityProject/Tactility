@@ -2,6 +2,7 @@
 
 import os
 import glob
+import shutil
 import subprocess
 import sys
 import importlib.util
@@ -56,6 +57,23 @@ def add_module(target_path, module_name):
     shared.map_copy(mappings, target_path)
     cmakelists_content = create_module_cmakelists(module_name)
     shared.write_module_cmakelists(os.path.join(target_path, f"Modules/{module_name}/CMakeLists.txt"), cmakelists_content)
+
+def get_idf_target():
+    with open("sdkconfig", "r") as f:
+        for line in f:
+            if line.startswith("CONFIG_IDF_TARGET="):
+                return line.split('=')[1].strip().strip('"')
+    print("Error: CONFIG_IDF_TARGET not found in sdkconfig")
+    sys.exit(1)
+
+def add_app_sdkconfig(target_path):
+    """Bundles the sdkconfig that apps must build with for this SDK's target."""
+    filename = f"sdkconfig.app.{get_idf_target()}"
+    src = os.path.join('Buildscripts', 'TactilitySDK', filename)
+    if not os.path.isfile(src):
+        print(f"Error: {src} does not exist")
+        sys.exit(1)
+    shutil.copy2(src, os.path.join(target_path, filename))
 
 def main():
     if len(sys.argv) < 2:
@@ -117,6 +135,7 @@ def main():
     # Final scripts - copied verbatim
     shared.generate_tactility_sdk_cmake(target_path, 'esp32')
     shared.generate_tactility_sdk_top_cmakelists(target_path)
+    add_app_sdkconfig(target_path)
 
     # Output ESP-IDF SDK version to file
     with open(os.path.join(target_path, "idf-version.txt"), "w") as f:

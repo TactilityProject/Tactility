@@ -63,7 +63,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     # Wraps newlib's reentrant syscall stubs, not the plain read()/write()/close() newlib itself.
     # Implements as thin wrappers around them. newlib's own stdio (fflush()'s buffer-flush path in particular)
     # calls these _r stubs directly, bypassing the plain names entirely.
-    # See Modules/app-module/source/stdio_wrap.cpp's own comment for the exact call chain.
+    # See Modules/app-module/source/stdio_wrap_esp32.cpp's own comment for the exact call chain.
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_read_r" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_write_r" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_close_r" APPEND)
@@ -74,6 +74,13 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=ioctl" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=getcwd" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=chdir" APPEND)
+
+    # fstat()/isatty() go through _fstat_r. poll() and tcgetattr()/tcsetattr() are defined directly (poll.c, vfs_calls.c).
+    # Wrapped so app fds report as polling-capable raw character devices.
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_fstat_r" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=poll" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=tcgetattr" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=tcsetattr" APPEND)
 
     # opendir()/readdir()/closedir() also define the plain names directly (vfs_calls.c).
     # Wrapped so opendir("/") synthesizes a listing of own registered filesystems instead of ENOENT.

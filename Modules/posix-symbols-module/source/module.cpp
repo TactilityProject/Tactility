@@ -9,7 +9,10 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <strings.h>
+#include <sys/ioctl.h>
+#include <sys/poll.h>
 #include <sys/stat.h>
+#include <termios.h>
 #include <unistd.h>
 
 #if __has_include(<getopt.h>)
@@ -33,6 +36,17 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(read),
     DEFINE_MODULE_SYMBOL(write),
     DEFINE_MODULE_SYMBOL(lseek),
+    DEFINE_MODULE_SYMBOL(getcwd),
+    DEFINE_MODULE_SYMBOL(chdir),
+    DEFINE_MODULE_SYMBOL(ftruncate),
+    DEFINE_MODULE_SYMBOL(fsync),
+    // sys/ioctl.h
+    DEFINE_MODULE_SYMBOL(ioctl),
+    // sys/poll.h
+    DEFINE_MODULE_SYMBOL(poll),
+    // termios.h
+    DEFINE_MODULE_SYMBOL(tcgetattr),
+    DEFINE_MODULE_SYMBOL(tcsetattr),
     // strings.h
 #if defined(__BSD_VISIBLE) && __BSD_VISIBLE
     DEFINE_MODULE_SYMBOL(explicit_bzero),
@@ -56,6 +70,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(fcntl),
     // sys/stat.h
     DEFINE_MODULE_SYMBOL(stat),
+    DEFINE_MODULE_SYMBOL(fstat),
     DEFINE_MODULE_SYMBOL(mkdir),
     // stdlib.h
     DEFINE_MODULE_SYMBOL(rand_r),

@@ -9,6 +9,7 @@
 #include <ctime>
 #include <ctype.h>
 #include <locale.h>
+#include <regex.h>
 
 extern "C" {
 
@@ -155,6 +156,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(strncat),
     DEFINE_MODULE_SYMBOL(strspn),
     DEFINE_MODULE_SYMBOL(strcoll),
+    DEFINE_MODULE_SYMBOL(strtok),
     DEFINE_MODULE_SYMBOL(memset),
     DEFINE_MODULE_SYMBOL(memcpy),
     DEFINE_MODULE_SYMBOL(memcmp),
@@ -180,6 +182,10 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(toupper),
     // locale.h
     DEFINE_MODULE_SYMBOL(localeconv),
+    // regex.h
+    DEFINE_MODULE_SYMBOL(regcomp),
+    DEFINE_MODULE_SYMBOL(regexec),
+    DEFINE_MODULE_SYMBOL(regfree),
     MODULE_SYMBOL_TERMINATOR
 };
 

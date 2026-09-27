@@ -165,6 +165,8 @@ def write_core_variables(output_file, device_properties: dict):
     # newlib-internal symbols (_ctype_, __getreent) this repo's ELF-loader ABI exports.
     # Stay on Newlib rather than re-auditing every per-task stdio assumption.
     output_file.write("CONFIG_LIBC_NEWLIB=y\n")
+    # Exposes termios.h and tcgetattr()/tcsetattr() to firmware and side-loaded apps.
+    output_file.write("CONFIG_VFS_SUPPORT_TERMIOS=y\n")
     output_file.write("# CPU\n")
     output_file.write("CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y\n")
     output_file.write("CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240\n")

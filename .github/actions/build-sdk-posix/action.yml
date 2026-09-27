@@ -32,7 +32,7 @@ runs:
       shell: bash
       env:
         TACTILITY_ARCH: ${{ steps.arch.outputs.value }}
-      run: cd Tests/SdkIntegration && TACTILITY_SDK_PATH=../../test_sdk python tactility.py build -a posix-$TACTILITY_ARCH --local-sdk
+      run: cd Tests/SdkIntegration && TACTILITY_SDK_PATH=../../test_sdk python ../../tactility.py build -a posix-$TACTILITY_ARCH --local-sdk
     - name: 'Upload Artifact'
       uses: actions/upload-artifact@v4
       with:

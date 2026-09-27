@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# License: Apache License v2
 
 import json
 import os
@@ -14,7 +15,7 @@ import tarfile
 from urllib.parse import urlparse
 
 ttbuild_path = ".tactility"
-ttbuild_version = "6.1.0"
+ttbuild_version = "7.0.0"
 ttbuild_cdn = "https://cdn.tactilityproject.org"
 ttbuild_sdk_json_validity = 3600  # seconds
 ttport = 6666
@@ -272,8 +273,11 @@ def parse_command_line(argv):
 
 #region SDK helpers
 
-def read_sdk_json():
-    json_file_path = os.path.join(ttbuild_path, "tool.json")
+def get_tool_json_path(version):
+    return os.path.join(ttbuild_path, version, "tactility.py.json")
+
+def read_sdk_json(version):
+    json_file_path = get_tool_json_path(version)
     with open(json_file_path) as json_file:
         return json.load(json_file)
 
@@ -318,9 +322,8 @@ def sdk_exists(version, platform):
     sdk_dir = get_sdk_dir(version, platform)
     return os.path.isdir(sdk_dir)
 
-def should_update_tool_json():
-    global ttbuild_cdn
-    json_filepath = os.path.join(ttbuild_path, "tool.json")
+def should_update_tool_json(version):
+    json_filepath = get_tool_json_path(version)
     if os.path.exists(json_filepath):
         json_modification_time = os.path.getmtime(json_filepath)
         now = time.time()
@@ -330,27 +333,16 @@ def should_update_tool_json():
     else:
         return True
 
-def update_tool_json():
-    global ttbuild_cdn, ttbuild_path
-    json_url = f"{ttbuild_cdn}/sdk/tool.json"
-    json_filepath = os.path.join(ttbuild_path, "tool.json")
-    return download_file(json_url, json_filepath)
+def update_tool_json(version):
+    json_filepath = get_tool_json_path(version)
+    os.makedirs(os.path.dirname(json_filepath), exist_ok=True)
+    return download_file(get_sdk_url(version, "tactility.py.json"), json_filepath)
 
-def should_fetch_sdkconfig_files(platform_targets):
-    for platform in platform_targets:
-        if not platform.startswith("posix"):
-            sdkconfig_filename = f"sdkconfig.app.{platform}"
-            if not os.path.exists(os.path.join(ttbuild_path, sdkconfig_filename)):
-                return True
-    return False
-
-def fetch_sdkconfig_files(platform_targets):
-    for platform in platform_targets:
-        if not platform.startswith("posix"):
-            sdkconfig_filename = f"sdkconfig.app.{platform}"
-            target_path = os.path.join(ttbuild_path, sdkconfig_filename)
-            if not download_file(f"{ttbuild_cdn}/sdk/{sdkconfig_filename}", target_path):
-                exit_with_error(f"Failed to download sdkconfig file for {platform}")
+def copy_sdk_sdkconfig(version, platform):
+    sdkconfig_path = os.path.join(get_sdk_dir(version, platform), f"sdkconfig.app.{platform}")
+    if not os.path.isfile(sdkconfig_path):
+        exit_with_error(f"SDK does not contain {sdkconfig_path}")
+    shutil.copy(sdkconfig_path, "sdkconfig")
 
 #endregion SDK helpers
 
@@ -371,21 +363,12 @@ def validate_environment(platforms):
         exit_with_error("local build was requested, but TACTILITY_SDK_PATH environment variable is not set.")
 
 def validate_self(sdk_json):
-    if not "toolVersion" in sdk_json:
-        exit_with_error("Server returned invalid SDK data format (toolVersion not found)")
-    if not "toolCompatibility" in sdk_json:
-        exit_with_error("Server returned invalid SDK data format (toolCompatibility not found)")
-    if not "toolDownloadUrl" in sdk_json:
-        exit_with_error("Server returned invalid SDK data format (toolDownloadUrl not found)")
-    tool_version = sdk_json["toolVersion"]
-    tool_compatibility = sdk_json["toolCompatibility"]
+    if not "version" in sdk_json:
+        exit_with_error("Server returned invalid SDK data format (version not found)")
+    tool_version = sdk_json["version"]
     if SemanticVersion.parse(ttbuild_version) < SemanticVersion.parse(tool_version):
         print_warning(f"New version available: {tool_version} (currently using {ttbuild_version})")
         print_warning(f"Run 'tactility.py updateself' to update.")
-    if re.search(tool_compatibility, ttbuild_version) is None:
-        print_error("The tool is not compatible anymore.")
-        print_error("Run 'tactility.py updateself' to update.")
-        sys.exit(1)
 
 #endregion Validation
 
@@ -669,9 +652,7 @@ def build_first(version, platform, skip_build):
     if verbose:
         print(f"Using SDK at {sdk_dir}")
     os.environ["TACTILITY_SDK_PATH"] = sdk_dir
-    sdkconfig_path = os.path.join(ttbuild_path, f"sdkconfig.app.{platform}")
-    if not platform.startswith("posix"):
-        shutil.copy(sdkconfig_path, "sdkconfig")
+    copy_sdk_sdkconfig(version, platform)
     elf_path = find_elf_file(platform)
     # Remove previous elf file: re-creation of the file is used to measure if the build succeeded,
     # as the actual build job will always fail due to technical issues with the elf cmake script
@@ -707,8 +688,7 @@ def build_consecutively(version, platform, skip_build):
     if verbose:
         print(f"Using SDK at {sdk_dir}")
     os.environ["TACTILITY_SDK_PATH"] = sdk_dir
-    sdkconfig_path = os.path.join(ttbuild_path, f"sdkconfig.app.{platform}")
-    shutil.copy(sdkconfig_path, "sdkconfig")
+    copy_sdk_sdkconfig(version, platform)
     if skip_build:
         return True
     cmake_path = get_cmake_path(platform)
@@ -822,11 +802,8 @@ def build_action(manifest, arguments):
         local_base_path = os.environ.get("TACTILITY_SDK_PATH")
         validate_local_sdks(platforms_to_build, manifest["target.sdk"])
 
-    if should_fetch_sdkconfig_files(platforms_to_build):
-        fetch_sdkconfig_files(platforms_to_build)
-
     if not use_local_sdk:
-        sdk_json = read_sdk_json()
+        sdk_json = read_sdk_json(manifest["target.sdk"])
         validate_self(sdk_json)
     # Build
     sdk_version = manifest["target.sdk"]
@@ -886,10 +863,8 @@ def clear_cache_action():
     else:
         print("Nothing to clear")
 
-def update_self_action():
-    sdk_json = read_sdk_json()
-    tool_download_url = sdk_json["toolDownloadUrl"]
-    if download_file(tool_download_url, "tactility.py"):
+def update_self_action(manifest):
+    if download_file(get_sdk_url(manifest["target.sdk"], "tactility.py"), "tactility.py"):
         print("Updated")
     else:
         exit_with_error("Update failed")
@@ -1010,8 +985,9 @@ if __name__ == "__main__":
         exit_with_error("manifest.properties not found")
     manifest = read_manifest()
     validate_manifest(manifest)
-    # Update SDK cache (tool.json)
-    if not use_local_sdk and should_update_tool_json() and not update_tool_json():
+    # Update SDK cache (tactility.py.json)
+    sdk_version = manifest["target.sdk"]
+    if not use_local_sdk and should_update_tool_json(sdk_version) and not update_tool_json(sdk_version):
         exit_with_error("Failed to retrieve SDK info")
     # Actions
     action_arg = parsed_command.action
@@ -1023,7 +999,7 @@ if __name__ == "__main__":
     elif action_arg == "clearcache":
         clear_cache_action()
     elif action_arg == "updateself":
-        update_self_action()
+        update_self_action(manifest)
     elif action_arg == "run":
         run_action(manifest, parsed_command.arguments)
     elif action_arg == "install":

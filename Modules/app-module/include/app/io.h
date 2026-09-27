@@ -36,6 +36,14 @@ int app_io_close(int fd);
 error_t app_io_await(int fd, AppFileWait wait, TickType_t timeout);
 
 /**
+ * FD-table dispatch for AppFileOps::poll(): reports readiness without blocking.
+ * @param[out] out_bits APP_FILE_READABLE and/or APP_FILE_WRITABLE
+ * @retval ERROR_NOT_FOUND @a fd isn't bound in the calling task's own app instance fd table
+ * @retval ERROR_NONE on success
+ */
+error_t app_io_poll(int fd, uint32_t* out_bits);
+
+/**
  * FD-table dispatch for AppFileOps::ioctl().
  * @retval ERROR_NOT_FOUND @a fd isn't bound in the calling task's own app instance fd table
  * @retval ERROR_NOT_SUPPORTED the object bound at @a fd has no ioctl() implementation

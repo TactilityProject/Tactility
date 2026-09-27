@@ -53,6 +53,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_io_write),
     DEFINE_MODULE_SYMBOL(app_io_close),
     DEFINE_MODULE_SYMBOL(app_io_await),
+    DEFINE_MODULE_SYMBOL(app_io_poll),
     DEFINE_MODULE_SYMBOL(app_io_ioctl),
     DEFINE_MODULE_SYMBOL(app_io_bind_self),
     // app/manager

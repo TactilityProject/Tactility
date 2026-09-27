@@ -147,6 +147,22 @@ error_t app_io_await(int fd, AppFileWait wait, TickType_t timeout) {
     return result;
 }
 
+error_t app_io_poll(int fd, uint32_t* out_bits) {
+    AppFdTable* table = current_app_fd_table();
+    if (table == nullptr) {
+        return ERROR_NOT_FOUND;
+    }
+    AppFile file {};
+    if (!app_fd_table_get_and_retain(table, fd, &file)) {
+        return ERROR_NOT_FOUND;
+    }
+    *out_bits = file.ops->poll(file.object);
+    if (file.ops->release != nullptr) {
+        file.ops->release(file.object);
+    }
+    return ERROR_NONE;
+}
+
 error_t app_io_ioctl(int fd, AppIoctlRequest request, void* arg) {
     AppFdTable* table = current_app_fd_table();
     if (table == nullptr) {

@@ -22,6 +22,7 @@
 
 ## Medium Priority
 
+- Implement signal/raise for terminal apps (for CTRL+C and window resize signals)
 - netutils-module: ping, wget, ifconfig, nslookup, etc.
 - Core2: support power off via software
 - Improve Setup: Show "Step done" screen
