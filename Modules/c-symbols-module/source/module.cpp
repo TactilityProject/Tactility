@@ -148,6 +148,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL_SIGNATURE(strrchr, const char* (*)(const char*, int)),
     DEFINE_MODULE_SYMBOL_SIGNATURE(strpbrk, const char* (*)(const char*, const char*)),
     DEFINE_MODULE_SYMBOL_SIGNATURE(memchr, const void* (*)(const void*, int, size_t)),
+    DEFINE_MODULE_SYMBOL_SIGNATURE(memrchr, const void* (*)(const void*, int, size_t)),
     DEFINE_MODULE_SYMBOL(strerror),
     DEFINE_MODULE_SYMBOL(strtod),
     DEFINE_MODULE_SYMBOL(strtol),

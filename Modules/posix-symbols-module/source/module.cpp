@@ -40,6 +40,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(chdir),
     DEFINE_MODULE_SYMBOL(ftruncate),
     DEFINE_MODULE_SYMBOL(fsync),
+    DEFINE_MODULE_SYMBOL(getuid),
     // sys/ioctl.h
     DEFINE_MODULE_SYMBOL(ioctl),
     // sys/poll.h
@@ -85,6 +86,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(opterr),
     DEFINE_MODULE_SYMBOL(optarg),
     DEFINE_MODULE_SYMBOL(optopt),
+    DEFINE_MODULE_SYMBOL(getopt),
 #ifdef POSIX_SYMBOLS_HAS_GETOPT_LONG
     DEFINE_MODULE_SYMBOL(getopt_long),
 #endif

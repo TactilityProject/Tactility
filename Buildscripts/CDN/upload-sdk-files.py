@@ -32,7 +32,7 @@ def create_tool_json():
         match = re.search(r'^ttbuild_version = "([^"]+)"', file.read(), re.MULTILINE)
     if match is None:
         exit_with_error(f"ttbuild_version not found in {TOOL_PATH}")
-    return json.dumps({"toolVersion": match.group(1)}, indent=2).encode("utf-8")
+    return json.dumps({"version": match.group(1)}, indent=2).encode("utf-8")
 
 def main(path: str, version: str, cloudflare_account_id, cloudflare_token_name: str, cloudflare_token_value: str, index_only: bool):
     if not os.path.exists(path):

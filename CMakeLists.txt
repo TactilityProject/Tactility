@@ -89,6 +89,22 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=readdir" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=closedir" APPEND)
 
+    # mkdir() is an alias in vfs_calls.c. Wrapped so an existing mount root reports EEXIST.
+    # See Platforms/platform-esp32/source/mkdir.cpp.
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=mkdir" APPEND)
+
+    # Path-based VFS calls are aliases in vfs_calls.c. Wrapped so a NULL path fails with EFAULT instead of crashing.
+    # See Platforms/platform-esp32/source/vfs_null_path.cpp.
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_open_r" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_stat_r" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_link_r" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_unlink_r" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_rename_r" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=truncate" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=access" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=utime" APPEND)
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=rmdir" APPEND)
+
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_button_create" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_dropdown_create" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_list_create" APPEND)

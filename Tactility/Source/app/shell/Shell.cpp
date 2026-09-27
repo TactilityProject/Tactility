@@ -4,6 +4,7 @@
 
 #include <app/execute.h>
 #include <app/manager.h>
+#include <app/package_manifest.h>
 
 #include <tactility/filesystem/file_system.h>
 #include <tactility/filesystem/fs.h>
@@ -65,18 +66,49 @@ void shutdown() {
 
 void forEachCommand(void* context, void (*callback)(const Command&, void*)) {
     struct CommandId { AppId id; };
-    std::vector<CommandId> ids;
-    // First gather all IDs, so we don't keep the ledger lock while calling callback()
+    struct InstalledCommand {
+        char name[APP_MANIFEST_BINARY_LENGTH + 1];
+        char path[FILE_MAX_PATH_STRING_LENGTH];
+    };
+    struct Gathered {
+        std::vector<CommandId> ids;
+        std::vector<InstalledCommand> installed;
+    } gathered;
+    // First gather everything, so we don't keep the ledger lock while calling callback()
     app_manager_for_each_manifest([](const AppManifest* manifest, void* context) {
-        if ((manifest->flags & APP_MANIFEST_FLAG_HEADLESS) != 0
-            && manifest->location.type == APP_LOCATION_MEMORY) {
-            auto& ids = *static_cast<std::vector<CommandId>*>(context);
-            ids.emplace_back();
-            memcpy(ids.back().id, manifest->id, sizeof(AppId));
+        if ((manifest->flags & APP_MANIFEST_FLAG_HEADLESS) == 0) {
+            return;
         }
-    }, &ids);
-    for (const auto& [id] : ids) {
-        callback(Command { .name = id, .help = "" }, context);
+        auto& gathered = *static_cast<Gathered*>(context);
+        if (manifest->location.type == APP_LOCATION_MEMORY) {
+            gathered.ids.emplace_back();
+            memcpy(gathered.ids.back().id, manifest->id, sizeof(AppId));
+        } else if (manifest->location.type == APP_LOCATION_PATH) {
+            // An installed app's location is its binary: <install dir>/bin/<platform>/<name>.{elf,so}
+            const auto* path = static_cast<const char*>(manifest->location.location);
+            const char* slash = strrchr(path, '/');
+            const char* fileName = (slash != nullptr) ? slash + 1 : path;
+            const char* extension = strrchr(fileName, '.');
+            if (extension == nullptr || (strcmp(extension, ".elf") != 0 && strcmp(extension, ".so") != 0)) {
+                return;
+            }
+            const auto nameLength = static_cast<size_t>(extension - fileName);
+            InstalledCommand command;
+            if (nameLength == 0 || nameLength >= sizeof(command.name) || strlen(path) >= sizeof(command.path)) {
+                return;
+            }
+            memcpy(command.name, fileName, nameLength);
+            command.name[nameLength] = '\0';
+            strcpy(command.path, path);
+            gathered.installed.push_back(command);
+        }
+    }, &gathered);
+    // Built-ins first, so they win a name clash with an installed app
+    for (const auto& [id] : gathered.ids) {
+        callback(Command { .name = id, .help = "", .path = nullptr }, context);
+    }
+    for (const auto& command : gathered.installed) {
+        callback(Command { .name = command.name, .help = "", .path = command.path }, context);
     }
 }
 
@@ -239,22 +271,30 @@ int runCommand(int argc, char** argv, int* found) {
     // borrowed pointers into the manifest) and run after forEachCommand() returns, once
     // app_ledger()'s lock (held for the whole enumeration) is released: runFromMemory() starts a
     // real app instance by id, which itself needs the ledger.
+    // An installed app's binary path is copied, as forEachCommand()'s storage for it is gone by then.
     struct Match {
         const char* id;
         bool found;
         Command command;
+        char path[FILE_MAX_PATH_STRING_LENGTH];
     };
-    Match match { argv[0], false, {} };
+    Match match { argv[0], false, {}, {} };
     forEachCommand(&match, [](const Command& command, void* context) {
         auto* match = static_cast<Match*>(context);
         if (!match->found && strcmp(command.name, match->id) == 0) {
             match->found = true;
             match->command = command;
+            if (command.path != nullptr) {
+                snprintf(match->path, sizeof(match->path), "%s", command.path);
+            }
         }
     });
 
     if (match.found) {
         *found = 1;
+        if (match.command.path != nullptr) {
+            return runElf(match.path, argc, argv);
+        }
         return runFromMemory(argv[0], argc, argv);
     }
 

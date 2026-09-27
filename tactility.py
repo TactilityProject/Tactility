@@ -953,6 +953,9 @@ if __name__ == "__main__":
 
     # Anchor the cache to the invocation directory, before --path (below) can chdir into the app.
     ttbuild_path = os.path.abspath(ttbuild_path)
+    # Same for a relative local SDK path.
+    if os.environ.get("TACTILITY_SDK_PATH") is not None:
+        os.environ["TACTILITY_SDK_PATH"] = os.path.abspath(os.environ["TACTILITY_SDK_PATH"])
 
     argv = sys.argv[1:]
     if len(argv) == 0:

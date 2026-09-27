@@ -15,6 +15,7 @@
 
 #include <dirent.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -70,7 +71,12 @@ extern "C" int __real_closedir(DIR* pdir);
 extern "C" {
 
 DIR* __wrap_opendir(const char* name) {
-    if (name == nullptr || strcmp(name, "/") != 0) {
+    // The VFS dereferences a NULL path (see vfs_null_path.cpp)
+    if (name == nullptr) {
+        errno = EFAULT;
+        return nullptr;
+    }
+    if (strcmp(name, "/") != 0) {
         return __real_opendir(name);
     }
 

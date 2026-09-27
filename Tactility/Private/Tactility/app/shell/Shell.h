@@ -14,6 +14,8 @@ namespace Shell {
 struct Command {
     const char* name;
     const char* help;
+    /** Binary to run for an installed app, nullptr for a built-in one. */
+    const char* path;
 };
 
 /** Registers the builtin command set. */

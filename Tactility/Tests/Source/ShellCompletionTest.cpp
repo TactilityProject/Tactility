@@ -2,6 +2,8 @@
 
 #include <Tactility/app/shell/Shell.h>
 
+#include <app/manager.h>
+
 #include <tactility/filesystem/fs.h>
 #include <tactility/paths.h>
 
@@ -49,4 +51,25 @@ TEST_CASE("shell completion: plain files complete when the word names a path") {
     CHECK_EQ(complete(base + "/run"), "me.sh ");
     // As an argument it completes too
     CHECK_EQ(complete("cat " + base + "/run"), "me.sh ");
+}
+
+TEST_CASE("shell completion: installed headless apps complete by their binary name") {
+    AppManifest headless {};
+    snprintf(headless.id, sizeof(headless.id), "test.shell.installed");
+    snprintf(headless.name, sizeof(headless.name), "Installed");
+    headless.flags = APP_MANIFEST_FLAG_HEADLESS;
+    headless.location = { APP_LOCATION_PATH, const_cast<char*>("/nonexistent/bin/posix-x86_64/installedcmd.so") };
+    REQUIRE_EQ(app_manager_add(&headless), ERROR_NONE);
+
+    AppManifest windowed {};
+    snprintf(windowed.id, sizeof(windowed.id), "test.shell.windowed");
+    snprintf(windowed.name, sizeof(windowed.name), "Windowed");
+    windowed.location = { APP_LOCATION_PATH, const_cast<char*>("/nonexistent/bin/posix-x86_64/windowedcmd.so") };
+    REQUIRE_EQ(app_manager_add(&windowed), ERROR_NONE);
+
+    CHECK_EQ(complete("installedc"), "md ");
+    CHECK_EQ(complete("windowedc"), "<none>");
+
+    app_manager_remove("test.shell.windowed");
+    app_manager_remove("test.shell.installed");
 }
