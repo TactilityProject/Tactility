@@ -108,6 +108,43 @@ int32_t parent_app_main(int, char*[]) {
     return 0;
 }
 
+std::atomic<int32_t> g_exit_fixture_result { -1 };
+std::atomic<bool> g_exit_fixture_result_received { false };
+
+// Starts the exit() fixture as a modal child and stashes the result its exit() status became.
+int32_t exit_parent_app_main(int, char*[]) {
+    TaskEventGroup event_group {};
+    task_event_group_construct(&event_group);
+
+    AppEventSubscription sub {};
+    app_event_subscribe(&sub, &event_group);
+
+    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(EXIT_FIXTURE_APP_PATH) };
+    AppInstanceId child_id = 0;
+    AppStartContext context = app_start_context_for_location(location);
+    app_start_context_set_parent(&context, app_scheduler_current_app_id());
+    app_start_with_context(&context, &child_id);
+
+    bool got_result = false;
+    while (!got_result) {
+        if (task_event_group_wait_any(&event_group, nullptr, pdMS_TO_TICKS(5000)) != ERROR_NONE) {
+            break; // safety net so a bug here can't hang the test suite
+        }
+        AppEvent event {};
+        while (app_event_poll(&sub, &event) == ERROR_NONE) {
+            if (event.type == APP_EVENT_RESULT && event.result.launch_id == child_id) {
+                g_exit_fixture_result.store(event.result.result, std::memory_order_release);
+                got_result = true;
+            }
+        }
+    }
+    g_exit_fixture_result_received.store(got_result, std::memory_order_release);
+
+    app_event_unsubscribe(&sub);
+    task_event_group_destruct(&event_group);
+    return 0;
+}
+
 std::string g_printf_fixture_output;
 std::string g_printf_fixture_stderr;
 
@@ -251,4 +288,25 @@ TEST_CASE("app_is_executable() accepts an install-directory-shaped path with bin
     ensure_path_loader_registered();
 
     CHECK(is_executable_path(FIXTURE_INSTALL_DIR_PATH));
+}
+
+TEST_CASE("exit() in a dlopen()ed app with live C++ objects ends only that app, with the exit status as its result") {
+    ensure_path_loader_registered();
+    ensure_memory_loader_registered();
+    g_exit_fixture_result.store(-1, std::memory_order_relaxed);
+    g_exit_fixture_result_received.store(false, std::memory_order_relaxed);
+
+    AppManifest parent_manifest { "test.posix.exit_parent", "ExitParent", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(exit_parent_app_main) } };
+    REQUIRE_EQ(app_manager_add(&parent_manifest), ERROR_NONE);
+
+    AppInstanceId parent_id = 0;
+    AppStartContext parent_context;
+    REQUIRE_EQ(app_start_context_from_id("test.posix.exit_parent", &parent_context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&parent_context, &parent_id), ERROR_NONE);
+    REQUIRE(wait_for_state(parent_id, APP_INSTANCE_STATE_STOPPED, 6000));
+
+    CHECK(g_exit_fixture_result_received.load(std::memory_order_acquire));
+    CHECK_EQ(g_exit_fixture_result.load(std::memory_order_acquire), 18);
+
+    app_manager_remove("test.posix.exit_parent");
 }

@@ -348,6 +348,8 @@ def sdk_has_sdkconfig(version, platform):
     return platform.startswith("posix") or os.path.isfile(get_sdk_sdkconfig_path(version, platform))
 
 def copy_sdk_sdkconfig(version, platform):
+    if platform.startswith("posix"):
+        return
     sdkconfig_path = get_sdk_sdkconfig_path(version, platform)
     if not os.path.isfile(sdkconfig_path):
         exit_with_error(f"SDK does not contain {sdkconfig_path}")

@@ -18,6 +18,10 @@ set_target_properties(app_posix_module_test_fixture PROPERTIES POSITION_INDEPEND
 add_library(printf_fixture SHARED EXCLUDE_FROM_ALL ${CMAKE_CURRENT_LIST_DIR}/fixtures/printf_fixture.cpp)
 set_target_properties(printf_fixture PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Fixture: calls exit() with a live std::string on its stack, resolving exit() against the host's override.
+add_library(exit_fixture SHARED EXCLUDE_FROM_ALL ${CMAKE_CURRENT_LIST_DIR}/fixtures/exit_fixture.cpp)
+set_target_properties(exit_fixture PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # A file with a ".so" extension but no ELF header, for is_executable() rejection tests.
 set(NON_ELF_FIXTURE_PATH "${CMAKE_CURRENT_BINARY_DIR}/not-elf.so")
 file(WRITE "${NON_ELF_FIXTURE_PATH}" "not an elf file")
@@ -36,12 +40,13 @@ add_custom_target(install_dir_fixture DEPENDS "${INSTALL_DIR_FIXTURE_BIN_DIR}/ap
 
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/source/*.cpp)
 add_executable(AppPosixModuleTests EXCLUDE_FROM_ALL ${TEST_SOURCES})
-add_dependencies(AppPosixModuleTests app_posix_module_test_fixture printf_fixture install_dir_fixture)
+add_dependencies(AppPosixModuleTests app_posix_module_test_fixture printf_fixture exit_fixture install_dir_fixture)
 
 target_include_directories(AppPosixModuleTests PRIVATE ${DOCTESTINC})
 target_compile_definitions(AppPosixModuleTests PRIVATE
     FIXTURE_APP_PATH="$<TARGET_FILE:app_posix_module_test_fixture>"
     PRINTF_FIXTURE_APP_PATH="$<TARGET_FILE:printf_fixture>"
+    EXIT_FIXTURE_APP_PATH="$<TARGET_FILE:exit_fixture>"
     FIXTURE_NON_ELF_PATH="${NON_ELF_FIXTURE_PATH}"
     FIXTURE_INSTALL_DIR_PATH="${INSTALL_DIR_FIXTURE_PATH}"
 )

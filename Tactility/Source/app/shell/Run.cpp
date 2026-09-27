@@ -349,6 +349,8 @@ int runInstalled(const char* id, const char* resolvedPath, int argc, char** argv
         printf("%s: not found\n", argv[0]);
         return 127;
     }
+    // The manifest's own location string belongs to the install registry, which an uninstall can free before startup
+    context.location = { APP_LOCATION_PATH, const_cast<char*>(resolvedPath) };
     return runBinary(context, resolvedPath, argc, argv);
 }
 

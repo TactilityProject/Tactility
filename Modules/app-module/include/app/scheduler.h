@@ -17,8 +17,9 @@ extern "C" {
 AppInstanceId app_scheduler_current_app_id(void);
 
 /**
- * Ends the calling app instance as if its main() returned @a status. Like C's exit(), the app's
- * stack is not unwound (no C++ destructors) and memory it allocated is not freed.
+ * Ends the calling app instance as if its main() returned @a status, by ending its task in place.
+ * The calling frames are never resumed. Like std::exit(), automatic objects are not destroyed
+ * (the simulator's thread exit may still destroy them). Memory the app allocated is not freed.
  * Returns only when not called from an app instance's own main task.
  */
 void app_scheduler_exit_current(int32_t status);

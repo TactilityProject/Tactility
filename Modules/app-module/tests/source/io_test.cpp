@@ -215,6 +215,7 @@ std::atomic<int> g_posix_tcsetattr_result { -2 };
 std::atomic<int> g_posix_poll_before_write { -2 };
 std::atomic<int> g_posix_poll_after_write { -2 };
 std::atomic<bool> g_posix_poll_first_done { false };
+std::atomic<bool> g_posix_null_buffers_efault { false };
 
 int32_t posix_calls_app_main(int, char*[]) {
     struct stat st {};
@@ -224,6 +225,12 @@ int32_t posix_calls_app_main(int, char*[]) {
     g_posix_tcgetattr_result.store(tcgetattr(STDIN_FILENO, &t), std::memory_order_release);
     g_posix_stdin_is_raw.store((t.c_lflag & (ICANON | ECHO)) == 0, std::memory_order_release);
     g_posix_tcsetattr_result.store(tcsetattr(STDIN_FILENO, TCSANOW, &t), std::memory_order_release);
+
+    struct stat* volatile null_stat = nullptr;
+    struct termios* volatile null_termios = nullptr;
+    const bool fstat_efault = fstat(STDIN_FILENO, null_stat) == -1 && errno == EFAULT;
+    const bool tcgetattr_efault = tcgetattr(STDIN_FILENO, null_termios) == -1 && errno == EFAULT;
+    g_posix_null_buffers_efault.store(fstat_efault && tcgetattr_efault, std::memory_order_release);
 
     struct pollfd fds { STDIN_FILENO, POLLIN, 0 };
     g_posix_poll_before_write.store(poll(&fds, 1, 50), std::memory_order_release);
@@ -321,6 +328,7 @@ TEST_CASE("fstat, termios and poll on a bound app stdin report a raw character d
     g_posix_poll_before_write.store(-2, std::memory_order_relaxed);
     g_posix_poll_after_write.store(-2, std::memory_order_relaxed);
     g_posix_poll_first_done.store(false, std::memory_order_relaxed);
+    g_posix_null_buffers_efault.store(false, std::memory_order_relaxed);
 
     AppManifest manifest { "test.io.posix_calls", "PosixCalls", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(posix_calls_app_main) } };
     REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
@@ -345,6 +353,7 @@ TEST_CASE("fstat, termios and poll on a bound app stdin report a raw character d
     CHECK_EQ(g_posix_tcgetattr_result.load(std::memory_order_acquire), 0);
     CHECK(g_posix_stdin_is_raw.load(std::memory_order_acquire));
     CHECK_EQ(g_posix_tcsetattr_result.load(std::memory_order_acquire), 0);
+    CHECK(g_posix_null_buffers_efault.load(std::memory_order_acquire));
     CHECK_EQ(g_posix_poll_before_write.load(std::memory_order_acquire), 0);
     CHECK_EQ(g_posix_poll_after_write.load(std::memory_order_acquire), 1);
 

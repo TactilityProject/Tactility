@@ -104,6 +104,11 @@ bool tryAppFstat(int fd, struct stat* st, int* outResult) {
         *outResult = -1;
         return true;
     }
+    if (st == nullptr) {
+        errno = EFAULT;
+        *outResult = -1;
+        return true;
+    }
     memset(st, 0, sizeof(*st));
     st->st_mode = S_IFCHR | 0666;
     *outResult = 0;
@@ -118,6 +123,11 @@ bool tryAppTcgetattr(int fd, struct termios* t, int* outResult) {
     }
     if (state == AppFdState::Closed) {
         errno = EBADF;
+        *outResult = -1;
+        return true;
+    }
+    if (t == nullptr) {
+        errno = EFAULT;
         *outResult = -1;
         return true;
     }

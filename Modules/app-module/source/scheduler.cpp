@@ -15,9 +15,11 @@
 
 #include <tactility/error.h>
 #include <tactility/log.h>
+#include <tactility/delay.h>
 #include <tactility/memory.h>
+#include <tactility/time.h>
 
-#include <csetjmp>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <new>
@@ -97,15 +99,42 @@ void set_state(AppInstanceId app_instance_id, AppInstanceState state) {
     mutex_unlock(&ledger.mutex);
 }
 
-// Where app_scheduler_exit_current() returns to in app_task_main(), with the exit status.
-struct AppExitPoint {
-    jmp_buf jump;
-    int32_t status;
+// Set while this thread is an app instance's task running AppLoaderApi::run(). Per thread rather than
+// looked up by app_scheduler_current_app_id(): on the simulator, that reads the scheduled FreeRTOS task
+// even from a foreign thread, which must never end an app's task.
+thread_local TaskContext* current_task_context = nullptr;
+
+#ifndef ESP_PLATFORM
+// On the simulator, a task ending itself unwinds its whole stack (pthread_exit()). After exit(), that
+// stack still holds the app's own frames, so its binary may only be unloaded once the unwind has
+// passed them: this guard lives in app_task_main()'s frame and unloads when the unwind destroys it.
+struct DeferredUnload {
+    const AppLoaderApi* loader = nullptr;
+    void* runtime = nullptr;
+
+    ~DeferredUnload() {
+        if (loader != nullptr) {
+            loader->unload(runtime);
+            pending_deferred_unloads.fetch_sub(1, std::memory_order_release);
+        }
+    }
+
+    // A binary that is still loaded would be reused by the next load of the same path, globals included
+    static inline std::atomic<int> pending_deferred_unloads { 0 };
 };
 
-// Per thread rather than looked up by app_scheduler_current_app_id(): on the simulator, that reads
-// the scheduled FreeRTOS task even from a foreign thread, which must never jump into an app's stack.
-thread_local AppExitPoint* current_exit_point = nullptr;
+thread_local DeferredUnload* current_deferred_unload = nullptr;
+
+constexpr TickType_t DEFERRED_UNLOAD_WAIT_TICKS = pdMS_TO_TICKS(1000);
+
+void wait_for_deferred_unloads() {
+    const TickType_t start = get_ticks();
+    while (DeferredUnload::pending_deferred_unloads.load(std::memory_order_acquire) > 0
+        && get_timeout_remaining_ticks(DEFERRED_UNLOAD_WAIT_TICKS, start) > 0) {
+        delay_ticks(1);
+    }
+}
+#endif
 
 void set_task(AppInstanceId app_instance_id, TaskHandle_t task) {
     auto& ledger = app_ledger();
@@ -205,8 +234,14 @@ void deliver_result_to_parent_if_any(AppInstanceId app_instance_id, int32_t resu
     }
 }
 
+void finish_app_task(TaskContext* ctx, int32_t result, bool exiting);
+
 void app_task_main(void* context) {
     auto* ctx = static_cast<TaskContext*>(context);
+#ifndef ESP_PLATFORM
+    DeferredUnload deferred_unload;
+    current_deferred_unload = &deferred_unload;
+#endif
 
     check(pvTaskGetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX) == nullptr);
     vTaskSetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX, reinterpret_cast<void*>(static_cast<uintptr_t>(ctx->app_instance_id)));
@@ -218,24 +253,33 @@ void app_task_main(void* context) {
 
     set_state(ctx->app_instance_id, APP_INSTANCE_STATE_ACTIVE);
 
-    // exit() called on this task returns here instead of ending the whole process
-    AppExitPoint exit_point {};
-    current_exit_point = &exit_point;
-    int32_t result;
-    if (setjmp(exit_point.jump) == 0) {
-        result = ctx->loader->run(ctx->runtime, ctx->app_instance_id, app_arguments_count_null_terminated(ctx->argv), ctx->argv);
-    } else {
-        result = exit_point.status;
-    }
-    current_exit_point = nullptr;
+    current_task_context = ctx;
+    int32_t result = ctx->loader->run(ctx->runtime, ctx->app_instance_id, app_arguments_count_null_terminated(ctx->argv), ctx->argv);
+    current_task_context = nullptr;
 
+    finish_app_task(ctx, result, false);
+}
+
+// Everything after an app's AppLoaderApi::run() returned, or after it called exit(). Ends the calling task.
+void finish_app_task(TaskContext* ctx, int32_t result, bool exiting) {
     // The platform might buffer stdout (e.g. esp-idf with newlib)
     // Do a manual flush to ensure data has been written:
     fflush(stdout);
 
     vTaskSetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX, nullptr);
 
+#ifndef ESP_PLATFORM
+    if (exiting) {
+        current_deferred_unload->loader = ctx->loader;
+        current_deferred_unload->runtime = ctx->runtime;
+        DeferredUnload::pending_deferred_unloads.fetch_add(1, std::memory_order_release);
+    } else {
+        ctx->loader->unload(ctx->runtime);
+    }
+#else
+    (void)exiting;
     ctx->loader->unload(ctx->runtime);
+#endif
 
     deliver_result_to_parent_if_any(ctx->app_instance_id, result);
 
@@ -303,6 +347,9 @@ error_t app_scheduler_start(AppInstanceId app_instance_id, const AppStartContext
     }
 
     void* runtime = nullptr;
+#ifndef ESP_PLATFORM
+    wait_for_deferred_unloads();
+#endif
     error_t load_result = loader->load(location, &runtime);
     if (load_result != ERROR_NONE) {
         LOG_E(TAG, "[instance %lu] Failed to load app: %s", app_instance_id, error_to_string(load_result));
@@ -479,13 +526,12 @@ AppInstanceId app_scheduler_current_app_id(void) {
 }
 
 void app_scheduler_exit_current(int32_t status) {
-    AppExitPoint* exit_point = current_exit_point;
-    if (exit_point == nullptr) {
+    TaskContext* ctx = current_task_context;
+    if (ctx == nullptr) {
         return;
     }
-    fflush(stdout);
-    exit_point->status = status;
-    longjmp(exit_point->jump, 1);
+    current_task_context = nullptr;
+    finish_app_task(ctx, status, true);
 }
 
 } // extern "C"

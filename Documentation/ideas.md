@@ -23,6 +23,9 @@
 ## Medium Priority
 
 - Implement signal/raise for terminal apps (for CTRL+C and window resize signals)
+- Build the simulator with `-fno-exceptions` to match ESP32. First make app exit() work without C++ unwinding there:
+  scheduler.cpp's DeferredUnload relies on pthread_exit()'s forced unwind running its destructor.
+  Without exceptions, an app that calls exit() is never unloaded and the next app start waits the full timeout.
 - netutils-module: ping, wget, ifconfig, nslookup, etc.
 - Core2: support power off via software
 - Improve Setup: Show "Step done" screen
