@@ -3,6 +3,9 @@
 
 #include <app/private/stdio_wrap_posix.h>
 
+#include <sys/ioctl.h>
+#include <unistd.h>
+
 // <mach-o/dyld-interposing.h> isn't a public SDK header, so reimplemented locally.
 #define TT_DYLD_INTERPOSE(replacement, replacee) \
     __attribute__((used)) static struct { const void* replacement; const void* replacee; } \
