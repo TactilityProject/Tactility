@@ -107,8 +107,9 @@ int __wrap_ioctl(int fd, unsigned long request, ...) {
     void* arg = va_arg(args, void*);
     va_end(args);
 
-    if (app_libc_try_window_size(fd, request, arg)) {
-        return 0;
+    int result;
+    if (app_libc_try_window_size(fd, request, arg, &result)) {
+        return result;
     }
     return __real_ioctl(fd, request, arg);
 }

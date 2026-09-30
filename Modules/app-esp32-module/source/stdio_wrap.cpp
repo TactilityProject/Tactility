@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <termios.h>
 
 #include <cerrno>
@@ -44,8 +45,9 @@ int __wrap_ioctl(int fd, int request, ...) {
     void* arg = va_arg(args, void*);
     va_end(args);
 
-    if (app_libc_try_window_size(fd, static_cast<unsigned long>(request), arg)) {
-        return 0;
+    int result;
+    if (app_libc_try_window_size(fd, static_cast<unsigned long>(request), arg, &result)) {
+        return result;
     }
     return __real_ioctl(fd, request, arg);
 }
@@ -117,6 +119,16 @@ _sig_func_ptr signal(int sig, _sig_func_ptr handler) {
     }
     errno = ENOSYS;
     return SIG_ERR;
+}
+
+// Replaces the libc kill(), which reaches a _kill_r stub that aborts the device on some libc builds
+int kill(pid_t pid, int sig) {
+    int result;
+    if (app_libc_try_kill(static_cast<int>(pid), sig, &result)) {
+        return result;
+    }
+    errno = ENOSYS;
+    return -1;
 }
 
 // Called by an app, newlib's exit() would reach _exit(), which aborts the whole device

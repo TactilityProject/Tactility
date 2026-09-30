@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cJSON.h>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,10 @@ public:
     bool readInt32(const char* key, int32_t& output) const {
         double buffer;
         if (!readNumber(key, buffer)) {
+            return false;
+        }
+        if (buffer != std::trunc(buffer)) {
+            LOG_E(TAG, "%s is not an integer", key);
             return false;
         }
         output = static_cast<int32_t>(buffer);

@@ -23,7 +23,7 @@ struct termios;
  */
 
 /** Handles ioctl(fd, TIOCGWINSZ, struct winsize*) for an app fd. */
-bool app_libc_try_window_size(int fd, unsigned long request, void* arg);
+bool app_libc_try_window_size(int fd, unsigned long request, void* arg, int* out_result);
 
 /** @param[out] out_result @a buf on success, NULL on failure */
 bool app_libc_try_getcwd(char* buf, size_t size, char** out_result);

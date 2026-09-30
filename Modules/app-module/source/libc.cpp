@@ -48,8 +48,17 @@ constexpr TickType_t POLL_INTERVAL_TICKS = pdMS_TO_TICKS(10);
 
 extern "C" {
 
-bool app_libc_try_window_size(int fd, unsigned long request, void* arg) {
-    if (request != TIOCGWINSZ || arg == nullptr) {
+bool app_libc_try_window_size(int fd, unsigned long request, void* arg, int* out_result) {
+    if (request != TIOCGWINSZ) {
+        return false;
+    }
+    const AppFdState state = get_app_fd_state(fd);
+    if (state == AppFdState::Closed) {
+        errno = EBADF;
+        *out_result = -1;
+        return true;
+    }
+    if (arg == nullptr || state == AppFdState::NotAppFd) {
         return false;
     }
     AppWindowSize size {};
@@ -61,6 +70,7 @@ bool app_libc_try_window_size(int fd, unsigned long request, void* arg) {
     out->ws_col = size.columns;
     out->ws_xpixel = 0;
     out->ws_ypixel = 0;
+    *out_result = 0;
     return true;
 }
 

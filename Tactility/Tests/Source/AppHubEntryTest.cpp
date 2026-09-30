@@ -66,6 +66,16 @@ TEST_CASE("app hub: reparsing into the same list resets optional requirements") 
     remove(unrestricted.c_str());
 }
 
+TEST_CASE("app hub: a fractional requiresRam rejects the entry") {
+    const auto path = writeAppsJson(R"({"apps": [
+        {"appId": "a", "appVersionName": "1", "appVersionCode": 1, "appName": "A", "appDescription": "", "targetSdk": "0.8.0", "targetPlatforms": [], "file": "a-1.app",
+         "requiresRam": 1.5}
+    ]})");
+    AppHubEntryList entries;
+    CHECK_FALSE(parseJson(path, entries));
+    remove(path.c_str());
+}
+
 TEST_CASE("app hub: isCompatible applies the device and RAM requirements") {
     CHECK(isCompatible(entryWith({}, 0)));
     CHECK(isCompatible(entryWith({ "other-device", CONFIG_TT_DEVICE_ID }, 1)));

@@ -17,6 +17,7 @@
 
 #include <poll.h>
 #include <signal.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
@@ -136,6 +137,7 @@ int32_t posix_calls_app_main(int, char*[]) {
 std::atomic<bool> g_closed_fstat_ebadf { false };
 std::atomic<bool> g_closed_tcgetattr_ebadf { false };
 std::atomic<bool> g_closed_tcsetattr_ebadf { false };
+std::atomic<bool> g_closed_ioctl_ebadf { false };
 std::atomic<int> g_closed_poll_result { -2 };
 std::atomic<int> g_closed_poll_revents { -2 };
 
@@ -148,6 +150,8 @@ int32_t closed_stdin_posix_calls_app_main(int, char*[]) {
     struct termios t {};
     g_closed_tcgetattr_ebadf.store(tcgetattr(STDIN_FILENO, &t) == -1 && errno == EBADF, std::memory_order_release);
     g_closed_tcsetattr_ebadf.store(tcsetattr(STDIN_FILENO, TCSANOW, &t) == -1 && errno == EBADF, std::memory_order_release);
+    struct winsize ws {};
+    g_closed_ioctl_ebadf.store(ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) == -1 && errno == EBADF, std::memory_order_release);
 
     struct pollfd fds { STDIN_FILENO, POLLIN, 0 };
     g_closed_poll_result.store(poll(&fds, 1, 1000), std::memory_order_release);
@@ -284,11 +288,12 @@ TEST_CASE("exit() in an app ends only that app instance") {
     app_manager_remove("test.io.exit");
 }
 
-TEST_CASE("fstat, termios and poll on a closed app stdin fail with EBADF/POLLNVAL instead of reaching the real fd") {
+TEST_CASE("fstat, ioctl, termios and poll on a closed app stdin fail with EBADF/POLLNVAL instead of reaching the real fd") {
     ensure_memory_loader_registered();
     g_closed_fstat_ebadf.store(false, std::memory_order_relaxed);
     g_closed_tcgetattr_ebadf.store(false, std::memory_order_relaxed);
     g_closed_tcsetattr_ebadf.store(false, std::memory_order_relaxed);
+    g_closed_ioctl_ebadf.store(false, std::memory_order_relaxed);
     g_closed_poll_result.store(-2, std::memory_order_relaxed);
     g_closed_poll_revents.store(-2, std::memory_order_relaxed);
 
@@ -304,6 +309,7 @@ TEST_CASE("fstat, termios and poll on a closed app stdin fail with EBADF/POLLNVA
     CHECK(g_closed_fstat_ebadf.load(std::memory_order_acquire));
     CHECK(g_closed_tcgetattr_ebadf.load(std::memory_order_acquire));
     CHECK(g_closed_tcsetattr_ebadf.load(std::memory_order_acquire));
+    CHECK(g_closed_ioctl_ebadf.load(std::memory_order_acquire));
     CHECK_EQ(g_closed_poll_result.load(std::memory_order_acquire), 1);
     CHECK_EQ(g_closed_poll_revents.load(std::memory_order_acquire), POLLNVAL);
 
