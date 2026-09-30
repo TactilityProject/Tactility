@@ -19,7 +19,8 @@ void __wrap_lv_obj_set_flex_flow(lv_obj_t* obj, lv_flex_flow_t flow) {
 
 lv_obj_t* __wrap_lv_obj_create(lv_obj_t* parent) {
     auto obj = __real_lv_obj_create(parent);
-    if (lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT) {
+    // Screens and display layers (a null parent, also used by LVGL's own display setup) must stay borderless and unpadded
+    if (parent != nullptr && lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT) {
         lv_obj_set_style_pad_all(obj, 2, LV_STATE_DEFAULT);
         lv_obj_set_style_pad_gap(obj, 2, LV_STATE_DEFAULT);
         lv_obj_set_style_radius(obj, 3, LV_STATE_DEFAULT);

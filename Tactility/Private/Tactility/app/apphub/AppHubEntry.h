@@ -15,6 +15,10 @@ struct AppHubEntry {
     std::string appDescription;
     std::string targetSdk;
     std::vector<std::string> targetPlatforms;
+    /** Device ids the app is restricted to (manifest "requires.device.id"). Empty means unrestricted. */
+    std::vector<std::string> requiresDeviceId;
+    /** RAM in megabytes the app needs (manifest "requires.ram"). 0 means no requirement. */
+    int32_t requiresRam = 0;
     std::string file;
 };
 
@@ -23,5 +27,8 @@ struct AppHubEntry {
 using AppHubEntryList = std::vector<AppHubEntry, OptExternalAllocator<AppHubEntry>>;
 
 bool parseJson(const std::string& filePath, AppHubEntryList& entries);
+
+/** @return true if this device can install and run the entry's app (target platform, device and RAM requirements) */
+bool isCompatible(const AppHubEntry& entry);
 
 }

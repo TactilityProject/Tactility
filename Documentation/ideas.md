@@ -11,7 +11,8 @@
 - CrashDiagnostics shouldn't show a QR when there's no callstack
 - Move USB host task stacks to SPIRAM when available: esp32_usbhost*.cpp
 - Add bold fonts for e-ink readability improvement
-- Improve Setup: Add keyboard/keypad navigation explanation
+- Improve Setup: Add keyboard/keypad/encoder navigation explanation.
+  e.g. encoder long press on t-lora pager to get out of textarea
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
 - Improve SPI kernel driver (implement read, write, transactions)
 - TCA9534 keyboards should use interrupts

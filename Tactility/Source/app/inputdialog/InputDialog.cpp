@@ -146,7 +146,7 @@ int32_t appMain(int argc, char* argv[]) {
 
     if (ctx.resultCode == 0) {
         // The caller captures this via an AppStream bound to our stdout (see start()); see
-        // Modules/app-module/source/stdio_wrap.cpp for how printf() itself gets routed there on POSIX.
+        // Modules/app-posix-module/source/stdio_wrap.cpp for how printf() itself gets routed there on POSIX.
         printf("%s", ctx.resultText.c_str());
     }
     return ctx.resultCode;

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-#ifndef ESP_PLATFORM
 
-// POSIX can't use -Wl,--wrap= like ESP32: --wrap doesn't reach a dlopen()ed app's own printf/write
-// calls, so these wraps are installed under their real names instead - dyld interpose on Apple
-// (stdio_wrap_apple.cpp), plain strong definitions elsewhere (stdio_wrap_elf.cpp).
-#include <app/private/stdio_wrap.h>
-#include <app/private/stdio_wrap_posix.h>
+// libc wraps that route an app instance's calls to its own fds, cwd and exit(). App-instance behavior
+// itself lives in app-module (app/libc.h). POSIX can't use -Wl,--wrap= like ESP32: --wrap doesn't reach
+// a dlopen()ed app's own printf/write calls, so these wraps are installed under their real names instead
+// - dyld interpose on Apple (stdio_wrap_apple.cpp), plain strong definitions elsewhere (stdio_wrap_elf.cpp).
+// app-module's io.cpp falls through to the __real_read/__real_write/__real_close defined here.
+#include <app_posix/stdio_wrap.h>
 
 #include <app/io.h>
+#include <app/libc.h>
 #include <app/scheduler.h>
 
 #include <cerrno>
@@ -72,6 +73,16 @@ int __real_tcsetattr(int fd, int optional_actions, const struct termios* p) {
     return real(fd, optional_actions, p);
 }
 
+AppLibcSignalHandler __real_signal(int sig, AppLibcSignalHandler handler) {
+    static auto real = reinterpret_cast<AppLibcSignalHandler (*)(int, AppLibcSignalHandler)>(dlsym(RTLD_NEXT, "signal"));
+    return real(sig, handler);
+}
+
+int __real_kill(pid_t pid, int sig) {
+    static auto real = reinterpret_cast<int (*)(pid_t, int)>(dlsym(RTLD_NEXT, "kill"));
+    return real(pid, sig);
+}
+
 [[noreturn]] void __real_exit(int status) {
     static auto real = reinterpret_cast<void (*)(int)>(dlsym(RTLD_NEXT, "exit"));
     real(status);
@@ -96,9 +107,7 @@ int __wrap_ioctl(int fd, unsigned long request, ...) {
     void* arg = va_arg(args, void*);
     va_end(args);
 
-    struct winsize windowSize {};
-    if (tryAppWindowSize(fd, request, arg, &windowSize)) {
-        *static_cast<struct winsize*>(arg) = windowSize;
+    if (app_libc_try_window_size(fd, request, arg)) {
         return 0;
     }
     return __real_ioctl(fd, request, arg);
@@ -106,11 +115,7 @@ int __wrap_ioctl(int fd, unsigned long request, ...) {
 
 char* __wrap_getcwd(char* buf, size_t size) {
     char* result;
-    int err;
-    if (tryAppGetCwd(buf, size, &result, &err)) {
-        if (result == nullptr) {
-            errno = err;
-        }
+    if (app_libc_try_getcwd(buf, size, &result)) {
         return result;
     }
     return __real_getcwd(buf, size);
@@ -118,11 +123,7 @@ char* __wrap_getcwd(char* buf, size_t size) {
 
 int __wrap_chdir(const char* path) {
     int result;
-    int err;
-    if (tryAppChdir(path, &result, &err)) {
-        if (result != 0) {
-            errno = err;
-        }
+    if (app_libc_try_chdir(path, &result)) {
         return result;
     }
     return __real_chdir(path);
@@ -130,7 +131,7 @@ int __wrap_chdir(const char* path) {
 
 int __wrap_fstat(int fd, struct stat* st) {
     int result;
-    if (tryAppFstat(fd, st, &result)) {
+    if (app_libc_try_fstat(fd, st, &result)) {
         return result;
     }
     return __real_fstat(fd, st);
@@ -138,7 +139,7 @@ int __wrap_fstat(int fd, struct stat* st) {
 
 int __wrap_poll(struct pollfd* fds, nfds_t nfds, int timeout) {
     int result;
-    if (tryAppPoll(fds, nfds, timeout, __real_poll, &result)) {
+    if (app_libc_try_poll(fds, nfds, timeout, __real_poll, &result)) {
         return result;
     }
     return __real_poll(fds, nfds, timeout);
@@ -146,7 +147,7 @@ int __wrap_poll(struct pollfd* fds, nfds_t nfds, int timeout) {
 
 int __wrap_tcgetattr(int fd, struct termios* p) {
     int result;
-    if (tryAppTcgetattr(fd, p, &result)) {
+    if (app_libc_try_tcgetattr(fd, p, &result)) {
         return result;
     }
     return __real_tcgetattr(fd, p);
@@ -154,10 +155,28 @@ int __wrap_tcgetattr(int fd, struct termios* p) {
 
 int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p) {
     int result;
-    if (tryAppTcsetattr(fd, &result)) {
+    if (app_libc_try_tcsetattr(fd, p, &result)) {
         return result;
     }
     return __real_tcsetattr(fd, optional_actions, p);
+}
+
+// Called by an app, the real signal() would install a process-wide handler pointing into the app's binary
+AppLibcSignalHandler __wrap_signal(int sig, AppLibcSignalHandler handler) {
+    AppLibcSignalHandler previous;
+    if (app_libc_try_signal(sig, handler, &previous)) {
+        return previous;
+    }
+    return __real_signal(sig, handler);
+}
+
+// Called by an app, the real kill() would signal the whole simulator (e.g. SIGSTOP)
+int __wrap_kill(pid_t pid, int sig) {
+    int result;
+    if (app_libc_try_kill(pid, sig, &result)) {
+        return result;
+    }
+    return __real_kill(pid, sig);
 }
 
 // Called by an app, the real exit() would end the whole simulator
@@ -387,5 +406,3 @@ char* __wrap_fgets(char* buffer, int size, FILE* stream) {
 }
 
 // endregion
-
-#endif // ESP_PLATFORM

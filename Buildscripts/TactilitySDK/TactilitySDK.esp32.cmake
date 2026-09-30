@@ -24,6 +24,12 @@ macro(tactility_project_post project_name)
         idf_build_set_property(COMPILE_OPTIONS "-fno-omit-frame-pointer" APPEND)
     endif()
 
+    # ESP-IDF's own <sys/ioctl.h> (esp_libc/platform_include) is found before app-module's, which adds
+    # the terminal ioctls (TIOCGWINSZ) Tactility's ioctl() supports for app fds.
+    # C and C++ only: assembly sources can't include a C header.
+    idf_build_set_property(C_COMPILE_OPTIONS "SHELL:-include ${TACTILITY_SDK_PATH}/Modules/app-module/include/sys/ioctl.h" APPEND)
+    idf_build_set_property(CXX_COMPILE_OPTIONS "SHELL:-include ${TACTILITY_SDK_PATH}/Modules/app-module/include/sys/ioctl.h" APPEND)
+
     include("${TACTILITY_SDK_PATH}/Libraries/elf_loader/elf_loader.cmake")
     project_elf($project_name)
 

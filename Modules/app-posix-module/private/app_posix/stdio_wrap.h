@@ -7,10 +7,13 @@
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <app/libc.h>
+
+#include <signal.h>
 #include <termios.h>
 
 
-// Implemented in stdio_wrap_posix.cpp, installed under the real names by stdio_wrap_elf.cpp or stdio_wrap_apple.cpp.
+// Implemented in stdio_wrap.cpp, installed under the real names by stdio_wrap_elf.cpp or stdio_wrap_apple.cpp.
 extern "C" {
 ssize_t __wrap_read(int fd, void* buffer, size_t size);
 ssize_t __wrap_write(int fd, const void* buffer, size_t size);
@@ -22,6 +25,8 @@ int __wrap_fstat(int fd, struct stat* st);
 int __wrap_poll(struct pollfd* fds, nfds_t nfds, int timeout);
 int __wrap_tcgetattr(int fd, struct termios* p);
 int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p);
+AppLibcSignalHandler __wrap_signal(int sig, AppLibcSignalHandler handler);
+int __wrap_kill(pid_t pid, int sig);
 [[noreturn]] void __wrap_exit(int status);
 
 int __wrap_vprintf(const char* format, va_list args);

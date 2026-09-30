@@ -124,6 +124,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(getc),
     DEFINE_MODULE_SYMBOL(putc),
     DEFINE_MODULE_SYMBOL(putchar),
+    DEFINE_MODULE_SYMBOL(getchar),
     DEFINE_MODULE_SYMBOL(puts),
     DEFINE_MODULE_SYMBOL(printf),
     DEFINE_MODULE_SYMBOL(sscanf),

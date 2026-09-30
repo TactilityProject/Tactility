@@ -2,7 +2,18 @@
 #include <Tactility/file/File.h>
 #include <Tactility/json/Reader.h>
 
+#include <app/package_manifest.h>
+
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
+
 #include <tactility/log.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
+#include <string_view>
 
 namespace tt::app::apphub {
 
@@ -10,6 +21,13 @@ constexpr auto* TAG = "AppHubJson";
 
 static bool parseEntry(const cJSON* object, AppHubEntry& entry) {
     const json::Reader reader(object);
+    // Optional: absent in apps.json files from before these fields existed
+    if (cJSON_HasObjectItem(object, "requiresDeviceId") && !reader.readStringArray("requiresDeviceId", entry.requiresDeviceId)) {
+        return false;
+    }
+    if (cJSON_HasObjectItem(object, "requiresRam") && !reader.readInt32("requiresRam", entry.requiresRam)) {
+        return false;
+    }
     return reader.readString("appId", entry.appId) &&
          reader.readString("appVersionName", entry.appVersionName) &&
          reader.readInt32("appVersionCode", entry.appVersionCode) &&
@@ -55,6 +73,37 @@ bool parseJson(const std::string& filePath, AppHubEntryList& entries) {
 
     cJSON_Delete(json);
     return true;
+}
+
+bool isCompatible(const AppHubEntry& entry) {
+    // The simulator isn't a real MCU target, so it has no platform to match against
+#ifdef ESP_PLATFORM
+    if (!entry.targetPlatforms.empty() &&
+        std::ranges::find(entry.targetPlatforms, std::string_view(CONFIG_IDF_TARGET)) == entry.targetPlatforms.end()) {
+        return false;
+    }
+#endif
+
+    // Same device and RAM rules as for installed packages
+    PackageManifest package {};
+    std::string deviceIds;
+    for (const auto& deviceId : entry.requiresDeviceId) {
+        if (!deviceIds.empty()) {
+            deviceIds += ',';
+        }
+        deviceIds += deviceId;
+    }
+    if (deviceIds.size() >= sizeof(package.requires_device_id)) {
+        LOG_W(TAG, "%s: requiresDeviceId too long", entry.appId.c_str());
+        return false;
+    }
+    strcpy(package.requires_device_id, deviceIds.c_str());
+    if (entry.requiresRam < 0 || entry.requiresRam > UINT8_MAX) {
+        LOG_W(TAG, "%s: invalid requiresRam %d", entry.appId.c_str(), static_cast<int>(entry.requiresRam));
+        return false;
+    }
+    package.requires_ram = static_cast<uint8_t>(entry.requiresRam);
+    return app_package_manifest_is_compatible(&package);
 }
 
 }

@@ -13,7 +13,7 @@ namespace {
 // and cursor movement belong to the terminal itself and must never end up in a command's redirect
 // target. sh_redir.c only ever swaps the stdout/stderr/stdin FILE*, never fd 1 itself, which is
 // always piped to the terminal app running it. fwrite() would also miss this app's own stdio
-// wrapping entirely (see stdio_wrap_posix.cpp), leaving nothing for that pipe to carry.
+// wrapping entirely (see app-posix-module's stdio_wrap.cpp), leaving nothing for that pipe to carry.
 void write(const char* text, size_t length) {
     const char* bytes = text;
     size_t remaining = length;

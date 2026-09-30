@@ -5,6 +5,7 @@
 
 #include <tactility/error.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -59,6 +60,9 @@ struct PackageManifest {
      */
     char requires_device_id[PACKAGE_MANIFEST_REQUIRES_DEVICE_ID_LENGTH + 1];
 
+    /** RAM in megabytes (1024 * 1024 bytes) the package needs to run ("requires.ram", e.g. "2M"). 0 means no requirement. */
+    uint8_t requires_ram;
+
     /** How many AppManifest entries this package's manifest.properties declared. */
     uint32_t app_manifest_count;
 };
@@ -85,6 +89,12 @@ struct AppManifestBinding {
  * @retval ERROR_BUFFER_OVERFLOW the manifest declares more apps than @a bindings_capacity
  */
 error_t app_package_manifest_parse(const char* path, struct PackageManifest* out_package, struct AppManifestBinding* out_bindings, size_t bindings_capacity);
+
+/**
+ * @return true if this device can run the package: it is listed in requires_device_id (or that is empty),
+ * and its total RAM (internal plus external) is at least requires_ram megabytes
+ */
+bool app_package_manifest_is_compatible(const struct PackageManifest* const manifest);
 
 #ifdef __cplusplus
 }

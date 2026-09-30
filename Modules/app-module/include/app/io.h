@@ -53,7 +53,6 @@ error_t app_io_ioctl(int fd, AppIoctlRequest request, void* arg);
 
 /**
  * Installs a custom AppFileOps at @a fd in the calling task's own app instance fd table.
- * Unlike AppStreamBinding, writes are never teed to the real underlying fd.
  * @warning Must be called from the app instance's own task.
  * @retval ERROR_NOT_FOUND the calling task isn't a running app instance
  * @retval ERROR_OUT_OF_RANGE @a fd is outside [0, APP_MAX_FDS)

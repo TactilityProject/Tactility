@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-#ifdef ESP_PLATFORM
 
-#include <app/private/stdio_wrap.h>
-
+// libc wraps (-Wl,--wrap=, see the top-level CMakeLists.txt) that route an app instance's calls to
+// its own fds, cwd and exit(). App-instance behavior itself lives in app-module (app/libc.h).
 #include <app/io.h>
+#include <app/libc.h>
 #include <app/scheduler.h>
+
+#include <signal.h>
+#include <sys/poll.h>
+#include <sys/stat.h>
+#include <termios.h>
 
 #include <cerrno>
 #include <cstdarg>
@@ -39,9 +44,7 @@ int __wrap_ioctl(int fd, int request, ...) {
     void* arg = va_arg(args, void*);
     va_end(args);
 
-    struct winsize windowSize {};
-    if (tryAppWindowSize(fd, static_cast<unsigned long>(request), arg, &windowSize)) {
-        *static_cast<struct winsize*>(arg) = windowSize;
+    if (app_libc_try_window_size(fd, static_cast<unsigned long>(request), arg)) {
         return 0;
     }
     return __real_ioctl(fd, request, arg);
@@ -52,11 +55,7 @@ int __real_chdir(const char* path);
 
 char* __wrap_getcwd(char* buf, size_t size) {
     char* result;
-    int err;
-    if (tryAppGetCwd(buf, size, &result, &err)) {
-        if (result == nullptr) {
-            errno = err;
-        }
+    if (app_libc_try_getcwd(buf, size, &result)) {
         return result;
     }
     return __real_getcwd(buf, size);
@@ -64,11 +63,7 @@ char* __wrap_getcwd(char* buf, size_t size) {
 
 int __wrap_chdir(const char* path) {
     int result;
-    int err;
-    if (tryAppChdir(path, &result, &err)) {
-        if (result != 0) {
-            errno = err;
-        }
+    if (app_libc_try_chdir(path, &result)) {
         return result;
     }
     return __real_chdir(path);
@@ -79,7 +74,7 @@ int __real__fstat_r(struct _reent* r, int fd, struct stat* st);
 
 int __wrap__fstat_r(struct _reent* r, int fd, struct stat* st) {
     int result;
-    if (tryAppFstat(fd, st, &result)) {
+    if (app_libc_try_fstat(fd, st, &result)) {
         return result;
     }
     return __real__fstat_r(r, fd, st);
@@ -89,7 +84,7 @@ int __real_poll(struct pollfd* fds, nfds_t nfds, int timeout);
 
 int __wrap_poll(struct pollfd* fds, nfds_t nfds, int timeout) {
     int result;
-    if (tryAppPoll(fds, nfds, timeout, __real_poll, &result)) {
+    if (app_libc_try_poll(fds, nfds, timeout, __real_poll, &result)) {
         return result;
     }
     return __real_poll(fds, nfds, timeout);
@@ -100,7 +95,7 @@ int __real_tcsetattr(int fd, int optional_actions, const struct termios* p);
 
 int __wrap_tcgetattr(int fd, struct termios* p) {
     int result;
-    if (tryAppTcgetattr(fd, p, &result)) {
+    if (app_libc_try_tcgetattr(fd, p, &result)) {
         return result;
     }
     return __real_tcgetattr(fd, p);
@@ -108,10 +103,20 @@ int __wrap_tcgetattr(int fd, struct termios* p) {
 
 int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p) {
     int result;
-    if (tryAppTcsetattr(fd, &result)) {
+    if (app_libc_try_tcsetattr(fd, p, &result)) {
         return result;
     }
     return __real_tcsetattr(fd, optional_actions, p);
+}
+
+// ESP-IDF's newlib has no signal() of its own, so this is the only definition
+_sig_func_ptr signal(int sig, _sig_func_ptr handler) {
+    AppLibcSignalHandler previous;
+    if (app_libc_try_signal(sig, handler, &previous)) {
+        return previous;
+    }
+    errno = ENOSYS;
+    return SIG_ERR;
 }
 
 // Called by an app, newlib's exit() would reach _exit(), which aborts the whole device
@@ -123,5 +128,3 @@ int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p) {
 }
 
 }
-
-#endif // ESP_PLATFORM

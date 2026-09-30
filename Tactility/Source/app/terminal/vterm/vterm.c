@@ -61,6 +61,11 @@ typedef struct {
      */
     int pending_wrap;
 
+    /* Scroll region (DECSTBM, ESC[top;bottom r): line feeds, IND, RI, IL and DL only move rows
+     * scroll_top up to (not including) scroll_bottom. scroll_bottom 0 means the whole screen. */
+    int scroll_top;
+    int scroll_bottom;
+
 } vterm_t;
 
 static vterm_t *s_vterms = NULL;
@@ -146,6 +151,64 @@ static void vterm_scroll(vterm_t *vt)
     vt->cursor_y = rows - 1;
 }
 
+/* Exclusive end row of the scroll region, within the visible rows. */
+static int region_bottom(const vterm_t *vt)
+{
+    const int rows = effective_rows();
+    return (vt->scroll_bottom > 0 && vt->scroll_bottom < rows) ? vt->scroll_bottom : rows;
+}
+
+static void clear_rows(vterm_t *vt, int from, int to)
+{
+    for (int y = from; y < to; y++) {
+        vterm_cell_t *row = &vt->cells[y * VTERM_COLS];
+        for (int x = 0; x < VTERM_COLS; x++) {
+            row[x].ch = ' ';
+            row[x].attr = VTERM_DEFAULT_ATTR;
+        }
+    }
+}
+
+/* Moves the scroll region's rows up by one and clears its last row. The whole screen scrolls
+ * through vterm_scroll(), so its top line still reaches the scrollback history. */
+static void vterm_scroll_region_up(vterm_t *vt)
+{
+    const int top = vt->scroll_top;
+    const int bottom = region_bottom(vt);
+    if (top == 0 && bottom == effective_rows()) {
+        vterm_scroll(vt);
+        return;
+    }
+    if (bottom - top > 1) {
+        memmove(&vt->cells[top * VTERM_COLS], &vt->cells[(top + 1) * VTERM_COLS],
+                (bottom - top - 1) * VTERM_COLS * sizeof(vterm_cell_t));
+    }
+    clear_rows(vt, bottom - 1, bottom);
+}
+
+/* Moves the scroll region's rows down by one and clears its first row. */
+static void vterm_scroll_region_down(vterm_t *vt)
+{
+    const int top = vt->scroll_top;
+    const int bottom = region_bottom(vt);
+    if (bottom - top > 1) {
+        memmove(&vt->cells[(top + 1) * VTERM_COLS], &vt->cells[top * VTERM_COLS],
+                (bottom - top - 1) * VTERM_COLS * sizeof(vterm_cell_t));
+    }
+    clear_rows(vt, top, top + 1);
+}
+
+/* Moves the cursor down one row. At the bottom of the scroll region, the region scrolls instead.
+ * Below the region, the cursor stops at the last row. */
+static void vterm_line_feed(vterm_t *vt)
+{
+    if (vt->cursor_y == region_bottom(vt) - 1) {
+        vterm_scroll_region_up(vt);
+    } else if (vt->cursor_y < effective_rows() - 1) {
+        vt->cursor_y++;
+    }
+}
+
 static void vterm_putchar_internal(vterm_t *vt, char c)
 {
     /*
@@ -158,8 +221,7 @@ static void vterm_putchar_internal(vterm_t *vt, char c)
     if (vt->pending_wrap && c >= 32 && c < 127) {
         vt->pending_wrap = 0;
         vt->cursor_x = 0;
-        vt->cursor_y++;
-        if (vt->cursor_y >= effective_rows()) vterm_scroll(vt);
+        vterm_line_feed(vt);
     }
 
     // Direct pointer access for speed
@@ -169,8 +231,7 @@ static void vterm_putchar_internal(vterm_t *vt, char c)
     case '\n':
         vt->pending_wrap = 0;
         vt->cursor_x = 0;
-        vt->cursor_y++;
-        if (vt->cursor_y >= effective_rows()) vterm_scroll(vt);
+        vterm_line_feed(vt);
         break;
     case '\r':
         vt->pending_wrap = 0;
@@ -243,6 +304,9 @@ static void vterm_clear_internal(vterm_t *vt)
     vt->cursor_visible = 1;  // Cursor visible by default
     vt->current_attr = VTERM_DEFAULT_ATTR;
     vt->pending_wrap = 0;
+    // A full clear also restores the whole screen as scroll region, e.g. after an app left one set
+    vt->scroll_top = 0;
+    vt->scroll_bottom = 0;
 }
 
 // Helper to parse a number from SGR params, advancing pointer
@@ -360,30 +424,17 @@ static int vterm_handle_escape(vterm_t *vt, char c)
         }
         // Non-CSI escape sequences: ESC <letter>
         if (c == 'D') {
-            // IND - Index: move cursor down, scroll if at bottom
-            if (vt->cursor_y >= effective_rows() - 1) {
-                vterm_scroll(vt);
-            } else {
-                vt->cursor_y++;
-            }
+            // IND - Index: move cursor down, scroll the region if at its bottom
+            vterm_line_feed(vt);
 
             vt->escape_state = 0;
             return 1;
         }
         if (c == 'M') {
-            // RI - Reverse Index: move cursor up, scroll down if at top
-            if (vt->cursor_y <= 0) {
-                // Scroll down: move lines 0..N-2 to 1..N-1
-                memmove(&vt->cells[VTERM_COLS], &vt->cells[0],
-                        (effective_rows() - 1) * VTERM_COLS * sizeof(vterm_cell_t));
-
-                // Clear top line
-                vterm_cell_t *top_row = &vt->cells[0];
-                for (int x = 0; x < VTERM_COLS; x++) {
-                    top_row[x].ch = ' ';
-                    top_row[x].attr = VTERM_DEFAULT_ATTR;
-                }
-            } else {
+            // RI - Reverse Index: move cursor up, scroll the region down if at its top
+            if (vt->cursor_y == vt->scroll_top) {
+                vterm_scroll_region_down(vt);
+            } else if (vt->cursor_y > 0) {
                 vt->cursor_y--;
             }
 
@@ -393,11 +444,7 @@ static int vterm_handle_escape(vterm_t *vt, char c)
         if (c == 'E') {
             // NEL - Next Line: move to column 1 of next line, scroll if needed
             vt->cursor_x = 0;
-            if (vt->cursor_y >= effective_rows() - 1) {
-                vterm_scroll(vt);
-            } else {
-                vt->cursor_y++;
-            }
+            vterm_line_feed(vt);
 
             vt->escape_state = 0;
             return 1;
@@ -528,53 +575,63 @@ static int vterm_handle_escape(vterm_t *vt, char c)
             break;
         }
         case 'L': {
-            // IL - Insert Lines: insert N blank lines at cursor row, scroll down
+            // IL - Insert Lines: insert N blank lines at the cursor row, within the scroll region
+            const int bottom = region_bottom(vt);
+            if (vt->cursor_y < vt->scroll_top || vt->cursor_y >= bottom) break;
             int n = 1;
             if (vt->escape_buf[0]) n = atoi(vt->escape_buf);
             if (n < 1) n = 1;
-            if (n > VTERM_ROWS - vt->cursor_y) n = VTERM_ROWS - vt->cursor_y;
+            if (n > bottom - vt->cursor_y) n = bottom - vt->cursor_y;
 
-            // Move lines down
-            int lines_to_move = VTERM_ROWS - vt->cursor_y - n;
+            int lines_to_move = bottom - vt->cursor_y - n;
             if (lines_to_move > 0) {
                 memmove(&vt->cells[(vt->cursor_y + n) * VTERM_COLS],
                         &vt->cells[vt->cursor_y * VTERM_COLS],
                         lines_to_move * VTERM_COLS * sizeof(vterm_cell_t));
             }
-
-            // Clear inserted lines
-            for (int y = vt->cursor_y; y < vt->cursor_y + n; y++) {
-                vterm_cell_t *row = &vt->cells[y * VTERM_COLS];
-                for (int x = 0; x < VTERM_COLS; x++) {
-                    row[x].ch = ' ';
-                    row[x].attr = VTERM_DEFAULT_ATTR;
-                }
-            }
+            clear_rows(vt, vt->cursor_y, vt->cursor_y + n);
             break;
         }
         case 'M': {
-            // DL - Delete Lines: delete N lines at cursor row, scroll up
+            // DL - Delete Lines: delete N lines at the cursor row, within the scroll region
+            const int bottom = region_bottom(vt);
+            if (vt->cursor_y < vt->scroll_top || vt->cursor_y >= bottom) break;
             int n = 1;
             if (vt->escape_buf[0]) n = atoi(vt->escape_buf);
             if (n < 1) n = 1;
-            if (n > VTERM_ROWS - vt->cursor_y) n = VTERM_ROWS - vt->cursor_y;
+            if (n > bottom - vt->cursor_y) n = bottom - vt->cursor_y;
 
-            // Move lines up
-            int lines_to_move = VTERM_ROWS - vt->cursor_y - n;
+            int lines_to_move = bottom - vt->cursor_y - n;
             if (lines_to_move > 0) {
                 memmove(&vt->cells[vt->cursor_y * VTERM_COLS],
                         &vt->cells[(vt->cursor_y + n) * VTERM_COLS],
                         lines_to_move * VTERM_COLS * sizeof(vterm_cell_t));
             }
-
-            // Clear vacated lines at bottom
-            for (int y = VTERM_ROWS - n; y < VTERM_ROWS; y++) {
-                vterm_cell_t *row = &vt->cells[y * VTERM_COLS];
-                for (int x = 0; x < VTERM_COLS; x++) {
-                    row[x].ch = ' ';
-                    row[x].attr = VTERM_DEFAULT_ATTR;
-                }
+            clear_rows(vt, bottom - n, bottom);
+            break;
+        }
+        case 'r': {
+            // DECSTBM - Set Scroll Region: ESC[top;bottom r (1-based), no parameters is the whole screen
+            const int rows = effective_rows();
+            int top = 1, bottom = rows;
+            if (vt->escape_buf[0]) sscanf(vt->escape_buf, "%d;%d", &top, &bottom);
+            if (top < 1) top = 1;
+            if (bottom > rows || bottom < 1) bottom = rows;
+            if (top < bottom) {
+                vt->scroll_top = top - 1;
+                vt->scroll_bottom = (bottom == rows) ? 0 : bottom;
             }
+            vt->cursor_x = 0;
+            vt->cursor_y = 0;
+            break;
+        }
+        case 'G': {
+            // CHA - Cursor Horizontal Absolute: move to column N (1-based) on the current row
+            int n = 1;
+            if (vt->escape_buf[0]) n = atoi(vt->escape_buf);
+            if (n < 1) n = 1;
+            vt->cursor_x = n - 1;
+            if (vt->cursor_x >= effective_cols()) vt->cursor_x = effective_cols() - 1;
             break;
         }
         case 'n':
@@ -783,12 +840,10 @@ void vterm_write(int vt_id, const char *data, size_t len)
              */
             if (pending_wrap) {
                 pending_wrap = 0;
-                cx = 0; cy++;
-                if (cy >= effective_rows()) {
-                    vt->cursor_x = cx; vt->cursor_y = cy;
-                    vterm_scroll(vt);
-                    cy = vt->cursor_y;
-                }
+                cx = 0;
+                vt->cursor_x = cx; vt->cursor_y = cy;
+                vterm_line_feed(vt);
+                cy = vt->cursor_y;
                 cursor_ptr = &cells_base[cy * VTERM_COLS + cx];
                 row_end = &cells_base[cy * VTERM_COLS + cols];
             }

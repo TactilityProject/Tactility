@@ -8,4 +8,6 @@ tactility_add_module(app-esp32-module
     SRCS ${SOURCE_FILES}
     INCLUDE_DIRS include/
     REQUIRES TactilityKernel app-module service-module elf_loader
+    # The libc wraps in source/stdio_wrap.cpp are only reached through -Wl,--wrap=, never by direct reference
+    WHOLE_ARCHIVE
 )

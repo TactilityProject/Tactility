@@ -118,6 +118,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(button_wrapper, 0, 0);
     lv_obj_set_flex_align(button_wrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
+    // Ensures showing selection state for keyboard/encoder devices
+    lv_obj_set_style_pad_all(button_wrapper, 0, LV_ALIGN_DEFAULT);
+    lv_obj_set_style_pad_column(button_wrapper, 12, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_ver(button_wrapper, 6, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_hor(button_wrapper, 6, LV_STATE_DEFAULT);
+
     auto* yes_button = lv_button_create(button_wrapper);
     auto* yes_label = lv_label_create(yes_button);
     lv_label_set_text(yes_label, "Yes");

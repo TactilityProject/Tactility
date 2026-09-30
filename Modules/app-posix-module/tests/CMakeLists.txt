@@ -13,7 +13,7 @@ set_target_properties(app_posix_module_test_fixture PROPERTIES POSITION_INDEPEND
 
 # Fixture: calls printf() with no app-module linkage of its own, so its call must resolve against
 # the host process's own printf - proves a dlopen()ed app's stdio actually reaches app_io_write()
-# rather than bypassing straight to libc (see stdio_wrap_posix.cpp's own comment for why that's not a
+# rather than bypassing straight to libc (see ../source/stdio_wrap.cpp's own comment for why that's not a
 # given on POSIX).
 add_library(printf_fixture SHARED EXCLUDE_FROM_ALL ${CMAKE_CURRENT_LIST_DIR}/fixtures/printf_fixture.cpp)
 set_target_properties(printf_fixture PROPERTIES POSITION_INDEPENDENT_CODE ON)

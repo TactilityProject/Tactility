@@ -8,6 +8,7 @@
 #include <ctime>
 #include <dirent.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <strings.h>
 #include <sys/ioctl.h>
 #include <sys/poll.h>
@@ -41,6 +42,9 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(ftruncate),
     DEFINE_MODULE_SYMBOL(fsync),
     DEFINE_MODULE_SYMBOL(getuid),
+    // signal.h - handlers are recorded per app, see app/libc.h
+    DEFINE_MODULE_SYMBOL(signal),
+    DEFINE_MODULE_SYMBOL(kill),
     // sys/ioctl.h
     DEFINE_MODULE_SYMBOL(ioctl),
     // sys/poll.h

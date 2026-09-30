@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #ifdef __APPLE__
 
-#include <app/private/stdio_wrap_posix.h>
+#include <app_posix/stdio_wrap.h>
 
 #include <cstdlib>
 #include <sys/ioctl.h>
@@ -25,6 +25,8 @@ TT_DYLD_INTERPOSE(__wrap_poll, poll)
 TT_DYLD_INTERPOSE(__wrap_tcgetattr, tcgetattr)
 TT_DYLD_INTERPOSE(__wrap_tcsetattr, tcsetattr)
 TT_DYLD_INTERPOSE(__wrap_exit, exit)
+TT_DYLD_INTERPOSE(__wrap_signal, signal)
+TT_DYLD_INTERPOSE(__wrap_kill, kill)
 
 TT_DYLD_INTERPOSE(__wrap_vprintf, vprintf)
 TT_DYLD_INTERPOSE(__wrap_printf, printf)

@@ -63,7 +63,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     # Wraps newlib's reentrant syscall stubs, not the plain read()/write()/close() newlib itself.
     # Implements as thin wrappers around them. newlib's own stdio (fflush()'s buffer-flush path in particular)
     # calls these _r stubs directly, bypassing the plain names entirely.
-    # See Modules/app-module/source/stdio_wrap_esp32.cpp's own comment for the exact call chain.
+    # See Modules/app-esp32-module/source/stdio_wrap.cpp's own comment for the exact call chain.
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_read_r" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_write_r" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=_close_r" APPEND)
@@ -81,6 +81,13 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=poll" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=tcgetattr" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=tcsetattr" APPEND)
+
+    # elf_loader's full D-cache write-back must not run concurrently with a cache operation on the other core.
+    # See Modules/app-esp32-module/source/elf_cache.cpp.
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=esp_elf_arch_flush" APPEND)
+
+    # elf_loader's Xtensa relocation drops GLOB_DAT/JMP_SLOT addends. See Modules/app-esp32-module/source/elf_relocate.cpp.
+    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=esp_elf_arch_relocate" APPEND)
 
     # exit() from an app ends only that app (see app_scheduler_exit_current()) instead of aborting.
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=exit" APPEND)

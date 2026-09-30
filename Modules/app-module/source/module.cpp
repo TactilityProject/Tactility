@@ -78,6 +78,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_manifest_stack_size_is_valid),
     // app/package_manifest
     DEFINE_MODULE_SYMBOL(app_package_manifest_parse),
+    DEFINE_MODULE_SYMBOL(app_package_manifest_is_compatible),
     // app/paths
     DEFINE_MODULE_SYMBOL(app_paths_get_user_data_directory),
     DEFINE_MODULE_SYMBOL(app_paths_get_user_data_path),

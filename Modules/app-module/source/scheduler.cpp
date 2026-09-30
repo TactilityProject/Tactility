@@ -34,6 +34,11 @@ constexpr auto* TAG = "app_scheduler";
 constexpr size_t APP_INSTANCE_ID_THREAD_SLOT_INDEX = 1;
 
 AppInstanceId get_current_app_id() {
+    // No current task before the scheduler starts (e.g. newlib's stdio setup calling fstat()),
+    // where pvTaskGetThreadLocalStoragePointer(nullptr, ...) would dereference a null task.
+    if (xTaskGetCurrentTaskHandle() == nullptr) {
+        return 0;
+    }
     return reinterpret_cast<uintptr_t>(pvTaskGetThreadLocalStoragePointer(nullptr, APP_INSTANCE_ID_THREAD_SLOT_INDEX));
 }
 

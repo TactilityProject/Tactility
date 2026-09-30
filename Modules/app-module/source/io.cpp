@@ -48,6 +48,20 @@ int real_close(int fd) { return ::close(fd); }
 
 namespace {
 
+// Whether the calling app instance has ICRNL set (see AppInstanceRecord::termios_iflag).
+bool current_app_translates_cr() {
+    AppInstanceId app_id = app_scheduler_current_app_id();
+    if (app_id == 0) {
+        return false;
+    }
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    auto iterator = ledger.instances.find(app_id);
+    bool result = (iterator != ledger.instances.end()) && (iterator->second.termios_iflag & ICRNL) != 0;
+    mutex_unlock(&ledger.mutex);
+    return result;
+}
+
 // NULL for a caller not running as an app instance (e.g. a kernel service task). @a fd is then
 // a real underlying fd, handled by the caller falling through to the real syscall.
 AppFdTable* current_app_fd_table() {
@@ -75,6 +89,15 @@ ssize_t app_io_read(int fd, void* buffer, size_t size) {
         if (file.ops->release != nullptr) {
             file.ops->release(file.object);
         }
+        // Like a terminal with ICRNL: the Enter key's '\r' reads as '\n'
+        if (fd == STDIN_FILENO && result > 0 && current_app_translates_cr()) {
+            auto* bytes = static_cast<char*>(buffer);
+            for (ssize_t i = 0; i < result; i++) {
+                if (bytes[i] == '\r') {
+                    bytes[i] = '\n';
+                }
+            }
+        }
         return result;
     }
     // @a fd isn't currently bound. If this table has never touched it either, it's a real
@@ -95,17 +118,6 @@ ssize_t app_io_write(int fd, const void* buffer, size_t size) {
         ssize_t result = file.ops->write(file.object, buffer, size);
         if (file.ops->release != nullptr) {
             file.ops->release(file.object);
-        }
-        // Tee to the real fd too: a bound stream normally exists because a parent explicitly
-        // asked to capture this app instance's own output (see AppStreamBinding), but generic
-        // code running on that same instance's thread - most commonly the platform's own logging
-        // (LOG_I/etc, which calls write() the same as anything else) - has no way to know its
-        // output is currently being intercepted. Without this, a log line emitted while any app
-        // instance has its stdout captured would vanish from the console entirely instead of
-        // just also being visible to the capturing parent. An instance that bound its own fd
-        // (see app_io_bind_self()) opts out - it wants exclusive ownership, not a silent tap.
-        if (!file.suppress_console_tee) {
-            real_write(fd, buffer, size);
         }
         return result;
     }
@@ -184,7 +196,7 @@ error_t app_io_bind_self(int fd, const AppFileOps* ops, void* object) {
     if (table == nullptr) {
         return ERROR_NOT_FOUND;
     }
-    return app_fd_table_bind(table, fd, ops, object, /*suppress_console_tee=*/true);
+    return app_fd_table_bind(table, fd, ops, object);
 }
 
 } // extern "C"

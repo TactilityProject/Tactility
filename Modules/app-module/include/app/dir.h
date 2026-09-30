@@ -13,7 +13,7 @@
  * instance's cwd.
  *
  * Matches POSIX getcwd()/chdir() semantics, and is what their real-syscall wraps
- * (Modules/app-module/source/stdio_wrap.cpp) route to for a calling task that is an app instance.
+ * (the platform modules' stdio_wrap.cpp, via app/libc.h) route to for a calling task that is an app instance.
  */
 
 #ifdef __cplusplus

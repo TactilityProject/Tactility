@@ -2,6 +2,7 @@
 #pragma once
 
 #include <app/instance.h>
+#include <app/libc.h>
 #include <app/manifest.h>
 #include <app/package_manifest.h>
 #include <app/private/fd_table.h>
@@ -14,6 +15,7 @@
 #include <tactility/freertos/task.h>
 
 #include <stdint.h>
+#include <termios.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -71,6 +73,12 @@ struct AppInstanceRecord {
     /** Inherited from the parent instance, like `env`. Mutable via app_dir_set_cwd() (app/dir.h).
      * Always absolute. */
     std::string cwd = "/";
+
+    /** Handlers registered via signal() (app/libc.h), indexed by signal number. Null means SIG_DFL. */
+    AppLibcSignalHandler signal_handlers[APP_LIBC_SIGNAL_COUNT] {};
+
+    /** Terminal input flags set via tcsetattr() (app/libc.h). ICRNL is applied when reading stdin. */
+    tcflag_t termios_iflag = ICRNL;
 };
 
 /** A registered installed package - see app_manager_add_package() (app/manager.h). */

@@ -210,6 +210,21 @@ error_t package_manifest_parse_v3(const std::map<std::string, std::string>& prop
         }
     }
 
+    // requires.ram: whole megabytes with an "M" suffix, e.g. "2M"
+    auto ram_iterator = properties.find("requires.ram");
+    if (ram_iterator != properties.end()) {
+        const std::string& ram = ram_iterator->second;
+        uint32_t megabytes = 0;
+        const char* first = ram.data();
+        const char* last = first + ram.size();
+        const auto [end, error] = std::from_chars(first, last, megabytes);
+        if (error != std::errc {} || end != last - 1 || *end != 'M' || megabytes > UINT8_MAX) {
+            LOG_E(TAG, "Invalid requires.ram");
+            return ERROR_INVALID_ARGUMENT;
+        }
+        out_package.requires_ram = static_cast<uint8_t>(megabytes);
+    }
+
     // app.<index>.* blocks: 0-indexed, contiguous - the first missing "app.<index>.id" ends the list.
     size_t count = 0;
     while (properties.contains(std::format("app.{}.id", count))) {

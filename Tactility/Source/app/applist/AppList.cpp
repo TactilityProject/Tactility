@@ -1,6 +1,7 @@
 #include <app/event.h>
 #include <app/manager.h>
 #include <app/manifest.h>
+#include <app/package_manifest.h>
 #include <app/scheduler.h>
 #include <app/start.h>
 
@@ -14,6 +15,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include <lvgl/icons/shared.h>
@@ -137,6 +139,17 @@ void collectManifest(const ::AppManifest* manifest, void* context) {
     manifests->push_back(*manifest);
 }
 
+// Apps from installed packages this device can't run (wrong device, too little RAM)
+void collectIncompatibleAppIds(const AppPackage* package, void* context) {
+    if (app_package_manifest_is_compatible(&package->package)) {
+        return;
+    }
+    auto* ids = static_cast<std::vector<std::string>*>(context);
+    for (size_t i = 0; i < package->app_id_count; i++) {
+        ids->emplace_back(package->app_ids[i]);
+    }
+}
+
 void populateList(lv_obj_t* list) {
     // Captured before lv_obj_clean() deletes the currently focused button below: LVGL moves
     // focus elsewhere as it leaves the group, and creating replacement buttons doesn't restore
@@ -160,6 +173,11 @@ void populateList(lv_obj_t* list) {
 
     std::vector<::AppManifest> collected;
     app_manager_for_each_manifest(collectManifest, &collected);
+    std::vector<std::string> incompatibleIds;
+    app_manager_for_each_package(collectIncompatibleAppIds, &incompatibleIds);
+    std::erase_if(collected, [&](const ::AppManifest& manifest) {
+        return std::ranges::find(incompatibleIds, std::string(manifest.id)) != incompatibleIds.end();
+    });
     std::ranges::sort(collected, [&](const ::AppManifest& a, const ::AppManifest& b) {
         const bool aFavourite = Favourites::contains(favouriteIds, a.id);
         const bool bFavourite = Favourites::contains(favouriteIds, b.id);

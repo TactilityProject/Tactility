@@ -54,7 +54,7 @@ static const CardputerKeyDef cardputer_key_map[CARDPUTER_ROWS][CARDPUTER_COLS] =
     { K('\t', '\t'), K('q', 'Q'), K('w', 'W'), K('e', 'E'), K('r', 'R'), K('t', 'T'), K('y', 'Y'),
       K('u', 'U'), K('i', 'I'), K('o', 'O'), K('p', 'P'), K('[', '{'), K(']', '}'), K('\\', '|') },
     { { CARDPUTER_KEY_FN, 0, 0 }, { CARDPUTER_KEY_SHIFT, 0, 0 }, K('a', 'A'), K('s', 'S'), K('d', 'D'), K('f', 'F'), K('g', 'G'),
-      K('h', 'H'), K('j', 'J'), K('k', 'K'), K('l', 'L'), K(';', ':'), K('\'', '"'), K('\r', '\r') },
+      K('h', 'H'), K('j', 'J'), K('k', 'K'), K('l', 'L'), K(';', ':'), K('\'', '"'), K('\n', '\n') },
     { { CARDPUTER_KEY_CTRL, 0, 0 }, { CARDPUTER_KEY_OPT, 0, 0 }, { CARDPUTER_KEY_ALT, 0, 0 }, K('z', 'Z'), K('x', 'X'), K('c', 'C'), K('v', 'V'),
       K('b', 'B'), K('n', 'N'), K('m', 'M'), K(',', '<'), K('.', '>'), K('/', '?'), K(' ', ' ') },
 };

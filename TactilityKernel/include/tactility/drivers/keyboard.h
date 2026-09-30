@@ -19,7 +19,7 @@ extern "C" {
  * Subsystems like LVGL can translate these special codepoints to specific actions.
  */
 typedef enum {
-    CODEPOINT_ENTER       = '\r',
+    CODEPOINT_ENTER       = 10,
     CODEPOINT_ESCAPE      = '\x1B',
     CODEPOINT_BACKSPACE   = '\b',
     CODEPOINT_DELETE      = '\x7F',
@@ -58,7 +58,7 @@ struct KeyboardKeyData {
      *
      * Reported separately rather than folded into `key` because the two encodings collide: the C0
      * control codes a terminal expects for Ctrl chords (Ctrl+C is 0x03, Ctrl+K is 0x0B, ...) overlap
-     * the four CodePoint values that remain in true C0 range (CODEPOINT_ENTER is Ctrl+M/13,
+     * the four CodePoint values that remain in true C0 range (CODEPOINT_ENTER is Ctrl+J/10,
      * CODEPOINT_BACKSPACE is Ctrl+H/8, CODEPOINT_TAB is Ctrl+I/9, CODEPOINT_ESCAPE is Ctrl+[/27), so
      * a single uint32_t cannot express both. Consumers that want control codes derive them here, e.g.
      * `((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z')) ? (key & 0x1F) : key`

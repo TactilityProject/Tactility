@@ -47,7 +47,6 @@ struct AppFileOps {
 struct AppFile {
     const struct AppFileOps* ops;
     void* object;
-    bool suppress_console_tee;
 };
 
 #ifdef __cplusplus

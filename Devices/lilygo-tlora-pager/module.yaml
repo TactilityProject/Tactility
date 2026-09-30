@@ -8,3 +8,4 @@ dependencies:
   - Drivers/drv2605-module
   - Drivers/gpio-encoder-module
 dts: lilygo,tlora-pager.dts
+dts-only: true

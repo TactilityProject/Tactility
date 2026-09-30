@@ -32,6 +32,12 @@ macro(tactility_project_post project_name)
         ${TACTILITY_SDK_PATH}/Libraries/FreeRTOS-Kernel/portable/ThirdParty/GCC/Posix/utils
     )
     target_compile_definitions(TactilitySDK INTERFACE LV_LVGL_H_INCLUDE_SIMPLE)
+    # An app's references to its own functions must bind to its own definitions, not to a same-named
+    # libc function already loaded in the Tactility process (e.g. an app shipping its own regcomp()).
+    # ESP32 apps get the same through -fvisibility=hidden. Mach-O binds within the image by default.
+    if (NOT APPLE)
+        target_link_options(TactilitySDK INTERFACE -Wl,-Bsymbolic)
+    endif ()
 
     # ESP-IDF's project() auto-discovers the "main" component; plain CMake doesn't.
     add_subdirectory(main)

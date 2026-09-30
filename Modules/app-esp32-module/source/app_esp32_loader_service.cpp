@@ -150,6 +150,10 @@ error_t api_load(AppLocation location, AppRuntime* out_runtime) {
         return ERROR_RESOURCE;
     }
 
+    // Relocation copied everything it needs (segments, symbol names) out of the file buffer
+    free(runtime->file_data);
+    runtime->file_data = nullptr;
+
     *out_runtime = runtime;
     return ERROR_NONE;
 }

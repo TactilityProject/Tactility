@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-#if !defined(ESP_PLATFORM) && !defined(__APPLE__)
+#ifndef __APPLE__
 
 // Plain strong definitions: ELF gives the main executable's symbols priority process-wide,
 // including for a dlopen()ed app's own calls.
-#include <app/private/stdio_wrap_posix.h>
+#include <app_posix/stdio_wrap.h>
 
 extern "C" {
 
@@ -49,6 +49,14 @@ int tcgetattr(int fd, struct termios* p) {
 
 int tcsetattr(int fd, int optional_actions, const struct termios* p) {
     return __wrap_tcsetattr(fd, optional_actions, p);
+}
+
+AppLibcSignalHandler signal(int sig, AppLibcSignalHandler handler) {
+    return __wrap_signal(sig, handler);
+}
+
+int kill(pid_t pid, int sig) {
+    return __wrap_kill(pid, sig);
 }
 
 void exit(int status) {

@@ -13,6 +13,8 @@
 
 #include <tactility/check.h>
 
+#include <TactilityCpp/Allocator.h>
+
 #include <lvgl/widgets/toolbar.h>
 #include <lvgl.h>
 #include <algorithm>
@@ -25,15 +27,18 @@ extern const ::AppManifest manifest;
 
 namespace {
 
+// Prefers PSRAM, like the other app list buffers
+using PackageManifestList = std::vector<PackageManifest, OptExternalAllocator<PackageManifest>>;
+
 struct Context {
     uint32_t appInstanceId;
     // Must outlive the widgets - button user-data points into this, not a createWidgets()-local vector.
-    std::vector<std::string> packageIds = {};
+    PackageManifestList packages = {};
 };
 
 void onPackagePressed(lv_event_t* e) {
-    auto* packageId = static_cast<char*>(lv_event_get_user_data(e));
-    apppackagedetails::start(packageId);
+    const auto* package = static_cast<const PackageManifest*>(lv_event_get_user_data(e));
+    apppackagedetails::start(package->id);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -41,16 +46,19 @@ void onBackPressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
-void createPackageWidget(const char* packageId, lv_obj_t* list) {
-    lv_obj_t* btn = lv_list_add_button(list, LVGL_ICON_SHARED_DEPLOYED_CODE, packageId);
+void createPackageWidget(const PackageManifest* package, lv_obj_t* list) {
+    // A v2 package's single app shares its id, and its name is the nicer label. Otherwise show the package id.
+    AppManifest appManifest;
+    const char* label = (app_manager_find_manifest(package->id, &appManifest) == ERROR_NONE) ? appManifest.name : package->id;
+    lv_obj_t* btn = lv_list_add_button(list, LVGL_ICON_SHARED_DEPLOYED_CODE, label);
     lv_obj_t* image = lv_obj_get_child(btn, 0);
     lv_obj_set_style_text_font(image, lvgl_get_shared_icon_font(), LV_PART_MAIN);
-    lv_obj_add_event_cb(btn, &onPackagePressed, LV_EVENT_SHORT_CLICKED, const_cast<char*>(packageId));
+    lv_obj_add_event_cb(btn, &onPackagePressed, LV_EVENT_SHORT_CLICKED, const_cast<PackageManifest*>(package));
 }
 
-void collectPackageId(const ::AppPackage* pkg, void* context) {
-    auto* packageIds = static_cast<std::vector<std::string>*>(context);
-    packageIds->emplace_back(pkg->package.id);
+void collectPackage(const ::AppPackage* pkg, void* context) {
+    auto* packages = static_cast<PackageManifestList*>(context);
+    packages->push_back(pkg->package);
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -70,15 +78,17 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_grow(list, 1);
 
     // createWidgets() can rerun for this same Context (window rebuild-on-remove).
-    ctx->packageIds.clear();
-    app_manager_for_each_package(collectPackageId, &ctx->packageIds);
-    std::ranges::sort(ctx->packageIds);
+    ctx->packages.clear();
+    app_manager_for_each_package(collectPackage, &ctx->packages);
+    std::ranges::sort(ctx->packages, [](const PackageManifest& left, const PackageManifest& right) {
+        return strcmp(left.id, right.id) < 0;
+    });
 
-    for (const auto& packageId : ctx->packageIds) {
-        createPackageWidget(packageId.c_str(), list);
+    for (const auto& package : ctx->packages) {
+        createPackageWidget(&package, list);
     }
 
-    if (ctx->packageIds.empty()) {
+    if (ctx->packages.empty()) {
         // lv_obj_align() is ignored for children of a flex-managed parent, so the empty-state
         // label needs its own flex-growing wrapper to center within; the (empty) list is hidden
         // rather than deleted so the wrapper can just take its place in the flex flow.

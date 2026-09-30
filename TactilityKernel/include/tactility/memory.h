@@ -57,6 +57,12 @@ void memory_log_stats(void);
 size_t memory_heap_total(void);
 
 /**
+ * @brief Total size of external memory (PSRAM), in bytes.
+ * @return the external memory's total size, or 0 if the device or platform has none
+ */
+size_t memory_external_total(void);
+
+/**
  * @brief Currently free space in the main heap, in bytes.
  * @note See memory_heap_total()'s own note - the same system-wide-vs-process-heap caveat applies.
  * @return the heap's free size, or 0 if unavailable on this platform

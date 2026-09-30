@@ -14,10 +14,9 @@ tactility_add_module(app-module
 )
 
 # Tells source/io.cpp its real-syscall fallback must go through __real_read/write/close() rather
-# than calling ::read/::write/::close() directly, on every platform where those are wrapped: via
-# -Wl,--wrap= on ESP-IDF (see the top-level CMakeLists.txt), or via source/stdio_wrap_posix.cpp's own
-# read/write/close and printf-family definitions on POSIX (dyld interpose on Apple, plain
-# symbol overrides elsewhere - see that file for why POSIX doesn't use --wrap).
+# than calling ::read/::write/::close() directly, since those are wrapped by the platform module:
+# app-esp32-module via -Wl,--wrap= (the linker provides __real_*, see the top-level CMakeLists.txt),
+# app-posix-module via its own read/write/close overrides (it defines __real_*, see its stdio_wrap.cpp).
 tactility_get_module_name(app-module MODULE_NAME)
 target_compile_definitions(${MODULE_NAME} PRIVATE TT_APP_IO_WRAPS_STDIO)
 
