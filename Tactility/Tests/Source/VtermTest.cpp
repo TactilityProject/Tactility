@@ -45,9 +45,27 @@ TEST_CASE("vterm: a scroll region limits line feeds and inserted lines to its ro
     write("\x1B[2;1H\x1B[M");
     CHECK_EQ(column0(5), "134 5");
 
-    // A full clear restores the whole screen as scroll region
-    write("\x1B[2J\x1B[H1\r\n2\r\n3\r\n4\r\n5\n");
-    CHECK_EQ(column0(5), "2345 ");
+    // A full clear keeps the scroll region
+    write("\x1B[2J\x1B[H1\r\n2\r\n3\r\n4\x1B[5;1H5");
+    CHECK_EQ(column0(5), "12345");
+    write("\x1B[4;1H\n");
+    CHECK_EQ(column0(5), "134 5");
+
+    // DECSTBM without parameters restores the whole screen as scroll region
+    write("\x1B[r\x1B[5;1H\n");
+    CHECK_EQ(column0(5), "34 5 ");
+
+    vterm_clear_size_override();
+    vterm_deinit();
+}
+
+TEST_CASE("vterm: an omitted scroll region top defaults to the first row") {
+    REQUIRE_EQ(vterm_init(), ERROR_NONE);
+    vterm_set_size_override(5, 10);
+
+    write("\x1B[2J\x1B[H1\r\n2\r\n3\r\n4\r\n5");
+    write("\x1B[;4r\x1B[4;1H\n");
+    CHECK_EQ(column0(5), "234 5");
 
     vterm_clear_size_override();
     vterm_deinit();

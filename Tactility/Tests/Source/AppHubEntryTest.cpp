@@ -49,6 +49,23 @@ TEST_CASE("app hub: requiresDeviceId and requiresRam are parsed, and optional") 
     remove(path.c_str());
 }
 
+TEST_CASE("app hub: reparsing into the same list resets optional requirements") {
+    AppHubEntryList entries;
+    const auto restricted = writeAppsJson(R"({"apps": [
+        {"appId": "a", "appVersionName": "1", "appVersionCode": 1, "appName": "A", "appDescription": "", "targetSdk": "0.8.0", "targetPlatforms": [], "file": "a-1.app",
+         "requiresDeviceId": ["m5stack-tab5"], "requiresRam": 2}
+    ]})");
+    REQUIRE(parseJson(restricted, entries));
+    const auto unrestricted = writeAppsJson(R"({"apps": [
+        {"appId": "b", "appVersionName": "1", "appVersionCode": 1, "appName": "B", "appDescription": "", "targetSdk": "0.8.0", "targetPlatforms": [], "file": "b-1.app"}
+    ]})");
+    REQUIRE(parseJson(unrestricted, entries));
+    REQUIRE_EQ(entries.size(), 1u);
+    CHECK(entries[0].requiresDeviceId.empty());
+    CHECK_EQ(entries[0].requiresRam, 0);
+    remove(unrestricted.c_str());
+}
+
 TEST_CASE("app hub: isCompatible applies the device and RAM requirements") {
     CHECK(isCompatible(entryWith({}, 0)));
     CHECK(isCompatible(entryWith({ "other-device", CONFIG_TT_DEVICE_ID }, 1)));

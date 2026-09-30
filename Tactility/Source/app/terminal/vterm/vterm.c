@@ -304,9 +304,6 @@ static void vterm_clear_internal(vterm_t *vt)
     vt->cursor_visible = 1;  // Cursor visible by default
     vt->current_attr = VTERM_DEFAULT_ATTR;
     vt->pending_wrap = 0;
-    // A full clear also restores the whole screen as scroll region, e.g. after an app left one set
-    vt->scroll_top = 0;
-    vt->scroll_bottom = 0;
 }
 
 // Helper to parse a number from SGR params, advancing pointer
@@ -614,7 +611,10 @@ static int vterm_handle_escape(vterm_t *vt, char c)
             // DECSTBM - Set Scroll Region: ESC[top;bottom r (1-based), no parameters is the whole screen
             const int rows = effective_rows();
             int top = 1, bottom = rows;
-            if (vt->escape_buf[0]) sscanf(vt->escape_buf, "%d;%d", &top, &bottom);
+            // Each parameter falls back to its own default when omitted, e.g. ESC[;4r
+            const char *separator = strchr(vt->escape_buf, ';');
+            if (vt->escape_buf[0] && vt->escape_buf[0] != ';') top = atoi(vt->escape_buf);
+            if (separator && separator[1]) bottom = atoi(separator + 1);
             if (top < 1) top = 1;
             if (bottom > rows || bottom < 1) bottom = rows;
             if (top < bottom) {

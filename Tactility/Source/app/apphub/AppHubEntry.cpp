@@ -22,6 +22,9 @@ constexpr auto* TAG = "AppHubJson";
 static bool parseEntry(const cJSON* object, AppHubEntry& entry) {
     const json::Reader reader(object);
     // Optional: absent in apps.json files from before these fields existed
+    // Reset because parseJson() reuses entries from a previous parse
+    entry.requiresDeviceId.clear();
+    entry.requiresRam = 0;
     if (cJSON_HasObjectItem(object, "requiresDeviceId") && !reader.readStringArray("requiresDeviceId", entry.requiresDeviceId)) {
         return false;
     }
