@@ -1,0 +1,92 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c_master.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
+#include <tactility/bindings/battery_sense.h>
+#include <bindings/bm8563.h>
+#include <bindings/gt911.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <bindings/t5s3_display.h>
+
+/ {
+	compatible = "root";
+	model = "LILYGO T5 4.7 Inch E-Paper S3";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+	};
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	// Listed before the I2C bus on purpose, the touch controller was only tested with the display started first
+	display {
+		compatible = "lilygo,t5s3-display";
+	};
+
+	i2c_internal {
+		compatible = "espressif,esp32-i2c-master";
+		port = <I2C_NUM_0>;
+		clock-frequency = <400000>;
+		// The board relies on the internal pull-ups, as the Arduino Wire library enables them
+		pin-sda = <&gpio0 18 GPIO_FLAG_PULL_UP>;
+		pin-scl = <&gpio0 17 GPIO_FLAG_PULL_UP>;
+
+		// PCF8563, register-compatible with the BM8563
+		bm8563 {
+			compatible = "belling,bm8563";
+			reg = <0x51>;
+		};
+
+		// The controller reports 540x960 (portrait) and the panel runs in landscape
+		touch {
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <540>;
+			y-max = <960>;
+			swap-xy;
+			mirror-x;
+			pin-interrupt = <&gpio0 47 GPIO_FLAG_NONE>;
+		};
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 42 GPIO_FLAG_NONE>;
+		pin-mosi = <&gpio0 15 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 11 GPIO_FLAG_NONE>;
+		max-transfer-size = <4096>;
+
+		sdcard@0 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
+	};
+
+	// Battery voltage behind a 1:2 divider on GPIO14 (ADC2 channel 3), not yet calibrated
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_2>;
+		channels = <ADC_CHANNEL_3 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
+
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2000>;
+	};
+};

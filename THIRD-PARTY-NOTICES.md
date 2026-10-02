@@ -8,6 +8,14 @@ Website: https://github.com/valdanylchuk/breezybox
 
 License: [MIT License](https://github.com/valdanylchuk/breezybox/blob/main/LICENSE)
 
+### epdiy
+
+The e-paper driver of the LILYGO T5 4.7 Inch E-Paper S3 (`Devices/lilygo-t5-epd47-s3`) is derived from epdiy and contains its ED047TC1 waveform data.
+
+Website: https://github.com/vroland/epdiy
+
+License: [LGPL v3.0 or later](https://github.com/vroland/epdiy/blob/main/LICENSE)
+
 ### ESP-IDF
 
 This project uses ESP-IDF to compile the ESP32 firmware.

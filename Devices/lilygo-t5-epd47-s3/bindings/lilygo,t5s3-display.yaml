@@ -1,0 +1,11 @@
+description: >
+  LILYGO T5 4.7 Inch E-Paper S3 (V2.3/V2.4) display with an ED047TC1 panel. The pins of the panel
+  are fixed in the driver, so this node only has the pixel clock as property.
+
+compatible: "lilygo,t5s3-display"
+
+properties:
+  pixel-clock-hz:
+    type: int
+    default: 10000000
+    description: Clock of the bus that sends the pixel data of a row. Faster speeds up updates if the panel accepts it.
