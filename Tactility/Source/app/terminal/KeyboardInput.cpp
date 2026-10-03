@@ -1,5 +1,8 @@
 #include <Tactility/app/terminal/KeyboardInput.h>
 
+#include <lvgl/devices/keyboard.h>
+#include <lvgl/lvgl.h>
+
 #include <algorithm>
 
 constexpr auto* TAG = "terminal-keyb";
@@ -9,6 +12,7 @@ KeyboardInput::KeyboardInput() {
 }
 
 KeyboardInput::~KeyboardInput() {
+    setExclusive(false);
     for (Device* device : devices_) {
         device_put(device);
     }
@@ -37,6 +41,28 @@ bool KeyboardInput::pump(KeyHandler onKey) {
     }
 
     return handled;
+}
+
+void KeyboardInput::setExclusive(bool exclusive) {
+    if (exclusive == exclusive_) {
+        return;
+    }
+    exclusive_ = exclusive;
+    applyExclusive();
+}
+
+void KeyboardInput::applyExclusive() {
+    if (!lvgl_is_running()) {
+        return;
+    }
+    lvgl_lock();
+    for (Device* device : devices_) {
+        lv_indev_t* indev = lvgl_keyboard_find_by_device(device);
+        if (indev != nullptr) {
+            lv_indev_enable(indev, !exclusive_);
+        }
+    }
+    lvgl_unlock();
 }
 
 bool KeyboardInput::collect(Device* device, void* context) {
@@ -75,5 +101,10 @@ void KeyboardInput::rescan() {
         } else {
             ++it;
         }
+    }
+
+    // A keyboard connected since the last scan gets an enabled LVGL indev of its own.
+    if (exclusive_) {
+        applyExclusive();
     }
 }

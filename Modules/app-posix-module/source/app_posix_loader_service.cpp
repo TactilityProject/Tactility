@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <app_posix/malloc_wrap.h>
+
 #include <app/elf_check.h>
 #include <app/loader.h>
 #include <app/location.h>
@@ -11,6 +13,10 @@
 #include <dlfcn.h>
 #include <sys/stat.h>
 
+#ifndef __APPLE__
+#include <link.h>
+#endif
+
 #include <new>
 #include <string>
 
@@ -21,7 +27,51 @@ namespace {
 /** load()-allocated state, passed back through run()/unload(). */
 struct PosixAppRuntime {
     void* handle = nullptr;
+    // Address range of the loaded image, see app_posix_set_current_image()
+    uintptr_t image_start = 0;
+    uintptr_t image_end = 0;
 };
+
+#ifndef __APPLE__
+struct ImageRangeSearch {
+    ElfW(Addr) base;
+    uintptr_t start;
+    uintptr_t end;
+};
+
+int find_image_range(struct dl_phdr_info* info, size_t, void* context) {
+    auto* search = static_cast<ImageRangeSearch*>(context);
+    if (info->dlpi_addr != search->base) {
+        return 0;
+    }
+    for (ElfW(Half) i = 0; i < info->dlpi_phnum; i++) {
+        const ElfW(Phdr)& header = info->dlpi_phdr[i];
+        if (header.p_type != PT_LOAD) {
+            continue;
+        }
+        const uintptr_t start = info->dlpi_addr + header.p_vaddr;
+        const uintptr_t end = start + header.p_memsz;
+        if (search->start == 0 || start < search->start) {
+            search->start = start;
+        }
+        if (end > search->end) {
+            search->end = end;
+        }
+    }
+    return 1;
+}
+
+void resolve_image_range(PosixAppRuntime* runtime) {
+    struct link_map* map = nullptr;
+    if (dlinfo(runtime->handle, RTLD_DI_LINKMAP, &map) != 0 || map == nullptr) {
+        return;
+    }
+    ImageRangeSearch search { .base = map->l_addr, .start = 0, .end = 0 };
+    dl_iterate_phdr(find_image_range, &search);
+    runtime->image_start = search.start;
+    runtime->image_end = search.end;
+}
+#endif
 
 bool is_regular_file(const std::string& path) {
     struct stat path_stat {};
@@ -109,6 +159,10 @@ error_t api_load(AppLocation location, AppRuntime* out_runtime) {
         return ERROR_OUT_OF_MEMORY;
     }
 
+#ifndef __APPLE__
+    resolve_image_range(runtime);
+#endif
+
     *out_runtime = runtime;
     return ERROR_NONE;
 }
@@ -126,7 +180,10 @@ int32_t api_run(AppRuntime runtime_ptr, uint32_t /*app_instance_id*/, int argc, 
     }
 
     auto* main_fn = reinterpret_cast<AppMainFn>(symbol);
-    return main_fn(argc, argv);
+    app_posix_set_current_image(runtime->image_start, runtime->image_end);
+    const int32_t result = main_fn(argc, argv);
+    app_posix_set_current_image(0, 0);
+    return result;
 }
 
 void api_unload(AppRuntime runtime_ptr) {

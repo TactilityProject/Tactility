@@ -41,6 +41,10 @@ inline uint16_t paletteColour(uint8_t index) {
 } // namespace
 
 bool TerminalRenderer::allocateCommon(Device* displayDevice) {
+    return allocateCommon(displayDevice, display_get_color_format(displayDevice));
+}
+
+bool TerminalRenderer::allocateCommon(Device* displayDevice, enum DisplayColorFormat frameColorFormat) {
     display = displayDevice;
     monochrome = display_get_color_format(display) == DISPLAY_COLOR_FORMAT_MONOCHROME;
 
@@ -65,8 +69,7 @@ bool TerminalRenderer::allocateCommon(Device* displayDevice) {
     originX = (frameWidth - cols * cellWidth) / 2;
     originY = (frameHeight - rowCount * cellHeight) / 2;
 
-    const enum DisplayColorFormat colorFormat = display_get_color_format(display);
-    frameBuffer = pixel_buffer_create(colorFormat, frameWidth, cellHeight);
+    frameBuffer = pixel_buffer_create(frameColorFormat, frameWidth, cellHeight);
     if (frameBuffer == nullptr) {
         LOG_E(TAG, "Failed to allocate frame buffer");
         return false;

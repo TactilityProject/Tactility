@@ -21,6 +21,12 @@ public:
     /** @return true if onKey returned true for any key read */
     bool pump(KeyHandler onKey);
 
+    /**
+     * While exclusive, LVGL's own indevs for these keyboards are disabled, since they would
+     * otherwise consume keys from the same devices. No effect while LVGL is not running.
+     */
+    void setExclusive(bool exclusive);
+
 private:
     static constexpr uint32_t REFRESH_INTERVAL_MS = 1000;
 
@@ -28,7 +34,9 @@ private:
 
     void refresh();
     void rescan();
+    void applyExclusive();
 
     std::vector<Device*> devices_;
     TickType_t lastRefresh_ = 0;
+    bool exclusive_ = false;
 };

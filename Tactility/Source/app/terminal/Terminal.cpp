@@ -3,8 +3,6 @@
 #include <Tactility/app/terminal/Shell.h>
 #include <Tactility/app/terminal/Terminal.h>
 #include <Tactility/app/terminal/TerminalRenderer.h>
-#include <Tactility/app/terminal/TerminalRendererGeneric.h>
-#include <Tactility/app/terminal/TerminalRendererPpa.h>
 #include <Tactility/app/terminal/TouchInput.h>
 
 #include <tactility/device.h>
@@ -46,7 +44,7 @@ constexpr int SCROLL_STEP_LINES = 5;
 
 namespace {
 
-/** Set once the shell should wind down (touch-to-exit; see ioTask()). Read by runTerminal()'s own
+/** Set once the shell should wind down (touch-to-exit in ioTask(), or APP_EVENT_CLOSE in runShell()). Read by runTerminal()'s own
  * pump loop, which closes the shell app's stdin to unstick it (see that loop's own comment). */
 volatile bool stopRequested = false;
 
@@ -160,12 +158,16 @@ void ioTask(void* arg) {
     auto* params = static_cast<IoTaskParams*>(arg);
 
     while (!shellFinished) {
+        // Keys belong to whichever window is on top, so they are left alone while that is not this one.
+        const bool shown = params->renderer->isShown();
+        params->keyboards->setExclusive(shown);
+
         // A scroll replaces every row at once, so the renderer is told to repaint rather than rely
         // on its per-cell comparison.
-        const bool viewMoved = params->keyboards->pump(handleKey);
+        const bool viewMoved = shown && params->keyboards->pump(handleKey);
         params->renderer->render(viewMoved);
 
-        if (!stopRequested && params->touch->touched(!params->keyboards->empty())) {
+        if (!stopRequested && params->touch != nullptr && params->touch->touched(!params->keyboards->empty())) {
             LOG_I(TAG, "Touch detected - stopping");
             stopRequested = true;
         }
@@ -183,7 +185,7 @@ void ioTask(void* arg) {
 
 } // namespace
 
-void runTerminal(Device* display) {
+void runTerminal(Device* display, TerminalRenderer& renderer, bool touchToExit) {
     stopRequested = false;
     shellFinished = false;
 
@@ -195,11 +197,6 @@ void runTerminal(Device* display) {
         return;
     }
 
-    TerminalRendererPpa ppaRenderer;
-    TerminalRendererGeneric genericRenderer;
-    TerminalRenderer& renderer = TerminalRendererPpa::isSupported()
-        ? static_cast<TerminalRenderer&>(ppaRenderer)
-        : static_cast<TerminalRenderer&>(genericRenderer);
     if (!renderer.begin(display)) {
         LOG_E(TAG, "Renderer failed to start");
         vterm_deinit();
@@ -221,7 +218,7 @@ void runTerminal(Device* display) {
     // working while this one is blocked draining the shell app. See ioTask().
     IoTaskParams ioParams {
         .keyboards = &keyboards,
-        .touch = &touch,
+        .touch = touchToExit ? &touch : nullptr,
         .renderer = &renderer,
         .doneSem = xSemaphoreCreateBinary(),
     };

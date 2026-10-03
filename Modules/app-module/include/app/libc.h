@@ -48,20 +48,40 @@ bool app_libc_try_tcsetattr(int fd, const struct termios* t, int* out_result);
 typedef void (*AppLibcSignalHandler)(int sig);
 
 /**
- * Records @a handler for @a sig in the calling app instance. Signals aren't delivered to apps yet,
- * so the handler is never called. SIGKILL, SIGSTOP and out-of-range signals fail with EINVAL.
+ * Records @a handler for @a sig in the calling app instance, called when a signal is delivered (see
+ * app/signal.h). SIGKILL, SIGSTOP and out-of-range signals fail with EINVAL.
  * @param[out] out_previous the previously registered handler, or SIG_ERR on failure
  */
 bool app_libc_try_signal(int sig, AppLibcSignalHandler handler, AppLibcSignalHandler* out_previous);
 
-/** Apps can't send signals: kill() from an app fails with ENOSYS rather than reaching the process. */
+/**
+ * Sends @a sig to the app instance @a pid via app_signal_send(), never to the process.
+ * A @a sig of 0 only checks that @a pid exists. SIGKILL, SIGSTOP and out-of-range signals fail
+ * with EINVAL. A @a pid that is not a running app instance fails with ESRCH, including pid <= 0,
+ * since there are no process groups.
+ */
 bool app_libc_try_kill(int pid, int sig, int* out_result);
+
+/** The calling app instance's AppInstanceId. */
+bool app_libc_try_getpid(int* out_result);
+
+/** The AppInstanceId of the calling app instance's parent, or 0 for a top-level launch. */
+bool app_libc_try_getppid(int* out_result);
+
+/** Sleeps the calling app instance. Fails with EINTR when a signal is pending or arrives (see app/signal.h). */
+bool app_libc_try_usleep(unsigned long usec, int* out_result);
+
+/**
+ * Sleeps the calling app instance. Returns early when a signal is pending or arrives (see app/signal.h).
+ * @param[out] out_result the whole seconds not slept, 0 when not interrupted
+ */
+bool app_libc_try_sleep(unsigned int seconds, unsigned int* out_result);
 
 typedef int (*AppLibcPollFunction)(struct pollfd* fds, nfds_t nfds, int timeout);
 
 /**
  * Handles poll() when @a fds contains an app fd. Other fds are checked with @a real_poll.
- * Closed app fds report POLLNVAL.
+ * Closed app fds report POLLNVAL. Fails with EINTR when a signal is pending (see app/signal.h).
  */
 bool app_libc_try_poll(struct pollfd* fds, nfds_t nfds, int timeout, AppLibcPollFunction real_poll, int* out_result);
 

@@ -11,6 +11,7 @@
 
 #include <signal.h>
 #include <termios.h>
+#include <unistd.h>
 
 
 // Implemented in stdio_wrap.cpp, installed under the real names by stdio_wrap_elf.cpp or stdio_wrap_apple.cpp.
@@ -27,6 +28,10 @@ int __wrap_tcgetattr(int fd, struct termios* p);
 int __wrap_tcsetattr(int fd, int optional_actions, const struct termios* p);
 AppLibcSignalHandler __wrap_signal(int sig, AppLibcSignalHandler handler);
 int __wrap_kill(pid_t pid, int sig);
+pid_t __wrap_getpid();
+pid_t __wrap_getppid();
+int __wrap_usleep(useconds_t usec);
+unsigned int __wrap_sleep(unsigned int seconds);
 [[noreturn]] void __wrap_exit(int status);
 
 int __wrap_vprintf(const char* format, va_list args);

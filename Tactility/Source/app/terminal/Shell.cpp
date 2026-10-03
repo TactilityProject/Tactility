@@ -119,6 +119,8 @@ void runShell(int columns, int rows, volatile bool* stopRequested, TaskHandle_t 
         while (app_event_poll(&eventSub, &event) == ERROR_NONE) {
             if (event.type == APP_EVENT_RESULT && event.result.launch_id == shellId) {
                 shellDone = true;
+            } else if (event.type == APP_EVENT_CLOSE) {
+                *stopRequested = true;
             }
         }
     }

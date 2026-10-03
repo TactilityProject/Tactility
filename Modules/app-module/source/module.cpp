@@ -7,9 +7,11 @@
 #include <app/io.h>
 #include <app/manager.h>
 #include <app/manifest.h>
+#include <app/memory.h>
 #include <app/package_manifest.h>
 #include <app/paths.h>
 #include <app/scheduler.h>
+#include <app/signal.h>
 #include <app/start.h>
 #include <app/stream.h>
 
@@ -76,6 +78,9 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_manifest_id_is_valid),
     DEFINE_MODULE_SYMBOL(app_manifest_name_is_valid),
     DEFINE_MODULE_SYMBOL(app_manifest_stack_size_is_valid),
+    // app/memory
+    DEFINE_MODULE_SYMBOL(app_memory_record_alloc),
+    DEFINE_MODULE_SYMBOL(app_memory_record_free),
     // app/package_manifest
     DEFINE_MODULE_SYMBOL(app_package_manifest_parse),
     DEFINE_MODULE_SYMBOL(app_package_manifest_is_compatible),
@@ -86,6 +91,8 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_paths_get_assets_path),
     // app/scheduler
     DEFINE_MODULE_SYMBOL(app_scheduler_current_app_id),
+    // app/signal
+    DEFINE_MODULE_SYMBOL(app_signal_send),
     // app/start
     DEFINE_MODULE_SYMBOL(app_start_context_for_manifest),
     DEFINE_MODULE_SYMBOL(app_start_context_for_location),

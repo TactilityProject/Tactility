@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <app/instance.h>
 #include <app/loader.h>
+#include <app/memory.h>
 #include <app/private/arguments.h>
 #include <app/private/event.h>
 #include <app/private/fd_table.h>
@@ -8,6 +9,7 @@
 #include <app/private/scheduler.h>
 #include <app/private/stream_internal.h>
 #include <app/scheduler.h>
+#include <app/signal.h>
 #include <app/stream.h>
 
 #include <service/instance.h>
@@ -20,6 +22,7 @@
 #include <tactility/time.h>
 
 #include <atomic>
+#include <csignal>
 #include <cstdint>
 #include <cstdio>
 #include <new>
@@ -82,6 +85,9 @@ struct TaskContext {
     AppCompletionSignal* completion;
     StackType_t* stackBuffer;
     StaticTask_t* taskTcb;
+    // Live allocations of the app's own code, see app/memory.h. Only updated by the app's own task.
+    int32_t allocCount;
+    int64_t allocBytes;
 };
 
 struct ReaperContext {
@@ -306,6 +312,10 @@ void finish_app_task(TaskContext* ctx, int32_t result, bool exiting) {
     ctx->loader->unload(ctx->runtime);
 #endif
 
+    if (ctx->allocCount > 0 || ctx->allocBytes > 0) {
+        LOG_W(TAG, "[instance %lu] %ld allocations (%lld bytes) not freed", ctx->app_instance_id, static_cast<long>(ctx->allocCount), static_cast<long long>(ctx->allocBytes));
+    }
+
     deliver_result_to_parent_if_any(ctx->app_instance_id, result);
 
     // The terminal marker for every exit path: an app instance is Stopped exactly when its
@@ -454,6 +464,8 @@ error_t app_scheduler_start(AppInstanceId app_instance_id, const AppStartContext
         .completion = completion,
         .stackBuffer = stack_buffer,
         .taskTcb = task_tcb,
+        .allocCount = 0,
+        .allocBytes = 0,
     };
 
     if (context == nullptr) {
@@ -515,8 +527,8 @@ error_t app_scheduler_stop(AppInstanceId app_instance_id, TickType_t join_timeou
 
     AppCompletionSignal* completion = acquire_completion_signal(app_instance_id);
     if (completion != nullptr) {
-        AppEvent event { .type = APP_EVENT_CLOSE, .timestamp = 0, .result = {} };
-        app_event_emit(app_instance_id, &event);
+        // An app with an event subscription receives this as APP_EVENT_CLOSE, see app/signal.h
+        app_signal_send(app_instance_id, SIGTERM);
 
         // Marked as soon as the app has been told to close, not once its task has actually
         // unwound - so app_manager_get_state()/app_manager_get_topmost_instance_id() reflect the
@@ -547,6 +559,29 @@ error_t app_scheduler_stop(AppInstanceId app_instance_id, TickType_t join_timeou
 
 AppInstanceId app_scheduler_current_app_id(void) {
     return get_current_app_id();
+}
+
+void app_memory_record_alloc(size_t size) {
+    // Checked first: thread_local can't be read before the scheduler starts on ESP32
+    if (get_current_app_id() == 0) {
+        return;
+    }
+    TaskContext* ctx = current_task_context;
+    if (ctx != nullptr) {
+        ctx->allocCount++;
+        ctx->allocBytes += static_cast<int64_t>(size);
+    }
+}
+
+void app_memory_record_free(size_t size) {
+    if (get_current_app_id() == 0) {
+        return;
+    }
+    TaskContext* ctx = current_task_context;
+    if (ctx != nullptr) {
+        ctx->allocCount--;
+        ctx->allocBytes -= static_cast<int64_t>(size);
+    }
 }
 
 void app_scheduler_exit_current(int32_t status) {

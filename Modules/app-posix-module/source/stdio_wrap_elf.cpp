@@ -59,6 +59,22 @@ int kill(pid_t pid, int sig) {
     return __wrap_kill(pid, sig);
 }
 
+pid_t getpid() {
+    return __wrap_getpid();
+}
+
+pid_t getppid() {
+    return __wrap_getppid();
+}
+
+int usleep(useconds_t usec) {
+    return __wrap_usleep(usec);
+}
+
+unsigned int sleep(unsigned int seconds) {
+    return __wrap_sleep(seconds);
+}
+
 void exit(int status) {
     __wrap_exit(status);
 }

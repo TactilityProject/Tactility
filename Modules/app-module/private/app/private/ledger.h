@@ -77,6 +77,9 @@ struct AppInstanceRecord {
     /** Handlers registered via signal() (app/libc.h), indexed by signal number. Null means SIG_DFL. */
     AppLibcSignalHandler signal_handlers[APP_LIBC_SIGNAL_COUNT] {};
 
+    /** Signals sent via app_signal_send() but not yet delivered, one bit per signal number (app/signal.h). */
+    uint32_t pending_signals = 0;
+
     /** Terminal input flags set via tcsetattr() (app/libc.h). ICRNL is applied when reading stdin. */
     tcflag_t termios_iflag = ICRNL;
 };

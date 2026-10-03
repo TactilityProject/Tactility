@@ -3,8 +3,10 @@
 
 #include <app/dir.h>
 #include <app/io.h>
+#include <app/manager.h>
 #include <app/private/ledger.h>
 #include <app/scheduler.h>
+#include <app/signal.h>
 
 #include <tactility/delay.h>
 #include <tactility/paths.h>
@@ -43,6 +45,28 @@ AppFdState get_app_fd_state(int fd) {
 
 // Upper bound on wake latency while waiting on more than one fd: app streams can only be awaited one at a time.
 constexpr TickType_t POLL_INTERVAL_TICKS = pdMS_TO_TICKS(10);
+
+// Upper bound on how long a sleep takes to notice a signal (see app/signal.h)
+constexpr TickType_t SLEEP_SIGNAL_CHECK_INTERVAL_TICKS = pdMS_TO_TICKS(100);
+
+/**
+ * @param[out] out_remaining the ticks not slept
+ * @return true when interrupted by a signal
+ */
+bool sleep_unless_signalled(TickType_t ticks, TickType_t* out_remaining) {
+    const TickType_t start = get_ticks();
+    while (true) {
+        const TickType_t remaining = get_timeout_remaining_ticks(ticks, start);
+        *out_remaining = remaining;
+        if (app_signal_is_pending()) {
+            return true;
+        }
+        if (remaining == 0) {
+            return false;
+        }
+        delay_ticks(remaining < SLEEP_SIGNAL_CHECK_INTERVAL_TICKS ? remaining : SLEEP_SIGNAL_CHECK_INTERVAL_TICKS);
+    }
+}
 
 } // namespace
 
@@ -232,8 +256,79 @@ bool app_libc_try_kill(int pid, int sig, int* out_result) {
     if (app_scheduler_current_app_id() == 0) {
         return false;
     }
-    errno = ENOSYS;
-    *out_result = -1;
+    if (sig < 0 || sig >= APP_LIBC_SIGNAL_COUNT || sig == SIGKILL || sig == SIGSTOP) {
+        errno = EINVAL;
+        *out_result = -1;
+        return true;
+    }
+    const bool exists = pid > 0 && app_manager_get_state(static_cast<AppInstanceId>(pid)) != APP_INSTANCE_STATE_STOPPED;
+    if (!exists) {
+        errno = ESRCH;
+        *out_result = -1;
+        return true;
+    }
+    const error_t result = (sig == 0) ? ERROR_NONE : app_signal_send(static_cast<AppInstanceId>(pid), sig);
+    switch (result) {
+        case ERROR_NONE:
+            *out_result = 0;
+            break;
+        case ERROR_NOT_FOUND:
+            errno = ESRCH;
+            *out_result = -1;
+            break;
+        default:
+            errno = EAGAIN;
+            *out_result = -1;
+            break;
+    }
+    return true;
+}
+
+bool app_libc_try_getpid(int* out_result) {
+    const AppInstanceId app_instance_id = app_scheduler_current_app_id();
+    if (app_instance_id == 0) {
+        return false;
+    }
+    *out_result = static_cast<int>(app_instance_id);
+    return true;
+}
+
+bool app_libc_try_getppid(int* out_result) {
+    const AppInstanceId app_instance_id = app_scheduler_current_app_id();
+    if (app_instance_id == 0) {
+        return false;
+    }
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    auto iterator = ledger.instances.find(app_instance_id);
+    const uint32_t parent_id = (iterator != ledger.instances.end()) ? iterator->second.parent_id : 0;
+    mutex_unlock(&ledger.mutex);
+    *out_result = static_cast<int>(parent_id);
+    return true;
+}
+
+bool app_libc_try_usleep(unsigned long usec, int* out_result) {
+    if (app_scheduler_current_app_id() == 0) {
+        return false;
+    }
+    const auto ticks = static_cast<TickType_t>((static_cast<uint64_t>(usec) * configTICK_RATE_HZ + 999999) / 1000000);
+    TickType_t remaining;
+    if (sleep_unless_signalled(ticks, &remaining)) {
+        errno = EINTR;
+        *out_result = -1;
+    } else {
+        *out_result = 0;
+    }
+    return true;
+}
+
+bool app_libc_try_sleep(unsigned int seconds, unsigned int* out_result) {
+    if (app_scheduler_current_app_id() == 0) {
+        return false;
+    }
+    TickType_t remaining;
+    sleep_unless_signalled(static_cast<TickType_t>(static_cast<uint64_t>(seconds) * configTICK_RATE_HZ), &remaining);
+    *out_result = static_cast<unsigned int>(remaining / configTICK_RATE_HZ);
     return true;
 }
 
@@ -264,6 +359,11 @@ bool app_libc_try_poll(struct pollfd* fds, nfds_t nfds, int timeout, AppLibcPoll
     const TickType_t start = get_ticks();
     const TickType_t timeout_ticks = (timeout < 0) ? portMAX_DELAY : pdMS_TO_TICKS(timeout);
     while (true) {
+        if (app_signal_is_pending()) {
+            errno = EINTR;
+            *out_result = -1;
+            return true;
+        }
         int ready = 0;
         for (nfds_t i = 0; i < nfds; i++) {
             fds[i].revents = 0;

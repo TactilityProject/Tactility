@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <tactility/drivers/display.h>
+
 struct Device;
 struct PixelBuffer;
 
@@ -18,7 +20,8 @@ struct PixelBuffer;
  * per-row push would show a mix of stale and fresh rows, since a hw double buffer's zero-copy
  * path flips on any write regardless of the sub-rect given.
  *
- * Must be used only while LVGL is stopped, since it writes to the display directly.
+ * Must be used only while LVGL is stopped, since it writes to the display directly. The exception
+ * is TerminalRendererLvgl, which draws into an LVGL canvas instead.
  */
 class TerminalRenderer {
 public:
@@ -40,6 +43,9 @@ public:
     int columns() const { return cols; }
     int rows() const { return rowCount; }
 
+    /** False while the terminal is not on screen, e.g. when another app's window covers it. */
+    virtual bool isShown() const { return true; }
+
 protected:
     void paintCell(int row, int col, char ch, uint8_t attr);
     void paintCursor(int row, int col);
@@ -56,6 +62,9 @@ protected:
      * The subclass must set display/panelWidth/panelHeight/frameWidth/frameHeight first.
      */
     bool allocateCommon(Device* display);
+
+    /** Like allocateCommon(Device*), but with frameBuffer in the given format instead of the display's. */
+    bool allocateCommon(Device* display, enum DisplayColorFormat frameColorFormat);
 
     /** Frees frameBuffer, fullFrameBuffer, shadow, and the borrowed hw double buffer, if any. */
     void freeCommon();

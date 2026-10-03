@@ -9,6 +9,7 @@
 #include <app/io.h>
 #include <app/manager.h>
 #include <app/scheduler.h>
+#include <app/signal.h>
 #include <app/start.h>
 #include <app/stream.h>
 
@@ -19,6 +20,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -215,6 +217,8 @@ int runApp(AppStartContext& context) {
                 } else {
                     // Our own stdin hung up (touch-to-exit): propagate to the child the same way.
                     app_stream_close(&stdinStream);
+                    // A child that doesn't stop at the end of its input, like an editor, stops at the hangup
+                    app_signal_send(childId, SIGHUP);
                     ownStdinClosed = true;
                 }
             }

@@ -7,7 +7,7 @@
 
 ## Higher Priority
 
-- coreutils apps: Only emit colour escapes when stdout is the terminal (command_support.h color() function)
+- NimBLE looses pairing key after reboot
 - CrashDiagnostics shouldn't show a QR when there's no callstack
 - Move USB host task stacks to SPIRAM when available: esp32_usbhost*.cpp
 - Add bold fonts for e-ink readability improvement
@@ -18,7 +18,7 @@
 - TCA9534 keyboards should use interrupts
 - External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
   Check during installation process, but also when starting (SD card might have old app install from before Tactility OS update)
-- Support direct installation of an `.app` file with `tactility.py install helloworld.app <ip>`
+- Support direct installation of an `.app` file with `tactility.py install --app helloworld.app`
 - minitar/untarFile(): "entry->metadata.path" can escape its confined path (e.g. "../something")
 
 ## Medium Priority

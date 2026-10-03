@@ -17,6 +17,7 @@ extern "C" {
 enum AppEventType {
     APP_EVENT_RESULT, // struct AppResultEventData
     APP_EVENT_CLOSE,  // no data - terminate now, permanently
+    APP_EVENT_SIGNAL, // struct AppSignalEventData, see app/signal.h
 };
 
 /** Data for APP_EVENT_RESULT. */
@@ -29,12 +30,22 @@ struct AppResultEventData {
     int32_t result;
 };
 
+/** Data for APP_EVENT_SIGNAL. */
+struct AppSignalEventData {
+    /** A POSIX signal number, e.g. SIGHUP */
+    int sig;
+};
+
 struct AppEvent {
     enum AppEventType type;
     /** Stamped by app_event_emit(); any value passed in by the caller is ignored. */
     uint64_t timestamp;
-    /** Valid only when type == APP_EVENT_RESULT. */
-    struct AppResultEventData result;
+    union {
+        /** Valid only when type == APP_EVENT_RESULT. */
+        struct AppResultEventData result;
+        /** Valid only when type == APP_EVENT_SIGNAL. */
+        struct AppSignalEventData signal;
+    };
 };
 
 /**

@@ -4,11 +4,17 @@
 #include <app/private/fd_table.h>
 #include <app/private/ledger.h>
 #include <app/private/stream_internal.h>
+#include <app/signal.h>
 
 #include <tactility/concurrent/mutex.h>
 #include <tactility/error.h>
 
+#include <cerrno>
+
 namespace {
+
+// Upper bound on how long a blocked read or write takes to notice a signal (see app/signal.h)
+constexpr TickType_t SIGNAL_CHECK_INTERVAL_TICKS = pdMS_TO_TICKS(100);
 
 // Caller must hold stream->mutex.
 bool is_readable_locked(AppStream* stream) {
@@ -44,11 +50,28 @@ private:
     AppStream* stream_;
 };
 
+/**
+ * Waits until @a stream is ready, or a signal is pending for the calling app (see app/signal.h).
+ * @return false when the wait failed, with errno EINTR when interrupted by a signal
+ */
+bool await_unless_signalled(AppStream* stream, AppFileWait wait) {
+    while (true) {
+        if (app_signal_is_pending()) {
+            errno = EINTR;
+            return false;
+        }
+        const error_t result = app_stream_await(stream, wait, SIGNAL_CHECK_INTERVAL_TICKS);
+        if (result != ERROR_TIMEOUT) {
+            return result == ERROR_NONE;
+        }
+    }
+}
+
 ssize_t stream_file_read(void* object, void* buffer, size_t size) {
     auto* stream = static_cast<AppStream*>(object);
     StreamOperationGuard guard(stream);
     while (true) {
-        if (app_stream_await(stream, APP_FILE_WAIT_READABLE, portMAX_DELAY) != ERROR_NONE) {
+        if (!await_unless_signalled(stream, APP_FILE_WAIT_READABLE)) {
             return -1;
         }
         size_t read = app_stream_read(stream, buffer, size);
@@ -69,7 +92,7 @@ ssize_t stream_file_read(void* object, void* buffer, size_t size) {
 ssize_t stream_file_write(void* object, const void* buffer, size_t size) {
     auto* stream = static_cast<AppStream*>(object);
     StreamOperationGuard guard(stream);
-    if (app_stream_await(stream, APP_FILE_WAIT_WRITABLE, portMAX_DELAY) != ERROR_NONE) {
+    if (!await_unless_signalled(stream, APP_FILE_WAIT_WRITABLE)) {
         return -1;
     }
     // app_stream_write() itself refuses to copy anything once closed (checked under the same

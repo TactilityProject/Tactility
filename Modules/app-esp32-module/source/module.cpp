@@ -11,12 +11,16 @@
 extern "C" {
 
 extern ServiceManifest loader_service_manifest;
+extern const ModuleSymbol app_esp32_symbols[];
+extern Module app_esp32_module;
 
 // Overrides elf_loader's default KConfig-based symbol resolver with one that looks up symbols
-// across every started kernel module's own symbol table instead.
+// across every started kernel module's own symbol table instead. This module's own symbols come
+// first, as they replace libc functions for apps (see app_symbols.cpp).
 uintptr_t app_esp32_symbol_resolver(const char* symbolName) {
     uintptr_t symbol_address;
-    if (module_resolve_symbol_global(symbolName, &symbol_address)) {
+    if (module_resolve_symbol(&app_esp32_module, symbolName, &symbol_address) ||
+        module_resolve_symbol_global(symbolName, &symbol_address)) {
         return symbol_address;
     }
     return 0;
@@ -37,7 +41,7 @@ Module app_esp32_module = {
     .start = start,
     .stop = stop,
     .drivers = nullptr,
-    .symbols = nullptr,
+    .symbols = app_esp32_symbols,
     .internal = nullptr,
 };
 

@@ -10,6 +10,7 @@
 #include <app/io.h>
 #include <app/libc.h>
 #include <app/scheduler.h>
+#include <app/signal.h>
 
 #include <cerrno>
 #include <cstring>
@@ -83,18 +84,51 @@ int __real_kill(pid_t pid, int sig) {
     return real(pid, sig);
 }
 
+pid_t __real_getpid() {
+    static auto real = reinterpret_cast<pid_t (*)()>(dlsym(RTLD_NEXT, "getpid"));
+    return real();
+}
+
+pid_t __real_getppid() {
+    static auto real = reinterpret_cast<pid_t (*)()>(dlsym(RTLD_NEXT, "getppid"));
+    return real();
+}
+
+int __real_usleep(useconds_t usec) {
+    static auto real = reinterpret_cast<int (*)(useconds_t)>(dlsym(RTLD_NEXT, "usleep"));
+    return real(usec);
+}
+
+unsigned int __real_sleep(unsigned int seconds) {
+    static auto real = reinterpret_cast<unsigned int (*)(unsigned int)>(dlsym(RTLD_NEXT, "sleep"));
+    return real(seconds);
+}
+
 [[noreturn]] void __real_exit(int status) {
     static auto real = reinterpret_cast<void (*)(int)>(dlsym(RTLD_NEXT, "exit"));
     real(status);
     __builtin_unreachable();
 }
 
+// Pending signals are delivered at the entry of these wraps, and again when a call was interrupted
+// by one, since the app holds no lock of the system itself there.
+
 ssize_t __wrap_read(int fd, void* buffer, size_t size) {
-    return app_io_read(fd, buffer, size);
+    app_signal_deliver_pending();
+    const ssize_t result = app_io_read(fd, buffer, size);
+    if (result < 0 && errno == EINTR) {
+        app_signal_deliver_pending();
+    }
+    return result;
 }
 
 ssize_t __wrap_write(int fd, const void* buffer, size_t size) {
-    return app_io_write(fd, buffer, size);
+    app_signal_deliver_pending();
+    const ssize_t result = app_io_write(fd, buffer, size);
+    if (result < 0 && errno == EINTR) {
+        app_signal_deliver_pending();
+    }
+    return result;
 }
 
 int __wrap_close(int fd) {
@@ -139,8 +173,12 @@ int __wrap_fstat(int fd, struct stat* st) {
 }
 
 int __wrap_poll(struct pollfd* fds, nfds_t nfds, int timeout) {
+    app_signal_deliver_pending();
     int result;
     if (app_libc_try_poll(fds, nfds, timeout, __real_poll, &result)) {
+        if (result < 0 && errno == EINTR) {
+            app_signal_deliver_pending();
+        }
         return result;
     }
     return __real_poll(fds, nfds, timeout);
@@ -175,9 +213,47 @@ AppLibcSignalHandler __wrap_signal(int sig, AppLibcSignalHandler handler) {
 int __wrap_kill(pid_t pid, int sig) {
     int result;
     if (app_libc_try_kill(pid, sig, &result)) {
+        // A signal sent to the app itself is delivered before kill() returns
+        app_signal_deliver_pending();
         return result;
     }
     return __real_kill(pid, sig);
+}
+
+pid_t __wrap_getpid() {
+    int result;
+    if (app_libc_try_getpid(&result)) {
+        return result;
+    }
+    return __real_getpid();
+}
+
+pid_t __wrap_getppid() {
+    int result;
+    if (app_libc_try_getppid(&result)) {
+        return result;
+    }
+    return __real_getppid();
+}
+
+int __wrap_usleep(useconds_t usec) {
+    app_signal_deliver_pending();
+    int result;
+    if (app_libc_try_usleep(usec, &result)) {
+        app_signal_deliver_pending();
+        return result;
+    }
+    return __real_usleep(usec);
+}
+
+unsigned int __wrap_sleep(unsigned int seconds) {
+    app_signal_deliver_pending();
+    unsigned int result;
+    if (app_libc_try_sleep(seconds, &result)) {
+        app_signal_deliver_pending();
+        return result;
+    }
+    return __real_sleep(seconds);
 }
 
 // Called by an app, the real exit() would end the whole simulator
@@ -238,11 +314,15 @@ namespace {
 
 /** @return the number of bytes written, less than `size` if the fd stopped accepting data */
 size_t writeAllTo(int fd, const void* data, size_t size) {
+    app_signal_deliver_pending();
     const auto* bytes = static_cast<const char*>(data);
     size_t remaining = size;
     while (remaining > 0) {
         ssize_t written = app_io_write(fd, bytes, remaining);
         if (written <= 0) {
+            if (written < 0 && errno == EINTR) {
+                app_signal_deliver_pending();
+            }
             break;
         }
         bytes += written;
@@ -274,7 +354,7 @@ int formatTo(int fd, const char* format, va_list args) {
 }
 
 int readOneFromStdin(char& out) {
-    return static_cast<int>(app_io_read(STDIN_FILENO, &out, 1));
+    return static_cast<int>(__wrap_read(STDIN_FILENO, &out, 1));
 }
 
 // The process' own streams, captured before anything can reassign stdin/stdout/stderr. A caller
