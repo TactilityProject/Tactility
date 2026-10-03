@@ -59,6 +59,7 @@ typedef struct {
     lv_obj_t* close_button_image;
     lv_obj_t* action_container;
     uint8_t action_count;
+    lv_event_cb_t nav_action_callback;
 } Toolbar;
 
 static void toolbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj);
@@ -105,6 +106,7 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     lv_obj_set_height(obj, toolbar_height);
 
     auto* toolbar = reinterpret_cast<Toolbar*>(obj);
+    toolbar->nav_action_callback = nullptr;
     lv_obj_set_width(obj, LV_PCT(100));
     lv_obj_set_style_pad_all(obj, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_column(obj, 0, LV_STATE_DEFAULT);
@@ -176,7 +178,13 @@ void lvgl_toolbar_set_title(lv_obj_t* obj, const char* title) {
 
 void lvgl_toolbar_set_nav_action(lv_obj_t* obj, const char* icon, lv_event_cb_t callback, void* user_data) {
     auto* toolbar = reinterpret_cast<Toolbar*>(obj);
-    lv_obj_add_event_cb(toolbar->close_button, callback, LV_EVENT_SHORT_CLICKED, user_data);
+    if (toolbar->nav_action_callback != nullptr) {
+        lv_obj_remove_event_cb(toolbar->close_button, toolbar->nav_action_callback);
+    }
+    toolbar->nav_action_callback = callback;
+    if (callback != nullptr) {
+        lv_obj_add_event_cb(toolbar->close_button, callback, LV_EVENT_SHORT_CLICKED, user_data);
+    }
     lv_image_set_src(toolbar->close_button_image, icon); // e.g. LV_SYMBOL_CLOSE
 }
 

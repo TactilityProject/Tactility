@@ -114,6 +114,7 @@ shared_symbol_code_point_names = [
     "terminal",
     "logo_dev",
     "camera",
+    "lightstrip",
 ]
 
 # Get more from https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded

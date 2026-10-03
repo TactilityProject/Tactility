@@ -26,5 +26,6 @@ sdkconfig.board.*.dev
 
 .caveman.json
 .ai/mcp
+.clinerules/
 
 __pycache__

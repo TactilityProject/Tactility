@@ -25,6 +25,7 @@
 #include <tactility/drivers/i8080_controller.h>
 #include <tactility/drivers/imu.h>
 #include <tactility/drivers/keyboard.h>
+#include <tactility/drivers/led_strip.h>
 #include <tactility/drivers/lora.h>
 #include <tactility/drivers/pointer.h>
 #include <tactility/drivers/power_supply.h>
@@ -257,6 +258,18 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     // drivers/keyboard
     DEFINE_MODULE_SYMBOL(keyboard_read_key),
     DEFINE_MODULE_SYMBOL(KEYBOARD_TYPE),
+    // drivers/led_strip
+    DEFINE_MODULE_SYMBOL(led_strip_set_single_led_color),
+    DEFINE_MODULE_SYMBOL(led_strip_set_single_led_color_and_brightness),
+    DEFINE_MODULE_SYMBOL(led_strip_set_led_range_color),
+    DEFINE_MODULE_SYMBOL(led_strip_set_led_range_color_and_brightness),
+    DEFINE_MODULE_SYMBOL(led_strip_fill_led_range_color),
+    DEFINE_MODULE_SYMBOL(led_strip_fill_led_range_color_and_brightness),
+    DEFINE_MODULE_SYMBOL(led_strip_set_brightness),
+    DEFINE_MODULE_SYMBOL(led_strip_show),
+    DEFINE_MODULE_SYMBOL(led_strip_clear),
+    DEFINE_MODULE_SYMBOL(led_strip_get_length),
+    DEFINE_MODULE_SYMBOL(LED_STRIP_TYPE),
     // drivers/paths
     DEFINE_MODULE_SYMBOL(paths_get_data_path),
     DEFINE_MODULE_SYMBOL(paths_get_temp_path),

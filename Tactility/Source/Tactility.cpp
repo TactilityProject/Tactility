@@ -91,6 +91,7 @@
 extern "C" Module tactility_audio_module;
 #include <tactility/drivers/grove.h>
 #include <tactility/drivers/imu.h>
+#include <tactility/drivers/led_strip.h>
 #include <tactility/drivers/power_supply.h>
 #include <tactility/drivers/rtc.h>
 #include <tactility/drivers/trackball.h>
@@ -176,6 +177,7 @@ namespace app {
     namespace imageviewer { extern const ::AppManifest manifest; }
     namespace inputdialog { extern const ::AppManifest manifest; }
     namespace launcher { extern const ::AppManifest manifest; }
+    namespace ledstripsettings { extern const ::AppManifest manifest; }
     namespace localesettings { extern const ::AppManifest manifest; }
     namespace notes { extern const ::AppManifest manifest; }
     namespace power { extern const ::AppManifest manifest; }
@@ -236,6 +238,9 @@ static void registerInternalApps() {
     }
     if (device_exists_of_type(&DISPLAY_TYPE)) {
         app_manager_add(&app::display::manifest);
+    }
+    if (device_exists_of_type(&LED_STRIP_TYPE)) {
+        app_manager_add(&app::ledstripsettings::manifest);
     }
     app_manager_add(&app::files::manifest);
     app_manager_add(&app::fileselection::manifest);

@@ -1,0 +1,13 @@
+description: RGB LED strip. ESP-IDF's RMT peripheral to transmit pixel data to drive WS2812-compatible LEDs.
+
+compatible: "espressif,esp32-led-strip"
+
+properties:
+  pin-data:
+    type: phandles
+    required: true
+    description: GPIO pin for strip data output
+  led-count:
+    type: int
+    required: true
+    description: Number of LEDs in the strip

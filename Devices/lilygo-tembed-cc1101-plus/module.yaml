@@ -1,0 +1,11 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/bq27220-module
+  - Drivers/bq25896-module
+  - Drivers/gpio-encoder-module
+  - Drivers/st7789-module
+  - Drivers/dummy-i2s-amp-module
+  - Drivers/pdm-mic-module
+  - Drivers/audio-stream-module
+  - Drivers/esp32-led-strip-module
+dts: lilygo,tembed-cc1101-plus.dts
