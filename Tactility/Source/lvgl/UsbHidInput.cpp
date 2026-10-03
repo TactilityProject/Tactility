@@ -215,16 +215,16 @@ static void usbHidInputTask(void* arg) {
     // startUsbHidInput() on the caller's stack, before this task exists: this task's stack may
     // live in SPIRAM, and touching flash I/O from a SPIRAM stack crashes when the flash cache
     // gets disabled mid-read.
-    if (lvgl_is_running()) {
-        lvgl_lock();
-        ctx->kb_indev = lv_indev_create();
-        lv_indev_set_type(ctx->kb_indev, LV_INDEV_TYPE_KEYPAD);
-        lv_indev_set_read_cb(ctx->kb_indev, keyboard_read_cb);
-        lv_indev_set_user_data(ctx->kb_indev, ctx);
-        lv_indev_set_group(ctx->kb_indev, lv_group_get_default());
-        lvgl_hardware_keyboard_add_custom(ctx->kb_indev);
-        lvgl_unlock();
-    }
+    lvgl_lock();
+
+    ctx->kb_indev = lv_indev_create();
+    lv_indev_set_type(ctx->kb_indev, LV_INDEV_TYPE_KEYPAD);
+    lv_indev_set_read_cb(ctx->kb_indev, keyboard_read_cb);
+    lv_indev_set_user_data(ctx->kb_indev, ctx);
+    lv_indev_set_group(ctx->kb_indev, lv_group_get_default());
+    lvgl_hardware_keyboard_add_custom(ctx->kb_indev);
+
+    lvgl_unlock();
 
     // Drain the HID event queue and route events to the appropriate destinations
     while (ctx->running) {
@@ -299,12 +299,10 @@ static void usbHidInputTask(void* arg) {
             break;
         case USB_HID_EVENT_MOUSE_CONNECTED:
             ctx->mouse_connected = true;
-            if (lvgl_is_running()) {
-                // Blocking lock: a skipped connect would leave the mouse without an indev
-                lvgl_lock();
-                addMouseIndev(ctx);
-                lvgl_unlock();
-            }
+            // Blocking lock: a skipped connect would leave the mouse without an indev
+            lvgl_lock();
+            addMouseIndev(ctx);
+            lvgl_unlock();
             break;
         case USB_HID_EVENT_MOUSE_DISCONNECTED:
             ctx->mouse_connected = false;
@@ -379,20 +377,18 @@ void startUsbHidInput() {
     // Created here (not in usbHidInputTask) because loading the cursor image touches the
     // flash-backed asset filesystem, which the task's (potentially SPIRAM-backed) stack must
     // never do - see the comment in usbHidInputTask.
-    if (lvgl_is_running()) {
-        lvgl_lock();
-        // Without a registered display, lv_layer_sys() is NULL: creating the cursor image on it trips
-        // an LVGL assert whose default handler is an infinite loop (while(1);). Only create the
-        // cursor when a system layer actually exists.
-        lv_obj_t* sys_layer = lv_layer_sys();
-        if (sys_layer != nullptr) {
-            ctx->mouse_cursor = lv_image_create(sys_layer);
-            lv_obj_remove_flag(ctx->mouse_cursor, LV_OBJ_FLAG_CLICKABLE);
-            lv_image_set_src(ctx->mouse_cursor, TT_ASSETS_UI_CURSOR);
-            lv_obj_add_flag(ctx->mouse_cursor, LV_OBJ_FLAG_HIDDEN);
-        }
-        lvgl_unlock();
+    lvgl_lock();
+    // Without a registered display, lv_layer_sys() is NULL: creating the cursor image on it trips
+    // an LVGL assert whose default handler is an infinite loop (while(1);). Only create the
+    // cursor when a system layer actually exists.
+    lv_obj_t* sys_layer = lv_layer_sys();
+    if (sys_layer != nullptr) {
+        ctx->mouse_cursor = lv_image_create(sys_layer);
+        lv_obj_remove_flag(ctx->mouse_cursor, LV_OBJ_FLAG_CLICKABLE);
+        lv_image_set_src(ctx->mouse_cursor, TT_ASSETS_UI_CURSOR);
+        lv_obj_add_flag(ctx->mouse_cursor, LV_OBJ_FLAG_HIDDEN);
     }
+    lvgl_unlock();
 
     Device* hid_dev = nullptr;
     if (device_get_first_active_by_type(&USB_HOST_HID_TYPE, &hid_dev) == ERROR_NONE) {

@@ -402,6 +402,7 @@ static bool api_hid_subscribe(struct Device* device, UsbHidQueueHandle event_que
     if (!ctx || !event_queue) return false;
     if (xSemaphoreTake(ctx->sub_mutex, pdMS_TO_TICKS(100)) != pdTRUE) return false;
     bool added = false;
+    bool is_new = false;
     for (int i = 0; i < MAX_SUBSCRIBERS; i++) {
         if (ctx->subscribers[i] == static_cast<QueueHandle_t>(event_queue)) {
             added = true;
@@ -410,7 +411,20 @@ static bool api_hid_subscribe(struct Device* device, UsbHidQueueHandle event_que
         if (!ctx->subscribers[i]) {
             ctx->subscribers[i] = static_cast<QueueHandle_t>(event_queue);
             added = true;
+            is_new = true;
             break;
+        }
+    }
+    // Reports devices that connected before this subscription. Done under sub_mutex so it is ordered with publish_event().
+    if (is_new) {
+        auto queue = static_cast<QueueHandle_t>(event_queue);
+        if (ctx->kb_handle.load() != nullptr) {
+            UsbHidEvent evt = { .type = USB_HID_EVENT_KEYBOARD_CONNECTED };
+            xQueueSend(queue, &evt, 0);
+        }
+        if (ctx->mouse_connected) {
+            UsbHidEvent evt = { .type = USB_HID_EVENT_MOUSE_CONNECTED };
+            xQueueSend(queue, &evt, 0);
         }
     }
     xSemaphoreGive(ctx->sub_mutex);
