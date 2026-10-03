@@ -306,6 +306,7 @@ static void usbHidInputTask(void* arg) {
             break;
         case USB_HID_EVENT_MOUSE_DISCONNECTED:
             ctx->mouse_connected = false;
+            ctx->mouse_btn1.store(false);
             lvgl_lock();
             removeMouseIndev(ctx);
             lvgl_unlock();
