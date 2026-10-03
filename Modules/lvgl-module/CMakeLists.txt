@@ -14,6 +14,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_LVGL_STATUSBAR_ICON_SIZE" statusbar_symbol_size)
     GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_LVGL_LAUNCHER_ICON_SIZE" launcher_symbol_size)
     GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_LVGL_SHARED_ICON_SIZE" shared_symbol_size)
+    math(EXPR shared_symbol_2x_size "${shared_symbol_size} * 2")
 else ()
     # Default values for simulator
     set(font_size_small 10)
@@ -22,6 +23,7 @@ else ()
     set(statusbar_symbol_size 20)
     set(launcher_symbol_size 36)
     set(shared_symbol_size 16)
+    set(shared_symbol_2x_size 32)
 endif ()
 
 message("Font sizes:")
@@ -32,6 +34,7 @@ message("Icon sizes:")
 message(" - statusbar: ${statusbar_symbol_size}")
 message(" - launcher: ${launcher_symbol_size}")
 message(" - shared: ${shared_symbol_size}")
+message(" - shared_2x: ${shared_symbol_2x_size}")
 
 # ####################################
 # Read device properties
@@ -71,6 +74,7 @@ file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
 list(APPEND SOURCE_FILES "source-fonts/material_symbols_statusbar_${statusbar_symbol_size}.c")
 list(APPEND SOURCE_FILES "source-fonts/material_symbols_launcher_${launcher_symbol_size}.c")
 list(APPEND SOURCE_FILES "source-fonts/material_symbols_shared_${shared_symbol_size}.c")
+list(APPEND SOURCE_FILES "source-fonts/material_symbols_shared_${shared_symbol_2x_size}.c")
 
 list(APPEND REQUIRES_LIST
     TactilityKernel
@@ -119,6 +123,8 @@ target_compile_definitions(${MODULE_NAME} PUBLIC
     "-DTT_LVGL_LAUNCHER_FONT_ICON_SYMBOL=material_symbols_launcher_${launcher_symbol_size}"
     "-DTT_LVGL_SHARED_FONT_ICON_SIZE=${shared_symbol_size}"
     "-DTT_LVGL_SHARED_FONT_ICON_SYMBOL=material_symbols_shared_${shared_symbol_size}"
+    "-DTT_LVGL_SHARED_FONT_ICON_2X_SIZE=${shared_symbol_2x_size}"
+    "-DTT_LVGL_SHARED_FONT_ICON_2X_SYMBOL=material_symbols_shared_${shared_symbol_2x_size}"
     # UiDensity
     "-DTT_LVGL_UI_DENSITY=${ui_density_variable}"
 )

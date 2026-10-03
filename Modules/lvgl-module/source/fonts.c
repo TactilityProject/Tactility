@@ -12,6 +12,7 @@ extern const lv_font_t TT_LVGL_TEXT_FONT_LARGE_SYMBOL;
 extern const lv_font_t TT_LVGL_LAUNCHER_FONT_ICON_SYMBOL;
 extern const lv_font_t TT_LVGL_STATUSBAR_FONT_ICON_SYMBOL;
 extern const lv_font_t TT_LVGL_SHARED_FONT_ICON_SYMBOL;
+extern const lv_font_t TT_LVGL_SHARED_FONT_ICON_2X_SYMBOL;
 
 uint32_t lvgl_get_text_font_height(enum LvglFontSize font_size) {
     switch (font_size) {
@@ -33,6 +34,10 @@ const lv_font_t* lvgl_get_text_font(enum LvglFontSize font_size) {
 uint32_t lvgl_get_shared_icon_font_height() { return TT_LVGL_SHARED_FONT_ICON_SIZE; }
 
 const lv_font_t* lvgl_get_shared_icon_font() { return &TT_LVGL_SHARED_FONT_ICON_SYMBOL; }
+
+uint32_t lvgl_get_shared_icon_font_2x_height() { return TT_LVGL_SHARED_FONT_ICON_SIZE * 2; }
+
+const lv_font_t* lvgl_get_shared_icon_font_2x() { return &TT_LVGL_SHARED_FONT_ICON_2X_SYMBOL; }
 
 uint32_t lvgl_get_launcher_icon_font_height() { return TT_LVGL_LAUNCHER_FONT_ICON_SIZE; }
 

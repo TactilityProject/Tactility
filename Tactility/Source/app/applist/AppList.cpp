@@ -7,6 +7,7 @@
 
 #include <lvgl_window_manager/window_manager.h>
 
+#include <Tactility/app/AppGrid.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/applist/Favourites.h>
 
@@ -19,7 +20,6 @@
 #include <vector>
 
 #include <lvgl/icons/shared.h>
-#include <lvgl/fonts.h>
 #include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::applist {
@@ -27,12 +27,6 @@ namespace tt::app::applist {
 constexpr auto* TAG = "AppList";
 
 namespace {
-
-struct Context {
-    uint32_t appInstanceId;
-    Favourites favourites;
-    std::vector<::AppManifest> manifests;
-};
 
 struct IconEntry {
     const char* id;
@@ -58,82 +52,6 @@ const char* appIcon(const ::AppManifest* manifest) {
     return LVGL_ICON_SHARED_DEPLOYED_CODE;
 }
 
-void populateList(lv_obj_t* list);
-
-// Named (not a lambda) so lv_async_call_cancel() below has a stable function pointer to match against.
-void deferredRepopulate(void* userData) {
-    populateList(static_cast<lv_obj_t*>(userData));
-}
-
-void onListDeleted(lv_event_t* e) {
-    // Cancels a still-pending deferredRepopulate() scheduled by a long-press/key-press right
-    // before the list itself was deleted (e.g. the app closing)
-    // Otherwise it would run later against this now-dangling lv_obj_t*.
-    lv_async_call_cancel(deferredRepopulate, lv_event_get_target_obj(e));
-}
-
-void onAppPressed(lv_event_t* e) {
-    const auto* manifest = static_cast<const ::AppManifest*>(lv_event_get_user_data(e));
-    uint32_t instanceId = 0;
-    AppStartContext context;
-    if (app_start_context_from_id(manifest->id, &context) == ERROR_NONE && app_start_with_context(&context, &instanceId) == ERROR_NONE) {
-        lv_obj_t* list = lv_obj_get_parent(lv_event_get_target_obj(e));
-        auto* ctx = static_cast<Context*>(lv_obj_get_user_data(list));
-        app_event_emit_close(ctx->appInstanceId);
-    }
-}
-
-void onAppLongPressed(lv_event_t* e) {
-    const auto* manifest = static_cast<const ::AppManifest*>(lv_event_get_user_data(e));
-    lv_obj_t* list = lv_obj_get_parent(lv_event_get_target_obj(e));
-    auto* ctx = static_cast<Context*>(lv_obj_get_user_data(list));
-    if (!ctx->favourites.toggle(manifest->id)) {
-        LOG_E(TAG, "Failed to save favourites");
-    }
-    // Deferred: populateList() deletes this button via lv_obj_clean() while its own long-press is still dispatching.
-    lv_async_call(deferredRepopulate, list);
-}
-
-void onAppKeyPressed(lv_event_t* e) {
-    const uint32_t key = lv_event_get_key(e);
-    if (key != 'f' && key != 'F') {
-        return;
-    }
-    const auto* manifest = static_cast<const ::AppManifest*>(lv_event_get_user_data(e));
-    lv_obj_t* list = lv_obj_get_parent(lv_event_get_target_obj(e));
-    auto* ctx = static_cast<Context*>(lv_obj_get_user_data(list));
-    if (!ctx->favourites.toggle(manifest->id)) {
-        LOG_E(TAG, "Failed to save favourites");
-    }
-    // Deferred: populateList() deletes this button via lv_obj_clean() while its own key event is still dispatching.
-    lv_async_call(deferredRepopulate, list);
-}
-
-void onBackPressed(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    app_event_emit_close(ctx->appInstanceId);
-}
-
-void onHelpPressed(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    alertdialog::start(ctx->appInstanceId, "Help", "Long-press an app, or press F, to toggle it as a favorite.");
-}
-
-lv_obj_t* createAppWidget(const ::AppManifest* manifest, lv_obj_t* list, bool favourite) {
-    // Plain "*" prefix, not an icon: shared Material Symbols font is subsetted and has no star glyph.
-    const std::string label = favourite ? (std::string("* ") + manifest->name) : manifest->name;
-    lv_obj_t* btn = lv_list_add_button(list, appIcon(manifest), label.c_str());
-    lv_obj_t* image = lv_obj_get_child(btn, 0);
-    lv_obj_set_style_text_font(image, lvgl_get_shared_icon_font(), LV_PART_MAIN);
-    // Not read by any event here (those get the manifest via their own callback user data) - lets
-    // populateList() identify a button by app id after a rebuild, to restore focus onto it.
-    lv_obj_set_user_data(btn, const_cast<::AppManifest*>(manifest));
-    lv_obj_add_event_cb(btn, &onAppPressed, LV_EVENT_SHORT_CLICKED, const_cast<::AppManifest*>(manifest));
-    lv_obj_add_event_cb(btn, &onAppLongPressed, LV_EVENT_LONG_PRESSED, const_cast<::AppManifest*>(manifest));
-    lv_obj_add_event_cb(btn, &onAppKeyPressed, LV_EVENT_KEY, const_cast<::AppManifest*>(manifest));
-    return btn;
-}
-
 void collectManifest(const ::AppManifest* manifest, void* context) {
     auto* manifests = static_cast<std::vector<::AppManifest>*>(context);
     manifests->push_back(*manifest);
@@ -150,25 +68,25 @@ void collectIncompatibleAppIds(const AppPackage* package, void* context) {
     }
 }
 
-void populateList(lv_obj_t* list) {
-    // Captured before lv_obj_clean() deletes the currently focused button below: LVGL moves
-    // focus elsewhere as it leaves the group, and creating replacement buttons doesn't restore
-    // it, so the app id is remembered here and re-focused on its new button once rebuilt.
-    std::string focusedAppId;
-    lv_group_t* group = lv_group_get_default();
-    if (group != nullptr) {
-        lv_obj_t* focused = lv_group_get_focused(group);
-        if (focused != nullptr && lv_obj_get_parent(focused) == list) {
-            const auto* focusedManifest = static_cast<const ::AppManifest*>(lv_obj_get_user_data(focused));
-            if (focusedManifest != nullptr) {
-                focusedAppId = focusedManifest->id;
-            }
-        }
-    }
+std::vector<AppGridItem> collectItems(void* userData);
+void onAppClicked(const ::AppManifest& manifest, void* userData);
+void onAppLongPressed(const ::AppManifest& manifest, void* userData);
+void onAppKey(const ::AppManifest& manifest, uint32_t key, void* userData);
 
-    lv_obj_clean(list);
+struct Context {
+    uint32_t appInstanceId;
+    Favourites favourites;
+    AppGrid grid { AppGrid::Callbacks {
+        .collect = collectItems,
+        .onClicked = onAppClicked,
+        .onLongPressed = onAppLongPressed,
+        .onKey = onAppKey,
+        .userData = this
+    } };
+};
 
-    auto* ctx = static_cast<Context*>(lv_obj_get_user_data(list));
+std::vector<AppGridItem> collectItems(void* userData) {
+    const auto* ctx = static_cast<Context*>(userData);
     const std::vector<std::string> favouriteIds = ctx->favourites.load();
 
     std::vector<::AppManifest> collected;
@@ -176,55 +94,74 @@ void populateList(lv_obj_t* list) {
     std::vector<std::string> incompatibleIds;
     app_manager_for_each_package(collectIncompatibleAppIds, &incompatibleIds);
     std::erase_if(collected, [&](const ::AppManifest& manifest) {
+        const bool is_valid_category = (manifest.category == APP_CATEGORY_USER) || (manifest.category == APP_CATEGORY_SYSTEM);
+        if (!is_valid_category || (manifest.flags & APP_MANIFEST_FLAG_HIDDEN) != 0) {
+            return true;
+        }
         return std::ranges::find(incompatibleIds, std::string(manifest.id)) != incompatibleIds.end();
     });
-    std::ranges::sort(collected, [&](const ::AppManifest& a, const ::AppManifest& b) {
-        const bool aFavourite = Favourites::contains(favouriteIds, a.id);
-        const bool bFavourite = Favourites::contains(favouriteIds, b.id);
-        if (aFavourite != bFavourite) {
-            return aFavourite;
+
+    std::vector<AppGridItem> items;
+    items.reserve(collected.size());
+    for (const auto& manifest : collected) {
+        items.push_back({ manifest, appIcon(&manifest), Favourites::contains(favouriteIds, manifest.id) });
+    }
+    std::ranges::sort(items, [](const AppGridItem& a, const AppGridItem& b) {
+        if (a.highlighted != b.highlighted) {
+            return a.highlighted;
         }
-        return strcmp(a.name, b.name) < 0;
+        return strcmp(a.manifest.name, b.manifest.name) < 0;
     });
-    // Old buttons (and every pointer into the previous ctx->manifests) are already gone via
-    // lv_obj_clean() above, so this is safe to replace wholesale before building new ones.
-    ctx->manifests = std::move(collected);
+    return items;
+}
 
-    lv_obj_t* focusedButton = nullptr;
-    for (const auto& manifest: ctx->manifests) {
-        bool is_valid_category = (manifest.category == APP_CATEGORY_USER) || (manifest.category == APP_CATEGORY_SYSTEM);
-        if (is_valid_category && (manifest.flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
-            lv_obj_t* btn = createAppWidget(&manifest, list, Favourites::contains(favouriteIds, manifest.id));
-            if (!focusedAppId.empty() && focusedAppId == manifest.id) {
-                focusedButton = btn;
-            }
-        }
+void onAppClicked(const ::AppManifest& manifest, void* userData) {
+    const auto* ctx = static_cast<Context*>(userData);
+    uint32_t instanceId = 0;
+    AppStartContext context;
+    if (app_start_context_from_id(manifest.id, &context) == ERROR_NONE && app_start_with_context(&context, &instanceId) == ERROR_NONE) {
+        app_event_emit_close(ctx->appInstanceId);
     }
+}
 
-    if (focusedButton != nullptr) {
-        lv_group_focus_obj(focusedButton);
-        lv_obj_add_state(focusedButton, LV_STATE_FOCUS_KEY);
+void toggleFavourite(Context* ctx, const char* appId, bool keepSelection) {
+    if (!ctx->favourites.toggle(appId)) {
+        LOG_E(TAG, "Failed to save favourites");
     }
+    ctx->grid.requestRepopulate(keepSelection);
+}
+
+void onAppLongPressed(const ::AppManifest& manifest, void* userData) {
+    toggleFavourite(static_cast<Context*>(userData), manifest.id, false);
+}
+
+void onAppKey(const ::AppManifest& manifest, uint32_t key, void* userData) {
+    if (key == 'f' || key == 'F') {
+        toggleFavourite(static_cast<Context*>(userData), manifest.id, true);
+    }
+}
+
+void onBackPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    app_event_emit_close(ctx->appInstanceId);
+}
+
+void onHelpPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    alertdialog::start(ctx->appInstanceId, "Help", "Long-press an app, or press F, to toggle it as a favorite.");
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
-    // Flex column + flex_grow so the toolbar/list split recomputes on layout instead of going stale after a resize.
+    // Flex column + flex_grow so the toolbar/grid split recomputes on layout instead of going stale after a resize.
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     auto* toolbar = lvgl_toolbar_create(parent, "Apps");
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
+    ctx->grid.createWidgets(parent, toolbar);
     lvgl_toolbar_add_text_button_action(toolbar, "?", onHelpPressed, ctx);
-
-    lv_obj_t* list = lv_list_create(parent);
-    lv_obj_set_width(list, LV_PCT(100));
-    lv_obj_set_flex_grow(list, 1);
-    lv_obj_set_user_data(list, ctx);
-    lv_obj_add_event_cb(list, &onListDeleted, LV_EVENT_DELETE, nullptr);
-
-    populateList(list);
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -274,7 +211,7 @@ extern const ::AppManifest manifest = {
     .category = APP_CATEGORY_SYSTEM,
     .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(appMain) },
     .flags = APP_MANIFEST_FLAG_HIDDEN,
-    .stack = { .depth = 4000, .desired_memory_capability = 0 },
+    .stack = { .depth = 5120, .desired_memory_capability = 0 },
 };
 
 } // namespace

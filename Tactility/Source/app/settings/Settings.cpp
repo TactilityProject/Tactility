@@ -6,8 +6,9 @@
 
 #include <lvgl_window_manager/window_manager.h>
 
+#include <Tactility/app/AppGrid.h>
+
 #include <lvgl/icons/shared.h>
-#include <lvgl/fonts.h>
 #include <lvgl/widgets/toolbar.h>
 #include <tactility/check.h>
 
@@ -20,14 +21,6 @@
 namespace tt::app::settings {
 
 namespace {
-
-struct Context {
-    uint32_t appInstanceId;
-    // Owned copies backing every button's user data, so a button never references the ledger
-    // directly - safe even if an external app is uninstalled while Settings stays open. Built
-    // once, in createWidgets() below (this list is never repopulated).
-    std::vector<::AppManifest> manifests;
-};
 
 struct IconEntry { 
     const char* id;
@@ -60,35 +53,53 @@ const char* appIcon(const ::AppManifest* manifest) {
     return LVGL_ICON_SHARED_DEPLOYED_CODE;
 }
 
-void onAppPressed(lv_event_t* e) {
+void onAppClicked(const ::AppManifest& manifest, void*) {
     // Fire-and-forget top-level navigation, same as AppList's own app-launch buttons.
-    const auto* manifest = static_cast<const ::AppManifest*>(lv_event_get_user_data(e));
     uint32_t instanceId = 0;
     // Re-resolved by id against the live ledger, not the (possibly stale) cached manifest above:
     // fails gracefully if the app was uninstalled since this button was built, instead of handing
     // app_manager_start_internal() a pointer it would store for the new instance's whole lifetime.
     AppStartContext context;
-    if (app_start_context_from_id(manifest->id, &context) == ERROR_NONE) {
+    if (app_start_context_from_id(manifest.id, &context) == ERROR_NONE) {
         app_start_with_context(&context, &instanceId);
     }
-}
-
-void onBackPressed(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    app_event_emit_close(ctx->appInstanceId);
-}
-
-void createWidget(const ::AppManifest* manifest, lv_obj_t* list) {
-    check(list);
-    auto* btn = lv_list_add_button(list, appIcon(manifest), manifest->name);
-    lv_obj_t* image = lv_obj_get_child(btn, 0);
-    lv_obj_set_style_text_font(image, lvgl_get_shared_icon_font(), LV_PART_MAIN);
-    lv_obj_add_event_cb(btn, &onAppPressed, LV_EVENT_SHORT_CLICKED, const_cast<::AppManifest*>(manifest));
 }
 
 void collectManifest(const ::AppManifest* manifest, void* context) {
     auto* manifests = static_cast<std::vector<::AppManifest>*>(context);
     manifests->push_back(*manifest);
+}
+
+std::vector<AppGridItem> collectItems(void*) {
+    std::vector<::AppManifest> collected;
+    app_manager_for_each_manifest(collectManifest, &collected);
+    std::ranges::sort(collected, [](const ::AppManifest& a, const ::AppManifest& b) {
+        return strcmp(a.name, b.name) < 0;
+    });
+
+    std::vector<AppGridItem> items;
+    for (const auto& manifest : collected) {
+        if (manifest.category == APP_CATEGORY_SETTINGS && (manifest.flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
+            items.push_back({ manifest, appIcon(&manifest), false });
+        }
+    }
+    return items;
+}
+
+struct Context {
+    uint32_t appInstanceId;
+    AppGrid grid { AppGrid::Callbacks {
+        .collect = collectItems,
+        .onClicked = onAppClicked,
+        .onLongPressed = nullptr,
+        .onKey = nullptr,
+        .userData = nullptr
+    } };
+};
+
+void onBackPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    app_event_emit_close(ctx->appInstanceId);
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -99,23 +110,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     auto* toolbar = lvgl_toolbar_create(parent, "Settings");
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
-
-    auto* list = lv_list_create(parent);
-    lv_obj_set_width(list, LV_PCT(100));
-    lv_obj_set_flex_grow(list, 1);
-
-    std::vector<::AppManifest> collected;
-    app_manager_for_each_manifest(collectManifest, &collected);
-    std::ranges::sort(collected, [](const ::AppManifest& a, const ::AppManifest& b) {
-        return strcmp(a.name, b.name) < 0;
-    });
-    ctx->manifests = std::move(collected);
-
-    for (const auto& manifest: ctx->manifests) {
-        if (manifest.category == APP_CATEGORY_SETTINGS && (manifest.flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
-            createWidget(&manifest, list);
-        }
-    }
+    ctx->grid.createWidgets(parent, toolbar);
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -158,7 +153,7 @@ extern const ::AppManifest manifest = {
     .category = APP_CATEGORY_SYSTEM,
     .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(appMain) },
     .flags = APP_MANIFEST_FLAG_HIDDEN,
-    .stack = { .depth = 2400, .desired_memory_capability = 0 },
+    .stack = { .depth = 4000, .desired_memory_capability = 0 },
 };
 
 } // namespace

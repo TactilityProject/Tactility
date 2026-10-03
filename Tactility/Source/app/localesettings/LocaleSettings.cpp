@@ -180,7 +180,7 @@ int32_t appMain(int argc, char* argv[]) {
 
 extern const ::AppManifest manifest = {
     .id = "tactility.localesettings",
-    .name = "Region & Language",
+    .name = "Locale",
     .category = APP_CATEGORY_SETTINGS,
     .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) },
     .flags = 0,
