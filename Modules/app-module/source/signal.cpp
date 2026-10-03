@@ -11,9 +11,22 @@
 
 namespace {
 
-// Signals whose default action is to do nothing, so they never interrupt or end an app
+// Signals whose default action is to do nothing, so they never interrupt or end an app.
+// There is no job control, so the stop signals are discarded like for an orphaned process group,
+// and SIGCONT never finds a stopped app.
 bool is_ignored_by_default(int sig) {
-    return sig == SIGCHLD || sig == SIGWINCH || sig == SIGURG;
+    switch (sig) {
+        case SIGCHLD:
+        case SIGWINCH:
+        case SIGURG:
+        case SIGCONT:
+        case SIGTSTP:
+        case SIGTTIN:
+        case SIGTTOU:
+            return true;
+        default:
+            return false;
+    }
 }
 
 bool is_ignored(AppLibcSignalHandler handler, int sig) {

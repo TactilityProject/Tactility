@@ -75,9 +75,10 @@ void TerminalRendererLvgl::attachCanvas(lv_obj_t* canvas) {
 }
 
 void TerminalRendererLvgl::present(int yStart, int yEnd) {
+    // Locked during the blit too, as LVGL may be drawing the canvas from this buffer
+    lvgl_lock();
     pixel_buffer_blit(canvasBuffer_, 0, yStart, frameBuffer, 0, 0, frameWidth, yEnd - yStart, PIXEL_BUFFER_CONVERSION_EXACT_BLACK);
 
-    lvgl_lock();
     lv_obj_t* canvas = canvas_;
     if (canvas != nullptr) {
         lv_area_t area;

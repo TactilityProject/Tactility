@@ -46,8 +46,8 @@ AppFdState get_app_fd_state(int fd) {
 // Upper bound on wake latency while waiting on more than one fd: app streams can only be awaited one at a time.
 constexpr TickType_t POLL_INTERVAL_TICKS = pdMS_TO_TICKS(10);
 
-// Upper bound on how long a sleep takes to notice a signal (see app/signal.h)
-constexpr TickType_t SLEEP_SIGNAL_CHECK_INTERVAL_TICKS = pdMS_TO_TICKS(100);
+// Upper bound on how long a sleep or poll takes to notice a signal (see app/signal.h)
+constexpr TickType_t SIGNAL_CHECK_INTERVAL_TICKS = pdMS_TO_TICKS(100);
 
 /**
  * @param[out] out_remaining the ticks not slept
@@ -64,7 +64,7 @@ bool sleep_unless_signalled(TickType_t ticks, TickType_t* out_remaining) {
         if (remaining == 0) {
             return false;
         }
-        delay_ticks(remaining < SLEEP_SIGNAL_CHECK_INTERVAL_TICKS ? remaining : SLEEP_SIGNAL_CHECK_INTERVAL_TICKS);
+        delay_ticks(remaining < SIGNAL_CHECK_INTERVAL_TICKS ? remaining : SIGNAL_CHECK_INTERVAL_TICKS);
     }
 }
 
@@ -402,10 +402,11 @@ bool app_libc_try_poll(struct pollfd* fds, nfds_t nfds, int timeout, AppLibcPoll
             remaining = POLL_INTERVAL_TICKS;
         }
         const struct pollfd& first = fds[first_app_index];
+        const TickType_t wait_ticks = remaining < SIGNAL_CHECK_INTERVAL_TICKS ? remaining : SIGNAL_CHECK_INTERVAL_TICKS;
         if (first.events & POLLIN) {
-            app_io_await(first.fd, APP_FILE_WAIT_READABLE, remaining);
+            app_io_await(first.fd, APP_FILE_WAIT_READABLE, wait_ticks);
         } else if (first.events & POLLOUT) {
-            app_io_await(first.fd, APP_FILE_WAIT_WRITABLE, remaining);
+            app_io_await(first.fd, APP_FILE_WAIT_WRITABLE, wait_ticks);
         } else {
             delay_ticks(remaining < POLL_INTERVAL_TICKS ? remaining : POLL_INTERVAL_TICKS);
         }

@@ -461,10 +461,27 @@ int32_t ignored_signal_app_main(int, char*[]) {
     return 0;
 }
 
+int32_t default_sleep_app_main(int, char*[]) {
+    g_signal_app_blocked.store(true, std::memory_order_release);
+    g_signal_call_result.store(usleep(300 * 1000), std::memory_order_release);
+    g_signal_app_continued.store(true, std::memory_order_release);
+    return 0;
+}
+
 int32_t interrupted_sleep_app_main(int, char*[]) {
     signal(SIGUSR1, record_signal_handler);
     g_signal_app_blocked.store(true, std::memory_order_release);
     const int result = usleep(10 * 1000 * 1000);
+    g_signal_call_errno.store(errno, std::memory_order_release);
+    g_signal_call_result.store(result, std::memory_order_release);
+    return 0;
+}
+
+int32_t interrupted_poll_app_main(int, char*[]) {
+    signal(SIGUSR1, record_signal_handler);
+    g_signal_app_blocked.store(true, std::memory_order_release);
+    struct pollfd fd { STDIN_FILENO, POLLIN, 0 };
+    const int result = poll(&fd, 1, -1);
     g_signal_call_errno.store(errno, std::memory_order_release);
     g_signal_call_result.store(result, std::memory_order_release);
     return 0;
@@ -589,8 +606,32 @@ TEST_CASE("An ignored signal does not interrupt the app") {
     CHECK_EQ(g_signal_call_result.load(std::memory_order_acquire), 0);
 }
 
+TEST_CASE("SIGCONT and the stop signals without a handler neither interrupt nor end the app") {
+    BlockedStdinApp app("test.libc.signal_job_control", default_sleep_app_main);
+
+    CHECK_EQ(app_signal_send(app.id, SIGCONT), ERROR_NONE);
+    CHECK_EQ(app_signal_send(app.id, SIGTSTP), ERROR_NONE);
+    CHECK_EQ(app_signal_send(app.id, SIGTTIN), ERROR_NONE);
+    CHECK_EQ(app_signal_send(app.id, SIGTTOU), ERROR_NONE);
+
+    REQUIRE(wait_for_state(app.id, APP_INSTANCE_STATE_STOPPED, 1000));
+    CHECK(g_signal_app_continued.load(std::memory_order_acquire));
+    CHECK_EQ(g_signal_call_result.load(std::memory_order_acquire), 0);
+}
+
 TEST_CASE("A signal interrupts usleep() with EINTR") {
     BlockedStdinApp app("test.libc.signal_sleep", interrupted_sleep_app_main);
+
+    CHECK_EQ(app_signal_send(app.id, SIGUSR1), ERROR_NONE);
+
+    REQUIRE(wait_for_state(app.id, APP_INSTANCE_STATE_STOPPED, 1000));
+    CHECK_EQ(g_signal_handled.load(std::memory_order_acquire), SIGUSR1);
+    CHECK_EQ(g_signal_call_result.load(std::memory_order_acquire), -1);
+    CHECK_EQ(g_signal_call_errno.load(std::memory_order_acquire), EINTR);
+}
+
+TEST_CASE("A signal interrupts poll() without a timeout with EINTR") {
+    BlockedStdinApp app("test.libc.signal_poll", interrupted_poll_app_main);
 
     CHECK_EQ(app_signal_send(app.id, SIGUSR1), ERROR_NONE);
 
