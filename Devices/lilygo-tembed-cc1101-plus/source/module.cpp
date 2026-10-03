@@ -19,7 +19,7 @@ static void on_boot_completed(SystemEvent* event, void* context) {
         return;
     }
 
-    const auto settings = tt::settings::ledstrip::loadOrGetDefault();
+    const auto settings = tt::settings::ledstrip::loadOrGetDefault(device->name);
     const error_t result = tt::settings::ledstrip::apply(device, settings);
     if (result != ERROR_NONE) {
         LOG_E(TAG, "Failed to restore LED strip %s: %d", device->name, result);

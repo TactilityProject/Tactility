@@ -21,13 +21,13 @@ struct LedStripSettings {
     struct LedRgb secondaryCustom { 0, 0, 255 }; //Blue
 };
 
-bool load(LedStripSettings& settings);
+bool load(const char* deviceName, LedStripSettings& settings);
 
-LedStripSettings loadOrGetDefault();
+LedStripSettings loadOrGetDefault(const char* deviceName);
 
 LedStripSettings getDefault();
 
-bool save(const LedStripSettings& settings);
+bool save(const char* deviceName, const LedStripSettings& settings);
 
 error_t apply(struct Device* device, const LedStripSettings& settings);
 

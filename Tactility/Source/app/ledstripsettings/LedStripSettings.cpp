@@ -16,6 +16,7 @@
 #include <lvgl/widgets/toolbar.h>
 
 #include <cstdint>
+#include <string>
 
 namespace tt::app::ledstripsettings {
 
@@ -404,8 +405,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 void persistIfUpdated(const Context& ctx) {
     if (!ctx.updated) return;
     const auto settingsToSave = ctx.settings;
-    getMainDispatcher().dispatch([settingsToSave] {
-        if (!settings::ledstrip::save(settingsToSave)) {
+    const std::string deviceName = ctx.device->name;
+    getMainDispatcher().dispatch([settingsToSave, deviceName] {
+        if (!settings::ledstrip::save(deviceName.c_str(), settingsToSave)) {
             LOG_W(TAG, "Failed to save LED strip settings");
         }
     });
@@ -420,7 +422,7 @@ int32_t appMain(int argc, char* argv[]) {
     Context ctx {};
     ctx.appInstanceId = app_scheduler_current_app_id();
     ctx.device = device;
-    ctx.settings = settings::ledstrip::loadOrGetDefault();
+    ctx.settings = settings::ledstrip::loadOrGetDefault(device->name);
     uint16_t ledCount = 0;
     if (led_strip_get_length(device, &ledCount) != ERROR_NONE || ledCount == 0) {
         device_put(device);

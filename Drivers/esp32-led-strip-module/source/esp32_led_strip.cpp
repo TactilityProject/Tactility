@@ -13,7 +13,7 @@
 #include <cstdlib>
 #include <esp32_led_strip_rmt.h>
 
-#define TAG "Esp32LedStrip"
+constexpr auto* TAG = "Esp32LedStrip";
 
 #define GET_CONFIG(device) (static_cast<const LedStripConfig*>((device)->config))
 #define GET_INTERNAL(device) (static_cast<LedStripInternal*>(device_get_driver_data(device)))

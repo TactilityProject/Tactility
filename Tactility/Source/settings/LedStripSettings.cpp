@@ -48,9 +48,10 @@ uint8_t interpolate(uint8_t first, uint8_t second, size_t position, size_t count
 
 }
 
-static std::string getSettingsFilePath() {
+static std::string getSettingsFilePath(const char* deviceName) {
     char path[256];
-    if (app_paths_get_user_data_path("tactility.ledstripsettings", "ledstrip.properties", path, sizeof(path)) != ERROR_NONE) {
+    const auto fileName = std::string(deviceName) + ".properties";
+    if (app_paths_get_user_data_path("tactility.ledstripsettings", fileName.c_str(), path, sizeof(path)) != ERROR_NONE) {
         return "";
     }
     return path;
@@ -92,8 +93,8 @@ LedStripSettings getDefault() {
     return {};
 }
 
-bool load(LedStripSettings& settings) {
-    const auto path = getSettingsFilePath();
+bool load(const char* deviceName, LedStripSettings& settings) {
+    const auto path = getSettingsFilePath(deviceName);
     if (!file::isFile(path)) {
         return false;
     }
@@ -125,13 +126,13 @@ bool load(LedStripSettings& settings) {
     return true;
 }
 
-LedStripSettings loadOrGetDefault() {
+LedStripSettings loadOrGetDefault(const char* deviceName) {
     auto settings = getDefault();
-    load(settings);
+    load(deviceName, settings);
     return settings;
 }
 
-bool save(const LedStripSettings& settings) {
+bool save(const char* deviceName, const LedStripSettings& settings) {
     std::map<std::string, std::string> properties;
     properties["enabled"] = settings.enabled ? "1" : "0";
     properties["pattern"] = std::to_string(static_cast<unsigned>(settings.pattern));
@@ -145,7 +146,7 @@ bool save(const LedStripSettings& settings) {
     properties["secondaryGreen"] = std::to_string(settings.secondaryCustom.g);
     properties["secondaryBlue"] = std::to_string(settings.secondaryCustom.b);
 
-    auto settings_path = getSettingsFilePath();
+    auto settings_path = getSettingsFilePath(deviceName);
     if (!file::findOrCreateParentDirectory(settings_path, 0755)) {
         return false;
     }

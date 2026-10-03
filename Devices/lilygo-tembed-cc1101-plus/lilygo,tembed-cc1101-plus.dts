@@ -90,7 +90,7 @@
 
 	// WS2812 RGB LED Ring
 	// TODO - Sync on/off with DisplayIdle?
-	ws2812 {
+	ledstrip0 {
 		compatible = "espressif,esp32-led-strip";
 		pin-data = <&gpio0 14 GPIO_FLAG_NONE>;
 		led-count = <8>;
