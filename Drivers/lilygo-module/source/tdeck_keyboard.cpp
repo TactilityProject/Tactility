@@ -66,6 +66,10 @@ static error_t tdeck_keyboard_read_key(Device* device, KeyboardKeyData* data) {
         data->key = internal->last_key;
         data->pressed = false;
     } else if (read_buffer != 0) {
+        // Return key is keycode 10, but keyboard passes 13
+        if (read_buffer == 13) {
+            read_buffer = 10;
+        }
         data->key = read_buffer;
         data->pressed = true;
     } else {
