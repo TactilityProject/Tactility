@@ -27,6 +27,7 @@
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <lvgl.h>
+#include <lvgl/devices/indev.h>
 
 #include <atomic>
 #include <format>
@@ -214,6 +215,13 @@ void createSplashWidgets(lv_obj_t* root, void*) {
 #endif
 }
 
+void selectIfNoPointer(lv_obj_t* button) {
+    if (!lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
+        lv_group_focus_obj(button);
+        lv_obj_add_state(button, LV_STATE_FOCUS_KEY);
+    }
+}
+
 void createSdCardMissingWidgets(lv_obj_t* root, void*) {
     lvgl::obj_set_style_bg_blacken(root);
     lv_obj_set_style_border_width(root, 0, LV_STATE_DEFAULT);
@@ -235,6 +243,7 @@ void createSdCardMissingWidgets(lv_obj_t* root, void*) {
         esp_restart();
 #endif
     }, LV_EVENT_SHORT_CLICKED, nullptr);
+    selectIfNoPointer(button);
 }
 
 // Replaces the splash with a self-contained error screen (no dependency on the old alertdialog
@@ -267,6 +276,7 @@ void createUsbBootModeFailedWidgets(lv_obj_t* root, void*) {
         esp_restart();
 #endif
     }, LV_EVENT_SHORT_CLICKED, nullptr);
+    selectIfNoPointer(button);
 }
 
 void showUsbBootModeFailedScreen() {

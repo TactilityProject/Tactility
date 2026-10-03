@@ -12,6 +12,7 @@
 #include <tactility/log.h>
 
 #include <lvgl.h>
+#include <lvgl/devices/indev.h>
 #include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::alertdialog {
@@ -55,7 +56,7 @@ void onButtonPressed(lv_event_t* e) {
     app_event_emit_close(btnCtx->ctx->appInstanceId);
 }
 
-void createButton(Context* ctx, lv_obj_t* parent, const std::string& text, int32_t index) {
+lv_obj_t* createButton(Context* ctx, lv_obj_t* parent, const std::string& text, int32_t index) {
     lv_obj_t* button = lv_button_create(parent);
     lv_obj_t* button_label = lv_label_create(button);
     lv_obj_align(button_label, LV_ALIGN_CENTER, 0, 0);
@@ -63,6 +64,7 @@ void createButton(Context* ctx, lv_obj_t* parent, const std::string& text, int32
     auto* btnCtx = new ButtonContext { ctx, index };
     lv_obj_add_event_cb(button, onButtonPressed, LV_EVENT_SHORT_CLICKED, btnCtx);
     lv_obj_add_event_cb(button, onButtonDeleted, LV_EVENT_DELETE, btnCtx);
+    return button;
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -92,8 +94,17 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_column(button_wrapper, 12, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_ver(button_wrapper, 4, LV_STATE_DEFAULT);
 
+    lv_obj_t* first_button = nullptr;
     for (int32_t index = 0; index < argc - 2; index++) {
-        createButton(ctx, button_wrapper, argv[2 + index], index);
+        lv_obj_t* button = createButton(ctx, button_wrapper, argv[2 + index], index);
+        if (first_button == nullptr) {
+            first_button = button;
+        }
+    }
+
+    if (first_button != nullptr && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
+        lv_group_focus_obj(first_button);
+        lv_obj_add_state(first_button, LV_STATE_FOCUS_KEY);
     }
 }
 

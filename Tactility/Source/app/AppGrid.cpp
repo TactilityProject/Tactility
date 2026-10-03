@@ -1,5 +1,6 @@
 #include <Tactility/app/AppGrid.h>
 
+#include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -228,6 +229,12 @@ void AppGrid::createWidgets(lv_obj_t* parent, lv_obj_t* toolbar) {
     lv_obj_add_event_cb(grid, onGridSizeChanged, LV_EVENT_SIZE_CHANGED, this);
 
     populate();
+
+    const bool next_visible = !lv_obj_has_flag(lv_obj_get_parent(nextButton), LV_OBJ_FLAG_HIDDEN);
+    if (next_visible && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
+        lv_group_focus_obj(nextButton);
+        lv_obj_add_state(nextButton, LV_STATE_FOCUS_KEY);
+    }
 }
 
 }

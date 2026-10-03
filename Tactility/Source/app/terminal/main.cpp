@@ -16,6 +16,7 @@
 #include <tactility/device.h>
 #include <tactility/drivers/display.h>
 #include <tactility/module.h>
+#include <lvgl/devices/indev.h>
 #include <lvgl/module.h>
 #include <lvgl/widgets/toolbar.h>
 #include <lvgl_window_manager/window_manager.h>
@@ -46,8 +47,11 @@ void createWidgets(lv_obj_t* root, void* userData) {
     lv_obj_set_style_pad_all(root, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_row(root, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(root, "Terminal");
-    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onClosePressed, ctx);
+    // The toolbar only offers a touch close button, so it is left out to give the terminal more room
+    if (lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
+        auto* toolbar = lvgl_toolbar_create(root, "Terminal");
+        lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onClosePressed, ctx);
+    }
 
     auto* canvas = lv_canvas_create(root);
     lv_obj_set_width(canvas, LV_PCT(100));

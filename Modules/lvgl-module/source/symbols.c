@@ -4,6 +4,7 @@
 #include <lvgl/module.h>
 
 #include <lvgl/devices/display.h>
+#include <lvgl/devices/indev.h>
 #include <lvgl/devices/keyboard.h>
 #include <lvgl/devices/pointer.h>
 
@@ -37,6 +38,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lvgl_display
     DEFINE_MODULE_SYMBOL(lvgl_display_add),
     DEFINE_MODULE_SYMBOL(lvgl_display_remove),
+    // lvgl_indev
+    DEFINE_MODULE_SYMBOL(lvgl_indev_exists),
     // lvgl_keyboard
     DEFINE_MODULE_SYMBOL(lvgl_keyboard_add),
     DEFINE_MODULE_SYMBOL(lvgl_keyboard_remove),
