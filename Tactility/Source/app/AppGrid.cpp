@@ -52,6 +52,11 @@ lv_color_t getIconColor(bool focused, bool highlighted) {
     return highlighted ? lv_color_hex(ICON_COLOR_HIGHLIGHTED) : lv_color_white();
 }
 
+// Accent colours can't be rendered in 1bpp, so tiles use theme colours and the theme's focus outline instead
+bool isMonochrome(lv_obj_t* obj) {
+    return lv_display_get_color_format(lv_obj_get_display(obj)) == LV_COLOR_FORMAT_I1;
+}
+
 const AppGridItem* getTileItem(lv_event_t* e) {
     return static_cast<const AppGridItem*>(lv_obj_get_user_data(lv_event_get_target_obj(e)));
 }
@@ -156,6 +161,7 @@ void AppGrid::populate() {
     lv_obj_set_flag(lv_obj_get_parent(nextButton), LV_OBJ_FLAG_HIDDEN, page_count <= 1);
 
     lv_obj_t* focusedTile = nullptr;
+    const bool monochrome = isMonochrome(grid);
     const uint32_t first = page * layout.pageSize;
     const uint32_t last = std::min(item_count, first + layout.pageSize);
     for (uint32_t i = first; i < last; i++) {
@@ -167,8 +173,10 @@ void AppGrid::populate() {
         lv_obj_set_style_pad_row(tile, layout.pad / 2, LV_STATE_DEFAULT);
         lv_obj_set_style_shadow_width(tile, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_bg_opa(tile, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-        lv_obj_set_style_outline_width(tile, 0, LV_STATE_FOCUSED);
-        lv_obj_set_style_outline_width(tile, 0, LV_STATE_FOCUS_KEY);
+        if (!monochrome) {
+            lv_obj_set_style_outline_width(tile, 0, LV_STATE_FOCUSED);
+            lv_obj_set_style_outline_width(tile, 0, LV_STATE_FOCUS_KEY);
+        }
         lv_obj_set_flex_flow(tile, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_user_data(tile, const_cast<AppGridItem*>(&item));
@@ -177,13 +185,16 @@ void AppGrid::populate() {
         lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_font_2x(), LV_STATE_DEFAULT);
         lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
         lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
-        lv_obj_set_style_text_color(icon, getIconColor(false, item.highlighted), LV_STATE_DEFAULT);
+        if (!monochrome) {
+            lv_obj_set_style_text_color(icon, getIconColor(false, item.highlighted), LV_STATE_DEFAULT);
+        }
         lv_label_set_text(icon, item.icon);
 
         lv_obj_t* label = lv_label_create(tile);
         lv_obj_set_style_text_font(label, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
-        lv_obj_set_width(label, LV_PCT(100));
+        // Dots mode needs a fixed height, otherwise the label wraps instead of truncating
+        lv_obj_set_size(label, LV_PCT(100), lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL)));
         lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
         lv_label_set_text(label, item.manifest.name);
 
@@ -194,8 +205,10 @@ void AppGrid::populate() {
         if (callbacks.onKey != nullptr) {
             lv_obj_add_event_cb(tile, onTileKey, LV_EVENT_KEY, this);
         }
-        lv_obj_add_event_cb(tile, onTileFocusChanged, LV_EVENT_FOCUSED, nullptr);
-        lv_obj_add_event_cb(tile, onTileFocusChanged, LV_EVENT_DEFOCUSED, nullptr);
+        if (!monochrome) {
+            lv_obj_add_event_cb(tile, onTileFocusChanged, LV_EVENT_FOCUSED, nullptr);
+            lv_obj_add_event_cb(tile, onTileFocusChanged, LV_EVENT_DEFOCUSED, nullptr);
+        }
 
         if (!focusedAppId.empty() && focusedAppId == item.manifest.id) {
             focusedTile = tile;

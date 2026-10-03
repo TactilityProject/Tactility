@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+#define LV_USE_PRIVATE_API 1 // For the lv_theme_t declaration
+
 #include <lvgl/devices/display.h>
 
 #include <lvgl/ppa.h>
@@ -17,6 +19,37 @@
 #endif
 
 constexpr auto* TAG = "lvgl_display";
+
+#if LV_USE_THEME_MONO
+
+static lv_style_t mono_button_style;
+static bool mono_button_style_initialized = false;
+static lv_theme_t mono_theme_extension;
+
+static void mono_theme_extension_apply(lv_theme_t*, lv_obj_t* obj) {
+    if (lv_obj_check_type(obj, &lv_button_class)) {
+        lv_obj_add_style(obj, &mono_button_style, LV_PART_MAIN | LV_STATE_DEFAULT);
+    }
+}
+
+// The mono theme draws a border around every button. This removes it in the default state, keeping the pressed border and focus outline.
+static void lvgl_display_extend_mono_theme(lv_display_t* disp) {
+    if (!mono_button_style_initialized) {
+        lv_style_init(&mono_button_style);
+        lv_style_set_border_width(&mono_button_style, 0);
+        mono_button_style_initialized = true;
+    }
+    lv_theme_t* mono_theme = lv_display_get_theme(disp);
+    if (mono_theme == nullptr || mono_theme == &mono_theme_extension) {
+        return;
+    }
+    mono_theme_extension = *mono_theme;
+    lv_theme_set_parent(&mono_theme_extension, mono_theme);
+    lv_theme_set_apply_cb(&mono_theme_extension, mono_theme_extension_apply);
+    lv_display_set_theme(disp, &mono_theme_extension);
+}
+
+#endif
 
 struct LvglDisplayCtx {
     void* buf1;
@@ -469,6 +502,10 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
         delete wrapper;
         return ERROR_OUT_OF_MEMORY;
     }
+
+#if LV_USE_THEME_MONO
+    lvgl_display_extend_mono_theme(disp);
+#endif
 
     ctx->render_mode = render_mode;
     lv_display_set_color_format(disp, lv_color_format);
