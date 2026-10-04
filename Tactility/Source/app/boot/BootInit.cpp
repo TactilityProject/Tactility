@@ -1,4 +1,9 @@
-#include <Tactility/app/boot/BootSequence.h>
+#include <Tactility/app/boot/BootInit.h>
+
+#include "Tactility/bluetooth/Bluetooth.h"
+#include "Tactility/hal/SdCard.h"
+#include "Tactility/network/NtpPrivate.h"
+#include "Tactility/settings/TimePrivate.h"
 
 #include <tactility/delay.h>
 #include <tactility/drivers/backlight.h>
@@ -197,18 +202,36 @@ void startNextApp() {
 
 } // namespace
 
-bool runBootSequence(TickType_t startTime) {
+bool bootInit(TickType_t startTime) {
     LOG_I(TAG, "Starting boot sequence");
-
     const bool is_usb_boot = hal::usb::isUsbBootMode();
+
+    auto start_time = get_millis();
 
     BootScreen screen;
     if (screen.begin()) {
         screen.show(is_usb_boot ? getUsbLogoPath(screen) : getLogoPath(screen), {});
     }
 
-    LOG_I(TAG, "Setup display");
+    LOG_I(TAG, "Init display");
     setupDisplay();
+
+    LOG_I(TAG, "Init timezone");
+    settings::initTimeZone();
+
+    // Attempt to start all disabled SD cards (some require delayed init)
+    LOG_I(TAG, "Init SDMMC");
+    hal::sdcard::startAll();
+
+    LOG_I(TAG, "Init NTP");
+    network::ntp::init();
+
+    LOG_I(TAG, "Init BLE");
+    bluetooth::systemStart();
+
+    LOG_I(TAG, "Init Services");
+    registerAndStartServices();
+
     LOG_I(TAG, "Prepare file systems");
     prepareFileSystems();
 
@@ -239,7 +262,6 @@ bool runBootSequence(TickType_t startTime) {
     }
 
     registerApps();
-    waitForMinimalSplashDuration(startTime);
 
     if (sd_card_missing) {
         screen.show("", { "SD card not found.", "Please insert one and reboot.", getInputPrompt("reboot") });
@@ -251,6 +273,12 @@ bool runBootSequence(TickType_t startTime) {
     lvgl::initIconFonts();
 
     screen.end();
+
+    size_t total_time = get_millis() - start_time;
+    LOG_I(TAG, "Finished in %lu ms", static_cast<uint32_t>(total_time));
+
+    waitForMinimalSplashDuration(startTime);
+
     LOG_I(TAG, "Starting LVGL");
     lvgl::start();
     startNextApp();
@@ -259,6 +287,7 @@ bool runBootSequence(TickType_t startTime) {
     // e.g. Wi-Fi reads AP configs from SD card
     LOG_I(TAG, "Publish event");
     system_event_emit(KERNEL_EVENT_BOOT_COMPLETED, nullptr, 0);
+
     return true;
 }
 

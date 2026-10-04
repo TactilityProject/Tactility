@@ -10,14 +10,11 @@ constexpr auto* TAG = "Tactility";
 
 namespace tt {
 
-static void initNetwork() {
-    LOG_I(TAG, "Init network");
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-}
-
 void initEsp() {
-    initNetwork();
+    LOG_I(TAG, "Init esp_netif");
+    ESP_ERROR_CHECK(esp_netif_init());
+    LOG_I(TAG, "Init esp_event_loop");
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 }
 
 } // namespace

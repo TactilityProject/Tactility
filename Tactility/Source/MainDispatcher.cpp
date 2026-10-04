@@ -1,5 +1,9 @@
-#include <Tactility/Tactility.h>
+#include <Tactility/MainDispatcher.h>
 #include <Tactility/TactilityPrivate.h>
+
+// Implements the deprecated MainDispatcher API
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 namespace tt {
 
@@ -33,3 +37,5 @@ DispatcherHandle_t getMainDispatcherHandle() {
 }
 
 } // namespace
+
+#pragma GCC diagnostic pop

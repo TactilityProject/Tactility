@@ -10,6 +10,6 @@ namespace tt::app::boot {
  * @param[in] startTime the ticks at which the boot app started, for the minimal splash duration
  * @return true when the boot completed and the next app was started
  */
-bool runBootSequence(TickType_t startTime);
+bool bootInit(TickType_t startTime);
 
 }

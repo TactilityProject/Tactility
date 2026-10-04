@@ -13,12 +13,9 @@
 #include <tactility/device.h>
 #include <tactility/drivers/audio_stream.h>
 #include <tactility/drivers/rtc.h>
-#include <tactility/log.h>
 #include <tactility/module.h>
 
 namespace tt {
-
-constexpr auto* TAG = "Tactility";
 
 // region Default services
 namespace service {
@@ -38,7 +35,6 @@ namespace service {
 // endregion
 
 void registerAndStartServices() {
-    LOG_I(TAG, "Registering and starting primary system services");
     if (device_exists_of_type(&AUDIO_STREAM_TYPE)) {
         addService(service::audio::manifest);
     }

@@ -1,4 +1,4 @@
-#include <Tactility/app/boot/BootSequence.h>
+#include <Tactility/app/boot/BootInit.h>
 
 #include <tactility/check.h>
 #include <tactility/memory.h>
@@ -23,7 +23,7 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    if (runBootSequence(start_time)) {
+    if (bootInit(start_time)) {
         app_event_emit_close(app_scheduler_current_app_id());
     }
 

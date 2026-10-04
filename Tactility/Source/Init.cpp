@@ -46,18 +46,6 @@ bool init(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     initEsp();
 #endif
 
-    settings::initTimeZone();
-
-    // Attempt to start all disabled SD cards (some require delayed init)
-    hal::sdcard::startAll();
-
-    network::ntp::init();
-    bluetooth::systemStart();
-
-    registerAndStartServices();
-
-    LOG_I(TAG, "Core systems ready");
-
     startBootApp();
 
     return true;
