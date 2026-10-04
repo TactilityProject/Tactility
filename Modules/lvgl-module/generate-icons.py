@@ -162,6 +162,7 @@ shared_symbol_code_point_names = [
     "more_vert",
     "music_note",
     "note_add",
+    "palette",
     "power_settings_new", # Power off for T-Lora Pager
     "refresh", # e.g. App Hub reload button
     "search",

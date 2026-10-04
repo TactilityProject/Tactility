@@ -14,6 +14,8 @@ namespace {
 constexpr int32_t TILE_GAP = 6;
 constexpr uint32_t ICON_COLOR_SELECTED = 0x33BBFF;
 constexpr uint32_t ICON_COLOR_HIGHLIGHTED = 0xF876E9;
+// Minimum label width, as a multiple of the label's font size
+constexpr uint32_t MIN_LABEL_WIDTH_IN_FONT_SIZES = 6;
 
 struct PageLayout {
     int32_t iconSize;
@@ -29,7 +31,9 @@ PageLayout computePageLayout(lv_obj_t* grid) {
     const auto pad = icon_size / 16;
     const auto gap = TILE_GAP;
     const auto text_height = lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL));
-    const auto tile_min_width = 2 * icon_size + 2 * pad;
+    // The label needs room for a few characters, also when the icon font is smaller (e.g. a fallback)
+    const auto text_min_width = static_cast<int32_t>(MIN_LABEL_WIDTH_IN_FONT_SIZES * lvgl_get_text_font_height(FONT_SIZE_SMALL));
+    const auto tile_min_width = std::max<int32_t>(2 * icon_size, text_min_width) + 2 * pad;
     const auto tile_height = 2 * pad + icon_size + pad / 2 + text_height;
     const auto available_width = lv_obj_get_content_width(grid);
     const auto available_height = lv_obj_get_content_height(grid);

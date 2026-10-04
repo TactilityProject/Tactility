@@ -200,9 +200,9 @@ lv_obj_t* createRow(lv_obj_t* parent) {
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
-    // Room for the focus outline of the buttons, which is clipped to the row
-    lv_obj_set_style_pad_ver(row, 6, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_hor(row, 6, LV_STATE_DEFAULT);
+    // Room for the focus outline of the buttons, which is clipped to the row in compact mode
+    lv_obj_set_style_pad_ver(row, 3, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_hor(row, 3, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
     lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     return row;
@@ -223,6 +223,7 @@ FontRowWidgets createFontRow(lv_obj_t* parent, const char* title, lv_event_cb_t 
     auto* label = lv_label_create(title_row);
     lv_label_set_text(label, title);
     lv_obj_set_flex_grow(label, 1);
+    lv_obj_set_style_pad_ver(label, 0, LV_STATE_DEFAULT);
     widgets.defaultButton = createButton(title_row, "Default", onDefault, ctx);
 
     // "  file.ttf          [Select]"
@@ -304,6 +305,14 @@ int32_t applyThreadMain(void* context) {
     return 0;
 }
 
+/** Ends an apply without a font error, keeping the changes pending */
+void cancelApply(Context* ctx) {
+    lvgl_lock();
+    ctx->applying = false;
+    updateWidgets(ctx);
+    lvgl_unlock();
+}
+
 void startApply(Context* ctx) {
     if (ctx->applying || ctx->applyThread != nullptr) {
         return;
@@ -319,7 +328,7 @@ void startApply(Context* ctx) {
     ctx->applyThread = thread_alloc();
     if (ctx->applyThread == nullptr) {
         LOG_E(TAG, "Failed to create thread");
-        ctx->applying = false;
+        cancelApply(ctx);
         return;
     }
     thread_set_name(ctx->applyThread, "font_cache");
@@ -329,7 +338,7 @@ void startApply(Context* ctx) {
         LOG_E(TAG, "Failed to start thread");
         thread_free(ctx->applyThread);
         ctx->applyThread = nullptr;
-        ctx->applying = false;
+        cancelApply(ctx);
     }
 }
 
@@ -358,7 +367,10 @@ void finishApply(Context* ctx) {
     const auto applied_settings = ctx->pendingSettings;
     lvgl_unlock();
     if (!settings::appearance::save(applied_settings)) {
+        // Fonts that aren't saved would revert on the next boot: keep the changes pending for a retry
         LOG_E(TAG, "Failed to save settings");
+        cancelApply(ctx);
+        return;
     }
     lvgl_lock();
     ctx->savedSettings = applied_settings;

@@ -79,14 +79,23 @@ struct LoadedFont {
     lv_font_t* lvFont;
 };
 
-/** On ESP32 devices without PSRAM, the large text font isn't generated to save memory: the default text font is used instead */
-static bool isTextFontGenerated(LvglFontSize fontSize) {
+/** ESP32 devices without PSRAM skip the large fonts to save memory */
+static bool hasLimitedMemory() {
 #ifdef ESP_PLATFORM
-    return fontSize != FONT_SIZE_LARGE || memory_external_total() > 0;
+    return memory_external_total() == 0;
 #else
-    (void)fontSize;
-    return true;
+    return false;
 #endif
+}
+
+/** The default text font replaces the large one when it isn't generated */
+static bool isTextFontGenerated(LvglFontSize fontSize) {
+    return fontSize != FONT_SIZE_LARGE || !hasLimitedMemory();
+}
+
+/** The shared icon font replaces the 2x one when it isn't generated */
+static bool isIconFontGenerated(LvglIconFont iconFont) {
+    return iconFont != LVGL_ICON_FONT_SHARED_2X || !hasLimitedMemory();
 }
 
 static std::vector<LoadedFont> loadedFonts;
@@ -247,7 +256,7 @@ bool updateFontCache(const FontConfiguration& configuration) {
         }
     }
     for (const auto& definition : ICON_FONTS) {
-        if (!ensureCached(getIconRequest(configuration, definition, bpp))) {
+        if (isIconFontGenerated(definition.id) && !ensureCached(getIconRequest(configuration, definition, bpp))) {
             return false;
         }
     }
@@ -289,6 +298,9 @@ void loadFonts(const FontConfiguration& configuration) {
 
     std::vector<std::string> icon_file_names;
     for (const auto& definition : ICON_FONTS) {
+        if (!isIconFontGenerated(definition.id)) {
+            continue;
+        }
         const auto request = getIconRequest(configuration, definition, bpp);
         BinFont* font = load(request);
         if (font == nullptr) {
@@ -299,6 +311,10 @@ void loadFonts(const FontConfiguration& configuration) {
         if (lv_font != nullptr) {
             lvgl_set_icon_font(definition.id, lv_font, request.size);
         }
+    }
+
+    if (!isIconFontGenerated(LVGL_ICON_FONT_SHARED_2X)) {
+        lvgl_set_icon_font(LVGL_ICON_FONT_SHARED_2X, lvgl_get_shared_icon_font(), lvgl_get_shared_icon_font_height());
     }
 
     deleteStaleCachedFonts(TEXT_CACHE_PREFIX, text_file_names);

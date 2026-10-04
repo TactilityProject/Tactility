@@ -37,6 +37,7 @@ const char* const lvgl_icon_shared_names[] = {
     "more_vert",
     "music_note",
     "note_add",
+    "palette",
     "power_settings_new",
     "refresh",
     "search",
