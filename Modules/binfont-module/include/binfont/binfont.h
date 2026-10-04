@@ -48,8 +48,10 @@ typedef struct BinFontGlyph {
 
 /**
  * @brief Opens a font file.
- * The whole file is loaded into external memory (PSRAM) when available. Otherwise only the lookup
- * tables are loaded and glyph data is read from the file on demand.
+ * The whole file is loaded into external memory (PSRAM) when available, otherwise into internal memory.
+ * When that allocation fails, only the lookup tables are loaded and glyph data is read from the file
+ * on demand: the file is opened and closed for every glyph lookup, unless it's kept open with
+ * binfont_begin()/binfont_end().
  * @param[in] path the file path
  * @param[out] out the opened font
  * @retval ERROR_NONE on success
@@ -73,6 +75,18 @@ error_t binfont_open_memory(const void* data, size_t size, bool take_ownership, 
 
 /** Releases the font and all its resources. */
 void binfont_close(struct BinFont* font);
+
+/**
+ * @brief Keeps the font file open until the matching binfont_end(), so rendering many glyphs
+ * doesn't open and close the file for each of them. Calls can be nested and used from multiple tasks.
+ * Does nothing for fonts that are fully loaded in memory.
+ * @retval ERROR_NONE on success
+ * @retval ERROR_NOT_FOUND when the file can't be opened
+ */
+error_t binfont_begin(struct BinFont* font);
+
+/** Ends a binfont_begin() session. The file is closed when no sessions remain. */
+void binfont_end(struct BinFont* font);
 
 void binfont_get_metrics(const struct BinFont* font, BinFontMetrics* out);
 

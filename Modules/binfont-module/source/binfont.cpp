@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <binfont/binfont.h>
+#include <binfont_private.h>
 
 #include <tactility/concurrent/mutex.h>
 #include <tactility/memory.h>
@@ -162,8 +163,10 @@ struct BinFont {
     /** The whole file in memory mode, nullptr in stream mode */
     const uint8_t* data;
     bool ownsData;
-    /** Stream mode only */
+    /** Stream mode only: the file path, and the file while it's open (guarded by mutex) */
+    char* path;
     FILE* file;
+    uint32_t sessionCount;
     Mutex mutex;
     /** Owned copy of the cmap/loca/kern records in stream mode */
     uint8_t* tables;
@@ -450,6 +453,22 @@ bool get_glyph_location(const BinFont* font, uint32_t glyphId, size_t& offset, s
     return true;
 }
 
+/** Reads from the font file in stream mode. Outside of a session, the file is opened for this read only. */
+bool read_glyph_data(BinFont* font, size_t offset, uint8_t* out, size_t size) {
+    mutex_lock(&font->mutex);
+    const bool temporary = font->file == nullptr;
+    if (temporary) {
+        font->file = fopen(font->path, "rb");
+    }
+    const bool success = font->file != nullptr && read_at(font, offset, out, size);
+    if (temporary && font->file != nullptr) {
+        fclose(font->file);
+        font->file = nullptr;
+    }
+    mutex_unlock(&font->mutex);
+    return success;
+}
+
 /**
  * Provides the record of a glyph. In memory mode it points into the font data, in stream mode it
  * is read into buffer (bufferSize bytes) or, when that is too small, into an allocation returned
@@ -478,9 +497,7 @@ bool get_glyph_record(BinFont* font, uint32_t glyphId, size_t maxSize, uint8_t* 
         target = allocated;
     }
 
-    mutex_lock(&font->mutex);
-    const bool success = read_at(font, font->glyfOffset + offset, target, size);
-    mutex_unlock(&font->mutex);
+    const bool success = read_glyph_data(font, font->glyfOffset + offset, target, size);
 
     if (!success) {
         memory_free(allocated);
@@ -502,6 +519,53 @@ void parse_glyph(const Header& header, BitReader& reader, uint32_t glyphId, BinF
     out->y = static_cast<int16_t>(reader.readSigned(header.xyBits));
     out->width = static_cast<uint16_t>(reader.read(header.whBits));
     out->height = static_cast<uint16_t>(reader.read(header.whBits));
+}
+
+/** Opens a file for reading and determines its size */
+error_t open_file(const char* path, FILE*& file, size_t& size) {
+    file = fopen(path, "rb");
+    if (file == nullptr) {
+        return ERROR_NOT_FOUND;
+    }
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        return ERROR_NOT_SUPPORTED;
+    }
+    const long file_size = ftell(file);
+    if (file_size <= 0 || fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
+        return ERROR_NOT_SUPPORTED;
+    }
+    size = static_cast<size_t>(file_size);
+    return ERROR_NONE;
+}
+
+/** Loads the lookup tables from an open file, then closes it. Glyph data is read on demand. */
+error_t open_streaming(const char* path, FILE* file, size_t size, BinFont** out) {
+    BinFont* font = create_font();
+    if (font == nullptr) {
+        fclose(file);
+        return ERROR_OUT_OF_MEMORY;
+    }
+    font->file = file;
+
+    const size_t path_size = strlen(path) + 1;
+    font->path = static_cast<char*>(memory_alloc(path_size));
+    if (font->path == nullptr) {
+        binfont_close(font);
+        return ERROR_OUT_OF_MEMORY;
+    }
+    memcpy(font->path, path, path_size);
+
+    const error_t error = parse_layout(font, size);
+    fclose(font->file);
+    font->file = nullptr;
+    if (error != ERROR_NONE) {
+        binfont_close(font);
+        return error;
+    }
+    *out = font;
+    return ERROR_NONE;
 }
 
 } // namespace
@@ -529,49 +593,69 @@ error_t binfont_open_memory(const void* data, size_t size, bool take_ownership, 
 }
 
 error_t binfont_open_file(const char* path, BinFont** out) {
-    FILE* file = fopen(path, "rb");
-    if (file == nullptr) {
-        return ERROR_NOT_FOUND;
+    FILE* file;
+    size_t size;
+    const error_t open_error = open_file(path, file, size);
+    if (open_error != ERROR_NONE) {
+        return open_error;
     }
-    if (fseek(file, 0, SEEK_END) != 0) {
-        fclose(file);
-        return ERROR_NOT_SUPPORTED;
-    }
-    const long file_size = ftell(file);
-    if (file_size <= 0 || fseek(file, 0, SEEK_SET) != 0) {
-        fclose(file);
-        return ERROR_NOT_SUPPORTED;
-    }
-    const auto size = static_cast<size_t>(file_size);
 
-    if (memory_external_total() > 0) {
-        constexpr MemoryPolicy policy = { .required = MEMORY_CAPABILITY_EXTERNAL, .desired = 0, .alignment = 0 };
-        auto* data = static_cast<uint8_t*>(memory_alloc_with_policy(size, &policy));
-        if (data != nullptr) {
-            const bool success = fread(data, 1, size, file) == size;
-            fclose(file);
-            if (!success) {
-                memory_free(data);
-                return ERROR_NOT_SUPPORTED;
-            }
-            return binfont_open_memory(data, size, true, out);
+    const uint16_t memory_capability = memory_external_total() > 0 ? MEMORY_CAPABILITY_EXTERNAL : MEMORY_CAPABILITY_INTERNAL;
+    const MemoryPolicy policy = { .required = memory_capability, .desired = 0, .alignment = 0 };
+    auto* data = static_cast<uint8_t*>(memory_alloc_with_policy(size, &policy));
+    if (data == nullptr) {
+        return open_streaming(path, file, size, out);
+    }
+
+    const bool success = fread(data, 1, size, file) == size;
+    fclose(file);
+    if (!success) {
+        memory_free(data);
+        return ERROR_NOT_SUPPORTED;
+    }
+    return binfont_open_memory(data, size, true, out);
+}
+
+error_t binfont_open_file_streaming(const char* path, BinFont** out) {
+    FILE* file;
+    size_t size;
+    const error_t open_error = open_file(path, file, size);
+    if (open_error != ERROR_NONE) {
+        return open_error;
+    }
+    return open_streaming(path, file, size, out);
+}
+
+error_t binfont_begin(BinFont* font) {
+    if (font->data != nullptr) {
+        return ERROR_NONE;
+    }
+    mutex_lock(&font->mutex);
+    if (font->sessionCount == 0) {
+        font->file = fopen(font->path, "rb");
+        if (font->file == nullptr) {
+            mutex_unlock(&font->mutex);
+            return ERROR_NOT_FOUND;
         }
     }
-
-    BinFont* font = create_font();
-    if (font == nullptr) {
-        fclose(file);
-        return ERROR_OUT_OF_MEMORY;
-    }
-    font->file = file;
-
-    const error_t error = parse_layout(font, size);
-    if (error != ERROR_NONE) {
-        binfont_close(font);
-        return error;
-    }
-    *out = font;
+    font->sessionCount++;
+    mutex_unlock(&font->mutex);
     return ERROR_NONE;
+}
+
+void binfont_end(BinFont* font) {
+    if (font->data != nullptr) {
+        return;
+    }
+    mutex_lock(&font->mutex);
+    if (font->sessionCount > 0) {
+        font->sessionCount--;
+        if (font->sessionCount == 0) {
+            fclose(font->file);
+            font->file = nullptr;
+        }
+    }
+    mutex_unlock(&font->mutex);
 }
 
 void binfont_close(BinFont* font) {
@@ -581,6 +665,7 @@ void binfont_close(BinFont* font) {
     if (font->file != nullptr) {
         fclose(font->file);
     }
+    memory_free(font->path);
     memory_free(font->tables);
     mutex_destruct(&font->mutex);
     memory_free(font);

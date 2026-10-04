@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include <binfont/binfont.h>
+#include <binfont_private.h>
 #include <binfont/generator.h>
 #include <binfont/render.h>
 #include <graphics/pixel_buffer.h>
@@ -174,7 +175,7 @@ TEST_CASE("binfont decodes identical bitmaps for raw, RLE and RLE with prefilter
 TEST_CASE("binfont gives the same results when streaming from a file") {
     BinFont* memory_font = open_fixture_in_memory("icons_rlepf_4.bin");
     BinFont* file_font = nullptr;
-    REQUIRE(binfont_open_file(fixture("icons_rlepf_4.bin").c_str(), &file_font) == ERROR_NONE);
+    REQUIRE(binfont_open_file_streaming(fixture("icons_rlepf_4.bin").c_str(), &file_font) == ERROR_NONE);
 
     for (uint32_t codepoint : ICON_CODEPOINTS) {
         BinFontGlyph memory_glyph, file_glyph;
@@ -186,6 +187,59 @@ TEST_CASE("binfont gives the same results when streaming from a file") {
 
     binfont_close(memory_font);
     binfont_close(file_font);
+}
+
+TEST_CASE("binfont_open_file loads the font into memory") {
+    const std::string path = std::string(BINFONT_TEST_TEMP_DIR) + "/binfont_memory_test.bin";
+    size_t size;
+    uint8_t* data = load_file(fixture("icons_rlepf_4.bin"), size);
+    FILE* copy = fopen(path.c_str(), "wb");
+    REQUIRE(copy != nullptr);
+    REQUIRE(fwrite(data, 1, size, copy) == size);
+    fclose(copy);
+    memory_free(data);
+
+    BinFont* font = nullptr;
+    REQUIRE(binfont_open_file(path.c_str(), &font) == ERROR_NONE);
+    REQUIRE(remove(path.c_str()) == 0);
+
+    BinFontGlyph glyph;
+    CHECK(binfont_get_glyph(font, ICON_CODEPOINTS[0], &glyph));
+    CHECK(sum(decode(font, glyph)) > 0);
+
+    binfont_close(font);
+}
+
+TEST_CASE("binfont only keeps a streamed font file open during a session") {
+    // An open file stays readable after it's deleted, so deleting it shows whether it's kept open
+    const std::string path = std::string(BINFONT_TEST_TEMP_DIR) + "/binfont_session_test.bin";
+    size_t size;
+    uint8_t* data = load_file(fixture("icons_rlepf_4.bin"), size);
+    FILE* copy = fopen(path.c_str(), "wb");
+    REQUIRE(copy != nullptr);
+    REQUIRE(fwrite(data, 1, size, copy) == size);
+    fclose(copy);
+    memory_free(data);
+
+    BinFont* font = nullptr;
+    REQUIRE(binfont_open_file_streaming(path.c_str(), &font) == ERROR_NONE);
+    BinFontGlyph glyph;
+    REQUIRE(binfont_get_glyph(font, ICON_CODEPOINTS[0], &glyph));
+
+    REQUIRE(binfont_begin(font) == ERROR_NONE);
+    REQUIRE(binfont_begin(font) == ERROR_NONE);
+    REQUIRE(remove(path.c_str()) == 0);
+    binfont_end(font);
+    // Still open: one session remains
+    CHECK(binfont_get_glyph(font, ICON_CODEPOINTS[1], &glyph));
+    CHECK_FALSE(decode(font, glyph).empty());
+    binfont_end(font);
+
+    // Closed: the deleted file can't be opened again
+    CHECK_FALSE(binfont_get_glyph(font, ICON_CODEPOINTS[2], &glyph));
+    CHECK_EQ(binfont_begin(font), ERROR_NOT_FOUND);
+
+    binfont_close(font);
 }
 
 TEST_CASE("binfont_get_glyph_bitmap rejects a stride smaller than the glyph width") {

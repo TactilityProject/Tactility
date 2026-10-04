@@ -9,6 +9,8 @@ static const struct ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(binfont_open_file),
     DEFINE_MODULE_SYMBOL(binfont_open_memory),
     DEFINE_MODULE_SYMBOL(binfont_close),
+    DEFINE_MODULE_SYMBOL(binfont_begin),
+    DEFINE_MODULE_SYMBOL(binfont_end),
     DEFINE_MODULE_SYMBOL(binfont_get_metrics),
     DEFINE_MODULE_SYMBOL(binfont_get_glyph),
     DEFINE_MODULE_SYMBOL(binfont_get_kerning_x16),

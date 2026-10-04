@@ -100,6 +100,8 @@ int binfont_draw_glyph_rgb565(PixelBuffer* buffer, int x, int baseline_y, BinFon
 }
 
 int binfont_draw_text_rgb565(PixelBuffer* buffer, int x, int baseline_y, BinFont* font, const char* text, uint16_t color, PixelBufferConversion conversion) {
+    // When the file can't be kept open, every glyph lookup opens it by itself
+    const bool session = binfont_begin(font) == ERROR_NONE;
     int32_t pen_x16 = 0;
     uint32_t previous_glyph_id = 0;
     while (*text != '\0') {
@@ -114,6 +116,9 @@ int binfont_draw_text_rgb565(PixelBuffer* buffer, int x, int baseline_y, BinFont
         draw_glyph(buffer, x + ((pen_x16 + 8) >> 4), baseline_y, font, glyph, color, conversion);
         pen_x16 += static_cast<int32_t>(glyph.advance_x16);
         previous_glyph_id = glyph.glyph_id;
+    }
+    if (session) {
+        binfont_end(font);
     }
     return (pen_x16 + 8) >> 4;
 }
