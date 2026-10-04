@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include <lvgl/fonts.h>
 #include <lvgl/icons/shared.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -161,7 +162,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* toolbar = lvgl_toolbar_create(parent, "Apps");
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
     ctx->grid.createWidgets(parent, toolbar);
-    lvgl_toolbar_add_text_button_action(toolbar, "?", onHelpPressed, ctx);
+    auto* help_button = lvgl_toolbar_add_text_button_action(toolbar, LVGL_ICON_SHARED_HELP, onHelpPressed, ctx);
+    lv_obj_set_style_text_font(help_button, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
 }
 
 int32_t appMain(int argc, char* argv[]) {

@@ -31,8 +31,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_binfont_create),
     DEFINE_MODULE_SYMBOL(lvgl_binfont_destroy),
     // lvgl_fonts
-    DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_font),
-    DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_font_height),
+    DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_default_font),
+    DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_default_font_height),
     DEFINE_MODULE_SYMBOL(lvgl_get_text_font),
     DEFINE_MODULE_SYMBOL(lvgl_get_text_font_height),
     DEFINE_MODULE_SYMBOL(lvgl_get_launcher_icon_font),

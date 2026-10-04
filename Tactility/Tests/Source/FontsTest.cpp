@@ -67,8 +67,8 @@ TEST_CASE("updateFontCache and loadFonts use a custom regular font and size") {
     CHECK_EQ(lvgl_get_text_font_height(FONT_SIZE_DEFAULT), 16);
     CHECK_EQ(lvgl_get_text_font_height(FONT_SIZE_LARGE), 20);
     CHECK(lvgl_get_text_font(FONT_SIZE_DEFAULT) != LV_FONT_DEFAULT);
-    CHECK_EQ(lvgl_get_shared_icon_font_height(), 18);
-    CHECK(lvgl_get_shared_icon_font() != LV_FONT_DEFAULT);
+    CHECK_EQ(lvgl_get_shared_icon_default_font_height(), 18);
+    CHECK(lvgl_get_shared_icon_default_font() != LV_FONT_DEFAULT);
 
     // All characters of a custom TTF are rasterized, not just the ones of the system font
     lv_font_glyph_dsc_t glyph;

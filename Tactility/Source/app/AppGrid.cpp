@@ -27,7 +27,7 @@ struct PageLayout {
 };
 
 PageLayout computePageLayout(lv_obj_t* grid) {
-    const auto icon_size = static_cast<int32_t>(lvgl_get_shared_icon_font_2x_height());
+    const auto icon_size = static_cast<int32_t>(lvgl_get_shared_icon_large_font_height());
     const auto pad = icon_size / 16;
     const auto gap = TILE_GAP;
     const auto text_height = lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL));
@@ -186,7 +186,7 @@ void AppGrid::populate() {
         lv_obj_set_user_data(tile, const_cast<AppGridItem*>(&item));
 
         lv_obj_t* icon = lv_label_create(tile);
-        lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_font_2x(), LV_STATE_DEFAULT);
+        lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_large_font(), LV_STATE_DEFAULT);
         lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
         lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
         if (!monochrome) {

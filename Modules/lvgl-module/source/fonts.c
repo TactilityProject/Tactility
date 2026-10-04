@@ -8,7 +8,7 @@ struct RegisteredFont {
 };
 
 static struct RegisteredFont text_fonts[FONT_SIZE_LARGE + 1];
-static struct RegisteredFont icon_fonts[LVGL_ICON_FONT_SHARED_2X + 1];
+static struct RegisteredFont icon_fonts[LVGL_ICON_FONT_SHARED_LARGE + 1];
 
 void lvgl_set_text_font(enum LvglFontSize font_size, const lv_font_t* font, uint32_t height) {
     text_fonts[font_size] = (struct RegisteredFont) { .font = font, .height = height };
@@ -30,13 +30,13 @@ const lv_font_t* lvgl_get_text_font(enum LvglFontSize font_size) { return get_fo
 
 uint32_t lvgl_get_text_font_height(enum LvglFontSize font_size) { return get_height(&text_fonts[font_size]); }
 
-const lv_font_t* lvgl_get_shared_icon_font() { return get_font(&icon_fonts[LVGL_ICON_FONT_SHARED]); }
+const lv_font_t* lvgl_get_shared_icon_default_font() { return get_font(&icon_fonts[LVGL_ICON_FONT_SHARED_DEFAULT]); }
 
-uint32_t lvgl_get_shared_icon_font_height() { return get_height(&icon_fonts[LVGL_ICON_FONT_SHARED]); }
+uint32_t lvgl_get_shared_icon_default_font_height() { return get_height(&icon_fonts[LVGL_ICON_FONT_SHARED_DEFAULT]); }
 
-const lv_font_t* lvgl_get_shared_icon_font_2x() { return get_font(&icon_fonts[LVGL_ICON_FONT_SHARED_2X]); }
+const lv_font_t* lvgl_get_shared_icon_large_font() { return get_font(&icon_fonts[LVGL_ICON_FONT_SHARED_LARGE]); }
 
-uint32_t lvgl_get_shared_icon_font_2x_height() { return get_height(&icon_fonts[LVGL_ICON_FONT_SHARED_2X]); }
+uint32_t lvgl_get_shared_icon_large_font_height() { return get_height(&icon_fonts[LVGL_ICON_FONT_SHARED_LARGE]); }
 
 const lv_font_t* lvgl_get_launcher_icon_font() { return get_font(&icon_fonts[LVGL_ICON_FONT_LAUNCHER]); }
 

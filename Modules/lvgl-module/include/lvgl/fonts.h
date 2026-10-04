@@ -17,8 +17,9 @@ enum LvglFontSize {
 enum LvglIconFont {
     LVGL_ICON_FONT_STATUSBAR,
     LVGL_ICON_FONT_LAUNCHER,
-    LVGL_ICON_FONT_SHARED,
-    LVGL_ICON_FONT_SHARED_2X,
+    LVGL_ICON_FONT_SHARED [[deprecated("use LVGL_ICON_FONT_SHARED_DEFAULT")]],
+    LVGL_ICON_FONT_SHARED_DEFAULT,
+    LVGL_ICON_FONT_SHARED_LARGE,
 };
 
 /**
@@ -39,11 +40,11 @@ void lvgl_set_text_font(enum LvglFontSize font_size, const lv_font_t* font, uint
  */
 void lvgl_set_icon_font(enum LvglIconFont icon_font, const lv_font_t* font, uint32_t height);
 
-const lv_font_t* lvgl_get_shared_icon_font(void);
-uint32_t lvgl_get_shared_icon_font_height(void);
+const lv_font_t* lvgl_get_shared_icon_default_font(void);
+uint32_t lvgl_get_shared_icon_default_font_height(void);
 
-const lv_font_t* lvgl_get_shared_icon_font_2x(void);
-uint32_t lvgl_get_shared_icon_font_2x_height(void);
+const lv_font_t* lvgl_get_shared_icon_large_font(void);
+uint32_t lvgl_get_shared_icon_large_font_height(void);
 
 const lv_font_t* lvgl_get_text_font(enum LvglFontSize font_size);
 uint32_t lvgl_get_text_font_height(enum LvglFontSize font_size);

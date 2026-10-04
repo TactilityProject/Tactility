@@ -20,9 +20,10 @@ uint16_t getTextFontSize(uint16_t defaultSize, LvglFontSize fontSize) {
 uint16_t getIconFontSize(uint16_t defaultSize, LvglIconFont iconFont) {
     switch (iconFont) {
         case LVGL_ICON_FONT_LAUNCHER: return scale(defaultSize, 2.6f);
-        case LVGL_ICON_FONT_SHARED_2X: return getIconFontSize(defaultSize, LVGL_ICON_FONT_SHARED) * 2;
+        case LVGL_ICON_FONT_SHARED: return scale(defaultSize, 1.25);
+        case LVGL_ICON_FONT_SHARED_DEFAULT: return scale(defaultSize, 1.25);
+        case LVGL_ICON_FONT_SHARED_LARGE: return getIconFontSize(defaultSize, LVGL_ICON_FONT_SHARED) * 2;
         case LVGL_ICON_FONT_STATUSBAR:
-        case LVGL_ICON_FONT_SHARED:
         default: return scale(defaultSize, 1.15f);
     }
 }

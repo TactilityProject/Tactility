@@ -70,8 +70,8 @@ constexpr TextFontDefinition TEXT_FONTS[] = {
 static const IconFontDefinition ICON_FONTS[] = {
     { LVGL_ICON_FONT_STATUSBAR, "statusbar", lvgl_icon_statusbar_names, lvgl_icon_statusbar_name_count },
     { LVGL_ICON_FONT_LAUNCHER, "launcher", lvgl_icon_launcher_names, lvgl_icon_launcher_name_count },
-    { LVGL_ICON_FONT_SHARED, "shared", lvgl_icon_shared_names, lvgl_icon_shared_name_count },
-    { LVGL_ICON_FONT_SHARED_2X, "shared2x", lvgl_icon_shared_names, lvgl_icon_shared_name_count },
+    { LVGL_ICON_FONT_SHARED_DEFAULT, "shared_default", lvgl_icon_shared_names, lvgl_icon_shared_name_count },
+    { LVGL_ICON_FONT_SHARED_LARGE, "shared_large", lvgl_icon_shared_names, lvgl_icon_shared_name_count },
 };
 
 struct LoadedFont {
@@ -95,7 +95,7 @@ static bool isTextFontGenerated(LvglFontSize fontSize) {
 
 /** The shared icon font replaces the 2x one when it isn't generated */
 static bool isIconFontGenerated(LvglIconFont iconFont) {
-    return iconFont != LVGL_ICON_FONT_SHARED_2X || !hasLimitedMemory();
+    return iconFont != LVGL_ICON_FONT_SHARED_LARGE || !hasLimitedMemory();
 }
 
 static std::vector<LoadedFont> loadedFonts;
@@ -313,8 +313,8 @@ void loadFonts(const FontConfiguration& configuration) {
         }
     }
 
-    if (!isIconFontGenerated(LVGL_ICON_FONT_SHARED_2X)) {
-        lvgl_set_icon_font(LVGL_ICON_FONT_SHARED_2X, lvgl_get_shared_icon_font(), lvgl_get_shared_icon_font_height());
+    if (!isIconFontGenerated(LVGL_ICON_FONT_SHARED_LARGE)) {
+        lvgl_set_icon_font(LVGL_ICON_FONT_SHARED_LARGE, lvgl_get_shared_icon_default_font(), lvgl_get_shared_icon_default_font_height());
     }
 
     deleteStaleCachedFonts(TEXT_CACHE_PREFIX, text_file_names);

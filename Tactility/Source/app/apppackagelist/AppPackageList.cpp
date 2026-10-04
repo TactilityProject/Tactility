@@ -52,7 +52,7 @@ void createPackageWidget(const PackageManifest* package, lv_obj_t* list) {
     const char* label = (app_manager_find_manifest(package->id, &appManifest) == ERROR_NONE) ? appManifest.name : package->id;
     lv_obj_t* btn = lv_list_add_button(list, LVGL_ICON_SHARED_DEPLOYED_CODE, label);
     lv_obj_t* image = lv_obj_get_child(btn, 0);
-    lv_obj_set_style_text_font(image, lvgl_get_shared_icon_font(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(image, lvgl_get_shared_icon_default_font(), LV_PART_MAIN);
     lv_obj_add_event_cb(btn, &onPackagePressed, LV_EVENT_SHORT_CLICKED, const_cast<PackageManifest*>(package));
 }
 
