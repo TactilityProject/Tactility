@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <font/render.h>
-
 #include <graphics/module.h>
 #include <graphics/pixel_buffer.h>
 
 static const struct ModuleSymbol SYMBOLS[] = {
-    // font
-    DEFINE_MODULE_SYMBOL(font_render_char_pixel_buffer_rgb565),
     // pixel_buffer
     DEFINE_MODULE_SYMBOL(pixel_buffer_create),
     DEFINE_MODULE_SYMBOL(pixel_buffer_create_with_policy),

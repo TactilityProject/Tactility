@@ -17,7 +17,10 @@ typedef struct BinFontGeneratorConfig {
     uint16_t size;
     /** Bits per pixel: 1, 2, 3 or 4 */
     uint8_t bpp;
-    /** Codepoints to include. Codepoints that the TTF doesn't contain are skipped. */
+    /**
+     * Codepoints to include. Codepoints that the TTF doesn't contain are skipped.
+     * NULL (with codepoint_count 0) includes every codepoint in the TTF's character map.
+     */
     const uint32_t* codepoints;
     size_t codepoint_count;
 } BinFontGeneratorConfig;
@@ -30,7 +33,7 @@ typedef struct BinFontGeneratorConfig {
  * @retval ERROR_NONE on success
  * @retval ERROR_INVALID_ARGUMENT when the configuration is invalid
  * @retval ERROR_NOT_FOUND when the TTF file can't be read
- * @retval ERROR_NOT_SUPPORTED when the TTF file can't be parsed or contains none of the codepoints
+ * @retval ERROR_NOT_SUPPORTED when the TTF file or its character map can't be parsed, or it contains none of the codepoints
  * @retval ERROR_OUT_OF_MEMORY when memory allocation failed
  */
 error_t binfont_generate(const BinFontGeneratorConfig* config, uint8_t** out_data, size_t* out_size);

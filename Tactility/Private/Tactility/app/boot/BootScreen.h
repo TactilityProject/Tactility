@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+struct BinFont;
 struct Device;
 struct PixelBuffer;
 
@@ -23,6 +24,8 @@ class BootScreen {
     /** Second hardware frame buffer, kept in sync with target */
     PixelBuffer* secondFrameBuffer = nullptr;
     int bandHeight = 0;
+    /** Monospace font, loaded on the first show() with text */
+    BinFont* textFont = nullptr;
 
     int logicalWidth() const { return (rotation % 2 == 0) ? panelWidth : panelHeight; }
     int logicalHeight() const { return (rotation % 2 == 0) ? panelHeight : panelWidth; }
@@ -34,7 +37,7 @@ public:
     /** @return false when there is no usable display */
     bool begin();
 
-    /** Releases the display, so LVGL can take over. */
+    /** Releases the display and the font, so LVGL can take over. */
     void end();
 
     /** @return the smallest logical display dimension, or 0 when there is no display */

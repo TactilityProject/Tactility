@@ -5,6 +5,7 @@
 
 #include <tactility/drivers/display.h>
 
+struct BinFont;
 struct Device;
 struct PixelBuffer;
 
@@ -26,6 +27,12 @@ struct PixelBuffer;
 class TerminalRenderer {
 public:
     virtual ~TerminalRenderer() = default;
+
+    /**
+     * Sets the monospace font to draw with. The cell size is the advance width of 'M' by the font's
+     * line height. Must be called before begin(), and the font must outlive end().
+     */
+    void setFont(BinFont* font) { this->font = font; }
 
     /** Allocates buffers. Glyphs are drawn at native size, never scaled. */
     virtual bool begin(Device* display) = 0;
@@ -162,8 +169,14 @@ protected:
     int cols = 0;
     int rowCount = 0;
 
-    // Cell size on screen. Glyphs are drawn at native size, so this equals TT_TERMINAL_FONT_SYMBOL's
-    // glyph_width/glyph_height (see TerminalRenderer.cpp).
+    BinFont* font = nullptr;
+    /** Alpha (0-255) of each printable ASCII glyph, cellWidth x cellHeight per glyph */
+    uint8_t* glyphMasks = nullptr;
+
+    /** Rasterizes the printable ASCII glyphs into glyphMasks */
+    bool createGlyphMasks();
+
+    // Cell size on screen. Glyphs are drawn at native size, so this is derived from the font metrics.
     int cellWidth = 0;
     int cellHeight = 0;
 

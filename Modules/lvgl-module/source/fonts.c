@@ -1,54 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <lvgl.h>
 #include <lvgl/fonts.h>
-#include <tactility/check.h>
 
-// The preprocessor definitions that are used below are defined in the CMakeLists.txt from this module.
+struct RegisteredFont {
+    const lv_font_t* font;
+    uint32_t height;
+};
 
-extern const lv_font_t TT_LVGL_TEXT_FONT_SMALL_SYMBOL;
-extern const lv_font_t TT_LVGL_TEXT_FONT_DEFAULT_SYMBOL;
-extern const lv_font_t TT_LVGL_TEXT_FONT_LARGE_SYMBOL;
+static struct RegisteredFont text_fonts[FONT_SIZE_LARGE + 1];
+static struct RegisteredFont icon_fonts[LVGL_ICON_FONT_SHARED_2X + 1];
 
-static const lv_font_t* icon_fonts[LVGL_ICON_FONT_SHARED_2X + 1];
-
-void lvgl_set_icon_font(enum LvglIconFont icon_font, const lv_font_t* font) {
-    icon_fonts[icon_font] = font;
+void lvgl_set_text_font(enum LvglFontSize font_size, const lv_font_t* font, uint32_t height) {
+    text_fonts[font_size] = (struct RegisteredFont) { .font = font, .height = height };
 }
 
-static const lv_font_t* get_icon_font(enum LvglIconFont icon_font) {
-    const lv_font_t* font = icon_fonts[icon_font];
-    return font != NULL ? font : &TT_LVGL_TEXT_FONT_DEFAULT_SYMBOL;
+void lvgl_set_icon_font(enum LvglIconFont icon_font, const lv_font_t* font, uint32_t height) {
+    icon_fonts[icon_font] = (struct RegisteredFont) { .font = font, .height = height };
 }
 
-uint32_t lvgl_get_text_font_height(enum LvglFontSize font_size) {
-    switch (font_size) {
-        case FONT_SIZE_SMALL: return TT_LVGL_TEXT_FONT_SMALL_SIZE;
-        case FONT_SIZE_DEFAULT: return TT_LVGL_TEXT_FONT_DEFAULT_SIZE;
-        case FONT_SIZE_LARGE: return TT_LVGL_TEXT_FONT_LARGE_SIZE;
-        default: check(false);
-    }
-}
-const lv_font_t* lvgl_get_text_font(enum LvglFontSize font_size) {
-    switch (font_size) {
-        case FONT_SIZE_SMALL: return &TT_LVGL_TEXT_FONT_SMALL_SYMBOL;
-        case FONT_SIZE_DEFAULT: return &TT_LVGL_TEXT_FONT_DEFAULT_SYMBOL;
-        case FONT_SIZE_LARGE: return &TT_LVGL_TEXT_FONT_LARGE_SYMBOL;
-        default: check(false);
-    }
+static const lv_font_t* get_font(const struct RegisteredFont* registered) {
+    return registered->font != NULL ? registered->font : LV_FONT_DEFAULT;
 }
 
-uint32_t lvgl_get_shared_icon_font_height() { return TT_LVGL_SHARED_FONT_ICON_SIZE; }
+static uint32_t get_height(const struct RegisteredFont* registered) {
+    return registered->font != NULL ? registered->height : (uint32_t)lv_font_get_line_height(LV_FONT_DEFAULT);
+}
 
-const lv_font_t* lvgl_get_shared_icon_font() { return get_icon_font(LVGL_ICON_FONT_SHARED); }
+const lv_font_t* lvgl_get_text_font(enum LvglFontSize font_size) { return get_font(&text_fonts[font_size]); }
 
-uint32_t lvgl_get_shared_icon_font_2x_height() { return TT_LVGL_SHARED_FONT_ICON_SIZE * 2; }
+uint32_t lvgl_get_text_font_height(enum LvglFontSize font_size) { return get_height(&text_fonts[font_size]); }
 
-const lv_font_t* lvgl_get_shared_icon_font_2x() { return get_icon_font(LVGL_ICON_FONT_SHARED_2X); }
+const lv_font_t* lvgl_get_shared_icon_font() { return get_font(&icon_fonts[LVGL_ICON_FONT_SHARED]); }
 
-uint32_t lvgl_get_launcher_icon_font_height() { return TT_LVGL_LAUNCHER_FONT_ICON_SIZE; }
+uint32_t lvgl_get_shared_icon_font_height() { return get_height(&icon_fonts[LVGL_ICON_FONT_SHARED]); }
 
-const lv_font_t* lvgl_get_launcher_icon_font() { return get_icon_font(LVGL_ICON_FONT_LAUNCHER); }
+const lv_font_t* lvgl_get_shared_icon_font_2x() { return get_font(&icon_fonts[LVGL_ICON_FONT_SHARED_2X]); }
 
-uint32_t lvgl_get_statusbar_icon_font_height() { return TT_LVGL_STATUSBAR_FONT_ICON_SIZE; }
+uint32_t lvgl_get_shared_icon_font_2x_height() { return get_height(&icon_fonts[LVGL_ICON_FONT_SHARED_2X]); }
 
-const lv_font_t* lvgl_get_statusbar_icon_font() { return get_icon_font(LVGL_ICON_FONT_STATUSBAR); }
+const lv_font_t* lvgl_get_launcher_icon_font() { return get_font(&icon_fonts[LVGL_ICON_FONT_LAUNCHER]); }
+
+uint32_t lvgl_get_launcher_icon_font_height() { return get_height(&icon_fonts[LVGL_ICON_FONT_LAUNCHER]); }
+
+const lv_font_t* lvgl_get_statusbar_icon_font() { return get_font(&icon_fonts[LVGL_ICON_FONT_STATUSBAR]); }
+
+uint32_t lvgl_get_statusbar_icon_font_height() { return get_height(&icon_fonts[LVGL_ICON_FONT_STATUSBAR]); }

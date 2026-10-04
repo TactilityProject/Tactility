@@ -150,7 +150,7 @@ extern const ::AppManifest manifest = {
     .category = APP_CATEGORY_SETTINGS,
     .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(appMain) },
     .flags = 0,
-    .stack = { .depth = 2400, .desired_memory_capability = 0 },
+    .stack = { .depth = 3072, .desired_memory_capability = 0 },
 };
 
 } // namespace

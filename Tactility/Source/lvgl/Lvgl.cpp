@@ -22,6 +22,7 @@
 #include <app/manager.h>
 
 #include <lvgl/devices/keyboard.h>
+#include <lvgl/fonts.h>
 #include <lvgl/devices/pointer.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/module.h>
@@ -134,6 +135,10 @@ static void onLvglStarted() {
         auto displaySettings = settings::display::loadOrGetDefault();
         lv_display_set_rotation(display, settings::display::toLvglDisplayRotation(displaySettings.orientation));
     }
+    // The theme uses LVGL's built-in default font, the generated text font replaces it for every widget that inherits it
+    const lv_font_t* text_font = lvgl_get_text_font(FONT_SIZE_DEFAULT);
+    lv_obj_set_style_text_font(lv_screen_active(), text_font, LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(lv_layer_top(), text_font, LV_STATE_DEFAULT);
     lvgl_unlock();
 
     window_manager_configure(windowManagerScreenInit);

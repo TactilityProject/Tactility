@@ -4,6 +4,9 @@
 #include <Tactility/app/terminal/Terminal.h>
 #include <Tactility/app/terminal/TerminalRenderer.h>
 #include <Tactility/app/terminal/TouchInput.h>
+#include <Tactility/lvgl/FontCache.h>
+
+#include <binfont/binfont.h>
 
 #include <tactility/device.h>
 #include <tactility/drivers/keyboard.h>
@@ -15,6 +18,7 @@
 #include <tactility/freertos/task.h>
 
 #include <atomic>
+#include <memory>
 
 #ifdef ESP_PLATFORM
 #include <esp_log.h>
@@ -191,6 +195,13 @@ void runTerminal(Device* display, TerminalRenderer& renderer, bool touchToExit) 
 
     KeyboardInput keyboards;
     TouchInput touch;
+
+    std::unique_ptr<BinFont, decltype(&binfont_close)> font(tt::lvgl::loadMonoFont(TT_FONT_DEFAULT_SIZE), binfont_close);
+    if (font == nullptr) {
+        LOG_E(TAG, "Failed to load font");
+        return;
+    }
+    renderer.setFont(font.get());
 
     if (vterm_init() != ERROR_NONE) {
         LOG_E(TAG, "vterm_init failed");

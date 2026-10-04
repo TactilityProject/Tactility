@@ -28,48 +28,12 @@ menu "Tactility App"
             The applications that gives access to other application.
             This is the first thing that starts after the boot screen.
             The user can override it with a boot.properties file
-    config TT_TERMINAL_FONT_SIZE
-        int "Terminal font size"
-        default 14
-        range 12 28
-        help
-            Terminal font size in pixels
-    config TT_LVGL_FONT_SIZE_SMALL
-        int "Small font size"
-        default 10
-        range 8 200
-        help
-            Small font size in pixels
-    config TT_LVGL_FONT_SIZE_DEFAULT
+    config TT_FONT_DEFAULT_SIZE
         int "Default font size"
         default 14
         range 8 200
         help
-            Default font size in pixels
-    config TT_LVGL_FONT_SIZE_LARGE
-        int "Large font size"
-        default 18
-        range 8 200
-        help
-            Large font size in pixels
-    config TT_LVGL_STATUSBAR_ICON_SIZE
-        int "Statusbar icon size"
-        default 20
-        range 0 200
-        help
-            Statusbar icon size in pixels
-    config TT_LVGL_LAUNCHER_ICON_SIZE
-        int "Launcher icon size"
-        default 20
-        range 0 200
-        help
-            Launcher icon size in pixels
-    config TT_LVGL_SHARED_ICON_SIZE
-        int "Shared icon size"
-        default 16
-        range 0 200
-        help
-            Shared icon size in pixels
+            Default text font size in pixels. Other text and icon font sizes are derived from it.
     config TT_LVGL_STATUSBAR_COLORS_INVERTED
         bool "Statusbar colors inverted"
         default n

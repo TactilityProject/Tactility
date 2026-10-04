@@ -2,7 +2,9 @@
 
 #include <Tactility/settings/DisplaySettings.h>
 
-#include <font/fonts.h>
+#include <Tactility/lvgl/FontCache.h>
+
+#include <binfont/binfont.h>
 #include <graphics/pixel_buffer.h>
 #include <lodepng/lodepng.h>
 
@@ -20,7 +22,6 @@ namespace tt::app::boot {
 
 constexpr auto* TAG = "BootScreen";
 constexpr int BAND_HEIGHT = 16;
-constexpr uint16_t TEXT_COLOR = 0xFFFF;
 
 namespace {
 
@@ -118,6 +119,10 @@ bool BootScreen::begin() {
 }
 
 void BootScreen::end() {
+    if (textFont != nullptr) {
+        binfont_close(textFont);
+        textFont = nullptr;
+    }
     pixel_buffer_free(target);
     pixel_buffer_free(secondFrameBuffer);
     target = nullptr;
@@ -150,20 +155,36 @@ void BootScreen::show(const std::string& logoPath, const std::vector<std::string
     }
 
     // Layout in logical (rotated) coordinates: logo with text below it, centered as a whole
-    const auto& font = TT_TERMINAL_FONT_SYMBOL;
+    if (!lines.empty() && textFont == nullptr) {
+        textFont = lvgl::loadMonoFont(TT_FONT_DEFAULT_SIZE);
+        if (textFont == nullptr) {
+            LOG_E(TAG, "Failed to load font, text is not shown");
+        }
+    }
+    BinFontMetrics metrics = {};
+    BinFontGlyph reference = {};
+    const bool has_font = textFont != nullptr && binfont_get_glyph(textFont, 'M', &reference);
+    if (has_font) {
+        binfont_get_metrics(textFont, &metrics);
+    }
+    const int character_width = has_font ? std::max(1, static_cast<int>((reference.advance_x16 + 8) >> 4)) : 1;
+    const int line_height = has_font ? metrics.line_height : 0;
     const int logical_width = logicalWidth();
     const int logical_height = logicalHeight();
-    const size_t max_characters = std::max(1, logical_width / font.glyph_width - 2);
     std::vector<std::string> wrapped_lines;
-    for (const auto& line : lines) {
-        wrapLine(line, max_characters, wrapped_lines);
+    if (has_font) {
+        const size_t max_characters = std::max(1, logical_width / character_width - 2);
+        for (const auto& line : lines) {
+            wrapLine(line, max_characters, wrapped_lines);
+        }
     }
-    const int text_height = static_cast<int>(wrapped_lines.size()) * font.glyph_height;
-    const int gap = (logo.height > 0 && !wrapped_lines.empty()) ? font.glyph_height : 0;
+    const int text_height = static_cast<int>(wrapped_lines.size()) * line_height;
+    const int gap = (logo.height > 0 && !wrapped_lines.empty()) ? line_height : 0;
     const int content_top = (logical_height - static_cast<int>(logo.height) - gap - text_height) / 2;
     const int logo_left = (logical_width - static_cast<int>(logo.width)) / 2;
     const int text_top = content_top + static_cast<int>(logo.height) + gap;
 
+    std::vector<uint8_t> glyph_bitmap;
     for (int band_top = 0; band_top < panelHeight; band_top += bandHeight) {
         const int band_rows = std::min(bandHeight, panelHeight - band_top);
         pixel_buffer_clear(target);
@@ -197,20 +218,25 @@ void BootScreen::show(const std::string& logoPath, const std::vector<std::string
 
         for (size_t line_index = 0; line_index < wrapped_lines.size(); line_index++) {
             const auto& line = wrapped_lines[line_index];
-            const int line_left = (logical_width - static_cast<int>(line.size()) * font.glyph_width) / 2;
-            const int line_top = text_top + static_cast<int>(line_index) * font.glyph_height;
+            const int line_left = (logical_width - static_cast<int>(line.size()) * character_width) / 2;
+            const int baseline = text_top + static_cast<int>(line_index) * line_height + metrics.ascent;
             for (size_t character_index = 0; character_index < line.size(); character_index++) {
-                const auto character = static_cast<unsigned char>(line[character_index]);
-                if (character < font.first_codepoint || character > font.last_codepoint) {
+                BinFontGlyph glyph;
+                if (!binfont_get_glyph(textFont, static_cast<unsigned char>(line[character_index]), &glyph) || glyph.width == 0 || glyph.height == 0) {
                     continue;
                 }
-                const uint8_t* glyph = &font.glyph_bitmap[(character - font.first_codepoint) * font.glyph_height * font.glyph_bytes_per_row];
-                const int glyph_left = line_left + static_cast<int>(character_index) * font.glyph_width;
-                for (int row = 0; row < font.glyph_height; row++) {
-                    const uint8_t* bits = &glyph[row * font.glyph_bytes_per_row];
-                    for (int column = 0; column < font.glyph_width; column++) {
-                        if (bits[column / 8] & (0x80U >> (column % 8))) {
-                            plot(glyph_left + column, line_top + row, TEXT_COLOR, PIXEL_BUFFER_CONVERSION_EXACT_BLACK);
+                glyph_bitmap.resize(static_cast<size_t>(glyph.width) * glyph.height);
+                if (binfont_get_glyph_bitmap(textFont, &glyph, glyph_bitmap.data(), glyph.width) != ERROR_NONE) {
+                    continue;
+                }
+                const int glyph_left = line_left + static_cast<int>(character_index) * character_width + glyph.x;
+                const int glyph_top = baseline - glyph.y - glyph.height;
+                for (int row = 0; row < glyph.height; row++) {
+                    for (int column = 0; column < glyph.width; column++) {
+                        const uint8_t alpha = glyph_bitmap[row * glyph.width + column];
+                        if (alpha != 0) {
+                            // White blended onto the black background
+                            plot(glyph_left + column, glyph_top + row, toRgb565(alpha, alpha, alpha), PIXEL_BUFFER_CONVERSION_LUMA_THRESHOLD);
                         }
                     }
                 }

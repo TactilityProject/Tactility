@@ -2,16 +2,8 @@
 
 #include <Tactility/app/terminal/Scrollback.h>
 
-#include <font/fonts.h>
-#include <font/render.h>
-
+#include <binfont/binfont.h>
 #include <graphics/pixel_buffer.h>
-
-// The font struct to use, e.g. ibmplexmono_14_font (see font/fonts.h) - set per device/build via
-// a compile definition; that font's Kconfig entry (Modules/graphics-module/Kconfig) must be enabled.
-#ifndef TT_TERMINAL_FONT_SYMBOL
-#error TT_TERMINAL_FONT_SYMBOL is not set
-#endif
 
 #include <tactility/drivers/display.h>
 #include <tactility/log.h>
@@ -19,6 +11,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <vector>
 
 extern "C" {
 #include <Tactility/app/terminal/vterm/vterm.h>
@@ -38,6 +31,17 @@ inline uint16_t paletteColour(uint8_t index) {
     return vterm_get_palette()[index & 0x0F];
 }
 
+constexpr char FIRST_GLYPH = 0x20;
+constexpr char LAST_GLYPH = 0x7E;
+
+uint16_t blendRgb565(uint16_t foreground, uint16_t background, uint8_t alpha) {
+    const uint32_t inverse = 255U - alpha;
+    const uint32_t r = (((foreground >> 11) & 0x1FU) * alpha + ((background >> 11) & 0x1FU) * inverse + 127U) / 255U;
+    const uint32_t g = (((foreground >> 5) & 0x3FU) * alpha + ((background >> 5) & 0x3FU) * inverse + 127U) / 255U;
+    const uint32_t b = ((foreground & 0x1FU) * alpha + (background & 0x1FU) * inverse + 127U) / 255U;
+    return static_cast<uint16_t>((r << 11) | (g << 5) | b);
+}
+
 } // namespace
 
 bool TerminalRenderer::allocateCommon(Device* displayDevice) {
@@ -48,8 +52,23 @@ bool TerminalRenderer::allocateCommon(Device* displayDevice, enum DisplayColorFo
     display = displayDevice;
     monochrome = display_get_color_format(display) == DISPLAY_COLOR_FORMAT_MONOCHROME;
 
-    cellWidth = TT_TERMINAL_FONT_SYMBOL.glyph_width;
-    cellHeight = TT_TERMINAL_FONT_SYMBOL.glyph_height;
+    if (font == nullptr) {
+        LOG_E(TAG, "No font set");
+        return false;
+    }
+    BinFontMetrics metrics;
+    binfont_get_metrics(font, &metrics);
+    BinFontGlyph reference;
+    if (!binfont_get_glyph(font, 'M', &reference)) {
+        LOG_E(TAG, "Font has no 'M' glyph");
+        return false;
+    }
+    cellWidth = static_cast<int>((reference.advance_x16 + 8) >> 4);
+    cellHeight = metrics.line_height;
+    if (cellWidth <= 0 || cellHeight <= 0) {
+        LOG_E(TAG, "Invalid cell size %dx%d", cellWidth, cellHeight);
+        return false;
+    }
 
     cols = frameWidth / cellWidth;
     rowCount = frameHeight / cellHeight;
@@ -83,6 +102,55 @@ bool TerminalRenderer::allocateCommon(Device* displayDevice, enum DisplayColorFo
         return false;
     }
 
+    if (!createGlyphMasks()) {
+        LOG_E(TAG, "Failed to rasterize glyphs");
+        free(shadow);
+        shadow = nullptr;
+        pixel_buffer_free(frameBuffer);
+        frameBuffer = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
+bool TerminalRenderer::createGlyphMasks() {
+    BinFontMetrics metrics;
+    binfont_get_metrics(font, &metrics);
+    const size_t mask_size = static_cast<size_t>(cellWidth) * cellHeight;
+    glyphMasks = static_cast<uint8_t*>(calloc(static_cast<size_t>(LAST_GLYPH - FIRST_GLYPH + 1), mask_size));
+    if (glyphMasks == nullptr) {
+        return false;
+    }
+
+    // Glyphs are cropped to their cell
+    std::vector<uint8_t> bitmap;
+    for (char character = FIRST_GLYPH; character <= LAST_GLYPH; character++) {
+        BinFontGlyph glyph;
+        if (!binfont_get_glyph(font, static_cast<uint32_t>(character), &glyph) || glyph.width == 0 || glyph.height == 0) {
+            continue;
+        }
+        bitmap.resize(static_cast<size_t>(glyph.width) * glyph.height);
+        if (binfont_get_glyph_bitmap(font, &glyph, bitmap.data(), glyph.width) != ERROR_NONE) {
+            free(glyphMasks);
+            glyphMasks = nullptr;
+            return false;
+        }
+        uint8_t* mask = glyphMasks + (character - FIRST_GLYPH) * mask_size;
+        const int top = metrics.ascent - (glyph.y + glyph.height);
+        for (int row = 0; row < glyph.height; row++) {
+            const int cell_row = top + row;
+            if (cell_row < 0 || cell_row >= cellHeight) {
+                continue;
+            }
+            for (int column = 0; column < glyph.width; column++) {
+                const int cell_column = glyph.x + column;
+                if (cell_column >= 0 && cell_column < cellWidth) {
+                    mask[cell_row * cellWidth + cell_column] = bitmap[row * glyph.width + column];
+                }
+            }
+        }
+    }
     return true;
 }
 
@@ -99,6 +167,8 @@ void TerminalRenderer::freeCommon() {
     fullFrameDirty = false;
     free(shadow);
     shadow = nullptr;
+    free(glyphMasks);
+    glyphMasks = nullptr;
     usingHwFrameBuffer = false;
     pixel_buffer_free(hwFrameBuffers[0]);
     pixel_buffer_free(hwFrameBuffers[1]);
@@ -212,7 +282,16 @@ void TerminalRenderer::paintCell(int row, int col, char ch, uint8_t attr) {
     const int pixelY = originY + row * cellHeight - currentRowYOffset;
     const int pixelX = originX + col * cellWidth;
 
-    font_render_char_pixel_buffer_rgb565(frameBuffer, pixelX, pixelY, &TT_TERMINAL_FONT_SYMBOL, ch, fg, bg, PIXEL_BUFFER_CONVERSION_EXACT_BLACK);
+    // Characters without a glyph render as a space
+    const char glyph = (ch >= FIRST_GLYPH && ch <= LAST_GLYPH) ? ch : ' ';
+    const uint8_t* mask = glyphMasks + (glyph - FIRST_GLYPH) * cellWidth * cellHeight;
+    for (int y = 0; y < cellHeight; y++) {
+        for (int x = 0; x < cellWidth; x++) {
+            const uint8_t alpha = mask[y * cellWidth + x];
+            const uint16_t colour = alpha == 0 ? bg : (alpha == 255 ? fg : blendRgb565(fg, bg, alpha));
+            pixel_buffer_set_pixel_rgb565(frameBuffer, pixelX + x, pixelY + y, colour, PIXEL_BUFFER_CONVERSION_EXACT_BLACK);
+        }
+    }
 }
 
 void TerminalRenderer::paintCursor(int row, int col) {

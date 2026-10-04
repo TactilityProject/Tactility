@@ -22,10 +22,22 @@ enum LvglIconFont {
 };
 
 /**
- * @brief Sets the font that is returned by the getter of an icon font.
- * Until an icon font is set, its getter returns the default text font.
+ * @brief Sets the font that is returned by the getter of a text font.
+ * Until a text font is set, its getter returns LVGL's default font.
+ * @param[in] font_size the text font to set
+ * @param[in] font the font
+ * @param[in] height the font size in pixels, returned by lvgl_get_text_font_height()
  */
-void lvgl_set_icon_font(enum LvglIconFont icon_font, const lv_font_t* font);
+void lvgl_set_text_font(enum LvglFontSize font_size, const lv_font_t* font, uint32_t height);
+
+/**
+ * @brief Sets the font that is returned by the getter of an icon font.
+ * Until an icon font is set, its getter returns LVGL's default font.
+ * @param[in] icon_font the icon font to set
+ * @param[in] font the font
+ * @param[in] height the font size in pixels, returned by the matching height getter
+ */
+void lvgl_set_icon_font(enum LvglIconFont icon_font, const lv_font_t* font, uint32_t height);
 
 const lv_font_t* lvgl_get_shared_icon_font(void);
 uint32_t lvgl_get_shared_icon_font_height(void);

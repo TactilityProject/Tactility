@@ -16,10 +16,12 @@ The module supports two main categories of fonts:
 
 ### Text Fonts
 
-Standard text rendering uses the **Montserrat** font. Three sizes are pre-configured:
+Text uses the **Adwaita Sans** font in three sizes:
 - `FONT_SIZE_SMALL`
 - `FONT_SIZE_DEFAULT`
 - `FONT_SIZE_LARGE`
+
+Until Tactility registers these fonts with `lvgl_set_text_font()`, the getters return LVGL's built-in default font (Montserrat).
 
 ### Icon Fonts
 
@@ -30,10 +32,11 @@ Icons are provided by the **Material Symbols** font, divided into three usage-sp
 
 ## How to update the fonts
 
-Font sizes and symbols are configurable:
+All font sizes derive from one default text size: `font.defaultSize` in `device.properties` (`CONFIG_TT_FONT_DEFAULT_SIZE`, 14 on the simulator).
+Tactility calculates the other text and icon sizes from it in `Tactility/Source/lvgl/FontSizes.cpp`.
 
-- **On ESP32 (IDF)**: Sizes can be updated via `menuconfig` or by editing `sdkconfig`. Look for `CONFIG_TT_LVGL_FONT_SIZE_*` and `CONFIG_TT_LVGL_*_ICON_SIZE` parameters.
-- **On Simulator/POSIX**: Default sizes are defined in `Modules/lvgl-module/CMakeLists.txt`.
+Text fonts are rasterized on device at startup from `Data/system/fonts/AdwaitaSans.ttf` and cached as `.bin` files in the data path.
+`Tactility/Fonts/generate.py` creates that TTF subset from `Tactility/Fonts/AdwaitaSans-Regular.ttf` (requires `pip install fonttools`).
 
 Icon fonts are rasterized on device at startup from `Data/system/fonts/MaterialSymbolsRounded.ttf` (a subset with only the used icons) and cached as `.bin` files in the data path, so any icon size works.
 The icons per font are listed by name and resolved through `Data/system/fonts/MaterialSymbolsRounded.codepoints`.

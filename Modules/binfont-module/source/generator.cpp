@@ -253,15 +253,117 @@ void write_cmap(ByteBuffer& out, const GlyphInfo* glyphs, size_t count) {
     out.endRecord(record);
 }
 
-error_t generate(const BinFontGeneratorConfig* config, const stbtt_fontinfo& info, GlyphInfo* glyphs, ByteBuffer& out) {
+/** Appends codepoints to a growable array */
+class CodepointList {
+    uint32_t* data = nullptr;
+    size_t count = 0;
+    size_t capacity = 0;
+    bool failed = false;
+
+public:
+    ~CodepointList() { memory_free(data); }
+
+    void addRange(uint32_t first, uint32_t last) {
+        for (uint32_t codepoint = first; codepoint <= last && !failed; codepoint++) {
+            if (count == capacity) {
+                const size_t new_capacity = capacity ? capacity * 2 : 256;
+                auto* new_data = static_cast<uint32_t*>(memory_realloc(data, new_capacity * sizeof(uint32_t)));
+                if (new_data == nullptr) {
+                    failed = true;
+                    return;
+                }
+                data = new_data;
+                capacity = new_capacity;
+            }
+            data[count++] = codepoint;
+        }
+    }
+
+    const uint32_t* getData() const { return data; }
+    size_t getCount() const { return count; }
+    bool hasFailed() const { return failed; }
+};
+
+/**
+ * Collects the codepoints of the character map that stb_truetype selected (formats 0, 4, 6 and 12).
+ * @return false when the format is not supported or the table is out of bounds
+ */
+bool collect_codepoints(const stbtt_fontinfo& info, size_t ttfSize, CodepointList& list) {
+    stbtt_uint8* data = info.data;
+    const auto map = static_cast<size_t>(info.index_map);
+    auto in_bounds = [ttfSize](size_t offset, size_t size) { return offset <= ttfSize && size <= ttfSize - offset; };
+    if (!in_bounds(map, 2)) {
+        return false;
+    }
+
+    switch (ttUSHORT(data + map)) {
+        case 0:
+            list.addRange(0, 255);
+            break;
+        case 4: {
+            if (!in_bounds(map, 14)) {
+                return false;
+            }
+            const size_t segment_count = ttUSHORT(data + map + 6) / 2;
+            const size_t end_codes = map + 14;
+            const size_t start_codes = end_codes + segment_count * 2 + 2;
+            if (!in_bounds(start_codes, segment_count * 2)) {
+                return false;
+            }
+            for (size_t i = 0; i < segment_count; i++) {
+                const uint32_t start = ttUSHORT(data + start_codes + i * 2);
+                const uint32_t end = ttUSHORT(data + end_codes + i * 2);
+                // The last segment maps 0xFFFF to the missing glyph
+                if (start <= end && start != 0xFFFF) {
+                    list.addRange(start, end == 0xFFFF ? 0xFFFE : end);
+                }
+            }
+            break;
+        }
+        case 6: {
+            if (!in_bounds(map, 10)) {
+                return false;
+            }
+            const uint32_t first = ttUSHORT(data + map + 6);
+            const uint32_t entry_count = ttUSHORT(data + map + 8);
+            if (entry_count > 0) {
+                list.addRange(first, first + entry_count - 1);
+            }
+            break;
+        }
+        case 12: {
+            if (!in_bounds(map, 16)) {
+                return false;
+            }
+            const size_t group_count = ttULONG(data + map + 12);
+            if (!in_bounds(map + 16, group_count * 12)) {
+                return false;
+            }
+            for (size_t i = 0; i < group_count; i++) {
+                stbtt_uint8* group = data + map + 16 + i * 12;
+                const uint32_t start = ttULONG(group);
+                const uint32_t end = ttULONG(group + 4);
+                if (start <= end && end <= 0x10FFFF) {
+                    list.addRange(start, end);
+                }
+            }
+            break;
+        }
+        default:
+            return false;
+    }
+    return !list.hasFailed();
+}
+
+error_t generate(const BinFontGeneratorConfig* config, const uint32_t* codepoints, size_t codepointCount, const stbtt_fontinfo& info, GlyphInfo* glyphs, ByteBuffer& out) {
     const float scale = stbtt_ScaleForMappingEmToPixels(&info, config->size);
 
     // Collect glyphs, sorted by codepoint and without duplicates or missing glyphs
     size_t count = 0;
-    for (size_t i = 0; i < config->codepoint_count; i++) {
-        const int index = stbtt_FindGlyphIndex(&info, static_cast<int>(config->codepoints[i]));
+    for (size_t i = 0; i < codepointCount; i++) {
+        const int index = stbtt_FindGlyphIndex(&info, static_cast<int>(codepoints[i]));
         if (index != 0) {
-            glyphs[count].codepoint = config->codepoints[i];
+            glyphs[count].codepoint = codepoints[i];
             glyphs[count].ttfIndex = index;
             count++;
         }
@@ -404,7 +506,7 @@ error_t generate(const BinFontGeneratorConfig* config, const stbtt_fontinfo& inf
 extern "C" {
 
 error_t binfont_generate(const BinFontGeneratorConfig* config, uint8_t** out_data, size_t* out_size) {
-    if (config->ttf_path == nullptr || config->size == 0 || config->bpp < 1 || config->bpp > 4 || config->codepoint_count == 0) {
+    if (config->ttf_path == nullptr || config->size == 0 || config->bpp < 1 || config->bpp > 4 || (config->codepoints == nullptr) != (config->codepoint_count == 0)) {
         return ERROR_INVALID_ARGUMENT;
     }
 
@@ -421,14 +523,26 @@ error_t binfont_generate(const BinFontGeneratorConfig* config, uint8_t** out_dat
         return ERROR_NOT_SUPPORTED;
     }
 
-    auto* glyphs = static_cast<GlyphInfo*>(memory_alloc(config->codepoint_count * sizeof(GlyphInfo)));
+    const uint32_t* codepoints = config->codepoints;
+    size_t codepoint_count = config->codepoint_count;
+    CodepointList all_codepoints;
+    if (codepoints == nullptr) {
+        if (!collect_codepoints(info, ttf_size, all_codepoints)) {
+            memory_free(ttf);
+            return all_codepoints.hasFailed() ? ERROR_OUT_OF_MEMORY : ERROR_NOT_SUPPORTED;
+        }
+        codepoints = all_codepoints.getData();
+        codepoint_count = all_codepoints.getCount();
+    }
+
+    auto* glyphs = static_cast<GlyphInfo*>(memory_alloc(codepoint_count * sizeof(GlyphInfo)));
     if (glyphs == nullptr) {
         memory_free(ttf);
         return ERROR_OUT_OF_MEMORY;
     }
 
     ByteBuffer out;
-    const error_t error = generate(config, info, glyphs, out);
+    const error_t error = generate(config, codepoints, codepoint_count, info, glyphs, out);
     memory_free(glyphs);
     memory_free(ttf);
     if (error != ERROR_NONE) {

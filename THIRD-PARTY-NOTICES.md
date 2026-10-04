@@ -1,5 +1,13 @@
 # Third-Party Notices 
 
+### Adwaita
+
+Adwaita Sans and Mono fonts are used.
+
+Website: https://github.com/GNOME/adwaita-fonts
+
+License: [SIL Open Font License 1.1](https://raw.githubusercontent.com/GNOME/adwaita-fonts/refs/heads/main/LICENSE)
+
 ### BreezyBox
 
 This project used code from the BreezyBox project.

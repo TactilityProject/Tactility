@@ -219,19 +219,18 @@ target_include_directories(${COMPONENT_LIB} PRIVATE "${GENERATED_DIR}")
 add_dependencies(${COMPONENT_LIB} Generated)
 
 #
-# Terminal font
+# Fonts
 #
 
 if (DEFINED ENV{ESP_IDF_VERSION})
     GET_PROPERTY_FILE_CONTENT("${CMAKE_CURRENT_LIST_DIR}/../sdkconfig" sdkconfig_text)
-    GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_TERMINAL_FONT_SIZE" terminal_font_size)
+    GET_PROPERTY_VALUE(sdkconfig_text "CONFIG_TT_FONT_DEFAULT_SIZE" font_default_size)
 else ()
-    # Default values for simulator
-    set(terminal_font_size 14)
+    # Default value for simulator
+    set(font_default_size 14)
 endif ()
 
-message("Terminal font size: ${terminal_font_size}")
+message("Default font size: ${font_default_size}")
 target_compile_definitions(${COMPONENT_LIB} PUBLIC
-    "-DTT_TERMINAL_FONT_SIZE=${terminal_font_size}"
-    "-DTT_TERMINAL_FONT_SYMBOL=ibmplexmono_${terminal_font_size}_font"
+    "-DTT_FONT_DEFAULT_SIZE=${font_default_size}"
 )
