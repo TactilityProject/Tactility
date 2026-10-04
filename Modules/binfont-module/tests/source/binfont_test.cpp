@@ -7,6 +7,7 @@
 #include <graphics/pixel_buffer.h>
 #include <tactility/memory.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -324,6 +325,19 @@ TEST_CASE("binfont_generate includes every codepoint of the TTF without a codepo
     CHECK_FALSE(binfont_get_glyph(font, 0x0416, &glyph));
 
     binfont_close(font);
+}
+
+TEST_CASE("binfont_get_ttf_codepoints lists the character map of a TTF") {
+    uint32_t* codepoints = nullptr;
+    size_t count = 0;
+    REQUIRE(binfont_get_ttf_codepoints(BINFONT_TEST_TEXT_TTF, &codepoints, &count) == ERROR_NONE);
+    CHECK(count > 190);
+    CHECK(std::find(codepoints, codepoints + count, 0x41u) != codepoints + count);
+    CHECK(std::find(codepoints, codepoints + count, 0x20ACu) != codepoints + count);
+    CHECK(std::find(codepoints, codepoints + count, 0x0416u) == codepoints + count);
+    memory_free(codepoints);
+
+    CHECK_EQ(binfont_get_ttf_codepoints(BINFONT_TEST_FIXTURES_DIR "/missing.ttf", &codepoints, &count), ERROR_NOT_FOUND);
 }
 
 TEST_CASE("binfont_generate rejects a codepoint count without codepoints") {

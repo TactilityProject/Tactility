@@ -35,10 +35,13 @@ void deleteStaleCachedFonts(const char* prefix, const std::vector<std::string>& 
 BinFont* loadOrGenerateFont(const std::string& fileName, const std::string& ttfPath, uint16_t size, uint8_t bpp, const std::function<std::vector<uint32_t>()>& getCodepoints);
 
 /**
- * Loads the system's monospace font (ASCII), generating and caching it when needed.
- * @param[in] size font size in pixels
- * @return the font, to be released with binfont_close(), or nullptr when it couldn't be loaded
+ * Generates a font and writes it to the font cache, unless it's cached already.
+ * Without a data path there is no cache: the font is generated and discarded, to verify that it can be.
+ * @return false when the font couldn't be generated or written
  */
-BinFont* loadMonoFont(uint16_t size);
+bool ensureCachedFont(const std::string& fileName, const std::string& ttfPath, uint16_t size, uint8_t bpp, const std::function<std::vector<uint32_t>()>& getCodepoints);
+
+/** @return a version for a font file that changes when the file is replaced, or 0 when it doesn't exist */
+uint32_t getFontFileVersion(const std::string& path);
 
 }

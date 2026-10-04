@@ -38,6 +38,18 @@ typedef struct BinFontGeneratorConfig {
  */
 error_t binfont_generate(const BinFontGeneratorConfig* config, uint8_t** out_data, size_t* out_size);
 
+/**
+ * @brief Lists the codepoints in the character map of a TrueType font.
+ * @param[in] ttf_path path to a TrueType (.ttf) file
+ * @param[out] out_codepoints the codepoints, to be released with memory_free()
+ * @param[out] out_count the number of codepoints
+ * @retval ERROR_NONE on success
+ * @retval ERROR_NOT_FOUND when the TTF file can't be read
+ * @retval ERROR_NOT_SUPPORTED when the TTF file or its character map can't be parsed
+ * @retval ERROR_OUT_OF_MEMORY when memory allocation failed
+ */
+error_t binfont_get_ttf_codepoints(const char* ttf_path, uint32_t** out_codepoints, size_t* out_count);
+
 #ifdef __cplusplus
 }
 #endif

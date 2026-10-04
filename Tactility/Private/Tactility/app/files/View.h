@@ -55,6 +55,7 @@ public:
     void onNavigateUpPressed();
     void onDirEntryPressed(uint32_t index);
     void onDirEntryLongPressed(int32_t index);
+    void onDirEntryKeyPressed(int32_t index, uint32_t key);
     void onRenamePressed();
     void onDeletePressed();
     void onNewFilePressed();

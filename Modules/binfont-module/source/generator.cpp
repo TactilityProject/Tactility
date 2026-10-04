@@ -9,10 +9,29 @@
 #include <cstdio>
 #include <cstring>
 
+namespace {
+
+/** Passed to stb_truetype as user data, to detect allocation failures it otherwise ignores */
+struct AllocationState {
+    bool failed;
+};
+
+void* stbtt_allocate(size_t size, void* user) {
+    void* pointer = memory_alloc(size);
+    if (pointer == nullptr && user != nullptr) {
+        static_cast<AllocationState*>(user)->failed = true;
+    }
+    return pointer;
+}
+
+} // namespace
+
 #define STBTT_STATIC
 #define STB_TRUETYPE_IMPLEMENTATION
-#define STBTT_malloc(size, user) ((void)(user), memory_alloc(size))
+#define STBTT_malloc(size, user) stbtt_allocate(size, user)
 #define STBTT_free(pointer, user) ((void)(user), memory_free(pointer))
+// stb_truetype skips what it can't allocate, allocation failures are detected via AllocationState
+#define STBTT_assert(condition) ((void)0)
 #include "stb_truetype.h"
 
 namespace {
@@ -282,6 +301,14 @@ public:
     const uint32_t* getData() const { return data; }
     size_t getCount() const { return count; }
     bool hasFailed() const { return failed; }
+
+    uint32_t* release() {
+        uint32_t* result = data;
+        data = nullptr;
+        count = 0;
+        capacity = 0;
+        return result;
+    }
 };
 
 /**
@@ -488,6 +515,10 @@ error_t generate(const BinFontGeneratorConfig* config, const uint32_t* codepoint
                 bitmap_capacity = pixel_count;
             }
             stbtt_MakeGlyphBitmap(&info, bitmap, width, height, width, scale, scale, glyph.ttfIndex);
+            if (static_cast<const AllocationState*>(info.userdata)->failed) {
+                memory_free(bitmap);
+                return ERROR_OUT_OF_MEMORY;
+            }
             for (size_t i = 0; i < pixel_count; i++) {
                 writer.write((bitmap[i] * max_value + 127) / 255, config->bpp);
             }
@@ -522,6 +553,8 @@ error_t binfont_generate(const BinFontGeneratorConfig* config, uint8_t** out_dat
         memory_free(ttf);
         return ERROR_NOT_SUPPORTED;
     }
+    AllocationState allocation = { .failed = false };
+    info.userdata = &allocation;
 
     const uint32_t* codepoints = config->codepoints;
     size_t codepoint_count = config->codepoint_count;
@@ -551,6 +584,32 @@ error_t binfont_generate(const BinFontGeneratorConfig* config, uint8_t** out_dat
 
     *out_size = out.getSize();
     *out_data = out.release();
+    return ERROR_NONE;
+}
+
+error_t binfont_get_ttf_codepoints(const char* ttf_path, uint32_t** out_codepoints, size_t* out_count) {
+    size_t ttf_size = 0;
+    uint8_t* ttf = read_file(ttf_path, ttf_size);
+    if (ttf == nullptr) {
+        return ERROR_NOT_FOUND;
+    }
+
+    stbtt_fontinfo info;
+    const int font_offset = stbtt_GetFontOffsetForIndex(ttf, 0);
+    CodepointList codepoints;
+    error_t error = ERROR_NONE;
+    if (font_offset < 0 || stbtt_InitFont(&info, ttf, font_offset) == 0) {
+        error = ERROR_NOT_SUPPORTED;
+    } else if (!collect_codepoints(info, ttf_size, codepoints)) {
+        error = codepoints.hasFailed() ? ERROR_OUT_OF_MEMORY : ERROR_NOT_SUPPORTED;
+    }
+    memory_free(ttf);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+
+    *out_count = codepoints.getCount();
+    *out_codepoints = codepoints.release();
     return ERROR_NONE;
 }
 

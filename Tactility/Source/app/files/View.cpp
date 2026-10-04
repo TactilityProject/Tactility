@@ -59,6 +59,12 @@ static void onDirEntryLongPressedCallback(lv_event_t* event) {
     view->onDirEntryLongPressed(index);
 }
 
+static void onDirEntryKeyCallback(lv_event_t* event) {
+    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    auto* button = lv_event_get_target_obj(event);
+    view->onDirEntryKeyPressed(lv_obj_get_index(button), lv_event_get_key(event));
+}
+
 static void onRenamePressedCallback(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
     view->onRenamePressed();
@@ -353,6 +359,31 @@ void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
     lv_obj_t* button = lv_list_add_button(list, symbol, label_text.c_str());
     lv_obj_add_event_cb(button, &onDirEntryPressedCallback, LV_EVENT_SHORT_CLICKED, this);
     lv_obj_add_event_cb(button, &onDirEntryLongPressedCallback, LV_EVENT_LONG_PRESSED, this);
+    lv_obj_add_event_cb(button, &onDirEntryKeyCallback, LV_EVENT_KEY, this);
+}
+
+void View::onDirEntryKeyPressed(int32_t index, uint32_t key) {
+    // Keyboards report their delete key as either delete or backspace (e.g. Cardputer's "del" key)
+    const bool is_delete = key == LV_KEY_DEL || key == LV_KEY_BACKSPACE;
+    const bool is_rename = key == 'r' || key == 'R';
+    if (!is_delete && !is_rename) {
+        return;
+    }
+
+    dirent dir_entry;
+    if (!resolveDirentFromListIndex(index, dir_entry)) {
+        return;
+    }
+    // Same rules as the long-press actions: root entries are mount points, links have no actions
+    if (state->getCurrentPath() == "/" || dir_entry.d_type == file::TT_DT_LNK) {
+        return;
+    }
+    state->setSelectedChildEntry(dir_entry.d_name);
+    if (is_delete) {
+        onDeletePressed();
+    } else {
+        onRenamePressed();
+    }
 }
 
 void View::onBackPressed() {

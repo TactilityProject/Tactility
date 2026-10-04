@@ -39,6 +39,7 @@ namespace app {
     namespace addgps { extern const ::AppManifest manifest; }
     namespace alertdialog { extern const ::AppManifest manifest; }
     namespace apphub { extern const ::AppManifest manifest; }
+    namespace appearancesettings { extern const ::AppManifest manifest; }
     namespace apphubdetails { extern const ::AppManifest manifest; }
     namespace apppackagedetails { extern const ::AppManifest manifest; }
     namespace applist { extern const ::AppManifest manifest; }
@@ -115,6 +116,7 @@ static void registerInternalApps() {
         app_manager_add(&app::audiosettings::manifest);
     }
     if (device_exists_of_type(&DISPLAY_TYPE)) {
+        app_manager_add(&app::appearancesettings::manifest);
         app_manager_add(&app::display::manifest);
     }
     if (device_exists_of_type(&LED_STRIP_TYPE)) {

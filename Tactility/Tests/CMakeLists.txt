@@ -23,6 +23,7 @@ target_include_directories(TactilityTests PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../P
 target_compile_definitions(TactilityTests PRIVATE
     "-DTT_FONT_DEFAULT_SIZE=14"
     "-DTACTILITY_TEST_DATA_DIR=\"${CMAKE_CURRENT_LIST_DIR}/../../Data\""
+    "-DTACTILITY_TEST_FONTS_DIR=\"${CMAKE_CURRENT_LIST_DIR}/../Fonts\""
 )
 
 add_test(NAME TactilityTests COMMAND TactilityTests)

@@ -17,6 +17,7 @@ static const struct ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(binfont_get_glyph_bitmap),
     // generator
     DEFINE_MODULE_SYMBOL(binfont_generate),
+    DEFINE_MODULE_SYMBOL(binfont_get_ttf_codepoints),
     // render
     DEFINE_MODULE_SYMBOL(binfont_draw_glyph_rgb565),
     DEFINE_MODULE_SYMBOL(binfont_draw_text_rgb565),

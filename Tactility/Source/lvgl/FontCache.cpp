@@ -2,7 +2,6 @@
 
 #include <Tactility/MountPoints.h>
 #include <Tactility/file/File.h>
-#include <Tactility/lvgl/FontVersions.h>
 
 #include <binfont/binfont.h>
 #include <binfont/generator.h>
@@ -15,6 +14,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <sys/stat.h>
 #include <format>
 
 namespace tt::lvgl {
@@ -77,16 +77,39 @@ void deleteStaleCachedFonts(const char* prefix, const std::vector<std::string>& 
     }
 }
 
-static void writeCacheFile(const std::string& path, const uint8_t* data, size_t size) {
+static bool writeCacheFile(const std::string& path, const uint8_t* data, size_t size) {
     FILE* file = fopen(path.c_str(), "wb");
-    const bool written = file != nullptr && fwrite(data, 1, size, file) == size;
+    bool written = file != nullptr && fwrite(data, 1, size, file) == size;
     if (file != nullptr && fclose(file) != 0) {
         LOG_W(TAG, "Failed to close %s", path.c_str());
+        written = false;
     }
     if (!written) {
         LOG_W(TAG, "Failed to write %s", path.c_str());
         file::deleteFile(path);
     }
+    return written;
+}
+
+/** Rasterizes a font, see binfont_generate() */
+static bool generateFont(const std::string& fileName, const std::string& ttfPath, uint16_t size, uint8_t bpp, const std::function<std::vector<uint32_t>()>& getCodepoints, uint8_t*& data, size_t& dataSize) {
+    const auto codepoints = getCodepoints();
+    const BinFontGeneratorConfig config = {
+        .ttf_path = ttfPath.c_str(),
+        .size = size,
+        .bpp = bpp,
+        .codepoints = codepoints.empty() ? nullptr : codepoints.data(),
+        .codepoint_count = codepoints.size(),
+    };
+
+    const auto start_time = get_millis();
+    const error_t error = binfont_generate(&config, &data, &dataSize);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to generate %s from %s (%s)", fileName.c_str(), ttfPath.c_str(), error_to_string(error));
+        return false;
+    }
+    LOG_I(TAG, "Generated %s (%zu bytes) in %zu ms", fileName.c_str(), dataSize, get_millis() - start_time);
+    return true;
 }
 
 BinFont* loadOrGenerateFont(const std::string& fileName, const std::string& ttfPath, uint16_t size, uint8_t bpp, const std::function<std::vector<uint32_t>()>& getCodepoints) {
@@ -101,24 +124,11 @@ BinFont* loadOrGenerateFont(const std::string& fileName, const std::string& ttfP
         LOG_W(TAG, "Failed to open %s, regenerating", cache_path.c_str());
     }
 
-    const auto codepoints = getCodepoints();
-    const BinFontGeneratorConfig config = {
-        .ttf_path = ttfPath.c_str(),
-        .size = size,
-        .bpp = bpp,
-        .codepoints = codepoints.empty() ? nullptr : codepoints.data(),
-        .codepoint_count = codepoints.size(),
-    };
-
-    const auto start_time = get_millis();
     uint8_t* data = nullptr;
     size_t data_size = 0;
-    const error_t error = binfont_generate(&config, &data, &data_size);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to generate %s from %s (%s)", fileName.c_str(), ttfPath.c_str(), error_to_string(error));
+    if (!generateFont(fileName, ttfPath, size, bpp, getCodepoints, data, data_size)) {
         return nullptr;
     }
-    LOG_I(TAG, "Generated %s (%zu bytes) in %zu ms", fileName.c_str(), data_size, get_millis() - start_time);
 
     if (!cache_path.empty()) {
         writeCacheFile(cache_path, data, data_size);
@@ -131,13 +141,43 @@ BinFont* loadOrGenerateFont(const std::string& fileName, const std::string& ttfP
     return font;
 }
 
-BinFont* loadMonoFont(uint16_t size) {
-    constexpr auto* prefix = "adwaita_mono_";
-    const uint8_t bpp = getGeneratedFontBpp();
-    const auto file_name = getCachedFontFileName(prefix, "mono", size, bpp, TT_MONO_FONT_VERSION);
-    deleteStaleCachedFonts(prefix, { file_name });
-    // The TTF is a subset with only the supported characters, so all of its codepoints are used
-    return loadOrGenerateFont(file_name, getSystemFontPath("AdwaitaMono.ttf"), size, bpp, [] { return std::vector<uint32_t>(); });
+bool ensureCachedFont(const std::string& fileName, const std::string& ttfPath, uint16_t size, uint8_t bpp, const std::function<std::vector<uint32_t>()>& getCodepoints) {
+    const auto& directory = getCacheDirectory();
+    const auto cache_path = directory.empty() ? std::string() : file::getChildPath(directory, fileName);
+    if (!cache_path.empty() && file::isFile(cache_path)) {
+        return true;
+    }
+
+    uint8_t* data = nullptr;
+    size_t data_size = 0;
+    if (!generateFont(fileName, ttfPath, size, bpp, getCodepoints, data, data_size)) {
+        return false;
+    }
+    // Without a cache, the font is only generated to verify that it can be
+    const bool written = cache_path.empty() || writeCacheFile(cache_path, data, data_size);
+    memory_free(data);
+    return written;
+}
+
+uint32_t getFontFileVersion(const std::string& path) {
+    struct stat file_stat;
+    if (stat(path.c_str(), &file_stat) != 0) {
+        return 0;
+    }
+    // FNV-1a over the path, size and modification time
+    uint32_t hash = 2166136261u;
+    auto add = [&hash](const void* data, size_t size) {
+        const auto* bytes = static_cast<const uint8_t*>(data);
+        for (size_t i = 0; i < size; i++) {
+            hash = (hash ^ bytes[i]) * 16777619u;
+        }
+    };
+    add(path.data(), path.size());
+    const auto file_size = static_cast<uint64_t>(file_stat.st_size);
+    const auto modified = static_cast<int64_t>(file_stat.st_mtime);
+    add(&file_size, sizeof(file_size));
+    add(&modified, sizeof(modified));
+    return hash != 0 ? hash : 1;
 }
 
 }

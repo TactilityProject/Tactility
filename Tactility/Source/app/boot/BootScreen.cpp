@@ -2,7 +2,7 @@
 
 #include <Tactility/settings/DisplaySettings.h>
 
-#include <Tactility/lvgl/FontCache.h>
+#include <Tactility/lvgl/Fonts.h>
 
 #include <binfont/binfont.h>
 #include <graphics/pixel_buffer.h>
@@ -156,7 +156,7 @@ void BootScreen::show(const std::string& logoPath, const std::vector<std::string
 
     // Layout in logical (rotated) coordinates: logo with text below it, centered as a whole
     if (!lines.empty() && textFont == nullptr) {
-        textFont = lvgl::loadMonoFont(TT_FONT_DEFAULT_SIZE);
+        textFont = lvgl::loadMonoFont();
         if (textFont == nullptr) {
             LOG_E(TAG, "Failed to load font, text is not shown");
         }

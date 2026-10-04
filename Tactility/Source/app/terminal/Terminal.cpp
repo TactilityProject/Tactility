@@ -4,7 +4,7 @@
 #include <Tactility/app/terminal/Terminal.h>
 #include <Tactility/app/terminal/TerminalRenderer.h>
 #include <Tactility/app/terminal/TouchInput.h>
-#include <Tactility/lvgl/FontCache.h>
+#include <Tactility/lvgl/Fonts.h>
 
 #include <binfont/binfont.h>
 
@@ -196,7 +196,7 @@ void runTerminal(Device* display, TerminalRenderer& renderer, bool touchToExit) 
     KeyboardInput keyboards;
     TouchInput touch;
 
-    std::unique_ptr<BinFont, decltype(&binfont_close)> font(tt::lvgl::loadMonoFont(TT_FONT_DEFAULT_SIZE), binfont_close);
+    std::unique_ptr<BinFont, decltype(&binfont_close)> font(tt::lvgl::loadMonoFont(), binfont_close);
     if (font == nullptr) {
         LOG_E(TAG, "Failed to load font");
         return;
