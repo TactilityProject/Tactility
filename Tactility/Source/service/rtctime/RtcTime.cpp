@@ -14,7 +14,7 @@ extern const ServiceManifest manifest;
 
 bool isAvailable() {
 #ifdef ESP_PLATFORM
-    // The service is only registered when an RTC device is present (see Tactility.cpp);
+    // The service is only registered when an RTC device is present (see InitServices.cpp);
     // treat "not registered" the same as "no device bound" rather than asserting.
     auto service = findServiceById<RtcTimeService>(manifest.id);
     return service != nullptr && service->isAvailable();

@@ -5,6 +5,9 @@
 
 #include <app/paths.h>
 
+#include <tactility/device.h>
+#include <tactility/drivers/display.h>
+
 #include <map>
 #include <string>
 #include <utility>
@@ -28,17 +31,19 @@ constexpr auto* SETTINGS_KEY_SCREENSAVER_TYPE = "screensaverType";
 constexpr auto* SETTINGS_KEY_AUTO_ROTATE_ENABLED = "autoRotateEnabled";
 constexpr auto* SETTINGS_KEY_AUTO_ROTATE_MOUNT_ROTATION = "autoRotateMountRotation";
 
-static Orientation getDefaultOrientation() {
-    auto* display = lv_display_get_default();
-    if (display == nullptr) {
-        return Orientation::Landscape;
+// Uses the kernel display, so it also works while LVGL isn't running
+static bool isOriginallyLandscape() {
+    Device* display = nullptr;
+    if (device_get_first_by_type(&DISPLAY_TYPE, &display) != ERROR_NONE) {
+        return true;
     }
+    const bool landscape = display_get_resolution_x(display) > display_get_resolution_y(display);
+    device_put(display);
+    return landscape;
+}
 
-    if (lv_display_get_physical_horizontal_resolution(display) > lv_display_get_physical_vertical_resolution(display)) {
-        return Orientation::Landscape;
-    } else {
-        return Orientation::Portrait;
-    }
+static Orientation getDefaultOrientation() {
+    return isOriginallyLandscape() ? Orientation::Landscape : Orientation::Portrait;
 }
 
 static std::string toString(Orientation orientation) {
@@ -224,12 +229,6 @@ bool save(const DisplaySettings& settings) {
         return false;
     }
     return file::savePropertiesFile(settings_path, map);
-}
-
-static bool isOriginallyLandscape() {
-    auto* lvgl_display = lv_display_get_default();
-    return lv_display_get_original_horizontal_resolution(lvgl_display) >
-           lv_display_get_original_vertical_resolution(lvgl_display);
 }
 
 lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {

@@ -9,7 +9,7 @@ namespace tt::service::audio {
 
 extern const ServiceManifest manifest;
 
-// The service is only registered when audio hardware is present (see Tactility.cpp);
+// The service is only registered when audio hardware is present (see InitServices.cpp);
 // treat "not registered" as "no device bound" rather than asserting via findAudioService().
 static std::shared_ptr<AudioService> tryFindAudioService() {
     return findServiceById<AudioService>(manifest.id);

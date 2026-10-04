@@ -5,7 +5,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         SRC_DIRS "Source/"
         INCLUDE_DIRS "Source/"
         PRIV_INCLUDE_DIRS "Private/"
-        REQUIRES lvgl
+        REQUIRES lvgl lodepng-module
     )
 
 else()
@@ -25,6 +25,6 @@ else()
     )
 
     target_link_libraries(lv_screenshot
-        PUBLIC lvgl
+        PUBLIC lvgl lodepng-module
     )
 endif()

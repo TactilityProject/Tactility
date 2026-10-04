@@ -32,7 +32,7 @@
 - Improve Setup: Show "Step done" screen
 - Make it more clear to end-users that an SD card is required to run Tactility
 - Warn if file operations are done from prohibited tasks (e.g. lvgl task)
-- stopAppFromToolbar() in Tactility.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
+- stopAppFromToolbar() in lvgl/Lvgl.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
 - Consider not unpacking `.app` files and executing them directly. Might want to cache file offsets. Cache file must be pinned to app version.
 - lvgl-module's spinner relies on hard-coded spinner asset from Tactility main project.
 - esp_lvgl_port settings has a large stack size (~9kB) to fix stackoverflow when LVGL events (e.g. button click) do actions like file operations do actions like file operations. Can we reduce the callstack?

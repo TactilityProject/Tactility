@@ -13,6 +13,7 @@
 #include <lvgl/lvgl.h>
 #include <lvgl/module.h>
 #include <lvgl/devices/keyboard_private.h>
+#include <png_decoder.h>
 
 extern struct LvglModuleConfig lvgl_module_config;
 extern void lvgl_devices_attach();
@@ -129,6 +130,7 @@ error_t lvgl_arch_start() {
     lvgl_task_set_interrupted(false);
 
     lv_init();
+    lvgl_png_decoder_init();
 
     // Must exist before devices/services are attached from the lvgl task below,
     // since those can immediately try to assign an indev to this group.

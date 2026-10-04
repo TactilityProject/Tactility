@@ -9,8 +9,11 @@
 #include <tactility/device.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
+#include <tactility/time.h>
 
 #define TAG "driver"
+
+constexpr TickType_t SLOW_START_WARNING_TICKS = pdMS_TO_TICKS(100);
 
 struct DriverInternal {
     int use_count = 0;
@@ -59,7 +62,7 @@ error_t driver_destruct(Driver* driver) {
 }
 
 error_t driver_add(Driver* driver) {
-    LOG_I(TAG, "add %s", driver->name);
+    LOG_D(TAG, "add %s", driver->name);
     ledger.lock();
     ledger.drivers.push_back(driver);
     ledger.unlock();
@@ -67,7 +70,7 @@ error_t driver_add(Driver* driver) {
 }
 
 error_t driver_remove(Driver* driver) {
-    LOG_I(TAG, "remove %s", driver->name);
+    LOG_D(TAG, "remove %s", driver->name);
 
     if (driver->owner == nullptr) return ERROR_NOT_ALLOWED;
 
@@ -135,7 +138,12 @@ error_t driver_bind(Driver* driver, Device* device) {
     }
 
     if (driver->start_device != nullptr) {
+        const TickType_t start_ticks = get_ticks();
         error = driver->start_device(device);
+        const TickType_t elapsed_ticks = get_ticks() - start_ticks;
+        if (elapsed_ticks > SLOW_START_WARNING_TICKS) {
+            LOG_W(TAG, "starting %s with %s took %u ms", device->name, driver->name, static_cast<unsigned>(elapsed_ticks * portTICK_PERIOD_MS));
+        }
         if (error != ERROR_NONE) {
             goto error;
         }

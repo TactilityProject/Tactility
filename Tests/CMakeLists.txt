@@ -13,6 +13,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/app-module/tests ${CMAKE_CURRENT_BI
 add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/app-posix-module/tests ${CMAKE_CURRENT_BINARY_DIR}/app-posix-module)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/http-module/tests ${CMAKE_CURRENT_BINARY_DIR}/http-module)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/binfont-module/tests ${CMAKE_CURRENT_BINARY_DIR}/binfont-module)
+add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/lodepng-module/tests ${CMAKE_CURRENT_BINARY_DIR}/lodepng-module)
 
 add_custom_target(build-tests)
 add_dependencies(build-tests ServiceModuleTests)
@@ -25,3 +26,4 @@ add_dependencies(build-tests AppModuleTests)
 add_dependencies(build-tests AppPosixModuleTests)
 add_dependencies(build-tests HttpModuleTests)
 add_dependencies(build-tests BinFontModuleTests)
+add_dependencies(build-tests LodePngModuleTests)

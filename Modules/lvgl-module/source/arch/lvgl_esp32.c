@@ -6,6 +6,7 @@
 #include <lvgl/lvgl.h>
 #include <lvgl/module.h>
 #include <lvgl/devices/keyboard_private.h>
+#include <png_decoder.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
 #include <tactility/time.h>
@@ -51,6 +52,10 @@ error_t lvgl_arch_start() {
     // when we call listener functions. These functions could create new
     // devices and services. The latter might start adding widgets immediately.
     initialized = true;
+
+    lvgl_lock();
+    lvgl_png_decoder_init();
+    lvgl_unlock();
 
     // Must exist before devices/services are attached below, since those can
     // immediately try to assign an indev to this group (e.g. USB HID input).

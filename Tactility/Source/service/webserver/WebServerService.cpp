@@ -1525,7 +1525,7 @@ error_t WebServerService::handleApiScreenshot(HttpServerRequest* request, void*)
 
     LOG_I(TAG, "Screenshot will be saved to: %s", screenshot_path.c_str());
 
-    // LVGL's lodepng uses lv_fs which requires the "A:" prefix
+    // lv_screenshot writes through lv_fs, which requires the "A:" prefix
     std::string lvgl_screenshot_path = lvgl::PATH_PREFIX + screenshot_path;
 
     // Capture screenshot using LVGL

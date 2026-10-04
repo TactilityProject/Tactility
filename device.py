@@ -91,7 +91,7 @@ def safe_float(value: str, error_message: str):
         exit_with_error(error_message)
 
 def write_defaults(output_file):
-    default_properties_path = os.path.join("Buildscripts", "sdkconfig", "default.properties")
+    default_properties_path = os.path.join("Buildscripts", "sdkconfig-default.properties")
     default_properties = read_file(default_properties_path)
     output_file.write(default_properties)
 
