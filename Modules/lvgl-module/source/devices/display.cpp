@@ -39,8 +39,9 @@ static void lvgl_display_extend_mono_theme(lv_display_t* disp) {
         lv_style_set_border_width(&mono_button_style, 0);
         mono_button_style_initialized = true;
     }
+    // LVGL prefers the default and simple themes when they are also enabled, so only the mono theme itself is extended
     lv_theme_t* mono_theme = lv_display_get_theme(disp);
-    if (mono_theme == nullptr || mono_theme == &mono_theme_extension) {
+    if (mono_theme == nullptr || mono_theme != lv_theme_mono_get()) {
         return;
     }
     mono_theme_extension = *mono_theme;
