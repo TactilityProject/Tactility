@@ -31,7 +31,7 @@ menu "Tactility App"
     config TT_FONT_DEFAULT_SIZE
         int "Default font size"
         default 14
-        range 8 200
+        range 10 32
         help
             Default text font size in pixels. Other text and icon font sizes are derived from it.
     config TT_LVGL_STATUSBAR_COLORS_INVERTED
