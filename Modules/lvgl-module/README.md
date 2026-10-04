@@ -35,7 +35,9 @@ Font sizes and symbols are configurable:
 - **On ESP32 (IDF)**: Sizes can be updated via `menuconfig` or by editing `sdkconfig`. Look for `CONFIG_TT_LVGL_FONT_SIZE_*` and `CONFIG_TT_LVGL_*_ICON_SIZE` parameters.
 - **On Simulator/POSIX**: Default sizes are defined in `Modules/lvgl-module/CMakeLists.txt`.
 
-If you change an icon font size, ensure that a corresponding C file exists in `source-fonts/` (e.g., `material_symbols_shared_24.c`). These files are generated from TTF/OTF fonts using the LVGL font converter.
+Icon fonts are rasterized on device at startup from `Data/system/fonts/MaterialSymbolsRounded.ttf` (a subset with only the used icons) and cached as `.bin` files in the data path, so any icon size works.
+The icons per font are listed by name and resolved through `Data/system/fonts/MaterialSymbolsRounded.codepoints`.
+To add an icon, add its name to `generate-icons.py` and run it (requires `pip install fonttools`). This regenerates the TTF subset, the codepoints file and the name lists.
 
 ## Custom memory allocator
 

@@ -24,6 +24,7 @@
 #include <vector>
 
 #include <app/event.h>
+#include <binfont/module.h>
 #include <app/manager.h>
 #include <app/manifest.h>
 #include <app/module.h>
@@ -40,6 +41,7 @@
 #include <Tactility/bluetooth/Bluetooth.h>
 #include <Tactility/file/File.h>
 #include <Tactility/hal/SdCard.h>
+#include <Tactility/lvgl/IconFonts.h>
 #include <Tactility/lvgl/KeyboardDeviceListener.h>
 #include <Tactility/lvgl/Statusbar.h>
 #include <Tactility/lvgl/TrackballInit.h>
@@ -542,6 +544,7 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     // Other libraries
     check(module_ensure_started(&http_module) == ERROR_NONE);
     check(module_ensure_started(&graphics_module) == ERROR_NONE);
+    check(module_ensure_started(&binfont_module) == ERROR_NONE);
     check(module_ensure_started(&app_module) == ERROR_NONE);
     check(module_ensure_started(&coreutils_module) == ERROR_NONE);
     check(module_ensure_started(&crypt_module) == ERROR_NONE);
@@ -570,6 +573,8 @@ void run(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     bluetooth::systemStart();
 
     registerAndStartServices();
+
+    lvgl::initIconFonts();
 
     lvgl_module_configure((LvglModuleConfig) {
         .on_start = onLvglStarted,

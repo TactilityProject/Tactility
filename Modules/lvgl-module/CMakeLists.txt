@@ -70,14 +70,10 @@ endif ()
 
 # Regular source files
 file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
-# Font source files
-list(APPEND SOURCE_FILES "source-fonts/material_symbols_statusbar_${statusbar_symbol_size}.c")
-list(APPEND SOURCE_FILES "source-fonts/material_symbols_launcher_${launcher_symbol_size}.c")
-list(APPEND SOURCE_FILES "source-fonts/material_symbols_shared_${shared_symbol_size}.c")
-list(APPEND SOURCE_FILES "source-fonts/material_symbols_shared_${shared_symbol_2x_size}.c")
 
 list(APPEND REQUIRES_LIST
     TactilityKernel
+    binfont-module
     lvgl
 )
 
@@ -118,13 +114,9 @@ target_compile_definitions(${MODULE_NAME} PUBLIC
     "-DTT_LVGL_TEXT_FONT_LARGE_SYMBOL=lv_font_montserrat_${font_size_large}"
     # Icon fonts
     "-DTT_LVGL_STATUSBAR_FONT_ICON_SIZE=${statusbar_symbol_size}"
-    "-DTT_LVGL_STATUSBAR_FONT_ICON_SYMBOL=material_symbols_statusbar_${statusbar_symbol_size}"
     "-DTT_LVGL_LAUNCHER_FONT_ICON_SIZE=${launcher_symbol_size}"
-    "-DTT_LVGL_LAUNCHER_FONT_ICON_SYMBOL=material_symbols_launcher_${launcher_symbol_size}"
     "-DTT_LVGL_SHARED_FONT_ICON_SIZE=${shared_symbol_size}"
-    "-DTT_LVGL_SHARED_FONT_ICON_SYMBOL=material_symbols_shared_${shared_symbol_size}"
     "-DTT_LVGL_SHARED_FONT_ICON_2X_SIZE=${shared_symbol_2x_size}"
-    "-DTT_LVGL_SHARED_FONT_ICON_2X_SYMBOL=material_symbols_shared_${shared_symbol_2x_size}"
     # UiDensity
     "-DTT_LVGL_UI_DENSITY=${ui_density_variable}"
 )

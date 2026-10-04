@@ -31,6 +31,7 @@ list(APPEND REQUIRES_LIST
     app-module
     coreutils-module
     audio-decoder-module
+    binfont-module
     c-symbols-module
     cjson-module
     cpp-symbols-module

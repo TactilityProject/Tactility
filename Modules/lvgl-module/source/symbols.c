@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <lvgl/binfont.h>
 #include <lvgl/fonts.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/module.h>
@@ -26,6 +27,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lvgl module
     DEFINE_MODULE_SYMBOL(lvgl_module),
     DEFINE_MODULE_SYMBOL(lvgl_module_configure),
+    // lvgl_binfont
+    DEFINE_MODULE_SYMBOL(lvgl_binfont_create),
+    DEFINE_MODULE_SYMBOL(lvgl_binfont_destroy),
     // lvgl_fonts
     DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_font),
     DEFINE_MODULE_SYMBOL(lvgl_get_shared_icon_font_height),
