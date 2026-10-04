@@ -27,6 +27,7 @@
 
 constexpr auto* TAG = "esp32_ble";
 #include <tactility/log.h>
+#include <tactility/memory.h>
 #include <esp_timer.h>
 
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
@@ -665,6 +666,16 @@ void ble_start_advertising_hid(struct Device* device, uint16_t appearance) {
 
 // ---- Dispatch helpers ----
 
+static void free_scan_buffers(BleCtx* ctx) {
+    xSemaphoreTake(ctx->scan_mutex, portMAX_DELAY);
+    memory_free(ctx->scan_results);
+    memory_free(ctx->scan_addrs);
+    ctx->scan_results = nullptr;
+    ctx->scan_addrs   = nullptr;
+    ctx->scan_count   = 0;
+    xSemaphoreGive(ctx->scan_mutex);
+}
+
 static void dispatch_enable(BleCtx* ctx) {
     LOG_I(TAG, "dispatch_enable()");
 
@@ -693,9 +704,22 @@ static void dispatch_enable(BleCtx* ctx) {
     }
 #endif
 
-    int rc = nimble_port_init();
+    constexpr MemoryPolicy scan_policy = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
+    xSemaphoreTake(ctx->scan_mutex, portMAX_DELAY);
+    ctx->scan_results = static_cast<BtPeerRecord*>(memory_calloc_with_policy(BLE_SCAN_RESULTS_MAX, sizeof(BtPeerRecord), &scan_policy));
+    ctx->scan_addrs   = static_cast<ble_addr_t*>(memory_calloc_with_policy(BLE_SCAN_RESULTS_MAX, sizeof(ble_addr_t), &scan_policy));
+    ctx->scan_count   = 0;
+    bool scan_alloc_failed = ctx->scan_results == nullptr || ctx->scan_addrs == nullptr;
+    xSemaphoreGive(ctx->scan_mutex);
+
+    int rc = scan_alloc_failed ? -1 : nimble_port_init();
     if (rc != 0) {
-        LOG_E(TAG, "nimble_port_init failed (rc=%d)", rc);
+        if (scan_alloc_failed) {
+            LOG_E(TAG, "Scan buffer allocation failed");
+        } else {
+            LOG_E(TAG, "nimble_port_init failed (rc=%d)", rc);
+        }
+        free_scan_buffers(ctx);
         ctx->radio_state.store(BT_RADIO_STATE_OFF);
         struct BtEvent e = {};
         e.type = BT_EVENT_RADIO_STATE_CHANGED;
@@ -820,6 +844,7 @@ static void dispatch_disable(BleCtx* ctx) {
     }
 #endif
     nimble_port_deinit();
+    free_scan_buffers(ctx);
 
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
     // Symmetric with the enable-side esp_hosted_bt_controller_init/enable() calls.
@@ -1152,8 +1177,9 @@ static error_t esp32_ble_start_device(struct Device* device) {
     ctx->midi_child           = nullptr;
     ctx->hid_device_child     = nullptr;
     ctx->scan_mutex           = xSemaphoreCreateMutex();
+    ctx->scan_results         = nullptr;
+    ctx->scan_addrs           = nullptr;
     ctx->scan_count           = 0;
-    memset(ctx->scan_results, 0, sizeof(ctx->scan_results));
     ctx->host_task_done_sem   = xSemaphoreCreateBinary();
     if (ctx->host_task_done_sem == nullptr) {
         LOG_E(TAG, "start_device: host_task_done_sem create failed");

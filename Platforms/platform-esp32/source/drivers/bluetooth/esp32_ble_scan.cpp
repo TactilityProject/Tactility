@@ -27,7 +27,9 @@ void ble_scan_clear_results(struct Device* device) {
     BleCtx* ctx = ble_get_ctx(device);
     xSemaphoreTake(ctx->scan_mutex, portMAX_DELAY);
     ctx->scan_count = 0;
-    memset(ctx->scan_results, 0, sizeof(ctx->scan_results));
+    if (ctx->scan_results != nullptr) {
+        memset(ctx->scan_results, 0, BLE_SCAN_RESULTS_MAX * sizeof(BtPeerRecord));
+    }
     xSemaphoreGive(ctx->scan_mutex);
 }
 
@@ -71,7 +73,7 @@ int ble_gap_disc_event_handler(struct ble_gap_event* event, void* arg) {
                         break;
                     }
                 }
-                if (!found && ctx->scan_count < 64) {
+                if (!found && ctx->scan_count < BLE_SCAN_RESULTS_MAX) {
                     ctx->scan_results[ctx->scan_count] = record;
                     ctx->scan_addrs[ctx->scan_count]   = disc.addr; // full addr (type+val)
                     ctx->scan_count++;

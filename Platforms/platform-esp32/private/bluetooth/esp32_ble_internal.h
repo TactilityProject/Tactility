@@ -24,6 +24,8 @@
 
 #include <atomic>
 
+constexpr size_t BLE_SCAN_RESULTS_MAX = 64;
+
 // ---- Per-module headers (structs, accessors, sub-API externs) ----
 
 #include <bluetooth/esp32_ble_spp.h>
@@ -91,10 +93,10 @@ struct BleCtx {
     // BLE device name (set before or after radio enable; applied in dispatch_enable)
     char device_name[BLE_DEVICE_NAME_MAX + 1];
 
-    // Scan data (guarded by scan_mutex)
+    // Scan data (guarded by scan_mutex), allocated only while the radio is on
     SemaphoreHandle_t scan_mutex;
-    BtPeerRecord      scan_results[64];
-    ble_addr_t        scan_addrs[64];
+    BtPeerRecord*     scan_results;
+    ble_addr_t*       scan_addrs;
     size_t            scan_count;
 
     // Device reference (passed to subscribers via BtEvent delivery)
