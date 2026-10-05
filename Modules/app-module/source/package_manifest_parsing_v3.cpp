@@ -134,6 +134,18 @@ error_t parse_app_manifest(const std::map<std::string, std::string>& properties,
         }
     }
 
+    // <index>.cleanup (optional; defaults to false)
+    auto cleanup_iterator = properties.find(prefix + "cleanup");
+    if (cleanup_iterator != properties.end()) {
+        if (!app_package_manifest_is_valid_bool(cleanup_iterator->second)) {
+            LOG_E(TAG, "Invalid %scleanup", prefix.c_str());
+            return ERROR_INVALID_ARGUMENT;
+        }
+        if (cleanup_iterator->second == "true") {
+            out_manifest.flags |= APP_MANIFEST_FLAG_CLEANUP;
+        }
+    }
+
     out_manifest.category = APP_CATEGORY_USER;
 
     return ERROR_NONE;

@@ -11,7 +11,10 @@
 // `dd_vfs_idx` is never a real VFS's table offset here and `dd_rsv` is left untouched (0) by every real VFS implementation,
 // so tagging it with a nonzero magic value reliably tells our handles apart from real ones.
 
+#include <app/libc.h>
+
 #include <tactility/filesystem/file_system.h>
+#include <tactility/paths.h>
 
 #include <dirent.h>
 
@@ -71,13 +74,20 @@ extern "C" int __real_closedir(DIR* pdir);
 extern "C" {
 
 DIR* __wrap_opendir(const char* name) {
-    // The VFS dereferences a NULL path (see vfs_null_path.cpp)
+    // The VFS dereferences a NULL path and has no cwd (see path_wrap.cpp)
     if (name == nullptr) {
         errno = EFAULT;
         return nullptr;
     }
-    if (strcmp(name, "/") != 0) {
-        return __real_opendir(name);
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved;
+    if (!app_libc_try_resolve_path(name, buffer, sizeof(buffer), &resolved)) {
+        resolved = name;
+    } else if (resolved == nullptr) {
+        return nullptr;
+    }
+    if (strcmp(resolved, "/") != 0) {
+        return __real_opendir(resolved);
     }
 
     auto* dir = static_cast<RootDir*>(calloc(1, sizeof(RootDir)));

@@ -40,6 +40,20 @@ bool elf_check_file(const char* path, const struct ElfRequirements* requirements
 
     return elf_class == requirements->elf_class
         && data == requirements->data
-        && type == requirements->type
+        && type < 32
+        && (requirements->types & ELF_TYPE_MASK(type)) != 0
         && machine == requirements->machine;
+}
+
+bool elf_has_magic(const char* path) {
+    FILE* file = fopen(path, "rb");
+    if (file == nullptr) {
+        return false;
+    }
+
+    uint8_t magic[sizeof(ELF_MAGIC)];
+    size_t read = fread(magic, 1, sizeof(magic), file);
+    fclose(file);
+
+    return read == sizeof(magic) && memcmp(magic, ELF_MAGIC, sizeof(ELF_MAGIC)) == 0;
 }

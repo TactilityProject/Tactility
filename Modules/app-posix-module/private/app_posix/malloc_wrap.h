@@ -11,9 +11,22 @@
  */
 void app_posix_set_current_image(uintptr_t start, uintptr_t end);
 
+/** Gets the range set by app_posix_set_current_image() on the calling thread, for a thread the app creates. */
+void app_posix_get_current_image(uintptr_t* out_start, uintptr_t* out_end);
+
+/** @return true if @a caller lies inside the image of the app running on the calling thread */
+bool app_posix_is_app_caller(const void* caller);
+
 #else
 
-// Allocations aren't counted on Apple platforms
+// Allocations aren't counted, and resources aren't tracked, on Apple platforms
 inline void app_posix_set_current_image(uintptr_t, uintptr_t) {}
+
+inline void app_posix_get_current_image(uintptr_t* out_start, uintptr_t* out_end) {
+    *out_start = 0;
+    *out_end = 0;
+}
+
+inline bool app_posix_is_app_caller(const void*) { return false; }
 
 #endif

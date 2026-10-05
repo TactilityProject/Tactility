@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// libc calls made by an app instance (fstat, termios, poll, printf, exit), routed by this module's
-// libc wraps (../source/stdio_wrap.cpp) to the app instance's own fds and lifecycle.
+// libc calls made by an app instance (fstat, termios, poll, printf, exit, path-based calls), routed by this
+// module's libc wraps (../source/stdio_wrap.cpp) to the app instance's own fds, cwd and lifecycle.
 #include "doctest.h"
 
 #include <app/event.h>
@@ -15,7 +15,10 @@
 #include <service/manager.h>
 
 #include <tactility/delay.h>
+#include <tactility/paths.h>
 
+#include <dirent.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
 #include <sys/ioctl.h>
@@ -28,6 +31,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <vector>
 
 extern ServiceManifest app_internal_loader_service_manifest;
@@ -204,6 +208,95 @@ int32_t icrnl_app_main(int, char*[]) {
     tcsetattr(STDIN_FILENO, TCSANOW, &t);
     g_icrnl_first_done.store(true, std::memory_order_release);
     g_icrnl_second_read.store(read(STDIN_FILENO, &c, 1) == 1 ? c : -1, std::memory_order_release);
+    return 0;
+}
+
+std::string g_paths_directory;
+// The number of the first check that failed, 0 when all passed
+std::atomic<int> g_paths_failed_check { -1 };
+
+int run_relative_path_checks() {
+    if (chdir(g_paths_directory.c_str()) != 0) {
+        return 1;
+    }
+
+    int fd = open("file.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        return 2;
+    }
+    if (write(fd, "abc", 3) != 3) {
+        return 3;
+    }
+    close(fd);
+
+    if (mkdir("sub", 0755) != 0) {
+        return 4;
+    }
+    struct stat st {};
+    if (stat("./sub", &st) != 0 || !S_ISDIR(st.st_mode)) {
+        return 5;
+    }
+    DIR* dir = opendir("sub");
+    if (dir == nullptr) {
+        return 6;
+    }
+    closedir(dir);
+
+    // "." and ".." segments are collapsed
+    FILE* file = fopen("sub/.././file.txt", "r");
+    if (file == nullptr) {
+        return 7;
+    }
+    char content[4] = {};
+    const size_t read_count = fread(content, 1, 3, file);
+    fclose(file);
+    if (read_count != 3 || strcmp(content, "abc") != 0) {
+        return 8;
+    }
+
+    if (rename("file.txt", "sub/moved.txt") != 0) {
+        return 9;
+    }
+    if (access("sub/moved.txt", F_OK) != 0 || access("file.txt", F_OK) == 0) {
+        return 10;
+    }
+    if (truncate("sub/moved.txt", 1) != 0 || stat("sub/moved.txt", &st) != 0 || st.st_size != 1) {
+        return 11;
+    }
+    if (unlink("sub/moved.txt") != 0) {
+        return 12;
+    }
+    if (rmdir("sub") != 0) {
+        return 13;
+    }
+
+    // Left behind for the test to find in the app's cwd, rather than in the process's
+    fd = open("kept.txt", O_WRONLY | O_CREAT, 0644);
+    if (fd < 0) {
+        return 14;
+    }
+    close(fd);
+
+    // chdir() collapses ".." too
+    if (chdir("..") != 0) {
+        return 15;
+    }
+    char cwd[FILE_MAX_PATH_STRING_LENGTH];
+    const std::string parent = g_paths_directory.substr(0, g_paths_directory.rfind('/'));
+    if (getcwd(cwd, sizeof(cwd)) == nullptr || parent != cwd) {
+        return 16;
+    }
+
+    const std::string too_long(FILE_MAX_PATH_STRING_LENGTH, 'a');
+    if (open(too_long.c_str(), O_RDONLY) != -1 || errno != ENAMETOOLONG) {
+        return 17;
+    }
+
+    return 0;
+}
+
+int32_t relative_paths_app_main(int, char*[]) {
+    g_paths_failed_check.store(run_relative_path_checks(), std::memory_order_release);
     return 0;
 }
 
@@ -691,4 +784,31 @@ TEST_CASE("app_signal_send() rejects an out-of-range signal and an unknown app")
     CHECK_EQ(app_signal_send(1, 0), ERROR_INVALID_ARGUMENT);
     CHECK_EQ(app_signal_send(1, 32), ERROR_INVALID_ARGUMENT);
     CHECK_EQ(app_signal_send(0x7FFFFFF0, SIGTERM), ERROR_NOT_FOUND);
+}
+
+TEST_CASE("Path-based calls in an app resolve relative paths against the app's own cwd") {
+    ensure_memory_loader_registered();
+    char directory_template[] = "/tmp/tactility-paths-XXXXXX";
+    REQUIRE(mkdtemp(directory_template) != nullptr);
+    g_paths_directory = directory_template;
+    g_paths_failed_check.store(-1, std::memory_order_relaxed);
+
+    AppManifest manifest { "test.libc.paths", "Paths", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(relative_paths_app_main) } };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    AppInstanceId instance_id = 0;
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.libc.paths", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
+    REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 2000));
+
+    CHECK_EQ(g_paths_failed_check.load(std::memory_order_acquire), 0);
+    const std::string kept_path = g_paths_directory + "/kept.txt";
+    CHECK_EQ(access(kept_path.c_str(), F_OK), 0);
+    // Outside an app, relative paths still resolve against the process's own cwd
+    CHECK_NE(access("kept.txt", F_OK), 0);
+
+    unlink(kept_path.c_str());
+    rmdir(directory_template);
+    app_manager_remove("test.libc.paths");
 }

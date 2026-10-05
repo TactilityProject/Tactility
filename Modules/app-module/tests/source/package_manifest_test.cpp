@@ -28,6 +28,14 @@ error_t parse(const std::map<std::string, std::string>& properties, PackageManif
     return package_manifest_parse_v3(properties, package, bindings, 1);
 }
 
+error_t parse_app_flags(const std::map<std::string, std::string>& properties, uint8_t& out_flags) {
+    PackageManifest package {};
+    AppManifestBinding bindings[1] {};
+    const error_t result = package_manifest_parse_v3(properties, package, bindings, 1);
+    out_flags = bindings[0].manifest.flags;
+    return result;
+}
+
 } // namespace
 
 TEST_CASE("package manifest v3: requires.ram defaults to 0") {
@@ -52,6 +60,31 @@ TEST_CASE("package manifest v3: an invalid requires.ram rejects the manifest") {
         PackageManifest package {};
         CHECK_EQ(parse(properties, package), ERROR_INVALID_ARGUMENT);
     }
+}
+
+TEST_CASE("package manifest v3: cleanup defaults to disabled") {
+    uint8_t flags = 0xFF;
+    REQUIRE_EQ(parse_app_flags(minimal_v3_properties(), flags), ERROR_NONE);
+    CHECK_EQ(flags & APP_MANIFEST_FLAG_CLEANUP, 0);
+}
+
+TEST_CASE("package manifest v3: cleanup=true sets the cleanup flag") {
+    auto properties = minimal_v3_properties();
+    properties["app.0.cleanup"] = "true";
+    uint8_t flags = 0;
+    REQUIRE_EQ(parse_app_flags(properties, flags), ERROR_NONE);
+    CHECK_NE(flags & APP_MANIFEST_FLAG_CLEANUP, 0);
+
+    properties["app.0.cleanup"] = "false";
+    REQUIRE_EQ(parse_app_flags(properties, flags), ERROR_NONE);
+    CHECK_EQ(flags & APP_MANIFEST_FLAG_CLEANUP, 0);
+}
+
+TEST_CASE("package manifest v3: an invalid cleanup rejects the manifest") {
+    auto properties = minimal_v3_properties();
+    properties["app.0.cleanup"] = "yes";
+    uint8_t flags = 0;
+    CHECK_EQ(parse_app_flags(properties, flags), ERROR_INVALID_ARGUMENT);
 }
 
 TEST_CASE("package manifest compatibility: requires_device_id must list this device, if set") {

@@ -2,6 +2,7 @@
 #include <Tactility/app/shell/Run.h>
 #include <Tactility/app/shell/ShellFs.h>
 
+#include <app/elf_check.h>
 #include <app/execute.h>
 #include <app/manager.h>
 #include <app/package_manifest.h>
@@ -321,6 +322,10 @@ int runCommand(int argc, char** argv, int* found) {
         // since the filesystem is FAT and carries no execute bit to consult.
         if (app_is_executable_path(resolved)) {
             return runElf(resolved, argc, argv);
+        }
+        if (elf_has_magic(resolved)) {
+            printf("%s: cannot execute binary file\n", argv[0]);
+            return 126;
         }
         // A script runs in its own `sh` app instance, so it gets its own task and stack rather
         // than nesting another interpreter on this one's.

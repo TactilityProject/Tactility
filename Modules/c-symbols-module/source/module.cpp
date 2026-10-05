@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <c_symbols/module.h>
 
+#include <cerrno>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -35,7 +36,13 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(system),
     DEFINE_MODULE_SYMBOL(getenv),
     DEFINE_MODULE_SYMBOL(qsort),
+    // errno.h
+#ifdef ESP_PLATFORM
+    // Newlib's errno is a macro for *__errno()
+    DEFINE_MODULE_SYMBOL(__errno),
+#endif
     // time.h
+    DEFINE_MODULE_SYMBOL(clock),
     DEFINE_MODULE_SYMBOL(strftime),
     DEFINE_MODULE_SYMBOL(time),
     DEFINE_MODULE_SYMBOL(difftime),

@@ -8,6 +8,7 @@
 #include <app_posix/malloc_wrap.h>
 
 #include <app/memory.h>
+#include <app/resources.h>
 
 #include <malloc.h>
 
@@ -36,6 +37,7 @@ inline bool is_app_caller(void* caller) {
 inline void* record_alloc(void* ptr, void* caller) {
     if (ptr != nullptr && is_app_caller(caller)) {
         app_memory_record_alloc(malloc_usable_size(ptr));
+        app_resources_track_alloc(ptr);
     }
     return ptr;
 }
@@ -43,6 +45,7 @@ inline void* record_alloc(void* ptr, void* caller) {
 inline void record_free(void* ptr, void* caller) {
     if (ptr != nullptr && is_app_caller(caller)) {
         app_memory_record_free(malloc_usable_size(ptr));
+        app_resources_untrack_alloc(ptr);
     }
 }
 
@@ -72,6 +75,15 @@ void app_posix_set_current_image(uintptr_t start, uintptr_t end) {
     image_end = end;
 }
 
+void app_posix_get_current_image(uintptr_t* out_start, uintptr_t* out_end) {
+    *out_start = image_start;
+    *out_end = image_end;
+}
+
+bool app_posix_is_app_caller(const void* caller) {
+    return is_app_caller(const_cast<void*>(caller));
+}
+
 extern "C" {
 
 void* malloc(size_t size) {
@@ -88,6 +100,8 @@ void* realloc(void* ptr, size_t size) {
         return __libc_realloc(ptr, size);
     }
     const size_t old_size = (ptr != nullptr) ? malloc_usable_size(ptr) : 0;
+    // Untracked before ptr may be freed
+    app_resources_untrack_alloc(ptr);
     void* result = __libc_realloc(ptr, size);
     // A failed realloc() leaves the old block allocated
     if (result != nullptr || size == 0) {
@@ -96,7 +110,10 @@ void* realloc(void* ptr, size_t size) {
         }
         if (result != nullptr) {
             app_memory_record_alloc(malloc_usable_size(result));
+            app_resources_track_alloc(result);
         }
+    } else if (ptr != nullptr) {
+        app_resources_track_alloc(ptr);
     }
     return result;
 }

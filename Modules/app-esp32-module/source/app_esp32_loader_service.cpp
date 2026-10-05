@@ -87,7 +87,12 @@ std::string resolve_elf_path(const std::string& path) {
 constexpr ElfRequirements EXECUTABLE_REQUIREMENTS = {
     .elf_class = ELF_CLASS_32,
     .data = ELF_DATA_2LSB,
-    .type = ELF_TYPE_DYN,
+#if CONFIG_ELF_LOADER_BUS_ADDRESS_MIRROR
+    // Loaded by section rather than by program header, so a relocatable object without any (e.g. xcc700's output) loads too
+    .types = ELF_TYPE_MASK(ELF_TYPE_DYN) | ELF_TYPE_MASK(ELF_TYPE_REL),
+#else
+    .types = ELF_TYPE_MASK(ELF_TYPE_DYN),
+#endif
 #if defined(__XTENSA__)
     .machine = ELF_MACHINE_XTENSA,
 #elif defined(__riscv)
@@ -107,7 +112,7 @@ bool is_executable_file(const std::string& resolved_path) {
 
 error_t api_load(AppLocation location, AppRuntime* out_runtime) {
     if (location.type != APP_LOCATION_PATH) {
-        LOG_E(TAG, "Out of memory");
+        LOG_E(TAG, "Unsupported location type");
         return ERROR_NOT_SUPPORTED;
     }
 

@@ -12,6 +12,8 @@
 #include <app/scheduler.h>
 #include <app/signal.h>
 
+#include <tactility/paths.h>
+
 #include <cerrno>
 #include <cstring>
 
@@ -260,6 +262,233 @@ unsigned int __wrap_sleep(unsigned int seconds) {
 void __wrap_exit(int status) {
     app_scheduler_exit_current(status);
     __real_exit(status);
+}
+
+}
+
+// endregion
+
+// region path wraps
+//
+// The process has a single cwd, so an app instance's relative paths are resolved against its own
+// first (see app/libc.h). Every other caller's paths are passed on as-is.
+
+namespace {
+
+/**
+ * @return the path to pass on: resolved for an app instance, as-is otherwise.
+ * NULL when the resolved path doesn't fit (errno is set to ENAMETOOLONG).
+ */
+const char* resolvePath(const char* path, char (&buffer)[FILE_MAX_PATH_STRING_LENGTH]) {
+    const char* resolved;
+    return app_libc_try_resolve_path(path, buffer, sizeof(buffer), &resolved) ? resolved : path;
+}
+
+/** open() only reads its mode argument when it can create a file */
+bool openNeedsMode(int flags) {
+#ifdef O_TMPFILE
+    if ((flags & O_TMPFILE) == O_TMPFILE) {
+        return true;
+    }
+#endif
+    return (flags & O_CREAT) != 0;
+}
+
+} // namespace
+
+extern "C" {
+
+int __real_open(const char* path, int flags, mode_t mode) {
+    static auto real = reinterpret_cast<int (*)(const char*, int, ...)>(dlsym(RTLD_NEXT, "open"));
+    return real(path, flags, mode);
+}
+
+FILE* __real_fopen(const char* path, const char* mode) {
+    static auto real = reinterpret_cast<FILE* (*)(const char*, const char*)>(dlsym(RTLD_NEXT, "fopen"));
+    return real(path, mode);
+}
+
+int __real_stat(const char* path, struct stat* st) {
+    static auto real = reinterpret_cast<int (*)(const char*, struct stat*)>(dlsym(RTLD_NEXT, "stat"));
+    return real(path, st);
+}
+
+int __real_lstat(const char* path, struct stat* st) {
+    static auto real = reinterpret_cast<int (*)(const char*, struct stat*)>(dlsym(RTLD_NEXT, "lstat"));
+    return real(path, st);
+}
+
+int __real_access(const char* path, int mode) {
+    static auto real = reinterpret_cast<int (*)(const char*, int)>(dlsym(RTLD_NEXT, "access"));
+    return real(path, mode);
+}
+
+int __real_unlink(const char* path) {
+    static auto real = reinterpret_cast<int (*)(const char*)>(dlsym(RTLD_NEXT, "unlink"));
+    return real(path);
+}
+
+int __real_remove(const char* path) {
+    static auto real = reinterpret_cast<int (*)(const char*)>(dlsym(RTLD_NEXT, "remove"));
+    return real(path);
+}
+
+int __real_rename(const char* src, const char* dst) {
+    static auto real = reinterpret_cast<int (*)(const char*, const char*)>(dlsym(RTLD_NEXT, "rename"));
+    return real(src, dst);
+}
+
+int __real_mkdir(const char* path, mode_t mode) {
+    static auto real = reinterpret_cast<int (*)(const char*, mode_t)>(dlsym(RTLD_NEXT, "mkdir"));
+    return real(path, mode);
+}
+
+int __real_rmdir(const char* path) {
+    static auto real = reinterpret_cast<int (*)(const char*)>(dlsym(RTLD_NEXT, "rmdir"));
+    return real(path);
+}
+
+DIR* __real_opendir(const char* path) {
+    static auto real = reinterpret_cast<DIR* (*)(const char*)>(dlsym(RTLD_NEXT, "opendir"));
+    return real(path);
+}
+
+int __real_fclose(FILE* file) {
+    static auto real = reinterpret_cast<int (*)(FILE*)>(dlsym(RTLD_NEXT, "fclose"));
+    return real(file);
+}
+
+FILE* __real_fdopen(int fd, const char* mode) {
+    static auto real = reinterpret_cast<FILE* (*)(int, const char*)>(dlsym(RTLD_NEXT, "fdopen"));
+    return real(fd, mode);
+}
+
+int __real_closedir(DIR* dir) {
+    static auto real = reinterpret_cast<int (*)(DIR*)>(dlsym(RTLD_NEXT, "closedir"));
+    return real(dir);
+}
+
+int __real_truncate(const char* path, off_t length) {
+    static auto real = reinterpret_cast<int (*)(const char*, off_t)>(dlsym(RTLD_NEXT, "truncate"));
+    return real(path, length);
+}
+
+int __wrap_open(const char* path, int flags, ...) {
+    mode_t mode = 0;
+    if (openNeedsMode(flags)) {
+        va_list args;
+        va_start(args, flags);
+        mode = static_cast<mode_t>(va_arg(args, int));
+        va_end(args);
+    }
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return -1;
+    }
+    return __real_open(resolved, flags, mode);
+}
+
+// libc's own fopen() calls an internal open() alias, which the open() wrap can't reach
+FILE* __wrap_fopen(const char* path, const char* mode) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return nullptr;
+    }
+    return __real_fopen(resolved, mode);
+}
+
+int __wrap_stat(const char* path, struct stat* st) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return -1;
+    }
+    return __real_stat(resolved, st);
+}
+
+int __wrap_lstat(const char* path, struct stat* st) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return -1;
+    }
+    return __real_lstat(resolved, st);
+}
+
+int __wrap_access(const char* path, int mode) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return -1;
+    }
+    return __real_access(resolved, mode);
+}
+
+int __wrap_unlink(const char* path) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return -1;
+    }
+    return __real_unlink(resolved);
+}
+
+int __wrap_remove(const char* path) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return -1;
+    }
+    return __real_remove(resolved);
+}
+
+int __wrap_rename(const char* src, const char* dst) {
+    char src_buffer[FILE_MAX_PATH_STRING_LENGTH];
+    char dst_buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved_src = resolvePath(src, src_buffer);
+    const char* resolved_dst = resolvePath(dst, dst_buffer);
+    if (resolved_src == nullptr || resolved_dst == nullptr) {
+        return -1;
+    }
+    return __real_rename(resolved_src, resolved_dst);
+}
+
+int __wrap_mkdir(const char* path, mode_t mode) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return -1;
+    }
+    return __real_mkdir(resolved, mode);
+}
+
+int __wrap_rmdir(const char* path) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return -1;
+    }
+    return __real_rmdir(resolved);
+}
+
+DIR* __wrap_opendir(const char* path) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return nullptr;
+    }
+    return __real_opendir(resolved);
+}
+
+int __wrap_truncate(const char* path, off_t length) {
+    char buffer[FILE_MAX_PATH_STRING_LENGTH];
+    const char* resolved = resolvePath(path, buffer);
+    if (resolved == nullptr) {
+        return -1;
+    }
+    return __real_truncate(resolved, length);
 }
 
 }

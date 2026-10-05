@@ -68,6 +68,42 @@ bool sleep_unless_signalled(TickType_t ticks, TickType_t* out_remaining) {
     }
 }
 
+/**
+ * Collapses the ".", ".." and empty segments of an absolute path, in place.
+ * Every segment written is preceded by a '/' that was read, so writing never overtakes reading.
+ */
+void normalize_path(char* path) {
+    size_t length = 0;
+    const char* segment = path;
+    while (*segment != '\0') {
+        while (*segment == '/') {
+            segment++;
+        }
+        const char* end = segment;
+        while (*end != '\0' && *end != '/') {
+            end++;
+        }
+        const size_t segment_length = end - segment;
+        if (segment_length == 2 && segment[0] == '.' && segment[1] == '.') {
+            while (length > 0 && path[length - 1] != '/') {
+                length--;
+            }
+            if (length > 0) {
+                length--; // the '/' before the removed segment
+            }
+        } else if (segment_length > 0 && !(segment_length == 1 && segment[0] == '.')) {
+            path[length++] = '/';
+            memmove(path + length, segment, segment_length);
+            length += segment_length;
+        }
+        segment = end;
+    }
+    if (length == 0) {
+        path[length++] = '/';
+    }
+    path[length] = '\0';
+}
+
 } // namespace
 
 extern "C" {
@@ -117,29 +153,56 @@ bool app_libc_try_getcwd(char* buf, size_t size, char** out_result) {
     return false; // ERROR_NOT_FOUND: not an app instance.
 }
 
-// app_dir_set_cwd() requires an already-absolute path and reports both "not an app instance" and
-// "no such directory" as ERROR_NOT_FOUND, so app_dir_get_cwd() is used first as an unambiguous
-// "is this an app instance" probe (it's needed anyway, to resolve a relative path).
-bool app_libc_try_chdir(const char* path, int* out_result) {
-    if (path == nullptr || path[0] == '\0') {
+// The cwd is written to buf directly and the path appended to it, so a relative path needs no second buffer.
+bool app_libc_try_resolve_path(const char* path, char* buf, size_t size, const char** out_path) {
+    // Checked before app_dir_get_cwd() takes the ledger's lock: every path-based libc call in the
+    // process ends up here, including the simulator's foreign threads (e.g. SDL's) and early boot.
+    if (path == nullptr || path[0] == '\0' || app_scheduler_current_app_id() == 0) {
         return false;
     }
-    char cwd[FILE_MAX_PATH_STRING_LENGTH];
-    if (app_dir_get_cwd(cwd, sizeof(cwd)) != ERROR_NONE) {
+    const error_t cwd_result = app_dir_get_cwd(buf, size);
+    if (cwd_result == ERROR_NOT_FOUND) {
         return false; // not an app instance
     }
 
+    const size_t path_length = strlen(path);
+    if (path[0] == '/') {
+        if (path_length >= size) {
+            errno = ENAMETOOLONG;
+            *out_path = nullptr;
+            return true;
+        }
+        memcpy(buf, path, path_length + 1);
+    } else {
+        const size_t cwd_length = (cwd_result == ERROR_NONE) ? strlen(buf) : size;
+        if (cwd_length + 1 + path_length >= size) {
+            errno = ENAMETOOLONG;
+            *out_path = nullptr;
+            return true;
+        }
+        buf[cwd_length] = '/';
+        memcpy(buf + cwd_length + 1, path, path_length + 1);
+    }
+
+    normalize_path(buf);
+    *out_path = buf;
+    return true;
+}
+
+// app_dir_set_cwd() requires an already-absolute path and reports both "not an app instance" and
+// "no such directory" as ERROR_NOT_FOUND, so the path is resolved first, which also tells the two apart.
+bool app_libc_try_chdir(const char* path, int* out_result) {
     char resolved[FILE_MAX_PATH_STRING_LENGTH];
-    const int written = (path[0] == '/') ? snprintf(resolved, sizeof(resolved), "%s", path)
-        : (strcmp(cwd, "/") == 0) ? snprintf(resolved, sizeof(resolved), "/%s", path)
-        : snprintf(resolved, sizeof(resolved), "%s/%s", cwd, path);
-    if (written < 0 || static_cast<size_t>(written) >= sizeof(resolved)) {
-        errno = ENAMETOOLONG;
+    const char* resolved_path;
+    if (!app_libc_try_resolve_path(path, resolved, sizeof(resolved), &resolved_path)) {
+        return false;
+    }
+    if (resolved_path == nullptr) {
         *out_result = -1;
         return true;
     }
 
-    if (app_dir_set_cwd(resolved) == ERROR_NONE) {
+    if (app_dir_set_cwd(resolved_path) == ERROR_NONE) {
         *out_result = 0;
     } else {
         errno = ENOENT;

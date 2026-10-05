@@ -4,6 +4,8 @@
 #include <cstdarg>
 #include <cstddef>
 #include <cstdio>
+#include <dirent.h>
+#include <fcntl.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -33,6 +35,22 @@ pid_t __wrap_getppid();
 int __wrap_usleep(useconds_t usec);
 unsigned int __wrap_sleep(unsigned int seconds);
 [[noreturn]] void __wrap_exit(int status);
+
+int __wrap_open(const char* path, int flags, ...);
+FILE* __wrap_fopen(const char* path, const char* mode);
+int __wrap_stat(const char* path, struct stat* st);
+int __wrap_lstat(const char* path, struct stat* st);
+int __wrap_access(const char* path, int mode);
+int __wrap_unlink(const char* path);
+int __wrap_remove(const char* path);
+int __wrap_rename(const char* src, const char* dst);
+int __wrap_mkdir(const char* path, mode_t mode);
+int __wrap_rmdir(const char* path);
+DIR* __wrap_opendir(const char* path);
+int __real_fclose(FILE* file);
+FILE* __real_fdopen(int fd, const char* mode);
+int __real_closedir(DIR* dir);
+int __wrap_truncate(const char* path, off_t length);
 
 int __wrap_vprintf(const char* format, va_list args);
 int __wrap_printf(const char* format, ...);

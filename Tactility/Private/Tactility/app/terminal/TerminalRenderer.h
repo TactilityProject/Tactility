@@ -120,8 +120,7 @@ protected:
 
     Device* display = nullptr;
 
-    // True for a monochrome display. frameBuffer/hwFrameBuffers/fullFrameBuffer format-handling
-    // all lives in graphics-module now (see paintCell()/presentRegion()).
+    // True for a monochrome display. paintCell() then draws every non-black colour as white.
     bool monochrome = false;
 
     // Scratch buffer glyphs are painted into before being pushed. Sized for one text row, not the

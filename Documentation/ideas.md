@@ -7,6 +7,8 @@
 
 ## Higher Priority
 
+- Terminal app should always run in non-LVGL mode if no PSRAM is present.
+- Crash app should work without LVGL, like Boot app. It should wait for any input (keyboard or pointer) to continue.
 - NimBLE looses pairing key after reboot
 - CrashDiagnostics shouldn't show a QR when there's no callstack
 - Move USB host task stacks to SPIRAM when available: esp32_usbhost*.cpp

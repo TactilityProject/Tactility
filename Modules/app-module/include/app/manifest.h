@@ -32,6 +32,13 @@ enum AppManifestFlags {
     APP_MANIFEST_FLAG_HIDDEN = 1 << 0,
     /** No window-manager dependency. Safe to start from a context with no GUI available. */
     APP_MANIFEST_FLAG_HEADLESS = 1 << 1,
+    /**
+     * When the app's main task ends, release what its binary leaked: tasks are deleted after a grace period,
+     * then files and directories are closed and memory is freed.
+     * Only covers calls made by a loaded binary (not APP_LOCATION_MEMORY apps), and not sockets, dup() or LVGL objects.
+     * Must not be used by an app that hands ownership of memory, files or tasks to the system, as they would be released twice.
+     */
+    APP_MANIFEST_FLAG_CLEANUP = 1 << 2,
 };
 
 /** Largest stack depth (in words) an app may request. Keeps `depth * sizeof(StackType_t)` safely

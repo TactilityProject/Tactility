@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <app_posix/malloc_wrap.h>
+#include <app_posix/task_wrap.h>
 
 #include <app/elf_check.h>
 #include <app/loader.h>
@@ -82,7 +83,7 @@ bool is_regular_file(const std::string& path) {
 constexpr ElfRequirements EXECUTABLE_REQUIREMENTS = {
     .elf_class = ELF_CLASS_64,
     .data = ELF_DATA_2LSB,
-    .type = ELF_TYPE_DYN,
+    .types = ELF_TYPE_MASK(ELF_TYPE_DYN),
 #if defined(__x86_64__)
     .machine = ELF_MACHINE_X86_64,
 #elif defined(__aarch64__)
@@ -145,6 +146,8 @@ error_t api_load(AppLocation location, AppRuntime* out_runtime) {
     }
 
     LOG_I(TAG, "Loading %s", app_path.c_str());
+
+    app_posix_install_task_hooks();
 
     void* handle = dlopen(app_path.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (handle == nullptr) {

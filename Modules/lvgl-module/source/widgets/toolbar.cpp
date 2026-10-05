@@ -29,7 +29,31 @@ static const _lv_font_t* getToolbarFont(UiDensity uiDensity) {
 static uint32_t getActionIconPadding(UiDensity uiDensity) {
     auto toolbar_height = getToolbarHeight(uiDensity);
     // Minimal 8 pixels total padding for selection/animation (4+4 pixels)
-    return (uiDensity != LVGL_UI_DENSITY_COMPACT) ? (uint32_t)(toolbar_height * 0.2f) : 10;
+    return (uiDensity != LVGL_UI_DENSITY_COMPACT) ? (uint32_t)(toolbar_height * 0.2f) : 8;
+}
+
+static bool is_monochrome(lv_obj_t* obj) {
+    return lv_display_get_color_format(lv_obj_get_display(obj)) == LV_COLOR_FORMAT_I1;
+}
+
+/**
+ * Makes a toolbar button transparent. Its icon or text is drawn in the accent colour when it's
+ * selected or pressed, instead of showing an outline.
+ */
+static void apply_button_style(lv_obj_t* button) {
+    lv_obj_set_style_bg_opa(button, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_width(button, 0, LV_STATE_DEFAULT);
+    // Colours can't show the selection on monochrome displays, so those keep the theme's outline
+    if (is_monochrome(button)) {
+        return;
+    }
+    const lv_color_t accent = lv_theme_get_color_primary(button);
+    const lv_state_t states[] = { LV_STATE_FOCUSED, LV_STATE_FOCUS_KEY, LV_STATE_PRESSED };
+    for (const lv_state_t state : states) {
+        lv_obj_set_style_outline_width(button, 0, state);
+        // Inherited by the button's label or image, including symbol images
+        lv_obj_set_style_text_color(button, accent, state);
+    }
 }
 
 /**
@@ -119,9 +143,7 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     auto* close_button_wrapper = create_action_wrapper(obj, ui_density);
 
     toolbar->close_button = lv_button_create(close_button_wrapper);
-    if (ui_density == LVGL_UI_DENSITY_COMPACT) {
-        lv_obj_set_style_bg_opa(toolbar->close_button, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    }
+    apply_button_style(toolbar->close_button);
 
     lv_obj_set_size(toolbar->close_button, toolbar_height - icon_padding, toolbar_height - icon_padding);
 
@@ -204,9 +226,7 @@ static lv_obj_t* toolbar_add_button_action(lv_obj_t* obj, const char* imageOrBut
     lv_obj_set_size(action_button, toolbar_height - padding, toolbar_height - padding);
     lv_obj_set_style_pad_all(action_button, 0, LV_STATE_DEFAULT);
     lv_obj_align(action_button, LV_ALIGN_CENTER, 0, 0);
-    if (ui_density == LVGL_UI_DENSITY_COMPACT) {
-        lv_obj_set_style_bg_opa(action_button, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    }
+    apply_button_style(action_button);
 
     lv_obj_add_event_cb(action_button, callback, LV_EVENT_SHORT_CLICKED, user_data);
     lv_obj_t* button_content;

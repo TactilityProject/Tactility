@@ -35,6 +35,9 @@ error_t app_scheduler_stop(AppInstanceId app_instance_id, TickType_t join_timeou
 
 // app_scheduler_current_app_id() is public - see app/scheduler.h.
 
+/** Makes the calling task part of @a app_instance_id, for a task that an app instance created (see app/resources.h). */
+void app_scheduler_set_current_app_id(AppInstanceId app_instance_id);
+
 #ifdef __cplusplus
 }
 #endif

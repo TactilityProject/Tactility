@@ -288,7 +288,11 @@ void TerminalRenderer::paintCell(int row, int col, char ch, uint8_t attr) {
     for (int y = 0; y < cellHeight; y++) {
         for (int x = 0; x < cellWidth; x++) {
             const uint8_t alpha = mask[y * cellWidth + x];
-            const uint16_t colour = alpha == 0 ? bg : (alpha == 255 ? fg : blendRgb565(fg, bg, alpha));
+            uint16_t colour = alpha == 0 ? bg : (alpha == 255 ? fg : blendRgb565(fg, bg, alpha));
+            // Any non-black colour is ink-on, also when the frame buffer is RGB565 for LVGL to convert by luminance
+            if (monochrome && colour != 0x0000) {
+                colour = 0xFFFF;
+            }
             pixel_buffer_set_pixel_rgb565(frameBuffer, pixelX + x, pixelY + y, colour, PIXEL_BUFFER_CONVERSION_EXACT_BLACK);
         }
     }
