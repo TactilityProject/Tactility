@@ -5,6 +5,7 @@
 // a dlopen()ed app's own printf/write calls, so these wraps are installed under their real names instead
 // - dyld interpose on Apple (stdio_wrap_apple.cpp), plain strong definitions elsewhere (stdio_wrap_elf.cpp).
 // app-module's io.cpp falls through to the __real_read/__real_write/__real_close defined here.
+#include <app_posix/malloc_wrap.h>
 #include <app_posix/stdio_wrap.h>
 
 #include <app/io.h>
@@ -270,16 +271,22 @@ void __wrap_exit(int status) {
 
 // region path wraps
 //
-// The process has a single cwd, so an app instance's relative paths are resolved against its own
-// first (see app/libc.h). Every other caller's paths are passed on as-is.
+// The process has a single cwd, so the relative paths of an app binary's own calls are resolved against
+// the app instance's cwd first (see app/libc.h). Every other caller's paths are passed on as-is.
 
 namespace {
 
+// Set by AppPathCallScope. Never set on Apple platforms, where the caller can't be identified.
+thread_local bool app_path_call = false;
+
 /**
- * @return the path to pass on: resolved for an app instance, as-is otherwise.
+ * @return the path to pass on: resolved for an app binary's own call, as-is otherwise.
  * NULL when the resolved path doesn't fit (errno is set to ENAMETOOLONG).
  */
 const char* resolvePath(const char* path, char (&buffer)[FILE_MAX_PATH_STRING_LENGTH]) {
+    if (!app_path_call) {
+        return path;
+    }
     const char* resolved;
     return app_libc_try_resolve_path(path, buffer, sizeof(buffer), &resolved) ? resolved : path;
 }
@@ -295,6 +302,14 @@ bool openNeedsMode(int flags) {
 }
 
 } // namespace
+
+AppPathCallScope::AppPathCallScope(const void* caller) : previous(app_path_call) {
+    app_path_call = app_posix_is_app_caller(caller);
+}
+
+AppPathCallScope::~AppPathCallScope() {
+    app_path_call = previous;
+}
 
 extern "C" {
 

@@ -16,6 +16,21 @@
 #include <unistd.h>
 
 
+/**
+ * While alive, the path-based wraps called on this thread treat the call as made by the app's own code
+ * when @a caller lies inside its image, and resolve its relative paths against the app's cwd (see app/libc.h).
+ * Code built into the simulator keeps the process's cwd, which its relative mount points (e.g. "system") rely on.
+ */
+class AppPathCallScope {
+    bool previous;
+
+public:
+    explicit AppPathCallScope(const void* caller);
+    ~AppPathCallScope();
+    AppPathCallScope(const AppPathCallScope&) = delete;
+    AppPathCallScope& operator=(const AppPathCallScope&) = delete;
+};
+
 // Implemented in stdio_wrap.cpp, installed under the real names by stdio_wrap_elf.cpp or stdio_wrap_apple.cpp.
 extern "C" {
 ssize_t __wrap_read(int fd, void* buffer, size_t size);

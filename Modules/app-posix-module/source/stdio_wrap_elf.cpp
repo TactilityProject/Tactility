@@ -99,6 +99,7 @@ int open(const char* path, int flags, ...) {
         mode = static_cast<mode_t>(va_arg(args, int));
         va_end(args);
     }
+    AppPathCallScope scope(__builtin_return_address(0));
     const int fd = __wrap_open(path, flags, mode);
     if (fd >= 0 && app_posix_is_app_caller(__builtin_return_address(0))) {
         app_resources_track_fd(fd);
@@ -107,6 +108,7 @@ int open(const char* path, int flags, ...) {
 }
 
 FILE* fopen(const char* path, const char* mode) {
+    AppPathCallScope scope(__builtin_return_address(0));
     FILE* file = __wrap_fopen(path, mode);
     if (file != nullptr && app_posix_is_app_caller(__builtin_return_address(0))) {
         app_resources_track_file(file);
@@ -132,38 +134,47 @@ int fclose(FILE* file) {
 }
 
 int stat(const char* path, struct stat* st) {
+    AppPathCallScope scope(__builtin_return_address(0));
     return __wrap_stat(path, st);
 }
 
 int lstat(const char* path, struct stat* st) {
+    AppPathCallScope scope(__builtin_return_address(0));
     return __wrap_lstat(path, st);
 }
 
 int access(const char* path, int mode) {
+    AppPathCallScope scope(__builtin_return_address(0));
     return __wrap_access(path, mode);
 }
 
 int unlink(const char* path) {
+    AppPathCallScope scope(__builtin_return_address(0));
     return __wrap_unlink(path);
 }
 
 int remove(const char* path) {
+    AppPathCallScope scope(__builtin_return_address(0));
     return __wrap_remove(path);
 }
 
 int rename(const char* src, const char* dst) {
+    AppPathCallScope scope(__builtin_return_address(0));
     return __wrap_rename(src, dst);
 }
 
 int mkdir(const char* path, mode_t mode) {
+    AppPathCallScope scope(__builtin_return_address(0));
     return __wrap_mkdir(path, mode);
 }
 
 int rmdir(const char* path) {
+    AppPathCallScope scope(__builtin_return_address(0));
     return __wrap_rmdir(path);
 }
 
 DIR* opendir(const char* path) {
+    AppPathCallScope scope(__builtin_return_address(0));
     DIR* dir = __wrap_opendir(path);
     if (dir != nullptr && app_posix_is_app_caller(__builtin_return_address(0))) {
         app_resources_track_dir(dir);
@@ -179,6 +190,7 @@ int closedir(DIR* dir) {
 }
 
 int truncate(const char* path, off_t length) {
+    AppPathCallScope scope(__builtin_return_address(0));
     return __wrap_truncate(path, length);
 }
 

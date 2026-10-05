@@ -35,6 +35,7 @@
 #include <vector>
 
 extern ServiceManifest app_internal_loader_service_manifest;
+extern ServiceManifest loader_service_manifest;
 
 namespace {
 
@@ -211,92 +212,16 @@ int32_t icrnl_app_main(int, char*[]) {
     return 0;
 }
 
-std::string g_paths_directory;
-// The number of the first check that failed, 0 when all passed
-std::atomic<int> g_paths_failed_check { -1 };
+// Set by the app below: whether a relative path opened by code built into the simulator resolved against the process's cwd
+std::atomic<int> g_builtin_relative_open { -1 };
+const char* g_builtin_relative_path = nullptr;
 
-int run_relative_path_checks() {
-    if (chdir(g_paths_directory.c_str()) != 0) {
-        return 1;
+int32_t builtin_relative_path_app_main(int, char*[]) {
+    FILE* file = fopen(g_builtin_relative_path, "r");
+    g_builtin_relative_open.store(file != nullptr ? 1 : 0, std::memory_order_release);
+    if (file != nullptr) {
+        fclose(file);
     }
-
-    int fd = open("file.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd < 0) {
-        return 2;
-    }
-    if (write(fd, "abc", 3) != 3) {
-        return 3;
-    }
-    close(fd);
-
-    if (mkdir("sub", 0755) != 0) {
-        return 4;
-    }
-    struct stat st {};
-    if (stat("./sub", &st) != 0 || !S_ISDIR(st.st_mode)) {
-        return 5;
-    }
-    DIR* dir = opendir("sub");
-    if (dir == nullptr) {
-        return 6;
-    }
-    closedir(dir);
-
-    // "." and ".." segments are collapsed
-    FILE* file = fopen("sub/.././file.txt", "r");
-    if (file == nullptr) {
-        return 7;
-    }
-    char content[4] = {};
-    const size_t read_count = fread(content, 1, 3, file);
-    fclose(file);
-    if (read_count != 3 || strcmp(content, "abc") != 0) {
-        return 8;
-    }
-
-    if (rename("file.txt", "sub/moved.txt") != 0) {
-        return 9;
-    }
-    if (access("sub/moved.txt", F_OK) != 0 || access("file.txt", F_OK) == 0) {
-        return 10;
-    }
-    if (truncate("sub/moved.txt", 1) != 0 || stat("sub/moved.txt", &st) != 0 || st.st_size != 1) {
-        return 11;
-    }
-    if (unlink("sub/moved.txt") != 0) {
-        return 12;
-    }
-    if (rmdir("sub") != 0) {
-        return 13;
-    }
-
-    // Left behind for the test to find in the app's cwd, rather than in the process's
-    fd = open("kept.txt", O_WRONLY | O_CREAT, 0644);
-    if (fd < 0) {
-        return 14;
-    }
-    close(fd);
-
-    // chdir() collapses ".." too
-    if (chdir("..") != 0) {
-        return 15;
-    }
-    char cwd[FILE_MAX_PATH_STRING_LENGTH];
-    const std::string parent = g_paths_directory.substr(0, g_paths_directory.rfind('/'));
-    if (getcwd(cwd, sizeof(cwd)) == nullptr || parent != cwd) {
-        return 16;
-    }
-
-    const std::string too_long(FILE_MAX_PATH_STRING_LENGTH, 'a');
-    if (open(too_long.c_str(), O_RDONLY) != -1 || errno != ENAMETOOLONG) {
-        return 17;
-    }
-
-    return 0;
-}
-
-int32_t relative_paths_app_main(int, char*[]) {
-    g_paths_failed_check.store(run_relative_path_checks(), std::memory_order_release);
     return 0;
 }
 
@@ -786,29 +711,58 @@ TEST_CASE("app_signal_send() rejects an out-of-range signal and an unknown app")
     CHECK_EQ(app_signal_send(0x7FFFFFF0, SIGTERM), ERROR_NOT_FOUND);
 }
 
-TEST_CASE("Path-based calls in an app resolve relative paths against the app's own cwd") {
-    ensure_memory_loader_registered();
+TEST_CASE("Path-based calls of an app binary resolve relative paths against the app's own cwd") {
+    if (service_manager_find_instance(APP_LOADER_PATH_SERVICE_ID) == nullptr) {
+        service_manager_add(&loader_service_manifest, /*auto_start=*/true);
+    }
     char directory_template[] = "/tmp/tactility-paths-XXXXXX";
     REQUIRE(mkdtemp(directory_template) != nullptr);
-    g_paths_directory = directory_template;
-    g_paths_failed_check.store(-1, std::memory_order_relaxed);
+    const std::string result_path = std::string(directory_template) + ".result";
 
-    AppManifest manifest { "test.libc.paths", "Paths", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(relative_paths_app_main) } };
-    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
-
+    const char* argv[] = { PATHS_FIXTURE_APP_PATH, directory_template, result_path.c_str() };
+    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(PATHS_FIXTURE_APP_PATH) };
+    AppStartContext context = app_start_context_for_location(location);
+    app_start_context_set_arguments_ext(&context, 3, argv);
     AppInstanceId instance_id = 0;
-    AppStartContext context;
-    REQUIRE_EQ(app_start_context_from_id("test.libc.paths", &context), ERROR_NONE);
     REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
     REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 2000));
 
-    CHECK_EQ(g_paths_failed_check.load(std::memory_order_acquire), 0);
-    const std::string kept_path = g_paths_directory + "/kept.txt";
+    int failed_check = -1;
+    FILE* result = fopen(result_path.c_str(), "r");
+    REQUIRE_NE(result, nullptr);
+    CHECK_EQ(fscanf(result, "%d", &failed_check), 1);
+    fclose(result);
+    CHECK_EQ(failed_check, 0);
+
+    const std::string kept_path = std::string(directory_template) + "/kept.txt";
     CHECK_EQ(access(kept_path.c_str(), F_OK), 0);
     // Outside an app, relative paths still resolve against the process's own cwd
     CHECK_NE(access("kept.txt", F_OK), 0);
 
     unlink(kept_path.c_str());
+    unlink(result_path.c_str());
     rmdir(directory_template);
-    app_manager_remove("test.libc.paths");
+}
+
+TEST_CASE("Path-based calls of code built into the simulator keep resolving against the process's cwd") {
+    ensure_memory_loader_registered();
+    char path_template[] = "tactility-builtin-path-XXXXXX";
+    const int fd = mkstemp(path_template);
+    REQUIRE_NE(fd, -1);
+    close(fd);
+    g_builtin_relative_path = path_template;
+    g_builtin_relative_open.store(-1, std::memory_order_relaxed);
+
+    AppManifest manifest { "test.libc.builtin_paths", "Paths", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, reinterpret_cast<void*>(builtin_relative_path_app_main) } };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+    AppInstanceId instance_id = 0;
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.libc.builtin_paths", &context), ERROR_NONE);
+    REQUIRE_EQ(app_start_with_context(&context, &instance_id), ERROR_NONE);
+    REQUIRE(wait_for_state(instance_id, APP_INSTANCE_STATE_STOPPED, 2000));
+
+    CHECK_EQ(g_builtin_relative_open.load(std::memory_order_acquire), 1);
+
+    unlink(path_template);
+    app_manager_remove("test.libc.builtin_paths");
 }
