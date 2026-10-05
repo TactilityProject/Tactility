@@ -29,11 +29,15 @@ bool is_open(int fd) {
     return fcntl(fd, F_GETFD) != -1;
 }
 
-/** Runs the leak fixture as a top-level app and reads back the fds it leaked. */
-bool run_leak_fixture(uint8_t flags, bool with_thread, LeakedFds& out_fds) {
+void ensure_path_loader_registered() {
     if (service_manager_find_instance(APP_LOADER_PATH_SERVICE_ID) == nullptr) {
         service_manager_add(&loader_service_manifest, /*auto_start=*/true);
     }
+}
+
+/** Runs the leak fixture as a top-level app and reads back the fds it leaked. */
+bool run_leak_fixture(uint8_t flags, bool with_thread, LeakedFds& out_fds) {
+    ensure_path_loader_registered();
 
     char output_path[] = "/tmp/cleanup_test_XXXXXX";
     const int output_fd = mkstemp(output_path);
@@ -68,7 +72,37 @@ bool run_leak_fixture(uint8_t flags, bool with_thread, LeakedFds& out_fds) {
     return stopped && read;
 }
 
+/** Runs the static fixture with cleanup, which crashes on a double free or double close if releasing happens too early. */
+bool run_static_fixture(bool exit) {
+    ensure_path_loader_registered();
+    AppManifest manifest { "test.posix.static", "Static", APP_CATEGORY_USER, { APP_LOCATION_PATH, const_cast<char*>(STATIC_FIXTURE_APP_PATH) }, APP_MANIFEST_FLAG_CLEANUP };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    const char* argv[] = { STATIC_FIXTURE_APP_PATH, exit ? "exit" : "" };
+    AppStartContext context;
+    REQUIRE_EQ(app_start_context_from_id("test.posix.static", &context), ERROR_NONE);
+    app_start_context_set_arguments_ext(&context, 2, argv);
+    AppInstanceId app_instance_id = 0;
+    REQUIRE_EQ(app_start_with_context(&context, &app_instance_id), ERROR_NONE);
+    for (int waited = 0; waited < 5000 && app_manager_get_state(app_instance_id) != APP_INSTANCE_STATE_STOPPED; waited += 10) {
+        delay_millis(10);
+    }
+    const bool stopped = app_manager_get_state(app_instance_id) == APP_INSTANCE_STATE_STOPPED;
+    // Waits out a deferred unload, which releases the resources
+    delay_millis(100);
+    app_manager_remove("test.posix.static");
+    return stopped;
+}
+
 } // namespace
+
+TEST_CASE("an app with APP_MANIFEST_FLAG_CLEANUP has what its static destructors release left alone") {
+    CHECK(run_static_fixture(false));
+}
+
+TEST_CASE("an app with APP_MANIFEST_FLAG_CLEANUP that calls exit() has what its static destructors release left alone") {
+    CHECK(run_static_fixture(true));
+}
 
 TEST_CASE("an app with APP_MANIFEST_FLAG_CLEANUP has its leaked files closed when it ends") {
     LeakedFds fds;

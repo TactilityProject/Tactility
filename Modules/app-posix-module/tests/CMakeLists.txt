@@ -26,6 +26,10 @@ set_target_properties(exit_fixture PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_library(leak_fixture SHARED EXCLUDE_FROM_ALL ${CMAKE_CURRENT_LIST_DIR}/fixtures/leak_fixture.cpp)
 set_target_properties(leak_fixture PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Fixture: static objects whose destructors free and close what the app acquired, when it's unloaded.
+add_library(static_fixture SHARED EXCLUDE_FROM_ALL ${CMAKE_CURRENT_LIST_DIR}/fixtures/static_fixture.cpp)
+set_target_properties(static_fixture PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # Fixture: makes path-based calls with relative paths, which must resolve against the app's own cwd.
 add_library(paths_fixture SHARED EXCLUDE_FROM_ALL ${CMAKE_CURRENT_LIST_DIR}/fixtures/paths_fixture.cpp)
 target_include_directories(paths_fixture PRIVATE ${CMAKE_SOURCE_DIR}/TactilityKernel/include)
@@ -49,7 +53,7 @@ add_custom_target(install_dir_fixture DEPENDS "${INSTALL_DIR_FIXTURE_BIN_DIR}/ap
 
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/source/*.cpp)
 add_executable(AppPosixModuleTests EXCLUDE_FROM_ALL ${TEST_SOURCES})
-add_dependencies(AppPosixModuleTests app_posix_module_test_fixture printf_fixture exit_fixture leak_fixture paths_fixture install_dir_fixture)
+add_dependencies(AppPosixModuleTests app_posix_module_test_fixture printf_fixture exit_fixture leak_fixture paths_fixture static_fixture install_dir_fixture)
 
 target_include_directories(AppPosixModuleTests PRIVATE ${DOCTESTINC})
 target_compile_definitions(AppPosixModuleTests PRIVATE
@@ -58,6 +62,7 @@ target_compile_definitions(AppPosixModuleTests PRIVATE
     EXIT_FIXTURE_APP_PATH="$<TARGET_FILE:exit_fixture>"
     LEAK_FIXTURE_APP_PATH="$<TARGET_FILE:leak_fixture>"
     PATHS_FIXTURE_APP_PATH="$<TARGET_FILE:paths_fixture>"
+    STATIC_FIXTURE_APP_PATH="$<TARGET_FILE:static_fixture>"
     FIXTURE_NON_ELF_PATH="${NON_ELF_FIXTURE_PATH}"
     FIXTURE_INSTALL_DIR_PATH="${INSTALL_DIR_FIXTURE_PATH}"
 )

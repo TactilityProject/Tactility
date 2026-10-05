@@ -14,8 +14,16 @@ constexpr uint32_t APP_CLEANUP_TASK_GRACE_MS = 1000;
 error_t app_resources_register(AppInstanceId app_instance_id);
 
 /**
- * Stops tracking @a app_instance_id and releases what's left: tasks are deleted after APP_CLEANUP_TASK_GRACE_MS,
- * then files, directories and fds are closed and memory is freed.
- * Must run before the app's binary is unloaded, from a task that is no longer part of the instance.
+ * First phase of releasing what @a app_instance_id left behind: its tasks are deleted after APP_CLEANUP_TASK_GRACE_MS,
+ * and no new ones can start. Must run before the app's binary is unloaded, as they run its code.
+ * Until app_resources_release(), the calling task's own calls are tracked for the instance,
+ * so what the binary's static destructors free or close while it's unloaded is no longer tracked.
+ * Called by the instance's own task, after it left the instance.
+ */
+void app_resources_release_tasks(AppInstanceId app_instance_id);
+
+/**
+ * Second phase: stops tracking @a app_instance_id, closes its files, directories and fds and frees its memory.
+ * Must run after the app's binary is unloaded, on the task that called app_resources_release_tasks().
  */
 void app_resources_release(AppInstanceId app_instance_id);

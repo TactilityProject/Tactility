@@ -15,6 +15,8 @@
 #include <new>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 constexpr auto* TAG = "app_resources";
 
@@ -32,6 +34,9 @@ struct Tracker {
         AppResourceTaskJoin join_task;
     };
     std::unordered_map<void*, Task> tasks;
+    // Set by app_resources_release_tasks(): no task can start or be created anymore
+    bool tasks_released = false;
+    size_t deleted_task_count = 0;
 };
 
 // std rather than the kernel's Mutex: tasks an app created with pthread_create() aren't FreeRTOS tasks on the simulator.
@@ -46,6 +51,12 @@ thread_local AppInstanceId thread_owner = 0;
 
 AppInstanceId current_owner() {
     return thread_owner != 0 ? thread_owner : app_scheduler_current_app_id();
+}
+
+/** @return the tracker of @a app_instance_id if it still accepts tasks, nullptr otherwise. Requires registry_mutex. */
+Tracker* find_tracker_accepting_tasks(AppInstanceId app_instance_id) {
+    auto iterator = registry.find(app_instance_id);
+    return iterator != registry.end() && !iterator->second->tasks_released ? iterator->second : nullptr;
 }
 
 /** Runs @a action on the calling task's tracker, under registry_mutex. */
@@ -84,11 +95,40 @@ error_t app_resources_register(AppInstanceId app_instance_id) {
     return ERROR_NONE;
 }
 
-void app_resources_release(AppInstanceId app_instance_id) {
+void app_resources_release_tasks(AppInstanceId app_instance_id) {
     for (uint32_t waited = 0; waited < APP_CLEANUP_TASK_GRACE_MS && task_count(app_instance_id) > 0; waited += TASK_POLL_INTERVAL_MS) {
         delay_millis(TASK_POLL_INTERVAL_MS);
     }
 
+    std::vector<std::pair<void*, AppResourceTaskJoin>> joins;
+    {
+        std::lock_guard lock(registry_mutex);
+        auto iterator = registry.find(app_instance_id);
+        if (iterator == registry.end()) {
+            return;
+        }
+        Tracker* tracker = iterator->second;
+        tracker->tasks_released = true;
+        // Deleted while holding the lock, so none of them can be stopped halfway through a tracker call
+        for (auto& [handle, task] : tracker->tasks) {
+            task.delete_task(handle);
+            if (task.join_task != nullptr) {
+                joins.emplace_back(handle, task.join_task);
+            }
+        }
+        tracker->deleted_task_count = tracker->tasks.size();
+        tracker->tasks.clear();
+    }
+
+    // Outside the lock: a task that is ending may still make tracker calls
+    for (auto& [handle, join_task] : joins) {
+        join_task(handle);
+    }
+
+    thread_owner = app_instance_id;
+}
+
+void app_resources_release(AppInstanceId app_instance_id) {
     Tracker* tracker;
     {
         std::lock_guard lock(registry_mutex);
@@ -99,18 +139,8 @@ void app_resources_release(AppInstanceId app_instance_id) {
         tracker = iterator->second;
         registry.erase(iterator);
         registry_size.fetch_sub(1, std::memory_order_release);
-        // Deleted while holding the lock, so none of them can be stopped halfway through a tracker call
-        for (auto& [handle, task] : tracker->tasks) {
-            task.delete_task(handle);
-        }
     }
-
-    // Outside the lock: a task that is ending may still make tracker calls (which find no tracker anymore)
-    for (auto& [handle, task] : tracker->tasks) {
-        if (task.join_task != nullptr) {
-            task.join_task(handle);
-        }
-    }
+    thread_owner = 0;
 
     for (FILE* file : tracker->files) {
         fclose(file);
@@ -125,10 +155,10 @@ void app_resources_release(AppInstanceId app_instance_id) {
         free(ptr);
     }
 
-    if (!tracker->tasks.empty() || !tracker->files.empty() || !tracker->dirs.empty() || !tracker->fds.empty() || !tracker->allocations.empty()) {
+    if (tracker->deleted_task_count != 0 || !tracker->files.empty() || !tracker->dirs.empty() || !tracker->fds.empty() || !tracker->allocations.empty()) {
         LOG_W(TAG, "[instance %lu] Released %u tasks, %u files, %u directories, %u fds and %u allocations",
             static_cast<unsigned long>(app_instance_id),
-            static_cast<unsigned>(tracker->tasks.size()),
+            static_cast<unsigned>(tracker->deleted_task_count),
             static_cast<unsigned>(tracker->files.size()),
             static_cast<unsigned>(tracker->dirs.size()),
             static_cast<unsigned>(tracker->fds.size()),
@@ -154,7 +184,7 @@ AppInstanceId app_resources_current_app(void) {
 
 bool app_resources_enter_task(AppInstanceId app_instance_id) {
     std::lock_guard lock(registry_mutex);
-    if (!registry.contains(app_instance_id)) {
+    if (find_tracker_accepting_tasks(app_instance_id) == nullptr) {
         return false;
     }
     app_scheduler_set_current_app_id(app_instance_id);
@@ -163,7 +193,7 @@ bool app_resources_enter_task(AppInstanceId app_instance_id) {
 
 bool app_resources_enter_thread(AppInstanceId app_instance_id) {
     std::lock_guard lock(registry_mutex);
-    if (!registry.contains(app_instance_id)) {
+    if (find_tracker_accepting_tasks(app_instance_id) == nullptr) {
         return false;
     }
     thread_owner = app_instance_id;
@@ -204,6 +234,10 @@ void app_resources_untrack_dir(DIR* dir) {
 
 bool app_resources_create_task(AppResourceTaskCreate create, void* context, AppResourceTaskDelete delete_task, AppResourceTaskJoin join_task) {
     std::lock_guard lock(registry_mutex);
+    const AppInstanceId app_instance_id = current_owner();
+    if (app_instance_id != 0 && registry.contains(app_instance_id) && find_tracker_accepting_tasks(app_instance_id) == nullptr) {
+        return false;
+    }
     void* handle = nullptr;
     if (!create(context, &handle)) {
         return false;

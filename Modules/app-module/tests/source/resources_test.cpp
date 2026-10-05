@@ -70,6 +70,7 @@ TEST_CASE("app resources: nothing is tracked without a registered instance") {
     app_scheduler_set_current_app_id(0);
 
     REQUIRE_EQ(app_resources_register(TRACKED_ID), ERROR_NONE);
+    app_resources_release_tasks(TRACKED_ID);
     app_resources_release(TRACKED_ID);
     CHECK(is_open(fd));
     close(fd);
@@ -101,6 +102,7 @@ TEST_CASE("app resources: release closes and frees what is still tracked") {
     app_resources_track_alloc(malloc(16));
 
     app_scheduler_set_current_app_id(0);
+    app_resources_release_tasks(TRACKED_ID);
     app_resources_release(TRACKED_ID);
 
     CHECK_FALSE(is_open(leaked_fd));
@@ -120,6 +122,7 @@ TEST_CASE("app resources: a task that ends within the grace period is not delete
     CHECK(app_resources_create_task(create_task, &parameters, delete_task, nullptr));
     app_scheduler_set_current_app_id(0);
 
+    app_resources_release_tasks(TRACKED_ID);
     app_resources_release(TRACKED_ID);
     CHECK_EQ(deleted_tasks.load(), 0);
 }
@@ -132,6 +135,32 @@ TEST_CASE("app resources: a task still running after the grace period is deleted
     CHECK(app_resources_create_task(create_task, &parameters, delete_task, nullptr));
     app_scheduler_set_current_app_id(0);
 
+    app_resources_release_tasks(TRACKED_ID);
     app_resources_release(TRACKED_ID);
     CHECK_EQ(deleted_tasks.load(), 1);
+}
+
+TEST_CASE("app resources: what is freed and closed between the two phases is not released again") {
+    REQUIRE_EQ(app_resources_register(TRACKED_ID), ERROR_NONE);
+    app_scheduler_set_current_app_id(TRACKED_ID);
+    void* memory = malloc(16);
+    app_resources_track_alloc(memory);
+    const int fd = open("/dev/null", O_RDONLY);
+    app_resources_track_fd(fd);
+    app_scheduler_set_current_app_id(0);
+
+    app_resources_release_tasks(TRACKED_ID);
+    CHECK_FALSE(app_resources_enter_task(TRACKED_ID));
+
+    // As the binary's static destructors do while it's unloaded
+    app_resources_untrack_alloc(memory);
+    free(memory);
+    app_resources_untrack_fd(fd);
+    close(fd);
+    const int reused_fd = open("/dev/null", O_RDONLY);
+    REQUIRE_EQ(reused_fd, fd);
+
+    app_resources_release(TRACKED_ID);
+    CHECK(is_open(reused_fd));
+    close(reused_fd);
 }

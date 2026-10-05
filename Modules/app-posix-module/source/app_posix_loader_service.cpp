@@ -191,7 +191,10 @@ int32_t api_run(AppRuntime runtime_ptr, uint32_t /*app_instance_id*/, int argc, 
 
 void api_unload(AppRuntime runtime_ptr) {
     auto* runtime = static_cast<PosixAppRuntime*>(runtime_ptr);
+    // The image's static destructors run here, and what they free is the app's own (see app/memory.h)
+    app_posix_set_current_image(runtime->image_start, runtime->image_end);
     dlclose(runtime->handle);
+    app_posix_set_current_image(0, 0);
     delete runtime;
 }
 

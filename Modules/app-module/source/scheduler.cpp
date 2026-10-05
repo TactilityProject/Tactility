@@ -145,10 +145,15 @@ thread_local TaskContext* current_task_context = nullptr;
 struct DeferredUnload {
     const AppLoaderApi* loader = nullptr;
     void* runtime = nullptr;
+    // Non-zero when the instance's resources are released after unloading (see app/private/resources.h)
+    AppInstanceId cleanup_instance_id = 0;
 
     ~DeferredUnload() {
         if (loader != nullptr) {
             loader->unload(runtime);
+            if (cleanup_instance_id != 0) {
+                app_resources_release(cleanup_instance_id);
+            }
             pending_deferred_unloads.fetch_sub(1, std::memory_order_release);
         }
     }
@@ -302,22 +307,30 @@ void finish_app_task(TaskContext* ctx, int32_t result, bool exiting) {
 
     set_current_app_id(0);
 
-    // Before unloading: tasks the app created may still be running its code
+    // Tasks the app created may still be running its code. Its memory and files are only released after unloading,
+    // since its static destructors can still free and close them.
     if (ctx->cleanup) {
-        app_resources_release(ctx->app_instance_id);
+        app_resources_release_tasks(ctx->app_instance_id);
     }
 
 #ifndef ESP_PLATFORM
     if (exiting) {
         current_deferred_unload->loader = ctx->loader;
         current_deferred_unload->runtime = ctx->runtime;
+        current_deferred_unload->cleanup_instance_id = ctx->cleanup ? ctx->app_instance_id : 0;
         DeferredUnload::pending_deferred_unloads.fetch_add(1, std::memory_order_release);
     } else {
         ctx->loader->unload(ctx->runtime);
+        if (ctx->cleanup) {
+            app_resources_release(ctx->app_instance_id);
+        }
     }
 #else
     (void)exiting;
     ctx->loader->unload(ctx->runtime);
+    if (ctx->cleanup) {
+        app_resources_release(ctx->app_instance_id);
+    }
 #endif
 
     if (!ctx->cleanup && (ctx->allocCount > 0 || ctx->allocBytes > 0)) {
@@ -525,6 +538,7 @@ error_t app_scheduler_start(AppInstanceId app_instance_id, const AppStartContext
 #endif
     if (task_handle == nullptr) {
         if (context->cleanup) {
+            app_resources_release_tasks(app_instance_id);
             app_resources_release(app_instance_id);
         }
         delete context;
