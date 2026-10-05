@@ -62,6 +62,7 @@ struct Context {
 void rebuildDeviceList(Context* ctx);
 void updateDeviceStates(Context* ctx);
 void createWidgets(lv_obj_t* parent, void* userData);
+void destroyWidgets(void* userData);
 
 void onBackPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
@@ -187,8 +188,12 @@ void createDeviceRow(Context* ctx, Device* device) {
 // Rebuilds the device list. Only needs to run when the set of devices could've changed (on
 // creation, and after returning from AddGps) - button state itself is refreshed by the timer.
 void rebuildDeviceList(Context* ctx) {
-    lv_obj_clean(ctx->deviceListWrapper);
     ctx->deviceRows.clear();
+    // Rebuilt by createWidgets() when the window resurfaces
+    if (ctx->deviceListWrapper == nullptr) {
+        return;
+    }
+    lv_obj_clean(ctx->deviceListWrapper);
 
     device_for_each_of_type(&GPS_TYPE, ctx, [](Device* device, void* context) {
         createDeviceRow(static_cast<Context*>(context), device);
@@ -256,6 +261,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     updateDeviceStates(ctx);
 }
 
+// The window's widgets are deleted while another window is on top, so the timer must not reach them
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->deviceListWrapper = nullptr;
+    ctx->deviceRows.clear();
+}
+
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     Context ctx {};
@@ -273,7 +285,7 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
     ctx.timer->start();
 
     bool shouldClose = false;
