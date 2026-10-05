@@ -92,6 +92,41 @@ int run_relative_path_checks(const std::string& directory) {
         return 17;
     }
 
+    if (chdir(directory.c_str()) != 0) {
+        return 18;
+    }
+
+    // A trailing separator requires a directory
+    fd = open("plain", O_WRONLY | O_CREAT, 0644);
+    if (fd < 0) {
+        return 19;
+    }
+    close(fd);
+    if (unlink("plain/") != -1 || errno != ENOTDIR || access("plain", F_OK) != 0) {
+        return 20;
+    }
+    unlink("plain");
+
+    // ".." after a symlink goes to the parent of its target
+    // symlink() isn't resolved against the app's cwd, so it gets absolute paths
+    const std::string link_target = directory + "/real/inner";
+    const std::string link_path = directory + "/link";
+    if (mkdir("real", 0755) != 0 || mkdir("real/inner", 0755) != 0 || symlink(link_target.c_str(), link_path.c_str()) != 0) {
+        return 21;
+    }
+    fd = open("real/marker", O_WRONLY | O_CREAT, 0644);
+    if (fd < 0) {
+        return 22;
+    }
+    close(fd);
+    if (access("link/../marker", F_OK) != 0) {
+        return 23;
+    }
+    unlink("real/marker");
+    unlink("link");
+    rmdir("real/inner");
+    rmdir("real");
+
     return 0;
 }
 

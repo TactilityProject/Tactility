@@ -32,8 +32,9 @@ bool app_libc_try_chdir(const char* path, int* out_result);
 
 /**
  * Resolves @a path against the calling app instance's cwd, for the path-based libc calls: the platform's
- * libc has no per-app cwd. "." and ".." segments are collapsed too, also in an absolute path,
- * since FATFS doesn't support them.
+ * libc has no per-app cwd.
+ * On ESP32, ".", ".." and empty segments are collapsed too, also in an absolute path, since FATFS doesn't support them.
+ * On POSIX, the path is kept as written, so trailing separators and ".." through symlinks keep their meaning.
  * Returns false for a NULL or empty @a path, which the caller then passes on as-is.
  * @param[out] buf receives the resolved path
  * @param[out] out_path @a buf on success, NULL when the resolved path doesn't fit (errno is set to ENAMETOOLONG)

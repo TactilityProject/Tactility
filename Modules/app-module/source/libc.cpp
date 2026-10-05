@@ -19,6 +19,7 @@
 
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace {
@@ -68,6 +69,7 @@ bool sleep_unless_signalled(TickType_t ticks, TickType_t* out_remaining) {
     }
 }
 
+#ifdef ESP_PLATFORM
 /**
  * Collapses the ".", ".." and empty segments of an absolute path, in place.
  * Every segment written is preceded by a '/' that was read, so writing never overtakes reading.
@@ -103,6 +105,7 @@ void normalize_path(char* path) {
     }
     path[length] = '\0';
 }
+#endif
 
 } // namespace
 
@@ -175,16 +178,22 @@ bool app_libc_try_resolve_path(const char* path, char* buf, size_t size, const c
         memcpy(buf, path, path_length + 1);
     } else {
         const size_t cwd_length = (cwd_result == ERROR_NONE) ? strlen(buf) : size;
-        if (cwd_length + 1 + path_length >= size) {
+        // No separator after the root, which already ends with one
+        const size_t separator_length = (cwd_length > 0 && cwd_length < size && buf[cwd_length - 1] == '/') ? 0 : 1;
+        if (cwd_length + separator_length + path_length >= size) {
             errno = ENAMETOOLONG;
             *out_path = nullptr;
             return true;
         }
-        buf[cwd_length] = '/';
-        memcpy(buf + cwd_length + 1, path, path_length + 1);
+        if (separator_length != 0) {
+            buf[cwd_length] = '/';
+        }
+        memcpy(buf + cwd_length + separator_length, path, path_length + 1);
     }
 
+#ifdef ESP_PLATFORM
     normalize_path(buf);
+#endif
     *out_path = buf;
     return true;
 }
@@ -202,12 +211,31 @@ bool app_libc_try_chdir(const char* path, int* out_result) {
         return true;
     }
 
+#ifdef ESP_PLATFORM
     if (app_dir_set_cwd(resolved_path) == ERROR_NONE) {
         *out_result = 0;
     } else {
         errno = ENOENT;
         *out_result = -1;
     }
+#else
+    // The cwd is kept physical, like the kernel's own: ".." in the path follows symlinks
+    char* canonical = realpath(resolved_path, nullptr);
+    if (canonical == nullptr) {
+        *out_result = -1;
+        return true;
+    }
+    if (strlen(canonical) > FILE_MAX_PATH_LENGTH) {
+        errno = ENAMETOOLONG;
+        *out_result = -1;
+    } else if (app_dir_set_cwd(canonical) == ERROR_NONE) {
+        *out_result = 0;
+    } else {
+        errno = ENOTDIR;
+        *out_result = -1;
+    }
+    free(canonical);
+#endif
     return true;
 }
 
