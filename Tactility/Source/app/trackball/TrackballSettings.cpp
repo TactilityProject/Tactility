@@ -149,7 +149,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
     ctx->tbSettings = settings::trackball::loadOrGetDefault();
-    auto ui_density = lvgl_get_ui_density();
     ctx->updated = false;
     ctx->trackballIndev = findFirstTrackballIndev();
 
@@ -211,9 +210,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_size(enc_sens_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_hor(enc_sens_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(enc_sens_wrapper, 0, LV_STATE_DEFAULT);
-    if (ui_density != LVGL_UI_DENSITY_COMPACT) {
-        lv_obj_set_style_pad_ver(enc_sens_wrapper, 4, LV_STATE_DEFAULT);
-    }
 
     auto* enc_sens_label = lv_label_create(enc_sens_wrapper);
     lv_label_set_text(enc_sens_label, "Encoder Speed");
@@ -235,9 +231,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_size(ptr_sens_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_hor(ptr_sens_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ptr_sens_wrapper, 0, LV_STATE_DEFAULT);
-    if (ui_density != LVGL_UI_DENSITY_COMPACT) {
-        lv_obj_set_style_pad_ver(ptr_sens_wrapper, 4, LV_STATE_DEFAULT);
-    }
 
     auto* ptr_sens_label = lv_label_create(ptr_sens_wrapper);
     lv_label_set_text(ptr_sens_label, "Pointer Speed");

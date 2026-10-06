@@ -115,13 +115,6 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=utime" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=rmdir" APPEND)
 
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_button_create" APPEND)
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_dropdown_create" APPEND)
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_list_create" APPEND)
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_list_add_button" APPEND)
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_obj_create" APPEND)
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_obj_set_flex_flow" APPEND)
-    idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_switch_create" APPEND)
     idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=lv_textarea_create" APPEND)
 
 else ()

@@ -145,12 +145,6 @@ MemoryBarWidgets createMemoryBar(lv_obj_t* parent, const char* label) {
     lv_obj_set_width(bottom_label, LV_PCT(100));
     lv_obj_set_style_text_align(bottom_label, LV_TEXT_ALIGN_RIGHT, 0);
 
-    if (lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT) {
-        lv_obj_set_style_pad_bottom(bottom_label, 2, LV_STATE_DEFAULT);
-    } else {
-        lv_obj_set_style_pad_bottom(bottom_label, 12, LV_STATE_DEFAULT);
-    }
-
     return {bar, bottom_label};
 }
 

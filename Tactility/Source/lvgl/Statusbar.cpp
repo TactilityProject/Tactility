@@ -168,21 +168,12 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
 
     auto* statusbar = reinterpret_cast<Statusbar*>(obj);
 
-    const auto fg_color = STATUSBAR_COLORS_INVERTED ? lv_color_black() : lv_color_white();
-    const auto bg_color = STATUSBAR_COLORS_INVERTED ? lv_color_white() : lv_color_black();
-
-    lv_obj_set_style_bg_color(obj, bg_color, LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_STATE_DEFAULT);
-
-    // Inverted statusbar creates a separator between statusbar and the rest of the UI below it
+    // The statusbar has no theme styles: it shows the themed container background behind it and inherits its text colour
     if (STATUSBAR_COLORS_INVERTED) {
-        // Show border as a horizontal line on the bottom
-        lv_obj_set_style_border_color(obj, fg_color, LV_STATE_DEFAULT);
+        // A horizontal line separates the statusbar from the rest of the UI below it
+        lv_obj_set_style_border_color(obj, lv_obj_get_style_text_color(obj, LV_PART_MAIN), LV_STATE_DEFAULT);
         lv_obj_set_style_border_side(obj, LV_BORDER_SIDE_BOTTOM, LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(obj, 1, LV_STATE_DEFAULT);
-    } else {
-        // No border
-        lv_obj_set_style_border_color(obj, bg_color, LV_STATE_DEFAULT);
     }
 
     lv_obj_set_width(obj, LV_PCT(100));
@@ -197,7 +188,6 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
     lv_obj_set_style_pad_column(obj, icon_padding, LV_STATE_DEFAULT);
 
     statusbar->time = lv_label_create(obj);
-    lv_obj_set_style_text_color(statusbar->time, fg_color, LV_STATE_DEFAULT);
     lv_obj_set_style_margin_left(statusbar->time, 4, LV_STATE_DEFAULT);
     update_time(statusbar);
 
@@ -213,7 +203,6 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
         auto* image = lv_image_create(obj);
         lv_obj_set_size(image, icon_size, icon_size); // regular padding doesn't work
         lv_obj_set_style_text_font(image, lvgl_get_statusbar_icon_font(), LV_STATE_DEFAULT);
-        lv_obj_set_style_text_color(image, fg_color, LV_STATE_DEFAULT);
         lv_obj_set_style_pad_all(image, 0, LV_STATE_DEFAULT);
         statusbar->icons[i] = image;
 

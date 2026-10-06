@@ -6,7 +6,6 @@
 #include <Tactility/Tactility.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
 #include <app/start.h>

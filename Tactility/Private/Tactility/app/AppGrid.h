@@ -68,7 +68,6 @@ private:
     static void onTileClicked(lv_event_t* e);
     static void onTileLongPressed(lv_event_t* e);
     static void onTileKey(lv_event_t* e);
-    static void onTileFocusChanged(lv_event_t* e);
 };
 
 }

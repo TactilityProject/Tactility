@@ -7,7 +7,9 @@
 
 ## Higher Priority
 
-- Terminal app should always run in non-LVGL mode if no PSRAM is present.
+- Update to LVGL 9.6.x (ESP-IDF and POSIX)
+- Terminal app: on devices with pointer device: LVGL rendering mode should hide the toolbar by default, but tapping the terminal should toggle the visibility of the toolbar.
+- Terminal app: should always run in non-LVGL mode if no PSRAM is present.
 - Crash app should work without LVGL, like Boot app. It should wait for any input (keyboard or pointer) to continue.
 - NimBLE looses pairing key after reboot
 - CrashDiagnostics shouldn't show a QR when there's no callstack

@@ -12,6 +12,7 @@
 #include <tactility/check.h>
 
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/sliderbox.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -77,23 +78,26 @@ void onOutputVolumeSlider(lv_event_t* event) {
 }
 
 lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
-    auto* wrapper = lv_obj_create(parent);
-    lv_obj_set_size(wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_hor(wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(wrapper, 0, LV_STATE_DEFAULT);
-
-    auto* title_label = lv_label_create(wrapper);
+    auto* title_label = lv_label_create(parent);
     lv_label_set_text(title_label, title);
 
-    return wrapper;
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+
+    return card;
+}
+
+// An unstyled container, so the rows don't paint over the card
+lv_obj_t* createRow(lv_obj_t* parent) {
+    auto* row = lv_obj_create(parent);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    return row;
 }
 
 lv_obj_t* createSwitchRow(lv_obj_t* parent, const char* label, lv_event_cb_t cb, void* userData) {
-    auto* row = lv_obj_create(parent);
-    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
+    auto* row = createRow(parent);
 
     auto* row_label = lv_label_create(row);
     lv_label_set_text(row_label, label);
@@ -107,10 +111,7 @@ lv_obj_t* createSwitchRow(lv_obj_t* parent, const char* label, lv_event_cb_t cb,
 }
 
 lv_obj_t* createSliderRow(lv_obj_t* parent, const char* label, int32_t initialValue, lv_event_cb_t cb, void* userData) {
-    auto* row = lv_obj_create(parent);
-    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
+    auto* row = createRow(parent);
 
     auto* row_label = lv_label_create(row);
     lv_label_set_text(row_label, label);

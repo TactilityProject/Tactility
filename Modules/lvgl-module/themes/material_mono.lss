@@ -1,0 +1,1264 @@
+// Material 3 theme for monochrome and greyscale displays (OLED, e-paper)
+//
+// Tokens are layered:
+//   1. Base tokens: raw values without meaning
+//   2. Semantic tokens: Material 3 roles, mapped onto ink and paper
+//   3. Widget tokens: per widget, built from semantic tokens
+// Styles only use widget tokens, or semantic tokens for shared state styles.
+//
+// A 1-bit display can't show opacity or tints, so states are shown with inversion and borders.
+
+@theme material_mono;
+
+@config {
+    isDark: bool = false;
+    isCompact: bool = false;
+    animationsEnabled: bool = true;
+    colorPrimary: color = black;
+    colorSecondary: color = black;
+    fontSmall: font = raw("LV_FONT_DEFAULT");
+    fontNormal: font = raw("LV_FONT_DEFAULT");
+    fontLarge: font = raw("LV_FONT_DEFAULT");
+}
+
+// Tactility widgets
+@widget toolbar: lvgl_toolbar_class;
+@widget icon_button: lvgl_icon_button_class;
+@widget icon_button_filled: lvgl_icon_button_filled_class;
+@widget icon_button_tonal: lvgl_icon_button_tonal_class;
+@widget sliderbox: lvgl_sliderbox_class;
+@widget card: lvgl_card_class;
+
+// ============================================================
+// 1. Base tokens
+// ============================================================
+
+@black: black;
+@white: white;
+
+// Shape scale
+@corner-none: 0;
+@corner-small: 4dp;
+@corner-medium: 8dp;
+@corner-large: 12dp;
+@corner-full: circle;
+@corner-compact: 2;
+
+// Spacing scale
+@space-1: 2dp;
+@space-2: 4dp;
+@space-3: 6dp;
+@space-4: 8dp;
+@space-6: 12dp;
+
+// Line widths
+@line-thin: 1;
+@line-medium: 2;
+@line-thick: 3;
+
+// Motion
+@duration-short: 100;
+@duration-medium: 250;
+@duration-long: 500;
+
+// ============================================================
+// 2. Semantic tokens
+// ============================================================
+
+// Ink is the foreground, paper the background
+@ink: if($isDark, @white, @black);
+@paper: if($isDark, @black, @white);
+
+@color-primary: @ink;
+@color-on-primary: @paper;
+@color-surface: @paper;
+@color-on-surface: @ink;
+@color-outline: @ink;
+
+// Shapes
+@shape-control: if($isCompact, @corner-compact, @corner-full);
+@shape-container: if($isCompact, @corner-compact, @corner-medium);
+@shape-field: if($isCompact, @corner-compact, @corner-small);
+@shape-key: if($isCompact, @corner-compact, @corner-small);
+@shape-dialog: if($isCompact, @corner-compact, @corner-large);
+
+// Density
+@density-container-pad: if($isCompact, 2, @space-4);
+@density-container-gap: if($isCompact, 2, @space-3);
+@density-control-pad-hor: if($isCompact, 3, @space-6);
+@density-control-pad-ver: if($isCompact, 2, @space-3);
+@density-control-gap: if($isCompact, 2, @space-2);
+@density-field-pad: if($isCompact, 2, @space-3);
+@density-list-pad: if($isCompact, 1, @space-2);
+@density-list-item-pad-hor: if($isCompact, 2, @space-4);
+@density-list-item-pad-ver: if($isCompact, 2, @space-3);
+@density-dialog-pad: if($isCompact, 2, @space-6);
+@density-key-gap: if($isCompact, 1, @space-1);
+
+// Borders and indicators
+@border: @line-thin;
+@focus-width: if($isCompact, @line-thin, @line-medium);
+@focus-offset: if($isCompact, @line-thin, @line-medium);
+@edit-width: if($isCompact, @line-medium, @line-thick);
+// Drawn inside the widget, for widgets with little room around them (icon buttons)
+@focus-inset-width: if($isCompact, @line-thin, @line-medium);
+
+// Motion
+@motion-duration-short: if($animationsEnabled, @duration-short, 0);
+@motion-duration-medium: if($animationsEnabled, @duration-medium, 0);
+@motion-duration-long: if($animationsEnabled, @duration-long, 0);
+
+// ============================================================
+// 3. Widget tokens
+// ============================================================
+
+// Screen
+@screen-color: @color-surface;
+@screen-text-color: @color-on-surface;
+@screen-gap: @density-container-gap;
+
+// Container (lv_obj): Material 3 outlined card
+@container-color: @color-surface;
+@container-text-color: @color-on-surface;
+@container-border-color: @color-outline;
+@container-border-width: @border;
+@container-shape: @shape-container;
+@container-pad: @density-container-pad;
+@container-gap: @density-container-gap;
+
+// Card (lvgl_card_create): containers are already outlined, so a card has a thicker outline to stand out
+@card-color: @color-surface;
+@card-text-color: @color-on-surface;
+@card-border-color: @color-outline;
+@card-border-width: @line-medium;
+@card-shape: @shape-container;
+@card-pad: @density-container-pad;
+@card-gap: @density-container-gap;
+
+// Scrollbar
+@scrollbar-color: @color-on-surface;
+@scrollbar-width: if($isCompact, 2, 3dp);
+@scrollbar-pad: 1;
+
+// Button: Material 3 outlined button, inverted when pressed or checked
+@button-container-color: @color-surface;
+@button-label-color: @color-on-surface;
+@button-border-color: @color-outline;
+@button-border-width: @border;
+@button-inverted-container-color: @color-primary;
+@button-inverted-label-color: @color-on-primary;
+@button-shape: @shape-control;
+@button-pad-hor: @density-control-pad-hor;
+@button-pad-ver: @density-control-pad-ver;
+@button-gap: @density-control-gap;
+
+// Filled and tonal icon buttons: filled is ink, tonal is outlined
+@icon-button-container-shape: if($isCompact, @corner-compact, @corner-large);
+@icon-button-filled-color: @color-primary;
+@icon-button-filled-icon-color: @color-on-primary;
+@icon-button-tonal-color: @color-surface;
+@icon-button-tonal-icon-color: @color-on-surface;
+@icon-button-tonal-border-color: @color-outline;
+
+// Toolbar: top app bar with a divider, which shows the background like the statusbar does
+@app-bar-title-color: @color-on-surface;
+@app-bar-divider-color: @color-outline;
+@app-bar-pad-hor: if($isCompact, 0, @space-1);
+@app-bar-gap: if($isCompact, 2, @space-1);
+// The focus ring is drawn inside toolbar buttons, as there's little room around them
+@app-bar-focus-width: @focus-inset-width;
+
+// Focus ring
+@focus-ring-color: @color-on-surface;
+@focus-ring-width: @focus-width;
+@focus-ring-offset: @focus-offset;
+@edit-ring-width: @edit-width;
+
+// Switch
+@switch-width: if($isCompact, 25, 40dp);
+@switch-height: if($isCompact, 15, 24dp);
+@switch-track-color: @color-surface;
+@switch-track-border-color: @color-outline;
+@switch-track-border-width: @border;
+@switch-track-selected-color: @color-primary;
+@switch-handle-color: @color-on-surface;
+@switch-handle-selected-color: @color-on-primary;
+@switch-handle-pad: if($isCompact, -3, -5dp);
+@switch-handle-selected-pad: if($isCompact, -2, -3dp);
+
+// Checkbox
+@checkbox-gap: if($isCompact, 3, @space-4);
+@checkbox-box-color: @color-surface;
+@checkbox-box-border-color: @color-outline;
+@checkbox-box-border-width: @border;
+@checkbox-box-shape: 2;
+@checkbox-box-pad: 1;
+@checkbox-box-selected-color: @color-primary;
+@checkbox-icon-color: @color-on-primary;
+
+// Slider, bar, arc, spinner
+@slider-track-color: @color-surface;
+@slider-track-border-color: @color-outline;
+@slider-active-track-color: @color-primary;
+@slider-handle-color: @color-primary;
+// The track is half of LVGL's default thickness (LV_DPI_DEF / 10). The knob is the track height plus its padding on both
+// sides, so the padding includes the removed thickness to keep the knob's size.
+@slider-track-height: 8dp;
+@slider-handle-pad: if($isCompact, 1, 3dp) + 4dp;
+// Sliderbox: in the normal layout, the gap between the slider and its buttons leaves room for the knob, which sticks out at the slider's ends
+@sliderbox-gap: if($isCompact, 4, (@slider-track-height / 2) + @slider-handle-pad + @space-2);
+@arc-track-color: @color-on-surface;
+@arc-track-width: @line-thin;
+@arc-indicator-color: @color-primary;
+@arc-indicator-width: if($isCompact, @line-medium, 4dp);
+@arc-handle-color: @color-primary;
+@arc-handle-pad: if($isCompact, 1, 3dp);
+
+// Text field (textarea, spinbox, dropdown)
+@field-color: @color-surface;
+@field-text-color: @color-on-surface;
+@field-border-color: @color-outline;
+@field-border-width: @border;
+@field-focused-border-width: @line-medium;
+@field-shape: @shape-field;
+@field-pad: @density-field-pad;
+@field-cursor-color: @color-on-surface;
+@field-cursor-width: @line-medium;
+@field-selection-color: @color-primary;
+@field-selection-text-color: @color-on-primary;
+
+// Menu (dropdown list), roller
+@menu-color: @color-surface;
+@menu-border-color: @color-outline;
+@menu-shape: @shape-field;
+@menu-max-height: dpi-def * 2;
+@menu-item-line-space: if($isCompact, 2, @space-3);
+@roller-line-space: if($isCompact, 2, @space-3);
+
+// Button matrix and keyboard
+@keys-pad: @density-key-gap;
+@keys-gap: @density-key-gap;
+@key-color: @color-surface;
+@key-text-color: @color-on-surface;
+@key-border-color: @color-outline;
+@key-shape: @shape-key;
+
+// List
+@list-pad: @density-list-pad;
+@list-item-pad-hor: @density-list-item-pad-hor;
+@list-item-pad-ver: @density-list-item-pad-ver;
+@list-item-gap: if($isCompact, 3, @space-4);
+@list-divider-color: @color-outline;
+
+// Tabs
+@tabs-divider-color: @color-outline;
+@tab-indicator-color: @color-primary;
+@tab-indicator-width: if($isCompact, @line-medium, @line-thick);
+@tab-page-pad: @density-container-pad;
+
+// Dialog
+@dialog-color: @color-surface;
+@dialog-border-color: @color-outline;
+@dialog-border-width: @line-medium;
+@dialog-shape: @shape-dialog;
+@dialog-pad: @density-dialog-pad;
+@dialog-gap: if($isCompact, 2, @space-2);
+
+// Window
+@window-header-border-color: @color-outline;
+@window-header-pad: if($isCompact, 2, @space-2);
+@window-content-pad: @density-container-pad;
+
+// Table, chart, calendar, scale, divider
+@table-cell-pad: if($isCompact, 2, @space-3);
+@table-divider-color: @color-outline;
+@chart-grid-color: @color-on-surface;
+@chart-point-size: if($isCompact, 3, 6dp);
+@calendar-pad: if($isCompact, 2, @space-2);
+@scale-color: @color-on-surface;
+@scale-tick-length: if($isCompact, 3, 6dp);
+@divider-color: @color-outline;
+
+// ============================================================
+// Styles: shared states
+// ============================================================
+
+focus_ring {
+    outlineColor: @focus-ring-color;
+    outlineWidth: @focus-ring-width;
+    outlinePad: @focus-ring-offset;
+    outlineOpa: cover;
+}
+
+edit_ring {
+    outlineColor: @focus-ring-color;
+    outlineWidth: @edit-ring-width;
+    outlinePad: @focus-ring-offset;
+    outlineOpa: cover;
+}
+
+focus_ring_inset {
+    outlineColor: @focus-ring-color;
+    outlineWidth: @focus-inset-width;
+    outlinePad: -@focus-inset-width;
+    outlineOpa: cover;
+}
+
+edit_ring_inset {
+    outlineColor: @focus-ring-color;
+    outlineWidth: @edit-ring-width;
+    outlinePad: -@edit-ring-width;
+    outlineOpa: cover;
+}
+
+inverted {
+    bgColor: @button-inverted-container-color;
+    bgOpa: cover;
+    textColor: @button-inverted-label-color;
+    borderColor: @button-inverted-label-color;
+    lineColor: @button-inverted-label-color;
+    arcColor: @button-inverted-label-color;
+    outlineColor: @button-inverted-label-color;
+}
+
+disabled {
+    borderWidth: 0;
+}
+
+scrollbar {
+    bgColor: @scrollbar-color;
+    bgOpa: cover;
+    radius: circle;
+    width: @scrollbar-width;
+    padAll: @scrollbar-pad;
+}
+
+// Page-like widgets show the shared app background instead of painting their own
+page {
+    bgOpa: transp;
+    borderWidth: 0;
+    radius: 0;
+    padAll: 0;
+    padGap: 0;
+}
+
+// ============================================================
+// Styles: widgets
+// ============================================================
+
+screen {
+    bgColor: @screen-color;
+    bgOpa: cover;
+    textColor: @screen-text-color;
+    textFont: $fontNormal;
+    padRow: @screen-gap;
+    padColumn: @screen-gap;
+}
+
+container {
+    bgColor: @container-color;
+    bgOpa: cover;
+    textColor: @container-text-color;
+    borderColor: @container-border-color;
+    borderWidth: @container-border-width;
+    radius: @container-shape;
+    padAll: @container-pad;
+    padGap: @container-gap;
+    lineColor: @divider-color;
+    lineWidth: @border;
+    arcColor: @color-on-surface;
+    arcWidth: @line-medium;
+}
+
+card {
+    bgColor: @card-color;
+    bgOpa: cover;
+    textColor: @card-text-color;
+    borderColor: @card-border-color;
+    borderWidth: @card-border-width;
+    radius: @card-shape;
+    padAll: @card-pad;
+    padGap: @card-gap;
+}
+
+button {
+    bgColor: @button-container-color;
+    bgOpa: cover;
+    textColor: @button-label-color;
+    borderColor: @button-border-color;
+    borderWidth: @button-border-width;
+    radius: @button-shape;
+    padHor: @button-pad-hor;
+    padVer: @button-pad-ver;
+    padGap: @button-gap;
+}
+
+icon_button {
+    bgOpa: transp;
+    textColor: @color-on-surface;
+    borderWidth: 0;
+    radius: @button-shape;
+    padAll: @button-pad-ver;
+}
+
+// Selected (toggled) icon button: outlined, as there is no colour to show it with
+icon_button_selected {
+    borderColor: @color-outline;
+    borderWidth: @border;
+}
+
+icon_button_filled {
+    bgColor: @icon-button-filled-color;
+    bgOpa: cover;
+    textColor: @icon-button-filled-icon-color;
+    borderWidth: 0;
+    radius: @icon-button-container-shape;
+    padAll: @button-pad-ver;
+}
+
+// The filled button is already ink, so pressing it shows the outlined look
+icon_button_filled_pressed {
+    bgColor: @icon-button-tonal-color;
+    textColor: @icon-button-tonal-icon-color;
+    borderColor: @icon-button-tonal-border-color;
+    borderWidth: @border;
+}
+
+icon_button_tonal {
+    bgColor: @icon-button-tonal-color;
+    bgOpa: cover;
+    textColor: @icon-button-tonal-icon-color;
+    borderColor: @icon-button-tonal-border-color;
+    borderWidth: @border;
+    radius: @icon-button-container-shape;
+    padAll: @button-pad-ver;
+}
+
+app_bar {
+    bgOpa: transp;
+    textColor: @app-bar-title-color;
+    radius: 0;
+    borderColor: @app-bar-divider-color;
+    borderWidth: @border;
+    borderSide: bottom;
+    padHor: @app-bar-pad-hor;
+    padVer: 0;
+    padGap: @app-bar-gap;
+}
+
+app_bar_actions {
+    bgOpa: transp;
+    borderWidth: 0;
+    radius: 0;
+    padAll: 0;
+    padGap: @app-bar-gap;
+}
+
+app_bar_button {
+    padAll: 0;
+}
+
+app_bar_focus_ring {
+    outlineColor: @focus-ring-color;
+    outlineWidth: @app-bar-focus-width;
+    outlinePad: -@app-bar-focus-width;
+    outlineOpa: cover;
+}
+
+switch_track {
+    width: @switch-width;
+    height: @switch-height;
+    bgColor: @switch-track-color;
+    bgOpa: cover;
+    borderColor: @switch-track-border-color;
+    borderWidth: @switch-track-border-width;
+    radius: circle;
+    padAll: 0;
+    animDuration: @motion-duration-short;
+}
+
+switch_indicator_selected {
+    bgColor: @switch-track-selected-color;
+    bgOpa: cover;
+    radius: circle;
+}
+
+switch_handle {
+    bgColor: @switch-handle-color;
+    bgOpa: cover;
+    radius: circle;
+    padAll: @switch-handle-pad;
+}
+
+switch_handle_selected {
+    bgColor: @switch-handle-selected-color;
+    padAll: @switch-handle-selected-pad;
+}
+
+checkbox {
+    padGap: @checkbox-gap;
+}
+
+checkbox_box {
+    bgColor: @checkbox-box-color;
+    bgOpa: cover;
+    borderColor: @checkbox-box-border-color;
+    borderWidth: @checkbox-box-border-width;
+    radius: @checkbox-box-shape;
+    padAll: @checkbox-box-pad;
+    textFont: $fontSmall;
+    textColor: @checkbox-icon-color;
+}
+
+checkbox_box_selected {
+    bgColor: @checkbox-box-selected-color;
+    bgImageSrc: symbol(ok);
+}
+
+sliderbox {
+    padColumn: @sliderbox-gap;
+}
+
+slider_track_size {
+    height: @slider-track-height;
+}
+
+// The knob extends beyond the slider by its padding, so the slider reserves that room above and below it in layouts.
+// Not left and right: flex grow (e.g. in the sliderbox) doesn't take a growing item's own margins into account.
+slider_knob_room {
+    marginVer: @slider-handle-pad;
+}
+
+slider_track {
+    bgColor: @slider-track-color;
+    bgOpa: cover;
+    borderColor: @slider-track-border-color;
+    borderWidth: @border;
+    radius: circle;
+    padAll: 0;
+}
+
+slider_active_track {
+    bgColor: @slider-active-track-color;
+    bgOpa: cover;
+    radius: circle;
+}
+
+slider_handle {
+    bgColor: @slider-handle-color;
+    bgOpa: cover;
+    radius: circle;
+    padAll: @slider-handle-pad;
+}
+
+arc_track {
+    arcColor: @arc-track-color;
+    arcWidth: @arc-track-width;
+}
+
+arc_indicator {
+    arcColor: @arc-indicator-color;
+    arcWidth: @arc-indicator-width;
+    arcRounded: true;
+}
+
+arc_handle {
+    bgColor: @arc-handle-color;
+    bgOpa: cover;
+    radius: circle;
+    padAll: @arc-handle-pad;
+}
+
+field {
+    bgColor: @field-color;
+    bgOpa: cover;
+    textColor: @field-text-color;
+    borderColor: @field-border-color;
+    borderWidth: @field-border-width;
+    radius: @field-shape;
+    padAll: @field-pad;
+    padGap: @field-pad;
+}
+
+field_focused {
+    borderWidth: @field-focused-border-width;
+}
+
+field_cursor {
+    borderColor: @field-cursor-color;
+    borderWidth: @field-cursor-width;
+    borderSide: left;
+    bgOpa: transp;
+    animDuration: @motion-duration-long;
+}
+
+field_selection {
+    bgColor: @field-selection-color;
+    bgOpa: cover;
+    textColor: @field-selection-text-color;
+}
+
+menu {
+    bgColor: @menu-color;
+    bgOpa: cover;
+    borderColor: @menu-border-color;
+    borderWidth: @border;
+    radius: @menu-shape;
+    textLineSpace: @menu-item-line-space;
+    maxHeight: @menu-max-height;
+    clipCorner: true;
+}
+
+menu_item {
+    bgOpa: transp;
+}
+
+roller {
+    bgColor: @color-surface;
+    bgOpa: cover;
+    textColor: @color-on-surface;
+    borderColor: @color-outline;
+    borderWidth: @border;
+    radius: @shape-container;
+    textLineSpace: @roller-line-space;
+    textAlign: center;
+    animDuration: @motion-duration-medium;
+}
+
+keys {
+    bgOpa: transp;
+    borderWidth: 0;
+    padAll: @keys-pad;
+    padGap: @keys-gap;
+}
+
+key {
+    bgColor: @key-color;
+    bgOpa: cover;
+    textColor: @key-text-color;
+    borderColor: @key-border-color;
+    borderWidth: @border;
+    radius: @key-shape;
+}
+
+list {
+    bgColor: @color-surface;
+    bgOpa: cover;
+    borderColor: @color-outline;
+    borderWidth: @border;
+    radius: @shape-container;
+    padHor: 0;
+    padVer: @list-pad;
+    padGap: 0;
+    clipCorner: true;
+}
+
+list_item {
+    bgOpa: transp;
+    textColor: @color-on-surface;
+    borderColor: @list-divider-color;
+    borderWidth: @border;
+    borderSide: bottom;
+    radius: 0;
+    padHor: @list-item-pad-hor;
+    padVer: @list-item-pad-ver;
+    padColumn: @list-item-gap;
+}
+
+list_subheader {
+    textFont: $fontSmall;
+    textDecor: underline;
+    padHor: @list-item-pad-hor;
+    padTop: @list-item-pad-ver;
+    padBottom: @list-pad;
+}
+
+tabs {
+    bgOpa: transp;
+    borderColor: @tabs-divider-color;
+    borderWidth: @border;
+    borderSide: bottom;
+}
+
+tab {
+    bgOpa: transp;
+    textColor: @color-on-surface;
+    borderWidth: 0;
+    radius: 0;
+}
+
+tab_selected {
+    borderColor: @tab-indicator-color;
+    borderWidth: @tab-indicator-width;
+    borderSide: bottom;
+}
+
+tab_page {
+    padAll: @tab-page-pad;
+}
+
+dialog {
+    bgColor: @dialog-color;
+    bgOpa: cover;
+    textColor: @color-on-surface;
+    borderColor: @dialog-border-color;
+    borderWidth: @dialog-border-width;
+    radius: @dialog-shape;
+    padAll: 0;
+    padGap: 0;
+    clipCorner: true;
+}
+
+dialog_header {
+    padHor: @dialog-pad;
+    padTop: @dialog-pad;
+    padBottom: @dialog-gap;
+    padGap: @dialog-gap;
+}
+
+dialog_title {
+    textFont: $fontLarge;
+}
+
+dialog_content {
+    padHor: @dialog-pad;
+    padVer: @dialog-gap;
+}
+
+dialog_actions {
+    padAll: @dialog-pad;
+    padTop: @dialog-gap;
+    padGap: @dialog-gap;
+}
+
+settings {
+    bgColor: @color-surface;
+    bgOpa: cover;
+    padAll: 0;
+    padGap: 0;
+    radius: 0;
+    clipCorner: true;
+}
+
+settings_sidebar {
+    padAll: 0;
+    padGap: 0;
+    borderColor: @color-outline;
+    borderWidth: @border;
+    borderSide: right;
+}
+
+settings_content {
+    padAll: 0;
+    padGap: 0;
+}
+
+settings_page {
+    padHor: 0;
+    padGap: 0;
+}
+
+settings_header {
+    padHor: @density-list-item-pad-hor;
+    padVer: @density-list-pad;
+    padGap: @density-container-gap;
+}
+
+settings_section {
+    bgColor: @color-surface;
+    bgOpa: cover;
+    borderColor: @color-outline;
+    borderWidth: @border;
+    radius: @shape-container;
+    clipCorner: true;
+}
+
+settings_item {
+    padHor: @density-list-item-pad-hor;
+    padVer: @density-list-item-pad-ver;
+    padGap: @density-container-gap;
+}
+
+settings_separator {
+    bgOpa: transp;
+    padVer: @density-list-pad;
+}
+
+window_header {
+    bgColor: @color-surface;
+    bgOpa: cover;
+    borderColor: @window-header-border-color;
+    borderWidth: @border;
+    borderSide: bottom;
+    padAll: @window-header-pad;
+    padGap: @window-header-pad;
+}
+
+window_title {
+    textFont: $fontLarge;
+}
+
+window_content {
+    bgOpa: transp;
+    padAll: @window-content-pad;
+    padGap: @density-container-gap;
+}
+
+table {
+    bgColor: @color-surface;
+    bgOpa: cover;
+    borderColor: @color-outline;
+    borderWidth: @border;
+    radius: 0;
+    padAll: 0;
+}
+
+table_cell {
+    bgOpa: transp;
+    textColor: @color-on-surface;
+    padAll: @table-cell-pad;
+    borderColor: @table-divider-color;
+    borderWidth: @border;
+    borderSide: bottom;
+}
+
+chart {
+    bgColor: @color-surface;
+    bgOpa: cover;
+    borderColor: @color-outline;
+    borderWidth: @border;
+    radius: @shape-container;
+    padAll: @density-container-pad;
+    lineColor: @chart-grid-color;
+}
+
+chart_series {
+    lineColor: @color-on-surface;
+    lineWidth: @line-medium;
+    size: @chart-point-size, @chart-point-size;
+}
+
+chart_indicator {
+    bgColor: @color-primary;
+    bgOpa: cover;
+    radius: circle;
+    size: @chart-point-size, @chart-point-size;
+}
+
+calendar {
+    bgColor: @color-surface;
+    bgOpa: cover;
+    borderColor: @color-outline;
+    borderWidth: @border;
+    radius: @shape-container;
+    padAll: @calendar-pad;
+    padGap: @calendar-pad;
+}
+
+calendar_day {
+    bgOpa: transp;
+    borderWidth: 0;
+    radius: circle;
+}
+
+scale {
+    lineColor: @scale-color;
+    lineWidth: @border;
+    arcColor: @scale-color;
+    arcWidth: @border;
+    textColor: @scale-color;
+    length: @scale-tick-length;
+}
+
+divider {
+    lineColor: @divider-color;
+    lineWidth: @border;
+}
+
+led {
+    bgColor: @color-on-surface;
+    bgOpa: cover;
+    radius: circle;
+    borderColor: @color-outline;
+    borderWidth: @border;
+}
+
+// ============================================================
+// Apply rules
+// ============================================================
+
+apply(null > *) {
+    screen: default;
+    scrollbar: part.scrollbar;
+}
+
+// Base object
+
+apply(tabview > obj[1]) {
+    // Tab content area: no styles
+}
+
+apply(tabview > obj[0]) {
+    tabs: default;
+}
+
+apply(tabview > * > obj) {
+    tab_page: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(win > obj[0]) {
+    window_header: default;
+}
+
+apply(win > obj[1]) {
+    window_content: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(calendar > obj) {
+    // No styles
+}
+
+apply(toolbar > obj) {
+    app_bar_actions: default;
+}
+
+apply(obj) {
+    container: default;
+    scrollbar: part.scrollbar;
+}
+
+// Buttons
+
+apply(tabview > *[0] > button) {
+    tab: default;
+    inverted: state.pressed;
+    tab_selected: state.checked;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+}
+
+apply(toolbar > icon_button, toolbar > obj > icon_button) {
+    icon_button: default;
+    app_bar_button: default;
+    inverted: state.pressed;
+    app_bar_focus_ring: state.focusKey;
+    app_bar_focus_ring: state.edited;
+    disabled: state.disabled;
+}
+
+apply(toolbar) {
+    app_bar: default;
+}
+
+apply(icon_button) {
+    icon_button: default;
+    icon_button_selected: state.checked;
+    inverted: state.pressed;
+    focus_ring_inset: state.focusKey;
+    edit_ring_inset: state.edited;
+    disabled: state.disabled;
+}
+
+apply(icon_button_filled) {
+    icon_button_filled: default;
+    icon_button_filled_pressed: state.pressed;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
+}
+
+apply(icon_button_tonal) {
+    icon_button_tonal: default;
+    inverted: state.pressed;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
+}
+
+apply(menu_sidebar_header_cont > button, menu_main_header_cont > button, win > obj[0] > button, msgbox_header_button) {
+    icon_button: default;
+    inverted: state.pressed;
+    focus_ring: state.focusKey;
+}
+
+apply(button, msgbox_footer_button) {
+    button: default;
+    inverted: state.pressed;
+    inverted: state.checked;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
+}
+
+// Labels
+
+apply(msgbox_header > label) {
+    dialog_title: default;
+}
+
+apply(win > obj[0] > label) {
+    window_title: default;
+}
+
+apply(textarea > label) {
+    field_selection: part.selected;
+}
+
+// Selection controls
+
+apply(switch) {
+    switch_track: default;
+    switch_indicator_selected: part.indicator, state.checked;
+    switch_handle: part.knob;
+    switch_handle_selected: part.knob, state.checked;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
+}
+
+apply(checkbox) {
+    checkbox: default;
+    focus_ring: state.focusKey;
+    checkbox_box: part.indicator;
+    checkbox_box_selected: part.indicator, state.checked;
+    disabled: part.indicator, state.disabled;
+}
+
+apply(card) {
+    card: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(sliderbox) {
+    sliderbox: default;
+}
+
+apply(slider) {
+    slider_track: default;
+    slider_track_size: default;
+    slider_knob_room: default;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    slider_active_track: part.indicator;
+    slider_handle: part.knob;
+}
+
+apply(bar) {
+    slider_track: default;
+    slider_active_track: part.indicator;
+    focus_ring: state.focusKey;
+}
+
+apply(arc) {
+    arc_track: default;
+    arc_indicator: part.indicator;
+    arc_handle: part.knob;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+}
+
+apply(spinner) {
+    arc_track: default;
+    arc_indicator: part.indicator;
+}
+
+// Text input
+
+apply(textarea) {
+    field: default;
+    field_focused: state.focused;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
+    scrollbar: part.scrollbar;
+    field_cursor: part.cursor, state.focused;
+}
+
+apply(spinbox) {
+    field: default;
+    field_focused: state.focused;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    inverted: part.cursor;
+}
+
+apply(dropdown) {
+    field: default;
+    inverted: state.pressed;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
+}
+
+apply(dropdownlist) {
+    menu: default;
+    scrollbar: part.scrollbar;
+    menu_item: part.selected;
+    inverted: part.selected, state.checked;
+    inverted: part.selected, state.pressed;
+}
+
+apply(roller) {
+    roller: default;
+    inverted: part.selected;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+}
+
+// Button matrix and keyboard
+
+apply(calendar > buttonmatrix) {
+    keys: default;
+    calendar_day: part.items;
+    inverted: part.items, state.pressed;
+    inverted: part.items, state.checked;
+    focus_ring: part.items, state.focusKey;
+    disabled: part.items, state.disabled;
+}
+
+apply(buttonmatrix, keyboard) {
+    keys: default;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    key: part.items;
+    inverted: part.items, state.pressed;
+    inverted: part.items, state.checked;
+    focus_ring: part.items, state.focusKey;
+    disabled: part.items, state.disabled;
+}
+
+// Lists
+
+apply(list) {
+    list: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(list_text) {
+    list_subheader: default;
+}
+
+apply(list_button) {
+    list_item: default;
+    inverted: state.pressed;
+    inverted: state.focusKey;
+    disabled: state.disabled;
+}
+
+apply(table) {
+    table: default;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    scrollbar: part.scrollbar;
+    table_cell: part.items;
+    inverted: part.items, state.pressed;
+    inverted: part.items, state.focusKey;
+}
+
+// Settings menu
+
+apply(menu) {
+    settings: default;
+}
+
+apply(menu_sidebar_cont) {
+    settings_sidebar: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(menu_main_cont) {
+    settings_content: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(menu_page) {
+    settings_page: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(menu_sidebar_header_cont, menu_main_header_cont) {
+    settings_header: default;
+}
+
+apply(menu_section) {
+    settings_section: default;
+}
+
+apply(menu_cont) {
+    settings_item: default;
+    inverted: state.pressed;
+    inverted: state.checked;
+    inverted: state.focusKey;
+}
+
+apply(menu_separator) {
+    settings_separator: default;
+}
+
+// Dialog
+
+apply(msgbox) {
+    dialog: default;
+}
+
+apply(msgbox_backdrop) {
+    // A 1-bit display can't show a scrim
+}
+
+apply(msgbox_header) {
+    dialog_header: default;
+}
+
+apply(msgbox_content) {
+    dialog_content: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(msgbox_footer) {
+    dialog_actions: default;
+}
+
+// Containers
+
+apply(tabview, win) {
+    page: default;
+}
+
+apply(tileview) {
+    page: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(tileview_tile) {
+    scrollbar: part.scrollbar;
+}
+
+// Data display
+
+apply(chart) {
+    chart: default;
+    scrollbar: part.scrollbar;
+    chart_series: part.items;
+    chart_indicator: part.indicator;
+    chart_series: part.cursor;
+}
+
+apply(calendar) {
+    calendar: default;
+}
+
+apply(scale) {
+    scale: part.main;
+    scale: part.indicator;
+    scale: part.items;
+}
+
+apply(line) {
+    divider: default;
+}
+
+apply(led) {
+    led: default;
+}

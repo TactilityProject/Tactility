@@ -1,0 +1,1624 @@
+// Material 3 theme for colour displays
+//
+// Tokens are layered:
+//   1. Base tokens: raw values without meaning (tones, scales)
+//   2. Semantic tokens: Material 3 roles (colors, shapes, density, states)
+//   3. Widget tokens: per widget, built from semantic tokens
+// Styles only use widget tokens, or semantic tokens for shared state styles.
+
+@theme material;
+
+@config {
+    isDark: bool = false;
+    isCompact: bool = false;
+    animationsEnabled: bool = true;
+    colorPrimary: color = #00bbff;
+    colorSecondary: color = #ee81c3;
+    colorError: color = #B3261E;
+    fontSmall: font = raw("LV_FONT_DEFAULT");
+    fontNormal: font = raw("LV_FONT_DEFAULT");
+    fontLarge: font = raw("LV_FONT_DEFAULT");
+}
+
+// Tactility widgets
+@widget toolbar: lvgl_toolbar_class;
+@widget icon_button: lvgl_icon_button_class;
+@widget icon_button_filled: lvgl_icon_button_filled_class;
+@widget icon_button_tonal: lvgl_icon_button_tonal_class;
+@widget sliderbox: lvgl_sliderbox_class;
+@widget card: lvgl_card_class;
+
+// ============================================================
+// 1. Base tokens
+// ============================================================
+
+// Neutral tones (greys by Material 3 tone)
+@neutral-4: #0E0E0E;
+@neutral-6: #131313;
+@neutral-10: #1C1C1C;
+@neutral-12: #1F1F1F;
+@neutral-17: #2B2B2B;
+@neutral-20: #303030;
+@neutral-22: #343434;
+@neutral-30: #474747;
+@neutral-50: #777777;
+@neutral-60: #919191;
+@neutral-80: #C6C6C6;
+@neutral-90: #E2E2E2;
+@neutral-92: #E8E8E8;
+@neutral-94: #EEEEEE;
+@neutral-95: #F0F0F0;
+@neutral-96: #F3F3F3;
+@neutral-98: #FAFAFA;
+@neutral-100: #FFFFFF;
+
+// How much of the primary color tints the neutral tones
+@tint-neutral: 4%;
+@tint-neutral-variant: 8%;
+
+// Shape scale
+@corner-none: 0;
+@corner-extra-small: 4dp;
+@corner-small: 8dp;
+@corner-medium: 12dp;
+@corner-large: 16dp;
+@corner-extra-large: 28dp;
+@corner-full: circle;
+@corner-compact: 3;
+
+// Spacing scale (4dp grid)
+@space-1: 4dp;
+@space-2: 8dp;
+@space-3: 12dp;
+@space-4: 16dp;
+@space-6: 24dp;
+
+// Opacity scale
+@opacity-state-hover: 8%;
+@opacity-state-focus: 10%;
+@opacity-state-pressed: 10%;
+@opacity-disabled-content: 38%;
+@opacity-disabled-container: 12%;
+@opacity-scrim: 32%;
+
+// Motion
+@duration-short: 100;
+@duration-medium: 250;
+@duration-long: 500;
+
+// ============================================================
+// 2. Semantic tokens
+// ============================================================
+
+// Tonal roles derived from a seed color
+@color-primary: if($isDark, mix($colorPrimary, white, 55%), $colorPrimary);
+@color-on-primary: if($isDark, mix($colorPrimary, black, 50%), white);
+@color-primary-container: if($isDark, mix($colorPrimary, black, 70%), mix($colorPrimary, white, 25%));
+@color-on-primary-container: if($isDark, mix($colorPrimary, white, 20%), mix($colorPrimary, black, 60%));
+
+@color-secondary: if($isDark, mix($colorSecondary, white, 55%), $colorSecondary);
+@color-on-secondary: if($isDark, mix($colorSecondary, black, 50%), white);
+@color-secondary-container: if($isDark, mix($colorSecondary, black, 70%), mix($colorSecondary, white, 25%));
+@color-on-secondary-container: if($isDark, mix($colorSecondary, white, 20%), mix($colorSecondary, black, 60%));
+
+@color-error: if($isDark, mix($colorError, white, 55%), $colorError);
+@color-on-error: if($isDark, mix($colorError, black, 50%), white);
+
+// Surfaces: neutral tones tinted with the primary color
+@color-surface: mix($colorPrimary, if($isDark, @neutral-6, @neutral-98), @tint-neutral);
+@color-on-surface: mix($colorPrimary, if($isDark, @neutral-90, @neutral-10), @tint-neutral);
+@color-on-surface-variant: mix($colorPrimary, if($isDark, @neutral-80, @neutral-30), @tint-neutral-variant);
+@color-surface-container-lowest: mix($colorPrimary, if($isDark, @neutral-4, @neutral-100), @tint-neutral);
+@color-surface-container-low: mix($colorPrimary, if($isDark, @neutral-10, @neutral-96), @tint-neutral);
+@color-surface-container: mix($colorPrimary, if($isDark, @neutral-12, @neutral-94), @tint-neutral);
+@color-surface-container-high: mix($colorPrimary, if($isDark, @neutral-17, @neutral-92), @tint-neutral);
+@color-surface-container-highest: mix($colorPrimary, if($isDark, @neutral-22, @neutral-90), @tint-neutral);
+@color-outline: mix($colorPrimary, if($isDark, @neutral-60, @neutral-50), @tint-neutral-variant);
+@color-outline-variant: mix($colorPrimary, if($isDark, @neutral-30, @neutral-80), @tint-neutral-variant);
+@color-inverse-surface: mix($colorPrimary, if($isDark, @neutral-90, @neutral-20), @tint-neutral);
+@color-inverse-on-surface: mix($colorPrimary, if($isDark, @neutral-20, @neutral-95), @tint-neutral);
+@color-scrim: black;
+
+// Shapes
+@shape-control: if($isCompact, @corner-compact, @corner-full);
+@shape-container: if($isCompact, @corner-compact, @corner-medium);
+@shape-field: if($isCompact, @corner-compact, @corner-extra-small);
+@shape-key: if($isCompact, @corner-compact, @corner-small);
+@shape-dialog: if($isCompact, @corner-compact, @corner-extra-large);
+@shape-menu: if($isCompact, @corner-compact, @corner-extra-small);
+
+// Density
+@density-container-pad: if($isCompact, 2, @space-4);
+@density-container-gap: if($isCompact, 2, @space-3);
+@density-container-border: if($isCompact, 1, 0);
+@density-control-pad-hor: if($isCompact, 3, @space-6);
+@density-control-pad-ver: if($isCompact, 3, 10dp);
+@density-control-gap: if($isCompact, 2, @space-2);
+@density-field-pad-hor: if($isCompact, 2, @space-4);
+@density-field-pad-ver: if($isCompact, 2, @space-2);
+@density-list-pad: if($isCompact, 2, @space-2);
+@density-list-item-pad-hor: if($isCompact, 2, @space-4);
+@density-list-item-pad-ver: if($isCompact, 2, @space-3);
+@density-dialog-pad: if($isCompact, 2, @space-6);
+@density-key-gap: if($isCompact, 2, @space-1);
+@density-border: 1dp;
+
+// Focus indicator
+@focus-color: @color-secondary;
+@focus-width: if($isCompact, 1, 3dp);
+@focus-offset: if($isCompact, 1, 2dp);
+// Drawn inside the widget, for widgets with little room around them (icon buttons)
+@focus-inset-width: if($isCompact, 1, 2dp);
+@edit-color: @color-primary;
+
+// State layers: the state color blended over the container color
+@state-pressed-on-primary: mix(@color-on-primary, @color-primary, @opacity-state-pressed);
+@state-pressed-on-secondary: mix(@color-on-secondary, @color-secondary, @opacity-state-pressed);
+@state-layer-color: @color-on-surface;
+
+// Motion
+@motion-duration-short: if($animationsEnabled, @duration-short, 0);
+@motion-duration-medium: if($animationsEnabled, @duration-medium, 0);
+@motion-duration-long: if($animationsEnabled, @duration-long, 0);
+
+// ============================================================
+// 3. Widget tokens
+// ============================================================
+
+// Screen
+@screen-color: @color-surface;
+@screen-text-color: @color-on-surface;
+@screen-gap: @density-container-gap;
+
+// Container (lv_obj): Material 3 filled card
+@container-color: @color-surface-container-low;
+@container-text-color: @color-on-surface;
+@container-border-color: @color-outline-variant;
+@container-border-width: @density-container-border;
+@container-shape: @shape-container;
+@container-pad: @density-container-pad;
+@container-gap: @density-container-gap;
+
+// Card (lvgl_card_create): a container one tone above the background, so it stands out
+@card-color: @color-surface-container-high;
+@card-text-color: @color-on-surface;
+@card-border-color: @color-outline-variant;
+@card-border-width: @density-container-border;
+@card-shape: @shape-container;
+@card-pad: @density-container-pad;
+@card-gap: @density-container-gap;
+
+// Scrollbar
+@scrollbar-color: @color-outline;
+@scrollbar-opacity: 40%;
+@scrollbar-scrolled-opacity: 70%;
+@scrollbar-width: if($isCompact, 2, @space-1);
+@scrollbar-pad: if($isCompact, 1, @space-1);
+
+// Button: Material 3 filled button
+@button-container-color: @color-primary;
+@button-label-color: @color-on-primary;
+@button-pressed-container-color: @state-pressed-on-primary;
+@button-checked-container-color: @color-secondary;
+@button-checked-label-color: @color-on-secondary;
+@button-checked-pressed-container-color: @state-pressed-on-secondary;
+@button-disabled-container-color: @color-on-surface;
+@button-disabled-container-opacity: @opacity-disabled-container;
+@button-disabled-label-color: @color-on-surface;
+@button-disabled-label-opacity: @opacity-disabled-content;
+@button-shape: @shape-control;
+@button-pad-hor: @density-control-pad-hor;
+@button-pad-ver: @density-control-pad-ver;
+@button-gap: @density-control-gap;
+
+// Text button (dialog actions, menu header buttons)
+@text-button-label-color: @color-primary;
+@text-button-pressed-container-color: @color-primary;
+@text-button-pad-hor: if($isCompact, 3, @space-3);
+
+// Icon button (dialog and window header buttons)
+@icon-button-color: @color-on-surface-variant;
+@icon-button-selected-color: @color-primary;
+
+// Filled and tonal icon buttons: Material 3 large icon buttons with a container
+@icon-button-container-shape: if($isCompact, @corner-compact, @corner-large);
+@icon-button-filled-color: @color-primary;
+@icon-button-filled-icon-color: @color-on-primary;
+@icon-button-filled-pressed-color: @state-pressed-on-primary;
+@icon-button-tonal-color: @color-secondary-container;
+@icon-button-tonal-icon-color: @color-on-secondary-container;
+@icon-button-tonal-pressed-color: mix(@color-on-secondary-container, @color-secondary-container, @opacity-state-pressed);
+
+// Toolbar: Material 2 top app bar, filled with a dark neutral tone for contrast with the content.
+// The tone is the same in light and dark mode. The statusbar uses a darker neutral tone with the same tint.
+@app-bar-color: mix($colorPrimary, @neutral-22, @tint-neutral);
+@app-bar-content-color: white;
+@app-bar-pressed-opacity: 20%;
+@app-bar-pad-hor: if($isCompact, 0, @space-1);
+@app-bar-gap: if($isCompact, 2, @space-1);
+// The focus ring is drawn inside toolbar buttons, as there's little room around them
+@app-bar-focus-width: @focus-inset-width;
+
+// Focus ring
+@focus-ring-color: @focus-color;
+@focus-ring-width: @focus-width;
+@focus-ring-offset: @focus-offset;
+@edit-ring-color: @edit-color;
+
+// Switch
+@switch-width: if($isCompact, 25, 52dp);
+@switch-height: if($isCompact, 15, 32dp);
+@switch-track-color: @color-surface-container-highest;
+@switch-track-border-color: @color-outline;
+@switch-track-border-width: if($isCompact, 1, 2dp);
+@switch-track-selected-color: @color-primary;
+@switch-handle-color: @color-outline;
+@switch-handle-selected-color: @color-on-primary;
+@switch-handle-pad: if($isCompact, -3, -8dp);
+@switch-handle-selected-pad: if($isCompact, -2, -4dp);
+@switch-handle-pressed-pad: if($isCompact, -1, -2dp);
+
+// Checkbox
+@checkbox-gap: if($isCompact, 3, @space-3);
+@checkbox-box-color: @color-surface;
+@checkbox-box-opacity: transp;
+@checkbox-box-border-color: @color-on-surface-variant;
+@checkbox-box-border-width: if($isCompact, 1, 2dp);
+@checkbox-box-shape: if($isCompact, 2, 2dp);
+@checkbox-box-pad: if($isCompact, 1, 2dp);
+@checkbox-box-selected-color: @color-primary;
+@checkbox-icon-color: @color-on-primary;
+
+// Slider, bar (linear progress)
+@slider-track-color: @color-secondary-container;
+@slider-active-track-color: @color-primary;
+@slider-handle-color: @color-primary;
+// The track is half of LVGL's default thickness (LV_DPI_DEF / 10). The knob is the track height plus its padding on both
+// sides, so the padding includes the removed thickness to keep the knob's size.
+@slider-track-height: 8dp;
+@slider-handle-pad: if($isCompact, 2, 6dp) + 4dp;
+// Sliderbox: in the normal layout, the gap between the slider and its buttons leaves room for the knob, which sticks out at the slider's ends
+@sliderbox-gap: if($isCompact, 4, (@slider-track-height / 2) + @slider-handle-pad + @space-2);
+@progress-track-color: @color-secondary-container;
+@progress-indicator-color: @color-primary;
+
+// Arc, spinner (circular progress)
+@arc-track-color: @color-secondary-container;
+@arc-indicator-color: @color-primary;
+@arc-width: if($isCompact, 3, @space-1);
+@arc-handle-color: @color-primary;
+@arc-handle-pad: if($isCompact, 2, @space-1);
+
+// Text field: Material 3 outlined text field (textarea, spinbox, dropdown)
+@field-color: @color-surface;
+@field-opacity: transp;
+@field-text-color: @color-on-surface;
+@field-border-color: @color-outline;
+@field-border-width: @density-border;
+@field-focused-border-color: @color-primary;
+@field-focused-border-width: if($isCompact, 1, 2dp);
+@field-shape: @shape-field;
+@field-pad-hor: @density-field-pad-hor;
+@field-pad-ver: @density-field-pad-ver;
+@field-placeholder-color: @color-on-surface-variant;
+@field-cursor-color: @color-primary;
+@field-cursor-width: if($isCompact, 1, 2dp);
+@field-selection-color: @color-primary-container;
+@field-selection-text-color: @color-on-primary-container;
+@spinbox-cursor-color: @color-primary;
+@spinbox-cursor-text-color: @color-on-primary;
+
+// Menu: Material 3 menu (dropdown list)
+@menu-color: @color-surface-container;
+@menu-text-color: @color-on-surface;
+@menu-shape: @shape-menu;
+@menu-pad: if($isCompact, 1, @space-2);
+@menu-max-height: dpi-def * 2;
+@menu-item-selected-color: @color-secondary-container;
+@menu-item-selected-text-color: @color-on-secondary-container;
+@menu-item-line-space: if($isCompact, 4, @space-4);
+
+// Roller
+@roller-color: @color-surface-container;
+@roller-text-color: @color-on-surface-variant;
+@roller-selected-color: @color-secondary-container;
+@roller-selected-text-color: @color-on-secondary-container;
+@roller-line-space: if($isCompact, 4, @space-4);
+
+// Button matrix and keyboard: keys are tonal buttons
+@keys-color: @color-surface-container;
+@keys-pad: @density-key-gap;
+@keys-gap: @density-key-gap;
+@key-color: @color-surface-container-highest;
+@key-text-color: @color-on-surface;
+@key-shape: @shape-key;
+@key-checked-color: @color-secondary-container;
+@key-checked-text-color: @color-on-secondary-container;
+@key-selected-color: @color-primary;
+@key-selected-text-color: @color-on-primary;
+
+// List
+@list-color: @color-surface;
+@list-pad: @density-list-pad;
+@list-item-color: @color-surface;
+@list-item-opacity: transp;
+@list-item-text-color: @color-on-surface;
+@list-item-pad-hor: @density-list-item-pad-hor;
+@list-item-pad-ver: @density-list-item-pad-ver;
+@list-item-gap: if($isCompact, 3, @space-4);
+@list-item-focused-color: @color-secondary-container;
+@list-item-focused-text-color: @color-on-secondary-container;
+@list-divider-color: @color-outline-variant;
+@list-divider-width: @density-border;
+@list-subheader-text-color: @color-on-surface-variant;
+
+// Tabs: Material 3 primary tabs
+@tabs-divider-color: @color-outline-variant;
+@tab-label-color: @color-on-surface-variant;
+@tab-selected-label-color: @color-primary;
+@tab-indicator-color: @color-primary;
+@tab-indicator-width: if($isCompact, 2, 3dp);
+@tab-page-pad: @density-container-pad;
+
+// Dialog (message box)
+@dialog-color: @color-surface-container-high;
+@dialog-text-color: @color-on-surface-variant;
+@dialog-title-color: @color-on-surface;
+@dialog-shape: @shape-dialog;
+@dialog-pad: @density-dialog-pad;
+@dialog-gap: if($isCompact, 2, @space-2);
+@dialog-scrim-color: @color-scrim;
+@dialog-scrim-opacity: @opacity-scrim;
+
+// Settings menu (lv_menu)
+@settings-color: @color-surface;
+@settings-section-color: @color-surface-container-low;
+@settings-section-shape: @shape-container;
+@settings-item-pad-hor: @density-list-item-pad-hor;
+@settings-item-pad-ver: @density-list-item-pad-ver;
+@settings-item-gap: @density-container-gap;
+@settings-divider-color: @color-outline-variant;
+@settings-item-selected-color: @color-secondary-container;
+@settings-item-selected-text-color: @color-on-secondary-container;
+
+// Window
+@window-header-color: @color-surface-container;
+@window-header-pad: if($isCompact, 2, @space-2);
+@window-content-pad: @density-container-pad;
+
+// Table
+@table-color: @color-surface;
+@table-cell-text-color: @color-on-surface;
+@table-cell-pad: if($isCompact, 2, @space-3);
+@table-divider-color: @color-outline-variant;
+
+// Chart
+@chart-color: @color-surface-container-low;
+@chart-grid-color: @color-outline-variant;
+@chart-series-width: if($isCompact, 1, 2dp);
+@chart-point-size: if($isCompact, 3, 6dp);
+@chart-indicator-color: @color-primary;
+
+// Calendar
+@calendar-color: @color-surface-container-high;
+@calendar-shape: if($isCompact, @corner-compact, @corner-large);
+@calendar-pad: if($isCompact, 2, @space-2);
+@calendar-day-text-color: @color-on-surface;
+@calendar-header-pad: if($isCompact, 2, @space-3);
+
+// Scale
+@scale-color: @color-on-surface-variant;
+@scale-width: @density-border;
+@scale-tick-length: if($isCompact, 3, 6dp);
+
+// Divider (lv_line)
+@divider-color: @color-outline-variant;
+@divider-width: @density-border;
+
+// LED
+@led-glow-width: if($isCompact, 4, 15dp);
+@led-glow-spread: if($isCompact, 1, 5dp);
+
+// ============================================================
+// Transitions
+// ============================================================
+
+@transition state-enter {
+    props: bgColor, bgOpa, borderColor, textColor, outlineWidth, outlineOpa;
+    path: ease-out;
+    duration: @motion-duration-short;
+    delay: 0;
+}
+
+@transition state-exit {
+    props: bgColor, bgOpa, borderColor, textColor, outlineWidth, outlineOpa;
+    path: ease-out;
+    duration: @motion-duration-short;
+    delay: 70;
+}
+
+// ============================================================
+// Styles: shared states
+// ============================================================
+
+transition_enter {
+    @if ($animationsEnabled) {
+        transition: state-enter;
+    }
+}
+
+transition_exit {
+    @if ($animationsEnabled) {
+        transition: state-exit;
+    }
+}
+
+focus_ring {
+    outlineColor: @focus-ring-color;
+    outlineWidth: @focus-ring-width;
+    outlinePad: @focus-ring-offset;
+    outlineOpa: cover;
+}
+
+edit_ring {
+    outlineColor: @edit-ring-color;
+    outlineWidth: @focus-ring-width;
+    outlinePad: @focus-ring-offset;
+    outlineOpa: cover;
+}
+
+focus_ring_inset {
+    outlineColor: @focus-ring-color;
+    outlineWidth: @focus-inset-width;
+    outlinePad: -@focus-inset-width;
+    outlineOpa: cover;
+}
+
+edit_ring_inset {
+    outlineColor: @edit-ring-color;
+    outlineWidth: @focus-inset-width;
+    outlinePad: -@focus-inset-width;
+    outlineOpa: cover;
+}
+
+// State layer for transparent containers
+state_pressed {
+    bgColor: @state-layer-color;
+    bgOpa: @opacity-state-pressed;
+}
+
+disabled {
+    opa: @opacity-disabled-content;
+}
+
+scrollbar {
+    bgColor: @scrollbar-color;
+    bgOpa: @scrollbar-opacity;
+    radius: circle;
+    width: @scrollbar-width;
+    padAll: @scrollbar-pad;
+}
+
+scrollbar_scrolled {
+    bgOpa: @scrollbar-scrolled-opacity;
+}
+
+// Page-like widgets show the shared app background instead of painting their own
+page {
+    bgOpa: transp;
+    borderWidth: 0;
+    radius: 0;
+    padAll: 0;
+    padGap: 0;
+}
+
+// ============================================================
+// Styles: widgets
+// ============================================================
+
+screen {
+    bgColor: @screen-color;
+    bgOpa: cover;
+    textColor: @screen-text-color;
+    textFont: $fontNormal;
+    padRow: @screen-gap;
+    padColumn: @screen-gap;
+    rotarySensitivity: dpi / 4 * 256;
+}
+
+container {
+    bgColor: @container-color;
+    bgOpa: cover;
+    textColor: @container-text-color;
+    borderColor: @container-border-color;
+    borderWidth: @container-border-width;
+    borderPost: true;
+    radius: @container-shape;
+    padAll: @container-pad;
+    padGap: @container-gap;
+    lineColor: @divider-color;
+    lineWidth: @divider-width;
+}
+
+card {
+    bgColor: @card-color;
+    bgOpa: cover;
+    textColor: @card-text-color;
+    borderColor: @card-border-color;
+    borderWidth: @card-border-width;
+    radius: @card-shape;
+    padAll: @card-pad;
+    padGap: @card-gap;
+}
+
+button {
+    bgColor: @button-container-color;
+    bgOpa: cover;
+    textColor: @button-label-color;
+    radius: @button-shape;
+    padHor: @button-pad-hor;
+    padVer: @button-pad-ver;
+    padGap: @button-gap;
+}
+
+button_pressed {
+    bgColor: @button-pressed-container-color;
+}
+
+button_checked {
+    bgColor: @button-checked-container-color;
+    textColor: @button-checked-label-color;
+}
+
+button_checked_pressed {
+    bgColor: @button-checked-pressed-container-color;
+}
+
+button_disabled {
+    bgColor: @button-disabled-container-color;
+    bgOpa: @button-disabled-container-opacity;
+    textColor: @button-disabled-label-color;
+    textOpa: @button-disabled-label-opacity;
+}
+
+text_button {
+    bgOpa: transp;
+    textColor: @text-button-label-color;
+    radius: @button-shape;
+    padHor: @text-button-pad-hor;
+    padVer: @button-pad-ver;
+    padGap: @button-gap;
+}
+
+text_button_pressed {
+    bgColor: @text-button-pressed-container-color;
+    bgOpa: @opacity-state-pressed;
+}
+
+icon_button {
+    bgOpa: transp;
+    textColor: @icon-button-color;
+    radius: @button-shape;
+    padAll: @button-pad-ver;
+}
+
+// Material 3 selected (toggled) icon button
+icon_button_selected {
+    textColor: @icon-button-selected-color;
+}
+
+icon_button_filled {
+    bgColor: @icon-button-filled-color;
+    bgOpa: cover;
+    textColor: @icon-button-filled-icon-color;
+    radius: @icon-button-container-shape;
+    padAll: @button-pad-ver;
+}
+
+icon_button_filled_pressed {
+    bgColor: @icon-button-filled-pressed-color;
+}
+
+icon_button_tonal {
+    bgColor: @icon-button-tonal-color;
+    bgOpa: cover;
+    textColor: @icon-button-tonal-icon-color;
+    radius: @icon-button-container-shape;
+    padAll: @button-pad-ver;
+}
+
+icon_button_tonal_pressed {
+    bgColor: @icon-button-tonal-pressed-color;
+}
+
+app_bar {
+    bgColor: @app-bar-color;
+    bgOpa: cover;
+    textColor: @app-bar-content-color;
+    radius: 0;
+    borderWidth: 0;
+    padHor: @app-bar-pad-hor;
+    padVer: 0;
+    padGap: @app-bar-gap;
+}
+
+app_bar_actions {
+    bgOpa: transp;
+    borderWidth: 0;
+    radius: 0;
+    padAll: 0;
+    padGap: @app-bar-gap;
+}
+
+app_bar_button {
+    padAll: 0;
+    textColor: @app-bar-content-color;
+}
+
+app_bar_button_pressed {
+    bgColor: @app-bar-content-color;
+    bgOpa: @app-bar-pressed-opacity;
+}
+
+app_bar_focus_ring {
+    outlineColor: @app-bar-content-color;
+    outlineWidth: @app-bar-focus-width;
+    outlinePad: -@app-bar-focus-width;
+    outlineOpa: cover;
+}
+
+app_bar_field {
+    textColor: @app-bar-content-color;
+    borderColor: @app-bar-content-color;
+}
+
+switch_track {
+    width: @switch-width;
+    height: @switch-height;
+    bgColor: @switch-track-color;
+    bgOpa: cover;
+    borderColor: @switch-track-border-color;
+    borderWidth: @switch-track-border-width;
+    radius: circle;
+    animDuration: @motion-duration-short;
+}
+
+switch_track_selected {
+    borderColor: @switch-track-selected-color;
+}
+
+switch_indicator_selected {
+    bgColor: @switch-track-selected-color;
+    bgOpa: cover;
+    radius: circle;
+}
+
+switch_handle {
+    bgColor: @switch-handle-color;
+    bgOpa: cover;
+    radius: circle;
+    padAll: @switch-handle-pad;
+}
+
+switch_handle_selected {
+    bgColor: @switch-handle-selected-color;
+    padAll: @switch-handle-selected-pad;
+}
+
+switch_handle_pressed {
+    padAll: @switch-handle-pressed-pad;
+}
+
+checkbox {
+    padGap: @checkbox-gap;
+    textColor: @color-on-surface;
+}
+
+checkbox_box {
+    bgColor: @checkbox-box-color;
+    bgOpa: @checkbox-box-opacity;
+    borderColor: @checkbox-box-border-color;
+    borderWidth: @checkbox-box-border-width;
+    radius: @checkbox-box-shape;
+    padAll: @checkbox-box-pad;
+    textFont: $fontSmall;
+    textColor: @checkbox-icon-color;
+}
+
+checkbox_box_selected {
+    bgColor: @checkbox-box-selected-color;
+    bgOpa: cover;
+    borderColor: @checkbox-box-selected-color;
+    bgImageSrc: symbol(ok);
+}
+
+sliderbox {
+    padColumn: @sliderbox-gap;
+}
+
+slider_track_size {
+    height: @slider-track-height;
+}
+
+// The knob extends beyond the slider by its padding, so the slider reserves that room above and below it in layouts.
+// Not left and right: flex grow (e.g. in the sliderbox) doesn't take a growing item's own margins into account.
+slider_knob_room {
+    marginVer: @slider-handle-pad;
+}
+
+slider_track {
+    bgColor: @slider-track-color;
+    bgOpa: cover;
+    radius: circle;
+}
+
+slider_active_track {
+    bgColor: @slider-active-track-color;
+    bgOpa: cover;
+    radius: circle;
+}
+
+slider_handle {
+    bgColor: @slider-handle-color;
+    bgOpa: cover;
+    radius: circle;
+    padAll: @slider-handle-pad;
+}
+
+progress_track {
+    bgColor: @progress-track-color;
+    bgOpa: cover;
+    radius: circle;
+}
+
+progress_indicator {
+    bgColor: @progress-indicator-color;
+    bgOpa: cover;
+    radius: circle;
+}
+
+arc_track {
+    arcColor: @arc-track-color;
+    arcWidth: @arc-width;
+    arcRounded: true;
+}
+
+arc_indicator {
+    arcColor: @arc-indicator-color;
+    arcWidth: @arc-width;
+    arcRounded: true;
+}
+
+arc_handle {
+    bgColor: @arc-handle-color;
+    bgOpa: cover;
+    radius: circle;
+    padAll: @arc-handle-pad;
+}
+
+field {
+    bgColor: @field-color;
+    bgOpa: @field-opacity;
+    textColor: @field-text-color;
+    borderColor: @field-border-color;
+    borderWidth: @field-border-width;
+    radius: @field-shape;
+    padHor: @field-pad-hor;
+    padVer: @field-pad-ver;
+    padGap: @field-pad-ver;
+}
+
+field_focused {
+    borderColor: @field-focused-border-color;
+    borderWidth: @field-focused-border-width;
+}
+
+field_placeholder {
+    textColor: @field-placeholder-color;
+}
+
+field_cursor {
+    borderColor: @field-cursor-color;
+    borderWidth: @field-cursor-width;
+    borderSide: left;
+    padLeft: -1;
+    animDuration: @motion-duration-long;
+}
+
+field_selection {
+    bgColor: @field-selection-color;
+    textColor: @field-selection-text-color;
+}
+
+spinbox_cursor {
+    bgColor: @spinbox-cursor-color;
+    bgOpa: cover;
+    textColor: @spinbox-cursor-text-color;
+}
+
+menu {
+    bgColor: @menu-color;
+    bgOpa: cover;
+    textColor: @menu-text-color;
+    radius: @menu-shape;
+    padAll: @menu-pad;
+    textLineSpace: @menu-item-line-space;
+    maxHeight: @menu-max-height;
+    clipCorner: true;
+}
+
+menu_item {
+    bgOpa: transp;
+}
+
+menu_item_selected {
+    bgColor: @menu-item-selected-color;
+    bgOpa: cover;
+    textColor: @menu-item-selected-text-color;
+}
+
+roller {
+    bgColor: @roller-color;
+    bgOpa: cover;
+    textColor: @roller-text-color;
+    radius: @shape-container;
+    textLineSpace: @roller-line-space;
+    textAlign: center;
+    animDuration: @motion-duration-medium;
+}
+
+roller_selected {
+    bgColor: @roller-selected-color;
+    bgOpa: cover;
+    textColor: @roller-selected-text-color;
+}
+
+keys {
+    bgColor: @keys-color;
+    bgOpa: cover;
+    radius: @shape-container;
+    padAll: @keys-pad;
+    padGap: @keys-gap;
+}
+
+key {
+    bgColor: @key-color;
+    bgOpa: cover;
+    textColor: @key-text-color;
+    radius: @key-shape;
+}
+
+key_pressed {
+    bgColor: mix(@state-layer-color, @key-color, @opacity-state-pressed);
+}
+
+key_checked {
+    bgColor: @key-checked-color;
+    textColor: @key-checked-text-color;
+}
+
+key_selected {
+    bgColor: @key-selected-color;
+    textColor: @key-selected-text-color;
+}
+
+list {
+    bgColor: @list-color;
+    bgOpa: cover;
+    padHor: 0;
+    padVer: @list-pad;
+    padGap: 0;
+    clipCorner: true;
+}
+
+list_item {
+    bgColor: @list-item-color;
+    bgOpa: @list-item-opacity;
+    textColor: @list-item-text-color;
+    padHor: @list-item-pad-hor;
+    padVer: @list-item-pad-ver;
+    padColumn: @list-item-gap;
+    borderColor: @list-divider-color;
+    borderWidth: @list-divider-width;
+    borderSide: bottom;
+}
+
+list_item_focused {
+    bgColor: @list-item-focused-color;
+    bgOpa: cover;
+    textColor: @list-item-focused-text-color;
+}
+
+list_subheader {
+    textColor: @list-subheader-text-color;
+    textFont: $fontSmall;
+    padHor: @list-item-pad-hor;
+    padTop: @list-item-pad-ver;
+    padBottom: @list-pad;
+}
+
+tabs {
+    bgOpa: transp;
+    borderColor: @tabs-divider-color;
+    borderWidth: @density-border;
+    borderSide: bottom;
+}
+
+tab {
+    bgOpa: transp;
+    textColor: @tab-label-color;
+    radius: 0;
+}
+
+tab_selected {
+    textColor: @tab-selected-label-color;
+    borderColor: @tab-indicator-color;
+    borderWidth: @tab-indicator-width;
+    borderSide: bottom;
+}
+
+tab_page {
+    padAll: @tab-page-pad;
+}
+
+dialog {
+    bgColor: @dialog-color;
+    bgOpa: cover;
+    textColor: @dialog-text-color;
+    radius: @dialog-shape;
+    padAll: 0;
+    padGap: 0;
+    clipCorner: true;
+}
+
+dialog_header {
+    padHor: @dialog-pad;
+    padTop: @dialog-pad;
+    padBottom: @dialog-gap;
+    padGap: @dialog-gap;
+}
+
+dialog_title {
+    textColor: @dialog-title-color;
+    textFont: $fontLarge;
+}
+
+dialog_content {
+    padHor: @dialog-pad;
+    padVer: @dialog-gap;
+}
+
+dialog_actions {
+    padAll: @dialog-pad;
+    padTop: @dialog-gap;
+    padGap: @dialog-gap;
+}
+
+dialog_scrim {
+    bgColor: @dialog-scrim-color;
+    bgOpa: @dialog-scrim-opacity;
+}
+
+settings {
+    bgColor: @settings-color;
+    bgOpa: cover;
+    padAll: 0;
+    padGap: 0;
+    radius: 0;
+    clipCorner: true;
+}
+
+settings_sidebar {
+    padAll: 0;
+    padGap: 0;
+    borderColor: @settings-divider-color;
+    borderWidth: @density-border;
+    borderSide: right;
+}
+
+settings_content {
+    padAll: 0;
+    padGap: 0;
+}
+
+settings_page {
+    padHor: 0;
+    padGap: 0;
+}
+
+settings_header {
+    padHor: @settings-item-pad-hor;
+    padVer: @density-list-pad;
+    padGap: @settings-item-gap;
+}
+
+settings_section {
+    bgColor: @settings-section-color;
+    bgOpa: cover;
+    radius: @settings-section-shape;
+    clipCorner: true;
+}
+
+settings_item {
+    padHor: @settings-item-pad-hor;
+    padVer: @settings-item-pad-ver;
+    padGap: @settings-item-gap;
+}
+
+settings_item_selected {
+    bgColor: @settings-item-selected-color;
+    bgOpa: cover;
+    textColor: @settings-item-selected-text-color;
+}
+
+settings_separator {
+    bgOpa: transp;
+    padVer: @density-list-pad;
+}
+
+window_header {
+    bgColor: @window-header-color;
+    bgOpa: cover;
+    padAll: @window-header-pad;
+    padGap: @window-header-pad;
+}
+
+window_title {
+    textFont: $fontLarge;
+}
+
+window_content {
+    bgOpa: transp;
+    padAll: @window-content-pad;
+    padGap: @density-container-gap;
+}
+
+table {
+    bgColor: @table-color;
+    bgOpa: cover;
+    padAll: 0;
+    radius: 0;
+    borderColor: @table-divider-color;
+    borderWidth: @density-border;
+}
+
+table_cell {
+    bgOpa: transp;
+    textColor: @table-cell-text-color;
+    padAll: @table-cell-pad;
+    borderColor: @table-divider-color;
+    borderWidth: @density-border;
+    borderSide: bottom;
+}
+
+chart {
+    bgColor: @chart-color;
+    bgOpa: cover;
+    radius: @shape-container;
+    padAll: @density-container-pad;
+    lineColor: @chart-grid-color;
+    borderPost: false;
+}
+
+chart_series {
+    lineWidth: @chart-series-width;
+    size: @chart-point-size, @chart-point-size;
+    radius: @chart-point-size;
+}
+
+chart_indicator {
+    bgColor: @chart-indicator-color;
+    bgOpa: cover;
+    radius: circle;
+    size: @chart-point-size, @chart-point-size;
+}
+
+calendar {
+    bgColor: @calendar-color;
+    bgOpa: cover;
+    radius: @calendar-shape;
+    padAll: @calendar-pad;
+    padGap: @calendar-pad;
+}
+
+calendar_days {
+    bgOpa: transp;
+    padAll: 0;
+    padGap: @density-key-gap;
+}
+
+calendar_day {
+    bgOpa: transp;
+    textColor: @calendar-day-text-color;
+    radius: circle;
+}
+
+calendar_header {
+    padAll: @calendar-header-pad;
+    padGap: @calendar-header-pad;
+}
+
+scale {
+    lineColor: @scale-color;
+    lineWidth: @scale-width;
+    arcColor: @scale-color;
+    arcWidth: @scale-width;
+    textColor: @scale-color;
+    length: @scale-tick-length;
+}
+
+divider {
+    lineColor: @divider-color;
+    lineWidth: @divider-width;
+}
+
+led {
+    bgColor: white;
+    bgOpa: cover;
+    bgGradColor: palette(grey);
+    radius: circle;
+    shadowWidth: @led-glow-width;
+    shadowColor: white;
+    shadowSpread: @led-glow-spread;
+}
+
+// ============================================================
+// Apply rules
+// ============================================================
+
+apply(null > *) {
+    screen: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+// Base object
+
+apply(tabview > obj[1]) {
+    // Tab content area: no styles
+}
+
+apply(tabview > obj[0]) {
+    tabs: default;
+}
+
+apply(tabview > * > obj) {
+    tab_page: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+apply(win > obj[0]) {
+    window_header: default;
+}
+
+apply(win > obj[1]) {
+    window_content: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+apply(calendar > obj) {
+    // No styles
+}
+
+apply(toolbar > obj) {
+    app_bar_actions: default;
+}
+
+apply(obj) {
+    container: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+// Buttons
+
+apply(tabview > *[0] > button) {
+    tab: default;
+    transition_exit: default;
+    state_pressed: state.pressed;
+    transition_enter: state.pressed;
+    tab_selected: state.checked;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+}
+
+apply(menu_sidebar_header_cont > button, menu_main_header_cont > button, win > obj[0] > button) {
+    icon_button: default;
+    transition_exit: default;
+    state_pressed: state.pressed;
+    transition_enter: state.pressed;
+    focus_ring: state.focusKey;
+    disabled: state.disabled;
+}
+
+apply(button) {
+    button: default;
+    transition_exit: default;
+    button_pressed: state.pressed;
+    transition_enter: state.pressed;
+    button_checked: state.checked;
+    button_checked_pressed: state.checked, state.pressed;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    button_disabled: state.disabled;
+}
+
+apply(toolbar > icon_button, toolbar > obj > icon_button) {
+    icon_button: default;
+    app_bar_button: default;
+    transition_exit: default;
+    app_bar_button_pressed: state.pressed;
+    transition_enter: state.pressed;
+    app_bar_focus_ring: state.focusKey;
+    app_bar_focus_ring: state.edited;
+    disabled: state.disabled;
+}
+
+apply(toolbar > obj > dropdown) {
+    @include dropdown;
+    app_bar_field: default;
+    app_bar_focus_ring: state.focusKey;
+}
+
+apply(toolbar) {
+    app_bar: default;
+}
+
+apply(icon_button) {
+    icon_button: default;
+    icon_button_selected: state.checked;
+    transition_exit: default;
+    state_pressed: state.pressed;
+    transition_enter: state.pressed;
+    focus_ring_inset: state.focusKey;
+    edit_ring_inset: state.edited;
+    disabled: state.disabled;
+}
+
+apply(icon_button_filled) {
+    icon_button_filled: default;
+    transition_exit: default;
+    icon_button_filled_pressed: state.pressed;
+    transition_enter: state.pressed;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    button_disabled: state.disabled;
+}
+
+apply(icon_button_tonal) {
+    icon_button_tonal: default;
+    transition_exit: default;
+    icon_button_tonal_pressed: state.pressed;
+    transition_enter: state.pressed;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    button_disabled: state.disabled;
+}
+
+apply(msgbox_header_button) {
+    icon_button: default;
+    transition_exit: default;
+    state_pressed: state.pressed;
+    transition_enter: state.pressed;
+    focus_ring: state.focusKey;
+    disabled: state.disabled;
+}
+
+apply(msgbox_footer_button) {
+    text_button: default;
+    transition_exit: default;
+    text_button_pressed: state.pressed;
+    transition_enter: state.pressed;
+    focus_ring: state.focusKey;
+    disabled: state.disabled;
+}
+
+// Labels
+
+apply(msgbox_header > label) {
+    dialog_title: default;
+}
+
+apply(win > obj[0] > label) {
+    window_title: default;
+}
+
+apply(textarea > label) {
+    field_selection: part.selected;
+}
+
+// Selection controls
+
+apply(switch) {
+    switch_track: default;
+    switch_track_selected: state.checked;
+    switch_indicator_selected: part.indicator, state.checked;
+    switch_handle: part.knob;
+    switch_handle_selected: part.knob, state.checked;
+    switch_handle_pressed: part.knob, state.pressed;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
+}
+
+apply(checkbox) {
+    checkbox: default;
+    focus_ring: state.focusKey;
+    checkbox_box: part.indicator;
+    checkbox_box_selected: part.indicator, state.checked;
+    transition_exit: part.indicator;
+    transition_enter: part.indicator, state.pressed;
+    disabled: state.disabled;
+}
+
+apply(card) {
+    card: default;
+    scrollbar: part.scrollbar;
+}
+
+apply(sliderbox) {
+    sliderbox: default;
+}
+
+apply(slider) {
+    slider_track: default;
+    slider_track_size: default;
+    slider_knob_room: default;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    slider_active_track: part.indicator;
+    slider_handle: part.knob;
+    disabled: state.disabled;
+}
+
+apply(bar) {
+    progress_track: default;
+    progress_indicator: part.indicator;
+    focus_ring: state.focusKey;
+}
+
+apply(arc) {
+    arc_track: default;
+    arc_indicator: part.indicator;
+    arc_handle: part.knob;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+}
+
+apply(spinner) {
+    arc_track: default;
+    arc_indicator: part.indicator;
+}
+
+// Text input
+
+apply(textarea) {
+    field: default;
+    field_focused: state.focused;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+    field_cursor: part.cursor, state.focused;
+    field_placeholder: part.textareaPlaceholder;
+}
+
+apply(spinbox) {
+    field: default;
+    field_focused: state.focused;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    spinbox_cursor: part.cursor;
+}
+
+apply(dropdown) {
+    field: default;
+    transition_exit: default;
+    state_pressed: state.pressed;
+    transition_enter: state.pressed;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
+}
+
+apply(dropdownlist) {
+    menu: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+    menu_item: part.selected;
+    menu_item_selected: part.selected, state.checked;
+    state_pressed: part.selected, state.pressed;
+}
+
+apply(roller) {
+    roller: default;
+    roller_selected: part.selected;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+}
+
+// Button matrix and keyboard
+
+apply(calendar > buttonmatrix) {
+    calendar_days: default;
+    calendar_day: part.items;
+    state_pressed: part.items, state.pressed;
+    key_selected: part.items, state.checked;
+    focus_ring: part.items, state.focusKey;
+    edit_ring: part.items, state.edited;
+    disabled: part.items, state.disabled;
+}
+
+apply(buttonmatrix) {
+    keys: default;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    key: part.items;
+    key_pressed: part.items, state.pressed;
+    key_selected: part.items, state.checked;
+    focus_ring: part.items, state.focusKey;
+    disabled: part.items, state.disabled;
+}
+
+apply(keyboard) {
+    keys: default;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    key: part.items;
+    key_pressed: part.items, state.pressed;
+    key_checked: part.items, state.checked;
+    key_selected: part.items, state.focusKey;
+    disabled: part.items, state.disabled;
+}
+
+// Lists
+
+apply(list) {
+    list: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+apply(list_text) {
+    list_subheader: default;
+}
+
+apply(list_button) {
+    list_item: default;
+    transition_exit: default;
+    state_pressed: state.pressed;
+    transition_enter: state.pressed;
+    list_item_focused: state.focusKey;
+    disabled: state.disabled;
+}
+
+apply(table) {
+    table: default;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+    table_cell: part.items;
+    state_pressed: part.items, state.pressed;
+    list_item_focused: part.items, state.focusKey;
+}
+
+// Settings menu
+
+apply(menu) {
+    settings: default;
+}
+
+apply(menu_sidebar_cont) {
+    settings_sidebar: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+apply(menu_main_cont) {
+    settings_content: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+apply(menu_page) {
+    settings_page: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+apply(menu_sidebar_header_cont, menu_main_header_cont) {
+    settings_header: default;
+}
+
+apply(menu_section) {
+    settings_section: default;
+}
+
+apply(menu_cont) {
+    settings_item: default;
+    state_pressed: state.pressed;
+    settings_item_selected: state.checked;
+    settings_item_selected: state.focusKey;
+}
+
+apply(menu_separator) {
+    settings_separator: default;
+}
+
+// Dialog
+
+apply(msgbox) {
+    dialog: default;
+}
+
+apply(msgbox_backdrop) {
+    dialog_scrim: default;
+}
+
+apply(msgbox_header) {
+    dialog_header: default;
+}
+
+apply(msgbox_content) {
+    dialog_content: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+apply(msgbox_footer) {
+    dialog_actions: default;
+}
+
+// Containers
+
+apply(tabview, win) {
+    page: default;
+}
+
+apply(tileview) {
+    page: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+apply(tileview_tile) {
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+// Data display
+
+apply(chart) {
+    chart: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+    chart_series: part.items;
+    chart_indicator: part.indicator;
+    chart_series: part.cursor;
+}
+
+apply(calendar) {
+    calendar: default;
+}
+
+apply(calendar_header_arrow, calendar_header_dropdown) {
+    calendar_header: default;
+}
+
+apply(scale) {
+    scale: part.main;
+    scale: part.indicator;
+    scale: part.items;
+}
+
+apply(line) {
+    divider: default;
+}
+
+apply(led) {
+    led: default;
+}

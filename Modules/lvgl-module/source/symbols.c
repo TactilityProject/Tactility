@@ -10,6 +10,8 @@
 #include <lvgl/devices/pointer.h>
 
 #include <lvgl/widgets/sliderbox.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -56,6 +58,11 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_pointer_add),
     DEFINE_MODULE_SYMBOL(lvgl_pointer_get_slot_index),
     DEFINE_MODULE_SYMBOL(lvgl_pointer_remove),
+    // lvgl_card
+    DEFINE_MODULE_SYMBOL(lvgl_card_create),
+    // lvgl_icon_button
+    DEFINE_MODULE_SYMBOL(lvgl_icon_button_create),
+    DEFINE_MODULE_SYMBOL(lvgl_icon_button_create_variant),
     // lvgl_spinner
     DEFINE_MODULE_SYMBOL(lvgl_spinner_create),
     // lvgl_toolbar

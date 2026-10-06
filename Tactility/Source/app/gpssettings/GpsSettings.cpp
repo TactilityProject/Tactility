@@ -239,23 +239,16 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    uint8_t margin = (lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT) ? 2 : 8;
-
     auto* toolbar = lvgl_toolbar_create(parent, "GPS");
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
     lvgl_toolbar_add_text_button_action(toolbar, LV_SYMBOL_PLUS, onAddGpsPressed, ctx);
-    lv_obj_set_style_margin_bottom(toolbar, margin, LV_STATE_DEFAULT);
 
     ctx->deviceListWrapper = lv_obj_create(parent);
     lv_obj_set_size(ctx->deviceListWrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(ctx->deviceListWrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_grow(ctx->deviceListWrapper, 1);
     lv_obj_set_style_border_width(ctx->deviceListWrapper, 0, 0);
-    lv_obj_set_style_pad_hor(ctx->deviceListWrapper, margin, 0);
-    lv_obj_set_style_pad_top(ctx->deviceListWrapper, 0, 0);
-    lv_obj_set_style_pad_bottom(ctx->deviceListWrapper, margin, 0);
-    lv_obj_set_style_pad_row(ctx->deviceListWrapper, margin, 0);
 
     rebuildDeviceList(ctx);
     updateDeviceStates(ctx);

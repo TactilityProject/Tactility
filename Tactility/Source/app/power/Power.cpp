@@ -14,6 +14,7 @@
 #include <tactility/time.h>
 
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <vector>
@@ -170,10 +171,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         entry.device = device;
 
         lv_obj_t* header = lv_label_create(wrapper);
-        lv_label_set_text_fmt(header, "%s:", device->name);
+        lv_label_set_text(header, device->name);
+
+        lv_obj_t* card = lvgl_card_create(wrapper);
+        lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
 
         if (power_supply_supports_charge_control(device)) {
-            lv_obj_t* switch_container = lv_obj_create(wrapper);
+            lv_obj_t* switch_container = lv_obj_create(card);
             lv_obj_set_width(switch_container, LV_PCT(100));
             lv_obj_set_height(switch_container, LV_SIZE_CONTENT);
             lv_obj_set_style_pad_all(switch_container, 0, 0);
@@ -193,7 +198,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         }
 
         if (power_supply_supports_quick_charge(device)) {
-            lv_obj_t* qc_container = lv_obj_create(wrapper);
+            lv_obj_t* qc_container = lv_obj_create(card);
             lv_obj_set_width(qc_container, LV_PCT(100));
             lv_obj_set_height(qc_container, LV_SIZE_CONTENT);
             lv_obj_set_style_pad_all(qc_container, 0, 0);
@@ -215,8 +220,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         PowerSupplyPropertyValue value;
         for (auto property : DISPLAYED_PROPERTIES) {
             if (power_supply_get_property(device, property, &value) == ERROR_NONE) {
-                lv_obj_t* label = lv_label_create(wrapper);
-                lv_obj_set_style_margin_left(label, 24, LV_STATE_DEFAULT);
+                lv_obj_t* label = lv_label_create(card);
                 setPropertyLabelText(label, property, value);
                 entry.propertyWidgets.push_back({ property, label });
             }

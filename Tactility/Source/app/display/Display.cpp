@@ -177,7 +177,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
     ctx->displaySettings = settings::display::loadOrGetDefault();
-    auto ui_density = lvgl_get_ui_density();
     bool has_imu = device_exists_of_type(&IMU_TYPE);
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
@@ -205,9 +204,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lv_obj_set_size(brightness_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
             lv_obj_set_style_pad_hor(brightness_wrapper, 0, LV_STATE_DEFAULT);
             lv_obj_set_style_border_width(brightness_wrapper, 0, LV_STATE_DEFAULT);
-            if (ui_density != LVGL_UI_DENSITY_COMPACT) {
-                lv_obj_set_style_pad_ver(brightness_wrapper, 4, LV_STATE_DEFAULT);
-            }
 
             auto* brightness_label = lv_label_create(brightness_wrapper);
             lv_label_set_text(brightness_label, "Brightness");

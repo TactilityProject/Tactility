@@ -74,7 +74,7 @@ static lv_obj_t* windowManagerScreenInit(lv_obj_t* root) {
     lv_obj_set_flex_flow(vertical_container, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(vertical_container, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_gap(vertical_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(vertical_container, lv_color_black(), LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(vertical_container, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(vertical_container, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_radius(vertical_container, 0, LV_STATE_DEFAULT);
     lv_obj_remove_flag(vertical_container, LV_OBJ_FLAG_SCROLLABLE);

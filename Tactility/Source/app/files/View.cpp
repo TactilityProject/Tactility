@@ -552,15 +552,15 @@ void View::update(size_t start_index) {
     });
 
     if (is_root) {
-        lv_obj_add_flag(lv_obj_get_parent(navigate_up_button), LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_obj_remove_flag(lv_obj_get_parent(navigate_up_button), LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
     }
 
     if (state->hasClipboard() && !is_root) {
-        lv_obj_remove_flag(lv_obj_get_parent(paste_button), LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(paste_button, LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_obj_add_flag(lv_obj_get_parent(paste_button), LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(paste_button, LV_OBJ_FLAG_HIDDEN);
     }
 
     lvgl_unlock();
@@ -579,7 +579,7 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     new_file_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_FILE, &onNewFilePressedCallback, this);
     new_folder_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_DIRECTORY, &onNewFolderPressedCallback, this);
     paste_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_PASTE, &onPastePressedCallback, this);
-    lv_obj_add_flag(lv_obj_get_parent(paste_button), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(paste_button, LV_OBJ_FLAG_HIDDEN);
 
     auto* wrapper = lv_obj_create(parent);
     lv_obj_set_width(wrapper, LV_PCT(100));

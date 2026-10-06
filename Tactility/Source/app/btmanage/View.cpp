@@ -163,11 +163,17 @@ void View::updateScanning() {
 void View::updatePeerList() {
     lv_obj_clean(peers_list);
 
-    // Enable on boot row
-    auto* enable_on_boot_wrapper = lv_obj_create(peers_list);
+    // Enable on boot
+
+    // An unstyled row insets the wrapper like the list items' text: margins would make a full-width item overflow the list
+    auto* enable_on_boot_row = lv_obj_create(peers_list);
+    lv_obj_remove_style_all(enable_on_boot_row);
+    lv_obj_set_size(enable_on_boot_row, LV_PCT(100), LV_SIZE_CONTENT);
+    const int32_t enable_on_boot_inset = (lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT) ? 2 : LV_DPX(16);
+    lv_obj_set_style_pad_hor(enable_on_boot_row, enable_on_boot_inset, LV_STATE_DEFAULT);
+
+    auto* enable_on_boot_wrapper = lv_obj_create(enable_on_boot_row);
     lv_obj_set_size(enable_on_boot_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(enable_on_boot_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(enable_on_boot_wrapper, 0, LV_STATE_DEFAULT);
 
     auto* enable_label = lv_label_create(enable_on_boot_wrapper);
     lv_label_set_text(enable_label, "Enable on boot");
@@ -177,12 +183,6 @@ void View::updatePeerList() {
     lv_obj_align(enable_on_boot_switch, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(enable_on_boot_switch, onEnableOnBootSwitchChanged, LV_EVENT_VALUE_CHANGED, nullptr);
     lv_obj_add_event_cb(enable_on_boot_wrapper, onEnableOnBootParentClicked, LV_EVENT_SHORT_CLICKED, enable_on_boot_switch);
-
-    if (lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT) {
-        lv_obj_set_style_pad_ver(enable_on_boot_wrapper, 2, LV_STATE_DEFAULT);
-    } else {
-        lv_obj_set_style_pad_ver(enable_on_boot_wrapper, 8, LV_STATE_DEFAULT);
-    }
 
     updateEnableOnBootToggle();
 

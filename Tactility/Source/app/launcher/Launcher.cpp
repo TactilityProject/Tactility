@@ -10,6 +10,7 @@
 #include <lvgl/icons/launcher.h>
 #include <lvgl/fonts.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/icon_button.h>
 
 #include <lvgl_window_manager/window_manager.h>
 
@@ -32,17 +33,28 @@ constexpr auto* TAG = "Launcher";
 
 namespace {
 
-uint32_t getButtonPadding(UiDensity density, uint32_t buttonSize) {
-    if (density == LVGL_UI_DENSITY_COMPACT) {
-        return 0;
-    } else {
-        return buttonSize / 8;
-    }
-}
-
 int32_t computeButtonMargin(int32_t available_span, int32_t total_button_size) {
     const int32_t usable = std::max<int32_t>(0, available_span - (3 * total_button_size));
     return std::min<int32_t>(usable / 16, total_button_size / 2);
+}
+
+// Spreads the buttons along the display's longest side. The button padding comes from the theme.
+void applyButtonMargins(lv_obj_t* buttonsWrapper, bool isLandscape) {
+    const uint32_t child_count = lv_obj_get_child_count(buttonsWrapper);
+    if (child_count == 0) {
+        return;
+    }
+    auto* first_button = lv_obj_get_child(buttonsWrapper, 0);
+    const auto total_button_size = static_cast<int32_t>(lvgl_get_launcher_icon_font_height()) +
+        lv_obj_get_style_pad_left(first_button, LV_PART_MAIN) + lv_obj_get_style_pad_right(first_button, LV_PART_MAIN);
+    const auto* display = lv_obj_get_display(buttonsWrapper);
+    const auto span = isLandscape ? lv_display_get_horizontal_resolution(display) : lv_display_get_vertical_resolution(display);
+    const int32_t margin = computeButtonMargin(span, total_button_size);
+    for (uint32_t i = 0; i < child_count; i++) {
+        auto* button = lv_obj_get_child(buttonsWrapper, i);
+        lv_obj_set_style_margin_hor(button, isLandscape ? margin : 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_margin_ver(button, isLandscape ? 0 : margin, LV_STATE_DEFAULT);
+    }
 }
 
 void onAppPressed(lv_event_t* e) {
@@ -54,28 +66,14 @@ void onAppPressed(lv_event_t* e) {
     }
 }
 
-lv_obj_t* createAppButton(lv_obj_t* parent, UiDensity uiDensity, const char* imageFile, const char* appId, int32_t itemMargin, bool isLandscape) {
+lv_obj_t* createAppButton(lv_obj_t* parent, LvglIconButtonVariant variant, const char* imageFile, const char* appId) {
     const auto button_size = lvgl_get_launcher_icon_font_height();
-    const auto button_padding = getButtonPadding(uiDensity, button_size);
-    auto* apps_button = lv_button_create(parent);
-
-    lv_obj_set_style_pad_all(apps_button, static_cast<int32_t>(button_padding), LV_STATE_DEFAULT);
-    if (isLandscape) {
-        lv_obj_set_style_margin_hor(apps_button, itemMargin, LV_STATE_DEFAULT);
-    } else {
-        lv_obj_set_style_margin_ver(apps_button, itemMargin, LV_STATE_DEFAULT);
-    }
-
-    lv_obj_set_style_shadow_width(apps_button, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(apps_button, 0, LV_STATE_DEFAULT);
+    auto* apps_button = lvgl_icon_button_create_variant(parent, variant);
 
     // create the image first
     auto* button_image = lv_image_create(apps_button);
     lv_obj_set_style_text_font(button_image, lvgl_get_launcher_icon_font(), LV_STATE_DEFAULT);
     lv_image_set_src(button_image, imageFile);
-    lv_obj_set_style_text_color(button_image, lv_theme_get_color_primary(button_image), LV_STATE_DEFAULT);
-    lv_obj_set_style_image_recolor(button_image, lv_theme_get_color_primary(parent), LV_STATE_DEFAULT);
-    lv_obj_set_style_image_recolor_opa(button_image, LV_OPA_COVER, LV_STATE_DEFAULT);
 
     // Ensure it's square (Material Symbols are slightly wider than tall)
     lv_obj_set_size(button_image, button_size, button_size);
@@ -118,10 +116,6 @@ void onButtonsWrapperResized(lv_event_t* e) {
     auto* buttons_wrapper = static_cast<lv_obj_t*>(lv_event_get_user_data(e));
     const auto* display = lv_obj_get_display(buttons_wrapper);
 
-    const auto button_size = lvgl_get_launcher_icon_font_height();
-    const auto button_padding = getButtonPadding(lvgl_get_ui_density(), button_size);
-    const auto total_button_size = button_size + (button_padding * 2);
-
     const auto horizontal_px = lv_display_get_horizontal_resolution(display);
     const auto vertical_px = lv_display_get_vertical_resolution(display);
     const bool is_landscape_display = horizontal_px >= vertical_px;
@@ -132,26 +126,11 @@ void onButtonsWrapperResized(lv_event_t* e) {
     }
 
     lv_obj_set_flex_flow(buttons_wrapper, is_landscape_display ? LV_FLEX_FLOW_ROW : LV_FLEX_FLOW_COLUMN);
-
-    const int32_t margin = is_landscape_display
-        ? computeButtonMargin(horizontal_px, total_button_size)
-        : computeButtonMargin(vertical_px, total_button_size);
-
-    const uint32_t child_count = lv_obj_get_child_count(buttons_wrapper);
-    for (uint32_t i = 0; i < child_count; i++) {
-        auto* button = lv_obj_get_child(buttons_wrapper, i);
-        lv_obj_set_style_margin_hor(button, is_landscape_display ? margin : 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_margin_ver(button, is_landscape_display ? 0 : margin, LV_STATE_DEFAULT);
-    }
+    applyButtonMargins(buttons_wrapper, is_landscape_display);
 }
 
 void createWidgets(lv_obj_t* parent, void*) {
     auto* buttons_wrapper = lv_obj_create(parent);
-
-    auto ui_density = lvgl_get_ui_density();
-    const auto button_size = lvgl_get_launcher_icon_font_height();
-    const auto button_padding = getButtonPadding(ui_density, button_size);
-    const auto total_button_size = button_size + (button_padding * 2);
 
     lv_obj_align(buttons_wrapper, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_size(buttons_wrapper, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -171,13 +150,11 @@ void createWidgets(lv_obj_t* parent, void*) {
         lv_obj_set_flex_flow(buttons_wrapper, LV_FLEX_FLOW_COLUMN);
     }
 
-    const int32_t margin = is_landscape_display
-        ? computeButtonMargin(lv_display_get_horizontal_resolution(display), total_button_size)
-        : computeButtonMargin(lv_display_get_vertical_resolution(display), total_button_size);
-
-    auto* app_list_button = createAppButton(buttons_wrapper, ui_density, LVGL_ICON_LAUNCHER_APPS, "tactility.applist", margin, is_landscape_display);
-    createAppButton(buttons_wrapper, ui_density, LVGL_ICON_LAUNCHER_FOLDER, "tactility.files", margin, is_landscape_display);
-    createAppButton(buttons_wrapper, ui_density, LVGL_ICON_LAUNCHER_SETTINGS, "tactility.settings", margin, is_landscape_display);
+    // The app list is the main action, so it stands out more than the others
+    auto* app_list_button = createAppButton(buttons_wrapper, LVGL_ICON_BUTTON_FILLED, LVGL_ICON_LAUNCHER_APPS, "tactility.applist");
+    createAppButton(buttons_wrapper, LVGL_ICON_BUTTON_FILLED, LVGL_ICON_LAUNCHER_FOLDER, "tactility.files");
+    createAppButton(buttons_wrapper, LVGL_ICON_BUTTON_FILLED, LVGL_ICON_LAUNCHER_SETTINGS, "tactility.settings");
+    applyButtonMargins(buttons_wrapper, is_landscape_display);
 
     // The launcher's container is several levels below the screen, and LVGL only sends
     // LV_EVENT_SIZE_CHANGED to the screen object itself on a resolution change - so the
@@ -188,16 +165,13 @@ void createWidgets(lv_obj_t* parent, void*) {
     // Some devices (e.g. T-Lora Pager) have no other way to power off, so the
     // button stays in the launcher; the confirmation flow lives in the PowerOff app.
     if (shouldShowPowerButton()) {
-        auto* power_button = lv_button_create(parent);
+        auto* power_button = lvgl_icon_button_create(parent);
         lv_obj_set_style_pad_all(power_button, 8, 0);
         lv_obj_align(power_button, LV_ALIGN_BOTTOM_MID, 0, -10);
         lv_obj_add_event_cb(power_button, onAppPressed, LV_EVENT_SHORT_CLICKED, (void*)"tactility.poweroff");
-        lv_obj_set_style_shadow_width(power_button, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_opa(power_button, 0, LV_PART_MAIN);
 
         auto* power_label = lv_label_create(power_button);
         lv_label_set_text(power_label, LV_SYMBOL_POWER);
-        lv_obj_set_style_text_color(power_label, lv_theme_get_color_primary(parent), LV_STATE_DEFAULT);
     }
 
     // If we don't have a touch device, we assume there's some other kind of input like a keyboard, an encoder or button control
