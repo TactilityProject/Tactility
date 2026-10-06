@@ -14,6 +14,7 @@ extern const lv_obj_class_t lvgl_icon_button_filled_class;
 extern const lv_obj_class_t lvgl_icon_button_tonal_class;
 extern const lv_obj_class_t lvgl_sliderbox_class;
 extern const lv_obj_class_t lvgl_card_class;
+extern const lv_obj_class_t lvgl_chip_class;
 
 #define BLACK lv_color_black()
 #define WHITE lv_color_white()
@@ -82,6 +83,9 @@ extern const lv_obj_class_t lvgl_card_class;
 #define CARD_SHAPE SHAPE_CONTAINER
 #define CARD_PAD DENSITY_CONTAINER_PAD
 #define CARD_GAP DENSITY_CONTAINER_GAP
+#define CHIP_SHAPE (theme->config.is_compact ? CORNER_COMPACT : CORNER_SMALL)
+#define CHIP_PAD_HOR (theme->config.is_compact ? 3 : SPACE_4)
+#define CHIP_PAD_VER (theme->config.is_compact ? 2 : SPACE_2)
 #define SCROLLBAR_COLOR COLOR_ON_SURFACE
 #define SCROLLBAR_WIDTH (theme->config.is_compact ? 2 : LV_DPX_CALC(theme->disp_dpi, 3))
 #define SCROLLBAR_PAD 1
@@ -209,6 +213,7 @@ typedef struct {
     lv_style_t screen;
     lv_style_t container;
     lv_style_t card;
+    lv_style_t chip;
 #if LV_USE_BUTTON || LV_USE_MSGBOX
     lv_style_t button;
 #endif
@@ -540,6 +545,16 @@ static void style_init(my_theme_t * theme)
     lv_style_set_radius(&theme->styles.card, CARD_SHAPE);
     lv_style_set_pad_all(&theme->styles.card, CARD_PAD);
     lv_style_set_pad_gap(&theme->styles.card, CARD_GAP);
+
+    style_init_reset(&theme->styles.chip);
+    lv_style_set_bg_color(&theme->styles.chip, COLOR_SURFACE);
+    lv_style_set_bg_opa(&theme->styles.chip, LV_OPA_COVER);
+    lv_style_set_text_color(&theme->styles.chip, COLOR_ON_SURFACE);
+    lv_style_set_border_color(&theme->styles.chip, COLOR_OUTLINE);
+    lv_style_set_border_width(&theme->styles.chip, BORDER);
+    lv_style_set_radius(&theme->styles.chip, CHIP_SHAPE);
+    lv_style_set_pad_hor(&theme->styles.chip, CHIP_PAD_HOR);
+    lv_style_set_pad_ver(&theme->styles.chip, CHIP_PAD_VER);
 
 #if LV_USE_BUTTON || LV_USE_MSGBOX
     style_init_reset(&theme->styles.button);
@@ -1431,6 +1446,16 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         return;
     }
 #endif
+    if(lv_obj_check_type(obj, &lvgl_chip_class)) {
+        /* chip */
+        lv_obj_add_style(obj, &theme->styles.chip, 0);
+        lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_CHECKED);
+        lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(obj, &theme->styles.edit_ring, LV_STATE_EDITED);
+        lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
+        return;
+    }
     if(lv_obj_check_type(obj, &lvgl_card_class)) {
         /* card */
         lv_obj_add_style(obj, &theme->styles.card, 0);

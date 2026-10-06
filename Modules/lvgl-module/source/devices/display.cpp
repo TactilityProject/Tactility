@@ -3,6 +3,7 @@
 
 #include <lvgl/lvgl.h>
 #include <lvgl/ppa.h>
+#include <lvgl/theme_private.h>
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
@@ -11,8 +12,6 @@
 
 #include <lvgl/devices/device_context.h>
 
-#include "../themes/lv_theme_material.h"
-#include "../themes/lv_theme_material_mono.h"
 
 #include <stdlib.h>
 
@@ -24,31 +23,10 @@ constexpr auto* TAG = "lvgl_display";
 
 // The themes are generated with LSS from Modules/lvgl-module/themes/*.lss
 static void lvgl_display_apply_theme(lv_display_t* disp, struct Device* device, lv_color_format_t color_format) {
-#if defined(LV_THEME_DEFAULT_DARK) && LV_THEME_DEFAULT_DARK
-    bool is_dark = true;
-#else
-    bool is_dark = false;
-#endif
-    bool is_compact = lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT;
+    bool is_mono_display = color_format == LV_COLOR_FORMAT_I1 || color_format == LV_COLOR_FORMAT_L8;
     // Slow-refresh panels (e-paper) can't show animations
-    bool animations_enabled = !display_has_capability(device, DISPLAY_CAPABILITY_SLOW_REFRESH);
-
-    lv_theme_t* theme;
-    if (color_format == LV_COLOR_FORMAT_I1 || color_format == LV_COLOR_FORMAT_L8) {
-        lv_theme_material_mono_config_t config;
-        lv_theme_material_mono_config_init(&config);
-        config.is_compact = is_compact;
-        config.animations_enabled = animations_enabled;
-        theme = lv_theme_material_mono_init(disp, &config);
-    } else {
-        lv_theme_material_config_t config;
-        lv_theme_material_config_init(&config);
-        config.is_dark = is_dark;
-        config.is_compact = is_compact;
-        config.animations_enabled = animations_enabled;
-        theme = lv_theme_material_init(disp, &config);
-    }
-    lv_display_set_theme(disp, theme);
+    bool supports_animations = !display_has_capability(device, DISPLAY_CAPABILITY_SLOW_REFRESH);
+    lv_display_set_theme(disp, lvgl_theme_init_for_display(disp, is_mono_display, supports_animations));
 }
 
 struct LvglDisplayCtx {

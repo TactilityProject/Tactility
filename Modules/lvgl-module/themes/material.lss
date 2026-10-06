@@ -27,6 +27,7 @@
 @widget icon_button_tonal: lvgl_icon_button_tonal_class;
 @widget sliderbox: lvgl_sliderbox_class;
 @widget card: lvgl_card_class;
+@widget chip: lvgl_chip_class;
 
 // ============================================================
 // 1. Base tokens
@@ -187,6 +188,15 @@
 @card-shape: @shape-container;
 @card-pad: @density-container-pad;
 @card-gap: @density-container-gap;
+
+// Chip (lvgl_chip_create): Material 3 filter chip, selected when checked
+@chip-label-color: @color-on-surface-variant;
+@chip-border-color: @color-outline;
+@chip-selected-color: @color-secondary-container;
+@chip-selected-label-color: @color-on-secondary-container;
+@chip-shape: if($isCompact, @corner-compact, @corner-small);
+@chip-pad-hor: if($isCompact, 3, @space-4);
+@chip-pad-ver: if($isCompact, 2, 6dp);
 
 // Scrollbar
 @scrollbar-color: @color-outline;
@@ -549,6 +559,23 @@ card {
     radius: @card-shape;
     padAll: @card-pad;
     padGap: @card-gap;
+}
+
+chip {
+    bgOpa: transp;
+    textColor: @chip-label-color;
+    borderColor: @chip-border-color;
+    borderWidth: @density-border;
+    radius: @chip-shape;
+    padHor: @chip-pad-hor;
+    padVer: @chip-pad-ver;
+}
+
+chip_selected {
+    bgColor: @chip-selected-color;
+    bgOpa: cover;
+    textColor: @chip-selected-label-color;
+    borderColor: @chip-selected-color;
 }
 
 button {
@@ -1350,6 +1377,17 @@ apply(checkbox) {
     checkbox_box_selected: part.indicator, state.checked;
     transition_exit: part.indicator;
     transition_enter: part.indicator, state.pressed;
+    disabled: state.disabled;
+}
+
+apply(chip) {
+    chip: default;
+    transition_exit: default;
+    state_pressed: state.pressed;
+    transition_enter: state.pressed;
+    chip_selected: state.checked;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
     disabled: state.disabled;
 }
 

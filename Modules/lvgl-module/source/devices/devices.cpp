@@ -13,6 +13,8 @@
 
 #include <lvgl.h>
 
+#include <lvgl/theme_private.h>
+
 #include <cstddef>
 
 constexpr auto* TAG = "lvgl";
@@ -267,6 +269,8 @@ void lvgl_devices_detach() {
         lvgl_display_remove(display);
         display = lv_disp_get_next(NULL);
     }
+
+    lvgl_theme_deinit();
 
     lvgl_unlock();
 }

@@ -14,6 +14,7 @@ extern const lv_obj_class_t lvgl_icon_button_filled_class;
 extern const lv_obj_class_t lvgl_icon_button_tonal_class;
 extern const lv_obj_class_t lvgl_sliderbox_class;
 extern const lv_obj_class_t lvgl_card_class;
+extern const lv_obj_class_t lvgl_chip_class;
 
 #define NEUTRAL_4 lv_color_hex(0x0E0E0E)
 #define NEUTRAL_6 lv_color_hex(0x131313)
@@ -128,6 +129,13 @@ extern const lv_obj_class_t lvgl_card_class;
 #define CARD_SHAPE SHAPE_CONTAINER
 #define CARD_PAD DENSITY_CONTAINER_PAD
 #define CARD_GAP DENSITY_CONTAINER_GAP
+#define CHIP_LABEL_COLOR COLOR_ON_SURFACE_VARIANT
+#define CHIP_BORDER_COLOR COLOR_OUTLINE
+#define CHIP_SELECTED_COLOR COLOR_SECONDARY_CONTAINER
+#define CHIP_SELECTED_LABEL_COLOR COLOR_ON_SECONDARY_CONTAINER
+#define CHIP_SHAPE (theme->config.is_compact ? CORNER_COMPACT : CORNER_SMALL)
+#define CHIP_PAD_HOR (theme->config.is_compact ? 3 : SPACE_4)
+#define CHIP_PAD_VER (theme->config.is_compact ? 2 : LV_DPX_CALC(theme->disp_dpi, 6))
 #define SCROLLBAR_COLOR COLOR_OUTLINE
 #define SCROLLBAR_OPACITY (LV_OPA_40)
 #define SCROLLBAR_SCROLLED_OPACITY (LV_OPA_70)
@@ -324,6 +332,8 @@ typedef struct {
     lv_style_t screen;
     lv_style_t container;
     lv_style_t card;
+    lv_style_t chip;
+    lv_style_t chip_selected;
 #if LV_USE_BUTTON
     lv_style_t button;
 #endif
@@ -746,6 +756,21 @@ static void style_init(my_theme_t * theme)
     lv_style_set_radius(&theme->styles.card, CARD_SHAPE);
     lv_style_set_pad_all(&theme->styles.card, CARD_PAD);
     lv_style_set_pad_gap(&theme->styles.card, CARD_GAP);
+
+    style_init_reset(&theme->styles.chip);
+    lv_style_set_bg_opa(&theme->styles.chip, LV_OPA_TRANSP);
+    lv_style_set_text_color(&theme->styles.chip, CHIP_LABEL_COLOR);
+    lv_style_set_border_color(&theme->styles.chip, CHIP_BORDER_COLOR);
+    lv_style_set_border_width(&theme->styles.chip, DENSITY_BORDER);
+    lv_style_set_radius(&theme->styles.chip, CHIP_SHAPE);
+    lv_style_set_pad_hor(&theme->styles.chip, CHIP_PAD_HOR);
+    lv_style_set_pad_ver(&theme->styles.chip, CHIP_PAD_VER);
+
+    style_init_reset(&theme->styles.chip_selected);
+    lv_style_set_bg_color(&theme->styles.chip_selected, CHIP_SELECTED_COLOR);
+    lv_style_set_bg_opa(&theme->styles.chip_selected, LV_OPA_COVER);
+    lv_style_set_text_color(&theme->styles.chip_selected, CHIP_SELECTED_LABEL_COLOR);
+    lv_style_set_border_color(&theme->styles.chip_selected, CHIP_SELECTED_COLOR);
 
 #if LV_USE_BUTTON
     style_init_reset(&theme->styles.button);
@@ -1828,6 +1853,18 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         return;
     }
 #endif
+    if(lv_obj_check_type(obj, &lvgl_chip_class)) {
+        /* chip */
+        lv_obj_add_style(obj, &theme->styles.chip, 0);
+        lv_obj_add_style(obj, &theme->styles.transition_exit, 0);
+        lv_obj_add_style(obj, &theme->styles.state_pressed, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.transition_enter, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.chip_selected, LV_STATE_CHECKED);
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(obj, &theme->styles.edit_ring, LV_STATE_EDITED);
+        lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
+        return;
+    }
     if(lv_obj_check_type(obj, &lvgl_card_class)) {
         /* card */
         lv_obj_add_style(obj, &theme->styles.card, 0);

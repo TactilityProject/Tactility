@@ -23,6 +23,8 @@
 #include <Tactility/hal/usb/Usb.h>
 #include <Tactility/lvgl/Fonts.h>
 #include <Tactility/lvgl/Lvgl.h>
+#include <Tactility/lvgl/Theme.h>
+#include <Tactility/settings/AppearanceSettings.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
 
@@ -271,6 +273,7 @@ bool bootInit(TickType_t startTime) {
 
     LOG_I(TAG, "Loading fonts");
     lvgl::loadFonts(lvgl::loadFontConfiguration());
+    lvgl::configureTheme(settings::appearance::loadOrGetDefault());
 
     screen.end();
 

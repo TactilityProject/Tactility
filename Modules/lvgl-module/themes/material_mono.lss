@@ -28,6 +28,7 @@
 @widget icon_button_tonal: lvgl_icon_button_tonal_class;
 @widget sliderbox: lvgl_sliderbox_class;
 @widget card: lvgl_card_class;
+@widget chip: lvgl_chip_class;
 
 // ============================================================
 // 1. Base tokens
@@ -134,6 +135,11 @@
 @card-shape: @shape-container;
 @card-pad: @density-container-pad;
 @card-gap: @density-container-gap;
+
+// Chip (lvgl_chip_create): outlined, inverted when selected
+@chip-shape: if($isCompact, @corner-compact, @corner-small);
+@chip-pad-hor: if($isCompact, 3, @space-4);
+@chip-pad-ver: if($isCompact, 2, @space-2);
 
 // Scrollbar
 @scrollbar-color: @color-on-surface;
@@ -379,6 +385,17 @@ card {
     radius: @card-shape;
     padAll: @card-pad;
     padGap: @card-gap;
+}
+
+chip {
+    bgColor: @color-surface;
+    bgOpa: cover;
+    textColor: @color-on-surface;
+    borderColor: @color-outline;
+    borderWidth: @border;
+    radius: @chip-shape;
+    padHor: @chip-pad-hor;
+    padVer: @chip-pad-ver;
 }
 
 button {
@@ -1024,6 +1041,15 @@ apply(checkbox) {
     checkbox_box: part.indicator;
     checkbox_box_selected: part.indicator, state.checked;
     disabled: part.indicator, state.disabled;
+}
+
+apply(chip) {
+    chip: default;
+    inverted: state.checked;
+    inverted: state.pressed;
+    focus_ring: state.focusKey;
+    edit_ring: state.edited;
+    disabled: state.disabled;
 }
 
 apply(card) {
