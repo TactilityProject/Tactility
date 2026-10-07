@@ -3,6 +3,7 @@
 #include <lvgl/devices/device_context.h>
 #include <lvgl/devices/keyboard.h>
 #include <lvgl/devices/keyboard_private.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 
 #include <tactility/drivers/keyboard.h>
@@ -25,6 +26,8 @@ struct LvglTrackballCtx {
     int32_t pending_count;
     // Keys mode: the LVGL key that is reported as pressed, or 0
     uint32_t pressed_key;
+    // Pointer mode: whether the button was pressed during the previous read
+    bool pointer_pressed;
 };
 
 static inline int32_t clamp(int32_t value, int32_t min_value, int32_t max_value) {
@@ -152,6 +155,12 @@ static void lvgl_trackball_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     data->point.x = static_cast<int16_t>(ctx->cursor_x);
     data->point.y = static_cast<int16_t>(ctx->cursor_y);
     data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+
+    // Like a touch, a click hides the selection that keys made
+    if (pressed && !ctx->pointer_pressed && lv_group_get_default() != nullptr) {
+        lvgl_focus_hide_key_selection(lv_group_get_default());
+    }
+    ctx->pointer_pressed = pressed;
 
     if (pressed) {
         lv_display_trigger_activity(display);

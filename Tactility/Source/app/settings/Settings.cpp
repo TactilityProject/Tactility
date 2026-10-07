@@ -9,7 +9,7 @@
 #include <Tactility/app/AppGrid.h>
 
 #include <lvgl/icons/shared.h>
-#include <lvgl/widgets/toolbar.h>
+#include <lvgl/theme.h>
 #include <tactility/check.h>
 
 #include <lvgl.h>
@@ -109,9 +109,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Settings");
-    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
-    ctx->grid.createWidgets(parent, toolbar);
+    if (!lvgl_theme_is_mono()) {
+        ctx->grid.setIconColor(AppGrid::IconColor::Secondary);
+    }
+    ctx->grid.setSwipeNavigation(true);
+    ctx->grid.createWidgetsWithBottomBar(parent);
+    ctx->grid.addBarButton(LVGL_ICON_SHARED_CLOSE, onBackPressed, ctx);
 }
 
 int32_t appMain(int argc, char* argv[]) {

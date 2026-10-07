@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <lvgl/devices/pointer.h>
 #include <lvgl/devices/device_context.h>
+#include <lvgl/grid_navigation.h>
 
 #include <tactility/device.h>
 #include <tactility/drivers/pointer.h>
@@ -140,8 +141,8 @@ static void lvgl_pointer_pool_refresh(struct LvglPointerPool* pool, int32_t nati
 // the touch controller reports points in a different order (no touch-ID/tracking field exists
 // anywhere in this stack - see esp_lcd_touch_get_coordinates()/PointerApi.get_touched_points()).
 // Unmatched raw points (new touches) claim the nearest inactive slot. Slots with no matching
-// point this round go inactive (RELEASED).
-static void lvgl_pointer_pool_assign(struct LvglPointerPool* pool, int32_t native_x_max) {
+// point this round go inactive (RELEASED). Returns true when a new touch started.
+static bool lvgl_pointer_pool_assign(struct LvglPointerPool* pool, int32_t native_x_max) {
     // Touch drivers clamp raw coordinates to the panel's configured native resolution regardless
     // of calibration, so native_x_max is a valid scale reference for the distance cap even when calibration is disabled. 
     // Falls back to a conservative fixed pixel value if the display/resolution isn't available for some reason.
@@ -182,6 +183,7 @@ static void lvgl_pointer_pool_assign(struct LvglPointerPool* pool, int32_t nativ
 
     // Second pass: any unclaimed raw point is a new touch - hand it to the first inactive slot
     // that wasn't just released this round.
+    bool touch_started = false;
     for (uint8_t r = 0; r < pool->raw_count; r++) {
         if (raw_claimed[r]) continue;
         for (uint8_t s = 0; s < pool->slot_count; s++) {
@@ -190,9 +192,11 @@ static void lvgl_pointer_pool_assign(struct LvglPointerPool* pool, int32_t nativ
             pool->slot_point[s].x = (lv_coord_t)pool->raw_x[r];
             pool->slot_point[s].y = (lv_coord_t)pool->raw_y[r];
             raw_claimed[r] = true;
+            touch_started = true;
             break;
         }
     }
+    return touch_started;
 }
 
 // The actual LVGL indev read callback, shared by every slot in the pool. Only the first slot to
@@ -219,7 +223,11 @@ static void lvgl_pointer_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
         int32_t native_x_max = display != NULL ? lv_display_get_original_horizontal_resolution(display) - 1 : 0;
         int32_t native_y_max = display != NULL ? lv_display_get_original_vertical_resolution(display) - 1 : 0;
         lvgl_pointer_pool_refresh(pool, native_x_max, native_y_max);
-        lvgl_pointer_pool_assign(pool, native_x_max);
+        // A touch hides the selection that keys made, so it doesn't look like two widgets are selected.
+        // This runs before LVGL handles the press, so a widget that the touch focuses isn't affected.
+        if (lvgl_pointer_pool_assign(pool, native_x_max) && lv_group_get_default() != NULL) {
+            lvgl_focus_hide_key_selection(lv_group_get_default());
+        }
     }
     pool->round_pos = (uint8_t)((pool->round_pos + 1) % pool->slot_count);
 

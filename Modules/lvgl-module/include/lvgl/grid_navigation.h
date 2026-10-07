@@ -29,6 +29,13 @@ void lvgl_grid_navigation_remove(lv_obj_t* container);
 void lvgl_grid_navigation_step(lv_group_t* group, bool next);
 
 /**
+ * @brief Hides the selection that keys made, e.g. when the touchscreen is used. The focus stays where it is,
+ * and the next key that moves the focus shows the selection again.
+ * @param[in] group the focus group
+ */
+void lvgl_focus_hide_key_selection(lv_group_t* group);
+
+/**
  * @param[in] container a container that was passed to lvgl_grid_navigation_add()
  * @return the focused child, or NULL when no child is focused
  */

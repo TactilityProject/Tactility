@@ -30,6 +30,8 @@
 @widget card: lvgl_card_class;
 @widget chip: lvgl_chip_class;
 @widget badge: lvgl_badge_class;
+@widget page_indicator: lvgl_page_indicator_class;
+@widget page_indicator_dot: lvgl_page_indicator_dot_class;
 
 // ============================================================
 // 1. Base tokens
@@ -141,6 +143,11 @@
 @chip-shape: if($isCompact, @corner-compact, @corner-small);
 @chip-pad-hor: if($isCompact, 3, @space-4);
 @chip-pad-ver: if($isCompact, 2, @space-2);
+
+// Page indicator (lvgl_page_indicator_create): a dot per page, the current page's dot is filled
+@page-indicator-color: @color-on-surface;
+@page-indicator-dot-size: if($isCompact, 4, 6dp);
+@page-indicator-gap: if($isCompact, 3, 6dp);
 
 // Badge (lvgl_badge_create): a small dot that marks an item, e.g. a favourite
 @badge-color: @color-on-surface;
@@ -390,6 +397,31 @@ card {
     radius: @card-shape;
     padAll: @card-pad;
     padGap: @card-gap;
+}
+
+page_indicator {
+    bgOpa: transp;
+    borderWidth: 0;
+    padAll: 0;
+    padGap: @page-indicator-gap;
+}
+
+page_indicator_label {
+    textColor: @page-indicator-color;
+}
+
+page_indicator_dot {
+    width: @page-indicator-dot-size;
+    height: @page-indicator-dot-size;
+    radius: circle;
+    bgColor: @page-indicator-color;
+    bgOpa: transp;
+    borderColor: @page-indicator-color;
+    borderWidth: 1;
+}
+
+page_indicator_dot_current {
+    bgOpa: cover;
 }
 
 badge {
@@ -1035,6 +1067,19 @@ apply(checkbox) {
     checkbox_box: part.indicator;
     checkbox_box_selected: part.indicator, state.checked;
     disabled: part.indicator, state.disabled;
+}
+
+apply(page_indicator) {
+    page_indicator: default;
+}
+
+apply(page_indicator > label) {
+    page_indicator_label: default;
+}
+
+apply(page_indicator_dot) {
+    page_indicator_dot: default;
+    page_indicator_dot_current: state.checked;
 }
 
 apply(badge) {

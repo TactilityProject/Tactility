@@ -3,9 +3,10 @@
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
+#include <lvgl/insets.h>
 #include <lvgl/widgets/badge.h>
 #include <lvgl/widgets/icon_button.h>
-#include <lvgl/widgets/toolbar.h>
+#include <lvgl/widgets/page_indicator.h>
 
 #include <algorithm>
 #include <string>
@@ -54,7 +55,66 @@ const AppGridItem* getTileItem(lv_event_t* e) {
     return static_cast<const AppGridItem*>(lv_obj_get_user_data(lv_event_get_target_obj(e)));
 }
 
+
+lv_obj_t* createBarSection(lv_obj_t* parent, lv_flex_align_t align) {
+    auto* section = lv_obj_create(parent);
+    lv_obj_set_size(section, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(section, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(section, 0, LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(section, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(section, align, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(section, LV_OBJ_FLAG_SCROLLABLE);
+    return section;
+}
+
+// The width that a section's visible children need, including the gaps between them
+int32_t getContentWidth(lv_obj_t* section) {
+    int32_t width = 0;
+    uint32_t visible = 0;
+    const uint32_t count = lv_obj_get_child_count(section);
+    for (uint32_t i = 0; i < count; i++) {
+        lv_obj_t* child = lv_obj_get_child(section, static_cast<int32_t>(i));
+        if (!lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
+            width += lv_obj_get_width(child);
+            visible++;
+        }
+    }
+    return visible > 1 ? width + static_cast<int32_t>(visible - 1) * lv_obj_get_style_pad_column(section, LV_PART_MAIN) : width;
+}
+
+// The page indicator gets the space between the side sections, which grow equally to keep it centered
+void updatePageIndicatorWidth(void* data) {
+    auto* bottom_bar = static_cast<lv_obj_t*>(data);
+    auto* left_section = lv_obj_get_child(bottom_bar, 0);
+    auto* indicator_section = lv_obj_get_child(bottom_bar, 1);
+    auto* page_buttons = lv_obj_get_child(bottom_bar, 2);
+    auto* indicator = lv_obj_get_child(indicator_section, 0);
+    if (indicator == nullptr) {
+        return;
+    }
+    const int32_t side_width = std::max(getContentWidth(left_section), getContentWidth(page_buttons));
+    const int32_t gaps = 2 * lv_obj_get_style_pad_column(bottom_bar, LV_PART_MAIN);
+    const int32_t available = lv_obj_get_content_width(bottom_bar) - 2 * side_width - gaps;
+    lv_obj_set_style_max_width(indicator, std::max<int32_t>(0, available), LV_STATE_DEFAULT);
+}
+
+void onBottomBarSizeChanged(lv_event_t* event) {
+    lv_async_call(updatePageIndicatorWidth, lv_event_get_target_obj(event));
+}
+
+void onBottomBarDeleted(lv_event_t* event) {
+    lv_async_call_cancel(updatePageIndicatorWidth, lv_event_get_target_obj(event));
+}
+
 } // namespace
+
+void AppGrid::onDeferredNextPage(void* userData) {
+    static_cast<AppGrid*>(userData)->goToNextPage();
+}
+
+void AppGrid::onDeferredPreviousPage(void* userData) {
+    static_cast<AppGrid*>(userData)->goToPreviousPage();
+}
 
 void AppGrid::onDeferredRepopulate(void* userData) {
     static_cast<AppGrid*>(userData)->populate();
@@ -63,6 +123,8 @@ void AppGrid::onDeferredRepopulate(void* userData) {
 void AppGrid::onGridDeleted(lv_event_t* e) {
     // Cancels a still-pending repopulate scheduled right before the grid itself was deleted (e.g. the app closing)
     lv_async_call_cancel(onDeferredRepopulate, lv_event_get_user_data(e));
+    lv_async_call_cancel(onDeferredNextPage, lv_event_get_user_data(e));
+    lv_async_call_cancel(onDeferredPreviousPage, lv_event_get_user_data(e));
 }
 
 // Deferred: page size depends on the grid size, which is final only after the layout pass that triggered this.
@@ -70,28 +132,42 @@ void AppGrid::onGridSizeChanged(lv_event_t* e) {
     lv_async_call(onDeferredRepopulate, lv_event_get_user_data(e));
 }
 
+// Changing the page doesn't keep the selected app selected: that would return to the selected app's page
+void AppGrid::goToPreviousPage() {
+    page = page > 0 ? page - 1 : pageCount - 1;
+    keepSelectionOnRepopulate = false;
+    populate();
+}
+
+void AppGrid::goToNextPage() {
+    page = page + 1 < pageCount ? page + 1 : 0;
+    keepSelectionOnRepopulate = false;
+    populate();
+}
+
 void AppGrid::onPrevPressed(lv_event_t* e) {
-    auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
-    if (self->page > 0) {
-        self->page--;
-    } else if (self->pageBar != nullptr) {
-        self->page = self->pageCount - 1;
-    } else {
-        return;
-    }
-    self->populate();
+    static_cast<AppGrid*>(lv_event_get_user_data(e))->goToPreviousPage();
 }
 
 void AppGrid::onNextPressed(lv_event_t* e) {
+    static_cast<AppGrid*>(lv_event_get_user_data(e))->goToNextPage();
+}
+
+// Swipes that start on a tile reach the grid too, as tiles pass their gestures on to the grid
+void AppGrid::onGridGesture(lv_event_t* e) {
     auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
-    if (self->page + 1 < self->pageCount) {
-        self->page++;
-    } else if (self->pageBar != nullptr) {
-        self->page = 0;
-    } else {
+    lv_indev_t* indev = lv_indev_active();
+    if (indev == nullptr || self->pageCount <= 1) {
         return;
     }
-    self->populate();
+    const lv_dir_t direction = lv_indev_get_gesture_dir(indev);
+    if (direction != LV_DIR_LEFT && direction != LV_DIR_RIGHT) {
+        return;
+    }
+    // Keeps the tile where the swipe started from being clicked when the finger is lifted
+    lv_indev_wait_release(indev);
+    // Deferred: changing the page deletes the tiles, possibly including the one this event came from
+    lv_async_call(direction == LV_DIR_LEFT ? onDeferredNextPage : onDeferredPreviousPage, self);
 }
 
 void AppGrid::onTileClicked(lv_event_t* e) {
@@ -119,8 +195,9 @@ void AppGrid::populate() {
     // replacement tiles doesn't restore the focus, so the app id is remembered here and
     // re-focused on its new tile once rebuilt.
     std::string focusedAppId;
+    const bool keepSelection = keepSelectionOnRepopulate;
     lv_group_t* group = lv_group_get_default();
-    if (group != nullptr && keepSelectionOnRepopulate) {
+    if (group != nullptr && keepSelection) {
         // Grid navigation focuses the grid in the group, and a tile within the grid
         lv_obj_t* focused = lv_group_get_focused(group) == grid ? lvgl_grid_navigation_get_focused(grid) : nullptr;
         if (focused != nullptr && lv_obj_get_parent(focused) == grid) {
@@ -152,15 +229,10 @@ void AppGrid::populate() {
     page = std::min(page, page_count - 1);
     pageCount = page_count;
 
-    if (pageBar != nullptr) {
-        lv_obj_set_flag(pageBar, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
-        lv_label_set_text_fmt(pageLabel, "%lu/%lu", static_cast<unsigned long>(page + 1), static_cast<unsigned long>(page_count));
-    } else {
-        lv_obj_set_state(prevButton, LV_STATE_DISABLED, page == 0);
-        lv_obj_set_state(nextButton, LV_STATE_DISABLED, page + 1 >= page_count);
-        lv_obj_set_flag(prevButton, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
-        lv_obj_set_flag(nextButton, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
-    }
+    lv_obj_set_flag(pageIndicator, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
+    lv_obj_set_flag(pageButtons, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
+    lvgl_page_indicator_set_page_count(pageIndicator, page_count);
+    lvgl_page_indicator_set_page(pageIndicator, page);
 
     lv_obj_t* focusedTile = nullptr;
     const uint32_t first = page * layout.pageSize;
@@ -182,8 +254,10 @@ void AppGrid::populate() {
         lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
         lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
         lv_label_set_text(icon, item.icon);
-        if (primaryColorIcons) {
+        if (iconColor == IconColor::Primary) {
             lv_obj_set_style_text_color(icon, lv_theme_get_color_primary(icon), LV_STATE_DEFAULT);
+        } else if (iconColor == IconColor::Secondary) {
+            lv_obj_set_style_text_color(icon, lv_theme_get_color_secondary(icon), LV_STATE_DEFAULT);
         }
 
         lv_obj_t* label = lv_label_create(tile);
@@ -216,6 +290,10 @@ void AppGrid::populate() {
     if (focusedTile != nullptr) {
         lv_group_focus_obj(grid);
         lv_gridnav_set_focused(grid, focusedTile, LV_ANIM_OFF);
+    } else if (!keepSelection && group != nullptr && lv_group_get_focused(group) == grid) {
+        // Grid navigation selects the first new tile when the grid is focused, but a page change shows no selection.
+        // The next key that moves the focus selects a tile again.
+        lvgl_focus_hide_key_selection(group);
     }
 }
 
@@ -232,42 +310,38 @@ void AppGrid::createGrid(lv_obj_t* parent) {
     // The arrow keys move between the tiles in rows and columns
     lvgl_grid_navigation_add(grid);
     lv_obj_add_event_cb(grid, onGridDeleted, LV_EVENT_DELETE, this);
-}
-
-void AppGrid::createWidgets(lv_obj_t* parent, lv_obj_t* toolbar) {
-    prevButton = lvgl_toolbar_add_text_button_action(toolbar, "<", onPrevPressed, this);
-    nextButton = lvgl_toolbar_add_text_button_action(toolbar, ">", onNextPressed, this);
-
-    createGrid(parent);
-
-    // Resolves the grid's flex_grow height, which the page size is derived from.
-    lv_obj_update_layout(parent);
-    lv_obj_add_event_cb(grid, onGridSizeChanged, LV_EVENT_SIZE_CHANGED, this);
-
-    populate();
-
-    const bool next_visible = !lv_obj_has_flag(nextButton, LV_OBJ_FLAG_HIDDEN);
-    if (next_visible && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
-        lv_group_focus_obj(nextButton);
-        lv_obj_add_state(nextButton, LV_STATE_FOCUS_KEY);
+    if (swipeNavigation) {
+        // LVGL sends a gesture to the first object, starting at the touched one, that doesn't pass it on to its parent
+        lv_obj_remove_flag(grid, LV_OBJ_FLAG_GESTURE_BUBBLE);
+        lv_obj_add_event_cb(grid, onGridGesture, LV_EVENT_GESTURE, this);
     }
 }
 
-void AppGrid::createWidgetsWithPageBar(lv_obj_t* parent, lv_obj_t* pageBar) {
-    createGrid(parent);
+void AppGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
+    // The side sections grow equally, so the page indicator stays centered
+    auto* bottom_bar = createBarSection(parent, LV_FLEX_ALIGN_START);
+    lv_obj_set_width(bottom_bar, LV_PCT(100));
+    lvgl_obj_add_edge_padding(bottom_bar);
+    barButtons = createBarSection(bottom_bar, LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_grow(barButtons, 1);
+    auto* indicator_section = createBarSection(bottom_bar, LV_FLEX_ALIGN_CENTER);
+    pageButtons = createBarSection(bottom_bar, LV_FLEX_ALIGN_END);
+    lv_obj_set_flex_grow(pageButtons, 1);
+    lv_obj_add_event_cb(bottom_bar, onBottomBarSizeChanged, LV_EVENT_SIZE_CHANGED, nullptr);
+    lv_obj_add_event_cb(bottom_bar, onBottomBarDeleted, LV_EVENT_DELETE, nullptr);
 
-    this->pageBar = pageBar;
-    lv_obj_set_flex_flow(pageBar, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(pageBar, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    pageLabel = lv_label_create(pageBar);
-    prevButton = lvgl_icon_button_create(pageBar);
+    createGrid(parent);
+    lv_obj_move_foreground(bottom_bar);
+
+    pageIndicator = lvgl_page_indicator_create(indicator_section);
+    prevButton = lvgl_icon_button_create(pageButtons);
     lv_label_set_text(lv_label_create(prevButton), "<");
     lv_obj_add_event_cb(prevButton, onPrevPressed, LV_EVENT_SHORT_CLICKED, this);
-    nextButton = lvgl_icon_button_create(pageBar);
+    nextButton = lvgl_icon_button_create(pageButtons);
     lv_label_set_text(lv_label_create(nextButton), ">");
     lv_obj_add_event_cb(nextButton, onNextPressed, LV_EVENT_SHORT_CLICKED, this);
     // The arrow keys move between the page buttons
-    lvgl_grid_navigation_add(pageBar);
+    lvgl_grid_navigation_add(pageButtons);
 
     // Resolves the grid's flex_grow height, which the page size is derived from.
     lv_obj_update_layout(parent);
@@ -279,6 +353,15 @@ void AppGrid::createWidgetsWithPageBar(lv_obj_t* parent, lv_obj_t* pageBar) {
         lv_group_focus_obj(grid);
         lv_gridnav_set_focused(grid, lv_obj_get_child(grid, 0), LV_ANIM_OFF);
     }
+}
+
+lv_obj_t* AppGrid::addBarButton(const char* icon, lv_event_cb_t onClicked, void* userData) {
+    auto* button = lvgl_icon_button_create(barButtons);
+    auto* label = lv_label_create(button);
+    lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_label_set_text(label, icon);
+    lv_obj_add_event_cb(button, onClicked, LV_EVENT_SHORT_CLICKED, userData);
+    return button;
 }
 
 }

@@ -17,6 +17,7 @@
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/icon_button.h>
+#include <lvgl/widgets/page_indicator.h>
 #include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -69,6 +70,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_step),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_get_focused),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_is_container),
+    DEFINE_MODULE_SYMBOL(lvgl_focus_hide_key_selection),
     // lvgl_insets
     DEFINE_MODULE_SYMBOL(lvgl_display_get_shape),
     DEFINE_MODULE_SYMBOL(lvgl_display_get_insets),
@@ -81,6 +83,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_theme_is_mono),
     // lvgl_badge
     DEFINE_MODULE_SYMBOL(lvgl_badge_create),
+    DEFINE_MODULE_SYMBOL(lvgl_page_indicator_create),
+    DEFINE_MODULE_SYMBOL(lvgl_page_indicator_set_page_count),
+    DEFINE_MODULE_SYMBOL(lvgl_page_indicator_set_page),
     // lvgl_card
     DEFINE_MODULE_SYMBOL(lvgl_card_create),
     // lvgl_chip

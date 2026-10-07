@@ -11,11 +11,8 @@
 #include <vector>
 
 #include <lvgl.h>
-#include <lvgl/fonts.h>
 #include <lvgl/icons/shared.h>
-#include <lvgl/insets.h>
 #include <lvgl/theme.h>
-#include <lvgl/widgets/icon_button.h>
 
 #include <lvgl_window_manager/window_manager.h>
 
@@ -49,7 +46,6 @@ constexpr IconEntry ICONS[] = {
     {"tactility.i2cscanner",        LVGL_ICON_SHARED_CABLE},
     {"tactility.notes",             LVGL_ICON_SHARED_EDIT_NOTE},
     {"tactility.screenshot",        LVGL_ICON_SHARED_IMAGE},
-    {"tactility.settings",          LVGL_ICON_SHARED_SETTINGS},
     {"tactility.systeminfo",        LVGL_ICON_SHARED_DEVICES},
     {"tactility.terminal",          LVGL_ICON_SHARED_TERMINAL},
     {"tactility.webserversettings", LVGL_ICON_SHARED_CLOUD},
@@ -58,7 +54,6 @@ constexpr IconEntry ICONS[] = {
 // Hidden apps that are still shown in the launcher
 constexpr const char* SHOWN_HIDDEN_APP_IDS[] = {
     "tactility.files",
-    "tactility.settings",
 };
 
 const char* appIcon(const ::AppManifest* manifest) {
@@ -187,46 +182,21 @@ bool supportsPowerOff() {
     return supported;
 }
 
-void addShortcut(lv_obj_t* parent, const char* icon, const char* appId) {
-    auto* button = lvgl_icon_button_create(parent);
-    auto* label = lv_label_create(button);
-    lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
-    lv_label_set_text(label, icon);
-    lv_obj_add_event_cb(button, onShortcutPressed, LV_EVENT_SHORT_CLICKED, const_cast<char*>(appId));
-}
-
-lv_obj_t* createBarSection(lv_obj_t* parent, lv_flex_align_t align) {
-    auto* section = lv_obj_create(parent);
-    lv_obj_set_size(section, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(section, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(section, 0, LV_STATE_DEFAULT);
-    lv_obj_set_flex_flow(section, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(section, align, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(section, LV_OBJ_FLAG_SCROLLABLE);
-    return section;
-}
-
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    // Power off on the left, the page number and page buttons on the right
-    auto* bottom_bar = createBarSection(parent, LV_FLEX_ALIGN_START);
-    lv_obj_set_width(bottom_bar, LV_PCT(100));
-    lvgl_obj_add_edge_padding(bottom_bar);
-    auto* left_section = createBarSection(bottom_bar, LV_FLEX_ALIGN_START);
-    lv_obj_set_flex_grow(left_section, 1);
-    auto* page_bar = createBarSection(bottom_bar, LV_FLEX_ALIGN_END);
-
     // The monochrome theme's primary color is black, also on a black background
-    ctx->grid.setPrimaryColorIcons(!lvgl_theme_is_mono());
-    ctx->grid.createWidgetsWithPageBar(parent, page_bar);
-    lv_obj_move_foreground(bottom_bar);
-
+    if (!lvgl_theme_is_mono()) {
+        ctx->grid.setIconColor(AppGrid::IconColor::Primary);
+    }
+    ctx->grid.setSwipeNavigation(true);
+    ctx->grid.createWidgetsWithBottomBar(parent);
+    ctx->grid.addBarButton(LVGL_ICON_SHARED_SETTINGS, onShortcutPressed, const_cast<char*>("tactility.settings"));
     if (isAppRegistered("tactility.poweroff") && supportsPowerOff()) {
-        addShortcut(left_section, LVGL_ICON_SHARED_POWER_SETTINGS_NEW, "tactility.poweroff");
+        ctx->grid.addBarButton(LVGL_ICON_SHARED_POWER_SETTINGS_NEW, onShortcutPressed, const_cast<char*>("tactility.poweroff"));
     }
 }
 

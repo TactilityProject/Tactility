@@ -110,6 +110,22 @@ void lvgl_grid_navigation_step(lv_group_t* group, bool next) {
     }
 }
 
+void lvgl_focus_hide_key_selection(lv_group_t* group) {
+    lv_obj_t* focused = lv_group_get_focused(group);
+    if (focused == nullptr) {
+        return;
+    }
+    lv_group_set_editing(group, false);
+    constexpr auto key_states = static_cast<lv_state_t>(LV_STATE_FOCUS_KEY | LV_STATE_EDITED);
+    lv_obj_remove_state(focused, key_states);
+    if (lvgl_grid_navigation_is_container(focused)) {
+        lv_obj_t* child = lvgl_grid_navigation_get_focused(focused);
+        if (child != nullptr) {
+            lv_obj_remove_state(child, key_states);
+        }
+    }
+}
+
 lv_obj_t* lvgl_grid_navigation_get_focused(lv_obj_t* container) {
     // Grid navigation marks the focused child with the focused state
     const uint32_t child_count = lv_obj_get_child_count(container);
