@@ -32,6 +32,12 @@ void lvgl_theme_get_settings(LvglThemeSettings* settings);
 void lvgl_theme_get_default_settings(LvglThemeSettings* settings);
 
 /**
+ * @brief Checks whether the active theme is the monochrome theme: on monochrome and greyscale displays, or when selected in the settings.
+ * @return true when the monochrome theme is active
+ */
+bool lvgl_theme_is_mono(void);
+
+/**
  * @brief Sets the theme settings. They are used for displays that are added afterwards, e.g. when LVGL (re)starts.
  * @param[in] settings the theme settings
  */

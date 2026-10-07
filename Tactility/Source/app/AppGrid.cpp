@@ -2,6 +2,7 @@
 
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
+#include <lvgl/widgets/badge.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -149,11 +150,8 @@ void AppGrid::populate() {
     for (uint32_t i = first; i < last; i++) {
         const auto& item = items[i];
 
-        // The theme styles the tile as an icon button: its focus, pressed and selected (favourite) states
+        // The theme styles the tile as an icon button, including its focus and pressed states
         lv_obj_t* tile = lvgl_icon_button_create(grid);
-        if (item.highlighted) {
-            lv_obj_add_state(tile, LV_STATE_CHECKED);
-        }
         lv_obj_set_size(tile, layout.tileWidth, layout.tileHeight);
         lv_obj_set_style_pad_all(tile, layout.pad, LV_STATE_DEFAULT);
         lv_obj_set_style_pad_row(tile, layout.pad / 2, LV_STATE_DEFAULT);
@@ -174,6 +172,12 @@ void AppGrid::populate() {
         lv_obj_set_size(label, LV_PCT(100), lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL)));
         lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
         lv_label_set_text(label, item.manifest.name);
+
+        // A badge marks favourites, as it doesn't look like the focus indicator
+        if (item.highlighted) {
+            auto* badge = lvgl_badge_create(tile);
+            lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, 0, 0);
+        }
 
         lv_obj_add_event_cb(tile, onTileClicked, LV_EVENT_SHORT_CLICKED, this);
         if (callbacks.onLongPressed != nullptr) {

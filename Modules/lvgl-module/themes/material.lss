@@ -28,6 +28,7 @@
 @widget sliderbox: lvgl_sliderbox_class;
 @widget card: lvgl_card_class;
 @widget chip: lvgl_chip_class;
+@widget badge: lvgl_badge_class;
 
 // ============================================================
 // 1. Base tokens
@@ -198,6 +199,10 @@
 @chip-pad-hor: if($isCompact, 3, @space-4);
 @chip-pad-ver: if($isCompact, 2, 6dp);
 
+// Badge (lvgl_badge_create): a small dot that marks an item, e.g. a favourite
+@badge-color: @color-primary;
+@badge-size: if($isCompact, 4, 6dp);
+
 // Scrollbar
 @scrollbar-color: @color-outline;
 @scrollbar-opacity: 40%;
@@ -228,7 +233,6 @@
 
 // Icon button (dialog and window header buttons)
 @icon-button-color: @color-on-surface-variant;
-@icon-button-selected-color: @color-primary;
 
 // Filled and tonal icon buttons: Material 3 large icon buttons with a container
 @icon-button-container-shape: if($isCompact, @corner-compact, @corner-large);
@@ -561,6 +565,14 @@ card {
     padGap: @card-gap;
 }
 
+badge {
+    width: @badge-size;
+    height: @badge-size;
+    radius: circle;
+    bgColor: @badge-color;
+    bgOpa: cover;
+}
+
 chip {
     bgOpa: transp;
     textColor: @chip-label-color;
@@ -627,11 +639,6 @@ icon_button {
     textColor: @icon-button-color;
     radius: @button-shape;
     padAll: @button-pad-ver;
-}
-
-// Material 3 selected (toggled) icon button
-icon_button_selected {
-    textColor: @icon-button-selected-color;
 }
 
 icon_button_filled {
@@ -1295,7 +1302,6 @@ apply(toolbar) {
 
 apply(icon_button) {
     icon_button: default;
-    icon_button_selected: state.checked;
     transition_exit: default;
     state_pressed: state.pressed;
     transition_enter: state.pressed;
@@ -1378,6 +1384,10 @@ apply(checkbox) {
     transition_exit: part.indicator;
     transition_enter: part.indicator, state.pressed;
     disabled: state.disabled;
+}
+
+apply(badge) {
+    badge: default;
 }
 
 apply(chip) {

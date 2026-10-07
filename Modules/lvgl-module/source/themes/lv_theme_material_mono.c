@@ -15,6 +15,7 @@ extern const lv_obj_class_t lvgl_icon_button_tonal_class;
 extern const lv_obj_class_t lvgl_sliderbox_class;
 extern const lv_obj_class_t lvgl_card_class;
 extern const lv_obj_class_t lvgl_chip_class;
+extern const lv_obj_class_t lvgl_badge_class;
 
 #define BLACK lv_color_black()
 #define WHITE lv_color_white()
@@ -86,6 +87,8 @@ extern const lv_obj_class_t lvgl_chip_class;
 #define CHIP_SHAPE (theme->config.is_compact ? CORNER_COMPACT : CORNER_SMALL)
 #define CHIP_PAD_HOR (theme->config.is_compact ? 3 : SPACE_4)
 #define CHIP_PAD_VER (theme->config.is_compact ? 2 : SPACE_2)
+#define BADGE_COLOR COLOR_ON_SURFACE
+#define BADGE_SIZE (theme->config.is_compact ? 4 : LV_DPX_CALC(theme->disp_dpi, 6))
 #define SCROLLBAR_COLOR COLOR_ON_SURFACE
 #define SCROLLBAR_WIDTH (theme->config.is_compact ? 2 : LV_DPX_CALC(theme->disp_dpi, 3))
 #define SCROLLBAR_PAD 1
@@ -213,12 +216,12 @@ typedef struct {
     lv_style_t screen;
     lv_style_t container;
     lv_style_t card;
+    lv_style_t badge;
     lv_style_t chip;
 #if LV_USE_BUTTON || LV_USE_MSGBOX
     lv_style_t button;
 #endif
     lv_style_t icon_button;
-    lv_style_t icon_button_selected;
     lv_style_t icon_button_filled;
     lv_style_t icon_button_filled_pressed;
     lv_style_t icon_button_tonal;
@@ -546,6 +549,13 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_all(&theme->styles.card, CARD_PAD);
     lv_style_set_pad_gap(&theme->styles.card, CARD_GAP);
 
+    style_init_reset(&theme->styles.badge);
+    lv_style_set_width(&theme->styles.badge, BADGE_SIZE);
+    lv_style_set_height(&theme->styles.badge, BADGE_SIZE);
+    lv_style_set_radius(&theme->styles.badge, LV_RADIUS_CIRCLE);
+    lv_style_set_bg_color(&theme->styles.badge, BADGE_COLOR);
+    lv_style_set_bg_opa(&theme->styles.badge, LV_OPA_COVER);
+
     style_init_reset(&theme->styles.chip);
     lv_style_set_bg_color(&theme->styles.chip, COLOR_SURFACE);
     lv_style_set_bg_opa(&theme->styles.chip, LV_OPA_COVER);
@@ -575,10 +585,6 @@ static void style_init(my_theme_t * theme)
     lv_style_set_border_width(&theme->styles.icon_button, 0);
     lv_style_set_radius(&theme->styles.icon_button, BUTTON_SHAPE);
     lv_style_set_pad_all(&theme->styles.icon_button, BUTTON_PAD_VER);
-
-    style_init_reset(&theme->styles.icon_button_selected);
-    lv_style_set_border_color(&theme->styles.icon_button_selected, COLOR_OUTLINE);
-    lv_style_set_border_width(&theme->styles.icon_button_selected, BORDER);
 
     style_init_reset(&theme->styles.icon_button_filled);
     lv_style_set_bg_color(&theme->styles.icon_button_filled, ICON_BUTTON_FILLED_COLOR);
@@ -1345,7 +1351,6 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         }
         /* icon_button */
         lv_obj_add_style(obj, &theme->styles.icon_button, 0);
-        lv_obj_add_style(obj, &theme->styles.icon_button_selected, LV_STATE_CHECKED);
         lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
         lv_obj_add_style(obj, &theme->styles.focus_ring_inset, LV_STATE_FOCUS_KEY);
         lv_obj_add_style(obj, &theme->styles.edit_ring_inset, LV_STATE_EDITED);
@@ -1446,6 +1451,11 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         return;
     }
 #endif
+    if(lv_obj_check_type(obj, &lvgl_badge_class)) {
+        /* badge */
+        lv_obj_add_style(obj, &theme->styles.badge, 0);
+        return;
+    }
     if(lv_obj_check_type(obj, &lvgl_chip_class)) {
         /* chip */
         lv_obj_add_style(obj, &theme->styles.chip, 0);

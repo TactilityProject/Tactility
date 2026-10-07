@@ -1,4 +1,5 @@
 #include <Tactility/app/fileselection/FileSelection.h>
+#include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/file/File.h>
 #include <Tactility/lvgl/Fonts.h>
 #include <Tactility/lvgl/Lvgl.h>
@@ -73,6 +74,14 @@ constexpr NamedColor PALETTE_COLORS[] = {
     { "Grey", LV_PALETTE_GREY },
 };
 
+constexpr size_t COLOR_COUNT = 3;
+constexpr const char* COLOR_TITLES[COLOR_COUNT] = { "Primary color", "Secondary color", "Error color" };
+
+struct ColorRowWidgets {
+    lv_obj_t* row = nullptr;
+    lv_obj_t* swatch = nullptr;
+};
+
 struct FontRowWidgets {
     lv_obj_t* defaultButton = nullptr;
     lv_obj_t* fileLabel = nullptr;
@@ -84,6 +93,7 @@ struct Context {
     TaskEventGroup* eventGroup = nullptr;
     uint32_t selectRegularBit = 0;
     uint32_t selectMonoBit = 0;
+    uint32_t selectColorBit = 0;
     uint32_t applyBit = 0;
     uint32_t cacheUpdatedBit = 0;
 
@@ -101,6 +111,9 @@ struct Context {
     std::atomic<bool> cacheUpdateSucceeded = false;
 
     uint32_t selectLaunchId = 0;
+    /** The colour that the selection dialog is for */
+    size_t selectColorIndex = 0;
+    uint32_t colorSelectLaunchId = 0;
     FontSlot selectSlot = FontSlot::Regular;
     AppStream selectStream {};
     uint8_t selectBuffer[256] {};
@@ -115,7 +128,7 @@ struct Context {
     lv_obj_t* darkChip = nullptr;
     lv_obj_t* regularThemeChip = nullptr;
     lv_obj_t* monoThemeChip = nullptr;
-    lv_obj_t* colorRows[3] = {};
+    ColorRowWidgets colorRows[COLOR_COUNT];
     /** The display can only show the mono theme */
     bool isMonoDisplay = false;
 };
@@ -183,6 +196,8 @@ void setChecked(lv_obj_t* object, bool checked) {
     }
 }
 
+void updateColorRow(Context* ctx, size_t index);
+
 void updateThemeWidgets(Context* ctx) {
     const bool dark = isDark(ctx->pendingSettings);
     setChecked(ctx->lightChip, !dark);
@@ -192,9 +207,10 @@ void updateThemeWidgets(Context* ctx) {
         setChecked(ctx->monoThemeChip, ctx->pendingSettings.monoTheme);
     }
     // The mono theme doesn't use colours
-    for (auto* row : ctx->colorRows) {
-        if (row != nullptr) {
-            setHidden(row, ctx->pendingSettings.monoTheme);
+    for (size_t i = 0; i < COLOR_COUNT; i++) {
+        if (ctx->colorRows[i].row != nullptr) {
+            setHidden(ctx->colorRows[i].row, ctx->pendingSettings.monoTheme);
+            updateColorRow(ctx, i);
         }
     }
 }
@@ -256,18 +272,35 @@ uint32_t getPaletteColor(lv_palette_t palette) {
 
 constexpr size_t PALETTE_COLOR_COUNT = sizeof(PALETTE_COLORS) / sizeof(PALETTE_COLORS[0]);
 
-void onColorChanged(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    auto* color = static_cast<std::optional<uint32_t>*>(lv_obj_get_user_data(dropdown));
-    const uint32_t selected = lv_dropdown_get_selected(dropdown);
-    if (selected == 0) {
-        color->reset();
-    } else if (selected <= PALETTE_COLOR_COUNT) {
-        *color = getPaletteColor(PALETTE_COLORS[selected - 1].palette);
+std::optional<uint32_t>& getColor(settings::appearance::AppearanceSettings& settings, size_t index) {
+    switch (index) {
+        case 0:
+            return settings.primaryColor;
+        case 1:
+            return settings.secondaryColor;
+        default:
+            return settings.errorColor;
     }
-    // Any other option is the custom colour from the settings file, which stays unchanged
-    updateWidgets(ctx);
+}
+
+uint32_t getDefaultColor(size_t index) {
+    LvglThemeSettings defaults;
+    lvgl_theme_get_default_settings(&defaults);
+    const lv_color_t colors[COLOR_COUNT] = { defaults.color_primary, defaults.color_secondary, defaults.color_error };
+    return lv_color_to_u32(colors[index]) & 0xFFFFFF;
+}
+
+void updateColorRow(Context* ctx, size_t index) {
+    const auto& widgets = ctx->colorRows[index];
+    const auto& color = getColor(ctx->pendingSettings, index);
+    lv_obj_set_style_bg_color(widgets.swatch, lv_color_hex(color.value_or(getDefaultColor(index))), LV_STATE_DEFAULT);
+}
+
+void onColorButtonPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    auto* button = static_cast<lv_obj_t*>(lv_event_get_target(event));
+    ctx->selectColorIndex = reinterpret_cast<uintptr_t>(lv_obj_get_user_data(button));
+    task_event_group_signal(ctx->eventGroup, ctx->selectColorBit);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -373,29 +406,32 @@ lv_obj_t* createChip(lv_obj_t* parent, const char* text, lv_event_cb_t callback,
     return chip;
 }
 
-lv_obj_t* createColorRow(lv_obj_t* parent, const char* text, std::optional<uint32_t>* color, Context* ctx) {
-    auto* row = createLabeledRow(parent, text);
-    auto* dropdown = lv_dropdown_create(row);
+ColorRowWidgets createColorRow(lv_obj_t* parent, size_t index, Context* ctx) {
+    ColorRowWidgets widgets;
+    // "Title        [swatch] [Change]"
+    widgets.row = createLabeledRow(parent, COLOR_TITLES[index]);
 
-    std::string options = "Default";
-    uint32_t selected = 0;
-    for (size_t i = 0; i < PALETTE_COLOR_COUNT; i++) {
-        options += "\n";
-        options += PALETTE_COLORS[i].name;
-        if (color->has_value() && **color == getPaletteColor(PALETTE_COLORS[i].palette)) {
-            selected = i + 1;
-        }
-    }
-    // A colour that isn't in the palette was set in the settings file
-    if (color->has_value() && selected == 0) {
-        options += "\nCustom";
-        selected = PALETTE_COLOR_COUNT + 1;
-    }
-    lv_dropdown_set_options(dropdown, options.c_str());
-    lv_dropdown_set_selected(dropdown, selected);
-    lv_obj_set_user_data(dropdown, color);
-    lv_obj_add_event_cb(dropdown, onColorChanged, LV_EVENT_VALUE_CHANGED, ctx);
-    return row;
+    // The colour preview: its colour is the setting, its border uses the theme's text colour
+    widgets.swatch = lv_obj_create(widgets.row);
+    lv_obj_remove_style_all(widgets.swatch);
+    lv_obj_remove_flag(widgets.swatch, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(widgets.swatch, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_opa(widgets.swatch, LV_OPA_COVER, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(widgets.swatch, 1, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(widgets.swatch, lv_obj_get_style_text_color(widgets.swatch, LV_PART_MAIN), LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(widgets.swatch, LV_DPX(4), LV_STATE_DEFAULT);
+
+    auto* button = lv_button_create(widgets.row);
+    auto* button_label = lv_label_create(button);
+    lv_label_set_text(button_label, "Change");
+    lv_obj_set_user_data(button, reinterpret_cast<void*>(static_cast<uintptr_t>(index)));
+    lv_obj_add_event_cb(button, onColorButtonPressed, LV_EVENT_SHORT_CLICKED, ctx);
+
+    // As high as the button
+    lv_obj_update_layout(button);
+    const int32_t swatch_size = lv_obj_get_height(button);
+    lv_obj_set_size(widgets.swatch, swatch_size, swatch_size);
+    return widgets;
 }
 
 void createThemeCard(lv_obj_t* parent, Context* ctx) {
@@ -418,9 +454,9 @@ void createThemeCard(lv_obj_t* parent, Context* ctx) {
     lv_obj_add_event_cb(animations_checkbox, onAnimationsChanged, LV_EVENT_VALUE_CHANGED, ctx);
 
     if (!ctx->isMonoDisplay) {
-        ctx->colorRows[0] = createColorRow(card, "Primary color", &ctx->pendingSettings.primaryColor, ctx);
-        ctx->colorRows[1] = createColorRow(card, "Secondary color", &ctx->pendingSettings.secondaryColor, ctx);
-        ctx->colorRows[2] = createColorRow(card, "Error color", &ctx->pendingSettings.errorColor, ctx);
+        for (size_t i = 0; i < COLOR_COUNT; i++) {
+            ctx->colorRows[i] = createColorRow(card, i, ctx);
+        }
     }
 }
 
@@ -521,8 +557,8 @@ void destroyWidgets(void* userData) {
     ctx->darkChip = nullptr;
     ctx->regularThemeChip = nullptr;
     ctx->monoThemeChip = nullptr;
-    for (auto*& row : ctx->colorRows) {
-        row = nullptr;
+    for (auto& row : ctx->colorRows) {
+        row = {};
     }
 }
 
@@ -631,6 +667,37 @@ void startFileSelection(Context* ctx, FontSlot slot) {
     ctx->selectLaunchId = fileselection::startForExistingFile(ctx->appInstanceId, ctx->selectStream, ctx->selectBuffer, sizeof(ctx->selectBuffer), ctx->eventGroup);
 }
 
+void startColorSelection(Context* ctx) {
+    if (ctx->colorSelectLaunchId != 0 || ctx->applying) {
+        return;
+    }
+    std::vector<std::string> items;
+    items.reserve(PALETTE_COLOR_COUNT + 1);
+    items.emplace_back("Default");
+    for (const auto& named_color : PALETTE_COLORS) {
+        items.emplace_back(named_color.name);
+    }
+    ctx->colorSelectLaunchId = selectiondialog::start(ctx->appInstanceId, COLOR_TITLES[ctx->selectColorIndex], items);
+}
+
+void onColorSelectionResult(Context* ctx, const AppEvent& event) {
+    ctx->colorSelectLaunchId = 0;
+    // Index 0 is "Default", the others are the palette colours. Other results mean that the dialog was dismissed.
+    const int32_t selected = event.result.result;
+    if (selected >= 0 && selected <= static_cast<int32_t>(PALETTE_COLOR_COUNT)) {
+        lvgl_lock();
+        auto& color = getColor(ctx->pendingSettings, ctx->selectColorIndex);
+        if (selected == 0) {
+            color.reset();
+        } else {
+            color = getPaletteColor(PALETTE_COLORS[selected - 1].palette);
+        }
+        updateWidgets(ctx);
+        lvgl_unlock();
+    }
+    app_manager_stop(event.result.launch_id);
+}
+
 void onFileSelectionResult(Context* ctx, const AppEvent& event) {
     ctx->selectLaunchId = 0;
     if (event.result.result == 0 /* Ok */) {
@@ -665,6 +732,7 @@ int32_t appMain(int argc, char* argv[]) {
     ctx.eventGroup = &event_group;
     check(task_event_group_claim_bit(&event_group, &ctx.selectRegularBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.selectMonoBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&event_group, &ctx.selectColorBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.applyBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.cacheUpdatedBit) == ERROR_NONE);
 
@@ -684,6 +752,9 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.selectMonoBit) {
             startFileSelection(&ctx, FontSlot::Mono);
         }
+        if (flags & ctx.selectColorBit) {
+            startColorSelection(&ctx);
+        }
         if (flags & ctx.applyBit) {
             startApply(&ctx);
         }
@@ -697,6 +768,8 @@ int32_t appMain(int argc, char* argv[]) {
                 should_close = true;
             } else if (event.type == APP_EVENT_RESULT && event.result.launch_id == ctx.selectLaunchId) {
                 onFileSelectionResult(&ctx, event);
+            } else if (event.type == APP_EVENT_RESULT && event.result.launch_id == ctx.colorSelectLaunchId) {
+                onColorSelectionResult(&ctx, event);
             }
         }
     }

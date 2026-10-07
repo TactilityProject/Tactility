@@ -29,6 +29,15 @@ else ()
     set(ui_density_variable "LVGL_UI_DENSITY_DEFAULT")
     message("UI density set to default: ${ui_density}")
 endif ()
+# Read the theme: whether the device uses dark mode by default
+GET_VALUE_FROM_MAP(device_properties "lvgl.theme" lvgl_theme)
+if (NOT lvgl_theme OR lvgl_theme STREQUAL "DefaultDark")
+    set(theme_dark 1)
+elseif (lvgl_theme STREQUAL "DefaultLight" OR lvgl_theme STREQUAL "Mono")
+    set(theme_dark 0)
+else ()
+    message(FATAL_ERROR "Invalid lvgl.theme: '${lvgl_theme}'. Must be 'DefaultDark', 'DefaultLight' or 'Mono'")
+endif ()
 
 # ####################################
 # Create module
@@ -74,4 +83,6 @@ target_compile_definitions(${MODULE_NAME} PUBLIC
     "-DLV_LVGL_H_INCLUDE_SIMPLE"
     # UiDensity
     "-DTT_LVGL_UI_DENSITY=${ui_density_variable}"
+    # Default theme mode: 1 for dark, 0 for light
+    "-DTT_LVGL_THEME_DARK=${theme_dark}"
 )

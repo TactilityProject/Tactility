@@ -10,6 +10,7 @@
 #include <lvgl/icons/launcher.h>
 #include <lvgl/fonts.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/theme.h>
 #include <lvgl/widgets/icon_button.h>
 
 #include <lvgl_window_manager/window_manager.h>
@@ -151,9 +152,11 @@ void createWidgets(lv_obj_t* parent, void*) {
     }
 
     // The app list is the main action, so it stands out more than the others
-    auto* app_list_button = createAppButton(buttons_wrapper, LVGL_ICON_BUTTON_FILLED, LVGL_ICON_LAUNCHER_APPS, "tactility.applist");
-    createAppButton(buttons_wrapper, LVGL_ICON_BUTTON_FILLED, LVGL_ICON_LAUNCHER_FOLDER, "tactility.files");
-    createAppButton(buttons_wrapper, LVGL_ICON_BUTTON_FILLED, LVGL_ICON_LAUNCHER_SETTINGS, "tactility.settings");
+    // Filled buttons would be solid black blocks with the monochrome theme
+    const auto variant = lvgl_theme_is_mono() ? LVGL_ICON_BUTTON_STANDARD : LVGL_ICON_BUTTON_FILLED;
+    auto* app_list_button = createAppButton(buttons_wrapper, variant, LVGL_ICON_LAUNCHER_APPS, "tactility.applist");
+    createAppButton(buttons_wrapper, variant, LVGL_ICON_LAUNCHER_FOLDER, "tactility.files");
+    createAppButton(buttons_wrapper, variant, LVGL_ICON_LAUNCHER_SETTINGS, "tactility.settings");
     applyButtonMargins(buttons_wrapper, is_landscape_display);
 
     // The launcher's container is several levels below the screen, and LVGL only sends

@@ -11,6 +11,7 @@
 
 #include <lvgl/widgets/sliderbox.h>
 #include <lvgl/theme.h>
+#include <lvgl/widgets/badge.h>
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/icon_button.h>
@@ -64,6 +65,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_theme_get_settings),
     DEFINE_MODULE_SYMBOL(lvgl_theme_get_default_settings),
     DEFINE_MODULE_SYMBOL(lvgl_theme_set_settings),
+    DEFINE_MODULE_SYMBOL(lvgl_theme_is_mono),
+    // lvgl_badge
+    DEFINE_MODULE_SYMBOL(lvgl_badge_create),
     // lvgl_card
     DEFINE_MODULE_SYMBOL(lvgl_card_create),
     // lvgl_chip

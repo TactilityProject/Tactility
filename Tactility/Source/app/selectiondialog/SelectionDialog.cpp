@@ -32,7 +32,7 @@ struct Context {
     // The eventual appMain() return value - see AlertDialog.cpp's Context::result for why this
     // is a plain (non-atomic) field safely shared between the LVGL thread (writer, before
     // emitting APP_EVENT_CLOSE) and this dialog's own thread (reader, after waking from it).
-    int32_t result = 1; // Cancelled - safety-net default if closed without selecting an item
+    int32_t result = -2; // Cancelled - safety-net default if closed without selecting an item
 };
 
 struct ItemContext {

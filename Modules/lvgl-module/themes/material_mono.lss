@@ -29,6 +29,7 @@
 @widget sliderbox: lvgl_sliderbox_class;
 @widget card: lvgl_card_class;
 @widget chip: lvgl_chip_class;
+@widget badge: lvgl_badge_class;
 
 // ============================================================
 // 1. Base tokens
@@ -140,6 +141,10 @@
 @chip-shape: if($isCompact, @corner-compact, @corner-small);
 @chip-pad-hor: if($isCompact, 3, @space-4);
 @chip-pad-ver: if($isCompact, 2, @space-2);
+
+// Badge (lvgl_badge_create): a small dot that marks an item, e.g. a favourite
+@badge-color: @color-on-surface;
+@badge-size: if($isCompact, 4, 6dp);
 
 // Scrollbar
 @scrollbar-color: @color-on-surface;
@@ -387,6 +392,14 @@ card {
     padGap: @card-gap;
 }
 
+badge {
+    width: @badge-size;
+    height: @badge-size;
+    radius: circle;
+    bgColor: @badge-color;
+    bgOpa: cover;
+}
+
 chip {
     bgColor: @color-surface;
     bgOpa: cover;
@@ -416,12 +429,6 @@ icon_button {
     borderWidth: 0;
     radius: @button-shape;
     padAll: @button-pad-ver;
-}
-
-// Selected (toggled) icon button: outlined, as there is no colour to show it with
-icon_button_selected {
-    borderColor: @color-outline;
-    borderWidth: @border;
 }
 
 icon_button_filled {
@@ -971,7 +978,6 @@ apply(toolbar) {
 
 apply(icon_button) {
     icon_button: default;
-    icon_button_selected: state.checked;
     inverted: state.pressed;
     focus_ring_inset: state.focusKey;
     edit_ring_inset: state.edited;
@@ -1041,6 +1047,10 @@ apply(checkbox) {
     checkbox_box: part.indicator;
     checkbox_box_selected: part.indicator, state.checked;
     disabled: part.indicator, state.disabled;
+}
+
+apply(badge) {
+    badge: default;
 }
 
 apply(chip) {

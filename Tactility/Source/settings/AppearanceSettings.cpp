@@ -30,11 +30,25 @@ static std::optional<uint32_t> parseColor(const std::map<std::string, std::strin
     return static_cast<uint32_t>(std::strtoul(entry->second.c_str(), nullptr, 16)) & 0xFFFFFF;
 }
 
+// Saving only updates the keys that are written, so an unset colour is written as an empty value
 static void putColor(std::map<std::string, std::string>& map, const char* key, std::optional<uint32_t> color) {
     if (color.has_value()) {
         char text[8];
         std::snprintf(text, sizeof(text), "%06" PRIX32, *color);
         map[key] = text;
+    } else {
+        map[key] = "";
+    }
+}
+
+static const char* toString(ThemeMode mode) {
+    switch (mode) {
+        case ThemeMode::Light:
+            return "light";
+        case ThemeMode::Dark:
+            return "dark";
+        default:
+            return "default";
     }
 }
 
@@ -103,9 +117,7 @@ bool save(const AppearanceSettings& settings) {
     map[SETTINGS_KEY_FONT_SIZE] = std::to_string(settings.fontSize);
     map[SETTINGS_KEY_REGULAR_FONT_PATH] = settings.regularFontPath;
     map[SETTINGS_KEY_MONO_FONT_PATH] = settings.monoFontPath;
-    if (settings.themeMode != ThemeMode::DeviceDefault) {
-        map[SETTINGS_KEY_THEME_MODE] = settings.themeMode == ThemeMode::Dark ? "dark" : "light";
-    }
+    map[SETTINGS_KEY_THEME_MODE] = toString(settings.themeMode);
     map[SETTINGS_KEY_MONO_THEME] = settings.monoTheme ? "true" : "false";
     map[SETTINGS_KEY_ANIMATIONS] = settings.animationsEnabled ? "true" : "false";
     putColor(map, SETTINGS_KEY_PRIMARY_COLOR, settings.primaryColor);

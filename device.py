@@ -292,20 +292,13 @@ def write_lvgl_variables(output_file, device_properties: dict):
     has_statusbar_colors_inverted = get_boolean_property_or_false(device_properties, "lvgl.statusbarColorsInverted")
     if has_statusbar_colors_inverted:
         output_file.write("CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED=y\n")
+    # Tactility uses its own themes (Modules/lvgl-module), and lvgl.theme only selects the default light or dark mode
     theme = get_property_or_default(device_properties, "lvgl.theme", "DefaultDark")
-    if theme == "DefaultDark":
-        output_file.write("CONFIG_LV_THEME_DEFAULT_DARK=y\n")
-    elif theme == "DefaultLight":
-        output_file.write("CONFIG_LV_THEME_DEFAULT_LIGHT=y\n")
-    elif theme == "Mono":
-        output_file.write("CONFIG_LV_USE_THEME_MONO=y\n")
-        # LVGL selects the theme with #if LV_USE_THEME_DEFAULT / #elif LV_USE_THEME_SIMPLE /
-        # #elif LV_USE_THEME_MONO, and the Kconfig defaults enable DEFAULT+SIMPLE for any
-        # non-1bpp color depth so MONO only takes effect once those are disabled.
-        output_file.write("CONFIG_LV_USE_THEME_DEFAULT=n\n")
-        output_file.write("CONFIG_LV_USE_THEME_SIMPLE=n\n")
-    else:
+    if theme not in ("DefaultDark", "DefaultLight", "Mono"):
         exit_with_error(f"Unknown theme: {theme}")
+    output_file.write("CONFIG_LV_USE_THEME_DEFAULT=n\n")
+    output_file.write("CONFIG_LV_USE_THEME_SIMPLE=n\n")
+    output_file.write("CONFIG_LV_USE_THEME_MONO=n\n")
     font_size_text = get_property_or_none(device_properties, "font.defaultSize")
     if font_size_text is None:
         font_size_text = get_property_or_default(device_properties, "lvgl.fontSize", "14")

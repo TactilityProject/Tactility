@@ -23,11 +23,7 @@ static ActiveTheme active_theme = ActiveTheme::None;
 void lvgl_theme_get_default_settings(LvglThemeSettings* settings) {
     lv_theme_material_config_t material_config;
     lv_theme_material_config_init(&material_config);
-#if defined(LV_THEME_DEFAULT_DARK) && LV_THEME_DEFAULT_DARK
-    settings->is_dark = true;
-#else
-    settings->is_dark = false;
-#endif
+    settings->is_dark = TT_LVGL_THEME_DARK;
     settings->is_mono = false;
     settings->animations_enabled = true;
     settings->color_primary = material_config.color_primary;
@@ -46,6 +42,10 @@ void lvgl_theme_get_settings(LvglThemeSettings* settings) {
 void lvgl_theme_set_settings(const LvglThemeSettings* settings) {
     theme_settings = *settings;
     theme_settings_set = true;
+}
+
+bool lvgl_theme_is_mono() {
+    return active_theme == ActiveTheme::MaterialMono;
 }
 
 static lv_theme_t* get_active_theme() {
