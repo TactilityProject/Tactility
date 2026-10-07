@@ -19,8 +19,24 @@ static void on_child_created(lv_event_t* event) {
     }
 }
 
+// Grid navigation shows the focused child as selected whenever the container gets the focus. That's only
+// right when a key moved the focus there, not when it moved because e.g. the previously focused widget was deleted.
+static void on_container_focused(lv_event_t* event) {
+    lv_indev_t* indev = lv_indev_active();
+    const lv_indev_type_t type = indev != nullptr ? lv_indev_get_type(indev) : LV_INDEV_TYPE_NONE;
+    if (type == LV_INDEV_TYPE_KEYPAD || type == LV_INDEV_TYPE_ENCODER) {
+        return;
+    }
+    lv_obj_t* child = lvgl_grid_navigation_get_focused(lv_event_get_current_target_obj(event));
+    if (child != nullptr) {
+        lv_obj_remove_state(child, LV_STATE_FOCUS_KEY);
+    }
+}
+
 void lvgl_grid_navigation_add(lv_obj_t* container) {
     lv_gridnav_add(container, LV_GRIDNAV_CTRL_NONE);
+    // Added after grid navigation's own handler, so it runs after it
+    lv_obj_add_event_cb(container, on_container_focused, LV_EVENT_FOCUSED, nullptr);
     lv_obj_add_flag(container, GRID_NAVIGATION_FLAG);
 
     const uint32_t child_count = lv_obj_get_child_count(container);
@@ -45,6 +61,7 @@ void lvgl_grid_navigation_remove(lv_obj_t* container) {
 
     lv_gridnav_remove(container);
     lv_obj_remove_event_cb(container, on_child_created);
+    lv_obj_remove_event_cb(container, on_container_focused);
     lv_obj_remove_flag(container, GRID_NAVIGATION_FLAG);
 
     if (group == nullptr) {
