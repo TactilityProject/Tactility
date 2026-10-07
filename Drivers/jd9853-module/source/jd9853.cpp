@@ -329,6 +329,11 @@ static error_t jd9853_get_backlight(Device* device, Device** backlight) {
 
 // endregion
 
+static void jd9853_get_shape(Device* device, DisplayShape* shape) {
+    const auto* config = GET_CONFIG(device);
+    *shape = { .shape = config->shape, .corner_radius = config->corner_radius };
+}
+
 static const DisplayApi jd9853_display_api = {
     .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY |
         DISPLAY_CAPABILITY_CAP_SET_GAP | DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF |
@@ -356,6 +361,7 @@ static const DisplayApi jd9853_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = jd9853_get_backlight,
     .has_capability = nullptr,
+    .get_shape = jd9853_get_shape,
 };
 
 Driver jd9853_driver = {

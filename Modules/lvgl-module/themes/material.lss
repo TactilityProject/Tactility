@@ -200,7 +200,7 @@
 @chip-pad-ver: if($isCompact, 2, 6dp);
 
 // Badge (lvgl_badge_create): a small dot that marks an item, e.g. a favourite
-@badge-color: @color-primary;
+@badge-color: @color-secondary;
 @badge-size: if($isCompact, 4, 6dp);
 
 // Scrollbar
@@ -232,7 +232,7 @@
 @text-button-pad-hor: if($isCompact, 3, @space-3);
 
 // Icon button (dialog and window header buttons)
-@icon-button-color: @color-on-surface-variant;
+@icon-button-color: @color-on-surface;
 
 // Filled and tonal icon buttons: Material 3 large icon buttons with a container
 @icon-button-container-shape: if($isCompact, @corner-compact, @corner-large);
@@ -687,7 +687,7 @@ app_bar_button_pressed {
 }
 
 app_bar_focus_ring {
-    outlineColor: @app-bar-content-color;
+    outlineColor: @focus-ring-color;
     outlineWidth: @app-bar-focus-width;
     outlinePad: -@app-bar-focus-width;
     outlineOpa: cover;
@@ -1378,6 +1378,11 @@ apply(badge) {
     badge: default;
 }
 
+// Focusable images, e.g. the statusbar icons
+apply(image) {
+    focus_ring_inset: state.focusKey;
+}
+
 apply(chip) {
     chip: default;
     transition_exit: default;
@@ -1410,6 +1415,7 @@ apply(slider) {
 }
 
 apply(bar) {
+    slider_track_size: default;
     progress_track: default;
     progress_indicator: part.indicator;
     focus_ring: state.focusKey;

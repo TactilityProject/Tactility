@@ -131,6 +131,7 @@ MemoryBarWidgets createMemoryBar(lv_obj_t* parent, const char* label) {
     lv_obj_set_style_pad_all(container, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(container, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_bg_opa(container, 0, LV_STATE_DEFAULT);
 
     auto* left_label = lv_label_create(container);

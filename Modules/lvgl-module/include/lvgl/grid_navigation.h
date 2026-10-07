@@ -21,12 +21,12 @@ void lvgl_grid_navigation_add(lv_obj_t* container);
 void lvgl_grid_navigation_remove(lv_obj_t* container);
 
 /**
- * @brief Moves the focus to the next or previous child in their order, for devices that can only step through widgets.
- * Past the last or first child, the focus moves to the next or previous object in the container's focus group.
- * @param[in] container a container that was passed to lvgl_grid_navigation_add()
- * @param[in] next true for the next child, false for the previous child
+ * @brief Moves the focus to the next or previous widget, for devices that can only step through widgets.
+ * The children of grid navigation containers are visited in their order: entering a container forwards focuses its first child, and backwards its last child.
+ * @param[in] group the focus group
+ * @param[in] next true for the next widget, false for the previous widget
  */
-void lvgl_grid_navigation_focus_next(lv_obj_t* container, bool next);
+void lvgl_grid_navigation_step(lv_group_t* group, bool next);
 
 /**
  * @param[in] container a container that was passed to lvgl_grid_navigation_add()

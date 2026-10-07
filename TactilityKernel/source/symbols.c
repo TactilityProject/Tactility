@@ -173,6 +173,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(display_get_frame_buffer),
     DEFINE_MODULE_SYMBOL(display_get_frame_buffer_count),
     DEFINE_MODULE_SYMBOL(display_get_backlight),
+    DEFINE_MODULE_SYMBOL(display_get_shape),
     DEFINE_MODULE_SYMBOL(DISPLAY_TYPE),
     // file system
     DEFINE_MODULE_SYMBOL(file_system_mount),
@@ -271,6 +272,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(led_strip_get_length),
     DEFINE_MODULE_SYMBOL(LED_STRIP_TYPE),
     // drivers/paths
+    DEFINE_MODULE_SYMBOL(paths_get_data_root_path),
     DEFINE_MODULE_SYMBOL(paths_get_data_path),
     DEFINE_MODULE_SYMBOL(paths_get_temp_path),
     // drivers/pointer

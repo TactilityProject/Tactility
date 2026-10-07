@@ -1,5 +1,7 @@
 #include <Tactility/lvgl/Lvgl.h>
 
+#include <algorithm>
+
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
 #endif
@@ -22,6 +24,7 @@
 #include <app/manager.h>
 
 #include <lvgl/devices/keyboard.h>
+#include <lvgl/insets.h>
 #include <lvgl/fonts.h>
 #include <lvgl/devices/pointer.h>
 #include <lvgl/lvgl.h>
@@ -79,7 +82,8 @@ static lv_obj_t* windowManagerScreenInit(lv_obj_t* root) {
     lv_obj_set_style_radius(vertical_container, 0, LV_STATE_DEFAULT);
     lv_obj_remove_flag(vertical_container, LV_OBJ_FLAG_SCROLLABLE);
 
-    lvgl::statusbar_create(vertical_container);
+    // The statusbar fits itself into the top of round and rounded displays
+    auto* statusbar = lvgl::statusbar_create(vertical_container);
 
     auto* app_container = lv_obj_create(vertical_container);
     lv_obj_set_style_pad_all(app_container, 0, LV_STATE_DEFAULT);
@@ -88,6 +92,21 @@ static lv_obj_t* windowManagerScreenInit(lv_obj_t* root) {
     lv_obj_set_flex_grow(app_container, 1);
     lv_obj_set_flex_flow(app_container, LV_FLEX_FLOW_COLUMN);
     lv_obj_remove_flag(app_container, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Keeps the apps inside the visible area of round displays.
+    // On rounded displays, the widgets along the edges move their content inward from the corners instead.
+    lv_display_t* display = lv_obj_get_display(root);
+    DisplayShape shape;
+    lvgl_display_get_shape(display, &shape);
+    if (shape.shape == DISPLAY_SHAPE_CIRCLE) {
+        LvglInsets insets;
+        lvgl_display_get_insets(display, &insets);
+        lv_obj_update_layout(statusbar);
+        lv_obj_set_style_pad_top(app_container, std::max<int32_t>(0, insets.top - lv_obj_get_height(statusbar)), LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_bottom(app_container, insets.bottom, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_left(app_container, insets.left, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_right(app_container, insets.right, LV_STATE_DEFAULT);
+    }
 
     // Parented to root (not app_container/vertical_container) so it overlays on top of
     // everything, including the statusbar, regardless of which app is showing. Hidden until a

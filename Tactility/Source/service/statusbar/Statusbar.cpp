@@ -85,7 +85,7 @@ static const char* getBluetoothStatusIcon(tt::bluetooth::RadioState state, bool 
         using enum tt::bluetooth::RadioState;
         case Off:
         case OffPending:
-            return nullptr; // hidden when off
+            return LVGL_ICON_STATUSBAR_BLUETOOTH_DISABLED;
         case OnPending:
         case On:
             if (connected) return LVGL_ICON_STATUSBAR_BLUETOOTH_CONNECTED;
@@ -144,7 +144,7 @@ class StatusbarService final : public Service {
     Mutex mutex;
     std::unique_ptr<Timer> updateTimer;
     int8_t gps_icon_id;
-    bool gps_last_state = false;
+    const char* gps_last_icon = nullptr;
     int8_t bt_icon_id;
     const char* bt_last_icon = nullptr;
     int8_t wifi_icon_id;
@@ -165,15 +165,20 @@ class StatusbarService final : public Service {
     }
 
     void updateGpsIcon() {
-        bool show_icon = device_has_active_by_type(&GPS_TYPE);
-        if (gps_last_state != show_icon) {
-            if (show_icon) {
-                lvgl::statusbar_icon_set_image(gps_icon_id, LVGL_ICON_STATUSBAR_LOCATION_ON);
+        const char* icon = nullptr;
+        if (device_has_active_by_type(&GPS_TYPE)) {
+            icon = LVGL_ICON_STATUSBAR_LOCATION_ON;
+        } else if (device_exists_of_type(&GPS_TYPE)) {
+            icon = LVGL_ICON_STATUSBAR_LOCATION_OFF;
+        }
+        if (gps_last_icon != icon) {
+            if (icon != nullptr) {
+                lvgl::statusbar_icon_set_image(gps_icon_id, icon);
                 lvgl::statusbar_icon_set_visibility(gps_icon_id, true);
             } else {
                 lvgl::statusbar_icon_set_visibility(gps_icon_id, false);
             }
-            gps_last_state = show_icon;
+            gps_last_icon = icon;
         }
     }
 
@@ -337,6 +342,12 @@ public:
         sdcard_icon_id = lvgl::statusbar_icon_add();
         wifi_icon_id = lvgl::statusbar_icon_add();
         power_icon_id = lvgl::statusbar_icon_add();
+        lvgl::statusbar_icon_set_app(gps_icon_id, "tactility.gpssettings");
+        lvgl::statusbar_icon_set_app(bt_icon_id, "tactility.btmanage");
+        lvgl::statusbar_icon_set_app(usb_icon_id, "tactility.usbsettings");
+        lvgl::statusbar_icon_set_app(sdcard_icon_id, "tactility.files");
+        lvgl::statusbar_icon_set_app(wifi_icon_id, "tactility.wifimanage");
+        lvgl::statusbar_icon_set_app(power_icon_id, "tactility.power");
     }
 
     ~StatusbarService() override {

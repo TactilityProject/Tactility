@@ -2,6 +2,8 @@ description: Galaxycore GC9A01 round display panel
 
 bus: spi
 
+include: ["display.yaml"]
+
 compatible: "galaxycore,gc9a01"
 
 properties:

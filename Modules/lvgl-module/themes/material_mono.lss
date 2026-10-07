@@ -1070,6 +1070,7 @@ apply(slider) {
 }
 
 apply(bar) {
+    slider_track_size: default;
     slider_track: default;
     slider_active_track: part.indicator;
     focus_ring: state.focusKey;

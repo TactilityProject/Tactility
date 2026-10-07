@@ -3,6 +3,7 @@
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
 #include <tactility/log.h>
+#include <tactility/paths.h>
 
 #include <cstring>
 #include <dirent.h>
@@ -14,7 +15,10 @@ namespace tt::app::files {
 constexpr auto* TAG = "Files";
 
 State::State() {
-    setEntriesForPath("/");
+    char data_root[FILE_MAX_PATH_STRING_LENGTH];
+    if (paths_get_data_root_path(data_root, sizeof(data_root)) != ERROR_NONE || !setEntriesForPath(data_root)) {
+        setEntriesForPath("/");
+    }
 }
 
 std::string State::getSelectedChildPath() const {

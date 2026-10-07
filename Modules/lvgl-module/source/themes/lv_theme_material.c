@@ -137,7 +137,7 @@ extern const lv_obj_class_t lvgl_badge_class;
 #define CHIP_SHAPE (theme->config.is_compact ? CORNER_COMPACT : CORNER_SMALL)
 #define CHIP_PAD_HOR (theme->config.is_compact ? 3 : SPACE_4)
 #define CHIP_PAD_VER (theme->config.is_compact ? 2 : LV_DPX_CALC(theme->disp_dpi, 6))
-#define BADGE_COLOR COLOR_PRIMARY
+#define BADGE_COLOR COLOR_SECONDARY
 #define BADGE_SIZE (theme->config.is_compact ? 4 : LV_DPX_CALC(theme->disp_dpi, 6))
 #define SCROLLBAR_COLOR COLOR_OUTLINE
 #define SCROLLBAR_OPACITY (LV_OPA_40)
@@ -161,7 +161,7 @@ extern const lv_obj_class_t lvgl_badge_class;
 #define TEXT_BUTTON_LABEL_COLOR COLOR_PRIMARY
 #define TEXT_BUTTON_PRESSED_CONTAINER_COLOR COLOR_PRIMARY
 #define TEXT_BUTTON_PAD_HOR (theme->config.is_compact ? 3 : SPACE_3)
-#define ICON_BUTTON_COLOR COLOR_ON_SURFACE_VARIANT
+#define ICON_BUTTON_COLOR COLOR_ON_SURFACE
 #define ICON_BUTTON_CONTAINER_SHAPE (theme->config.is_compact ? CORNER_COMPACT : CORNER_LARGE)
 #define ICON_BUTTON_FILLED_COLOR COLOR_PRIMARY
 #define ICON_BUTTON_FILLED_ICON_COLOR COLOR_ON_PRIMARY
@@ -396,7 +396,7 @@ typedef struct {
     lv_style_t checkbox_box_selected;
 #endif
     lv_style_t sliderbox;
-#if LV_USE_SLIDER
+#if LV_USE_BAR || LV_USE_SLIDER
     lv_style_t slider_track_size;
 #endif
 #if LV_USE_SLIDER
@@ -874,7 +874,7 @@ static void style_init(my_theme_t * theme)
     lv_style_set_bg_opa(&theme->styles.app_bar_button_pressed, APP_BAR_PRESSED_OPACITY);
 
     style_init_reset(&theme->styles.app_bar_focus_ring);
-    lv_style_set_outline_color(&theme->styles.app_bar_focus_ring, APP_BAR_CONTENT_COLOR);
+    lv_style_set_outline_color(&theme->styles.app_bar_focus_ring, FOCUS_RING_COLOR);
     lv_style_set_outline_width(&theme->styles.app_bar_focus_ring, APP_BAR_FOCUS_WIDTH);
     lv_style_set_outline_pad(&theme->styles.app_bar_focus_ring, -APP_BAR_FOCUS_WIDTH);
     lv_style_set_outline_opa(&theme->styles.app_bar_focus_ring, LV_OPA_COVER);
@@ -957,7 +957,7 @@ static void style_init(my_theme_t * theme)
     style_init_reset(&theme->styles.sliderbox);
     lv_style_set_pad_column(&theme->styles.sliderbox, SLIDERBOX_GAP);
 
-#if LV_USE_SLIDER
+#if LV_USE_BAR || LV_USE_SLIDER
     style_init_reset(&theme->styles.slider_track_size);
     lv_style_set_height(&theme->styles.slider_track_size, SLIDER_TRACK_HEIGHT);
 #endif
@@ -1838,6 +1838,13 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         lv_obj_add_style(obj, &theme->styles.badge, 0);
         return;
     }
+#if LV_USE_IMAGE
+    if(lv_obj_check_type(obj, &lv_image_class)) {
+        /* image */
+        lv_obj_add_style(obj, &theme->styles.focus_ring_inset, LV_STATE_FOCUS_KEY);
+        return;
+    }
+#endif
     if(lv_obj_check_type(obj, &lvgl_chip_class)) {
         /* chip */
         lv_obj_add_style(obj, &theme->styles.chip, 0);
@@ -1878,6 +1885,7 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
 #if LV_USE_BAR
     if(lv_obj_check_type(obj, &lv_bar_class)) {
         /* bar */
+        lv_obj_add_style(obj, &theme->styles.slider_track_size, 0);
         lv_obj_add_style(obj, &theme->styles.progress_track, 0);
         lv_obj_add_style(obj, &theme->styles.progress_indicator, LV_PART_INDICATOR);
         lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);

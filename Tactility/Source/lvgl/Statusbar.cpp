@@ -12,9 +12,16 @@
 #include <tactility/system_event.h>
 #include <tactility/time.h>
 
-#include <lvgl/fonts.h>
-#include <lvgl/lvgl.h>
+#include <app/start.h>
 
+#include <lvgl/devices/indev.h>
+#include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
+#include <lvgl/insets.h>
+#include <lvgl/lvgl.h>
+#include <lvgl/theme.h>
+
+#include <algorithm>
 #include <memory>
 
 #ifdef ESP_PLATFORM
@@ -35,6 +42,7 @@ static void onUpdateTime();
 
 struct StatusbarIcon {
     std::string image;
+    std::string appId;
     bool visible = false;
     bool claimed = false;
 };
@@ -159,6 +167,22 @@ static void update_icon(lv_obj_t* image, const StatusbarIcon* icon) {
     } else {
         lv_obj_add_flag(image, LV_OBJ_FLAG_HIDDEN);
     }
+    lv_obj_set_flag(image, LV_OBJ_FLAG_CLICKABLE, !icon->appId.empty());
+}
+
+static void onIconClicked(lv_event_t* event) {
+    const auto index = reinterpret_cast<intptr_t>(lv_event_get_user_data(event));
+    statusbar_data.mutex.lock();
+    const std::string app_id = statusbar_data.icons[index].appId;
+    statusbar_data.mutex.unlock();
+    if (app_id.empty()) {
+        return;
+    }
+    AppStartContext context;
+    uint32_t instance_id = 0;
+    if (app_start_context_from_id(app_id.c_str(), &context) == ERROR_NONE) {
+        app_start_with_context(&context, &instance_id);
+    }
 }
 
 lv_obj_t* statusbar_create(lv_obj_t* parent) {
@@ -168,42 +192,81 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
 
     auto* statusbar = reinterpret_cast<Statusbar*>(obj);
 
-    // The statusbar has no theme styles: it shows the themed container background behind it and inherits its text colour
-    if (STATUSBAR_COLORS_INVERTED) {
-        // A horizontal line separates the statusbar from the rest of the UI below it
-        lv_obj_set_style_border_color(obj, lv_obj_get_style_text_color(obj, LV_PART_MAIN), LV_STATE_DEFAULT);
-        lv_obj_set_style_border_side(obj, LV_BORDER_SIDE_BOTTOM, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(obj, 1, LV_STATE_DEFAULT);
-    }
-
     lv_obj_set_width(obj, LV_PCT(100));
     lv_obj_set_style_pad_ver(obj, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_hor(obj, 2, LV_STATE_DEFAULT);
     lv_obj_center(obj);
-    lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     auto icon_size = lvgl_get_statusbar_icon_font_height();
     auto ui_density = lvgl_get_ui_density();
     auto icon_padding = (ui_density != LVGL_UI_DENSITY_COMPACT) ? static_cast<uint32_t>(icon_size * 0.2f) : 2;
-    lv_obj_set_style_pad_column(obj, icon_padding, LV_STATE_DEFAULT);
 
-    statusbar->time = lv_label_create(obj);
-    lv_obj_set_style_margin_left(statusbar->time, 4, LV_STATE_DEFAULT);
-    update_time(statusbar);
+    lv_display_t* display = lv_obj_get_display(obj);
+    DisplayShape shape;
+    lvgl_display_get_shape(display, &shape);
 
-    auto* left_spacer = lv_obj_create(obj);
-    lv_obj_remove_flag(left_spacer, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_size(left_spacer, 1, 1);
-    lv_obj_set_flex_grow(left_spacer, 1);
-    lv_obj_set_style_bg_opa(left_spacer, LV_OPA_0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_opa(left_spacer, LV_OPA_0, LV_STATE_DEFAULT);
+    // The parent of the icons, which grid navigation moves through
+    lv_obj_t* icon_row;
+    if (shape.shape == DISPLAY_SHAPE_CIRCLE) {
+        // Two centered rows, as the top of a circle is narrow: the time, and the icons below it
+        const int32_t diameter = std::min(lv_display_get_horizontal_resolution(display), lv_display_get_vertical_resolution(display));
+        lv_obj_set_height(obj, LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_top(obj, diameter / 24, LV_STATE_DEFAULT);
+        lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        statusbar->time = lv_label_create(obj);
+        update_time(statusbar);
+
+        icon_row = lv_obj_create(obj);
+        lv_obj_remove_style_all(icon_row);
+        lv_obj_set_size(icon_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_ver(icon_row, static_cast<int32_t>(icon_size / 10), LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_column(icon_row, icon_padding, LV_STATE_DEFAULT);
+        lv_obj_set_flex_flow(icon_row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(icon_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    } else {
+        lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(obj, icon_padding, LV_STATE_DEFAULT);
+
+        if (shape.shape == DISPLAY_SHAPE_ROUNDED) {
+            // Moves the content inward from the rounded corners, measured at the top of the icons
+            const int32_t content_top = (statusbar_get_height() - static_cast<int32_t>(icon_size)) / 2;
+            lv_obj_set_style_pad_hor(obj, 2 + lvgl_display_get_row_inset(display, content_top), LV_STATE_DEFAULT);
+        }
+
+        statusbar->time = lv_label_create(obj);
+        lv_obj_set_style_margin_left(statusbar->time, 4, LV_STATE_DEFAULT);
+        update_time(statusbar);
+
+        auto* left_spacer = lv_obj_create(obj);
+        lv_obj_remove_flag(left_spacer, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_remove_flag(left_spacer, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_size(left_spacer, 1, 1);
+        lv_obj_set_flex_grow(left_spacer, 1);
+        lv_obj_set_style_bg_opa(left_spacer, LV_OPA_0, LV_STATE_DEFAULT);
+        lv_obj_set_style_border_opa(left_spacer, LV_OPA_0, LV_STATE_DEFAULT);
+
+        icon_row = obj;
+    }
+
+    // The monochrome theme's focus ring doesn't contrast with the statusbar, so the icons get their own
+    const bool own_focus_ring = lvgl_theme_is_mono();
+    const int32_t focus_width = (ui_density != LVGL_UI_DENSITY_COMPACT) ? 2 : 1;
+    const lv_color_t focus_color = lv_obj_get_style_text_color(obj, LV_PART_MAIN);
 
     statusbar_data.mutex.lock(MAX_TICKS);
     for (int i = 0; i < STATUSBAR_ICON_LIMIT; ++i) {
-        auto* image = lv_image_create(obj);
+        auto* image = lv_image_create(icon_row);
         lv_obj_set_size(image, icon_size, icon_size); // regular padding doesn't work
         lv_obj_set_style_text_font(image, lvgl_get_statusbar_icon_font(), LV_STATE_DEFAULT);
         lv_obj_set_style_pad_all(image, 0, LV_STATE_DEFAULT);
+        if (own_focus_ring) {
+            lv_obj_set_style_outline_color(image, focus_color, LV_STATE_FOCUS_KEY);
+            lv_obj_set_style_outline_width(image, focus_width, LV_STATE_FOCUS_KEY);
+            lv_obj_set_style_outline_pad(image, -focus_width, LV_STATE_FOCUS_KEY);
+        }
+        lv_obj_add_event_cb(image, onIconClicked, LV_EVENT_SHORT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
         statusbar->icons[i] = image;
 
         update_icon(image, &(statusbar_data.icons[i]));
@@ -217,6 +280,15 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
         statusbar_pubsub_event(statusbar);
     });
     statusbar_data.mutex.unlock();
+
+    // Without a touchscreen, the icons are selected with the keys
+    if (lvgl_indev_exists(LV_INDEV_TYPE_KEYPAD)) {
+        lvgl_grid_navigation_add(icon_row);
+    }
+    // Only the icon row is focused when it isn't the statusbar itself
+    if (icon_row != obj && lv_obj_get_group(obj) != nullptr) {
+        lv_group_remove_obj(obj);
+    }
 
     return obj;
 }
@@ -287,6 +359,7 @@ void statusbar_icon_remove(int8_t id) {
     icon->claimed = false;
     icon->visible = false;
     icon->image = "";
+    icon->appId = "";
     statusbar_data.mutex.unlock();
     statusbar_data.pubsub->publish(nullptr);
 }
@@ -313,6 +386,16 @@ void statusbar_icon_set_visibility(int8_t id, bool visible) {
     StatusbarIcon* icon = &statusbar_data.icons[id];
     check(icon->claimed);
     icon->visible = visible;
+    statusbar_data.mutex.unlock();
+    statusbar_data.pubsub->publish(nullptr);
+}
+
+void statusbar_icon_set_app(int8_t id, const std::string& appId) {
+    check(id >= 0 && id < STATUSBAR_ICON_LIMIT);
+    statusbar_data.mutex.lock();
+    StatusbarIcon* icon = &statusbar_data.icons[id];
+    check(icon->claimed);
+    icon->appId = appId;
     statusbar_data.mutex.unlock();
     statusbar_data.pubsub->publish(nullptr);
 }

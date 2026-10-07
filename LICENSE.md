@@ -13,7 +13,7 @@ These applications are not part of the Tactility operating system's main firmwar
 
 The intentions behind picking the licenses for the subprojects:
 
-1. Forks of the entire Tactility project required to be open source as: GPL v3.0 applies to the main firmware projects (see `Firmware/` and `Tactility/`).
+1. Forks of the entire Tactility project required to be open source as: GPL v3.0 applies to the main firmware project (see `Tactility/`).
 2. It should be possible to make closed source external applications using TactilitySDK and the libraries it includes (it must exclude software with a GPL license).
 3. It should be possible to make closed source forks that only contain TactilityKernel, the platform implementations (`Platforms/*`) and most of the device and driver implementations. As few as possible driver and device combinations should prevent this.
 
@@ -30,12 +30,12 @@ The license texts that are relevant to this document:
 
 **IMPORTANT:** This document may have inaccuracies. It mainly exists to create awareness about license differences.
 
-The top-level projects `Firmware/` and `Tactility/` are licensed under `GPL v3.0`.
+The top-level project `Tactility/` is licensed under `GPL v3.0`.
 
 Most devices are licensed with `Apache License v2.0` while some are implemented as `GPL v3.0` until author consent is given to change the license.
 New device implementations should be licensed under `Apache License v2.0`.
 
-Most drivers have an `Apache License v2.0`, with exceptions such as `Drivers/gps-generic-module/`.
+Most drivers have an `Apache License v2.0`, with exceptions such as `Drivers/gps-meshtastic-module/`.
 Licensing may also differ for subprojects intended for use in external applications.
 
 Driver subprojects aren't generally used directly in external app projects, but if they are, make sure to check their licenses.
@@ -65,7 +65,6 @@ Below is an overview of the licenses of some of the subprojects.
 | Project            | License                 |
 |--------------------|-------------------------|
 | Tactility          | GNU Public License v3.0 |
-| TactilityC         | Apache License v2.0     |
 | TactilityFreeRTOS  | Apache License v2.0     |
 | TactilityKernel    | Apache License v2.0     |
 | Tests              | (varies)                |

@@ -26,6 +26,13 @@ void statusbar_icon_set_image(int8_t id, const std::string& image);
 /** Update the visibility for an icon on the statusbar. Does not need to be called with LVGL lock. */
 void statusbar_icon_set_visibility(int8_t id, bool visible);
 
+/**
+ * Sets the app that starts when the icon is clicked. Does not need to be called with LVGL lock.
+ * @param[in] id the icon id
+ * @param[in] appId the app id, or an empty string to make the icon not clickable
+ */
+void statusbar_icon_set_app(int8_t id, const std::string& appId);
+
 int statusbar_get_height();
 
 } // namespace

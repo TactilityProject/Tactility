@@ -183,6 +183,7 @@ shared_symbol_code_point_names = [
 statusbar_symbol_code_point_names = [
     # Location tracking
     "location_on",
+    "location_off",
     # Development server
     "cloud",
     # Low on available memory

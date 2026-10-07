@@ -9,9 +9,13 @@ extern "C" {
 #include <stdbool.h>
 
 #include <tactility/device.h>
+#include <tactility/drivers/display.h>
 #include <tactility/drivers/gpio.h>
 
 struct Gc9a01Config {
+    // From display.yaml: a DisplayShapeType value and the corner radius for rounded displays
+    uint8_t shape;
+    uint16_t corner_radius;
     uint16_t horizontal_resolution;
     uint16_t vertical_resolution;
     int32_t gap_x;

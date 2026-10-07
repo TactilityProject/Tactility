@@ -26,8 +26,8 @@ constexpr auto* KEY_TRACKBALL_MODE = "trackballMode";
 constexpr auto* KEY_ENCODER_SENSITIVITY = "encoderSensitivity";
 constexpr auto* KEY_POINTER_SENSITIVITY = "pointerSensitivity";
 
-constexpr uint8_t MIN_ENCODER_SENSITIVITY = 1;
-constexpr uint8_t MAX_ENCODER_SENSITIVITY = 10;
+constexpr uint8_t MIN_KEY_SENSITIVITY = 1;
+constexpr uint8_t MAX_KEY_SENSITIVITY = 10;
 constexpr uint8_t MIN_POINTER_SENSITIVITY = 1;
 constexpr uint8_t MAX_POINTER_SENSITIVITY = 10;
 
@@ -64,13 +64,13 @@ bool load(LvglTrackballSettings& settings) {
         return s == "1" || s == "true" || s == "True" || s == "TRUE";
     };
     settings.enabled = (tb_enabled != map.end()) ? isTrueValue(tb_enabled->second) : true;
-    settings.mode = (tb_mode != map.end() && tb_mode->second == "1") ? LVGL_TRACKBALL_MODE_POINTER : LVGL_TRACKBALL_MODE_ENCODER;
+    settings.mode = (tb_mode != map.end() && tb_mode->second == "1") ? LVGL_TRACKBALL_MODE_POINTER : LVGL_TRACKBALL_MODE_KEYS;
     auto default_settings = lvgl_trackball_settings_get_default();
-    settings.encoder_sensitivity = (enc_sens != map.end()) ? safeParseUint8(enc_sens->second, default_settings.encoder_sensitivity) : default_settings.encoder_sensitivity;
+    settings.key_sensitivity = (enc_sens != map.end()) ? safeParseUint8(enc_sens->second, default_settings.key_sensitivity) : default_settings.key_sensitivity;
     settings.pointer_sensitivity = (ptr_sens != map.end()) ? safeParseUint8(ptr_sens->second, default_settings.pointer_sensitivity) : default_settings.pointer_sensitivity;
 
     // Clamp values to valid ranges
-    settings.encoder_sensitivity = std::clamp(settings.encoder_sensitivity, MIN_ENCODER_SENSITIVITY, MAX_ENCODER_SENSITIVITY);
+    settings.key_sensitivity = std::clamp(settings.key_sensitivity, MIN_KEY_SENSITIVITY, MAX_KEY_SENSITIVITY);
     settings.pointer_sensitivity = std::clamp(settings.pointer_sensitivity, MIN_POINTER_SENSITIVITY, MAX_POINTER_SENSITIVITY);
 
     return true;
@@ -92,7 +92,7 @@ bool save(const LvglTrackballSettings& settings) {
     std::map<std::string, std::string> map;
     map[KEY_TRACKBALL_ENABLED] = settings.enabled ? "1" : "0";
     map[KEY_TRACKBALL_MODE] = (settings.mode == LVGL_TRACKBALL_MODE_POINTER) ? "1" : "0";
-    map[KEY_ENCODER_SENSITIVITY] = std::to_string(std::clamp(settings.encoder_sensitivity, MIN_ENCODER_SENSITIVITY, MAX_ENCODER_SENSITIVITY));
+    map[KEY_ENCODER_SENSITIVITY] = std::to_string(std::clamp(settings.key_sensitivity, MIN_KEY_SENSITIVITY, MAX_KEY_SENSITIVITY));
     map[KEY_POINTER_SENSITIVITY] = std::to_string(std::clamp(settings.pointer_sensitivity, MIN_POINTER_SENSITIVITY, MAX_POINTER_SENSITIVITY));
     auto settings_path = getSettingsFilePath();
     if (!file::findOrCreateParentDirectory(settings_path, 0755)) {

@@ -28,7 +28,7 @@ enum AppCategory {
 
 /** Bit flags for AppManifest::flags. */
 enum AppManifestFlags {
-    /** Excluded from generic app-browsing UIs (e.g. AppList, Settings) */
+    /** Excluded from generic app-browsing UIs (e.g. Launcher, Settings) */
     APP_MANIFEST_FLAG_HIDDEN = 1 << 0,
     /** No window-manager dependency. Safe to start from a context with no GUI available. */
     APP_MANIFEST_FLAG_HEADLESS = 1 << 1,

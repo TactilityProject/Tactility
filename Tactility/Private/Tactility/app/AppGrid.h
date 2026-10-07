@@ -19,7 +19,7 @@ struct AppGridItem {
 };
 
 /**
- * Paged, non-scrolling grid of app tiles (icon above name) with "<" and ">" toolbar buttons.
+ * Paged, non-scrolling grid of app tiles (icon above name) with "<" and ">" page buttons.
  * Must outlive the widgets it creates.
  */
 class AppGrid final {
@@ -39,8 +39,18 @@ public:
 
     explicit AppGrid(const Callbacks& callbacks) : callbacks(callbacks) {}
 
+    /** Shows the tile icons in the theme's primary color. Call before creating the widgets. */
+    void setPrimaryColorIcons(bool enabled) { primaryColorIcons = enabled; }
+
     /** Adds the paging buttons to the toolbar, creates the grid below it and populates it. */
     void createWidgets(lv_obj_t* parent, lv_obj_t* toolbar);
+
+    /**
+     * Creates the grid and populates it. The page number and the page buttons go in pageBar, which is hidden when there's only one page. The page buttons wrap around.
+     * @param[in] parent the container for the grid
+     * @param[in] pageBar an empty container
+     */
+    void createWidgetsWithPageBar(lv_obj_t* parent, lv_obj_t* pageBar);
 
     /**
      * Rebuilds the grid asynchronously, so it is safe to call from a tile's own event.
@@ -53,11 +63,16 @@ private:
     Callbacks callbacks;
     std::vector<AppGridItem> items;
     uint32_t page = 0;
+    uint32_t pageCount = 1;
+    bool primaryColorIcons = false;
     bool keepSelectionOnRepopulate = true;
     lv_obj_t* grid = nullptr;
     lv_obj_t* prevButton = nullptr;
     lv_obj_t* nextButton = nullptr;
+    lv_obj_t* pageBar = nullptr;
+    lv_obj_t* pageLabel = nullptr;
 
+    void createGrid(lv_obj_t* parent);
     void populate();
 
     static void onDeferredRepopulate(void* userData);

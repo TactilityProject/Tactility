@@ -11,6 +11,27 @@ extern "C" {
 #include <tactility/error.h>
 
 /**
+ * @brief The shape of the display's visible area.
+ */
+enum DisplayShapeType {
+    DISPLAY_SHAPE_RECTANGLE = 0,
+    /** A rectangle with rounded corners */
+    DISPLAY_SHAPE_ROUNDED = 1,
+    /** A circle with the diameter of the shortest side, centered on the panel */
+    DISPLAY_SHAPE_CIRCLE = 2,
+};
+
+/**
+ * @brief The visible area of a display. Display bindings that include display.yaml get it from the devicetree.
+ */
+struct DisplayShape {
+    /** A DisplayShapeType value */
+    uint8_t shape;
+    /** The corner radius in pixels, for DISPLAY_SHAPE_ROUNDED */
+    uint16_t corner_radius;
+};
+
+/**
  * @brief Optional capabilities of the display.
  */
 enum DisplayCapability {
@@ -255,6 +276,14 @@ struct DisplayApi {
      * @return true if all specified capabilities are available for this device instance
      */
     bool (*has_capability)(struct Device* device, uint32_t capability);
+
+    /**
+     * @brief Gets the shape of the display's visible area.
+     * @warning Nullable. When null, display_get_shape() reports a rectangle.
+     * @param[in] device the display device
+     * @param[out] shape the shape
+     */
+    void (*get_shape)(struct Device* device, struct DisplayShape* shape);
 };
 
 /**
@@ -386,6 +415,13 @@ uint8_t display_get_frame_buffer_count(struct Device* device);
  * @retval ERROR_NOT_SUPPORTED when the display has no associated backlight
  */
 error_t display_get_backlight(struct Device* device, struct Device** backlight);
+
+/**
+ * @brief Gets the shape of the display's visible area.
+ * @param[in] device the display device
+ * @param[out] shape the shape: a rectangle when the driver doesn't report one
+ */
+void display_get_shape(struct Device* device, struct DisplayShape* shape);
 
 extern const struct DeviceType DISPLAY_TYPE;
 

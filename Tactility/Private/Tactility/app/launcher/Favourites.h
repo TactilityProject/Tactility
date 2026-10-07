@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace tt::app::applist {
+namespace tt::app::launcher {
 
 /** Favourited app ids, persisted one per line under the data root. */
 class Favourites final {
@@ -81,7 +81,7 @@ private:
 
     static std::string filePath() {
         char path[128];
-        if (app_paths_get_user_data_path("tactility.applist", "favourites", path, sizeof(path)) != ERROR_NONE) {
+        if (app_paths_get_user_data_path("tactility.launcher", "favourites", path, sizeof(path)) != ERROR_NONE) {
             return "";
         }
         return path;

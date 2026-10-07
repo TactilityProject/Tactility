@@ -58,6 +58,7 @@ const size_t lvgl_icon_shared_name_count = sizeof(lvgl_icon_shared_names) / size
 
 const char* const lvgl_icon_statusbar_names[] = {
     "location_on",
+    "location_off",
     "cloud",
     "memory",
     "sd_card",

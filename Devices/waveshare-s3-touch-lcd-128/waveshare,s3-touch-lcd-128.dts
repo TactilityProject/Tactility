@@ -84,6 +84,7 @@
 			compatible = "galaxycore,gc9a01";
 			horizontal-resolution = <240>;
 			vertical-resolution = <240>;
+			shape = <DISPLAY_SHAPE_CIRCLE>;
 			mirror-y;
 			invert-color;
 			bgr-order;

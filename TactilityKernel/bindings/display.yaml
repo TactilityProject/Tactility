@@ -1,0 +1,11 @@
+description: Common display properties
+
+properties:
+  shape:
+    type: int
+    default: DISPLAY_SHAPE_RECTANGLE
+    description: Shape of the visible area (DISPLAY_SHAPE_RECTANGLE, DISPLAY_SHAPE_ROUNDED or DISPLAY_SHAPE_CIRCLE)
+  corner-radius:
+    type: int
+    default: 0
+    description: Corner radius in pixels, for DISPLAY_SHAPE_ROUNDED

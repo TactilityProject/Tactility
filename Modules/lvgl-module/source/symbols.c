@@ -11,6 +11,7 @@
 
 #include <lvgl/widgets/sliderbox.h>
 #include <lvgl/grid_navigation.h>
+#include <lvgl/insets.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/badge.h>
 #include <lvgl/widgets/card.h>
@@ -65,9 +66,14 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lvgl_grid_navigation
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_add),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_remove),
-    DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_focus_next),
+    DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_step),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_get_focused),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_is_container),
+    // lvgl_insets
+    DEFINE_MODULE_SYMBOL(lvgl_display_get_shape),
+    DEFINE_MODULE_SYMBOL(lvgl_display_get_insets),
+    DEFINE_MODULE_SYMBOL(lvgl_display_get_row_inset),
+    DEFINE_MODULE_SYMBOL(lvgl_obj_add_edge_padding),
     // lvgl_theme
     DEFINE_MODULE_SYMBOL(lvgl_theme_get_settings),
     DEFINE_MODULE_SYMBOL(lvgl_theme_get_default_settings),

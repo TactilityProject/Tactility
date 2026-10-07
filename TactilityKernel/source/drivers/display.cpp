@@ -157,6 +157,16 @@ error_t display_get_backlight(Device* device, Device** backlight) {
     return error;
 }
 
+void display_get_shape(Device* device, DisplayShape* shape) {
+    const auto* driver = device_get_driver(device);
+    const auto* api = DISPLAY_DRIVER_API(driver);
+    if (api->get_shape == nullptr) {
+        *shape = { .shape = DISPLAY_SHAPE_RECTANGLE, .corner_radius = 0 };
+        return;
+    }
+    api->get_shape(device, shape);
+}
+
 const struct DeviceType DISPLAY_TYPE {
     .name = "display"
 };

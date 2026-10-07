@@ -77,6 +77,9 @@
 			compatible = "jadard,jd9853";
 			horizontal-resolution = <172>;
 			vertical-resolution = <320>;
+			// The panel has rounded corners. The radius is estimated, as it isn't specified.
+			shape = <DISPLAY_SHAPE_ROUNDED>;
+			corner-radius = <40>;
 			gap-x = <34>;
 			invert-color;
 			pin-dc = <&gpio0 45 GPIO_FLAG_NONE>;

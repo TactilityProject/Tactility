@@ -42,7 +42,6 @@ namespace app {
     namespace appearancesettings { extern const ::AppManifest manifest; }
     namespace apphubdetails { extern const ::AppManifest manifest; }
     namespace apppackagedetails { extern const ::AppManifest manifest; }
-    namespace applist { extern const ::AppManifest manifest; }
     namespace apppackagelist { extern const ::AppManifest manifest; }
     namespace audiosettings { extern const ::AppManifest manifest; }
     namespace boot { extern const ::AppManifest manifest; }
@@ -110,7 +109,6 @@ static void registerInternalApps() {
     app_manager_add(&app::apppackagedetails::manifest);
     app_manager_add(&app::apphub::manifest);
     app_manager_add(&app::apphubdetails::manifest);
-    app_manager_add(&app::applist::manifest);
     app_manager_add(&app::apppackagelist::manifest);
     if (service::audio::isAvailable()) {
         app_manager_add(&app::audiosettings::manifest);

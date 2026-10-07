@@ -250,7 +250,7 @@ typedef struct {
     lv_style_t checkbox_box_selected;
 #endif
     lv_style_t sliderbox;
-#if LV_USE_SLIDER
+#if LV_USE_BAR || LV_USE_SLIDER
     lv_style_t slider_track_size;
 #endif
 #if LV_USE_SLIDER
@@ -688,7 +688,7 @@ static void style_init(my_theme_t * theme)
     style_init_reset(&theme->styles.sliderbox);
     lv_style_set_pad_column(&theme->styles.sliderbox, SLIDERBOX_GAP);
 
-#if LV_USE_SLIDER
+#if LV_USE_BAR || LV_USE_SLIDER
     style_init_reset(&theme->styles.slider_track_size);
     lv_style_set_height(&theme->styles.slider_track_size, SLIDER_TRACK_HEIGHT);
 #endif
@@ -1470,6 +1470,7 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
 #if LV_USE_BAR
     if(lv_obj_check_type(obj, &lv_bar_class)) {
         /* bar */
+        lv_obj_add_style(obj, &theme->styles.slider_track_size, 0);
         lv_obj_add_style(obj, &theme->styles.slider_track, 0);
         lv_obj_add_style(obj, &theme->styles.slider_active_track, LV_PART_INDICATOR);
         lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);

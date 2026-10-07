@@ -2,11 +2,15 @@
 #include <lvgl/devices/trackball.h>
 #include <lvgl/devices/device_context.h>
 #include <lvgl/devices/keyboard.h>
+#include <lvgl/devices/keyboard_private.h>
 #include <lvgl/lvgl.h>
 
+#include <tactility/drivers/keyboard.h>
 #include <tactility/drivers/trackball.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 
 constexpr auto* TAG = "lvgl_trackball";
 
@@ -16,6 +20,11 @@ struct LvglTrackballCtx {
     int32_t cursor_y;
     lv_obj_t* cursor;
     const void* cursor_image_src;
+    // Keys mode: arrow key presses that are still to be reported
+    uint32_t pending_codepoint;
+    int32_t pending_count;
+    // Keys mode: the LVGL key that is reported as pressed, or 0
+    uint32_t pressed_key;
 };
 
 static inline int32_t clamp(int32_t value, int32_t min_value, int32_t max_value) {
@@ -68,6 +77,49 @@ static void hide_cursor(LvglTrackballCtx* ctx) {
     lv_obj_add_flag(ctx->cursor, LV_OBJ_FLAG_HIDDEN);
 }
 
+// Reports one key event per read: the button as the enter key, and movement as arrow key presses along its strongest axis.
+static void read_keys(lv_indev_t* indev, LvglTrackballCtx* ctx, lv_indev_data_t* data, int32_t dx, int32_t dy, bool button_pressed) {
+    if (dx != 0 || dy != 0) {
+        uint32_t codepoint;
+        if (std::abs(dx) >= std::abs(dy)) {
+            codepoint = dx > 0 ? CODEPOINT_ARROW_RIGHT : CODEPOINT_ARROW_LEFT;
+        } else {
+            codepoint = dy > 0 ? CODEPOINT_ARROW_DOWN : CODEPOINT_ARROW_UP;
+        }
+        const int32_t steps = std::max(std::abs(dx), std::abs(dy)) * static_cast<int32_t>(ctx->settings.key_sensitivity);
+        // A change of direction drops the presses that weren't reported yet
+        if (codepoint != ctx->pending_codepoint) {
+            ctx->pending_codepoint = codepoint;
+            ctx->pending_count = 0;
+        }
+        ctx->pending_count = clamp(ctx->pending_count + steps, 0, INT16_MAX);
+        lv_display_trigger_activity(lv_indev_get_display(indev));
+    }
+
+    if (ctx->pressed_key == LV_KEY_ENTER && button_pressed) {
+        data->key = LV_KEY_ENTER;
+        data->state = LV_INDEV_STATE_PRESSED;
+    } else if (ctx->pressed_key != 0) {
+        // Every press is released before the next event, so LVGL sees each arrow key press
+        data->key = ctx->pressed_key;
+        data->state = LV_INDEV_STATE_RELEASED;
+        ctx->pressed_key = 0;
+        data->continue_reading = ctx->pending_count > 0;
+    } else if (button_pressed) {
+        ctx->pressed_key = LV_KEY_ENTER;
+        data->key = LV_KEY_ENTER;
+        data->state = LV_INDEV_STATE_PRESSED;
+        lv_display_trigger_activity(lv_indev_get_display(indev));
+    } else if (ctx->pending_count > 0) {
+        ctx->pending_count--;
+        ctx->pressed_key = lvgl_keyboard_translate_key(indev, ctx->pending_codepoint);
+        data->key = ctx->pressed_key;
+        data->state = LV_INDEV_STATE_PRESSED;
+    } else {
+        data->state = LV_INDEV_STATE_RELEASED;
+    }
+}
+
 static void lvgl_trackball_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     auto* wrapper = static_cast<LvglDeviceContext*>(lv_indev_get_driver_data(indev));
     auto* ctx = static_cast<LvglTrackballCtx*>(wrapper->context);
@@ -83,25 +135,22 @@ static void lvgl_trackball_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
 
     lv_display_t* display = lv_indev_get_display(indev);
 
-    if (ctx->settings.mode == LVGL_TRACKBALL_MODE_ENCODER) {
-        int32_t ticks = (dx + dy) * static_cast<int32_t>(ctx->settings.encoder_sensitivity);
-        data->enc_diff = static_cast<int16_t>(clamp(ticks, INT16_MIN, INT16_MAX));
-        if (ticks != 0) {
-            lv_display_trigger_activity(display);
-        }
-    } else {
-        int32_t max_x = display != nullptr ? lv_display_get_original_horizontal_resolution(display) - 1 : 0;
-        int32_t max_y = display != nullptr ? lv_display_get_original_vertical_resolution(display) - 1 : 0;
-        ctx->cursor_x = clamp(ctx->cursor_x + dx * static_cast<int32_t>(ctx->settings.pointer_sensitivity), 0, max_x);
-        ctx->cursor_y = clamp(ctx->cursor_y + dy * static_cast<int32_t>(ctx->settings.pointer_sensitivity), 0, max_y);
-        data->point.x = static_cast<int16_t>(ctx->cursor_x);
-        data->point.y = static_cast<int16_t>(ctx->cursor_y);
-    }
-
     bool pressed = false;
     if (ctx->settings.enabled) {
         trackball_get_button_pressed(wrapper->device, &pressed);
     }
+
+    if (ctx->settings.mode == LVGL_TRACKBALL_MODE_KEYS) {
+        read_keys(indev, ctx, data, dx, dy, pressed);
+        return;
+    }
+
+    int32_t max_x = display != nullptr ? lv_display_get_original_horizontal_resolution(display) - 1 : 0;
+    int32_t max_y = display != nullptr ? lv_display_get_original_vertical_resolution(display) - 1 : 0;
+    ctx->cursor_x = clamp(ctx->cursor_x + dx * static_cast<int32_t>(ctx->settings.pointer_sensitivity), 0, max_x);
+    ctx->cursor_y = clamp(ctx->cursor_y + dy * static_cast<int32_t>(ctx->settings.pointer_sensitivity), 0, max_y);
+    data->point.x = static_cast<int16_t>(ctx->cursor_x);
+    data->point.y = static_cast<int16_t>(ctx->cursor_y);
     data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 
     if (pressed) {
@@ -113,9 +162,9 @@ extern "C" {
 
 LvglTrackballSettings lvgl_trackball_settings_get_default() {
     return LvglTrackballSettings {
-        .mode = LVGL_TRACKBALL_MODE_ENCODER,
+        .mode = LVGL_TRACKBALL_MODE_KEYS,
         .enabled = true,
-        .encoder_sensitivity = 1,
+        .key_sensitivity = 1,
         .pointer_sensitivity = 10,
     };
 }
@@ -147,7 +196,7 @@ error_t lvgl_trackball_add(struct Device* device, lv_display_t* display, lv_inde
         return ERROR_OUT_OF_MEMORY;
     }
 
-    lv_indev_set_type(indev, LV_INDEV_TYPE_ENCODER);
+    lv_indev_set_type(indev, LV_INDEV_TYPE_KEYPAD);
     lv_indev_set_read_cb(indev, lvgl_trackball_read_cb);
     lv_indev_set_driver_data(indev, wrapper);
     if (display != nullptr) {
@@ -155,10 +204,10 @@ error_t lvgl_trackball_add(struct Device* device, lv_display_t* display, lv_inde
     }
     recenter_cursor(ctx, indev);
 
-    // Encoder indevs are useless without a group (LVGL dispatch bails out immediately if indev->group is NULL)
+    // Keypad indevs are useless without a group (LVGL dispatch bails out immediately if indev->group is NULL)
     // Use the keyboard group for now, until it's refactored into a proper global/shared group. See ideas.md
     // When refactoring this, you probably want to remove the calls to lvgl_keyboard_* below.
-    if (ctx->settings.mode == LVGL_TRACKBALL_MODE_ENCODER) {
+    if (ctx->settings.mode == LVGL_TRACKBALL_MODE_KEYS) {
         lvgl_keyboard_enable(indev);
     }
 
@@ -188,8 +237,8 @@ error_t lvgl_trackball_set_settings(lv_indev_t* indev, const struct LvglTrackbal
     }
 
     if (
-        (settings->mode != LVGL_TRACKBALL_MODE_ENCODER && settings->mode != LVGL_TRACKBALL_MODE_POINTER) ||
-        settings->encoder_sensitivity == 0 ||
+        (settings->mode != LVGL_TRACKBALL_MODE_KEYS && settings->mode != LVGL_TRACKBALL_MODE_POINTER) ||
+        settings->key_sensitivity == 0 ||
         settings->pointer_sensitivity == 0
     ) {
         return ERROR_INVALID_ARGUMENT;
@@ -203,6 +252,8 @@ error_t lvgl_trackball_set_settings(lv_indev_t* indev, const struct LvglTrackbal
     ctx->settings = *settings;
 
     if (mode_changed) {
+        ctx->pending_count = 0;
+        ctx->pressed_key = 0;
         if (settings->mode == LVGL_TRACKBALL_MODE_POINTER) {
             lvgl_keyboard_disable(indev);
             lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
@@ -210,12 +261,12 @@ error_t lvgl_trackball_set_settings(lv_indev_t* indev, const struct LvglTrackbal
             show_cursor(ctx, indev);
         } else {
             hide_cursor(ctx);
-            lv_indev_set_type(indev, LV_INDEV_TYPE_ENCODER);
+            lv_indev_set_type(indev, LV_INDEV_TYPE_KEYPAD);
             lvgl_keyboard_enable(indev);
         }
     }
 
-    // Cursor visibility only tracks the enabled toggle in pointer mode - in encoder mode it must
+    // Cursor visibility only tracks the enabled toggle in pointer mode - in keys mode it must
     // stay hidden regardless of enabled, otherwise this unconditionally un-hides the cursor
     // hide_cursor() just hid above (enabled is independent of mode, and defaults to true).
     if (ctx->cursor != nullptr && ctx->settings.mode == LVGL_TRACKBALL_MODE_POINTER) {

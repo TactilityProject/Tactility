@@ -25,13 +25,13 @@ extern const ::AppManifest manifest;
 
 constexpr auto* TAG = "TrackballSettings";
 
-// Convert mode to dropdown index (dropdown order: Encoder=0, Pointer=1)
+// Convert mode to dropdown index (dropdown order: Keys=0, Pointer=1)
 static uint32_t modeToDropdownIndex(LvglTrackballMode mode) {
     switch (mode) {
-        case LVGL_TRACKBALL_MODE_ENCODER: return 0;
+        case LVGL_TRACKBALL_MODE_KEYS: return 0;
         case LVGL_TRACKBALL_MODE_POINTER: return 1;
     }
-    return 0; // default to Encoder
+    return 0; // default to Keys
 }
 
 static lv_indev_t* findFirstTrackballIndev() {
@@ -65,7 +65,7 @@ struct Context {
     lv_indev_t* trackballIndev = nullptr;
     lv_obj_t* switchTrackball = nullptr;
     lv_obj_t* trackballModeDropdown = nullptr;
-    lv_obj_t* encoderSensitivitySlider = nullptr;
+    lv_obj_t* keySensitivitySlider = nullptr;
     lv_obj_t* pointerSensitivitySlider = nullptr;
 };
 
@@ -97,11 +97,11 @@ void onTrackballSwitch(lv_event_t* e) {
     // Enable/disable controls based on trackball state
     if (enabled) {
         if (ctx->trackballModeDropdown) lv_obj_clear_state(ctx->trackballModeDropdown, LV_STATE_DISABLED);
-        if (ctx->encoderSensitivitySlider) lv_obj_clear_state(ctx->encoderSensitivitySlider, LV_STATE_DISABLED);
+        if (ctx->keySensitivitySlider) lv_obj_clear_state(ctx->keySensitivitySlider, LV_STATE_DISABLED);
         if (ctx->pointerSensitivitySlider) lv_obj_clear_state(ctx->pointerSensitivitySlider, LV_STATE_DISABLED);
     } else {
         if (ctx->trackballModeDropdown) lv_obj_add_state(ctx->trackballModeDropdown, LV_STATE_DISABLED);
-        if (ctx->encoderSensitivitySlider) lv_obj_add_state(ctx->encoderSensitivitySlider, LV_STATE_DISABLED);
+        if (ctx->keySensitivitySlider) lv_obj_add_state(ctx->keySensitivitySlider, LV_STATE_DISABLED);
         if (ctx->pointerSensitivitySlider) lv_obj_add_state(ctx->pointerSensitivitySlider, LV_STATE_DISABLED);
     }
 }
@@ -110,10 +110,10 @@ void onTrackballModeChanged(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     uint32_t selected = lv_dropdown_get_selected(ctx->trackballModeDropdown);
 
-    // Validate selection matches expected enum values (dropdown order: Encoder=0, Pointer=1)
+    // Validate selection matches expected enum values (dropdown order: Keys=0, Pointer=1)
     LvglTrackballMode mode;
     switch (selected) {
-        case 0: mode = LVGL_TRACKBALL_MODE_ENCODER; break;
+        case 0: mode = LVGL_TRACKBALL_MODE_KEYS; break;
         case 1: mode = LVGL_TRACKBALL_MODE_POINTER; break;
         default: return; // Invalid selection, ignore
     }
@@ -125,10 +125,10 @@ void onTrackballModeChanged(lv_event_t* e) {
     applyLive(ctx);
 }
 
-void onEncoderSensitivityChanged(lv_event_t* e) {
+void onKeySensitivityChanged(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    int32_t value = lv_slider_get_value(ctx->encoderSensitivitySlider);
-    ctx->tbSettings.encoder_sensitivity = static_cast<uint8_t>(value);
+    int32_t value = lv_slider_get_value(ctx->keySensitivitySlider);
+    ctx->tbSettings.key_sensitivity = static_cast<uint8_t>(value);
     ctx->updated = true;
 
     // Apply immediately
@@ -195,7 +195,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_align(tb_mode_label, LV_ALIGN_LEFT_MID, 0, 0);
 
     ctx->trackballModeDropdown = lv_dropdown_create(tb_mode_wrapper);
-    lv_dropdown_set_options(ctx->trackballModeDropdown, "Encoder\nPointer");
+    lv_dropdown_set_options(ctx->trackballModeDropdown, "Keys\nPointer");
     lv_obj_align(ctx->trackballModeDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_dropdown_set_selected(ctx->trackballModeDropdown, modeToDropdownIndex(ctx->tbSettings.mode));
     lv_obj_add_event_cb(ctx->trackballModeDropdown, onTrackballModeChanged, LV_EVENT_VALUE_CHANGED, ctx);
@@ -205,25 +205,25 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_add_state(ctx->trackballModeDropdown, LV_STATE_DISABLED);
     }
 
-    // Encoder sensitivity slider
-    auto* enc_sens_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(enc_sens_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(enc_sens_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(enc_sens_wrapper, 0, LV_STATE_DEFAULT);
+    // Key sensitivity slider
+    auto* key_sens_wrapper = lv_obj_create(main_wrapper);
+    lv_obj_set_size(key_sens_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_hor(key_sens_wrapper, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(key_sens_wrapper, 0, LV_STATE_DEFAULT);
 
-    auto* enc_sens_label = lv_label_create(enc_sens_wrapper);
-    lv_label_set_text(enc_sens_label, "Encoder Speed");
-    lv_obj_align(enc_sens_label, LV_ALIGN_LEFT_MID, 0, 0);
+    auto* key_sens_label = lv_label_create(key_sens_wrapper);
+    lv_label_set_text(key_sens_label, "Key Speed");
+    lv_obj_align(key_sens_label, LV_ALIGN_LEFT_MID, 0, 0);
 
-    ctx->encoderSensitivitySlider = lv_slider_create(enc_sens_wrapper);
-    lv_slider_set_range(ctx->encoderSensitivitySlider, 1, 10);
-    lv_slider_set_value(ctx->encoderSensitivitySlider, ctx->tbSettings.encoder_sensitivity, LV_ANIM_OFF);
-    lv_obj_set_width(ctx->encoderSensitivitySlider, LV_PCT(50));
-    lv_obj_align(ctx->encoderSensitivitySlider, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_add_event_cb(ctx->encoderSensitivitySlider, onEncoderSensitivityChanged, LV_EVENT_VALUE_CHANGED, ctx);
+    ctx->keySensitivitySlider = lv_slider_create(key_sens_wrapper);
+    lv_slider_set_range(ctx->keySensitivitySlider, 1, 10);
+    lv_slider_set_value(ctx->keySensitivitySlider, ctx->tbSettings.key_sensitivity, LV_ANIM_OFF);
+    lv_obj_set_width(ctx->keySensitivitySlider, LV_PCT(50));
+    lv_obj_align(ctx->keySensitivitySlider, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_add_event_cb(ctx->keySensitivitySlider, onKeySensitivityChanged, LV_EVENT_VALUE_CHANGED, ctx);
 
     if (!ctx->tbSettings.enabled) {
-        lv_obj_add_state(ctx->encoderSensitivitySlider, LV_STATE_DISABLED);
+        lv_obj_add_state(ctx->keySensitivitySlider, LV_STATE_DISABLED);
     }
 
     // Pointer sensitivity slider

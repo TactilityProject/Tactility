@@ -5,6 +5,7 @@
 
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
+#include <lvgl/insets.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/spinner.h>
@@ -100,6 +101,9 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     toolbar->nav_action_callback = nullptr;
 
     lv_obj_center(obj);
+
+    lvgl_obj_add_edge_padding(obj);
+
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     // The arrow keys move between the close button and the actions, and up and down leave the toolbar

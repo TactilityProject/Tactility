@@ -8,7 +8,9 @@
 #include <cstdio>
 #include <cstring>
 
-static error_t paths_get_data_root_path(char* out_path, size_t out_path_size) {
+extern "C" {
+
+error_t paths_get_data_root_path(char* out_path, size_t out_path_size) {
 #if defined(CONFIG_TT_USER_DATA_LOCATION_INTERNAL)
     // Registered by platform-esp32/platform-posix's own module start() (see file_system_add()'s
     // "data" name), rather than a literal here: on POSIX that filesystem's real path is resolved
@@ -37,8 +39,6 @@ static error_t paths_get_data_root_path(char* out_path, size_t out_path_size) {
 #error CONFIG_TT_USER_DATA_* not set or unsupported
 #endif
 }
-
-extern "C" {
 
 error_t paths_get_data_path(char* out_path, size_t out_path_size) {
     // Sized for a real, realpath()-resolved absolute path (see paths_get_data_root_path()'s

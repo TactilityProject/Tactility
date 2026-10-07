@@ -64,8 +64,8 @@ void collectPackage(const ::AppPackage* pkg, void* context) {
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
-    // Flex column + flex_grow; see AppList.cpp's createWidgets() for why a fixed height computed
-    // once from lv_obj_get_content_height(parent) goes stale.
+    // Flex column + flex_grow, because a fixed height computed once from
+    // lv_obj_get_content_height(parent) goes stale after a resize.
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 

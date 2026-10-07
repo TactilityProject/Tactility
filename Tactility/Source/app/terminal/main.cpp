@@ -40,6 +40,11 @@ void onClosePressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
+void onCanvasClicked(lv_event_t* event) {
+    auto* toolbar = static_cast<lv_obj_t*>(lv_event_get_user_data(event));
+    lv_obj_set_flag(toolbar, LV_OBJ_FLAG_HIDDEN, !lv_obj_has_flag(toolbar, LV_OBJ_FLAG_HIDDEN));
+}
+
 void createWidgets(lv_obj_t* root, void* userData) {
     auto* ctx = static_cast<WindowContext*>(userData);
 
@@ -47,15 +52,20 @@ void createWidgets(lv_obj_t* root, void* userData) {
     lv_obj_set_style_pad_all(root, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_row(root, 0, LV_STATE_DEFAULT);
 
-    // The toolbar only offers a touch close button, so it is left out to give the terminal more room
-    if (lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
-        auto* toolbar = lvgl_toolbar_create(root, "Terminal");
-        lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onClosePressed, ctx);
-    }
-
     auto* canvas = lv_canvas_create(root);
     lv_obj_set_width(canvas, LV_PCT(100));
     lv_obj_set_flex_grow(canvas, 1);
+
+    // The toolbar only offers a touch close button. It's hidden to give the terminal all the room, and touching the terminal shows it on top.
+    if (lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
+        auto* toolbar = lvgl_toolbar_create(root, "Terminal");
+        lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onClosePressed, ctx);
+        lv_obj_add_flag(toolbar, LV_OBJ_FLAG_FLOATING);
+        lv_obj_align(toolbar, LV_ALIGN_TOP_MID, 0, 0);
+        lv_obj_add_flag(toolbar, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(canvas, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(canvas, onCanvasClicked, LV_EVENT_SHORT_CLICKED, toolbar);
+    }
 
     ctx->renderer.attachCanvas(canvas);
 }

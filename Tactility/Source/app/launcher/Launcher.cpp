@@ -1,16 +1,19 @@
 #include <app/event.h>
 #include <app/manager.h>
 #include <app/manifest.h>
+#include <app/package_manifest.h>
 #include <app/scheduler.h>
 #include <app/start.h>
 
+#include <algorithm>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include <lvgl.h>
-#include <lvgl/icons/launcher.h>
 #include <lvgl/fonts.h>
-#include <lvgl/grid_navigation.h>
-#include <lvgl/lvgl.h>
+#include <lvgl/icons/shared.h>
+#include <lvgl/insets.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/icon_button.h>
 
@@ -18,13 +21,11 @@
 
 #include <tactility/check.h>
 #include <tactility/device.h>
-#include <tactility/drivers/pointer.h>
 #include <tactility/drivers/power_supply.h>
-#include <tactility/freertos/semphr.h>
-#include <tactility/freertos/task.h>
 #include <tactility/log.h>
-#include <tactility/memory.h>
 
+#include <Tactility/app/AppGrid.h>
+#include <Tactility/app/launcher/Favourites.h>
 #include <Tactility/app/setup/Setup.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/Tactility.h>
@@ -35,32 +36,107 @@ constexpr auto* TAG = "Launcher";
 
 namespace {
 
-int32_t computeButtonMargin(int32_t available_span, int32_t total_button_size) {
-    const int32_t usable = std::max<int32_t>(0, available_span - (3 * total_button_size));
-    return std::min<int32_t>(usable / 16, total_button_size / 2);
+struct IconEntry {
+    const char* id;
+    const char* icon;
+};
+
+constexpr IconEntry ICONS[] = {
+    {"tactility.apphub",            LVGL_ICON_SHARED_DOWNLOAD},
+    {"tactility.camera",            LVGL_ICON_SHARED_CAMERA},
+    {"tactility.chat",              LVGL_ICON_SHARED_FORUM},
+    {"tactility.files",             LVGL_ICON_SHARED_FOLDER},
+    {"tactility.i2cscanner",        LVGL_ICON_SHARED_CABLE},
+    {"tactility.notes",             LVGL_ICON_SHARED_EDIT_NOTE},
+    {"tactility.screenshot",        LVGL_ICON_SHARED_IMAGE},
+    {"tactility.settings",          LVGL_ICON_SHARED_SETTINGS},
+    {"tactility.systeminfo",        LVGL_ICON_SHARED_DEVICES},
+    {"tactility.terminal",          LVGL_ICON_SHARED_TERMINAL},
+    {"tactility.webserversettings", LVGL_ICON_SHARED_CLOUD},
+};
+
+// Hidden apps that are still shown in the launcher
+constexpr const char* SHOWN_HIDDEN_APP_IDS[] = {
+    "tactility.files",
+    "tactility.settings",
+};
+
+const char* appIcon(const ::AppManifest* manifest) {
+    for (const auto& entry : ICONS) {
+        if (!strcmp(manifest->id, entry.id)) return entry.icon;
+    }
+    return LVGL_ICON_SHARED_DEPLOYED_CODE;
 }
 
-// Spreads the buttons along the display's longest side. The button padding comes from the theme.
-void applyButtonMargins(lv_obj_t* buttonsWrapper, bool isLandscape) {
-    const uint32_t child_count = lv_obj_get_child_count(buttonsWrapper);
-    if (child_count == 0) {
+bool isShown(const ::AppManifest& manifest) {
+    if (manifest.category != APP_CATEGORY_USER && manifest.category != APP_CATEGORY_SYSTEM) {
+        return false;
+    }
+    if ((manifest.flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
+        return true;
+    }
+    return std::ranges::any_of(SHOWN_HIDDEN_APP_IDS, [&](const char* id) { return strcmp(manifest.id, id) == 0; });
+}
+
+void collectManifest(const ::AppManifest* manifest, void* context) {
+    auto* manifests = static_cast<std::vector<::AppManifest>*>(context);
+    manifests->push_back(*manifest);
+}
+
+// Apps from installed packages this device can't run (wrong device, too little RAM)
+void collectIncompatibleAppIds(const AppPackage* package, void* context) {
+    if (app_package_manifest_is_compatible(&package->package)) {
         return;
     }
-    auto* first_button = lv_obj_get_child(buttonsWrapper, 0);
-    const auto total_button_size = static_cast<int32_t>(lvgl_get_launcher_icon_font_height()) +
-        lv_obj_get_style_pad_left(first_button, LV_PART_MAIN) + lv_obj_get_style_pad_right(first_button, LV_PART_MAIN);
-    const auto* display = lv_obj_get_display(buttonsWrapper);
-    const auto span = isLandscape ? lv_display_get_horizontal_resolution(display) : lv_display_get_vertical_resolution(display);
-    const int32_t margin = computeButtonMargin(span, total_button_size);
-    for (uint32_t i = 0; i < child_count; i++) {
-        auto* button = lv_obj_get_child(buttonsWrapper, i);
-        lv_obj_set_style_margin_hor(button, isLandscape ? margin : 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_margin_ver(button, isLandscape ? 0 : margin, LV_STATE_DEFAULT);
+    auto* ids = static_cast<std::vector<std::string>*>(context);
+    for (size_t i = 0; i < package->app_id_count; i++) {
+        ids->emplace_back(package->app_ids[i]);
     }
 }
 
-void onAppPressed(lv_event_t* e) {
-    auto* appId = static_cast<const char*>(lv_event_get_user_data(e));
+std::vector<AppGridItem> collectItems(void* userData);
+void onAppClicked(const ::AppManifest& manifest, void* userData);
+void onAppLongPressed(const ::AppManifest& manifest, void* userData);
+void onAppKey(const ::AppManifest& manifest, uint32_t key, void* userData);
+
+struct Context {
+    Favourites favourites;
+    AppGrid grid { AppGrid::Callbacks {
+        .collect = collectItems,
+        .onClicked = onAppClicked,
+        .onLongPressed = onAppLongPressed,
+        .onKey = onAppKey,
+        .userData = this
+    } };
+};
+
+std::vector<AppGridItem> collectItems(void* userData) {
+    const auto* ctx = static_cast<Context*>(userData);
+    const std::vector<std::string> favouriteIds = ctx->favourites.load();
+
+    std::vector<::AppManifest> collected;
+    app_manager_for_each_manifest(collectManifest, &collected);
+    std::vector<std::string> incompatibleIds;
+    app_manager_for_each_package(collectIncompatibleAppIds, &incompatibleIds);
+    std::erase_if(collected, [&](const ::AppManifest& manifest) {
+        return !isShown(manifest) || std::ranges::find(incompatibleIds, std::string(manifest.id)) != incompatibleIds.end();
+    });
+
+    std::vector<AppGridItem> items;
+    items.reserve(collected.size());
+    for (const auto& manifest : collected) {
+        items.push_back({ manifest, appIcon(&manifest), Favourites::contains(favouriteIds, manifest.id) });
+    }
+    std::ranges::sort(items, [](const AppGridItem& a, const AppGridItem& b) {
+        if (a.highlighted != b.highlighted) {
+            return a.highlighted;
+        }
+        return strcmp(a.manifest.name, b.manifest.name) < 0;
+    });
+    return items;
+}
+
+void startApp(const char* appId) {
     uint32_t instance_id = 0;
     AppStartContext context;
     if (app_start_context_from_id(appId, &context) == ERROR_NONE) {
@@ -68,26 +144,39 @@ void onAppPressed(lv_event_t* e) {
     }
 }
 
-lv_obj_t* createAppButton(lv_obj_t* parent, LvglIconButtonVariant variant, const char* imageFile, const char* appId) {
-    const auto button_size = lvgl_get_launcher_icon_font_height();
-    auto* apps_button = lvgl_icon_button_create_variant(parent, variant);
-
-    // create the image first
-    auto* button_image = lv_image_create(apps_button);
-    lv_obj_set_style_text_font(button_image, lvgl_get_launcher_icon_font(), LV_STATE_DEFAULT);
-    lv_image_set_src(button_image, imageFile);
-
-    // Ensure it's square (Material Symbols are slightly wider than tall)
-    lv_obj_set_size(button_image, button_size, button_size);
-
-    lv_obj_add_event_cb(apps_button, onAppPressed, LV_EVENT_SHORT_CLICKED, (void*)appId);
-
-    return apps_button;
+void onAppClicked(const ::AppManifest& manifest, void*) {
+    startApp(manifest.id);
 }
 
-bool shouldShowPowerButton() {
-    bool show_power_button = false;
-    device_for_each_of_type(&POWER_SUPPLY_TYPE, &show_power_button, [](Device* device, void* context) {
+void toggleFavourite(Context* ctx, const char* appId, bool keepSelection) {
+    if (!ctx->favourites.toggle(appId)) {
+        LOG_E(TAG, "Failed to save favourites");
+    }
+    ctx->grid.requestRepopulate(keepSelection);
+}
+
+void onAppLongPressed(const ::AppManifest& manifest, void* userData) {
+    toggleFavourite(static_cast<Context*>(userData), manifest.id, false);
+}
+
+void onAppKey(const ::AppManifest& manifest, uint32_t key, void* userData) {
+    if (key == 'f' || key == 'F') {
+        toggleFavourite(static_cast<Context*>(userData), manifest.id, true);
+    }
+}
+
+void onShortcutPressed(lv_event_t* e) {
+    startApp(static_cast<const char*>(lv_event_get_user_data(e)));
+}
+
+bool isAppRegistered(const char* appId) {
+    ::AppManifest manifest;
+    return app_manager_find_manifest(appId, &manifest) == ERROR_NONE;
+}
+
+bool supportsPowerOff() {
+    bool supported = false;
+    device_for_each_of_type(&POWER_SUPPLY_TYPE, &supported, [](Device* device, void* context) {
         if (device_is_ready(device) && power_supply_supports_power_off(device)) {
             *static_cast<bool*>(context) = true;
             return false; // stop iterating
@@ -95,98 +184,49 @@ bool shouldShowPowerButton() {
             return true; // continue iterating
         }
     });
-    return show_power_button;
+    return supported;
 }
 
-void onButtonsWrapperResized(lv_event_t* e);
-
-// The screen object outlives this window's own widgets (lvgl-window-manager deletes and
-// recreates only the topmost window's widget on every app switch, not the screen itself), so
-// the LV_EVENT_SIZE_CHANGED callback registered on it must be removed once buttons_wrapper is
-// destroyed, to avoid a dangling user-data pointer the next time the display rotates while a
-// different window is topmost.
-void onButtonsWrapperDeleted(lv_event_t* e) {
-    auto* buttons_wrapper = lv_event_get_target_obj(e);
-    auto* screen = lv_obj_get_screen(buttons_wrapper);
-    lv_obj_remove_event_cb_with_user_data(screen, onButtonsWrapperResized, buttons_wrapper);
+void addShortcut(lv_obj_t* parent, const char* icon, const char* appId) {
+    auto* button = lvgl_icon_button_create(parent);
+    auto* label = lv_label_create(button);
+    lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_label_set_text(label, icon);
+    lv_obj_add_event_cb(button, onShortcutPressed, LV_EVENT_SHORT_CLICKED, const_cast<char*>(appId));
 }
 
-// Re-applies the flex direction and per-button margins when the display orientation changes
-// while the launcher is the visible window (these are decided once at createWidgets() based on
-// the resolution at that time, so a later rotation needs this to catch up).
-void onButtonsWrapperResized(lv_event_t* e) {
-    auto* buttons_wrapper = static_cast<lv_obj_t*>(lv_event_get_user_data(e));
-    const auto* display = lv_obj_get_display(buttons_wrapper);
-
-    const auto horizontal_px = lv_display_get_horizontal_resolution(display);
-    const auto vertical_px = lv_display_get_vertical_resolution(display);
-    const bool is_landscape_display = horizontal_px >= vertical_px;
-    const auto current_flow = lv_obj_get_style_flex_flow(buttons_wrapper, LV_PART_MAIN);
-    const bool was_landscape = current_flow == LV_FLEX_FLOW_ROW;
-    if (is_landscape_display == was_landscape) {
-        return;
-    }
-
-    lv_obj_set_flex_flow(buttons_wrapper, is_landscape_display ? LV_FLEX_FLOW_ROW : LV_FLEX_FLOW_COLUMN);
-    applyButtonMargins(buttons_wrapper, is_landscape_display);
+lv_obj_t* createBarSection(lv_obj_t* parent, lv_flex_align_t align) {
+    auto* section = lv_obj_create(parent);
+    lv_obj_set_size(section, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(section, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(section, 0, LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(section, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(section, align, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(section, LV_OBJ_FLAG_SCROLLABLE);
+    return section;
 }
 
-void createWidgets(lv_obj_t* parent, void*) {
-    auto* buttons_wrapper = lv_obj_create(parent);
+void createWidgets(lv_obj_t* parent, void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
 
-    lv_obj_align(buttons_wrapper, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_size(buttons_wrapper, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_border_width(buttons_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_flex_grow(buttons_wrapper, 1);
+    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    // Fix for button selection
-    lv_obj_set_style_pad_all(buttons_wrapper, 6, LV_STATE_DEFAULT);
+    // Power off on the left, the page number and page buttons on the right
+    auto* bottom_bar = createBarSection(parent, LV_FLEX_ALIGN_START);
+    lv_obj_set_width(bottom_bar, LV_PCT(100));
+    lvgl_obj_add_edge_padding(bottom_bar);
+    auto* left_section = createBarSection(bottom_bar, LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_grow(left_section, 1);
+    auto* page_bar = createBarSection(bottom_bar, LV_FLEX_ALIGN_END);
 
-    const auto* display = lv_obj_get_display(parent);
-    const auto horizontal_px = lv_display_get_horizontal_resolution(display);
-    const auto vertical_px = lv_display_get_vertical_resolution(display);
-    const bool is_landscape_display = horizontal_px >= vertical_px;
-    if (is_landscape_display) {
-        lv_obj_set_flex_flow(buttons_wrapper, LV_FLEX_FLOW_ROW);
-    } else {
-        lv_obj_set_flex_flow(buttons_wrapper, LV_FLEX_FLOW_COLUMN);
-    }
+    // The monochrome theme's primary color is black, also on a black background
+    ctx->grid.setPrimaryColorIcons(!lvgl_theme_is_mono());
+    ctx->grid.createWidgetsWithPageBar(parent, page_bar);
+    lv_obj_move_foreground(bottom_bar);
 
-    // The app list is the main action, so it stands out more than the others
-    // Filled buttons would be solid black blocks with the monochrome theme
-    const auto variant = lvgl_theme_is_mono() ? LVGL_ICON_BUTTON_STANDARD : LVGL_ICON_BUTTON_FILLED;
-    auto* app_list_button = createAppButton(buttons_wrapper, variant, LVGL_ICON_LAUNCHER_APPS, "tactility.applist");
-    createAppButton(buttons_wrapper, variant, LVGL_ICON_LAUNCHER_FOLDER, "tactility.files");
-    createAppButton(buttons_wrapper, variant, LVGL_ICON_LAUNCHER_SETTINGS, "tactility.settings");
-    applyButtonMargins(buttons_wrapper, is_landscape_display);
-    // The arrow keys move between the buttons, in a row or a column
-    lvgl_grid_navigation_add(buttons_wrapper);
-
-    // The launcher's container is several levels below the screen, and LVGL only sends
-    // LV_EVENT_SIZE_CHANGED to the screen object itself on a resolution change - so the
-    // handler is attached there, with buttons_wrapper passed through as user data.
-    lv_obj_add_event_cb(lv_obj_get_screen(parent), onButtonsWrapperResized, LV_EVENT_SIZE_CHANGED, buttons_wrapper);
-    lv_obj_add_event_cb(buttons_wrapper, onButtonsWrapperDeleted, LV_EVENT_DELETE, nullptr);
-
-    // Some devices (e.g. T-Lora Pager) have no other way to power off, so the
-    // button stays in the launcher; the confirmation flow lives in the PowerOff app.
-    if (shouldShowPowerButton()) {
-        auto* power_button = lvgl_icon_button_create(parent);
-        lv_obj_set_style_pad_all(power_button, 8, 0);
-        lv_obj_align(power_button, LV_ALIGN_BOTTOM_MID, 0, -10);
-        lv_obj_add_event_cb(power_button, onAppPressed, LV_EVENT_SHORT_CLICKED, (void*)"tactility.poweroff");
-
-        auto* power_label = lv_label_create(power_button);
-        lv_label_set_text(power_label, LV_SYMBOL_POWER);
-    }
-
-    // If we don't have a touch device, we assume there's some other kind of input like a keyboard, an encoder or button control
-    // In that scenario we want to automatically have the app list button selected so the user doesn't have to press the widget selection
-    // an extra time.
-    if (!device_has_active_by_type(&POINTER_TYPE)) {
-        // lv_obj_update_layout(parent); // Resolve flex layout first, so focus/state invalidate against final coords
-        lv_group_focus_obj(buttons_wrapper);
-        lv_gridnav_set_focused(buttons_wrapper, app_list_button, LV_ANIM_OFF);
+    if (isAppRegistered("tactility.poweroff") && supportsPowerOff()) {
+        addShortcut(left_section, LVGL_ICON_SHARED_POWER_SETTINGS_NEW, "tactility.poweroff");
     }
 }
 
@@ -218,30 +258,6 @@ void runAutoStart() {
     }
 }
 
-constexpr size_t AUTO_START_STACK_DEPTH = 4096 / sizeof(StackType_t);
-
-struct AutoStartTaskContext {
-    SemaphoreHandle_t done;
-};
-
-void autoStartTaskMain(void* param) {
-    auto* context = static_cast<AutoStartTaskContext*>(param);
-    runAutoStart();
-    xSemaphoreGive(context->done);
-    vTaskDelete(nullptr);
-}
-
-// runAutoStart() reads from flash, and apps run on PSRAM when available.
-// Launcher stays in memory, so we prefer to keep the PSRAM task and temporarily run an IRAM task for auto start logic.
-void runAutoStartIsolated() {
-    AutoStartTaskContext context { .done = xSemaphoreCreateBinary() };
-    check(context.done != nullptr);
-    TaskHandle_t auto_start_task = nullptr;
-    check(xTaskCreate(autoStartTaskMain, "LauncherAutoStart", AUTO_START_STACK_DEPTH, &context, tskIDLE_PRIORITY, &auto_start_task) == pdPASS);
-    xSemaphoreTake(context.done, portMAX_DELAY);
-    vSemaphoreDelete(context.done);
-}
-
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
 
@@ -251,9 +267,10 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, nullptr);
+    Context ctx;
+    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
 
-    runAutoStartIsolated();
+    runAutoStart();
 
     // The launcher is meant to stay resident (it's the home screen) - it only gives up its
     // thread when app-module's scheduler asks it to (e.g. another new-model app is started).
@@ -285,8 +302,7 @@ extern const ::AppManifest manifest = {
     .category = APP_CATEGORY_SYSTEM,
     .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(appMain) },
     .flags = APP_MANIFEST_FLAG_HIDDEN,
-    // No file IO, so callstack can be in external RAM
-    .stack = { .depth = 3072 , .desired_memory_capability = MEMORY_CAPABILITY_EXTERNAL }
+    .stack = { .depth = 5120, .desired_memory_capability = 0 }
 };
 
 // Kept for Tactility/Private/Tactility/app/launcher/Launcher.h's existing declaration (still

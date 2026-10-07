@@ -523,10 +523,18 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_spinbox_set_range(font_size_spinbox, MIN_FONT_SIZE, MAX_FONT_SIZE);
     lv_spinbox_set_digit_format(font_size_spinbox, 2, 0);
     lv_spinbox_set_step(font_size_spinbox, 1);
+    // Wide enough for the digits and the room that the text field keeps for its cursor, so it never scrolls the digits out of view.
+    // The size is set before the value, because setting the value scrolls to the cursor using the current size.
+    const lv_font_t* font_size_font = lv_obj_get_style_text_font(font_size_spinbox, LV_PART_MAIN);
+    lv_point_t digits_size;
+    lv_text_get_size(&digits_size, "00", font_size_font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int32_t font_size_content_width = digits_size.x + lv_font_get_line_height(font_size_font);
+    lv_obj_set_width(font_size_spinbox, font_size_content_width +
+        lv_obj_get_style_pad_left(font_size_spinbox, LV_PART_MAIN) + lv_obj_get_style_pad_right(font_size_spinbox, LV_PART_MAIN) +
+        2 * lv_obj_get_style_border_width(font_size_spinbox, LV_PART_MAIN));
+    lv_obj_set_style_text_align(font_size_spinbox, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     const uint16_t font_size = ctx->pendingSettings.fontSize != 0 ? ctx->pendingSettings.fontSize : static_cast<uint16_t>(TT_FONT_DEFAULT_SIZE);
     lv_spinbox_set_value(font_size_spinbox, font_size);
-    lv_obj_set_width(font_size_spinbox, lv_font_get_line_height(lv_obj_get_style_text_font(font_size_spinbox, LV_PART_MAIN)) * 3);
-    lv_obj_set_style_text_align(font_size_spinbox, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     // The value is changed with the buttons, so the digit cursor isn't shown
     lv_obj_set_style_bg_opa(font_size_spinbox, LV_OPA_TRANSP, LV_PART_CURSOR);
     lv_obj_add_event_cb(font_size_spinbox, onFontSizeChanged, LV_EVENT_VALUE_CHANGED, ctx);

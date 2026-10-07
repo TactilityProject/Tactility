@@ -74,13 +74,23 @@ void AppGrid::onPrevPressed(lv_event_t* e) {
     auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
     if (self->page > 0) {
         self->page--;
-        self->populate();
+    } else if (self->pageBar != nullptr) {
+        self->page = self->pageCount - 1;
+    } else {
+        return;
     }
+    self->populate();
 }
 
 void AppGrid::onNextPressed(lv_event_t* e) {
     auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
-    self->page++;
+    if (self->page + 1 < self->pageCount) {
+        self->page++;
+    } else if (self->pageBar != nullptr) {
+        self->page = 0;
+    } else {
+        return;
+    }
     self->populate();
 }
 
@@ -140,11 +150,17 @@ void AppGrid::populate() {
         }
     }
     page = std::min(page, page_count - 1);
+    pageCount = page_count;
 
-    lv_obj_set_state(prevButton, LV_STATE_DISABLED, page == 0);
-    lv_obj_set_state(nextButton, LV_STATE_DISABLED, page + 1 >= page_count);
-    lv_obj_set_flag(prevButton, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
-    lv_obj_set_flag(nextButton, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
+    if (pageBar != nullptr) {
+        lv_obj_set_flag(pageBar, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
+        lv_label_set_text_fmt(pageLabel, "%lu/%lu", static_cast<unsigned long>(page + 1), static_cast<unsigned long>(page_count));
+    } else {
+        lv_obj_set_state(prevButton, LV_STATE_DISABLED, page == 0);
+        lv_obj_set_state(nextButton, LV_STATE_DISABLED, page + 1 >= page_count);
+        lv_obj_set_flag(prevButton, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
+        lv_obj_set_flag(nextButton, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
+    }
 
     lv_obj_t* focusedTile = nullptr;
     const uint32_t first = page * layout.pageSize;
@@ -166,6 +182,9 @@ void AppGrid::populate() {
         lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
         lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
         lv_label_set_text(icon, item.icon);
+        if (primaryColorIcons) {
+            lv_obj_set_style_text_color(icon, lv_theme_get_color_primary(icon), LV_STATE_DEFAULT);
+        }
 
         lv_obj_t* label = lv_label_create(tile);
         lv_obj_set_style_text_font(label, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
@@ -200,10 +219,7 @@ void AppGrid::populate() {
     }
 }
 
-void AppGrid::createWidgets(lv_obj_t* parent, lv_obj_t* toolbar) {
-    prevButton = lvgl_toolbar_add_text_button_action(toolbar, "<", onPrevPressed, this);
-    nextButton = lvgl_toolbar_add_text_button_action(toolbar, ">", onNextPressed, this);
-
+void AppGrid::createGrid(lv_obj_t* parent) {
     grid = lv_obj_create(parent);
     lv_obj_set_width(grid, LV_PCT(100));
     lv_obj_set_flex_grow(grid, 1);
@@ -215,11 +231,17 @@ void AppGrid::createWidgets(lv_obj_t* parent, lv_obj_t* toolbar) {
     lv_obj_remove_flag(grid, LV_OBJ_FLAG_SCROLLABLE);
     // The arrow keys move between the tiles in rows and columns
     lvgl_grid_navigation_add(grid);
+    lv_obj_add_event_cb(grid, onGridDeleted, LV_EVENT_DELETE, this);
+}
+
+void AppGrid::createWidgets(lv_obj_t* parent, lv_obj_t* toolbar) {
+    prevButton = lvgl_toolbar_add_text_button_action(toolbar, "<", onPrevPressed, this);
+    nextButton = lvgl_toolbar_add_text_button_action(toolbar, ">", onNextPressed, this);
+
+    createGrid(parent);
 
     // Resolves the grid's flex_grow height, which the page size is derived from.
     lv_obj_update_layout(parent);
-
-    lv_obj_add_event_cb(grid, onGridDeleted, LV_EVENT_DELETE, this);
     lv_obj_add_event_cb(grid, onGridSizeChanged, LV_EVENT_SIZE_CHANGED, this);
 
     populate();
@@ -228,6 +250,34 @@ void AppGrid::createWidgets(lv_obj_t* parent, lv_obj_t* toolbar) {
     if (next_visible && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
         lv_group_focus_obj(nextButton);
         lv_obj_add_state(nextButton, LV_STATE_FOCUS_KEY);
+    }
+}
+
+void AppGrid::createWidgetsWithPageBar(lv_obj_t* parent, lv_obj_t* pageBar) {
+    createGrid(parent);
+
+    this->pageBar = pageBar;
+    lv_obj_set_flex_flow(pageBar, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(pageBar, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    pageLabel = lv_label_create(pageBar);
+    prevButton = lvgl_icon_button_create(pageBar);
+    lv_label_set_text(lv_label_create(prevButton), "<");
+    lv_obj_add_event_cb(prevButton, onPrevPressed, LV_EVENT_SHORT_CLICKED, this);
+    nextButton = lvgl_icon_button_create(pageBar);
+    lv_label_set_text(lv_label_create(nextButton), ">");
+    lv_obj_add_event_cb(nextButton, onNextPressed, LV_EVENT_SHORT_CLICKED, this);
+    // The arrow keys move between the page buttons
+    lvgl_grid_navigation_add(pageBar);
+
+    // Resolves the grid's flex_grow height, which the page size is derived from.
+    lv_obj_update_layout(parent);
+    lv_obj_add_event_cb(grid, onGridSizeChanged, LV_EVENT_SIZE_CHANGED, this);
+
+    populate();
+
+    if (!lvgl_indev_exists(LV_INDEV_TYPE_POINTER) && lv_obj_get_child_count(grid) > 0) {
+        lv_group_focus_obj(grid);
+        lv_gridnav_set_focused(grid, lv_obj_get_child(grid, 0), LV_ANIM_OFF);
     }
 }
 

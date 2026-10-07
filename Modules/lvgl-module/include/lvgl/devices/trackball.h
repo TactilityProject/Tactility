@@ -17,8 +17,8 @@ extern "C" {
  * @brief Trackball operating mode.
  */
 enum LvglTrackballMode {
-    /** Navigation via enc_diff (scroll wheel behavior). No cursor is shown. */
-    LVGL_TRACKBALL_MODE_ENCODER,
+    /** Navigation with arrow keys, and the button as the enter key. No cursor is shown. */
+    LVGL_TRACKBALL_MODE_KEYS,
     /** Mouse cursor via point.x/point.y. A cursor is shown if an image was set via
      *  lvgl_trackball_set_cursor_image(). */
     LVGL_TRACKBALL_MODE_POINTER
@@ -33,8 +33,8 @@ struct LvglTrackballSettings {
     /** When false, movement and button presses are drained from the device and discarded:
      *  the indev reports no movement and stays released. */
     bool enabled;
-    /** Encoder mode: steps per raw trackball tick. Must be >= 1. */
-    uint8_t encoder_sensitivity;
+    /** Keys mode: arrow key presses per raw trackball tick. Must be >= 1. */
+    uint8_t key_sensitivity;
     /** Pointer mode: pixels per raw trackball tick. Must be >= 1. */
     uint8_t pointer_sensitivity;
 };
@@ -43,7 +43,7 @@ struct LvglTrackballSettings {
  * @brief Creates an lv_indev_t bound to the given TRACKBALL_TYPE device and registers a read
  * callback that polls the device through its TrackballApi.
  *
- * The indev starts in LVGL_TRACKBALL_MODE_ENCODER, enabled, with default sensitivities (see
+ * The indev starts in LVGL_TRACKBALL_MODE_KEYS, enabled, with default sensitivities (see
  * lvgl_trackball_settings_get_default()). Call lvgl_trackball_set_settings() to change this,
  * e.g. to switch to pointer mode - each device added this way can independently run with or
  * without pointer support.
@@ -68,8 +68,8 @@ error_t lvgl_trackball_add(struct Device* device, lv_display_t* display, lv_inde
 void lvgl_trackball_remove(lv_indev_t* indev);
 
 /**
- * @return the default (all fields explicitly set) LvglTrackballSettings: encoder mode, enabled,
- * encoder_sensitivity 1, pointer_sensitivity 10.
+ * @return the default (all fields explicitly set) LvglTrackballSettings: keys mode, enabled,
+ * key_sensitivity 1, pointer_sensitivity 10.
  */
 struct LvglTrackballSettings lvgl_trackball_settings_get_default(void);
 

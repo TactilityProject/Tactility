@@ -65,27 +65,47 @@ void lvgl_grid_navigation_remove(lv_obj_t* container) {
 
 // Matches which children grid navigation can focus
 static bool is_focusable(lv_obj_t* obj) {
-    return !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN) && lv_obj_has_flag_any(obj, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE));
+    return !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN) && lv_obj_has_flag(obj, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE));
 }
 
-void lvgl_grid_navigation_focus_next(lv_obj_t* container, bool next) {
+// Finds the next focusable child after (or before) the given index
+static lv_obj_t* find_focusable_child(lv_obj_t* container, int32_t index, bool next) {
     const auto child_count = static_cast<int32_t>(lv_obj_get_child_count(container));
-    lv_obj_t* focused = lvgl_grid_navigation_get_focused(container);
-    int32_t index = focused != nullptr ? lv_obj_get_index(focused) : (next ? -1 : child_count);
     for (index += next ? 1 : -1; index >= 0 && index < child_count; index += next ? 1 : -1) {
         auto* child = lv_obj_get_child(container, index);
         if (is_focusable(child)) {
-            lv_gridnav_set_focused(container, child, LV_ANIM_ON);
+            return child;
+        }
+    }
+    return nullptr;
+}
+
+void lvgl_grid_navigation_step(lv_group_t* group, bool next) {
+    lv_obj_t* focused = lv_group_get_focused(group);
+    if (lvgl_grid_navigation_is_container(focused)) {
+        lv_obj_t* focused_child = lvgl_grid_navigation_get_focused(focused);
+        const int32_t index = focused_child != nullptr ? lv_obj_get_index(focused_child) : (next ? -1 : static_cast<int32_t>(lv_obj_get_child_count(focused)));
+        lv_obj_t* child = find_focusable_child(focused, index, next);
+        if (child != nullptr) {
+            lv_gridnav_set_focused(focused, child, LV_ANIM_ON);
             return;
         }
     }
 
-    lv_group_t* group = lv_obj_get_group(container);
-    if (group != nullptr) {
-        if (next) {
-            lv_group_focus_next(group);
-        } else {
-            lv_group_focus_prev(group);
+    lv_group_set_editing(group, false);
+    if (next) {
+        lv_group_focus_next(group);
+    } else {
+        lv_group_focus_prev(group);
+    }
+
+    // Grid navigation restores the child that was focused last, but stepping enters at the side it came from
+    lv_obj_t* entered = lv_group_get_focused(group);
+    if (lvgl_grid_navigation_is_container(entered)) {
+        const int32_t start = next ? -1 : static_cast<int32_t>(lv_obj_get_child_count(entered));
+        lv_obj_t* child = find_focusable_child(entered, start, next);
+        if (child != nullptr) {
+            lv_gridnav_set_focused(entered, child, LV_ANIM_ON);
         }
     }
 }

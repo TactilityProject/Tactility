@@ -27,10 +27,12 @@ struct Context {
     PubSub<service::audio::AudioEvent>::SubscriptionHandle audioSubscription = nullptr;
 
     lv_obj_t* inputEnabledSwitch = nullptr;
+    lv_obj_t* inputCard = nullptr;
     lv_obj_t* inputMuteSwitch = nullptr;
     lv_obj_t* inputVolumeSlider = nullptr;
 
     lv_obj_t* outputEnabledSwitch = nullptr;
+    lv_obj_t* outputCard = nullptr;
     lv_obj_t* outputMuteSwitch = nullptr;
     lv_obj_t* outputVolumeSlider = nullptr;
 };
@@ -42,15 +44,19 @@ void onBackPressed(lv_event_t* event) {
 }
 
 void onInputEnabledSwitch(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
     service::audio::setInputEnabled(enabled);
+    lv_obj_set_flag(ctx->inputCard, LV_OBJ_FLAG_HIDDEN, !enabled);
 }
 
 void onOutputEnabledSwitch(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
     service::audio::setOutputEnabled(enabled);
+    lv_obj_set_flag(ctx->outputCard, LV_OBJ_FLAG_HIDDEN, !enabled);
 }
 
 void onInputMuteSwitch(lv_event_t* event) {
@@ -77,23 +83,38 @@ void onOutputVolumeSlider(lv_event_t* event) {
     service::audio::setOutputVolume(percent);
 }
 
-lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
-    auto* title_label = lv_label_create(parent);
-    lv_label_set_text(title_label, title);
-
-    auto* card = lvgl_card_create(parent);
-    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-
-    return card;
-}
-
 // An unstyled container, so the rows don't paint over the card
 lv_obj_t* createRow(lv_obj_t* parent) {
     auto* row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
     return row;
+}
+
+struct Section {
+    lv_obj_t* enabledSwitch;
+    lv_obj_t* card;
+};
+
+// The title has the device's enable switch on its right. The card with the device's settings is hidden while it's disabled.
+Section createSection(lv_obj_t* parent, const char* title, bool enabled, lv_event_cb_t onEnabledChanged, void* userData) {
+    auto* header = createRow(parent);
+
+    auto* title_label = lv_label_create(header);
+    lv_label_set_text(title_label, title);
+    lv_obj_align(title_label, LV_ALIGN_LEFT_MID, 0, 0);
+
+    auto* sw = lv_switch_create(header);
+    lv_obj_align(sw, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_state(sw, LV_STATE_CHECKED, enabled);
+    lv_obj_add_event_cb(sw, onEnabledChanged, LV_EVENT_VALUE_CHANGED, userData);
+
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flag(card, LV_OBJ_FLAG_HIDDEN, !enabled);
+
+    return { sw, card };
 }
 
 lv_obj_t* createSwitchRow(lv_obj_t* parent, const char* label, lv_event_cb_t cb, void* userData) {
@@ -127,8 +148,9 @@ lv_obj_t* createSliderRow(lv_obj_t* parent, const char* label, int32_t initialVa
 
 void refresh(Context* ctx) {
     if (ctx->inputEnabledSwitch) {
-        if (service::audio::isInputEnabled()) lv_obj_add_state(ctx->inputEnabledSwitch, LV_STATE_CHECKED);
-        else lv_obj_remove_state(ctx->inputEnabledSwitch, LV_STATE_CHECKED);
+        const bool enabled = service::audio::isInputEnabled();
+        lv_obj_set_state(ctx->inputEnabledSwitch, LV_STATE_CHECKED, enabled);
+        lv_obj_set_flag(ctx->inputCard, LV_OBJ_FLAG_HIDDEN, !enabled);
     }
     if (ctx->inputMuteSwitch) {
         if (service::audio::isInputMuted()) lv_obj_add_state(ctx->inputMuteSwitch, LV_STATE_CHECKED);
@@ -139,8 +161,9 @@ void refresh(Context* ctx) {
     }
 
     if (ctx->outputEnabledSwitch) {
-        if (service::audio::isOutputEnabled()) lv_obj_add_state(ctx->outputEnabledSwitch, LV_STATE_CHECKED);
-        else lv_obj_remove_state(ctx->outputEnabledSwitch, LV_STATE_CHECKED);
+        const bool enabled = service::audio::isOutputEnabled();
+        lv_obj_set_state(ctx->outputEnabledSwitch, LV_STATE_CHECKED, enabled);
+        lv_obj_set_flag(ctx->outputCard, LV_OBJ_FLAG_HIDDEN, !enabled);
     }
     if (ctx->outputMuteSwitch) {
         if (service::audio::isOutputMuted()) lv_obj_add_state(ctx->outputMuteSwitch, LV_STATE_CHECKED);
@@ -177,17 +200,19 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // device (e.g. a dedicated input codec with no output codec bound) should
     // only show the section it actually has, not a dead section for the other.
     if (service::audio::isInputAvailable()) {
-        auto* input_section = createSection(main_wrapper, "Microphone");
-        ctx->inputEnabledSwitch = createSwitchRow(input_section, "Enabled", onInputEnabledSwitch, ctx);
-        ctx->inputMuteSwitch = createSwitchRow(input_section, "Mute", onInputMuteSwitch, ctx);
-        ctx->inputVolumeSlider = createSliderRow(input_section, "Volume", static_cast<int32_t>(service::audio::getInputVolume()), onInputVolumeSlider, ctx);
+        const auto input_section = createSection(main_wrapper, "Microphone", service::audio::isInputEnabled(), onInputEnabledSwitch, ctx);
+        ctx->inputEnabledSwitch = input_section.enabledSwitch;
+        ctx->inputCard = input_section.card;
+        ctx->inputMuteSwitch = createSwitchRow(input_section.card, "Mute", onInputMuteSwitch, ctx);
+        ctx->inputVolumeSlider = createSliderRow(input_section.card, "Volume", static_cast<int32_t>(service::audio::getInputVolume()), onInputVolumeSlider, ctx);
     }
 
     if (service::audio::isOutputAvailable()) {
-        auto* output_section = createSection(main_wrapper, "Speaker");
-        ctx->outputEnabledSwitch = createSwitchRow(output_section, "Enabled", onOutputEnabledSwitch, ctx);
-        ctx->outputMuteSwitch = createSwitchRow(output_section, "Mute", onOutputMuteSwitch, ctx);
-        ctx->outputVolumeSlider = createSliderRow(output_section, "Volume", static_cast<int32_t>(service::audio::getOutputVolume()), onOutputVolumeSlider, ctx);
+        const auto output_section = createSection(main_wrapper, "Speaker", service::audio::isOutputEnabled(), onOutputEnabledSwitch, ctx);
+        ctx->outputEnabledSwitch = output_section.enabledSwitch;
+        ctx->outputCard = output_section.card;
+        ctx->outputMuteSwitch = createSwitchRow(output_section.card, "Mute", onOutputMuteSwitch, ctx);
+        ctx->outputVolumeSlider = createSliderRow(output_section.card, "Volume", static_cast<int32_t>(service::audio::getOutputVolume()), onOutputVolumeSlider, ctx);
     }
 
     // isAvailable() only reflects that the audio-stream device exists, not that any
