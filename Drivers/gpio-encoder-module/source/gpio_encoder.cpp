@@ -262,7 +262,7 @@ static void poll_wheel(GpioEncoderInternal* internal) {
     int32_t detents = total / internal->pulses_per_detent;
     internal->pulse_remainder = total % internal->pulses_per_detent;
 
-    uint32_t key = detents >= 0 ? CODEPOINT_ARROW_DOWN : CODEPOINT_ARROW_UP;
+    uint32_t key = detents >= 0 ? CODEPOINT_FOCUS_NEXT : CODEPOINT_FOCUS_PREVIOUS;
     int32_t count = detents >= 0 ? detents : -detents;
     for (int32_t i = 0; i < count; i++) {
         // A press without its matching release would leave the consumer thinking the key

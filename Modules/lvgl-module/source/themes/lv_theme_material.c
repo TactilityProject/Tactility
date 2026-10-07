@@ -362,7 +362,6 @@ typedef struct {
     lv_style_t icon_button_tonal;
     lv_style_t icon_button_tonal_pressed;
     lv_style_t app_bar;
-    lv_style_t app_bar_actions;
     lv_style_t app_bar_button;
     lv_style_t app_bar_button_pressed;
     lv_style_t app_bar_focus_ring;
@@ -865,13 +864,6 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_hor(&theme->styles.app_bar, APP_BAR_PAD_HOR);
     lv_style_set_pad_ver(&theme->styles.app_bar, 0);
     lv_style_set_pad_gap(&theme->styles.app_bar, APP_BAR_GAP);
-
-    style_init_reset(&theme->styles.app_bar_actions);
-    lv_style_set_bg_opa(&theme->styles.app_bar_actions, LV_OPA_TRANSP);
-    lv_style_set_border_width(&theme->styles.app_bar_actions, 0);
-    lv_style_set_radius(&theme->styles.app_bar_actions, 0);
-    lv_style_set_pad_all(&theme->styles.app_bar_actions, 0);
-    lv_style_set_pad_gap(&theme->styles.app_bar_actions, APP_BAR_GAP);
 
     style_init_reset(&theme->styles.app_bar_button);
     lv_style_set_pad_all(&theme->styles.app_bar_button, 0);
@@ -1617,11 +1609,6 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
             return;
         }
 #endif
-        /* toolbar > obj */
-        if(lv_obj_check_type(parent, &lvgl_toolbar_class)) {
-            lv_obj_add_style(obj, &theme->styles.app_bar_actions, 0);
-            return;
-        }
         /* obj */
         lv_obj_add_style(obj, &theme->styles.container, 0);
         lv_obj_add_style(obj, &theme->styles.scrollbar, LV_PART_SCROLLBAR);
@@ -1705,18 +1692,6 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
             lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
             return;
         }
-        /* toolbar > obj > icon_button */
-        if(lv_obj_check_type(lss_ancestor(obj, 2), &lvgl_toolbar_class) && lv_obj_check_type(parent, &lv_obj_class)) {
-            lv_obj_add_style(obj, &theme->styles.icon_button, 0);
-            lv_obj_add_style(obj, &theme->styles.app_bar_button, 0);
-            lv_obj_add_style(obj, &theme->styles.transition_exit, 0);
-            lv_obj_add_style(obj, &theme->styles.app_bar_button_pressed, LV_STATE_PRESSED);
-            lv_obj_add_style(obj, &theme->styles.transition_enter, LV_STATE_PRESSED);
-            lv_obj_add_style(obj, &theme->styles.app_bar_focus_ring, LV_STATE_FOCUS_KEY);
-            lv_obj_add_style(obj, &theme->styles.app_bar_focus_ring, LV_STATE_EDITED);
-            lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
-            return;
-        }
         /* icon_button */
         lv_obj_add_style(obj, &theme->styles.icon_button, 0);
         lv_obj_add_style(obj, &theme->styles.transition_exit, 0);
@@ -1729,8 +1704,8 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
     }
 #if LV_USE_DROPDOWN
     if(lv_obj_check_type(obj, &lv_dropdown_class)) {
-        /* toolbar > obj > dropdown */
-        if(lv_obj_check_type(lss_ancestor(obj, 2), &lvgl_toolbar_class) && lv_obj_check_type(parent, &lv_obj_class)) {
+        /* toolbar > dropdown */
+        if(lv_obj_check_type(parent, &lvgl_toolbar_class)) {
             lv_obj_add_style(obj, &theme->styles.field, 0);
             lv_obj_add_style(obj, &theme->styles.transition_exit, 0);
             lv_obj_add_style(obj, &theme->styles.state_pressed, LV_STATE_PRESSED);

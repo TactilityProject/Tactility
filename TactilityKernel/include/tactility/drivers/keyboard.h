@@ -30,6 +30,10 @@ typedef enum {
     CODEPOINT_ARROW_DOWN  = 0x2193,
     CODEPOINT_HOME        = 0x21F1,
     CODEPOINT_END         = 0x21F2,
+    /** Moves the focus to the next widget, for devices that can only step through widgets (e.g. an encoder wheel) */
+    CODEPOINT_FOCUS_NEXT     = 0x21E5,
+    /** Moves the focus to the previous widget, for devices that can only step through widgets (e.g. an encoder wheel) */
+    CODEPOINT_FOCUS_PREVIOUS = 0x21E4,
 } CodePoint;
 
 /**

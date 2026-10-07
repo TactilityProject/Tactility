@@ -2,6 +2,7 @@
 
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/widgets/badge.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/toolbar.h>
@@ -104,13 +105,14 @@ void AppGrid::requestRepopulate(bool keepSelection) {
 }
 
 void AppGrid::populate() {
-    // Captured before lv_obj_clean() deletes the currently focused tile below: LVGL moves
-    // focus elsewhere as it leaves the group, and creating replacement tiles doesn't restore
-    // it, so the app id is remembered here and re-focused on its new tile once rebuilt.
+    // Captured before lv_obj_clean() deletes the currently focused tile below: creating
+    // replacement tiles doesn't restore the focus, so the app id is remembered here and
+    // re-focused on its new tile once rebuilt.
     std::string focusedAppId;
     lv_group_t* group = lv_group_get_default();
     if (group != nullptr && keepSelectionOnRepopulate) {
-        lv_obj_t* focused = lv_group_get_focused(group);
+        // Grid navigation focuses the grid in the group, and a tile within the grid
+        lv_obj_t* focused = lv_group_get_focused(group) == grid ? lvgl_grid_navigation_get_focused(grid) : nullptr;
         if (focused != nullptr && lv_obj_get_parent(focused) == grid) {
             focusedAppId = static_cast<const AppGridItem*>(lv_obj_get_user_data(focused))->manifest.id;
         }
@@ -193,8 +195,8 @@ void AppGrid::populate() {
     }
 
     if (focusedTile != nullptr) {
-        lv_group_focus_obj(focusedTile);
-        lv_obj_add_state(focusedTile, LV_STATE_FOCUS_KEY);
+        lv_group_focus_obj(grid);
+        lv_gridnav_set_focused(grid, focusedTile, LV_ANIM_OFF);
     }
 }
 
@@ -211,6 +213,8 @@ void AppGrid::createWidgets(lv_obj_t* parent, lv_obj_t* toolbar) {
     lv_obj_set_style_pad_column(grid, TILE_GAP, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(grid, 0, LV_STATE_DEFAULT);
     lv_obj_remove_flag(grid, LV_OBJ_FLAG_SCROLLABLE);
+    // The arrow keys move between the tiles in rows and columns
+    lvgl_grid_navigation_add(grid);
 
     // Resolves the grid's flex_grow height, which the page size is derived from.
     lv_obj_update_layout(parent);

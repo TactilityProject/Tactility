@@ -103,7 +103,7 @@ static error_t start(Device* device) {
 
     error_t error = acquire_button(
         config->pin_primary,
-        two_button_mode ? (uint32_t)CODEPOINT_ENTER : (uint32_t)CODEPOINT_ARROW_DOWN,
+        two_button_mode ? (uint32_t)CODEPOINT_ENTER : (uint32_t)CODEPOINT_FOCUS_NEXT,
         two_button_mode ? (uint32_t)CODEPOINT_ESCAPE : (uint32_t)CODEPOINT_ENTER,
         &internal->primary
     );
@@ -112,7 +112,7 @@ static error_t start(Device* device) {
         return error;
     }
 
-    error = acquire_button(config->pin_secondary, CODEPOINT_ARROW_DOWN, CODEPOINT_ARROW_UP, &internal->secondary);
+    error = acquire_button(config->pin_secondary, CODEPOINT_FOCUS_NEXT, CODEPOINT_FOCUS_PREVIOUS, &internal->secondary);
     if (error != ERROR_NONE) {
         if (internal->primary.in_use) {
             gpio_descriptor_release(internal->primary.descriptor);

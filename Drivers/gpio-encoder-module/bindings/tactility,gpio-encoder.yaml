@@ -1,7 +1,7 @@
 description: >
   GPIO-attached rotary encoder wheel - a 2-phase quadrature encoder (decoded via the ESP32
   hardware PCNT peripheral) plus an optional separate click/enter button. Exposes a
-  KEYBOARD_TYPE device: each wheel detent is translated to an arrow up/down key, and the
+  KEYBOARD_TYPE device: each wheel detent is translated to a focus next/previous key, and the
   button (if present) press/release is translated to the enter key.
 
 compatible: "tactility,gpio-encoder"

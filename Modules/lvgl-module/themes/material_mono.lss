@@ -470,14 +470,6 @@ app_bar {
     padGap: @app-bar-gap;
 }
 
-app_bar_actions {
-    bgOpa: transp;
-    borderWidth: 0;
-    radius: 0;
-    padAll: 0;
-    padGap: @app-bar-gap;
-}
-
 app_bar_button {
     padAll: 0;
 }
@@ -944,10 +936,6 @@ apply(calendar > obj) {
     // No styles
 }
 
-apply(toolbar > obj) {
-    app_bar_actions: default;
-}
-
 apply(obj) {
     container: default;
     scrollbar: part.scrollbar;
@@ -963,7 +951,7 @@ apply(tabview > *[0] > button) {
     edit_ring: state.edited;
 }
 
-apply(toolbar > icon_button, toolbar > obj > icon_button) {
+apply(toolbar > icon_button) {
     icon_button: default;
     app_bar_button: default;
     inverted: state.pressed;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <lvgl/devices/keyboard.h>
 #include <lvgl/devices/device_context.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 
 #include <tactility/drivers/keyboard.h>
@@ -55,6 +56,8 @@ static uint32_t codepoint_to_lv_key(uint32_t key) {
         case CODEPOINT_ARROW_UP: return LV_KEY_PREV;
         case CODEPOINT_ARROW_RIGHT: return LV_KEY_RIGHT;
         case CODEPOINT_ARROW_DOWN: return LV_KEY_NEXT;
+        case CODEPOINT_FOCUS_NEXT: return LV_KEY_NEXT;
+        case CODEPOINT_FOCUS_PREVIOUS: return LV_KEY_PREV;
         case CODEPOINT_HOME: return LV_KEY_HOME;
         case CODEPOINT_END: return LV_KEY_END;
         default: return key;
@@ -72,6 +75,25 @@ static void lvgl_keyboard_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     }
 
     data->key = codepoint_to_lv_key(key_data.key);
+    lv_group_t* group = lv_indev_get_group(indev);
+    lv_obj_t* focused = group != nullptr ? lv_group_get_focused(group) : nullptr;
+    if (lvgl_grid_navigation_is_container(focused)) {
+        if (key_data.key == CODEPOINT_ARROW_UP) {
+            // Grid navigation moves the focus in two dimensions with the arrow keys
+            data->key = LV_KEY_UP;
+        } else if (key_data.key == CODEPOINT_ARROW_DOWN) {
+            data->key = LV_KEY_DOWN;
+        } else if (key_data.key == CODEPOINT_FOCUS_NEXT || key_data.key == CODEPOINT_FOCUS_PREVIOUS) {
+            // Devices that can only step through widgets visit the children in their order.
+            // LVGL doesn't see these keys: the group would skip the children, as only the container is in the group.
+            if (key_data.pressed) {
+                lvgl_grid_navigation_focus_next(focused, key_data.key == CODEPOINT_FOCUS_NEXT);
+            }
+            data->state = LV_INDEV_STATE_RELEASED;
+            data->continue_reading = key_data.continue_reading;
+            return;
+        }
+    }
     data->state = key_data.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
     data->continue_reading = key_data.continue_reading;
 }

@@ -9,6 +9,7 @@
 #include <lvgl.h>
 #include <lvgl/icons/launcher.h>
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/icon_button.h>
@@ -158,6 +159,8 @@ void createWidgets(lv_obj_t* parent, void*) {
     createAppButton(buttons_wrapper, variant, LVGL_ICON_LAUNCHER_FOLDER, "tactility.files");
     createAppButton(buttons_wrapper, variant, LVGL_ICON_LAUNCHER_SETTINGS, "tactility.settings");
     applyButtonMargins(buttons_wrapper, is_landscape_display);
+    // The arrow keys move between the buttons, in a row or a column
+    lvgl_grid_navigation_add(buttons_wrapper);
 
     // The launcher's container is several levels below the screen, and LVGL only sends
     // LV_EVENT_SIZE_CHANGED to the screen object itself on a resolution change - so the
@@ -182,8 +185,8 @@ void createWidgets(lv_obj_t* parent, void*) {
     // an extra time.
     if (!device_has_active_by_type(&POINTER_TYPE)) {
         // lv_obj_update_layout(parent); // Resolve flex layout first, so focus/state invalidate against final coords
-        lv_group_focus_obj(app_list_button);
-        lv_obj_add_state(app_list_button, LV_STATE_FOCUS_KEY);
+        lv_group_focus_obj(buttons_wrapper);
+        lv_gridnav_set_focused(buttons_wrapper, app_list_button, LV_ANIM_OFF);
     }
 }
 

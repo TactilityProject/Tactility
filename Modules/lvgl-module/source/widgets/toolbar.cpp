@@ -4,12 +4,16 @@
 #include <lvgl/widgets/toolbar.h>
 
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/spinner.h>
 
 #include <tactility/check.h>
 #include <tactility/drivers/pointer.h>
+#include <tactility/log.h>
+
+constexpr auto* TAG = "lvgl_toolbar";
 
 static uint32_t getToolbarHeight(UiDensity uiDensity) {
     if (uiDensity == LVGL_UI_DENSITY_COMPACT) {
@@ -39,7 +43,6 @@ typedef struct {
     lv_obj_t* title_label;
     lv_obj_t* close_button;
     lv_obj_t* close_button_image;
-    lv_obj_t* action_container;
     uint8_t action_count;
     lv_event_cb_t nav_action_callback;
 } Toolbar;
@@ -99,6 +102,8 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     lv_obj_center(obj);
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    // The arrow keys move between the close button and the actions, and up and down leave the toolbar
+    lvgl_grid_navigation_add(obj);
 
     toolbar->close_button = create_action_button(obj, ui_density);
     toolbar->close_button_image = lv_image_create(toolbar->close_button);
@@ -110,11 +115,6 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     lv_label_set_long_mode(toolbar->title_label, LV_LABEL_LONG_MODE_SCROLL);
     lv_obj_set_flex_grow(toolbar->title_label, 1);
 
-    toolbar->action_container = lv_obj_create(obj);
-    lv_obj_set_size(toolbar->action_container, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(toolbar->action_container, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(toolbar->action_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
     lvgl_toolbar_set_nav_action(obj, LV_SYMBOL_CLOSE, &default_nav_action, nullptr);
 
     // If we don't have a touch device, we assume there's some other kind of input like a keyboard, an encoder or button control
@@ -122,8 +122,8 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     // an extra time for every screen.
     if (!device_has_active_by_type(&POINTER_TYPE)) {
         lv_obj_update_layout(obj); // Resolve flex layout first, so focus/state invalidate against final coords
-        lv_group_focus_obj(toolbar->close_button);
-        lv_obj_add_state(toolbar->close_button, LV_STATE_FOCUS_KEY);
+        lv_group_focus_obj(obj);
+        lv_gridnav_set_focused(obj, toolbar->close_button, LV_ANIM_OFF);
     }
 
     return obj;
@@ -151,7 +151,7 @@ static lv_obj_t* toolbar_add_button_action(lv_obj_t* obj, const char* imageOrBut
     check(toolbar->action_count < TOOLBAR_ACTION_LIMIT, "max actions reached");
     toolbar->action_count++;
 
-    lv_obj_t* action_button = create_action_button(toolbar->action_container, lvgl_get_ui_density());
+    lv_obj_t* action_button = create_action_button(obj, lvgl_get_ui_density());
     lv_obj_add_event_cb(action_button, callback, LV_EVENT_SHORT_CLICKED, user_data);
     lv_obj_t* button_content;
     if (isImage) {
@@ -179,7 +179,7 @@ lv_obj_t* lvgl_toolbar_add_switch_action(lv_obj_t* obj) {
     check(toolbar->action_count < TOOLBAR_ACTION_LIMIT, "max actions reached");
     toolbar->action_count++;
 
-    return lv_switch_create(toolbar->action_container);
+    return lv_switch_create(obj);
 }
 
 lv_obj_t* lvgl_toolbar_add_dropdown_action(lv_obj_t* obj, const char* options, lv_coord_t width, const char* text) {
@@ -187,7 +187,11 @@ lv_obj_t* lvgl_toolbar_add_dropdown_action(lv_obj_t* obj, const char* options, l
     check(toolbar->action_count < TOOLBAR_ACTION_LIMIT, "max actions reached");
     toolbar->action_count++;
 
-    lv_obj_t* widget = lv_dropdown_create(toolbar->action_container);
+    // The arrow keys can't both navigate the toolbar and the opened dropdown
+    LOG_W(TAG, "Dropdown actions are deprecated: the toolbar can't be navigated with the arrow keys when it has one");
+    lvgl_grid_navigation_remove(obj);
+
+    lv_obj_t* widget = lv_dropdown_create(obj);
     lv_dropdown_set_options(widget, options);
     lv_dropdown_set_selected_highlight(widget, false);
     if (width > 0) {
@@ -205,7 +209,7 @@ lv_obj_t* lvgl_toolbar_add_spinner_action(lv_obj_t* obj) {
     check(toolbar->action_count < TOOLBAR_ACTION_LIMIT, "max actions reached");
     toolbar->action_count++;
 
-    auto* spinner = lvgl_spinner_create(toolbar->action_container);
+    auto* spinner = lvgl_spinner_create(obj);
 
     if (lv_display_get_color_format(lv_obj_get_display(obj)) == LV_COLOR_FORMAT_L8) {
         lv_obj_set_style_image_recolor(spinner, lv_theme_get_color_secondary(obj), LV_STATE_DEFAULT);
@@ -217,6 +221,9 @@ lv_obj_t* lvgl_toolbar_add_spinner_action(lv_obj_t* obj) {
 
 void lvgl_toolbar_clear_actions(lv_obj_t* obj) {
     auto* toolbar = reinterpret_cast<Toolbar*>(obj);
-    lv_obj_clean(toolbar->action_container);
+    // The actions follow the close button and the title
+    while (lv_obj_get_child_count(obj) > 2) {
+        lv_obj_delete(lv_obj_get_child(obj, 2));
+    }
     toolbar->action_count = 0;
 }

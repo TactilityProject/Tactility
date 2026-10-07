@@ -676,14 +676,6 @@ app_bar {
     padGap: @app-bar-gap;
 }
 
-app_bar_actions {
-    bgOpa: transp;
-    borderWidth: 0;
-    radius: 0;
-    padAll: 0;
-    padGap: @app-bar-gap;
-}
-
 app_bar_button {
     padAll: 0;
     textColor: @app-bar-content-color;
@@ -1236,10 +1228,6 @@ apply(calendar > obj) {
     // No styles
 }
 
-apply(toolbar > obj) {
-    app_bar_actions: default;
-}
-
 apply(obj) {
     container: default;
     scrollbar: part.scrollbar;
@@ -1279,7 +1267,7 @@ apply(button) {
     button_disabled: state.disabled;
 }
 
-apply(toolbar > icon_button, toolbar > obj > icon_button) {
+apply(toolbar > icon_button) {
     icon_button: default;
     app_bar_button: default;
     transition_exit: default;
@@ -1290,7 +1278,7 @@ apply(toolbar > icon_button, toolbar > obj > icon_button) {
     disabled: state.disabled;
 }
 
-apply(toolbar > obj > dropdown) {
+apply(toolbar > dropdown) {
     @include dropdown;
     app_bar_field: default;
     app_bar_focus_ring: state.focusKey;
