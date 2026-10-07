@@ -5,6 +5,7 @@
 
 #include <app/paths.h>
 
+#include <charconv>
 #include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
@@ -27,7 +28,14 @@ static std::optional<uint32_t> parseColor(const std::map<std::string, std::strin
     if (entry == map.end() || entry->second.empty()) {
         return std::nullopt;
     }
-    return static_cast<uint32_t>(std::strtoul(entry->second.c_str(), nullptr, 16)) & 0xFFFFFF;
+    // An invalid value (e.g. from a hand-edited file) counts as unset, rather than as black
+    const std::string& text = entry->second;
+    uint32_t color = 0;
+    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), color, 16);
+    if (error != std::errc {} || end != text.data() + text.size() || color > 0xFFFFFF) {
+        return std::nullopt;
+    }
+    return color;
 }
 
 // Saving only updates the keys that are written, so an unset colour is written as an empty value

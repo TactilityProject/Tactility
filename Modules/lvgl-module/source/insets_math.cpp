@@ -3,10 +3,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
+
+constexpr double INV_SQRT2 = 1.0 / std::numbers::sqrt2;
 
 // The part of a corner's square that a circle with the given radius cuts off along its diagonal
 static int32_t corner_inset(int32_t radius) {
-    return static_cast<int32_t>(std::ceil(radius * (1.0 - M_SQRT1_2)));
+    return static_cast<int32_t>(std::ceil(radius * (1.0 - INV_SQRT2)));
 }
 
 // The horizontal distance between a circle's edge and its bounding box at the given distance from the circle's center row
