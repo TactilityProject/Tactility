@@ -76,7 +76,7 @@ void collectIncompatibleAppIds(const AppPackage* package, void* context) {
     }
 }
 
-std::vector<AppGridItem> collectItems() {
+std::vector<TileGridItem> collectItems() {
     const std::vector<std::string> favouriteIds = favourites.load();
 
     std::vector<::AppManifest> collected;
@@ -87,34 +87,34 @@ std::vector<AppGridItem> collectItems() {
         return !isShown(manifest) || std::ranges::find(incompatibleIds, std::string(manifest.id)) != incompatibleIds.end();
     });
 
-    std::vector<AppGridItem> items;
+    std::vector<TileGridItem> items;
     items.reserve(collected.size());
     for (const auto& manifest : collected) {
-        items.push_back({ manifest, appIcon(&manifest), Favourites::contains(favouriteIds, manifest.id) });
+        items.push_back({ manifest.id, manifest.name, appIcon(&manifest), Favourites::contains(favouriteIds, manifest.id) });
     }
-    std::ranges::sort(items, [](const AppGridItem& a, const AppGridItem& b) {
+    std::ranges::sort(items, [](const TileGridItem& a, const TileGridItem& b) {
         if (a.highlighted != b.highlighted) {
             return a.highlighted;
         }
-        return strcmp(a.manifest.name, b.manifest.name) < 0;
+        return a.name < b.name;
     });
     return items;
 }
 
-void toggleFavourite(AppGrid& grid, const char* appId, bool keepSelection) {
+void toggleFavourite(TileGrid& grid, const char* appId, bool keepSelection) {
     if (!favourites.toggle(appId)) {
         LOG_E(TAG, "Failed to save favourites");
     }
     grid.requestRepopulate(keepSelection);
 }
 
-void onLongPressed(AppGrid& grid, const ::AppManifest& manifest) {
-    toggleFavourite(grid, manifest.id, false);
+void onLongPressed(TileGrid& grid, const TileGridItem& item) {
+    toggleFavourite(grid, item.id.c_str(), false);
 }
 
-void onKey(AppGrid& grid, const ::AppManifest& manifest, uint32_t key) {
+void onKey(TileGrid& grid, const TileGridItem& item, uint32_t key) {
     if (key == 'f' || key == 'F') {
-        toggleFavourite(grid, manifest.id, true);
+        toggleFavourite(grid, item.id.c_str(), true);
     }
 }
 
@@ -122,7 +122,7 @@ void onKey(AppGrid& grid, const ::AppManifest& manifest, uint32_t key) {
 
 const LauncherMode APPS_MODE = {
     .buttonIcon = LVGL_ICON_SHARED_APPS,
-    .iconColor = AppGrid::IconColor::Primary,
+    .iconColor = TileGrid::IconColor::Primary,
     .collect = collectItems,
     .onLongPressed = onLongPressed,
     .onKey = onKey

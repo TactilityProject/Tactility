@@ -1347,6 +1347,7 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         /* icon_button */
         lv_obj_add_style(obj, &theme->styles.icon_button, 0);
         lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_CHECKED);
         lv_obj_add_style(obj, &theme->styles.focus_ring_inset, LV_STATE_FOCUS_KEY);
         lv_obj_add_style(obj, &theme->styles.edit_ring_inset, LV_STATE_EDITED);
         lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);

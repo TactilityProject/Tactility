@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Tactility/app/AppGrid.h>
+#include <Tactility/app/TileGrid.h>
 
 #include <cstdint>
 #include <vector>
@@ -12,13 +12,13 @@ struct LauncherMode {
     /** Represents this mode on the button that switches to it */
     const char* buttonIcon;
     /** The tile icon colour for themes that aren't monochrome */
-    AppGrid::IconColor iconColor;
+    TileGrid::IconColor iconColor;
     /** Returns the items in display order */
-    std::vector<AppGridItem> (*collect)();
+    std::vector<TileGridItem> (*collect)();
     /** Optional */
-    void (*onLongPressed)(AppGrid& grid, const ::AppManifest& manifest);
+    void (*onLongPressed)(TileGrid& grid, const TileGridItem& item);
     /** Optional */
-    void (*onKey)(AppGrid& grid, const ::AppManifest& manifest, uint32_t key);
+    void (*onKey)(TileGrid& grid, const TileGridItem& item, uint32_t key);
 };
 
 extern const LauncherMode APPS_MODE;

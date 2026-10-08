@@ -61,8 +61,6 @@ public:
         });
     }
 
-    bool getDirent(uint32_t index, dirent& dirent);
-
     void setSelectedChildEntry(const std::string& newFile) {
         selected_child_entry = newFile;
         action = ActionNone;

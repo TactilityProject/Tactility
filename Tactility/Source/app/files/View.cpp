@@ -4,8 +4,13 @@
 #include <app/start.h>
 #include <app/stream.h>
 
+#include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
+#include <lvgl/icons/shared.h>
+#include <lvgl/insets.h>
 #include <lvgl/lvgl.h>
-#include <lvgl/widgets/list.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <Tactility/app/files/SupportedFiles.h>
@@ -22,6 +27,7 @@
 #include <tactility/drivers/usb_host_msc.h>
 #include <tactility/log.h>
 
+#include <algorithm>
 #include <cctype>
 #include <cerrno>
 #include <cstdio>
@@ -36,34 +42,9 @@ constexpr auto* TAG = "Files";
 
 // region Callbacks
 
-static void dirEntryListScrollBeginCallback(lv_event_t* event) {
-    auto* view = static_cast<files::View*>(lv_event_get_user_data(event));
-    view->onDirEntryListScrollBegin();
-}
-
 static void onBackPressedCallback(lv_event_t* event) {
     auto* view = static_cast<files::View*>(lv_event_get_user_data(event));
     view->onBackPressed();
-}
-
-static void onDirEntryPressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    auto* button = lv_event_get_target_obj(event);
-    auto index = lv_obj_get_index(button);
-    view->onDirEntryPressed(index);
-}
-
-static void onDirEntryLongPressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    auto* button = lv_event_get_target_obj(event);
-    auto index = lv_obj_get_index(button);
-    view->onDirEntryLongPressed(index);
-}
-
-static void onDirEntryKeyCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    auto* button = lv_event_get_target_obj(event);
-    view->onDirEntryKeyPressed(lv_obj_get_index(button), lv_event_get_key(event));
 }
 
 static void onRenamePressedCallback(lv_event_t* event) {
@@ -79,6 +60,15 @@ static void onDeletePressedCallback(lv_event_t* event) {
 static void onNavigateUpPressedCallback(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
     view->onNavigateUpPressed();
+}
+
+static void onOverflowPressedCallback(lv_event_t* event) {
+    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    view->onOverflowPressed();
+}
+
+static void onPageButtonPressedCallback(lv_event_t*) {
+    // TileGrid::setPageButtons() makes the page buttons change the page
 }
 
 static void onNewFilePressedCallback(lv_event_t* event) {
@@ -116,6 +106,11 @@ static void onRunPressedCallback(lv_event_t* event) {
     view->onRunPressed();
 }
 
+static void onOverlayKeyCallback(lv_event_t* event) {
+    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    view->onOverlayKey(lv_event_get_key(event));
+}
+
 // endregion
 
 // region File helpers
@@ -123,6 +118,33 @@ static void onRunPressedCallback(lv_event_t* event) {
 static bool isExecutablePath(const std::string& path) {
     AppLocation location { APP_LOCATION_PATH, const_cast<char*>(path.c_str()) };
     return app_is_executable(location);
+}
+
+static bool isUsbMountPoint(const char* name) {
+    return strncmp(name, "usb", 3) == 0 && isdigit((unsigned char)name[3]);
+}
+
+// Returns nullptr for the files that View::resolveIcon() checks, as that reads the file
+static const char* getIcon(const dirent& entry, bool isRoot) {
+    if (entry.d_type == file::TT_DT_DIR || entry.d_type == file::TT_DT_CHR) {
+        if (isRoot && strncmp(entry.d_name, "sd", 2) == 0) {
+            return LVGL_ICON_SHARED_SD_CARD;
+        } else if (isRoot && isUsbMountPoint(entry.d_name)) {
+            return LVGL_ICON_SHARED_USB;
+        } else {
+            return LVGL_ICON_SHARED_FOLDER;
+        }
+    } else if (entry.d_type == file::TT_DT_LNK) {
+        return LVGL_ICON_SHARED_LINK;
+    } else if (isSupportedImageFile(entry.d_name)) {
+        return LVGL_ICON_SHARED_IMAGE;
+    } else if (isSupportedTextFile(entry.d_name)) {
+        return LVGL_ICON_SHARED_DESCRIPTION;
+    } else if (isSupportedAppFile(entry.d_name)) {
+        return LVGL_ICON_SHARED_DEPLOYED_CODE;
+    } else {
+        return nullptr;
+    }
 }
 
 static bool copyFileContents(const std::string& src, const std::string& dst) {
@@ -233,23 +255,75 @@ void View::runFile(const std::string& file_path) {
     }
 }
 
-bool View::resolveDirentFromListIndex(int32_t list_index, dirent& out_entry) {
-    const bool is_root = (state->getCurrentPath() == "/");
-    const bool has_back = (!is_root && current_start_index > 0);
+View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
+    state(state),
+    eventGroup(eventGroup),
+    grid(TileGrid::Callbacks {
+        .collect = collectItems,
+        .onClicked = onTileClicked,
+        .onLongPressed = onTileLongPressed,
+        .onKey = onTileKey,
+        .resolveIcon = resolveIcon,
+        .onPageChanged = onPageChanged,
+        .userData = this
+    }) {}
 
-    if (has_back && list_index == 0) {
-        return false; // Back button
-    }
-
-    const size_t adjusted_index =
-        current_start_index + static_cast<size_t>(list_index) - (has_back ? 1 : 0);
-
-    return state->getDirent(static_cast<uint32_t>(adjusted_index), out_entry);
+std::vector<TileGridItem> View::collectItems(void* userData) {
+    auto* view = static_cast<View*>(userData);
+    const bool is_root = (view->state->getCurrentPath() == "/");
+    std::vector<TileGridItem> items;
+    view->state->withEntries([&](const std::vector<dirent>& entries) {
+        items.reserve(entries.size());
+        for (const auto& entry : entries) {
+            items.push_back({ entry.d_name, entry.d_name, getIcon(entry, is_root), false });
+        }
+    });
+    return items;
 }
 
-void View::onDirEntryPressed(uint32_t index) {
+const char* View::resolveIcon(const TileGridItem& item, void* userData) {
+    auto* view = static_cast<View*>(userData);
+    const std::string path = file::getChildPath(view->state->getCurrentPath(), item.id);
+    return isExecutablePath(path) ? LVGL_ICON_SHARED_PLAY_ARROW : LVGL_ICON_SHARED_DRAFT;
+}
+
+void View::onTileClicked(const TileGridItem& item, void* userData) {
+    static_cast<View*>(userData)->onDirEntryPressed(item.id);
+}
+
+void View::onTileLongPressed(const TileGridItem& item, void* userData) {
+    static_cast<View*>(userData)->onDirEntryLongPressed(item.id);
+}
+
+void View::onTileKey(const TileGridItem& item, uint32_t key, void* userData) {
+    static_cast<View*>(userData)->onDirEntryKeyPressed(item.id, key);
+}
+
+void View::onPageChanged(void* userData) {
+    static_cast<View*>(userData)->hideOverlay();
+}
+
+bool View::findDirent(const std::string& name, dirent& out_entry) {
+    bool found = false;
+    state->withEntries([&](const std::vector<dirent>& entries) {
+        const auto it = std::ranges::find_if(entries, [&](const dirent& entry) { return name == entry.d_name; });
+        if (it != entries.end()) {
+            out_entry = *it;
+            found = true;
+        }
+    });
+    return found;
+}
+
+void View::onDirEntryPressed(const std::string& name) {
+    // A tap only closes the overlay, so it can't open an entry by accident
+    if (!lv_obj_is_hidden(overlay)) {
+        hideOverlay();
+        return;
+    }
+
     dirent dir_entry;
-    if (!resolveDirentFromListIndex(static_cast<int32_t>(index), dir_entry)) {
+    if (!findDirent(name, dir_entry)) {
         return;
     }
 
@@ -262,7 +336,7 @@ void View::onDirEntryPressed(uint32_t index) {
         case TT_DT_CHR:
             state->setEntriesForChildPath(dir_entry.d_name);
             onNavigate();
-            update();
+            update(true);
             break;
 
         case TT_DT_LNK:
@@ -276,21 +350,24 @@ void View::onDirEntryPressed(uint32_t index) {
     }
 }
 
-void View::onDirEntryLongPressed(int32_t index) {
+void View::onDirEntryLongPressed(const std::string& name) {
+    // Deselects the tile of an overlay that is still open
+    hideOverlay();
+
     dirent dir_entry;
-    if (!resolveDirentFromListIndex(index, dir_entry)) {
+    if (!findDirent(name, dir_entry)) {
         return;
     }
 
     LOG_I(TAG, "Long-pressed %s %d", dir_entry.d_name, (int)dir_entry.d_type);
     state->setSelectedChildEntry(dir_entry.d_name);
+    lv_obj_t* tile = grid.findTile(name);
 
     if (state->getCurrentPath() == "/") {
         // At root, only USB mount points support actions (eject).
         // Other root-level entries intentionally have no context actions.
-        const char* name = dir_entry.d_name;
-        if (strncmp(name, "usb", 3) == 0 && isdigit((unsigned char)name[3])) {
-            showActionsForMountPoint();
+        if (isUsbMountPoint(dir_entry.d_name)) {
+            showActionsForMountPoint(tile);
         }
         return;
     }
@@ -299,7 +376,7 @@ void View::onDirEntryLongPressed(int32_t index) {
     switch (dir_entry.d_type) {
         case TT_DT_DIR:
         case TT_DT_CHR:
-            showActionsForDirectory();
+            showActionsForDirectory(tile);
             break;
 
         case TT_DT_LNK:
@@ -307,63 +384,17 @@ void View::onDirEntryLongPressed(int32_t index) {
             break;
 
         default:
-            showActionsForFile();
+            showActionsForFile(tile);
             break;
     }
 }
 
-void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
-    check(list);
-    const char* symbol;
-    if (dir_entry.d_type == file::TT_DT_DIR || dir_entry.d_type == file::TT_DT_CHR) {
-        symbol = LV_SYMBOL_DIRECTORY;
-    } else if (isSupportedImageFile(dir_entry.d_name)) {
-        symbol = LV_SYMBOL_IMAGE;
-    } else if (dir_entry.d_type == file::TT_DT_LNK) {
-        symbol = LV_SYMBOL_LOOP;
-    } else if (isExecutablePath(file::getChildPath(state->getCurrentPath(), dir_entry.d_name))) {
-        symbol = LV_SYMBOL_PLAY;
-    } else {
-        symbol = LV_SYMBOL_FILE;
+void View::onDirEntryKeyPressed(const std::string& name, uint32_t key) {
+    if (key == ' ') {
+        onDirEntryLongPressed(name);
+        return;
     }
 
-    // Get file size for regular files
-    std::string label_text = dir_entry.d_name;
-    if (dir_entry.d_type == file::TT_DT_REG) {
-        std::string file_path = file::getChildPath(state->getCurrentPath(), dir_entry.d_name);
-        struct stat st;
-        if (stat(file_path.c_str(), &st) == 0) {
-            // Format file size in human-readable format
-            const char* size_suffix;
-            double size;
-            if (st.st_size < 1024) {
-                size = st.st_size;
-                size_suffix = " B";
-            } else if (st.st_size < 1024 * 1024) {
-                size = st.st_size / 1024.0;
-                size_suffix = " KB";
-            } else {
-                size = st.st_size / (1024.0 * 1024.0);
-                size_suffix = " MB";
-            }
-
-            char size_str[32];
-            if (st.st_size < 1024) {
-                snprintf(size_str, sizeof(size_str), " (%d%s)", (int)size, size_suffix);
-            } else {
-                snprintf(size_str, sizeof(size_str), " (%.1f%s)", size, size_suffix);
-            }
-            label_text += size_str;
-        }
-    }
-
-    lv_obj_t* button = lvgl_list_add_button(list, symbol, label_text.c_str());
-    lv_obj_add_event_cb(button, &onDirEntryPressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    lv_obj_add_event_cb(button, &onDirEntryLongPressedCallback, LV_EVENT_LONG_PRESSED, this);
-    lv_obj_add_event_cb(button, &onDirEntryKeyCallback, LV_EVENT_KEY, this);
-}
-
-void View::onDirEntryKeyPressed(int32_t index, uint32_t key) {
     // Keyboards report their delete key as either delete or backspace (e.g. Cardputer's "del" key)
     const bool is_delete = key == LV_KEY_DEL || key == LV_KEY_BACKSPACE;
     const bool is_rename = key == 'r' || key == 'R';
@@ -372,7 +403,7 @@ void View::onDirEntryKeyPressed(int32_t index, uint32_t key) {
     }
 
     dirent dir_entry;
-    if (!resolveDirentFromListIndex(index, dir_entry)) {
+    if (!findDirent(name, dir_entry)) {
         return;
     }
     // Same rules as the long-press actions: root entries are mount points, links have no actions
@@ -399,11 +430,27 @@ void View::onNavigateUpPressed() {
             state->setEntriesForPath(new_absolute_path);
         }
         onNavigate();
-        update();
+        update(true);
     }
 }
 
+void View::onOverflowPressed() {
+    if (!lv_obj_is_hidden(overlay)) {
+        hideOverlay();
+        return;
+    }
+
+    lv_obj_clean(overlay);
+    addOverlayButton(LVGL_ICON_SHARED_NOTE_ADD, onNewFilePressedCallback);
+    addOverlayButton(LVGL_ICON_SHARED_CREATE_NEW_FOLDER, onNewFolderPressedCallback);
+    if (state->hasClipboard()) {
+        addOverlayButton(LVGL_ICON_SHARED_CONTENT_PASTE, onPastePressedCallback);
+    }
+    showOverlay(nullptr);
+}
+
 void View::onRenamePressed() {
+    onNavigate();
     std::string entry_name = state->getSelectedChildEntry();
     LOG_I(TAG, "Pending rename %s", entry_name.c_str());
     state->setPendingAction(State::ActionRename);
@@ -411,6 +458,7 @@ void View::onRenamePressed() {
 }
 
 void View::onDeletePressed() {
+    onNavigate();
     std::string file_path = state->getSelectedChildPath();
     LOG_I(TAG, "Pending delete %s", file_path.c_str());
     state->setPendingAction(State::ActionDelete);
@@ -420,55 +468,112 @@ void View::onDeletePressed() {
 }
 
 void View::onNewFilePressed() {
+    onNavigate();
     LOG_I(TAG, "Creating new file");
     state->setPendingAction(State::ActionCreateFile);
     inputdialog::start(appInstanceId, "New File", "Enter filename:", "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
 }
 
 void View::onNewFolderPressed() {
+    onNavigate();
     LOG_I(TAG, "Creating new folder");
     state->setPendingAction(State::ActionCreateFolder);
     inputdialog::start(appInstanceId, "New Folder", "Enter folder name:", "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
 }
 
+lv_obj_t* View::addOverlayButton(const char* icon, lv_event_cb_t callback) {
+    auto* button = lvgl_icon_button_create(overlay);
+    auto* label = lv_label_create(button);
+    lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_label_set_text(label, icon);
+    lv_obj_add_event_cb(button, callback, LV_EVENT_SHORT_CLICKED, this);
+    return button;
+}
+
 void View::addCommonFileActions() {
-    auto* copy_button = lvgl_list_add_button(action_list, LV_SYMBOL_COPY, "Copy");
-    lv_obj_add_event_cb(copy_button, onCopyPressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    auto* cut_button = lvgl_list_add_button(action_list, LV_SYMBOL_CUT, "Cut");
-    lv_obj_add_event_cb(cut_button, onCutPressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    auto* rename_button = lvgl_list_add_button(action_list, LV_SYMBOL_EDIT, "Rename");
-    lv_obj_add_event_cb(rename_button, onRenamePressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    auto* delete_button = lvgl_list_add_button(action_list, LV_SYMBOL_TRASH, "Delete");
-    lv_obj_add_event_cb(delete_button, onDeletePressedCallback, LV_EVENT_SHORT_CLICKED, this);
+    addOverlayButton(LVGL_ICON_SHARED_CONTENT_COPY, onCopyPressedCallback);
+    addOverlayButton(LVGL_ICON_SHARED_CONTENT_CUT, onCutPressedCallback);
+    if (state->hasClipboard()) {
+        addOverlayButton(LVGL_ICON_SHARED_CONTENT_PASTE, onPastePressedCallback);
+    }
+    addOverlayButton(LVGL_ICON_SHARED_EDIT, onRenamePressedCallback);
+    addOverlayButton(LVGL_ICON_SHARED_DELETE, onDeletePressedCallback);
 }
 
-void View::showActions() {
-    lv_obj_clean(action_list);
-    addCommonFileActions();
-    lv_obj_set_hidden(action_list, false);
-}
-
-void View::showActionsForDirectory() { showActions(); }
-
-void View::showActionsForFile() {
-    lv_obj_clean(action_list);
-
-    if (isExecutablePath(state->getSelectedChildPath())) {
-        auto* run_button = lvgl_list_add_button(action_list, LV_SYMBOL_PLAY, "Run");
-        lv_obj_add_event_cb(run_button, onRunPressedCallback, LV_EVENT_SHORT_CLICKED, this);
+// The overlay covers the bottom of the grid, or its top when it would cover the anchor tile
+void View::showOverlay(lv_obj_t* anchorTile) {
+    lv_obj_set_hidden(overlay, false);
+    lv_obj_align(overlay, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_update_layout(overlay);
+    if (anchorTile != nullptr) {
+        lv_obj_add_state(anchorTile, LV_STATE_CHECKED);
+        lv_area_t tile_area;
+        lv_area_t overlay_area;
+        lv_obj_get_coords(anchorTile, &tile_area);
+        lv_obj_get_coords(overlay, &overlay_area);
+        if (tile_area.y2 > overlay_area.y1) {
+            lv_obj_align_to(overlay, lv_obj_get_parent(anchorTile), LV_ALIGN_TOP_MID, 0, 0);
+        }
     }
 
-    addCommonFileActions();
-    lv_obj_set_hidden(action_list, false);
+    lv_group_t* group = lv_group_get_default();
+    if (group != nullptr && lv_obj_get_child_count(overlay) > 0) {
+        lv_group_focus_obj(overlay);
+        lv_gridnav_set_focused(overlay, lv_obj_get_child(overlay, 0), LV_ANIM_OFF);
+        // Touch shows no selection, until a key moves the focus
+        lv_indev_t* indev = lv_indev_active();
+        if (indev != nullptr && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+            lvgl_focus_hide_key_selection(group);
+        }
+    }
 }
 
-void View::showActionsForMountPoint() {
-    lv_obj_clean(action_list);
+void View::hideOverlay() {
+    if (overlay == nullptr || lv_obj_is_hidden(overlay)) {
+        return;
+    }
+    lv_obj_set_hidden(overlay, true);
 
-    auto* eject_button = lvgl_list_add_button(action_list, LV_SYMBOL_EJECT, "Eject");
-    lv_obj_add_event_cb(eject_button, onEjectPressedCallback, LV_EVENT_SHORT_CLICKED, this);
+    lv_obj_t* tile = grid.findTile(state->getSelectedChildEntry());
+    if (tile != nullptr) {
+        lv_obj_remove_state(tile, LV_STATE_CHECKED);
+    }
 
-    lv_obj_set_hidden(action_list, false);
+    // Keys continue on the tile that the overlay was for
+    lv_group_t* group = lv_group_get_default();
+    if (group != nullptr && lv_group_get_focused(group) == overlay) {
+        if (tile != nullptr) {
+            lv_group_focus_obj(lv_obj_get_parent(tile));
+            lv_gridnav_set_focused(lv_obj_get_parent(tile), tile, LV_ANIM_OFF);
+        }
+    }
+}
+
+void View::onOverlayKey(uint32_t key) {
+    if (key == LV_KEY_ESC) {
+        hideOverlay();
+    }
+}
+
+void View::showActionsForDirectory(lv_obj_t* tile) {
+    lv_obj_clean(overlay);
+    addCommonFileActions();
+    showOverlay(tile);
+}
+
+void View::showActionsForFile(lv_obj_t* tile) {
+    lv_obj_clean(overlay);
+    if (isExecutablePath(state->getSelectedChildPath())) {
+        addOverlayButton(LVGL_ICON_SHARED_PLAY_ARROW, onRunPressedCallback);
+    }
+    addCommonFileActions();
+    showOverlay(tile);
+}
+
+void View::showActionsForMountPoint(lv_obj_t* tile) {
+    lv_obj_clean(overlay);
+    addOverlayButton(LVGL_ICON_SHARED_EJECT, onEjectPressedCallback);
+    showOverlay(tile);
 }
 
 void View::onRunPressed() {
@@ -493,76 +598,23 @@ void View::onEjectPressed() {
 
     onNavigate();
     state->setEntriesForPath(state->getCurrentPath());
-    update();
+    update(false);
 }
 
-void View::update(size_t start_index) {
-    const bool is_root = (state->getCurrentPath() == "/");
-
+void View::update(bool firstPage) {
     if (!lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
         LOG_E(TAG, "Mutex acquisition timeout (%s)", "lvgl");
         return;
     }
 
-    lv_obj_clean(dir_entry_list);
+    const bool is_root = (state->getCurrentPath() == "/");
+    lv_obj_set_hidden(navigate_up_button, is_root);
+    lv_obj_set_hidden(overflow_button, is_root);
 
-    current_start_index = start_index;
-
-    state->withEntries([this, is_root](const std::vector<dirent>& entries) {
-        size_t total_entries = entries.size();
-        if (current_start_index >= total_entries) {
-            current_start_index = (total_entries > MAX_BATCH)
-                ? (total_entries - MAX_BATCH)
-                : 0;
-        }
-        size_t count = 0;
-
-        if (!is_root && current_start_index > 0) {
-            auto* back_btn = lvgl_list_add_button(dir_entry_list, LV_SYMBOL_LEFT, "Back");
-            lv_obj_add_event_cb(back_btn, [](lv_event_t* event) {
-                auto* view = static_cast<View*>(lv_event_get_user_data(event));
-                size_t new_index = (view->current_start_index >= view->MAX_BATCH) ? 
-                                    view->current_start_index - view->MAX_BATCH : 0;
-                view->update(new_index); }, LV_EVENT_SHORT_CLICKED, this);
-        }
-
-        for (size_t i = current_start_index; i < total_entries; ++i) {
-            auto entry = entries[i];
-
-            createDirEntryWidget(dir_entry_list, entry);
-            count++;
-
-            if (count >= MAX_BATCH) {
-                break;
-            }
-        }
-
-        last_loaded_index = std::min(current_start_index + count, total_entries);
-
-        if (!is_root && last_loaded_index < total_entries) {
-            if (total_entries > current_start_index &&
-                (total_entries - current_start_index) > MAX_BATCH) {
-                auto* next_btn = lvgl_list_add_button(dir_entry_list, LV_SYMBOL_RIGHT, "Next");
-                lv_obj_add_event_cb(next_btn, [](lv_event_t* event) {
-                    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-                    view->update(view->last_loaded_index); }, LV_EVENT_SHORT_CLICKED, this);
-            }
-        } else {
-            last_loaded_index = total_entries;
-        }
-    });
-
-    if (is_root) {
-        lv_obj_set_hidden(navigate_up_button, true);
-    } else {
-        lv_obj_set_hidden(navigate_up_button, false);
+    if (firstPage) {
+        grid.showFirstPage();
     }
-
-    if (state->hasClipboard() && !is_root) {
-        lv_obj_set_hidden(paste_button, false);
-    } else {
-        lv_obj_set_hidden(paste_button, true);
-    }
+    grid.requestRepopulate(!firstPage);
 
     lvgl_unlock();
 }
@@ -573,48 +625,38 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
+    const bool is_root = (state->getCurrentPath() == "/");
     auto* toolbar = lvgl_toolbar_create(parent, "Files");
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressedCallback, this);
     navigate_up_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_UP, &onNavigateUpPressedCallback, this);
-    new_file_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_FILE, &onNewFilePressedCallback, this);
-    new_folder_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_DIRECTORY, &onNewFolderPressedCallback, this);
-    paste_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_PASTE, &onPastePressedCallback, this);
-    lv_obj_set_hidden(paste_button, true);
+    lv_obj_set_hidden(navigate_up_button, is_root);
+    auto* previous_button = lvgl_toolbar_add_text_button_action(toolbar, "<", onPageButtonPressedCallback, this);
+    auto* next_button = lvgl_toolbar_add_text_button_action(toolbar, ">", onPageButtonPressedCallback, this);
+    overflow_button = lvgl_toolbar_add_text_button_action(toolbar, LVGL_ICON_SHARED_MORE_VERT, onOverflowPressedCallback, this);
+    lv_obj_set_style_text_font(overflow_button, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_obj_set_hidden(overflow_button, is_root);
 
-    auto* wrapper = lv_obj_create(parent);
-    lv_obj_set_width(wrapper, LV_PCT(100));
-    lv_obj_set_style_border_width(wrapper, 0, 0);
-    lv_obj_set_style_pad_all(wrapper, 0, 0);
-    lv_obj_set_flex_grow(wrapper, 1);
-    lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_ROW);
+    grid.setSwipeNavigation(true);
+    grid.createWidgets(parent);
+    grid.setPageButtons(previous_button, next_button);
 
-    dir_entry_list = lvgl_list_create(wrapper);
-    lv_obj_set_height(dir_entry_list, LV_PCT(100));
-    lv_obj_set_flex_grow(dir_entry_list, 1);
-
-    lv_obj_add_event_cb(dir_entry_list, dirEntryListScrollBeginCallback, LV_EVENT_SCROLL_BEGIN, this);
-
-    action_list = lvgl_list_create(wrapper);
-    lv_obj_set_height(action_list, LV_PCT(100));
-    lv_obj_set_flex_grow(action_list, 1);
-    lv_obj_set_hidden(action_list, true);
-
-    update();
-}
-
-void View::onDirEntryListScrollBegin() {
-    if (lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
-        lv_obj_set_hidden(action_list, true);
-        lvgl_unlock();
-    }
+    // Floating, so showing it doesn't change the grid's size and page layout
+    overlay = lvgl_card_create(parent);
+    lv_obj_set_floating(overlay, true);
+    lv_obj_set_size(overlay, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(overlay, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(overlay, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scrollable(overlay, false);
+    lvgl_obj_add_edge_padding(overlay);
+    // The arrow keys move between the overlay's buttons as one row
+    lvgl_grid_navigation_add(overlay);
+    lv_obj_add_event_cb(overlay, onOverlayKeyCallback, LV_EVENT_KEY, this);
+    lv_obj_set_hidden(overlay, true);
 }
 
 void View::onNavigate() {
-    if (lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
-        lv_obj_set_hidden(action_list, true);
-        lvgl_unlock();
-    }
+    hideOverlay();
 }
 
 void View::onResult(uint32_t launchId, int32_t result) {
@@ -656,7 +698,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
                 }
 
                 state->setEntriesForPath(state->getCurrentPath());
-                update();
+                update(false);
             }
             break;
         }
@@ -678,7 +720,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
                 }
 
                 state->setEntriesForPath(state->getCurrentPath());
-                update();
+                update(false);
             }
             break;
         }
@@ -705,7 +747,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
                 }
 
                 state->setEntriesForPath(state->getCurrentPath());
-                update();
+                update(false);
             }
             break;
         }
@@ -727,7 +769,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
                 }
 
                 state->setEntriesForPath(state->getCurrentPath());
-                update();
+                update(false);
             }
             break;
         }
@@ -790,7 +832,7 @@ void View::onCopyPressed() {
     state->setClipboard(path, false);
     LOG_I(TAG, "Copied to clipboard: %s", path.c_str());
     onNavigate();
-    update();
+    update(false);
 }
 
 void View::onCutPressed() {
@@ -798,10 +840,11 @@ void View::onCutPressed() {
     state->setClipboard(path, true);
     LOG_I(TAG, "Cut to clipboard: %s", path.c_str());
     onNavigate();
-    update();
+    update(false);
 }
 
 void View::onPastePressed() {
+    onNavigate();
     auto clipboard = state->getClipboard();
     if (!clipboard.has_value()) return;
 
@@ -873,11 +916,7 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     }
 
     state->setEntriesForPath(state->getCurrentPath());
-    update();
-}
-
-void View::deinit() {
-    lv_obj_remove_event_cb(dir_entry_list, dirEntryListScrollBeginCallback);
+    update(false);
 }
 
 } // namespace tt::app::files

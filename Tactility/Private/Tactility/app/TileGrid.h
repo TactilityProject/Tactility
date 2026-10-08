@@ -1,43 +1,47 @@
 #pragma once
 
-#include <app/manifest.h>
-
 #include <lvgl.h>
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace tt::app {
 
-struct AppGridItem {
-    /** Owned copy, so a tile never references the app ledger directly */
-    ::AppManifest manifest;
-    /** Shared icon font glyph */
+struct TileGridItem {
+    /** Identifies the item across rebuilds, e.g. to keep it selected */
+    std::string id;
+    std::string name;
+    /** Shared icon font glyph, or nullptr to resolve it with Callbacks::resolveIcon when the tile is shown */
     const char* icon;
-    /** Rendered with an accent colour when not selected */
+    /** Marked with a badge */
     bool highlighted;
 };
 
 /**
- * Paged, non-scrolling grid of app tiles (icon above name) with "<" and ">" page buttons.
+ * Paged, non-scrolling grid of tiles (icon above name) with "<" and ">" page buttons.
  * Must outlive the widgets it creates.
  */
-class AppGrid final {
+class TileGrid final {
 
 public:
 
     struct Callbacks {
         /** Returns the items in display order. Called on every rebuild. */
-        std::vector<AppGridItem> (*collect)(void* userData);
-        void (*onClicked)(const ::AppManifest& manifest, void* userData);
+        std::vector<TileGridItem> (*collect)(void* userData);
+        void (*onClicked)(const TileGridItem& item, void* userData);
         /** Optional */
-        void (*onLongPressed)(const ::AppManifest& manifest, void* userData);
+        void (*onLongPressed)(const TileGridItem& item, void* userData);
         /** Optional */
-        void (*onKey)(const ::AppManifest& manifest, uint32_t key, void* userData);
+        void (*onKey)(const TileGridItem& item, uint32_t key, void* userData);
+        /** Optional: returns the icon of an item without one. Only called for the items on the shown page. */
+        const char* (*resolveIcon)(const TileGridItem& item, void* userData);
+        /** Optional: called after the user went to another page */
+        void (*onPageChanged)(void* userData);
         void* userData;
     };
 
-    explicit AppGrid(const Callbacks& callbacks) : callbacks(callbacks) {}
+    explicit TileGrid(const Callbacks& callbacks) : callbacks(callbacks) {}
 
     enum class IconColor {
         /** The theme's icon colour */
@@ -57,6 +61,11 @@ public:
     /** Swiping left or right over the grid goes to the next or previous page. Call before creating the widgets. */
     void setSwipeNavigation(bool enabled) { swipeNavigation = enabled; }
 
+    /**
+     * Creates the grid and populates it. Call setPageButtons() right after it to add page buttons.
+     * @param[in] parent the container for the grid, with a flex column layout
+     */
+    void createWidgets(lv_obj_t* parent);
 
     /**
      * Creates the grid and populates it, with a bar below it: buttons on the left (see addBarButton()),
@@ -67,6 +76,12 @@ public:
     void createWidgetsWithBottomBar(lv_obj_t* parent);
 
     /**
+     * Makes the buttons go to the previous and next page. They are hidden when there's only one page, and wrap around.
+     * Call right after createWidgets().
+     */
+    void setPageButtons(lv_obj_t* previous, lv_obj_t* next);
+
+    /**
      * Adds an icon button to the left side of the bottom bar. Call right after createWidgetsWithBottomBar().
      * @param[in] icon a shared icon (see lvgl/icons/shared.h)
      * @return the button
@@ -75,14 +90,17 @@ public:
 
     /**
      * Rebuilds the grid asynchronously, so it is safe to call from a tile's own event.
-     * @param[in] keepSelection when true, the selected app stays selected and its page is shown
+     * @param[in] keepSelection when true, the selected item stays selected and its page is shown
      */
     void requestRepopulate(bool keepSelection);
+
+    /** @return the tile of the item on the shown page, or nullptr */
+    lv_obj_t* findTile(const std::string& id) const;
 
 private:
 
     Callbacks callbacks;
-    std::vector<AppGridItem> items;
+    std::vector<TileGridItem> items;
     uint32_t page = 0;
     uint32_t pageCount = 1;
     IconColor iconColor = IconColor::Default;
@@ -99,6 +117,7 @@ private:
     lv_obj_t* barSpacer = nullptr;
 
     void createGrid(lv_obj_t* parent);
+    void finishCreate(lv_obj_t* parent);
     void goToPreviousPage();
     void goToNextPage();
     void populate();

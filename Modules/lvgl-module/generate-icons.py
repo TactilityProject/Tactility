@@ -182,6 +182,18 @@ shared_symbol_code_point_names = [
     "camera",
     "lightstrip",
     "phone_android", # Display settings: orientation
+    # Files app
+    "draft",
+    "description",
+    "link",
+    "sd_card",
+    "content_copy",
+    "content_cut",
+    "content_paste",
+    "edit",
+    "play_arrow",
+    "eject",
+    "create_new_folder",
 ]
 
 # Get more from https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded

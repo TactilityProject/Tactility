@@ -58,18 +58,4 @@ bool State::setEntriesForChildPath(const std::string& childPath) {
     return setEntriesForPath(path);
 }
 
-bool State::getDirent(uint32_t index, dirent& dirent) {
-    auto lock = mutex.asScopedLock();
-    if (!lock.lock(50 / portTICK_PERIOD_MS)) {
-        return false;
-    }
-
-    if (index < dir_entries.size()) {
-        dirent = dir_entries[index];
-        return true;
-    } else {
-        return false;
-    }
-}
-
 }

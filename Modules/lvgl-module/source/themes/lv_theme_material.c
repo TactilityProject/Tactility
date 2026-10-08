@@ -377,6 +377,7 @@ typedef struct {
     lv_style_t text_button_pressed;
 #endif
     lv_style_t icon_button;
+    lv_style_t icon_button_selected;
     lv_style_t icon_button_filled;
     lv_style_t icon_button_filled_pressed;
     lv_style_t icon_button_tonal;
@@ -873,6 +874,11 @@ static void style_init(my_theme_t * theme)
     lv_style_set_text_color(&theme->styles.icon_button, ICON_BUTTON_COLOR);
     lv_style_set_radius(&theme->styles.icon_button, BUTTON_SHAPE);
     lv_style_set_pad_all(&theme->styles.icon_button, BUTTON_PAD_VER);
+
+    style_init_reset(&theme->styles.icon_button_selected);
+    lv_style_set_bg_color(&theme->styles.icon_button_selected, LIST_ITEM_FOCUSED_COLOR);
+    lv_style_set_bg_opa(&theme->styles.icon_button_selected, LV_OPA_COVER);
+    lv_style_set_text_color(&theme->styles.icon_button_selected, LIST_ITEM_FOCUSED_TEXT_COLOR);
 
     style_init_reset(&theme->styles.icon_button_filled);
     lv_style_set_bg_color(&theme->styles.icon_button_filled, ICON_BUTTON_FILLED_COLOR);
@@ -1734,6 +1740,7 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         lv_obj_add_style(obj, &theme->styles.transition_exit, 0);
         lv_obj_add_style(obj, &theme->styles.state_pressed, LV_STATE_PRESSED);
         lv_obj_add_style(obj, &theme->styles.transition_enter, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.icon_button_selected, LV_STATE_CHECKED);
         lv_obj_add_style(obj, &theme->styles.focus_ring_inset, LV_STATE_FOCUS_KEY);
         lv_obj_add_style(obj, &theme->styles.edit_ring_inset, LV_STATE_EDITED);
         lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);

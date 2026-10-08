@@ -49,17 +49,17 @@ void collectManifest(const ::AppManifest* manifest, void* context) {
     manifests->push_back(*manifest);
 }
 
-std::vector<AppGridItem> collectItems() {
+std::vector<TileGridItem> collectItems() {
     std::vector<::AppManifest> collected;
     app_manager_for_each_manifest(collectManifest, &collected);
     std::ranges::sort(collected, [](const ::AppManifest& a, const ::AppManifest& b) {
         return strcmp(a.name, b.name) < 0;
     });
 
-    std::vector<AppGridItem> items;
+    std::vector<TileGridItem> items;
     for (const auto& manifest : collected) {
         if (manifest.category == APP_CATEGORY_SETTINGS && (manifest.flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
-            items.push_back({ manifest, appIcon(&manifest), false });
+            items.push_back({ manifest.id, manifest.name, appIcon(&manifest), false });
         }
     }
     return items;
@@ -69,7 +69,7 @@ std::vector<AppGridItem> collectItems() {
 
 const LauncherMode SETTINGS_MODE = {
     .buttonIcon = LVGL_ICON_SHARED_SETTINGS,
-    .iconColor = AppGrid::IconColor::Secondary,
+    .iconColor = TileGrid::IconColor::Secondary,
     .collect = collectItems,
     .onLongPressed = nullptr,
     .onKey = nullptr

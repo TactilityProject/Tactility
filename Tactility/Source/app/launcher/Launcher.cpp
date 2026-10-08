@@ -18,7 +18,7 @@
 #include <tactility/drivers/power_supply.h>
 #include <tactility/log.h>
 
-#include <Tactility/app/AppGrid.h>
+#include <Tactility/app/TileGrid.h>
 #include <Tactility/app/launcher/LauncherMode.h>
 #include <Tactility/app/setup/Setup.h>
 #include <Tactility/settings/BootSettings.h>
@@ -30,10 +30,10 @@ constexpr auto* TAG = "Launcher";
 
 namespace {
 
-std::vector<AppGridItem> collectItems(void* userData);
-void onAppClicked(const ::AppManifest& manifest, void* userData);
-void onAppLongPressed(const ::AppManifest& manifest, void* userData);
-void onAppKey(const ::AppManifest& manifest, uint32_t key, void* userData);
+std::vector<TileGridItem> collectItems(void* userData);
+void onAppClicked(const TileGridItem& item, void* userData);
+void onAppLongPressed(const TileGridItem& item, void* userData);
+void onAppKey(const TileGridItem& item, uint32_t key, void* userData);
 
 enum class Mode {
     Apps,
@@ -51,16 +51,18 @@ Mode getOtherMode(Mode mode) {
 struct Context {
     Mode mode = Mode::Apps;
     lv_obj_t* modeButtonIcon = nullptr;
-    AppGrid grid { AppGrid::Callbacks {
+    TileGrid grid { TileGrid::Callbacks {
         .collect = collectItems,
         .onClicked = onAppClicked,
         .onLongPressed = onAppLongPressed,
         .onKey = onAppKey,
+        .resolveIcon = nullptr,
+        .onPageChanged = nullptr,
         .userData = this
     } };
 };
 
-std::vector<AppGridItem> collectItems(void* userData) {
+std::vector<TileGridItem> collectItems(void* userData) {
     return getLauncherMode(static_cast<Context*>(userData)->mode).collect();
 }
 
@@ -72,23 +74,23 @@ void startApp(const char* appId) {
     }
 }
 
-void onAppClicked(const ::AppManifest& manifest, void*) {
-    startApp(manifest.id);
+void onAppClicked(const TileGridItem& item, void*) {
+    startApp(item.id.c_str());
 }
 
-void onAppLongPressed(const ::AppManifest& manifest, void* userData) {
+void onAppLongPressed(const TileGridItem& item, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     const LauncherMode& mode = getLauncherMode(ctx->mode);
     if (mode.onLongPressed != nullptr) {
-        mode.onLongPressed(ctx->grid, manifest);
+        mode.onLongPressed(ctx->grid, item);
     }
 }
 
-void onAppKey(const ::AppManifest& manifest, uint32_t key, void* userData) {
+void onAppKey(const TileGridItem& item, uint32_t key, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     const LauncherMode& mode = getLauncherMode(ctx->mode);
     if (mode.onKey != nullptr) {
-        mode.onKey(ctx->grid, manifest, key);
+        mode.onKey(ctx->grid, item, key);
     }
 }
 

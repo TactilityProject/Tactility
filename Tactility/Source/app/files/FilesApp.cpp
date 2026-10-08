@@ -64,7 +64,6 @@ int32_t appMain(int argc, char* argv[]) {
         }
     }
 
-    view.deinit();
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&event_group);

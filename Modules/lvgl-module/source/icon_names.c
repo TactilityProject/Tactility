@@ -57,6 +57,17 @@ const char* const lvgl_icon_shared_names[] = {
     "camera",
     "lightstrip",
     "phone_android",
+    "draft",
+    "description",
+    "link",
+    "sd_card",
+    "content_copy",
+    "content_cut",
+    "content_paste",
+    "edit",
+    "play_arrow",
+    "eject",
+    "create_new_folder",
 };
 
 const size_t lvgl_icon_shared_name_count = sizeof(lvgl_icon_shared_names) / sizeof(lvgl_icon_shared_names[0]);

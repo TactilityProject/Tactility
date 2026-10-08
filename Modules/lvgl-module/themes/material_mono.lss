@@ -1003,6 +1003,7 @@ apply(toolbar) {
 apply(icon_button) {
     icon_button: default;
     inverted: state.pressed;
+    inverted: state.checked;
     focus_ring_inset: state.focusKey;
     edit_ring_inset: state.edited;
     disabled: state.disabled;

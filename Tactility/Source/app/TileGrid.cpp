@@ -1,4 +1,4 @@
-#include <Tactility/app/AppGrid.h>
+#include <Tactility/app/TileGrid.h>
 
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
@@ -51,8 +51,8 @@ PageLayout computePageLayout(lv_obj_t* grid) {
     };
 }
 
-const AppGridItem* getTileItem(lv_event_t* e) {
-    return static_cast<const AppGridItem*>(lv_obj_get_user_data(lv_event_get_target_obj(e)));
+const TileGridItem* getTileItem(lv_event_t* e) {
+    return static_cast<const TileGridItem*>(lv_obj_get_user_data(lv_event_get_target_obj(e)));
 }
 
 
@@ -109,27 +109,27 @@ void onBottomBarDeleted(lv_event_t* event) {
 
 } // namespace
 
-void AppGrid::onDeferredNextPage(void* userData) {
-    static_cast<AppGrid*>(userData)->goToNextPage();
+void TileGrid::onDeferredNextPage(void* userData) {
+    static_cast<TileGrid*>(userData)->goToNextPage();
 }
 
-void AppGrid::onDeferredPreviousPage(void* userData) {
-    static_cast<AppGrid*>(userData)->goToPreviousPage();
+void TileGrid::onDeferredPreviousPage(void* userData) {
+    static_cast<TileGrid*>(userData)->goToPreviousPage();
 }
 
-void AppGrid::onDeferredRepopulate(void* userData) {
-    static_cast<AppGrid*>(userData)->populate();
+void TileGrid::onDeferredRepopulate(void* userData) {
+    static_cast<TileGrid*>(userData)->populate();
 }
 
 // A layout pass can resize the grid temporarily (e.g. to its content height, before the parent's flex layout grows it again)
-void AppGrid::onDeferredResize(void* userData) {
-    auto* self = static_cast<AppGrid*>(userData);
+void TileGrid::onDeferredResize(void* userData) {
+    auto* self = static_cast<TileGrid*>(userData);
     if (lv_obj_get_width(self->grid) != self->populatedWidth || lv_obj_get_height(self->grid) != self->populatedHeight) {
         self->populate();
     }
 }
 
-void AppGrid::onGridDeleted(lv_event_t* e) {
+void TileGrid::onGridDeleted(lv_event_t* e) {
     // Cancels a still-pending repopulate scheduled right before the grid itself was deleted (e.g. the app closing)
     lv_async_call_cancel(onDeferredRepopulate, lv_event_get_user_data(e));
     lv_async_call_cancel(onDeferredResize, lv_event_get_user_data(e));
@@ -138,36 +138,42 @@ void AppGrid::onGridDeleted(lv_event_t* e) {
 }
 
 // Deferred: page size depends on the grid size, which is final only after the layout pass that triggered this.
-void AppGrid::onGridSizeChanged(lv_event_t* e) {
+void TileGrid::onGridSizeChanged(lv_event_t* e) {
     // One pending check is enough, also when the size changes several times before it runs
     lv_async_call_cancel(onDeferredResize, lv_event_get_user_data(e));
     lv_async_call(onDeferredResize, lv_event_get_user_data(e));
 }
 
 // Changing the page doesn't keep the selected app selected: that would return to the selected app's page
-void AppGrid::goToPreviousPage() {
+void TileGrid::goToPreviousPage() {
     page = page > 0 ? page - 1 : pageCount - 1;
     keepSelectionOnRepopulate = false;
     populate();
+    if (callbacks.onPageChanged != nullptr) {
+        callbacks.onPageChanged(callbacks.userData);
+    }
 }
 
-void AppGrid::goToNextPage() {
+void TileGrid::goToNextPage() {
     page = page + 1 < pageCount ? page + 1 : 0;
     keepSelectionOnRepopulate = false;
     populate();
+    if (callbacks.onPageChanged != nullptr) {
+        callbacks.onPageChanged(callbacks.userData);
+    }
 }
 
-void AppGrid::onPrevPressed(lv_event_t* e) {
-    static_cast<AppGrid*>(lv_event_get_user_data(e))->goToPreviousPage();
+void TileGrid::onPrevPressed(lv_event_t* e) {
+    static_cast<TileGrid*>(lv_event_get_user_data(e))->goToPreviousPage();
 }
 
-void AppGrid::onNextPressed(lv_event_t* e) {
-    static_cast<AppGrid*>(lv_event_get_user_data(e))->goToNextPage();
+void TileGrid::onNextPressed(lv_event_t* e) {
+    static_cast<TileGrid*>(lv_event_get_user_data(e))->goToNextPage();
 }
 
 // Swipes that start on a tile reach the grid too, as tiles pass their gestures on to the grid
-void AppGrid::onGridGesture(lv_event_t* e) {
-    auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
+void TileGrid::onGridGesture(lv_event_t* e) {
+    auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
     lv_indev_t* indev = lv_indev_active();
     if (indev == nullptr || self->pageCount <= 1) {
         return;
@@ -182,38 +188,38 @@ void AppGrid::onGridGesture(lv_event_t* e) {
     lv_async_call(direction == LV_DIR_LEFT ? onDeferredNextPage : onDeferredPreviousPage, self);
 }
 
-void AppGrid::onTileClicked(lv_event_t* e) {
-    const auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
-    self->callbacks.onClicked(getTileItem(e)->manifest, self->callbacks.userData);
+void TileGrid::onTileClicked(lv_event_t* e) {
+    const auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    self->callbacks.onClicked(*getTileItem(e), self->callbacks.userData);
 }
 
-void AppGrid::onTileLongPressed(lv_event_t* e) {
-    const auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
-    self->callbacks.onLongPressed(getTileItem(e)->manifest, self->callbacks.userData);
+void TileGrid::onTileLongPressed(lv_event_t* e) {
+    const auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    self->callbacks.onLongPressed(*getTileItem(e), self->callbacks.userData);
 }
 
-void AppGrid::onTileKey(lv_event_t* e) {
-    const auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
-    self->callbacks.onKey(getTileItem(e)->manifest, lv_event_get_key(e), self->callbacks.userData);
+void TileGrid::onTileKey(lv_event_t* e) {
+    const auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    self->callbacks.onKey(*getTileItem(e), lv_event_get_key(e), self->callbacks.userData);
 }
 
-void AppGrid::requestRepopulate(bool keepSelection) {
+void TileGrid::requestRepopulate(bool keepSelection) {
     keepSelectionOnRepopulate = keepSelection;
     lv_async_call(onDeferredRepopulate, this);
 }
 
-void AppGrid::populate() {
+void TileGrid::populate() {
     // Captured before lv_obj_clean() deletes the currently focused tile below: creating
-    // replacement tiles doesn't restore the focus, so the app id is remembered here and
+    // replacement tiles doesn't restore the focus, so the item id is remembered here and
     // re-focused on its new tile once rebuilt.
-    std::string focusedAppId;
+    std::string focusedId;
     const bool keepSelection = keepSelectionOnRepopulate;
     lv_group_t* group = lv_group_get_default();
     if (group != nullptr && keepSelection) {
         // Grid navigation focuses the grid in the group, and a tile within the grid
         lv_obj_t* focused = lv_group_get_focused(group) == grid ? lvgl_grid_navigation_get_focused(grid) : nullptr;
         if (focused != nullptr && lv_obj_get_parent(focused) == grid) {
-            focusedAppId = static_cast<const AppGridItem*>(lv_obj_get_user_data(focused))->manifest.id;
+            focusedId = static_cast<const TileGridItem*>(lv_obj_get_user_data(focused))->id;
         }
     }
     keepSelectionOnRepopulate = true;
@@ -231,10 +237,10 @@ void AppGrid::populate() {
 
     const uint32_t item_count = items.size();
     const uint32_t page_count = std::max<uint32_t>(1, (item_count + layout.pageSize - 1) / layout.pageSize);
-    // Follows the focused app onto its new page, e.g. after a reorder moved it.
-    if (!focusedAppId.empty()) {
-        const auto it = std::ranges::find_if(items, [&](const AppGridItem& item) {
-            return focusedAppId == item.manifest.id;
+    // Follows the focused item onto its new page, e.g. after a reorder moved it.
+    if (!focusedId.empty()) {
+        const auto it = std::ranges::find_if(items, [&](const TileGridItem& item) {
+            return focusedId == item.id;
         });
         if (it != items.end()) {
             page = static_cast<uint32_t>(it - items.begin()) / layout.pageSize;
@@ -243,11 +249,15 @@ void AppGrid::populate() {
     page = std::min(page, page_count - 1);
     pageCount = page_count;
 
-    lv_obj_set_hidden(pageIndicator, page_count <= 1);
-    lv_obj_set_hidden(prevButton, page_count <= 1);
-    lv_obj_set_hidden(nextButton, page_count <= 1);
-    lvgl_page_indicator_set_page_count(pageIndicator, page_count);
-    lvgl_page_indicator_set_page(pageIndicator, page);
+    if (pageIndicator != nullptr) {
+        lv_obj_set_hidden(pageIndicator, page_count <= 1);
+        lvgl_page_indicator_set_page_count(pageIndicator, page_count);
+        lvgl_page_indicator_set_page(pageIndicator, page);
+    }
+    if (prevButton != nullptr) {
+        lv_obj_set_hidden(prevButton, page_count <= 1);
+        lv_obj_set_hidden(nextButton, page_count <= 1);
+    }
 
     lv_obj_t* focusedTile = nullptr;
     const uint32_t first = page * layout.pageSize;
@@ -262,13 +272,17 @@ void AppGrid::populate() {
         lv_obj_set_style_pad_row(tile, layout.pad / 2, LV_STATE_DEFAULT);
         lv_obj_set_flex_flow(tile, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_user_data(tile, const_cast<AppGridItem*>(&item));
+        lv_obj_set_user_data(tile, const_cast<TileGridItem*>(&item));
 
         lv_obj_t* icon = lv_label_create(tile);
         lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_large_font(), LV_STATE_DEFAULT);
         lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
         lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
-        lv_label_set_text(icon, item.icon);
+        const char* icon_text = item.icon;
+        if (icon_text == nullptr && callbacks.resolveIcon != nullptr) {
+            icon_text = callbacks.resolveIcon(item, callbacks.userData);
+        }
+        lv_label_set_text(icon, icon_text != nullptr ? icon_text : "");
         if (iconColor == IconColor::Primary) {
             lv_obj_set_style_text_color(icon, lv_theme_get_color_primary(icon), LV_STATE_DEFAULT);
         } else if (iconColor == IconColor::Secondary) {
@@ -281,7 +295,7 @@ void AppGrid::populate() {
         // Dots mode needs a fixed height, otherwise the label wraps instead of truncating
         lv_obj_set_size(label, LV_PCT(100), lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL)));
         lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
-        lv_label_set_text(label, item.manifest.name);
+        lv_label_set_text(label, item.name.c_str());
 
         // A badge marks favourites, as it doesn't look like the focus indicator
         if (item.highlighted) {
@@ -297,7 +311,7 @@ void AppGrid::populate() {
             lv_obj_add_event_cb(tile, onTileKey, LV_EVENT_KEY, this);
         }
 
-        if (!focusedAppId.empty() && focusedAppId == item.manifest.id) {
+        if (!focusedId.empty() && focusedId == item.id) {
             focusedTile = tile;
         }
     }
@@ -312,7 +326,7 @@ void AppGrid::populate() {
     }
 }
 
-void AppGrid::createGrid(lv_obj_t* parent) {
+void TileGrid::createGrid(lv_obj_t* parent) {
     grid = lv_obj_create(parent);
     lv_obj_set_width(grid, LV_PCT(100));
     lv_obj_set_flex_grow(grid, 1);
@@ -333,8 +347,8 @@ void AppGrid::createGrid(lv_obj_t* parent) {
 }
 
 // Keys enter the bar on the previous page button, or on the first button when there's only one page
-void AppGrid::onBottomBarFocused(lv_event_t* e) {
-    const auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
+void TileGrid::onBottomBarFocused(lv_event_t* e) {
+    const auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
     lv_obj_t* current = lvgl_grid_navigation_get_focused(self->bottomBar);
     lv_obj_t* target = lv_obj_is_hidden(self->prevButton) ? lv_obj_get_child(self->bottomBar, 0) : self->prevButton;
     if (current == nullptr || target == current || target == self->barSpacer) {
@@ -347,7 +361,7 @@ void AppGrid::onBottomBarFocused(lv_event_t* e) {
     }
 }
 
-void AppGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
+void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
     bottomBar = lv_obj_create(parent);
     lv_obj_set_size(bottomBar, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(bottomBar, 0, LV_STATE_DEFAULT);
@@ -380,6 +394,21 @@ void AppGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
     lvgl_grid_navigation_add(bottomBar);
     lv_obj_add_event_cb(bottomBar, onBottomBarFocused, LV_EVENT_FOCUSED, this);
 
+    finishCreate(parent);
+}
+
+void TileGrid::createWidgets(lv_obj_t* parent) {
+    // Widgets of a previous build are deleted by now
+    prevButton = nullptr;
+    nextButton = nullptr;
+    pageIndicator = nullptr;
+    bottomBar = nullptr;
+    barSpacer = nullptr;
+    createGrid(parent);
+    finishCreate(parent);
+}
+
+void TileGrid::finishCreate(lv_obj_t* parent) {
     // Resolves the grid's flex_grow height, which the page size is derived from.
     lv_obj_update_layout(parent);
     lv_obj_add_event_cb(grid, onGridSizeChanged, LV_EVENT_SIZE_CHANGED, this);
@@ -392,7 +421,27 @@ void AppGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
     }
 }
 
-lv_obj_t* AppGrid::addBarButton(const char* icon, lv_event_cb_t onClicked, void* userData) {
+void TileGrid::setPageButtons(lv_obj_t* previous, lv_obj_t* next) {
+    prevButton = previous;
+    nextButton = next;
+    lv_obj_add_event_cb(prevButton, onPrevPressed, LV_EVENT_SHORT_CLICKED, this);
+    lv_obj_add_event_cb(nextButton, onNextPressed, LV_EVENT_SHORT_CLICKED, this);
+    lv_obj_set_hidden(prevButton, pageCount <= 1);
+    lv_obj_set_hidden(nextButton, pageCount <= 1);
+}
+
+lv_obj_t* TileGrid::findTile(const std::string& id) const {
+    const uint32_t count = lv_obj_get_child_count(grid);
+    for (uint32_t i = 0; i < count; i++) {
+        lv_obj_t* tile = lv_obj_get_child(grid, static_cast<int32_t>(i));
+        if (static_cast<const TileGridItem*>(lv_obj_get_user_data(tile))->id == id) {
+            return tile;
+        }
+    }
+    return nullptr;
+}
+
+lv_obj_t* TileGrid::addBarButton(const char* icon, lv_event_cb_t onClicked, void* userData) {
     auto* button = lvgl_icon_button_create(bottomBar);
     lv_obj_move_to_index(button, lv_obj_get_index(barSpacer));
     auto* label = lv_label_create(button);

@@ -690,6 +690,13 @@ icon_button {
     padAll: @button-pad-ver;
 }
 
+// A selected tile, e.g. the file that the Files app shows actions for
+icon_button_selected {
+    bgColor: @list-item-focused-color;
+    bgOpa: cover;
+    textColor: @list-item-focused-text-color;
+}
+
 icon_button_filled {
     bgColor: @icon-button-filled-color;
     bgOpa: cover;
@@ -1348,6 +1355,7 @@ apply(icon_button) {
     transition_exit: default;
     state_pressed: state.pressed;
     transition_enter: state.pressed;
+    icon_button_selected: state.checked;
     focus_ring_inset: state.focusKey;
     edit_ring_inset: state.edited;
     disabled: state.disabled;
