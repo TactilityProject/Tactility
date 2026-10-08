@@ -61,7 +61,6 @@ namespace app {
     namespace power { extern const ::AppManifest manifest; }
     namespace poweroff { extern const ::AppManifest manifest; }
     namespace selectiondialog { extern const ::AppManifest manifest; }
-    namespace settings { extern const ::AppManifest manifest; }
     namespace setup { extern const ::AppManifest manifest; }
     namespace shell { extern const ::AppManifest manifest; extern const ::AppManifest sh_manifest; }
     namespace systeminfo { extern const ::AppManifest manifest; }
@@ -131,7 +130,6 @@ static void registerInternalApps() {
     if (device_exists_of_type(&POWER_SUPPLY_TYPE)) {
         app_manager_add(&app::poweroff::manifest);
     }
-    app_manager_add(&app::settings::manifest);
     app_manager_add(&app::selectiondialog::manifest);
     app_manager_add(&app::setup::manifest);
     app_manager_add(&app::shell::manifest);

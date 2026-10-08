@@ -31,6 +31,7 @@ extern "C" {
     extern void* _Znwj(uint32_t size); // operator new(unsigned int)
     extern void _ZdlPvj(void* p, uint64_t size); // operator delete(void*, unsigned int)
     extern void* _Znaj(uint32_t size); // operator new[](unsigned int)
+    extern void* _ZnajRKSt9nothrow_t(uint32_t size, const std::nothrow_t& tag); // operator new[](unsigned int, std::nothrow_t const&)
     extern void _ZdaPvj(void* p, uint64_t size); // operator delete[](void*, unsigned int)
     // Unsized forms: the compiler picks these over the sized ones above depending on context
     // (e.g. trivially-destructible types needing no array cookie), so both must be exported.
@@ -572,6 +573,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(_Znwj), // operator new(unsigned int)
     DEFINE_MODULE_SYMBOL(_ZdlPvj), // operator delete(void*, unsigned int)
     DEFINE_MODULE_SYMBOL(_Znaj), // operator new[](unsigned int)
+    DEFINE_MODULE_SYMBOL(_ZnajRKSt9nothrow_t), // operator new[](unsigned int, std::nothrow_t const&)
     DEFINE_MODULE_SYMBOL(_ZdaPvj), // operator delete[](void*, unsigned int)
     DEFINE_MODULE_SYMBOL(_ZdlPv), // operator delete(void*)
     DEFINE_MODULE_SYMBOL(_ZdaPv), // operator delete[](void*)

@@ -48,8 +48,11 @@ public:
         Secondary
     };
 
-    /** Sets the colour of the tile icons. Call before creating the widgets. */
+    /** Sets the colour of the tile icons. Applies from the next (re)population. */
     void setIconColor(IconColor color) { iconColor = color; }
+
+    /** Shows the first page from the next (re)population. */
+    void showFirstPage() { page = 0; }
 
     /** Swiping left or right over the grid goes to the next or previous page. Call before creating the widgets. */
     void setSwipeNavigation(bool enabled) { swipeNavigation = enabled; }
@@ -89,8 +92,8 @@ private:
     lv_obj_t* prevButton = nullptr;
     lv_obj_t* nextButton = nullptr;
     lv_obj_t* pageIndicator = nullptr;
-    lv_obj_t* pageButtons = nullptr;
-    lv_obj_t* barButtons = nullptr;
+    lv_obj_t* bottomBar = nullptr;
+    lv_obj_t* barSpacer = nullptr;
 
     void createGrid(lv_obj_t* parent);
     void goToPreviousPage();
@@ -105,6 +108,7 @@ private:
     static void onPrevPressed(lv_event_t* e);
     static void onNextPressed(lv_event_t* e);
     static void onGridGesture(lv_event_t* e);
+    static void onBottomBarFocused(lv_event_t* e);
     static void onTileClicked(lv_event_t* e);
     static void onTileLongPressed(lv_event_t* e);
     static void onTileKey(lv_event_t* e);

@@ -88,6 +88,9 @@ lv_obj_t* createRow(lv_obj_t* parent) {
     auto* row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     return row;
 }
 
@@ -102,10 +105,9 @@ Section createSection(lv_obj_t* parent, const char* title, bool enabled, lv_even
 
     auto* title_label = lv_label_create(header);
     lv_label_set_text(title_label, title);
-    lv_obj_align(title_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(title_label, 1);
 
     auto* sw = lv_switch_create(header);
-    lv_obj_align(sw, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_set_state(sw, LV_STATE_CHECKED, enabled);
     lv_obj_add_event_cb(sw, onEnabledChanged, LV_EVENT_VALUE_CHANGED, userData);
 
@@ -122,10 +124,9 @@ lv_obj_t* createSwitchRow(lv_obj_t* parent, const char* label, lv_event_cb_t cb,
 
     auto* row_label = lv_label_create(row);
     lv_label_set_text(row_label, label);
-    lv_obj_align(row_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(row_label, 1);
 
     auto* sw = lv_switch_create(row);
-    lv_obj_align(sw, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(sw, cb, LV_EVENT_VALUE_CHANGED, userData);
 
     return sw;
@@ -134,13 +135,14 @@ lv_obj_t* createSwitchRow(lv_obj_t* parent, const char* label, lv_event_cb_t cb,
 lv_obj_t* createSliderRow(lv_obj_t* parent, const char* label, int32_t initialValue, lv_event_cb_t cb, void* userData) {
     auto* row = createRow(parent);
 
+    // The label gets the width that the slider leaves, and scrolls when its text doesn't fit
     auto* row_label = lv_label_create(row);
     lv_label_set_text(row_label, label);
-    lv_obj_align(row_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(row_label, 1);
+    lv_label_set_long_mode(row_label, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
 
     auto* sliderBox = lvgl_sliderbox_create(row, 0, 100, 10, initialValue);
-    lv_obj_set_width(sliderBox, LV_PCT(50));
-    lv_obj_align(sliderBox, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_width(sliderBox, LV_PCT(75));
     lvgl_sliderbox_add_value_changed_cb(sliderBox, cb, userData);
 
     return sliderBox;
@@ -185,6 +187,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(main_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(main_wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(main_wrapper, 1);

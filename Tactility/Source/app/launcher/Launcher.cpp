@@ -1,13 +1,10 @@
 #include <app/event.h>
 #include <app/manager.h>
 #include <app/manifest.h>
-#include <app/package_manifest.h>
 #include <app/scheduler.h>
 #include <app/start.h>
 
-#include <algorithm>
 #include <cstring>
-#include <string>
 #include <vector>
 
 #include <lvgl.h>
@@ -22,7 +19,7 @@
 #include <tactility/log.h>
 
 #include <Tactility/app/AppGrid.h>
-#include <Tactility/app/launcher/Favourites.h>
+#include <Tactility/app/launcher/LauncherMode.h>
 #include <Tactility/app/setup/Setup.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/Tactility.h>
@@ -33,69 +30,27 @@ constexpr auto* TAG = "Launcher";
 
 namespace {
 
-struct IconEntry {
-    const char* id;
-    const char* icon;
-};
-
-constexpr IconEntry ICONS[] = {
-    {"tactility.apphub",            LVGL_ICON_SHARED_DOWNLOAD},
-    {"tactility.camera",            LVGL_ICON_SHARED_CAMERA},
-    {"tactility.chat",              LVGL_ICON_SHARED_FORUM},
-    {"tactility.files",             LVGL_ICON_SHARED_FOLDER},
-    {"tactility.i2cscanner",        LVGL_ICON_SHARED_CABLE},
-    {"tactility.notes",             LVGL_ICON_SHARED_EDIT_NOTE},
-    {"tactility.screenshot",        LVGL_ICON_SHARED_IMAGE},
-    {"tactility.systeminfo",        LVGL_ICON_SHARED_DEVICES},
-    {"tactility.terminal",          LVGL_ICON_SHARED_TERMINAL},
-    {"tactility.webserversettings", LVGL_ICON_SHARED_CLOUD},
-};
-
-// Hidden apps that are still shown in the launcher
-constexpr const char* SHOWN_HIDDEN_APP_IDS[] = {
-    "tactility.files",
-};
-
-const char* appIcon(const ::AppManifest* manifest) {
-    for (const auto& entry : ICONS) {
-        if (!strcmp(manifest->id, entry.id)) return entry.icon;
-    }
-    return LVGL_ICON_SHARED_DEPLOYED_CODE;
-}
-
-bool isShown(const ::AppManifest& manifest) {
-    if (manifest.category != APP_CATEGORY_USER && manifest.category != APP_CATEGORY_SYSTEM) {
-        return false;
-    }
-    if ((manifest.flags & APP_MANIFEST_FLAG_HIDDEN) == 0) {
-        return true;
-    }
-    return std::ranges::any_of(SHOWN_HIDDEN_APP_IDS, [&](const char* id) { return strcmp(manifest.id, id) == 0; });
-}
-
-void collectManifest(const ::AppManifest* manifest, void* context) {
-    auto* manifests = static_cast<std::vector<::AppManifest>*>(context);
-    manifests->push_back(*manifest);
-}
-
-// Apps from installed packages this device can't run (wrong device, too little RAM)
-void collectIncompatibleAppIds(const AppPackage* package, void* context) {
-    if (app_package_manifest_is_compatible(&package->package)) {
-        return;
-    }
-    auto* ids = static_cast<std::vector<std::string>*>(context);
-    for (size_t i = 0; i < package->app_id_count; i++) {
-        ids->emplace_back(package->app_ids[i]);
-    }
-}
-
 std::vector<AppGridItem> collectItems(void* userData);
 void onAppClicked(const ::AppManifest& manifest, void* userData);
 void onAppLongPressed(const ::AppManifest& manifest, void* userData);
 void onAppKey(const ::AppManifest& manifest, uint32_t key, void* userData);
 
+enum class Mode {
+    Apps,
+    Settings
+};
+
+const LauncherMode& getLauncherMode(Mode mode) {
+    return mode == Mode::Settings ? SETTINGS_MODE : APPS_MODE;
+}
+
+Mode getOtherMode(Mode mode) {
+    return mode == Mode::Settings ? Mode::Apps : Mode::Settings;
+}
+
 struct Context {
-    Favourites favourites;
+    Mode mode = Mode::Apps;
+    lv_obj_t* modeButtonIcon = nullptr;
     AppGrid grid { AppGrid::Callbacks {
         .collect = collectItems,
         .onClicked = onAppClicked,
@@ -106,29 +61,7 @@ struct Context {
 };
 
 std::vector<AppGridItem> collectItems(void* userData) {
-    const auto* ctx = static_cast<Context*>(userData);
-    const std::vector<std::string> favouriteIds = ctx->favourites.load();
-
-    std::vector<::AppManifest> collected;
-    app_manager_for_each_manifest(collectManifest, &collected);
-    std::vector<std::string> incompatibleIds;
-    app_manager_for_each_package(collectIncompatibleAppIds, &incompatibleIds);
-    std::erase_if(collected, [&](const ::AppManifest& manifest) {
-        return !isShown(manifest) || std::ranges::find(incompatibleIds, std::string(manifest.id)) != incompatibleIds.end();
-    });
-
-    std::vector<AppGridItem> items;
-    items.reserve(collected.size());
-    for (const auto& manifest : collected) {
-        items.push_back({ manifest, appIcon(&manifest), Favourites::contains(favouriteIds, manifest.id) });
-    }
-    std::ranges::sort(items, [](const AppGridItem& a, const AppGridItem& b) {
-        if (a.highlighted != b.highlighted) {
-            return a.highlighted;
-        }
-        return strcmp(a.manifest.name, b.manifest.name) < 0;
-    });
-    return items;
+    return getLauncherMode(static_cast<Context*>(userData)->mode).collect();
 }
 
 void startApp(const char* appId) {
@@ -143,21 +76,36 @@ void onAppClicked(const ::AppManifest& manifest, void*) {
     startApp(manifest.id);
 }
 
-void toggleFavourite(Context* ctx, const char* appId, bool keepSelection) {
-    if (!ctx->favourites.toggle(appId)) {
-        LOG_E(TAG, "Failed to save favourites");
-    }
-    ctx->grid.requestRepopulate(keepSelection);
-}
-
 void onAppLongPressed(const ::AppManifest& manifest, void* userData) {
-    toggleFavourite(static_cast<Context*>(userData), manifest.id, false);
+    auto* ctx = static_cast<Context*>(userData);
+    const LauncherMode& mode = getLauncherMode(ctx->mode);
+    if (mode.onLongPressed != nullptr) {
+        mode.onLongPressed(ctx->grid, manifest);
+    }
 }
 
 void onAppKey(const ::AppManifest& manifest, uint32_t key, void* userData) {
-    if (key == 'f' || key == 'F') {
-        toggleFavourite(static_cast<Context*>(userData), manifest.id, true);
+    auto* ctx = static_cast<Context*>(userData);
+    const LauncherMode& mode = getLauncherMode(ctx->mode);
+    if (mode.onKey != nullptr) {
+        mode.onKey(ctx->grid, manifest, key);
     }
+}
+
+void applyIconColor(Context* ctx) {
+    // The monochrome theme's primary color is black, also on a black background
+    if (!lvgl_theme_is_mono()) {
+        ctx->grid.setIconColor(getLauncherMode(ctx->mode).iconColor);
+    }
+}
+
+void onModeButtonPressed(lv_event_t* e) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+    ctx->mode = getOtherMode(ctx->mode);
+    applyIconColor(ctx);
+    ctx->grid.showFirstPage();
+    ctx->grid.requestRepopulate(false);
+    lv_label_set_text(ctx->modeButtonIcon, getLauncherMode(getOtherMode(ctx->mode)).buttonIcon);
 }
 
 void onShortcutPressed(lv_event_t* e) {
@@ -188,13 +136,11 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    // The monochrome theme's primary color is black, also on a black background
-    if (!lvgl_theme_is_mono()) {
-        ctx->grid.setIconColor(AppGrid::IconColor::Primary);
-    }
+    applyIconColor(ctx);
     ctx->grid.setSwipeNavigation(true);
     ctx->grid.createWidgetsWithBottomBar(parent);
-    ctx->grid.addBarButton(LVGL_ICON_SHARED_SETTINGS, onShortcutPressed, const_cast<char*>("tactility.settings"));
+    lv_obj_t* modeButton = ctx->grid.addBarButton(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
+    ctx->modeButtonIcon = lv_obj_get_child(modeButton, 0);
     if (isAppRegistered("tactility.poweroff") && supportsPowerOff()) {
         ctx->grid.addBarButton(LVGL_ICON_SHARED_POWER_SETTINGS_NEW, onShortcutPressed, const_cast<char*>("tactility.poweroff"));
     }

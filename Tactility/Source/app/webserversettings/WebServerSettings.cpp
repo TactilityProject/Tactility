@@ -16,6 +16,9 @@
 
 #include <lvgl.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/grid_navigation.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::webserversettings {
@@ -33,7 +36,15 @@ struct Context {
     settings::webserver::WebServerSettings originalSettings;
     bool updated = false;
     bool wifiSettingsChanged = false;
-    lv_obj_t* dropdownWifiMode = nullptr;
+    lv_obj_t* wifiModeChips = nullptr;
+    // Shown in access point mode
+    lv_obj_t* apGroup = nullptr;
+    // Shown when the access point isn't an open network
+    lv_obj_t* apPasswordRow = nullptr;
+    // Shown when authentication is required
+    lv_obj_t* authCard = nullptr;
+    // Shown when the web server is enabled
+    lv_obj_t* urlCard = nullptr;
     lv_obj_t* textAreaApPassword = nullptr;
     lv_obj_t* switchApOpenNetwork = nullptr;
     lv_obj_t* switchWebServerEnabled = nullptr;
@@ -53,10 +64,34 @@ void onBackPressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
-void onWifiModeChanged(lv_event_t* e) {
+/** Shows the widgets of the enabled features. Requires the LVGL lock. */
+void updateVisibility(Context* ctx, bool accessPoint, bool openNetwork, bool authEnabled, bool serverEnabled) {
+    const uint32_t chip_count = lv_obj_get_child_count(ctx->wifiModeChips);
+    for (uint32_t i = 0; i < chip_count; i++) {
+        lv_obj_set_state(lv_obj_get_child(ctx->wifiModeChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, (i == 1) == accessPoint);
+    }
+    lv_obj_set_flag(ctx->apGroup, LV_OBJ_FLAG_HIDDEN, !accessPoint);
+    lv_obj_set_flag(ctx->apPasswordRow, LV_OBJ_FLAG_HIDDEN, openNetwork);
+    lv_obj_set_flag(ctx->authCard, LV_OBJ_FLAG_HIDDEN, !authEnabled);
+    lv_obj_set_flag(ctx->urlCard, LV_OBJ_FLAG_HIDDEN, !serverEnabled);
+}
+
+void updateVisibility(Context* ctx) {
+    updateVisibility(ctx,
+        lv_obj_has_state(lv_obj_get_child(ctx->wifiModeChips, 1), LV_STATE_CHECKED),
+        lv_obj_has_state(ctx->switchApOpenNetwork, LV_STATE_CHECKED),
+        lv_obj_has_state(ctx->switchWebServerAuthEnabled, LV_STATE_CHECKED),
+        lv_obj_has_state(ctx->switchWebServerEnabled, LV_STATE_CHECKED));
+}
+
+void onWifiModeChipPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    auto index = lv_dropdown_get_selected(dropdown);
+    // Chip 0 is station mode, chip 1 is access point mode
+    const uint32_t index = lv_obj_get_index(lv_event_get_target_obj(e));
+    updateVisibility(ctx, index == 1,
+        lv_obj_has_state(ctx->switchApOpenNetwork, LV_STATE_CHECKED),
+        lv_obj_has_state(ctx->switchWebServerAuthEnabled, LV_STATE_CHECKED),
+        lv_obj_has_state(ctx->switchWebServerEnabled, LV_STATE_CHECKED));
     getMainDispatcher().dispatch([ctx, index] {
         ctx->wsSettings.wifiMode = static_cast<settings::webserver::WiFiMode>(index);
         ctx->updated = true;
@@ -70,6 +105,7 @@ void onWifiModeChanged(lv_event_t* e) {
 void onWebServerEnabledSwitch(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     bool enabled = lv_obj_has_state(ctx->switchWebServerEnabled, LV_STATE_CHECKED);
+    updateVisibility(ctx);
     getMainDispatcher().dispatch([ctx, enabled] {
         ctx->wsSettings.webServerEnabled = enabled;
         ctx->updated = true;
@@ -91,22 +127,7 @@ void onWebServerEnabledSwitch(lv_event_t* e) {
 void onWebServerAuthEnabledSwitch(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     bool enabled = lv_obj_has_state(ctx->switchWebServerAuthEnabled, LV_STATE_CHECKED);
-
-    if (ctx->textAreaWebServerUsername && ctx->textAreaWebServerPassword) {
-        if (enabled) {
-            lv_obj_remove_state(ctx->textAreaWebServerUsername, LV_STATE_DISABLED);
-            lv_obj_add_flag(ctx->textAreaWebServerUsername, LV_OBJ_FLAG_CLICKABLE);
-
-            lv_obj_remove_state(ctx->textAreaWebServerPassword, LV_STATE_DISABLED);
-            lv_obj_add_flag(ctx->textAreaWebServerPassword, LV_OBJ_FLAG_CLICKABLE);
-        } else {
-            lv_obj_add_state(ctx->textAreaWebServerUsername, LV_STATE_DISABLED);
-            lv_obj_remove_flag(ctx->textAreaWebServerUsername, LV_OBJ_FLAG_CLICKABLE);
-
-            lv_obj_add_state(ctx->textAreaWebServerPassword, LV_STATE_DISABLED);
-            lv_obj_remove_flag(ctx->textAreaWebServerPassword, LV_OBJ_FLAG_CLICKABLE);
-        }
-    }
+    updateVisibility(ctx);
 
     getMainDispatcher().dispatch([ctx, enabled] {
         ctx->wsSettings.webServerAuthEnabled = enabled;
@@ -132,16 +153,7 @@ void onApPasswordChanged(lv_event_t* e) {
 void onApOpenNetworkSwitch(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     bool openNetwork = lv_obj_has_state(ctx->switchApOpenNetwork, LV_STATE_CHECKED);
-
-    if (ctx->textAreaApPassword) {
-        if (openNetwork) {
-            lv_obj_add_state(ctx->textAreaApPassword, LV_STATE_DISABLED);
-            lv_obj_remove_flag(ctx->textAreaApPassword, LV_OBJ_FLAG_CLICKABLE);
-        } else {
-            lv_obj_remove_state(ctx->textAreaApPassword, LV_STATE_DISABLED);
-            lv_obj_add_flag(ctx->textAreaApPassword, LV_OBJ_FLAG_CLICKABLE);
-        }
-    }
+    updateVisibility(ctx);
 
     getMainDispatcher().dispatch([ctx, openNetwork] {
         ctx->wsSettings.apOpenNetwork = openNetwork;
@@ -187,6 +199,51 @@ void updateUrlDisplay(Context* ctx) {
     lv_label_set_text(ctx->labelUrlValue, url.c_str());
 }
 
+lv_obj_t* createCard(lv_obj_t* parent) {
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    return card;
+}
+
+/** A transparent column of rows, to show or hide them together */
+lv_obj_t* createGroup(lv_obj_t* parent) {
+    auto* group = lv_obj_create(parent);
+    lv_obj_set_size(group, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(group, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(group, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(group, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(group, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(group, LV_OBJ_FLAG_SCROLLABLE);
+    return group;
+}
+
+/** A transparent row: "Title          [content]" */
+lv_obj_t* createRow(lv_obj_t* parent, const char* title) {
+    auto* row = lv_obj_create(parent);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    auto* label = lv_label_create(row);
+    lv_label_set_text(label, title);
+    lv_obj_set_flex_grow(label, 1);
+    return row;
+}
+
+lv_obj_t* createTextArea(lv_obj_t* row, const char* text, uint32_t maxLength, bool password) {
+    auto* text_area = lv_textarea_create(row);
+    lv_obj_set_width(text_area, LV_PCT(50));
+    lv_textarea_set_one_line(text_area, true);
+    lv_textarea_set_max_length(text_area, maxLength);
+    lv_textarea_set_password_mode(text_area, password);
+    lv_textarea_set_text(text_area, text);
+    return text_area;
+}
+
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
@@ -205,144 +262,80 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_add_event_cb(ctx->switchWebServerEnabled, onWebServerEnabledSwitch, LV_EVENT_VALUE_CHANGED, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(main_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(main_wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(main_wrapper, 1);
 
-    // WiFi Mode dropdown
-    auto* wifi_mode_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(wifi_mode_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(wifi_mode_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(wifi_mode_wrapper, 0, LV_STATE_DEFAULT);
-    auto* wifi_mode_label = lv_label_create(wifi_mode_wrapper);
-    lv_label_set_text(wifi_mode_label, "WiFi Mode");
-    lv_obj_align(wifi_mode_label, LV_ALIGN_LEFT_MID, 0, 0);
-    ctx->dropdownWifiMode = lv_dropdown_create(wifi_mode_wrapper);
-    lv_obj_align(ctx->dropdownWifiMode, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_dropdown_set_options(ctx->dropdownWifiMode, "Station\nAccess Point");
-    lv_dropdown_set_selected(ctx->dropdownWifiMode, static_cast<uint32_t>(ctx->wsSettings.wifiMode));
-    lv_obj_add_event_cb(ctx->dropdownWifiMode, onWifiModeChanged, LV_EVENT_VALUE_CHANGED, ctx);
+    // Address, while the web server is enabled
+    ctx->urlCard = createCard(main_wrapper);
+    ctx->labelUrl = lv_label_create(ctx->urlCard);
+    lv_label_set_text(ctx->labelUrl, "Web server address");
+    ctx->labelUrlValue = lv_label_create(ctx->urlCard);
+    updateUrlDisplay(ctx);
 
-    // AP Open Network toggle
-    auto* ap_open_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(ap_open_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(ap_open_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ap_open_wrapper, 0, LV_STATE_DEFAULT);
-    auto* ap_open_label = lv_label_create(ap_open_wrapper);
-    lv_label_set_text(ap_open_label, "AP Open Network");
-    lv_obj_align(ap_open_label, LV_ALIGN_LEFT_MID, 0, 0);
-    ctx->switchApOpenNetwork = lv_switch_create(ap_open_wrapper);
+    // WiFi mode, with the access point settings in access point mode
+    lv_label_set_text(lv_label_create(main_wrapper), "WiFi mode");
+    auto* wifi_card = createCard(main_wrapper);
+    lv_obj_set_flex_align(wifi_card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    // The chips are centered while they fit, and scroll when they don't
+    ctx->wifiModeChips = lv_obj_create(wifi_card);
+    lv_obj_set_size(ctx->wifiModeChips, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(ctx->wifiModeChips, LV_PCT(100), LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(ctx->wifiModeChips, LV_FLEX_FLOW_ROW);
+    lv_obj_set_scroll_dir(ctx->wifiModeChips, LV_DIR_HOR);
+    lv_obj_set_style_bg_opa(ctx->wifiModeChips, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(ctx->wifiModeChips, 0, LV_STATE_DEFAULT);
+    // The chips' margins leave room for their focus rings and space them apart
+    lv_obj_set_style_pad_all(ctx->wifiModeChips, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(ctx->wifiModeChips, 0, LV_STATE_DEFAULT);
+    // In settings::webserver::WiFiMode order
+    for (const char* name : { "Station", "Access point" }) {
+        auto* chip = lvgl_chip_create(ctx->wifiModeChips);
+        lv_label_set_text(lv_label_create(chip), name);
+        lv_obj_add_event_cb(chip, onWifiModeChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
+    }
+    lvgl_grid_navigation_add(ctx->wifiModeChips);
+
+    ctx->apGroup = createGroup(wifi_card);
+    auto* ap_open_row = createRow(ctx->apGroup, "Open network");
+    ctx->switchApOpenNetwork = lv_switch_create(ap_open_row);
     if (ctx->wsSettings.apOpenNetwork) lv_obj_add_state(ctx->switchApOpenNetwork, LV_STATE_CHECKED);
-    lv_obj_align(ctx->switchApOpenNetwork, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(ctx->switchApOpenNetwork, onApOpenNetworkSwitch, LV_EVENT_VALUE_CHANGED, ctx);
 
-    // AP Password
-    auto* ap_pass_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(ap_pass_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(ap_pass_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ap_pass_wrapper, 0, LV_STATE_DEFAULT);
-    auto* ap_pass_label = lv_label_create(ap_pass_wrapper);
-    lv_label_set_text(ap_pass_label, "AP Password");
-    lv_obj_align(ap_pass_label, LV_ALIGN_LEFT_MID, 0, 0);
-    ctx->textAreaApPassword = lv_textarea_create(ap_pass_wrapper);
-    lv_obj_set_width(ctx->textAreaApPassword, 120);
-    lv_obj_align(ctx->textAreaApPassword, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_textarea_set_one_line(ctx->textAreaApPassword, true);
-    lv_textarea_set_max_length(ctx->textAreaApPassword, 64);
-    lv_textarea_set_password_mode(ctx->textAreaApPassword, true);
-    lv_textarea_set_text(ctx->textAreaApPassword, ctx->wsSettings.apPassword.c_str());
+    ctx->apPasswordRow = createRow(ctx->apGroup, "Password");
+    ctx->textAreaApPassword = createTextArea(ctx->apPasswordRow, ctx->wsSettings.apPassword.c_str(), 64, true);
     lv_obj_add_event_cb(ctx->textAreaApPassword, onApPasswordChanged, LV_EVENT_VALUE_CHANGED, ctx);
-    // Disable password field if open network is enabled
-    if (ctx->wsSettings.apOpenNetwork) {
-        lv_obj_add_state(ctx->textAreaApPassword, LV_STATE_DISABLED);
-        lv_obj_remove_flag(ctx->textAreaApPassword, LV_OBJ_FLAG_CLICKABLE);
-    }
 
-    // Web Server Authentication Enable toggle
-    auto* ws_auth_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(ws_auth_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(ws_auth_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ws_auth_wrapper, 0, LV_STATE_DEFAULT);
-    auto* ws_auth_label = lv_label_create(ws_auth_wrapper);
-    lv_label_set_text(ws_auth_label, "Require Authentication");
-    lv_obj_align(ws_auth_label, LV_ALIGN_LEFT_MID, 0, 0);
-    ctx->switchWebServerAuthEnabled = lv_switch_create(ws_auth_wrapper);
+    // Authentication, with the credentials while it's required
+    auto* auth_row = createRow(main_wrapper, "Require authentication");
+    ctx->switchWebServerAuthEnabled = lv_switch_create(auth_row);
     if (ctx->wsSettings.webServerAuthEnabled) lv_obj_add_state(ctx->switchWebServerAuthEnabled, LV_STATE_CHECKED);
-    lv_obj_align(ctx->switchWebServerAuthEnabled, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(ctx->switchWebServerAuthEnabled, onWebServerAuthEnabledSwitch, LV_EVENT_VALUE_CHANGED, ctx);
 
-    // WebServer Username
-    auto* ws_user_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(ws_user_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(ws_user_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ws_user_wrapper, 0, LV_STATE_DEFAULT);
-    auto* ws_user_label = lv_label_create(ws_user_wrapper);
-    lv_label_set_text(ws_user_label, "Username");
-    lv_obj_align(ws_user_label, LV_ALIGN_LEFT_MID, 0, 0);
-    ctx->textAreaWebServerUsername = lv_textarea_create(ws_user_wrapper);
-    if (!ctx->wsSettings.webServerAuthEnabled) {
-        lv_obj_add_state(ctx->textAreaWebServerUsername, LV_STATE_DISABLED);
-        lv_obj_remove_flag(ctx->textAreaWebServerUsername, LV_OBJ_FLAG_CLICKABLE);
-    }
-    lv_obj_set_width(ctx->textAreaWebServerUsername, 120);
-    lv_obj_align(ctx->textAreaWebServerUsername, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_textarea_set_one_line(ctx->textAreaWebServerUsername, true);
-    lv_textarea_set_max_length(ctx->textAreaWebServerUsername, 32);
-    lv_textarea_set_text(ctx->textAreaWebServerUsername, ctx->wsSettings.webServerUsername.c_str());
+    ctx->authCard = createCard(main_wrapper);
+    auto* user_row = createRow(ctx->authCard, "Username");
+    ctx->textAreaWebServerUsername = createTextArea(user_row, ctx->wsSettings.webServerUsername.c_str(), 32, false);
     lv_obj_add_event_cb(ctx->textAreaWebServerUsername, onCredentialChanged, LV_EVENT_VALUE_CHANGED, ctx);
-
-    // WebServer Password
-    auto* ws_pass_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(ws_pass_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(ws_pass_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ws_pass_wrapper, 0, LV_STATE_DEFAULT);
-    auto* ws_pass_label = lv_label_create(ws_pass_wrapper);
-    lv_label_set_text(ws_pass_label, "Password");
-    lv_obj_align(ws_pass_label, LV_ALIGN_LEFT_MID, 0, 0);
-    ctx->textAreaWebServerPassword = lv_textarea_create(ws_pass_wrapper);
-    if (!ctx->wsSettings.webServerAuthEnabled) {
-        lv_obj_add_state(ctx->textAreaWebServerPassword, LV_STATE_DISABLED);
-        lv_obj_remove_flag(ctx->textAreaWebServerPassword, LV_OBJ_FLAG_CLICKABLE);
-    }
-    lv_obj_set_width(ctx->textAreaWebServerPassword, 120);
-    lv_obj_align(ctx->textAreaWebServerPassword, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_textarea_set_one_line(ctx->textAreaWebServerPassword, true);
-    lv_textarea_set_max_length(ctx->textAreaWebServerPassword, 64);
-    lv_textarea_set_password_mode(ctx->textAreaWebServerPassword, true);
-    lv_textarea_set_text(ctx->textAreaWebServerPassword, ctx->wsSettings.webServerPassword.c_str());
+    auto* password_row = createRow(ctx->authCard, "Password");
+    ctx->textAreaWebServerPassword = createTextArea(password_row, ctx->wsSettings.webServerPassword.c_str(), 64, true);
     lv_obj_add_event_cb(ctx->textAreaWebServerPassword, onCredentialChanged, LV_EVENT_VALUE_CHANGED, ctx);
-
-    // URL Display
-    auto* url_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(url_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(url_wrapper, 10, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(url_wrapper, 1, LV_STATE_DEFAULT);
-    lv_obj_set_flex_flow(url_wrapper, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_cross_place(url_wrapper, LV_FLEX_ALIGN_START, 0);
-
-    ctx->labelUrl = lv_label_create(url_wrapper);
-    lv_label_set_text(ctx->labelUrl, "Web Server URL:");
-
-    ctx->labelUrlValue = lv_label_create(url_wrapper);
-    if (lv_display_get_color_format(lv_obj_get_display(parent)) == LV_COLOR_FORMAT_L8) {
-        lv_obj_set_style_text_color(ctx->labelUrlValue, lv_theme_get_color_secondary(ctx->labelUrlValue), LV_PART_MAIN);
-    } else {
-        lv_obj_set_style_text_color(ctx->labelUrlValue, lv_palette_main(LV_PALETTE_BLUE), 0);
-    }
-
-    updateUrlDisplay(ctx);
 
     // Info text
     auto* info_label = lv_label_create(main_wrapper);
     lv_label_set_long_mode(info_label, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(info_label, LV_PCT(95));
-    if (lv_display_get_color_format(lv_obj_get_display(parent)) != LV_COLOR_FORMAT_L8) {
-        lv_obj_set_style_text_color(info_label, lv_palette_main(LV_PALETTE_GREY), 0);
-    }
+    lv_obj_set_width(info_label, LV_PCT(100));
     lv_label_set_text(info_label,
         "WiFi Station credentials are managed separately.\n"
         "Use the WiFi menu to connect to networks.\n\n"
         "AP mode uses the password configured above.");
+
+    updateVisibility(ctx,
+        ctx->wsSettings.wifiMode == settings::webserver::WiFiMode::AccessPoint,
+        ctx->wsSettings.apOpenNetwork,
+        ctx->wsSettings.webServerAuthEnabled,
+        ctx->wsSettings.webServerEnabled);
 }
 
 int32_t appMain(int argc, char* argv[]) {

@@ -17,6 +17,11 @@ typedef struct {
     lv_color_t color_primary;
     lv_color_t color_secondary;
     lv_color_t color_error;
+    /** Smaller spacing and controls, for small screens (see lvgl_theme_is_compact()) */
+    bool is_compact;
+    /** Use color_surface as the surface (screen background) colour, instead of the theme's own. Not used by the monochrome theme. */
+    bool surface_override;
+    lv_color_t color_surface;
 } LvglThemeSettings;
 
 /**
@@ -36,6 +41,13 @@ void lvgl_theme_get_default_settings(LvglThemeSettings* settings);
  * @return true when the monochrome theme is active
  */
 bool lvgl_theme_is_mono(void);
+
+/**
+ * @brief Checks whether the theme settings use the compact UI density: smaller spacing and controls, for small screens.
+ * The device's default density is defined in its `device.properties`.
+ * @return true when the UI is compact
+ */
+bool lvgl_theme_is_compact(void);
 
 /**
  * @brief Sets the theme settings. They are used for displays that are added afterwards, e.g. when LVGL (re)starts.

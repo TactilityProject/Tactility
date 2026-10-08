@@ -113,7 +113,7 @@ void tab5_create_devices_v1(Device* i2c0) {
         .dsi_bus_id = 0,
         .num_data_lanes = 2,
         .lane_bit_rate_mbps = 1000,
-        .dpi_clock_freq_mhz = 60,
+        .dpi_clock_freq_mhz = 80,
         .hsync_pulse_width = 40,
         .hsync_back_porch = 140,
         .hsync_front_porch = 40,

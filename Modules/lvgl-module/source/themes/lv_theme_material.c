@@ -71,14 +71,17 @@ extern const lv_obj_class_t lvgl_page_indicator_dot_class;
 #define COLOR_ON_SECONDARY_CONTAINER (theme->config.is_dark ? lv_color_mix(theme->config.color_secondary, lv_color_white(), LV_OPA_20) : lv_color_mix(theme->config.color_secondary, lv_color_black(), LV_OPA_60))
 #define COLOR_ERROR (theme->config.is_dark ? lv_color_mix(theme->config.color_error, lv_color_white(), 140) : theme->config.color_error)
 #define COLOR_ON_ERROR (theme->config.is_dark ? lv_color_mix(theme->config.color_error, lv_color_black(), LV_OPA_50) : lv_color_white())
-#define COLOR_SURFACE (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_6 : NEUTRAL_98, TINT_NEUTRAL))
+#define DARK_BACKGROUND lv_color_hex(0x21222B)
+#define COLOR_SURFACE (theme->config.surface_override ? theme->config.color_surface : theme->config.is_dark ? lv_color_mix(lv_color_hex(0x000000), DARK_BACKGROUND, LV_OPA_20) : lv_color_mix(theme->config.color_primary, NEUTRAL_98, TINT_NEUTRAL))
 #define COLOR_ON_SURFACE (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_90 : NEUTRAL_10, TINT_NEUTRAL))
 #define COLOR_ON_SURFACE_VARIANT (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_80 : NEUTRAL_30, TINT_NEUTRAL_VARIANT))
-#define COLOR_SURFACE_CONTAINER_LOWEST (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_4 : NEUTRAL_100, TINT_NEUTRAL))
-#define COLOR_SURFACE_CONTAINER_LOW (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_10 : NEUTRAL_96, TINT_NEUTRAL))
-#define COLOR_SURFACE_CONTAINER (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_12 : NEUTRAL_94, TINT_NEUTRAL))
-#define COLOR_SURFACE_CONTAINER_HIGH (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_17 : NEUTRAL_92, TINT_NEUTRAL))
-#define COLOR_SURFACE_CONTAINER_HIGHEST (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_22 : NEUTRAL_90, TINT_NEUTRAL))
+#define SURFACE_LIFT (theme->config.is_dark ? lv_color_hex(0xFFFFFF) : lv_color_hex(0x000000))
+#define SURFACE_SINK (theme->config.is_dark ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF))
+#define COLOR_SURFACE_CONTAINER_LOWEST (theme->config.surface_override ? lv_color_mix(SURFACE_SINK, theme->config.color_surface, 64) : theme->config.is_dark ? lv_color_mix(lv_color_hex(0x000000), DARK_BACKGROUND, 89) : lv_color_mix(theme->config.color_primary, NEUTRAL_100, TINT_NEUTRAL))
+#define COLOR_SURFACE_CONTAINER_LOW (theme->config.surface_override ? lv_color_mix(SURFACE_LIFT, theme->config.color_surface, theme->config.is_dark ? 10 : 5) : theme->config.is_dark ? DARK_BACKGROUND : lv_color_mix(theme->config.color_primary, NEUTRAL_96, TINT_NEUTRAL))
+#define COLOR_SURFACE_CONTAINER (theme->config.surface_override ? lv_color_mix(SURFACE_LIFT, theme->config.color_surface, theme->config.is_dark ? 15 : 10) : theme->config.is_dark ? lv_color_mix(lv_color_hex(0xFFFFFF), DARK_BACKGROUND, 8) : lv_color_mix(theme->config.color_primary, NEUTRAL_94, TINT_NEUTRAL))
+#define COLOR_SURFACE_CONTAINER_HIGH (theme->config.surface_override ? lv_color_mix(SURFACE_LIFT, theme->config.color_surface, theme->config.is_dark ? 28 : 15) : theme->config.is_dark ? lv_color_mix(lv_color_hex(0xFFFFFF), DARK_BACKGROUND, 20) : lv_color_mix(theme->config.color_primary, NEUTRAL_92, TINT_NEUTRAL))
+#define COLOR_SURFACE_CONTAINER_HIGHEST (theme->config.surface_override ? lv_color_mix(SURFACE_LIFT, theme->config.color_surface, theme->config.is_dark ? 41 : 20) : theme->config.is_dark ? lv_color_mix(lv_color_hex(0xFFFFFF), DARK_BACKGROUND, 33) : lv_color_mix(theme->config.color_primary, NEUTRAL_90, TINT_NEUTRAL))
 #define COLOR_OUTLINE (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_60 : NEUTRAL_50, TINT_NEUTRAL_VARIANT))
 #define COLOR_OUTLINE_VARIANT (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_30 : NEUTRAL_80, TINT_NEUTRAL_VARIANT))
 #define COLOR_INVERSE_SURFACE (lv_color_mix(theme->config.color_primary, theme->config.is_dark ? NEUTRAL_90 : NEUTRAL_20, TINT_NEUTRAL))
@@ -140,8 +143,8 @@ extern const lv_obj_class_t lvgl_page_indicator_dot_class;
 #define CHIP_PAD_HOR (theme->config.is_compact ? 3 : SPACE_4)
 #define CHIP_PAD_VER (theme->config.is_compact ? 2 : LV_DPX_CALC(theme->disp_dpi, 6))
 #define PAGE_INDICATOR_COLOR COLOR_ON_SURFACE_VARIANT
-#define PAGE_INDICATOR_DOT_SIZE (theme->config.is_compact ? 4 : LV_DPX_CALC(theme->disp_dpi, 6))
-#define PAGE_INDICATOR_GAP (theme->config.is_compact ? 3 : LV_DPX_CALC(theme->disp_dpi, 6))
+#define PAGE_INDICATOR_DOT_SIZE (theme->config.is_compact ? 6 : LV_DPX_CALC(theme->disp_dpi, 8))
+#define PAGE_INDICATOR_GAP (theme->config.is_compact ? 4 : LV_DPX_CALC(theme->disp_dpi, 6))
 #define BADGE_COLOR COLOR_SECONDARY
 #define BADGE_SIZE (theme->config.is_compact ? 4 : LV_DPX_CALC(theme->disp_dpi, 6))
 #define SCROLLBAR_COLOR COLOR_OUTLINE
@@ -174,8 +177,8 @@ extern const lv_obj_class_t lvgl_page_indicator_dot_class;
 #define ICON_BUTTON_TONAL_COLOR COLOR_SECONDARY_CONTAINER
 #define ICON_BUTTON_TONAL_ICON_COLOR COLOR_ON_SECONDARY_CONTAINER
 #define ICON_BUTTON_TONAL_PRESSED_COLOR (lv_color_mix(COLOR_ON_SECONDARY_CONTAINER, COLOR_SECONDARY_CONTAINER, OPACITY_STATE_PRESSED))
-#define APP_BAR_COLOR (lv_color_mix(theme->config.color_primary, NEUTRAL_22, TINT_NEUTRAL))
-#define APP_BAR_CONTENT_COLOR lv_color_white()
+#define APP_BAR_COLOR COLOR_SURFACE_CONTAINER_LOW
+#define APP_BAR_CONTENT_COLOR COLOR_ON_SURFACE
 #define APP_BAR_PRESSED_OPACITY (LV_OPA_20)
 #define APP_BAR_PAD_HOR (theme->config.is_compact ? 0 : SPACE_1)
 #define APP_BAR_GAP (theme->config.is_compact ? 2 : SPACE_1)
@@ -270,11 +273,14 @@ extern const lv_obj_class_t lvgl_page_indicator_dot_class;
 #define LIST_DIVIDER_COLOR COLOR_OUTLINE_VARIANT
 #define LIST_DIVIDER_WIDTH DENSITY_BORDER
 #define LIST_SUBHEADER_TEXT_COLOR COLOR_ON_SURFACE_VARIANT
-#define TABS_DIVIDER_COLOR COLOR_OUTLINE_VARIANT
+#define TABS_COLOR CARD_COLOR
+#define TABS_PAD (theme->config.is_compact ? 2 : SPACE_1)
+#define TABS_GAP (theme->config.is_compact ? 2 : SPACE_1)
 #define TAB_LABEL_COLOR COLOR_ON_SURFACE_VARIANT
-#define TAB_SELECTED_LABEL_COLOR COLOR_PRIMARY
-#define TAB_INDICATOR_COLOR COLOR_PRIMARY
-#define TAB_INDICATOR_WIDTH (theme->config.is_compact ? 2 : LV_DPX_CALC(theme->disp_dpi, 3))
+#define TAB_PAD (theme->config.is_compact ? 2 : SPACE_1)
+#define TAB_SHAPE SHAPE_CONTROL
+#define TAB_SELECTED_COLOR COLOR_SECONDARY_CONTAINER
+#define TAB_SELECTED_LABEL_COLOR COLOR_ON_SECONDARY_CONTAINER
 #define TAB_PAGE_PAD DENSITY_CONTAINER_PAD
 #define DIALOG_COLOR COLOR_SURFACE_CONTAINER_HIGH
 #define DIALOG_TEXT_COLOR COLOR_ON_SURFACE_VARIANT
@@ -658,6 +664,8 @@ static bool config_equals(const lv_theme_material_config_t * a, const lv_theme_m
            lv_color_eq(a->color_primary, b->color_primary) &&
            lv_color_eq(a->color_secondary, b->color_secondary) &&
            lv_color_eq(a->color_error, b->color_error) &&
+           a->surface_override == b->surface_override &&
+           lv_color_eq(a->color_surface, b->color_surface) &&
            a->font_small == b->font_small &&
            a->font_normal == b->font_normal &&
            a->font_large == b->font_large;
@@ -807,6 +815,7 @@ static void style_init(my_theme_t * theme)
     lv_style_set_radius(&theme->styles.chip, CHIP_SHAPE);
     lv_style_set_pad_hor(&theme->styles.chip, CHIP_PAD_HOR);
     lv_style_set_pad_ver(&theme->styles.chip, CHIP_PAD_VER);
+    lv_style_set_margin_all(&theme->styles.chip, FOCUS_WIDTH + FOCUS_OFFSET);
 
     style_init_reset(&theme->styles.chip_selected);
     lv_style_set_bg_color(&theme->styles.chip_selected, CHIP_SELECTED_COLOR);
@@ -823,6 +832,7 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_hor(&theme->styles.button, BUTTON_PAD_HOR);
     lv_style_set_pad_ver(&theme->styles.button, BUTTON_PAD_VER);
     lv_style_set_pad_gap(&theme->styles.button, BUTTON_GAP);
+    lv_style_set_margin_all(&theme->styles.button, FOCUS_WIDTH + FOCUS_OFFSET);
 #endif
 
 #if LV_USE_BUTTON
@@ -923,6 +933,7 @@ static void style_init(my_theme_t * theme)
     style_init_reset(&theme->styles.switch_track);
     lv_style_set_width(&theme->styles.switch_track, SWITCH_WIDTH);
     lv_style_set_height(&theme->styles.switch_track, SWITCH_HEIGHT);
+    lv_style_set_margin_all(&theme->styles.switch_track, FOCUS_WIDTH + FOCUS_OFFSET);
     lv_style_set_bg_color(&theme->styles.switch_track, SWITCH_TRACK_COLOR);
     lv_style_set_bg_opa(&theme->styles.switch_track, LV_OPA_COVER);
     lv_style_set_border_color(&theme->styles.switch_track, SWITCH_TRACK_BORDER_COLOR);
@@ -990,6 +1001,7 @@ static void style_init(my_theme_t * theme)
 
     style_init_reset(&theme->styles.sliderbox);
     lv_style_set_pad_column(&theme->styles.sliderbox, SLIDERBOX_GAP);
+    lv_style_set_pad_all(&theme->styles.sliderbox, FOCUS_WIDTH + FOCUS_OFFSET);
 
 #if LV_USE_BAR || LV_USE_SLIDER
     style_init_reset(&theme->styles.slider_track_size);
@@ -1222,25 +1234,27 @@ static void style_init(my_theme_t * theme)
 
 #if LV_USE_TABVIEW
     style_init_reset(&theme->styles.tabs);
-    lv_style_set_bg_opa(&theme->styles.tabs, LV_OPA_TRANSP);
-    lv_style_set_border_color(&theme->styles.tabs, TABS_DIVIDER_COLOR);
-    lv_style_set_border_width(&theme->styles.tabs, DENSITY_BORDER);
-    lv_style_set_border_side(&theme->styles.tabs, LV_BORDER_SIDE_BOTTOM);
+    lv_style_set_bg_color(&theme->styles.tabs, TABS_COLOR);
+    lv_style_set_bg_opa(&theme->styles.tabs, LV_OPA_COVER);
+    lv_style_set_border_width(&theme->styles.tabs, 0);
+    lv_style_set_radius(&theme->styles.tabs, CARD_SHAPE);
+    lv_style_set_pad_all(&theme->styles.tabs, TABS_PAD);
+    lv_style_set_pad_gap(&theme->styles.tabs, TABS_GAP);
 #endif
 
 #if LV_USE_BUTTON && LV_USE_TABVIEW
     style_init_reset(&theme->styles.tab);
     lv_style_set_bg_opa(&theme->styles.tab, LV_OPA_TRANSP);
     lv_style_set_text_color(&theme->styles.tab, TAB_LABEL_COLOR);
-    lv_style_set_radius(&theme->styles.tab, 0);
+    lv_style_set_radius(&theme->styles.tab, TAB_SHAPE);
+    lv_style_set_pad_all(&theme->styles.tab, TAB_PAD);
 #endif
 
 #if LV_USE_BUTTON && LV_USE_TABVIEW
     style_init_reset(&theme->styles.tab_selected);
+    lv_style_set_bg_color(&theme->styles.tab_selected, TAB_SELECTED_COLOR);
+    lv_style_set_bg_opa(&theme->styles.tab_selected, LV_OPA_COVER);
     lv_style_set_text_color(&theme->styles.tab_selected, TAB_SELECTED_LABEL_COLOR);
-    lv_style_set_border_color(&theme->styles.tab_selected, TAB_INDICATOR_COLOR);
-    lv_style_set_border_width(&theme->styles.tab_selected, TAB_INDICATOR_WIDTH);
-    lv_style_set_border_side(&theme->styles.tab_selected, LV_BORDER_SIDE_BOTTOM);
 #endif
 
 #if LV_USE_TABVIEW
@@ -1492,7 +1506,9 @@ void lv_theme_material_config_init(lv_theme_material_config_t * config)
     config->animations_enabled = true;
     config->color_primary = lv_color_hex(0x00BBFF);
     config->color_secondary = lv_color_hex(0xEE81C3);
-    config->color_error = lv_color_hex(0xB3261E);
+    config->color_error = lv_color_hex(0xEF6C00);
+    config->surface_override = false;
+    config->color_surface = lv_color_hex(0x000000);
     config->font_small = LV_FONT_DEFAULT;
     config->font_normal = LV_FONT_DEFAULT;
     config->font_large = LV_FONT_DEFAULT;
@@ -1841,6 +1857,8 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
             lv_obj_add_style(obj, &theme->styles.page_indicator_label, 0);
             return;
         }
+        /* label */
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
         return;
     }
 #endif

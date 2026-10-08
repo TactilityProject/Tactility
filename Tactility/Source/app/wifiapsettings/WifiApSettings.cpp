@@ -255,6 +255,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     ctx->autoConnectWrapper = lv_obj_create(wrapper);
     lv_obj_set_size(ctx->autoConnectWrapper, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(ctx->autoConnectWrapper, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ctx->autoConnectWrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(ctx->autoConnectWrapper, LV_OBJ_FLAG_SCROLLABLE);
     lvgl::obj_set_style_bg_invisible(ctx->autoConnectWrapper);
     lv_obj_set_style_pad_all(ctx->autoConnectWrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ctx->autoConnectWrapper, 0, LV_STATE_DEFAULT);
@@ -262,11 +265,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     auto* auto_connect_label = lv_label_create(ctx->autoConnectWrapper);
     lv_label_set_text(auto_connect_label, "Auto-connect");
-    lv_obj_align(auto_connect_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(auto_connect_label, 1);
 
     ctx->autoConnectSwitch = lv_switch_create(ctx->autoConnectWrapper);
     lv_obj_add_event_cb(ctx->autoConnectSwitch, onToggleAutoConnect, LV_EVENT_VALUE_CHANGED, ctx);
-    lv_obj_align(ctx->autoConnectSwitch, LV_ALIGN_RIGHT_MID, 0, 0);
 }
 
 int32_t appMain(int argc, char* argv[]) {

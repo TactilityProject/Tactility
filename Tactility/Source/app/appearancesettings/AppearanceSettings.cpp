@@ -20,6 +20,7 @@
 #include <tactility/log.h>
 
 #include <lvgl.h>
+#include <lvgl/fonts.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
@@ -74,8 +75,11 @@ constexpr NamedColor PALETTE_COLORS[] = {
     { "Grey", LV_PALETTE_GREY },
 };
 
-constexpr size_t COLOR_COUNT = 3;
-constexpr const char* COLOR_TITLES[COLOR_COUNT] = { "Primary color", "Secondary color", "Error color" };
+constexpr size_t COLOR_COUNT = 4;
+constexpr size_t SURFACE_COLOR_INDEX = 2;
+constexpr const char* COLOR_TITLES[COLOR_COUNT] = { "Primary color", "Secondary color", "Surface color", "Error color" };
+// In tint level order (see settings::appearance::getSurfaceColor())
+constexpr const char* SURFACE_TINT_NAMES[settings::appearance::SURFACE_TINT_LEVEL_COUNT] = { "Low", "Medium", "High" };
 
 struct ColorRowWidgets {
     lv_obj_t* row = nullptr;
@@ -118,7 +122,11 @@ struct Context {
     AppStream selectStream {};
     uint8_t selectBuffer[256] {};
 
+    /** The scroll position of the content, kept while e.g. a selection dialog covers the window. Accessed with the LVGL lock held. */
+    int32_t contentScrollY = 0;
+
     // Valid while the window is shown
+    lv_obj_t* content = nullptr;
     lv_obj_t* applyButton = nullptr;
     lv_obj_t* spinner = nullptr;
     FontRowWidgets regularRow;
@@ -126,9 +134,17 @@ struct Context {
     lv_obj_t* errorLabel = nullptr;
     lv_obj_t* lightChip = nullptr;
     lv_obj_t* darkChip = nullptr;
+    lv_obj_t* regularDensityChip = nullptr;
+    lv_obj_t* compactDensityChip = nullptr;
     lv_obj_t* regularThemeChip = nullptr;
     lv_obj_t* monoThemeChip = nullptr;
+    // Shown for the regular theme: the "Theme Colors" title and card
+    lv_obj_t* colorsTitle = nullptr;
+    lv_obj_t* colorsCard = nullptr;
     ColorRowWidgets colorRows[COLOR_COUNT];
+    /** Shown when a surface colour is set */
+    lv_obj_t* surfaceTintRow = nullptr;
+    lv_obj_t* surfaceTintChips[settings::appearance::SURFACE_TINT_LEVEL_COUNT] = {};
     /** The display can only show the mono theme */
     bool isMonoDisplay = false;
 };
@@ -177,6 +193,23 @@ bool isDeviceDefaultDark() {
     return defaults.is_dark;
 }
 
+bool isDeviceDefaultCompact() {
+    LvglThemeSettings defaults;
+    lvgl_theme_get_default_settings(&defaults);
+    return defaults.is_compact;
+}
+
+bool isCompact(const settings::appearance::AppearanceSettings& settings) {
+    switch (settings.densityMode) {
+        case settings::appearance::DensityMode::Regular:
+            return false;
+        case settings::appearance::DensityMode::Compact:
+            return true;
+        default:
+            return isDeviceDefaultCompact();
+    }
+}
+
 bool isDark(const settings::appearance::AppearanceSettings& settings) {
     switch (settings.themeMode) {
         case settings::appearance::ThemeMode::Light:
@@ -197,22 +230,39 @@ void setChecked(lv_obj_t* object, bool checked) {
 }
 
 void updateColorRow(Context* ctx, size_t index);
+uint32_t getDefaultColor(size_t index);
+
+void updateSurfaceTintRow(Context* ctx) {
+    if (ctx->surfaceTintRow == nullptr) {
+        return;
+    }
+    const auto& settings = ctx->pendingSettings;
+    setHidden(ctx->surfaceTintRow, !settings.surfaceColor.has_value());
+    for (uint8_t i = 0; i < settings::appearance::SURFACE_TINT_LEVEL_COUNT; i++) {
+        setChecked(ctx->surfaceTintChips[i], settings.surfaceTintLevel == i);
+    }
+}
 
 void updateThemeWidgets(Context* ctx) {
     const bool dark = isDark(ctx->pendingSettings);
     setChecked(ctx->lightChip, !dark);
     setChecked(ctx->darkChip, dark);
+    const bool compact = isCompact(ctx->pendingSettings);
+    setChecked(ctx->regularDensityChip, !compact);
+    setChecked(ctx->compactDensityChip, compact);
     if (ctx->regularThemeChip != nullptr) {
         setChecked(ctx->regularThemeChip, !ctx->pendingSettings.monoTheme);
         setChecked(ctx->monoThemeChip, ctx->pendingSettings.monoTheme);
     }
     // The mono theme doesn't use colours
-    for (size_t i = 0; i < COLOR_COUNT; i++) {
-        if (ctx->colorRows[i].row != nullptr) {
-            setHidden(ctx->colorRows[i].row, ctx->pendingSettings.monoTheme);
+    if (ctx->colorsCard != nullptr) {
+        setHidden(ctx->colorsTitle, ctx->pendingSettings.monoTheme);
+        setHidden(ctx->colorsCard, ctx->pendingSettings.monoTheme);
+        for (size_t i = 0; i < COLOR_COUNT; i++) {
             updateColorRow(ctx, i);
         }
     }
+    updateSurfaceTintRow(ctx);
 }
 
 /** Updates the widgets to the pending settings. Requires the LVGL lock. */
@@ -247,6 +297,24 @@ void onDarkPressed(lv_event_t* event) {
     setDark(static_cast<Context*>(lv_event_get_user_data(event)), true);
 }
 
+void setCompact(Context* ctx, bool compact) {
+    // The device default is kept when it matches, so it doesn't count as a change
+    if (compact == isDeviceDefaultCompact()) {
+        ctx->pendingSettings.densityMode = settings::appearance::DensityMode::DeviceDefault;
+    } else {
+        ctx->pendingSettings.densityMode = compact ? settings::appearance::DensityMode::Compact : settings::appearance::DensityMode::Regular;
+    }
+    updateWidgets(ctx);
+}
+
+void onRegularDensityPressed(lv_event_t* event) {
+    setCompact(static_cast<Context*>(lv_event_get_user_data(event)), false);
+}
+
+void onCompactDensityPressed(lv_event_t* event) {
+    setCompact(static_cast<Context*>(lv_event_get_user_data(event)), true);
+}
+
 void onRegularThemePressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     ctx->pendingSettings.monoTheme = false;
@@ -259,10 +327,16 @@ void onMonoThemePressed(lv_event_t* event) {
     updateWidgets(ctx);
 }
 
+void onSurfaceTintPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    ctx->pendingSettings.surfaceTintLevel = static_cast<uint8_t>(reinterpret_cast<uintptr_t>(lv_obj_get_user_data(lv_event_get_target_obj(event))));
+    updateWidgets(ctx);
+}
+
 void onAnimationsChanged(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* checkbox = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    ctx->pendingSettings.animationsEnabled = lv_obj_has_state(checkbox, LV_STATE_CHECKED);
+    auto* animations_switch = static_cast<lv_obj_t*>(lv_event_get_target(event));
+    ctx->pendingSettings.animationsEnabled = lv_obj_has_state(animations_switch, LV_STATE_CHECKED);
     updateWidgets(ctx);
 }
 
@@ -278,22 +352,35 @@ std::optional<uint32_t>& getColor(settings::appearance::AppearanceSettings& sett
             return settings.primaryColor;
         case 1:
             return settings.secondaryColor;
+        case SURFACE_COLOR_INDEX:
+            return settings.surfaceColor;
         default:
             return settings.errorColor;
     }
 }
 
+/** The surface has no default colour of its own: the theme derives it */
 uint32_t getDefaultColor(size_t index) {
     LvglThemeSettings defaults;
     lvgl_theme_get_default_settings(&defaults);
-    const lv_color_t colors[COLOR_COUNT] = { defaults.color_primary, defaults.color_secondary, defaults.color_error };
-    return lv_color_to_u32(colors[index]) & 0xFFFFFF;
+    const lv_color_t color = index == 0 ? defaults.color_primary : (index == 1 ? defaults.color_secondary : defaults.color_error);
+    return lv_color_to_u32(color) & 0xFFFFFF;
 }
 
 void updateColorRow(Context* ctx, size_t index) {
     const auto& widgets = ctx->colorRows[index];
     const auto& color = getColor(ctx->pendingSettings, index);
-    lv_obj_set_style_bg_color(widgets.swatch, lv_color_hex(color.value_or(getDefaultColor(index))), LV_STATE_DEFAULT);
+    uint32_t shown;
+    if (color.has_value()) {
+        // The picked colour: the surface's tinted version of it is often too dark (or light) to recognise
+        shown = *color;
+    } else if (index != SURFACE_COLOR_INDEX) {
+        shown = getDefaultColor(index);
+    } else {
+        // The theme's own near-black or near-white surface
+        shown = isDark(ctx->pendingSettings) ? 0x131313 : 0xFAFAFA;
+    }
+    lv_obj_set_style_bg_color(widgets.swatch, lv_color_hex(shown), LV_STATE_DEFAULT);
 }
 
 void onColorButtonPressed(lv_event_t* event) {
@@ -372,9 +459,6 @@ lv_obj_t* createRow(lv_obj_t* parent) {
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(row, lv_obj_get_style_pad_column(parent, LV_PART_MAIN), LV_STATE_DEFAULT);
-    // Room for the focus outline of the buttons, which is clipped to the row in compact mode
-    lv_obj_set_style_pad_ver(row, 3, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_hor(row, 3, LV_STATE_DEFAULT);
     lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     return row;
 }
@@ -390,8 +474,10 @@ lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
     return card;
 }
 
+/** A row with a title. Its other items move to the next line when they don't fit next to the title. */
 lv_obj_t* createLabeledRow(lv_obj_t* parent, const char* text) {
     auto* row = createRow(parent);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
     auto* label = lv_label_create(row);
     lv_label_set_text(label, text);
     lv_obj_set_flex_grow(label, 1);
@@ -448,14 +534,34 @@ void createThemeCard(lv_obj_t* parent, Context* ctx) {
         ctx->monoThemeChip = createChip(style_row, "Mono", onMonoThemePressed, ctx);
     }
 
-    auto* animations_checkbox = lv_checkbox_create(card);
-    lv_checkbox_set_text(animations_checkbox, "Animations");
-    setChecked(animations_checkbox, ctx->pendingSettings.animationsEnabled);
-    lv_obj_add_event_cb(animations_checkbox, onAnimationsChanged, LV_EVENT_VALUE_CHANGED, ctx);
+    auto* density_row = createLabeledRow(card, "Density");
+    ctx->regularDensityChip = createChip(density_row, "Regular", onRegularDensityPressed, ctx);
+    ctx->compactDensityChip = createChip(density_row, "Compact", onCompactDensityPressed, ctx);
 
-    if (!ctx->isMonoDisplay) {
-        for (size_t i = 0; i < COLOR_COUNT; i++) {
-            ctx->colorRows[i] = createColorRow(card, i, ctx);
+    auto* animations_row = createLabeledRow(card, "Animations");
+    auto* animations_switch = lv_switch_create(animations_row);
+    setChecked(animations_switch, ctx->pendingSettings.animationsEnabled);
+    lv_obj_add_event_cb(animations_switch, onAnimationsChanged, LV_EVENT_VALUE_CHANGED, ctx);
+}
+
+void createColorsCard(lv_obj_t* parent, Context* ctx) {
+    ctx->colorsTitle = lv_label_create(parent);
+    lv_label_set_text(ctx->colorsTitle, "Theme Colors");
+
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    ctx->colorsCard = card;
+
+    for (size_t i = 0; i < COLOR_COUNT; i++) {
+        ctx->colorRows[i] = createColorRow(card, i, ctx);
+        if (i == SURFACE_COLOR_INDEX) {
+            // How strongly the surface colour shows: it's mixed into black (dark) or white (light)
+            ctx->surfaceTintRow = createLabeledRow(card, "Surface tint");
+            for (uint8_t level = 0; level < settings::appearance::SURFACE_TINT_LEVEL_COUNT; level++) {
+                ctx->surfaceTintChips[level] = createChip(ctx->surfaceTintRow, SURFACE_TINT_NAMES[level], onSurfaceTintPressed, ctx);
+                lv_obj_set_user_data(ctx->surfaceTintChips[level], reinterpret_cast<void*>(static_cast<uintptr_t>(level)));
+            }
         }
     }
 }
@@ -470,21 +576,30 @@ lv_obj_t* createButton(lv_obj_t* parent, const char* text, lv_event_cb_t callbac
 
 FontRowWidgets createFontRow(lv_obj_t* parent, const char* title, lv_event_cb_t onSelect, lv_event_cb_t onDefault, Context* ctx) {
     FontRowWidgets widgets;
-    // "Title              [Default]"
-    auto* title_row = createRow(parent);
-    auto* label = lv_label_create(title_row);
-    lv_label_set_text(label, title);
-    lv_obj_set_flex_grow(label, 1);
-    lv_obj_set_style_pad_ver(label, 0, LV_STATE_DEFAULT);
-    widgets.defaultButton = createButton(title_row, "Default", onDefault, ctx);
+    // "Title                [Default] [Select]"
+    // "file.ttf"
+    auto* row = createRow(parent);
 
-    // "  file.ttf          [Select]"
-    auto* file_row = createRow(parent);
-    widgets.fileLabel = lv_label_create(file_row);
-    lv_obj_set_flex_grow(widgets.fileLabel, 1);
-    lv_label_set_long_mode(widgets.fileLabel, LV_LABEL_LONG_MODE_DOTS);
-    lv_obj_set_style_pad_left(widgets.fileLabel, 12, LV_STATE_DEFAULT);
-    createButton(file_row, "Select", onSelect, ctx);
+    // The title with the file name below it, which take the width that the buttons leave. Texts that don't fit scroll.
+    auto* texts = lv_obj_create(row);
+    lv_obj_remove_style_all(texts);
+    lv_obj_set_height(texts, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(texts, 1);
+    lv_obj_set_flex_flow(texts, LV_FLEX_FLOW_COLUMN);
+    lv_obj_remove_flag(texts, LV_OBJ_FLAG_SCROLLABLE);
+
+    auto* label = lv_label_create(texts);
+    lv_obj_set_width(label, LV_PCT(100));
+    lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+    lv_label_set_text(label, title);
+
+    widgets.fileLabel = lv_label_create(texts);
+    lv_obj_set_width(widgets.fileLabel, LV_PCT(100));
+    lv_label_set_long_mode(widgets.fileLabel, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+    lv_obj_set_style_text_font(widgets.fileLabel, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+
+    widgets.defaultButton = createButton(row, "Default", onDefault, ctx);
+    createButton(row, "Select", onSelect, ctx);
 
     widgets.warningLabel = lv_label_create(parent);
     lv_obj_set_width(widgets.warningLabel, LV_PCT(100));
@@ -504,6 +619,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->applyButton = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_OK, onApplyPressed, ctx);
 
     auto* content = lv_obj_create(parent);
+    ctx->content = content;
     lv_obj_set_width(content, LV_PCT(100));
     lv_obj_set_flex_grow(content, 1);
     lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
@@ -512,6 +628,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     const auto color_format = lv_display_get_color_format(lv_obj_get_display(parent));
     ctx->isMonoDisplay = color_format == LV_COLOR_FORMAT_I1 || color_format == LV_COLOR_FORMAT_L8;
     createThemeCard(content, ctx);
+    // Monochrome and greyscale displays always use the mono theme, which doesn't use colours
+    if (!ctx->isMonoDisplay) {
+        createColorsCard(content, ctx);
+    }
 
     auto* fonts_card = createSection(content, "Fonts");
     auto* font_size_row = createRow(fonts_card);
@@ -543,7 +663,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     createStepButton(font_size_row, LV_SYMBOL_PLUS, onFontSizeIncrementPressed, font_size_spinbox);
 
     ctx->regularRow = createFontRow(fonts_card, "Regular font", onSelectRegularPressed, onDefaultRegularPressed, ctx);
-    ctx->monoRow = createFontRow(fonts_card, "Mono font", onSelectMonoPressed, onDefaultMonoPressed, ctx);
+    ctx->monoRow = createFontRow(fonts_card, "Monospace font", onSelectMonoPressed, onDefaultMonoPressed, ctx);
 
     ctx->errorLabel = lv_label_create(fonts_card);
     lv_obj_set_width(ctx->errorLabel, LV_PCT(100));
@@ -552,10 +672,17 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_text_color(ctx->errorLabel, lv_palette_main(LV_PALETTE_RED), LV_STATE_DEFAULT);
 
     updateWidgets(ctx);
+
+    // The window is rebuilt when it's shown again, e.g. after a selection dialog
+    lv_obj_update_layout(content);
+    lv_obj_scroll_to_y(content, ctx->contentScrollY, LV_ANIM_OFF);
 }
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    // The LVGL lock is already held, so the content can still be read
+    ctx->contentScrollY = lv_obj_get_scroll_y(ctx->content);
+    ctx->content = nullptr;
     ctx->applyButton = nullptr;
     ctx->spinner = nullptr;
     ctx->regularRow = {};
@@ -563,10 +690,18 @@ void destroyWidgets(void* userData) {
     ctx->errorLabel = nullptr;
     ctx->lightChip = nullptr;
     ctx->darkChip = nullptr;
+    ctx->regularDensityChip = nullptr;
+    ctx->compactDensityChip = nullptr;
     ctx->regularThemeChip = nullptr;
     ctx->monoThemeChip = nullptr;
+    ctx->colorsTitle = nullptr;
+    ctx->colorsCard = nullptr;
     for (auto& row : ctx->colorRows) {
         row = {};
+    }
+    ctx->surfaceTintRow = nullptr;
+    for (auto& chip : ctx->surfaceTintChips) {
+        chip = nullptr;
     }
 }
 

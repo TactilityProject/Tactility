@@ -181,18 +181,20 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lv_obj_t* switch_container = lv_obj_create(card);
             lv_obj_set_width(switch_container, LV_PCT(100));
             lv_obj_set_height(switch_container, LV_SIZE_CONTENT);
+            lv_obj_set_flex_flow(switch_container, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(switch_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_remove_flag(switch_container, LV_OBJ_FLAG_SCROLLABLE);
             lv_obj_set_style_pad_all(switch_container, 0, 0);
             lv_obj_set_style_pad_gap(switch_container, 0, 0);
             lvgl::obj_set_style_bg_invisible(switch_container);
 
             lv_obj_t* label = lv_label_create(switch_container);
             lv_label_set_text(label, "Charging enabled");
-            lv_obj_set_align(label, LV_ALIGN_LEFT_MID);
+            lv_obj_set_flex_grow(label, 1);
 
             lv_obj_t* enable_switch = lv_switch_create(switch_container);
             lv_obj_set_user_data(enable_switch, device);
             lv_obj_add_event_cb(enable_switch, onPowerEnabledChanged, LV_EVENT_VALUE_CHANGED, ctx);
-            lv_obj_set_align(enable_switch, LV_ALIGN_RIGHT_MID);
             lv_obj_set_state(enable_switch, LV_STATE_CHECKED, power_supply_is_allowed_to_charge(device));
             entry.enableSwitch = enable_switch;
         }
@@ -201,18 +203,20 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lv_obj_t* qc_container = lv_obj_create(card);
             lv_obj_set_width(qc_container, LV_PCT(100));
             lv_obj_set_height(qc_container, LV_SIZE_CONTENT);
+            lv_obj_set_flex_flow(qc_container, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(qc_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_remove_flag(qc_container, LV_OBJ_FLAG_SCROLLABLE);
             lv_obj_set_style_pad_all(qc_container, 0, 0);
             lv_obj_set_style_pad_gap(qc_container, 0, 0);
             lvgl::obj_set_style_bg_invisible(qc_container);
 
             lv_obj_t* label = lv_label_create(qc_container);
             lv_label_set_text(label, "Quick charge");
-            lv_obj_set_align(label, LV_ALIGN_LEFT_MID);
+            lv_obj_set_flex_grow(label, 1);
 
             lv_obj_t* qc_switch = lv_switch_create(qc_container);
             lv_obj_set_user_data(qc_switch, device);
             lv_obj_add_event_cb(qc_switch, onQuickChargeChanged, LV_EVENT_VALUE_CHANGED, ctx);
-            lv_obj_set_align(qc_switch, LV_ALIGN_RIGHT_MID);
             lv_obj_set_state(qc_switch, LV_STATE_CHECKED, power_supply_is_quick_charge_enabled(device));
             entry.quickChargeSwitch = qc_switch;
         }

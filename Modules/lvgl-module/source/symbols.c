@@ -81,6 +81,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_theme_get_default_settings),
     DEFINE_MODULE_SYMBOL(lvgl_theme_set_settings),
     DEFINE_MODULE_SYMBOL(lvgl_theme_is_mono),
+    DEFINE_MODULE_SYMBOL(lvgl_theme_is_compact),
     // lvgl_badge
     DEFINE_MODULE_SYMBOL(lvgl_badge_create),
     DEFINE_MODULE_SYMBOL(lvgl_page_indicator_create),

@@ -149,8 +149,10 @@ shared_symbol_code_point_names = [
     "download",
     "forum", # Chat app
     "gamepad",
+    "hard_disk", # System Info
     "help", # Diceware help
     "hub", # App Hub
+    "info", # System Info
     "image", # Screenshot app
     "keyboard_arrow_up",
     "lightbulb",
@@ -158,6 +160,7 @@ shared_symbol_code_point_names = [
     "lists", # Chat app toolbar
     "mail",
     "menu",
+    "memory", # System Info
     "mop",
     "more_vert",
     "music_note",
@@ -166,6 +169,7 @@ shared_symbol_code_point_names = [
     "power_settings_new", # Power off for T-Lora Pager
     "refresh", # e.g. App Hub reload button
     "search",
+    "select_window_2", # System Info
     "settings",
     "toolbar", # Apps without custom icon
     "navigation", # GPS (settings) app
@@ -177,6 +181,7 @@ shared_symbol_code_point_names = [
     "logo_dev",
     "camera",
     "lightstrip",
+    "phone_android", # Display settings: orientation
 ]
 
 # Get more from https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded

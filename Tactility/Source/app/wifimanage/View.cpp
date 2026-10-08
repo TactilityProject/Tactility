@@ -13,6 +13,7 @@
 
 #include <tactility/log.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/card.h>
 
 #include <wifi/wifi_settings.h>
 
@@ -107,15 +108,34 @@ void View::showDetails(lv_event_t* event) {
     }
 }
 
-void View::createSsidListItem(const WifiApRecord& record, bool isConnecting, size_t index) {
+/** Creates a title with a card below it, and returns the list in the card */
+static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
+    auto* label = lv_label_create(parent);
+    lv_label_set_text(label, title);
+
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
+    // The list items' pressed and focused backgrounds follow the card's rounded corners
+    lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
+
+    // The card provides the background
+    auto* list = lv_list_create(card);
+    lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
+    return list;
+}
+
+void View::createSsidListItem(lv_obj_t* list, const WifiApRecord& record, bool isConnecting, size_t index) {
     if (isConnecting) {
-        auto* button = lv_list_add_button(networks_list, LV_SYMBOL_WIFI, record.ssid);
+        auto* button = lv_list_add_button(list, LV_SYMBOL_WIFI, record.ssid);
         lv_obj_add_event_cb(button, showDetails, LV_EVENT_SHORT_CLICKED, this);
     } else {
         const std::string auth_info = (record.authentication_type == WIFI_AUTHENTICATION_TYPE_OPEN) ? "(open) " : " ";
         const auto percentage = mapRssiToPercentage(record.rssi);
         const auto label = std::format("{} {}{}%", std::string(record.ssid), auth_info, percentage);
-        auto* button = lv_list_add_button(networks_list, nullptr, label.c_str());
+        auto* button = lv_list_add_button(list, nullptr, label.c_str());
         lv_obj_set_user_data(button, reinterpret_cast<void*>(index));
         if (wifi_settings_contains(record.ssid)) {
             lv_obj_add_event_cb(button, showDetails, LV_EVENT_SHORT_CLICKED, this);
@@ -142,22 +162,20 @@ void View::updateNetworkList() {
 
     // Enable on boot
 
-    // An unstyled row insets the wrapper like the list items' text: margins would make a full-width item overflow the list
-    auto* enable_on_boot_row = lv_obj_create(networks_list);
-    lv_obj_remove_style_all(enable_on_boot_row);
-    lv_obj_set_size(enable_on_boot_row, LV_PCT(100), LV_SIZE_CONTENT);
-    const int32_t enable_on_boot_inset = (lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT) ? 2 : LV_DPX(16);
-    lv_obj_set_style_pad_hor(enable_on_boot_row, enable_on_boot_inset, LV_STATE_DEFAULT);
-
-    auto* enable_on_boot_wrapper = lv_obj_create(enable_on_boot_row);
+    auto* enable_on_boot_wrapper = lv_obj_create(networks_list);
     lv_obj_set_size(enable_on_boot_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(enable_on_boot_wrapper, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(enable_on_boot_wrapper, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(enable_on_boot_wrapper, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(enable_on_boot_wrapper, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(enable_on_boot_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(enable_on_boot_wrapper, LV_OBJ_FLAG_SCROLLABLE);
 
     auto* enable_label = lv_label_create(enable_on_boot_wrapper);
     lv_label_set_text(enable_label, "Enable on boot");
-    lv_obj_align(enable_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(enable_label, 1);
 
     enable_on_boot_switch = lv_switch_create(enable_on_boot_wrapper);
-    lv_obj_align(enable_on_boot_switch, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(enable_on_boot_switch, onEnableOnBootSwitchChanged, LV_EVENT_VALUE_CHANGED, bindings);
     lv_obj_add_event_cb(enable_on_boot_wrapper, onEnableOnBootParentClicked, LV_EVENT_SHORT_CLICKED, enable_on_boot_switch);
 
@@ -180,15 +198,14 @@ void View::updateNetworkList() {
                 for (int i = 0; i < ap_records.size(); ++i) {
                     auto& record = ap_records[i];
                     if (record.ssid == connection_target) {
-                        lv_list_add_text(networks_list, "Connected");
-                        createSsidListItem(record, false, i);
+                        createSsidListItem(createSection(networks_list, "Connected"), record, false, i);
                         added_connected = true;
                         break;
                     }
                 }
             }
 
-            lv_list_add_text(networks_list, "Other networks");
+            auto* networks_section = createSection(networks_list, "Networks");
             std::set<std::string> used_ssids;
             if (!ap_records.empty()) {
                 for (int i = 0; i < ap_records.size(); ++i) {
@@ -200,7 +217,7 @@ void View::updateNetworkList() {
                             !connection_target.empty();
                         bool skip = connection_target_match && added_connected;
                         if (!skip) {
-                            createSsidListItem(record, is_connecting, i);
+                            createSsidListItem(networks_section, record, is_connecting, i);
                         }
                         used_ssids.insert(record.ssid);
                     }
@@ -211,8 +228,7 @@ void View::updateNetworkList() {
                 lv_obj_add_flag(networks_list, LV_OBJ_FLAG_HIDDEN);
             } else {
                 lv_obj_clear_flag(networks_list, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_t* label = lv_label_create(networks_list);
-                lv_label_set_text(label, "No networks found.");
+                lv_list_add_text(networks_section, "No networks found.");
             }
 
             connect_to_hidden = lv_button_create(networks_list);
@@ -296,9 +312,11 @@ void View::init(uint32_t newAppInstanceId, lv_obj_t* parent) {
 
      // Networks
 
-    networks_list = lv_list_create(parent);
+    networks_list = lv_obj_create(parent);
     lv_obj_set_flex_grow(networks_list, 1);
     lv_obj_set_width(networks_list, LV_PCT(100));
+    lv_obj_set_flex_flow(networks_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_border_width(networks_list, 0, LV_STATE_DEFAULT);
 }
 
 void View::update() {

@@ -56,43 +56,39 @@ const AppGridItem* getTileItem(lv_event_t* e) {
 }
 
 
-lv_obj_t* createBarSection(lv_obj_t* parent, lv_flex_align_t align) {
-    auto* section = lv_obj_create(parent);
-    lv_obj_set_size(section, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(section, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(section, 0, LV_STATE_DEFAULT);
-    lv_obj_set_flex_flow(section, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(section, align, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(section, LV_OBJ_FLAG_SCROLLABLE);
-    return section;
-}
-
-// The width that a section's visible children need, including the gaps between them
-int32_t getContentWidth(lv_obj_t* section) {
+// The width of the visible buttons on one side of the bar's spacer, including the gaps between them
+int32_t getSideWidth(lv_obj_t* bar, bool rightSide) {
     int32_t width = 0;
     uint32_t visible = 0;
-    const uint32_t count = lv_obj_get_child_count(section);
+    bool afterSpacer = false;
+    const uint32_t count = lv_obj_get_child_count(bar);
     for (uint32_t i = 0; i < count; i++) {
-        lv_obj_t* child = lv_obj_get_child(section, static_cast<int32_t>(i));
-        if (!lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
+        lv_obj_t* child = lv_obj_get_child(bar, static_cast<int32_t>(i));
+        if (lv_obj_get_style_flex_grow(child, LV_PART_MAIN) > 0) {
+            afterSpacer = true;
+        } else if (afterSpacer == rightSide && !lv_obj_has_flag_any(child, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_IGNORE_LAYOUT))) {
             width += lv_obj_get_width(child);
             visible++;
         }
     }
-    return visible > 1 ? width + static_cast<int32_t>(visible - 1) * lv_obj_get_style_pad_column(section, LV_PART_MAIN) : width;
+    return visible > 1 ? width + static_cast<int32_t>(visible - 1) * lv_obj_get_style_pad_column(bar, LV_PART_MAIN) : width;
 }
 
-// The page indicator gets the space between the side sections, which grow equally to keep it centered
+// The page indicator is centered on the bar and gets the space that the buttons on the wider side leave on both sides
 void updatePageIndicatorWidth(void* data) {
     auto* bottom_bar = static_cast<lv_obj_t*>(data);
-    auto* left_section = lv_obj_get_child(bottom_bar, 0);
-    auto* indicator_section = lv_obj_get_child(bottom_bar, 1);
-    auto* page_buttons = lv_obj_get_child(bottom_bar, 2);
-    auto* indicator = lv_obj_get_child(indicator_section, 0);
+    lv_obj_t* indicator = nullptr;
+    const uint32_t count = lv_obj_get_child_count(bottom_bar);
+    for (uint32_t i = 0; i < count && indicator == nullptr; i++) {
+        lv_obj_t* child = lv_obj_get_child(bottom_bar, static_cast<int32_t>(i));
+        if (lv_obj_has_flag(child, LV_OBJ_FLAG_IGNORE_LAYOUT)) {
+            indicator = child;
+        }
+    }
     if (indicator == nullptr) {
         return;
     }
-    const int32_t side_width = std::max(getContentWidth(left_section), getContentWidth(page_buttons));
+    const int32_t side_width = std::max(getSideWidth(bottom_bar, false), getSideWidth(bottom_bar, true));
     const int32_t gaps = 2 * lv_obj_get_style_pad_column(bottom_bar, LV_PART_MAIN);
     const int32_t available = lv_obj_get_content_width(bottom_bar) - 2 * side_width - gaps;
     lv_obj_set_style_max_width(indicator, std::max<int32_t>(0, available), LV_STATE_DEFAULT);
@@ -230,7 +226,8 @@ void AppGrid::populate() {
     pageCount = page_count;
 
     lv_obj_set_flag(pageIndicator, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
-    lv_obj_set_flag(pageButtons, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
+    lv_obj_set_flag(prevButton, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
+    lv_obj_set_flag(nextButton, LV_OBJ_FLAG_HIDDEN, page_count <= 1);
     lvgl_page_indicator_set_page_count(pageIndicator, page_count);
     lvgl_page_indicator_set_page(pageIndicator, page);
 
@@ -317,31 +314,53 @@ void AppGrid::createGrid(lv_obj_t* parent) {
     }
 }
 
+// Keys enter the bar on the previous page button, or on the first button when there's only one page
+void AppGrid::onBottomBarFocused(lv_event_t* e) {
+    const auto* self = static_cast<AppGrid*>(lv_event_get_user_data(e));
+    lv_obj_t* current = lvgl_grid_navigation_get_focused(self->bottomBar);
+    lv_obj_t* target = lv_obj_has_flag(self->prevButton, LV_OBJ_FLAG_HIDDEN) ? lv_obj_get_child(self->bottomBar, 0) : self->prevButton;
+    if (current == nullptr || target == current || target == self->barSpacer) {
+        return;
+    }
+    const bool showSelection = lv_obj_has_state(current, LV_STATE_FOCUS_KEY);
+    lv_gridnav_set_focused(self->bottomBar, target, LV_ANIM_OFF);
+    if (!showSelection) {
+        lv_obj_remove_state(target, LV_STATE_FOCUS_KEY);
+    }
+}
+
 void AppGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
-    // The side sections grow equally, so the page indicator stays centered
-    auto* bottom_bar = createBarSection(parent, LV_FLEX_ALIGN_START);
-    lv_obj_set_width(bottom_bar, LV_PCT(100));
-    lvgl_obj_add_edge_padding(bottom_bar);
-    barButtons = createBarSection(bottom_bar, LV_FLEX_ALIGN_START);
-    lv_obj_set_flex_grow(barButtons, 1);
-    auto* indicator_section = createBarSection(bottom_bar, LV_FLEX_ALIGN_CENTER);
-    pageButtons = createBarSection(bottom_bar, LV_FLEX_ALIGN_END);
-    lv_obj_set_flex_grow(pageButtons, 1);
-    lv_obj_add_event_cb(bottom_bar, onBottomBarSizeChanged, LV_EVENT_SIZE_CHANGED, nullptr);
-    lv_obj_add_event_cb(bottom_bar, onBottomBarDeleted, LV_EVENT_DELETE, nullptr);
+    bottomBar = lv_obj_create(parent);
+    lv_obj_set_size(bottomBar, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(bottomBar, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(bottomBar, 0, LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(bottomBar, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(bottomBar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(bottomBar, LV_OBJ_FLAG_SCROLLABLE);
+    lvgl_obj_add_edge_padding(bottomBar);
+    lv_obj_add_event_cb(bottomBar, onBottomBarSizeChanged, LV_EVENT_SIZE_CHANGED, nullptr);
+    lv_obj_add_event_cb(bottomBar, onBottomBarDeleted, LV_EVENT_DELETE, nullptr);
 
     createGrid(parent);
-    lv_obj_move_foreground(bottom_bar);
+    lv_obj_move_foreground(bottomBar);
 
-    pageIndicator = lvgl_page_indicator_create(indicator_section);
-    prevButton = lvgl_icon_button_create(pageButtons);
+    // The bar buttons go before the spacer, which pushes the page buttons to the right
+    barSpacer = lv_obj_create(bottomBar);
+    lv_obj_set_size(barSpacer, 0, 0);
+    lv_obj_set_flex_grow(barSpacer, 1);
+    lv_obj_remove_flag(barSpacer, LV_OBJ_FLAG_CLICKABLE);
+    prevButton = lvgl_icon_button_create(bottomBar);
     lv_label_set_text(lv_label_create(prevButton), "<");
     lv_obj_add_event_cb(prevButton, onPrevPressed, LV_EVENT_SHORT_CLICKED, this);
-    nextButton = lvgl_icon_button_create(pageButtons);
+    nextButton = lvgl_icon_button_create(bottomBar);
     lv_label_set_text(lv_label_create(nextButton), ">");
     lv_obj_add_event_cb(nextButton, onNextPressed, LV_EVENT_SHORT_CLICKED, this);
-    // The arrow keys move between the page buttons
-    lvgl_grid_navigation_add(pageButtons);
+    pageIndicator = lvgl_page_indicator_create(bottomBar);
+    lv_obj_add_flag(pageIndicator, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_align(pageIndicator, LV_ALIGN_CENTER, 0, 0);
+    // The arrow keys move between all buttons of the bar as one row
+    lvgl_grid_navigation_add(bottomBar);
+    lv_obj_add_event_cb(bottomBar, onBottomBarFocused, LV_EVENT_FOCUSED, this);
 
     // Resolves the grid's flex_grow height, which the page size is derived from.
     lv_obj_update_layout(parent);
@@ -356,7 +375,8 @@ void AppGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
 }
 
 lv_obj_t* AppGrid::addBarButton(const char* icon, lv_event_cb_t onClicked, void* userData) {
-    auto* button = lvgl_icon_button_create(barButtons);
+    auto* button = lvgl_icon_button_create(bottomBar);
+    lv_obj_move_to_index(button, lv_obj_get_index(barSpacer));
     auto* label = lv_label_create(button);
     lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
     lv_label_set_text(label, icon);

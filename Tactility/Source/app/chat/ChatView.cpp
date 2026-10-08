@@ -43,10 +43,12 @@ void ChatView::createInputBar(lv_obj_t* parent) {
     inputWrapper = lv_obj_create(parent);
     auto* wrapper = inputWrapper;
     lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_size(wrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(wrapper, 0, 0);
     lv_obj_set_style_pad_column(wrapper, 4, 0);
     lv_obj_set_style_border_opa(wrapper, 0, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(wrapper, LV_OBJ_FLAG_SCROLLABLE);
 
     inputField = lv_textarea_create(wrapper);
     lv_obj_set_flex_grow(inputField, 1);
@@ -55,8 +57,6 @@ void ChatView::createInputBar(lv_obj_t* parent) {
     lv_textarea_set_max_length(inputField, MAX_MESSAGE_LEN);
 
     auto* sendBtn = lv_button_create(wrapper);
-    lv_obj_set_style_margin_all(sendBtn, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_margin_top(sendBtn, 2, LV_STATE_DEFAULT);
     lv_obj_add_event_cb(sendBtn, onSendClicked, LV_EVENT_CLICKED, this);
 
     auto* btnLabel = lv_label_create(sendBtn);
@@ -66,6 +66,7 @@ void ChatView::createInputBar(lv_obj_t* parent) {
 
 void ChatView::createSettingsPanel(lv_obj_t* parent) {
     settingsPanel = lv_obj_create(parent);
+    lv_obj_set_style_border_width(settingsPanel, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(settingsPanel, LV_PCT(100));
     lv_obj_set_flex_grow(settingsPanel, 1);
     lv_obj_set_flex_flow(settingsPanel, LV_FLEX_FLOW_COLUMN);
@@ -95,6 +96,7 @@ void ChatView::createSettingsPanel(lv_obj_t* parent) {
     // Buttons
     auto* btnRow = lv_obj_create(settingsPanel);
     lv_obj_set_flex_flow(btnRow, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(btnRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_size(btnRow, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(btnRow, 0, 0);
     lv_obj_set_style_pad_column(btnRow, 8, 0);
@@ -113,6 +115,7 @@ void ChatView::createSettingsPanel(lv_obj_t* parent) {
 
 void ChatView::createChannelPanel(lv_obj_t* parent) {
     channelPanel = lv_obj_create(parent);
+    lv_obj_set_style_border_width(channelPanel, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(channelPanel, LV_PCT(100));
     lv_obj_set_flex_grow(channelPanel, 1);
     lv_obj_set_flex_flow(channelPanel, LV_FLEX_FLOW_COLUMN);
@@ -130,6 +133,7 @@ void ChatView::createChannelPanel(lv_obj_t* parent) {
 
     auto* btnRow = lv_obj_create(channelPanel);
     lv_obj_set_flex_flow(btnRow, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(btnRow, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_size(btnRow, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(btnRow, 0, 0);
     lv_obj_set_style_pad_column(btnRow, 8, 0);

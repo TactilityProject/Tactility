@@ -1,8 +1,11 @@
-#include <tactility/check.h>
+#include "lvgl/icons/shared.h"
+#include "lvgl/theme.h"
+
+
 #include "tactility/time.h"
+#include <tactility/check.h>
 
 #include <Tactility/DeprecatedPaths.h>
-#include <Tactility/Tactility.h>
 #include <Tactility/TactilityConfig.h>
 #include <Tactility/Timer.h>
 
@@ -14,11 +17,14 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <algorithm>
-#include <cstring>
+#include <strings.h>
 #include <format>
 #include <utility>
+#include <vector>
+#include <string>
 
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -197,40 +203,81 @@ const char* getTaskState(const TaskStatus_t& task) {
     }
 }
 
-void clearContainer(lv_obj_t* container) {
-    lv_obj_clean(container);
+const char* getTaskName(const TaskStatus_t& task) {
+    return (task.pcTaskName == nullptr || task.pcTaskName[0] == 0) ? "(unnamed)" : task.pcTaskName;
 }
 
-void addRtosTask(lv_obj_t* parent, const TaskStatus_t& task) {
-    auto* label = lv_label_create(parent);
-    const char* name = (task.pcTaskName == nullptr || task.pcTaskName[0] == 0) ? "(unnamed)" : task.pcTaskName;
-    lv_label_set_text_fmt(label, "%s (%s)", name, getTaskState(task));
-}
-
-void updateRtosTasks(lv_obj_t* parent) {
-    clearContainer(parent);
+/**
+ * Updates the rows in place, so the list keeps its height and scroll position, and the selected task stays selected.
+ * @param[in] parent the list
+ * @param[in,out] taskNames the task name of each row
+ */
+void updateRtosTasks(lv_obj_t* parent, std::vector<std::string>& taskNames) {
+    lv_obj_t* selected = lvgl_grid_navigation_get_focused(parent);
+    const int32_t selected_index = selected != nullptr ? lv_obj_get_index(selected) : -1;
+    const std::string selected_name = selected_index >= 0 && selected_index < static_cast<int32_t>(taskNames.size()) ? taskNames[selected_index] : "";
+    const bool show_selection = selected != nullptr && lv_obj_has_state(selected, LV_STATE_FOCUS_KEY);
 
     UBaseType_t count = uxTaskGetNumberOfTasks();
     auto* tasks = (TaskStatus_t*)malloc(sizeof(TaskStatus_t) * count);
     if (!tasks) {
+        lv_obj_clean(parent);
+        taskNames.clear();
         auto* error_label = lv_label_create(parent);
         lv_label_set_text(error_label, "Failed to allocate memory for task list");
         return;
     }
     uint32_t totalRuntime = 0;
     UBaseType_t actual = uxTaskGetSystemState(tasks, count, &totalRuntime);
+    std::sort(tasks, tasks + actual, [](const TaskStatus_t& a, const TaskStatus_t& b) {
+        return strcasecmp(getTaskName(a), getTaskName(b)) < 0;
+    });
 
-    for (int i = 0; i < actual; ++i) {
-        addRtosTask(parent, tasks[i]);
+    taskNames.clear();
+    for (UBaseType_t i = 0; i < actual; ++i) {
+        auto* row = i < lv_obj_get_child_count(parent) ? lv_obj_get_child(parent, static_cast<int32_t>(i)) : lv_label_create(parent);
+        lv_label_set_text_fmt(row, "%s (%s)", getTaskName(tasks[i]), getTaskState(tasks[i]));
+        // Keys and encoders move through the tasks, which scrolls the list
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        taskNames.emplace_back(getTaskName(tasks[i]));
+    }
+    free(tasks);
+    while (lv_obj_get_child_count(parent) > actual) {
+        lv_obj_delete(lv_obj_get_child(parent, -1));
     }
 
-    free(tasks);
+    if (selected_index < 0 || taskNames.empty()) {
+        return;
+    }
+    // Follows the task, or keeps the position when the task is gone
+    auto it = std::ranges::find(taskNames, selected_name);
+    const auto index = it != taskNames.end() ? static_cast<int32_t>(it - taskNames.begin()) : std::min(selected_index, static_cast<int32_t>(taskNames.size()) - 1);
+    // Also re-applied when the row didn't change: deleting rows resets grid navigation's selection
+    auto* row = lv_obj_get_child(parent, index);
+    lv_gridnav_set_focused(parent, row, LV_ANIM_OFF);
+    const bool list_focused = lv_obj_get_group(parent) != nullptr && lv_group_get_focused(lv_obj_get_group(parent)) == parent;
+    if (!show_selection) {
+        lv_obj_remove_state(row, LV_STATE_FOCUS_KEY);
+    }
+    if (list_focused) {
+        lv_obj_scroll_to_view_recursive(row, LV_ANIM_OFF);
+    } else {
+        lv_obj_remove_state(row, LV_STATE_FOCUSED);
+    }
 }
 
 #endif
 
 lv_obj_t* createTab(lv_obj_t* tabview, const char* name) {
     auto* tab = lv_tabview_add_tab(tabview, name);
+    auto* tab_bar = lv_tabview_get_tab_bar(tabview);
+    auto* tab_button = lv_obj_get_child(tab_bar, static_cast<int32_t>(lv_obj_get_child_count(tab_bar)) - 1);
+    auto* shared_icon_font = lvgl_theme_is_compact() ? lvgl_get_shared_icon_default_font() : lvgl_get_shared_icon_large_font();
+    lv_obj_set_style_text_font(tab_button, shared_icon_font, LV_STATE_DEFAULT);
+    // Square buttons, so the theme's round selection indicator fits the icon
+    const int32_t button_size = lv_font_get_line_height(shared_icon_font) + 2 * lv_obj_get_style_pad_top(tab_button, LV_PART_MAIN);
+    lv_obj_set_flex_grow(tab_button, 0);
+    lv_obj_set_size(tab_button, button_size, button_size);
     lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(tab, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(tab, 0, LV_STATE_DEFAULT);
@@ -250,6 +297,8 @@ struct Context {
     MemoryBarWidgets systemStorageBar;
 
     lv_obj_t* tasksContainer = nullptr;
+    /** The task name of each row in tasksContainer */
+    std::vector<std::string> taskNames;
     lv_obj_t* psramContainer = nullptr;
 
     bool hasExternalMem = false;
@@ -293,7 +342,7 @@ void updateStorage(Context* ctx) {
 void updateTasks(Context* ctx) {
 #if configUSE_TRACE_FACILITY
     if (ctx->tasksContainer) {
-        updateRtosTasks(ctx->tasksContainer);  // Tasks tab: show state
+        updateRtosTasks(ctx->tasksContainer, ctx->taskNames);  // Tasks tab: show state
     }
 #endif
 }
@@ -302,6 +351,24 @@ void onBackPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     app_event_emit_close(ctx->appInstanceId);
 }
+
+#if configUSE_TRACE_FACILITY
+void onTabChanged(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    auto* tabview = lv_event_get_target_obj(event);
+    auto* active_tab = lv_obj_get_child(lv_tabview_get_content(tabview), static_cast<int32_t>(lv_tabview_get_tab_active(tabview)));
+    const bool tasks_shown = active_tab == lv_obj_get_parent(ctx->tasksContainer);
+    auto* group = lv_group_get_default();
+    if (group == nullptr) {
+        return;
+    }
+    if (tasks_shown && lv_obj_get_group(ctx->tasksContainer) == nullptr) {
+        lv_group_add_obj(group, ctx->tasksContainer);
+    } else if (!tasks_shown && lv_obj_get_group(ctx->tasksContainer) != nullptr) {
+        lv_group_remove_obj(ctx->tasksContainer);
+    }
+}
+#endif
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
@@ -319,17 +386,25 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_width(wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(wrapper, 1);
     lv_obj_set_style_pad_all(wrapper, 0, LV_STATE_DEFAULT);
+    // Space between the screen edges and the rounded tab bar and content
+    const int32_t edge_space = lvgl_theme_is_compact() ? 2 : LV_DPX(8);
+    lv_obj_set_style_pad_hor(wrapper, edge_space, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(wrapper, edge_space, LV_STATE_DEFAULT);
 
     auto* tabview = lv_tabview_create(wrapper);
     lv_tabview_set_tab_bar_position(tabview, LV_DIR_LEFT);
-    auto tab_bar_width = 6 * lvgl_get_text_font_height(FONT_SIZE_DEFAULT);
-    lv_tabview_set_tab_bar_size(tabview, tab_bar_width);
 
     // Create tabs
-    auto* memory_tab = createTab(tabview, "Memory");
-    auto* storage_tab = createTab(tabview, "Storage");
-    auto* tasks_tab = createTab(tabview, "Tasks");
-    auto* about_tab = createTab(tabview, "About");
+    auto* memory_tab = createTab(tabview, LVGL_ICON_SHARED_MEMORY);
+    auto* storage_tab = createTab(tabview, LVGL_ICON_SHARED_HARD_DISK);
+    auto* tasks_tab = createTab(tabview, LVGL_ICON_SHARED_SELECT_WINDOW_2);
+    auto* about_tab = createTab(tabview, LVGL_ICON_SHARED_INFO);
+
+    // As wide as the buttons, which are spread over the bar's height
+    auto* tab_bar = lv_tabview_get_tab_bar(tabview);
+    lv_obj_set_width(tab_bar, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_hor(tab_bar, lvgl_theme_is_compact() ? 2 : LV_DPX(12), LV_STATE_DEFAULT);
+    lv_obj_set_flex_align(tab_bar, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     // Memory tab content
     ctx->internalMemBar = createMemoryBar(memory_tab, "Internal");
@@ -370,6 +445,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(ctx->tasksContainer, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(ctx->tasksContainer, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_bg_opa(ctx->tasksContainer, 0, LV_STATE_DEFAULT);
+    lvgl_grid_navigation_add(ctx->tasksContainer);
+    // Only the shown tab's list can be focused, as focusing another tab's content would scroll to it
+    lv_group_remove_obj(ctx->tasksContainer);
+    lv_obj_add_event_cb(tabview, onTabChanged, LV_EVENT_VALUE_CHANGED, ctx);
 #endif
 
     // Build info

@@ -24,8 +24,10 @@ const char* const lvgl_icon_shared_names[] = {
     "download",
     "forum",
     "gamepad",
+    "hard_disk",
     "help",
     "hub",
+    "info",
     "image",
     "keyboard_arrow_up",
     "lightbulb",
@@ -33,6 +35,7 @@ const char* const lvgl_icon_shared_names[] = {
     "lists",
     "mail",
     "menu",
+    "memory",
     "mop",
     "more_vert",
     "music_note",
@@ -41,6 +44,7 @@ const char* const lvgl_icon_shared_names[] = {
     "power_settings_new",
     "refresh",
     "search",
+    "select_window_2",
     "settings",
     "toolbar",
     "navigation",
@@ -52,6 +56,7 @@ const char* const lvgl_icon_shared_names[] = {
     "logo_dev",
     "camera",
     "lightstrip",
+    "phone_android",
 };
 
 const size_t lvgl_icon_shared_name_count = sizeof(lvgl_icon_shared_names) / sizeof(lvgl_icon_shared_names[0]);

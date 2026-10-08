@@ -295,6 +295,86 @@ def test_array_property_defaults_to_null_when_absent():
         print("PASSED")
         return True
 
+def write_reg_config(tmp_dir, node):
+    config_dir = os.path.join(tmp_dir, "reg_data")
+    bindings_dir = os.path.join(config_dir, "bindings")
+    os.makedirs(bindings_dir)
+
+    with open(os.path.join(config_dir, "module.yaml"), "w") as f:
+        f.write("dts: test.dts\nbindings: bindings")
+
+    with open(os.path.join(config_dir, "test.dts"), "w") as f:
+        f.write(f"""/dts-v1/;
+
+/ {{
+    compatible = "test,root";
+    model = "Test Model";
+
+    {node} {{
+        compatible = "test,reg-device";
+        reg = <0x5D>;
+    }};
+}};
+""")
+
+    with open(os.path.join(bindings_dir, "test,root.yaml"), "w") as f:
+        f.write("description: Test root binding\ncompatible: \"test,root\"\nproperties:\n  model:\n    type: string\n")
+
+    with open(os.path.join(bindings_dir, "test,reg-device.yaml"), "w") as f:
+        f.write("description: Test reg binding\ncompatible: \"test,reg-device\"\nproperties:\n  reg:\n    type: int\n")
+
+    return config_dir
+
+def test_reg_is_address_without_unit_address():
+    print("Running test_reg_is_address_without_unit_address...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config_dir = write_reg_config(tmp_dir, "touch")
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir)
+
+        result = run_compiler(config_dir, output_dir)
+
+        if result.returncode != 0:
+            print(f"FAILED: Compilation should have succeeded: {result.stderr} {result.stdout}")
+            return False
+
+        with open(os.path.join(output_dir, "devicetree.c")) as f:
+            generated = f.read()
+
+        if ".address = 0x5D," not in generated:
+            print(f"FAILED: Expected the reg value as address:\n{generated}")
+            return False
+
+        print("PASSED")
+        return True
+
+def test_unit_address_mismatch_warns():
+    print("Running test_unit_address_mismatch_warns...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config_dir = write_reg_config(tmp_dir, "touch@10")
+        output_dir = os.path.join(tmp_dir, "output")
+        os.makedirs(output_dir)
+
+        result = run_compiler(config_dir, output_dir)
+
+        if result.returncode != 0:
+            print(f"FAILED: Compilation should have succeeded: {result.stderr} {result.stdout}")
+            return False
+
+        if "different reg value" not in result.stdout:
+            print(f"FAILED: Expected a warning, got: {result.stdout}")
+            return False
+
+        with open(os.path.join(output_dir, "devicetree.c")) as f:
+            generated = f.read()
+
+        if ".address = 16," not in generated:
+            print(f"FAILED: Expected the unit address as address:\n{generated}")
+            return False
+
+        print("PASSED")
+        return True
+
 def test_compile_missing_config():
     print("Running test_compile_missing_config...")
     with tempfile.TemporaryDirectory() as output_dir:
@@ -322,7 +402,9 @@ if __name__ == "__main__":
         test_minmax_out_of_range_default_fails,
         test_minmax_symbolic_value_skips_validation,
         test_array_property_generates_static_array_and_length,
-        test_array_property_defaults_to_null_when_absent
+        test_array_property_defaults_to_null_when_absent,
+        test_reg_is_address_without_unit_address,
+        test_unit_address_mismatch_warns
     ]
     
     failed = 0

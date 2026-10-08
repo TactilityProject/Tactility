@@ -51,6 +51,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     lv_obj_t* wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(wrapper, LV_PCT(100));
     lv_obj_set_style_pad_all(wrapper, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_row(wrapper, 4, LV_PART_MAIN);

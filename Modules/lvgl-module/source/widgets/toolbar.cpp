@@ -7,6 +7,7 @@
 #include <lvgl/grid_navigation.h>
 #include <lvgl/insets.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/theme.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/spinner.h>
 
@@ -16,16 +17,16 @@
 
 constexpr auto* TAG = "lvgl_toolbar";
 
-static uint32_t getToolbarHeight(UiDensity uiDensity) {
-    if (uiDensity == LVGL_UI_DENSITY_COMPACT) {
+static uint32_t getToolbarHeight(bool isCompact) {
+    if (isCompact) {
         return lvgl_get_text_font_height(FONT_SIZE_DEFAULT) * 1.6f;
     } else {
         return lvgl_get_text_font_height(FONT_SIZE_LARGE) * 2.2f;
     }
 }
 
-static const _lv_font_t* getToolbarFont(UiDensity uiDensity) {
-    if (uiDensity == LVGL_UI_DENSITY_COMPACT) {
+static const _lv_font_t* getToolbarFont(bool isCompact) {
+    if (isCompact) {
         return lvgl_get_text_font(FONT_SIZE_DEFAULT);
     } else {
         return lvgl_get_text_font(FONT_SIZE_LARGE);
@@ -33,9 +34,9 @@ static const _lv_font_t* getToolbarFont(UiDensity uiDensity) {
 }
 
 /** The size of icon buttons, which leaves room for the theme's focus indicator */
-static uint32_t getActionButtonSize(UiDensity uiDensity) {
-    auto toolbar_height = getToolbarHeight(uiDensity);
-    auto padding = (uiDensity != LVGL_UI_DENSITY_COMPACT) ? (uint32_t)(toolbar_height * 0.2f) : 8;
+static uint32_t getActionButtonSize(bool isCompact) {
+    auto toolbar_height = getToolbarHeight(isCompact);
+    auto padding = !isCompact ? (uint32_t)(toolbar_height * 0.2f) : 8;
     return toolbar_height - padding;
 }
 
@@ -84,18 +85,18 @@ static void toolbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj) {
     lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
 }
 
-static lv_obj_t* create_action_button(lv_obj_t* parent, UiDensity ui_density) {
-    auto button_size = getActionButtonSize(ui_density);
+static lv_obj_t* create_action_button(lv_obj_t* parent, bool is_compact) {
+    auto button_size = getActionButtonSize(is_compact);
     lv_obj_t* button = lvgl_icon_button_create(parent);
     lv_obj_set_size(button, button_size, button_size);
     return button;
 }
 
 lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
-    auto ui_density = lvgl_get_ui_density();
+    const bool is_compact = lvgl_theme_is_compact();
     lv_obj_t* obj = lv_obj_class_create_obj(&lvgl_toolbar_class, parent);
     lv_obj_class_init_obj(obj);
-    lv_obj_set_height(obj, getToolbarHeight(ui_density));
+    lv_obj_set_height(obj, getToolbarHeight(is_compact));
 
     auto* toolbar = reinterpret_cast<Toolbar*>(obj);
     toolbar->nav_action_callback = nullptr;
@@ -109,12 +110,12 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     // The arrow keys move between the close button and the actions, and up and down leave the toolbar
     lvgl_grid_navigation_add(obj);
 
-    toolbar->close_button = create_action_button(obj, ui_density);
+    toolbar->close_button = create_action_button(obj, is_compact);
     toolbar->close_button_image = lv_image_create(toolbar->close_button);
     lv_obj_align(toolbar->close_button_image, LV_ALIGN_CENTER, 0, 0);
 
     toolbar->title_label = lv_label_create(obj);
-    lv_obj_set_style_text_font(toolbar->title_label, getToolbarFont(ui_density), LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(toolbar->title_label, getToolbarFont(is_compact), LV_STATE_DEFAULT);
     lv_label_set_text(toolbar->title_label, title);
     lv_label_set_long_mode(toolbar->title_label, LV_LABEL_LONG_MODE_SCROLL);
     lv_obj_set_flex_grow(toolbar->title_label, 1);
@@ -155,7 +156,7 @@ static lv_obj_t* toolbar_add_button_action(lv_obj_t* obj, const char* imageOrBut
     check(toolbar->action_count < TOOLBAR_ACTION_LIMIT, "max actions reached");
     toolbar->action_count++;
 
-    lv_obj_t* action_button = create_action_button(obj, lvgl_get_ui_density());
+    lv_obj_t* action_button = create_action_button(obj, lvgl_theme_is_compact());
     lv_obj_add_event_cb(action_button, callback, LV_EVENT_SHORT_CLICKED, user_data);
     lv_obj_t* button_content;
     if (isImage) {

@@ -13,6 +13,8 @@
 #include <wifi/wifi_settings.h>
 
 #include <lvgl/lvgl.h>
+#include <lvgl/theme.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -49,7 +51,7 @@ struct Context {
     lv_obj_t* password_textarea = nullptr;
     lv_obj_t* password_error = nullptr;
     lv_obj_t* connect_button = nullptr;
-    lv_obj_t* remember_switch = nullptr;
+    lv_obj_t* remember_checkbox = nullptr;
     lv_obj_t* connecting_spinner = nullptr;
     lv_obj_t* connection_error = nullptr;
 
@@ -114,13 +116,13 @@ void setLoading(Context* ctx, bool loading) {
         lv_obj_remove_flag(ctx->connecting_spinner, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_state(ctx->password_textarea, LV_STATE_DISABLED);
         lv_obj_add_state(ctx->ssid_textarea, LV_STATE_DISABLED);
-        lv_obj_add_state(ctx->remember_switch, LV_STATE_DISABLED);
+        lv_obj_add_state(ctx->remember_checkbox, LV_STATE_DISABLED);
     } else {
         lv_obj_remove_flag(ctx->connect_button, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(ctx->connecting_spinner, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_state(ctx->password_textarea, LV_STATE_DISABLED);
         lv_obj_remove_state(ctx->ssid_textarea, LV_STATE_DISABLED);
-        lv_obj_remove_state(ctx->remember_switch, LV_STATE_DISABLED);
+        lv_obj_remove_state(ctx->remember_checkbox, LV_STATE_DISABLED);
     }
 }
 
@@ -161,7 +163,7 @@ void onConnectPressed(lv_event_t* event) {
         return;
     }
 
-    bool store = lv_obj_get_state(ctx->remember_switch) & LV_STATE_CHECKED;
+    bool store = lv_obj_get_state(ctx->remember_checkbox) & LV_STATE_CHECKED;
 
     setLoading(ctx, true);
 
@@ -198,26 +200,23 @@ void createBottomButtons(Context* ctx, lv_obj_t* parent) {
     lv_obj_set_width(button_container, LV_PCT(100));
     lv_obj_set_height(button_container, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(button_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_gap(button_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_gap(button_container, 4, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(button_container, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(button_container, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    // "[x] Remember          [Connect]", with everything centered vertically
+    lv_obj_set_flex_flow(button_container, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(button_container, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    ctx->remember_switch = lv_switch_create(button_container);
-    lv_obj_add_state(ctx->remember_switch, LV_STATE_CHECKED);
-    lv_obj_align(ctx->remember_switch, LV_ALIGN_LEFT_MID, 0, 0);
-
-    auto* remember_label = lv_label_create(button_container);
-    lv_label_set_text(remember_label, "Remember");
-    lv_obj_align(remember_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_align_to(remember_label, ctx->remember_switch, LV_ALIGN_OUT_RIGHT_MID, 4, 0);
+    ctx->remember_checkbox = lv_checkbox_create(button_container);
+    lv_checkbox_set_text(ctx->remember_checkbox, "Remember");
+    lv_obj_add_state(ctx->remember_checkbox, LV_STATE_CHECKED);
 
     ctx->connecting_spinner = lvgl_spinner_create(button_container);
-    lv_obj_align(ctx->connecting_spinner, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_flag(ctx->connecting_spinner, LV_OBJ_FLAG_HIDDEN);
 
     ctx->connect_button = lv_btn_create(button_container);
     auto* connect_label = lv_label_create(ctx->connect_button);
     lv_label_set_text(connect_label, "Connect");
-    lv_obj_align(ctx->connect_button, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(ctx->connect_button, onConnectPressed, LV_EVENT_SHORT_CLICKED, ctx);
 }
 
@@ -230,9 +229,40 @@ void destroyWidgets(void* userData) {
     ctx->password_textarea = nullptr;
     ctx->password_error = nullptr;
     ctx->connect_button = nullptr;
-    ctx->remember_switch = nullptr;
+    ctx->remember_checkbox = nullptr;
     ctx->connecting_spinner = nullptr;
     ctx->connection_error = nullptr;
+}
+
+/** A transparent row: "Title          [content]" */
+lv_obj_t* createRow(lv_obj_t* parent, const char* title) {
+    auto* row = lv_obj_create(parent);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    auto* label = lv_label_create(row);
+    lv_label_set_text(label, title);
+    lv_obj_set_flex_grow(label, 1);
+    return row;
+}
+
+/** A hidden label in the theme's error colour */
+lv_obj_t* createErrorLabel(lv_obj_t* parent) {
+    auto* label = lv_label_create(parent);
+    lv_obj_set_width(label, LV_PCT(100));
+    lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
+    // The monochrome theme has no error colour
+    if (!lvgl_theme_is_mono()) {
+        LvglThemeSettings theme_settings;
+        lvgl_theme_get_settings(&theme_settings);
+        lv_obj_set_style_text_color(label, theme_settings.color_error, LV_STATE_DEFAULT);
+    }
+    lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+    return label;
 }
 
 // TODO: Standardize dialogs
@@ -247,76 +277,39 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(wrapper, 1);
     lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
 
+    auto* card = lvgl_card_create(wrapper);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+
     // SSID
 
-    auto* ssid_wrapper = lv_obj_create(wrapper);
-    lv_obj_set_width(ssid_wrapper, LV_PCT(100));
-    lv_obj_set_height(ssid_wrapper, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(ssid_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_gap(ssid_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ssid_wrapper, 0, LV_STATE_DEFAULT);
-
-    auto* ssid_label_wrapper = lv_obj_create(ssid_wrapper);
-    lv_obj_set_width(ssid_label_wrapper, LV_PCT(50));
-    lv_obj_set_height(ssid_label_wrapper, LV_SIZE_CONTENT);
-    lv_obj_align(ssid_label_wrapper, LV_ALIGN_LEFT_MID, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ssid_label_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ssid_label_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ssid_label_wrapper, 0, LV_STATE_DEFAULT);
-
-    auto* ssid_label = lv_label_create(ssid_label_wrapper);
-    lv_label_set_text(ssid_label, "Network:");
-
-    ctx->ssid_textarea = lv_textarea_create(ssid_wrapper);
+    auto* ssid_row = createRow(card, "Network");
+    ctx->ssid_textarea = lv_textarea_create(ssid_row);
     lv_textarea_set_one_line(ctx->ssid_textarea, true);
-    lv_obj_align(ctx->ssid_textarea, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_set_width(ctx->ssid_textarea, LV_PCT(50));
+    lv_obj_set_width(ctx->ssid_textarea, LV_PCT(60));
 
-    ctx->ssid_error = lv_label_create(wrapper);
-    lv_obj_set_style_text_color(ctx->ssid_error, lv_color_make(255, 50, 50), LV_STATE_DEFAULT);
-    lv_obj_add_flag(ctx->ssid_error, LV_OBJ_FLAG_HIDDEN);
+    ctx->ssid_error = createErrorLabel(card);
 
     // Password
 
-    auto* password_wrapper = lv_obj_create(wrapper);
-    lv_obj_set_width(password_wrapper, LV_PCT(100));
-    lv_obj_set_height(password_wrapper, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(password_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_gap(password_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(password_wrapper, 0, LV_STATE_DEFAULT);
-
-    auto* password_label_wrapper = lv_obj_create(password_wrapper);
-    lv_obj_set_width(password_label_wrapper, LV_PCT(50));
-    lv_obj_set_height(password_label_wrapper, LV_SIZE_CONTENT);
-    lv_obj_align_to(password_label_wrapper, password_wrapper, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_obj_set_style_border_width(password_label_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(password_label_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(password_label_wrapper, 0, LV_STATE_DEFAULT);
-
-    auto* password_label = lv_label_create(password_label_wrapper);
-    lv_label_set_text(password_label, "Password:");
-
-    ctx->password_textarea = lv_textarea_create(password_wrapper);
+    auto* password_row = createRow(card, "Password");
+    ctx->password_textarea = lv_textarea_create(password_row);
     lv_textarea_set_one_line(ctx->password_textarea, true);
     lv_textarea_set_password_mode(ctx->password_textarea, true);
-    lv_obj_align(ctx->password_textarea, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_set_width(ctx->password_textarea, LV_PCT(50));
+    lv_obj_set_width(ctx->password_textarea, LV_PCT(60));
 
-    ctx->password_error = lv_label_create(wrapper);
-    lv_obj_set_style_text_color(ctx->password_error, lv_color_make(255, 50, 50), LV_STATE_DEFAULT);
-    lv_obj_add_flag(ctx->password_error, LV_OBJ_FLAG_HIDDEN);
+    ctx->password_error = createErrorLabel(card);
 
     // Connection error
-    ctx->connection_error = lv_label_create(wrapper);
-    lv_obj_set_style_text_color(ctx->connection_error, lv_color_make(255, 50, 50), LV_STATE_DEFAULT);
-    lv_obj_add_flag(ctx->connection_error, LV_OBJ_FLAG_HIDDEN);
+    ctx->connection_error = createErrorLabel(card);
 
     // Bottom buttons
-    createBottomButtons(ctx, wrapper);
+    createBottomButtons(ctx, card);
 
     // Init from app parameters
     if (!ctx->initialSsid.empty()) {

@@ -122,6 +122,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(main_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(main_wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(main_wrapper, 1);
@@ -129,15 +130,17 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // Keyboard backlight toggle
     auto* bl_wrapper = lv_obj_create(main_wrapper);
     lv_obj_set_size(bl_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(bl_wrapper, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(bl_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(bl_wrapper, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_pad_all(bl_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(bl_wrapper, 0, LV_STATE_DEFAULT);
 
     auto* bl_label = lv_label_create(bl_wrapper);
     lv_label_set_text(bl_label, "Keyboard backlight");
-    lv_obj_align(bl_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(bl_label, 1);
     ctx->switchBacklight = lv_switch_create(bl_wrapper);
     if (ctx->kbSettings.backlightEnabled) lv_obj_add_state(ctx->switchBacklight, LV_STATE_CHECKED);
-    lv_obj_align(ctx->switchBacklight, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(ctx->switchBacklight, onBacklightSwitch, LV_EVENT_VALUE_CHANGED, ctx);
 
     // Brightness slider
@@ -160,15 +163,17 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // Backlight timeout enable
     auto* to_enable_wrapper = lv_obj_create(main_wrapper);
     lv_obj_set_size(to_enable_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(to_enable_wrapper, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(to_enable_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(to_enable_wrapper, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_pad_all(to_enable_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(to_enable_wrapper, 0, LV_STATE_DEFAULT);
 
     auto* to_enable_label = lv_label_create(to_enable_wrapper);
     lv_label_set_text(to_enable_label, "Auto backlight off");
-    lv_obj_align(to_enable_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(to_enable_label, 1);
     ctx->switchTimeoutEnable = lv_switch_create(to_enable_wrapper);
     if (ctx->kbSettings.backlightTimeoutEnabled) lv_obj_add_state(ctx->switchTimeoutEnable, LV_STATE_CHECKED);
-    lv_obj_align(ctx->switchTimeoutEnable, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(ctx->switchTimeoutEnable, onTimeoutEnableSwitch, LV_EVENT_VALUE_CHANGED, ctx);
 
     auto* timeout_select_wrapper = lv_obj_create(main_wrapper);

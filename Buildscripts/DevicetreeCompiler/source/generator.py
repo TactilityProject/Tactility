@@ -2,6 +2,7 @@ import os.path
 from textwrap import dedent
 from source.models import *
 from .exception import DevicetreeException
+from .printing import print_warning
 
 def write_include(file, include: IncludeC, verbose: bool):
     if verbose:
@@ -58,6 +59,35 @@ def find_phandle(devices: list[Device], phandle: str):
         if device.node_name == phandle or device.node_alias == phandle:
             return f"&{get_device_node_name_safe(device)}"
     raise DevicetreeException(f"phandle '{phandle}' not found in devicetree")
+
+def parse_number(text: str):
+    try:
+        return int(text, 0)
+    except ValueError:
+        return None
+
+def get_device_address(device: Device) -> str:
+    """The node's unit address (e.g. "display@0"), or else the first value of its "reg" property (e.g. an I2C address)."""
+    reg_property = find_device_property(device, "reg")
+    reg_value = None
+    if reg_property is not None:
+        if reg_property.type == "value":
+            reg_value = reg_property.value
+        elif reg_property.type == "values" and len(reg_property.value) > 0:
+            reg_value = str(reg_property.value[0])
+    if device.node_address is None:
+        return reg_value if reg_value is not None else "0"
+    # Unit addresses are hexadecimal, like in Linux
+    try:
+        unit_address = int(device.node_address, 16)
+    except ValueError:
+        raise DevicetreeException(f"Unit address of {device.node_name}@{device.node_address} isn't a hexadecimal number")
+    # Like Linux's dtc, the unit address should match the first "reg" value
+    if reg_value is not None:
+        reg_number = parse_number(reg_value)
+        if reg_number is not None and unit_address != reg_number:
+            print_warning(f"{device.node_name}@{device.node_address} has a different reg value: {reg_value}")
+    return str(unit_address)
 
 def property_to_string(property: DeviceProperty, devices: list[Device]) -> str:
     type = property.type
@@ -277,7 +307,7 @@ def write_device_structs(file, device: Device, parent_device: Device, bindings: 
     # Write config struct
     write_config(file, device, bindings, devices, type_name)
     # Write device struct
-    address_value = device.node_address if device.node_address is not None else "0"
+    address_value = get_device_address(device)
     file.write(f"static struct Device {node_name}" " = {\n")
     file.write(f"\t.address = {address_value},\n")
     file.write(f"\t.name = \"{device.node_name}\",\n") # Use original name

@@ -19,6 +19,8 @@
 
 #include <lvgl.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/theme.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <cstring>
@@ -132,37 +134,47 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // Enable on boot
 
-    lv_obj_t* enable_wrapper = lv_obj_create(content_wrapper);
+    auto* enable_card = lvgl_card_create(content_wrapper);
+    lv_obj_set_size(enable_card, LV_PCT(100), LV_SIZE_CONTENT);
+
+    lv_obj_t* enable_wrapper = lv_obj_create(enable_card);
     lv_obj_set_size(enable_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(enable_wrapper, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(enable_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(enable_wrapper, LV_OBJ_FLAG_SCROLLABLE);
     lvgl::obj_set_style_bg_invisible(enable_wrapper);
     lv_obj_set_style_border_width(enable_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(enable_wrapper, 0, LV_STATE_DEFAULT);
 
     lv_obj_t* enable_label = lv_label_create(enable_wrapper);
     lv_label_set_text(enable_label, "Enable on boot");
-    lv_obj_align(enable_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(enable_label, 1);
 
     ctx->enableOnBootSwitch = lv_switch_create(enable_wrapper);
     lv_obj_add_event_cb(ctx->enableOnBootSwitch, onEnableOnBootSwitchChanged, LV_EVENT_VALUE_CHANGED, ctx);
-    lv_obj_align(ctx->enableOnBootSwitch, LV_ALIGN_RIGHT_MID, 0, 0);
     if (service::development::shouldEnableOnBoot()) {
         lv_obj_add_state(ctx->enableOnBootSwitch, LV_STATE_CHECKED);
     } else {
         lv_obj_remove_state(ctx->enableOnBootSwitch, LV_STATE_CHECKED);
     }
 
-    // Status
+    // Status and warning
 
-    ctx->statusLabel = lv_label_create(content_wrapper);
+    auto* status_card = lvgl_card_create(content_wrapper);
+    lv_obj_set_size(status_card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(status_card, LV_FLEX_FLOW_COLUMN);
 
-    // Warning
+    ctx->statusLabel = lv_label_create(status_card);
 
-    auto warning_label = lv_label_create(content_wrapper);
+    auto warning_label = lv_label_create(status_card);
     lv_label_set_text(warning_label, "This feature is experimental and uses an unsecured http connection.");
     lv_obj_set_width(warning_label, LV_PCT(100));
     lv_label_set_long_mode(warning_label, LV_LABEL_LONG_WRAP);
-    if (lv_display_get_color_format(lv_obj_get_display(parent)) != LV_COLOR_FORMAT_L8) {
-        lv_obj_set_style_text_color(warning_label, lv_color_make(0xff, 0xff, 0x00), LV_STATE_DEFAULT);
+    // The monochrome theme has no error colour
+    if (!lvgl_theme_is_mono()) {
+        LvglThemeSettings theme_settings;
+        lvgl_theme_get_settings(&theme_settings);
+        lv_obj_set_style_text_color(warning_label, theme_settings.color_error, LV_STATE_DEFAULT);
     }
 
     updateViewState(ctx);

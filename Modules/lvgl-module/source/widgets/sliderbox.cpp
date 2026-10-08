@@ -38,7 +38,6 @@ static void sliderbox_constructor(const lv_obj_class_t* classPointer, lv_obj_t* 
     lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(obj, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(obj, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(obj, 0, LV_STATE_DEFAULT);
 }

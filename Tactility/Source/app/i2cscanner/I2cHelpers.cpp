@@ -1,7 +1,5 @@
 #include "Tactility/app/i2cscanner/I2cHelpers.h"
 
-#include <Tactility/StringUtils.h>
-
 #include <tactility/drivers/i2c_controller.h>
 
 #include <iomanip>
@@ -18,7 +16,7 @@ std::string getAddressText(uint8_t address) {
     return stream.str();
 }
 
-std::string getPortNamesForDropdown() {
+std::vector<std::string> getPortNames() {
     std::vector<std::string> config_names;
     device_for_each_of_type(&I2C_CONTROLLER_TYPE, &config_names, [](auto* device, auto* context) {
         auto* names = static_cast<std::vector<std::string>*>(context);
@@ -27,7 +25,7 @@ std::string getPortNamesForDropdown() {
         }
         return true;
     });
-    return string::join(config_names, "\n");
+    return config_names;
 }
 
 bool getActivePortAtIndex(int32_t index, struct Device** out) {

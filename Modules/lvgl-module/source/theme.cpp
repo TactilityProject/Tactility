@@ -29,6 +29,9 @@ void lvgl_theme_get_default_settings(LvglThemeSettings* settings) {
     settings->color_primary = material_config.color_primary;
     settings->color_secondary = material_config.color_secondary;
     settings->color_error = material_config.color_error;
+    settings->is_compact = TT_LVGL_UI_DENSITY == LVGL_UI_DENSITY_COMPACT;
+    settings->surface_override = material_config.surface_override;
+    settings->color_surface = material_config.color_surface;
 }
 
 void lvgl_theme_get_settings(LvglThemeSettings* settings) {
@@ -46,6 +49,12 @@ void lvgl_theme_set_settings(const LvglThemeSettings* settings) {
 
 bool lvgl_theme_is_mono() {
     return active_theme == ActiveTheme::MaterialMono;
+}
+
+bool lvgl_theme_is_compact() {
+    LvglThemeSettings settings;
+    lvgl_theme_get_settings(&settings);
+    return settings.is_compact;
 }
 
 static lv_theme_t* get_active_theme() {
@@ -76,7 +85,7 @@ void lvgl_theme_deinit() {
 lv_theme_t* lvgl_theme_init_for_display(lv_display_t* display, bool isMonoDisplay, bool supportsAnimations) {
     LvglThemeSettings settings;
     lvgl_theme_get_settings(&settings);
-    const bool is_compact = lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT;
+    const bool is_compact = settings.is_compact;
     const bool animations_enabled = settings.animations_enabled && supportsAnimations;
     const ActiveTheme required_theme = (isMonoDisplay || settings.is_mono) ? ActiveTheme::MaterialMono : ActiveTheme::Material;
 
@@ -104,6 +113,8 @@ lv_theme_t* lvgl_theme_init_for_display(lv_display_t* display, bool isMonoDispla
         config.color_primary = settings.color_primary;
         config.color_secondary = settings.color_secondary;
         config.color_error = settings.color_error;
+        config.surface_override = settings.surface_override;
+        config.color_surface = settings.color_surface;
         theme = lv_theme_material_init(display, &config);
     }
     active_theme = required_theme;

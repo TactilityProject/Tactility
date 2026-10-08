@@ -15,6 +15,7 @@
 
 #include <TactilityCpp/Allocator.h>
 
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 #include <lvgl.h>
 #include <algorithm>
@@ -73,9 +74,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
-    lv_obj_t* list = lv_list_create(parent);
-    lv_obj_set_width(list, LV_PCT(100));
-    lv_obj_set_flex_grow(list, 1);
+    auto* content = lv_obj_create(parent);
+    lv_obj_set_width(content, LV_PCT(100));
+    lv_obj_set_flex_grow(content, 1);
+    lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_border_width(content, 0, LV_STATE_DEFAULT);
+
+    auto* card = lvgl_card_create(content);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
 
     // createWidgets() can rerun for this same Context (window rebuild-on-remove).
     ctx->packages.clear();
@@ -84,25 +90,24 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         return strcmp(left.id, right.id) < 0;
     });
 
-    for (const auto& package : ctx->packages) {
-        createPackageWidget(&package, list);
+    if (ctx->packages.empty()) {
+        auto* no_apps_label = lv_label_create(card);
+        lv_label_set_text(no_apps_label, "No apps installed.");
+        return;
     }
 
-    if (ctx->packages.empty()) {
-        // lv_obj_align() is ignored for children of a flex-managed parent, so the empty-state
-        // label needs its own flex-growing wrapper to center within; the (empty) list is hidden
-        // rather than deleted so the wrapper can just take its place in the flex flow.
-        lv_obj_add_flag(list, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_flex_grow(list, 0);
+    // The list items' pressed and focused backgrounds follow the card's rounded corners
+    lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
 
-        auto* empty_wrapper = lv_obj_create(parent);
-        lv_obj_set_width(empty_wrapper, LV_PCT(100));
-        lv_obj_set_flex_grow(empty_wrapper, 1);
-        lv_obj_set_flex_align(empty_wrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_border_width(empty_wrapper, 0, LV_STATE_DEFAULT);
+    // The card provides the background
+    lv_obj_t* list = lv_list_create(card);
+    lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
 
-        auto* no_apps_label = lv_label_create(empty_wrapper);
-        lv_label_set_text(no_apps_label, "No apps installed");
+    for (const auto& package : ctx->packages) {
+        createPackageWidget(&package, list);
     }
 }
 

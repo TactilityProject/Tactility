@@ -13,6 +13,9 @@
 
 #include <lvgl_window_manager/window_manager.h>
 
+#include <lvgl/grid_navigation.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::grovesettings {
@@ -36,11 +39,35 @@ void collectDevices(Context* ctx) {
     });
 }
 
-void onModeChanged(lv_event_t* e) {
+struct ModeOption {
+    GroveMode mode;
+    const char* name;
+};
+
+constexpr ModeOption MODE_OPTIONS[] = {
+    { GROVE_MODE_DISABLED, "Disabled" },
+    { GROVE_MODE_I2C, "I2C" },
+    { GROVE_MODE_UART, "UART" },
+};
+
+GroveMode getChipMode(lv_obj_t* chip) {
+    return static_cast<GroveMode>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(chip)));
+}
+
+void updateChips(lv_obj_t* chipsRow, GroveMode mode) {
+    const uint32_t count = lv_obj_get_child_count(chipsRow);
+    for (uint32_t i = 0; i < count; i++) {
+        auto* chip = lv_obj_get_child(chipsRow, static_cast<int32_t>(i));
+        lv_obj_set_state(chip, LV_STATE_CHECKED, getChipMode(chip) == mode);
+    }
+}
+
+void onModeChipPressed(lv_event_t* e) {
     auto* device = static_cast<::Device*>(lv_event_get_user_data(e));
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    auto mode = static_cast<GroveMode>(lv_dropdown_get_selected(dropdown));
-    grove_set_mode(device, mode);
+    auto* chip = lv_event_get_target_obj(e);
+    if (grove_set_mode(device, getChipMode(chip)) == ERROR_NONE) {
+        updateChips(lv_obj_get_parent(chip), getChipMode(chip));
+    }
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -60,29 +87,44 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(main_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(main_wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(main_wrapper, 1);
 
     for (auto* device : ctx->devices) {
-        auto* row = lv_obj_create(main_wrapper);
-        lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
-
-        auto* label = lv_label_create(row);
+        auto* label = lv_label_create(main_wrapper);
         lv_label_set_text(label, device->name);
-        lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 0);
 
-        auto* dropdown = lv_dropdown_create(row);
-        lv_dropdown_set_options(dropdown, "Disabled\nUART\nI2C");
-        lv_obj_align(dropdown, LV_ALIGN_RIGHT_MID, 0, 0);
+        // The chips are centered in the card while they fit, and scroll when they don't
+        auto* card = lvgl_card_create(main_wrapper);
+        lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_left(label, lv_obj_get_style_pad_left(card, LV_PART_MAIN), LV_STATE_DEFAULT);
+
+        auto* chips_row = lv_obj_create(card);
+        lv_obj_set_size(chips_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_max_width(chips_row, LV_PCT(100), LV_STATE_DEFAULT);
+        lv_obj_set_flex_flow(chips_row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_scroll_dir(chips_row, LV_DIR_HOR);
+        lv_obj_set_style_bg_opa(chips_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+        lv_obj_set_style_border_width(chips_row, 0, LV_STATE_DEFAULT);
+        // The chips' margins leave room for their focus rings and space them apart
+        lv_obj_set_style_pad_all(chips_row, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_column(chips_row, 0, LV_STATE_DEFAULT);
+
+        for (const auto& option : MODE_OPTIONS) {
+            auto* chip = lvgl_chip_create(chips_row);
+            lv_label_set_text(lv_label_create(chip), option.name);
+            lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<intptr_t>(option.mode)));
+            lv_obj_add_event_cb(chip, onModeChipPressed, LV_EVENT_SHORT_CLICKED, device);
+        }
+        lvgl_grid_navigation_add(chips_row);
 
         GroveMode current = GROVE_MODE_DISABLED;
         grove_get_mode(device, &current);
-        lv_dropdown_set_selected(dropdown, static_cast<uint32_t>(current));
-
-        lv_obj_add_event_cb(dropdown, onModeChanged, LV_EVENT_VALUE_CHANGED, device);
+        updateChips(chips_row, current);
     }
 }
 

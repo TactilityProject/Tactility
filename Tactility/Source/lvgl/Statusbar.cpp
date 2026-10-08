@@ -197,8 +197,8 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
     lv_obj_set_style_pad_hor(obj, 2, LV_STATE_DEFAULT);
     lv_obj_center(obj);
     auto icon_size = lvgl_get_statusbar_icon_font_height();
-    auto ui_density = lvgl_get_ui_density();
-    auto icon_padding = (ui_density != LVGL_UI_DENSITY_COMPACT) ? static_cast<uint32_t>(icon_size * 0.2f) : 2;
+    const bool is_compact = lvgl_theme_is_compact();
+    auto icon_padding = !is_compact ? static_cast<uint32_t>(icon_size * 0.2f) : 2;
 
     lv_display_t* display = lv_obj_get_display(obj);
     DisplayShape shape;
@@ -252,7 +252,7 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
 
     // The monochrome theme's focus ring doesn't contrast with the statusbar, so the icons get their own
     const bool own_focus_ring = lvgl_theme_is_mono();
-    const int32_t focus_width = (ui_density != LVGL_UI_DENSITY_COMPACT) ? 2 : 1;
+    const int32_t focus_width = !is_compact ? 2 : 1;
     const lv_color_t focus_color = lv_obj_get_style_text_color(obj, LV_PART_MAIN);
 
     statusbar_data.mutex.lock(MAX_TICKS);

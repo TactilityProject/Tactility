@@ -1,8 +1,8 @@
 #include <Tactility/Tactility.h>
 
 #include <Tactility/RecursiveMutex.h>
-#include <Tactility/StringUtils.h>
 #include <Tactility/app/localesettings/TextResources.h>
+#include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/settings/Language.h>
 #include <Tactility/settings/SystemSettings.h>
 
@@ -14,11 +14,17 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
+#include <tactility/concurrent/task_event_group.h>
 
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <lvgl.h>
+#include <lvgl/fonts.h>
+#include <lvgl/lvgl.h>
 #include <map>
+#include <string>
+#include <vector>
 
 namespace tt::app::localesettings {
 
@@ -38,14 +44,19 @@ struct Context {
     uint32_t appInstanceId;
     tt::i18n::TextResources textResources = tt::i18n::TextResources(TEXT_RESOURCE_PATH);
     RecursiveMutex mutex;
-    lv_obj_t* languageDropdown = nullptr;
+    TaskEventGroup* eventGroup = nullptr;
+    uint32_t selectLanguageBit = 0;
+    uint32_t languageSelectLaunchId = 0;
+    // Valid while the window is shown
+    lv_obj_t* languageLabel = nullptr;
+    lv_obj_t* languageValueLabel = nullptr;
     bool settingsUpdated = false;
 
     std::map<settings::Language, std::string> languageMap;
 };
 
 
-std::string getLanguageOptions(Context* ctx) {
+std::vector<std::string> getLanguageNames(Context* ctx) {
     std::vector<std::string> items;
     for (int i = 0; i < static_cast<int>(settings::Language::count); i++) {
         switch (static_cast<settings::Language>(i)) {
@@ -68,25 +79,44 @@ std::string getLanguageOptions(Context* ctx) {
                 break;
         }
     }
-    return string::join(items, "\n");
+    return items;
 }
 
+/** Requires the LVGL lock */
 void updateViews(Context* ctx) {
-    ctx->textResources.load();
-
-    std::string language_options = getLanguageOptions(ctx);
-    lv_dropdown_set_options(ctx->languageDropdown, language_options.c_str());
-    lv_dropdown_set_selected(ctx->languageDropdown, static_cast<uint32_t>(settings::getLanguage()));
+    if (ctx->languageLabel == nullptr) {
+        return;
+    }
+    lv_label_set_text(ctx->languageLabel, ctx->textResources[i18n::Text::LANGUAGE].c_str());
+    const auto names = getLanguageNames(ctx);
+    const auto index = static_cast<size_t>(settings::getLanguage());
+    lv_label_set_text(ctx->languageValueLabel, index < names.size() ? names[index].c_str() : "");
 }
 
-void onLanguageSet(lv_event_t* event) {
+void onSelectLanguagePressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    auto index = lv_dropdown_get_selected(dropdown);
-    auto language = static_cast<settings::Language>(index);
-    settings::setLanguage(language);
+    task_event_group_signal(ctx->eventGroup, ctx->selectLanguageBit);
+}
 
-    updateViews(ctx);
+void startLanguageSelection(Context* ctx) {
+    if (ctx->languageSelectLaunchId != 0) {
+        return;
+    }
+    ctx->languageSelectLaunchId = selectiondialog::start(ctx->appInstanceId, ctx->textResources[i18n::Text::LANGUAGE], getLanguageNames(ctx));
+}
+
+void onLanguageSelectionResult(Context* ctx, const AppEvent& event) {
+    ctx->languageSelectLaunchId = 0;
+    // Other results mean that the dialog was dismissed
+    const int32_t selected = event.result.result;
+    if (selected >= 0 && selected < static_cast<int32_t>(settings::Language::count)) {
+        settings::setLanguage(static_cast<settings::Language>(selected));
+        ctx->textResources.load();
+        lvgl_lock();
+        updateViews(ctx);
+        lvgl_unlock();
+    }
+    app_manager_stop(event.result.launch_id);
 }
 
 // Preserved from the pre-conversion code as-is: declared but never wired to any widget there
@@ -114,29 +144,57 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(main_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(main_wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(main_wrapper, 1);
 
-    // Language
+    // "Language           English [Select]"
+    auto* card = lvgl_card_create(main_wrapper);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
 
-    auto* language_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_width(language_wrapper, LV_PCT(100));
-    lv_obj_set_height(language_wrapper, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(language_wrapper, 8, 0);
-    lv_obj_set_style_border_width(language_wrapper, 0, 0);
+    // Transparent, so the card provides the background
+    auto* language_row = lv_obj_create(card);
+    lv_obj_set_size(language_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(language_row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(language_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(language_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(language_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_border_width(language_row, 0, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(language_row, LV_OBJ_FLAG_SCROLLABLE);
 
-    auto* languageLabel = lv_label_create(language_wrapper);
-    lv_label_set_text(languageLabel, ctx->textResources[i18n::Text::LANGUAGE].c_str());
-    lv_obj_align(languageLabel, LV_ALIGN_LEFT_MID, 4, 0);
+    // The title with the language below it, which take the width that the button leaves. Texts that don't fit scroll.
+    auto* texts = lv_obj_create(language_row);
+    lv_obj_set_height(texts, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(texts, 1);
+    lv_obj_set_flex_flow(texts, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(texts, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_row(texts, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(texts, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(texts, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(texts, LV_OBJ_FLAG_SCROLLABLE);
 
-    ctx->languageDropdown = lv_dropdown_create(language_wrapper);
-    lv_obj_set_width(ctx->languageDropdown, 150);
-    lv_obj_align(ctx->languageDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-    std::string language_options = getLanguageOptions(ctx);
-    lv_dropdown_set_options(ctx->languageDropdown, language_options.c_str());
-    lv_dropdown_set_selected(ctx->languageDropdown, static_cast<uint32_t>(settings::getLanguage()));
-    lv_obj_add_event_cb(ctx->languageDropdown, onLanguageSet, LV_EVENT_VALUE_CHANGED, ctx);
+    ctx->languageLabel = lv_label_create(texts);
+    lv_obj_set_width(ctx->languageLabel, LV_PCT(100));
+    lv_label_set_long_mode(ctx->languageLabel, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+
+    ctx->languageValueLabel = lv_label_create(texts);
+    lv_obj_set_width(ctx->languageValueLabel, LV_PCT(100));
+    lv_label_set_long_mode(ctx->languageValueLabel, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+    lv_obj_set_style_text_font(ctx->languageValueLabel, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+
+    auto* select_button = lv_button_create(language_row);
+    lv_label_set_text(lv_label_create(select_button), "Change");
+    lv_obj_add_event_cb(select_button, onSelectLanguagePressed, LV_EVENT_SHORT_CLICKED, ctx);
+
+    updateViews(ctx);
+}
+
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->languageLabel = nullptr;
+    ctx->languageValueLabel = nullptr;
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -146,26 +204,31 @@ int32_t appMain(int argc, char* argv[]) {
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.selectLanguageBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        uint32_t flags = 0;
+        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+
+        if (flags & ctx.selectLanguageBit) {
+            startLanguageSelection(&ctx);
+        }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
-            switch (event.type) {
-                case APP_EVENT_CLOSE:
-                    shouldClose = true;
-                    break;
-                default:
-                    break;
+            if (event.type == APP_EVENT_CLOSE) {
+                shouldClose = true;
+                break;
+            } else if (event.type == APP_EVENT_RESULT && event.result.launch_id == ctx.languageSelectLaunchId) {
+                onLanguageSelectionResult(&ctx, event);
             }
-            if (shouldClose) break;
         }
     }
 

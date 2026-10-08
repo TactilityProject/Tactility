@@ -49,11 +49,11 @@ void lvgl_unlock(void);
 bool lvgl_is_running(void);
 
 /**
- * @brief Gets the desired UI density for the target hardware.
- * The density is defined in the `device.properties` of a hardware device.
- * This setting is read by CMakeLists.txt and passed as a target compile definition of the LVGL module.
+ * @brief Gets the UI density of the theme settings.
+ * @deprecated Use lvgl_theme_is_compact() from <lvgl/theme.h>
  * @return the UI density
  */
+__attribute__((deprecated("Use lvgl_theme_is_compact()")))
 enum UiDensity lvgl_get_ui_density(void);
 
 #ifdef __cplusplus

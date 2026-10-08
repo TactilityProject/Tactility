@@ -8,6 +8,7 @@
 #include <tactility/log.h>
 
 #include <Tactility/Tactility.h>
+#include <Tactility/app/selectiondialog/SelectionDialog.h>
 #ifdef ESP_PLATFORM
 #include <Tactility/service/displayidle/DisplayIdleService.h>
 #endif
@@ -15,14 +16,24 @@
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <app/event.h>
+#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
 
 #include <lvgl_window_manager/window_manager.h>
 
+#include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
+#include <lvgl/icons/shared.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/chip.h>
+#include <lvgl/widgets/sliderbox.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <lvgl.h>
+
+#include <string>
+#include <vector>
 
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
@@ -36,16 +47,48 @@ constexpr auto* TAG = "Display";
 
 namespace {
 
+struct TimeoutOption {
+    uint32_t ms;
+    const char* name;
+};
+
+constexpr TimeoutOption TIMEOUT_OPTIONS[] = {
+    { 15000, "15 seconds" },
+    { 30000, "30 seconds" },
+    { 60000, "1 minute" },
+    { 120000, "2 minutes" },
+    { 300000, "5 minutes" },
+    { 0, "Never" },
+};
+
+// The icon is an upright phone with its bar at the bottom, rotated clockwise (0.1 degree units) to the screen's shape.
+// In settings::display::Orientation order: Landscape, Portrait, LandscapeFlipped, PortraitFlipped
+constexpr int32_t ORIENTATION_ICON_ROTATIONS[] = { 2700, 0, 900, 1800 };
+
+// In settings::display::ScreensaverType order
+constexpr const char* SCREENSAVER_NAMES[] = { "None", "Bouncing Balls", "Mystify", "Matrix Rain", "StackChan" };
+
 struct Context {
     uint32_t appInstanceId;
     settings::display::DisplaySettings displaySettings;
     bool displaySettingsUpdated = false;
+    TaskEventGroup* eventGroup = nullptr;
+    uint32_t selectTimeoutBit = 0;
+    uint32_t selectScreensaverBit = 0;
+    uint32_t timeoutDialogId = 0;
+    uint32_t screensaverDialogId = 0;
+    // Widgets, valid while the window is shown
     lv_obj_t* timeoutSwitch = nullptr;
-    lv_obj_t* timeoutDropdown = nullptr;
-    lv_obj_t* screensaverDropdown = nullptr;
-    lv_obj_t* orientationDropdown = nullptr;
+    // Shown when the auto screen off is enabled: the timeout and screensaver
+    lv_obj_t* timeoutCard = nullptr;
+    lv_obj_t* timeoutValueLabel = nullptr;
+    lv_obj_t* screensaverValueLabel = nullptr;
+    // Shown when auto-rotate is off or unavailable: the orientation label and chips
+    lv_obj_t* orientationGroup = nullptr;
+    lv_obj_t* orientationChips = nullptr;
     lv_obj_t* autoRotateSwitch = nullptr;
-    lv_obj_t* mountRotationDropdown = nullptr;
+    // Shown when auto-rotate is on: the sensor mounting label and chips
+    lv_obj_t* mountRotationGroup = nullptr;
 };
 
 
@@ -69,29 +112,67 @@ void onBackPressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
+// The slider shows a percentage of the backlight's brightness range
+int32_t brightnessToPercent(Device* backlight, int32_t brightness) {
+    const int32_t min = backlight_get_min_brightness(backlight);
+    const int32_t range = backlight_get_max_brightness(backlight) - min;
+    return range > 0 ? ((brightness - min) * 100 + range / 2) / range : 100;
+}
+
+int32_t percentToBrightness(Device* backlight, int32_t percent) {
+    const int32_t min = backlight_get_min_brightness(backlight);
+    const int32_t range = backlight_get_max_brightness(backlight) - min;
+    const int32_t brightness = min + (percent * range + 50) / 100;
+    // A brightness of 0 turns the backlight off, so 0% is the dimmest setting that is still on
+    return brightness < 1 ? 1 : brightness;
+}
+
 void onBacklightSliderEvent(lv_event_t* event) {
-    auto* slider = static_cast<lv_obj_t*>(lv_event_get_target(event));
+    auto* slider_box = lv_event_get_current_target_obj(event);
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     auto* backlight = getBacklightDevice();
     assert(backlight != nullptr);
 
-    int32_t slider_value = lv_slider_get_value(slider);
-    ctx->displaySettings.backlightDuty = static_cast<uint8_t>(slider_value);
+    const int32_t percent = lvgl_sliderbox_get_value(slider_box);
+    ctx->displaySettings.backlightDuty = static_cast<uint8_t>(percentToBrightness(backlight, percent));
     ctx->displaySettingsUpdated = true;
     backlight_set_brightness(backlight, ctx->displaySettings.backlightDuty);
     device_put(backlight);
 }
 
-void onOrientationSet(lv_event_t* event) {
+void forEachChild(lv_obj_t* parent, auto&& action) {
+    const uint32_t count = lv_obj_get_child_count(parent);
+    for (uint32_t i = 0; i < count; i++) {
+        action(lv_obj_get_child(parent, static_cast<int32_t>(i)), i);
+    }
+}
+
+void setCheckedChip(lv_obj_t* chips, settings::display::Orientation orientation) {
+    forEachChild(chips, [orientation](lv_obj_t* chip, uint32_t index) {
+        lv_obj_set_state(chip, LV_STATE_CHECKED, index == static_cast<uint32_t>(orientation));
+    });
+}
+
+/** Shows the manual orientation or the sensor mounting, depending on whether auto-rotate is on */
+void updateOrientationVisibility(Context* ctx) {
+    const bool auto_rotate = ctx->autoRotateSwitch != nullptr && ctx->displaySettings.autoRotateEnabled;
+    lv_obj_set_flag(ctx->orientationGroup, LV_OBJ_FLAG_HIDDEN, auto_rotate);
+    if (ctx->mountRotationGroup != nullptr) {
+        lv_obj_set_flag(ctx->mountRotationGroup, LV_OBJ_FLAG_HIDDEN, !auto_rotate);
+    }
+}
+
+void onOrientationChipPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    uint32_t selected_index = lv_dropdown_get_selected(dropdown);
-    LOG_I(TAG, "Selected %u", (unsigned)selected_index);
+    auto* chip = lv_event_get_target_obj(event);
+    const auto selected_index = lv_obj_get_index(chip);
+    LOG_I(TAG, "Selected %d", (int)selected_index);
     auto selected_orientation = static_cast<settings::display::Orientation>(selected_index);
     if (selected_orientation != ctx->displaySettings.orientation) {
         ctx->displaySettings.orientation = selected_orientation;
         ctx->displaySettingsUpdated = true;
         lv_display_set_rotation(lv_display_get_default(), settings::display::toLvglDisplayRotation(selected_orientation));
+        setCheckedChip(ctx->orientationChips, selected_orientation);
     }
 }
 
@@ -101,28 +182,63 @@ void onAutoRotateSwitch(lv_event_t* event) {
     bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
     ctx->displaySettings.autoRotateEnabled = enabled;
     ctx->displaySettingsUpdated = true;
-    if (ctx->mountRotationDropdown) {
-        if (enabled) {
-            lv_obj_clear_state(ctx->mountRotationDropdown, LV_STATE_DISABLED);
-        } else {
-            lv_obj_add_state(ctx->mountRotationDropdown, LV_STATE_DISABLED);
-        }
-    }
-    if (ctx->orientationDropdown) {
-        if (enabled) {
-            lv_obj_add_state(ctx->orientationDropdown, LV_STATE_DISABLED);
-        } else {
-            lv_obj_clear_state(ctx->orientationDropdown, LV_STATE_DISABLED);
-        }
-    }
+    updateOrientationVisibility(ctx);
 }
 
-void onMountRotationSet(lv_event_t* event) {
+void onMountRotationChipPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    uint32_t selected_index = lv_dropdown_get_selected(dropdown);
-    ctx->displaySettings.autoRotateMountRotation = static_cast<settings::display::Orientation>(selected_index);
+    auto* chip = lv_event_get_target_obj(event);
+    const auto orientation = static_cast<settings::display::Orientation>(lv_obj_get_index(chip));
+    ctx->displaySettings.autoRotateMountRotation = orientation;
     ctx->displaySettingsUpdated = true;
+    setCheckedChip(lv_obj_get_parent(chip), orientation);
+}
+
+/** Creates a transparent column in a card with a title, which centers the title and the content below it */
+lv_obj_t* createCardGroup(lv_obj_t* card, const char* title) {
+    auto* group = lv_obj_create(card);
+    lv_obj_set_size(group, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(group, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(group, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_bg_opa(group, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(group, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(group, 0, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(group, LV_OBJ_FLAG_SCROLLABLE);
+
+    auto* label = lv_label_create(group);
+    lv_label_set_text(label, title);
+    return group;
+}
+
+/**
+ * Creates a row of chips with a phone icon per orientation, in settings::display::Orientation order.
+ * The row is centered in its parent while the chips fit, and scrolls when they don't.
+ */
+lv_obj_t* createOrientationChips(lv_obj_t* parent, settings::display::Orientation selected, lv_event_cb_t onPressed, Context* ctx) {
+    auto* chips = lv_obj_create(parent);
+    lv_obj_set_size(chips, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(chips, LV_PCT(100), LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(chips, LV_FLEX_FLOW_ROW);
+    lv_obj_set_scroll_dir(chips, LV_DIR_HOR);
+    lv_obj_set_style_bg_opa(chips, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(chips, 0, LV_STATE_DEFAULT);
+    // The chips' margins leave room for their focus rings and space them apart
+    lv_obj_set_style_pad_all(chips, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(chips, 0, LV_STATE_DEFAULT);
+
+    for (int32_t i = 0; i < 4; i++) {
+        auto* chip = lvgl_chip_create(chips);
+        lv_obj_add_event_cb(chip, onPressed, LV_EVENT_SHORT_CLICKED, ctx);
+        auto* icon = lv_label_create(chip);
+        lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+        lv_label_set_text(icon, LVGL_ICON_SHARED_PHONE_ANDROID);
+        lv_obj_set_style_transform_pivot_x(icon, LV_PCT(50), LV_STATE_DEFAULT);
+        lv_obj_set_style_transform_pivot_y(icon, LV_PCT(50), LV_STATE_DEFAULT);
+        lv_obj_set_style_transform_rotation(icon, ORIENTATION_ICON_ROTATIONS[i], LV_STATE_DEFAULT);
+    }
+    lvgl_grid_navigation_add(chips);
+    setCheckedChip(chips, selected);
+    return chips;
 }
 
 void onTimeoutSwitch(lv_event_t* event) {
@@ -131,52 +247,106 @@ void onTimeoutSwitch(lv_event_t* event) {
     bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
     ctx->displaySettings.backlightTimeoutEnabled = enabled;
     ctx->displaySettingsUpdated = true;
-    if (ctx->timeoutDropdown) {
-        if (enabled) {
-            lv_obj_clear_state(ctx->timeoutDropdown, LV_STATE_DISABLED);
-            if (ctx->screensaverDropdown) {
-                lv_obj_clear_state(ctx->screensaverDropdown, LV_STATE_DISABLED);
-            }
-        } else {
-            lv_obj_add_state(ctx->timeoutDropdown, LV_STATE_DISABLED);
-            if (ctx->screensaverDropdown) {
-                lv_obj_add_state(ctx->screensaverDropdown, LV_STATE_DISABLED);
-            }
+    if (ctx->timeoutCard) {
+        lv_obj_set_flag(ctx->timeoutCard, LV_OBJ_FLAG_HIDDEN, !enabled);
+    }
+}
+
+const char* getTimeoutName(uint32_t ms) {
+    for (const auto& option : TIMEOUT_OPTIONS) {
+        if (option.ms == ms) {
+            return option.name;
         }
     }
+    return "Custom";
 }
 
-void onTimeoutChanged(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    uint32_t idx = lv_dropdown_get_selected(dropdown);
-    // Map dropdown index to ms: 0=15s,1=30s,2=1m,3=2m,4=5m,5=Never
-    static const uint32_t values_ms[] = {15000, 30000, 60000, 120000, 300000, 0};
-    if (idx < (sizeof(values_ms)/sizeof(values_ms[0]))) {
-        ctx->displaySettings.backlightTimeoutMs = values_ms[idx];
-        ctx->displaySettingsUpdated = true;
+const char* getScreensaverName(settings::display::ScreensaverType type) {
+    const auto index = static_cast<size_t>(type);
+    return index < std::size(SCREENSAVER_NAMES) ? SCREENSAVER_NAMES[index] : "";
+}
+
+/** Requires the LVGL lock */
+void updateTimeoutLabels(Context* ctx) {
+    if (ctx->timeoutValueLabel != nullptr) {
+        lv_label_set_text(ctx->timeoutValueLabel, getTimeoutName(ctx->displaySettings.backlightTimeoutMs));
+        lv_label_set_text(ctx->screensaverValueLabel, getScreensaverName(ctx->displaySettings.screensaverType));
     }
 }
 
-void onScreensaverChanged(lv_event_t* event) {
+void onChangeTimeoutPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    uint32_t idx = lv_dropdown_get_selected(dropdown);
-    // Validate index bounds before casting to enum
-    if (idx >= static_cast<uint32_t>(settings::display::ScreensaverType::Count)) {
+    task_event_group_signal(ctx->eventGroup, ctx->selectTimeoutBit);
+}
+
+void onChangeScreensaverPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    task_event_group_signal(ctx->eventGroup, ctx->selectScreensaverBit);
+}
+
+void startTimeoutSelection(Context* ctx) {
+    if (ctx->timeoutDialogId != 0) {
         return;
     }
-    auto selected_type = static_cast<settings::display::ScreensaverType>(idx);
-    if (selected_type != ctx->displaySettings.screensaverType) {
-        ctx->displaySettings.screensaverType = selected_type;
+    std::vector<std::string> items;
+    for (const auto& option : TIMEOUT_OPTIONS) {
+        items.emplace_back(option.name);
+    }
+    ctx->timeoutDialogId = selectiondialog::start(ctx->appInstanceId, "Timeout", items);
+}
+
+void startScreensaverSelection(Context* ctx) {
+    if (ctx->screensaverDialogId != 0) {
+        return;
+    }
+    const std::vector<std::string> items(std::begin(SCREENSAVER_NAMES), std::end(SCREENSAVER_NAMES));
+    ctx->screensaverDialogId = selectiondialog::start(ctx->appInstanceId, "Screensaver", items);
+}
+
+// Other results than an index mean that the dialog was dismissed
+void onTimeoutSelectionResult(Context* ctx, int32_t selected) {
+    ctx->timeoutDialogId = 0;
+    if (selected >= 0 && selected < static_cast<int32_t>(std::size(TIMEOUT_OPTIONS))) {
+        ctx->displaySettings.backlightTimeoutMs = TIMEOUT_OPTIONS[selected].ms;
         ctx->displaySettingsUpdated = true;
     }
+}
+
+void onScreensaverSelectionResult(Context* ctx, int32_t selected) {
+    ctx->screensaverDialogId = 0;
+    if (selected >= 0 && selected < static_cast<int32_t>(settings::display::ScreensaverType::Count)) {
+        ctx->displaySettings.screensaverType = static_cast<settings::display::ScreensaverType>(selected);
+        ctx->displaySettingsUpdated = true;
+    }
+}
+
+/** A row in a card: "Title          Value [Change]" */
+lv_obj_t* createValueRow(lv_obj_t* card, const char* title, lv_event_cb_t onChange, Context* ctx) {
+    auto* row = lv_obj_create(card);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
+    // The card provides the background
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+
+    auto* title_label = lv_label_create(row);
+    lv_label_set_text(title_label, title);
+    lv_obj_set_flex_grow(title_label, 1);
+
+    auto* value_label = lv_label_create(row);
+
+    auto* button = lv_button_create(row);
+    lv_label_set_text(lv_label_create(button), "Change");
+    lv_obj_add_event_cb(button, onChange, LV_EVENT_SHORT_CLICKED, ctx);
+    return value_label;
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
-    ctx->displaySettings = settings::display::loadOrGetDefault();
     bool has_imu = device_exists_of_type(&IMU_TYPE);
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
@@ -189,6 +359,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(main_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(main_wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(main_wrapper, 1);
@@ -200,22 +371,16 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (backlight != nullptr) {
         bool is_on_off_brightness = backlight_get_min_brightness(backlight) == 0 && backlight_get_max_brightness(backlight) == 1;
         if (!is_on_off_brightness) {
-            auto* brightness_wrapper = lv_obj_create(main_wrapper);
-            lv_obj_set_size(brightness_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-            lv_obj_set_style_pad_hor(brightness_wrapper, 0, LV_STATE_DEFAULT);
-            lv_obj_set_style_border_width(brightness_wrapper, 0, LV_STATE_DEFAULT);
-
-            auto* brightness_label = lv_label_create(brightness_wrapper);
+            auto* brightness_label = lv_label_create(main_wrapper);
             lv_label_set_text(brightness_label, "Brightness");
-            lv_obj_align(brightness_label, LV_ALIGN_LEFT_MID, 0, 0);
 
-            auto* brightness_slider = lv_slider_create(brightness_wrapper);
-            lv_obj_set_width(brightness_slider, LV_PCT(50));
-            lv_obj_align(brightness_slider, LV_ALIGN_RIGHT_MID, 0, 0);
-            lv_slider_set_range(brightness_slider, backlight_get_min_brightness(backlight), backlight_get_max_brightness(backlight));
-            lv_obj_add_event_cb(brightness_slider, onBacklightSliderEvent, LV_EVENT_VALUE_CHANGED, ctx);
+            auto* brightness_card = lvgl_card_create(main_wrapper);
+            lv_obj_set_size(brightness_card, LV_PCT(100), LV_SIZE_CONTENT);
 
-            lv_slider_set_value(brightness_slider, ctx->displaySettings.backlightDuty, LV_ANIM_OFF);
+            const int32_t percent = brightnessToPercent(backlight, ctx->displaySettings.backlightDuty);
+            auto* brightness_slider = lvgl_sliderbox_create(brightness_card, 0, 100, 10, percent);
+            lv_obj_set_width(brightness_slider, LV_PCT(100));
+            lvgl_sliderbox_add_value_changed_cb(brightness_slider, onBacklightSliderEvent, ctx);
         }
         // Only compared against nullptr below, never dereferenced again, so releasing it here is safe.
         device_put(backlight);
@@ -223,64 +388,40 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // Orientation
 
-    auto* orientation_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(orientation_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(orientation_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(orientation_wrapper, 0, LV_STATE_DEFAULT);
-
-    auto* orientation_label = lv_label_create(orientation_wrapper);
-    lv_label_set_text(orientation_label, "Orientation");
-    lv_obj_align(orientation_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-    ctx->orientationDropdown = lv_dropdown_create(orientation_wrapper);
-    // Note: order correlates with settings::display::Orientation item order
-    lv_dropdown_set_options(ctx->orientationDropdown, "Landscape\nPortrait Right\nLandscape Flipped\nPortrait Left");
-    lv_obj_align(ctx->orientationDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_add_event_cb(ctx->orientationDropdown, onOrientationSet, LV_EVENT_VALUE_CHANGED, ctx);
-    // Set the dropdown to match current orientation enum
-    lv_dropdown_set_selected(ctx->orientationDropdown, static_cast<uint16_t>(ctx->displaySettings.orientation));
-    if (has_imu && ctx->displaySettings.autoRotateEnabled) {
-        lv_obj_add_state(ctx->orientationDropdown, LV_STATE_DISABLED);
-    }
-
-    // Auto-rotate (IMU-driven)
-
+    // Auto-rotate (IMU-driven), which decides what the card below shows
     if (has_imu) {
-        auto* auto_rotate_wrapper = lv_obj_create(main_wrapper);
-        lv_obj_set_size(auto_rotate_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(auto_rotate_wrapper, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(auto_rotate_wrapper, 0, LV_STATE_DEFAULT);
+        auto* auto_rotate_row = lv_obj_create(main_wrapper);
+        lv_obj_set_size(auto_rotate_row, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(auto_rotate_row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(auto_rotate_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_border_width(auto_rotate_row, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_all(auto_rotate_row, 0, LV_STATE_DEFAULT);
+        lv_obj_remove_flag(auto_rotate_row, LV_OBJ_FLAG_SCROLLABLE);
 
-        auto* auto_rotate_label = lv_label_create(auto_rotate_wrapper);
+        auto* auto_rotate_label = lv_label_create(auto_rotate_row);
         lv_label_set_text(auto_rotate_label, "Auto-rotate");
-        lv_obj_align(auto_rotate_label, LV_ALIGN_LEFT_MID, 0, 0);
+        lv_obj_set_flex_grow(auto_rotate_label, 1);
 
-        ctx->autoRotateSwitch = lv_switch_create(auto_rotate_wrapper);
-        if (ctx->displaySettings.autoRotateEnabled) {
-            lv_obj_add_state(ctx->autoRotateSwitch, LV_STATE_CHECKED);
-        }
-        lv_obj_align(ctx->autoRotateSwitch, LV_ALIGN_RIGHT_MID, 0, 0);
+        ctx->autoRotateSwitch = lv_switch_create(auto_rotate_row);
+        lv_obj_set_state(ctx->autoRotateSwitch, LV_STATE_CHECKED, ctx->displaySettings.autoRotateEnabled);
         lv_obj_add_event_cb(ctx->autoRotateSwitch, onAutoRotateSwitch, LV_EVENT_VALUE_CHANGED, ctx);
-
-        auto* mount_rotation_wrapper = lv_obj_create(main_wrapper);
-        lv_obj_set_size(mount_rotation_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(mount_rotation_wrapper, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(mount_rotation_wrapper, 0, LV_STATE_DEFAULT);
-
-        auto* mount_rotation_label = lv_label_create(mount_rotation_wrapper);
-        lv_label_set_text(mount_rotation_label, "Sensor mounting");
-        lv_obj_align(mount_rotation_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-        ctx->mountRotationDropdown = lv_dropdown_create(mount_rotation_wrapper);
-        // Note: order correlates with settings::display::Orientation item order
-        lv_dropdown_set_options(ctx->mountRotationDropdown, "Landscape\nPortrait Right\nLandscape Flipped\nPortrait Left");
-        lv_obj_align(ctx->mountRotationDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-        lv_obj_add_event_cb(ctx->mountRotationDropdown, onMountRotationSet, LV_EVENT_VALUE_CHANGED, ctx);
-        lv_dropdown_set_selected(ctx->mountRotationDropdown, static_cast<uint16_t>(ctx->displaySettings.autoRotateMountRotation));
-        if (!ctx->displaySettings.autoRotateEnabled) {
-            lv_obj_add_state(ctx->mountRotationDropdown, LV_STATE_DISABLED);
-        }
     }
+
+    // The card shows the manual orientation, or the sensor mounting when auto-rotate is on
+    auto* orientation_card = lvgl_card_create(main_wrapper);
+    lv_obj_set_size(orientation_card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(orientation_card, LV_FLEX_FLOW_COLUMN);
+
+    ctx->orientationGroup = createCardGroup(orientation_card, "Orientation");
+    ctx->orientationChips = createOrientationChips(ctx->orientationGroup, ctx->displaySettings.orientation, onOrientationChipPressed, ctx);
+
+    // Auto-rotate needs to know how the sensor is mounted relative to the display
+    if (has_imu) {
+        ctx->mountRotationGroup = createCardGroup(orientation_card, "Sensor mounting");
+        createOrientationChips(ctx->mountRotationGroup, ctx->displaySettings.autoRotateMountRotation, onMountRotationChipPressed, ctx);
+    }
+
+    updateOrientationVisibility(ctx);
 
     // Screen timeout
     // Note: DisplayIdleService doesn't act on these settings for kernel-driver displays yet
@@ -290,72 +431,44 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (backlight != nullptr) {
         auto* timeout_wrapper = lv_obj_create(main_wrapper);
         lv_obj_set_size(timeout_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(timeout_wrapper, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(timeout_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_all(timeout_wrapper, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(timeout_wrapper, 0, LV_STATE_DEFAULT);
+        lv_obj_remove_flag(timeout_wrapper, LV_OBJ_FLAG_SCROLLABLE);
 
         auto* timeout_label = lv_label_create(timeout_wrapper);
         lv_label_set_text(timeout_label, "Auto screen off");
-        lv_obj_align(timeout_label, LV_ALIGN_LEFT_MID, 0, 0);
+        lv_obj_set_flex_grow(timeout_label, 1);
 
         ctx->timeoutSwitch = lv_switch_create(timeout_wrapper);
         if (ctx->displaySettings.backlightTimeoutEnabled) {
             lv_obj_add_state(ctx->timeoutSwitch, LV_STATE_CHECKED);
         }
-        lv_obj_align(ctx->timeoutSwitch, LV_ALIGN_RIGHT_MID, 0, 0);
         lv_obj_add_event_cb(ctx->timeoutSwitch, onTimeoutSwitch, LV_EVENT_VALUE_CHANGED, ctx);
 
-        auto* timeout_select_wrapper = lv_obj_create(main_wrapper);
-        lv_obj_set_size(timeout_select_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(timeout_select_wrapper, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(timeout_select_wrapper, 0, LV_STATE_DEFAULT);
+        auto* timeout_card = lvgl_card_create(main_wrapper);
+        lv_obj_set_size(timeout_card, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(timeout_card, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flag(timeout_card, LV_OBJ_FLAG_HIDDEN, !ctx->displaySettings.backlightTimeoutEnabled);
+        ctx->timeoutCard = timeout_card;
 
-        auto* timeout_value_label = lv_label_create(timeout_select_wrapper);
-        lv_label_set_text(timeout_value_label, "Timeout");
-        lv_obj_align(timeout_value_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-        ctx->timeoutDropdown = lv_dropdown_create(timeout_select_wrapper);
-        lv_dropdown_set_options(ctx->timeoutDropdown, "15 seconds\n30 seconds\n1 minute\n2 minutes\n5 minutes\nNever");
-        lv_obj_align(ctx->timeoutDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-        lv_obj_add_event_cb(ctx->timeoutDropdown, onTimeoutChanged, LV_EVENT_VALUE_CHANGED, ctx);
-        // Initialize dropdown selection from settings
-        uint32_t ms = ctx->displaySettings.backlightTimeoutMs;
-        uint32_t idx = 2; // default 1 minute
-        if (ms == 15000) idx = 0;
-        else if (ms == 30000)
-            idx = 1;
-        else if (ms == 60000)
-            idx = 2;
-        else if (ms == 120000)
-            idx = 3;
-        else if (ms == 300000)
-            idx = 4;
-        else if (ms == 0)
-            idx = 5;
-        lv_dropdown_set_selected(ctx->timeoutDropdown, idx);
-        if (!ctx->displaySettings.backlightTimeoutEnabled) {
-            lv_obj_add_state(ctx->timeoutDropdown, LV_STATE_DISABLED);
-        }
-
-        // Screensaver type
-        auto* screensaver_wrapper = lv_obj_create(main_wrapper);
-        lv_obj_set_size(screensaver_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_pad_all(screensaver_wrapper, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(screensaver_wrapper, 0, LV_STATE_DEFAULT);
-
-        auto* screensaver_label = lv_label_create(screensaver_wrapper);
-        lv_label_set_text(screensaver_label, "Screensaver");
-        lv_obj_align(screensaver_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-        ctx->screensaverDropdown = lv_dropdown_create(screensaver_wrapper);
-        // Note: order correlates with settings::display::ScreensaverType enum order
-        lv_dropdown_set_options(ctx->screensaverDropdown, "None\nBouncing Balls\nMystify\nMatrix Rain\nStackChan");
-        lv_obj_align(ctx->screensaverDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-        lv_obj_add_event_cb(ctx->screensaverDropdown, onScreensaverChanged, LV_EVENT_VALUE_CHANGED, ctx);
-        lv_dropdown_set_selected(ctx->screensaverDropdown, static_cast<uint16_t>(ctx->displaySettings.screensaverType));
-        if (!ctx->displaySettings.backlightTimeoutEnabled) {
-            lv_obj_add_state(ctx->screensaverDropdown, LV_STATE_DISABLED);
-        }
+        ctx->timeoutValueLabel = createValueRow(timeout_card, "Timeout", onChangeTimeoutPressed, ctx);
+        ctx->screensaverValueLabel = createValueRow(timeout_card, "Screensaver", onChangeScreensaverPressed, ctx);
+        updateTimeoutLabels(ctx);
     }
+}
+
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->timeoutSwitch = nullptr;
+    ctx->timeoutCard = nullptr;
+    ctx->timeoutValueLabel = nullptr;
+    ctx->screensaverValueLabel = nullptr;
+    ctx->orientationGroup = nullptr;
+    ctx->orientationChips = nullptr;
+    ctx->autoRotateSwitch = nullptr;
+    ctx->mountRotationGroup = nullptr;
 }
 
 // Mirrors the old onHide() behaviour: persist the settings (regardless of whether the app is
@@ -386,18 +499,31 @@ int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     Context ctx {};
     ctx.appInstanceId = appInstanceId;
+    // Loaded once: the window is rebuilt from it, e.g. after a dialog closed
+    ctx.displaySettings = settings::display::loadOrGetDefault();
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.selectTimeoutBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&event_group, &ctx.selectScreensaverBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        uint32_t flags = 0;
+        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+
+        if (flags & ctx.selectTimeoutBit) {
+            startTimeoutSelection(&ctx);
+        }
+        if (flags & ctx.selectScreensaverBit) {
+            startScreensaverSelection(&ctx);
+        }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -405,6 +531,17 @@ int32_t appMain(int argc, char* argv[]) {
                 case APP_EVENT_CLOSE:
                     persistIfUpdated(ctx);
                     shouldClose = true;
+                    break;
+                case APP_EVENT_RESULT:
+                    if (event.result.launch_id == ctx.timeoutDialogId) {
+                        onTimeoutSelectionResult(&ctx, event.result.result);
+                    } else if (event.result.launch_id == ctx.screensaverDialogId) {
+                        onScreensaverSelectionResult(&ctx, event.result.result);
+                    }
+                    lvgl_lock();
+                    updateTimeoutLabels(&ctx);
+                    lvgl_unlock();
+                    app_manager_stop(event.result.launch_id);
                     break;
                 default:
                     break;

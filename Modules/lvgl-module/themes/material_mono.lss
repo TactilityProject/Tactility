@@ -146,8 +146,8 @@
 
 // Page indicator (lvgl_page_indicator_create): a dot per page, the current page's dot is filled
 @page-indicator-color: @color-on-surface;
-@page-indicator-dot-size: if($isCompact, 4, 6dp);
-@page-indicator-gap: if($isCompact, 3, 6dp);
+@page-indicator-dot-size: if($isCompact, 6, 8dp);
+@page-indicator-gap: if($isCompact, 4, 6dp);
 
 // Badge (lvgl_badge_create): a small dot that marks an item, e.g. a favourite
 @badge-color: @color-on-surface;
@@ -180,7 +180,6 @@
 
 // Toolbar: top app bar with a divider, which shows the background like the statusbar does
 @app-bar-title-color: @color-on-surface;
-@app-bar-divider-color: @color-outline;
 @app-bar-pad-hor: if($isCompact, 0, @space-1);
 @app-bar-gap: if($isCompact, 2, @space-1);
 // The focus ring is drawn inside toolbar buttons, as there's little room around them
@@ -268,10 +267,11 @@
 @list-item-gap: if($isCompact, 3, @space-4);
 @list-divider-color: @color-outline;
 
-// Tabs
-@tabs-divider-color: @color-outline;
-@tab-indicator-color: @color-primary;
-@tab-indicator-width: if($isCompact, @line-medium, @line-thick);
+// Tabs: the tab bar is a navigation bar, the selected tab is an inverted pill
+@tabs-pad: if($isCompact, 2, @space-1);
+@tabs-gap: if($isCompact, 2, @space-1);
+@tab-pad: if($isCompact, 2, @space-1);
+@tab-shape: @shape-control;
 @tab-page-pad: @density-container-pad;
 
 // Dialog
@@ -441,6 +441,8 @@ chip {
     radius: @chip-shape;
     padHor: @chip-pad-hor;
     padVer: @chip-pad-ver;
+    // Room for the focus ring, which the parent would clip
+    marginAll: @focus-width + @focus-offset;
 }
 
 button {
@@ -453,6 +455,8 @@ button {
     padHor: @button-pad-hor;
     padVer: @button-pad-ver;
     padGap: @button-gap;
+    // Room for the focus ring, which the parent would clip
+    marginAll: @focus-width + @focus-offset;
 }
 
 icon_button {
@@ -494,9 +498,7 @@ app_bar {
     bgOpa: transp;
     textColor: @app-bar-title-color;
     radius: 0;
-    borderColor: @app-bar-divider-color;
-    borderWidth: @border;
-    borderSide: bottom;
+    borderWidth: 0;
     padHor: @app-bar-pad-hor;
     padVer: 0;
     padGap: @app-bar-gap;
@@ -516,6 +518,8 @@ app_bar_focus_ring {
 switch_track {
     width: @switch-width;
     height: @switch-height;
+    // Room for the focus ring, which the parent would clip
+    marginAll: @focus-width + @focus-offset;
     bgColor: @switch-track-color;
     bgOpa: cover;
     borderColor: @switch-track-border-color;
@@ -565,6 +569,8 @@ checkbox_box_selected {
 
 sliderbox {
     padColumn: @sliderbox-gap;
+    // Room for the focus ring of the step buttons, which the sliderbox would clip
+    padAll: @focus-width + @focus-offset;
 }
 
 slider_track_size {
@@ -723,22 +729,17 @@ list_subheader {
 
 tabs {
     bgOpa: transp;
-    borderColor: @tabs-divider-color;
-    borderWidth: @border;
-    borderSide: bottom;
+    borderWidth: 0;
+    padAll: @tabs-pad;
+    padGap: @tabs-gap;
 }
 
 tab {
     bgOpa: transp;
     textColor: @color-on-surface;
     borderWidth: 0;
-    radius: 0;
-}
-
-tab_selected {
-    borderColor: @tab-indicator-color;
-    borderWidth: @tab-indicator-width;
-    borderSide: bottom;
+    radius: @tab-shape;
+    padAll: @tab-pad;
 }
 
 tab_page {
@@ -978,7 +979,7 @@ apply(obj) {
 apply(tabview > *[0] > button) {
     tab: default;
     inverted: state.pressed;
-    tab_selected: state.checked;
+    inverted: state.checked;
     focus_ring: state.focusKey;
     edit_ring: state.edited;
 }
@@ -1075,6 +1076,11 @@ apply(page_indicator) {
 
 apply(page_indicator > label) {
     page_indicator_label: default;
+}
+
+// Labels can be selectable, e.g. rows that keys move through
+apply(label) {
+    focus_ring: state.focusKey;
 }
 
 apply(page_indicator_dot) {

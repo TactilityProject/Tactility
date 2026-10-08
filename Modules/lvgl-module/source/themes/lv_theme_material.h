@@ -16,6 +16,8 @@ typedef struct {
     lv_color_t color_primary;
     lv_color_t color_secondary;
     lv_color_t color_error;
+    bool surface_override;
+    lv_color_t color_surface;
     const lv_font_t * font_small;
     const lv_font_t * font_normal;
     const lv_font_t * font_large;

@@ -21,6 +21,9 @@
 
 #include <lvgl.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/grid_navigation.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::screenshot {
@@ -31,12 +34,29 @@ extern const ::AppManifest manifest;
 
 namespace {
 
+enum class CaptureMode {
+    Timer,
+    AppStart
+};
+
+struct ModeOption {
+    CaptureMode mode;
+    const char* name;
+};
+
+constexpr ModeOption MODE_OPTIONS[] = {
+    { CaptureMode::Timer, "Timer" },
+    { CaptureMode::AppStart, "App start" },
+};
+
 struct Context {
     uint32_t appInstanceId;
-    lv_obj_t* modeDropdown = nullptr;
+    CaptureMode mode = CaptureMode::Timer;
+    lv_obj_t* modeChips = nullptr;
     lv_obj_t* pathTextArea = nullptr;
     lv_obj_t* startStopButtonLabel = nullptr;
-    lv_obj_t* timerWrapper = nullptr;
+    // Shown in timer mode
+    lv_obj_t* delayRow = nullptr;
     lv_obj_t* delayTextArea = nullptr;
     std::unique_ptr<Timer> updateTimer;
 };
@@ -56,12 +76,11 @@ void updateScreenshotMode(Context* ctx) {
         lv_label_set_text(label, "Start");
     }
 
-    uint32_t selected = lv_dropdown_get_selected(ctx->modeDropdown);
-    if (selected == 0) { // Timer
-        lv_obj_remove_flag(ctx->timerWrapper, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(ctx->timerWrapper, LV_OBJ_FLAG_HIDDEN);
+    const uint32_t chip_count = lv_obj_get_child_count(ctx->modeChips);
+    for (uint32_t i = 0; i < chip_count; i++) {
+        lv_obj_set_state(lv_obj_get_child(ctx->modeChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, MODE_OPTIONS[i].mode == ctx->mode);
     }
+    lv_obj_set_flag(ctx->delayRow, LV_OBJ_FLAG_HIDDEN, ctx->mode != CaptureMode::Timer);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -85,7 +104,6 @@ void onStartPressed(lv_event_t* event) {
         return;
     }
 
-    uint32_t selected = lv_dropdown_get_selected(ctx->modeDropdown);
     const char* path = lv_textarea_get_text(ctx->pathTextArea);
 
     error_t result = directory_make(path, true);
@@ -94,7 +112,7 @@ void onStartPressed(lv_event_t* event) {
         return;
     }
 
-    if (selected == 0) {
+    if (ctx->mode == CaptureMode::Timer) {
         LOG_I(TAG, "Start timed screenshots");
         const char* delay_text = lv_textarea_get_text(ctx->delayTextArea);
         int delay = atoi(delay_text);
@@ -111,59 +129,62 @@ void onStartPressed(lv_event_t* event) {
     updateScreenshotMode(ctx);
 }
 
-void onModeSet(lv_event_t* event) {
+void onModeChipPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    ctx->mode = MODE_OPTIONS[lv_obj_get_index(lv_event_get_target_obj(event))].mode;
     updateScreenshotMode(ctx);
 }
 
-void createModeSettingWidgets(Context* ctx, lv_obj_t* parent) {
-    auto service = service::screenshot::optScreenshotService();
-    if (service == nullptr) {
-        LOG_E(TAG, "Service not found/running");
-        return;
-    }
-
-    auto* mode_wrapper = lv_obj_create(parent);
-    lv_obj_set_size(mode_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(mode_wrapper, 0, 0);
-    lv_obj_set_style_border_width(mode_wrapper, 0, 0);
-
-    auto* mode_label = lv_label_create(mode_wrapper);
-    lv_label_set_text(mode_label, "Mode:");
-    lv_obj_align(mode_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-    ctx->modeDropdown = lv_dropdown_create(mode_wrapper);
-    lv_dropdown_set_options(ctx->modeDropdown, "Timer\nApp start");
-    lv_obj_align_to(ctx->modeDropdown, mode_label, LV_ALIGN_OUT_RIGHT_MID, 8, 0);
-    lv_obj_add_event_cb(ctx->modeDropdown, onModeSet, LV_EVENT_VALUE_CHANGED, ctx);
-    service::screenshot::Mode mode = service->getMode();
-    if (mode == service::screenshot::Mode::Apps) {
-        lv_dropdown_set_selected(ctx->modeDropdown, 1);
-    }
-
-    auto* button = lv_button_create(mode_wrapper);
-    lv_obj_align(button, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_add_event_cb(button, onStartPressed, LV_EVENT_SHORT_CLICKED, ctx);
-    ctx->startStopButtonLabel = lv_label_create(button);
-    lv_obj_align(ctx->startStopButtonLabel, LV_ALIGN_CENTER, 0, 0);
+/** A transparent row in a card: "Title [content]" */
+lv_obj_t* createRow(lv_obj_t* card, const char* title) {
+    auto* row = lv_obj_create(card);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_label_set_text(lv_label_create(row), title);
+    return row;
 }
 
-void createFilePathWidgets(Context* ctx, lv_obj_t* parent) {
-    auto* path_wrapper = lv_obj_create(parent);
-    lv_obj_set_size(path_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(path_wrapper, 0, 0);
-    lv_obj_set_style_border_width(path_wrapper, 0, 0);
-    lv_obj_set_flex_flow(path_wrapper, LV_FLEX_FLOW_ROW);
+void createModeWidgets(Context* ctx, lv_obj_t* parent) {
+    auto* title = lv_label_create(parent);
+    lv_label_set_text(title, "Mode");
+    lv_obj_set_width(title, LV_PCT(100));
 
-    auto* label_wrapper = lv_obj_create(path_wrapper);
-    lv_obj_set_style_border_width(label_wrapper, 0, 0);
-    lv_obj_set_style_pad_all(label_wrapper, 0, 0);
-    lv_obj_set_size(label_wrapper, 44, 36);
-    auto* path_label = lv_label_create(label_wrapper);
-    lv_label_set_text(path_label, "Path:");
-    lv_obj_align(path_label, LV_ALIGN_LEFT_MID, 0, 0);
+    // The chips are centered in the card while they fit, and scroll when they don't
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    ctx->pathTextArea = lv_textarea_create(path_wrapper);
+    ctx->modeChips = lv_obj_create(card);
+    lv_obj_set_size(ctx->modeChips, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(ctx->modeChips, LV_PCT(100), LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(ctx->modeChips, LV_FLEX_FLOW_ROW);
+    lv_obj_set_scroll_dir(ctx->modeChips, LV_DIR_HOR);
+    lv_obj_set_style_bg_opa(ctx->modeChips, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(ctx->modeChips, 0, LV_STATE_DEFAULT);
+    // The chips' margins leave room for their focus rings and space them apart
+    lv_obj_set_style_pad_all(ctx->modeChips, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(ctx->modeChips, 0, LV_STATE_DEFAULT);
+    for (const auto& option : MODE_OPTIONS) {
+        auto* chip = lvgl_chip_create(ctx->modeChips);
+        lv_label_set_text(lv_label_create(chip), option.name);
+        lv_obj_add_event_cb(chip, onModeChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
+    }
+    lvgl_grid_navigation_add(ctx->modeChips);
+}
+
+void createSettingsWidgets(Context* ctx, lv_obj_t* parent) {
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+
+    auto* path_row = createRow(card, "Path");
+    ctx->pathTextArea = lv_textarea_create(path_row);
     lv_textarea_set_one_line(ctx->pathTextArea, true);
     lv_obj_set_flex_grow(ctx->pathTextArea, 1);
     char data_path[FILE_MAX_PATH_STRING_LENGTH];
@@ -173,41 +194,20 @@ void createFilePathWidgets(Context* ctx, lv_obj_t* parent) {
     } else {
         lv_textarea_set_text(ctx->pathTextArea, "Error: no data path");
     }
-}
 
-void createTimerSettingsWidgets(Context* ctx, lv_obj_t* parent) {
-    ctx->timerWrapper = lv_obj_create(parent);
-    lv_obj_set_size(ctx->timerWrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(ctx->timerWrapper, 0, 0);
-    lv_obj_set_style_border_width(ctx->timerWrapper, 0, 0);
-
-    auto* delay_wrapper = lv_obj_create(ctx->timerWrapper);
-    lv_obj_set_size(delay_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(delay_wrapper, 0, 0);
-    lv_obj_set_style_border_width(delay_wrapper, 0, 0);
-    lv_obj_set_flex_flow(delay_wrapper, LV_FLEX_FLOW_ROW);
-
-    auto* delay_label_wrapper = lv_obj_create(delay_wrapper);
-    lv_obj_set_style_border_width(delay_label_wrapper, 0, 0);
-    lv_obj_set_style_pad_all(delay_label_wrapper, 0, 0);
-    lv_obj_set_size(delay_label_wrapper, 44, 36);
-    auto* delay_label = lv_label_create(delay_label_wrapper);
-    lv_label_set_text(delay_label, "Delay:");
-    lv_obj_align(delay_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-    ctx->delayTextArea = lv_textarea_create(delay_wrapper);
+    ctx->delayRow = createRow(card, "Delay");
+    ctx->delayTextArea = lv_textarea_create(ctx->delayRow);
     lv_textarea_set_one_line(ctx->delayTextArea, true);
     lv_textarea_set_accepted_chars(ctx->delayTextArea, "0123456789");
     lv_textarea_set_text(ctx->delayTextArea, "10");
     lv_obj_set_flex_grow(ctx->delayTextArea, 1);
+    lv_label_set_text(lv_label_create(ctx->delayRow), "seconds");
+}
 
-    auto* delay_unit_label_wrapper = lv_obj_create(delay_wrapper);
-    lv_obj_set_style_border_width(delay_unit_label_wrapper, 0, 0);
-    lv_obj_set_style_pad_all(delay_unit_label_wrapper, 0, 0);
-    lv_obj_set_size(delay_unit_label_wrapper, LV_SIZE_CONTENT, 36);
-    auto* delay_unit_label = lv_label_create(delay_unit_label_wrapper);
-    lv_obj_align(delay_unit_label, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_label_set_text(delay_unit_label, "seconds");
+void createStartStopButton(Context* ctx, lv_obj_t* parent) {
+    auto* button = lv_button_create(parent);
+    lv_obj_add_event_cb(button, onStartPressed, LV_EVENT_SHORT_CLICKED, ctx);
+    ctx->startStopButtonLabel = lv_label_create(button);
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -230,10 +230,17 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_grow(wrapper, 1);
     lv_obj_set_style_border_width(wrapper, 0, 0);
     lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
+    // The cards stretch, the start/stop button is centered
+    lv_obj_set_flex_align(wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
 
-    createModeSettingWidgets(ctx, wrapper);
-    createFilePathWidgets(ctx, wrapper);
-    createTimerSettingsWidgets(ctx, wrapper);
+    auto service = service::screenshot::optScreenshotService();
+    if (service != nullptr && service->getMode() == service::screenshot::Mode::Apps) {
+        ctx->mode = CaptureMode::AppStart;
+    }
+
+    createModeWidgets(ctx, wrapper);
+    createSettingsWidgets(ctx, wrapper);
+    createStartStopButton(ctx, wrapper);
 
     updateScreenshotMode(ctx);
 

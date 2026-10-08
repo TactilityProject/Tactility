@@ -20,6 +20,7 @@
 #include <tactility/log.h>
 
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -94,12 +95,19 @@ void onRefreshPressed(lv_event_t* e) {
     requestRefresh(ctx);
 }
 
+lv_obj_t* createCard(lv_obj_t* parent) {
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    return card;
+}
+
 void showRefreshFailedError(Context* ctx, const char* message) {
     lv_obj_clean(ctx->contentWrapper);
 
-    auto* label = lv_label_create(ctx->contentWrapper);
+    auto* label = lv_label_create(createCard(ctx->contentWrapper));
+    lv_obj_set_width(label, LV_PCT(100));
+    lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
     lv_label_set_text(label, message);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
     lv_obj_remove_flag(ctx->refreshButton, LV_OBJ_FLAG_HIDDEN);
 }
@@ -129,9 +137,17 @@ void showApps(Context* ctx) {
             return left.appName < right.appName;
         });
 
-        auto* list = lv_list_create(ctx->contentWrapper);
+        auto* card = createCard(ctx->contentWrapper);
+        lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
+        // The list items' pressed and focused backgrounds follow the card's rounded corners
+        lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
+
+        // The card provides the background
+        auto* list = lv_list_create(card);
         lv_obj_set_style_pad_all(list, 0, LV_STATE_DEFAULT);
         lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+        lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
         for (int i = 0; i < ctx->entries.size(); i++) {
             auto& entry = ctx->entries[i];
             LOG_I(TAG, "Adding %s", entry.appName.c_str());
@@ -248,10 +264,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_add_flag(ctx->refreshButton, LV_OBJ_FLAG_HIDDEN);
 
     ctx->contentWrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(ctx->contentWrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(ctx->contentWrapper, LV_PCT(100));
     lv_obj_set_flex_grow(ctx->contentWrapper, 1);
-    lv_obj_set_style_pad_all(ctx->contentWrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_ver(ctx->contentWrapper, 0, LV_STATE_DEFAULT);
 
     ctx->restoreScrollOnNextShow = true;
     if (ctx->needsInitialRefresh) {

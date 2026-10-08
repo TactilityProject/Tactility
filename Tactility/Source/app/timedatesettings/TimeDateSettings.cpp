@@ -1,3 +1,4 @@
+#include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/app/timedatesettings/TimeDateSettings.h>
 #include <Tactility/app/timezone/TimeZone.h>
 #include <Tactility/settings/SystemSettings.h>
@@ -12,10 +13,16 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
+#include <tactility/concurrent/task_event_group.h>
 #include <tactility/log.h>
 
+#include <lvgl/fonts.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
+
+#include <string>
+#include <vector>
 
 namespace tt::app::timedatesettings {
 
@@ -25,12 +32,30 @@ extern const ::AppManifest manifest;
 
 namespace {
 
+constexpr const char* DATE_FORMATS[] = { "MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD", "YYYY/MM/DD" };
+
 struct Context {
     uint32_t appInstanceId;
-    lv_obj_t* timeZoneLabel = nullptr;
-    lv_obj_t* dateFormatDropdown = nullptr;
+    TaskEventGroup* eventGroup = nullptr;
+    uint32_t selectDateFormatBit = 0;
     uint32_t pendingTimeZoneDialogId = 0;
+    uint32_t dateFormatDialogId = 0;
+    // Valid while the window is shown
+    lv_obj_t* timeZoneLabel = nullptr;
+    lv_obj_t* dateFormatLabel = nullptr;
 };
+
+std::string getDateFormat() {
+    settings::SystemSettings sysSettings;
+    if (settings::loadSystemSettings(sysSettings)) {
+        for (const auto* format : DATE_FORMATS) {
+            if (sysSettings.dateFormat == format) {
+                return format;
+            }
+        }
+    }
+    return DATE_FORMATS[0];
+}
 
 
 void onBackPressed(lv_event_t* event) {
@@ -49,18 +74,63 @@ void onTimeZonePressed(lv_event_t* event) {
     ctx->pendingTimeZoneDialogId = timezone::start(ctx->appInstanceId, true);
 }
 
-void onDateFormatChanged(lv_event_t* event) {
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    auto index = lv_dropdown_get_selected(dropdown);
+void onSelectDateFormatPressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    task_event_group_signal(ctx->eventGroup, ctx->selectDateFormatBit);
+}
 
-    const char* dateFormats[] = {"MM/DD/YYYY", "DD/MM/YYYY", "YYYY-MM-DD", "YYYY/MM/DD"};
-    std::string selected_format = dateFormats[index];
-
-    settings::SystemSettings sysSettings;
-    if (settings::loadSystemSettings(sysSettings)) {
-        sysSettings.dateFormat = selected_format;
-        settings::saveSystemSettings(sysSettings);
+void startDateFormatSelection(Context* ctx) {
+    if (ctx->dateFormatDialogId != 0) {
+        return;
     }
+    const std::vector<std::string> items(std::begin(DATE_FORMATS), std::end(DATE_FORMATS));
+    ctx->dateFormatDialogId = selectiondialog::start(ctx->appInstanceId, "Date format", items);
+}
+
+void onDateFormatSelectionResult(Context* ctx, const AppEvent& event) {
+    ctx->dateFormatDialogId = 0;
+    // Other results mean that the dialog was dismissed
+    const int32_t selected = event.result.result;
+    if (selected >= 0 && selected < static_cast<int32_t>(std::size(DATE_FORMATS))) {
+        settings::SystemSettings sysSettings;
+        if (settings::loadSystemSettings(sysSettings)) {
+            sysSettings.dateFormat = DATE_FORMATS[selected];
+            settings::saveSystemSettings(sysSettings);
+        }
+        lvgl_lock();
+        if (ctx->dateFormatLabel != nullptr) {
+            lv_label_set_text(ctx->dateFormatLabel, getDateFormat().c_str());
+        }
+        lvgl_unlock();
+    }
+}
+
+/**
+ * Creates a title with the setting's value below it, which take the width that the row's button leaves.
+ * Texts that don't fit scroll.
+ * @return the value label
+ */
+lv_obj_t* createTitleAndValue(lv_obj_t* row, const char* title) {
+    auto* texts = lv_obj_create(row);
+    lv_obj_set_height(texts, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(texts, 1);
+    lv_obj_set_flex_flow(texts, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(texts, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_row(texts, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(texts, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(texts, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(texts, LV_OBJ_FLAG_SCROLLABLE);
+
+    auto* title_label = lv_label_create(texts);
+    lv_obj_set_width(title_label, LV_PCT(100));
+    lv_label_set_long_mode(title_label, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+    lv_label_set_text(title_label, title);
+
+    auto* value_label = lv_label_create(texts);
+    lv_obj_set_width(value_label, LV_PCT(100));
+    lv_obj_set_style_text_font(value_label, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+    lv_label_set_long_mode(value_label, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+    return value_label;
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -73,24 +143,32 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(main_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(main_wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(main_wrapper, 1);
 
+    // The rows are transparent, so the card provides the background
+    auto* card = lvgl_card_create(main_wrapper);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+
     // 24-hour format toggle
 
-    auto* time_format_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_width(time_format_wrapper, LV_PCT(100));
-    lv_obj_set_height(time_format_wrapper, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(time_format_wrapper, 8, 0);
-    lv_obj_set_style_border_width(time_format_wrapper, 0, 0);
+    auto* time_format_row = lv_obj_create(card);
+    lv_obj_set_size(time_format_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(time_format_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(time_format_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_border_width(time_format_row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(time_format_row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(time_format_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(time_format_row, LV_OBJ_FLAG_SCROLLABLE);
 
-    auto* time_24h_label = lv_label_create(time_format_wrapper);
+    auto* time_24h_label = lv_label_create(time_format_row);
     lv_label_set_text(time_24h_label, "24-hour format");
-    lv_obj_align(time_24h_label, LV_ALIGN_LEFT_MID, 4, 0);
+    lv_obj_set_flex_grow(time_24h_label, 1);
 
-    auto* time_24h_switch = lv_switch_create(time_format_wrapper);
-    lv_obj_align(time_24h_switch, LV_ALIGN_RIGHT_MID, 0, 0);
+    auto* time_24h_switch = lv_switch_create(time_format_row);
     lv_obj_add_event_cb(time_24h_switch, onTimeFormatChanged, LV_EVENT_VALUE_CHANGED, nullptr);
     if (settings::isTimeFormat24Hour()) {
         lv_obj_add_state(time_24h_switch, LV_STATE_CHECKED);
@@ -98,57 +176,51 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_remove_state(time_24h_switch, LV_STATE_CHECKED);
     }
 
-    // Date format dropdown
+    // "Date format        MM/DD/YYYY [Select]"
 
-    auto* date_format_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_width(date_format_wrapper, LV_PCT(100));
-    lv_obj_set_height(date_format_wrapper, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(date_format_wrapper, 8, 0);
-    lv_obj_set_style_border_width(date_format_wrapper, 0, 0);
+    auto* date_format_row = lv_obj_create(card);
+    lv_obj_set_size(date_format_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(date_format_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(date_format_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_border_width(date_format_row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(date_format_row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(date_format_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(date_format_row, LV_OBJ_FLAG_SCROLLABLE);
 
-    auto* date_format_label = lv_label_create(date_format_wrapper);
-    lv_label_set_text(date_format_label, "Date format");
-    lv_obj_align(date_format_label, LV_ALIGN_LEFT_MID, 4, 0);
+    ctx->dateFormatLabel = createTitleAndValue(date_format_row, "Date format");
+    lv_label_set_text(ctx->dateFormatLabel, getDateFormat().c_str());
 
-    ctx->dateFormatDropdown = lv_dropdown_create(date_format_wrapper);
-    lv_obj_set_width(ctx->dateFormatDropdown, 150);
-    lv_obj_align(ctx->dateFormatDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_dropdown_set_options(ctx->dateFormatDropdown, "MM/DD/YYYY\nDD/MM/YYYY\nYYYY-MM-DD\nYYYY/MM/DD");
+    auto* date_format_button = lv_button_create(date_format_row);
+    lv_label_set_text(lv_label_create(date_format_button), "Change");
+    lv_obj_add_event_cb(date_format_button, onSelectDateFormatPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
-    settings::SystemSettings sysSettings;
-    if (settings::loadSystemSettings(sysSettings)) {
-        int index = 0;
-        if (sysSettings.dateFormat == "DD/MM/YYYY") index = 1;
-        else if (sysSettings.dateFormat == "YYYY-MM-DD") index = 2;
-        else if (sysSettings.dateFormat == "YYYY/MM/DD") index = 3;
-        lv_dropdown_set_selected(ctx->dateFormatDropdown, index);
-    }
-    lv_obj_add_event_cb(ctx->dateFormatDropdown, onDateFormatChanged, LV_EVENT_VALUE_CHANGED, nullptr);
+    // "Timezone           Europe/Brussels [Change]"
 
-    // Timezone selector
+    auto* timezone_row = lv_obj_create(card);
+    lv_obj_set_size(timezone_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(timezone_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(timezone_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_border_width(timezone_row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(timezone_row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(timezone_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(timezone_row, LV_OBJ_FLAG_SCROLLABLE);
 
-    auto* timezone_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_width(timezone_wrapper, LV_PCT(100));
-    lv_obj_set_height(timezone_wrapper, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(timezone_wrapper, 8, 0);
-    lv_obj_set_style_border_width(timezone_wrapper, 0, 0);
-
-    auto* timezone_label = lv_label_create(timezone_wrapper);
-    lv_label_set_text(timezone_label, "Timezone");
-    lv_obj_align(timezone_label, LV_ALIGN_LEFT_MID, 4, 0);
-
-    auto* timezone_button = lv_button_create(timezone_wrapper);
-    lv_obj_set_width(timezone_button, 150);
-    lv_obj_align(timezone_button, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_add_event_cb(timezone_button, onTimeZonePressed, LV_EVENT_SHORT_CLICKED, ctx);
-
-    ctx->timeZoneLabel = lv_label_create(timezone_button);
+    ctx->timeZoneLabel = createTitleAndValue(timezone_row, "Timezone");
     std::string timeZoneName = settings::getTimeZoneName();
     if (timeZoneName.empty()) {
         timeZoneName = "not set";
     }
-    lv_obj_center(ctx->timeZoneLabel);
     lv_label_set_text(ctx->timeZoneLabel, timeZoneName.c_str());
+
+    auto* timezone_button = lv_button_create(timezone_row);
+    lv_label_set_text(lv_label_create(timezone_button), "Change");
+    lv_obj_add_event_cb(timezone_button, onTimeZonePressed, LV_EVENT_SHORT_CLICKED, ctx);
+}
+
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->timeZoneLabel = nullptr;
+    ctx->dateFormatLabel = nullptr;
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -158,15 +230,22 @@ int32_t appMain(int argc, char* argv[]) {
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.selectDateFormatBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        uint32_t flags = 0;
+        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+
+        if (flags & ctx.selectDateFormatBit) {
+            startDateFormatSelection(&ctx);
+        }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -175,14 +254,18 @@ int32_t appMain(int argc, char* argv[]) {
                     shouldClose = true;
                     break;
                 case APP_EVENT_RESULT:
-                    if (event.result.launch_id == ctx.pendingTimeZoneDialogId) {
+                    if (event.result.launch_id == ctx.dateFormatDialogId) {
+                        onDateFormatSelectionResult(&ctx, event);
+                    } else if (event.result.launch_id == ctx.pendingTimeZoneDialogId) {
                         ctx.pendingTimeZoneDialogId = 0;
                         if (event.result.result == 0 /* Ok */) {
                             const auto name = timezone::getLastName();
                             LOG_I(TAG, "Result name=%s code=%s", name.c_str(), timezone::getLastCode().c_str());
                             if (!name.empty()) {
                                 lvgl_lock();
-                                lv_label_set_text(ctx.timeZoneLabel, name.c_str());
+                                if (ctx.timeZoneLabel != nullptr) {
+                                    lv_label_set_text(ctx.timeZoneLabel, name.c_str());
+                                }
                                 lvgl_unlock();
                             }
                         }

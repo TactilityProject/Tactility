@@ -14,7 +14,10 @@
     animationsEnabled: bool = true;
     colorPrimary: color = #00bbff;
     colorSecondary: color = #ee81c3;
-    colorError: color = #B3261E;
+    colorError: color = #EF6C00;
+    // Replaces the surface (screen background) colour
+    surfaceOverride: bool = false;
+    colorSurface: color = #000000;
     fontSmall: font = raw("LV_FONT_DEFAULT");
     fontNormal: font = raw("LV_FONT_DEFAULT");
     fontLarge: font = raw("LV_FONT_DEFAULT");
@@ -108,15 +111,20 @@
 @color-error: if($isDark, mix($colorError, white, 55%), $colorError);
 @color-on-error: if($isDark, mix($colorError, black, 50%), white);
 
-// Surfaces: neutral tones tinted with the primary color
-@color-surface: mix($colorPrimary, if($isDark, @neutral-6, @neutral-98), @tint-neutral);
+// Surfaces: neutral tones tinted with the primary color.
+// In dark mode, they're derived from the screen background colour (the low container tone, which apps and the window use).
+@dark-background: #21222b;
+@color-surface: if($surfaceOverride, $colorSurface, if($isDark, mix(#000000, @dark-background, 20%), mix($colorPrimary, @neutral-98, @tint-neutral)));
 @color-on-surface: mix($colorPrimary, if($isDark, @neutral-90, @neutral-10), @tint-neutral);
 @color-on-surface-variant: mix($colorPrimary, if($isDark, @neutral-80, @neutral-30), @tint-neutral-variant);
-@color-surface-container-lowest: mix($colorPrimary, if($isDark, @neutral-4, @neutral-100), @tint-neutral);
-@color-surface-container-low: mix($colorPrimary, if($isDark, @neutral-10, @neutral-96), @tint-neutral);
-@color-surface-container: mix($colorPrimary, if($isDark, @neutral-12, @neutral-94), @tint-neutral);
-@color-surface-container-high: mix($colorPrimary, if($isDark, @neutral-17, @neutral-92), @tint-neutral);
-@color-surface-container-highest: mix($colorPrimary, if($isDark, @neutral-22, @neutral-90), @tint-neutral);
+// With a surface override, the containers are the surface lifted towards the text colour, in the same steps as the neutral tones
+@surface-lift: if($isDark, #FFFFFF, #000000);
+@surface-sink: if($isDark, #000000, #FFFFFF);
+@color-surface-container-lowest: if($surfaceOverride, mix(@surface-sink, $colorSurface, 25%), if($isDark, mix(#000000, @dark-background, 35%), mix($colorPrimary, @neutral-100, @tint-neutral)));
+@color-surface-container-low: if($surfaceOverride, mix(@surface-lift, $colorSurface, if($isDark, 4%, 2%)), if($isDark, @dark-background, mix($colorPrimary, @neutral-96, @tint-neutral)));
+@color-surface-container: if($surfaceOverride, mix(@surface-lift, $colorSurface, if($isDark, 6%, 4%)), if($isDark, mix(#FFFFFF, @dark-background, 3%), mix($colorPrimary, @neutral-94, @tint-neutral)));
+@color-surface-container-high: if($surfaceOverride, mix(@surface-lift, $colorSurface, if($isDark, 11%, 6%)), if($isDark, mix(#FFFFFF, @dark-background, 8%), mix($colorPrimary, @neutral-92, @tint-neutral)));
+@color-surface-container-highest: if($surfaceOverride, mix(@surface-lift, $colorSurface, if($isDark, 16%, 8%)), if($isDark, mix(#FFFFFF, @dark-background, 13%), mix($colorPrimary, @neutral-90, @tint-neutral)));
 @color-outline: mix($colorPrimary, if($isDark, @neutral-60, @neutral-50), @tint-neutral-variant);
 @color-outline-variant: mix($colorPrimary, if($isDark, @neutral-30, @neutral-80), @tint-neutral-variant);
 @color-inverse-surface: mix($colorPrimary, if($isDark, @neutral-90, @neutral-20), @tint-neutral);
@@ -203,8 +211,8 @@
 
 // Page indicator (lvgl_page_indicator_create): a dot per page, the current page's dot is filled
 @page-indicator-color: @color-on-surface-variant;
-@page-indicator-dot-size: if($isCompact, 4, 6dp);
-@page-indicator-gap: if($isCompact, 3, 6dp);
+@page-indicator-dot-size: if($isCompact, 6, 8dp);
+@page-indicator-gap: if($isCompact, 4, 6dp);
 
 // Badge (lvgl_badge_create): a small dot that marks an item, e.g. a favourite
 @badge-color: @color-secondary;
@@ -250,10 +258,9 @@
 @icon-button-tonal-icon-color: @color-on-secondary-container;
 @icon-button-tonal-pressed-color: mix(@color-on-secondary-container, @color-secondary-container, @opacity-state-pressed);
 
-// Toolbar: Material 2 top app bar, filled with a dark neutral tone for contrast with the content.
-// The tone is the same in light and dark mode. The statusbar uses a darker neutral tone with the same tint.
-@app-bar-color: mix($colorPrimary, @neutral-22, @tint-neutral);
-@app-bar-content-color: white;
+// Toolbar: Material 3 top app bar, in the same colour as the app content and the statusbar (which shows the window's container colour)
+@app-bar-color: @color-surface-container-low;
+@app-bar-content-color: @color-on-surface;
 @app-bar-pressed-opacity: 20%;
 @app-bar-pad-hor: if($isCompact, 0, @space-1);
 @app-bar-gap: if($isCompact, 2, @space-1);
@@ -373,12 +380,15 @@
 @list-divider-width: @density-border;
 @list-subheader-text-color: @color-on-surface-variant;
 
-// Tabs: Material 3 primary tabs
-@tabs-divider-color: @color-outline-variant;
+// Tabs: the tab bar is a Material 3 navigation bar with a pill-shaped active indicator
+@tabs-color: @card-color;
+@tabs-pad: if($isCompact, 2, @space-1);
+@tabs-gap: if($isCompact, 2, @space-1);
 @tab-label-color: @color-on-surface-variant;
-@tab-selected-label-color: @color-primary;
-@tab-indicator-color: @color-primary;
-@tab-indicator-width: if($isCompact, 2, 3dp);
+@tab-pad: if($isCompact, 2, @space-1);
+@tab-shape: @shape-control;
+@tab-selected-color: @color-secondary-container;
+@tab-selected-label-color: @color-on-secondary-container;
 @tab-page-pad: @density-container-pad;
 
 // Dialog (message box)
@@ -613,6 +623,8 @@ chip {
     radius: @chip-shape;
     padHor: @chip-pad-hor;
     padVer: @chip-pad-ver;
+    // Room for the focus ring, which the parent would clip
+    marginAll: @focus-width + @focus-offset;
 }
 
 chip_selected {
@@ -630,6 +642,8 @@ button {
     padHor: @button-pad-hor;
     padVer: @button-pad-ver;
     padGap: @button-gap;
+    // Room for the focus ring, which the parent would clip
+    marginAll: @focus-width + @focus-offset;
 }
 
 button_pressed {
@@ -733,6 +747,8 @@ app_bar_field {
 switch_track {
     width: @switch-width;
     height: @switch-height;
+    // Room for the focus ring, which the parent would clip
+    marginAll: @focus-width + @focus-offset;
     bgColor: @switch-track-color;
     bgOpa: cover;
     borderColor: @switch-track-border-color;
@@ -792,6 +808,8 @@ checkbox_box_selected {
 
 sliderbox {
     padColumn: @sliderbox-gap;
+    // Room for the focus ring of the step buttons, which the sliderbox would clip
+    padAll: @focus-width + @focus-offset;
 }
 
 slider_track_size {
@@ -996,23 +1014,25 @@ list_subheader {
 }
 
 tabs {
-    bgOpa: transp;
-    borderColor: @tabs-divider-color;
-    borderWidth: @density-border;
-    borderSide: bottom;
+    bgColor: @tabs-color;
+    bgOpa: cover;
+    borderWidth: 0;
+    radius: @card-shape;
+    padAll: @tabs-pad;
+    padGap: @tabs-gap;
 }
 
 tab {
     bgOpa: transp;
     textColor: @tab-label-color;
-    radius: 0;
+    radius: @tab-shape;
+    padAll: @tab-pad;
 }
 
 tab_selected {
+    bgColor: @tab-selected-color;
+    bgOpa: cover;
     textColor: @tab-selected-label-color;
-    borderColor: @tab-indicator-color;
-    borderWidth: @tab-indicator-width;
-    borderSide: bottom;
 }
 
 tab_page {
@@ -1412,6 +1432,11 @@ apply(page_indicator) {
 
 apply(page_indicator > label) {
     page_indicator_label: default;
+}
+
+// Labels can be selectable, e.g. rows that keys move through
+apply(label) {
+    focus_ring: state.focusKey;
 }
 
 apply(page_indicator_dot) {

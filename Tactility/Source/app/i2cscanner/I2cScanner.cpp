@@ -24,7 +24,10 @@
 #include <string>
 #include <vector>
 
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::i2cscanner {
@@ -35,9 +38,6 @@ namespace {
 
 constexpr auto* TAG = "I2cScanner";
 
-constexpr auto* START_SCAN_TEXT = "Scan";
-constexpr auto* STOP_SCAN_TEXT = "Stop scan";
-
 struct Context {
     uint32_t appInstanceId;
 
@@ -47,10 +47,14 @@ struct Context {
     // State
     ScanState scanState = ScanStateInitial;
     struct Device* portDevice = nullptr;
+    int32_t selectedBus = 0;
     std::vector<uint8_t> scannedAddresses;
-    // Widgets
-    lv_obj_t* scanButtonLabelWidget = nullptr;
-    lv_obj_t* portDropdownWidget = nullptr;
+    /** Row and column sizes of the results grid, which must outlive the grid layout */
+    std::vector<int32_t> gridRows;
+    std::vector<int32_t> gridColumns;
+    // Widgets: the refresh button and chips only exist when there are I2C interfaces
+    lv_obj_t* refreshButton = nullptr;
+    lv_obj_t* chipsRow = nullptr;
     lv_obj_t* scanListWidget = nullptr;
 };
 
@@ -94,6 +98,37 @@ int32_t getLastBusIndex() {
     return index;
 }
 
+/** The names of the devicetree devices on the bus at the given address, separated by commas */
+std::string getDeviceNames(struct Device* port, uint8_t address) {
+    struct Search {
+        uint8_t address;
+        std::string names;
+    } search = { address, "" };
+    device_for_each_child(port, &search, [](struct Device* child, void* context) {
+        auto* search = static_cast<Search*>(context);
+        if (child->address == search->address) {
+            if (!search->names.empty()) {
+                search->names += ", ";
+            }
+            search->names += child->name;
+        }
+        return true;
+    });
+    return search.names;
+}
+
+// A disturbed probe can report a device that isn't there, while a real device acknowledges every probe
+constexpr int PROBE_COUNT = 3;
+
+bool hasDeviceAt(struct Device* port, uint8_t address) {
+    for (int i = 0; i < PROBE_COUNT; i++) {
+        if (i2c_controller_has_device_at_address(port, address, 10 / portTICK_PERIOD_MS) != ERROR_NONE) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool getPort(Context* ctx, struct Device** outPort) {
     if (ctx->mutex.lock(100 / portTICK_PERIOD_MS)) {
         *outPort = ctx->portDevice;
@@ -128,25 +163,54 @@ bool shouldStopScanTimer(Context* ctx) {
 
 void updateViews(Context* ctx) {
     if (ctx->mutex.lock(100 / portTICK_PERIOD_MS)) {
-        if (ctx->scanState == ScanStateScanning) {
-            lv_label_set_text(ctx->scanButtonLabelWidget, STOP_SCAN_TEXT);
-            lv_obj_remove_flag(ctx->portDropdownWidget, LV_OBJ_FLAG_CLICKABLE);
-        } else {
-            lv_label_set_text(ctx->scanButtonLabelWidget, START_SCAN_TEXT);
-            lv_obj_add_flag(ctx->portDropdownWidget, LV_OBJ_FLAG_CLICKABLE);
+        if (ctx->scanListWidget == nullptr) {
+            ctx->mutex.unlock();
+            return;
+        }
+
+        // The scan reads the port once, so the bus can't change and the scan can't restart while it runs
+        const bool scanning = ctx->scanState == ScanStateScanning;
+        lv_obj_set_state(ctx->refreshButton, LV_STATE_DISABLED, scanning);
+        if (ctx->chipsRow != nullptr) {
+            const uint32_t chip_count = lv_obj_get_child_count(ctx->chipsRow);
+            for (uint32_t i = 0; i < chip_count; i++) {
+                auto* chip = lv_obj_get_child(ctx->chipsRow, static_cast<int32_t>(i));
+                lv_obj_set_state(chip, LV_STATE_CHECKED, static_cast<int32_t>(i) == ctx->selectedBus);
+                lv_obj_set_state(chip, LV_STATE_DISABLED, scanning);
+            }
         }
 
         lv_obj_clean(ctx->scanListWidget);
         if (ctx->scanState == ScanStateStopped) {
             lv_obj_remove_flag(ctx->scanListWidget, LV_OBJ_FLAG_HIDDEN);
 
-            if (!ctx->scannedAddresses.empty()) {
-                for (auto address: ctx->scannedAddresses) {
-                    std::string address_text = getAddressText(address);
-                    lv_list_add_text(ctx->scanListWidget, address_text.c_str());
-                }
+            // A grid with the title in the first row, then an address and the devicetree device names per row
+            const size_t count = ctx->scannedAddresses.size();
+            ctx->gridColumns = { LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST };
+            ctx->gridRows.assign(count + 1, LV_GRID_CONTENT);
+            ctx->gridRows.push_back(LV_GRID_TEMPLATE_LAST);
+            lv_obj_set_grid_dsc_array(ctx->scanListWidget, ctx->gridColumns.data(), ctx->gridRows.data());
+
+            auto* title = lv_label_create(ctx->scanListWidget);
+            lv_obj_set_grid_cell(title, LV_GRID_ALIGN_START, 0, 2, LV_GRID_ALIGN_CENTER, 0, 1);
+            if (count == 0) {
+                lv_label_set_text(title, "No devices found");
             } else {
-                lv_list_add_text(ctx->scanListWidget, "No devices found");
+                lv_label_set_text(title, std::format("{} {} found", count, count == 1 ? "device" : "devices").c_str());
+            }
+            for (size_t i = 0; i < count; i++) {
+                const uint8_t address = ctx->scannedAddresses[i];
+                const auto row = static_cast<int32_t>(i + 1);
+                auto* address_label = lv_label_create(ctx->scanListWidget);
+                lv_label_set_text(address_label, getAddressText(address).c_str());
+                // Keys and encoders move through the addresses, which scrolls the results into view
+                lv_obj_add_flag(address_label, LV_OBJ_FLAG_CLICKABLE);
+                lv_obj_set_grid_cell(address_label, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_START, row, 1);
+
+                auto* names_label = lv_label_create(ctx->scanListWidget);
+                lv_label_set_long_mode(names_label, LV_LABEL_LONG_MODE_WRAP);
+                lv_label_set_text(names_label, getDeviceNames(ctx->portDevice, address).c_str());
+                lv_obj_set_grid_cell(names_label, LV_GRID_ALIGN_STRETCH, 1, 1, LV_GRID_ALIGN_START, row, 1);
             }
         } else {
             lv_obj_add_flag(ctx->scanListWidget, LV_OBJ_FLAG_HIDDEN);
@@ -194,7 +258,7 @@ void onScanTimer(Context* ctx) {
     }
 
     for (uint8_t address = 1; address < 128; ++address) {
-        if (i2c_controller_has_device_at_address(safe_port, address, 10 / portTICK_PERIOD_MS) == ERROR_NONE) {
+        if (hasDeviceAt(safe_port, address)) {
             LOG_I(TAG, "Found device at address 0x%02X", address);
             if (!shouldStopScanTimer(ctx)) {
                 addAddressToList(ctx, address);
@@ -269,6 +333,7 @@ void selectBus(Context* ctx, int32_t selected) {
     if (ctx->mutex.lock(100 / portTICK_PERIOD_MS)) {
         ctx->scannedAddresses.clear();
         ctx->portDevice = found_device;
+        ctx->selectedBus = selected;
         ctx->scanState = ScanStateInitial;
         ctx->mutex.unlock();
     }
@@ -288,20 +353,15 @@ void onBackPressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
-void onSelectBus(lv_event_t* event) {
+void onChipPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    uint32_t selected = lv_dropdown_get_selected(dropdown);
-    selectBus(ctx, selected);
+    auto* chip = lv_event_get_target_obj(event);
+    selectBus(ctx, static_cast<int32_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(chip))));
 }
 
-void onPressScan(lv_event_t* event) {
+void onPressRefresh(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    if (ctx->scanState == ScanStateScanning) {
-        stopScanning(ctx);
-    } else {
-        startScanning(ctx);
-    }
+    startScanning(ctx);
     updateViews(ctx);
 }
 
@@ -318,50 +378,56 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(main_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(main_wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(main_wrapper, 1);
 
-    auto* wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_width(wrapper, LV_PCT(100));
-    lv_obj_set_height(wrapper, LV_SIZE_CONTENT);
-    lv_obj_set_style_border_width(wrapper, 0, 0);
-    // Ensures showing selection state for keyboard/encoder devices
-    lv_obj_set_style_pad_all(wrapper, 6, LV_ALIGN_DEFAULT);
+    const std::vector<std::string> port_names = getPortNames();
+    if (port_names.empty()) {
+        lv_obj_set_flex_align(main_wrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        auto* label = lv_label_create(main_wrapper);
+        lv_obj_set_width(label, LV_PCT(100));
+        lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+        lv_label_set_text(label, "I2C interface not available");
+        return;
+    }
 
-    auto* scan_button = lv_button_create(wrapper);
-    lv_obj_set_width(scan_button, LV_PCT(48));
-    lv_obj_align(scan_button, LV_ALIGN_TOP_LEFT, 0, 1); // Shift 1 pixel to align with selection box
-    lv_obj_add_event_cb(scan_button, onPressScan, LV_EVENT_SHORT_CLICKED, ctx);
-    auto* scan_button_label = lv_label_create(scan_button);
-    lv_obj_align(scan_button_label, LV_ALIGN_CENTER, 0, 0);
-    lv_label_set_text(scan_button_label, START_SCAN_TEXT);
-    ctx->scanButtonLabelWidget = scan_button_label;
+    ctx->refreshButton = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_REFRESH, onPressRefresh, ctx);
 
-    auto* port_dropdown = lv_dropdown_create(wrapper);
-    std::string dropdown_items = getPortNamesForDropdown();
-    lv_dropdown_set_options(port_dropdown, dropdown_items.c_str());
-    lv_obj_set_width(port_dropdown, LV_PCT(48));
-    lv_obj_align(port_dropdown, LV_ALIGN_TOP_RIGHT, 0, 0);
-    lv_obj_add_event_cb(port_dropdown, onSelectBus, LV_EVENT_VALUE_CHANGED, ctx);
-    auto selected_bus = getLastBusIndex();
-    lv_dropdown_set_selected(port_dropdown, selected_bus);
-    ctx->portDropdownWidget = port_dropdown;
+    if (port_names.size() > 1) {
+        // Centered while the chips fit, and scrollable when they don't
+        lv_obj_set_flex_align(main_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+        auto* chips_row = lv_obj_create(main_wrapper);
+        lv_obj_set_size(chips_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_max_width(chips_row, LV_PCT(100), LV_STATE_DEFAULT);
+        lv_obj_set_flex_flow(chips_row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_scroll_dir(chips_row, LV_DIR_HOR);
+        lv_obj_set_style_border_width(chips_row, 0, LV_STATE_DEFAULT);
+        // The chips' margins leave room for their focus rings and space them apart
+        lv_obj_set_style_pad_all(chips_row, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_column(chips_row, 0, LV_STATE_DEFAULT);
+        for (size_t i = 0; i < port_names.size(); i++) {
+            auto* chip = lvgl_chip_create(chips_row);
+            lv_label_set_text(lv_label_create(chip), port_names[i].c_str());
+            lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+            lv_obj_add_event_cb(chip, onChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
+        }
+        lvgl_grid_navigation_add(chips_row);
+        ctx->chipsRow = chips_row;
+    }
 
-    auto* scan_list = lv_list_create(main_wrapper);
-    lv_obj_set_style_margin_top(scan_list, 8, 0);
-    lv_obj_set_width(scan_list, LV_PCT(100));
-    lv_obj_set_height(scan_list, LV_SIZE_CONTENT);
+    auto* scan_list = lvgl_card_create(main_wrapper);
+    lv_obj_set_size(scan_list, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_layout(scan_list, LV_LAYOUT_GRID);
+    lvgl_grid_navigation_add(scan_list);
     lv_obj_add_flag(scan_list, LV_OBJ_FLAG_HIDDEN);
     ctx->scanListWidget = scan_list;
 
     struct Device* dummy;
-    if (getActivePortAtIndex(selected_bus, &dummy)) {
-        selectBus(ctx, selected_bus);
-    } else if (getActivePortAtIndex(0, &dummy)) {
-        lv_dropdown_set_selected(port_dropdown, 0);
-        selectBus(ctx, 0);
-    }
+    const int32_t last_bus = getLastBusIndex();
+    selectBus(ctx, getActivePortAtIndex(last_bus, &dummy) ? last_bus : 0);
 }
 
 // Mirrors the old model's onHide(): stop any in-flight scan before this app's task exits

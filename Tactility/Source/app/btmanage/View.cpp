@@ -12,6 +12,7 @@
 #include <Tactility/Tactility.h>
 
 #include <app/event.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::btmanage {
@@ -98,7 +99,26 @@ static uint8_t mapRssiToPercentage(int8_t rssi) {
     return static_cast<uint8_t>((float)(90 - abs_rssi) / 60.f * 100.f);
 }
 
-void View::createPeerListItem(const bluetooth::PeerRecord& record, bool isPaired, size_t index) {
+/** Creates a title with a card below it, and returns the list in the card */
+static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
+    auto* label = lv_label_create(parent);
+    lv_label_set_text(label, title);
+
+    auto* card = lvgl_card_create(parent);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
+    // The list items' pressed and focused backgrounds follow the card's rounded corners
+    lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
+
+    // The card provides the background
+    auto* list = lv_list_create(card);
+    lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
+    return list;
+}
+
+void View::createPeerListItem(lv_obj_t* list, const bluetooth::PeerRecord& record, bool isPaired, size_t index) {
     const auto percentage = mapRssiToPercentage(record.rssi);
     const auto label = record.name.empty()
         ? std::format("Unknown ({:02x}{:02x}{:02x}{:02x}{:02x}{:02x}) {}%",
@@ -107,7 +127,7 @@ void View::createPeerListItem(const bluetooth::PeerRecord& record, bool isPaired
             percentage)
         : std::format("{} {}%", record.name, percentage);
 
-    auto* button = lv_list_add_button(peers_list, nullptr, label.c_str());
+    auto* button = lv_list_add_button(list, nullptr, label.c_str());
 
     auto* item_data = new PeerListItemData { context, state, bindings, index, isPaired };
     lv_obj_set_user_data(button, item_data);
@@ -165,22 +185,20 @@ void View::updatePeerList() {
 
     // Enable on boot
 
-    // An unstyled row insets the wrapper like the list items' text: margins would make a full-width item overflow the list
-    auto* enable_on_boot_row = lv_obj_create(peers_list);
-    lv_obj_remove_style_all(enable_on_boot_row);
-    lv_obj_set_size(enable_on_boot_row, LV_PCT(100), LV_SIZE_CONTENT);
-    const int32_t enable_on_boot_inset = (lvgl_get_ui_density() == LVGL_UI_DENSITY_COMPACT) ? 2 : LV_DPX(16);
-    lv_obj_set_style_pad_hor(enable_on_boot_row, enable_on_boot_inset, LV_STATE_DEFAULT);
-
-    auto* enable_on_boot_wrapper = lv_obj_create(enable_on_boot_row);
+    auto* enable_on_boot_wrapper = lv_obj_create(peers_list);
     lv_obj_set_size(enable_on_boot_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(enable_on_boot_wrapper, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(enable_on_boot_wrapper, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(enable_on_boot_wrapper, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(enable_on_boot_wrapper, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(enable_on_boot_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(enable_on_boot_wrapper, LV_OBJ_FLAG_SCROLLABLE);
 
     auto* enable_label = lv_label_create(enable_on_boot_wrapper);
     lv_label_set_text(enable_label, "Enable on boot");
-    lv_obj_align(enable_label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(enable_label, 1);
 
     enable_on_boot_switch = lv_switch_create(enable_on_boot_wrapper);
-    lv_obj_align(enable_on_boot_switch, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(enable_on_boot_switch, onEnableOnBootSwitchChanged, LV_EVENT_VALUE_CHANGED, nullptr);
     lv_obj_add_event_cb(enable_on_boot_wrapper, onEnableOnBootParentClicked, LV_EVENT_SHORT_CLICKED, enable_on_boot_switch);
 
@@ -191,22 +209,21 @@ void View::updatePeerList() {
         // Paired peers section
         auto paired = state->getPairedPeers();
         if (!paired.empty()) {
-            lv_list_add_text(peers_list, "Paired");
+            auto* paired_section = createSection(peers_list, "Paired");
             for (size_t i = 0; i < paired.size(); ++i) {
-                createPeerListItem(paired[i], true, i);
+                createPeerListItem(paired_section, paired[i], true, i);
             }
         }
 
         // Scan results section
         auto scan_results = state->getScanResults();
-        lv_list_add_text(peers_list, "Available");
+        auto* available_section = createSection(peers_list, "Available");
         if (!scan_results.empty()) {
             for (size_t i = 0; i < scan_results.size(); ++i) {
-                createPeerListItem(scan_results[i], false, i);
+                createPeerListItem(available_section, scan_results[i], false, i);
             }
         } else if (!state->isScanning()) {
-            auto* no_devices_label = lv_label_create(peers_list);
-            lv_label_set_text(no_devices_label, "No devices found.");
+            lv_list_add_text(available_section, "No devices found.");
         }
         // Never hide peers_list: it always contains the "Enable on boot" row.
         // While scanning with no results the spinner in the toolbar provides feedback.
@@ -241,9 +258,11 @@ void View::init(void* newContext, lv_obj_t* parent) {
     lv_obj_add_event_cb(enable_switch, onEnableSwitchChanged, LV_EVENT_VALUE_CHANGED, context);
 
     // Peer list
-    peers_list = lv_list_create(parent);
+    peers_list = lv_obj_create(parent);
     lv_obj_set_flex_grow(peers_list, 1);
     lv_obj_set_width(peers_list, LV_PCT(100));
+    lv_obj_set_flex_flow(peers_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_border_width(peers_list, 0, LV_STATE_DEFAULT);
 }
 
 void View::update() {

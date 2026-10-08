@@ -3,6 +3,10 @@
 #include <lvgl/devices/device_context.h>
 #include <lvgl/devices/trackball.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/grid_navigation.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/chip.h>
+#include <lvgl/widgets/sliderbox.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <tactility/check.h>
@@ -25,14 +29,16 @@ extern const ::AppManifest manifest;
 
 constexpr auto* TAG = "TrackballSettings";
 
-// Convert mode to dropdown index (dropdown order: Keys=0, Pointer=1)
-static uint32_t modeToDropdownIndex(LvglTrackballMode mode) {
-    switch (mode) {
-        case LVGL_TRACKBALL_MODE_KEYS: return 0;
-        case LVGL_TRACKBALL_MODE_POINTER: return 1;
-    }
-    return 0; // default to Keys
-}
+struct ModeOption {
+    LvglTrackballMode mode;
+    const char* name;
+};
+
+// The order of the mode chips
+constexpr ModeOption MODE_OPTIONS[] = {
+    { LVGL_TRACKBALL_MODE_KEYS, "Keys" },
+    { LVGL_TRACKBALL_MODE_POINTER, "Pointer" },
+};
 
 static lv_indev_t* findFirstTrackballIndev() {
     lv_indev_t* indev = lv_indev_get_next(nullptr);
@@ -64,8 +70,14 @@ struct Context {
     // to whatever is already attached.
     lv_indev_t* trackballIndev = nullptr;
     lv_obj_t* switchTrackball = nullptr;
-    lv_obj_t* trackballModeDropdown = nullptr;
+    // Shown while the trackball is enabled
+    lv_obj_t* settingsCard = nullptr;
+    lv_obj_t* modeChips = nullptr;
+    // Shown in keys mode
+    lv_obj_t* keySensitivityGroup = nullptr;
     lv_obj_t* keySensitivitySlider = nullptr;
+    // Shown in pointer mode
+    lv_obj_t* pointerSensitivityGroup = nullptr;
     lv_obj_t* pointerSensitivitySlider = nullptr;
 };
 
@@ -87,47 +99,37 @@ void applyLive(Context* ctx) {
     lvgl_unlock();
 }
 
-void onTrackballSwitch(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    bool enabled = lv_obj_has_state(ctx->switchTrackball, LV_STATE_CHECKED);
-    ctx->tbSettings.enabled = enabled;
-    ctx->updated = true;
-    applyLive(ctx);
-
-    // Enable/disable controls based on trackball state
-    if (enabled) {
-        if (ctx->trackballModeDropdown) lv_obj_clear_state(ctx->trackballModeDropdown, LV_STATE_DISABLED);
-        if (ctx->keySensitivitySlider) lv_obj_clear_state(ctx->keySensitivitySlider, LV_STATE_DISABLED);
-        if (ctx->pointerSensitivitySlider) lv_obj_clear_state(ctx->pointerSensitivitySlider, LV_STATE_DISABLED);
-    } else {
-        if (ctx->trackballModeDropdown) lv_obj_add_state(ctx->trackballModeDropdown, LV_STATE_DISABLED);
-        if (ctx->keySensitivitySlider) lv_obj_add_state(ctx->keySensitivitySlider, LV_STATE_DISABLED);
-        if (ctx->pointerSensitivitySlider) lv_obj_add_state(ctx->pointerSensitivitySlider, LV_STATE_DISABLED);
+/** Shows the settings of the enabled trackball and its mode */
+void updateWidgets(Context* ctx) {
+    lv_obj_set_flag(ctx->settingsCard, LV_OBJ_FLAG_HIDDEN, !ctx->tbSettings.enabled);
+    const uint32_t chip_count = lv_obj_get_child_count(ctx->modeChips);
+    for (uint32_t i = 0; i < chip_count; i++) {
+        lv_obj_set_state(lv_obj_get_child(ctx->modeChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, MODE_OPTIONS[i].mode == ctx->tbSettings.mode);
     }
+    lv_obj_set_flag(ctx->keySensitivityGroup, LV_OBJ_FLAG_HIDDEN, ctx->tbSettings.mode != LVGL_TRACKBALL_MODE_KEYS);
+    lv_obj_set_flag(ctx->pointerSensitivityGroup, LV_OBJ_FLAG_HIDDEN, ctx->tbSettings.mode != LVGL_TRACKBALL_MODE_POINTER);
 }
 
-void onTrackballModeChanged(lv_event_t* e) {
+void onTrackballSwitch(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    uint32_t selected = lv_dropdown_get_selected(ctx->trackballModeDropdown);
-
-    // Validate selection matches expected enum values (dropdown order: Keys=0, Pointer=1)
-    LvglTrackballMode mode;
-    switch (selected) {
-        case 0: mode = LVGL_TRACKBALL_MODE_KEYS; break;
-        case 1: mode = LVGL_TRACKBALL_MODE_POINTER; break;
-        default: return; // Invalid selection, ignore
-    }
-
-    ctx->tbSettings.mode = mode;
+    ctx->tbSettings.enabled = lv_obj_has_state(ctx->switchTrackball, LV_STATE_CHECKED);
     ctx->updated = true;
+    applyLive(ctx);
+    updateWidgets(ctx);
+}
 
+void onModeChipPressed(lv_event_t* e) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+    ctx->tbSettings.mode = MODE_OPTIONS[lv_obj_get_index(lv_event_get_target_obj(e))].mode;
+    ctx->updated = true;
     // Apply mode change immediately
     applyLive(ctx);
+    updateWidgets(ctx);
 }
 
 void onKeySensitivityChanged(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    int32_t value = lv_slider_get_value(ctx->keySensitivitySlider);
+    int32_t value = lvgl_sliderbox_get_value(ctx->keySensitivitySlider);
     ctx->tbSettings.key_sensitivity = static_cast<uint8_t>(value);
     ctx->updated = true;
 
@@ -137,12 +139,30 @@ void onKeySensitivityChanged(lv_event_t* e) {
 
 void onPointerSensitivityChanged(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    int32_t value = lv_slider_get_value(ctx->pointerSensitivitySlider);
+    int32_t value = lvgl_sliderbox_get_value(ctx->pointerSensitivitySlider);
     ctx->tbSettings.pointer_sensitivity = static_cast<uint8_t>(value);
     ctx->updated = true;
 
     // Apply immediately
     applyLive(ctx);
+}
+
+/** A transparent column with a title and a speed slider */
+lv_obj_t* createSpeedGroup(lv_obj_t* parent, const char* title, int32_t value, lv_event_cb_t onChanged, Context* ctx, lv_obj_t** outSlider) {
+    auto* group = lv_obj_create(parent);
+    lv_obj_set_size(group, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(group, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(group, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(group, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(group, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_remove_flag(group, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_label_set_text(lv_label_create(group), title);
+
+    *outSlider = lvgl_sliderbox_create(group, 1, 10, 1, value);
+    lv_obj_set_width(*outSlider, LV_PCT(100));
+    lvgl_sliderbox_add_value_changed_cb(*outSlider, onChanged, ctx);
+    return group;
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -161,12 +181,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     if (ctx->trackballIndev == nullptr) {
         auto* wrapper = lv_obj_create(parent);
+        lv_obj_set_style_border_width(wrapper, 0, LV_STATE_DEFAULT);
         lv_obj_set_width(wrapper, LV_PCT(100));
         lv_obj_set_flex_grow(wrapper, 1);
         lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(wrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        auto* label = lv_label_create(wrapper);
-        lv_label_set_text(label, "No trackball device found");
+        auto* card = lvgl_card_create(wrapper);
+        lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_label_set_text(lv_label_create(card), "No trackball device found.");
         return;
     }
 
@@ -180,72 +201,39 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (ctx->tbSettings.enabled) lv_obj_add_state(ctx->switchTrackball, LV_STATE_CHECKED);
 
     auto* main_wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(main_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(main_wrapper, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_width(main_wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(main_wrapper, 1);
 
-    // Trackball mode dropdown
-    auto* tb_mode_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(tb_mode_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(tb_mode_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(tb_mode_wrapper, 0, LV_STATE_DEFAULT);
+    ctx->settingsCard = lvgl_card_create(main_wrapper);
+    lv_obj_set_size(ctx->settingsCard, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(ctx->settingsCard, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(ctx->settingsCard, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    auto* tb_mode_label = lv_label_create(tb_mode_wrapper);
-    lv_label_set_text(tb_mode_label, "Mode");
-    lv_obj_align(tb_mode_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-    ctx->trackballModeDropdown = lv_dropdown_create(tb_mode_wrapper);
-    lv_dropdown_set_options(ctx->trackballModeDropdown, "Keys\nPointer");
-    lv_obj_align(ctx->trackballModeDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_dropdown_set_selected(ctx->trackballModeDropdown, modeToDropdownIndex(ctx->tbSettings.mode));
-    lv_obj_add_event_cb(ctx->trackballModeDropdown, onTrackballModeChanged, LV_EVENT_VALUE_CHANGED, ctx);
-
-    // Disable dropdown if trackball is disabled
-    if (!ctx->tbSettings.enabled) {
-        lv_obj_add_state(ctx->trackballModeDropdown, LV_STATE_DISABLED);
+    // Mode: the chips are centered while they fit, and scroll when they don't
+    ctx->modeChips = lv_obj_create(ctx->settingsCard);
+    lv_obj_set_size(ctx->modeChips, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(ctx->modeChips, LV_PCT(100), LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(ctx->modeChips, LV_FLEX_FLOW_ROW);
+    lv_obj_set_scroll_dir(ctx->modeChips, LV_DIR_HOR);
+    lv_obj_set_style_bg_opa(ctx->modeChips, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(ctx->modeChips, 0, LV_STATE_DEFAULT);
+    // The chips' margins leave room for their focus rings and space them apart
+    lv_obj_set_style_pad_all(ctx->modeChips, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(ctx->modeChips, 0, LV_STATE_DEFAULT);
+    for (const auto& option : MODE_OPTIONS) {
+        auto* chip = lvgl_chip_create(ctx->modeChips);
+        lv_label_set_text(lv_label_create(chip), option.name);
+        lv_obj_add_event_cb(chip, onModeChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
     }
+    lvgl_grid_navigation_add(ctx->modeChips);
 
-    // Key sensitivity slider
-    auto* key_sens_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(key_sens_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(key_sens_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(key_sens_wrapper, 0, LV_STATE_DEFAULT);
+    // The speed of the selected mode
+    ctx->keySensitivityGroup = createSpeedGroup(ctx->settingsCard, "Key speed", ctx->tbSettings.key_sensitivity, onKeySensitivityChanged, ctx, &ctx->keySensitivitySlider);
+    ctx->pointerSensitivityGroup = createSpeedGroup(ctx->settingsCard, "Pointer speed", ctx->tbSettings.pointer_sensitivity, onPointerSensitivityChanged, ctx, &ctx->pointerSensitivitySlider);
 
-    auto* key_sens_label = lv_label_create(key_sens_wrapper);
-    lv_label_set_text(key_sens_label, "Key Speed");
-    lv_obj_align(key_sens_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-    ctx->keySensitivitySlider = lv_slider_create(key_sens_wrapper);
-    lv_slider_set_range(ctx->keySensitivitySlider, 1, 10);
-    lv_slider_set_value(ctx->keySensitivitySlider, ctx->tbSettings.key_sensitivity, LV_ANIM_OFF);
-    lv_obj_set_width(ctx->keySensitivitySlider, LV_PCT(50));
-    lv_obj_align(ctx->keySensitivitySlider, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_add_event_cb(ctx->keySensitivitySlider, onKeySensitivityChanged, LV_EVENT_VALUE_CHANGED, ctx);
-
-    if (!ctx->tbSettings.enabled) {
-        lv_obj_add_state(ctx->keySensitivitySlider, LV_STATE_DISABLED);
-    }
-
-    // Pointer sensitivity slider
-    auto* ptr_sens_wrapper = lv_obj_create(main_wrapper);
-    lv_obj_set_size(ptr_sens_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(ptr_sens_wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ptr_sens_wrapper, 0, LV_STATE_DEFAULT);
-
-    auto* ptr_sens_label = lv_label_create(ptr_sens_wrapper);
-    lv_label_set_text(ptr_sens_label, "Pointer Speed");
-    lv_obj_align(ptr_sens_label, LV_ALIGN_LEFT_MID, 0, 0);
-
-    ctx->pointerSensitivitySlider = lv_slider_create(ptr_sens_wrapper);
-    lv_slider_set_range(ctx->pointerSensitivitySlider, 1, 10);
-    lv_slider_set_value(ctx->pointerSensitivitySlider, ctx->tbSettings.pointer_sensitivity, LV_ANIM_OFF);
-    lv_obj_set_width(ctx->pointerSensitivitySlider, LV_PCT(50));
-    lv_obj_align(ctx->pointerSensitivitySlider, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_add_event_cb(ctx->pointerSensitivitySlider, onPointerSensitivityChanged, LV_EVENT_VALUE_CHANGED, ctx);
-
-    if (!ctx->tbSettings.enabled) {
-        lv_obj_add_state(ctx->pointerSensitivitySlider, LV_STATE_DISABLED);
-    }
+    updateWidgets(ctx);
 }
 
 // Mirrors the old onHide() behaviour: persist the settings (regardless of whether the app is

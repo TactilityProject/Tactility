@@ -284,9 +284,12 @@ lv_obj_t* createRow(lv_obj_t* parent, const char* title) {
     lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(row, 2, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     auto* label = lv_label_create(row);
     lv_label_set_text(label, title);
-    lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_flex_grow(label, 1);
     return row;
 }
 
@@ -331,6 +334,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl_toolbar_set_nav_action(ctx->toolbar, LV_SYMBOL_CLOSE, onNavigationPressed, ctx);
 
     ctx->mainPanel = lv_obj_create(parent);
+    lv_obj_set_style_border_width(ctx->mainPanel, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(ctx->mainPanel, LV_PCT(100));
     lv_obj_set_flex_grow(ctx->mainPanel, 1);
     lv_obj_set_flex_flow(ctx->mainPanel, LV_FLEX_FLOW_COLUMN);
@@ -338,6 +342,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_add_flag(ctx->mainPanel, LV_OBJ_FLAG_SCROLLABLE);
 
     ctx->customPanel = lv_obj_create(parent);
+    lv_obj_set_style_border_width(ctx->customPanel, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(ctx->customPanel, LV_PCT(100));
     lv_obj_set_flex_grow(ctx->customPanel, 1);
     lv_obj_set_flex_flow(ctx->customPanel, LV_FLEX_FLOW_COLUMN);
@@ -346,13 +351,11 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* outputRow = createRow(ctx->mainPanel, "Output");
     auto* outputSwitch = lv_switch_create(outputRow);
     if (ctx->settings.enabled) lv_obj_add_state(outputSwitch, LV_STATE_CHECKED);
-    lv_obj_align(outputSwitch, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(outputSwitch, onOutputChanged, LV_EVENT_VALUE_CHANGED, ctx);
 
     auto* modeRow = createRow(ctx->mainPanel, "Mode");
     auto* modeButton = lv_button_create(modeRow);
     lv_obj_set_width(modeButton, LV_PCT(62));
-    lv_obj_align(modeButton, LV_ALIGN_RIGHT_MID, 0, 0);
     ctx->modeValue = lv_label_create(modeButton);
     lv_label_set_text(ctx->modeValue, patternName(ctx->settings.pattern));
     lv_obj_center(ctx->modeValue);
@@ -361,7 +364,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* primaryRow = createRow(ctx->mainPanel, "Color");
     auto* primaryButton = lv_button_create(primaryRow);
     lv_obj_set_width(primaryButton, LV_PCT(62));
-    lv_obj_align(primaryButton, LV_ALIGN_RIGHT_MID, 0, 0);
     ctx->primaryValue = lv_label_create(primaryButton);
     lv_label_set_text(ctx->primaryValue, presetName(ctx->settings.primaryPreset));
     lv_obj_center(ctx->primaryValue);
@@ -373,7 +375,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->secondaryRow = createRow(ctx->mainPanel, "Second color");
     auto* secondaryButton = lv_button_create(ctx->secondaryRow);
     lv_obj_set_width(secondaryButton, LV_PCT(62));
-    lv_obj_align(secondaryButton, LV_ALIGN_RIGHT_MID, 0, 0);
     ctx->secondaryValue = lv_label_create(secondaryButton);
     lv_label_set_text(ctx->secondaryValue, presetName(ctx->settings.secondaryPreset));
     lv_obj_center(ctx->secondaryValue);
@@ -385,12 +386,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* brightnessRow = createRow(ctx->mainPanel, "Brightness");
     ctx->brightnessValue = lv_label_create(brightnessRow);
     lv_label_set_text_fmt(ctx->brightnessValue, "%u%%", (static_cast<unsigned>(ctx->settings.brightness) * 100 + 127) / 255);
-    lv_obj_align(ctx->brightnessValue, LV_ALIGN_RIGHT_MID, 0, 0);
     ctx->brightnessSlider = lvgl_sliderbox_create(ctx->mainPanel, 0, UINT8_MAX, 17, ctx->settings.brightness);
     lv_obj_set_width(ctx->brightnessSlider, LV_PCT(100));
     lvgl_sliderbox_add_value_changed_cb(ctx->brightnessSlider, onBrightnessChanged, ctx);
 
     ctx->choicePanel = lv_obj_create(parent);
+    lv_obj_set_style_border_width(ctx->choicePanel, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(ctx->choicePanel, LV_PCT(100));
     lv_obj_set_flex_grow(ctx->choicePanel, 1);
     lv_obj_set_flex_flow(ctx->choicePanel, LV_FLEX_FLOW_COLUMN);

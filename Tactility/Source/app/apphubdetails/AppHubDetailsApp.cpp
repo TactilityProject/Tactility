@@ -226,6 +226,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(ctx->toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
     auto* wrapper = lv_obj_create(parent);
+    lv_obj_set_style_border_width(wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(wrapper, LV_PCT(100));
     lv_obj_set_flex_grow(wrapper, 1);
     lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);

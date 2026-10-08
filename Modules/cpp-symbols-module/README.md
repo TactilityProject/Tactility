@@ -19,6 +19,7 @@ ESP_PLATFORM` in `source/module.cpp`; symbols outside that gate (e.g. `__cxa_pur
 
 - `operator new(unsigned int)` / `operator delete(void*, unsigned int)` (`_Znwj` / `_ZdlPvj`)
 - `operator new[](unsigned int)` / `operator delete[](void*, unsigned int)` (`_Znaj` / `_ZdaPvj`)
+- `operator new[](unsigned int, std::nothrow_t const&)` (`_ZnajRKSt9nothrow_t`)
 - `operator delete(void*)` / `operator delete[](void*)` (`_ZdlPv` / `_ZdaPv`) - the unsized forms,
   used instead of the above when the compiler determines no size is needed
 - `std::nothrow`
