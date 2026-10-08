@@ -23,6 +23,7 @@
 
 #include <iomanip>
 #include <memory>
+#include <new>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -138,8 +139,10 @@ void showCrashScreen(boot::BootScreen& screen) {
     if (!getQrVersionForBinaryDataLength(url.length(), qr_version)) {
         LOG_E(TAG, "QR is too large");
     } else {
-        qr_buffer = std::make_unique<uint8_t[]>(qrcode_getBufferSize(qr_version));
-        if (qrcode_initText(&qr_code, qr_buffer.get(), qr_version, ECC_LOW, url.c_str()) != 0) {
+        qr_buffer.reset(new (std::nothrow) uint8_t[qrcode_getBufferSize(qr_version)]);
+        if (qr_buffer == nullptr) {
+            LOG_E(TAG, "Failed to allocate QR buffer");
+        } else if (qrcode_initText(&qr_code, qr_buffer.get(), qr_version, ECC_LOW, url.c_str()) != 0) {
             LOG_E(TAG, "QR init text failed");
         } else {
             has_qr_code = true;
