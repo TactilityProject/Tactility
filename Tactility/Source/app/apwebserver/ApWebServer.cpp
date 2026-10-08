@@ -44,7 +44,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_remove_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(parent, false);
 
     auto* toolbar = lvgl_toolbar_create(parent, "AP Web Server");
     // The global toolbar nav callback only knows how to stop old-model apps.

@@ -101,13 +101,13 @@ void applyLive(Context* ctx) {
 
 /** Shows the settings of the enabled trackball and its mode */
 void updateWidgets(Context* ctx) {
-    lv_obj_set_flag(ctx->settingsCard, LV_OBJ_FLAG_HIDDEN, !ctx->tbSettings.enabled);
+    lv_obj_set_hidden(ctx->settingsCard, !ctx->tbSettings.enabled);
     const uint32_t chip_count = lv_obj_get_child_count(ctx->modeChips);
     for (uint32_t i = 0; i < chip_count; i++) {
         lv_obj_set_state(lv_obj_get_child(ctx->modeChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, MODE_OPTIONS[i].mode == ctx->tbSettings.mode);
     }
-    lv_obj_set_flag(ctx->keySensitivityGroup, LV_OBJ_FLAG_HIDDEN, ctx->tbSettings.mode != LVGL_TRACKBALL_MODE_KEYS);
-    lv_obj_set_flag(ctx->pointerSensitivityGroup, LV_OBJ_FLAG_HIDDEN, ctx->tbSettings.mode != LVGL_TRACKBALL_MODE_POINTER);
+    lv_obj_set_hidden(ctx->keySensitivityGroup, ctx->tbSettings.mode != LVGL_TRACKBALL_MODE_KEYS);
+    lv_obj_set_hidden(ctx->pointerSensitivityGroup, ctx->tbSettings.mode != LVGL_TRACKBALL_MODE_POINTER);
 }
 
 void onTrackballSwitch(lv_event_t* e) {
@@ -155,7 +155,7 @@ lv_obj_t* createSpeedGroup(lv_obj_t* parent, const char* title, int32_t value, l
     lv_obj_set_style_pad_all(group, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(group, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(group, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(group, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(group, false);
 
     lv_label_set_text(lv_label_create(group), title);
 

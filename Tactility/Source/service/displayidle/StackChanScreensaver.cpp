@@ -39,7 +39,7 @@ void StackChanScreensaver::start(lv_obj_t* overlay, lv_coord_t screenW, lv_coord
     lv_obj_set_style_bg_opa(logo_, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(logo_, lv_color_hex(COLORS[0]), 0);
     lv_obj_set_style_radius(logo_, 0, 0);
-    lv_obj_clear_flag(logo_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(logo_, false);
 
     leftEye_  = makeFacePart(logo_, eyeSize, eyeSize, -eyeOffX, eyeOffY, true);
     rightEye_ = makeFacePart(logo_, eyeSize, eyeSize,  eyeOffX, eyeOffY, true);

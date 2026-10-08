@@ -288,7 +288,6 @@ def write_lvgl_variables(output_file, device_properties: dict):
     color_depth = get_property_or_exit(device_properties, "lvgl.colorDepth")
     output_file.write(f"CONFIG_LV_COLOR_DEPTH={color_depth}\n")
     output_file.write(f"CONFIG_LV_COLOR_DEPTH_{color_depth}=y\n")
-    output_file.write("CONFIG_LV_DISP_DEF_REFR_PERIOD=10\n")
     has_statusbar_colors_inverted = get_boolean_property_or_false(device_properties, "lvgl.statusbarColorsInverted")
     if has_statusbar_colors_inverted:
         output_file.write("CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED=y\n")

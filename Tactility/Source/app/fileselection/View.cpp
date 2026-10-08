@@ -8,6 +8,7 @@
 #include <tactility/log.h>
 
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <cstring>
@@ -103,9 +104,9 @@ void View::onPathTextChanged(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
     const char* path = lv_textarea_get_text(view->path_textarea);
     if (isSelectableFilePath(path)) {
-        lv_obj_remove_flag(view->select_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(view->select_button, false);
     } else {
-        lv_obj_add_flag(view->select_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(view->select_button, true);
     }
 }
 
@@ -117,7 +118,7 @@ void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
     } else {
         symbol = LV_SYMBOL_FILE;
     }
-    lv_obj_t* button = lv_list_add_button(list, symbol, dir_entry.d_name);
+    lv_obj_t* button = lvgl_list_add_button(list, symbol, dir_entry.d_name);
     lv_obj_add_event_cb(button, &onDirEntryPressedCallback, LV_EVENT_SHORT_CLICKED, this);
 }
 
@@ -153,9 +154,9 @@ void View::update() {
     });
 
     if (state->getCurrentPath() == "/") {
-        lv_obj_add_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(navigate_up_button, true);
     } else {
-        lv_obj_remove_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(navigate_up_button, false);
     }
 
     lvgl_unlock();
@@ -177,7 +178,7 @@ void View::init(lv_obj_t* parent, Mode mode) {
     lv_obj_set_flex_grow(wrapper, 1);
     lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_ROW);
 
-    dir_entry_list = lv_list_create(wrapper);
+    dir_entry_list = lvgl_list_create(wrapper);
     lv_obj_set_height(dir_entry_list, LV_PCT(100));
     lv_obj_set_flex_grow(dir_entry_list, 1);
 
@@ -196,7 +197,7 @@ void View::init(lv_obj_t* parent, Mode mode) {
     auto* select_button_label = lv_label_create(select_button);
     lv_label_set_text(select_button_label, "Select");
     lv_obj_add_event_cb(select_button, onSelectButtonPressed, LV_EVENT_SHORT_CLICKED, this);
-    lv_obj_add_flag(select_button, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(select_button, true);
 
     update();
 }

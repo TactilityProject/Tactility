@@ -101,7 +101,7 @@ lv_obj_t* build_window_widget(lv_obj_t* content, WindowCreateWidgetsFn create_wi
     // Plain layout container, not meant to scroll on its own - every app already does this
     // for its own root object. Without it, a sub-pixel flex-layout overflow here can show the
     // theme's scrollbar styling as a thin line hugging this widget's edges.
-    lv_obj_remove_flag(widget, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(widget, false);
     if (create_widgets != nullptr) {
         create_widgets(widget, user_data);
     }
@@ -206,7 +206,7 @@ error_t window_manager_start(void) {
         lv_obj_set_style_border_width(real_widget, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_radius(real_widget, 0, LV_STATE_DEFAULT);
         // See build_window_widget()'s identical flag removal for why.
-        lv_obj_remove_flag(real_widget, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scrollable(real_widget, false);
 
         content_widget = (screen_init != nullptr) ? screen_init(real_widget) : nullptr;
         if (content_widget == nullptr) {

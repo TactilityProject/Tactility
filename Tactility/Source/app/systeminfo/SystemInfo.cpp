@@ -238,7 +238,7 @@ void updateRtosTasks(lv_obj_t* parent, std::vector<std::string>& taskNames) {
         auto* row = i < lv_obj_get_child_count(parent) ? lv_obj_get_child(parent, static_cast<int32_t>(i)) : lv_label_create(parent);
         lv_label_set_text_fmt(row, "%s (%s)", getTaskName(tasks[i]), getTaskState(tasks[i]));
         // Keys and encoders move through the tasks, which scrolls the list
-        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_clickable(row, true);
         taskNames.emplace_back(getTaskName(tasks[i]));
     }
     free(tasks);

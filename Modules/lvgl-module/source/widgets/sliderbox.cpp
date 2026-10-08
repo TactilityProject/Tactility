@@ -35,7 +35,7 @@ extern "C" const lv_obj_class_t lvgl_sliderbox_class = {
 
 static void sliderbox_constructor(const lv_obj_class_t* classPointer, lv_obj_t* obj) {
     LV_UNUSED(classPointer);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(obj, false);
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_border_width(obj, 0, LV_STATE_DEFAULT);
@@ -118,7 +118,7 @@ static void on_plus_button_clicked(lv_event_t* event) {
 
 static lv_obj_t* create_step_button(lv_obj_t* parent, const char* symbol, lv_event_cb_t callback, void* userData, uint32_t size) {
     auto* button = lv_button_create(parent);
-    lv_obj_remove_flag(button, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(button, false);
     lv_obj_set_size(button, size, size);
     lv_obj_set_style_pad_all(button, 0, LV_STATE_DEFAULT);
     lv_obj_add_event_cb(button, callback, LV_EVENT_SHORT_CLICKED, userData);
@@ -151,7 +151,7 @@ lv_obj_t* lvgl_sliderbox_create(lv_obj_t* parent, int32_t min, int32_t max, int3
     sliderBox->minusButton = create_step_button(obj, LV_SYMBOL_MINUS, &on_minus_button_clicked, obj, button_size);
 
     sliderBox->slider = lv_slider_create(obj);
-    lv_obj_remove_flag(sliderBox->slider, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(sliderBox->slider, false);
     lv_obj_set_flex_grow(sliderBox->slider, 1);
     lv_slider_set_range(sliderBox->slider, min, max);
     lv_obj_add_event_cb(sliderBox->slider, &on_slider_value_changed, LV_EVENT_VALUE_CHANGED, obj);

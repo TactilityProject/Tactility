@@ -81,8 +81,8 @@ static void default_nav_action(lv_event_t* event) {
 
 static void toolbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj) {
     LV_UNUSED(class_p);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_set_scrollable(obj, false);
+    lv_obj_set_scroll_on_focus(obj, true);
 }
 
 static lv_obj_t* create_action_button(lv_obj_t* parent, bool is_compact) {

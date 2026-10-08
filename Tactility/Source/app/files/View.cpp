@@ -5,6 +5,7 @@
 #include <app/stream.h>
 
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <Tactility/app/files/SupportedFiles.h>
@@ -356,7 +357,7 @@ void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
         }
     }
 
-    lv_obj_t* button = lv_list_add_button(list, symbol, label_text.c_str());
+    lv_obj_t* button = lvgl_list_add_button(list, symbol, label_text.c_str());
     lv_obj_add_event_cb(button, &onDirEntryPressedCallback, LV_EVENT_SHORT_CLICKED, this);
     lv_obj_add_event_cb(button, &onDirEntryLongPressedCallback, LV_EVENT_LONG_PRESSED, this);
     lv_obj_add_event_cb(button, &onDirEntryKeyCallback, LV_EVENT_KEY, this);
@@ -431,20 +432,20 @@ void View::onNewFolderPressed() {
 }
 
 void View::addCommonFileActions() {
-    auto* copy_button = lv_list_add_button(action_list, LV_SYMBOL_COPY, "Copy");
+    auto* copy_button = lvgl_list_add_button(action_list, LV_SYMBOL_COPY, "Copy");
     lv_obj_add_event_cb(copy_button, onCopyPressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    auto* cut_button = lv_list_add_button(action_list, LV_SYMBOL_CUT, "Cut");
+    auto* cut_button = lvgl_list_add_button(action_list, LV_SYMBOL_CUT, "Cut");
     lv_obj_add_event_cb(cut_button, onCutPressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    auto* rename_button = lv_list_add_button(action_list, LV_SYMBOL_EDIT, "Rename");
+    auto* rename_button = lvgl_list_add_button(action_list, LV_SYMBOL_EDIT, "Rename");
     lv_obj_add_event_cb(rename_button, onRenamePressedCallback, LV_EVENT_SHORT_CLICKED, this);
-    auto* delete_button = lv_list_add_button(action_list, LV_SYMBOL_TRASH, "Delete");
+    auto* delete_button = lvgl_list_add_button(action_list, LV_SYMBOL_TRASH, "Delete");
     lv_obj_add_event_cb(delete_button, onDeletePressedCallback, LV_EVENT_SHORT_CLICKED, this);
 }
 
 void View::showActions() {
     lv_obj_clean(action_list);
     addCommonFileActions();
-    lv_obj_remove_flag(action_list, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(action_list, false);
 }
 
 void View::showActionsForDirectory() { showActions(); }
@@ -453,21 +454,21 @@ void View::showActionsForFile() {
     lv_obj_clean(action_list);
 
     if (isExecutablePath(state->getSelectedChildPath())) {
-        auto* run_button = lv_list_add_button(action_list, LV_SYMBOL_PLAY, "Run");
+        auto* run_button = lvgl_list_add_button(action_list, LV_SYMBOL_PLAY, "Run");
         lv_obj_add_event_cb(run_button, onRunPressedCallback, LV_EVENT_SHORT_CLICKED, this);
     }
 
     addCommonFileActions();
-    lv_obj_remove_flag(action_list, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(action_list, false);
 }
 
 void View::showActionsForMountPoint() {
     lv_obj_clean(action_list);
 
-    auto* eject_button = lv_list_add_button(action_list, LV_SYMBOL_EJECT, "Eject");
+    auto* eject_button = lvgl_list_add_button(action_list, LV_SYMBOL_EJECT, "Eject");
     lv_obj_add_event_cb(eject_button, onEjectPressedCallback, LV_EVENT_SHORT_CLICKED, this);
 
-    lv_obj_remove_flag(action_list, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(action_list, false);
 }
 
 void View::onRunPressed() {
@@ -517,7 +518,7 @@ void View::update(size_t start_index) {
         size_t count = 0;
 
         if (!is_root && current_start_index > 0) {
-            auto* back_btn = lv_list_add_btn(dir_entry_list, LV_SYMBOL_LEFT, "Back");
+            auto* back_btn = lvgl_list_add_button(dir_entry_list, LV_SYMBOL_LEFT, "Back");
             lv_obj_add_event_cb(back_btn, [](lv_event_t* event) {
                 auto* view = static_cast<View*>(lv_event_get_user_data(event));
                 size_t new_index = (view->current_start_index >= view->MAX_BATCH) ? 
@@ -541,7 +542,7 @@ void View::update(size_t start_index) {
         if (!is_root && last_loaded_index < total_entries) {
             if (total_entries > current_start_index &&
                 (total_entries - current_start_index) > MAX_BATCH) {
-                auto* next_btn = lv_list_add_btn(dir_entry_list, LV_SYMBOL_RIGHT, "Next");
+                auto* next_btn = lvgl_list_add_button(dir_entry_list, LV_SYMBOL_RIGHT, "Next");
                 lv_obj_add_event_cb(next_btn, [](lv_event_t* event) {
                     auto* view = static_cast<View*>(lv_event_get_user_data(event));
                     view->update(view->last_loaded_index); }, LV_EVENT_SHORT_CLICKED, this);
@@ -552,15 +553,15 @@ void View::update(size_t start_index) {
     });
 
     if (is_root) {
-        lv_obj_add_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(navigate_up_button, true);
     } else {
-        lv_obj_remove_flag(navigate_up_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(navigate_up_button, false);
     }
 
     if (state->hasClipboard() && !is_root) {
-        lv_obj_remove_flag(paste_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(paste_button, false);
     } else {
-        lv_obj_add_flag(paste_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(paste_button, true);
     }
 
     lvgl_unlock();
@@ -579,7 +580,7 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     new_file_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_FILE, &onNewFilePressedCallback, this);
     new_folder_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_DIRECTORY, &onNewFolderPressedCallback, this);
     paste_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_PASTE, &onPastePressedCallback, this);
-    lv_obj_add_flag(paste_button, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(paste_button, true);
 
     auto* wrapper = lv_obj_create(parent);
     lv_obj_set_width(wrapper, LV_PCT(100));
@@ -588,30 +589,30 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     lv_obj_set_flex_grow(wrapper, 1);
     lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_ROW);
 
-    dir_entry_list = lv_list_create(wrapper);
+    dir_entry_list = lvgl_list_create(wrapper);
     lv_obj_set_height(dir_entry_list, LV_PCT(100));
     lv_obj_set_flex_grow(dir_entry_list, 1);
 
     lv_obj_add_event_cb(dir_entry_list, dirEntryListScrollBeginCallback, LV_EVENT_SCROLL_BEGIN, this);
 
-    action_list = lv_list_create(wrapper);
+    action_list = lvgl_list_create(wrapper);
     lv_obj_set_height(action_list, LV_PCT(100));
     lv_obj_set_flex_grow(action_list, 1);
-    lv_obj_add_flag(action_list, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(action_list, true);
 
     update();
 }
 
 void View::onDirEntryListScrollBegin() {
     if (lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
-        lv_obj_add_flag(action_list, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(action_list, true);
         lvgl_unlock();
     }
 }
 
 void View::onNavigate() {
     if (lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
-        lv_obj_add_flag(action_list, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(action_list, true);
         lvgl_unlock();
     }
 }

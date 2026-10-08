@@ -162,7 +162,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(language_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(language_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_border_width(language_row, 0, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(language_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(language_row, false);
 
     // The title with the language below it, which take the width that the button leaves. Texts that don't fit scroll.
     auto* texts = lv_obj_create(language_row);
@@ -173,7 +173,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_row(texts, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(texts, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(texts, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(texts, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(texts, false);
 
     ctx->languageLabel = lv_label_create(texts);
     lv_obj_set_width(ctx->languageLabel, LV_PCT(100));

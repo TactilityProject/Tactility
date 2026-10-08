@@ -48,7 +48,7 @@ void onInputEnabledSwitch(lv_event_t* event) {
     auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
     service::audio::setInputEnabled(enabled);
-    lv_obj_set_flag(ctx->inputCard, LV_OBJ_FLAG_HIDDEN, !enabled);
+    lv_obj_set_hidden(ctx->inputCard, !enabled);
 }
 
 void onOutputEnabledSwitch(lv_event_t* event) {
@@ -56,7 +56,7 @@ void onOutputEnabledSwitch(lv_event_t* event) {
     auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
     service::audio::setOutputEnabled(enabled);
-    lv_obj_set_flag(ctx->outputCard, LV_OBJ_FLAG_HIDDEN, !enabled);
+    lv_obj_set_hidden(ctx->outputCard, !enabled);
 }
 
 void onInputMuteSwitch(lv_event_t* event) {
@@ -90,7 +90,7 @@ lv_obj_t* createRow(lv_obj_t* parent) {
     lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(row, false);
     return row;
 }
 
@@ -114,7 +114,7 @@ Section createSection(lv_obj_t* parent, const char* title, bool enabled, lv_even
     auto* card = lvgl_card_create(parent);
     lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flag(card, LV_OBJ_FLAG_HIDDEN, !enabled);
+    lv_obj_set_hidden(card, !enabled);
 
     return { sw, card };
 }
@@ -152,7 +152,7 @@ void refresh(Context* ctx) {
     if (ctx->inputEnabledSwitch) {
         const bool enabled = service::audio::isInputEnabled();
         lv_obj_set_state(ctx->inputEnabledSwitch, LV_STATE_CHECKED, enabled);
-        lv_obj_set_flag(ctx->inputCard, LV_OBJ_FLAG_HIDDEN, !enabled);
+        lv_obj_set_hidden(ctx->inputCard, !enabled);
     }
     if (ctx->inputMuteSwitch) {
         if (service::audio::isInputMuted()) lv_obj_add_state(ctx->inputMuteSwitch, LV_STATE_CHECKED);
@@ -165,7 +165,7 @@ void refresh(Context* ctx) {
     if (ctx->outputEnabledSwitch) {
         const bool enabled = service::audio::isOutputEnabled();
         lv_obj_set_state(ctx->outputEnabledSwitch, LV_STATE_CHECKED, enabled);
-        lv_obj_set_flag(ctx->outputCard, LV_OBJ_FLAG_HIDDEN, !enabled);
+        lv_obj_set_hidden(ctx->outputCard, !enabled);
     }
     if (ctx->outputMuteSwitch) {
         if (service::audio::isOutputMuted()) lv_obj_add_state(ctx->outputMuteSwitch, LV_STATE_CHECKED);

@@ -13,6 +13,7 @@
 
 #include <app/event.h>
 #include <lvgl/widgets/card.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::btmanage {
@@ -111,7 +112,7 @@ static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
     lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
 
     // The card provides the background
-    auto* list = lv_list_create(card);
+    auto* list = lvgl_list_create(card);
     lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
@@ -127,7 +128,7 @@ void View::createPeerListItem(lv_obj_t* list, const bluetooth::PeerRecord& recor
             percentage)
         : std::format("{} {}%", record.name, percentage);
 
-    auto* button = lv_list_add_button(list, nullptr, label.c_str());
+    auto* button = lvgl_list_add_button(list, nullptr, label.c_str());
 
     auto* item_data = new PeerListItemData { context, state, bindings, index, isPaired };
     lv_obj_set_user_data(button, item_data);
@@ -174,9 +175,9 @@ void View::updateEnableOnBootToggle() {
 
 void View::updateScanning() {
     if (state->getRadioState() == bluetooth::RadioState::On && state->isScanning()) {
-        lv_obj_remove_flag(scanning_spinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(scanning_spinner, false);
     } else {
-        lv_obj_add_flag(scanning_spinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(scanning_spinner, true);
     }
 }
 
@@ -192,7 +193,7 @@ void View::updatePeerList() {
     lv_obj_set_style_bg_opa(enable_on_boot_wrapper, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(enable_on_boot_wrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(enable_on_boot_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(enable_on_boot_wrapper, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(enable_on_boot_wrapper, false);
 
     auto* enable_label = lv_label_create(enable_on_boot_wrapper);
     lv_label_set_text(enable_label, "Enable on boot");
@@ -223,7 +224,7 @@ void View::updatePeerList() {
                 createPeerListItem(available_section, scan_results[i], false, i);
             }
         } else if (!state->isScanning()) {
-            lv_list_add_text(available_section, "No devices found.");
+            lvgl_list_add_text(available_section, "No devices found.");
         }
         // Never hide peers_list: it always contains the "Enable on boot" row.
         // While scanning with no results the spinner in the toolbar provides feedback.

@@ -21,6 +21,7 @@
 
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/card.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -109,7 +110,7 @@ void showRefreshFailedError(Context* ctx, const char* message) {
     lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
     lv_label_set_text(label, message);
 
-    lv_obj_remove_flag(ctx->refreshButton, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->refreshButton, false);
 }
 
 void showNoInternet(Context* ctx) {
@@ -143,7 +144,7 @@ void showApps(Context* ctx) {
         lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
 
         // The card provides the background
-        auto* list = lv_list_create(card);
+        auto* list = lvgl_list_create(card);
         lv_obj_set_style_pad_all(list, 0, LV_STATE_DEFAULT);
         lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
         lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
@@ -153,7 +154,7 @@ void showApps(Context* ctx) {
             LOG_I(TAG, "Adding %s", entry.appName.c_str());
             AppManifest manifest;
             const char* icon = app_manager_find_manifest(entry.appId.c_str(), &manifest) == ERROR_NONE ? LV_SYMBOL_OK : nullptr;
-            auto* entry_button = lv_list_add_button(list, icon, entry.appName.c_str());
+            auto* entry_button = lvgl_list_add_button(list, icon, entry.appName.c_str());
             auto int_as_voidptr = reinterpret_cast<void*>(i);
             lv_obj_set_user_data(entry_button, int_as_voidptr);
             lv_obj_add_event_cb(entry_button, onAppPressed, LV_EVENT_SHORT_CLICKED, ctx);
@@ -179,7 +180,7 @@ void refresh(Context* ctx) {
     lv_obj_clean(ctx->contentWrapper);
     auto* spinner = lvgl_spinner_create(ctx->contentWrapper);
     lv_obj_align(spinner, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_add_flag(ctx->refreshButton, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->refreshButton, true);
     lvgl_unlock();
 
     WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
@@ -261,7 +262,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
     ctx->refreshButton = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_REFRESH, onRefreshPressed, ctx);
-    lv_obj_add_flag(ctx->refreshButton, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->refreshButton, true);
 
     ctx->contentWrapper = lv_obj_create(parent);
     lv_obj_set_style_border_width(ctx->contentWrapper, 0, LV_STATE_DEFAULT);

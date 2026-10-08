@@ -94,7 +94,7 @@ void uninstallApp(Context* ctx) {
     LOG_I(TAG, "Uninstall");
 
     lvgl_lock();
-    lv_obj_remove_flag(ctx->spinner, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->spinner, false);
     lvgl_unlock();
 
     app_uninstall(ctx->entry.appId.c_str());
@@ -172,7 +172,7 @@ void installApp(Context* ctx) {
     LOG_I(TAG, "Install");
 
     lvgl_lock();
-    lv_obj_remove_flag(ctx->spinner, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->spinner, false);
     lvgl_unlock();
 
     doInstall(ctx);
@@ -182,7 +182,7 @@ void updateApp(Context* ctx) {
     LOG_I(TAG, "Update");
 
     lvgl_lock();
-    lv_obj_remove_flag(ctx->spinner, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->spinner, false);
     lvgl_unlock();
 
     LOG_I(TAG, "Removing previous version");
@@ -195,8 +195,8 @@ void updateViews(Context* ctx) {
     lvgl_toolbar_clear_actions(ctx->toolbar);
     auto app_id = ctx->entry.appId.c_str();
     ctx->spinner = lvgl_toolbar_add_spinner_action(ctx->toolbar);
-    lv_obj_add_flag(ctx->spinner, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(ctx->updateLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->spinner, true);
+    lv_obj_set_hidden(ctx->updateLabel, true);
 
     char install_path[128];
     bool is_installed = app_get_install_path(app_id, install_path, sizeof(install_path)) == ERROR_NONE
@@ -208,7 +208,7 @@ void updateViews(Context* ctx) {
         if (app_package_manifest_parse(metadata_path.c_str(), &package, nullptr, 0) == ERROR_NONE
             && package.version_code < ctx->entry.appVersionCode) {
             ctx->updateButton = lvgl_toolbar_add_image_button_action(ctx->toolbar, LV_SYMBOL_DOWNLOAD, onUpdatePressed, ctx);
-            lv_obj_remove_flag(ctx->updateLabel, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(ctx->updateLabel, false);
         }
         lvgl_toolbar_add_image_button_action(ctx->toolbar, LV_SYMBOL_TRASH, onUninstallPressed, ctx);
     } else {

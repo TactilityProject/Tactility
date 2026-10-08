@@ -141,12 +141,12 @@ void onPressDisconnect(lv_event_t* event) {
 
 void updateConnectButton(Context* ctx) {
     if (isConnectedToSsid(ctx)) {
-        lv_obj_remove_flag(ctx->disconnectButton, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(ctx->connectButton, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->disconnectButton, false);
+        lv_obj_set_hidden(ctx->connectButton, true);
         lv_obj_remove_state(ctx->disconnectButton, LV_STATE_DISABLED);
     } else {
-        lv_obj_add_flag(ctx->disconnectButton, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(ctx->connectButton, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->disconnectButton, true);
+        lv_obj_set_hidden(ctx->connectButton, false);
         lv_obj_remove_state(ctx->connectButton, LV_STATE_DISABLED);
     }
 }
@@ -157,9 +157,9 @@ void updateBusySpinner(Context* ctx) {
         wifi_get_station_state(ctx->wifiDevice, &station_state);
     }
     if (station_state == WIFI_STATION_STATE_CONNECTION_PENDING) {
-        lv_obj_remove_flag(ctx->busySpinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->busySpinner, false);
     } else {
-        lv_obj_add_flag(ctx->busySpinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->busySpinner, true);
     }
 }
 
@@ -173,12 +173,12 @@ void updateAutoConnectSection(Context* ctx) {
         } else {
             lv_obj_remove_state(ctx->autoConnectSwitch, LV_STATE_CHECKED);
         }
-        lv_obj_remove_flag(ctx->forgetButton, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(ctx->autoConnectWrapper, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->forgetButton, false);
+        lv_obj_set_hidden(ctx->autoConnectWrapper, false);
     } else {
         LOG_W(TAG, "No settings found");
-        lv_obj_add_flag(ctx->forgetButton, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(ctx->autoConnectWrapper, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->forgetButton, true);
+        lv_obj_set_hidden(ctx->autoConnectWrapper, true);
     }
 }
 
@@ -249,7 +249,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* forget_button_label = lv_label_create(ctx->forgetButton);
     lv_obj_align(forget_button_label, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_text(forget_button_label, "Forget");
-    lv_obj_add_flag(ctx->forgetButton, LV_OBJ_FLAG_HIDDEN); // shown by updateAutoConnectSection()
+    lv_obj_set_hidden(ctx->forgetButton, true); // shown by updateAutoConnectSection()
 
     // Auto-connect
 
@@ -257,11 +257,11 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_size(ctx->autoConnectWrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(ctx->autoConnectWrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(ctx->autoConnectWrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(ctx->autoConnectWrapper, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(ctx->autoConnectWrapper, false);
     lvgl::obj_set_style_bg_invisible(ctx->autoConnectWrapper);
     lv_obj_set_style_pad_all(ctx->autoConnectWrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ctx->autoConnectWrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_add_flag(ctx->autoConnectWrapper, LV_OBJ_FLAG_HIDDEN); // shown by updateAutoConnectSection()
+    lv_obj_set_hidden(ctx->autoConnectWrapper, true); // shown by updateAutoConnectSection()
 
     auto* auto_connect_label = lv_label_create(ctx->autoConnectWrapper);
     lv_label_set_text(auto_connect_label, "Auto-connect");

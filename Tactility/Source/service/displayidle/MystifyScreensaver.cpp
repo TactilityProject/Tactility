@@ -105,7 +105,7 @@ void MystifyScreensaver::update(lv_coord_t screenW, lv_coord_t screenH) {
             if (t >= validTrailCount) {
                 for (int e = 0; e < NUM_VERTICES; e++) {
                     if (trailLines[e]) {
-                        lv_obj_add_flag(trailLines[e], LV_OBJ_FLAG_HIDDEN);
+                        lv_obj_set_hidden(trailLines[e], true);
                     }
                 }
                 continue;
@@ -118,7 +118,7 @@ void MystifyScreensaver::update(lv_coord_t screenW, lv_coord_t screenH) {
             for (int e = 0; e < NUM_VERTICES; e++) {
                 if (!trailLines[e]) continue;
 
-                lv_obj_remove_flag(trailLines[e], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_set_hidden(trailLines[e], false);
 
                 int v2 = (e + 1) % NUM_VERTICES;
 

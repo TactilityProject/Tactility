@@ -182,7 +182,7 @@ void updateViews(Context* ctx) {
 
         lv_obj_clean(ctx->scanListWidget);
         if (ctx->scanState == ScanStateStopped) {
-            lv_obj_remove_flag(ctx->scanListWidget, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(ctx->scanListWidget, false);
 
             // A grid with the title in the first row, then an address and the devicetree device names per row
             const size_t count = ctx->scannedAddresses.size();
@@ -204,7 +204,7 @@ void updateViews(Context* ctx) {
                 auto* address_label = lv_label_create(ctx->scanListWidget);
                 lv_label_set_text(address_label, getAddressText(address).c_str());
                 // Keys and encoders move through the addresses, which scrolls the results into view
-                lv_obj_add_flag(address_label, LV_OBJ_FLAG_CLICKABLE);
+                lv_obj_set_clickable(address_label, true);
                 lv_obj_set_grid_cell(address_label, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_START, row, 1);
 
                 auto* names_label = lv_label_create(ctx->scanListWidget);
@@ -213,7 +213,7 @@ void updateViews(Context* ctx) {
                 lv_obj_set_grid_cell(names_label, LV_GRID_ALIGN_STRETCH, 1, 1, LV_GRID_ALIGN_START, row, 1);
             }
         } else {
-            lv_obj_add_flag(ctx->scanListWidget, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(ctx->scanListWidget, true);
         }
 
         ctx->mutex.unlock();
@@ -310,7 +310,7 @@ void startScanning(Context* ctx) {
     if (ctx->mutex.lock(100 / portTICK_PERIOD_MS)) {
         ctx->scannedAddresses.clear();
 
-        lv_obj_add_flag(ctx->scanListWidget, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->scanListWidget, true);
         lv_obj_clean(ctx->scanListWidget);
 
         ctx->scanState = ScanStateScanning;
@@ -422,7 +422,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_size(scan_list, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_layout(scan_list, LV_LAYOUT_GRID);
     lvgl_grid_navigation_add(scan_list);
-    lv_obj_add_flag(scan_list, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(scan_list, true);
     ctx->scanListWidget = scan_list;
 
     struct Device* dummy;

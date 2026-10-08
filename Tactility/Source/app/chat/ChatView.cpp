@@ -10,6 +10,7 @@
 
 #include <app/event.h>
 
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <cstdio>
@@ -48,7 +49,7 @@ void ChatView::createInputBar(lv_obj_t* parent) {
     lv_obj_set_style_pad_all(wrapper, 0, 0);
     lv_obj_set_style_pad_column(wrapper, 4, 0);
     lv_obj_set_style_border_opa(wrapper, 0, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(wrapper, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(wrapper, false);
 
     inputField = lv_textarea_create(wrapper);
     lv_obj_set_flex_grow(inputField, 1);
@@ -72,7 +73,7 @@ void ChatView::createSettingsPanel(lv_obj_t* parent) {
     lv_obj_set_flex_flow(settingsPanel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(settingsPanel, 8, 0);
     lv_obj_set_style_pad_row(settingsPanel, 6, 0);
-    lv_obj_add_flag(settingsPanel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settingsPanel, true);
 
     // Nickname
     auto* nickLabel = lv_label_create(settingsPanel);
@@ -121,7 +122,7 @@ void ChatView::createChannelPanel(lv_obj_t* parent) {
     lv_obj_set_flex_flow(channelPanel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(channelPanel, 8, 0);
     lv_obj_set_style_pad_row(channelPanel, 6, 0);
-    lv_obj_add_flag(channelPanel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(channelPanel, true);
 
     auto* label = lv_label_create(channelPanel);
     lv_label_set_text(label, "Channel (e.g. #general):");
@@ -167,7 +168,7 @@ void ChatView::init(lv_obj_t* parent) {
     updateToolbarTitle();
 
     // Message list
-    msgList = lv_list_create(parent);
+    msgList = lvgl_list_create(parent);
     lv_obj_set_flex_grow(msgList, 1);
     lv_obj_set_width(msgList, LV_PCT(100));
     if (lv_display_get_color_format(lv_obj_get_display(parent)) != LV_COLOR_FORMAT_L8) {
@@ -224,16 +225,16 @@ void ChatView::showSettings(const ChatSettingsData& current) {
         lv_textarea_set_text(keyInput, "");
     }
 
-    lv_obj_add_flag(msgList, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(inputWrapper, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settingsPanel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(msgList, true);
+    lv_obj_set_hidden(inputWrapper, true);
+    lv_obj_set_hidden(settingsPanel, false);
 }
 
 void ChatView::hideSettings() {
     if (!settingsPanel || !msgList || !inputWrapper) return;
-    lv_obj_add_flag(settingsPanel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(msgList, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(inputWrapper, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settingsPanel, true);
+    lv_obj_set_hidden(msgList, false);
+    lv_obj_set_hidden(inputWrapper, false);
 }
 
 void ChatView::showChannelSelector() {
@@ -242,16 +243,16 @@ void ChatView::showChannelSelector() {
     std::string current = state->getCurrentChannel();
     lv_textarea_set_text(channelInput, current.c_str());
 
-    lv_obj_add_flag(msgList, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(inputWrapper, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(channelPanel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(msgList, true);
+    lv_obj_set_hidden(inputWrapper, true);
+    lv_obj_set_hidden(channelPanel, false);
 }
 
 void ChatView::hideChannelSelector() {
     if (!channelPanel || !msgList || !inputWrapper) return;
-    lv_obj_add_flag(channelPanel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(msgList, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(inputWrapper, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(channelPanel, true);
+    lv_obj_set_hidden(msgList, false);
+    lv_obj_set_hidden(inputWrapper, false);
 }
 
 void ChatView::onSendClicked(lv_event_t* e) {

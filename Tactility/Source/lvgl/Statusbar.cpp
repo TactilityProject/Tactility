@@ -141,7 +141,7 @@ static void onTimeChanged(struct SystemEvent* /*event*/, void* /*context*/) {
 static void statusbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj) {
     LV_UNUSED(class_p);
     LV_TRACE_OBJ_CREATE("begin");
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(obj, false);
     LV_TRACE_OBJ_CREATE("finished");
 
     // Deliberately does NOT subscribe to statusbar_data.pubsub here - that happens at the end of
@@ -163,11 +163,11 @@ static void statusbar_destructor(const lv_obj_class_t* class_p, lv_obj_t* obj) {
 static void update_icon(lv_obj_t* image, const StatusbarIcon* icon) {
     if (!icon->image.empty() && icon->visible && icon->claimed) {
         lv_image_set_src(image, icon->image.c_str());
-        lv_obj_remove_flag(image, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(image, false);
     } else {
-        lv_obj_add_flag(image, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(image, true);
     }
-    lv_obj_set_flag(image, LV_OBJ_FLAG_CLICKABLE, !icon->appId.empty());
+    lv_obj_set_clickable(image, !icon->appId.empty());
 }
 
 static void onIconClicked(lv_event_t* event) {
@@ -240,8 +240,8 @@ lv_obj_t* statusbar_create(lv_obj_t* parent) {
         update_time(statusbar);
 
         auto* left_spacer = lv_obj_create(obj);
-        lv_obj_remove_flag(left_spacer, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_remove_flag(left_spacer, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_scrollable(left_spacer, false);
+        lv_obj_set_clickable(left_spacer, false);
         lv_obj_set_size(left_spacer, 1, 1);
         lv_obj_set_flex_grow(left_spacer, 1);
         lv_obj_set_style_bg_opa(left_spacer, LV_OPA_0, LV_STATE_DEFAULT);

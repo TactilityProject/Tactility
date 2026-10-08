@@ -107,7 +107,7 @@ void renderCurrent(Context* ctx) {
             lv_label_set_text(ctx->titleLabel, "Welcome");
             auto device_names = string::split(std::string(CONFIG_TT_DEVICE_NAME_SIMPLE), ",");
             lv_label_set_text_fmt(ctx->descriptionLabel, "It's time to set up your %s!", device_names.front().c_str());
-            lv_obj_add_flag(ctx->skipButton, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(ctx->skipButton, true);
             lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Continue");
             break;
         }
@@ -115,7 +115,7 @@ void renderCurrent(Context* ctx) {
             const auto& step = ctx->steps[ctx->stepIndex];
             lv_label_set_text(ctx->titleLabel, step.title.c_str());
             lv_label_set_text(ctx->descriptionLabel, step.description.c_str());
-            lv_obj_remove_flag(ctx->skipButton, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(ctx->skipButton, false);
             lv_label_set_text(lv_obj_get_child(ctx->skipButton, 0), "Skip");
             lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Continue");
             break;
@@ -123,7 +123,7 @@ void renderCurrent(Context* ctx) {
         case Phase::Done:
             lv_label_set_text(ctx->titleLabel, "Setup Complete");
             lv_label_set_text(ctx->descriptionLabel, "You're all set.");
-            lv_obj_add_flag(ctx->skipButton, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(ctx->skipButton, true);
             lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Finish");
             break;
     }

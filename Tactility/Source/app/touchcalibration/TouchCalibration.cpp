@@ -100,7 +100,7 @@ void finishCalibration(Context* ctx) {
     if (xSpan <= 0 || ySpan <= 0) {
         lv_label_set_text(ctx->titleLabel, "Calibration Failed");
         lv_label_set_text(ctx->hintLabel, "Screen too small. Tap to close.");
-        lv_obj_add_flag(ctx->target, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->target, true);
         return;
     }
 
@@ -119,14 +119,14 @@ void finishCalibration(Context* ctx) {
     if (!settings::touch::isValid(settings)) {
         lv_label_set_text(ctx->titleLabel, "Calibration Failed");
         lv_label_set_text(ctx->hintLabel, "Range invalid. Tap to close.");
-        lv_obj_add_flag(ctx->target, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->target, true);
         return;
     }
 
     if (!settings::touch::save(settings)) {
         lv_label_set_text(ctx->titleLabel, "Calibration Failed");
         lv_label_set_text(ctx->hintLabel, "Unable to save settings. Tap to close.");
-        lv_obj_add_flag(ctx->target, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->target, true);
         return;
     }
 
@@ -147,7 +147,7 @@ void finishCalibration(Context* ctx) {
     LOG_I(TAG, "Saved calibration x=[%d, %d] y=[%d, %d]", xMin, xMax, yMin, yMax);
     lv_label_set_text(ctx->titleLabel, "Calibration Complete");
     lv_label_set_text(ctx->hintLabel, "Touch anywhere to continue.");
-    lv_obj_add_flag(ctx->target, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->target, true);
 }
 
 void onPress(lv_event_t* event) {
@@ -207,13 +207,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_radius(ctx->target, LV_RADIUS_CIRCLE, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(ctx->target, lv_palette_main(LV_PALETTE_RED), LV_STATE_DEFAULT);
     // Ensure root receives all presses for sampling.
-    lv_obj_remove_flag(ctx->target, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_clickable(ctx->target, false);
 
     auto* targetLabel = lv_label_create(ctx->target);
     lv_label_set_text(targetLabel, "+");
     lv_obj_center(targetLabel);
 
-    lv_obj_add_flag(ctx->root, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_clickable(ctx->root, true);
     lv_obj_add_event_cb(ctx->root, onPress, LV_EVENT_PRESSED, ctx);
 
     updateUi(ctx);

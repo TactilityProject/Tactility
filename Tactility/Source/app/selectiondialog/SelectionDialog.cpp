@@ -12,6 +12,7 @@
 #include <tactility/log.h>
 
 #include <lvgl.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::selectiondialog {
@@ -52,7 +53,7 @@ void onItemSelected(lv_event_t* e) {
 }
 
 void createChoiceItem(Context* ctx, lv_obj_t* list, const std::string& title, int32_t index) {
-    lv_obj_t* btn = lv_list_add_button(list, nullptr, title.c_str());
+    lv_obj_t* btn = lvgl_list_add_button(list, nullptr, title.c_str());
     auto* itemCtx = new ItemContext { ctx, index };
     lv_obj_add_event_cb(btn, onItemSelected, LV_EVENT_SHORT_CLICKED, itemCtx);
     lv_obj_add_event_cb(btn, onItemDeleted, LV_EVENT_DELETE, itemCtx);
@@ -78,7 +79,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     const char* title = (argv[0][0] != '\0') ? argv[0] : DEFAULT_TITLE;
     lvgl_toolbar_create(parent, title);
 
-    auto* list = lv_list_create(parent);
+    auto* list = lvgl_list_create(parent);
     lv_obj_set_width(list, LV_PCT(100));
     lv_obj_set_flex_grow(list, 1);
 

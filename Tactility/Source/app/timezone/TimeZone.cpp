@@ -20,6 +20,7 @@
 #include <lvgl/lvgl.h>
 #include <lvgl/icons/shared.h>
 #include <lvgl/fonts.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <memory>
@@ -84,7 +85,7 @@ void onTextareaValueChanged(lv_event_t* e) {
 }
 
 void createListItem(Context* ctx, lv_obj_t* list, const std::string& title, size_t index) {
-    auto* btn = lv_list_add_button(list, nullptr, title.c_str());
+    auto* btn = lvgl_list_add_button(list, nullptr, title.c_str());
     struct ButtonContext {
         Context* ctx;
         size_t index;
@@ -219,7 +220,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->filterTextareaWidget = textarea;
     lv_obj_set_flex_grow(textarea, 1);
 
-    auto* list = lv_list_create(parent);
+    auto* list = lvgl_list_create(parent);
     lv_obj_set_width(list, LV_PCT(100));
     lv_obj_set_flex_grow(list, 1);
     lv_obj_set_style_border_width(list, 0, 0);

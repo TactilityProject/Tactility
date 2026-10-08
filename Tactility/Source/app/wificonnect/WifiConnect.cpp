@@ -105,21 +105,21 @@ void onWifiEvent(Context* ctx, WifiEvent event) {
 }
 
 void resetErrors(Context* ctx) {
-    lv_obj_add_flag(ctx->password_error, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(ctx->ssid_error, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(ctx->connection_error, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->password_error, true);
+    lv_obj_set_hidden(ctx->ssid_error, true);
+    lv_obj_set_hidden(ctx->connection_error, true);
 }
 
 void setLoading(Context* ctx, bool loading) {
     if (loading) {
-        lv_obj_add_flag(ctx->connect_button, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(ctx->connecting_spinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->connect_button, true);
+        lv_obj_set_hidden(ctx->connecting_spinner, false);
         lv_obj_add_state(ctx->password_textarea, LV_STATE_DISABLED);
         lv_obj_add_state(ctx->ssid_textarea, LV_STATE_DISABLED);
         lv_obj_add_state(ctx->remember_checkbox, LV_STATE_DISABLED);
     } else {
-        lv_obj_remove_flag(ctx->connect_button, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(ctx->connecting_spinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->connect_button, false);
+        lv_obj_set_hidden(ctx->connecting_spinner, true);
         lv_obj_remove_state(ctx->password_textarea, LV_STATE_DISABLED);
         lv_obj_remove_state(ctx->ssid_textarea, LV_STATE_DISABLED);
         lv_obj_remove_state(ctx->remember_checkbox, LV_STATE_DISABLED);
@@ -135,7 +135,7 @@ void updateView(Context* ctx) {
         setLoading(ctx, false);
         resetErrors(ctx);
         lv_label_set_text(ctx->connection_error, "Connection failed");
-        lv_obj_remove_flag(ctx->connection_error, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->connection_error, false);
     }
 }
 
@@ -150,7 +150,7 @@ void onConnectPressed(lv_event_t* event) {
     if (ssid_len > WIFI_SETTINGS_SSID_LIMIT) {
         LOG_E(TAG, "SSID too long");
         lv_label_set_text(ctx->ssid_error, "SSID too long");
-        lv_obj_remove_flag(ctx->ssid_error, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->ssid_error, false);
         return;
     }
 
@@ -159,7 +159,7 @@ void onConnectPressed(lv_event_t* event) {
     if (password_len > WIFI_SETTINGS_PASSWORD_LIMIT) {
         LOG_E(TAG, "Password too long");
         lv_label_set_text(ctx->password_error, "Password too long");
-        lv_obj_remove_flag(ctx->password_error, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->password_error, false);
         return;
     }
 
@@ -212,7 +212,7 @@ void createBottomButtons(Context* ctx, lv_obj_t* parent) {
     lv_obj_add_state(ctx->remember_checkbox, LV_STATE_CHECKED);
 
     ctx->connecting_spinner = lvgl_spinner_create(button_container);
-    lv_obj_add_flag(ctx->connecting_spinner, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->connecting_spinner, true);
 
     ctx->connect_button = lv_btn_create(button_container);
     auto* connect_label = lv_label_create(ctx->connect_button);
@@ -243,7 +243,7 @@ lv_obj_t* createRow(lv_obj_t* parent, const char* title) {
     lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(row, false);
     auto* label = lv_label_create(row);
     lv_label_set_text(label, title);
     lv_obj_set_flex_grow(label, 1);
@@ -261,7 +261,7 @@ lv_obj_t* createErrorLabel(lv_obj_t* parent) {
         lvgl_theme_get_settings(&theme_settings);
         lv_obj_set_style_text_color(label, theme_settings.color_error, LV_STATE_DEFAULT);
     }
-    lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(label, true);
     return label;
 }
 

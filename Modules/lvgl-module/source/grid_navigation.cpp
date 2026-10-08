@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <lvgl/grid_navigation.h>
 
-// Marks containers with grid navigation, so the keyboard sends them up and down keys
-constexpr lv_obj_flag_t GRID_NAVIGATION_FLAG = LV_OBJ_FLAG_USER_1;
-
 static void remove_from_group(lv_obj_t* child) {
     if (lv_obj_get_group(child) != nullptr) {
         lv_group_remove_obj(child);
@@ -21,7 +18,7 @@ static void on_child_created(lv_event_t* event) {
 
 // Matches which children grid navigation can focus
 static bool is_focusable(lv_obj_t* obj) {
-    return !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN) && lv_obj_has_flag(obj, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_CLICK_FOCUSABLE));
+    return !lv_obj_is_hidden(obj) && lv_obj_is_clickable(obj) && lv_obj_is_click_focusable(obj);
 }
 
 // Finds the next focusable child after (or before) the given index
@@ -138,7 +135,6 @@ void lvgl_grid_navigation_add(lv_obj_t* container) {
     // Added after grid navigation's own handler, so it runs after it
     lv_obj_add_event_cb(container, on_container_focused, LV_EVENT_FOCUSED, nullptr);
     lv_obj_add_event_cb(container, on_container_key, LV_EVENT_KEY, nullptr);
-    lv_obj_add_flag(container, GRID_NAVIGATION_FLAG);
 
     const uint32_t child_count = lv_obj_get_child_count(container);
     for (uint32_t i = 0; i < child_count; i++) {
@@ -164,7 +160,6 @@ void lvgl_grid_navigation_remove(lv_obj_t* container) {
     lv_obj_remove_event_cb(container, on_child_created);
     lv_obj_remove_event_cb(container, on_container_focused);
     lv_obj_remove_event_cb(container, on_container_key);
-    lv_obj_remove_flag(container, GRID_NAVIGATION_FLAG);
 
     if (group == nullptr) {
         return;
@@ -243,5 +238,16 @@ lv_obj_t* lvgl_grid_navigation_get_focused(lv_obj_t* container) {
 }
 
 bool lvgl_grid_navigation_is_container(const lv_obj_t* obj) {
-    return obj != nullptr && lv_obj_has_flag(obj, GRID_NAVIGATION_FLAG);
+    if (obj == nullptr) {
+        return false;
+    }
+    // Grid navigation containers are the objects with this module's focus handler
+    auto* container = const_cast<lv_obj_t*>(obj);
+    const uint32_t event_count = lv_obj_get_event_count(container);
+    for (uint32_t i = 0; i < event_count; i++) {
+        if (lv_event_dsc_get_cb(lv_obj_get_event_dsc(container, i)) == on_container_focused) {
+            return true;
+        }
+    }
+    return false;
 }

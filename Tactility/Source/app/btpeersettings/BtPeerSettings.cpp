@@ -49,12 +49,12 @@ bool isCurrentlyConnected(const Context* ctx) {
 
 void updateViews(const Context* ctx) {
     if (isCurrentlyConnected(ctx)) {
-        lv_obj_remove_flag(ctx->disconnectButton, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(ctx->connectButton, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->disconnectButton, false);
+        lv_obj_set_hidden(ctx->connectButton, true);
         lv_obj_remove_state(ctx->disconnectButton, LV_STATE_DISABLED);
     } else {
-        lv_obj_add_flag(ctx->disconnectButton, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(ctx->connectButton, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->disconnectButton, true);
+        lv_obj_set_hidden(ctx->connectButton, false);
         lv_obj_remove_state(ctx->connectButton, LV_STATE_DISABLED);
     }
 }
@@ -156,7 +156,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_size(auto_connect_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(auto_connect_wrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(auto_connect_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(auto_connect_wrapper, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(auto_connect_wrapper, false);
     lvgl::obj_set_style_bg_invisible(auto_connect_wrapper);
     lv_obj_set_style_pad_all(auto_connect_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(auto_connect_wrapper, 0, LV_STATE_DEFAULT);

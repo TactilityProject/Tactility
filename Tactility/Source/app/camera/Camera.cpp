@@ -71,7 +71,7 @@ static void anim_opa_cb(void* var, int32_t v) {
 
 static void toast_fade_out_ready_cb(lv_anim_t* a) {
     lv_obj_t* toast = (lv_obj_t*)a->var;
-    lv_obj_add_flag(toast, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(toast, true);
 }
 
 static void toastTimerCb(lv_timer_t *timer) {
@@ -101,7 +101,7 @@ static void showToast(Context* ctx, const char *text) {
     lv_anim_delete(ctx->toastLabel, anim_opa_cb);
 
     lv_label_set_text(ctx->toastLabel, text);
-    lv_obj_remove_flag(ctx->toastLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->toastLabel, false);
     lv_obj_move_foreground(ctx->toastLabel);
 
     lv_anim_t a;
@@ -361,7 +361,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->stopping.store(false);
 
-    lv_obj_remove_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(parent, false);
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
@@ -378,7 +378,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_height(main_wrapper, LV_PCT(100));
     lv_obj_set_style_pad_all(main_wrapper, 6, 0);
     lv_obj_set_style_border_width(main_wrapper, 0, 0);
-    lv_obj_remove_flag(main_wrapper, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(main_wrapper, false);
 
     ctx->previewContainer = lv_obj_create(main_wrapper);
     lv_obj_set_size(ctx->previewContainer, LV_PCT(100), LV_PCT(100));
@@ -386,7 +386,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(ctx->previewContainer, 0, 0);
     lv_obj_set_style_pad_all(ctx->previewContainer, 0, 0);
     lv_obj_set_style_radius(ctx->previewContainer, 0, 0);
-    lv_obj_remove_flag(ctx->previewContainer, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(ctx->previewContainer, false);
 
     ctx->previewCanvas = lv_canvas_create(ctx->previewContainer);
     lv_obj_set_style_bg_color(ctx->previewCanvas, lv_color_black(), 0);
@@ -406,7 +406,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_color(ctx->toastLabel, lv_color_hex(0x3B82F6), 0);
     lv_obj_set_style_shadow_width(ctx->toastLabel, 16, 0);
     lv_obj_set_style_shadow_color(ctx->toastLabel, lv_color_black(), 0);
-    lv_obj_add_flag(ctx->toastLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->toastLabel, true);
 
     lv_display_t* disp = lv_display_get_default();
     if (disp) {

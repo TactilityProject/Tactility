@@ -42,7 +42,7 @@ void onClosePressed(lv_event_t* event) {
 
 void onCanvasClicked(lv_event_t* event) {
     auto* toolbar = static_cast<lv_obj_t*>(lv_event_get_user_data(event));
-    lv_obj_set_flag(toolbar, LV_OBJ_FLAG_HIDDEN, !lv_obj_has_flag(toolbar, LV_OBJ_FLAG_HIDDEN));
+    lv_obj_set_hidden(toolbar, !lv_obj_is_hidden(toolbar));
 }
 
 void createWidgets(lv_obj_t* root, void* userData) {
@@ -60,10 +60,10 @@ void createWidgets(lv_obj_t* root, void* userData) {
     if (lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
         auto* toolbar = lvgl_toolbar_create(root, "Terminal");
         lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onClosePressed, ctx);
-        lv_obj_add_flag(toolbar, LV_OBJ_FLAG_FLOATING);
+        lv_obj_set_floating(toolbar, true);
         lv_obj_align(toolbar, LV_ALIGN_TOP_MID, 0, 0);
-        lv_obj_add_flag(toolbar, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(canvas, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_hidden(toolbar, true);
+        lv_obj_set_clickable(canvas, true);
         lv_obj_add_event_cb(canvas, onCanvasClicked, LV_EVENT_SHORT_CLICKED, toolbar);
     }
 

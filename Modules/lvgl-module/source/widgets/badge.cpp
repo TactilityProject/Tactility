@@ -5,9 +5,9 @@
 
 static void badge_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj) {
     LV_UNUSED(class_p);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(obj, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_set_clickable(obj, false);
+    lv_obj_set_scrollable(obj, false);
+    lv_obj_set_ignore_layout(obj, true);
 }
 
 // Not static: the theme styles badges by this class

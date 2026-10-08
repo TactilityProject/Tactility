@@ -247,7 +247,7 @@ static void textarea_hide_keyboard(lv_event_t* event) {
 
 void lvgl_software_keyboard_construct(LvglSoftwareKeyboard* keyboard, lv_obj_t* parent) {
     keyboard->object = lv_keyboard_create(parent);
-    lv_obj_add_flag(keyboard->object, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(keyboard->object, true);
     last_software_keyboard = *keyboard;
 }
 
@@ -262,13 +262,13 @@ void lvgl_software_keyboard_destruct(LvglSoftwareKeyboard* keyboard) {
 
 void lvgl_software_keyboard_show(LvglSoftwareKeyboard* keyboard, lv_obj_t* textarea) {
     assert(keyboard->object != nullptr);
-    lv_obj_clear_flag(keyboard->object, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(keyboard->object, false);
     lv_keyboard_set_textarea(keyboard->object, textarea);
 }
 
 void lvgl_software_keyboard_hide(LvglSoftwareKeyboard* keyboard) {
     assert(keyboard->object != nullptr);
-    lv_obj_add_flag(keyboard->object, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(keyboard->object, true);
 }
 
 bool lvgl_software_keyboard_is_enabled() {

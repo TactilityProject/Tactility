@@ -215,7 +215,8 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     set(CONFIG_LV_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
     set(CONFIG_LV_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     add_subdirectory(Libraries/lvgl) # Added as idf component for ESP and as library for other targets
-    target_link_libraries(lvgl PRIVATE SDL2-static)
+    # PUBLIC: lvgl.h includes the SDL driver headers when LV_USE_PRIVATE_API is set
+    target_link_libraries(lvgl PUBLIC SDL2-static)
 
     # Tests
     add_subdirectory(Tests)

@@ -319,7 +319,7 @@ static void hidHostMouseReadCb(lv_indev_t* /*indev*/, lv_indev_data_t* data) {
     if (!hid_host_mouse_active.load()) {
         hid_host_mouse_active.store(true);
         if (hid_host_ctx && hid_host_ctx->mouseCursor) {
-            lv_obj_remove_flag(hid_host_ctx->mouseCursor, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(hid_host_ctx->mouseCursor, false);
         }
     }
 }
@@ -353,8 +353,8 @@ static void hidHostHandleMouseReport(const uint8_t* data, uint16_t len) {
             lv_indev_set_type(ms, LV_INDEV_TYPE_POINTER);
             lv_indev_set_read_cb(ms, hidHostMouseReadCb);
             auto* cur = lv_image_create(lv_layer_sys());
-            lv_obj_remove_flag(cur, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_flag(cur, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_clickable(cur, false);
+            lv_obj_set_hidden(cur, true);
             lv_image_set_src(cur, TT_ASSETS_UI_CURSOR);
             lv_indev_set_cursor(ms, cur);
             hid_host_ctx->mouseIndev  = ms;

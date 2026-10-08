@@ -80,7 +80,7 @@ void updateScreenshotMode(Context* ctx) {
     for (uint32_t i = 0; i < chip_count; i++) {
         lv_obj_set_state(lv_obj_get_child(ctx->modeChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, MODE_OPTIONS[i].mode == ctx->mode);
     }
-    lv_obj_set_flag(ctx->delayRow, LV_OBJ_FLAG_HIDDEN, ctx->mode != CaptureMode::Timer);
+    lv_obj_set_hidden(ctx->delayRow, ctx->mode != CaptureMode::Timer);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -144,7 +144,7 @@ lv_obj_t* createRow(lv_obj_t* card, const char* title) {
     lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(row, false);
     lv_label_set_text(lv_label_create(row), title);
     return row;
 }

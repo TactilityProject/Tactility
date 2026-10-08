@@ -70,10 +70,10 @@ void updateVisibility(Context* ctx, bool accessPoint, bool openNetwork, bool aut
     for (uint32_t i = 0; i < chip_count; i++) {
         lv_obj_set_state(lv_obj_get_child(ctx->wifiModeChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, (i == 1) == accessPoint);
     }
-    lv_obj_set_flag(ctx->apGroup, LV_OBJ_FLAG_HIDDEN, !accessPoint);
-    lv_obj_set_flag(ctx->apPasswordRow, LV_OBJ_FLAG_HIDDEN, openNetwork);
-    lv_obj_set_flag(ctx->authCard, LV_OBJ_FLAG_HIDDEN, !authEnabled);
-    lv_obj_set_flag(ctx->urlCard, LV_OBJ_FLAG_HIDDEN, !serverEnabled);
+    lv_obj_set_hidden(ctx->apGroup, !accessPoint);
+    lv_obj_set_hidden(ctx->apPasswordRow, openNetwork);
+    lv_obj_set_hidden(ctx->authCard, !authEnabled);
+    lv_obj_set_hidden(ctx->urlCard, !serverEnabled);
 }
 
 void updateVisibility(Context* ctx) {
@@ -214,7 +214,7 @@ lv_obj_t* createGroup(lv_obj_t* parent) {
     lv_obj_set_style_pad_all(group, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(group, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(group, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(group, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(group, false);
     return group;
 }
 
@@ -227,7 +227,7 @@ lv_obj_t* createRow(lv_obj_t* parent, const char* title) {
     lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(row, false);
     auto* label = lv_label_create(row);
     lv_label_set_text(label, title);
     lv_obj_set_flex_grow(label, 1);

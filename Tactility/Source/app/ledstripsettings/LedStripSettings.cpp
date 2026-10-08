@@ -12,6 +12,7 @@
 #include <app/scheduler.h>
 
 #include <lvgl_window_manager/window_manager.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/sliderbox.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -82,9 +83,9 @@ void applyAndLog(Context& ctx) {
 void updateVisibility(Context& ctx) {
     const bool hasSecondary = ctx.settings.pattern != settings::ledstrip::Pattern::Solid;
     if (hasSecondary) {
-        lv_obj_remove_flag(ctx.secondaryRow, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx.secondaryRow, false);
     } else {
-        lv_obj_add_flag(ctx.secondaryRow, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx.secondaryRow, true);
     }
 }
 
@@ -93,9 +94,9 @@ void onNavigationPressed(lv_event_t* event);
 void returnToMain(Context& ctx) {
     ctx.page = Context::Page::Main;
     ctx.choiceKind = Context::ChoiceKind::None;
-    lv_obj_add_flag(ctx.choicePanel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(ctx.customPanel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(ctx.mainPanel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx.choicePanel, true);
+    lv_obj_set_hidden(ctx.customPanel, true);
+    lv_obj_set_hidden(ctx.mainPanel, false);
     lv_obj_update_layout(ctx.mainPanel);
     lvgl_toolbar_set_title(ctx.toolbar, "LED Strip");
     lvgl_toolbar_set_nav_action(ctx.toolbar, LV_SYMBOL_CLOSE, onNavigationPressed, &ctx);
@@ -117,11 +118,11 @@ void openCustomEditor(Context& ctx, bool secondary) {
     ctx.page = Context::Page::CustomColor;
     ctx.choiceKind = Context::ChoiceKind::None;
     ctx.editingSecondary = secondary;
-    lv_obj_add_flag(ctx.choicePanel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(ctx.mainPanel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(ctx.customPanel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(secondary ? ctx.primaryEditor : ctx.secondaryEditor, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(secondary ? ctx.secondaryEditor : ctx.primaryEditor, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx.choicePanel, true);
+    lv_obj_set_hidden(ctx.mainPanel, true);
+    lv_obj_set_hidden(ctx.customPanel, false);
+    lv_obj_set_hidden(secondary ? ctx.primaryEditor : ctx.secondaryEditor, true);
+    lv_obj_set_hidden(secondary ? ctx.secondaryEditor : ctx.primaryEditor, false);
     lvgl_toolbar_set_title(ctx.toolbar, secondary ? "Custom second color" : "Custom color");
     lvgl_toolbar_set_nav_action(ctx.toolbar, LV_SYMBOL_LEFT, onNavigationPressed, &ctx);
     lv_obj_update_layout(ctx.customPanel);
@@ -203,15 +204,15 @@ void openChoice(Context& ctx, Context::ChoiceKind kind, lv_obj_t* returnFocus) {
     const size_t selected = currentChoice(ctx);
     lv_obj_t* selectedButton = nullptr;
     for (size_t index = 0; index < choiceCount(kind); index++) {
-        auto* button = lv_list_add_button(ctx.choiceList, index == selected ? LV_SYMBOL_OK : nullptr, choiceName(kind, index));
+        auto* button = lvgl_list_add_button(ctx.choiceList, index == selected ? LV_SYMBOL_OK : nullptr, choiceName(kind, index));
         lv_obj_add_event_cb(button, onChoiceSelected, LV_EVENT_SHORT_CLICKED, &ctx);
         if (index == selected) selectedButton = button;
     }
 
     lvgl_toolbar_set_title(ctx.toolbar, choiceTitle(kind));
     lvgl_toolbar_set_nav_action(ctx.toolbar, LV_SYMBOL_LEFT, onNavigationPressed, &ctx);
-    lv_obj_add_flag(ctx.mainPanel, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(ctx.choicePanel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx.mainPanel, true);
+    lv_obj_set_hidden(ctx.choicePanel, false);
     if (selectedButton != nullptr) {
         lv_group_focus_obj(selectedButton);
     }
@@ -286,7 +287,7 @@ lv_obj_t* createRow(lv_obj_t* parent, const char* title) {
     lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(row, false);
     auto* label = lv_label_create(row);
     lv_label_set_text(label, title);
     lv_obj_set_flex_grow(label, 1);
@@ -339,14 +340,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_grow(ctx->mainPanel, 1);
     lv_obj_set_flex_flow(ctx->mainPanel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(ctx->mainPanel, 2, LV_STATE_DEFAULT);
-    lv_obj_add_flag(ctx->mainPanel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(ctx->mainPanel, true);
 
     ctx->customPanel = lv_obj_create(parent);
     lv_obj_set_style_border_width(ctx->customPanel, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(ctx->customPanel, LV_PCT(100));
     lv_obj_set_flex_grow(ctx->customPanel, 1);
     lv_obj_set_flex_flow(ctx->customPanel, LV_FLEX_FLOW_COLUMN);
-    lv_obj_add_flag(ctx->customPanel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->customPanel, true);
 
     auto* outputRow = createRow(ctx->mainPanel, "Output");
     auto* outputSwitch = lv_switch_create(outputRow);
@@ -370,7 +371,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_add_event_cb(primaryButton, onPrimaryColorPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
     createRgbEditor(ctx->customPanel, "Red / Green / Blue", ctx->settings.primaryCustom, ctx->primarySliderBoxes, ctx, true);
-    lv_obj_add_flag(ctx->primaryEditor, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->primaryEditor, true);
 
     ctx->secondaryRow = createRow(ctx->mainPanel, "Second color");
     auto* secondaryButton = lv_button_create(ctx->secondaryRow);
@@ -381,7 +382,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_add_event_cb(secondaryButton, onSecondaryColorPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
     createRgbEditor(ctx->customPanel, "Red / Green / Blue", ctx->settings.secondaryCustom, ctx->secondarySliderBoxes, ctx, false);
-    lv_obj_add_flag(ctx->secondaryEditor, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->secondaryEditor, true);
 
     auto* brightnessRow = createRow(ctx->mainPanel, "Brightness");
     ctx->brightnessValue = lv_label_create(brightnessRow);
@@ -395,8 +396,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_width(ctx->choicePanel, LV_PCT(100));
     lv_obj_set_flex_grow(ctx->choicePanel, 1);
     lv_obj_set_flex_flow(ctx->choicePanel, LV_FLEX_FLOW_COLUMN);
-    lv_obj_add_flag(ctx->choicePanel, LV_OBJ_FLAG_HIDDEN);
-    ctx->choiceList = lv_list_create(ctx->choicePanel);
+    lv_obj_set_hidden(ctx->choicePanel, true);
+    ctx->choiceList = lvgl_list_create(ctx->choicePanel);
     lv_obj_set_width(ctx->choiceList, LV_PCT(100));
     lv_obj_set_flex_grow(ctx->choiceList, 1);
 

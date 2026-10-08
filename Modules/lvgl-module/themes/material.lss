@@ -34,6 +34,9 @@
 @widget badge: lvgl_badge_class;
 @widget page_indicator: lvgl_page_indicator_class;
 @widget page_indicator_dot: lvgl_page_indicator_dot_class;
+@widget flex_list: lvgl_list_class;
+@widget flex_list_text: lvgl_list_text_class;
+@widget flex_list_button: lvgl_list_button_class;
 
 // ============================================================
 // 1. Base tokens
@@ -1599,6 +1602,25 @@ apply(list_text) {
 }
 
 apply(list_button) {
+    list_item: default;
+    transition_exit: default;
+    state_pressed: state.pressed;
+    transition_enter: state.pressed;
+    list_item_focused: state.focusKey;
+    disabled: state.disabled;
+}
+
+apply(flex_list) {
+    list: default;
+    scrollbar: part.scrollbar;
+    scrollbar_scrolled: part.scrollbar, state.scrolled;
+}
+
+apply(flex_list_text) {
+    list_subheader: default;
+}
+
+apply(flex_list_button) {
     list_item: default;
     transition_exit: default;
     state_pressed: state.pressed;

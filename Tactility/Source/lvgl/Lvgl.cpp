@@ -80,7 +80,7 @@ static lv_obj_t* windowManagerScreenInit(lv_obj_t* root) {
     lv_obj_set_style_bg_opa(vertical_container, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(vertical_container, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_radius(vertical_container, 0, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(vertical_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(vertical_container, false);
 
     // The statusbar fits itself into the top of round and rounded displays
     auto* statusbar = lvgl::statusbar_create(vertical_container);
@@ -91,7 +91,7 @@ static lv_obj_t* windowManagerScreenInit(lv_obj_t* root) {
     lv_obj_set_width(app_container, LV_PCT(100));
     lv_obj_set_flex_grow(app_container, 1);
     lv_obj_set_flex_flow(app_container, LV_FLEX_FLOW_COLUMN);
-    lv_obj_remove_flag(app_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(app_container, false);
 
     // Keeps the apps inside the visible area of round displays.
     // On rounded displays, the widgets along the edges move their content inward from the corners instead.

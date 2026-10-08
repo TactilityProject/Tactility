@@ -110,7 +110,7 @@ void DisplayIdleService::activateScreensaver() {
     lv_obj_set_pos(screensaverOverlay, 0, 0);
     lv_obj_set_style_bg_color(screensaverOverlay, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(screensaverOverlay, LV_OPA_COVER, 0);
-    lv_obj_add_flag(screensaverOverlay, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_clickable(screensaverOverlay, true);
     lv_obj_add_event_cb(screensaverOverlay, stopScreensaverCb, LV_EVENT_CLICKED, this);
 
     // Create and start the screensaver based on settings

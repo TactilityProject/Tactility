@@ -124,7 +124,7 @@ void appNotesEventCb(lv_event_t* e) {
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
-    lv_obj_remove_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(parent, false);
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
@@ -148,7 +148,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_all(wrapper, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_row(wrapper, 0, LV_PART_MAIN);
     lv_obj_set_style_border_width(wrapper, 0, LV_PART_MAIN);
-    lv_obj_remove_flag(wrapper, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(wrapper, false);
 
     ctx->uiNoteText = lv_textarea_create(wrapper);
     lv_obj_set_width(ctx->uiNoteText, LV_PCT(100));
@@ -174,7 +174,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_width(footer, LV_PCT(100));
     lv_obj_set_height(footer, LV_PCT(14));
     lv_obj_set_style_pad_all(footer, 0, LV_PART_MAIN);
-    lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(footer, false);
 
     ctx->uiCurrentFileName = lv_label_create(footer);
     lv_label_set_long_mode(ctx->uiCurrentFileName, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);

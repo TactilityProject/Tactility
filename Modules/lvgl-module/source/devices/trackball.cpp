@@ -60,15 +60,15 @@ static void show_cursor(LvglTrackballCtx* ctx, lv_indev_t* indev) {
         if (ctx->cursor == nullptr) {
             return;
         }
-        lv_obj_remove_flag(ctx->cursor, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_clickable(ctx->cursor, false);
         lv_indev_set_cursor(indev, ctx->cursor);
     }
 
     lv_image_set_src(ctx->cursor, ctx->cursor_image_src);
     if (ctx->settings.enabled) {
-        lv_obj_remove_flag(ctx->cursor, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->cursor, false);
     } else {
-        lv_obj_add_flag(ctx->cursor, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->cursor, true);
     }
 }
 
@@ -77,7 +77,7 @@ static void hide_cursor(LvglTrackballCtx* ctx) {
     if (ctx->cursor == nullptr) {
         return;
     }
-    lv_obj_add_flag(ctx->cursor, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->cursor, true);
 }
 
 // Reports one key event per read: the button as the enter key, and movement as arrow key presses along its strongest axis.
@@ -280,9 +280,9 @@ error_t lvgl_trackball_set_settings(lv_indev_t* indev, const struct LvglTrackbal
     // hide_cursor() just hid above (enabled is independent of mode, and defaults to true).
     if (ctx->cursor != nullptr && ctx->settings.mode == LVGL_TRACKBALL_MODE_POINTER) {
         if (ctx->settings.enabled) {
-            lv_obj_remove_flag(ctx->cursor, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(ctx->cursor, false);
         } else {
-            lv_obj_add_flag(ctx->cursor, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(ctx->cursor, true);
         }
     }
 

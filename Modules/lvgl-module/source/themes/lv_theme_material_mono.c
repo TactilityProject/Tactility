@@ -18,6 +18,9 @@ extern const lv_obj_class_t lvgl_chip_class;
 extern const lv_obj_class_t lvgl_badge_class;
 extern const lv_obj_class_t lvgl_page_indicator_class;
 extern const lv_obj_class_t lvgl_page_indicator_dot_class;
+extern const lv_obj_class_t lvgl_list_class;
+extern const lv_obj_class_t lvgl_list_text_class;
+extern const lv_obj_class_t lvgl_list_button_class;
 
 #define BLACK lv_color_black()
 #define WHITE lv_color_white()
@@ -312,15 +315,9 @@ typedef struct {
 #if LV_USE_BUTTONMATRIX || LV_USE_KEYBOARD
     lv_style_t key;
 #endif
-#if LV_USE_LIST
     lv_style_t list;
-#endif
-#if LV_USE_LIST
     lv_style_t list_item;
-#endif
-#if LV_USE_LIST
     lv_style_t list_subheader;
-#endif
 #if LV_USE_TABVIEW
     lv_style_t tabs;
 #endif
@@ -858,7 +855,6 @@ static void style_init(my_theme_t * theme)
     lv_style_set_radius(&theme->styles.key, KEY_SHAPE);
 #endif
 
-#if LV_USE_LIST
     style_init_reset(&theme->styles.list);
     lv_style_set_bg_color(&theme->styles.list, COLOR_SURFACE);
     lv_style_set_bg_opa(&theme->styles.list, LV_OPA_COVER);
@@ -869,9 +865,7 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_ver(&theme->styles.list, LIST_PAD);
     lv_style_set_pad_gap(&theme->styles.list, 0);
     lv_style_set_clip_corner(&theme->styles.list, true);
-#endif
 
-#if LV_USE_LIST
     style_init_reset(&theme->styles.list_item);
     lv_style_set_bg_opa(&theme->styles.list_item, LV_OPA_TRANSP);
     lv_style_set_text_color(&theme->styles.list_item, COLOR_ON_SURFACE);
@@ -882,16 +876,13 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_hor(&theme->styles.list_item, LIST_ITEM_PAD_HOR);
     lv_style_set_pad_ver(&theme->styles.list_item, LIST_ITEM_PAD_VER);
     lv_style_set_pad_column(&theme->styles.list_item, LIST_ITEM_GAP);
-#endif
 
-#if LV_USE_LIST
     style_init_reset(&theme->styles.list_subheader);
     lv_style_set_text_font(&theme->styles.list_subheader, theme->config.font_small);
     lv_style_set_text_decor(&theme->styles.list_subheader, LV_TEXT_DECOR_UNDERLINE);
     lv_style_set_pad_hor(&theme->styles.list_subheader, LIST_ITEM_PAD_HOR);
     lv_style_set_pad_top(&theme->styles.list_subheader, LIST_ITEM_PAD_VER);
     lv_style_set_pad_bottom(&theme->styles.list_subheader, LIST_PAD);
-#endif
 
 #if LV_USE_TABVIEW
     style_init_reset(&theme->styles.tabs);
@@ -1662,6 +1653,25 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         return;
     }
 #endif
+    if(lv_obj_check_type(obj, &lvgl_list_class)) {
+        /* flex_list */
+        lv_obj_add_style(obj, &theme->styles.list, 0);
+        lv_obj_add_style(obj, &theme->styles.scrollbar, LV_PART_SCROLLBAR);
+        return;
+    }
+    if(lv_obj_check_type(obj, &lvgl_list_text_class)) {
+        /* flex_list_text */
+        lv_obj_add_style(obj, &theme->styles.list_subheader, 0);
+        return;
+    }
+    if(lv_obj_check_type(obj, &lvgl_list_button_class)) {
+        /* flex_list_button */
+        lv_obj_add_style(obj, &theme->styles.list_item, 0);
+        lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
+        return;
+    }
 #if LV_USE_TABLE
     if(lv_obj_check_type(obj, &lv_table_class)) {
         /* table */

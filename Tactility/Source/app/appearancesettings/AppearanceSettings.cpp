@@ -171,9 +171,9 @@ size_t getCharacterCount(const std::string& path) {
 
 void setHidden(lv_obj_t* object, bool hidden) {
     if (hidden) {
-        lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(object, true);
     } else {
-        lv_obj_remove_flag(object, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(object, false);
     }
 }
 
@@ -459,7 +459,7 @@ lv_obj_t* createRow(lv_obj_t* parent) {
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(row, lv_obj_get_style_pad_column(parent, LV_PART_MAIN), LV_STATE_DEFAULT);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(row, false);
     return row;
 }
 
@@ -500,8 +500,8 @@ ColorRowWidgets createColorRow(lv_obj_t* parent, size_t index, Context* ctx) {
     // The colour preview: its colour is the setting, its border uses the theme's text colour
     widgets.swatch = lv_obj_create(widgets.row);
     lv_obj_remove_style_all(widgets.swatch);
-    lv_obj_remove_flag(widgets.swatch, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_remove_flag(widgets.swatch, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_scrollable(widgets.swatch, false);
+    lv_obj_set_clickable(widgets.swatch, false);
     lv_obj_set_style_bg_opa(widgets.swatch, LV_OPA_COVER, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(widgets.swatch, 1, LV_STATE_DEFAULT);
     lv_obj_set_style_border_color(widgets.swatch, lv_obj_get_style_text_color(widgets.swatch, LV_PART_MAIN), LV_STATE_DEFAULT);
@@ -586,7 +586,7 @@ FontRowWidgets createFontRow(lv_obj_t* parent, const char* title, lv_event_cb_t 
     lv_obj_set_height(texts, LV_SIZE_CONTENT);
     lv_obj_set_flex_grow(texts, 1);
     lv_obj_set_flex_flow(texts, LV_FLEX_FLOW_COLUMN);
-    lv_obj_remove_flag(texts, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(texts, false);
 
     auto* label = lv_label_create(texts);
     lv_obj_set_width(label, LV_PCT(100));

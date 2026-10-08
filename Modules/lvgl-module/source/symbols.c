@@ -17,6 +17,7 @@
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/icon_button.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/page_indicator.h>
 #include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/toolbar.h>
@@ -25,6 +26,8 @@
 
 #include <lvgl.h>
 
+// Deprecated LVGL functions stay exported for existing apps
+LV_DEPRECATIONS_IGNORE_BEGIN
 const struct ModuleSymbol lvgl_module_symbols[] = {
     // lvgl_module
     DEFINE_MODULE_SYMBOL(lvgl_lock),
@@ -94,6 +97,10 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lvgl_icon_button
     DEFINE_MODULE_SYMBOL(lvgl_icon_button_create),
     DEFINE_MODULE_SYMBOL(lvgl_icon_button_create_variant),
+    // lvgl_list
+    DEFINE_MODULE_SYMBOL(lvgl_list_create),
+    DEFINE_MODULE_SYMBOL(lvgl_list_add_text),
+    DEFINE_MODULE_SYMBOL(lvgl_list_add_button),
     // lvgl_spinner
     DEFINE_MODULE_SYMBOL(lvgl_spinner_create),
     // lvgl_toolbar
@@ -167,6 +174,26 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_obj_is_valid),
     DEFINE_MODULE_SYMBOL(lv_obj_remove_event_cb),
     DEFINE_MODULE_SYMBOL(lv_obj_remove_flag),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_hidden),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_hidden),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_clickable),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_clickable),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_click_focusable),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_click_focusable),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_checkable),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_checkable),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_scrollable),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_scrollable),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_scroll_on_focus),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_scroll_on_focus),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_ignore_layout),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_ignore_layout),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_floating),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_floating),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_event_bubble),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_event_bubble),
+    DEFINE_MODULE_SYMBOL(lv_obj_set_gesture_bubble),
+    DEFINE_MODULE_SYMBOL(lv_obj_is_gesture_bubble),
     DEFINE_MODULE_SYMBOL(lv_obj_remove_state),
     DEFINE_MODULE_SYMBOL(lv_obj_set_pos),
     DEFINE_MODULE_SYMBOL(lv_obj_set_flex_align),
@@ -584,3 +611,4 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_area_get_height),
     MODULE_SYMBOL_TERMINATOR,
 };
+LV_DEPRECATIONS_IGNORE_END

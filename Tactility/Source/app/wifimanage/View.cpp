@@ -9,6 +9,7 @@
 #include <Tactility/Tactility.h>
 
 #include <app/event.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <tactility/log.h>
@@ -120,7 +121,7 @@ static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
     lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
 
     // The card provides the background
-    auto* list = lv_list_create(card);
+    auto* list = lvgl_list_create(card);
     lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
@@ -129,13 +130,13 @@ static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
 
 void View::createSsidListItem(lv_obj_t* list, const WifiApRecord& record, bool isConnecting, size_t index) {
     if (isConnecting) {
-        auto* button = lv_list_add_button(list, LV_SYMBOL_WIFI, record.ssid);
+        auto* button = lvgl_list_add_button(list, LV_SYMBOL_WIFI, record.ssid);
         lv_obj_add_event_cb(button, showDetails, LV_EVENT_SHORT_CLICKED, this);
     } else {
         const std::string auth_info = (record.authentication_type == WIFI_AUTHENTICATION_TYPE_OPEN) ? "(open) " : " ";
         const auto percentage = mapRssiToPercentage(record.rssi);
         const auto label = std::format("{} {}{}%", std::string(record.ssid), auth_info, percentage);
-        auto* button = lv_list_add_button(list, nullptr, label.c_str());
+        auto* button = lvgl_list_add_button(list, nullptr, label.c_str());
         lv_obj_set_user_data(button, reinterpret_cast<void*>(index));
         if (wifi_settings_contains(record.ssid)) {
             lv_obj_add_event_cb(button, showDetails, LV_EVENT_SHORT_CLICKED, this);
@@ -151,9 +152,9 @@ void View::updateConnectToHidden() {
     }
 
     if (state->getRadioState() == WIFI_RADIO_STATE_ON) {
-        lv_obj_remove_flag(connect_to_hidden, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(connect_to_hidden, false);
     } else {
-        lv_obj_add_flag(connect_to_hidden, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(connect_to_hidden, true);
     }
 }
 
@@ -169,7 +170,7 @@ void View::updateNetworkList() {
     lv_obj_set_style_bg_opa(enable_on_boot_wrapper, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(enable_on_boot_wrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(enable_on_boot_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(enable_on_boot_wrapper, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(enable_on_boot_wrapper, false);
 
     auto* enable_label = lv_label_create(enable_on_boot_wrapper);
     lv_label_set_text(enable_label, "Enable on boot");
@@ -222,13 +223,13 @@ void View::updateNetworkList() {
                         used_ssids.insert(record.ssid);
                     }
                 }
-                lv_obj_clear_flag(networks_list, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_set_hidden(networks_list, false);
             } else if (!state->hasScannedAfterRadioOn() || state->isScanning()) {
                 // hasScannedAfterRadioOn() prevents briefly showing "No networks found" when turning radio on.
-                lv_obj_add_flag(networks_list, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_set_hidden(networks_list, true);
             } else {
-                lv_obj_clear_flag(networks_list, LV_OBJ_FLAG_HIDDEN);
-                lv_list_add_text(networks_section, "No networks found.");
+                lv_obj_set_hidden(networks_list, false);
+                lvgl_list_add_text(networks_section, "No networks found.");
             }
 
             connect_to_hidden = lv_button_create(networks_list);
@@ -250,9 +251,9 @@ void View::updateNetworkList() {
 
 void View::updateScanning() {
     if (state->getRadioState() == WIFI_RADIO_STATE_ON && state->getStationState() == WIFI_STATION_STATE_DISCONNECTED && state->isScanning()) {
-        lv_obj_remove_flag(scanning_spinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(scanning_spinner, false);
     } else {
-        lv_obj_add_flag(scanning_spinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(scanning_spinner, true);
     }
 }
 

@@ -156,9 +156,9 @@ void setCheckedChip(lv_obj_t* chips, settings::display::Orientation orientation)
 /** Shows the manual orientation or the sensor mounting, depending on whether auto-rotate is on */
 void updateOrientationVisibility(Context* ctx) {
     const bool auto_rotate = ctx->autoRotateSwitch != nullptr && ctx->displaySettings.autoRotateEnabled;
-    lv_obj_set_flag(ctx->orientationGroup, LV_OBJ_FLAG_HIDDEN, auto_rotate);
+    lv_obj_set_hidden(ctx->orientationGroup, auto_rotate);
     if (ctx->mountRotationGroup != nullptr) {
-        lv_obj_set_flag(ctx->mountRotationGroup, LV_OBJ_FLAG_HIDDEN, !auto_rotate);
+        lv_obj_set_hidden(ctx->mountRotationGroup, !auto_rotate);
     }
 }
 
@@ -203,7 +203,7 @@ lv_obj_t* createCardGroup(lv_obj_t* card, const char* title) {
     lv_obj_set_style_bg_opa(group, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(group, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(group, 0, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(group, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(group, false);
 
     auto* label = lv_label_create(group);
     lv_label_set_text(label, title);
@@ -248,7 +248,7 @@ void onTimeoutSwitch(lv_event_t* event) {
     ctx->displaySettings.backlightTimeoutEnabled = enabled;
     ctx->displaySettingsUpdated = true;
     if (ctx->timeoutCard) {
-        lv_obj_set_flag(ctx->timeoutCard, LV_OBJ_FLAG_HIDDEN, !enabled);
+        lv_obj_set_hidden(ctx->timeoutCard, !enabled);
     }
 }
 
@@ -330,7 +330,7 @@ lv_obj_t* createValueRow(lv_obj_t* card, const char* title, lv_event_cb_t onChan
     lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
     // The card provides the background
     lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(row, false);
 
     auto* title_label = lv_label_create(row);
     lv_label_set_text(title_label, title);
@@ -396,7 +396,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_flex_align(auto_rotate_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_border_width(auto_rotate_row, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_pad_all(auto_rotate_row, 0, LV_STATE_DEFAULT);
-        lv_obj_remove_flag(auto_rotate_row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scrollable(auto_rotate_row, false);
 
         auto* auto_rotate_label = lv_label_create(auto_rotate_row);
         lv_label_set_text(auto_rotate_label, "Auto-rotate");
@@ -435,7 +435,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_flex_align(timeout_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_all(timeout_wrapper, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(timeout_wrapper, 0, LV_STATE_DEFAULT);
-        lv_obj_remove_flag(timeout_wrapper, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scrollable(timeout_wrapper, false);
 
         auto* timeout_label = lv_label_create(timeout_wrapper);
         lv_label_set_text(timeout_label, "Auto screen off");
@@ -450,7 +450,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         auto* timeout_card = lvgl_card_create(main_wrapper);
         lv_obj_set_size(timeout_card, LV_PCT(100), LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(timeout_card, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flag(timeout_card, LV_OBJ_FLAG_HIDDEN, !ctx->displaySettings.backlightTimeoutEnabled);
+        lv_obj_set_hidden(timeout_card, !ctx->displaySettings.backlightTimeoutEnabled);
         ctx->timeoutCard = timeout_card;
 
         ctx->timeoutValueLabel = createValueRow(timeout_card, "Timeout", onChangeTimeoutPressed, ctx);

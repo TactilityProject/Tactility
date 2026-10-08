@@ -42,7 +42,7 @@ static void anim_rotation_callback(void* var, int32_t v) {
 }
 
 static void spinner_constructor(const lv_obj_class_t* object_class, lv_obj_t* object) {
-    lv_obj_remove_flag(object, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_clickable(object, false);
 
     lv_anim_t a;
     lv_anim_init(&a);

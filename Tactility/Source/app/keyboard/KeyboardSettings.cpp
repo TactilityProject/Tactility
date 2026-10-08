@@ -132,7 +132,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_size(bl_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(bl_wrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(bl_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(bl_wrapper, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(bl_wrapper, false);
     lv_obj_set_style_pad_all(bl_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(bl_wrapper, 0, LV_STATE_DEFAULT);
 
@@ -165,7 +165,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_size(to_enable_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(to_enable_wrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(to_enable_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(to_enable_wrapper, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(to_enable_wrapper, false);
     lv_obj_set_style_pad_all(to_enable_wrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(to_enable_wrapper, 0, LV_STATE_DEFAULT);
 

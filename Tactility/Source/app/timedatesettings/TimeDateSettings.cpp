@@ -119,7 +119,7 @@ lv_obj_t* createTitleAndValue(lv_obj_t* row, const char* title) {
     lv_obj_set_style_pad_row(texts, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(texts, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(texts, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(texts, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(texts, false);
 
     auto* title_label = lv_label_create(texts);
     lv_obj_set_width(title_label, LV_PCT(100));
@@ -162,7 +162,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(time_format_row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(time_format_row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(time_format_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(time_format_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(time_format_row, false);
 
     auto* time_24h_label = lv_label_create(time_format_row);
     lv_label_set_text(time_24h_label, "24-hour format");
@@ -185,7 +185,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(date_format_row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(date_format_row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(date_format_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(date_format_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(date_format_row, false);
 
     ctx->dateFormatLabel = createTitleAndValue(date_format_row, "Date format");
     lv_label_set_text(ctx->dateFormatLabel, getDateFormat().c_str());
@@ -203,7 +203,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(timezone_row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(timezone_row, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(timezone_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_remove_flag(timezone_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(timezone_row, false);
 
     ctx->timeZoneLabel = createTitleAndValue(timezone_row, "Timezone");
     std::string timeZoneName = settings::getTimeZoneName();

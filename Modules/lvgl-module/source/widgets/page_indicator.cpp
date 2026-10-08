@@ -13,23 +13,23 @@ static void on_style_changed(lv_event_t* event) {
 
 static void page_indicator_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj) {
     LV_UNUSED(class_p);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_clickable(obj, false);
+    lv_obj_set_scrollable(obj, false);
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     // Shows the page numbers instead of the dots when they don't fit in the indicator's maximum width
     lv_obj_t* label = lv_label_create(obj);
     // One line, so the indicator's height doesn't change with its width
     lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_CLIP);
-    lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(label, true);
     // A change of the maximum width can switch between dots and numbers
     lv_obj_add_event_cb(obj, on_style_changed, LV_EVENT_STYLE_CHANGED, nullptr);
 }
 
 static void page_indicator_dot_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj) {
     LV_UNUSED(class_p);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_clickable(obj, false);
+    lv_obj_set_scrollable(obj, false);
 }
 
 // Not static: the theme styles page indicators and their dots by these classes
@@ -87,11 +87,11 @@ static void refresh(lv_obj_t* obj) {
     const bool show_numbers = dots_width > lv_obj_get_style_max_width(obj, LV_PART_MAIN);
 
     lv_obj_t* label = get_label(obj);
-    lv_obj_set_flag(label, LV_OBJ_FLAG_HIDDEN, !show_numbers);
+    lv_obj_set_hidden(label, !show_numbers);
     uint32_t page = 0;
     for (uint32_t i = 0; i < count; i++) {
         lv_obj_t* dot = get_dot(obj, i);
-        lv_obj_set_flag(dot, LV_OBJ_FLAG_HIDDEN, show_numbers);
+        lv_obj_set_hidden(dot, show_numbers);
         if (lv_obj_has_state(dot, LV_STATE_CHECKED)) {
             page = i;
         }

@@ -183,7 +183,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lv_obj_set_height(switch_container, LV_SIZE_CONTENT);
             lv_obj_set_flex_flow(switch_container, LV_FLEX_FLOW_ROW);
             lv_obj_set_flex_align(switch_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_remove_flag(switch_container, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_scrollable(switch_container, false);
             lv_obj_set_style_pad_all(switch_container, 0, 0);
             lv_obj_set_style_pad_gap(switch_container, 0, 0);
             lvgl::obj_set_style_bg_invisible(switch_container);
@@ -205,7 +205,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lv_obj_set_height(qc_container, LV_SIZE_CONTENT);
             lv_obj_set_flex_flow(qc_container, LV_FLEX_FLOW_ROW);
             lv_obj_set_flex_align(qc_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_remove_flag(qc_container, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_scrollable(qc_container, false);
             lv_obj_set_style_pad_all(qc_container, 0, 0);
             lv_obj_set_style_pad_gap(qc_container, 0, 0);
             lvgl::obj_set_style_bg_invisible(qc_container);

@@ -193,7 +193,7 @@ static void addMouseIndev(UsbHidInputCtx* ctx) {
     lv_indev_set_user_data(ctx->mouse_indev, ctx);
     if (ctx->mouse_cursor != nullptr) {
         lv_indev_set_cursor(ctx->mouse_indev, ctx->mouse_cursor);
-        lv_obj_remove_flag(ctx->mouse_cursor, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->mouse_cursor, false);
     }
 }
 
@@ -203,7 +203,7 @@ static void removeMouseIndev(UsbHidInputCtx* ctx) {
         ctx->mouse_indev = nullptr;
     }
     if (ctx->mouse_cursor != nullptr) {
-        lv_obj_add_flag(ctx->mouse_cursor, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->mouse_cursor, true);
     }
 }
 
@@ -385,9 +385,9 @@ void startUsbHidInput() {
     lv_obj_t* sys_layer = lv_layer_sys();
     if (sys_layer != nullptr) {
         ctx->mouse_cursor = lv_image_create(sys_layer);
-        lv_obj_remove_flag(ctx->mouse_cursor, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_clickable(ctx->mouse_cursor, false);
         lv_image_set_src(ctx->mouse_cursor, TT_ASSETS_UI_CURSOR);
-        lv_obj_add_flag(ctx->mouse_cursor, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(ctx->mouse_cursor, true);
     }
     lvgl_unlock();
 
