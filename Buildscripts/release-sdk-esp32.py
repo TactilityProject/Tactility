@@ -104,9 +104,10 @@ def main():
         # lvgl (basics)
         {'src': 'build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a', 'dst': 'Libraries/lvgl/binary/liblvgl.a'},
         {'src': 'Libraries/lvgl/lvgl.h', 'dst': 'Libraries/lvgl/include/'},
-        {'src': 'Libraries/lvgl/lv_version.h', 'dst': 'Libraries/lvgl/include/'},
+        {'src': 'Libraries/lvgl/lvgl_private.h', 'dst': 'Libraries/lvgl/include/'},
+        {'src': 'Libraries/lvgl/include/**/*.h', 'dst': 'Libraries/lvgl/include/include/'},
         {'src': 'Libraries/lvgl/LICENCE*.*', 'dst': 'Libraries/lvgl/'},
-        {'src': 'Libraries/lvgl/src/lv_conf_kconfig.h', 'dst': 'Libraries/lvgl/include/lv_conf.h'},
+        {'src': 'Libraries/lvgl/include/lvgl/config/lv_conf_kconfig.h', 'dst': 'Libraries/lvgl/include/lv_conf.h'},
         {'src': 'Libraries/lvgl/src/**/*.h', 'dst': 'Libraries/lvgl/include/src/'},
         # elf_loader
         {'src': 'managed_components/espressif__elf_loader/*.cmake', 'dst': 'Libraries/elf_loader/'},
