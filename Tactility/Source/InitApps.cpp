@@ -81,7 +81,6 @@ namespace app {
 #ifdef ESP_PLATFORM
     namespace apwebserver { extern const ::AppManifest manifest; }
     namespace camera { extern const ::AppManifest manifest; }
-    namespace crashdiagnostics { extern const ::AppManifest manifest; }
 #if CONFIG_TT_TDECK_WORKAROUND == 1
     namespace keyboardsettings { extern const ::AppManifest manifest; } // T-Deck only for now
 #endif
@@ -152,7 +151,6 @@ static void registerInternalApps() {
     if (device_exists_of_type(&CAMERA_TYPE)) {
         app_manager_add(&app::camera::manifest);
     }
-    app_manager_add(&app::crashdiagnostics::manifest);
 #if defined(CONFIG_TT_TDECK_WORKAROUND)
         app_manager_add(&app::keyboardsettings::manifest);
 #endif

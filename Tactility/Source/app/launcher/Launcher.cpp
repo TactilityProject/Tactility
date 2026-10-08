@@ -221,13 +221,4 @@ extern const ::AppManifest manifest = {
     .stack = { .depth = 5120, .desired_memory_capability = 0 }
 };
 
-// Kept for Tactility/Private/Tactility/app/launcher/Launcher.h's existing declaration (still
-// used by the old, unconverted CrashDiagnostics app to return to the launcher after a crash).
-uint32_t start() {
-    uint32_t instance_id = 0;
-    AppStartContext context = app_start_context_for_manifest(&manifest);
-    app_start_with_context(&context, &instance_id);
-    return instance_id;
-}
-
 } // namespace

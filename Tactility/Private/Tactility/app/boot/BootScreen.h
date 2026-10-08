@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -30,6 +32,12 @@ class BootScreen {
     int logicalWidth() const { return (rotation % 2 == 0) ? panelWidth : panelHeight; }
     int logicalHeight() const { return (rotation % 2 == 0) ? panelHeight : panelWidth; }
 
+    /** @return true when the image has a pixel at (x, y), with its colour as RGB565 */
+    using ImagePixel = std::function<bool(int x, int y, uint16_t& color)>;
+
+    /** Draws an image with text lines below it, centered on a black background */
+    void draw(int imageWidth, int imageHeight, const ImagePixel& imagePixel, const std::vector<std::string>& lines);
+
 public:
 
     ~BootScreen();
@@ -49,6 +57,14 @@ public:
      * @param[in] lines text lines, wrapped when they're too long for the display
      */
     void show(const std::string& logoPath, const std::vector<std::string>& lines);
+
+    /**
+     * Shows a QR code with text lines below it, centered on a black background. The set modules are white.
+     * @param[in] moduleCount the width and height of the QR code in modules
+     * @param[in] isModuleSet whether the module at (x, y) is set
+     * @param[in] lines text lines, wrapped when they're too long for the display
+     */
+    void showQrCode(int moduleCount, const std::function<bool(int x, int y)>& isModuleSet, const std::vector<std::string>& lines);
 };
 
 /**

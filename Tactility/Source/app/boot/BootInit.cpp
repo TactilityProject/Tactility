@@ -187,13 +187,6 @@ void waitForInputAndReboot() {
 }
 
 void startNextApp() {
-#ifdef ESP_PLATFORM
-    if (esp_reset_reason() == ESP_RST_PANIC) {
-        crashdiagnostics::start(); // fire-and-forget; no result expected back
-        return;
-    }
-#endif
-
     auto launcher_app_id = getLauncherAppId();
     uint32_t launcher_instance_id = 0;
     AppStartContext context;
@@ -270,6 +263,12 @@ bool bootInit(TickType_t startTime) {
         waitForInputAndReboot();
         return false;
     }
+
+#ifdef ESP_PLATFORM
+    if (esp_reset_reason() == ESP_RST_PANIC) {
+        crashdiagnostics::showCrashScreen(screen);
+    }
+#endif
 
     LOG_I(TAG, "Loading fonts");
     lvgl::loadFonts(lvgl::loadFontConfiguration());

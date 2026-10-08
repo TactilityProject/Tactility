@@ -154,7 +154,41 @@ void BootScreen::show(const std::string& logoPath, const std::vector<std::string
         }
     }
 
-    // Layout in logical (rotated) coordinates: logo with text below it, centered as a whole
+    draw(static_cast<int>(logo.width), static_cast<int>(logo.height), [&logo](int x, int y, uint16_t& color) {
+        const unsigned char* pixel = logo.rgba + (static_cast<size_t>(y) * logo.width + x) * 4;
+        const uint32_t alpha = pixel[3];
+        if (alpha == 0) {
+            return false;
+        }
+        // Blended onto the black background
+        color = toRgb565(pixel[0] * alpha / 255, pixel[1] * alpha / 255, pixel[2] * alpha / 255);
+        return true;
+    }, lines);
+}
+
+void BootScreen::showQrCode(int moduleCount, const std::function<bool(int x, int y)>& isModuleSet, const std::vector<std::string>& lines) {
+    if (target == nullptr || moduleCount <= 0) {
+        return;
+    }
+
+    // About 60% of the display, which leaves room for the text
+    const int module_size = std::max(1, getSmallestDimension() * 6 / 10 / moduleCount);
+    const int size = module_size * moduleCount;
+    draw(size, size, [&isModuleSet, module_size](int x, int y, uint16_t& color) {
+        if (!isModuleSet(x / module_size, y / module_size)) {
+            return false;
+        }
+        color = 0xFFFF;
+        return true;
+    }, lines);
+}
+
+void BootScreen::draw(int imageWidth, int imageHeight, const ImagePixel& imagePixel, const std::vector<std::string>& lines) {
+    if (target == nullptr) {
+        return;
+    }
+
+    // Layout in logical (rotated) coordinates: the image with text below it, centered as a whole
     if (!lines.empty() && textFont == nullptr) {
         textFont = lvgl::loadMonoFont();
         if (textFont == nullptr) {
@@ -179,10 +213,10 @@ void BootScreen::show(const std::string& logoPath, const std::vector<std::string
         }
     }
     const int text_height = static_cast<int>(wrapped_lines.size()) * line_height;
-    const int gap = (logo.height > 0 && !wrapped_lines.empty()) ? line_height : 0;
-    const int content_top = (logical_height - static_cast<int>(logo.height) - gap - text_height) / 2;
-    const int logo_left = (logical_width - static_cast<int>(logo.width)) / 2;
-    const int text_top = content_top + static_cast<int>(logo.height) + gap;
+    const int gap = (imageHeight > 0 && !wrapped_lines.empty()) ? line_height : 0;
+    const int content_top = (logical_height - imageHeight - gap - text_height) / 2;
+    const int image_left = (logical_width - imageWidth) / 2;
+    const int text_top = content_top + imageHeight + gap;
 
     std::vector<uint8_t> glyph_bitmap;
     for (int band_top = 0; band_top < panelHeight; band_top += bandHeight) {
@@ -204,14 +238,11 @@ void BootScreen::show(const std::string& logoPath, const std::vector<std::string
             }
         };
 
-        for (unsigned y = 0; y < logo.height; y++) {
-            for (unsigned x = 0; x < logo.width; x++) {
-                const unsigned char* pixel = logo.rgba + (static_cast<size_t>(y) * logo.width + x) * 4;
-                const uint32_t alpha = pixel[3];
-                if (alpha != 0) {
-                    // Blended onto the black background
-                    const uint16_t color = toRgb565(pixel[0] * alpha / 255, pixel[1] * alpha / 255, pixel[2] * alpha / 255);
-                    plot(logo_left + static_cast<int>(x), content_top + static_cast<int>(y), color, PIXEL_BUFFER_CONVERSION_LUMA_THRESHOLD);
+        for (int y = 0; y < imageHeight; y++) {
+            for (int x = 0; x < imageWidth; x++) {
+                uint16_t color;
+                if (imagePixel(x, y, color)) {
+                    plot(image_left + x, content_top + y, color, PIXEL_BUFFER_CONVERSION_LUMA_THRESHOLD);
                 }
             }
         }

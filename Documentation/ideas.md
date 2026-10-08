@@ -7,13 +7,8 @@
 
 ## Higher Priority
 
-- Wi-Fi and Bluetooth settings app: scanning should start and gather results, then it should stop refreshing the scan results automatically. When scanning is finished, a paginated view should be shown with the results (as many as fit on the screen, but not more). There should be an icon on the toolbar to refresh scanning (looking glass? something else?) and this icon is only visible when the radio is enabled. When radio is enabled by the user, automatically start a scan. If the radio was already enabled and the app starts, start scanning.
 - Update to LVGL 9.6.x (ESP-IDF and POSIX)
-- Terminal app: on devices with pointer device: LVGL rendering mode should hide the toolbar by default, but tapping the terminal should toggle the visibility of the toolbar.
-- Terminal app: should always run in non-LVGL mode if no PSRAM is present.
-- Crash app should work without LVGL, like Boot app. It should wait for any input (keyboard or pointer) to continue.
 - NimBLE looses pairing key after reboot
-- CrashDiagnostics shouldn't show a QR when there's no callstack
 - Move USB host task stacks to SPIRAM when available: esp32_usbhost*.cpp
 - Add bold fonts for e-ink readability improvement
 - Improve Setup: Add keyboard/keypad/encoder navigation explanation.
@@ -49,7 +44,6 @@
 - Consider implementing LVGL gridnav in apps https://lvgl.io/docs/open/9.3/details/auxiliary-modules/gridnav.html
 - Make USB host driver disabled by default, so it doesn't consume memory
 - TactilityTool: Make API compatibility table (and check for compatibility in the tool itself)
-- Bug: Crash handling app cannot be exited with an EncoderDevice. (current work-around is to manually reset the device)
 - Refactor HttpServer into C code and move implementation to http-module
 - Use GPS time to set/update the current time
 - Make a URL handler. Use it for handling local files. Match file types with apps.
