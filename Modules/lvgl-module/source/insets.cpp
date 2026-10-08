@@ -30,12 +30,20 @@ static void update_edge_padding(void* data) {
     // The curve is widest at the object's edge that is nearest to the display's top or bottom
     const int32_t inset = std::max(lvgl_display_get_row_inset(display, coords.y1), lvgl_display_get_row_inset(display, coords.y2));
     const int32_t right_edge = lv_display_get_horizontal_resolution(display) - 1;
-    lv_obj_set_style_pad_left(padding->obj, padding->base_left + std::max<int32_t>(0, inset - coords.x1), LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(padding->obj, padding->base_right + std::max<int32_t>(0, inset - (right_edge - coords.x2)), LV_STATE_DEFAULT);
+    const int32_t pad_left = padding->base_left + std::max<int32_t>(0, inset - coords.x1);
+    const int32_t pad_right = padding->base_right + std::max<int32_t>(0, inset - (right_edge - coords.x2));
+    // Setting a style marks the layout as dirty, which would resize the object and call this again
+    if (lv_obj_get_style_pad_left(padding->obj, LV_PART_MAIN) != pad_left) {
+        lv_obj_set_style_pad_left(padding->obj, pad_left, LV_STATE_DEFAULT);
+    }
+    if (lv_obj_get_style_pad_right(padding->obj, LV_PART_MAIN) != pad_right) {
+        lv_obj_set_style_pad_right(padding->obj, pad_right, LV_STATE_DEFAULT);
+    }
 }
 
 // The position is final once the layout pass that changed the size has finished
 static void on_size_changed(lv_event_t* event) {
+    lv_async_call_cancel(update_edge_padding, lv_event_get_user_data(event));
     lv_async_call(update_edge_padding, lv_event_get_user_data(event));
 }
 

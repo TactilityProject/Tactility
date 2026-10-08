@@ -80,8 +80,8 @@ dependencies:
     version: "2.2.1"
     rules:
       - if: "target in [esp32s3, esp32p4]"
-  espressif/esp_lvgl_port: "2.7.2"
-  lvgl/lvgl: "9.4.0"
+  espressif/esp_lvgl_port: "2.9.0"
+  lvgl/lvgl: "9.6.0~1"
   epdiy:
     git: https://github.com/vroland/epdiy.git
     version: 2.1.3

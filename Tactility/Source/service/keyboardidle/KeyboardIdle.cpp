@@ -1,6 +1,6 @@
 #ifdef ESP_PLATFORM
 
-#include <display/lv_display.h>
+#include <lvgl.h>
 
 #include <lvgl/lvgl.h>
 

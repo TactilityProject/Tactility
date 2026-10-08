@@ -7,7 +7,7 @@
 
 #include <lvgl.h>
 #include <src/core/lv_global.h>
-#include <src/draw/lv_image_decoder_private.h>
+#include <src/image/lv_image_decoder_private.h>
 
 #define DECODER_NAME "LODEPNG"
 

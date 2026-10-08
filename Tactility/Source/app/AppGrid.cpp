@@ -91,10 +91,15 @@ void updatePageIndicatorWidth(void* data) {
     const int32_t side_width = std::max(getSideWidth(bottom_bar, false), getSideWidth(bottom_bar, true));
     const int32_t gaps = 2 * lv_obj_get_style_pad_column(bottom_bar, LV_PART_MAIN);
     const int32_t available = lv_obj_get_content_width(bottom_bar) - 2 * side_width - gaps;
-    lv_obj_set_style_max_width(indicator, std::max<int32_t>(0, available), LV_STATE_DEFAULT);
+    const int32_t max_width = std::max<int32_t>(0, available);
+    // Setting a style marks the layout as dirty, which would resize the bar and call this again
+    if (lv_obj_get_style_max_width(indicator, LV_PART_MAIN) != max_width) {
+        lv_obj_set_style_max_width(indicator, max_width, LV_STATE_DEFAULT);
+    }
 }
 
 void onBottomBarSizeChanged(lv_event_t* event) {
+    lv_async_call_cancel(updatePageIndicatorWidth, lv_event_get_target_obj(event));
     lv_async_call(updatePageIndicatorWidth, lv_event_get_target_obj(event));
 }
 
@@ -116,16 +121,27 @@ void AppGrid::onDeferredRepopulate(void* userData) {
     static_cast<AppGrid*>(userData)->populate();
 }
 
+// A layout pass can resize the grid temporarily (e.g. to its content height, before the parent's flex layout grows it again)
+void AppGrid::onDeferredResize(void* userData) {
+    auto* self = static_cast<AppGrid*>(userData);
+    if (lv_obj_get_width(self->grid) != self->populatedWidth || lv_obj_get_height(self->grid) != self->populatedHeight) {
+        self->populate();
+    }
+}
+
 void AppGrid::onGridDeleted(lv_event_t* e) {
     // Cancels a still-pending repopulate scheduled right before the grid itself was deleted (e.g. the app closing)
     lv_async_call_cancel(onDeferredRepopulate, lv_event_get_user_data(e));
+    lv_async_call_cancel(onDeferredResize, lv_event_get_user_data(e));
     lv_async_call_cancel(onDeferredNextPage, lv_event_get_user_data(e));
     lv_async_call_cancel(onDeferredPreviousPage, lv_event_get_user_data(e));
 }
 
 // Deferred: page size depends on the grid size, which is final only after the layout pass that triggered this.
 void AppGrid::onGridSizeChanged(lv_event_t* e) {
-    lv_async_call(onDeferredRepopulate, lv_event_get_user_data(e));
+    // One pending check is enough, also when the size changes several times before it runs
+    lv_async_call_cancel(onDeferredResize, lv_event_get_user_data(e));
+    lv_async_call(onDeferredResize, lv_event_get_user_data(e));
 }
 
 // Changing the page doesn't keep the selected app selected: that would return to the selected app's page
@@ -209,6 +225,8 @@ void AppGrid::populate() {
     // Centers a full page of rows, so a partially filled last page keeps its rows in the same positions.
     lv_obj_set_style_pad_top(grid, 0, LV_STATE_DEFAULT);
     const PageLayout layout = computePageLayout(grid);
+    populatedWidth = lv_obj_get_width(grid);
+    populatedHeight = lv_obj_get_height(grid);
     lv_obj_set_style_pad_top(grid, layout.topOffset, LV_STATE_DEFAULT);
 
     const uint32_t item_count = items.size();

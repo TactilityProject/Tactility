@@ -19,6 +19,8 @@ static void page_indicator_constructor(const lv_obj_class_t* class_p, lv_obj_t* 
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     // Shows the page numbers instead of the dots when they don't fit in the indicator's maximum width
     lv_obj_t* label = lv_label_create(obj);
+    // One line, so the indicator's height doesn't change with its width
+    lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_CLIP);
     lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
     // A change of the maximum width can switch between dots and numbers
     lv_obj_add_event_cb(obj, on_style_changed, LV_EVENT_STYLE_CHANGED, nullptr);

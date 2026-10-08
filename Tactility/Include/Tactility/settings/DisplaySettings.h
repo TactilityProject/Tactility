@@ -1,6 +1,6 @@
 #pragma once
 
-#include <src/display/lv_display.h>
+#include <lvgl.h>
 
 namespace tt::settings::display {
 

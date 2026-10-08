@@ -89,6 +89,9 @@ private:
     bool swipeNavigation = false;
     bool keepSelectionOnRepopulate = true;
     lv_obj_t* grid = nullptr;
+    /** The grid size that the current tiles were laid out for */
+    int32_t populatedWidth = 0;
+    int32_t populatedHeight = 0;
     lv_obj_t* prevButton = nullptr;
     lv_obj_t* nextButton = nullptr;
     lv_obj_t* pageIndicator = nullptr;
@@ -101,6 +104,7 @@ private:
     void populate();
 
     static void onDeferredRepopulate(void* userData);
+    static void onDeferredResize(void* userData);
     static void onDeferredNextPage(void* userData);
     static void onDeferredPreviousPage(void* userData);
     static void onGridDeleted(lv_event_t* e);
