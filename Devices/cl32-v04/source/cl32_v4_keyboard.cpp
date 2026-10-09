@@ -29,12 +29,13 @@ constexpr uint8_t MAX_EVENTS_PER_DRAIN = 16;
 
 // HID Keyboard/Keypad usage codes (USB HID Usage Tables page 0x07) this chip's matrix produces,
 // named after CL-32/CL-32's CL32_core::_matrix keymap (CL32_core.cpp).
-constexpr uint8_t KEY_FN = 0x3A;      // repurposed F1 position
-constexpr uint8_t KEY_FILE = 0x43;    // repurposed F10 position
-constexpr uint8_t KEY_MENU = 0x44;    // repurposed F11 position
+constexpr uint8_t KEY_FN = 0x65;
+constexpr uint8_t KEY_FILE = 0x76;
+constexpr uint8_t KEY_MENU = 0x74;
 constexpr uint8_t KEY_ENTER = 0x28;
 constexpr uint8_t KEY_ESCAPE = 0x29;
 constexpr uint8_t KEY_BACKSPACE = 0x2A;
+constexpr uint8_t KEY_TAB = 0x2B;
 constexpr uint8_t KEY_SPACE = 0x2C;
 constexpr uint8_t KEY_EQUALS = 0x2E;
 constexpr uint8_t KEY_PERIOD = 0x37;
@@ -42,8 +43,8 @@ constexpr uint8_t KEY_ARROW_RIGHT = 0x4F;
 constexpr uint8_t KEY_ARROW_LEFT = 0x50;
 constexpr uint8_t KEY_ARROW_DOWN = 0x51;
 constexpr uint8_t KEY_ARROW_UP = 0x52;
-constexpr uint8_t KEY_YES = 0x77;     // HID "Select"
-constexpr uint8_t KEY_NO = 0x78;      // HID "Stop"
+constexpr uint8_t KEY_YES = 0x77;
+constexpr uint8_t KEY_NO = 0x78;
 constexpr uint8_t KEYPAD_SLASH = 0x54;
 constexpr uint8_t KEYPAD_ASTERISK = 0x55;
 constexpr uint8_t KEYPAD_MINUS = 0x56;
@@ -147,6 +148,7 @@ static bool translate_key(uint8_t code, bool shift, bool fn, uint32_t* out_key) 
 
     switch (code) {
         case KEY_ENTER: *out_key = CODEPOINT_ENTER; return true;
+        case KEY_TAB: *out_key = CODEPOINT_TAB; return true;
         case KEY_ESCAPE: *out_key = CODEPOINT_ESCAPE; return true;
         case KEY_BACKSPACE: *out_key = CODEPOINT_BACKSPACE; return true;
         case KEY_SPACE: *out_key = ' '; return true;
@@ -177,12 +179,12 @@ static bool translate_key(uint8_t code, bool shift, bool fn, uint32_t* out_key) 
 static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
     if (code == KEY_SHIFT) {
         internal->shift_state = next_toggle_state(internal->shift_state);
-        LOG_I(TAG, "code=0x%02X shift -> %s", code, toggle_state_name(internal->shift_state));
+        LOG_D(TAG, "code=0x%02X shift -> %s", code, toggle_state_name(internal->shift_state));
         return;
     }
     if (code == KEY_FN) {
         internal->fn_state = next_toggle_state(internal->fn_state);
-        LOG_I(TAG, "code=0x%02X fn -> %s", code, toggle_state_name(internal->fn_state));
+        LOG_D(TAG, "code=0x%02X fn -> %s", code, toggle_state_name(internal->fn_state));
         return;
     }
 
@@ -192,7 +194,7 @@ static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
     // No app-level menu system at the driver layer - surface the raw HID code only, same as
     // tab5_keyboard.cpp's F1-F12 handling.
     if (code == KEY_MENU || code == KEY_FILE) {
-        LOG_I(TAG, "code=0x%02X (menu/file) shift=%s fn=%s hid_modifier=0x%02X",
+        LOG_D(TAG, "code=0x%02X (menu/file) shift=%s fn=%s hid_modifier=0x%02X",
               code, toggle_state_name(internal->shift_state), toggle_state_name(internal->fn_state), hid_modifier);
         push_pending(internal, 0, true, code, hid_modifier);
         push_pending(internal, 0, false, code, hid_modifier);
@@ -204,7 +206,7 @@ static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
     const bool has_key = translate_key(code, shift, fn, &key);
 
     const char printable = (has_key && key >= 0x20 && key < 0x7F) ? static_cast<char>(key) : '.';
-    LOG_I(TAG, "code=0x%02X key='%c' key_hex=0x%04X shift=%s fn=%s hid_modifier=0x%02X",
+    LOG_D(TAG, "code=0x%02X key='%c' key_hex=0x%04X shift=%s fn=%s hid_modifier=0x%02X",
           code, printable, static_cast<unsigned int>(has_key ? key : 0),
           toggle_state_name(internal->shift_state), toggle_state_name(internal->fn_state), hid_modifier);
 
@@ -242,7 +244,7 @@ static void drain_events(Device* i2c0, uint8_t address, Cl32V4KeyboardInternal* 
             break;
         }
 
-        LOG_I(TAG, "raw event=0x%02X (%s)", raw, (raw & 0x80) != 0 ? "down" : "up");
+        LOG_D(TAG, "raw event=0x%02X (%s)", raw, (raw & 0x80) != 0 ? "down" : "up");
 
         if ((raw & 0x80) != 0) {
             handle_key_down(internal, static_cast<uint8_t>(raw & 0x7F));
