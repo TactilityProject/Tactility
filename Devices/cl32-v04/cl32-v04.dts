@@ -9,6 +9,7 @@
 #include <tactility/bindings/esp32_wifi.h>
 
 #include <bindings/bm8563.h>
+#include <bindings/cl32_v4_light.h>
 #include <bindings/cl32_v4_keyboard.h>
 #include <bindings/cl32_v4_power.h>
 #include <bindings/st7305.h>
@@ -51,6 +52,21 @@
 			compatible = "cl32-v4-power";
 			reg = <0x08>;
 		};
+
+		back_light {
+			compatible = "cl32-v4-light";
+			reg = <0x08>;
+			brightness-register = <0x0F>;
+			timeout-register = <0x10>;
+		};
+
+		front_light {
+			compatible = "cl32-v4-light";
+			status = "disabled"; // Will be in future hardware
+			reg = <0x08>;
+			brightness-register = <0x11>;
+			timeout-register = <0x12>;
+		};
 	};
 
 	port_b: grove1 {
@@ -85,6 +101,7 @@
 			pixel-clock-hz = <80000000>;
 			mirror-x;
 			mirror-y;
+			backlight = <&back_light>;
 		};
 	};
 };

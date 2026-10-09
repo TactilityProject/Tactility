@@ -1,0 +1,23 @@
+description: CL-32 v0.4 display light, provided by the core chip
+
+include: ["i2c-device.yaml"]
+
+compatible: "cl32-v4-light"
+
+bus: i2c
+
+properties:
+  brightness-register:
+    type: int
+    description: Register that holds the brightness level (0-255)
+  timeout-register:
+    type: int
+    description: Register that holds the timeout in seconds
+  brightness-default:
+    type: int
+    default: 255
+    description: Default brightness level (0-255), applied by set_brightness_default()
+  timeout-seconds:
+    type: int
+    default: 10
+    description: Seconds of inactivity after which the core chip turns the light off. 0 keeps the chip's own setting.

@@ -321,8 +321,9 @@ Driver cl32_v4_keyboard_driver = {
     .compatible = (const char*[]) { "cl32-v4-keyboard", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &cl32_v4_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
     .owner = &cl32_v04_module,
-    .internal = nullptr
+    .internal = nullptr,
 };

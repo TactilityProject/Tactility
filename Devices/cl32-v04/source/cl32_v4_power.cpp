@@ -19,6 +19,7 @@ constexpr auto* TAG = "cl32-v4-power";
 
 constexpr uint8_t REG_POWER_CONTROL = 0x01;
 constexpr uint8_t POWER_CONTROL_CUT_POWER = 0x80;
+constexpr uint8_t BAT_VOLTAGE = 0x13;
 constexpr uint8_t REG_VOLTAGE = 0x14;
 constexpr int MV_PER_LSB = 25;
 constexpr int MIN_MV = 3200;
@@ -35,7 +36,7 @@ static bool ps_supports_property(Device*, PowerSupplyProperty property) {
 static error_t read_battery_mv(Device* chip_device, int* out_mv) {
     auto* i2c0 = device_get_parent(chip_device);
     uint8_t raw = 0;
-    error_t error = i2c_controller_register8_get(i2c0, GET_CONFIG(chip_device)->address, REG_VOLTAGE, &raw, CL32_V4_CORE_TIMEOUT);
+    error_t error = i2c_controller_register8_get(i2c0, GET_CONFIG(chip_device)->address, BAT_VOLTAGE, &raw, CL32_V4_CORE_TIMEOUT);
     if (error != ERROR_NONE) {
         return error;
     }
@@ -188,8 +189,9 @@ Driver cl32_v4_power_driver = {
     .compatible = (const char*[]) { "cl32-v4-power", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = nullptr,
     .owner = &cl32_v04_module,
-    .internal = nullptr
+    .internal = nullptr,
 };

@@ -1,5 +1,6 @@
 #include <tactility/module.h>
 
+#include "cl32_v4_light.h"
 #include "cl32_v4_keyboard.h"
 #include "cl32_v4_power.h"
 
@@ -9,6 +10,7 @@ static Driver* const cl32_drivers[] = {
     &cl32_v4_power_driver,
     &cl32_v4_power_supply_driver,
     &cl32_v4_keyboard_driver,
+    &cl32_v4_light_driver,
     nullptr
 };
 

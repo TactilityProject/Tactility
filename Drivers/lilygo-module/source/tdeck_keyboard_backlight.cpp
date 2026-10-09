@@ -88,22 +88,14 @@ static error_t tdeck_keyboard_backlight_get_brightness(Device* device, uint8_t* 
     return ERROR_NONE;
 }
 
-static uint8_t tdeck_keyboard_backlight_get_min_brightness(Device*) {
-    return 0;
-}
-
-static uint8_t tdeck_keyboard_backlight_get_max_brightness(Device*) {
-    return 255;
-}
-
 // endregion
 
 static const BacklightApi tdeck_keyboard_backlight_api = {
     .set_brightness = tdeck_keyboard_backlight_set_brightness,
     .set_brightness_default = tdeck_keyboard_backlight_set_brightness_default,
     .get_brightness = tdeck_keyboard_backlight_get_brightness,
-    .get_min_brightness = tdeck_keyboard_backlight_get_min_brightness,
-    .get_max_brightness = tdeck_keyboard_backlight_get_max_brightness,
+    .get_min_brightness = nullptr,
+    .get_max_brightness = nullptr,
 };
 
 extern struct Module lilygo_module;
@@ -113,6 +105,7 @@ Driver tdeck_keyboard_backlight_driver = {
     .compatible = (const char*[]) { "lilygo,tdeck-keyboard-backlight", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &tdeck_keyboard_backlight_api,
     .device_type = &BACKLIGHT_TYPE,
     .owner = &lilygo_module,

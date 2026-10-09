@@ -63,22 +63,14 @@ static error_t axp192_backlight_get_brightness(Device* device, uint8_t* out_brig
     return ERROR_NONE;
 }
 
-static uint8_t axp192_backlight_get_min_brightness(Device*) {
-    return 0;
-}
-
-static uint8_t axp192_backlight_get_max_brightness(Device*) {
-    return 255;
-}
-
 // endregion
 
 static constexpr BacklightApi AXP192_BACKLIGHT_API = {
     .set_brightness = axp192_backlight_set_brightness,
     .set_brightness_default = axp192_backlight_set_brightness_default,
     .get_brightness = axp192_backlight_get_brightness,
-    .get_min_brightness = axp192_backlight_get_min_brightness,
-    .get_max_brightness = axp192_backlight_get_max_brightness,
+    .get_min_brightness = nullptr,
+    .get_max_brightness = nullptr,
 };
 
 // region Driver lifecycle
@@ -123,6 +115,7 @@ Driver axp192_backlight_driver = {
     .compatible = (const char*[]) { "axp192-backlight", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &AXP192_BACKLIGHT_API,
     .device_type = &BACKLIGHT_TYPE,
     .owner = &axp192_module,

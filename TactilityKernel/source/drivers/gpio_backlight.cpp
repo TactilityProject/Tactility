@@ -67,10 +67,6 @@ static error_t gpio_backlight_get_brightness(Device* device, uint8_t* out_bright
     return ERROR_NONE;
 }
 
-static uint8_t gpio_backlight_get_min_brightness(Device*) {
-    return 0;
-}
-
 static uint8_t gpio_backlight_get_max_brightness(Device*) {
     return 1;
 }
@@ -81,7 +77,7 @@ static constexpr BacklightApi GPIO_BACKLIGHT_API = {
     .set_brightness = gpio_backlight_set_brightness,
     .set_brightness_default = gpio_backlight_set_brightness_default,
     .get_brightness = gpio_backlight_get_brightness,
-    .get_min_brightness = gpio_backlight_get_min_brightness,
+    .get_min_brightness = nullptr,
     .get_max_brightness = gpio_backlight_get_max_brightness,
 };
 
@@ -132,10 +128,11 @@ Driver gpio_backlight_driver = {
     .compatible = (const char*[]) { "gpio-backlight", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &GPIO_BACKLIGHT_API,
     .device_type = &BACKLIGHT_TYPE,
     .owner = &kernel_module,
-    .internal = nullptr
+    .internal = nullptr,
 };
 
 }

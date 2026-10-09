@@ -51,6 +51,7 @@ struct BacklightApi {
 
     /**
      * @brief Gets the minimum brightness level. Setting the brightness to this value turns the backlight off.
+     * This function is optional. If not present, 0 is assumed as minimum.
      * @param[in] device the backlight device
      * @return the minimum brightness level
      */
@@ -58,6 +59,7 @@ struct BacklightApi {
 
     /**
      * @brief Gets the maximum (full-strength) brightness level.
+     * This function is optional. If not present, 255 is assumed as maximum.
      * @param[in] device the backlight device
      * @return the maximum brightness level
      */

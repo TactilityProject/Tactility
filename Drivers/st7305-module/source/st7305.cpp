@@ -373,6 +373,15 @@ static uint16_t st7305_get_resolution_y(Device* device) {
 
 // endregion
 
+static error_t st7305_get_backlight(Device* device, Device** backlight) {
+    auto* configured_backlight = GET_CONFIG(device)->backlight;
+    if (configured_backlight == nullptr) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    *backlight = configured_backlight;
+    return ERROR_NONE;
+}
+
 static const DisplayApi st7305_display_api = {
     .capabilities = DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME | DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM,
     .reset = st7305_reset,
@@ -396,7 +405,7 @@ static const DisplayApi st7305_display_api = {
     .get_resolution_y = st7305_get_resolution_y,
     .get_frame_buffer = nullptr,
     .get_frame_buffer_count = nullptr,
-    .get_backlight = nullptr,
+    .get_backlight = st7305_get_backlight,
     .has_capability = nullptr,
 };
 
