@@ -42,6 +42,8 @@ constexpr uint8_t KEY_ARROW_RIGHT = 0x4F;
 constexpr uint8_t KEY_ARROW_LEFT = 0x50;
 constexpr uint8_t KEY_ARROW_DOWN = 0x51;
 constexpr uint8_t KEY_ARROW_UP = 0x52;
+constexpr uint8_t KEY_YES = 0x77;     // HID "Select"
+constexpr uint8_t KEY_NO = 0x78;      // HID "Stop"
 constexpr uint8_t KEYPAD_SLASH = 0x54;
 constexpr uint8_t KEYPAD_ASTERISK = 0x55;
 constexpr uint8_t KEYPAD_MINUS = 0x56;
@@ -154,6 +156,8 @@ static bool translate_key(uint8_t code, bool shift, bool fn, uint32_t* out_key) 
         case KEY_ARROW_LEFT: *out_key = CODEPOINT_ARROW_LEFT; return true;
         case KEY_ARROW_DOWN: *out_key = CODEPOINT_ARROW_DOWN; return true;
         case KEY_ARROW_UP: *out_key = CODEPOINT_ARROW_UP; return true;
+        case KEY_YES: *out_key = CODEPOINT_YES; return true;
+        case KEY_NO: *out_key = CODEPOINT_NO; return true;
         case KEYPAD_SLASH: *out_key = '/'; return true;
         case KEYPAD_ASTERISK: *out_key = '*'; return true;
         case KEYPAD_MINUS: *out_key = '-'; return true;
