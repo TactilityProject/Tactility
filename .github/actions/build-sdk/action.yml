@@ -17,6 +17,11 @@ runs:
     - name: 'Board select'
       shell: bash
       run: python device.py ${{ inputs.board_id }}
+    - name: 'Log in to Docker Hub'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: 'Build'
       uses: espressif/esp-idf-ci-action@v1
       with:
