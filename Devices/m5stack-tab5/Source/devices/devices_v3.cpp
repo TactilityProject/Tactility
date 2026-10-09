@@ -49,8 +49,8 @@ void tab5_create_devices_v3(Device* i2c0) {
         .ldo_voltage_mv = 2500,
         .dsi_bus_id = 0,
         .num_data_lanes = 2,
-        .lane_bit_rate_mbps = 965, // ST7121 lane bitrate per M5Stack BSP (same as ST7123)
-        .dpi_clock_freq_mhz = 70,
+        .lane_bit_rate_mbps = 1040, // Deviates from M5Stack BSP to fix flickering
+        .dpi_clock_freq_mhz = 80,
         .hsync_pulse_width = 2,
         .hsync_back_porch = 40,
         .hsync_front_porch = 40,
