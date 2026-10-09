@@ -14,6 +14,8 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/audio_codec.h>
+#include <tactility/drivers/esp32_usbhost_task.h>
+#include <tactility/drivers/esp32_usbhost_worker.h>
 #include <tactility/error_esp32.h>
 #include <tactility/log.h>
 
@@ -234,6 +236,7 @@ bool close_output_interface(UsbUacData* data) {
     return true;
 }
 
+// Stack may be in PSRAM: no flash access allowed from this task.
 void uac_client_task(void* arg) {
     auto* data = static_cast<UsbUacData*>(arg);
     UacConnectEvent event = {};
@@ -260,7 +263,7 @@ void uac_client_task(void* arg) {
     data->task = nullptr;
     xSemaphoreGive(data->mutex);
     xSemaphoreGive(data->task_done);
-    vTaskDelete(nullptr);
+    vTaskDeleteWithCaps(nullptr);
 }
 
 // region Dynamic codec device (usb_uac0) driver
@@ -541,7 +544,8 @@ const AudioCodecApi codec_api = {
 
 // endregion
 
-void codec_device_construct(UsbUacData* data) {
+void codec_device_construct_on_worker(void* context) {
+    auto* data = static_cast<UsbUacData*>(context);
     if (data->codec_device_active) {
         return;
     }
@@ -576,7 +580,8 @@ void codec_device_construct(UsbUacData* data) {
     data->codec_device_active = true;
 }
 
-void codec_device_destruct(UsbUacData* data) {
+void codec_device_destruct_on_worker(void* context) {
+    auto* data = static_cast<UsbUacData*>(context);
     if (!data->codec_device_active) {
         return;
     }
@@ -585,6 +590,18 @@ void codec_device_destruct(UsbUacData* data) {
     device_stop(&data->codec_device);
     device_remove(&data->codec_device);
     device_destruct(&data->codec_device);
+}
+
+void codec_device_construct(UsbUacData* data) {
+    if (esp32_usbhost_run_on_worker(device_get_parent(data->manager_device), codec_device_construct_on_worker, data) != ERROR_NONE) {
+        LOG_E(TAG, "failed to construct USB UAC codec device: worker unavailable");
+    }
+}
+
+void codec_device_destruct(UsbUacData* data) {
+    if (esp32_usbhost_run_on_worker(device_get_parent(data->manager_device), codec_device_destruct_on_worker, data) != ERROR_NONE) {
+        LOG_E(TAG, "failed to destruct USB UAC codec device: worker unavailable");
+    }
 }
 
 } // namespace
@@ -632,7 +649,7 @@ static error_t manager_start_device(Device* device) {
     }
 
     data->running = true;
-    if (xTaskCreate(uac_client_task, "usb_uac_client", UAC_TASK_STACK, data,
+    if (esp32_usbhost_task_create_psram(uac_client_task, "usb_uac_client", UAC_TASK_STACK, data,
                     UAC_TASK_PRIORITY, &data->task) != pdPASS) {
         LOG_E(TAG, "Failed to create UAC client task");
         data->running = false;

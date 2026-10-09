@@ -5,10 +5,12 @@
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_usbhost.h>
 #include <tactility/drivers/esp32_usbhost_task.h>
+#include <tactility/drivers/esp32_usbhost_worker.h>
 #include <tactility/drivers/usb_host.h>
 #include <tactility/log.h>
 
 #include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
 #include <usb/usb_host.h>
@@ -34,6 +36,9 @@ constexpr auto USB_LIB_TASK_PRIORITY     = 10;
 constexpr auto USB_LIB_EVENT_TIMEOUT_MS  = 500;
 constexpr auto USB_HOST_STOP_TIMEOUT_MS  = 3000;
 constexpr auto USB_HOST_STOP_RETRY_MS    = 1000;
+constexpr auto USB_WORKER_TASK_STACK     = 4096;
+constexpr auto USB_WORKER_TASK_PRIORITY  = 5;
+constexpr auto USB_WORKER_QUEUE_SIZE     = 4;
 constexpr auto USB_HOST_CLASS_COUNT           = USB_HOST_CLASS_AUDIO + 1;
 constexpr auto CHILD_DESTRUCT_RETRIES    = 100;
 
@@ -42,7 +47,17 @@ struct UsbHostChild {
     bool active = false;
 };
 
+struct UsbHostWorkerJob {
+    // nullptr stops the worker
+    void (*function)(void* context);
+    void* context;
+    StaticSemaphore_t done_buffer;
+    SemaphoreHandle_t done;
+};
+
 struct UsbHostContext {
+    TaskHandle_t      worker_task  = nullptr;
+    QueueHandle_t     worker_queue = nullptr;
     TaskHandle_t      lib_task     = nullptr;
     SemaphoreHandle_t lib_task_done = nullptr;
     // Indexed by UsbClass
@@ -78,6 +93,73 @@ static void usbLibTask(void* arg) {
     xSemaphoreGive(ctx->lib_task_done);
     vTaskDeleteWithCaps(nullptr);
 }
+
+// region Worker
+
+// Runs device lifecycle work for the class drivers, so device listeners never run on a USB task.
+// The stack stays in internal RAM because listeners may access flash.
+static void usbWorkerTask(void* arg) {
+    auto* ctx = static_cast<UsbHostContext*>(arg);
+    while (true) {
+        UsbHostWorkerJob* job = nullptr;
+        if (xQueueReceive(ctx->worker_queue, &job, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        if (job->function == nullptr) {
+            xSemaphoreGive(job->done);
+            break;
+        }
+        job->function(job->context);
+        xSemaphoreGive(job->done);
+    }
+    vTaskDelete(nullptr);
+}
+
+static void submit_job_and_wait(UsbHostContext* ctx, UsbHostWorkerJob* job) {
+    job->done = xSemaphoreCreateBinaryStatic(&job->done_buffer);
+    xQueueSend(ctx->worker_queue, &job, portMAX_DELAY);
+    xSemaphoreTake(job->done, portMAX_DELAY);
+    vSemaphoreDelete(job->done);
+}
+
+static error_t start_worker(UsbHostContext* ctx) {
+    ctx->worker_queue = xQueueCreate(USB_WORKER_QUEUE_SIZE, sizeof(UsbHostWorkerJob*));
+    if (ctx->worker_queue == nullptr) {
+        LOG_E(TAG, "failed to create worker queue");
+        return ERROR_RESOURCE;
+    }
+    if (xTaskCreate(usbWorkerTask, "usb_worker", USB_WORKER_TASK_STACK, ctx, USB_WORKER_TASK_PRIORITY, &ctx->worker_task) != pdPASS) {
+        LOG_E(TAG, "failed to create worker task");
+        vQueueDelete(ctx->worker_queue);
+        ctx->worker_queue = nullptr;
+        return ERROR_RESOURCE;
+    }
+    return ERROR_NONE;
+}
+
+static void stop_worker(UsbHostContext* ctx) {
+    UsbHostWorkerJob job = { .function = nullptr, .context = nullptr, .done_buffer = {}, .done = nullptr };
+    submit_job_and_wait(ctx, &job);
+    ctx->worker_task = nullptr;
+    vQueueDelete(ctx->worker_queue);
+    ctx->worker_queue = nullptr;
+}
+
+error_t esp32_usbhost_run_on_worker(struct Device* host, void (*function)(void* context), void* context) {
+    auto* ctx = static_cast<UsbHostContext*>(device_get_driver_data(host));
+    if (ctx == nullptr || ctx->worker_queue == nullptr) {
+        return ERROR_INVALID_STATE;
+    }
+    if (xTaskGetCurrentTaskHandle() == ctx->worker_task) {
+        function(context);
+        return ERROR_NONE;
+    }
+    UsbHostWorkerJob job = { .function = function, .context = context, .done_buffer = {}, .done = nullptr };
+    submit_job_and_wait(ctx, &job);
+    return ERROR_NONE;
+}
+
+// endregion
 
 // region Children
 
@@ -260,7 +342,12 @@ static error_t start_device(struct Device* device) {
     }
 
     auto* ctx = new UsbHostContext();
+    if (start_worker(ctx) != ERROR_NONE) {
+        delete ctx;
+        return ERROR_RESOURCE;
+    }
     if (install_lib(ctx, cfg) != ERROR_NONE) {
+        stop_worker(ctx);
         delete ctx;
         return ERROR_RESOURCE;
     }
@@ -286,6 +373,7 @@ static error_t stop_device(struct Device* device) {
     }
 
     error_t result = uninstall_lib(ctx);
+    stop_worker(ctx);
     device_set_driver_data(device, nullptr);
     delete ctx;
     LOG_I(TAG, "stopped");

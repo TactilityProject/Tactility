@@ -3,6 +3,8 @@
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/esp32_usbhost_task.h>
+#include <tactility/drivers/esp32_usbhost_worker.h>
 #include <tactility/drivers/hid_consumer.h>
 #include <tactility/drivers/keyboard.h>
 #include <tactility/drivers/usb_host_hid.h>
@@ -299,6 +301,7 @@ static void hid_driver_callback(hid_host_device_handle_t handle,
     }
 }
 
+// Stack may be in PSRAM: no flash access allowed from this task.
 static void hid_proc_task(void* arg) {
     auto* ctx = static_cast<UsbHidContext*>(arg);
     LOG_I(TAG, "HID proc task started");
@@ -389,7 +392,7 @@ static void hid_proc_task(void* arg) {
 
     LOG_I(TAG, "HID proc task stopped");
     xSemaphoreGive(ctx->hid_proc_task_done);
-    vTaskDelete(nullptr);
+    vTaskDeleteWithCaps(nullptr);
 }
 
 static bool api_hid_is_connected(struct Device* device) {
@@ -514,7 +517,8 @@ Driver esp32_usbhost_hid_keyboard_driver = {
     .internal = nullptr,
 };
 
-static void usb_hid_keyboard_device_construct(UsbHidContext* ctx) {
+static void usb_hid_keyboard_device_construct_on_worker(void* context) {
+    auto* ctx = static_cast<UsbHidContext*>(context);
     if (ctx->kb_device_active) {
         return;
     }
@@ -549,7 +553,8 @@ static void usb_hid_keyboard_device_construct(UsbHidContext* ctx) {
     ctx->kb_device_active = true;
 }
 
-static void usb_hid_keyboard_device_destruct(UsbHidContext* ctx) {
+static void usb_hid_keyboard_device_destruct_on_worker(void* context) {
+    auto* ctx = static_cast<UsbHidContext*>(context);
     if (!ctx->kb_device_active) {
         return;
     }
@@ -558,6 +563,18 @@ static void usb_hid_keyboard_device_destruct(UsbHidContext* ctx) {
     device_stop(&ctx->kb_device);
     device_remove(&ctx->kb_device);
     device_destruct(&ctx->kb_device);
+}
+
+static void usb_hid_keyboard_device_construct(UsbHidContext* ctx) {
+    if (esp32_usbhost_run_on_worker(device_get_parent(ctx->controller_device), usb_hid_keyboard_device_construct_on_worker, ctx) != ERROR_NONE) {
+        LOG_E(TAG, "failed to construct USB keyboard device: worker unavailable");
+    }
+}
+
+static void usb_hid_keyboard_device_destruct(UsbHidContext* ctx) {
+    if (esp32_usbhost_run_on_worker(device_get_parent(ctx->controller_device), usb_hid_keyboard_device_destruct_on_worker, ctx) != ERROR_NONE) {
+        LOG_E(TAG, "failed to destruct USB keyboard device: worker unavailable");
+    }
 }
 
 static void usb_hid_keyboard_publish_key(UsbHidContext* ctx, uint32_t lv_key, bool pressed, bool ctrl, bool alt, uint8_t hid_keycode, uint8_t hid_modifier) {
@@ -617,8 +634,8 @@ static error_t start_device(struct Device* device) {
     }
 
     ctx->hid_proc_running = true;
-    BaseType_t result = xTaskCreate(hid_proc_task, "hid_proc", HID_PROC_TASK_STACK,
-                                    ctx, HID_PROC_TASK_PRIORITY, &ctx->hid_proc_task);
+    BaseType_t result = esp32_usbhost_task_create_psram(hid_proc_task, "hid_proc", HID_PROC_TASK_STACK,
+                                                        ctx, HID_PROC_TASK_PRIORITY, &ctx->hid_proc_task);
     if (result != pdPASS) {
         LOG_E(TAG, "failed to create hid_proc task");
         ctx->hid_proc_running = false;
@@ -655,7 +672,7 @@ static error_t stop_device(struct Device* device) {
 
     if (xSemaphoreTake(ctx->hid_proc_task_done, pdMS_TO_TICKS(HID_STOP_TIMEOUT_MS)) != pdTRUE) {
         LOG_W(TAG, "HID proc task stop timed out, force terminating");
-        vTaskDelete(ctx->hid_proc_task);
+        vTaskDeleteWithCaps(ctx->hid_proc_task);
     }
     ctx->hid_proc_task = nullptr;
     vSemaphoreDelete(ctx->hid_proc_task_done);

@@ -459,7 +459,10 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(usb_host_hid_unsubscribe),
     DEFINE_MODULE_SYMBOL(USB_HOST_HID_TYPE),
     // drivers/usb_host_midi
-    DEFINE_MODULE_SYMBOL(usb_midi_set_callback),
+    DEFINE_MODULE_SYMBOL(usb_midi_event_subscribe),
+    DEFINE_MODULE_SYMBOL(usb_midi_event_unsubscribe),
+    DEFINE_MODULE_SYMBOL(usb_midi_event_poll),
+    DEFINE_MODULE_SYMBOL(usb_midi_event_emit),
     DEFINE_MODULE_SYMBOL(usb_midi_is_connected),
     DEFINE_MODULE_SYMBOL(USB_HOST_MIDI_TYPE),
     // drivers/usb_host_msc

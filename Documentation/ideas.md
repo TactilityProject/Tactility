@@ -7,6 +7,7 @@
 
 ## Higher Priority
 
+- Improve posix support: use user home path and system /tmp folder. implement uart/i2c drivers properly.
 - Improve Setup: Add keyboard/keypad/encoder navigation explanation.
   e.g. encoder long press on t-lora pager to get out of textarea
 - NimBLE looses pairing key after reboot

@@ -3,6 +3,7 @@
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/esp32_usbhost_task.h>
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/log.h>
 
@@ -29,6 +30,7 @@ constexpr uint8_t MIDI_INTF_CLASS    = 0x01;
 constexpr uint8_t MIDI_INTF_SUBCLASS = 0x03;
 
 struct UsbMidiContext {
+    Device*                  device       = nullptr;
     usb_host_client_handle_t client_hdl   = nullptr;
     usb_device_handle_t      dev_hdl      = nullptr;
     usb_transfer_t*          transfer     = nullptr;
@@ -38,10 +40,6 @@ struct UsbMidiContext {
     std::atomic<bool>        running{false};
     TaskHandle_t             task_handle  = nullptr;
     SemaphoreHandle_t        task_done    = nullptr;
-
-    portMUX_TYPE          callback_lock = portMUX_INITIALIZER_UNLOCKED;
-    usb_midi_message_cb_t callback      = nullptr;
-    void*                 callback_arg  = nullptr;
 };
 
 static bool find_midi_interface(const usb_config_desc_t* cfg, uint8_t* out_intf, uint8_t* out_ep) {
@@ -72,14 +70,6 @@ static bool find_midi_interface(const usb_config_desc_t* cfg, uint8_t* out_intf,
 }
 
 static void dispatch_midi_packets(UsbMidiContext* ctx, const uint8_t* buf, int len) {
-    usb_midi_message_cb_t cb;
-    void* arg;
-    taskENTER_CRITICAL(&ctx->callback_lock);
-    cb  = ctx->callback;
-    arg = ctx->callback_arg;
-    taskEXIT_CRITICAL(&ctx->callback_lock);
-    if (!cb) return;
-
     for (int i = 0; i + 3 < len; i += 4) {
         uint8_t cin = buf[i] & 0x0F;
         if (cin < 0x02) continue;
@@ -89,7 +79,7 @@ static void dispatch_midi_packets(UsbMidiContext* ctx, const uint8_t* buf, int l
             .data1  = buf[i + 2],
             .data2  = buf[i + 3],
         };
-        cb(&msg, arg);
+        usb_midi_event_emit(ctx->device, &msg);
     }
 }
 
@@ -169,6 +159,7 @@ static void client_event_cb(const usb_host_client_event_msg_t* msg, void* arg) {
     }
 }
 
+// Stack may be in PSRAM: no flash access allowed from this task.
 static void midi_client_task(void* arg) {
     auto* ctx = static_cast<UsbMidiContext*>(arg);
     LOG_I(TAG, "MIDI client task started");
@@ -186,16 +177,7 @@ static void midi_client_task(void* arg) {
 
     LOG_I(TAG, "MIDI client task stopped");
     xSemaphoreGive(ctx->task_done);
-    vTaskDelete(nullptr);
-}
-
-static void api_set_callback(struct Device* device, usb_midi_message_cb_t callback, void* user_data) {
-    auto* ctx = static_cast<UsbMidiContext*>(device_get_driver_data(device));
-    if (!ctx) return;
-    taskENTER_CRITICAL(&ctx->callback_lock);
-    ctx->callback     = callback;
-    ctx->callback_arg = user_data;
-    taskEXIT_CRITICAL(&ctx->callback_lock);
+    vTaskDeleteWithCaps(nullptr);
 }
 
 static bool api_is_connected(struct Device* device) {
@@ -204,7 +186,6 @@ static bool api_is_connected(struct Device* device) {
 }
 
 static const UsbMidiApi midi_api = {
-    .set_callback = api_set_callback,
     .is_connected = api_is_connected,
 };
 
@@ -212,6 +193,7 @@ extern "C" {
 
 static error_t start_device(struct Device* device) {
     auto* ctx = new UsbMidiContext();
+    ctx->device = device;
 
     if (usb_host_transfer_alloc(MIDI_TRANSFER_BUF_SIZE, 0, &ctx->transfer) != ESP_OK) {
         LOG_E(TAG, "failed to allocate MIDI transfer");
@@ -245,8 +227,8 @@ static error_t start_device(struct Device* device) {
     }
 
     ctx->running = true;
-    BaseType_t result = xTaskCreate(midi_client_task, "midi_client", MIDI_TASK_STACK,
-                                    ctx, MIDI_TASK_PRIORITY, &ctx->task_handle);
+    BaseType_t result = esp32_usbhost_task_create_psram(midi_client_task, "midi_client", MIDI_TASK_STACK,
+                                                        ctx, MIDI_TASK_PRIORITY, &ctx->task_handle);
     if (result != pdPASS) {
         LOG_E(TAG, "failed to create midi_client task");
         ctx->running = false;
@@ -281,7 +263,7 @@ static error_t stop_device(struct Device* device) {
             }
             ctx->dev_hdl = nullptr;
         }
-        vTaskDelete(ctx->task_handle);
+        vTaskDeleteWithCaps(ctx->task_handle);
         vTaskDelay(pdMS_TO_TICKS(50));
     }
     ctx->task_handle = nullptr;
