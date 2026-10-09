@@ -206,9 +206,6 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_width(ctx->uiNoteText, LV_PCT(100));
     lv_obj_set_height(ctx->uiNoteText, LV_PCT(86));
     lv_textarea_set_password_mode(ctx->uiNoteText, false);
-    if (lv_display_get_color_format(lv_obj_get_display(parent)) != LV_COLOR_FORMAT_L8) {
-        lv_obj_set_style_bg_color(ctx->uiNoteText, lv_color_hex(0x262626), LV_PART_MAIN);
-    }
     lv_textarea_set_placeholder_text(ctx->uiNoteText, "Notes...");
     lv_obj_add_event_cb(ctx->uiNoteText, onNoteTextPressed, LV_EVENT_PRESSED, ctx);
 
@@ -217,13 +214,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_align(footer, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     // Shows the screen background
     lv_obj_set_style_bg_opa(footer, LV_OPA_TRANSP, LV_PART_MAIN);
-    if (lv_display_get_color_format(lv_obj_get_display(parent)) == LV_COLOR_FORMAT_L8) {
-        lv_obj_set_style_border_width(footer, 1, LV_PART_MAIN);
-        lv_obj_set_style_border_color(footer, lv_theme_get_color_secondary(footer), LV_PART_MAIN);
-        lv_obj_set_style_border_side(footer, LV_BORDER_SIDE_TOP, LV_PART_MAIN);
-    } else {
-        lv_obj_set_style_border_width(footer, 0, LV_PART_MAIN);
-    }
+    lv_obj_set_style_border_width(footer, 0, LV_PART_MAIN);
+
     lv_obj_set_width(footer, LV_PCT(100));
     lv_obj_set_height(footer, LV_PCT(14));
     lv_obj_set_style_pad_all(footer, 0, LV_PART_MAIN);
