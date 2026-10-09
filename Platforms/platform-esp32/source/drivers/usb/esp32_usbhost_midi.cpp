@@ -301,7 +301,7 @@ static error_t stop_device(struct Device* device) {
 
 Driver esp32_usbhost_midi_driver = {
     .name         = "esp32_usbhost_midi",
-    .compatible   = (const char*[]) { "espressif,esp32-usbhost-midi", nullptr },
+    .compatible   = (const char*[]) { nullptr },
     .start_device = start_device,
     .stop_device  = stop_device,
     .api          = &midi_api,

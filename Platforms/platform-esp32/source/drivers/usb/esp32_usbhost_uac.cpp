@@ -605,11 +605,6 @@ Driver usb_uac_codec_driver = {
 };
 
 static error_t manager_start_device(Device* device) {
-    if (device_get_parent(device) == nullptr || !device_is_ready(device_get_parent(device))) {
-        LOG_E(TAG, "USB host parent is not ready");
-        return ERROR_RESOURCE;
-    }
-
     auto* data = new UsbUacData();
     data->manager_device = device;
     data->mutex = xSemaphoreCreateMutex();
@@ -705,7 +700,7 @@ static error_t manager_stop_device(Device* device) {
 
 Driver esp32_usbhost_uac_driver = {
     .name = "esp32_usbhost_uac",
-    .compatible = (const char*[]) { "espressif,esp32-usbhost-uac", nullptr },
+    .compatible = (const char*[]) { nullptr },
     .start_device = manager_start_device,
     .stop_device = manager_stop_device,
     .api = nullptr,

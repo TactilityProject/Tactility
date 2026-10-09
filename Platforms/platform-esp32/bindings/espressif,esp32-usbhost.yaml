@@ -13,3 +13,19 @@ properties:
       Default 0 selects the default peripheral (P4 default: controller 0, HS/UTMI).
       BIT(0) = controller 0 (HS, UTMI PHY - GPIO 49/50 aka USB2_OTG pins, e.g. USB-A on Tab5)
       BIT(1) = controller 1 (FS, FSLS PHY - GPIO 24/25 aka USB1 pins, e.g. USB-C OTG on Tab5)
+  hid:
+    type: boolean
+    default: false
+    description: Create the HID class device (keyboard, mouse, consumer control) when the host is enabled
+  midi:
+    type: boolean
+    default: false
+    description: Create the MIDI class device when the host is enabled
+  msc:
+    type: boolean
+    default: false
+    description: Create the mass storage class device when the host is enabled
+  audio:
+    type: boolean
+    default: false
+    description: Create the USB Audio Class device when the host is enabled (ESP32-S3 and ESP32-P4 only)

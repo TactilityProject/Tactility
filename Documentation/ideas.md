@@ -7,12 +7,10 @@
 
 ## Higher Priority
 
-- Update to LVGL 9.6.x (ESP-IDF and POSIX)
-- NimBLE looses pairing key after reboot
-- Move USB host task stacks to SPIRAM when available: esp32_usbhost*.cpp
-- Add bold fonts for e-ink readability improvement
 - Improve Setup: Add keyboard/keypad/encoder navigation explanation.
   e.g. encoder long press on t-lora pager to get out of textarea
+- NimBLE looses pairing key after reboot
+- Pick different font to improve monochrome screen readability (or change the weight). 
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
 - Improve SPI kernel driver (implement read, write, transactions)
 - TCA9534 keyboards should use interrupts
@@ -42,7 +40,6 @@
 - Consider moving certain drivers into separate modules: audio, bt, wifi, etc
 - Consider using https://github.com/Graphify-Labs/graphify
 - Consider implementing LVGL gridnav in apps https://lvgl.io/docs/open/9.3/details/auxiliary-modules/gridnav.html
-- Make USB host driver disabled by default, so it doesn't consume memory
 - TactilityTool: Make API compatibility table (and check for compatibility in the tool itself)
 - Refactor HttpServer into C code and move implementation to http-module
 - Use GPS time to set/update the current time

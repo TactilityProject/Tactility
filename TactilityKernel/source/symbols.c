@@ -39,6 +39,7 @@
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/drivers/usb_device_controller.h>
 #include <tactility/drivers/usb_hid_device.h>
+#include <tactility/drivers/usb_host.h>
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/drivers/usb_host_msc.h>
@@ -449,6 +450,9 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(lora_tx_event_unsubscribe),
     DEFINE_MODULE_SYMBOL(lora_tx_event_poll),
     DEFINE_MODULE_SYMBOL(LORA_TYPE),
+    // drivers/usb_host
+    DEFINE_MODULE_SYMBOL(usb_host_is_class_enabled),
+    DEFINE_MODULE_SYMBOL(USB_HOST_TYPE),
     // drivers/usb_host_hid
     DEFINE_MODULE_SYMBOL(usb_host_hid_is_connected),
     DEFINE_MODULE_SYMBOL(usb_host_hid_subscribe),

@@ -177,17 +177,8 @@
 
 	usbhost0 {
 		compatible = "espressif,esp32-usbhost";
-
-		usbhosthid0 {
-			compatible = "espressif,esp32-usbhost-hid";
-		};
-
-		usbhostmidi0 {
-			compatible = "espressif,esp32-usbhost-midi";
-		};
-
-		usbhostmsc0 {
-			compatible = "espressif,esp32-usbhost-msc";
-		};
+		hid;
+		midi;
+		msc;
 	};
 };

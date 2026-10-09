@@ -3,6 +3,7 @@
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/esp32_usbhost_task.h>
 #include <tactility/drivers/usb_host_msc.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
@@ -138,6 +139,7 @@ static void msc_event_cb(const msc_host_event_t* event, void* arg) {
     }
 }
 
+// Stack may be in PSRAM: no flash access allowed from this task.
 static void msc_proc_task(void* arg) {
     auto* ctx = static_cast<UsbMscContext*>(arg);
     LOG_I(TAG, "MSC proc task started");
@@ -230,7 +232,7 @@ static void msc_proc_task(void* arg) {
     free_all_msc_devices(ctx);
     LOG_I(TAG, "MSC proc task stopped");
     xSemaphoreGive(ctx->proc_task_done);
-    vTaskDelete(nullptr);
+    vTaskDeleteWithCaps(nullptr);
 }
 
 static bool api_eject(struct Device* device, const char* mount_path) {
@@ -313,8 +315,8 @@ static error_t start_device(struct Device* device) {
     }
 
     ctx->proc_running = true;
-    BaseType_t result = xTaskCreate(msc_proc_task, "msc_proc", MSC_PROC_TASK_STACK,
-                                    ctx, MSC_PROC_TASK_PRIORITY, &ctx->proc_task);
+    BaseType_t result = esp32_usbhost_task_create_psram(msc_proc_task, "msc_proc", MSC_PROC_TASK_STACK,
+                                                        ctx, MSC_PROC_TASK_PRIORITY, &ctx->proc_task);
     if (result != pdPASS) {
         LOG_E(TAG, "failed to create msc_proc task");
         ctx->proc_running = false;
@@ -343,7 +345,7 @@ static error_t stop_device(struct Device* device) {
     }
     if (!exited) {
         LOG_W(TAG, "MSC proc task stop timed out, force terminating");
-        vTaskDelete(ctx->proc_task);
+        vTaskDeleteWithCaps(ctx->proc_task);
         vTaskDelay(pdMS_TO_TICKS(50));
         // Task was killed mid-cleanup — free devices ourselves as best-effort.
         free_all_msc_devices(ctx);
@@ -363,7 +365,7 @@ static error_t stop_device(struct Device* device) {
 
 Driver esp32_usbhost_msc_driver = {
     .name         = "esp32_usbhost_msc",
-    .compatible   = (const char*[]) { "espressif,esp32-usbhost-msc", nullptr },
+    .compatible   = (const char*[]) { nullptr },
     .start_device = start_device,
     .stop_device  = stop_device,
     .api          = &msc_api,
