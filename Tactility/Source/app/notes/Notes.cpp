@@ -15,7 +15,13 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <lvgl.h>
+#include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
+#include <lvgl/icons/shared.h>
+#include <lvgl/insets.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/card.h>
+#include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/toolbar.h>
 #include <tactility/check.h>
 #include <tactility/log.h>
@@ -33,7 +39,9 @@ struct Context {
     TaskEventGroup* eventGroup = nullptr;
 
     lv_obj_t* uiCurrentFileName = nullptr;
-    lv_obj_t* uiDropDownMenu = nullptr;
+    lv_obj_t* uiToolbar = nullptr;
+    lv_obj_t* uiOverflowButton = nullptr;
+    lv_obj_t* uiOverlay = nullptr;
     lv_obj_t* uiNoteText = nullptr;
 
     std::string filePath;
@@ -77,48 +85,98 @@ bool saveFile(Context* ctx, const std::string& path) {
     return result;
 }
 
-void appNotesEventCb(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t* obj = lv_event_get_target_obj(e);
+void hideOverlay(Context* ctx) {
+    if (lv_obj_is_hidden(ctx->uiOverlay)) {
+        return;
+    }
+    lv_obj_set_hidden(ctx->uiOverlay, true);
 
-    if (code == LV_EVENT_VALUE_CHANGED) {
-        if (obj == ctx->uiDropDownMenu) {
-            switch (lv_dropdown_get_selected(obj)) {
-                case 0: // New
-                    resetFileContent(ctx);
-                    break;
-                case 1: // Save
-                    if (!ctx->filePath.empty()) {
-                        lvgl_lock();
-                        ctx->saveBuffer = lv_textarea_get_text(ctx->uiNoteText);
-                        lvgl_unlock();
-                        saveFile(ctx, ctx->filePath);
-                    }
-                    break;
-                case 2: // Save as...
-                    lvgl_lock();
-                    ctx->saveBuffer = lv_textarea_get_text(ctx->uiNoteText);
-                    lvgl_unlock();
-                    ctx->saveFileLaunchId = fileselection::startForExistingOrNewFile(ctx->appInstanceId, ctx->saveResultStream, ctx->saveResultBuffer, sizeof(ctx->saveResultBuffer), ctx->eventGroup);
-                    LOG_I(TAG, "launched with id %u", ctx->saveFileLaunchId);
-                    break;
-                case 3: // Load
-                    ctx->loadFileLaunchId = fileselection::startForExistingFile(ctx->appInstanceId, ctx->loadResultStream, ctx->loadResultBuffer, sizeof(ctx->loadResultBuffer), ctx->eventGroup);
-                    LOG_I(TAG, "launched with id %u", ctx->loadFileLaunchId);
-                    break;
-            }
-        } else {
-            auto* cont = lv_event_get_current_target_obj(e);
-            if (obj == cont) return;
-            if (lv_obj_get_child(cont, 1)) {
-                ctx->saveFileLaunchId = fileselection::startForExistingOrNewFile(ctx->appInstanceId, ctx->saveResultStream, ctx->saveResultBuffer, sizeof(ctx->saveResultBuffer), ctx->eventGroup);
-                LOG_I(TAG, "launched with id %u", ctx->saveFileLaunchId);
-            } else { //Reset
-                resetFileContent(ctx);
-            }
+    // Keys continue on the button that opened the overlay
+    lv_group_t* group = lv_group_get_default();
+    if (group != nullptr && lv_group_get_focused(group) == ctx->uiOverlay) {
+        lv_group_focus_obj(ctx->uiToolbar);
+        lv_gridnav_set_focused(ctx->uiToolbar, ctx->uiOverflowButton, LV_ANIM_OFF);
+    }
+}
+
+void onNewPressed(lv_event_t* e) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+    hideOverlay(ctx);
+    resetFileContent(ctx);
+}
+
+void onSavePressed(lv_event_t* e) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+    hideOverlay(ctx);
+    ctx->saveBuffer = lv_textarea_get_text(ctx->uiNoteText);
+    saveFile(ctx, ctx->filePath);
+}
+
+void onSaveAsPressed(lv_event_t* e) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+    hideOverlay(ctx);
+    ctx->saveBuffer = lv_textarea_get_text(ctx->uiNoteText);
+    ctx->saveFileLaunchId = fileselection::startForExistingOrNewFile(ctx->appInstanceId, ctx->saveResultStream, ctx->saveResultBuffer, sizeof(ctx->saveResultBuffer), ctx->eventGroup);
+    LOG_I(TAG, "launched with id %u", ctx->saveFileLaunchId);
+}
+
+void onOpenPressed(lv_event_t* e) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+    hideOverlay(ctx);
+    ctx->loadFileLaunchId = fileselection::startForExistingFile(ctx->appInstanceId, ctx->loadResultStream, ctx->loadResultBuffer, sizeof(ctx->loadResultBuffer), ctx->eventGroup);
+    LOG_I(TAG, "launched with id %u", ctx->loadFileLaunchId);
+}
+
+void addOverlayButton(Context* ctx, const char* icon, lv_event_cb_t callback) {
+    auto* button = lvgl_icon_button_create(ctx->uiOverlay);
+    auto* label = lv_label_create(button);
+    lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_label_set_text(label, icon);
+    lv_obj_add_event_cb(button, callback, LV_EVENT_SHORT_CLICKED, ctx);
+}
+
+void showOverlay(Context* ctx) {
+    lv_obj_clean(ctx->uiOverlay);
+    addOverlayButton(ctx, LVGL_ICON_SHARED_NOTE_ADD, onNewPressed);
+    // Saving needs a file, which "save as" picks
+    if (!ctx->filePath.empty()) {
+        addOverlayButton(ctx, LVGL_ICON_SHARED_SAVE, onSavePressed);
+    }
+    addOverlayButton(ctx, LVGL_ICON_SHARED_SAVE_AS, onSaveAsPressed);
+    addOverlayButton(ctx, LVGL_ICON_SHARED_FOLDER_OPEN, onOpenPressed);
+
+    lv_obj_set_hidden(ctx->uiOverlay, false);
+    lv_obj_align_to(ctx->uiOverlay, ctx->uiToolbar, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
+
+    lv_group_t* group = lv_group_get_default();
+    if (group != nullptr) {
+        lv_group_focus_obj(ctx->uiOverlay);
+        lv_gridnav_set_focused(ctx->uiOverlay, lv_obj_get_child(ctx->uiOverlay, 0), LV_ANIM_OFF);
+        // Touch shows no selection, until a key moves the focus
+        lv_indev_t* indev = lv_indev_active();
+        if (indev != nullptr && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+            lvgl_focus_hide_key_selection(group);
         }
     }
+}
+
+void onOverflowPressed(lv_event_t* e) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+    if (lv_obj_is_hidden(ctx->uiOverlay)) {
+        showOverlay(ctx);
+    } else {
+        hideOverlay(ctx);
+    }
+}
+
+void onOverlayKey(lv_event_t* e) {
+    if (lv_event_get_key(e) == LV_KEY_ESC) {
+        hideOverlay(static_cast<Context*>(lv_event_get_user_data(e)));
+    }
+}
+
+void onNoteTextPressed(lv_event_t* e) {
+    hideOverlay(static_cast<Context*>(lv_event_get_user_data(e)));
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -128,16 +186,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    lv_obj_t* toolbar = lvgl_toolbar_create(parent, "Notes");
-    lv_obj_align(toolbar, LV_ALIGN_TOP_MID, 0, 0);
-
-    ctx->uiDropDownMenu = lv_dropdown_create(toolbar);
-    lv_dropdown_set_options(ctx->uiDropDownMenu, LV_SYMBOL_FILE " New File\n" LV_SYMBOL_SAVE " Save\n" LV_SYMBOL_SAVE " Save As...\n" LV_SYMBOL_DIRECTORY " Open File");
-    lv_dropdown_set_text(ctx->uiDropDownMenu, "Menu");
-    lv_dropdown_set_symbol(ctx->uiDropDownMenu, LV_SYMBOL_DOWN);
-    lv_dropdown_set_selected_highlight(ctx->uiDropDownMenu, false);
-    lv_obj_align(ctx->uiDropDownMenu, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_add_event_cb(ctx->uiDropDownMenu, appNotesEventCb, LV_EVENT_VALUE_CHANGED, ctx);
+    ctx->uiToolbar = lvgl_toolbar_create(parent, "Notes");
+    lv_obj_align(ctx->uiToolbar, LV_ALIGN_TOP_MID, 0, 0);
+    ctx->uiOverflowButton = lvgl_toolbar_add_text_button_action(ctx->uiToolbar, LVGL_ICON_SHARED_MORE_VERT, onOverflowPressed, ctx);
+    lv_obj_set_style_text_font(ctx->uiOverflowButton, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
 
     lv_obj_t* wrapper = lv_obj_create(parent);
     lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
@@ -158,6 +210,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_style_bg_color(ctx->uiNoteText, lv_color_hex(0x262626), LV_PART_MAIN);
     }
     lv_textarea_set_placeholder_text(ctx->uiNoteText, "Notes...");
+    lv_obj_add_event_cb(ctx->uiNoteText, onNoteTextPressed, LV_EVENT_PRESSED, ctx);
 
     lv_obj_t* footer = lv_obj_create(wrapper);
     lv_obj_set_flex_flow(footer, LV_FLEX_FLOW_ROW);
@@ -182,6 +235,19 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_height(ctx->uiCurrentFileName, LV_SIZE_CONTENT);
     lv_label_set_text(ctx->uiCurrentFileName, "Untitled");
     lv_obj_align(ctx->uiCurrentFileName, LV_ALIGN_CENTER, 0, 0);
+
+    // Floating over the text area, below the toolbar
+    ctx->uiOverlay = lvgl_card_create(parent);
+    lv_obj_set_floating(ctx->uiOverlay, true);
+    lv_obj_set_size(ctx->uiOverlay, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(ctx->uiOverlay, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ctx->uiOverlay, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scrollable(ctx->uiOverlay, false);
+    lvgl_obj_add_edge_padding(ctx->uiOverlay);
+    // The arrow keys move between the overlay's buttons as one row
+    lvgl_grid_navigation_add(ctx->uiOverlay);
+    lv_obj_add_event_cb(ctx->uiOverlay, onOverlayKey, LV_EVENT_KEY, ctx);
+    lv_obj_set_hidden(ctx->uiOverlay, true);
 
     if (!ctx->filePath.empty()) {
         openFile(ctx, ctx->filePath);
