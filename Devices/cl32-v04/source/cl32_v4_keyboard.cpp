@@ -53,7 +53,7 @@ constexpr uint8_t KEYPAD_1 = 0x59;
 constexpr uint8_t KEYPAD_9 = 0x61;
 constexpr uint8_t KEYPAD_0 = 0x62;
 constexpr uint8_t KEYPAD_PERIOD = 0x63;
-constexpr uint8_t KEY_SHIFT = 0xE1;
+constexpr uint8_t KEY_SHIFT = 0x7F;
 
 enum class ToggleState { Unpressed, OnePress, Locked };
 
