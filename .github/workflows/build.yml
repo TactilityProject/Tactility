@@ -30,8 +30,6 @@ jobs:
         with:
           board_id: ${{ matrix.board.id }}
           arch: ${{ matrix.board.arch }}
-          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
   BuildSdkPosix:
     runs-on: ubuntu-latest
     steps:
