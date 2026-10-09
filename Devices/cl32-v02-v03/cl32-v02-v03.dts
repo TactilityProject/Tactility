@@ -1,0 +1,81 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_grove.h>
+#include <tactility/bindings/esp32_i2c_master.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_sdspi.h>
+#include <tactility/bindings/esp32_wifi.h>
+
+#include <bindings/bm8563.h>
+#include <bindings/esp_epaper.h>
+
+/ {
+	compatible = "root";
+	model = "CL-32";
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi";
+		status = "disabled";
+	};
+
+	// Top Stemma/Qwiic port 1 shares this bus with the RTC (SDA: pin 1 <-> SCL: pin 2). External
+	// I2C devices on that port are reachable via i2c0. The tca8418 keyboard has a different layout
+	// on revision 2 and 3 hardware and is created dynamically based on hardware detection, see
+	// cl32_detect.cpp.
+	i2c0 {
+		compatible = "espressif,esp32-i2c-master";
+		port = <I2C_NUM_0>;
+		clock-frequency = <100000>;
+		pin-sda = <&gpio0 1 GPIO_FLAG_PULL_UP>;
+		pin-scl = <&gpio0 2 GPIO_FLAG_PULL_UP>;
+
+		rtc: bm8563 {
+			compatible = "belling,bm8563";
+			reg = <0x51>;
+		};
+	};
+
+	port_b: grove1 {
+		compatible = "espressif,esp32-grove";
+		defaultMode = <GROVE_MODE_I2C>;
+		pinSdaTx = <&gpio0 47 GPIO_FLAG_NONE>;
+		pinSclRx = <&gpio0 48 GPIO_FLAG_NONE>;
+		uartPort = <UART_NUM_1>;
+		i2cPort = <I2C_NUM_1>;
+		i2cClockFrequency = <100000>;
+	};
+
+	spi1 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 7 GPIO_FLAG_NONE>;
+		pin-mosi = <&gpio0 10 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 11 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 9 GPIO_FLAG_NONE>;
+		max-transfer-size = <4096>;
+
+		sdcard@0 {
+			compatible = "espressif,esp32-sdspi";
+			frequency-khz = <20000>;
+		};
+
+		epd@1 {
+			compatible = "tuanpmt,esp-epaper";
+			pin-dc = <&gpio0 13 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 12 GPIO_FLAG_NONE>;
+			pin-busy = <&gpio0 14 GPIO_FLAG_NONE>;
+			pin-cs = <&gpio0 6 GPIO_FLAG_NONE>;
+			clock-speed-hz = <4000000>;
+			panel-type = "gdey029t71h";
+			update-mode = <2>;
+			rotation = <1>;
+		};
+	};
+};

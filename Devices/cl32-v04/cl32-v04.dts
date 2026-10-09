@@ -9,7 +9,10 @@
 #include <tactility/bindings/esp32_wifi.h>
 
 #include <bindings/bm8563.h>
-#include <bindings/esp_epaper.h>
+#include <bindings/cl32_v4_light.h>
+#include <bindings/cl32_v4_keyboard.h>
+#include <bindings/cl32_v4_power.h>
+#include <bindings/st7305.h>
 
 / {
 	compatible = "root";
@@ -26,9 +29,7 @@
 	};
 
 	// Top Stemma/Qwiic port 1 shares this bus with the RTC (SDA: pin 1 <-> SCL: pin 2). External
-	// I2C devices on that port are reachable via i2c0. The tca8418 keyboard (revision 2 hardware)
-	// and power-supply chip (revision 3 hardware) are mutually exclusive on this bus and are
-	// created dynamically based on hardware detection - see cl32_detect.cpp.
+	// I2C devices on that port are reachable via i2c0.
 	i2c0 {
 		compatible = "espressif,esp32-i2c-master";
 		port = <I2C_NUM_0>;
@@ -39,6 +40,32 @@
 		rtc: bm8563 {
 			compatible = "belling,bm8563";
 			reg = <0x51>;
+		};
+
+		// The core chip provides both the keyboard and the power functions
+		keyboard {
+			compatible = "cl32-v4-keyboard";
+			reg = <0x08>;
+		};
+
+		power {
+			compatible = "cl32-v4-power";
+			reg = <0x08>;
+		};
+
+		back_light {
+			compatible = "cl32-v4-light";
+			reg = <0x08>;
+			brightness-register = <0x0F>;
+			timeout-register = <0x10>;
+		};
+
+		front_light {
+			compatible = "cl32-v4-light";
+			status = "disabled"; // Will be in future hardware
+			reg = <0x08>;
+			brightness-register = <0x11>;
+			timeout-register = <0x12>;
 		};
 	};
 
@@ -55,7 +82,8 @@
 	spi1 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		cs-gpios = <&gpio0 7 GPIO_FLAG_NONE>;
+		cs-gpios = <&gpio0 7 GPIO_FLAG_NONE>,
+		           <&gpio0 6 GPIO_FLAG_NONE>;
 		pin-mosi = <&gpio0 10 GPIO_FLAG_NONE>;
 		pin-miso = <&gpio0 11 GPIO_FLAG_NONE>;
 		pin-sclk = <&gpio0 9 GPIO_FLAG_NONE>;
@@ -66,16 +94,14 @@
 			frequency-khz = <20000>;
 		};
 
-		epd@1 {
-			compatible = "tuanpmt,esp-epaper";
+		display@1 {
+			compatible = "sitronix,st7305";
 			pin-dc = <&gpio0 13 GPIO_FLAG_NONE>;
 			pin-reset = <&gpio0 12 GPIO_FLAG_NONE>;
-			pin-busy = <&gpio0 14 GPIO_FLAG_NONE>;
-			pin-cs = <&gpio0 6 GPIO_FLAG_NONE>;
-			clock-speed-hz = <4000000>;
-			panel-type = "gdey029t71h";
-			update-mode = <2>;
-			rotation = <1>;
+			pixel-clock-hz = <80000000>;
+			mirror-x;
+			mirror-y;
+			backlight = <&back_light>;
 		};
 	};
 };

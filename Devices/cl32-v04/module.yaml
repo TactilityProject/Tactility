@@ -1,0 +1,6 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/bm8563-module
+  - Drivers/st7305-module
+bindings: bindings
+dts: cl32-v04.dts

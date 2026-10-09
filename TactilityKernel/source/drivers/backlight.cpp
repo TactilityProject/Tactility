@@ -23,16 +23,18 @@ error_t backlight_get_brightness(Device* device, uint8_t* out_brightness) {
 
 uint8_t backlight_get_min_brightness(Device* device) {
     const auto* driver = device_get_driver(device);
-    return BACKLIGHT_DRIVER_API(driver)->get_min_brightness(device);
+    auto* function = BACKLIGHT_DRIVER_API(driver)->get_min_brightness;
+    return function ? function(device) : 0;
 }
 
 uint8_t backlight_get_max_brightness(Device* device) {
     const auto* driver = device_get_driver(device);
-    return BACKLIGHT_DRIVER_API(driver)->get_max_brightness(device);
+    auto* function = BACKLIGHT_DRIVER_API(driver)->get_max_brightness;
+    return function ? function(device) : 255;
 }
 
 const DeviceType BACKLIGHT_TYPE {
-    .name = "backlight"
+    .name = "backlight",
 };
 
 }

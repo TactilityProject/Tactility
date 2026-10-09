@@ -11,10 +11,15 @@
 
 #include <new>
 
-extern Module cl32_module;
+extern Module cl32_v04_module;
 
 constexpr auto* TAG = "cl32-v4-power";
 
+#define GET_CONFIG(device) (static_cast<const Cl32V4PowerConfig*>((device)->config))
+
+constexpr uint8_t REG_POWER_CONTROL = 0x01;
+constexpr uint8_t POWER_CONTROL_CUT_POWER = 0x80;
+constexpr uint8_t BAT_VOLTAGE = 0x13;
 constexpr uint8_t REG_VOLTAGE = 0x14;
 constexpr int MV_PER_LSB = 25;
 constexpr int MIN_MV = 3200;
@@ -31,7 +36,7 @@ static bool ps_supports_property(Device*, PowerSupplyProperty property) {
 static error_t read_battery_mv(Device* chip_device, int* out_mv) {
     auto* i2c0 = device_get_parent(chip_device);
     uint8_t raw = 0;
-    error_t error = i2c_controller_register8_get(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_VOLTAGE, &raw, CL32_V4_CORE_TIMEOUT);
+    error_t error = i2c_controller_register8_get(i2c0, GET_CONFIG(chip_device)->address, BAT_VOLTAGE, &raw, CL32_V4_CORE_TIMEOUT);
     if (error != ERROR_NONE) {
         return error;
     }
@@ -66,8 +71,13 @@ static error_t ps_set_allowed_to_charge(Device*, bool) { return ERROR_NOT_SUPPOR
 static bool ps_supports_quick_charge(Device*) { return false; }
 static bool ps_is_quick_charge_enabled(Device*) { return false; }
 static error_t ps_set_quick_charge_enabled(Device*, bool) { return ERROR_NOT_SUPPORTED; }
-static bool ps_supports_power_off(Device*) { return false; }
-static error_t ps_power_off(Device*) { return ERROR_NOT_SUPPORTED; }
+static bool ps_supports_power_off(Device*) { return true; }
+
+static error_t ps_power_off(Device* device) {
+    auto* chip_device = device_get_parent(device);
+    auto* i2c0 = device_get_parent(chip_device);
+    return i2c_controller_register8_set_bits(i2c0, GET_CONFIG(chip_device)->address, REG_POWER_CONTROL, POWER_CONTROL_CUT_POWER, CL32_V4_CORE_TIMEOUT);
+}
 
 static constexpr PowerSupplyApi CL32_V4_POWER_SUPPLY_API = {
     .supports_property = ps_supports_property,
@@ -82,7 +92,7 @@ static constexpr PowerSupplyApi CL32_V4_POWER_SUPPLY_API = {
     .power_off = ps_power_off,
 };
 
-// Registered in cl32_module's driver list so driver_bind() has a valid ->internal, but never
+// Registered in cl32_v04_module's driver list so driver_bind() has a valid ->internal, but never
 // matched against a devicetree node: wired up directly by pointer from cl32_v4_power_driver's start().
 Driver cl32_v4_power_supply_driver = {
     .name = "cl32-v4-power-supply",
@@ -91,7 +101,7 @@ Driver cl32_v4_power_supply_driver = {
     .stop_device = nullptr,
     .api = &CL32_V4_POWER_SUPPLY_API,
     .device_type = &POWER_SUPPLY_TYPE,
-    .owner = &cl32_module,
+    .owner = &cl32_v04_module,
     .internal = nullptr
 };
 
@@ -179,8 +189,9 @@ Driver cl32_v4_power_driver = {
     .compatible = (const char*[]) { "cl32-v4-power", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = nullptr,
-    .owner = &cl32_module,
-    .internal = nullptr
+    .owner = &cl32_v04_module,
+    .internal = nullptr,
 };

@@ -670,13 +670,13 @@ static bool config_equals(const lv_theme_material_config_t * a, const lv_theme_m
 static void style_init(my_theme_t * theme)
 {
     static const lv_style_prop_t trans_state_enter_props[] = {
-        LV_STYLE_BG_COLOR, LV_STYLE_BG_OPA, LV_STYLE_BORDER_COLOR, LV_STYLE_TEXT_COLOR, LV_STYLE_OUTLINE_WIDTH, LV_STYLE_OUTLINE_OPA,
+        LV_STYLE_BG_COLOR, LV_STYLE_BG_OPA, LV_STYLE_BORDER_COLOR, LV_STYLE_TEXT_COLOR,
         0
     };
     lv_style_transition_dsc_init(&theme->trans_state_enter, trans_state_enter_props, lv_anim_path_ease_out, MOTION_DURATION_SHORT, 0, NULL);
 
     static const lv_style_prop_t trans_state_exit_props[] = {
-        LV_STYLE_BG_COLOR, LV_STYLE_BG_OPA, LV_STYLE_BORDER_COLOR, LV_STYLE_TEXT_COLOR, LV_STYLE_OUTLINE_WIDTH, LV_STYLE_OUTLINE_OPA,
+        LV_STYLE_BG_COLOR, LV_STYLE_BG_OPA, LV_STYLE_BORDER_COLOR, LV_STYLE_TEXT_COLOR,
         0
     };
     lv_style_transition_dsc_init(&theme->trans_state_exit, trans_state_exit_props, lv_anim_path_ease_out, MOTION_DURATION_SHORT, 70, NULL);

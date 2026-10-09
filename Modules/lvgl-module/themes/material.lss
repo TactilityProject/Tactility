@@ -458,14 +458,14 @@
 // ============================================================
 
 @transition state-enter {
-    props: bgColor, bgOpa, borderColor, textColor, outlineWidth, outlineOpa;
+    props: bgColor, bgOpa, borderColor, textColor;
     path: ease-out;
     duration: @motion-duration-short;
     delay: 0;
 }
 
 @transition state-exit {
-    props: bgColor, bgOpa, borderColor, textColor, outlineWidth, outlineOpa;
+    props: bgColor, bgOpa, borderColor, textColor;
     path: ease-out;
     duration: @motion-duration-short;
     delay: 70;

@@ -22,7 +22,6 @@
 #include <Tactility/file/File.h>
 #include <Tactility/StringUtils.h>
 
-#include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/drivers/usb_host_msc.h>
 #include <tactility/log.h>

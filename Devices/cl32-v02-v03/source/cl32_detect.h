@@ -4,7 +4,6 @@ enum class Cl32HardwareRevision {
     Unknown,
     Revision2,
     Revision3,
-    Revision4,
 };
 
 Cl32HardwareRevision cl32_hardware_revision();

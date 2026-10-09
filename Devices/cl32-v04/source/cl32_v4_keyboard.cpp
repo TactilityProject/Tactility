@@ -9,9 +9,11 @@
 
 #include <new>
 
-extern Module cl32_module;
+extern Module cl32_v04_module;
 
 constexpr auto* TAG = "cl32-v4-keyboard";
+
+#define GET_CONFIG(device) (static_cast<const Cl32V4KeyboardConfig*>((device)->config))
 
 // v4's core chip reports keyboard events on the same I2C address as the power-supply function
 // (see cl32_v4_power.h) - CL-32/CL-32's CL32_core class talks to both over one address.
@@ -27,12 +29,13 @@ constexpr uint8_t MAX_EVENTS_PER_DRAIN = 16;
 
 // HID Keyboard/Keypad usage codes (USB HID Usage Tables page 0x07) this chip's matrix produces,
 // named after CL-32/CL-32's CL32_core::_matrix keymap (CL32_core.cpp).
-constexpr uint8_t KEY_FN = 0x3A;      // repurposed F1 position
-constexpr uint8_t KEY_FILE = 0x43;    // repurposed F10 position
-constexpr uint8_t KEY_MENU = 0x44;    // repurposed F11 position
+constexpr uint8_t KEY_FN = 0x65;
+constexpr uint8_t KEY_FILE = 0x76;
+constexpr uint8_t KEY_MENU = 0x74;
 constexpr uint8_t KEY_ENTER = 0x28;
 constexpr uint8_t KEY_ESCAPE = 0x29;
 constexpr uint8_t KEY_BACKSPACE = 0x2A;
+constexpr uint8_t KEY_TAB = 0x2B;
 constexpr uint8_t KEY_SPACE = 0x2C;
 constexpr uint8_t KEY_EQUALS = 0x2E;
 constexpr uint8_t KEY_PERIOD = 0x37;
@@ -40,6 +43,8 @@ constexpr uint8_t KEY_ARROW_RIGHT = 0x4F;
 constexpr uint8_t KEY_ARROW_LEFT = 0x50;
 constexpr uint8_t KEY_ARROW_DOWN = 0x51;
 constexpr uint8_t KEY_ARROW_UP = 0x52;
+constexpr uint8_t KEY_YES = 0x77;
+constexpr uint8_t KEY_NO = 0x78;
 constexpr uint8_t KEYPAD_SLASH = 0x54;
 constexpr uint8_t KEYPAD_ASTERISK = 0x55;
 constexpr uint8_t KEYPAD_MINUS = 0x56;
@@ -49,7 +54,7 @@ constexpr uint8_t KEYPAD_1 = 0x59;
 constexpr uint8_t KEYPAD_9 = 0x61;
 constexpr uint8_t KEYPAD_0 = 0x62;
 constexpr uint8_t KEYPAD_PERIOD = 0x63;
-constexpr uint8_t KEY_SHIFT = 0xE1;
+constexpr uint8_t KEY_SHIFT = 0x7F;
 
 enum class ToggleState { Unpressed, OnePress, Locked };
 
@@ -143,6 +148,7 @@ static bool translate_key(uint8_t code, bool shift, bool fn, uint32_t* out_key) 
 
     switch (code) {
         case KEY_ENTER: *out_key = CODEPOINT_ENTER; return true;
+        case KEY_TAB: *out_key = CODEPOINT_TAB; return true;
         case KEY_ESCAPE: *out_key = CODEPOINT_ESCAPE; return true;
         case KEY_BACKSPACE: *out_key = CODEPOINT_BACKSPACE; return true;
         case KEY_SPACE: *out_key = ' '; return true;
@@ -152,6 +158,8 @@ static bool translate_key(uint8_t code, bool shift, bool fn, uint32_t* out_key) 
         case KEY_ARROW_LEFT: *out_key = CODEPOINT_ARROW_LEFT; return true;
         case KEY_ARROW_DOWN: *out_key = CODEPOINT_ARROW_DOWN; return true;
         case KEY_ARROW_UP: *out_key = CODEPOINT_ARROW_UP; return true;
+        case KEY_YES: *out_key = CODEPOINT_YES; return true;
+        case KEY_NO: *out_key = CODEPOINT_NO; return true;
         case KEYPAD_SLASH: *out_key = '/'; return true;
         case KEYPAD_ASTERISK: *out_key = '*'; return true;
         case KEYPAD_MINUS: *out_key = '-'; return true;
@@ -171,12 +179,12 @@ static bool translate_key(uint8_t code, bool shift, bool fn, uint32_t* out_key) 
 static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
     if (code == KEY_SHIFT) {
         internal->shift_state = next_toggle_state(internal->shift_state);
-        LOG_I(TAG, "code=0x%02X shift -> %s", code, toggle_state_name(internal->shift_state));
+        LOG_D(TAG, "code=0x%02X shift -> %s", code, toggle_state_name(internal->shift_state));
         return;
     }
     if (code == KEY_FN) {
         internal->fn_state = next_toggle_state(internal->fn_state);
-        LOG_I(TAG, "code=0x%02X fn -> %s", code, toggle_state_name(internal->fn_state));
+        LOG_D(TAG, "code=0x%02X fn -> %s", code, toggle_state_name(internal->fn_state));
         return;
     }
 
@@ -186,7 +194,7 @@ static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
     // No app-level menu system at the driver layer - surface the raw HID code only, same as
     // tab5_keyboard.cpp's F1-F12 handling.
     if (code == KEY_MENU || code == KEY_FILE) {
-        LOG_I(TAG, "code=0x%02X (menu/file) shift=%s fn=%s hid_modifier=0x%02X",
+        LOG_D(TAG, "code=0x%02X (menu/file) shift=%s fn=%s hid_modifier=0x%02X",
               code, toggle_state_name(internal->shift_state), toggle_state_name(internal->fn_state), hid_modifier);
         push_pending(internal, 0, true, code, hid_modifier);
         push_pending(internal, 0, false, code, hid_modifier);
@@ -198,7 +206,7 @@ static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
     const bool has_key = translate_key(code, shift, fn, &key);
 
     const char printable = (has_key && key >= 0x20 && key < 0x7F) ? static_cast<char>(key) : '.';
-    LOG_I(TAG, "code=0x%02X key='%c' key_hex=0x%04X shift=%s fn=%s hid_modifier=0x%02X",
+    LOG_D(TAG, "code=0x%02X key='%c' key_hex=0x%04X shift=%s fn=%s hid_modifier=0x%02X",
           code, printable, static_cast<unsigned int>(has_key ? key : 0),
           toggle_state_name(internal->shift_state), toggle_state_name(internal->fn_state), hid_modifier);
 
@@ -216,9 +224,9 @@ static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
     }
 }
 
-static void drain_events(Device* i2c0, Cl32V4KeyboardInternal* internal) {
+static void drain_events(Device* i2c0, uint8_t address, Cl32V4KeyboardInternal* internal) {
     uint8_t interrupt_status = 0;
-    if (i2c_controller_register8_get(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_INTERRUPT, &interrupt_status, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
+    if (i2c_controller_register8_get(i2c0, address, REG_INTERRUPT, &interrupt_status, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
         return;
     }
     if ((interrupt_status & INTERRUPT_BIT_KEYBOARD) == 0) {
@@ -226,38 +234,38 @@ static void drain_events(Device* i2c0, Cl32V4KeyboardInternal* internal) {
     }
 
     uint8_t count = 0;
-    if (i2c_controller_register8_get(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_EVENT_COUNT, &count, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
+    if (i2c_controller_register8_get(i2c0, address, REG_EVENT_COUNT, &count, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
         return;
     }
 
     for (uint8_t drained = 0; drained < MAX_EVENTS_PER_DRAIN && count > 0; drained++) {
         uint8_t raw = 0;
-        if (i2c_controller_register8_get(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_EVENT1, &raw, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
+        if (i2c_controller_register8_get(i2c0, address, REG_EVENT1, &raw, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
             break;
         }
 
-        LOG_I(TAG, "raw event=0x%02X (%s)", raw, (raw & 0x80) != 0 ? "down" : "up");
+        LOG_D(TAG, "raw event=0x%02X (%s)", raw, (raw & 0x80) != 0 ? "down" : "up");
 
         if ((raw & 0x80) != 0) {
             handle_key_down(internal, static_cast<uint8_t>(raw & 0x7F));
         }
 
-        if (i2c_controller_register8_get(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_EVENT_COUNT, &count, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
+        if (i2c_controller_register8_get(i2c0, address, REG_EVENT_COUNT, &count, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
             break;
         }
     }
 
     // Only the keyboard bit is ours to clear - the power-supply function on this same chip owns
     // the other status bits in this register.
-    i2c_controller_register8_reset_bits(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_INTERRUPT, INTERRUPT_BIT_KEYBOARD, CL32_V4_CORE_TIMEOUT);
+    i2c_controller_register8_reset_bits(i2c0, address, REG_INTERRUPT, INTERRUPT_BIT_KEYBOARD, CL32_V4_CORE_TIMEOUT);
 }
 
-static error_t v3_read_key(Device* device, KeyboardKeyData* data) {
+static error_t v4_read_key(Device* device, KeyboardKeyData* data) {
     auto* internal = static_cast<Cl32V4KeyboardInternal*>(device_get_driver_data(device));
 
     Cl32V4KeyEvent event;
     if (internal->pending_count == 0) {
-        drain_events(device_get_parent(device), internal);
+        drain_events(device_get_parent(device), GET_CONFIG(device)->address, internal);
     }
 
     if (pop_pending(internal, &event)) {
@@ -282,7 +290,7 @@ static error_t v3_read_key(Device* device, KeyboardKeyData* data) {
 }
 
 static constexpr KeyboardApi cl32_v4_keyboard_api = {
-    .read_key = v3_read_key,
+    .read_key = v4_read_key,
     .get_backlight = nullptr,
     .is_present = nullptr,
 };
@@ -313,52 +321,9 @@ Driver cl32_v4_keyboard_driver = {
     .compatible = (const char*[]) { "cl32-v4-keyboard", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &cl32_v4_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
-    .owner = &cl32_module,
-    .internal = nullptr
+    .owner = &cl32_v04_module,
+    .internal = nullptr,
 };
-
-static Device cl32_v4_keyboard_device {};
-static bool cl32_v4_keyboard_created = false;
-
-bool cl32_v4_create_keyboard(Device* i2c0) {
-    cl32_v4_keyboard_device = Device { .address = 0, .name = "cl32-v4-keyboard", .config = nullptr, .parent = nullptr, .flags = 0, .internal = nullptr };
-
-    error_t error = device_construct(&cl32_v4_keyboard_device);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to construct keyboard: %s", error_to_string(error));
-        return false;
-    }
-
-    device_set_parent(&cl32_v4_keyboard_device, i2c0);
-    device_set_driver(&cl32_v4_keyboard_device, &cl32_v4_keyboard_driver);
-
-    error = device_add(&cl32_v4_keyboard_device);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to add keyboard: %s", error_to_string(error));
-        device_destruct(&cl32_v4_keyboard_device);
-        return false;
-    }
-
-    error = device_start(&cl32_v4_keyboard_device);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to start keyboard: %s", error_to_string(error));
-        device_remove(&cl32_v4_keyboard_device);
-        device_destruct(&cl32_v4_keyboard_device);
-        return false;
-    }
-
-    cl32_v4_keyboard_created = true;
-    return true;
-}
-
-void cl32_v4_destroy_keyboard() {
-    if (!cl32_v4_keyboard_created) {
-        return;
-    }
-    device_stop(&cl32_v4_keyboard_device);
-    device_remove(&cl32_v4_keyboard_device);
-    device_destruct(&cl32_v4_keyboard_device);
-    cl32_v4_keyboard_created = false;
-}

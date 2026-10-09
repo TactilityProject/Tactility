@@ -30,12 +30,6 @@
 
 namespace tt::lvgl {
 
-#if defined(CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED) && CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED
-constexpr bool STATUSBAR_COLORS_INVERTED = true;
-#else
-constexpr bool STATUSBAR_COLORS_INVERTED = false;
-#endif
-
 constexpr auto* TAG = "statusbar";
 
 static void onUpdateTime();

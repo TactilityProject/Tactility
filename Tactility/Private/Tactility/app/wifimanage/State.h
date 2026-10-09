@@ -17,6 +17,7 @@ class State final {
     RecursiveMutex mutex;
     bool scanning = false;
     bool scannedAfterRadioOn = false;
+    bool listRefreshRequested = true;
     WifiRadioState radioState = WIFI_RADIO_STATE_OFF;
     WifiStationState stationState = WIFI_STATION_STATE_DISCONNECTED;
     std::string connectionTarget;
@@ -30,6 +31,11 @@ public:
     bool isScanning() const;
 
     bool hasScannedAfterRadioOn() const { return scannedAfterRadioOn; }
+
+    /** The next finished scan updates the AP records and rebuilds the network list */
+    void requestListRefresh();
+    /** @return true if a list refresh was requested, clearing the request */
+    bool takeListRefreshRequest();
 
     void setRadioState(WifiRadioState state);
     WifiRadioState getRadioState() const;
