@@ -327,11 +327,11 @@ static error_t st7305_draw_bitmap(Device* device, int32_t x_start, int32_t y_sta
         return ERROR_NOT_SUPPORTED;
     }
 
-    convert_frame(internal, config, static_cast<const uint8_t*>(color_data));
-
     spi_controller_lock(internal->spi_controller);
+    // Sending the address window first waits for in-flight chunks of a previous failed transfer that still read panel_buffer
     bool ok = send_address_window(internal, config);
     if (ok) {
+        convert_frame(internal, config, static_cast<const uint8_t*>(color_data));
         // Drain any signal left over from earlier command transfers, which complete through the same callback
         xSemaphoreTake(internal->draw_done_semaphore, 0);
         ok = esp_lcd_panel_io_tx_color(internal->io_handle, CMD_RAMWR, internal->panel_buffer, internal->row_bytes * internal->row_count) == ESP_OK;
