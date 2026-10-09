@@ -1,8 +1,6 @@
 #include <tactility/module.h>
 
 #include "cl32_detect.h"
-#include "cl32_v4_keyboard.h"
-#include "cl32_v4_power.h"
 
 extern "C" {
 
@@ -18,13 +16,10 @@ static error_t stop() {
 }
 
 static Driver* const cl32_drivers[] = {
-    &cl32_v4_power_driver,
-    &cl32_v4_power_supply_driver,
-    &cl32_v4_keyboard_driver,
     nullptr
 };
 
-Module cl32_module = {
+Module cl32_v02_v03_module = {
     .name = "cl32",
     .start = start,
     .stop = stop,

@@ -124,10 +124,8 @@ else ()
     add_compile_definitions(CONFIG_TT_DEVICE_NAME="Simulator")
     add_compile_definitions(CONFIG_TT_DEVICE_VENDOR="")
     add_compile_definitions(CONFIG_TT_DEVICE_NAME_SIMPLE="Simulator")
-    add_compile_definitions(CONFIG_TT_LAUNCHER_APP_ID="tactility.launcher")
     add_compile_definitions(CONFIG_TT_AUTO_START_APP_ID="")
     add_compile_definitions(CONFIG_TT_USER_DATA_LOCATION_INTERNAL)
-    add_compile_definitions(CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED=false)
 
 endif ()
 

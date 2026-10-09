@@ -17,25 +17,29 @@ class View final {
     lv_obj_t* enable_switch = nullptr;
     lv_obj_t* enable_on_boot_switch = nullptr;
     lv_obj_t* scanning_spinner = nullptr;
+    lv_obj_t* refresh_button = nullptr;
     lv_obj_t* networks_list = nullptr;
     lv_obj_t* connect_to_hidden = nullptr;
 
     void updateWifiToggle();
     void updateEnableOnBootToggle();
     void updateScanning();
+    void updateRefreshButton();
     void updateNetworkList();
     void updateConnectToHidden();
     void createSsidListItem(lv_obj_t* list, const WifiApRecord& record, bool isConnecting, size_t index);
 
     static void showDetails(lv_event_t* event);
     static void connect(lv_event_t* event);
+    static void onRefreshPressed(lv_event_t* event);
 
 public:
 
     View(Bindings* bindings, State* state) : bindings(bindings), state(state) {}
 
     void init(uint32_t appInstanceId, lv_obj_t* parent);
-    void update();
+    /** @param[in] rebuildList recreates the network list, which resets the focused item */
+    void update(bool rebuildList);
     /** Called when this window's widgets have been (or are about to be) deleted out from under
      * it - see WindowDestroyWidgetsFn. Only nulls out pointers; must stay lock-free. */
     void reset();

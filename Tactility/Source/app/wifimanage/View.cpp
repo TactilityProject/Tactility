@@ -109,6 +109,12 @@ void View::showDetails(lv_event_t* event) {
     }
 }
 
+void View::onRefreshPressed(lv_event_t* event) {
+    auto* self = static_cast<View*>(lv_event_get_user_data(event));
+    self->state->requestListRefresh();
+    self->bindings->onRefresh();
+}
+
 /** Creates a title with a card below it, and returns the list in the card */
 static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
     auto* label = lv_label_create(parent);
@@ -257,6 +263,10 @@ void View::updateScanning() {
     }
 }
 
+void View::updateRefreshButton() {
+    lv_obj_set_hidden(refresh_button, state->getRadioState() != WIFI_RADIO_STATE_ON);
+}
+
 void View::updateWifiToggle() {
     lv_obj_clear_state(enable_switch, LV_STATE_ANY);
     switch (state->getRadioState()) {
@@ -308,6 +318,8 @@ void View::init(uint32_t newAppInstanceId, lv_obj_t* parent) {
 
     scanning_spinner = lvgl_toolbar_add_spinner_action(toolbar);
 
+    refresh_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_REFRESH, onRefreshPressed, this);
+
     enable_switch = lvgl_toolbar_add_switch_action(toolbar);
     lv_obj_add_event_cb(enable_switch, onEnableSwitchChanged, LV_EVENT_VALUE_CHANGED, bindings);
 
@@ -320,14 +332,17 @@ void View::init(uint32_t newAppInstanceId, lv_obj_t* parent) {
     lv_obj_set_style_border_width(networks_list, 0, LV_STATE_DEFAULT);
 }
 
-void View::update() {
+void View::update(bool rebuildList) {
     if (root == nullptr) {
         // Buried (or not yet built) - see reset().
         return;
     }
     updateWifiToggle();
     updateScanning();
-    updateNetworkList();
+    updateRefreshButton();
+    if (rebuildList) {
+        updateNetworkList();
+    }
     updateConnectToHidden();
 }
 
@@ -336,6 +351,7 @@ void View::reset() {
     enable_switch = nullptr;
     enable_on_boot_switch = nullptr;
     scanning_spinner = nullptr;
+    refresh_button = nullptr;
     networks_list = nullptr;
     connect_to_hidden = nullptr;
 }

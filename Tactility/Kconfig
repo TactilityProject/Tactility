@@ -21,24 +21,12 @@ menu "Tactility App"
         help
             The name of the directory in Devices/
             See https://docs.tactilityproject.org for formatting guidance.
-    config TT_LAUNCHER_APP_ID
-        string "Launcher App ID"
-        default "tactility.launcher"
-        help
-            The applications that gives access to other application.
-            This is the first thing that starts after the boot screen.
-            The user can override it with a boot.properties file
     config TT_FONT_DEFAULT_SIZE
         int "Default font size"
         default 14
         range 10 32
         help
             Default text font size in pixels. Other text and icon font sizes are derived from it.
-    config TT_LVGL_STATUSBAR_COLORS_INVERTED
-        bool "Statusbar colors inverted"
-        default n
-        help
-            Invert the statusbar's foreground/background colors
     config TT_AUTO_START_APP_ID
         string "Auto Start App ID"
         default ""

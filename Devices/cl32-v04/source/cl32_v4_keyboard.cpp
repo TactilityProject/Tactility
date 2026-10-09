@@ -9,9 +9,11 @@
 
 #include <new>
 
-extern Module cl32_module;
+extern Module cl32_v04_module;
 
 constexpr auto* TAG = "cl32-v4-keyboard";
+
+#define GET_CONFIG(device) (static_cast<const Cl32V4KeyboardConfig*>((device)->config))
 
 // v4's core chip reports keyboard events on the same I2C address as the power-supply function
 // (see cl32_v4_power.h) - CL-32/CL-32's CL32_core class talks to both over one address.
@@ -216,9 +218,9 @@ static void handle_key_down(Cl32V4KeyboardInternal* internal, uint8_t code) {
     }
 }
 
-static void drain_events(Device* i2c0, Cl32V4KeyboardInternal* internal) {
+static void drain_events(Device* i2c0, uint8_t address, Cl32V4KeyboardInternal* internal) {
     uint8_t interrupt_status = 0;
-    if (i2c_controller_register8_get(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_INTERRUPT, &interrupt_status, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
+    if (i2c_controller_register8_get(i2c0, address, REG_INTERRUPT, &interrupt_status, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
         return;
     }
     if ((interrupt_status & INTERRUPT_BIT_KEYBOARD) == 0) {
@@ -226,13 +228,13 @@ static void drain_events(Device* i2c0, Cl32V4KeyboardInternal* internal) {
     }
 
     uint8_t count = 0;
-    if (i2c_controller_register8_get(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_EVENT_COUNT, &count, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
+    if (i2c_controller_register8_get(i2c0, address, REG_EVENT_COUNT, &count, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
         return;
     }
 
     for (uint8_t drained = 0; drained < MAX_EVENTS_PER_DRAIN && count > 0; drained++) {
         uint8_t raw = 0;
-        if (i2c_controller_register8_get(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_EVENT1, &raw, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
+        if (i2c_controller_register8_get(i2c0, address, REG_EVENT1, &raw, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
             break;
         }
 
@@ -242,22 +244,22 @@ static void drain_events(Device* i2c0, Cl32V4KeyboardInternal* internal) {
             handle_key_down(internal, static_cast<uint8_t>(raw & 0x7F));
         }
 
-        if (i2c_controller_register8_get(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_EVENT_COUNT, &count, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
+        if (i2c_controller_register8_get(i2c0, address, REG_EVENT_COUNT, &count, CL32_V4_CORE_TIMEOUT) != ERROR_NONE) {
             break;
         }
     }
 
     // Only the keyboard bit is ours to clear - the power-supply function on this same chip owns
     // the other status bits in this register.
-    i2c_controller_register8_reset_bits(i2c0, CL32_V4_CORE_I2C_ADDRESS, REG_INTERRUPT, INTERRUPT_BIT_KEYBOARD, CL32_V4_CORE_TIMEOUT);
+    i2c_controller_register8_reset_bits(i2c0, address, REG_INTERRUPT, INTERRUPT_BIT_KEYBOARD, CL32_V4_CORE_TIMEOUT);
 }
 
-static error_t v3_read_key(Device* device, KeyboardKeyData* data) {
+static error_t v4_read_key(Device* device, KeyboardKeyData* data) {
     auto* internal = static_cast<Cl32V4KeyboardInternal*>(device_get_driver_data(device));
 
     Cl32V4KeyEvent event;
     if (internal->pending_count == 0) {
-        drain_events(device_get_parent(device), internal);
+        drain_events(device_get_parent(device), GET_CONFIG(device)->address, internal);
     }
 
     if (pop_pending(internal, &event)) {
@@ -282,7 +284,7 @@ static error_t v3_read_key(Device* device, KeyboardKeyData* data) {
 }
 
 static constexpr KeyboardApi cl32_v4_keyboard_api = {
-    .read_key = v3_read_key,
+    .read_key = v4_read_key,
     .get_backlight = nullptr,
     .is_present = nullptr,
 };
@@ -315,50 +317,6 @@ Driver cl32_v4_keyboard_driver = {
     .stop_device = stop,
     .api = &cl32_v4_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
-    .owner = &cl32_module,
+    .owner = &cl32_v04_module,
     .internal = nullptr
 };
-
-static Device cl32_v4_keyboard_device {};
-static bool cl32_v4_keyboard_created = false;
-
-bool cl32_v4_create_keyboard(Device* i2c0) {
-    cl32_v4_keyboard_device = Device { .address = 0, .name = "cl32-v4-keyboard", .config = nullptr, .parent = nullptr, .flags = 0, .internal = nullptr };
-
-    error_t error = device_construct(&cl32_v4_keyboard_device);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to construct keyboard: %s", error_to_string(error));
-        return false;
-    }
-
-    device_set_parent(&cl32_v4_keyboard_device, i2c0);
-    device_set_driver(&cl32_v4_keyboard_device, &cl32_v4_keyboard_driver);
-
-    error = device_add(&cl32_v4_keyboard_device);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to add keyboard: %s", error_to_string(error));
-        device_destruct(&cl32_v4_keyboard_device);
-        return false;
-    }
-
-    error = device_start(&cl32_v4_keyboard_device);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to start keyboard: %s", error_to_string(error));
-        device_remove(&cl32_v4_keyboard_device);
-        device_destruct(&cl32_v4_keyboard_device);
-        return false;
-    }
-
-    cl32_v4_keyboard_created = true;
-    return true;
-}
-
-void cl32_v4_destroy_keyboard() {
-    if (!cl32_v4_keyboard_created) {
-        return;
-    }
-    device_stop(&cl32_v4_keyboard_device);
-    device_remove(&cl32_v4_keyboard_device);
-    device_destruct(&cl32_v4_keyboard_device);
-    cl32_v4_keyboard_created = false;
-}

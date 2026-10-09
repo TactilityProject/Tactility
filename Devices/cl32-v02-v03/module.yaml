@@ -3,4 +3,4 @@ dependencies:
   - Drivers/tca8418-module
   - Drivers/esp-epaper-module
   - Drivers/bm8563-module
-dts: cl32.dts
+dts: cl32-v02-v03.dts

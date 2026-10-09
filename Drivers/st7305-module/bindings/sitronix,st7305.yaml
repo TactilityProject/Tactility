@@ -1,0 +1,45 @@
+description: >
+  Sitronix ST7305 monochrome reflective LCD panel (SPI interface).
+  The horizontal axis maps to the panel's gate lines and the vertical axis to its source lines.
+
+compatible: "sitronix,st7305"
+
+bus: spi
+
+properties:
+  horizontal-resolution:
+    type: int
+    default: 384
+    description: Horizontal resolution in pixels (gate lines, must be a multiple of 4, maximum 512)
+  vertical-resolution:
+    type: int
+    default: 168
+    description: Vertical resolution in pixels (source lines)
+  column-offset:
+    type: int
+    default: 23
+    description: First RAM column address used by the panel (0x17 for the 2.9" 384x168 panel)
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  invert-color:
+    type: boolean
+    default: false
+    description: Invert the panel's color output
+  pixel-clock-hz:
+    type: int
+    default: 20000000
+    description: SPI clock frequency in Hz
+  pin-dc:
+    type: phandles
+    required: true
+    description: Data/Command GPIO pin
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Reset GPIO pin

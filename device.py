@@ -140,9 +140,6 @@ def write_tactility_variables(output_file, device_properties: dict, device_id: s
     output_file.write(f"CONFIG_TT_DEVICE_ID=\"{device_id}\"\n")
     if device_id == "lilygo-tdeck":
         output_file.write("CONFIG_TT_TDECK_WORKAROUND=y\n")
-    # Launcher app id
-    launcher_app_id = get_property_or_exit(device_properties, "apps.launcherAppId").replace("\"", "\\\"")
-    output_file.write(f"CONFIG_TT_LAUNCHER_APP_ID=\"{launcher_app_id}\"\n")
     # Auto start app id
     auto_start_app_id = get_property_or_none(device_properties, "apps.autoStartAppId")
     if auto_start_app_id is not None:
@@ -288,9 +285,6 @@ def write_lvgl_variables(output_file, device_properties: dict):
     color_depth = get_property_or_exit(device_properties, "lvgl.colorDepth")
     output_file.write(f"CONFIG_LV_COLOR_DEPTH={color_depth}\n")
     output_file.write(f"CONFIG_LV_COLOR_DEPTH_{color_depth}=y\n")
-    has_statusbar_colors_inverted = get_boolean_property_or_false(device_properties, "lvgl.statusbarColorsInverted")
-    if has_statusbar_colors_inverted:
-        output_file.write("CONFIG_TT_LVGL_STATUSBAR_COLORS_INVERTED=y\n")
     # Tactility uses its own themes (Modules/lvgl-module), and lvgl.theme only selects the default light or dark mode
     theme = get_property_or_default(device_properties, "lvgl.theme", "DefaultDark")
     if theme not in ("DefaultDark", "DefaultLight", "Mono"):

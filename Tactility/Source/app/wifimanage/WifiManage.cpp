@@ -125,13 +125,29 @@ static void onConnectToHidden() {
     wificonnect::start();
 }
 
-void updateView(Context* ctx) {
+/** Starting a scan doesn't block, so this runs directly on the LVGL task. */
+static void onRefresh() {
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+        LOG_W(TAG, "No WiFi device found");
+        return;
+    }
+    if (!wifi_is_scanning(wifi_device)) {
+        error_t result = wifi_scan(wifi_device);
+        if (result != ERROR_NONE) {
+            LOG_E(TAG, "Failed to start scan (%s)", error_to_string(result));
+        }
+    }
+    device_put(wifi_device);
+}
+
+void updateView(Context* ctx, bool rebuildList) {
     // Same lock order as createWidgets() (called with the LVGL lock already held, per the
     // window-manager's WindowCreateWidgetsFn contract, then acquiring ctx->mutex) - acquiring
     // these in the opposite order here would deadlock against a concurrent createWidgets() call.
     lvgl_lock();
     ctx->lock();
-    ctx->view.update();
+    ctx->view.update(rebuildList);
     ctx->unlock();
     lvgl_unlock();
 }
@@ -162,16 +178,28 @@ void scanIfIdle(Context* ctx) {
 void onWifiEvent(Context* ctx, WifiEvent event) {
     updateStateFromDevice(ctx);
     LOG_I(TAG, "Update with radio state %d, station state %d", (int)ctx->state.getRadioState(), (int)ctx->state.getStationState());
+    // Rebuilding the network list resets the keyboard focus, so it only happens for scans that were
+    // requested by this app, radio state changes and connection changes.
+    bool rebuild_list = false;
     switch (event.type) {
         case WIFI_EVENT_TYPE_SCAN_STARTED:
             ctx->state.setScanning(true);
             break;
         case WIFI_EVENT_TYPE_SCAN_FINISHED:
             ctx->state.setScanning(false);
-            ctx->state.updateApRecords(ctx->wifiDevice);
+            if (ctx->state.takeListRefreshRequest()) {
+                ctx->state.updateApRecords(ctx->wifiDevice);
+                rebuild_list = true;
+            }
+            break;
+        case WIFI_EVENT_TYPE_STATION_STATE_CHANGED:
+        case WIFI_EVENT_TYPE_STATION_CONNECTION_RESULT:
+            rebuild_list = true;
             break;
         case WIFI_EVENT_TYPE_RADIO_STATE_CHANGED:
+            rebuild_list = true;
             if (event.radio_state == WIFI_RADIO_STATE_ON) {
+                ctx->state.requestListRefresh();
                 scanIfIdle(ctx);
             }
             break;
@@ -179,7 +207,7 @@ void onWifiEvent(Context* ctx, WifiEvent event) {
             break;
     }
 
-    updateView(ctx);
+    updateView(ctx, rebuild_list);
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -206,7 +234,8 @@ int32_t appMain(int argc, char* argv[]) {
         .onConnectSsid = onConnect,
         .onDisconnect = onDisconnect,
         .onShowApSettings = onShowApSettings,
-        .onConnectToHidden = onConnectToHidden
+        .onConnectToHidden = onConnectToHidden,
+        .onRefresh = onRefresh
     };
 
     TaskEventGroup event_group {};
@@ -235,7 +264,6 @@ int32_t appMain(int argc, char* argv[]) {
     if (ctx.wifiDevice != nullptr) {
         updateStateFromDevice(&ctx);
         ctx.state.setScanning(wifi_is_scanning(ctx.wifiDevice));
-        ctx.state.updateApRecords(ctx.wifiDevice);
     }
 
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
@@ -262,7 +290,9 @@ int32_t appMain(int argc, char* argv[]) {
                     ctx.wifiDevice = retry_device;
                     updateStateFromDevice(&ctx);
                     ctx.state.setScanning(wifi_is_scanning(ctx.wifiDevice));
-                    ctx.state.updateApRecords(ctx.wifiDevice);
+                    if (ctx.state.getRadioState() == WIFI_RADIO_STATE_ON) {
+                        scanIfIdle(&ctx);
+                    }
                     ctx.needsRefresh = true;
                 } else {
                     device_put(retry_device);
@@ -290,7 +320,7 @@ int32_t appMain(int argc, char* argv[]) {
         }
 
         if (ctx.needsRefresh.exchange(false)) {
-            updateView(&ctx);
+            updateView(&ctx, true);
         }
     }
 

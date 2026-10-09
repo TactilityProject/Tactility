@@ -20,6 +20,20 @@ void State::setRadioState(WifiRadioState state) {
     mutex.unlock();
 }
 
+void State::requestListRefresh() {
+    mutex.lock();
+    listRefreshRequested = true;
+    mutex.unlock();
+}
+
+bool State::takeListRefreshRequest() {
+    mutex.lock();
+    bool result = listRefreshRequested;
+    listRefreshRequested = false;
+    mutex.unlock();
+    return result;
+}
+
 WifiRadioState State::getRadioState() const {
     mutex.lock();
     auto result = radioState;

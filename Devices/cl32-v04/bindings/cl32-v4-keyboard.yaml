@@ -1,0 +1,7 @@
+description: CL-32 v0.4 keyboard, provided by the core chip
+
+include: ["i2c-device.yaml"]
+
+compatible: "cl32-v4-keyboard"
+
+bus: i2c
