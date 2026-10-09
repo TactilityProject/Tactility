@@ -7,6 +7,14 @@ inputs:
   arch:
     description: The ESP32 SOC variant
     required: true
+  dockerhub_username:
+    description: Docker Hub username, login is skipped when empty
+    required: false
+    default: ''
+  dockerhub_token:
+    description: Docker Hub access token
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -18,10 +26,11 @@ runs:
       shell: bash
       run: python device.py ${{ inputs.board_id }}
     - name: 'Log in to Docker Hub'
+      if: ${{ inputs.dockerhub_username != '' }}
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        username: ${{ inputs.dockerhub_username }}
+        password: ${{ inputs.dockerhub_token }}
     - name: 'Build'
       uses: espressif/esp-idf-ci-action@v1
       with:
