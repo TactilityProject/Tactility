@@ -10,6 +10,7 @@
 #include <Tactility/TactilityConfig.h>
 #include <Tactility/lvgl/KeyboardDeviceListener.h>
 #include <Tactility/lvgl/Statusbar.h>
+#include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/lvgl/TrackballInit.h>
 #include <Tactility/lvgl/UsbHidInput.h>
 #include <Tactility/service/ServiceManifest.h>
@@ -113,6 +114,9 @@ static lv_obj_t* windowManagerScreenInit(lv_obj_t* root) {
     // focused textarea shows it (see lvgl_keyboard_add_textarea()/textarea_show_keyboard()).
     lvgl_software_keyboard_construct(&softwareKeyboard, root);
 
+    // Places the statusbar on top, or in a strip on the side
+    systemBarsAttach(vertical_container, statusbar, app_container);
+
     return app_container;
 }
 
@@ -210,6 +214,10 @@ static void onLvglStopped() {
 #endif
     check(service::removeService(service::memorychecker::manifest.id));
     check(service::removeService(service::statusbar::manifest.id));
+
+    lvgl_lock();
+    systemBarsDetach();
+    lvgl_unlock();
 
     if (softwareKeyboard.object != nullptr) {
         // lv_obj_delete() walks/mutates the object graph (event lists, group membership,

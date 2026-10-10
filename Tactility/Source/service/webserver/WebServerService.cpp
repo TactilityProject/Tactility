@@ -206,7 +206,6 @@ bool WebServerService::onStart(ServiceContext& service) {
 
     // Create statusbar icon (hidden initially, shown when server actually starts)
     statusbarIconId = lvgl::statusbar_icon_add();
-    lvgl::statusbar_icon_set_app(statusbarIconId, "tactility.webserversettings");
     lvgl::statusbar_icon_set_visibility(statusbarIconId, false);
 
     // Load and cache settings once at boot

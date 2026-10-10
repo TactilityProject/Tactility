@@ -16,3 +16,6 @@
 [submodule "Libraries/cJSON/cJSON"]
 	path = Libraries/cJSON/cJSON
 	url = https://github.com/DaveGamble/cJSON.git
+[submodule "Modules/lvgl-module/lss"]
+	path = Modules/lvgl-module/lss
+	url = https://github.com/ByteWelder/LSS.git

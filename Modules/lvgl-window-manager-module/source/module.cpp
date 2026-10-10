@@ -12,6 +12,9 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(window_manager_remove),
     DEFINE_MODULE_SYMBOL(window_manager_get_state),
     DEFINE_MODULE_SYMBOL(window_manager_await_state_change),
+    DEFINE_MODULE_SYMBOL(window_manager_overlay_show),
+    DEFINE_MODULE_SYMBOL(window_manager_overlay_hide),
+    DEFINE_MODULE_SYMBOL(window_manager_get_active_layer),
     MODULE_SYMBOL_TERMINATOR,
 };
 

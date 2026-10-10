@@ -80,12 +80,13 @@ static const char* getWifiStatusIcon() {
     check(false, "not implemented");
 }
 
+// Only shown while the radio is on
 static const char* getBluetoothStatusIcon(tt::bluetooth::RadioState state, bool scanning, bool connected) {
     switch (state) {
         using enum tt::bluetooth::RadioState;
         case Off:
         case OffPending:
-            return LVGL_ICON_STATUSBAR_BLUETOOTH_DISABLED;
+            return nullptr;
         case OnPending:
         case On:
             if (connected) return LVGL_ICON_STATUSBAR_BLUETOOTH_CONNECTED;
@@ -149,8 +150,6 @@ class StatusbarService final : public Service {
     const char* bt_last_icon = nullptr;
     int8_t wifi_icon_id;
     const char* wifi_last_icon = nullptr;
-    int8_t sdcard_icon_id;
-    const char* sdcard_last_icon = nullptr;
     int8_t power_icon_id;
     const char* power_last_icon = nullptr;
     int8_t usb_icon_id;
@@ -165,12 +164,8 @@ class StatusbarService final : public Service {
     }
 
     void updateGpsIcon() {
-        const char* icon = nullptr;
-        if (device_has_active_by_type(&GPS_TYPE)) {
-            icon = LVGL_ICON_STATUSBAR_LOCATION_ON;
-        } else if (device_exists_of_type(&GPS_TYPE)) {
-            icon = LVGL_ICON_STATUSBAR_LOCATION_OFF;
-        }
+        // Only shown while a GPS device is on
+        const char* icon = device_has_active_by_type(&GPS_TYPE) ? LVGL_ICON_STATUSBAR_LOCATION_ON : nullptr;
         if (gps_last_icon != icon) {
             if (icon != nullptr) {
                 lvgl::statusbar_icon_set_image(gps_icon_id, icon);
@@ -290,42 +285,12 @@ class StatusbarService final : public Service {
         }
     }
 
-    void updateSdCardIcon() {
-        struct SdCardState { bool found; bool mounted; };
-        SdCardState state = { false, false };
-
-        file_system_for_each(&state, [](FileSystem* fs, void* context) {
-            auto* s = static_cast<SdCardState*>(context);
-            char path[64];
-            if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
-            if (strncmp(path, "/sdcard", 7) != 0) return true;
-            s->found = true;
-            s->mounted = file_system_is_mounted(fs);
-            return false;
-        });
-
-        if (state.found) {
-            auto* desired_icon = getSdCardStatusIcon(state.mounted);
-            if (sdcard_last_icon != desired_icon) {
-                lvgl::statusbar_icon_set_image(sdcard_icon_id, desired_icon);
-                lvgl::statusbar_icon_set_visibility(sdcard_icon_id, true);
-                sdcard_last_icon = desired_icon;
-            }
-        } else {
-            if (sdcard_last_icon != nullptr) {
-                lvgl::statusbar_icon_set_visibility(sdcard_icon_id, false);
-                sdcard_last_icon = nullptr;
-            }
-        }
-    }
-
     void update() {
         if (lvgl_is_running()) {
             if (lvgl_try_lock(200)) {
                 updateGpsIcon();
                 updateBluetoothIcon();
                 updateWifiIcon();
-                updateSdCardIcon();
                 updatePowerStatusIcon();
                 updateUsbIcon();
                 lvgl_unlock();
@@ -339,21 +304,13 @@ public:
         gps_icon_id = lvgl::statusbar_icon_add();
         bt_icon_id = lvgl::statusbar_icon_add();
         usb_icon_id = lvgl::statusbar_icon_add();
-        sdcard_icon_id = lvgl::statusbar_icon_add();
         wifi_icon_id = lvgl::statusbar_icon_add();
         power_icon_id = lvgl::statusbar_icon_add();
-        lvgl::statusbar_icon_set_app(gps_icon_id, "tactility.gpssettings");
-        lvgl::statusbar_icon_set_app(bt_icon_id, "tactility.btmanage");
-        lvgl::statusbar_icon_set_app(usb_icon_id, "tactility.usbsettings");
-        lvgl::statusbar_icon_set_app(sdcard_icon_id, "tactility.files");
-        lvgl::statusbar_icon_set_app(wifi_icon_id, "tactility.wifimanage");
-        lvgl::statusbar_icon_set_app(power_icon_id, "tactility.power");
     }
 
     ~StatusbarService() override {
         lvgl::statusbar_icon_remove(power_icon_id);
         lvgl::statusbar_icon_remove(wifi_icon_id);
-        lvgl::statusbar_icon_remove(sdcard_icon_id);
         lvgl::statusbar_icon_remove(usb_icon_id);
         lvgl::statusbar_icon_remove(bt_icon_id);
         lvgl::statusbar_icon_remove(gps_icon_id);

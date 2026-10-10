@@ -55,7 +55,6 @@ bool MemoryCheckerService::onStart(ServiceContext& service) {
     lock.lock();
 
     statusbarIconId = lvgl::statusbar_icon_add(LVGL_ICON_STATUSBAR_MEMORY, false);
-    lvgl::statusbar_icon_set_app(statusbarIconId, "tactility.systeminfo");
     lvgl::statusbar_icon_set_visibility(statusbarIconId, false);
 
     timer.setCallbackPriority(Thread::Priority::Lower);

@@ -256,6 +256,7 @@ static uint32_t scan_key(CardputerKeyboardInternal* internal) {
     if (has_regular) {
         switch (resolved_char) {
             case '`': return CODEPOINT_ESCAPE;
+            case '\n': return CODEPOINT_ENTER;
             case ',': return CODEPOINT_ARROW_LEFT;
             case '/': return CODEPOINT_ARROW_RIGHT;
             case ';': return CODEPOINT_ARROW_UP;

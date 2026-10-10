@@ -120,10 +120,10 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-#ifdef PLATFORM_ESP
-    constexpr auto memory_sufficient = memory_external_total() > 0;
+#ifdef ESP_PLATFORM
+    const bool memory_sufficient = memory_external_total() > 0;
 #else
-    constexpr auto memory_sufficient = true;
+    const bool memory_sufficient = true;
 #endif
 
     // The canvas holds a full frame, which needs external RAM on larger displays.

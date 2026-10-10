@@ -1,5 +1,4 @@
 .idea/
-.DS_Store
 
 build*/
 !.github/actions/build*/
@@ -7,6 +6,8 @@ cmake*/
 CMakeCache.txt
 *.cbp
 CMakeFiles
+
+Data/data
 
 release/
 
@@ -29,3 +30,5 @@ sdkconfig.board.*.dev
 .clinerules/
 
 __pycache__
+.DS_Store
+.cache

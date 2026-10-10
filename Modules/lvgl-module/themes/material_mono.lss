@@ -28,6 +28,7 @@
 @widget icon_button_tonal: lvgl_icon_button_tonal_class;
 @widget sliderbox: lvgl_sliderbox_class;
 @widget card: lvgl_card_class;
+@widget focus_container: lvgl_focus_container_class;
 @widget chip: lvgl_chip_class;
 @widget badge: lvgl_badge_class;
 @widget page_indicator: lvgl_page_indicator_class;
@@ -49,7 +50,7 @@
 @corner-medium: 8dp;
 @corner-large: 12dp;
 @corner-full: circle;
-@corner-compact: 2;
+@corner-compact: 4;
 
 // Spacing scale
 @space-1: 2dp;
@@ -1108,6 +1109,10 @@ apply(chip) {
 apply(card) {
     card: default;
     scrollbar: part.scrollbar;
+}
+
+apply(focus_container) {
+    focus_ring: state.focusKey;
 }
 
 apply(sliderbox) {

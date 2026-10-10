@@ -1,5 +1,4 @@
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
 #include <app/start.h>
@@ -8,19 +7,17 @@
 #include <vector>
 
 #include <lvgl.h>
-#include <lvgl/icons/shared.h>
 #include <lvgl/theme.h>
 
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
-#include <tactility/device.h>
-#include <tactility/drivers/power_supply.h>
 #include <tactility/log.h>
 
 #include <Tactility/app/TileGrid.h>
 #include <Tactility/app/launcher/LauncherMode.h>
 #include <Tactility/app/setup/Setup.h>
+#include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/Tactility.h>
 
@@ -51,6 +48,7 @@ Mode getOtherMode(Mode mode) {
 struct Context {
     Mode mode = Mode::Apps;
     lv_obj_t* modeButtonIcon = nullptr;
+    lvgl::SystemBarsListenerId systemBarsListener = 0;
     TileGrid grid { TileGrid::Callbacks {
         .collect = collectItems,
         .onClicked = onAppClicked,
@@ -110,28 +108,6 @@ void onModeButtonPressed(lv_event_t* e) {
     lv_label_set_text(ctx->modeButtonIcon, getLauncherMode(getOtherMode(ctx->mode)).buttonIcon);
 }
 
-void onShortcutPressed(lv_event_t* e) {
-    startApp(static_cast<const char*>(lv_event_get_user_data(e)));
-}
-
-bool isAppRegistered(const char* appId) {
-    ::AppManifest manifest;
-    return app_manager_find_manifest(appId, &manifest) == ERROR_NONE;
-}
-
-bool supportsPowerOff() {
-    bool supported = false;
-    device_for_each_of_type(&POWER_SUPPLY_TYPE, &supported, [](Device* device, void* context) {
-        if (device_is_ready(device) && power_supply_supports_power_off(device)) {
-            *static_cast<bool*>(context) = true;
-            return false; // stop iterating
-        } else {
-            return true; // continue iterating
-        }
-    });
-    return supported;
-}
-
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
@@ -143,9 +119,19 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->grid.createWidgetsWithBottomBar(parent);
     lv_obj_t* modeButton = ctx->grid.addBarButton(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
     ctx->modeButtonIcon = lv_obj_get_child(modeButton, 0);
-    if (isAppRegistered("tactility.poweroff") && supportsPowerOff()) {
-        ctx->grid.addBarButton(LVGL_ICON_SHARED_POWER_SETTINGS_NEW, onShortcutPressed, const_cast<char*>("tactility.poweroff"));
-    }
+
+    // In the side layout, the bar's buttons are in the system bars strip
+    ctx->grid.setBarSideContainer(lvgl::systemBarsGetActionContainer());
+    ctx->systemBarsListener = lvgl::systemBarsAddListener([ctx] {
+        ctx->grid.setBarSideContainer(lvgl::systemBarsGetActionContainer());
+    });
+}
+
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    lvgl::systemBarsRemoveListener(ctx->systemBarsListener);
+    ctx->systemBarsListener = 0;
+    ctx->grid.destroyWidgets();
 }
 
 void runAutoStart() {
@@ -186,7 +172,7 @@ int32_t appMain(int argc, char* argv[]) {
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
     Context ctx;
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     runAutoStart();
 

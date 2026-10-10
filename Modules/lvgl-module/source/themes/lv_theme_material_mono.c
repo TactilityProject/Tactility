@@ -14,6 +14,7 @@ extern const lv_obj_class_t lvgl_icon_button_filled_class;
 extern const lv_obj_class_t lvgl_icon_button_tonal_class;
 extern const lv_obj_class_t lvgl_sliderbox_class;
 extern const lv_obj_class_t lvgl_card_class;
+extern const lv_obj_class_t lvgl_focus_container_class;
 extern const lv_obj_class_t lvgl_chip_class;
 extern const lv_obj_class_t lvgl_badge_class;
 extern const lv_obj_class_t lvgl_page_indicator_class;
@@ -29,7 +30,7 @@ extern const lv_obj_class_t lvgl_list_button_class;
 #define CORNER_MEDIUM (LV_DPX_CALC(theme->disp_dpi, 8))
 #define CORNER_LARGE (LV_DPX_CALC(theme->disp_dpi, 12))
 #define CORNER_FULL LV_RADIUS_CIRCLE
-#define CORNER_COMPACT 2
+#define CORNER_COMPACT 4
 #define SPACE_1 (LV_DPX_CALC(theme->disp_dpi, 2))
 #define SPACE_2 (LV_DPX_CALC(theme->disp_dpi, 4))
 #define SPACE_3 (LV_DPX_CALC(theme->disp_dpi, 6))
@@ -1484,6 +1485,11 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         /* card */
         lv_obj_add_style(obj, &theme->styles.card, 0);
         lv_obj_add_style(obj, &theme->styles.scrollbar, LV_PART_SCROLLBAR);
+        return;
+    }
+    if(lv_obj_check_type(obj, &lvgl_focus_container_class)) {
+        /* focus_container */
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
         return;
     }
     if(lv_obj_check_type(obj, &lvgl_sliderbox_class)) {

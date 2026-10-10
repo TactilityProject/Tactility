@@ -69,7 +69,7 @@ public:
 
     /**
      * Creates the grid and populates it, with a bar below it: buttons on the left (see addBarButton()),
-     * a page indicator in the center and page buttons on the right. The page indicator and buttons are
+     * followed by the page buttons, and a page indicator on the right. The page indicator and buttons are
      * hidden when there's only one page, and the page buttons wrap around.
      * @param[in] parent the container for the grid and the bar
      */
@@ -82,11 +82,21 @@ public:
     void setPageButtons(lv_obj_t* previous, lv_obj_t* next);
 
     /**
-     * Adds an icon button to the left side of the bottom bar. Call right after createWidgetsWithBottomBar().
+     * Adds an icon button to the bottom bar, before the page buttons. Call right after createWidgetsWithBottomBar().
      * @param[in] icon a shared icon (see lvgl/icons/shared.h)
      * @return the button
      */
     lv_obj_t* addBarButton(const char* icon, lv_event_cb_t onClicked, void* userData);
+
+    /**
+     * Moves the bottom bar's buttons into a column in the given container, e.g. a side strip, and the page indicator below the grid.
+     * Call after createWidgetsWithBottomBar(), and again whenever the container changes.
+     * @param[in] sideContainer the container for the buttons, or nullptr to show the bar below the grid
+     */
+    void setBarSideContainer(lv_obj_t* sideContainer);
+
+    /** Deletes the widgets that aren't part of the parent passed to createWidgetsWithBottomBar(). Call when the parent's widgets are deleted. */
+    void destroyWidgets();
 
     /**
      * Rebuilds the grid asynchronously, so it is safe to call from a tile's own event.
@@ -115,8 +125,16 @@ private:
     lv_obj_t* pageIndicator = nullptr;
     lv_obj_t* bottomBar = nullptr;
     lv_obj_t* barSpacer = nullptr;
+    /** The parent passed to createWidgetsWithBottomBar() */
+    lv_obj_t* barParent = nullptr;
+    /** The container that holds the bar's buttons instead of the bar below the grid, or nullptr */
+    lv_obj_t* barSideContainer = nullptr;
+    /** The buttons added with addBarButton(), in the order they were added */
+    std::vector<lv_obj_t*> barButtons;
 
     void createGrid(lv_obj_t* parent);
+    void arrangeBar();
+    static void onSideBarKey(lv_event_t* e);
     void finishCreate(lv_obj_t* parent);
     void goToPreviousPage();
     void goToNextPage();

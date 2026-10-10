@@ -64,7 +64,7 @@ static lv_obj_t* find_edge_row_child(lv_obj_t* container, bool top, lv_obj_t* re
     if (!found) {
         return nullptr;
     }
-    if (reference != nullptr && get_center_y(reference) == edge_y) {
+    if (reference != nullptr && is_focusable(reference) && get_center_y(reference) == edge_y) {
         return reference;
     }
     const int32_t reference_x = reference != nullptr ? get_center_x(reference) : 0;
@@ -113,6 +113,10 @@ static void on_container_focused(lv_event_t* event) {
             child = find_focusable_child(container, -1, true);
         } else if (key == LV_KEY_PREV || key == LV_KEY_LEFT) {
             child = find_focusable_child(container, static_cast<int32_t>(lv_obj_get_child_count(container)), false);
+        }
+        // The restored child can be hidden by now, e.g. a page button when there's only one page
+        if (child == nullptr && focused != nullptr && !is_focusable(focused)) {
+            child = find_focusable_child(container, -1, true);
         }
         if (child != nullptr && child != focused) {
             lv_gridnav_set_focused(container, child, LV_ANIM_ON);
