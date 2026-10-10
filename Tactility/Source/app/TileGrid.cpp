@@ -570,8 +570,15 @@ void TileGrid::destroyWidgets() {
     if (bottomBar != nullptr && barSideContainer != nullptr) {
         lv_obj_delete(bottomBar);
     }
+    // The other bar widgets are deleted with the bar or the window, so no pointer may outlive them
     bottomBar = nullptr;
     barSideContainer = nullptr;
+    barParent = nullptr;
+    pageIndicator = nullptr;
+    prevButton = nullptr;
+    nextButton = nullptr;
+    barSpacer = nullptr;
+    barButtons.clear();
 }
 
 }

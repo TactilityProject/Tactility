@@ -23,6 +23,7 @@
 
 #include <lvgl.h>
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
@@ -492,6 +493,8 @@ lv_obj_t* createLabeledRow(lv_obj_t* parent, const char* text) {
     auto* label = lv_label_create(row);
     lv_label_set_text(label, text);
     lv_obj_set_flex_grow(label, 1);
+    // The keys move between the rows, and left and right between the row's items
+    lvgl_grid_navigation_add(row);
     return row;
 }
 

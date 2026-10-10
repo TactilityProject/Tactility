@@ -185,6 +185,8 @@
 // Toolbar: top app bar with a divider, which shows the background like the statusbar does
 @app-bar-title-color: @color-on-surface;
 @app-bar-pad-hor: if($isCompact, 0, @space-1);
+// Keeps the action buttons off the screen's edge in the compact layout
+@app-bar-pad-right: if($isCompact, @app-bar-pad-hor + 2, @app-bar-pad-hor);
 @app-bar-gap: if($isCompact, 2, @space-1);
 // The focus ring is drawn inside toolbar buttons, as there's little room around them
 @app-bar-focus-width: @focus-inset-width;
@@ -504,8 +506,19 @@ app_bar {
     radius: 0;
     borderWidth: 0;
     padHor: @app-bar-pad-hor;
+    padRight: @app-bar-pad-right;
     padVer: 0;
     padGap: @app-bar-gap;
+}
+
+// The toolbar's first button: the close (navigation) button
+app_bar_nav_button {
+    @if ($isCompact) { marginLeft: 4; }
+}
+
+// Compact toolbar buttons are as big as their icon, so their focus ring goes around the outside instead of the inside
+app_bar_button_focus_ring {
+    @if ($isCompact) { outlinePad: 0; }
 }
 
 app_bar_button {
@@ -988,12 +1001,26 @@ apply(tabview > *[0] > button) {
     edit_ring: state.edited;
 }
 
+apply(toolbar > icon_button[0]) {
+    icon_button: default;
+    app_bar_button: default;
+    app_bar_nav_button: default;
+    inverted: state.pressed;
+    app_bar_focus_ring: state.focusKey;
+    app_bar_focus_ring: state.edited;
+    app_bar_button_focus_ring: state.focusKey;
+    app_bar_button_focus_ring: state.edited;
+    disabled: state.disabled;
+}
+
 apply(toolbar > icon_button) {
     icon_button: default;
     app_bar_button: default;
     inverted: state.pressed;
     app_bar_focus_ring: state.focusKey;
     app_bar_focus_ring: state.edited;
+    app_bar_button_focus_ring: state.focusKey;
+    app_bar_button_focus_ring: state.edited;
     disabled: state.disabled;
 }
 
