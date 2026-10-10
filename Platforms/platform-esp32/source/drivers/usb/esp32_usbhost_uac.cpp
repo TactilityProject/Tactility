@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// USB Audio Class 1.0 output codec, as a class client beneath the shared
+// USB Audio Class 1.0 output codec, as a class backend of the shared
 // esp32_usbhost controller. On attach of a headset supporting 48 kHz/16-bit/
 // stereo PCM output, registers a dynamic "usb_uac0" AUDIO_CODEC_TYPE device
 // (see esp32_usbhost_hid.cpp's "usb_keyboard0" for the pattern) so
@@ -14,6 +14,7 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/audio_codec.h>
+#include <tactility/drivers/esp32_usbhost_backend.h>
 #include <tactility/drivers/esp32_usbhost_task.h>
 #include <tactility/drivers/esp32_usbhost_worker.h>
 #include <tactility/error_esp32.h>
@@ -70,8 +71,8 @@ struct UsbUacData {
     bool streaming = false;
     uint8_t volume = 100;
     bool muted = false;
-    // The manager Device, set in manager_start_device; parent of codec_device.
-    Device* manager_device = nullptr;
+    // The USB host device, parent of codec_device.
+    Device* host = nullptr;
     // Dynamic AUDIO_CODEC_TYPE child device, constructed while a UAC output is
     // connected (mirrors esp32_usbhost_hid.cpp's kb_device).
     Device codec_device {};
@@ -81,7 +82,7 @@ struct UsbUacData {
 #define GET_DATA(device) (static_cast<UsbUacData*>(device_get_driver_data(device)))
 
 void codec_device_construct(UsbUacData* data);
-void codec_device_destruct(UsbUacData* data);
+error_t codec_device_destruct(UsbUacData* data);
 
 void log_heap(const char* stage) {
     LOG_I(TAG, "%s heap: internal_free=%u internal_min=%u external_free=%u",
@@ -206,7 +207,9 @@ bool close_output_interface(UsbUacData* data) {
     // listeners (audio-stream re-binds output to the board codec) and waits
     // for in-flight writes, which are serialized against the handle close
     // below by data->mutex.
-    codec_device_destruct(data);
+    if (codec_device_destruct(data) != ERROR_NONE) {
+        return false;
+    }
 
     xSemaphoreTake(data->mutex, portMAX_DELAY);
     uac_host_device_handle_t handle = data->handle;
@@ -269,7 +272,7 @@ void uac_client_task(void* arg) {
 // region Dynamic codec device (usb_uac0) driver
 
 error_t codec_start_device(Device* device) {
-    // driver_data is set by the manager before device_start(); the UAC
+    // driver_data is set by the backend before device_start(); the UAC
     // interface is already open. Streaming begins lazily via the codec API's
     // open().
     return (GET_DATA(device) != nullptr) ? ERROR_NONE : ERROR_RESOURCE;
@@ -282,7 +285,7 @@ error_t codec_stop_device(Device* device) {
     }
 
     // Best-effort streaming stop; the class handle itself is closed by the
-    // manager's task (close_output_interface). Bounded mutex wait so a stuck
+    // backend task (close_output_interface). Bounded mutex wait so a stuck
     // client task cannot stall device-tree teardown indefinitely.
     if (xSemaphoreTake(data->mutex, UAC_MUTEX_STOP_TIMEOUT) != pdTRUE) {
         LOG_W(TAG, "codec device stop: client task busy, leaving teardown to it");
@@ -544,64 +547,24 @@ const AudioCodecApi codec_api = {
 
 // endregion
 
-void codec_device_construct_on_worker(void* context) {
-    auto* data = static_cast<UsbUacData*>(context);
+void codec_device_construct(UsbUacData* data) {
     if (data->codec_device_active) {
         return;
     }
-
-    data->codec_device = Device {
-        .address = 0,
-        .name = "usb_uac0",
-        .config = nullptr,
-        .parent = nullptr,
-        .internal = nullptr,
-    };
-
-    if (device_construct(&data->codec_device) != ERROR_NONE) {
-        LOG_E(TAG, "failed to construct USB UAC codec device");
-        return;
+    if (esp32_usbhost_device_create(data->host, &data->codec_device, data->host, "usb_uac0", &usb_uac_codec_driver, data) == ERROR_NONE) {
+        data->codec_device_active = true;
     }
-    device_set_driver_data(&data->codec_device, data);
-    device_set_parent(&data->codec_device, data->manager_device);
-    device_set_driver(&data->codec_device, &usb_uac_codec_driver);
-    if (device_add(&data->codec_device) != ERROR_NONE) {
-        LOG_E(TAG, "failed to add USB UAC codec device");
-        device_destruct(&data->codec_device);
-        return;
-    }
-    if (device_start(&data->codec_device) != ERROR_NONE) {
-        LOG_E(TAG, "failed to start USB UAC codec device");
-        device_remove(&data->codec_device);
-        device_destruct(&data->codec_device);
-        return;
-    }
-
-    data->codec_device_active = true;
 }
 
-void codec_device_destruct_on_worker(void* context) {
-    auto* data = static_cast<UsbUacData*>(context);
+error_t codec_device_destruct(UsbUacData* data) {
     if (!data->codec_device_active) {
-        return;
+        return ERROR_NONE;
     }
-    data->codec_device_active = false;
-
-    device_stop(&data->codec_device);
-    device_remove(&data->codec_device);
-    device_destruct(&data->codec_device);
-}
-
-void codec_device_construct(UsbUacData* data) {
-    if (esp32_usbhost_run_on_worker(device_get_parent(data->manager_device), codec_device_construct_on_worker, data) != ERROR_NONE) {
-        LOG_E(TAG, "failed to construct USB UAC codec device: worker unavailable");
+    error_t error = esp32_usbhost_device_destroy(data->host, &data->codec_device);
+    if (error == ERROR_NONE) {
+        data->codec_device_active = false;
     }
-}
-
-void codec_device_destruct(UsbUacData* data) {
-    if (esp32_usbhost_run_on_worker(device_get_parent(data->manager_device), codec_device_destruct_on_worker, data) != ERROR_NONE) {
-        LOG_E(TAG, "failed to destruct USB UAC codec device: worker unavailable");
-    }
+    return error;
 }
 
 } // namespace
@@ -609,7 +572,7 @@ void codec_device_destruct(UsbUacData* data) {
 extern "C" {
 
 // Driver for the dynamic "usb_uac0" codec device. Never matched against the
-// devicetree; bound directly via device_set_driver() by the manager.
+// devicetree; bound directly via device_set_driver() by the backend.
 Driver usb_uac_codec_driver = {
     .name = "usb_uac_codec",
     .compatible = (const char*[]) { nullptr },
@@ -621,9 +584,9 @@ Driver usb_uac_codec_driver = {
     .internal = nullptr,
 };
 
-static error_t manager_start_device(Device* device) {
+static error_t backend_start(Device* host, void** out_context) {
     auto* data = new UsbUacData();
-    data->manager_device = device;
+    data->host = host;
     data->mutex = xSemaphoreCreateMutex();
     data->task_done = xSemaphoreCreateBinary();
     data->event_queue = xQueueCreate(UAC_EVENT_QUEUE_LENGTH, sizeof(UacConnectEvent));
@@ -657,8 +620,8 @@ static error_t manager_start_device(Device* device) {
         goto cleanup;
     }
 
-    device_set_driver_data(device, data);
-    LOG_I(TAG, "UAC manager started");
+    *out_context = data;
+    LOG_I(TAG, "UAC backend started");
     return ERROR_NONE;
 
 cleanup:
@@ -675,11 +638,8 @@ cleanup:
     return ERROR_RESOURCE;
 }
 
-static error_t manager_stop_device(Device* device) {
-    auto* data = GET_DATA(device);
-    if (data == nullptr) {
-        return ERROR_NONE;
-    }
+static error_t backend_stop(void* context) {
+    auto* data = static_cast<UsbUacData*>(context);
 
     data->running = false;
     xSemaphoreTake(data->mutex, portMAX_DELAY);
@@ -709,23 +669,16 @@ static error_t manager_stop_device(Device* device) {
     vQueueDelete(data->event_queue);
     vSemaphoreDelete(data->task_done);
     vSemaphoreDelete(data->mutex);
-    device_set_driver_data(device, nullptr);
     delete data;
-    LOG_I(TAG, "UAC manager stopped");
+    LOG_I(TAG, "UAC backend stopped");
     return ERROR_NONE;
 }
 
-Driver esp32_usbhost_uac_driver = {
-    .name = "esp32_usbhost_uac",
-    .compatible = (const char*[]) { nullptr },
-    .start_device = manager_start_device,
-    .stop_device = manager_stop_device,
-    .api = nullptr,
-    .device_type = nullptr,
-    .owner = nullptr,
-    .internal = nullptr,
-};
-
 } // extern "C"
+
+const Esp32UsbHostBackend esp32_usbhost_uac_backend = {
+    .start = backend_start,
+    .stop = backend_stop,
+};
 
 #endif

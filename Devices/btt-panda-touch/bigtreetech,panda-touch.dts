@@ -107,8 +107,5 @@
 
 	usbhost0 {
 		compatible = "espressif,esp32-usbhost";
-		hid;
-		midi;
-		msc;
 	};
 };

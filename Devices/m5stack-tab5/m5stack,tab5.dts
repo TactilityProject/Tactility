@@ -198,10 +198,6 @@
 	usbhost0 {
 		compatible = "espressif,esp32-usbhost";
 		peripheral-map = <0>;
-		hid;
-		midi;
-		msc;
-		audio;
 	};
 
 	usbdevice0 {

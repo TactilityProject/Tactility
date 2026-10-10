@@ -359,7 +359,6 @@ extern Driver esp32_usbhost_hid_keyboard_driver;
 extern Driver esp32_usbhost_midi_driver;
 extern Driver esp32_usbhost_msc_driver;
 #if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
-extern Driver esp32_usbhost_uac_driver;
 extern Driver usb_uac_codec_driver;
 #endif
 #endif
@@ -412,7 +411,6 @@ static Driver* const platform_esp32_drivers[] = {
     &esp32_usbhost_midi_driver,
     &esp32_usbhost_msc_driver,
 #if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
-    &esp32_usbhost_uac_driver,
     &usb_uac_codec_driver,
 #endif
 #endif

@@ -3,6 +3,7 @@
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/esp32_usbhost_backend.h>
 #include <tactility/drivers/esp32_usbhost_task.h>
 #include <tactility/drivers/esp32_usbhost_worker.h>
 #include <tactility/drivers/hid_consumer.h>
@@ -40,7 +41,6 @@ typedef struct {
 
 struct UsbHidContext {
     std::atomic<bool>    mouse_connected{false};
-    std::atomic<bool>    device_connected{false};
     QueueHandle_t        hid_event_queue    = nullptr;
     TaskHandle_t         hid_proc_task      = nullptr;
     SemaphoreHandle_t    hid_proc_task_done = nullptr;
@@ -66,16 +66,21 @@ struct UsbHidContext {
     QueueHandle_t    subscribers[MAX_SUBSCRIBERS] = {};
     SemaphoreHandle_t sub_mutex                   = nullptr;
 
-    // The controller Device itself (set in start_device()), used as the parent for kb_device.
-    Device* controller_device = nullptr;
-    // Dynamic KEYBOARD_TYPE child device, constructed while a physical USB keyboard is connected.
+    Device* host = nullptr;
+    // USB_HOST_HID_TYPE device, exists while any HID interface is open
+    Device hid_device{};
+    bool hid_device_active = false;
+    // KEYBOARD_TYPE child of hid_device, exists while a keyboard is open
     Device kb_device{};
     bool kb_device_active = false;
 };
 
 extern "C" {
+extern Driver esp32_usbhost_hid_driver;
+static bool usb_hid_device_create(UsbHidContext* ctx);
+static error_t usb_hid_device_destroy_if_unused(UsbHidContext* ctx);
 static void usb_hid_keyboard_device_construct(UsbHidContext* ctx);
-static void usb_hid_keyboard_device_destruct(UsbHidContext* ctx);
+static error_t usb_hid_keyboard_device_destruct(UsbHidContext* ctx);
 static void usb_hid_keyboard_publish_key(UsbHidContext* ctx, uint32_t lv_key, bool pressed, bool ctrl, bool alt, uint8_t hid_keycode, uint8_t hid_modifier);
 }
 
@@ -268,10 +273,6 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
             ctx->consumer_prev_count = 0;
         }
         hid_host_device_close(handle);
-        if (!ctx->kb_handle.load() && !ctx->mouse_connected
-            && ctx->consumer_handle.load() == nullptr) {
-            ctx->device_connected = false;
-        }
         if (params.proto == HID_PROTOCOL_KEYBOARD || params.proto == HID_PROTOCOL_MOUSE) {
             UsbHidEventType disc_type = (params.proto == HID_PROTOCOL_KEYBOARD)
                 ? USB_HID_EVENT_KEYBOARD_DISCONNECTED
@@ -279,6 +280,7 @@ static void hid_interface_callback(hid_host_device_handle_t handle,
             UsbHidEvent evt = { .type = disc_type, .scroll = {} };
             publish_event(ctx, &evt);
         }
+        usb_hid_device_destroy_if_unused(ctx);
         break;
 
     case HID_HOST_INTERFACE_EVENT_TRANSFER_ERROR:
@@ -347,11 +349,11 @@ static void hid_proc_task(void* arg) {
                 }
                 LOG_I(TAG, "HID Consumer Control connected (%d usages)", (int) map.usage_count);
 
+                usb_hid_device_create(ctx);
                 // No boot-protocol switch: consumer devices only implement report protocol.
                 ctx->consumer_map = map;
                 ctx->consumer_prev_count = 0;
                 ctx->consumer_handle.store(dev_evt.handle);
-                ctx->device_connected = true;
                 hid_host_device_start(dev_evt.handle);
                 continue;
             }
@@ -366,6 +368,8 @@ static void hid_proc_task(void* arg) {
                 continue;
             }
             hid_class_request_set_protocol(dev_evt.handle, HID_REPORT_PROTOCOL_BOOT);
+            // Created before the interface counts as connected, so a subscriber added by a device listener gets one CONNECTED event
+            usb_hid_device_create(ctx);
             if (params.proto == HID_PROTOCOL_KEYBOARD) {
                 hid_class_request_set_idle(dev_evt.handle, 0, 0);
                 vTaskDelay(pdMS_TO_TICKS(200));
@@ -378,7 +382,6 @@ static void hid_proc_task(void* arg) {
             } else if (params.proto == HID_PROTOCOL_MOUSE) {
                 ctx->mouse_connected = true;
             }
-            ctx->device_connected = true;
             {
                 UsbHidEventType conn_type = (params.proto == HID_PROTOCOL_KEYBOARD)
                     ? USB_HID_EVENT_KEYBOARD_CONNECTED
@@ -393,11 +396,6 @@ static void hid_proc_task(void* arg) {
     LOG_I(TAG, "HID proc task stopped");
     xSemaphoreGive(ctx->hid_proc_task_done);
     vTaskDeleteWithCaps(nullptr);
-}
-
-static bool api_hid_is_connected(struct Device* device) {
-    auto* ctx = static_cast<UsbHidContext*>(device_get_driver_data(device));
-    return ctx && ctx->device_connected.load();
 }
 
 static bool api_hid_subscribe(struct Device* device, UsbHidQueueHandle event_queue) {
@@ -452,7 +450,6 @@ static void api_hid_unsubscribe(struct Device* device, UsbHidQueueHandle event_q
 }
 
 static const UsbHidApi hid_api = {
-    .is_connected = api_hid_is_connected,
     .subscribe    = api_hid_subscribe,
     .unsubscribe  = api_hid_unsubscribe,
 };
@@ -517,65 +514,75 @@ Driver esp32_usbhost_hid_keyboard_driver = {
     .internal = nullptr,
 };
 
-static void usb_hid_keyboard_device_construct_on_worker(void* context) {
-    auto* ctx = static_cast<UsbHidContext*>(context);
-    if (ctx->kb_device_active) {
-        return;
-    }
-
-    ctx->kb_device = Device {
-        .address = 0,
-        .name = "usb_keyboard0",
-        .config = nullptr,
-        .parent = nullptr,
-        .flags = 0,
-        .internal = nullptr,
-    };
-
-    if (device_construct(&ctx->kb_device) != ERROR_NONE) {
-        LOG_E(TAG, "failed to construct USB keyboard device");
-        return;
-    }
-    device_set_parent(&ctx->kb_device, ctx->controller_device);
-    device_set_driver(&ctx->kb_device, &esp32_usbhost_hid_keyboard_driver);
-    if (device_add(&ctx->kb_device) != ERROR_NONE) {
-        LOG_E(TAG, "failed to add USB keyboard device");
-        device_destruct(&ctx->kb_device);
-        return;
-    }
-    if (device_start(&ctx->kb_device) != ERROR_NONE) {
-        LOG_E(TAG, "failed to start USB keyboard device");
-        device_remove(&ctx->kb_device);
-        device_destruct(&ctx->kb_device);
-        return;
-    }
-
-    ctx->kb_device_active = true;
-}
-
-static void usb_hid_keyboard_device_destruct_on_worker(void* context) {
-    auto* ctx = static_cast<UsbHidContext*>(context);
-    if (!ctx->kb_device_active) {
-        return;
-    }
-    ctx->kb_device_active = false;
-
-    device_stop(&ctx->kb_device);
-    device_remove(&ctx->kb_device);
-    device_destruct(&ctx->kb_device);
-}
-
 static void usb_hid_keyboard_device_construct(UsbHidContext* ctx) {
-    if (esp32_usbhost_run_on_worker(device_get_parent(ctx->controller_device), usb_hid_keyboard_device_construct_on_worker, ctx) != ERROR_NONE) {
-        LOG_E(TAG, "failed to construct USB keyboard device: worker unavailable");
+    if (ctx->kb_device_active || !ctx->hid_device_active) {
+        return;
+    }
+    if (esp32_usbhost_device_create(ctx->host, &ctx->kb_device, &ctx->hid_device, "usb_keyboard0", &esp32_usbhost_hid_keyboard_driver, nullptr) == ERROR_NONE) {
+        ctx->kb_device_active = true;
     }
 }
 
-static void usb_hid_keyboard_device_destruct(UsbHidContext* ctx) {
-    if (esp32_usbhost_run_on_worker(device_get_parent(ctx->controller_device), usb_hid_keyboard_device_destruct_on_worker, ctx) != ERROR_NONE) {
-        LOG_E(TAG, "failed to destruct USB keyboard device: worker unavailable");
+static error_t usb_hid_keyboard_device_destruct(UsbHidContext* ctx) {
+    if (!ctx->kb_device_active) {
+        return ERROR_NONE;
     }
+    error_t error = esp32_usbhost_device_destroy(ctx->host, &ctx->kb_device);
+    if (error == ERROR_NONE) {
+        ctx->kb_device_active = false;
+    }
+    return error;
 }
+
+// endregion
+
+// region USB_HOST_HID_TYPE device
+
+static bool usb_hid_device_create(UsbHidContext* ctx) {
+    if (ctx->hid_device_active) {
+        return true;
+    }
+    if (esp32_usbhost_device_create(ctx->host, &ctx->hid_device, ctx->host, "usb_hid0", &esp32_usbhost_hid_driver, ctx) != ERROR_NONE) {
+        return false;
+    }
+    ctx->hid_device_active = true;
+    return true;
+}
+
+static error_t usb_hid_device_destroy_if_unused(UsbHidContext* ctx) {
+    if (!ctx->hid_device_active || ctx->kb_handle.load() || ctx->mouse_connected || ctx->consumer_handle.load()) {
+        return ERROR_NONE;
+    }
+    error_t error = usb_hid_keyboard_device_destruct(ctx);
+    if (error == ERROR_NONE) {
+        error = esp32_usbhost_device_destroy(ctx->host, &ctx->hid_device);
+    }
+    if (error == ERROR_NONE) {
+        ctx->hid_device_active = false;
+    }
+    return error;
+}
+
+static error_t hid_device_start(Device* device) {
+    return device_get_driver_data(device) != nullptr ? ERROR_NONE : ERROR_INVALID_STATE;
+}
+
+static error_t hid_device_stop(Device* device) {
+    auto* ctx = static_cast<UsbHidContext*>(device_get_driver_data(device));
+    // Subscriptions last for the lifetime of the device
+    if (xSemaphoreTake(ctx->sub_mutex, portMAX_DELAY) == pdTRUE) {
+        for (auto& subscriber : ctx->subscribers) {
+            subscriber = nullptr;
+        }
+        xSemaphoreGive(ctx->sub_mutex);
+    }
+    device_set_driver_data(device, nullptr);
+    return ERROR_NONE;
+}
+
+// endregion
+
+// region Keyboard events
 
 static void usb_hid_keyboard_publish_key(UsbHidContext* ctx, uint32_t lv_key, bool pressed, bool ctrl, bool alt, uint8_t hid_keycode, uint8_t hid_modifier) {
     if (!ctx->kb_device_active) {
@@ -588,9 +595,9 @@ static void usb_hid_keyboard_publish_key(UsbHidContext* ctx, uint32_t lv_key, bo
 
 // endregion
 
-static error_t start_device(struct Device* device) {
+static error_t backend_start(Device* host, void** out_context) {
     auto* ctx = new UsbHidContext();
-    ctx->controller_device = device;
+    ctx->host = host;
 
     ctx->sub_mutex = xSemaphoreCreateMutex();
     if (!ctx->sub_mutex) {
@@ -647,42 +654,52 @@ static error_t start_device(struct Device* device) {
         return ERROR_RESOURCE;
     }
 
-    device_set_driver_data(device, ctx);
+    *out_context = ctx;
     LOG_I(TAG, "started");
     return ERROR_NONE;
 }
 
-static error_t stop_device(struct Device* device) {
-    auto* ctx = static_cast<UsbHidContext*>(device_get_driver_data(device));
-    if (!ctx) return ERROR_NONE;
+static error_t backend_stop(void* context) {
+    auto* ctx = static_cast<UsbHidContext*>(context);
 
     // hid_host_device_close() halts and flushes the pending IN transfer before returning, so no
     // hid_interface_callback() for this handle can race the queue delete below.
-    if (auto kb_handle = ctx->kb_handle.load()) {
+    if (auto kb_handle = ctx->kb_handle.exchange(nullptr)) {
         hid_host_device_close(kb_handle);
     }
     // hid_host_uninstall() below can fail with any interface still registered, and its callback
     // still references ctx, about to be deleted.
-    if (auto consumer_handle = ctx->consumer_handle.load()) {
+    if (auto consumer_handle = ctx->consumer_handle.exchange(nullptr)) {
         hid_host_device_close(consumer_handle);
     }
-    usb_hid_keyboard_device_destruct(ctx);
 
-    ctx->hid_proc_running = false;
-
-    if (xSemaphoreTake(ctx->hid_proc_task_done, pdMS_TO_TICKS(HID_STOP_TIMEOUT_MS)) != pdTRUE) {
-        LOG_W(TAG, "HID proc task stop timed out, force terminating");
-        vTaskDeleteWithCaps(ctx->hid_proc_task);
+    if (ctx->hid_proc_task != nullptr) {
+        ctx->hid_proc_running = false;
+        if (xSemaphoreTake(ctx->hid_proc_task_done, pdMS_TO_TICKS(HID_STOP_TIMEOUT_MS)) != pdTRUE) {
+            LOG_W(TAG, "HID proc task stop timed out, force terminating");
+            vTaskDeleteWithCaps(ctx->hid_proc_task);
+        }
+        ctx->hid_proc_task = nullptr;
+        vSemaphoreDelete(ctx->hid_proc_task_done);
+        ctx->hid_proc_task_done = nullptr;
     }
-    ctx->hid_proc_task = nullptr;
-    vSemaphoreDelete(ctx->hid_proc_task_done);
+
+    error_t error = usb_hid_keyboard_device_destruct(ctx);
+    if (error == ERROR_NONE && ctx->hid_device_active) {
+        error = esp32_usbhost_device_destroy(ctx->host, &ctx->hid_device);
+        if (error == ERROR_NONE) {
+            ctx->hid_device_active = false;
+        }
+    }
+    if (error != ERROR_NONE) {
+        return error;
+    }
 
     hid_host_uninstall();
 
     if (ctx->hid_event_queue) { vQueueDelete(ctx->hid_event_queue); ctx->hid_event_queue = nullptr; }
     if (ctx->sub_mutex)       { vSemaphoreDelete(ctx->sub_mutex);   ctx->sub_mutex        = nullptr; }
 
-    device_set_driver_data(device, nullptr);
     delete ctx;
     LOG_I(TAG, "stopped");
     return ERROR_NONE;
@@ -691,8 +708,8 @@ static error_t stop_device(struct Device* device) {
 Driver esp32_usbhost_hid_driver = {
     .name         = "esp32_usbhost_hid",
     .compatible   = (const char*[]) { nullptr },
-    .start_device = start_device,
-    .stop_device  = stop_device,
+    .start_device = hid_device_start,
+    .stop_device  = hid_device_stop,
     .api          = &hid_api,
     .device_type  = &USB_HOST_HID_TYPE,
     .owner        = nullptr,
@@ -700,5 +717,10 @@ Driver esp32_usbhost_hid_driver = {
 };
 
 } // extern "C"
+
+const Esp32UsbHostBackend esp32_usbhost_hid_backend = {
+    .start = backend_start,
+    .stop  = backend_stop,
+};
 
 #endif // CONFIG_SOC_USB_OTG_SUPPORTED

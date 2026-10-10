@@ -28,10 +28,9 @@ typedef struct {
     uint8_t data2;  /**< Second data byte */
 } usb_midi_message_t;
 
-struct UsbMidiApi {
-    bool (*is_connected)(struct Device* device);
-};
-
+/**
+ * A USB_HOST_MIDI_TYPE device exists while a USB MIDI interface is connected.
+ */
 extern const struct DeviceType USB_HOST_MIDI_TYPE;
 
 struct UsbMidiEvent {
@@ -79,7 +78,7 @@ struct UsbMidiEventSubscription {
  * destructed only after usb_midi_event_unsubscribe()). To block for an event, call
  * task_event_group_wait()/task_event_group_wait_any() on this group, then drain with
  * usb_midi_event_poll().
- * @param[in] device the USB MIDI device
+ * @param[in] device the USB MIDI device. Unsubscribe on its DEVICE_EVENT_STOPPING: the next connection can reuse the same device pointer.
  * @retval ERROR_NONE on success
  * @retval ERROR_RESOURCE @a event_group has no free bits left to claim; @a sub was not registered
  * @retval ERROR_INVALID_STATE @a sub is already registered
@@ -110,12 +109,6 @@ error_t usb_midi_event_poll(struct UsbMidiEventSubscription* sub, struct UsbMidi
  * @retval ERROR_RESOURCE at least one subscription's queue was full and dropped the event
  */
 error_t usb_midi_event_emit(struct Device* device, const usb_midi_message_t* message);
-
-/**
- * Returns true if a MIDI device is currently connected and streaming.
- * @param device non-null ready USB MIDI device.
- */
-bool usb_midi_is_connected(struct Device* device);
 
 #ifdef __cplusplus
 }

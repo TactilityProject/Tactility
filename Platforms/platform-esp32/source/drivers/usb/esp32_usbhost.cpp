@@ -4,6 +4,7 @@
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_usbhost.h>
+#include <tactility/drivers/esp32_usbhost_backend.h>
 #include <tactility/drivers/esp32_usbhost_task.h>
 #include <tactility/drivers/esp32_usbhost_worker.h>
 #include <tactility/drivers/usb_host.h>
@@ -22,15 +23,6 @@
 
 #define USB_HOST_AUDIO_SUPPORTED (CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3)
 
-extern "C" {
-extern Driver esp32_usbhost_hid_driver;
-extern Driver esp32_usbhost_midi_driver;
-extern Driver esp32_usbhost_msc_driver;
-#if USB_HOST_AUDIO_SUPPORTED
-extern Driver esp32_usbhost_uac_driver;
-#endif
-}
-
 constexpr auto USB_LIB_TASK_STACK        = 4096;
 constexpr auto USB_LIB_TASK_PRIORITY     = 10;
 constexpr auto USB_LIB_EVENT_TIMEOUT_MS  = 500;
@@ -39,13 +31,9 @@ constexpr auto USB_HOST_STOP_RETRY_MS    = 1000;
 constexpr auto USB_WORKER_TASK_STACK     = 4096;
 constexpr auto USB_WORKER_TASK_PRIORITY  = 5;
 constexpr auto USB_WORKER_QUEUE_SIZE     = 4;
+constexpr auto USB_WORKER_IDLE_TIMEOUT_MS = 1000;
 constexpr auto USB_HOST_CLASS_COUNT           = USB_HOST_CLASS_AUDIO + 1;
-constexpr auto CHILD_DESTRUCT_RETRIES    = 100;
-
-struct UsbHostChild {
-    Device device = {};
-    bool active = false;
-};
+constexpr auto DEVICE_DESTRUCT_RETRIES   = 100;
 
 struct UsbHostWorkerJob {
     // nullptr stops the worker
@@ -56,12 +44,14 @@ struct UsbHostWorkerJob {
 };
 
 struct UsbHostContext {
+    // Exists only while there is work, guarded by worker_mutex
     TaskHandle_t      worker_task  = nullptr;
     QueueHandle_t     worker_queue = nullptr;
+    SemaphoreHandle_t worker_mutex = nullptr;
     TaskHandle_t      lib_task     = nullptr;
     SemaphoreHandle_t lib_task_done = nullptr;
-    // Indexed by UsbClass
-    UsbHostChild children[USB_HOST_CLASS_COUNT] = {};
+    // Backend contexts indexed by UsbClass, nullptr when not running
+    void* backends[USB_HOST_CLASS_COUNT] = {};
 };
 
 // Stack may be in PSRAM: no flash access allowed from this task.
@@ -98,14 +88,28 @@ static void usbLibTask(void* arg) {
 
 // Runs device lifecycle work for the class drivers, so device listeners never run on a USB task.
 // The stack stays in internal RAM because listeners may access flash.
+// Created on demand and exits when idle, so it uses no memory while nothing is plugged in or out.
 static void usbWorkerTask(void* arg) {
     auto* ctx = static_cast<UsbHostContext*>(arg);
     while (true) {
         UsbHostWorkerJob* job = nullptr;
-        if (xQueueReceive(ctx->worker_queue, &job, portMAX_DELAY) != pdTRUE) {
+        if (xQueueReceive(ctx->worker_queue, &job, pdMS_TO_TICKS(USB_WORKER_IDLE_TIMEOUT_MS)) != pdTRUE) {
+            // Jobs are queued under worker_mutex, so none can arrive between this check and the exit
+            xSemaphoreTake(ctx->worker_mutex, portMAX_DELAY);
+            const bool idle = uxQueueMessagesWaiting(ctx->worker_queue) == 0;
+            if (idle) {
+                ctx->worker_task = nullptr;
+            }
+            xSemaphoreGive(ctx->worker_mutex);
+            if (idle) {
+                break;
+            }
             continue;
         }
         if (job->function == nullptr) {
+            xSemaphoreTake(ctx->worker_mutex, portMAX_DELAY);
+            ctx->worker_task = nullptr;
+            xSemaphoreGive(ctx->worker_mutex);
             xSemaphoreGive(job->done);
             break;
         }
@@ -115,34 +119,47 @@ static void usbWorkerTask(void* arg) {
     vTaskDelete(nullptr);
 }
 
-static void submit_job_and_wait(UsbHostContext* ctx, UsbHostWorkerJob* job) {
-    job->done = xSemaphoreCreateBinaryStatic(&job->done_buffer);
-    xQueueSend(ctx->worker_queue, &job, portMAX_DELAY);
+static void wait_for_job(UsbHostWorkerJob* job) {
     xSemaphoreTake(job->done, portMAX_DELAY);
     vSemaphoreDelete(job->done);
 }
 
-static error_t start_worker(UsbHostContext* ctx) {
+static error_t create_worker_queue(UsbHostContext* ctx) {
+    ctx->worker_mutex = xSemaphoreCreateMutex();
     ctx->worker_queue = xQueueCreate(USB_WORKER_QUEUE_SIZE, sizeof(UsbHostWorkerJob*));
-    if (ctx->worker_queue == nullptr) {
+    if (ctx->worker_mutex == nullptr || ctx->worker_queue == nullptr) {
         LOG_E(TAG, "failed to create worker queue");
-        return ERROR_RESOURCE;
-    }
-    if (xTaskCreate(usbWorkerTask, "usb_worker", USB_WORKER_TASK_STACK, ctx, USB_WORKER_TASK_PRIORITY, &ctx->worker_task) != pdPASS) {
-        LOG_E(TAG, "failed to create worker task");
-        vQueueDelete(ctx->worker_queue);
+        if (ctx->worker_mutex != nullptr) vSemaphoreDelete(ctx->worker_mutex);
+        if (ctx->worker_queue != nullptr) vQueueDelete(ctx->worker_queue);
+        ctx->worker_mutex = nullptr;
         ctx->worker_queue = nullptr;
         return ERROR_RESOURCE;
     }
     return ERROR_NONE;
 }
 
-static void stop_worker(UsbHostContext* ctx) {
+// No jobs may be submitted anymore
+static void delete_worker_queue(UsbHostContext* ctx) {
     UsbHostWorkerJob job = { .function = nullptr, .context = nullptr, .done_buffer = {}, .done = nullptr };
-    submit_job_and_wait(ctx, &job);
-    ctx->worker_task = nullptr;
+    job.done = xSemaphoreCreateBinaryStatic(&job.done_buffer);
+    UsbHostWorkerJob* job_pointer = &job;
+
+    xSemaphoreTake(ctx->worker_mutex, portMAX_DELAY);
+    const bool running = ctx->worker_task != nullptr;
+    if (running) {
+        xQueueSend(ctx->worker_queue, &job_pointer, portMAX_DELAY);
+    }
+    xSemaphoreGive(ctx->worker_mutex);
+
+    if (running) {
+        wait_for_job(&job);
+    } else {
+        vSemaphoreDelete(job.done);
+    }
     vQueueDelete(ctx->worker_queue);
+    vSemaphoreDelete(ctx->worker_mutex);
     ctx->worker_queue = nullptr;
+    ctx->worker_mutex = nullptr;
 }
 
 error_t esp32_usbhost_run_on_worker(struct Device* host, void (*function)(void* context), void* context) {
@@ -150,40 +167,134 @@ error_t esp32_usbhost_run_on_worker(struct Device* host, void (*function)(void* 
     if (ctx == nullptr || ctx->worker_queue == nullptr) {
         return ERROR_INVALID_STATE;
     }
-    if (xTaskGetCurrentTaskHandle() == ctx->worker_task) {
+
+    UsbHostWorkerJob job = { .function = function, .context = context, .done_buffer = {}, .done = nullptr };
+    UsbHostWorkerJob* job_pointer = &job;
+
+    xSemaphoreTake(ctx->worker_mutex, portMAX_DELAY);
+    if (ctx->worker_task != nullptr && xTaskGetCurrentTaskHandle() == ctx->worker_task) {
+        xSemaphoreGive(ctx->worker_mutex);
         function(context);
         return ERROR_NONE;
     }
-    UsbHostWorkerJob job = { .function = function, .context = context, .done_buffer = {}, .done = nullptr };
-    submit_job_and_wait(ctx, &job);
+    if (ctx->worker_task == nullptr
+        && xTaskCreate(usbWorkerTask, "usb_worker", USB_WORKER_TASK_STACK, ctx, USB_WORKER_TASK_PRIORITY, &ctx->worker_task) != pdPASS) {
+        ctx->worker_task = nullptr;
+        xSemaphoreGive(ctx->worker_mutex);
+        LOG_E(TAG, "failed to create worker task");
+        return ERROR_RESOURCE;
+    }
+    job.done = xSemaphoreCreateBinaryStatic(&job.done_buffer);
+    xQueueSend(ctx->worker_queue, &job_pointer, portMAX_DELAY);
+    xSemaphoreGive(ctx->worker_mutex);
+
+    wait_for_job(&job);
     return ERROR_NONE;
 }
 
 // endregion
 
-// region Children
+// region Devices
 
-struct UsbHostChildSpec {
+struct DeviceCreateJob {
+    Device* device;
+    Device* parent;
     const char* name;
     Driver* driver;
+    void* driver_data;
+    error_t result;
 };
 
-static UsbHostChildSpec get_child_spec(UsbClass usb_class) {
+static void device_create_on_worker(void* context) {
+    auto* job = static_cast<DeviceCreateJob*>(context);
+    Device* device = job->device;
+    *device = Device {};
+    device->name = job->name;
+
+    job->result = device_construct(device);
+    if (job->result != ERROR_NONE) {
+        LOG_E(TAG, "failed to construct %s", job->name);
+        return;
+    }
+    device_set_driver_data(device, job->driver_data);
+    device_set_parent(device, job->parent);
+    device_set_driver(device, job->driver);
+    job->result = device_add(device);
+    if (job->result != ERROR_NONE) {
+        LOG_E(TAG, "failed to add %s", job->name);
+        device_destruct(device);
+        return;
+    }
+    job->result = device_start(device);
+    if (job->result != ERROR_NONE) {
+        LOG_E(TAG, "failed to start %s", job->name);
+        device_remove(device);
+        device_destruct(device);
+    }
+}
+
+struct DeviceDestroyJob {
+    Device* device;
+    error_t result;
+};
+
+static void device_destroy_on_worker(void* context) {
+    auto* job = static_cast<DeviceDestroyJob*>(context);
+    Device* device = job->device;
+
+    if (device_is_added(device)) {
+        error_t error = device_stop(device);
+        if (error == ERROR_NONE) {
+            error = device_remove(device);
+        }
+        if (error != ERROR_NONE) {
+            LOG_E(TAG, "failed to stop %s: %s", device->name, error_to_string(error));
+            job->result = error;
+            return;
+        }
+    }
+
+    // Short-lived device_get() references block destruction
+    error_t error = device_destruct(device);
+    for (int i = 0; error == ERROR_RESOURCE_BUSY && i < DEVICE_DESTRUCT_RETRIES; i++) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+        error = device_destruct(device);
+    }
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "failed to destruct %s: %s", device->name, error_to_string(error));
+    }
+    job->result = error;
+}
+
+error_t esp32_usbhost_device_create(Device* host, Device* device, Device* parent, const char* name, Driver* driver, void* driver_data) {
+    DeviceCreateJob job = { device, parent, name, driver, driver_data, ERROR_NONE };
+    error_t error = esp32_usbhost_run_on_worker(host, device_create_on_worker, &job);
+    return error != ERROR_NONE ? error : job.result;
+}
+
+error_t esp32_usbhost_device_destroy(Device* host, Device* device) {
+    DeviceDestroyJob job = { device, ERROR_NONE };
+    error_t error = esp32_usbhost_run_on_worker(host, device_destroy_on_worker, &job);
+    return error != ERROR_NONE ? error : job.result;
+}
+
+// endregion
+
+// region Backends
+
+static const Esp32UsbHostBackend* get_backend(UsbClass usb_class) {
     switch (usb_class) {
-        case USB_HOST_CLASS_HID:
-            return { "usbhosthid0", &esp32_usbhost_hid_driver };
-        case USB_HOST_CLASS_MIDI:
-            return { "usbhostmidi0", &esp32_usbhost_midi_driver };
-        case USB_HOST_CLASS_MSC:
-            return { "usbhostmsc0", &esp32_usbhost_msc_driver };
+        case USB_HOST_CLASS_HID: return &esp32_usbhost_hid_backend;
+        case USB_HOST_CLASS_MIDI: return &esp32_usbhost_midi_backend;
+        case USB_HOST_CLASS_MSC: return &esp32_usbhost_msc_backend;
         case USB_HOST_CLASS_AUDIO:
 #if USB_HOST_AUDIO_SUPPORTED
-            return { "usbhostaudio0", &esp32_usbhost_uac_driver };
+            return &esp32_usbhost_uac_backend;
 #else
-            return { "usbhostaudio0", nullptr };
+            return nullptr;
 #endif
     }
-    return { nullptr, nullptr };
+    return nullptr;
 }
 
 static bool is_class_configured(const Esp32UsbHostConfig* config, UsbClass usb_class) {
@@ -194,56 +305,6 @@ static bool is_class_configured(const Esp32UsbHostConfig* config, UsbClass usb_c
         case USB_HOST_CLASS_AUDIO: return config->audio;
     }
     return false;
-}
-
-static void create_child(Device* host, UsbHostChild* child, UsbClass usb_class) {
-    const auto spec = get_child_spec(usb_class);
-    if (spec.driver == nullptr) {
-        LOG_W(TAG, "%s is not supported on this target", spec.name);
-        return;
-    }
-
-    child->device = Device {
-        .address = 0,
-        .name = spec.name,
-        .config = nullptr,
-        .parent = nullptr,
-        .internal = nullptr,
-    };
-
-    if (device_construct(&child->device) != ERROR_NONE) {
-        LOG_E(TAG, "failed to construct %s", spec.name);
-        return;
-    }
-    device_set_parent(&child->device, host);
-    device_set_driver(&child->device, spec.driver);
-    if (device_add(&child->device) != ERROR_NONE) {
-        LOG_E(TAG, "failed to add %s", spec.name);
-        device_destruct(&child->device);
-        return;
-    }
-    if (device_start(&child->device) != ERROR_NONE) {
-        LOG_E(TAG, "failed to start %s", spec.name);
-        device_remove(&child->device);
-        device_destruct(&child->device);
-        return;
-    }
-
-    child->active = true;
-}
-
-static void destroy_child(UsbHostChild* child) {
-    if (!child->active) {
-        return;
-    }
-    child->active = false;
-
-    device_stop(&child->device);
-    device_remove(&child->device);
-    // Short-lived device_get() references block destruction
-    for (int i = 0; device_destruct(&child->device) == ERROR_RESOURCE_BUSY && i < CHILD_DESTRUCT_RETRIES; i++) {
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
 }
 
 // endregion
@@ -321,13 +382,77 @@ static error_t uninstall_lib(UsbHostContext* ctx) {
 
 // region API
 
+// Serializes backend changes with host start and stop, which create and delete the context
+static SemaphoreHandle_t get_backends_mutex() {
+    static StaticSemaphore_t buffer;
+    static SemaphoreHandle_t mutex = xSemaphoreCreateMutexStatic(&buffer);
+    return mutex;
+}
+
+static bool is_class_supported_by(const Esp32UsbHostConfig* config, UsbClass usb_class) {
+    return is_class_configured(config, usb_class) && get_backend(usb_class) != nullptr;
+}
+
+static error_t start_backend(Device* device, UsbHostContext* ctx, UsbClass usb_class) {
+    error_t error = get_backend(usb_class)->start(device, &ctx->backends[usb_class]);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "failed to start class %d", usb_class);
+        ctx->backends[usb_class] = nullptr;
+    }
+    return error;
+}
+
+static error_t stop_backend(UsbHostContext* ctx, UsbClass usb_class) {
+    // A retained backend still uses the lib and the worker
+    error_t error = get_backend(usb_class)->stop(ctx->backends[usb_class]);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "failed to stop class %d: %s", usb_class, error_to_string(error));
+        return error;
+    }
+    ctx->backends[usb_class] = nullptr;
+    return ERROR_NONE;
+}
+
+static error_t is_class_supported(struct Device* device, enum UsbClass usb_class, bool* supported) {
+    if (usb_class < 0 || usb_class >= USB_HOST_CLASS_COUNT) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    *supported = is_class_supported_by(GET_CONFIG(device), usb_class);
+    return ERROR_NONE;
+}
+
 static error_t is_class_enabled(struct Device* device, enum UsbClass usb_class, bool* enabled) {
     if (usb_class < 0 || usb_class >= USB_HOST_CLASS_COUNT) {
         return ERROR_INVALID_ARGUMENT;
     }
+    xSemaphoreTake(get_backends_mutex(), portMAX_DELAY);
     auto* ctx = static_cast<UsbHostContext*>(device_get_driver_data(device));
-    *enabled = ctx->children[usb_class].active;
-    return ERROR_NONE;
+    if (ctx != nullptr) {
+        *enabled = ctx->backends[usb_class] != nullptr;
+    }
+    xSemaphoreGive(get_backends_mutex());
+    return ctx != nullptr ? ERROR_NONE : ERROR_INVALID_STATE;
+}
+
+static error_t set_class_enabled(struct Device* device, enum UsbClass usb_class, bool enabled) {
+    if (usb_class < 0 || usb_class >= USB_HOST_CLASS_COUNT) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    if (!is_class_supported_by(GET_CONFIG(device), usb_class)) {
+        return ERROR_NOT_SUPPORTED;
+    }
+    xSemaphoreTake(get_backends_mutex(), portMAX_DELAY);
+    error_t error = ERROR_NONE;
+    auto* ctx = static_cast<UsbHostContext*>(device_get_driver_data(device));
+    if (ctx == nullptr) {
+        error = ERROR_INVALID_STATE;
+    } else if (enabled && ctx->backends[usb_class] == nullptr) {
+        error = start_backend(device, ctx, usb_class);
+    } else if (!enabled && ctx->backends[usb_class] != nullptr) {
+        error = stop_backend(ctx, usb_class);
+    }
+    xSemaphoreGive(get_backends_mutex());
+    return error;
 }
 
 // endregion
@@ -341,13 +466,16 @@ static error_t start_device(struct Device* device) {
         return ERROR_INVALID_ARGUMENT;
     }
 
+    xSemaphoreTake(get_backends_mutex(), portMAX_DELAY);
     auto* ctx = new UsbHostContext();
-    if (start_worker(ctx) != ERROR_NONE) {
+    if (create_worker_queue(ctx) != ERROR_NONE) {
+        xSemaphoreGive(get_backends_mutex());
         delete ctx;
         return ERROR_RESOURCE;
     }
     if (install_lib(ctx, cfg) != ERROR_NONE) {
-        stop_worker(ctx);
+        xSemaphoreGive(get_backends_mutex());
+        delete_worker_queue(ctx);
         delete ctx;
         return ERROR_RESOURCE;
     }
@@ -355,33 +483,48 @@ static error_t start_device(struct Device* device) {
 
     for (int i = 0; i < USB_HOST_CLASS_COUNT; i++) {
         const auto usb_class = static_cast<UsbClass>(i);
-        if (is_class_configured(cfg, usb_class)) {
-            create_child(device, &ctx->children[i], usb_class);
+        if (is_class_supported_by(cfg, usb_class)) {
+            start_backend(device, ctx, usb_class);
         }
     }
+    xSemaphoreGive(get_backends_mutex());
 
     LOG_I(TAG, "started (peripheral_map=0x%02x)", cfg->peripheral_map);
     return ERROR_NONE;
 }
 
 static error_t stop_device(struct Device* device) {
+    xSemaphoreTake(get_backends_mutex(), portMAX_DELAY);
     auto* ctx = static_cast<UsbHostContext*>(device_get_driver_data(device));
-    if (!ctx) return ERROR_NONE;
-
-    for (int i = USB_HOST_CLASS_COUNT - 1; i >= 0; i--) {
-        destroy_child(&ctx->children[i]);
+    if (!ctx) {
+        xSemaphoreGive(get_backends_mutex());
+        return ERROR_NONE;
     }
 
-    error_t result = uninstall_lib(ctx);
-    stop_worker(ctx);
+    for (int i = USB_HOST_CLASS_COUNT - 1; i >= 0; i--) {
+        if (ctx->backends[i] == nullptr) {
+            continue;
+        }
+        error_t error = stop_backend(ctx, static_cast<UsbClass>(i));
+        if (error != ERROR_NONE) {
+            xSemaphoreGive(get_backends_mutex());
+            return error;
+        }
+    }
     device_set_driver_data(device, nullptr);
+    xSemaphoreGive(get_backends_mutex());
+
+    error_t result = uninstall_lib(ctx);
+    delete_worker_queue(ctx);
     delete ctx;
     LOG_I(TAG, "stopped");
     return result;
 }
 
 static const UsbHostApi usb_host_api = {
+    .is_class_supported = is_class_supported,
     .is_class_enabled = is_class_enabled,
+    .set_class_enabled = set_class_enabled,
 };
 
 Driver esp32_usbhost_driver = {

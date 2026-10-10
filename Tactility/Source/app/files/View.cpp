@@ -34,6 +34,7 @@
 #include <fcntl.h>
 #include <format>
 #include <unistd.h>
+#include <vector>
 
 namespace tt::app::files {
 
@@ -585,14 +586,26 @@ void View::onEjectPressed() {
     std::string mount_path = state->getSelectedChildPath();
     LOG_I(TAG, "Ejecting %s", mount_path.c_str());
 
-    Device* msc_dev = nullptr;
-    if (device_get_first_active_by_type(&USB_HOST_MSC_TYPE, &msc_dev) != ERROR_NONE || !usb_msc_eject(msc_dev, mount_path.c_str())) {
-        LOG_W(TAG, "usb_msc_eject: %s not found", mount_path.c_str());
-        alertdialog::start(appInstanceId, "Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
+    // One device per mounted drive. Ejecting happens outside the iteration, which holds the device ledger lock.
+    std::vector<Device*> msc_devices;
+    device_for_each_of_type(&USB_HOST_MSC_TYPE, &msc_devices, [](Device* device, void* context) -> bool {
+        if (device_is_ready(device) && device_get(device) == ERROR_NONE) {
+            static_cast<std::vector<Device*>*>(context)->push_back(device);
+        }
+        return true;
+    });
+
+    bool ejected = false;
+    for (auto* msc_dev : msc_devices) {
+        if (!ejected) {
+            ejected = usb_msc_eject(msc_dev, mount_path.c_str());
+        }
+        device_put(msc_dev);
     }
 
-    if (msc_dev) {
-        device_put(msc_dev);
+    if (!ejected) {
+        LOG_W(TAG, "usb_msc_eject: %s not found", mount_path.c_str());
+        alertdialog::start(appInstanceId, "Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
     }
 
     onNavigate();

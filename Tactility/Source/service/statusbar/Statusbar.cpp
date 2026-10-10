@@ -255,8 +255,8 @@ class StatusbarService final : public Service {
         Device* midi_dev = nullptr;
         device_get_first_active_by_type(&USB_HOST_MIDI_TYPE, &midi_dev);
 
-        bool connected = (hid_dev && usb_host_hid_is_connected(hid_dev)) ||
-                         (midi_dev && usb_midi_is_connected(midi_dev));
+        // These devices only exist while connected
+        bool connected = hid_dev != nullptr || midi_dev != nullptr;
 
         if (hid_dev) {
             device_put(hid_dev);

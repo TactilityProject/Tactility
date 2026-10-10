@@ -451,10 +451,11 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(lora_tx_event_poll),
     DEFINE_MODULE_SYMBOL(LORA_TYPE),
     // drivers/usb_host
+    DEFINE_MODULE_SYMBOL(usb_host_is_class_supported),
     DEFINE_MODULE_SYMBOL(usb_host_is_class_enabled),
+    DEFINE_MODULE_SYMBOL(usb_host_set_class_enabled),
     DEFINE_MODULE_SYMBOL(USB_HOST_TYPE),
     // drivers/usb_host_hid
-    DEFINE_MODULE_SYMBOL(usb_host_hid_is_connected),
     DEFINE_MODULE_SYMBOL(usb_host_hid_subscribe),
     DEFINE_MODULE_SYMBOL(usb_host_hid_unsubscribe),
     DEFINE_MODULE_SYMBOL(USB_HOST_HID_TYPE),
@@ -463,7 +464,6 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(usb_midi_event_unsubscribe),
     DEFINE_MODULE_SYMBOL(usb_midi_event_poll),
     DEFINE_MODULE_SYMBOL(usb_midi_event_emit),
-    DEFINE_MODULE_SYMBOL(usb_midi_is_connected),
     DEFINE_MODULE_SYMBOL(USB_HOST_MIDI_TYPE),
     // drivers/usb_host_msc
     DEFINE_MODULE_SYMBOL(usb_msc_eject),

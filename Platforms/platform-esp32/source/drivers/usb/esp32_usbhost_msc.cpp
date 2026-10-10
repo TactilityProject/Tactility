@@ -3,7 +3,9 @@
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
+#include <tactility/drivers/esp32_usbhost_backend.h>
 #include <tactility/drivers/esp32_usbhost_task.h>
+#include <tactility/drivers/esp32_usbhost_worker.h>
 #include <tactility/drivers/usb_host_msc.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
@@ -45,13 +47,14 @@ using msc_event_id_t = decltype(msc_host_event_t{}.event);
 static constexpr msc_event_id_t kMscDeviceConnected    = static_cast<msc_event_id_t>(0);
 static constexpr msc_event_id_t kMscDeviceDisconnected = static_cast<msc_event_id_t>(1);
 
-enum class MscMsgId : uint8_t { Connected, Disconnected };
+enum class MscMsgId : uint8_t { Connected, Disconnected, Ejected };
 
 typedef struct {
     MscMsgId id;
     union {
         uint8_t address;
         msc_host_device_handle_t handle;
+        int slot;
     };
 } msc_msg_t;
 
@@ -62,7 +65,16 @@ struct UsbMscContext {
     TaskHandle_t      proc_task             = nullptr;
     SemaphoreHandle_t proc_task_done        = nullptr;
     std::atomic<bool> proc_running{false};
+    Device*           host                  = nullptr;
+    // USB_HOST_MSC_TYPE device per mounted drive, indexed by slot
+    Device            devices[MAX_MSC_DEVICES] = {};
+    bool              device_active[MAX_MSC_DEVICES] = {};
 };
+
+extern "C" Driver esp32_usbhost_msc_driver;
+
+static const char* const MSC_DEVICE_NAMES[] = { "usb_msc0", "usb_msc1" };
+static_assert(sizeof(MSC_DEVICE_NAMES) / sizeof(MSC_DEVICE_NAMES[0]) == MAX_MSC_DEVICES);
 
 static error_t usb_fs_mount(void* /*data*/) { return ERROR_NONE; }
 static error_t usb_fs_unmount(void* /*data*/) { return ERROR_NONE; }
@@ -85,9 +97,27 @@ static const FileSystemApi usb_fs_api = {
 
 static int find_free_slot(UsbMscContext* ctx) {
     for (int i = 0; i < MAX_MSC_DEVICES; i++) {
-        if (ctx->devs[i] == nullptr) return i;
+        // An ejected drive's device can outlive its entry until msc_proc destroys it
+        if (ctx->devs[i] == nullptr && !ctx->device_active[i]) return i;
     }
     return -1;
+}
+
+static void msc_device_create(UsbMscContext* ctx, int slot) {
+    if (esp32_usbhost_device_create(ctx->host, &ctx->devices[slot], ctx->host, MSC_DEVICE_NAMES[slot], &esp32_usbhost_msc_driver, ctx) == ERROR_NONE) {
+        ctx->device_active[slot] = true;
+    }
+}
+
+static error_t msc_device_destroy(UsbMscContext* ctx, int slot) {
+    if (!ctx->device_active[slot]) {
+        return ERROR_NONE;
+    }
+    error_t error = esp32_usbhost_device_destroy(ctx->host, &ctx->devices[slot]);
+    if (error == ERROR_NONE) {
+        ctx->device_active[slot] = false;
+    }
+    return error;
 }
 
 static int find_slot_by_handle(UsbMscContext* ctx, msc_host_device_handle_t handle) {
@@ -98,7 +128,9 @@ static int find_slot_by_handle(UsbMscContext* ctx, msc_host_device_handle_t hand
 }
 
 static void free_msc_device(UsbMscContext* ctx, int slot) {
-    if (slot < 0 || slot >= MAX_MSC_DEVICES || !ctx->devs[slot]) return;
+    if (slot < 0 || slot >= MAX_MSC_DEVICES) return;
+    msc_device_destroy(ctx, slot);
+    if (!ctx->devs[slot]) return;
     if (ctx->devs[slot]->fs_entry) {
         ctx->devs[slot]->mounted = false;
         file_system_remove(ctx->devs[slot]->fs_entry);
@@ -217,6 +249,7 @@ static void msc_proc_task(void* arg) {
                 continue;
             }
             ctx->devs[slot]->mounted = true;
+            msc_device_create(ctx, slot);
 
         } else if (msg.id == MscMsgId::Disconnected) {
             taskENTER_CRITICAL(&ctx->devs_lock);
@@ -226,6 +259,8 @@ static void msc_proc_task(void* arg) {
                 LOG_I(TAG, "USB drive disconnected, unmounting slot %d", slot);
                 free_msc_device(ctx, slot);
             }
+        } else if (msg.id == MscMsgId::Ejected) {
+            msc_device_destroy(ctx, msg.slot);
         }
     }
 
@@ -238,17 +273,15 @@ static void msc_proc_task(void* arg) {
 static bool api_eject(struct Device* device, const char* mount_path) {
     auto* ctx = static_cast<UsbMscContext*>(device_get_driver_data(device));
     if (!ctx) return false;
+    const int slot = static_cast<int>(device - ctx->devices);
 
     taskENTER_CRITICAL(&ctx->devs_lock);
     msc_dev_entry_t* entry = nullptr;
     int found = -1;
-    for (int i = 0; i < MAX_MSC_DEVICES; i++) {
-        if (ctx->devs[i] && strcmp(ctx->devs[i]->mount_path, mount_path) == 0) {
-            found = i;
-            entry = ctx->devs[i];
-            ctx->devs[i] = nullptr;  // claim atomically under the lock
-            break;
-        }
+    if (ctx->devs[slot] && strcmp(ctx->devs[slot]->mount_path, mount_path) == 0) {
+        found = slot;
+        entry = ctx->devs[slot];
+        ctx->devs[slot] = nullptr;  // claim atomically under the lock
     }
     taskEXIT_CRITICAL(&ctx->devs_lock);
 
@@ -267,6 +300,13 @@ static bool api_eject(struct Device* device, const char* mount_path) {
             msc_host_uninstall_device(entry->device);
         }
         free(entry);
+        // The caller holds a reference to the device, so msc_proc destroys it later
+        msc_msg_t msg = {};
+        msg.id = MscMsgId::Ejected;
+        msg.slot = found;
+        if (xQueueSend(ctx->event_queue, &msg, pdMS_TO_TICKS(100)) != pdTRUE) {
+            LOG_W(TAG, "event queue full, %s stays until the drive is removed", MSC_DEVICE_NAMES[found]);
+        }
         LOG_I(TAG, "USB drive ejected, safe to remove");
         return true;
     }
@@ -280,8 +320,18 @@ static const UsbMscApi msc_api = {
 
 extern "C" {
 
-static error_t start_device(struct Device* device) {
+static error_t msc_device_start(Device* device) {
+    return device_get_driver_data(device) != nullptr ? ERROR_NONE : ERROR_INVALID_STATE;
+}
+
+static error_t msc_device_stop(Device* device) {
+    device_set_driver_data(device, nullptr);
+    return ERROR_NONE;
+}
+
+static error_t backend_start(Device* host, void** out_context) {
     auto* ctx = new UsbMscContext();
+    ctx->host = host;
 
     ctx->event_queue = xQueueCreate(MSC_EVENT_QUEUE_SIZE, sizeof(msc_msg_t));
     if (!ctx->event_queue) {
@@ -327,37 +377,46 @@ static error_t start_device(struct Device* device) {
         return ERROR_RESOURCE;
     }
 
-    device_set_driver_data(device, ctx);
+    *out_context = ctx;
     LOG_I(TAG, "started");
     return ERROR_NONE;
 }
 
-static error_t stop_device(struct Device* device) {
-    auto* ctx = static_cast<UsbMscContext*>(device_get_driver_data(device));
-    if (!ctx) return ERROR_NONE;
+static error_t backend_stop(void* context) {
+    auto* ctx = static_cast<UsbMscContext*>(context);
 
-    ctx->proc_running = false;
+    if (ctx->proc_task != nullptr) {
+        ctx->proc_running = false;
 
-    bool exited = (xSemaphoreTake(ctx->proc_task_done, pdMS_TO_TICKS(MSC_STOP_TIMEOUT_MS)) == pdTRUE);
-    if (!exited) {
-        // Retry once with a short extra wait before resorting to force-delete.
-        exited = (xSemaphoreTake(ctx->proc_task_done, pdMS_TO_TICKS(500)) == pdTRUE);
+        bool exited = (xSemaphoreTake(ctx->proc_task_done, pdMS_TO_TICKS(MSC_STOP_TIMEOUT_MS)) == pdTRUE);
+        if (!exited) {
+            // Retry once with a short extra wait before resorting to force-delete.
+            exited = (xSemaphoreTake(ctx->proc_task_done, pdMS_TO_TICKS(500)) == pdTRUE);
+        }
+        if (!exited) {
+            LOG_W(TAG, "MSC proc task stop timed out, force terminating");
+            vTaskDeleteWithCaps(ctx->proc_task);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            // Task was killed mid-cleanup — free devices ourselves as best-effort.
+            free_all_msc_devices(ctx);
+        }
+        ctx->proc_task = nullptr;
+        vSemaphoreDelete(ctx->proc_task_done);
+        ctx->proc_task_done = nullptr;
     }
-    if (!exited) {
-        LOG_W(TAG, "MSC proc task stop timed out, force terminating");
-        vTaskDeleteWithCaps(ctx->proc_task);
-        vTaskDelay(pdMS_TO_TICKS(50));
-        // Task was killed mid-cleanup — free devices ourselves as best-effort.
-        free_all_msc_devices(ctx);
+
+    // Covers devices of ejected drives and devices whose destruction failed before
+    for (int i = 0; i < MAX_MSC_DEVICES; i++) {
+        error_t error = msc_device_destroy(ctx, i);
+        if (error != ERROR_NONE) {
+            return error;
+        }
     }
-    ctx->proc_task = nullptr;
-    vSemaphoreDelete(ctx->proc_task_done);
 
     msc_host_uninstall();
 
     if (ctx->event_queue) { vQueueDelete(ctx->event_queue); ctx->event_queue = nullptr; }
 
-    device_set_driver_data(device, nullptr);
     delete ctx;
     LOG_I(TAG, "stopped");
     return ERROR_NONE;
@@ -366,8 +425,8 @@ static error_t stop_device(struct Device* device) {
 Driver esp32_usbhost_msc_driver = {
     .name         = "esp32_usbhost_msc",
     .compatible   = (const char*[]) { nullptr },
-    .start_device = start_device,
-    .stop_device  = stop_device,
+    .start_device = msc_device_start,
+    .stop_device  = msc_device_stop,
     .api          = &msc_api,
     .device_type  = &USB_HOST_MSC_TYPE,
     .owner        = nullptr,
@@ -375,5 +434,10 @@ Driver esp32_usbhost_msc_driver = {
 };
 
 } // extern "C"
+
+const Esp32UsbHostBackend esp32_usbhost_msc_backend = {
+    .start = backend_start,
+    .stop  = backend_stop,
+};
 
 #endif // CONFIG_SOC_USB_OTG_SUPPORTED

@@ -1,10 +1,7 @@
 #include <tactility/drivers/usb_host_midi.h>
 #include <tactility/concurrent/mutex.h>
 #include <tactility/device.h>
-#include <tactility/driver.h>
 #include <tactility/time.h>
-
-#define USB_MIDI_API(driver) ((struct UsbMidiApi*)(driver)->api)
 
 struct UsbMidiEventMutex {
     Mutex handle {};
@@ -20,11 +17,6 @@ extern "C" {
 const struct DeviceType USB_HOST_MIDI_TYPE = {
     .name = "usb-host-midi",
 };
-
-bool usb_midi_is_connected(struct Device* device) {
-    auto* api = USB_MIDI_API(device_get_driver(device));
-    return api->is_connected(device);
-}
 
 error_t usb_midi_event_subscribe(UsbMidiEventSubscription* sub, TaskEventGroup* event_group, Device* device) {
     uint32_t bit;

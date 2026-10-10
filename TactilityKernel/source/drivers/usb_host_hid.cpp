@@ -10,11 +10,6 @@ const struct DeviceType USB_HOST_HID_TYPE = {
     .name = "usb-host-hid",
 };
 
-bool usb_host_hid_is_connected(struct Device* device) {
-    auto* api = USB_HID_API(device_get_driver(device));
-    return api->is_connected(device);
-}
-
 bool usb_host_hid_subscribe(struct Device* device, UsbHidQueueHandle event_queue) {
     auto* api = USB_HID_API(device_get_driver(device));
     return api->subscribe(device, event_queue);

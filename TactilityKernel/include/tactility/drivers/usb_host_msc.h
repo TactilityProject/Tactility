@@ -16,13 +16,16 @@ struct UsbMscApi {
     bool (*eject)(struct Device* device, const char* mount_path);
 };
 
+/**
+ * A USB_HOST_MSC_TYPE device exists for each mounted USB drive.
+ */
 extern const struct DeviceType USB_HOST_MSC_TYPE;
 
 /**
- * Safely eject a mounted USB drive.
- * @param device non-null ready USB MSC device (from device_find_first_active_by_type).
+ * Safely eject a mounted USB drive. The device is removed shortly after.
+ * @param device non-null ready USB MSC device
  * @param mount_path Full mount path (e.g. "/usb0").
- * @return true if the drive was found and ejected.
+ * @return true if @a device is the drive mounted at @a mount_path and it was ejected.
  */
 bool usb_msc_eject(struct Device* device, const char* mount_path);
 

@@ -21,6 +21,7 @@
 #include <Tactility/TactilityPrivate.h>
 #include <Tactility/app/boot/BootScreen.h>
 #include <Tactility/hal/usb/Usb.h>
+#include <Tactility/hal/usb/UsbHost.h>
 #include <Tactility/lvgl/Fonts.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/Theme.h>
@@ -230,6 +231,9 @@ bool bootInit(TickType_t startTime) {
 
     LOG_I(TAG, "Prepare file systems");
     prepareFileSystems();
+
+    LOG_I(TAG, "Init USB host");
+    hal::usbhost::systemStart();
 
     bool sd_card_missing = false;
 #ifdef CONFIG_TT_USER_DATA_LOCATION_SD

@@ -68,19 +68,19 @@ typedef struct {
 } UsbHidEvent;
 
 struct UsbHidApi {
-    bool (*is_connected)(struct Device* device);
     bool (*subscribe)(struct Device* device, UsbHidQueueHandle event_queue);
     void (*unsubscribe)(struct Device* device, UsbHidQueueHandle event_queue);
 };
 
+/**
+ * A USB_HOST_HID_TYPE device exists while at least one HID interface (keyboard, mouse or consumer control) is connected.
+ */
 extern const struct DeviceType USB_HOST_HID_TYPE;
-
-/** Returns true if any HID device (keyboard or mouse) is currently connected. */
-bool usb_host_hid_is_connected(struct Device* device);
 
 /**
  * Subscribe a FreeRTOS queue to receive UsbHidEvent items from the HID driver.
  * A new subscriber immediately receives a *_CONNECTED event for each device that is already connected.
+ * Subscriptions end when the device stops. Subscribe again on DEVICE_EVENT_STARTED of the next device.
  */
 bool usb_host_hid_subscribe(struct Device* device, UsbHidQueueHandle event_queue);
 

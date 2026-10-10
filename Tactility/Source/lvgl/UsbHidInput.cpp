@@ -3,9 +3,11 @@
 #ifdef ESP_PLATFORM
 
 #include <Tactility/Assets.h>
+#include <Tactility/Mutex.h>
 #include <Tactility/service/audio/Audio.h>
 
 #include <tactility/device.h>
+#include <tactility/device_listener.h>
 #include <tactility/drivers/hid_consumer.h>
 #include <tactility/drivers/usb_host_hid.h>
 #include <tactility/log.h>
@@ -51,7 +53,6 @@ struct UsbHidInputCtx {
     StackType_t*       task_stack    = nullptr;
     StaticTask_t*      task_tcb      = nullptr;
     std::atomic<bool>  running{false};
-    std::atomic<bool>  subscribed{false};
 
     lv_indev_t* mouse_indev   = nullptr;
     lv_indev_t* kb_indev      = nullptr;
@@ -70,6 +71,67 @@ struct UsbHidInputCtx {
 };
 
 static UsbHidInputCtx* s_ctx = nullptr;
+
+// region HID device listener
+
+static Mutex& listenerMutex() {
+    static Mutex mutex;
+    return mutex;
+}
+
+// Queue that receives the HID events, nullptr while the listener is inactive.
+// device_listener_remove() doesn't wait for in-flight callbacks, so they check this under listenerMutex.
+static QueueHandle_t& listenerQueue() {
+    static QueueHandle_t queue = nullptr;
+    return queue;
+}
+
+static void onDeviceEvent(Device* device, DeviceEvent event, void* context) {
+    (void)context;
+    if (device_get_type(device) != &USB_HOST_HID_TYPE) {
+        return;
+    }
+    auto lock = listenerMutex().asScopedLock();
+    lock.lock();
+    QueueHandle_t queue = listenerQueue();
+    if (queue == nullptr) {
+        return;
+    }
+    if (event == DEVICE_EVENT_STARTED) {
+        if (!usb_host_hid_subscribe(device, queue)) {
+            LOG_W(TAG, "failed to subscribe to %s", device->name);
+        }
+    } else if (event == DEVICE_EVENT_STOPPING) {
+        usb_host_hid_unsubscribe(device, queue);
+    }
+}
+
+static void startHidListener(QueueHandle_t queue) {
+    auto lock = listenerMutex().asScopedLock();
+    lock.lock();
+    listenerQueue() = queue;
+    device_listener_add(onDeviceEvent, nullptr);
+    // A device that started before the listener was added
+    Device* hid_dev = nullptr;
+    if (device_get_first_active_by_type(&USB_HOST_HID_TYPE, &hid_dev) == ERROR_NONE) {
+        usb_host_hid_subscribe(hid_dev, queue);
+        device_put(hid_dev);
+    }
+}
+
+static void stopHidListener(QueueHandle_t queue) {
+    auto lock = listenerMutex().asScopedLock();
+    lock.lock();
+    listenerQueue() = nullptr;
+    device_listener_remove(onDeviceEvent, nullptr);
+    Device* hid_dev = nullptr;
+    if (device_get_first_active_by_type(&USB_HOST_HID_TYPE, &hid_dev) == ERROR_NONE) {
+        usb_host_hid_unsubscribe(hid_dev, queue);
+        device_put(hid_dev);
+    }
+}
+
+// endregion
 
 // Routes Consumer Control usages (headset buttons, media keyboards) to the audio service.
 // Only usages demonstrated on real hardware are acted on; everything else is logged at
@@ -230,13 +292,6 @@ static void usbHidInputTask(void* arg) {
     while (ctx->running) {
         UsbHidEvent hid_evt;
         if (xQueueReceive(ctx->hid_queue, &hid_evt, pdMS_TO_TICKS(100)) != pdTRUE) {
-            if (!ctx->subscribed) {
-                Device* hid_dev;
-                if (device_get_first_active_by_type(&USB_HOST_HID_TYPE, &hid_dev) == ERROR_NONE) {
-                    ctx->subscribed = usb_host_hid_subscribe(hid_dev, ctx->hid_queue);
-                    device_put(hid_dev);
-                }
-            }
             continue;
         }
 
@@ -391,11 +446,7 @@ void startUsbHidInput() {
     }
     lvgl_unlock();
 
-    Device* hid_dev = nullptr;
-    if (device_get_first_active_by_type(&USB_HOST_HID_TYPE, &hid_dev) == ERROR_NONE) {
-        ctx->subscribed = usb_host_hid_subscribe(hid_dev, ctx->hid_queue);
-        device_put(hid_dev);
-    }
+    startHidListener(ctx->hid_queue);
 
     ctx->running = true;
 
@@ -417,13 +468,7 @@ void startUsbHidInput() {
     if (ctx->task == nullptr) {
         LOG_E(TAG, "failed to create task");
         ctx->running = false;
-        if (ctx->subscribed) {
-            Device* cleanup_dev = nullptr;
-            if (device_get_first_active_by_type(&USB_HOST_HID_TYPE, &cleanup_dev) == ERROR_NONE) {
-                usb_host_hid_unsubscribe(cleanup_dev, ctx->hid_queue);
-                device_put(cleanup_dev);
-            }
-        }
+        stopHidListener(ctx->hid_queue);
         memory_free(ctx->task_stack);
         memory_free(ctx->task_tcb);
         if (ctx->mouse_cursor != nullptr) {
@@ -483,13 +528,7 @@ void stopUsbHidInput() {
     memory_free(ctx->task_stack);
     memory_free(ctx->task_tcb);
 
-    if (ctx->subscribed) {
-        Device* hid_dev;
-        if (device_get_first_active_by_type(&USB_HOST_HID_TYPE, &hid_dev) == ERROR_NONE) {
-            usb_host_hid_unsubscribe(hid_dev, ctx->hid_queue);
-            device_put(hid_dev);
-        }
-    }
+    stopHidListener(ctx->hid_queue);
     vQueueDelete(ctx->hid_queue);
     vQueueDelete(ctx->key_queue);
     vSemaphoreDelete(ctx->task_done);
