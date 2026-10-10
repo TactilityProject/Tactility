@@ -551,7 +551,7 @@ void statusbar_set_side(lv_obj_t* obj, bool side) {
         lv_obj_set_style_pad_bottom(obj, compact ? 0 : 8, LV_STATE_DEFAULT);
         // Slightly darker than the colour behind it, so the strip stands out from the app next to it
         const lv_color_t background = get_visible_bg_color(obj);
-        lv_obj_set_style_bg_color(obj, lv_color_darken(background, LV_OPA_10), LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(obj, lv_color_darken(background, LV_OPA_20), LV_STATE_DEFAULT);
         lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_STATE_DEFAULT);
         lv_obj_set_style_margin_left(statusbar->time, 0, LV_STATE_DEFAULT);
         // The small font fits the time in the narrow strip
