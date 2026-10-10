@@ -3,6 +3,9 @@
 
 #include <app/instance.h>
 
+#include <lvgl/devices/indev.h>
+#include <lvgl/devices/keyboard.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 
 #include <tactility/check.h>
@@ -88,6 +91,54 @@ WindowManagerState& state() {
     return instance;
 }
 
+/** Guarded by the LVGL lock instead of WindowManagerState's mutexes, so the overlay can be shown
+ * and hidden from LVGL event callbacks. */
+struct OverlayState {
+    lv_obj_t* widget = nullptr;
+    lv_group_t* group = nullptr;
+    WindowDestroyWidgetsFn destroy_widgets = nullptr;
+    void* user_data = nullptr;
+};
+
+OverlayState overlay;
+
+void delete_overlay_widget(void* widget) {
+    lv_obj_delete(static_cast<lv_obj_t*>(widget));
+}
+
+// A pending deletion must not run for a widget that was deleted along with the root widget
+void on_overlay_widget_deleted(lv_event_t* event) {
+    lv_async_call_cancel(delete_overlay_widget, lv_event_get_current_target_obj(event));
+}
+
+// Call while holding the LVGL lock
+void hide_overlay_locked() {
+    if (overlay.widget == nullptr) {
+        return;
+    }
+    if (overlay.destroy_widgets != nullptr) {
+        overlay.destroy_widgets(overlay.user_data);
+    }
+    lvgl_keyboard_set_active_group(nullptr);
+    lv_group_delete(overlay.group);
+    // Deleted asynchronously, as this may run inside an event of one of the overlay's widgets
+    lv_obj_add_flag(overlay.widget, LV_OBJ_FLAG_HIDDEN);
+    lv_async_call(delete_overlay_widget, overlay.widget);
+    overlay = {};
+}
+
+void on_overlay_backdrop_clicked(lv_event_t* event) {
+    if (lv_event_get_target_obj(event) == lv_event_get_current_target_obj(event)) {
+        hide_overlay_locked();
+    }
+}
+
+void on_overlay_key(lv_event_t* event) {
+    if (lv_event_get_key(event) == LV_KEY_ESC) {
+        hide_overlay_locked();
+    }
+}
+
 lv_obj_t* build_window_widget(lv_obj_t* content, WindowCreateWidgetsFn create_widgets, void* user_data) {
     if (content == nullptr) {
         return nullptr;
@@ -103,7 +154,11 @@ lv_obj_t* build_window_widget(lv_obj_t* content, WindowCreateWidgetsFn create_wi
     // theme's scrollbar styling as a thin line hugging this widget's edges.
     lv_obj_set_scrollable(widget, false);
     if (create_widgets != nullptr) {
+        // Windows belong to the app layer, also while the overlay is the active layer
+        lv_group_t* default_group = lv_group_get_default();
+        lv_group_set_default(lvgl_keyboard_get_app_group());
         create_widgets(widget, user_data);
+        lv_group_set_default(default_group);
     }
     lvgl_unlock();
     return widget;
@@ -308,6 +363,10 @@ error_t window_manager_stop(void) {
         give_and_release(waiter);
     }
 
+    lvgl_lock();
+    hide_overlay_locked();
+    lvgl_unlock();
+
     // Deleting the real widget cascades to everything under it - chrome and top_widget alike.
     delete_widget(widget, top_destroy_widgets, top_user_data);
 
@@ -510,6 +569,77 @@ WindowState window_manager_await_state_change(WindowId id, TickType_t timeout) {
     }
 
     return window_manager_get_state(id);
+}
+
+error_t window_manager_overlay_show(WindowCreateWidgetsFn create_widgets, WindowDestroyWidgetsFn destroy_widgets, void* user_data) {
+    auto& s = state();
+
+    lvgl_lock();
+
+    mutex_lock(&s.mutex);
+    lv_obj_t* root = s.started ? s.real_root_widget : nullptr;
+    mutex_unlock(&s.mutex);
+
+    if (root == nullptr) {
+        lvgl_unlock();
+        return ERROR_INVALID_STATE;
+    }
+
+    hide_overlay_locked();
+
+    lv_group_t* group = lv_group_create();
+    if (group == nullptr) {
+        lvgl_unlock();
+        return ERROR_OUT_OF_MEMORY;
+    }
+    // Widgets created from here on join the overlay's group
+    lvgl_keyboard_set_active_group(group);
+
+    // Created as the last child of the root widget, so it covers everything else
+    lv_obj_t* widget = lv_obj_create(root);
+    lv_obj_set_size(widget, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_pad_all(widget, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(widget, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(widget, 0, LV_STATE_DEFAULT);
+    // Monochrome displays can't dim the app layer, so the overlay draws over it as-is
+    const bool monochrome = lv_display_get_color_format(lv_obj_get_display(root)) == LV_COLOR_FORMAT_I1;
+    lv_obj_set_style_bg_color(widget, lv_color_black(), LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(widget, monochrome ? LV_OPA_TRANSP : LV_OPA_50, LV_STATE_DEFAULT);
+    lv_obj_set_scrollable(widget, false);
+    lv_obj_add_event_cb(widget, on_overlay_backdrop_clicked, LV_EVENT_CLICKED, nullptr);
+    lv_obj_add_event_cb(widget, on_overlay_widget_deleted, LV_EVENT_DELETE, nullptr);
+
+    overlay = OverlayState { widget, group, destroy_widgets, user_data };
+
+    if (create_widgets != nullptr) {
+        create_widgets(widget, user_data);
+    }
+
+    // The first widget in the new group is focused automatically. With a pointer device, that shouldn't show as selected.
+    if (lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
+        lvgl_focus_hide_key_selection(group);
+    }
+
+    const uint32_t object_count = lv_group_get_obj_count(group);
+    for (uint32_t i = 0; i < object_count; i++) {
+        lv_obj_add_event_cb(lv_group_get_obj_by_index(group, i), on_overlay_key, LV_EVENT_KEY, nullptr);
+    }
+
+    lvgl_unlock();
+    return ERROR_NONE;
+}
+
+void window_manager_overlay_hide(void) {
+    lvgl_lock();
+    hide_overlay_locked();
+    lvgl_unlock();
+}
+
+WindowLayer window_manager_get_active_layer(void) {
+    lvgl_lock();
+    WindowLayer layer = overlay.widget != nullptr ? WINDOW_LAYER_OVERLAY : WINDOW_LAYER_APP;
+    lvgl_unlock();
+    return layer;
 }
 
 } // extern "C"

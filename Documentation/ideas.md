@@ -7,9 +7,8 @@
 
 ## Higher Priority
 
+- esp_lvgl_port settings has a large stack size (~9kB) to fix stackoverflow when LVGL events (e.g. button click) do actions like file operations do actions like file operations. Can we reduce the callstack?
 - Improve posix support: use user home path and system /tmp folder. implement uart/i2c drivers properly.
-- Improve Setup: Add keyboard/keypad/encoder navigation explanation.
-  e.g. encoder long press on t-lora pager to get out of textarea
 - NimBLE looses pairing key after reboot
 - Pick different font to improve monochrome screen readability (or change the weight). 
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
@@ -31,17 +30,14 @@
 - netutils-module: ping, wget, ifconfig, nslookup, etc.
 - Core2: support power off via software
 - Improve Setup: Show "Step done" screen
-- Make it more clear to end-users that an SD card is required to run Tactility
+- Make it clearer to end-users that an SD card is required to run Tactility
 - Warn if file operations are done from prohibited tasks (e.g. lvgl task)
 - stopAppFromToolbar() in lvgl/Lvgl.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
-- Consider not unpacking `.app` files and executing them directly. Might want to cache file offsets. Cache file must be pinned to app version.
 - lvgl-module's spinner relies on hard-coded spinner asset from Tactility main project.
-- esp_lvgl_port settings has a large stack size (~9kB) to fix stackoverflow when LVGL events (e.g. button click) do actions like file operations do actions like file operations. Can we reduce the callstack?
 - `struct Driver` has an `.owner`, but it's not always set. Either validate on Module construct that it matches, or otherwise set it during module start. The problem: NULL parent currently means that driver is not removable. This clashes with setting it dynamically. Consider some kind of flag to determine removability.
 - Consider moving certain drivers into separate modules: audio, bt, wifi, etc
 - Consider using https://github.com/Graphify-Labs/graphify
 - Consider implementing LVGL gridnav in apps https://lvgl.io/docs/open/9.3/details/auxiliary-modules/gridnav.html
-- TactilityTool: Make API compatibility table (and check for compatibility in the tool itself)
 - Refactor HttpServer into C code and move implementation to http-module
 - Use GPS time to set/update the current time
 - Make a URL handler. Use it for handling local files. Match file types with apps.
@@ -69,7 +65,6 @@
 - Show a warning screen if firmware encryption or secure boot are off when saving WiFi credentials.
 - Calculator app should show regular text input field on non-touch devices that have a keyboard (Cardputer, T-Lora Pager)
 - Allow for WSAD keys to navigate LVGL (this is extra nice for cardputer, but just handy in general)
-- Create a "How to" app for a device. It could explain things like keyboard navigation on first start.
 - Make WiFi setup app that starts an access point and hosts a webpage to set up the device.
   This will be useful for devices without a screen, a small screen or a non-touch screen.
 

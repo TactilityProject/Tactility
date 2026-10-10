@@ -9,3 +9,4 @@ lvgl-window-manager-module
 service-module
 graphics-module
 wifi-module
+binfont-module

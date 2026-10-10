@@ -8,14 +8,17 @@
 #include <lvgl/devices/indev.h>
 #include <lvgl/devices/keyboard.h>
 #include <lvgl/devices/pointer.h>
+#include <lvgl/devices/trackball.h>
 
 #include <lvgl/widgets/sliderbox.h>
 #include <lvgl/grid_navigation.h>
 #include <lvgl/insets.h>
+#include <lvgl/ppa.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/badge.h>
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
+#include <lvgl/widgets/focus_container.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/list.h>
 #include <lvgl/widgets/page_indicator.h>
@@ -52,6 +55,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_get_launcher_icon_font_height),
     DEFINE_MODULE_SYMBOL(lvgl_get_statusbar_icon_font),
     DEFINE_MODULE_SYMBOL(lvgl_get_statusbar_icon_font_height),
+    DEFINE_MODULE_SYMBOL(lvgl_set_text_font),
+    DEFINE_MODULE_SYMBOL(lvgl_set_icon_font),
     // lvgl_display
     DEFINE_MODULE_SYMBOL(lvgl_display_add),
     DEFINE_MODULE_SYMBOL(lvgl_display_remove),
@@ -60,6 +65,23 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lvgl_keyboard
     DEFINE_MODULE_SYMBOL(lvgl_keyboard_add),
     DEFINE_MODULE_SYMBOL(lvgl_keyboard_remove),
+    DEFINE_MODULE_SYMBOL(lvgl_keyboard_find_by_device),
+    DEFINE_MODULE_SYMBOL(lvgl_keyboard_enable),
+    DEFINE_MODULE_SYMBOL(lvgl_keyboard_disable),
+    DEFINE_MODULE_SYMBOL(lvgl_keyboard_set_active_group),
+    DEFINE_MODULE_SYMBOL(lvgl_keyboard_get_app_group),
+    DEFINE_MODULE_SYMBOL(lvgl_keyboard_add_textarea),
+    DEFINE_MODULE_SYMBOL(lvgl_hardware_keyboard_is_available),
+    DEFINE_MODULE_SYMBOL(lvgl_hardware_keyboard_add_custom),
+    DEFINE_MODULE_SYMBOL(lvgl_hardware_keyboard_remove_custom),
+    DEFINE_MODULE_SYMBOL(lvgl_software_keyboard_construct),
+    DEFINE_MODULE_SYMBOL(lvgl_software_keyboard_destruct),
+    DEFINE_MODULE_SYMBOL(lvgl_software_keyboard_show),
+    DEFINE_MODULE_SYMBOL(lvgl_software_keyboard_hide),
+    DEFINE_MODULE_SYMBOL(lvgl_software_keyboard_is_enabled),
+    DEFINE_MODULE_SYMBOL(lvgl_software_keyboard_get_last),
+    DEFINE_MODULE_SYMBOL(lvgl_software_keyboard_activate),
+    DEFINE_MODULE_SYMBOL(lvgl_software_keyboard_deactivate),
     // lvgl_pointer
     DEFINE_MODULE_SYMBOL(lvgl_pointer_set_calibration),
     DEFINE_MODULE_SYMBOL(lvgl_pointer_get_calibration),
@@ -67,6 +89,19 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_pointer_add),
     DEFINE_MODULE_SYMBOL(lvgl_pointer_get_slot_index),
     DEFINE_MODULE_SYMBOL(lvgl_pointer_remove),
+    // lvgl_trackball
+    DEFINE_MODULE_SYMBOL(lvgl_trackball_add),
+    DEFINE_MODULE_SYMBOL(lvgl_trackball_remove),
+    DEFINE_MODULE_SYMBOL(lvgl_trackball_get_settings),
+    DEFINE_MODULE_SYMBOL(lvgl_trackball_set_settings),
+    DEFINE_MODULE_SYMBOL(lvgl_trackball_settings_get_default),
+    DEFINE_MODULE_SYMBOL(lvgl_trackball_set_cursor_image),
+    // lvgl_ppa
+    DEFINE_MODULE_SYMBOL(lvgl_ppa_is_supported),
+    DEFINE_MODULE_SYMBOL(lvgl_ppa_supports_color_format),
+    DEFINE_MODULE_SYMBOL(lvgl_ppa_get_or_create),
+    DEFINE_MODULE_SYMBOL(lvgl_ppa_delete),
+    DEFINE_MODULE_SYMBOL(lvgl_ppa_rotate),
     // lvgl_grid_navigation
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_add),
     DEFINE_MODULE_SYMBOL(lvgl_grid_navigation_remove),
@@ -87,6 +122,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_theme_is_compact),
     // lvgl_badge
     DEFINE_MODULE_SYMBOL(lvgl_badge_create),
+    // lvgl_focus_container
+    DEFINE_MODULE_SYMBOL(lvgl_focus_container_create),
+    // lvgl_page_indicator
     DEFINE_MODULE_SYMBOL(lvgl_page_indicator_create),
     DEFINE_MODULE_SYMBOL(lvgl_page_indicator_set_page_count),
     DEFINE_MODULE_SYMBOL(lvgl_page_indicator_set_page),

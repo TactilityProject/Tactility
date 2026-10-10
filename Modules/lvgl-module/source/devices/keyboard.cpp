@@ -17,6 +17,8 @@ static LvglSoftwareKeyboard last_software_keyboard = {
 };
 
 static lv_group_t* keyboard_group;
+// The group that keypad indevs are attached to: keyboard_group, or the group of an overlay
+static lv_group_t* active_group;
 
 extern "C" {
 
@@ -28,6 +30,7 @@ void lvgl_keyboard_on_start_lvgl() {
     // but gets all widgets by default. This is a temporary work-around until a proper default group is
     // created to fix the trackball issue (see trackball.cpp and ideas.md, search for "group")
     lv_group_set_default(keyboard_group);
+    active_group = keyboard_group;
     lvgl_unlock();
 }
 
@@ -41,6 +44,24 @@ void lvgl_keyboard_on_stop_lvgl() {
     lvgl_unlock();
 
     keyboard_group = nullptr;
+    active_group = nullptr;
+}
+
+void lvgl_keyboard_set_active_group(lv_group_t* group) {
+    active_group = group != nullptr ? group : keyboard_group;
+    lv_group_set_default(active_group);
+    auto* indev = lv_indev_get_next(nullptr);
+    while (indev != nullptr) {
+        const lv_indev_type_t type = lv_indev_get_type(indev);
+        if ((type == LV_INDEV_TYPE_KEYPAD || type == LV_INDEV_TYPE_ENCODER) && lv_indev_get_group(indev) != nullptr) {
+            lv_indev_set_group(indev, active_group);
+        }
+        indev = lv_indev_get_next(indev);
+    }
+}
+
+lv_group_t* lvgl_keyboard_get_app_group() {
+    return keyboard_group;
 }
 
 // KeyboardKeyData::key is always a Unicode codepoint (see its doc comment / the CodePoint enum) -
@@ -176,8 +197,8 @@ lv_indev_t* lvgl_keyboard_find_by_device(Device* device) {
 }
 
 void lvgl_keyboard_enable(lv_indev_t* indev) {
-    check(keyboard_group != nullptr);
-    lv_indev_set_group(indev, keyboard_group);
+    check(active_group != nullptr);
+    lv_indev_set_group(indev, active_group);
 }
 
 void lvgl_keyboard_disable(lv_indev_t* indev) {
@@ -295,10 +316,10 @@ void lvgl_keyboard_add_textarea(LvglSoftwareKeyboard* keyboard, lv_obj_t* textar
 
 void lvgl_software_keyboard_activate(LvglSoftwareKeyboard* keyboard) {
     auto* indev = lv_indev_get_next(nullptr);
-    check(keyboard_group);
+    check(active_group);
     while (indev) {
         if (lv_indev_get_type(indev) == LV_INDEV_TYPE_KEYPAD) {
-            lv_indev_set_group(indev, keyboard_group);
+            lv_indev_set_group(indev, active_group);
         }
         indev = lv_indev_get_next(indev);
     }

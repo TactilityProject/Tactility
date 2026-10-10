@@ -14,6 +14,7 @@ extern const lv_obj_class_t lvgl_icon_button_filled_class;
 extern const lv_obj_class_t lvgl_icon_button_tonal_class;
 extern const lv_obj_class_t lvgl_sliderbox_class;
 extern const lv_obj_class_t lvgl_card_class;
+extern const lv_obj_class_t lvgl_focus_container_class;
 extern const lv_obj_class_t lvgl_chip_class;
 extern const lv_obj_class_t lvgl_badge_class;
 extern const lv_obj_class_t lvgl_page_indicator_class;
@@ -49,7 +50,7 @@ extern const lv_obj_class_t lvgl_list_button_class;
 #define CORNER_LARGE (LV_DPX_CALC(theme->disp_dpi, 16))
 #define CORNER_EXTRA_LARGE (LV_DPX_CALC(theme->disp_dpi, 28))
 #define CORNER_FULL LV_RADIUS_CIRCLE
-#define CORNER_COMPACT 3
+#define CORNER_COMPACT 4
 #define SPACE_1 (LV_DPX_CALC(theme->disp_dpi, 4))
 #define SPACE_2 (LV_DPX_CALC(theme->disp_dpi, 8))
 #define SPACE_3 (LV_DPX_CALC(theme->disp_dpi, 12))
@@ -184,6 +185,7 @@ extern const lv_obj_class_t lvgl_list_button_class;
 #define APP_BAR_CONTENT_COLOR COLOR_ON_SURFACE
 #define APP_BAR_PRESSED_OPACITY (LV_OPA_20)
 #define APP_BAR_PAD_HOR (theme->config.is_compact ? 0 : SPACE_1)
+#define APP_BAR_PAD_RIGHT (theme->config.is_compact ? APP_BAR_PAD_HOR + 2 : APP_BAR_PAD_HOR)
 #define APP_BAR_GAP (theme->config.is_compact ? 2 : SPACE_1)
 #define APP_BAR_FOCUS_WIDTH FOCUS_INSET_WIDTH
 #define FOCUS_RING_COLOR FOCUS_COLOR
@@ -383,6 +385,8 @@ typedef struct {
     lv_style_t icon_button_tonal;
     lv_style_t icon_button_tonal_pressed;
     lv_style_t app_bar;
+    lv_style_t app_bar_nav_button;
+    lv_style_t app_bar_button_focus_ring;
     lv_style_t app_bar_button;
     lv_style_t app_bar_button_pressed;
     lv_style_t app_bar_focus_ring;
@@ -907,8 +911,19 @@ static void style_init(my_theme_t * theme)
     lv_style_set_radius(&theme->styles.app_bar, 0);
     lv_style_set_border_width(&theme->styles.app_bar, 0);
     lv_style_set_pad_hor(&theme->styles.app_bar, APP_BAR_PAD_HOR);
+    lv_style_set_pad_right(&theme->styles.app_bar, APP_BAR_PAD_RIGHT);
     lv_style_set_pad_ver(&theme->styles.app_bar, 0);
     lv_style_set_pad_gap(&theme->styles.app_bar, APP_BAR_GAP);
+
+    style_init_reset(&theme->styles.app_bar_nav_button);
+    if(theme->config.is_compact) {
+        lv_style_set_margin_left(&theme->styles.app_bar_nav_button, 4);
+    }
+
+    style_init_reset(&theme->styles.app_bar_button_focus_ring);
+    if(theme->config.is_compact) {
+        lv_style_set_outline_pad(&theme->styles.app_bar_button_focus_ring, 0);
+    }
 
     style_init_reset(&theme->styles.app_bar_button);
     lv_style_set_pad_all(&theme->styles.app_bar_button, 0);
@@ -1723,6 +1738,21 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
     }
 #endif
     if(lv_obj_check_type(obj, &lvgl_icon_button_class)) {
+        /* toolbar > icon_button[0] */
+        if(lv_obj_check_type(parent, &lvgl_toolbar_class) && lss_is_child(parent, 0, obj)) {
+            lv_obj_add_style(obj, &theme->styles.icon_button, 0);
+            lv_obj_add_style(obj, &theme->styles.app_bar_button, 0);
+            lv_obj_add_style(obj, &theme->styles.app_bar_nav_button, 0);
+            lv_obj_add_style(obj, &theme->styles.transition_exit, 0);
+            lv_obj_add_style(obj, &theme->styles.app_bar_button_pressed, LV_STATE_PRESSED);
+            lv_obj_add_style(obj, &theme->styles.transition_enter, LV_STATE_PRESSED);
+            lv_obj_add_style(obj, &theme->styles.app_bar_focus_ring, LV_STATE_FOCUS_KEY);
+            lv_obj_add_style(obj, &theme->styles.app_bar_focus_ring, LV_STATE_EDITED);
+            lv_obj_add_style(obj, &theme->styles.app_bar_button_focus_ring, LV_STATE_FOCUS_KEY);
+            lv_obj_add_style(obj, &theme->styles.app_bar_button_focus_ring, LV_STATE_EDITED);
+            lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
+            return;
+        }
         /* toolbar > icon_button */
         if(lv_obj_check_type(parent, &lvgl_toolbar_class)) {
             lv_obj_add_style(obj, &theme->styles.icon_button, 0);
@@ -1732,6 +1762,8 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
             lv_obj_add_style(obj, &theme->styles.transition_enter, LV_STATE_PRESSED);
             lv_obj_add_style(obj, &theme->styles.app_bar_focus_ring, LV_STATE_FOCUS_KEY);
             lv_obj_add_style(obj, &theme->styles.app_bar_focus_ring, LV_STATE_EDITED);
+            lv_obj_add_style(obj, &theme->styles.app_bar_button_focus_ring, LV_STATE_FOCUS_KEY);
+            lv_obj_add_style(obj, &theme->styles.app_bar_button_focus_ring, LV_STATE_EDITED);
             lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
             return;
         }
@@ -1923,6 +1955,11 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         /* card */
         lv_obj_add_style(obj, &theme->styles.card, 0);
         lv_obj_add_style(obj, &theme->styles.scrollbar, LV_PART_SCROLLBAR);
+        return;
+    }
+    if(lv_obj_check_type(obj, &lvgl_focus_container_class)) {
+        /* focus_container */
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
         return;
     }
     if(lv_obj_check_type(obj, &lvgl_sliderbox_class)) {

@@ -64,7 +64,7 @@ static lv_obj_t* find_edge_row_child(lv_obj_t* container, bool top, lv_obj_t* re
     if (!found) {
         return nullptr;
     }
-    if (reference != nullptr && get_center_y(reference) == edge_y) {
+    if (reference != nullptr && is_focusable(reference) && get_center_y(reference) == edge_y) {
         return reference;
     }
     const int32_t reference_x = reference != nullptr ? get_center_x(reference) : 0;
@@ -95,6 +95,34 @@ static void on_container_key(lv_event_t* event) {
     scroll_to_focused_child(lv_event_get_current_target_obj(event));
 }
 
+static bool has_focusable_child(lv_obj_t* container) {
+    const uint32_t child_count = lv_obj_get_child_count(container);
+    for (uint32_t i = 0; i < child_count; i++) {
+        if (is_focusable(lv_obj_get_child(container, static_cast<int32_t>(i)))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Grid navigation ignores the arrow keys when the container has nothing to focus (e.g. only an "empty" label),
+// so they move the focus to the previous or next widget instead
+static void on_container_key_preprocess(lv_event_t* event) {
+    lv_obj_t* container = lv_event_get_current_target_obj(event);
+    lv_group_t* group = lv_obj_get_group(container);
+    if (group == nullptr || has_focusable_child(container)) {
+        return;
+    }
+    const uint32_t key = lv_event_get_key(event);
+    if (key == LV_KEY_DOWN || key == LV_KEY_RIGHT) {
+        lv_group_focus_next(group);
+        lv_event_stop_processing(event);
+    } else if (key == LV_KEY_UP || key == LV_KEY_LEFT) {
+        lv_group_focus_prev(group);
+        lv_event_stop_processing(event);
+    }
+}
+
 // Grid navigation shows the focused child as selected whenever the container gets the focus. That's only
 // right when a key moved the focus there, not when it moved because e.g. the previously focused widget was deleted.
 static void on_container_focused(lv_event_t* event) {
@@ -113,6 +141,10 @@ static void on_container_focused(lv_event_t* event) {
             child = find_focusable_child(container, -1, true);
         } else if (key == LV_KEY_PREV || key == LV_KEY_LEFT) {
             child = find_focusable_child(container, static_cast<int32_t>(lv_obj_get_child_count(container)), false);
+        }
+        // The restored child can be hidden by now, e.g. a page button when there's only one page
+        if (child == nullptr && focused != nullptr && !is_focusable(focused)) {
+            child = find_focusable_child(container, -1, true);
         }
         if (child != nullptr && child != focused) {
             lv_gridnav_set_focused(container, child, LV_ANIM_ON);
@@ -135,6 +167,7 @@ void lvgl_grid_navigation_add(lv_obj_t* container) {
     // Added after grid navigation's own handler, so it runs after it
     lv_obj_add_event_cb(container, on_container_focused, LV_EVENT_FOCUSED, nullptr);
     lv_obj_add_event_cb(container, on_container_key, LV_EVENT_KEY, nullptr);
+    lv_obj_add_event_cb(container, on_container_key_preprocess, static_cast<lv_event_code_t>(LV_EVENT_KEY | LV_EVENT_PREPROCESS), nullptr);
 
     const uint32_t child_count = lv_obj_get_child_count(container);
     for (uint32_t i = 0; i < child_count; i++) {
@@ -160,6 +193,7 @@ void lvgl_grid_navigation_remove(lv_obj_t* container) {
     lv_obj_remove_event_cb(container, on_child_created);
     lv_obj_remove_event_cb(container, on_container_focused);
     lv_obj_remove_event_cb(container, on_container_key);
+    lv_obj_remove_event_cb(container, on_container_key_preprocess);
 
     if (group == nullptr) {
         return;

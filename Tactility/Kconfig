@@ -59,6 +59,32 @@ menu "Tactility App"
        help
            The minimum time to show the splash screen in milliseconds.
            When set to 0, startup will continue to desktop as soon as boot operations are finished.
+    choice TT_SYSTEM_BARS_PORTRAIT
+        prompt "System bars layouts in portrait"
+        default TT_SYSTEM_BARS_PORTRAIT_ANY
+        help
+            The system bars layouts that portrait orientations (including square ones) can use.
+            "Any" lets the user's Appearance settings decide.
+        config TT_SYSTEM_BARS_PORTRAIT_ANY
+            bool "Any"
+        config TT_SYSTEM_BARS_PORTRAIT_SPLIT
+            bool "Split"
+        config TT_SYSTEM_BARS_PORTRAIT_SIDE
+            bool "Side"
+    endchoice
+    choice TT_SYSTEM_BARS_LANDSCAPE
+        prompt "System bars layouts in landscape"
+        default TT_SYSTEM_BARS_LANDSCAPE_ANY
+        help
+            The system bars layouts that landscape orientations can use.
+            "Any" lets the user's Appearance settings decide.
+        config TT_SYSTEM_BARS_LANDSCAPE_ANY
+            bool "Any"
+        config TT_SYSTEM_BARS_LANDSCAPE_SPLIT
+            bool "Split"
+        config TT_SYSTEM_BARS_LANDSCAPE_SIDE
+            bool "Side"
+    endchoice
     config TT_TOUCH_CALIBRATION_SUPPORTED
         bool "Set true when a touch screen calibration app should be included"
         default n

@@ -52,8 +52,7 @@ struct Context {
     /** Row and column sizes of the results grid, which must outlive the grid layout */
     std::vector<int32_t> gridRows;
     std::vector<int32_t> gridColumns;
-    // Widgets: the refresh button and chips only exist when there are I2C interfaces
-    lv_obj_t* refreshButton = nullptr;
+    // Widgets: the chips only exist when there are I2C interfaces. Pressing a chip scans its bus.
     lv_obj_t* chipsRow = nullptr;
     lv_obj_t* scanListWidget = nullptr;
 };
@@ -170,7 +169,6 @@ void updateViews(Context* ctx) {
 
         // The scan reads the port once, so the bus can't change and the scan can't restart while it runs
         const bool scanning = ctx->scanState == ScanStateScanning;
-        lv_obj_set_state(ctx->refreshButton, LV_STATE_DISABLED, scanning);
         if (ctx->chipsRow != nullptr) {
             const uint32_t chip_count = lv_obj_get_child_count(ctx->chipsRow);
             for (uint32_t i = 0; i < chip_count; i++) {
@@ -359,12 +357,6 @@ void onChipPressed(lv_event_t* event) {
     selectBus(ctx, static_cast<int32_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(chip))));
 }
 
-void onPressRefresh(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    startScanning(ctx);
-    updateViews(ctx);
-}
-
 // endregion Callbacks
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -394,29 +386,25 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         return;
     }
 
-    ctx->refreshButton = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_REFRESH, onPressRefresh, ctx);
-
-    if (port_names.size() > 1) {
-        // Centered while the chips fit, and scrollable when they don't
-        lv_obj_set_flex_align(main_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
-        auto* chips_row = lv_obj_create(main_wrapper);
-        lv_obj_set_size(chips_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_set_style_max_width(chips_row, LV_PCT(100), LV_STATE_DEFAULT);
-        lv_obj_set_flex_flow(chips_row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_scroll_dir(chips_row, LV_DIR_HOR);
-        lv_obj_set_style_border_width(chips_row, 0, LV_STATE_DEFAULT);
-        // The chips' margins leave room for their focus rings and space them apart
-        lv_obj_set_style_pad_all(chips_row, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_column(chips_row, 0, LV_STATE_DEFAULT);
-        for (size_t i = 0; i < port_names.size(); i++) {
-            auto* chip = lvgl_chip_create(chips_row);
-            lv_label_set_text(lv_label_create(chip), port_names[i].c_str());
-            lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
-            lv_obj_add_event_cb(chip, onChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
-        }
-        lvgl_grid_navigation_add(chips_row);
-        ctx->chipsRow = chips_row;
+    // Also shown for a single bus, as pressing a chip scans its bus again. Centered while the chips fit, and scrollable when they don't.
+    lv_obj_set_flex_align(main_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+    auto* chips_row = lv_obj_create(main_wrapper);
+    lv_obj_set_size(chips_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(chips_row, LV_PCT(100), LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(chips_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_scroll_dir(chips_row, LV_DIR_HOR);
+    lv_obj_set_style_border_width(chips_row, 0, LV_STATE_DEFAULT);
+    // The chips' margins leave room for their focus rings and space them apart
+    lv_obj_set_style_pad_all(chips_row, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(chips_row, 0, LV_STATE_DEFAULT);
+    for (size_t i = 0; i < port_names.size(); i++) {
+        auto* chip = lvgl_chip_create(chips_row);
+        lv_label_set_text(lv_label_create(chip), port_names[i].c_str());
+        lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
+        lv_obj_add_event_cb(chip, onChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
     }
+    lvgl_grid_navigation_add(chips_row);
+    ctx->chipsRow = chips_row;
 
     auto* scan_list = lvgl_card_create(main_wrapper);
     lv_obj_set_size(scan_list, LV_PCT(100), LV_SIZE_CONTENT);

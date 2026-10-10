@@ -177,6 +177,11 @@ shared_symbol_code_point_names = [
     "usb", # Power (settings) app
     "wifi", # WiFi (settings) app
     "bluetooth", # Bluetooth (settings) app
+    # System menu toggles
+    "wifi_off",
+    "bluetooth_disabled",
+    "location_on",
+    "location_off",
     "terminal",
     "logo_dev",
     "camera",

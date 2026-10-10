@@ -4,7 +4,9 @@
 #include <Tactility/lvgl/Fonts.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/Theme.h>
+#include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/settings/AppearanceSettings.h>
+#include <Tactility/settings/LauncherSettings.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -21,6 +23,7 @@
 
 #include <lvgl.h>
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
@@ -147,6 +150,15 @@ struct Context {
     lv_obj_t* surfaceTintChips[settings::appearance::SURFACE_TINT_LEVEL_COUNT] = {};
     /** The display can only show the mono theme */
     bool isMonoDisplay = false;
+    // System bars, which are applied right away instead of with the Apply button
+    lv_obj_t* systemBarsAutoChip = nullptr;
+    lv_obj_t* systemBarsCustomChip = nullptr;
+    lv_obj_t* portraitRow = nullptr;
+    lv_obj_t* portraitSplitChip = nullptr;
+    lv_obj_t* portraitSideChip = nullptr;
+    lv_obj_t* landscapeRow = nullptr;
+    lv_obj_t* landscapeSplitChip = nullptr;
+    lv_obj_t* landscapeSideChip = nullptr;
 };
 
 lvgl::FontConfiguration toFontConfiguration(const settings::appearance::AppearanceSettings& settings) {
@@ -481,6 +493,8 @@ lv_obj_t* createLabeledRow(lv_obj_t* parent, const char* text) {
     auto* label = lv_label_create(row);
     lv_label_set_text(label, text);
     lv_obj_set_flex_grow(label, 1);
+    // The keys move between the rows, and left and right between the row's items
+    lvgl_grid_navigation_add(row);
     return row;
 }
 
@@ -542,6 +556,83 @@ void createThemeCard(lv_obj_t* parent, Context* ctx) {
     auto* animations_switch = lv_switch_create(animations_row);
     setChecked(animations_switch, ctx->pendingSettings.animationsEnabled);
     lv_obj_add_event_cb(animations_switch, onAnimationsChanged, LV_EVENT_VALUE_CHANGED, ctx);
+}
+
+void updateSystemBarsWidgets(Context* ctx, const settings::launcher::LauncherSettings& settings) {
+    using settings::launcher::SystemBarsLayout;
+    const bool custom = settings.systemBarsMode == settings::launcher::SystemBarsMode::Custom;
+    setChecked(ctx->systemBarsAutoChip, !custom);
+    setChecked(ctx->systemBarsCustomChip, custom);
+    // The layouts per orientation are only used with the Custom mode. Orientations with a fixed layout have no row.
+    if (ctx->portraitRow != nullptr) {
+        setHidden(ctx->portraitRow, !custom);
+        setChecked(ctx->portraitSplitChip, settings.portraitLayout == SystemBarsLayout::Split);
+        setChecked(ctx->portraitSideChip, settings.portraitLayout == SystemBarsLayout::Side);
+    }
+    if (ctx->landscapeRow != nullptr) {
+        setHidden(ctx->landscapeRow, !custom);
+        setChecked(ctx->landscapeSplitChip, settings.landscapeLayout == SystemBarsLayout::Split);
+        setChecked(ctx->landscapeSideChip, settings.landscapeLayout == SystemBarsLayout::Side);
+    }
+}
+
+// Saves the system bars setting of the pressed chip and shows the system bars with it
+void onSystemBarsChipPressed(lv_event_t* event) {
+    using settings::launcher::SystemBarsLayout;
+    using settings::launcher::SystemBarsMode;
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    auto* chip = lv_event_get_target_obj(event);
+    auto settings = settings::launcher::loadOrGetDefault();
+    if (chip == ctx->systemBarsAutoChip || chip == ctx->systemBarsCustomChip) {
+        settings.systemBarsMode = chip == ctx->systemBarsCustomChip ? SystemBarsMode::Custom : SystemBarsMode::Auto;
+    } else if (chip == ctx->portraitSplitChip || chip == ctx->portraitSideChip) {
+        settings.portraitLayout = chip == ctx->portraitSideChip ? SystemBarsLayout::Side : SystemBarsLayout::Split;
+    } else {
+        settings.landscapeLayout = chip == ctx->landscapeSideChip ? SystemBarsLayout::Side : SystemBarsLayout::Split;
+    }
+    if (!settings::launcher::save(settings)) {
+        LOG_E(TAG, "Failed to save system bars settings");
+    }
+    updateSystemBarsWidgets(ctx, settings);
+    lvgl::systemBarsRefresh();
+}
+
+void createSystemBarsCard(lv_obj_t* parent, Context* ctx) {
+    using settings::launcher::SystemBarsCapability;
+    // The device's configuration can fix the layout per orientation, which leaves nothing to choose for it
+    const auto capabilities = settings::launcher::getSystemBarsCapabilities();
+    const bool portrait_choosable = capabilities.portrait == SystemBarsCapability::Any;
+    const bool landscape_choosable = capabilities.landscape == SystemBarsCapability::Any;
+    // Stale pointers from a previous build of the window must not match new widgets
+    ctx->portraitRow = nullptr;
+    ctx->portraitSplitChip = nullptr;
+    ctx->portraitSideChip = nullptr;
+    ctx->landscapeRow = nullptr;
+    ctx->landscapeSplitChip = nullptr;
+    ctx->landscapeSideChip = nullptr;
+    if (!portrait_choosable && !landscape_choosable) {
+        return;
+    }
+
+    auto* card = createSection(parent, "System Bars");
+
+    auto* mode_row = createLabeledRow(card, "Layout");
+    ctx->systemBarsAutoChip = createChip(mode_row, "Auto", onSystemBarsChipPressed, ctx);
+    ctx->systemBarsCustomChip = createChip(mode_row, "Custom", onSystemBarsChipPressed, ctx);
+
+    if (portrait_choosable) {
+        ctx->portraitRow = createLabeledRow(card, "Portrait");
+        ctx->portraitSplitChip = createChip(ctx->portraitRow, "Split", onSystemBarsChipPressed, ctx);
+        ctx->portraitSideChip = createChip(ctx->portraitRow, "Side", onSystemBarsChipPressed, ctx);
+    }
+
+    if (landscape_choosable) {
+        ctx->landscapeRow = createLabeledRow(card, "Landscape");
+        ctx->landscapeSplitChip = createChip(ctx->landscapeRow, "Split", onSystemBarsChipPressed, ctx);
+        ctx->landscapeSideChip = createChip(ctx->landscapeRow, "Side", onSystemBarsChipPressed, ctx);
+    }
+
+    updateSystemBarsWidgets(ctx, settings::launcher::loadOrGetDefault());
 }
 
 void createColorsCard(lv_obj_t* parent, Context* ctx) {
@@ -632,6 +723,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (!ctx->isMonoDisplay) {
         createColorsCard(content, ctx);
     }
+    createSystemBarsCard(content, ctx);
 
     auto* fonts_card = createSection(content, "Fonts");
     auto* font_size_row = createRow(fonts_card);

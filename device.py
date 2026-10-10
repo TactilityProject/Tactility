@@ -101,6 +101,12 @@ def get_user_data_location(device_properties: dict):
         exit_with_error(f"storage.userDataLocation must be 'SD' or 'Internal', but was: '{user_data_location}'")
     return user_data_location
 
+def get_system_bars_capability(device_properties: dict, key: str):
+    capability = get_property_or_default(device_properties, key, "any").lower()
+    if capability not in ("any", "split", "side"):
+        exit_with_error(f"{key} must be 'any', 'split' or 'side', but was: '{capability}'")
+    return capability
+
 def write_partition_table(output_file, device_properties: dict, is_dev: bool):
     flash_size = get_property_or_exit(device_properties, "hardware.flashSize")
     if not flash_size.endswith("MB"):
@@ -150,6 +156,11 @@ def write_tactility_variables(output_file, device_properties: dict, device_id: s
         output_file.write("CONFIG_TT_USER_DATA_LOCATION_SD=y\n")
     else:
         output_file.write("CONFIG_TT_USER_DATA_LOCATION_INTERNAL=y\n")
+    # System bars layouts per orientation
+    portrait = get_system_bars_capability(device_properties, "ui.systemBarsPortrait")
+    landscape = get_system_bars_capability(device_properties, "ui.systemBarsLandscape")
+    output_file.write(f"CONFIG_TT_SYSTEM_BARS_PORTRAIT_{portrait.upper()}=y\n")
+    output_file.write(f"CONFIG_TT_SYSTEM_BARS_LANDSCAPE_{landscape.upper()}=y\n")
 
 def write_core_variables(output_file, device_properties: dict):
     idf_target = get_property_or_exit(device_properties, "hardware.target").lower()

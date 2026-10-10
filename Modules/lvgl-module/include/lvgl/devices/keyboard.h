@@ -48,7 +48,7 @@ void lvgl_keyboard_remove(lv_indev_t* indev);
 lv_indev_t* lvgl_keyboard_find_by_device(struct Device* device);
 
 /**
- * @brief Assigns the indev to the shared keyboard input group, so it can drive focus
+ * @brief Assigns the indev to the active keyboard input group, so it can drive focus
  * navigation and input for focused widgets.
  * @warning Caller must hold the LVGL lock.
  */
@@ -59,6 +59,20 @@ void lvgl_keyboard_enable(lv_indev_t* indev);
  * @warning Caller must hold the LVGL lock.
  */
 void lvgl_keyboard_disable(lv_indev_t* indev);
+
+/**
+ * @brief Makes @a group the group that receives keypad input: it becomes the default group (new
+ * widgets join it), and every keypad/encoder indev that is attached to a group is moved to it.
+ * Indevs enabled later are attached to it too.
+ * @warning Caller must hold the LVGL lock.
+ * @param[in] group the group to activate, or NULL to activate the shared keyboard input group
+ */
+void lvgl_keyboard_set_active_group(lv_group_t* group);
+
+/**
+ * @return the shared keyboard input group, which is the default when no other group is active
+ */
+lv_group_t* lvgl_keyboard_get_app_group(void);
 
 /**
  * @brief Adds the textarea to the shared keyboard navigation group (so any keypad indev -
@@ -136,7 +150,7 @@ bool lvgl_software_keyboard_is_enabled();
 struct LvglSoftwareKeyboard* lvgl_software_keyboard_get_last();
 
 /**
- * @brief Attaches the shared keyboard navigation group to every currently registered keypad
+ * @brief Attaches the active keyboard navigation group to every currently registered keypad
  * indev, so they can be used to navigate the on-screen keyboard and focused widgets.
  * @warning Caller must hold the LVGL lock.
  */

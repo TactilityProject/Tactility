@@ -26,13 +26,18 @@ void statusbar_icon_set_image(int8_t id, const std::string& image);
 /** Update the visibility for an icon on the statusbar. Does not need to be called with LVGL lock. */
 void statusbar_icon_set_visibility(int8_t id, bool visible);
 
-/**
- * Sets the app that starts when the icon is clicked. Does not need to be called with LVGL lock.
- * @param[in] id the icon id
- * @param[in] appId the app id, or an empty string to make the icon not clickable
- */
-void statusbar_icon_set_app(int8_t id, const std::string& appId);
-
 int statusbar_get_height();
+
+/**
+ * Switches between the split layout (a bar on top) and the side layout (a vertical strip on the left). Circular displays always use the split layout.
+ * The caller places the statusbar in its parent. Needs to be called with LVGL lock.
+ */
+void statusbar_set_side(lv_obj_t* statusbar, bool side);
+
+/**
+ * @return the container for the action buttons of apps in the side layout, or nullptr on circular displays. It is hidden in the split layout.
+ * Needs to be called with LVGL lock.
+ */
+lv_obj_t* statusbar_get_action_container(lv_obj_t* statusbar);
 
 } // namespace

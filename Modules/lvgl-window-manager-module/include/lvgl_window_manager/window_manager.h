@@ -145,6 +145,43 @@ enum WindowState window_manager_get_state(WindowId id);
  */
 enum WindowState window_manager_await_state_change(WindowId id, TickType_t timeout);
 
+/**
+ * Windows live in layers. Only the active layer receives input: its widgets form the group that
+ * keypad indevs are attached to, and a shown overlay covers the app layer for pointer input.
+ */
+enum WindowLayer {
+    /** The chrome created by the screen-init callback and the app windows. */
+    WINDOW_LAYER_APP,
+    /** A single overlay on top of the app layer. */
+    WINDOW_LAYER_OVERLAY,
+};
+
+/**
+ * Shows an overlay on top of the app layer and makes it the active layer. A shown overlay is
+ * replaced. The overlay is a full-size backdrop: clicking the backdrop itself (outside of the
+ * widgets created by @a create_widgets) or pressing ESC on a focused overlay widget hides it.
+ * App windows that are created or rebuilt while the overlay is shown stay in the app layer.
+ * When a pointer device exists, the widget that is focused first doesn't show as selected.
+ * @param[in] create_widgets called once to populate the backdrop, with the LVGL lock held
+ * @param[in] destroy_widgets may be NULL, called once when the overlay is hidden, with the LVGL
+ * lock held
+ * @param[in] user_data passed to both callbacks
+ * @warning Only uses the LVGL lock, so it may be called from LVGL event callbacks.
+ * @retval ERROR_INVALID_STATE the window manager isn't started
+ * @retval ERROR_NONE on success
+ */
+error_t window_manager_overlay_show(WindowCreateWidgetsFn create_widgets, WindowDestroyWidgetsFn destroy_widgets, void* user_data);
+
+/**
+ * Hides the overlay, if any, and makes the app layer the active layer.
+ * @warning Only uses the LVGL lock, so it may be called from LVGL event callbacks, including
+ * the events of the overlay's own widgets.
+ */
+void window_manager_overlay_hide(void);
+
+/** @return the layer that currently receives input */
+enum WindowLayer window_manager_get_active_layer(void);
+
 #ifdef __cplusplus
 }
 #endif

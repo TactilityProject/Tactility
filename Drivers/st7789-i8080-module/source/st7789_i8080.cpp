@@ -42,8 +42,8 @@ struct LcdInitCmd {
     uint8_t len;
 };
 
+// No MADCTL (0x36): esp_lcd_panel_init() already sets it from rgb_ele_order, and esp_lcd's own swap_xy/mirror rewrite it from that value
 constexpr LcdInitCmd ST7789_INIT_CMDS[] = {
-    {0x36, {0x08}, 1},
     {0x3A, {0x05}, 1},
     {0x20, {0}, 0},
     {0xB2, {0x0B, 0x0B, 0x00, 0x33, 0x33}, 5},

@@ -4,6 +4,7 @@
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
 #include <lvgl/insets.h>
+#include <lvgl/theme.h>
 #include <lvgl/widgets/badge.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/page_indicator.h>
@@ -56,41 +57,32 @@ const TileGridItem* getTileItem(lv_event_t* e) {
 }
 
 
-// The width of the visible buttons on one side of the bar's spacer, including the gaps between them
-int32_t getSideWidth(lv_obj_t* bar, bool rightSide) {
-    int32_t width = 0;
-    uint32_t visible = 0;
-    bool afterSpacer = false;
-    const uint32_t count = lv_obj_get_child_count(bar);
-    for (uint32_t i = 0; i < count; i++) {
-        lv_obj_t* child = lv_obj_get_child(bar, static_cast<int32_t>(i));
-        if (lv_obj_get_style_flex_grow(child, LV_PART_MAIN) > 0) {
-            afterSpacer = true;
-        } else if (afterSpacer == rightSide && !lv_obj_is_hidden(child) && !lv_obj_is_ignore_layout(child)) {
-            width += lv_obj_get_width(child);
-            visible++;
-        }
-    }
-    return visible > 1 ? width + static_cast<int32_t>(visible - 1) * lv_obj_get_style_pad_column(bar, LV_PART_MAIN) : width;
-}
-
-// The page indicator is centered on the bar and gets the space that the buttons on the wider side leave on both sides
+// The page indicator gets the space that the buttons leave.
+// It's the only child that is neither clickable nor the spacer (which grows).
 void updatePageIndicatorWidth(void* data) {
     auto* bottom_bar = static_cast<lv_obj_t*>(data);
     lv_obj_t* indicator = nullptr;
+    int32_t buttons_width = 0;
+    int32_t gap_count = -1;
     const uint32_t count = lv_obj_get_child_count(bottom_bar);
-    for (uint32_t i = 0; i < count && indicator == nullptr; i++) {
+    for (uint32_t i = 0; i < count; i++) {
         lv_obj_t* child = lv_obj_get_child(bottom_bar, static_cast<int32_t>(i));
-        if (lv_obj_is_ignore_layout(child)) {
+        if (lv_obj_get_style_flex_grow(child, LV_PART_MAIN) > 0) {
+            gap_count++;
+        } else if (!lv_obj_is_clickable(child)) {
             indicator = child;
+            gap_count++;
+        } else if (!lv_obj_is_hidden(child)) {
+            buttons_width += lv_obj_get_width(child);
+            gap_count++;
         }
     }
     if (indicator == nullptr) {
         return;
     }
-    const int32_t side_width = std::max(getSideWidth(bottom_bar, false), getSideWidth(bottom_bar, true));
-    const int32_t gaps = 2 * lv_obj_get_style_pad_column(bottom_bar, LV_PART_MAIN);
-    const int32_t available = lv_obj_get_content_width(bottom_bar) - 2 * side_width - gaps;
+    const int32_t gaps = gap_count * lv_obj_get_style_pad_column(bottom_bar, LV_PART_MAIN);
+    const int32_t margins = lv_obj_get_style_margin_left(indicator, LV_PART_MAIN) + lv_obj_get_style_margin_right(indicator, LV_PART_MAIN);
+    const int32_t available = lv_obj_get_content_width(bottom_bar) - buttons_width - gaps - margins;
     const int32_t max_width = std::max<int32_t>(0, available);
     // Setting a style marks the layout as dirty, which would resize the bar and call this again
     if (lv_obj_get_style_max_width(indicator, LV_PART_MAIN) != max_width) {
@@ -101,6 +93,45 @@ void updatePageIndicatorWidth(void* data) {
 void onBottomBarSizeChanged(lv_event_t* event) {
     lv_async_call_cancel(updatePageIndicatorWidth, lv_event_get_target_obj(event));
     lv_async_call(updatePageIndicatorWidth, lv_event_get_target_obj(event));
+}
+
+// Puts the bar before or after the grid in their input group, without moving the focus
+void setGroupOrder(lv_obj_t* grid, lv_obj_t* bar, bool barFirst) {
+    lv_group_t* group = lv_obj_get_group(bar);
+    if (group == nullptr || lv_obj_get_group(grid) != group) {
+        return;
+    }
+    int32_t grid_index = -1;
+    int32_t bar_index = -1;
+    const uint32_t count = lv_group_get_obj_count(group);
+    for (uint32_t i = 0; i < count; i++) {
+        lv_obj_t* obj = lv_group_get_obj_by_index(group, i);
+        if (obj == grid) {
+            grid_index = static_cast<int32_t>(i);
+        } else if (obj == bar) {
+            bar_index = static_cast<int32_t>(i);
+        }
+    }
+    if ((bar_index < grid_index) == barFirst) {
+        return;
+    }
+    // Swapping also swaps the focus
+    lv_obj_t* focused = lv_group_get_focused(group);
+    lv_group_swap_obj(grid, bar);
+    if (focused != nullptr && lv_group_get_focused(group) != focused) {
+        lv_group_focus_obj(focused);
+    }
+}
+
+lv_obj_t* findFirstBarButton(lv_obj_t* bar) {
+    const uint32_t count = lv_obj_get_child_count(bar);
+    for (uint32_t i = 0; i < count; i++) {
+        lv_obj_t* child = lv_obj_get_child(bar, static_cast<int32_t>(i));
+        if (!lv_obj_is_hidden(child) && lv_obj_is_clickable(child)) {
+            return child;
+        }
+    }
+    return nullptr;
 }
 
 void onBottomBarDeleted(lv_event_t* event) {
@@ -346,15 +377,18 @@ void TileGrid::createGrid(lv_obj_t* parent) {
     }
 }
 
-// Keys enter the bar on the previous page button, or on the first button when there's only one page
+// Keys enter the bar on the previous page button, or on the first visible button when there's only one page
 void TileGrid::onBottomBarFocused(lv_event_t* e) {
     const auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
     lv_obj_t* current = lvgl_grid_navigation_get_focused(self->bottomBar);
-    lv_obj_t* target = lv_obj_is_hidden(self->prevButton) ? lv_obj_get_child(self->bottomBar, 0) : self->prevButton;
-    if (current == nullptr || target == current || target == self->barSpacer) {
+    lv_obj_t* target = lv_obj_is_hidden(self->prevButton) ? findFirstBarButton(self->bottomBar) : self->prevButton;
+    if (current == nullptr || target == nullptr || target == current) {
         return;
     }
-    const bool showSelection = lv_obj_has_state(current, LV_STATE_FOCUS_KEY);
+    // Only keys show the selection, the bar's previously focused child can be stale
+    lv_indev_t* indev = lv_indev_active();
+    const lv_indev_type_t type = indev != nullptr ? lv_indev_get_type(indev) : LV_INDEV_TYPE_NONE;
+    const bool showSelection = type == LV_INDEV_TYPE_KEYPAD || type == LV_INDEV_TYPE_ENCODER;
     lv_gridnav_set_focused(self->bottomBar, target, LV_ANIM_OFF);
     if (!showSelection) {
         lv_obj_remove_state(target, LV_STATE_FOCUS_KEY);
@@ -362,6 +396,9 @@ void TileGrid::onBottomBarFocused(lv_event_t* e) {
 }
 
 void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
+    barParent = parent;
+    barSideContainer = nullptr;
+    barButtons.clear();
     bottomBar = lv_obj_create(parent);
     lv_obj_set_size(bottomBar, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(bottomBar, 0, LV_STATE_DEFAULT);
@@ -376,7 +413,10 @@ void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
     createGrid(parent);
     lv_obj_move_foreground(bottomBar);
 
-    // The bar buttons go before the spacer, which pushes the page buttons to the right
+    pageIndicator = lvgl_page_indicator_create(bottomBar);
+    // Keeps the page indicator away from the screen edge
+    lv_obj_set_style_margin_hor(pageIndicator, lv_obj_get_style_pad_column(bottomBar, LV_PART_MAIN), LV_STATE_DEFAULT);
+    // The spacer pushes the buttons and the page indicator to opposite sides
     barSpacer = lv_obj_create(bottomBar);
     lv_obj_set_size(barSpacer, 0, 0);
     lv_obj_set_flex_grow(barSpacer, 1);
@@ -387,9 +427,7 @@ void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
     nextButton = lvgl_icon_button_create(bottomBar);
     lv_label_set_text(lv_label_create(nextButton), ">");
     lv_obj_add_event_cb(nextButton, onNextPressed, LV_EVENT_SHORT_CLICKED, this);
-    pageIndicator = lvgl_page_indicator_create(bottomBar);
-    lv_obj_set_ignore_layout(pageIndicator, true);
-    lv_obj_align(pageIndicator, LV_ALIGN_CENTER, 0, 0);
+    arrangeBar();
     // The arrow keys move between all buttons of the bar as one row
     lvgl_grid_navigation_add(bottomBar);
     lv_obj_add_event_cb(bottomBar, onBottomBarFocused, LV_EVENT_FOCUSED, this);
@@ -404,6 +442,9 @@ void TileGrid::createWidgets(lv_obj_t* parent) {
     pageIndicator = nullptr;
     bottomBar = nullptr;
     barSpacer = nullptr;
+    barParent = nullptr;
+    barSideContainer = nullptr;
+    barButtons.clear();
     createGrid(parent);
     finishCreate(parent);
 }
@@ -443,12 +484,101 @@ lv_obj_t* TileGrid::findTile(const std::string& id) const {
 
 lv_obj_t* TileGrid::addBarButton(const char* icon, lv_event_cb_t onClicked, void* userData) {
     auto* button = lvgl_icon_button_create(bottomBar);
-    lv_obj_move_to_index(button, lv_obj_get_index(barSpacer));
     auto* label = lv_label_create(button);
     lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
     lv_label_set_text(label, icon);
     lv_obj_add_event_cb(button, onClicked, LV_EVENT_SHORT_CLICKED, userData);
+    barButtons.push_back(button);
+    arrangeBar();
     return button;
+}
+
+void TileGrid::arrangeBar() {
+    // The order of the bar's children, from the start of the row or column
+    std::vector<lv_obj_t*> order;
+    if (barSideContainer != nullptr) {
+        // The page indicator is below the grid and the spacer isn't used. The bar's own buttons are at the bottom.
+        order.insert(order.end(), { barSpacer, nextButton, prevButton });
+        order.insert(order.end(), barButtons.rbegin(), barButtons.rend());
+    } else {
+        order.insert(order.end(), barButtons.begin(), barButtons.end());
+        order.insert(order.end(), { prevButton, nextButton, barSpacer, pageIndicator });
+    }
+    for (size_t i = 0; i < order.size(); i++) {
+        lv_obj_move_to_index(order[i], static_cast<int32_t>(i));
+    }
+}
+
+void TileGrid::setBarSideContainer(lv_obj_t* sideContainer) {
+    if (bottomBar == nullptr || sideContainer == barSideContainer) {
+        return;
+    }
+    barSideContainer = sideContainer;
+    if (sideContainer != nullptr) {
+        lv_obj_set_parent(bottomBar, sideContainer);
+        lv_obj_set_size(bottomBar, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(bottomBar, LV_FLEX_FLOW_COLUMN);
+        // The strip has its own background
+        lv_obj_set_style_bg_opa(bottomBar, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+        // The buttons are close together, like the statusbar's icons above them
+        lv_obj_set_style_pad_row(bottomBar, 2, LV_STATE_DEFAULT);
+        lv_obj_set_hidden(barSpacer, true);
+        // The page indicator is centered below the grid
+        lv_obj_set_parent(pageIndicator, barParent);
+        lv_obj_move_to_index(pageIndicator, lv_obj_get_index(grid) + 1);
+        lv_obj_set_width(pageIndicator, LV_PCT(100));
+        lv_obj_remove_local_style_prop(pageIndicator, LV_STYLE_MAX_WIDTH, LV_PART_MAIN);
+        // Keeps the dots off the screen's bottom edge
+        lv_obj_set_style_margin_bottom(pageIndicator, lvgl_theme_is_compact() ? 1 : 2, LV_STATE_DEFAULT);
+    } else {
+        lv_obj_set_parent(bottomBar, barParent);
+        lv_obj_move_to_index(bottomBar, lv_obj_get_index(grid) + 1);
+        lv_obj_set_size(bottomBar, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(bottomBar, LV_FLEX_FLOW_ROW);
+        lv_obj_remove_local_style_prop(bottomBar, LV_STYLE_BG_OPA, LV_PART_MAIN);
+        lv_obj_remove_local_style_prop(bottomBar, LV_STYLE_PAD_ROW, LV_PART_MAIN);
+        lv_obj_set_hidden(barSpacer, false);
+        lv_obj_set_parent(pageIndicator, bottomBar);
+        lv_obj_set_width(pageIndicator, LV_SIZE_CONTENT);
+        lv_obj_remove_local_style_prop(pageIndicator, LV_STYLE_MARGIN_BOTTOM, LV_PART_MAIN);
+    }
+    // The keys move through the bar where it's shown: below the statusbar's icons in the side strip, or below the grid
+    setGroupOrder(grid, bottomBar, sideContainer != nullptr);
+    if (sideContainer != nullptr) {
+        // Runs before grid navigation, which would move the focus along the group instead of sideways
+        lv_obj_add_event_cb(bottomBar, onSideBarKey, static_cast<lv_event_code_t>(LV_EVENT_KEY | LV_EVENT_PREPROCESS), this);
+    } else {
+        lv_obj_remove_event_cb(bottomBar, onSideBarKey);
+    }
+    arrangeBar();
+}
+
+// In the side strip on the left, the right key moves the focus to the grid, and the left key stays at the screen's edge
+void TileGrid::onSideBarKey(lv_event_t* e) {
+    auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    const uint32_t key = lv_event_get_key(e);
+    if (key == LV_KEY_RIGHT) {
+        lv_group_focus_obj(self->grid);
+        lv_event_stop_processing(e);
+    } else if (key == LV_KEY_LEFT) {
+        lv_event_stop_processing(e);
+    }
+}
+
+void TileGrid::destroyWidgets() {
+    // The window only deletes its own widgets, and the bar can be in the side strip
+    if (bottomBar != nullptr && barSideContainer != nullptr) {
+        lv_obj_delete(bottomBar);
+    }
+    // The other bar widgets are deleted with the bar or the window, so no pointer may outlive them
+    bottomBar = nullptr;
+    barSideContainer = nullptr;
+    barParent = nullptr;
+    pageIndicator = nullptr;
+    prevButton = nullptr;
+    nextButton = nullptr;
+    barSpacer = nullptr;
+    barButtons.clear();
 }
 
 }

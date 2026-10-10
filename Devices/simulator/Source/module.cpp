@@ -29,7 +29,7 @@ static Driver* const simulator_drivers[] = {
 // These devices have no real bus to attach to (SDL has no notion of one), but every non-root
 // device is still expected to have a parent (see Device::parent) - they're parented to root once
 // it's available below.
-static const SdlDisplayConfig sdl_display_config = { 640, 480 };
+static const SdlDisplayConfig sdl_display_config = { 640, 320 };
 static Device sdl_display_device {};
 static Device sdl_pointer_device {};
 static Device sdl_keyboard_device {};

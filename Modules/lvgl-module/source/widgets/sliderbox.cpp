@@ -3,6 +3,7 @@
 
 #include <lvgl/widgets/sliderbox.h>
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 
 typedef struct {
     lv_obj_t obj;
@@ -174,6 +175,9 @@ lv_obj_t* lvgl_sliderbox_create(lv_obj_t* parent, int32_t min, int32_t max, int3
     lv_obj_set_width(sliderBox->valueLabel, max_width + 8);
 
     sliderBox->plusButton = create_step_button(obj, LV_SYMBOL_PLUS, &on_plus_button_clicked, obj, button_size);
+
+    // The sliderbox is one stop for the keys: left and right move between the buttons and the slider, up and down leave it
+    lvgl_grid_navigation_add(obj);
 
     lvgl_sliderbox_set_value(obj, value, LV_ANIM_OFF);
 
