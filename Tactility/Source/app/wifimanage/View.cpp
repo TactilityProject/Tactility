@@ -95,7 +95,7 @@ void View::onRefreshPressed(lv_event_t* event) {
     auto* self = static_cast<View*>(lv_event_get_user_data(event));
     self->state->requestListRefresh();
     if (!self->bindings->onRefresh()) {
-        self->state->takeListRefreshRequest();
+        self->state->setScanStartFailed();
     }
     self->updateScanning();
     self->updateRefreshButton();
@@ -195,7 +195,7 @@ void View::updateNetworkList() {
                     }
                 }
                 lv_obj_set_hidden(networks_list, false);
-            } else if (!state->hasScannedAfterRadioOn() || state->isScanning()) {
+            } else if (isWaitingForFirstRecords()) {
                 // hasScannedAfterRadioOn() prevents briefly showing "No networks found" when turning radio on.
                 lv_obj_set_hidden(networks_list, true);
             } else {
@@ -224,6 +224,7 @@ bool View::isWaitingForFirstRecords() const {
     auto radio_state = state->getRadioState();
     return (radio_state == WIFI_RADIO_STATE_ON || radio_state == WIFI_RADIO_STATE_ON_PENDING) &&
         state->getApRecords().empty() &&
+        !state->hasScanStartFailed() &&
         (!state->hasScannedAfterRadioOn() || state->isScanning());
 }
 

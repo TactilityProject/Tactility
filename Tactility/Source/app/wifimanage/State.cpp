@@ -8,6 +8,9 @@ void State::setScanning(bool isScanning) {
     mutex.lock();
     scanning = isScanning;
     scannedAfterRadioOn |= isScanning;
+    if (isScanning) {
+        scanStartFailed = false;
+    }
     mutex.unlock();
 }
 
@@ -16,6 +19,7 @@ void State::setRadioState(WifiRadioState state) {
     radioState = state;
     if (radioState == WIFI_RADIO_STATE_OFF) {
         scannedAfterRadioOn = false;
+        scanStartFailed = false;
     }
     mutex.unlock();
 }
@@ -65,6 +69,27 @@ void State::setConnectionTarget(const std::string& ssid) {
     mutex.lock();
     connectionTarget = ssid;
     mutex.unlock();
+}
+
+void State::setScanStartFailed() {
+    mutex.lock();
+    scanStartFailed = true;
+    listRefreshRequested = false;
+    mutex.unlock();
+}
+
+bool State::hasScanStartFailed() const {
+    mutex.lock();
+    bool result = scanStartFailed;
+    mutex.unlock();
+    return result;
+}
+
+bool State::hasScannedAfterRadioOn() const {
+    mutex.lock();
+    bool result = scannedAfterRadioOn;
+    mutex.unlock();
+    return result;
 }
 
 std::string State::getConnectionTarget() const {

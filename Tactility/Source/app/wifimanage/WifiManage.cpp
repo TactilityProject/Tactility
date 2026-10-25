@@ -181,6 +181,8 @@ void scanIfIdle(Context* ctx) {
         error_t result = wifi_scan(ctx->wifiDevice);
         if (result != ERROR_NONE) {
             LOG_I(TAG, "Can't start scan (%s)", error_to_string(result));
+            ctx->state.setScanStartFailed();
+            updateView(ctx, true);
         }
     }
 }

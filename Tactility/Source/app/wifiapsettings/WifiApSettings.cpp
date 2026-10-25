@@ -49,7 +49,7 @@ struct Context {
     Device* wifiDevice = nullptr;
     WifiEventSubscription wifiEventSub {};
 
-    // Loaded on the app task, read by the widgets
+    // Written by the app task under the LVGL lock, read by the widgets
     WifiApSettings settings {};
     bool hasSettings = false;
 
@@ -198,16 +198,15 @@ void updateViews(Context* ctx) {
     updateAutoConnectSection(ctx);
 }
 
-void loadSettings(Context* ctx) {
-    ctx->hasSettings = wifi_settings_load(ctx->ssid.c_str(), &ctx->settings) == ERROR_NONE;
-}
-
 void handleRequests(Context* ctx) {
-    int auto_connect = ctx->autoConnectRequest.exchange(-1);
-    if (auto_connect != -1 && ctx->hasSettings) {
-        ctx->settings.auto_connect = auto_connect == 1;
-        if (wifi_settings_save(&ctx->settings) != ERROR_NONE) {
-            LOG_E(TAG, "Failed to save settings");
+    // Kept until settings are loaded
+    if (ctx->hasSettings) {
+        int auto_connect = ctx->autoConnectRequest.exchange(-1);
+        if (auto_connect != -1) {
+            ctx->settings.auto_connect = auto_connect == 1;
+            if (wifi_settings_save(&ctx->settings) != ERROR_NONE) {
+                LOG_E(TAG, "Failed to save settings");
+            }
         }
     }
     if (ctx->connectRequested.exchange(false) && ctx->hasSettings) {
@@ -216,10 +215,16 @@ void handleRequests(Context* ctx) {
 }
 
 void requestViewUpdate(Context* ctx) {
-    loadSettings(ctx);
+    WifiApSettings settings {};
+    bool has_settings = wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE;
     lvgl_lock();
+    ctx->settings = settings;
+    ctx->hasSettings = has_settings;
     updateViews(ctx);
     lvgl_unlock();
+    if (has_settings && ctx->autoConnectRequest.load() != -1) {
+        task_event_group_signal(ctx->eventGroup, ctx->requestBit);
+    }
 }
 
 void destroyWidgets(void* userData) {
