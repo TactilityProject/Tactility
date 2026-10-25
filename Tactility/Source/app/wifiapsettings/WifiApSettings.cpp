@@ -62,6 +62,7 @@ struct Context {
 
 
 void updateViews(Context* ctx);
+void requestViewUpdate(Context* ctx);
 
 /** Turns the radio on when needed and connects. Runs on the main dispatcher, as turning the radio on blocks. */
 void connectToAp(const WifiApSettings& ap) {
@@ -204,13 +205,20 @@ void handleRequests(Context* ctx) {
         int auto_connect = ctx->autoConnectRequest.exchange(-1);
         if (auto_connect != -1) {
             ctx->settings.auto_connect = auto_connect == 1;
-            if (wifi_settings_save(&ctx->settings) != ERROR_NONE) {
+            if (wifi_settings_set_auto_connect(ctx->ssid.c_str(), ctx->settings.auto_connect) != ERROR_NONE) {
                 LOG_E(TAG, "Failed to save settings");
             }
         }
     }
     if (ctx->connectRequested.exchange(false) && ctx->hasSettings) {
-        connectToAp(ctx->settings);
+        // Other flows can save newer credentials while this view is open
+        WifiApSettings settings {};
+        if (wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE) {
+            connectToAp(settings);
+        } else {
+            LOG_E(TAG, "Failed to load settings");
+            requestViewUpdate(ctx);
+        }
     }
 }
 
@@ -218,6 +226,11 @@ void requestViewUpdate(Context* ctx) {
     WifiApSettings settings {};
     bool has_settings = wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE;
     lvgl_lock();
+    // A toggle during the load isn't saved yet, so the switch keeps showing it
+    int pending_auto_connect = ctx->autoConnectRequest.load();
+    if (pending_auto_connect != -1) {
+        settings.auto_connect = pending_auto_connect == 1;
+    }
     ctx->settings = settings;
     ctx->hasSettings = has_settings;
     updateViews(ctx);

@@ -52,6 +52,17 @@ error_t wifi_settings_load(const char* ssid, struct WifiApSettings* settings);
 error_t wifi_settings_save(const struct WifiApSettings* settings);
 
 /**
+ * Change only the auto-connect setting of saved settings. Other wifi_settings_* calls can't
+ * interleave between the read and the write.
+ * @param[in] ssid the access point to change the settings for
+ * @param[in] auto_connect the new auto-connect value
+ * @retval ERROR_NOT_FOUND no settings exist for the SSID
+ * @retval ERROR_RESOURCE the settings could not be read or written
+ * @retval ERROR_NONE on success
+ */
+error_t wifi_settings_set_auto_connect(const char* ssid, bool auto_connect);
+
+/**
  * Remove settings that were saved previously.
  * @param[in] ssid the access point to remove the settings for
  * @retval ERROR_NOT_FOUND no settings exist for the SSID

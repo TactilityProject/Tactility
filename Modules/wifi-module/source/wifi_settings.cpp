@@ -5,6 +5,7 @@
 #include <crypt/crypt.h>
 #include <service/paths.h>
 
+#include <tactility/concurrent/mutex.h>
 #include <tactility/log.h>
 #include <tactility/paths.h>
 #include <tactility/properties_file.h>
@@ -35,6 +36,16 @@ constexpr size_t ENCRYPTED_PASSWORD_HEX_LIMIT = ENCRYPTED_PASSWORD_LIMIT * 2;
 
 static bool enable_on_boot_cached = false;
 static bool enable_on_boot = false;
+
+// Guards the access point files
+static Mutex* settings_mutex() {
+    static Mutex* mutex = [] {
+        static Mutex instance;
+        mutex_construct(&instance);
+        return &instance;
+    }();
+    return mutex;
+}
 
 static bool is_file(const char* path) {
     struct stat path_stat {};
@@ -135,12 +146,7 @@ static bool decrypt_password(const char* ssid, const char* hex, char out_passwor
 
 extern "C" {
 
-bool wifi_settings_contains(const char* ssid) {
-    char path[FILE_MAX_PATH_STRING_LENGTH];
-    return get_ap_file_path(ssid, path, sizeof(path)) == ERROR_NONE && is_file(path);
-}
-
-error_t wifi_settings_load(const char* ssid, WifiApSettings* settings) {
+static error_t load_unlocked(const char* ssid, WifiApSettings* settings) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = get_ap_file_path(ssid, path, sizeof(path));
     if (error != ERROR_NONE) {
@@ -190,7 +196,7 @@ error_t wifi_settings_load(const char* ssid, WifiApSettings* settings) {
     return error;
 }
 
-error_t wifi_settings_save(const WifiApSettings* settings) {
+static error_t save_unlocked(const WifiApSettings* settings) {
     if (settings->ssid[0] == '\0') {
         return ERROR_INVALID_ARGUMENT;
     }
@@ -229,7 +235,7 @@ error_t wifi_settings_save(const WifiApSettings* settings) {
     return properties_file_close(file);
 }
 
-error_t wifi_settings_remove(const char* ssid) {
+static error_t remove_unlocked(const char* ssid) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = get_ap_file_path(ssid, path, sizeof(path));
     if (error != ERROR_NONE) {
@@ -266,19 +272,65 @@ void wifi_settings_for_each(void* context, bool (*on_ssid)(const char* ssid, voi
             continue;
         }
 
+        // Not held during on_ssid(), so it can call other wifi_settings_* functions
+        mutex_lock(settings_mutex());
         PropertiesFile* file = properties_file_open(path);
-        if (file == nullptr) {
-            continue;
-        }
         char ssid[WIFI_SETTINGS_SSID_LIMIT + 1];
-        bool has_ssid = properties_file_get(file, AP_PROPERTIES_KEY_SSID, ssid, sizeof(ssid)) == ERROR_NONE;
-        properties_file_close(file);
+        bool has_ssid = file != nullptr && properties_file_get(file, AP_PROPERTIES_KEY_SSID, ssid, sizeof(ssid)) == ERROR_NONE;
+        if (file != nullptr) {
+            properties_file_close(file);
+        }
+        mutex_unlock(settings_mutex());
 
         if (has_ssid && !on_ssid(ssid, context)) {
             break;
         }
     }
     closedir(dir);
+}
+
+bool wifi_settings_contains(const char* ssid) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (get_ap_file_path(ssid, path, sizeof(path)) != ERROR_NONE) {
+        return false;
+    }
+    mutex_lock(settings_mutex());
+    bool result = is_file(path);
+    mutex_unlock(settings_mutex());
+    return result;
+}
+
+error_t wifi_settings_load(const char* ssid, WifiApSettings* settings) {
+    mutex_lock(settings_mutex());
+    error_t error = load_unlocked(ssid, settings);
+    mutex_unlock(settings_mutex());
+    return error;
+}
+
+error_t wifi_settings_save(const WifiApSettings* settings) {
+    mutex_lock(settings_mutex());
+    error_t error = save_unlocked(settings);
+    mutex_unlock(settings_mutex());
+    return error;
+}
+
+error_t wifi_settings_set_auto_connect(const char* ssid, bool auto_connect) {
+    mutex_lock(settings_mutex());
+    WifiApSettings settings;
+    error_t error = load_unlocked(ssid, &settings);
+    if (error == ERROR_NONE) {
+        settings.auto_connect = auto_connect;
+        error = save_unlocked(&settings);
+    }
+    mutex_unlock(settings_mutex());
+    return error;
+}
+
+error_t wifi_settings_remove(const char* ssid) {
+    mutex_lock(settings_mutex());
+    error_t error = remove_unlocked(ssid);
+    mutex_unlock(settings_mutex());
+    return error;
 }
 
 error_t wifi_settings_set_enable(bool enable) {
