@@ -9,7 +9,8 @@ typedef void (*OnConnectSsid)(const std::string& ssid);
 typedef void (*OnDisconnect)();
 typedef void (*OnShowApSettings)(const std::string& ssid);
 typedef void (*OnConnectToHidden)();
-typedef void (*OnRefresh)();
+/** @return false when no scan is running or starting */
+typedef bool (*OnRefresh)();
 
 struct Bindings{
     OnWifiToggled onWifiToggled;

@@ -26,6 +26,13 @@ void State::requestListRefresh() {
     mutex.unlock();
 }
 
+bool State::isListRefreshRequested() const {
+    mutex.lock();
+    bool result = listRefreshRequested;
+    mutex.unlock();
+    return result;
+}
+
 bool State::takeListRefreshRequest() {
     mutex.lock();
     bool result = listRefreshRequested;

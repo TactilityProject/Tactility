@@ -1,6 +1,7 @@
 #include <Tactility/app/btpeersettings/BtPeerSettings.h>
 
 #include <lvgl/lvgl.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <Tactility/app/alertdialog/AlertDialog.h>
@@ -134,21 +135,25 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(wrapper, 0, LV_STATE_DEFAULT);
     lvgl::obj_set_style_bg_invisible(wrapper);
 
-    ctx->connectButton = lv_button_create(wrapper);
+    auto* card = lvgl_card_create(wrapper);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+
+    ctx->connectButton = lv_button_create(card);
     lv_obj_set_width(ctx->connectButton, LV_PCT(100));
     lv_obj_add_event_cb(ctx->connectButton, onPressConnect, LV_EVENT_SHORT_CLICKED, ctx);
     auto* connect_label = lv_label_create(ctx->connectButton);
     lv_obj_align(connect_label, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_text(connect_label, "Connect");
 
-    ctx->disconnectButton = lv_button_create(wrapper);
+    ctx->disconnectButton = lv_button_create(card);
     lv_obj_set_width(ctx->disconnectButton, LV_PCT(100));
     lv_obj_add_event_cb(ctx->disconnectButton, onPressDisconnect, LV_EVENT_SHORT_CLICKED, ctx);
     auto* disconnect_label = lv_label_create(ctx->disconnectButton);
     lv_obj_align(disconnect_label, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_text(disconnect_label, "Disconnect");
 
-    auto* forget_button = lv_button_create(wrapper);
+    auto* forget_button = lv_button_create(card);
     lv_obj_set_width(forget_button, LV_PCT(100));
     lv_obj_add_event_cb(forget_button, onPressForget, LV_EVENT_SHORT_CLICKED, ctx);
     auto* forget_label = lv_label_create(forget_button);
@@ -156,7 +161,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_label_set_text(forget_label, "Forget");
 
     // Auto-connect toggle row
-    auto* auto_connect_wrapper = lv_obj_create(wrapper);
+    auto* auto_connect_wrapper = lv_obj_create(card);
     lv_obj_set_size(auto_connect_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(auto_connect_wrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(auto_connect_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);

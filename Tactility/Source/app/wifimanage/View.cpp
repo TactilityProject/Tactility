@@ -94,7 +94,11 @@ void View::showDetails(lv_event_t* event) {
 void View::onRefreshPressed(lv_event_t* event) {
     auto* self = static_cast<View*>(lv_event_get_user_data(event));
     self->state->requestListRefresh();
-    self->bindings->onRefresh();
+    if (!self->bindings->onRefresh()) {
+        self->state->takeListRefreshRequest();
+    }
+    self->updateScanning();
+    self->updateRefreshButton();
 }
 
 /** Creates a title with a card below it, and returns the list in the card */
@@ -216,16 +220,23 @@ void View::updateNetworkList() {
 
 }
 
+bool View::isWaitingForFirstRecords() const {
+    auto radio_state = state->getRadioState();
+    return (radio_state == WIFI_RADIO_STATE_ON || radio_state == WIFI_RADIO_STATE_ON_PENDING) &&
+        state->getApRecords().empty() &&
+        (!state->hasScannedAfterRadioOn() || state->isScanning());
+}
+
 void View::updateScanning() {
-    if (state->getRadioState() == WIFI_RADIO_STATE_ON && state->getStationState() == WIFI_STATION_STATE_DISCONNECTED && state->isScanning()) {
-        lv_obj_set_hidden(scanning_spinner, false);
-    } else {
-        lv_obj_set_hidden(scanning_spinner, true);
-    }
+    bool waiting = isWaitingForFirstRecords();
+    lv_obj_set_hidden(loading_label, !waiting);
+    bool scanning = state->getRadioState() == WIFI_RADIO_STATE_ON && state->getStationState() == WIFI_STATION_STATE_DISCONNECTED && state->isScanning();
+    bool refreshing = state->getRadioState() == WIFI_RADIO_STATE_ON && state->isListRefreshRequested();
+    lv_obj_set_hidden(scanning_spinner, !waiting && !scanning && !refreshing);
 }
 
 void View::updateRefreshButton() {
-    lv_obj_set_hidden(refresh_button, state->getRadioState() != WIFI_RADIO_STATE_ON);
+    lv_obj_set_hidden(refresh_button, state->getRadioState() != WIFI_RADIO_STATE_ON || !lv_obj_is_hidden(scanning_spinner));
 }
 
 void View::updateWifiToggle() {
@@ -280,6 +291,12 @@ void View::init(uint32_t newAppInstanceId, lv_obj_t* parent) {
     lv_obj_set_width(networks_list, LV_PCT(100));
     lv_obj_set_flex_flow(networks_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_border_width(networks_list, 0, LV_STATE_DEFAULT);
+
+    loading_label = lv_label_create(parent);
+    lv_label_set_text(loading_label, "Loading...");
+    lv_obj_add_flag(loading_label, LV_OBJ_FLAG_FLOATING);
+    lv_obj_align(loading_label, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_hidden(loading_label, true);
 }
 
 void View::update(bool rebuildList) {
@@ -300,6 +317,7 @@ void View::reset() {
     root = nullptr;
     enable_switch = nullptr;
     scanning_spinner = nullptr;
+    loading_label = nullptr;
     refresh_button = nullptr;
     networks_list = nullptr;
     connect_to_hidden = nullptr;

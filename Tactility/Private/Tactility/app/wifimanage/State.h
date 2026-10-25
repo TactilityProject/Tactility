@@ -36,6 +36,7 @@ public:
     void requestListRefresh();
     /** @return true if a list refresh was requested, clearing the request */
     bool takeListRefreshRequest();
+    bool isListRefreshRequested() const;
 
     void setRadioState(WifiRadioState state);
     WifiRadioState getRadioState() const;
