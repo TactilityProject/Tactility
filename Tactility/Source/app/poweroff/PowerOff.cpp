@@ -125,11 +125,17 @@ void runWithShutdownScreen(const char* subtitle, bool (*action)()) {
         }
     }
 
-    getMainDispatcher().dispatch([is_slow_refresh, action, previous_screen, shutdown_screen] {
-        // Not necessary for LilyGO Paper S3, but other drivers with async rendering might need us to wait a bit.
+    getMainDispatcher().dispatch([display, is_slow_refresh, action, previous_screen, shutdown_screen] {
         if (is_slow_refresh) {
+            // Clears ghosting, as the image stays on the panel after powering off
+            error_t refresh_error = display_refresh(display);
+            if (refresh_error != ERROR_NONE && refresh_error != ERROR_NOT_SUPPORTED) {
+                LOG_W(TAG, "Display refresh failed: %s", error_to_string(refresh_error));
+            }
+            // Drivers can finish drawing asynchronously after the refresh returns
             vTaskDelay(pdMS_TO_TICKS(2000));
         }
+        device_put(display);
         if (!action() && shutdown_screen != nullptr) {
             lvgl_lock();
             lv_screen_load(previous_screen);

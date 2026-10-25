@@ -7,13 +7,8 @@
 
 ## Higher Priority
 
-- GPIO app: fix for monochrome display by using filled vs outline box in secondary colour
-- BlueTooth as radio backend for MeshCore/Meshtastic?
 - Find out why the first build of an app with a clean build cache folder always fails
-- Use GPS time to set/update the current time: when enabled, at boot, when wifi is not enabled, start the gps device and wait until a lock is acquired, then get the time and sync it. Then stop the GPS device.
 - Improve posix support: use user home path and system /tmp folder.
-- NimBLE looses pairing key after reboot
-- Pick different font to improve monochrome screen readability (or change the weight). 
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
 - Improve SPI kernel driver (implement read, write, transactions)
 - External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
@@ -24,9 +19,10 @@
 
 ## Medium Priority
 
+- Pick different font to improve monochrome screen readability (or change the weight).
+- Use GPS time to set/update the current time: when enabled, at boot, when wifi is not enabled, start the gps device and wait until a lock is acquired, then get the time and sync it. Then stop the GPS device.
 - Try https://github.com/bootdsc/Fastwave-Eink-Driver with CL-32 e-paper.
 - Power Off with e-paper should trigger full refresh before power off.
-- Support hot-plugging SD card (note: might be problematic with shared SPI bus)
 - Inspect code for memory improvements: replace `std::*` with `tt::std::*`
 - Tactility/Source/bluetooth move into bluetooth module, make it work generically for all bluetooth apis
 - DisplayApi: resolution x/y shouldn't be functions but struct values
@@ -58,6 +54,7 @@
 
 ## Lower Priority
 
+- BlueTooth as radio backend for MeshCore/Meshtastic?
 - Show device name clearly in on-device web server landing page (to identify tabs of multiple devices easier)
 - When Wi-Fi connects, check for app updates
 - Diceware app has large "+" and "-' buttons on Cardputer. It should be smaller.
