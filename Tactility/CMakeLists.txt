@@ -224,10 +224,10 @@ add_dependencies(${COMPONENT_LIB} Generated)
 #
 
 # Rewrites its outputs only when the content changes. The assets are the whole Data/system tree,
-# so no fixed DEPENDS list is kept.
+# so no fixed DEPENDS list is kept. Files in the device's system/ folder replace the ones with the same path.
 add_custom_target(GeneratedAssets ALL
     COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/generate-assets.py"
-        "${CMAKE_SOURCE_DIR}/Data/system" "${GENERATED_DIR}"
+        "${CMAKE_SOURCE_DIR}/Data/system" "${GENERATED_DIR}" "${DEVICETREE_LOCATION}/system"
     BYPRODUCTS "${GENERATED_DIR}/generated_assets.c" "${GENERATED_DIR}/generated_assets.h"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Generating asset source files..."
