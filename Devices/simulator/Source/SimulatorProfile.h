@@ -24,7 +24,7 @@ struct Profile {
     bool touch;
 };
 
-constexpr size_t PROFILE_COUNT = 7;
+constexpr size_t PROFILE_COUNT = 6;
 
 /** Overrides the default orientation of the selected profile */
 enum class OrientationOverride {
