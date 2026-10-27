@@ -4,6 +4,7 @@
 #include <bindings/mock_wifi.h>
 #include <bindings/mock_radio.h>
 #include <bindings/mock_bluetooth.h>
+#include <bindings/mock_power_supply.h>
 
 / {
 	model = "Simulator";
@@ -19,5 +20,9 @@
 
 	bluetooth0 {
 		compatible = "mock,bluetooth";
+	};
+
+	power0 {
+		compatible = "mock,power-supply";
 	};
 };

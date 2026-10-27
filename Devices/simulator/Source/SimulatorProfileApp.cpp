@@ -1,6 +1,7 @@
 #include "SimulatorProfile.h"
 
 #include <app/event.h>
+#include <app/location.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
 #include <app/start.h>
@@ -284,9 +285,9 @@ extern const ::AppManifest profileAppManifest = {
     .id = "tactility.simulator",
     .name = "Simulator",
     .category = APP_CATEGORY_SETTINGS,
-    .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) },
+    .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(appMain) },
     .flags = 0,
-    .stack = {}
+    .stack = {},
 };
 
 }

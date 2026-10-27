@@ -437,7 +437,8 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
     } else {
         uint16_t buf_height = config->force_full_frame || config->buffer_height == 0
             ? vres : config->buffer_height;
-        buf_size_bytes = (size_t)hres * buf_height * bpp;
+        // LVGL rounds the size it needs for an area up to LV_DRAW_BUF_ALIGN
+        buf_size_bytes = LV_ROUND_UP((size_t)hres * buf_height * bpp, LV_DRAW_BUF_ALIGN);
 
         ctx->buf1 = lvgl_display_alloc_buffer(buf_size_bytes, config->prefer_external_ram);
         if (ctx->buf1 == NULL) {

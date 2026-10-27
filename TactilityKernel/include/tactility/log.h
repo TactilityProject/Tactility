@@ -23,6 +23,12 @@ enum LogLevel {
 
 void log_generic(enum LogLevel level, const char* tag, const char* format, ...);
 
+/**
+ * Makes logging on the calling thread write directly to the console.
+ * Must be called by threads that are not FreeRTOS tasks before they log, because the log queue can only be used from tasks.
+ */
+void log_set_direct_write_for_current_thread(void);
+
 #define LOG_E(tag, ...) log_generic(LOG_LEVEL_ERROR, tag, ##__VA_ARGS__)
 #define LOG_W(tag, ...) log_generic(LOG_LEVEL_WARNING, tag, ##__VA_ARGS__)
 #define LOG_I(tag, ...) log_generic(LOG_LEVEL_INFO, tag, ##__VA_ARGS__)

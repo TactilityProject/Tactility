@@ -4,6 +4,8 @@
 #include "SimulatorProfile.h"
 #include "drivers/sdl_bridge.h"
 
+#include <tactility/log.h>
+
 #include <csignal>
 #include <pthread.h>
 #include <sys/stat.h>
@@ -36,6 +38,8 @@ int main(int, char** argv) {
     sigfillset(&all_signals_except_sigint);
     sigdelset(&all_signals_except_sigint, SIGINT);
     pthread_sigmask(SIG_SETMASK, &all_signals_except_sigint, nullptr);
+
+    log_set_direct_write_for_current_thread();
 
     // FreeRTOS and app_main() run on a separate thread: macOS requires SDL/Cocoa window creation,
     // event pumping and rendering to happen on the real OS main thread, which sdl_bridge_run_main_loop()

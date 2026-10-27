@@ -1,5 +1,6 @@
 #include "SimulatorProfile.h"
 #include "drivers/sdl_display.h"
+#include "lv_conf.h"
 
 #include <app/manager.h>
 
@@ -20,12 +21,12 @@ constexpr auto* TAG = "Simulator";
 extern "C" {
 
 extern Driver sdl_display_driver;
-extern Driver sdl_pointer_driver;
+extern Driver sdl_touch_driver;
 extern Driver sdl_keyboard_driver;
 
 static Driver* const simulator_drivers[] = {
     &sdl_display_driver,
-    &sdl_pointer_driver,
+    &sdl_touch_driver,
     &sdl_keyboard_driver,
     nullptr
 };
@@ -88,8 +89,10 @@ static void on_root_started(Device* device, DeviceEvent event, void* context) {
     }
 
     const auto& profile = simulator::getProfile(simulator::getActiveProfileIndex());
-    const uint16_t short_side = std::min(profile.width, profile.height);
-    const uint16_t long_side = std::max(profile.width, profile.height);
+    const auto width = static_cast<uint16_t>(profile.width * LV_DPI_DEF / profile.dpi);
+    const auto height = static_cast<uint16_t>(profile.height * LV_DPI_DEF / profile.dpi);
+    const uint16_t short_side = std::min(width, height);
+    const uint16_t long_side = std::max(width, height);
     sdl_display_config = {
         profile.portrait ? short_side : long_side,
         profile.portrait ? long_side : short_side,
@@ -97,8 +100,8 @@ static void on_root_started(Device* device, DeviceEvent event, void* context) {
     };
 
     construct_add_start(&sdl_display_device, device, "display0", &sdl_display_config, "tactility,sdl-display");
-    if (profile.pointer) {
-        construct_add_start(&sdl_pointer_device, device, "pointer0", nullptr, "tactility,sdl-pointer");
+    if (profile.touch) {
+        construct_add_start(&sdl_pointer_device, device, "touch0", nullptr, "tactility,sdl-touch");
     }
     if (profile.keyboard) {
         construct_add_start(&sdl_keyboard_device, device, "keyboard0", nullptr, "tactility,sdl-keyboard");

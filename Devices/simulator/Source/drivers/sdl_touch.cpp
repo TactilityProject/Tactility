@@ -54,9 +54,9 @@ static const TouchApi sdl_touch_api = {
 
 extern Module simulator_module;
 
-Driver sdl_pointer_driver = {
-    .name = "sdl-pointer",
-    .compatible = (const char*[]) { "tactility,sdl-pointer", nullptr },
+Driver sdl_touch_driver = {
+    .name = "sdl-touch",
+    .compatible = (const char*[]) { "tactility,sdl-touch", nullptr },
     .start_device = start,
     .stop_device = stop,
     .probe = nullptr,
