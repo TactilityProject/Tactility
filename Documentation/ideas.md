@@ -7,6 +7,7 @@
 
 ## Higher Priority
 
+- Fix system icon selection on mono display
 - Find out why the first build of an app with a clean build cache folder always fails
 - Improve posix support: use user home path and system /tmp folder.
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
@@ -19,9 +20,9 @@
 
 ## Medium Priority
 
+- Try https://github.com/bootdsc/Fastwave-Eink-Driver with CL-32 e-paper.
 - Pick different font to improve monochrome screen readability (or change the weight).
 - Use GPS time to set/update the current time: when enabled, at boot, when wifi is not enabled, start the gps device and wait until a lock is acquired, then get the time and sync it. Then stop the GPS device.
-- Try https://github.com/bootdsc/Fastwave-Eink-Driver with CL-32 e-paper.
 - Inspect code for memory improvements: replace `std::*` with `tt::std::*`
 - Tactility/Source/app/imageviewer/ImageViewer.cpp: Limit memory used to open an image.
   loadFile() now resizes fileData to the entire file size before displaying the image. start accepts a file path without a size limit, so opening a large image can exhaust memory on an embedded device before LVGL decodes it. Reject files above a supported limit or retain a bounded file-backed decoding path.
