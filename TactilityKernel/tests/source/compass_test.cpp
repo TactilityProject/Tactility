@@ -97,6 +97,14 @@ TEST_CASE("compass_read_heading derives headings in the range [0, 360)") {
     CHECK(heading == doctest::Approx(359.94f).epsilon(0.001));
 }
 
+TEST_CASE("compass_read_heading keeps a tiny negative angle below 360") {
+    mock_field_error = ERROR_NONE;
+    // Adding 360 to such a small negative angle rounds to exactly 360.0f in float
+    const float heading = derived_heading(1.0f, -1e-9f);
+    CHECK(heading >= 0.0f);
+    CHECK(heading < 360.0f);
+}
+
 TEST_CASE("compass_read_heading ignores field strength and the z axis") {
     mock_field_error = ERROR_NONE;
     CHECK(derived_heading(40.0f, 40.0f) == doctest::Approx(45.0f));
@@ -107,6 +115,16 @@ TEST_CASE("compass_read_heading ignores field strength and the z axis") {
         CHECK_EQ(compass_read_heading(device, &heading), ERROR_NONE);
     });
     CHECK(heading == doctest::Approx(0.0f));
+}
+
+TEST_CASE("compass_read_heading rejects a zero horizontal field and leaves the output untouched") {
+    mock_field_error = ERROR_NONE;
+    mock_field = { 0.0f, 0.0f, 50.0f };
+    float heading = 123.0f;
+    with_device(&derived_driver, [&](Device* device) {
+        CHECK_EQ(compass_read_heading(device, &heading), ERROR_INVALID_STATE);
+    });
+    CHECK_EQ(heading, 123.0f);
 }
 
 TEST_CASE("compass_read_heading propagates the field read error and leaves the output untouched") {

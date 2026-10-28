@@ -8,8 +8,14 @@
 extern "C" {
 #endif
 
+/**
+ * Magnetic field strength in µT, in the device frame (right-handed):
+ * +x points to the front of the device, +y to its left and +z up.
+ * Drivers transform the sensor axes into this frame.
+ * A level device facing magnetic north reads +x, and facing east reads +y.
+ */
 struct CompassData {
-    float x, y, z; // magnetic field strength, in µT
+    float x, y, z;
 };
 
 /**
@@ -44,6 +50,7 @@ error_t compass_read_field(struct Device* device, struct CompassData* data);
 /**
  * @brief Reads the current heading using the specified compass device.
  * Assumes the device is held level when the driver has no heading of its own.
+ * @retval ERROR_INVALID_STATE when the driver has no heading of its own and the horizontal field is zero
  * @param[out] heading_deg the heading in degrees clockwise from magnetic north [0, 360)
  */
 error_t compass_read_heading(struct Device* device, float* heading_deg);

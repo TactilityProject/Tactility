@@ -21,9 +21,13 @@ error_t compass_read_heading(Device* device, float* heading_deg) {
     CompassData data;
     error_t error = api->read_field(device, &data);
     if (error != ERROR_NONE) return error;
+    if (data.x == 0.0f && data.y == 0.0f) return ERROR_INVALID_STATE;
 
     float heading = std::atan2(data.y, data.x) * (180.0f / static_cast<float>(M_PI));
-    if (heading < 0.0f) heading += 360.0f;
+    if (heading < 0.0f) {
+        heading += 360.0f;
+        if (heading >= 360.0f) heading = 0.0f;
+    }
     *heading_deg = heading;
     return ERROR_NONE;
 }
