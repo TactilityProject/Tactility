@@ -13,6 +13,7 @@
 
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
+#include <esp_private/esp_gpio_reserve.h>
 
 #include <cstring>
 
@@ -71,14 +72,13 @@ static bool detect_ssd16xx(Device* spi1) {
     }
 
     gpio_config_t outputs = {
-        .pin_bit_mask = (1ULL << PIN_CS) | (1ULL << PIN_DC) | (1ULL << PIN_RESET),
+        .pin_bit_mask = (1ULL << PIN_DC) | (1ULL << PIN_RESET),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
     gpio_config(&outputs);
-    gpio_set_level(PIN_CS, 1);
 
     gpio_config_t input = {
         .pin_bit_mask = 1ULL << PIN_BUSY,
@@ -101,6 +101,8 @@ static bool detect_ssd16xx(Device* spi1) {
 
     spi_bus_remove_device(spi);
     gpio_reset_pin(PIN_BUSY);
+    // The display driver configures these pins again
+    esp_gpio_revoke((1ULL << PIN_DC) | (1ULL << PIN_RESET));
     return busy;
 }
 
