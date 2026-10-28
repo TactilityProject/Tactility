@@ -11,17 +11,27 @@
 #include <tactility/log.h>
 #include <tactility/system_event.h>
 
+#include <atomic>
+
 constexpr auto* TAG = "mesh";
+
+// Kept across module restarts, as the boot event is only emitted once
+static std::atomic<bool> boot_completed = false;
 
 extern "C" {
 
 // Radios can start after this module does, so the service only starts once all devices are up
-static void on_boot_completed(SystemEvent* event, void* context) {
-    (void)event;
-    (void)context;
+static void start_service_if_enabled() {
     if (mesh_service_should_auto_start() && service_manager_start(mesh_service_manifest.id) != ERROR_NONE) {
         LOG_E(TAG, "Failed to start the service");
     }
+}
+
+static void on_boot_completed(SystemEvent* event, void* context) {
+    (void)event;
+    (void)context;
+    boot_completed = true;
+    start_service_if_enabled();
 }
 
 static error_t start() {
@@ -38,8 +48,13 @@ static error_t start() {
     if (error != ERROR_NONE) {
         service_manager_remove(mesh_service_manifest.id);
         app_manager_remove(mesh_command_manifest.id);
+        return error;
     }
-    return error;
+    // A restart after boot misses the event
+    if (boot_completed) {
+        start_service_if_enabled();
+    }
+    return ERROR_NONE;
 }
 
 static error_t stop() {
