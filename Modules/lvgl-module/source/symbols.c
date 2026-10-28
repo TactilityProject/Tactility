@@ -542,6 +542,9 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_display_trigger_activity),
     DEFINE_MODULE_SYMBOL(lv_display_add_event_cb),
     DEFINE_MODULE_SYMBOL(lv_display_remove_event_cb_with_user_data),
+    DEFINE_MODULE_SYMBOL(lv_display_get_screen_active),
+    DEFINE_MODULE_SYMBOL(lv_display_get_next),
+    DEFINE_MODULE_SYMBOL(lv_display_get_driver_data),
     // lv_pct
     DEFINE_MODULE_SYMBOL(lv_pct),
     DEFINE_MODULE_SYMBOL(lv_pct_to_px),
