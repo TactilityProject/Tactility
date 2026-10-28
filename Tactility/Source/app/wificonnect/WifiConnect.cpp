@@ -305,6 +305,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_textarea_set_one_line(ctx->password_textarea, true);
     lv_textarea_set_password_mode(ctx->password_textarea, true);
     lv_obj_set_width(ctx->password_textarea, LV_PCT(60));
+    lv_obj_add_event_cb(ctx->password_textarea, onConnectPressed, LV_EVENT_READY, ctx);
 
     ctx->password_error = createErrorLabel(card);
 
