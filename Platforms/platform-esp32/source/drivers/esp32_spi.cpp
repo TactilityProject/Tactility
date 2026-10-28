@@ -8,10 +8,12 @@
 #include <tactility/drivers/esp32_gpio_helpers.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <driver/spi_master.h>
+#include <algorithm>
 #include <cstring>
 #include <new>
 #include <soc/gpio_num.h>
 #include <vector>
+#include <tactility/std/vector.hpp>
 
 #define TAG "esp32_spi"
 
@@ -39,6 +41,9 @@ struct Esp32SpiInternal {
 
     // CS pin descriptors, indexed like cs_gpios. Pins that aren't available are null.
     std::vector<GpioDescriptor*> cs_descriptors;
+
+    // The peripherals that were added and not removed yet. Guarded by the mutex.
+    tt::std::vector<SpiDevice*> devices;
 
     explicit Esp32SpiInternal() {
         recursive_mutex_construct(&mutex);
@@ -114,14 +119,23 @@ static error_t add_device(Device* device, const SpiDeviceConfig* config, SpiDevi
     }
 
     new_device->cs = cs;
+
+    recursive_mutex_lock(&data->mutex);
+    data->devices.push_back(new_device);
+    recursive_mutex_unlock(&data->mutex);
     *spi_device = new_device;
     return ERROR_NONE;
 }
 
 static error_t remove_device(Device* device, SpiDevice* spi_device) {
+    auto* data = GET_DATA(device);
+    recursive_mutex_lock(&data->mutex);
+    data->devices.erase(std::remove(data->devices.begin(), data->devices.end(), spi_device), data->devices.end());
+    recursive_mutex_unlock(&data->mutex);
+
     if (spi_device->bus_acquired) {
-        spi_device_release_bus(spi_device->handle);
         if (spi_device->cs != nullptr) gpio_descriptor_set_level(spi_device->cs, false);
+        spi_device_release_bus(spi_device->handle);
     }
     const esp_err_t result = spi_bus_remove_device(spi_device->handle);
     delete spi_device;
@@ -129,15 +143,35 @@ static error_t remove_device(Device* device, SpiDevice* spi_device) {
 }
 
 static error_t transmit(Device* device, SpiDevice* spi_device, const void* tx_data, void* rx_data, size_t length) {
-    spi_transaction_t transaction = {};
-    transaction.length = length * 8;
-    transaction.tx_buffer = tx_data;
-    transaction.rx_buffer = rx_data;
+    // ESP-IDF skips the write phase for a null buffer, so zeroes are sent from a buffer in chunks.
+    // The chip select is driven by hand, so a transfer that is split up stays selected.
+    constexpr size_t ZERO_CHUNK_SIZE = 64;
+    uint8_t zero_buffer[ZERO_CHUNK_SIZE] = {};
+    if (length == 0) return ERROR_NONE;
 
+    // The bus is taken before the chip select is asserted, so no other peripheral is selected during another one's transfer
     const bool select = spi_device->cs != nullptr && !spi_device->bus_acquired;
-    if (select) gpio_descriptor_set_level(spi_device->cs, true);
-    const esp_err_t result = spi_device_polling_transmit(spi_device->handle, &transaction);
-    if (select) gpio_descriptor_set_level(spi_device->cs, false);
+    if (select) {
+        if (spi_device_acquire_bus(spi_device->handle, portMAX_DELAY) != ESP_OK) return ERROR_RESOURCE;
+        gpio_descriptor_set_level(spi_device->cs, true);
+    }
+
+    esp_err_t result = ESP_OK;
+    size_t offset = 0;
+    do {
+        const size_t chunk = tx_data == nullptr ? std::min(length - offset, ZERO_CHUNK_SIZE) : length;
+        spi_transaction_t transaction = {};
+        transaction.length = chunk * 8;
+        transaction.tx_buffer = tx_data == nullptr ? zero_buffer : tx_data;
+        transaction.rx_buffer = rx_data == nullptr ? nullptr : static_cast<uint8_t*>(rx_data) + offset;
+        result = spi_device_polling_transmit(spi_device->handle, &transaction);
+        offset += chunk;
+    } while (result == ESP_OK && offset < length);
+
+    if (select) {
+        gpio_descriptor_set_level(spi_device->cs, false);
+        spi_device_release_bus(spi_device->handle);
+    }
     return result == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
 }
 
@@ -249,9 +283,22 @@ static error_t stop(Device* device) {
     auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
 
-    if (driver_data->initialized) {
-        spi_bus_free(dts_config->host);
+    // The bus can't be freed while peripherals are attached, and their owners still hold the handles
+    recursive_mutex_lock(&driver_data->mutex);
+    if (!driver_data->devices.empty()) {
+        recursive_mutex_unlock(&driver_data->mutex);
+        LOG_E(TAG, "Cannot stop %s: %u device(s) still added", device->name, (unsigned)driver_data->devices.size());
+        return ERROR_INVALID_STATE;
     }
+    if (driver_data->initialized) {
+        const esp_err_t result = spi_bus_free(dts_config->host);
+        if (result != ESP_OK) {
+            recursive_mutex_unlock(&driver_data->mutex);
+            LOG_E(TAG, "Failed to free SPI bus: %s", esp_err_to_name(result));
+            return ERROR_RESOURCE;
+        }
+    }
+    recursive_mutex_unlock(&driver_data->mutex);
 
     driver_data->cleanup_pins();
     device_set_driver_data(device, nullptr);
