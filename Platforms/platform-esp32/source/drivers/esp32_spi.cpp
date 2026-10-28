@@ -7,6 +7,7 @@
 #include "tactility/drivers/gpio_descriptor.h"
 #include <tactility/drivers/esp32_gpio_helpers.h>
 #include <tactility/drivers/gpio_controller.h>
+#include <driver/spi_master.h>
 #include <cstring>
 #include <new>
 #include <soc/gpio_num.h>
@@ -19,6 +20,12 @@
 
 extern "C" {
 
+struct SpiDevice {
+    spi_device_handle_t handle = nullptr;
+    GpioDescriptor* cs = nullptr;
+    bool bus_acquired = false;
+};
+
 struct Esp32SpiInternal {
     RecursiveMutex mutex = {};
     bool initialized = false;
@@ -30,7 +37,7 @@ struct Esp32SpiInternal {
     GpioDescriptor* wp_descriptor = nullptr;
     GpioDescriptor* hd_descriptor = nullptr;
 
-    // CS pin descriptors
+    // CS pin descriptors, indexed like cs_gpios. Pins that aren't available are null.
     std::vector<GpioDescriptor*> cs_descriptors;
 
     explicit Esp32SpiInternal() {
@@ -72,6 +79,81 @@ static error_t try_lock(Device* device, TickType_t timeout) {
 static error_t unlock(Device* device) {
     auto* driver_data = GET_DATA(device);
     recursive_mutex_unlock(&driver_data->mutex);
+    return ERROR_NONE;
+}
+
+static error_t add_device(Device* device, const SpiDeviceConfig* config, SpiDevice** spi_device) {
+    auto* data = GET_DATA(device);
+
+    GpioDescriptor* cs = nullptr;
+    if (config->cs_index != SPI_CS_NONE) {
+        if (config->cs_index < 0 || static_cast<size_t>(config->cs_index) >= data->cs_descriptors.size()) {
+            return ERROR_OUT_OF_RANGE;
+        }
+        cs = data->cs_descriptors[config->cs_index];
+        if (cs == nullptr) {
+            return ERROR_INVALID_STATE;
+        }
+    }
+
+    auto* new_device = new (std::nothrow) SpiDevice();
+    if (new_device == nullptr) return ERROR_OUT_OF_MEMORY;
+
+    // The chip select is driven through its GPIO descriptor
+    spi_device_interface_config_t device_config = {};
+    device_config.clock_speed_hz = static_cast<int>(config->clock_speed_hz);
+    device_config.mode = config->mode;
+    device_config.spics_io_num = -1;
+    device_config.queue_size = 1;
+
+    const esp_err_t result = spi_bus_add_device(GET_CONFIG(device)->host, &device_config, &new_device->handle);
+    if (result != ESP_OK) {
+        LOG_E(TAG, "Failed to add device: %s", esp_err_to_name(result));
+        delete new_device;
+        return ERROR_RESOURCE;
+    }
+
+    new_device->cs = cs;
+    *spi_device = new_device;
+    return ERROR_NONE;
+}
+
+static error_t remove_device(Device* device, SpiDevice* spi_device) {
+    if (spi_device->bus_acquired) {
+        spi_device_release_bus(spi_device->handle);
+        if (spi_device->cs != nullptr) gpio_descriptor_set_level(spi_device->cs, false);
+    }
+    const esp_err_t result = spi_bus_remove_device(spi_device->handle);
+    delete spi_device;
+    return result == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
+}
+
+static error_t transmit(Device* device, SpiDevice* spi_device, const void* tx_data, void* rx_data, size_t length) {
+    spi_transaction_t transaction = {};
+    transaction.length = length * 8;
+    transaction.tx_buffer = tx_data;
+    transaction.rx_buffer = rx_data;
+
+    const bool select = spi_device->cs != nullptr && !spi_device->bus_acquired;
+    if (select) gpio_descriptor_set_level(spi_device->cs, true);
+    const esp_err_t result = spi_device_polling_transmit(spi_device->handle, &transaction);
+    if (select) gpio_descriptor_set_level(spi_device->cs, false);
+    return result == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
+}
+
+static error_t acquire_bus(Device* device, SpiDevice* spi_device) {
+    if (spi_device->bus_acquired) return ERROR_INVALID_STATE;
+    if (spi_device_acquire_bus(spi_device->handle, portMAX_DELAY) != ESP_OK) return ERROR_RESOURCE;
+    if (spi_device->cs != nullptr) gpio_descriptor_set_level(spi_device->cs, true);
+    spi_device->bus_acquired = true;
+    return ERROR_NONE;
+}
+
+static error_t release_bus(Device* device, SpiDevice* spi_device) {
+    if (!spi_device->bus_acquired) return ERROR_INVALID_STATE;
+    if (spi_device->cs != nullptr) gpio_descriptor_set_level(spi_device->cs, false);
+    spi_device_release_bus(spi_device->handle);
+    spi_device->bus_acquired = false;
     return ERROR_NONE;
 }
 
@@ -139,11 +221,11 @@ static error_t start(Device* device) {
     // Acquire CS pins
     for (uint8_t i = 0; i < dts_config->cs_gpios_count; i++) {
         const GpioPinSpec* cs = &dts_config->cs_gpios[i];
-        if (cs->gpio_controller == nullptr) continue;
-        GpioDescriptor* desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_SPI);
-        if (desc != nullptr) {
-            data->cs_descriptors.push_back(desc);
+        GpioDescriptor* desc = nullptr;
+        if (cs->gpio_controller != nullptr) {
+            desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_SPI);
         }
+        data->cs_descriptors.push_back(desc);
     }
 
     esp32_spi_deselect_all_cs(device);
@@ -156,7 +238,9 @@ void esp32_spi_deselect_all_cs(Device* device) {
     auto* data = GET_DATA(device);
     if (data == nullptr) return;
     for (auto* desc : data->cs_descriptors) {
-        gpio_descriptor_set_level(desc, false);
+        if (desc != nullptr) {
+            gpio_descriptor_set_level(desc, false);
+        }
     }
 }
 
@@ -188,7 +272,12 @@ error_t esp32_spi_get_cs_pin(Device* child_device, GpioPinSpec* out_pin) {
 const static struct SpiControllerApi esp32_spi_api = {
     .lock = lock,
     .try_lock = try_lock,
-    .unlock = unlock
+    .unlock = unlock,
+    .add_device = add_device,
+    .remove_device = remove_device,
+    .transmit = transmit,
+    .acquire_bus = acquire_bus,
+    .release_bus = release_bus
 };
 
 Driver esp32_spi_driver = {
