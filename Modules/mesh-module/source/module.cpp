@@ -80,8 +80,6 @@ static error_t start() {
 }
 
 static error_t stop() {
-    system_event_callback_remove(KERNEL_EVENT_BOOT_COMPLETED, on_boot_completed);
-
     // Waits for a callback that is running, and makes one that is still pending do nothing
     mutex_lock(&lifecycle_mutex.handle);
     module_active = false;
@@ -92,8 +90,19 @@ static error_t stop() {
     if (error == ERROR_NONE) {
         error = app_manager_remove(mesh_command_manifest.id);
     }
+    if (error != ERROR_NONE) {
+        // The module stays started, so it keeps its callback and the service that may have been stopped runs again
+        module_active = true;
+        if (boot_completed) {
+            start_service_if_enabled();
+        }
+        mutex_unlock(&lifecycle_mutex.handle);
+        return error;
+    }
     mutex_unlock(&lifecycle_mutex.handle);
-    return error;
+
+    system_event_callback_remove(KERNEL_EVENT_BOOT_COMPLETED, on_boot_completed);
+    return ERROR_NONE;
 }
 
 static const ModuleSymbol mesh_module_symbols[] = {

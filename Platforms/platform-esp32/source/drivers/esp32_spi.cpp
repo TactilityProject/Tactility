@@ -129,17 +129,21 @@ static error_t add_device(Device* device, const SpiDeviceConfig* config, SpiDevi
 
 static error_t remove_device(Device* device, SpiDevice* spi_device) {
     auto* data = GET_DATA(device);
-    recursive_mutex_lock(&data->mutex);
-    data->devices.erase(std::remove(data->devices.begin(), data->devices.end(), spi_device), data->devices.end());
-    recursive_mutex_unlock(&data->mutex);
 
     if (spi_device->bus_acquired) {
         if (spi_device->cs != nullptr) gpio_descriptor_set_level(spi_device->cs, false);
         spi_device_release_bus(spi_device->handle);
+        spi_device->bus_acquired = false;
     }
-    const esp_err_t result = spi_bus_remove_device(spi_device->handle);
+
+    // The device stays registered when removal fails, so stop() keeps refusing and the caller can retry
+    if (spi_bus_remove_device(spi_device->handle) != ESP_OK) return ERROR_RESOURCE;
+
+    recursive_mutex_lock(&data->mutex);
+    data->devices.erase(std::remove(data->devices.begin(), data->devices.end(), spi_device), data->devices.end());
+    recursive_mutex_unlock(&data->mutex);
     delete spi_device;
-    return result == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
+    return ERROR_NONE;
 }
 
 static error_t transmit(Device* device, SpiDevice* spi_device, const void* tx_data, void* rx_data, size_t length) {
