@@ -131,6 +131,8 @@ void BootScreen::end() {
         device_put(display);
         display = nullptr;
     }
+    panelWidth = 0;
+    panelHeight = 0;
 }
 
 int BootScreen::getSmallestDimension() const {
