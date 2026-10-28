@@ -113,6 +113,7 @@
 @edit-width: if($isCompact, @line-medium, @line-thick);
 // Drawn inside the widget, for widgets with little room around them (icon buttons)
 @focus-inset-width: if($isCompact, @line-thin, @line-medium);
+@focus-inverted-gap: if($isCompact, 1, 2dp);
 
 // Motion
 @motion-duration-short: if($animationsEnabled, @duration-short, 0);
@@ -335,6 +336,13 @@ focus_ring_inset {
     outlineWidth: @focus-inset-width;
     outlinePad: -@focus-inset-width;
     outlineOpa: cover;
+}
+
+// The tile is ink while inverted. A paper border under the ring leaves a gap, so the ink fill looks smaller than the ring.
+focus_ring_inset_inverted {
+    borderColor: @button-inverted-label-color;
+    borderWidth: @focus-inset-width + @focus-inverted-gap;
+    borderOpa: cover;
 }
 
 edit_ring_inset {
@@ -1075,6 +1083,8 @@ apply(icon_button) {
     inverted: state.pressed;
     inverted: state.checked;
     focus_ring_inset: state.focusKey;
+    focus_ring_inset_inverted: state.focusKey, state.checked;
+    focus_ring_inset_inverted: state.focusKey, state.pressed;
     edit_ring_inset: state.edited;
     disabled: state.disabled;
 }

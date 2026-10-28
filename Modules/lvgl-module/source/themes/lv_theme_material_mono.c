@@ -73,6 +73,7 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define FOCUS_OFFSET (theme->config.is_compact ? LINE_THIN : LINE_MEDIUM)
 #define EDIT_WIDTH (theme->config.is_compact ? LINE_MEDIUM : LINE_THICK)
 #define FOCUS_INSET_WIDTH (theme->config.is_compact ? LINE_THIN : LINE_MEDIUM)
+#define FOCUS_INVERTED_GAP (theme->config.is_compact ? 1 : LV_DPX_CALC(theme->disp_dpi, 2))
 #define MOTION_DURATION_SHORT (theme->config.animations_enabled ? DURATION_SHORT : 0)
 #define MOTION_DURATION_MEDIUM (theme->config.animations_enabled ? DURATION_MEDIUM : 0)
 #define MOTION_DURATION_LONG (theme->config.animations_enabled ? DURATION_LONG : 0)
@@ -223,6 +224,7 @@ typedef struct {
     lv_style_t focus_ring;
     lv_style_t edit_ring;
     lv_style_t focus_ring_inset;
+    lv_style_t focus_ring_inset_inverted;
     lv_style_t edit_ring_inset;
     lv_style_t inverted;
     lv_style_t disabled;
@@ -501,6 +503,11 @@ static void style_init(my_theme_t * theme)
     lv_style_set_outline_width(&theme->styles.focus_ring_inset, FOCUS_INSET_WIDTH);
     lv_style_set_outline_pad(&theme->styles.focus_ring_inset, -FOCUS_INSET_WIDTH);
     lv_style_set_outline_opa(&theme->styles.focus_ring_inset, LV_OPA_COVER);
+
+    style_init_reset(&theme->styles.focus_ring_inset_inverted);
+    lv_style_set_border_color(&theme->styles.focus_ring_inset_inverted, BUTTON_INVERTED_LABEL_COLOR);
+    lv_style_set_border_width(&theme->styles.focus_ring_inset_inverted, FOCUS_INSET_WIDTH + FOCUS_INVERTED_GAP);
+    lv_style_set_border_opa(&theme->styles.focus_ring_inset_inverted, LV_OPA_COVER);
 
     style_init_reset(&theme->styles.edit_ring_inset);
     lv_style_set_outline_color(&theme->styles.edit_ring_inset, FOCUS_RING_COLOR);
@@ -1417,6 +1424,8 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
         lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_CHECKED);
         lv_obj_add_style(obj, &theme->styles.focus_ring_inset, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(obj, &theme->styles.focus_ring_inset_inverted, LV_STATE_FOCUS_KEY | LV_STATE_CHECKED);
+        lv_obj_add_style(obj, &theme->styles.focus_ring_inset_inverted, LV_STATE_FOCUS_KEY | LV_STATE_PRESSED);
         lv_obj_add_style(obj, &theme->styles.edit_ring_inset, LV_STATE_EDITED);
         lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
         return;
