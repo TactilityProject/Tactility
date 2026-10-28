@@ -8,22 +8,42 @@
 
 #include <tactility/error.h>
 #include <tactility/module.h>
+#include <tactility/log.h>
+#include <tactility/system_event.h>
+
+constexpr auto* TAG = "mesh";
 
 extern "C" {
+
+// Radios can start after this module does, so the service only starts once all devices are up
+static void on_boot_completed(SystemEvent* event, void* context) {
+    (void)event;
+    (void)context;
+    if (mesh_service_should_auto_start() && service_manager_start(mesh_service_manifest.id) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to start the service");
+    }
+}
 
 static error_t start() {
     error_t error = app_manager_add(&mesh_command_manifest);
     if (error != ERROR_NONE) {
         return error;
     }
-    error = service_manager_add(&mesh_service_manifest, mesh_service_should_auto_start());
+    error = service_manager_add(&mesh_service_manifest, false);
     if (error != ERROR_NONE) {
+        app_manager_remove(mesh_command_manifest.id);
+        return error;
+    }
+    error = system_event_callback_add(KERNEL_EVENT_BOOT_COMPLETED, on_boot_completed, nullptr);
+    if (error != ERROR_NONE) {
+        service_manager_remove(mesh_service_manifest.id);
         app_manager_remove(mesh_command_manifest.id);
     }
     return error;
 }
 
 static error_t stop() {
+    system_event_callback_remove(KERNEL_EVENT_BOOT_COMPLETED, on_boot_completed);
     error_t error = service_manager_stop(mesh_service_manifest.id);
     if (error != ERROR_NONE && error != ERROR_NOT_FOUND) {
         return error;
