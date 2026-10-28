@@ -45,12 +45,11 @@ constexpr auto* DEFAULT_LAUNCHER_ID = "tactility.launcher";
 
 namespace {
 
-// TODO: Replace with automatic asset buckets like on Android
 BootLogo getSizedLogo(const BootScreen& screen, const BootLogo& small, const BootLogo& medium, const BootLogo& large) {
-    const int smallest_dimension = screen.getSmallestDimension();
-    if (smallest_dimension < 150) { // e.g. Cardputer
+    const int width = screen.getLogicalWidth();
+    if (width < 150) { // e.g. Cardputer
         return small;
-    } else if (smallest_dimension >= 320) {
+    } else if (width > 320) {
         return large;
     } else {
         return medium;
@@ -59,17 +58,17 @@ BootLogo getSizedLogo(const BootScreen& screen, const BootLogo& small, const Boo
 
 BootLogo getLogo(const BootScreen& screen) {
     return getSizedLogo(screen,
-        { asset_app_Boot_assets_logo_small_png, asset_app_Boot_assets_logo_small_png_SIZE },
-        { asset_app_Boot_assets_logo_png, asset_app_Boot_assets_logo_png_SIZE },
-        { asset_app_Boot_assets_logo_large_png, asset_app_Boot_assets_logo_large_png_SIZE }
+        { asset_boot_logo_small_png, asset_boot_logo_small_png_SIZE },
+        { asset_boot_logo_medium_png, asset_boot_logo_medium_png_SIZE },
+        { asset_boot_logo_large_png, asset_boot_logo_large_png_SIZE }
     );
 }
 
 BootLogo getUsbLogo(const BootScreen& screen) {
     return getSizedLogo(screen,
-        { asset_app_Boot_assets_logo_usb_small_png, asset_app_Boot_assets_logo_usb_small_png_SIZE },
-        { asset_app_Boot_assets_logo_usb_png, asset_app_Boot_assets_logo_usb_png_SIZE },
-        { asset_app_Boot_assets_logo_usb_large_png, asset_app_Boot_assets_logo_usb_large_png_SIZE }
+        { asset_boot_logo_usb_small_png, asset_boot_logo_usb_small_png_SIZE },
+        { asset_boot_logo_usb_medium_png, asset_boot_logo_usb_medium_png_SIZE },
+        { asset_boot_logo_usb_large_png, asset_boot_logo_usb_large_png_SIZE }
     );
 }
 

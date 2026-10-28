@@ -83,7 +83,7 @@ Some projects were rewritten entirely. Some examples:
 - Drivers that were written for the `Tactility/` subproject (C++ interface, GPL) and were rewritten from scratch based on `TactilityKernel/` (C interface, Apache)
 - Device subprojects were rewritten from a purely code-focused configuration project to an empty module declaration (can't really copyright this) and a DTS file.
 
-## Logo
+## Tactility Logo
 
 The Tactility logo copyrights are owned by Ken Van Hoeylandt.
 
@@ -98,6 +98,10 @@ For other usages or exceptions, [contact me](https://kenvanhoeylandt.net).
 Practical examples:
 - A blog post about Tactility can use screenshots and the logo itself when writing about Tactility
 - A developer who forked Tactility to merge new features or fixes to the official Tactility repository is allowed to make builds with the logo, as long as these builds are not re-distributed to end-users.
+
+## Vendor Logos
+
+The copyright and/or trademark of the vendor logos are owned by the related vendors.
 
 ## Third Party Notices
 
