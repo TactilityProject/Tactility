@@ -16,6 +16,7 @@
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/camera.h>
+#include <tactility/drivers/compass.h>
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/grove.h>
@@ -261,6 +262,10 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(I2S_CONTROLLER_TYPE),
     // drivers/i8080_controller
     DEFINE_MODULE_SYMBOL(I8080_CONTROLLER_TYPE),
+    // drivers/compass
+    DEFINE_MODULE_SYMBOL(compass_read_field),
+    DEFINE_MODULE_SYMBOL(compass_read_heading),
+    DEFINE_MODULE_SYMBOL(COMPASS_TYPE),
     // drivers/imu
     DEFINE_MODULE_SYMBOL(imu_read_accel),
     DEFINE_MODULE_SYMBOL(imu_read_gyro),
