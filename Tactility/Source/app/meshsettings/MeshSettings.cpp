@@ -25,6 +25,7 @@
 #include <tactility/log.h>
 
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/icons/shared.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/card.h>
@@ -484,7 +485,7 @@ void onFrequencyDialogResult(Context* ctx, int32_t result) {
         char* end = nullptr;
         const double megahertz = strtod(text, &end);
         const bool cleared = text[0] == '\0';
-        if (cleared || (end != text && megahertz >= 100.0 && megahertz <= 1000.0)) {
+        if (cleared || (end != text && *end == '\0' && megahertz >= 100.0 && megahertz <= 1000.0)) {
             MeshRadioSettings settings {};
             mesh_get_radio_settings(MESHCORE_ID, &settings);
             settings.frequency = cleared ? 0 : static_cast<int32_t>(megahertz * 1e6 + 0.5);
@@ -690,6 +691,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->advancedSwitch = lv_switch_create(advancedRow);
     lv_obj_set_state(ctx->advancedSwitch, LV_STATE_CHECKED, ctx->showAdvanced);
     lv_obj_add_event_cb(ctx->advancedSwitch, onAdvancedSwitch, LV_EVENT_VALUE_CHANGED, ctx);
+    // The arrow keys would toggle a switch that is in the input group itself
+    lvgl_grid_navigation_add(advancedRow);
 
     const lv_event_cb_t radioSettingCallbacks[RADIO_SETTING_COUNT] = {
         onSelectFrequencyPressed, onSelectBandwidthPressed, onSelectSpreadingFactorPressed, onSelectCodingRatePressed, onSelectPowerPressed, onSelectPathHashSizePressed, onSelectRegionScopePressed

@@ -58,8 +58,9 @@ void meshcore_scope_key(const char* name, uint8_t key[16]);
 /**
  * The code that identifies a packet as part of a region scope: the first 2 bytes of an HMAC-SHA256 over the payload type
  * and the payload, keyed with the scope's key. 0x0000 and 0xFFFF are reserved, so they are moved to the nearest other code.
+ * @return false when the HMAC couldn't be computed, in which case @a code is not set
  */
-uint16_t meshcore_transport_code(const uint8_t key[16], const MeshCorePacket& packet);
+bool meshcore_transport_code(const uint8_t key[16], const MeshCorePacket& packet, uint16_t* code);
 
 /**
  * Build the URI that MeshCore apps scan as a QR code to add a contact:

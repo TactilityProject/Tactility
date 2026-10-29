@@ -21,11 +21,14 @@ struct MeshBackendSettings {
     struct MeshNetworkSettings network;
 };
 
+/** Loads the settings of a backend, or defaults when there are none */
+void mesh_settings_load_backend(const char* backend, struct MeshBackendSettings* settings);
+
 /**
- * Loads the settings of a backend, or defaults when there are none.
- * @param[in] migrate_legacy take settings that were stored without a backend, for the backend that was selected then
+ * Settings were once stored without a backend, for the backend that was selected. Moves them to @a owner once.
+ * Settings of a backend are never read from the unqualified keys, so no other backend can take them.
  */
-void mesh_settings_load_backend(const char* backend, bool migrate_legacy, struct MeshBackendSettings* settings);
+void mesh_settings_migrate_legacy(const char* owner);
 
 error_t mesh_settings_save_backend(const char* backend, const struct MeshBackendSettings* settings);
 

@@ -203,11 +203,15 @@ Contact* findContact(Backend* backend, const uint8_t publicKey[MESHCORE_PUBLIC_K
     return nullptr;
 }
 
-/** Flooded packets get the path hash size of the network, and a code that limits them to the region scope */
-MeshCorePacket applyNetwork(Backend* backend, const MeshCorePacket& original) {
+/**
+ * Flooded packets get the path hash size of the network, and a code that limits them to the region scope.
+ * @return false when the scope's code couldn't be computed, because sending the packet without it would leave the scope
+ */
+bool applyNetwork(Backend* backend, const MeshCorePacket& original, MeshCorePacket* result) {
     MeshCorePacket packet = original;
     if (packet.route != MeshCoreRoute::Flood) {
-        return packet;
+        *result = packet;
+        return true;
     }
     MeshNetworkSettings network;
     mesh_host_get_network(backend->host, &network);
@@ -215,15 +219,23 @@ MeshCorePacket applyNetwork(Backend* backend, const MeshCorePacket& original) {
     if (network.region_scope[0] != '\0') {
         uint8_t key[16];
         meshcore_scope_key(network.region_scope, key);
+        uint16_t code;
+        if (!meshcore_transport_code(key, packet, &code)) {
+            return false;
+        }
         packet.route = MeshCoreRoute::TransportFlood;
-        packet.transportCodes[0] = meshcore_transport_code(key, packet);
+        packet.transportCodes[0] = code;
         packet.transportCodes[1] = 0;
     }
-    return packet;
+    *result = packet;
+    return true;
 }
 
 bool transmit(Backend* backend, const MeshCorePacket& original, uint32_t seq) {
-    const MeshCorePacket packet = applyNetwork(backend, original);
+    MeshCorePacket packet;
+    if (!applyNetwork(backend, original, &packet)) {
+        return false;
+    }
     uint8_t frame[FRAME_SIZE];
     const size_t length = meshcore_packet_serialize(packet, frame, sizeof(frame));
     if (length == 0) {

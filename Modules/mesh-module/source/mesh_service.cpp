@@ -77,6 +77,7 @@ struct Globals {
         MeshBackendSettings settings;
     } backendSettings[MAX_BACKENDS] = {};
     size_t backendSettingsCount = 0;
+    bool legacySettingsMigrated = false;
     MeshEventSubscription* subscriptions = nullptr;
 };
 
@@ -189,9 +190,17 @@ MeshBackendSettings& getBackendSettings(const MeshBackendApi* api) {
             return entries[i].settings;
         }
     }
+    if (!globals().legacySettingsMigrated) {
+        // The backend that was selected when the settings were saved owns the ones that were stored without a backend
+        const MeshBackendApi* owner = getSelectedBackend();
+        if (owner != nullptr) {
+            mesh_settings_migrate_legacy(owner->id);
+            globals().legacySettingsMigrated = true;
+        }
+    }
     auto& entry = entries[globals().backendSettingsCount < MAX_BACKENDS ? globals().backendSettingsCount++ : MAX_BACKENDS - 1];
     entry.api = api;
-    mesh_settings_load_backend(api->id, getSelectedBackend() == api, &entry.settings);
+    mesh_settings_load_backend(api->id, &entry.settings);
     return entry.settings;
 }
 
@@ -1523,13 +1532,22 @@ error_t mesh_get_preset_name(const char* backend, size_t index, char* name, size
     return result;
 }
 
-/** Stores the settings of a backend. Reconfigures the radio when it's the selected backend. */
-static error_t saveBackendSettings(const MeshBackendApi* api, const MeshBackendSettings& settings) {
+/**
+ * Persists the settings of a backend, and only when that worked uses them: the cache is updated and the radio is
+ * reconfigured when the backend is selected. Called without the global lock, because saving does file operations.
+ */
+static error_t commitBackendSettings(const MeshBackendApi* api, const MeshBackendSettings& settings) {
+    const error_t saved = mesh_settings_save_backend(api->id, &settings);
+    if (saved != ERROR_NONE) {
+        return saved;
+    }
+    lock();
     getBackendSettings(api) = settings;
     if (service != nullptr && api == getSelectedBackend()) {
         MeshHost* host = service;
         post(host, [host] { configure(host); });
     }
+    unlock();
     return ERROR_NONE;
 }
 
@@ -1545,11 +1563,8 @@ error_t mesh_set_preset(const char* backend, const char* name) {
     }
     MeshBackendSettings settings = {};
     strncpy(settings.preset, name, MESH_NAME_MAX_LENGTH);
-    saveBackendSettings(api, settings);
-    const MeshBackendSettings copy = settings;
-    const std::string id = api->id;
     unlock();
-    return mesh_settings_save_backend(id.c_str(), &copy);
+    return commitBackendSettings(api, settings);
 }
 
 error_t mesh_get_preset_region(const char* backend, const char* name, RadioRegion* region) {
@@ -1586,7 +1601,22 @@ error_t mesh_get_preset(const char* backend, char* name, size_t name_size) {
     return result;
 }
 
+/** Whether the whole channel of width @a bandwidth around @a frequency lies in one band of @a region */
+static bool fitsRegion(RadioRegion region, int32_t frequency, int32_t bandwidth) {
+    const RadioRegionBand* bands = nullptr;
+    const size_t count = radio_get_region_bands(region, &bands);
+    return std::any_of(bands, bands + count, [=](const RadioRegionBand& band) {
+        return frequency - bandwidth / 2 >= band.frequency_min && frequency + bandwidth / 2 <= band.frequency_max;
+    });
+}
+
 error_t mesh_set_radio_settings(const char* backend, const MeshRadioSettings* radio_settings) {
+    const bool applies = presetsApply();
+    Device* radio = findRadio();
+    const RadioRegion region = (radio != nullptr) ? radio_get_region(radio) : RADIO_REGION_UNSET;
+    if (radio != nullptr) {
+        device_put(radio);
+    }
     lock();
     ensureSettingsLoaded();
     const MeshBackendApi* api = resolveBackend(backend);
@@ -1596,10 +1626,17 @@ error_t mesh_set_radio_settings(const char* backend, const MeshRadioSettings* ra
     }
     MeshBackendSettings settings = getBackendSettings(api);
     settings.radio_settings = *radio_settings;
-    saveBackendSettings(api, settings);
-    const std::string id = api->id;
+    if (applies && region != RADIO_REGION_UNSET) {
+        // The radio rejects a channel outside the bands of the region, which would leave the mesh in the error state
+        MeshRadioProfile profile {};
+        if (getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, findPreset(api, settings.preset), settings.radio_settings, &profile) == ERROR_NONE &&
+            !fitsRegion(region, profile.frequency, profile.bandwidth)) {
+            unlock();
+            return ERROR_OUT_OF_RANGE;
+        }
+    }
     unlock();
-    return mesh_settings_save_backend(id.c_str(), &settings);
+    return commitBackendSettings(api, settings);
 }
 
 error_t mesh_get_radio_settings(const char* backend, MeshRadioSettings* radio_settings) {
@@ -1625,10 +1662,8 @@ error_t mesh_set_network_settings(const char* backend, const MeshNetworkSettings
     }
     MeshBackendSettings settings = getBackendSettings(api);
     settings.network = *network_settings;
-    saveBackendSettings(api, settings);
-    const std::string id = api->id;
     unlock();
-    return mesh_settings_save_backend(id.c_str(), &settings);
+    return commitBackendSettings(api, settings);
 }
 
 error_t mesh_get_network_settings(const char* backend, MeshNetworkSettings* network_settings) {
@@ -1669,10 +1704,19 @@ error_t mesh_get_radio_parameters(const char* backend, MeshRadioSettings* parame
     ensureSettingsLoaded();
     const MeshBackendApi* api = resolveBackend(backend);
     error_t result = ERROR_INVALID_STATE;
-    if (api != nullptr && applies && region != RADIO_REGION_UNSET) {
+    if (api != nullptr && service != nullptr && service->api == api && service->backend != nullptr && service->state == MESH_STATE_ON &&
+        service->profile.modulation == RADIO_MODULATION_LORA) {
+        // The running backend knows its own state, e.g. the frequency slot that its primary channel selects
+        parameters->frequency = service->profile.frequency;
+        parameters->bandwidth = service->profile.bandwidth;
+        parameters->spreading_factor = service->profile.spreading_factor;
+        parameters->coding_rate = service->profile.coding_rate;
+        parameters->power = service->profile.power;
+        result = ERROR_NONE;
+    } else if (api != nullptr && applies && region != RADIO_REGION_UNSET) {
         const MeshBackendSettings settings = getBackendSettings(api);
         MeshRadioProfile profile {};
-        // The profile of the running backend has the same values, so it doesn't need its own state
+        // Without a running backend there is no state, so a backend that depends on it uses its defaults
         result = getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, findPreset(api, settings.preset), settings.radio_settings, &profile);
         if (result == ERROR_NONE) {
             parameters->frequency = profile.frequency;

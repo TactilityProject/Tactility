@@ -3,6 +3,7 @@
 
 #include <service/paths.h>
 
+#include <tactility/concurrent/mutex.h>
 #include <tactility/filesystem/fs.h>
 #include <tactility/log.h>
 #include <tactility/paths.h>
@@ -30,6 +31,7 @@ constexpr auto* KEY_CODING_RATE = "codingRate";
 constexpr auto* KEY_POWER = "power";
 constexpr auto* KEY_PATH_HASH_SIZE = "pathHashSize";
 constexpr auto* KEY_REGION_SCOPE = "regionScope";
+constexpr auto* KEY_LEGACY_MIGRATED = "legacySettingsMigrated";
 constexpr auto* KEY_NODE_NAME = "nodeName";
 constexpr auto* KEY_RADIO = "radio";
 // Earlier versions stored this as the name when the user hadn't chosen one
@@ -43,6 +45,23 @@ static uint32_t random_u32() {
     return device();
 #endif
 }
+
+/**
+ * Saving opens the file, sets keys and rewrites the whole file from what was read when it was opened.
+ * Holding this from open to close keeps concurrent saves from reverting each other's keys.
+ */
+struct FileMutex {
+    Mutex handle {};
+    FileMutex() { mutex_construct(&handle); }
+    ~FileMutex() { mutex_destruct(&handle); }
+};
+
+static FileMutex fileMutex;
+
+struct FileLock {
+    FileLock() { mutex_lock(&fileMutex.handle); }
+    ~FileLock() { mutex_unlock(&fileMutex.handle); }
+};
 
 static void read_settings_file(MeshSettings* settings) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
@@ -101,6 +120,7 @@ static PropertiesFile* open_for_write() {
 }
 
 error_t mesh_settings_save(const MeshSettings* settings) {
+    FileLock fileLock;
     PropertiesFile* file = open_for_write();
     if (file == nullptr) {
         return ERROR_RESOURCE;
@@ -112,17 +132,42 @@ error_t mesh_settings_save(const MeshSettings* settings) {
     return properties_file_close(file);
 }
 
-/** Reads a setting stored as "<backend>.<key>", or as "<key>" when @a legacy */
-static bool read_backend_value(const PropertiesFile* file, const char* backend, const char* key, bool legacy, char* value, size_t value_size) {
-    char name[MESH_BACKEND_ID_MAX_LENGTH + 24];
-    snprintf(name, sizeof(name), "%s.%s", backend, key);
-    if (properties_file_get(file, name, value, value_size) == ERROR_NONE) {
-        return true;
-    }
-    return legacy && properties_file_get(file, key, value, value_size) == ERROR_NONE;
+/** The keys of MeshBackendSettings */
+static const char* const BACKEND_KEYS[] = {
+    KEY_PRESET, KEY_FREQUENCY, KEY_BANDWIDTH, KEY_SPREADING_FACTOR, KEY_CODING_RATE, KEY_POWER, KEY_PATH_HASH_SIZE, KEY_REGION_SCOPE,
+};
+
+static void qualified_name(const char* backend, const char* key, char* name, size_t size) {
+    snprintf(name, size, "%s.%s", backend, key);
 }
 
-void mesh_settings_load_backend(const char* backend, bool migrate_legacy, MeshBackendSettings* settings) {
+void mesh_settings_migrate_legacy(const char* owner) {
+    FileLock fileLock;
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (service_paths_get_user_data_path(MESH_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
+        return;
+    }
+    PropertiesFile* file = properties_file_open(path);
+    if (file == nullptr) {
+        return;
+    }
+    if (properties_file_has(file, KEY_LEGACY_MIGRATED)) {
+        properties_file_close(file);
+        return;
+    }
+    char value[64];
+    char name[MESH_BACKEND_ID_MAX_LENGTH + 24];
+    for (const char* key : BACKEND_KEYS) {
+        qualified_name(owner, key, name, sizeof(name));
+        if (!properties_file_has(file, name) && properties_file_get(file, key, value, sizeof(value)) == ERROR_NONE) {
+            properties_file_set(file, name, value);
+        }
+    }
+    properties_file_set(file, KEY_LEGACY_MIGRATED, "true");
+    properties_file_close(file);
+}
+
+void mesh_settings_load_backend(const char* backend, MeshBackendSettings* settings) {
     *settings = {};
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (service_paths_get_user_data_path(MESH_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
@@ -133,7 +178,9 @@ void mesh_settings_load_backend(const char* backend, bool migrate_legacy, MeshBa
         return;
     }
     char value[64];
-    if (read_backend_value(file, backend, KEY_PRESET, migrate_legacy, value, sizeof(value))) {
+    char name[MESH_BACKEND_ID_MAX_LENGTH + 24];
+    qualified_name(backend, KEY_PRESET, name, sizeof(name));
+    if (properties_file_get(file, name, value, sizeof(value)) == ERROR_NONE) {
         strncpy(settings->preset, value, MESH_NAME_MAX_LENGTH);
     }
     const struct {
@@ -148,17 +195,20 @@ void mesh_settings_load_backend(const char* backend, bool migrate_legacy, MeshBa
         { KEY_PATH_HASH_SIZE, &settings->network.path_hash_size },
     };
     for (const auto& number : numbers) {
-        if (read_backend_value(file, backend, number.key, migrate_legacy, value, sizeof(value))) {
+        qualified_name(backend, number.key, name, sizeof(name));
+        if (properties_file_get(file, name, value, sizeof(value)) == ERROR_NONE) {
             *number.target = atoi(value);
         }
     }
-    if (read_backend_value(file, backend, KEY_REGION_SCOPE, migrate_legacy, value, sizeof(value))) {
+    qualified_name(backend, KEY_REGION_SCOPE, name, sizeof(name));
+    if (properties_file_get(file, name, value, sizeof(value)) == ERROR_NONE) {
         strncpy(settings->network.region_scope, value, MESH_NAME_MAX_LENGTH);
     }
     properties_file_close(file);
 }
 
 error_t mesh_settings_save_backend(const char* backend, const MeshBackendSettings* settings) {
+    FileLock fileLock;
     PropertiesFile* file = open_for_write();
     if (file == nullptr) {
         return ERROR_RESOURCE;

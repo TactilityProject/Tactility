@@ -27,6 +27,7 @@ psa_key_id_t importKey(psa_key_type_t type, psa_algorithm_t algorithm, psa_key_u
 }
 
 void hmac(const uint8_t secret[MESHCORE_SECRET_SIZE], const uint8_t* data, size_t length, uint8_t mac[32]) {
+    // On failure the MAC is all zeros, which doesn't match any valid MAC
     meshcore_hmac_sha256(secret, MESHCORE_SECRET_SIZE, data, length, mac);
 }
 
@@ -52,14 +53,16 @@ bool aesEcb(const uint8_t secret[MESHCORE_SECRET_SIZE], bool encrypt, const uint
 
 } // namespace
 
-void meshcore_hmac_sha256(const uint8_t* secret, size_t secret_length, const uint8_t* data, size_t length, uint8_t mac[32]) {
+bool meshcore_hmac_sha256(const uint8_t* secret, size_t secret_length, const uint8_t* data, size_t length, uint8_t mac[32]) {
     const auto algorithm = PSA_ALG_HMAC(PSA_ALG_SHA_256);
     const psa_key_id_t key = importKey(PSA_KEY_TYPE_HMAC, algorithm, PSA_KEY_USAGE_SIGN_MESSAGE, secret, secret_length);
     size_t macLength = 0;
-    if (key == PSA_KEY_ID_NULL || psa_mac_compute(key, algorithm, data, length, mac, 32, &macLength) != PSA_SUCCESS) {
+    const bool ok = key != PSA_KEY_ID_NULL && psa_mac_compute(key, algorithm, data, length, mac, 32, &macLength) == PSA_SUCCESS;
+    if (!ok) {
         memset(mac, 0, 32);
     }
     psa_destroy_key(key);
+    return ok;
 }
 
 void meshcore_sha256(uint8_t* hash, size_t hash_size, const uint8_t* data, size_t length) {

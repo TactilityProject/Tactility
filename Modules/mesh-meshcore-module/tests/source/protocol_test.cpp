@@ -199,11 +199,14 @@ TEST_CASE("a region scope limits a packet with a code that other MeshCore nodes 
     packet.payloadType = MeshCorePayload::TextMessage;
     packet.payloadLength = 5;
     memcpy(packet.payload, "hello", 5);
-    CHECK_EQ(meshcore_transport_code(key, packet), 0xEEC8);
+    uint16_t code = 0;
+    REQUIRE(meshcore_transport_code(key, packet, &code));
+    CHECK_EQ(code, 0xEEC8);
 
     packet.payloadType = MeshCorePayload::Advert;
     packet.payloadLength = 0;
-    CHECK_EQ(meshcore_transport_code(key, packet), 0xF329);
+    REQUIRE(meshcore_transport_code(key, packet, &code));
+    CHECK_EQ(code, 0xF329);
 }
 
 TEST_CASE("a MeshCore preset only gives a radio profile in a region that allows its frequency") {

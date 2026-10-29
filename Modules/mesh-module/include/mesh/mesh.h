@@ -260,6 +260,8 @@ error_t mesh_get_radio_settings(const char* backend, struct MeshRadioSettings* s
 
 /**
  * Get the LoRa parameters that a backend would run with: the preset's values with the settings applied.
+ * The values of the radio when the backend is running. Otherwise the backend's defaults, which can differ from
+ * what it runs with when its state selects the frequency, like the primary channel of Meshtastic.
  * @retval ERROR_INVALID_STATE when the radio doesn't use LoRa or has no region
  */
 error_t mesh_get_radio_parameters(const char* backend, struct MeshRadioSettings* parameters);

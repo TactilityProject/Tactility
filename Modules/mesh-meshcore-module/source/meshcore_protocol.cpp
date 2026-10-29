@@ -68,17 +68,21 @@ void meshcore_scope_key(const char* name, uint8_t key[16]) {
     meshcore_hashtag_channel_key(hashtag, key);
 }
 
-uint16_t meshcore_transport_code(const uint8_t key[16], const MeshCorePacket& packet) {
+bool meshcore_transport_code(const uint8_t key[16], const MeshCorePacket& packet, uint16_t* code) {
     uint8_t message[1 + MESHCORE_MAX_PAYLOAD_SIZE];
     message[0] = static_cast<uint8_t>(packet.payloadType);
     memcpy(message + 1, packet.payload, packet.payloadLength);
     uint8_t mac[32];
-    meshcore_hmac_sha256(key, 16, message, 1 + packet.payloadLength, mac);
-    const uint16_t code = static_cast<uint16_t>(mac[0] | (mac[1] << 8));
-    if (code == 0x0000) {
-        return 0x0001;
+    if (!meshcore_hmac_sha256(key, 16, message, 1 + packet.payloadLength, mac)) {
+        return false;
     }
-    return (code == 0xFFFF) ? 0xFFFE : code;
+    const uint16_t value = static_cast<uint16_t>(mac[0] | (mac[1] << 8));
+    if (value == 0x0000) {
+        *code = 0x0001;
+    } else {
+        *code = (value == 0xFFFF) ? 0xFFFE : value;
+    }
+    return true;
 }
 
 void meshcore_shared_secret(const MeshCoreIdentity& identity, const uint8_t peerPublicKey[MESHCORE_PUBLIC_KEY_SIZE], uint8_t secret[MESHCORE_SECRET_SIZE]) {

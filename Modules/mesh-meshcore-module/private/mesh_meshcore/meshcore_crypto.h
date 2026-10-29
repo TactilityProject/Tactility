@@ -12,8 +12,11 @@ constexpr size_t MESHCORE_CIPHER_KEY_SIZE = 16;
 constexpr size_t MESHCORE_CIPHER_MAC_SIZE = 2;
 constexpr size_t MESHCORE_CIPHER_BLOCK_SIZE = 16;
 
-/** HMAC-SHA256 with a key of any length */
-void meshcore_hmac_sha256(const uint8_t* key, size_t key_length, const uint8_t* data, size_t length, uint8_t mac[32]);
+/**
+ * HMAC-SHA256 with a key of any length
+ * @return false when the MAC couldn't be computed, in which case @a mac is all zeros
+ */
+bool meshcore_hmac_sha256(const uint8_t* key, size_t key_length, const uint8_t* data, size_t length, uint8_t mac[32]);
 
 void meshcore_sha256(uint8_t* hash, size_t hash_size, const uint8_t* data, size_t length);
 
