@@ -396,9 +396,9 @@ error_t mesh_get_channels(struct MeshChannel* channels, size_t max_count, size_t
 error_t mesh_set_channel(const struct MeshChannel* channel);
 
 /**
- * Leave a channel. The stored messages remain. Channel 0 is the primary channel and can't be removed.
+ * Leave a channel. The stored messages remain.
  * @retval ERROR_NOT_FOUND when there is no such channel
- * @retval ERROR_INVALID_ARGUMENT for channel 0
+ * @retval ERROR_INVALID_ARGUMENT when the backend can't do without the channel, e.g. the primary channel of Meshtastic
  * @retval ERROR_NOT_SUPPORTED when the backend has no channels
  */
 error_t mesh_remove_channel(uint8_t index);

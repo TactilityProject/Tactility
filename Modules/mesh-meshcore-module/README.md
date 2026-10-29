@@ -7,8 +7,9 @@ Supported:
 
 - Identity: an Ed25519 key pair created on first start and stored in the backend's data directory.
 - Adverts: sent at start and every 12 hours, received adverts are verified and remembered as contacts.
-- Channel messages (`GRP_TXT`): the "Public" channel is preconfigured, more channels can be added with
-  `mesh_set_channel()` (16-byte keys).
+- Channel messages (`GRP_TXT`): the "Public" channel is preconfigured on a new node. It can be removed, and added again with
+  `mesh_set_channel()` and the name "Public" without a key. More channels can be added with `mesh_set_channel()`
+  (16-byte keys, or hashtag names without a key).
 - Direct messages (`TXT_MSG`) to and from known contacts, sent as flood packets. Received messages are
   acknowledged, and acknowledgements of sent messages mark them as delivered.
 

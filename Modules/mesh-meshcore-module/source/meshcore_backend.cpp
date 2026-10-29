@@ -50,6 +50,8 @@ struct PendingAck {
     uint64_t deadlineMs;
 };
 
+constexpr auto* PUBLIC_CHANNEL_NAME = "Public";
+
 struct Backend {
     MeshHost* host = nullptr;
     MeshCoreIdentity identity {};
@@ -154,7 +156,9 @@ void loadChannels(Backend* backend) {
     tt::std::vector<uint8_t> data;
     // Record: index (1) + name (32) + key (16)
     constexpr size_t RECORD_SIZE = 1 + MESH_NAME_MAX_LENGTH + 1 + 16;
-    if (getPath(backend, "channels.bin", path, sizeof(path)) && readFile(path, data)) {
+    // Only a node that never saved its channels starts with the Public channel, so that it can be removed
+    const bool saved = getPath(backend, "channels.bin", path, sizeof(path)) && readFile(path, data);
+    if (saved) {
         for (size_t offset = 0; offset + RECORD_SIZE <= data.size(); offset += RECORD_SIZE) {
             char name[MESH_NAME_MAX_LENGTH + 1];
             memcpy(name, data.data() + offset + 1, sizeof(name));
@@ -162,8 +166,8 @@ void loadChannels(Backend* backend) {
             addChannel(backend, data[offset], name, data.data() + offset + 1 + sizeof(name));
         }
     }
-    if (backend->channels.empty()) {
-        addChannel(backend, 0, "Public", MESHCORE_PUBLIC_CHANNEL_KEY);
+    if (!saved) {
+        addChannel(backend, 0, PUBLIC_CHANNEL_NAME, MESHCORE_PUBLIC_CHANNEL_KEY);
     }
 }
 
@@ -656,6 +660,8 @@ error_t setChannel(void* context, const MeshChannel* channel) {
         memcpy(key, channel->key, sizeof(key));
     } else if (channel->key_length == 0 && channel->name[0] == '#') {
         meshcore_hashtag_channel_key(channel->name, key);
+    } else if (channel->key_length == 0 && strcmp(channel->name, PUBLIC_CHANNEL_NAME) == 0) {
+        memcpy(key, MESHCORE_PUBLIC_CHANNEL_KEY, sizeof(key));
     } else {
         return ERROR_INVALID_ARGUMENT;
     }

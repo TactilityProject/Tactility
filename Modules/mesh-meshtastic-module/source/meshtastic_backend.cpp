@@ -91,6 +91,8 @@ struct Channel {
     char name[MESH_NAME_MAX_LENGTH + 1];
     MeshtasticChannelKey key;
     uint8_t hash;
+    /** The primary channel that was never customised is named after the selected preset, like other nodes name it */
+    bool followsPreset;
 };
 
 struct Backend {
@@ -178,15 +180,28 @@ void loadOrCreateNodeNum(Backend* backend) {
     }
 }
 
-void addChannel(Backend* backend, uint8_t index, const char* name, const MeshtasticChannelKey& key) {
+void addChannel(Backend* backend, uint8_t index, const char* name, const MeshtasticChannelKey& key, bool followsPreset = false) {
     Channel channel {};
     channel.index = index;
     strncpy(channel.name, name, MESH_NAME_MAX_LENGTH);
     channel.key = key;
     channel.hash = meshtastic_channel_hash(name, key);
+    channel.followsPreset = followsPreset;
     std::erase_if(backend->channels, [index](const Channel& existing) { return existing.index == index; });
     backend->channels.push_back(channel);
     std::sort(backend->channels.begin(), backend->channels.end(), [](const Channel& a, const Channel& b) { return a.index < b.index; });
+}
+
+MeshtasticChannelKey getDefaultKey() {
+    const uint8_t defaultPsk = 1;
+    MeshtasticChannelKey key {};
+    meshtastic_expand_psk(&defaultPsk, 1, &key);
+    return key;
+}
+
+bool isDefaultKey(const MeshtasticChannelKey& key) {
+    const MeshtasticChannelKey defaultKey = getDefaultKey();
+    return key.length == defaultKey.length && memcmp(key.bytes, defaultKey.bytes, defaultKey.length) == 0;
 }
 
 // Record: index (1) + name (32) + key length (1) + key (32)
@@ -204,15 +219,14 @@ void loadChannels(Backend* backend) {
             key.length = data[offset + 1 + sizeof(name)];
             memcpy(key.bytes, data.data() + offset + 2 + sizeof(name), 32);
             if (key.length == 16 || key.length == 32) {
-                addChannel(backend, data[offset], name, key);
+                // A primary channel without a name and with the default key is the one that follows the preset
+                const bool followsPreset = data[offset] == 0 && name[0] == '\0' && isDefaultKey(key);
+                addChannel(backend, data[offset], followsPreset ? DEFAULT_CHANNEL_NAME : name, key, followsPreset);
             }
         }
     }
     if (backend->channels.empty()) {
-        const uint8_t defaultPsk = 1;
-        MeshtasticChannelKey key {};
-        meshtastic_expand_psk(&defaultPsk, 1, &key);
-        addChannel(backend, 0, DEFAULT_CHANNEL_NAME, key);
+        addChannel(backend, 0, DEFAULT_CHANNEL_NAME, getDefaultKey(), true);
     }
 }
 
@@ -224,7 +238,9 @@ void saveChannels(Backend* backend) {
     tt::std::vector<uint8_t> data;
     for (const auto& channel : backend->channels) {
         data.push_back(channel.index);
-        data.insert(data.end(), channel.name, channel.name + MESH_NAME_MAX_LENGTH + 1);
+        const char emptyName[MESH_NAME_MAX_LENGTH + 1] = {};
+        const char* name = channel.followsPreset ? emptyName : channel.name;
+        data.insert(data.end(), name, name + MESH_NAME_MAX_LENGTH + 1);
         data.push_back(channel.key.length);
         data.insert(data.end(), channel.key.bytes, channel.key.bytes + 32);
     }
@@ -369,25 +385,15 @@ void destroy(void* context) {
     tt::deleteObject(static_cast<Backend*>(context));
 }
 
-/** The primary channel of a node that never customised it is named after the preset, which keeps it compatible with other nodes on that preset */
-void renameDefaultPrimaryChannel(Backend* backend, const char* presetName) {
-    Channel* primary = nullptr;
+/** The primary channel that was never customised takes the name of the selected preset. It isn't saved, so a channel that was configured with a preset's name keeps its name. */
+void followPreset(Backend* backend, const char* presetName) {
     for (auto& channel : backend->channels) {
-        if (channel.index == 0) {
-            primary = &channel;
+        if (channel.index == 0 && channel.followsPreset && strcmp(channel.name, presetName) != 0) {
+            // Copied because addChannel() replaces the channel
+            const MeshtasticChannelKey key = channel.key;
+            addChannel(backend, 0, presetName, key, true);
+            return;
         }
-    }
-    if (primary == nullptr || strcmp(primary->name, presetName) == 0) {
-        return;
-    }
-    const uint8_t defaultPsk = 1;
-    MeshtasticChannelKey defaultKey {};
-    meshtastic_expand_psk(&defaultPsk, 1, &defaultKey);
-    const bool isDefaultKey = primary->key.length == defaultKey.length && memcmp(primary->key.bytes, defaultKey.bytes, defaultKey.length) == 0;
-    const bool isPresetName = std::any_of(MODEM_PRESETS.begin(), MODEM_PRESETS.end(), [primary](const ModemPreset& preset) { return strcmp(preset.name, primary->name) == 0; });
-    if (isDefaultKey && isPresetName) {
-        addChannel(backend, 0, presetName, defaultKey);
-        saveChannels(backend);
     }
 }
 
@@ -406,7 +412,7 @@ error_t getRadioProfile(void* context, RadioRegion region, RadioModulation modul
         }
         // Without a backend there are no channels, and the preset's own name selects the slot
         if (backend != nullptr) {
-            renameDefaultPrimaryChannel(backend, preset.name);
+            followPreset(backend, preset.name);
         }
         // The slot that the primary channel's name selects
         const Channel* primary = (backend != nullptr) ? findChannel(backend, 0) : nullptr;
@@ -560,6 +566,10 @@ error_t setChannel(void* context, const MeshChannel* channel) {
 
 error_t removeChannel(void* context, uint8_t index) {
     auto* backend = static_cast<Backend*>(context);
+    // Meshtastic needs the primary channel to place the node in a frequency slot
+    if (index == 0) {
+        return ERROR_INVALID_ARGUMENT;
+    }
     const size_t removed = std::erase_if(backend->channels, [index](const Channel& existing) { return existing.index == index; });
     if (removed == 0) {
         return ERROR_NOT_FOUND;

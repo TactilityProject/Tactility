@@ -851,7 +851,7 @@ int32_t appMain(int argc, char* argv[]) {
 
 } // namespace
 
-/** A new channel gets the next free index, and a channel with the same name keeps its index */
+/** A new channel gets the next free index after the primary one, and a channel with the same name keeps its index */
 static error_t findChannelIndex(const char* name, uint8_t* index) {
     MeshChannel channels[8];
     size_t count = 0;
@@ -859,13 +859,19 @@ static error_t findChannelIndex(const char* name, uint8_t* index) {
     if (error != ERROR_NONE) {
         return error;
     }
-    *index = 0;
+    *index = 1;
+    bool primaryTaken = false;
     for (size_t i = 0; i < count; i++) {
         if (strcmp(channels[i].name, name) == 0) {
             *index = channels[i].index;
             return ERROR_NONE;
         }
+        primaryTaken |= channels[i].index == 0;
         *index = std::max<uint8_t>(*index, channels[i].index + 1);
+    }
+    // The Public channel of MeshCore takes the primary index again when it was removed
+    if (!primaryTaken && strcmp(name, "Public") == 0) {
+        *index = 0;
     }
     return ERROR_NONE;
 }

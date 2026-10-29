@@ -106,8 +106,9 @@ struct MeshBackendApi {
     void (*on_node_name_changed)(void* backend);
 
     /**
-     * Optional. The service doesn't call it for channel 0.
+     * Optional.
      * @retval ERROR_NOT_FOUND when there is no such channel
+     * @retval ERROR_INVALID_ARGUMENT when the backend can't do without the channel
      */
     error_t (*remove_channel)(void* backend, uint8_t index);
 };

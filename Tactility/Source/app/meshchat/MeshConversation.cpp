@@ -201,10 +201,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (ctx->isPrivateChannel) {
         addIconAction(toolbar, LVGL_ICON_SHARED_INFO, onInfoPressed, ctx);
     }
-    // The primary channel can't be left
-    if (ctx->isContact || ctx->channel != 0) {
-        addIconAction(toolbar, LVGL_ICON_SHARED_PERSON_REMOVE, onRemovePressed, ctx);
-    }
+    addIconAction(toolbar, LVGL_ICON_SHARED_PERSON_REMOVE, onRemovePressed, ctx);
 
     ctx->statusLabel = lv_label_create(parent);
     lv_obj_set_width(ctx->statusLabel, LV_PCT(100));
@@ -366,7 +363,8 @@ bool onRemoveResult(Context* ctx, int32_t result) {
     const error_t error = ctx->isContact ? mesh_remove_contact(&ctx->peer) : mesh_remove_channel(ctx->channel);
     if (error != ERROR_NONE && error != ERROR_NOT_FOUND) {
         LOG_E(TAG, "Failed to remove: %s", error_to_string(error));
-        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, "Couldn't remove", error_to_string(error));
+        const char* reason = (error == ERROR_INVALID_ARGUMENT) ? "This channel can't be left." : error_to_string(error);
+        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, "Couldn't remove", reason);
         return false;
     }
     return true;

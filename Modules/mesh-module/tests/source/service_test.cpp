@@ -675,8 +675,8 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK_EQ(mesh_conversation_get(&alice, 0, 0, conversation, 4, &count), ERROR_NONE);
         CHECK_EQ(count, 1);
 
-        // The primary channel stays, and the loopback backend has no channels
-        CHECK_EQ(mesh_remove_channel(0), ERROR_INVALID_ARGUMENT);
+        // The loopback backend has no channels
+        CHECK_EQ(mesh_remove_channel(0), ERROR_NOT_SUPPORTED);
         CHECK_EQ(mesh_remove_channel(2), ERROR_NOT_SUPPORTED);
 
         CHECK_EQ(mesh_cancel(seq), ERROR_INVALID_STATE);

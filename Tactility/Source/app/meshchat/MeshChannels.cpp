@@ -200,7 +200,7 @@ void startJoinChannel(Context* ctx) {
     ctx->joinChannelDialogId = inputdialog::start(
         ctx->appInstanceId,
         "Join channel",
-        "Hashtag channel name, e.g. #test",
+        "Hashtag channel name, e.g. #test, or Public",
         "#",
         ctx->channelStream,
         ctx->channelBuffer,
@@ -216,7 +216,7 @@ void onJoinChannelResult(Context* ctx, int32_t result) {
         name[length] = '\0';
         const error_t error = meshsettings::joinHashtagChannel(name);
         if (error == ERROR_INVALID_ARGUMENT) {
-            showMessage(ctx, "Couldn't join channel", "Use a channel name that starts with #. This mesh network can't join a channel by name.");
+            showMessage(ctx, "Couldn't join channel", "Use a channel name that starts with # or Public. This mesh network can't join a channel by name.");
         } else if (error != ERROR_NONE) {
             LOG_E(TAG, "Failed to join channel %s: %s", name, error_to_string(error));
             showMessage(ctx, "Couldn't join channel", error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));

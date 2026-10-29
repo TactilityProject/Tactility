@@ -1938,9 +1938,6 @@ error_t mesh_set_channel(const MeshChannel* channel) {
 }
 
 error_t mesh_remove_channel(uint8_t index) {
-    if (index == 0) {
-        return ERROR_INVALID_ARGUMENT;
-    }
     error_t result = ERROR_INVALID_STATE;
     const error_t callResult = callOnServiceThread([&](MeshHost* host) {
         if (host->api == nullptr) {
