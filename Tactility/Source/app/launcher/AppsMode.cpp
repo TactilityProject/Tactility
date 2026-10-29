@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <strings.h>
 #include <new>
 #include <string>
 
@@ -110,7 +111,7 @@ std::vector<TileGridItem> collectItems() {
         if (a.highlighted != b.highlighted) {
             return a.highlighted;
         }
-        return a.name < b.name;
+        return strcasecmp(a.name.c_str(), b.name.c_str()) < 0;
     });
     return items;
 }
