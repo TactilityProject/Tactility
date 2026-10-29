@@ -152,7 +152,10 @@ error_t spi_controller_add_device(struct Device* device, const struct SpiDeviceC
 error_t spi_controller_remove_device(struct Device* device, struct SpiDevice* spi_device);
 
 /**
- * @brief Does a blocking full-duplex transfer with a peripheral.
+ * @brief Does a blocking transfer with a peripheral.
+ * A half-duplex peripheral runs a write phase (when tx_data is set) followed by a read phase (when
+ * rx_data is set) as separate transactions that keep the peripheral selected; a full-duplex
+ * peripheral clocks both phases at once.
  * The caller holds the controller lock when the bus is shared.
  * @param[in] device the SPI controller device
  * @param[in] spi_device a peripheral that was added to this controller
