@@ -479,7 +479,7 @@ extern const ::AppManifest conversationManifest = {
     .category = APP_CATEGORY_USER,
     .location = { APP_LOCATION_MEMORY, reinterpret_cast<void*>(appMain) },
     .flags = APP_MANIFEST_FLAG_HIDDEN,
-    .stack = { .depth = 5120, .desired_memory_capability = 0 },
+    .stack = { .depth = 6144, .desired_memory_capability = 0 },
 };
 
 } // namespace tt::app::meshchat

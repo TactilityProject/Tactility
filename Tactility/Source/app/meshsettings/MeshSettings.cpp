@@ -925,7 +925,7 @@ extern const ::AppManifest manifest = {
     .category = APP_CATEGORY_SETTINGS,
     .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(appMain) },
     .flags = 0,
-    .stack = { .depth = 6144, .desired_memory_capability = 0 },
+    .stack = { .depth = 7168, .desired_memory_capability = 0 },
 };
 
 } // namespace tt::app::meshsettings
