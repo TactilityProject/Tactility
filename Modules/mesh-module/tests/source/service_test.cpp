@@ -12,7 +12,11 @@
 #include <tactility/device.h>
 #include <tactility/drivers/radio.h>
 #include <tactility/filesystem/file_system.h>
+#include <tactility/filesystem/fs.h>
 #include <tactility/paths.h>
+#include <tactility/properties_file.h>
+
+#include <service/paths.h>
 
 #include <atomic>
 #include <cmath>
@@ -61,17 +65,17 @@ void* loopbackCreate(MeshHost* host) {
 }
 void loopbackDestroy(void*) {}
 
-const char* const loopbackPresets[] = { "Default", "Other", nullptr };
+const char* const loopbackPresets[] = { "Default", "Other", "Wide", nullptr };
 
-error_t loopbackGetRadioProfile(void*, RadioRegion, RadioModulation modulation, size_t preset, MeshRadioProfile* profile) {
+error_t loopbackGetRadioProfile(void*, RadioRegion region, RadioModulation modulation, size_t preset, MeshRadioProfile* profile) {
     if (modulation == RADIO_MODULATION_ESPNOW) {
         *profile = { .modulation = RADIO_MODULATION_ESPNOW, .power = 20, .channel = 6 };
         return ERROR_NONE;
     }
     *profile = {
         .modulation = RADIO_MODULATION_LORA,
-        .frequency = 869525000,
-        .bandwidth = 250000,
+        .frequency = (region == RADIO_REGION_US_915) ? 915000000 : 869525000,
+        .bandwidth = (preset == 2) ? 500000 : 250000,
         .spreading_factor = (preset == 1) ? 7 : 11,
         .coding_rate = 5,
         .sync_word = 0x2B,
@@ -294,10 +298,10 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
 
         char name[MESH_NAME_MAX_LENGTH + 1];
-        CHECK_EQ(mesh_get_preset_count(nullptr), 2);
+        CHECK_EQ(mesh_get_preset_count(nullptr), 3);
         CHECK_EQ(mesh_get_preset_name(nullptr, 1, name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "Other");
-        CHECK_EQ(mesh_get_preset_name(nullptr, 2, name, sizeof(name)), ERROR_NOT_FOUND);
+        CHECK_EQ(mesh_get_preset_name(nullptr, 3, name, sizeof(name)), ERROR_NOT_FOUND);
         CHECK_EQ(mesh_get_preset(nullptr, name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "Default");
 
@@ -389,6 +393,73 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK_EQ(mesh_get_network_settings("missing", &settings), ERROR_NOT_FOUND);
     }
 
+    SUBCASE("a frequency outside the region is rejected") {
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+
+        MeshRadioSettings settings = { .frequency = 915000000 };
+        CHECK_EQ(mesh_set_radio_settings(nullptr, &settings), ERROR_OUT_OF_RANGE);
+        // A bandwidth that makes the channel leave the band is rejected too
+        settings = { .bandwidth = 500000 };
+        CHECK_EQ(mesh_set_radio_settings(nullptr, &settings), ERROR_OUT_OF_RANGE);
+
+        // Nothing was stored, and the radio keeps running
+        MeshRadioSettings stored = { .power = 1 };
+        CHECK_EQ(mesh_get_radio_settings(nullptr, &stored), ERROR_NONE);
+        CHECK_EQ(stored.frequency, 0);
+        CHECK_EQ(stored.bandwidth, 0);
+        CHECK_EQ(mesh_get_state(), MESH_STATE_ON);
+
+        settings = { .frequency = 869525000 };
+        CHECK_EQ(mesh_set_radio_settings(nullptr, &settings), ERROR_NONE);
+        const MeshRadioSettings none = {};
+        REQUIRE_EQ(mesh_set_radio_settings(nullptr, &none), ERROR_NONE);
+    }
+
+    SUBCASE("a preset that the region doesn't fit isn't selected") {
+        char name[MESH_NAME_MAX_LENGTH + 1];
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+
+        // The 500 kHz of "Wide" doesn't fit the 250 kHz band, and the radio stays as it was
+        CHECK_EQ(mesh_set_preset(nullptr, "Wide"), ERROR_NOT_SUPPORTED);
+        CHECK_EQ(mesh_get_preset(nullptr, name, sizeof(name)), ERROR_NONE);
+        CHECK_EQ(std::string(name), "Default");
+        CHECK_EQ(mesh_get_state(), MESH_STATE_ON);
+
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_US_915), ERROR_NONE);
+        CHECK(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+        CHECK_EQ(mesh_set_preset(nullptr, "Wide"), ERROR_NONE);
+        CHECK(waitFor([] {
+            int32_t bandwidth = 0;
+            return radio_get_parameter(&local, RADIO_PARAMETER_BANDWIDTH, &bandwidth) == ERROR_NONE && bandwidth == 500000;
+        }));
+        REQUIRE_EQ(mesh_set_preset(nullptr, "Default"), ERROR_NONE);
+    }
+
+    SUBCASE("a path hash size outside the range is rejected") {
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+        MeshNetworkSettings settings = { .path_hash_size = 4 };
+        CHECK_EQ(mesh_set_network_settings(nullptr, &settings), ERROR_INVALID_ARGUMENT);
+        settings.path_hash_size = -1;
+        CHECK_EQ(mesh_set_network_settings(nullptr, &settings), ERROR_INVALID_ARGUMENT);
+        MeshNetworkSettings stored = { .path_hash_size = 9 };
+        CHECK_EQ(mesh_get_network_settings(nullptr, &stored), ERROR_NONE);
+        CHECK_EQ(stored.path_hash_size, 0);
+
+        settings.path_hash_size = MESH_PATH_HASH_SIZE_MAX;
+        CHECK_EQ(mesh_set_network_settings(nullptr, &settings), ERROR_NONE);
+        MeshNetworkSettings parameters = {};
+        CHECK_EQ(mesh_get_network_parameters(nullptr, &parameters), ERROR_NONE);
+        CHECK_EQ(parameters.path_hash_size, MESH_PATH_HASH_SIZE_MAX);
+        settings.path_hash_size = 0;
+        CHECK_EQ(mesh_set_network_settings(nullptr, &settings), ERROR_NONE);
+    }
+
     SUBCASE("a preset reports the region it needs") {
         REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
         REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
@@ -467,7 +538,7 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK_EQ(mesh_get_radio_kind(3, &kind), ERROR_NOT_FOUND);
         CHECK_EQ(mesh_get_radio(name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "radio_local");
-        CHECK_EQ(mesh_get_preset_count(nullptr), 2);
+        CHECK_EQ(mesh_get_preset_count(nullptr), 3);
         CHECK_FALSE(espNowFake.enabled);
 
         CHECK_EQ(mesh_set_radio("missing"), ERROR_NOT_FOUND);
@@ -489,7 +560,7 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK(waitFor([] { return !espNowFake.enabled && mesh_get_state() == MESH_STATE_ON; }));
         CHECK_EQ(mesh_get_radio(name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "radio_local");
-        CHECK_EQ(mesh_get_preset_count(nullptr), 2);
+        CHECK_EQ(mesh_get_preset_count(nullptr), 3);
 
         REQUIRE_EQ(service_manager_stop(MESH_SERVICE_ID), ERROR_NONE);
         REQUIRE_EQ(radio_set_region(&espNow, RADIO_REGION_UNSET), ERROR_NONE);
@@ -704,5 +775,76 @@ TEST_CASE("mesh service sends and receives through the active backend") {
     device_remove(&local);
     device_destruct(&remote);
     device_destruct(&local);
+    file_system_remove(dataFs);
+}
+
+TEST_CASE("legacy mesh settings belong to the backend that owned them") {
+    char dataPath[] = "/tmp/mesh_settings_test_XXXXXX";
+    REQUIRE_NE(mkdtemp(dataPath), nullptr);
+    FileSystem* dataFs = file_system_add("data", &fakeDataApi, dataPath);
+
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    REQUIRE_EQ(service_paths_get_user_data_directory(MESH_SERVICE_ID, directory, sizeof(directory)), ERROR_NONE);
+    REQUIRE_EQ(service_paths_get_user_data_path(MESH_SERVICE_ID, "settings.properties", path, sizeof(path)), ERROR_NONE);
+    REQUIRE_EQ(directory_make(directory, true), ERROR_NONE);
+    PropertiesFile* file = properties_file_open(path);
+    REQUIRE_NE(file, nullptr);
+    properties_file_set(file, "preset", "Other");
+    properties_file_set(file, "power", "7");
+    REQUIRE_EQ(properties_file_close(file), ERROR_NONE);
+
+    CHECK_EQ(mesh_settings_migrate_legacy("first"), ERROR_NONE);
+    // A second call, for any backend, moves nothing
+    CHECK_EQ(mesh_settings_migrate_legacy("second"), ERROR_NONE);
+
+    MeshBackendSettings first = {};
+    mesh_settings_load_backend("first", &first);
+    CHECK_EQ(std::string(first.preset), "Other");
+    CHECK_EQ(first.radio_settings.power, 7);
+
+    MeshBackendSettings second = {};
+    mesh_settings_load_backend("second", &second);
+    CHECK_EQ(std::string(second.preset), "");
+    CHECK_EQ(second.radio_settings.power, 0);
+
+    file_system_remove(dataFs);
+}
+
+TEST_CASE("saving settings of two backends at the same time keeps both") {
+    char dataPath[] = "/tmp/mesh_settings_test_XXXXXX";
+    REQUIRE_NE(mkdtemp(dataPath), nullptr);
+    FileSystem* dataFs = file_system_add("data", &fakeDataApi, dataPath);
+
+    constexpr int ROUNDS = 40;
+    const auto save = [](void* backend) -> int32_t {
+        for (int i = 1; i <= ROUNDS; i++) {
+            MeshBackendSettings settings = {};
+            settings.radio_settings.power = i;
+            if (mesh_settings_save_backend(static_cast<const char*>(backend), &settings) != ERROR_NONE) {
+                return 1;
+            }
+        }
+        return 0;
+    };
+    Thread* threads[2] = {
+        thread_alloc_full("save_first", 8192, save, const_cast<char*>("first"), -1),
+        thread_alloc_full("save_second", 8192, save, const_cast<char*>("second"), -1),
+    };
+    for (auto* thread : threads) {
+        REQUIRE_EQ(thread_start(thread), ERROR_NONE);
+    }
+    for (auto* thread : threads) {
+        CHECK_EQ(thread_join(thread, pdMS_TO_TICKS(10000), 1), ERROR_NONE);
+        thread_free(thread);
+    }
+
+    // Both threads finished and neither one's keys were lost. The race that the file lock prevents is too narrow to fail reliably without it.
+    MeshBackendSettings loaded = {};
+    mesh_settings_load_backend("first", &loaded);
+    CHECK_EQ(loaded.radio_settings.power, ROUNDS);
+    mesh_settings_load_backend("second", &loaded);
+    CHECK_EQ(loaded.radio_settings.power, ROUNDS);
+
     file_system_remove(dataFs);
 }

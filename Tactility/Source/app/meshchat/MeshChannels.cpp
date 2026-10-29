@@ -200,7 +200,7 @@ void startJoinChannel(Context* ctx) {
     ctx->joinChannelDialogId = inputdialog::start(
         ctx->appInstanceId,
         "Join channel",
-        "Hashtag channel name, e.g. #test, or Public",
+        "Hashtag channel name, e.g. #test. To join Public, delete the # first.",
         "#",
         ctx->channelStream,
         ctx->channelBuffer,

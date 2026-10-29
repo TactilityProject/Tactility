@@ -207,11 +207,16 @@ bool isDefaultKey(const MeshtasticChannelKey& key) {
 // Record: index (1) + name (32) + key length (1) + key (32)
 constexpr size_t CHANNEL_RECORD_SIZE = 1 + MESH_NAME_MAX_LENGTH + 1 + 1 + 32;
 
+// Files that follow the preset start with this marker. Earlier files have records only, and stored the primary channel
+// that was never customised as "LongFast", which can't be told from one that was named that on purpose.
+constexpr char CHANNELS_MAGIC[4] = { 'M', 'T', 'C', 'H' };
+
 void loadChannels(Backend* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     tt::std::vector<uint8_t> data;
     if (mesh_host_get_data_path(backend->host, "channels.bin", path, sizeof(path)) == ERROR_NONE && readFile(path, data)) {
-        for (size_t offset = 0; offset + CHANNEL_RECORD_SIZE <= data.size(); offset += CHANNEL_RECORD_SIZE) {
+        const bool hasMarker = data.size() >= sizeof(CHANNELS_MAGIC) && memcmp(data.data(), CHANNELS_MAGIC, sizeof(CHANNELS_MAGIC)) == 0;
+        for (size_t offset = hasMarker ? sizeof(CHANNELS_MAGIC) : 0; offset + CHANNEL_RECORD_SIZE <= data.size(); offset += CHANNEL_RECORD_SIZE) {
             char name[MESH_NAME_MAX_LENGTH + 1];
             memcpy(name, data.data() + offset + 1, sizeof(name));
             name[MESH_NAME_MAX_LENGTH] = '\0';
@@ -220,7 +225,9 @@ void loadChannels(Backend* backend) {
             memcpy(key.bytes, data.data() + offset + 2 + sizeof(name), 32);
             if (key.length == 16 || key.length == 32) {
                 // A primary channel without a name and with the default key is the one that follows the preset
-                const bool followsPreset = data[offset] == 0 && name[0] == '\0' && isDefaultKey(key);
+                // An earlier file has "LongFast" for it, which is taken for the default because that is what nearly all of them are
+                const bool legacyDefault = !hasMarker && strcmp(name, DEFAULT_CHANNEL_NAME) == 0;
+                const bool followsPreset = data[offset] == 0 && (name[0] == '\0' || legacyDefault) && isDefaultKey(key);
                 addChannel(backend, data[offset], followsPreset ? DEFAULT_CHANNEL_NAME : name, key, followsPreset);
             }
         }
@@ -236,6 +243,7 @@ void saveChannels(Backend* backend) {
         return;
     }
     tt::std::vector<uint8_t> data;
+    data.insert(data.end(), CHANNELS_MAGIC, CHANNELS_MAGIC + sizeof(CHANNELS_MAGIC));
     for (const auto& channel : backend->channels) {
         data.push_back(channel.index);
         const char emptyName[MESH_NAME_MAX_LENGTH + 1] = {};

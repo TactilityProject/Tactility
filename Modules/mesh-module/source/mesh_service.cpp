@@ -194,8 +194,9 @@ MeshBackendSettings& getBackendSettings(const MeshBackendApi* api) {
         // The backend that was selected when the settings were saved owns the ones that were stored without a backend
         const MeshBackendApi* owner = getSelectedBackend();
         if (owner != nullptr) {
-            mesh_settings_migrate_legacy(owner->id);
-            globals().legacySettingsMigrated = true;
+            if (mesh_settings_migrate_legacy(owner->id) == ERROR_NONE) {
+                globals().legacySettingsMigrated = true;
+            }
         }
     }
     auto& entry = entries[globals().backendSettingsCount < MAX_BACKENDS ? globals().backendSettingsCount++ : MAX_BACKENDS - 1];
@@ -641,7 +642,8 @@ MeshNetworkSettings getNetwork(const MeshBackendApi* api, size_t preset, const M
     if (api->get_preset_network != nullptr) {
         api->get_preset_network(preset, &network);
     }
-    if (settings.path_hash_size != 0) {
+    // A value that was stored by hand can be out of range, and the preset's value is used then
+    if (settings.path_hash_size >= 1 && settings.path_hash_size <= MESH_PATH_HASH_SIZE_MAX) {
         network.path_hash_size = settings.path_hash_size;
     }
     if (settings.region_scope[0] == '\0') {
@@ -1532,6 +1534,15 @@ error_t mesh_get_preset_name(const char* backend, size_t index, char* name, size
     return result;
 }
 
+/** Whether the whole channel of width @a bandwidth around @a frequency lies in one band of @a region */
+static bool fitsRegion(RadioRegion region, int32_t frequency, int32_t bandwidth) {
+    const RadioRegionBand* bands = nullptr;
+    const size_t count = radio_get_region_bands(region, &bands);
+    return std::any_of(bands, bands + count, [=](const RadioRegionBand& band) {
+        return frequency - bandwidth / 2 >= band.frequency_min && frequency + bandwidth / 2 <= band.frequency_max;
+    });
+}
+
 /**
  * Persists the settings of a backend, and only when that worked uses them: the cache is updated and the radio is
  * reconfigured when the backend is selected. Called without the global lock, because saving does file operations.
@@ -1553,6 +1564,11 @@ static error_t commitBackendSettings(const MeshBackendApi* api, const MeshBacken
 
 error_t mesh_set_preset(const char* backend, const char* name) {
     const bool applies = presetsApply();
+    Device* radio = findRadio();
+    const RadioRegion region = (radio != nullptr) ? radio_get_region(radio) : RADIO_REGION_UNSET;
+    if (radio != nullptr) {
+        device_put(radio);
+    }
     lock();
     ensureSettingsLoaded();
     const MeshBackendApi* api = resolveBackend(backend);
@@ -1563,6 +1579,15 @@ error_t mesh_set_preset(const char* backend, const char* name) {
     }
     MeshBackendSettings settings = {};
     strncpy(settings.preset, name, MESH_NAME_MAX_LENGTH);
+    if (region != RADIO_REGION_UNSET) {
+        // The radio would reject a preset that doesn't fit the region, which would leave the mesh in the error state
+        MeshRadioProfile profile {};
+        if (getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, index, settings.radio_settings, &profile) != ERROR_NONE ||
+            !fitsRegion(region, profile.frequency, profile.bandwidth)) {
+            unlock();
+            return ERROR_NOT_SUPPORTED;
+        }
+    }
     unlock();
     return commitBackendSettings(api, settings);
 }
@@ -1599,15 +1624,6 @@ error_t mesh_get_preset(const char* backend, char* name, size_t name_size) {
     }
     unlock();
     return result;
-}
-
-/** Whether the whole channel of width @a bandwidth around @a frequency lies in one band of @a region */
-static bool fitsRegion(RadioRegion region, int32_t frequency, int32_t bandwidth) {
-    const RadioRegionBand* bands = nullptr;
-    const size_t count = radio_get_region_bands(region, &bands);
-    return std::any_of(bands, bands + count, [=](const RadioRegionBand& band) {
-        return frequency - bandwidth / 2 >= band.frequency_min && frequency + bandwidth / 2 <= band.frequency_max;
-    });
 }
 
 error_t mesh_set_radio_settings(const char* backend, const MeshRadioSettings* radio_settings) {
@@ -1653,6 +1669,9 @@ error_t mesh_get_radio_settings(const char* backend, MeshRadioSettings* radio_se
 }
 
 error_t mesh_set_network_settings(const char* backend, const MeshNetworkSettings* network_settings) {
+    if (network_settings->path_hash_size < 0 || network_settings->path_hash_size > MESH_PATH_HASH_SIZE_MAX) {
+        return ERROR_INVALID_ARGUMENT;
+    }
     lock();
     ensureSettingsLoaded();
     const MeshBackendApi* api = resolveBackend(backend);

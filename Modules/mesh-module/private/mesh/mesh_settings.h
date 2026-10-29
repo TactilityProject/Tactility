@@ -27,8 +27,10 @@ void mesh_settings_load_backend(const char* backend, struct MeshBackendSettings*
 /**
  * Settings were once stored without a backend, for the backend that was selected. Moves them to @a owner once.
  * Settings of a backend are never read from the unqualified keys, so no other backend can take them.
+ * @retval ERROR_NONE when the settings were moved, or were moved before
+ * @retval ERROR_RESOURCE when the file couldn't be opened or written, so it can be tried again
  */
-void mesh_settings_migrate_legacy(const char* owner);
+error_t mesh_settings_migrate_legacy(const char* owner);
 
 error_t mesh_settings_save_backend(const char* backend, const struct MeshBackendSettings* settings);
 

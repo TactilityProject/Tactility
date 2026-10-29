@@ -102,6 +102,45 @@ bool writeFile(const char* path, const uint8_t* data, size_t length) {
     return ok;
 }
 
+/**
+ * Writes the new contents to "<path>.tmp" and checks that they are complete before they replace the file.
+ * The previous file is kept until the new one is in place, because some filesystems can't rename over an existing file.
+ */
+bool writeFileSafely(const char* path, const uint8_t* data, size_t length) {
+    char tempPath[FILE_MAX_PATH_STRING_LENGTH];
+    char backupPath[FILE_MAX_PATH_STRING_LENGTH];
+    if (snprintf(tempPath, sizeof(tempPath), "%s.tmp", path) >= (int)sizeof(tempPath) ||
+        snprintf(backupPath, sizeof(backupPath), "%s.old", path) >= (int)sizeof(backupPath)) {
+        return false;
+    }
+    FILE* file = fopen(tempPath, "wb");
+    if (file == nullptr) {
+        return false;
+    }
+    const bool written = (length == 0 || fwrite(data, 1, length, file) == length) && fflush(file) == 0;
+    const bool closed = fclose(file) == 0;
+    if (!written || !closed) {
+        remove(tempPath);
+        return false;
+    }
+    if (rename(tempPath, path) == 0) {
+        return true;
+    }
+    // The file exists and can't be replaced by a rename: move it aside, so that it can be restored
+    remove(backupPath);
+    if (rename(path, backupPath) != 0) {
+        remove(tempPath);
+        return false;
+    }
+    if (rename(tempPath, path) != 0) {
+        rename(backupPath, path);
+        remove(tempPath);
+        return false;
+    }
+    remove(backupPath);
+    return true;
+}
+
 void loadOrCreateIdentity(Backend* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (!getPath(backend, "identity.bin", path, sizeof(path))) {
@@ -151,19 +190,52 @@ void addChannel(Backend* backend, uint8_t index, const char* name, const uint8_t
     std::sort(backend->channels.begin(), backend->channels.end(), [](const Channel& a, const Channel& b) { return a.index < b.index; });
 }
 
+// File: magic (4) + channel count (1) + records. Record: index (1) + name (32) + key (16).
+// The count and the size tell a complete file from one of an interrupted save, and an empty list from either.
+constexpr char CHANNELS_MAGIC[4] = { 'M', 'C', 'C', 'H' };
+constexpr size_t CHANNELS_HEADER_SIZE = sizeof(CHANNELS_MAGIC) + 1;
+constexpr size_t CHANNEL_RECORD_SIZE = 1 + MESH_NAME_MAX_LENGTH + 1 + 16;
+
+/**
+ * Adds the channels of a saved file. Files from before the header have records only, and can't be empty.
+ * @return false when the file is incomplete, in which case no channel was added
+ */
+bool parseChannels(Backend* backend, const tt::std::vector<uint8_t>& data) {
+    size_t offset = 0;
+    size_t count;
+    if (data.size() >= CHANNELS_HEADER_SIZE && memcmp(data.data(), CHANNELS_MAGIC, sizeof(CHANNELS_MAGIC)) == 0) {
+        count = data[sizeof(CHANNELS_MAGIC)];
+        offset = CHANNELS_HEADER_SIZE;
+        if (data.size() != CHANNELS_HEADER_SIZE + count * CHANNEL_RECORD_SIZE) {
+            return false;
+        }
+    } else if (!data.empty() && data.size() % CHANNEL_RECORD_SIZE == 0) {
+        count = data.size() / CHANNEL_RECORD_SIZE;
+    } else {
+        return false;
+    }
+    for (size_t i = 0; i < count; i++, offset += CHANNEL_RECORD_SIZE) {
+        char name[MESH_NAME_MAX_LENGTH + 1];
+        memcpy(name, data.data() + offset + 1, sizeof(name));
+        name[MESH_NAME_MAX_LENGTH] = '\0';
+        addChannel(backend, data[offset], name, data.data() + offset + 1 + sizeof(name));
+    }
+    return true;
+}
+
 void loadChannels(Backend* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
-    tt::std::vector<uint8_t> data;
-    // Record: index (1) + name (32) + key (16)
-    constexpr size_t RECORD_SIZE = 1 + MESH_NAME_MAX_LENGTH + 1 + 16;
-    // Only a node that never saved its channels starts with the Public channel, so that it can be removed
-    const bool saved = getPath(backend, "channels.bin", path, sizeof(path)) && readFile(path, data);
-    if (saved) {
-        for (size_t offset = 0; offset + RECORD_SIZE <= data.size(); offset += RECORD_SIZE) {
-            char name[MESH_NAME_MAX_LENGTH + 1];
-            memcpy(name, data.data() + offset + 1, sizeof(name));
-            name[MESH_NAME_MAX_LENGTH] = '\0';
-            addChannel(backend, data[offset], name, data.data() + offset + 1 + sizeof(name));
+    char backupPath[FILE_MAX_PATH_STRING_LENGTH];
+    // Only a node without a complete saved list starts with the Public channel, so that it can be removed
+    bool saved = false;
+    if (getPath(backend, "channels.bin", path, sizeof(path)) && snprintf(backupPath, sizeof(backupPath), "%s.old", path) < (int)sizeof(backupPath)) {
+        // The backup is the previous file when a save was interrupted while it replaced the file
+        for (const char* candidate : { static_cast<const char*>(path), static_cast<const char*>(backupPath) }) {
+            tt::std::vector<uint8_t> data;
+            if (readFile(candidate, data) && parseChannels(backend, data)) {
+                saved = true;
+                break;
+            }
         }
     }
     if (!saved) {
@@ -177,12 +249,16 @@ void saveChannels(Backend* backend) {
         return;
     }
     tt::std::vector<uint8_t> data;
+    data.insert(data.end(), CHANNELS_MAGIC, CHANNELS_MAGIC + sizeof(CHANNELS_MAGIC));
+    data.push_back(static_cast<uint8_t>(backend->channels.size()));
     for (const auto& channel : backend->channels) {
         data.push_back(channel.index);
         data.insert(data.end(), channel.name, channel.name + MESH_NAME_MAX_LENGTH + 1);
         data.insert(data.end(), channel.key, channel.key + 16);
     }
-    writeFile(path, data.data(), data.size());
+    if (!writeFileSafely(path, data.data(), data.size())) {
+        LOG_E(TAG, "Failed to save the channels");
+    }
 }
 
 // endregion
@@ -215,7 +291,7 @@ bool applyNetwork(Backend* backend, const MeshCorePacket& original, MeshCorePack
     }
     MeshNetworkSettings network;
     mesh_host_get_network(backend->host, &network);
-    packet.pathHashSize = static_cast<uint8_t>(std::clamp<int32_t>(network.path_hash_size, 1, 3));
+    packet.pathHashSize = static_cast<uint8_t>(std::clamp<int32_t>(network.path_hash_size, 1, MESH_PATH_HASH_SIZE_MAX));
     if (network.region_scope[0] != '\0') {
         uint8_t key[16];
         meshcore_scope_key(network.region_scope, key);

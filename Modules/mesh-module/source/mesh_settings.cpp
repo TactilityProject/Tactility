@@ -141,19 +141,19 @@ static void qualified_name(const char* backend, const char* key, char* name, siz
     snprintf(name, size, "%s.%s", backend, key);
 }
 
-void mesh_settings_migrate_legacy(const char* owner) {
+error_t mesh_settings_migrate_legacy(const char* owner) {
     FileLock fileLock;
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (service_paths_get_user_data_path(MESH_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
-        return;
+        return ERROR_RESOURCE;
     }
     PropertiesFile* file = properties_file_open(path);
     if (file == nullptr) {
-        return;
+        return ERROR_RESOURCE;
     }
     if (properties_file_has(file, KEY_LEGACY_MIGRATED)) {
         properties_file_close(file);
-        return;
+        return ERROR_NONE;
     }
     char value[64];
     char name[MESH_BACKEND_ID_MAX_LENGTH + 24];
@@ -164,7 +164,7 @@ void mesh_settings_migrate_legacy(const char* owner) {
         }
     }
     properties_file_set(file, KEY_LEGACY_MIGRATED, "true");
-    properties_file_close(file);
+    return properties_file_close(file) == ERROR_NONE ? ERROR_NONE : ERROR_RESOURCE;
 }
 
 void mesh_settings_load_backend(const char* backend, MeshBackendSettings* settings) {

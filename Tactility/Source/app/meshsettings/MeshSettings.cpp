@@ -585,7 +585,10 @@ void onPresetSelected(Context* ctx, int32_t selected) {
         // A preset can need another region. It's set first so the radio never gets a preset that its region doesn't allow.
         RadioRegion region = RADIO_REGION_UNSET;
         if (mesh_get_preset_region(ctx->presetBackend, name, &region) == ERROR_NONE && region != RADIO_REGION_UNSET && region != settings::radio::loadRegion()) {
-            settings::radio::saveRegion(region);
+            if (!settings::radio::saveRegion(region)) {
+                LOG_E(TAG, "Failed to save the region, so the preset isn't selected");
+                return;
+            }
         }
         mesh_set_preset(ctx->presetBackend, name);
     }

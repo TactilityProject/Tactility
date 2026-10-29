@@ -222,6 +222,7 @@ error_t mesh_get_preset_name(const char* backend, size_t index, char* name, size
 /**
  * Select the radio preset of a backend. The choice is persisted. The radio settings of the backend are cleared.
  * @retval ERROR_NOT_FOUND when the backend has no such preset
+ * @retval ERROR_NOT_SUPPORTED when the region of the radio doesn't allow the preset, e.g. a bandwidth wider than its band
  */
 error_t mesh_set_preset(const char* backend, const char* name);
 
@@ -269,6 +270,9 @@ error_t mesh_get_radio_parameters(const char* backend, struct MeshRadioSettings*
 /** Region scope that turns the scope off, for a preset that has one */
 #define MESH_REGION_SCOPE_NONE "*"
 
+/** The largest number of bytes per hop in the path of a packet */
+#define MESH_PATH_HASH_SIZE_MAX 3
+
 /** Network parameters of a backend that don't concern the radio. A backend ignores the ones it doesn't have. */
 struct MeshNetworkSettings {
     /** Bytes per hop in the path of a packet, 0 uses the value of the preset */
@@ -280,6 +284,7 @@ struct MeshNetworkSettings {
 /**
  * Set network parameters of a backend. The choice is persisted and resets when the preset changes.
  * The radio is reconfigured when the backend is selected and the service is running.
+ * @retval ERROR_INVALID_ARGUMENT when the path hash size is negative or above MESH_PATH_HASH_SIZE_MAX
  * @retval ERROR_NOT_FOUND when there is no such backend
  */
 error_t mesh_set_network_settings(const char* backend, const struct MeshNetworkSettings* settings);

@@ -219,3 +219,41 @@ TEST_CASE("a MeshCore preset only gives a radio profile in a region that allows 
     CHECK_EQ(meshcore_backend_api.get_radio_profile(nullptr, RADIO_REGION_EU_868, RADIO_MODULATION_LORA, netherlands, &profile), ERROR_NONE);
     CHECK_EQ(profile.frequency, 869618000);
 }
+
+TEST_CASE("HMAC-SHA256 matches the RFC 4231 test vector") {
+    const uint8_t key[] = { 'J', 'e', 'f', 'e' };
+    const char* message = "what do ya want for nothing?";
+    const uint8_t expected[32] = {
+        0x5b, 0xdc, 0xc1, 0x46, 0xbf, 0x60, 0x75, 0x4e, 0x6a, 0x04, 0x24, 0x26, 0x08, 0x95, 0x75, 0xc7,
+        0x5a, 0x00, 0x3f, 0x08, 0x9d, 0x27, 0x39, 0x83, 0x9d, 0xec, 0x58, 0xb9, 0x64, 0xec, 0x38, 0x43,
+    };
+    uint8_t mac[32];
+    REQUIRE(meshcore_hmac_sha256(key, sizeof(key), reinterpret_cast<const uint8_t*>(message), strlen(message), mac));
+    CHECK_EQ(memcmp(mac, expected, sizeof(mac)), 0);
+}
+
+TEST_CASE("every MeshCore preset can be used in the region that it selects") {
+    for (size_t preset = 0; meshcore_backend_api.presets[preset] != nullptr; preset++) {
+        CAPTURE(std::string(meshcore_backend_api.presets[preset]));
+        // Whatever region the radio has, a preset ends up in a region that gives it a profile that lies in the region's bands
+        for (int current = RADIO_REGION_EU_433; current < RADIO_REGION_COUNT; current++) {
+            RadioRegion region = RADIO_REGION_UNSET;
+            if (meshcore_backend_api.get_preset_region(preset, static_cast<RadioRegion>(current), &region) != ERROR_NONE) {
+                FAIL("no region allows the preset");
+            }
+            MeshRadioProfile profile {};
+            if (meshcore_backend_api.get_radio_profile(nullptr, region, RADIO_MODULATION_LORA, preset, &profile) != ERROR_NONE) {
+                // The default preset only exists in some regions
+                CHECK_EQ(preset, 0);
+                continue;
+            }
+            const RadioRegionBand* bands = nullptr;
+            const size_t count = radio_get_region_bands(region, &bands);
+            bool fits = false;
+            for (size_t i = 0; i < count; i++) {
+                fits |= profile.frequency - profile.bandwidth / 2 >= bands[i].frequency_min && profile.frequency + profile.bandwidth / 2 <= bands[i].frequency_max;
+            }
+            CHECK(fits);
+        }
+    }
+}

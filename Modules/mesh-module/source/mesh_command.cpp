@@ -141,6 +141,14 @@ static int command_preset(int argc, char* argv[]) {
     }
 
     if (argc == 3) {
+        // A preset can need another region. It's saved first, and the preset isn't set when that fails.
+        RadioRegion region = RADIO_REGION_UNSET;
+        if (mesh_get_preset_region(nullptr, argv[2], &region) == ERROR_NONE && region != RADIO_REGION_UNSET && region != radio_settings_load_region()) {
+            const error_t region_error = radio_settings_save_region(region);
+            if (region_error != ERROR_NONE) {
+                return report_error("region", region_error);
+            }
+        }
         error_t error = mesh_set_preset(nullptr, argv[2]);
         if (error == ERROR_NOT_FOUND) {
             printf("mesh: unknown preset: %s\n", argv[2]);
