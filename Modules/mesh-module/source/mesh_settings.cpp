@@ -167,15 +167,15 @@ error_t mesh_settings_migrate_legacy(const char* owner) {
     return properties_file_close(file) == ERROR_NONE ? ERROR_NONE : ERROR_RESOURCE;
 }
 
-void mesh_settings_load_backend(const char* backend, MeshBackendSettings* settings) {
+error_t mesh_settings_load_backend(const char* backend, MeshBackendSettings* settings) {
     *settings = {};
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (service_paths_get_user_data_path(MESH_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
-        return;
+        return ERROR_RESOURCE;
     }
     PropertiesFile* file = properties_file_open(path);
     if (file == nullptr) {
-        return;
+        return ERROR_RESOURCE;
     }
     char value[64];
     char name[MESH_BACKEND_ID_MAX_LENGTH + 24];
@@ -205,6 +205,7 @@ void mesh_settings_load_backend(const char* backend, MeshBackendSettings* settin
         strncpy(settings->network.region_scope, value, MESH_NAME_MAX_LENGTH);
     }
     properties_file_close(file);
+    return ERROR_NONE;
 }
 
 error_t mesh_settings_save_backend(const char* backend, const MeshBackendSettings* settings) {

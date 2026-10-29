@@ -75,6 +75,10 @@ struct Globals {
     struct BackendSettingsEntry {
         const MeshBackendApi* api;
         MeshBackendSettings settings;
+        /** False when the settings couldn't be read, so the entry has defaults and is loaded again at the next lookup */
+        bool loaded;
+        /** Held by a setter from reading the settings to committing them, so that two updates of one backend don't overwrite each other. Taken before the global lock. */
+        Mutex update;
     } backendSettings[MAX_BACKENDS] = {};
     size_t backendSettingsCount = 0;
     bool legacySettingsMigrated = false;
@@ -183,11 +187,15 @@ const MeshBackendApi* resolveBackend(const char* id) {
 }
 
 /** Requires the global lock and loaded settings */
-MeshBackendSettings& getBackendSettings(const MeshBackendApi* api) {
+/** Requires the global lock and loaded settings */
+Globals::BackendSettingsEntry& getBackendEntry(const MeshBackendApi* api) {
     auto& entries = globals().backendSettings;
     for (size_t i = 0; i < globals().backendSettingsCount; i++) {
         if (entries[i].api == api) {
-            return entries[i].settings;
+            if (!entries[i].loaded) {
+                entries[i].loaded = mesh_settings_load_backend(api->id, &entries[i].settings) == ERROR_NONE;
+            }
+            return entries[i];
         }
     }
     if (!globals().legacySettingsMigrated) {
@@ -201,8 +209,14 @@ MeshBackendSettings& getBackendSettings(const MeshBackendApi* api) {
     }
     auto& entry = entries[globals().backendSettingsCount < MAX_BACKENDS ? globals().backendSettingsCount++ : MAX_BACKENDS - 1];
     entry.api = api;
-    mesh_settings_load_backend(api->id, &entry.settings);
-    return entry.settings;
+    mutex_construct(&entry.update);
+    entry.loaded = mesh_settings_load_backend(api->id, &entry.settings) == ERROR_NONE;
+    return entry;
+}
+
+/** Requires the global lock and loaded settings */
+MeshBackendSettings& getBackendSettings(const MeshBackendApi* api) {
+    return getBackendEntry(api).settings;
 }
 
 size_t getPresetCount(const MeshBackendApi* api) {
@@ -609,6 +623,19 @@ bool applyProfile(MeshHost* host) {
 
 void resubmitPending(MeshHost* host);
 
+/** @return the band of @a region that holds the whole channel of width @a bandwidth around @a frequency, NULL when there is none */
+const RadioRegionBand* findBand(RadioRegion region, int32_t frequency, int32_t bandwidth) {
+    const RadioRegionBand* bands = nullptr;
+    const size_t count = radio_get_region_bands(region, &bands);
+    // 64-bit, because a frequency that was typed in can be close to the limit of 32 bits
+    const int64_t low = static_cast<int64_t>(frequency) - bandwidth / 2;
+    const int64_t high = static_cast<int64_t>(frequency) + bandwidth / 2;
+    const auto* band = std::find_if(bands, bands + count, [=](const RadioRegionBand& candidate) {
+        return low >= candidate.frequency_min && high <= candidate.frequency_max;
+    });
+    return (band != bands + count) ? band : nullptr;
+}
+
 /**
  * The profile of a preset with the settings applied, and the power limited to what the region allows (the radio rejects more).
  * @param[in] backend the backend state, or NULL to only get the parameters of the preset
@@ -624,14 +651,10 @@ error_t getRadioProfile(const MeshBackendApi* api, void* backend, RadioRegion re
     if (settings.coding_rate != 0) profile->coding_rate = settings.coding_rate;
     if (settings.power != 0) profile->power = settings.power;
 
-    const RadioRegionBand* bands = nullptr;
-    const size_t bandCount = radio_get_region_bands(region, &bands);
-    int32_t maxPower = 0;
-    for (size_t i = 0; i < bandCount; i++) {
-        maxPower = std::max<int32_t>(maxPower, bands[i].power_max);
-    }
-    if (bandCount > 0) {
-        profile->power = std::min(profile->power, maxPower);
+    // The limit of the band that holds the channel, because bands of a region have their own limits
+    const RadioRegionBand* band = findBand(region, profile->frequency, profile->bandwidth);
+    if (band != nullptr) {
+        profile->power = std::min<int32_t>(profile->power, band->power_max);
     }
     return ERROR_NONE;
 }
@@ -1534,15 +1557,6 @@ error_t mesh_get_preset_name(const char* backend, size_t index, char* name, size
     return result;
 }
 
-/** Whether the whole channel of width @a bandwidth around @a frequency lies in one band of @a region */
-static bool fitsRegion(RadioRegion region, int32_t frequency, int32_t bandwidth) {
-    const RadioRegionBand* bands = nullptr;
-    const size_t count = radio_get_region_bands(region, &bands);
-    return std::any_of(bands, bands + count, [=](const RadioRegionBand& band) {
-        return frequency - bandwidth / 2 >= band.frequency_min && frequency + bandwidth / 2 <= band.frequency_max;
-    });
-}
-
 /**
  * Persists the settings of a backend, and only when that worked uses them: the cache is updated and the radio is
  * reconfigured when the backend is selected. Called without the global lock, because saving does file operations.
@@ -1553,7 +1567,10 @@ static error_t commitBackendSettings(const MeshBackendApi* api, const MeshBacken
         return saved;
     }
     lock();
-    getBackendSettings(api) = settings;
+    auto& entry = getBackendEntry(api);
+    entry.settings = settings;
+    // What was saved is what the backend runs with, whether or not the file could be read before
+    entry.loaded = true;
     if (service != nullptr && api == getSelectedBackend()) {
         MeshHost* host = service;
         post(host, [host] { configure(host); });
@@ -1561,6 +1578,13 @@ static error_t commitBackendSettings(const MeshBackendApi* api, const MeshBacken
     unlock();
     return ERROR_NONE;
 }
+
+/** Holds the update mutex of a backend. Taken without the global lock, and the global lock is taken inside. */
+struct UpdateGuard {
+    Mutex* mutex;
+    explicit UpdateGuard(Mutex* mutex) : mutex(mutex) { mutex_lock(mutex); }
+    ~UpdateGuard() { mutex_unlock(mutex); }
+};
 
 error_t mesh_set_preset(const char* backend, const char* name) {
     const bool applies = presetsApply();
@@ -1577,18 +1601,20 @@ error_t mesh_set_preset(const char* backend, const char* name) {
         unlock();
         return ERROR_NOT_FOUND;
     }
+    Mutex* updateMutex = &getBackendEntry(api).update;
+    unlock();
+
+    UpdateGuard guard(updateMutex);
     MeshBackendSettings settings = {};
     strncpy(settings.preset, name, MESH_NAME_MAX_LENGTH);
     if (region != RADIO_REGION_UNSET) {
         // The radio would reject a preset that doesn't fit the region, which would leave the mesh in the error state
         MeshRadioProfile profile {};
         if (getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, index, settings.radio_settings, &profile) != ERROR_NONE ||
-            !fitsRegion(region, profile.frequency, profile.bandwidth)) {
-            unlock();
+            findBand(region, profile.frequency, profile.bandwidth) == nullptr) {
             return ERROR_NOT_SUPPORTED;
         }
     }
-    unlock();
     return commitBackendSettings(api, settings);
 }
 
@@ -1640,18 +1666,25 @@ error_t mesh_set_radio_settings(const char* backend, const MeshRadioSettings* ra
         unlock();
         return ERROR_NOT_FOUND;
     }
+    Mutex* updateMutex = &getBackendEntry(api).update;
+    unlock();
+
+    UpdateGuard guard(updateMutex);
+    lock();
     MeshBackendSettings settings = getBackendSettings(api);
+    unlock();
     settings.radio_settings = *radio_settings;
     if (applies && region != RADIO_REGION_UNSET) {
-        // The radio rejects a channel outside the bands of the region, which would leave the mesh in the error state
+        // The radio rejects a channel outside the bands of the region, and a power above the limit of the band that holds
+        // the channel. Either would leave the mesh in the error state.
         MeshRadioProfile profile {};
-        if (getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, findPreset(api, settings.preset), settings.radio_settings, &profile) == ERROR_NONE &&
-            !fitsRegion(region, profile.frequency, profile.bandwidth)) {
-            unlock();
-            return ERROR_OUT_OF_RANGE;
+        if (getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, findPreset(api, settings.preset), settings.radio_settings, &profile) == ERROR_NONE) {
+            const RadioRegionBand* band = findBand(region, profile.frequency, profile.bandwidth);
+            if (band == nullptr || settings.radio_settings.power > band->power_max) {
+                return ERROR_OUT_OF_RANGE;
+            }
         }
     }
-    unlock();
     return commitBackendSettings(api, settings);
 }
 
@@ -1679,9 +1712,14 @@ error_t mesh_set_network_settings(const char* backend, const MeshNetworkSettings
         unlock();
         return ERROR_NOT_FOUND;
     }
-    MeshBackendSettings settings = getBackendSettings(api);
-    settings.network = *network_settings;
+    Mutex* updateMutex = &getBackendEntry(api).update;
     unlock();
+
+    UpdateGuard guard(updateMutex);
+    lock();
+    MeshBackendSettings settings = getBackendSettings(api);
+    unlock();
+    settings.network = *network_settings;
     return commitBackendSettings(api, settings);
 }
 

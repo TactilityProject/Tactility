@@ -18,6 +18,7 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <unistd.h>
 #include <utility>
 
 #ifdef ESP_PLATFORM
@@ -207,16 +208,19 @@ bool isDefaultKey(const MeshtasticChannelKey& key) {
 // Record: index (1) + name (32) + key length (1) + key (32)
 constexpr size_t CHANNEL_RECORD_SIZE = 1 + MESH_NAME_MAX_LENGTH + 1 + 1 + 32;
 
-// Files that follow the preset start with this marker. Earlier files have records only, and stored the primary channel
-// that was never customised as "LongFast", which can't be told from one that was named that on purpose.
-constexpr char CHANNELS_MAGIC[4] = { 'M', 'T', 'C', 'H' };
+// The records keep the format of older versions, which can read the file back. A file next to it marks that the primary channel
+// that was never customised is stored without a name. Earlier files stored it as "LongFast", which can't be told from one that was
+// named that on purpose.
+constexpr auto* CHANNELS_MARKER_FILE = "channels.preset";
 
 void loadChannels(Backend* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     tt::std::vector<uint8_t> data;
     if (mesh_host_get_data_path(backend->host, "channels.bin", path, sizeof(path)) == ERROR_NONE && readFile(path, data)) {
-        const bool hasMarker = data.size() >= sizeof(CHANNELS_MAGIC) && memcmp(data.data(), CHANNELS_MAGIC, sizeof(CHANNELS_MAGIC)) == 0;
-        for (size_t offset = hasMarker ? sizeof(CHANNELS_MAGIC) : 0; offset + CHANNEL_RECORD_SIZE <= data.size(); offset += CHANNEL_RECORD_SIZE) {
+        char markerPath[FILE_MAX_PATH_STRING_LENGTH];
+        const bool hasMarker = mesh_host_get_data_path(backend->host, CHANNELS_MARKER_FILE, markerPath, sizeof(markerPath)) == ERROR_NONE &&
+            access(markerPath, F_OK) == 0;
+        for (size_t offset = 0; offset + CHANNEL_RECORD_SIZE <= data.size(); offset += CHANNEL_RECORD_SIZE) {
             char name[MESH_NAME_MAX_LENGTH + 1];
             memcpy(name, data.data() + offset + 1, sizeof(name));
             name[MESH_NAME_MAX_LENGTH] = '\0';
@@ -243,7 +247,6 @@ void saveChannels(Backend* backend) {
         return;
     }
     tt::std::vector<uint8_t> data;
-    data.insert(data.end(), CHANNELS_MAGIC, CHANNELS_MAGIC + sizeof(CHANNELS_MAGIC));
     for (const auto& channel : backend->channels) {
         data.push_back(channel.index);
         const char emptyName[MESH_NAME_MAX_LENGTH + 1] = {};
@@ -252,7 +255,14 @@ void saveChannels(Backend* backend) {
         data.push_back(channel.key.length);
         data.insert(data.end(), channel.key.bytes, channel.key.bytes + 32);
     }
-    writeFile(path, data.data(), data.size());
+    if (!writeFile(path, data.data(), data.size())) {
+        return;
+    }
+    char markerPath[FILE_MAX_PATH_STRING_LENGTH];
+    if (mesh_host_get_data_path(backend->host, CHANNELS_MARKER_FILE, markerPath, sizeof(markerPath)) == ERROR_NONE) {
+        const uint8_t marker = 1;
+        writeFile(markerPath, &marker, sizeof(marker));
+    }
 }
 
 // endregion

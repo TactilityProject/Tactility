@@ -472,15 +472,31 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK_EQ(mesh_get_preset_region(nullptr, "Missing", &region), ERROR_NOT_FOUND);
     }
 
-    SUBCASE("the power is limited to what the region allows") {
+    SUBCASE("the power is limited to what the band of the channel allows") {
         REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
-        const MeshRadioSettings tooPowerful = { .power = 40 };
-        REQUIRE_EQ(mesh_set_radio_settings(nullptr, &tooPowerful), ERROR_NONE);
+        // 869.525 MHz is in the 27 dBm band of EU_868, and 868.1 MHz in the 14 dBm band
+        MeshRadioSettings settings = { .power = 40 };
+        CHECK_EQ(mesh_set_radio_settings(nullptr, &settings), ERROR_OUT_OF_RANGE);
+        settings = { .frequency = 868100000, .power = 20 };
+        CHECK_EQ(mesh_set_radio_settings(nullptr, &settings), ERROR_OUT_OF_RANGE);
+
+        settings = { .power = 27 };
+        REQUIRE_EQ(mesh_set_radio_settings(nullptr, &settings), ERROR_NONE);
         REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
-        CHECK(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
         int32_t power = 0;
         CHECK_EQ(radio_get_parameter(&local, RADIO_PARAMETER_POWER, &power), ERROR_NONE);
         CHECK_EQ(power, 27);
+
+        settings = { .frequency = 868100000, .power = 14 };
+        REQUIRE_EQ(mesh_set_radio_settings(nullptr, &settings), ERROR_NONE);
+        CHECK(waitFor([] {
+            int32_t current = 0;
+            return radio_get_parameter(&local, RADIO_PARAMETER_POWER, &current) == ERROR_NONE && current == 14;
+        }));
+        CHECK_EQ(mesh_get_state(), MESH_STATE_ON);
+
+        // Without a setting, the power of the preset is limited to the band, here 14 dBm of the preset to 14 dBm
         const MeshRadioSettings none = {};
         REQUIRE_EQ(mesh_set_radio_settings(nullptr, &none), ERROR_NONE);
     }
@@ -799,7 +815,7 @@ TEST_CASE("legacy mesh settings belong to the backend that owned them") {
     CHECK_EQ(mesh_settings_migrate_legacy("second"), ERROR_NONE);
 
     MeshBackendSettings first = {};
-    mesh_settings_load_backend("first", &first);
+    CHECK_EQ(mesh_settings_load_backend("first", &first), ERROR_NONE);
     CHECK_EQ(std::string(first.preset), "Other");
     CHECK_EQ(first.radio_settings.power, 7);
 

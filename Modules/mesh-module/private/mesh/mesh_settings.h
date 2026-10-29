@@ -21,8 +21,11 @@ struct MeshBackendSettings {
     struct MeshNetworkSettings network;
 };
 
-/** Loads the settings of a backend, or defaults when there are none */
-void mesh_settings_load_backend(const char* backend, struct MeshBackendSettings* settings);
+/**
+ * Loads the settings of a backend, or defaults when there are none.
+ * @retval ERROR_RESOURCE when the settings file couldn't be opened, in which case @a settings has the defaults and the load can be tried again
+ */
+error_t mesh_settings_load_backend(const char* backend, struct MeshBackendSettings* settings);
 
 /**
  * Settings were once stored without a backend, for the backend that was selected. Moves them to @a owner once.

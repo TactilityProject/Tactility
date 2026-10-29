@@ -190,31 +190,19 @@ void addChannel(Backend* backend, uint8_t index, const char* name, const uint8_t
     std::sort(backend->channels.begin(), backend->channels.end(), [](const Channel& a, const Channel& b) { return a.index < b.index; });
 }
 
-// File: magic (4) + channel count (1) + records. Record: index (1) + name (32) + key (16).
-// The count and the size tell a complete file from one of an interrupted save, and an empty list from either.
-constexpr char CHANNELS_MAGIC[4] = { 'M', 'C', 'C', 'H' };
-constexpr size_t CHANNELS_HEADER_SIZE = sizeof(CHANNELS_MAGIC) + 1;
+// File: records of index (1) + name (32) + key (16). The format is the one of older versions, which can read a file back.
+// A save replaces the file as a whole, so a file that is whole records is complete and an empty one is an empty list.
 constexpr size_t CHANNEL_RECORD_SIZE = 1 + MESH_NAME_MAX_LENGTH + 1 + 16;
 
 /**
- * Adds the channels of a saved file. Files from before the header have records only, and can't be empty.
- * @return false when the file is incomplete, in which case no channel was added
+ * Adds the channels of a saved file.
+ * @return false when the file ends in a partial record, in which case no channel was added
  */
 bool parseChannels(Backend* backend, const tt::std::vector<uint8_t>& data) {
-    size_t offset = 0;
-    size_t count;
-    if (data.size() >= CHANNELS_HEADER_SIZE && memcmp(data.data(), CHANNELS_MAGIC, sizeof(CHANNELS_MAGIC)) == 0) {
-        count = data[sizeof(CHANNELS_MAGIC)];
-        offset = CHANNELS_HEADER_SIZE;
-        if (data.size() != CHANNELS_HEADER_SIZE + count * CHANNEL_RECORD_SIZE) {
-            return false;
-        }
-    } else if (!data.empty() && data.size() % CHANNEL_RECORD_SIZE == 0) {
-        count = data.size() / CHANNEL_RECORD_SIZE;
-    } else {
+    if (data.size() % CHANNEL_RECORD_SIZE != 0) {
         return false;
     }
-    for (size_t i = 0; i < count; i++, offset += CHANNEL_RECORD_SIZE) {
+    for (size_t offset = 0; offset < data.size(); offset += CHANNEL_RECORD_SIZE) {
         char name[MESH_NAME_MAX_LENGTH + 1];
         memcpy(name, data.data() + offset + 1, sizeof(name));
         name[MESH_NAME_MAX_LENGTH] = '\0';
@@ -249,8 +237,6 @@ void saveChannels(Backend* backend) {
         return;
     }
     tt::std::vector<uint8_t> data;
-    data.insert(data.end(), CHANNELS_MAGIC, CHANNELS_MAGIC + sizeof(CHANNELS_MAGIC));
-    data.push_back(static_cast<uint8_t>(backend->channels.size()));
     for (const auto& channel : backend->channels) {
         data.push_back(channel.index);
         data.insert(data.end(), channel.name, channel.name + MESH_NAME_MAX_LENGTH + 1);
@@ -531,8 +517,10 @@ constexpr auto presets = [] {
 bool fitsRegion(int32_t frequency, int32_t bandwidth, RadioRegion region) {
     const RadioRegionBand* bands = nullptr;
     const size_t count = radio_get_region_bands(region, &bands);
+    const int64_t low = static_cast<int64_t>(frequency) - bandwidth / 2;
+    const int64_t high = static_cast<int64_t>(frequency) + bandwidth / 2;
     return std::any_of(bands, bands + count, [=](const RadioRegionBand& band) {
-        return frequency - bandwidth / 2 >= band.frequency_min && frequency + bandwidth / 2 <= band.frequency_max;
+        return low >= band.frequency_min && high <= band.frequency_max;
     });
 }
 
