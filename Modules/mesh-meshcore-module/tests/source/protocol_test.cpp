@@ -205,3 +205,14 @@ TEST_CASE("a region scope limits a packet with a code that other MeshCore nodes 
     packet.payloadLength = 0;
     CHECK_EQ(meshcore_transport_code(key, packet), 0xF329);
 }
+
+TEST_CASE("a MeshCore preset only gives a radio profile in a region that allows its frequency") {
+    size_t netherlands = 0;
+    while (strcmp(meshcore_backend_api.presets[netherlands], "Netherlands") != 0) {
+        netherlands++;
+    }
+    MeshRadioProfile profile {};
+    CHECK_EQ(meshcore_backend_api.get_radio_profile(nullptr, RADIO_REGION_US_915, RADIO_MODULATION_LORA, netherlands, &profile), ERROR_NOT_SUPPORTED);
+    CHECK_EQ(meshcore_backend_api.get_radio_profile(nullptr, RADIO_REGION_EU_868, RADIO_MODULATION_LORA, netherlands, &profile), ERROR_NONE);
+    CHECK_EQ(profile.frequency, 869618000);
+}

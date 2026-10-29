@@ -506,6 +506,9 @@ error_t getRadioProfile(void*, RadioRegion region, RadioModulation modulation, s
         codingRate = match->codingRate;
     } else if (preset <= PROFILES.size()) {
         const Profile& match = PROFILES[preset - 1];
+        if (!fitsRegion(match.frequency, match.bandwidth, region)) {
+            return ERROR_NOT_SUPPORTED;
+        }
         frequency = match.frequency;
         bandwidth = match.bandwidth;
         spreadingFactor = match.spreadingFactor;
