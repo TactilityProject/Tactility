@@ -1,5 +1,6 @@
 #include "doctest.h"
 
+#include <mesh_meshcore/meshcore_backend.h>
 #include <mesh_meshcore/meshcore_packet.h>
 #include <mesh_meshcore/meshcore_protocol.h>
 
@@ -158,4 +159,49 @@ TEST_CASE("MeshCore contact URIs match the format of the MeshCore app") {
 
     // Too small for the URI
     CHECK_FALSE(meshcore_build_contact_uri("Example Contact", key, 1, uri, 60));
+}
+
+TEST_CASE("a MeshCore preset needs the region that allows its frequency") {
+    const auto presetIndex = [](const char* name) {
+        for (size_t i = 0; meshcore_backend_api.presets[i] != nullptr; i++) {
+            if (strcmp(meshcore_backend_api.presets[i], name) == 0) {
+                return i;
+            }
+        }
+        FAIL("unknown preset");
+        return size_t(0);
+    };
+    RadioRegion region = RADIO_REGION_UNSET;
+
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("Netherlands"), RADIO_REGION_US_915, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_EU_868);
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("Australia"), RADIO_REGION_EU_868, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_AU_915);
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("USA"), RADIO_REGION_US_915, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_US_915);
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("EU 433MHz (Narrow)"), RADIO_REGION_EU_868, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_EU_433);
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("Default"), RADIO_REGION_JP_920, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_JP_920);
+}
+
+TEST_CASE("a region scope limits a packet with a code that other MeshCore nodes compute the same way") {
+    // The key and codes were computed with an independent HMAC-SHA256
+    uint8_t key[16];
+    meshcore_scope_key("nl", key);
+    const uint8_t expected[16] = { 0xa8, 0x28, 0x9f, 0x73, 0x66, 0x5c, 0x28, 0x05, 0x7d, 0x4f, 0x38, 0x15, 0xa6, 0x00, 0x29, 0x21 };
+    CHECK_EQ(memcmp(key, expected, sizeof(key)), 0);
+    uint8_t hashtagKey[16];
+    meshcore_scope_key("#nl", hashtagKey);
+    CHECK_EQ(memcmp(key, hashtagKey, sizeof(key)), 0);
+
+    MeshCorePacket packet;
+    packet.payloadType = MeshCorePayload::TextMessage;
+    packet.payloadLength = 5;
+    memcpy(packet.payload, "hello", 5);
+    CHECK_EQ(meshcore_transport_code(key, packet), 0xEEC8);
+
+    packet.payloadType = MeshCorePayload::Advert;
+    packet.payloadLength = 0;
+    CHECK_EQ(meshcore_transport_code(key, packet), 0xF329);
 }

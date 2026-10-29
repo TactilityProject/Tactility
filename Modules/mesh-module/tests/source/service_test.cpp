@@ -81,6 +81,20 @@ error_t loopbackGetRadioProfile(void*, RadioRegion, RadioModulation modulation, 
     return ERROR_NONE;
 }
 
+// The "Other" preset stands for one that sets its own frequency in the US band
+error_t loopbackGetPresetRegion(size_t preset, RadioRegion current, RadioRegion* region) {
+    *region = (preset == 1) ? RADIO_REGION_US_915 : current;
+    return ERROR_NONE;
+}
+
+// The "Other" preset stands for one with a larger path hash size and a scope
+void loopbackGetPresetNetwork(size_t preset, MeshNetworkSettings* network) {
+    *network = { .path_hash_size = (preset == 1) ? 2 : 1 };
+    if (preset == 1) {
+        strcpy(network->region_scope, "nl");
+    }
+}
+
 void loopbackOnStart(void*) { startCount++; }
 
 // Channel 0xFF stands for frames the backend can't read, 0xFE for adverts
@@ -130,6 +144,8 @@ const MeshBackendApi loopbackApi = {
     .destroy = loopbackDestroy,
     .presets = loopbackPresets,
     .get_radio_profile = loopbackGetRadioProfile,
+    .get_preset_region = loopbackGetPresetRegion,
+    .get_preset_network = loopbackGetPresetNetwork,
     .on_start = loopbackOnStart,
     .on_receive = loopbackOnReceive,
     .on_tick = loopbackOnTick,
@@ -278,23 +294,124 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
 
         char name[MESH_NAME_MAX_LENGTH + 1];
-        CHECK_EQ(mesh_get_preset_count(), 2);
-        CHECK_EQ(mesh_get_preset_name(1, name, sizeof(name)), ERROR_NONE);
+        CHECK_EQ(mesh_get_preset_count(nullptr), 2);
+        CHECK_EQ(mesh_get_preset_name(nullptr, 1, name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "Other");
-        CHECK_EQ(mesh_get_preset_name(2, name, sizeof(name)), ERROR_NOT_FOUND);
-        CHECK_EQ(mesh_get_preset(name, sizeof(name)), ERROR_NONE);
+        CHECK_EQ(mesh_get_preset_name(nullptr, 2, name, sizeof(name)), ERROR_NOT_FOUND);
+        CHECK_EQ(mesh_get_preset(nullptr, name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "Default");
 
-        CHECK_EQ(mesh_set_preset("Missing"), ERROR_NOT_FOUND);
-        REQUIRE_EQ(mesh_set_preset("Other"), ERROR_NONE);
-        CHECK_EQ(mesh_get_preset(name, sizeof(name)), ERROR_NONE);
+        CHECK_EQ(mesh_set_preset(nullptr, "Missing"), ERROR_NOT_FOUND);
+        REQUIRE_EQ(mesh_set_preset(nullptr, "Other"), ERROR_NONE);
+        CHECK_EQ(mesh_get_preset(nullptr, name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "Other");
         CHECK(waitFor([] {
             int32_t spreadingFactor = 0;
             return radio_get_parameter(&local, RADIO_PARAMETER_SPREADING_FACTOR, &spreadingFactor) == ERROR_NONE && spreadingFactor == 7;
         }));
         CHECK(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
-        REQUIRE_EQ(mesh_set_preset("Default"), ERROR_NONE);
+        REQUIRE_EQ(mesh_set_preset(nullptr, "Default"), ERROR_NONE);
+    }
+
+    SUBCASE("a backend that isn't selected can be configured") {
+        MeshBackendApi spareApi = loopbackApi;
+        spareApi.id = "spare";
+        REQUIRE_EQ(mesh_backend_register(&spareApi), ERROR_NONE);
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+
+        char name[MESH_NAME_MAX_LENGTH + 1];
+        REQUIRE_EQ(mesh_set_preset("spare", "Other"), ERROR_NONE);
+        const MeshRadioSettings settings = { .power = 5 };
+        REQUIRE_EQ(mesh_set_radio_settings("spare", &settings), ERROR_NONE);
+
+        // The selected backend keeps its own settings, and the radio keeps running with them
+        CHECK_EQ(mesh_get_preset("spare", name, sizeof(name)), ERROR_NONE);
+        CHECK_EQ(std::string(name), "Other");
+        CHECK_EQ(mesh_get_preset("loopback", name, sizeof(name)), ERROR_NONE);
+        CHECK_EQ(std::string(name), "Default");
+        MeshRadioSettings stored = {};
+        CHECK_EQ(mesh_get_radio_settings("loopback", &stored), ERROR_NONE);
+        CHECK_EQ(stored.power, 0);
+        CHECK_EQ(mesh_get_radio_settings("spare", &stored), ERROR_NONE);
+        CHECK_EQ(stored.power, 5);
+        int32_t spreadingFactor = 0;
+        CHECK_EQ(radio_get_parameter(&local, RADIO_PARAMETER_SPREADING_FACTOR, &spreadingFactor), ERROR_NONE);
+        CHECK_EQ(spreadingFactor, 11);
+
+        // The parameters of the backend that isn't running follow its preset and settings
+        MeshRadioSettings parameters = {};
+        CHECK_EQ(mesh_get_radio_parameters("spare", &parameters), ERROR_NONE);
+        CHECK_EQ(parameters.spreading_factor, 7);
+        CHECK_EQ(parameters.power, 5);
+        CHECK_EQ(mesh_get_preset("missing", name, sizeof(name)), ERROR_NOT_FOUND);
+
+        REQUIRE_EQ(mesh_set_preset("spare", "Default"), ERROR_NONE);
+        REQUIRE_EQ(mesh_backend_unregister(&spareApi), ERROR_NONE);
+    }
+
+    SUBCASE("network parameters follow the preset and the settings") {
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+
+        MeshNetworkSettings network = {};
+        CHECK_EQ(mesh_get_network_parameters(nullptr, &network), ERROR_NONE);
+        CHECK_EQ(network.path_hash_size, 1);
+        CHECK_EQ(std::string(network.region_scope), "");
+
+        REQUIRE_EQ(mesh_set_preset(nullptr, "Other"), ERROR_NONE);
+        CHECK_EQ(mesh_get_network_parameters(nullptr, &network), ERROR_NONE);
+        CHECK_EQ(network.path_hash_size, 2);
+        CHECK_EQ(std::string(network.region_scope), "nl");
+
+        // A setting replaces the preset's value, and the scope can be turned off
+        MeshNetworkSettings settings = { .path_hash_size = 3 };
+        strcpy(settings.region_scope, MESH_REGION_SCOPE_NONE);
+        REQUIRE_EQ(mesh_set_network_settings(nullptr, &settings), ERROR_NONE);
+        CHECK_EQ(mesh_get_network_parameters(nullptr, &network), ERROR_NONE);
+        CHECK_EQ(network.path_hash_size, 3);
+        CHECK_EQ(std::string(network.region_scope), "");
+
+        // The running backend sees them after the radio was configured again
+        CHECK(waitFor([] {
+            MeshNetworkSettings hosted = {};
+            return mesh_get_network_settings(nullptr, &hosted) == ERROR_NONE && hosted.path_hash_size == 3;
+        }));
+
+        // Selecting a preset clears the settings
+        REQUIRE_EQ(mesh_set_preset(nullptr, "Default"), ERROR_NONE);
+        CHECK_EQ(mesh_get_network_settings(nullptr, &settings), ERROR_NONE);
+        CHECK_EQ(settings.path_hash_size, 0);
+        CHECK_EQ(std::string(settings.region_scope), "");
+        CHECK_EQ(mesh_get_network_settings("missing", &settings), ERROR_NOT_FOUND);
+    }
+
+    SUBCASE("a preset reports the region it needs") {
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+        RadioRegion region = RADIO_REGION_UNSET;
+        CHECK_EQ(mesh_get_preset_region(nullptr, "Other", &region), ERROR_NONE);
+        CHECK_EQ(region, RADIO_REGION_US_915);
+        CHECK_EQ(mesh_get_preset_region(nullptr, "Default", &region), ERROR_NONE);
+        CHECK_EQ(region, RADIO_REGION_EU_868);
+        CHECK_EQ(mesh_get_preset_region(nullptr, "Missing", &region), ERROR_NOT_FOUND);
+    }
+
+    SUBCASE("the power is limited to what the region allows") {
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        const MeshRadioSettings tooPowerful = { .power = 40 };
+        REQUIRE_EQ(mesh_set_radio_settings(nullptr, &tooPowerful), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        CHECK(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+        int32_t power = 0;
+        CHECK_EQ(radio_get_parameter(&local, RADIO_PARAMETER_POWER, &power), ERROR_NONE);
+        CHECK_EQ(power, 27);
+        const MeshRadioSettings none = {};
+        REQUIRE_EQ(mesh_set_radio_settings(nullptr, &none), ERROR_NONE);
     }
 
     SUBCASE("a new node name is announced by the backend") {
@@ -350,7 +467,7 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK_EQ(mesh_get_radio_kind(3, &kind), ERROR_NOT_FOUND);
         CHECK_EQ(mesh_get_radio(name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "radio_local");
-        CHECK_EQ(mesh_get_preset_count(), 2);
+        CHECK_EQ(mesh_get_preset_count(nullptr), 2);
         CHECK_FALSE(espNowFake.enabled);
 
         CHECK_EQ(mesh_set_radio("missing"), ERROR_NOT_FOUND);
@@ -363,7 +480,7 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK_EQ(espNowFake.power, 20);
         CHECK_EQ(mesh_get_radio(name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "radio_espnow");
-        CHECK_EQ(mesh_get_preset_count(), 0);
+        CHECK_EQ(mesh_get_preset_count(nullptr), 0);
         CHECK_EQ(radio_acquire(&local, "someone-else"), ERROR_NONE);
         CHECK_EQ(radio_release(&local), ERROR_NONE);
 
@@ -372,7 +489,7 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK(waitFor([] { return !espNowFake.enabled && mesh_get_state() == MESH_STATE_ON; }));
         CHECK_EQ(mesh_get_radio(name, sizeof(name)), ERROR_NONE);
         CHECK_EQ(std::string(name), "radio_local");
-        CHECK_EQ(mesh_get_preset_count(), 2);
+        CHECK_EQ(mesh_get_preset_count(nullptr), 2);
 
         REQUIRE_EQ(service_manager_stop(MESH_SERVICE_ID), ERROR_NONE);
         REQUIRE_EQ(radio_set_region(&espNow, RADIO_REGION_UNSET), ERROR_NONE);

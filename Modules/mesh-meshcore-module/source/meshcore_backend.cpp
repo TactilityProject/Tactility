@@ -15,6 +15,7 @@
 #include <tactility/time.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -198,7 +199,27 @@ Contact* findContact(Backend* backend, const uint8_t publicKey[MESHCORE_PUBLIC_K
     return nullptr;
 }
 
-bool transmit(Backend* backend, const MeshCorePacket& packet, uint32_t seq) {
+/** Flooded packets get the path hash size of the network, and a code that limits them to the region scope */
+MeshCorePacket applyNetwork(Backend* backend, const MeshCorePacket& original) {
+    MeshCorePacket packet = original;
+    if (packet.route != MeshCoreRoute::Flood) {
+        return packet;
+    }
+    MeshNetworkSettings network;
+    mesh_host_get_network(backend->host, &network);
+    packet.pathHashSize = static_cast<uint8_t>(std::clamp<int32_t>(network.path_hash_size, 1, 3));
+    if (network.region_scope[0] != '\0') {
+        uint8_t key[16];
+        meshcore_scope_key(network.region_scope, key);
+        packet.route = MeshCoreRoute::TransportFlood;
+        packet.transportCodes[0] = meshcore_transport_code(key, packet);
+        packet.transportCodes[1] = 0;
+    }
+    return packet;
+}
+
+bool transmit(Backend* backend, const MeshCorePacket& original, uint32_t seq) {
+    const MeshCorePacket packet = applyNetwork(backend, original);
     uint8_t frame[FRAME_SIZE];
     const size_t length = meshcore_packet_serialize(packet, frame, sizeof(frame));
     if (length == 0) {
@@ -344,9 +365,109 @@ void destroy(void* context) {
 }
 
 constexpr size_t PRESET_DEFAULT = 0;
-constexpr size_t PRESET_EU_NL = 1;
 
-const char* const presets[] = { "Default", "EU NL", nullptr };
+/** The default preset follows the region of the radio */
+struct DefaultProfile {
+    RadioRegion region;
+    int32_t frequency;
+    int32_t bandwidth;
+    int32_t spreadingFactor;
+    int32_t codingRate;
+};
+
+constexpr std::array DEFAULT_PROFILES = {
+    DefaultProfile { .region = RADIO_REGION_EU_868, .frequency = 869618000, .bandwidth = 62500, .spreadingFactor = 8, .codingRate = 8 },
+    DefaultProfile { .region = RADIO_REGION_US_915, .frequency = 910525000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 5 },
+    DefaultProfile { .region = RADIO_REGION_AU_915, .frequency = 915800000, .bandwidth = 250000, .spreadingFactor = 10, .codingRate = 5 },
+};
+
+/** The community suggested settings per country. Preset index 0 is the default, so these start at index 1. */
+struct Profile {
+    const char* name;
+    /** The region that is selected for the preset when the current region doesn't allow its frequency */
+    RadioRegion region;
+    int32_t frequency;
+    int32_t bandwidth;
+    int32_t spreadingFactor;
+    int32_t codingRate;
+    /** Bytes per hop in the path */
+    int32_t pathHashSize;
+    /** Empty for no scope */
+    const char* regionScope;
+};
+
+constexpr std::array PROFILES = {
+    Profile { .name = "Australia", .region = RADIO_REGION_AU_915, .frequency = 915800000, .bandwidth = 250000, .spreadingFactor = 10, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Australia (Narrow)", .region = RADIO_REGION_AU_915, .frequency = 916575000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 7, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Australia (Mid)", .region = RADIO_REGION_AU_915, .frequency = 915075000, .bandwidth = 125000, .spreadingFactor = 9, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Australia: SA, WA", .region = RADIO_REGION_AU_915, .frequency = 923125000, .bandwidth = 62500, .spreadingFactor = 8, .codingRate = 8, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Australia: QLD", .region = RADIO_REGION_AU_915, .frequency = 923125000, .bandwidth = 62500, .spreadingFactor = 8, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Brazil", .region = RADIO_REGION_AU_915, .frequency = 923125000, .bandwidth = 62500, .spreadingFactor = 8, .codingRate = 8, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Canada", .region = RADIO_REGION_US_915, .frequency = 910525000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 5, .pathHashSize = 3, .regionScope = "" },
+    Profile { .name = "Costa Rica", .region = RADIO_REGION_US_915, .frequency = 910525000, .bandwidth = 125000, .spreadingFactor = 11, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "EU/UK (Narrow)", .region = RADIO_REGION_EU_868, .frequency = 869618000, .bandwidth = 62500, .spreadingFactor = 8, .codingRate = 8, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "EU/UK (Deprecated)", .region = RADIO_REGION_EU_868, .frequency = 869525000, .bandwidth = 250000, .spreadingFactor = 11, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Czech Republic (Narrow)", .region = RADIO_REGION_EU_868, .frequency = 869432000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 5, .pathHashSize = 2, .regionScope = "" },
+    Profile { .name = "EU 433MHz (Long Range)", .region = RADIO_REGION_EU_433, .frequency = 433650000, .bandwidth = 250000, .spreadingFactor = 11, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "EU 433MHz (Narrow)", .region = RADIO_REGION_EU_433, .frequency = 433650000, .bandwidth = 62500, .spreadingFactor = 8, .codingRate = 8, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Hungary", .region = RADIO_REGION_EU_868, .frequency = 869618000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 5, .pathHashSize = 2, .regionScope = "" },
+    Profile { .name = "Netherlands", .region = RADIO_REGION_EU_868, .frequency = 869618000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 5, .pathHashSize = 2, .regionScope = "nl" },
+    Profile { .name = "Netherlands (Limburg)", .region = RADIO_REGION_EU_868, .frequency = 869618000, .bandwidth = 62500, .spreadingFactor = 8, .codingRate = 8, .pathHashSize = 2, .regionScope = "nl" },
+    Profile { .name = "New Zealand (Narrow)", .region = RADIO_REGION_AU_915, .frequency = 917375000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 5, .pathHashSize = 2, .regionScope = "" },
+    Profile { .name = "New Zealand (Gisborne)", .region = RADIO_REGION_AU_915, .frequency = 917375000, .bandwidth = 250000, .spreadingFactor = 11, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Portugal 433", .region = RADIO_REGION_EU_433, .frequency = 433375000, .bandwidth = 62500, .spreadingFactor = 9, .codingRate = 6, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Portugal 868", .region = RADIO_REGION_EU_868, .frequency = 869618000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 6, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Slovakia", .region = RADIO_REGION_EU_868, .frequency = 869618000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 5, .pathHashSize = 2, .regionScope = "" },
+    Profile { .name = "Switzerland", .region = RADIO_REGION_EU_868, .frequency = 869618000, .bandwidth = 62500, .spreadingFactor = 8, .codingRate = 8, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "USA", .region = RADIO_REGION_US_915, .frequency = 910525000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "USA - Southern California", .region = RADIO_REGION_US_915, .frequency = 927875000, .bandwidth = 62500, .spreadingFactor = 7, .codingRate = 5, .pathHashSize = 3, .regionScope = "" },
+    Profile { .name = "Vietnam (Narrow)", .region = RADIO_REGION_US_915, .frequency = 920250000, .bandwidth = 62500, .spreadingFactor = 8, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+    Profile { .name = "Vietnam (Deprecated)", .region = RADIO_REGION_US_915, .frequency = 920250000, .bandwidth = 250000, .spreadingFactor = 11, .codingRate = 5, .pathHashSize = 1, .regionScope = "" },
+};
+
+/** "Default", the names of PROFILES, and a terminating nullptr */
+constexpr auto presets = [] {
+    std::array<const char*, PROFILES.size() + 2> names {};
+    names[0] = "Default";
+    for (size_t i = 0; i < PROFILES.size(); i++) {
+        names[i + 1] = PROFILES[i].name;
+    }
+    return names;
+}();
+
+/** Whether the whole channel of width @a bandwidth around @a frequency lies in one band of @a region */
+bool fitsRegion(int32_t frequency, int32_t bandwidth, RadioRegion region) {
+    const RadioRegionBand* bands = nullptr;
+    const size_t count = radio_get_region_bands(region, &bands);
+    return std::any_of(bands, bands + count, [=](const RadioRegionBand& band) {
+        return frequency - bandwidth / 2 >= band.frequency_min && frequency + bandwidth / 2 <= band.frequency_max;
+    });
+}
+
+void getPresetNetwork(size_t preset, MeshNetworkSettings* network) {
+    *network = { .path_hash_size = 1 };
+    if (preset != PRESET_DEFAULT && preset <= PROFILES.size()) {
+        const Profile& profile = PROFILES[preset - 1];
+        network->path_hash_size = profile.pathHashSize;
+        strncpy(network->region_scope, profile.regionScope, MESH_NAME_MAX_LENGTH);
+    }
+}
+
+error_t getPresetRegion(size_t preset, RadioRegion current, RadioRegion* region) {
+    *region = current;
+    if (preset == PRESET_DEFAULT || preset > PROFILES.size()) {
+        return ERROR_NONE;
+    }
+    const Profile& profile = PROFILES[preset - 1];
+    if (fitsRegion(profile.frequency, profile.bandwidth, current)) {
+        return ERROR_NONE;
+    }
+    if (fitsRegion(profile.frequency, profile.bandwidth, profile.region)) {
+        *region = profile.region;
+        return ERROR_NONE;
+    }
+    return ERROR_NOT_SUPPORTED;
+}
 
 error_t getRadioProfile(void*, RadioRegion region, RadioModulation modulation, size_t preset, MeshRadioProfile* profile) {
     // MeshCore's ESP-NOW transport broadcasts unencrypted frames on the Wi-Fi channel that the radio is on, at 20 dBm.
@@ -370,53 +491,40 @@ error_t getRadioProfile(void*, RadioRegion region, RadioModulation modulation, s
         return ERROR_NOT_SUPPORTED;
     }
 
-    // MeshCore's recommended presets. Sync word 0x12 is LoRa's private network sync word.
-    switch (region) {
-        case RADIO_REGION_EU_868:
-            *profile = {
-                .modulation = RADIO_MODULATION_LORA,
-                .frequency = 869618000,
-                .bandwidth = 62500,
-                .spreading_factor = (preset == PRESET_EU_NL) ? 7 : 8,
-                .coding_rate = (preset == PRESET_EU_NL) ? 5 : 8,
-                .sync_word = 0x12,
-                .preamble_length = 16,
-                .power = 22,
-            };
-            return ERROR_NONE;
-        case RADIO_REGION_US_915:
-            if (preset != PRESET_DEFAULT) {
-                return ERROR_NOT_SUPPORTED;
-            }
-            *profile = {
-                .modulation = RADIO_MODULATION_LORA,
-                .frequency = 910525000,
-                .bandwidth = 62500,
-                .spreading_factor = 7,
-                .coding_rate = 5,
-                .sync_word = 0x12,
-                .preamble_length = 16,
-                .power = 22,
-            };
-            return ERROR_NONE;
-        case RADIO_REGION_AU_915:
-            if (preset != PRESET_DEFAULT) {
-                return ERROR_NOT_SUPPORTED;
-            }
-            *profile = {
-                .modulation = RADIO_MODULATION_LORA,
-                .frequency = 915800000,
-                .bandwidth = 250000,
-                .spreading_factor = 10,
-                .coding_rate = 5,
-                .sync_word = 0x12,
-                .preamble_length = 16,
-                .power = 22,
-            };
-            return ERROR_NONE;
-        default:
+    int32_t frequency = 0;
+    int32_t bandwidth = 0;
+    int32_t spreadingFactor = 0;
+    int32_t codingRate = 0;
+    if (preset == PRESET_DEFAULT) {
+        const auto* match = std::find_if(DEFAULT_PROFILES.begin(), DEFAULT_PROFILES.end(), [region](const DefaultProfile& candidate) { return candidate.region == region; });
+        if (match == DEFAULT_PROFILES.end()) {
             return ERROR_NOT_SUPPORTED;
+        }
+        frequency = match->frequency;
+        bandwidth = match->bandwidth;
+        spreadingFactor = match->spreadingFactor;
+        codingRate = match->codingRate;
+    } else if (preset <= PROFILES.size()) {
+        const Profile& match = PROFILES[preset - 1];
+        frequency = match.frequency;
+        bandwidth = match.bandwidth;
+        spreadingFactor = match.spreadingFactor;
+        codingRate = match.codingRate;
+    } else {
+        return ERROR_NOT_SUPPORTED;
     }
+    // Sync word 0x12 is LoRa's private network sync word
+    *profile = {
+        .modulation = RADIO_MODULATION_LORA,
+        .frequency = frequency,
+        .bandwidth = bandwidth,
+        .spreading_factor = spreadingFactor,
+        .coding_rate = codingRate,
+        .sync_word = 0x12,
+        .preamble_length = 16,
+        .power = 22,
+    };
+    return ERROR_NONE;
 }
 
 void onStart(void* context) {
@@ -577,8 +685,10 @@ const MeshBackendApi meshcore_backend_api = {
     .id = "meshcore",
     .create = create,
     .destroy = destroy,
-    .presets = presets,
+    .presets = presets.data(),
     .get_radio_profile = getRadioProfile,
+    .get_preset_region = getPresetRegion,
+    .get_preset_network = getPresetNetwork,
     .on_start = onStart,
     .on_receive = onReceive,
     .on_tick = onTick,

@@ -52,6 +52,15 @@ void meshcore_channel_from_key(const uint8_t key[16], MeshCoreChannel* channel);
 /** Key of a hashtag channel (e.g. "#test"): the first 16 bytes of the SHA-256 of its name */
 void meshcore_hashtag_channel_key(const char* name, uint8_t key[16]);
 
+/** Key of a region scope: the key of the hashtag channel with the same name, which gets a "#" in front when it has none */
+void meshcore_scope_key(const char* name, uint8_t key[16]);
+
+/**
+ * The code that identifies a packet as part of a region scope: the first 2 bytes of an HMAC-SHA256 over the payload type
+ * and the payload, keyed with the scope's key. 0x0000 and 0xFFFF are reserved, so they are moved to the nearest other code.
+ */
+uint16_t meshcore_transport_code(const uint8_t key[16], const MeshCorePacket& packet);
+
 /**
  * Build the URI that MeshCore apps scan as a QR code to add a contact:
  * meshcore://contact/add?name=<name>&public_key=<hex>&type=<type>

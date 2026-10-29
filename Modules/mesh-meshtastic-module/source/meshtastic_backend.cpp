@@ -15,6 +15,7 @@
 #include <tactility/time.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <utility>
@@ -35,8 +36,35 @@ constexpr size_t MAX_KNOWN_NAMES = 128;
 constexpr uint64_t NODE_INFO_INTERVAL_MS = 3ULL * 3600 * 1000;
 constexpr uint64_t ACK_TIMEOUT_MS = 60 * 1000;
 constexpr auto* DEFAULT_CHANNEL_NAME = "LongFast";
-constexpr int32_t LONG_FAST_BANDWIDTH = 250000;
 constexpr int32_t MAX_RADIO_POWER = 22;
+
+/** Meshtastic's modem presets. Index 0 is the default. */
+struct ModemPreset {
+    const char* name;
+    int32_t bandwidth;
+    int32_t spreadingFactor;
+    int32_t codingRate;
+};
+
+constexpr std::array MODEM_PRESETS = {
+    ModemPreset { .name = "LongFast", .bandwidth = 250000, .spreadingFactor = 11, .codingRate = 5 },
+    ModemPreset { .name = "LongModerate", .bandwidth = 125000, .spreadingFactor = 11, .codingRate = 8 },
+    ModemPreset { .name = "LongSlow", .bandwidth = 125000, .spreadingFactor = 12, .codingRate = 8 },
+    ModemPreset { .name = "MediumFast", .bandwidth = 250000, .spreadingFactor = 9, .codingRate = 5 },
+    ModemPreset { .name = "MediumSlow", .bandwidth = 250000, .spreadingFactor = 10, .codingRate = 5 },
+    ModemPreset { .name = "ShortFast", .bandwidth = 250000, .spreadingFactor = 7, .codingRate = 5 },
+    ModemPreset { .name = "ShortSlow", .bandwidth = 250000, .spreadingFactor = 8, .codingRate = 5 },
+    ModemPreset { .name = "ShortTurbo", .bandwidth = 500000, .spreadingFactor = 7, .codingRate = 5 },
+};
+
+/** The names of MODEM_PRESETS and a terminating nullptr */
+constexpr auto PRESET_NAMES = [] {
+    std::array<const char*, MODEM_PRESETS.size() + 1> names {};
+    for (size_t i = 0; i < MODEM_PRESETS.size(); i++) {
+        names[i] = MODEM_PRESETS[i].name;
+    }
+    return names;
+}();
 
 /** Meshtastic's region table, used to place the channel's frequency slot */
 struct RegionInfo {
@@ -341,24 +369,54 @@ void destroy(void* context) {
     tt::deleteObject(static_cast<Backend*>(context));
 }
 
-error_t getRadioProfile(void* context, RadioRegion region, RadioModulation modulation, size_t, MeshRadioProfile* profile) {
+/** The primary channel of a node that never customised it is named after the preset, which keeps it compatible with other nodes on that preset */
+void renameDefaultPrimaryChannel(Backend* backend, const char* presetName) {
+    Channel* primary = nullptr;
+    for (auto& channel : backend->channels) {
+        if (channel.index == 0) {
+            primary = &channel;
+        }
+    }
+    if (primary == nullptr || strcmp(primary->name, presetName) == 0) {
+        return;
+    }
+    const uint8_t defaultPsk = 1;
+    MeshtasticChannelKey defaultKey {};
+    meshtastic_expand_psk(&defaultPsk, 1, &defaultKey);
+    const bool isDefaultKey = primary->key.length == defaultKey.length && memcmp(primary->key.bytes, defaultKey.bytes, defaultKey.length) == 0;
+    const bool isPresetName = std::any_of(MODEM_PRESETS.begin(), MODEM_PRESETS.end(), [primary](const ModemPreset& preset) { return strcmp(preset.name, primary->name) == 0; });
+    if (isDefaultKey && isPresetName) {
+        addChannel(backend, 0, presetName, defaultKey);
+        saveChannels(backend);
+    }
+}
+
+error_t getRadioProfile(void* context, RadioRegion region, RadioModulation modulation, size_t presetIndex, MeshRadioProfile* profile) {
     auto* backend = static_cast<Backend*>(context);
-    if (modulation != RADIO_MODULATION_LORA) {
+    if (modulation != RADIO_MODULATION_LORA || presetIndex >= MODEM_PRESETS.size()) {
         return ERROR_NOT_SUPPORTED;
     }
+    const ModemPreset& preset = MODEM_PRESETS[presetIndex];
     for (const auto& info : REGIONS) {
         if (info.region != region) {
             continue;
         }
-        // The LongFast preset, in the slot that the primary channel's name selects
-        const Channel* primary = findChannel(backend, 0);
-        const char* slotName = (primary != nullptr && primary->name[0] != '\0') ? primary->name : DEFAULT_CHANNEL_NAME;
+        if (preset.bandwidth > info.frequencyEnd - info.frequencyStart) {
+            return ERROR_NOT_SUPPORTED;
+        }
+        // Without a backend there are no channels, and the preset's own name selects the slot
+        if (backend != nullptr) {
+            renameDefaultPrimaryChannel(backend, preset.name);
+        }
+        // The slot that the primary channel's name selects
+        const Channel* primary = (backend != nullptr) ? findChannel(backend, 0) : nullptr;
+        const char* slotName = (primary != nullptr && primary->name[0] != '\0') ? primary->name : preset.name;
         *profile = {
             .modulation = RADIO_MODULATION_LORA,
-            .frequency = meshtastic_channel_frequency(slotName, info.frequencyStart, info.frequencyEnd, LONG_FAST_BANDWIDTH),
-            .bandwidth = LONG_FAST_BANDWIDTH,
-            .spreading_factor = 11,
-            .coding_rate = 5,
+            .frequency = meshtastic_channel_frequency(slotName, info.frequencyStart, info.frequencyEnd, preset.bandwidth),
+            .bandwidth = preset.bandwidth,
+            .spreading_factor = preset.spreadingFactor,
+            .coding_rate = preset.codingRate,
             .sync_word = 0x2B,
             .preamble_length = 16,
             .power = std::min(info.powerLimit, MAX_RADIO_POWER),
@@ -518,7 +576,7 @@ const MeshBackendApi meshtastic_backend_api = {
     .id = "meshtastic",
     .create = create,
     .destroy = destroy,
-    .presets = nullptr,
+    .presets = PRESET_NAMES.data(),
     .get_radio_profile = getRadioProfile,
     .on_start = onStart,
     .on_receive = onReceive,

@@ -3,6 +3,8 @@
 
 #include <ed25519.h>
 
+#include <mesh/mesh.h>
+
 #include <cstdio>
 #include <cstring>
 
@@ -58,6 +60,25 @@ void meshcore_channel_from_key(const uint8_t key[16], MeshCoreChannel* channel) 
 
 void meshcore_hashtag_channel_key(const char* name, uint8_t key[16]) {
     meshcore_sha256(key, 16, reinterpret_cast<const uint8_t*>(name), strlen(name));
+}
+
+void meshcore_scope_key(const char* name, uint8_t key[16]) {
+    char hashtag[MESH_NAME_MAX_LENGTH + 2];
+    snprintf(hashtag, sizeof(hashtag), "%s%s", name[0] == '#' ? "" : "#", name);
+    meshcore_hashtag_channel_key(hashtag, key);
+}
+
+uint16_t meshcore_transport_code(const uint8_t key[16], const MeshCorePacket& packet) {
+    uint8_t message[1 + MESHCORE_MAX_PAYLOAD_SIZE];
+    message[0] = static_cast<uint8_t>(packet.payloadType);
+    memcpy(message + 1, packet.payload, packet.payloadLength);
+    uint8_t mac[32];
+    meshcore_hmac_sha256(key, 16, message, 1 + packet.payloadLength, mac);
+    const uint16_t code = static_cast<uint16_t>(mac[0] | (mac[1] << 8));
+    if (code == 0x0000) {
+        return 0x0001;
+    }
+    return (code == 0xFFFF) ? 0xFFFE : code;
 }
 
 void meshcore_shared_secret(const MeshCoreIdentity& identity, const uint8_t peerPublicKey[MESHCORE_PUBLIC_KEY_SIZE], uint8_t secret[MESHCORE_SECRET_SIZE]) {
