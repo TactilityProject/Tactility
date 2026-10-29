@@ -8,6 +8,7 @@
 #include <tactility/drivers/esp32_gpio_helpers.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <driver/spi_master.h>
+#include <esp_memory_utils.h>
 #include <algorithm>
 #include <cstring>
 #include <new>
@@ -26,6 +27,7 @@ struct SpiDevice {
     spi_device_handle_t handle = nullptr;
     GpioDescriptor* cs = nullptr;
     bool bus_acquired = false;
+    bool half_duplex = false;
 };
 
 struct Esp32SpiInternal {
@@ -110,6 +112,7 @@ static error_t add_device(Device* device, const SpiDeviceConfig* config, SpiDevi
     device_config.mode = config->mode;
     device_config.spics_io_num = -1;
     device_config.queue_size = 1;
+    device_config.flags = config->half_duplex ? SPI_DEVICE_HALFDUPLEX : 0;
 
     const esp_err_t result = spi_bus_add_device(GET_CONFIG(device)->host, &device_config, &new_device->handle);
     if (result != ESP_OK) {
@@ -119,6 +122,7 @@ static error_t add_device(Device* device, const SpiDeviceConfig* config, SpiDevi
     }
 
     new_device->cs = cs;
+    new_device->half_duplex = config->half_duplex;
 
     recursive_mutex_lock(&data->mutex);
     data->devices.push_back(new_device);
@@ -163,13 +167,31 @@ static error_t transmit(Device* device, SpiDevice* spi_device, const void* tx_da
     esp_err_t result = ESP_OK;
     size_t offset = 0;
     do {
-        const size_t chunk = tx_data == nullptr ? std::min(length - offset, ZERO_CHUNK_SIZE) : length;
         spi_transaction_t transaction = {};
-        transaction.length = chunk * 8;
-        transaction.tx_buffer = tx_data == nullptr ? zero_buffer : tx_data;
-        transaction.rx_buffer = rx_data == nullptr ? nullptr : static_cast<uint8_t*>(rx_data) + offset;
-        result = spi_device_polling_transmit(spi_device->handle, &transaction);
-        offset += chunk;
+        if (tx_data == nullptr && rx_data != nullptr && spi_device->half_duplex) {
+            // Half-duplex read: MOSI must stay idle, so use rxlength and leave length at 0.
+            const size_t chunk = std::min(length - offset, ZERO_CHUNK_SIZE);
+            transaction.rxlength = chunk * 8;
+            transaction.length = 0;
+            transaction.rx_buffer = static_cast<uint8_t*>(rx_data) + offset;
+            result = spi_device_polling_transmit(spi_device->handle, &transaction);
+            offset += chunk;
+        } else {
+            const size_t chunk = tx_data == nullptr ? std::min(length - offset, ZERO_CHUNK_SIZE) : length;
+            transaction.length = chunk * 8;
+            transaction.tx_buffer = tx_data == nullptr ? zero_buffer : tx_data;
+            transaction.rx_buffer = rx_data == nullptr ? nullptr : static_cast<uint8_t*>(rx_data) + offset;
+#if defined(SOC_PSRAM_DMA_CAPABLE) && SOC_PSRAM_DMA_CAPABLE
+            // Let the SPI DMA engine read directly from PSRAM (e.g. a display frame buffer) instead of
+            // bouncing it through internal memory. Harmless for internal buffers: the driver checks the
+            // address itself.
+            if (tx_data != nullptr && esp_ptr_external_ram(tx_data)) {
+                transaction.flags |= SPI_TRANS_DMA_USE_PSRAM;
+            }
+#endif
+            result = spi_device_polling_transmit(spi_device->handle, &transaction);
+            offset += chunk;
+        }
     } while (result == ESP_OK && offset < length);
 
     if (select) {

@@ -29,6 +29,12 @@ struct SpiDeviceConfig {
      * The controller selects the peripheral for the duration of each transmit() or between acquire_bus() and release_bus().
      */
     int32_t cs_index;
+    /**
+     * Half-duplex peripheral. The controller may skip the receive phase for write-only transfers
+     * (and the platform timing calculation can assume no simultaneous RX), which matters for
+     * write-heavy devices like displays.
+     */
+    bool half_duplex;
 };
 
 /**
