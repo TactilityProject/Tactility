@@ -1680,7 +1680,7 @@ error_t mesh_set_radio_settings(const char* backend, const MeshRadioSettings* ra
         MeshRadioProfile profile {};
         if (getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, findPreset(api, settings.preset), settings.radio_settings, &profile) == ERROR_NONE) {
             const RadioRegionBand* band = findBand(region, profile.frequency, profile.bandwidth);
-            if (band == nullptr || settings.radio_settings.power > band->power_max) {
+            if (profile.bandwidth <= 0 || band == nullptr || settings.radio_settings.power > band->power_max) {
                 return ERROR_OUT_OF_RANGE;
             }
         }
