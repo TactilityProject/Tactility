@@ -205,23 +205,98 @@ error_t mesh_set_backend(const char* id);
 /** @retval ERROR_NOT_FOUND when no backend is selected */
 error_t mesh_get_backend(char* id, size_t id_size);
 
-/** @return the number of radio presets of the selected backend, 0 when it has none */
-size_t mesh_get_preset_count(void);
+/*
+ * Presets and radio settings are kept per backend, so a backend can be configured before it is selected.
+ * @a backend is the id of a backend, or NULL for the selected backend.
+ */
+
+/** @return the number of radio presets of the backend, 0 when it has none or the radio doesn't use LoRa */
+size_t mesh_get_preset_count(const char* backend);
 
 /**
  * @param[in] index the preset index, below mesh_get_preset_count()
  * @retval ERROR_NOT_FOUND for an invalid index
  */
-error_t mesh_get_preset_name(size_t index, char* name, size_t name_size);
+error_t mesh_get_preset_name(const char* backend, size_t index, char* name, size_t name_size);
 
 /**
- * Select the radio preset of the selected backend. The choice is persisted and resets when the backend changes.
- * @retval ERROR_NOT_FOUND when the selected backend has no such preset
+ * Select the radio preset of a backend. The choice is persisted. The radio settings of the backend are cleared.
+ * @retval ERROR_NOT_FOUND when the backend has no such preset
+ * @retval ERROR_NOT_SUPPORTED when the region of the radio doesn't allow the preset, e.g. a bandwidth wider than its band
  */
-error_t mesh_set_preset(const char* name);
+error_t mesh_set_preset(const char* backend, const char* name);
+
+/**
+ * Get the region that a preset needs, because some presets set their own frequency.
+ * The region of the radio when the preset fits it or doesn't depend on the region.
+ * @retval ERROR_NOT_FOUND when the backend has no such preset
+ * @retval ERROR_NOT_SUPPORTED when no region allows the preset
+ */
+error_t mesh_get_preset_region(const char* backend, const char* name, enum RadioRegion* region);
 
 /** Get the selected preset name, which is the backend's default preset when none was selected */
-error_t mesh_get_preset(char* name, size_t name_size);
+error_t mesh_get_preset(const char* backend, char* name, size_t name_size);
+
+/** LoRa parameters of a backend. A value of 0 uses the value of the preset. */
+struct MeshRadioSettings {
+    /** In Hz */
+    int32_t frequency;
+    /** In Hz */
+    int32_t bandwidth;
+    int32_t spreading_factor;
+    /** The denominator of the coding rate: 5 for 4/5 up to 8 for 4/8 */
+    int32_t coding_rate;
+    /** In dBm */
+    int32_t power;
+};
+
+/**
+ * Set LoRa parameters of a backend. The choice is persisted and resets when the preset changes.
+ * The radio is reconfigured when the backend is selected and the service is running.
+ * @retval ERROR_NOT_FOUND when there is no such backend
+ */
+error_t mesh_set_radio_settings(const char* backend, const struct MeshRadioSettings* settings);
+
+error_t mesh_get_radio_settings(const char* backend, struct MeshRadioSettings* settings);
+
+/**
+ * Get the LoRa parameters that a backend would run with: the preset's values with the settings applied.
+ * The values of the radio when the backend is running. Otherwise the backend's defaults, which can differ from
+ * what it runs with when its state selects the frequency, like the primary channel of Meshtastic.
+ * @retval ERROR_INVALID_STATE when the radio doesn't use LoRa or has no region
+ */
+error_t mesh_get_radio_parameters(const char* backend, struct MeshRadioSettings* parameters);
+
+/** Region scope that turns the scope off, for a preset that has one */
+#define MESH_REGION_SCOPE_NONE "*"
+
+/** The largest number of bytes per hop in the path of a packet */
+#define MESH_PATH_HASH_SIZE_MAX 3
+
+/** Network parameters of a backend that don't concern the radio. A backend ignores the ones it doesn't have. */
+struct MeshNetworkSettings {
+    /** Bytes per hop in the path of a packet, 0 uses the value of the preset */
+    int32_t path_hash_size;
+    /** Name of the region that flooded packets are limited to, empty uses the value of the preset, MESH_REGION_SCOPE_NONE for no scope */
+    char region_scope[MESH_NAME_MAX_LENGTH + 1];
+};
+
+/**
+ * Set network parameters of a backend. The choice is persisted and resets when the preset changes.
+ * The radio is reconfigured when the backend is selected and the service is running.
+ * @retval ERROR_INVALID_ARGUMENT when the path hash size is negative or above MESH_PATH_HASH_SIZE_MAX
+ * @retval ERROR_NOT_FOUND when there is no such backend
+ */
+error_t mesh_set_network_settings(const char* backend, const struct MeshNetworkSettings* settings);
+
+error_t mesh_get_network_settings(const char* backend, struct MeshNetworkSettings* settings);
+
+/**
+ * Get the network parameters that a backend would run with: the preset's values with the settings applied.
+ * The scope is empty for none.
+ * @retval ERROR_NOT_FOUND when there is no such backend
+ */
+error_t mesh_get_network_parameters(const char* backend, struct MeshNetworkSettings* parameters);
 
 // endregion
 
@@ -328,9 +403,9 @@ error_t mesh_get_channels(struct MeshChannel* channels, size_t max_count, size_t
 error_t mesh_set_channel(const struct MeshChannel* channel);
 
 /**
- * Leave a channel. The stored messages remain. Channel 0 is the primary channel and can't be removed.
+ * Leave a channel. The stored messages remain.
  * @retval ERROR_NOT_FOUND when there is no such channel
- * @retval ERROR_INVALID_ARGUMENT for channel 0
+ * @retval ERROR_INVALID_ARGUMENT when the backend can't do without the channel, e.g. the primary channel of Meshtastic
  * @retval ERROR_NOT_SUPPORTED when the backend has no channels
  */
 error_t mesh_remove_channel(uint8_t index);

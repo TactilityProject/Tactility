@@ -252,6 +252,8 @@ def write_spiram_variables(output_file, device_properties: dict):
     # Reduce IRAM usage
     output_file.write("CONFIG_SPIRAM_USE_MALLOC=y\n")
     output_file.write("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y\n")
+    # With 5 buffers, HTTPS downloads stall for seconds on some access points. These buffers are allocated in SPIRAM.
+    output_file.write("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16\n")
     # TLS sessions (handshakes, record buffers) otherwise take internal RAM
     output_file.write("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y\n")
     # Performance improvements

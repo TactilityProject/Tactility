@@ -1,5 +1,6 @@
 #include "doctest.h"
 
+#include <mesh_meshcore/meshcore_backend.h>
 #include <mesh_meshcore/meshcore_packet.h>
 #include <mesh_meshcore/meshcore_protocol.h>
 
@@ -158,4 +159,101 @@ TEST_CASE("MeshCore contact URIs match the format of the MeshCore app") {
 
     // Too small for the URI
     CHECK_FALSE(meshcore_build_contact_uri("Example Contact", key, 1, uri, 60));
+}
+
+TEST_CASE("a MeshCore preset needs the region that allows its frequency") {
+    const auto presetIndex = [](const char* name) {
+        for (size_t i = 0; meshcore_backend_api.presets[i] != nullptr; i++) {
+            if (strcmp(meshcore_backend_api.presets[i], name) == 0) {
+                return i;
+            }
+        }
+        FAIL("unknown preset");
+        return size_t(0);
+    };
+    RadioRegion region = RADIO_REGION_UNSET;
+
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("Netherlands"), RADIO_REGION_US_915, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_EU_868);
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("Australia"), RADIO_REGION_EU_868, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_AU_915);
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("USA"), RADIO_REGION_US_915, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_US_915);
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("EU 433MHz (Narrow)"), RADIO_REGION_EU_868, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_EU_433);
+    CHECK_EQ(meshcore_backend_api.get_preset_region(presetIndex("Default"), RADIO_REGION_JP_920, &region), ERROR_NONE);
+    CHECK_EQ(region, RADIO_REGION_JP_920);
+}
+
+TEST_CASE("a region scope limits a packet with a code that other MeshCore nodes compute the same way") {
+    // The key and codes were computed with an independent HMAC-SHA256
+    uint8_t key[16];
+    meshcore_scope_key("nl", key);
+    const uint8_t expected[16] = { 0xa8, 0x28, 0x9f, 0x73, 0x66, 0x5c, 0x28, 0x05, 0x7d, 0x4f, 0x38, 0x15, 0xa6, 0x00, 0x29, 0x21 };
+    CHECK_EQ(memcmp(key, expected, sizeof(key)), 0);
+    uint8_t hashtagKey[16];
+    meshcore_scope_key("#nl", hashtagKey);
+    CHECK_EQ(memcmp(key, hashtagKey, sizeof(key)), 0);
+
+    MeshCorePacket packet;
+    packet.payloadType = MeshCorePayload::TextMessage;
+    packet.payloadLength = 5;
+    memcpy(packet.payload, "hello", 5);
+    uint16_t code = 0;
+    REQUIRE(meshcore_transport_code(key, packet, &code));
+    CHECK_EQ(code, 0xEEC8);
+
+    packet.payloadType = MeshCorePayload::Advert;
+    packet.payloadLength = 0;
+    REQUIRE(meshcore_transport_code(key, packet, &code));
+    CHECK_EQ(code, 0xF329);
+}
+
+TEST_CASE("a MeshCore preset only gives a radio profile in a region that allows its frequency") {
+    size_t netherlands = 0;
+    while (strcmp(meshcore_backend_api.presets[netherlands], "Netherlands") != 0) {
+        netherlands++;
+    }
+    MeshRadioProfile profile {};
+    CHECK_EQ(meshcore_backend_api.get_radio_profile(nullptr, RADIO_REGION_US_915, RADIO_MODULATION_LORA, netherlands, &profile), ERROR_NOT_SUPPORTED);
+    CHECK_EQ(meshcore_backend_api.get_radio_profile(nullptr, RADIO_REGION_EU_868, RADIO_MODULATION_LORA, netherlands, &profile), ERROR_NONE);
+    CHECK_EQ(profile.frequency, 869618000);
+}
+
+TEST_CASE("HMAC-SHA256 matches the RFC 4231 test vector") {
+    const uint8_t key[] = { 'J', 'e', 'f', 'e' };
+    const char* message = "what do ya want for nothing?";
+    const uint8_t expected[32] = {
+        0x5b, 0xdc, 0xc1, 0x46, 0xbf, 0x60, 0x75, 0x4e, 0x6a, 0x04, 0x24, 0x26, 0x08, 0x95, 0x75, 0xc7,
+        0x5a, 0x00, 0x3f, 0x08, 0x9d, 0x27, 0x39, 0x83, 0x9d, 0xec, 0x58, 0xb9, 0x64, 0xec, 0x38, 0x43,
+    };
+    uint8_t mac[32];
+    REQUIRE(meshcore_hmac_sha256(key, sizeof(key), reinterpret_cast<const uint8_t*>(message), strlen(message), mac));
+    CHECK_EQ(memcmp(mac, expected, sizeof(mac)), 0);
+}
+
+TEST_CASE("every MeshCore preset can be used in the region that it selects") {
+    for (size_t preset = 0; meshcore_backend_api.presets[preset] != nullptr; preset++) {
+        CAPTURE(std::string(meshcore_backend_api.presets[preset]));
+        // Whatever region the radio has, a preset ends up in a region that gives it a profile that lies in the region's bands
+        for (int current = RADIO_REGION_EU_433; current < RADIO_REGION_COUNT; current++) {
+            RadioRegion region = RADIO_REGION_UNSET;
+            if (meshcore_backend_api.get_preset_region(preset, static_cast<RadioRegion>(current), &region) != ERROR_NONE) {
+                FAIL("no region allows the preset");
+            }
+            MeshRadioProfile profile {};
+            if (meshcore_backend_api.get_radio_profile(nullptr, region, RADIO_MODULATION_LORA, preset, &profile) != ERROR_NONE) {
+                // The default preset only exists in some regions
+                CHECK_EQ(preset, 0);
+                continue;
+            }
+            const RadioRegionBand* bands = nullptr;
+            const size_t count = radio_get_region_bands(region, &bands);
+            bool fits = false;
+            for (size_t i = 0; i < count; i++) {
+                fits |= profile.frequency - profile.bandwidth / 2 >= bands[i].frequency_min && profile.frequency + profile.bandwidth / 2 <= bands[i].frequency_max;
+            }
+            CHECK(fits);
+        }
+    }
 }

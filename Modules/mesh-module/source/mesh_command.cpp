@@ -56,7 +56,7 @@ static int command_status() {
         printf("backend: %s\n", backend);
     }
     char preset[MESH_NAME_MAX_LENGTH + 1];
-    if (mesh_get_preset(preset, sizeof(preset)) == ERROR_NONE) {
+    if (mesh_get_preset(nullptr, preset, sizeof(preset)) == ERROR_NONE) {
         printf("preset: %s\n", preset);
     }
     printf("region: %s\n", radio_region_to_string(radio_settings_load_region()));
@@ -141,7 +141,15 @@ static int command_preset(int argc, char* argv[]) {
     }
 
     if (argc == 3) {
-        error_t error = mesh_set_preset(argv[2]);
+        // A preset can need another region. It's saved first, and the preset isn't set when that fails.
+        RadioRegion region = RADIO_REGION_UNSET;
+        if (mesh_get_preset_region(nullptr, argv[2], &region) == ERROR_NONE && region != RADIO_REGION_UNSET && region != radio_settings_load_region()) {
+            const error_t region_error = radio_settings_save_region(region);
+            if (region_error != ERROR_NONE) {
+                return report_error("region", region_error);
+            }
+        }
+        error_t error = mesh_set_preset(nullptr, argv[2]);
         if (error == ERROR_NOT_FOUND) {
             printf("mesh: unknown preset: %s\n", argv[2]);
             return 1;
@@ -153,15 +161,15 @@ static int command_preset(int argc, char* argv[]) {
     }
 
     char selected[MESH_NAME_MAX_LENGTH + 1] = {};
-    mesh_get_preset(selected, sizeof(selected));
-    const size_t count = mesh_get_preset_count();
+    mesh_get_preset(nullptr, selected, sizeof(selected));
+    const size_t count = mesh_get_preset_count(nullptr);
     if (count == 0) {
         printf("The backend has no presets\n");
         return 0;
     }
     for (size_t i = 0; i < count; i++) {
         char name[MESH_NAME_MAX_LENGTH + 1];
-        if (mesh_get_preset_name(i, name, sizeof(name)) == ERROR_NONE) {
+        if (mesh_get_preset_name(nullptr, i, name, sizeof(name)) == ERROR_NONE) {
             printf("%s %s\n", strcmp(name, selected) == 0 ? "*" : " ", name);
         }
     }

@@ -48,10 +48,26 @@ struct MeshBackendApi {
 
     /**
      * @param[in] modulation RADIO_MODULATION_LORA, or RADIO_MODULATION_ESPNOW for a radio that can't do LoRa
+     * @param[in] backend the backend state, or NULL to only get the parameters of @a preset for a backend that isn't active
      * @param[in] preset index in presets, 0 when the backend has none. Presets are for LoRa.
      * @retval ERROR_NOT_SUPPORTED when the backend can't operate in @a region with @a modulation and @a preset
      */
     error_t (*get_radio_profile)(void* backend, enum RadioRegion region, enum RadioModulation modulation, size_t preset, struct MeshRadioProfile* profile);
+
+    /**
+     * Optional. The region that @a preset needs, for presets that set their own frequency.
+     * Doesn't use the host or the backend state, and can be called from any thread.
+     * @param[in] current the region of the radio
+     * @param[out] region @a current when the preset fits it or doesn't depend on the region
+     * @retval ERROR_NOT_SUPPORTED when no region allows the preset
+     */
+    error_t (*get_preset_region)(size_t preset, enum RadioRegion current, enum RadioRegion* region);
+
+    /**
+     * Optional. The network parameters of a preset. Doesn't use the host or the backend state, and can be called from any thread.
+     * @param[out] network the values of the preset, with an empty scope for none
+     */
+    void (*get_preset_network)(size_t preset, struct MeshNetworkSettings* network);
 
     /** Called once the radio is on with the backend's profile */
     void (*on_start)(void* backend);
@@ -90,8 +106,9 @@ struct MeshBackendApi {
     void (*on_node_name_changed)(void* backend);
 
     /**
-     * Optional. The service doesn't call it for channel 0.
+     * Optional.
      * @retval ERROR_NOT_FOUND when there is no such channel
+     * @retval ERROR_INVALID_ARGUMENT when the backend can't do without the channel
      */
     error_t (*remove_channel)(void* backend, uint8_t index);
 };
@@ -142,6 +159,9 @@ void mesh_host_advert_heard(struct MeshHost* host, const struct MeshAddress* add
 
 /** Get a path in the backend's own data directory, which exists after this call */
 error_t mesh_host_get_data_path(struct MeshHost* host, const char* child_path, char* out_path, size_t out_path_size);
+
+/** Get the network parameters that the backend runs with: the preset's values with the settings applied. The scope is empty for none. */
+void mesh_host_get_network(struct MeshHost* host, struct MeshNetworkSettings* network);
 
 /** Get the name this node announces */
 void mesh_host_get_node_name(struct MeshHost* host, char* name, size_t name_size);

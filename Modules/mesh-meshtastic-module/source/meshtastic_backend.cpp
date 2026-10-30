@@ -15,8 +15,10 @@
 #include <tactility/time.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <cstring>
+#include <unistd.h>
 #include <utility>
 
 #ifdef ESP_PLATFORM
@@ -35,8 +37,35 @@ constexpr size_t MAX_KNOWN_NAMES = 128;
 constexpr uint64_t NODE_INFO_INTERVAL_MS = 3ULL * 3600 * 1000;
 constexpr uint64_t ACK_TIMEOUT_MS = 60 * 1000;
 constexpr auto* DEFAULT_CHANNEL_NAME = "LongFast";
-constexpr int32_t LONG_FAST_BANDWIDTH = 250000;
 constexpr int32_t MAX_RADIO_POWER = 22;
+
+/** Meshtastic's modem presets. Index 0 is the default. */
+struct ModemPreset {
+    const char* name;
+    int32_t bandwidth;
+    int32_t spreadingFactor;
+    int32_t codingRate;
+};
+
+constexpr std::array MODEM_PRESETS = {
+    ModemPreset { .name = "LongFast", .bandwidth = 250000, .spreadingFactor = 11, .codingRate = 5 },
+    ModemPreset { .name = "LongModerate", .bandwidth = 125000, .spreadingFactor = 11, .codingRate = 8 },
+    ModemPreset { .name = "LongSlow", .bandwidth = 125000, .spreadingFactor = 12, .codingRate = 8 },
+    ModemPreset { .name = "MediumFast", .bandwidth = 250000, .spreadingFactor = 9, .codingRate = 5 },
+    ModemPreset { .name = "MediumSlow", .bandwidth = 250000, .spreadingFactor = 10, .codingRate = 5 },
+    ModemPreset { .name = "ShortFast", .bandwidth = 250000, .spreadingFactor = 7, .codingRate = 5 },
+    ModemPreset { .name = "ShortSlow", .bandwidth = 250000, .spreadingFactor = 8, .codingRate = 5 },
+    ModemPreset { .name = "ShortTurbo", .bandwidth = 500000, .spreadingFactor = 7, .codingRate = 5 },
+};
+
+/** The names of MODEM_PRESETS and a terminating nullptr */
+constexpr auto PRESET_NAMES = [] {
+    std::array<const char*, MODEM_PRESETS.size() + 1> names {};
+    for (size_t i = 0; i < MODEM_PRESETS.size(); i++) {
+        names[i] = MODEM_PRESETS[i].name;
+    }
+    return names;
+}();
 
 /** Meshtastic's region table, used to place the channel's frequency slot */
 struct RegionInfo {
@@ -63,6 +92,8 @@ struct Channel {
     char name[MESH_NAME_MAX_LENGTH + 1];
     MeshtasticChannelKey key;
     uint8_t hash;
+    /** The primary channel that was never customised is named after the selected preset, like other nodes name it */
+    bool followsPreset;
 };
 
 struct Backend {
@@ -150,24 +181,45 @@ void loadOrCreateNodeNum(Backend* backend) {
     }
 }
 
-void addChannel(Backend* backend, uint8_t index, const char* name, const MeshtasticChannelKey& key) {
+void addChannel(Backend* backend, uint8_t index, const char* name, const MeshtasticChannelKey& key, bool followsPreset = false) {
     Channel channel {};
     channel.index = index;
     strncpy(channel.name, name, MESH_NAME_MAX_LENGTH);
     channel.key = key;
     channel.hash = meshtastic_channel_hash(name, key);
+    channel.followsPreset = followsPreset;
     std::erase_if(backend->channels, [index](const Channel& existing) { return existing.index == index; });
     backend->channels.push_back(channel);
     std::sort(backend->channels.begin(), backend->channels.end(), [](const Channel& a, const Channel& b) { return a.index < b.index; });
 }
 
+MeshtasticChannelKey getDefaultKey() {
+    const uint8_t defaultPsk = 1;
+    MeshtasticChannelKey key {};
+    meshtastic_expand_psk(&defaultPsk, 1, &key);
+    return key;
+}
+
+bool isDefaultKey(const MeshtasticChannelKey& key) {
+    const MeshtasticChannelKey defaultKey = getDefaultKey();
+    return key.length == defaultKey.length && memcmp(key.bytes, defaultKey.bytes, defaultKey.length) == 0;
+}
+
 // Record: index (1) + name (32) + key length (1) + key (32)
 constexpr size_t CHANNEL_RECORD_SIZE = 1 + MESH_NAME_MAX_LENGTH + 1 + 1 + 32;
+
+// The records keep the format of older versions, which can read the file back. A file next to it marks that the primary channel
+// that was never customised is stored without a name. Earlier files stored it as "LongFast", which can't be told from one that was
+// named that on purpose.
+constexpr auto* CHANNELS_MARKER_FILE = "channels.preset";
 
 void loadChannels(Backend* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     tt::std::vector<uint8_t> data;
     if (mesh_host_get_data_path(backend->host, "channels.bin", path, sizeof(path)) == ERROR_NONE && readFile(path, data)) {
+        char markerPath[FILE_MAX_PATH_STRING_LENGTH];
+        const bool hasMarker = mesh_host_get_data_path(backend->host, CHANNELS_MARKER_FILE, markerPath, sizeof(markerPath)) == ERROR_NONE &&
+            access(markerPath, F_OK) == 0;
         for (size_t offset = 0; offset + CHANNEL_RECORD_SIZE <= data.size(); offset += CHANNEL_RECORD_SIZE) {
             char name[MESH_NAME_MAX_LENGTH + 1];
             memcpy(name, data.data() + offset + 1, sizeof(name));
@@ -176,15 +228,16 @@ void loadChannels(Backend* backend) {
             key.length = data[offset + 1 + sizeof(name)];
             memcpy(key.bytes, data.data() + offset + 2 + sizeof(name), 32);
             if (key.length == 16 || key.length == 32) {
-                addChannel(backend, data[offset], name, key);
+                // A primary channel without a name and with the default key is the one that follows the preset
+                // An earlier file has "LongFast" for it, which is taken for the default because that is what nearly all of them are
+                const bool legacyDefault = !hasMarker && strcmp(name, DEFAULT_CHANNEL_NAME) == 0;
+                const bool followsPreset = data[offset] == 0 && (name[0] == '\0' || legacyDefault) && isDefaultKey(key);
+                addChannel(backend, data[offset], followsPreset ? DEFAULT_CHANNEL_NAME : name, key, followsPreset);
             }
         }
     }
     if (backend->channels.empty()) {
-        const uint8_t defaultPsk = 1;
-        MeshtasticChannelKey key {};
-        meshtastic_expand_psk(&defaultPsk, 1, &key);
-        addChannel(backend, 0, DEFAULT_CHANNEL_NAME, key);
+        addChannel(backend, 0, DEFAULT_CHANNEL_NAME, getDefaultKey(), true);
     }
 }
 
@@ -196,11 +249,20 @@ void saveChannels(Backend* backend) {
     tt::std::vector<uint8_t> data;
     for (const auto& channel : backend->channels) {
         data.push_back(channel.index);
-        data.insert(data.end(), channel.name, channel.name + MESH_NAME_MAX_LENGTH + 1);
+        const char emptyName[MESH_NAME_MAX_LENGTH + 1] = {};
+        const char* name = channel.followsPreset ? emptyName : channel.name;
+        data.insert(data.end(), name, name + MESH_NAME_MAX_LENGTH + 1);
         data.push_back(channel.key.length);
         data.insert(data.end(), channel.key.bytes, channel.key.bytes + 32);
     }
-    writeFile(path, data.data(), data.size());
+    if (!writeFile(path, data.data(), data.size())) {
+        return;
+    }
+    char markerPath[FILE_MAX_PATH_STRING_LENGTH];
+    if (mesh_host_get_data_path(backend->host, CHANNELS_MARKER_FILE, markerPath, sizeof(markerPath)) == ERROR_NONE) {
+        const uint8_t marker = 1;
+        writeFile(markerPath, &marker, sizeof(marker));
+    }
 }
 
 // endregion
@@ -341,24 +403,44 @@ void destroy(void* context) {
     tt::deleteObject(static_cast<Backend*>(context));
 }
 
-error_t getRadioProfile(void* context, RadioRegion region, RadioModulation modulation, size_t, MeshRadioProfile* profile) {
+/** The primary channel that was never customised takes the name of the selected preset. It isn't saved, so a channel that was configured with a preset's name keeps its name. */
+void followPreset(Backend* backend, const char* presetName) {
+    for (auto& channel : backend->channels) {
+        if (channel.index == 0 && channel.followsPreset && strcmp(channel.name, presetName) != 0) {
+            // Copied because addChannel() replaces the channel
+            const MeshtasticChannelKey key = channel.key;
+            addChannel(backend, 0, presetName, key, true);
+            return;
+        }
+    }
+}
+
+error_t getRadioProfile(void* context, RadioRegion region, RadioModulation modulation, size_t presetIndex, MeshRadioProfile* profile) {
     auto* backend = static_cast<Backend*>(context);
-    if (modulation != RADIO_MODULATION_LORA) {
+    if (modulation != RADIO_MODULATION_LORA || presetIndex >= MODEM_PRESETS.size()) {
         return ERROR_NOT_SUPPORTED;
     }
+    const ModemPreset& preset = MODEM_PRESETS[presetIndex];
     for (const auto& info : REGIONS) {
         if (info.region != region) {
             continue;
         }
-        // The LongFast preset, in the slot that the primary channel's name selects
-        const Channel* primary = findChannel(backend, 0);
-        const char* slotName = (primary != nullptr && primary->name[0] != '\0') ? primary->name : DEFAULT_CHANNEL_NAME;
+        if (preset.bandwidth > info.frequencyEnd - info.frequencyStart) {
+            return ERROR_NOT_SUPPORTED;
+        }
+        // Without a backend there are no channels, and the preset's own name selects the slot
+        if (backend != nullptr) {
+            followPreset(backend, preset.name);
+        }
+        // The slot that the primary channel's name selects
+        const Channel* primary = (backend != nullptr) ? findChannel(backend, 0) : nullptr;
+        const char* slotName = (primary != nullptr && primary->name[0] != '\0') ? primary->name : preset.name;
         *profile = {
             .modulation = RADIO_MODULATION_LORA,
-            .frequency = meshtastic_channel_frequency(slotName, info.frequencyStart, info.frequencyEnd, LONG_FAST_BANDWIDTH),
-            .bandwidth = LONG_FAST_BANDWIDTH,
-            .spreading_factor = 11,
-            .coding_rate = 5,
+            .frequency = meshtastic_channel_frequency(slotName, info.frequencyStart, info.frequencyEnd, preset.bandwidth),
+            .bandwidth = preset.bandwidth,
+            .spreading_factor = preset.spreadingFactor,
+            .coding_rate = preset.codingRate,
             .sync_word = 0x2B,
             .preamble_length = 16,
             .power = std::min(info.powerLimit, MAX_RADIO_POWER),
@@ -502,6 +584,10 @@ error_t setChannel(void* context, const MeshChannel* channel) {
 
 error_t removeChannel(void* context, uint8_t index) {
     auto* backend = static_cast<Backend*>(context);
+    // Meshtastic needs the primary channel to place the node in a frequency slot
+    if (index == 0) {
+        return ERROR_INVALID_ARGUMENT;
+    }
     const size_t removed = std::erase_if(backend->channels, [index](const Channel& existing) { return existing.index == index; });
     if (removed == 0) {
         return ERROR_NOT_FOUND;
@@ -518,7 +604,7 @@ const MeshBackendApi meshtastic_backend_api = {
     .id = "meshtastic",
     .create = create,
     .destroy = destroy,
-    .presets = nullptr,
+    .presets = PRESET_NAMES.data(),
     .get_radio_profile = getRadioProfile,
     .on_start = onStart,
     .on_receive = onReceive,
