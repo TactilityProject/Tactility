@@ -31,6 +31,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cerrno>
 #include <cstring>
 #include <ctime>
 #include <functional>
@@ -318,6 +319,8 @@ struct MeshHost {
     tt::std::vector<MeshNode> nodes;
     /** The saved contacts of the backend that owns the open storage */
     tt::std::vector<MeshContact> contacts;
+    /** False when the contacts of the storage backend couldn't be read. They must not be saved then, as that would replace the saved ones. */
+    bool contactsLoaded = false;
     char activeBackend[MESH_BACKEND_ID_MAX_LENGTH + 1] = {};
     /** The backend whose messages and contacts are open. It's the selected backend, whether or not it is running. */
     char storageBackend[MESH_BACKEND_ID_MAX_LENGTH + 1] = {};
@@ -410,14 +413,15 @@ MeshContact* findContact(MeshHost* host, const MeshAddress& address) {
     return nullptr;
 }
 
-void loadContacts(MeshHost* host, const char* backend) {
+bool loadContacts(MeshHost* host, const char* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (!getBackendPath(backend, CONTACTS_FILE_NAME, path, sizeof(path), false)) {
-        return;
+        return false;
     }
     FILE* file = fopen(path, "rb");
     if (file == nullptr) {
-        return;
+        // No contacts were saved yet
+        return errno == ENOENT;
     }
     MeshContact contact;
     while (host->contacts.size() < MAX_CONTACTS && fread(&contact, sizeof(contact), 1, file) == 1) {
@@ -427,13 +431,15 @@ void loadContacts(MeshHost* host, const char* backend) {
             host->contacts.push_back(contact);
         }
     }
+    const bool failed = ferror(file) != 0;
     fclose(file);
+    return !failed;
 }
 
 /** Requires the global lock */
 void saveContacts(MeshHost* host) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
-    if (host->storageBackend[0] == '\0' || !getBackendPath(host->storageBackend, CONTACTS_FILE_NAME, path, sizeof(path), true)) {
+    if (host->storageBackend[0] == '\0' || !host->contactsLoaded || !getBackendPath(host->storageBackend, CONTACTS_FILE_NAME, path, sizeof(path), true)) {
         return;
     }
     FILE* file = fopen(path, "wb");
@@ -455,11 +461,13 @@ void saveContacts(MeshHost* host) {
  */
 bool switchStorage(MeshHost* host, const MeshBackendApi* api) {
     const char* id = (api != nullptr) ? api->id : "";
-    if (strncmp(host->storageBackend, id, MESH_BACKEND_ID_MAX_LENGTH) == 0 && (api == nullptr || host->store.isOpen())) {
+    // A failed contacts load is retried
+    if (strncmp(host->storageBackend, id, MESH_BACKEND_ID_MAX_LENGTH) == 0 && (api == nullptr || (host->store.isOpen() && host->contactsLoaded))) {
         return true;
     }
     host->store.close();
     host->contacts.clear();
+    host->contactsLoaded = false;
     host->storageBackend[0] = '\0';
     if (api == nullptr) {
         return true;
@@ -471,7 +479,11 @@ bool switchStorage(MeshHost* host, const MeshBackendApi* api) {
         return false;
     }
     strncpy(host->storageBackend, id, MESH_BACKEND_ID_MAX_LENGTH);
-    loadContacts(host, id);
+    host->contactsLoaded = loadContacts(host, id);
+    if (!host->contactsLoaded) {
+        LOG_E(TAG, "Failed to load the contacts of %s", id);
+        host->contacts.clear();
+    }
     return true;
 }
 
@@ -482,6 +494,9 @@ bool switchStorage(MeshHost* host, const MeshBackendApi* api) {
 error_t addContact(MeshHost* host, const MeshAddress& address, const char* name, bool rename) {
     if (address.length == 0 || address.length > MESH_ADDRESS_MAX_LENGTH) {
         return ERROR_INVALID_ARGUMENT;
+    }
+    if (!host->contactsLoaded) {
+        return ERROR_INVALID_STATE;
     }
 
     char resolvedName[MESH_NAME_MAX_LENGTH + 1] = {};
@@ -2052,6 +2067,11 @@ static bool isStorageUnavailable() {
     return getSelectedBackend() != nullptr && !service->store.isOpen();
 }
 
+/** Contacts are unavailable when the store failed to open or the contacts failed to load. Requires the global lock and a service. */
+static bool isContactsUnavailable() {
+    return getSelectedBackend() != nullptr && (!service->store.isOpen() || !service->contactsLoaded);
+}
+
 error_t mesh_history_get(uint32_t before_seq, MeshMessage* messages, size_t max_count, size_t* count) {
     lock();
     error_t result = ERROR_INVALID_STATE;
@@ -2077,7 +2097,7 @@ error_t mesh_conversation_get(const MeshAddress* peer, uint8_t channel, uint32_t
 error_t mesh_get_contacts(MeshContact* contacts, size_t max_count, size_t* count) {
     lock();
     error_t result = ERROR_INVALID_STATE;
-    if (service != nullptr && !isStorageUnavailable()) {
+    if (service != nullptr && !isContactsUnavailable()) {
         *count = 0;
         for (const auto& contact : service->contacts) {
             if (*count < max_count && strncmp(contact.backend, service->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0) {
@@ -2121,7 +2141,9 @@ error_t mesh_remove_contact(const MeshAddress* address) {
     error_t result = ERROR_INVALID_STATE;
     if (service != nullptr) {
         auto* contact = findContact(service, *address);
-        if (contact == nullptr) {
+        if (!service->contactsLoaded) {
+            result = ERROR_INVALID_STATE;
+        } else if (contact == nullptr) {
             result = ERROR_NOT_FOUND;
         } else {
             service->contacts.erase(service->contacts.begin() + (contact - service->contacts.data()));

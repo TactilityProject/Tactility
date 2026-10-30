@@ -353,6 +353,30 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         REQUIRE_EQ(mesh_backend_unregister(&spareApi), ERROR_NONE);
     }
 
+    SUBCASE("contacts that failed to load are not available and are never replaced") {
+        // A directory where the contacts file belongs can't be read
+        char contactsPath[FILE_MAX_PATH_STRING_LENGTH];
+        REQUIRE_EQ(service_paths_get_user_data_path(MESH_SERVICE_ID, "backends/loopback/contacts.bin", contactsPath, sizeof(contactsPath)), ERROR_NONE);
+        REQUIRE_EQ(directory_make(contactsPath, true), ERROR_NONE);
+
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+
+        MeshContact contacts[4];
+        size_t count = 0;
+        CHECK_EQ(mesh_get_contacts(contacts, 4, &count), ERROR_INVALID_STATE);
+        const MeshAddress alice = { .length = 1, .bytes = { 0x42 } };
+        CHECK_EQ(mesh_add_contact(&alice, "alice"), ERROR_INVALID_STATE);
+        CHECK_EQ(mesh_remove_contact(&alice), ERROR_INVALID_STATE);
+        // Messages are not affected
+        MeshMessage messages[4];
+        CHECK_EQ(mesh_history_get(0, messages, 4, &count), ERROR_NONE);
+
+        REQUIRE_EQ(directory_remove_tree(contactsPath), ERROR_NONE);
+    }
+
     SUBCASE("without a region the radio stays off") {
         REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
         CHECK(waitFor([] { return mesh_get_state() == MESH_STATE_NO_REGION; }));
