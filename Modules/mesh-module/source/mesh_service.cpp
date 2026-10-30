@@ -2047,10 +2047,15 @@ error_t mesh_message_get(uint32_t seq, MeshMessage* message) {
     return result;
 }
 
+/** A selected backend whose store failed to open must not look like an empty history. Requires the global lock and a service. */
+static bool isStorageUnavailable() {
+    return getSelectedBackend() != nullptr && !service->store.isOpen();
+}
+
 error_t mesh_history_get(uint32_t before_seq, MeshMessage* messages, size_t max_count, size_t* count) {
     lock();
     error_t result = ERROR_INVALID_STATE;
-    if (service != nullptr) {
+    if (service != nullptr && !isStorageUnavailable()) {
         *count = service->store.getHistory(before_seq, messages, max_count);
         result = ERROR_NONE;
     }
@@ -2061,7 +2066,7 @@ error_t mesh_history_get(uint32_t before_seq, MeshMessage* messages, size_t max_
 error_t mesh_conversation_get(const MeshAddress* peer, uint8_t channel, uint32_t before_seq, MeshMessage* messages, size_t max_count, size_t* count) {
     lock();
     error_t result = ERROR_INVALID_STATE;
-    if (service != nullptr) {
+    if (service != nullptr && !isStorageUnavailable()) {
         *count = service->store.getConversation(service->storageBackend, peer, channel, before_seq, messages, max_count);
         result = ERROR_NONE;
     }
@@ -2072,7 +2077,7 @@ error_t mesh_conversation_get(const MeshAddress* peer, uint8_t channel, uint32_t
 error_t mesh_get_contacts(MeshContact* contacts, size_t max_count, size_t* count) {
     lock();
     error_t result = ERROR_INVALID_STATE;
-    if (service != nullptr) {
+    if (service != nullptr && !isStorageUnavailable()) {
         *count = 0;
         for (const auto& contact : service->contacts) {
             if (*count < max_count && strncmp(contact.backend, service->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0) {
