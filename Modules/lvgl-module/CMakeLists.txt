@@ -12,23 +12,6 @@ READ_PROPERTIES_TO_MAP(
     "${CMAKE_CURRENT_LIST_DIR}/../../Devices/${TACTILITY_DEVICE_ID}/device.properties"
     device_properties
 )
-# Read UI density
-GET_VALUE_FROM_MAP(device_properties "lvgl.uiDensity" ui_density)
-# Define UiDensity enum value
-if (ui_density)
-    if (ui_density STREQUAL "default")
-        set(ui_density_variable "LVGL_UI_DENSITY_DEFAULT")
-    elseif (ui_density STREQUAL "compact")
-        set(ui_density_variable "LVGL_UI_DENSITY_COMPACT")
-    else ()
-        message(FATAL_ERROR "Invalid lvgl.uiDensity: '${ui_density}'. Must be either 'default' or 'compact'")
-    endif ()
-    message("UI density set to '${ui_density}' via properties")
-else ()
-    set(ui_density "default")
-    set(ui_density_variable "LVGL_UI_DENSITY_DEFAULT")
-    message("UI density set to default: ${ui_density}")
-endif ()
 # Read the theme: whether the device uses dark mode by default
 GET_VALUE_FROM_MAP(device_properties "lvgl.theme" lvgl_theme)
 if (NOT lvgl_theme OR lvgl_theme STREQUAL "DefaultDark")
@@ -82,8 +65,6 @@ tactility_get_module_name("lvgl-module" MODULE_NAME)
 target_compile_definitions(${MODULE_NAME} PUBLIC
     # Ensure it loads <lvgl.h>
     "-DLV_LVGL_H_INCLUDE_SIMPLE"
-    # UiDensity
-    "-DTT_LVGL_UI_DENSITY=${ui_density_variable}"
     # Default theme mode: 1 for dark, 0 for light
     "-DTT_LVGL_THEME_DARK=${theme_dark}"
 )

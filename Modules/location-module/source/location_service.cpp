@@ -12,6 +12,7 @@
 #include <tactility/concurrent/thread.h>
 #include <tactility/delay.h>
 #include <tactility/log.h>
+#include <tactility/system_event.h>
 #include <tactility/time.h>
 
 #include <tactility/Memory.hpp>
@@ -48,6 +49,7 @@ namespace {
 
 /** A fix of a provider that isn't a fallback is preferred over fallback fixes for this long */
 constexpr uint64_t FRESH_MS = 120000;
+constexpr uint64_t TIME_EVENT_INTERVAL_MS = 60000;
 // About 2 km north to south
 constexpr double APPROXIMATE_GRID_DEGREES = 0.02;
 // The worker waits this long for a stopping provider before it handles the other providers
@@ -72,6 +74,8 @@ struct HostStorage {
 HostStorage* hostStorage = nullptr;
 bool running = false;
 LocationSubscription* subscriptions = nullptr;
+bool hasEmittedTime = false;
+uint64_t lastTimeEventUptimeMs = 0;
 // Starts and stops providers. It only exists while a provider isn't in its desired state.
 Thread* worker = nullptr;
 bool workerActive = false;
@@ -265,6 +269,7 @@ void destroyService(const ServiceManifest*, void*) {}
 error_t onStart(ServiceInstance*, void*) {
     mutex_lock(&mutex.handle);
     running = true;
+    hasEmittedTime = false;
     reconcile();
     mutex_unlock(&mutex.handle);
     return ERROR_NONE;
@@ -445,7 +450,18 @@ void location_host_report(LocationHost* host, const Location* location) {
             task_event_group_signal(sub->internal.event_group, sub->bit);
         }
     }
+    const uint64_t now = host->location.uptime_ms;
+    const bool emitTime = !host->api->fallback && host->location.time_ms > 0 &&
+        (!hasEmittedTime || now - lastTimeEventUptimeMs >= TIME_EVENT_INTERVAL_MS);
+    if (emitTime) {
+        hasEmittedTime = true;
+        lastTimeEventUptimeMs = now;
+    }
+    const LocationTimeEvent timeEvent = { .time_ms = host->location.time_ms };
     mutex_unlock(&mutex.handle);
+    if (emitTime) {
+        system_event_emit(KERNEL_EVENT_LOCATION_TIME, &timeEvent, sizeof(timeEvent));
+    }
 }
 
 bool location_host_needs_fallback(void) {
@@ -472,7 +488,7 @@ error_t location_get(Location* location) {
     return best != nullptr ? ERROR_NONE : ERROR_NOT_FOUND;
 }
 
-error_t location_subscribe(LocationSubscription* sub, TaskEventGroup* event_group) {
+error_t location_subscribe(LocationSubscription* sub, TaskEventGroup* event_group, const char* description) {
     uint32_t bit;
     const error_t claimed = task_event_group_claim_bit(event_group, &bit);
     if (claimed != ERROR_NONE) {
@@ -488,6 +504,8 @@ error_t location_subscribe(LocationSubscription* sub, TaskEventGroup* event_grou
         }
     }
     sub->bit = bit;
+    strncpy(sub->internal.description, description != nullptr ? description : "", LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH);
+    sub->internal.description[LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH] = '\0';
     sub->internal.event_group = event_group;
     sub->internal.next = subscriptions;
     subscriptions = sub;
@@ -515,6 +533,13 @@ error_t location_unsubscribe(LocationSubscription* sub) {
     return result;
 }
 
+void location_for_each_subscriber(void* context, void (*callback)(const char* description, void* context)) {
+    mutex_lock(&mutex.handle);
+    for (auto* sub = subscriptions; sub != nullptr; sub = sub->internal.next) {
+        callback(sub->internal.description, context);
+    }
+    mutex_unlock(&mutex.handle);
+}
 
 bool location_is_in_use(void) {
     mutex_lock(&mutex.handle);

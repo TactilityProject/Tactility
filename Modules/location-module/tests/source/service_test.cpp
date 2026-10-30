@@ -8,12 +8,14 @@
 #include <service/manager.h>
 
 #include <tactility/delay.h>
+#include <tactility/system_event.h>
 
 #include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -76,6 +78,36 @@ Location makeLocation(double latitude, double longitude) {
 
 }
 
+TEST_CASE("location service lists the descriptions of its subscribers") {
+    TaskEventGroup group;
+    task_event_group_construct(&group);
+    LocationSubscription first {};
+    LocationSubscription second {};
+    REQUIRE(location_subscribe(&first, &group, "First") == ERROR_NONE);
+    REQUIRE(location_subscribe(&second, &group, "A description that is too long to fit") == ERROR_NONE);
+
+    std::vector<std::string> descriptions;
+    location_for_each_subscriber(&descriptions, [](const char* description, void* context) {
+        static_cast<std::vector<std::string>*>(context)->push_back(description);
+    });
+    // The most recent subscription is first
+    REQUIRE(descriptions.size() == 2);
+    CHECK(descriptions[0] == "A description that is to");
+    CHECK(descriptions[0].size() == LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH);
+    CHECK(descriptions[1] == "First");
+
+    CHECK(location_unsubscribe(&second) == ERROR_NONE);
+    descriptions.clear();
+    location_for_each_subscriber(&descriptions, [](const char* description, void* context) {
+        static_cast<std::vector<std::string>*>(context)->push_back(description);
+    });
+    REQUIRE(descriptions.size() == 1);
+    CHECK(descriptions[0] == "First");
+
+    CHECK(location_unsubscribe(&first) == ERROR_NONE);
+    task_event_group_destruct(&group);
+}
+
 TEST_CASE("location service reports fixes of its providers") {
     createCount = 0;
     destroyCount = 0;
@@ -93,8 +125,8 @@ TEST_CASE("location service reports fixes of its providers") {
     TaskEventGroup group;
     task_event_group_construct(&group);
     LocationSubscription sub {};
-    REQUIRE(location_subscribe(&sub, &group) == ERROR_NONE);
-    CHECK(location_subscribe(&sub, &group) == ERROR_INVALID_STATE);
+    REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
+    CHECK(location_subscribe(&sub, &group, "test") == ERROR_INVALID_STATE);
     CHECK(location_is_in_use());
     REQUIRE(waitUntil([] { return fakeHost != nullptr; }));
     CHECK(createCount == 1);
@@ -120,7 +152,7 @@ TEST_CASE("location service reports fixes of its providers") {
     CHECK(waitUntil([] { return destroyCount == 1; }));
     CHECK(location_get(&location) == ERROR_NONE);
 
-    REQUIRE(location_subscribe(&sub, &group) == ERROR_NONE);
+    REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
     CHECK(waitUntil([] { return createCount == 2; }));
 
     REQUIRE(service_manager_stop(location_service_manifest.id) == ERROR_NONE);
@@ -192,7 +224,7 @@ TEST_CASE("location service prefers fixes of providers that aren't a fallback") 
     TaskEventGroup group;
     task_event_group_construct(&group);
     LocationSubscription sub {};
-    REQUIRE(location_subscribe(&sub, &group) == ERROR_NONE);
+    REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
     REQUIRE(waitUntil([] { return fakeHost != nullptr && fallbackHost != nullptr; }));
 
     CHECK(location_host_needs_fallback());
@@ -226,6 +258,62 @@ TEST_CASE("location service prefers fixes of providers that aren't a fallback") 
     CHECK(location_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&group);
     REQUIRE(service_manager_stop(location_service_manifest.id) == ERROR_NONE);
+    CHECK(location_provider_unregister(&fakeFallbackProvider) == ERROR_NONE);
+    REQUIRE(service_manager_remove(location_service_manifest.id) == ERROR_NONE);
+}
+
+namespace {
+
+std::atomic<int> timeEventCount = 0;
+std::atomic<int64_t> lastTimeEventMs = 0;
+
+void onLocationTime(SystemEvent* event, void*) {
+    LocationTimeEvent data;
+    memcpy(&data, event->data, sizeof(data));
+    lastTimeEventMs = data.time_ms;
+    timeEventCount++;
+}
+
+}
+
+TEST_CASE("location service announces the time of satellite fixes once per minute") {
+    timeEventCount = 0;
+    REQUIRE(location_provider_register(&fakeProvider) == ERROR_NONE);
+    REQUIRE(location_provider_register(&fakeFallbackProvider) == ERROR_NONE);
+    REQUIRE(service_manager_add(&location_service_manifest, true) == ERROR_NONE);
+    REQUIRE(system_event_callback_add(KERNEL_EVENT_LOCATION_TIME, onLocationTime, nullptr) == ERROR_NONE);
+
+    TaskEventGroup group;
+    task_event_group_construct(&group);
+    LocationSubscription sub {};
+    REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
+    REQUIRE(waitUntil([] { return fakeHost != nullptr && fallbackHost != nullptr; }));
+
+    // Fallback providers don't know the time
+    Location fix = makeLocation(51.05, 3.72);
+    location_host_report(fallbackHost, &fix);
+    CHECK(timeEventCount == 0);
+
+    // Fixes without a time are ignored
+    fix.time_ms = 0;
+    location_host_report(fakeHost, &fix);
+    CHECK(timeEventCount == 0);
+
+    fix.time_ms = 1700000000123;
+    location_host_report(fakeHost, &fix);
+    CHECK(timeEventCount == 1);
+    CHECK(lastTimeEventMs == 1700000000123);
+
+    // The next fix is within the same minute
+    fix.time_ms += 1000;
+    location_host_report(fakeHost, &fix);
+    CHECK(timeEventCount == 1);
+
+    CHECK(system_event_callback_remove(KERNEL_EVENT_LOCATION_TIME, onLocationTime) == ERROR_NONE);
+    CHECK(location_unsubscribe(&sub) == ERROR_NONE);
+    task_event_group_destruct(&group);
+    REQUIRE(service_manager_stop(location_service_manifest.id) == ERROR_NONE);
+    CHECK(location_provider_unregister(&fakeProvider) == ERROR_NONE);
     CHECK(location_provider_unregister(&fakeFallbackProvider) == ERROR_NONE);
     REQUIRE(service_manager_remove(location_service_manifest.id) == ERROR_NONE);
 }
@@ -293,7 +381,7 @@ TEST_CASE("location service doesn't wait for a provider that is slow to stop") {
     TaskEventGroup group;
     task_event_group_construct(&group);
     LocationSubscription sub {};
-    REQUIRE(location_subscribe(&sub, &group) == ERROR_NONE);
+    REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
     REQUIRE(waitUntil([] { return fakeHost != nullptr && stuckHost != nullptr; }));
     LocationHost* stoppingHost = stuckHost;
 
@@ -308,7 +396,7 @@ TEST_CASE("location service doesn't wait for a provider that is slow to stop") {
     Location location;
     CHECK(location_get(&location) == ERROR_NOT_FOUND);
 
-    REQUIRE(location_subscribe(&sub, &group) == ERROR_NONE);
+    REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
     CHECK(waitUntil([] { return createCount == 2; }));
     CHECK(stuckCreateCount == 1);
 
@@ -350,7 +438,7 @@ TEST_CASE("location service has no background task without subscriptions") {
     TaskEventGroup group;
     task_event_group_construct(&group);
     LocationSubscription sub {};
-    REQUIRE(location_subscribe(&sub, &group) == ERROR_NONE);
+    REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
     REQUIRE(waitUntil([] { return fakeHost != nullptr; }));
     CHECK(location_unsubscribe(&sub) == ERROR_NONE);
     REQUIRE(waitUntil([] { return fakeHost == nullptr; }));
@@ -374,7 +462,7 @@ TEST_CASE("the gps provider has no task without subscriptions") {
     TaskEventGroup group;
     task_event_group_construct(&group);
     LocationSubscription sub {};
-    REQUIRE(location_subscribe(&sub, &group) == ERROR_NONE);
+    REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
     CHECK(waitUntil([] { return getLocationTasks().find("location_gps") != std::string::npos; }));
     CHECK(location_unsubscribe(&sub) == ERROR_NONE);
 
@@ -400,7 +488,7 @@ TEST_CASE("selecting approximate precision rounds coarse fixes and drops precise
     TaskEventGroup group;
     task_event_group_construct(&group);
     LocationSubscription sub {};
-    REQUIRE(location_subscribe(&sub, &group) == ERROR_NONE);
+    REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
     REQUIRE(waitUntil([] { return fakeHost != nullptr && fallbackHost != nullptr; }));
 
     Location coarse = makeLocation(51.054321, 3.721234);

@@ -7,6 +7,7 @@
 #include <tactility/delay.h>
 #include <tactility/drivers/backlight.h>
 #include <tactility/drivers/display.h>
+#include <tactility/drivers/power_supply.h>
 #include <tactility/log.h>
 #include <tactility/system_event.h>
 #include <tactility/time.h>
@@ -177,6 +178,56 @@ void reboot() {
 #endif
 }
 
+bool isPowerOffSupported() {
+    bool supported = false;
+    device_for_each_of_type(&POWER_SUPPLY_TYPE, &supported, [](Device* device, void* context) {
+        if (device_is_ready(device) && power_supply_supports_power_off(device)) {
+            *static_cast<bool*>(context) = true;
+            return false;
+        }
+        return true;
+    });
+    return supported;
+}
+
+/** @return false when no power supply could power off the system */
+bool powerOff() {
+    bool succeeded = false;
+    device_for_each_of_type(&POWER_SUPPLY_TYPE, &succeeded, [](Device* device, void* context) {
+        if (device_is_ready(device) && power_supply_supports_power_off(device) && power_supply_power_off(device) == ERROR_NONE) {
+            *static_cast<bool*>(context) = true;
+        }
+        return true;
+    });
+    return succeeded;
+}
+
+/** Offers reboot and power off, or only a reboot when the device can't power off */
+void showMessageAndRebootOrPowerOff(BootScreen& screen, const std::vector<std::string>& lines) {
+    if (!isPowerOffSupported()) {
+        auto with_prompt = lines;
+        with_prompt.push_back(getInputPrompt("reboot"));
+        screen.show({}, with_prompt);
+        waitForInput();
+        reboot();
+        return;
+    }
+
+    auto message = lines;
+    while (waitForBootChoice(screen, {}, message) == BootChoice::PowerOff) {
+        if (powerOff()) {
+            // Waits for the power to go away
+            while (true) {
+                delay_millis(1000);
+            }
+        }
+        LOG_E(TAG, "Power off failed");
+        message = lines;
+        message.push_back("Power off failed.");
+    }
+    reboot();
+}
+
 void waitForInputAndReboot() {
     waitForInput();
     reboot();
@@ -255,8 +306,7 @@ bool bootInit(TickType_t startTime) {
     registerApps();
 
     if (sd_card_missing) {
-        screen.show({}, { "SD card not found.", "Please insert one and reboot.", getInputPrompt("reboot") });
-        waitForInputAndReboot();
+        showMessageAndRebootOrPowerOff(screen, { "SD card not found.", "Please insert one and reboot." });
         return false;
     }
 

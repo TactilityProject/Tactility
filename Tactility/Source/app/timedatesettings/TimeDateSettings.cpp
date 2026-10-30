@@ -13,10 +13,14 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
+#include <gps/gps.h>
+#include <location/location.h>
 #include <tactility/concurrent/task_event_group.h>
+#include <tactility/device.h>
 #include <tactility/log.h>
 
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/icons/shared.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/card.h>
@@ -39,6 +43,11 @@ struct Context {
     uint32_t appInstanceId;
     TaskEventGroup* eventGroup = nullptr;
     uint32_t selectDateFormatBit = 0;
+    uint32_t gpsSyncChangedBit = 0;
+    // Read when the app starts, as widgets can't read files
+    bool hasGps = false;
+    bool gpsSyncAtBoot = false;
+    bool locationEnabled = false;
     uint32_t pendingTimeZoneDialogId = 0;
     uint32_t dateFormatDialogId = 0;
     // Valid while the window is shown
@@ -68,6 +77,12 @@ void onTimeFormatChanged(lv_event_t* event) {
     auto* widget = lv_event_get_target_obj(event);
     bool show_24 = lv_obj_has_state(widget, LV_STATE_CHECKED);
     settings::setTimeFormat24Hour(show_24);
+}
+
+void onGpsSyncChanged(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    ctx->gpsSyncAtBoot = lv_obj_has_state(lv_event_get_target_obj(event), LV_STATE_CHECKED);
+    task_event_group_signal(ctx->eventGroup, ctx->gpsSyncChangedBit);
 }
 
 void onTimeZonePressed(lv_event_t* event) {
@@ -197,6 +212,27 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_label_set_text(date_format_icon, LVGL_ICON_SHARED_LIST_ALT);
     lv_obj_add_event_cb(date_format_button, onSelectDateFormatPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
+    // "GPS sync at boot                [switch]"
+
+    if (ctx->hasGps) {
+        auto* gps_sync_row = lv_obj_create(card);
+        lv_obj_set_size(gps_sync_row, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(gps_sync_row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(gps_sync_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_border_width(gps_sync_row, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_all(gps_sync_row, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_opa(gps_sync_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+        lv_obj_set_scrollable(gps_sync_row, false);
+
+        auto* gps_sync_value = createTitleAndValue(gps_sync_row, "GPS sync at boot");
+        lv_label_set_text(gps_sync_value, ctx->locationEnabled ? "Sets the clock once after boot" : "Requires location services");
+
+        auto* gps_sync_switch = lv_switch_create(gps_sync_row);
+        lv_obj_set_state(gps_sync_switch, LV_STATE_CHECKED, ctx->gpsSyncAtBoot);
+        lv_obj_add_event_cb(gps_sync_switch, onGpsSyncChanged, LV_EVENT_VALUE_CHANGED, ctx);
+        lvgl_grid_navigation_add(gps_sync_row);
+    }
+
     // "Timezone           Europe/Brussels [Change]"
 
     auto* timezone_row = lv_obj_create(card);
@@ -237,6 +273,13 @@ int32_t appMain(int argc, char* argv[]) {
     task_event_group_construct(&event_group);
     ctx.eventGroup = &event_group;
     check(task_event_group_claim_bit(&event_group, &ctx.selectDateFormatBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&event_group, &ctx.gpsSyncChangedBit) == ERROR_NONE);
+
+    ctx.hasGps = device_exists_of_type(&GPS_TYPE);
+    if (ctx.hasGps) {
+        ctx.gpsSyncAtBoot = settings::isGpsTimeSyncAtBoot();
+        ctx.locationEnabled = location_is_enabled();
+    }
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -250,6 +293,9 @@ int32_t appMain(int argc, char* argv[]) {
 
         if (flags & ctx.selectDateFormatBit) {
             startDateFormatSelection(&ctx);
+        }
+        if (flags & ctx.gpsSyncChangedBit) {
+            settings::setGpsTimeSyncAtBoot(ctx.gpsSyncAtBoot);
         }
 
         AppEvent event {};

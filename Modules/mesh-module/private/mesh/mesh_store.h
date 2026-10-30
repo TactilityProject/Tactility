@@ -82,6 +82,11 @@ public:
 
     error_t get(uint32_t seq, MeshMessage* message) const;
 
+    bool isOpen() const { return buffer != nullptr; }
+
+    /** Oldest first: the messages with a seq above @a afterSeq */
+    size_t getAfter(uint32_t afterSeq, MeshMessage* messages, size_t maxCount) const;
+
     /** Newest first, see mesh_history_get() */
     size_t getHistory(uint32_t beforeSeq, MeshMessage* messages, size_t maxCount) const;
 

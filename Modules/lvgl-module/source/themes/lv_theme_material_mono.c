@@ -52,28 +52,28 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define COLOR_SURFACE PAPER
 #define COLOR_ON_SURFACE INK
 #define COLOR_OUTLINE INK
-#define SHAPE_CONTROL (theme->config.is_compact ? CORNER_COMPACT : CORNER_FULL)
-#define SHAPE_CONTAINER (theme->config.is_compact ? CORNER_COMPACT : CORNER_MEDIUM)
-#define SHAPE_FIELD (theme->config.is_compact ? CORNER_COMPACT : CORNER_SMALL)
-#define SHAPE_KEY (theme->config.is_compact ? CORNER_COMPACT : CORNER_SMALL)
-#define SHAPE_DIALOG (theme->config.is_compact ? CORNER_COMPACT : CORNER_LARGE)
-#define DENSITY_CONTAINER_PAD (theme->config.is_compact ? 2 : SPACE_4)
-#define DENSITY_CONTAINER_GAP (theme->config.is_compact ? 2 : SPACE_3)
-#define DENSITY_CONTROL_PAD_HOR (theme->config.is_compact ? 3 : SPACE_6)
-#define DENSITY_CONTROL_PAD_VER (theme->config.is_compact ? 2 : SPACE_3)
-#define DENSITY_CONTROL_GAP (theme->config.is_compact ? 2 : SPACE_2)
-#define DENSITY_FIELD_PAD (theme->config.is_compact ? 2 : SPACE_3)
-#define DENSITY_LIST_PAD (theme->config.is_compact ? 1 : SPACE_2)
-#define DENSITY_LIST_ITEM_PAD_HOR (theme->config.is_compact ? 2 : SPACE_4)
-#define DENSITY_LIST_ITEM_PAD_VER (theme->config.is_compact ? 2 : SPACE_3)
-#define DENSITY_DIALOG_PAD (theme->config.is_compact ? 2 : SPACE_6)
-#define DENSITY_KEY_GAP (theme->config.is_compact ? 1 : SPACE_1)
+#define SHAPE_CONTROL (theme->config.size == 100 ? CORNER_FULL : CORNER_COMPACT + (((CORNER_LARGE - CORNER_COMPACT) * theme->config.size) / 100))
+#define SHAPE_CONTAINER (CORNER_COMPACT + (((CORNER_MEDIUM - CORNER_COMPACT) * theme->config.size) / 100))
+#define SHAPE_FIELD (CORNER_COMPACT + (((CORNER_SMALL - CORNER_COMPACT) * theme->config.size) / 100))
+#define SHAPE_KEY (CORNER_COMPACT + (((CORNER_SMALL - CORNER_COMPACT) * theme->config.size) / 100))
+#define SHAPE_DIALOG (CORNER_COMPACT + (((CORNER_LARGE - CORNER_COMPACT) * theme->config.size) / 100))
+#define DENSITY_CONTAINER_PAD (2 + (((SPACE_4 - 2) * theme->config.spacing) / 100))
+#define DENSITY_CONTAINER_GAP (2 + (((SPACE_3 - 2) * theme->config.spacing) / 100))
+#define DENSITY_CONTROL_PAD_HOR (2 + (((SPACE_6 - 2) * theme->config.size) / 100))
+#define DENSITY_CONTROL_PAD_VER (1 + (((SPACE_3 - 1) * theme->config.size) / 100))
+#define DENSITY_CONTROL_GAP (2 + (((SPACE_2 - 2) * theme->config.spacing) / 100))
+#define DENSITY_FIELD_PAD (2 + (((SPACE_3 - 2) * theme->config.spacing) / 100))
+#define DENSITY_LIST_PAD (1 + (((SPACE_2 - 1) * theme->config.spacing) / 100))
+#define DENSITY_LIST_ITEM_PAD_HOR (2 + (((SPACE_4 - 2) * theme->config.spacing) / 100))
+#define DENSITY_LIST_ITEM_PAD_VER (2 + (((SPACE_3 - 2) * theme->config.spacing) / 100))
+#define DENSITY_DIALOG_PAD (2 + (((SPACE_6 - 2) * theme->config.spacing) / 100))
+#define DENSITY_KEY_GAP (1 + (((SPACE_1 - 1) * theme->config.spacing) / 100))
 #define BORDER LINE_THIN
-#define FOCUS_WIDTH (theme->config.is_compact ? LINE_THIN : LINE_MEDIUM)
-#define FOCUS_OFFSET (theme->config.is_compact ? LINE_THIN : LINE_MEDIUM)
-#define EDIT_WIDTH (theme->config.is_compact ? LINE_MEDIUM : LINE_THICK)
-#define FOCUS_INSET_WIDTH (theme->config.is_compact ? LINE_THIN : LINE_MEDIUM)
-#define FOCUS_INVERTED_GAP (theme->config.is_compact ? 1 : LV_DPX_CALC(theme->disp_dpi, 2))
+#define FOCUS_WIDTH (LINE_THIN + (((LINE_MEDIUM - LINE_THIN) * theme->config.size) / 100))
+#define FOCUS_OFFSET (LINE_THIN + (((LINE_MEDIUM - LINE_THIN) * theme->config.size) / 100))
+#define EDIT_WIDTH (LINE_MEDIUM + (((LINE_THICK - LINE_MEDIUM) * theme->config.size) / 100))
+#define FOCUS_INSET_WIDTH (LINE_THIN + (((LINE_MEDIUM - LINE_THIN) * theme->config.size) / 100))
+#define FOCUS_INVERTED_GAP (1 + (((LV_DPX_CALC(theme->disp_dpi, 2) - 1) * theme->config.size) / 100))
 #define MOTION_DURATION_SHORT (theme->config.animations_enabled ? DURATION_SHORT : 0)
 #define MOTION_DURATION_MEDIUM (theme->config.animations_enabled ? DURATION_MEDIUM : 0)
 #define MOTION_DURATION_LONG (theme->config.animations_enabled ? DURATION_LONG : 0)
@@ -94,20 +94,20 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define CARD_SHAPE SHAPE_CONTAINER
 #define CARD_PAD DENSITY_CONTAINER_PAD
 #define CARD_GAP DENSITY_CONTAINER_GAP
-#define CHIP_SHAPE (theme->config.is_compact ? CORNER_COMPACT : CORNER_SMALL)
-#define CHIP_PAD_HOR (theme->config.is_compact ? 3 : SPACE_4)
-#define CHIP_PAD_VER (theme->config.is_compact ? 2 : SPACE_2)
+#define CHIP_SHAPE (CORNER_COMPACT + (((CORNER_SMALL - CORNER_COMPACT) * theme->config.size) / 100))
+#define CHIP_PAD_HOR (3 + (((SPACE_4 - 3) * theme->config.spacing) / 100))
+#define CHIP_PAD_VER (2 + (((SPACE_2 - 2) * theme->config.spacing) / 100))
 #define PAGE_INDICATOR_COLOR COLOR_ON_SURFACE
-#define PAGE_INDICATOR_DOT_SIZE (theme->config.is_compact ? 6 : LV_DPX_CALC(theme->disp_dpi, 8))
-#define PAGE_INDICATOR_GAP (theme->config.is_compact ? 4 : LV_DPX_CALC(theme->disp_dpi, 6))
+#define PAGE_INDICATOR_DOT_SIZE (6 + (((LV_DPX_CALC(theme->disp_dpi, 8) - 6) * theme->config.size) / 100))
+#define PAGE_INDICATOR_GAP (4 + (((LV_DPX_CALC(theme->disp_dpi, 6) - 4) * theme->config.spacing) / 100))
 #define STEP_INDICATOR_COLOR COLOR_ON_SURFACE
 #define STEP_INDICATOR_THICKNESS (LV_DPX_CALC(theme->disp_dpi, 6))
 #define STEP_INDICATOR_MARGIN (LV_DPX_CALC(theme->disp_dpi, 6))
 #define STEP_INDICATOR_GAP STEP_INDICATOR_MARGIN
 #define BADGE_COLOR COLOR_ON_SURFACE
-#define BADGE_SIZE (theme->config.is_compact ? 4 : LV_DPX_CALC(theme->disp_dpi, 6))
+#define BADGE_SIZE (4 + (((LV_DPX_CALC(theme->disp_dpi, 6) - 4) * theme->config.size) / 100))
 #define SCROLLBAR_COLOR COLOR_ON_SURFACE
-#define SCROLLBAR_WIDTH (theme->config.is_compact ? 2 : LV_DPX_CALC(theme->disp_dpi, 3))
+#define SCROLLBAR_WIDTH (2 + (((LV_DPX_CALC(theme->disp_dpi, 3) - 2) * theme->config.size) / 100))
 #define SCROLLBAR_PAD 1
 #define BUTTON_CONTAINER_COLOR COLOR_SURFACE
 #define BUTTON_LABEL_COLOR COLOR_ON_SURFACE
@@ -119,32 +119,32 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define BUTTON_PAD_HOR DENSITY_CONTROL_PAD_HOR
 #define BUTTON_PAD_VER DENSITY_CONTROL_PAD_VER
 #define BUTTON_GAP DENSITY_CONTROL_GAP
-#define ICON_BUTTON_CONTAINER_SHAPE (theme->config.is_compact ? CORNER_COMPACT : CORNER_LARGE)
+#define ICON_BUTTON_CONTAINER_SHAPE (CORNER_COMPACT + (((CORNER_LARGE - CORNER_COMPACT) * theme->config.size) / 100))
 #define ICON_BUTTON_FILLED_COLOR COLOR_PRIMARY
 #define ICON_BUTTON_FILLED_ICON_COLOR COLOR_ON_PRIMARY
 #define ICON_BUTTON_TONAL_COLOR COLOR_SURFACE
 #define ICON_BUTTON_TONAL_ICON_COLOR COLOR_ON_SURFACE
 #define ICON_BUTTON_TONAL_BORDER_COLOR COLOR_OUTLINE
 #define APP_BAR_TITLE_COLOR COLOR_ON_SURFACE
-#define APP_BAR_PAD_HOR (theme->config.is_compact ? 0 : SPACE_1)
-#define APP_BAR_PAD_RIGHT (theme->config.is_compact ? APP_BAR_PAD_HOR + 2 : APP_BAR_PAD_HOR)
-#define APP_BAR_GAP (theme->config.is_compact ? 2 : SPACE_1)
+#define APP_BAR_PAD_HOR (0 + (((SPACE_1 - 0) * theme->config.spacing) / 100))
+#define APP_BAR_PAD_RIGHT ((APP_BAR_PAD_HOR + 2) + (((APP_BAR_PAD_HOR - (APP_BAR_PAD_HOR + 2)) * theme->config.spacing) / 100))
+#define APP_BAR_GAP (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
 #define APP_BAR_FOCUS_WIDTH FOCUS_INSET_WIDTH
 #define FOCUS_RING_COLOR COLOR_ON_SURFACE
 #define FOCUS_RING_WIDTH FOCUS_WIDTH
 #define FOCUS_RING_OFFSET FOCUS_OFFSET
 #define EDIT_RING_WIDTH EDIT_WIDTH
-#define SWITCH_WIDTH (theme->config.is_compact ? 25 : LV_DPX_CALC(theme->disp_dpi, 40))
-#define SWITCH_HEIGHT (theme->config.is_compact ? 15 : LV_DPX_CALC(theme->disp_dpi, 24))
+#define SWITCH_WIDTH (25 + (((LV_DPX_CALC(theme->disp_dpi, 40) - 25) * theme->config.size) / 100))
+#define SWITCH_HEIGHT (15 + (((LV_DPX_CALC(theme->disp_dpi, 24) - 15) * theme->config.size) / 100))
 #define SWITCH_TRACK_COLOR COLOR_SURFACE
 #define SWITCH_TRACK_BORDER_COLOR COLOR_OUTLINE
 #define SWITCH_TRACK_BORDER_WIDTH BORDER
 #define SWITCH_TRACK_SELECTED_COLOR COLOR_PRIMARY
 #define SWITCH_HANDLE_COLOR COLOR_ON_SURFACE
 #define SWITCH_HANDLE_SELECTED_COLOR COLOR_ON_PRIMARY
-#define SWITCH_HANDLE_PAD (theme->config.is_compact ? -3 : -LV_DPX_CALC(theme->disp_dpi, 5))
-#define SWITCH_HANDLE_SELECTED_PAD (theme->config.is_compact ? -2 : -LV_DPX_CALC(theme->disp_dpi, 3))
-#define CHECKBOX_GAP (theme->config.is_compact ? 3 : SPACE_4)
+#define SWITCH_HANDLE_PAD ((-3) + ((((-LV_DPX_CALC(theme->disp_dpi, 5)) - (-3)) * theme->config.size) / 100))
+#define SWITCH_HANDLE_SELECTED_PAD ((-2) + ((((-LV_DPX_CALC(theme->disp_dpi, 3)) - (-2)) * theme->config.size) / 100))
+#define CHECKBOX_GAP (3 + (((SPACE_4 - 3) * theme->config.spacing) / 100))
 #define CHECKBOX_BOX_COLOR COLOR_SURFACE
 #define CHECKBOX_BOX_BORDER_COLOR COLOR_OUTLINE
 #define CHECKBOX_BOX_BORDER_WIDTH BORDER
@@ -157,14 +157,14 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define SLIDER_ACTIVE_TRACK_COLOR COLOR_PRIMARY
 #define SLIDER_HANDLE_COLOR COLOR_PRIMARY
 #define SLIDER_TRACK_HEIGHT (LV_DPX_CALC(theme->disp_dpi, 8))
-#define SLIDER_HANDLE_PAD ((theme->config.is_compact ? 1 : LV_DPX_CALC(theme->disp_dpi, 3)) + LV_DPX_CALC(theme->disp_dpi, 4))
-#define SLIDERBOX_GAP (theme->config.is_compact ? 4 : ((SLIDER_TRACK_HEIGHT / 2) + SLIDER_HANDLE_PAD) + SPACE_2)
+#define SLIDER_HANDLE_PAD ((1 + (((LV_DPX_CALC(theme->disp_dpi, 3) - 1) * theme->config.size) / 100)) + LV_DPX_CALC(theme->disp_dpi, 4))
+#define SLIDERBOX_GAP (4 + ((((((SLIDER_TRACK_HEIGHT / 2) + SLIDER_HANDLE_PAD) + SPACE_2) - 4) * theme->config.spacing) / 100))
 #define ARC_TRACK_COLOR COLOR_ON_SURFACE
 #define ARC_TRACK_WIDTH LINE_THIN
 #define ARC_INDICATOR_COLOR COLOR_PRIMARY
-#define ARC_INDICATOR_WIDTH (theme->config.is_compact ? LINE_MEDIUM : LV_DPX_CALC(theme->disp_dpi, 4))
+#define ARC_INDICATOR_WIDTH (LINE_MEDIUM + (((LV_DPX_CALC(theme->disp_dpi, 4) - LINE_MEDIUM) * theme->config.size) / 100))
 #define ARC_HANDLE_COLOR COLOR_PRIMARY
-#define ARC_HANDLE_PAD (theme->config.is_compact ? 1 : LV_DPX_CALC(theme->disp_dpi, 3))
+#define ARC_HANDLE_PAD (1 + (((LV_DPX_CALC(theme->disp_dpi, 3) - 1) * theme->config.size) / 100))
 #define FIELD_COLOR COLOR_SURFACE
 #define FIELD_TEXT_COLOR COLOR_ON_SURFACE
 #define FIELD_BORDER_COLOR COLOR_OUTLINE
@@ -180,8 +180,8 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define MENU_BORDER_COLOR COLOR_OUTLINE
 #define MENU_SHAPE SHAPE_FIELD
 #define MENU_MAX_HEIGHT (LV_DPI_DEF * 2)
-#define MENU_ITEM_LINE_SPACE (theme->config.is_compact ? 2 : SPACE_3)
-#define ROLLER_LINE_SPACE (theme->config.is_compact ? 2 : SPACE_3)
+#define MENU_ITEM_LINE_SPACE (2 + (((SPACE_3 - 2) * theme->config.spacing) / 100))
+#define ROLLER_LINE_SPACE (2 + (((SPACE_3 - 2) * theme->config.spacing) / 100))
 #define KEYS_PAD DENSITY_KEY_GAP
 #define KEYS_GAP DENSITY_KEY_GAP
 #define KEY_COLOR COLOR_SURFACE
@@ -191,11 +191,11 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define LIST_PAD DENSITY_LIST_PAD
 #define LIST_ITEM_PAD_HOR DENSITY_LIST_ITEM_PAD_HOR
 #define LIST_ITEM_PAD_VER DENSITY_LIST_ITEM_PAD_VER
-#define LIST_ITEM_GAP (theme->config.is_compact ? 3 : SPACE_4)
+#define LIST_ITEM_GAP (3 + (((SPACE_4 - 3) * theme->config.spacing) / 100))
 #define LIST_DIVIDER_COLOR COLOR_OUTLINE
-#define TABS_PAD (theme->config.is_compact ? 2 : SPACE_1)
-#define TABS_GAP (theme->config.is_compact ? 2 : SPACE_1)
-#define TAB_PAD (theme->config.is_compact ? 2 : SPACE_1)
+#define TABS_PAD (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
+#define TABS_GAP (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
+#define TAB_PAD (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
 #define TAB_SHAPE SHAPE_CONTROL
 #define TAB_PAGE_PAD DENSITY_CONTAINER_PAD
 #define DIALOG_COLOR COLOR_SURFACE
@@ -203,17 +203,17 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define DIALOG_BORDER_WIDTH LINE_MEDIUM
 #define DIALOG_SHAPE SHAPE_DIALOG
 #define DIALOG_PAD DENSITY_DIALOG_PAD
-#define DIALOG_GAP (theme->config.is_compact ? 2 : SPACE_2)
+#define DIALOG_GAP (2 + (((SPACE_2 - 2) * theme->config.spacing) / 100))
 #define WINDOW_HEADER_BORDER_COLOR COLOR_OUTLINE
-#define WINDOW_HEADER_PAD (theme->config.is_compact ? 2 : SPACE_2)
+#define WINDOW_HEADER_PAD (2 + (((SPACE_2 - 2) * theme->config.spacing) / 100))
 #define WINDOW_CONTENT_PAD DENSITY_CONTAINER_PAD
-#define TABLE_CELL_PAD (theme->config.is_compact ? 2 : SPACE_3)
+#define TABLE_CELL_PAD (2 + (((SPACE_3 - 2) * theme->config.spacing) / 100))
 #define TABLE_DIVIDER_COLOR COLOR_OUTLINE
 #define CHART_GRID_COLOR COLOR_ON_SURFACE
-#define CHART_POINT_SIZE (theme->config.is_compact ? 3 : LV_DPX_CALC(theme->disp_dpi, 6))
-#define CALENDAR_PAD (theme->config.is_compact ? 2 : SPACE_2)
+#define CHART_POINT_SIZE (3 + (((LV_DPX_CALC(theme->disp_dpi, 6) - 3) * theme->config.size) / 100))
+#define CALENDAR_PAD (2 + (((SPACE_2 - 2) * theme->config.spacing) / 100))
 #define SCALE_COLOR COLOR_ON_SURFACE
-#define SCALE_TICK_LENGTH (theme->config.is_compact ? 3 : LV_DPX_CALC(theme->disp_dpi, 6))
+#define SCALE_TICK_LENGTH (3 + (((LV_DPX_CALC(theme->disp_dpi, 6) - 3) * theme->config.size) / 100))
 #define DIVIDER_COLOR COLOR_OUTLINE
 
 /**********************
@@ -475,7 +475,8 @@ static inline bool lss_is_child(lv_obj_t * parent, int32_t index, lv_obj_t * chi
 static bool config_equals(const lv_theme_material_mono_config_t * a, const lv_theme_material_mono_config_t * b)
 {
     return a->is_dark == b->is_dark &&
-           a->is_compact == b->is_compact &&
+           a->spacing == b->spacing &&
+           a->size == b->size &&
            a->animations_enabled == b->animations_enabled &&
            lv_color_eq(a->color_primary, b->color_primary) &&
            lv_color_eq(a->color_secondary, b->color_secondary) &&
@@ -698,12 +699,12 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_gap(&theme->styles.app_bar, APP_BAR_GAP);
 
     style_init_reset(&theme->styles.app_bar_nav_button);
-    if(theme->config.is_compact) {
-        lv_style_set_margin_left(&theme->styles.app_bar_nav_button, 4);
+    if(theme->config.spacing != 100) {
+        lv_style_set_margin_left(&theme->styles.app_bar_nav_button, 4 - ((4 * theme->config.spacing) / 100));
     }
 
     style_init_reset(&theme->styles.app_bar_button_focus_ring);
-    if(theme->config.is_compact) {
+    if((theme->config.size / 50) == 0) {
         lv_style_set_outline_pad(&theme->styles.app_bar_button_focus_ring, 0);
     }
 
@@ -1187,7 +1188,8 @@ void lv_theme_material_mono_config_init(lv_theme_material_mono_config_t * config
 {
     lv_memzero(config, sizeof(*config));
     config->is_dark = false;
-    config->is_compact = false;
+    config->spacing = 100;
+    config->size = 100;
     config->animations_enabled = true;
     config->color_primary = lv_color_black();
     config->color_secondary = lv_color_black();

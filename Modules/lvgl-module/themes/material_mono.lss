@@ -12,7 +12,8 @@
 
 @config {
     isDark: bool = false;
-    isCompact: bool = false;
+    spacing: int = 100;
+    size: int = 100;
     animationsEnabled: bool = true;
     colorPrimary: color = black;
     colorSecondary: color = black;
@@ -87,33 +88,33 @@
 @color-outline: @ink;
 
 // Shapes
-@shape-control: if($isCompact, @corner-compact, @corner-full);
-@shape-container: if($isCompact, @corner-compact, @corner-medium);
-@shape-field: if($isCompact, @corner-compact, @corner-small);
-@shape-key: if($isCompact, @corner-compact, @corner-small);
-@shape-dialog: if($isCompact, @corner-compact, @corner-large);
+@shape-control: if($size == 100, @corner-full, (@corner-compact) + (@corner-large - (@corner-compact)) * $size / 100);
+@shape-container: ((@corner-compact) + ((@corner-medium) - (@corner-compact)) * $size / 100);
+@shape-field: ((@corner-compact) + ((@corner-small) - (@corner-compact)) * $size / 100);
+@shape-key: ((@corner-compact) + ((@corner-small) - (@corner-compact)) * $size / 100);
+@shape-dialog: ((@corner-compact) + ((@corner-large) - (@corner-compact)) * $size / 100);
 
 // Density
-@density-container-pad: if($isCompact, 2, @space-4);
-@density-container-gap: if($isCompact, 2, @space-3);
-@density-control-pad-hor: if($isCompact, 3, @space-6);
-@density-control-pad-ver: if($isCompact, 2, @space-3);
-@density-control-gap: if($isCompact, 2, @space-2);
-@density-field-pad: if($isCompact, 2, @space-3);
-@density-list-pad: if($isCompact, 1, @space-2);
-@density-list-item-pad-hor: if($isCompact, 2, @space-4);
-@density-list-item-pad-ver: if($isCompact, 2, @space-3);
-@density-dialog-pad: if($isCompact, 2, @space-6);
-@density-key-gap: if($isCompact, 1, @space-1);
+@density-container-pad: ((2) + ((@space-4) - (2)) * $spacing / 100);
+@density-container-gap: ((2) + ((@space-3) - (2)) * $spacing / 100);
+@density-control-pad-hor: ((2) + ((@space-6) - (2)) * $size / 100);
+@density-control-pad-ver: ((1) + ((@space-3) - (1)) * $size / 100);
+@density-control-gap: ((2) + ((@space-2) - (2)) * $spacing / 100);
+@density-field-pad: ((2) + ((@space-3) - (2)) * $spacing / 100);
+@density-list-pad: ((1) + ((@space-2) - (1)) * $spacing / 100);
+@density-list-item-pad-hor: ((2) + ((@space-4) - (2)) * $spacing / 100);
+@density-list-item-pad-ver: ((2) + ((@space-3) - (2)) * $spacing / 100);
+@density-dialog-pad: ((2) + ((@space-6) - (2)) * $spacing / 100);
+@density-key-gap: ((1) + ((@space-1) - (1)) * $spacing / 100);
 
 // Borders and indicators
 @border: @line-thin;
-@focus-width: if($isCompact, @line-thin, @line-medium);
-@focus-offset: if($isCompact, @line-thin, @line-medium);
-@edit-width: if($isCompact, @line-medium, @line-thick);
+@focus-width: ((@line-thin) + ((@line-medium) - (@line-thin)) * $size / 100);
+@focus-offset: ((@line-thin) + ((@line-medium) - (@line-thin)) * $size / 100);
+@edit-width: ((@line-medium) + ((@line-thick) - (@line-medium)) * $size / 100);
 // Drawn inside the widget, for widgets with little room around them (icon buttons)
-@focus-inset-width: if($isCompact, @line-thin, @line-medium);
-@focus-inverted-gap: if($isCompact, 1, 2dp);
+@focus-inset-width: ((@line-thin) + ((@line-medium) - (@line-thin)) * $size / 100);
+@focus-inverted-gap: ((1) + ((2dp) - (1)) * $size / 100);
 
 // Motion
 @motion-duration-short: if($animationsEnabled, @duration-short, 0);
@@ -148,14 +149,14 @@
 @card-gap: @density-container-gap;
 
 // Chip (lvgl_chip_create): outlined, inverted when selected
-@chip-shape: if($isCompact, @corner-compact, @corner-small);
-@chip-pad-hor: if($isCompact, 3, @space-4);
-@chip-pad-ver: if($isCompact, 2, @space-2);
+@chip-shape: ((@corner-compact) + ((@corner-small) - (@corner-compact)) * $size / 100);
+@chip-pad-hor: ((3) + ((@space-4) - (3)) * $spacing / 100);
+@chip-pad-ver: ((2) + ((@space-2) - (2)) * $spacing / 100);
 
 // Page indicator (lvgl_page_indicator_create): a dot per page, the current page's dot is filled
 @page-indicator-color: @color-on-surface;
-@page-indicator-dot-size: if($isCompact, 6, 8dp);
-@page-indicator-gap: if($isCompact, 4, 6dp);
+@page-indicator-dot-size: ((6) + ((8dp) - (6)) * $size / 100);
+@page-indicator-gap: ((4) + ((6dp) - (4)) * $spacing / 100);
 
 // Step indicator (lvgl_step_indicator_create): a line segment per step, finished steps filled, unfinished steps outlined
 @step-indicator-color: @color-on-surface;
@@ -165,11 +166,11 @@
 
 // Badge (lvgl_badge_create): a small dot that marks an item, e.g. a favourite
 @badge-color: @color-on-surface;
-@badge-size: if($isCompact, 4, 6dp);
+@badge-size: ((4) + ((6dp) - (4)) * $size / 100);
 
 // Scrollbar
 @scrollbar-color: @color-on-surface;
-@scrollbar-width: if($isCompact, 2, 3dp);
+@scrollbar-width: ((2) + ((3dp) - (2)) * $size / 100);
 @scrollbar-pad: 1;
 
 // Button: Material 3 outlined button, inverted when pressed or checked
@@ -185,7 +186,7 @@
 @button-gap: @density-control-gap;
 
 // Filled and tonal icon buttons: filled is ink, tonal is outlined
-@icon-button-container-shape: if($isCompact, @corner-compact, @corner-large);
+@icon-button-container-shape: ((@corner-compact) + ((@corner-large) - (@corner-compact)) * $size / 100);
 @icon-button-filled-color: @color-primary;
 @icon-button-filled-icon-color: @color-on-primary;
 @icon-button-tonal-color: @color-surface;
@@ -194,10 +195,10 @@
 
 // Toolbar: top app bar with a divider, which shows the background like the statusbar does
 @app-bar-title-color: @color-on-surface;
-@app-bar-pad-hor: if($isCompact, 0, @space-1);
+@app-bar-pad-hor: ((0) + ((@space-1) - (0)) * $spacing / 100);
 // Keeps the action buttons off the screen's edge in the compact layout
-@app-bar-pad-right: if($isCompact, @app-bar-pad-hor + 2, @app-bar-pad-hor);
-@app-bar-gap: if($isCompact, 2, @space-1);
+@app-bar-pad-right: ((@app-bar-pad-hor + 2) + ((@app-bar-pad-hor) - (@app-bar-pad-hor + 2)) * $spacing / 100);
+@app-bar-gap: ((2) + ((@space-1) - (2)) * $spacing / 100);
 // The focus ring is drawn inside toolbar buttons, as there's little room around them
 @app-bar-focus-width: @focus-inset-width;
 
@@ -208,19 +209,19 @@
 @edit-ring-width: @edit-width;
 
 // Switch
-@switch-width: if($isCompact, 25, 40dp);
-@switch-height: if($isCompact, 15, 24dp);
+@switch-width: ((25) + ((40dp) - (25)) * $size / 100);
+@switch-height: ((15) + ((24dp) - (15)) * $size / 100);
 @switch-track-color: @color-surface;
 @switch-track-border-color: @color-outline;
 @switch-track-border-width: @border;
 @switch-track-selected-color: @color-primary;
 @switch-handle-color: @color-on-surface;
 @switch-handle-selected-color: @color-on-primary;
-@switch-handle-pad: if($isCompact, -3, -5dp);
-@switch-handle-selected-pad: if($isCompact, -2, -3dp);
+@switch-handle-pad: ((-3) + ((-5dp) - (-3)) * $size / 100);
+@switch-handle-selected-pad: ((-2) + ((-3dp) - (-2)) * $size / 100);
 
 // Checkbox
-@checkbox-gap: if($isCompact, 3, @space-4);
+@checkbox-gap: ((3) + ((@space-4) - (3)) * $spacing / 100);
 @checkbox-box-color: @color-surface;
 @checkbox-box-border-color: @color-outline;
 @checkbox-box-border-width: @border;
@@ -237,15 +238,15 @@
 // The track is half of LVGL's default thickness (LV_DPI_DEF / 10). The knob is the track height plus its padding on both
 // sides, so the padding includes the removed thickness to keep the knob's size.
 @slider-track-height: 8dp;
-@slider-handle-pad: if($isCompact, 1, 3dp) + 4dp;
+@slider-handle-pad: ((1) + ((3dp) - (1)) * $size / 100) + 4dp;
 // Sliderbox: in the normal layout, the gap between the slider and its buttons leaves room for the knob, which sticks out at the slider's ends
-@sliderbox-gap: if($isCompact, 4, (@slider-track-height / 2) + @slider-handle-pad + @space-2);
+@sliderbox-gap: ((4) + (((@slider-track-height / 2) + @slider-handle-pad + @space-2) - (4)) * $spacing / 100);
 @arc-track-color: @color-on-surface;
 @arc-track-width: @line-thin;
 @arc-indicator-color: @color-primary;
-@arc-indicator-width: if($isCompact, @line-medium, 4dp);
+@arc-indicator-width: ((@line-medium) + ((4dp) - (@line-medium)) * $size / 100);
 @arc-handle-color: @color-primary;
-@arc-handle-pad: if($isCompact, 1, 3dp);
+@arc-handle-pad: ((1) + ((3dp) - (1)) * $size / 100);
 
 // Text field (textarea, spinbox, dropdown)
 @field-color: @color-surface;
@@ -265,8 +266,8 @@
 @menu-border-color: @color-outline;
 @menu-shape: @shape-field;
 @menu-max-height: dpi-def * 2;
-@menu-item-line-space: if($isCompact, 2, @space-3);
-@roller-line-space: if($isCompact, 2, @space-3);
+@menu-item-line-space: ((2) + ((@space-3) - (2)) * $spacing / 100);
+@roller-line-space: ((2) + ((@space-3) - (2)) * $spacing / 100);
 
 // Button matrix and keyboard
 @keys-pad: @density-key-gap;
@@ -280,13 +281,13 @@
 @list-pad: @density-list-pad;
 @list-item-pad-hor: @density-list-item-pad-hor;
 @list-item-pad-ver: @density-list-item-pad-ver;
-@list-item-gap: if($isCompact, 3, @space-4);
+@list-item-gap: ((3) + ((@space-4) - (3)) * $spacing / 100);
 @list-divider-color: @color-outline;
 
 // Tabs: the tab bar is a navigation bar, the selected tab is an inverted pill
-@tabs-pad: if($isCompact, 2, @space-1);
-@tabs-gap: if($isCompact, 2, @space-1);
-@tab-pad: if($isCompact, 2, @space-1);
+@tabs-pad: ((2) + ((@space-1) - (2)) * $spacing / 100);
+@tabs-gap: ((2) + ((@space-1) - (2)) * $spacing / 100);
+@tab-pad: ((2) + ((@space-1) - (2)) * $spacing / 100);
 @tab-shape: @shape-control;
 @tab-page-pad: @density-container-pad;
 
@@ -296,21 +297,21 @@
 @dialog-border-width: @line-medium;
 @dialog-shape: @shape-dialog;
 @dialog-pad: @density-dialog-pad;
-@dialog-gap: if($isCompact, 2, @space-2);
+@dialog-gap: ((2) + ((@space-2) - (2)) * $spacing / 100);
 
 // Window
 @window-header-border-color: @color-outline;
-@window-header-pad: if($isCompact, 2, @space-2);
+@window-header-pad: ((2) + ((@space-2) - (2)) * $spacing / 100);
 @window-content-pad: @density-container-pad;
 
 // Table, chart, calendar, scale, divider
-@table-cell-pad: if($isCompact, 2, @space-3);
+@table-cell-pad: ((2) + ((@space-3) - (2)) * $spacing / 100);
 @table-divider-color: @color-outline;
 @chart-grid-color: @color-on-surface;
-@chart-point-size: if($isCompact, 3, 6dp);
-@calendar-pad: if($isCompact, 2, @space-2);
+@chart-point-size: ((3) + ((6dp) - (3)) * $size / 100);
+@calendar-pad: ((2) + ((@space-2) - (2)) * $spacing / 100);
 @scale-color: @color-on-surface;
-@scale-tick-length: if($isCompact, 3, 6dp);
+@scale-tick-length: ((3) + ((6dp) - (3)) * $size / 100);
 @divider-color: @color-outline;
 
 // ============================================================
@@ -563,12 +564,12 @@ app_bar {
 
 // The toolbar's first button: the close (navigation) button
 app_bar_nav_button {
-    @if ($isCompact) { marginLeft: 4; }
+    @if ($spacing != 100) { marginLeft: 4 - 4 * $spacing / 100; }
 }
 
 // Compact toolbar buttons are as big as their icon, so their focus ring goes around the outside instead of the inside
 app_bar_button_focus_ring {
-    @if ($isCompact) { outlinePad: 0; }
+    @if ($size / 50 == 0) { outlinePad: 0; }
 }
 
 app_bar_button {

@@ -112,7 +112,8 @@ extern "C" {
 
 static error_t start() {
     simulator::initActiveProfile();
-    lvgl_theme_set_default_compact(simulator::getProfile(simulator::getActiveProfileIndex()).compact);
+    const uint8_t density = simulator::getProfile(simulator::getActiveProfileIndex()).compact ? 0 : 100;
+    lvgl_theme_set_default_density(density, density);
     error_t error = app_manager_add(&simulator::profileAppManifest);
     if (error != ERROR_NONE) {
         return error;

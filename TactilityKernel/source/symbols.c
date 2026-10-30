@@ -54,6 +54,7 @@
 #include <tactility/file_ops.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/memory.h>
+#include <tactility/network.h>
 #include <tactility/module.h>
 #include <tactility/paths.h>
 #include <tactility/preferences.h>
@@ -475,6 +476,8 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(wifi_event_poll),
     DEFINE_MODULE_SYMBOL(wifi_get_firmware_ops),
     DEFINE_MODULE_SYMBOL(WIFI_TYPE),
+    // network
+    DEFINE_MODULE_SYMBOL(network_is_available),
     // wifi_auto_scan
     DEFINE_MODULE_SYMBOL(wifi_auto_scan_set_paused),
     // drivers/radio

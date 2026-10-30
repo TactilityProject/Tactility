@@ -6,6 +6,7 @@
 #include <Tactility/app/timezone/TimeZoneView.h>
 #include <Tactility/app/wifimanage/WifiManage.h>
 #include <Tactility/file/File.h>
+#include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/settings/Time.h>
 #include <Tactility/Tactility.h>
 
@@ -15,6 +16,7 @@
 #include <app/scheduler.h>
 #include <app/start.h>
 
+#include <gps/gps.h>
 #include <location/location.h>
 
 #include <wifi/wifi_settings.h>
@@ -30,6 +32,7 @@
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/theme.h>
 #include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/step_indicator.h>
 #include <lvgl/widgets/text_button.h>
@@ -55,6 +58,9 @@ constexpr auto* TAG = "setup";
 
 namespace {
 
+/** Increase when the setup changes, so users see it again */
+constexpr int SETUP_VERSION = 2;
+
 bool getCompletedMarkerPath(std::string& outPath) {
     char path[128];
     if (paths_get_data_path(path, sizeof(path)) != ERROR_NONE) {
@@ -72,7 +78,16 @@ bool isCompleted() {
         LOG_E(TAG, "Setup path not found");
         return false;
     }
-    return file::isFile(path);
+    if (!file::isFile(path)) {
+        return false;
+    }
+    // Markers from before versioning are empty and mean version 1
+    int version = 1;
+    const auto content = file::readString(path);
+    if (content != nullptr && content[0] != '\0') {
+        version = atoi(reinterpret_cast<const char*>(content.get()));
+    }
+    return version >= SETUP_VERSION;
 }
 
 namespace {
@@ -82,7 +97,7 @@ void markCompleted() {
     if (!getCompletedMarkerPath(path)) {
         return;
     }
-    file::writeString(path, "");
+    file::writeString(path, std::to_string(SETUP_VERSION));
 }
 
 enum class Phase {
@@ -100,15 +115,16 @@ struct StepConfiguration {
     /** What the page shows below its title */
     enum class Content {
         Description,
-        /** The description, with the location choices below it */
-        LocationChoice,
+        /** The description, with the choices below it */
+        Choice,
         /** The time zone list instead of the description */
         TimeZones
     } content = Content::Description;
+    /** The labels of the chips of a Content::Choice page */
+    std::vector<std::string> choices;
+    /** The index in choices that is picked, -1 when none. Guarded by the LVGL lock. */
+    int32_t choice = -1;
 };
-
-/** The location choices of the location page, in the order of their chips */
-constexpr const char* LOCATION_CHOICES[] = { "Precise", "Approximate", "Disabled" };
 
 struct Context {
     uint32_t appInstanceId;
@@ -119,6 +135,9 @@ struct Context {
     uint32_t pendingStepDialogId = 0;
 
     // Valid while the window is shown
+    // The area above the buttons, which scrolls when the page doesn't fit
+    lv_obj_t* content = nullptr;
+    lv_obj_t* contentInner = nullptr;
     lv_obj_t* titleLabel = nullptr;
     lv_obj_t* descriptionLabel = nullptr;
     lv_obj_t* backButton = nullptr;
@@ -127,9 +146,7 @@ struct Context {
     lv_obj_t* stepIndicator = nullptr;
     lv_obj_t* bottom = nullptr;
     lv_obj_t* timeZoneContainer = nullptr;
-    lv_obj_t* locationChips = nullptr;
-    // The index in LOCATION_CHOICES picked on the location page, -1 when none. Guarded by the LVGL lock.
-    int32_t locationChoice = -1;
+    lv_obj_t* choiceChips = nullptr;
 
     std::unique_ptr<timezone::TimeZoneView> timeZoneView;
     // The time zone picked on the time zone page, guarded by the LVGL lock
@@ -177,70 +194,104 @@ StepConfiguration::Content getContent(const Context* ctx) {
     return ctx->phase == Phase::StepIntro ? ctx->steps[ctx->stepIndex].content : StepConfiguration::Content::Description;
 }
 
-/** Shows which location choice is picked */
-void renderLocationChips(Context* ctx) {
-    const uint32_t count = lv_obj_get_child_count(ctx->locationChips);
+/** Shows which choice of the current step is picked */
+void renderChoiceChips(Context* ctx) {
+    const int32_t choice = ctx->steps[ctx->stepIndex].choice;
+    const uint32_t count = lv_obj_get_child_count(ctx->choiceChips);
     for (uint32_t i = 0; i < count; i++) {
-        lv_obj_set_state(lv_obj_get_child(ctx->locationChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, static_cast<int32_t>(i) == ctx->locationChoice);
+        lv_obj_set_state(lv_obj_get_child(ctx->choiceChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, static_cast<int32_t>(i) == choice);
     }
 }
 
-/** The time zone page shows the title at the top and the list below it, the other pages center their text */
+void onChoiceChipPressed(lv_event_t* event);
+
+/** Replaces the chips with the choices of the current step */
+void createChoiceChips(Context* ctx) {
+    lv_obj_clean(ctx->choiceChips);
+    const auto& choices = ctx->steps[ctx->stepIndex].choices;
+    for (size_t i = 0; i < choices.size(); i++) {
+        auto* chip = lvgl_chip_create(ctx->choiceChips);
+        lv_label_set_text(lv_label_create(chip), choices[i].c_str());
+        lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<uintptr_t>(i)));
+        lv_obj_add_event_cb(chip, onChoiceChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
+    }
+}
+
+/** Small widgets get smaller titles */
+enum LvglFontSize getTitleFontSize() {
+    const auto size = lvgl_theme_get_size();
+    if (size <= 20) {
+        return FONT_SIZE_SMALL;
+    }
+    return size < 50 ? FONT_SIZE_DEFAULT : FONT_SIZE_LARGE;
+}
+
+/**
+ * The time zone page shows the title at the top and the list below it, the other pages center their text.
+ * Pages that don't fit above the buttons scroll.
+ */
 void renderLayout(Context* ctx) {
     const auto content = getContent(ctx);
     const bool showsTimeZones = content == StepConfiguration::Content::TimeZones;
-    const bool showsLocationChoice = content == StepConfiguration::Content::LocationChoice;
+    const bool showsChoice = content == StepConfiguration::Content::Choice;
     const bool hasTimeZoneWidgets = lv_obj_get_child_count(ctx->timeZoneContainer) > 0;
     lv_obj_set_hidden(ctx->descriptionLabel, showsTimeZones);
     lv_obj_set_hidden(ctx->timeZoneContainer, !showsTimeZones);
-    lv_obj_set_hidden(ctx->locationChips, !showsLocationChoice);
+    lv_obj_set_hidden(ctx->choiceChips, !showsChoice);
+    // The group skips disabled widgets, but not hidden ones
+    lv_obj_set_state(ctx->choiceChips, LV_STATE_DISABLED, !showsChoice);
+    lv_obj_scroll_to_y(ctx->content, 0, LV_ANIM_OFF);
+
+    lv_area_t parent;
+    lv_area_t bottom;
     if (!showsTimeZones) {
         if (hasTimeZoneWidgets) {
             lv_obj_clean(ctx->timeZoneContainer);
             ctx->timeZoneView->destroyWidgets();
         }
-        const int titleMargin = lvgl_get_text_font_height(FONT_SIZE_LARGE);
-        if (showsLocationChoice) {
-            // Centered as a group in the space above the buttons
-            const int32_t gap = titleMargin / 2;
-            lv_obj_update_layout(lv_obj_get_parent(ctx->titleLabel));
-            const int32_t height = lv_obj_get_height(ctx->titleLabel) + gap + lv_obj_get_height(ctx->descriptionLabel) + gap + lv_obj_get_height(ctx->locationChips);
-            lv_area_t parent;
-            lv_area_t bottom;
-            lv_obj_get_content_coords(lv_obj_get_parent(ctx->titleLabel), &parent);
-            lv_obj_get_coords(ctx->bottom, &bottom);
-            const int32_t top = LV_MAX((bottom.y1 - parent.y1 - height) / 2, 0);
-            lv_obj_align(ctx->titleLabel, LV_ALIGN_TOP_MID, 0, top);
-            lv_obj_align_to(ctx->descriptionLabel, ctx->titleLabel, LV_ALIGN_OUT_BOTTOM_MID, 0, gap);
-            lv_obj_align_to(ctx->locationChips, ctx->descriptionLabel, LV_ALIGN_OUT_BOTTOM_MID, 0, gap);
+        const int titleMargin = lvgl_get_text_font_height(getTitleFontSize());
+        if (showsChoice) {
+            createChoiceChips(ctx);
             // Continue confirms the picked choice
-            renderLocationChips(ctx);
-            lv_obj_set_state(ctx->continueButton, LV_STATE_DISABLED, ctx->locationChoice < 0);
+            renderChoiceChips(ctx);
+            lv_obj_set_state(ctx->continueButton, LV_STATE_DISABLED, ctx->steps[ctx->stepIndex].choice < 0);
         } else {
-            lv_obj_align(ctx->descriptionLabel, LV_ALIGN_CENTER, 0, 0);
-            lv_obj_align_to(ctx->titleLabel, ctx->descriptionLabel, LV_ALIGN_OUT_TOP_MID, 0, -titleMargin);
             lv_obj_remove_state(ctx->continueButton, LV_STATE_DISABLED);
         }
-        return;
+        lv_obj_set_style_pad_row(ctx->contentInner, showsChoice ? titleMargin / 2 : titleMargin, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_top(ctx->contentInner, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_min_height(ctx->contentInner, LV_PCT(100), LV_STATE_DEFAULT);
+        // Fills the space above the buttons
+        lv_obj_update_layout(lv_obj_get_parent(ctx->content));
+        lv_obj_get_content_coords(lv_obj_get_parent(ctx->content), &parent);
+        lv_obj_get_coords(ctx->bottom, &bottom);
+        lv_obj_set_height(ctx->content, bottom.y1 - parent.y1);
+    } else {
+        if (!hasTimeZoneWidgets) {
+            ctx->timeZoneView->createWidgets(ctx->timeZoneContainer);
+        }
+        // Continue confirms the picked time zone
+        lv_obj_set_state(ctx->continueButton, LV_STATE_DISABLED, ctx->timeZoneName.empty());
+
+        lv_obj_set_style_pad_row(ctx->contentInner, 0, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_top(ctx->contentInner, LV_DPX(8), LV_STATE_DEFAULT);
+        lv_obj_set_style_min_height(ctx->contentInner, 0, LV_STATE_DEFAULT);
+        lv_obj_set_height(ctx->content, LV_SIZE_CONTENT);
+
+        // The list fills the space between the title and the buttons
+        lv_obj_update_layout(lv_obj_get_parent(ctx->timeZoneContainer));
+        lv_area_t title;
+        lv_obj_get_coords(ctx->content, &title);
+        lv_obj_get_coords(ctx->bottom, &bottom);
+        lv_obj_get_content_coords(lv_obj_get_parent(ctx->timeZoneContainer), &parent);
+        lv_obj_set_pos(ctx->timeZoneContainer, 0, title.y2 + LV_DPX(4) - parent.y1);
+        lv_obj_set_size(ctx->timeZoneContainer, LV_PCT(100), bottom.y1 - title.y2 - LV_DPX(8));
     }
 
-    lv_obj_align(ctx->titleLabel, LV_ALIGN_TOP_MID, 0, LV_DPX(8));
-    if (!hasTimeZoneWidgets) {
-        ctx->timeZoneView->createWidgets(ctx->timeZoneContainer);
-    }
-    // Continue confirms the picked time zone
-    lv_obj_set_state(ctx->continueButton, LV_STATE_DISABLED, ctx->timeZoneName.empty());
-
-    // Fills the space between the title and the buttons
-    lv_obj_update_layout(lv_obj_get_parent(ctx->timeZoneContainer));
-    lv_area_t title;
-    lv_area_t bottom;
-    lv_obj_get_coords(ctx->titleLabel, &title);
-    lv_obj_get_coords(ctx->bottom, &bottom);
-    lv_area_t parent;
-    lv_obj_get_content_coords(lv_obj_get_parent(ctx->timeZoneContainer), &parent);
-    lv_obj_set_pos(ctx->timeZoneContainer, 0, title.y2 + LV_DPX(4) - parent.y1);
-    lv_obj_set_size(ctx->timeZoneContainer, LV_PCT(100), bottom.y1 - title.y2 - LV_DPX(8));
+    // Only a page that doesn't fit takes the focus, so the keys can scroll it
+    lv_obj_update_layout(ctx->content);
+    const bool scrolls = lv_obj_get_scroll_bottom(ctx->content) > 0 || lv_obj_get_scroll_top(ctx->content) > 0;
+    lv_obj_set_state(ctx->content, LV_STATE_DISABLED, !scrolls);
 }
 
 void renderCurrent(Context* ctx) {
@@ -272,6 +323,12 @@ void renderCurrent(Context* ctx) {
             break;
     }
     renderLayout(ctx);
+    // Without a touch screen, Finish has the focus
+    if (ctx->phase == Phase::Done && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
+        auto* buttonRow = lv_obj_get_parent(ctx->continueButton);
+        lv_group_focus_obj(buttonRow);
+        lv_gridnav_set_focused(buttonRow, ctx->continueButton, LV_ANIM_OFF);
+    }
 }
 
 void advanceTo(Context* ctx, size_t index) {
@@ -330,44 +387,53 @@ void onContinueClicked(lv_event_t* event) {
     }
 }
 
-void onLocationChipPressed(lv_event_t* event) {
+void onChoiceChipPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    ctx->locationChoice = static_cast<int32_t>(reinterpret_cast<uintptr_t>(lv_obj_get_user_data(lv_event_get_target_obj(event))));
-    renderLocationChips(ctx);
+    ctx->steps[ctx->stepIndex].choice = static_cast<int32_t>(reinterpret_cast<uintptr_t>(lv_obj_get_user_data(lv_event_get_target_obj(event))));
+    renderChoiceChips(ctx);
     lv_obj_remove_state(ctx->continueButton, LV_STATE_DISABLED);
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    lvgl::systemBarsSetStatusbarVisible(false);
 
-    ctx->titleLabel = lv_label_create(parent);
+    ctx->content = lv_obj_create(parent);
+    lv_obj_remove_style_all(ctx->content);
+    lv_obj_set_size(ctx->content, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_scroll_dir(ctx->content, LV_DIR_VER);
+    if (auto* group = lv_group_get_default()) {
+        lv_group_add_obj(group, ctx->content);
+    }
+
+    // At least as high as the content, so that short pages are centered
+    ctx->contentInner = lv_obj_create(ctx->content);
+    lv_obj_remove_style_all(ctx->contentInner);
+    lv_obj_set_size(ctx->contentInner, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(ctx->contentInner, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(ctx->contentInner, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    ctx->titleLabel = lv_label_create(ctx->contentInner);
     lv_obj_set_width(ctx->titleLabel, LV_PCT(80));
     lv_obj_set_style_text_align(ctx->titleLabel, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(ctx->titleLabel, LV_LABEL_LONG_WRAP);
-    auto* font = lvgl_get_text_font(FONT_SIZE_LARGE);
+    auto* font = lvgl_get_text_font(getTitleFontSize());
     lv_obj_set_style_text_font(ctx->titleLabel, font, 0);
 
-    ctx->descriptionLabel = lv_label_create(parent);
+    ctx->descriptionLabel = lv_label_create(ctx->contentInner);
     lv_obj_set_width(ctx->descriptionLabel, LV_PCT(80));
     lv_obj_set_style_text_align(ctx->descriptionLabel, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(ctx->descriptionLabel, LV_LABEL_LONG_WRAP);
-    lv_obj_align(ctx->descriptionLabel, LV_ALIGN_CENTER, 0, 0);
 
-    // The location choices: one can be picked, and they wrap to more lines on narrow screens
-    ctx->locationChips = lv_obj_create(parent);
-    lv_obj_remove_style_all(ctx->locationChips);
-    lv_obj_set_size(ctx->locationChips, LV_PCT(100), LV_SIZE_CONTENT);
+    // The choices of a step: one can be picked, and they wrap to more lines on narrow screens
+    ctx->choiceChips = lv_obj_create(ctx->contentInner);
+    lv_obj_remove_style_all(ctx->choiceChips);
+    lv_obj_set_size(ctx->choiceChips, LV_PCT(100), LV_SIZE_CONTENT);
     // The chip margins space the choices, so they fit on one line on small screens
-    lv_obj_set_flex_flow(ctx->locationChips, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_flex_align(ctx->locationChips, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    for (size_t i = 0; i < std::size(LOCATION_CHOICES); i++) {
-        auto* chip = lvgl_chip_create(ctx->locationChips);
-        lv_label_set_text(lv_label_create(chip), LOCATION_CHOICES[i]);
-        lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<uintptr_t>(i)));
-        lv_obj_add_event_cb(chip, onLocationChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
-    }
-    lvgl_grid_navigation_add(ctx->locationChips);
-    lv_obj_set_hidden(ctx->locationChips, true);
+    lv_obj_set_flex_flow(ctx->choiceChips, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(ctx->choiceChips, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lvgl_grid_navigation_add(ctx->choiceChips);
+    lv_obj_set_hidden(ctx->choiceChips, true);
 
     // Filled with the time zone list on the time zone page
     ctx->timeZoneContainer = lv_obj_create(parent);
@@ -401,6 +467,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_remove_style_all(spacer);
     lv_obj_set_height(spacer, 1);
     lv_obj_set_flex_grow(spacer, 1);
+    // Grid navigation would otherwise stop on it
+    lv_obj_set_clickable(spacer, false);
 
     ctx->skipButton = lvgl_text_button_create(buttonRow);
     lv_label_set_text(lv_label_create(ctx->skipButton), "Skip");
@@ -425,6 +493,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    lvgl::systemBarsSetStatusbarVisible(true);
+    ctx->content = nullptr;
+    ctx->contentInner = nullptr;
     ctx->titleLabel = nullptr;
     ctx->descriptionLabel = nullptr;
     ctx->backButton = nullptr;
@@ -433,7 +504,7 @@ void destroyWidgets(void* userData) {
     ctx->stepIndicator = nullptr;
     ctx->bottom = nullptr;
     ctx->timeZoneContainer = nullptr;
-    ctx->locationChips = nullptr;
+    ctx->choiceChips = nullptr;
     ctx->timeZoneView->destroyWidgets();
 }
 
@@ -471,16 +542,18 @@ int32_t appMain(int argc, char* argv[]) {
         .title = "Location Services",
         .description = "Do you want to allow apps to retrieve your location? It uses GPS and/or contacts geoiplookup.io",
         .run = [&ctx] {
-            // The order of LOCATION_CHOICES: precise, approximate, disabled
-            if (ctx.locationChoice == 0 || ctx.locationChoice == 1) {
-                location_set_precision(ctx.locationChoice == 0 ? LOCATION_PRECISION_PRECISE : LOCATION_PRECISION_APPROXIMATE);
+            // The order of the choices: precise, approximate, disabled
+            const int32_t choice = ctx.steps[ctx.stepIndex].choice;
+            if (choice == 0 || choice == 1) {
+                location_set_precision(choice == 0 ? LOCATION_PRECISION_PRECISE : LOCATION_PRECISION_APPROXIMATE);
                 location_set_enabled(true);
             } else {
                 location_set_enabled(false);
             }
             advanceTo(&ctx, ctx.stepIndex + 1);
         },
-        .content = StepConfiguration::Content::LocationChoice
+        .content = StepConfiguration::Content::Choice,
+        .choices = { "Precise", "Approximate", "Disabled" }
     });
 
     // Setting the time zone also sets the radio region, as both depend on where the device is
@@ -500,6 +573,21 @@ int32_t appMain(int argc, char* argv[]) {
             lv_obj_remove_state(ctx.continueButton, LV_STATE_DISABLED);
         }
     });
+
+    if (device_exists_of_type(&GPS_TYPE)) {
+        ctx.steps.push_back({
+            .title = "Time from GPS",
+            .description = "Set time from GPS at boot?",
+            .run = [&ctx] {
+                // The order of the choices: enabled, disabled
+                settings::setGpsTimeSyncAtBoot(ctx.steps[ctx.stepIndex].choice == 0);
+                advanceTo(&ctx, ctx.stepIndex + 1);
+            },
+            .content = StepConfiguration::Content::Choice,
+            .choices = { "Enabled", "Disabled" },
+            .choice = 0
+        });
+    }
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);

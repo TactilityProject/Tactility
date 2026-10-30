@@ -9,6 +9,7 @@
 #include <tactility/filesystem/file_system.h>
 #include <tactility/filesystem/fs.h>
 #include <tactility/log.h>
+#include <tactility/network.h>
 #include <tactility/paths.h>
 #include <tactility/system_event.h>
 #include <tactility/time.h>
@@ -216,8 +217,8 @@ int32_t threadMain(void* context) {
         }
 
         // The public IP address can change with the network
-        if (system_event_poll(&provider.networkSubscription) == ERROR_NONE && attempted) {
-            nextAttemptMs = lastAttemptMs + MIN_INTERVAL_MS;
+        if (system_event_poll(&provider.networkSubscription) == ERROR_NONE) {
+            nextAttemptMs = attempted ? lastAttemptMs + MIN_INTERVAL_MS : 0;
         }
 
         if (!location_host_needs_fallback()) {
@@ -232,6 +233,11 @@ int32_t threadMain(void* context) {
                 reportedCache = true;
             }
             nextAttemptMs = std::max(nextAttemptMs, getUptimeMs() + CHECK_INTERVAL_MS);
+            continue;
+        }
+
+        if (!network_is_available()) {
+            nextAttemptMs = getUptimeMs() + CHECK_INTERVAL_MS;
             continue;
         }
 
@@ -325,6 +331,9 @@ void ip_provider_untrack_network(void) {
 error_t location_lookup_time_zone(char* out_name, size_t out_size) {
     if (!location_is_enabled()) {
         return ERROR_INVALID_STATE;
+    }
+    if (!network_is_available()) {
+        return ERROR_RESOURCE;
     }
     TaskEventGroup group {};
     task_event_group_construct(&group);

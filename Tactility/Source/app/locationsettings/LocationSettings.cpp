@@ -26,6 +26,7 @@
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <tactility/std/string.hpp>
@@ -57,6 +58,8 @@ constexpr PrecisionOption PRECISION_OPTIONS[] = {
     { LOCATION_PRECISION_PRECISE, "Precise" },
 };
 
+constexpr uint32_t SUBSCRIBERS_REFRESH_MS = 1000;
+
 /** A GPS device that is backed by a persisted configuration */
 struct GpsConfigurationRow {
     Device* device;
@@ -78,6 +81,11 @@ struct Context {
     lv_obj_t* statusLabel = nullptr;
     lv_obj_t* gpsDeviceList = nullptr;
     std::vector<GpsConfigurationRow> gpsConfigurationRows;
+    lv_obj_t* subscribersSection = nullptr;
+    lv_obj_t* subscribersList = nullptr;
+    // Filled by the app's task. The list shows shownSubscribers.
+    std::vector<std::string> subscribers;
+    std::vector<std::string> shownSubscribers;
     // Set while a delete confirmation is pending
     bool hasPendingDelete = false;
     size_t pendingDeleteIndex = 0;
@@ -105,6 +113,26 @@ std::string getStatusText() {
     return text;
 }
 
+void readSubscribers(Context* ctx) {
+    ctx->subscribers.clear();
+    location_for_each_subscriber(&ctx->subscribers, [](const char* description, void* context) {
+        static_cast<std::vector<std::string>*>(context)->push_back(description);
+    });
+}
+
+void updateSubscribers(Context* ctx) {
+    if (ctx->subscribersSection == nullptr || ctx->subscribers == ctx->shownSubscribers) {
+        return;
+    }
+    ctx->shownSubscribers = ctx->subscribers;
+    lv_obj_clean(ctx->subscribersList);
+    for (const auto& subscriber : ctx->shownSubscribers) {
+        lvgl_list_add_button(ctx->subscribersList, nullptr, subscriber.c_str());
+    }
+    lvgl_list_hide_last_divider(ctx->subscribersList);
+    lv_obj_set_flag(ctx->subscribersSection, LV_OBJ_FLAG_HIDDEN, ctx->shownSubscribers.empty());
+}
+
 void updateWidgets(Context* ctx) {
     if (ctx->statusLabel == nullptr) {
         return;
@@ -119,6 +147,7 @@ void updateWidgets(Context* ctx) {
     }
 
     lv_label_set_text(ctx->statusLabel, getStatusText().c_str());
+    updateSubscribers(ctx);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -288,6 +317,23 @@ void createGpsDevices(Context* ctx, lv_obj_t* parent) {
     rebuildGpsDeviceList(ctx);
 }
 
+void createSubscribers(Context* ctx, lv_obj_t* parent) {
+    ctx->subscribersSection = createContainer(parent, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_size(ctx->subscribersSection, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_add_flag(ctx->subscribersSection, LV_OBJ_FLAG_HIDDEN);
+
+    auto* title = lv_label_create(ctx->subscribersSection);
+    lv_label_set_text(title, "Subscribers");
+
+    auto* card = lvgl_card_create(ctx->subscribersSection);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_left(title, lv_obj_get_style_pad_left(card, LV_PART_MAIN), LV_STATE_DEFAULT);
+
+    ctx->subscribersList = lvgl_list_create(card);
+    ctx->shownSubscribers.clear();
+}
+
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
@@ -350,6 +396,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (ctx->showGpsDevices) {
         createGpsDevices(ctx, wrapper);
     }
+    createSubscribers(ctx, wrapper);
 
     updateWidgets(ctx);
 }
@@ -361,6 +408,8 @@ void destroyWidgets(void* userData) {
     ctx->statusLabel = nullptr;
     ctx->gpsDeviceList = nullptr;
     ctx->gpsConfigurationRows.clear();
+    ctx->subscribersSection = nullptr;
+    ctx->subscribersList = nullptr;
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -378,14 +427,16 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription appEvents {};
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
     LocationSubscription locationEvents {};
-    check(location_subscribe(&locationEvents, &eventGroup) == ERROR_NONE);
+    check(location_subscribe(&locationEvents, &eventGroup, "Location settings") == ERROR_NONE);
 
+    readSubscribers(&ctx);
     WindowId window = window_manager_create_ext(ctx.appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {
         uint32_t flags = 0;
-        task_event_group_wait_any(&eventGroup, &flags, portMAX_DELAY);
+        // Subscribers come and go without signaling, so the list is refreshed regularly
+        task_event_group_wait_any(&eventGroup, &flags, pdMS_TO_TICKS(SUBSCRIBERS_REFRESH_MS));
 
         if (flags & ctx.enableBit) {
             location_set_enabled(ctx.requestedEnabled);
@@ -416,6 +467,7 @@ int32_t appMain(int argc, char* argv[]) {
         }
 
         lvgl_lock();
+        readSubscribers(&ctx);
         updateWidgets(&ctx);
         lvgl_unlock();
     }
