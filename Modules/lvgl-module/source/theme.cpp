@@ -18,7 +18,16 @@ enum class ActiveTheme {
 
 static LvglThemeSettings theme_settings;
 static bool theme_settings_set = false;
-static bool default_compact = TT_LVGL_UI_DENSITY == LVGL_UI_DENSITY_COMPACT;
+#ifdef CONFIG_TT_UI_SPACING
+static uint8_t default_spacing = CONFIG_TT_UI_SPACING;
+#else
+static uint8_t default_spacing = 100;
+#endif
+#ifdef CONFIG_TT_UI_SIZE
+static uint8_t default_size = CONFIG_TT_UI_SIZE;
+#else
+static uint8_t default_size = 100;
+#endif
 static ActiveTheme active_theme = ActiveTheme::None;
 
 void lvgl_theme_get_default_settings(LvglThemeSettings* settings) {
@@ -30,13 +39,15 @@ void lvgl_theme_get_default_settings(LvglThemeSettings* settings) {
     settings->color_primary = material_config.color_primary;
     settings->color_secondary = material_config.color_secondary;
     settings->color_error = material_config.color_error;
-    settings->is_compact = default_compact;
+    settings->spacing = default_spacing;
+    settings->size = default_size;
     settings->surface_override = material_config.surface_override;
     settings->color_surface = material_config.color_surface;
 }
 
-void lvgl_theme_set_default_compact(bool is_compact) {
-    default_compact = is_compact;
+void lvgl_theme_set_default_density(uint8_t spacing, uint8_t size) {
+    default_spacing = spacing;
+    default_size = size;
 }
 
 void lvgl_theme_get_settings(LvglThemeSettings* settings) {
@@ -56,10 +67,16 @@ bool lvgl_theme_is_mono() {
     return active_theme == ActiveTheme::MaterialMono;
 }
 
-bool lvgl_theme_is_compact() {
+uint8_t lvgl_theme_get_spacing() {
     LvglThemeSettings settings;
     lvgl_theme_get_settings(&settings);
-    return settings.is_compact;
+    return settings.spacing;
+}
+
+uint8_t lvgl_theme_get_size() {
+    LvglThemeSettings settings;
+    lvgl_theme_get_settings(&settings);
+    return settings.size;
 }
 
 static lv_theme_t* get_active_theme() {
@@ -90,7 +107,6 @@ void lvgl_theme_deinit() {
 lv_theme_t* lvgl_theme_init_for_display(lv_display_t* display, bool isMonoDisplay, bool supportsAnimations) {
     LvglThemeSettings settings;
     lvgl_theme_get_settings(&settings);
-    const bool is_compact = settings.is_compact;
     const bool animations_enabled = settings.animations_enabled && supportsAnimations;
     const ActiveTheme required_theme = (isMonoDisplay || settings.is_mono) ? ActiveTheme::MaterialMono : ActiveTheme::Material;
 
@@ -106,14 +122,16 @@ lv_theme_t* lvgl_theme_init_for_display(lv_display_t* display, bool isMonoDispla
         lv_theme_material_mono_config_t config;
         lv_theme_material_mono_config_init(&config);
         config.is_dark = settings.is_dark;
-        config.is_compact = is_compact;
+        config.spacing = settings.spacing;
+        config.size = settings.size;
         config.animations_enabled = animations_enabled;
         theme = lv_theme_material_mono_init(display, &config);
     } else {
         lv_theme_material_config_t config;
         lv_theme_material_config_init(&config);
         config.is_dark = settings.is_dark;
-        config.is_compact = is_compact;
+        config.spacing = settings.spacing;
+        config.size = settings.size;
         config.animations_enabled = animations_enabled;
         config.color_primary = settings.color_primary;
         config.color_secondary = settings.color_secondary;

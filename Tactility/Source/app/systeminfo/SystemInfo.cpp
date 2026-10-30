@@ -272,7 +272,7 @@ lv_obj_t* createTab(lv_obj_t* tabview, const char* name) {
     auto* tab = lv_tabview_add_tab(tabview, name);
     auto* tab_bar = lv_tabview_get_tab_bar(tabview);
     auto* tab_button = lv_obj_get_child(tab_bar, static_cast<int32_t>(lv_obj_get_child_count(tab_bar)) - 1);
-    auto* shared_icon_font = lvgl_theme_is_compact() ? lvgl_get_shared_icon_default_font() : lvgl_get_shared_icon_large_font();
+    auto* shared_icon_font = lvgl_theme_get_size() < 50 ? lvgl_get_shared_icon_default_font() : lvgl_get_shared_icon_large_font();
     lv_obj_set_style_text_font(tab_button, shared_icon_font, LV_STATE_DEFAULT);
     // Square buttons, so the theme's round selection indicator fits the icon
     const int32_t button_size = lv_font_get_line_height(shared_icon_font) + 2 * lv_obj_get_style_pad_top(tab_button, LV_PART_MAIN);
@@ -380,7 +380,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_grow(wrapper, 1);
     lv_obj_set_style_pad_all(wrapper, 0, LV_STATE_DEFAULT);
     // Space between the screen edges and the rounded tab bar and content
-    const int32_t edge_space = lvgl_theme_is_compact() ? 2 : LV_DPX(8);
+    const int32_t edge_space = lvgl_theme_lerp(2, LV_DPX(8), lvgl_theme_get_spacing());
     lv_obj_set_style_pad_hor(wrapper, edge_space, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(wrapper, edge_space, LV_STATE_DEFAULT);
 
@@ -396,7 +396,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // As wide as the buttons, which are spread over the bar's height
     auto* tab_bar = lv_tabview_get_tab_bar(tabview);
     lv_obj_set_width(tab_bar, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(tab_bar, lvgl_theme_is_compact() ? 2 : LV_DPX(12), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_hor(tab_bar, lvgl_theme_lerp(2, LV_DPX(12), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
     lv_obj_set_flex_align(tab_bar, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     // Memory tab content

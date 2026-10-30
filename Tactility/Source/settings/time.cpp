@@ -22,6 +22,7 @@ constexpr auto* TAG = "Time";
 constexpr auto* TIMEZONE_PREFERENCES_KEY_NAME = "tz_name";
 constexpr auto* TIMEZONE_PREFERENCES_KEY_CODE = "tz_code";
 constexpr auto* TIMEZONE_PREFERENCES_KEY_TIME24 = "tz_time24";
+constexpr auto* GPS_SYNC_AT_BOOT_KEY = "gps_sync_boot";
 
 namespace {
 
@@ -140,6 +141,33 @@ void setTimeFormat24Hour(bool show24Hour) {
     properties.timeFormat24h = show24Hour;
     saveSystemSettings(properties);
     lvgl_statusbar_set_time_format_24h(show24Hour);
+}
+
+bool isGpsTimeSyncAtBoot() {
+    std::string path;
+    if (!getPreferencesPath(path)) {
+        return false;
+    }
+    Preferences* preferences = preferences_open(path.c_str());
+    if (preferences == nullptr) {
+        return false;
+    }
+    bool enabled = false;
+    preferences_opt_bool(preferences, GPS_SYNC_AT_BOOT_KEY, &enabled);
+    preferences_close(preferences);
+    return enabled;
+}
+
+void setGpsTimeSyncAtBoot(bool enabled) {
+    std::string path;
+    if (!getPreferencesPath(path)) {
+        return;
+    }
+    Preferences* preferences = preferences_open(path.c_str());
+    if (preferences != nullptr) {
+        preferences_put_bool(preferences, GPS_SYNC_AT_BOOT_KEY, enabled);
+        preferences_close(preferences);
+    }
 }
 
 }

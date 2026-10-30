@@ -86,4 +86,18 @@ std::string getInputPrompt(const std::string& action);
 /** Blocks until any key is pressed on a keyboard or the screen is touched. */
 void waitForInput();
 
+enum class BootChoice {
+    Reboot,
+    PowerOff
+};
+
+/**
+ * Shows the screen with the options "Reboot" and "Power off" below the lines, and blocks until one is confirmed.
+ * Keyboards and encoders move the selection with the arrow keys, tab or the wheel, and confirm with enter.
+ * A touch screen moves the selection with a tap and confirms with a long press.
+ * @param[in] logo a PNG image, or empty for no logo
+ * @param[in] lines text lines above the options
+ */
+BootChoice waitForBootChoice(BootScreen& screen, const BootLogo& logo, const std::vector<std::string>& lines);
+
 }

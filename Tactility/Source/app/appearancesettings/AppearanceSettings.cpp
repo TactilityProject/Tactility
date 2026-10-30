@@ -29,6 +29,7 @@
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
+#include <lvgl/widgets/sliderbox.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <atomic>
@@ -138,8 +139,8 @@ struct Context {
     lv_obj_t* errorLabel = nullptr;
     lv_obj_t* lightChip = nullptr;
     lv_obj_t* darkChip = nullptr;
-    lv_obj_t* regularDensityChip = nullptr;
-    lv_obj_t* compactDensityChip = nullptr;
+    lv_obj_t* spacingSlider = nullptr;
+    lv_obj_t* sizeSlider = nullptr;
     lv_obj_t* regularThemeChip = nullptr;
     lv_obj_t* monoThemeChip = nullptr;
     // Shown for the regular theme: the "Theme Colors" title and card
@@ -210,21 +211,16 @@ bool isDeviceDefaultDark() {
     return defaults.is_dark;
 }
 
-bool isDeviceDefaultCompact() {
+uint8_t getSpacing(const settings::appearance::AppearanceSettings& settings) {
     LvglThemeSettings defaults;
     lvgl_theme_get_default_settings(&defaults);
-    return defaults.is_compact;
+    return settings.spacing.value_or(defaults.spacing);
 }
 
-bool isCompact(const settings::appearance::AppearanceSettings& settings) {
-    switch (settings.densityMode) {
-        case settings::appearance::DensityMode::Regular:
-            return false;
-        case settings::appearance::DensityMode::Compact:
-            return true;
-        default:
-            return isDeviceDefaultCompact();
-    }
+uint8_t getSize(const settings::appearance::AppearanceSettings& settings) {
+    LvglThemeSettings defaults;
+    lvgl_theme_get_default_settings(&defaults);
+    return settings.size.value_or(defaults.size);
 }
 
 bool isDark(const settings::appearance::AppearanceSettings& settings) {
@@ -264,9 +260,10 @@ void updateThemeWidgets(Context* ctx) {
     const bool dark = isDark(ctx->pendingSettings);
     setChecked(ctx->lightChip, !dark);
     setChecked(ctx->darkChip, dark);
-    const bool compact = isCompact(ctx->pendingSettings);
-    setChecked(ctx->regularDensityChip, !compact);
-    setChecked(ctx->compactDensityChip, compact);
+    if (ctx->spacingSlider != nullptr) {
+        lvgl_sliderbox_set_value(ctx->spacingSlider, getSpacing(ctx->pendingSettings), LV_ANIM_OFF);
+        lvgl_sliderbox_set_value(ctx->sizeSlider, getSize(ctx->pendingSettings), LV_ANIM_OFF);
+    }
     if (ctx->regularThemeChip != nullptr) {
         setChecked(ctx->regularThemeChip, !ctx->pendingSettings.monoTheme);
         setChecked(ctx->monoThemeChip, ctx->pendingSettings.monoTheme);
@@ -316,22 +313,23 @@ void onDarkPressed(lv_event_t* event) {
     setDark(static_cast<Context*>(lv_event_get_user_data(event)), true);
 }
 
-void setCompact(Context* ctx, bool compact) {
+void onSpacingChanged(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    LvglThemeSettings defaults;
+    lvgl_theme_get_default_settings(&defaults);
+    const auto value = static_cast<uint8_t>(lvgl_sliderbox_get_value(ctx->spacingSlider));
     // The device default is kept when it matches, so it doesn't count as a change
-    if (compact == isDeviceDefaultCompact()) {
-        ctx->pendingSettings.densityMode = settings::appearance::DensityMode::DeviceDefault;
-    } else {
-        ctx->pendingSettings.densityMode = compact ? settings::appearance::DensityMode::Compact : settings::appearance::DensityMode::Regular;
-    }
+    ctx->pendingSettings.spacing = value == defaults.spacing ? std::nullopt : std::optional<uint8_t>(value);
     updateWidgets(ctx);
 }
 
-void onRegularDensityPressed(lv_event_t* event) {
-    setCompact(static_cast<Context*>(lv_event_get_user_data(event)), false);
-}
-
-void onCompactDensityPressed(lv_event_t* event) {
-    setCompact(static_cast<Context*>(lv_event_get_user_data(event)), true);
+void onSizeChanged(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    LvglThemeSettings defaults;
+    lvgl_theme_get_default_settings(&defaults);
+    const auto value = static_cast<uint8_t>(lvgl_sliderbox_get_value(ctx->sizeSlider));
+    ctx->pendingSettings.size = value == defaults.size ? std::nullopt : std::optional<uint8_t>(value);
+    updateWidgets(ctx);
 }
 
 void onRegularThemePressed(lv_event_t* event) {
@@ -556,9 +554,16 @@ void createThemeCard(lv_obj_t* parent, Context* ctx) {
         ctx->monoThemeChip = createChip(style_row, "Mono", onMonoThemePressed, ctx);
     }
 
-    auto* density_row = createLabeledRow(card, "Density");
-    ctx->regularDensityChip = createChip(density_row, "Regular", onRegularDensityPressed, ctx);
-    ctx->compactDensityChip = createChip(density_row, "Compact", onCompactDensityPressed, ctx);
+    // 0% is compact and 100% is regular
+    lv_label_set_text(lv_label_create(card), "Spacing (%)");
+    ctx->spacingSlider = lvgl_sliderbox_create(card, 0, 100, settings::appearance::DENSITY_STEP, getSpacing(ctx->pendingSettings));
+    lv_obj_set_width(ctx->spacingSlider, LV_PCT(100));
+    lvgl_sliderbox_add_value_changed_cb(ctx->spacingSlider, onSpacingChanged, ctx);
+
+    lv_label_set_text(lv_label_create(card), "Size (%)");
+    ctx->sizeSlider = lvgl_sliderbox_create(card, 0, 100, settings::appearance::DENSITY_STEP, getSize(ctx->pendingSettings));
+    lv_obj_set_width(ctx->sizeSlider, LV_PCT(100));
+    lvgl_sliderbox_add_value_changed_cb(ctx->sizeSlider, onSizeChanged, ctx);
 
     auto* animations_row = createLabeledRow(card, "Animations");
     auto* animations_switch = lv_switch_create(animations_row);
@@ -792,8 +797,8 @@ void destroyWidgets(void* userData) {
     ctx->errorLabel = nullptr;
     ctx->lightChip = nullptr;
     ctx->darkChip = nullptr;
-    ctx->regularDensityChip = nullptr;
-    ctx->compactDensityChip = nullptr;
+    ctx->spacingSlider = nullptr;
+    ctx->sizeSlider = nullptr;
     ctx->regularThemeChip = nullptr;
     ctx->monoThemeChip = nullptr;
     ctx->colorsTitle = nullptr;

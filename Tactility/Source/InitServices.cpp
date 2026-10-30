@@ -26,6 +26,7 @@
 #include <tactility/device.h>
 #include <tactility/drivers/audio_stream.h>
 #include <tactility/drivers/rtc.h>
+#include <gps/gps.h>
 #include <tactility/module.h>
 
 namespace tt {
@@ -34,6 +35,7 @@ namespace tt {
 namespace service {
     // Primary
     namespace audio { extern const ServiceManifest manifest; }
+    namespace gpstime { extern const ServiceManifest manifest; }
 #ifdef ESP_PLATFORM
     namespace rtctime { extern const ServiceManifest manifest; }
 #endif
@@ -61,6 +63,10 @@ void registerAndStartServices() {
 #if defined(__linux__) || defined(__APPLE__)
     check(posix_services_start() == ERROR_NONE);
 #endif
+
+    if (device_exists_of_type(&GPS_TYPE)) {
+        addService(service::gpstime::manifest);
+    }
 
 #if defined(ESP_PLATFORM)
     if (device_exists_of_type(&RTC_TYPE)) {

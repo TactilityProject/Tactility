@@ -32,4 +32,9 @@ bool isTimeFormat24Hour();
  */
 void setTimeFormat24Hour(bool show24Hour);
 
+/** @return true when the clock should be set from GPS once after boot. */
+bool isGpsTimeSyncAtBoot();
+
+void setGpsTimeSyncAtBoot(bool enabled);
+
 }

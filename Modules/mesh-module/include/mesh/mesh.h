@@ -338,7 +338,7 @@ error_t mesh_message_get(uint32_t seq, struct MeshMessage* message);
  * @param[out] messages buffer for the messages
  * @param[in] max_count capacity of @a messages
  * @param[out] count the number of messages returned
- * @retval ERROR_INVALID_STATE when the service is not running
+ * @retval ERROR_INVALID_STATE when the service is not running, or the store of the selected backend failed to open
  */
 error_t mesh_conversation_get(const struct MeshAddress* peer, uint8_t channel, uint32_t before_seq, struct MeshMessage* messages, size_t max_count, size_t* count);
 
@@ -348,6 +348,7 @@ error_t mesh_conversation_get(const struct MeshAddress* peer, uint8_t channel, u
  * @param[out] messages buffer for the messages
  * @param[in] max_count capacity of @a messages
  * @param[out] count the number of messages returned
+ * @retval ERROR_INVALID_STATE when the service is not running, or the store of the selected backend failed to open
  */
 error_t mesh_history_get(uint32_t before_seq, struct MeshMessage* messages, size_t max_count, size_t* count);
 
@@ -357,7 +358,7 @@ error_t mesh_history_get(uint32_t before_seq, struct MeshMessage* messages, size
 
 /**
  * Get the saved contacts of the active backend. A node that sends a direct message is saved automatically.
- * @retval ERROR_INVALID_STATE when the service is not running
+ * @retval ERROR_INVALID_STATE when the service is not running, or the store of the selected backend failed to open
  */
 error_t mesh_get_contacts(struct MeshContact* contacts, size_t max_count, size_t* count);
 
