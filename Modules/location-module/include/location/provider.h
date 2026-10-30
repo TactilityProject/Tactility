@@ -29,6 +29,12 @@ struct LocationProviderApi {
     bool fallback;
 
     /**
+     * True when the provider reports the time of its fixes from a reliable clock, e.g. satellites.
+     * The service announces that time with KERNEL_EVENT_LOCATION_TIME.
+     */
+    bool provides_time;
+
+    /**
      * Start the provider. Called on the service's worker task while the service runs and has subscriptions.
      * It must not block: the work happens on the provider's own task.
      * @return the provider state, NULL on failure

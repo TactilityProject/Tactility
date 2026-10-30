@@ -59,9 +59,16 @@ void GpsTimeSyncService::onLocationTime(int64_t timeMs) {
 }
 
 void GpsTimeSyncService::onTimer() {
-    // GPS only needs to run until the time was announced
-    if (done && subscribed.exchange(false)) {
-        location_unsubscribe(&subscription);
+    if (done) {
+        // GPS only needs to run until the time was announced
+        if (subscribed.exchange(false)) {
+            location_unsubscribe(&subscription);
+        }
+        return;
+    }
+    // Fixes only come in while something is subscribed to the location, which needs location services to be enabled
+    if (!subscribed && location_is_enabled() && location_subscribe(&subscription, &eventGroup, "Time sync") == ERROR_NONE) {
+        subscribed = true;
     }
 }
 
@@ -84,18 +91,12 @@ bool GpsTimeSyncService::onStart(ServiceContext& /*serviceContext*/) {
     }
     eventSubscribed = true;
 
-    // Fixes only come in while something is subscribed to the location, which also needs location services to be enabled
-    if (!location_is_enabled()) {
-        LOG_W(TAG, "Location services are disabled, waiting for another app to use them");
-        return true;
-    }
     task_event_group_construct(&eventGroup);
     eventGroupConstructed = true;
-    if (location_subscribe(&subscription, &eventGroup, "Time sync") == ERROR_NONE) {
-        subscribed = true;
-        timer = std::make_unique<Timer>(Timer::Type::Periodic, TIMER_INTERVAL_TICKS, [this] { onTimer(); });
-        timer->start();
-    }
+    // Subscribes now, or as soon as location services are enabled
+    onTimer();
+    timer = std::make_unique<Timer>(Timer::Type::Periodic, TIMER_INTERVAL_TICKS, [this] { onTimer(); });
+    timer->start();
     return true;
 }
 

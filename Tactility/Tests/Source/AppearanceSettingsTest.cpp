@@ -75,7 +75,7 @@ TEST_CASE("spacing and size take precedence over the old density setting") {
     AppearanceSettings loaded;
     REQUIRE(load(loaded));
     CHECK_EQ(loaded.spacing, std::optional<uint8_t>(60));
-    CHECK_EQ(loaded.size, std::optional<uint8_t>(0));
+    CHECK_FALSE(loaded.size.has_value());
 }
 
 TEST_CASE("the old density setting is not applied again after saving the device defaults") {

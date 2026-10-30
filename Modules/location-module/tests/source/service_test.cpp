@@ -41,6 +41,7 @@ bool fakeWaitStopped(void*, TickType_t) {
 const LocationProviderApi fakeProvider = {
     .id = "fake",
     .fallback = false,
+    .provides_time = true,
     .create = fakeCreate,
     .request_stop = fakeRequestStop,
     .wait_stopped = fakeWaitStopped,
@@ -97,6 +98,17 @@ TEST_CASE("location service lists the descriptions of its subscribers") {
     CHECK(descriptions[1] == "First");
 
     CHECK(location_unsubscribe(&second) == ERROR_NONE);
+
+    // A character that crosses the limit is dropped entirely: 23 bytes followed by a 2 byte character
+    LocationSubscription accented {};
+    REQUIRE(location_subscribe(&accented, &group, "aaaaaaaaaaaaaaaaaaaaaaa\xC3\xA9") == ERROR_NONE);
+    descriptions.clear();
+    location_for_each_subscriber(&descriptions, [](const char* description, void* context) {
+        static_cast<std::vector<std::string>*>(context)->push_back(description);
+    });
+    REQUIRE(descriptions.size() == 2);
+    CHECK(descriptions[0] == "aaaaaaaaaaaaaaaaaaaaaaa");
+    CHECK(location_unsubscribe(&accented) == ERROR_NONE);
     descriptions.clear();
     location_for_each_subscriber(&descriptions, [](const char* description, void* context) {
         static_cast<std::vector<std::string>*>(context)->push_back(description);
@@ -179,7 +191,7 @@ TEST_CASE("location provider registration is limited") {
     char ids[LOCATION_PROVIDER_MAX_COUNT + 1][8];
     for (size_t i = 0; i <= LOCATION_PROVIDER_MAX_COUNT; i++) {
         snprintf(ids[i], sizeof(ids[i]), "p%zu", i);
-        providers[i] = { .id = ids[i], .fallback = false, .create = fakeCreate, .request_stop = fakeRequestStop, .wait_stopped = fakeWaitStopped };
+        providers[i] = { .id = ids[i], .fallback = false, .provides_time = false, .create = fakeCreate, .request_stop = fakeRequestStop, .wait_stopped = fakeWaitStopped };
     }
     for (size_t i = 0; i < LOCATION_PROVIDER_MAX_COUNT; i++) {
         REQUIRE(location_provider_register(&providers[i]) == ERROR_NONE);
@@ -289,7 +301,7 @@ TEST_CASE("location service announces the time of satellite fixes once per minut
     REQUIRE(location_subscribe(&sub, &group, "test") == ERROR_NONE);
     REQUIRE(waitUntil([] { return fakeHost != nullptr && fallbackHost != nullptr; }));
 
-    // Fallback providers don't know the time
+    // Providers that don't provide the time are ignored
     Location fix = makeLocation(51.05, 3.72);
     location_host_report(fallbackHost, &fix);
     CHECK(timeEventCount == 0);
@@ -299,10 +311,18 @@ TEST_CASE("location service announces the time of satellite fixes once per minut
     location_host_report(fakeHost, &fix);
     CHECK(timeEventCount == 0);
 
+    // Dates before the firmware existed or far in the future are wrong
     fix.time_ms = 1700000000123;
     location_host_report(fakeHost, &fix);
+    CHECK(timeEventCount == 0);
+    fix.time_ms = 4200000000000;
+    location_host_report(fakeHost, &fix);
+    CHECK(timeEventCount == 0);
+
+    fix.time_ms = 1780000000123;
+    location_host_report(fakeHost, &fix);
     CHECK(timeEventCount == 1);
-    CHECK(lastTimeEventMs == 1700000000123);
+    CHECK(lastTimeEventMs == 1780000000123);
 
     // The next fix is within the same minute
     fix.time_ms += 1000;

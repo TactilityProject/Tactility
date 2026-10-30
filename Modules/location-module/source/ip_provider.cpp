@@ -397,6 +397,7 @@ bool ip_lookup_parse_response(const char* response, IpLookupResponse* out) {
 const LocationProviderApi ip_location_provider = {
     .id = "ip",
     .fallback = true,
+    .provides_time = false,
     .create = create,
     .request_stop = requestStop,
     .wait_stopped = waitStopped,

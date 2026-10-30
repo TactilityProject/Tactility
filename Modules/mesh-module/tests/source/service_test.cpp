@@ -271,6 +271,11 @@ TEST_CASE("mesh service sends and receives through the active backend") {
 
     REQUIRE_EQ(mesh_backend_register(&loopbackApi), ERROR_NONE);
     CHECK_EQ(mesh_backend_register(&loopbackApi), ERROR_ALREADY_EXISTS);
+    for (const char* id : { "", "../escape", "a/b", "a.b", "a b" }) {
+        MeshBackendApi invalidApi = loopbackApi;
+        invalidApi.id = id;
+        CHECK_EQ(mesh_backend_register(&invalidApi), ERROR_INVALID_ARGUMENT);
+    }
     REQUIRE_EQ(service_manager_add(&mesh_service_manifest, false), ERROR_NONE);
 
     SUBCASE("messages and contacts that all backends shared move to their backends") {
@@ -428,12 +433,31 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK_EQ(countConversation(), 1);
         CHECK_EQ(countContacts(), 1);
 
+        TaskEventGroup storageGroup {};
+        task_event_group_construct(&storageGroup);
+        MeshEventSubscription storageEvents {};
+        REQUIRE_EQ(mesh_event_subscribe(&storageEvents, &storageGroup), ERROR_NONE);
+        // Events of the setup above
+        MeshEvent storageEvent;
+        while (mesh_event_poll(&storageEvents, &storageEvent) == ERROR_NONE) {}
+
         // Another backend starts with nothing, and what it stores stays with it
         REQUIRE_EQ(mesh_set_backend("spare"), ERROR_NONE);
         REQUIRE(waitFor([] {
             char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
             return mesh_get_state() == MESH_STATE_ON && mesh_get_backend(id, sizeof(id)) == ERROR_NONE && std::string(id) == "spare";
         }));
+        // Selecting a backend tells consumers that the contacts and channels changed
+        bool contactsChanged = false;
+        bool channelsChanged = false;
+        while (mesh_event_poll(&storageEvents, &storageEvent) == ERROR_NONE) {
+            contactsChanged |= storageEvent.type == MESH_EVENT_CONTACT;
+            channelsChanged |= storageEvent.type == MESH_EVENT_CHANNEL;
+        }
+        CHECK(contactsChanged);
+        CHECK(channelsChanged);
+        CHECK_EQ(mesh_event_unsubscribe(&storageEvents), ERROR_NONE);
+        task_event_group_destruct(&storageGroup);
         CHECK_EQ(countHistory(), 0);
         CHECK_EQ(countConversation(), 0);
         CHECK_EQ(countContacts(), 0);

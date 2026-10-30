@@ -331,6 +331,7 @@ bool gps_location_from_nmea(const minmea_sentence_rmc* rmc, const minmea_sentenc
 const LocationProviderApi gps_location_provider = {
     .id = "gps",
     .fallback = false,
+    .provides_time = true,
     .create = create,
     .request_stop = requestStop,
     .wait_stopped = waitStopped,

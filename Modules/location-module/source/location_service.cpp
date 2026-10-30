@@ -80,6 +80,14 @@ uint64_t lastTimeEventUptimeMs = 0;
 Thread* worker = nullptr;
 bool workerActive = false;
 
+// 2025-01-01 and 2100-01-01 in milliseconds since the Unix epoch. GPS receivers with a wrong date, e.g. from a week rollover, fall outside it.
+constexpr int64_t MIN_PLAUSIBLE_TIME_MS = 1735689600000;
+constexpr int64_t MAX_PLAUSIBLE_TIME_MS = 4102444800000;
+
+bool isPlausibleTime(int64_t timeMs) {
+    return timeMs >= MIN_PLAUSIBLE_TIME_MS && timeMs < MAX_PLAUSIBLE_TIME_MS;
+}
+
 GlobalMutex settingsMutex;
 LocationSettings settings {};
 bool settingsLoaded = false;
@@ -445,13 +453,14 @@ void location_host_report(LocationHost* host, const Location* location) {
     strcpy(host->location.provider, host->api->id);
     host->location.uptime_ms = getUptimeMs();
     host->hasLocation = true;
-    if (findBest() == host) {
+    const bool isBest = findBest() == host;
+    if (isBest) {
         for (auto* sub = subscriptions; sub != nullptr; sub = sub->internal.next) {
             task_event_group_signal(sub->internal.event_group, sub->bit);
         }
     }
     const uint64_t now = host->location.uptime_ms;
-    const bool emitTime = !host->api->fallback && host->location.time_ms > 0 &&
+    const bool emitTime = isBest && host->api->provides_time && isPlausibleTime(host->location.time_ms) &&
         (!hasEmittedTime || now - lastTimeEventUptimeMs >= TIME_EVENT_INTERVAL_MS);
     if (emitTime) {
         hasEmittedTime = true;
@@ -488,6 +497,24 @@ error_t location_get(Location* location) {
     return best != nullptr ? ERROR_NONE : ERROR_NOT_FOUND;
 }
 
+namespace {
+
+/** Copies at most LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH bytes, without cutting a UTF-8 character in half */
+void copyDescription(char* out, const char* description) {
+    size_t length = strnlen(description, LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH + 1);
+    if (length > LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH) {
+        length = LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH;
+        // The first byte that doesn't fit must start a character, otherwise back up to the start of the cut one
+        while (length > 0 && (static_cast<uint8_t>(description[length]) & 0xC0) == 0x80) {
+            length--;
+        }
+    }
+    memcpy(out, description, length);
+    out[length] = '\0';
+}
+
+}
+
 error_t location_subscribe(LocationSubscription* sub, TaskEventGroup* event_group, const char* description) {
     uint32_t bit;
     const error_t claimed = task_event_group_claim_bit(event_group, &bit);
@@ -504,8 +531,7 @@ error_t location_subscribe(LocationSubscription* sub, TaskEventGroup* event_grou
         }
     }
     sub->bit = bit;
-    strncpy(sub->internal.description, description != nullptr ? description : "", LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH);
-    sub->internal.description[LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH] = '\0';
+    copyDescription(sub->internal.description, description != nullptr ? description : "");
     sub->internal.event_group = event_group;
     sub->internal.next = subscriptions;
     subscriptions = sub;

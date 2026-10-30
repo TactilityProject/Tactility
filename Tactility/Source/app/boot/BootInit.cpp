@@ -204,7 +204,9 @@ bool powerOff() {
 
 /** Offers reboot and power off, or only a reboot when the device can't power off */
 void showMessageAndRebootOrPowerOff(BootScreen& screen, const std::vector<std::string>& lines) {
-    if (!isPowerOffSupported()) {
+    const bool power_off_supported = isPowerOffSupported();
+    LOG_I(TAG, "Power off supported: %d", static_cast<int>(power_off_supported));
+    if (!power_off_supported) {
         auto with_prompt = lines;
         with_prompt.push_back(getInputPrompt("reboot"));
         screen.show({}, with_prompt);

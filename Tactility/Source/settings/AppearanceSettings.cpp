@@ -147,11 +147,12 @@ bool load(AppearanceSettings& settings) {
             settings.size = 0;
         }
     }
-    if (const auto value = parsePercent(map, SETTINGS_KEY_SPACING)) {
-        settings.spacing = value;
+    // Present keys win over the old density, also when empty or invalid, which means the device default
+    if (map.contains(SETTINGS_KEY_SPACING)) {
+        settings.spacing = parsePercent(map, SETTINGS_KEY_SPACING);
     }
-    if (const auto value = parsePercent(map, SETTINGS_KEY_SIZE)) {
-        settings.size = value;
+    if (map.contains(SETTINGS_KEY_SIZE)) {
+        settings.size = parsePercent(map, SETTINGS_KEY_SIZE);
     }
     if (const auto entry = map.find(SETTINGS_KEY_ANIMATIONS); entry != map.end()) {
         settings.animationsEnabled = entry->second != "false";

@@ -418,7 +418,7 @@ BootChoice waitForBootChoice(BootScreen& screen, const BootLogo& logo, const std
             KeyboardKeyData data;
             while (keyboard_read_key(keyboards[i], &data) == ERROR_NONE && data.key != 0 && data.continue_reading) {}
 
-            while (keyboard_poll(keyboards[i], &subscriptions[i], &data) == ERROR_NONE) {
+            while (!confirmed && keyboard_poll(keyboards[i], &subscriptions[i], &data) == ERROR_NONE) {
                 if (!data.pressed) {
                     continue;
                 }
@@ -450,9 +450,13 @@ BootChoice waitForBootChoice(BootScreen& screen, const BootLogo& logo, const std
             const bool touched = touch_get_touched_points(pointer, &x, &y, &strength, &point_count, 1) && point_count > 0;
             if (!touched) {
                 if (pointer_down) {
-                    // A tap
-                    selected = selected == BootChoice::Reboot ? BootChoice::PowerOff : BootChoice::Reboot;
-                    redraw = true;
+                    if (get_millis() - pointer_down_at >= LONG_PRESS_MS) {
+                        confirmed = true;
+                    } else {
+                        // A tap
+                        selected = selected == BootChoice::Reboot ? BootChoice::PowerOff : BootChoice::Reboot;
+                        redraw = true;
+                    }
                     pointer_down = false;
                 }
                 pointer_released = true;

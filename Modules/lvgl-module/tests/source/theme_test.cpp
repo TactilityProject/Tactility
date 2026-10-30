@@ -20,3 +20,9 @@ TEST_CASE("lvgl_theme_lerp interpolates downwards and with negative values") {
     CHECK_EQ(lvgl_theme_lerp(-3, -8, 0), -3);
     CHECK_EQ(lvgl_theme_lerp(-3, -8, 100), -8);
 }
+
+TEST_CASE("lvgl_theme_lerp doesn't overflow with extreme values") {
+    CHECK_EQ(lvgl_theme_lerp(INT32_MIN, INT32_MAX, 0), INT32_MIN);
+    CHECK_EQ(lvgl_theme_lerp(INT32_MIN, INT32_MAX, 100), INT32_MAX);
+    CHECK_EQ(lvgl_theme_lerp(INT32_MAX, INT32_MIN, 100), INT32_MIN);
+}

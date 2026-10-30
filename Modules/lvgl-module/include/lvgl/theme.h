@@ -73,7 +73,7 @@ uint8_t lvgl_theme_get_size(void);
  * @param[in] percent 0 to 100, e.g. from lvgl_theme_get_spacing() or lvgl_theme_get_size()
  */
 static inline int32_t lvgl_theme_lerp(int32_t compact, int32_t regular, uint8_t percent) {
-    return compact + (regular - compact) * (int32_t)percent / 100;
+    return (int32_t)(compact + ((int64_t)regular - compact) * percent / 100);
 }
 
 /**

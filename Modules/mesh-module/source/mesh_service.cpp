@@ -729,7 +729,15 @@ void configure(MeshHost* host) {
 
     // The messages and contacts of the selected backend are available when its radio is off, and no other backend's are
     lock();
+    char previousStorage[MESH_BACKEND_ID_MAX_LENGTH + 1];
+    strncpy(previousStorage, host->storageBackend, sizeof(previousStorage));
+    previousStorage[MESH_BACKEND_ID_MAX_LENGTH] = '\0';
     const bool storageReady = switchStorage(host, getSelectedBackend());
+    // Consumers show the contacts and channels of the selected backend, also when its radio is off
+    if (strncmp(previousStorage, host->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) != 0) {
+        emitEvent(MESH_EVENT_CONTACT, host->state, 0, MESH_DELIVERY_RECEIVED);
+        emitEvent(MESH_EVENT_CHANNEL, host->state, 0, MESH_DELIVERY_RECEIVED);
+    }
     unlock();
     if (!storageReady) {
         setStateLocked(host, MESH_STATE_ERROR);
@@ -1198,8 +1206,10 @@ error_t onStart(ServiceInstance*, void* data) {
         });
     }
 
+    // Opened before the service is published, so queries don't see an empty store. A failure is reported by configure().
     lock();
     ensureSettingsLoaded();
+    switchStorage(host, getSelectedBackend());
     service = host;
     unlock();
 
@@ -1213,6 +1223,7 @@ error_t onStart(ServiceInstance*, void* data) {
         }
         lock();
         service = nullptr;
+        switchStorage(host, nullptr);
         unlock();
         releaseResources(host);
         return ERROR_RESOURCE;
@@ -1269,7 +1280,9 @@ extern "C" {
 error_t mesh_backend_register(const MeshBackendApi* api) {
     lock();
     error_t result = ERROR_NONE;
-    if (findBackend(api->id) != nullptr) {
+    if (!isValidBackendId(api->id)) {
+        result = ERROR_INVALID_ARGUMENT;
+    } else if (findBackend(api->id) != nullptr) {
         result = ERROR_ALREADY_EXISTS;
     } else if (globals().backendCount >= MAX_BACKENDS) {
         result = ERROR_RESOURCE;

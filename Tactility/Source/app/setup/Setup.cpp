@@ -124,6 +124,8 @@ struct StepConfiguration {
     std::vector<std::string> choices;
     /** The index in choices that is picked, -1 when none. Guarded by the LVGL lock. */
     int32_t choice = -1;
+    /** Optional: the choice to pick when the page is shown and none was picked yet. Called with the LVGL lock held. */
+    std::function<int32_t()> defaultChoice = nullptr;
 };
 
 struct Context {
@@ -340,6 +342,12 @@ void advanceTo(Context* ctx, size_t index) {
     }
 
     lvgl_lock();
+    if (ctx->phase == Phase::StepIntro) {
+        auto& step = ctx->steps[ctx->stepIndex];
+        if (step.choice < 0 && step.defaultChoice) {
+            step.choice = step.defaultChoice();
+        }
+    }
     // Covered by a step's app: createWidgets() renders the current page when the window is shown again
     if (ctx->titleLabel != nullptr) {
         renderCurrent(ctx);
@@ -538,6 +546,7 @@ int32_t appMain(int argc, char* argv[]) {
         }
     };
 
+    const size_t locationStepIndex = ctx.steps.size();
     ctx.steps.push_back({
         .title = "Location Services",
         .description = "Do you want to allow apps to retrieve your location? It uses GPS and/or contacts geoiplookup.io",
@@ -585,7 +594,11 @@ int32_t appMain(int argc, char* argv[]) {
             },
             .content = StepConfiguration::Content::Choice,
             .choices = { "Enabled", "Disabled" },
-            .choice = 0
+            // Enabled unless location services are, as the time needs them
+            .defaultChoice = [&ctx, locationStepIndex] {
+                const int32_t locationChoice = ctx.steps[locationStepIndex].choice;
+                return (locationChoice == 0 || locationChoice == 1) ? 0 : 1;
+            }
         });
     }
 

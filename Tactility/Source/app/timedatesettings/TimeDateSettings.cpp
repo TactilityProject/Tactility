@@ -47,13 +47,23 @@ struct Context {
     // Read when the app starts, as widgets can't read files
     bool hasGps = false;
     bool gpsSyncAtBoot = false;
+    // Guarded by the LVGL lock, and refreshed by the app's task
     bool locationEnabled = false;
     uint32_t pendingTimeZoneDialogId = 0;
     uint32_t dateFormatDialogId = 0;
     // Valid while the window is shown
     lv_obj_t* timeZoneLabel = nullptr;
     lv_obj_t* dateFormatLabel = nullptr;
+    lv_obj_t* gpsSyncLabel = nullptr;
 };
+
+constexpr uint32_t LOCATION_REFRESH_MS = 1000;
+
+void updateGpsSyncText(Context* ctx) {
+    if (ctx->gpsSyncLabel != nullptr) {
+        lv_label_set_text(ctx->gpsSyncLabel, ctx->locationEnabled ? "Sets the clock once after boot" : "Requires location services");
+    }
+}
 
 std::string getDateFormat() {
     settings::SystemSettings sysSettings;
@@ -224,8 +234,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_style_bg_opa(gps_sync_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
         lv_obj_set_scrollable(gps_sync_row, false);
 
-        auto* gps_sync_value = createTitleAndValue(gps_sync_row, "GPS sync at boot");
-        lv_label_set_text(gps_sync_value, ctx->locationEnabled ? "Sets the clock once after boot" : "Requires location services");
+        ctx->gpsSyncLabel = createTitleAndValue(gps_sync_row, "GPS sync at boot");
+        updateGpsSyncText(ctx);
 
         auto* gps_sync_switch = lv_switch_create(gps_sync_row);
         lv_obj_set_state(gps_sync_switch, LV_STATE_CHECKED, ctx->gpsSyncAtBoot);
@@ -262,6 +272,7 @@ void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->timeZoneLabel = nullptr;
     ctx->dateFormatLabel = nullptr;
+    ctx->gpsSyncLabel = nullptr;
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -289,7 +300,18 @@ int32_t appMain(int argc, char* argv[]) {
     bool shouldClose = false;
     while (!shouldClose) {
         uint32_t flags = 0;
-        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+        // Location settings can change while this app is buried, so the explanation of the GPS row is refreshed regularly
+        task_event_group_wait_any(&event_group, &flags, ctx.hasGps ? pdMS_TO_TICKS(LOCATION_REFRESH_MS) : portMAX_DELAY);
+
+        if (ctx.hasGps) {
+            const bool locationEnabled = location_is_enabled();
+            lvgl_lock();
+            if (locationEnabled != ctx.locationEnabled) {
+                ctx.locationEnabled = locationEnabled;
+                updateGpsSyncText(&ctx);
+            }
+            lvgl_unlock();
+        }
 
         if (flags & ctx.selectDateFormatBit) {
             startDateFormatSelection(&ctx);

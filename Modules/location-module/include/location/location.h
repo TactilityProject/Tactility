@@ -89,6 +89,7 @@ enum LocationPrecision location_get_precision(void);
  */
 error_t location_get(struct Location* location);
 
+/** In bytes */
 #define LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH 24
 
 /**
@@ -111,7 +112,7 @@ struct LocationSubscription {
  * Providers start and stop in the background: subscribing and unsubscribing don't wait for them.
  * @param[in,out] sub subscription to register, must stay alive until unsubscribed
  * @param[in] event_group caller-owned group to wait on, must outlive @a sub
- * @param[in] description what the subscriber is, shown to the user. Truncated to LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH characters.
+ * @param[in] description what the subscriber is, shown to the user. Truncated to LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH bytes, at a UTF-8 character boundary.
  * @retval ERROR_RESOURCE @a event_group has no free bits left
  * @retval ERROR_INVALID_STATE @a sub is already registered
  */
