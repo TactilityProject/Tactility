@@ -123,6 +123,7 @@ static const ModuleSymbol mesh_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(mesh_set_backend),
     DEFINE_MODULE_SYMBOL(mesh_get_backend),
     DEFINE_MODULE_SYMBOL(mesh_get_preset_count),
+    DEFINE_MODULE_SYMBOL(mesh_supports),
     DEFINE_MODULE_SYMBOL(mesh_get_preset_name),
     DEFINE_MODULE_SYMBOL(mesh_set_preset),
     DEFINE_MODULE_SYMBOL(mesh_get_preset),

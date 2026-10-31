@@ -390,6 +390,21 @@ error_t mesh_get_contact_uri(const struct MeshAddress* contact, char* uri, size_
 
 // region Nodes and channels
 
+/** Optional things a backend can do, that a mesh network can support. Combine them in MeshBackendApi::features and mesh_supports(). */
+enum MeshFeature {
+    /** Join a channel by its name, as the key is derived from the name (e.g. a "#test" channel) */
+    MESH_FEATURE_NAMED_CHANNELS = 1 << 0,
+    /** Join or create a channel with a key */
+    MESH_FEATURE_KEYED_CHANNELS = 1 << 1,
+};
+
+/**
+ * Whether the selected backend supports features, also when it isn't running.
+ * @param[in] features MeshFeature values, combined
+ * @return true when the backend supports all of them
+ */
+bool mesh_supports(uint32_t features);
+
 /** Get the nodes heard by the active backend since it started */
 error_t mesh_get_nodes(struct MeshNode* nodes, size_t max_count, size_t* count);
 

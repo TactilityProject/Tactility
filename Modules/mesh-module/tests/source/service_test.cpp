@@ -162,6 +162,7 @@ const MeshBackendApi loopbackApi = {
     .get_contact_uri = loopbackGetContactUri,
     .is_valid_contact_address = loopbackIsValidContactAddress,
     .on_node_name_changed = loopbackOnNodeNameChanged,
+    .features = MESH_FEATURE_KEYED_CHANNELS,
 };
 
 // endregion
@@ -375,6 +376,27 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         CHECK_EQ(mesh_history_get(0, messages, 4, &count), ERROR_NONE);
 
         REQUIRE_EQ(directory_remove_tree(contactsPath), ERROR_NONE);
+    }
+
+    SUBCASE("features are those of the selected backend") {
+        MeshBackendApi spareApi = loopbackApi;
+        spareApi.id = "spare";
+        spareApi.features = MESH_FEATURE_NAMED_CHANNELS;
+        REQUIRE_EQ(mesh_backend_register(&spareApi), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        CHECK(mesh_supports(MESH_FEATURE_KEYED_CHANNELS));
+        CHECK_FALSE(mesh_supports(MESH_FEATURE_NAMED_CHANNELS));
+        CHECK_FALSE(mesh_supports(MESH_FEATURE_KEYED_CHANNELS | MESH_FEATURE_NAMED_CHANNELS));
+
+        REQUIRE_EQ(mesh_set_backend("spare"), ERROR_NONE);
+        CHECK(mesh_supports(MESH_FEATURE_NAMED_CHANNELS));
+        CHECK_FALSE(mesh_supports(MESH_FEATURE_KEYED_CHANNELS));
+
+        // The selected backend is saved
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        REQUIRE_EQ(mesh_backend_unregister(&spareApi), ERROR_NONE);
     }
 
     SUBCASE("without a region the radio stays off") {

@@ -1726,6 +1726,15 @@ error_t mesh_get_backend(char* id, size_t id_size) {
     return result;
 }
 
+bool mesh_supports(uint32_t features) {
+    lock();
+    ensureSettingsLoaded();
+    const MeshBackendApi* api = getSelectedBackend();
+    const bool supported = api != nullptr && (api->features & features) == features;
+    unlock();
+    return supported;
+}
+
 size_t mesh_get_preset_count(const char* backend) {
     const bool applies = presetsApply();
     lock();

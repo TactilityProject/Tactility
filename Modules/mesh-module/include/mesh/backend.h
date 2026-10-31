@@ -111,6 +111,9 @@ struct MeshBackendApi {
      * @retval ERROR_INVALID_ARGUMENT when the backend can't do without the channel
      */
     error_t (*remove_channel)(void* backend, uint8_t index);
+
+    /** The MeshFeature values that the backend supports, combined, see mesh_supports() */
+    uint32_t features;
 };
 
 /**

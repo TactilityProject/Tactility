@@ -27,6 +27,7 @@
 #include <atomic>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace tt::app::meshchat {
 
@@ -46,6 +47,12 @@ struct Context {
     /** Written by the LVGL thread before it signals openBit */
     ::std::atomic<int32_t> openIndex = 0;
     uint32_t addTypeDialogId = 0;
+    /** The kind of channel for each option of the open selection dialog */
+    ::std::vector<int> addTypes;
+    /** Whether the mesh network supports any way to add a channel. Read by the app's task. */
+    bool canAddChannel = false;
+    // Valid while the window is shown
+    lv_obj_t* addButton = nullptr;
     uint32_t joinChannelDialogId = 0;
     uint32_t createChannelDialogId = 0;
     uint32_t privateNameDialogId = 0;
@@ -71,6 +78,7 @@ struct Context {
 /** Queries the service thread, so it's called without the LVGL lock */
 void loadData(Context* ctx) {
     ctx->network = loadNetworkInfo();
+    ctx->canAddChannel = mesh_supports(MESH_FEATURE_NAMED_CHANNELS) || mesh_supports(MESH_FEATURE_KEYED_CHANNELS);
     ctx->channels.assign(CHANNEL_LIMIT, MeshChannel {});
     size_t count = 0;
     if (mesh_get_channels(ctx->channels.data(), CHANNEL_LIMIT, &count) != ERROR_NONE) {
@@ -113,6 +121,7 @@ void updateWidgets(Context* ctx) {
         return;
     }
     updateNetworkHeader(ctx->networkHeader, ctx->network);
+    lv_obj_set_hidden(ctx->addButton, !ctx->canAddChannel);
 
     lv_obj_clean(ctx->content);
     auto* channelList = createCard(ctx->content);
@@ -130,7 +139,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     auto* toolbar = lvgl_toolbar_create(parent, "Mesh Channels");
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
-    lvgl_toolbar_add_text_button_action(toolbar, LV_SYMBOL_PLUS, onAddChannelPressed, ctx);
+    ctx->addButton = lvgl_toolbar_add_text_button_action(toolbar, LV_SYMBOL_PLUS, onAddChannelPressed, ctx);
     lvgl_toolbar_add_text_button_action(toolbar, LV_SYMBOL_SETTINGS, onSettingsPressed, ctx);
 
     ctx->networkHeader = createNetworkHeader(parent);
@@ -144,6 +153,7 @@ void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->networkHeader = nullptr;
     ctx->content = nullptr;
+    ctx->addButton = nullptr;
 }
 
 void startConversation(Context* ctx) {
@@ -161,18 +171,29 @@ void showMessage(Context* ctx, const char* title, const char* message) {
     }
 }
 
-/** The order of these matches the options of the selection dialog */
 enum class AddType { JoinPublic, JoinPrivate, CreatePrivate };
 
+/** Only offers what the mesh network supports */
 void startAddChannel(Context* ctx) {
     if (ctx->addTypeDialogId != 0) {
         return;
     }
-    ctx->addTypeDialogId = selectiondialog::start(ctx->appInstanceId, "Add channel", {
-        "Join public channel",
-        "Join private channel",
-        "Create private channel"
-    });
+    ctx->addTypes.clear();
+    ::std::vector<::std::string> items;
+    if (mesh_supports(MESH_FEATURE_NAMED_CHANNELS)) {
+        ctx->addTypes.push_back(static_cast<int>(AddType::JoinPublic));
+        items.emplace_back("Join public channel");
+    }
+    if (mesh_supports(MESH_FEATURE_KEYED_CHANNELS)) {
+        ctx->addTypes.push_back(static_cast<int>(AddType::JoinPrivate));
+        items.emplace_back("Join private channel");
+        ctx->addTypes.push_back(static_cast<int>(AddType::CreatePrivate));
+        items.emplace_back("Create private channel");
+    }
+    if (items.empty()) {
+        return;
+    }
+    ctx->addTypeDialogId = selectiondialog::start(ctx->appInstanceId, "Add channel", items);
 }
 
 void startJoinChannel(Context* ctx);
@@ -180,7 +201,10 @@ void startJoinPrivateChannel(Context* ctx);
 void startCreateChannel(Context* ctx);
 
 void onAddTypeSelected(Context* ctx, int32_t selected) {
-    switch (static_cast<AddType>(selected)) {
+    if (selected < 0 || selected >= static_cast<int32_t>(ctx->addTypes.size())) {
+        return;
+    }
+    switch (static_cast<AddType>(ctx->addTypes[selected])) {
         case AddType::JoinPublic:
             startJoinChannel(ctx);
             break;
