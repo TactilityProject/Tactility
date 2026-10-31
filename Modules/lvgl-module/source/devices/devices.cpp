@@ -50,6 +50,7 @@ struct LvglDeviceList {
 constexpr uint32_t IDLE_REPAINT_MS = 5000;
 
 constexpr uint32_t ACTIVITY_MARGIN_MS = 20;
+constexpr uint32_t MAX_ACTIVITY_READ_SKEW_MS = 5;
 
 struct IdleRepaintContext {
     lv_display_t* lvgl_display;
@@ -165,16 +166,25 @@ static void lvgl_device_listener(struct Device* device, enum DeviceEvent event, 
     lvgl_unlock();
 }
 
-// The tick of the last input, which the display only exposes as time since then.
-// The two tick reads can differ when the task is preempted between them, so callers compare with ACTIVITY_MARGIN_MS.
-static uint32_t get_activity_tick(lv_display_t* display) {
-    return lv_tick_get() - lv_display_get_inactive_time(display);
+// Reads the tick of the last input, which the display only exposes as time since then.
+// Fails when the task was preempted during the read, which would skew the result beyond ACTIVITY_MARGIN_MS.
+static bool read_activity(lv_display_t* display, uint32_t* inactive_ms, uint32_t* activity_at) {
+    const uint32_t start = lv_tick_get();
+    *inactive_ms = lv_display_get_inactive_time(display);
+    if (lv_tick_get() - start > MAX_ACTIVITY_READ_SKEW_MS) {
+        return false;
+    }
+    *activity_at = start - *inactive_ms;
+    return true;
 }
 
 static void idle_repaint_timer_cb(lv_timer_t* timer) {
     auto* ctx = static_cast<IdleRepaintContext*>(lv_timer_get_user_data(timer));
-    uint32_t inactive_ms = lv_display_get_inactive_time(ctx->lvgl_display);
-    uint32_t activity_at = lv_tick_get() - inactive_ms;
+    uint32_t inactive_ms;
+    uint32_t activity_at;
+    if (!read_activity(ctx->lvgl_display, &inactive_ms, &activity_at)) {
+        return;
+    }
     // Any difference beyond the margin is new input, also when the tick counter wrapped in between
     const uint32_t activity_delta = activity_at - ctx->handled_activity_at;
     if (activity_delta > ACTIVITY_MARGIN_MS && activity_delta < 0U - ACTIVITY_MARGIN_MS) {
@@ -265,7 +275,8 @@ void lvgl_devices_attach() {
                     ctx->lvgl_display = added_display;
                     ctx->kernel_display_device = kernel_display_device;
                     // The panel was just cleared or fully drawn, so the first idle stretch needs no repaint
-                    ctx->handled_activity_at = get_activity_tick(added_display);
+                    uint32_t inactive_ms;
+                    while (!read_activity(added_display, &inactive_ms, &ctx->handled_activity_at)) {}
                     ctx->repaint_done_since_activity = true;
                     ctx->refresh_done_since_activity = true;
                     ctx->timer = lv_timer_create(idle_repaint_timer_cb, 1000, ctx);
