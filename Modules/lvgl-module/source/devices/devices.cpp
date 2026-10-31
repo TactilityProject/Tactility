@@ -49,12 +49,14 @@ struct LvglDeviceList {
  */
 constexpr uint32_t IDLE_REPAINT_MS = 5000;
 
+constexpr int32_t ACTIVITY_MARGIN_MS = 20;
+
 struct IdleRepaintContext {
     lv_display_t* lvgl_display;
     struct Device* kernel_display_device;
     lv_timer_t* timer;
-    // Tick of the last clear. Input after it makes inactive time smaller than the time since it.
-    uint32_t cleared_at;
+    // Tick of the last input that the flags below already account for
+    uint32_t handled_activity_at;
     // Set once the invalidate+lv_refr_now() repaint has run for the current idle stretch, so it
     // isn't redone every tick while still idle.
     bool repaint_done_since_activity;
@@ -163,10 +165,18 @@ static void lvgl_device_listener(struct Device* device, enum DeviceEvent event, 
     lvgl_unlock();
 }
 
+// The tick of the last input, which the display only exposes as time since then.
+// The two tick reads can differ when the task is preempted between them, so callers compare with ACTIVITY_MARGIN_MS.
+static uint32_t get_activity_tick(lv_display_t* display) {
+    return lv_tick_get() - lv_display_get_inactive_time(display);
+}
+
 static void idle_repaint_timer_cb(lv_timer_t* timer) {
     auto* ctx = static_cast<IdleRepaintContext*>(lv_timer_get_user_data(timer));
     uint32_t inactive_ms = lv_display_get_inactive_time(ctx->lvgl_display);
-    if (inactive_ms < lv_tick_elaps(ctx->cleared_at)) {
+    uint32_t activity_at = lv_tick_get() - inactive_ms;
+    if (static_cast<int32_t>(activity_at - ctx->handled_activity_at) > ACTIVITY_MARGIN_MS) {
+        ctx->handled_activity_at = activity_at;
         ctx->repaint_done_since_activity = false;
         ctx->refresh_done_since_activity = false;
     }
@@ -253,7 +263,7 @@ void lvgl_devices_attach() {
                     ctx->lvgl_display = added_display;
                     ctx->kernel_display_device = kernel_display_device;
                     // The panel was just cleared or fully drawn, so the first idle stretch needs no repaint
-                    ctx->cleared_at = lv_tick_get();
+                    ctx->handled_activity_at = get_activity_tick(added_display);
                     ctx->repaint_done_since_activity = true;
                     ctx->refresh_done_since_activity = true;
                     ctx->timer = lv_timer_create(idle_repaint_timer_cb, 1000, ctx);

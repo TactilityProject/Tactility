@@ -193,22 +193,22 @@ int32_t appMain(int argc, char* argv[]) {
     check(file_ops_subscribe(&file_ops_sub, &event_group) == ERROR_NONE);
 
     Context ctx;
-    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
+    WindowId window = 0;
+    bool windowCreated = false;
 
-    // The file operations run in order: the favourites are available when auto-start runs
+    // The window is created once the favourites are loaded, so its first render has the final order
     check(file_ops_queue(loadFavourites, nullptr, &file_ops_sub) == ERROR_NONE);
-    check(file_ops_queue(runAutoStart, nullptr, nullptr) == ERROR_NONE);
 
     // The launcher is meant to stay resident (it's the home screen) - it only gives up its
     // thread when app-module's scheduler asks it to (e.g. another new-model app is started).
     while (true) {
         task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
 
-        if (file_ops_poll(&file_ops_sub) == ERROR_NONE) {
-            // The favourites were loaded
-            lvgl_lock();
-            ctx.grid.requestRepopulate(false);
-            lvgl_unlock();
+        if (!windowCreated && file_ops_poll(&file_ops_sub) == ERROR_NONE) {
+            window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
+            windowCreated = true;
+            // The file operations run in order: the favourites are available when auto-start runs
+            check(file_ops_queue(runAutoStart, nullptr, nullptr) == ERROR_NONE);
         }
 
         bool shouldClose = false;
@@ -222,7 +222,9 @@ int32_t appMain(int argc, char* argv[]) {
         if (shouldClose) break;
     }
 
-    window_manager_remove(window);
+    if (windowCreated) {
+        window_manager_remove(window);
+    }
     file_ops_unsubscribe(&file_ops_sub);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&event_group);
