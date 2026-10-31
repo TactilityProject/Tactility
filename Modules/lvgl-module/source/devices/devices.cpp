@@ -49,7 +49,7 @@ struct LvglDeviceList {
  */
 constexpr uint32_t IDLE_REPAINT_MS = 5000;
 
-constexpr int32_t ACTIVITY_MARGIN_MS = 20;
+constexpr uint32_t ACTIVITY_MARGIN_MS = 20;
 
 struct IdleRepaintContext {
     lv_display_t* lvgl_display;
@@ -175,7 +175,9 @@ static void idle_repaint_timer_cb(lv_timer_t* timer) {
     auto* ctx = static_cast<IdleRepaintContext*>(lv_timer_get_user_data(timer));
     uint32_t inactive_ms = lv_display_get_inactive_time(ctx->lvgl_display);
     uint32_t activity_at = lv_tick_get() - inactive_ms;
-    if (static_cast<int32_t>(activity_at - ctx->handled_activity_at) > ACTIVITY_MARGIN_MS) {
+    // Any difference beyond the margin is new input, also when the tick counter wrapped in between
+    const uint32_t activity_delta = activity_at - ctx->handled_activity_at;
+    if (activity_delta > ACTIVITY_MARGIN_MS && activity_delta < 0U - ACTIVITY_MARGIN_MS) {
         ctx->handled_activity_at = activity_at;
         ctx->repaint_done_since_activity = false;
         ctx->refresh_done_since_activity = false;
