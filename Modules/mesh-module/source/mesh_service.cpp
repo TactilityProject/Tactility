@@ -819,7 +819,12 @@ void configure(MeshHost* host) {
     lock();
     strncpy(host->activeBackend, api->id, MESH_BACKEND_ID_MAX_LENGTH);
     host->activeBackend[MESH_BACKEND_ID_MAX_LENGTH] = '\0';
+    // Switching between backends keeps the state on, but consumers show the active backend
+    const bool wasOn = host->state == MESH_STATE_ON;
     setState(host, MESH_STATE_ON);
+    if (wasOn) {
+        emitEvent(MESH_EVENT_STATE, MESH_STATE_ON, 0, MESH_DELIVERY_RECEIVED);
+    }
     unlock();
 
     LOG_I(TAG, "Backend %s active in region %s", api->id, radio_region_to_string(host->appliedRegion));

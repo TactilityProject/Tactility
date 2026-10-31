@@ -474,12 +474,16 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         // Selecting a backend tells consumers that the contacts and channels changed
         bool contactsChanged = false;
         bool channelsChanged = false;
+        bool stateReported = false;
         while (mesh_event_poll(&storageEvents, &storageEvent) == ERROR_NONE) {
+            stateReported |= storageEvent.type == MESH_EVENT_STATE;
             contactsChanged |= storageEvent.type == MESH_EVENT_CONTACT;
             channelsChanged |= storageEvent.type == MESH_EVENT_CHANNEL;
         }
         CHECK(contactsChanged);
         CHECK(channelsChanged);
+        // The active backend changed while the state stayed on
+        CHECK(stateReported);
         CHECK_EQ(mesh_event_unsubscribe(&storageEvents), ERROR_NONE);
         task_event_group_destruct(&storageGroup);
         CHECK_EQ(countHistory(), 0);
