@@ -53,6 +53,8 @@ struct IdleRepaintContext {
     lv_display_t* lvgl_display;
     struct Device* kernel_display_device;
     lv_timer_t* timer;
+    // Tick of the last clear. Input after it makes inactive time smaller than the time since it.
+    uint32_t cleared_at;
     // Set once the invalidate+lv_refr_now() repaint has run for the current idle stretch, so it
     // isn't redone every tick while still idle.
     bool repaint_done_since_activity;
@@ -163,9 +165,12 @@ static void lvgl_device_listener(struct Device* device, enum DeviceEvent event, 
 
 static void idle_repaint_timer_cb(lv_timer_t* timer) {
     auto* ctx = static_cast<IdleRepaintContext*>(lv_timer_get_user_data(timer));
-    if (lv_display_get_inactive_time(ctx->lvgl_display) < IDLE_REPAINT_MS) {
+    uint32_t inactive_ms = lv_display_get_inactive_time(ctx->lvgl_display);
+    if (inactive_ms < lv_tick_elaps(ctx->cleared_at)) {
         ctx->repaint_done_since_activity = false;
         ctx->refresh_done_since_activity = false;
+    }
+    if (inactive_ms < IDLE_REPAINT_MS) {
         return;
     }
     if (!ctx->repaint_done_since_activity) {
@@ -237,13 +242,20 @@ void lvgl_devices_attach() {
             // boot and whenever an app that stopped LVGL closes, so clearing here covers both
             // cases without extra plumbing at app-close time specifically.
             if (display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_SLOW_REFRESH)) {
-                display_clear(kernel_display_device);
+                // The first attach follows the boot logo, which the first LVGL render overdraws completely
+                static bool first_attach = true;
+                if (!first_attach) {
+                    display_clear(kernel_display_device);
+                }
+                first_attach = false;
                 IdleRepaintContext* ctx = &idle_repaint_contexts()[i];
                 if (ctx->timer == nullptr) {
                     ctx->lvgl_display = added_display;
                     ctx->kernel_display_device = kernel_display_device;
-                    ctx->repaint_done_since_activity = false;
-                    ctx->refresh_done_since_activity = false;
+                    // The panel was just cleared or fully drawn, so the first idle stretch needs no repaint
+                    ctx->cleared_at = lv_tick_get();
+                    ctx->repaint_done_since_activity = true;
+                    ctx->refresh_done_since_activity = true;
                     ctx->timer = lv_timer_create(idle_repaint_timer_cb, 1000, ctx);
                 }
             }

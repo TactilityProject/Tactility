@@ -241,14 +241,23 @@ static bool full_refresh(Ssd16xxInternal* internal) {
 }
 
 // Drives the pixels that differ from the displayed image
+// Without a known displayed image, every pixel is driven by describing the old image as the inverse of the new one.
 // Returns false when a transfer failed, which leaves the base image invalid.
 static bool partial_update(Ssd16xxInternal* internal) {
     const size_t size = snapshot_frame(internal);
+    const bool displayed_unknown = !internal->base_valid;
     internal->update_failed = false;
 
     spi_controller_lock(internal->spi_controller);
     set_full_window(internal);
     write_command_with_buffer(internal, 0x24, internal->snapshot, size);
+    if (displayed_unknown) {
+        for (size_t i = 0; i < size; i++) {
+            internal->snapshot[i] = ~internal->snapshot[i];
+        }
+        set_full_window(internal);
+        write_command_with_buffer(internal, 0x26, internal->snapshot, size);
+    }
     if (internal->update_failed) {
         spi_controller_unlock(internal->spi_controller);
         internal->base_valid = false;
@@ -355,7 +364,7 @@ static void update_task(void* arg) {
         portEXIT_CRITICAL(&internal->lock);
 
         if (dirty) {
-            const bool ok = internal->base_valid ? partial_update(internal) : full_refresh(internal);
+            const bool ok = partial_update(internal);
             if (!ok) {
                 retry_update(internal);
             }
