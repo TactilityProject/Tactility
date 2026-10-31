@@ -46,31 +46,56 @@ constexpr auto* DEFAULT_LAUNCHER_ID = "tactility.launcher";
 
 namespace {
 
-BootLogo getSizedLogo(const BootScreen& screen, const BootLogo& small, const BootLogo& medium, const BootLogo& large) {
-    const int width = screen.getLogicalWidth();
-    if (width < 150) { // e.g. Cardputer
-        return small;
-    } else if (width > 320) {
-        return large;
-    } else {
-        return medium;
+/** Reads the size from the IHDR chunk of a PNG image */
+bool getPngSize(const BootLogo& logo, uint32_t& width, uint32_t& height) {
+    if (logo.size < 24) {
+        return false;
     }
+    const auto read_u32 = [&logo](size_t offset) {
+        return (static_cast<uint32_t>(logo.data[offset]) << 24) | (static_cast<uint32_t>(logo.data[offset + 1]) << 16) |
+            (static_cast<uint32_t>(logo.data[offset + 2]) << 8) | static_cast<uint32_t>(logo.data[offset + 3]);
+    };
+    width = read_u32(16);
+    height = read_u32(20);
+    return true;
+}
+
+/**
+ * Picks the largest logo that takes at most 60% of the width and of the height of the screen,
+ * and at most an eighth of its surface. Without such a logo, the smallest one is used.
+ * @param[in] logos sorted from small to large
+ */
+BootLogo getSizedLogo(const BootScreen& screen, std::initializer_list<BootLogo> logos) {
+    const uint64_t screen_width = screen.getLogicalWidth();
+    const uint64_t screen_height = screen.getLogicalHeight();
+    BootLogo selected = *logos.begin();
+    for (const auto& logo : logos) {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        if (getPngSize(logo, width, height) &&
+            width * 10 <= screen_width * 6 &&
+            height * 10 <= screen_height * 6 &&
+            static_cast<uint64_t>(width) * height * 8 <= screen_width * screen_height) {
+            selected = logo;
+        }
+    }
+    return selected;
 }
 
 BootLogo getLogo(const BootScreen& screen) {
-    return getSizedLogo(screen,
+    return getSizedLogo(screen, {
         { asset_boot_logo_small_png, asset_boot_logo_small_png_SIZE },
         { asset_boot_logo_medium_png, asset_boot_logo_medium_png_SIZE },
         { asset_boot_logo_large_png, asset_boot_logo_large_png_SIZE }
-    );
+    });
 }
 
 BootLogo getUsbLogo(const BootScreen& screen) {
-    return getSizedLogo(screen,
+    return getSizedLogo(screen, {
         { asset_boot_logo_usb_small_png, asset_boot_logo_usb_small_png_SIZE },
         { asset_boot_logo_usb_medium_png, asset_boot_logo_usb_medium_png_SIZE },
         { asset_boot_logo_usb_large_png, asset_boot_logo_usb_large_png_SIZE }
-    );
+    });
 }
 
 void setupDisplay() {

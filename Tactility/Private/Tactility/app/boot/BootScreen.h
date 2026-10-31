@@ -60,6 +60,9 @@ public:
     /** @return the display width in the current orientation, or 0 when there is no display */
     int getLogicalWidth() const { return logicalWidth(); }
 
+    /** @return the display height in the current orientation, or 0 when there is no display */
+    int getLogicalHeight() const { return logicalHeight(); }
+
     /**
      * Shows a logo with text lines below it, centered on a black background.
      * @param[in] logo a PNG image, or empty for no logo
