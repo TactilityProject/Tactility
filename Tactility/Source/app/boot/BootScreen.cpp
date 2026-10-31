@@ -14,6 +14,7 @@
 #include <tactility/drivers/keyboard.h>
 #include <tactility/drivers/touch.h>
 #include <tactility/log.h>
+#include <tactility/time.h>
 
 #include <algorithm>
 #include <memory>
@@ -357,6 +358,129 @@ void waitForInput() {
     if (pointer != nullptr) {
         device_put(pointer);
     }
+}
+
+namespace {
+
+constexpr size_t LONG_PRESS_MS = 800;
+
+std::string getOptionLine(const char* label, bool selected) {
+    // Padded to the same width, so the options line up when the lines are centered
+    char text[24];
+    snprintf(text, sizeof(text), selected ? "[ %-9s ]" : "  %-9s  ", label);
+    return text;
+}
+
+}
+
+BootChoice waitForBootChoice(BootScreen& screen, const BootLogo& logo, const std::vector<std::string>& lines) {
+    auto keyboards = getReadyKeyboards();
+    // Subscriptions must stay at the same address while subscribed
+    auto subscriptions = std::make_unique<KeyboardEventSubscription[]>(keyboards.size());
+    for (size_t i = 0; i < keyboards.size(); i++) {
+        keyboard_subscribe(keyboards[i], &subscriptions[i]);
+    }
+
+    Device* pointer = nullptr;
+    if (device_get_first_active_by_type(&TOUCH_TYPE, &pointer) != ERROR_NONE) {
+        pointer = nullptr;
+    }
+
+    std::vector<std::string> hints;
+    if (!keyboards.empty()) {
+        hints.push_back("Enter to confirm");
+    }
+    if (pointer != nullptr) {
+        hints.push_back("Tap to select, hold to confirm");
+    }
+
+    BootChoice selected = BootChoice::Reboot;
+    bool redraw = true;
+    bool confirmed = false;
+    // A touch only counts when it starts after the screen was seen untouched
+    bool pointer_released = false;
+    bool pointer_down = false;
+    size_t pointer_down_at = 0;
+    while (!confirmed) {
+        if (redraw) {
+            std::vector<std::string> shown = lines;
+            shown.push_back("");
+            shown.push_back(getOptionLine("Reboot", selected == BootChoice::Reboot));
+            shown.push_back(getOptionLine("Power off", selected == BootChoice::PowerOff));
+            shown.push_back("");
+            shown.insert(shown.end(), hints.begin(), hints.end());
+            screen.show(logo, shown);
+            redraw = false;
+        }
+
+        for (size_t i = 0; i < keyboards.size() && !confirmed; i++) {
+            // Drivers that implement read_key only deliver events to subscribers when polled
+            KeyboardKeyData data;
+            while (keyboard_read_key(keyboards[i], &data) == ERROR_NONE && data.key != 0 && data.continue_reading) {}
+
+            while (!confirmed && keyboard_poll(keyboards[i], &subscriptions[i], &data) == ERROR_NONE) {
+                if (!data.pressed) {
+                    continue;
+                }
+                switch (data.key) {
+                    case CODEPOINT_ENTER:
+                    case CODEPOINT_YES:
+                        confirmed = true;
+                        break;
+                    case CODEPOINT_ARROW_UP:
+                    case CODEPOINT_ARROW_DOWN:
+                    case CODEPOINT_ARROW_LEFT:
+                    case CODEPOINT_ARROW_RIGHT:
+                    case CODEPOINT_TAB:
+                    case CODEPOINT_FOCUS_NEXT:
+                    case CODEPOINT_FOCUS_PREVIOUS:
+                        // Two options, so every direction toggles
+                        selected = selected == BootChoice::Reboot ? BootChoice::PowerOff : BootChoice::Reboot;
+                        redraw = true;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        if (pointer != nullptr && !confirmed && touch_read_data(pointer, 0) == ERROR_NONE) {
+            uint16_t x, y, strength;
+            uint8_t point_count = 0;
+            const bool touched = touch_get_touched_points(pointer, &x, &y, &strength, &point_count, 1) && point_count > 0;
+            if (!touched) {
+                if (pointer_down) {
+                    if (get_millis() - pointer_down_at >= LONG_PRESS_MS) {
+                        confirmed = true;
+                    } else {
+                        // A tap
+                        selected = selected == BootChoice::Reboot ? BootChoice::PowerOff : BootChoice::Reboot;
+                        redraw = true;
+                    }
+                    pointer_down = false;
+                }
+                pointer_released = true;
+            } else if (pointer_released && !pointer_down) {
+                pointer_down = true;
+                pointer_down_at = get_millis();
+            } else if (pointer_down && get_millis() - pointer_down_at >= LONG_PRESS_MS) {
+                confirmed = true;
+            }
+        }
+
+        if (!confirmed) {
+            delay_millis(20);
+        }
+    }
+
+    for (size_t i = 0; i < keyboards.size(); i++) {
+        keyboard_unsubscribe(keyboards[i], &subscriptions[i]);
+        device_put(keyboards[i]);
+    }
+    if (pointer != nullptr) {
+        device_put(pointer);
+    }
+    return selected;
 }
 
 }

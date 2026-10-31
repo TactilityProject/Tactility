@@ -254,7 +254,7 @@ static void createWidgets(lv_obj_t* parent, void* /*userData*/) {
     lv_obj_set_style_max_width(grid, max_card_width - card_padding, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_flex_align(grid, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    const int32_t gap = lvgl_theme_is_compact() ? 8 : 16;
+    const int32_t gap = lvgl_theme_lerp(8, 16, lvgl_theme_get_spacing());
     lv_obj_set_style_pad_column(grid, gap, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_row(grid, gap, LV_STATE_DEFAULT);
 

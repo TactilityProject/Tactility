@@ -27,6 +27,18 @@ menu "Tactility App"
         range 10 32
         help
             Default text font size in pixels. Other text and icon font sizes are derived from it.
+    config TT_UI_SPACING
+        int "Default UI spacing (%)"
+        default 100
+        range 0 100
+        help
+            Default spacing of widgets, from 0 (compact) to 100 (regular). Users can change it in the Appearance app.
+    config TT_UI_SIZE
+        int "Default UI size (%)"
+        default 100
+        range 0 100
+        help
+            Default size of widgets, from 0 (compact) to 100 (regular). Users can change it in the Appearance app.
     config TT_AUTO_START_APP_ID
         string "Auto Start App ID"
         default ""

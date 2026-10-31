@@ -4,6 +4,7 @@
 #include <mesh/mesh.h>
 #include <mesh/mesh_service.h>
 #include <mesh/mesh_settings.h>
+#include <mesh/mesh_store.h>
 
 #include <service/manager.h>
 
@@ -24,6 +25,8 @@
 #include <cstring>
 #include <functional>
 #include <string>
+
+#include <unistd.h>
 
 namespace {
 
@@ -159,6 +162,7 @@ const MeshBackendApi loopbackApi = {
     .get_contact_uri = loopbackGetContactUri,
     .is_valid_contact_address = loopbackIsValidContactAddress,
     .on_node_name_changed = loopbackOnNodeNameChanged,
+    .features = MESH_FEATURE_KEYED_CHANNELS,
 };
 
 // endregion
@@ -268,7 +272,132 @@ TEST_CASE("mesh service sends and receives through the active backend") {
 
     REQUIRE_EQ(mesh_backend_register(&loopbackApi), ERROR_NONE);
     CHECK_EQ(mesh_backend_register(&loopbackApi), ERROR_ALREADY_EXISTS);
+    for (const char* id : { "", "../escape", "a/b", "a.b", "a b" }) {
+        MeshBackendApi invalidApi = loopbackApi;
+        invalidApi.id = id;
+        CHECK_EQ(mesh_backend_register(&invalidApi), ERROR_INVALID_ARGUMENT);
+    }
     REQUIRE_EQ(service_manager_add(&mesh_service_manifest, false), ERROR_NONE);
+
+    SUBCASE("messages and contacts that all backends shared move to their backends") {
+        MeshBackendApi spareApi = loopbackApi;
+        spareApi.id = "spare";
+        REQUIRE_EQ(mesh_backend_register(&spareApi), ERROR_NONE);
+
+        // The layout of before: one store and one contacts file, with the backend in each record
+        char storePath[FILE_MAX_PATH_STRING_LENGTH];
+        char contactsPath[FILE_MAX_PATH_STRING_LENGTH];
+        REQUIRE_EQ(service_paths_get_user_data_path(MESH_SERVICE_ID, "store", storePath, sizeof(storePath)), ERROR_NONE);
+        REQUIRE_EQ(service_paths_get_user_data_path(MESH_SERVICE_ID, "contacts.bin", contactsPath, sizeof(contactsPath)), ERROR_NONE);
+        {
+            MeshStore shared;
+            REQUIRE_EQ(shared.open(storePath), ERROR_NONE);
+            for (const char* backend : { "loopback", "spare", "loopback", "../escape" }) {
+                MeshMessage message = {};
+                strcpy(message.backend, backend);
+                strcpy(message.text, backend);
+                REQUIRE_EQ(shared.add(&message), ERROR_NONE);
+            }
+            shared.close();
+        }
+        {
+            FILE* file = fopen(contactsPath, "wb");
+            REQUIRE_NE(file, nullptr);
+            for (const char* backend : { "loopback", "spare" }) {
+                MeshContact contact = {};
+                strcpy(contact.backend, backend);
+                contact.address = { .length = 1, .bytes = { 0x42 } };
+                strcpy(contact.name, backend);
+                REQUIRE_EQ(fwrite(&contact, sizeof(contact), 1, file), 1);
+            }
+            fclose(file);
+        }
+
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+
+        // The shared files are gone, and each backend has its own
+        CHECK_FALSE(directory_exists(storePath));
+        CHECK_EQ(access(contactsPath, F_OK), -1);
+
+        MeshMessage messages[4];
+        size_t count = 0;
+        REQUIRE_EQ(mesh_history_get(0, messages, 4, &count), ERROR_NONE);
+        CHECK_EQ(count, 2);
+        for (size_t i = 0; i < count; i++) {
+            CHECK_EQ(std::string(messages[i].backend), "loopback");
+        }
+        MeshContact contacts[4];
+        REQUIRE_EQ(mesh_get_contacts(contacts, 4, &count), ERROR_NONE);
+        REQUIRE_EQ(count, 1);
+        CHECK_EQ(std::string(contacts[0].name), "loopback");
+
+        REQUIRE_EQ(mesh_set_backend("spare"), ERROR_NONE);
+        REQUIRE(waitFor([] {
+            char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
+            return mesh_get_state() == MESH_STATE_ON && mesh_get_backend(id, sizeof(id)) == ERROR_NONE && std::string(id) == "spare";
+        }));
+        REQUIRE_EQ(mesh_history_get(0, messages, 4, &count), ERROR_NONE);
+        CHECK_EQ(count, 1);
+        CHECK_EQ(std::string(messages[0].text), "spare");
+        REQUIRE_EQ(mesh_get_contacts(contacts, 4, &count), ERROR_NONE);
+        REQUIRE_EQ(count, 1);
+        CHECK_EQ(std::string(contacts[0].name), "spare");
+
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        REQUIRE(waitFor([] {
+            char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
+            return mesh_get_state() == MESH_STATE_ON && mesh_get_backend(id, sizeof(id)) == ERROR_NONE && std::string(id) == "loopback";
+        }));
+        REQUIRE_EQ(mesh_backend_unregister(&spareApi), ERROR_NONE);
+    }
+
+    SUBCASE("contacts that failed to load are not available and are never replaced") {
+        // A directory where the contacts file belongs can't be read
+        char contactsPath[FILE_MAX_PATH_STRING_LENGTH];
+        REQUIRE_EQ(service_paths_get_user_data_path(MESH_SERVICE_ID, "backends/loopback/contacts.bin", contactsPath, sizeof(contactsPath)), ERROR_NONE);
+        REQUIRE_EQ(directory_make(contactsPath, true), ERROR_NONE);
+
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+
+        MeshContact contacts[4];
+        size_t count = 0;
+        CHECK_EQ(mesh_get_contacts(contacts, 4, &count), ERROR_INVALID_STATE);
+        const MeshAddress alice = { .length = 1, .bytes = { 0x42 } };
+        CHECK_EQ(mesh_add_contact(&alice, "alice"), ERROR_INVALID_STATE);
+        CHECK_EQ(mesh_remove_contact(&alice), ERROR_INVALID_STATE);
+        // Messages are not affected
+        MeshMessage messages[4];
+        CHECK_EQ(mesh_history_get(0, messages, 4, &count), ERROR_NONE);
+
+        REQUIRE_EQ(directory_remove_tree(contactsPath), ERROR_NONE);
+    }
+
+    SUBCASE("features are those of the selected backend") {
+        MeshBackendApi spareApi = loopbackApi;
+        spareApi.id = "spare";
+        spareApi.features = MESH_FEATURE_NAMED_CHANNELS;
+        REQUIRE_EQ(mesh_backend_register(&spareApi), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        CHECK(mesh_supports(MESH_FEATURE_KEYED_CHANNELS));
+        CHECK_FALSE(mesh_supports(MESH_FEATURE_NAMED_CHANNELS));
+        CHECK_FALSE(mesh_supports(MESH_FEATURE_KEYED_CHANNELS | MESH_FEATURE_NAMED_CHANNELS));
+
+        REQUIRE_EQ(mesh_set_backend("spare"), ERROR_NONE);
+        CHECK(mesh_supports(MESH_FEATURE_NAMED_CHANNELS));
+        CHECK_FALSE(mesh_supports(MESH_FEATURE_KEYED_CHANNELS));
+
+        // The selected backend is saved
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        REQUIRE_EQ(mesh_backend_unregister(&spareApi), ERROR_NONE);
+    }
 
     SUBCASE("without a region the radio stays off") {
         REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
@@ -315,6 +444,91 @@ TEST_CASE("mesh service sends and receives through the active backend") {
         }));
         CHECK(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
         REQUIRE_EQ(mesh_set_preset(nullptr, "Default"), ERROR_NONE);
+    }
+
+    SUBCASE("each backend has its own messages and contacts") {
+        MeshBackendApi spareApi = loopbackApi;
+        spareApi.id = "spare";
+        REQUIRE_EQ(mesh_backend_register(&spareApi), ERROR_NONE);
+        REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);
+        REQUIRE_EQ(service_manager_start(MESH_SERVICE_ID), ERROR_NONE);
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        REQUIRE(waitFor([] { return mesh_get_state() == MESH_STATE_ON; }));
+
+        const MeshAddress alice = { .length = 1, .bytes = { 0x42 } };
+        uint32_t seq = 0;
+        REQUIRE_EQ(mesh_send_text(nullptr, 0, "from loopback", &seq), ERROR_NONE);
+        REQUIRE_EQ(mesh_add_contact(&alice, "alice"), ERROR_NONE);
+
+        const auto countHistory = [] {
+            MeshMessage messages[4];
+            size_t count = 0;
+            return mesh_history_get(0, messages, 4, &count) == ERROR_NONE ? count : 99;
+        };
+        const auto countConversation = [] {
+            MeshMessage messages[4];
+            size_t count = 0;
+            return mesh_conversation_get(nullptr, 0, 0, messages, 4, &count) == ERROR_NONE ? count : 99;
+        };
+        const auto countContacts = [] {
+            MeshContact contacts[4];
+            size_t count = 0;
+            return mesh_get_contacts(contacts, 4, &count) == ERROR_NONE ? count : 99;
+        };
+        CHECK_EQ(countHistory(), 1);
+        CHECK_EQ(countConversation(), 1);
+        CHECK_EQ(countContacts(), 1);
+
+        TaskEventGroup storageGroup {};
+        task_event_group_construct(&storageGroup);
+        MeshEventSubscription storageEvents {};
+        REQUIRE_EQ(mesh_event_subscribe(&storageEvents, &storageGroup), ERROR_NONE);
+        // Events of the setup above
+        MeshEvent storageEvent;
+        while (mesh_event_poll(&storageEvents, &storageEvent) == ERROR_NONE) {}
+
+        // Another backend starts with nothing, and what it stores stays with it
+        REQUIRE_EQ(mesh_set_backend("spare"), ERROR_NONE);
+        REQUIRE(waitFor([] {
+            char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
+            return mesh_get_state() == MESH_STATE_ON && mesh_get_backend(id, sizeof(id)) == ERROR_NONE && std::string(id) == "spare";
+        }));
+        // Selecting a backend tells consumers that the contacts and channels changed
+        bool contactsChanged = false;
+        bool channelsChanged = false;
+        bool stateReported = false;
+        while (mesh_event_poll(&storageEvents, &storageEvent) == ERROR_NONE) {
+            stateReported |= storageEvent.type == MESH_EVENT_STATE;
+            contactsChanged |= storageEvent.type == MESH_EVENT_CONTACT;
+            channelsChanged |= storageEvent.type == MESH_EVENT_CHANNEL;
+        }
+        CHECK(contactsChanged);
+        CHECK(channelsChanged);
+        // The active backend changed while the state stayed on
+        CHECK(stateReported);
+        CHECK_EQ(mesh_event_unsubscribe(&storageEvents), ERROR_NONE);
+        task_event_group_destruct(&storageGroup);
+        CHECK_EQ(countHistory(), 0);
+        CHECK_EQ(countConversation(), 0);
+        CHECK_EQ(countContacts(), 0);
+        REQUIRE_EQ(mesh_send_text(nullptr, 0, "from spare", &seq), ERROR_NONE);
+        CHECK_EQ(countHistory(), 1);
+        MeshMessage message;
+        size_t count = 0;
+        REQUIRE_EQ(mesh_history_get(0, &message, 1, &count), ERROR_NONE);
+        CHECK_EQ(std::string(message.text), "from spare");
+
+        REQUIRE_EQ(mesh_set_backend("loopback"), ERROR_NONE);
+        REQUIRE(waitFor([] {
+            char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
+            return mesh_get_state() == MESH_STATE_ON && mesh_get_backend(id, sizeof(id)) == ERROR_NONE && std::string(id) == "loopback";
+        }));
+        CHECK_EQ(countHistory(), 1);
+        REQUIRE_EQ(mesh_history_get(0, &message, 1, &count), ERROR_NONE);
+        CHECK_EQ(std::string(message.text), "from loopback");
+        CHECK_EQ(countContacts(), 1);
+
+        REQUIRE_EQ(mesh_backend_unregister(&spareApi), ERROR_NONE);
     }
 
     SUBCASE("a backend that isn't selected can be configured") {

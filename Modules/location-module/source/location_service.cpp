@@ -12,6 +12,7 @@
 #include <tactility/concurrent/thread.h>
 #include <tactility/delay.h>
 #include <tactility/log.h>
+#include <tactility/system_event.h>
 #include <tactility/time.h>
 
 #include <tactility/Memory.hpp>
@@ -48,6 +49,7 @@ namespace {
 
 /** A fix of a provider that isn't a fallback is preferred over fallback fixes for this long */
 constexpr uint64_t FRESH_MS = 120000;
+constexpr uint64_t TIME_EVENT_INTERVAL_MS = 60000;
 // About 2 km north to south
 constexpr double APPROXIMATE_GRID_DEGREES = 0.02;
 // The worker waits this long for a stopping provider before it handles the other providers
@@ -72,9 +74,19 @@ struct HostStorage {
 HostStorage* hostStorage = nullptr;
 bool running = false;
 LocationSubscription* subscriptions = nullptr;
+bool hasEmittedTime = false;
+uint64_t lastTimeEventUptimeMs = 0;
 // Starts and stops providers. It only exists while a provider isn't in its desired state.
 Thread* worker = nullptr;
 bool workerActive = false;
+
+// 2025-01-01 and 2100-01-01 in milliseconds since the Unix epoch. GPS receivers with a wrong date, e.g. from a week rollover, fall outside it.
+constexpr int64_t MIN_PLAUSIBLE_TIME_MS = 1735689600000;
+constexpr int64_t MAX_PLAUSIBLE_TIME_MS = 4102444800000;
+
+bool isPlausibleTime(int64_t timeMs) {
+    return timeMs >= MIN_PLAUSIBLE_TIME_MS && timeMs < MAX_PLAUSIBLE_TIME_MS;
+}
 
 GlobalMutex settingsMutex;
 LocationSettings settings {};
@@ -265,6 +277,7 @@ void destroyService(const ServiceManifest*, void*) {}
 error_t onStart(ServiceInstance*, void*) {
     mutex_lock(&mutex.handle);
     running = true;
+    hasEmittedTime = false;
     reconcile();
     mutex_unlock(&mutex.handle);
     return ERROR_NONE;
@@ -440,12 +453,24 @@ void location_host_report(LocationHost* host, const Location* location) {
     strcpy(host->location.provider, host->api->id);
     host->location.uptime_ms = getUptimeMs();
     host->hasLocation = true;
-    if (findBest() == host) {
+    const bool isBest = findBest() == host;
+    if (isBest) {
         for (auto* sub = subscriptions; sub != nullptr; sub = sub->internal.next) {
             task_event_group_signal(sub->internal.event_group, sub->bit);
         }
     }
+    const uint64_t now = host->location.uptime_ms;
+    const bool emitTime = isBest && host->api->provides_time && isPlausibleTime(host->location.time_ms) &&
+        (!hasEmittedTime || now - lastTimeEventUptimeMs >= TIME_EVENT_INTERVAL_MS);
+    if (emitTime) {
+        hasEmittedTime = true;
+        lastTimeEventUptimeMs = now;
+    }
+    const LocationTimeEvent timeEvent = { .time_ms = host->location.time_ms };
     mutex_unlock(&mutex.handle);
+    if (emitTime) {
+        system_event_emit(KERNEL_EVENT_LOCATION_TIME, &timeEvent, sizeof(timeEvent));
+    }
 }
 
 bool location_host_needs_fallback(void) {
@@ -472,7 +497,25 @@ error_t location_get(Location* location) {
     return best != nullptr ? ERROR_NONE : ERROR_NOT_FOUND;
 }
 
-error_t location_subscribe(LocationSubscription* sub, TaskEventGroup* event_group) {
+namespace {
+
+/** Copies at most LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH bytes, without cutting a UTF-8 character in half */
+void copyDescription(char* out, const char* description) {
+    size_t length = strnlen(description, LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH + 1);
+    if (length > LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH) {
+        length = LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH;
+        // The first byte that doesn't fit must start a character, otherwise back up to the start of the cut one
+        while (length > 0 && (static_cast<uint8_t>(description[length]) & 0xC0) == 0x80) {
+            length--;
+        }
+    }
+    memcpy(out, description, length);
+    out[length] = '\0';
+}
+
+}
+
+error_t location_subscribe(LocationSubscription* sub, TaskEventGroup* event_group, const char* description) {
     uint32_t bit;
     const error_t claimed = task_event_group_claim_bit(event_group, &bit);
     if (claimed != ERROR_NONE) {
@@ -488,6 +531,7 @@ error_t location_subscribe(LocationSubscription* sub, TaskEventGroup* event_grou
         }
     }
     sub->bit = bit;
+    copyDescription(sub->internal.description, description != nullptr ? description : "");
     sub->internal.event_group = event_group;
     sub->internal.next = subscriptions;
     subscriptions = sub;
@@ -515,6 +559,13 @@ error_t location_unsubscribe(LocationSubscription* sub) {
     return result;
 }
 
+void location_for_each_subscriber(void* context, void (*callback)(const char* description, void* context)) {
+    mutex_lock(&mutex.handle);
+    for (auto* sub = subscriptions; sub != nullptr; sub = sub->internal.next) {
+        callback(sub->internal.description, context);
+    }
+    mutex_unlock(&mutex.handle);
+}
 
 bool location_is_in_use(void) {
     mutex_lock(&mutex.handle);

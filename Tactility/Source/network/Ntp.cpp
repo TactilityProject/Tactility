@@ -57,10 +57,13 @@ void setTimeFromNvs() {
     }
     int64_t synced_time = 0;
     if (preferences_opt_int64(preferences, "syncTime", &synced_time)) {
-        LOG_I(TAG, "Restoring last known time to %ld", (long)synced_time);
-        timeval get_nvs_time;
-        get_nvs_time.tv_sec = synced_time;
-        settimeofday(&get_nvs_time, nullptr);
+        // The stored time is the minimum, as time doesn't go backwards
+        if (synced_time > time(nullptr)) {
+            LOG_I(TAG, "Restoring last known time to %ld", (long)synced_time);
+            timeval get_nvs_time;
+            get_nvs_time.tv_sec = synced_time;
+            settimeofday(&get_nvs_time, nullptr);
+        }
     }
     preferences_close(preferences);
 }
@@ -82,6 +85,8 @@ void init() {
 }
 
 #else
+
+void storeTimeInNvs() {}
 
 void init() {
     processedSyncEvent = true;

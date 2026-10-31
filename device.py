@@ -330,6 +330,13 @@ def write_lvgl_variables(output_file, device_properties: dict):
     if fs_cache_size_text is not None:
         fs_cache_size = safe_int(fs_cache_size_text, f"File cache size must be an integer, but was: '{fs_cache_size_text}'")
         output_file.write(f"CONFIG_LV_FS_STDIO_CACHE_SIZE={fs_cache_size}\n")
+    for key, config in (("lvgl.uiSpacing", "CONFIG_TT_UI_SPACING"), ("lvgl.uiSize", "CONFIG_TT_UI_SIZE")):
+        percent_text = get_property_or_none(device_properties, key)
+        if percent_text is not None:
+            percent = safe_int(percent_text, f"{key} must be an integer, but was: '{percent_text}'")
+            if not 0 <= percent <= 100:
+                exit_with_error(f"{key} must be between 0 and 100, but was: {percent}")
+            output_file.write(f"{config}={percent}\n")
     font_size_text = get_property_or_none(device_properties, "font.defaultSize")
     if font_size_text is None:
         font_size_text = get_property_or_default(device_properties, "lvgl.fontSize", "14")

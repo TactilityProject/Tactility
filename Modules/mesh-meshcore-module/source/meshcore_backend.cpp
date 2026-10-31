@@ -784,4 +784,5 @@ const MeshBackendApi meshcore_backend_api = {
     .is_valid_contact_address = isValidContactAddress,
     .on_node_name_changed = onNodeNameChanged,
     .remove_channel = removeChannel,
+    .features = MESH_FEATURE_NAMED_CHANNELS | MESH_FEATURE_KEYED_CHANNELS,
 };

@@ -132,12 +132,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     applyIconColor(ctx);
     ctx->grid.setSwipeNavigation(true);
-    ctx->grid.createWidgetsWithBottomBar(parent);
+    // In the side layout, the bar's buttons are in the system bars strip
+    ctx->grid.createWidgetsWithBottomBar(parent, lvgl::systemBarsGetActionContainer());
     lv_obj_t* modeButton = ctx->grid.addBarButton(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
     ctx->modeButtonIcon = lv_obj_get_child(modeButton, 0);
+    // After all bar buttons, as they change the size of the grid
+    ctx->grid.finishWidgetsWithBottomBar();
 
-    // In the side layout, the bar's buttons are in the system bars strip
-    ctx->grid.setBarSideContainer(lvgl::systemBarsGetActionContainer());
     ctx->systemBarsListener = lvgl::systemBarsAddListener([ctx] {
         ctx->grid.setBarSideContainer(lvgl::systemBarsGetActionContainer());
     });

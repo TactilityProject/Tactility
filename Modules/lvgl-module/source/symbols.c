@@ -117,7 +117,8 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_theme_get_default_settings),
     DEFINE_MODULE_SYMBOL(lvgl_theme_set_settings),
     DEFINE_MODULE_SYMBOL(lvgl_theme_is_mono),
-    DEFINE_MODULE_SYMBOL(lvgl_theme_is_compact),
+    DEFINE_MODULE_SYMBOL(lvgl_theme_get_spacing),
+    DEFINE_MODULE_SYMBOL(lvgl_theme_get_size),
     // lvgl_badge
     DEFINE_MODULE_SYMBOL(lvgl_badge_create),
     // lvgl_focus_container

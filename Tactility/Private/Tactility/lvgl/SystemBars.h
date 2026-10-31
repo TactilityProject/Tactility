@@ -33,6 +33,12 @@ void systemBarsDetach();
 void systemBarsRefresh();
 
 /**
+ * Shows or hides the statusbar, e.g. for a full screen app. A window must show it again when its widgets are destroyed.
+ * @warning Caller must hold the LVGL lock.
+ */
+void systemBarsSetStatusbarVisible(bool visible);
+
+/**
  * @warning Caller must hold the LVGL lock.
  * @return the layout that is shown
  */

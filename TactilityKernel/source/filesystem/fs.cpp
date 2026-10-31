@@ -12,15 +12,20 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
+#include <string>
 
 constexpr auto* TAG = "fs";
 
-// Bound on how deep directory_remove_tree()/path_tree_size() will recurse: a fixed-size buffer is
+// Bound on how deep directory_remove_tree() will recurse: a fixed-size buffer is
 // spent per level, so a pathological tree is refused rather than overflowing the stack.
 constexpr int MAX_RECURSION_DEPTH = 16;
 
+// Bound on how deep path_tree_size() walks, which only stops a loop of links as it doesn't use the stack.
+constexpr int MAX_WALK_DEPTH = 64;
+
 // Entries collected per directory pass, and the longest filename handled, for
-// directory_remove_tree()/path_tree_size(). dirent allows 255-byte names; storing them at full
+// directory_remove_tree(). dirent allows 255-byte names; storing them at full
 // width would cost 16KB per recursion level, so the cap is lower and over-long names are skipped
 // rather than silently mishandled.
 constexpr int MAX_ENTRIES_PER_PASS = 64;
@@ -141,60 +146,45 @@ error_t directory_remove_tree_at(const char* path, int depth) {
     }
 }
 
-uint64_t path_tree_size_at(const char* path, int depth) {
-    if (depth > MAX_RECURSION_DEPTH) {
-        return 0;
-    }
+/**
+ * Sums the sizes of the files below a directory without recursing, so the stack use doesn't depend on how deep the tree is.
+ * Only one directory is open at a time, and the directories still to visit are kept on the heap.
+ */
+uint64_t path_tree_size_at(const char* path) {
     if (!directory_exists(path)) {
         struct stat info;
         return (stat(path, &info) == 0) ? static_cast<uint64_t>(info.st_size) : 0;
     }
 
-    struct Accumulator {
+    struct Pending {
+        std::string path;
+        int depth;
+    };
+    struct Walk {
+        std::vector<Pending> pending;
+        const Pending* current;
         uint64_t bytes;
     };
-    Accumulator accumulator { 0 };
+    Walk walk { {}, nullptr, 0 };
+    walk.pending.push_back({ path, 0 });
 
-    directory_list(path, &accumulator, [](const DirectoryEntry* entry, void* context) {
-        // Only files are summed here; directories are recursed into by the caller below.
-        if (!entry->is_directory) {
-            static_cast<Accumulator*>(context)->bytes += entry->size;
-        }
-    });
-
-    // Collect subdirectory names first, then recurse.
-    // Same name-length cap as directory_remove_tree_at: a truncated name would size a different path.
-    struct Children {
-        char names[32][MAX_ENTRY_NAME];
-        int count;
-    };
-    auto* children = static_cast<Children*>(calloc(1, sizeof(Children)));
-    if (children == nullptr) {
-        return accumulator.bytes;
+    while (!walk.pending.empty()) {
+        const Pending directory = std::move(walk.pending.back());
+        walk.pending.pop_back();
+        walk.current = &directory;
+        directory_list(directory.path.c_str(), &walk, [](const DirectoryEntry* entry, void* context) {
+            auto* walk = static_cast<Walk*>(context);
+            if (!entry->is_directory) {
+                walk->bytes += entry->size;
+                return;
+            }
+            // The depth is bounded, so a loop of links ends. Paths that can't be handled by the file system's limits are skipped.
+            if (walk->current->depth < MAX_WALK_DEPTH && walk->current->path.size() + 1 + strlen(entry->name) < FILE_MAX_PATH_STRING_LENGTH) {
+                walk->pending.push_back({ walk->current->path + "/" + entry->name, walk->current->depth + 1 });
+            }
+        });
     }
-
-    directory_list(path, children, [](const DirectoryEntry* entry, void* context) {
-        auto* list = static_cast<Children*>(context);
-        if (!entry->is_directory || list->count >= static_cast<int>(sizeof(list->names) / sizeof(list->names[0]))) {
-            return;
-        }
-        const size_t name_length = strlen(entry->name);
-        if (name_length >= MAX_ENTRY_NAME) {
-            return;
-        }
-        memcpy(list->names[list->count], entry->name, name_length + 1);
-        list->count++;
-    });
-
-    uint64_t total = accumulator.bytes;
-    for (int i = 0; i < children->count; i++) {
-        char child_path[FILE_MAX_PATH_STRING_LENGTH];
-        snprintf(child_path, sizeof(child_path), "%s/%s", path, children->names[i]);
-        total += path_tree_size_at(child_path, depth + 1);
-    }
-
-    free(children);
-    return total;
+    return walk.bytes;
 }
 
 } // namespace
@@ -426,7 +416,7 @@ error_t file_touch(const char* path) {
 }
 
 uint64_t path_tree_size(const char* path) {
-    return path_tree_size_at(path, 0);
+    return path_tree_size_at(path);
 }
 
 } // extern "C"

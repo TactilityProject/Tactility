@@ -69,12 +69,21 @@ public:
     void createWidgets(lv_obj_t* parent);
 
     /**
-     * Creates the grid and populates it, with a bar below it: buttons on the left (see addBarButton()),
+     * Creates the grid, with a bar below it: buttons on the left (see addBarButton()),
      * followed by the page buttons, and a page indicator on the right. The page indicator and buttons are
      * hidden when there's only one page, and the page buttons wrap around.
      * @param[in] parent the container for the grid and the bar
+     * @param[in] sideContainer the container for the bar's buttons when it's shown beside the grid (see setBarSideContainer()),
+     * so the grid is populated at its final size, or nullptr to show the bar below the grid
+     * @warning The grid is populated by finishWidgetsWithBottomBar(), which must be called after adding the bar buttons.
      */
-    void createWidgetsWithBottomBar(lv_obj_t* parent);
+    void createWidgetsWithBottomBar(lv_obj_t* parent, lv_obj_t* sideContainer = nullptr);
+
+    /**
+     * Populates the grid. Call after createWidgetsWithBottomBar() and addBarButton(), as the buttons change the size of the bar,
+     * and so the size of the grid.
+     */
+    void finishWidgetsWithBottomBar();
 
     /**
      * Makes the buttons go to the previous and next page. They are hidden when there's only one page, and wrap around.
@@ -83,7 +92,7 @@ public:
     void setPageButtons(lv_obj_t* previous, lv_obj_t* next);
 
     /**
-     * Adds an icon button to the bottom bar, before the page buttons. Call right after createWidgetsWithBottomBar().
+     * Adds an icon button to the bottom bar, before the page buttons. Call after createWidgetsWithBottomBar() and before finishWidgetsWithBottomBar().
      * @param[in] icon a shared icon (see lvgl/icons/shared.h)
      * @return the button
      */

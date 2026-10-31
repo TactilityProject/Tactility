@@ -59,10 +59,10 @@ bool lvgl_is_running(void);
 
 /**
  * @brief Gets the UI density of the theme settings.
- * @deprecated Use lvgl_theme_is_compact() from <lvgl/theme.h>
+ * @deprecated Use lvgl_theme_get_size() and lvgl_theme_get_spacing() from <lvgl/theme.h>
  * @return the UI density
  */
-__attribute__((deprecated("Use lvgl_theme_is_compact()")))
+__attribute__((deprecated("Use lvgl_theme_get_size() and lvgl_theme_get_spacing()")))
 enum UiDensity lvgl_get_ui_density(void);
 
 #ifdef __cplusplus

@@ -11,8 +11,11 @@ void configureTheme(const settings::appearance::AppearanceSettings& settings) {
         theme_settings.is_dark = settings.themeMode == settings::appearance::ThemeMode::Dark;
     }
     theme_settings.is_mono = settings.monoTheme;
-    if (settings.densityMode != settings::appearance::DensityMode::DeviceDefault) {
-        theme_settings.is_compact = settings.densityMode == settings::appearance::DensityMode::Compact;
+    if (settings.spacing.has_value()) {
+        theme_settings.spacing = *settings.spacing;
+    }
+    if (settings.size.has_value()) {
+        theme_settings.size = *settings.size;
     }
     theme_settings.animations_enabled = settings.animationsEnabled;
     if (settings.primaryColor.has_value()) {

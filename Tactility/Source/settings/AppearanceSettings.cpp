@@ -19,6 +19,8 @@ constexpr auto* SETTINGS_KEY_MONO_FONT_PATH = "monoFontPath";
 constexpr auto* SETTINGS_KEY_THEME_MODE = "themeMode";
 constexpr auto* SETTINGS_KEY_MONO_THEME = "monoTheme";
 constexpr auto* SETTINGS_KEY_DENSITY = "density";
+constexpr auto* SETTINGS_KEY_SPACING = "spacing";
+constexpr auto* SETTINGS_KEY_SIZE = "size";
 constexpr auto* SETTINGS_KEY_ANIMATIONS = "animations";
 constexpr auto* SETTINGS_KEY_PRIMARY_COLOR = "primaryColor";
 constexpr auto* SETTINGS_KEY_SECONDARY_COLOR = "secondaryColor";
@@ -59,6 +61,20 @@ static std::optional<uint32_t> parseColor(const std::map<std::string, std::strin
     return color;
 }
 
+static std::optional<uint8_t> parsePercent(const std::map<std::string, std::string>& map, const char* key) {
+    const auto entry = map.find(key);
+    if (entry == map.end() || entry->second.empty()) {
+        return std::nullopt;
+    }
+    const std::string& text = entry->second;
+    uint32_t percent = 0;
+    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), percent);
+    if (error != std::errc {} || end != text.data() + text.size() || percent > 100) {
+        return std::nullopt;
+    }
+    return static_cast<uint8_t>(percent);
+}
+
 // Saving only updates the keys that are written, so an unset colour is written as an empty value
 static void putColor(std::map<std::string, std::string>& map, const char* key, std::optional<uint32_t> color) {
     if (color.has_value()) {
@@ -81,16 +97,6 @@ static const char* toString(ThemeMode mode) {
     }
 }
 
-static const char* toString(DensityMode mode) {
-    switch (mode) {
-        case DensityMode::Regular:
-            return "regular";
-        case DensityMode::Compact:
-            return "compact";
-        default:
-            return "default";
-    }
-}
 
 static std::string getSettingsFilePath() {
     char path[256];
@@ -131,12 +137,22 @@ bool load(AppearanceSettings& settings) {
     if (const auto entry = map.find(SETTINGS_KEY_MONO_THEME); entry != map.end()) {
         settings.monoTheme = entry->second == "true";
     }
+    // Before spacing and size were separate, the density was either regular or compact
     if (const auto entry = map.find(SETTINGS_KEY_DENSITY); entry != map.end()) {
         if (entry->second == "regular") {
-            settings.densityMode = DensityMode::Regular;
+            settings.spacing = 100;
+            settings.size = 100;
         } else if (entry->second == "compact") {
-            settings.densityMode = DensityMode::Compact;
+            settings.spacing = 0;
+            settings.size = 0;
         }
+    }
+    // Present keys win over the old density, also when empty or invalid, which means the device default
+    if (map.contains(SETTINGS_KEY_SPACING)) {
+        settings.spacing = parsePercent(map, SETTINGS_KEY_SPACING);
+    }
+    if (map.contains(SETTINGS_KEY_SIZE)) {
+        settings.size = parsePercent(map, SETTINGS_KEY_SIZE);
     }
     if (const auto entry = map.find(SETTINGS_KEY_ANIMATIONS); entry != map.end()) {
         settings.animationsEnabled = entry->second != "false";
@@ -175,7 +191,10 @@ bool save(const AppearanceSettings& settings) {
     map[SETTINGS_KEY_MONO_FONT_PATH] = settings.monoFontPath;
     map[SETTINGS_KEY_THEME_MODE] = toString(settings.themeMode);
     map[SETTINGS_KEY_MONO_THEME] = settings.monoTheme ? "true" : "false";
-    map[SETTINGS_KEY_DENSITY] = toString(settings.densityMode);
+    // Unset values are written as empty, as with the colours. This also replaces the old density key.
+    map[SETTINGS_KEY_DENSITY] = "";
+    map[SETTINGS_KEY_SPACING] = settings.spacing.has_value() ? std::to_string(*settings.spacing) : "";
+    map[SETTINGS_KEY_SIZE] = settings.size.has_value() ? std::to_string(*settings.size) : "";
     map[SETTINGS_KEY_ANIMATIONS] = settings.animationsEnabled ? "true" : "false";
     putColor(map, SETTINGS_KEY_PRIMARY_COLOR, settings.primaryColor);
     putColor(map, SETTINGS_KEY_SECONDARY_COLOR, settings.secondaryColor);

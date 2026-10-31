@@ -92,6 +92,9 @@ def main():
     # Mapping logic
     mappings = [
         {'src': 'version.txt', 'dst': ''},
+        # platform-esp32
+        {'src': 'build/esp-idf/platform-esp32/libplatform-esp32.a', 'dst': 'Modules/platform-esp32/binary/'},
+        {'src': 'Platforms/platform-esp32/include/**/*.h', 'dst': 'Modules/platform-esp32/include/'},
         # TactilityFreeRtos
         {'src': 'TactilityFreeRtos/Include/**', 'dst': 'Libraries/TactilityFreeRtos/Include/'},
         {'src': 'TactilityFreeRtos/CMakeLists.txt', 'dst': 'Libraries/TactilityFreeRtos/'},

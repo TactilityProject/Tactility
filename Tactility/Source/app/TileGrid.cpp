@@ -452,7 +452,7 @@ void TileGrid::onBottomBarFocused(lv_event_t* e) {
     }
 }
 
-void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
+void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent, lv_obj_t* sideContainer) {
     barParent = parent;
     barSideContainer = nullptr;
     barButtons.clear();
@@ -488,8 +488,12 @@ void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
     // The arrow keys move between all buttons of the bar as one row
     lvgl_grid_navigation_add(bottomBar);
     lv_obj_add_event_cb(bottomBar, onBottomBarFocused, LV_EVENT_FOCUSED, this);
+    // Before the grid is populated, as its size depends on where the bar is
+    setBarSideContainer(sideContainer);
+}
 
-    finishCreate(parent);
+void TileGrid::finishWidgetsWithBottomBar() {
+    finishCreate(barParent);
 }
 
 void TileGrid::createWidgets(lv_obj_t* parent) {
@@ -507,7 +511,7 @@ void TileGrid::createWidgets(lv_obj_t* parent) {
     pageIndicator = lvgl_page_indicator_create(parent);
     centerPageIndicator(pageIndicator);
     // Keeps the dots off the screen's bottom edge
-    lv_obj_set_style_margin_bottom(pageIndicator, lvgl_theme_is_compact() ? LV_DPX(2) : LV_DPX(8), LV_STATE_DEFAULT);
+    lv_obj_set_style_margin_bottom(pageIndicator, lvgl_theme_lerp(LV_DPX(2), LV_DPX(8), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
     finishCreate(parent);
 }
 
@@ -590,7 +594,7 @@ void TileGrid::setBarSideContainer(lv_obj_t* sideContainer) {
         lv_obj_move_to_index(pageIndicator, lv_obj_get_index(grid) + 1);
         centerPageIndicator(pageIndicator);
         // Keeps the dots off the screen's bottom edge
-        lv_obj_set_style_margin_bottom(pageIndicator, lvgl_theme_is_compact() ? 1 : 2, LV_STATE_DEFAULT);
+        lv_obj_set_style_margin_bottom(pageIndicator, lvgl_theme_lerp(1, 2, lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
     } else {
         lv_obj_set_parent(bottomBar, barParent);
         lv_obj_move_to_index(bottomBar, lv_obj_get_index(grid) + 1);

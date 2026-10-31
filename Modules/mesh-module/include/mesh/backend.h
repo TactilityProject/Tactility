@@ -111,10 +111,14 @@ struct MeshBackendApi {
      * @retval ERROR_INVALID_ARGUMENT when the backend can't do without the channel
      */
     error_t (*remove_channel)(void* backend, uint8_t index);
+
+    /** The MeshFeature values that the backend supports, combined, see mesh_supports() */
+    uint32_t features;
 };
 
 /**
  * Register a backend. Usually called from the backend module's start().
+ * @retval ERROR_INVALID_ARGUMENT when the id is empty or has characters other than letters, digits, '_' and '-'
  * @retval ERROR_ALREADY_EXISTS when a backend with the same id is registered
  * @retval ERROR_RESOURCE when the registry is full
  */
