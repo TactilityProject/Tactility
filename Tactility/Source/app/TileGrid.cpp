@@ -452,7 +452,7 @@ void TileGrid::onBottomBarFocused(lv_event_t* e) {
     }
 }
 
-void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
+void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent, lv_obj_t* sideContainer) {
     barParent = parent;
     barSideContainer = nullptr;
     barButtons.clear();
@@ -488,8 +488,12 @@ void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent) {
     // The arrow keys move between all buttons of the bar as one row
     lvgl_grid_navigation_add(bottomBar);
     lv_obj_add_event_cb(bottomBar, onBottomBarFocused, LV_EVENT_FOCUSED, this);
+    // Before the grid is populated, as its size depends on where the bar is
+    setBarSideContainer(sideContainer);
+}
 
-    finishCreate(parent);
+void TileGrid::finishWidgetsWithBottomBar() {
+    finishCreate(barParent);
 }
 
 void TileGrid::createWidgets(lv_obj_t* parent) {
