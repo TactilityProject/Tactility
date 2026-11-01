@@ -47,7 +47,9 @@ void markCompleted() {
     if (!getCompletedMarkerPath(path)) {
         return;
     }
-    file::writeString(path, ::std::to_string(SETUP_VERSION));
+    if (!file::writeString(path, ::std::to_string(SETUP_VERSION))) {
+        LOG_E(TAG, "Failed to save setup completion marker");
+    }
 }
 
 }

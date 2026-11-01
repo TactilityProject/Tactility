@@ -184,8 +184,12 @@ void onContinueClicked(lv_event_t* event) {
             advanceTo(ctx, ctx->stepIndex + 1);
             break;
         case Phase::Done: {
-            markCompleted();
-            app_event_emit_close(ctx->appInstanceId);
+            // Queued after the changes of the steps, so the marker is only saved once they were
+            const auto appInstanceId = ctx->appInstanceId;
+            runOnAppTask(ctx, [appInstanceId] {
+                markCompleted();
+                app_event_emit_close(appInstanceId);
+            });
             break;
         }
     }

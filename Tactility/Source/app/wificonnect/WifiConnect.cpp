@@ -13,6 +13,7 @@
 
 #include <wifi/wifi_settings.h>
 
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
@@ -224,6 +225,9 @@ void createBottomButtons(Context* ctx, lv_obj_t* parent) {
     auto* connect_label = lv_label_create(ctx->connect_button);
     lv_label_set_text(connect_label, "Connect");
     lv_obj_add_event_cb(ctx->connect_button, onConnectPressed, LV_EVENT_SHORT_CLICKED, ctx);
+
+    // The arrow keys move between the checkbox and the button as one row
+    lvgl_grid_navigation_add(button_container);
 }
 
 // Runs with the LVGL lock already held, possibly on another app's thread - see

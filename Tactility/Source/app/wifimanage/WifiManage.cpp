@@ -113,6 +113,11 @@ static bool onRefresh() {
 
 /** Handles the requests of the UI. Turning the radio on blocks, so this runs on the app's task. */
 void processRequests(Context* ctx) {
+    // Keeps queued requests until the Wi-Fi device is subscribed
+    if (ctx->wifiDevice == nullptr) {
+        return;
+    }
+
     ctx->lock();
     const auto radio_request = ctx->radioRequest;
     const bool disconnect = ctx->disconnectRequested;
@@ -123,10 +128,6 @@ void processRequests(Context* ctx) {
     ctx->disconnectRequested = false;
     ctx->connectRequest.clear();
     ctx->unlock();
-
-    if (ctx->wifiDevice == nullptr) {
-        return;
-    }
 
     if (radio_request != RadioRequest::None) {
         const bool enabled = radio_request == RadioRequest::On;
