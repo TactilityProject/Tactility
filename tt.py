@@ -33,6 +33,7 @@ DEVICE_PORT = 6667
 DEVICE_HOST_PATH = os.path.join(".tactility", "device_host")
 SDK_VERSION_PATH = os.path.join(".tactility", "sdk_version")
 DEVICE_TIMEOUT_SECONDS = 5
+DEVICE_REPLY_MAX_BYTES = 1024
 COMMAND_PATTERN = re.compile(r"^[a-z0-9-]+$")
 VERSION_PATTERN = re.compile(r"^[0-9A-Za-z.+-]+$")
 
@@ -134,6 +135,21 @@ def read_device_host():
     return read_stored(DEVICE_HOST_PATH)
 
 
+def read_bounded_line(connection, deadline):
+    """Returns the first line of the connection, or None when it has no newline within the size limit or before the deadline"""
+    data = bytearray()
+    while b"\n" not in data:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or len(data) >= DEVICE_REPLY_MAX_BYTES:
+            return None
+        connection.settimeout(remaining)
+        chunk = connection.recv(DEVICE_REPLY_MAX_BYTES - len(data))
+        if not chunk:
+            return None
+        data += chunk
+    return bytes(data.split(b"\n", 1)[0])
+
+
 def query_device_info(host):
     """Returns the info of the device (vendor, name, id and version), or None when it can't be read"""
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -141,13 +157,18 @@ def query_device_info(host):
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
     hello = {"protocol": 1, "mode": "info", "client": "tt"}
+    deadline = time.monotonic() + DEVICE_TIMEOUT_SECONDS
     try:
         with socket.create_connection((host, DEVICE_PORT), DEVICE_TIMEOUT_SECONDS) as connection:
             with context.wrap_socket(connection, server_hostname=host) as secure:
                 secure.sendall((json.dumps(hello, separators=(",", ":")) + "\n").encode("utf-8"))
-                line = secure.makefile("rb").readline()
+                line = read_bounded_line(secure, deadline)
+        if line is None:
+            print(f"tt: could not read the device info of {host}: no complete reply in time", file=sys.stderr)
+            return None
         info = json.loads(line)["info"]
-        if not is_valid_version(info["version"]):
+        if not isinstance(info, dict) or not all(isinstance(info.get(key), str) for key in ("vendor", "name", "id", "version")) or not is_valid_version(info["version"]):
+            print(f"tt: could not read the device info of {host}: incomplete reply", file=sys.stderr)
             return None
         return info
     except (OSError, ValueError, KeyError, TypeError) as error:
@@ -187,13 +208,30 @@ def host_command(arguments):
         fail("usage: tt host [hostname]")
 
 
+def read_project_properties(manifest_path):
+    """Returns the properties of the manifest and its SDK version. Fails when the version is missing or invalid."""
+    manifest = read_properties(manifest_path)
+    version = manifest.get("target.sdk")
+    if not version:
+        fail(f"target.sdk not found in {manifest_path}")
+    if not is_valid_version(version):
+        fail(f"invalid target.sdk in {manifest_path}: {version}")
+    return manifest, version
+
+
+def read_stored_sdk_version():
+    """Returns the stored SDK version, or None when it is missing or invalid"""
+    version = read_stored(SDK_VERSION_PATH)
+    return version if version is not None and is_valid_version(version) else None
+
+
 def sdk_command(arguments):
     """Shows the SDK version with its source, or stores one. A project's SDK version still takes precedence."""
     if not arguments:
-        stored_version = read_stored(SDK_VERSION_PATH)
+        stored_version = read_stored_sdk_version()
         manifest_path = find_manifest()
-        project_version = read_properties(manifest_path).get("target.sdk") if manifest_path else None
-        if project_version:
+        if manifest_path:
+            project_version = read_project_properties(manifest_path)[1]
             print(f"{project_version} (from project {manifest_path})")
             if stored_version:
                 print(f"{stored_version} in {SDK_VERSION_PATH} is not used while a project is found")
@@ -215,8 +253,8 @@ def resolve_target():
     manifest_path = find_manifest()
     if manifest_path is None:
         # A project always decides the SDK. Without one, a chosen version beats the device.
-        stored_version = read_stored(SDK_VERSION_PATH)
-        if stored_version is not None and is_valid_version(stored_version):
+        stored_version = read_stored_sdk_version()
+        if stored_version is not None:
             print(f"tt: using SDK {stored_version} from {SDK_VERSION_PATH}", file=sys.stderr)
             return stored_version, []
         device_version = resolve_device_target()
@@ -229,12 +267,7 @@ def resolve_target():
             fail("no manifest.properties found in . or Apps/*/ or apps/*/")
         write_stored(SDK_VERSION_PATH, version)
         return version, []
-    manifest = read_properties(manifest_path)
-    version = manifest.get("target.sdk")
-    if not version:
-        fail(f"target.sdk not found in {manifest_path}")
-    if not is_valid_version(version):
-        fail(f"invalid target.sdk in {manifest_path}: {version}")
+    manifest, version = read_project_properties(manifest_path)
     platforms = [platform.strip() for platform in manifest.get("target.platforms", "").split(",") if platform.strip()]
     return version, platforms
 

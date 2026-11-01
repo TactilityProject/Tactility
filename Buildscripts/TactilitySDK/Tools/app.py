@@ -829,6 +829,8 @@ def create_action():
         app_name = ask("App name", "Hello World", NAME_PATTERN.match, "Use 2 to 32 letters, digits, spaces and dashes")
     placeholders = (("@SDK_VERSION@", tt_sdk_version), ("@PACKAGE_ID@", package_id), ("@APP_ID@", app_id), ("@APP_NAME@", app_name))
     variant_path = os.path.join(templates_path, variant)
+    if not os.path.isfile(os.path.join(variant_path, "manifest.properties")):
+        exit_with_error(f"SDK {tt_sdk_version} has no {variant} project template")
     for directory, directory_names, file_names in os.walk(variant_path):
         directory_names.sort()
         for file_name in sorted(file_names):
@@ -845,8 +847,6 @@ def create_action():
             with open(relative_path, "wb") as file:
                 file.write(content)
             print(f"Created {relative_path}")
-    if not os.path.isfile("manifest.properties"):
-        exit_with_error(f"SDK {tt_sdk_version} has no {variant} project template")
 
 #endregion Create
 

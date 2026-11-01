@@ -204,6 +204,23 @@ class TtTest(unittest.TestCase):
         result = self.run_tt("app", "create", input_text=f"{VERSION}\n\n\n\n\n")
         self.assertEqual(result.returncode, 1)
         self.assertIn("has no gui project template", result.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.work, "main")))
+
+    def test_app_create_from_the_local_sdk(self):
+        shutil.rmtree(self.cdn)
+        tools = os.path.join(self.root, "local", "sdk", VERSION, "tools")
+        os.makedirs(os.path.join(tools, "NewProject", "gui", "main"))
+        for name in ("app.py", "_bootstrap.py", "_device_host.py"):
+            shutil.copy(os.path.join(TOOLS_PATH, name), tools)
+        with open(os.path.join(tools, "NewProject", "gui", "manifest.properties"), "w") as file:
+            file.write("target.sdk=@SDK_VERSION@\nid=@PACKAGE_ID@\napp.0.id=@APP_ID@\napp.0.name=@APP_NAME@\n")
+        with open(os.path.join(tools, "NewProject", "gui", "main", "main.c"), "w") as file:
+            file.write("// local\n")
+        result = self.run_tt("app", "create", environment={"TACTILITY_SDK_PATH": os.path.join(self.root, "local")}, input_text=f"{VERSION}\n\n\n\n\n")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("using the local SDK", result.stderr)
+        self.assertIn(f"target.sdk={VERSION}", self.read_work_file("manifest.properties"))
+        self.assertEqual(self.read_work_file("main", "main.c"), "// local\n")
 
     def test_app_create_does_not_overwrite(self):
         self.publish_new_project()
@@ -267,6 +284,93 @@ class TtTest(unittest.TestCase):
             self.assertIn("1.2.3 (from local setting", output.getvalue())
         finally:
             os.chdir(previous)
+
+    def load_tt_module(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("tt_module", TT_PATH)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_device_reply_is_bounded_by_size_and_time(self):
+        import time
+        tt = self.load_tt_module()
+
+        class Trickle:
+            """Sends one byte per call, never a newline"""
+            def __init__(self):
+                self.calls = 0
+            def settimeout(self, _):
+                pass
+            def recv(self, size):
+                self.calls += 1
+                time.sleep(0.01)
+                return b"x"
+
+        trickle = Trickle()
+        self.assertIsNone(tt.read_bounded_line(trickle, time.monotonic() + 0.1))
+        self.assertLess(trickle.calls, 50)
+        trickle = Trickle()
+        self.assertIsNone(tt.read_bounded_line(trickle, time.monotonic() + 60))
+        self.assertEqual(trickle.calls, tt.DEVICE_REPLY_MAX_BYTES)
+
+        class Reply:
+            def settimeout(self, _):
+                pass
+            def recv(self, size):
+                return b'{"a":1}\nrest'
+        self.assertEqual(tt.read_bounded_line(Reply(), time.monotonic() + 5), b'{"a":1}')
+
+    def test_incomplete_device_info_is_rejected(self):
+        import contextlib
+        import time
+        tt = self.load_tt_module()
+        replies = [
+            b'{"status":"accepted","info":{"version":"1.0.0"}}\n',
+            b'{"status":"accepted","info":{"vendor":"V","name":"N","id":"i"}}\n',
+            b'{"status":"accepted","info":{"vendor":"V","name":"N","id":3,"version":"1.0.0"}}\n',
+            b'{"status":"accepted","info":[]}\n',
+        ]
+        for reply in replies:
+            class Connection:
+                def __enter__(self):
+                    return self
+                def __exit__(self, *_):
+                    pass
+            class Secure(Connection):
+                def sendall(self, _):
+                    pass
+                def settimeout(self, _):
+                    pass
+                def recv(self, size, reply=reply):
+                    return reply
+            class Context:
+                def __init__(self, *_):
+                    pass
+                def wrap_socket(self, *_, **__):
+                    return Secure()
+            tt.socket.create_connection = lambda *_: Connection()
+            tt.ssl.SSLContext = Context
+            errors = io.StringIO()
+            with contextlib.redirect_stderr(errors):
+                self.assertIsNone(tt.query_device_info("h"), reply)
+            self.assertIn("could not read the device info", errors.getvalue())
+
+    def test_sdk_validates_the_manifest_and_stored_version(self):
+        shutil.rmtree(self.cdn)
+        self.run_tt("sdk", "1.2.3")
+        for content, message in (("[target]\n", "target.sdk not found in manifest.properties"), ("target.sdk=\n", "target.sdk not found"), ("target.sdk=a/b\n", "invalid target.sdk in manifest.properties: a/b")):
+            with open(os.path.join(self.work, "manifest.properties"), "w") as file:
+                file.write(content)
+            result = self.run_tt("sdk")
+            self.assertEqual(result.returncode, 1, content)
+            self.assertIn(message, result.stderr)
+            self.assertNotIn("1.2.3", result.stdout)
+        os.remove(os.path.join(self.work, "manifest.properties"))
+        with open(os.path.join(self.work, ".tactility", "sdk_version"), "w") as file:
+            file.write("a/b\n")
+        result = self.run_tt("sdk")
+        self.assertNotIn("local setting", result.stdout)
 
     def test_host_does_not_query_the_old_host(self):
         shutil.rmtree(self.cdn)

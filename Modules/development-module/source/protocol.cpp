@@ -104,15 +104,14 @@ size_t development_protocol_format_info(const char* vendor, const char* name, co
     if (root == nullptr) {
         return 0;
     }
-    cJSON_AddStringToObject(root, "status", "accepted");
-    cJSON* info = cJSON_AddObjectToObject(root, "info");
-    if (info != nullptr) {
-        cJSON_AddStringToObject(info, "vendor", vendor);
-        cJSON_AddStringToObject(info, "name", name);
-        cJSON_AddStringToObject(info, "id", id);
-        cJSON_AddStringToObject(info, "version", version);
-    }
-    const bool printed = info != nullptr && out_size >= 2 && cJSON_PrintPreallocated(root, out_line, static_cast<int>(out_size - 1), false);
+    const bool status_added = cJSON_AddStringToObject(root, "status", "accepted") != nullptr;
+    cJSON* info = status_added ? cJSON_AddObjectToObject(root, "info") : nullptr;
+    const bool info_added = info != nullptr
+        && cJSON_AddStringToObject(info, "vendor", vendor) != nullptr
+        && cJSON_AddStringToObject(info, "name", name) != nullptr
+        && cJSON_AddStringToObject(info, "id", id) != nullptr
+        && cJSON_AddStringToObject(info, "version", version) != nullptr;
+    const bool printed = info_added && out_size >= 2 && cJSON_PrintPreallocated(root, out_line, static_cast<int>(out_size), false);
     cJSON_Delete(root);
     if (!printed) {
         return 0;
