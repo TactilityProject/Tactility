@@ -163,6 +163,8 @@ class StatusbarService final : public Service {
     bool usb_last_state = false;
     int8_t install_icon_id;
     bool install_last_state = false;
+    /** The number of app_install() calls seen by the previous update, to show installs that ended between two updates */
+    uint32_t install_seen_count = app_install_get_started_count();
     TaskEventGroup appHubEventGroup {};
     AppHubEventSubscription appHubSubscription {};
     bool appHubSubscribed = false;
@@ -317,7 +319,10 @@ class StatusbarService final : public Service {
                 installingApps.erase(event.app_id);
             }
         }
-        const bool installing = !installingApps.empty() || app_install_is_active();
+        const uint32_t startedCount = app_install_get_started_count();
+        const bool startedSinceLastUpdate = startedCount != install_seen_count;
+        install_seen_count = startedCount;
+        const bool installing = !installingApps.empty() || app_install_is_active() || startedSinceLastUpdate;
         if (installing != install_last_state) {
             lvgl_statusbar_icon_set_visibility(install_icon_id, installing);
             install_last_state = installing;

@@ -485,8 +485,10 @@ static error_t install_package(const char* source_path) {
 }
 
 static std::atomic<int> active_install_count = 0;
+static std::atomic<uint32_t> started_install_count = 0;
 
 error_t app_install(const char* source_path) {
+    started_install_count++;
     active_install_count++;
     const error_t result = install_package(source_path);
     active_install_count--;
@@ -495,6 +497,10 @@ error_t app_install(const char* source_path) {
 
 bool app_install_is_active(void) {
     return active_install_count > 0;
+}
+
+uint32_t app_install_get_started_count(void) {
+    return started_install_count;
 }
 
 error_t app_uninstall(const char* app_id) {

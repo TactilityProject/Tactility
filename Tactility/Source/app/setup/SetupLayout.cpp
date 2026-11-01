@@ -1,4 +1,3 @@
-#include <Tactility/app/setup/SetupPrivate.h>
 
 #include <Tactility/StringUtils.h>
 
@@ -10,6 +9,9 @@
 #include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/step_indicator.h>
 #include <lvgl.h>
+
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/setup/SetupPrivate.h>
 
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
@@ -182,7 +184,7 @@ void renderCurrent(Context* ctx) {
     switch (ctx->phase) {
         case Phase::Welcome: {
             lv_label_set_text(ctx->titleLabel, "Welcome");
-            auto device_names = string::split(std::string(CONFIG_TT_DEVICE_NAME_SIMPLE), ",");
+            auto device_names = string::split(::std::string(CONFIG_TT_DEVICE_NAME_SIMPLE), ",");
             lv_label_set_text_fmt(ctx->descriptionLabel, "It's time to set up your %s!", device_names.front().c_str());
             lv_obj_set_hidden(ctx->skipButton, true);
             lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Continue");

@@ -4,6 +4,7 @@
 #include <tactility/error.h>
 
 #include <stddef.h>
+#include <stdint.h>
 
 struct Module;
 
@@ -45,6 +46,9 @@ error_t app_install(const char* source_path);
 
 /** @return true while an app_install() call is running on any task */
 bool app_install_is_active(void);
+
+/** @return the number of app_install() calls started since boot, wrapping around */
+uint32_t app_install_get_started_count(void);
 
 /**
  * Uninstalls a previously app_install()-ed package: stops every one of its apps if currently

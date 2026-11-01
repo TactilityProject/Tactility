@@ -1,4 +1,3 @@
-#include <Tactility/app/setup/SetupPrivate.h>
 #include <Tactility/app/wificonnect/WifiConnect.h>
 
 #include <wifi/wifi_settings.h>
@@ -15,11 +14,14 @@
 
 #include <set>
 
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/setup/SetupPrivate.h>
+
 namespace tt::app::setup {
 
 constexpr auto* TAG = "setup";
 
-static void connectToNetwork(Context* ctx, const std::string& ssid) {
+static void connectToNetwork(Context* ctx, const tt::std::string& ssid) {
     ctx->wifiTarget = ssid;
     ctx->wifiConnectFailed = false;
     ctx->connectRequest = ssid;
@@ -32,8 +34,8 @@ static void onWifiNetworkClicked(lv_event_t* event) {
     if (index >= ctx->wifiSsids.size()) {
         return;
     }
-    const std::string ssid = ctx->wifiSsids[index];
-    if (ctx->wifiState.getStationState() == WIFI_STATION_STATE_CONNECTED && ctx->wifiState.getConnectionTarget() == ssid) {
+    const tt::std::string ssid = ctx->wifiSsids[index];
+    if (ctx->wifiState.getStationState() == WIFI_STATION_STATE_CONNECTED && ctx->wifiState.getConnectionTarget() == ssid.c_str()) {
         return;
     }
     connectToNetwork(ctx, ssid);
@@ -105,18 +107,18 @@ void renderWifi(Context* ctx) {
     lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
 
-    std::set<std::string> used_ssids;
+    ::std::set<::std::string> used_ssids;
     for (const auto& record : records) {
-        std::string ssid = record.ssid;
-        if (ssid.empty() || !used_ssids.insert(ssid).second) {
+        tt::std::string ssid = record.ssid;
+        if (ssid.empty() || !used_ssids.insert(ssid.c_str()).second) {
             continue;
         }
-        const bool isConnected = station == WIFI_STATION_STATE_CONNECTED && ssid == ctx->wifiState.getConnectionTarget();
-        const std::string text = isConnected ? ssid + " (connected)" : ssid;
+        const bool isConnected = station == WIFI_STATION_STATE_CONNECTED && ssid == ctx->wifiState.getConnectionTarget().c_str();
+        const tt::std::string text = isConnected ? ssid + " (connected)" : ssid;
         auto* button = lvgl_list_add_button(list, isConnected ? LV_SYMBOL_OK : LV_SYMBOL_WIFI, text.c_str());
         lv_obj_set_user_data(button, reinterpret_cast<void*>(ctx->wifiSsids.size()));
         lv_obj_add_event_cb(button, onWifiNetworkClicked, LV_EVENT_SHORT_CLICKED, ctx);
-        ctx->wifiSsids.push_back(std::move(ssid));
+        ctx->wifiSsids.push_back(::std::move(ssid));
     }
     lvgl_list_hide_last_divider(card);
 }
@@ -169,7 +171,11 @@ static void processWifiActions(Context* ctx) {
     lvgl_lock();
     const bool radioOn = ctx->radioOnRequested;
     ctx->radioOnRequested = false;
-    const std::string ssid = std::move(ctx->connectRequest);
+    // Drops a connect request when the user has left the Wi-Fi page since it was made
+    ::std::string ssid;
+    if (ctx->phase == Phase::WifiSetup) {
+        ssid = ::std::move(ctx->connectRequest);
+    }
     ctx->connectRequest.clear();
     lvgl_unlock();
 
@@ -191,11 +197,18 @@ static void processWifiActions(Context* ctx) {
     if (!ssid.empty()) {
         WifiApSettings ap;
         if (wifi_settings_load(ssid.c_str(), &ap) != ERROR_NONE) {
-            wificonnect::start(ssid, "", true);
+            wificonnect::start(ssid.c_str(), "", true);
         } else {
             const error_t result = wifi_station_connect(ctx->wifiDevice, ap.ssid, ap.password, ap.channel);
             if (result != ERROR_NONE) {
                 LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
+                // No connection result event follows a failure to start
+                lvgl_lock();
+                ctx->wifiConnectFailed = true;
+                if (ctx->phase == Phase::WifiSetup && ctx->wifiContainer != nullptr) {
+                    renderWifi(ctx);
+                }
+                lvgl_unlock();
             }
         }
     }

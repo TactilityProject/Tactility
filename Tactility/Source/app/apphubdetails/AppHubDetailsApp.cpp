@@ -144,7 +144,7 @@ void onUpdatePressed(lv_event_t* e) {
 void queueOperation(Context* ctx, error_t (*operation)(const char* id, uint32_t* operation_id), const char* failure) {
     const error_t error = operation(ctx->appId.c_str(), nullptr);
     if (error == ERROR_RESOURCE_BUSY) {
-        alertdialog::start(ctx->appInstanceId, "Busy", "All apps are being updated. Try again when it's done.");
+        alertdialog::start(ctx->appInstanceId, "Busy", "Another operation is pending. Try again when it's done.");
         return;
     } else if (error != ERROR_NONE) {
         alertdialog::start(ctx->appInstanceId, "Error", failure);

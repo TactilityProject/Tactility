@@ -1,10 +1,12 @@
 #include <Tactility/app/setup/Setup.h>
-#include <Tactility/app/setup/SetupPrivate.h>
 
 #include <Tactility/file/File.h>
 
 #include <tactility/log.h>
 #include <tactility/paths.h>
+
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/setup/SetupPrivate.h>
 
 namespace tt::app::setup {
 
@@ -13,17 +15,17 @@ constexpr auto* TAG = "setup";
 /** Increase when the setup changes, so users see it again */
 constexpr int SETUP_VERSION = 3;
 
-static bool getCompletedMarkerPath(std::string& outPath) {
+static bool getCompletedMarkerPath(::std::string& outPath) {
     char path[128];
     if (paths_get_data_path(path, sizeof(path)) != ERROR_NONE) {
         return false;
     }
-    outPath = std::string(path) + "/.setup_complete";
+    outPath = ::std::string(path) + "/.setup_complete";
     return true;
 }
 
 bool isCompleted() {
-    std::string path;
+    ::std::string path;
     if (!getCompletedMarkerPath(path)) {
         LOG_E(TAG, "Setup path not found");
         return false;
@@ -41,11 +43,11 @@ bool isCompleted() {
 }
 
 void markCompleted() {
-    std::string path;
+    ::std::string path;
     if (!getCompletedMarkerPath(path)) {
         return;
     }
-    file::writeString(path, std::to_string(SETUP_VERSION));
+    file::writeString(path, ::std::to_string(SETUP_VERSION));
 }
 
 }

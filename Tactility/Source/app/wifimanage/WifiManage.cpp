@@ -52,6 +52,7 @@ struct Context {
     RadioRequest radioRequest = RadioRequest::None;
     bool disconnectRequested = false;
     std::string connectRequest;
+    bool connectRequested = false;
 
     void lock() { mutex.lock(); }
     void unlock() { mutex.unlock(); }
@@ -62,6 +63,7 @@ static void onConnect(void* userData, const std::string& ssid) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->lock();
     ctx->connectRequest = ssid;
+    ctx->connectRequested = true;
     ctx->unlock();
     task_event_group_signal(ctx->eventGroup, ctx->actionBit);
 }
@@ -114,7 +116,9 @@ void processRequests(Context* ctx) {
     ctx->lock();
     const auto radio_request = ctx->radioRequest;
     const bool disconnect = ctx->disconnectRequested;
+    const bool connect_requested = ctx->connectRequested;
     const std::string ssid = std::move(ctx->connectRequest);
+    ctx->connectRequested = false;
     ctx->radioRequest = RadioRequest::None;
     ctx->disconnectRequested = false;
     ctx->connectRequest.clear();
@@ -145,7 +149,7 @@ void processRequests(Context* ctx) {
         }
     }
 
-    if (!ssid.empty()) {
+    if (connect_requested) {
         WifiApSettings ap;
         if (wifi_settings_load(ssid.c_str(), &ap) != ERROR_NONE) {
             LOG_I(TAG, "Starting connection dialog");

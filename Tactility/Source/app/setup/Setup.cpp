@@ -1,5 +1,4 @@
 #include <Tactility/app/setup/Setup.h>
-#include <Tactility/app/setup/SetupPrivate.h>
 
 #include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/settings/Time.h>
@@ -18,6 +17,7 @@
 
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/log.h>
 #include <tactility/memory.h>
 
 #include <lvgl/devices/indev.h>
@@ -27,6 +27,11 @@
 #include <lvgl/widgets/step_indicator.h>
 #include <lvgl/widgets/text_button.h>
 #include <lvgl.h>
+
+#include <string_view>
+
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/setup/SetupPrivate.h>
 
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
@@ -40,11 +45,14 @@ namespace tt::app::setup {
 
 extern const ::AppManifest manifest;
 
+constexpr auto* TAG = "setup";
+
 namespace {
 
-std::string getMeshBackendLabel(const std::string& id) {
-    if (id == "meshcore") return "MeshCore";
-    if (id == "meshtastic") return "Meshtastic";
+const char* getMeshBackendLabel(const char* id) {
+    const ::std::string_view name = id;
+    if (name == "meshcore") return "MeshCore";
+    if (name == "meshtastic") return "Meshtastic";
     return id;
 }
 
@@ -62,6 +70,24 @@ bool isMeshSupported() {
         }
     }
     return false;
+}
+
+/** Runs @a action on the app's task, for work that blocks or does file operations */
+void runOnAppTask(Context* ctx, ::std::function<void()> action) {
+    lvgl_lock();
+    ctx->taskActions.push_back(::std::move(action));
+    lvgl_unlock();
+    task_event_group_signal(ctx->eventGroup, ctx->taskActionBit);
+}
+
+void processTaskActions(Context* ctx) {
+    lvgl_lock();
+    auto actions = ::std::move(ctx->taskActions);
+    ctx->taskActions.clear();
+    lvgl_unlock();
+    for (auto& action : actions) {
+        action();
+    }
 }
 
 void advanceTo(Context* ctx, size_t index) {
@@ -291,6 +317,8 @@ int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     Context ctx {};
     ctx.appInstanceId = appInstanceId;
+    // Whether the location step enabled location services, which is not the case when it was skipped
+    bool locationEnabled = false;
     ctx.steps = {
 #if defined(CONFIG_TT_TOUCH_CALIBRATION_REQUIRED)
         {
@@ -307,14 +335,14 @@ int32_t appMain(int argc, char* argv[]) {
         }
     };
 
-    const size_t locationStepIndex = ctx.steps.size();
     ctx.steps.push_back({
         .title = "Location Services",
         .description = "Allow apps to retrieve your location. It uses GPS and/or contacts geoiplookup.io",
-        .run = [&ctx] {
+        .run = [&ctx, &locationEnabled] {
             // The order of the choices: precise, approximate, disabled
             const int32_t choice = ctx.steps[ctx.stepIndex].choice;
-            if (choice == 0 || choice == 1) {
+            locationEnabled = choice == 0 || choice == 1;
+            if (locationEnabled) {
                 location_set_precision(choice == 0 ? LOCATION_PRECISION_PRECISE : LOCATION_PRECISION_APPROXIMATE);
                 location_set_enabled(true);
             } else {
@@ -337,7 +365,7 @@ int32_t appMain(int argc, char* argv[]) {
         },
         .content = StepConfiguration::Content::TimeZones
     });
-    ctx.timeZoneView = std::make_unique<timezone::TimeZoneView>([&ctx](const std::string& name, const std::string& code) {
+    ctx.timeZoneView = ::std::make_unique<timezone::TimeZoneView>([&ctx](const ::std::string& name, const ::std::string& code) {
         ctx.timeZoneName = name;
         ctx.timeZoneCode = code;
         if (ctx.continueButton != nullptr) {
@@ -357,17 +385,16 @@ int32_t appMain(int argc, char* argv[]) {
             .content = StepConfiguration::Content::Choice,
             .choices = { "Enabled", "Disabled" },
             // Enabled unless location services are, as the time needs them
-            .defaultChoice = [&ctx, locationStepIndex] {
-                const int32_t locationChoice = ctx.steps[locationStepIndex].choice;
-                return (locationChoice == 0 || locationChoice == 1) ? 0 : 1;
+            .defaultChoice = [&locationEnabled] {
+                return locationEnabled ? 0 : 1;
             }
         });
     }
 
     if (isMeshSupported()) {
         // The first choice is "Disabled", followed by the backends
-        auto backendIds = std::make_shared<std::vector<std::string>>();
-        std::vector<std::string> labels = { "Disabled" };
+        auto backendIds = ::std::make_shared<tt::std::vector<tt::std::string>>();
+        tt::std::vector<tt::std::string> labels = { "Disabled" };
         for (size_t i = 0; i < mesh_get_backend_count(); i++) {
             char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
             if (mesh_get_backend_id(i, id, sizeof(id)) == ERROR_NONE) {
@@ -375,22 +402,35 @@ int32_t appMain(int argc, char* argv[]) {
                 labels.push_back(getMeshBackendLabel(id));
             }
         }
+        // Keeps the current setting, so accepting the default doesn't disable Mesh for a user who enabled it
+        int32_t currentChoice = 0;
+        char currentBackend[MESH_BACKEND_ID_MAX_LENGTH + 1];
+        if (mesh_is_enabled() && mesh_get_backend(currentBackend, sizeof(currentBackend)) == ERROR_NONE) {
+            for (size_t i = 0; i < backendIds->size(); i++) {
+                if ((*backendIds)[i] == currentBackend) {
+                    currentChoice = static_cast<int32_t>(i) + 1;
+                    break;
+                }
+            }
+        }
         ctx.steps.push_back({
             .title = "Mesh",
             .description = "Enable Mesh?",
             .run = [&ctx, backendIds] {
                 const int32_t choice = ctx.steps[ctx.stepIndex].choice;
-                if (choice > 0 && choice <= static_cast<int32_t>(backendIds->size())) {
-                    mesh_set_backend((*backendIds)[choice - 1].c_str());
-                    mesh_set_enabled(true);
-                } else {
-                    mesh_set_enabled(false);
-                }
+                runOnAppTask(&ctx, [backendIds, choice] {
+                    if (choice > 0 && choice <= static_cast<int32_t>(backendIds->size())) {
+                        mesh_set_backend((*backendIds)[choice - 1].c_str());
+                        mesh_set_enabled(true);
+                    } else {
+                        mesh_set_enabled(false);
+                    }
+                });
                 advanceTo(&ctx, ctx.stepIndex + 1);
             },
             .content = StepConfiguration::Content::Choice,
-            .choices = std::move(labels),
-            .choice = 0
+            .choices = ::std::move(labels),
+            .choice = currentChoice
         });
     }
 
@@ -400,6 +440,10 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
+    ctx.eventGroup = &event_group;
+    if (task_event_group_claim_bit(&event_group, &ctx.taskActionBit) != ERROR_NONE) {
+        LOG_W(TAG, "Failed to claim a task action bit");
+    }
     wifiStart(&ctx, &event_group);
 
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
@@ -432,6 +476,7 @@ int32_t appMain(int argc, char* argv[]) {
         }
 
         wifiProcess(&ctx);
+        processTaskActions(&ctx);
     }
 
     wifiStop(&ctx);

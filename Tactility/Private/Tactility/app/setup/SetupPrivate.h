@@ -15,6 +15,9 @@
 #include <string>
 #include <vector>
 
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
+
 namespace tt::app::setup {
 
 enum class Phase {
@@ -28,13 +31,13 @@ enum class Phase {
 };
 
 struct StepConfiguration {
-    std::string title;
-    std::string description;
-    std::function<void()> run;
+    tt::std::string title {};
+    tt::std::string description {};
+    ::std::function<void()> run = nullptr;
     /** Optional: shows the page that the step ends on, when coming back from the next step. Called on the LVGL thread. */
-    std::function<void()> showLast = nullptr;
+    ::std::function<void()> showLast = nullptr;
     /** Optional: handles the result of the dialog that run() started */
-    std::function<void(int32_t)> onResult = nullptr;
+    ::std::function<void(int32_t)> onResult = nullptr;
     /** What the page shows below its title */
     enum class Content {
         Description,
@@ -46,13 +49,13 @@ struct StepConfiguration {
         Wifi
     } content = Content::Description;
     /** Optional: the title of a separate page with the choices, shown after the intro page that holds the description */
-    std::string choiceTitle;
+    tt::std::string choiceTitle {};
     /** The labels of the chips of a Content::Choice page */
-    std::vector<std::string> choices;
+    tt::std::vector<tt::std::string> choices {};
     /** The index in choices that is picked, -1 when none. Guarded by the LVGL lock. */
     int32_t choice = -1;
     /** Optional: the choice to pick when the page is shown and none was picked yet. Called with the LVGL lock held. */
-    std::function<int32_t()> defaultChoice = nullptr;
+    ::std::function<int32_t()> defaultChoice = nullptr;
 };
 
 struct Context {
@@ -60,7 +63,7 @@ struct Context {
 
     Phase phase = Phase::Welcome;
     size_t stepIndex = 0;
-    std::vector<StepConfiguration> steps;
+    tt::std::vector<StepConfiguration> steps;
     uint32_t pendingStepDialogId = 0;
 
     // Valid while the window is shown
@@ -83,20 +86,23 @@ struct Context {
     WifiEventSubscription wifiEventSub {};
     wifimanage::State wifiState;
     /** The network that was picked last */
-    std::string wifiTarget;
+    tt::std::string wifiTarget;
     bool wifiConnectFailed = false;
     /** The SSIDs of the list items */
-    std::vector<std::string> wifiSsids;
+    tt::std::vector<tt::std::string> wifiSsids;
     // Wi-Fi work for the app's task, as it blocks. Guarded by the LVGL lock.
     TaskEventGroup* eventGroup = nullptr;
+    /** Actions that block, which the app's task runs. Guarded by the LVGL lock. */
+    uint32_t taskActionBit = 0;
+    tt::std::vector<::std::function<void()>> taskActions;
     uint32_t wifiActionBit = 0;
     bool radioOnRequested = false;
-    std::string connectRequest;
+    tt::std::string connectRequest;
 
-    std::unique_ptr<timezone::TimeZoneView> timeZoneView;
+    ::std::unique_ptr<timezone::TimeZoneView> timeZoneView;
     // The time zone picked on the time zone page, guarded by the LVGL lock
-    std::string timeZoneName;
-    std::string timeZoneCode;
+    ::std::string timeZoneName;
+    ::std::string timeZoneCode;
 };
 
 // SetupCompletion.cpp
