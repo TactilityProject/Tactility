@@ -8,10 +8,9 @@ import json
 import shutil
 import zipfile
 
-from new_project import create_new_project_zip
-
 VERBOSE = False
 TOOLS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "TactilitySDK", "Tools")
+NEW_PROJECT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "TactilitySDK", "NewProject")
 
 @dataclass
 class SdkIndex:
@@ -20,7 +19,6 @@ class SdkIndex:
     gitCommit: str
     platforms: dict
     tools: dict
-    newProject: dict
     simulators: dict
 
 shell_color_red = "\033[91m"
@@ -49,7 +47,7 @@ def get_git_commit_hash():
     return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
 
 def create_tools_bundle(out_path: str):
-    """Bundles the tools that tt.py runs for this SDK version"""
+    """Bundles the tools that tt.py runs for this SDK version, with the project templates of "tt app create" in NewProject/"""
     if VERBOSE:
         print(f"Archiving {TOOLS_PATH} to {out_path}/tools.zip")
     archive_path = os.path.join(out_path, "tools.zip")
@@ -57,6 +55,11 @@ def create_tools_bundle(out_path: str):
         for file_name in sorted(os.listdir(TOOLS_PATH)):
             if file_name.endswith(".py"):
                 archive.write(os.path.join(TOOLS_PATH, file_name), file_name)
+        for directory, directory_names, file_names in os.walk(NEW_PROJECT_PATH):
+            directory_names.sort()
+            for file_name in sorted(file_names):
+                file_path = os.path.join(directory, file_name)
+                archive.write(file_path, os.path.join("NewProject", os.path.relpath(file_path, NEW_PROJECT_PATH)))
     with open(archive_path, "rb") as archive:
         sha256 = hashlib.sha256(archive.read()).hexdigest()
     return {"file": "tools.zip", "sha256": sha256}
@@ -84,7 +87,6 @@ def main(in_path: str, out_path: str, version: str):
         gitCommit=get_git_commit_hash(),
         platforms={},
         tools=create_tools_bundle(out_path),
-        newProject=create_new_project_zip(out_path),
         simulators={}
     )
     for artifact_directory in artifact_directories:

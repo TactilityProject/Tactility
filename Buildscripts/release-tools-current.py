@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Exports the tools that tt runs to release/sdk/<version>/tools/ and the new project to release/sdk/<version>/new-project.zip, for tt with TACTILITY_SDK_PATH=release."""
+"""Exports the tools that tt runs, with the new project templates in NewProject/, to release/sdk/<version>/tools/, for tt with TACTILITY_SDK_PATH=release."""
 
 import os
 import shutil
 import sys
 
 ROOT_PATH = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-sys.path.insert(0, os.path.join(ROOT_PATH, "Buildscripts", "CDN"))
-
-from new_project import create_new_project_zip
 TOOLS_PATH = os.path.join(ROOT_PATH, "Buildscripts", "TactilitySDK", "Tools")
+NEW_PROJECT_PATH = os.path.join(ROOT_PATH, "Buildscripts", "TactilitySDK", "NewProject")
 
 
 if __name__ == "__main__":
@@ -21,6 +19,5 @@ if __name__ == "__main__":
     for file_name in sorted(os.listdir(TOOLS_PATH)):
         if file_name.endswith(".py"):
             shutil.copy2(os.path.join(TOOLS_PATH, file_name), os.path.join(output_path, file_name))
-    # Next to the tools, where tt looks for the new project of a local SDK
-    create_new_project_zip(os.path.dirname(output_path))
+    shutil.copytree(NEW_PROJECT_PATH, os.path.join(output_path, "NewProject"))
     print(f"Exported the tools to {output_path}")

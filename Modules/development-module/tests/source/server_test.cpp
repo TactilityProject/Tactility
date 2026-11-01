@@ -411,6 +411,17 @@ constexpr auto* REJECTED = R"({"status":"rejected"})";
 
 } // namespace
 
+TEST_CASE("an info hello is answered without a prompt") {
+    ensureFixture();
+    promptCount = 0;
+
+    TestClient client(&identity(0));
+    const std::string line = connectAndGreet(client, "info");
+    CHECK_NE(line.find(R"("status":"accepted")"), std::string::npos);
+    CHECK_NE(line.find(std::string(R"("id":")") + CONFIG_TT_DEVICE_ID + "\""), std::string::npos);
+    CHECK_EQ(promptCount, 0);
+}
+
 TEST_CASE("a client that is accepted once gets a shell") {
     ensureFixture();
     promptResult = DEVELOPMENT_PROMPT_ACCEPT_ONCE;
