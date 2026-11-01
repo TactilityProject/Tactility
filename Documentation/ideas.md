@@ -9,11 +9,9 @@
 
 - Make tt.py work without an app project. Ping the device for info.
 - LVGL spinner not working on cl32 v04 (possibly anything monochrome)
-- Export platform-esp32 with TactilitySDK
 - Find out why the first build of an app with a clean build cache folder always fails
 - Improve posix support: use user home path and system /tmp folder.
 - Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
-- Improve SPI kernel driver (implement read, write, transactions)
 - External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
   Check during installation process, but also when starting (SD card might have old app install from before Tactility OS update)
 - minitar/untarFile(): "entry->metadata.path" can escape its confined path (e.g. "../something")

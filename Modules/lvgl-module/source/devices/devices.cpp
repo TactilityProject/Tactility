@@ -49,10 +49,15 @@ struct LvglDeviceList {
  */
 constexpr uint32_t IDLE_REPAINT_MS = 5000;
 
+constexpr uint32_t ACTIVITY_MARGIN_MS = 20;
+constexpr uint32_t MAX_ACTIVITY_READ_SKEW_MS = 5;
+
 struct IdleRepaintContext {
     lv_display_t* lvgl_display;
     struct Device* kernel_display_device;
     lv_timer_t* timer;
+    // Tick of the last input that the flags below already account for
+    uint32_t handled_activity_at;
     // Set once the invalidate+lv_refr_now() repaint has run for the current idle stretch, so it
     // isn't redone every tick while still idle.
     bool repaint_done_since_activity;
@@ -161,11 +166,33 @@ static void lvgl_device_listener(struct Device* device, enum DeviceEvent event, 
     lvgl_unlock();
 }
 
+// Reads the tick of the last input, which the display only exposes as time since then.
+// Fails when the task was preempted during the read, which would skew the result beyond ACTIVITY_MARGIN_MS.
+static bool read_activity(lv_display_t* display, uint32_t* inactive_ms, uint32_t* activity_at) {
+    const uint32_t start = lv_tick_get();
+    *inactive_ms = lv_display_get_inactive_time(display);
+    if (lv_tick_get() - start > MAX_ACTIVITY_READ_SKEW_MS) {
+        return false;
+    }
+    *activity_at = start - *inactive_ms;
+    return true;
+}
+
 static void idle_repaint_timer_cb(lv_timer_t* timer) {
     auto* ctx = static_cast<IdleRepaintContext*>(lv_timer_get_user_data(timer));
-    if (lv_display_get_inactive_time(ctx->lvgl_display) < IDLE_REPAINT_MS) {
+    uint32_t inactive_ms;
+    uint32_t activity_at;
+    if (!read_activity(ctx->lvgl_display, &inactive_ms, &activity_at)) {
+        return;
+    }
+    // Any difference beyond the margin is new input, also when the tick counter wrapped in between
+    const uint32_t activity_delta = activity_at - ctx->handled_activity_at;
+    if (activity_delta > ACTIVITY_MARGIN_MS && activity_delta < 0U - ACTIVITY_MARGIN_MS) {
+        ctx->handled_activity_at = activity_at;
         ctx->repaint_done_since_activity = false;
         ctx->refresh_done_since_activity = false;
+    }
+    if (inactive_ms < IDLE_REPAINT_MS) {
         return;
     }
     if (!ctx->repaint_done_since_activity) {
@@ -237,13 +264,21 @@ void lvgl_devices_attach() {
             // boot and whenever an app that stopped LVGL closes, so clearing here covers both
             // cases without extra plumbing at app-close time specifically.
             if (display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_SLOW_REFRESH)) {
-                display_clear(kernel_display_device);
+                // The first attach follows the boot logo, which the first LVGL render overdraws completely
+                static bool first_attach = true;
+                if (!first_attach) {
+                    display_clear(kernel_display_device);
+                }
+                first_attach = false;
                 IdleRepaintContext* ctx = &idle_repaint_contexts()[i];
                 if (ctx->timer == nullptr) {
                     ctx->lvgl_display = added_display;
                     ctx->kernel_display_device = kernel_display_device;
-                    ctx->repaint_done_since_activity = false;
-                    ctx->refresh_done_since_activity = false;
+                    // The panel was just cleared or fully drawn, so the first idle stretch needs no repaint
+                    uint32_t inactive_ms;
+                    while (!read_activity(added_display, &inactive_ms, &ctx->handled_activity_at)) {}
+                    ctx->repaint_done_since_activity = true;
+                    ctx->refresh_done_since_activity = true;
                     ctx->timer = lv_timer_create(idle_repaint_timer_cb, 1000, ctx);
                 }
             }
