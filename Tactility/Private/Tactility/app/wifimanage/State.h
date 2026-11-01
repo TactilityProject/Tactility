@@ -53,7 +53,8 @@ public:
     void setConnectionTarget(const std::string& ssid);
     std::string getConnectionTarget() const;
 
-    void updateApRecords(Device* device);
+    /** @param[in] keepIfEmpty keeps the current records when the scan found nothing, e.g. because it was aborted by a connection */
+    void updateApRecords(Device* device, bool keepIfEmpty = false);
 
     template <std::invocable<const std::vector<WifiApRecord>&> Func>
     void withApRecords(Func&& onApRecords) const {

@@ -226,7 +226,7 @@ static void onWifiEvent(Context* ctx, WifiEvent event) {
             break;
         case WIFI_EVENT_TYPE_SCAN_FINISHED:
             ctx->wifiState.setScanning(false);
-            ctx->wifiState.updateApRecords(ctx->wifiDevice);
+            ctx->wifiState.updateApRecords(ctx->wifiDevice, true);
             break;
         case WIFI_EVENT_TYPE_STATION_CONNECTION_RESULT:
             ctx->wifiConnectFailed = event.connection_error != WIFI_STATION_CONNECTION_ERROR_NONE;
