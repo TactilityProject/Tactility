@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #define LV_USE_PRIVATE_API 1 // For actual lv_obj_t declaration
 
+#include <lvgl/theme.h>
 #include <lvgl/ui_assets.h>
 #include <lvgl/widgets/spinner.h>
 
@@ -26,6 +27,12 @@ lv_obj_t* lvgl_spinner_create(lv_obj_t* parent) {
     lv_obj_class_init_obj(obj);
 
     lv_image_set_src(obj, lvgl_get_spinner_image());
+
+    // The spinner image isn't visible on every monochrome background, so it takes the color of the text next to it
+    if (lvgl_theme_is_mono()) {
+        lv_obj_set_style_image_recolor(obj, lv_obj_get_style_text_color(parent, LV_PART_MAIN), LV_STATE_DEFAULT);
+        lv_obj_set_style_image_recolor_opa(obj, LV_OPA_COVER, LV_STATE_DEFAULT);
+    }
 
     return obj;
 }

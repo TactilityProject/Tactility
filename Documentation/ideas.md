@@ -7,7 +7,6 @@
 
 ## Higher Priority
 
-- Make tt.py work without an app project. Ping the device for info.
 - LVGL spinner not working on cl32 v04 (possibly anything monochrome)
 - Find out why the first build of an app with a clean build cache folder always fails
 - Improve posix support: use user home path and system /tmp folder.

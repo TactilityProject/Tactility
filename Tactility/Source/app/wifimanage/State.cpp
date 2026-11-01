@@ -106,13 +106,16 @@ bool State::isScanning() const {
     return result;
 }
 
-void State::updateApRecords(Device* device) {
+void State::updateApRecords(Device* device, bool keepIfEmpty) {
     std::vector<WifiApRecord> records(SCAN_RECORD_LIMIT);
     size_t count = records.size();
     if (device == nullptr || wifi_get_scan_results(device, records.data(), &count) != ERROR_NONE) {
         count = 0;
     }
     records.resize(count);
+    if (keepIfEmpty && count == 0) {
+        return;
+    }
 
     mutex.lock();
     apRecords = std::move(records);

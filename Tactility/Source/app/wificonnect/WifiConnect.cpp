@@ -1,6 +1,7 @@
 #include <Tactility/app/wificonnect/WifiConnect.h>
 
 #include <Tactility/Tactility.h>
+#include <Tactility/lvgl/SystemBars.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -12,6 +13,7 @@
 
 #include <wifi/wifi_settings.h>
 
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
@@ -29,6 +31,7 @@
 namespace tt::app::wificonnect {
 
 constexpr auto* TAG = "WifiConnect";
+constexpr auto* HIDE_STATUSBAR_ARGUMENT = "--hide-statusbar";
 
 extern const ::AppManifest manifest;
 
@@ -39,6 +42,7 @@ struct Context {
 
     std::string initialSsid;
     std::string initialPassword;
+    bool hideStatusbar = false;
 
     bool connecting = false;
     bool connectionError = false;
@@ -221,12 +225,18 @@ void createBottomButtons(Context* ctx, lv_obj_t* parent) {
     auto* connect_label = lv_label_create(ctx->connect_button);
     lv_label_set_text(connect_label, "Connect");
     lv_obj_add_event_cb(ctx->connect_button, onConnectPressed, LV_EVENT_SHORT_CLICKED, ctx);
+
+    // The arrow keys move between the checkbox and the button as one row
+    lvgl_grid_navigation_add(button_container);
 }
 
 // Runs with the LVGL lock already held, possibly on another app's thread - see
 // WindowDestroyWidgetsFn's warnings. Must stay lock-free: only nulls pointers.
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    if (ctx->hideStatusbar) {
+        lvgl::systemBarsSetStatusbarVisible(true);
+    }
     ctx->ssid_textarea = nullptr;
     ctx->ssid_error = nullptr;
     ctx->password_textarea = nullptr;
@@ -271,6 +281,9 @@ lv_obj_t* createErrorLabel(lv_obj_t* parent) {
 // TODO: Standardize dialogs
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    if (ctx->hideStatusbar) {
+        lvgl::systemBarsSetStatusbarVisible(false);
+    }
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
@@ -330,8 +343,17 @@ int32_t appMain(int argc, char* argv[]) {
 
     Context ctx {};
     ctx.appInstanceId = appInstanceId;
-    ctx.initialSsid = (argc > 0) ? argv[0] : std::string();
-    ctx.initialPassword = (argc > 1) ? argv[1] : std::string();
+    // Positional arguments are the SSID and the password
+    int positional = 0;
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], HIDE_STATUSBAR_ARGUMENT) == 0) {
+            ctx.hideStatusbar = true;
+        } else if (positional++ == 0) {
+            ctx.initialSsid = argv[i];
+        } else {
+            ctx.initialPassword = argv[i];
+        }
+    }
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
@@ -402,11 +424,11 @@ int32_t appMain(int argc, char* argv[]) {
 
 } // namespace
 
-void start(const std::string& ssid, const std::string& password) {
-    const char* argv[] = { ssid.c_str(), password.c_str() };
+void start(const std::string& ssid, const std::string& password, bool hideStatusbar) {
+    const char* argv[] = { ssid.c_str(), password.c_str(), HIDE_STATUSBAR_ARGUMENT };
     uint32_t instanceId = 0;
     AppStartContext context = app_start_context_for_manifest(&manifest);
-    app_start_context_set_arguments_ext(&context, 2, argv);
+    app_start_context_set_arguments_ext(&context, hideStatusbar ? 3 : 2, argv);
     app_start_with_context(&context, &instanceId);
 }
 
