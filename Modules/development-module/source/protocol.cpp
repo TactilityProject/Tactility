@@ -64,7 +64,7 @@ DevelopmentHelloError development_protocol_parse_hello(const char* json, size_t 
         *out_message = "unsupported protocol version";
         return DevelopmentHelloError::UnsupportedProtocol;
     }
-    if (strcmp(hello.mode, "shell") != 0 && strcmp(hello.mode, "sync") != 0 && strcmp(hello.mode, "app") != 0) {
+    if (strcmp(hello.mode, "shell") != 0 && strcmp(hello.mode, "sync") != 0 && strcmp(hello.mode, "app") != 0 && strcmp(hello.mode, "info") != 0) {
         *out_message = "unsupported mode";
         return DevelopmentHelloError::UnsupportedMode;
     }
@@ -89,6 +89,30 @@ size_t development_protocol_format_status(const char* status, const char* messag
     }
     // The newline is appended below, so one byte is held back for it
     const bool printed = out_size >= 2 && cJSON_PrintPreallocated(root, out_line, static_cast<int>(out_size - 1), false);
+    cJSON_Delete(root);
+    if (!printed) {
+        return 0;
+    }
+    const size_t length = strlen(out_line);
+    out_line[length] = '\n';
+    out_line[length + 1] = '\0';
+    return length + 1;
+}
+
+size_t development_protocol_format_info(const char* vendor, const char* name, const char* id, const char* version, char* out_line, size_t out_size) {
+    cJSON* root = cJSON_CreateObject();
+    if (root == nullptr) {
+        return 0;
+    }
+    cJSON_AddStringToObject(root, "status", "accepted");
+    cJSON* info = cJSON_AddObjectToObject(root, "info");
+    if (info != nullptr) {
+        cJSON_AddStringToObject(info, "vendor", vendor);
+        cJSON_AddStringToObject(info, "name", name);
+        cJSON_AddStringToObject(info, "id", id);
+        cJSON_AddStringToObject(info, "version", version);
+    }
+    const bool printed = info != nullptr && out_size >= 2 && cJSON_PrintPreallocated(root, out_line, static_cast<int>(out_size - 1), false);
     cJSON_Delete(root);
     if (!printed) {
         return 0;

@@ -34,6 +34,20 @@ TEST_CASE("development_protocol_parse_hello accepts sync and app hellos") {
     CHECK_EQ(std::string(hello.mode), "app");
 }
 
+TEST_CASE("development_protocol_parse_hello accepts an info hello") {
+    DevelopmentHello hello {};
+    REQUIRE_EQ(parse(R"({"protocol":1,"mode":"info","client":"c"})", hello), DevelopmentHelloError::None);
+    CHECK_EQ(std::string(hello.mode), "info");
+    CHECK_EQ(parse(R"({"protocol":1,"mode":"info","client":"c","command":"echo hi"})", hello), DevelopmentHelloError::Malformed);
+}
+
+TEST_CASE("development_protocol_format_info writes the device information") {
+    char line[256];
+    const size_t length = development_protocol_format_info("LilyGO", "T-Deck", "lilygo-tdeck", "0.8.0", line, sizeof(line));
+    CHECK_EQ(std::string(line, length), "{\"status\":\"accepted\",\"info\":{\"vendor\":\"LilyGO\",\"name\":\"T-Deck\",\"id\":\"lilygo-tdeck\",\"version\":\"0.8.0\"}}\n");
+    CHECK_EQ(development_protocol_format_info("a", "b", "c", "d", line, 10), 0);
+}
+
 TEST_CASE("development_protocol_parse_hello accepts a command in shell mode only") {
     DevelopmentHello hello {};
     REQUIRE_EQ(parse(R"({"protocol":1,"mode":"shell","client":"c","command":"echo hi"})", hello), DevelopmentHelloError::None);

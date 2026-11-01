@@ -31,6 +31,10 @@ The C API is in `<development/server.h>`.
    - `0x21` uninstall `[package id]`: answered with `0x15` ok, also when the package isn't installed, or `0x16` fail `[message]`
    - `0x22` run `[app id]`: starts the app, or restarts it when it's in the foreground. Answered with `0x15` ok, or `0x16` fail `[message]`
 
+7. In `info` mode, no client certificate is needed and the client isn't prompted for. The server answers with one JSON line and closes the connection:
+   `{"status":"accepted","info":{"vendor":"LilyGO","name":"T-Deck","id":"lilygo-tdeck","version":"0.8.0"}}`
+   The vendor is empty for devices without one.
+
 `Buildscripts/TactilitySDK/Tools/shell.py` is a client for this server. App developers run it as `tt shell`, and copy files with `tt push` and `tt pull`.
 
 License: [Apache v2.0](LICENSE-Apache-2.0.md)

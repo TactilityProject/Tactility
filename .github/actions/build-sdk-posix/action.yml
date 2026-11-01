@@ -42,7 +42,7 @@ runs:
         cp -r release/TactilitySDK $TACTILITY_PLATFORM_PATH/TactilitySDK
         mkdir -p test_sdk/sdk/$(cat version.txt)/tools
         cp Buildscripts/TactilitySDK/Tools/*.py test_sdk/sdk/$(cat version.txt)/tools/
-        python3 -c "import sys; sys.path.insert(0, 'Buildscripts/CDN'); from new_project import create_new_project_zip; create_new_project_zip('test_sdk/sdk/$(cat version.txt)')"
+        cp -r Buildscripts/TactilitySDK/NewProject test_sdk/sdk/$(cat version.txt)/tools/NewProject
     - name: 'Test Integration'
       shell: bash
       env:
@@ -54,12 +54,12 @@ runs:
         TACTILITY_ARCH: ${{ steps.arch.outputs.value }}
       run: |
         SDK_VERSION=$(cat version.txt)
-        # The answers are: generate, SDK version, project type, package id, app id and app name. An empty line takes the default.
+        # The answers are: SDK version, project type, package id, app id and app name. An empty line takes the default.
         # A module has no app id or app name, so the extra lines are ignored.
         for type in "" "terminal" "module"; do
           project_path="$RUNNER_TEMP/new-project-${type:-gui}"
           mkdir -p "$project_path"
-          (cd "$project_path" && printf 'y\n%s\n%s\n\n\n\n' "$SDK_VERSION" "$type" | TACTILITY_SDK_PATH="$GITHUB_WORKSPACE/test_sdk" python3 "$GITHUB_WORKSPACE/tt.py" app build -a $TACTILITY_ARCH)
+          (cd "$project_path" && printf '%s\n%s\n\n\n\n' "$SDK_VERSION" "$type" | TACTILITY_SDK_PATH="$GITHUB_WORKSPACE/test_sdk" python3 "$GITHUB_WORKSPACE/tt.py" app create && TACTILITY_SDK_PATH="$GITHUB_WORKSPACE/test_sdk" python3 "$GITHUB_WORKSPACE/tt.py" app build -a $TACTILITY_ARCH)
           # The project must have produced a binary for the manifest's entry
           test -f "$project_path/build/package-intermediate/bin/$TACTILITY_ARCH/main.so"
         done

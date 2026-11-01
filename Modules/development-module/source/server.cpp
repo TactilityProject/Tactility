@@ -280,6 +280,13 @@ void handleConnection(ServerData* data, int socket, const sockaddr_in& address) 
         return;
     }
 
+    // The device information isn't sensitive, so it's handed out without a client certificate or trust
+    if (strcmp(session->hello.mode, "info") == 0) {
+        development_session_send_info(session, CONFIG_TT_DEVICE_VENDOR, CONFIG_TT_DEVICE_NAME_SIMPLE, CONFIG_TT_DEVICE_ID, TT_VERSION);
+        development_session_free(session);
+        return;
+    }
+
     if (session->fingerprint[0] == '\0') {
         LOG_W(TAG, "Client %s has no certificate", session->peer_address);
         development_session_send_status(session, "error", "client certificate required");

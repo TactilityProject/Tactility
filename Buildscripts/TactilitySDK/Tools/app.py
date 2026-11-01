@@ -10,6 +10,9 @@ import tarfile
 
 import _device_host
 
+ID_PATTERN = re.compile(r"^[0-9A-Za-z.]{5,32}$")
+NAME_PATTERN = re.compile(r"^[0-9A-Za-z -]{2,32}$")
+PROJECT_VARIANTS = ("gui", "terminal", "module")
 ttbuild_version = "8.0.0"
 verbose = False
 # Compile the ESP-IDF and SDK components through ccache (see TactilitySDK.esp32.cmake)
@@ -33,6 +36,9 @@ def print_help():
     print(f"Usage: {command} [action] [options]")
     print("")
     print("Actions:")
+    print("")
+    print("  create                         Create a new app or module project in the current directory.")
+    print("    Asks for the project type, package id, app id and app name.")
     print("")
     print("  build                          Build the app. Optionally specify a platform.")
     print("    Supported platforms are lower case. Example: esp32s3")
@@ -72,6 +78,7 @@ def print_help():
     print("  --verbose                      Show extra console output")
     print("")
     print("Examples:")
+    print(f"  {command} create")
     print(f"  {command} build")
     print(f"  {command} build --path Apps/Snake --architecture esp32s3 --verbose")
     print(f"  {command} bir --path Apps/Snake --host 192.168.1.50 --architecture esp32s3")
@@ -791,6 +798,58 @@ def uninstall_action(manifest, arguments):
     device.uninstall(host, device.DEFAULT_PORT, app_id)
     print_status_success("Uninstalled")
 
+#region Create
+
+def ask(question, default, is_valid, description):
+    """Asks until the answer is valid. An empty answer or the end of the input gives the default."""
+    while True:
+        try:
+            answer = input(f"{question} [{default}]: ").strip()
+        except EOFError:
+            answer = ""
+        if not answer:
+            return default
+        if is_valid(answer):
+            return answer
+        print_error(description)
+
+def create_action():
+    if tt_sdk_version is None:
+        exit_with_error("TACTILITY_SDK_VERSION is not set: run this tool as 'tt app create'")
+    if os.path.exists("manifest.properties") or os.path.exists("main"):
+        exit_with_error("This folder already has a manifest.properties or main/")
+    templates_path = os.path.join(tool_directory, "NewProject")
+    if not os.path.isdir(templates_path):
+        exit_with_error(f"SDK {tt_sdk_version} has no new project templates")
+    variant = ask("Project type (gui, terminal or module)", "gui", lambda answer: answer in PROJECT_VARIANTS, "Use gui, terminal or module")
+    package_id = ask("Package id", "example.helloworld", ID_PATTERN.match, "Use 5 to 32 letters, digits and dots")
+    app_id = app_name = ""
+    if variant != "module":
+        app_id = ask("App id", "helloworld", ID_PATTERN.match, "Use 5 to 32 letters, digits and dots")
+        app_name = ask("App name", "Hello World", NAME_PATTERN.match, "Use 2 to 32 letters, digits, spaces and dashes")
+    placeholders = (("@SDK_VERSION@", tt_sdk_version), ("@PACKAGE_ID@", package_id), ("@APP_ID@", app_id), ("@APP_NAME@", app_name))
+    variant_path = os.path.join(templates_path, variant)
+    for directory, directory_names, file_names in os.walk(variant_path):
+        directory_names.sort()
+        for file_name in sorted(file_names):
+            source = os.path.join(directory, file_name)
+            relative_path = os.path.relpath(source, variant_path)
+            with open(source, "rb") as file:
+                content = file.read()
+            if relative_path == "manifest.properties":
+                text = content.decode("utf-8")
+                for placeholder, value in placeholders:
+                    text = text.replace(placeholder, value)
+                content = text.encode("utf-8")
+            os.makedirs(os.path.dirname(relative_path) or ".", exist_ok=True)
+            with open(relative_path, "wb") as file:
+                file.write(content)
+            print(f"Created {relative_path}")
+    if not os.path.isfile("manifest.properties"):
+        exit_with_error(f"SDK {tt_sdk_version} has no {variant} project template")
+
+#endregion Create
+
 #region Main
 
 if __name__ == "__main__":
@@ -817,6 +876,11 @@ if __name__ == "__main__":
 
     verbose = parsed_command.arguments.has("verbose")
     use_ccache = not parsed_command.arguments.has("no-ccache")
+
+    # Creating a project and installing an app file don't need an app project
+    if parsed_command.action == "create":
+        create_action()
+        sys.exit()
 
     # Installing an app file doesn't need an app project
     if parsed_command.arguments.has("app-file"):

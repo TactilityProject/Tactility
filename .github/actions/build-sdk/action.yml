@@ -40,7 +40,7 @@ runs:
         cp -r release/TactilitySDK $TACTILITY_PLATFORM_PATH/TactilitySDK
         mkdir -p test_sdk/sdk/$(cat version.txt)/tools
         cp Buildscripts/TactilitySDK/Tools/*.py test_sdk/sdk/$(cat version.txt)/tools/
-        python -c "import sys; sys.path.insert(0, 'Buildscripts/CDN'); from new_project import create_new_project_zip; create_new_project_zip('test_sdk/sdk/$(cat version.txt)')"
+        cp -r Buildscripts/TactilitySDK/NewProject test_sdk/sdk/$(cat version.txt)/tools/NewProject
     - name: 'Test Integration'
       uses: espressif/esp-idf-ci-action@v1
       with:

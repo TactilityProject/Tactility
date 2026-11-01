@@ -148,104 +148,160 @@ class TtTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("no manifest.properties found", result.stderr)
 
-    def publish_new_project(self, files=None, checksum=None):
+    def publish_new_project(self, files=None):
         files = files or {
             "gui/manifest.properties": "target.sdk=@SDK_VERSION@\nid=@PACKAGE_ID@\napp.0.id=@APP_ID@\napp.0.name=@APP_NAME@\n",
             "gui/main/Source/main.c": "// gui\n",
             "terminal/manifest.properties": "target.sdk=@SDK_VERSION@\nid=@PACKAGE_ID@\napp.0.id=@APP_ID@\napp.0.name=@APP_NAME@\napp.0.headless=true\n",
             "terminal/main/Source/main.c": "// terminal\n",
         }
-        version_directory = os.path.join(self.cdn, "sdk", VERSION)
-        archive = make_zip(files)
-        with open(os.path.join(version_directory, "new-project.zip"), "wb") as file:
-            file.write(archive)
-        index_path = os.path.join(version_directory, "index.json")
-        with open(index_path) as file:
-            index = json.load(file)
-        index["newProject"] = {"file": "new-project.zip", "sha256": checksum or hashlib.sha256(archive).hexdigest()}
-        with open(index_path, "w") as file:
-            json.dump(index, file)
+        tools = self.default_tools() | {"app.py": read_tool("app.py"), "_device_host.py": read_tool("_device_host.py")}
+        tools |= {f"NewProject/{name}": content for name, content in files.items()}
+        self.publish_sdk(tools)
 
     def read_work_file(self, *parts):
         with open(os.path.join(self.work, *parts)) as file:
             return file.read()
 
-    def test_new_project_uses_defaults_and_the_gui_variant(self):
+    def test_app_create_uses_defaults_and_the_gui_variant(self):
         self.publish_new_project()
-        result = self.run_tt("echo", input_text=f"y\n{VERSION}\n\n\n\n\n")
-        self.assertEqual(result.returncode, 3, result.stderr)
+        result = self.run_tt("app", "create", input_text=f"{VERSION}\n\n\n\n\n")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertEqual(self.read_work_file("manifest.properties"), f"target.sdk={VERSION}\nid=example.helloworld\napp.0.id=helloworld\napp.0.name=Hello World\n")
         self.assertEqual(self.read_work_file("main", "Source", "main.c"), "// gui\n")
-        self.assertEqual(json.loads(result.stdout)["version"], VERSION)
 
-    def test_new_project_with_answers_and_the_terminal_variant(self):
+    def test_app_create_with_answers_and_the_terminal_variant(self):
         self.publish_new_project()
-        result = self.run_tt("echo", input_text=f"yes\n{VERSION}\nterminal\nmy.package\nmyapp\nMy App\n")
-        self.assertEqual(result.returncode, 3, result.stderr)
+        result = self.run_tt("app", "create", input_text=f"{VERSION}\nterminal\nmy.package\nmyapp\nMy App\n")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertEqual(self.read_work_file("manifest.properties"), f"target.sdk={VERSION}\nid=my.package\napp.0.id=myapp\napp.0.name=My App\napp.0.headless=true\n")
         self.assertEqual(self.read_work_file("main", "Source", "main.c"), "// terminal\n")
 
-    def test_new_project_module_variant_skips_the_app_questions(self):
+    def test_app_create_module_variant_skips_the_app_questions(self):
         self.publish_new_project(files={
             "gui/manifest.properties": "gui\n",
             "module/manifest.properties": "target.sdk=@SDK_VERSION@\nid=@PACKAGE_ID@\nmodule.0.binary=main\n",
             "module/main/Source/main.c": "// module\n",
         })
-        result = self.run_tt("echo", input_text=f"y\n{VERSION}\nmodule\nmy.package\n")
-        self.assertEqual(result.returncode, 3, result.stderr)
+        result = self.run_tt("app", "create", input_text=f"{VERSION}\nmodule\nmy.package\n")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertEqual(self.read_work_file("manifest.properties"), f"target.sdk={VERSION}\nid=my.package\nmodule.0.binary=main\n")
         self.assertEqual(self.read_work_file("main", "Source", "main.c"), "// module\n")
-        self.assertNotIn("App id", result.stderr)
+        self.assertNotIn("App id", result.stdout)
 
-    def test_new_project_asks_again_for_invalid_answers(self):
+    def test_app_create_asks_again_for_invalid_answers(self):
         self.publish_new_project()
-        result = self.run_tt("echo", input_text=f"y\n..\n{VERSION}\nplugin\n\nab\nmy.package\n\nM\nMy App\n")
-        self.assertEqual(result.returncode, 3, result.stderr)
+        result = self.run_tt("app", "create", input_text=f"..\n{VERSION}\nplugin\n\nab\nmy.package\n\nM\nMy App\n")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertIn("invalid SDK version", result.stderr)
-        self.assertIn("use gui, terminal or module", result.stderr)
-        self.assertIn("use 5 to 32 letters, digits and dots", result.stderr)
-        self.assertIn("use 2 to 32 letters, digits, spaces and dashes", result.stderr)
+        self.assertIn("Use gui, terminal or module", result.stdout)
+        self.assertIn("Use 5 to 32 letters, digits and dots", result.stdout)
+        self.assertIn("Use 2 to 32 letters, digits, spaces and dashes", result.stdout)
         self.assertIn("id=my.package", self.read_work_file("manifest.properties"))
 
-    def test_new_project_rejects_a_wrong_checksum(self):
-        self.publish_new_project(checksum="0" * 64)
-        result = self.run_tt("echo", input_text=f"y\n{VERSION}\n\n\n\n\n")
+    def test_app_create_needs_the_sdk_to_have_templates(self):
+        self.publish_new_project(files={"other/manifest.properties": "x\n"})
+        result = self.run_tt("app", "create", input_text=f"{VERSION}\n\n\n\n\n")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("doesn't match its checksum", result.stderr)
-        self.assertFalse(os.path.exists(os.path.join(self.work, "manifest.properties")))
+        self.assertIn("has no gui project template", result.stdout)
 
-    def test_new_project_needs_the_sdk_to_have_one(self):
-        result = self.run_tt("echo", input_text=f"y\n{VERSION}\n\n\n\n\n")
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("has no new project", result.stderr)
-
-    def test_new_project_does_not_overwrite(self):
+    def test_app_create_does_not_overwrite(self):
         self.publish_new_project()
         os.makedirs(os.path.join(self.work, "main"))
-        result = self.run_tt("echo", input_text=f"y\n{VERSION}\n\n\n\n\n")
+        result = self.run_tt("app", "create", input_text=f"{VERSION}\n\n\n\n\n")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("already has", result.stderr)
+        self.assertIn("already has", result.stdout)
 
-    def test_new_project_from_the_local_sdk(self):
-        local = os.path.join(self.root, "local")
-        os.makedirs(os.path.join(local, "sdk", VERSION, "tools"))
-        with open(os.path.join(local, "sdk", VERSION, "tools", "echo.py"), "w") as file:
-            file.write(ECHO_TOOL)
-        shutil.copy(os.path.join(TOOLS_PATH, "_bootstrap.py"), os.path.join(local, "sdk", VERSION, "tools"))
-        with open(os.path.join(local, "sdk", VERSION, "new-project.zip"), "wb") as file:
-            file.write(make_zip({"gui/manifest.properties": "target.sdk=@SDK_VERSION@\n"}))
-        result = self.run_tt("echo", environment={"TACTILITY_SDK_PATH": local}, input_text=f"y\n{VERSION}\n\n\n\n\n")
-        self.assertEqual(result.returncode, 3, result.stderr)
-        self.assertEqual(self.read_work_file("manifest.properties"), f"target.sdk={VERSION}\n")
+    def test_host_is_built_in_and_needs_no_sdk(self):
+        shutil.rmtree(self.cdn)
+        result = self.run_tt("host")
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, "none"), result.stderr)
+        result = self.run_tt("host", "127.0.0.1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Device host: 127.0.0.1", result.stdout)
+        self.assertEqual(self.read_work_file(".tactility", "device_host").strip(), "127.0.0.1")
+        result = self.run_tt("host")
+        self.assertEqual(result.stdout.strip(), "127.0.0.1")
+        result = self.run_tt("host", "a", "b")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("usage: tt host", result.stderr)
+
+    def test_sdk_is_built_in_and_stores_the_version(self):
+        shutil.rmtree(self.cdn)
+        result = self.run_tt("sdk")
+        self.assertEqual((result.returncode, result.stdout.strip()), (0, "none"), result.stderr)
+        result = self.run_tt("sdk", "1.2.3")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.read_work_file(".tactility", "sdk_version").strip(), "1.2.3")
+        self.assertEqual(self.run_tt("sdk").stdout.strip(), f"1.2.3 (from local setting {os.path.join('.tactility', 'sdk_version')})")
+        self.write_manifest(self.work)
+        output = self.run_tt("sdk").stdout
+        self.assertIn(f"{VERSION} (from project manifest.properties)", output)
+        self.assertIn("1.2.3", output)
+        self.assertIn("not used", output)
+        os.remove(os.path.join(self.work, "manifest.properties"))
+        for arguments in (("sdk", "../x"), ("sdk", "1", "2")):
+            result = self.run_tt(*arguments)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("usage: tt sdk", result.stderr)
+
+    def test_sdk_shows_the_device_version_when_it_leads(self):
+        import contextlib
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("tt_module", TT_PATH)
+        tt = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tt)
+        tt.query_device_info = lambda host: {"vendor": "V", "name": "N", "id": "i", "version": "4.5.6"}
+        previous = os.getcwd()
+        os.chdir(self.work)
+        try:
+            tt.write_stored(tt.DEVICE_HOST_PATH, "10.0.0.2")
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                tt.sdk_command([])
+            self.assertEqual(output.getvalue().strip(), "4.5.6 (from device 10.0.0.2)")
+            tt.write_stored(tt.SDK_VERSION_PATH, "1.2.3")
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                tt.sdk_command([])
+            self.assertIn("1.2.3 (from local setting", output.getvalue())
+        finally:
+            os.chdir(previous)
+
+    def test_host_does_not_query_the_old_host(self):
+        shutil.rmtree(self.cdn)
+        self.run_tt("host", "192.0.2.1")
+        result = self.run_tt("host", "127.0.0.1")
+        self.assertNotIn("192.0.2.1", result.stderr)
 
     def test_without_a_project_the_sdk_version_can_be_given(self):
-        result = self.run_tt("echo", "a", input_text=f"n\n{VERSION}\n")
+        result = self.run_tt("echo", "a", input_text=f"{VERSION}\n")
         self.assertEqual(result.returncode, 3, result.stderr)
         self.assertEqual(json.loads(result.stdout)["version"], VERSION)
         self.assertFalse(os.path.exists(os.path.join(self.work, "manifest.properties")))
 
+    def test_chosen_sdk_version_is_stored_in_the_current_folder(self):
+        result = self.run_tt("echo", input_text=f"{VERSION}\n")
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertEqual(self.read_work_file(".tactility", "sdk_version").strip(), VERSION)
+        result = self.run_tt("echo")
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["version"], VERSION)
+        self.assertNotIn("SDK version to use", result.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.home, ".tactility", "sdk_version")))
+
+    def test_project_sdk_beats_the_stored_sdk_version(self):
+        os.makedirs(os.path.join(self.work, ".tactility"))
+        with open(os.path.join(self.work, ".tactility", "sdk_version"), "w") as file:
+            file.write("9.9.9\n")
+        self.write_manifest(self.work)
+        result = self.run_tt("echo")
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["version"], VERSION)
+        self.assertNotIn("9.9.9", result.stderr)
+
     def test_without_a_project_and_version_it_fails(self):
-        result = self.run_tt("echo", input_text="n\n\n")
+        result = self.run_tt("echo", input_text="\n")
         self.assertEqual(result.returncode, 1)
         self.assertIn("no manifest.properties found", result.stderr)
 

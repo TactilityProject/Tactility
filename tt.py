@@ -7,30 +7,34 @@ When TACTILITY_SDK_PATH is set, its SDK and tools are used instead of downloadin
 Both ~/.tactility and TACTILITY_SDK_PATH hold sdk/<version>/tools/ and sdk/<version>/platform-<platform>/TactilitySDK/.
 The tt (Linux, macOS) and tt.ps1 (Windows PowerShell) wrappers next to this script run it.
 The SDK version is read from ./manifest.properties, or else from the first Apps/*/manifest.properties or apps/*/manifest.properties.
+Without a manifest, the SDK version that was chosen before is used (.tactility/sdk_version in the current folder),
+else the version of the device that "tt host" stored, else it asks for one.
+"tt host" and "tt sdk" are built in, because they need no SDK: they show or store the device host (.tactility/device_host) and the SDK version (.tactility/sdk_version).
 """
 
 import hashlib
-import io
 import json
 import os
 import re
 import shutil
+import socket
+import ssl
 import subprocess
 import sys
 import time
 import urllib.request
 import zipfile
 
-TT_VERSION = "1.3.1"
+TT_VERSION = "1.4.0"
 CDN_URL = os.environ.get("TT_CDN", "https://cdn.tactilityproject.org")
 HOME_DIRECTORY = os.path.join(os.path.expanduser("~"), ".tactility")
 INDEX_VALIDITY_SECONDS = 3600
+DEVICE_PORT = 6667
+DEVICE_HOST_PATH = os.path.join(".tactility", "device_host")
+SDK_VERSION_PATH = os.path.join(".tactility", "sdk_version")
+DEVICE_TIMEOUT_SECONDS = 5
 COMMAND_PATTERN = re.compile(r"^[a-z0-9-]+$")
 VERSION_PATTERN = re.compile(r"^[0-9A-Za-z.+-]+$")
-ID_PATTERN = re.compile(r"^[0-9A-Za-z.]{5,32}$")
-NAME_PATTERN = re.compile(r"^[0-9A-Za-z -]{2,32}$")
-NEW_PROJECT_ARCHIVE = "new-project.zip"
-PROJECT_VARIANTS = ("gui", "terminal", "module")
 
 
 def fail(message):
@@ -88,16 +92,23 @@ def is_valid_version(version):
     return VERSION_PATTERN.match(version) is not None and ".." not in version
 
 
+def read_line():
+    """Reads from the input one byte at a time, so the command that tt starts still gets the rest of a piped input"""
+    line = bytearray()
+    while True:
+        byte = os.read(0, 1)
+        if not byte or byte == b"\n":
+            return line.decode("utf-8", errors="replace").strip()
+        line += byte
+
+
 def ask(question, default=None, is_valid=None, description="invalid value"):
     """Asks until the answer is valid. An empty answer or the end of the input gives the default. Returns None when there is none."""
     suffix = f" [{default}]" if default is not None else ""
     while True:
-        try:
-            # On stderr, so the prompts don't end up in the output of the command
-            print(f"{question}{suffix}: ", end="", file=sys.stderr, flush=True)
-            answer = input().strip()
-        except EOFError:
-            answer = ""
+        # On stderr, so the prompts don't end up in the output of the command
+        print(f"{question}{suffix}: ", end="", file=sys.stderr, flush=True)
+        answer = read_line()
         if not answer:
             return default
         if is_valid is None or is_valid(answer):
@@ -105,98 +116,118 @@ def ask(question, default=None, is_valid=None, description="invalid value"):
         print(f"tt: {description}", file=sys.stderr)
 
 
-def ask_yes_no(question, default):
-    answer = ask(f"{question} [{'Y/n' if default else 'y/N'}]")
-    if answer is None:
-        return default
-    return answer.lower() in ("y", "yes")
-
-
-def read_new_project_archive(version):
-    """Returns the content of the new project archive of the SDK version, from the local SDK or else the CDN"""
-    local_path = os.environ.get("TACTILITY_SDK_PATH") or None
-    if local_path is not None:
-        archive_path = os.path.join(version_path(os.path.abspath(local_path), version), NEW_PROJECT_ARCHIVE)
-        if not os.path.isfile(archive_path):
-            fail(f"new project not found: {archive_path}")
-        with open(archive_path, "rb") as file:
-            return file.read()
-    version_directory = version_path(HOME_DIRECTORY, version)
-    os.makedirs(version_directory, exist_ok=True)
-    entry = load_index(version, version_directory).get("newProject")
-    if entry is None:
-        fail(f"SDK {version} has no new project")
-    archive_path = os.path.join(version_directory, NEW_PROJECT_ARCHIVE)
-    if not download(sdk_url(version, entry["file"]), archive_path):
-        fail(f"failed to download the new project of SDK {version}")
+def read_stored(path):
     try:
-        with open(archive_path, "rb") as file:
-            content = file.read()
-    finally:
-        os.remove(archive_path)
-    if hashlib.sha256(content).hexdigest() != entry["sha256"]:
-        fail(f"the new project of SDK {version} doesn't match its checksum")
-    return content
-
-
-def generate_project(version, package_id, app_id, app_name, variant):
-    """Extracts the new project of the SDK version into . and fills in the answers"""
-    root = os.path.realpath(".")
-    created = []
-    with zipfile.ZipFile(io.BytesIO(read_new_project_archive(version))) as archive:
-        for member in archive.infolist():
-            if member.is_dir() or not member.filename.startswith(f"{variant}/"):
-                continue
-            relative_path = member.filename[len(variant) + 1:]
-            destination = os.path.realpath(os.path.join(root, relative_path))
-            if not destination.startswith(root + os.sep):
-                fail(f"invalid entry in the new project: {member.filename}")
-            content = archive.read(member)
-            if relative_path == "manifest.properties":
-                text = content.decode("utf-8")
-                for placeholder, value in (("@SDK_VERSION@", version), ("@PACKAGE_ID@", package_id), ("@APP_ID@", app_id), ("@APP_NAME@", app_name)):
-                    text = text.replace(placeholder, value)
-                content = text.encode("utf-8")
-            os.makedirs(os.path.dirname(destination), exist_ok=True)
-            with open(destination, "wb") as file:
-                file.write(content)
-            created.append(relative_path)
-    if "manifest.properties" not in created:
-        fail(f"the new project of SDK {version} has no {variant} variant")
-    return created
-
-
-def offer_new_project():
-    """Asks to generate a new app or module project. Returns the manifest path when it did, else None"""
-    if not ask_yes_no("Generate a new project in this folder?", False):
+        with open(path) as file:
+            return file.read().strip() or None
+    except OSError:
         return None
-    if os.path.exists("manifest.properties") or os.path.exists("main"):
-        fail("this folder already has a manifest.properties or main/")
-    version = ask("SDK version to use", None, is_valid_version, "invalid SDK version")
-    if version is None:
-        fail("no SDK version given")
-    variant = ask("Project type (gui, terminal or module)", "gui", lambda answer: answer in PROJECT_VARIANTS, "use gui, terminal or module")
-    package_id = ask("Package id", "example.helloworld", ID_PATTERN.match, "use 5 to 32 letters, digits and dots")
-    app_id = app_name = ""
-    if variant != "module":
-        app_id = ask("App id", "helloworld", ID_PATTERN.match, "use 5 to 32 letters, digits and dots")
-        app_name = ask("App name", "Hello World", NAME_PATTERN.match, "use 2 to 32 letters, digits, spaces and dashes")
-    for path in generate_project(version, package_id, app_id, app_name, variant):
-        print(f"Created {path}", file=sys.stderr)
-    return "manifest.properties"
+
+
+def write_stored(path, value):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as file:
+        file.write(f"{value}\n")
+
+
+def read_device_host():
+    return read_stored(DEVICE_HOST_PATH)
+
+
+def query_device_info(host):
+    """Returns the info of the device (vendor, name, id and version), or None when it can't be read"""
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    # The info is public and the device has a self-signed certificate
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    hello = {"protocol": 1, "mode": "info", "client": "tt"}
+    try:
+        with socket.create_connection((host, DEVICE_PORT), DEVICE_TIMEOUT_SECONDS) as connection:
+            with context.wrap_socket(connection, server_hostname=host) as secure:
+                secure.sendall((json.dumps(hello, separators=(",", ":")) + "\n").encode("utf-8"))
+                line = secure.makefile("rb").readline()
+        info = json.loads(line)["info"]
+        if not is_valid_version(info["version"]):
+            return None
+        return info
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f"tt: could not read the device info of {host}: {error}", file=sys.stderr)
+        return None
+
+
+def print_device_info(info):
+    name = f"{info['vendor']} {info['name']}" if info["vendor"] else info["name"]
+    print(f"tt: using device {name} ({info['id']}) with Tactility {info['version']}", file=sys.stderr)
+
+
+def resolve_device_target():
+    """Returns the SDK version of the stored device, or None"""
+    host = read_device_host()
+    if host is None:
+        return None
+    info = query_device_info(host)
+    if info is None:
+        return None
+    print_device_info(info)
+    return info["version"]
+
+
+def host_command(arguments):
+    """Shows the stored device host, or stores one and checks that the device answers"""
+    if not arguments:
+        print(read_device_host() or "none")
+    elif len(arguments) == 1 and arguments[0].strip():
+        host = arguments[0].strip()
+        write_stored(DEVICE_HOST_PATH, host)
+        print(f"Device host: {host}")
+        info = query_device_info(host)
+        if info is not None:
+            print_device_info(info)
+    else:
+        fail("usage: tt host [hostname]")
+
+
+def sdk_command(arguments):
+    """Shows the SDK version with its source, or stores one. A project's SDK version still takes precedence."""
+    if not arguments:
+        stored_version = read_stored(SDK_VERSION_PATH)
+        manifest_path = find_manifest()
+        project_version = read_properties(manifest_path).get("target.sdk") if manifest_path else None
+        if project_version:
+            print(f"{project_version} (from project {manifest_path})")
+            if stored_version:
+                print(f"{stored_version} in {SDK_VERSION_PATH} is not used while a project is found")
+        elif stored_version:
+            print(f"{stored_version} (from local setting {SDK_VERSION_PATH})")
+        else:
+            host = read_device_host()
+            info = query_device_info(host) if host else None
+            print(f"{info['version']} (from device {host})" if info else "none")
+    elif len(arguments) == 1 and is_valid_version(arguments[0]):
+        write_stored(SDK_VERSION_PATH, arguments[0])
+        print(f"SDK version: {arguments[0]}")
+    else:
+        fail("usage: tt sdk [version]")
 
 
 def resolve_target():
     """Returns the SDK version and platforms of the app manifest"""
     manifest_path = find_manifest()
     if manifest_path is None:
+        # A project always decides the SDK. Without one, a chosen version beats the device.
+        stored_version = read_stored(SDK_VERSION_PATH)
+        if stored_version is not None and is_valid_version(stored_version):
+            print(f"tt: using SDK {stored_version} from {SDK_VERSION_PATH}", file=sys.stderr)
+            return stored_version, []
+        device_version = resolve_device_target()
+        if device_version is not None:
+            return device_version, []
         print("tt: no manifest.properties found in . or Apps/*/ or apps/*/", file=sys.stderr)
-        manifest_path = offer_new_project()
-    if manifest_path is None:
-        # Commands like "tt shell" don't need an app, only the tools of an SDK version
+        # Commands like "tt shell" and "tt app create" don't need an app, only the tools of an SDK version
         version = ask("SDK version to use without a project (leave empty to abort)", None, is_valid_version, "invalid SDK version")
         if version is None:
             fail("no manifest.properties found in . or Apps/*/ or apps/*/")
+        write_stored(SDK_VERSION_PATH, version)
         return version, []
     manifest = read_properties(manifest_path)
     version = manifest.get("target.sdk")
@@ -357,6 +388,10 @@ def print_help(version, tools_directory):
     """Without an app manifest, the version and its commands are unknown"""
     print("Usage: tt <command> [arguments]")
     print("")
+    print("Built-in commands:")
+    print("  host")
+    print("  sdk")
+    print("")
     if version is None:
         print("Run this in an app folder, or in a folder with Apps/*/ or apps/*/, to list the commands of its SDK")
     else:
@@ -392,6 +427,12 @@ def run_tool(tool_path, arguments, environment):
 
 def main(arguments):
     command = arguments[0] if arguments else None
+    if command == "host":
+        host_command(arguments[1:])
+        return
+    if command == "sdk":
+        sdk_command(arguments[1:])
+        return
     is_help = command is None or command in ("help", "--help")
     if not is_help and not is_command(command):
         fail(f"command not found: {command}")
