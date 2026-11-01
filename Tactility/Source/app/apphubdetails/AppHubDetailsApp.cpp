@@ -55,7 +55,6 @@ struct Context {
     // Read from the catalog file on this app's own thread (see loadState()), as the widget code
     // can't do file operations. Written with the LVGL lock held, read by the widget code.
     AppHubApp app {};
-    bool anotherAppBusy = false;
     tt::std::string description;
 
     // Set from the LVGL task (button press), read from this app's own thread (event loop) -
@@ -80,23 +79,6 @@ AppHubApp readApp(Context* ctx) {
     return app;
 }
 
-/** @return true when App Hub is installing or removing another app, which blocks this app's install and remove */
-bool isAnotherAppBusy(Context* ctx) {
-    struct Search {
-        const char* appId;
-        bool busy;
-    } search { ctx->appId.c_str(), false };
-    app_hub_search(nullptr, [](const AppHubApp* app, void* context) {
-        auto* search = static_cast<Search*>(context);
-        if (app->operation_pending && strcmp(app->id, search->appId) != 0) {
-            search->busy = true;
-            return false;
-        }
-        return true;
-    }, &search);
-    return search.busy;
-}
-
 tt::std::string readDescription(Context* ctx) {
     tt::std::vector<char> buffer(DESCRIPTION_MAX_SIZE);
     if (app_hub_get_description(ctx->appId.c_str(), buffer.data(), buffer.size()) != ERROR_NONE || buffer[0] == '\0') {
@@ -112,14 +94,12 @@ tt::std::string readDescription(Context* ctx) {
 /** Reads the state from App Hub. Doesn't touch widgets, so it runs without the LVGL lock. */
 void loadState(Context* ctx, bool includeDescription) {
     const auto app = readApp(ctx);
-    const bool anotherAppBusy = isAnotherAppBusy(ctx);
     tt::std::string description;
     if (includeDescription) {
         description = readDescription(ctx);
     }
     lvgl_lock();
     ctx->app = app;
-    ctx->anotherAppBusy = anotherAppBusy;
     if (includeDescription) {
         ctx->description = ::std::move(description);
     }
@@ -164,7 +144,7 @@ void onUpdatePressed(lv_event_t* e) {
 void queueOperation(Context* ctx, error_t (*operation)(const char* id, uint32_t* operation_id), const char* failure) {
     const error_t error = operation(ctx->appId.c_str(), nullptr);
     if (error == ERROR_RESOURCE_BUSY) {
-        alertdialog::start(ctx->appInstanceId, "Busy", "Another app is being installed or removed. Try again when it's done.");
+        alertdialog::start(ctx->appInstanceId, "Busy", "All apps are being updated. Try again when it's done.");
         return;
     } else if (error != ERROR_NONE) {
         alertdialog::start(ctx->appInstanceId, "Error", failure);
@@ -174,7 +154,6 @@ void queueOperation(Context* ctx, error_t (*operation)(const char* id, uint32_t*
 }
 
 void onOperationEvent(Context* ctx, const AppHubEvent& event) {
-    // Also another app's install or removal, as it blocks the buttons
     const bool finished = event.type == APP_HUB_EVENT_INSTALLED || event.type == APP_HUB_EVENT_REMOVED;
     if (finished && ctx->appId == event.app_id && event.result != ERROR_NONE) {
         LOG_E(TAG, "Operation failed: %s", error_to_string(event.result));
@@ -195,12 +174,10 @@ void updateViews(Context* ctx) {
     ctx->spinner = lvgl_toolbar_add_spinner_action(ctx->toolbar);
     lv_obj_set_hidden(ctx->updateLabel, true);
 
-    // This app's install or removal continues after the window closes, so it can already be running when the window opens.
-    // Another app's install or removal blocks this app's buttons until it's done.
+    // This app's install or removal continues after the window closes, so it can already be queued or running when the window opens.
     const auto& app = ctx->app;
-    const bool busy = app.operation_pending || ((app.installed || app.in_catalog) && ctx->anotherAppBusy);
-    lv_obj_set_hidden(ctx->spinner, !busy);
-    if (busy) {
+    lv_obj_set_hidden(ctx->spinner, !app.operation_pending);
+    if (app.operation_pending) {
         return;
     }
 

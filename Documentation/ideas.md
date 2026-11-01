@@ -20,6 +20,7 @@
 
 ## Medium Priority
 
+- Export `gmtime` symbol
 - Improve watch interface. Consider adding some sort of device classification so UI in apps can choose to optimize for the watch.
 - Support for running scripts at boot
 - Update timezones.csv wrt 2026e, write tests for related code

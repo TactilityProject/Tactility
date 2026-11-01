@@ -51,6 +51,8 @@ enum GpsEventType {
     GPS_EVENT_UNSUBSCRIBED, // Last event, device wants to destroy itself and unsubscribed the subscriber.
     GPS_EVENT_MESSAGE_RMC,
     GPS_EVENT_MESSAGE_GGA,
+    GPS_EVENT_MESSAGE_GSV,
+    GPS_EVENT_MESSAGE_GSA,
 };
 
 struct GpsEvent {
@@ -58,6 +60,8 @@ struct GpsEvent {
     union {
         struct minmea_sentence_rmc rmc;
         struct minmea_sentence_gga gga;
+        struct minmea_sentence_gsv gsv;
+        struct minmea_sentence_gsa gsa;
     } data;
 };
 

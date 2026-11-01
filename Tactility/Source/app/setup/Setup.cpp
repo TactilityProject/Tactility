@@ -12,11 +12,13 @@
 
 #include <gps/gps.h>
 #include <location/location.h>
+#include <mesh/mesh.h>
 
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/memory.h>
 
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
@@ -39,6 +41,28 @@ namespace tt::app::setup {
 extern const ::AppManifest manifest;
 
 namespace {
+
+std::string getMeshBackendLabel(const std::string& id) {
+    if (id == "meshcore") return "MeshCore";
+    if (id == "meshtastic") return "Meshtastic";
+    return id;
+}
+
+/** Mesh needs a LoRa radio, and on ESP32 enough memory, which means PSRAM */
+bool isMeshSupported() {
+#ifdef ESP_PLATFORM
+    if (memory_external_total() == 0) {
+        return false;
+    }
+#endif
+    for (size_t i = 0; i < mesh_get_radio_count(); i++) {
+        MeshRadioKind kind;
+        if (mesh_get_radio_kind(i, &kind) == ERROR_NONE && kind == MESH_RADIO_LORA) {
+            return mesh_get_backend_count() > 0;
+        }
+    }
+    return false;
+}
 
 void advanceTo(Context* ctx, size_t index) {
     if (index < ctx->steps.size()) {
@@ -337,6 +361,36 @@ int32_t appMain(int argc, char* argv[]) {
                 const int32_t locationChoice = ctx.steps[locationStepIndex].choice;
                 return (locationChoice == 0 || locationChoice == 1) ? 0 : 1;
             }
+        });
+    }
+
+    if (isMeshSupported()) {
+        // The first choice is "Disabled", followed by the backends
+        auto backendIds = std::make_shared<std::vector<std::string>>();
+        std::vector<std::string> labels = { "Disabled" };
+        for (size_t i = 0; i < mesh_get_backend_count(); i++) {
+            char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
+            if (mesh_get_backend_id(i, id, sizeof(id)) == ERROR_NONE) {
+                backendIds->emplace_back(id);
+                labels.push_back(getMeshBackendLabel(id));
+            }
+        }
+        ctx.steps.push_back({
+            .title = "Mesh",
+            .description = "Enable Mesh?",
+            .run = [&ctx, backendIds] {
+                const int32_t choice = ctx.steps[ctx.stepIndex].choice;
+                if (choice > 0 && choice <= static_cast<int32_t>(backendIds->size())) {
+                    mesh_set_backend((*backendIds)[choice - 1].c_str());
+                    mesh_set_enabled(true);
+                } else {
+                    mesh_set_enabled(false);
+                }
+                advanceTo(&ctx, ctx.stepIndex + 1);
+            },
+            .content = StepConfiguration::Content::Choice,
+            .choices = std::move(labels),
+            .choice = 0
         });
     }
 

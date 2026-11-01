@@ -23,6 +23,7 @@
 #include <lvgl/icons/statusbar.h>
 #include <lvgl/lvgl.h>
 
+#include <app/install.h>
 #include <app_hub/app_hub.h>
 
 #include <cstring>
@@ -316,7 +317,7 @@ class StatusbarService final : public Service {
                 installingApps.erase(event.app_id);
             }
         }
-        const bool installing = !installingApps.empty();
+        const bool installing = !installingApps.empty() || app_install_is_active();
         if (installing != install_last_state) {
             lvgl_statusbar_icon_set_visibility(install_icon_id, installing);
             install_last_state = installing;

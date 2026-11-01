@@ -11,7 +11,7 @@ namespace tt::app::setup {
 constexpr auto* TAG = "setup";
 
 /** Increase when the setup changes, so users see it again */
-constexpr int SETUP_VERSION = 2;
+constexpr int SETUP_VERSION = 3;
 
 static bool getCompletedMarkerPath(std::string& outPath) {
     char path[128];

@@ -18,6 +18,7 @@
 
 #include <minitar.h>
 
+#include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -129,6 +130,13 @@ bool untar_directory(const minitar_entry* entry, const std::string& destination_
 }
 
 bool untar(const std::string& tar_path, const std::string& destination_path) {
+    // minitar aborts on a file that isn't made of 512-byte blocks, e.g. a truncated or non-tar file
+    struct stat file_stat {};
+    if (stat(tar_path.c_str(), &file_stat) != 0 || file_stat.st_size % 512 != 0) {
+        LOG_E(TAG, "%s isn't a valid tar archive", tar_path.c_str());
+        return false;
+    }
+
     minitar archive {};
     if (minitar_open(tar_path.c_str(), &archive) != 0) {
         LOG_E(TAG, "Failed to open %s", tar_path.c_str());
@@ -378,7 +386,7 @@ error_t app_get_install_path(const char* app_id, char* path, size_t path_size) {
     return ERROR_NONE;
 }
 
-error_t app_install(const char* source_path) {
+static error_t install_package(const char* source_path) {
     LOG_I(TAG, "Installing app package from %s", source_path);
 
     std::string app_parent_path;
@@ -474,6 +482,19 @@ error_t app_install(const char* source_path) {
     mutex_unlock(&registry.mutex);
 
     return add_result;
+}
+
+static std::atomic<int> active_install_count = 0;
+
+error_t app_install(const char* source_path) {
+    active_install_count++;
+    const error_t result = install_package(source_path);
+    active_install_count--;
+    return result;
+}
+
+bool app_install_is_active(void) {
+    return active_install_count > 0;
 }
 
 error_t app_uninstall(const char* app_id) {

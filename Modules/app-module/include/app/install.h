@@ -43,6 +43,9 @@ error_t app_get_install_path(const char* app_id, char* path, size_t path_size);
  */
 error_t app_install(const char* source_path);
 
+/** @return true while an app_install() call is running on any task */
+bool app_install_is_active(void);
+
 /**
  * Uninstalls a previously app_install()-ed package: stops every one of its apps if currently
  * running, deletes its install directory, and unregisters all of them (app_manager_remove()).
