@@ -200,6 +200,9 @@ void receive(GpsProvider& provider) {
         case GPS_EVENT_MESSAGE_GGA:
             onSentence(provider, sub.event);
             break;
+        case GPS_EVENT_MESSAGE_GSV:
+        case GPS_EVENT_MESSAGE_GSA:
+            break;
         case GPS_EVENT_UNSUBSCRIBED:
             provider.device = nullptr;
             break;

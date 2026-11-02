@@ -16,7 +16,7 @@ extern "C" {
 
 /**
  * App Hub service: finds, installs and removes apps from the online app catalog.
- * Operations are queued and run one at a time on a background task. Their outcome is reported through events.
+ * Operations are queued and run one at a time, in order, on a background task. Their outcome is reported through events.
  */
 
 #define APP_HUB_NAME_MAX_LENGTH 63
@@ -103,10 +103,10 @@ error_t app_hub_refresh(uint32_t* operation_id);
 
 /**
  * Queue the installation of a catalog app. An installed version is replaced.
- * Only one install or remove is queued or running at a time. A refresh can be pending next to it.
+ * Installs and removes of different apps can be queued together. Per app, only one is queued or running at a time.
  * @param[out] operation_id the id of the queued operation (optional)
  * @retval ERROR_NONE the operation was queued, or the same install was already pending and its id is returned
- * @retval ERROR_RESOURCE_BUSY another install or remove is pending
+ * @retval ERROR_RESOURCE_BUSY a remove of this app or an update of all apps is pending
  */
 error_t app_hub_install(const char* id, uint32_t* operation_id);
 
@@ -114,7 +114,7 @@ error_t app_hub_install(const char* id, uint32_t* operation_id);
  * Queue the update of every installed app that has a newer version in the catalog. The apps are installed one at a time,
  * with an INSTALLING and INSTALLED event each. A failed update doesn't stop the updates of the other apps.
  * While the operation is pending, the apps with an update report it as their pending operation.
- * The operation takes the place of an install or remove: only one of them is queued or running at a time.
+ * It can't be queued next to an install or remove.
  * @param[out] operation_id the id of the queued operation (optional)
  * @retval ERROR_NONE the operation was queued, or it was already pending and its id is returned
  * @retval ERROR_RESOURCE_BUSY an install or remove is pending
@@ -123,10 +123,10 @@ error_t app_hub_update_all(uint32_t* operation_id);
 
 /**
  * Queue the removal of an installed app.
- * Only one install or remove is queued or running at a time. A refresh can be pending next to it.
+ * Installs and removes of different apps can be queued together. Per app, only one is queued or running at a time.
  * @param[out] operation_id the id of the queued operation (optional)
  * @retval ERROR_NONE the operation was queued, or the same removal was already pending and its id is returned
- * @retval ERROR_RESOURCE_BUSY another install or remove is pending
+ * @retval ERROR_RESOURCE_BUSY an install of this app or an update of all apps is pending
  */
 error_t app_hub_remove(const char* id, uint32_t* operation_id);
 

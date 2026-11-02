@@ -196,6 +196,24 @@ static int32_t gps_thread_main(void* context) {
                     }
                     break;
                 }
+                case MINMEA_SENTENCE_GSV: {
+                    GpsEvent event { .type = GPS_EVENT_MESSAGE_GSV, .data = {} };
+                    if (minmea_parse_gsv(&event.data.gsv, reinterpret_cast<char*>(buffer))) {
+                        notify_subscribers(internal, event);
+                    } else {
+                        LOG_E(TAG, "GSV parse error: %s", reinterpret_cast<const char*>(buffer));
+                    }
+                    break;
+                }
+                case MINMEA_SENTENCE_GSA: {
+                    GpsEvent event { .type = GPS_EVENT_MESSAGE_GSA, .data = {} };
+                    if (minmea_parse_gsa(&event.data.gsa, reinterpret_cast<char*>(buffer))) {
+                        notify_subscribers(internal, event);
+                    } else {
+                        LOG_E(TAG, "GSA parse error: %s", reinterpret_cast<const char*>(buffer));
+                    }
+                    break;
+                }
                 default:
                     break;
             }

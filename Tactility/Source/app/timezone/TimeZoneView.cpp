@@ -233,7 +233,8 @@ void TimeZoneView::showState() {
         return;
     }
     const bool isDetecting = detecting;
-    lv_obj_set_hidden(detectButton, isDetecting);
+    // Detection needs location services, which are loaded at boot
+    lv_obj_set_hidden(detectButton, isDetecting || !location_is_enabled());
     lv_obj_set_hidden(detectSpinner, !isDetecting);
     mutex.lock();
     lv_label_set_text(messageLabel, message.c_str());

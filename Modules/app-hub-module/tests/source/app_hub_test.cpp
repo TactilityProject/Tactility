@@ -218,6 +218,38 @@ TEST_CASE("app_hub operations report their outcome and the worker stops when idl
     task_event_group_destruct(&group);
 }
 
+TEST_CASE("app_hub queues operations of different apps and runs them in order") {
+    ensureFixture();
+    TaskEventGroup group {};
+    task_event_group_construct(&group);
+    AppHubEventSubscription sub {};
+    REQUIRE_EQ(app_hub_event_subscribe(&sub, &group), ERROR_NONE);
+
+    uint32_t firstId = 0;
+    uint32_t secondId = 0;
+    REQUIRE_EQ(app_hub_remove("first", &firstId), ERROR_NONE);
+    REQUIRE_EQ(app_hub_install("second", &secondId), ERROR_NONE);
+    CHECK_NE(firstId, secondId);
+
+    AppHubEvent event = waitForEvent(sub);
+    CHECK_EQ(event.type, APP_HUB_EVENT_REMOVING);
+    CHECK_EQ(event.operation_id, firstId);
+    event = waitForEvent(sub);
+    CHECK_EQ(event.type, APP_HUB_EVENT_REMOVED);
+    CHECK_EQ(event.operation_id, firstId);
+    CHECK_EQ(event.result, ERROR_NOT_FOUND);
+    event = waitForEvent(sub);
+    CHECK_EQ(event.type, APP_HUB_EVENT_INSTALLING);
+    CHECK_EQ(event.operation_id, secondId);
+    event = waitForEvent(sub);
+    CHECK_EQ(event.type, APP_HUB_EVENT_INSTALLED);
+    CHECK_EQ(event.operation_id, secondId);
+    CHECK_EQ(event.result, ERROR_NOT_FOUND);
+
+    CHECK_EQ(app_hub_event_unsubscribe(&sub), ERROR_NONE);
+    task_event_group_destruct(&group);
+}
+
 TEST_CASE("app_hub drops newer events while a subscriber's queue is full") {
     ensureFixture();
     TaskEventGroup group {};

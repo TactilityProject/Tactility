@@ -30,7 +30,7 @@ static void print_usage() {
 
 static int report_error(const char* action, error_t error) {
     if (error == ERROR_RESOURCE_BUSY) {
-        printf("apphub: %s failed: another app is being installed or removed\n", action);
+        printf("apphub: %s failed: a conflicting operation is pending\n", action);
     } else {
         printf("apphub: %s failed: %s\n", action, error_to_string(error));
     }

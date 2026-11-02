@@ -43,7 +43,7 @@ static void onEnableSwitchChanged(lv_event_t* event) {
     auto* enable_switch = static_cast<lv_obj_t*>(lv_event_get_target(event));
     bool is_on = lv_obj_has_state(enable_switch, LV_STATE_CHECKED);
     auto* bindings = static_cast<Bindings*>(lv_event_get_user_data(event));
-    bindings->onWifiToggled(is_on);
+    bindings->onWifiToggled(bindings->userData, is_on);
 }
 
 static void onConnectToHiddenClicked(lv_event_t* event) {
@@ -66,9 +66,9 @@ void View::connect(lv_event_t* event) {
         LOG_I(TAG, "Clicked AP: %s", ssid.c_str());
         std::string connection_target = self->state->getConnectionTarget();
         if (connection_target == ssid) {
-            self->bindings->onDisconnect();
+            self->bindings->onDisconnect(self->bindings->userData);
         } else {
-            self->bindings->onConnectSsid(ssid);
+            self->bindings->onConnectSsid(self->bindings->userData, ssid);
         }
     } else {
         LOG_W(TAG, "Clicked AP: record %zu/%zu does not exist", index, ap_records.size() - 1);

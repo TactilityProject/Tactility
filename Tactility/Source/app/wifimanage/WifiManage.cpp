@@ -3,7 +3,6 @@
 
 #include <Tactility/app/wifiapsettings/WifiApSettings.h>
 #include <Tactility/app/wificonnect/WifiConnect.h>
-#include <Tactility/Tactility.h>
 
 #include <app/event.h>
 #include <app/manifest.h>
@@ -32,6 +31,8 @@ extern const ::AppManifest manifest;
 
 namespace {
 
+enum class RadioRequest { None, On, Off };
+
 struct Context {
     uint32_t appInstanceId;
     // Set once in appMain() before subscribing, left null if this device has no WiFi driver
@@ -46,86 +47,45 @@ struct Context {
     uint32_t refreshBit = 0;
     std::atomic<bool> needsRefresh {false};
 
+    // Requests from the UI that block, so the app's task handles them. Guarded by the mutex.
+    uint32_t actionBit = 0;
+    RadioRequest radioRequest = RadioRequest::None;
+    bool disconnectRequested = false;
+    std::string connectRequest;
+    bool connectRequested = false;
+
     void lock() { mutex.lock(); }
     void unlock() { mutex.unlock(); }
 };
 
 
-/** Turns the radio on when needed and connects. Runs on the main dispatcher, as turning the radio on blocks. */
-static void connectToAp(const WifiApSettings& ap) {
-    getMainDispatcher().dispatch([ap] {
-        Device* wifi_device = nullptr;
-        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
-            LOG_W(TAG, "No WiFi device found");
-            return;
-        }
-        error_t result = wifi_set_radio_on(wifi_device);
-        if (result == ERROR_NONE) {
-            if (wifi_settings_set_enable(true) != ERROR_NONE) {
-                LOG_E(TAG, "Failed to save the Wi-Fi state");
-            }
-            result = wifi_station_connect(wifi_device, ap.ssid, ap.password, ap.channel);
-        }
-        if (result != ERROR_NONE) {
-            LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
-        }
-        device_put(wifi_device);
-    });
-}
-
-static void disconnectFromAp() {
-    // Keeps auto-connect from immediately reconnecting
-    wifi_autoconnect_pause_until_connected();
-    getMainDispatcher().dispatch([] {
-        Device* wifi_device = nullptr;
-        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
-            LOG_W(TAG, "No WiFi device found");
-            return;
-        }
-        error_t result = wifi_station_disconnect(wifi_device);
-        if (result != ERROR_NONE) {
-            LOG_E(TAG, "Failed to disconnect (%s)", error_to_string(result));
-        }
-        device_put(wifi_device);
-    });
-}
-
-static void onConnect(const std::string& ssid) {
-    WifiApSettings settings;
-    if (wifi_settings_load(ssid.c_str(), &settings) == ERROR_NONE) {
-        LOG_I(TAG, "Connecting with known credentials");
-        connectToAp(settings);
-    } else {
-        LOG_I(TAG, "Starting connection dialog");
-        wificonnect::start(ssid);
-    }
+static void onConnect(void* userData, const std::string& ssid) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->lock();
+    ctx->connectRequest = ssid;
+    ctx->connectRequested = true;
+    ctx->unlock();
+    task_event_group_signal(ctx->eventGroup, ctx->actionBit);
 }
 
 static void onShowApSettings(const std::string& ssid) {
     wifiapsettings::start(ssid);
 }
 
-static void onDisconnect() {
-    disconnectFromAp();
+static void onDisconnect(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->lock();
+    ctx->disconnectRequested = true;
+    ctx->unlock();
+    task_event_group_signal(ctx->eventGroup, ctx->actionBit);
 }
 
-static void onWifiToggled(bool enabled) {
-    getMainDispatcher().dispatch([enabled] {
-        Device* wifi_device = nullptr;
-        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
-            LOG_W(TAG, "No WiFi device found");
-            return;
-        }
-        error_t result = enabled ? wifi_set_radio_on(wifi_device) : wifi_set_radio_off(wifi_device);
-        if (result == ERROR_NONE) {
-            if (wifi_settings_set_enable(enabled) != ERROR_NONE) {
-                LOG_E(TAG, "Failed to save the Wi-Fi state");
-            }
-        } else {
-            LOG_E(TAG, "Failed to set radio state (%s)", error_to_string(result));
-        }
-        device_put(wifi_device);
-    });
+static void onWifiToggled(void* userData, bool enabled) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->lock();
+    ctx->radioRequest = enabled ? RadioRequest::On : RadioRequest::Off;
+    ctx->unlock();
+    task_event_group_signal(ctx->eventGroup, ctx->actionBit);
 }
 
 static void onConnectToHidden() {
@@ -149,6 +109,66 @@ static bool onRefresh() {
     }
     device_put(wifi_device);
     return started;
+}
+
+/** Handles the requests of the UI. Turning the radio on blocks, so this runs on the app's task. */
+void processRequests(Context* ctx) {
+    // Keeps queued requests until the Wi-Fi device is subscribed
+    if (ctx->wifiDevice == nullptr) {
+        return;
+    }
+
+    ctx->lock();
+    const auto radio_request = ctx->radioRequest;
+    const bool disconnect = ctx->disconnectRequested;
+    const bool connect_requested = ctx->connectRequested;
+    const std::string ssid = std::move(ctx->connectRequest);
+    ctx->connectRequested = false;
+    ctx->radioRequest = RadioRequest::None;
+    ctx->disconnectRequested = false;
+    ctx->connectRequest.clear();
+    ctx->unlock();
+
+    if (radio_request != RadioRequest::None) {
+        const bool enabled = radio_request == RadioRequest::On;
+        const error_t result = enabled ? wifi_set_radio_on(ctx->wifiDevice) : wifi_set_radio_off(ctx->wifiDevice);
+        if (result == ERROR_NONE) {
+            if (wifi_settings_set_enable(enabled) != ERROR_NONE) {
+                LOG_E(TAG, "Failed to save the Wi-Fi state");
+            }
+        } else {
+            LOG_E(TAG, "Failed to set radio state (%s)", error_to_string(result));
+        }
+    }
+
+    if (disconnect) {
+        // Keeps auto-connect from immediately reconnecting
+        wifi_autoconnect_pause_until_connected();
+        const error_t result = wifi_station_disconnect(ctx->wifiDevice);
+        if (result != ERROR_NONE) {
+            LOG_E(TAG, "Failed to disconnect (%s)", error_to_string(result));
+        }
+    }
+
+    if (connect_requested) {
+        WifiApSettings ap;
+        if (wifi_settings_load(ssid.c_str(), &ap) != ERROR_NONE) {
+            LOG_I(TAG, "Starting connection dialog");
+            wificonnect::start(ssid);
+            return;
+        }
+        LOG_I(TAG, "Connecting with known credentials");
+        error_t result = wifi_set_radio_on(ctx->wifiDevice);
+        if (result == ERROR_NONE) {
+            if (wifi_settings_set_enable(true) != ERROR_NONE) {
+                LOG_E(TAG, "Failed to save the Wi-Fi state");
+            }
+            result = wifi_station_connect(ctx->wifiDevice, ap.ssid, ap.password, ap.channel);
+        }
+        if (result != ERROR_NONE) {
+            LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
+        }
+    }
 }
 
 void updateView(Context* ctx, bool rebuildList) {
@@ -242,6 +262,7 @@ int32_t appMain(int argc, char* argv[]) {
     Context ctx;
     ctx.appInstanceId = appInstanceId;
     ctx.bindings = (Bindings) {
+        .userData = &ctx,
         .onWifiToggled = onWifiToggled,
         .onConnectSsid = onConnect,
         .onDisconnect = onDisconnect,
@@ -255,6 +276,10 @@ int32_t appMain(int argc, char* argv[]) {
     ctx.eventGroup = &event_group;
     if (task_event_group_claim_bit(&event_group, &ctx.refreshBit) != ERROR_NONE) {
         LOG_W(TAG, "Failed to claim a refresh bit; resurfacing after burial won't repopulate the view");
+    }
+
+    if (task_event_group_claim_bit(&event_group, &ctx.actionBit) != ERROR_NONE) {
+        LOG_W(TAG, "Failed to claim an action bit; connect and radio requests won't be handled");
     }
 
     AppEventSubscription sub {};
@@ -323,6 +348,8 @@ int32_t appMain(int argc, char* argv[]) {
             }
             if (shouldClose) break;
         }
+
+        processRequests(&ctx);
 
         if (ctx.wifiDevice != nullptr) {
             WifiEvent wifi_event {};
