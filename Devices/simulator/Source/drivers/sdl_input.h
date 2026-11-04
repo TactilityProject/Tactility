@@ -31,11 +31,13 @@ void sdl_input_pump(void);
 void sdl_input_get_pointer_state(struct SdlPointerState* out_state);
 
 /**
- * @brief Pops the next queued key event (produced by SDL_KEYDOWN/SDL_TEXTINPUT during
+ * @brief Pops the next queued key event (produced by SDL_KEYDOWN/SDL_KEYUP during
  * sdl_input_pump()).
+ * @param[out] out_key the key code
+ * @param[out] out_pressed true for press, false for release
  * @retval false when no key event is pending
  */
-bool sdl_input_pop_key(uint32_t* out_key);
+bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed);
 
 /**
  * @brief Returns true if another key event is queued after the one just popped.

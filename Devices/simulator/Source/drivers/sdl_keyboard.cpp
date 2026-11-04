@@ -17,9 +17,10 @@ static error_t stop(Device*) { return ERROR_NONE; }
 
 static error_t sdl_keyboard_read_key(Device*, KeyboardKeyData* data) {
     uint32_t key = 0;
-    if (sdl_input_pop_key(&key)) {
+    bool pressed = true;
+    if (sdl_input_pop_key(&key, &pressed)) {
         data->key = key;
-        data->pressed = true;
+        data->pressed = pressed;
         data->continue_reading = sdl_input_has_queued_key();
     } else {
         data->key = 0;
