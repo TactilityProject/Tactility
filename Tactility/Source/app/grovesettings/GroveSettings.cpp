@@ -1,3 +1,4 @@
+#include <atomic>
 #include <vector>
 
 #include <lvgl.h>
@@ -18,6 +19,8 @@
 #include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/toolbar.h>
 
+#include <Tactility/settings/GrovePortSettings.h>
+
 namespace tt::app::grovesettings {
 
 extern const ::AppManifest manifest;
@@ -27,6 +30,9 @@ namespace {
 struct Context {
     uint32_t appInstanceId;
     std::vector<::Device*> devices;
+    TaskEventGroup* eventGroup;
+    uint32_t saveBit;
+    std::atomic<bool> savePending;
 };
 
 
@@ -62,11 +68,25 @@ void updateChips(lv_obj_t* chipsRow, GroveMode mode) {
     }
 }
 
+// The modes are saved by the app task, as file operations must not run on the LVGL thread
 void onModeChipPressed(lv_event_t* e) {
-    auto* device = static_cast<::Device*>(lv_event_get_user_data(e));
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     auto* chip = lv_event_get_target_obj(e);
+    auto* chipsRow = lv_obj_get_parent(chip);
+    auto* device = static_cast<::Device*>(lv_obj_get_user_data(chipsRow));
     if (grove_set_mode(device, getChipMode(chip)) == ERROR_NONE) {
-        updateChips(lv_obj_get_parent(chip), getChipMode(chip));
+        updateChips(chipsRow, getChipMode(chip));
+        ctx->savePending = true;
+        task_event_group_signal(ctx->eventGroup, ctx->saveBit);
+    }
+}
+
+void saveModes(Context* ctx) {
+    for (auto* device : ctx->devices) {
+        GroveMode mode;
+        if (grove_get_mode(device, &mode) == ERROR_NONE) {
+            settings::grove::saveMode(device->name, mode);
+        }
     }
 }
 
@@ -113,12 +133,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         // The chips' margins leave room for their focus rings and space them apart
         lv_obj_set_style_pad_all(chips_row, 0, LV_STATE_DEFAULT);
         lv_obj_set_style_pad_column(chips_row, 0, LV_STATE_DEFAULT);
+        lv_obj_set_user_data(chips_row, device);
 
         for (const auto& option : MODE_OPTIONS) {
             auto* chip = lvgl_chip_create(chips_row);
             lv_label_set_text(lv_label_create(chip), option.name);
             lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<intptr_t>(option.mode)));
-            lv_obj_add_event_cb(chip, onModeChipPressed, LV_EVENT_SHORT_CLICKED, device);
+            lv_obj_add_event_cb(chip, onModeChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
         }
         lvgl_grid_navigation_add(chips_row);
 
@@ -135,6 +156,8 @@ int32_t appMain(int argc, char* argv[]) {
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.saveBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -144,6 +167,10 @@ int32_t appMain(int argc, char* argv[]) {
     bool shouldClose = false;
     while (!shouldClose) {
         task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+
+        if (ctx.savePending.exchange(false)) {
+            saveModes(&ctx);
+        }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -159,7 +186,11 @@ int32_t appMain(int argc, char* argv[]) {
     }
 
     window_manager_remove(window);
+    if (ctx.savePending.exchange(false)) {
+        saveModes(&ctx);
+    }
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
+    task_event_group_release_bit(&event_group, ctx.saveBit);
     task_event_group_destruct(&event_group);
 
     return 0;

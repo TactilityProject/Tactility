@@ -29,6 +29,7 @@
 #include <Tactility/settings/AppearanceSettings.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
+#include <Tactility/settings/GrovePortSettings.h>
 
 
 #ifdef ESP_PLATFORM
@@ -303,6 +304,9 @@ bool bootInit(TickType_t startTime) {
 
     LOG_I(TAG, "Init USB host");
     hal::usbhost::systemStart();
+
+    LOG_I(TAG, "Restore Grove modes");
+    settings::grove::restoreAll();
 
     bool sd_card_missing = false;
 #ifdef CONFIG_TT_USER_DATA_LOCATION_SD
