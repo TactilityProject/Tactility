@@ -63,6 +63,11 @@ struct GpsEvent {
         struct minmea_sentence_gsv gsv;
         struct minmea_sentence_gsa gsa;
     } data;
+    /**
+     * NMEA talker ID of the sentence, two letters plus NUL: "GP" GPS, "GL" GLONASS, "GA" Galileo,
+     * "GB" or "BD" BeiDou, "GQ" QZSS, "GN" combined. Empty when unknown, e.g. for GPS_EVENT_UNSUBSCRIBED.
+     */
+    char talker[3];
 };
 
 struct GpsSubscription {

@@ -167,19 +167,33 @@ static int32_t gps_thread_main(void* context) {
 
     // Reference: https://gpsd.gitlab.io/gpsd/NMEA.html
     uint8_t buffer[GPS_UART_BUFFER_SIZE];
+    size_t line_length = 0;
     while (!is_interrupted(internal)) {
         size_t bytes_read = 0;
-        uart_controller_read_until(uart, buffer, sizeof(buffer), '\n', true, &bytes_read, pdMS_TO_TICKS(100));
+        const error_t read_result = uart_controller_read_until(uart, buffer + line_length, sizeof(buffer) - line_length, '\n', true, &bytes_read, pdMS_TO_TICKS(100));
 
         // Thread might've been interrupted in the meanwhile
         if (is_interrupted(internal)) {
             break;
         }
 
-        if (bytes_read > 0U) {
+        // A read times out 100 ms after it started, so a line can arrive in several parts
+        line_length += bytes_read;
+        if (read_result != ERROR_NONE || bytes_read == 0U) {
+            if (line_length >= sizeof(buffer) - 1U) {
+                line_length = 0;
+            }
+            continue;
+        }
+        const bool complete = buffer[line_length - 1U] == '\n';
+        line_length = 0;
+
+        if (complete) {
+            GpsEvent event {};
+            minmea_talker_id(event.talker, reinterpret_cast<char*>(buffer));
             switch (minmea_sentence_id(reinterpret_cast<char*>(buffer), false)) {
                 case MINMEA_SENTENCE_RMC: {
-                    GpsEvent event { .type = GPS_EVENT_MESSAGE_RMC, .data = {} };
+                    event.type = GPS_EVENT_MESSAGE_RMC;
                     if (minmea_parse_rmc(&event.data.rmc, reinterpret_cast<char*>(buffer))) {
                         notify_subscribers(internal, event);
                     } else {
@@ -188,7 +202,7 @@ static int32_t gps_thread_main(void* context) {
                     break;
                 }
                 case MINMEA_SENTENCE_GGA: {
-                    GpsEvent event { .type = GPS_EVENT_MESSAGE_GGA, .data = {} };
+                    event.type = GPS_EVENT_MESSAGE_GGA;
                     if (minmea_parse_gga(&event.data.gga, reinterpret_cast<char*>(buffer))) {
                         notify_subscribers(internal, event);
                     } else {
@@ -197,7 +211,7 @@ static int32_t gps_thread_main(void* context) {
                     break;
                 }
                 case MINMEA_SENTENCE_GSV: {
-                    GpsEvent event { .type = GPS_EVENT_MESSAGE_GSV, .data = {} };
+                    event.type = GPS_EVENT_MESSAGE_GSV;
                     if (minmea_parse_gsv(&event.data.gsv, reinterpret_cast<char*>(buffer))) {
                         notify_subscribers(internal, event);
                     } else {
@@ -206,7 +220,7 @@ static int32_t gps_thread_main(void* context) {
                     break;
                 }
                 case MINMEA_SENTENCE_GSA: {
-                    GpsEvent event { .type = GPS_EVENT_MESSAGE_GSA, .data = {} };
+                    event.type = GPS_EVENT_MESSAGE_GSA;
                     if (minmea_parse_gsa(&event.data.gsa, reinterpret_cast<char*>(buffer))) {
                         notify_subscribers(internal, event);
                     } else {
@@ -226,7 +240,7 @@ static int32_t gps_thread_main(void* context) {
 
     // Wake any subscribers still awaiting an event so they don't block forever on a device that's
     // going away, then drop them - stop() is about to free `internal`.
-    notify_subscribers(internal, GpsEvent { .type = GPS_EVENT_UNSUBSCRIBED, .data = {} });
+    notify_subscribers(internal, GpsEvent { .type = GPS_EVENT_UNSUBSCRIBED, .data = {}, .talker = {} });
     recursive_mutex_lock(&internal->mutex);
     internal->subscribers = nullptr;
     recursive_mutex_unlock(&internal->mutex);
@@ -293,12 +307,21 @@ static error_t stop(Device* device) {
 
 static error_t gps_api_event_subscribe(Device* device, GpsSubscription* sub) {
     auto* internal = static_cast<GpsInternal*>(device_get_driver_data(device));
+    // Lookups still return the device while it stops, after stop() freed the driver data
+    if (internal == nullptr) {
+        return ERROR_INVALID_STATE;
+    }
 
     sub->task = xTaskGetCurrentTaskHandle();
     sub->sequence = 0;
     sub->consumed_sequence = 0;
 
     recursive_mutex_lock(&internal->mutex);
+    // A stopping device already sent GPS_EVENT_UNSUBSCRIBED, so a new subscriber would never be told
+    if (internal->interrupt_requested) {
+        recursive_mutex_unlock(&internal->mutex);
+        return ERROR_INVALID_STATE;
+    }
     sub->next = internal->subscribers;
     internal->subscribers = sub;
     recursive_mutex_unlock(&internal->mutex);
