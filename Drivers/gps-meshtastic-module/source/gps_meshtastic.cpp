@@ -357,8 +357,9 @@ static error_t gps_api_event_subscribe(Device* device, GpsSubscription* sub) {
     }
 
     recursive_mutex_lock(&internal->mutex);
-    // A stopping device already sent GPS_EVENT_UNSUBSCRIBED, so a new subscriber would never be told
-    const bool stopping = internal->interrupt_requested;
+    // The DEVICE_EVENT_STOPPING listeners already unsubscribed, and the GPS thread may already have sent
+    // GPS_EVENT_UNSUBSCRIBED, so a new subscriber would never be told that the device goes away
+    const bool stopping = internal->interrupt_requested || device_is_stopping(device);
     if (!stopping) {
         sub->next = internal->subscribers;
         internal->subscribers = sub;

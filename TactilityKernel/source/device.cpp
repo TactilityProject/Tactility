@@ -381,6 +381,13 @@ bool device_is_ready(const Device* device) {
     return device->internal->state.started;
 }
 
+bool device_is_stopping(const Device* device) {
+    lock_internal(device->internal);
+    const bool stopping = device->internal->state.stopping;
+    unlock_internal(device->internal);
+    return stopping;
+}
+
 bool device_is_compatible(const Device* device, const char* compatible) {
     if (device->internal->driver == nullptr) return false;
     return driver_is_compatible(device->internal->driver, compatible);
