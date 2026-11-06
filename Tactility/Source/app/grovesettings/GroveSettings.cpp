@@ -93,7 +93,10 @@ void updateChips(lv_obj_t* chipsRow, GroveMode mode) {
     }
 }
 
-// The modes are saved by the app task, as file operations must not run on the LVGL thread
+/**
+ * Sets the mode of the chip's port and queues it for saving. The app task saves it, as file operations
+ * must not run on the LVGL thread.
+ */
 void onModeChipPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     auto* chip = lv_event_get_target_obj(e);
@@ -146,6 +149,7 @@ void onBackPressed(lv_event_t* event) {
     app_event_emit_close(ctx->appInstanceId);
 }
 
+/** Builds the window: a row of mode chips for every Grove port, with the current mode checked. */
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     collectDevices(ctx);
@@ -200,6 +204,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     }
 }
 
+/** The app task: shows the window and saves the selected modes until the app closes. */
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     Context ctx {};

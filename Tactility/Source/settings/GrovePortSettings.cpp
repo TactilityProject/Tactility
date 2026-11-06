@@ -26,6 +26,7 @@ struct FileMutex {
 // Saves read, change and write the whole file, so concurrent saves could overwrite each other's modes
 static FileMutex file_mutex;
 
+/** Gets the path of grove.properties in the user data folder. @return false when the data path is unknown */
 static bool getSettingsFilePath(std::string& outPath) {
     char root[128];
     if (paths_get_data_path(root, sizeof(root)) != ERROR_NONE) {
@@ -35,6 +36,7 @@ static bool getSettingsFilePath(std::string& outPath) {
     return true;
 }
 
+/** @return the value that grove.properties stores for the mode */
 static const char* toString(GroveMode mode) {
     switch (mode) {
         case GROVE_MODE_UART: return "uart";
@@ -43,6 +45,7 @@ static const char* toString(GroveMode mode) {
     }
 }
 
+/** Parses a mode stored in grove.properties. @return false for an unknown value */
 static bool fromString(const std::string& text, GroveMode& mode) {
     if (text == "uart") {
         mode = GROVE_MODE_UART;
@@ -56,6 +59,7 @@ static bool fromString(const std::string& text, GroveMode& mode) {
     return true;
 }
 
+/** Loads grove.properties. Must be called with file_mutex held. @return false when the file is missing or unreadable */
 static bool loadMap(std::map<std::string, std::string>& map) {
     std::string path;
     if (!getSettingsFilePath(path) || !file::isFile(path)) {
