@@ -1,4 +1,4 @@
-#include <atomic>
+#include <string>
 #include <vector>
 
 #include <lvgl.h>
@@ -6,6 +6,7 @@
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/drivers/grove.h>
+#include <tactility/log.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -15,6 +16,7 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <lvgl/grid_navigation.h>
+#include <lvgl/lvgl.h>
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/toolbar.h>
@@ -27,13 +29,36 @@ extern const ::AppManifest manifest;
 
 namespace {
 
+constexpr auto* TAG = "GroveSettings";
+
+// How long the app task waits before it saves modes again after a failed save
+constexpr TickType_t SAVE_RETRY_TICKS = pdMS_TO_TICKS(5000);
+
+struct PendingMode {
+    std::string deviceName;
+    GroveMode mode;
+};
+
 struct Context {
     uint32_t appInstanceId;
+    // Used by the widgets only
     std::vector<::Device*> devices;
     TaskEventGroup* eventGroup;
     uint32_t saveBit;
-    std::atomic<bool> savePending;
+    // The modes selected and not saved yet. Guarded by the LVGL lock.
+    std::vector<PendingMode> pendingModes;
 };
+
+/** Must be called with the LVGL lock held. Keeps the newest mode per device. */
+void addPendingMode(Context* ctx, const char* deviceName, GroveMode mode) {
+    for (auto& entry : ctx->pendingModes) {
+        if (entry.deviceName == deviceName) {
+            entry.mode = mode;
+            return;
+        }
+    }
+    ctx->pendingModes.push_back({ deviceName, mode });
+}
 
 
 void collectDevices(Context* ctx) {
@@ -74,20 +99,46 @@ void onModeChipPressed(lv_event_t* e) {
     auto* chip = lv_event_get_target_obj(e);
     auto* chipsRow = lv_obj_get_parent(chip);
     auto* device = static_cast<::Device*>(lv_obj_get_user_data(chipsRow));
-    if (grove_set_mode(device, getChipMode(chip)) == ERROR_NONE) {
-        updateChips(chipsRow, getChipMode(chip));
-        ctx->savePending = true;
+    const GroveMode mode = getChipMode(chip);
+    if (grove_set_mode(device, mode) == ERROR_NONE) {
+        updateChips(chipsRow, mode);
+        addPendingMode(ctx, device->name, mode);
         task_event_group_signal(ctx->eventGroup, ctx->saveBit);
     }
 }
 
-void saveModes(Context* ctx) {
-    for (auto* device : ctx->devices) {
-        GroveMode mode;
-        if (grove_get_mode(device, &mode) == ERROR_NONE) {
-            settings::grove::saveMode(device->name, mode);
+/**
+ * Saves the selected modes. Saves that fail stay pending, unless a newer mode was selected meanwhile.
+ * @return false when a save failed
+ */
+bool savePendingModes(Context* ctx) {
+    lvgl_lock();
+    std::vector<PendingMode> pending;
+    pending.swap(ctx->pendingModes);
+    lvgl_unlock();
+
+    std::vector<PendingMode> failed;
+    for (const auto& entry : pending) {
+        if (!settings::grove::saveMode(entry.deviceName.c_str(), entry.mode)) {
+            failed.push_back(entry);
         }
     }
+    if (failed.empty()) {
+        return true;
+    }
+
+    lvgl_lock();
+    for (const auto& entry : failed) {
+        bool newer = false;
+        for (const auto& current : ctx->pendingModes) {
+            newer = newer || current.deviceName == entry.deviceName;
+        }
+        if (!newer) {
+            ctx->pendingModes.push_back(entry);
+        }
+    }
+    lvgl_unlock();
+    return false;
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -165,12 +216,11 @@ int32_t appMain(int argc, char* argv[]) {
     WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
 
     bool shouldClose = false;
+    bool saveFailed = false;
     while (!shouldClose) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        task_event_group_wait_any(&event_group, nullptr, saveFailed ? SAVE_RETRY_TICKS : portMAX_DELAY);
 
-        if (ctx.savePending.exchange(false)) {
-            saveModes(&ctx);
-        }
+        saveFailed = !savePendingModes(&ctx);
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -186,8 +236,8 @@ int32_t appMain(int argc, char* argv[]) {
     }
 
     window_manager_remove(window);
-    if (ctx.savePending.exchange(false)) {
-        saveModes(&ctx);
+    if (!savePendingModes(&ctx)) {
+        LOG_E(TAG, "Failed to save the Grove modes, they're lost at restart");
     }
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_release_bit(&event_group, ctx.saveBit);

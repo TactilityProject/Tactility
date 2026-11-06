@@ -3,6 +3,7 @@
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
 
+#include <tactility/concurrent/mutex.h>
 #include <tactility/device.h>
 #include <tactility/log.h>
 #include <tactility/paths.h>
@@ -15,6 +16,15 @@
 namespace tt::settings::grove {
 
 constexpr auto* TAG = "GroveSettings";
+
+struct FileMutex {
+    Mutex mutex {};
+    FileMutex() { mutex_construct(&mutex); }
+    ~FileMutex() { mutex_destruct(&mutex); }
+};
+
+// Saves read, change and write the whole file, so concurrent saves could overwrite each other's modes
+static FileMutex file_mutex;
 
 static bool getSettingsFilePath(std::string& outPath) {
     char root[128];
@@ -56,7 +66,10 @@ static bool loadMap(std::map<std::string, std::string>& map) {
 
 bool loadMode(const char* deviceName, GroveMode& mode) {
     std::map<std::string, std::string> map;
-    if (!loadMap(map)) {
+    mutex_lock(&file_mutex.mutex);
+    const bool loaded = loadMap(map);
+    mutex_unlock(&file_mutex.mutex);
+    if (!loaded) {
         return false;
     }
     auto entry = map.find(deviceName);
@@ -64,24 +77,30 @@ bool loadMode(const char* deviceName, GroveMode& mode) {
 }
 
 bool saveMode(const char* deviceName, GroveMode mode) {
-    std::map<std::string, std::string> map;
-    loadMap(map);
-    map[deviceName] = toString(mode);
-
     std::string path;
     if (!getSettingsFilePath(path)) {
         return false;
     }
-    if (!file::findOrCreateParentDirectory(path, 0755)) {
-        return false;
+
+    mutex_lock(&file_mutex.mutex);
+    std::map<std::string, std::string> map;
+    loadMap(map);
+    map[deviceName] = toString(mode);
+    const bool saved = file::findOrCreateParentDirectory(path, 0755) && file::savePropertiesFile(path, map);
+    mutex_unlock(&file_mutex.mutex);
+    if (!saved) {
+        LOG_E(TAG, "Failed to save the mode of %s", deviceName);
     }
-    return file::savePropertiesFile(path, map);
+    return saved;
 }
 
 // Modes are set after the iteration, because changing a mode adds and removes child devices
 void restoreAll() {
     std::map<std::string, std::string> map;
-    if (!loadMap(map)) {
+    mutex_lock(&file_mutex.mutex);
+    const bool loaded = loadMap(map);
+    mutex_unlock(&file_mutex.mutex);
+    if (!loaded) {
         return;
     }
     std::vector<Device*> devices;

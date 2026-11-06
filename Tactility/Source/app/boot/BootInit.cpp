@@ -296,6 +296,11 @@ bool bootInit(TickType_t startTime) {
     LOG_I(TAG, "Init NTP");
     network::ntp::init();
 
+    // Before the services, which only start GPS time sync when a GPS device exists, and a GPS can
+    // be on a Grove UART
+    LOG_I(TAG, "Restore Grove modes");
+    settings::grove::restoreAll();
+
     LOG_I(TAG, "Init Services");
     registerAndStartServices();
 
@@ -304,9 +309,6 @@ bool bootInit(TickType_t startTime) {
 
     LOG_I(TAG, "Init USB host");
     hal::usbhost::systemStart();
-
-    LOG_I(TAG, "Restore Grove modes");
-    settings::grove::restoreAll();
 
     bool sd_card_missing = false;
 #ifdef CONFIG_TT_USER_DATA_LOCATION_SD
