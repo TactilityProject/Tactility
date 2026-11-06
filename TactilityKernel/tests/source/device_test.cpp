@@ -3,7 +3,10 @@
 #include <cstring>
 #include <vector>
 
+#include <tactility/concurrent/thread.h>
+#include <tactility/delay.h>
 #include <tactility/device.h>
+#include <tactility/device_listener.h>
 
 TEST_CASE("device_construct and device_destruct should set and unset the constructed state") {
     Device device = { 0 };
@@ -226,6 +229,116 @@ TEST_CASE("device_is_ready should return true only when it is started") {
     CHECK_EQ(device_remove(&device), ERROR_NONE);
     CHECK_EQ(device_is_ready(&device), false);
 
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
+    CHECK_EQ(driver_remove_destruct(&driver), ERROR_NONE);
+}
+
+struct StoppingObservation {
+    Device* device = nullptr;
+    bool listenerCalled = false;
+    bool stoppingInListener = false;
+    bool stoppingInDriver = false;
+};
+
+static StoppingObservation stopping_observation;
+
+static void stopping_listener(Device* device, DeviceEvent event, void*) {
+    if (device == stopping_observation.device && event == DEVICE_EVENT_STOPPING) {
+        stopping_observation.listenerCalled = true;
+        stopping_observation.stoppingInListener = device_is_stopping(device);
+    }
+}
+
+static error_t stopping_driver_stop(Device* device) {
+    stopping_observation.stoppingInDriver = device_is_stopping(device);
+    return ERROR_NONE;
+}
+
+TEST_CASE("device_is_stopping should be true for the stopping listeners and the driver's stop") {
+    const char* compatible[] = { "test_compatible", nullptr };
+    Driver driver = {
+        .name = "test_driver",
+        .compatible = compatible,
+        .start_device = nullptr,
+        .stop_device = stopping_driver_stop,
+        .api = nullptr,
+        .device_type = nullptr,
+        .internal = nullptr
+    };
+
+    Device device = { 0 };
+    stopping_observation = {};
+    stopping_observation.device = &device;
+
+    CHECK_EQ(driver_construct_add(&driver), ERROR_NONE);
+    CHECK_EQ(device_construct(&device), ERROR_NONE);
+    device_set_driver(&device, &driver);
+    CHECK_EQ(device_add(&device), ERROR_NONE);
+    device_listener_add(stopping_listener, nullptr);
+
+    CHECK_EQ(device_is_stopping(&device), false);
+    CHECK_EQ(device_start(&device), ERROR_NONE);
+    CHECK_EQ(device_is_stopping(&device), false);
+    CHECK_EQ(device_stop(&device), ERROR_NONE);
+    CHECK_EQ(device_is_stopping(&device), false);
+    CHECK(stopping_observation.listenerCalled);
+    CHECK(stopping_observation.stoppingInListener);
+    CHECK(stopping_observation.stoppingInDriver);
+
+    device_listener_remove(stopping_listener, nullptr);
+    CHECK_EQ(device_remove(&device), ERROR_NONE);
+    CHECK_EQ(device_destruct(&device), ERROR_NONE);
+    CHECK_EQ(driver_remove_destruct(&driver), ERROR_NONE);
+}
+
+TEST_CASE("device_stop should not start stopping while another task holds the device lock") {
+    const char* compatible[] = { "test_compatible", nullptr };
+    Driver driver = {
+        .name = "test_driver",
+        .compatible = compatible,
+        .start_device = nullptr,
+        .stop_device = nullptr,
+        .api = nullptr,
+        .device_type = nullptr,
+        .internal = nullptr
+    };
+
+    Device device = { 0 };
+    stopping_observation = {};
+    stopping_observation.device = &device;
+
+    CHECK_EQ(driver_construct_add(&driver), ERROR_NONE);
+    CHECK_EQ(device_construct(&device), ERROR_NONE);
+    device_set_driver(&device, &driver);
+    CHECK_EQ(device_add(&device), ERROR_NONE);
+    CHECK_EQ(device_start(&device), ERROR_NONE);
+    device_listener_add(stopping_listener, nullptr);
+
+    // Like a driver call that checks the state and registers a subscriber under the device lock
+    device_lock(&device);
+    auto* thread = thread_alloc_full(
+        "device stop",
+        4096,
+        [](void* context) {
+            return static_cast<int32_t>(device_stop(static_cast<Device*>(context)));
+        },
+        &device,
+        -1
+    );
+    REQUIRE(thread != nullptr);
+    CHECK_EQ(thread_start(thread), ERROR_NONE);
+    delay_millis(50);
+    CHECK_EQ(device_is_stopping(&device), false);
+    CHECK_FALSE(stopping_observation.listenerCalled);
+    device_unlock(&device);
+
+    CHECK_EQ(thread_join(thread, pdMS_TO_TICKS(2000), 1), ERROR_NONE);
+    thread_free(thread);
+    CHECK(stopping_observation.listenerCalled);
+    CHECK_EQ(device_is_ready(&device), false);
+
+    device_listener_remove(stopping_listener, nullptr);
+    CHECK_EQ(device_remove(&device), ERROR_NONE);
     CHECK_EQ(device_destruct(&device), ERROR_NONE);
     CHECK_EQ(driver_remove_destruct(&driver), ERROR_NONE);
 }

@@ -101,8 +101,17 @@ struct GpsSubscription {
 struct GpsApi {
     /**
      * @brief Registers a subscriber for GPS events (e.g. RMC/GGA sentences).
+     *
+     * Fails with ERROR_INVALID_STATE once device_stop() started for the device. A successful subscription
+     * was registered before the DEVICE_EVENT_STOPPING listeners run, and gets GPS_EVENT_UNSUBSCRIBED as
+     * its last event when the device stops. The device can be freed after it stopped, so a subscriber
+     * either unsubscribes in a DEVICE_EVENT_STOPPING listener, or holds a reference (device_get()) until
+     * it unsubscribed or got GPS_EVENT_UNSUBSCRIBED.
+     *
      * @param[in] device the GPS device
      * @param[in,out] sub subscription to register; caller owns the storage and must keep it alive until unsubscribed
+     * @retval ERROR_NONE on success
+     * @retval ERROR_INVALID_STATE if the device is stopping or stopped
      */
     error_t (*event_subscribe)(struct Device* device, struct GpsSubscription* sub);
 
