@@ -272,13 +272,6 @@ static int32_t gps_thread_main(void* context) {
         LOG_W(TAG, "Failed to close UART %s", uart->name);
     }
 
-    // Wake any subscribers still awaiting an event so they don't block forever on a device that's
-    // going away, then drop them - stop() is about to free `internal`.
-    notify_subscribers(internal, GpsEvent { .type = GPS_EVENT_UNSUBSCRIBED, .data = {}, .talker = {}, .system_id = 0 });
-    recursive_mutex_lock(&internal->mutex);
-    internal->subscribers = nullptr;
-    recursive_mutex_unlock(&internal->mutex);
-
     set_state(internal, GPS_STATE_OFF);
     return 0;
 }
@@ -329,6 +322,14 @@ static error_t stop(Device* device) {
         LOG_E(TAG, "GPS thread for %s did not stop in time", device->name);
         return ERROR_RESOURCE_BUSY;
     }
+
+    // Also after a failed setup, when the thread ended early. Subscribers that are still registered get
+    // the event once, as they're dropped right after it. New subscriptions are refused while interrupt_requested is set.
+    notify_subscribers(internal, GpsEvent { .type = GPS_EVENT_UNSUBSCRIBED, .data = {}, .talker = {}, .system_id = 0 });
+    recursive_mutex_lock(&internal->mutex);
+    internal->subscribers = nullptr;
+    recursive_mutex_unlock(&internal->mutex);
+
     recursive_mutex_lock(&driver_data_mutex.handle);
     device_set_driver_data(device, nullptr);
     recursive_mutex_unlock(&driver_data_mutex.handle);
