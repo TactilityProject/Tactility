@@ -42,6 +42,15 @@ struct GpsInternal {
     GpsSubscription* subscribers;
 };
 
+struct DriverDataMutex {
+    RecursiveMutex handle {};
+    DriverDataMutex() { recursive_mutex_construct(&handle); }
+    ~DriverDataMutex() { recursive_mutex_destruct(&handle); }
+};
+
+// Held by the API functions while they use the driver data, so stop() can't free it in the meantime
+static DriverDataMutex driver_data_mutex;
+
 static const char* gpsModelToString(GpsModel model) {
     switch (model) {
         case GPS_MODEL_AG3335:
@@ -77,14 +86,20 @@ static const char* gpsModelToString(GpsModel model) {
     }
 }
 
-// Pushes `event` to every current subscriber and wakes their waiting task. Safe to call from the
+// Queues `event` for every current subscriber and wakes their waiting task. Safe to call from the
 // GPS thread's parsing loop.
 static void notify_subscribers(GpsInternal* internal, const GpsEvent& event) {
     recursive_mutex_lock(&internal->mutex);
 
     for (GpsSubscription* sub = internal->subscribers; sub != nullptr; sub = sub->next) {
-        sub->event = event;
-        sub->sequence++;
+        // The subscriber's task advances consumed_sequence without a lock
+        const uint32_t consumed = __atomic_load_n(&sub->consumed_sequence, __ATOMIC_ACQUIRE);
+        // One slot stays free for GPS_EVENT_UNSUBSCRIBED, the last event
+        const uint32_t capacity = event.type == GPS_EVENT_UNSUBSCRIBED ? GPS_SUBSCRIPTION_QUEUE_LENGTH : GPS_SUBSCRIPTION_QUEUE_LENGTH - 1U;
+        if (sub->sequence - consumed < capacity) {
+            sub->queue[sub->sequence % GPS_SUBSCRIPTION_QUEUE_LENGTH] = event;
+            __atomic_store_n(&sub->sequence, sub->sequence + 1U, __ATOMIC_RELEASE);
+        }
         xTaskNotifyGive(sub->task);
     }
 
@@ -102,6 +117,24 @@ static bool is_interrupted(GpsInternal* internal) {
     bool result = internal->interrupt_requested;
     recursive_mutex_unlock(&internal->mutex);
     return result;
+}
+
+// Returns the optional system ID field of a GSA sentence (NMEA 4.10), or 0 when it's missing
+static uint8_t parse_gsa_system_id(const char* sentence) {
+    int field = 0;
+    for (const char* c = sentence; *c != '\0' && *c != '*'; c++) {
+        if (*c == ',' && ++field == 18) {
+            const char digit = c[1];
+            if (digit >= '1' && digit <= '9') {
+                return static_cast<uint8_t>(digit - '0');
+            }
+            if (digit >= 'A' && digit <= 'F') {
+                return static_cast<uint8_t>(digit - 'A' + 10);
+            }
+            return 0;
+        }
+    }
+    return 0;
 }
 
 // region Driver lifecycle
@@ -222,6 +255,7 @@ static int32_t gps_thread_main(void* context) {
                 case MINMEA_SENTENCE_GSA: {
                     event.type = GPS_EVENT_MESSAGE_GSA;
                     if (minmea_parse_gsa(&event.data.gsa, reinterpret_cast<char*>(buffer))) {
+                        event.system_id = parse_gsa_system_id(reinterpret_cast<const char*>(buffer));
                         notify_subscribers(internal, event);
                     } else {
                         LOG_E(TAG, "GSA parse error: %s", reinterpret_cast<const char*>(buffer));
@@ -240,7 +274,7 @@ static int32_t gps_thread_main(void* context) {
 
     // Wake any subscribers still awaiting an event so they don't block forever on a device that's
     // going away, then drop them - stop() is about to free `internal`.
-    notify_subscribers(internal, GpsEvent { .type = GPS_EVENT_UNSUBSCRIBED, .data = {}, .talker = {} });
+    notify_subscribers(internal, GpsEvent { .type = GPS_EVENT_UNSUBSCRIBED, .data = {}, .talker = {}, .system_id = 0 });
     recursive_mutex_lock(&internal->mutex);
     internal->subscribers = nullptr;
     recursive_mutex_unlock(&internal->mutex);
@@ -271,10 +305,12 @@ static error_t start(Device* device) {
     device_set_driver_data(device, internal);
 
     if (thread_start(internal->thread) != ERROR_NONE) {
+        recursive_mutex_lock(&driver_data_mutex.handle);
+        device_set_driver_data(device, nullptr);
+        recursive_mutex_unlock(&driver_data_mutex.handle);
         thread_free(internal->thread);
         recursive_mutex_destruct(&internal->mutex);
         free(internal);
-        device_set_driver_data(device, nullptr);
         return ERROR_RESOURCE;
     }
 
@@ -293,11 +329,13 @@ static error_t stop(Device* device) {
         LOG_E(TAG, "GPS thread for %s did not stop in time", device->name);
         return ERROR_RESOURCE_BUSY;
     }
-    thread_free(internal->thread);
+    recursive_mutex_lock(&driver_data_mutex.handle);
+    device_set_driver_data(device, nullptr);
+    recursive_mutex_unlock(&driver_data_mutex.handle);
 
+    thread_free(internal->thread);
     recursive_mutex_destruct(&internal->mutex);
     free(internal);
-    device_set_driver_data(device, nullptr);
     return ERROR_NONE;
 }
 
@@ -306,31 +344,38 @@ static error_t stop(Device* device) {
 // region GpsApi
 
 static error_t gps_api_event_subscribe(Device* device, GpsSubscription* sub) {
-    auto* internal = static_cast<GpsInternal*>(device_get_driver_data(device));
-    // Lookups still return the device while it stops, after stop() freed the driver data
-    if (internal == nullptr) {
-        return ERROR_INVALID_STATE;
-    }
-
     sub->task = xTaskGetCurrentTaskHandle();
     sub->sequence = 0;
     sub->consumed_sequence = 0;
 
-    recursive_mutex_lock(&internal->mutex);
-    // A stopping device already sent GPS_EVENT_UNSUBSCRIBED, so a new subscriber would never be told
-    if (internal->interrupt_requested) {
-        recursive_mutex_unlock(&internal->mutex);
+    recursive_mutex_lock(&driver_data_mutex.handle);
+    auto* internal = static_cast<GpsInternal*>(device_get_driver_data(device));
+    // Lookups still return the device while it stops, after stop() freed the driver data
+    if (internal == nullptr) {
+        recursive_mutex_unlock(&driver_data_mutex.handle);
         return ERROR_INVALID_STATE;
     }
-    sub->next = internal->subscribers;
-    internal->subscribers = sub;
-    recursive_mutex_unlock(&internal->mutex);
 
-    return ERROR_NONE;
+    recursive_mutex_lock(&internal->mutex);
+    // A stopping device already sent GPS_EVENT_UNSUBSCRIBED, so a new subscriber would never be told
+    const bool stopping = internal->interrupt_requested;
+    if (!stopping) {
+        sub->next = internal->subscribers;
+        internal->subscribers = sub;
+    }
+    recursive_mutex_unlock(&internal->mutex);
+    recursive_mutex_unlock(&driver_data_mutex.handle);
+
+    return stopping ? ERROR_INVALID_STATE : ERROR_NONE;
 }
 
 static error_t gps_api_event_unsubscribe(Device* device, GpsSubscription* sub) {
+    recursive_mutex_lock(&driver_data_mutex.handle);
     auto* internal = static_cast<GpsInternal*>(device_get_driver_data(device));
+    if (internal == nullptr) {
+        recursive_mutex_unlock(&driver_data_mutex.handle);
+        return ERROR_INVALID_STATE;
+    }
 
     error_t result = ERROR_NOT_FOUND;
     recursive_mutex_lock(&internal->mutex);
@@ -342,28 +387,34 @@ static error_t gps_api_event_unsubscribe(Device* device, GpsSubscription* sub) {
         }
     }
     recursive_mutex_unlock(&internal->mutex);
+    recursive_mutex_unlock(&driver_data_mutex.handle);
 
     return result;
 }
 
 static error_t gps_api_event_await(Device*, GpsSubscription* sub, TickType_t timeout) {
-    uint32_t old_sequence = sub->sequence;
-
-    while (sub->sequence == old_sequence) {
+    // The GPS thread advances sequence after it wrote the queue slot
+    while (__atomic_load_n(&sub->sequence, __ATOMIC_ACQUIRE) == sub->consumed_sequence) {
         if (ulTaskNotifyTake(pdTRUE, timeout) == 0) {
             return ERROR_TIMEOUT;
         }
     }
 
-    sub->consumed_sequence = sub->sequence;
+    sub->event = sub->queue[sub->consumed_sequence % GPS_SUBSCRIPTION_QUEUE_LENGTH];
+    __atomic_store_n(&sub->consumed_sequence, sub->consumed_sequence + 1U, __ATOMIC_RELEASE);
     return ERROR_NONE;
 }
 
 static GpsState gps_api_get_state(Device* device) {
+    recursive_mutex_lock(&driver_data_mutex.handle);
     auto* internal = static_cast<GpsInternal*>(device_get_driver_data(device));
-    recursive_mutex_lock(&internal->mutex);
-    auto state = internal->state;
-    recursive_mutex_unlock(&internal->mutex);
+    GpsState state = GPS_STATE_OFF;
+    if (internal != nullptr) {
+        recursive_mutex_lock(&internal->mutex);
+        state = internal->state;
+        recursive_mutex_unlock(&internal->mutex);
+    }
+    recursive_mutex_unlock(&driver_data_mutex.handle);
     return state;
 }
 

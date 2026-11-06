@@ -68,17 +68,31 @@ struct GpsEvent {
      * "GB" or "BD" BeiDou, "GQ" QZSS, "GN" combined. Empty when unknown, e.g. for GPS_EVENT_UNSUBSCRIBED.
      */
     char talker[3];
+    /**
+     * NMEA 4.10 system ID of a GSA sentence: 1 GPS, 2 GLONASS, 3 Galileo, 4 BeiDou, 5 QZSS, 6 NavIC.
+     * 0 when the receiver doesn't send it, and for other sentences.
+     */
+    uint8_t system_id;
 };
+
+/** Events that a subscription holds until event_await takes them. Later events are dropped while it's full. */
+#define GPS_SUBSCRIPTION_QUEUE_LENGTH 16
 
 struct GpsSubscription {
     TaskHandle_t task;
 
+    /** The event that the last successful event_await took */
     struct GpsEvent event;
 
+    /** Number of events the driver queued */
     uint32_t sequence;
+    /** Number of events event_await took */
     uint32_t consumed_sequence;
 
     struct GpsSubscription* next;
+
+    /** Events not taken yet. Written by the driver. */
+    struct GpsEvent queue[GPS_SUBSCRIPTION_QUEUE_LENGTH];
 };
 
 /**
@@ -100,7 +114,8 @@ struct GpsApi {
     error_t (*event_unsubscribe)(struct Device* device, struct GpsSubscription* sub);
 
     /**
-     * @brief Blocks the calling task until a new event arrives for the subscription, or timeout elapses.
+     * @brief Takes the oldest queued event into sub->event, and blocks the calling task until one arrives
+     * or timeout elapses when none is queued. Only the subscribing task calls this.
      * @param[in] device the GPS device
      * @param[in,out] sub subscription to wait on
      * @param[in] timeout max ticks to wait
