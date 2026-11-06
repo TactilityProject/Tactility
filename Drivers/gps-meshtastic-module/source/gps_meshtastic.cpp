@@ -349,9 +349,10 @@ static error_t gps_api_event_subscribe(Device* device, GpsSubscription* sub) {
     sub->sequence = 0;
     sub->consumed_sequence = 0;
 
-    // device_stop() marks the device as stopping under the device lock, before it notifies the
-    // DEVICE_EVENT_STOPPING listeners. Holding it until the subscriber is registered means that a
-    // registered subscriber always gets that event.
+    // device_start() marks the device as started under the device lock after start() succeeded, and
+    // device_stop() marks it as stopping under it before it notifies the DEVICE_EVENT_STOPPING listeners.
+    // Holding it until the subscriber is registered means that a registered subscriber was added to a
+    // started device and always gets that event.
     device_lock(device);
     recursive_mutex_lock(&driver_data_mutex.handle);
     auto* internal = static_cast<GpsInternal*>(device_get_driver_data(device));
@@ -363,10 +364,10 @@ static error_t gps_api_event_subscribe(Device* device, GpsSubscription* sub) {
     }
 
     recursive_mutex_lock(&internal->mutex);
-    // The DEVICE_EVENT_STOPPING listeners already ran, and the GPS thread may already have sent
-    // GPS_EVENT_UNSUBSCRIBED, so a new subscriber would never be told that the device goes away
-    const bool stopping = internal->interrupt_requested || device_is_stopping(device);
-    if (!stopping) {
+    // A failed start frees the driver data without notifying subscribers. When the device stops, the
+    // DEVICE_EVENT_STOPPING listeners already ran, so a new subscriber would never be told that it goes away.
+    const bool refused = !device_is_ready(device) || device_is_stopping(device) || internal->interrupt_requested;
+    if (!refused) {
         sub->next = internal->subscribers;
         internal->subscribers = sub;
     }
@@ -374,7 +375,7 @@ static error_t gps_api_event_subscribe(Device* device, GpsSubscription* sub) {
     recursive_mutex_unlock(&driver_data_mutex.handle);
     device_unlock(device);
 
-    return stopping ? ERROR_INVALID_STATE : ERROR_NONE;
+    return refused ? ERROR_INVALID_STATE : ERROR_NONE;
 }
 
 static error_t gps_api_event_unsubscribe(Device* device, GpsSubscription* sub) {
