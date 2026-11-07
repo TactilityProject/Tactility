@@ -36,7 +36,7 @@ bool State::setEntriesForPath(const std::string& path) {
 
     dir_entries.clear();
     int count = file::scandir(path, dir_entries, nullptr, file::direntSortAlphaAndType);
-    if (count == 0) {
+    if (count < 0) {
         LOG_E(TAG, "Failed to fetch entries for %s", path.c_str());
         return false;
     }
