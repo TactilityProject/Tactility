@@ -7,12 +7,9 @@
 
 ## Higher Priority
 
-- Improve posix support: use user home path and system /tmp folder.
 - External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
   Check during installation process, but also when starting (SD card might have old app install from before Tactility OS update)
 - minitar/untarFile(): "entry->metadata.path" can escape its confined path (e.g. "../something")
-- xl9555 and tca9534 drivers: support `GPIO_FLAG_ACTIVE_LOW` on outputs in software, like tca95xx does.
-  Afterwards the raw level reset handling in cst66xx and tca8418 can use ACTIVE_LOW too.
 
 ## Medium Priority
 

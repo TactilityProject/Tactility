@@ -38,8 +38,10 @@ static error_t set_level(GpioDescriptor* descriptor, bool high) {
     auto* parent = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
     uint8_t bit = 1 << descriptor->pin;
+    // The output port has no polarity inversion, so active-low outputs are inverted here
+    bool physical_high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !high : high;
 
-    return high
+    return physical_high
         ? i2c_controller_register8_set_bits(parent, address, TCA9534_REGISTER_OUTPUT, bit, portMAX_DELAY)
         : i2c_controller_register8_reset_bits(parent, address, TCA9534_REGISTER_OUTPUT, bit, portMAX_DELAY);
 }
@@ -66,13 +68,6 @@ static error_t set_flags(GpioDescriptor* descriptor, gpio_flags_t flags) {
         return ERROR_NOT_SUPPORTED;
     }
 
-    // The polarity register only inverts what's read back from an input pin;
-    // set_level() still drives outputs at the raw level. Accepting ACTIVE_LOW
-    // on an output would silently not do what it implies.
-    if ((flags & GPIO_FLAG_ACTIVE_LOW) && (flags & GPIO_FLAG_DIRECTION_OUTPUT)) {
-        return ERROR_NOT_SUPPORTED;
-    }
-
     auto* device = descriptor->controller;
     auto* parent = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
@@ -90,7 +85,7 @@ static error_t set_flags(GpioDescriptor* descriptor, gpio_flags_t flags) {
         return err;
     }
 
-    // Polarity inversion (mainly relevant for active-low inputs).
+    // Input polarity inversion, so get_level() reports the logical level of active-low pins
     if (flags & GPIO_FLAG_ACTIVE_LOW) {
         err = i2c_controller_register8_set_bits(parent, address, TCA9534_REGISTER_POLARITY, bit, portMAX_DELAY);
     } else {

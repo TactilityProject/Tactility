@@ -83,7 +83,7 @@ static GpioDescriptor* acquire_native_pin(const struct GpioPinSpec& spec, const 
 
 /**
  * Acquire an optional control pin (may sit behind an IO expander) and drive it to the given logical state.
- * Controllers may not support ACTIVE_LOW on outputs (e.g. xl9555), so polarity from the pin spec is applied here.
+ * The pin spec's ACTIVE_LOW flag makes the descriptor invert the level.
  */
 static error_t acquire_and_drive_pin(const struct GpioPinSpec& spec, const char* pin_name, bool active, GpioDescriptor** out_descriptor) {
     if (spec.gpio_controller == nullptr) {
@@ -91,29 +91,26 @@ static error_t acquire_and_drive_pin(const struct GpioPinSpec& spec, const char*
         return ERROR_NONE;
     }
 
-    // Polarity is applied by hand below, so the descriptor is acquired as a plain output.
-    auto* descriptor = gpio_descriptor_acquire(spec.gpio_controller, spec.pin, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
+    auto* descriptor = gpio_descriptor_acquire(spec.gpio_controller, spec.pin, GPIO_FLAG_DIRECTION_OUTPUT | (spec.flags & GPIO_FLAG_ACTIVE_LOW), GPIO_OWNER_GPIO);
     if (descriptor == nullptr) {
         LOG_E(TAG, "Failed to acquire pin \"%s\"", pin_name);
         return ERROR_RESOURCE;
     }
 
-    const bool level = (spec.flags & GPIO_FLAG_ACTIVE_LOW) ? !active : active;
-    if (gpio_descriptor_set_level(descriptor, level) != ERROR_NONE) {
+    if (gpio_descriptor_set_level(descriptor, active) != ERROR_NONE) {
         LOG_E(TAG, "Failed to drive pin \"%s\"", pin_name);
         gpio_descriptor_release(descriptor);
         return ERROR_RESOURCE;
     }
 
-    LOG_I(TAG, "Pin \"%s\" (controller \"%s\" pin %u) driven %s", pin_name, spec.gpio_controller->name, spec.pin, level ? "high" : "low");
+    LOG_I(TAG, "Pin \"%s\" (controller \"%s\" pin %u) driven %s", pin_name, spec.gpio_controller->name, spec.pin, active ? "active" : "inactive");
     *out_descriptor = descriptor;
     return ERROR_NONE;
 }
 
-static void set_pin_active(GpioDescriptor* descriptor, const struct GpioPinSpec& spec, bool active) {
+static void set_pin_active(GpioDescriptor* descriptor, bool active) {
     if (descriptor != nullptr) {
-        const bool level = (spec.flags & GPIO_FLAG_ACTIVE_LOW) ? !active : active;
-        gpio_descriptor_set_level(descriptor, level);
+        gpio_descriptor_set_level(descriptor, active);
     }
 }
 
@@ -232,8 +229,8 @@ static error_t detect_chip(Device* device) {
 
     bool found = false;
     if (acquired) {
-        set_pin_active(pins.pin_antenna_select, config->pin_antenna_select, true);
-        set_pin_active(pins.pin_enable, config->pin_enable, true);
+        set_pin_active(pins.pin_antenna_select, true);
+        set_pin_active(pins.pin_enable, true);
         if (pins.pin_enable != nullptr) {
             delay_millis(10);
         }
@@ -249,8 +246,8 @@ static error_t detect_chip(Device* device) {
         // A found module stays powered: switching it off right before the device starts can leave it
         // without a clean power-on reset
         if (!found) {
-            set_pin_active(pins.pin_enable, config->pin_enable, false);
-            set_pin_active(pins.pin_antenna_select, config->pin_antenna_select, false);
+            set_pin_active(pins.pin_enable, false);
+            set_pin_active(pins.pin_antenna_select, false);
         }
     }
 
@@ -386,8 +383,8 @@ static error_t start(Device* device) {
     if (data->radio->probe() != ERROR_NONE) {
         tt::deleteObject(data->radio);
         // Power down first, then release the antenna path (mirror of the start order)
-        set_pin_active(data->pin_enable, config->pin_enable, false);
-        set_pin_active(data->pin_antenna_select, config->pin_antenna_select, false);
+        set_pin_active(data->pin_enable, false);
+        set_pin_active(data->pin_antenna_select, false);
         data->release_pins();
         tt::deleteObject(data);
         return ERROR_RESOURCE;
@@ -409,8 +406,8 @@ static error_t stop(Device* device) {
 
     // Power down first, then release the antenna path (mirror of the start order)
     auto* config = GET_CONFIG(device);
-    set_pin_active(data->pin_enable, config->pin_enable, false);
-    set_pin_active(data->pin_antenna_select, config->pin_antenna_select, false);
+    set_pin_active(data->pin_enable, false);
+    set_pin_active(data->pin_antenna_select, false);
 
     data->release_pins();
     device_set_driver_data(device, nullptr);
