@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/LauncherSettings.h>
 
 #include <Tactility/file/File.h>
@@ -51,7 +52,7 @@ static bool getSettingsFilePath(std::string& outPath) {
 
 bool load(LauncherSettings& settings) {
     std::string settings_path;
-    if (!getSettingsFilePath(settings_path) || !file::isFile(settings_path)) {
+    if (!getSettingsFilePath(settings_path) || !file_exists(settings_path.c_str())) {
         return false;
     }
 

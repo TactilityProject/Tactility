@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/KeyboardSettings.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
@@ -19,7 +20,7 @@ constexpr auto* KEY_BACKLIGHT_TIMEOUT_MS = "backlightTimeoutMs";
 
 bool load(KeyboardSettings& settings) {
     auto settings_path = getSettingsFilePath();
-    if (!file::isFile(settings_path)) {
+    if (!file_exists(settings_path.c_str())) {
         return false;
     }
 

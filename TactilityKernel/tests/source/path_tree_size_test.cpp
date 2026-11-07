@@ -44,3 +44,16 @@ TEST_CASE("path_tree_size sums files in a deep tree and in a wide directory") {
 
     std::filesystem::remove_all(root);
 }
+
+TEST_CASE("file_exists is true for a regular file only") {
+    char pattern[] = "/tmp/tt_file_exists_XXXXXX";
+    REQUIRE(mkdtemp(pattern) != nullptr);
+    const std::string root = pattern;
+    write_file(root + "/file", 1);
+
+    CHECK(file_exists((root + "/file").c_str()));
+    CHECK_FALSE(file_exists(root.c_str()));
+    CHECK_FALSE(file_exists((root + "/missing").c_str()));
+
+    std::filesystem::remove_all(root);
+}

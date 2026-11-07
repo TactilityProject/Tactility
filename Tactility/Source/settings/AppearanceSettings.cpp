@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/AppearanceSettings.h>
 
 #include <Tactility/file/File.h>
@@ -108,7 +109,7 @@ static std::string getSettingsFilePath() {
 
 bool load(AppearanceSettings& settings) {
     const auto settings_path = getSettingsFilePath();
-    if (settings_path.empty() || !file::isFile(settings_path)) {
+    if (settings_path.empty() || !file_exists(settings_path.c_str())) {
         return false;
     }
 

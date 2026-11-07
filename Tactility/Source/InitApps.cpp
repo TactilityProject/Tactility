@@ -1,6 +1,7 @@
 #include "tactility/drivers/bluetooth.h"
 
 
+#include <tactility/filesystem/fs.h>
 #include <Tactility/TactilityPrivate.h>
 
 #ifdef ESP_PLATFORM
@@ -214,7 +215,7 @@ static void registerInstalledAppsFromFileSystems() {
         char path[128];
         if (file_system_get_path(fs, path, sizeof(path)) != ERROR_NONE) return true;
         const auto app_path = std::format("{}/tactility/app", path);
-        if (file::isDirectory(app_path)) {
+        if (directory_exists(app_path.c_str())) {
             LOG_I(TAG, "Registering install path %s", app_path.c_str());
             app_manager_install_path_add(app_path.c_str());
         }

@@ -20,6 +20,7 @@
 #include <Tactility/MountPoints.h>
 #include <Tactility/TactilityPrivate.h>
 #include <Tactility/app/boot/BootScreen.h>
+#include <Tactility/app/boot/BootScripts.h>
 #include <generated_assets.h>
 #include <Tactility/hal/usb/Usb.h>
 #include <Tactility/hal/usb/UsbHost.h>
@@ -342,6 +343,8 @@ bool bootInit(TickType_t startTime) {
         showMessageAndRebootOrPowerOff(screen, { "SD card not found.", "Please insert one and reboot." });
         return false;
     }
+
+    runBootScripts();
 
 #ifdef ESP_PLATFORM
     if (esp_reset_reason() == ESP_RST_PANIC) {

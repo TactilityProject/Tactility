@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <Tactility/file/File.h>
@@ -131,7 +132,7 @@ static bool fromString(const std::string& str, ScreensaverType& type) {
 /** Must be called with file_mutex held */
 static bool loadUnlocked(DisplaySettings& settings) {
     auto settings_path = getSettingsFilePath();
-    if (!file::isFile(settings_path)) {
+    if (!file_exists(settings_path.c_str())) {
         return false;
     }
 

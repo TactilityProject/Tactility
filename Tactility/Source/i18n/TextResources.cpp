@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/i18n/TextResources.h>
 #include <Tactility/file/FileLock.h>
 
@@ -37,7 +38,7 @@ static std::string getDesiredLocale() {
 static std::string getI18nDataFilePath(const std::string& path) {
     auto locale = getDesiredLocale();
     auto desired_file_path = std::format("{}/{}.i18n", path, locale);
-    if (file::isFile(desired_file_path)) {
+    if (file_exists(desired_file_path.c_str())) {
         return desired_file_path;
     } else {
         LOG_W(TAG, "Translations not found for %s at %s", locale.c_str(), desired_file_path.c_str());
@@ -45,7 +46,7 @@ static std::string getI18nDataFilePath(const std::string& path) {
 
     auto fallback_locale = getFallbackLocale();
     auto fallback_file_path = std::format("{}/{}.i18n", path, getFallbackLocale());
-    if (file::isFile(fallback_file_path)) {
+    if (file_exists(fallback_file_path.c_str())) {
         return fallback_file_path;
     } else {
         LOG_W(TAG, "Fallback translations not found for %s at %s", fallback_locale.c_str(), fallback_file_path.c_str());

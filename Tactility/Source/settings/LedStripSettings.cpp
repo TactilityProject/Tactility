@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/LedStripSettings.h>
 
 #include <Tactility/file/File.h>
@@ -95,7 +96,7 @@ LedStripSettings getDefault() {
 
 bool load(const char* deviceName, LedStripSettings& settings) {
     const auto path = getSettingsFilePath(deviceName);
-    if (!file::isFile(path)) {
+    if (!file_exists(path.c_str())) {
         return false;
     }
 

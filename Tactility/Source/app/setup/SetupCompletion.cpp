@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/app/setup/Setup.h>
 
 #include <Tactility/file/File.h>
@@ -30,7 +31,7 @@ bool isCompleted() {
         LOG_E(TAG, "Setup path not found");
         return false;
     }
-    if (!file::isFile(path)) {
+    if (!file_exists(path.c_str())) {
         return false;
     }
     // Markers from before versioning are empty and mean version 1

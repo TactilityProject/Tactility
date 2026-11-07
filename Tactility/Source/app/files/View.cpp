@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <app/event.h>
 #include <app/execute.h>
 #include <app/install.h>
@@ -180,7 +181,7 @@ static bool copyFileContents(const std::string& src, const std::string& dst) {
 }
 
 static bool copyRecursive(const std::string& src, const std::string& dst) {
-    if (file::isDirectory(src)) {
+    if (directory_exists(src.c_str())) {
         if (!file::findOrCreateDirectory(dst, 0755)) {
             return false;
         }
@@ -703,11 +704,11 @@ void View::onResult(uint32_t launchId, int32_t result) {
     switch (state->getPendingAction()) {
         case State::ActionDelete: {
             if (result == 0) {
-                if (file::isDirectory(filepath)) {
+                if (directory_exists(filepath.c_str())) {
                     if (!file::deleteRecursively(filepath)) {
                         LOG_W(TAG, "Failed to delete %s", filepath.c_str());
                     }
-                } else if (file::isFile(filepath)) {
+                } else if (file_exists(filepath.c_str())) {
                     if (remove(filepath.c_str()) != 0) {
                         LOG_W(TAG, "Failed to delete %s", filepath.c_str());
                     }
@@ -895,11 +896,16 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     bool src_delete_failed = false;
     if (is_cut) {
         if (rename(src.c_str(), dst.c_str()) != 0) {
-            // Fallback for cross-filesystem moves: copy then delete.
-            // Only mark success if both halves succeed — if the source removal
-            // fails we leave success=false so the clipboard is preserved and
-            // the error is surfaced; the user must remove the source manually.
-            if (copyRecursive(src, dst)) {
+            const int rename_errno = errno;
+            if (!path_exists(src.c_str()) && path_exists(dst.c_str())) {
+                // The move happened although rename() reported a failure
+                LOG_W(TAG, "rename() of \"%s\" failed with errno %d, but the move succeeded", src.c_str(), rename_errno);
+                success = true;
+            } else if (copyRecursive(src, dst)) {
+                // Fallback for cross-filesystem moves: copy then delete.
+                // Only mark success if both halves succeed — if the source removal
+                // fails we leave success=false so the clipboard is preserved and
+                // the error is surfaced; the user must remove the source manually.
                 if (file::deleteRecursively(src)) {
                     success = true;
                 } else {
@@ -922,7 +928,7 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start(appInstanceId, "Move incomplete", "\"" + filename + "\" was copied but the original could not be removed.\nPlease delete it manually.");
     } else {
-        LOG_E(TAG, "Failed to %s \"%s\" to \"%s\"", is_cut ? "move" : "copy", src.c_str(), dst.c_str());
+        LOG_E(TAG, "Failed to %s \"%s\" to \"%s\" (errno %d)", is_cut ? "move" : "copy", src.c_str(), dst.c_str(), errno);
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start(
             appInstanceId,

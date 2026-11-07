@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/lvgl/FontCache.h>
 
 #include <Tactility/file/File.h>
@@ -131,7 +132,7 @@ BinFont* loadOrGenerateFont(const std::string& fileName, const TtfSource& ttf, u
     const auto cache_path = directory.empty() ? std::string() : file::getChildPath(directory, fileName);
 
     BinFont* font = nullptr;
-    if (!cache_path.empty() && file::isFile(cache_path)) {
+    if (!cache_path.empty() && file_exists(cache_path.c_str())) {
         if (binfont_open_file(cache_path.c_str(), &font) == ERROR_NONE) {
             return font;
         }
@@ -158,7 +159,7 @@ BinFont* loadOrGenerateFont(const std::string& fileName, const TtfSource& ttf, u
 bool ensureCachedFont(const std::string& fileName, const TtfSource& ttf, uint16_t size, uint8_t bpp, const std::function<std::vector<uint32_t>()>& getCodepoints) {
     const auto& directory = getCacheDirectory();
     const auto cache_path = directory.empty() ? std::string() : file::getChildPath(directory, fileName);
-    if (!cache_path.empty() && file::isFile(cache_path)) {
+    if (!cache_path.empty() && file_exists(cache_path.c_str())) {
         return true;
     }
 

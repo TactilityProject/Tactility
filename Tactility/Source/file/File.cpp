@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/file/File.h>
 
 #include <cerrno>
@@ -265,7 +266,7 @@ bool deleteRecursively(const std::string& path) {
         return true;
     }
 
-    if (isDirectory(path)) {
+    if (directory_exists(path.c_str())) {
         std::vector<dirent> entries;
         if (scandir(path, entries) < 0) {
             LOG_E(TAG, "Failed to scan directory %s", path.c_str());
@@ -283,7 +284,7 @@ bool deleteRecursively(const std::string& path) {
         }
         LOG_I(TAG, "Deleting %s", path.c_str());
         return deleteDirectory(path);
-    } else if (isFile(path)) {
+    } else if (file_exists(path.c_str())) {
         LOG_I(TAG, "Deleting %s", path.c_str());
         return deleteFile(path);
     } else {
@@ -298,15 +299,6 @@ bool deleteFile(const std::string& path) {
 
 bool deleteDirectory(const std::string& path) {
     return rmdir(path.c_str()) == 0;
-}
-
-bool isFile(const std::string& path) {
-    return access(path.c_str(), F_OK) == 0;
-}
-
-bool isDirectory(const std::string& path) {
-    struct stat stat_result;
-    return stat(path.c_str(), &stat_result) == 0 && S_ISDIR(stat_result.st_mode);
 }
 
 bool readLines(const std::string& filePath, bool stripNewLine, std::function<void(const char* line)> callback) {
