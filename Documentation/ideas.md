@@ -2,14 +2,10 @@
 
 ## Before release
 
-- Tactility/Source/service/autorotate/AutoRotate.cpp  
-  TODO: Display settings app might be saving DisplaySettings at the same time. This might corrupt the settings file.
-
 ## Higher Priority
 
-- External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
+- External app loading: Check the version of Tactility and check ESP target hardware (e.g. memory required) and architecture to check for compatibility
   Check during installation process, but also when starting (SD card might have old app install from before Tactility OS update)
-- minitar/untarFile(): "entry->metadata.path" can escape its confined path (e.g. "../something")
 
 ## Medium Priority
 

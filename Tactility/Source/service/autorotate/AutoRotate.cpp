@@ -54,11 +54,8 @@ void AutoRotateService::tick() {
     lv_display_set_rotation(lv_display_get_default(), rotation);
     lvgl_unlock();
 
-    // TODO: Display settings app might be saving DisplaySettings at the same time. This might corrupt the settings file.
-    auto settings_to_save = settings::display::loadOrGetDefault();
-    settings_to_save.orientation = orientation;
     cachedDisplaySettings.orientation = orientation;
-    settings::display::save(settings_to_save);
+    settings::display::saveOrientation(orientation);
 }
 
 bool AutoRotateService::onStart(ServiceContext& service) {

@@ -5,6 +5,7 @@
 
 #include <app/paths.h>
 
+#include <tactility/concurrent/mutex.h>
 #include <tactility/device.h>
 #include <tactility/drivers/display.h>
 
@@ -13,6 +14,15 @@
 #include <utility>
 
 namespace tt::settings::display {
+
+struct FileMutex {
+    Mutex mutex {};
+    FileMutex() { mutex_construct(&mutex); }
+    ~FileMutex() { mutex_destruct(&mutex); }
+};
+
+// The settings app and the auto-rotate service both save, and a save must not overlap a load or another save
+static FileMutex file_mutex;
 
 static std::string getSettingsFilePath() {
     char path[256];
@@ -118,7 +128,8 @@ static bool fromString(const std::string& str, ScreensaverType& type) {
     }
 }
 
-bool load(DisplaySettings& settings) {
+/** Must be called with file_mutex held */
+static bool loadUnlocked(DisplaySettings& settings) {
     auto settings_path = getSettingsFilePath();
     if (!file::isFile(settings_path)) {
         return false;
@@ -197,6 +208,13 @@ DisplaySettings getDefault() {
     };
 }
 
+bool load(DisplaySettings& settings) {
+    mutex_lock(&file_mutex.mutex);
+    const bool loaded = loadUnlocked(settings);
+    mutex_unlock(&file_mutex.mutex);
+    return loaded;
+}
+
 DisplaySettings loadOrGetDefault() {
     DisplaySettings settings;
     if (!load(settings)) {
@@ -205,7 +223,8 @@ DisplaySettings loadOrGetDefault() {
     return settings;
 }
 
-bool save(const DisplaySettings& settings) {
+/** Must be called with file_mutex held */
+static bool saveUnlocked(const DisplaySettings& settings) {
     std::map<std::string, std::string> map;
     map[SETTINGS_KEY_BACKLIGHT_DUTY] = std::to_string(settings.backlightDuty);
     map[SETTINGS_KEY_GAMMA_CURVE] = std::to_string(settings.gammaCurve);
@@ -219,6 +238,25 @@ bool save(const DisplaySettings& settings) {
         return false;
     }
     return file::savePropertiesFile(settings_path, map);
+}
+
+bool save(const DisplaySettings& settings) {
+    mutex_lock(&file_mutex.mutex);
+    const bool saved = saveUnlocked(settings);
+    mutex_unlock(&file_mutex.mutex);
+    return saved;
+}
+
+bool saveOrientation(Orientation orientation) {
+    mutex_lock(&file_mutex.mutex);
+    DisplaySettings settings;
+    if (!loadUnlocked(settings)) {
+        settings = getDefault();
+    }
+    settings.orientation = orientation;
+    const bool saved = saveUnlocked(settings);
+    mutex_unlock(&file_mutex.mutex);
+    return saved;
 }
 
 lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {
