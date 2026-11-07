@@ -55,7 +55,7 @@
 			motor_power {
 				compatible = "gpio-hog";
 				pin = <&xl9555 5 GPIO_FLAG_NONE>;
-      };
+      		};
 
 			gps_power {
 				compatible = "gpio-hog";
