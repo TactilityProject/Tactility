@@ -4,8 +4,6 @@
 
 ## Higher Priority
 
-- External app loading: Check the version of Tactility and check ESP target hardware (e.g. memory required) and architecture to check for compatibility
-  Check during installation process, but also when starting (SD card might have old app install from before Tactility OS update)
 
 ## Medium Priority
 

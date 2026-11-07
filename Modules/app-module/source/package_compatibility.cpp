@@ -7,11 +7,43 @@
 #include <sdkconfig.h>
 #endif
 
+#include <cstdio>
 #include <cstring>
 
 namespace {
 
-// requires_device_id is a comma-separated list without spaces (see app_package_manifest_is_valid_device_id_list())
+#ifdef ESP_PLATFORM
+constexpr auto* THIS_PLATFORM = CONFIG_IDF_TARGET;
+#else
+constexpr auto* THIS_PLATFORM = TACTILITY_POSIX_PLATFORM;
+#endif
+
+struct Version {
+    unsigned major = 0;
+    unsigned minor = 0;
+    unsigned patch = 0;
+};
+
+// "major.minor.patch" with an optional "-tag" suffix, which is ignored
+bool parse_version(const char* text, Version& version) {
+    int consumed = 0;
+    if (sscanf(text, "%u.%u.%u%n", &version.major, &version.minor, &version.patch, &consumed) != 3) {
+        return false;
+    }
+    return text[consumed] == '\0' || text[consumed] == '-';
+}
+
+bool is_newer(const Version& left, const Version& right) {
+    if (left.major != right.major) {
+        return left.major > right.major;
+    }
+    if (left.minor != right.minor) {
+        return left.minor > right.minor;
+    }
+    return left.patch > right.patch;
+}
+
+// Comma-separated list without spaces (see app_package_manifest_is_valid_device_id_list())
 bool is_device_listed(const char* device_ids, const char* device_id) {
     const size_t device_id_length = strlen(device_id);
     const char* item = device_ids;
@@ -34,6 +66,17 @@ bool is_device_listed(const char* device_ids, const char* device_id) {
 extern "C" {
 
 bool app_package_manifest_is_compatible(const struct PackageManifest* const manifest) {
+    if (manifest->target_platforms[0] != '\0' && !is_device_listed(manifest->target_platforms, THIS_PLATFORM)) {
+        return false;
+    }
+    // An app built for a newer SDK can use APIs this firmware doesn't have. Not every caller knows the SDK version.
+    if (manifest->target_sdk[0] != '\0') {
+        Version target_sdk;
+        Version firmware;
+        if (!parse_version(manifest->target_sdk, target_sdk) || !parse_version(TT_VERSION, firmware) || is_newer(target_sdk, firmware)) {
+            return false;
+        }
+    }
     if (manifest->requires_device_id[0] != '\0' && !is_device_listed(manifest->requires_device_id, CONFIG_TT_DEVICE_ID)) {
         return false;
     }

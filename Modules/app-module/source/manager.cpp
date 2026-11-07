@@ -86,7 +86,10 @@ error_t app_manager_add_package(const PackageManifest* package, const char* cons
         LOG_E(TAG, "Package with id '%s' is already registered", package->id);
         return ERROR_INVALID_ARGUMENT;
     }
-    AppPackageRecord record { .package = *package, .app_ids = {} };
+    AppPackageRecord record { .package = {}, .compatible = app_package_manifest_is_compatible(package), .app_ids = {} };
+    memcpy(record.package.id, package->id, sizeof(record.package.id));
+    memcpy(record.package.version_name, package->version_name, sizeof(record.package.version_name));
+    record.package.version_code = package->version_code;
     record.app_ids.reserve(app_id_count);
     for (size_t i = 0; i < app_id_count; i++) {
         record.app_ids.emplace_back(app_ids[i]);
@@ -111,7 +114,7 @@ error_t app_manager_remove_package(const char* package_id) {
     return ERROR_NONE;
 }
 
-error_t app_manager_find_package(const char* package_id, PackageManifest* out_package) {
+error_t app_manager_find_package(const char* package_id, PackageSummary* out_package) {
     auto& ledger = app_ledger();
     mutex_lock(&ledger.mutex);
     auto iterator = ledger.packages.find(package_id);
@@ -133,7 +136,7 @@ void app_manager_for_each_package(AppPackageVisitorFn visitor, void* context) {
         for (const auto& app_id : record.app_ids) {
             app_id_ptrs.push_back(app_id.c_str());
         }
-        AppPackage pkg { .package = record.package, .app_id_count = app_id_ptrs.size(), .app_ids = app_id_ptrs.data() };
+        AppPackage pkg { .package = record.package, .compatible = record.compatible, .app_id_count = app_id_ptrs.size(), .app_ids = app_id_ptrs.data() };
         visitor(&pkg, context);
     }
     mutex_unlock(&ledger.mutex);
@@ -149,6 +152,17 @@ error_t app_manager_start_internal(const AppStartContext* context, AppInstanceId
     }
 
     auto& ledger = app_ledger();
+
+    // Packages that were installed before an OS update can have become incompatible
+    mutex_lock(&ledger.mutex);
+    for (const auto& record : ledger.packages | std::views::values) {
+        if (!record.compatible && std::ranges::any_of(record.app_ids, [&](const std::string& app_id) { return app_id == context->id; })) {
+            mutex_unlock(&ledger.mutex);
+            LOG_E(TAG, "%s is not compatible with this device", context->id);
+            return ERROR_NOT_SUPPORTED;
+        }
+    }
+    mutex_unlock(&ledger.mutex);
 
     mutex_lock(&ledger.mutex);
     AppInstanceId target_id = ledger.next_instance_id++;

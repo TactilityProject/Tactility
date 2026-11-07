@@ -16,6 +16,7 @@ extern "C" {
 #define PACKAGE_MANIFEST_ID_LENGTH 32
 #define PACKAGE_MANIFEST_VERSION_NAME_LENGTH 16
 #define PACKAGE_MANIFEST_REQUIRES_DEVICE_ID_LENGTH 64
+#define PACKAGE_MANIFEST_TARGET_PLATFORMS_LENGTH 64
 
 /** Fixed-capacity buffer for a PackageManifest::id value - always NUL-terminated. */
 typedef char PackageId[PACKAGE_MANIFEST_ID_LENGTH + 1];
@@ -54,6 +55,13 @@ struct PackageManifest {
     char target_sdk[PACKAGE_MANIFEST_TARGET_SDK_LENGTH + 1];
 
     /**
+     * Comma-separated list of the platforms the package has binaries for (e.g. "esp32,esp32s3"),
+     * matching the folder names under bin/. Empty means unspecified, and is accepted on every platform.
+     * Must be NULL-terminated.
+     */
+    char target_platforms[PACKAGE_MANIFEST_TARGET_PLATFORMS_LENGTH + 1];
+
+    /**
      * Comma-separated list of device ids the package is restricted to (e.g. "m5stack-tab5"),
      * matching the folder names under Devices/. Empty means unrestricted.
      * Must be NULL-terminated.
@@ -65,6 +73,16 @@ struct PackageManifest {
 
     /** How many AppManifest entries this package's manifest.properties declared. */
     uint32_t app_manifest_count;
+};
+
+/** The part of a PackageManifest that is kept in memory for every installed package. */
+struct PackageSummary {
+    /** The package identifier, see PackageManifest::id. */
+    PackageId id;
+    /** The package version as it is displayed to the user, see PackageManifest::version_name. */
+    char version_name[PACKAGE_MANIFEST_VERSION_NAME_LENGTH + 1];
+    /** The package's technical version, see PackageManifest::version_code. */
+    uint64_t version_code;
 };
 
 /** Pairs a parsed AppManifest with the filename (without extension) it installs as under
@@ -91,7 +109,8 @@ struct AppManifestBinding {
 error_t app_package_manifest_parse(const char* path, struct PackageManifest* out_package, struct AppManifestBinding* out_bindings, size_t bindings_capacity);
 
 /**
- * @return true if this device can run the package: it is listed in requires_device_id (or that is empty),
+ * @return true if this device can run the package: its platform is listed in target_platforms (or that is empty),
+ * target_sdk (when set) isn't newer than this firmware, it is listed in requires_device_id (or that is empty),
  * and its total RAM (internal plus external) is at least requires_ram megabytes
  */
 bool app_package_manifest_is_compatible(const struct PackageManifest* const manifest);
