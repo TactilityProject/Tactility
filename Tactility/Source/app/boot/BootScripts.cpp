@@ -8,6 +8,7 @@
 #include <tactility/log.h>
 #include <tactility/memory.h>
 #include <tactility/paths.h>
+#include <tactility/time.h>
 
 #include <app/manager.h>
 #include <app/start.h>
@@ -20,6 +21,9 @@
 namespace tt::app::boot {
 
 constexpr auto* TAG = "BootScripts";
+
+// A script that runs longer than this is stopped, so a hanging script can't keep the device from booting
+constexpr uint32_t BOOT_SCRIPT_TIMEOUT_MS = 10000;
 
 namespace {
 
@@ -91,23 +95,30 @@ void runBootScript(const std::string& path, const char* name) {
     };
     app_start_context_set_streams(&context, bindings, sizeof(bindings) / sizeof(bindings[0]));
 
-    LOG_I(TAG, "Running %s", name);
+    LOG_I(TAG, "Running boot script %s", path.c_str());
     AppInstanceId instance_id = 0;
     if (app_start_with_context(&context, &instance_id) != ERROR_NONE) {
         LOG_E(TAG, "Failed to run %s", name);
     } else {
-        ScriptOutputLog output(name);
+        // Separate line buffers, so a partial stdout line is never joined to stderr output
+        ScriptOutputLog stdout_log(name);
+        ScriptOutputLog stderr_log(name);
         uint8_t buffer[128];
         const auto drain = [&] {
             size_t size;
             while ((size = app_stream_read(&stdout_stream, buffer, sizeof(buffer))) > 0) {
-                output.feed(buffer, size);
+                stdout_log.feed(buffer, size);
             }
             while ((size = app_stream_read(&stderr_stream, buffer, sizeof(buffer))) > 0) {
-                output.feed(buffer, size);
+                stderr_log.feed(buffer, size);
             }
         };
+        const auto start_time = get_millis();
         while (app_manager_get_state(instance_id) != APP_INSTANCE_STATE_STOPPED) {
+            if (get_millis() - start_time > BOOT_SCRIPT_TIMEOUT_MS) {
+                LOG_E(TAG, "Boot script %s didn't end within %u seconds: stopping it", name, static_cast<unsigned>(BOOT_SCRIPT_TIMEOUT_MS / 1000));
+                break;
+            }
             drain();
             delay_millis(10);
         }

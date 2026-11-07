@@ -8,6 +8,7 @@
 #include <cstring>
 #include <dirent.h>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 namespace tt::app::files {
@@ -34,18 +35,18 @@ bool State::setEntriesForPath(const std::string& path) {
 
     LOG_I(TAG, "Changing path: %s -> %s", current_path.c_str(), path.c_str());
 
-    dir_entries.clear();
-    int count = file::scandir(path, dir_entries, nullptr, file::direntSortAlphaAndType);
-    if (count < 0) {
+    std::vector<dirent> entries;
+    if (file::scandir(path, entries, nullptr, file::direntSortAlphaAndType) < 0) {
         LOG_E(TAG, "Failed to fetch entries for %s", path.c_str());
         return false;
     }
 
-    std::erase_if(dir_entries, [](const dirent& entry) {
+    std::erase_if(entries, [](const dirent& entry) {
         return strcmp(".", entry.d_name) == 0 || strcmp("..", entry.d_name) == 0;
     });
 
-    LOG_I(TAG, "%s has %d entries", path.c_str(), dir_entries.size());
+    LOG_I(TAG, "%s has %d entries", path.c_str(), entries.size());
+    dir_entries = std::move(entries);
     current_path = path;
     selected_child_entry = "";
     action = ActionNone;

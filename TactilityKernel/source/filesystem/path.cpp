@@ -7,6 +7,8 @@
 #include <sys/stat.h>
 
 #include <cstring>
+#include <set>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -31,11 +33,17 @@ uint64_t path_tree_size_at(const char* path) {
     };
     struct Walk {
         std::vector<Pending> pending;
+        // The directories that were queued, by device and inode, so links back to a directory don't repeat it
+        std::set<std::pair<dev_t, ino_t>> visited;
         const Pending* current;
         uint64_t bytes;
     };
-    Walk walk { {}, nullptr, 0 };
+    Walk walk { {}, {}, nullptr, 0 };
     walk.pending.push_back({ path, 0 });
+    struct stat root_info;
+    if (stat(path, &root_info) == 0 && root_info.st_ino != 0) {
+        walk.visited.insert({ root_info.st_dev, root_info.st_ino });
+    }
 
     while (!walk.pending.empty()) {
         const Pending directory = std::move(walk.pending.back());
@@ -49,7 +57,14 @@ uint64_t path_tree_size_at(const char* path) {
             }
             // The depth is bounded, so a loop of links ends. Paths that can't be handled by the file system's limits are skipped.
             if (walk->current->depth < MAX_WALK_DEPTH && walk->current->path.size() + 1 + strlen(entry->name) < FILE_MAX_PATH_STRING_LENGTH) {
-                walk->pending.push_back({ walk->current->path + "/" + entry->name, walk->current->depth + 1 });
+                std::string child_path = walk->current->path + "/" + entry->name;
+                struct stat child_info;
+                // A directory that was queued before is skipped. Without inode numbers, only the depth limit applies.
+                if (stat(child_path.c_str(), &child_info) == 0 && child_info.st_ino != 0 &&
+                    !walk->visited.insert({ child_info.st_dev, child_info.st_ino }).second) {
+                    return;
+                }
+                walk->pending.push_back({ std::move(child_path), walk->current->depth + 1 });
             }
         });
     }

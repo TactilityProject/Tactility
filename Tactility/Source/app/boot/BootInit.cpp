@@ -344,7 +344,17 @@ bool bootInit(TickType_t startTime) {
         return false;
     }
 
-    runBootScripts();
+    // A script that caused a crash would otherwise run again before the crash screen and the launcher can start
+    bool crashed = false;
+#ifdef ESP_PLATFORM
+    const auto reset_reason = esp_reset_reason();
+    crashed = reset_reason == ESP_RST_PANIC || reset_reason == ESP_RST_INT_WDT || reset_reason == ESP_RST_TASK_WDT || reset_reason == ESP_RST_WDT;
+#endif
+    if (crashed) {
+        LOG_W(TAG, "Skipping boot scripts after a crash");
+    } else {
+        runBootScripts();
+    }
 
 #ifdef ESP_PLATFORM
     if (esp_reset_reason() == ESP_RST_PANIC) {

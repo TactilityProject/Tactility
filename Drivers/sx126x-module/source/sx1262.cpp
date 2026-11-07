@@ -221,8 +221,9 @@ static error_t detect_chip(Device* device) {
     Sx1262Internal pins;
     pins.pin_reset = acquire_probe_pin(config->pin_reset, GPIO_FLAG_DIRECTION_OUTPUT);
     pins.pin_busy = acquire_probe_pin(config->pin_busy, GPIO_FLAG_DIRECTION_INPUT);
-    pins.pin_antenna_select = acquire_probe_pin(config->pin_antenna_select, GPIO_FLAG_DIRECTION_OUTPUT);
-    pins.pin_enable = acquire_probe_pin(config->pin_enable, GPIO_FLAG_DIRECTION_OUTPUT);
+    // The control pins keep their polarity, so active and inactive mean the same as when the radio runs
+    pins.pin_antenna_select = acquire_probe_pin(config->pin_antenna_select, GPIO_FLAG_DIRECTION_OUTPUT | (config->pin_antenna_select.flags & GPIO_FLAG_ACTIVE_LOW));
+    pins.pin_enable = acquire_probe_pin(config->pin_enable, GPIO_FLAG_DIRECTION_OUTPUT | (config->pin_enable.flags & GPIO_FLAG_ACTIVE_LOW));
     const bool acquired = pins.pin_reset != nullptr && pins.pin_busy != nullptr &&
         (pins.pin_antenna_select != nullptr || config->pin_antenna_select.gpio_controller == nullptr) &&
         (pins.pin_enable != nullptr || config->pin_enable.gpio_controller == nullptr);

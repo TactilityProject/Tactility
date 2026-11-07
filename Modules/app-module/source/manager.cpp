@@ -94,6 +94,13 @@ error_t app_manager_add_package(const PackageManifest* package, const char* cons
     for (size_t i = 0; i < app_id_count; i++) {
         record.app_ids.emplace_back(app_ids[i]);
     }
+    // An app id is owned by one package: the one that registered it last. An older package that
+    // still lists it must not decide whether the app is compatible or shown.
+    for (auto& [id, other] : ledger.packages) {
+        std::erase_if(other.app_ids, [&](const std::string& app_id) {
+            return std::ranges::find(record.app_ids, app_id) != record.app_ids.end();
+        });
+    }
     ledger.packages[package->id] = std::move(record);
     mutex_unlock(&ledger.mutex);
 

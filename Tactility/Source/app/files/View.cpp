@@ -896,16 +896,12 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     bool src_delete_failed = false;
     if (is_cut) {
         if (rename(src.c_str(), dst.c_str()) != 0) {
-            const int rename_errno = errno;
-            if (!path_exists(src.c_str()) && path_exists(dst.c_str())) {
-                // The move happened although rename() reported a failure
-                LOG_W(TAG, "rename() of \"%s\" failed with errno %d, but the move succeeded", src.c_str(), rename_errno);
-                success = true;
-            } else if (copyRecursive(src, dst)) {
-                // Fallback for cross-filesystem moves: copy then delete.
-                // Only mark success if both halves succeed — if the source removal
-                // fails we leave success=false so the clipboard is preserved and
-                // the error is surfaced; the user must remove the source manually.
+            LOG_W(TAG, "rename() of \"%s\" failed with errno %d", src.c_str(), errno);
+            // Fallback for cross-filesystem moves: copy then delete.
+            // Only mark success if both halves succeed — if the source removal
+            // fails we leave success=false so the clipboard is preserved and
+            // the error is surfaced; the user must remove the source manually.
+            if (copyRecursive(src, dst)) {
                 if (file::deleteRecursively(src)) {
                     success = true;
                 } else {
@@ -913,6 +909,8 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
                     LOG_E(TAG, "Cut: copied \"%s\" to \"%s\" but failed to remove source — manual cleanup required", src.c_str(), dst.c_str());
                 }
             }
+        } else {
+            success = true;
         }
     } else {
         success = copyRecursive(src, dst);

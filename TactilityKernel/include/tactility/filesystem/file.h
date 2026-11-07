@@ -23,6 +23,7 @@ bool file_exists(const char* path);
  * @retval ERROR_NONE on success
  * @retval ERROR_NOT_FOUND the file doesn't exist / couldn't be opened
  * @retval ERROR_BUFFER_OVERFLOW the file is larger than @a out_size's incoming capacity
+ * @retval ERROR_RESOURCE the file could not be read completely
  */
 error_t file_read_binary(const char* path, uint8_t* bytes, size_t* out_size);
 

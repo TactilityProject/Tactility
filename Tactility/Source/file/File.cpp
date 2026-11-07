@@ -2,6 +2,7 @@
 #include <Tactility/file/File.h>
 
 #include <cerrno>
+#include <sys/stat.h>
 #include <cstring>
 #include <fstream>
 #include <unistd.h>
@@ -284,12 +285,15 @@ bool deleteRecursively(const std::string& path) {
         }
         LOG_I(TAG, "Deleting %s", path.c_str());
         return deleteDirectory(path);
-    } else if (file_exists(path.c_str())) {
+    } else {
+        // Any other entry, such as a regular file, a FIFO, a socket or a link, is removed directly
+        struct stat entry_info;
+        if (lstat(path.c_str(), &entry_info) != 0) {
+            LOG_E(TAG, "Failed to delete \"%s\": not found", path.c_str());
+            return false;
+        }
         LOG_I(TAG, "Deleting %s", path.c_str());
         return deleteFile(path);
-    } else {
-        LOG_E(TAG, "Failed to delete \"%s\": unknown type", path.c_str());
-        return false;
     }
 }
 

@@ -129,16 +129,24 @@ static bool fromString(const std::string& str, ScreensaverType& type) {
     }
 }
 
+enum class LoadResult {
+    Loaded,
+    /** There is no settings file */
+    Missing,
+    /** The settings file exists, but couldn't be read */
+    Failed
+};
+
 /** Must be called with file_mutex held */
-static bool loadUnlocked(DisplaySettings& settings) {
+static LoadResult loadUnlocked(DisplaySettings& settings) {
     auto settings_path = getSettingsFilePath();
     if (!file_exists(settings_path.c_str())) {
-        return false;
+        return LoadResult::Missing;
     }
 
     std::map<std::string, std::string> map;
     if (!file::loadPropertiesFile(settings_path, map)) {
-        return false;
+        return LoadResult::Failed;
     }
 
     auto orientation_entry = map.find(SETTINGS_KEY_ORIENTATION);
@@ -194,7 +202,7 @@ static bool loadUnlocked(DisplaySettings& settings) {
     settings.screensaverType = screensaver_type;
     settings.autoRotateEnabled = auto_rotate_enabled;
 
-    return true;
+    return LoadResult::Loaded;
 }
 
 DisplaySettings getDefault() {
@@ -211,7 +219,7 @@ DisplaySettings getDefault() {
 
 bool load(DisplaySettings& settings) {
     mutex_lock(&file_mutex.mutex);
-    const bool loaded = loadUnlocked(settings);
+    const bool loaded = loadUnlocked(settings) == LoadResult::Loaded;
     mutex_unlock(&file_mutex.mutex);
     return loaded;
 }
@@ -251,8 +259,16 @@ bool save(const DisplaySettings& settings) {
 bool saveOrientation(Orientation orientation) {
     mutex_lock(&file_mutex.mutex);
     DisplaySettings settings;
-    if (!loadUnlocked(settings)) {
-        settings = getDefault();
+    switch (loadUnlocked(settings)) {
+        case LoadResult::Loaded:
+            break;
+        case LoadResult::Missing:
+            settings = getDefault();
+            break;
+        case LoadResult::Failed:
+            // Saving defaults would replace the other settings of a file that is only temporarily unreadable
+            mutex_unlock(&file_mutex.mutex);
+            return false;
     }
     settings.orientation = orientation;
     const bool saved = saveUnlocked(settings);

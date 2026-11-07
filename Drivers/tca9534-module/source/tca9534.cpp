@@ -41,9 +41,15 @@ static error_t set_level(GpioDescriptor* descriptor, bool high) {
     // The output port has no polarity inversion, so active-low outputs are inverted here
     bool physical_high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !high : high;
 
-    return physical_high
+    // i2c_controller_register8_{set,reset}_bits() do a separate read then
+    // write; without this lock, concurrent updates to different pins on the
+    // same output register can clobber each other.
+    device_lock(device);
+    error_t err = physical_high
         ? i2c_controller_register8_set_bits(parent, address, TCA9534_REGISTER_OUTPUT, bit, portMAX_DELAY)
         : i2c_controller_register8_reset_bits(parent, address, TCA9534_REGISTER_OUTPUT, bit, portMAX_DELAY);
+    device_unlock(device);
+    return err;
 }
 
 static error_t get_level(GpioDescriptor* descriptor, bool* high) {
@@ -74,6 +80,11 @@ static error_t set_flags(GpioDescriptor* descriptor, gpio_flags_t flags) {
     uint8_t bit = 1 << descriptor->pin;
     error_t err;
 
+    // Locked as a whole: direction and polarity are two separate read-modify-write
+    // register updates, and both should apply atomically with respect to other
+    // set_flags / set_level calls on this device.
+    device_lock(device);
+
     // Direction: configuration bit is 1 for input, 0 for output.
     if (flags & GPIO_FLAG_DIRECTION_OUTPUT) {
         err = i2c_controller_register8_reset_bits(parent, address, TCA9534_REGISTER_CONFIG, bit, portMAX_DELAY);
@@ -82,6 +93,7 @@ static error_t set_flags(GpioDescriptor* descriptor, gpio_flags_t flags) {
     }
 
     if (err != ERROR_NONE) {
+        device_unlock(device);
         return err;
     }
 
@@ -92,6 +104,7 @@ static error_t set_flags(GpioDescriptor* descriptor, gpio_flags_t flags) {
         err = i2c_controller_register8_reset_bits(parent, address, TCA9534_REGISTER_POLARITY, bit, portMAX_DELAY);
     }
 
+    device_unlock(device);
     return err;
 }
 

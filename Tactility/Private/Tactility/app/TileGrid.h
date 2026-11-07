@@ -117,7 +117,7 @@ public:
     /**
      * Like requestRepopulate(false), and without a pointer device it selects the first tile when the grid has any,
      * and otherwise the fallback.
-     * @param[in] emptyFallback the widget to select when the grid is empty
+     * @param[in] emptyFallback the widget to select when the grid is empty, directly or through its grid navigation container
      */
     void requestRepopulateSelectingFirst(lv_obj_t* emptyFallback);
 

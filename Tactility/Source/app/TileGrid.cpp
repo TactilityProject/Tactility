@@ -204,6 +204,11 @@ void TileGrid::onGridDeleted(lv_event_t* e) {
     lv_async_call_cancel(onDeferredResize, lv_event_get_user_data(e));
     lv_async_call_cancel(onDeferredNextPage, lv_event_get_user_data(e));
     lv_async_call_cancel(onDeferredPreviousPage, lv_event_get_user_data(e));
+
+    // The fallback widget belongs to a window that is going away too, so the cancelled request must not select it later
+    auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    self->selectFirstOnRepopulate = false;
+    self->emptyFallback = nullptr;
 }
 
 // Deferred: page size depends on the grid size, which is final only after the layout pass that triggered this.
@@ -273,14 +278,17 @@ void TileGrid::onTileKey(lv_event_t* e) {
 }
 
 void TileGrid::requestRepopulate(bool keepSelection) {
+    // The latest request decides the selection policy
     keepSelectionOnRepopulate = keepSelection;
+    selectFirstOnRepopulate = false;
+    emptyFallback = nullptr;
     lv_async_call(onDeferredRepopulate, this);
 }
 
 void TileGrid::requestRepopulateSelectingFirst(lv_obj_t* fallback) {
+    requestRepopulate(false);
     selectFirstOnRepopulate = true;
     emptyFallback = fallback;
-    requestRepopulate(false);
 }
 
 bool TileGrid::isPagingVisible() const {
@@ -428,7 +436,17 @@ void TileGrid::populate() {
             lv_group_focus_obj(grid);
             lv_gridnav_set_focused(grid, lv_obj_get_child(grid, 0), LV_ANIM_OFF);
         } else if (fallback != nullptr) {
-            lv_group_focus_obj(fallback);
+            // A widget in a grid navigation container isn't a group member: the container is
+            lv_obj_t* container = lv_obj_get_parent(fallback);
+            while (container != nullptr && !lvgl_grid_navigation_is_container(container)) {
+                container = lv_obj_get_parent(container);
+            }
+            if (container != nullptr) {
+                lv_group_focus_obj(container);
+                lv_gridnav_set_focused(container, fallback, LV_ANIM_OFF);
+            } else {
+                lv_group_focus_obj(fallback);
+            }
         }
     } else if (!keepSelection && group != nullptr && lv_group_get_focused(group) == grid) {
         // Grid navigation selects the first new tile when the grid is focused, but a page change shows no selection.
