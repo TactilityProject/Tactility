@@ -38,13 +38,14 @@ static error_t set_level(GpioDescriptor* descriptor, bool high) {
     auto* parent = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
     uint8_t bit = 1 << descriptor->pin;
-    // The output port has no polarity inversion, so active-low outputs are inverted here
-    bool physical_high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !high : high;
 
     // i2c_controller_register8_{set,reset}_bits() do a separate read then
     // write; without this lock, concurrent updates to different pins on the
     // same output register can clobber each other.
     device_lock(device);
+    // The output port has no polarity inversion, so active-low outputs are inverted here.
+    // Read under the lock, as set_flags() can change the polarity.
+    const bool physical_high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !high : high;
     error_t err = physical_high
         ? i2c_controller_register8_set_bits(parent, address, TCA9534_REGISTER_OUTPUT, bit, portMAX_DELAY)
         : i2c_controller_register8_reset_bits(parent, address, TCA9534_REGISTER_OUTPUT, bit, portMAX_DELAY);

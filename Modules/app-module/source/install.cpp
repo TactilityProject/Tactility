@@ -442,18 +442,20 @@ static error_t install_package(const char* source_path) {
         return ERROR_INVALID_ARGUMENT;
     }
 
-    // Refused before anything is replaced or moved into place
+    auto& registry = install_registry();
+    mutex_lock(&registry.mutex);
+
+    // Refused before anything is replaced or moved into place. Checked with the registry locked,
+    // so another install can't register one of these ids between this check and the registration.
     for (const auto& binding : app_bindings) {
         if (app_manager_app_is_owned_by_other_package(binding.manifest.id, package.id)) {
             LOG_E(TAG, "Install failed: app '%s' is installed by another package already", binding.manifest.id);
             delete_recursively(staging_path);
             release_staging_lock(staging_path);
+            mutex_unlock(&registry.mutex);
             return ERROR_ALREADY_EXISTS;
         }
     }
-
-    auto& registry = install_registry();
-    mutex_lock(&registry.mutex);
 
     // Replace any previous installation of this package - this also handles the app_manager
     // registrations of its old AppManifests, so there's no separate app_manager_remove() needed
