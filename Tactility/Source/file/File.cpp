@@ -288,7 +288,13 @@ bool deleteRecursively(const std::string& path) {
     } else {
         // Any other entry, such as a regular file, a FIFO, a socket or a link, is removed directly
         struct stat entry_info;
-        if (lstat(path.c_str(), &entry_info) != 0) {
+#ifdef ESP_PLATFORM
+        // ESP-IDF has no lstat(), and its file systems have no links
+        const int stat_result = stat(path.c_str(), &entry_info);
+#else
+        const int stat_result = lstat(path.c_str(), &entry_info);
+#endif
+        if (stat_result != 0) {
             LOG_E(TAG, "Failed to delete \"%s\": not found", path.c_str());
             return false;
         }
