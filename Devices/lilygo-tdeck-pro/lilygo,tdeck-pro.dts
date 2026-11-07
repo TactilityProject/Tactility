@@ -47,7 +47,6 @@
 		touch {
 			compatible = "hynitron,cst328";
 			reg = <0x1A>;
-			pin-reset = <&gpio0 45 GPIO_FLAG_NONE>;
 		};
 
 		// TCA8418 4x10 matrix scanner. Keymaps are written in the vendor's row/column
@@ -73,9 +72,9 @@
 				0 0 0 0 0 11 48 32 0 9        //         PREV 0 SPC   NEXT
 			];
 			keymap-sy = [
-				49 50 51 52 53 54 55 56 57 48 // 1 2 3 4 5 6 7 8 9 0
-				64 35 43 45 42 47 40 41 95 8  // @ # + - * / ( ) _ BACKSPACE
-				0 33 63 59 58 39 34 44 46 10  //   ! ? ; : ' " , . ENTER
+				35 49 50 51 40 41 95 45 43 64 // # 1 2 3 ( ) _ - + @
+				42 52 53 54 47 58 59 39 34 8  // * 4 5 6 / : ; ' " BACKSPACE
+				0 55 56 57 63 33 44 46 0 10   //   7 8 9 ? ! , .   ENTER
 				0 0 0 0 0 11 48 32 0 9        //         PREV 0 SPC   NEXT
 			];
 			shift-row = <2>;
