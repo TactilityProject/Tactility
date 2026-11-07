@@ -141,7 +141,7 @@ def process_device(in_path: str, out_path: str, device_directory: str, device_id
             name=f"Tactility for {device_vendor} {device_name}",
             version=version,
             new_install_prompt_erase="true",
-            funding_url="https://github.com/sponsors/ByteWelder",
+            funding_url="https://github.com/sponsors/TactilityProject",
             builds=[
                 ManifestBuild(
                     chipFamily=to_manifest_chip_name(flasher_args["extra_esptool_args"]["chip"]),
