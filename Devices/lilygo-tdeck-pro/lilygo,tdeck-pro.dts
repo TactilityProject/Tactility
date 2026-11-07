@@ -8,6 +8,7 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/esp32_uart.h>
 #include <tactility/bindings/esp32_usbdevice.h>
 #include <tactility/bindings/pwm_backlight.h>
 #include <bindings/cst328.h>
@@ -15,6 +16,7 @@
 #include <bindings/tca8418.h>
 #include <bindings/bq25896.h>
 #include <bindings/sx1262.h>
+#include <gps_generic/bindings.h>
 
 // Reference for V1.0 (not V1.1!): https://github.com/Xinyuan-LilyGO/T-Deck-Pro/tree/HD-V1-250326
 // lib/TDeckMaxBoard/src/TDeckMaxBoard.h, docs/pinmap.md
@@ -45,7 +47,6 @@
 		touch {
 			compatible = "hynitron,cst328";
 			reg = <0x1A>;
-			pin-reset = <&gpio0 45 GPIO_FLAG_NONE>;
 		};
 
 		// TCA8418 4x10 matrix scanner. Keymaps are written in the vendor's row/column
@@ -71,9 +72,9 @@
 				0 0 0 0 0 11 48 32 0 9        //         PREV 0 SPC   NEXT
 			];
 			keymap-sy = [
-				49 50 51 52 53 54 55 56 57 48 // 1 2 3 4 5 6 7 8 9 0
-				64 35 43 45 42 47 40 41 95 8  // @ # + - * / ( ) _ BACKSPACE
-				0 33 63 59 58 39 34 44 46 10  //   ! ? ; : ' " , . ENTER
+				35 49 50 51 40 41 95 45 43 64 // # 1 2 3 ( ) _ - + @
+				42 52 53 54 47 58 59 39 34 8  // * 4 5 6 / : ; ' " BACKSPACE
+				0 55 56 57 63 33 44 46 0 10   //   7 8 9 ? ! , .   ENTER
 				0 0 0 0 0 11 48 32 0 9        //         PREV 0 SPC   NEXT
 			];
 			shift-row = <2>;
@@ -146,6 +147,20 @@
 			pin-enable = <&gpio0 46 GPIO_FLAG_NONE>;
 			tcxo-millivolts = <2400>;
 			dio2-as-rf-switch;
+		};
+	};
+
+	uart0 {
+		compatible = "espressif,esp32-uart";
+		port = <UART_NUM_1>;
+		pin-tx = <&gpio0 43 GPIO_FLAG_NONE>;
+		pin-rx = <&gpio0 44 GPIO_FLAG_NONE>;
+
+		gps {
+			compatible = "tactility,gps-generic";
+			status = "disabled";
+			baud-rate = <38400>;
+			model = <GPS_MODEL_UBLOX10>;
 		};
 	};
 
