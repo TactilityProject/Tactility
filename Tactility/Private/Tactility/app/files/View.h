@@ -57,8 +57,10 @@ public:
     /**
      * Shows the current entries of the state.
      * @param[in] firstPage true after navigating to another directory, false to stay on the current page
+     * @param[in] selectFirst with firstPage and without a pointer device: select the first entry, or the navigate up button when empty.
+     * When false the focus stays where it is.
      */
-    void update(bool firstPage);
+    void update(bool firstPage, bool selectFirst = true);
 
     void onBackPressed();
     void onNavigateUpPressed();

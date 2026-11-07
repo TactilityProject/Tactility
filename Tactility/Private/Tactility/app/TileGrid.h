@@ -114,6 +114,13 @@ public:
      */
     void requestRepopulate(bool keepSelection);
 
+    /**
+     * Like requestRepopulate(false), and without a pointer device it selects the first tile when the grid has any,
+     * and otherwise the fallback.
+     * @param[in] emptyFallback the widget to select when the grid is empty
+     */
+    void requestRepopulateSelectingFirst(lv_obj_t* emptyFallback);
+
     /** @return the tile of the item on the shown page, or nullptr */
     lv_obj_t* findTile(const std::string& id) const;
 
@@ -126,6 +133,8 @@ private:
     IconColor iconColor = IconColor::Default;
     bool swipeNavigation = false;
     bool keepSelectionOnRepopulate = true;
+    bool selectFirstOnRepopulate = false;
+    lv_obj_t* emptyFallback = nullptr;
     lv_obj_t* grid = nullptr;
     /** The grid size that the current tiles were laid out for */
     int32_t populatedWidth = 0;

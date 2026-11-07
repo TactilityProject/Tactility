@@ -430,7 +430,7 @@ void View::onNavigateUpPressed() {
             state->setEntriesForPath(new_absolute_path);
         }
         onNavigate();
-        update(true);
+        update(true, false);
     }
 }
 
@@ -613,7 +613,7 @@ void View::onEjectPressed() {
     update(false);
 }
 
-void View::update(bool firstPage) {
+void View::update(bool firstPage, bool selectFirst) {
     if (!lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
         LOG_E(TAG, "Mutex acquisition timeout (%s)", "lvgl");
         return;
@@ -626,7 +626,11 @@ void View::update(bool firstPage) {
     if (firstPage) {
         grid.showFirstPage();
     }
-    grid.requestRepopulate(!firstPage);
+    if (firstPage && selectFirst) {
+        grid.requestRepopulateSelectingFirst(navigate_up_button);
+    } else {
+        grid.requestRepopulate(!firstPage);
+    }
 
     lvgl_unlock();
 }
