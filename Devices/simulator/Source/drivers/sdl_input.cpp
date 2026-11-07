@@ -24,16 +24,17 @@ int window_width = 0;
 int window_height = 0;
 
 uint32_t key_queue[KEY_QUEUE_CAPACITY];
+bool key_pressed_queue[KEY_QUEUE_CAPACITY] = {};
 size_t key_queue_head = 0;
 size_t key_queue_count = 0;
 
-bool text_input_started = false;
-
-void push_key(uint32_t key) {
+void push_key(uint32_t key, bool pressed) {
     if (key == 0 || key_queue_count >= KEY_QUEUE_CAPACITY) {
         return;
     }
-    key_queue[(key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY] = key;
+    size_t idx = (key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY;
+    key_queue[idx] = key;
+    key_pressed_queue[idx] = pressed;
     key_queue_count++;
 }
 
@@ -89,6 +90,34 @@ uint32_t keycode_to_key(SDL_Keycode sdl_key, bool shift) {
         case SDLK_TAB: return CODEPOINT_TAB;
         case SDLK_HOME: return CODEPOINT_HOME;
         case SDLK_END: return CODEPOINT_END;
+        /* Letter keys mapped so SDL_KEYUP generates matching release events.
+           SDL_TEXTINPUT is disabled below to avoid duplicate press events. */
+        case SDLK_a: return shift ? 'A' : 'a';
+        case SDLK_b: return shift ? 'B' : 'b';
+        case SDLK_c: return shift ? 'C' : 'c';
+        case SDLK_d: return shift ? 'D' : 'd';
+        case SDLK_e: return shift ? 'E' : 'e';
+        case SDLK_f: return shift ? 'F' : 'f';
+        case SDLK_g: return shift ? 'G' : 'g';
+        case SDLK_h: return shift ? 'H' : 'h';
+        case SDLK_i: return shift ? 'I' : 'i';
+        case SDLK_j: return shift ? 'J' : 'j';
+        case SDLK_k: return shift ? 'K' : 'k';
+        case SDLK_l: return shift ? 'L' : 'l';
+        case SDLK_m: return shift ? 'M' : 'm';
+        case SDLK_n: return shift ? 'N' : 'n';
+        case SDLK_o: return shift ? 'O' : 'o';
+        case SDLK_p: return shift ? 'P' : 'p';
+        case SDLK_q: return shift ? 'Q' : 'q';
+        case SDLK_r: return shift ? 'R' : 'r';
+        case SDLK_s: return shift ? 'S' : 's';
+        case SDLK_t: return shift ? 'T' : 't';
+        case SDLK_u: return shift ? 'U' : 'u';
+        case SDLK_v: return shift ? 'V' : 'v';
+        case SDLK_w: return shift ? 'W' : 'w';
+        case SDLK_x: return shift ? 'X' : 'x';
+        case SDLK_y: return shift ? 'Y' : 'y';
+        case SDLK_z: return shift ? 'Z' : 'z';
         default: return 0;
     }
 }
@@ -103,11 +132,6 @@ void sdl_input_pump() {
 
     {
         std::lock_guard<std::mutex> lock(state_mutex);
-
-        if (!text_input_started) {
-            SDL_StartTextInput();
-            text_input_started = true;
-        }
 
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -133,11 +157,10 @@ void sdl_input_pump() {
                     }
                     break;
                 case SDL_KEYDOWN:
-                    push_key(keycode_to_key(event.key.keysym.sym, (event.key.keysym.mod & KMOD_SHIFT) != 0));
+                    push_key(keycode_to_key(event.key.keysym.sym, (event.key.keysym.mod & KMOD_SHIFT) != 0), true);
                     break;
-                case SDL_TEXTINPUT:
-                    // ASCII only (first byte of event.text.text) - sufficient for a simulator keyboard.
-                    push_key(static_cast<uint8_t>(event.text.text[0]));
+                case SDL_KEYUP:
+                    push_key(keycode_to_key(event.key.keysym.sym, (event.key.keysym.mod & KMOD_SHIFT) != 0), false);
                     break;
                 case SDL_WINDOWEVENT:
                     // Resizing doesn't change what LVGL last rendered, only how large it should
@@ -169,12 +192,13 @@ void sdl_input_get_pointer_state(SdlPointerState* out_state) {
     map_to_view(&out_state->x, &out_state->y);
 }
 
-bool sdl_input_pop_key(uint32_t* out_key) {
+bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed) {
     std::lock_guard<std::mutex> lock(state_mutex);
     if (key_queue_count == 0) {
         return false;
     }
     *out_key = key_queue[key_queue_head];
+    *out_pressed = key_pressed_queue[key_queue_head];
     key_queue_head = (key_queue_head + 1) % KEY_QUEUE_CAPACITY;
     key_queue_count--;
     return true;

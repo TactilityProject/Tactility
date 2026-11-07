@@ -577,6 +577,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_indev_set_group),
     DEFINE_MODULE_SYMBOL(lv_indev_wait_release),
     DEFINE_MODULE_SYMBOL(lv_indev_enable),
+    DEFINE_MODULE_SYMBOL(lv_indev_get_driver_data),
     // lv_timer
     DEFINE_MODULE_SYMBOL(lv_timer_handler),
     DEFINE_MODULE_SYMBOL(lv_timer_handler_run_in_period),
