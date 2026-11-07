@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <Tactility/file/File.h>
@@ -5,6 +6,7 @@
 
 #include <app/paths.h>
 
+#include <tactility/concurrent/mutex.h>
 #include <tactility/device.h>
 #include <tactility/drivers/display.h>
 
@@ -13,6 +15,15 @@
 #include <utility>
 
 namespace tt::settings::display {
+
+struct FileMutex {
+    Mutex mutex {};
+    FileMutex() { mutex_construct(&mutex); }
+    ~FileMutex() { mutex_destruct(&mutex); }
+};
+
+// The settings app and the auto-rotate service both save, and a save must not overlap a load or another save
+static FileMutex file_mutex;
 
 static std::string getSettingsFilePath() {
     char path[256];
@@ -118,15 +129,24 @@ static bool fromString(const std::string& str, ScreensaverType& type) {
     }
 }
 
-bool load(DisplaySettings& settings) {
+enum class LoadResult {
+    Loaded,
+    /** There is no settings file */
+    Missing,
+    /** The settings file exists, but couldn't be read */
+    Failed
+};
+
+/** Must be called with file_mutex held */
+static LoadResult loadUnlocked(DisplaySettings& settings) {
     auto settings_path = getSettingsFilePath();
-    if (!file::isFile(settings_path)) {
-        return false;
+    if (!file_exists(settings_path.c_str())) {
+        return LoadResult::Missing;
     }
 
     std::map<std::string, std::string> map;
     if (!file::loadPropertiesFile(settings_path, map)) {
-        return false;
+        return LoadResult::Failed;
     }
 
     auto orientation_entry = map.find(SETTINGS_KEY_ORIENTATION);
@@ -182,7 +202,7 @@ bool load(DisplaySettings& settings) {
     settings.screensaverType = screensaver_type;
     settings.autoRotateEnabled = auto_rotate_enabled;
 
-    return true;
+    return LoadResult::Loaded;
 }
 
 DisplaySettings getDefault() {
@@ -197,6 +217,13 @@ DisplaySettings getDefault() {
     };
 }
 
+bool load(DisplaySettings& settings) {
+    mutex_lock(&file_mutex.mutex);
+    const bool loaded = loadUnlocked(settings) == LoadResult::Loaded;
+    mutex_unlock(&file_mutex.mutex);
+    return loaded;
+}
+
 DisplaySettings loadOrGetDefault() {
     DisplaySettings settings;
     if (!load(settings)) {
@@ -205,7 +232,8 @@ DisplaySettings loadOrGetDefault() {
     return settings;
 }
 
-bool save(const DisplaySettings& settings) {
+/** Must be called with file_mutex held */
+static bool saveUnlocked(const DisplaySettings& settings) {
     std::map<std::string, std::string> map;
     map[SETTINGS_KEY_BACKLIGHT_DUTY] = std::to_string(settings.backlightDuty);
     map[SETTINGS_KEY_GAMMA_CURVE] = std::to_string(settings.gammaCurve);
@@ -219,6 +247,33 @@ bool save(const DisplaySettings& settings) {
         return false;
     }
     return file::savePropertiesFile(settings_path, map);
+}
+
+bool save(const DisplaySettings& settings) {
+    mutex_lock(&file_mutex.mutex);
+    const bool saved = saveUnlocked(settings);
+    mutex_unlock(&file_mutex.mutex);
+    return saved;
+}
+
+bool saveOrientation(Orientation orientation) {
+    mutex_lock(&file_mutex.mutex);
+    DisplaySettings settings;
+    switch (loadUnlocked(settings)) {
+        case LoadResult::Loaded:
+            break;
+        case LoadResult::Missing:
+            settings = getDefault();
+            break;
+        case LoadResult::Failed:
+            // Saving defaults would replace the other settings of a file that is only temporarily unreadable
+            mutex_unlock(&file_mutex.mutex);
+            return false;
+    }
+    settings.orientation = orientation;
+    const bool saved = saveUnlocked(settings);
+    mutex_unlock(&file_mutex.mutex);
+    return saved;
 }
 
 lv_display_rotation_t toLvglDisplayRotation(Orientation orientation) {

@@ -550,3 +550,23 @@ TEST_CASE("app_manager_get_topmost_app_id returns BUFFER_OVERFLOW for a too-smal
     app_manager_stop(id);
     app_manager_remove("test.app.top_overflow");
 }
+
+TEST_CASE("a package can't register an app id that another package has") {
+    PackageManifest first {};
+    strcpy(first.id, "test.owner.first");
+    PackageManifest second {};
+    strcpy(second.id, "test.owner.second");
+    const char* const app_ids[] = { "test.owner.app" };
+    REQUIRE_EQ(app_manager_add_package(&first, app_ids, 1), ERROR_NONE);
+
+    CHECK_EQ(app_manager_add_package(&second, app_ids, 1), ERROR_ALREADY_EXISTS);
+    PackageSummary summary;
+    CHECK_NE(app_manager_find_package("test.owner.second", &summary), ERROR_NONE);
+
+    // The package itself can register again, e.g. when it is replaced
+    REQUIRE_EQ(app_manager_remove_package("test.owner.first"), ERROR_NONE);
+    CHECK_EQ(app_manager_add_package(&first, app_ids, 1), ERROR_NONE);
+    CHECK_EQ(app_manager_add_package(&second, app_ids, 1), ERROR_ALREADY_EXISTS);
+
+    app_manager_remove_package("test.owner.first");
+}

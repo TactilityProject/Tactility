@@ -109,10 +109,6 @@ bool direntSortAlphaAndType(const dirent& left, const dirent& right);
 /** A filter for filtering out "." and ".." */
 int direntFilterDotEntries(const dirent* entry);
 
-bool isFile(const std::string& path);
-
-bool isDirectory(const std::string& path);
-
 /**
  * A scandir()-like implementation that works on ESP32.
  * It does not return "." and ".." items but otherwise functions the same.

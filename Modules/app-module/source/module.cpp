@@ -18,7 +18,15 @@
 #include <service/manager.h>
 
 #include <tactility/error.h>
+#include <tactility/filesystem/fs.h>
+#include <tactility/log.h>
 #include <tactility/module.h>
+#include <tactility/paths.h>
+
+#include <cstdio>
+#include <initializer_list>
+
+constexpr auto* TAG = "app-module";
 
 extern "C" {
 
@@ -122,7 +130,58 @@ static const ModuleSymbol SYMBOLS[] = {
     MODULE_SYMBOL_TERMINATOR,
 };
 
+static error_t ensure_directory(const char* data_path, const char* name) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (snprintf(path, sizeof(path), "%s/%s", data_path, name) >= static_cast<int>(sizeof(path))) {
+        return ERROR_BUFFER_OVERFLOW;
+    }
+    const error_t error = directory_make(path, true);
+    if (error != ERROR_NONE && error != ERROR_ALREADY_EXISTS) {
+        LOG_E(TAG, "Failed to create %s", path);
+        return error;
+    }
+    return ERROR_NONE;
+}
+
+// Apps' data used to live in <data>/user/app
+static void migrate_legacy_appdata(const char* data_path) {
+    char legacy_path[FILE_MAX_PATH_STRING_LENGTH];
+    char appdata_path[FILE_MAX_PATH_STRING_LENGTH];
+    if (snprintf(legacy_path, sizeof(legacy_path), "%s/user/app", data_path) >= static_cast<int>(sizeof(legacy_path)) ||
+        snprintf(appdata_path, sizeof(appdata_path), "%s/appdata", data_path) >= static_cast<int>(sizeof(appdata_path))) {
+        return;
+    }
+    if (!directory_exists(legacy_path) || path_exists(appdata_path)) {
+        return;
+    }
+    LOG_I(TAG, "Migrating %s to %s", legacy_path, appdata_path);
+    const error_t error = file_move(legacy_path, appdata_path, false);
+    if (error == ERROR_NONE) {
+        LOG_I(TAG, "Migrated %s to %s", legacy_path, appdata_path);
+        char user_path[FILE_MAX_PATH_STRING_LENGTH];
+        if (snprintf(user_path, sizeof(user_path), "%s/user", data_path) < static_cast<int>(sizeof(user_path)) &&
+            directory_remove(user_path) == ERROR_NONE) {
+            LOG_I(TAG, "Removed empty %s", user_path);
+        }
+    } else {
+        LOG_E(TAG, "Failed to migrate %s to %s (error %d)", legacy_path, appdata_path, static_cast<int>(error));
+    }
+}
+
 static error_t start() {
+    char data_path[FILE_MAX_PATH_STRING_LENGTH];
+    if (paths_get_data_path(data_path, sizeof(data_path)) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to determine data path");
+        return ERROR_RESOURCE;
+    }
+    migrate_legacy_appdata(data_path);
+    for (const char* name : { "app", "appdata" }) {
+        const error_t error = ensure_directory(data_path, name);
+        if (error != ERROR_NONE) {
+            return error;
+        }
+    }
+
     return service_manager_add(&app_internal_loader_service_manifest, /*auto_start=*/true);
 }
 

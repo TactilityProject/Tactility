@@ -1,4 +1,6 @@
+#include <tactility/filesystem/fs.h>
 #include <app/event.h>
+#include <tactility/check.h>
 #include <app/execute.h>
 #include <app/install.h>
 #include <app/start.h>
@@ -180,7 +182,7 @@ static bool copyFileContents(const std::string& src, const std::string& dst) {
 }
 
 static bool copyRecursive(const std::string& src, const std::string& dst) {
-    if (file::isDirectory(src)) {
+    if (directory_exists(src.c_str())) {
         if (!file::findOrCreateDirectory(dst, 0755)) {
             return false;
         }
@@ -266,7 +268,13 @@ View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
         .resolveIcon = resolveIcon,
         .onPageChanged = onPageChanged,
         .userData = this
-    }) {}
+    }) {
+    check(task_event_group_claim_bit(eventGroup, &pasteBit) == ERROR_NONE);
+}
+
+View::~View() {
+    task_event_group_release_bit(eventGroup, pasteBit);
+}
 
 std::vector<TileGridItem> View::collectItems(void* userData) {
     auto* view = static_cast<View*>(userData);
@@ -430,7 +438,7 @@ void View::onNavigateUpPressed() {
             state->setEntriesForPath(new_absolute_path);
         }
         onNavigate();
-        update(true);
+        update(true, false);
     }
 }
 
@@ -613,7 +621,7 @@ void View::onEjectPressed() {
     update(false);
 }
 
-void View::update(bool firstPage) {
+void View::update(bool firstPage, bool selectFirst) {
     if (!lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
         LOG_E(TAG, "Mutex acquisition timeout (%s)", "lvgl");
         return;
@@ -626,7 +634,11 @@ void View::update(bool firstPage) {
     if (firstPage) {
         grid.showFirstPage();
     }
-    grid.requestRepopulate(!firstPage);
+    if (firstPage && selectFirst) {
+        grid.requestRepopulateSelectingFirst(navigate_up_button);
+    } else {
+        grid.requestRepopulate(!firstPage);
+    }
 
     lvgl_unlock();
 }
@@ -696,14 +708,16 @@ void View::onResult(uint32_t launchId, int32_t result) {
         app_stream_unsubscribe(&inputDialogStream);
     }
 
-    switch (state->getPendingAction()) {
+    // The answer of the overwrite confirmation counts even when the pending action was reset meanwhile
+    const auto action = (pasteDialogId != 0 && launchId == pasteDialogId) ? State::ActionPaste : state->getPendingAction();
+    switch (action) {
         case State::ActionDelete: {
             if (result == 0) {
-                if (file::isDirectory(filepath)) {
+                if (directory_exists(filepath.c_str())) {
                     if (!file::deleteRecursively(filepath)) {
                         LOG_W(TAG, "Failed to delete %s", filepath.c_str());
                     }
-                } else if (file::isFile(filepath)) {
+                } else if (file_exists(filepath.c_str())) {
                     if (remove(filepath.c_str()) != 0) {
                         LOG_W(TAG, "Failed to delete %s", filepath.c_str());
                     }
@@ -786,9 +800,17 @@ void View::onResult(uint32_t launchId, int32_t result) {
             break;
         }
         case State::ActionPaste: {
+            // Only the answer of the confirmation that belongs to the pending paste counts
+            if (launchId != pasteDialogId) {
+                break;
+            }
+            pasteDialogId = 0;
+            const std::string paste_source = state->getPendingPasteSource();
+            const bool paste_is_cut = state->getPendingPasteIsCut();
+            state->setPendingPasteSource("", false);
+            state->setPendingAction(State::ActionNone);
             if (result == 0) {
-                auto clipboard = state->getClipboard();
-                if (clipboard.has_value()) {
+                if (!paste_source.empty()) {
                     std::string dst = state->getPendingPasteDst();
 
                     // dst was last checked before the dialog was shown; a writer could
@@ -818,7 +840,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
                     // file manager; a safer approach would rename dst to a temp path
                     // first and roll back on failure.
                     if (file::deleteRecursively(dst)) {
-                        doPaste(clipboard->first, clipboard->second, dst);
+                        doPaste(paste_source, paste_is_cut, dst);
                     } else {
                         LOG_E(TAG, "Overwrite: failed to remove existing destination: \"%s\"", dst.c_str());
                         state->setPendingAction(State::ActionNone);
@@ -870,20 +892,36 @@ void View::onPastePressed() {
         return;
     }
 
-    bool dst_exists;
-    struct stat dst_stat {};
+    // The app task does the file system work, as it can block for long on slow storage
+    state->setPasteRequest({ src, dst, is_cut });
+    task_event_group_signal(eventGroup, pasteBit);
+}
 
-    // If dst exists...
-    if (stat(dst.c_str(), &dst_stat) == 0) {
-        state->setPendingPasteDst(dst);
-        state->setPendingPasteDstStat(dst_stat);
-        state->setPendingAction(State::ActionPaste);
-        const std::vector<std::string> choices = {"Overwrite", "Cancel"};
-        alertdialog::start(appInstanceId, "File exists", "Overwrite \"" + entry_name + "\"?", choices);
+void View::onPasteRequested() {
+    auto request = state->takePasteRequest();
+    if (!request.has_value()) return;
+
+    // The pending destination, source and dialog belong to one paste: a second one waits for the answer
+    if (pasteDialogId != 0) {
+        LOG_W(TAG, "Paste: another paste waits for confirmation, skipping");
         return;
     }
 
-    doPaste(src, is_cut, dst);
+    const std::string entry_name = file::getLastPathSegment(request->source);
+    struct stat dst_stat {};
+
+    // If dst exists...
+    if (stat(request->destination.c_str(), &dst_stat) == 0) {
+        state->setPendingPasteDst(request->destination);
+        state->setPendingPasteSource(request->source, request->is_cut);
+        state->setPendingPasteDstStat(dst_stat);
+        state->setPendingAction(State::ActionPaste);
+        const std::vector<std::string> choices = {"Overwrite", "Cancel"};
+        pasteDialogId = alertdialog::start(appInstanceId, "File exists", "Overwrite \"" + entry_name + "\"?", choices);
+        return;
+    }
+
+    doPaste(request->source, request->is_cut, request->destination);
 }
 
 void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) {
@@ -891,6 +929,7 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     bool src_delete_failed = false;
     if (is_cut) {
         if (rename(src.c_str(), dst.c_str()) != 0) {
+            LOG_W(TAG, "rename() of \"%s\" failed with errno %d", src.c_str(), errno);
             // Fallback for cross-filesystem moves: copy then delete.
             // Only mark success if both halves succeed — if the source removal
             // fails we leave success=false so the clipboard is preserved and
@@ -903,6 +942,8 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
                     LOG_E(TAG, "Cut: copied \"%s\" to \"%s\" but failed to remove source — manual cleanup required", src.c_str(), dst.c_str());
                 }
             }
+        } else {
+            success = true;
         }
     } else {
         success = copyRecursive(src, dst);
@@ -912,13 +953,13 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
     if (success) {
         LOG_I(TAG, "%s \"%s\" to \"%s\"", is_cut ? "Moved" : "Copied", src.c_str(), dst.c_str());
         if (is_cut) {
-            state->clearClipboard();
+            state->clearClipboardIfCut(src);
         }
     } else if (src_delete_failed) {
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start(appInstanceId, "Move incomplete", "\"" + filename + "\" was copied but the original could not be removed.\nPlease delete it manually.");
     } else {
-        LOG_E(TAG, "Failed to %s \"%s\" to \"%s\"", is_cut ? "move" : "copy", src.c_str(), dst.c_str());
+        LOG_E(TAG, "Failed to %s \"%s\" to \"%s\" (errno %d)", is_cut ? "move" : "copy", src.c_str(), dst.c_str(), errno);
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
         alertdialog::start(
             appInstanceId,

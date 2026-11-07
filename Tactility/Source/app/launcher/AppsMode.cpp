@@ -82,7 +82,7 @@ void collectManifest(const ::AppManifest* manifest, void* context) {
 
 // Apps from installed packages this device can't run (wrong device, too little RAM)
 void collectIncompatibleAppIds(const AppPackage* package, void* context) {
-    if (app_package_manifest_is_compatible(&package->package)) {
+    if (package->compatible) {
         return;
     }
     auto* ids = static_cast<std::vector<std::string>*>(context);

@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/GrovePortSettings.h>
 
 #include <Tactility/file/File.h>
@@ -62,7 +63,7 @@ static bool fromString(const std::string& text, GroveMode& mode) {
 /** Loads grove.properties. Must be called with file_mutex held. @return false when the file is missing or unreadable */
 static bool loadMap(std::map<std::string, std::string>& map) {
     std::string path;
-    if (!getSettingsFilePath(path) || !file::isFile(path)) {
+    if (!getSettingsFilePath(path) || !file_exists(path.c_str())) {
         return false;
     }
     return file::loadPropertiesFile(path, map);

@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/TrackballSettings.h>
 
 #include "tactility/paths.h"
@@ -33,7 +34,7 @@ constexpr uint8_t MAX_POINTER_SENSITIVITY = 10;
 
 bool load(TrackballSettings& settings) {
     auto settings_path = getSettingsFilePath();
-    if (!file::isFile(settings_path)) {
+    if (!file_exists(settings_path.c_str())) {
         return false;
     }
 

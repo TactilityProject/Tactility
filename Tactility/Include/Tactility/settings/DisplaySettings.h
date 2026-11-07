@@ -45,4 +45,7 @@ DisplaySettings getDefault();
 
 bool save(const DisplaySettings& settings);
 
+/** Changes only the orientation of the saved settings. Safe to call while other tasks save. */
+bool saveOrientation(Orientation orientation);
+
 } // namespace
