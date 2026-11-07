@@ -29,6 +29,7 @@
 #include <Tactility/settings/AppearanceSettings.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
+#include <Tactility/settings/GrovePortSettings.h>
 
 
 #ifdef ESP_PLATFORM
@@ -294,6 +295,11 @@ bool bootInit(TickType_t startTime) {
 
     LOG_I(TAG, "Init NTP");
     network::ntp::init();
+
+    // Before the services, which only start GPS time sync when a GPS device exists, and a GPS can
+    // be on a Grove UART
+    LOG_I(TAG, "Restore Grove modes");
+    settings::grove::restoreAll();
 
     LOG_I(TAG, "Init Services");
     registerAndStartServices();
