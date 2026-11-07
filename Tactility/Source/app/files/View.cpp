@@ -1,5 +1,6 @@
 #include <tactility/filesystem/fs.h>
 #include <app/event.h>
+#include <tactility/check.h>
 #include <app/execute.h>
 #include <app/install.h>
 #include <app/start.h>
@@ -267,7 +268,13 @@ View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
         .resolveIcon = resolveIcon,
         .onPageChanged = onPageChanged,
         .userData = this
-    }) {}
+    }) {
+    check(task_event_group_claim_bit(eventGroup, &pasteBit) == ERROR_NONE);
+}
+
+View::~View() {
+    task_event_group_release_bit(eventGroup, pasteBit);
+}
 
 std::vector<TileGridItem> View::collectItems(void* userData) {
     auto* view = static_cast<View*>(userData);
@@ -875,12 +882,21 @@ void View::onPastePressed() {
         return;
     }
 
-    bool dst_exists;
+    // The app task does the file system work, as it can block for long on slow storage
+    state->setPasteRequest({ src, dst, is_cut });
+    task_event_group_signal(eventGroup, pasteBit);
+}
+
+void View::onPasteRequested() {
+    auto request = state->takePasteRequest();
+    if (!request.has_value()) return;
+
+    const std::string entry_name = file::getLastPathSegment(request->source);
     struct stat dst_stat {};
 
     // If dst exists...
-    if (stat(dst.c_str(), &dst_stat) == 0) {
-        state->setPendingPasteDst(dst);
+    if (stat(request->destination.c_str(), &dst_stat) == 0) {
+        state->setPendingPasteDst(request->destination);
         state->setPendingPasteDstStat(dst_stat);
         state->setPendingAction(State::ActionPaste);
         const std::vector<std::string> choices = {"Overwrite", "Cancel"};
@@ -888,7 +904,7 @@ void View::onPastePressed() {
         return;
     }
 
-    doPaste(src, is_cut, dst);
+    doPaste(request->source, request->is_cut, request->destination);
 }
 
 void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) {

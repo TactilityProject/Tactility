@@ -37,8 +37,16 @@ private:
     std::string clipboard_path;
     bool clipboard_is_cut = false;
     bool clipboard_active = false;
+    std::optional<std::pair<std::string, std::string>> paste_source_and_destination;
+    bool paste_is_cut = false;
 
 public:
+
+    struct PasteRequest {
+        std::string source;
+        std::string destination;
+        bool is_cut;
+    };
 
 
     State();
@@ -75,9 +83,9 @@ public:
 
     void setPendingAction(PendingAction newAction) { action = newAction; }
 
-    // These accessors intentionally omit mutex locking: both are only called
-    // from the UI thread (onPastePressed → onResult), so no concurrent access
-    // is possible.  If that threading assumption changes, add mutex guards here
+    // These accessors intentionally omit mutex locking: they are only used on the
+    // app's own task (the paste request, then its confirmation result).
+    // If that threading assumption changes, add mutex guards here
     // to match the clipboard accessors above.
     std::string getPendingPasteDst() const { return pending_paste_dst; }
     void setPendingPasteDst(const std::string& dst) { pending_paste_dst = dst; }
@@ -119,6 +127,26 @@ public:
         mutex.withLock([&] {
             if (clipboard_active) {
                 result = { clipboard_path, clipboard_is_cut };
+            }
+        });
+        return result;
+    }
+
+    /** Hands a paste to the app task, which does the file system work. A newer request replaces one that wasn't taken yet. */
+    void setPasteRequest(const PasteRequest& request) {
+        mutex.withLock([&] {
+            paste_source_and_destination = { request.source, request.destination };
+            paste_is_cut = request.is_cut;
+        });
+    }
+
+    /** Takes the pending paste request, or nullopt when there is none. */
+    std::optional<PasteRequest> takePasteRequest() {
+        std::optional<PasteRequest> result;
+        mutex.withLock([&] {
+            if (paste_source_and_destination.has_value()) {
+                result = PasteRequest { paste_source_and_destination->first, paste_source_and_destination->second, paste_is_cut };
+                paste_source_and_destination.reset();
             }
         });
         return result;

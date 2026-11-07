@@ -17,6 +17,8 @@ class View final {
     std::shared_ptr<State> state;
     TaskEventGroup* eventGroup = nullptr;
     uint32_t appInstanceId = 0;
+    /** Signalled on the event group when a paste is requested */
+    uint32_t pasteBit = 0;
 
     AppStream inputDialogStream {};
     uint8_t inputDialogBuffer[256] {};
@@ -52,6 +54,10 @@ class View final {
 public:
 
     View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup);
+    ~View();
+
+    /** The event group bit that is signalled when the app task has to call onPasteRequested() */
+    uint32_t getPasteBit() const { return pasteBit; }
 
     void init(uint32_t appInstanceId, lv_obj_t* parent);
     /**
@@ -74,7 +80,10 @@ public:
     void onNewFolderPressed();
     void onCopyPressed();
     void onCutPressed();
+    /** Requests a paste, which the app task performs. Runs on the LVGL thread. */
     void onPastePressed();
+    /** Does the file system work of a requested paste. Runs on the app task. */
+    void onPasteRequested();
     void onEjectPressed();
     void onRunPressed();
     void onOverlayKey(uint32_t key);
