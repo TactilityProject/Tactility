@@ -147,6 +147,9 @@ TEST_CASE("package manifest compatibility: target_platforms must list this platf
     strcpy(package.target_platforms, "other-platform");
     CHECK_FALSE(app_package_manifest_is_compatible(&package));
 
+    strcpy(package.target_platforms, "all");
+    CHECK(app_package_manifest_is_compatible(&package));
+
 #ifdef ESP_PLATFORM
     strcpy(package.target_platforms, "other-platform," CONFIG_IDF_TARGET);
     CHECK(app_package_manifest_is_compatible(&package));

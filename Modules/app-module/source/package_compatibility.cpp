@@ -66,7 +66,9 @@ bool is_device_listed(const char* device_ids, const char* device_id) {
 extern "C" {
 
 bool app_package_manifest_is_compatible(const struct PackageManifest* const manifest) {
-    if (manifest->target_platforms[0] != '\0' && !is_device_listed(manifest->target_platforms, THIS_PLATFORM)) {
+    // The SDK templates write "all" for apps that are built for every platform
+    if (manifest->target_platforms[0] != '\0' && strcmp(manifest->target_platforms, "all") != 0 &&
+        !is_device_listed(manifest->target_platforms, THIS_PLATFORM)) {
         return false;
     }
     // An app built for a newer SDK can use APIs this firmware doesn't have. Not every caller knows the SDK version.
