@@ -52,6 +52,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         "Libraries/ed25519"
         "Libraries/minmea"
         "Libraries/QRCode"
+        "Libraries/esp32-audio-codec"
     )
 
     set(EXCLUDE_COMPONENTS "Simulator")

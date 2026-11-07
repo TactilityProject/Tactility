@@ -1,4 +1,4 @@
-# Audio codec module
+# ESP32 audio codec
 
 Provides `audio_codec_adapters.h`: glue that lets a codec driver build an `esp_codec_dev` control/data/GPIO
 interface (`audio_codec_ctrl_if_t` / `audio_codec_data_if_t` / `audio_codec_gpio_if_t`) directly from Tactility's
