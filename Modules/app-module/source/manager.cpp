@@ -94,17 +94,34 @@ error_t app_manager_add_package(const PackageManifest* package, const char* cons
     for (size_t i = 0; i < app_id_count; i++) {
         record.app_ids.emplace_back(app_ids[i]);
     }
-    // An app id is owned by one package: the one that registered it last. An older package that
-    // still lists it must not decide whether the app is compatible or shown.
-    for (auto& [id, other] : ledger.packages) {
-        std::erase_if(other.app_ids, [&](const std::string& app_id) {
-            return std::ranges::find(record.app_ids, app_id) != record.app_ids.end();
-        });
+    // An app id belongs to one package: another package can't register an id that is installed already
+    for (const auto& [id, other] : ledger.packages) {
+        for (const auto& app_id : record.app_ids) {
+            if (std::ranges::find(other.app_ids, app_id) != other.app_ids.end()) {
+                mutex_unlock(&ledger.mutex);
+                LOG_E(TAG, "App '%s' is installed by package '%s' already", app_id.c_str(), id.c_str());
+                return ERROR_ALREADY_EXISTS;
+            }
+        }
     }
     ledger.packages[package->id] = std::move(record);
     mutex_unlock(&ledger.mutex);
 
     return ERROR_NONE;
+}
+
+bool app_manager_app_is_owned_by_other_package(const char* app_id, const char* package_id) {
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    bool owned = false;
+    for (const auto& [id, record] : ledger.packages) {
+        if (id != package_id && std::ranges::find(record.app_ids, app_id) != record.app_ids.end()) {
+            owned = true;
+            break;
+        }
+    }
+    mutex_unlock(&ledger.mutex);
+    return owned;
 }
 
 error_t app_manager_remove_package(const char* package_id) {

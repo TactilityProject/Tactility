@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include <cstring>
+#include <fstream>
 
 using namespace tt;
 
@@ -37,4 +38,20 @@ TEST_CASE("deleteRecursively removes special entries") {
     CHECK_EQ(file::deleteRecursively("/tmp/test3"), true);
     struct stat info;
     CHECK_NE(stat("/tmp/test3", &info), 0);
+}
+
+TEST_CASE("deleteRecursively removes a link to a directory without touching the target") {
+    CHECK_EQ(file::findOrCreateDirectory("/tmp/test4/outside", 0777), true);
+    CHECK_EQ(file::findOrCreateDirectory("/tmp/test4/tree", 0777), true);
+    {
+        std::ofstream("/tmp/test4/outside/keep.txt") << "keep";
+    }
+    REQUIRE_EQ(symlink("/tmp/test4/outside", "/tmp/test4/tree/link"), 0);
+
+    CHECK_EQ(file::deleteRecursively("/tmp/test4/tree"), true);
+
+    struct stat info;
+    CHECK_NE(stat("/tmp/test4/tree", &info), 0);
+    CHECK_EQ(stat("/tmp/test4/outside/keep.txt", &info), 0);
+    CHECK_EQ(file::deleteRecursively("/tmp/test4"), true);
 }

@@ -19,6 +19,8 @@ class View final {
     uint32_t appInstanceId = 0;
     /** Signalled on the event group when a paste is requested */
     uint32_t pasteBit = 0;
+    /** The launch id of the overwrite confirmation that waits for an answer, or 0. Only used on the app task. */
+    uint32_t pasteDialogId = 0;
 
     AppStream inputDialogStream {};
     uint8_t inputDialogBuffer[256] {};

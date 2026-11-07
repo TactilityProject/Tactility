@@ -551,35 +551,22 @@ TEST_CASE("app_manager_get_topmost_app_id returns BUFFER_OVERFLOW for a too-smal
     app_manager_remove("test.app.top_overflow");
 }
 
-TEST_CASE("an app id belongs to the package that registered it last") {
-    PackageManifest incompatible {};
-    strcpy(incompatible.id, "test.owner.old");
-    strcpy(incompatible.target_sdk, "99.0.0");
-    PackageManifest compatible {};
-    strcpy(compatible.id, "test.owner.new");
-    strcpy(compatible.target_sdk, "0.8.0");
+TEST_CASE("a package can't register an app id that another package has") {
+    PackageManifest first {};
+    strcpy(first.id, "test.owner.first");
+    PackageManifest second {};
+    strcpy(second.id, "test.owner.second");
     const char* const app_ids[] = { "test.owner.app" };
-    REQUIRE_EQ(app_manager_add_package(&incompatible, app_ids, 1), ERROR_NONE);
-    REQUIRE_EQ(app_manager_add_package(&compatible, app_ids, 1), ERROR_NONE);
+    REQUIRE_EQ(app_manager_add_package(&first, app_ids, 1), ERROR_NONE);
 
-    struct Owners {
-        std::vector<std::string> packages;
-        std::vector<bool> compatible;
-    } owners;
-    app_manager_for_each_package([](const AppPackage* package, void* context) {
-        auto* owners = static_cast<Owners*>(context);
-        for (size_t i = 0; i < package->app_id_count; i++) {
-            if (strcmp(package->app_ids[i], "test.owner.app") == 0) {
-                owners->packages.emplace_back(package->package.id);
-                owners->compatible.push_back(package->compatible);
-            }
-        }
-    }, &owners);
+    CHECK_EQ(app_manager_add_package(&second, app_ids, 1), ERROR_ALREADY_EXISTS);
+    PackageSummary summary;
+    CHECK_NE(app_manager_find_package("test.owner.second", &summary), ERROR_NONE);
 
-    REQUIRE_EQ(owners.packages.size(), 1);
-    CHECK_EQ(owners.packages[0], "test.owner.new");
-    CHECK(owners.compatible[0]);
+    // The package itself can register again, e.g. when it is replaced
+    REQUIRE_EQ(app_manager_remove_package("test.owner.first"), ERROR_NONE);
+    CHECK_EQ(app_manager_add_package(&first, app_ids, 1), ERROR_NONE);
+    CHECK_EQ(app_manager_add_package(&second, app_ids, 1), ERROR_ALREADY_EXISTS);
 
-    app_manager_remove_package("test.owner.old");
-    app_manager_remove_package("test.owner.new");
+    app_manager_remove_package("test.owner.first");
 }

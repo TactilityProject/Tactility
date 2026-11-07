@@ -104,6 +104,11 @@ static error_t set_flags(GpioDescriptor* descriptor, gpio_flags_t flags) {
         err = i2c_controller_register8_reset_bits(parent, address, TCA9534_REGISTER_POLARITY, bit, portMAX_DELAY);
     }
 
+    // set_level() reads the polarity from the descriptor
+    if (err == ERROR_NONE) {
+        descriptor->flags = flags;
+    }
+
     device_unlock(device);
     return err;
 }

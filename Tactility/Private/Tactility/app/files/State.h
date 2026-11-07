@@ -32,6 +32,8 @@ private:
     std::string selected_child_entry;
     PendingAction action = ActionNone;
     std::string pending_paste_dst;
+    std::string pending_paste_src;
+    bool pending_paste_is_cut = false;
     struct stat pending_paste_dst_stat {};
     bool pending_paste_dst_stat_valid = false;
     std::string clipboard_path;
@@ -89,6 +91,14 @@ public:
     // to match the clipboard accessors above.
     std::string getPendingPasteDst() const { return pending_paste_dst; }
     void setPendingPasteDst(const std::string& dst) { pending_paste_dst = dst; }
+
+    /** The source and mode of the paste that waits for confirmation, which can differ from the clipboard by then */
+    std::string getPendingPasteSource() const { return pending_paste_src; }
+    bool getPendingPasteIsCut() const { return pending_paste_is_cut; }
+    void setPendingPasteSource(const std::string& src, bool is_cut) {
+        pending_paste_src = src;
+        pending_paste_is_cut = is_cut;
+    }
 
     /** Snapshot dst's stat at confirm-dialog time, so it can be revalidated right before the destructive delete. */
     void setPendingPasteDstStat(const struct stat& st) {
@@ -150,6 +160,17 @@ public:
             }
         });
         return result;
+    }
+
+    /** Clears the clipboard only while it still holds @a path as a cut, so a newer entry stays */
+    void clearClipboardIfCut(const std::string& path) {
+        mutex.withLock([&] {
+            if (clipboard_active && clipboard_is_cut && clipboard_path == path) {
+                clipboard_active = false;
+                clipboard_path.clear();
+                clipboard_is_cut = false;
+            }
+        });
     }
 
     void clearClipboard() {

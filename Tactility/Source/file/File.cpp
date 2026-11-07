@@ -259,6 +259,16 @@ bool findOrCreateParentDirectory(const std::string& path, mode_t mode) {
     return findOrCreateDirectory(parent, mode);
 }
 
+/** Like stat(), but doesn't follow a link: a link is described itself */
+static int statWithoutFollowingLinks(const char* path, struct stat* info) {
+#ifdef ESP_PLATFORM
+    // ESP-IDF has no lstat(), and its file systems have no links
+    return stat(path, info);
+#else
+    return lstat(path, info);
+#endif
+}
+
 bool deleteRecursively(const std::string& path) {
     if (path.empty()) {
         return true;
@@ -267,7 +277,13 @@ bool deleteRecursively(const std::string& path) {
         return true;
     }
 
-    if (directory_exists(path.c_str())) {
+    struct stat path_info;
+    if (statWithoutFollowingLinks(path.c_str(), &path_info) != 0) {
+        LOG_E(TAG, "Failed to delete \"%s\": not found", path.c_str());
+        return false;
+    }
+
+    if (S_ISDIR(path_info.st_mode)) {
         std::vector<dirent> entries;
         if (scandir(path, entries) < 0) {
             LOG_E(TAG, "Failed to scan directory %s", path.c_str());
@@ -285,22 +301,11 @@ bool deleteRecursively(const std::string& path) {
         }
         LOG_I(TAG, "Deleting %s", path.c_str());
         return deleteDirectory(path);
-    } else {
-        // Any other entry, such as a regular file, a FIFO, a socket or a link, is removed directly
-        struct stat entry_info;
-#ifdef ESP_PLATFORM
-        // ESP-IDF has no lstat(), and its file systems have no links
-        const int stat_result = stat(path.c_str(), &entry_info);
-#else
-        const int stat_result = lstat(path.c_str(), &entry_info);
-#endif
-        if (stat_result != 0) {
-            LOG_E(TAG, "Failed to delete \"%s\": not found", path.c_str());
-            return false;
-        }
-        LOG_I(TAG, "Deleting %s", path.c_str());
-        return deleteFile(path);
     }
+
+    // Any other entry, such as a regular file, a FIFO, a socket or a link (also one to a directory), is removed directly
+    LOG_I(TAG, "Deleting %s", path.c_str());
+    return deleteFile(path);
 }
 
 bool deleteFile(const std::string& path) {
