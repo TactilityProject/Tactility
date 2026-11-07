@@ -1,28 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <tactility/filesystem/fs.h>
+#include <tactility/filesystem/directory.h>
+#include <tactility/filesystem/file.h>
 
 #include <tactility/log.h>
 #include <tactility/paths.h>
 
 #include <dirent.h>
-#include <unistd.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <vector>
-#include <string>
 
 constexpr auto* TAG = "fs";
 
 // Bound on how deep directory_remove_tree() will recurse: a fixed-size buffer is
 // spent per level, so a pathological tree is refused rather than overflowing the stack.
 constexpr int MAX_RECURSION_DEPTH = 16;
-
-// Bound on how deep path_tree_size() walks, which only stops a loop of links as it doesn't use the stack.
-constexpr int MAX_WALK_DEPTH = 64;
 
 // Entries collected per directory pass, and the longest filename handled, for
 // directory_remove_tree(). dirent allows 255-byte names; storing them at full
@@ -146,81 +142,13 @@ error_t directory_remove_tree_at(const char* path, int depth) {
     }
 }
 
-/**
- * Sums the sizes of the files below a directory without recursing, so the stack use doesn't depend on how deep the tree is.
- * Only one directory is open at a time, and the directories still to visit are kept on the heap.
- */
-uint64_t path_tree_size_at(const char* path) {
-    if (!directory_exists(path)) {
-        struct stat info;
-        return (stat(path, &info) == 0) ? static_cast<uint64_t>(info.st_size) : 0;
-    }
-
-    struct Pending {
-        std::string path;
-        int depth;
-    };
-    struct Walk {
-        std::vector<Pending> pending;
-        const Pending* current;
-        uint64_t bytes;
-    };
-    Walk walk { {}, nullptr, 0 };
-    walk.pending.push_back({ path, 0 });
-
-    while (!walk.pending.empty()) {
-        const Pending directory = std::move(walk.pending.back());
-        walk.pending.pop_back();
-        walk.current = &directory;
-        directory_list(directory.path.c_str(), &walk, [](const DirectoryEntry* entry, void* context) {
-            auto* walk = static_cast<Walk*>(context);
-            if (!entry->is_directory) {
-                walk->bytes += entry->size;
-                return;
-            }
-            // The depth is bounded, so a loop of links ends. Paths that can't be handled by the file system's limits are skipped.
-            if (walk->current->depth < MAX_WALK_DEPTH && walk->current->path.size() + 1 + strlen(entry->name) < FILE_MAX_PATH_STRING_LENGTH) {
-                walk->pending.push_back({ walk->current->path + "/" + entry->name, walk->current->depth + 1 });
-            }
-        });
-    }
-    return walk.bytes;
-}
-
 } // namespace
 
 extern "C" {
 
-bool path_exists(const char* path) {
-    struct stat info;
-    return stat(path, &info) == 0;
-}
-
 bool directory_exists(const char* path) {
     struct stat info;
     return stat(path, &info) == 0 && S_ISDIR(info.st_mode);
-}
-
-error_t file_read_binary(const char* path, uint8_t* bytes, size_t* out_size) {
-    FILE* file = fopen(path, "rb");
-    if (file == nullptr) {
-        return ERROR_NOT_FOUND;
-    }
-
-    fseek(file, 0, SEEK_END);
-    const long size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    if (size < 0 || static_cast<size_t>(size) > *out_size) {
-        fclose(file);
-        return ERROR_BUFFER_OVERFLOW;
-    }
-
-    const size_t read = fread(bytes, 1, static_cast<size_t>(size), file);
-    fclose(file);
-
-    *out_size = read;
-    return ERROR_NONE;
 }
 
 error_t directory_list(const char* path, void* context, void (*callback)(const DirectoryEntry* entry, void* context)) {
@@ -293,13 +221,6 @@ error_t directory_make(const char* path, bool create_parents) {
     return ERROR_NONE;
 }
 
-error_t file_remove(const char* path) {
-    if (unlink(path) != 0) {
-        return (errno == ENOENT) ? ERROR_NOT_FOUND : ERROR_RESOURCE;
-    }
-    return ERROR_NONE;
-}
-
 error_t directory_remove(const char* path) {
     if (rmdir(path) != 0) {
         if (errno == ENOENT) {
@@ -312,111 +233,6 @@ error_t directory_remove(const char* path) {
 
 error_t directory_remove_tree(const char* path) {
     return directory_remove_tree_at(path, 0);
-}
-
-error_t file_copy(const char* source, const char* target, bool overwrite) {
-    // Reject a copy when the source and target are the same file.
-    if (strcmp(source, target) == 0) {
-        return ERROR_INVALID_ARGUMENT;
-    }
-
-    // Source and target are the same, but don't have the same name:
-    struct stat source_info, target_info;
-    if (
-        stat(source, &source_info) == 0 &&
-        stat(target, &target_info) == 0 &&
-        source_info.st_ino != 0 &&
-        source_info.st_dev == target_info.st_dev &&
-        source_info.st_ino == target_info.st_ino
-    ) {
-        return ERROR_INVALID_ARGUMENT;
-    }
-
-    if (!overwrite && path_exists(target)) {
-        return ERROR_ALREADY_EXISTS;
-    }
-
-    // Copies in chunks, carrying the file offset between them, since source and target can live
-    // on different mounts.
-    long offset = 0;
-    for (;;) {
-        char chunk[512];
-        size_t read = 0;
-
-        {
-            FILE* source_file = fopen(source, "rb");
-            if (source_file == nullptr) {
-                return ERROR_NOT_FOUND;
-            }
-            if (fseek(source_file, offset, SEEK_SET) != 0) {
-                fclose(source_file);
-                return ERROR_RESOURCE;
-            }
-            read = fread(chunk, 1, sizeof(chunk), source_file);
-            fclose(source_file);
-        }
-
-        if (read == 0) {
-            break;
-        }
-
-        {
-            // "wb" for the first chunk so an overwrite truncates; "ab" to extend after that.
-            FILE* target_file = fopen(target, (offset == 0) ? "wb" : "ab");
-            if (target_file == nullptr) {
-                return ERROR_RESOURCE;
-            }
-            const size_t written = fwrite(chunk, 1, read, target_file);
-            fclose(target_file);
-            if (written != read) {
-                return ERROR_RESOURCE;
-            }
-        }
-
-        offset += static_cast<long>(read);
-
-        if (read < sizeof(chunk)) {
-            break;
-        }
-    }
-
-    // A zero-length source never entered the write branch above, so create the target explicitly.
-    if (offset == 0) {
-        return file_touch(target);
-    }
-    return ERROR_NONE;
-}
-
-error_t file_move(const char* source, const char* target, bool overwrite) {
-    if (!overwrite && path_exists(target)) {
-        return ERROR_ALREADY_EXISTS;
-    }
-
-    if (rename(source, target) == 0) {
-        return ERROR_NONE;
-    }
-
-    // rename() only works within a filesystem; across mounts it fails with EXDEV and the move has
-    // to be done the long way.
-    const error_t copied = file_copy(source, target, overwrite);
-    if (copied != ERROR_NONE) {
-        return copied;
-    }
-    return file_remove(source);
-}
-
-error_t file_touch(const char* path) {
-    // "ab" creates the file when missing and leaves existing content alone.
-    FILE* file = fopen(path, "ab");
-    if (file == nullptr) {
-        return ERROR_RESOURCE;
-    }
-    fclose(file);
-    return ERROR_NONE;
-}
-
-uint64_t path_tree_size(const char* path) {
-    return path_tree_size_at(path);
 }
 
 } // extern "C"

@@ -221,6 +221,12 @@ void renderCurrent(Context* ctx) {
             break;
     }
     renderLayout(ctx);
+    // Without a touch screen, the picked choice has the focus, or the first one
+    if (ctx->phase == Phase::StepChoice && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER) && lv_obj_get_child_count(ctx->choiceChips) > 0) {
+        const int32_t choice = ctx->steps[ctx->stepIndex].choice;
+        lv_group_focus_obj(ctx->choiceChips);
+        lv_gridnav_set_focused(ctx->choiceChips, lv_obj_get_child(ctx->choiceChips, choice < 0 ? 0 : choice), LV_ANIM_OFF);
+    }
     // Without a touch screen, Finish has the focus
     if (ctx->phase == Phase::Done && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
         auto* buttonRow = lv_obj_get_parent(ctx->continueButton);

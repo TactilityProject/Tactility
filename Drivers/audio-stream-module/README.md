@@ -4,7 +4,7 @@ Defines `AUDIO_STREAM_TYPE` and `AudioStreamApi`: the high-level, full-duplex
 audio API that apps (including ELF side-loaded apps) and `AudioService` should
 use instead of talking to an `AUDIO_CODEC_TYPE` device directly. Binds to one
 input-capable and/or one output-capable codec device (found automatically at
-start; see `Drivers/audio-codec-module`) and adds on top of it:
+start; see `Libraries/esp32-audio-codec`) and adds on top of it:
 
 - Resampling, so the same app code works at any requested sample rate
   regardless of what rate the bound codec natively runs at.

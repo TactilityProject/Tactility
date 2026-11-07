@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/TouchCalibrationSettings.h>
 
 #include <Tactility/file/File.h>
@@ -59,7 +60,7 @@ bool isValid(const TouchCalibrationSettings& settings) {
 
 bool load(TouchCalibrationSettings& settings) {
     auto settings_path = getSettingsFilePath();
-    if (!file::isFile(settings_path)) {
+    if (!file_exists(settings_path.c_str())) {
         return false;
     }
 

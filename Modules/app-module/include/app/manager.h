@@ -66,11 +66,13 @@ error_t app_manager_remove_package(const char* package_id);
  * @retval ERROR_NOT_FOUND no package with this id is registered
  * @retval ERROR_NONE on success
  */
-error_t app_manager_find_package(const char* package_id, struct PackageManifest* out_package);
+error_t app_manager_find_package(const char* package_id, struct PackageSummary* out_package);
 
 /** One registered package, handed to AppPackageVisitorFn - see app_manager_for_each_package(). */
 struct AppPackage {
-    struct PackageManifest package;
+    struct PackageSummary package;
+    /** The result of app_package_manifest_is_compatible() when the package was registered. */
+    bool compatible;
     /** How many entries @a app_ids points to. */
     size_t app_id_count;
     /** Valid only for the duration of the app_manager_for_each_package() call that produced

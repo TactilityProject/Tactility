@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/MountPoints.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
@@ -19,7 +20,7 @@ static std::string getPropertiesFilePath() {
 
 bool loadBootSettings(BootSettings& properties) {
     const std::string path = getPropertiesFilePath();
-    if (!file::isFile(path)) {
+    if (!file_exists(path.c_str())) {
         return false;
     }
 

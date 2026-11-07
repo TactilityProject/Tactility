@@ -25,6 +25,7 @@ struct PageLayout {
     int32_t pad;
     int32_t tileWidth;
     int32_t tileHeight;
+    int32_t leftOffset;
     int32_t topOffset;
     uint32_t pageSize;
 };
@@ -42,11 +43,14 @@ PageLayout computePageLayout(lv_obj_t* grid) {
     const auto available_height = lv_obj_get_content_height(grid);
     const auto columns = std::max<int32_t>(1, (available_width + gap) / (tile_min_width + gap));
     const auto rows = std::max<int32_t>(1, (available_height + gap) / (tile_height + gap));
+    const auto tile_width = std::max<int32_t>(tile_min_width, (available_width - (columns - 1) * gap) / columns);
     return {
         .iconSize = icon_size,
         .pad = pad,
-        .tileWidth = std::max<int32_t>(tile_min_width, (available_width - (columns - 1) * gap) / columns),
+        .tileWidth = tile_width,
         .tileHeight = tile_height,
+        // The pixels that don't divide over the columns are split over both sides
+        .leftOffset = std::max<int32_t>(0, (available_width - (columns * tile_width + (columns - 1) * gap)) / 2),
         .topOffset = std::max<int32_t>(0, (available_height - (rows * tile_height + (rows - 1) * gap)) / 2),
         .pageSize = static_cast<uint32_t>(columns * rows)
     };
@@ -200,6 +204,11 @@ void TileGrid::onGridDeleted(lv_event_t* e) {
     lv_async_call_cancel(onDeferredResize, lv_event_get_user_data(e));
     lv_async_call_cancel(onDeferredNextPage, lv_event_get_user_data(e));
     lv_async_call_cancel(onDeferredPreviousPage, lv_event_get_user_data(e));
+
+    // The fallback widget belongs to a window that is going away too, so the cancelled request must not select it later
+    auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    self->selectFirstOnRepopulate = false;
+    self->emptyFallback = nullptr;
 }
 
 // Deferred: page size depends on the grid size, which is final only after the layout pass that triggered this.
@@ -269,8 +278,17 @@ void TileGrid::onTileKey(lv_event_t* e) {
 }
 
 void TileGrid::requestRepopulate(bool keepSelection) {
+    // The latest request decides the selection policy
     keepSelectionOnRepopulate = keepSelection;
+    selectFirstOnRepopulate = false;
+    emptyFallback = nullptr;
     lv_async_call(onDeferredRepopulate, this);
+}
+
+void TileGrid::requestRepopulateSelectingFirst(lv_obj_t* fallback) {
+    requestRepopulate(false);
+    selectFirstOnRepopulate = true;
+    emptyFallback = fallback;
 }
 
 bool TileGrid::isPagingVisible() const {
@@ -305,6 +323,10 @@ void TileGrid::populate() {
         }
     }
     keepSelectionOnRepopulate = true;
+    const bool selectFirst = selectFirstOnRepopulate && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER);
+    lv_obj_t* fallback = emptyFallback;
+    selectFirstOnRepopulate = false;
+    emptyFallback = nullptr;
 
     // Old tiles hold pointers into items, so they are deleted before items is replaced.
     lv_obj_clean(grid);
@@ -312,6 +334,7 @@ void TileGrid::populate() {
 
     // Centers a full page of rows, so a partially filled last page keeps its rows in the same positions.
     lv_obj_set_style_pad_top(grid, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(grid, 0, LV_STATE_DEFAULT);
     PageLayout layout = computePageLayout(grid);
     const uint32_t item_count = items.size();
     uint32_t page_count = std::max<uint32_t>(1, (item_count + layout.pageSize - 1) / layout.pageSize);
@@ -329,6 +352,7 @@ void TileGrid::populate() {
     populatedWidth = lv_obj_get_width(grid);
     populatedHeight = lv_obj_get_height(grid);
     lv_obj_set_style_pad_top(grid, layout.topOffset, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(grid, layout.leftOffset, LV_STATE_DEFAULT);
 
     // Follows the focused item onto its new page, e.g. after a reorder moved it.
     if (!focusedId.empty()) {
@@ -407,6 +431,23 @@ void TileGrid::populate() {
     if (focusedTile != nullptr) {
         lv_group_focus_obj(grid);
         lv_gridnav_set_focused(grid, focusedTile, LV_ANIM_OFF);
+    } else if (selectFirst && group != nullptr) {
+        if (lv_obj_get_child_count(grid) > 0) {
+            lv_group_focus_obj(grid);
+            lv_gridnav_set_focused(grid, lv_obj_get_child(grid, 0), LV_ANIM_OFF);
+        } else if (fallback != nullptr) {
+            // A widget in a grid navigation container isn't a group member: the container is
+            lv_obj_t* container = lv_obj_get_parent(fallback);
+            while (container != nullptr && !lvgl_grid_navigation_is_container(container)) {
+                container = lv_obj_get_parent(container);
+            }
+            if (container != nullptr) {
+                lv_group_focus_obj(container);
+                lv_gridnav_set_focused(container, fallback, LV_ANIM_OFF);
+            } else {
+                lv_group_focus_obj(fallback);
+            }
+        }
     } else if (!keepSelection && group != nullptr && lv_group_get_focused(group) == grid) {
         // Grid navigation selects the first new tile when the grid is focused, but a page change shows no selection.
         // The next key that moves the focus selects a tile again.

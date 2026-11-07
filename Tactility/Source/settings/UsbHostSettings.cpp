@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/UsbHostSettings.h>
 
 #include <Tactility/file/File.h>
@@ -31,7 +32,7 @@ static bool toBool(const std::map<std::string, std::string>& map, const char* ke
 
 bool load(UsbHostSettings& settings) {
     std::string settings_path;
-    if (!getSettingsFilePath(settings_path) || !file::isFile(settings_path)) {
+    if (!getSettingsFilePath(settings_path) || !file_exists(settings_path.c_str())) {
         return false;
     }
 

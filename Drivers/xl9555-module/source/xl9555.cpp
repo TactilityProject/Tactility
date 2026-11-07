@@ -50,7 +50,10 @@ static error_t set_level(GpioDescriptor* descriptor, bool high) {
     // write; without this lock, concurrent updates to different pins on the
     // same output port register can clobber each other.
     device_lock(device);
-    error_t err = high
+    // The output port has no polarity inversion, so active-low outputs are inverted here.
+    // Read under the lock, as set_flags() can change the polarity.
+    const bool physical_high = (descriptor->flags & GPIO_FLAG_ACTIVE_LOW) != 0 ? !high : high;
+    error_t err = physical_high
         ? i2c_controller_register8_set_bits(parent, address, reg, bit, portMAX_DELAY)
         : i2c_controller_register8_reset_bits(parent, address, reg, bit, portMAX_DELAY);
     device_unlock(device);
@@ -80,13 +83,6 @@ static error_t set_flags(GpioDescriptor* descriptor, gpio_flags_t flags) {
         return ERROR_NOT_SUPPORTED;
     }
 
-    // The polarity register only inverts what's read back from an input pin;
-    // set_level() still drives outputs at the raw level. Accepting ACTIVE_LOW
-    // on an output would silently not do what it implies.
-    if ((flags & GPIO_FLAG_ACTIVE_LOW) && (flags & GPIO_FLAG_DIRECTION_OUTPUT)) {
-        return ERROR_NOT_SUPPORTED;
-    }
-
     auto* device = descriptor->controller;
     auto* parent = device_get_parent(device);
     auto address = GET_CONFIG(device)->address;
@@ -112,11 +108,16 @@ static error_t set_flags(GpioDescriptor* descriptor, gpio_flags_t flags) {
         return err;
     }
 
-    // Polarity inversion (mainly relevant for active-low inputs).
+    // Input polarity inversion, so get_level() reports the logical level of active-low pins
     if (flags & GPIO_FLAG_ACTIVE_LOW) {
         err = i2c_controller_register8_set_bits(parent, address, polarity_reg, bit, portMAX_DELAY);
     } else {
         err = i2c_controller_register8_reset_bits(parent, address, polarity_reg, bit, portMAX_DELAY);
+    }
+
+    // set_level() reads the polarity from the descriptor
+    if (err == ERROR_NONE) {
+        descriptor->flags = flags;
     }
 
     device_unlock(device);

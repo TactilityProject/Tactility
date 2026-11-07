@@ -97,7 +97,15 @@ void refresh(Context* ctx);
 
 /** Reads the apps from App Hub for showApps(). Doesn't touch widgets, so it runs without the LVGL lock. */
 void loadApps(Context* ctx) {
+    // Counted first, so the vector is allocated once. Growing it by doubling needs several large blocks
+    // while the old one is still alive, which aborts when the heap is fragmented, e.g. during a download.
+    size_t count = 0;
+    app_hub_search(nullptr, [](const AppHubApp*, void* context) {
+        (*static_cast<size_t*>(context))++;
+        return true;
+    }, &count);
     tt::std::vector<AppHubApp> apps;
+    apps.reserve(count);
     app_hub_search(nullptr, [](const AppHubApp* app, void* context) {
         static_cast<tt::std::vector<AppHubApp>*>(context)->push_back(*app);
         return true;

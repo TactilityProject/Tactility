@@ -1,6 +1,8 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/file/File.h>
 
 #include <cerrno>
+#include <sys/stat.h>
 #include <cstring>
 #include <fstream>
 #include <unistd.h>
@@ -257,6 +259,16 @@ bool findOrCreateParentDirectory(const std::string& path, mode_t mode) {
     return findOrCreateDirectory(parent, mode);
 }
 
+/** Like stat(), but doesn't follow a link: a link is described itself */
+static int statWithoutFollowingLinks(const char* path, struct stat* info) {
+#ifdef ESP_PLATFORM
+    // ESP-IDF has no lstat(), and its file systems have no links
+    return stat(path, info);
+#else
+    return lstat(path, info);
+#endif
+}
+
 bool deleteRecursively(const std::string& path) {
     if (path.empty()) {
         return true;
@@ -265,7 +277,13 @@ bool deleteRecursively(const std::string& path) {
         return true;
     }
 
-    if (isDirectory(path)) {
+    struct stat path_info;
+    if (statWithoutFollowingLinks(path.c_str(), &path_info) != 0) {
+        LOG_E(TAG, "Failed to delete \"%s\": not found", path.c_str());
+        return false;
+    }
+
+    if (S_ISDIR(path_info.st_mode)) {
         std::vector<dirent> entries;
         if (scandir(path, entries) < 0) {
             LOG_E(TAG, "Failed to scan directory %s", path.c_str());
@@ -283,13 +301,11 @@ bool deleteRecursively(const std::string& path) {
         }
         LOG_I(TAG, "Deleting %s", path.c_str());
         return deleteDirectory(path);
-    } else if (isFile(path)) {
-        LOG_I(TAG, "Deleting %s", path.c_str());
-        return deleteFile(path);
-    } else {
-        LOG_E(TAG, "Failed to delete \"%s\": unknown type", path.c_str());
-        return false;
     }
+
+    // Any other entry, such as a regular file, a FIFO, a socket or a link (also one to a directory), is removed directly
+    LOG_I(TAG, "Deleting %s", path.c_str());
+    return deleteFile(path);
 }
 
 bool deleteFile(const std::string& path) {
@@ -298,15 +314,6 @@ bool deleteFile(const std::string& path) {
 
 bool deleteDirectory(const std::string& path) {
     return rmdir(path.c_str()) == 0;
-}
-
-bool isFile(const std::string& path) {
-    return access(path.c_str(), F_OK) == 0;
-}
-
-bool isDirectory(const std::string& path) {
-    struct stat stat_result;
-    return stat(path.c_str(), &stat_result) == 0 && S_ISDIR(stat_result.st_mode);
 }
 
 bool readLines(const std::string& filePath, bool stripNewLine, std::function<void(const char* line)> callback) {

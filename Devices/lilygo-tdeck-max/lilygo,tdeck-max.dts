@@ -72,7 +72,7 @@
 			x-max = <240>;
 			y-max = <320>;
 			// Reset routed through the XL9555 IO expander (P07, active low).
-			pin-reset = <&xl9555 7 GPIO_FLAG_NONE>;
+			pin-reset = <&xl9555 7 GPIO_FLAG_ACTIVE_LOW>;
 		};
 
 		// TCA8418 4x10 matrix scanner. Keymaps are written in the vendor's row/column
@@ -108,7 +108,7 @@
 			sym-row = <3>;
 			sym-col = <8>;
 			// Reset routed through the XL9555 IO expander (P11, active low).
-			pin-reset = <&xl9555 9 GPIO_FLAG_NONE>;
+			pin-reset = <&xl9555 9 GPIO_FLAG_ACTIVE_LOW>;
 		};
 
 		// Battery metrics from the BQ27220 fuel gauge; power-off via the SY6970 charger.

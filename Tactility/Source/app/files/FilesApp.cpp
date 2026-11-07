@@ -35,37 +35,46 @@ int32_t appMain(int argc, char* argv[]) {
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
 
-    View view(state, &event_group);
-    CreateContext createContext { &view, appInstanceId };
+    // The view releases its event group bit when it is destroyed, so it ends before the event group does
+    {
+        View view(state, &event_group);
+        CreateContext createContext { &view, appInstanceId };
 
-    AppEventSubscription sub {};
-    check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
+        AppEventSubscription sub {};
+        check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &createContext);
+        WindowId window = window_manager_create(appInstanceId, createWidgets, &createContext);
 
-    bool shouldClose = false;
-    while (!shouldClose) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        bool shouldClose = false;
+        while (!shouldClose) {
+            uint32_t flags = 0;
+            task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
 
-        AppEvent event {};
-        while (app_event_poll(&sub, &event) == ERROR_NONE) {
-            switch (event.type) {
-                case APP_EVENT_CLOSE:
-                    shouldClose = true;
-                    break;
-                case APP_EVENT_RESULT:
-                    view.onResult(event.result.launch_id, event.result.result);
-                    app_manager_stop(event.result.launch_id);
-                    break;
-                default:
-                    break;
+            if (flags & view.getPasteBit()) {
+                view.onPasteRequested();
             }
-            if (shouldClose) break;
+
+            AppEvent event {};
+            while (app_event_poll(&sub, &event) == ERROR_NONE) {
+                switch (event.type) {
+                    case APP_EVENT_CLOSE:
+                        shouldClose = true;
+                        break;
+                    case APP_EVENT_RESULT:
+                        view.onResult(event.result.launch_id, event.result.result);
+                        app_manager_stop(event.result.launch_id);
+                        break;
+                    default:
+                        break;
+                }
+                if (shouldClose) break;
+            }
         }
+
+        window_manager_remove(window);
+        check(app_event_unsubscribe(&sub) == ERROR_NONE);
     }
 
-    window_manager_remove(window);
-    check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&event_group);
 
     return 0;

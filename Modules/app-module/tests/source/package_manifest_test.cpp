@@ -90,6 +90,7 @@ TEST_CASE("package manifest v3: an invalid cleanup rejects the manifest") {
 
 TEST_CASE("package manifest compatibility: requires_device_id must list this device, if set") {
     PackageManifest package {};
+    strcpy(package.target_sdk, "0.8.0");
     CHECK(app_package_manifest_is_compatible(&package));
 
     strcpy(package.requires_device_id, CONFIG_TT_DEVICE_ID);
@@ -108,8 +109,59 @@ TEST_CASE("package manifest compatibility: requires_device_id must list this dev
 
 TEST_CASE("package manifest compatibility: requires_ram must fit in total RAM") {
     PackageManifest package {};
+    strcpy(package.target_sdk, "0.8.0");
     package.requires_ram = 1;
     CHECK(app_package_manifest_is_compatible(&package));
+}
+
+TEST_CASE("package manifest compatibility: target_sdk can't be newer than the firmware") {
+    PackageManifest package {};
+    strcpy(package.target_sdk, TT_VERSION);
+    CHECK(app_package_manifest_is_compatible(&package));
+
+    // The tag is ignored
+    strcpy(package.target_sdk, "0.8.0");
+    CHECK(app_package_manifest_is_compatible(&package));
+
+    strcpy(package.target_sdk, "0.0.1");
+    CHECK(app_package_manifest_is_compatible(&package));
+
+    strcpy(package.target_sdk, "99.0.0");
+    CHECK_FALSE(app_package_manifest_is_compatible(&package));
+
+    strcpy(package.target_sdk, "0.99.0");
+    CHECK_FALSE(app_package_manifest_is_compatible(&package));
+
+    strcpy(package.target_sdk, "0.8.99");
+    CHECK_FALSE(app_package_manifest_is_compatible(&package));
+
+    strcpy(package.target_sdk, "latest");
+    CHECK_FALSE(app_package_manifest_is_compatible(&package));
+}
+
+TEST_CASE("package manifest compatibility: target_platforms must list this platform, if set") {
+    PackageManifest package {};
+    strcpy(package.target_sdk, "0.8.0");
+    CHECK(app_package_manifest_is_compatible(&package));
+
+    strcpy(package.target_platforms, "other-platform");
+    CHECK_FALSE(app_package_manifest_is_compatible(&package));
+
+#ifdef ESP_PLATFORM
+    strcpy(package.target_platforms, "other-platform," CONFIG_IDF_TARGET);
+    CHECK(app_package_manifest_is_compatible(&package));
+#endif
+}
+
+TEST_CASE("package manifest v3: target.platforms is optional") {
+    PackageManifest package {};
+    REQUIRE_EQ(parse(minimal_v3_properties(), package), ERROR_NONE);
+    CHECK_EQ(std::string(package.target_platforms), "");
+
+    auto properties = minimal_v3_properties();
+    properties["target.platforms"] = "esp32,esp32s3";
+    REQUIRE_EQ(parse(properties, package), ERROR_NONE);
+    CHECK_EQ(std::string(package.target_platforms), "esp32,esp32s3");
 }
 
 namespace {
