@@ -498,6 +498,7 @@ static const DisplayApi rgb_display_api = {
     .get_frame_buffer_count = rgb_display_get_frame_buffer_count,
     .get_backlight = rgb_display_get_backlight,
     .has_capability = rgb_display_has_capability,
+    .get_shape = nullptr,
 };
 
 Driver rgb_display_driver = {

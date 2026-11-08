@@ -266,6 +266,8 @@ static error_t cardputer_adv_keyboard_read_key(Device* device, KeyboardKeyData* 
 
 static const KeyboardApi cardputer_adv_keyboard_api = {
     .read_key = cardputer_adv_keyboard_read_key,
+    .get_backlight = nullptr,
+    .is_present = nullptr,
 };
 
 Driver cardputer_adv_keyboard_driver = {

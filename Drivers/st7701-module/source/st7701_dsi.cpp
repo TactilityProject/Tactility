@@ -462,6 +462,7 @@ static const DisplayApi st7701_dsi_display_api = {
     .get_frame_buffer_count = st7701_dsi_get_frame_buffer_count,
     .get_backlight = st7701_dsi_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7701_dsi_driver = {

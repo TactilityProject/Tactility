@@ -369,6 +369,7 @@ static const struct AudioCodecApi API = {
     .get_native_sample_rate = get_native_sample_rate,
     .get_native_channels = get_native_channels,
     .get_capabilities = get_capabilities,
+    .get_input_gain_multiplier = nullptr,
 };
 
 // endregion

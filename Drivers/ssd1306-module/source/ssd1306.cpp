@@ -336,6 +336,7 @@ static const DisplayApi ssd1306_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = nullptr,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver ssd1306_driver = {

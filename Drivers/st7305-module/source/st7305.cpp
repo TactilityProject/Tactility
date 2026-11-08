@@ -406,6 +406,7 @@ static const DisplayApi st7305_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = st7305_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7305_driver = {

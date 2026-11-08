@@ -583,6 +583,7 @@ static const DisplayApi st7123_display_api = {
     .get_frame_buffer_count = st7123_get_frame_buffer_count,
     .get_backlight = st7123_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7123_driver = {

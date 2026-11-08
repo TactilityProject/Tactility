@@ -584,6 +584,7 @@ static const DisplayApi ili9881c_display_api = {
     .get_frame_buffer_count = ili9881c_get_frame_buffer_count,
     .get_backlight = ili9881c_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver ili9881c_driver = {

@@ -457,6 +457,7 @@ static const DisplayApi hx8357_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = hx8357_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver hx8357_driver = {

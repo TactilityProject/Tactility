@@ -374,6 +374,7 @@ static const DisplayApi st7735_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = st7735_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7735_driver = {

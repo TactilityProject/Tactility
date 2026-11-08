@@ -517,6 +517,7 @@ static const DisplayApi jd9165_display_api = {
     .get_frame_buffer_count = jd9165_get_frame_buffer_count,
     .get_backlight = jd9165_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver jd9165_driver = {

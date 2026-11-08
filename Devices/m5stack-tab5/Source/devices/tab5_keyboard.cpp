@@ -658,6 +658,7 @@ static error_t tab5_keyboard_read_key(Device* device, KeyboardKeyData* data) {
 static const KeyboardApi tab5_keyboard_api = {
     .read_key = tab5_keyboard_read_key,
     .get_backlight = nullptr,
+    .is_present = nullptr,
 };
 
 // Defined in module.cpp - this driver is registered directly by m5stack-tab5's own module,

@@ -504,6 +504,7 @@ static const DisplayApi sh8601_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = sh8601_get_backlight,
     .has_capability = sh8601_has_capability,
+    .get_shape = nullptr,
 };
 
 Driver sh8601_driver = {

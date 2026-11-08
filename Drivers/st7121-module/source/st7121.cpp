@@ -583,6 +583,7 @@ static const DisplayApi st7121_display_api = {
     .get_frame_buffer_count = st7121_get_frame_buffer_count,
     .get_backlight = st7121_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7121_driver = {
