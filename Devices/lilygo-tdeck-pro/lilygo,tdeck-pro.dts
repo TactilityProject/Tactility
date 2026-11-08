@@ -132,7 +132,6 @@
 
 		sdcard@1 {
 			compatible = "espressif,esp32-sdspi";
-			status = "disabled";
 			frequency-khz = <20000>;
 		};
 
