@@ -25,7 +25,9 @@
 
 #include <mesh/mesh.h>
 
+#include <tactility/Memory.hpp>
 #include <tactility/concurrent/dispatcher.h>
+#include <tactility/concurrent/thread.h>
 #include <tactility/device.h>
 #include <tactility/drivers/bluetooth.h>
 #include <tactility/drivers/power_supply.h>
@@ -143,7 +145,46 @@ static void setMeshEnabled(void* context) {
 }
 
 
-// Changing the radio and device states can block, so it happens on the main task
+// Changing the radio and device states can block, so it happens on a worker thread
+constexpr size_t TOGGLE_WORKER_STACK_SIZE = 8192;
+
+struct ToggleWorker {
+    DispatcherHandle_t dispatcher = nullptr;
+    ::Thread* thread = nullptr;
+};
+
+static int32_t toggleWorkerMain(void* context) {
+    auto* worker = static_cast<ToggleWorker*>(context);
+    for (;;) {
+        dispatcher_consume(worker->dispatcher);
+    }
+}
+
+/** Starts the worker on the first call and never stops it. Only call this from the LVGL thread. */
+static ToggleWorker* getToggleWorker() {
+    static ToggleWorker* worker = nullptr;
+    if (worker != nullptr) {
+        return worker;
+    }
+
+    auto* created = newObject<ToggleWorker>();
+    if (created == nullptr) {
+        LOG_E(TAG, "Failed to allocate the toggle worker");
+        return nullptr;
+    }
+    created->dispatcher = dispatcher_alloc();
+    created->thread = thread_alloc_full("system_menu", TOGGLE_WORKER_STACK_SIZE, toggleWorkerMain, created, tskNO_AFFINITY);
+    if (created->dispatcher == nullptr || created->thread == nullptr || thread_start(created->thread) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to start the toggle worker");
+        if (created->thread != nullptr) thread_free(created->thread);
+        if (created->dispatcher != nullptr) dispatcher_free(created->dispatcher);
+        deleteObject(created);
+        return nullptr;
+    }
+    worker = created;
+    return worker;
+}
+
 struct ToggleOption {
     const char* enabledIcon;
     const char* disabledIcon;
@@ -160,7 +201,10 @@ static void onToggleChanged(lv_event_t* event) {
     const auto* option = static_cast<const ToggleOption*>(lv_event_get_user_data(event));
     const bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
     lv_label_set_text(lv_obj_get_child(toggle, 0), getToggleIcon(option, enabled));
-    tt::dispatchOnMainDispatcher(option->setEnabled, toContext(enabled));
+    auto* worker = getToggleWorker();
+    if (worker == nullptr || dispatcher_dispatch(worker->dispatcher, toContext(enabled), option->setEnabled) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue the toggle");
+    }
 }
 
 static void onCloseClicked(lv_event_t* /*event*/) {

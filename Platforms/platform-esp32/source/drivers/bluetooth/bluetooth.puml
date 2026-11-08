@@ -1,45 +1,60 @@
 @startuml Bluetooth Thread Model
 
-box "nimble_host task\n(NimBLE internal, 4 KB stack)" #LightBlue
+box "nimble_host task\n(NimBLE internal)" #LightBlue
     participant "gap_event_handler\n(esp32_ble.cpp)" as GAP
     participant "ble_gatt\ncallbacks" as GATT
-    participant "bt_event_bridge\n(Bluetooth.cpp)" as Bridge
-    participant "hidHostGapCb\n& discovery\n(BluetoothHidHost.cpp)" as HID
+    participant "hid host GAP/GATT\ncallbacks & encRetryCallout\n(esp32_ble_hid_host.cpp)" as HID
 end box
 
-box "main_dispatcher task\n(Tactility main task)" #LightGreen
-    participant "settings I/O\n& peer updates" as Dispatch
+box "Any thread that calls the driver API\n(apps, bluetooth service)" #LightCyan
+    participant "bluetooth_set_radio_enabled\nscan / connect / pair\n(radio_mutex, gap_mutex)" as Api
+end box
+
+box "Event queue\n(caller-owned storage, no task)" #Lavender
+    participant "ble_publish_event()\nper-subscription ring buffer\n+ TaskEventGroup bit" as Queue
+end box
+
+box "bluetooth service thread\n(bluetooth-module)" #LightGreen
+    participant "on_bluetooth_event()\nauto scan, auto connect,\npaired device file I/O" as Service
 end box
 
 box "App tasks" #LightYellow
     participant "BtManage\nBtPeerSettings" as Apps
 end box
 
+box "ble_hid_host worker\n(kernel Dispatcher)" #Wheat
+    participant "construct/destruct\nble_keyboard0\nble_mouse0" as Worker
+end box
+
 box "esp_timer task" #LightGray
-    participant "advRestart\nmidiKeepalive\nhidEncRetry" as Timers
+    participant "adv_restart_callback\nmidi keepalive\ndispatch_disable_timer_cb" as Timers
 end box
 
-box "LVGL task\n(GuiService)" #MistyRose
-    participant "hidHostKeyboard\nReadCb / mouseReadCb" as LVGL
+box "LVGL task" #MistyRose
+    participant "keyboardDeviceReadKey\nmouseDeviceReadDelta" as LVGL
 end box
 
-GAP -> Bridge : ble_publish_event() →\nBtEventCallback (bt_event_bridge)
-Bridge -> Dispatch : getMainDispatcher().dispatch()\n(settings::load/save, autoConnect)
-Dispatch -> Apps : publishEventCpp → PubSub callbacks
+GAP -> Queue : ble_publish_event(BtEvent)
+HID -> Queue : ble_publish_event(ProfileStateChanged,\nScanFinished)
+Api -> Queue : ble_publish_event(RadioStateChanged)
+Queue -> Service : task_event_group_signal()\nbluetooth_event_poll()
+Queue -> Apps : task_event_group_signal()\nbluetooth_event_poll()
+Service -> Service : bluetooth_paired_device_save/load/remove
 GATT -> GAP : GATT access within\nnimble_host task
-HID -> Dispatch : getMainDispatcher().dispatch()\n(indev cleanup, ProfileStateChanged)
-Timers -> GAP : advRestartCallback\n(calls ble_start_advertising)
-LVGL -> HID : lv_indev read callbacks\n(LVGL tick)
+HID -> Worker : dispatcher_dispatch()\n(child device construct/destruct)
+Timers -> GAP : adv_restart_callback\n(calls ble_start_advertising)
+GAP -> Timers : giveup_event_cb starts disable_timer\n(after 3 failed controller resets)
+LVGL -> HID : indev read callbacks\n(non-blocking queue read)
 
-note over GAP, GATT
-  NO file I/O on NimBLE host task —
-  stringstream blows the 4 KB stack
+note over GAP, HID
+  No file I/O or blocking waits on the NimBLE host task.
+  Handlers only publish events and return.
 end note
 
-note over GAP, Bridge
-  Driver fires BtEvent via callback array.
-  Bridge (Tactility layer) translates to
-  C++ PubSub<BtEvent> and dispatches I/O.
+note over Queue, Apps
+  Events are copied into each subscriber's ring buffer
+  and dropped when it is full. Subscribers drain their
+  ring on their own thread after the group bit wakes them.
 end note
 
 @enduml

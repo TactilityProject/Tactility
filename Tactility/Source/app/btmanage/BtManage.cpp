@@ -2,7 +2,6 @@
 
 #include <Tactility/app/btmanage/BtManagePrivate.h>
 #include <Tactility/app/btmanage/View.h>
-#include <Tactility/MainDispatcher.h>
 
 #include <bluetooth/bluetooth_service.h>
 #include <bluetooth/bluetooth_settings.h>
@@ -18,7 +17,10 @@
 #include <tactility/check.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/device.h>
+#include <tactility/file_ops.h>
 #include <tactility/log.h>
+
+#include <new>
 
 namespace tt::app::btmanage {
 
@@ -34,11 +36,24 @@ static BtRadioState getRadioState(Device* dev) {
     return state;
 }
 
+struct SaveEnabledJob {
+    bool enabled;
+};
+
+/** File operation: it runs on the file operations task, which frees the job */
+static void saveEnabledInBackground(void* context) {
+    auto* job = static_cast<SaveEnabledJob*>(context);
+    bluetooth_settings_set_enable(job->enabled);
+    delete job;
+}
+
 static void onBtToggled(void* /*context*/, bool requestOn) {
-    // Dispatched, so file IO doesn't block the UI
-    getMainDispatcher().dispatch([requestOn] {
-        bluetooth_settings_set_enable(requestOn);
-    });
+    // Queued, so file IO doesn't block the UI
+    auto* job = new (::std::nothrow) SaveEnabledJob { requestOn };
+    if (job == nullptr || file_ops_queue(saveEnabledInBackground, job, nullptr) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue saving the Bluetooth state");
+        delete job;
+    }
     Device* dev;
     if (device_get_first_by_type(&BLUETOOTH_TYPE, &dev) == ERROR_NONE) {
         bool radio_on = bluetooth_is_radio_on_or_pending(dev);

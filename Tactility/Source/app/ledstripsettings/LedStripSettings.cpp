@@ -2,6 +2,7 @@
 #include <tactility/device.h>
 #include <tactility/drivers/led_strip.h>
 #include <tactility/error.h>
+#include <tactility/file_ops.h>
 #include <tactility/log.h>
 
 #include <Tactility/Tactility.h>
@@ -17,6 +18,7 @@
 #include <lvgl/widgets/toolbar.h>
 
 #include <cstdint>
+#include <new>
 #include <string>
 
 namespace tt::app::ledstripsettings {
@@ -404,15 +406,27 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     updateVisibility(*ctx);
 }
 
+struct SaveSettingsJob {
+    settings::ledstrip::LedStripSettings settings;
+    std::string deviceName;
+};
+
+/** File operation: it runs on the file operations task, which frees the job */
+void saveSettingsInBackground(void* context) {
+    auto* job = static_cast<SaveSettingsJob*>(context);
+    if (!settings::ledstrip::save(job->deviceName.c_str(), job->settings)) {
+        LOG_W(TAG, "Failed to save LED strip settings");
+    }
+    delete job;
+}
+
 void persistIfUpdated(const Context& ctx) {
     if (!ctx.updated) return;
-    const auto settingsToSave = ctx.settings;
-    const std::string deviceName = ctx.device->name;
-    getMainDispatcher().dispatch([settingsToSave, deviceName] {
-        if (!settings::ledstrip::save(deviceName.c_str(), settingsToSave)) {
-            LOG_W(TAG, "Failed to save LED strip settings");
-        }
-    });
+    auto* job = new (::std::nothrow) SaveSettingsJob { ctx.settings, ctx.device->name };
+    if (job == nullptr || file_ops_queue(saveSettingsInBackground, job, nullptr) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue saving LED strip settings");
+        delete job;
+    }
 }
 
 int32_t appMain(int argc, char* argv[]) {
