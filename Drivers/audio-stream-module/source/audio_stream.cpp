@@ -993,6 +993,7 @@ Driver audio_stream_driver = {
     .compatible = (const char*[]) { "audio-stream", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = &API,
     .device_type = &AUDIO_STREAM_TYPE,
     .internal = nullptr,

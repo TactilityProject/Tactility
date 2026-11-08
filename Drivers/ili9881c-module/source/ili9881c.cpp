@@ -591,6 +591,7 @@ Driver ili9881c_driver = {
     .compatible = (const char*[]) { "ilitek,ili9881c", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &ili9881c_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

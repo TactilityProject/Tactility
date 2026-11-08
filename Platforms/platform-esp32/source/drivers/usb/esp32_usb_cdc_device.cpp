@@ -174,6 +174,7 @@ Driver esp32_usb_cdc_device_driver = {
     .compatible   = (const char*[]) { "espressif,esp32-usbdevice-cdc", nullptr },
     .start_device = start_device,
     .stop_device  = stop_device,
+    .probe = nullptr,
     .api          = &esp32_usb_cdc_device_api,
     .device_type  = &USB_CDC_DEVICE_TYPE,
     .internal     = nullptr,

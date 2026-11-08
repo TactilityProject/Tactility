@@ -74,6 +74,7 @@ Driver unphone_power_switch_driver = {
     .compatible = (const char*[]) { "unphone,power-switch", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = nullptr,
     .internal = nullptr

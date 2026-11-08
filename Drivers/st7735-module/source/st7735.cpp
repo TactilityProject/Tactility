@@ -381,6 +381,7 @@ Driver st7735_driver = {
     .compatible = (const char*[]) { "sitronix,st7735", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7735_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

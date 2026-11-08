@@ -549,6 +549,7 @@ Driver esp32_i2s_driver = {
     .compatible = (const char*[]) { "espressif,esp32-i2s", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = (void*)&esp32_i2s_api,
     .device_type = &I2S_CONTROLLER_TYPE,
     .internal = nullptr

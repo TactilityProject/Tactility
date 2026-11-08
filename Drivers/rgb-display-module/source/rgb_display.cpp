@@ -505,6 +505,7 @@ Driver rgb_display_driver = {
     .compatible = (const char*[]) { "espressif,esp32-rgb-display", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &rgb_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

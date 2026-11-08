@@ -454,6 +454,7 @@ Driver ili9341_driver = {
     .compatible = (const char*[]) { "ilitek,ili9341", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &ili9341_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

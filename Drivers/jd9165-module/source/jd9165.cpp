@@ -524,6 +524,7 @@ Driver jd9165_driver = {
     .compatible = (const char*[]) { "jdi,jd9165", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &jd9165_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

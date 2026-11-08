@@ -173,6 +173,7 @@ Driver tca9534_driver = {
     .compatible = (const char*[]) { "ti,tca9534", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = static_cast<const void*>(&tca9534_gpio_api),
     .device_type = &GPIO_CONTROLLER_TYPE,
     .internal = nullptr

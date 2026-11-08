@@ -326,6 +326,7 @@ Driver gpio_encoder_driver = {
     .compatible = (const char*[]) { "tactility,gpio-encoder", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &GPIO_ENCODER_API,
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr

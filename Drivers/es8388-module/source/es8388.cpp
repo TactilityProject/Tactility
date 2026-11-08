@@ -385,6 +385,7 @@ Driver es8388_driver = {
     .compatible = (const char*[]) { "everest,es8388", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = &API,
     .device_type = &AUDIO_CODEC_TYPE,
     .internal = nullptr,

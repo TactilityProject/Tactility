@@ -198,6 +198,7 @@ Driver st7123_touch_driver = {
     .compatible = (const char*[]) { "sitronix,st7123-touch", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7123_touch_api,
     .device_type = &TOUCH_TYPE,
     .internal = nullptr

@@ -241,6 +241,7 @@ Driver esp32_ble_serial_driver = {
     .compatible   = nullptr,
     .start_device = esp32_ble_serial_start_device,
     .stop_device  = esp32_ble_serial_stop_device,
+    .probe = nullptr,
     .api          = &nimble_serial_api,
     .device_type  = &BLUETOOTH_SERIAL_TYPE,
     .internal     = nullptr,

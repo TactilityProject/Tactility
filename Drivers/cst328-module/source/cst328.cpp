@@ -285,6 +285,7 @@ Driver cst328_driver = {
     .compatible = (const char*[]) { "hynitron,cst328", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &cst328_touch_api,
     .device_type = &TOUCH_TYPE,
     .internal = nullptr

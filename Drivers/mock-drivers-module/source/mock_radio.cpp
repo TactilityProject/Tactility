@@ -244,6 +244,7 @@ Driver mock_radio_driver = {
     .compatible = (const char*[]) { "mock,radio", nullptr },
     .start_device = startDevice,
     .stop_device = stopDevice,
+    .probe = nullptr,
     .api = (const void*)&mock_radio_api,
     .device_type = &RADIO_TYPE,
     .internal = nullptr

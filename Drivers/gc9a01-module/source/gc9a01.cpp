@@ -355,6 +355,7 @@ Driver gc9a01_driver = {
     .compatible = (const char*[]) { "galaxycore,gc9a01", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &gc9a01_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

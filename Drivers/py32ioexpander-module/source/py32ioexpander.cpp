@@ -144,6 +144,7 @@ Driver py32ioexpander_driver = {
     .compatible = (const char*[]) {"m5stack,py32ioexpander", nullptr},
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = nullptr,
     .internal = nullptr

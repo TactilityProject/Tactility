@@ -379,6 +379,7 @@ Driver ili9488_driver = {
     .compatible = (const char*[]) { "ilitek,ili9488", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &ili9488_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

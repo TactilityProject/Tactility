@@ -464,6 +464,7 @@ Driver hx8357_driver = {
     .compatible = (const char*[]) { "himax,hx8357", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &hx8357_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

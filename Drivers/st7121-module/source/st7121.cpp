@@ -590,6 +590,7 @@ Driver st7121_driver = {
     .compatible = (const char*[]) { "sitronix,st7121", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7121_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

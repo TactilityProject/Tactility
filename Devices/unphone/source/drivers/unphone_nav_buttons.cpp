@@ -197,6 +197,7 @@ Driver unphone_nav_buttons_driver = {
     .compatible = (const char*[]) { "unphone,nav-buttons", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = nullptr,
     .internal = nullptr

@@ -550,6 +550,7 @@ Driver st7701_driver = {
     .compatible = (const char*[]) { "sitronix,st7701", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7701_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

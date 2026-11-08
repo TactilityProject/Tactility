@@ -486,6 +486,7 @@ Driver mock_wifi_driver = {
     .compatible = (const char*[]) { "mock,wifi", nullptr },
     .start_device = startDevice,
     .stop_device = stopDevice,
+    .probe = nullptr,
     .api = (const void*)&mock_wifi_api,
     .device_type = &WIFI_TYPE,
     .internal = nullptr

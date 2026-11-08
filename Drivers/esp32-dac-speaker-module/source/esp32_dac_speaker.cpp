@@ -454,6 +454,7 @@ Driver esp32_dac_speaker_driver = {
     .compatible = (const char*[]) { "espressif,esp32-dac-speaker", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = &API,
     .device_type = &AUDIO_CODEC_TYPE,
     .internal = nullptr,

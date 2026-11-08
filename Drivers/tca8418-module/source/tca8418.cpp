@@ -283,6 +283,7 @@ Driver tca8418_driver = {
     .compatible = (const char*[]) { "ti,tca8418", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &tca8418_api,
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr

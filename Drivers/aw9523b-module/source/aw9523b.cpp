@@ -178,6 +178,7 @@ Driver aw9523b_driver = {
     .compatible = (const char*[]) { "awinic,aw9523b", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = static_cast<const void*>(&aw9523b_gpio_api),
     .device_type = &GPIO_CONTROLLER_TYPE,
     .internal = nullptr

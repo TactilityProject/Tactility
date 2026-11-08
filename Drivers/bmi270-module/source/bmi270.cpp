@@ -239,6 +239,7 @@ Driver bmi270_driver = {
     .compatible = (const char*[]) { "bosch,bmi270", nullptr},
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &bmi270_imu_api,
     .device_type = &IMU_TYPE,
     .internal = nullptr

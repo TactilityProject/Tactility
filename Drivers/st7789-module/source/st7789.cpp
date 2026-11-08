@@ -381,6 +381,7 @@ Driver st7789_driver = {
     .compatible = (const char*[]) { "sitronix,st7789", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7789_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

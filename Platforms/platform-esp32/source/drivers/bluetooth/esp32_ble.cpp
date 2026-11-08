@@ -1495,6 +1495,7 @@ Driver esp32_bluetooth_driver = {
     .compatible   = (const char*[]) { "espressif,esp32-ble", nullptr },
     .start_device = esp32_ble_start_device,
     .stop_device  = esp32_ble_stop_device,
+    .probe = nullptr,
     .api          = &nimble_bluetooth_api,
     .device_type  = &BLUETOOTH_TYPE,
     .internal     = nullptr,

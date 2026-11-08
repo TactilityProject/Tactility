@@ -92,6 +92,7 @@ Driver tdeck_keyboard_driver = {
     .compatible = (const char*[]) { "lilygo,tdeck-keyboard", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &tdeck_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr

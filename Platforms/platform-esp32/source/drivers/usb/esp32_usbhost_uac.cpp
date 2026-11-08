@@ -578,6 +578,7 @@ Driver usb_uac_codec_driver = {
     .compatible = (const char*[]) { nullptr },
     .start_device = codec_start_device,
     .stop_device = codec_stop_device,
+    .probe = nullptr,
     .api = &codec_api,
     .device_type = &AUDIO_CODEC_TYPE,
     .internal = nullptr,

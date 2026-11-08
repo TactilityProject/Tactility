@@ -709,6 +709,7 @@ Driver esp32_usbhost_hid_driver = {
     .compatible   = (const char*[]) { nullptr },
     .start_device = hid_device_start,
     .stop_device  = hid_device_stop,
+    .probe = nullptr,
     .api          = &hid_api,
     .device_type  = &USB_HOST_HID_TYPE,
     .internal     = nullptr,

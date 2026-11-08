@@ -113,6 +113,7 @@ Driver bm8563_driver = {
     .compatible = (const char*[]) { "belling,bm8563", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &bm8563_rtc_api,
     .device_type = &RTC_TYPE,
     .internal = nullptr

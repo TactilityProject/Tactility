@@ -153,6 +153,7 @@ Driver ch422g_driver = {
     .compatible = (const char*[]) { "wch,ch422g", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = static_cast<const void*>(&ch422g_gpio_api),
     .device_type = &GPIO_CONTROLLER_TYPE,
     .internal = nullptr

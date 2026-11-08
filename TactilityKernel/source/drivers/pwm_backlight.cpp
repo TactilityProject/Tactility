@@ -131,6 +131,7 @@ Driver pwm_backlight_driver = {
     .compatible = (const char*[]) { "pwm-backlight", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &PWM_BACKLIGHT_API,
     .device_type = &BACKLIGHT_TYPE,
     .internal = nullptr

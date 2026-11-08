@@ -151,6 +151,7 @@ Driver rgb_led_gpio_driver = {
     .compatible = (const char*[]) { "rgb-led-gpio", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &RGB_LED_GPIO_API,
     .device_type = &RGB_LED_TYPE,
     .internal = nullptr

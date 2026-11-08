@@ -213,6 +213,7 @@ Driver button_control_driver = {
     .compatible = (const char*[]) { "tactility,button-control", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &button_control_api,
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr

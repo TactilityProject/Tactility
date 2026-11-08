@@ -277,6 +277,7 @@ Driver esp32_i2c_master_driver = {
     .compatible = (const char*[]) { "espressif,esp32-i2c-master", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &ESP32_I2C_MASTER_API,
     .device_type = &I2C_CONTROLLER_TYPE,
     .internal = nullptr,

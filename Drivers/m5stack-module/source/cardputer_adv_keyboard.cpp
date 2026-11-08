@@ -273,6 +273,7 @@ Driver cardputer_adv_keyboard_driver = {
     .compatible = (const char*[]) { "m5stack,cardputer-adv-keyboard", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &cardputer_adv_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr

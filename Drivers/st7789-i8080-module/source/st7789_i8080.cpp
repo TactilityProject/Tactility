@@ -370,6 +370,7 @@ Driver st7789_i8080_driver = {
     .compatible = (const char*[]) { "sitronix,st7789-i8080", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7789_i8080_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

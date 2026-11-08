@@ -355,6 +355,7 @@ Driver posix_uart_driver = {
     .compatible = (const char*[]) { "posix,uart", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = (const void*)&posix_uart_api,
     .device_type = &UART_CONTROLLER_TYPE,
     .internal = nullptr

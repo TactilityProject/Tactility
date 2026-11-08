@@ -413,6 +413,7 @@ Driver st7305_driver = {
     .compatible = (const char*[]) {"sitronix,st7305", nullptr},
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7305_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr
