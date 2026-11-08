@@ -26,6 +26,9 @@
 #include <cstdio>
 #include <initializer_list>
 
+// Deprecated app_execute*/app_start* symbols stay exported for apps built against older SDKs
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 constexpr auto* TAG = "app-module";
 
 extern "C" {

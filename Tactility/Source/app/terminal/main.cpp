@@ -30,7 +30,7 @@ namespace tt::app::terminal {
 namespace {
 
 struct WindowContext {
-    TerminalRendererLvgl renderer;
+    TerminalRendererLvgl renderer {};
     AppInstanceId appInstanceId;
 };
 

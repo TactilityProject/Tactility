@@ -10,6 +10,9 @@
 #include <tactility/freertos/task.h>
 #include <tactility/freertos/timers.h>
 
+// Deprecated app_execute*/app_start* symbols stay exported for apps built against older SDKs
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 extern "C" {
 
 static const ModuleSymbol SYMBOLS[] = {

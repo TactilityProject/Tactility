@@ -525,7 +525,7 @@ bool fitsRegion(int32_t frequency, int32_t bandwidth, RadioRegion region) {
 }
 
 void getPresetNetwork(size_t preset, MeshNetworkSettings* network) {
-    *network = { .path_hash_size = 1 };
+    *network = { .path_hash_size = 1, .region_scope = {} };
     if (preset != PRESET_DEFAULT && preset <= PROFILES.size()) {
         const Profile& profile = PROFILES[preset - 1];
         network->path_hash_size = profile.pathHashSize;
@@ -606,6 +606,7 @@ error_t getRadioProfile(void*, RadioRegion region, RadioModulation modulation, s
         .sync_word = 0x12,
         .preamble_length = 16,
         .power = 22,
+        .channel = 0,
     };
     return ERROR_NONE;
 }

@@ -101,11 +101,6 @@ static const char* getBluetoothStatusIcon(BtRadioState state, bool scanning, boo
     return nullptr;
 }
 
-static const char* getSdCardStatusIcon(bool mounted) {
-    if (mounted) return LVGL_ICON_STATUSBAR_SD_CARD;
-    return LVGL_ICON_STATUSBAR_SD_CARD_ALERT;
-}
-
 static const char* getPowerStatusIcon() {
     // TODO: Support multiple power devices?
     Device* power = nullptr;

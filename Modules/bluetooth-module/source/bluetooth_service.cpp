@@ -486,7 +486,14 @@ void bluetooth_service_for_each_paired_peer(void* context, bool (*on_peer)(const
         return;
     }
 
-    PairedPeerQuery query = { .context = context, .on_peer = on_peer };
+    PairedPeerQuery query = {
+        .context = context,
+        .on_peer = on_peer,
+        .hid_host_connected = false,
+        .hid_host_addr = nullptr,
+        .hid_host_listed = false,
+        .stopped = false,
+    };
     BtAddr hid_host_addr;
     mutex_lock(&service->mutex);
     query.hid_host_connected = service->hid_host_connected;

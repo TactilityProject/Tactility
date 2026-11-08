@@ -88,7 +88,7 @@ struct ParseList { NodePtr n; bool started = false; Step step(Parser& p, NodePtr
 struct ParseAndOr { NodePtr left; int op = 0; enum { Start, Left, Right } phase = Start; Step step(Parser& p, NodePtr child); };
 struct ParsePipeline { NodePtr pipe; int negated = 0; enum { Start, First, Next } phase = Start; Step step(Parser& p, NodePtr child); };
 struct ParseCommand { bool started = false; Step step(Parser& p, NodePtr child); };
-struct ParseGroup { NodePtr n; bool subshell; bool started = false; Step step(Parser& p, NodePtr child); };
+struct ParseGroup { NodePtr n {}; bool subshell; bool started = false; Step step(Parser& p, NodePtr child); };
 struct ParseFuncdef { NodePtr n; bool started = false; Step step(Parser& p, NodePtr child); };
 struct ParseIf { NodePtr n; NodePtr cond; enum { Start, Cond, Body, Else } phase = Start; Step step(Parser& p, NodePtr child); };
 struct ParseWhile { NodePtr n; enum { Start, Cond, Body } phase = Start; Step step(Parser& p, NodePtr child); };

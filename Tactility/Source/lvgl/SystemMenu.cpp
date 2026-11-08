@@ -227,7 +227,7 @@ static lv_obj_t* createTile(lv_obj_t* parent, const char* icon) {
 static void createOption(lv_obj_t* parent, const ToggleOption* option) {
     const bool enabled = option->isEnabled();
     auto* toggle = createTile(parent, getToggleIcon(option, enabled));
-    lv_obj_add_flag(toggle, LV_OBJ_FLAG_CHECKABLE);
+    lv_obj_set_checkable(toggle, true);
     lv_obj_set_state(toggle, LV_STATE_CHECKED, enabled);
     lv_obj_add_event_cb(toggle, onToggleChanged, LV_EVENT_VALUE_CHANGED, const_cast<ToggleOption*>(option));
 }

@@ -234,9 +234,11 @@ bool isStarted() {
 
 #define UI_ASSET_IMAGE(name) \
     lv_image_dsc_t { \
-        .header = { .magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RAW }, \
+        .header = { .magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RAW, .flags = 0, .w = 0, .h = 0, .stride = 0, .reserved_2 = 0 }, \
         .data_size = asset_ui_##name##_png_SIZE, \
-        .data = asset_ui_##name##_png \
+        .data = asset_ui_##name##_png, \
+        .reserved = nullptr, \
+        .reserved_2 = nullptr \
     }
 
 // Ordered by size, see LVGL_UI_SPINNER_COUNT and LVGL_UI_CURSOR_COUNT
