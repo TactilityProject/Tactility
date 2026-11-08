@@ -6,6 +6,9 @@
 
 #include <bluetooth/esp32_ble_internal.h>
 
+#include <tactility/concurrent/task_event_group.h>
+#include <tactility/file_ops.h>
+
 #include <esp_err.h>
 #include <nvs.h>
 
@@ -209,7 +212,7 @@ bool ble_identity_derive_addr(uint32_t identity_hash, const uint8_t base[BT_ADDR
     return true;
 }
 
-bool ble_identity_bond_slot_activate(uint32_t identity_hash) {
+static bool activate_bond_slot(uint32_t identity_hash) {
     uint32_t owner = 0;
     if (!read_owner(&owner)) {
         // No marker means the active namespace predates per-identity slots, so its bonds were
@@ -278,6 +281,46 @@ bool ble_identity_bond_slot_activate(uint32_t identity_hash) {
     }
     LOG_I(TAG, "bond slot switched to identity %08lx", (unsigned long)identity_hash);
     return true;
+}
+
+namespace {
+
+struct ActivateJob {
+    uint32_t identityHash;
+    bool result;
+};
+
+/** File operation: it runs on the file operations task, which can write flash from any caller's request */
+void activateInBackground(void* context) {
+    auto* job = static_cast<ActivateJob*>(context);
+    job->result = activate_bond_slot(job->identityHash);
+}
+
+}
+
+bool ble_run_file_operation(file_ops_work_fn_t work, void* context) {
+    TaskEventGroup group {};
+    task_event_group_construct(&group);
+    FileOpsSubscription subscription {};
+    bool queued = false;
+    if (file_ops_subscribe(&subscription, &group) == ERROR_NONE) {
+        if (file_ops_queue(work, context, &subscription) == ERROR_NONE) {
+            // The context usually lives on the caller's stack, so the work has to finish before returning
+            queued = file_ops_await(&subscription, portMAX_DELAY) == ERROR_NONE;
+        }
+        file_ops_unsubscribe(&subscription);
+    }
+    task_event_group_destruct(&group);
+    return queued;
+}
+
+bool ble_identity_bond_slot_activate(uint32_t identity_hash) {
+    ActivateJob job { identity_hash, false };
+    if (!ble_run_file_operation(activateInBackground, &job)) {
+        LOG_E(TAG, "could not run bond slot activation");
+        return false;
+    }
+    return job.result;
 }
 
 #endif // CONFIG_BT_NIMBLE_ENABLED

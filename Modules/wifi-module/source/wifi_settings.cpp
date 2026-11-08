@@ -9,6 +9,7 @@
 #include <tactility/log.h>
 #include <tactility/paths.h>
 #include <tactility/properties_file.h>
+#include <tactility/std/vector.hpp>
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -72,6 +73,25 @@ error_t wifi_ensure_directory_exists(const char* path) {
         return ERROR_RESOURCE;
     }
     return ERROR_NONE;
+}
+
+bool wifi_run_file_operation(file_ops_work_fn_t work, void* context) {
+    if (file_ops_is_worker()) {
+        work(context);
+        return true;
+    }
+    TaskEventGroup group {};
+    task_event_group_construct(&group);
+    FileOpsSubscription subscription {};
+    bool completed = false;
+    if (file_ops_subscribe(&subscription, &group) == ERROR_NONE) {
+        if (file_ops_queue(work, context, &subscription) == ERROR_NONE) {
+            completed = file_ops_await(&subscription, portMAX_DELAY) == ERROR_NONE;
+        }
+        file_ops_unsubscribe(&subscription);
+    }
+    task_event_group_destruct(&group);
+    return completed;
 }
 
 // TODO: The SSID could contain invalid filename characters (e.g. "/", "\" and more)
@@ -247,89 +267,117 @@ static error_t remove_unlocked(const char* ssid) {
     return remove(path) == 0 ? ERROR_NONE : ERROR_RESOURCE;
 }
 
+struct SsidEntry {
+    char ssid[WIFI_SETTINGS_SSID_LIMIT + 1];
+};
+
 void wifi_settings_for_each(void* context, bool (*on_ssid)(const char* ssid, void* context)) {
-    char directory[FILE_MAX_PATH_STRING_LENGTH];
-    if (service_paths_get_user_data_directory(WIFI_SERVICE_ID, directory, sizeof(directory)) != ERROR_NONE) {
-        return;
-    }
-
-    DIR* dir = opendir(directory);
-    if (dir == nullptr) {
-        return; // No settings saved yet
-    }
-
-    const size_t suffix_length = strlen(AP_FILE_SUFFIX);
-    dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        size_t name_length = strlen(entry->d_name);
-        if (name_length <= suffix_length || strcmp(entry->d_name + name_length - suffix_length, AP_FILE_SUFFIX) != 0) {
-            continue;
+    // Collected on the file operations task, so on_ssid runs on the caller's task and can call other wifi_settings_* functions
+    tt::std::vector<SsidEntry> ssids;
+    wifi_run_on_file_task([&ssids] {
+        char directory[FILE_MAX_PATH_STRING_LENGTH];
+        if (service_paths_get_user_data_directory(WIFI_SERVICE_ID, directory, sizeof(directory)) != ERROR_NONE) {
+            return;
         }
 
-        char path[FILE_MAX_PATH_STRING_LENGTH];
-        int written = snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
-        if (written < 0 || static_cast<size_t>(written) >= sizeof(path) || !is_file(path)) {
-            continue;
+        DIR* dir = opendir(directory);
+        if (dir == nullptr) {
+            return; // No settings saved yet
         }
 
-        // Not held during on_ssid(), so it can call other wifi_settings_* functions
-        mutex_lock(settings_mutex());
-        PropertiesFile* file = properties_file_open(path);
-        char ssid[WIFI_SETTINGS_SSID_LIMIT + 1];
-        bool has_ssid = file != nullptr && properties_file_get(file, AP_PROPERTIES_KEY_SSID, ssid, sizeof(ssid)) == ERROR_NONE;
-        if (file != nullptr) {
-            properties_file_close(file);
-        }
-        mutex_unlock(settings_mutex());
+        const size_t suffix_length = strlen(AP_FILE_SUFFIX);
+        dirent* entry;
+        while ((entry = readdir(dir)) != nullptr) {
+            size_t name_length = strlen(entry->d_name);
+            if (name_length <= suffix_length || strcmp(entry->d_name + name_length - suffix_length, AP_FILE_SUFFIX) != 0) {
+                continue;
+            }
 
-        if (has_ssid && !on_ssid(ssid, context)) {
+            char path[FILE_MAX_PATH_STRING_LENGTH];
+            int written = snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+            if (written < 0 || static_cast<size_t>(written) >= sizeof(path) || !is_file(path)) {
+                continue;
+            }
+
+            mutex_lock(settings_mutex());
+            PropertiesFile* file = properties_file_open(path);
+            SsidEntry ssid {};
+            bool has_ssid = file != nullptr && properties_file_get(file, AP_PROPERTIES_KEY_SSID, ssid.ssid, sizeof(ssid.ssid)) == ERROR_NONE;
+            if (file != nullptr) {
+                properties_file_close(file);
+            }
+            mutex_unlock(settings_mutex());
+
+            if (has_ssid) {
+                ssids.push_back(ssid);
+            }
+        }
+        closedir(dir);
+    });
+
+    for (const auto& entry : ssids) {
+        if (!on_ssid(entry.ssid, context)) {
             break;
         }
     }
-    closedir(dir);
 }
 
 bool wifi_settings_contains(const char* ssid) {
-    char path[FILE_MAX_PATH_STRING_LENGTH];
-    if (get_ap_file_path(ssid, path, sizeof(path)) != ERROR_NONE) {
-        return false;
-    }
-    mutex_lock(settings_mutex());
-    bool result = is_file(path);
-    mutex_unlock(settings_mutex());
+    bool result = false;
+    wifi_run_on_file_task([&] {
+        char path[FILE_MAX_PATH_STRING_LENGTH];
+        if (get_ap_file_path(ssid, path, sizeof(path)) != ERROR_NONE) {
+            return;
+        }
+        mutex_lock(settings_mutex());
+        result = is_file(path);
+        mutex_unlock(settings_mutex());
+    });
     return result;
 }
 
 error_t wifi_settings_load(const char* ssid, WifiApSettings* settings) {
-    mutex_lock(settings_mutex());
-    error_t error = load_unlocked(ssid, settings);
-    mutex_unlock(settings_mutex());
+    error_t error = ERROR_RESOURCE;
+    wifi_run_on_file_task([&] {
+        mutex_lock(settings_mutex());
+        error = load_unlocked(ssid, settings);
+        mutex_unlock(settings_mutex());
+    });
     return error;
 }
 
 error_t wifi_settings_save(const WifiApSettings* settings) {
-    mutex_lock(settings_mutex());
-    error_t error = save_unlocked(settings);
-    mutex_unlock(settings_mutex());
+    error_t error = ERROR_RESOURCE;
+    wifi_run_on_file_task([&] {
+        mutex_lock(settings_mutex());
+        error = save_unlocked(settings);
+        mutex_unlock(settings_mutex());
+    });
     return error;
 }
 
 error_t wifi_settings_set_auto_connect(const char* ssid, bool auto_connect) {
-    mutex_lock(settings_mutex());
-    WifiApSettings settings;
-    error_t error = load_unlocked(ssid, &settings);
-    if (error == ERROR_NONE) {
-        settings.auto_connect = auto_connect;
-        error = save_unlocked(&settings);
-    }
-    mutex_unlock(settings_mutex());
+    error_t error = ERROR_RESOURCE;
+    wifi_run_on_file_task([&] {
+        mutex_lock(settings_mutex());
+        WifiApSettings settings;
+        error = load_unlocked(ssid, &settings);
+        if (error == ERROR_NONE) {
+            settings.auto_connect = auto_connect;
+            error = save_unlocked(&settings);
+        }
+        mutex_unlock(settings_mutex());
+    });
     return error;
 }
 
 error_t wifi_settings_remove(const char* ssid) {
-    mutex_lock(settings_mutex());
-    error_t error = remove_unlocked(ssid);
-    mutex_unlock(settings_mutex());
+    error_t error = ERROR_RESOURCE;
+    wifi_run_on_file_task([&] {
+        mutex_lock(settings_mutex());
+        error = remove_unlocked(ssid);
+        mutex_unlock(settings_mutex());
+    });
     return error;
 }
 
@@ -337,25 +385,29 @@ error_t wifi_settings_set_enable(bool enable) {
     enable_on_boot = enable;
     enable_on_boot_cached = true;
 
-    char directory[FILE_MAX_PATH_STRING_LENGTH];
-    char path[FILE_MAX_PATH_STRING_LENGTH];
-    if (service_paths_get_user_data_directory(WIFI_SERVICE_ID, directory, sizeof(directory)) != ERROR_NONE ||
-        service_paths_get_user_data_path(WIFI_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
-        return ERROR_RESOURCE;
-    }
+    error_t error = ERROR_RESOURCE;
+    wifi_run_on_file_task([&] {
+        char directory[FILE_MAX_PATH_STRING_LENGTH];
+        char path[FILE_MAX_PATH_STRING_LENGTH];
+        if (service_paths_get_user_data_directory(WIFI_SERVICE_ID, directory, sizeof(directory)) != ERROR_NONE ||
+            service_paths_get_user_data_path(WIFI_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
+            return;
+        }
 
-    if (wifi_ensure_directory_exists(directory) != ERROR_NONE) {
-        LOG_E(TAG, "Failed to create %s", directory);
-        return ERROR_RESOURCE;
-    }
+        if (wifi_ensure_directory_exists(directory) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to create %s", directory);
+            return;
+        }
 
-    PropertiesFile* file = properties_file_open(path);
-    if (file == nullptr) {
-        LOG_E(TAG, "Failed to open %s", path);
-        return ERROR_RESOURCE;
-    }
-    properties_file_set(file, SETTINGS_KEY_ENABLE_ON_BOOT, enable ? "true" : "false");
-    return properties_file_close(file);
+        PropertiesFile* file = properties_file_open(path);
+        if (file == nullptr) {
+            LOG_E(TAG, "Failed to open %s", path);
+            return;
+        }
+        properties_file_set(file, SETTINGS_KEY_ENABLE_ON_BOOT, enable ? "true" : "false");
+        error = properties_file_close(file);
+    });
+    return error;
 }
 
 bool wifi_settings_get_enable(void) {
@@ -363,25 +415,27 @@ bool wifi_settings_get_enable(void) {
         return enable_on_boot;
     }
 
-    char path[FILE_MAX_PATH_STRING_LENGTH];
-    if (service_paths_get_user_data_path(WIFI_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE || !is_file(path)) {
-        return enable_on_boot;
-    }
+    wifi_run_on_file_task([] {
+        char path[FILE_MAX_PATH_STRING_LENGTH];
+        if (service_paths_get_user_data_path(WIFI_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE || !is_file(path)) {
+            return;
+        }
 
-    PropertiesFile* file = properties_file_open(path);
-    if (file == nullptr) {
-        LOG_I(TAG, "Failed to load settings, using defaults");
-        return enable_on_boot;
-    }
+        PropertiesFile* file = properties_file_open(path);
+        if (file == nullptr) {
+            LOG_I(TAG, "Failed to load settings, using defaults");
+            return;
+        }
 
-    char value[8];
-    if (properties_file_get(file, SETTINGS_KEY_ENABLE_ON_BOOT, value, sizeof(value)) == ERROR_NONE) {
-        enable_on_boot = strcmp(value, "true") == 0;
-        enable_on_boot_cached = true;
-    } else {
-        LOG_I(TAG, "Failed to load settings, using defaults");
-    }
-    properties_file_close(file);
+        char value[8];
+        if (properties_file_get(file, SETTINGS_KEY_ENABLE_ON_BOOT, value, sizeof(value)) == ERROR_NONE) {
+            enable_on_boot = strcmp(value, "true") == 0;
+            enable_on_boot_cached = true;
+        } else {
+            LOG_I(TAG, "Failed to load settings, using defaults");
+        }
+        properties_file_close(file);
+    });
     return enable_on_boot;
 }
 
