@@ -15,6 +15,7 @@
 #include <tactility/drivers/bluetooth_hid_device.h>
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_serial.h>
+#include <tactility/file_ops.h>
 #include <tactility/log.h>
 #include <tactility/time.h>
 
@@ -22,6 +23,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <new>
 
 constexpr auto* TAG = "bluetooth_service";
 
@@ -458,6 +460,87 @@ static bool on_paired_device(const BluetoothPairedDevice* device, void* context)
     return !query->stopped;
 }
 
+// region File operations
+// Callers can run on tasks with a stack in external RAM (e.g. the LVGL task), which must not access files or flash
+
+/** Runs work on the file operations task and waits until it has finished */
+static bool run_file_operation(file_ops_work_fn_t work, void* context) {
+    TaskEventGroup group {};
+    task_event_group_construct(&group);
+    FileOpsSubscription subscription {};
+    bool completed = false;
+    if (file_ops_subscribe(&subscription, &group) == ERROR_NONE) {
+        if (file_ops_queue(work, context, &subscription) == ERROR_NONE) {
+            completed = file_ops_await(&subscription, portMAX_DELAY) == ERROR_NONE;
+        }
+        file_ops_unsubscribe(&subscription);
+    }
+    task_event_group_destruct(&group);
+    return completed;
+}
+
+struct AutoStartJob {
+    BtProfileId profile;
+    bool enabled;
+};
+
+/** File operation: it runs on the file operations task, which frees the job */
+static void save_auto_start_in_background(void* context) {
+    auto* job = static_cast<AutoStartJob*>(context);
+    if (job->profile == BT_PROFILE_SPP) {
+        bluetooth_settings_set_spp_auto_start(job->enabled);
+    } else if (job->profile == BT_PROFILE_MIDI) {
+        bluetooth_settings_set_midi_auto_start(job->enabled);
+    }
+    delete job;
+}
+
+static void queue_save_auto_start(BtProfileId profile, bool enabled) {
+    auto* job = new (::std::nothrow) AutoStartJob { profile, enabled };
+    if (job == nullptr || file_ops_queue(save_auto_start_in_background, job, nullptr) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue saving the auto start setting");
+        delete job;
+    }
+}
+
+struct RemovePairedJob {
+    BtAddr addr;
+};
+
+/** File operation: it runs on the file operations task, which frees the job */
+static void remove_paired_in_background(void* context) {
+    auto* job = static_cast<RemovePairedJob*>(context);
+    bluetooth_paired_device_remove(job->addr);
+    delete job;
+}
+
+static void queue_remove_paired(const BtAddr addr) {
+    auto* job = new (::std::nothrow) RemovePairedJob {};
+    if (job != nullptr) {
+        memcpy(job->addr, addr, BT_ADDR_LEN);
+    }
+    if (job == nullptr || file_ops_queue(remove_paired_in_background, job, nullptr) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue removing the paired device");
+        delete job;
+    }
+}
+
+struct PairedDeviceCollection {
+    tt::std::vector<BluetoothPairedDevice> devices;
+};
+
+static bool collect_paired_device(const BluetoothPairedDevice* device, void* context) {
+    static_cast<PairedDeviceCollection*>(context)->devices.push_back(*device);
+    return true;
+}
+
+/** File operation: it runs on the file operations task */
+static void collect_paired_devices_in_background(void* context) {
+    bluetooth_paired_device_for_each(context, collect_paired_device);
+}
+
+// endregion
+
 extern "C" {
 
 const ServiceManifest bluetooth_service_manifest = {
@@ -486,7 +569,14 @@ void bluetooth_service_for_each_paired_peer(void* context, bool (*on_peer)(const
         return;
     }
 
-    PairedPeerQuery query = { .context = context, .on_peer = on_peer };
+    PairedPeerQuery query = {
+        .context = context,
+        .on_peer = on_peer,
+        .hid_host_connected = false,
+        .hid_host_addr = nullptr,
+        .hid_host_listed = false,
+        .stopped = false,
+    };
     BtAddr hid_host_addr;
     mutex_lock(&service->mutex);
     query.hid_host_connected = service->hid_host_connected;
@@ -494,7 +584,16 @@ void bluetooth_service_for_each_paired_peer(void* context, bool (*on_peer)(const
     mutex_unlock(&service->mutex);
     query.hid_host_addr = hid_host_addr;
 
-    bluetooth_paired_device_for_each(&query, on_paired_device);
+    PairedDeviceCollection collection;
+    if (!run_file_operation(collect_paired_devices_in_background, &collection)) {
+        LOG_E(TAG, "Failed to read the paired devices");
+        return;
+    }
+    for (const auto& device : collection.devices) {
+        if (!on_paired_device(&device, &query)) {
+            break;
+        }
+    }
 
     // The file system can lag behind a save, so a connected peer is listed even when its file isn't found yet
     if (query.hid_host_connected && !query.hid_host_listed && !query.stopped) {
@@ -536,14 +635,14 @@ void bluetooth_service_connect(const BtAddr addr, enum BtProfileId profile) {
         case BT_PROFILE_SPP:
             if (Device* serial = bluetooth_serial_get()) {
                 bluetooth_serial_start(serial);
-                bluetooth_settings_set_spp_auto_start(true);
+                queue_save_auto_start(BT_PROFILE_SPP, true);
                 device_put(serial);
             }
             break;
         case BT_PROFILE_MIDI:
             if (Device* midi = bluetooth_midi_get()) {
                 bluetooth_midi_start(midi);
-                bluetooth_settings_set_midi_auto_start(true);
+                queue_save_auto_start(BT_PROFILE_MIDI, true);
                 device_put(midi);
             }
             break;
@@ -585,7 +684,7 @@ void bluetooth_service_unpair(const BtAddr addr) {
         return;
     }
     bluetooth_unpair(service->device, addr);
-    bluetooth_paired_device_remove(addr);
+    queue_remove_paired(addr);
 }
 
 }

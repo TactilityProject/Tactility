@@ -130,7 +130,7 @@ void updateSubscribers(Context* ctx) {
         lvgl_list_add_button(ctx->subscribersList, nullptr, subscriber.c_str());
     }
     lvgl_list_hide_last_divider(ctx->subscribersList);
-    lv_obj_set_flag(ctx->subscribersSection, LV_OBJ_FLAG_HIDDEN, ctx->shownSubscribers.empty());
+    lv_obj_set_hidden(ctx->subscribersSection, ctx->shownSubscribers.empty());
 }
 
 void updateWidgets(Context* ctx) {
@@ -320,7 +320,7 @@ void createGpsDevices(Context* ctx, lv_obj_t* parent) {
 void createSubscribers(Context* ctx, lv_obj_t* parent) {
     ctx->subscribersSection = createContainer(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_size(ctx->subscribersSection, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_add_flag(ctx->subscribersSection, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ctx->subscribersSection, true);
 
     auto* title = lv_label_create(ctx->subscribersSection);
     lv_label_set_text(title, "Subscribers");

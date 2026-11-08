@@ -542,6 +542,7 @@ Driver gc0308_driver = {
     .compatible = (const char*[]) { "galaxycore,gc0308", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &gc0308_camera_api,
     .device_type = &CAMERA_TYPE,
     .internal = nullptr

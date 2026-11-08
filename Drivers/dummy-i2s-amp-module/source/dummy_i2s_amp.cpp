@@ -235,6 +235,7 @@ static const struct AudioCodecApi API = {
     .get_native_sample_rate = get_native_sample_rate,
     .get_native_channels = get_native_channels,
     .get_capabilities = get_capabilities,
+    .get_input_gain_multiplier = nullptr,
 };
 
 // endregion
@@ -376,6 +377,7 @@ Driver dummy_i2s_amp_driver = {
     .compatible = (const char*[]) { "maxim,max98357a", "nsiway,ns4168", "ti,pcm5101a", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = &API,
     .device_type = &AUDIO_CODEC_TYPE,
     .internal = nullptr,

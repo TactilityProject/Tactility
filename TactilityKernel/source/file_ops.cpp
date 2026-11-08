@@ -7,6 +7,7 @@
 #include <tactility/memory.h>
 #include <tactility/time.h>
 
+#include <atomic>
 #include <new>
 
 #define TAG "file_ops"
@@ -44,6 +45,8 @@ struct State {
     bool running = false;
     // The worker that has ended or is ending, as it can't free itself
     Thread* stale = nullptr;
+    // The task of the running worker, null when there is none
+    std::atomic<TaskHandle_t> workerTask { nullptr };
 
     State() { mutex_construct(&mutex); }
 };
@@ -98,11 +101,13 @@ Item* pop_or_stop(State& s) {
 
 int32_t worker_main(void* context) {
     auto& s = *static_cast<State*>(context);
+    s.workerTask.store(xTaskGetCurrentTaskHandle());
     while (Item* item = pop_or_stop(s)) {
         item->work(item->context);
         complete(item);
         memory_free(item);
     }
+    s.workerTask.store(nullptr);
     return 0;
 }
 
@@ -236,6 +241,11 @@ error_t file_ops_poll(FileOpsSubscription* sub) {
     }
     mutex_unlock(&link->mutex);
     return available ? ERROR_NONE : ERROR_TIMEOUT;
+}
+
+bool file_ops_is_worker(void) {
+    const TaskHandle_t current = xTaskGetCurrentTaskHandle();
+    return current != nullptr && state().workerTask.load() == current;
 }
 
 error_t file_ops_await(FileOpsSubscription* sub, TickType_t timeout) {

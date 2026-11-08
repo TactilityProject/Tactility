@@ -336,6 +336,7 @@ static const DisplayApi ssd1306_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = nullptr,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver ssd1306_driver = {
@@ -343,6 +344,7 @@ Driver ssd1306_driver = {
     .compatible = (const char*[]) { "solomon,ssd1306", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &ssd1306_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

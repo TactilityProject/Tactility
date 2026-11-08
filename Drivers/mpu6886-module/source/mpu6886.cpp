@@ -212,6 +212,7 @@ Driver mpu6886_driver = {
     .compatible = (const char*[]) { "invensense,mpu6886", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &mpu6886_imu_api,
     .device_type = &IMU_TYPE,
     .internal = nullptr

@@ -105,6 +105,7 @@ uint32_t startWithMode(const char* modeArg, uint32_t callerAppInstanceId, AppStr
         .buffer = buffer,
         .buffer_capacity = bufferCapacity,
         .event_group = eventGroup,
+        .window_size = {},
         .alias_fd = -1,
     };
     uint32_t instanceId = 0;

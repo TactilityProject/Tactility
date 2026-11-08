@@ -85,7 +85,7 @@ static void import_ap(const char* path) {
 
 extern "C" {
 
-void wifi_provisioning_import(void) {
+static void import_files() {
     char data_path[FILE_MAX_PATH_STRING_LENGTH];
     if (paths_get_data_path(data_path, sizeof(data_path)) != ERROR_NONE) {
         LOG_I(TAG, "Skip provisioning: no data path");
@@ -127,6 +127,12 @@ void wifi_provisioning_import(void) {
 
     if (!found) {
         LOG_W(TAG, "No AP files found at %s", provisioning_path);
+    }
+}
+
+void wifi_provisioning_import(void) {
+    if (!wifi_run_on_file_task([] { import_files(); })) {
+        LOG_E(TAG, "Failed to run the provisioning import");
     }
 }
 

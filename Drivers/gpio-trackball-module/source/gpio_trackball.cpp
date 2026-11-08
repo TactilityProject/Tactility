@@ -337,6 +337,7 @@ Driver gpio_trackball_driver = {
     .compatible = (const char*[]) { "tactility,gpio-trackball", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &GPIO_TRACKBALL_API,
     .device_type = &TRACKBALL_TYPE,
     .internal = nullptr

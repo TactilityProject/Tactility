@@ -189,7 +189,7 @@ private:
 struct ExecCase {
     node* n;
     int exempt;
-    std::string subject;
+    std::string subject = {};
     int clause = 0;
     int pattern = 0;
     enum class Phase { Start, Subject, Pattern, Tail } phase = Phase::Start;
@@ -308,7 +308,7 @@ struct ApplyRedirects {
         int path;      // index into target->paths or target->tempFiles, -1 for none
         bool temp;
     };
-    std::vector<Item> items;
+    std::vector<Item> items = {};
 
     Step step(Machine& m);
 
@@ -377,10 +377,10 @@ struct ExpandBrace {
     Fields* out;
 
     enum class Phase { Start, Strip, Plus, Minus, Assign, Error } phase = Phase::Start;
-    std::string name;
+    std::string name = {};
     bool longest = false;
     char stripKind = 0;
-    std::string value;     // the parameter's value when the operator doesn't need its word
+    std::string value = {}; // the parameter's value when the operator doesn't need its word
 
     Step step(Machine& m);
 

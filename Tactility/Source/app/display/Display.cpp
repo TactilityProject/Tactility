@@ -5,6 +5,7 @@
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/imu.h>
 #include <tactility/error.h>
+#include <tactility/file_ops.h>
 #include <tactility/log.h>
 
 #include <Tactility/Tactility.h>
@@ -19,6 +20,8 @@
 #include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
+
+#include <new>
 
 #include <lvgl_window_manager/window_manager.h>
 
@@ -454,25 +457,37 @@ void destroyWidgets(void* userData) {
 
 // Mirrors the old onHide() behaviour: persist the settings (regardless of whether the app is
 // giving up its thread for a save/resume cycle, or closing for good) whenever they changed.
+struct SaveSettingsJob {
+    settings::display::DisplaySettings settings;
+};
+
+/** File operation: it runs on the file operations task, which frees the job */
+void saveSettingsInBackground(void* context) {
+    auto* job = static_cast<SaveSettingsJob*>(context);
+    settings::display::save(job->settings);
+#ifdef ESP_PLATFORM
+    // Notify DisplayIdle service to reload settings
+    auto displayIdle = service::displayidle::findService();
+    if (displayIdle) {
+        displayIdle->reloadSettings();
+    }
+#endif
+    // Notify AutoRotate service to reload settings
+    auto autoRotate = service::autorotate::findService();
+    if (autoRotate) {
+        autoRotate->reloadSettings();
+    }
+    delete job;
+}
+
 void persistIfUpdated(Context& ctx) {
     if (ctx.displaySettingsUpdated) {
-        // Dispatch it, so file IO doesn't block the UI
-        const settings::display::DisplaySettings settings_to_save = ctx.displaySettings;
-        getMainDispatcher().dispatch([settings_to_save] {
-            settings::display::save(settings_to_save);
-#ifdef ESP_PLATFORM
-            // Notify DisplayIdle service to reload settings
-            auto displayIdle = service::displayidle::findService();
-            if (displayIdle) {
-                displayIdle->reloadSettings();
-            }
-#endif
-            // Notify AutoRotate service to reload settings
-            auto autoRotate = service::autorotate::findService();
-            if (autoRotate) {
-                autoRotate->reloadSettings();
-            }
-        });
+        // Queued, so file IO doesn't block the UI
+        auto* job = new (::std::nothrow) SaveSettingsJob { ctx.displaySettings };
+        if (job == nullptr || file_ops_queue(saveSettingsInBackground, job, nullptr) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to queue saving display settings");
+            delete job;
+        }
     }
 }
 

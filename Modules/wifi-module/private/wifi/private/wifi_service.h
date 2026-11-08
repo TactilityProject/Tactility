@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tactility/error.h>
+#include <tactility/file_ops.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,6 +26,24 @@ void wifi_provisioning_import(void);
  */
 error_t wifi_ensure_directory_exists(const char* path);
 
+/**
+ * Runs @a work on the file operations task and waits until it has finished, or runs it directly when
+ * the caller is that task. Callers can have a stack in external RAM, which can't access flash.
+ * @return false when the work could not be queued
+ */
+bool wifi_run_file_operation(file_ops_work_fn_t work, void* context);
+
 #ifdef __cplusplus
+}
+
+#include <type_traits>
+
+/** wifi_run_file_operation() for a callable, which can capture by reference as the work completes before this returns. */
+template <typename Function>
+bool wifi_run_on_file_task(Function&& function) {
+    return wifi_run_file_operation(
+        [](void* context) { (*static_cast<std::remove_reference_t<Function>*>(context))(); },
+        &function
+    );
 }
 #endif

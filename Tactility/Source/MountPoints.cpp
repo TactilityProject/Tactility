@@ -1,7 +1,5 @@
 #include "Tactility/MountPoints.h"
 
-#include "Tactility/TactilityConfig.h"
-
 #include <Tactility/file/File.h>
 
 #include <cstring>

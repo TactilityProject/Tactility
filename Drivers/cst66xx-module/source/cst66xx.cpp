@@ -258,6 +258,7 @@ Driver cst66xx_driver = {
     .compatible = (const char*[]) { "hynitron,cst66xx", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &cst66xx_touch_api,
     .device_type = &TOUCH_TYPE,
     .internal = nullptr

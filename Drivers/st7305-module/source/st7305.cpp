@@ -406,6 +406,7 @@ static const DisplayApi st7305_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = st7305_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7305_driver = {
@@ -413,6 +414,7 @@ Driver st7305_driver = {
     .compatible = (const char*[]) {"sitronix,st7305", nullptr},
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7305_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

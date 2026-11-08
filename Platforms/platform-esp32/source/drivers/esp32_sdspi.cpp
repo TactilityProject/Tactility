@@ -182,6 +182,7 @@ Driver esp32_sdspi_driver = {
     .compatible = (const char*[]) { "espressif,esp32-sdspi", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = &SDCARD_TYPE,
     .internal = nullptr

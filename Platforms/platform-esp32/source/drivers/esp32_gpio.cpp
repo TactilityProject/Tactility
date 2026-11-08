@@ -214,6 +214,7 @@ Driver esp32_gpio_driver = {
     .compatible = (const char*[]) { "espressif,esp32-gpio", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = static_cast<const void*>(&esp32_gpio_api),
     .device_type = &GPIO_CONTROLLER_TYPE,
     .internal = nullptr

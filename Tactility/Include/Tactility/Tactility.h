@@ -1,7 +1,5 @@
 #pragma once
 
-#include <Tactility/MainDispatcher.h> // Included for backwards compatibility
-
 #include <tactility/device.h>
 #include <tactility/module.h>
 

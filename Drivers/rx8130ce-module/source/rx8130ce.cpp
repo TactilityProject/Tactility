@@ -160,6 +160,7 @@ Driver rx8130ce_driver = {
     .compatible = (const char*[]) { "epson,rx8130ce", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &rx8130ce_rtc_api,
     .device_type = &RTC_TYPE,
     .internal = nullptr

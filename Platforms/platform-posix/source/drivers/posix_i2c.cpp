@@ -163,6 +163,7 @@ Driver posix_i2c_driver = {
     .compatible = (const char*[]) { "posix,i2c", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = (const void*)&posix_i2c_api,
     .device_type = &I2C_CONTROLLER_TYPE,
     .internal = nullptr

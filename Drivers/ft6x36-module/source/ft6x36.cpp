@@ -264,6 +264,7 @@ Driver ft6x36_driver = {
     .compatible = (const char*[]) { "focaltech,ft6x36", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &ft6x36_touch_api,
     .device_type = &TOUCH_TYPE,
     .internal = nullptr

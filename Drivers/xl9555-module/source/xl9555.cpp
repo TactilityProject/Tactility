@@ -185,6 +185,7 @@ Driver xl9555_driver = {
     .compatible = (const char*[]) { "xlsemi,xl9555", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = static_cast<const void*>(&xl9555_gpio_api),
     .device_type = &GPIO_CONTROLLER_TYPE,
     .internal = nullptr

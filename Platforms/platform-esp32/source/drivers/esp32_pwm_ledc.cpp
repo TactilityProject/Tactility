@@ -250,6 +250,7 @@ Driver esp32_pwm_ledc_driver = {
     .compatible = (const char*[]) { "espressif,esp32-pwm-ledc", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &esp32_pwm_ledc_api,
     .device_type = &PWM_TYPE,
     .internal = nullptr

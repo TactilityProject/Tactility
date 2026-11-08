@@ -369,6 +369,7 @@ static const struct AudioCodecApi API = {
     .get_native_sample_rate = get_native_sample_rate,
     .get_native_channels = get_native_channels,
     .get_capabilities = get_capabilities,
+    .get_input_gain_multiplier = nullptr,
 };
 
 // endregion
@@ -454,6 +455,7 @@ Driver esp32_dac_speaker_driver = {
     .compatible = (const char*[]) { "espressif,esp32-dac-speaker", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = &API,
     .device_type = &AUDIO_CODEC_TYPE,
     .internal = nullptr,

@@ -406,7 +406,6 @@ static error_t stop(Device* device) {
     data->radio = nullptr;
 
     // Power down first, then release the antenna path (mirror of the start order)
-    auto* config = GET_CONFIG(device);
     set_pin_active(data->pin_enable, false);
     set_pin_active(data->pin_antenna_select, false);
 

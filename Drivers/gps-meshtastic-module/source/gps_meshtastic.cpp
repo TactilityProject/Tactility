@@ -451,6 +451,7 @@ Driver meshtastic_gps_driver = {
     .compatible = (const char*[]) { "tactility,gps-generic", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &generic_gps_api,
     .device_type = &GPS_TYPE,
     .internal = nullptr

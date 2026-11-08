@@ -1,6 +1,5 @@
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/lvgl/Style.h>
-#include <Tactility/Tactility.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -23,6 +22,7 @@
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/device.h>
 #include <tactility/drivers/wifi.h>
+#include <tactility/file_ops.h>
 #include <tactility/log.h>
 
 namespace tt::app::wifiapsettings {
@@ -57,6 +57,7 @@ struct Context {
     TaskEventGroup* eventGroup = nullptr;
     uint32_t requestBit = 0;
     std::atomic<bool> connectRequested = false;
+    std::atomic<bool> disconnectRequested = false;
     std::atomic<int> autoConnectRequest = -1;
 };
 
@@ -64,43 +65,47 @@ struct Context {
 void updateViews(Context* ctx);
 void requestViewUpdate(Context* ctx);
 
-/** Turns the radio on when needed and connects. Runs on the main dispatcher, as turning the radio on blocks. */
-void connectToAp(const WifiApSettings& ap) {
-    getMainDispatcher().dispatch([ap] {
-        Device* wifi_device = nullptr;
-        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
-            LOG_W(TAG, "No WiFi device found");
-            return;
-        }
-        error_t result = wifi_set_radio_on(wifi_device);
-        if (result == ERROR_NONE) {
-            if (wifi_settings_set_enable(true) != ERROR_NONE) {
-                LOG_E(TAG, "Failed to save the Wi-Fi state");
-            }
-            result = wifi_station_connect(wifi_device, ap.ssid, ap.password, ap.channel);
-        }
-        if (result != ERROR_NONE) {
-            LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
-        }
-        device_put(wifi_device);
-    });
+/** File operation: it runs on the file operations task */
+void saveEnabledInBackground(void* /*context*/) {
+    if (wifi_settings_set_enable(true) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to save the Wi-Fi state");
+    }
 }
 
+/** Turns the radio on when needed and connects. Blocks while the radio turns on, so it runs on the app task. */
+void connectToAp(const WifiApSettings& ap) {
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+        LOG_W(TAG, "No WiFi device found");
+        return;
+    }
+    error_t result = wifi_set_radio_on(wifi_device);
+    if (result == ERROR_NONE) {
+        if (file_ops_queue(saveEnabledInBackground, nullptr, nullptr) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to queue saving the Wi-Fi state");
+        }
+        result = wifi_station_connect(wifi_device, ap.ssid, ap.password, ap.channel);
+    }
+    if (result != ERROR_NONE) {
+        LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
+    }
+    device_put(wifi_device);
+}
+
+/** Runs on the app task */
 void disconnectFromAp() {
     // Keeps auto-connect from immediately reconnecting
     wifi_autoconnect_pause_until_connected();
-    getMainDispatcher().dispatch([] {
-        Device* wifi_device = nullptr;
-        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
-            LOG_W(TAG, "No WiFi device found");
-            return;
-        }
-        error_t result = wifi_station_disconnect(wifi_device);
-        if (result != ERROR_NONE) {
-            LOG_E(TAG, "Failed to disconnect (%s)", error_to_string(result));
-        }
-        device_put(wifi_device);
-    });
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+        LOG_W(TAG, "No WiFi device found");
+        return;
+    }
+    error_t result = wifi_station_disconnect(wifi_device);
+    if (result != ERROR_NONE) {
+        LOG_E(TAG, "Failed to disconnect (%s)", error_to_string(result));
+    }
+    device_put(wifi_device);
 }
 
 /** @return true when the station is connected to this app's SSID */
@@ -144,7 +149,8 @@ void onPressConnect(lv_event_t* event) {
 void onPressDisconnect(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     if (isConnectedToSsid(ctx)) {
-        disconnectFromAp();
+        ctx->disconnectRequested = true;
+        task_event_group_signal(ctx->eventGroup, ctx->requestBit);
     }
 }
 
@@ -200,6 +206,9 @@ void updateViews(Context* ctx) {
 }
 
 void handleRequests(Context* ctx) {
+    if (ctx->disconnectRequested.exchange(false)) {
+        disconnectFromAp();
+    }
     // Kept until settings are loaded
     if (ctx->hasSettings) {
         int auto_connect = ctx->autoConnectRequest.exchange(-1);

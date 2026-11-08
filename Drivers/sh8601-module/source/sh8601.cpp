@@ -504,6 +504,7 @@ static const DisplayApi sh8601_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = sh8601_get_backlight,
     .has_capability = sh8601_has_capability,
+    .get_shape = nullptr,
 };
 
 Driver sh8601_driver = {
@@ -511,6 +512,7 @@ Driver sh8601_driver = {
     .compatible = (const char*[]) { "shenghe,sh8601", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &sh8601_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr
@@ -610,6 +612,7 @@ Driver sh8601_backlight_driver = {
     .compatible = (const char*[]) { "sh8601-backlight", nullptr },
     .start_device = sh8601_backlight_start,
     .stop_device = sh8601_backlight_stop,
+    .probe = nullptr,
     .api = &SH8601_BACKLIGHT_API,
     .device_type = &BACKLIGHT_TYPE,
     .internal = nullptr

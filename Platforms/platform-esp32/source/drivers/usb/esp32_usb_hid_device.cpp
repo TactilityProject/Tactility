@@ -341,6 +341,7 @@ Driver esp32_usb_hid_device_driver = {
     .compatible   = (const char*[]) { "espressif,esp32-usbdevice-hid", nullptr },
     .start_device = start_device,
     .stop_device  = stop_device,
+    .probe = nullptr,
     .api          = &esp32_usb_hid_device_api,
     .device_type  = &USB_HID_DEVICE_TYPE,
     .internal     = nullptr,

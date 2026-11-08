@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include <tactility/concurrent/task_event_group.h>
@@ -67,6 +68,12 @@ error_t file_ops_unsubscribe(struct FileOpsSubscription* sub);
  * @retval ERROR_RESOURCE the task could not be started
  */
 error_t file_ops_queue(file_ops_work_fn_t work, void* context, struct FileOpsSubscription* sub);
+
+/**
+ * Tells whether the caller is running on the file operations task.
+ * Code that waits for queued work must run that work directly when this is true, as the task can't wait for itself.
+ */
+bool file_ops_is_worker(void);
 
 /**
  * Non-blocking: consumes one completion of work that was queued with @a sub.

@@ -15,7 +15,6 @@ struct CpuAffinityConfiguration {
     CpuAffinity system;
     CpuAffinity graphics; // Display, LVGL
     CpuAffinity wifi;
-    CpuAffinity mainDispatcher;
     CpuAffinity apps;
     CpuAffinity timer; // Tactility Timer (based on FreeRTOS)
 };

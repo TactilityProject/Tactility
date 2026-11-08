@@ -91,6 +91,7 @@ Driver esp32_adc_oneshot_driver = {
     .compatible = (const char*[]) { "espressif,esp32-adc-oneshot", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &ESP32_ADC_ONESHOT_API,
     .device_type = &ADC_CONTROLLER_TYPE,
     .internal = nullptr

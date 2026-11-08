@@ -186,6 +186,7 @@ Driver tca95xx_driver = {
     .compatible = (const char*[]) { "ti,tca9535", "ti,tca9539", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = static_cast<const void*>(&tca95xx_gpio_api),
     .device_type = &GPIO_CONTROLLER_TYPE,
     .internal = nullptr

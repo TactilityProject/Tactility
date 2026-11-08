@@ -231,6 +231,7 @@ Driver axs5106_driver = {
     .compatible = (const char*[]) { "axs,axs5106", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &axs5106_touch_api,
     .device_type = &TOUCH_TYPE,
     .internal = nullptr

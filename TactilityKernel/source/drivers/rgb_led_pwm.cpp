@@ -146,6 +146,7 @@ Driver rgb_led_pwm_driver = {
     .compatible = (const char*[]) { "rgb-led-pwm", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &RGB_LED_PWM_API,
     .device_type = &RGB_LED_TYPE,
     .internal = nullptr
