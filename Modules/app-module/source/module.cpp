@@ -133,17 +133,16 @@ static const ModuleSymbol SYMBOLS[] = {
     MODULE_SYMBOL_TERMINATOR,
 };
 
-static error_t ensure_directory(const char* data_path, const char* name) {
+static void ensure_directory(const char* data_path, const char* name) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (snprintf(path, sizeof(path), "%s/%s", data_path, name) >= static_cast<int>(sizeof(path))) {
-        return ERROR_BUFFER_OVERFLOW;
+        LOG_E(TAG, "Path too long for %s/%s", data_path, name);
+        return;
     }
     const error_t error = directory_make(path, true);
     if (error != ERROR_NONE && error != ERROR_ALREADY_EXISTS) {
         LOG_E(TAG, "Failed to create %s", path);
-        return error;
     }
-    return ERROR_NONE;
 }
 
 // Apps' data used to live in <data>/user/app
@@ -179,10 +178,7 @@ static error_t start() {
     }
     migrate_legacy_appdata(data_path);
     for (const char* name : { "app", "appdata" }) {
-        const error_t error = ensure_directory(data_path, name);
-        if (error != ERROR_NONE) {
-            return error;
-        }
+        ensure_directory(data_path, name);
     }
 
     return service_manager_add(&app_internal_loader_service_manifest, /*auto_start=*/true);
