@@ -255,7 +255,6 @@
 
 		sdcard@1 {
 			compatible = "espressif,esp32-sdspi";
-			status = "disabled"; // Must be started after display
 			frequency-khz = <20000>;
 		};
 	};

@@ -1,6 +1,5 @@
 #include <Tactility/app/boot/BootInit.h>
 
-#include "Tactility/hal/SdCard.h"
 #include "Tactility/network/NtpPrivate.h"
 #include "Tactility/settings/TimePrivate.h"
 
@@ -289,10 +288,6 @@ bool bootInit(TickType_t startTime) {
 
     LOG_I(TAG, "Init timezone");
     settings::initTimeZone();
-
-    // Attempt to start all disabled SD cards (some require delayed init)
-    LOG_I(TAG, "Init SDMMC");
-    hal::sdcard::startAll();
 
     LOG_I(TAG, "Init NTP");
     network::ntp::init();
