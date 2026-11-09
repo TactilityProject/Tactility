@@ -18,6 +18,21 @@ size_t normalizeAlignment(uint8_t alignment) {
     return result;
 }
 
+// MinGW has no posix_memalign. The host-side binfont generator only needs usable memory that can
+// be released with the same free() it uses everywhere else, so plain malloc is sufficient there.
+void* allocAligned(size_t alignment, size_t size) {
+#if defined(_WIN32)
+    (void)alignment;
+    return malloc(size);
+#else
+    void* ptr = nullptr;
+    if (posix_memalign(&ptr, normalizeAlignment(alignment), size) != 0) {
+        return nullptr;
+    }
+    return ptr;
+#endif
+}
+
 } // namespace
 
 extern "C" {
@@ -26,11 +41,7 @@ extern "C" {
 // policy->required/desired are intentionally ignored here.
 void* memory_alloc_with_policy(size_t size, const struct MemoryPolicy* policy) {
     if (policy->alignment > 0) {
-        void* ptr = nullptr;
-        if (posix_memalign(&ptr, normalizeAlignment(policy->alignment), size) != 0) {
-            return nullptr;
-        }
-        return ptr;
+        return allocAligned(policy->alignment, size);
     }
     return malloc(size);
 }
@@ -49,8 +60,8 @@ void* memory_calloc_with_policy(size_t count, size_t size, const struct MemoryPo
             return nullptr;
         }
 
-        void* ptr = nullptr;
-        if (posix_memalign(&ptr, normalizeAlignment(policy->alignment), total_size) != 0) {
+        void* ptr = allocAligned(policy->alignment, total_size);
+        if (ptr == nullptr) {
             return nullptr;
         }
         memset(ptr, 0, total_size);

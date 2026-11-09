@@ -3,11 +3,11 @@ cmake_minimum_required(VERSION 3.20)
 file(GLOB_RECURSE SOURCES "source/*.c**")
 
 set(PRIV_REQUIRES_LIST TactilityFreeRtos)
-if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
+if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4" OR "${IDF_TARGET}" STREQUAL "esp32s31")
     list(APPEND PRIV_REQUIRES_LIST esp_tinyusb)
 endif ()
 
-if ("${IDF_TARGET}" STREQUAL "esp32p4")
+if ("${IDF_TARGET}" STREQUAL "esp32p4" OR "${IDF_TARGET}" STREQUAL "esp32s31")
     list(APPEND PRIV_REQUIRES_LIST esp_driver_ppa)
     list(APPEND PRIV_REQUIRES_LIST esp_mm)
 endif ()
@@ -29,7 +29,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 endif ()
 
 idf_component_optional_requires(PRIVATE bt usb espressif__usb_host_hid espressif__usb_host_msc espressif__esp_audio_codec)
-if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
+if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4" OR "${IDF_TARGET}" STREQUAL "esp32s31")
     idf_component_optional_requires(PRIVATE espressif__usb_host_uac)
 endif ()
 

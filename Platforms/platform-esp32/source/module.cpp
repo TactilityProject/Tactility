@@ -19,9 +19,11 @@
 #include <miniz.h>
 #include <sys/errno.h>
 
-#ifdef CONFIG_IDF_TARGET_ESP32P4
+#if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S31)
 #include <esp_cache.h>
 #include <driver/ppa.h>
+// libgcc provides this float-to-int64 helper, but the toolchain headers don't declare it.
+extern "C" long long __fixsfdi(float value);
 #endif
 
 #include <tactility/module.h>
@@ -30,10 +32,10 @@
 
 // GCC soft-float / compiler-rt helpers an app may need but can't reach through a header -
 // reference: https://gcc.gnu.org/onlinedocs/gccint/Soft-float-library-routines.html
-// ESP32P4 (RISC-V, native single-precision FPU) only needs the double-precision + 64-bit-div
-// subset; every other (Xtensa) target needs the full single- and double-precision set.
+// RISC-V targets with a native single-precision FPU (ESP32-P4, ESP32-S31) only need the
+// double-precision + 64-bit-div subset. Xtensa targets need the full single/double set.
 extern "C" {
-#ifndef CONFIG_IDF_TARGET_ESP32P4
+#if !defined(CONFIG_IDF_TARGET_ESP32P4) && !defined(CONFIG_IDF_TARGET_ESP32S31)
     extern float __addsf3(float a, float b);
     extern double __adddf3(double a, double b);
     extern float __subsf3(float a, float b);
@@ -253,7 +255,7 @@ static const ModuleSymbol platform_esp32_symbols[] = {
     DEFINE_MODULE_SYMBOL(esp_timer_start_periodic),
     DEFINE_MODULE_SYMBOL(esp_timer_start_once),
     DEFINE_MODULE_SYMBOL(esp_timer_get_time),
-#ifdef CONFIG_IDF_TARGET_ESP32P4
+#if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S31)
     // driver/ppa.h
     DEFINE_MODULE_SYMBOL(ppa_register_client),
     DEFINE_MODULE_SYMBOL(ppa_unregister_client),
@@ -264,7 +266,7 @@ static const ModuleSymbol platform_esp32_symbols[] = {
     // esp_system.h
     DEFINE_MODULE_SYMBOL(esp_restart),
     // soft float
-#ifndef CONFIG_IDF_TARGET_ESP32P4
+#if !defined(CONFIG_IDF_TARGET_ESP32P4) && !defined(CONFIG_IDF_TARGET_ESP32S31)
     DEFINE_MODULE_SYMBOL(__addsf3),
     DEFINE_MODULE_SYMBOL(__adddf3),
     DEFINE_MODULE_SYMBOL(__subsf3),
@@ -325,6 +327,7 @@ static const ModuleSymbol platform_esp32_symbols[] = {
     DEFINE_MODULE_SYMBOL(__truncdfsf2),
     DEFINE_MODULE_SYMBOL(__fixdfsi),
     DEFINE_MODULE_SYMBOL(__fixdfdi),
+    DEFINE_MODULE_SYMBOL(__fixsfdi),
     DEFINE_MODULE_SYMBOL(__fixunsdfsi),
     DEFINE_MODULE_SYMBOL(__fixunssfdi),
     DEFINE_MODULE_SYMBOL(__fixunsdfdi),
@@ -388,7 +391,7 @@ extern Driver esp32_usbhost_hid_driver;
 extern Driver esp32_usbhost_hid_keyboard_driver;
 extern Driver esp32_usbhost_midi_driver;
 extern Driver esp32_usbhost_msc_driver;
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S31
 extern Driver usb_uac_codec_driver;
 #endif
 #endif
@@ -441,7 +444,7 @@ static Driver* const platform_esp32_drivers[] = {
     &esp32_usbhost_hid_keyboard_driver,
     &esp32_usbhost_midi_driver,
     &esp32_usbhost_msc_driver,
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S31
     &usb_uac_codec_driver,
 #endif
 #endif

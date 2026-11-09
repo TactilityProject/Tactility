@@ -19,6 +19,7 @@ jobs:
           { id: generic-esp32c6, arch: esp32c6 },
           { id: generic-esp32p4, arch: esp32p4 },
           { id: generic-esp32s3, arch: esp32s3 },
+          { id: generic-esp32s31, arch: esp32s31 },
         ]
     runs-on: ubuntu-latest
     steps:

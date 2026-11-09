@@ -119,6 +119,8 @@ def to_manifest_chip_name(name):
         return "ESP32-H4"
     elif name == "esp32p4":
         return "ESP32-P4"
+    elif name == "esp32s31":
+        return "ESP32-S31"
     else:
         exit_with_error(f"to_manifest_chip_name() doesn't support {name} yet")
         return ""

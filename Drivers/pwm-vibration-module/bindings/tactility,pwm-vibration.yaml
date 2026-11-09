@@ -1,0 +1,10 @@
+description: >
+  ERM/LRA vibration motor driven through a PWM device. Wraps any PWM_TYPE device (e.g.
+  espressif,esp32-pwm-ledc) and maps a 0..100% strength onto its duty cycle.
+compatible: "tactility,pwm-vibration"
+
+properties:
+  pwm:
+    type: phandles
+    required: true
+    description: The PWM device driving the motor

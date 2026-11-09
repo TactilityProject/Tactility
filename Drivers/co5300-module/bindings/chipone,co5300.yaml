@@ -1,0 +1,91 @@
+description: >
+  Chipone CO5300 AMOLED display panel driven over QSPI through ESP-IDF's esp_lcd_co5300
+  component. The vendor init sequence is supplied by the board's devicetree; the driver does
+  not embed any panel-specific bring-up data.
+
+bus: spi
+
+include: ["display.yaml"]
+
+compatible: "chipone,co5300"
+
+properties:
+  horizontal-resolution:
+    type: int
+    required: true
+    description: Horizontal resolution in pixels
+  vertical-resolution:
+    type: int
+    required: true
+    description: Vertical resolution in pixels
+  gap-x:
+    type: int
+    default: 0
+    description: X offset applied to all draw operations
+  gap-y:
+    type: int
+    default: 0
+    description: Y offset applied to all draw operations
+  swap-xy:
+    type: boolean
+    default: false
+    description: Swap the X and Y axes
+  mirror-x:
+    type: boolean
+    default: false
+    description: Mirror the X axis
+  mirror-y:
+    type: boolean
+    default: false
+    description: Mirror the Y axis
+  invert-color:
+    type: boolean
+    default: false
+    description: Invert the panel's color output
+  pixel-clock-hz:
+    type: int
+    default: 40000000
+    description: QSPI pixel clock frequency in Hz
+  transaction-queue-depth:
+    type: int
+    default: 10
+    description: Size of the internal SPI transaction queue
+  pin-reset:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Reset GPIO pin. When present, the CO5300 component also uses it for Deep Standby wake.
+  pin-te:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: >
+      Optional tearing-effect (TE) input from the panel. When present, the driver enables the
+      panel's TE output (command 0x35, V-blank only) and waits for a vertical-blank pulse before
+      starting each transfer, so the panel never scans a region that is actively being written.
+      This removes the diagonal shear/tearing seen with unsynchronized flushes.
+      Leave unset if the TE line is not wired.
+  te-timeout-ms:
+    type: int
+    default: 50
+    description: >
+      How long to wait for a TE pulse before giving up and transferring unsynchronized. Only
+      used when pin-te is set. A 60 Hz panel pulses every ~17 ms, so 50 ms tolerates dropped
+      interrupts without stalling the UI.
+  full-frame:
+    type: boolean
+    default: false
+    description: >
+      Render into a full-screen buffer and present each refresh as a single transfer. Without
+      it, LVGL tiles updates through vres/10-tall buffers, so a full-screen change (theme/font
+      switch, screen transition) is presented as ~10 flushes over ~10 frames and looks like
+      tearing even when each flush is TE-aligned. Recommended together with pin-te.
+      The buffer lives in PSRAM (see DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM).
+  init-sequence:
+    type: array
+    element-type: uint8_t
+    description: >
+      Custom vendor bring-up sequence, flattened into bytes as a run of
+      [cmd, data-length, delay-ms, data-length bytes of data...] entries, e.g.
+      `init-sequence = [0x11 0 255  0x29 0 255];`.
+      Each delay is a single byte, so it is limited to 0-255 ms.
+      Omit to use the CO5300 component's built-in default sequence, which targets a different
+      panel size and is not suitable for a 480x480 Mosaico panel.

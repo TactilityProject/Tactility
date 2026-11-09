@@ -1,0 +1,14 @@
+description: Bosch BMM150 3-axis magnetometer (compass)
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "bosch,bmm150"
+
+properties:
+  mount-matrix:
+    type: values
+    default: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    description: >
+      Row-major 3x3 rotation matrix that maps the sensor frame onto the device frame, following the
+      Linux IIO "mount-matrix" convention (x' = m[0]*x + m[1]*y + m[2]*z, and so on). Applied to the
+      compensated field so consumers always see the device frame. Defaults to the identity matrix.

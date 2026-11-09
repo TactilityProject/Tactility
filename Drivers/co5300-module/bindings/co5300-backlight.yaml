@@ -1,0 +1,13 @@
+description: >
+  Backlight for a CO5300 AMOLED panel. The panel has no dedicated backlight pin: brightness is
+  controlled over its own QSPI command interface (register 0x51), so this driver sends that
+  command through the parent display device's panel IO. Must be declared as a child node of the
+  display device it dims.
+
+compatible: "co5300-backlight"
+
+properties:
+  brightness-default:
+    type: int
+    default: 255
+    description: Default brightness level (0-255), applied by set_brightness_default()

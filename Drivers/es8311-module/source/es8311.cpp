@@ -289,18 +289,28 @@ error_t start_device(Device* device) {
     }
 
     {
+        int16_t pa_pin = -1;
+        if (config->pin_pa.gpio_controller != nullptr) {
+            data->gpio_if = audio_codec_adapter_new_gpio(&config->pin_pa, 1);
+            if (data->gpio_if == nullptr) {
+                LOG_E(TAG, "Failed to create GPIO adapter for PA pin");
+                goto cleanup;
+            }
+            pa_pin = 0;
+        }
+
         es8311_codec_cfg_t codec_config = {};
         codec_config.ctrl_if = data->ctrl_if;
-        codec_config.gpio_if = nullptr;
+        codec_config.gpio_if = data->gpio_if;
         codec_config.codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH;
-        codec_config.pa_pin = -1;
-        codec_config.pa_reverted = false;
+        codec_config.pa_pin = pa_pin;
+        codec_config.pa_reverted = config->pa_inverted;
         codec_config.master_mode = false;
         codec_config.use_mclk = true;
         codec_config.digital_mic = false;
         codec_config.invert_mclk = false;
         codec_config.invert_sclk = false;
-        codec_config.no_dac_ref = false;
+        codec_config.no_dac_ref = config->no_dac_ref;
         codec_config.mclk_div = 0;
 
         data->codec_if = es8311_codec_new(&codec_config);
