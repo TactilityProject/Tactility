@@ -500,12 +500,13 @@ static error_t co5300_draw_bitmap(Device* device, int32_t x_start, int32_t y_sta
     auto* internal = static_cast<Co5300Internal*>(device_get_driver_data(device));
     const auto* config = GET_CONFIG(device);
 
-    if (x_start < 0) x_start = 0;
-    if (y_start < 0) y_start = 0;
-    if (x_end > config->horizontal_resolution) x_end = config->horizontal_resolution;
-    if (y_end > config->vertical_resolution) y_end = config->vertical_resolution;
-    if (x_start >= x_end || y_start >= y_end) {
-        return ERROR_NONE;
+    // The buffer is tightly packed for the requested rectangle. Clipping the rectangle without
+    // repacking the rows would misalign everything after the first visible row, so reject
+    // out-of-bounds draws instead and let the caller clip.
+    if (x_start < 0 || y_start < 0 ||
+        x_end > config->horizontal_resolution || y_end > config->vertical_resolution ||
+        x_start >= x_end || y_start >= y_end) {
+        return ERROR_INVALID_ARGUMENT;
     }
 
     return present(internal, x_start, y_start, x_end, y_end, color_data);
