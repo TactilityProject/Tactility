@@ -24,7 +24,7 @@ DEFAULT_FONT_SIZE = 14
 
 
 def read_text(path: str) -> str:
-    with open(path, "r", encoding="utf-8") as file:
+    with open(path, "r", encoding="utf-8", errors="replace") as file:
         return file.read()
 
 
@@ -182,12 +182,21 @@ def build_tool(work_folder: str) -> tuple:
             # Redirect to a file rather than a pipe: a timed-out child that inherited the pipe can
             # otherwise keep subprocess.run() blocked on Windows.
             with open(log_path, "w", encoding="utf-8", errors="replace") as log_file:
-                if subprocess.run(
+                result = subprocess.run(
                     command, stdout=log_file, stderr=subprocess.STDOUT, timeout=120
-                ).returncode == 0:
-                    return tool, None, False
-        except (OSError, subprocess.TimeoutExpired):
-            continue
+                )
+            if result.returncode == 0:
+                return tool, None, False
+            reason = f"exit code {result.returncode}"
+        except (OSError, subprocess.TimeoutExpired) as error:
+            reason = str(error)
+
+        # The temporary work folder (and the compiler log) disappears when this script exits, so
+        # surface the diagnostics now instead of losing them.
+        print(f"WARNING: {compiler} could not build the font tool ({reason})")
+        compiler_output = read_text(log_path) if os.path.exists(log_path) else ""
+        if compiler_output.strip():
+            print(compiler_output.rstrip())
     if not usable_candidate_found:
         return None, "no usable host C++ compiler found", False
     return None, "host C++ compilers were found but none could build the font tool", True
