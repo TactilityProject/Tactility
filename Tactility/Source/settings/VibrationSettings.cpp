@@ -34,7 +34,7 @@ bool parseBool(const std::string& value) {
 
 bool load(VibrationSettings& settings) {
     auto settings_path = getSettingsFilePath();
-    if (settings_path.empty() || !file::isFile(settings_path)) {
+    if (settings_path.empty()) {
         return false;
     }
 
