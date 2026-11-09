@@ -22,6 +22,8 @@
 #if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S31)
 #include <esp_cache.h>
 #include <driver/ppa.h>
+// libgcc provides this float-to-int64 helper, but the toolchain headers don't declare it.
+extern "C" long long __fixsfdi(float value);
 #endif
 
 #include <tactility/module.h>
@@ -325,6 +327,7 @@ static const ModuleSymbol platform_esp32_symbols[] = {
     DEFINE_MODULE_SYMBOL(__truncdfsf2),
     DEFINE_MODULE_SYMBOL(__fixdfsi),
     DEFINE_MODULE_SYMBOL(__fixdfdi),
+    DEFINE_MODULE_SYMBOL(__fixsfdi),
     DEFINE_MODULE_SYMBOL(__fixunsdfsi),
     DEFINE_MODULE_SYMBOL(__fixunssfdi),
     DEFINE_MODULE_SYMBOL(__fixunsdfdi),
