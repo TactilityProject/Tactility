@@ -120,6 +120,7 @@ Driver gpio_power_off_driver = {
     .compatible = (const char*[]) { "gpio-power-off", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &GPIO_POWER_OFF_API,
     .device_type = &POWER_SUPPLY_TYPE,
     .internal = nullptr

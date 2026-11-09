@@ -236,6 +236,7 @@ Driver cst9220_driver = {
     .compatible = (const char*[]) { "hynitron,cst9220", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &cst9220_touch_api,
     .device_type = &TOUCH_TYPE,
     .internal = nullptr

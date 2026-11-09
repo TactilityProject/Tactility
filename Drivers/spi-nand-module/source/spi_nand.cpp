@@ -471,6 +471,7 @@ Driver spi_nand_driver = {
     .compatible = (const char*[]) { "espressif,spi-nand", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = &SDCARD_TYPE,
     .internal = nullptr

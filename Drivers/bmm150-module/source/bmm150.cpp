@@ -323,6 +323,7 @@ Driver bmm150_driver = {
     .compatible = (const char*[]) { "bosch,bmm150", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &bmm150_compass_api,
     .device_type = &COMPASS_TYPE,
     .internal = nullptr

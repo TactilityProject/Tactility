@@ -161,6 +161,7 @@ Driver pwm_vibration_driver = {
     .compatible = (const char*[]) { "tactility,pwm-vibration", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &PWM_VIBRATION_API,
     .device_type = &VIBRATION_TYPE,
     .internal = nullptr
