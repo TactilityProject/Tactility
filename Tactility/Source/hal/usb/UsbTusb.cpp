@@ -19,6 +19,15 @@
 #include <tactility/drivers/usb_msc_device.h>
 #include <tactility/log.h>
 
+// Provided by Drivers/spi-nand-module when the board's user storage is a NAND block device.
+// Weak so that boards without the module link and resolve to nullptr. The block-device type is
+// only forward-declared here to avoid pulling esp_blockdev into the shared Tactility component.
+struct esp_blockdev;
+extern "C" struct esp_blockdev* spi_nand_get_user_storage_blockdev(void) __attribute__((weak));
+extern "C" error_t spi_nand_suspend_user_storage(void) __attribute__((weak));
+extern "C" error_t spi_nand_resume_user_storage(void) __attribute__((weak));
+extern "C" error_t spi_nand_sync_user_storage(void) __attribute__((weak));
+
 constexpr auto* TAG = "USB";
 
 namespace tt::hal::usb {
@@ -101,8 +110,8 @@ bool tusbStartMassStorageWithSdmmc(bool fromBootMode) {
     return result == ERROR_NONE;
 }
 
-bool tusbStartMassStorageWithFlash(bool fromBootMode) {
-    LOG_I(TAG, "Starting flash MSC");
+bool tusbStartMassStorageWithInternalStorage(bool fromBootMode) {
+    LOG_I(TAG, "Starting internal-storage MSC");
 
     auto* device = usb_msc_device_get();
     if (device == nullptr) {
@@ -111,23 +120,55 @@ bool tusbStartMassStorageWithFlash(bool fromBootMode) {
         return false;
     }
 
-    wl_handle_t handle = get_data_partition_wl_handle();
-    if (handle == WL_INVALID_HANDLE) {
-        LOG_E(TAG, "WL not mounted for /data");
-        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "WL not mounted for /data");
+    wl_handle_t wl_handle = get_data_partition_wl_handle();
+    struct esp_blockdev* blockdev = nullptr;
+    if (wl_handle == WL_INVALID_HANDLE && spi_nand_get_user_storage_blockdev != nullptr) {
+        blockdev = spi_nand_get_user_storage_blockdev();
+    }
+
+    if (wl_handle == WL_INVALID_HANDLE && blockdev == nullptr) {
+        LOG_E(TAG, "No internal storage mounted");
+        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "No internal storage mounted");
         device_put(device);
         return false;
     }
 
     tt::hal::usb::startedFromBootMode = fromBootMode;
 
-    auto result = usb_msc_device_start(device, USB_MSC_DEVICE_SOURCE_FLASH,
-        &handle, tt::hal::usb::onMountChanged, nullptr);
-    if (result != ERROR_NONE) {
-        LOG_E(TAG, "TinyUSB flash init failed: %s", error_to_string(result));
-        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "Flash init failed: %s (%s)", error_to_string(result), usb_msc_device_get_last_error());
+    error_t result;
+    if (blockdev != nullptr) {
+        // Hand the NAND volume to the host: release the local FAT mount first, as the USB
+        // host and the OS must not write the same filesystem concurrently.
+        if (spi_nand_suspend_user_storage != nullptr) {
+            error_t suspend_error = spi_nand_suspend_user_storage();
+            if (suspend_error != ERROR_NONE) {
+                LOG_E(TAG, "Failed to unmount local NAND volume: %s", error_to_string(suspend_error));
+                snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage),
+                         "NAND unmount failed: %s", error_to_string(suspend_error));
+                device_put(device);
+                return false;
+            }
+        }
+        result = usb_msc_device_start(device, USB_MSC_DEVICE_SOURCE_BLOCKDEV, &blockdev,
+            tt::hal::usb::onMountChanged, nullptr);
     } else {
-        LOG_I(TAG, "TinyUSB flash init success");
+        result = usb_msc_device_start(device, USB_MSC_DEVICE_SOURCE_FLASH,
+            &wl_handle, tt::hal::usb::onMountChanged, nullptr);
+    }
+
+    if (result != ERROR_NONE) {
+        LOG_E(TAG, "TinyUSB MSC init failed: %s", error_to_string(result));
+        snprintf(tt::hal::usb::lastErrorMessage, sizeof(tt::hal::usb::lastErrorMessage), "Storage init failed: %s (%s)", error_to_string(result), usb_msc_device_get_last_error());
+        // The local volume was unmounted before the host took over. Put it back so the OS keeps
+        // working if mass storage never started.
+        if (blockdev != nullptr && spi_nand_resume_user_storage != nullptr) {
+            error_t resume_error = spi_nand_resume_user_storage();
+            if (resume_error != ERROR_NONE) {
+                LOG_E(TAG, "Failed to remount the local NAND volume: %s", error_to_string(resume_error));
+            }
+        }
+    } else {
+        LOG_I(TAG, "TinyUSB MSC init success");
     }
     device_put(device);
     return result == ERROR_NONE;
@@ -140,22 +181,37 @@ const char* tusbGetLastError() {
 void tusbStop() {
     auto* device = usb_msc_device_get();
     if (device != nullptr) {
+        // Flush any host writes that are still in the NAND journal before the driver is torn
+        // down and the system reboots.
+        if (spi_nand_sync_user_storage != nullptr) {
+            error_t sync_error = spi_nand_sync_user_storage();
+            if (sync_error != ERROR_NONE) {
+                LOG_W(TAG, "Failed to flush NAND writes: %s", error_to_string(sync_error));
+            }
+        }
         usb_msc_device_stop(device);
         device_put(device);
     }
 }
 
-bool tusbCanStartMassStorageWithFlash() {
-    return tusbIsSupported() && (get_data_partition_wl_handle() != WL_INVALID_HANDLE);
+bool tusbCanStartMassStorageWithInternalStorage() {
+    if (!tusbIsSupported()) {
+        return false;
+    }
+    if (get_data_partition_wl_handle() != WL_INVALID_HANDLE) {
+        return true;
+    }
+    return spi_nand_get_user_storage_blockdev != nullptr &&
+           spi_nand_get_user_storage_blockdev() != nullptr;
 }
 
 #else
 
 bool tusbIsSupported() { return false; }
 bool tusbStartMassStorageWithSdmmc(bool /*fromBootMode*/) { return false; }
-bool tusbStartMassStorageWithFlash(bool /*fromBootMode*/) { return false; }
+bool tusbStartMassStorageWithInternalStorage(bool /*fromBootMode*/) { return false; }
 void tusbStop() {}
-bool tusbCanStartMassStorageWithFlash() { return false; }
+bool tusbCanStartMassStorageWithInternalStorage() { return false; }
 const char* tusbGetLastError() { return ""; }
 
 #endif // CONFIG_TINYUSB_MSC_ENABLED

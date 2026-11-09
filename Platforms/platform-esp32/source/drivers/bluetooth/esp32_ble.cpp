@@ -31,6 +31,7 @@ constexpr auto* TAG = "esp32_ble";
 #include <tactility/log.h>
 #include <tactility/memory.h>
 #include <esp_mac.h>
+#include <esp_bt.h>
 #include <esp_timer.h>
 
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
@@ -662,7 +663,11 @@ static void host_task(void* param) {
         xSemaphoreGive(s_ctx->host_task_done_sem);
     }
     // nimble_port_deinit() is called by dispatch_disable() after nimble_port_stop() returns.
-    nimble_port_freertos_deinit();
+    // Delete this task directly instead of calling nimble_port_freertos_deinit(): that helper
+    // goes through esp_nimble_disable(), which does vTaskDelete(host_task_h) on the port's
+    // global handle. If a re-enable already ran, host_task_h points at the NEW host task and
+    // this old task would delete it (intermittent crash when toggling the radio off/on fast).
+    vTaskDelete(nullptr);
 }
 
 // ---- Advertising helpers ----
@@ -835,8 +840,6 @@ static void free_scan_buffers(BleCtx* ctx) {
 }
 
 static void dispatch_enable(BleCtx* ctx) {
-    LOG_I(TAG, "dispatch_enable()");
-
     if (ctx->radio_state.load() != BT_RADIO_STATE_OFF) {
         LOG_W(TAG, "Cannot enable from current state");
         return;
@@ -890,7 +893,27 @@ static void dispatch_enable(BleCtx* ctx) {
         }
     }
 
-    int rc = scan_alloc_failed ? -1 : nimble_port_init();
+    int rc = scan_alloc_failed ? -1 : 0;
+    if (!scan_alloc_failed) {
+#if CONFIG_IDF_TARGET_ESP32S31
+        // IDF 6.1 preview: esp_bt_controller_deinit() asserts in
+        // btdm_osal_elem_mempool_deinit() even after a clean host deinit + controller disable,
+        // so the controller is kept initialized and only disabled between sessions.
+        if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
+            esp_bt_controller_config_t config_opts = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+            rc = esp_bt_controller_init(&config_opts);
+        }
+        if (rc == 0 && esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+            rc = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+        }
+        // esp_nimble_init() resets the NimBLE port's internal deinit flag itself.
+        if (rc == 0) {
+            rc = esp_nimble_init();
+        }
+#else
+        rc = nimble_port_init();
+#endif
+    }
     if (rc != 0) {
         if (scan_alloc_failed) {
             LOG_E(TAG, "Scan buffer allocation failed");
@@ -908,11 +931,11 @@ static void dispatch_enable(BleCtx* ctx) {
 
     // Re-init the giveup event every enable cycle, npl_funcs only exists after
     // nimble_port_init(). nimble_port_deinit() frees the event pool that giveup_event's block
-    // came from, so the pointer in giveup_event.event is stale. npl_freertos_event_init() then
-    // memsets that stale address instead of allocating, which can corrupt the new pool's free
-    // list and crash the first event after re-enabling the radio. Clearing the pointer makes
-    // every cycle allocate a fresh block.
-    ctx->giveup_event.event = nullptr;
+    // came from, so any state left in giveup_event is stale. Zero the whole event object before
+    // ble_npl_event_init(): on targets where ble_npl_event embeds btdm_osal_event (e.g. S31),
+    // init populates the embedded struct in place, while pointer-based ports reuse a stale pool
+    // pointer otherwise.
+    std::memset(&ctx->giveup_event, 0, sizeof(ctx->giveup_event));
     ble_npl_event_init(&ctx->giveup_event, giveup_event_cb, ctx);
 
     ble_hs_cfg.sync_cb         = on_sync;
@@ -982,8 +1005,6 @@ static void dispatch_enable(BleCtx* ctx) {
 }
 
 static void dispatch_disable(BleCtx* ctx) {
-    LOG_I(TAG, "dispatch_disable()");
-
     if (ctx->radio_state.load() == BT_RADIO_STATE_OFF) {
         LOG_W(TAG, "Already off");
         return;
@@ -1017,6 +1038,12 @@ static void dispatch_disable(BleCtx* ctx) {
             LOG_W(TAG, "host task did not signal completion in time");
         }
     }
+
+    // The giveup event is allocated from the controller's OSAL mempool by ble_npl_event_init()
+    // (on S31 struct ble_npl_event wraps btdm_osal_event), so it has to be returned before the
+    // controller deinit, which asserts that every mempool element was freed.
+    ble_npl_eventq_remove(nimble_port_get_dflt_eventq(), &ctx->giveup_event);
+    ble_npl_event_deinit(&ctx->giveup_event);
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
     // Close the gate NOW — after nimble_port_stop() returns the NimBLE host task has
     // exited and nimble_port_deinit() is about to zero npl_funcs. Any HCI packet
@@ -1026,7 +1053,20 @@ static void dispatch_disable(BleCtx* ctx) {
         LOG_W(TAG, "HCI gate drain timed out");
     }
 #endif
-    nimble_port_deinit();
+    esp_err_t host_deinit_result = esp_nimble_deinit();
+    if (host_deinit_result != ESP_OK) {
+        LOG_E(TAG, "host deinit failed: %s", esp_err_to_name(host_deinit_result));
+    } else {
+        esp_err_t disable_result = esp_bt_controller_disable();
+        if (disable_result != ESP_OK) {
+            LOG_E(TAG, "controller disable failed: %s", esp_err_to_name(disable_result));
+        }
+#if !CONFIG_IDF_TARGET_ESP32S31
+        else if (esp_bt_controller_deinit() != ESP_OK) {
+            LOG_E(TAG, "controller deinit failed");
+        }
+#endif
+    }
     free_scan_buffers(ctx);
 
 #if defined(CONFIG_ESP_HOSTED_ENABLED)

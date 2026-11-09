@@ -17,6 +17,7 @@
 
 #include <Tactility/DeprecatedPaths.h>
 #include <Tactility/MountPoints.h>
+#include <Tactility/PanicHandler.h>
 #include <Tactility/TactilityPrivate.h>
 #include <Tactility/app/boot/BootScreen.h>
 #include <Tactility/app/boot/BootScripts.h>
@@ -155,7 +156,7 @@ UsbBootResult setupUsbBootMode() {
 
     bool started = false;
     if (mode == hal::usb::BootMode::Flash) {
-        started = hal::usb::startMassStorageWithFlash(true);
+        started = hal::usb::startMassStorageWithInternalStorage(true);
     } else if (mode == hal::usb::BootMode::Sdmmc) {
         started = hal::usb::startMassStorageWithSdmmc(true);
     }
@@ -274,6 +275,21 @@ void startNextApp() {
 
 bool bootInit(TickType_t startTime) {
     LOG_I(TAG, "Starting boot sequence");
+
+#ifdef ESP_PLATFORM
+    // Surface the previous crash (including assert details captured by the panic handler) on the
+    // serial console, since the panic output itself is usually lost with a USB CDC console.
+    {
+        if (isRtcCrashDataValid()) {
+            const CrashData& crash = getRtcCrashData();
+            LOG_E(TAG, "Previous crash: cause=%d fault=0x%08x reason='%s'",
+                  (int)crash.cause, crash.faultAddress, crash.reason);
+        } else {
+            // Random contents from a full power cycle (e.g. a power-controller shutdown).
+            resetRtcCrashData();
+        }
+    }
+#endif
     const bool is_usb_boot = hal::usb::isUsbBootMode();
 
     auto start_time = get_millis();
