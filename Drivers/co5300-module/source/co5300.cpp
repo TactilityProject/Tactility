@@ -376,8 +376,8 @@ static error_t start(Device* device) {
     // A failure here only loses tear sync, so the panel bring-up continues regardless.
     if (ok && te_ready) {
         if (!enable_te_output(internal)) {
+            // Keep the TE pin/semaphore so a later co5300_init() can retry.
             LOG_W(TAG, "Failed to enable panel TE output; running without tear sync");
-            stop_te(internal);
             te_ready = false;
         } else {
             LOG_I(TAG, "TE sync enabled on GPIO%d", config->pin_te.pin);
@@ -487,10 +487,10 @@ static error_t co5300_init(Device* device) {
     spi_controller_lock(internal->spi_controller);
     error_t result = esp_lcd_panel_init(internal->panel_handle) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
     // esp_lcd_panel_init() replays the vendor sequence, which can reset the TE output. Restore it
-    // when tear sync was active before the re-initialization.
-    if (result == ERROR_NONE && internal->te_enabled && !enable_te_output(internal)) {
-        LOG_W(TAG, "Failed to restore panel TE output; disabling tear sync");
-        stop_te(internal);
+    // whenever the TE pin was set up, including after a previous transient failure.
+    if (result == ERROR_NONE && internal->te_descriptor != nullptr && !enable_te_output(internal)) {
+        LOG_W(TAG, "Failed to restore panel TE output; leaving tear sync disabled");
+        internal->te_enabled = false;
     }
     spi_controller_unlock(internal->spi_controller);
     return result;

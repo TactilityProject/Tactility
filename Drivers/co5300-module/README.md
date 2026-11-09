@@ -65,5 +65,8 @@ spi0 {
 - TE output is consumed when `pin-te` is set: the driver enables it (command 0x35, V-blank
   only) and waits for the rising edge before each transfer. Without `pin-te`, the panel still
   works, but fast animations can tear.
+- If a TE pulse is missed, that transfer proceeds unsynchronized after `te-timeout-ms`. After
+  five consecutive misses the driver disables tear sync until restart, so transfers can tear
+  again.
 
 License: [Apache v2.0](LICENSE-Apache-2.0.md)
