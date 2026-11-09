@@ -149,7 +149,11 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->strengthRow = lv_obj_get_parent(ctx->strengthSlider);
 
     ctx->testButton = lv_button_create(main_wrapper);
-    lv_label_set_text(lv_label_create(ctx->testButton), "Test");
+    lv_obj_set_width(ctx->testButton, LV_PCT(100));
+    lv_obj_set_style_pad_ver(ctx->testButton, 8, LV_STATE_DEFAULT);
+    auto* test_label = lv_label_create(ctx->testButton);
+    lv_label_set_text(test_label, "Test");
+    lv_obj_center(test_label);
     lv_obj_add_event_cb(ctx->testButton, onTestPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
     applyEnabled(ctx);
