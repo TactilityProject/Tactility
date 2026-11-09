@@ -257,16 +257,13 @@ def write_spiram_variables(output_file, device_properties: dict):
     output_file.write("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y\n")
     # Performance improvements
     if idf_target == "esp32s3":
-        apply_fix = get_property_or_default(device_properties, "hardware.spiRamXipDisabled", "false").lower()
-        if apply_fix == "true":
-            output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:")
-            output_file.write("CONFIG_SPIRAM_FETCH_INSTRUCTIONS=n\n")
-            output_file.write("CONFIG_SPIRAM_RODATA=n\n")
-            output_file.write("CONFIG_SPIRAM_XIP_FROM_PSRAM=n\n")
-        else:
-            output_file.write("CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y\n")
-            output_file.write("CONFIG_SPIRAM_RODATA=y\n")
-            output_file.write("CONFIG_SPIRAM_XIP_FROM_PSRAM=y\n")
+        output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:")
+        # Copy flash-resident code into PSRAM when enabled
+        output_file.write("CONFIG_SPIRAM_FETCH_INSTRUCTIONS=n\n")
+        # Copy flash-resident data (for code) into PSRAM when enabled
+        output_file.write("CONFIG_SPIRAM_RODATA=n\n")
+        # Turns on both of the above
+        output_file.write("CONFIG_SPIRAM_XIP_FROM_PSRAM=n\n")
 
 def write_iram_reduction(output_file, device_properties: dict):
     # Without PSRAM, internal RAM is scarce: keep these in flash, which costs some speed
