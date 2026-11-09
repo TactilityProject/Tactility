@@ -248,10 +248,6 @@ else ()
     set(fonts_simulator 1)
 endif ()
 set(FONT_GENERATOR "${CMAKE_SOURCE_DIR}/Buildscripts/generate-fonts.py")
-# The generator writes the font files only when their content changed. The stamp is touched on
-# every run so Makefile generators see the output as up to date even when the .c/.h content (and
-# therefore their mtime) stayed the same.
-set(FONT_STAMP "${GENERATED_DIR}/generated_fonts.stamp")
 # The generator reads the device DTS files, the font assets and the icon/version sources. Track
 # them so an incremental build picks up a changed TTF or codepoint list.
 file(GLOB DEVICE_FONT_INPUTS CONFIGURE_DEPENDS "${DEVICETREE_LOCATION}/*.dts")
@@ -264,17 +260,27 @@ list(APPEND DEVICE_FONT_INPUTS
     "${CMAKE_SOURCE_DIR}/Modules/lvgl-module/source/icon_names.c"
     "${CMAKE_SOURCE_DIR}/Modules/lvgl-module/include/lvgl/icons/names.h"
 )
+# The generator builds its own host tool from these sources; a change to the renderer must also
+# invalidate the embedded font bytes.
+file(GLOB_RECURSE BINFONT_TOOL_INPUTS CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/Buildscripts/BinfontTool/*.c*"
+    "${CMAKE_SOURCE_DIR}/Buildscripts/BinfontTool/*.h"
+    "${CMAKE_SOURCE_DIR}/Modules/binfont-module/source/*.c*"
+    "${CMAKE_SOURCE_DIR}/Modules/binfont-module/include/*.h"
+    "${CMAKE_SOURCE_DIR}/Modules/binfont-module/private/*.h"
+    "${CMAKE_SOURCE_DIR}/TactilityKernel/source/memory_posix.cpp"
+)
 add_custom_command(
-    OUTPUT "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h" "${FONT_STAMP}"
+    OUTPUT "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
     COMMAND python "${FONT_GENERATOR}"
         "${DEVICETREE_LOCATION}" ${fonts_simulator} "${GENERATED_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E touch "${FONT_STAMP}"
-    DEPENDS "${FONT_GENERATOR}" "${DEVICETREE_LOCATION}/device.properties" ${DEVICE_FONT_INPUTS}
+    DEPENDS "${FONT_GENERATOR}" "${DEVICETREE_LOCATION}/device.properties"
+        ${DEVICE_FONT_INPUTS} ${BINFONT_TOOL_INPUTS}
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Generating font source files..."
 )
 add_custom_target(GeneratedFonts ALL
-    DEPENDS "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h" "${FONT_STAMP}"
+    DEPENDS "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
 )
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.h" PROPERTIES GENERATED TRUE)

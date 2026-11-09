@@ -130,27 +130,37 @@ def is_host_executable(compiler: str, work_folder: str) -> bool:
     with open(probe_source, "w", encoding="utf-8") as file:
         file.write("int main() { return 0; }\n")
     try:
-        compile_result = subprocess.run([compiler, probe_source, "-o", probe_binary], capture_output=True, timeout=30)
+        # Do not capture the child's output: on Windows a grandchild that inherits the pipe can
+        # keep it open after a timeout, which makes subprocess.run() wait indefinitely.
+        compile_result = subprocess.run(
+            [compiler, probe_source, "-o", probe_binary],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30
+        )
         if compile_result.returncode != 0:
             return False
-        return subprocess.run([probe_binary], capture_output=True, timeout=30).returncode == 0
+        return subprocess.run(
+            [probe_binary], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30
+        ).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         # ERROR_BAD_EXE_FORMAT and friends, or a compiler that hangs on the probe.
         return False
 
 
 def build_tool(work_folder: str) -> tuple:
-    """@return (tool path, None) on success, or (None, reason) when no host compiler can build it"""
+    """@return (tool path, reason, fatal); fatal means a usable host compiler exists but failed"""
     candidates = [found for found in (shutil.which(name) for name in ("c++", "g++", "clang++")) if found]
     if not candidates:
-        return None, "no host C++ compiler found"
+        return None, "no host C++ compiler found", False
     tool = os.path.join(work_folder, "binfont_gen")
+    log_path = os.path.join(work_folder, "compiler.log")
+    usable_candidate_found = False
     for compiler in candidates:
         # ESP-IDF exports cross toolchains under the plain compiler names. The probe filters out
         # the ones whose binaries cannot run here, but only the full build proves the compiler can
         # actually build this tool (e.g. it supports the required C++ standard).
         if not is_host_executable(compiler, work_folder):
             continue
+        usable_candidate_found = True
         command = [
             compiler, "-O2", "-std=c++20",
         ]
@@ -169,16 +179,24 @@ def build_tool(work_folder: str) -> tuple:
             "-o", tool,
         ]
         try:
-            if subprocess.run(command, timeout=120).returncode == 0:
-                return tool, None
-        except subprocess.TimeoutExpired:
+            # Redirect to a file rather than a pipe: a timed-out child that inherited the pipe can
+            # otherwise keep subprocess.run() blocked on Windows.
+            with open(log_path, "w", encoding="utf-8", errors="replace") as log_file:
+                if subprocess.run(
+                    command, stdout=log_file, stderr=subprocess.STDOUT, timeout=120
+                ).returncode == 0:
+                    return tool, None, False
+        except (OSError, subprocess.TimeoutExpired):
             continue
-    return None, "host C++ compilers were found but none could build the font tool"
+    if not usable_candidate_found:
+        return None, "no usable host C++ compiler found", False
+    return None, "host C++ compilers were found but none could build the font tool", True
 
 
-def write_if_changed(path: str, content: str):
-    if os.path.exists(path) and read_text(path) == content:
-        return
+def write_text(path: str, content: str):
+    # Always refresh the mtime, even when the content is unchanged. Makefile generators otherwise
+    # see the output as older than an input that changed without changing the output, and rerun
+    # the generator on every build.
     with open(path, "w", encoding="utf-8", newline="") as file:
         file.write(content)
 
@@ -195,9 +213,11 @@ def main():
 
     fonts = []
     with tempfile.TemporaryDirectory() as work_folder:
-        tool, build_error = build_tool(work_folder)
+        tool, build_error, fatal = build_tool(work_folder)
         if tool is None:
             print(f"WARNING: {build_error}; fonts are not embedded in the firmware")
+            if fatal:
+                sys.exit(1)
         else:
             lines = []
             for index, (name, ttf, size, codepoints) in enumerate(jobs):
@@ -258,8 +278,8 @@ def main():
     source.append(f"const size_t generated_fonts_count = {len(fonts)};")
     source.append("")
 
-    write_if_changed(os.path.join(output_folder, "generated_fonts.h"), "\n".join(header))
-    write_if_changed(os.path.join(output_folder, "generated_fonts.c"), "\n".join(source))
+    write_text(os.path.join(output_folder, "generated_fonts.h"), "\n".join(header))
+    write_text(os.path.join(output_folder, "generated_fonts.c"), "\n".join(source))
     print(f"Generated {len(fonts)} fonts ({sum(len(data) for _, data in fonts)} bytes)")
 
 
