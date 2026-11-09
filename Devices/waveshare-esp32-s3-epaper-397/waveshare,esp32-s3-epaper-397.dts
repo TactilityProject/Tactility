@@ -16,7 +16,9 @@
 #include <bindings/shtc3.h>
 #include <bindings/es8311.h>
 #include <bindings/ssd1677.h>
-#include <bindings/button_control.h>
+#include <bindings/rotary_button.h>
+
+#define BOOT_BUTTON_FLAGS (GPIO_FLAG_ACTIVE_LOW | GPIO_FLAG_PULL_UP)
 
 // Reference: https://docs.waveshare.com/ESP32-S3-ePaper-3.97
 / {
@@ -130,14 +132,14 @@
 		bus-width = <4>;
 	};
 
-	// Up, press and down of the switch on the top edge, active low with external pull-ups
+	// Switch on the top edge with external pull-ups
 	buttons {
-		compatible = "tactility,button-control";
-		pin-primary = <&gpio0 5 GPIO_FLAG_NONE>;
-		pin-secondary = <&gpio0 6 GPIO_FLAG_NONE>;
-		pin-previous = <&gpio0 4 GPIO_FLAG_NONE>;
+		compatible = "tactility,rotary-button";
+		pin-up = <&gpio0 4 GPIO_FLAG_ACTIVE_LOW>;
+		pin-down = <&gpio0 6 GPIO_FLAG_ACTIVE_LOW>;
+		pin-press = <&gpio0 5 GPIO_FLAG_ACTIVE_LOW>;
 		// BOOT button
-		pin-back = <&gpio0 0 GPIO_FLAG_PULL_UP>;
+		pin-back = <&gpio0 0 BOOT_BUTTON_FLAGS>;
 	};
 
 	usbdevice0 {

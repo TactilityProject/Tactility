@@ -11,14 +11,13 @@
 #include <tactility/time.h>
 
 #include <cstdlib>
-#include <initializer_list>
 
 #define TAG "ButtonControl"
 #define GET_CONFIG(device) (static_cast<const ButtonControlConfig*>((device)->config))
 
-// Worst case: all four buttons complete a short/long press gesture (press + release, 2 events each)
+// Worst case: both buttons complete a short/long press gesture (press + release, 2 events each)
 // within the same read_key() polling interval.
-constexpr auto BUTTON_CONTROL_PENDING_CAPACITY = 8;
+constexpr auto BUTTON_CONTROL_PENDING_CAPACITY = 4;
 
 struct ButtonControlPendingEvent {
     uint32_t key;
@@ -38,8 +37,6 @@ struct ButtonControlButtonState {
 struct ButtonControlInternal {
     ButtonControlButtonState primary;
     ButtonControlButtonState secondary;
-    ButtonControlButtonState previous;
-    ButtonControlButtonState back;
     ButtonControlPendingEvent pending[BUTTON_CONTROL_PENDING_CAPACITY];
     uint8_t pending_head;
     uint8_t pending_count;
@@ -91,14 +88,6 @@ static error_t acquire_button(const GpioPinSpec& pin, uint32_t short_press_key, 
     return ERROR_NONE;
 }
 
-static void release_buttons(ButtonControlInternal* internal) {
-    for (auto* state : { &internal->primary, &internal->secondary, &internal->previous, &internal->back }) {
-        if (state->in_use) {
-            gpio_descriptor_release(state->descriptor);
-        }
-    }
-}
-
 static error_t start(Device* device) {
     const auto* config = GET_CONFIG(device);
 
@@ -116,17 +105,16 @@ static error_t start(Device* device) {
         two_button_mode ? (uint32_t)CODEPOINT_ESCAPE : (uint32_t)CODEPOINT_ENTER,
         &internal->primary
     );
-    if (error == ERROR_NONE) {
-        error = acquire_button(config->pin_secondary, CODEPOINT_FOCUS_NEXT, CODEPOINT_FOCUS_PREVIOUS, &internal->secondary);
-    }
-    if (error == ERROR_NONE) {
-        error = acquire_button(config->pin_previous, CODEPOINT_FOCUS_PREVIOUS, CODEPOINT_FOCUS_PREVIOUS, &internal->previous);
-    }
-    if (error == ERROR_NONE) {
-        error = acquire_button(config->pin_back, CODEPOINT_ESCAPE, CODEPOINT_ESCAPE, &internal->back);
-    }
     if (error != ERROR_NONE) {
-        release_buttons(internal);
+        free(internal);
+        return error;
+    }
+
+    error = acquire_button(config->pin_secondary, CODEPOINT_FOCUS_NEXT, CODEPOINT_FOCUS_PREVIOUS, &internal->secondary);
+    if (error != ERROR_NONE) {
+        if (internal->primary.in_use) {
+            gpio_descriptor_release(internal->primary.descriptor);
+        }
         free(internal);
         return error;
     }
@@ -137,7 +125,14 @@ static error_t start(Device* device) {
 
 static error_t stop(Device* device) {
     auto* internal = static_cast<ButtonControlInternal*>(device_get_driver_data(device));
-    release_buttons(internal);
+
+    if (internal->primary.in_use) {
+        gpio_descriptor_release(internal->primary.descriptor);
+    }
+    if (internal->secondary.in_use) {
+        gpio_descriptor_release(internal->secondary.descriptor);
+    }
+
     free(internal);
     return ERROR_NONE;
 }
@@ -190,8 +185,6 @@ static error_t button_control_read_key(Device* device, KeyboardKeyData* data) {
 
     poll_button(config, internal, &internal->primary);
     poll_button(config, internal, &internal->secondary);
-    poll_button(config, internal, &internal->previous);
-    poll_button(config, internal, &internal->back);
 
     ButtonControlPendingEvent event;
     if (pop_pending(internal, &event)) {

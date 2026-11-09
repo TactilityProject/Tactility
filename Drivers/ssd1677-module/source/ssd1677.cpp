@@ -295,6 +295,8 @@ static void set_window(Ssd1677Internal* internal, int y0, int y1) {
 }
 
 static void hardware_init(Ssd1677Internal* internal) {
+    // A reset turns the analog part off
+    internal->powered = false;
     gpio_set_level(static_cast<gpio_num_t>(internal->pin_reset), 0);
     vTaskDelay(pdMS_TO_TICKS(2));
     gpio_set_level(static_cast<gpio_num_t>(internal->pin_reset), 1);

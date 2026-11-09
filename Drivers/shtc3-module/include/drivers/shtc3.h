@@ -17,6 +17,7 @@ struct Shtc3Config {
 
 /**
  * Measure the temperature and the relative humidity.
+ * The output pointers must not be null.
  * @param[in]  device             shtc3 device
  * @param[out] celsius            temperature in degrees Celsius
  * @param[out] humidity_percent   relative humidity in percent

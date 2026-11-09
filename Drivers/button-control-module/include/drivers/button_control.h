@@ -18,10 +18,6 @@ struct ButtonControlConfig {
     bool active_low;
     uint32_t debounce_ms;
     uint32_t long_press_ms;
-    // GPIO_PIN_SPEC_NONE when there is no separate button for the previous item
-    struct GpioPinSpec pin_previous;
-    // GPIO_PIN_SPEC_NONE when there is no back button
-    struct GpioPinSpec pin_back;
 };
 
 #ifdef __cplusplus
