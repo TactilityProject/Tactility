@@ -317,6 +317,8 @@ static const DisplayApi sdl_display_api = {
     .reset = sdl_display_reset,
     .init = sdl_display_init,
     .draw_bitmap = sdl_display_draw_bitmap,
+    .clear = nullptr,
+    .refresh = nullptr,
     .mirror = sdl_display_mirror,
     .swap_xy = sdl_display_swap_xy,
     .get_swap_xy = sdl_display_get_swap_xy,
@@ -335,6 +337,7 @@ static const DisplayApi sdl_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = nullptr,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 extern Module simulator_module;

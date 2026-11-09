@@ -49,7 +49,7 @@ struct Operation {
 };
 
 struct InstalledPackage {
-    PackageManifest package;
+    PackageSummary package;
     AppId first_app_id;
 };
 

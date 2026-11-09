@@ -36,7 +36,7 @@ error_t app_paths_get_user_data_directory(const char* app_id, char* out_path, si
     if (error != ERROR_NONE) {
         return error;
     }
-    int written = std::snprintf(out_path, out_path_size, "%s/user/app/%s", root, app_id);
+    int written = std::snprintf(out_path, out_path_size, "%s/appdata/%s", root, app_id);
     if (written < 0 || (size_t)written >= out_path_size) {
         return ERROR_BUFFER_OVERFLOW;
     }

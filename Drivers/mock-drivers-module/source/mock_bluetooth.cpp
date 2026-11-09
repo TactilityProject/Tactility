@@ -496,6 +496,7 @@ Driver mock_bluetooth_driver = {
     .compatible = (const char*[]) { "mock,bluetooth", nullptr },
     .start_device = startDevice,
     .stop_device = stopDevice,
+    .probe = nullptr,
     .api = (const void*)&mock_bluetooth_api,
     .device_type = &BLUETOOTH_TYPE,
     .internal = nullptr

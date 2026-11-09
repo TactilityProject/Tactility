@@ -14,9 +14,12 @@
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/drivers/backlight.h>
+#include <tactility/file_ops.h>
 
 #include <lvgl.h>
 #include <lvgl/widgets/toolbar.h>
+
+#include <new>
 
 namespace tt::app::keyboardsettings {
 
@@ -199,10 +202,24 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
 // Mirrors the old onHide() behaviour: persist the settings (regardless of whether the app is
 // giving up its thread for a save/resume cycle, or closing for good) whenever they changed.
+struct SaveSettingsJob {
+    settings::keyboard::KeyboardSettings settings;
+};
+
+/** File operation: it runs on the file operations task, which frees the job */
+void saveSettingsInBackground(void* context) {
+    auto* job = static_cast<SaveSettingsJob*>(context);
+    settings::keyboard::save(job->settings);
+    delete job;
+}
+
 void persistIfUpdated(Context& ctx) {
     if (ctx.updated) {
-        const auto copy = ctx.kbSettings;
-        getMainDispatcher().dispatch([copy]{ settings::keyboard::save(copy); });
+        auto* job = new (::std::nothrow) SaveSettingsJob { ctx.kbSettings };
+        if (job == nullptr || file_ops_queue(saveSettingsInBackground, job, nullptr) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to queue saving keyboard settings");
+            delete job;
+        }
         ctx.updated = false;
     }
 }

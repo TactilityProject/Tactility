@@ -135,6 +135,7 @@ Driver esp32_sleep_driver = {
     .compatible = (const char*[]) { "espressif,esp32-sleep", nullptr },
     .start_device = start_device,
     .stop_device = nullptr,
+    .probe = nullptr,
     .api = &esp32_sleep_api,
     .device_type = &SLEEP_CONTROLLER_TYPE,
     .internal = nullptr

@@ -517,6 +517,7 @@ static const DisplayApi jd9165_display_api = {
     .get_frame_buffer_count = jd9165_get_frame_buffer_count,
     .get_backlight = jd9165_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver jd9165_driver = {
@@ -524,6 +525,7 @@ Driver jd9165_driver = {
     .compatible = (const char*[]) { "jdi,jd9165", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &jd9165_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

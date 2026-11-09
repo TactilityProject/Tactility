@@ -32,7 +32,7 @@ enum class Op {
 struct Operator {
     Op op;
     char assign = 0;     // Assign/AssignDone: compound operation char, 0 for plain `=`
-    std::string name;    // Assign/AssignDone: target variable
+    std::string name = {}; // Assign/AssignDone: target variable
     long rhs = 0;        // AssignDone: the already-evaluated right-hand side
 };
 

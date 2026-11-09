@@ -1,6 +1,5 @@
 #include <Tactility/app/boot/BootInit.h>
 
-#include "Tactility/hal/SdCard.h"
 #include "Tactility/network/NtpPrivate.h"
 #include "Tactility/settings/TimePrivate.h"
 
@@ -20,6 +19,7 @@
 #include <Tactility/MountPoints.h>
 #include <Tactility/TactilityPrivate.h>
 #include <Tactility/app/boot/BootScreen.h>
+#include <Tactility/app/boot/BootScripts.h>
 #include <generated_assets.h>
 #include <Tactility/hal/usb/Usb.h>
 #include <Tactility/hal/usb/UsbHost.h>
@@ -29,6 +29,7 @@
 #include <Tactility/settings/AppearanceSettings.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
+#include <Tactility/settings/GrovePortSettings.h>
 
 
 #ifdef ESP_PLATFORM
@@ -288,12 +289,13 @@ bool bootInit(TickType_t startTime) {
     LOG_I(TAG, "Init timezone");
     settings::initTimeZone();
 
-    // Attempt to start all disabled SD cards (some require delayed init)
-    LOG_I(TAG, "Init SDMMC");
-    hal::sdcard::startAll();
-
     LOG_I(TAG, "Init NTP");
     network::ntp::init();
+
+    // Before the services, which only start GPS time sync when a GPS device exists, and a GPS can
+    // be on a Grove UART
+    LOG_I(TAG, "Restore Grove modes");
+    settings::grove::restoreAll();
 
     LOG_I(TAG, "Init Services");
     registerAndStartServices();
@@ -335,6 +337,18 @@ bool bootInit(TickType_t startTime) {
     if (sd_card_missing) {
         showMessageAndRebootOrPowerOff(screen, { "SD card not found.", "Please insert one and reboot." });
         return false;
+    }
+
+    // A script that caused a crash would otherwise run again before the crash screen and the launcher can start
+    bool crashed = false;
+#ifdef ESP_PLATFORM
+    const auto reset_reason = esp_reset_reason();
+    crashed = reset_reason == ESP_RST_PANIC || reset_reason == ESP_RST_INT_WDT || reset_reason == ESP_RST_TASK_WDT || reset_reason == ESP_RST_WDT;
+#endif
+    if (crashed) {
+        LOG_W(TAG, "Skipping boot scripts after a crash");
+    } else {
+        runBootScripts();
     }
 
 #ifdef ESP_PLATFORM

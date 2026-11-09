@@ -184,6 +184,7 @@ uint32_t start(uint32_t callerAppInstanceId, const std::string& title, const std
         .buffer = buffer,
         .buffer_capacity = bufferCapacity,
         .event_group = eventGroup,
+        .window_size = {},
         .alias_fd = -1,
     };
     uint32_t instanceId = 0;

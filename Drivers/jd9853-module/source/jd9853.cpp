@@ -368,6 +368,7 @@ Driver jd9853_driver = {
     .compatible = (const char*[]) { "jadard,jd9853", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &jd9853_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

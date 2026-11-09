@@ -197,6 +197,15 @@ struct Device* device_get_parent(struct Device* device);
 bool device_is_ready(const struct Device* device);
 
 /**
+ * Indicates whether device_stop() is running for the device. It's set before the DEVICE_EVENT_STOPPING
+ * listeners are notified, and cleared after the driver stopped.
+ *
+ * @param[in] device non-null device pointer
+ * @return true if the device is stopping
+ */
+bool device_is_stopping(const struct Device* device);
+
+/**
  * Indicates whether the device is compatible with the given compatible string.
  * @param[in] device non-null device pointer
  * @param[in] compatible compatible string

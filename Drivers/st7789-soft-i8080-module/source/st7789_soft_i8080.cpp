@@ -418,6 +418,7 @@ static const DisplayApi st7789_soft_i8080_display_api = {
     .get_frame_buffer_count = st7789_soft_i8080_get_frame_buffer_count,
     .get_backlight = st7789_soft_i8080_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7789_soft_i8080_driver = {

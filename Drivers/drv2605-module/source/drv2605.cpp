@@ -141,6 +141,7 @@ Driver drv2605_driver = {
     .compatible = (const char*[]) { "ti,drv2605", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &DRV2605_HAPTIC_API,
     .device_type = &HAPTIC_TYPE,
     .internal = nullptr

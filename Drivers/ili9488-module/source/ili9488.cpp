@@ -372,6 +372,7 @@ static const DisplayApi ili9488_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = ili9488_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver ili9488_driver = {
@@ -379,6 +380,7 @@ Driver ili9488_driver = {
     .compatible = (const char*[]) { "ilitek,ili9488", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &ili9488_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

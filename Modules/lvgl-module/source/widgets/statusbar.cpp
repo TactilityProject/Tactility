@@ -355,7 +355,7 @@ lv_obj_t* lvgl_statusbar_create(lv_obj_t* parent) {
     }
     statusbar->icon_row = icon_row;
 
-    lv_obj_add_flag(icon_row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_clickable(icon_row, true);
     lv_obj_add_event_cb(icon_row, onIconRowClicked, LV_EVENT_SHORT_CLICKED, nullptr);
     lv_obj_add_event_cb(icon_row, onIconRowKey, LV_EVENT_KEY, statusbar);
 

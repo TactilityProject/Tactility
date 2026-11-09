@@ -32,6 +32,7 @@ const AppFileOps NULL_OPS = {
     .poll = null_poll,
     .retain = nullptr,
     .release = nullptr,
+    .ioctl = nullptr,
 };
 
 constexpr AppFile NULL_FILE = { .ops = &NULL_OPS, .object = nullptr };

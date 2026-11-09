@@ -151,3 +151,33 @@ TEST_CASE("file_ops_await times out when nothing was queued") {
     file_ops_unsubscribe(&sub);
     task_event_group_destruct(&group);
 }
+
+namespace {
+
+struct WorkerProbe {
+    std::atomic<int> insideWorker { -1 };
+};
+
+void probe_worker(void* context) {
+    static_cast<WorkerProbe*>(context)->insideWorker = file_ops_is_worker() ? 1 : 0;
+}
+
+}
+
+TEST_CASE("file_ops_is_worker is only true inside queued work") {
+    CHECK_FALSE(file_ops_is_worker());
+
+    TaskEventGroup group {};
+    task_event_group_construct(&group);
+    FileOpsSubscription sub {};
+    REQUIRE_EQ(file_ops_subscribe(&sub, &group), ERROR_NONE);
+
+    WorkerProbe probe;
+    CHECK_EQ(file_ops_queue(probe_worker, &probe, &sub), ERROR_NONE);
+    CHECK_EQ(file_ops_await(&sub, pdMS_TO_TICKS(2000)), ERROR_NONE);
+    CHECK_EQ(probe.insideWorker.load(), 1);
+    CHECK_FALSE(file_ops_is_worker());
+
+    file_ops_unsubscribe(&sub);
+    task_event_group_destruct(&group);
+}

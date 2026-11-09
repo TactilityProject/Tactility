@@ -349,6 +349,11 @@ bool app_hub_catalog_is_compatible(const AppHubCatalogEntry& entry) {
         return false;
     }
     strcpy(package.requires_device_id, device_ids.c_str());
+    if (entry.target_sdk.size() >= sizeof(package.target_sdk)) {
+        LOG_W(TAG, "%s: targetSdk too long", entry.id.c_str());
+        return false;
+    }
+    strcpy(package.target_sdk, entry.target_sdk.c_str());
     if (entry.requires_ram < 0 || entry.requires_ram > UINT8_MAX) {
         LOG_W(TAG, "%s: invalid requiresRam %d", entry.id.c_str(), static_cast<int>(entry.requires_ram));
         return false;

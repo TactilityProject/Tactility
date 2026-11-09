@@ -184,6 +184,7 @@ Driver esp32_usb_midi_device_driver = {
     .compatible   = (const char*[]) { "espressif,esp32-usbdevice-midi", nullptr },
     .start_device = start_device,
     .stop_device  = stop_device,
+    .probe = nullptr,
     .api          = &esp32_usb_midi_device_api,
     .device_type  = &USB_MIDI_DEVICE_TYPE,
     .internal     = nullptr,

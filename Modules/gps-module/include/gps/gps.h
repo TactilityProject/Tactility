@@ -63,17 +63,36 @@ struct GpsEvent {
         struct minmea_sentence_gsv gsv;
         struct minmea_sentence_gsa gsa;
     } data;
+    /**
+     * NMEA talker ID of the sentence, two letters plus NUL: "GP" GPS, "GL" GLONASS, "GA" Galileo,
+     * "GB" or "BD" BeiDou, "GQ" QZSS, "GN" combined. Empty when unknown, e.g. for GPS_EVENT_UNSUBSCRIBED.
+     */
+    char talker[3];
+    /**
+     * NMEA 4.10 system ID of a GSA sentence: 1 GPS, 2 GLONASS, 3 Galileo, 4 BeiDou, 5 QZSS, 6 NavIC.
+     * 0 when the receiver doesn't send it, and for other sentences.
+     */
+    uint8_t system_id;
 };
+
+/** Events that a subscription holds until event_await takes them. Later events are dropped while it's full. */
+#define GPS_SUBSCRIPTION_QUEUE_LENGTH 16
 
 struct GpsSubscription {
     TaskHandle_t task;
 
+    /** The event that the last successful event_await took */
     struct GpsEvent event;
 
+    /** Number of events the driver queued */
     uint32_t sequence;
+    /** Number of events event_await took */
     uint32_t consumed_sequence;
 
     struct GpsSubscription* next;
+
+    /** Events not taken yet. Written by the driver. */
+    struct GpsEvent queue[GPS_SUBSCRIPTION_QUEUE_LENGTH];
 };
 
 /**
@@ -82,8 +101,17 @@ struct GpsSubscription {
 struct GpsApi {
     /**
      * @brief Registers a subscriber for GPS events (e.g. RMC/GGA sentences).
+     *
+     * Fails with ERROR_INVALID_STATE until the device started, and once device_stop() started for it. A successful subscription
+     * was registered before the DEVICE_EVENT_STOPPING listeners run, and gets GPS_EVENT_UNSUBSCRIBED as
+     * its last event when the device stops. The device can be freed after it stopped, so a subscriber
+     * either unsubscribes in a DEVICE_EVENT_STOPPING listener, or holds a reference (device_get()) until
+     * it unsubscribed or got GPS_EVENT_UNSUBSCRIBED.
+     *
      * @param[in] device the GPS device
      * @param[in,out] sub subscription to register; caller owns the storage and must keep it alive until unsubscribed
+     * @retval ERROR_NONE on success
+     * @retval ERROR_INVALID_STATE if the device isn't started, or is stopping
      */
     error_t (*event_subscribe)(struct Device* device, struct GpsSubscription* sub);
 
@@ -95,7 +123,8 @@ struct GpsApi {
     error_t (*event_unsubscribe)(struct Device* device, struct GpsSubscription* sub);
 
     /**
-     * @brief Blocks the calling task until a new event arrives for the subscription, or timeout elapses.
+     * @brief Takes the oldest queued event into sub->event, and blocks the calling task until one arrives
+     * or timeout elapses when none is queued. Only the subscribing task calls this.
      * @param[in] device the GPS device
      * @param[in,out] sub subscription to wait on
      * @param[in] timeout max ticks to wait

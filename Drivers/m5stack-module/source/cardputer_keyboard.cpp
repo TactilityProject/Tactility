@@ -297,6 +297,8 @@ static error_t cardputer_keyboard_read_key(Device* device, KeyboardKeyData* data
 
 static const KeyboardApi cardputer_keyboard_api = {
     .read_key = cardputer_keyboard_read_key,
+    .get_backlight = nullptr,
+    .is_present = nullptr,
 };
 
 Driver cardputer_keyboard_driver = {
@@ -304,6 +306,7 @@ Driver cardputer_keyboard_driver = {
     .compatible = (const char*[]) { "m5stack,cardputer-keyboard", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &cardputer_keyboard_api,
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr

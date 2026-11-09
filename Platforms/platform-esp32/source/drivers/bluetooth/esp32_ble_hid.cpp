@@ -560,6 +560,7 @@ Driver esp32_ble_hid_device_driver = {
     .compatible   = nullptr,
     .start_device = nullptr,
     .stop_device  = esp32_ble_hid_device_stop_device,
+    .probe = nullptr,
     .api          = &nimble_hid_device_api,
     .device_type  = &BLUETOOTH_HID_DEVICE_TYPE,
     .internal     = nullptr,

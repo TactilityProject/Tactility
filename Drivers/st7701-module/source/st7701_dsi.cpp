@@ -462,6 +462,7 @@ static const DisplayApi st7701_dsi_display_api = {
     .get_frame_buffer_count = st7701_dsi_get_frame_buffer_count,
     .get_backlight = st7701_dsi_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7701_dsi_driver = {
@@ -469,6 +470,7 @@ Driver st7701_dsi_driver = {
     .compatible = (const char*[]) { "sitronix,st7701-dsi", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = &st7701_dsi_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

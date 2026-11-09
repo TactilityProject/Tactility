@@ -444,6 +444,7 @@ error_t getRadioProfile(void* context, RadioRegion region, RadioModulation modul
             .sync_word = 0x2B,
             .preamble_length = 16,
             .power = std::min(info.powerLimit, MAX_RADIO_POWER),
+            .channel = 0,
         };
         return ERROR_NONE;
     }
@@ -606,12 +607,15 @@ const MeshBackendApi meshtastic_backend_api = {
     .destroy = destroy,
     .presets = PRESET_NAMES.data(),
     .get_radio_profile = getRadioProfile,
+    .get_preset_region = nullptr,
+    .get_preset_network = nullptr,
     .on_start = onStart,
     .on_receive = onReceive,
     .on_tick = onTick,
     .send_text = sendText,
     .get_channels = getChannels,
     .set_channel = setChannel,
+    .get_contact_uri = nullptr,
     .is_valid_contact_address = isValidContactAddress,
     .on_node_name_changed = onNodeNameChanged,
     .remove_channel = removeChannel,

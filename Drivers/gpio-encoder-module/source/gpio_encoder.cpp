@@ -319,6 +319,8 @@ static error_t gpio_encoder_read_key(Device* device, KeyboardKeyData* data) {
 
 static constexpr KeyboardApi GPIO_ENCODER_API = {
     .read_key = gpio_encoder_read_key,
+    .get_backlight = nullptr,
+    .is_present = nullptr,
 };
 
 Driver gpio_encoder_driver = {
@@ -326,6 +328,7 @@ Driver gpio_encoder_driver = {
     .compatible = (const char*[]) { "tactility,gpio-encoder", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &GPIO_ENCODER_API,
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr

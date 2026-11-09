@@ -32,13 +32,23 @@ private:
     std::string selected_child_entry;
     PendingAction action = ActionNone;
     std::string pending_paste_dst;
+    std::string pending_paste_src;
+    bool pending_paste_is_cut = false;
     struct stat pending_paste_dst_stat {};
     bool pending_paste_dst_stat_valid = false;
     std::string clipboard_path;
     bool clipboard_is_cut = false;
     bool clipboard_active = false;
+    std::optional<std::pair<std::string, std::string>> paste_source_and_destination;
+    bool paste_is_cut = false;
 
 public:
+
+    struct PasteRequest {
+        std::string source;
+        std::string destination;
+        bool is_cut;
+    };
 
 
     State();
@@ -75,28 +85,59 @@ public:
 
     void setPendingAction(PendingAction newAction) { action = newAction; }
 
-    // These accessors intentionally omit mutex locking: both are only called
-    // from the UI thread (onPastePressed → onResult), so no concurrent access
-    // is possible.  If that threading assumption changes, add mutex guards here
-    // to match the clipboard accessors above.
-    std::string getPendingPasteDst() const { return pending_paste_dst; }
-    void setPendingPasteDst(const std::string& dst) { pending_paste_dst = dst; }
+    std::string getPendingPasteDst() const {
+        std::string result;
+        mutex.withLock([&] { result = pending_paste_dst; });
+        return result;
+    }
+
+    void setPendingPasteDst(const std::string& dst) {
+        mutex.withLock([&] { pending_paste_dst = dst; });
+    }
+
+    /** The source and mode of the paste that waits for confirmation, which can differ from the clipboard by then */
+    std::string getPendingPasteSource() const {
+        std::string result;
+        mutex.withLock([&] { result = pending_paste_src; });
+        return result;
+    }
+
+    bool getPendingPasteIsCut() const {
+        bool result = false;
+        mutex.withLock([&] { result = pending_paste_is_cut; });
+        return result;
+    }
+
+    void setPendingPasteSource(const std::string& src, bool is_cut) {
+        mutex.withLock([&] {
+            pending_paste_src = src;
+            pending_paste_is_cut = is_cut;
+        });
+    }
 
     /** Snapshot dst's stat at confirm-dialog time, so it can be revalidated right before the destructive delete. */
     void setPendingPasteDstStat(const struct stat& st) {
-        pending_paste_dst_stat = st;
-        pending_paste_dst_stat_valid = true;
+        mutex.withLock([&] {
+            pending_paste_dst_stat = st;
+            pending_paste_dst_stat_valid = true;
+        });
     }
 
-    void clearPendingPasteDstStat() { pending_paste_dst_stat_valid = false; }
+    void clearPendingPasteDstStat() {
+        mutex.withLock([&] { pending_paste_dst_stat_valid = false; });
+    }
 
     /** True if dst had no prior snapshot (nothing to overwrite) or `st` still matches it. */
     bool pendingPasteDstMatches(const struct stat& st) const {
-        return !pending_paste_dst_stat_valid ||
-            (pending_paste_dst_stat.st_dev == st.st_dev &&
-             pending_paste_dst_stat.st_ino == st.st_ino &&
-             pending_paste_dst_stat.st_size == st.st_size &&
-             pending_paste_dst_stat.st_mtime == st.st_mtime);
+        bool result = false;
+        mutex.withLock([&] {
+            result = !pending_paste_dst_stat_valid ||
+                (pending_paste_dst_stat.st_dev == st.st_dev &&
+                 pending_paste_dst_stat.st_ino == st.st_ino &&
+                 pending_paste_dst_stat.st_size == st.st_size &&
+                 pending_paste_dst_stat.st_mtime == st.st_mtime);
+        });
+        return result;
     }
 
     void setClipboard(const std::string& path, bool is_cut) {
@@ -122,6 +163,37 @@ public:
             }
         });
         return result;
+    }
+
+    /** Hands a paste to the app task, which does the file system work. A newer request replaces one that wasn't taken yet. */
+    void setPasteRequest(const PasteRequest& request) {
+        mutex.withLock([&] {
+            paste_source_and_destination = { request.source, request.destination };
+            paste_is_cut = request.is_cut;
+        });
+    }
+
+    /** Takes the pending paste request, or nullopt when there is none. */
+    std::optional<PasteRequest> takePasteRequest() {
+        std::optional<PasteRequest> result;
+        mutex.withLock([&] {
+            if (paste_source_and_destination.has_value()) {
+                result = PasteRequest { paste_source_and_destination->first, paste_source_and_destination->second, paste_is_cut };
+                paste_source_and_destination.reset();
+            }
+        });
+        return result;
+    }
+
+    /** Clears the clipboard only while it still holds @a path as a cut, so a newer entry stays */
+    void clearClipboardIfCut(const std::string& path) {
+        mutex.withLock([&] {
+            if (clipboard_active && clipboard_is_cut && clipboard_path == path) {
+                clipboard_active = false;
+                clipboard_path.clear();
+                clipboard_is_cut = false;
+            }
+        });
     }
 
     void clearClipboard() {

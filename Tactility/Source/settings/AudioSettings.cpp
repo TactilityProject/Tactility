@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/AudioSettings.h>
 
 #include "tactility/paths.h"
@@ -69,7 +70,7 @@ bool load(AudioSettings& settings) {
         return false;
     }
 
-    if (!file::isFile(settings_path)) {
+    if (!file_exists(settings_path.c_str())) {
         return false;
     }
 

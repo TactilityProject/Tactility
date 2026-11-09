@@ -408,6 +408,7 @@ Driver esp32_uart_driver = {
     .compatible = (const char*[]) { "espressif,esp32-uart", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = (void*)&esp32_uart_api,
     .device_type = &UART_CONTROLLER_TYPE,
     .internal = nullptr

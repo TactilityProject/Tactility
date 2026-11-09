@@ -77,6 +77,7 @@ Driver mock_power_supply_driver = {
     .compatible = (const char*[]) { "mock,power-supply", nullptr },
     .start_device = nullptr,
     .stop_device = nullptr,
+    .probe = nullptr,
     .api = (const void*)&mock_power_supply_api,
     .device_type = &POWER_SUPPLY_TYPE,
     .internal = nullptr

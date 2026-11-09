@@ -116,18 +116,15 @@ static void perform_hardware_reset(const Tca8418Config* config) {
         return;
     }
 
-    // Not requesting GPIO_FLAG_ACTIVE_LOW here: some GPIO expanders (e.g. xl9555/tca95xx/
-    // tca9534) can only invert what's read back from an input, not what's driven on an
-    // output, so they reject ACTIVE_LOW combined with OUTPUT. Drive the raw physical level
-    // instead: this pin's reset line is active-low, so low asserts and high releases.
-    auto* rst = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
+    // The reset line is active-low, so a logical high asserts the reset
+    auto* rst = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
     if (rst == nullptr) {
         return;
     }
 
-    gpio_descriptor_set_level(rst, false);
-    delay_millis(20);
     gpio_descriptor_set_level(rst, true);
+    delay_millis(20);
+    gpio_descriptor_set_level(rst, false);
     gpio_descriptor_release(rst);
     delay_millis(60);
 }
@@ -286,6 +283,7 @@ Driver tca8418_driver = {
     .compatible = (const char*[]) { "ti,tca8418", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &tca8418_api,
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr

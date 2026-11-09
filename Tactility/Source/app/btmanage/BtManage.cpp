@@ -2,7 +2,6 @@
 
 #include <Tactility/app/btmanage/BtManagePrivate.h>
 #include <Tactility/app/btmanage/View.h>
-#include <Tactility/MainDispatcher.h>
 
 #include <bluetooth/bluetooth_service.h>
 #include <bluetooth/bluetooth_settings.h>
@@ -18,7 +17,10 @@
 #include <tactility/check.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/device.h>
+#include <tactility/file_ops.h>
 #include <tactility/log.h>
+
+#include <new>
 
 namespace tt::app::btmanage {
 
@@ -34,11 +36,25 @@ static BtRadioState getRadioState(Device* dev) {
     return state;
 }
 
-static void onBtToggled(void* /*context*/, bool requestOn) {
-    // Dispatched, so file IO doesn't block the UI
-    getMainDispatcher().dispatch([requestOn] {
-        bluetooth_settings_set_enable(requestOn);
-    });
+struct SaveEnabledJob {
+    bool enabled;
+};
+
+/** File operation: it runs on the file operations task, which frees the job */
+static void saveEnabledInBackground(void* context) {
+    auto* job = static_cast<SaveEnabledJob*>(context);
+    bluetooth_settings_set_enable(job->enabled);
+    delete job;
+}
+
+/** Runs on the app task: enabling the radio writes to flash, which the LVGL task can't do with its stack in external RAM */
+static void setRadioEnabled(bool requestOn) {
+    // Queued, so file IO doesn't block the app task
+    auto* job = new (::std::nothrow) SaveEnabledJob { requestOn };
+    if (job == nullptr || file_ops_queue(saveEnabledInBackground, job, nullptr) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue saving the Bluetooth state");
+        delete job;
+    }
     Device* dev;
     if (device_get_first_by_type(&BLUETOOTH_TYPE, &dev) == ERROR_NONE) {
         bool radio_on = bluetooth_is_radio_on_or_pending(dev);
@@ -53,6 +69,12 @@ static void onBtToggled(void* /*context*/, bool requestOn) {
     } else {
         LOG_W(TAG, "Toggle: No bluetooth device found");
     }
+}
+
+static void onBtToggled(void* context, bool requestOn) {
+    auto* ctx = static_cast<Context*>(context);
+    ctx->radioRequest = requestOn ? 1 : 0;
+    task_event_group_signal(ctx->eventGroup, ctx->requestBit);
 }
 
 static void onScanToggled(void* /*context*/, bool enabled) {
@@ -187,6 +209,8 @@ int32_t appMain(int argc, char* argv[]) {
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.requestBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -216,6 +240,11 @@ int32_t appMain(int argc, char* argv[]) {
     bool shouldClose = false;
     while (!shouldClose) {
         task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+
+        const int radio_request = ctx.radioRequest.exchange(-1);
+        if (radio_request != -1) {
+            setRadioEnabled(radio_request == 1);
+        }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -248,6 +277,7 @@ int32_t appMain(int argc, char* argv[]) {
 
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
+    task_event_group_release_bit(&event_group, ctx.requestBit);
     task_event_group_destruct(&event_group);
 
     return 0;

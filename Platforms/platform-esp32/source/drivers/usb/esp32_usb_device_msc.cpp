@@ -287,6 +287,7 @@ Driver esp32_usb_msc_device_driver = {
     .compatible   = (const char*[]) { "espressif,esp32-usbdevice-msc", nullptr },
     .start_device = start_device,
     .stop_device  = stop_device,
+    .probe = nullptr,
     .api          = &esp32_usb_msc_device_api,
     .device_type  = &USB_MSC_DEVICE_TYPE,
     .internal     = nullptr,

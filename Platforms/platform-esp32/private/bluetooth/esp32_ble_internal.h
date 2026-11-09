@@ -8,6 +8,7 @@
 
 #include <tactility/drivers/bluetooth.h>
 #include <tactility/error.h>
+#include <tactility/file_ops.h>
 // Must be included before any NimBLE header: log_common.h (pulled in by ble_hs.h)
 // defines LOG_LEVEL_* as macros with the same names as tactility/log.h's LogLevel enum.
 // Including tactility/log.h first ensures the enum is compiled before the macros shadow it.
@@ -188,6 +189,14 @@ bool ble_identity_derive_addr(uint32_t identity_hash, const uint8_t base[BT_ADDR
  * @return false when the swap could not be committed, the previous set stays active.
  */
 bool ble_identity_bond_slot_activate(uint32_t identity_hash);
+
+/**
+ * Run @a work on the file operations task and wait until it has finished. Flash and NVS writes
+ * must not run on tasks with a stack in external RAM, which includes the LVGL task.
+ * @warning Must not be called from the file operations task or while holding a lock that @a work takes.
+ * @return false when the work could not be queued
+ */
+bool ble_run_file_operation(file_ops_work_fn_t work, void* context);
 
 /**
  * Apply the pending identity to a radio that is already on, so a profile start does not

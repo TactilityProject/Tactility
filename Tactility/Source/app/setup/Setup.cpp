@@ -195,6 +195,19 @@ void onContinueClicked(lv_event_t* event) {
     }
 }
 
+// Keys enter the button row at Continue, whichever side they came from
+static void onButtonRowFocused(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    lv_indev_t* indev = lv_indev_active();
+    if (indev == nullptr || lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+        return;
+    }
+    auto* buttonRow = lv_event_get_current_target_obj(event);
+    if (!lv_obj_is_hidden(ctx->continueButton) && !lv_obj_has_state(ctx->continueButton, LV_STATE_DISABLED)) {
+        lv_gridnav_set_focused(buttonRow, ctx->continueButton, LV_ANIM_OFF);
+    }
+}
+
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     lvgl::systemBarsSetStatusbarVisible(false);
@@ -291,6 +304,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // The arrow keys move between the buttons, and Continue has the focus first
     lvgl_grid_navigation_add(buttonRow);
+    // Added after grid navigation's own handler, so it runs after it
+    lv_obj_add_event_cb(buttonRow, onButtonRowFocused, LV_EVENT_FOCUSED, ctx);
     if (!lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
         lv_group_focus_obj(buttonRow);
         lv_gridnav_set_focused(buttonRow, ctx->continueButton, LV_ANIM_OFF);

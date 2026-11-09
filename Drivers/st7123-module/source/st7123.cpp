@@ -583,6 +583,7 @@ static const DisplayApi st7123_display_api = {
     .get_frame_buffer_count = st7123_get_frame_buffer_count,
     .get_backlight = st7123_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7123_driver = {
@@ -590,6 +591,7 @@ Driver st7123_driver = {
     .compatible = (const char*[]) { "sitronix,st7123", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7123_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

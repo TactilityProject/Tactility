@@ -179,6 +179,7 @@ Driver qmi8658_driver = {
     .compatible = (const char*[]) { "qst,qmi8658", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &qmi8658_imu_api,
     .device_type = &IMU_TYPE,
     .internal = nullptr

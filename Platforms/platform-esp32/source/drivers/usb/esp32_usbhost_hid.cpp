@@ -386,7 +386,7 @@ static void hid_proc_task(void* arg) {
                 UsbHidEventType conn_type = (params.proto == HID_PROTOCOL_KEYBOARD)
                     ? USB_HID_EVENT_KEYBOARD_CONNECTED
                     : USB_HID_EVENT_MOUSE_CONNECTED;
-                UsbHidEvent evt = { .type = conn_type };
+                UsbHidEvent evt = { .type = conn_type, .scroll = {} };
                 publish_event(ctx, &evt);
             }
             hid_host_device_start(dev_evt.handle);
@@ -420,11 +420,11 @@ static bool api_hid_subscribe(struct Device* device, UsbHidQueueHandle event_que
     if (is_new) {
         auto queue = static_cast<QueueHandle_t>(event_queue);
         if (ctx->kb_handle.load() != nullptr) {
-            UsbHidEvent evt = { .type = USB_HID_EVENT_KEYBOARD_CONNECTED };
+            UsbHidEvent evt = { .type = USB_HID_EVENT_KEYBOARD_CONNECTED, .scroll = {} };
             xQueueSend(queue, &evt, 0);
         }
         if (ctx->mouse_connected) {
-            UsbHidEvent evt = { .type = USB_HID_EVENT_MOUSE_CONNECTED };
+            UsbHidEvent evt = { .type = USB_HID_EVENT_MOUSE_CONNECTED, .scroll = {} };
             xQueueSend(queue, &evt, 0);
         }
     }
@@ -709,6 +709,7 @@ Driver esp32_usbhost_hid_driver = {
     .compatible   = (const char*[]) { nullptr },
     .start_device = hid_device_start,
     .stop_device  = hid_device_stop,
+    .probe = nullptr,
     .api          = &hid_api,
     .device_type  = &USB_HOST_HID_TYPE,
     .internal     = nullptr,

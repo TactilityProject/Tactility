@@ -175,6 +175,7 @@ Driver esp32_sdmmc_driver = {
     .compatible = (const char*[]) { "espressif,esp32-sdmmc", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = &SDCARD_TYPE,
     .internal = nullptr

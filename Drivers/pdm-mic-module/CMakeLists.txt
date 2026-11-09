@@ -7,5 +7,5 @@ file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
 tactility_add_module(pdm-mic-module
     SRCS ${SOURCE_FILES}
     INCLUDE_DIRS include/
-    REQUIRES TactilityKernel audio-codec-module esp_codec_dev
+    REQUIRES TactilityKernel esp32-audio-codec esp_codec_dev
 )

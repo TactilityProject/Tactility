@@ -363,6 +363,7 @@ static const DisplayApi nv3031b_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = nv3031b_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver nv3031b_driver = {

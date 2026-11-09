@@ -23,8 +23,8 @@ namespace simulator {
 constexpr auto* TAG = "SimulatorProfile";
 constexpr auto* PROFILE_DIRECTORY = "data/tactility";
 constexpr auto* PROFILE_PATH = "data/tactility/simulator_profile.txt";
-constexpr auto* DISPLAY_SETTINGS_DIRECTORY = "data/tactility/user/app/tactility.display";
-constexpr auto* DISPLAY_SETTINGS_PATH = "data/tactility/user/app/tactility.display/display.properties";
+constexpr auto* DISPLAY_SETTINGS_DIRECTORY = "data/tactility/appdata/tactility.display";
+constexpr auto* DISPLAY_SETTINGS_PATH = "data/tactility/appdata/tactility.display/display.properties";
 constexpr auto* ORIENTATION_KEY = "orientation=";
 
 static const Profile PROFILES[PROFILE_COUNT] = {

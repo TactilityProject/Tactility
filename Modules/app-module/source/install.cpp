@@ -6,6 +6,7 @@
 
 #include <app/private/fs.h>
 #include <app/private/ledger.h>
+#include <app/private/manager_internal.h>
 #include <app/private/manifest_set.h>
 #include <app/private/module_loader.h>
 #include <app/private/package_manifest_parsing.h>
@@ -268,6 +269,14 @@ error_t register_installed_package_locked(const PackageManifest& package, const 
     auto record = std::make_unique<InstalledPackageRecord>(install_path, bindings, count);
     auto& manifests = record->owned.manifests;
 
+    // Checked before anything is replaced: an installed app of another package keeps its id
+    for (size_t i = 0; i < count; i++) {
+        if (app_manager_app_is_owned_by_other_package(manifests[i].id, package.id)) {
+            LOG_E(TAG, "App '%s' is installed by another package already", manifests[i].id);
+            return ERROR_ALREADY_EXISTS;
+        }
+    }
+
     for (size_t i = 0; i < count; i++) {
         // The caller's earlier uninstall_locked() call is meant to have already cleared any stale registration for this id
         // (e.g. left over from app_manager_install_path_scan()'s separate registry),
@@ -435,6 +444,18 @@ static error_t install_package(const char* source_path) {
 
     auto& registry = install_registry();
     mutex_lock(&registry.mutex);
+
+    // Refused before anything is replaced or moved into place. Checked with the registry locked,
+    // so another install can't register one of these ids between this check and the registration.
+    for (const auto& binding : app_bindings) {
+        if (app_manager_app_is_owned_by_other_package(binding.manifest.id, package.id)) {
+            LOG_E(TAG, "Install failed: app '%s' is installed by another package already", binding.manifest.id);
+            delete_recursively(staging_path);
+            release_staging_lock(staging_path);
+            mutex_unlock(&registry.mutex);
+            return ERROR_ALREADY_EXISTS;
+        }
+    }
 
     // Replace any previous installation of this package - this also handles the app_manager
     // registrations of its old AppManifests, so there's no separate app_manager_remove() needed

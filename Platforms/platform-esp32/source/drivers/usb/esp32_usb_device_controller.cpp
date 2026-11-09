@@ -404,6 +404,7 @@ Driver esp32_usb_device_controller_driver = {
     .compatible   = (const char*[]) { "espressif,esp32-usbdevice", nullptr },
     .start_device = start_device,
     .stop_device  = stop_device,
+    .probe = nullptr,
     .api          = &usb_device_controller_api,
     .device_type  = &USB_DEVICE_CONTROLLER_TYPE,
     .internal     = nullptr,

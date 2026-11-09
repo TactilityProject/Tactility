@@ -295,7 +295,7 @@ void View::init(uint32_t newAppInstanceId, lv_obj_t* parent) {
 
     loading_label = lv_label_create(parent);
     lv_label_set_text(loading_label, "Loading...");
-    lv_obj_add_flag(loading_label, LV_OBJ_FLAG_FLOATING);
+    lv_obj_set_floating(loading_label, true);
     lv_obj_align(loading_label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_hidden(loading_label, true);
 }

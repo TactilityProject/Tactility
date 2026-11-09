@@ -377,6 +377,7 @@ Driver gt911_driver = {
     .compatible = (const char*[]) { "goodix,gt911", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &gt911_touch_api,
     .device_type = &TOUCH_TYPE,
     .internal = nullptr

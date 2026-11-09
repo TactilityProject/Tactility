@@ -412,6 +412,7 @@ Driver esp32_spi_driver = {
     .compatible = (const char*[]) { "espressif,esp32-spi", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = (void*)&esp32_spi_api,
     .device_type = &SPI_CONTROLLER_TYPE,
     .internal = nullptr

@@ -1172,7 +1172,12 @@ static error_t api_unpair(struct Device* device, const BtAddr addr) {
     ble_addr_t ble_addr = {};
     ble_addr.type = BLE_ADDR_PUBLIC;
     memcpy(ble_addr.val, addr, BT_ADDR_LEN);
-    ble_store_util_delete_peer(&ble_addr);
+    // Deleting a bond persists the store to NVS
+    if (!ble_run_file_operation([](void* context) {
+        ble_store_util_delete_peer(static_cast<ble_addr_t*>(context));
+    }, &ble_addr)) {
+        return ERROR_RESOURCE;
+    }
     return ERROR_NONE;
 }
 
@@ -1495,6 +1500,7 @@ Driver esp32_bluetooth_driver = {
     .compatible   = (const char*[]) { "espressif,esp32-ble", nullptr },
     .start_device = esp32_ble_start_device,
     .stop_device  = esp32_ble_stop_device,
+    .probe = nullptr,
     .api          = &nimble_bluetooth_api,
     .device_type  = &BLUETOOTH_TYPE,
     .internal     = nullptr,

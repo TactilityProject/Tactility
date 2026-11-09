@@ -319,6 +319,7 @@ static error_t install_lib(UsbHostContext* ctx, const Esp32UsbHostConfig* cfg) {
         .enum_filter_cb      = nullptr,
         .fifo_settings_custom = {},
         .peripheral_map      = cfg->peripheral_map,
+        .fsls_only           = false,
     };
 
     esp_err_t ret = usb_host_install(&host_cfg);

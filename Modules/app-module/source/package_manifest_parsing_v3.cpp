@@ -209,6 +209,13 @@ error_t package_manifest_parse_v3(const std::map<std::string, std::string>& prop
         return ERROR_INVALID_ARGUMENT;
     }
 
+    auto platforms_iterator = properties.find("target.platforms");
+    if (platforms_iterator != properties.end() &&
+        !app_package_manifest_copy_bounded(out_package.target_platforms, sizeof(out_package.target_platforms), platforms_iterator->second)) {
+        LOG_E(TAG, "target.platforms too long");
+        return ERROR_INVALID_ARGUMENT;
+    }
+
     auto device_id_iterator = properties.find("requires.device.id");
     if (device_id_iterator != properties.end()) {
         const std::string& device_id = device_id_iterator->second;

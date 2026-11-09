@@ -243,6 +243,7 @@ Driver cst816t_driver = {
     .compatible = (const char*[]) { "hynitron,cst816t", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &cst816t_touch_api,
     .device_type = &TOUCH_TYPE,
     .internal = nullptr

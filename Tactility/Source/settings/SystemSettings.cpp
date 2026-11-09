@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
@@ -22,7 +23,7 @@ static SystemSettings cachedSettings;
 
 static bool hasSystemSettingsFile() {
     auto file_path = std::format(FILE_PATH_FORMAT, getDataPath());
-    return file::isFile(file_path);
+    return file_exists(file_path.c_str());
 }
 
 static bool loadSystemSettingsFromFile(SystemSettings& properties) {

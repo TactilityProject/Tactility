@@ -21,6 +21,11 @@ extern "C" {
  */
 error_t app_manager_start_internal(const struct AppStartContext* context, AppInstanceId* out_app_instance_id);
 
+/**
+ * @return true if a registered package other than @a package_id lists @a app_id
+ */
+bool app_manager_app_is_owned_by_other_package(const char* app_id, const char* package_id);
+
 #ifdef __cplusplus
 }
 #endif

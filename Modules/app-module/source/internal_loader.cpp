@@ -32,6 +32,7 @@ AppLoaderApi memory_loader_api = {
     .run = api_run,
     .unload = api_unload,
     .is_executable = api_is_executable,
+    .get_module = nullptr,
 };
 
 void* create_service(const ServiceManifest*) {

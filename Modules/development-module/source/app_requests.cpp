@@ -61,7 +61,7 @@ bool handleUninstall(DevelopmentRequestContext& context, const DevelopmentFrame&
     if (!development_requests_read_string(frame, id, sizeof(id))) {
         return development_requests_send_fail(context, "invalid id");
     }
-    PackageManifest package;
+    PackageSummary package;
     if (app_manager_find_package(id, &package) != ERROR_NONE) {
         LOG_I(TAG, "Uninstall %s: not installed", id);
         return development_requests_send_ok(context);

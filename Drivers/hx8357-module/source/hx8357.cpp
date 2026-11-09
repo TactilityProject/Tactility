@@ -457,6 +457,7 @@ static const DisplayApi hx8357_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = hx8357_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver hx8357_driver = {
@@ -464,6 +465,7 @@ Driver hx8357_driver = {
     .compatible = (const char*[]) { "himax,hx8357", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &hx8357_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

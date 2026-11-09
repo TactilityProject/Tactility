@@ -188,6 +188,7 @@ Driver tab5_power_control_driver = {
     .compatible = (const char*[]) { "m5stack,tab5-power-control", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &TAB5_POWER_CONTROL_API,
     .device_type = &POWER_SUPPLY_TYPE,
     .internal = nullptr

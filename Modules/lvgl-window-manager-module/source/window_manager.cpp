@@ -122,7 +122,7 @@ void hide_overlay_locked() {
     lvgl_keyboard_set_active_group(nullptr);
     lv_group_delete(overlay.group);
     // Deleted asynchronously, as this may run inside an event of one of the overlay's widgets
-    lv_obj_add_flag(overlay.widget, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(overlay.widget, true);
     lv_async_call(delete_overlay_widget, overlay.widget);
     overlay = {};
 }
