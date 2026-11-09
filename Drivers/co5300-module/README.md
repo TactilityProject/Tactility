@@ -39,10 +39,10 @@ spi0 {
         pin-reset = <&gpio0 44 GPIO_FLAG_NONE>;
 
         init-sequence = [
-            0x11 0 600
+            0x11 0 255
             0xFE 1 0 0x20
             /* ... */
-            0x29 0 600
+            0x29 0 255
         ];
 
         display_backlight {
@@ -60,7 +60,10 @@ spi0 {
   the format can be changed in the driver.
 - QSPI transfers use PSRAM DMA directly to avoid bounce buffers. If a target
   cannot DMA from PSRAM, set `psram_dma_direct` to 0 in `co5300.cpp`.
-- TE output is not consumed yet. The panel works without it; TE would only
-  improve tear-free synchronisation for fast animations.
+- The `init-sequence` delay is a single byte, so each step waits at most 255 ms.
+  Use `255` for the sleep-out/display-on waits if the panel tolerates it.
+- TE output is consumed when `pin-te` is set: the driver enables it (command 0x35, V-blank
+  only) and waits for the rising edge before each transfer. Without `pin-te`, the panel still
+  works, but fast animations can tear.
 
 License: [Apache v2.0](LICENSE-Apache-2.0.md)

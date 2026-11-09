@@ -85,6 +85,7 @@ properties:
     description: >
       Custom vendor bring-up sequence, flattened into bytes as a run of
       [cmd, data-length, delay-ms, data-length bytes of data...] entries, e.g.
-      `init-sequence = [0x11 0 600  0x29 0 600];`.
+      `init-sequence = [0x11 0 255  0x29 0 255];`.
+      Each delay is a single byte, so it is limited to 0-255 ms.
       Omit to use the CO5300 component's built-in default sequence, which targets a different
       panel size and is not suitable for a 480x480 Mosaico panel.
