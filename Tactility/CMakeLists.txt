@@ -88,7 +88,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         spi_flash
     )
 
-    if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
+    if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4" OR "${IDF_TARGET}" STREQUAL "esp32s31")
         list(APPEND REQUIRES_LIST esp_tinyusb)
     endif ()
 
@@ -247,12 +247,17 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 else ()
     set(fonts_simulator 1)
 endif ()
-add_custom_target(GeneratedFonts ALL
-    COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/generate-fonts.py"
+set(FONT_GENERATOR "${CMAKE_SOURCE_DIR}/Buildscripts/generate-fonts.py")
+add_custom_command(
+    OUTPUT "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
+    COMMAND python "${FONT_GENERATOR}"
         "${DEVICETREE_LOCATION}" ${fonts_simulator} "${GENERATED_DIR}"
-    BYPRODUCTS "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
+    DEPENDS "${FONT_GENERATOR}" "${DEVICETREE_LOCATION}/device.properties"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Generating font source files..."
+)
+add_custom_target(GeneratedFonts ALL
+    DEPENDS "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
 )
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.h" PROPERTIES GENERATED TRUE)

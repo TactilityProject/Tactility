@@ -9,7 +9,7 @@
 #include <sdkconfig.h>
 #include <soc/soc_caps.h>
 
-#if SOC_USB_OTG_SUPPORTED && (CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3)
+#if SOC_USB_OTG_SUPPORTED && (CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S31)
 
 #include <tactility/device.h>
 #include <tactility/driver.h>
