@@ -1,0 +1,12 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/axp2101-module
+  - Drivers/pcf85063-module
+  - Drivers/qmi8658-module
+  - Drivers/shtc3-module
+  - Drivers/es8311-module
+  - Drivers/audio-stream-module
+  - Drivers/ssd1677-module
+  - Drivers/button-control-module
+dts: waveshare,esp32-s3-epaper-397.dts
+dts-only: true

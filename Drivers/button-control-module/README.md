@@ -11,6 +11,9 @@ Devicetree binding: `tactility,button-control` (see `bindings/tactility,button-c
 - **One-button** (`pin-secondary` absent): short press = `LV_KEY_NEXT`, long press = `LV_KEY_ENTER`.
 - **Two-button** (`pin-secondary` present): primary short = `LV_KEY_ENTER`, primary long =
   `LV_KEY_ESC`, secondary short = `LV_KEY_NEXT`, secondary long = `LV_KEY_PREV`.
+- **Up/down/press switch** (`pin-previous` present as well): as two-button mode, and the
+  previous button gives `LV_KEY_PREV` on a short or long press.
+- **Back button** (`pin-back`, optional in any mode): `LV_KEY_ESC` on a short or long press.
 
 Short vs. long press is only decided when the button is released, by comparing the hold
 duration against `long-press-ms` - not at the moment it's pressed.

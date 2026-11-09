@@ -34,3 +34,14 @@ properties:
     type: int
     default: 500
     description: Minimum hold duration (from press to release) recognized as a long press
+  pin-previous:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: >
+      Optional button GPIO pin that selects the previous item on a short or long press, for
+      boards with an up/down/press switch. Combine it with pin-secondary for the next item.
+  pin-back:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: >
+      Optional back button GPIO pin. A short or long press sends the escape key.
