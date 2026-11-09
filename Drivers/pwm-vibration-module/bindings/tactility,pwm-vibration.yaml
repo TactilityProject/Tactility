@@ -8,7 +8,3 @@ properties:
     type: phandles
     required: true
     description: The PWM device driving the motor
-  strength-default:
-    type: int
-    default: 100
-    description: Default strength percentage (0..100) used by UI test actions

@@ -11,6 +11,7 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
+#include <atomic>
 #include <new>
 
 #define TAG "PwmVibration"
@@ -22,11 +23,14 @@ namespace {
 struct PulseRequest {
     uint32_t duration_ms;
     float percent;
+    uint32_t generation;
 };
 
 struct PwmVibrationInternal {
     QueueHandle_t queue = nullptr;
     TaskHandle_t task = nullptr;
+    /** Incremented by every pulse/strength request so a stale pulse does not clear a newer one. */
+    std::atomic<uint32_t> generation { 0 };
 };
 
 error_t apply_strength(Device* device, float percent) {
@@ -68,7 +72,11 @@ void pulse_task(void* arg) {
         }
         apply_strength(device, request.percent);
         vTaskDelay(pdMS_TO_TICKS(request.duration_ms));
-        apply_strength(device, 0.0f);
+        // A newer pulse or a sustained set_strength() supersedes this pulse. Only switch the
+        // motor off when this request is still the active one.
+        if (GET_INTERNAL(device)->generation.load() == request.generation) {
+            apply_strength(device, 0.0f);
+        }
     }
 }
 
@@ -130,6 +138,11 @@ error_t stop(Device* device) {
 // region VibrationApi
 
 error_t set_strength(Device* device, float percent) {
+    auto* internal = GET_INTERNAL(device);
+    if (internal != nullptr) {
+        // Cancel any in-flight pulse so it cannot clear this sustained strength afterwards.
+        internal->generation.fetch_add(1);
+    }
     return apply_strength(device, percent);
 }
 
@@ -138,7 +151,8 @@ error_t pulse(Device* device, uint32_t duration_ms, float percent) {
     if (internal == nullptr || internal->queue == nullptr) {
         return ERROR_INVALID_STATE;
     }
-    const PulseRequest request = { .duration_ms = duration_ms, .percent = percent };
+    const uint32_t generation = internal->generation.fetch_add(1) + 1;
+    const PulseRequest request = { .duration_ms = duration_ms, .percent = percent, .generation = generation };
     if (xQueueOverwrite(internal->queue, &request) != pdTRUE) {
         return ERROR_RESOURCE;
     }
