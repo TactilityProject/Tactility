@@ -577,13 +577,12 @@ error_t read_stream(AudioStreamHandle handle_base, void* out_data, size_t data_s
     bool same_rate = (handle->codec_rate == handle->config.sample_rate);
     bool same_channels = (handle->codec_channels == handle->config.channels);
 
+    size_t read_bytes = 0;
     error_t result;
     if (same_rate && same_channels) {
         size_t codec_bytes_read = 0;
         result = audio_codec_read(codec, out_data, data_size, &codec_bytes_read, timeout);
-        if (bytes_read != nullptr) {
-            *bytes_read = codec_bytes_read;
-        }
+        read_bytes = codec_bytes_read;
     } else {
         // Read enough codec-rate frames to produce the requested number of output-rate frames.
         size_t codec_frames = (size_t) ((double) requested_frames * ((double) handle->codec_rate / (double) handle->config.sample_rate)) + 2;
@@ -617,15 +616,17 @@ error_t read_stream(AudioStreamHandle handle_base, void* out_data, size_t data_s
                 handle->codec_rate, handle->config.sample_rate,
                 reinterpret_cast<int16_t*>(out_data), requested_frames);
 
-            if (bytes_read != nullptr) {
-                *bytes_read = out_frames * handle->bytes_per_frame;
-            }
+            read_bytes = out_frames * handle->bytes_per_frame;
         }
     }
 
-    if (result == ERROR_NONE && handle->input_gain != 1.0f && bytes_read != nullptr && *bytes_read > 0) {
+    if (bytes_read != nullptr) {
+        *bytes_read = read_bytes;
+    }
+
+    if (result == ERROR_NONE && handle->input_gain != 1.0f && read_bytes > 0) {
         auto* samples = reinterpret_cast<int16_t*>(out_data);
-        size_t sample_count = *bytes_read / sizeof(int16_t);
+        size_t sample_count = read_bytes / sizeof(int16_t);
         for (size_t i = 0; i < sample_count; i++) {
             float boosted = (float) samples[i] * handle->input_gain;
             samples[i] = (int16_t) (boosted < -32768.0f ? -32768.0f : boosted > 32767.0f ? 32767.0f : boosted);
@@ -634,12 +635,12 @@ error_t read_stream(AudioStreamHandle handle_base, void* out_data, size_t data_s
 
     // Codecs such as the ES8311 have no ADC mute, so input mute is applied here by discarding
     // the captured signal. See get_mute(): the cached flag is authoritative for input.
-    if (result == ERROR_NONE && bytes_read != nullptr && *bytes_read > 0) {
+    if (result == ERROR_NONE && read_bytes > 0) {
         xSemaphoreTake(data->mutex, portMAX_DELAY);
         const bool muted = data->input_muted;
         xSemaphoreGive(data->mutex);
         if (muted) {
-            memset(out_data, 0, *bytes_read);
+            memset(out_data, 0, read_bytes);
         }
     }
 
@@ -852,13 +853,24 @@ error_t get_mute(Device* device, AudioCodecDirection direction, bool* muted) {
     }
 
     // Input mute is applied in read_stream() (most simple codecs, including the ES8311, have no
-    // ADC mute), so the cached flag is authoritative there. Output mute is a real codec control.
-    if (direction != AUDIO_CODEC_DIR_INPUT && audio_codec_get_mute(codec, direction, muted) == ERROR_NONE) {
+    // ADC mute), so the cached flag is authoritative there. Also include the codec's own mute
+    // state in case another client muted it directly. Output mute is a real codec control.
+    if (direction == AUDIO_CODEC_DIR_INPUT) {
+        bool codec_muted = false;
+        const bool codec_has_mute = audio_codec_get_mute(codec, direction, &codec_muted) == ERROR_NONE;
+        xSemaphoreTake(data->mutex, portMAX_DELAY);
+        const bool software_muted = data->input_muted;
+        xSemaphoreGive(data->mutex);
+        *muted = software_muted || (codec_has_mute && codec_muted);
+        return ERROR_NONE;
+    }
+
+    if (audio_codec_get_mute(codec, direction, muted) == ERROR_NONE) {
         return ERROR_NONE;
     }
 
     xSemaphoreTake(data->mutex, portMAX_DELAY);
-    *muted = (direction == AUDIO_CODEC_DIR_INPUT) ? data->input_muted : data->output_muted;
+    *muted = data->output_muted;
     xSemaphoreGive(data->mutex);
     return ERROR_NONE;
 }
