@@ -212,7 +212,7 @@ static bool start_te(Co5300Internal* internal, const Co5300Config* config) {
         return false;
     }
 
-    gpio_flags_t flags = GPIO_FLAG_INTERRUPT_TO_OPTIONS(GPIO_FLAG_DIRECTION_INPUT, GPIO_INTERRUPT_ANY_EDGE);
+    gpio_flags_t flags = GPIO_FLAG_INTERRUPT_TO_OPTIONS(GPIO_FLAG_DIRECTION_INPUT, GPIO_INTERRUPT_POS_EDGE);
     internal->te_descriptor = gpio_descriptor_acquire(
         config->pin_te.gpio_controller, config->pin_te.pin, flags, GPIO_OWNER_GPIO
     );
@@ -234,6 +234,17 @@ static bool start_te(Co5300Internal* internal, const Co5300Config* config) {
         return false;
     }
 
+    return true;
+}
+
+// Sends the panel command that enables TE output. The caller must hold the SPI bus lock.
+static bool enable_te_output(Co5300Internal* internal) {
+    uint32_t tear_on_cmd = CO5300_QSPI_OPCODE_WRITE_CMD | (CO5300_CMD_TEAR_ON << 8);
+    uint8_t te_mode = 0x00; // V-blank only
+    if (esp_lcd_panel_io_tx_param(internal->io_handle, tear_on_cmd, &te_mode, 1) != ESP_OK) {
+        return false;
+    }
+    internal->te_enabled = true;
     return true;
 }
 
@@ -364,14 +375,11 @@ static error_t start(Device* device) {
     // Turn on the panel's TE output (V-blank pulses) so present() can align transfers to frames.
     // A failure here only loses tear sync, so the panel bring-up continues regardless.
     if (ok && te_ready) {
-        uint32_t tear_on_cmd = CO5300_QSPI_OPCODE_WRITE_CMD | (CO5300_CMD_TEAR_ON << 8);
-        uint8_t te_mode = 0x00; // V-blank only
-        if (esp_lcd_panel_io_tx_param(internal->io_handle, tear_on_cmd, &te_mode, 1) != ESP_OK) {
+        if (!enable_te_output(internal)) {
             LOG_W(TAG, "Failed to enable panel TE output; running without tear sync");
             stop_te(internal);
             te_ready = false;
         } else {
-            internal->te_enabled = true;
             LOG_I(TAG, "TE sync enabled on GPIO%d", config->pin_te.pin);
         }
     }
@@ -478,6 +486,12 @@ static error_t co5300_init(Device* device) {
     auto* internal = static_cast<Co5300Internal*>(device_get_driver_data(device));
     spi_controller_lock(internal->spi_controller);
     error_t result = esp_lcd_panel_init(internal->panel_handle) == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
+    // esp_lcd_panel_init() replays the vendor sequence, which can reset the TE output. Restore it
+    // when tear sync was active before the re-initialization.
+    if (result == ERROR_NONE && internal->te_enabled && !enable_te_output(internal)) {
+        LOG_W(TAG, "Failed to restore panel TE output; disabling tear sync");
+        stop_te(internal);
+    }
     spi_controller_unlock(internal->spi_controller);
     return result;
 }
