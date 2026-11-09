@@ -31,7 +31,7 @@ void sdl_input_pump(void);
 void sdl_input_get_pointer_state(struct SdlPointerState* out_state);
 
 /**
- * @brief Pops the next queued key event (produced by SDL_KEYDOWN/SDL_KEYUP during
+ * @brief Pops the next queued key event (produced by SDL_KEYDOWN/SDL_KEYUP/SDL_TEXTINPUT during
  * sdl_input_pump()).
  * @param[out] out_key the key code
  * @param[out] out_pressed true for press, false for release
@@ -43,6 +43,21 @@ bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed);
  * @brief Returns true if another key event is queued after the one just popped.
  */
 bool sdl_input_has_queued_key(void);
+
+/**
+ * @brief Gets one of the non-printable control keys (arrow/Enter/Backspace/.../see
+ * sdl_input.cpp's keycode_to_key()) that is currently physically held down, if any.
+ *
+ * Used to keep reporting PRESSED on an idle poll between a control key's SDL_KEYDOWN and its
+ * eventual SDL_KEYUP, once sdl_input_pop_key() has drained the queued press event itself.
+ * Printable keys (letters, digits, space, punctuation) are never held this way - see
+ * SDL_TEXTINPUT handling in sdl_input_pump(). If several control keys are held at once, an
+ * arbitrary one of them is returned - matches LVGL's own keypad indev model of a single active
+ * key.
+ * @param[out] out_key the held key code
+ * @retval false when no control key is currently held
+ */
+bool sdl_input_get_held_key(uint32_t* out_key);
 
 #ifdef __cplusplus
 }

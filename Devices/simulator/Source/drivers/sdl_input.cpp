@@ -28,9 +28,53 @@ bool key_pressed_queue[KEY_QUEUE_CAPACITY] = {};
 size_t key_queue_head = 0;
 size_t key_queue_count = 0;
 
+bool text_input_started = false;
+
+// CodePoint control keys (arrow/Enter/Backspace/.../see keycode_to_key()) currently held down,
+// 0 for an empty slot. Printable keys are queued as an instant press+release pair instead (see
+// SDL_TEXTINPUT handling in sdl_input_pump()), so they never populate this. Lets
+// sdl_input_get_held_key() keep reporting PRESSED on idle polls between a control key's
+// SDL_KEYDOWN and its eventual SDL_KEYUP - without it, every poll that finds the queue empty
+// would report RELEASED (the default), bouncing LVGL's indev state and losing the hold (long
+// press, continuous navigation, ...) well before the key is physically released. Sized for
+// every simultaneously-held non-printable key keycode_to_key() can produce, with headroom - a
+// slot silently going unused past that only affects this best-effort "still held" reporting,
+// never the real SDL_KEYUP release below, which is always queued regardless.
+constexpr size_t MAX_HELD_CONTROL_KEYS = 4;
+uint32_t held_control_keys[MAX_HELD_CONTROL_KEYS] = {};
+
+void mark_control_key_held(uint32_t key) {
+    for (uint32_t& slot : held_control_keys) {
+        if (slot == key) {
+            return;
+        }
+    }
+    for (uint32_t& slot : held_control_keys) {
+        if (slot == 0) {
+            slot = key;
+            return;
+        }
+    }
+}
+
+void clear_control_key_held(uint32_t key) {
+    for (uint32_t& slot : held_control_keys) {
+        if (slot == key) {
+            slot = 0;
+            return;
+        }
+    }
+}
+
 void push_key(uint32_t key, bool pressed) {
-    if (key == 0 || key_queue_count >= KEY_QUEUE_CAPACITY) {
+    if (key == 0) {
         return;
+    }
+    if (key_queue_count >= KEY_QUEUE_CAPACITY) {
+        // Drop the oldest queued event instead of this one: an incoming release must never be
+        // the one that gets dropped, or the focused widget never sees its matching release.
+        key_queue_head = (key_queue_head + 1) % KEY_QUEUE_CAPACITY;
+        key_queue_count--;
     }
     size_t idx = (key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY;
     key_queue[idx] = key;
@@ -44,7 +88,9 @@ void push_key(uint32_t key, bool pressed) {
 // CodePoint enum's standard Unicode symbols for the concept. lvgl-module's keyboard.cpp translates
 // all of these back to LVGL's own sentinels (CODEPOINT_ESCAPE/BACKSPACE/DELETE already equal their
 // LV_KEY_* counterpart numerically, so no translation is needed for those). Printable characters
-// arrive separately via SDL_TEXTINPUT.
+// (letters, digits, space, punctuation) are deliberately left as 0 here and arrive separately via
+// SDL_TEXTINPUT, which asks the OS for the already-shifted/caps-locked/layout-aware character
+// instead of reimplementing that logic.
 // The window can be freely resized (see sdl_display.cpp's SDL_WINDOW_RESIZABLE/
 // SDL_RenderSetLogicalSize()), so raw SDL mouse coordinates are in window-pixel space, not the
 // resolution LVGL renders at. The view also changes shape when the display rotates. The raw
@@ -76,7 +122,7 @@ void map_to_view(int32_t* x, int32_t* y) {
     sdl_display_view_to_native(x, y);
 }
 
-uint32_t keycode_to_key(SDL_Keycode sdl_key, bool shift) {
+uint32_t keycode_to_key(SDL_Keycode sdl_key) {
     switch (sdl_key) {
         case SDLK_RIGHT: return CODEPOINT_ARROW_RIGHT;
         case SDLK_LEFT: return CODEPOINT_ARROW_LEFT;
@@ -90,34 +136,6 @@ uint32_t keycode_to_key(SDL_Keycode sdl_key, bool shift) {
         case SDLK_TAB: return CODEPOINT_TAB;
         case SDLK_HOME: return CODEPOINT_HOME;
         case SDLK_END: return CODEPOINT_END;
-        /* Letter keys mapped so SDL_KEYUP generates matching release events.
-           SDL_TEXTINPUT is disabled below to avoid duplicate press events. */
-        case SDLK_a: return shift ? 'A' : 'a';
-        case SDLK_b: return shift ? 'B' : 'b';
-        case SDLK_c: return shift ? 'C' : 'c';
-        case SDLK_d: return shift ? 'D' : 'd';
-        case SDLK_e: return shift ? 'E' : 'e';
-        case SDLK_f: return shift ? 'F' : 'f';
-        case SDLK_g: return shift ? 'G' : 'g';
-        case SDLK_h: return shift ? 'H' : 'h';
-        case SDLK_i: return shift ? 'I' : 'i';
-        case SDLK_j: return shift ? 'J' : 'j';
-        case SDLK_k: return shift ? 'K' : 'k';
-        case SDLK_l: return shift ? 'L' : 'l';
-        case SDLK_m: return shift ? 'M' : 'm';
-        case SDLK_n: return shift ? 'N' : 'n';
-        case SDLK_o: return shift ? 'O' : 'o';
-        case SDLK_p: return shift ? 'P' : 'p';
-        case SDLK_q: return shift ? 'Q' : 'q';
-        case SDLK_r: return shift ? 'R' : 'r';
-        case SDLK_s: return shift ? 'S' : 's';
-        case SDLK_t: return shift ? 'T' : 't';
-        case SDLK_u: return shift ? 'U' : 'u';
-        case SDLK_v: return shift ? 'V' : 'v';
-        case SDLK_w: return shift ? 'W' : 'w';
-        case SDLK_x: return shift ? 'X' : 'x';
-        case SDLK_y: return shift ? 'Y' : 'y';
-        case SDLK_z: return shift ? 'Z' : 'z';
         default: return 0;
     }
 }
@@ -132,6 +150,11 @@ void sdl_input_pump() {
 
     {
         std::lock_guard<std::mutex> lock(state_mutex);
+
+        if (!text_input_started) {
+            SDL_StartTextInput();
+            text_input_started = true;
+        }
 
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -156,11 +179,39 @@ void sdl_input_pump() {
                         pointer_state.pressed = false;
                     }
                     break;
-                case SDL_KEYDOWN:
-                    push_key(keycode_to_key(event.key.keysym.sym, (event.key.keysym.mod & KMOD_SHIFT) != 0), true);
+                case SDL_KEYDOWN: {
+                    // event.key.repeat is true for the auto-repeat events the OS sends while a
+                    // key is held - held_control_keys already covers that (LVGL does its own long
+                    // press/repeat timing off the PRESSED state), so only the first press of a
+                    // given key is queued.
+                    if (event.key.repeat) {
+                        break;
+                    }
+                    uint32_t key = keycode_to_key(event.key.keysym.sym);
+                    if (key != 0) {
+                        mark_control_key_held(key);
+                        push_key(key, true);
+                    }
                     break;
-                case SDL_KEYUP:
-                    push_key(keycode_to_key(event.key.keysym.sym, (event.key.keysym.mod & KMOD_SHIFT) != 0), false);
+                }
+                case SDL_KEYUP: {
+                    uint32_t key = keycode_to_key(event.key.keysym.sym);
+                    if (key != 0) {
+                        clear_control_key_held(key);
+                        push_key(key, false);
+                    }
+                    break;
+                }
+                case SDL_TEXTINPUT:
+                    // ASCII only (first byte of event.text.text) - sufficient for a simulator
+                    // keyboard. The OS already resolved layout/Shift/Caps Lock into this
+                    // character, so it is queued as an instant press+release pair rather than
+                    // being tracked as held: SDL doesn't send a matching "release" event for
+                    // SDL_TEXTINPUT, and the physical key's own SDL_KEYUP (if any) is a different,
+                    // non-printable keycode_to_key() result (usually 0), so it can't be used to
+                    // close out this press either.
+                    push_key(static_cast<uint8_t>(event.text.text[0]), true);
+                    push_key(static_cast<uint8_t>(event.text.text[0]), false);
                     break;
                 case SDL_WINDOWEVENT:
                     // Resizing doesn't change what LVGL last rendered, only how large it should
@@ -207,4 +258,15 @@ bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed) {
 bool sdl_input_has_queued_key() {
     std::lock_guard<std::mutex> lock(state_mutex);
     return key_queue_count > 0;
+}
+
+bool sdl_input_get_held_key(uint32_t* out_key) {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    for (uint32_t key : held_control_keys) {
+        if (key != 0) {
+            *out_key = key;
+            return true;
+        }
+    }
+    return false;
 }

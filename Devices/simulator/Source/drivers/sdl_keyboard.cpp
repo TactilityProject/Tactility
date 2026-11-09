@@ -22,6 +22,12 @@ static error_t sdl_keyboard_read_key(Device*, KeyboardKeyData* data) {
         data->key = key;
         data->pressed = pressed;
         data->continue_reading = sdl_input_has_queued_key();
+    } else if (sdl_input_get_held_key(&key)) {
+        // No fresh event this poll, but a control key is still physically down - keep reporting
+        // it as pressed so LVGL doesn't see a spurious release before the real SDL_KEYUP arrives.
+        data->key = key;
+        data->pressed = true;
+        data->continue_reading = false;
     } else {
         data->key = 0;
         data->pressed = false;
