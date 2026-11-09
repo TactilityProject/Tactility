@@ -123,13 +123,14 @@ error_t start(Device* device) {
 error_t stop(Device* device) {
     auto* internal = GET_INTERNAL(device);
     if (internal != nullptr) {
-        // Publish the teardown before freeing anything so API calls that start now see no driver
-        // state. stop_device() is a teardown path, so no API call should be in flight.
-        device_set_driver_data(device, nullptr);
+        // Delete the pulse task first: it dereferences the driver data on every loop iteration, so
+        // clearing the data while it can still run would crash.
         if (internal->task != nullptr) {
             vTaskDelete(internal->task);
             internal->task = nullptr;
         }
+        // The task is gone, so API calls that start now see no driver state.
+        device_set_driver_data(device, nullptr);
         if (internal->queue != nullptr) {
             vQueueDelete(internal->queue);
             internal->queue = nullptr;
