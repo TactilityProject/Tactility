@@ -129,19 +129,21 @@ def is_host_executable(compiler: str, work_folder: str) -> bool:
     probe_binary = os.path.join(work_folder, "probe.exe" if os.name == "nt" else "probe")
     with open(probe_source, "w", encoding="utf-8") as file:
         file.write("int main() { return 0; }\n")
-    compile_result = subprocess.run([compiler, probe_source, "-o", probe_binary], capture_output=True)
-    if compile_result.returncode != 0:
-        return False
     try:
-        return subprocess.run([probe_binary], capture_output=True).returncode == 0
-    except OSError:
-        # ERROR_BAD_EXE_FORMAT and friends: the loader picked up an incompatible runtime.
+        compile_result = subprocess.run([compiler, probe_source, "-o", probe_binary], capture_output=True, timeout=30)
+        if compile_result.returncode != 0:
+            return False
+        return subprocess.run([probe_binary], capture_output=True, timeout=30).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        # ERROR_BAD_EXE_FORMAT and friends, or a compiler that hangs on the probe.
         return False
 
 
-def build_tool(work_folder: str):
-    """@return the path of the tool, or None when no host compiler can build it"""
+def build_tool(work_folder: str) -> tuple:
+    """@return (tool path, None) on success, or (None, reason) when no host compiler can build it"""
     candidates = [found for found in (shutil.which(name) for name in ("c++", "g++", "clang++")) if found]
+    if not candidates:
+        return None, "no host C++ compiler found"
     tool = os.path.join(work_folder, "binfont_gen")
     for compiler in candidates:
         # ESP-IDF exports cross toolchains under the plain compiler names. The probe filters out
@@ -166,9 +168,12 @@ def build_tool(work_folder: str):
             os.path.join(ROOT, "TactilityKernel", "source", "memory_posix.cpp"),
             "-o", tool,
         ]
-        if subprocess.run(command).returncode == 0:
-            return tool
-    return None
+        try:
+            if subprocess.run(command, timeout=120).returncode == 0:
+                return tool, None
+        except subprocess.TimeoutExpired:
+            continue
+    return None, "host C++ compilers were found but none could build the font tool"
 
 
 def write_if_changed(path: str, content: str):
@@ -190,9 +195,9 @@ def main():
 
     fonts = []
     with tempfile.TemporaryDirectory() as work_folder:
-        tool = build_tool(work_folder)
+        tool, build_error = build_tool(work_folder)
         if tool is None:
-            print("WARNING: no host C++ compiler found, fonts are not embedded in the firmware")
+            print(f"WARNING: {build_error}; fonts are not embedded in the firmware")
         else:
             lines = []
             for index, (name, ttf, size, codepoints) in enumerate(jobs):
