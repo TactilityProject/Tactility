@@ -15,7 +15,7 @@
 #define GET_CONFIG(device) (static_cast<const RotaryButtonConfig*>((device)->config))
 #define GET_INTERNAL(device) (static_cast<RotaryButtonInternal*>(device_get_driver_data(device)))
 
-static constexpr int BUTTON_COUNT = 4;
+static constexpr int BUTTON_COUNT = 3;
 // A press and a release of every button within one read_key() interval
 static constexpr int PENDING_CAPACITY = BUTTON_COUNT * 2;
 
@@ -94,8 +94,8 @@ static error_t start(Device* device) {
         return ERROR_OUT_OF_MEMORY;
     }
 
-    const GpioPinSpec* pins[BUTTON_COUNT] = { &config->pin_up, &config->pin_down, &config->pin_press, &config->pin_back };
-    const uint32_t keys[BUTTON_COUNT] = { CODEPOINT_FOCUS_PREVIOUS, CODEPOINT_FOCUS_NEXT, CODEPOINT_ENTER, CODEPOINT_ESCAPE };
+    const GpioPinSpec* pins[BUTTON_COUNT] = { &config->pin_up, &config->pin_down, &config->pin_press };
+    const uint32_t keys[BUTTON_COUNT] = { CODEPOINT_FOCUS_PREVIOUS, CODEPOINT_FOCUS_NEXT, CODEPOINT_ENTER };
     for (int i = 0; i < BUTTON_COUNT; i++) {
         const error_t error = acquire_button(*pins[i], keys[i], &internal->buttons[i]);
         if (error != ERROR_NONE) {

@@ -1,7 +1,7 @@
 description: >
   Rotary button with up, down and press contacts on GPIO pins, such as the switch on the side of the
-  Waveshare ESP32-S3-ePaper-3.97, with an optional back button. Exposes a KEYBOARD_TYPE device: up
-  selects the previous widget, down the next one, press is the enter key and back the escape key.
+  Waveshare ESP32-S3-ePaper-3.97. Exposes a KEYBOARD_TYPE device: up selects the previous widget,
+  down the next one and press is the enter key.
 
 compatible: "tactility,rotary-button"
 
@@ -18,10 +18,6 @@ properties:
     type: phandles
     required: true
     description: Press contact GPIO pin, sends the enter key
-  pin-back:
-    type: phandles
-    default: GPIO_PIN_SPEC_NONE
-    description: Optional back button GPIO pin, sends the escape key
   debounce-ms:
     type: int
     min: 0

@@ -18,8 +18,6 @@
 #include <bindings/ssd1677.h>
 #include <bindings/rotary_button.h>
 
-#define BOOT_BUTTON_FLAGS (GPIO_FLAG_ACTIVE_LOW | GPIO_FLAG_PULL_UP)
-
 // Reference: https://docs.waveshare.com/ESP32-S3-ePaper-3.97
 / {
 	compatible = "root";
@@ -138,8 +136,6 @@
 		pin-up = <&gpio0 4 GPIO_FLAG_ACTIVE_LOW>;
 		pin-down = <&gpio0 6 GPIO_FLAG_ACTIVE_LOW>;
 		pin-press = <&gpio0 5 GPIO_FLAG_ACTIVE_LOW>;
-		// BOOT button
-		pin-back = <&gpio0 0 BOOT_BUTTON_FLAGS>;
 	};
 
 	usbdevice0 {

@@ -11,8 +11,6 @@ struct RotaryButtonConfig {
     struct GpioPinSpec pin_up;
     struct GpioPinSpec pin_down;
     struct GpioPinSpec pin_press;
-    // GPIO_PIN_SPEC_NONE when there is no back button
-    struct GpioPinSpec pin_back;
     uint32_t debounce_ms;
 };
 
