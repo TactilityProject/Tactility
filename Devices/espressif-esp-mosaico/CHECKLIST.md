@@ -21,7 +21,7 @@ internal I2C is on GPIO0/1.
 | AI button | Momentary, active-low | 7 | — | — | No software action. GPIO7 is only configured as the deep-sleep wake source (see Deep sleep row); `button-control` was dropped from the DTS. |
 | POWER button | SAM8108 hardware power control | — | — | ✅ | Hardware, no software needed for on/off. |
 | BOOT button | Strapping pin | 61 | — | ✅ | ROM download mode. |
-| Vibration motor | ERM via low-side MOSFET, active-high | 8 | `Drivers/pwm-vibration-module` + Vibration settings app | ✅ | PWM strength + timed pulses; enable/strength persisted and gated in Settings → Vibration (Test button). A short boot pulse uses the configured strength and is skipped when vibration is disabled (`CONFIG_TT_VIBRATION_ON_BOOT`). |
+| Vibration motor | ERM via low-side MOSFET, active-high | 8 | `Drivers/pwm-vibration-module` + Vibration settings app | ✅ | PWM strength + timed pulses; enable/strength/duration persisted and gated in Settings → Vibration (Test button). A boot pulse uses the configured strength and duration and is skipped when vibration is disabled (`CONFIG_TT_VIBRATION_ON_BOOT`). |
 
 ## Audio
 

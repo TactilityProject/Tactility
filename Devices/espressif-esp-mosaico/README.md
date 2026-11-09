@@ -23,7 +23,7 @@ eFuse `USER_DATA` and building the variant-dependent devices at runtime.
 - BMI270 IMU at 0x69
 - BQ27220 fuel gauge at 0x55
 - AI button on GPIO7 (deep-sleep wake source only; no keyboard driver)
-- Vibration motor on GPIO8 (LEDC); a short boot pulse uses the configured Vibration strength
+- Vibration motor on GPIO8 (LEDC); a short boot pulse uses the configured Vibration strength and duration
 - USB OTG / TinyUSB mass storage
 - SPI NAND (GD5F1GM7, 128 MB) on SPI3, used as the FAT user-data volume (`/sdcard`)
 

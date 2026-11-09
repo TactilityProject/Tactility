@@ -32,6 +32,7 @@ struct Context {
     lv_obj_t* enabledSwitch = nullptr;
     lv_obj_t* strengthSlider = nullptr;
     lv_obj_t* strengthRow = nullptr;
+    lv_obj_t* durationRow = nullptr;
     lv_obj_t* testButton = nullptr;
 };
 
@@ -51,6 +52,9 @@ void applyEnabled(Context* ctx) {
     }
     if (ctx->strengthRow != nullptr) {
         lv_obj_set_hidden(ctx->strengthRow, !ctx->settings.enabled);
+    }
+    if (ctx->durationRow != nullptr) {
+        lv_obj_set_hidden(ctx->durationRow, !ctx->settings.enabled);
     }
     if (ctx->testButton != nullptr) {
         lv_obj_set_hidden(ctx->testButton, !ctx->settings.enabled);
@@ -72,10 +76,17 @@ void onStrengthSlider(lv_event_t* event) {
     requestSave(ctx);
 }
 
+void onDurationSlider(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    auto* sliderBox = static_cast<lv_obj_t*>(lv_event_get_target(event));
+    ctx->settings.duration_ms = static_cast<uint32_t>(lvgl_sliderbox_get_value(sliderBox));
+    requestSave(ctx);
+}
+
 void onTestPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     if (ctx->device != nullptr && ctx->settings.enabled) {
-        vibration_pulse(ctx->device, 400, static_cast<float>(ctx->settings.strength));
+        vibration_pulse(ctx->device, ctx->settings.duration_ms, static_cast<float>(ctx->settings.strength));
     }
 }
 
@@ -101,14 +112,14 @@ lv_obj_t* createSwitchRow(lv_obj_t* parent, const char* label, lv_event_cb_t cb,
     return sw;
 }
 
-lv_obj_t* createSliderRow(lv_obj_t* parent, const char* label, int32_t initialValue, lv_event_cb_t cb, void* userData) {
+lv_obj_t* createSliderRow(lv_obj_t* parent, const char* label, int32_t min, int32_t max, int32_t step, int32_t initialValue, lv_event_cb_t cb, void* userData) {
     auto* row = createRow(parent);
 
     auto* row_label = lv_label_create(row);
     lv_label_set_text(row_label, label);
     lv_obj_set_flex_grow(row_label, 1);
 
-    auto* sliderBox = lvgl_sliderbox_create(row, 0, 100, 10, initialValue);
+    auto* sliderBox = lvgl_sliderbox_create(row, min, max, step, initialValue);
     lv_obj_set_width(sliderBox, LV_PCT(75));
     lvgl_sliderbox_add_value_changed_cb(sliderBox, cb, userData);
     return sliderBox;
@@ -145,8 +156,20 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->enabledSwitch = createSwitchRow(card, "Enabled", onEnabledSwitch, ctx);
     lv_obj_set_state(ctx->enabledSwitch, LV_STATE_CHECKED, ctx->settings.enabled);
 
-    ctx->strengthSlider = createSliderRow(card, "Strength", ctx->settings.strength, onStrengthSlider, ctx);
+    ctx->strengthSlider = createSliderRow(card, "Strength", 0, 100, 10, ctx->settings.strength, onStrengthSlider, ctx);
     ctx->strengthRow = lv_obj_get_parent(ctx->strengthSlider);
+
+    auto* durationSlider = createSliderRow(
+        card,
+        "Duration (ms)",
+        static_cast<int32_t>(settings::vibration::DURATION_MIN_MS),
+        static_cast<int32_t>(settings::vibration::DURATION_MAX_MS),
+        static_cast<int32_t>(settings::vibration::DURATION_STEP_MS),
+        static_cast<int32_t>(ctx->settings.duration_ms),
+        onDurationSlider,
+        ctx
+    );
+    ctx->durationRow = lv_obj_get_parent(durationSlider);
 
     ctx->testButton = lv_button_create(main_wrapper);
     lv_obj_set_width(ctx->testButton, LV_PCT(100));

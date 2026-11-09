@@ -286,7 +286,7 @@ void playBootVibration() {
         return;
     }
 
-    vibration_pulse(device, 250, static_cast<float>(settings.strength));
+    vibration_pulse(device, settings.duration_ms, static_cast<float>(settings.strength));
     device_put(device);
 }
 #endif

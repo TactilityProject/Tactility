@@ -16,6 +16,7 @@ namespace {
 
 constexpr auto* SETTINGS_KEY_ENABLED = "enabled";
 constexpr auto* SETTINGS_KEY_STRENGTH = "strength";
+constexpr auto* SETTINGS_KEY_DURATION = "duration";
 
 std::string getSettingsFilePath() {
     char path[256];
@@ -56,8 +57,17 @@ bool load(VibrationSettings& settings) {
         if (strength > 100) strength = 100;
     }
 
+    int duration = static_cast<int>(DURATION_DEFAULT_MS);
+    auto duration_entry = map.find(SETTINGS_KEY_DURATION);
+    if (duration_entry != map.end()) {
+        duration = atoi(duration_entry->second.c_str());
+        if (duration < static_cast<int>(DURATION_MIN_MS)) duration = static_cast<int>(DURATION_MIN_MS);
+        if (duration > static_cast<int>(DURATION_MAX_MS)) duration = static_cast<int>(DURATION_MAX_MS);
+    }
+
     settings.enabled = enabled;
     settings.strength = static_cast<uint8_t>(strength);
+    settings.duration_ms = static_cast<uint32_t>(duration);
     return true;
 }
 
@@ -65,6 +75,7 @@ VibrationSettings getDefault() {
     return VibrationSettings {
         .enabled = true,
         .strength = 80,
+        .duration_ms = DURATION_DEFAULT_MS,
     };
 }
 
@@ -80,6 +91,7 @@ bool save(const VibrationSettings& settings) {
     std::map<std::string, std::string> map;
     map[SETTINGS_KEY_ENABLED] = settings.enabled ? "1" : "0";
     map[SETTINGS_KEY_STRENGTH] = std::to_string(settings.strength);
+    map[SETTINGS_KEY_DURATION] = std::to_string(settings.duration_ms);
 
     auto settings_path = getSettingsFilePath();
     if (settings_path.empty()) {
