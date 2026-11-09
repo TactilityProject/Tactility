@@ -248,11 +248,23 @@ else ()
     set(fonts_simulator 1)
 endif ()
 set(FONT_GENERATOR "${CMAKE_SOURCE_DIR}/Buildscripts/generate-fonts.py")
+# The generator reads the device DTS files, the font assets and the icon/version sources. Track
+# them so an incremental build picks up a changed TTF or codepoint list.
+file(GLOB DEVICE_FONT_INPUTS "${DEVICETREE_LOCATION}/*.dts")
+list(APPEND DEVICE_FONT_INPUTS
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/AdwaitaSans.ttf"
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/AdwaitaMono.ttf"
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/MaterialSymbolsRounded.ttf"
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/MaterialSymbolsRounded.codepoints"
+    "${CMAKE_SOURCE_DIR}/Tactility/Private/Tactility/lvgl/FontVersions.h"
+    "${CMAKE_SOURCE_DIR}/Modules/lvgl-module/source/icon_names.c"
+    "${CMAKE_SOURCE_DIR}/Modules/lvgl-module/include/lvgl/icons/names.h"
+)
 add_custom_command(
     OUTPUT "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
     COMMAND python "${FONT_GENERATOR}"
         "${DEVICETREE_LOCATION}" ${fonts_simulator} "${GENERATED_DIR}"
-    DEPENDS "${FONT_GENERATOR}" "${DEVICETREE_LOCATION}/device.properties"
+    DEPENDS "${FONT_GENERATOR}" "${DEVICETREE_LOCATION}/device.properties" ${DEVICE_FONT_INPUTS}
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Generating font source files..."
 )

@@ -140,32 +140,35 @@ def is_host_executable(compiler: str, work_folder: str) -> bool:
 
 
 def build_tool(work_folder: str):
-    """@return the path of the tool, or None when there's no host compiler"""
+    """@return the path of the tool, or None when no host compiler can build it"""
     candidates = [found for found in (shutil.which(name) for name in ("c++", "g++", "clang++")) if found]
-    compiler = next((found for found in candidates if is_host_executable(found, work_folder)), None)
-    if compiler is None:
-        return None
     tool = os.path.join(work_folder, "binfont_gen")
-    command = [
-        compiler, "-O2", "-std=c++20",
-    ]
-    if os.name == "nt":
-        # Link the C++ runtime statically: ESP-IDF's exported PATH can otherwise make the loader
-        # pick up an incompatible libstdc++/libwinpthread from a cross toolchain. macOS does not
-        # support fully static executables.
-        command.append("-static")
-    command += [
-        "-I" + os.path.join(ROOT, "Modules", "binfont-module", "include"),
-        "-I" + os.path.join(ROOT, "Modules", "binfont-module", "private"),
-        "-I" + os.path.join(ROOT, "TactilityKernel", "include"),
-        os.path.join(ROOT, "Buildscripts", "BinfontTool", "binfont_gen.cpp"),
-        os.path.join(ROOT, "Modules", "binfont-module", "source", "generator.cpp"),
-        os.path.join(ROOT, "TactilityKernel", "source", "memory_posix.cpp"),
-        "-o", tool,
-    ]
-    if subprocess.run(command).returncode != 0:
-        return None
-    return tool
+    for compiler in candidates:
+        # ESP-IDF exports cross toolchains under the plain compiler names. The probe filters out
+        # the ones whose binaries cannot run here, but only the full build proves the compiler can
+        # actually build this tool (e.g. it supports the required C++ standard).
+        if not is_host_executable(compiler, work_folder):
+            continue
+        command = [
+            compiler, "-O2", "-std=c++20",
+        ]
+        if os.name == "nt":
+            # Link the C++ runtime statically: ESP-IDF's exported PATH can otherwise make the loader
+            # pick up an incompatible libstdc++/libwinpthread from a cross toolchain. macOS does not
+            # support fully static executables.
+            command.append("-static")
+        command += [
+            "-I" + os.path.join(ROOT, "Modules", "binfont-module", "include"),
+            "-I" + os.path.join(ROOT, "Modules", "binfont-module", "private"),
+            "-I" + os.path.join(ROOT, "TactilityKernel", "include"),
+            os.path.join(ROOT, "Buildscripts", "BinfontTool", "binfont_gen.cpp"),
+            os.path.join(ROOT, "Modules", "binfont-module", "source", "generator.cpp"),
+            os.path.join(ROOT, "TactilityKernel", "source", "memory_posix.cpp"),
+            "-o", tool,
+        ]
+        if subprocess.run(command).returncode == 0:
+            return tool
+    return None
 
 
 def write_if_changed(path: str, content: str):
