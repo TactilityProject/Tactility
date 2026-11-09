@@ -1,0 +1,55 @@
+description: >
+  SPI NAND flash formatted with FAT and exposed as a fixed (internal) SD-card-style volume.
+  Wear leveling and bad block management come from the espressif/spi_nand_flash Dhara layer.
+compatible: "espressif,spi-nand"
+
+properties:
+  host:
+    type: int
+    required: true
+    description: |
+      SPI host (spi_host_device_t), e.g. SPI3_HOST.
+  pin-clk:
+    type: phandles
+    required: true
+    description: NAND clock
+  pin-mosi:
+    type: phandles
+    required: true
+    description: NAND DI (data in / D0)
+  pin-miso:
+    type: phandles
+    required: true
+    description: NAND DO (data out / D1)
+  pin-cs:
+    type: phandles
+    required: true
+    description: NAND chip select
+  pin-wp:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: NAND WP# (optional)
+  pin-hd:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: NAND HOLD# (optional)
+  mount-path:
+    type: string
+    required: true
+    description: VFS mount path, e.g. "/sdcard"
+  mount-name:
+    type: string
+    required: true
+    description: File system name, e.g. "sdcard"
+  max-freq-khz:
+    type: int
+    default: 40000
+    description: SPI clock in kHz
+  gc-factor:
+    type: int
+    default: 4
+    description: Dhara spare-block ratio; lower values reduce capacity and increase performance
+  format-if-mount-failed:
+    type: boolean
+    default: false
+    description: Format the volume when it has no valid FAT filesystem (first boot)

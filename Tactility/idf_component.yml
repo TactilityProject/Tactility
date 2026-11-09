@@ -31,7 +31,29 @@ dependencies:
     rules:
       - if: "target in [esp32, esp32s3]"
   espressif/elf_loader: "2.0.0"
-  espressif/esp_lcd_touch: "1.2.1"
+  espressif/esp_lcd_touch:
+    version: "1.2.1"
+  espressif/esp_lcd_co5300:
+    version: "2.2.0"
+    rules:
+      - if: "target == esp32s31"
+  espressif/esp_lcd_touch_cst9220:
+    version: "0.1.1"
+    rules:
+      - if: "target == esp32s31"
+  # SPI NAND flash (GD5F1GM7 on ESP-Mosaico) used as the fixed SD-card-style volume.
+  # The FATFS integration and the USB mass-storage path both use the BDL (esp_blockdev) API.
+  # override_path: local fork of 1.4.4 with the S31 short-command polling fix from the
+  # official ESP-Mosaico BSP (without it, READY status reads hang on S31).
+  espressif/spi_nand_flash:
+    version: "1.4.4"
+    override_path: "../Libraries/espressif__spi_nand_flash"
+    rules:
+      - if: "target == esp32s31"
+  espressif/spi_nand_flash_fatfs:
+    version: "1.1.2"
+    rules:
+      - if: "target == esp32s31"
   atanisoft/esp_lcd_touch_xpt2046:
     version: "1.0.6"
     rules:

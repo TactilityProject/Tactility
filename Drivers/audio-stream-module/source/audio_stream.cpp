@@ -632,6 +632,17 @@ error_t read_stream(AudioStreamHandle handle_base, void* out_data, size_t data_s
         }
     }
 
+    // Codecs such as the ES8311 have no ADC mute, so input mute is applied here by discarding
+    // the captured signal. See get_mute(): the cached flag is authoritative for input.
+    if (result == ERROR_NONE && bytes_read != nullptr && *bytes_read > 0) {
+        xSemaphoreTake(data->mutex, portMAX_DELAY);
+        const bool muted = data->input_muted;
+        xSemaphoreGive(data->mutex);
+        if (muted) {
+            memset(out_data, 0, *bytes_read);
+        }
+    }
+
     io_end(data, handle);
     return result;
 }
@@ -840,7 +851,9 @@ error_t get_mute(Device* device, AudioCodecDirection direction, bool* muted) {
         return ERROR_NOT_SUPPORTED;
     }
 
-    if (audio_codec_get_mute(codec, direction, muted) == ERROR_NONE) {
+    // Input mute is applied in read_stream() (most simple codecs, including the ES8311, have no
+    // ADC mute), so the cached flag is authoritative there. Output mute is a real codec control.
+    if (direction != AUDIO_CODEC_DIR_INPUT && audio_codec_get_mute(codec, direction, muted) == ERROR_NONE) {
         return ERROR_NONE;
     }
 

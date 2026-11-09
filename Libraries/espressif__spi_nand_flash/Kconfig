@@ -1,0 +1,35 @@
+menu "SPI NAND Flash configuration"
+
+    config NAND_FLASH_VERIFY_WRITE
+        bool "Verify SPI NAND flash writes"
+        default n
+        help
+            If this option is enabled, any time SPI NAND flash is written then the data will be read
+            back and verified. This can catch hardware problems with SPI NAND flash, or flash which
+            was not erased before verification.
+
+    config NAND_FLASH_ENABLE_BDL
+        bool "Enable Block Device Layer (BDL) support"
+        depends on IDF_INIT_VERSION >= "6.0"
+        default n
+        help
+            Enable Block Device Layer (BDL) support for SPI NAND Flash. This provides:
+            - Standard esp_blockdev_t interface for layered architecture
+            - Flash Block Device Layer (raw NAND flash access)
+            - Wear-Leveling Block Device Layer (logical sector access with wear leveling)
+            - Advanced layered API (spi_nand_flash_init_with_layers)
+            When disabled, only the legacy API is available.
+            When enabled, the legacy spi_nand_flash_init_device() is not available (returns
+            ESP_ERR_NOT_SUPPORTED). Use spi_nand_flash_init_with_layers().
+
+            Note: This option requires ESP-IDF >= 6.0 (esp_blockdev component).
+            Enabling this on ESP-IDF < 6.0 will result in a build error.
+
+    config NAND_ENABLE_STATS
+        bool "Host test statistics enabled"
+        depends on IDF_TARGET_LINUX
+        default n
+        help
+            This option enables gathering host test statistics and SPI NAND flash wear levelling simulation.
+
+endmenu
