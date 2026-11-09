@@ -151,17 +151,6 @@
 	};
 
 	/*
-	 * External module I2C bus. On the v1.2 board this is I2C1 on GPIO0/1.
-	 */
-	i2c1 {
-		compatible = "espressif,esp32-i2c-master";
-		port = <I2C_NUM_1>;
-		clock-frequency = <100000>;
-		pin-sda = <&gpio0 0 GPIO_FLAG_PULL_UP>;
-		pin-scl = <&gpio0 1 GPIO_FLAG_PULL_UP>;
-	};
-
-	/*
 	 * CO5300 QSPI display on SPI2. v1.2 uses SCL=42 / RST=44; v1.0 swaps those two.
 	 * D0..D3 are 36/51/35/9, CS=50, TE=43 (frame-sync input for tear-free updates).
 	 */
