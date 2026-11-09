@@ -101,8 +101,8 @@
 
 		touch@1 {
 			compatible = "xptek,xpt2046";
-			x-max = <320>;
-			y-max = <240>;
+			x-max = <240>;
+			y-max = <320>;
 			swap-xy;
 			mirror-y;
 		};
