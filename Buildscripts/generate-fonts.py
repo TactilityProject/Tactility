@@ -118,14 +118,43 @@ def get_jobs(font_size: int, bpp: int) -> list:
     return jobs
 
 
+def is_host_executable(compiler: str, work_folder: str) -> bool:
+    """@return true if the compiler produces binaries that can actually run on this machine
+
+    ESP-IDF puts its cross toolchains (riscv32-esp-elf-g++, ...) on PATH as plain g++/c++.
+    They compile without complaint but emit target binaries that cannot run here, which would
+    otherwise make this script fail silently during an exported `idf.py build`.
+    """
+    probe_source = os.path.join(work_folder, "probe.cpp")
+    probe_binary = os.path.join(work_folder, "probe.exe" if os.name == "nt" else "probe")
+    with open(probe_source, "w", encoding="utf-8") as file:
+        file.write("int main() { return 0; }\n")
+    compile_result = subprocess.run([compiler, probe_source, "-o", probe_binary], capture_output=True)
+    if compile_result.returncode != 0:
+        return False
+    try:
+        return subprocess.run([probe_binary], capture_output=True).returncode == 0
+    except OSError:
+        # ERROR_BAD_EXE_FORMAT and friends: the loader picked up an incompatible runtime.
+        return False
+
+
 def build_tool(work_folder: str):
     """@return the path of the tool, or None when there's no host compiler"""
-    compiler = next((found for found in (shutil.which(name) for name in ("c++", "g++", "clang++")) if found), None)
+    candidates = [found for found in (shutil.which(name) for name in ("c++", "g++", "clang++")) if found]
+    compiler = next((found for found in candidates if is_host_executable(found, work_folder)), None)
     if compiler is None:
         return None
     tool = os.path.join(work_folder, "binfont_gen")
     command = [
         compiler, "-O2", "-std=c++20",
+    ]
+    if os.name == "nt":
+        # Link the C++ runtime statically: ESP-IDF's exported PATH can otherwise make the loader
+        # pick up an incompatible libstdc++/libwinpthread from a cross toolchain. macOS does not
+        # support fully static executables.
+        command.append("-static")
+    command += [
         "-I" + os.path.join(ROOT, "Modules", "binfont-module", "include"),
         "-I" + os.path.join(ROOT, "Modules", "binfont-module", "private"),
         "-I" + os.path.join(ROOT, "TactilityKernel", "include"),
