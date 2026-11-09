@@ -90,6 +90,11 @@ static const PowerSupplyApi GPIO_POWER_OFF_API = {
 static error_t start(Device* device) {
     const auto* config = GET_CONFIG(device);
 
+    if (config->assert_timeout_ms == 0) {
+        LOG_E(TAG, "assert-timeout-ms must be greater than zero");
+        return ERROR_INVALID_ARGUMENT;
+    }
+
     // Idle state is high-impedance: the pin must not drive the shared request line.
     auto* descriptor = gpio_descriptor_acquire(
         config->pin.gpio_controller,
