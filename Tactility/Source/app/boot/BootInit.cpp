@@ -7,6 +7,7 @@
 #include <tactility/drivers/backlight.h>
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/power_supply.h>
+#include <tactility/drivers/vibration.h>
 #include <tactility/log.h>
 #include <tactility/system_event.h>
 #include <tactility/time.h>
@@ -31,6 +32,7 @@
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
 #include <Tactility/settings/GrovePortSettings.h>
+#include <Tactility/settings/VibrationSettings.h>
 
 
 #ifdef ESP_PLATFORM
@@ -271,6 +273,24 @@ void startNextApp() {
     }
 }
 
+#ifdef CONFIG_TT_VIBRATION_ON_BOOT
+/** Short "the device is ready" buzz, using the strength chosen in the Vibration settings. */
+void playBootVibration() {
+    const auto settings = settings::vibration::loadOrGetDefault();
+    if (!settings.enabled || settings.strength == 0) {
+        return;
+    }
+
+    Device* device = nullptr;
+    if (device_get_first_by_type(&VIBRATION_TYPE, &device) != ERROR_NONE) {
+        return;
+    }
+
+    vibration_pulse(device, 250, static_cast<float>(settings.strength));
+    device_put(device);
+}
+#endif
+
 } // namespace
 
 bool bootInit(TickType_t startTime) {
@@ -378,6 +398,10 @@ bool bootInit(TickType_t startTime) {
     lvgl::configureTheme(settings::appearance::loadOrGetDefault());
 
     screen.end();
+
+#ifdef CONFIG_TT_VIBRATION_ON_BOOT
+    playBootVibration();
+#endif
 
     size_t total_time = get_millis() - start_time;
     LOG_I(TAG, "Finished in %lu ms", static_cast<uint32_t>(total_time));

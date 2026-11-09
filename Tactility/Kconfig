@@ -104,6 +104,12 @@ menu "Tactility App"
         bool "Set true when a touch screen calibration is required before the device is usable"
         default n
         depends on TT_TOUCH_CALIBRATION_SUPPORTED
+    config TT_VIBRATION_ON_BOOT
+        bool "Vibrate on boot"
+        default n
+        help
+            Play a short vibration pulse when boot finishes, using the strength from the
+            Vibration settings. No pulse is played when vibration is disabled there.
     config TT_DISPLAY_IDLE_TICK_MS
         int "Display idle tick interval (ms)"
         default 50
