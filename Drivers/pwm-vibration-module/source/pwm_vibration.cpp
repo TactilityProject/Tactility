@@ -70,6 +70,11 @@ void pulse_task(void* arg) {
         if (xQueueReceive(GET_INTERNAL(device)->queue, &request, portMAX_DELAY) != pdTRUE) {
             continue;
         }
+        // A newer pulse or set_strength() superseded this request before it was applied. Skip it
+        // so it cannot switch the motor on after the newer request already took effect.
+        if (GET_INTERNAL(device)->generation.load() != request.generation) {
+            continue;
+        }
         apply_strength(device, request.percent);
         vTaskDelay(pdMS_TO_TICKS(request.duration_ms));
         // A newer pulse or a sustained set_strength() supersedes this pulse. Only switch the
@@ -118,6 +123,9 @@ error_t start(Device* device) {
 error_t stop(Device* device) {
     auto* internal = GET_INTERNAL(device);
     if (internal != nullptr) {
+        // Publish the teardown before freeing anything so API calls that start now see no driver
+        // state. stop_device() is a teardown path, so no API call should be in flight.
+        device_set_driver_data(device, nullptr);
         if (internal->task != nullptr) {
             vTaskDelete(internal->task);
             internal->task = nullptr;
@@ -128,7 +136,6 @@ error_t stop(Device* device) {
         }
         apply_strength(device, 0.0f);
         delete internal;
-        device_set_driver_data(device, nullptr);
     }
     return ERROR_NONE;
 }
