@@ -200,6 +200,17 @@ static error_t msc_device_start(struct Device* device, enum UsbMscDeviceSource s
             .mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB,
         };
         result = tinyusb_msc_new_storage_sdmmc(&config_sdmmc, &handle);
+    } else if (source == USB_MSC_DEVICE_SOURCE_BLOCKDEV) {
+        // The board volume already occupies its own VFS path (the NAND is /sdcard), so the
+        // app-side remount that follows a host eject must use a different one.
+        tinyusb_msc_fatfs_config_t blockdev_fat_fs_config = fat_fs_config;
+        blockdev_fat_fs_config.base_path = const_cast<char*>("/usbmsc");
+        const tinyusb_msc_storage_config_t config_blockdev = {
+            .medium = { .blockdev = *static_cast<esp_blockdev_handle_t*>(source_handle) },
+            .fat_fs = blockdev_fat_fs_config,
+            .mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB,
+        };
+        result = tinyusb_msc_new_storage_blockdev(&config_blockdev, &handle);
     } else {
         const tinyusb_msc_storage_config_t config_flash = {
             .medium = { .wl_handle = *static_cast<wl_handle_t*>(source_handle) },

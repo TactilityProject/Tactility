@@ -29,8 +29,8 @@ void resetUsbBootMode();
 
 BootMode getUsbBootMode();
 
-// Flash-based mass storage
-bool startMassStorageWithFlash(bool fromBootMode = false);
+// Internal mass storage (flash partition or block device)
+bool startMassStorageWithInternalStorage(bool fromBootMode = false);
 bool canRebootIntoMassStorageFlash();
 void rebootIntoMassStorageFlash();
 

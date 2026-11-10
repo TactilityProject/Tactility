@@ -1,0 +1,262 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c_master.h>
+#include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_pwm_ledc.h>
+#include <tactility/bindings/esp32_sleep.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_usbdevice.h>
+#include <tactility/bindings/gpio_hog.h>
+
+#include <bindings/bmi270.h>
+#include <bindings/bmm150.h>
+#include <bindings/gpio_power_off.h>
+#include <bindings/pwm_vibration.h>
+#include <bindings/bq27220.h>
+#include <bindings/co5300.h>
+#include <bindings/co5300_backlight.h>
+#include <bindings/cst9220.h>
+#include <bindings/es8311.h>
+#include <bindings/spi_nand.h>
+
+/*
+ * Espressif ESP-Mosaico, board revision v1.2.
+ *
+ * v1.0 uses a different pin map (I2C SDA/SCL 0/1, LCD SCL/RST 44/42, codec rail GPIO56).
+ * Supporting both revisions in one image requires runtime eFuse detection and dynamically built
+ * devices; this devicetree deliberately targets the shipping v1.2 mapping.
+ */
+/ {
+	compatible = "root";
+	model = "Espressif ESP-Mosaico";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+	};
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <62>;
+	};
+
+	/* VCC_PW is active-low: drive it low before any peripheral starts. */
+	power_vcc_3v3 {
+		compatible = "gpio-hog";
+		pin = <&gpio0 60 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
+	/* POWER_SWITCH: whole-device shutdown request to the SAM8108 power controller.
+	 * The line is active-low: the driver asserts its logical high level and the pin-spec flag
+	 * turns that into a physical low. It stays high-impedance during normal operation,
+	 * matching the vendor BSP. GPIO57 is MTMS but usable as a regular GPIO with the built-in
+	 * USB-JTAG. */
+	power_off {
+		compatible = "gpio-power-off";
+		pin = <&gpio0 57 GPIO_FLAG_ACTIVE_LOW>;
+	};
+
+	/*
+	 * Declared before the display/touch/audio nodes so the USB console is installed first and
+	 * mirrors their bring-up logs (devices start in devicetree order).
+	 */
+	usbdevice0 {
+		compatible = "espressif,esp32-usbdevice";
+
+		/* Boot-time CDC-ACM console on the Type-C port (USB-Serial/JTAG is only on the left
+		 * expansion header on this board). It is replaced by MSC/HID/MIDI if one is claimed. */
+		usbdevicecdc0 {
+			compatible = "espressif,esp32-usbdevice-cdc";
+			console-at-boot;
+		};
+
+		usbdevicemsc0 {
+			compatible = "espressif,esp32-usbdevice-msc";
+		};
+	};
+
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <&gpio0 37 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 49 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 52 GPIO_FLAG_NONE>;
+		pin-data-in = <&gpio0 40 GPIO_FLAG_NONE>;
+		pin-mclk = <&gpio0 54 GPIO_FLAG_NONE>;
+	};
+
+	/* v1.2 mainboard I2C bus. v1.0 uses GPIO0/1 instead. */
+	i2c0 {
+		compatible = "espressif,esp32-i2c-master";
+		port = <I2C_NUM_0>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 56 GPIO_FLAG_PULL_UP>;
+		pin-scl = <&gpio0 3 GPIO_FLAG_PULL_UP>;
+
+		touch0 {
+			compatible = "hynitron,cst9220";
+			reg = <0x5A>;
+			x-max = <479>;
+			y-max = <479>;
+			/* RST is not wired on this board. */
+			pin-interrupt = <&gpio0 6 GPIO_FLAG_NONE>;
+		};
+
+		es8311 {
+			compatible = "everest,es8311";
+			reg = <0x19>;
+			i2s = <&i2s0>;
+			pin-pa = <&gpio0 45 GPIO_FLAG_NONE>;
+			no-dac-ref;
+		};
+
+		bmi270 {
+			compatible = "bosch,bmi270";
+			reg = <0x69>;
+			// Identity until the panel/IMU mounting orientation is calibrated on hardware.
+			mount-matrix = <1 0 0
+							0 1 0
+							0 0 1>;
+		};
+
+		bq27220 {
+			compatible = "ti,bq27220";
+			reg = <0x55>;
+		};
+
+		/* Two onboard BMM150 magnetometers. Identity mounting until orientation is calibrated. */
+		bmm150_a {
+			compatible = "bosch,bmm150";
+			reg = <0x11>;
+			mount-matrix = <1 0 0
+							0 1 0
+							0 0 1>;
+		};
+
+		bmm150_b {
+			compatible = "bosch,bmm150";
+			reg = <0x12>;
+			mount-matrix = <1 0 0
+							0 1 0
+							0 0 1>;
+		};
+	};
+
+	/*
+	 * CO5300 QSPI display on SPI2. v1.2 uses SCL=42 / RST=44; v1.0 swaps those two.
+	 * D0..D3 are 36/51/35/9, CS=50, TE=43 (frame-sync input for tear-free updates).
+	 */
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		cs-gpios = <&gpio0 50 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 42 GPIO_FLAG_NONE>;
+		pin-mosi = <&gpio0 36 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 51 GPIO_FLAG_NONE>;
+		pin-wp = <&gpio0 35 GPIO_FLAG_NONE>;
+		pin-hd = <&gpio0 9 GPIO_FLAG_NONE>;
+		max-transfer-size = <65536>;
+
+		display@0 {
+			compatible = "chipone,co5300";
+			horizontal-resolution = <480>;
+			vertical-resolution = <480>;
+			// Visible corner radius of the 2.16" 480x480 AMOLED. Board measures ~6 mm; at the
+			// panel's ~314 dpi that is 6/25.4*314 = 74 px.
+			shape = <DISPLAY_SHAPE_ROUNDED>;
+			corner-radius = <74>;
+			gap-x = <0>;
+			gap-y = <0>;
+			// 80 MHz quad = 40 MB/s, faster than the panel's own scanout. At 40 MHz a full
+			// 480x480 write takes ~23 ms (longer than a 16.7 ms frame), so no amount of TE
+			// alignment can prevent tearing; 80 MHz brings it under one frame.
+			pixel-clock-hz = <80000000>;
+			pin-reset = <&gpio0 44 GPIO_FLAG_NONE>;
+			pin-te = <&gpio0 43 GPIO_FLAG_NONE>;
+			/* Present each refresh as one TE-aligned full-screen transfer (tear-free). */
+			full-frame;
+
+			/*
+			 * Board-proven CO5300 vendor sequence (from the official ESP-Mosaico BSP).
+			 * Encoding: [cmd, data-length, delay-ms, data-length bytes of data...].
+			 */
+			init-sequence = [
+				0x11 0 120
+				0xFE 1 0   0x20
+				0x19 1 0   0x10
+				0x1C 1 0   0xA0
+				0xFE 1 0   0x00
+				0xC4 1 0   0x80
+				0x3A 1 0   0x55
+				0x53 1 0   0x20
+				0x51 1 0   0xFF
+				0x63 1 0   0xFF
+				0x2A 4 0   0x00 0x00 0x01 0xDF
+				0x2B 4 0   0x00 0x00 0x01 0xDF
+				0x29 0 120
+			];
+
+			display_backlight {
+				compatible = "co5300-backlight";
+				brightness-default = <255>;
+			};
+		};
+	};
+
+	/* ERM vibration motor, LEDC-controlled. */
+	motor0 {
+		compatible = "espressif,esp32-pwm-ledc";
+		pin = <&gpio0 8 GPIO_FLAG_NONE>;
+		period-ns = <200000>;
+		duty-ns = <0>;
+		ledc-timer = <0>;
+		ledc-channel = <0>;
+	};
+
+	vibration0 {
+		compatible = "tactility,pwm-vibration";
+		pwm = <&motor0>;
+	};
+
+	/*
+	 * 1 Gbit (128 MB) SPI NAND on SPI3, formatted with FAT and exposed as the fixed
+	 * "SD card". Tactility's user data location is SD, so the whole /sdcard/tactility tree
+	 * (settings, apps, cache) lives here. Dhara wear leveling handles bad blocks.
+	 * NAND_D = DI (GPIO21), NAND_Q = DO (GPIO22), HOLD# = GPIO24, WP# = GPIO25.
+	 */
+	spi_nand0 {
+		compatible = "espressif,spi-nand";
+		host = <SPI3_HOST>;
+		pin-clk = <&gpio0 20 GPIO_FLAG_NONE>;
+		pin-mosi = <&gpio0 21 GPIO_FLAG_NONE>;
+		pin-miso = <&gpio0 22 GPIO_FLAG_NONE>;
+		pin-cs = <&gpio0 23 GPIO_FLAG_NONE>;
+		pin-wp = <&gpio0 25 GPIO_FLAG_NONE>;
+		pin-hd = <&gpio0 24 GPIO_FLAG_NONE>;
+		mount-path = "/sdcard";
+		mount-name = "sdcard";
+		/* Single-IO at 40 MHz; the BSP runs quad at 80 MHz. Safe start point for SIO. */
+		max-freq-khz = <40000>;
+		/* The chip ships blank; format once so the first boot has a volume. */
+		format-if-mount-failed;
+	};
+
+	/* The AI button (GPIO7) is RTCIO-capable and wakes the system from deep sleep.
+	 *
+	 * WAKEUP_BUTTON_FLAGS = GPIO_FLAG_ACTIVE_LOW (1<<0) | GPIO_FLAG_PULL_UP (1<<3). The DTS
+	 * grammar accepts only one value per cell, so the flags are pre-combined here. The internal
+	 * pull-up is required: without it GPIO7 floats low and the chip wakes from deep sleep
+	 * immediately (which looks like a reboot instead of sleeping). */
+	sleep0 {
+		compatible = "espressif,esp32-sleep";
+		wakeup-gpios = <&gpio0 7 9>;
+	};
+};
