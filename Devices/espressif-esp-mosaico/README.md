@@ -69,7 +69,7 @@ The 1 Gbit SPI NAND (GD5F1GM7) is the user-data volume, not just a cache:
   `FF_MAX_SS` large enough. The NOR wear-levelling `data` partition is unused in SD mode,
   so that change is safe here.
 - The volume mounts at `/sdcard` as an SD-card-type device, so Tactility's
-  `storage.userDataLocation=SD` puts the whole `tactility/` tree (settings, apps, cache,
+  `storage.path=/sdcard` puts the whole `tactility/` tree (settings, apps, cache,
   service state) on it. System Info reports 93.2 MiB usable after FTL overhead.
 - Capacity breakdown: 128 MiB physical, minus ~8 MiB Dhara journal checkpoints, minus the
   GC reserve (`gc-factor = 4` keeps 1/5 of the FTL capacity free), minus the safety margin
