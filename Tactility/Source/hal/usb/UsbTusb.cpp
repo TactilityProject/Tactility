@@ -181,15 +181,15 @@ const char* tusbGetLastError() {
 void tusbStop() {
     auto* device = usb_msc_device_get();
     if (device != nullptr) {
-        // Flush any host writes that are still in the NAND journal before the driver is torn
-        // down and the system reboots.
+        usb_msc_device_stop(device);
+        // Stop the MSC device first so the host cannot write between the flush and teardown.
+        // The NAND block device remains valid after the MSC storage is torn down.
         if (spi_nand_sync_user_storage != nullptr) {
             error_t sync_error = spi_nand_sync_user_storage();
             if (sync_error != ERROR_NONE) {
                 LOG_W(TAG, "Failed to flush NAND writes: %s", error_to_string(sync_error));
             }
         }
-        usb_msc_device_stop(device);
         device_put(device);
     }
 }

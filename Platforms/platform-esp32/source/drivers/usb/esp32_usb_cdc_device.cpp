@@ -122,26 +122,28 @@ static void cdc_rx_callback(int itf, cdcacm_event_t* event) {
         return;
     }
 
-    uint8_t buffer[32];
+    uint8_t buffer[64];
     size_t received = 0;
-    if (tinyusb_cdcacm_read(TINYUSB_CDC_ACM_0, buffer, sizeof(buffer), &received) != ESP_OK) {
-        return;
-    }
+    do {
+        if (tinyusb_cdcacm_read(TINYUSB_CDC_ACM_0, buffer, sizeof(buffer), &received) != ESP_OK) {
+            break;
+        }
 
-    for (size_t i = 0; i < received; ++i) {
-        if (rx_accumulator_length >= sizeof(rx_accumulator) - 1) {
-            memmove(rx_accumulator, rx_accumulator + 1, sizeof(rx_accumulator) - 2);
-            rx_accumulator_length--;
+        for (size_t i = 0; i < received; ++i) {
+            if (rx_accumulator_length >= sizeof(rx_accumulator) - 1) {
+                memmove(rx_accumulator, rx_accumulator + 1, sizeof(rx_accumulator) - 2);
+                rx_accumulator_length--;
+            }
+            rx_accumulator[rx_accumulator_length++] = static_cast<char>(buffer[i]);
+            rx_accumulator[rx_accumulator_length] = '\0';
+            if (strstr(rx_accumulator, DOWNLOAD_REQUEST) != nullptr) {
+                rx_accumulator_length = 0;
+                rx_accumulator[0] = '\0';
+                request_download_mode();
+                return;
+            }
         }
-        rx_accumulator[rx_accumulator_length++] = static_cast<char>(buffer[i]);
-        rx_accumulator[rx_accumulator_length] = '\0';
-        if (strstr(rx_accumulator, DOWNLOAD_REQUEST) != nullptr) {
-            rx_accumulator_length = 0;
-            rx_accumulator[0] = '\0';
-            request_download_mode();
-            return;
-        }
-    }
+    } while (received > 0);
 }
 
 // ---- CDC descriptor contribution ----
