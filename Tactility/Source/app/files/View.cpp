@@ -25,6 +25,7 @@
 #include <Tactility/StringUtils.h>
 
 #include <tactility/device.h>
+#include <tactility/file_ops.h>
 #include <tactility/drivers/usb_host_msc.h>
 #include <tactility/log.h>
 
@@ -116,11 +117,6 @@ static void onOverlayKeyCallback(lv_event_t* event) {
 // endregion
 
 // region File helpers
-
-static bool isExecutablePath(const std::string& path) {
-    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(path.c_str()) };
-    return app_is_executable(location);
-}
 
 static bool isUsbMountPoint(const char* name) {
     return strncmp(name, "usb", 3) == 0 && isdigit((unsigned char)name[3]);
@@ -216,6 +212,65 @@ static bool copyRecursive(const std::string& src, const std::string& dst) {
 
 // endregion
 
+namespace {
+
+struct NavigateJob {
+    std::shared_ptr<State> state;
+    std::string path;
+    bool firstPage;
+    bool selectFirst;
+};
+
+void navigateWork(void* context) {
+    auto* job = static_cast<NavigateJob*>(context);
+    job->state->setEntriesForPath(job->path);
+    job->state->pushCompletedNavigation(job->firstPage, job->selectFirst);
+    delete job;
+}
+
+struct RunJob {
+    uint32_t appInstanceId;
+    std::string path;
+};
+
+// Starting an executable loads it from a file
+void runWork(void* context) {
+    auto* job = static_cast<RunJob*>(context);
+    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(job->path.c_str()) };
+    AppInstanceId instance_id = 0;
+    AppStartContext start_context = app_start_context_for_location(location);
+    if (app_start_with_context(&start_context, &instance_id) != ERROR_NONE) {
+        LOG_W(TAG, "Failed to run %s", job->path.c_str());
+        alertdialog::start(job->appInstanceId, "Run failed", "Could not run \"" + file::getLastPathSegment(job->path) + "\".");
+    }
+    delete job;
+}
+
+} // namespace
+
+void View::navigateTo(const std::string& path, bool firstPage, bool selectFirst) {
+    if (navigationPending.exchange(true)) {
+        return;
+    }
+    auto* job = new (std::nothrow) NavigateJob { state, path, firstPage, selectFirst };
+    if (job == nullptr || file_ops_queue(navigateWork, job, &fileOpsSub) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue reading %s", path.c_str());
+        delete job;
+        navigationPending = false;
+    }
+}
+
+void View::onFileOpsCompleted() {
+    while (file_ops_poll(&fileOpsSub) == ERROR_NONE) {
+        navigationPending = false;
+        auto result = state->takeCompletedNavigation();
+        if (result.has_value()) {
+            onNavigate();
+            update(result->first, result->second);
+        }
+    }
+}
+
 void View::viewFile(const std::string& path, const std::string& filename) {
     std::string file_path = path + "/" + filename;
     LOG_I(TAG, "Clicked %s", file_path.c_str());
@@ -230,7 +285,7 @@ void View::viewFile(const std::string& path, const std::string& filename) {
         imageviewer::start(file_path);
     } else if (isSupportedTextFile(filename)) {
         notes::start(file_path);
-    } else if (isExecutablePath(file_path)) {
+    } else if (state->isExecutable(filename)) {
         runFile(file_path);
     } else {
         LOG_W(TAG, "Opening files of this type is not supported");
@@ -242,18 +297,16 @@ void View::viewFile(const std::string& path, const std::string& filename) {
 void View::runFile(const std::string& file_path) {
     LOG_I(TAG, "Running %s", file_path.c_str());
 
-    if (!isExecutablePath(file_path)) {
+    if (!state->isExecutable(file::getLastPathSegment(file_path))) {
         LOG_W(TAG, "Not executable: %s", file_path.c_str());
         alertdialog::start(appInstanceId, "Run failed", "\"" + file::getLastPathSegment(file_path) + "\" is not an executable.");
         return;
     }
 
-    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(file_path.c_str()) };
-    AppInstanceId instance_id = 0;
-    AppStartContext context = app_start_context_for_location(location);
-    if (app_start_with_context(&context, &instance_id) != ERROR_NONE) {
-        LOG_W(TAG, "Failed to run %s", file_path.c_str());
-        alertdialog::start(appInstanceId, "Run failed", "Could not run \"" + file::getLastPathSegment(file_path) + "\".");
+    auto* job = new (std::nothrow) RunJob { appInstanceId, file_path };
+    if (job == nullptr || file_ops_queue(runWork, job, nullptr) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue running %s", file_path.c_str());
+        delete job;
     }
 }
 
@@ -270,9 +323,11 @@ View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
         .userData = this
     }) {
     check(task_event_group_claim_bit(eventGroup, &pasteBit) == ERROR_NONE);
+    check(file_ops_subscribe(&fileOpsSub, eventGroup) == ERROR_NONE);
 }
 
 View::~View() {
+    file_ops_unsubscribe(&fileOpsSub);
     task_event_group_release_bit(eventGroup, pasteBit);
 }
 
@@ -291,8 +346,7 @@ std::vector<TileGridItem> View::collectItems(void* userData) {
 
 const char* View::resolveIcon(const TileGridItem& item, void* userData) {
     auto* view = static_cast<View*>(userData);
-    const std::string path = file::getChildPath(view->state->getCurrentPath(), item.id);
-    return isExecutablePath(path) ? LVGL_ICON_SHARED_PLAY_ARROW : LVGL_ICON_SHARED_DRAFT;
+    return view->state->isExecutable(item.id) ? LVGL_ICON_SHARED_PLAY_ARROW : LVGL_ICON_SHARED_DRAFT;
 }
 
 void View::onTileClicked(const TileGridItem& item, void* userData) {
@@ -342,9 +396,7 @@ void View::onDirEntryPressed(const std::string& name) {
     switch (dir_entry.d_type) {
         case TT_DT_DIR:
         case TT_DT_CHR:
-            state->setEntriesForChildPath(dir_entry.d_name);
-            onNavigate();
-            update(true);
+            navigateTo(file::getChildPath(state->getCurrentPath(), dir_entry.d_name), true, true);
             break;
 
         case TT_DT_LNK:
@@ -435,10 +487,8 @@ void View::onNavigateUpPressed() {
         LOG_I(TAG, "Navigating upwards");
         std::string new_absolute_path;
         if (string::getPathParent(state->getCurrentPath(), new_absolute_path)) {
-            state->setEntriesForPath(new_absolute_path);
+            navigateTo(new_absolute_path, true, false);
         }
-        onNavigate();
-        update(true, false);
     }
 }
 
@@ -571,7 +621,7 @@ void View::showActionsForDirectory(lv_obj_t* tile) {
 
 void View::showActionsForFile(lv_obj_t* tile) {
     lv_obj_clean(overlay);
-    if (isExecutablePath(state->getSelectedChildPath())) {
+    if (state->isExecutable(state->getSelectedChildEntry())) {
         addOverlayButton(LVGL_ICON_SHARED_PLAY_ARROW, onRunPressedCallback);
     }
     addCommonFileActions();
@@ -617,8 +667,7 @@ void View::onEjectPressed() {
     }
 
     onNavigate();
-    state->setEntriesForPath(state->getCurrentPath());
-    update(false);
+    navigateTo(state->getCurrentPath(), false, false);
 }
 
 void View::update(bool firstPage, bool selectFirst) {

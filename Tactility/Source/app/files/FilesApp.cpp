@@ -50,6 +50,10 @@ int32_t appMain(int argc, char* argv[]) {
             uint32_t flags = 0;
             task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
 
+            if (flags & view.getFileOpsBit()) {
+                view.onFileOpsCompleted();
+            }
+
             if (flags & view.getPasteBit()) {
                 view.onPasteRequested();
             }
