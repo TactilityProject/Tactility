@@ -37,6 +37,7 @@
 #include <tactility/drivers/sdcard.h>
 #include <tactility/drivers/sleep_controller.h>
 #include <tactility/drivers/spi_controller.h>
+#include <tactility/drivers/vibration.h>
 #include <tactility/drivers/mouse.h>
 #include <tactility/drivers/touch.h>
 #include <tactility/drivers/trackball.h>
@@ -267,6 +268,10 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(compass_read_field),
     DEFINE_MODULE_SYMBOL(compass_read_heading),
     DEFINE_MODULE_SYMBOL(COMPASS_TYPE),
+    // drivers/vibration
+    DEFINE_MODULE_SYMBOL(vibration_set_strength),
+    DEFINE_MODULE_SYMBOL(vibration_pulse),
+    DEFINE_MODULE_SYMBOL(VIBRATION_TYPE),
     // drivers/imu
     DEFINE_MODULE_SYMBOL(imu_read_accel),
     DEFINE_MODULE_SYMBOL(imu_read_gyro),

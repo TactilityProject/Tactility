@@ -88,7 +88,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         spi_flash
     )
 
-    if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
+    if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4" OR "${IDF_TARGET}" STREQUAL "esp32s31")
         list(APPEND REQUIRES_LIST esp_tinyusb)
     endif ()
 
@@ -247,12 +247,40 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 else ()
     set(fonts_simulator 1)
 endif ()
-add_custom_target(GeneratedFonts ALL
-    COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/generate-fonts.py"
+set(FONT_GENERATOR "${CMAKE_SOURCE_DIR}/Buildscripts/generate-fonts.py")
+# The generator reads the device DTS files, the font assets and the icon/version sources. Track
+# them so an incremental build picks up a changed TTF or codepoint list.
+file(GLOB DEVICE_FONT_INPUTS CONFIGURE_DEPENDS "${DEVICETREE_LOCATION}/*.dts")
+list(APPEND DEVICE_FONT_INPUTS
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/AdwaitaSans.ttf"
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/AdwaitaMono.ttf"
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/MaterialSymbolsRounded.ttf"
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/MaterialSymbolsRounded.codepoints"
+    "${CMAKE_SOURCE_DIR}/Tactility/Private/Tactility/lvgl/FontVersions.h"
+    "${CMAKE_SOURCE_DIR}/Modules/lvgl-module/source/icon_names.c"
+    "${CMAKE_SOURCE_DIR}/Modules/lvgl-module/include/lvgl/icons/names.h"
+)
+# The generator builds its own host tool from these sources; a change to the renderer must also
+# invalidate the embedded font bytes.
+file(GLOB_RECURSE BINFONT_TOOL_INPUTS CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/Buildscripts/BinfontTool/*.c*"
+    "${CMAKE_SOURCE_DIR}/Buildscripts/BinfontTool/*.h"
+    "${CMAKE_SOURCE_DIR}/Modules/binfont-module/source/*.c*"
+    "${CMAKE_SOURCE_DIR}/Modules/binfont-module/include/*.h"
+    "${CMAKE_SOURCE_DIR}/Modules/binfont-module/private/*.h"
+    "${CMAKE_SOURCE_DIR}/TactilityKernel/source/memory_posix.cpp"
+)
+add_custom_command(
+    OUTPUT "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
+    COMMAND python "${FONT_GENERATOR}"
         "${DEVICETREE_LOCATION}" ${fonts_simulator} "${GENERATED_DIR}"
-    BYPRODUCTS "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
+    DEPENDS "${FONT_GENERATOR}" "${DEVICETREE_LOCATION}/device.properties"
+        ${DEVICE_FONT_INPUTS} ${BINFONT_TOOL_INPUTS}
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Generating font source files..."
+)
+add_custom_target(GeneratedFonts ALL
+    DEPENDS "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
 )
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.h" PROPERTIES GENERATED TRUE)

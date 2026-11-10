@@ -24,7 +24,7 @@ DEFAULT_FONT_SIZE = 14
 
 
 def read_text(path: str) -> str:
-    with open(path, "r", encoding="utf-8") as file:
+    with open(path, "r", encoding="utf-8", errors="replace") as file:
         return file.read()
 
 
@@ -118,30 +118,94 @@ def get_jobs(font_size: int, bpp: int) -> list:
     return jobs
 
 
-def build_tool(work_folder: str):
-    """@return the path of the tool, or None when there's no host compiler"""
-    compiler = next((found for found in (shutil.which(name) for name in ("c++", "g++", "clang++")) if found), None)
-    if compiler is None:
-        return None
+def is_host_executable(compiler: str, work_folder: str) -> bool:
+    """@return true if the compiler produces binaries that can actually run on this machine
+
+    ESP-IDF puts its cross toolchains (riscv32-esp-elf-g++, ...) on PATH as plain g++/c++.
+    They compile without complaint but emit target binaries that cannot run here, which would
+    otherwise make this script fail silently during an exported `idf.py build`.
+    """
+    probe_source = os.path.join(work_folder, "probe.cpp")
+    probe_binary = os.path.join(work_folder, "probe.exe" if os.name == "nt" else "probe")
+    with open(probe_source, "w", encoding="utf-8") as file:
+        file.write("int main() { return 0; }\n")
+    try:
+        # Do not capture the child's output: on Windows a grandchild that inherits the pipe can
+        # keep it open after a timeout, which makes subprocess.run() wait indefinitely.
+        compile_result = subprocess.run(
+            [compiler, probe_source, "-o", probe_binary],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30
+        )
+        if compile_result.returncode != 0:
+            return False
+        return subprocess.run(
+            [probe_binary], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30
+        ).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        # ERROR_BAD_EXE_FORMAT and friends, or a compiler that hangs on the probe.
+        return False
+
+
+def build_tool(work_folder: str) -> tuple:
+    """@return (tool path, reason, fatal); fatal means a usable host compiler exists but failed"""
+    candidates = [found for found in (shutil.which(name) for name in ("c++", "g++", "clang++")) if found]
+    if not candidates:
+        return None, "no host C++ compiler found", False
     tool = os.path.join(work_folder, "binfont_gen")
-    command = [
-        compiler, "-O2", "-std=c++20",
-        "-I" + os.path.join(ROOT, "Modules", "binfont-module", "include"),
-        "-I" + os.path.join(ROOT, "Modules", "binfont-module", "private"),
-        "-I" + os.path.join(ROOT, "TactilityKernel", "include"),
-        os.path.join(ROOT, "Buildscripts", "BinfontTool", "binfont_gen.cpp"),
-        os.path.join(ROOT, "Modules", "binfont-module", "source", "generator.cpp"),
-        os.path.join(ROOT, "TactilityKernel", "source", "memory_posix.cpp"),
-        "-o", tool,
-    ]
-    if subprocess.run(command).returncode != 0:
-        return None
-    return tool
+    log_path = os.path.join(work_folder, "compiler.log")
+    usable_candidate_found = False
+    for compiler in candidates:
+        # ESP-IDF exports cross toolchains under the plain compiler names. The probe filters out
+        # the ones whose binaries cannot run here, but only the full build proves the compiler can
+        # actually build this tool (e.g. it supports the required C++ standard).
+        if not is_host_executable(compiler, work_folder):
+            continue
+        usable_candidate_found = True
+        command = [
+            compiler, "-O2", "-std=c++20",
+        ]
+        if os.name == "nt":
+            # Link the C++ runtime statically: ESP-IDF's exported PATH can otherwise make the loader
+            # pick up an incompatible libstdc++/libwinpthread from a cross toolchain. macOS does not
+            # support fully static executables.
+            command.append("-static")
+        command += [
+            "-I" + os.path.join(ROOT, "Modules", "binfont-module", "include"),
+            "-I" + os.path.join(ROOT, "Modules", "binfont-module", "private"),
+            "-I" + os.path.join(ROOT, "TactilityKernel", "include"),
+            os.path.join(ROOT, "Buildscripts", "BinfontTool", "binfont_gen.cpp"),
+            os.path.join(ROOT, "Modules", "binfont-module", "source", "generator.cpp"),
+            os.path.join(ROOT, "TactilityKernel", "source", "memory_posix.cpp"),
+            "-o", tool,
+        ]
+        try:
+            # Redirect to a file rather than a pipe: a timed-out child that inherited the pipe can
+            # otherwise keep subprocess.run() blocked on Windows.
+            with open(log_path, "w", encoding="utf-8", errors="replace") as log_file:
+                result = subprocess.run(
+                    command, stdout=log_file, stderr=subprocess.STDOUT, timeout=120
+                )
+            if result.returncode == 0:
+                return tool, None, False
+            reason = f"exit code {result.returncode}"
+        except (OSError, subprocess.TimeoutExpired) as error:
+            reason = str(error)
+
+        # The temporary work folder (and the compiler log) disappears when this script exits, so
+        # surface the diagnostics now instead of losing them.
+        print(f"WARNING: {compiler} could not build the font tool ({reason})")
+        compiler_output = read_text(log_path) if os.path.exists(log_path) else ""
+        if compiler_output.strip():
+            print(compiler_output.rstrip())
+    if not usable_candidate_found:
+        return None, "no usable host C++ compiler found", False
+    return None, "host C++ compilers were found but none could build the font tool", True
 
 
-def write_if_changed(path: str, content: str):
-    if os.path.exists(path) and read_text(path) == content:
-        return
+def write_text(path: str, content: str):
+    # Always refresh the mtime, even when the content is unchanged. Makefile generators otherwise
+    # see the output as older than an input that changed without changing the output, and rerun
+    # the generator on every build.
     with open(path, "w", encoding="utf-8", newline="") as file:
         file.write(content)
 
@@ -158,9 +222,11 @@ def main():
 
     fonts = []
     with tempfile.TemporaryDirectory() as work_folder:
-        tool = build_tool(work_folder)
+        tool, build_error, fatal = build_tool(work_folder)
         if tool is None:
-            print("WARNING: no host C++ compiler found, fonts are not embedded in the firmware")
+            print(f"WARNING: {build_error}; fonts are not embedded in the firmware")
+            if fatal:
+                sys.exit(1)
         else:
             lines = []
             for index, (name, ttf, size, codepoints) in enumerate(jobs):
@@ -221,8 +287,8 @@ def main():
     source.append(f"const size_t generated_fonts_count = {len(fonts)};")
     source.append("")
 
-    write_if_changed(os.path.join(output_folder, "generated_fonts.h"), "\n".join(header))
-    write_if_changed(os.path.join(output_folder, "generated_fonts.c"), "\n".join(source))
+    write_text(os.path.join(output_folder, "generated_fonts.h"), "\n".join(header))
+    write_text(os.path.join(output_folder, "generated_fonts.c"), "\n".join(source))
     print(f"Generated {len(fonts)} fonts ({sum(len(data) for _, data in fonts)} bytes)")
 
 

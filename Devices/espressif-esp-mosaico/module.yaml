@@ -1,0 +1,14 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/co5300-module
+  - Drivers/cst9220-module
+  - Drivers/es8311-module
+  - Drivers/audio-stream-module
+  - Drivers/bmi270-module
+  - Drivers/bmm150-module
+  - Drivers/bq27220-module
+  - Drivers/gpio-poweroff-module
+  - Drivers/pwm-vibration-module
+  - Drivers/spi-nand-module
+dts: espressif,esp-mosaico.dts
+dts-only: true

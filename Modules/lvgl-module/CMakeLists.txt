@@ -40,7 +40,7 @@ list(APPEND REQUIRES_LIST
 if (DEFINED ENV{ESP_IDF_VERSION})
     list(APPEND REQUIRES_LIST esp_lvgl_port)
     # required for lvgl_ppa
-    if (IDF_TARGET STREQUAL "esp32p4")
+    if (IDF_TARGET STREQUAL "esp32p4" OR IDF_TARGET STREQUAL "esp32s31")
         list(APPEND REQUIRES_LIST esp_driver_ppa)
     endif ()
 else ()

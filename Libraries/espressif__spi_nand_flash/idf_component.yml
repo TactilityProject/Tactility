@@ -1,0 +1,21 @@
+dependencies:
+  espressif/dhara:
+    require: public
+    version: "==1.1.0"
+  idf:
+    require: public
+    version: '>=5.0'
+description: Driver for accessing SPI NAND Flash
+# Local fork of espressif/spi_nand_flash 1.4.4 from the official ESP-Mosaico BSP.
+# Adds poll_short_commands: on the ESP32-S31 the interrupt/DMA path stalls on the
+# zero-length PAGE READ and GET FEATURE (STATUS) transactions, so READY polling hangs
+# unless those two commands use spi_device_polling_transmit(). Without this, a FAT
+# format/mount over the NAND stops right after the first f_mount attempt.
+documentation: https://github.com/espressif/idf-extra-components/tree/main/spi_nand_flash/README.md
+issues: https://github.com/espressif/idf-extra-components/issues
+repository: git://github.com/espressif/idf-extra-components.git
+repository_info:
+  commit_sha: cc69ba1ff55bafd9cc39d0694984e72e0517cb08
+  path: spi_nand_flash
+url: https://github.com/espressif/idf-extra-components/tree/master/spi_nand_flash
+version: 1.4.4

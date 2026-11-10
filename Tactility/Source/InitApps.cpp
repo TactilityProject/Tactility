@@ -26,6 +26,7 @@
 #include <tactility/drivers/power_supply.h>
 #include <tactility/drivers/trackball.h>
 #include <tactility/drivers/uart_controller.h>
+#include <tactility/drivers/vibration.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/log.h>
 
@@ -81,6 +82,7 @@ namespace app {
 #endif
     namespace timezone { extern const ::AppManifest manifest; }
     namespace usbsettings { extern const ::AppManifest manifest; }
+    namespace vibrationsettings { extern const ::AppManifest manifest; }
     namespace kernelsettings { extern const ::AppManifest manifest; }
     namespace btmanage { extern const ::AppManifest manifest; }
     namespace btpeersettings { extern const ::AppManifest manifest; }
@@ -131,6 +133,9 @@ static void registerInternalApps() {
     app_manager_add(&app::notes::manifest);
     if (device_exists_of_type(&POWER_SUPPLY_TYPE)) {
         app_manager_add(&app::poweroff::manifest);
+    }
+    if (device_exists_of_type(&VIBRATION_TYPE)) {
+        app_manager_add(&app::vibrationsettings::manifest);
     }
     app_manager_add(&app::qrcode::manifest);
     app_manager_add(&app::selectiondialog::manifest);

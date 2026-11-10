@@ -6,4 +6,12 @@ properties:
   _unused:
     type: int
     default: 0
-    description: Placeholder required by the binding schema; this driver has no device-tree configuration.
+    description: Placeholder required by the binding schema; this driver has no other device-tree configuration.
+  console-at-boot:
+    type: boolean
+    default: false
+    description: |
+      Install the CDC-ACM console at boot as the only USB device function, without waiting for
+      a primary class (MSC/HID/MIDI) to claim the slot. Use this on boards that would otherwise
+      expose no USB device at boot, e.g. when mass storage has no mounted medium. A later
+      primary-class claim tears the standalone console down first.
