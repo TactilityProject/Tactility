@@ -17,10 +17,17 @@
 
 #include <bindings/st7789.h>
 #include <bindings/button_control.h>
+#include <tactility/bindings/esp32_flash_fatfs.h>
 
 / {
 	compatible = "root";
 	model = "M5Stack StickS3";
+
+	flash_fatfs0 {
+		compatible = "espressif,esp32-flash-fatfs";
+		partition-label = "data";
+		mount-path = "/data";
+	};
 
 	wifi0 {
 		compatible = "espressif,esp32-wifi-pinned";

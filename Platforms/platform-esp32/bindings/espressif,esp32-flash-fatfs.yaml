@@ -1,0 +1,13 @@
+description: FAT filesystem on a wear-levelled partition of the internal flash
+
+compatible: "espressif,esp32-flash-fatfs"
+
+properties:
+  partition-label:
+    type: string
+    required: true
+    description: Label of the data partition in the partition table, e.g. "data"
+  mount-path:
+    type: string
+    required: true
+    description: VFS mount path, e.g. "/data"

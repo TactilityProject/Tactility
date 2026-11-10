@@ -21,6 +21,7 @@
 #include <bindings/ft5x06.h>
 #include <bindings/ili9341.h>
 #include <bindings/gc0308.h>
+#include <tactility/bindings/esp32_flash_fatfs.h>
 
 // SD card is not supported because of a hardware problem:
 // The display uses pin 35 as input (MISO), but the SPI bus (and SD card) uses the same pin as DC (output).
@@ -29,6 +30,12 @@
 / {
 	compatible = "root";
 	model = "M5Stack CoreS3";
+
+	flash_fatfs0 {
+		compatible = "espressif,esp32-flash-fatfs";
+		partition-label = "data";
+		mount-path = "/data";
+	};
 
 	wifi0 {
 		compatible = "espressif,esp32-wifi-pinned";
