@@ -218,10 +218,13 @@ int32_t appMain(int, char**) {
         }
     }
 
+    // Remove the window first: it waits for and destroys the widgets, so no LVGL callback can
+    // signal the event group after it has been destroyed.
+    window_manager_remove(window);
+
     task_event_group_release_bit(&event_group, ctx.saveBit);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&event_group);
-    window_manager_remove(window);
 
     if (ctx.device != nullptr) {
         vibration_set_strength(ctx.device, 0.0f);
