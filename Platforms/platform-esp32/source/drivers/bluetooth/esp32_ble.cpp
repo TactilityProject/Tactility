@@ -31,7 +31,9 @@ constexpr auto* TAG = "esp32_ble";
 #include <tactility/log.h>
 #include <tactility/memory.h>
 #include <esp_mac.h>
+#if CONFIG_IDF_TARGET_ESP32S31
 #include <esp_bt.h>
+#endif
 #include <esp_timer.h>
 
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
@@ -1039,11 +1041,13 @@ static void dispatch_disable(BleCtx* ctx) {
         }
     }
 
+#if CONFIG_IDF_TARGET_ESP32S31
     // The giveup event is allocated from the controller's OSAL mempool by ble_npl_event_init()
     // (on S31 struct ble_npl_event wraps btdm_osal_event), so it has to be returned before the
     // controller deinit, which asserts that every mempool element was freed.
     ble_npl_eventq_remove(nimble_port_get_dflt_eventq(), &ctx->giveup_event);
     ble_npl_event_deinit(&ctx->giveup_event);
+#endif
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
     // Close the gate NOW — after nimble_port_stop() returns the NimBLE host task has
     // exited and nimble_port_deinit() is about to zero npl_funcs. Any HCI packet
@@ -1053,6 +1057,7 @@ static void dispatch_disable(BleCtx* ctx) {
         LOG_W(TAG, "HCI gate drain timed out");
     }
 #endif
+#if CONFIG_IDF_TARGET_ESP32S31
     esp_err_t host_deinit_result = esp_nimble_deinit();
     if (host_deinit_result != ESP_OK) {
         LOG_E(TAG, "host deinit failed: %s", esp_err_to_name(host_deinit_result));
@@ -1061,12 +1066,10 @@ static void dispatch_disable(BleCtx* ctx) {
         if (disable_result != ESP_OK) {
             LOG_E(TAG, "controller disable failed: %s", esp_err_to_name(disable_result));
         }
-#if !CONFIG_IDF_TARGET_ESP32S31
-        else if (esp_bt_controller_deinit() != ESP_OK) {
-            LOG_E(TAG, "controller deinit failed");
-        }
-#endif
     }
+#else
+    nimble_port_deinit();
+#endif
     free_scan_buffers(ctx);
 
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
