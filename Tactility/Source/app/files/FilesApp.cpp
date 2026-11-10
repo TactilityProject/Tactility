@@ -28,6 +28,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->view->init(ctx->appInstanceId, parent);
 }
 
+void destroyWidgets(void* userData) {
+    static_cast<CreateContext*>(userData)->view->destroyWidgets();
+}
+
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     auto state = std::make_shared<State>();
@@ -43,7 +47,7 @@ int32_t appMain(int argc, char* argv[]) {
         AppEventSubscription sub {};
         check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-        WindowId window = window_manager_create(appInstanceId, createWidgets, &createContext);
+        WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &createContext);
 
         bool shouldClose = false;
         while (!shouldClose) {

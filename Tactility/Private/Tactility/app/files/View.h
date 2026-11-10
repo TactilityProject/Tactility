@@ -75,6 +75,8 @@ public:
     void onFileOpsCompleted();
 
     void init(uint32_t appInstanceId, lv_obj_t* parent);
+    /** Forgets the widgets, which are deleted when another window covers this one. Runs on the LVGL task with the lock held. */
+    void destroyWidgets();
     /**
      * Shows the current entries of the state.
      * @param[in] firstPage true after navigating to another directory, false to stay on the current page

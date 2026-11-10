@@ -223,8 +223,9 @@ struct NavigateJob {
 
 void navigateWork(void* context) {
     auto* job = static_cast<NavigateJob*>(context);
-    job->state->setEntriesForPath(job->path);
-    job->state->pushCompletedNavigation(job->firstPage, job->selectFirst);
+    if (job->state->setEntriesForPath(job->path)) {
+        job->state->pushCompletedNavigation(job->firstPage, job->selectFirst);
+    }
     delete job;
 }
 
@@ -265,7 +266,9 @@ void View::onFileOpsCompleted() {
         navigationPending = false;
         auto result = state->takeCompletedNavigation();
         if (result.has_value()) {
+            lvgl_lock();
             onNavigate();
+            lvgl_unlock();
             update(result->first, result->second);
         }
     }
@@ -676,6 +679,12 @@ void View::update(bool firstPage, bool selectFirst) {
         return;
     }
 
+    // The widgets are gone while another window covers this one
+    if (navigate_up_button == nullptr) {
+        lvgl_unlock();
+        return;
+    }
+
     const bool is_root = (state->getCurrentPath() == "/");
     lv_obj_set_hidden(navigate_up_button, is_root);
     lv_obj_set_hidden(overflow_button, is_root);
@@ -726,6 +735,13 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     lvgl_grid_navigation_add(overlay);
     lv_obj_add_event_cb(overlay, onOverlayKeyCallback, LV_EVENT_KEY, this);
     lv_obj_set_hidden(overlay, true);
+}
+
+void View::destroyWidgets() {
+    overlay = nullptr;
+    navigate_up_button = nullptr;
+    overflow_button = nullptr;
+    grid.destroyWidgets();
 }
 
 void View::onNavigate() {

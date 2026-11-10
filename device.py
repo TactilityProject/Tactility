@@ -261,7 +261,7 @@ def write_spiram_variables(output_file, device_properties: dict):
     output_file.write("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y\n")
     # Performance improvements
     if idf_target == "esp32s3":
-        output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:")
+        output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:\n")
         # Copy flash-resident code into PSRAM when enabled
         output_file.write("CONFIG_SPIRAM_FETCH_INSTRUCTIONS=n\n")
         # Copy flash-resident data (for code) into PSRAM when enabled
