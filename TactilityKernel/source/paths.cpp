@@ -10,17 +10,28 @@
 
 extern "C" {
 
+static const char* root_path_override = nullptr;
+
+static const char* get_root_path() {
+    return root_path_override != nullptr ? root_path_override : CONFIG_TT_ROOT_PATH;
+}
+
+void paths_set_root_path_override(const char* path) {
+    root_path_override = path;
+}
+
 error_t paths_get_root_path(char* out_path, size_t out_path_size) {
-    if (strlen(CONFIG_TT_ROOT_PATH) >= out_path_size) {
+    const char* root = get_root_path();
+    if (strlen(root) >= out_path_size) {
         return ERROR_BUFFER_OVERFLOW;
     }
-    strcpy(out_path, CONFIG_TT_ROOT_PATH);
+    strcpy(out_path, root);
     return ERROR_NONE;
 }
 
 bool paths_is_root_mounted() {
     struct stat st;
-    return stat(CONFIG_TT_ROOT_PATH, &st) == 0 && S_ISDIR(st.st_mode);
+    return stat(get_root_path(), &st) == 0 && S_ISDIR(st.st_mode);
 }
 
 error_t paths_get_data_root_path(char* out_path, size_t out_path_size) {

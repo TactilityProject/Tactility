@@ -23,6 +23,12 @@ extern "C" {
 error_t paths_get_root_path(char* out_path, size_t out_path_size);
 
 /**
+ * @brief Replaces CONFIG_TT_ROOT_PATH as the root path, so that tests can use a scratch directory.
+ * @param[in] path the new root path, which must stay valid until it is reset. NULL restores CONFIG_TT_ROOT_PATH.
+ */
+void paths_set_root_path_override(const char* path);
+
+/**
  * @brief Check whether the storage that holds the user data is currently mounted.
  * @return true when the storage configured by CONFIG_TT_ROOT_PATH is mounted
  */
