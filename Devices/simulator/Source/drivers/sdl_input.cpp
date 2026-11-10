@@ -28,32 +28,55 @@ size_t key_queue_count = 0;
 
 bool text_input_started = false;
 
-constexpr size_t MAX_HELD_CONTROL_KEYS = 4;
-uint32_t held_control_keys[MAX_HELD_CONTROL_KEYS] = {};
+struct HeldControlKey {
+    uint32_t key = 0;
+    uint8_t ref_count = 0;
+};
+
+constexpr size_t MAX_HELD_CONTROL_KEYS = 11;
+HeldControlKey held_control_keys[MAX_HELD_CONTROL_KEYS] = {};
+
 uint32_t last_reported_key = 0;
 bool last_reported_pressed = false;
 
-void mark_control_key_held(uint32_t key) {
-    for (uint32_t& slot : held_control_keys) {
-        if (slot == key) {
-            return;
+bool mark_control_key_held(uint32_t key) {
+    for (HeldControlKey& slot : held_control_keys) {
+        if (slot.key == key) {
+            slot.ref_count++;
+            return false;
         }
     }
-    for (uint32_t& slot : held_control_keys) {
-        if (slot == 0) {
-            slot = key;
-            return;
+    for (HeldControlKey& slot : held_control_keys) {
+        if (slot.ref_count == 0) {
+            slot.key = key;
+            slot.ref_count = 1;
+            return true;
         }
     }
+    return true; // unreachable
 }
 
-void clear_control_key_held(uint32_t key) {
-    for (uint32_t& slot : held_control_keys) {
-        if (slot == key) {
-            slot = 0;
-            return;
+bool clear_control_key_held(uint32_t key) {
+    for (HeldControlKey& slot : held_control_keys) {
+        if (slot.key == key) {
+            slot.ref_count--;
+            if (slot.ref_count == 0) {
+                slot.key = 0;
+                return true;
+            }
+            return false;
         }
     }
+    return true;
+}
+
+uint32_t find_any_held_control_key() {
+    for (const HeldControlKey& slot : held_control_keys) {
+        if (slot.key != 0) {
+            return slot.key;
+        }
+    }
+    return 0;
 }
 
 void push_key(uint32_t key, bool pressed) {
@@ -61,9 +84,20 @@ void push_key(uint32_t key, bool pressed) {
         return;
     }
     if (key_queue_count >= KEY_QUEUE_CAPACITY) {
-        // Drop the oldest queued event instead of this one: an incoming release must never be
-        // the one that gets dropped, or the focused widget never sees its matching release.
-        key_queue_head = (key_queue_head + 1) % KEY_QUEUE_CAPACITY;
+        size_t evict_offset = 0;
+        for (size_t i = 0; i < key_queue_count; i++) {
+            size_t idx = (key_queue_head + i) % KEY_QUEUE_CAPACITY;
+            if (key_pressed_queue[idx]) {
+                evict_offset = i;
+                break;
+            }
+        }
+        for (size_t i = evict_offset; i + 1 < key_queue_count; i++) {
+            size_t dst = (key_queue_head + i) % KEY_QUEUE_CAPACITY;
+            size_t src = (key_queue_head + i + 1) % KEY_QUEUE_CAPACITY;
+            key_queue[dst] = key_queue[src];
+            key_pressed_queue[dst] = key_pressed_queue[src];
+        }
         key_queue_count--;
     }
     size_t idx = (key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY;
@@ -72,6 +106,14 @@ void push_key(uint32_t key, bool pressed) {
     key_queue_count++;
     last_reported_key = key;
     last_reported_pressed = pressed;
+
+    if (!pressed) {
+        uint32_t other_held_key = find_any_held_control_key();
+        if (other_held_key != 0) {
+            last_reported_key = other_held_key;
+            last_reported_pressed = true;
+        }
+    }
 }
 
 void set_pointer_position(int32_t window_x, int32_t window_y) {
@@ -156,16 +198,14 @@ void sdl_input_pump() {
                         break;
                     }
                     uint32_t key = keycode_to_key(event.key.keysym.sym);
-                    if (key != 0) {
-                        mark_control_key_held(key);
+                    if (key != 0 && mark_control_key_held(key)) {
                         push_key(key, true);
                     }
                     break;
                 }
                 case SDL_KEYUP: {
                     uint32_t key = keycode_to_key(event.key.keysym.sym);
-                    if (key != 0) {
-                        clear_control_key_held(key);
+                    if (key != 0 && clear_control_key_held(key)) {
                         push_key(key, false);
                     }
                     break;
@@ -228,9 +268,9 @@ bool sdl_input_get_held_key(uint32_t* out_key) {
     if (!last_reported_pressed || last_reported_key == 0) {
         return false;
     }
-    for (uint32_t key : held_control_keys) {
-        if (key == last_reported_key) {
-            *out_key = key;
+    for (const HeldControlKey& slot : held_control_keys) {
+        if (slot.key == last_reported_key) {
+            *out_key = slot.key;
             return true;
         }
     }
