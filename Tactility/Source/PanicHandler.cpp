@@ -61,7 +61,7 @@ void __wrap_esp_panic_handler(void* info) {
     // On RISC-V an abort()/assert() surfaces as an illegal-instruction *fault* (not
     // PANIC_EXCEPTION_ABORT), so also prefer the recorded abort details for faults.
     const char* reason = panic_info->reason;
-    if (g_panic_abort_details != nullptr && g_panic_abort_details[0] != '\0') {
+    if (g_panic_abort && g_panic_abort_details != nullptr && g_panic_abort_details[0] != '\0') {
         reason = g_panic_abort_details;
     }
     crashData.reason[0] = '\0';
@@ -195,8 +195,10 @@ void __wrap_esp_panic_handler(void* info) {
 
 bool isRtcCrashDataValid() {
     const auto cause = static_cast<uint8_t>(crashData.cause);
-    if (cause == static_cast<uint8_t>(CrashCause::Unknown) ||
-        cause > static_cast<uint8_t>(CrashCause::Fault)) {
+    // Only aborts and faults are real crashes. The wrapper records watchdog and debug
+    // exceptions without a reason or callstack, so those records aren't reportable crashes.
+    if (cause != static_cast<uint8_t>(CrashCause::Abort) &&
+        cause != static_cast<uint8_t>(CrashCause::Fault)) {
         return false;
     }
     if (crashData.callstackLength > CRASH_DATA_CALLSTACK_LIMIT) {

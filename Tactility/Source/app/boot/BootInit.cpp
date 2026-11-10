@@ -300,12 +300,14 @@ bool bootInit(TickType_t startTime) {
     // Surface the previous crash (including assert details captured by the panic handler) on the
     // serial console, since the panic output itself is usually lost with a USB CDC console.
     {
-        if (isRtcCrashDataValid()) {
+        const bool was_panic = esp_reset_reason() == ESP_RST_PANIC;
+        if (was_panic && isRtcCrashDataValid()) {
             const CrashData& crash = getRtcCrashData();
             LOG_E(TAG, "Previous crash: cause=%d fault=0x%08x reason='%s'",
                   (int)crash.cause, crash.faultAddress, crash.reason);
         } else {
-            // Random contents from a full power cycle (e.g. a power-controller shutdown).
+            // Stale data from an earlier panic, or random contents from a full power cycle
+            // (e.g. a power-controller shutdown).
             resetRtcCrashData();
         }
     }
@@ -390,6 +392,8 @@ bool bootInit(TickType_t startTime) {
 #ifdef ESP_PLATFORM
     if (esp_reset_reason() == ESP_RST_PANIC) {
         crashdiagnostics::showCrashScreen(screen);
+        // The record has been rendered; clear it so a later normal restart doesn't report it.
+        resetRtcCrashData();
     }
 #endif
 
