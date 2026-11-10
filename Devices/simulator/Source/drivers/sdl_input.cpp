@@ -36,6 +36,15 @@ struct HeldControlKey {
 constexpr size_t MAX_HELD_CONTROL_KEYS = 11;
 HeldControlKey held_control_keys[MAX_HELD_CONTROL_KEYS] = {};
 
+struct HeldTextKey {
+    SDL_Scancode scancode = SDL_SCANCODE_UNKNOWN;
+    uint32_t key = 0;
+};
+
+constexpr size_t MAX_HELD_TEXT_KEYS = 11;
+HeldTextKey held_text_keys[MAX_HELD_TEXT_KEYS] = {};
+SDL_Scancode last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
+
 uint32_t last_reported_key = 0;
 bool last_reported_pressed = false;
 
@@ -116,6 +125,60 @@ void push_key(uint32_t key, bool pressed) {
     }
 }
 
+bool hold_text_key(SDL_Scancode scancode, uint32_t key) {
+    if (scancode == SDL_SCANCODE_UNKNOWN) {
+        return false;
+    }
+    for (HeldTextKey& slot : held_text_keys) {
+        if (slot.scancode == scancode) {
+            if (slot.key != key) {
+                push_key(slot.key, false);
+            }
+            slot.key = key;
+            return true;
+        }
+    }
+    for (HeldTextKey& slot : held_text_keys) {
+        if (slot.scancode == SDL_SCANCODE_UNKNOWN) {
+            slot.scancode = scancode;
+            slot.key = key;
+            return true;
+        }
+    }
+    return false;
+}
+
+void release_text_key(SDL_Scancode scancode) {
+    for (HeldTextKey& slot : held_text_keys) {
+        if (slot.scancode == scancode) {
+            const uint32_t key = slot.key;
+            slot = HeldTextKey {};
+            push_key(key, false);
+            return;
+        }
+    }
+}
+
+// The OS does not deliver SDL_KEYUP for keys that were down when the window lost keyboard
+// focus, so nothing else would ever release them.
+void release_all_held_keys() {
+    for (HeldControlKey& slot : held_control_keys) {
+        if (slot.key != 0) {
+            const uint32_t key = slot.key;
+            slot = HeldControlKey {};
+            push_key(key, false);
+        }
+    }
+    for (HeldTextKey& slot : held_text_keys) {
+        if (slot.scancode != SDL_SCANCODE_UNKNOWN) {
+            const uint32_t key = slot.key;
+            slot = HeldTextKey {};
+            push_key(key, false);
+        }
+    }
+    last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
+}
+
 void set_pointer_position(int32_t window_x, int32_t window_y) {
     pointer_state.x = window_x;
     pointer_state.y = window_y;
@@ -192,29 +255,46 @@ void sdl_input_pump() {
                     }
                     break;
                 case SDL_KEYDOWN: {
-                    // event.key.repeat is true for the auto-repeat events the OS sends while a
-                    // key is held
-                    if (event.key.repeat) {
-                        break;
-                    }
                     uint32_t key = keycode_to_key(event.key.keysym.sym);
-                    if (key != 0 && mark_control_key_held(key)) {
-                        push_key(key, true);
+                    if (key != 0) {
+                        last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
+                        // event.key.repeat is true for the auto-repeat events the OS sends
+                        // while a key is held
+                        if (event.key.repeat) {
+                            break;
+                        }
+                        if (mark_control_key_held(key)) {
+                            push_key(key, true);
+                        }
+                    } else {
+                        last_text_keydown_scancode = event.key.keysym.scancode;
                     }
                     break;
                 }
                 case SDL_KEYUP: {
                     uint32_t key = keycode_to_key(event.key.keysym.sym);
-                    if (key != 0 && clear_control_key_held(key)) {
-                        push_key(key, false);
+                    if (key != 0) {
+                        if (clear_control_key_held(key)) {
+                            push_key(key, false);
+                        }
+                    } else {
+                        release_text_key(event.key.keysym.scancode);
                     }
                     break;
                 }
                 case SDL_TEXTINPUT:
                     // ASCII only
                     if (static_cast<uint8_t>(event.text.text[0]) < 0x80) {
-                        push_key(static_cast<uint8_t>(event.text.text[0]), true);
-                        push_key(static_cast<uint8_t>(event.text.text[0]), false);
+                        const uint32_t key = static_cast<uint8_t>(event.text.text[0]);
+                        if (hold_text_key(last_text_keydown_scancode, key)) {
+                            // Held until the physical key comes up, like a control key
+                            push_key(key, true);
+                        } else {
+                            // No KEYDOWN to pair with or no free slot: fall back to an
+                            // instantaneous tap
+                            push_key(key, true);
+                            push_key(key, false);
+                        }
                     }
                     break;
                 case SDL_WINDOWEVENT:
@@ -224,6 +304,8 @@ void sdl_input_pump() {
                         window_width = event.window.data1;
                         window_height = event.window.data2;
                         sdl_display_present_now();
+                    } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+                        release_all_held_keys();
                     }
                     break;
                 case SDL_QUIT:
