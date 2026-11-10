@@ -74,7 +74,6 @@
 - Chip 8 emulator
 - Discord bot
 - IR transceiver app
-- GPS app
 - Investigate CSI https://stevenmhernandez.github.io/ESP32-CSI-Tool/
 - Calendar
 - RSS reader
