@@ -22,7 +22,13 @@ std::string State::getSelectedChildPath() const {
 }
 
 bool State::setEntriesForPath(const std::string& path) {
-    LOG_D(TAG, "Changing path: %s -> %s", current_path.c_str(), path.c_str());
+    LOG_D(TAG, "Changing path: %s", path.c_str());
+
+    std::vector<dirent> entries;
+    if (file::scandir(path, entries, &file::direntFilterDotEntries, file::direntSortAlphaAndType) < 0) {
+        LOG_E(TAG, "Failed to fetch entries for %s", path.c_str());
+        return false;
+    }
 
     auto lock = mutex.asScopedLock();
     if (!lock.lock(100)) {
@@ -30,22 +36,10 @@ bool State::setEntriesForPath(const std::string& path) {
         return false;
     }
 
-    dir_entries.clear();
-    int count = file::scandir(path, dir_entries, &file::direntFilterDotEntries, file::direntSortAlphaAndType);
-    if (count >= 0) {
-        current_path = path;
-        selected_child_entry = "";
-        return true;
-    } else {
-        LOG_E(TAG, "Failed to fetch entries for %s", path.c_str());
-        return false;
-    }
-}
-
-bool State::setEntriesForChildPath(const std::string& childPath) {
-    auto path = file::getChildPath(current_path, childPath);
-    LOG_D(TAG, "Navigating from %s to %s", current_path.c_str(), path.c_str());
-    return setEntriesForPath(path);
+    dir_entries = std::move(entries);
+    current_path = path;
+    selected_child_entry = "";
+    return true;
 }
 
 bool State::getDirent(uint32_t index, dirent& dirent) {
