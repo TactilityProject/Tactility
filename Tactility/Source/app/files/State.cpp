@@ -17,7 +17,7 @@ constexpr auto* TAG = "Files";
 
 State::State() {
     char data_root[FILE_MAX_PATH_STRING_LENGTH];
-    if (paths_get_data_root_path(data_root, sizeof(data_root)) != ERROR_NONE || !setEntriesForPath(data_root)) {
+    if (paths_get_root_path(data_root, sizeof(data_root)) != ERROR_NONE || !setEntriesForPath(data_root)) {
         setEntriesForPath("/");
     }
 }
