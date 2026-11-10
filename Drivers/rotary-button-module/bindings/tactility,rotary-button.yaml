@@ -1,0 +1,26 @@
+description: >
+  Rotary button with up, down and press contacts on GPIO pins, such as the switch on the side of the
+  Waveshare ESP32-S3-ePaper-3.97. Exposes a KEYBOARD_TYPE device: up selects the previous widget,
+  down the next one and press is the enter key.
+
+compatible: "tactility,rotary-button"
+
+properties:
+  pin-up:
+    type: phandles
+    required: true
+    description: Up contact GPIO pin, selects the previous widget
+  pin-down:
+    type: phandles
+    required: true
+    description: Down contact GPIO pin, selects the next widget
+  pin-press:
+    type: phandles
+    required: true
+    description: Press contact GPIO pin, sends the enter key
+  debounce-ms:
+    type: int
+    min: 0
+    max: 1000
+    default: 20
+    description: Minimum time between recognized level changes of a button

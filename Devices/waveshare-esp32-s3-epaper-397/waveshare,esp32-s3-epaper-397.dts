@@ -1,0 +1,148 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c_master.h>
+#include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_sdmmc.h>
+#include <tactility/bindings/esp32_spi.h>
+#include <tactility/bindings/esp32_usbdevice.h>
+#include <tactility/bindings/gpio_hog.h>
+#include <bindings/axp2101.h>
+#include <bindings/pcf85063.h>
+#include <bindings/qmi8658.h>
+#include <bindings/shtc3.h>
+#include <bindings/es8311.h>
+#include <bindings/ssd1677.h>
+#include <bindings/rotary_button.h>
+
+// Reference: https://docs.waveshare.com/ESP32-S3-ePaper-3.97
+/ {
+	compatible = "root";
+	model = "Waveshare ESP32-S3-ePaper-3.97";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+	};
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
+	// NS4150B speaker amplifier enable, active high
+	amp_enable {
+		compatible = "gpio-hog";
+		pin = <&gpio0 39 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
+
+	// Before the I2C bus so the codec can reference it
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <&gpio0 14 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 47 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 48 GPIO_FLAG_NONE>;
+		pin-data-in = <&gpio0 21 GPIO_FLAG_NONE>;
+		pin-mclk = <&gpio0 13 GPIO_FLAG_NONE>;
+	};
+
+	// Before the display, the PMIC powers the panel
+	i2c0 {
+		compatible = "espressif,esp32-i2c-master";
+		port = <I2C_NUM_0>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 41 GPIO_FLAG_NONE>;
+		pin-scl = <&gpio0 42 GPIO_FLAG_NONE>;
+
+		// TG28, register-compatible with the AXP2101. ALDO3 powers the e-paper panel, ALDO1 and ALDO2 the audio
+		// parts, all at 3.3 V like the example code of Waveshare.
+		axp2101 {
+			compatible = "x-powers,axp2101";
+			reg = <0x34>;
+			aldo1-millivolt = <3300>;
+			aldo1-enabled;
+			aldo2-millivolt = <3300>;
+			aldo2-enabled;
+			aldo3-millivolt = <3300>;
+			aldo3-enabled;
+		};
+
+		pcf85063 {
+			compatible = "nxp,pcf85063";
+			reg = <0x51>;
+		};
+
+		// Sensor X points to the left edge of the screen, Y to the top edge and Z into the screen (silkscreen
+		// arrows on the back of the board)
+		qmi8658 {
+			compatible = "qst,qmi8658";
+			reg = <0x6B>;
+			mount-matrix = <-1 0 0
+			                0 1 0
+			                0 0 -1>;
+		};
+
+		shtc3 {
+			compatible = "sensirion,shtc3";
+			reg = <0x70>;
+		};
+
+		es8311 {
+			compatible = "everest,es8311";
+			reg = <0x18>;
+			i2s = <&i2s0>;
+		};
+	};
+
+	spi0 {
+		compatible = "espressif,esp32-spi";
+		host = <SPI2_HOST>;
+		pin-mosi = <&gpio0 12 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 11 GPIO_FLAG_NONE>;
+		max-transfer-size = <4096>;
+
+		display@0 {
+			compatible = "solomon-systech,ssd1677";
+			pin-dc = <&gpio0 9 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 46 GPIO_FLAG_NONE>;
+			pin-busy = <&gpio0 3 GPIO_FLAG_NONE>;
+			pin-cs = <&gpio0 10 GPIO_FLAG_NONE>;
+		};
+	};
+
+	sdmmc0 {
+		compatible = "espressif,esp32-sdmmc";
+		pin-clk = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-cmd = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-d0 = <&gpio0 15 GPIO_FLAG_NONE>;
+		pin-d1 = <&gpio0 7 GPIO_FLAG_NONE>;
+		pin-d2 = <&gpio0 8 GPIO_FLAG_NONE>;
+		pin-d3 = <&gpio0 18 GPIO_FLAG_NONE>;
+		slot = <SDMMC_HOST_SLOT_1>;
+		bus-width = <4>;
+	};
+
+	// Switch on the top edge with external pull-ups
+	buttons {
+		compatible = "tactility,rotary-button";
+		pin-up = <&gpio0 4 GPIO_FLAG_ACTIVE_LOW>;
+		pin-down = <&gpio0 6 GPIO_FLAG_ACTIVE_LOW>;
+		pin-press = <&gpio0 5 GPIO_FLAG_ACTIVE_LOW>;
+	};
+
+	usbdevice0 {
+		compatible = "espressif,esp32-usbdevice";
+
+		usbdevicemsc0 {
+			compatible = "espressif,esp32-usbdevice-msc";
+		};
+	};
+};

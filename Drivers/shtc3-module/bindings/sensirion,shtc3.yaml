@@ -1,0 +1,5 @@
+description: Sensirion SHTC3 temperature and humidity sensor
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "sensirion,shtc3"

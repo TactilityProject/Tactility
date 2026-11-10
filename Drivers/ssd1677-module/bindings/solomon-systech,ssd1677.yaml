@@ -1,0 +1,39 @@
+description: >
+  E-paper panel of 800x480 pixels with an SSD1677 controller, driven over SPI, such as the 3.97 inch panel
+  of the Waveshare ESP32-S3-ePaper-3.97. Changes are drawn in 8 shades with waveforms of the driver that
+  drive only the pixels that change, refresh() flashes the panel once and draws the content again. The node must be a child of an SPI controller and
+  shares its host, clock and MOSI pins. The driver manages the DC, RESET, BUSY and CS pins itself.
+
+compatible: "solomon-systech,ssd1677"
+
+bus: spi
+
+properties:
+  pin-dc:
+    type: phandles
+    required: true
+    description: Data/Command GPIO pin
+  pin-reset:
+    type: phandles
+    required: true
+    description: Reset GPIO pin
+  pin-busy:
+    type: phandles
+    required: true
+    description: Busy GPIO pin (active high)
+  pin-cs:
+    type: phandles
+    required: true
+    description: Chip-select GPIO pin
+  clock-speed-hz:
+    type: int
+    default: 20000000
+    description: SPI clock frequency in Hz, at most 20 MHz for writes
+  rotation:
+    type: int
+    min: 0
+    max: 3
+    default: 0
+    description: >
+      Fixed display rotation applied at start. 0 = 0 degrees, 1 = 90 degrees,
+      2 = 180 degrees, 3 = 270 degrees counter-clockwise (matching LV_DISPLAY_ROTATION_*).

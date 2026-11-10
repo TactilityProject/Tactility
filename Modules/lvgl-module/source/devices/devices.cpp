@@ -215,6 +215,11 @@ static void idle_repaint_timer_cb(lv_timer_t* timer) {
     }
 }
 
+// A rotation redraws the whole screen. Clearing the panel first draws the new content without ghosting of the old one.
+static void slow_refresh_rotation_cb(lv_event_t* event) {
+    display_clear(static_cast<struct Device*>(lv_event_get_user_data(event)));
+}
+
 void lvgl_devices_attach() {
     lvgl_lock();
 
@@ -270,6 +275,7 @@ void lvgl_devices_attach() {
                     display_clear(kernel_display_device);
                 }
                 first_attach = false;
+                lv_display_add_event_cb(added_display, slow_refresh_rotation_cb, LV_EVENT_RESOLUTION_CHANGED, kernel_display_device);
                 IdleRepaintContext* ctx = &idle_repaint_contexts()[i];
                 if (ctx->timer == nullptr) {
                     ctx->lvgl_display = added_display;
