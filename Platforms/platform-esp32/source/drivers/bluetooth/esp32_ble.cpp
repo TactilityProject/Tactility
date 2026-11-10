@@ -922,11 +922,25 @@ static void dispatch_enable(BleCtx* ctx) {
         } else {
             LOG_E(TAG, "nimble_port_init failed (rc=%d)", rc);
         }
+
+        enum BtRadioState failure_state = BT_RADIO_STATE_OFF;
+#if CONFIG_IDF_TARGET_ESP32S31
+        // If the controller was enabled before esp_nimble_init() failed, roll it back so the
+        // reported radio state matches the hardware and a later enable starts from a known state.
+        if (!scan_alloc_failed && esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
+            esp_err_t disable_result = esp_bt_controller_disable();
+            if (disable_result != ESP_OK) {
+                LOG_E(TAG, "controller rollback failed: %s", esp_err_to_name(disable_result));
+                failure_state = BT_RADIO_STATE_ON;
+            }
+        }
+#endif
+
         free_scan_buffers(ctx);
-        ctx->radio_state.store(BT_RADIO_STATE_OFF);
+        ctx->radio_state.store(failure_state);
         struct BtEvent e = {};
         e.type = BT_EVENT_RADIO_STATE_CHANGED;
-        e.radio_state = BT_RADIO_STATE_OFF;
+        e.radio_state = failure_state;
         ble_publish_event(ctx->device, e);
         return;
     }
@@ -1057,15 +1071,20 @@ static void dispatch_disable(BleCtx* ctx) {
         LOG_W(TAG, "HCI gate drain timed out");
     }
 #endif
+    enum BtRadioState final_state = BT_RADIO_STATE_OFF;
 #if CONFIG_IDF_TARGET_ESP32S31
     esp_err_t host_deinit_result = esp_nimble_deinit();
     if (host_deinit_result != ESP_OK) {
         LOG_E(TAG, "host deinit failed: %s", esp_err_to_name(host_deinit_result));
-    } else {
-        esp_err_t disable_result = esp_bt_controller_disable();
-        if (disable_result != ESP_OK) {
-            LOG_E(TAG, "controller disable failed: %s", esp_err_to_name(disable_result));
-        }
+    }
+
+    // Attempt the controller disable independently: a failed host deinit must not leave the
+    // radio enabled while callers believe it is off.
+    esp_err_t disable_result = esp_bt_controller_disable();
+    if (disable_result != ESP_OK) {
+        LOG_E(TAG, "controller disable failed: %s", esp_err_to_name(disable_result));
+        // Report the radio as still on so a later off request can retry the disable.
+        final_state = BT_RADIO_STATE_ON;
     }
 #else
     nimble_port_deinit();
@@ -1112,11 +1131,11 @@ static void dispatch_disable(BleCtx* ctx) {
         ctx->adv_restart_timer = nullptr;
     }
 
-    ctx->radio_state.store(BT_RADIO_STATE_OFF);
+    ctx->radio_state.store(final_state);
     {
         struct BtEvent e = {};
         e.type = BT_EVENT_RADIO_STATE_CHANGED;
-        e.radio_state = BT_RADIO_STATE_OFF;
+        e.radio_state = final_state;
         ble_publish_event(ctx->device, e);
     }
 }
