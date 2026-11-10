@@ -34,6 +34,7 @@ constexpr IconEntry ICONS[] = {
     {"tactility.touchcalibration",  LVGL_ICON_SHARED_CIRCLE},
     {"tactility.trackballsettings", LVGL_ICON_SHARED_DEVICES},
     {"tactility.usbsettings",       LVGL_ICON_SHARED_USB},
+    {"tactility.vibrationsettings", LVGL_ICON_SHARED_PHONE_ANDROID},
     {"tactility.wifimanage",        LVGL_ICON_SHARED_WIFI},
 };
 

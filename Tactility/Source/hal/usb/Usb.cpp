@@ -96,28 +96,27 @@ void rebootIntoMassStorageSdmmc() {
     }
 }
 
-// NEW: Flash mass storage functions
-bool startMassStorageWithFlash(bool fromBootMode) {
+bool startMassStorageWithInternalStorage(bool fromBootMode) {
     if (!canStartNewMode()) {
-        LOG_E(TAG, "Can't start flash mass storage");
+        LOG_E(TAG, "Can't start mass storage");
         return false;
     }
 
-    if (tusbStartMassStorageWithFlash(fromBootMode)) {
+    if (tusbStartMassStorageWithInternalStorage(fromBootMode)) {
         currentMode = Mode::MassStorageFlash;
         return true;
     } else {
-        LOG_E(TAG, "Failed to init flash mass storage");
+        LOG_E(TAG, "Failed to init mass storage");
         return false;
     }
 }
 
 bool canRebootIntoMassStorageFlash() {
-    return tusbCanStartMassStorageWithFlash();
+    return tusbCanStartMassStorageWithInternalStorage();
 }
 
 void rebootIntoMassStorageFlash() {
-    if (tusbCanStartMassStorageWithFlash()) {
+    if (tusbCanStartMassStorageWithInternalStorage()) {
         bootModeData.flag = BOOT_FLAG_FLASH;
         esp_restart();
     }

@@ -614,7 +614,11 @@ error_t bluetooth_service_set_radio_enabled(bool enabled) {
     if (enabled) {
         service->managed = true;
     }
-    return bluetooth_set_radio_enabled(service->device, enabled);
+    error_t error = bluetooth_set_radio_enabled(service->device, enabled);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "service_set_radio_enabled(%d) failed: %s", enabled ? 1 : 0, error_to_string(error));
+    }
+    return error;
 }
 
 void bluetooth_service_connect(const BtAddr addr, enum BtProfileId profile) {

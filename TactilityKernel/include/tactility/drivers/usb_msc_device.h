@@ -20,6 +20,8 @@ struct DeviceType;
 enum UsbMscDeviceSource {
     USB_MSC_DEVICE_SOURCE_SDMMC,
     USB_MSC_DEVICE_SOURCE_FLASH,
+    /** A wear-levelled block device (esp_blockdev_handle_t*), e.g. the NAND user volume. */
+    USB_MSC_DEVICE_SOURCE_BLOCKDEV,
 };
 
 /** Fired when the exposed volume's mount state changes (host mounted/unmounted it). */

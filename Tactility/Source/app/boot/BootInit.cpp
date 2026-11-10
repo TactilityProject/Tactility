@@ -7,6 +7,7 @@
 #include <tactility/drivers/backlight.h>
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/power_supply.h>
+#include <tactility/drivers/vibration.h>
 #include <tactility/log.h>
 #include <tactility/system_event.h>
 #include <tactility/time.h>
@@ -17,6 +18,7 @@
 
 #include <Tactility/DeprecatedPaths.h>
 #include <Tactility/MountPoints.h>
+#include <Tactility/PanicHandler.h>
 #include <Tactility/TactilityPrivate.h>
 #include <Tactility/app/boot/BootScreen.h>
 #include <Tactility/app/boot/BootScripts.h>
@@ -30,6 +32,7 @@
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
 #include <Tactility/settings/GrovePortSettings.h>
+#include <Tactility/settings/VibrationSettings.h>
 
 
 #ifdef ESP_PLATFORM
@@ -155,7 +158,7 @@ UsbBootResult setupUsbBootMode() {
 
     bool started = false;
     if (mode == hal::usb::BootMode::Flash) {
-        started = hal::usb::startMassStorageWithFlash(true);
+        started = hal::usb::startMassStorageWithInternalStorage(true);
     } else if (mode == hal::usb::BootMode::Sdmmc) {
         started = hal::usb::startMassStorageWithSdmmc(true);
     }
@@ -270,10 +273,45 @@ void startNextApp() {
     }
 }
 
+#ifdef CONFIG_TT_VIBRATION_ON_BOOT
+/** Short "the device is ready" buzz, using the strength chosen in the Vibration settings. */
+void playBootVibration() {
+    const auto settings = settings::vibration::loadOrGetDefault();
+    if (!settings.enabled || settings.strength == 0) {
+        return;
+    }
+
+    Device* device = nullptr;
+    if (device_get_first_by_type(&VIBRATION_TYPE, &device) != ERROR_NONE) {
+        return;
+    }
+
+    vibration_pulse(device, settings.duration_ms, static_cast<float>(settings.strength));
+    device_put(device);
+}
+#endif
+
 } // namespace
 
 bool bootInit(TickType_t startTime) {
     LOG_I(TAG, "Starting boot sequence");
+
+#ifdef ESP_PLATFORM
+    // Surface the previous crash (including assert details captured by the panic handler) on the
+    // serial console, since the panic output itself is usually lost with a USB CDC console.
+    {
+        const bool was_panic = esp_reset_reason() == ESP_RST_PANIC;
+        if (was_panic && isRtcCrashDataValid()) {
+            const CrashData& crash = getRtcCrashData();
+            LOG_E(TAG, "Previous crash: cause=%d fault=0x%08x reason='%s'",
+                  (int)crash.cause, crash.faultAddress, crash.reason);
+        } else {
+            // Stale data from an earlier panic, or random contents from a full power cycle
+            // (e.g. a power-controller shutdown).
+            resetRtcCrashData();
+        }
+    }
+#endif
     const bool is_usb_boot = hal::usb::isUsbBootMode();
 
     auto start_time = get_millis();
@@ -354,6 +392,8 @@ bool bootInit(TickType_t startTime) {
 #ifdef ESP_PLATFORM
     if (esp_reset_reason() == ESP_RST_PANIC) {
         crashdiagnostics::showCrashScreen(screen);
+        // The record has been rendered; clear it so a later normal restart doesn't report it.
+        resetRtcCrashData();
     }
 #endif
 
@@ -362,6 +402,10 @@ bool bootInit(TickType_t startTime) {
     lvgl::configureTheme(settings::appearance::loadOrGetDefault());
 
     screen.end();
+
+#ifdef CONFIG_TT_VIBRATION_ON_BOOT
+    playBootVibration();
+#endif
 
     size_t total_time = get_millis() - start_time;
     LOG_I(TAG, "Finished in %lu ms", static_cast<uint32_t>(total_time));
