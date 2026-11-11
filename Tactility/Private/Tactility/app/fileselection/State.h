@@ -58,17 +58,24 @@ public:
     bool getDirent(uint32_t index, dirent& dirent);
 
     void setSelectedChildEntry(const std::string& newFile) {
-        selected_child_entry = newFile;
+        mutex.withLock([&] { selected_child_entry = newFile; });
     }
 
-    std::string getSelectedChildEntry() const { return selected_child_entry; }
-    std::string getCurrentPath() const { return current_path; }
+    std::string getSelectedChildEntry() const {
+        std::string result;
+        mutex.withLock([&] { result = selected_child_entry; });
+        return result;
+    }
+
+    std::string getCurrentPath() const {
+        std::string result;
+        mutex.withLock([&] { result = current_path; });
+        return result;
+    }
+
     std::string getCurrentPathWithTrailingSlash() const {
-        if (current_path.length() > 1) {
-            return current_path + "/";
-        } else {
-            return current_path;
-        }
+        std::string path = getCurrentPath();
+        return path.length() > 1 ? path + "/" : path;
     }
 
     std::string getSelectedChildPath() const;

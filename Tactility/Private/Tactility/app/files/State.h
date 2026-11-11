@@ -99,18 +99,35 @@ public:
     }
 
     void setSelectedChildEntry(const std::string& newFile) {
-        selected_child_entry = newFile;
-        action = ActionNone;
+        mutex.withLock([&] {
+            selected_child_entry = newFile;
+            action = ActionNone;
+        });
     }
 
-    std::string getSelectedChildEntry() const { return selected_child_entry; }
-    std::string getCurrentPath() const { return current_path; }
+    std::string getSelectedChildEntry() const {
+        std::string result;
+        mutex.withLock([&] { result = selected_child_entry; });
+        return result;
+    }
+
+    std::string getCurrentPath() const {
+        std::string result;
+        mutex.withLock([&] { result = current_path; });
+        return result;
+    }
 
     std::string getSelectedChildPath() const;
 
-    PendingAction getPendingAction() const { return action; }
+    PendingAction getPendingAction() const {
+        PendingAction result = ActionNone;
+        mutex.withLock([&] { result = action; });
+        return result;
+    }
 
-    void setPendingAction(PendingAction newAction) { action = newAction; }
+    void setPendingAction(PendingAction newAction) {
+        mutex.withLock([&] { action = newAction; });
+    }
 
     std::string getPendingPasteDst() const {
         std::string result;

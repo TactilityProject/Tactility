@@ -25,7 +25,13 @@ State::State() {
 }
 
 std::string State::getSelectedChildPath() const {
-    return file::getChildPath(current_path, selected_child_entry);
+    std::string path;
+    std::string child;
+    mutex.withLock([&] {
+        path = current_path;
+        child = selected_child_entry;
+    });
+    return file::getChildPath(path, child);
 }
 
 bool State::setEntriesForPath(const std::string& path) {
