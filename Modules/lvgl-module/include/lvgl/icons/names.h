@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 /** Changes whenever the icon TTF subset, its codepoints file or the icon name lists change */
-#define LVGL_ICON_FONT_VERSION 0x63DDEF79u
+#define LVGL_ICON_FONT_VERSION 0x1804D86Cu
 
 // Icon names per icon font, resolved through the .codepoints file next to the TTF
 extern const char* const lvgl_icon_shared_names[];
