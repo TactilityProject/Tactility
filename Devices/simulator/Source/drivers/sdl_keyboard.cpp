@@ -17,10 +17,16 @@ static error_t stop(Device*) { return ERROR_NONE; }
 
 static error_t sdl_keyboard_read_key(Device*, KeyboardKeyData* data) {
     uint32_t key = 0;
-    if (sdl_input_pop_key(&key)) {
+    bool pressed = true;
+    if (sdl_input_pop_key(&key, &pressed)) {
+        data->key = key;
+        data->pressed = pressed;
+        data->continue_reading = sdl_input_has_queued_key();
+    } else if (sdl_input_get_held_key(&key)) {
+        // No fresh event this poll, but the key LVGL last saw pressed is still physically down
         data->key = key;
         data->pressed = true;
-        data->continue_reading = sdl_input_has_queued_key();
+        data->continue_reading = false;
     } else {
         data->key = 0;
         data->pressed = false;

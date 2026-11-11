@@ -14,8 +14,6 @@ namespace {
 
 constexpr size_t KEY_QUEUE_CAPACITY = 32;
 
-// Written by sdl_input_pump() on the real main thread, read by sdl_input_get_pointer_state()/
-// sdl_input_pop_key()/sdl_input_has_queued_key() on the lvgl task.
 std::mutex state_mutex;
 
 // The position in window coordinates, and the size of the window then
@@ -24,34 +22,163 @@ int window_width = 0;
 int window_height = 0;
 
 uint32_t key_queue[KEY_QUEUE_CAPACITY];
+bool key_pressed_queue[KEY_QUEUE_CAPACITY] = {};
 size_t key_queue_head = 0;
 size_t key_queue_count = 0;
 
 bool text_input_started = false;
 
-void push_key(uint32_t key) {
-    if (key == 0 || key_queue_count >= KEY_QUEUE_CAPACITY) {
-        return;
+struct HeldControlKey {
+    uint32_t key = 0;
+    uint8_t ref_count = 0;
+};
+
+constexpr size_t MAX_HELD_CONTROL_KEYS = 11;
+HeldControlKey held_control_keys[MAX_HELD_CONTROL_KEYS] = {};
+
+struct HeldTextKey {
+    SDL_Scancode scancode = SDL_SCANCODE_UNKNOWN;
+    uint32_t key = 0;
+};
+
+constexpr size_t MAX_HELD_TEXT_KEYS = 11;
+HeldTextKey held_text_keys[MAX_HELD_TEXT_KEYS] = {};
+SDL_Scancode last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
+
+uint32_t last_reported_key = 0;
+bool last_reported_pressed = false;
+
+bool mark_control_key_held(uint32_t key) {
+    for (HeldControlKey& slot : held_control_keys) {
+        if (slot.key == key) {
+            slot.ref_count++;
+            return false;
+        }
     }
-    key_queue[(key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY] = key;
-    key_queue_count++;
+    for (HeldControlKey& slot : held_control_keys) {
+        if (slot.ref_count == 0) {
+            slot.key = key;
+            slot.ref_count = 1;
+            return true;
+        }
+    }
+    return true; // unreachable
 }
 
-// Mirrors LVGL's own lv_sdl_keyboard.c keycode_to_ctrl_key(): every key returns a real Unicode
-// codepoint per KeyboardKeyData::key's contract - never an LV_KEY_* constant, even for keys with
-// no ordinary character of their own (arrows, Tab/Shift+Tab as focus nav, Home/End), which use the
-// CodePoint enum's standard Unicode symbols for the concept. lvgl-module's keyboard.cpp translates
-// all of these back to LVGL's own sentinels (CODEPOINT_ESCAPE/BACKSPACE/DELETE already equal their
-// LV_KEY_* counterpart numerically, so no translation is needed for those). Printable characters
-// arrive separately via SDL_TEXTINPUT.
-// The window can be freely resized (see sdl_display.cpp's SDL_WINDOW_RESIZABLE/
-// SDL_RenderSetLogicalSize()), so raw SDL mouse coordinates are in window-pixel space, not the
-// resolution LVGL renders at. The view also changes shape when the display rotates. The raw
-// position is kept with the window size, and sdl_input_get_pointer_state() maps it onto the
-// current view, so a rotation takes effect right away even when the mouse doesn't move.
-// LVGL rotates pointer positions from the display's native orientation to the rotated view itself,
-// so the position in the view is turned back to a native one at the end.
-// The view is scaled to fit the window and centered, like SDL_RenderSetLogicalSize() does.
+bool clear_control_key_held(uint32_t key) {
+    for (HeldControlKey& slot : held_control_keys) {
+        if (slot.key == key) {
+            slot.ref_count--;
+            if (slot.ref_count == 0) {
+                slot.key = 0;
+                return true;
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
+uint32_t find_any_held_control_key() {
+    for (const HeldControlKey& slot : held_control_keys) {
+        if (slot.key != 0) {
+            return slot.key;
+        }
+    }
+    return 0;
+}
+
+void push_key(uint32_t key, bool pressed) {
+    if (key == 0) {
+        return;
+    }
+    if (key_queue_count >= KEY_QUEUE_CAPACITY) {
+        size_t evict_offset = 0;
+        for (size_t i = 0; i < key_queue_count; i++) {
+            size_t idx = (key_queue_head + i) % KEY_QUEUE_CAPACITY;
+            if (key_pressed_queue[idx]) {
+                evict_offset = i;
+                break;
+            }
+        }
+        for (size_t i = evict_offset; i + 1 < key_queue_count; i++) {
+            size_t dst = (key_queue_head + i) % KEY_QUEUE_CAPACITY;
+            size_t src = (key_queue_head + i + 1) % KEY_QUEUE_CAPACITY;
+            key_queue[dst] = key_queue[src];
+            key_pressed_queue[dst] = key_pressed_queue[src];
+        }
+        key_queue_count--;
+    }
+    size_t idx = (key_queue_head + key_queue_count) % KEY_QUEUE_CAPACITY;
+    key_queue[idx] = key;
+    key_pressed_queue[idx] = pressed;
+    key_queue_count++;
+    last_reported_key = key;
+    last_reported_pressed = pressed;
+
+    if (!pressed) {
+        uint32_t other_held_key = find_any_held_control_key();
+        if (other_held_key != 0) {
+            last_reported_key = other_held_key;
+            last_reported_pressed = true;
+        }
+    }
+}
+
+bool hold_text_key(SDL_Scancode scancode, uint32_t key) {
+    if (scancode == SDL_SCANCODE_UNKNOWN) {
+        return false;
+    }
+    for (HeldTextKey& slot : held_text_keys) {
+        if (slot.scancode == scancode) {
+            if (slot.key != key) {
+                push_key(slot.key, false);
+            }
+            slot.key = key;
+            return true;
+        }
+    }
+    for (HeldTextKey& slot : held_text_keys) {
+        if (slot.scancode == SDL_SCANCODE_UNKNOWN) {
+            slot.scancode = scancode;
+            slot.key = key;
+            return true;
+        }
+    }
+    return false;
+}
+
+void release_text_key(SDL_Scancode scancode) {
+    for (HeldTextKey& slot : held_text_keys) {
+        if (slot.scancode == scancode) {
+            const uint32_t key = slot.key;
+            slot = HeldTextKey {};
+            push_key(key, false);
+            return;
+        }
+    }
+}
+
+// The OS does not deliver SDL_KEYUP for keys that were down when the window lost keyboard
+// focus, so nothing else would ever release them.
+void release_all_held_keys() {
+    for (HeldControlKey& slot : held_control_keys) {
+        if (slot.key != 0) {
+            const uint32_t key = slot.key;
+            slot = HeldControlKey {};
+            push_key(key, false);
+        }
+    }
+    for (HeldTextKey& slot : held_text_keys) {
+        if (slot.scancode != SDL_SCANCODE_UNKNOWN) {
+            const uint32_t key = slot.key;
+            slot = HeldTextKey {};
+            push_key(key, false);
+        }
+    }
+    last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
+}
+
 void set_pointer_position(int32_t window_x, int32_t window_y) {
     pointer_state.x = window_x;
     pointer_state.y = window_y;
@@ -75,7 +202,7 @@ void map_to_view(int32_t* x, int32_t* y) {
     sdl_display_view_to_native(x, y);
 }
 
-uint32_t keycode_to_key(SDL_Keycode sdl_key, bool shift) {
+uint32_t keycode_to_key(SDL_Keycode sdl_key) {
     switch (sdl_key) {
         case SDLK_RIGHT: return CODEPOINT_ARROW_RIGHT;
         case SDLK_LEFT: return CODEPOINT_ARROW_LEFT;
@@ -96,9 +223,6 @@ uint32_t keycode_to_key(SDL_Keycode sdl_key, bool shift) {
 }
 
 void sdl_input_pump() {
-    // exit() must run with state_mutex unlocked: it never returns, so a lock_guard held across it
-    // would never release the mutex, hanging any other thread that later calls into this file's
-    // other functions (all of which lock state_mutex) while exit() tears the process down.
     bool quit_requested = false;
 
     {
@@ -118,9 +242,7 @@ void sdl_input_pump() {
                 case SDL_MOUSEBUTTONDOWN:
                     if (event.button.button == SDL_BUTTON_LEFT) {
                         // event.button.x/y can be stale immediately after a window resize (an
-                        // SDL/X11 event-queue quirk - confirmed by comparing against a live
-                        // SDL_GetWindowSize() at the same instant). SDL_GetMouseState() queries the
-                        // OS for the current pointer position directly, sidestepping that entirely.
+                        // SDL/X11 event-queue quirk)
                         int live_x, live_y;
                         SDL_GetMouseState(&live_x, &live_y);
                         set_pointer_position(live_x, live_y);
@@ -132,21 +254,58 @@ void sdl_input_pump() {
                         pointer_state.pressed = false;
                     }
                     break;
-                case SDL_KEYDOWN:
-                    push_key(keycode_to_key(event.key.keysym.sym, (event.key.keysym.mod & KMOD_SHIFT) != 0));
+                case SDL_KEYDOWN: {
+                    uint32_t key = keycode_to_key(event.key.keysym.sym);
+                    if (key != 0) {
+                        last_text_keydown_scancode = SDL_SCANCODE_UNKNOWN;
+                        // event.key.repeat is true for the auto-repeat events the OS sends
+                        // while a key is held
+                        if (event.key.repeat) {
+                            break;
+                        }
+                        if (mark_control_key_held(key)) {
+                            push_key(key, true);
+                        }
+                    } else {
+                        last_text_keydown_scancode = event.key.keysym.scancode;
+                    }
                     break;
+                }
+                case SDL_KEYUP: {
+                    uint32_t key = keycode_to_key(event.key.keysym.sym);
+                    if (key != 0) {
+                        if (clear_control_key_held(key)) {
+                            push_key(key, false);
+                        }
+                    } else {
+                        release_text_key(event.key.keysym.scancode);
+                    }
+                    break;
+                }
                 case SDL_TEXTINPUT:
-                    // ASCII only (first byte of event.text.text) - sufficient for a simulator keyboard.
-                    push_key(static_cast<uint8_t>(event.text.text[0]));
+                    // ASCII only
+                    if (static_cast<uint8_t>(event.text.text[0]) < 0x80) {
+                        const uint32_t key = static_cast<uint8_t>(event.text.text[0]);
+                        if (hold_text_key(last_text_keydown_scancode, key)) {
+                            // Held until the physical key comes up, like a control key
+                            push_key(key, true);
+                        } else {
+                            // No KEYDOWN to pair with or no free slot: fall back to an
+                            // instantaneous tap
+                            push_key(key, true);
+                            push_key(key, false);
+                        }
+                    }
                     break;
                 case SDL_WINDOWEVENT:
                     // Resizing doesn't change what LVGL last rendered, only how large it should
-                    // appear - re-present the existing frame at the new scale immediately, rather
-                    // than leaving stale-looking content on screen until the next LVGL-driven flush.
+                    // appear so re-present the existing frame at the new scale immediately
                     if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                         window_width = event.window.data1;
                         window_height = event.window.data2;
                         sdl_display_present_now();
+                    } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+                        release_all_held_keys();
                     }
                     break;
                 case SDL_QUIT:
@@ -169,12 +328,13 @@ void sdl_input_get_pointer_state(SdlPointerState* out_state) {
     map_to_view(&out_state->x, &out_state->y);
 }
 
-bool sdl_input_pop_key(uint32_t* out_key) {
+bool sdl_input_pop_key(uint32_t* out_key, bool* out_pressed) {
     std::lock_guard<std::mutex> lock(state_mutex);
     if (key_queue_count == 0) {
         return false;
     }
     *out_key = key_queue[key_queue_head];
+    *out_pressed = key_pressed_queue[key_queue_head];
     key_queue_head = (key_queue_head + 1) % KEY_QUEUE_CAPACITY;
     key_queue_count--;
     return true;
@@ -183,4 +343,18 @@ bool sdl_input_pop_key(uint32_t* out_key) {
 bool sdl_input_has_queued_key() {
     std::lock_guard<std::mutex> lock(state_mutex);
     return key_queue_count > 0;
+}
+
+bool sdl_input_get_held_key(uint32_t* out_key) {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    if (!last_reported_pressed || last_reported_key == 0) {
+        return false;
+    }
+    for (const HeldControlKey& slot : held_control_keys) {
+        if (slot.key == last_reported_key) {
+            *out_key = slot.key;
+            return true;
+        }
+    }
+    return false;
 }
