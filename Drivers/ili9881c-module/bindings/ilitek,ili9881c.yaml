@@ -112,7 +112,7 @@ properties:
       other tasks occasionally block timing for long enough that waiting causes visible stalls).
   init-sequence:
     type: array
-    element-type: uint8_t
+    element-type: const uint8_t
     description: >
       Custom vendor bring-up sequence, flattened into bytes as a run of
       [cmd, data-length, delay-ms, data-length bytes of data...] entries, e.g.

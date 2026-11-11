@@ -5,6 +5,7 @@
 #include <app/event.h>
 
 #include <tactility/check.h>
+#include <tactility/file_ops.h>
 #include <tactility/log.h>
 
 #include <lvgl/lvgl.h>
@@ -37,6 +38,59 @@ static void onNavigateUpPressedCallback(lv_event_t* event) {
 
 // endregion
 
+namespace {
+
+struct NavigateJob {
+    std::shared_ptr<State> state;
+    std::string path;
+};
+
+void navigateWork(void* context) {
+    auto* job = static_cast<NavigateJob*>(context);
+    if (job->state->setEntriesForPath(job->path)) {
+        job->state->pushCompletedNavigation();
+    }
+    delete job;
+}
+
+} // namespace
+
+View::View(uint32_t appInstanceId, const std::shared_ptr<State>& state, TaskEventGroup* eventGroup, std::function<void(const std::string& path)> onFileSelected) :
+    appInstanceId(appInstanceId),
+    state(state),
+    on_file_selected(std::move(onFileSelected))
+{
+    check(file_ops_subscribe(&fileOpsSub, eventGroup) == ERROR_NONE);
+}
+
+View::~View() {
+    file_ops_unsubscribe(&fileOpsSub);
+}
+
+void View::navigateTo(const std::string& path) {
+    if (navigationPending.exchange(true)) {
+        return;
+    }
+    auto* job = new (std::nothrow) NavigateJob { state, path };
+    if (job == nullptr || file_ops_queue(navigateWork, job, &fileOpsSub) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue reading %s", path.c_str());
+        delete job;
+        navigationPending = false;
+    }
+}
+
+void View::onFileOpsCompleted() {
+    while (file_ops_poll(&fileOpsSub) == ERROR_NONE) {
+        navigationPending = false;
+        if (state->takeCompletedNavigation()) {
+            lvgl_lock();
+            lv_textarea_set_text(path_textarea, state->getCurrentPathWithTrailingSlash().c_str());
+            lvgl_unlock();
+            update();
+        }
+    }
+}
+
 void View::onBackPressedCallback(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
     app_event_emit_close(view->appInstanceId);
@@ -57,9 +111,7 @@ void View::onDirEntryPressed(uint32_t index) {
         switch (dir_entry.d_type) {
             case TT_DT_DIR:
             case TT_DT_CHR:
-                state->setEntriesForChildPath(dir_entry.d_name);
-                lv_textarea_set_text(path_textarea, state->getCurrentPathWithTrailingSlash().c_str());
-                update();
+                navigateTo(file::getChildPath(state->getCurrentPath(), dir_entry.d_name));
                 break;
             case TT_DT_LNK:
                 LOG_W(TAG, "Opening links is not supported");
@@ -127,14 +179,8 @@ void View::onNavigateUpPressed() {
         LOG_D(TAG, "Navigating upwards");
         std::string new_absolute_path;
         if (string::getPathParent(state->getCurrentPath(), new_absolute_path)) {
-            state->setEntriesForPath(new_absolute_path);
+            navigateTo(new_absolute_path);
         }
-        if (new_absolute_path.length() > 1) {
-            lv_textarea_set_text(path_textarea, (new_absolute_path + "/").c_str());
-        } else {
-            lv_textarea_set_text(path_textarea, new_absolute_path.c_str());
-        }
-        update();
     }
 }
 

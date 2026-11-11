@@ -51,6 +51,7 @@ const char* const lvgl_icon_shared_names[] = {
     "settings",
     "toolbar",
     "navigation",
+    "map",
     "keyboard_alt",
     "usb",
     "wifi",

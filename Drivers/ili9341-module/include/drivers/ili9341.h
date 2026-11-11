@@ -29,6 +29,12 @@ struct Ili9341Config {
     struct GpioPinSpec pin_dc;
     struct GpioPinSpec pin_reset;
     bool reset_active_high;
+    // Custom vendor init sequence, flattened as bytes: a run of
+    // [cmd, data_len, delay_ms, data_len bytes of data...] entries. NULL/0 falls back to the
+    // ILI9341 component's own built-in default sequence (see vendor_specific_init_default in
+    // esp_lcd_ili9341.c).
+    const uint8_t* init_sequence;
+    uint32_t init_sequence_length;
     // Optional reference to this display's backlight device, NULL if none.
     struct Device* backlight;
 };

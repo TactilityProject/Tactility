@@ -3,6 +3,7 @@
 
 #include <tactility/concurrent/mutex.h>
 #include <tactility/concurrent/thread.h>
+#include <tactility/delay.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
 #include <tactility/time.h>
@@ -28,6 +29,9 @@ namespace {
 
 // Large enough for the file and settings helpers and for loading apps. It must be in internal RAM to access flash
 constexpr size_t WORKER_STACK_SIZE = 8192;
+
+constexpr int START_ATTEMPTS = 10;
+constexpr TickType_t START_RETRY_DELAY_TICKS = 2;
 
 struct Item {
     file_ops_work_fn_t work;
@@ -124,7 +128,15 @@ bool start_worker(State& s) {
         return false;
     }
     s.running = true;
-    if (thread_start(thread) != ERROR_NONE) {
+    // The stack of a worker that just ended is only released when the idle task runs, so creating the next one can fail for a moment
+    bool started = false;
+    for (int attempt = 0; attempt < START_ATTEMPTS && !started; attempt++) {
+        if (attempt > 0) {
+            delay_ticks(START_RETRY_DELAY_TICKS);
+        }
+        started = thread_start(thread) == ERROR_NONE;
+    }
+    if (!started) {
         s.running = false;
         thread_free(thread);
         return false;

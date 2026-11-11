@@ -52,18 +52,12 @@ menu "Tactility App"
     config TT_TDECK_WORKAROUND
         bool "Temporary work-around until we fix the T-Deck keyboard and trackball settings"
         default n
-    choice TT_USER_DATA_LOCATION
-        prompt "User Data Location"
-        default TT_USER_DATA_LOCATION_INTERNAL
+    config TT_ROOT_PATH
+        string "User Data Path"
+        default "/data"
         help
-            Where user data is stored on this device.
-            "Internal Flash" assumes /data always exists.
-            "SD Card" looks for the first mounted SD card at runtime and requires one to be present.
-        config TT_USER_DATA_LOCATION_SD
-            bool "SD Card"
-        config TT_USER_DATA_LOCATION_INTERNAL
-            bool "Internal Flash"
-    endchoice
+            Mount path of the storage that holds the user data, e.g. "/data" or "/sdcard".
+            "/data" is the internal flash partition. Any other path must be mounted by a device driver at runtime.
     config TT_SPLASH_DURATION
        int "Splash Duration (ms)"
        default 1000

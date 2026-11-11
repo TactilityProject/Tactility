@@ -6,6 +6,7 @@
 #include <tactility/delay.h>
 #include <tactility/drivers/backlight.h>
 #include <tactility/drivers/display.h>
+#include <tactility/paths.h>
 #include <tactility/drivers/power_supply.h>
 #include <tactility/drivers/vibration.h>
 #include <tactility/log.h>
@@ -344,14 +345,11 @@ bool bootInit(TickType_t startTime) {
     LOG_I(TAG, "Init USB host");
     hal::usbhost::systemStart();
 
-    bool sd_card_missing = false;
-#ifdef CONFIG_TT_USER_DATA_LOCATION_SD
-    std::string sd_path;
-    if (!findFirstMountedSdCardPath(sd_path)) {
-        LOG_E(TAG, "SD card not found");
-        sd_card_missing = true;
+    bool data_storage_missing = false;
+    if (!paths_is_root_mounted()) {
+        LOG_E(TAG, "User data storage not found");
+        data_storage_missing = true;
     }
-#endif
 
     switch (setupUsbBootMode()) {
         case UsbBootResult::None:
@@ -372,8 +370,8 @@ bool bootInit(TickType_t startTime) {
 
     registerApps();
 
-    if (sd_card_missing) {
-        showMessageAndRebootOrPowerOff(screen, { "SD card not found.", "Please insert one and reboot." });
+    if (data_storage_missing) {
+        showMessageAndRebootOrPowerOff(screen, { "Storage not found.", "Insert SD card and reboot." });
         return false;
     }
 

@@ -12,7 +12,6 @@
 #include <tactility/delay.h>
 #include <tactility/device.h>
 #include <tactility/drivers/radio.h>
-#include <tactility/filesystem/file_system.h>
 #include <tactility/filesystem/fs.h>
 #include <tactility/paths.h>
 #include <tactility/properties_file.h>
@@ -32,25 +31,6 @@ namespace {
 
 // region Fake data filesystem, so the service can store messages in a temporary directory
 
-error_t fakeMount(void*) { return ERROR_NONE; }
-error_t fakeUnmount(void*) { return ERROR_NONE; }
-bool fakeIsMounted(void*) { return false; }
-
-error_t fakeGetPath(void* data, char* out_path, size_t out_path_size) {
-    const char* path = static_cast<const char*>(data);
-    if (strlen(path) + 1 > out_path_size) {
-        return ERROR_BUFFER_OVERFLOW;
-    }
-    strcpy(out_path, path);
-    return ERROR_NONE;
-}
-
-const FileSystemApi fakeDataApi = {
-    .mount = fakeMount,
-    .unmount = fakeUnmount,
-    .is_mounted = fakeIsMounted,
-    .get_path = fakeGetPath,
-};
 
 // endregion
 
@@ -258,7 +238,7 @@ MeshDeliveryState getDelivery(uint32_t seq) {
 TEST_CASE("mesh service sends and receives through the active backend") {
     char dataPath[] = "/tmp/mesh_service_test_XXXXXX";
     REQUIRE_NE(mkdtemp(dataPath), nullptr);
-    FileSystem* dataFs = file_system_add("data", &fakeDataApi, dataPath);
+    paths_set_root_path_override(dataPath);
 
     // The service uses the first radio, the second one plays the remote node
     static Device local { .name = "radio_local", .config = nullptr, .parent = nullptr };
@@ -1005,13 +985,13 @@ TEST_CASE("mesh service sends and receives through the active backend") {
     device_remove(&local);
     device_destruct(&remote);
     device_destruct(&local);
-    file_system_remove(dataFs);
+    paths_set_root_path_override(nullptr);
 }
 
 TEST_CASE("legacy mesh settings belong to the backend that owned them") {
     char dataPath[] = "/tmp/mesh_settings_test_XXXXXX";
     REQUIRE_NE(mkdtemp(dataPath), nullptr);
-    FileSystem* dataFs = file_system_add("data", &fakeDataApi, dataPath);
+    paths_set_root_path_override(dataPath);
 
     char directory[FILE_MAX_PATH_STRING_LENGTH];
     char path[FILE_MAX_PATH_STRING_LENGTH];
@@ -1038,13 +1018,13 @@ TEST_CASE("legacy mesh settings belong to the backend that owned them") {
     CHECK_EQ(std::string(second.preset), "");
     CHECK_EQ(second.radio_settings.power, 0);
 
-    file_system_remove(dataFs);
+    paths_set_root_path_override(nullptr);
 }
 
 TEST_CASE("saving settings of two backends at the same time keeps both") {
     char dataPath[] = "/tmp/mesh_settings_test_XXXXXX";
     REQUIRE_NE(mkdtemp(dataPath), nullptr);
-    FileSystem* dataFs = file_system_add("data", &fakeDataApi, dataPath);
+    paths_set_root_path_override(dataPath);
 
     constexpr int ROUNDS = 40;
     const auto save = [](void* backend) -> int32_t {
@@ -1076,5 +1056,5 @@ TEST_CASE("saving settings of two backends at the same time keeps both") {
     mesh_settings_load_backend("second", &loaded);
     CHECK_EQ(loaded.radio_settings.power, ROUNDS);
 
-    file_system_remove(dataFs);
+    paths_set_root_path_override(nullptr);
 }

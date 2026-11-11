@@ -17,6 +17,7 @@
 #include <esp_timer.h>
 #include <esp_vfs.h>
 #include <miniz.h>
+#include <nvs_flash.h>
 #include <sys/errno.h>
 
 #if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S31)
@@ -26,6 +27,7 @@
 extern "C" long long __fixsfdi(float value);
 #endif
 
+#include <tactility/log.h>
 #include <tactility/module.h>
 
 #include <soc/soc_caps.h>
@@ -132,16 +134,22 @@ extern "C" {
 #endif
 }
 
-error_t platform_esp32_start_partitions();
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
 error_t esp32_espnow_radio_start();
 #endif
 
-static error_t platform_esp32_start() {
-    error_t error = platform_esp32_start_partitions();
-    if (error != ERROR_NONE) {
-        return error;
+static esp_err_t initNvsFlashSafely() {
+    LOG_I("platform-esp32", "Init NVS");
+    esp_err_t result = nvs_flash_init();
+    if (result == ESP_ERR_NVS_NO_FREE_PAGES || result == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        result = nvs_flash_init();
     }
+    return result;
+}
+
+static error_t platform_esp32_start() {
+    ESP_ERROR_CHECK(initNvsFlashSafely());
 #if defined(CONFIG_SOC_WIFI_SUPPORTED) || defined(CONFIG_ESP_HOSTED_ENABLED)
     // Lets mesh networking run over ESP-NOW
     return esp32_espnow_radio_start();
@@ -360,6 +368,7 @@ static const ModuleSymbol platform_esp32_symbols[] = {
 };
 
 extern Driver esp32_adc_oneshot_driver;
+extern Driver esp32_flash_fatfs_driver;
 extern Driver esp32_gpio_driver;
 extern Driver esp32_i2c_master_driver;
 extern Driver esp32_i2s_driver;
@@ -413,6 +422,7 @@ extern Driver esp32_usb_cdc_device_driver;
 
 static Driver* const platform_esp32_drivers[] = {
     &esp32_adc_oneshot_driver,
+    &esp32_flash_fatfs_driver,
     &esp32_gpio_driver,
     &esp32_i2c_master_driver,
     &esp32_i2s_driver,

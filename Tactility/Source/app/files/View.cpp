@@ -25,6 +25,7 @@
 #include <Tactility/StringUtils.h>
 
 #include <tactility/device.h>
+#include <tactility/file_ops.h>
 #include <tactility/drivers/usb_host_msc.h>
 #include <tactility/log.h>
 
@@ -116,11 +117,6 @@ static void onOverlayKeyCallback(lv_event_t* event) {
 // endregion
 
 // region File helpers
-
-static bool isExecutablePath(const std::string& path) {
-    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(path.c_str()) };
-    return app_is_executable(location);
-}
 
 static bool isUsbMountPoint(const char* name) {
     return strncmp(name, "usb", 3) == 0 && isdigit((unsigned char)name[3]);
@@ -216,6 +212,89 @@ static bool copyRecursive(const std::string& src, const std::string& dst) {
 
 // endregion
 
+namespace {
+
+struct NavigateJob {
+    std::shared_ptr<State> state;
+    std::string path;
+    bool firstPage;
+    bool selectFirst;
+};
+
+void navigateWork(void* context) {
+    auto* job = static_cast<NavigateJob*>(context);
+    if (job->state->setEntriesForPath(job->path)) {
+        job->state->pushCompletedNavigation(job->firstPage, job->selectFirst);
+    }
+    delete job;
+}
+
+struct RunJob {
+    uint32_t appInstanceId;
+    std::string path;
+};
+
+// Starting an executable loads it from a file
+void runWork(void* context) {
+    auto* job = static_cast<RunJob*>(context);
+    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(job->path.c_str()) };
+    AppInstanceId instance_id = 0;
+    AppStartContext start_context = app_start_context_for_location(location);
+    if (app_start_with_context(&start_context, &instance_id) != ERROR_NONE) {
+        LOG_W(TAG, "Failed to run %s", job->path.c_str());
+        alertdialog::start(job->appInstanceId, "Run failed", "Could not run \"" + file::getLastPathSegment(job->path) + "\".");
+    }
+    delete job;
+}
+
+} // namespace
+
+void View::beginOperation() {
+    pendingOperations++;
+    updateBusySpinner();
+}
+
+void View::endOperation() {
+    pendingOperations--;
+    updateBusySpinner();
+}
+
+void View::updateBusySpinner() {
+    lvgl_lock();
+    if (busy_spinner != nullptr) {
+        lv_obj_set_hidden(busy_spinner, pendingOperations == 0);
+    }
+    lvgl_unlock();
+}
+
+void View::navigateTo(const std::string& path, bool firstPage, bool selectFirst) {
+    if (navigationPending.exchange(true)) {
+        return;
+    }
+    auto* job = new (std::nothrow) NavigateJob { state, path, firstPage, selectFirst };
+    if (job == nullptr || file_ops_queue(navigateWork, job, &fileOpsSub) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue reading %s", path.c_str());
+        delete job;
+        navigationPending = false;
+        return;
+    }
+    beginOperation();
+}
+
+void View::onFileOpsCompleted() {
+    while (file_ops_poll(&fileOpsSub) == ERROR_NONE) {
+        navigationPending = false;
+        endOperation();
+        auto result = state->takeCompletedNavigation();
+        if (result.has_value()) {
+            lvgl_lock();
+            onNavigate();
+            lvgl_unlock();
+            update(result->first, result->second);
+        }
+    }
+}
+
 void View::viewFile(const std::string& path, const std::string& filename) {
     std::string file_path = path + "/" + filename;
     LOG_I(TAG, "Clicked %s", file_path.c_str());
@@ -230,7 +309,7 @@ void View::viewFile(const std::string& path, const std::string& filename) {
         imageviewer::start(file_path);
     } else if (isSupportedTextFile(filename)) {
         notes::start(file_path);
-    } else if (isExecutablePath(file_path)) {
+    } else if (state->isExecutable(filename)) {
         runFile(file_path);
     } else {
         LOG_W(TAG, "Opening files of this type is not supported");
@@ -242,18 +321,16 @@ void View::viewFile(const std::string& path, const std::string& filename) {
 void View::runFile(const std::string& file_path) {
     LOG_I(TAG, "Running %s", file_path.c_str());
 
-    if (!isExecutablePath(file_path)) {
+    if (!state->isExecutable(file::getLastPathSegment(file_path))) {
         LOG_W(TAG, "Not executable: %s", file_path.c_str());
         alertdialog::start(appInstanceId, "Run failed", "\"" + file::getLastPathSegment(file_path) + "\" is not an executable.");
         return;
     }
 
-    AppLocation location { APP_LOCATION_PATH, const_cast<char*>(file_path.c_str()) };
-    AppInstanceId instance_id = 0;
-    AppStartContext context = app_start_context_for_location(location);
-    if (app_start_with_context(&context, &instance_id) != ERROR_NONE) {
-        LOG_W(TAG, "Failed to run %s", file_path.c_str());
-        alertdialog::start(appInstanceId, "Run failed", "Could not run \"" + file::getLastPathSegment(file_path) + "\".");
+    auto* job = new (std::nothrow) RunJob { appInstanceId, file_path };
+    if (job == nullptr || file_ops_queue(runWork, job, nullptr) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue running %s", file_path.c_str());
+        delete job;
     }
 }
 
@@ -270,9 +347,11 @@ View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
         .userData = this
     }) {
     check(task_event_group_claim_bit(eventGroup, &pasteBit) == ERROR_NONE);
+    check(file_ops_subscribe(&fileOpsSub, eventGroup) == ERROR_NONE);
 }
 
 View::~View() {
+    file_ops_unsubscribe(&fileOpsSub);
     task_event_group_release_bit(eventGroup, pasteBit);
 }
 
@@ -291,8 +370,7 @@ std::vector<TileGridItem> View::collectItems(void* userData) {
 
 const char* View::resolveIcon(const TileGridItem& item, void* userData) {
     auto* view = static_cast<View*>(userData);
-    const std::string path = file::getChildPath(view->state->getCurrentPath(), item.id);
-    return isExecutablePath(path) ? LVGL_ICON_SHARED_PLAY_ARROW : LVGL_ICON_SHARED_DRAFT;
+    return view->state->isExecutable(item.id) ? LVGL_ICON_SHARED_PLAY_ARROW : LVGL_ICON_SHARED_DRAFT;
 }
 
 void View::onTileClicked(const TileGridItem& item, void* userData) {
@@ -342,9 +420,7 @@ void View::onDirEntryPressed(const std::string& name) {
     switch (dir_entry.d_type) {
         case TT_DT_DIR:
         case TT_DT_CHR:
-            state->setEntriesForChildPath(dir_entry.d_name);
-            onNavigate();
-            update(true);
+            navigateTo(file::getChildPath(state->getCurrentPath(), dir_entry.d_name), true, true);
             break;
 
         case TT_DT_LNK:
@@ -435,10 +511,8 @@ void View::onNavigateUpPressed() {
         LOG_I(TAG, "Navigating upwards");
         std::string new_absolute_path;
         if (string::getPathParent(state->getCurrentPath(), new_absolute_path)) {
-            state->setEntriesForPath(new_absolute_path);
+            navigateTo(new_absolute_path, true, false);
         }
-        onNavigate();
-        update(true, false);
     }
 }
 
@@ -571,7 +645,7 @@ void View::showActionsForDirectory(lv_obj_t* tile) {
 
 void View::showActionsForFile(lv_obj_t* tile) {
     lv_obj_clean(overlay);
-    if (isExecutablePath(state->getSelectedChildPath())) {
+    if (state->isExecutable(state->getSelectedChildEntry())) {
         addOverlayButton(LVGL_ICON_SHARED_PLAY_ARROW, onRunPressedCallback);
     }
     addCommonFileActions();
@@ -617,13 +691,18 @@ void View::onEjectPressed() {
     }
 
     onNavigate();
-    state->setEntriesForPath(state->getCurrentPath());
-    update(false);
+    navigateTo(state->getCurrentPath(), false, false);
 }
 
 void View::update(bool firstPage, bool selectFirst) {
     if (!lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
         LOG_E(TAG, "Mutex acquisition timeout (%s)", "lvgl");
+        return;
+    }
+
+    // The widgets are gone while another window covers this one
+    if (navigate_up_button == nullptr) {
+        lvgl_unlock();
         return;
     }
 
@@ -653,6 +732,8 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     auto* toolbar = lvgl_toolbar_create(parent, "Files");
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressedCallback, this);
+    busy_spinner = lvgl_toolbar_add_spinner_action(toolbar);
+    lv_obj_set_hidden(busy_spinner, pendingOperations == 0);
     navigate_up_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_UP, &onNavigateUpPressedCallback, this);
     lv_obj_set_hidden(navigate_up_button, is_root);
     auto* previous_button = lvgl_toolbar_add_text_button_action(toolbar, "<", onPageButtonPressedCallback, this);
@@ -677,6 +758,14 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     lvgl_grid_navigation_add(overlay);
     lv_obj_add_event_cb(overlay, onOverlayKeyCallback, LV_EVENT_KEY, this);
     lv_obj_set_hidden(overlay, true);
+}
+
+void View::destroyWidgets() {
+    busy_spinner = nullptr;
+    overlay = nullptr;
+    navigate_up_button = nullptr;
+    overflow_button = nullptr;
+    grid.destroyWidgets();
 }
 
 void View::onNavigate() {
@@ -713,6 +802,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
     switch (action) {
         case State::ActionDelete: {
             if (result == 0) {
+                OperationScope operation(*this);
                 if (directory_exists(filepath.c_str())) {
                     if (!file::deleteRecursively(filepath)) {
                         LOG_W(TAG, "Failed to delete %s", filepath.c_str());
@@ -908,6 +998,14 @@ void View::onPasteRequested() {
     }
 
     const std::string entry_name = file::getLastPathSegment(request->source);
+
+    // Copying a folder into itself would never end, as the copy is listed while it is being made
+    if (request->destination.starts_with(request->source + "/")) {
+        LOG_W(TAG, "Paste: \"%s\" is inside \"%s\"", request->destination.c_str(), request->source.c_str());
+        alertdialog::start(appInstanceId, "Paste failed", "\"" + entry_name + "\" can't be pasted into itself.");
+        return;
+    }
+
     struct stat dst_stat {};
 
     // If dst exists...
@@ -925,6 +1023,7 @@ void View::onPasteRequested() {
 }
 
 void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) {
+    OperationScope operation(*this);
     bool success = false;
     bool src_delete_failed = false;
     if (is_cut) {

@@ -3,7 +3,7 @@ dependencies:
   espressif/esp_codec_dev: "1.5.10"
   espressif/esp_audio_codec: "2.5.0"
   espressif/esp_video:
-    version: "2.2.0"
+    version: "2.6.0"
     rules:
       - if: "target in [esp32s3, esp32c6, esp32p4]"
   espressif/esp_new_jpeg:
@@ -114,6 +114,10 @@ dependencies:
     rules:
       # More hardware might be supported - enable as needed
       - if: "target in [esp32s3]"
+  espressif/usb:
+    version: "1.6.0"
+    rules:
+      - if: "target in [esp32s3, esp32p4, esp32s31]"
   espressif/usb_host_hid:
     version: "1.2.1"
     rules:

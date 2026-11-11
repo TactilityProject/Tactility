@@ -21,12 +21,19 @@
 #include <bindings/bq27220.h>
 #include <bindings/drv2605.h>
 #include <gps_generic/bindings.h>
+#include <tactility/bindings/esp32_flash_fatfs.h>
 
 // Reference: https://github.com/Xinyuan-LilyGO/T-Deck-MAX
 // lib/TDeckMaxBoard/src/TDeckMaxBoard.h, docs/pinmap.md
 / {
 	compatible = "root";
 	model = "LilyGO T-Deck Max";
+
+	flash_fatfs0 {
+		compatible = "espressif,esp32-flash-fatfs";
+		partition-label = "data";
+		mount-path = "/data";
+	};
 
 	wifi0 {
 		compatible = "espressif,esp32-wifi-pinned";
