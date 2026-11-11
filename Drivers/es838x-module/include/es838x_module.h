@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-extern struct Module es8388_module;
+extern struct Module es838x_module;
 
 #ifdef __cplusplus
 }

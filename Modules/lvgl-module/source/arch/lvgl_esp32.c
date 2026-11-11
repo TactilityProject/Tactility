@@ -92,14 +92,17 @@ error_t lvgl_arch_stop() {
 
     lvgl_keyboard_on_stop_lvgl();
 
+    // The port deletes its mutex while deinitializing, so other tasks must stop locking first
+    initialized = false;
+
     if (lvgl_port_deinit() != ESP_OK) {
+        initialized = true;
         // Recreate what stop() above tore down, then call on_start again to recover
         lvgl_keyboard_on_start_lvgl();
         if (lvgl_module_config.on_start) lvgl_module_config.on_start();
         return ERROR_RESOURCE;
     }
 
-    initialized = false;
     return ERROR_NONE;
 }
 
