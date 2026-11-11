@@ -249,6 +249,24 @@ void runWork(void* context) {
 
 } // namespace
 
+void View::beginOperation() {
+    pendingOperations++;
+    updateBusySpinner();
+}
+
+void View::endOperation() {
+    pendingOperations--;
+    updateBusySpinner();
+}
+
+void View::updateBusySpinner() {
+    lvgl_lock();
+    if (busy_spinner != nullptr) {
+        lv_obj_set_hidden(busy_spinner, pendingOperations == 0);
+    }
+    lvgl_unlock();
+}
+
 void View::navigateTo(const std::string& path, bool firstPage, bool selectFirst) {
     if (navigationPending.exchange(true)) {
         return;
@@ -258,12 +276,15 @@ void View::navigateTo(const std::string& path, bool firstPage, bool selectFirst)
         LOG_E(TAG, "Failed to queue reading %s", path.c_str());
         delete job;
         navigationPending = false;
+        return;
     }
+    beginOperation();
 }
 
 void View::onFileOpsCompleted() {
     while (file_ops_poll(&fileOpsSub) == ERROR_NONE) {
         navigationPending = false;
+        endOperation();
         auto result = state->takeCompletedNavigation();
         if (result.has_value()) {
             lvgl_lock();
@@ -711,6 +732,8 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     auto* toolbar = lvgl_toolbar_create(parent, "Files");
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressedCallback, this);
+    busy_spinner = lvgl_toolbar_add_spinner_action(toolbar);
+    lv_obj_set_hidden(busy_spinner, pendingOperations == 0);
     navigate_up_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_UP, &onNavigateUpPressedCallback, this);
     lv_obj_set_hidden(navigate_up_button, is_root);
     auto* previous_button = lvgl_toolbar_add_text_button_action(toolbar, "<", onPageButtonPressedCallback, this);
@@ -738,6 +761,7 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
 }
 
 void View::destroyWidgets() {
+    busy_spinner = nullptr;
     overlay = nullptr;
     navigate_up_button = nullptr;
     overflow_button = nullptr;
@@ -778,6 +802,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
     switch (action) {
         case State::ActionDelete: {
             if (result == 0) {
+                OperationScope operation(*this);
                 if (directory_exists(filepath.c_str())) {
                     if (!file::deleteRecursively(filepath)) {
                         LOG_W(TAG, "Failed to delete %s", filepath.c_str());
@@ -973,6 +998,14 @@ void View::onPasteRequested() {
     }
 
     const std::string entry_name = file::getLastPathSegment(request->source);
+
+    // Copying a folder into itself would never end, as the copy is listed while it is being made
+    if (request->destination.starts_with(request->source + "/")) {
+        LOG_W(TAG, "Paste: \"%s\" is inside \"%s\"", request->destination.c_str(), request->source.c_str());
+        alertdialog::start(appInstanceId, "Paste failed", "\"" + entry_name + "\" can't be pasted into itself.");
+        return;
+    }
+
     struct stat dst_stat {};
 
     // If dst exists...
@@ -990,6 +1023,7 @@ void View::onPasteRequested() {
 }
 
 void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) {
+    OperationScope operation(*this);
     bool success = false;
     bool src_delete_failed = false;
     if (is_cut) {

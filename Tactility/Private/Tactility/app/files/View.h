@@ -33,6 +33,10 @@ class View final {
 
     TileGrid grid;
 
+    /** Shown in the toolbar while file operations are pending */
+    lv_obj_t* busy_spinner = nullptr;
+    std::atomic<int> pendingOperations = 0;
+
     lv_obj_t* overlay = nullptr;
     lv_obj_t* navigate_up_button = nullptr;
     lv_obj_t* overflow_button = nullptr;
@@ -54,6 +58,18 @@ class View final {
     void showActionsForFile(lv_obj_t* tile);
     void showActionsForMountPoint(lv_obj_t* tile);
     void addCommonFileActions();
+
+    /** Shows the busy spinner while at least one operation is pending. Runs on any task. */
+    void beginOperation();
+    void endOperation();
+    void updateBusySpinner();
+
+    /** Marks an operation as pending for the lifetime of the object */
+    struct OperationScope {
+        View& view;
+        explicit OperationScope(View& view) : view(view) { view.beginOperation(); }
+        ~OperationScope() { view.endOperation(); }
+    };
 
     void viewFile(const std::string&path, const std::string&filename);
     void runFile(const std::string& file_path);
