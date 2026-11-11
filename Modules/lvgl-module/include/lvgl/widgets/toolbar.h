@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define TOOLBAR_ACTION_LIMIT 4
+#define TOOLBAR_ACTION_LIMIT 5
 
 /** Configuration for toolbar-wide defaults */
 typedef struct {

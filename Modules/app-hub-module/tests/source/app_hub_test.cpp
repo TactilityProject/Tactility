@@ -9,7 +9,6 @@
 #include <service/paths.h>
 
 #include <tactility/delay.h>
-#include <tactility/filesystem/file_system.h>
 #include <tactility/paths.h>
 
 #include <cstdio>
@@ -40,25 +39,6 @@ const char* CATALOG = R"({
   ]
 })";
 
-error_t fakeMount(void*) { return ERROR_NONE; }
-error_t fakeUnmount(void*) { return ERROR_NONE; }
-bool fakeIsMounted(void*) { return false; }
-
-error_t fakeGetPath(void* data, char* out_path, size_t out_path_size) {
-    const char* path = static_cast<const char*>(data);
-    if (strlen(path) + 1 > out_path_size) {
-        return ERROR_BUFFER_OVERFLOW;
-    }
-    strcpy(out_path, path);
-    return ERROR_NONE;
-}
-
-const FileSystemApi fakeDataApi = {
-    .mount = fakeMount,
-    .unmount = fakeUnmount,
-    .is_mounted = fakeIsMounted,
-    .get_path = fakeGetPath,
-};
 
 /** The service caches the catalog once it's loaded, so all tests share one data directory and catalog */
 void ensureFixture() {
@@ -69,7 +49,7 @@ void ensureFixture() {
     created = true;
 
     std::filesystem::remove_all(TEST_ROOT);
-    REQUIRE_NE(file_system_add("data", &fakeDataApi, const_cast<char*>(TEST_ROOT)), nullptr);
+    paths_set_root_path_override(TEST_ROOT);
 
     char path[FILE_MAX_PATH_STRING_LENGTH];
     REQUIRE_EQ(service_paths_get_user_data_path(APP_HUB_SERVICE_ID, "apps.json", path, sizeof(path)), ERROR_NONE);

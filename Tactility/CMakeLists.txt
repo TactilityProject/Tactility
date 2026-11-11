@@ -174,8 +174,8 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     endif ()
 
     if (NOT DEFINED TACTILITY_SKIP_SPIFFS)
-        # Read-write (skipped when user data lives on the SD card instead of internal flash)
-        if (NOT CONFIG_TT_USER_DATA_LOCATION_SD)
+        # Read-write (only when user data lives on the internal flash partition)
+        if (CONFIG_TT_ROOT_PATH STREQUAL "/data")
             # The folder is not in the repository
             file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data")
             fatfs_create_spiflash_image(data "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data" FLASH_IN_PROJECT PRESERVE_TIME)

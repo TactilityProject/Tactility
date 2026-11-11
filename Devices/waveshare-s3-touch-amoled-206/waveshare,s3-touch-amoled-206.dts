@@ -18,11 +18,18 @@
 #include <bindings/es7210.h>
 #include <bindings/sh8601.h>
 #include <bindings/sh8601_backlight.h>
+#include <tactility/bindings/esp32_flash_fatfs.h>
 
 // Reference: https://www.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-2.06
 / {
 	compatible = "root";
 	model = "Waveshare S3 Touch AMOLED 2.06";
+
+	flash_fatfs0 {
+		compatible = "espressif,esp32-flash-fatfs";
+		partition-label = "data";
+		mount-path = "/data";
+	};
 
 	wifi0 {
 		compatible = "espressif,esp32-wifi-pinned";

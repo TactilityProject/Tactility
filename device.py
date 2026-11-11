@@ -95,11 +95,18 @@ def write_defaults(output_file):
     default_properties = read_file(default_properties_path)
     output_file.write(default_properties)
 
-def get_user_data_location(device_properties: dict):
-    user_data_location = get_property_or_exit(device_properties, "storage.userDataLocation")
-    if user_data_location not in ("SD", "Internal"):
-        exit_with_error(f"storage.userDataLocation must be 'SD' or 'Internal', but was: '{user_data_location}'")
-    return user_data_location
+def get_root_path(device_properties: dict):
+    path = get_property_or_none(device_properties, "storage.path")
+    if path is None:
+        legacy_location = get_property_or_exit(device_properties, "storage.userDataLocation")
+        if legacy_location == "SD":
+            return "/sdcard"
+        if legacy_location == "Internal":
+            return "/data"
+        exit_with_error(f"storage.userDataLocation must be 'SD' or 'Internal', but was: '{legacy_location}'")
+    if not path.startswith("/") or len(path) < 2:
+        exit_with_error(f"storage.path must be an absolute path such as '/data' or '/sdcard', but was: '{path}'")
+    return path
 
 def get_system_bars_capability(device_properties: dict, key: str):
     capability = get_property_or_default(device_properties, key, "any").lower()
@@ -112,10 +119,10 @@ def write_partition_table(output_file, device_properties: dict, is_dev: bool):
     if not flash_size.endswith("MB"):
         exit_with_error("Flash size should be written as xMB or xxMB (e.g. 4MB, 16MB)")
     flash_size_number = flash_size[:-2]
-    user_data_location = get_user_data_location(device_properties)
-    if flash_size_number == "4" and user_data_location == "Internal":
-        exit_with_error("4MB devices must use storage.userDataLocation=SD; there is no internal-storage partition table for 4MB flash")
-    variant = "with-sd" if user_data_location == "SD" else "no-sd"
+    uses_data_partition = get_root_path(device_properties) == "/data"
+    if flash_size_number == "4" and uses_data_partition:
+        exit_with_error("4MB devices must use an external storage.path such as /sdcard; there is no internal-storage partition table for 4MB flash")
+    variant = "no-sd" if uses_data_partition else "with-sd"
     partition_filename = f"partitions-{flash_size_number}mb-{variant}.csv"
     if is_dev:
         dev_partition_filename = f"partitions-{flash_size_number}mb-{variant}-dev.csv"
@@ -151,11 +158,8 @@ def write_tactility_variables(output_file, device_properties: dict, device_id: s
     if auto_start_app_id is not None:
         safe_auto_start_app_id = auto_start_app_id.replace("\"", "\\\"")
         output_file.write(f"CONFIG_TT_AUTO_START_APP_ID=\"{safe_auto_start_app_id}\"\n")
-    # User data location
-    if get_user_data_location(device_properties) == "SD":
-        output_file.write("CONFIG_TT_USER_DATA_LOCATION_SD=y\n")
-    else:
-        output_file.write("CONFIG_TT_USER_DATA_LOCATION_INTERNAL=y\n")
+    # User data path
+    output_file.write(f"CONFIG_TT_ROOT_PATH=\"{get_root_path(device_properties)}\"\n")
     # System bars layouts per orientation
     portrait = get_system_bars_capability(device_properties, "ui.systemBarsPortrait")
     landscape = get_system_bars_capability(device_properties, "ui.systemBarsLandscape")
@@ -257,16 +261,13 @@ def write_spiram_variables(output_file, device_properties: dict):
     output_file.write("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y\n")
     # Performance improvements
     if idf_target == "esp32s3":
-        apply_fix = get_property_or_default(device_properties, "hardware.spiRamXipDisabled", "false").lower()
-        if apply_fix == "true":
-            output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:")
-            output_file.write("CONFIG_SPIRAM_FETCH_INSTRUCTIONS=n\n")
-            output_file.write("CONFIG_SPIRAM_RODATA=n\n")
-            output_file.write("CONFIG_SPIRAM_XIP_FROM_PSRAM=n\n")
-        else:
-            output_file.write("CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y\n")
-            output_file.write("CONFIG_SPIRAM_RODATA=y\n")
-            output_file.write("CONFIG_SPIRAM_XIP_FROM_PSRAM=y\n")
+        output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:\n")
+        # Copy flash-resident code into PSRAM when enabled
+        output_file.write("CONFIG_SPIRAM_FETCH_INSTRUCTIONS=n\n")
+        # Copy flash-resident data (for code) into PSRAM when enabled
+        output_file.write("CONFIG_SPIRAM_RODATA=n\n")
+        # Turns on both of the above
+        output_file.write("CONFIG_SPIRAM_XIP_FROM_PSRAM=n\n")
 
 def write_iram_reduction(output_file, device_properties: dict):
     # Without PSRAM, internal RAM is scarce: keep these in flash, which costs some speed

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <tactility/error.h>
 
@@ -13,14 +14,33 @@ extern "C" {
 #define FILE_MAX_PATH_STRING_LENGTH (FILE_MAX_PATH_LENGTH + 1)
 
 /**
- * @brief Get the root path of the storage that holds the user data (e.g. the SD card).
+ * @brief Get the root path of the storage that holds the user data (CONFIG_TT_ROOT_PATH).
  * @param[out] out_path buffer to store the path (no trailing "/")
  * @param[in] out_path_size size of the output buffer
- * @retval ERROR_NOT_FOUND if the configured storage location isn't available (e.g. no SD card)
  * @retval ERROR_BUFFER_OVERFLOW if out_path_size is too small
  * @retval ERROR_NONE on success
  */
+error_t paths_get_root_path(char* out_path, size_t out_path_size);
+
+/**
+ * @brief Replaces CONFIG_TT_ROOT_PATH as the root path, so that tests can use a scratch directory.
+ * @param[in] path the new root path, which must stay valid until it is reset. NULL restores CONFIG_TT_ROOT_PATH.
+ */
+void paths_set_root_path_override(const char* path);
+
+/**
+ * @brief Check whether the storage that holds the user data is currently mounted.
+ * @return true when the storage configured by CONFIG_TT_ROOT_PATH is mounted
+ */
+bool paths_is_root_mounted();
+
+/** @deprecated Use paths_get_root_path() */
+__attribute__((deprecated("Use paths_get_root_path()")))
 error_t paths_get_data_root_path(char* out_path, size_t out_path_size);
+
+/** @deprecated Use paths_is_root_mounted() */
+__attribute__((deprecated("Use paths_is_root_mounted()")))
+bool paths_is_data_root_mounted();
 
 /**
  * @brief Get the root path for user data. Survives OS upgrades.

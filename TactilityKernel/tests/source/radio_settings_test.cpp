@@ -1,7 +1,7 @@
 #include "doctest.h"
 
 #include <tactility/drivers/radio.h>
-#include <tactility/filesystem/file_system.h>
+#include <tactility/paths.h>
 #include <tactility/radio_settings.h>
 
 #include <cstdio>
@@ -13,37 +13,15 @@ namespace {
 const char* TEST_ROOT = "/tmp/tactility_kernel_radio_settings_test";
 const char* SETTINGS_PATH = "/tmp/tactility_kernel_radio_settings_test/tactility/settings/radio.properties";
 
-error_t fake_mount(void*) { return ERROR_NONE; }
-error_t fake_unmount(void*) { return ERROR_NONE; }
-bool fake_is_mounted(void*) { return false; }
-
-error_t fake_get_path(void* data, char* out_path, size_t out_path_size) {
-    const char* path = static_cast<const char*>(data);
-    if (std::strlen(path) + 1 > out_path_size) {
-        return ERROR_BUFFER_OVERFLOW;
-    }
-    std::strcpy(out_path, path);
-    return ERROR_NONE;
-}
-
-const FileSystemApi fake_data_api = {
-    .mount = fake_mount,
-    .unmount = fake_unmount,
-    .is_mounted = fake_is_mounted,
-    .get_path = fake_get_path,
-};
-
-// Registers a "data" filesystem in a scratch directory for the lifetime of one test case
+// Uses a scratch directory as the root path for the lifetime of one test case
 struct FakeDataFs {
-    FileSystem* fs;
-
     FakeDataFs() {
         std::filesystem::remove_all(TEST_ROOT);
-        fs = file_system_add("data", &fake_data_api, const_cast<char*>(TEST_ROOT));
+        paths_set_root_path_override(TEST_ROOT);
     }
 
     ~FakeDataFs() {
-        file_system_remove(fs);
+        paths_set_root_path_override(nullptr);
         std::filesystem::remove_all(TEST_ROOT);
     }
 };
@@ -90,8 +68,4 @@ TEST_CASE("radio_settings_load_region ignores an unknown region") {
     FakeDataFs fake;
     write_settings("region=MARS_123\n");
     CHECK_EQ(radio_settings_load_region(), RADIO_REGION_UNSET);
-}
-
-TEST_CASE("radio_settings_save_region fails without user data storage") {
-    CHECK_EQ(radio_settings_save_region(RADIO_REGION_US_915), ERROR_NOT_FOUND);
 }
