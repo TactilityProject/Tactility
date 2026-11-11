@@ -3,6 +3,7 @@
 Kernel driver for navigating apps with 1 or 2 GPIO buttons. Kernel-driver counterpart to
 `Drivers/ButtonControl`, exposing a `KEYBOARD_TYPE` device (`tactility/drivers/keyboard.h`)
 instead of an LVGL encoder indev.
+The device doesn't count as a hardware keyboard, so text fields still show the software keyboard.
 
 Devicetree binding: `tactility,button-control` (see `bindings/tactility,button-control.yaml`).
 
