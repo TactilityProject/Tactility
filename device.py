@@ -259,7 +259,7 @@ def write_spiram_variables(output_file, device_properties: dict):
     if idf_target == "esp32s3":
         apply_fix = get_property_or_default(device_properties, "hardware.spiRamXipDisabled", "false").lower()
         if apply_fix == "true":
-            output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:")
+            output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:\n")
             output_file.write("CONFIG_SPIRAM_FETCH_INSTRUCTIONS=n\n")
             output_file.write("CONFIG_SPIRAM_RODATA=n\n")
             output_file.write("CONFIG_SPIRAM_XIP_FROM_PSRAM=n\n")
