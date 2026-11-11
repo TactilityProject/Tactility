@@ -102,7 +102,7 @@ properties:
     description: By default, when draw_bitmap's color_data is one of the panel's own frame buffers (i.e. LVGL is bound directly onto them), draw_bitmap waits for a full scan-out to complete before returning so the caller can't start overwriting a buffer still being displayed. Set this to trade away that tear-free guarantee for lower latency (e.g. when other tasks occasionally block timing for long enough that waiting causes visible stalls).
   init-sequence:
     type: array
-    element-type: uint8_t
+    element-type: const uint8_t
     description: >
       Custom vendor bring-up sequence, flattened into bytes as a run of [cmd, data-length, delay-ms, data-length bytes of data...] entries, e.g. `init-sequence = [0x11 0 120  0x29 0 20];`. Omit to use the ST7121 component's own built-in default sequence.
   backlight:
