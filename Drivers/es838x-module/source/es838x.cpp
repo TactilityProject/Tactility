@@ -8,6 +8,7 @@
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
 #include <tactility/log.h>
+#include <tactility/Memory.hpp>
 
 #include <es8388_codec.h>
 #include <es8389_codec.h>
@@ -277,7 +278,11 @@ error_t start_codec(Device* device, const StartParams& params) {
         return ERROR_RESOURCE;
     }
 
-    auto* data = new Es838xData();
+    auto* data = tt::newObject<Es838xData>();
+    if (data == nullptr) {
+        LOG_E(TAG, "Failed to allocate driver data");
+        return ERROR_RESOURCE;
+    }
 
     data->ctrl_if = audio_codec_adapter_new_i2c_ctrl(i2c_controller, params.address);
     data->data_if = audio_codec_adapter_new_i2s_data(i2s_controller);
@@ -370,7 +375,7 @@ cleanup:
     if (data->ctrl_if != nullptr) {
         audio_codec_delete_ctrl_if(data->ctrl_if);
     }
-    delete data;
+    tt::deleteObject(data);
     return ERROR_RESOURCE;
 }
 
@@ -401,7 +406,7 @@ error_t stop_device(Device* device) {
     }
 
     device_set_driver_data(device, nullptr);
-    delete data;
+    tt::deleteObject(data);
     return ERROR_NONE;
 }
 

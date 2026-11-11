@@ -2,6 +2,7 @@ dependencies:
   - Platforms/platform-esp32
   - Drivers/esp32-led-strip-module
   - Drivers/es838x-module
+  - Drivers/audio-stream-module
   - Drivers/gt911-module
   - Drivers/rgb-display-module
 dts: espressif,esp32-s31-korvo-1.dts
