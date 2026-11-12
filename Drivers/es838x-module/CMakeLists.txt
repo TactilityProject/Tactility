@@ -4,7 +4,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/../../Buildscripts/module.cmake")
 
 file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
 
-tactility_add_module(es8388-module
+tactility_add_module(es838x-module
     SRCS ${SOURCE_FILES}
     INCLUDE_DIRS include/
     REQUIRES TactilityKernel esp32-audio-codec esp_codec_dev

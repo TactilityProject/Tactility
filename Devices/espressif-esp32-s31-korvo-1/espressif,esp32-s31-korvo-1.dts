@@ -1,0 +1,148 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_ble.h>
+#include <tactility/bindings/esp32_wifi_pinned.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_i2c_master.h>
+#include <tactility/bindings/esp32_i2s.h>
+#include <tactility/bindings/esp32_sdmmc.h>
+#include <tactility/bindings/esp32_usbdevice.h>
+#include <tactility/bindings/gpio_hog.h>
+
+#include <bindings/esp32_led_strip.h>
+#include <bindings/es8389.h>
+#include <bindings/gt911.h>
+#include <bindings/rgb_display.h>
+
+/*
+ * Espressif ESP32-S31-Korvo-1 V1.1.
+ *
+ * Not yet described: the camera, and the
+ * resistor-divider ADC buttons on GPIO42.
+ */
+/ {
+	compatible = "root";
+	model = "Espressif ESP32-S31-Korvo-1";
+
+	wifi0 {
+		compatible = "espressif,esp32-wifi-pinned";
+	};
+
+	ble0 {
+		compatible = "espressif,esp32-ble";
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <62>;
+	};
+
+	usbdevice0 {
+		compatible = "espressif,esp32-usbdevice";
+
+		usbdevicemsc0 {
+			compatible = "espressif,esp32-usbdevice-msc";
+		};
+	};
+
+	i2s0 {
+		compatible = "espressif,esp32-i2s";
+		port = <I2S_NUM_0>;
+		pin-bclk = <&gpio0 3 GPIO_FLAG_NONE>;
+		pin-ws = <&gpio0 4 GPIO_FLAG_NONE>;
+		pin-data-out = <&gpio0 5 GPIO_FLAG_NONE>;
+		pin-data-in = <&gpio0 6 GPIO_FLAG_NONE>;
+		pin-mclk = <&gpio0 2 GPIO_FLAG_NONE>;
+	};
+
+	i2c0 {
+		compatible = "espressif,esp32-i2c-master";
+		port = <I2C_NUM_0>;
+		clock-frequency = <400000>;
+		pin-sda = <&gpio0 0 GPIO_FLAG_PULL_UP>;
+		pin-scl = <&gpio0 1 GPIO_FLAG_PULL_UP>;
+
+		es8389 {
+			compatible = "everest,es8389";
+			reg = <0x10>;
+			i2s = <&i2s0>;
+			pin-pa = <&gpio0 7 GPIO_FLAG_NONE>;
+		};
+
+		/* GT1151 on the SUB3 subboard, protocol compatible with the GT911. Reset and interrupt
+		 * are not wired. */
+		touch0 {
+			compatible = "goodix,gt911";
+			reg = <0x5D>;
+			x-max = <800>;
+			y-max = <480>;
+		};
+	};
+
+	/* 4.3" 800x480 ST7262 RGB565 panel on the ESP32-S3-LCD-EV-Board-SUB3. The controller needs no
+	 * init sequence. LCD_CS (GPIO38) and the 3-wire SPI pins (60/61) are not driven. */
+	display0 {
+		compatible = "espressif,esp32-rgb-display";
+		horizontal-resolution = <800>;
+		vertical-resolution = <480>;
+		pixel-clock-hz = <26000000>;
+		hsync-pulse-width = <1>;
+		hsync-back-porch = <40>;
+		hsync-front-porch = <20>;
+		vsync-pulse-width = <1>;
+		vsync-back-porch = <10>;
+		vsync-front-porch = <5>;
+		pclk-active-neg;
+		num-fbs = <2>;
+		double-fb;
+		pin-hsync = <&gpio0 44 GPIO_FLAG_NONE>;
+		pin-vsync = <&gpio0 45 GPIO_FLAG_NONE>;
+		pin-de = <&gpio0 43 GPIO_FLAG_NONE>;
+		pin-pclk = <&gpio0 40 GPIO_FLAG_NONE>;
+		pin-data0 = <&gpio0 8 GPIO_FLAG_NONE>; // B3
+		pin-data1 = <&gpio0 9 GPIO_FLAG_NONE>; // B4
+		pin-data2 = <&gpio0 10 GPIO_FLAG_NONE>; // B5
+		pin-data3 = <&gpio0 11 GPIO_FLAG_NONE>; // B6
+		pin-data4 = <&gpio0 12 GPIO_FLAG_NONE>; // B7
+		pin-data5 = <&gpio0 13 GPIO_FLAG_NONE>; // G2
+		pin-data6 = <&gpio0 14 GPIO_FLAG_NONE>; // G3
+		pin-data7 = <&gpio0 15 GPIO_FLAG_NONE>; // G4
+		pin-data8 = <&gpio0 16 GPIO_FLAG_NONE>; // G5
+		pin-data9 = <&gpio0 17 GPIO_FLAG_NONE>; // G6
+		pin-data10 = <&gpio0 18 GPIO_FLAG_NONE>; // G7
+		pin-data11 = <&gpio0 19 GPIO_FLAG_NONE>; // R3
+		pin-data12 = <&gpio0 33 GPIO_FLAG_NONE>; // R4
+		pin-data13 = <&gpio0 34 GPIO_FLAG_NONE>; // R5
+		pin-data14 = <&gpio0 35 GPIO_FLAG_NONE>; // R6
+		pin-data15 = <&gpio0 36 GPIO_FLAG_NONE>; // R7
+	};
+
+	/* SD_CTRL is the active-low microSD power switch. */
+	power_sd {
+		compatible = "gpio-hog";
+		pin = <&gpio0 39 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_LOW>;
+	};
+
+	/* microSD slot. GPIO20-25 are shared with the SPI NAND footprint, which needs hardware rework to select. */
+	sdmmc0 {
+		compatible = "espressif,esp32-sdmmc";
+		pin-clk = <&gpio0 24 GPIO_FLAG_NONE>;
+		pin-cmd = <&gpio0 25 GPIO_FLAG_NONE>;
+		pin-d0 = <&gpio0 20 GPIO_FLAG_NONE>;
+		pin-d1 = <&gpio0 21 GPIO_FLAG_NONE>;
+		pin-d2 = <&gpio0 22 GPIO_FLAG_NONE>;
+		pin-d3 = <&gpio0 23 GPIO_FLAG_NONE>;
+		bus-width = <4>;
+		slot = <SDMMC_HOST_SLOT_0>;
+		max-freq-khz = <SDMMC_FREQ_HIGHSPEED>;
+	};
+
+	/* WS2812 RGB LED */
+	ledstrip0 {
+		compatible = "espressif,esp32-led-strip";
+		pin-data = <&gpio0 37 GPIO_FLAG_NONE>;
+		led-count = <1>;
+	};
+};

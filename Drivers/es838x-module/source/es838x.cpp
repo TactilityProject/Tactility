@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <drivers/es8388.h>
+#include <drivers/es8389.h>
 
 #include <tactility/device.h>
 #include <tactility/drivers/audio_codec.h>
@@ -7,22 +8,22 @@
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
 #include <tactility/log.h>
+#include <tactility/Memory.hpp>
 
 #include <es8388_codec.h>
+#include <es8389_codec.h>
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
 #include <cmath>
 
-#define TAG "ES8388"
+#define TAG "ES838x"
 
 namespace {
 
-// Volume curve maps 1..100 to roughly -49.5dB..0dB; native ES8388 range is wide enough
-// that we expose a flat 0..100 percent scale to callers and let esp_codec_dev convert.
 constexpr uint32_t NATIVE_SAMPLE_RATE = 44100;
 
-struct Es8388Data {
+struct Es838xData {
     const audio_codec_ctrl_if_t* ctrl_if = nullptr;
     const audio_codec_data_if_t* data_if = nullptr;
     const audio_codec_gpio_if_t* gpio_if = nullptr;
@@ -33,8 +34,7 @@ struct Es8388Data {
     esp_codec_dev_sample_info_t open_sample_info = {};
 };
 
-#define GET_CONFIG(device) (static_cast<const Es8388Config*>((device)->config))
-#define GET_DATA(device) (static_cast<Es8388Data*>(device_get_driver_data(device)))
+#define GET_DATA(device) (static_cast<Es838xData*>(device_get_driver_data(device)))
 
 // region AudioCodecApi
 
@@ -144,7 +144,7 @@ error_t set_volume(Device* device, AudioCodecDirection direction, float volume_p
     }
 
     if (direction == AUDIO_CODEC_DIR_INPUT) {
-        // ES8388 ADC gain range is roughly 0..24 dB; map 0..100% linearly onto it.
+        // ES838x ADC gain range is roughly 0..24 dB; map 0..100% linearly onto it.
         float db = (volume_percent / 100.0f) * 24.0f;
         return (esp_codec_dev_set_in_gain(data->codec_device, db) == ESP_CODEC_DEV_OK) ? ERROR_NONE : ERROR_RESOURCE;
     }
@@ -254,24 +254,37 @@ static const struct AudioCodecApi API = {
 
 // region Driver lifecycle
 
-error_t start_device(Device* device) {
-    const auto* config = GET_CONFIG(device);
+enum class Variant { Es8388, Es8389 };
 
+struct StartParams {
+    Variant variant;
+    uint8_t address;
+    Device* i2s_device;
+    const GpioPinSpec* pin_pa;
+    bool pa_inverted;
+    bool no_dac_ref;
+};
+
+error_t start_codec(Device* device, const StartParams& params) {
     auto* i2c_controller = device_get_parent(device);
     if (i2c_controller == nullptr || device_get_type(i2c_controller) != &I2C_CONTROLLER_TYPE) {
         LOG_E(TAG, "Parent is not an I2C controller");
         return ERROR_RESOURCE;
     }
 
-    auto* i2s_controller = config->i2s_device;
+    auto* i2s_controller = params.i2s_device;
     if (i2s_controller == nullptr || device_get_type(i2s_controller) != &I2S_CONTROLLER_TYPE) {
         LOG_E(TAG, "I2S controller device is not valid");
         return ERROR_RESOURCE;
     }
 
-    auto* data = new Es8388Data();
+    auto* data = tt::newObject<Es838xData>();
+    if (data == nullptr) {
+        LOG_E(TAG, "Failed to allocate driver data");
+        return ERROR_RESOURCE;
+    }
 
-    data->ctrl_if = audio_codec_adapter_new_i2c_ctrl(i2c_controller, config->address);
+    data->ctrl_if = audio_codec_adapter_new_i2c_ctrl(i2c_controller, params.address);
     data->data_if = audio_codec_adapter_new_i2s_data(i2s_controller);
     if (data->ctrl_if == nullptr || data->data_if == nullptr) {
         LOG_E(TAG, "Failed to create adapters");
@@ -288,7 +301,7 @@ error_t start_device(Device* device) {
         goto cleanup;
     }
 
-    {
+    if (params.variant == Variant::Es8388) {
         es8388_codec_cfg_t codec_config = {};
         codec_config.ctrl_if = data->ctrl_if;
         codec_config.gpio_if = nullptr;
@@ -298,10 +311,33 @@ error_t start_device(Device* device) {
         codec_config.pa_reverted = false;
 
         data->codec_if = es8388_codec_new(&codec_config);
-        if (data->codec_if == nullptr) {
-            LOG_E(TAG, "Failed to create ES8388 codec interface");
-            goto cleanup;
+    } else {
+        int16_t pa_pin = -1;
+        if (params.pin_pa->gpio_controller != nullptr) {
+            data->gpio_if = audio_codec_adapter_new_gpio(params.pin_pa, 1);
+            if (data->gpio_if == nullptr) {
+                LOG_E(TAG, "Failed to create GPIO adapter for PA pin");
+                goto cleanup;
+            }
+            pa_pin = 0;
         }
+
+        es8389_codec_cfg_t codec_config = {};
+        codec_config.ctrl_if = data->ctrl_if;
+        codec_config.gpio_if = data->gpio_if;
+        codec_config.codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH;
+        codec_config.master_mode = false;
+        codec_config.pa_pin = pa_pin;
+        codec_config.pa_reverted = params.pa_inverted;
+        codec_config.use_mclk = false;
+        codec_config.digital_mic = false;
+        codec_config.no_dac_ref = params.no_dac_ref;
+
+        data->codec_if = es8389_codec_new(&codec_config);
+    }
+    if (data->codec_if == nullptr) {
+        LOG_E(TAG, "Failed to create codec interface");
+        goto cleanup;
     }
 
     {
@@ -339,7 +375,7 @@ cleanup:
     if (data->ctrl_if != nullptr) {
         audio_codec_delete_ctrl_if(data->ctrl_if);
     }
-    delete data;
+    tt::deleteObject(data);
     return ERROR_RESOURCE;
 }
 
@@ -370,8 +406,20 @@ error_t stop_device(Device* device) {
     }
 
     device_set_driver_data(device, nullptr);
-    delete data;
+    tt::deleteObject(data);
     return ERROR_NONE;
+}
+
+error_t start_es8388(Device* device) {
+    const auto* config = static_cast<const Es8388Config*>(device->config);
+    const StartParams params = { Variant::Es8388, config->address, config->i2s_device, nullptr, false, false };
+    return start_codec(device, params);
+}
+
+error_t start_es8389(Device* device) {
+    const auto* config = static_cast<const Es8389Config*>(device->config);
+    const StartParams params = { Variant::Es8389, config->address, config->i2s_device, &config->pin_pa, config->pa_inverted, config->no_dac_ref };
+    return start_codec(device, params);
 }
 
 // endregion
@@ -383,7 +431,18 @@ extern "C" {
 Driver es8388_driver = {
     .name = "es8388",
     .compatible = (const char*[]) { "everest,es8388", nullptr },
-    .start_device = start_device,
+    .start_device = start_es8388,
+    .stop_device = stop_device,
+    .probe = nullptr,
+    .api = &API,
+    .device_type = &AUDIO_CODEC_TYPE,
+    .internal = nullptr,
+};
+
+Driver es8389_driver = {
+    .name = "es8389",
+    .compatible = (const char*[]) { "everest,es8389", nullptr },
+    .start_device = start_es8389,
     .stop_device = stop_device,
     .probe = nullptr,
     .api = &API,
