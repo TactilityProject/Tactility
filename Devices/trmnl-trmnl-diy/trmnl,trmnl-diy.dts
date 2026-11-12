@@ -24,6 +24,11 @@
 		compatible = "espressif,esp32-ble";
 	};
 
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <49>;
+	};
+
 	epd_power {
 		compatible = "gpio-hog";
 		pin = <&gpio0 43 GPIO_FLAG_NONE>;

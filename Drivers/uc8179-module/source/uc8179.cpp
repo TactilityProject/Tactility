@@ -37,7 +37,7 @@ struct Panel {
 };
 
 static constexpr Panel PANELS[] = {
-    { "gdeq031t10", 240, 320 },
+    { "gdey075t7", 800, 480 },
 };
 
 static constexpr uint32_t SPI_CHUNK_BYTES = 4096;
@@ -179,11 +179,26 @@ static void reset_panel(Uc8179Internal* internal) {
 }
 
 static void init_panel(Uc8179Internal* internal) {
-    // Soft reset keeps the image buffers
-    write_command(internal, 0x00, { 0x1E, 0x0D });
-    vTaskDelay(pdMS_TO_TICKS(1));
+    const Panel& panel = *internal->panel;
     // Panel setting: black and white, waveform from OTP
-    write_command(internal, 0x00, { 0x1F, 0x0D });
+    write_command(internal, 0x00, { 0x1F });
+    // Power setting, same values as the panel's OTP defaults
+    write_command(internal, 0x01, { 0x07, 0x07, 0x3F, 0x3F, 0x09 });
+    // Booster soft start
+    write_command(internal, 0x06, { 0x17, 0x17, 0x28, 0x17 });
+    write_command(internal, 0x61, {
+        static_cast<uint8_t>(panel.width >> 8),
+        static_cast<uint8_t>(panel.width & 0xFF),
+        static_cast<uint8_t>(panel.height >> 8),
+        static_cast<uint8_t>(panel.height & 0xFF),
+    });
+    // Disable the dual SPI interface
+    write_command(internal, 0x15, { 0x00 });
+    // VCOM and data interval setting, copies the new image to the old buffer on refresh
+    write_command(internal, 0x50, { 0x29, 0x07 });
+    write_command(internal, 0x60, { 0x22 });
+    // Power saving: VCOM 2 line period, source 2x 660ns
+    write_command(internal, 0xE3, { 0x22 });
 }
 
 static void power_on(Uc8179Internal* internal) {
@@ -209,12 +224,15 @@ static void start_refresh(Uc8179Internal* internal) {
     spi_controller_lock(internal->spi_controller);
 }
 
-// Sets the partial window, all values in pixels with x in multiples of 8
+// Sets the partial window. x0 and x1 are in pixels and multiples of 8, per PTL (0x90)
 static void set_window(Uc8179Internal* internal, const Region& region) {
+    const int last_col = region.x1 - 1;
     const int last_row = region.y1 - 1;
     write_command(internal, 0x90, {
-        static_cast<uint8_t>(region.x0),
-        static_cast<uint8_t>(region.x1 - 1),
+        static_cast<uint8_t>(region.x0 >> 8),
+        static_cast<uint8_t>(region.x0 & 0xFF),
+        static_cast<uint8_t>(last_col >> 8),
+        static_cast<uint8_t>(last_col & 0xFF),
         static_cast<uint8_t>(region.y0 >> 8),
         static_cast<uint8_t>(region.y0 & 0xFF),
         static_cast<uint8_t>(last_row >> 8),
@@ -265,8 +283,12 @@ static bool full_update(Uc8179Internal* internal, bool fast) {
         // Forced temperature selects the fast waveform
         write_command(internal, 0xE0, { 0x02 });
         write_command(internal, 0xE5, { 0x5A });
+    } else {
+        // Clears any forced temperature from a previous fast update, so the controller uses
+        // its internal sensor and the slow waveform for this (ghost-clearing) refresh
+        write_command(internal, 0xE0, { 0x00 });
+        write_command(internal, 0x41, { 0x00 });
     }
-    write_command(internal, 0x50, { 0x97 });
     power_on(internal);
     if (internal->update_failed) {
         spi_controller_unlock(internal->spi_controller);
@@ -281,7 +303,7 @@ static bool full_update(Uc8179Internal* internal, bool fast) {
     return internal->base_valid;
 }
 
-// Refreshes only the window, which takes about 0.7 seconds
+// Refreshes only the window, which takes about 0.45 seconds
 // Returns false when a transfer failed, which leaves the base image invalid.
 static bool partial_update(Uc8179Internal* internal, const Region& region) {
     const size_t size = snapshot_window(internal, region);
@@ -300,8 +322,7 @@ static bool partial_update(Uc8179Internal* internal, const Region& region) {
     set_window(internal, region);
     // Forced temperature selects the partial waveform
     write_command(internal, 0xE0, { 0x02 });
-    write_command(internal, 0xE5, { 0x79 });
-    write_command(internal, 0x50, { 0xD7 });
+    write_command(internal, 0xE5, { 0x6E });
     power_on(internal);
     if (internal->update_failed) {
         spi_controller_unlock(internal->spi_controller);
@@ -448,7 +469,7 @@ static error_t full_refresh_blocking(Uc8179Internal* internal) {
 
 // region DisplayApi
 
-static error_t Uc8179_reset(Device* device) {
+static error_t uc8179_reset(Device* device) {
     auto* internal = static_cast<Uc8179Internal*>(device_get_driver_data(device));
     notify_task(internal, CMD_SLEEP | CMD_WAKE);
     return ERROR_NONE;
