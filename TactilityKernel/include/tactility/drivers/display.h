@@ -289,10 +289,11 @@ struct DisplayApi {
 /**
  * @brief Observer of display calls, installed with display_set_hook().
  *
- * Every member is optional. The callbacks have no return value and report no failures.
+ * Every member is optional. The callbacks have no return value.
  * They run on the calling task of the display function, so they must be fast and must not block.
  * on_draw_bitmap runs before the driver is called, so a color_data pointer into a panel frame
- * buffer is still valid. The other callbacks run after the driver call, whatever its result was.
+ * buffer is still valid. The other callbacks run after the driver call, and only when it
+ * returned ERROR_NONE.
  */
 struct DisplayHook {
     void (*on_draw_bitmap)(struct Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data);

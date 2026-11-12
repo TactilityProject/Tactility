@@ -47,6 +47,8 @@ ZOOM_MAX_PERCENT = 400
 
 # Bounds the wait for socket input, and with it the latency of input sent to the device
 IO_POLL_SECONDS = 0.02
+# Caps the events handled in one Tk callback, so input and redraws stay responsive
+MAX_EVENTS_PER_POLL = 64
 
 CODEPOINTS = {
     "Return": 10, "KP_Enter": 10, "Escape": 0x1B, "BackSpace": 8, "Delete": 0x7F, "Tab": 9,
@@ -73,15 +75,23 @@ _GREEN_FROM_LOW = _table(lambda v: v >> 5)
 
 
 def decode_pixels(image_module, color_format, width, height, data):
-    """Converts a rectangle in the display's pixel format to an RGB image. @return None for an unknown format"""
+    """Converts a rectangle in the display's pixel format to an RGB image. @return None for an unknown format or a wrong amount of data"""
     size = (width, height)
+    if color_format == FORMAT_RGB888:
+        bytes_per_pixel = 3
+    elif color_format == FORMAT_GRAYSCALE8:
+        bytes_per_pixel = 1
+    elif color_format in (FORMAT_RGB565, FORMAT_RGB565_SWAPPED, FORMAT_BGR565, FORMAT_BGR565_SWAPPED):
+        bytes_per_pixel = 2
+    else:
+        return None
+    if len(data) != width * height * bytes_per_pixel:
+        return None
+
     if color_format == FORMAT_RGB888:
         return image_module.frombytes("RGB", size, bytes(data))
     if color_format == FORMAT_GRAYSCALE8:
         return image_module.frombytes("L", size, bytes(data)).convert("RGB")
-    if color_format not in (FORMAT_RGB565, FORMAT_RGB565_SWAPPED, FORMAT_BGR565, FORMAT_BGR565_SWAPPED):
-        return None
-
     data = bytes(data)
     if color_format in (FORMAT_RGB565_SWAPPED, FORMAT_BGR565_SWAPPED):
         low, high = data[1::2], data[0::2]
@@ -170,6 +180,9 @@ def key_codepoint(event):
         return CODEPOINTS[event.keysym]
     if len(event.char) == 1 and ord(event.char) >= 32 and ord(event.char) != 0x7F:
         return ord(event.char)
+    # Ctrl turns letters into control characters, and releases have no character at all
+    if len(event.keysym) == 1 and ord(event.keysym) >= 32 and ord(event.keysym) != 0x7F:
+        return ord(event.keysym)
     return 0
 
 
@@ -292,6 +305,7 @@ def run_viewer(session, first_state, title):
             # Touch: the position of the pressed pointer in device pixels, and the modifier keys that add a second finger
             self.pointer_position = None
             self.modifiers = set()
+            self.held_keys = {}
             self.sent_points = []
             self.zoom = 100
             self.ui_scaling = self.current_ui_scaling()
@@ -332,6 +346,7 @@ def run_viewer(session, first_state, title):
             self.canvas.bind("<ButtonRelease-1>", lambda event: self.pointer(event, False))
             self.bind("<KeyPress>", lambda event: self.key(event, True))
             self.bind("<KeyRelease>", lambda event: self.key(event, False))
+            self.bind("<FocusOut>", lambda event: self.release_all())
             self.canvas.focus_set()
             self.after(10, self.poll)
             self.schedule_redraw()
@@ -496,6 +511,15 @@ def run_viewer(session, first_state, title):
                 cx, cy = (x + 0.5) * factor, (y + 0.5) * factor
                 self.canvas.create_oval(cx - radius, cy - radius, cx + radius, cy + radius, outline="#38bdf8", width=2, tags="touch")
 
+        def release_all(self):
+            """Releases keys, fingers and modifiers, because releases that happen in another window never arrive"""
+            for codepoint in self.held_keys.values():
+                session.send_key(codepoint, False)
+            self.held_keys.clear()
+            self.modifiers.clear()
+            self.pointer_position = None
+            self.send_touch_points()
+
         def pointer(self, event, pressed):
             if not self.inputs & INPUT_TOUCH:
                 return
@@ -508,7 +532,13 @@ def run_viewer(session, first_state, title):
                 if self.pointer_position is not None:
                     self.send_touch_points()
             if self.inputs & INPUT_KEYBOARD:
-                codepoint = key_codepoint(event)
+                # The release must match the press, even when the modifiers or the layout changed in between
+                if pressed:
+                    codepoint = key_codepoint(event)
+                    if codepoint:
+                        self.held_keys[event.keysym] = codepoint
+                else:
+                    codepoint = self.held_keys.pop(event.keysym, 0)
                 if codepoint:
                     session.send_key(codepoint, pressed, bool(event.state & 0x4), bool(event.state & 0x8))
 
@@ -546,7 +576,7 @@ def run_viewer(session, first_state, title):
                 self.ui_scaling = ui_scaling
                 self.set_zoom(self.zoom)
             changed = False
-            while True:
+            for _ in range(MAX_EVENTS_PER_POLL):
                 try:
                     kind, value = session.events.get_nowait()
                 except queue.Empty:

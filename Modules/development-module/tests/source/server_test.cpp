@@ -170,6 +170,17 @@ bool isExpired(TickType_t start, uint32_t timeoutMs) {
     return xTaskGetTickCount() - start > pdMS_TO_TICKS(timeoutMs);
 }
 
+// A session releases its device reference slightly after it stops using the device
+error_t destructWhenUnused(Device* device) {
+    const TickType_t start = xTaskGetTickCount();
+    error_t error = device_destruct(device);
+    while (error == ERROR_RESOURCE_BUSY && !isExpired(start, TIMEOUT_MS)) {
+        delay_millis(10);
+        error = device_destruct(device);
+    }
+    return error;
+}
+
 // endregion
 
 // region Client
@@ -717,7 +728,7 @@ TEST_CASE("a remote session reports the orientation of the UI") {
     development_remote_set_ui_handlers(nullptr);
     REQUIRE_EQ(device_stop(&remoteDisplayDevice), ERROR_NONE);
     REQUIRE_EQ(device_remove(&remoteDisplayDevice), ERROR_NONE);
-    REQUIRE_EQ(device_destruct(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(destructWhenUnused(&remoteDisplayDevice), ERROR_NONE);
     REQUIRE_EQ(driver_remove_destruct(&remoteDisplayDriver), ERROR_NONE);
 }
 
@@ -763,7 +774,7 @@ TEST_CASE("a remote session runs next to a sync and an app session") {
     delay_millis(300);
     REQUIRE_EQ(device_stop(&remoteDisplayDevice), ERROR_NONE);
     REQUIRE_EQ(device_remove(&remoteDisplayDevice), ERROR_NONE);
-    REQUIRE_EQ(device_destruct(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(destructWhenUnused(&remoteDisplayDevice), ERROR_NONE);
     REQUIRE_EQ(driver_remove_destruct(&remoteDisplayDriver), ERROR_NONE);
 }
 
@@ -879,7 +890,7 @@ TEST_CASE("a remote session streams the display and applies the input of the vie
 
     REQUIRE_EQ(device_stop(&remoteDisplayDevice), ERROR_NONE);
     REQUIRE_EQ(device_remove(&remoteDisplayDevice), ERROR_NONE);
-    REQUIRE_EQ(device_destruct(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(destructWhenUnused(&remoteDisplayDevice), ERROR_NONE);
     REQUIRE_EQ(driver_remove_destruct(&remoteDisplayDriver), ERROR_NONE);
 }
 
@@ -912,7 +923,7 @@ TEST_CASE("a remote session unpacks the pixels of a monochrome display into gray
     delay_millis(200);
     REQUIRE_EQ(device_stop(&remoteMonochromeDisplayDevice), ERROR_NONE);
     REQUIRE_EQ(device_remove(&remoteMonochromeDisplayDevice), ERROR_NONE);
-    REQUIRE_EQ(device_destruct(&remoteMonochromeDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(destructWhenUnused(&remoteMonochromeDisplayDevice), ERROR_NONE);
     REQUIRE_EQ(driver_remove_destruct(&remoteMonochromeDisplayDriver), ERROR_NONE);
 }
 

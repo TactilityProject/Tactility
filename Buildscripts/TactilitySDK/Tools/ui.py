@@ -1453,8 +1453,12 @@ class DevConsole(ctk.CTk):
                 with Image.open(path) as source:
                     source.thumbnail((900, 160))
                     width, height = source.size
-                    image = ctk.CTkImage(light_image=source.copy(), dark_image=source.copy(),
-                                         width=width, height=height)
+                    try:
+                        image = ctk.CTkImage(light_image=source.copy(), dark_image=source.copy(),
+                                             width=width, height=height)
+                    except TypeError:
+                        image = ctk.CTkImage(light_image=source.copy(), dark_image=source.copy(),
+                                             size=(width, height))
             except (OSError, ValueError) as exc:
                 self.screenshot_preview.configure(text="Preview unavailable", image=None, height=120)
                 self.screenshot_info.configure(text=f"Captured {path} (preview unavailable: {exc})")

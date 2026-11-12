@@ -21,9 +21,10 @@ static error_t fake_draw_bitmap(Device*, int32_t, int32_t, int32_t, int32_t, con
     return ERROR_NONE;
 }
 
-static error_t fake_swap_xy(Device*, bool) {
+// Only swapping to true succeeds
+static error_t fake_swap_xy(Device*, bool swap_axes) {
     driver_swap_count++;
-    return ERROR_RESOURCE;
+    return swap_axes ? ERROR_NONE : ERROR_RESOURCE;
 }
 
 static error_t fake_clear(Device*) {
@@ -106,10 +107,13 @@ TEST_CASE("display_set_hook observes display calls") {
     // The hook ran before the driver for the same call
     CHECK_LT(hook_draw_order, driver_draw_order);
 
-    // The hook still runs when the driver call fails
-    CHECK_EQ(display_swap_xy(&fake_device, true), ERROR_RESOURCE);
+    CHECK_EQ(display_swap_xy(&fake_device, true), ERROR_NONE);
     CHECK_EQ(hook_swap_count, 1);
     CHECK(hook_swap_value);
+
+    // The hook is not called when the driver call fails
+    CHECK_EQ(display_swap_xy(&fake_device, false), ERROR_RESOURCE);
+    CHECK_EQ(hook_swap_count, 1);
 
     CHECK_EQ(display_clear(&fake_device), ERROR_NONE);
     CHECK_EQ(hook_clear_count, 1);
@@ -120,12 +124,12 @@ TEST_CASE("display_set_hook observes display calls") {
     CHECK_EQ(display_clear(&fake_device), ERROR_NONE);
     CHECK_EQ(hook_draw_count, 1);
     CHECK_EQ(hook_clear_count, 1);
-    CHECK_EQ(display_swap_xy(&fake_device, false), ERROR_RESOURCE);
+    CHECK_EQ(display_swap_xy(&fake_device, true), ERROR_NONE);
     CHECK_EQ(hook_swap_count, 2);
 
     // A removed hook is not called anymore
     display_set_hook(nullptr);
-    CHECK_EQ(display_swap_xy(&fake_device, true), ERROR_RESOURCE);
+    CHECK_EQ(display_swap_xy(&fake_device, true), ERROR_NONE);
     CHECK_EQ(hook_swap_count, 2);
 
     CHECK_EQ(device_remove(&fake_device), ERROR_NONE);
