@@ -2,6 +2,7 @@
 
 #include <development/credentials.h>
 #include <development/protocol.h>
+#include <development/remote_access.h>
 #include <development/server.h>
 #include <development/session.h>
 
@@ -15,6 +16,11 @@
 #include <service/paths.h>
 
 #include <tactility/delay.h>
+#include <tactility/device.h>
+#include <tactility/driver.h>
+#include <tactility/drivers/display.h>
+#include <tactility/drivers/keyboard.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/freertos/task.h>
 #include <tactility/paths.h>
 
@@ -124,7 +130,10 @@ void ensureFixture() {
     REQUIRE_EQ(app_manager_add(&promptManifest), ERROR_NONE);
     REQUIRE_EQ(app_manager_add(&shellManifest), ERROR_NONE);
     REQUIRE_EQ(app_manager_add(&development_session_app_manifest), ERROR_NONE);
+    REQUIRE_EQ(app_manager_add(&development_remote_session_app_manifest), ERROR_NONE);
 
+    // The module does this when it starts
+    development_remote_start();
     development_server_set_port(0);
     REQUIRE_EQ(service_manager_add(&development_server_service_manifest, true), ERROR_NONE);
     REQUIRE_EQ(development_server_set_enabled(true), ERROR_NONE);
@@ -521,6 +530,393 @@ TEST_CASE("an unsupported mode or protocol version is refused") {
     CHECK_EQ(connectAndGreet(future, "shell", 2), R"({"status":"error","message":"unsupported protocol version"})");
     CHECK_EQ(promptCount, 0);
 }
+
+TEST_CASE("a remote session without a display fails with a reason") {
+    ensureFixture();
+    promptResult = DEVELOPMENT_PROMPT_ACCEPT_ONCE;
+
+    std::string status;
+    auto client = greetWhenIdle(&identity(0), status, "remote");
+    REQUIRE_EQ(status, ACCEPTED);
+    DevelopmentFrameType type;
+    std::string payload;
+    REQUIRE(client->readFrame(type, payload));
+    CHECK_EQ(type, DEVELOPMENT_FRAME_FAIL);
+    CHECK_EQ(payload, "no display");
+    CHECK(client->waitForClose());
+}
+
+// region Remote display
+
+namespace {
+
+constexpr uint16_t REMOTE_WIDTH = 8;
+constexpr uint16_t REMOTE_HEIGHT = 4;
+
+error_t remoteDrawBitmap(Device*, int32_t, int32_t, int32_t, int32_t, const void*) { return ERROR_NONE; }
+error_t remoteSwapXy(Device*, bool) { return ERROR_NONE; }
+bool remoteGetBool(Device*) { return false; }
+DisplayColorFormat remoteColorFormat(Device*) { return DISPLAY_COLOR_FORMAT_RGB565; }
+uint16_t remoteWidth(Device*) { return REMOTE_WIDTH; }
+uint16_t remoteHeight(Device*) { return REMOTE_HEIGHT; }
+
+const DisplayApi remoteDisplayApi = {
+    .capabilities = DISPLAY_CAPABILITY_CAP_SWAP_XY | DISPLAY_CAPABILITY_CAP_MIRROR,
+    .reset = nullptr,
+    .init = nullptr,
+    .draw_bitmap = remoteDrawBitmap,
+    .clear = nullptr,
+    .refresh = nullptr,
+    .mirror = nullptr,
+    .swap_xy = remoteSwapXy,
+    .get_swap_xy = remoteGetBool,
+    .get_mirror_x = remoteGetBool,
+    .get_mirror_y = remoteGetBool,
+    .get_color_format = remoteColorFormat,
+    .get_resolution_x = remoteWidth,
+    .get_resolution_y = remoteHeight,
+};
+
+Driver remoteDisplayDriver = {
+    .name = "remote_test_display_driver",
+    .compatible = (const char*[]) { "development_remote_test,display", nullptr },
+    .start_device = nullptr,
+    .stop_device = nullptr,
+    .api = &remoteDisplayApi,
+    .device_type = &DISPLAY_TYPE,
+    .internal = nullptr,
+};
+
+Device remoteDisplayDevice {
+    .name = "remote_test_display",
+    .config = nullptr,
+    .parent = nullptr,
+};
+
+DisplayColorFormat remoteMonochromeFormat(Device*) { return DISPLAY_COLOR_FORMAT_MONOCHROME; }
+
+// Like a display without swap and mirror, which has no getters for them
+const DisplayApi remoteMonochromeDisplayApi = {
+    .capabilities = 0,
+    .reset = nullptr,
+    .init = nullptr,
+    .draw_bitmap = remoteDrawBitmap,
+    .clear = nullptr,
+    .refresh = nullptr,
+    .mirror = nullptr,
+    .swap_xy = nullptr,
+    .get_swap_xy = nullptr,
+    .get_mirror_x = nullptr,
+    .get_mirror_y = nullptr,
+    .get_color_format = remoteMonochromeFormat,
+    .get_resolution_x = remoteWidth,
+    .get_resolution_y = remoteHeight,
+};
+
+Driver remoteMonochromeDisplayDriver = {
+    .name = "remote_test_monochrome_display_driver",
+    .compatible = (const char*[]) { "development_remote_test,monochrome_display", nullptr },
+    .start_device = nullptr,
+    .stop_device = nullptr,
+    .api = &remoteMonochromeDisplayApi,
+    .device_type = &DISPLAY_TYPE,
+    .internal = nullptr,
+};
+
+Device remoteMonochromeDisplayDevice {
+    .name = "remote_test_monochrome_display",
+    .config = nullptr,
+    .parent = nullptr,
+};
+
+std::string beU16(uint16_t value) {
+    return std::string({ static_cast<char>(value >> 8), static_cast<char>(value & 0xFF) });
+}
+
+bool waitForDevice(const char* name, bool present) {
+    const TickType_t start = xTaskGetTickCount();
+    while (!isExpired(start, TIMEOUT_MS)) {
+        Device* device = nullptr;
+        const bool found = device_get_by_name(name, &device) == ERROR_NONE;
+        if (found) {
+            device_put(device);
+        }
+        if (found == present) {
+            return true;
+        }
+        delay_millis(10);
+    }
+    return false;
+}
+
+}
+
+std::atomic<uint8_t> uiOrientation { DEVELOPMENT_REMOTE_ORIENTATION_SOFTWARE | 1 };
+std::atomic<int> uiRedrawCount { 0 };
+
+uint8_t uiGetOrientation() { return uiOrientation; }
+
+void uiRedraw() { uiRedrawCount++; }
+
+const DevelopmentRemoteUiHandlers uiHandlers = {
+    .redraw = uiRedraw,
+    .get_orientation = uiGetOrientation,
+};
+
+TEST_CASE("a remote session reports the orientation of the UI") {
+    ensureFixture();
+    promptResult = DEVELOPMENT_PROMPT_ACCEPT_ONCE;
+    REQUIRE_EQ(driver_construct_add(&remoteDisplayDriver), ERROR_NONE);
+    REQUIRE_EQ(device_construct_add_start(&remoteDisplayDevice, "development_remote_test,display"), ERROR_NONE);
+    uiOrientation = DEVELOPMENT_REMOTE_ORIENTATION_SOFTWARE | 1;
+    uiRedrawCount = 0;
+    development_remote_set_ui_handlers(&uiHandlers);
+
+    std::string status;
+    auto client = greetWhenIdle(&identity(0), status, "remote");
+    REQUIRE_EQ(status, ACCEPTED);
+
+    DevelopmentFrameType type;
+    std::string payload;
+    REQUIRE(client->readFrame(type, payload));
+    REQUIRE_EQ(type, DEVELOPMENT_FRAME_REMOTE_INFO);
+    REQUIRE_EQ(payload.size(), 11);
+    CHECK_EQ(static_cast<uint8_t>(payload[10]), DEVELOPMENT_REMOTE_ORIENTATION_SOFTWARE | 1);
+    CHECK_EQ(uiRedrawCount, 1);
+
+    // The UI rotates while the session runs
+    uiOrientation = 3;
+    REQUIRE(client->readFrame(type, payload));
+    CHECK_EQ(type, DEVELOPMENT_FRAME_REMOTE_STATE);
+    REQUIRE_EQ(payload.size(), 11);
+    CHECK_EQ(static_cast<uint8_t>(payload[10]), 3);
+
+    // Touch positions are passed on unchanged, as the viewer converts them
+    client->sendFrame(DEVELOPMENT_FRAME_INPUT_ENABLE, std::string(1, static_cast<char>(DEVELOPMENT_REMOTE_INPUT_TOUCH)));
+    REQUIRE(client->readFrame(type, payload));
+    CHECK_EQ(type, DEVELOPMENT_FRAME_OK);
+    Device* touch = nullptr;
+    REQUIRE_EQ(device_get_by_name("remote_touch0", &touch), ERROR_NONE);
+    client->sendFrame(DEVELOPMENT_FRAME_INPUT_TOUCH, std::string(1, '\1') + beU16(6) + beU16(2));
+    uint16_t x[1] = {};
+    uint16_t y[1] = {};
+    uint8_t count = 0;
+    const TickType_t start = xTaskGetTickCount();
+    while (count == 0 && !isExpired(start, TIMEOUT_MS)) {
+        REQUIRE_EQ(touch_read_data(touch, 0), ERROR_NONE);
+        touch_get_touched_points(touch, x, y, nullptr, &count, 1);
+        delay_millis(10);
+    }
+    REQUIRE_EQ(count, 1);
+    CHECK_EQ(x[0], 6);
+    CHECK_EQ(y[0], 2);
+    device_put(touch);
+
+    client.reset();
+    delay_millis(300);
+    development_remote_set_ui_handlers(nullptr);
+    REQUIRE_EQ(device_stop(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(device_remove(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(device_destruct(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(driver_remove_destruct(&remoteDisplayDriver), ERROR_NONE);
+}
+
+TEST_CASE("a remote session runs next to a sync and an app session") {
+    ensureFixture();
+    promptResult = DEVELOPMENT_PROMPT_ACCEPT_ONCE;
+    REQUIRE_EQ(driver_construct_add(&remoteDisplayDriver), ERROR_NONE);
+    REQUIRE_EQ(device_construct_add_start(&remoteDisplayDevice, "development_remote_test,display"), ERROR_NONE);
+
+    std::string status;
+    auto remote = greetWhenIdle(&identity(0), status, "remote");
+    REQUIRE_EQ(status, ACCEPTED);
+    auto sync = greetWhenIdle(&identity(0), status, "sync");
+    REQUIRE_EQ(status, ACCEPTED);
+    auto app = greetWhenIdle(&identity(0), status, "app");
+    REQUIRE_EQ(status, ACCEPTED);
+
+    // A second remote session is refused, while all other modes still have a slot
+    TestClient secondRemote(&identity(0));
+    CHECK_EQ(connectAndGreet(secondRemote, "remote"), R"({"status":"error","message":"remote busy"})");
+
+    DevelopmentFrameType type;
+    std::string payload;
+    REQUIRE(remote->readFrame(type, payload));
+    CHECK_EQ(type, DEVELOPMENT_FRAME_REMOTE_INFO);
+
+    // The sessions work independently of each other
+    sync->sendFrame(DEVELOPMENT_FRAME_SYNC_STAT, "/");
+    REQUIRE(sync->readFrame(type, payload));
+    CHECK_EQ(type, DEVELOPMENT_FRAME_SYNC_STAT_RESULT);
+    app->sendFrame(DEVELOPMENT_FRAME_APP_UNINSTALL, "devtest.not.installed");
+    REQUIRE(app->readFrame(type, payload));
+    CHECK_EQ(type, DEVELOPMENT_FRAME_OK);
+
+    const uint16_t pixel = 0;
+    REQUIRE_EQ(display_draw_bitmap(&remoteDisplayDevice, 0, 0, 1, 1, &pixel), ERROR_NONE);
+    REQUIRE(remote->readFrame(type, payload));
+    CHECK_EQ(type, DEVELOPMENT_FRAME_REMOTE_RECT);
+
+    remote.reset();
+    sync.reset();
+    app.reset();
+    delay_millis(300);
+    REQUIRE_EQ(device_stop(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(device_remove(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(device_destruct(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(driver_remove_destruct(&remoteDisplayDriver), ERROR_NONE);
+}
+
+TEST_CASE("a remote session streams the display and applies the input of the viewer") {
+    ensureFixture();
+    promptResult = DEVELOPMENT_PROMPT_ACCEPT_ONCE;
+    REQUIRE_EQ(driver_construct_add(&remoteDisplayDriver), ERROR_NONE);
+    REQUIRE_EQ(device_construct_add_start(&remoteDisplayDevice, "development_remote_test,display"), ERROR_NONE);
+
+    std::string status;
+    auto client = greetWhenIdle(&identity(0), status, "remote");
+    REQUIRE_EQ(status, ACCEPTED);
+
+    DevelopmentFrameType type;
+    std::string payload;
+    REQUIRE(client->readFrame(type, payload));
+    REQUIRE_EQ(type, DEVELOPMENT_FRAME_REMOTE_INFO);
+    REQUIRE_EQ(payload.size(), 11);
+    CHECK_EQ(payload.substr(0, 4), beU16(REMOTE_WIDTH) + beU16(REMOTE_HEIGHT));
+    CHECK_EQ(static_cast<uint8_t>(payload[4]), DISPLAY_COLOR_FORMAT_RGB565);
+
+    // A draw call arrives as a rectangle. It's not compressed on this platform
+    const std::string pixels = "ABCDEFGHIJKLMNOP";
+    REQUIRE_EQ(display_draw_bitmap(&remoteDisplayDevice, 2, 1, 6, 3, pixels.data()), ERROR_NONE);
+    REQUIRE(client->readFrame(type, payload));
+    REQUIRE_EQ(type, DEVELOPMENT_FRAME_REMOTE_RECT);
+    CHECK_EQ(payload.substr(0, 9), beU16(2) + beU16(1) + beU16(4) + beU16(2) + std::string(1, '\0'));
+    CHECK_EQ(payload.substr(9), pixels);
+
+    // Swapping the axes changes the size of the image
+    REQUIRE_EQ(display_swap_xy(&remoteDisplayDevice, true), ERROR_NONE);
+    REQUIRE(client->readFrame(type, payload));
+    REQUIRE_EQ(type, DEVELOPMENT_FRAME_REMOTE_STATE);
+    REQUIRE_EQ(payload.size(), 11);
+    CHECK_EQ(payload.substr(0, 4), beU16(REMOTE_HEIGHT) + beU16(REMOTE_WIDTH));
+    CHECK_EQ(static_cast<uint8_t>(payload[5]), 1);
+
+    // The input devices only exist while the viewer enables them
+    CHECK(waitForDevice("remote_keyboard0", false));
+    client->sendFrame(DEVELOPMENT_FRAME_INPUT_ENABLE, std::string(1, static_cast<char>(DEVELOPMENT_REMOTE_INPUT_KEYBOARD | DEVELOPMENT_REMOTE_INPUT_TOUCH)));
+    REQUIRE(client->readFrame(type, payload));
+    CHECK_EQ(type, DEVELOPMENT_FRAME_OK);
+
+    Device* keyboard = nullptr;
+    Device* touch = nullptr;
+    REQUIRE_EQ(device_get_by_name("remote_keyboard0", &keyboard), ERROR_NONE);
+    REQUIRE_EQ(device_get_by_name("remote_touch0", &touch), ERROR_NONE);
+
+    // 'a' pressed with Ctrl
+    client->sendFrame(DEVELOPMENT_FRAME_INPUT_KEY, std::string({ 0, 0, 0, 'a', 1 | 2 }));
+    KeyboardKeyData key {};
+    const TickType_t start = xTaskGetTickCount();
+    while (key.key == 0 && !isExpired(start, TIMEOUT_MS)) {
+        REQUIRE_EQ(keyboard_read_key(keyboard, &key), ERROR_NONE);
+        delay_millis(10);
+    }
+    CHECK_EQ(key.key, 'a');
+    CHECK(key.pressed);
+    CHECK(key.ctrl);
+    CHECK_FALSE(key.alt);
+
+    // Two fingers: (3, 2) and (5, 1)
+    client->sendFrame(DEVELOPMENT_FRAME_INPUT_TOUCH, std::string(1, '\2') + beU16(3) + beU16(2) + beU16(5) + beU16(1));
+    uint16_t x[3] = {};
+    uint16_t y[3] = {};
+    uint8_t count = 0;
+    bool touched = false;
+    const TickType_t touchStart = xTaskGetTickCount();
+    while (count < 2 && !isExpired(touchStart, TIMEOUT_MS)) {
+        REQUIRE_EQ(touch_read_data(touch, 0), ERROR_NONE);
+        touched = touch_get_touched_points(touch, x, y, nullptr, &count, 3);
+        delay_millis(10);
+    }
+    REQUIRE(touched);
+    REQUIRE_EQ(count, 2);
+    CHECK_EQ(x[0], 3);
+    CHECK_EQ(y[0], 2);
+    CHECK_EQ(x[1], 5);
+    CHECK_EQ(y[1], 1);
+
+    // Dragging moves a finger: the second one was released and the first one moved
+    client->sendFrame(DEVELOPMENT_FRAME_INPUT_TOUCH, std::string(1, '\1') + beU16(4) + beU16(3));
+    count = 2;
+    const TickType_t dragStart = xTaskGetTickCount();
+    while (count != 1 && !isExpired(dragStart, TIMEOUT_MS)) {
+        REQUIRE_EQ(touch_read_data(touch, 0), ERROR_NONE);
+        touch_get_touched_points(touch, x, y, nullptr, &count, 3);
+        delay_millis(10);
+    }
+    REQUIRE_EQ(count, 1);
+    CHECK_EQ(x[0], 4);
+    CHECK_EQ(y[0], 3);
+
+    // A count of 0 releases everything
+    client->sendFrame(DEVELOPMENT_FRAME_INPUT_TOUCH, std::string(1, '\0'));
+    count = 1;
+    const TickType_t releaseStart = xTaskGetTickCount();
+    while (count != 0 && !isExpired(releaseStart, TIMEOUT_MS)) {
+        REQUIRE_EQ(touch_read_data(touch, 0), ERROR_NONE);
+        touched = touch_get_touched_points(touch, x, y, nullptr, &count, 3);
+        delay_millis(10);
+    }
+    CHECK_FALSE(touched);
+    CHECK_EQ(count, 0);
+
+    device_put(keyboard);
+    device_put(touch);
+
+    // Disconnecting removes the input devices and the hook
+    client.reset();
+    CHECK(waitForDevice("remote_keyboard0", false));
+    CHECK(waitForDevice("remote_touch0", false));
+
+    REQUIRE_EQ(device_stop(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(device_remove(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(device_destruct(&remoteDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(driver_remove_destruct(&remoteDisplayDriver), ERROR_NONE);
+}
+
+TEST_CASE("a remote session unpacks the pixels of a monochrome display into grayscale") {
+    ensureFixture();
+    promptResult = DEVELOPMENT_PROMPT_ACCEPT_ONCE;
+    REQUIRE_EQ(driver_construct_add(&remoteMonochromeDisplayDriver), ERROR_NONE);
+    REQUIRE_EQ(device_construct_add_start(&remoteMonochromeDisplayDevice, "development_remote_test,monochrome_display"), ERROR_NONE);
+
+    std::string status;
+    auto client = greetWhenIdle(&identity(0), status, "remote");
+    REQUIRE_EQ(status, ACCEPTED);
+
+    DevelopmentFrameType type;
+    std::string payload;
+    REQUIRE(client->readFrame(type, payload));
+    REQUIRE_EQ(type, DEVELOPMENT_FRAME_REMOTE_INFO);
+    REQUIRE_EQ(payload.size(), 11);
+    CHECK_EQ(static_cast<uint8_t>(payload[4]), DISPLAY_COLOR_FORMAT_GRAYSCALE8);
+
+    // A 3x2 rectangle at (2, 1), packed row by row with MSB first: 101 and 010
+    const uint8_t packed[2] = { 0b10100000, 0b01000000 };
+    REQUIRE_EQ(display_draw_bitmap(&remoteMonochromeDisplayDevice, 2, 1, 5, 3, packed), ERROR_NONE);
+    REQUIRE(client->readFrame(type, payload));
+    REQUIRE_EQ(type, DEVELOPMENT_FRAME_REMOTE_RECT);
+    CHECK_EQ(payload.substr(0, 9), beU16(2) + beU16(1) + beU16(3) + beU16(2) + std::string(1, '\0'));
+    CHECK_EQ(payload.substr(9), std::string("\xFF\x00\xFF\x00\xFF\x00", 6));
+
+    client.reset();
+    delay_millis(200);
+    REQUIRE_EQ(device_stop(&remoteMonochromeDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(device_remove(&remoteMonochromeDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(device_destruct(&remoteMonochromeDisplayDevice), ERROR_NONE);
+    REQUIRE_EQ(driver_remove_destruct(&remoteMonochromeDisplayDriver), ERROR_NONE);
+}
+
+// endregion
 
 TEST_CASE("a shell hello with a command runs it with -c and reports its exit code") {
     ensureFixture();

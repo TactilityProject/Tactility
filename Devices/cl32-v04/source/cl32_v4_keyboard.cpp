@@ -290,9 +290,9 @@ static error_t v4_read_key(Device* device, KeyboardKeyData* data) {
 }
 
 static constexpr KeyboardApi cl32_v4_keyboard_api = {
+    .capabilities = 0,
     .read_key = v4_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 static error_t start(Device* device) {

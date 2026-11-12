@@ -207,7 +207,7 @@ void lvgl_keyboard_disable(lv_indev_t* indev) {
 
 static bool lvgl_hardware_keyboard_check_present(Device* device, void* context) {
     bool ready = device_is_ready(device);
-    bool present = ready && keyboard_is_present(device);
+    bool present = ready && !keyboard_has_capability(device, KEYBOARD_CAPABILITY_RESTRICTED);
     LOG_D(TAG, "keyboard device %s: ready=%d present=%d", device->name, (int)ready, (int)present);
     if (!present) {
         return true; // keep looking

@@ -127,9 +127,9 @@ static error_t keyboardDeviceReadKey(Device* device, KeyboardKeyData* data) {
 }
 
 static const KeyboardApi keyboard_api = {
+    .capabilities = 0,
     .read_key = keyboardDeviceReadKey,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 static Driver keyboard_driver = {

@@ -497,9 +497,9 @@ static error_t usb_hid_kb_device_read_key(Device* device, KeyboardKeyData* data)
 }
 
 static const KeyboardApi esp32_usbhost_hid_keyboard_api = {
+    .capabilities = 0,
     .read_key = usb_hid_kb_device_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 Driver esp32_usbhost_hid_keyboard_driver = {

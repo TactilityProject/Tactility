@@ -498,6 +498,17 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
     return ERROR_NONE;
 }
 
+bool lvgl_display_is_software_rotated(lv_display_t* display) {
+    if (display == NULL) {
+        return false;
+    }
+    auto* wrapper = (struct LvglDeviceContext*)lv_display_get_driver_data(display);
+    if (wrapper == NULL) {
+        return false;
+    }
+    return ((struct LvglDisplayCtx*)wrapper->context)->sw_rotate;
+}
+
 void lvgl_display_remove(lv_display_t* display) {
     if (display == NULL) {
         return;

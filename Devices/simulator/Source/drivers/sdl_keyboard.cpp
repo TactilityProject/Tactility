@@ -39,9 +39,9 @@ static error_t sdl_keyboard_read_key(Device*, KeyboardKeyData* data) {
 // endregion
 
 static const KeyboardApi sdl_keyboard_api = {
+    .capabilities = 0,
     .read_key = sdl_keyboard_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 extern Module simulator_module;

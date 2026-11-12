@@ -83,6 +83,14 @@ struct LvglDisplayConfig {
 error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* config, lv_display_t** out_display);
 
 /**
+ * @brief Tells whether the display rotates its content in software.
+ * Then the pixels that reach the display driver are rotated by lv_display_get_rotation() relative to the UI,
+ * while a display that rotates in hardware receives the UI as it is.
+ * @param[in] display a display created with lvgl_display_add()
+ */
+bool lvgl_display_is_software_rotated(lv_display_t* display);
+
+/**
  * @brief Removes a display previously created with lvgl_display_add(), freeing any buffers it owns.
  * @warning Caller must hold the LVGL lock.
  */

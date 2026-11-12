@@ -26,6 +26,7 @@
 #include <cjson_symbols/module.h>
 #include <coreutils/module.h>
 #include <cpp_symbols/module.h>
+#include <development/remote_access.h>
 #include <crypt/module.h>
 #include <freertos/module.h>
 #include <gps/module.h>
@@ -46,6 +47,8 @@ extern "C" Module tactility_audio_module;
 namespace tt {
 
 void initModules() {
+    // Before the first display call, so that remote sessions know the state of the display
+    development_remote_start();
     // The following groups of symbols are sorted by the estimated chance of them occurring
 
     // C/C++/Posix symbols

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tactility Dev Console — a CustomTkinter desktop version of the SDK's `tt ui` dashboard.
+"""Tactility Dev Console — a Custom2kinter desktop version of the SDK's `tt ui` dashboard.
 
 Pick an app, choose a target, and run build / install / run / clean with live colored
 output. All of the actual work is delegated to the repo's own tt.py, so SDK selection,
@@ -39,10 +39,17 @@ except ImportError:  # pragma: no cover - Linux without python3-tk
 
 try:
     import customtkinter as ctk
-except ImportError:  # pragma: no cover - dependency hint
+except ImportError as _error:  # pragma: no cover - dependency hint
     raise SystemExit(
-        "CustomTkinter is required for this tool.\n"
-        "Install it with:  python -m pip install customtkinter"
+        f"Custom2kinter can't be imported by {sys.executable}: {_error}\n"
+        + (
+            "Pillow has no Tk support (PIL.ImageTk) in that Python. Install it with your package manager:\n"
+            "  Fedora:         sudo dnf install python3-pillow-tk\n"
+            "  Debian/Ubuntu:  sudo apt install python3-pil.imagetk\n"
+            "(The 'ImageTk' package on PyPI is something else.)"
+            if "ImageTk" in str(_error)
+            else f"Install it for that Python with:  {sys.executable} -m pip install custom2kinter"
+        )
     ) from None
 
 try:
@@ -1025,7 +1032,7 @@ class DevConsole(ctk.CTk):
         self.status_label = ctk.CTkLabel(bottom, text="Idle", anchor="w",
                                          text_color=("gray40", "gray60"))
         self.status_label.grid(row=0, column=0, sticky="w")
-        self.progress = ctk.CTkProgressBar(bottom, width=180, mode="indeterminate")
+        self.progress = ctk.CTkProgressBar(bottom, length=180, mode="indeterminate")
         self.progress.grid(row=0, column=1, sticky="e")
         self.progress.set(0)
         self.progress.grid_remove()
@@ -1447,7 +1454,7 @@ class DevConsole(ctk.CTk):
                     source.thumbnail((900, 160))
                     width, height = source.size
                     image = ctk.CTkImage(light_image=source.copy(), dark_image=source.copy(),
-                                         size=(width, height))
+                                         width=width, height=height)
             except (OSError, ValueError) as exc:
                 self.screenshot_preview.configure(text="Preview unavailable", image=None, height=120)
                 self.screenshot_info.configure(text=f"Captured {path} (preview unavailable: {exc})")

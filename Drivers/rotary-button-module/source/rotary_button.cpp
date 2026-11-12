@@ -175,9 +175,9 @@ static error_t rotary_button_read_key(Device* device, KeyboardKeyData* data) {
 // endregion
 
 static constexpr KeyboardApi ROTARY_BUTTON_API = {
+    .capabilities = KEYBOARD_CAPABILITY_RESTRICTED,
     .read_key = rotary_button_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 Driver rotary_button_driver = {

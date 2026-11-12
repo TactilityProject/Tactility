@@ -38,7 +38,27 @@ enum DevelopmentFrameType : uint8_t {
     DEVELOPMENT_FRAME_APP_INSTALL = 0x20,
     DEVELOPMENT_FRAME_APP_UNINSTALL = 0x21,
     DEVELOPMENT_FRAME_APP_RUN = 0x22,
+    // Remote mode, from the device
+    DEVELOPMENT_FRAME_REMOTE_INFO = 0x30,
+    DEVELOPMENT_FRAME_REMOTE_RECT = 0x31,
+    DEVELOPMENT_FRAME_REMOTE_STATE = 0x32,
+    // Remote mode, from the viewer
+    DEVELOPMENT_FRAME_INPUT_ENABLE = 0x40,
+    DEVELOPMENT_FRAME_INPUT_KEY = 0x41,
+    DEVELOPMENT_FRAME_INPUT_TOUCH = 0x42,
 };
+
+/** Bits of the DEVELOPMENT_FRAME_INPUT_ENABLE payload */
+enum DevelopmentRemoteInput : uint8_t {
+    DEVELOPMENT_REMOTE_INPUT_KEYBOARD = 1 << 0,
+    DEVELOPMENT_REMOTE_INPUT_TOUCH = 1 << 1,
+};
+
+/**
+ * Remote mode frames from the device can be larger than DEVELOPMENT_FRAME_PAYLOAD_MAX.
+ * Frames from the viewer always stay within DEVELOPMENT_FRAME_PAYLOAD_MAX.
+ */
+#define DEVELOPMENT_REMOTE_FRAME_PAYLOAD_MAX 16384
 
 enum DevelopmentSyncFileType : uint8_t {
     DEVELOPMENT_SYNC_FILE_MISSING = 0,

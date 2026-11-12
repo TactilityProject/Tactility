@@ -84,9 +84,9 @@ static error_t tdeck_keyboard_read_key(Device* device, KeyboardKeyData* data) {
 // endregion
 
 static const KeyboardApi tdeck_keyboard_api = {
+    .capabilities = 0,
     .read_key = tdeck_keyboard_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 Driver tdeck_keyboard_driver = {

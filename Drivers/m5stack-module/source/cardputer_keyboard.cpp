@@ -296,9 +296,9 @@ static error_t cardputer_keyboard_read_key(Device* device, KeyboardKeyData* data
 // endregion
 
 static const KeyboardApi cardputer_keyboard_api = {
+    .capabilities = 0,
     .read_key = cardputer_keyboard_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 Driver cardputer_keyboard_driver = {

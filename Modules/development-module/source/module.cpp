@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <development/module.h>
+#include <development/remote_access.h>
 #include <development/server.h>
 #include <development/session.h>
 
@@ -12,13 +13,21 @@
 extern "C" {
 
 static error_t start() {
+    development_remote_start();
     error_t error = app_manager_add(&development_session_app_manifest);
     if (error != ERROR_NONE) {
         return error;
     }
-    error = service_manager_add(&development_server_service_manifest, /*auto_start=*/true);
+    error = app_manager_add(&development_remote_session_app_manifest);
     if (error != ERROR_NONE) {
         app_manager_remove(development_session_app_manifest.id);
+        return error;
+    }
+    error = service_manager_add(&development_server_service_manifest, /*auto_start=*/true);
+    if (error != ERROR_NONE) {
+        app_manager_remove(development_remote_session_app_manifest.id);
+        app_manager_remove(development_session_app_manifest.id);
+        development_remote_stop();
     }
     return error;
 }
@@ -29,7 +38,9 @@ static error_t stop() {
         return error;
     }
     service_manager_remove(development_server_service_manifest.id);
+    app_manager_remove(development_remote_session_app_manifest.id);
     app_manager_remove(development_session_app_manifest.id);
+    development_remote_stop();
     return ERROR_NONE;
 }
 
