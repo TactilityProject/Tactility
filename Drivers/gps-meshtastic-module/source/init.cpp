@@ -171,8 +171,8 @@ bool init_ag33xx(Device* uart, const std::atomic<bool>& interrupted) {
     // Configure NMEA (sentences will output once per fix)
     uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,0,1*3F\r\n", 17, 250); // GGA ON
     uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,1,0*3F\r\n", 17, 250); // GLL OFF
-    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,2,0*3C\r\n", 17, 250); // GSA OFF
-    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,3,0*3D\r\n", 17, 250); // GSV OFF
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,2,1*3D\r\n", 17, 250); // GSA ON
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,3,1*3C\r\n", 17, 250); // GSV ON
     uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,4,1*3B\r\n", 17, 250); // RMC ON
     uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,5,0*3B\r\n", 17, 250); // VTG OFF
     uart_controller_write_bytes(uart, (const uint8_t*)"$PAIR062,6,0*38\r\n", 17, 250); // ZDA ON
@@ -196,13 +196,13 @@ bool init_uc6580(Device* uart, const std::atomic<bool>& interrupted) {
         return false;
     }
     // Must be done after the CFGSYS command
-    // Turn off GSV messages, we don't really care about which and where the sats are, maybe someday.
-    uart_controller_write_bytes(uart, (const uint8_t*)"$CFGMSG,0,3,0\r\n", 15, 250);
+    // GSV lists the satellites in view for apps
+    uart_controller_write_bytes(uart, (const uint8_t*)"$CFGMSG,0,3,1\r\n", 15, 250);
     if (!gps_delay_millis(interrupted, 250)) {
         return false;
     }
-    // Turn off GSA messages, TinyGPS++ doesn't use this message.
-    uart_controller_write_bytes(uart, (const uint8_t*)"$CFGMSG,0,2,0\r\n", 15, 250);
+    // GSA lists the satellites used in the fix and the DOP values
+    uart_controller_write_bytes(uart, (const uint8_t*)"$CFGMSG,0,2,1\r\n", 15, 250);
     if (!gps_delay_millis(interrupted, 250)) {
         return false;
     }
@@ -242,8 +242,8 @@ bool init_atgm336h(Device* uart, const std::atomic<bool>& interrupted) {
     }
 
     // Set the NEMA output messages
-    // Ask for only RMC and GGA
-    uint8_t fields[] = {CAS_NEMA_RMC, CAS_NEMA_GGA};
+    // RMC and GGA for the position, GSA and GSV for the satellites
+    uint8_t fields[] = {CAS_NEMA_RMC, CAS_NEMA_GGA, CAS_NEMA_GSA, CAS_NEMA_GSV};
     for (unsigned int i = 0; i < sizeof(fields); i++) {
         // Construct a CAS-CFG-MSG packet
         uint8_t cas_cfg_msg_packet[] = {0x4e, fields[i], 0x01, 0x00};
@@ -267,8 +267,8 @@ bool init_mtk_pa1616s(Device* uart, const std::atomic<bool>& interrupted) {
     if (!gps_delay_millis(interrupted, 1000)) {
         return false;
     }
-    // Only ask for RMC and GGA (GNRMC and GNGGA)
-    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n", 51, 250);
+    // Ask for RMC, GGA, GSA and GSV
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK314,0,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n", 51, 250);
     if (!gps_delay_millis(interrupted, 250)) {
         return false;
     }
@@ -289,9 +289,9 @@ bool init_mtk_l76b(Device* uart, const std::atomic<bool>& interrupted) {
     if (!gps_delay_millis(interrupted, 1000)) {
         return false;
     }
-    // only ask for RMC and GGA (GNRMC and GNGGA)
+    // Ask for RMC, GGA, GSA and GSV
     // See note in L76_Series_GNSS_Protocol_Specification, chapter 2.1
-    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n", 51, 250);
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PMTK314,0,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n", 51, 250);
     if (!gps_delay_millis(interrupted, 250)) {
         return false;
     }
@@ -319,8 +319,8 @@ bool init_mtk(Device* uart, const std::atomic<bool>& interrupted) {
     if (!gps_delay_millis(interrupted, 250)) {
         return false;
     }
-    // only ask for RMC and GGA
-    uart_controller_write_bytes(uart, (const uint8_t*)"$PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0*02\r\n", 38, 250);
+    // Ask for GGA, GSA, GSV and RMC
+    uart_controller_write_bytes(uart, (const uint8_t*)"$PCAS03,1,0,1,1,1,0,0,0,0,0,,,0,0*02\r\n", 38, 250);
     if (!gps_delay_millis(interrupted, 250)) {
         return false;
     }

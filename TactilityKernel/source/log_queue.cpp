@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <tactility/log_queue.h>
+#include <tactility/log.h>
 
 #include <tactility/freertos/queue.h>
 #include <tactility/freertos/task.h>
@@ -25,6 +26,10 @@ struct LogQueueMessage {
 };
 
 std::atomic<QueueHandle_t> g_queue { nullptr };
+
+#if !defined(ESP_PLATFORM)
+thread_local bool g_direct_write = false;
+#endif
 
 // The one and only place a real console write happens for log output - deliberately never
 // through app_io_write()'s fd-table redirection (Modules/app-module/source/io.cpp). That
@@ -162,10 +167,23 @@ void log_queue_init(void) {
 #endif
 }
 
+#if !defined(ESP_PLATFORM)
+void log_set_direct_write_for_current_thread(void) {
+    g_direct_write = true;
+}
+#endif
+
 void log_queue_write(const char* data, size_t length) {
     if (data == nullptr || length == 0) {
         return;
     }
+
+#if !defined(ESP_PLATFORM)
+    if (g_direct_write) {
+        write_real(data, length);
+        return;
+    }
+#endif
 
     QueueHandle_t queue = g_queue.load(std::memory_order_acquire);
     if (queue == nullptr) {

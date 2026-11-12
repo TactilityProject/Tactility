@@ -19,9 +19,9 @@
 #include <tactility/paths.h>
 #include <tactility/time.h>
 
-#include <TactilityCpp/std/deque.h>
-#include <TactilityCpp/std/string.h>
-#include <TactilityCpp/std/vector.h>
+#include <tactility/std/deque.hpp>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <algorithm>
 #include <new>
@@ -49,7 +49,7 @@ struct Operation {
 };
 
 struct InstalledPackage {
-    PackageManifest package;
+    PackageSummary package;
     AppId first_app_id;
 };
 
@@ -205,7 +205,11 @@ tt::std::vector<InstalledPackage> getInstalledPackages() {
     return packages;
 }
 
-/** Requires the global lock. Only one refresh and one install or remove can be queued or running at a time. */
+/**
+ * Requires the global lock. Only one refresh can be queued or running at a time.
+ * Installs and removes of different apps can be queued together, but an update of all apps excludes them.
+ * @return the refresh, or the first install, remove or update of all apps
+ */
 const Operation* findPendingOperationOfKind(bool refresh) {
     if (state->operationRunning && (state->runningOperation.type == APP_HUB_OPERATION_REFRESH) == refresh) {
         return &state->runningOperation;
@@ -539,7 +543,16 @@ error_t enqueue(AppHubOperationType type, const char* id, uint32_t* operationId)
         return ERROR_INVALID_STATE;
     }
 
-    const Operation* pending = findPendingOperationOfKind(type == APP_HUB_OPERATION_REFRESH);
+    const Operation* pending;
+    if (type == APP_HUB_OPERATION_REFRESH) {
+        pending = findPendingOperationOfKind(true);
+    } else {
+        pending = findPendingOperationOfKind(false);
+        // Installs and removes only conflict with an operation for the same app, or with an update of all apps
+        if (type != APP_HUB_OPERATION_UPDATE_ALL && (pending == nullptr || pending->type != APP_HUB_OPERATION_UPDATE_ALL)) {
+            pending = findPendingOperation(id);
+        }
+    }
     if (pending != nullptr) {
         const bool same = pending->type == type && (id == nullptr || strcmp(pending->app_id, id) == 0);
         if (same && operationId != nullptr) {

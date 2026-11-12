@@ -20,6 +20,8 @@ ESP_PLATFORM` in `source/module.cpp`; symbols outside that gate (e.g. `__cxa_pur
 - `operator new(unsigned int)` / `operator delete(void*, unsigned int)` (`_Znwj` / `_ZdlPvj`)
 - `operator new[](unsigned int)` / `operator delete[](void*, unsigned int)` (`_Znaj` / `_ZdaPvj`)
 - `operator new[](unsigned int, std::nothrow_t const&)` (`_ZnajRKSt9nothrow_t`)
+- `operator new(unsigned int, std::nothrow_t const&)` (`_ZnwjRKSt9nothrow_t`) - e.g. `std::stable_sort`'s
+  temporary buffer
 - `operator delete(void*)` / `operator delete[](void*)` (`_ZdlPv` / `_ZdaPv`) - the unsized forms,
   used instead of the above when the compiler determines no size is needed
 - `std::nothrow`
@@ -47,6 +49,14 @@ Non-template helpers shared by every `std::map`/`std::set` instantiation:
 
 - `std::_Rb_tree_increment` / `std::_Rb_tree_decrement`
 - `std::_Rb_tree_insert_and_rebalance`
+- `std::_Rb_tree_rebalance_for_erase`
+
+### `std::unordered_map` / `std::unordered_set` (hashtable internals)
+
+Non-template helpers shared by every instantiation, ESP32-only (32-bit mangling):
+
+- `std::__detail::_Prime_rehash_policy::_M_next_bkt` / `_M_need_rehash`
+- `std::_Hash_bytes` - also `std::hash<std::string>`
 
 ### `std::string`
 
@@ -97,6 +107,9 @@ Same `_M_check_len`/`_Guard_alloc`/`emplace_back`/`_M_realloc_append` pattern as
 and `vector<unsigned char>` above, for two more element types apps instantiate over.
 
 ### `std::shared_ptr<T>` control block
+
+`std::_Sp_make_shared_tag::_S_eq`: `std::make_shared` uses it to find its control block when
+RTTI is off, which it is for ESP-IDF builds.
 
 `__shared_count::operator=`, `_Sp_counted_base`'s virtual dispatch, and its vtable, for both lock
 policies (atomic and mutex-based - which one an app's build selects isn't controlled by this

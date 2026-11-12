@@ -14,7 +14,6 @@
 #include <bindings/cl32_v4_light.h>
 #include <bindings/cl32_v4_keyboard.h>
 #include <bindings/cl32_v4_power.h>
-#include <bindings/st7305.h>
 #include <bindings/sx1262.h>
 
 / {
@@ -93,6 +92,8 @@
 		i2cClockFrequency = <100000>;
 	};
 
+	// The display is either an ST7305 reflective LCD or an SSD16xx e-paper panel. It is created
+	// dynamically based on hardware detection, see cl32_v4_display.cpp.
 	spi1 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
@@ -106,16 +107,6 @@
 		sdcard@0 {
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;
-		};
-
-		display@1 {
-			compatible = "sitronix,st7305";
-			pin-dc = <&gpio0 13 GPIO_FLAG_NONE>;
-			pin-reset = <&gpio0 12 GPIO_FLAG_NONE>;
-			pixel-clock-hz = <80000000>;
-			mirror-x;
-			mirror-y;
-			backlight = <&back_light>;
 		};
 	};
 

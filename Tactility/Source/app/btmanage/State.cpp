@@ -14,13 +14,13 @@ bool State::isScanning() const {
     return scanning;
 }
 
-void State::setRadioState(bluetooth::RadioState s) {
+void State::setRadioState(BtRadioState s) {
     auto lock = mutex.asScopedLock();
     lock.lock();
     radioState = s;
 }
 
-bluetooth::RadioState State::getRadioState() const {
+BtRadioState State::getRadioState() const {
     auto lock = mutex.asScopedLock();
     lock.lock();
     return radioState;
@@ -28,14 +28,22 @@ bluetooth::RadioState State::getRadioState() const {
 
 void State::updateScanResults() {
     // Fetch outside the lock to avoid holding it during a service call.
-    auto results = bluetooth::getScanResults();
+    std::vector<BluetoothPeer> results;
+    bluetooth_service_for_each_scan_result(&results, [](const BluetoothPeer* peer, void* context) {
+        static_cast<std::vector<BluetoothPeer>*>(context)->push_back(*peer);
+        return true;
+    });
     auto lock = mutex.asScopedLock();
     lock.lock();
     scanResults = std::move(results);
 }
 
 void State::updatePairedPeers() {
-    auto peers = bluetooth::getPairedPeers();
+    std::vector<BluetoothPeer> peers;
+    bluetooth_service_for_each_paired_peer(&peers, [](const BluetoothPeer* peer, void* context) {
+        static_cast<std::vector<BluetoothPeer>*>(context)->push_back(*peer);
+        return true;
+    });
     auto lock = mutex.asScopedLock();
     lock.lock();
     pairedPeers = std::move(peers);

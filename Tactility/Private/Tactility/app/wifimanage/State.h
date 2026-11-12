@@ -17,6 +17,7 @@ class State final {
     RecursiveMutex mutex;
     bool scanning = false;
     bool scannedAfterRadioOn = false;
+    bool scanStartFailed = false;
     bool listRefreshRequested = true;
     WifiRadioState radioState = WIFI_RADIO_STATE_OFF;
     WifiStationState stationState = WIFI_STATION_STATE_DISCONNECTED;
@@ -30,12 +31,17 @@ public:
     void setScanning(bool isScanning);
     bool isScanning() const;
 
-    bool hasScannedAfterRadioOn() const { return scannedAfterRadioOn; }
+    bool hasScannedAfterRadioOn() const;
+
+    /** Cleared when a scan starts or the radio turns off */
+    void setScanStartFailed();
+    bool hasScanStartFailed() const;
 
     /** The next finished scan updates the AP records and rebuilds the network list */
     void requestListRefresh();
     /** @return true if a list refresh was requested, clearing the request */
     bool takeListRefreshRequest();
+    bool isListRefreshRequested() const;
 
     void setRadioState(WifiRadioState state);
     WifiRadioState getRadioState() const;
@@ -47,7 +53,8 @@ public:
     void setConnectionTarget(const std::string& ssid);
     std::string getConnectionTarget() const;
 
-    void updateApRecords(Device* device);
+    /** @param[in] keepIfEmpty keeps the current records when the scan found nothing, e.g. because it was aborted by a connection */
+    void updateApRecords(Device* device, bool keepIfEmpty = false);
 
     template <std::invocable<const std::vector<WifiApRecord>&> Func>
     void withApRecords(Func&& onApRecords) const {

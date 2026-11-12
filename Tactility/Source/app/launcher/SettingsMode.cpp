@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <strings.h>
 
 namespace tt::app::launcher {
 
@@ -33,6 +34,7 @@ constexpr IconEntry ICONS[] = {
     {"tactility.touchcalibration",  LVGL_ICON_SHARED_CIRCLE},
     {"tactility.trackballsettings", LVGL_ICON_SHARED_DEVICES},
     {"tactility.usbsettings",       LVGL_ICON_SHARED_USB},
+    {"tactility.vibrationsettings", LVGL_ICON_SHARED_PHONE_ANDROID},
     {"tactility.wifimanage",        LVGL_ICON_SHARED_WIFI},
 };
 
@@ -52,7 +54,11 @@ std::vector<TileGridItem> collectItems() {
     std::vector<::AppManifest> collected;
     app_manager_for_each_manifest(collectManifest, &collected);
     std::ranges::sort(collected, [](const ::AppManifest& a, const ::AppManifest& b) {
-        return strcmp(a.name, b.name) < 0;
+        const int nameOrder = strcasecmp(a.name, b.name);
+        if (nameOrder != 0) {
+            return nameOrder < 0;
+        }
+        return strcmp(a.id, b.id) < 0;
     });
 
     std::vector<TileGridItem> items;

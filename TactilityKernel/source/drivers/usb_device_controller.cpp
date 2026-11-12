@@ -42,4 +42,12 @@ bool usb_device_controller_is_cdc_enabled(struct Device* device) {
     return USB_DEVICE_CONTROLLER_API(device)->is_cdc_enabled(device);
 }
 
+error_t usb_device_controller_start_cdc_console(struct Device* device) {
+    return USB_DEVICE_CONTROLLER_API(device)->start_cdc_console(device);
+}
+
+error_t usb_device_controller_stop_cdc_console(struct Device* device) {
+    return USB_DEVICE_CONTROLLER_API(device)->stop_cdc_console(device);
+}
+
 } // extern "C"

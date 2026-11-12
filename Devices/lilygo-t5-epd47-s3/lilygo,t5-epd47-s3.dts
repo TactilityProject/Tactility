@@ -12,6 +12,7 @@
 #include <bindings/gt911.h>
 #include <tactility/bindings/esp32_sdspi.h>
 #include <bindings/t5s3_display.h>
+// #include <bindings/t5s3_display_bw.h>
 
 / {
 	compatible = "root";
@@ -33,6 +34,8 @@
 	// Listed before the I2C bus on purpose, the touch controller was only tested with the display started first
 	display {
 		compatible = "lilygo,t5s3-display";
+		// Black and white only with faster updates, enable it together with its include above
+		// compatible = "lilygo,t5s3-display-bw";
 	};
 
 	i2c_internal {

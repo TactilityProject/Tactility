@@ -156,7 +156,7 @@ error_t api_load(AppLocation location, AppRuntime* out_runtime) {
     }
 
     module_refs_begin(&runtime->module_refs);
-    const int relocate_result = esp_elf_relocate(&runtime->elf, runtime->file_data);
+    const int relocate_result = esp_elf_relocate(&runtime->elf, runtime->file_data, size);
     module_refs_end();
     if (relocate_result != 0) {
         // esp_elf_relocate() already frees elf->pdata/ptext itself on a relocation failure

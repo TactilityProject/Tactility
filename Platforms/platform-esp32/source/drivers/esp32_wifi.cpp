@@ -19,7 +19,7 @@
 #include <tactility/log.h>
 #include <tactility/time.h>
 
-#include <TactilityCpp/Allocator.h>
+#include <tactility/Allocator.hpp>
 
 #if defined(CONFIG_ESP_HOSTED_ENABLED)
 #include <tactility/drivers/esp32_esp_hosted_ota.h>

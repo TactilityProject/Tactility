@@ -27,6 +27,18 @@ menu "Tactility App"
         range 10 32
         help
             Default text font size in pixels. Other text and icon font sizes are derived from it.
+    config TT_UI_SPACING
+        int "Default UI spacing (%)"
+        default 100
+        range 0 100
+        help
+            Default spacing of widgets, from 0 (compact) to 100 (regular). Users can change it in the Appearance app.
+    config TT_UI_SIZE
+        int "Default UI size (%)"
+        default 100
+        range 0 100
+        help
+            Default size of widgets, from 0 (compact) to 100 (regular). Users can change it in the Appearance app.
     config TT_AUTO_START_APP_ID
         string "Auto Start App ID"
         default ""
@@ -40,18 +52,12 @@ menu "Tactility App"
     config TT_TDECK_WORKAROUND
         bool "Temporary work-around until we fix the T-Deck keyboard and trackball settings"
         default n
-    choice TT_USER_DATA_LOCATION
-        prompt "User Data Location"
-        default TT_USER_DATA_LOCATION_INTERNAL
+    config TT_ROOT_PATH
+        string "User Data Path"
+        default "/data"
         help
-            Where user data is stored on this device.
-            "Internal Flash" assumes /data always exists.
-            "SD Card" looks for the first mounted SD card at runtime and requires one to be present.
-        config TT_USER_DATA_LOCATION_SD
-            bool "SD Card"
-        config TT_USER_DATA_LOCATION_INTERNAL
-            bool "Internal Flash"
-    endchoice
+            Mount path of the storage that holds the user data, e.g. "/data" or "/sdcard".
+            "/data" is the internal flash partition. Any other path must be mounted by a device driver at runtime.
     config TT_SPLASH_DURATION
        int "Splash Duration (ms)"
        default 1000
@@ -92,6 +98,12 @@ menu "Tactility App"
         bool "Set true when a touch screen calibration is required before the device is usable"
         default n
         depends on TT_TOUCH_CALIBRATION_SUPPORTED
+    config TT_VIBRATION_ON_BOOT
+        bool "Vibrate on boot"
+        default n
+        help
+            Play a short vibration pulse when boot finishes, using the strength from the
+            Vibration settings. No pulse is played when vibration is disabled there.
     config TT_DISPLAY_IDLE_TICK_MS
         int "Display idle tick interval (ms)"
         default 50

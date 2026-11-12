@@ -2,38 +2,22 @@
 
 ## Before release
 
-- Tactility/Source/service/autorotate/AutoRotate.cpp  
-  TODO: Display settings app might be saving DisplaySettings at the same time. This might corrupt the settings file.
-
 ## Higher Priority
 
-- Move TactilityKernelCpp project as C++ include folder into TactilityKernel. This way, the kernel itself can use the C++ templates internally. And it's a library less.
-- GPIO app: fix for monochrome display by using filled vs outline box in secondary colour
-- BlueTooth as radio backend for MeshCore/Meshtastic?
-- Find out why the first build of an app with a clean build cache folder always fails
-- Use GPS time to set/update the current time: when enabled, at boot, when wifi is not enabled, start the gps device and wait until a lock is acquired, then get the time and sync it. Then stop the GPS device.
-- Improve posix support: use user home path and system /tmp folder.
-- NimBLE looses pairing key after reboot
-- Pick different font to improve monochrome screen readability (or change the weight). 
-- Drivers/audio-codec-module is not a module. Move it somewhere else. Or make it an actual module.
-- Improve SPI kernel driver (implement read, write, transactions)
-- External app loading: Check the version of Tactility and check ESP target hardware to check for compatibility
-  Check during installation process, but also when starting (SD card might have old app install from before Tactility OS update)
-- minitar/untarFile(): "entry->metadata.path" can escape its confined path (e.g. "../something")
-- xl9555 and tca9534 drivers: support `GPIO_FLAG_ACTIVE_LOW` on outputs in software, like tca95xx does.
-  Afterwards the raw level reset handling in cst66xx and tca8418 can use ACTIVE_LOW too.
+- Files app: make reusable system UI for pagination?
 
 ## Medium Priority
 
+- Improve watch interface. Consider adding some sort of device classification so UI in apps can choose to optimize for the watch.
+- Support for running scripts at boot
+- Update timezones.csv wrt 2026e, write tests for related code
+- Notification support
+- Low/critical memory warning test/rework
 - Try https://github.com/bootdsc/Fastwave-Eink-Driver with CL-32 e-paper.
-- Power Off with e-paper should trigger full refresh before power off.
-- Support hot-plugging SD card (note: might be problematic with shared SPI bus)
+- Pick different font to improve monochrome screen readability (or change the weight).
 - Inspect code for memory improvements: replace `std::*` with `tt::std::*`
-- Tactility/Source/bluetooth move into bluetooth module, make it work generically for all bluetooth apis
-- DisplayApi: resolution x/y shouldn't be functions but struct values
 - Tactility/Source/app/imageviewer/ImageViewer.cpp: Limit memory used to open an image.
   loadFile() now resizes fileData to the entire file size before displaying the image. start accepts a file path without a size limit, so opening a large image can exhaust memory on an embedded device before LVGL decodes it. Reject files above a supported limit or retain a bounded file-backed decoding path.
-- A device profile selection screen for Simulator: select device profiles such as T-Lora Pager, T-Deck Plus, CL-32, Cardputer and T-Embed which changes the resolution and theming defaults after restarting.
 - A fullscreen tiny keyboard that works with single stroke gestures (similar to Palm OS Graffiti)
 - Move more window management code from Tactility/ to window-manager
 - Implement signal/raise for terminal apps (for CTRL+C and window resize signals)
@@ -52,13 +36,13 @@
   Create some kind of "intent" handler like on Android.
   The intent can have an action (e.g. view), a URL and an optional bundle.
   The manifest can provide the intent handler
-- LilyGO T-Dongle S3: 1 button control, stop auto-launching web server
 - Core2: support power off via software
 - Try out speed optimizations: https://docs.espressif.com/projects/esp-faq/en/latest/software-framework/peripherals/lcd.html
   (relates to CONFIG_ESP32S3_DATA_CACHE_LINE_64B that is in use for RGB displays via the `device.properties` fix/workaround)
 
 ## Lower Priority
 
+- BlueTooth as radio backend for MeshCore/Meshtastic?
 - Show device name clearly in on-device web server landing page (to identify tabs of multiple devices easier)
 - When Wi-Fi connects, check for app updates
 - Diceware app has large "+" and "-' buttons on Cardputer. It should be smaller.
@@ -92,7 +76,6 @@
 - Chip 8 emulator
 - Discord bot
 - IR transceiver app
-- GPS app
 - Investigate CSI https://stevenmhernandez.github.io/ESP32-CSI-Tool/
 - Calendar
 - RSS reader

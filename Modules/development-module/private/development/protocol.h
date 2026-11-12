@@ -78,6 +78,12 @@ DevelopmentHelloError development_protocol_parse_hello(const char* json, size_t 
  */
 size_t development_protocol_format_status(const char* status, const char* message, char* out_line, size_t out_size);
 
+/**
+ * Writes the JSON line that answers an "info" hello, including its newline.
+ * @return the line length, or 0 when @a out_size is too small
+ */
+size_t development_protocol_format_info(const char* vendor, const char* name, const char* id, const char* version, char* out_line, size_t out_size);
+
 struct DevelopmentFrame {
     DevelopmentFrameType type;
     const uint8_t* payload;

@@ -374,6 +374,7 @@ static const DisplayApi st7735_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = st7735_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7735_driver = {
@@ -381,6 +382,7 @@ Driver st7735_driver = {
     .compatible = (const char*[]) { "sitronix,st7735", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7735_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

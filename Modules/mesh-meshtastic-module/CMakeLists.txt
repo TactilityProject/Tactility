@@ -8,5 +8,5 @@ tactility_add_module(mesh-meshtastic-module
     SRCS ${SOURCE_FILES}
     PRIV_INCLUDE_DIRS private/
     INCLUDE_DIRS include/
-    REQUIRES TactilityKernel TactilityKernelCpp mesh-module mbedtls
+    REQUIRES TactilityKernel mesh-module mbedtls
 )

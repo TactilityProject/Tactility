@@ -1,8 +1,6 @@
 #include <Tactility/lvgl/SystemMenu.h>
 
 #include <Tactility/TactilityPrivate.h>
-#include <Tactility/bluetooth/Bluetooth.h>
-#include <Tactility/bluetooth/BluetoothSettings.h>
 #include <Tactility/settings/RadioSettings.h>
 
 #include <app/manager.h>
@@ -10,6 +8,8 @@
 
 #include <location/location.h>
 
+#include <bluetooth/bluetooth_service.h>
+#include <bluetooth/bluetooth_settings.h>
 #include <wifi/wifi_settings.h>
 
 #include <lvgl/devices/indev.h>
@@ -25,7 +25,9 @@
 
 #include <mesh/mesh.h>
 
+#include <tactility/Memory.hpp>
 #include <tactility/concurrent/dispatcher.h>
+#include <tactility/concurrent/thread.h>
 #include <tactility/device.h>
 #include <tactility/drivers/bluetooth.h>
 #include <tactility/drivers/power_supply.h>
@@ -57,11 +59,7 @@ static bool hasWifi() {
 }
 
 static bool hasBluetooth() {
-#if defined(CONFIG_BT_NIMBLE_ENABLED)
     return device_exists_of_type(&BLUETOOTH_TYPE);
-#else
-    return false;
-#endif
 }
 
 /** Mesh can be toggled once it was configured: a backend is selected and the region is set */
@@ -111,14 +109,12 @@ static void setLocationEnabled(void* context) {
     }
 }
 
-#if defined(CONFIG_BT_NIMBLE_ENABLED)
-
 static bool isBluetoothEnabled() {
     Device* device = nullptr;
     if (device_get_first_by_type(&BLUETOOTH_TYPE, &device) != ERROR_NONE) {
         return false;
     }
-    bool enabled = bluetooth::isRadioOnOrPending(device);
+    bool enabled = bluetooth_is_radio_on_or_pending(device);
     device_put(device);
     return enabled;
 }
@@ -129,18 +125,12 @@ static void setBluetoothEnabled(void* context) {
         return;
     }
     const bool enabled = fromContext(context);
-    bluetooth::settings::setEnable(enabled);
-    if (enabled != bluetooth::isRadioOnOrPending(device)) {
-        if (enabled) {
-            bluetooth::start(device);
-        } else {
-            bluetooth::stop(device);
-        }
+    bluetooth_settings_set_enable(enabled);
+    if (enabled != bluetooth_is_radio_on_or_pending(device)) {
+        bluetooth_service_set_radio_enabled(enabled);
     }
     device_put(device);
 }
-
-#endif
 
 
 static bool isMeshEnabled() {
@@ -155,7 +145,46 @@ static void setMeshEnabled(void* context) {
 }
 
 
-// Changing the radio and device states can block, so it happens on the main task
+// Changing the radio and device states can block, so it happens on a worker thread
+constexpr size_t TOGGLE_WORKER_STACK_SIZE = 8192;
+
+struct ToggleWorker {
+    DispatcherHandle_t dispatcher = nullptr;
+    ::Thread* thread = nullptr;
+};
+
+static int32_t toggleWorkerMain(void* context) {
+    auto* worker = static_cast<ToggleWorker*>(context);
+    for (;;) {
+        dispatcher_consume(worker->dispatcher);
+    }
+}
+
+/** Starts the worker on the first call and never stops it. Only call this from the LVGL thread. */
+static ToggleWorker* getToggleWorker() {
+    static ToggleWorker* worker = nullptr;
+    if (worker != nullptr) {
+        return worker;
+    }
+
+    auto* created = newObject<ToggleWorker>();
+    if (created == nullptr) {
+        LOG_E(TAG, "Failed to allocate the toggle worker");
+        return nullptr;
+    }
+    created->dispatcher = dispatcher_alloc();
+    created->thread = thread_alloc_full("system_menu", TOGGLE_WORKER_STACK_SIZE, toggleWorkerMain, created, tskNO_AFFINITY);
+    if (created->dispatcher == nullptr || created->thread == nullptr || thread_start(created->thread) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to start the toggle worker");
+        if (created->thread != nullptr) thread_free(created->thread);
+        if (created->dispatcher != nullptr) dispatcher_free(created->dispatcher);
+        deleteObject(created);
+        return nullptr;
+    }
+    worker = created;
+    return worker;
+}
+
 struct ToggleOption {
     const char* enabledIcon;
     const char* disabledIcon;
@@ -172,7 +201,10 @@ static void onToggleChanged(lv_event_t* event) {
     const auto* option = static_cast<const ToggleOption*>(lv_event_get_user_data(event));
     const bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
     lv_label_set_text(lv_obj_get_child(toggle, 0), getToggleIcon(option, enabled));
-    tt::dispatchOnMainDispatcher(option->setEnabled, toContext(enabled));
+    auto* worker = getToggleWorker();
+    if (worker == nullptr || dispatcher_dispatch(worker->dispatcher, toContext(enabled), option->setEnabled) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue the toggle");
+    }
 }
 
 static void onCloseClicked(lv_event_t* /*event*/) {
@@ -239,7 +271,7 @@ static lv_obj_t* createTile(lv_obj_t* parent, const char* icon) {
 static void createOption(lv_obj_t* parent, const ToggleOption* option) {
     const bool enabled = option->isEnabled();
     auto* toggle = createTile(parent, getToggleIcon(option, enabled));
-    lv_obj_add_flag(toggle, LV_OBJ_FLAG_CHECKABLE);
+    lv_obj_set_checkable(toggle, true);
     lv_obj_set_state(toggle, LV_STATE_CHECKED, enabled);
     lv_obj_add_event_cb(toggle, onToggleChanged, LV_EVENT_VALUE_CHANGED, const_cast<ToggleOption*>(option));
 }
@@ -266,7 +298,7 @@ static void createWidgets(lv_obj_t* parent, void* /*userData*/) {
     lv_obj_set_style_max_width(grid, max_card_width - card_padding, LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_flex_align(grid, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    const int32_t gap = lvgl_theme_is_compact() ? 8 : 16;
+    const int32_t gap = lvgl_theme_lerp(8, 16, lvgl_theme_get_spacing());
     lv_obj_set_style_pad_column(grid, gap, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_row(grid, gap, LV_STATE_DEFAULT);
 
@@ -276,12 +308,10 @@ static void createWidgets(lv_obj_t* parent, void* /*userData*/) {
     }
     static constexpr ToggleOption location_option = { LVGL_ICON_SHARED_LOCATION_ON, LVGL_ICON_SHARED_LOCATION_OFF, isLocationEnabled, setLocationEnabled };
     createOption(grid, &location_option);
-#if defined(CONFIG_BT_NIMBLE_ENABLED)
     static constexpr ToggleOption bluetooth_option = { LVGL_ICON_SHARED_BLUETOOTH, LVGL_ICON_SHARED_BLUETOOTH_DISABLED, isBluetoothEnabled, setBluetoothEnabled };
     if (hasBluetooth()) {
         createOption(grid, &bluetooth_option);
     }
-#endif
     // There is no "off" variant of this icon: the toggle's checked state shows whether mesh is on
     static constexpr ToggleOption mesh_option = { LVGL_ICON_SHARED_HUB, LVGL_ICON_SHARED_HUB, isMeshEnabled, setMeshEnabled };
     if (hasMesh()) {

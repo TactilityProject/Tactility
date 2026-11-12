@@ -9,7 +9,7 @@ Implemented directly against the register. (no `esp_lcd_touch` dependency)
 
 Single-touch only: the datasheet advertises "genuine two-point" support, but neither of the sources above documents a second touch-point register set, so only one point is read.
 
-`enter_sleep`/`exit_sleep` are unimplemented (`nullptr` in the `PointerApi`, per its "null if not supported" contract).
+`enter_sleep`/`exit_sleep` are unimplemented (`nullptr` in the `TouchApi`, per its "null if not supported" contract).
 The reference driver defines `REG_SLEEP_MODE` (0xE5) but never writes it, and the datasheet says waking from sleep needs
 a hardware reset pulse anyway, not a register write.
 

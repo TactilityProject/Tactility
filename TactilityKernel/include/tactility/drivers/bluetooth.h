@@ -24,6 +24,15 @@ struct DeviceType;
  */
 #define BLE_DEVICE_NAME_MAX 64
 
+// ---- Identity ----
+
+/**
+ * Maximum BLE identity length in bytes, excluding the NUL terminator.
+ * The identity is never advertised: it is hashed into the radio's advertising address and
+ * used to select which bond store the radio loads.
+ */
+#define BLE_IDENTITY_MAX 64
+
 // ---- Address ----
 
 #define BT_ADDR_LEN 6
@@ -136,7 +145,7 @@ struct BtEvent {
     };
 };
 
-/** Number of events a BtEventSubscription can hold before bluetooth_fire_event() starts dropping
+/** Number of events a BtEventSubscription can hold before the driver starts dropping
  * the newest event for it (still delivered to any other matching subscription). Generous: a
  * device fires these serially, one at a time, not in genuinely concurrent bursts. */
 #define BT_EVENT_QUEUE_CAPACITY 4
@@ -157,7 +166,7 @@ struct BtEventSubscription {
     struct {
         /** Caller-owned, borrowed; set by bluetooth_event_subscribe(). */
         struct TaskEventGroup* event_group;
-        /** Guards `queue`/`head`/`count`/`closed` between bluetooth_fire_event() (driver thread)
+        /** Guards `queue`/`head`/`count`/`closed` between the driver publishing events (driver thread)
          * and bluetooth_event_poll() (caller's thread) - the two live in different translation
          * units with no other shared lock. */
         struct Mutex ring_mutex;
@@ -216,6 +225,12 @@ struct BluetoothApi {
     bool (*is_scanning)(struct Device* device);
 
     /**
+     * @param[in] device the bluetooth device
+     * @return true when a peripheral profile (HID device, SPP or MIDI) is active
+     */
+    bool (*is_peripheral_active)(struct Device* device);
+
+    /**
      * Initiate pairing with a peer.
      * @param[in] device the bluetooth device
      * @param[in] addr the peer address
@@ -241,22 +256,22 @@ struct BluetoothApi {
     error_t (*get_paired_peers)(struct Device* device, struct BtPeerRecord* out, size_t* count);
 
     /**
-     * Connect to a peer using the specified profile.
+     * Connect to a peer as the central device.
+     * Central role only, HID host is the only central profile today. Peripheral profiles are
+     * started with their own bluetooth_<profile>_start() call instead.
      * @param[in] device the bluetooth device
      * @param[in] addr the peer address
-     * @param[in] profile the profile to connect with
      * @return ERROR_NONE on success
      */
-    error_t (*connect)(struct Device* device, const BtAddr addr, enum BtProfileId profile);
+    error_t (*host_connect)(struct Device* device, const BtAddr addr);
 
     /**
-     * Disconnect a peer from the specified profile.
+     * Disconnect the peer connected as the central device.
      * @param[in] device the bluetooth device
      * @param[in] addr the peer address
-     * @param[in] profile the profile to disconnect from
      * @return ERROR_NONE on success
      */
-    error_t (*disconnect)(struct Device* device, const BtAddr addr, enum BtProfileId profile);
+    error_t (*host_disconnect)(struct Device* device, const BtAddr addr);
 
     /**
      * Register a subscription for this device's BtEvents.
@@ -304,20 +319,33 @@ struct BluetoothApi {
     error_t (*get_device_name)(struct Device* device, char* buf, size_t buf_len);
 
     /**
-     * Notify the driver that a HID host connection is in progress or complete.
-     * Called by the Tactility HID host module to prevent name resolution from
-     * initiating a simultaneous central connection (BLE_HS_EALREADY).
-     * @param[in] device the bluetooth device
-     * @param[in] active true when HID host is connecting/connected, false when idle
+     * Set the stable identity this radio advertises under.
+     * The identity determines the static random advertising address and which bond set is
+     * loaded, so different identities appear as separate bonded devices on the peer even
+     * though they share one controller. Only its hash is used, the string is never transmitted.
+     *
+     * Defaults to the device name (see set_device_name()). While the radio is off the change
+     * applies on the next enable. While it is on the change is pending until the next
+     * peripheral profile start with the radio idle, or until the radio cycles. get_identity()
+     * reports the identity in use.
+     *
+     * @param[in] device   the bluetooth device
+     * @param[in] identity NUL-terminated identity (max BLE_IDENTITY_MAX bytes), NULL or ""
+     *                     reverts to the device name
+     * @return ERROR_NONE on success
+     * @return ERROR_INVALID_ARGUMENT if identity is too long
      */
-    void (*set_hid_host_active)(struct Device* device, bool active);
+    error_t (*set_identity)(struct Device* device, const char* identity);
 
     /**
-     * Fire an event to all registered subscriptions.
-     * Used by the Tactility HID host module to inject profile-state events that
-     * originate outside the platform driver (e.g. HID host connect/disconnect).
+     * Get the identity the radio is currently advertising under (the resolved one, i.e. the
+     * device name when no explicit identity was ever set).
+     * @param[in]  device  the bluetooth device
+     * @param[out] buf     buffer to write the NUL-terminated identity into
+     * @param[in]  buf_len size of buf (must be >= BLE_IDENTITY_MAX + 1)
+     * @return ERROR_NONE on success
      */
-    void (*fire_event)(struct Device* device, struct BtEvent event);
+    error_t (*get_identity)(struct Device* device, char* buf, size_t buf_len);
 };
 
 extern const struct DeviceType BLUETOOTH_TYPE;
@@ -336,18 +364,43 @@ struct Device* bluetooth_find_first_ready_device(void);
 
 error_t bluetooth_get_radio_state(struct Device* device, enum BtRadioState* state);
 error_t bluetooth_set_radio_enabled(struct Device* device, bool enabled);
+/** @return true when the radio is on or turning on */
+bool    bluetooth_is_radio_on_or_pending(struct Device* device);
 error_t bluetooth_scan_start(struct Device* device);
 error_t bluetooth_scan_stop(struct Device* device);
 bool    bluetooth_is_scanning(struct Device* device);
+/** @return true when a peripheral profile (HID device, SPP or MIDI) is active */
+bool    bluetooth_is_peripheral_active(struct Device* device);
 error_t bluetooth_pair(struct Device* device, const BtAddr addr);
 error_t bluetooth_unpair(struct Device* device, const BtAddr addr);
 error_t bluetooth_get_paired_peers(struct Device* device, struct BtPeerRecord* out, size_t* count);
-error_t bluetooth_connect(struct Device* device, const BtAddr addr, enum BtProfileId profile);
-error_t bluetooth_disconnect(struct Device* device, const BtAddr addr, enum BtProfileId profile);
+
+/** Connect to a peer as the central device (HID host). */
+error_t bluetooth_host_connect(struct Device* device, const BtAddr addr);
+/** Disconnect the peer connected as the central device. */
+error_t bluetooth_host_disconnect(struct Device* device, const BtAddr addr);
 error_t bluetooth_set_device_name(struct Device* device, const char* name);
 error_t bluetooth_get_device_name(struct Device* device, char* buf, size_t buf_len);
-void    bluetooth_set_hid_host_active(struct Device* device, bool active);
-void    bluetooth_fire_event(struct Device* device, struct BtEvent event);
+
+/**
+ * Set the stable identity this radio advertises under (see BluetoothApi::set_identity).
+ * Defaults to the device name when never set. Applies on the next radio enable, or at the
+ * next peripheral profile start while the radio is on and idle.
+ * @param[in] device   the bluetooth device
+ * @param[in] identity NUL-terminated identity (max BLE_IDENTITY_MAX bytes), NULL or "" reverts
+ *                     to the device name
+ * @return ERROR_NONE on success, ERROR_INVALID_ARGUMENT if too long
+ */
+error_t bluetooth_set_identity(struct Device* device, const char* identity);
+
+/**
+ * Get the identity the radio is currently advertising under.
+ * @param[in]  device  the bluetooth device
+ * @param[out] buf     buffer to write the NUL-terminated identity into
+ * @param[in]  buf_len size of buf (must be >= BLE_IDENTITY_MAX + 1)
+ * @return ERROR_NONE on success
+ */
+error_t bluetooth_get_identity(struct Device* device, char* buf, size_t buf_len);
 
 /**
  * Register a subscription for @a device's BtEvents.

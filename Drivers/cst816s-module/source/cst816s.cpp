@@ -6,7 +6,7 @@
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_i2c_master.h>
 #include <tactility/drivers/i2c_controller.h>
-#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/log.h>
 
 #include <esp_err.h>
@@ -141,7 +141,7 @@ static error_t stop(Device* device) {
 
 // endregion
 
-// region PointerApi
+// region TouchApi
 
 static error_t cst816s_enter_sleep(Device* device) {
     auto* internal = static_cast<Cst816sInternal*>(device_get_driver_data(device));
@@ -208,7 +208,7 @@ static error_t cst816s_get_mirror_y(Device* device, bool* mirror) {
 
 // endregion
 
-static const PointerApi cst816s_pointer_api = {
+static const TouchApi cst816s_touch_api = {
     .enter_sleep = cst816s_enter_sleep,
     .exit_sleep = cst816s_exit_sleep,
     .read_data = cst816s_read_data,
@@ -226,7 +226,8 @@ Driver cst816s_driver = {
     .compatible = (const char*[]) { "hynitron,cst816s", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = &cst816s_pointer_api,
-    .device_type = &POINTER_TYPE,
+    .probe = nullptr,
+    .api = &cst816s_touch_api,
+    .device_type = &TOUCH_TYPE,
     .internal = nullptr
 };

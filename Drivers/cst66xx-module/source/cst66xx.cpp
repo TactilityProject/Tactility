@@ -8,7 +8,7 @@
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
-#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
 
@@ -60,18 +60,15 @@ static void perform_hardware_reset(const Cst66xxConfig* config) {
         return;
     }
 
-    // Not requesting GPIO_FLAG_ACTIVE_LOW here: some GPIO expanders (e.g. xl9555/tca95xx/
-    // tca9534) can only invert what's read back from an input, not what's driven on an
-    // output, so they reject ACTIVE_LOW combined with OUTPUT. Drive the raw physical level
-    // instead: this pin's reset line is active-low, so low asserts and high releases.
-    auto* rst = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
+    // The reset line is active-low, so a logical high asserts the reset
+    auto* rst = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
     if (rst == nullptr) {
         return;
     }
 
-    gpio_descriptor_set_level(rst, false);
-    delay_millis(10);
     gpio_descriptor_set_level(rst, true);
+    delay_millis(10);
+    gpio_descriptor_set_level(rst, false);
     gpio_descriptor_release(rst);
     // The reset pulse exits boot mode; give the controller time to re-init.
     delay_millis(80);
@@ -130,7 +127,7 @@ static error_t stop(Device* device) {
 
 // endregion
 
-// region PointerApi
+// region TouchApi
 
 static error_t cst66xx_read_data(Device* device, TickType_t /*timeout*/) {
     auto* internal = static_cast<Cst66xxInternal*>(device_get_driver_data(device));
@@ -243,7 +240,7 @@ static error_t cst66xx_get_mirror_y(Device* device, bool* mirror) {
 
 // endregion
 
-static const PointerApi cst66xx_pointer_api = {
+static const TouchApi cst66xx_touch_api = {
     .enter_sleep = nullptr,
     .exit_sleep = nullptr,
     .read_data = cst66xx_read_data,
@@ -261,7 +258,8 @@ Driver cst66xx_driver = {
     .compatible = (const char*[]) { "hynitron,cst66xx", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = &cst66xx_pointer_api,
-    .device_type = &POINTER_TYPE,
+    .probe = nullptr,
+    .api = &cst66xx_touch_api,
+    .device_type = &TOUCH_TYPE,
     .internal = nullptr
 };

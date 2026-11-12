@@ -7,7 +7,7 @@
 #include <app/package_manifest.h>
 #include <app/private/fd_table.h>
 
-#include <TactilityCpp/Allocator.h>
+#include <tactility/Allocator.hpp>
 
 #include <tactility/concurrent/mutex.h>
 #include <tactility/freertos/freertos.h>
@@ -86,7 +86,9 @@ struct AppInstanceRecord {
 
 /** A registered installed package - see app_manager_add_package() (app/manager.h). */
 struct AppPackageRecord {
-    struct PackageManifest package;
+    struct PackageSummary package;
+    /** The result of app_package_manifest_is_compatible() when the package was registered. */
+    bool compatible;
     // OptExternalAllocator: matches AppLedger::packages, not on the app start/stop hot path.
     std::vector<std::string, tt::OptExternalAllocator<std::string>> app_ids;
 };

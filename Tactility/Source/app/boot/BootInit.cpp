@@ -1,13 +1,14 @@
 #include <Tactility/app/boot/BootInit.h>
 
-#include "Tactility/bluetooth/Bluetooth.h"
-#include "Tactility/hal/SdCard.h"
 #include "Tactility/network/NtpPrivate.h"
 #include "Tactility/settings/TimePrivate.h"
 
 #include <tactility/delay.h>
 #include <tactility/drivers/backlight.h>
 #include <tactility/drivers/display.h>
+#include <tactility/paths.h>
+#include <tactility/drivers/power_supply.h>
+#include <tactility/drivers/vibration.h>
 #include <tactility/log.h>
 #include <tactility/system_event.h>
 #include <tactility/time.h>
@@ -18,8 +19,10 @@
 
 #include <Tactility/DeprecatedPaths.h>
 #include <Tactility/MountPoints.h>
+#include <Tactility/PanicHandler.h>
 #include <Tactility/TactilityPrivate.h>
 #include <Tactility/app/boot/BootScreen.h>
+#include <Tactility/app/boot/BootScripts.h>
 #include <generated_assets.h>
 #include <Tactility/hal/usb/Usb.h>
 #include <Tactility/hal/usb/UsbHost.h>
@@ -29,6 +32,8 @@
 #include <Tactility/settings/AppearanceSettings.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/settings/DisplaySettings.h>
+#include <Tactility/settings/GrovePortSettings.h>
+#include <Tactility/settings/VibrationSettings.h>
 
 
 #ifdef ESP_PLATFORM
@@ -46,32 +51,56 @@ constexpr auto* DEFAULT_LAUNCHER_ID = "tactility.launcher";
 
 namespace {
 
-// TODO: Replace with automatic asset buckets like on Android
-BootLogo getSizedLogo(const BootScreen& screen, const BootLogo& small, const BootLogo& medium, const BootLogo& large) {
-    const int smallest_dimension = screen.getSmallestDimension();
-    if (smallest_dimension < 150) { // e.g. Cardputer
-        return small;
-    } else if (smallest_dimension >= 320) {
-        return large;
-    } else {
-        return medium;
+/** Reads the size from the IHDR chunk of a PNG image */
+bool getPngSize(const BootLogo& logo, uint32_t& width, uint32_t& height) {
+    if (logo.size < 24) {
+        return false;
     }
+    const auto read_u32 = [&logo](size_t offset) {
+        return (static_cast<uint32_t>(logo.data[offset]) << 24) | (static_cast<uint32_t>(logo.data[offset + 1]) << 16) |
+            (static_cast<uint32_t>(logo.data[offset + 2]) << 8) | static_cast<uint32_t>(logo.data[offset + 3]);
+    };
+    width = read_u32(16);
+    height = read_u32(20);
+    return true;
+}
+
+/**
+ * Picks the largest logo that takes at most 60% of the width and of the height of the screen,
+ * and at most an eighth of its surface. Without such a logo, the smallest one is used.
+ * @param[in] logos sorted from small to large
+ */
+BootLogo getSizedLogo(const BootScreen& screen, std::initializer_list<BootLogo> logos) {
+    const uint64_t screen_width = screen.getLogicalWidth();
+    const uint64_t screen_height = screen.getLogicalHeight();
+    BootLogo selected = *logos.begin();
+    for (const auto& logo : logos) {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        if (getPngSize(logo, width, height) &&
+            width * 10 <= screen_width * 6 &&
+            height * 10 <= screen_height * 6 &&
+            static_cast<uint64_t>(width) * height * 8 <= screen_width * screen_height) {
+            selected = logo;
+        }
+    }
+    return selected;
 }
 
 BootLogo getLogo(const BootScreen& screen) {
-    return getSizedLogo(screen,
-        { asset_app_Boot_assets_logo_small_png, asset_app_Boot_assets_logo_small_png_SIZE },
-        { asset_app_Boot_assets_logo_png, asset_app_Boot_assets_logo_png_SIZE },
-        { asset_app_Boot_assets_logo_large_png, asset_app_Boot_assets_logo_large_png_SIZE }
-    );
+    return getSizedLogo(screen, {
+        { asset_boot_logo_small_png, asset_boot_logo_small_png_SIZE },
+        { asset_boot_logo_medium_png, asset_boot_logo_medium_png_SIZE },
+        { asset_boot_logo_large_png, asset_boot_logo_large_png_SIZE }
+    });
 }
 
 BootLogo getUsbLogo(const BootScreen& screen) {
-    return getSizedLogo(screen,
-        { asset_app_Boot_assets_logo_usb_small_png, asset_app_Boot_assets_logo_usb_small_png_SIZE },
-        { asset_app_Boot_assets_logo_usb_png, asset_app_Boot_assets_logo_usb_png_SIZE },
-        { asset_app_Boot_assets_logo_usb_large_png, asset_app_Boot_assets_logo_usb_large_png_SIZE }
-    );
+    return getSizedLogo(screen, {
+        { asset_boot_logo_usb_small_png, asset_boot_logo_usb_small_png_SIZE },
+        { asset_boot_logo_usb_medium_png, asset_boot_logo_usb_medium_png_SIZE },
+        { asset_boot_logo_usb_large_png, asset_boot_logo_usb_large_png_SIZE }
+    });
 }
 
 void setupDisplay() {
@@ -130,7 +159,7 @@ UsbBootResult setupUsbBootMode() {
 
     bool started = false;
     if (mode == hal::usb::BootMode::Flash) {
-        started = hal::usb::startMassStorageWithFlash(true);
+        started = hal::usb::startMassStorageWithInternalStorage(true);
     } else if (mode == hal::usb::BootMode::Sdmmc) {
         started = hal::usb::startMassStorageWithSdmmc(true);
     }
@@ -179,6 +208,58 @@ void reboot() {
 #endif
 }
 
+bool isPowerOffSupported() {
+    bool supported = false;
+    device_for_each_of_type(&POWER_SUPPLY_TYPE, &supported, [](Device* device, void* context) {
+        if (device_is_ready(device) && power_supply_supports_power_off(device)) {
+            *static_cast<bool*>(context) = true;
+            return false;
+        }
+        return true;
+    });
+    return supported;
+}
+
+/** @return false when no power supply could power off the system */
+bool powerOff() {
+    bool succeeded = false;
+    device_for_each_of_type(&POWER_SUPPLY_TYPE, &succeeded, [](Device* device, void* context) {
+        if (device_is_ready(device) && power_supply_supports_power_off(device) && power_supply_power_off(device) == ERROR_NONE) {
+            *static_cast<bool*>(context) = true;
+        }
+        return true;
+    });
+    return succeeded;
+}
+
+/** Offers reboot and power off, or only a reboot when the device can't power off */
+void showMessageAndRebootOrPowerOff(BootScreen& screen, const std::vector<std::string>& lines) {
+    const bool power_off_supported = isPowerOffSupported();
+    LOG_I(TAG, "Power off supported: %d", static_cast<int>(power_off_supported));
+    if (!power_off_supported) {
+        auto with_prompt = lines;
+        with_prompt.push_back(getInputPrompt("reboot"));
+        screen.show({}, with_prompt);
+        waitForInput();
+        reboot();
+        return;
+    }
+
+    auto message = lines;
+    while (waitForBootChoice(screen, {}, message) == BootChoice::PowerOff) {
+        if (powerOff()) {
+            // Waits for the power to go away
+            while (true) {
+                delay_millis(1000);
+            }
+        }
+        LOG_E(TAG, "Power off failed");
+        message = lines;
+        message.push_back("Power off failed.");
+    }
+    reboot();
+}
+
 void waitForInputAndReboot() {
     waitForInput();
     reboot();
@@ -193,10 +274,45 @@ void startNextApp() {
     }
 }
 
+#ifdef CONFIG_TT_VIBRATION_ON_BOOT
+/** Short "the device is ready" buzz, using the strength chosen in the Vibration settings. */
+void playBootVibration() {
+    const auto settings = settings::vibration::loadOrGetDefault();
+    if (!settings.enabled || settings.strength == 0) {
+        return;
+    }
+
+    Device* device = nullptr;
+    if (device_get_first_by_type(&VIBRATION_TYPE, &device) != ERROR_NONE) {
+        return;
+    }
+
+    vibration_pulse(device, settings.duration_ms, static_cast<float>(settings.strength));
+    device_put(device);
+}
+#endif
+
 } // namespace
 
 bool bootInit(TickType_t startTime) {
     LOG_I(TAG, "Starting boot sequence");
+
+#ifdef ESP_PLATFORM
+    // Surface the previous crash (including assert details captured by the panic handler) on the
+    // serial console, since the panic output itself is usually lost with a USB CDC console.
+    {
+        const bool was_panic = esp_reset_reason() == ESP_RST_PANIC;
+        if (was_panic && isRtcCrashDataValid()) {
+            const CrashData& crash = getRtcCrashData();
+            LOG_E(TAG, "Previous crash: cause=%d fault=0x%08x reason='%s'",
+                  (int)crash.cause, crash.faultAddress, crash.reason);
+        } else {
+            // Stale data from an earlier panic, or random contents from a full power cycle
+            // (e.g. a power-controller shutdown).
+            resetRtcCrashData();
+        }
+    }
+#endif
     const bool is_usb_boot = hal::usb::isUsbBootMode();
 
     auto start_time = get_millis();
@@ -212,15 +328,13 @@ bool bootInit(TickType_t startTime) {
     LOG_I(TAG, "Init timezone");
     settings::initTimeZone();
 
-    // Attempt to start all disabled SD cards (some require delayed init)
-    LOG_I(TAG, "Init SDMMC");
-    hal::sdcard::startAll();
-
     LOG_I(TAG, "Init NTP");
     network::ntp::init();
 
-    LOG_I(TAG, "Init BLE");
-    bluetooth::systemStart();
+    // Before the services, which only start GPS time sync when a GPS device exists, and a GPS can
+    // be on a Grove UART
+    LOG_I(TAG, "Restore Grove modes");
+    settings::grove::restoreAll();
 
     LOG_I(TAG, "Init Services");
     registerAndStartServices();
@@ -231,14 +345,11 @@ bool bootInit(TickType_t startTime) {
     LOG_I(TAG, "Init USB host");
     hal::usbhost::systemStart();
 
-    bool sd_card_missing = false;
-#ifdef CONFIG_TT_USER_DATA_LOCATION_SD
-    std::string sd_path;
-    if (!findFirstMountedSdCardPath(sd_path)) {
-        LOG_E(TAG, "SD card not found");
-        sd_card_missing = true;
+    bool data_storage_missing = false;
+    if (!paths_is_root_mounted()) {
+        LOG_E(TAG, "User data storage not found");
+        data_storage_missing = true;
     }
-#endif
 
     switch (setupUsbBootMode()) {
         case UsbBootResult::None:
@@ -259,15 +370,28 @@ bool bootInit(TickType_t startTime) {
 
     registerApps();
 
-    if (sd_card_missing) {
-        screen.show({}, { "SD card not found.", "Please insert one and reboot.", getInputPrompt("reboot") });
-        waitForInputAndReboot();
+    if (data_storage_missing) {
+        showMessageAndRebootOrPowerOff(screen, { "Storage not found.", "Insert SD card and reboot." });
         return false;
+    }
+
+    // A script that caused a crash would otherwise run again before the crash screen and the launcher can start
+    bool crashed = false;
+#ifdef ESP_PLATFORM
+    const auto reset_reason = esp_reset_reason();
+    crashed = reset_reason == ESP_RST_PANIC || reset_reason == ESP_RST_INT_WDT || reset_reason == ESP_RST_TASK_WDT || reset_reason == ESP_RST_WDT;
+#endif
+    if (crashed) {
+        LOG_W(TAG, "Skipping boot scripts after a crash");
+    } else {
+        runBootScripts();
     }
 
 #ifdef ESP_PLATFORM
     if (esp_reset_reason() == ESP_RST_PANIC) {
         crashdiagnostics::showCrashScreen(screen);
+        // The record has been rendered; clear it so a later normal restart doesn't report it.
+        resetRtcCrashData();
     }
 #endif
 
@@ -276,6 +400,10 @@ bool bootInit(TickType_t startTime) {
     lvgl::configureTheme(settings::appearance::loadOrGetDefault());
 
     screen.end();
+
+#ifdef CONFIG_TT_VIBRATION_ON_BOOT
+    playBootVibration();
+#endif
 
     size_t total_time = get_millis() - start_time;
     LOG_I(TAG, "Finished in %lu ms", static_cast<uint32_t>(total_time));

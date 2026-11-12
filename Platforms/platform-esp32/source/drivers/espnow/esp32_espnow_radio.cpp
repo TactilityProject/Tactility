@@ -6,9 +6,9 @@
 
 #include <espnow/espnow_backend.h>
 
-#include <TactilityCpp/Memory.h>
-#include <TactilityCpp/std/deque.h>
-#include <TactilityCpp/std/vector.h>
+#include <tactility/Memory.hpp>
+#include <tactility/std/deque.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <tactility/concurrent/event_group.h>
 #include <tactility/concurrent/mutex.h>

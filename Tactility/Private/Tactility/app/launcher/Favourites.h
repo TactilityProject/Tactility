@@ -2,9 +2,9 @@
 
 #include <Tactility/file/File.h>
 
-#include <TactilityCpp/Memory.h>
-#include <TactilityCpp/std/string.h>
-#include <TactilityCpp/std/vector.h>
+#include <tactility/Memory.hpp>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <app/paths.h>
 #include <tactility/check.h>

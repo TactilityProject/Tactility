@@ -8,7 +8,7 @@ add_executable(LodePngModuleTests EXCLUDE_FROM_ALL ${TEST_SOURCES})
 target_include_directories(LodePngModuleTests PRIVATE ${DOCTESTINC})
 
 target_compile_definitions(LodePngModuleTests PRIVATE
-    "LODEPNG_TEST_LOGO=\"${CMAKE_SOURCE_DIR}/Data/system/app/Boot/assets/logo.png\""
+    "LODEPNG_TEST_LOGO=\"${CMAKE_SOURCE_DIR}/Data/system/boot/logo_medium.png\""
 )
 
 add_test(NAME LodePngModuleTests COMMAND LodePngModuleTests)

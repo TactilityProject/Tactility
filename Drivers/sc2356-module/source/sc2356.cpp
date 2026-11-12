@@ -593,6 +593,7 @@ Driver sc2356_driver = {
     .compatible = (const char*[]) { "smartsens,sc2356", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &sc2356_camera_api,
     .device_type = &CAMERA_TYPE,
     .internal = nullptr

@@ -1,7 +1,6 @@
 #pragma once
 
-#include <array>
-#include <cstdint>
+#include <tactility/drivers/bluetooth.h>
 
 namespace tt::app::btmanage {
 
@@ -9,10 +8,10 @@ namespace tt::app::btmanage {
 // global "current app" accessor, so callbacks need it threaded through explicitly.
 typedef void (*OnBtToggled)(void* context, bool enable);
 typedef void (*OnScanToggled)(void* context, bool enable);
-typedef void (*OnConnectPeer)(const std::array<uint8_t, 6>& addr, int profileId);
-typedef void (*OnDisconnectPeer)(const std::array<uint8_t, 6>& addr, int profileId);
-typedef void (*OnPairPeer)(void* context, const std::array<uint8_t, 6>& addr);
-typedef void (*OnForgetPeer)(const std::array<uint8_t, 6>& addr);
+typedef void (*OnConnectPeer)(const BtAddr addr, BtProfileId profile);
+typedef void (*OnDisconnectPeer)(const BtAddr addr, BtProfileId profile);
+typedef void (*OnPairPeer)(void* context, const BtAddr addr);
+typedef void (*OnForgetPeer)(const BtAddr addr);
 
 struct Bindings {
     OnBtToggled onBtToggled;

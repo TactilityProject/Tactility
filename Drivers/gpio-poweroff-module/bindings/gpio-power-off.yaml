@@ -1,0 +1,20 @@
+description: >
+  Whole-device power-off request line. The pin is left high-impedance while idle and is
+  driven to its logical active level on request. The pin spec supplies the polarity, so an
+  active-low pin is driven physically low and an active-high pin is driven physically high.
+  This covers open-drain active-low request lines such as the ESP-Mosaico POWER_SWITCH signal
+  to its SAM8108 power controller as well as active-high power controllers.
+compatible: "gpio-power-off"
+
+properties:
+  pin:
+    type: phandles
+    required: true
+    description: >
+      Shutdown request pin. Its flags select the request polarity (GPIO_FLAG_ACTIVE_LOW or
+      active-high) and may include pulls; direction flags are supplied by the driver. The pin
+      is kept high-impedance until power-off is requested.
+  assert-timeout-ms:
+    type: int
+    default: 8000
+    description: How long to hold the request asserted before releasing it if power did not drop

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <strings.h>
 #include <new>
 #include <string>
 
@@ -46,6 +47,7 @@ constexpr IconEntry ICONS[] = {
     {"tactility.chat",              LVGL_ICON_SHARED_FORUM},
     {"tactility.files",             LVGL_ICON_SHARED_FOLDER},
     {"tactility.i2cscanner",        LVGL_ICON_SHARED_CABLE},
+    {"tactility.maps",              LVGL_ICON_SHARED_MAP},
     {"tactility.meshchannels",      LVGL_ICON_SHARED_FORUM},
     {"tactility.meshcontacts",      LVGL_ICON_SHARED_FORUM},
     {"tactility.notes",             LVGL_ICON_SHARED_EDIT_NOTE},
@@ -81,7 +83,7 @@ void collectManifest(const ::AppManifest* manifest, void* context) {
 
 // Apps from installed packages this device can't run (wrong device, too little RAM)
 void collectIncompatibleAppIds(const AppPackage* package, void* context) {
-    if (app_package_manifest_is_compatible(&package->package)) {
+    if (package->compatible) {
         return;
     }
     auto* ids = static_cast<std::vector<std::string>*>(context);
@@ -110,7 +112,11 @@ std::vector<TileGridItem> collectItems() {
         if (a.highlighted != b.highlighted) {
             return a.highlighted;
         }
-        return a.name < b.name;
+        const int nameOrder = strcasecmp(a.name.c_str(), b.name.c_str());
+        if (nameOrder != 0) {
+            return nameOrder < 0;
+        }
+        return a.id < b.id;
     });
     return items;
 }

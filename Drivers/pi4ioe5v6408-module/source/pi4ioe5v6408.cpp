@@ -207,6 +207,7 @@ Driver pi4ioe5v6408_driver = {
     .compatible = (const char*[]) { "diodes,pi4ioe5v6408", nullptr},
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = static_cast<const void*>(&pi4_gpio_api),
     .device_type = &GPIO_CONTROLLER_TYPE,
     .internal = nullptr

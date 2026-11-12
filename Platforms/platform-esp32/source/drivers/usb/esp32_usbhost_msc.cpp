@@ -427,6 +427,7 @@ Driver esp32_usbhost_msc_driver = {
     .compatible   = (const char*[]) { nullptr },
     .start_device = msc_device_start,
     .stop_device  = msc_device_stop,
+    .probe = nullptr,
     .api          = &msc_api,
     .device_type  = &USB_HOST_MSC_TYPE,
     .internal     = nullptr,

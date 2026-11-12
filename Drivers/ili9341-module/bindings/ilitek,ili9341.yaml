@@ -71,6 +71,17 @@ properties:
     type: boolean
     default: false
     description: Whether the reset pin is active high
+  init-sequence:
+    type: array
+    element-type: const uint8_t
+    description: >
+      Custom vendor bring-up sequence, flattened into bytes as a run of
+      [cmd, data-length, delay-ms, data-length bytes of data...] entries, e.g.
+      `init-sequence = [0xC0 1 0  0x10  0xC5 2 0  0x30 0x30];`.
+      It replaces the ILI9341 component's built-in power, VCOM and gamma settings, for panels
+      that need their own. Sleep out, MADCTL and COLMOD are sent before it, and color
+      inversion, the gamma curve and display on after it, so leave those out.
+      Omit to use the component's built-in default sequence.
   backlight:
     type: phandle
     default: "NULL"

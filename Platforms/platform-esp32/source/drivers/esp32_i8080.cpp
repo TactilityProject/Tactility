@@ -177,6 +177,7 @@ Driver esp32_i8080_driver = {
     .compatible = (const char*[]) { "espressif,esp32-i8080", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = &I8080_CONTROLLER_TYPE,
     .internal = nullptr

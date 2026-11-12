@@ -97,6 +97,12 @@ bool development_session_send_status(DevelopmentSession* session, const char* st
     return length > 0 && development_session_write(session, line, length, STATUS_TIMEOUT_MS);
 }
 
+bool development_session_send_info(DevelopmentSession* session, const char* vendor, const char* name, const char* id, const char* version) {
+    char line[256];
+    const size_t length = development_protocol_format_info(vendor, name, id, version, line, sizeof(line));
+    return length > 0 && development_session_write(session, line, length, STATUS_TIMEOUT_MS);
+}
+
 bool development_session_send_frame(DevelopmentSession* session, DevelopmentFrameType type, const void* payload, uint16_t length) {
     if (length > DEVELOPMENT_FRAME_PAYLOAD_MAX) {
         return false;

@@ -1,18 +1,20 @@
 #include <lvgl/devices/display.h>
 #include <lvgl/devices/device_context.h>
 #include <lvgl/devices/keyboard.h>
+#include <lvgl/devices/mouse.h>
 #include <lvgl/devices/pointer.h>
-#include <lvgl/devices/trackball.h>
 #include <lvgl/lvgl.h>
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/device_listener.h>
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/keyboard.h>
+#include <tactility/drivers/mouse.h>
 #include <tactility/drivers/pointer.h>
-#include <tactility/drivers/trackball.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/log.h>
 
-#include <TactilityCpp/Memory.h>
+#include <tactility/Memory.hpp>
 
 #include <lvgl.h>
 
@@ -20,15 +22,20 @@
 
 #include <cstddef>
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 constexpr auto* TAG = "lvgl";
 
 // Boards are not expected to expose more devices of a single type than this; device_for_each_of_type()
 // callbacks run under the device ledger lock, so devices are collected here and processed afterwards.
 constexpr auto LVGL_DEVICES_MAX_PER_TYPE = 8;
+// Pointer and touch devices are collected in one list
+constexpr auto LVGL_DEVICES_MAX_COMBINED_INPUT = LVGL_DEVICES_MAX_PER_TYPE * 2;
 
 struct LvglDeviceList {
-    struct Device* devices[LVGL_DEVICES_MAX_PER_TYPE];
+    struct Device* devices[LVGL_DEVICES_MAX_COMBINED_INPUT];
     size_t count;
+    size_t limit;
 };
 
 /**
@@ -42,10 +49,15 @@ struct LvglDeviceList {
  */
 constexpr uint32_t IDLE_REPAINT_MS = 5000;
 
+constexpr uint32_t ACTIVITY_MARGIN_MS = 20;
+constexpr uint32_t MAX_ACTIVITY_READ_SKEW_MS = 5;
+
 struct IdleRepaintContext {
     lv_display_t* lvgl_display;
     struct Device* kernel_display_device;
     lv_timer_t* timer;
+    // Tick of the last input that the flags below already account for
+    uint32_t handled_activity_at;
     // Set once the invalidate+lv_refr_now() repaint has run for the current idle stretch, so it
     // isn't redone every tick while still idle.
     bool repaint_done_since_activity;
@@ -73,17 +85,114 @@ extern "C" {
 
 static bool lvgl_device_list_collect(struct Device* device, void* context) {
     struct LvglDeviceList* list = (struct LvglDeviceList*)context;
-    if (list->count < LVGL_DEVICES_MAX_PER_TYPE) {
+    if (list->count < list->limit) {
         list->devices[list->count++] = device;
     }
     return true;
 }
 
+// Only touched with the LVGL lock held. Stops a listener callback that was already in flight
+// when lvgl_devices_detach() ran from binding a device after the indevs were torn down.
+static bool devices_attached = false;
+
+static lv_indev_t* lvgl_find_indev_by_device(struct Device* device) {
+    for (lv_indev_t* indev = lv_indev_get_next(NULL); indev != NULL; indev = lv_indev_get_next(indev)) {
+        auto* context = static_cast<LvglDeviceContext*>(lv_indev_get_driver_data(indev));
+        if (context != nullptr && context->device == device) {
+            return indev;
+        }
+    }
+    return nullptr;
+}
+
+static void lvgl_bind_input_device(struct Device* device, lv_display_t* display) {
+    const struct DeviceType* type = device_get_type(device);
+    if (type == &KEYBOARD_TYPE) {
+        lv_indev_t* indev;
+        if (lvgl_keyboard_add(device, display, &indev) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to bind %s to LVGL", device->name);
+        }
+    } else if (type == &MOUSE_TYPE) {
+        lv_indev_t* indev;
+        if (lvgl_mouse_add(device, display, &indev) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to bind %s to LVGL", device->name);
+        }
+    } else if (type == &POINTER_TYPE || type == &TOUCH_TYPE) {
+        if (device_get_driver(device)->api == NULL || lvgl_find_indev_by_device(device) != nullptr) {
+            return;
+        }
+        lv_indev_t* indevs[LVGL_POINTER_MAX_SLOTS];
+        if (lvgl_pointer_add(device, display, LVGL_POINTER_MAX_SLOTS, indevs) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to bind %s to LVGL", device->name);
+        }
+    }
+}
+
+static void lvgl_unbind_input_device(struct Device* device) {
+    lv_indev_t* indev = lvgl_find_indev_by_device(device);
+    if (indev == nullptr) {
+        return;
+    }
+    const struct DeviceType* type = device_get_type(device);
+    if (type == &KEYBOARD_TYPE) {
+        lvgl_keyboard_remove(indev);
+    } else if (type == &MOUSE_TYPE) {
+        lvgl_mouse_remove(indev);
+    } else if (type == &POINTER_TYPE || type == &TOUCH_TYPE) {
+        lvgl_pointer_remove(indev);
+    }
+}
+
+// Binds input devices that start while LVGL runs (e.g. a Bluetooth or USB keyboard or mouse).
+// Detaches on STOPPING because the device's resources are gone once STOPPED fires.
+static void lvgl_device_listener(struct Device* device, enum DeviceEvent event, void* context) {
+    (void)context;
+    const struct DeviceType* type = device_get_type(device);
+    if (type != &KEYBOARD_TYPE && type != &MOUSE_TYPE && type != &POINTER_TYPE && type != &TOUCH_TYPE) {
+        return;
+    }
+    if (event != DEVICE_EVENT_STARTED && event != DEVICE_EVENT_STOPPING) {
+        return;
+    }
+
+    lvgl_lock();
+    if (devices_attached) {
+        if (event == DEVICE_EVENT_STARTED) {
+            lvgl_bind_input_device(device, lv_display_get_default());
+        } else {
+            lvgl_unbind_input_device(device);
+        }
+    }
+    lvgl_unlock();
+}
+
+// Reads the tick of the last input, which the display only exposes as time since then.
+// Fails when the task was preempted during the read, which would skew the result beyond ACTIVITY_MARGIN_MS.
+static bool read_activity(lv_display_t* display, uint32_t* inactive_ms, uint32_t* activity_at) {
+    const uint32_t start = lv_tick_get();
+    *inactive_ms = lv_display_get_inactive_time(display);
+    if (lv_tick_get() - start > MAX_ACTIVITY_READ_SKEW_MS) {
+        return false;
+    }
+    *activity_at = start - *inactive_ms;
+    return true;
+}
+
 static void idle_repaint_timer_cb(lv_timer_t* timer) {
     auto* ctx = static_cast<IdleRepaintContext*>(lv_timer_get_user_data(timer));
-    if (lv_display_get_inactive_time(ctx->lvgl_display) < IDLE_REPAINT_MS) {
+    uint32_t inactive_ms;
+    uint32_t activity_at;
+    if (!read_activity(ctx->lvgl_display, &inactive_ms, &activity_at)) {
+        return;
+    }
+    // Any difference beyond the margin is new input, also when the tick counter wrapped in between
+    const uint32_t activity_delta = activity_at - ctx->handled_activity_at;
+    if (activity_delta > ACTIVITY_MARGIN_MS && activity_delta < 0U - ACTIVITY_MARGIN_MS) {
+        ctx->handled_activity_at = activity_at;
         ctx->repaint_done_since_activity = false;
         ctx->refresh_done_since_activity = false;
+    }
+    if (inactive_ms < IDLE_REPAINT_MS) {
         return;
     }
     if (!ctx->repaint_done_since_activity) {
@@ -106,13 +215,18 @@ static void idle_repaint_timer_cb(lv_timer_t* timer) {
     }
 }
 
+// A rotation redraws the whole screen. Clearing the panel first draws the new content without ghosting of the old one.
+static void slow_refresh_rotation_cb(lv_event_t* event) {
+    display_clear(static_cast<struct Device*>(lv_event_get_user_data(event)));
+}
+
 void lvgl_devices_attach() {
     lvgl_lock();
 
     lv_disp_t* lvgl_display = NULL;
     bool display_updates_slowly = false;
 
-    struct LvglDeviceList display_devices = {};
+    struct LvglDeviceList display_devices = { .devices = {}, .count = 0, .limit = LVGL_DEVICES_MAX_PER_TYPE };
     device_for_each_of_type(&DISPLAY_TYPE, &display_devices, lvgl_device_list_collect);
     for (size_t i = 0; i < display_devices.count; i++) {
         struct Device* kernel_display_device = display_devices.devices[i];
@@ -155,13 +269,22 @@ void lvgl_devices_attach() {
             // boot and whenever an app that stopped LVGL closes, so clearing here covers both
             // cases without extra plumbing at app-close time specifically.
             if (display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_SLOW_REFRESH)) {
-                display_clear(kernel_display_device);
+                // The first attach follows the boot logo, which the first LVGL render overdraws completely
+                static bool first_attach = true;
+                if (!first_attach) {
+                    display_clear(kernel_display_device);
+                }
+                first_attach = false;
+                lv_display_add_event_cb(added_display, slow_refresh_rotation_cb, LV_EVENT_RESOLUTION_CHANGED, kernel_display_device);
                 IdleRepaintContext* ctx = &idle_repaint_contexts()[i];
                 if (ctx->timer == nullptr) {
                     ctx->lvgl_display = added_display;
                     ctx->kernel_display_device = kernel_display_device;
-                    ctx->repaint_done_since_activity = false;
-                    ctx->refresh_done_since_activity = false;
+                    // The panel was just cleared or fully drawn, so the first idle stretch needs no repaint
+                    uint32_t inactive_ms;
+                    while (!read_activity(added_display, &inactive_ms, &ctx->handled_activity_at)) {}
+                    ctx->repaint_done_since_activity = true;
+                    ctx->refresh_done_since_activity = true;
                     ctx->timer = lv_timer_create(idle_repaint_timer_cb, 1000, ctx);
                 }
             }
@@ -176,8 +299,9 @@ void lvgl_devices_attach() {
         }
     }
 
-    struct LvglDeviceList pointer_devices = {};
+    struct LvglDeviceList pointer_devices = { .devices = {}, .count = 0, .limit = LVGL_DEVICES_MAX_COMBINED_INPUT };
     device_for_each_of_type(&POINTER_TYPE, &pointer_devices, lvgl_device_list_collect);
+    device_for_each_of_type(&TOUCH_TYPE, &pointer_devices, lvgl_device_list_collect);
     for (size_t i = 0; i < pointer_devices.count; i++) {
         struct Device* kernel_pointer_device = pointer_devices.devices[i];
         if (device_get_driver(kernel_pointer_device)->api == NULL) {
@@ -202,7 +326,7 @@ void lvgl_devices_attach() {
         }
     }
 
-    struct LvglDeviceList keyboard_devices = {};
+    struct LvglDeviceList keyboard_devices = { .devices = {}, .count = 0, .limit = LVGL_DEVICES_MAX_PER_TYPE };
     device_for_each_of_type(&KEYBOARD_TYPE, &keyboard_devices, lvgl_device_list_collect);
     for (size_t i = 0; i < keyboard_devices.count; i++) {
         struct Device* kernel_keyboard_device = keyboard_devices.devices[i];
@@ -214,23 +338,29 @@ void lvgl_devices_attach() {
         }
     }
 
-    struct Device* kernel_trackball_device = NULL;
-    device_get_first_by_type(&TRACKBALL_TYPE, &kernel_trackball_device);
-    if (kernel_trackball_device != NULL) {
-        lv_indev_t* lvgl_trackball_device;
-        if (lvgl_trackball_add(kernel_trackball_device, lvgl_display, &lvgl_trackball_device) == ERROR_NONE) {
-            LOG_I(TAG, "Bound %s to LVGL", kernel_trackball_device->name);
+    struct LvglDeviceList mouse_devices = { .devices = {}, .count = 0, .limit = LVGL_DEVICES_MAX_PER_TYPE };
+    device_for_each_of_type(&MOUSE_TYPE, &mouse_devices, lvgl_device_list_collect);
+    for (size_t i = 0; i < mouse_devices.count; i++) {
+        struct Device* kernel_mouse_device = mouse_devices.devices[i];
+        lv_indev_t* lvgl_mouse_device;
+        if (lvgl_mouse_add(kernel_mouse_device, lvgl_display, &lvgl_mouse_device) == ERROR_NONE) {
+            LOG_I(TAG, "Bound %s to LVGL", kernel_mouse_device->name);
         } else {
-            LOG_E(TAG, "Failed to bind %s to LVGL", kernel_trackball_device->name);
+            LOG_E(TAG, "Failed to bind %s to LVGL", kernel_mouse_device->name);
         }
-        device_put(kernel_trackball_device);
     }
+
+    devices_attached = true;
+    device_listener_add(lvgl_device_listener, NULL);
 
     lvgl_unlock();
 }
 
 void lvgl_devices_detach() {
     lvgl_lock();
+
+    devices_attached = false;
+    device_listener_remove(lvgl_device_listener, NULL);
 
     lv_indev_t* indev = lv_indev_get_next(NULL);
     while (indev != NULL) {
@@ -239,15 +369,14 @@ void lvgl_devices_detach() {
             bool handled = false;
             void* driver_data = lv_indev_get_driver_data(indev);
             if (driver_data != nullptr) {
-                // Trackball is a special pointer type as it can operate as a mouse or as a device that changes widget focus.
                 LvglDeviceContext* context = static_cast<LvglDeviceContext*>(driver_data);
                 if (context->device != nullptr) {
                     const DeviceType* device_type = device_get_type(context->device);
-                    if (device_type == &TRACKBALL_TYPE) {
-                        lvgl_trackball_remove(indev);
-                        handled = true;
-                    } else if (device_type == &POINTER_TYPE) {
+                    if (device_type == &POINTER_TYPE || device_type == &TOUCH_TYPE) {
                         lvgl_pointer_remove(indev);
+                        handled = true;
+                    } else if (device_type == &MOUSE_TYPE) {
+                        lvgl_mouse_remove(indev);
                         handled = true;
                     } else {
                         LOG_E(TAG, "Unknown pointer device with possible memory leak of driver data");

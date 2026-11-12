@@ -15,7 +15,7 @@ endif ()
 
 tactility_add_module(TactilityKernel
     SRCS ${SOURCE_FILES}
-    INCLUDE_DIRS include/
+    INCLUDE_DIRS include/ include-cpp/
     PRIV_INCLUDE_DIRS private/
     REQUIRES ${REQUIRES_LIST}
 )

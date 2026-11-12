@@ -1,0 +1,21 @@
+/dts-v1/;
+
+#include <tactility/bindings/root.h>
+#include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_flash_fatfs.h>
+
+/ {
+	compatible = "root";
+	model = "Generic ESP32 S31";
+
+	flash_fatfs0 {
+		compatible = "espressif,esp32-flash-fatfs";
+		partition-label = "data";
+		mount-path = "/data";
+	};
+
+	gpio0 {
+		compatible = "espressif,esp32-gpio";
+		gpio-count = <62>;
+	};
+};

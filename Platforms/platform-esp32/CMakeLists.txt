@@ -3,11 +3,11 @@ cmake_minimum_required(VERSION 3.20)
 file(GLOB_RECURSE SOURCES "source/*.c**")
 
 set(PRIV_REQUIRES_LIST TactilityFreeRtos)
-if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
+if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4" OR "${IDF_TARGET}" STREQUAL "esp32s31")
     list(APPEND PRIV_REQUIRES_LIST esp_tinyusb)
 endif ()
 
-if ("${IDF_TARGET}" STREQUAL "esp32p4")
+if ("${IDF_TARGET}" STREQUAL "esp32p4" OR "${IDF_TARGET}" STREQUAL "esp32s31")
     list(APPEND PRIV_REQUIRES_LIST esp_driver_ppa)
     list(APPEND PRIV_REQUIRES_LIST esp_mm)
 endif ()
@@ -16,7 +16,7 @@ idf_component_register(
     SRCS ${SOURCES}
     INCLUDE_DIRS "include/"
     PRIV_INCLUDE_DIRS "private/"
-    REQUIRES TactilityKernel TactilityKernelCpp driver esp_adc esp_driver_i2c esp_driver_i2s esp_driver_ledc esp_driver_uart esp_lcd vfs fatfs nvs_flash esp_wifi esp_netif esp_event
+    REQUIRES TactilityKernel driver esp_adc esp_driver_i2c esp_driver_i2s esp_driver_ledc esp_driver_uart esp_lcd vfs fatfs nvs_flash esp_wifi esp_netif esp_event
     PRIV_REQUIRES ${PRIV_REQUIRES_LIST}
 )
 
@@ -29,7 +29,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 endif ()
 
 idf_component_optional_requires(PRIVATE bt usb espressif__usb_host_hid espressif__usb_host_msc espressif__esp_audio_codec)
-if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
+if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4" OR "${IDF_TARGET}" STREQUAL "esp32s31")
     idf_component_optional_requires(PRIVATE espressif__usb_host_uac)
 endif ()
 

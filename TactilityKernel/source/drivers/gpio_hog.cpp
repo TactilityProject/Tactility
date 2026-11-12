@@ -62,6 +62,7 @@ Driver gpio_hog_driver = {
     .compatible = (const char*[]) { "gpio-hog", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = &GPIO_HOG_TYPE,
     .internal = nullptr

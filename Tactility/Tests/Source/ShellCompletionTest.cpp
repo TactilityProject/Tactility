@@ -58,13 +58,13 @@ TEST_CASE("shell completion: installed headless apps complete by their binary na
     snprintf(headless.id, sizeof(headless.id), "test.shell.installed");
     snprintf(headless.name, sizeof(headless.name), "Installed");
     headless.flags = APP_MANIFEST_FLAG_HEADLESS;
-    headless.location = { APP_LOCATION_PATH, const_cast<char*>("/nonexistent/bin/posix-x86_64/installedcmd.so") };
+    headless.location = { APP_LOCATION_PATH, const_cast<char*>("/nonexistent/bin/linux-x86_64/installedcmd.so") };
     REQUIRE_EQ(app_manager_add(&headless), ERROR_NONE);
 
     AppManifest windowed {};
     snprintf(windowed.id, sizeof(windowed.id), "test.shell.windowed");
     snprintf(windowed.name, sizeof(windowed.name), "Windowed");
-    windowed.location = { APP_LOCATION_PATH, const_cast<char*>("/nonexistent/bin/posix-x86_64/windowedcmd.so") };
+    windowed.location = { APP_LOCATION_PATH, const_cast<char*>("/nonexistent/bin/linux-x86_64/windowedcmd.so") };
     REQUIRE_EQ(app_manager_add(&windowed), ERROR_NONE);
 
     CHECK_EQ(complete("installedc"), "md ");
@@ -79,7 +79,7 @@ TEST_CASE("shell completion: hidden headless apps are not offered") {
     snprintf(hidden.id, sizeof(hidden.id), "test.shell.hidden");
     snprintf(hidden.name, sizeof(hidden.name), "Hidden");
     hidden.flags = APP_MANIFEST_FLAG_HEADLESS | APP_MANIFEST_FLAG_HIDDEN;
-    hidden.location = { APP_LOCATION_PATH, const_cast<char*>("/nonexistent/bin/posix-x86_64/hiddencmd.so") };
+    hidden.location = { APP_LOCATION_PATH, const_cast<char*>("/nonexistent/bin/linux-x86_64/hiddencmd.so") };
     REQUIRE_EQ(app_manager_add(&hidden), ERROR_NONE);
 
     CHECK_EQ(complete("hiddenc"), "<none>");

@@ -7,5 +7,5 @@ file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
 tactility_add_module(aw88298-module
     SRCS ${SOURCE_FILES}
     INCLUDE_DIRS include/
-    REQUIRES TactilityKernel audio-codec-module esp_codec_dev esp_driver_i2s
+    REQUIRES TactilityKernel esp32-audio-codec esp_codec_dev esp_driver_i2s
 )

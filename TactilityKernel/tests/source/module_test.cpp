@@ -229,6 +229,73 @@ TEST_CASE("module_stop is refused while the module is referenced") {
     CHECK_EQ(module_destruct(&module), ERROR_NONE);
 }
 
+TEST_CASE("A code reference keeps a module mapped without preventing a stop") {
+    static const struct ModuleSymbol symbols[] = {
+        DEFINE_MODULE_SYMBOL(symbol_test_function),
+        MODULE_SYMBOL_TERMINATOR
+    };
+    start_called = false;
+    stop_called = false;
+    test_start_result = ERROR_NONE;
+    test_stop_result = ERROR_NONE;
+    struct Module module = {
+        .name = "code_referenced_test",
+        .start = test_start,
+        .stop = test_stop,
+        .symbols = symbols,
+        .internal = nullptr
+    };
+
+    REQUIRE_EQ(module_construct_add_start(&module), ERROR_NONE);
+
+    uintptr_t address = 0;
+    struct Module* owner = nullptr;
+    REQUIRE(module_resolve_symbol_global_get_code("symbol_test_function", &address, &owner));
+    CHECK_EQ(owner, &module);
+
+    // Relocated code only needs the symbols, so it doesn't keep the module running
+    CHECK_EQ(module_stop(&module), ERROR_NONE);
+    CHECK_EQ(stop_called, true);
+
+    // It does keep the module from being removed or destructed
+    CHECK_EQ(module_remove(&module), ERROR_RESOURCE_BUSY);
+    CHECK_EQ(module_ensure_destructed(&module), ERROR_RESOURCE_BUSY);
+
+    // And it can be started again while the code reference is held
+    CHECK_EQ(module_start(&module), ERROR_NONE);
+    CHECK_EQ(module_is_started(&module), true);
+
+    module_put_code(owner);
+    CHECK_EQ(module_ensure_destructed(&module), ERROR_NONE);
+}
+
+TEST_CASE("A code reference prevents stopping a module from a package") {
+    stop_called = false;
+    test_start_result = ERROR_NONE;
+    test_stop_result = ERROR_NONE;
+    struct Module module = {
+        .name = "external_code_referenced_test",
+        .start = test_start,
+        .stop = test_stop,
+        .symbols = nullptr,
+        .internal = nullptr
+    };
+
+    REQUIRE_EQ(module_construct_add_start(&module), ERROR_NONE);
+    REQUIRE_EQ(module_set_external(&module, true), ERROR_NONE);
+    REQUIRE_EQ(module_get_code(&module), ERROR_NONE);
+
+    // The user can stop package modules from Kernel settings, so an app's use of one must protect it
+    CHECK_EQ(module_stop(&module), ERROR_RESOURCE_BUSY);
+    CHECK_EQ(stop_called, false);
+
+    module_put_code(&module);
+    CHECK_EQ(module_stop(&module), ERROR_NONE);
+    CHECK_EQ(stop_called, true);
+    CHECK_EQ(module_remove(&module), ERROR_NONE);
+    CHECK_EQ(module_destruct(&module), ERROR_NONE);
+}
+
 TEST_CASE("module_remove is refused while the module is referenced") {
     static const struct ModuleSymbol symbols[] = {
         DEFINE_MODULE_SYMBOL(symbol_test_function),

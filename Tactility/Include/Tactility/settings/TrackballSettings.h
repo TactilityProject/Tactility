@@ -1,15 +1,11 @@
 #pragma once
 
-#include <lvgl/devices/trackball.h>
+#include <tactility/drivers/trackball.h>
 
 namespace tt::settings::trackball {
 
-bool load(LvglTrackballSettings& settings);
+bool load(TrackballSettings& settings);
 
-LvglTrackballSettings loadOrGetDefault();
-
-LvglTrackballSettings getDefault();
-
-bool save(const LvglTrackballSettings& settings);
+bool save(const TrackballSettings& settings);
 
 }

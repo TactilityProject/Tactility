@@ -389,6 +389,7 @@ Driver esp32_wifi_pinned_driver = {
     .compatible = (const char*[]) { "espressif,esp32-wifi-pinned", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = (const void*)&esp32_wifi_pinned_api,
     .device_type = &WIFI_TYPE,
     .internal = nullptr

@@ -12,6 +12,7 @@
 #include <location/module.h>
 #include <app_hub/module.h>
 #include <development/module.h>
+#include <bluetooth/module.h>
 #include <wifi/module.h>
 #include <mesh/module.h>
 #include <mesh_meshcore/module.h>
@@ -25,6 +26,7 @@
 #include <tactility/device.h>
 #include <tactility/drivers/audio_stream.h>
 #include <tactility/drivers/rtc.h>
+#include <gps/gps.h>
 #include <tactility/module.h>
 
 namespace tt {
@@ -33,6 +35,7 @@ namespace tt {
 namespace service {
     // Primary
     namespace audio { extern const ServiceManifest manifest; }
+    namespace gpstime { extern const ServiceManifest manifest; }
 #ifdef ESP_PLATFORM
     namespace rtctime { extern const ServiceManifest manifest; }
 #endif
@@ -45,6 +48,7 @@ void registerAndStartServices() {
     if (device_exists_of_type(&AUDIO_STREAM_TYPE)) {
         addService(service::audio::manifest);
     }
+    check(module_ensure_started(&bluetooth_module) == ERROR_NONE);
     check(module_ensure_started(&wifi_module) == ERROR_NONE);
     location_configure_certificate(reinterpret_cast<const char*>(asset_certificates_GTS_Root_R4_pem));
     app_hub_configure_certificate(reinterpret_cast<const char*>(asset_certificates_GTS_Root_R4_pem));
@@ -59,6 +63,10 @@ void registerAndStartServices() {
 #if defined(__linux__) || defined(__APPLE__)
     check(posix_services_start() == ERROR_NONE);
 #endif
+
+    if (device_exists_of_type(&GPS_TYPE)) {
+        addService(service::gpstime::manifest);
+    }
 
 #if defined(ESP_PLATFORM)
     if (device_exists_of_type(&RTC_TYPE)) {

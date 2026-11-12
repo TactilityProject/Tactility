@@ -1,3 +1,4 @@
+#include <tactility/filesystem/fs.h>
 #include <Tactility/settings/TrackballSettings.h>
 
 #include "tactility/paths.h"
@@ -31,9 +32,9 @@ constexpr uint8_t MAX_KEY_SENSITIVITY = 10;
 constexpr uint8_t MIN_POINTER_SENSITIVITY = 1;
 constexpr uint8_t MAX_POINTER_SENSITIVITY = 10;
 
-bool load(LvglTrackballSettings& settings) {
+bool load(TrackballSettings& settings) {
     auto settings_path = getSettingsFilePath();
-    if (!file::isFile(settings_path)) {
+    if (!file_exists(settings_path.c_str())) {
         return false;
     }
 
@@ -64,8 +65,8 @@ bool load(LvglTrackballSettings& settings) {
         return s == "1" || s == "true" || s == "True" || s == "TRUE";
     };
     settings.enabled = (tb_enabled != map.end()) ? isTrueValue(tb_enabled->second) : true;
-    settings.mode = (tb_mode != map.end() && tb_mode->second == "1") ? LVGL_TRACKBALL_MODE_POINTER : LVGL_TRACKBALL_MODE_KEYS;
-    auto default_settings = lvgl_trackball_settings_get_default();
+    settings.mode = (tb_mode != map.end() && tb_mode->second == "1") ? TRACKBALL_MODE_MOUSE : TRACKBALL_MODE_KEYBOARD;
+    auto default_settings = trackball_settings_get_default();
     settings.key_sensitivity = (enc_sens != map.end()) ? safeParseUint8(enc_sens->second, default_settings.key_sensitivity) : default_settings.key_sensitivity;
     settings.pointer_sensitivity = (ptr_sens != map.end()) ? safeParseUint8(ptr_sens->second, default_settings.pointer_sensitivity) : default_settings.pointer_sensitivity;
 
@@ -76,22 +77,10 @@ bool load(LvglTrackballSettings& settings) {
     return true;
 }
 
-LvglTrackballSettings getDefault() {
-    return lvgl_trackball_settings_get_default();
-}
-
-LvglTrackballSettings loadOrGetDefault() {
-    LvglTrackballSettings s;
-    if (!load(s)) {
-        s = getDefault();
-    }
-    return s;
-}
-
-bool save(const LvglTrackballSettings& settings) {
+bool save(const TrackballSettings& settings) {
     std::map<std::string, std::string> map;
     map[KEY_TRACKBALL_ENABLED] = settings.enabled ? "1" : "0";
-    map[KEY_TRACKBALL_MODE] = (settings.mode == LVGL_TRACKBALL_MODE_POINTER) ? "1" : "0";
+    map[KEY_TRACKBALL_MODE] = (settings.mode == TRACKBALL_MODE_MOUSE) ? "1" : "0";
     map[KEY_ENCODER_SENSITIVITY] = std::to_string(std::clamp(settings.key_sensitivity, MIN_KEY_SENSITIVITY, MAX_KEY_SENSITIVITY));
     map[KEY_POINTER_SENSITIVITY] = std::to_string(std::clamp(settings.pointer_sensitivity, MIN_POINTER_SENSITIVITY, MAX_POINTER_SENSITIVITY));
     auto settings_path = getSettingsFilePath();

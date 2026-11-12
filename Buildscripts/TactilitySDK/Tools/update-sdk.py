@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # License: Apache License v2
-"""Downloads the tools and installed platforms of the selected SDK again when the CDN has a newer build of it. Run it as "tt update-sdk"."""
+"""Downloads the tools and installed platforms of the selected SDK again when the CDN has a newer build of it,
+and removes installed platforms that the SDK no longer has (e.g. after a rename). Run it as "tt update-sdk"."""
 
 import hashlib
 import io
@@ -58,6 +59,8 @@ class Update:
     def __init__(self):
         # (target directory, staging directory, metadata path, metadata)
         self.staged = []
+        # Installed folders to delete once everything else is in place
+        self.removed = []
 
     def stage(self, archive_data, target_directory, metadata_path, metadata):
         """Extracts into a staging folder, refusing entries outside of it"""
@@ -104,7 +107,10 @@ class Update:
                 file.write(metadata)
         for _, backup_directory in replaced:
             shutil.rmtree(backup_directory, ignore_errors=True)
+        for directory in self.removed:
+            shutil.rmtree(directory, ignore_errors=True)
         self.staged = []
+        self.removed = []
 
 
 def main():
@@ -133,7 +139,12 @@ def main():
             update.stage(archive_data, os.path.join(version_directory, "tools"), os.path.join(version_directory, "tools.sha256"), tools["sha256"])
         for platform in installed_platforms(version_directory):
             platform_directory = os.path.join(version_directory, f"platform-{platform}")
-            if read_commit(platform_directory) == commit or platform not in available:
+            if platform not in available:
+                # Can't be updated, and "tt" refuses to mix it with a newer build of the other platforms
+                print(f"Removing SDK {version} for {platform}: the SDK no longer has this platform", flush=True)
+                update.removed.append(platform_directory)
+                continue
+            if read_commit(platform_directory) == commit:
                 continue
             print(f"Downloading SDK {version} for {platform}", flush=True)
             archive_data = fetch(f"{CDN_URL}/sdk/{version}/{available[platform]}")
@@ -142,7 +153,7 @@ def main():
         update.discard()
         print(f"SDK {version} was not changed", file=sys.stderr)
         raise
-    updated = len(update.staged) > 0
+    updated = len(update.staged) > 0 or len(update.removed) > 0
     update.commit()
     with open(os.path.join(version_directory, "index.json"), "wb") as file:
         file.write(index_data)

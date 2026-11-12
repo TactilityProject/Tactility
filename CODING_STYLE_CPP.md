@@ -8,8 +8,6 @@ If you use CLion, please enable the setting called "Enable ClangFormat" under Se
 
 # C projects with C++ code
 
-In projects that expose a C API with internal C++ code, the C naming conventions are used for language features that are shared.
-
 ## Naming
 
 ### Files
@@ -17,22 +15,22 @@ In projects that expose a C API with internal C++ code, the C naming conventions
 Files are upper camel case.
 
 - Files: `^[0-9a-zA-Z]+$`
-- Directories: `^[0-9a-zA-Z]+$`
+- Directories: `^[0-9a-z]+$`
  
 Example:
 ```c++
 SomeFeature.cpp
-SomeFeature.h
+SomeFeature.hpp
 ```
 
-Private/internal headers are placed in a `Private/` directory.
+Private/internal headers are placed in a `private/` directory.
 
 ### Folders
 
 Project folders include:
-- `Source` for source files and public header files
-- `Private` for private header files
-- `Include` for projects that require separate header files
+- `source` for source files
+- `private` for private header files
+- `include-cpp` for headers
 
 Sources for a specific namespace must go into a folder with the lowercase name of that namespace.
 The only exception to this is the root namespace, as this doesn't require its own subfolder.

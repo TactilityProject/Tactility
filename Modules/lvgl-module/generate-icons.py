@@ -176,6 +176,7 @@ shared_symbol_code_point_names = [
     "settings",
     "toolbar", # Apps without custom icon
     "navigation", # GPS (settings) app
+    "map", # Maps app
     "keyboard_alt", # Keyboard (settings) app
     "usb", # Power (settings) app
     "wifi", # WiFi (settings) app

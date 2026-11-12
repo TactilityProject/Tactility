@@ -1,6 +1,5 @@
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/lvgl/Style.h>
-#include <Tactility/Tactility.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -14,11 +13,16 @@
 #include <wifi/wifi_settings.h>
 
 #include <lvgl/lvgl.h>
+
+#include <atomic>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <tactility/check.h>
+#include <tactility/concurrent/task_event_group.h>
 #include <tactility/device.h>
 #include <tactility/drivers/wifi.h>
+#include <tactility/file_ops.h>
 #include <tactility/log.h>
 
 namespace tt::app::wifiapsettings {
@@ -44,48 +48,64 @@ struct Context {
     // Set once in appMain() before subscribing, left null if this device has no WiFi driver
     Device* wifiDevice = nullptr;
     WifiEventSubscription wifiEventSub {};
+
+    // Written by the app task under the LVGL lock, read by the widgets
+    WifiApSettings settings {};
+    bool hasSettings = false;
+
+    // Requests from LVGL callbacks, handled on the app task
+    TaskEventGroup* eventGroup = nullptr;
+    uint32_t requestBit = 0;
+    std::atomic<bool> connectRequested = false;
+    std::atomic<bool> disconnectRequested = false;
+    std::atomic<int> autoConnectRequest = -1;
 };
 
 
 void updateViews(Context* ctx);
+void requestViewUpdate(Context* ctx);
 
-/** Turns the radio on when needed and connects. Runs on the main dispatcher, as turning the radio on blocks. */
-void connectToAp(const WifiApSettings& ap) {
-    getMainDispatcher().dispatch([ap] {
-        Device* wifi_device = nullptr;
-        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
-            LOG_W(TAG, "No WiFi device found");
-            return;
-        }
-        error_t result = wifi_set_radio_on(wifi_device);
-        if (result == ERROR_NONE) {
-            if (wifi_settings_set_enable(true) != ERROR_NONE) {
-                LOG_E(TAG, "Failed to save the Wi-Fi state");
-            }
-            result = wifi_station_connect(wifi_device, ap.ssid, ap.password, ap.channel);
-        }
-        if (result != ERROR_NONE) {
-            LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
-        }
-        device_put(wifi_device);
-    });
+/** File operation: it runs on the file operations task */
+void saveEnabledInBackground(void* /*context*/) {
+    if (wifi_settings_set_enable(true) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to save the Wi-Fi state");
+    }
 }
 
+/** Turns the radio on when needed and connects. Blocks while the radio turns on, so it runs on the app task. */
+void connectToAp(const WifiApSettings& ap) {
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+        LOG_W(TAG, "No WiFi device found");
+        return;
+    }
+    error_t result = wifi_set_radio_on(wifi_device);
+    if (result == ERROR_NONE) {
+        if (file_ops_queue(saveEnabledInBackground, nullptr, nullptr) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to queue saving the Wi-Fi state");
+        }
+        result = wifi_station_connect(wifi_device, ap.ssid, ap.password, ap.channel);
+    }
+    if (result != ERROR_NONE) {
+        LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
+    }
+    device_put(wifi_device);
+}
+
+/** Runs on the app task */
 void disconnectFromAp() {
     // Keeps auto-connect from immediately reconnecting
     wifi_autoconnect_pause_until_connected();
-    getMainDispatcher().dispatch([] {
-        Device* wifi_device = nullptr;
-        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
-            LOG_W(TAG, "No WiFi device found");
-            return;
-        }
-        error_t result = wifi_station_disconnect(wifi_device);
-        if (result != ERROR_NONE) {
-            LOG_E(TAG, "Failed to disconnect (%s)", error_to_string(result));
-        }
-        device_put(wifi_device);
-    });
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+        LOG_W(TAG, "No WiFi device found");
+        return;
+    }
+    error_t result = wifi_station_disconnect(wifi_device);
+    if (result != ERROR_NONE) {
+        LOG_E(TAG, "Failed to disconnect (%s)", error_to_string(result));
+    }
+    device_put(wifi_device);
 }
 
 /** @return true when the station is connected to this app's SSID */
@@ -112,33 +132,25 @@ void onPressForget(lv_event_t* event) {
 void onToggleAutoConnect(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     auto* enable_switch = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    bool is_on = lv_obj_has_state(enable_switch, LV_STATE_CHECKED);
-
-    WifiApSettings settings;
-    if (wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE) {
-        settings.auto_connect = is_on;
-        if (wifi_settings_save(&settings) != ERROR_NONE) {
-            LOG_E(TAG, "Failed to save settings");
-        }
-    } else {
-        LOG_E(TAG, "Failed to load settings");
-    }
+    ctx->autoConnectRequest = lv_obj_has_state(enable_switch, LV_STATE_CHECKED) ? 1 : 0;
+    task_event_group_signal(ctx->eventGroup, ctx->requestBit);
 }
 
 void onPressConnect(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    WifiApSettings settings;
-    if (wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE) {
+    if (ctx->hasSettings) {
         auto* button = lv_event_get_target_obj(event);
         lv_obj_add_state(button, LV_STATE_DISABLED);
-        connectToAp(settings);
+        ctx->connectRequested = true;
+        task_event_group_signal(ctx->eventGroup, ctx->requestBit);
     }
 }
 
 void onPressDisconnect(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     if (isConnectedToSsid(ctx)) {
-        disconnectFromAp();
+        ctx->disconnectRequested = true;
+        task_event_group_signal(ctx->eventGroup, ctx->requestBit);
     }
 }
 
@@ -166,12 +178,9 @@ void updateBusySpinner(Context* ctx) {
     }
 }
 
-// Touches the filesystem (wifi_settings_load()) - callers must not run this on the
-// LVGL task (see updateViews()'s callers).
 void updateAutoConnectSection(Context* ctx) {
-    WifiApSettings settings;
-    if (wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE) {
-        if (settings.auto_connect) {
+    if (ctx->hasSettings) {
+        if (ctx->settings.auto_connect) {
             lv_obj_add_state(ctx->autoConnectSwitch, LV_STATE_CHECKED);
         } else {
             lv_obj_remove_state(ctx->autoConnectSwitch, LV_STATE_CHECKED);
@@ -196,10 +205,48 @@ void updateViews(Context* ctx) {
     updateAutoConnectSection(ctx);
 }
 
+void handleRequests(Context* ctx) {
+    if (ctx->disconnectRequested.exchange(false)) {
+        disconnectFromAp();
+    }
+    // Kept until settings are loaded
+    if (ctx->hasSettings) {
+        int auto_connect = ctx->autoConnectRequest.exchange(-1);
+        if (auto_connect != -1) {
+            ctx->settings.auto_connect = auto_connect == 1;
+            if (wifi_settings_set_auto_connect(ctx->ssid.c_str(), ctx->settings.auto_connect) != ERROR_NONE) {
+                LOG_E(TAG, "Failed to save settings");
+            }
+        }
+    }
+    if (ctx->connectRequested.exchange(false) && ctx->hasSettings) {
+        // Other flows can save newer credentials while this view is open
+        WifiApSettings settings {};
+        if (wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE) {
+            connectToAp(settings);
+        } else {
+            LOG_E(TAG, "Failed to load settings");
+            requestViewUpdate(ctx);
+        }
+    }
+}
+
 void requestViewUpdate(Context* ctx) {
+    WifiApSettings settings {};
+    bool has_settings = wifi_settings_load(ctx->ssid.c_str(), &settings) == ERROR_NONE;
     lvgl_lock();
+    // A toggle during the load isn't saved yet, so the switch keeps showing it
+    int pending_auto_connect = ctx->autoConnectRequest.load();
+    if (pending_auto_connect != -1) {
+        settings.auto_connect = pending_auto_connect == 1;
+    }
+    ctx->settings = settings;
+    ctx->hasSettings = has_settings;
     updateViews(ctx);
     lvgl_unlock();
+    if (has_settings && ctx->autoConnectRequest.load() != -1) {
+        task_event_group_signal(ctx->eventGroup, ctx->requestBit);
+    }
 }
 
 void destroyWidgets(void* userData) {
@@ -230,14 +277,18 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(wrapper, 0, LV_STATE_DEFAULT);
     lvgl::obj_set_style_bg_invisible(wrapper);
 
-    ctx->disconnectButton = lv_button_create(wrapper);
+    auto* card = lvgl_card_create(wrapper);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+
+    ctx->disconnectButton = lv_button_create(card);
     lv_obj_set_width(ctx->disconnectButton, LV_PCT(100));
     lv_obj_add_event_cb(ctx->disconnectButton, onPressDisconnect, LV_EVENT_SHORT_CLICKED, ctx);
     auto* disconnect_label = lv_label_create(ctx->disconnectButton);
     lv_obj_align(disconnect_label, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_text(disconnect_label, "Disconnect");
 
-    ctx->connectButton = lv_button_create(wrapper);
+    ctx->connectButton = lv_button_create(card);
     lv_obj_set_width(ctx->connectButton, LV_PCT(100));
     lv_obj_add_event_cb(ctx->connectButton, onPressConnect, LV_EVENT_SHORT_CLICKED, ctx);
     auto* connect_label = lv_label_create(ctx->connectButton);
@@ -246,7 +297,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // Forget
 
-    ctx->forgetButton = lv_button_create(wrapper);
+    ctx->forgetButton = lv_button_create(card);
     lv_obj_set_width(ctx->forgetButton, LV_PCT(100));
     lv_obj_add_event_cb(ctx->forgetButton, onPressForget, LV_EVENT_SHORT_CLICKED, ctx);
     auto* forget_button_label = lv_label_create(ctx->forgetButton);
@@ -256,7 +307,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // Auto-connect
 
-    ctx->autoConnectWrapper = lv_obj_create(wrapper);
+    ctx->autoConnectWrapper = lv_obj_create(card);
     lv_obj_set_size(ctx->autoConnectWrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(ctx->autoConnectWrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(ctx->autoConnectWrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -283,6 +334,8 @@ int32_t appMain(int argc, char* argv[]) {
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    check(task_event_group_claim_bit(&event_group, &ctx.requestBit) == ERROR_NONE);
+    ctx.eventGroup = &event_group;
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -301,8 +354,6 @@ int32_t appMain(int argc, char* argv[]) {
 
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
-    // The file-I/O-touching part of the view (updateAutoConnectSection()'s wifi_settings_load())
-    // runs here, on this app's own task, not the LVGL task createWidgets()
     requestViewUpdate(&ctx);
 
     bool shouldClose = false;
@@ -320,6 +371,8 @@ int32_t appMain(int argc, char* argv[]) {
                 }
             }
         }
+
+        handleRequests(&ctx);
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -365,6 +418,7 @@ int32_t appMain(int argc, char* argv[]) {
     }
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
+    task_event_group_release_bit(&event_group, ctx.requestBit);
     task_event_group_destruct(&event_group);
 
     return 0;

@@ -1,6 +1,6 @@
 #include <Tactility/app/wificonnect/WifiConnect.h>
 
-#include <Tactility/Tactility.h>
+#include <Tactility/lvgl/SystemBars.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -12,6 +12,7 @@
 
 #include <wifi/wifi_settings.h>
 
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
@@ -21,14 +22,18 @@
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/drivers/wifi.h>
+#include <tactility/file_ops.h>
 #include <tactility/log.h>
 
 #include <lvgl.h>
+#include <atomic>
 #include <cstring>
+#include <new>
 
 namespace tt::app::wificonnect {
 
 constexpr auto* TAG = "WifiConnect";
+constexpr auto* HIDE_STATUSBAR_ARGUMENT = "--hide-statusbar";
 
 extern const ::AppManifest manifest;
 
@@ -39,6 +44,7 @@ struct Context {
 
     std::string initialSsid;
     std::string initialPassword;
+    bool hideStatusbar = false;
 
     bool connecting = false;
     bool connectionError = false;
@@ -58,12 +64,57 @@ struct Context {
     // Set once in appMain() before subscribing, left null if this device has no WiFi driver
     Device* wifiDevice = nullptr;
     WifiEventSubscription wifiEventSub {};
+
+    // Requested from the LVGL callback, handled on the app task
+    TaskEventGroup* eventGroup = nullptr;
+    uint32_t connectBit = 0;
+    std::atomic<bool> connectRequested = false;
 };
 
 
 void updateView(Context* ctx);
 void resetErrors(Context* ctx);
 void setLoading(Context* ctx, bool loading);
+
+struct SaveApJob {
+    WifiApSettings ap;
+};
+
+/** File operation: it runs on the file operations task, which frees the job */
+void saveApInBackground(void* context) {
+    auto* job = static_cast<SaveApJob*>(context);
+    if (wifi_settings_save(&job->ap) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to store credentials");
+    }
+    delete job;
+}
+
+/** File operation: it runs on the file operations task */
+void saveEnabledInBackground(void* /*context*/) {
+    if (wifi_settings_set_enable(true) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to save the Wi-Fi state");
+    }
+}
+
+/** Turns the radio on and connects. Blocks while the radio turns on, so it runs on the app task. */
+void connectToAp(const WifiApSettings& ap) {
+    Device* wifi_device = nullptr;
+    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
+        LOG_W(TAG, "No WiFi device found");
+        return;
+    }
+    error_t result = wifi_set_radio_on(wifi_device);
+    if (result == ERROR_NONE) {
+        if (file_ops_queue(saveEnabledInBackground, nullptr, nullptr) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to queue saving the Wi-Fi state");
+        }
+        result = wifi_station_connect(wifi_device, ap.ssid, ap.password, ap.channel);
+    }
+    if (result != ERROR_NONE) {
+        LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
+    }
+    device_put(wifi_device);
+}
 
 void onBackPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
@@ -80,12 +131,12 @@ void onWifiEvent(Context* ctx, WifiEvent event) {
                 ctx->connecting = false;
                 shouldClose = true;
                 if (ctx->rememberAp) {
-                    // Dispatch it, so file IO doesn't block the UI
-                    getMainDispatcher().dispatch([ap = ctx->pendingAp] {
-                        if (wifi_settings_save(&ap) != ERROR_NONE) {
-                            LOG_E(TAG, "Failed to store credentials");
-                        }
-                    });
+                    // Queued, so file IO doesn't block the UI
+                    auto* job = new (::std::nothrow) SaveApJob { ctx->pendingAp };
+                    if (job == nullptr || file_ops_queue(saveApInBackground, job, nullptr) != ERROR_NONE) {
+                        LOG_E(TAG, "Failed to queue storing credentials");
+                        delete job;
+                    }
                 }
             }
         } else {
@@ -178,24 +229,8 @@ void onConnectPressed(lv_event_t* event) {
     ctx->pendingAp = settings;
     ctx->rememberAp = store;
 
-    getMainDispatcher().dispatch([settings] {
-        Device* wifi_device = nullptr;
-        if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) != ERROR_NONE) {
-            LOG_W(TAG, "No WiFi device found");
-            return;
-        }
-        error_t result = wifi_set_radio_on(wifi_device);
-        if (result == ERROR_NONE) {
-            if (wifi_settings_set_enable(true) != ERROR_NONE) {
-                LOG_E(TAG, "Failed to save the Wi-Fi state");
-            }
-            result = wifi_station_connect(wifi_device, settings.ssid, settings.password, settings.channel);
-        }
-        if (result != ERROR_NONE) {
-            LOG_E(TAG, "Failed to connect (%s)", error_to_string(result));
-        }
-        device_put(wifi_device);
-    });
+    ctx->connectRequested = true;
+    task_event_group_signal(ctx->eventGroup, ctx->connectBit);
 }
 
 void createBottomButtons(Context* ctx, lv_obj_t* parent) {
@@ -221,12 +256,18 @@ void createBottomButtons(Context* ctx, lv_obj_t* parent) {
     auto* connect_label = lv_label_create(ctx->connect_button);
     lv_label_set_text(connect_label, "Connect");
     lv_obj_add_event_cb(ctx->connect_button, onConnectPressed, LV_EVENT_SHORT_CLICKED, ctx);
+
+    // The arrow keys move between the checkbox and the button as one row
+    lvgl_grid_navigation_add(button_container);
 }
 
 // Runs with the LVGL lock already held, possibly on another app's thread - see
 // WindowDestroyWidgetsFn's warnings. Must stay lock-free: only nulls pointers.
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    if (ctx->hideStatusbar) {
+        lvgl::systemBarsSetStatusbarVisible(true);
+    }
     ctx->ssid_textarea = nullptr;
     ctx->ssid_error = nullptr;
     ctx->password_textarea = nullptr;
@@ -271,6 +312,9 @@ lv_obj_t* createErrorLabel(lv_obj_t* parent) {
 // TODO: Standardize dialogs
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    if (ctx->hideStatusbar) {
+        lvgl::systemBarsSetStatusbarVisible(false);
+    }
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
@@ -305,6 +349,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_textarea_set_one_line(ctx->password_textarea, true);
     lv_textarea_set_password_mode(ctx->password_textarea, true);
     lv_obj_set_width(ctx->password_textarea, LV_PCT(60));
+    lv_obj_add_event_cb(ctx->password_textarea, onConnectPressed, LV_EVENT_READY, ctx);
 
     ctx->password_error = createErrorLabel(card);
 
@@ -329,11 +374,22 @@ int32_t appMain(int argc, char* argv[]) {
 
     Context ctx {};
     ctx.appInstanceId = appInstanceId;
-    ctx.initialSsid = (argc > 0) ? argv[0] : std::string();
-    ctx.initialPassword = (argc > 1) ? argv[1] : std::string();
+    // Positional arguments are the SSID and the password
+    int positional = 0;
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], HIDE_STATUSBAR_ARGUMENT) == 0) {
+            ctx.hideStatusbar = true;
+        } else if (positional++ == 0) {
+            ctx.initialSsid = argv[i];
+        } else {
+            ctx.initialPassword = argv[i];
+        }
+    }
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.connectBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -368,6 +424,13 @@ int32_t appMain(int argc, char* argv[]) {
             }
         }
 
+        if (ctx.connectRequested.exchange(false)) {
+            lvgl_lock();
+            const WifiApSettings ap = ctx.pendingAp;
+            lvgl_unlock();
+            connectToAp(ap);
+        }
+
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
             switch (event.type) {
@@ -394,6 +457,7 @@ int32_t appMain(int argc, char* argv[]) {
     }
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
+    task_event_group_release_bit(&event_group, ctx.connectBit);
     task_event_group_destruct(&event_group);
 
     return 0;
@@ -401,11 +465,11 @@ int32_t appMain(int argc, char* argv[]) {
 
 } // namespace
 
-void start(const std::string& ssid, const std::string& password) {
-    const char* argv[] = { ssid.c_str(), password.c_str() };
+void start(const std::string& ssid, const std::string& password, bool hideStatusbar) {
+    const char* argv[] = { ssid.c_str(), password.c_str(), HIDE_STATUSBAR_ARGUMENT };
     uint32_t instanceId = 0;
     AppStartContext context = app_start_context_for_manifest(&manifest);
-    app_start_context_set_arguments_ext(&context, 2, argv);
+    app_start_context_set_arguments_ext(&context, hideStatusbar ? 3 : 2, argv);
     app_start_with_context(&context, &instanceId);
 }
 

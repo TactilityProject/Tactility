@@ -14,7 +14,6 @@ add_test(NAME DevelopmentModuleTests COMMAND DevelopmentModuleTests)
 
 target_link_libraries(DevelopmentModuleTests PUBLIC
     TactilityKernel
-    TactilityKernelCpp
     platform-posix
     app-module
     app-posix-module

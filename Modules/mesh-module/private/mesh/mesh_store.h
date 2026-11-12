@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include <TactilityCpp/std/string.h>
-#include <TactilityCpp/std/vector.h>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <mesh/mesh.h>
 
@@ -81,6 +81,11 @@ public:
     error_t setDelivery(uint32_t seq, enum MeshDeliveryState delivery);
 
     error_t get(uint32_t seq, MeshMessage* message) const;
+
+    bool isOpen() const { return buffer != nullptr; }
+
+    /** Oldest first: the messages with a seq above @a afterSeq */
+    size_t getAfter(uint32_t afterSeq, MeshMessage* messages, size_t maxCount) const;
 
     /** Newest first, see mesh_history_get() */
     size_t getHistory(uint32_t beforeSeq, MeshMessage* messages, size_t maxCount) const;

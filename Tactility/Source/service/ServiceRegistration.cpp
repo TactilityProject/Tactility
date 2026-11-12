@@ -2,7 +2,7 @@
 
 #include <Tactility/service/ServiceRegistration.h>
 #include <Tactility/Mutex.h>
-#include <TactilityCpp/Memory.h>
+#include <tactility/Memory.hpp>
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServiceManifest.h>
 

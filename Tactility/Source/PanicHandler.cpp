@@ -58,9 +58,12 @@ void __wrap_esp_panic_handler(void* info) {
 
     // g_panic_abort_details carries the actual assert()/abort() message when present; panic_info->reason
     // is ESP-IDF's generic description otherwise (e.g. "IllegalInstruction").
-    const char* reason = (panic_info->exception == PANIC_EXCEPTION_ABORT && g_panic_abort_details != nullptr)
-        ? g_panic_abort_details
-        : panic_info->reason;
+    // On RISC-V an abort()/assert() surfaces as an illegal-instruction *fault* (not
+    // PANIC_EXCEPTION_ABORT), so also prefer the recorded abort details for faults.
+    const char* reason = panic_info->reason;
+    if (g_panic_abort && g_panic_abort_details != nullptr && g_panic_abort_details[0] != '\0') {
+        reason = g_panic_abort_details;
+    }
     crashData.reason[0] = '\0';
     if (reason != nullptr) {
         strncpy(crashData.reason, reason, sizeof(crashData.reason) - 1);
@@ -188,6 +191,42 @@ void __wrap_esp_panic_handler(void* info) {
     __real_esp_panic_handler(info);
 }
 
+} // extern "C"
+
+bool isRtcCrashDataValid() {
+    const auto cause = static_cast<uint8_t>(crashData.cause);
+    // Only aborts and faults are real crashes. The wrapper records watchdog and debug
+    // exceptions without a reason or callstack, so those records aren't reportable crashes.
+    if (cause != static_cast<uint8_t>(CrashCause::Abort) &&
+        cause != static_cast<uint8_t>(CrashCause::Fault)) {
+        return false;
+    }
+    if (crashData.callstackLength > CRASH_DATA_CALLSTACK_LIMIT) {
+        return false;
+    }
+
+    // After a full power cycle (e.g. the board's power controller cutting the rails) the RTC
+    // no-init area holds random bytes, so the reason must still be a terminated printable string.
+    for (size_t i = 0; i < sizeof(crashData.reason); ++i) {
+        const auto character = static_cast<unsigned char>(crashData.reason[i]);
+        if (character == '\0') {
+            return true;
+        }
+        if (character < 0x20 && character != '\t' && character != '\n') {
+            return false;
+        }
+    }
+
+    // No terminator within the buffer, so the panic handler never wrote this value.
+    return false;
+}
+
+void resetRtcCrashData() {
+    crashData.cause = CrashCause::Unknown;
+    crashData.faultAddress = 0;
+    crashData.callstackLength = 0;
+    crashData.callstackCorrupted = false;
+    crashData.reason[0] = '\0';
 }
 
 const CrashData& getRtcCrashData() { return crashData; }

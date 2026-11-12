@@ -92,6 +92,9 @@ def main():
     # Mapping logic
     mappings = [
         {'src': 'version.txt', 'dst': ''},
+        # platform-esp32
+        {'src': 'build/esp-idf/platform-esp32/libplatform-esp32.a', 'dst': 'Modules/platform-esp32/binary/'},
+        {'src': 'Platforms/platform-esp32/include/**/*.h', 'dst': 'Modules/platform-esp32/include/'},
         # TactilityFreeRtos
         {'src': 'TactilityFreeRtos/Include/**', 'dst': 'Libraries/TactilityFreeRtos/Include/'},
         {'src': 'TactilityFreeRtos/CMakeLists.txt', 'dst': 'Libraries/TactilityFreeRtos/'},
@@ -99,11 +102,9 @@ def main():
         # TactilityKernel
         {'src': 'build/esp-idf/TactilityKernel/libTactilityKernel.a', 'dst': 'Libraries/TactilityKernel/binary/'},
         {'src': 'TactilityKernel/include/**', 'dst': 'Libraries/TactilityKernel/include/'},
+        {'src': 'TactilityKernel/include-cpp/**', 'dst': 'Libraries/TactilityKernel/include-cpp/'},
         {'src': 'TactilityKernel/CMakeLists.txt', 'dst': 'Libraries/TactilityKernel/'},
         {'src': 'TactilityKernel/*.md', 'dst': 'Libraries/TactilityKernel/'},
-        # TactilityKernelCpp (header-only)
-        {'src': 'TactilityKernelCpp/Include/**', 'dst': 'Libraries/TactilityKernelCpp/Include/'},
-        {'src': 'TactilityKernelCpp/*.md', 'dst': 'Libraries/TactilityKernelCpp/'},
         # lvgl (basics)
         {'src': 'build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a', 'dst': 'Libraries/lvgl/binary/liblvgl.a'},
         {'src': 'Libraries/lvgl/lvgl.h', 'dst': 'Libraries/lvgl/include/'},

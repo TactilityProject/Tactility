@@ -5,7 +5,7 @@ Two conventions coexist; which one to use depends on the project layer:
 - **C code**: `lower_snake_case` for files, functions, variables. `UpperCamelCase` for types. Files in `source/`, `include/`, `private/` directories.
 - **C++ code**: `UpperCamelCase` for files and types. `lowerCamelCase` for functions. `lower_snake_case` for namespaces. Files in `Source/`, `Include/`, `Private/` directories.
   Folder names reflect the casing of the C++ symbols they hold: a folder for a namespace is lower case and a file is named after the type it defines (e.g. `TactilityCpp/Memory.h` for `tt::newObject()`).
-  Exception: wrappers of standard library symbols keep the standard library's lower case names, for compatibility (e.g. `TactilityCpp/std/vector.h` for `tt::std::vector`).
+  Exception: wrappers of standard library symbols keep the standard library's lower case names, for compatibility (e.g. `tactility/std/vector.hpp` for `tt::std::vector`).
   Inside `namespace tt`, `std::` resolves to `tt::std` once a `TactilityCpp/std/` header is included. Prefer the `tt::std` wrappers there, and use `::std::` for standard library symbols that have no wrapper.
 
 For projects that emit C headers and have a C++ implementation file: the internal C++ function naming should be snake_case.

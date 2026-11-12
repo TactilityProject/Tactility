@@ -28,6 +28,10 @@
 #define TAG "esp32_usb_device_controller"
 #define GET_CONFIG(device) ((const Esp32UsbDeviceConfig*)(device)->config)
 
+// USB string descriptor 0 language ID (en-US, little-endian 0x0409). File scope so the pointer
+// stored in the TinyUSB config stays valid after the installing function returns.
+static const char USB_LANGUAGE_DESCRIPTOR[] = { 0x09, 0x04 };
+
 // Composite descriptor scratch buffer, sized for worst case (any one primary + CDC). Primary
 // contributions today max out at MIDI's ~54 bytes (TUD_CONFIG_DESC_LEN + 2*9 + 2*9 + ...); 96
 // leaves headroom without tracking each primary's exact size here.
@@ -55,6 +59,8 @@ struct UsbDeviceControllerCtx {
     enum UsbDeviceClass active_class = USB_DEVICE_CLASS_NONE;
     bool phy_routed = false;
     bool cdc_console_started = false;
+    // Set while a CDC-only console (no primary class) is installed via start_cdc_console().
+    bool standalone_console_active = false;
 
     // Allocation state, live from begin_claim() through claim()'s call to tinyusb_driver_install()
     // (or until the claim attempt is abandoned by a caller that never follows through with claim()).
@@ -163,8 +169,17 @@ static bool is_cdc_enabled(struct Device* device) {
     return cdc_child != nullptr && usb_cdc_device_is_present(cdc_child);
 }
 
+// Standalone CDC console: a CDC-only function with no primary class claiming the slot.
+// Forward-declared because claim() tears an active standalone console down before taking over.
+static error_t stop_cdc_console(struct Device* device);
+
 static error_t claim(struct Device* device, enum UsbDeviceClass usb_class, const struct UsbDeviceClaimConfig* config) {
     auto* ctx = static_cast<UsbDeviceControllerCtx*>(device_get_driver_data(device));
+
+    // A boot-time standalone console gives way to whichever primary class is started later.
+    if (ctx->standalone_console_active) {
+        stop_cdc_console(device);
+    }
 
     if (ctx->active_class != USB_DEVICE_CLASS_NONE) {
         LOG_E(TAG, "claim: slot busy (active_class=%d, requested=%d)", ctx->active_class, usb_class);
@@ -212,9 +227,10 @@ static error_t claim(struct Device* device, enum UsbDeviceClass usb_class, const
 
     // ---- Descriptor byte assembly: primary's bytes, then CDC's (if enabled), behind one config
     // header. Built twice (fs/hs) under TUD_OPT_HIGH_SPEED if the primary supplied distinct
-    // high-speed bytes (\see UsbInterfaceContribution::hs_descriptor_bytes). CDC never varies by
-    // speed, so its bytes are reused verbatim in both buffers.
-    auto assemble = [&](uint8_t* dest, size_t dest_capacity, const uint8_t* primary_bytes, size_t primary_len) -> error_t {
+    // high-speed bytes (\see UsbInterfaceContribution::hs_descriptor_bytes). CDC's bulk endpoints
+    // are speed-dependent (64 bytes at full speed, 512 at high speed), so it supplies both.
+    auto assemble = [&](uint8_t* dest, size_t dest_capacity, const uint8_t* primary_bytes, size_t primary_len,
+                        const uint8_t* cdc_bytes) -> error_t {
         const size_t total_len = TUD_CONFIG_DESC_LEN + primary_len + (cdc_enabled ? cdc_contribution.descriptor_bytes_len : 0);
         if (total_len > dest_capacity) {
             LOG_E(TAG, "claim: composite descriptor too large (%u > %u)", (unsigned)total_len, (unsigned)dest_capacity);
@@ -229,13 +245,14 @@ static error_t claim(struct Device* device, enum UsbDeviceClass usb_class, const
         memcpy(p, primary_bytes, primary_len);
         p += primary_len;
         if (cdc_enabled) {
-            memcpy(p, cdc_contribution.descriptor_bytes, cdc_contribution.descriptor_bytes_len);
+            memcpy(p, cdc_bytes, cdc_contribution.descriptor_bytes_len);
         }
         return ERROR_NONE;
     };
 
     error_t assemble_err = assemble(ctx->composite_fs_config_descriptor, sizeof(ctx->composite_fs_config_descriptor),
-                                     config->primary.descriptor_bytes, config->primary.descriptor_bytes_len);
+                                     config->primary.descriptor_bytes, config->primary.descriptor_bytes_len,
+                                     cdc_contribution.descriptor_bytes);
     if (assemble_err != ERROR_NONE) {
         ctx->allocation_open = false;
         return assemble_err;
@@ -245,8 +262,12 @@ static error_t claim(struct Device* device, enum UsbDeviceClass usb_class, const
         ? config->primary.hs_descriptor_bytes : config->primary.descriptor_bytes;
     const size_t hs_primary_len = config->primary.hs_descriptor_bytes != nullptr
         ? config->primary.hs_descriptor_bytes_len : config->primary.descriptor_bytes_len;
+    // CDC's bulk endpoints are speed-dependent (64 bytes at FS, exactly 512 at HS), so use its
+    // high-speed variant when it supplies one.
+    const uint8_t* hs_cdc_bytes = cdc_contribution.hs_descriptor_bytes != nullptr
+        ? cdc_contribution.hs_descriptor_bytes : cdc_contribution.descriptor_bytes;
     assemble_err = assemble(ctx->composite_hs_config_descriptor, sizeof(ctx->composite_hs_config_descriptor),
-                             hs_primary_bytes, hs_primary_len);
+                             hs_primary_bytes, hs_primary_len, hs_cdc_bytes);
     if (assemble_err != ERROR_NONE) {
         ctx->allocation_open = false;
         return assemble_err;
@@ -357,6 +378,162 @@ static enum UsbDeviceClass get_active_class(struct Device* device) {
     return ctx->active_class;
 }
 
+// ---- Standalone CDC console (no primary class active) ----
+
+static error_t start_cdc_console(struct Device* device) {
+    auto* ctx = static_cast<UsbDeviceControllerCtx*>(device_get_driver_data(device));
+    if (ctx->standalone_console_active) {
+        return ERROR_NONE;
+    }
+    if (ctx->active_class != USB_DEVICE_CLASS_NONE) {
+        LOG_E(TAG, "start_cdc_console: slot busy (active_class=%d)", ctx->active_class);
+        return ERROR_RESOURCE_BUSY;
+    }
+
+    struct Device* cdc_child = find_cdc_child_lazy(device, ctx);
+    if (cdc_child == nullptr || !usb_cdc_device_is_present(cdc_child)) {
+        LOG_E(TAG, "start_cdc_console: no usbdevicecdc0 child");
+        return ERROR_INVALID_STATE;
+    }
+
+    // One-contributor allocation session. CDC's interface string is appended after the four
+    // mandatory strings (lang + manufacturer + product + serial), so it lands at index 4.
+    ctx->allocation_open = true;
+    ctx->next_interface = 0;
+    ctx->next_in_endpoint = 1;
+    ctx->next_out_endpoint = 1;
+
+    struct UsbInterfaceContribution contribution = {};
+    const char* interface_string = nullptr;
+    error_t build_error = usb_cdc_device_build_contribution(cdc_child, device, 4, &contribution, &interface_string);
+    ctx->allocation_open = false;
+    if (build_error != ERROR_NONE) {
+        LOG_E(TAG, "start_cdc_console: CDC contribution failed");
+        return build_error;
+    }
+
+    ctx->composite_string_descriptor[0] = USB_LANGUAGE_DESCRIPTOR;
+    ctx->composite_string_descriptor[1] = "Tactility";
+    ctx->composite_string_descriptor[2] = "Tactility Device";
+    ctx->composite_string_descriptor[3] = "42";
+    ctx->composite_string_descriptor[4] = interface_string;
+    constexpr int string_count = 5;
+
+    const size_t total_len = TUD_CONFIG_DESC_LEN + contribution.descriptor_bytes_len;
+    if (total_len > sizeof(ctx->composite_fs_config_descriptor)) {
+        LOG_E(TAG, "start_cdc_console: descriptor too large (%u)", (unsigned)total_len);
+        return ERROR_INVALID_ARGUMENT;
+    }
+    const uint8_t config_header[] = {
+        TUD_CONFIG_DESCRIPTOR(1, contribution.interface_count, 0, total_len, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    };
+    memcpy(ctx->composite_fs_config_descriptor, config_header, sizeof(config_header));
+    memcpy(ctx->composite_fs_config_descriptor + sizeof(config_header), contribution.descriptor_bytes, contribution.descriptor_bytes_len);
+#if (TUD_OPT_HIGH_SPEED)
+    // Bulk endpoint size is speed-dependent (exactly 512 bytes at high speed), so use the CDC
+    // contribution's high-speed variant when it provides one.
+    const uint8_t* hs_bytes = contribution.hs_descriptor_bytes != nullptr
+        ? contribution.hs_descriptor_bytes : contribution.descriptor_bytes;
+    memcpy(ctx->composite_hs_config_descriptor, config_header, sizeof(config_header));
+    memcpy(ctx->composite_hs_config_descriptor + sizeof(config_header), hs_bytes, contribution.descriptor_bytes_len);
+#endif
+
+    ctx->composite_device_descriptor = {
+        .bLength            = sizeof(tusb_desc_device_t),
+        .bDescriptorType    = TUSB_DESC_DEVICE,
+        .bcdUSB             = 0x0200,
+        .bDeviceClass       = TUSB_CLASS_MISC,
+        .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+        .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+        .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+        .idVendor           = 0x303A, // Espressif VID
+        .idProduct          = 0x4002,
+        .bcdDevice          = 0x0100,
+        .iManufacturer      = 0x01,
+        .iProduct           = 0x02,
+        .iSerialNumber      = 0x03,
+        .bNumConfigurations = 0x01,
+    };
+
+    ctx->composite_tusb_cfg = {};
+    ctx->composite_tusb_cfg.descriptor.device = &ctx->composite_device_descriptor;
+    ctx->composite_tusb_cfg.descriptor.string = ctx->composite_string_descriptor;
+    ctx->composite_tusb_cfg.descriptor.string_count = string_count;
+    ctx->composite_tusb_cfg.phy.skip_setup = false;
+    ctx->composite_tusb_cfg.task = TINYUSB_TASK_DEFAULT();
+#if (TUD_OPT_HIGH_SPEED)
+    ctx->composite_tusb_cfg.descriptor.full_speed_config = ctx->composite_fs_config_descriptor;
+    ctx->composite_tusb_cfg.descriptor.high_speed_config = ctx->composite_hs_config_descriptor;
+    // Mirror the device descriptor's IAD triad in the qualifier, same as claim() does.
+    ctx->composite_device_qualifier = {
+        .bLength            = sizeof(tusb_desc_device_qualifier_t),
+        .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
+        .bcdUSB             = 0x0200,
+        .bDeviceClass       = ctx->composite_device_descriptor.bDeviceClass,
+        .bDeviceSubClass    = ctx->composite_device_descriptor.bDeviceSubClass,
+        .bDeviceProtocol    = ctx->composite_device_descriptor.bDeviceProtocol,
+        .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+        .bNumConfigurations = 0x01,
+        .bReserved          = 0x00,
+    };
+    ctx->composite_tusb_cfg.descriptor.qualifier = &ctx->composite_device_qualifier;
+#else
+    ctx->composite_tusb_cfg.descriptor.full_speed_config = ctx->composite_fs_config_descriptor;
+#endif
+    ctx->composite_tusb_cfg.phy.self_powered = false;
+    ctx->composite_tusb_cfg.phy.vbus_monitor_io = 0;
+
+    route_phy_for_device_mode();
+    ctx->phy_routed = true;
+
+    esp_err_t install_result = tinyusb_driver_install(&ctx->composite_tusb_cfg);
+    if (install_result != ESP_OK) {
+        LOG_E(TAG, "start_cdc_console: tinyusb_driver_install failed: %s", esp_err_to_name(install_result));
+        snprintf(last_claim_error, sizeof(last_claim_error), "tinyusb_driver_install: %s", esp_err_to_name(install_result));
+        restore_default_phy_route();
+        ctx->phy_routed = false;
+        return ERROR_RESOURCE;
+    }
+
+    if (usb_cdc_device_start_console(cdc_child) != ERROR_NONE) {
+        LOG_E(TAG, "start_cdc_console: start_console failed");
+        tinyusb_driver_uninstall();
+        restore_default_phy_route();
+        ctx->phy_routed = false;
+        return ERROR_RESOURCE;
+    }
+
+    ctx->standalone_console_active = true;
+    LOG_I(TAG, "Standalone CDC console installed");
+    return ERROR_NONE;
+}
+
+static error_t stop_cdc_console(struct Device* device) {
+    auto* ctx = static_cast<UsbDeviceControllerCtx*>(device_get_driver_data(device));
+    if (!ctx->standalone_console_active) {
+        return ERROR_NONE;
+    }
+
+    struct Device* cdc_child = find_cdc_child_lazy(device, ctx);
+    if (cdc_child != nullptr) {
+        usb_cdc_device_stop_console(cdc_child);
+    }
+
+    // Signal disconnect before tearing down so the host notices promptly.
+    tud_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(250));
+
+    tinyusb_driver_uninstall();
+
+    if (ctx->phy_routed) {
+        restore_default_phy_route();
+        ctx->phy_routed = false;
+    }
+
+    ctx->standalone_console_active = false;
+    return ERROR_NONE;
+}
+
 extern const UsbDeviceControllerApi usb_device_controller_api = {
     .begin_claim         = begin_claim,
     .allocate_interfaces = allocate_interfaces,
@@ -364,6 +541,8 @@ extern const UsbDeviceControllerApi usb_device_controller_api = {
     .release             = release,
     .get_active_class    = get_active_class,
     .is_cdc_enabled      = is_cdc_enabled,
+    .start_cdc_console   = start_cdc_console,
+    .stop_cdc_console    = stop_cdc_console,
 };
 
 // ---- Driver lifecycle ----
@@ -394,6 +573,9 @@ static error_t stop_device(struct Device* device) {
     if (ctx->active_class != USB_DEVICE_CLASS_NONE) {
         release(device, ctx->active_class);
     }
+    if (ctx->standalone_console_active) {
+        stop_cdc_console(device);
+    }
     delete ctx;
     device_set_driver_data(device, nullptr);
     return ERROR_NONE;
@@ -404,6 +586,7 @@ Driver esp32_usb_device_controller_driver = {
     .compatible   = (const char*[]) { "espressif,esp32-usbdevice", nullptr },
     .start_device = start_device,
     .stop_device  = stop_device,
+    .probe = nullptr,
     .api          = &usb_device_controller_api,
     .device_type  = &USB_DEVICE_CONTROLLER_TYPE,
     .internal     = nullptr,

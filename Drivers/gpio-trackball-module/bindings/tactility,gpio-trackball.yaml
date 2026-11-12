@@ -23,3 +23,9 @@ properties:
     type: phandles
     required: true
     description: Click button GPIO pin
+  default-mode:
+    type: int
+    default: TRACKBALL_MODE_KEYBOARD
+    description: |
+      The type of child device that is created until settings are applied.
+      TRACKBALL_MODE_KEYBOARD creates a keyboard (arrow keys and enter), TRACKBALL_MODE_MOUSE creates a mouse.

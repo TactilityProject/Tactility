@@ -126,6 +126,11 @@ void ble_spp_set_conn_handle(struct Device* device, uint16_t h) {
 // All functions receive the serial child Device*.
 
 static error_t spp_start(struct Device* device) {
+    // The radio may already be on under another app's identity (system Bluetooth on).
+    if (!ble_prepare_profile_start(device)) {
+        return ERROR_INVALID_STATE;
+    }
+    ble_identity_apply_pending(device);
     // gap_mutex (not radio_mutex - see BleCtx::gap_mutex's comment) serializes this GAP sequence
     // against on_sync()'s own advertising decision and hid/midi's start/stop.
     BleCtx* root_ctx = ble_get_ctx(device);
@@ -149,8 +154,8 @@ static error_t spp_stop(struct Device* device) {
         ble_gap_terminate(conn, BLE_ERR_REM_USER_CONN_TERM);
         ble_spp_set_conn_handle(device, BLE_HS_CONN_HANDLE_NONE);
     }
-    // Do NOT restart advertising after user-initiated stop — restarting name-only
-    // advertising causes bonded Windows hosts to auto-reconnect in a tight loop.
+    // Do not restart advertising after a user-initiated stop, a bonded host would reconnect in
+    // a tight loop. Only another active profile keeps the radio on the air.
     if (!ble_midi_get_active(device) && !ble_hid_get_active(device)) {
         ble_gap_adv_stop();
     }
@@ -236,6 +241,7 @@ Driver esp32_ble_serial_driver = {
     .compatible   = nullptr,
     .start_device = esp32_ble_serial_start_device,
     .stop_device  = esp32_ble_serial_stop_device,
+    .probe = nullptr,
     .api          = &nimble_serial_api,
     .device_type  = &BLUETOOTH_SERIAL_TYPE,
     .internal     = nullptr,

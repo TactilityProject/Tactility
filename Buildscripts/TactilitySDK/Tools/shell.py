@@ -144,34 +144,55 @@ def read_known_hosts():
     return hosts
 
 
+def write_known_host(address, fingerprint):
+    """Adds the device, or replaces its fingerprint"""
+    hosts = read_known_hosts()
+    hosts[address] = fingerprint
+    os.makedirs(CONFIG_DIRECTORY, exist_ok=True)
+    with open(KNOWN_HOSTS_PATH, "w") as file:
+        for known_address, known_fingerprint in hosts.items():
+            file.write(f"{known_address} {known_fingerprint}\n")
+
+
+def ask_to_continue(question, not_interactive_message):
+    try:
+        answer = input(question).strip().lower()
+    except EOFError:
+        print(flush=True)
+        fail(not_interactive_message)
+    if answer not in ("y", "yes"):
+        fail("aborted")
+
+
 def verify_device(host, port, fingerprint):
-    """Trust on first use: remembers the device fingerprint and refuses a device that changed it.
+    """Trust on first use: remembers the device fingerprint. A device that changed it is only accepted when the user confirms.
     @return True when the user was asked to trust the device"""
     address = f"{host}:{port}"
     known = read_known_hosts().get(address)
     if known == fingerprint:
         return False
     if known is not None:
-        fail(
-            f"the fingerprint of {address} changed!\n"
+        print(
+            f"WARNING: the fingerprint of {address} changed!\n"
             f"  expected: {format_fingerprint(known, sys.stderr)}\n"
             f"  received: {format_fingerprint(fingerprint, sys.stderr)}\n"
-            f"This could mean that someone intercepts the connection, or that the device was reset.\n"
-            f"If you trust the device, remove {address} from {KNOWN_HOSTS_PATH}"
+            f"This could mean that someone intercepts the connection, or that the device was reset.",
+            file=sys.stderr
         )
+        ask_to_continue(
+            "Accept the new fingerprint and continue connecting? (y/N) ",
+            f"the fingerprint of {address} changed: run 'tt shell' in a terminal to verify and accept it"
+        )
+        write_known_host(address, fingerprint)
+        return True
     print(f"The authenticity of {address} can't be established.")
     print(f"Device fingerprint: {format_fingerprint(fingerprint)}")
     print("Compare it with the fingerprint in the Development app on the device.")
-    try:
-        answer = input("Continue connecting? (y/N) ").strip().lower()
-    except EOFError:
-        print(flush=True)
-        fail(f"{address} is not a known device yet: run 'tt shell' in a terminal once to verify and trust its fingerprint")
-    if answer not in ("y", "yes"):
-        fail("aborted")
-    os.makedirs(CONFIG_DIRECTORY, exist_ok=True)
-    with open(KNOWN_HOSTS_PATH, "a") as file:
-        file.write(f"{address} {fingerprint}\n")
+    ask_to_continue(
+        "Continue connecting? (y/N) ",
+        f"{address} is not a known device yet: run 'tt shell' in a terminal once to verify and trust its fingerprint"
+    )
+    write_known_host(address, fingerprint)
     return True
 
 # endregion

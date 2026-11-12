@@ -1,45 +1,23 @@
-#include <lvgl/devices/trackball.h>
-#include <lvgl/devices/device_context.h>
-#include <lvgl/lvgl.h>
 #include <tactility/device.h>
 #include <tactility/drivers/trackball.h>
 
-#include <lvgl/ui_assets.h>
 #include <Tactility/settings/TrackballSettings.h>
 
 namespace tt::lvgl {
 
-static void initTrackball(lv_indev_t* indev, LvglTrackballSettings& settings) {
-    lv_indev_type_t type = lv_indev_get_type(indev);
-
-    void* driver_data = lv_indev_get_driver_data(indev);
-    if (!driver_data) {
-        return;
-    }
-
-    LvglDeviceContext* context = static_cast<LvglDeviceContext*>(driver_data);
-    if (!context->device) {
-        return;
-    }
-
-    const DeviceType* device_type = device_get_type(context->device);
-    if (device_type != &TRACKBALL_TYPE) {
-        return;
-    }
-
-    lvgl_trackball_set_settings(indev, &settings);
-    if (settings.mode == LVGL_TRACKBALL_MODE_POINTER) {
-        lvgl_trackball_set_cursor_image(indev, lvgl_get_cursor_image());
-    }
-}
-
 void initTrackball() {
-    auto trackball_settings = settings::trackball::loadOrGetDefault();
-    lv_indev_t* indev = lv_indev_get_next(nullptr);
-    while (indev != nullptr) {
-        initTrackball(indev, trackball_settings);
-        indev = lv_indev_get_next(indev);
+    TrackballSettings settings;
+    // Without stored settings, the devices keep the defaults of their devicetree
+    if (!settings::trackball::load(settings)) {
+        return;
     }
+    // Replacing the child device takes the device ledger lock, so this can't run inside device_for_each_of_type()
+    Device* trackball = nullptr;
+    if (device_get_first_active_by_type(&TRACKBALL_TYPE, &trackball) != ERROR_NONE) {
+        return;
+    }
+    trackball_set_settings(trackball, &settings);
+    device_put(trackball);
 }
 
 }

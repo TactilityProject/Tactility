@@ -17,6 +17,25 @@ error_t trackball_get_button_pressed(Device* device, bool* out_pressed) {
     return TRACKBALL_DRIVER_API(driver)->get_button_pressed(device, out_pressed);
 }
 
+error_t trackball_set_settings(Device* device, const TrackballSettings* settings) {
+    const auto* driver = device_get_driver(device);
+    return TRACKBALL_DRIVER_API(driver)->set_settings(device, settings);
+}
+
+error_t trackball_get_settings(Device* device, TrackballSettings* out_settings) {
+    const auto* driver = device_get_driver(device);
+    return TRACKBALL_DRIVER_API(driver)->get_settings(device, out_settings);
+}
+
+TrackballSettings trackball_settings_get_default() {
+    return TrackballSettings {
+        .mode = TRACKBALL_MODE_KEYBOARD,
+        .enabled = true,
+        .key_sensitivity = 1,
+        .pointer_sensitivity = 10,
+    };
+}
+
 const DeviceType TRACKBALL_TYPE {
     .name = "trackball"
 };

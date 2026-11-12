@@ -9,6 +9,7 @@
 #include <tactility/device.h>
 #include <tactility/drivers/sdcard.h>
 #include <tactility/filesystem/file_system.h>
+#include <tactility/paths.h>
 
 namespace tt {
 
@@ -38,17 +39,9 @@ FileSystem* findSdcardFileSystem(bool mustBeMounted) {
 }
 
 std::string getUserDataRootPath() {
-#ifdef CONFIG_TT_USER_DATA_LOCATION_INTERNAL
-    return file::MOUNT_POINT_DATA;
-#elif CONFIG_TT_USER_DATA_LOCATION_SD
-    auto* fs = findSdcardFileSystem(false);
-    check(fs);
-    char fs_path[32];
-    check(file_system_get_path(fs, fs_path, sizeof(fs_path)) == ERROR_NONE);
-    return std::string(fs_path);
-#else
-#error CONFIG_TT_USER_DATA_* not set or unsupported
-#endif
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    check(paths_get_root_path(path, sizeof(path)) == ERROR_NONE);
+    return std::string(path);
 }
 
 std::string getDataPath() {
@@ -74,7 +67,7 @@ std::string getAppInstallPath(const std::string& appId) {
 
 std::string getAppUserPath(const std::string& appId) {
     assert(app_manifest_id_is_valid(appId.c_str()));
-    return std::format("{}/app/{}", getUserHomePath(), appId);
+    return std::format("{}/appdata/{}", getDataPath(), appId);
 }
 
 }

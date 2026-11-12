@@ -8,6 +8,7 @@
 
 #include <tactility/drivers/bluetooth.h>
 #include <tactility/error.h>
+#include <tactility/file_ops.h>
 // Must be included before any NimBLE header: log_common.h (pulled in by ble_hs.h)
 // defines LOG_LEVEL_* as macros with the same names as tactility/log.h's LogLevel enum.
 // Including tactility/log.h first ensures the enum is compiled before the macros shadow it.
@@ -46,7 +47,7 @@ struct BleCtx {
     // Radio / scan state (atomic — read from multiple tasks)
     std::atomic<BtRadioState> radio_state;
     std::atomic<bool>         scan_active;
-    // Set by Tactility HID host to prevent simultaneous central connection during name resolution
+    // Set by the HID host while connecting or connected, to prevent a simultaneous central connection during name resolution
     std::atomic<bool>         hid_host_active;
 
     // Event subscriptions (guarded by subscriptionsMutex)
@@ -61,6 +62,13 @@ struct BleCtx {
     std::atomic<bool>     midi_use_indicate;  // true when client subscribed for INDICATE (e.g. Windows)
     std::atomic<bool>     hid_active;
     std::atomic<bool>     link_encrypted;
+    // Established links in either role, maintained from the GAP connect and disconnect events.
+    // Tells an idle radio from one in use before swapping the bond set.
+    std::atomic<int>      conn_count;
+    // Blocks the background scan's name resolution from starting another central connection.
+    std::atomic<bool>     name_res_abort;
+    // Link opened by name resolution to read a peer's GAP name, NONE when no read is in flight.
+    std::atomic<uint16_t> name_res_conn_handle;
     std::atomic<int>      pending_reset_count;
 
     // Timers
@@ -93,6 +101,19 @@ struct BleCtx {
     // BLE device name (set before or after radio enable; applied in dispatch_enable)
     char device_name[BLE_DEVICE_NAME_MAX + 1];
 
+    // Explicit identity (bluetooth_set_identity()). Empty means "use device_name".
+    char identity[BLE_IDENTITY_MAX + 1];
+    // Identity string that was resolved when the radio came up. A later rename does not change
+    // it, so this (not the possibly-newer device_name) is what bluetooth_get_identity() reports
+    // while the radio is on.
+    char identity_resolved[BLE_IDENTITY_MAX + 1];
+    // Resolved at radio enable: hash of identity (or device_name). Selects the bond store
+    // slot and is folded into the advertising address. 0 while the radio has never been on.
+    uint32_t identity_hash;
+    // Address type used for advertising: BLE_OWN_ADDR_RANDOM once the identity address was
+    // installed in on_sync(), BLE_OWN_ADDR_PUBLIC if that failed (or never ran).
+    std::atomic<uint8_t> own_addr_type;
+
     // Scan data (guarded by scan_mutex), allocated only while the radio is on
     SemaphoreHandle_t scan_mutex;
     BtPeerRecord*     scan_results;
@@ -123,13 +144,72 @@ void ble_set_scan_active(struct Device* device, bool v);
 // ---- Scan data management (defined in esp32_ble_scan.cpp) ----
 void ble_scan_clear_results(struct Device* device);
 
+/**
+ * Stop the background scan and its name-resolution chain and cancel a connection attempt in
+ * flight. A profile start needs an idle GAP, and name resolution keeps opening short-lived
+ * central connections. Does not wait for the cancel, see ble_prepare_profile_start().
+ */
+void ble_scan_abort(struct Device* device);
+
+/**
+ * Prepare the radio for a peripheral profile start. Aborts the background scan and name
+ * resolution, then waits off the host task until the GAP is idle.
+ * @return false when the GAP is still busy after the timeout, the caller may still try.
+ */
+bool ble_prepare_profile_start(struct Device* device);
+
 // ---- Event publishing ----
 void ble_publish_event(struct Device* device, struct BtEvent event);
 
 // ---- Advertising helpers (defined in esp32_ble.cpp) ----
-void ble_start_advertising(struct Device* device, const ble_uuid128_t* svc_uuid);  // svc_uuid=nullptr → name-only
+void ble_start_advertising(struct Device* device, const ble_uuid128_t* svc_uuid);
 void ble_start_advertising_hid(struct Device* device, uint16_t appearance);
 void ble_schedule_adv_restart(struct Device* device, uint64_t delay_us);
+
+// ---- Per-identity bond store + advertising address (defined in esp32_ble_identity.cpp) ----
+
+/** FNV-1a hash of the identity string, never returns 0 or OWNER_TRANSITION. */
+uint32_t ble_identity_hash(const char* identity);
+
+/**
+ * Derive a static random BLE address from the controller's public address and the identity
+ * hash. The same controller and identity always yield the same address, different identities
+ * yield different addresses.
+ */
+bool ble_identity_derive_addr(uint32_t identity_hash, const uint8_t base[BT_ADDR_LEN], uint8_t out[BT_ADDR_LEN]);
+
+/**
+ * Make @a identity_hash's bonds the active set. NimBLE keys bond records by peer address only,
+ * so identities sharing one namespace would collide on the same peer. This swaps whole sets
+ * between "nimble_bond" and one "btid_<hash>" archive namespace per identity, crash-safely.
+ *
+ * Touches NVS only. dispatch_enable() calls it with the host down,
+ * ble_identity_apply_pending() on an idle running host.
+ *
+ * @return false when the swap could not be committed, the previous set stays active.
+ */
+bool ble_identity_bond_slot_activate(uint32_t identity_hash);
+
+/**
+ * Run @a work on the file operations task and wait until it has finished. Flash and NVS writes
+ * must not run on tasks with a stack in external RAM, which includes the LVGL task.
+ * @warning Must not be called from the file operations task or while holding a lock that @a work takes.
+ * @return false when the work could not be queued
+ */
+bool ble_run_file_operation(file_ops_work_fn_t work, void* context);
+
+/**
+ * Apply the pending identity to a radio that is already on, so a profile start does not
+ * advertise under another app's identity. Called by the peripheral profile start functions
+ * before they take gap_mutex.
+ *
+ * The bond set and the identity address only change together and only while the host is idle.
+ * A busy radio keeps its identity for the session.
+ *
+ * @return true when the active identity afterwards is the pending one. Also true when there is
+ *         nothing to do or when the radio is off and dispatch_enable() will resolve it.
+ */
+bool ble_identity_apply_pending(struct Device* device);
 
 // ---- GAP scan callback (defined in esp32_ble_scan.cpp) ----
 int  ble_gap_disc_event_handler(struct ble_gap_event* event, void* arg);

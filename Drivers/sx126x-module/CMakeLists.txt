@@ -8,5 +8,5 @@ tactility_add_module(sx126x-module
     SRCS ${SOURCE_FILES}
     INCLUDE_DIRS include/
     PRIV_INCLUDE_DIRS private/
-    REQUIRES TactilityKernel TactilityKernelCpp platform-esp32 radiolib driver esp_timer
+    REQUIRES TactilityKernel platform-esp32 radiolib driver esp_timer
 )

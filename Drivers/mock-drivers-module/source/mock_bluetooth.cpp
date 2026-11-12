@@ -43,8 +43,9 @@ struct MockBluetoothCtx {
     Mutex mutex {};
     BtRadioState radioState = BT_RADIO_STATE_OFF;
     bool scanning = false;
-    bool hidHostActive = false;
     char deviceName[BLE_DEVICE_NAME_MAX + 1] = {};
+    /** Empty means "use deviceName". */
+    char identity[BLE_IDENTITY_MAX + 1] = {};
     MockPeerState peers[MOCK_PEER_COUNT];
 
     Mutex subscriptionsMutex {};
@@ -206,6 +207,14 @@ bool apiIsScanning(Device* device) {
     return scanning;
 }
 
+bool apiIsPeripheralActive(Device* device) {
+    auto* ctx = GET_CTX(device);
+    if (ctx == nullptr) return false;
+    // The mock has no peripheral profiles, so nothing is ever serving.
+    (void)ctx;
+    return false;
+}
+
 error_t apiPair(Device* device, const BtAddr addr) {
     auto* ctx = GET_CTX(device);
     if (ctx == nullptr || addr == nullptr) return ERROR_INVALID_ARGUMENT;
@@ -268,7 +277,7 @@ error_t apiGetPairedPeers(Device* device, BtPeerRecord* out, size_t* count) {
     return ERROR_NONE;
 }
 
-error_t apiConnect(Device* device, const BtAddr addr, BtProfileId profile) {
+error_t apiHostConnect(Device* device, const BtAddr addr) {
     auto* ctx = GET_CTX(device);
     if (ctx == nullptr || addr == nullptr) return ERROR_INVALID_ARGUMENT;
 
@@ -283,17 +292,17 @@ error_t apiConnect(Device* device, const BtAddr addr, BtProfileId profile) {
         return ERROR_NOT_FOUND;
     }
     ctx->peers[index].paired = true;
-    ctx->peers[index].connectedProfiles |= 1 << profile;
+    ctx->peers[index].connectedProfiles |= 1 << BT_PROFILE_HID_HOST;
     mutex_unlock(&ctx->mutex);
 
     // No real peer to negotiate with, so the mock always succeeds instantly.
-    fireProfileState(ctx, index, profile, BT_PROFILE_STATE_CONNECTING);
-    fireProfileState(ctx, index, profile, BT_PROFILE_STATE_CONNECTED);
+    fireProfileState(ctx, index, BT_PROFILE_HID_HOST, BT_PROFILE_STATE_CONNECTING);
+    fireProfileState(ctx, index, BT_PROFILE_HID_HOST, BT_PROFILE_STATE_CONNECTED);
     fireConnectState(ctx, index);
     return ERROR_NONE;
 }
 
-error_t apiDisconnect(Device* device, const BtAddr addr, BtProfileId profile) {
+error_t apiHostDisconnect(Device* device, const BtAddr addr) {
     auto* ctx = GET_CTX(device);
     if (ctx == nullptr || addr == nullptr) return ERROR_INVALID_ARGUMENT;
 
@@ -301,13 +310,13 @@ error_t apiDisconnect(Device* device, const BtAddr addr, BtProfileId profile) {
     if (index == MOCK_PEER_COUNT) return ERROR_NOT_FOUND;
 
     mutex_lock(&ctx->mutex);
-    const bool was_connected = (ctx->peers[index].connectedProfiles & (1 << profile)) != 0;
-    ctx->peers[index].connectedProfiles &= ~(1 << profile);
+    const bool was_connected = (ctx->peers[index].connectedProfiles & (1 << BT_PROFILE_HID_HOST)) != 0;
+    ctx->peers[index].connectedProfiles &= ~(1 << BT_PROFILE_HID_HOST);
     mutex_unlock(&ctx->mutex);
     if (!was_connected) return ERROR_NONE;
 
-    fireProfileState(ctx, index, profile, BT_PROFILE_STATE_DISCONNECTING);
-    fireProfileState(ctx, index, profile, BT_PROFILE_STATE_IDLE);
+    fireProfileState(ctx, index, BT_PROFILE_HID_HOST, BT_PROFILE_STATE_DISCONNECTING);
+    fireProfileState(ctx, index, BT_PROFILE_HID_HOST, BT_PROFILE_STATE_IDLE);
     fireConnectState(ctx, index);
     return ERROR_NONE;
 }
@@ -382,17 +391,30 @@ error_t apiGetDeviceName(Device* device, char* buf, size_t buf_len) {
     return ERROR_NONE;
 }
 
-void apiSetHidHostActive(Device* device, bool active) {
+error_t apiSetIdentity(Device* device, const char* identity) {
     auto* ctx = GET_CTX(device);
-    if (ctx == nullptr) return;
+    if (ctx == nullptr) return ERROR_INVALID_ARGUMENT;
+    if (identity != nullptr && strlen(identity) > BLE_IDENTITY_MAX) return ERROR_INVALID_ARGUMENT;
     mutex_lock(&ctx->mutex);
-    ctx->hidHostActive = active;
+    if (identity == nullptr || identity[0] == '\0') {
+        ctx->identity[0] = '\0';
+    } else {
+        strncpy(ctx->identity, identity, BLE_IDENTITY_MAX);
+        ctx->identity[BLE_IDENTITY_MAX] = '\0';
+    }
     mutex_unlock(&ctx->mutex);
+    return ERROR_NONE;
 }
 
-void apiFireEvent(Device* device, BtEvent event) {
+error_t apiGetIdentity(Device* device, char* buf, size_t buf_len) {
     auto* ctx = GET_CTX(device);
-    if (ctx != nullptr) fireEvent(ctx, event);
+    if (ctx == nullptr || buf == nullptr || buf_len == 0) return ERROR_INVALID_ARGUMENT;
+    mutex_lock(&ctx->mutex);
+    const char* identity = (ctx->identity[0] != '\0') ? ctx->identity : ctx->deviceName;
+    strncpy(buf, identity, buf_len - 1);
+    buf[buf_len - 1] = '\0';
+    mutex_unlock(&ctx->mutex);
+    return ERROR_NONE;
 }
 
 const BluetoothApi mock_bluetooth_api = {
@@ -401,17 +423,18 @@ const BluetoothApi mock_bluetooth_api = {
     .scan_start = apiScanStart,
     .scan_stop = apiScanStop,
     .is_scanning = apiIsScanning,
+    .is_peripheral_active = apiIsPeripheralActive,
     .pair = apiPair,
     .unpair = apiUnpair,
     .get_paired_peers = apiGetPairedPeers,
-    .connect = apiConnect,
-    .disconnect = apiDisconnect,
+    .host_connect = apiHostConnect,
+    .host_disconnect = apiHostDisconnect,
     .event_subscribe = apiEventSubscribe,
     .event_unsubscribe = apiEventUnsubscribe,
     .set_device_name = apiSetDeviceName,
     .get_device_name = apiGetDeviceName,
-    .set_hid_host_active = apiSetHidHostActive,
-    .fire_event = apiFireEvent,
+    .set_identity = apiSetIdentity,
+    .get_identity = apiGetIdentity,
 };
 
 // ---- Driver lifecycle ----
@@ -473,6 +496,7 @@ Driver mock_bluetooth_driver = {
     .compatible = (const char*[]) { "mock,bluetooth", nullptr },
     .start_device = startDevice,
     .stop_device = stopDevice,
+    .probe = nullptr,
     .api = (const void*)&mock_bluetooth_api,
     .device_type = &BLUETOOTH_TYPE,
     .internal = nullptr

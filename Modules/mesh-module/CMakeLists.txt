@@ -8,5 +8,5 @@ tactility_add_module(mesh-module
     SRCS ${SOURCE_FILES}
     PRIV_INCLUDE_DIRS private/
     INCLUDE_DIRS include/
-    REQUIRES TactilityKernel TactilityKernelCpp app-module service-module
+    REQUIRES TactilityKernel app-module service-module
 )

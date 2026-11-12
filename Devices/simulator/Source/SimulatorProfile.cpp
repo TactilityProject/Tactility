@@ -1,5 +1,7 @@
 #include "SimulatorProfile.h"
 
+#include "lv_conf.h"
+
 #include <tactility/log.h>
 
 #include <cerrno>
@@ -21,18 +23,17 @@ namespace simulator {
 constexpr auto* TAG = "SimulatorProfile";
 constexpr auto* PROFILE_DIRECTORY = "data/tactility";
 constexpr auto* PROFILE_PATH = "data/tactility/simulator_profile.txt";
-constexpr auto* DISPLAY_SETTINGS_DIRECTORY = "data/tactility/user/app/tactility.display";
-constexpr auto* DISPLAY_SETTINGS_PATH = "data/tactility/user/app/tactility.display/display.properties";
+constexpr auto* DISPLAY_SETTINGS_DIRECTORY = "data/tactility/appdata/tactility.display";
+constexpr auto* DISPLAY_SETTINGS_PATH = "data/tactility/appdata/tactility.display/display.properties";
 constexpr auto* ORIENTATION_KEY = "orientation=";
 
 static const Profile PROFILES[PROFILE_COUNT] = {
-    { "Default", 640, 320, false, false, false, true, true },
-    { "CL-32", 384, 168, false, true, true, true, false },
-    { "LilyGO T-Deck", 320, 240, false, false, false, true, true },
-    { "LilyGO T-Lora Pager", 480, 222, false, false, false, true, false },
-    { "M5Stack Cardputer", 240, 135, false, true, false, true, false },
-    // Half the res on each axis to compensate for DPI differences
-    { "M5Stack Tab5", 640, 360, true, false, false, true, true },
+    { "Default", 640, 320, LV_DPI_DEF, false, false, false, true, true },
+    { "CL-32", 384, 168, 139, false, true, true, true, false },
+    { "LilyGO T-Deck", 320, 240, 143, false, false, false, true, true },
+    { "LilyGO T-Lora Pager", 480, 222,  150, false, false, false, true, false },
+    { "M5Stack Cardputer", 240, 135, 139, false, true, false, true, false },
+    { "M5Stack Tab5",  1280, 720, 250, true, false, false, true, true },
 };
 
 static size_t activeProfileIndex = 0;

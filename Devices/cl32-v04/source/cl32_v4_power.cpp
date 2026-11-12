@@ -99,6 +99,7 @@ Driver cl32_v4_power_supply_driver = {
     .compatible = (const char*[]) { "cl32-v4-power-supply", nullptr },
     .start_device = nullptr,
     .stop_device = nullptr,
+    .probe = nullptr,
     .api = &CL32_V4_POWER_SUPPLY_API,
     .device_type = &POWER_SUPPLY_TYPE,
     .internal = nullptr

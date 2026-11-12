@@ -450,6 +450,16 @@ size_t MeshStore::getConversation(const char* backend, const MeshAddress* peer, 
     return count;
 }
 
+size_t MeshStore::getAfter(uint32_t afterSeq, MeshMessage* messages, size_t maxCount) const {
+    size_t count = 0;
+    for (auto iterator = index.begin(); iterator != index.end() && count < maxCount; ++iterator) {
+        if (iterator->seq > afterSeq && readEntry(*iterator, &messages[count]) == ERROR_NONE) {
+            count++;
+        }
+    }
+    return count;
+}
+
 size_t MeshStore::getHistory(uint32_t beforeSeq, MeshMessage* messages, size_t maxCount) const {
     size_t count = 0;
     for (auto iterator = index.rbegin(); iterator != index.rend() && count < maxCount; ++iterator) {

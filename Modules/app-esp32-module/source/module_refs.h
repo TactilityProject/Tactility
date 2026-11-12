@@ -5,7 +5,7 @@
 
 #include <vector>
 
-/** The kernel modules whose symbols an ELF resolved while it was relocated. Each one is held with module_get(). */
+/** The kernel modules whose symbols an ELF resolved while it was relocated. Each one is held with a code reference (module_get_code()). */
 struct ModuleRefs {
     std::vector<Module*> modules;
 };

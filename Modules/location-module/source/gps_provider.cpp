@@ -11,7 +11,7 @@
 #include <tactility/log.h>
 #include <tactility/time.h>
 
-#include <TactilityCpp/Memory.h>
+#include <tactility/Memory.hpp>
 
 #include <atomic>
 #include <cmath>
@@ -175,12 +175,13 @@ bool subscribe(GpsProvider& provider) {
         }
     }
     const error_t error = gps_event_subscribe(device, &provider.subscription);
-    device_put(device);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to subscribe to %s", device->name);
+        device_put(device);
         return false;
     }
     LOG_I(TAG, "Using %s", device->name);
+    device_put(device);
     provider.device = device;
     provider.epoch = {};
     return true;
@@ -189,9 +190,7 @@ bool subscribe(GpsProvider& provider) {
 /** Must be called with the mutex held and a device subscribed */
 void receive(GpsProvider& provider) {
     auto& sub = provider.subscription;
-    if (sub.sequence != sub.consumed_sequence) {
-        sub.consumed_sequence = sub.sequence;
-    } else if (gps_event_await(provider.device, &sub, millis_to_ticks(AWAIT_TIMEOUT_MS)) != ERROR_NONE) {
+    if (gps_event_await(provider.device, &sub, millis_to_ticks(AWAIT_TIMEOUT_MS)) != ERROR_NONE) {
         return;
     }
 
@@ -199,6 +198,9 @@ void receive(GpsProvider& provider) {
         case GPS_EVENT_MESSAGE_RMC:
         case GPS_EVENT_MESSAGE_GGA:
             onSentence(provider, sub.event);
+            break;
+        case GPS_EVENT_MESSAGE_GSV:
+        case GPS_EVENT_MESSAGE_GSA:
             break;
         case GPS_EVENT_UNSUBSCRIBED:
             provider.device = nullptr;
@@ -218,6 +220,9 @@ int32_t threadMain(void* context) {
 
         if (!subscribed) {
             delay_millis(DEVICE_POLL_INTERVAL_MS);
+        } else {
+            // A task that waits for the mutex can only take it while this thread is blocked
+            delay_ticks(1);
         }
     }
 
@@ -331,6 +336,7 @@ bool gps_location_from_nmea(const minmea_sentence_rmc* rmc, const minmea_sentenc
 const LocationProviderApi gps_location_provider = {
     .id = "gps",
     .fallback = false,
+    .provides_time = true,
     .create = create,
     .request_stop = requestStop,
     .wait_stopped = waitStopped,

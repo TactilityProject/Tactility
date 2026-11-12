@@ -5,9 +5,13 @@
 extern "C" {
 
 extern Driver gpio_trackball_driver;
+extern Driver gpio_trackball_keyboard_driver;
+extern Driver gpio_trackball_mouse_driver;
 
 static Driver* const gpio_trackball_drivers[] = {
     &gpio_trackball_driver,
+    &gpio_trackball_keyboard_driver,
+    &gpio_trackball_mouse_driver,
     nullptr
 };
 

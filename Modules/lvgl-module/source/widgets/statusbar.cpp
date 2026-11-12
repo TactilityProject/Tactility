@@ -19,7 +19,7 @@
 #include <lvgl/widgets/focus_container.h>
 #include <lvgl/widgets/icon_button.h>
 
-#include <TactilityCpp/Memory.h>
+#include <tactility/Memory.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -288,8 +288,7 @@ lv_obj_t* lvgl_statusbar_create(lv_obj_t* parent) {
     lv_obj_set_style_pad_hor(obj, 2, LV_STATE_DEFAULT);
     lv_obj_center(obj);
     auto icon_size = lvgl_get_statusbar_icon_font_height();
-    const bool is_compact = lvgl_theme_is_compact();
-    auto icon_padding = !is_compact ? static_cast<uint32_t>(icon_size * 0.2f) : 2;
+    auto icon_padding = lvgl_theme_lerp(2, static_cast<uint32_t>(icon_size * 0.2f), lvgl_theme_get_spacing());
 
     lv_display_t* display = lv_obj_get_display(obj);
     DisplayShape shape;
@@ -356,7 +355,7 @@ lv_obj_t* lvgl_statusbar_create(lv_obj_t* parent) {
     }
     statusbar->icon_row = icon_row;
 
-    lv_obj_add_flag(icon_row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_clickable(icon_row, true);
     lv_obj_add_event_cb(icon_row, onIconRowClicked, LV_EVENT_SHORT_CLICKED, nullptr);
     lv_obj_add_event_cb(icon_row, onIconRowKey, LV_EVENT_KEY, statusbar);
 
@@ -626,9 +625,9 @@ void lvgl_statusbar_set_side(lv_obj_t* obj, bool side) {
         const int32_t content_width = std::max(get_action_button_width(statusbar->action_container), time_width);
         lv_obj_set_size(obj, content_width + 2 * 2, LV_PCT(100));
         // Keeps the action buttons away from the screen's bottom edge. The compact layout has no room to spare.
-        const bool compact = lvgl_theme_is_compact();
-        lv_obj_set_style_pad_top(obj, compact ? 0 : 4, LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_bottom(obj, compact ? 0 : 8, LV_STATE_DEFAULT);
+        const uint8_t spacing = lvgl_theme_get_spacing();
+        lv_obj_set_style_pad_top(obj, lvgl_theme_lerp(0, 4, spacing), LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_bottom(obj, lvgl_theme_lerp(0, 8, spacing), LV_STATE_DEFAULT);
         // Slightly darker than the colour behind it, so the strip stands out from the app next to it
         const lv_color_t background = get_visible_bg_color(obj);
         lv_obj_set_style_bg_color(obj, lv_color_darken(background, LV_OPA_20), LV_STATE_DEFAULT);

@@ -16,6 +16,9 @@ static LvglSoftwareKeyboard last_software_keyboard = {
     .object = nullptr
 };
 
+// The top-level object that is moved up to keep the textarea above the software keyboard
+static lv_obj_t* panned_object;
+
 static lv_group_t* keyboard_group;
 // The group that keypad indevs are attached to: keyboard_group, or the group of an overlay
 static lv_group_t* active_group;
@@ -28,7 +31,7 @@ void lvgl_keyboard_on_start_lvgl() {
     check(keyboard_group);
     // We currently set this group as the default, so it doesn't only get (manually added) textareas,
     // but gets all widgets by default. This is a temporary work-around until a proper default group is
-    // created to fix the trackball issue (see trackball.cpp and ideas.md, search for "group")
+    // created to fix the trackball issue (see ideas.md, search for "group")
     lv_group_set_default(keyboard_group);
     active_group = keyboard_group;
     lvgl_unlock();
@@ -135,12 +138,9 @@ error_t lvgl_keyboard_add(struct Device* device, lv_display_t* display, lv_indev
         return ERROR_INVALID_ARGUMENT;
     }
 
-    // A device can reach here twice: lvgl_devices_attach()'s boot scan binds every KEYBOARD_TYPE
-    // device unconditionally (started or not), and a device that wasn't started yet at that point
-    // fires DEVICE_EVENT_STARTED later, driving a second call through
-    // KeyboardDeviceListener::onKeyboardDeviceStarted(). Without this check that would create a
-    // second indev for the same device, and onKeyboardDeviceStopped() only ever removes one of
-    // them, leaving the other dangling - polling a destructed device on the next LVGL tick.
+    // A device can reach here twice: the boot scan in lvgl_devices_attach() binds every
+    // KEYBOARD_TYPE device, and a device that wasn't started yet then fires DEVICE_EVENT_STARTED
+    // later. A second indev for the same device would be left dangling when the device stops.
     lv_indev_t* existing = lvgl_keyboard_find_by_device(device);
     if (existing != NULL) {
         *out_indev = existing;
@@ -243,6 +243,8 @@ void lvgl_hardware_keyboard_remove_custom(lv_indev_t* indev) {
     delete wrapper;
 }
 
+static void lvgl_software_keyboard_unpan();
+
 static void textarea_show_keyboard(lv_event_t* event) {
     // Re-checked here rather than gated once at lvgl_keyboard_add_textarea() time, so a hardware
     // keyboard that connects/disconnects after the textarea was created is honored immediately.
@@ -251,8 +253,8 @@ static void textarea_show_keyboard(lv_event_t* event) {
     }
     lv_obj_t* target = lv_event_get_current_target_obj(event);
     if (last_software_keyboard.object != nullptr) {
+        lv_obj_scroll_to_view_recursive(target, LV_ANIM_OFF);
         lvgl_software_keyboard_show(&last_software_keyboard, target);
-        lv_obj_scroll_to_view(target, LV_ANIM_ON);
     }
 }
 
@@ -279,6 +281,7 @@ void lvgl_software_keyboard_destruct(LvglSoftwareKeyboard* keyboard) {
 
     lv_obj_delete(keyboard->object);
     keyboard->object = nullptr;
+    panned_object = nullptr;
 
     last_software_keyboard = *keyboard;
 }
@@ -287,11 +290,40 @@ void lvgl_software_keyboard_show(LvglSoftwareKeyboard* keyboard, lv_obj_t* texta
     assert(keyboard->object != nullptr);
     lv_obj_set_hidden(keyboard->object, false);
     lv_keyboard_set_textarea(keyboard->object, textarea);
+    lvgl_software_keyboard_unpan();
+
+    lv_obj_t* keyboard_parent = lv_obj_get_parent(keyboard->object);
+    lv_obj_t* top = textarea;
+    while (lv_obj_get_parent(top) != nullptr && lv_obj_get_parent(top) != keyboard_parent) {
+        top = lv_obj_get_parent(top);
+    }
+    if (lv_obj_get_parent(top) == nullptr) {
+        return;
+    }
+
+    lv_obj_update_layout(keyboard->object);
+    lv_area_t keyboard_area;
+    lv_area_t textarea_area;
+    lv_obj_get_coords(keyboard->object, &keyboard_area);
+    lv_obj_get_coords(textarea, &textarea_area);
+    const int32_t overlap = textarea_area.y2 + LV_DPX(4) - keyboard_area.y1;
+    if (overlap > 0) {
+        lv_obj_set_style_translate_y(top, -overlap, LV_STATE_DEFAULT);
+        panned_object = top;
+    }
+}
+
+static void lvgl_software_keyboard_unpan() {
+    if (panned_object != nullptr) {
+        lv_obj_set_style_translate_y(panned_object, 0, LV_STATE_DEFAULT);
+        panned_object = nullptr;
+    }
 }
 
 void lvgl_software_keyboard_hide(LvglSoftwareKeyboard* keyboard) {
     assert(keyboard->object != nullptr);
     lv_obj_set_hidden(keyboard->object, true);
+    lvgl_software_keyboard_unpan();
 }
 
 bool lvgl_software_keyboard_is_enabled() {

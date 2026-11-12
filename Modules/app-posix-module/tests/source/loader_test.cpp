@@ -280,7 +280,7 @@ TEST_CASE("app_is_executable() rejects a nonexistent path") {
 TEST_CASE("app_is_executable() rejects an install-directory-shaped path missing its per-arch .so") {
     ensure_path_loader_registered();
 
-    // FIXTURE_DIR itself has no bin/posix-<arch>/app.so under it, so resolution fails.
+    // FIXTURE_DIR itself has no bin/<platform>/app.so under it, so resolution fails.
     CHECK_FALSE(is_executable_path(FIXTURE_DIR.c_str()));
 }
 

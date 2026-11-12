@@ -54,7 +54,6 @@ add_test(NAME TactilityTests COMMAND TactilityTests)
 
 target_link_libraries(TactilityTests PRIVATE
     TactilityKernel
-    TactilityKernelCpp
     TactilityFreeRtos
     platform-posix
     app-posix-module
@@ -83,6 +82,7 @@ target_link_libraries(TactilityTests PRIVATE
     gps-generic-module
     gps-meshtastic-module
     service-module
+    bluetooth-module
     wifi-module
     lv_screenshot
     minitar

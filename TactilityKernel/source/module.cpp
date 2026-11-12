@@ -17,6 +17,9 @@ struct ModuleInternal {
     bool external = false;
     // All three are guarded by the ledger mutex
     int use_count = 0;
+    // References from relocated code (see module_get_code()): they keep the module mapped, but
+    // they don't keep it running
+    int code_count = 0;
     bool stopping = false;
     // In the ledger. Its symbols can be resolved from then on, also while it hasn't started yet.
     bool added = false;
@@ -76,7 +79,7 @@ error_t module_add(Module* module) {
 error_t module_remove(Module* module) {
     mutex_lock(&ledger.mutex);
     // Checked under the same lock as the removal, so no reference can be taken in between
-    if (module->internal != nullptr && module->internal->use_count != 0) {
+    if (module->internal != nullptr && (module->internal->use_count != 0 || module->internal->code_count != 0)) {
         mutex_unlock(&ledger.mutex);
         return ERROR_RESOURCE_BUSY;
     }
@@ -140,6 +143,18 @@ static void end_stopping(ModuleInternal* internal) {
     mutex_unlock(&ledger.mutex);
 }
 
+/**
+ * A usage reference always blocks stopping. A code reference (from relocated code) doesn't: an app
+ * stops a firmware module it was linked against on purpose, to take over the device that module
+ * drives, and starts it again when it's done.
+ * Modules from packages are the exception: the user can stop those from Kernel settings while an
+ * app is running, so there the references from that app must keep it running.
+ * Caller must hold the ledger mutex.
+ */
+static bool is_stop_blocked(const ModuleInternal* internal) {
+    return internal->use_count != 0 || (internal->external && internal->code_count != 0);
+}
+
 error_t module_stop(Module* module) {
     LOG_I(TAG, "stop %s", module->name);
 
@@ -148,7 +163,7 @@ error_t module_stop(Module* module) {
 
     // A module that hasn't started can be referenced too, through its symbols
     mutex_lock(&ledger.mutex);
-    const bool referenced = internal->use_count != 0;
+    const bool referenced = is_stop_blocked(internal);
     mutex_unlock(&ledger.mutex);
     if (referenced) {
         LOG_W(TAG, "%s can't stop: it is in use", module->name);
@@ -159,7 +174,7 @@ error_t module_stop(Module* module) {
 
     // Checking and refusing new references is one atomic step, so a module_get() can't slip in afterwards
     mutex_lock(&ledger.mutex);
-    if (internal->use_count != 0) {
+    if (is_stop_blocked(internal)) {
         mutex_unlock(&ledger.mutex);
         LOG_W(TAG, "%s can't stop: it is in use", module->name);
         return ERROR_RESOURCE_BUSY;
@@ -266,6 +281,27 @@ void module_put(Module* module) {
     mutex_unlock(&ledger.mutex);
 }
 
+error_t module_get_code(Module* module) {
+    auto* internal = module->internal;
+    if (internal == nullptr) { return ERROR_INVALID_STATE; }
+
+    mutex_lock(&ledger.mutex);
+    // Also allowed while the module isn't started: relocated code needs the symbols, not the state
+    const bool available = internal->added && !internal->stopping;
+    if (available) {
+        internal->code_count++;
+    }
+    mutex_unlock(&ledger.mutex);
+    return available ? ERROR_NONE : ERROR_INVALID_STATE;
+}
+
+void module_put_code(Module* module) {
+    mutex_lock(&ledger.mutex);
+    check(module->internal != nullptr && module->internal->code_count > 0);
+    module->internal->code_count--;
+    mutex_unlock(&ledger.mutex);
+}
+
 bool module_resolve_symbol(Module* module, const char* symbol_name, uintptr_t* symbol_address) {
     if (module->internal == nullptr || !module->internal->added) return false;
     auto* symbol_ptr = module->symbols;
@@ -280,11 +316,29 @@ bool module_resolve_symbol(Module* module, const char* symbol_name, uintptr_t* s
     return false;
 }
 
-bool module_resolve_symbol_global(const char* symbol_name, uintptr_t* symbol_address) {
+enum class RefKind { NONE, USE, CODE };
+
+static bool resolve_symbol_global(const char* symbol_name, uintptr_t* symbol_address, Module** out_module, RefKind ref_kind) {
     mutex_lock(&ledger.mutex);
     for (auto* module : ledger.modules) {
+        auto* internal = module->internal;
+        if (internal == nullptr) {
+            continue;
+        }
+        // A module that's being stopped may still be resolvable, but no new reference may be taken
+        if (ref_kind != RefKind::NONE && internal->stopping) {
+            continue;
+        }
         if (module_resolve_symbol(module, symbol_name, symbol_address)) {
+            if (ref_kind == RefKind::USE) {
+                internal->use_count++;
+            } else if (ref_kind == RefKind::CODE) {
+                internal->code_count++;
+            }
             mutex_unlock(&ledger.mutex);
+            if (out_module != nullptr) {
+                *out_module = module;
+            }
             return true;
         }
     }
@@ -292,21 +346,16 @@ bool module_resolve_symbol_global(const char* symbol_name, uintptr_t* symbol_add
     return false;
 }
 
+bool module_resolve_symbol_global(const char* symbol_name, uintptr_t* symbol_address) {
+    return resolve_symbol_global(symbol_name, symbol_address, nullptr, RefKind::NONE);
+}
+
 bool module_resolve_symbol_global_get(const char* symbol_name, uintptr_t* symbol_address, Module** out_module) {
-    mutex_lock(&ledger.mutex);
-    for (auto* module : ledger.modules) {
-        auto* internal = module->internal;
-        if (internal == nullptr || internal->stopping)
-            continue;
-        if (module_resolve_symbol(module, symbol_name, symbol_address)) {
-            internal->use_count++;
-            mutex_unlock(&ledger.mutex);
-            *out_module = module;
-            return true;
-        }
-    }
-    mutex_unlock(&ledger.mutex);
-    return false;
+    return resolve_symbol_global(symbol_name, symbol_address, out_module, RefKind::USE);
+}
+
+bool module_resolve_symbol_global_get_code(const char* symbol_name, uintptr_t* symbol_address, Module** out_module) {
+    return resolve_symbol_global(symbol_name, symbol_address, out_module, RefKind::CODE);
 }
 
 }

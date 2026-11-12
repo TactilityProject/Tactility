@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 
-#include <TactilityCpp/std/string.h>
-#include <TactilityCpp/std/vector.h>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <cstddef>
 #include <cstdint>

@@ -76,7 +76,7 @@ bool lvgl_pointer_get_calibration(lv_indev_t* indev, struct LvglPointerCalibrati
 lv_indev_t* lvgl_pointer_get_default(void);
 
 /**
- * @brief Creates up to max_touch_points lv_indev_t instances bound to the given POINTER_TYPE
+ * @brief Creates up to max_touch_points lv_indev_t instances bound to the given POINTER_TYPE or TOUCH_TYPE
  * device, each independently tracking one simultaneous touch point ("slot"). All slots share one
  * underlying read of the device per LVGL polling round (see pointer.cpp) — this does not multiply
  * bus traffic by max_touch_points.
@@ -94,14 +94,14 @@ lv_indev_t* lvgl_pointer_get_default(void);
  * only runs once every slot_count read callbacks (round_pos); disabling one slot skips its
  * callback and desyncs that cadence, staling the remaining active slots' data.
  *
- * @param[in] device a device of type POINTER_TYPE
+ * @param[in] device a device of type POINTER_TYPE or TOUCH_TYPE
  * @param[in] display the display this indev should be associated with, or NULL to leave it unset
  * @param[in] max_touch_points how many simultaneous touch slots to create (1 for classic
  *            single-touch behavior; clamped to [1, LVGL_POINTER_MAX_SLOTS])
  * @param[out] out_indevs array of at least max_touch_points entries; filled with the created
  *             indevs on success, valid only when ERROR_NONE is returned
  * @retval ERROR_NONE on success
- * @retval ERROR_INVALID_ARGUMENT if device or out_indevs is NULL, or device is not of type POINTER_TYPE
+ * @retval ERROR_INVALID_ARGUMENT if device or out_indevs is NULL, or device is not of type POINTER_TYPE or TOUCH_TYPE
  * @retval ERROR_OUT_OF_MEMORY if allocation failed
  */
 error_t lvgl_pointer_add(struct Device* device, lv_display_t* display, uint8_t max_touch_points, lv_indev_t** out_indevs);

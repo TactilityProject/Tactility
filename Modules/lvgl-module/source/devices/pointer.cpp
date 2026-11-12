@@ -5,9 +5,12 @@
 
 #include <tactility/device.h>
 #include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
 
 #include <cstring>
 #include <new>
+
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 constexpr auto* TAG = "lvgl_pointer";
 
@@ -61,6 +64,10 @@ struct LvglPointerPool {
     uint8_t raw_count;
 };
 
+static bool lvgl_pointer_is_supported_type(const struct DeviceType* type) {
+    return type == &POINTER_TYPE || type == &TOUCH_TYPE;
+}
+
 // Safely narrows an arbitrary lv_indev_t's driver data down to this module's LvglPointerPool,
 // or NULL if indev is NULL, wasn't created by lvgl_pointer_add() (LvglDeviceContext is shared by
 // every LVGL indev/display this module creates - pointer, trackball, keyboard - so driver_data
@@ -71,7 +78,7 @@ static struct LvglPointerPool* lvgl_pointer_pool_from_indev(lv_indev_t* indev) {
         return NULL;
     }
     auto* wrapper = (struct LvglDeviceContext*)lv_indev_get_driver_data(indev);
-    if (wrapper == NULL || wrapper->device == NULL || device_get_type(wrapper->device) != &POINTER_TYPE) {
+    if (wrapper == NULL || wrapper->device == NULL || !lvgl_pointer_is_supported_type(device_get_type(wrapper->device))) {
         return NULL;
     }
     return (struct LvglPointerPool*)wrapper->context;
@@ -117,12 +124,19 @@ static void lvgl_pointer_calibration_apply(
 static void lvgl_pointer_pool_refresh(struct LvglPointerPool* pool, int32_t native_x_max, int32_t native_y_max) {
     pool->raw_count = 0;
 
-    if (pointer_read_data(pool->device, LVGL_POINTER_READ_TIMEOUT) != ERROR_NONE) {
+    const bool is_touch = device_get_type(pool->device) == &TOUCH_TYPE;
+    const error_t read_error = is_touch
+        ? touch_read_data(pool->device, LVGL_POINTER_READ_TIMEOUT)
+        : pointer_read_data(pool->device, LVGL_POINTER_READ_TIMEOUT);
+    if (read_error != ERROR_NONE) {
         return;
     }
 
     uint8_t point_count = 0;
-    if (!pointer_get_touched_points(pool->device, pool->raw_x, pool->raw_y, NULL, &point_count, LVGL_POINTER_MAX_SLOTS) || point_count == 0) {
+    const bool touched = is_touch
+        ? touch_get_touched_points(pool->device, pool->raw_x, pool->raw_y, NULL, &point_count, LVGL_POINTER_MAX_SLOTS)
+        : pointer_get_touched_points(pool->device, pool->raw_x, pool->raw_y, NULL, &point_count, LVGL_POINTER_MAX_SLOTS);
+    if (!touched || point_count == 0) {
         return;
     }
     if (point_count > LVGL_POINTER_MAX_SLOTS) point_count = LVGL_POINTER_MAX_SLOTS;
@@ -243,7 +257,7 @@ error_t lvgl_pointer_add(struct Device* device, lv_display_t* display, uint8_t m
     if (device == NULL || out_indevs == NULL) {
         return ERROR_INVALID_ARGUMENT;
     }
-    if (device_get_type(device) != &POINTER_TYPE) {
+    if (!lvgl_pointer_is_supported_type(device_get_type(device))) {
         return ERROR_INVALID_ARGUMENT;
     }
     if (max_touch_points == 0) max_touch_points = 1;

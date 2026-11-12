@@ -20,7 +20,7 @@
 #include <tactility/paths.h>
 #include <tactility/properties_file.h>
 
-#include <TactilityCpp/Memory.h>
+#include <tactility/Memory.hpp>
 
 #include <mbedtls/ssl.h>
 
@@ -276,6 +276,13 @@ void handleConnection(ServerData* data, int socket, const sockaddr_in& address) 
     mbedtls_ssl_set_verify(&session->ssl, verifyClientCertificate, session);
 
     if (!handshake(data, session) || !readHello(data, session)) {
+        development_session_free(session);
+        return;
+    }
+
+    // The device information isn't sensitive, so it's handed out without a client certificate or trust
+    if (strcmp(session->hello.mode, "info") == 0) {
+        development_session_send_info(session, CONFIG_TT_DEVICE_VENDOR, CONFIG_TT_DEVICE_NAME_SIMPLE, CONFIG_TT_DEVICE_ID, TT_VERSION);
         development_session_free(session);
         return;
     }

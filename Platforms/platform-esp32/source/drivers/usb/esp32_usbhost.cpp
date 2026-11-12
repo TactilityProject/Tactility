@@ -21,7 +21,7 @@
 
 #define GET_CONFIG(device) ((const Esp32UsbHostConfig*)(device)->config)
 
-#define USB_HOST_AUDIO_SUPPORTED (CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3)
+#define USB_HOST_AUDIO_SUPPORTED (CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S31)
 
 constexpr auto USB_LIB_TASK_STACK        = 4096;
 constexpr auto USB_LIB_TASK_PRIORITY     = 10;
@@ -319,6 +319,7 @@ static error_t install_lib(UsbHostContext* ctx, const Esp32UsbHostConfig* cfg) {
         .enum_filter_cb      = nullptr,
         .fifo_settings_custom = {},
         .peripheral_map      = cfg->peripheral_map,
+        .fsls_only           = false,
     };
 
     esp_err_t ret = usb_host_install(&host_cfg);

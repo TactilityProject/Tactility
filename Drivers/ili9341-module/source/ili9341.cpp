@@ -45,6 +45,11 @@ struct Ili9341Internal {
     // pulse_reset() below) so the reset pin can live on any GPIO_CONTROLLER, not just native gpio0.
     GpioDescriptor* reset_descriptor;
     bool reset_active_high;
+    // Heap-allocated only when the devicetree supplies a custom init_sequence (see
+    // parse_init_sequence()) - nullptr otherwise, since the vendor's built-in default sequence
+    // is used then. Must outlive the panel: esp_lcd_ili9341 keeps the pointer and reads it on
+    // every esp_lcd_panel_init().
+    ili9341_lcd_init_cmd_t* parsed_init_cmds;
 };
 
 // Fires for every completed SPI transaction on this IO (not just draw_bitmap's color transfers -
@@ -88,6 +93,47 @@ static error_t pulse_reset(GpioDescriptor* descriptor) {
     return ERROR_NONE;
 }
 
+// Unpacks the devicetree's flat [cmd, data_len, delay_ms, data_len bytes...] encoding (produced
+// by the devicetree compiler's "array" property type - see init-sequence in
+// bindings/ilitek,ili9341.yaml) into a heap-allocated ili9341_lcd_init_cmd_t array. Each entry's
+// .data points directly into `bytes`, which is the devicetree's static const buffer and outlives
+// the device, so no per-entry copy is needed.
+static bool parse_init_sequence(const uint8_t* bytes, uint32_t length, ili9341_lcd_init_cmd_t** out_cmds, uint16_t* out_count) {
+    uint32_t count = 0;
+    for (uint32_t offset = 0; offset < length; count++) {
+        if (offset + 3 > length) {
+            LOG_E(TAG, "init-sequence truncated: entry header runs past the end of the array");
+            return false;
+        }
+        offset += 3 + bytes[offset + 1];
+        if (offset > length) {
+            LOG_E(TAG, "init-sequence truncated: entry data runs past the end of the array");
+            return false;
+        }
+    }
+
+    auto* cmds = static_cast<ili9341_lcd_init_cmd_t*>(malloc(count * sizeof(ili9341_lcd_init_cmd_t)));
+    if (cmds == nullptr) {
+        return false;
+    }
+
+    uint32_t offset = 0;
+    for (uint32_t i = 0; i < count; i++) {
+        uint8_t data_len = bytes[offset + 1];
+        cmds[i] = {
+            .cmd = bytes[offset],
+            .data = data_len > 0 ? &bytes[offset + 3] : nullptr,
+            .data_bytes = data_len,
+            .delay_ms = bytes[offset + 2],
+        };
+        offset += 3 + data_len;
+    }
+
+    *out_cmds = cmds;
+    *out_count = static_cast<uint16_t>(count);
+    return true;
+}
+
 // region Driver lifecycle
 
 static error_t start(Device* device) {
@@ -109,8 +155,10 @@ static error_t start(Device* device) {
     }
 
     internal->spi_controller = parent;
+    internal->parsed_init_cmds = nullptr;
     internal->draw_done_semaphore = xSemaphoreCreateBinary();
     if (internal->draw_done_semaphore == nullptr) {
+        free(internal->parsed_init_cmds);
         free(internal);
         return ERROR_OUT_OF_MEMORY;
     }
@@ -121,6 +169,20 @@ static error_t start(Device* device) {
         internal->reset_descriptor = gpio_descriptor_acquire(config->pin_reset.gpio_controller, config->pin_reset.pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
         if (internal->reset_descriptor == nullptr) {
             LOG_E(TAG, "Failed to acquire reset GPIO descriptor");
+            vSemaphoreDelete(internal->draw_done_semaphore);
+            free(internal->parsed_init_cmds);
+            free(internal);
+            return ERROR_RESOURCE;
+        }
+    }
+
+    uint16_t init_cmds_size = 0;
+    if (config->init_sequence != nullptr && config->init_sequence_length > 0) {
+        if (!parse_init_sequence(config->init_sequence, config->init_sequence_length, &internal->parsed_init_cmds, &init_cmds_size)) {
+            LOG_E(TAG, "Failed to parse init-sequence");
+            if (internal->reset_descriptor != nullptr) {
+                gpio_descriptor_release(internal->reset_descriptor);
+            }
             vSemaphoreDelete(internal->draw_done_semaphore);
             free(internal);
             return ERROR_RESOURCE;
@@ -159,9 +221,16 @@ static error_t start(Device* device) {
             gpio_descriptor_release(internal->reset_descriptor);
         }
         vSemaphoreDelete(internal->draw_done_semaphore);
+        free(internal->parsed_init_cmds);
         free(internal);
         return ERROR_RESOURCE;
     }
+
+    // Only read by esp_lcd_new_panel_ili9341(), which copies the pointer and size out of it.
+    ili9341_vendor_config_t vendor_config = {
+        .init_cmds = internal->parsed_init_cmds,
+        .init_cmds_size = init_cmds_size,
+    };
 
     esp_lcd_panel_dev_config_t panel_config = {
         .rgb_ele_order = config->bgr_order ? LCD_RGB_ELEMENT_ORDER_BGR : LCD_RGB_ELEMENT_ORDER_RGB,
@@ -170,7 +239,7 @@ static error_t start(Device* device) {
         // Always NC: pulse_reset() handles the physical pin itself (see its comment for why), and
         // esp_lcd_panel_reset() below falls back to a SWRESET command when this is NC.
         .reset_gpio_num = GPIO_NUM_NC,
-        .vendor_config = nullptr,
+        .vendor_config = internal->parsed_init_cmds != nullptr ? &vendor_config : nullptr,
         .flags = { .reset_active_high = config->reset_active_high },
     };
 
@@ -182,6 +251,7 @@ static error_t start(Device* device) {
             gpio_descriptor_release(internal->reset_descriptor);
         }
         vSemaphoreDelete(internal->draw_done_semaphore);
+        free(internal->parsed_init_cmds);
         free(internal);
         return ERROR_RESOURCE;
     }
@@ -217,6 +287,7 @@ static error_t start(Device* device) {
             gpio_descriptor_release(internal->reset_descriptor);
         }
         vSemaphoreDelete(internal->draw_done_semaphore);
+        free(internal->parsed_init_cmds);
         free(internal);
         return ERROR_RESOURCE;
     }
@@ -254,6 +325,7 @@ static error_t stop(Device* device) {
     }
 
     vSemaphoreDelete(internal->draw_done_semaphore);
+    free(internal->parsed_init_cmds);
     free(internal);
     device_set_driver_data(device, nullptr);
     return ERROR_NONE;
@@ -447,6 +519,7 @@ static const DisplayApi ili9341_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = ili9341_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver ili9341_driver = {
@@ -454,6 +527,7 @@ Driver ili9341_driver = {
     .compatible = (const char*[]) { "ilitek,ili9341", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &ili9341_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

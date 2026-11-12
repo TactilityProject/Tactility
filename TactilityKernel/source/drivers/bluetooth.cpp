@@ -30,6 +30,17 @@ error_t bluetooth_set_radio_enabled(struct Device* device, bool enabled) {
     return BT_API(device)->set_radio_enabled(device, enabled);
 }
 
+bool bluetooth_is_radio_on_or_pending(struct Device* device) {
+    if (!device_is_ready(device)) {
+        return false;
+    }
+    enum BtRadioState state;
+    if (BT_API(device)->get_radio_state(device, &state) != ERROR_NONE) {
+        return false;
+    }
+    return state == BT_RADIO_STATE_ON || state == BT_RADIO_STATE_ON_PENDING;
+}
+
 error_t bluetooth_scan_start(struct Device* device) {
     return BT_API(device)->scan_start(device);
 }
@@ -40,6 +51,10 @@ error_t bluetooth_scan_stop(struct Device* device) {
 
 bool bluetooth_is_scanning(struct Device* device) {
     return BT_API(device)->is_scanning(device);
+}
+
+bool bluetooth_is_peripheral_active(struct Device* device) {
+    return BT_API(device)->is_peripheral_active(device);
 }
 
 // ---- Pairing ----
@@ -58,12 +73,12 @@ error_t bluetooth_get_paired_peers(struct Device* device, struct BtPeerRecord* o
 
 // ---- Connect / disconnect ----
 
-error_t bluetooth_connect(struct Device* device, const BtAddr addr, enum BtProfileId profile) {
-    return BT_API(device)->connect(device, addr, profile);
+error_t bluetooth_host_connect(struct Device* device, const BtAddr addr) {
+    return BT_API(device)->host_connect(device, addr);
 }
 
-error_t bluetooth_disconnect(struct Device* device, const BtAddr addr, enum BtProfileId profile) {
-    return BT_API(device)->disconnect(device, addr, profile);
+error_t bluetooth_host_disconnect(struct Device* device, const BtAddr addr) {
+    return BT_API(device)->host_disconnect(device, addr);
 }
 
 // ---- Event subscription ----
@@ -125,14 +140,12 @@ error_t bluetooth_get_device_name(struct Device* device, char* buf, size_t buf_l
     return BT_API(device)->get_device_name(device, buf, buf_len);
 }
 
-// ---- HID host active flag ----
-
-void bluetooth_set_hid_host_active(struct Device* device, bool active) {
-    BT_API(device)->set_hid_host_active(device, active);
+error_t bluetooth_set_identity(struct Device* device, const char* identity) {
+    return BT_API(device)->set_identity(device, identity);
 }
 
-void bluetooth_fire_event(struct Device* device, struct BtEvent event) {
-    BT_API(device)->fire_event(device, event);
+error_t bluetooth_get_identity(struct Device* device, char* buf, size_t buf_len) {
+    return BT_API(device)->get_identity(device, buf, buf_len);
 }
 
 // ---- Device type ----

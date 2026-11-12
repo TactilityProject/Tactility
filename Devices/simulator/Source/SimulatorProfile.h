@@ -13,6 +13,7 @@ struct Profile {
     const char* name;
     uint16_t width;
     uint16_t height;
+    uint16_t dpi; // lvgl.dpi from device.properties (if set), otherwise display.dpi
     /** The default rotation: the display is taller than wide. The width and height values may be given in either order. */
     bool portrait;
     /** Compact UI density */
@@ -20,7 +21,7 @@ struct Profile {
     /** Greyscale display, which makes the monochrome theme apply */
     bool mono;
     bool keyboard;
-    bool pointer;
+    bool touch;
 };
 
 constexpr size_t PROFILE_COUNT = 6;

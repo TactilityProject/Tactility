@@ -10,6 +10,9 @@
 #include <tactility/freertos/task.h>
 #include <tactility/freertos/timers.h>
 
+// Deprecated app_execute*/app_start* symbols stay exported for apps built against older SDKs
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 extern "C" {
 
 static const ModuleSymbol SYMBOLS[] = {
@@ -138,13 +141,13 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(vPortYield),
     DEFINE_MODULE_SYMBOL(vPortEnterCritical),
     DEFINE_MODULE_SYMBOL(vPortExitCritical),
-#if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S3)
+#if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32S31)
     DEFINE_MODULE_SYMBOL(xPortEnterCriticalTimeout),
 #endif
 #if (configNUM_CORES > 1)
     DEFINE_MODULE_SYMBOL(vPortExitCriticalCompliance),
 #endif
-#ifdef CONFIG_IDF_TARGET_ESP32P4
+#if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S31)
     DEFINE_MODULE_SYMBOL(vPortExitCriticalMultiCore),
 #endif
 #ifdef ESP_PLATFORM

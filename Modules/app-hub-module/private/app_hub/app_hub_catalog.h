@@ -50,7 +50,7 @@ bool app_hub_catalog_for_each(const char* catalog_path, AppHubCatalogVisitor vis
  */
 bool app_hub_catalog_find(const char* catalog_path, const char* id, AppHubCatalogEntry& entry);
 
-/** @return the platform name of this device in the catalog's target platforms, e.g. "esp32s3" or "posix-x86_64" */
+/** @return the platform name of this device in the catalog's target platforms, e.g. "esp32s3" or "linux-x86_64" */
 const char* app_hub_catalog_get_platform();
 
 /** @return true when this device can install and run the entry's app (target platform, device and RAM requirements) */

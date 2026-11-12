@@ -11,7 +11,8 @@ extern "C" {
 
 typedef struct {
     bool is_dark;
-    bool is_compact;
+    int32_t spacing;
+    int32_t size;
     bool animations_enabled;
     lv_color_t color_primary;
     lv_color_t color_secondary;

@@ -44,10 +44,12 @@ set_target_properties(module_fixture PROPERTIES POSITION_INDEPENDENT_CODE ON)
 set(NON_ELF_FIXTURE_PATH "${CMAKE_CURRENT_BINARY_DIR}/not-elf.so")
 file(WRITE "${NON_ELF_FIXTURE_PATH}" "not an elf file")
 
-# An install-directory-shaped fixture: {dir}/bin/posix-{arch}/app.so, matching where
+tactility_get_posix_platform(POSIX_PLATFORM)
+
+# An install-directory-shaped fixture: {dir}/bin/{platform}/app.so, matching where
 # app_posix_loader_service.cpp's resolve_app_path() looks for a "packaged" app's single binary.
 set(INSTALL_DIR_FIXTURE_PATH "${CMAKE_CURRENT_BINARY_DIR}/install-dir-fixture")
-set(INSTALL_DIR_FIXTURE_BIN_DIR "${INSTALL_DIR_FIXTURE_PATH}/bin/posix-${CMAKE_SYSTEM_PROCESSOR}")
+set(INSTALL_DIR_FIXTURE_BIN_DIR "${INSTALL_DIR_FIXTURE_PATH}/bin/${POSIX_PLATFORM}")
 add_custom_command(
     OUTPUT "${INSTALL_DIR_FIXTURE_BIN_DIR}/app.so"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${INSTALL_DIR_FIXTURE_BIN_DIR}"
@@ -58,7 +60,7 @@ add_custom_target(install_dir_fixture DEPENDS "${INSTALL_DIR_FIXTURE_BIN_DIR}/ap
 
 # An install directory holding only the module fixture, where app_resolve_binary_path() looks for it.
 set(MODULE_INSTALL_DIR_PATH "${CMAKE_CURRENT_BINARY_DIR}/module-install-dir-fixture")
-set(MODULE_INSTALL_DIR_BIN_DIR "${MODULE_INSTALL_DIR_PATH}/bin/posix-${CMAKE_SYSTEM_PROCESSOR}")
+set(MODULE_INSTALL_DIR_BIN_DIR "${MODULE_INSTALL_DIR_PATH}/bin/${POSIX_PLATFORM}")
 add_custom_command(
     OUTPUT "${MODULE_INSTALL_DIR_BIN_DIR}/module_fixture.so"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${MODULE_INSTALL_DIR_BIN_DIR}"

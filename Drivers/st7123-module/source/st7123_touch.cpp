@@ -6,7 +6,7 @@
 #include <tactility/driver.h>
 #include <tactility/drivers/esp32_i2c_master.h>
 #include <tactility/drivers/i2c_controller.h>
-#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/log.h>
 
 #include <esp_err.h>
@@ -125,7 +125,7 @@ static error_t stop(Device* device) {
 
 // endregion
 
-// region PointerApi
+// region TouchApi
 
 static error_t st7123_touch_enter_sleep(Device* device) {
     auto* internal = static_cast<St7123TouchInternal*>(device_get_driver_data(device));
@@ -180,7 +180,7 @@ static error_t st7123_touch_get_mirror_y(Device* device, bool* mirror) {
 
 // endregion
 
-static const PointerApi st7123_touch_pointer_api = {
+static const TouchApi st7123_touch_api = {
     .enter_sleep = st7123_touch_enter_sleep,
     .exit_sleep = st7123_touch_exit_sleep,
     .read_data = st7123_touch_read_data,
@@ -198,7 +198,8 @@ Driver st7123_touch_driver = {
     .compatible = (const char*[]) { "sitronix,st7123-touch", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = &st7123_touch_pointer_api,
-    .device_type = &POINTER_TYPE,
+    .probe = nullptr,
+    .api = &st7123_touch_api,
+    .device_type = &TOUCH_TYPE,
     .internal = nullptr
 };

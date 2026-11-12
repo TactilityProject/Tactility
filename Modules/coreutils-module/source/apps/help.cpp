@@ -2,7 +2,7 @@
 #include <app/manager.h>
 #include <app/manifest.h>
 
-#include <TactilityCpp/Allocator.h>
+#include <tactility/Allocator.hpp>
 
 #include <algorithm>
 #include <cstdio>

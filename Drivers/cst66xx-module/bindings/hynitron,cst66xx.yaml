@@ -34,4 +34,4 @@ properties:
   pin-reset:
     type: phandles
     required: true
-    description: Reset GPIO pin. The chip only re-initializes into normal reporting mode after a clean reset pulse.
+    description: Reset GPIO pin, active low. The chip only re-initializes into normal reporting mode after a clean reset pulse.

@@ -40,4 +40,16 @@ struct CrashData {
 /** @return the crash data */
 const CrashData& getRtcCrashData();
 
+/**
+ * @brief Checks whether the RTC crash record contains a real crash.
+ *
+ * The record lives in RTC no-init memory, which loses its contents (and can contain random
+ * bytes) after a full power cycle, e.g. when the board's power controller cuts the rails.
+ * Validates the cause and the reason string before the record is reported or rendered.
+ */
+bool isRtcCrashDataValid();
+
+/** @brief Clears the RTC crash record. */
+void resetRtcCrashData();
+
 #endif

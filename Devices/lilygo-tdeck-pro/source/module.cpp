@@ -3,7 +3,12 @@
 extern "C" {
 
 struct Module lilygo_tdeck_pro_module = {
-    .name = "lilygo-tdeck-pro"
+    .name = "lilygo-tdeck-pro",
+    .start = nullptr,
+    .stop = nullptr,
+    .drivers = nullptr,
+    .symbols = nullptr,
+    .internal = nullptr
 };
 
 }

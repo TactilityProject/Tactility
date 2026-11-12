@@ -2,6 +2,8 @@
 #include <tactility/drivers/pointer.h>
 #include <tactility/device.h>
 
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 #define POINTER_DRIVER_API(driver) ((struct PointerApi*)driver->api)
 
 extern "C" {

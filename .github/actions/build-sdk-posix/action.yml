@@ -7,10 +7,22 @@ runs:
       with:
         submodules: recursive
         persist-credentials: false
-    - name: 'Detect architecture'
+    - name: 'Detect platform'
       id: arch
       shell: bash
-      run: echo "value=$(uname -m)" >> "$GITHUB_OUTPUT"
+      # The SDK platform is named <os>-<architecture>, e.g. linux-x86_64 or macos-arm64
+      run: echo "value=$(uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/macos/')-$(uname -m)" >> "$GITHUB_OUTPUT"
+    - name: 'Install Ninja'
+      if: ${{ runner.os == 'macOS' }}
+      shell: bash
+      run: brew install ninja
+    - name: 'Setup Python'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    - name: 'Install mbedtls codegen Python dependencies'
+      shell: bash
+      run: pip install -r Libraries/mbedtls/scripts/driver.requirements.txt
     - name: 'Configure'
       shell: bash
       run: cmake -S ./ -B buildsim
@@ -19,41 +31,41 @@ runs:
       run: cmake --build buildsim --target TactilityKernel lvgl minitar minmea $(cat Buildscripts/release-sdk-modules.txt)
     - name: 'Release'
       shell: bash
-      run: python Buildscripts/release-sdk-posix.py release/TactilitySDK
+      run: python3 Buildscripts/release-sdk-posix.py release/TactilitySDK
     - name: 'Test Integration Prep'
       shell: bash
       env:
         TACTILITY_ARCH: ${{ steps.arch.outputs.value }}
       run: |
-        TACTILITY_PLATFORM_PATH="test_sdk/sdk/$(cat version.txt)/platform-posix-$TACTILITY_ARCH"
+        TACTILITY_PLATFORM_PATH="test_sdk/sdk/$(cat version.txt)/platform-$TACTILITY_ARCH"
         mkdir -p $TACTILITY_PLATFORM_PATH
         cp -r release/TactilitySDK $TACTILITY_PLATFORM_PATH/TactilitySDK
         mkdir -p test_sdk/sdk/$(cat version.txt)/tools
         cp Buildscripts/TactilitySDK/Tools/*.py test_sdk/sdk/$(cat version.txt)/tools/
-        python -c "import sys; sys.path.insert(0, 'Buildscripts/CDN'); from new_project import create_new_project_zip; create_new_project_zip('test_sdk/sdk/$(cat version.txt)')"
+        cp -r Buildscripts/TactilitySDK/NewProject test_sdk/sdk/$(cat version.txt)/tools/NewProject
     - name: 'Test Integration'
       shell: bash
       env:
         TACTILITY_ARCH: ${{ steps.arch.outputs.value }}
-      run: cd Tests/SdkIntegration && TACTILITY_SDK_PATH=../../test_sdk python ../../tt.py app build -a posix-$TACTILITY_ARCH
+      run: cd Tests/SdkIntegration && TACTILITY_SDK_PATH=../../test_sdk python3 ../../tt.py app build -a $TACTILITY_ARCH
     - name: 'Test New Project'
       shell: bash
       env:
         TACTILITY_ARCH: ${{ steps.arch.outputs.value }}
       run: |
         SDK_VERSION=$(cat version.txt)
-        # The answers are: generate, SDK version, project type, package id, app id and app name. An empty line takes the default.
+        # The answers are: SDK version, project type, package id, app id and app name. An empty line takes the default.
         # A module has no app id or app name, so the extra lines are ignored.
         for type in "" "terminal" "module"; do
           project_path="$RUNNER_TEMP/new-project-${type:-gui}"
           mkdir -p "$project_path"
-          (cd "$project_path" && printf 'y\n%s\n%s\n\n\n\n' "$SDK_VERSION" "$type" | TACTILITY_SDK_PATH="$GITHUB_WORKSPACE/test_sdk" python "$GITHUB_WORKSPACE/tt.py" app build -a posix-$TACTILITY_ARCH)
+          (cd "$project_path" && printf '%s\n%s\n\n\n\n' "$SDK_VERSION" "$type" | TACTILITY_SDK_PATH="$GITHUB_WORKSPACE/test_sdk" python3 "$GITHUB_WORKSPACE/tt.py" app create && TACTILITY_SDK_PATH="$GITHUB_WORKSPACE/test_sdk" python3 "$GITHUB_WORKSPACE/tt.py" app build -a $TACTILITY_ARCH)
           # The project must have produced a binary for the manifest's entry
-          test -f "$project_path/build/package-intermediate/bin/posix-$TACTILITY_ARCH/main.so"
+          test -f "$project_path/build/package-intermediate/bin/$TACTILITY_ARCH/main.so"
         done
     - name: 'Upload Artifact'
       uses: actions/upload-artifact@v4
       with:
-        name: TactilitySDK-posix-${{ steps.arch.outputs.value }}
+        name: TactilitySDK-${{ steps.arch.outputs.value }}
         path: release/TactilitySDK
         retention-days: 30

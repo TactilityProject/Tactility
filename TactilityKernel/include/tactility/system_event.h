@@ -26,6 +26,7 @@ enum SystemEventType {
     KERNEL_EVENT_SERVICE_STOPPED, // ServiceStoppedEvent
     KERNEL_EVENT_TIME_CHANGED, // No data - fired whenever system time is set (NTP sync, RTC restore, manual change)
     KERNEL_EVENT_DEEP_SLEEP_PREPARE, // No data - fired synchronously right before the system enters deep sleep
+    KERNEL_EVENT_LOCATION_TIME, // struct LocationTimeEvent
 };
 
 /** Data for KERNEL_EVENT_NETWORK_CONNECTED. */
@@ -58,6 +59,12 @@ struct ServiceStartedEvent {
 /** Data for KERNEL_EVENT_SERVICE_STOPPED. */
 struct ServiceStoppedEvent {
     const char* id;
+};
+
+/** Data for KERNEL_EVENT_LOCATION_TIME. Fired at most once per minute while a satellite provider reports fixes. */
+struct LocationTimeEvent {
+    /** Current time according to the provider, in milliseconds since the Unix epoch */
+    int64_t time_ms;
 };
 
 /** Size of the largest type-specific event struct documented in SystemEventType, i.e. the

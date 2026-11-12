@@ -268,3 +268,26 @@ TEST_CASE("MeshStore reads the messages of one conversation") {
         store.close();
     }
 }
+
+TEST_CASE("MeshStore reads messages oldest first after a sequence number") {
+    const std::string directory = makeTempDirectory();
+    MeshStore store;
+    REQUIRE_EQ(store.open(directory.c_str()), ERROR_NONE);
+    for (const char* text : { "one", "two", "three" }) {
+        MeshMessage message = makeMessage(text, false, MESH_DELIVERY_RECEIVED);
+        REQUIRE_EQ(store.add(&message), ERROR_NONE);
+    }
+    CHECK(store.isOpen());
+
+    MeshMessage messages[4];
+    REQUIRE_EQ(store.getAfter(0, messages, 4), 3);
+    CHECK_EQ(std::string(messages[0].text), "one");
+    CHECK_EQ(std::string(messages[2].text), "three");
+
+    REQUIRE_EQ(store.getAfter(messages[0].seq, messages, 1), 1);
+    CHECK_EQ(std::string(messages[0].text), "two");
+    CHECK_EQ(store.getAfter(messages[0].seq + 1, messages, 4), 0);
+
+    store.close();
+    CHECK_FALSE(store.isOpen());
+}

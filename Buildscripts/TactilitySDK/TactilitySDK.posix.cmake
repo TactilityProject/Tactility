@@ -26,7 +26,7 @@ macro(tactility_project_post project_name)
         ${TACTILITY_SDK_PATH}/Modules/lvgl-window-manager-module/include
         ${TACTILITY_SDK_PATH}/Modules/service-module/include
         ${TACTILITY_SDK_PATH}/Libraries/TactilityKernel/include
-        ${TACTILITY_SDK_PATH}/Libraries/TactilityKernelCpp/Include
+        ${TACTILITY_SDK_PATH}/Libraries/TactilityKernel/include-cpp
         ${TACTILITY_SDK_PATH}/Libraries/lvgl/include
         ${TACTILITY_SDK_PATH}/Libraries/FreeRTOS-Kernel/include
         ${TACTILITY_SDK_PATH}/Libraries/FreeRTOS-Kernel/portable/ThirdParty/GCC/Posix
@@ -36,7 +36,10 @@ macro(tactility_project_post project_name)
     # An app's references to its own functions must bind to its own definitions, not to a same-named
     # libc function already loaded in the Tactility process (e.g. an app shipping its own regcomp()).
     # ESP32 apps get the same through -fvisibility=hidden. Mach-O binds within the image by default.
-    if (NOT APPLE)
+    if (APPLE)
+        # Symbols of the Tactility process are resolved when the app is loaded
+        target_link_options(TactilitySDK INTERFACE -undefined dynamic_lookup)
+    else ()
         target_link_options(TactilitySDK INTERFACE -Wl,-Bsymbolic)
     endif ()
 
@@ -51,7 +54,8 @@ macro(tactility_component_register)
     # executable"), regardless of whether it has a dynamic-linker segment - verified empirically.
     add_library(${PROJECT_NAME} SHARED ${TT_COMPONENT_SRCS})
     target_link_libraries(${PROJECT_NAME} PRIVATE TactilitySDK)
-    set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    # The app loader and tt expect ".so", where macOS would name it ".dylib"
+    set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON SUFFIX ".so")
     if (TT_COMPONENT_INCLUDE_DIRS)
         target_include_directories(${PROJECT_NAME} PRIVATE ${TT_COMPONENT_INCLUDE_DIRS})
     endif ()

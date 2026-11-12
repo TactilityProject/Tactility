@@ -216,6 +216,7 @@ Driver esp32_grove_driver = {
     .compatible = (const char*[]) { "espressif,esp32-grove", nullptr },
     .start_device = start_device,
     .stop_device = stop_device,
+    .probe = nullptr,
     .api = &esp32_grove_api,
     .device_type = &GROVE_TYPE,
     .internal = nullptr

@@ -119,6 +119,8 @@ def to_manifest_chip_name(name):
         return "ESP32-H4"
     elif name == "esp32p4":
         return "ESP32-P4"
+    elif name == "esp32s31":
+        return "ESP32-S31"
     else:
         exit_with_error(f"to_manifest_chip_name() doesn't support {name} yet")
         return ""
@@ -141,7 +143,7 @@ def process_device(in_path: str, out_path: str, device_directory: str, device_id
             name=f"Tactility for {device_vendor} {device_name}",
             version=version,
             new_install_prompt_erase="true",
-            funding_url="https://github.com/sponsors/ByteWelder",
+            funding_url="https://github.com/sponsors/TactilityProject",
             builds=[
                 ManifestBuild(
                     chipFamily=to_manifest_chip_name(flasher_args["extra_esptool_args"]["chip"]),

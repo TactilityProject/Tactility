@@ -7,10 +7,14 @@
 #include "tactility/drivers/gpio_descriptor.h"
 #include <tactility/drivers/esp32_gpio_helpers.h>
 #include <tactility/drivers/gpio_controller.h>
+#include <driver/spi_master.h>
+#include <esp_memory_utils.h>
+#include <algorithm>
 #include <cstring>
 #include <new>
 #include <soc/gpio_num.h>
 #include <vector>
+#include <tactility/std/vector.hpp>
 
 #define TAG "esp32_spi"
 
@@ -18,6 +22,13 @@
 #define GET_DATA(device) ((struct Esp32SpiInternal*)device_get_driver_data(device))
 
 extern "C" {
+
+struct SpiDevice {
+    spi_device_handle_t handle = nullptr;
+    GpioDescriptor* cs = nullptr;
+    bool bus_acquired = false;
+    bool half_duplex = false;
+};
 
 struct Esp32SpiInternal {
     RecursiveMutex mutex = {};
@@ -30,8 +41,11 @@ struct Esp32SpiInternal {
     GpioDescriptor* wp_descriptor = nullptr;
     GpioDescriptor* hd_descriptor = nullptr;
 
-    // CS pin descriptors
+    // CS pin descriptors, indexed like cs_gpios. Pins that aren't available are null.
     std::vector<GpioDescriptor*> cs_descriptors;
+
+    // The peripherals that were added and not removed yet. Guarded by the mutex.
+    tt::std::vector<SpiDevice*> devices;
 
     explicit Esp32SpiInternal() {
         recursive_mutex_construct(&mutex);
@@ -72,6 +86,188 @@ static error_t try_lock(Device* device, TickType_t timeout) {
 static error_t unlock(Device* device) {
     auto* driver_data = GET_DATA(device);
     recursive_mutex_unlock(&driver_data->mutex);
+    return ERROR_NONE;
+}
+
+static error_t add_device(Device* device, const SpiDeviceConfig* config, SpiDevice** spi_device) {
+    auto* data = GET_DATA(device);
+
+    GpioDescriptor* cs = nullptr;
+    if (config->cs_index != SPI_CS_NONE) {
+        if (config->cs_index < 0 || static_cast<size_t>(config->cs_index) >= data->cs_descriptors.size()) {
+            return ERROR_OUT_OF_RANGE;
+        }
+        cs = data->cs_descriptors[config->cs_index];
+        if (cs == nullptr) {
+            return ERROR_INVALID_STATE;
+        }
+    }
+
+    auto* new_device = new (std::nothrow) SpiDevice();
+    if (new_device == nullptr) return ERROR_OUT_OF_MEMORY;
+
+    // The chip select is driven through its GPIO descriptor
+    spi_device_interface_config_t device_config = {};
+    device_config.clock_speed_hz = static_cast<int>(config->clock_speed_hz);
+    device_config.mode = config->mode;
+    device_config.spics_io_num = -1;
+    device_config.queue_size = 1;
+    device_config.flags = config->half_duplex ? SPI_DEVICE_HALFDUPLEX : 0;
+
+    const esp_err_t result = spi_bus_add_device(GET_CONFIG(device)->host, &device_config, &new_device->handle);
+    if (result != ESP_OK) {
+        LOG_E(TAG, "Failed to add device: %s", esp_err_to_name(result));
+        delete new_device;
+        return ERROR_RESOURCE;
+    }
+
+    new_device->cs = cs;
+    new_device->half_duplex = config->half_duplex;
+
+    recursive_mutex_lock(&data->mutex);
+    data->devices.push_back(new_device);
+    recursive_mutex_unlock(&data->mutex);
+    *spi_device = new_device;
+    return ERROR_NONE;
+}
+
+static error_t remove_device(Device* device, SpiDevice* spi_device) {
+    auto* data = GET_DATA(device);
+
+    if (spi_device->bus_acquired) {
+        if (spi_device->cs != nullptr) gpio_descriptor_set_level(spi_device->cs, false);
+        spi_device_release_bus(spi_device->handle);
+        spi_device->bus_acquired = false;
+    }
+
+    // The device stays registered when removal fails, so stop() keeps refusing and the caller can retry
+    if (spi_bus_remove_device(spi_device->handle) != ESP_OK) return ERROR_RESOURCE;
+
+    recursive_mutex_lock(&data->mutex);
+    data->devices.erase(std::remove(data->devices.begin(), data->devices.end(), spi_device), data->devices.end());
+    recursive_mutex_unlock(&data->mutex);
+    delete spi_device;
+    return ERROR_NONE;
+}
+
+/** Sends @p length bytes, clocking out zeroes when @p tx_data is NULL. */
+static esp_err_t transmit_write_phase(SpiDevice* spi_device, const void* tx_data, size_t length) {
+    // ESP-IDF skips the write phase for a null buffer, so zeroes are sent from a buffer in chunks.
+    constexpr size_t ZERO_CHUNK_SIZE = 64;
+    uint8_t zero_buffer[ZERO_CHUNK_SIZE] = {};
+    esp_err_t result = ESP_OK;
+    size_t offset = 0;
+
+    do {
+        const size_t chunk = tx_data == nullptr ? std::min(length - offset, ZERO_CHUNK_SIZE) : length;
+        spi_transaction_t transaction = {};
+        transaction.length = chunk * 8;
+        transaction.tx_buffer = tx_data == nullptr ? zero_buffer : static_cast<const uint8_t*>(tx_data) + offset;
+#if defined(SOC_PSRAM_DMA_CAPABLE) && SOC_PSRAM_DMA_CAPABLE
+        // Let the SPI DMA engine read directly from PSRAM (e.g. a display frame buffer) instead of
+        // bouncing it through internal memory. Harmless for internal buffers: the driver checks the
+        // address itself.
+        if (tx_data != nullptr && esp_ptr_external_ram(tx_data)) {
+            transaction.flags |= SPI_TRANS_DMA_USE_PSRAM;
+        }
+#endif
+        result = spi_device_polling_transmit(spi_device->handle, &transaction);
+        offset += chunk;
+    } while (result == ESP_OK && offset < length);
+
+    return result;
+}
+
+/** Receives @p length bytes in half-duplex mode: MOSI stays idle, so only rxlength is set. */
+static esp_err_t transmit_read_phase(SpiDevice* spi_device, void* rx_data, size_t length) {
+    constexpr size_t READ_CHUNK_SIZE = 64;
+    esp_err_t result = ESP_OK;
+    size_t offset = 0;
+
+    do {
+        const size_t chunk = std::min(length - offset, READ_CHUNK_SIZE);
+        spi_transaction_t transaction = {};
+        transaction.rxlength = chunk * 8;
+        transaction.rx_buffer = static_cast<uint8_t*>(rx_data) + offset;
+        result = spi_device_polling_transmit(spi_device->handle, &transaction);
+        offset += chunk;
+    } while (result == ESP_OK && offset < length);
+
+    return result;
+}
+
+/** Clocks the write and read phases together, as a full-duplex peripheral expects. */
+static esp_err_t transmit_full_duplex(SpiDevice* spi_device, const void* tx_data, void* rx_data, size_t length) {
+    constexpr size_t ZERO_CHUNK_SIZE = 64;
+    uint8_t zero_buffer[ZERO_CHUNK_SIZE] = {};
+    esp_err_t result = ESP_OK;
+    size_t offset = 0;
+
+    do {
+        const size_t chunk = tx_data == nullptr ? std::min(length - offset, ZERO_CHUNK_SIZE) : length;
+        spi_transaction_t transaction = {};
+        transaction.length = chunk * 8;
+        transaction.tx_buffer = tx_data == nullptr ? zero_buffer : static_cast<const uint8_t*>(tx_data) + offset;
+        transaction.rx_buffer = rx_data == nullptr ? nullptr : static_cast<uint8_t*>(rx_data) + offset;
+#if defined(SOC_PSRAM_DMA_CAPABLE) && SOC_PSRAM_DMA_CAPABLE
+        // See transmit_write_phase(): external transmit buffers are read by the DMA engine directly.
+        if (tx_data != nullptr && esp_ptr_external_ram(tx_data)) {
+            transaction.flags |= SPI_TRANS_DMA_USE_PSRAM;
+        }
+#endif
+        result = spi_device_polling_transmit(spi_device->handle, &transaction);
+        offset += chunk;
+    } while (result == ESP_OK && offset < length);
+
+    return result;
+}
+
+static error_t transmit(Device* device, SpiDevice* spi_device, const void* tx_data, void* rx_data, size_t length) {
+    if (length == 0) return ERROR_NONE;
+
+    // The bus is taken before the chip select is asserted, so no other peripheral is selected during another one's transfer
+    const bool select = spi_device->cs != nullptr && !spi_device->bus_acquired;
+    if (select) {
+        if (spi_device_acquire_bus(spi_device->handle, portMAX_DELAY) != ESP_OK) return ERROR_RESOURCE;
+        gpio_descriptor_set_level(spi_device->cs, true);
+    }
+
+    esp_err_t result = ESP_OK;
+    if (spi_device->half_duplex) {
+        // ESP-IDF rejects a half-duplex transaction that enables both the MOSI and MISO phases, so a
+        // read/write call becomes a write transaction followed by a read transaction. Only one of
+        // them is submitted per call when the caller wants a single direction. The chip select is
+        // driven by hand, so it stays asserted between the two transactions.
+        if (tx_data != nullptr || rx_data == nullptr) {
+            result = transmit_write_phase(spi_device, tx_data, length);
+        }
+        if (result == ESP_OK && rx_data != nullptr) {
+            result = transmit_read_phase(spi_device, rx_data, length);
+        }
+    } else {
+        result = transmit_full_duplex(spi_device, tx_data, rx_data, length);
+    }
+
+    if (select) {
+        gpio_descriptor_set_level(spi_device->cs, false);
+        spi_device_release_bus(spi_device->handle);
+    }
+    return result == ESP_OK ? ERROR_NONE : ERROR_RESOURCE;
+}
+
+static error_t acquire_bus(Device* device, SpiDevice* spi_device) {
+    if (spi_device->bus_acquired) return ERROR_INVALID_STATE;
+    if (spi_device_acquire_bus(spi_device->handle, portMAX_DELAY) != ESP_OK) return ERROR_RESOURCE;
+    if (spi_device->cs != nullptr) gpio_descriptor_set_level(spi_device->cs, true);
+    spi_device->bus_acquired = true;
+    return ERROR_NONE;
+}
+
+static error_t release_bus(Device* device, SpiDevice* spi_device) {
+    if (!spi_device->bus_acquired) return ERROR_INVALID_STATE;
+    if (spi_device->cs != nullptr) gpio_descriptor_set_level(spi_device->cs, false);
+    spi_device_release_bus(spi_device->handle);
+    spi_device->bus_acquired = false;
     return ERROR_NONE;
 }
 
@@ -139,11 +335,11 @@ static error_t start(Device* device) {
     // Acquire CS pins
     for (uint8_t i = 0; i < dts_config->cs_gpios_count; i++) {
         const GpioPinSpec* cs = &dts_config->cs_gpios[i];
-        if (cs->gpio_controller == nullptr) continue;
-        GpioDescriptor* desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_SPI);
-        if (desc != nullptr) {
-            data->cs_descriptors.push_back(desc);
+        GpioDescriptor* desc = nullptr;
+        if (cs->gpio_controller != nullptr) {
+            desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_SPI);
         }
+        data->cs_descriptors.push_back(desc);
     }
 
     esp32_spi_deselect_all_cs(device);
@@ -156,7 +352,9 @@ void esp32_spi_deselect_all_cs(Device* device) {
     auto* data = GET_DATA(device);
     if (data == nullptr) return;
     for (auto* desc : data->cs_descriptors) {
-        gpio_descriptor_set_level(desc, false);
+        if (desc != nullptr) {
+            gpio_descriptor_set_level(desc, false);
+        }
     }
 }
 
@@ -165,9 +363,22 @@ static error_t stop(Device* device) {
     auto* driver_data = GET_DATA(device);
     auto* dts_config = GET_CONFIG(device);
 
-    if (driver_data->initialized) {
-        spi_bus_free(dts_config->host);
+    // The bus can't be freed while peripherals are attached, and their owners still hold the handles
+    recursive_mutex_lock(&driver_data->mutex);
+    if (!driver_data->devices.empty()) {
+        recursive_mutex_unlock(&driver_data->mutex);
+        LOG_E(TAG, "Cannot stop %s: %u device(s) still added", device->name, (unsigned)driver_data->devices.size());
+        return ERROR_INVALID_STATE;
     }
+    if (driver_data->initialized) {
+        const esp_err_t result = spi_bus_free(dts_config->host);
+        if (result != ESP_OK) {
+            recursive_mutex_unlock(&driver_data->mutex);
+            LOG_E(TAG, "Failed to free SPI bus: %s", esp_err_to_name(result));
+            return ERROR_RESOURCE;
+        }
+    }
+    recursive_mutex_unlock(&driver_data->mutex);
 
     driver_data->cleanup_pins();
     device_set_driver_data(device, nullptr);
@@ -188,7 +399,12 @@ error_t esp32_spi_get_cs_pin(Device* child_device, GpioPinSpec* out_pin) {
 const static struct SpiControllerApi esp32_spi_api = {
     .lock = lock,
     .try_lock = try_lock,
-    .unlock = unlock
+    .unlock = unlock,
+    .add_device = add_device,
+    .remove_device = remove_device,
+    .transmit = transmit,
+    .acquire_bus = acquire_bus,
+    .release_bus = release_bus
 };
 
 Driver esp32_spi_driver = {
@@ -196,6 +412,7 @@ Driver esp32_spi_driver = {
     .compatible = (const char*[]) { "espressif,esp32-spi", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = (void*)&esp32_spi_api,
     .device_type = &SPI_CONTROLLER_TYPE,
     .internal = nullptr

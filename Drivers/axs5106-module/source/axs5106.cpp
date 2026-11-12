@@ -7,7 +7,7 @@
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
-#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
 
@@ -99,7 +99,7 @@ static error_t stop(Device* device) {
 
 // endregion
 
-// region PointerApi
+// region TouchApi
 
 static error_t axs5106_read_data(Device* device, TickType_t) {
     auto* internal = static_cast<Axs5106Internal*>(device_get_driver_data(device));
@@ -211,8 +211,8 @@ static error_t axs5106_get_mirror_y(Device* device, bool* mirror) {
 
 // endregion
 
-static const PointerApi axs5106_pointer_api = {
-    // Unsupported (null per PointerApi's contract): neither the vendor demo nor the original
+static const TouchApi axs5106_touch_api = {
+    // Unsupported (null per TouchApi's contract): neither the vendor demo nor the original
     // esp_lcd_touch component implements a sleep mode for this chip.
     .enter_sleep = nullptr,
     .exit_sleep = nullptr,
@@ -231,7 +231,8 @@ Driver axs5106_driver = {
     .compatible = (const char*[]) { "axs,axs5106", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = &axs5106_pointer_api,
-    .device_type = &POINTER_TYPE,
+    .probe = nullptr,
+    .api = &axs5106_touch_api,
+    .device_type = &TOUCH_TYPE,
     .internal = nullptr
 };

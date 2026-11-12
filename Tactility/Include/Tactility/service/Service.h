@@ -2,8 +2,8 @@
 
 #include <service/instance.h>
 
-#include <TactilityCpp/Allocator.h>
-#include <TactilityCpp/Memory.h>
+#include <tactility/Allocator.hpp>
+#include <tactility/Memory.hpp>
 
 #include <memory>
 

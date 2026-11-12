@@ -13,8 +13,9 @@ extern "C" {
 
 /**
  * @brief API for pointer controller drivers.
+ * @deprecated Use TouchApi from <tactility/drivers/touch.h>
  */
-struct PointerApi {
+struct __attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>"))) PointerApi {
     /**
      * @brief Puts the pointer controller into its low-power sleep mode.
      * @warning Function pointer should be null if not supported by the underlying protocol.
@@ -101,54 +102,64 @@ struct PointerApi {
 /**
  * @brief Puts the pointer controller into its low-power sleep mode using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 error_t pointer_enter_sleep(struct Device* device);
 
 /**
  * @brief Wakes the pointer controller from sleep mode using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 error_t pointer_exit_sleep(struct Device* device);
 
 /**
  * @brief Performs a blocking read of the latest touch data using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 error_t pointer_read_data(struct Device* device, TickType_t timeout);
 
 /**
  * @brief Retrieves the coordinates most recently read using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 bool pointer_get_touched_points(struct Device* device, uint16_t* x, uint16_t* y, uint16_t* strength, uint8_t* point_count, uint8_t max_point_count);
 
 /**
  * @brief Sets whether the X and Y axes should be swapped using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 error_t pointer_set_swap_xy(struct Device* device, bool swap);
 
 /**
  * @brief Gets whether the X and Y axes are swapped using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 error_t pointer_get_swap_xy(struct Device* device, bool* swap);
 
 /**
  * @brief Sets whether the X axis should be mirrored using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 error_t pointer_set_mirror_x(struct Device* device, bool mirror);
 
 /**
  * @brief Gets whether the X axis is mirrored using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 error_t pointer_get_mirror_x(struct Device* device, bool* mirror);
 
 /**
  * @brief Sets whether the Y axis should be mirrored using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 error_t pointer_set_mirror_y(struct Device* device, bool mirror);
 
 /**
  * @brief Gets whether the Y axis is mirrored using the specified pointer device.
  */
+__attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")))
 error_t pointer_get_mirror_y(struct Device* device, bool* mirror);
 
-extern const struct DeviceType POINTER_TYPE;
+extern const struct DeviceType POINTER_TYPE __attribute__((deprecated("Use touch driver in <tactility/drivers/touch.h>")));
 
 #ifdef __cplusplus
 }

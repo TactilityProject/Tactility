@@ -200,12 +200,17 @@ static error_t button_control_read_key(Device* device, KeyboardKeyData* data) {
     return ERROR_NONE;
 }
 
+// Buttons can't type text, so they don't count as a hardware keyboard and the software keyboard stays available
+static bool button_control_is_present(Device*) {
+    return false;
+}
+
 // endregion
 
 static constexpr KeyboardApi button_control_api = {
     .read_key = button_control_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
+    .is_present = button_control_is_present,
 };
 
 Driver button_control_driver = {
@@ -213,6 +218,7 @@ Driver button_control_driver = {
     .compatible = (const char*[]) { "tactility,button-control", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &button_control_api,
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr

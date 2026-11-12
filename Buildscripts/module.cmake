@@ -12,6 +12,16 @@ macro(tactility_get_module_name NAME OUT_NAME)
     endif ()
 endmacro()
 
+# The platform name of a build for this computer, e.g. "linux-x86_64" or "macos-arm64".
+# It names the folder of an app binary (bin/<platform>) and the SDK platform.
+macro(tactility_get_posix_platform OUT_NAME)
+    if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        set(${OUT_NAME} "macos-${CMAKE_SYSTEM_PROCESSOR}")
+    else ()
+        set(${OUT_NAME} "linux-${CMAKE_SYSTEM_PROCESSOR}")
+    endif ()
+endmacro()
+
 macro(tactility_add_module NAME)
     # WHOLE_ARCHIVE: force every object file in this module into the final link unconditionally,
     # instead of only the ones some other already-scanned archive currently has a pending

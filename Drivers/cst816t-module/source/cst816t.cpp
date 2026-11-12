@@ -7,7 +7,7 @@
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
-#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
 
@@ -125,7 +125,7 @@ static error_t stop(Device* device) {
 
 // endregion
 
-// region PointerApi
+// region TouchApi
 
 static error_t cst816t_read_data(Device* device, TickType_t) {
     auto* internal = static_cast<Cst816tInternal*>(device_get_driver_data(device));
@@ -222,8 +222,8 @@ static error_t cst816t_get_mirror_y(Device* device, bool* mirror) {
 
 // endregion
 
-static const PointerApi cst816t_pointer_api = {
-    // Unsupported (null per PointerApi's contract): the reference driver defines
+static const TouchApi cst816t_touch_api = {
+    // Unsupported (null per TouchApi's contract): the reference driver defines
     // REG_SLEEP_MODE (0xE5) but never writes it, and the datasheet says waking up needs a
     // hardware reset pulse rather than a register write.
     .enter_sleep = nullptr,
@@ -243,7 +243,8 @@ Driver cst816t_driver = {
     .compatible = (const char*[]) { "hynitron,cst816t", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = &cst816t_pointer_api,
-    .device_type = &POINTER_TYPE,
+    .probe = nullptr,
+    .api = &cst816t_touch_api,
+    .device_type = &TOUCH_TYPE,
     .internal = nullptr
 };

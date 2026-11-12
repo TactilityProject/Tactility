@@ -167,6 +167,11 @@ static void midi_keepalive_cb(void* arg) {
 // All functions receive the midi child Device*.
 
 static error_t midi_start(struct Device* device) {
+    // The radio may already be on under another app's identity (system Bluetooth on).
+    if (!ble_prepare_profile_start(device)) {
+        return ERROR_INVALID_STATE;
+    }
+    ble_identity_apply_pending(device);
     // gap_mutex (not radio_mutex - see BleCtx::gap_mutex's comment) serializes this GAP sequence
     // against on_sync()'s own advertising decision and hid/spp's start/stop.
     BleCtx* root_ctx = ble_get_ctx(device);
@@ -261,6 +266,7 @@ Driver esp32_ble_midi_driver = {
     .compatible   = nullptr,
     .start_device = esp32_ble_midi_start_device,
     .stop_device  = esp32_ble_midi_stop_device,
+    .probe = nullptr,
     .api          = &nimble_midi_api,
     .device_type  = &BLUETOOTH_MIDI_TYPE,
     .internal     = nullptr,

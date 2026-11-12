@@ -46,8 +46,11 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(strftime),
     DEFINE_MODULE_SYMBOL(time),
     DEFINE_MODULE_SYMBOL(difftime),
-    DEFINE_MODULE_SYMBOL(localtime),
     DEFINE_MODULE_SYMBOL(mktime),
+    DEFINE_MODULE_SYMBOL(gmtime),
+    DEFINE_MODULE_SYMBOL(gmtime_r),
+    DEFINE_MODULE_SYMBOL(localtime),
+    DEFINE_MODULE_SYMBOL(localtime_r),
     // math.h
     DEFINE_MODULE_SYMBOL(acoshf),
     DEFINE_MODULE_SYMBOL(acosf),

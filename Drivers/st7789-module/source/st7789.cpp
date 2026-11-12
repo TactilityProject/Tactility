@@ -374,6 +374,7 @@ static const DisplayApi st7789_display_api = {
     .get_frame_buffer_count = nullptr,
     .get_backlight = st7789_get_backlight,
     .has_capability = nullptr,
+    .get_shape = nullptr,
 };
 
 Driver st7789_driver = {
@@ -381,6 +382,7 @@ Driver st7789_driver = {
     .compatible = (const char*[]) { "sitronix,st7789", nullptr },
     .start_device = start,
     .stop_device = stop,
+    .probe = nullptr,
     .api = &st7789_display_api,
     .device_type = &DISPLAY_TYPE,
     .internal = nullptr

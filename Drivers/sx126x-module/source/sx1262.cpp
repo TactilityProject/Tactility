@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <TactilityCpp/Memory.h>
+#include <tactility/Memory.hpp>
 
 #include <tactility/delay.h>
 #include <tactility/device.h>
@@ -83,7 +83,7 @@ static GpioDescriptor* acquire_native_pin(const struct GpioPinSpec& spec, const 
 
 /**
  * Acquire an optional control pin (may sit behind an IO expander) and drive it to the given logical state.
- * Controllers may not support ACTIVE_LOW on outputs (e.g. xl9555), so polarity from the pin spec is applied here.
+ * The pin spec's ACTIVE_LOW flag makes the descriptor invert the level.
  */
 static error_t acquire_and_drive_pin(const struct GpioPinSpec& spec, const char* pin_name, bool active, GpioDescriptor** out_descriptor) {
     if (spec.gpio_controller == nullptr) {
@@ -91,29 +91,26 @@ static error_t acquire_and_drive_pin(const struct GpioPinSpec& spec, const char*
         return ERROR_NONE;
     }
 
-    // Polarity is applied by hand below, so the descriptor is acquired as a plain output.
-    auto* descriptor = gpio_descriptor_acquire(spec.gpio_controller, spec.pin, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
+    auto* descriptor = gpio_descriptor_acquire(spec.gpio_controller, spec.pin, GPIO_FLAG_DIRECTION_OUTPUT | (spec.flags & GPIO_FLAG_ACTIVE_LOW), GPIO_OWNER_GPIO);
     if (descriptor == nullptr) {
         LOG_E(TAG, "Failed to acquire pin \"%s\"", pin_name);
         return ERROR_RESOURCE;
     }
 
-    const bool level = (spec.flags & GPIO_FLAG_ACTIVE_LOW) ? !active : active;
-    if (gpio_descriptor_set_level(descriptor, level) != ERROR_NONE) {
+    if (gpio_descriptor_set_level(descriptor, active) != ERROR_NONE) {
         LOG_E(TAG, "Failed to drive pin \"%s\"", pin_name);
         gpio_descriptor_release(descriptor);
         return ERROR_RESOURCE;
     }
 
-    LOG_I(TAG, "Pin \"%s\" (controller \"%s\" pin %u) driven %s", pin_name, spec.gpio_controller->name, spec.pin, level ? "high" : "low");
+    LOG_I(TAG, "Pin \"%s\" (controller \"%s\" pin %u) driven %s", pin_name, spec.gpio_controller->name, spec.pin, active ? "active" : "inactive");
     *out_descriptor = descriptor;
     return ERROR_NONE;
 }
 
-static void set_pin_active(GpioDescriptor* descriptor, const struct GpioPinSpec& spec, bool active) {
+static void set_pin_active(GpioDescriptor* descriptor, bool active) {
     if (descriptor != nullptr) {
-        const bool level = (spec.flags & GPIO_FLAG_ACTIVE_LOW) ? !active : active;
-        gpio_descriptor_set_level(descriptor, level);
+        gpio_descriptor_set_level(descriptor, active);
     }
 }
 
@@ -224,16 +221,17 @@ static error_t detect_chip(Device* device) {
     Sx1262Internal pins;
     pins.pin_reset = acquire_probe_pin(config->pin_reset, GPIO_FLAG_DIRECTION_OUTPUT);
     pins.pin_busy = acquire_probe_pin(config->pin_busy, GPIO_FLAG_DIRECTION_INPUT);
-    pins.pin_antenna_select = acquire_probe_pin(config->pin_antenna_select, GPIO_FLAG_DIRECTION_OUTPUT);
-    pins.pin_enable = acquire_probe_pin(config->pin_enable, GPIO_FLAG_DIRECTION_OUTPUT);
+    // The control pins keep their polarity, so active and inactive mean the same as when the radio runs
+    pins.pin_antenna_select = acquire_probe_pin(config->pin_antenna_select, GPIO_FLAG_DIRECTION_OUTPUT | (config->pin_antenna_select.flags & GPIO_FLAG_ACTIVE_LOW));
+    pins.pin_enable = acquire_probe_pin(config->pin_enable, GPIO_FLAG_DIRECTION_OUTPUT | (config->pin_enable.flags & GPIO_FLAG_ACTIVE_LOW));
     const bool acquired = pins.pin_reset != nullptr && pins.pin_busy != nullptr &&
         (pins.pin_antenna_select != nullptr || config->pin_antenna_select.gpio_controller == nullptr) &&
         (pins.pin_enable != nullptr || config->pin_enable.gpio_controller == nullptr);
 
     bool found = false;
     if (acquired) {
-        set_pin_active(pins.pin_antenna_select, config->pin_antenna_select, true);
-        set_pin_active(pins.pin_enable, config->pin_enable, true);
+        set_pin_active(pins.pin_antenna_select, true);
+        set_pin_active(pins.pin_enable, true);
         if (pins.pin_enable != nullptr) {
             delay_millis(10);
         }
@@ -249,8 +247,8 @@ static error_t detect_chip(Device* device) {
         // A found module stays powered: switching it off right before the device starts can leave it
         // without a clean power-on reset
         if (!found) {
-            set_pin_active(pins.pin_enable, config->pin_enable, false);
-            set_pin_active(pins.pin_antenna_select, config->pin_antenna_select, false);
+            set_pin_active(pins.pin_enable, false);
+            set_pin_active(pins.pin_antenna_select, false);
         }
     }
 
@@ -386,8 +384,8 @@ static error_t start(Device* device) {
     if (data->radio->probe() != ERROR_NONE) {
         tt::deleteObject(data->radio);
         // Power down first, then release the antenna path (mirror of the start order)
-        set_pin_active(data->pin_enable, config->pin_enable, false);
-        set_pin_active(data->pin_antenna_select, config->pin_antenna_select, false);
+        set_pin_active(data->pin_enable, false);
+        set_pin_active(data->pin_antenna_select, false);
         data->release_pins();
         tt::deleteObject(data);
         return ERROR_RESOURCE;
@@ -408,9 +406,8 @@ static error_t stop(Device* device) {
     data->radio = nullptr;
 
     // Power down first, then release the antenna path (mirror of the start order)
-    auto* config = GET_CONFIG(device);
-    set_pin_active(data->pin_enable, config->pin_enable, false);
-    set_pin_active(data->pin_antenna_select, config->pin_antenna_select, false);
+    set_pin_active(data->pin_enable, false);
+    set_pin_active(data->pin_antenna_select, false);
 
     data->release_pins();
     device_set_driver_data(device, nullptr);

@@ -89,6 +89,9 @@ enum LocationPrecision location_get_precision(void);
  */
 error_t location_get(struct Location* location);
 
+/** In bytes */
+#define LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH 24
+
 /**
  * Caller-owned subscription: the service signals @a bit on the event group whenever a new current fix is reported.
  * Read the fix with location_get().
@@ -98,6 +101,7 @@ struct LocationSubscription {
     uint32_t bit;
 
     struct {
+        char description[LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH + 1];
         struct TaskEventGroup* event_group;
         struct LocationSubscription* next;
     } internal;
@@ -108,13 +112,20 @@ struct LocationSubscription {
  * Providers start and stop in the background: subscribing and unsubscribing don't wait for them.
  * @param[in,out] sub subscription to register, must stay alive until unsubscribed
  * @param[in] event_group caller-owned group to wait on, must outlive @a sub
+ * @param[in] description what the subscriber is, shown to the user. Truncated to LOCATION_SUBSCRIBER_DESCRIPTION_MAX_LENGTH bytes, at a UTF-8 character boundary.
  * @retval ERROR_RESOURCE @a event_group has no free bits left
  * @retval ERROR_INVALID_STATE @a sub is already registered
  */
-error_t location_subscribe(struct LocationSubscription* sub, struct TaskEventGroup* event_group);
+error_t location_subscribe(struct LocationSubscription* sub, struct TaskEventGroup* event_group, const char* description);
 
 /** @retval ERROR_NOT_FOUND when @a sub is not registered */
 error_t location_unsubscribe(struct LocationSubscription* sub);
+
+/**
+ * Calls @a callback for each subscription, in subscription order.
+ * The service lock is held during the callback, so it must only copy the description.
+ */
+void location_for_each_subscriber(void* context, void (*callback)(const char* description, void* context));
 
 /** @return true when location services are enabled and there is at least one subscription */
 bool location_is_in_use(void);

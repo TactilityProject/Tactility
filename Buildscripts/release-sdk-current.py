@@ -61,7 +61,8 @@ def main():
         run_release_script("release-sdk-esp32.py", sdk_path)
     else:
         arch = platform.machine()
-        sdk_path = os.path.join("release", "sdk", version, f"platform-posix-{arch}", "TactilitySDK")
+        host_os = "macos" if platform.system() == "Darwin" else "linux"
+        sdk_path = os.path.join("release", "sdk", version, f"platform-{host_os}-{arch}", "TactilitySDK")
         run_release_script("release-sdk-posix.py", sdk_path)
 
 if __name__ == "__main__":

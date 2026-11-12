@@ -85,7 +85,7 @@ void TimeZoneView::createWidgets(lv_obj_t* parent) {
     lv_obj_set_width(card, LV_PCT(100));
     lv_obj_set_flex_grow(card, 1);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(card, false);
 
     auto* searchRow = lv_obj_create(card);
     lv_obj_remove_style_all(searchRow);
@@ -233,7 +233,8 @@ void TimeZoneView::showState() {
         return;
     }
     const bool isDetecting = detecting;
-    lv_obj_set_hidden(detectButton, isDetecting);
+    // Detection needs location services, which are loaded at boot
+    lv_obj_set_hidden(detectButton, isDetecting || !location_is_enabled());
     lv_obj_set_hidden(detectSpinner, !isDetecting);
     mutex.lock();
     lv_label_set_text(messageLabel, message.c_str());

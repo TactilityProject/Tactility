@@ -5,7 +5,7 @@
 #include <app/package_manifest.h>
 #include <app/private/binary_path.h>
 
-#include <TactilityCpp/Allocator.h>
+#include <tactility/Allocator.hpp>
 
 #include <string>
 #include <vector>

@@ -6,10 +6,9 @@
 #include <Tactility/app/btmanage/View.h>
 #include <Tactility/app/btmanage/BtManagePrivate.h>
 #include <Tactility/app/btpeersettings/BtPeerSettings.h>
-#include <Tactility/bluetooth/Bluetooth.h>
-#include <Tactility/bluetooth/BluetoothSettings.h>
-#include <Tactility/bluetooth/BluetoothPairedDevice.h>
 #include <Tactility/Tactility.h>
+
+#include <bluetooth/bluetooth_paired_device.h>
 
 #include <app/event.h>
 #include <lvgl/widgets/card.h>
@@ -58,7 +57,9 @@ void View::onConnect(lv_event_t* event) {
         // Open the per-device settings screen for paired devices
         auto peers = data->state->getPairedPeers();
         if (data->index < peers.size()) {
-            btpeersettings::start(bluetooth::settings::addrToHex(peers[data->index].addr));
+            char addr_hex[BLUETOOTH_ADDR_HEX_LENGTH + 1];
+            bluetooth_addr_to_hex(peers[data->index].addr, addr_hex);
+            btpeersettings::start(addr_hex);
         }
     } else {
         // Unrecognised scan result — initiate pairing
@@ -97,9 +98,9 @@ static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
     return list;
 }
 
-void View::createPeerListItem(lv_obj_t* list, const bluetooth::PeerRecord& record, bool isPaired, size_t index) {
+void View::createPeerListItem(lv_obj_t* list, const BluetoothPeer& record, bool isPaired, size_t index) {
     const auto percentage = mapRssiToPercentage(record.rssi);
-    const auto label = record.name.empty()
+    const auto label = record.name[0] == '\0'
         ? std::format("Unknown ({:02x}{:02x}{:02x}{:02x}{:02x}{:02x}) {}%",
             record.addr[0], record.addr[1], record.addr[2],
             record.addr[3], record.addr[4], record.addr[5],
@@ -121,19 +122,18 @@ void View::createPeerListItem(lv_obj_t* list, const bluetooth::PeerRecord& recor
 void View::updateBtToggle() {
     lv_obj_clear_state(enable_switch, LV_STATE_ANY);
     switch (state->getRadioState()) {
-        using enum bluetooth::RadioState;
-        case On:
+        case BT_RADIO_STATE_ON:
             lv_obj_add_state(enable_switch, LV_STATE_CHECKED);
             break;
-        case OnPending:
+        case BT_RADIO_STATE_ON_PENDING:
             lv_obj_add_state(enable_switch, LV_STATE_CHECKED);
             lv_obj_add_state(enable_switch, LV_STATE_DISABLED);
             break;
-        case Off:
+        case BT_RADIO_STATE_OFF:
             lv_obj_remove_state(enable_switch, LV_STATE_CHECKED);
             lv_obj_remove_state(enable_switch, LV_STATE_DISABLED);
             break;
-        case OffPending:
+        case BT_RADIO_STATE_OFF_PENDING:
             lv_obj_remove_state(enable_switch, LV_STATE_CHECKED);
             lv_obj_add_state(enable_switch, LV_STATE_DISABLED);
             break;
@@ -141,7 +141,7 @@ void View::updateBtToggle() {
 }
 
 void View::updateScanning() {
-    if (state->getRadioState() == bluetooth::RadioState::On && state->isScanning()) {
+    if (state->getRadioState() == BT_RADIO_STATE_ON && state->isScanning()) {
         lv_obj_set_hidden(scanning_spinner, false);
     } else {
         lv_obj_set_hidden(scanning_spinner, true);
@@ -151,8 +151,7 @@ void View::updateScanning() {
 void View::updatePeerList() {
     lv_obj_clean(peers_list);
 
-    using enum bluetooth::RadioState;
-    if (state->getRadioState() == On) {
+    if (state->getRadioState() == BT_RADIO_STATE_ON) {
         // Paired peers section
         auto paired = state->getPairedPeers();
         if (!paired.empty()) {
@@ -168,7 +167,7 @@ void View::updatePeerList() {
         // Devices without a name are skipped. The index stays that of the scan results, which the click handler uses.
         bool hasNamedResults = false;
         for (size_t i = 0; i < scan_results.size(); ++i) {
-            if (!scan_results[i].name.empty()) {
+            if (scan_results[i].name[0] != '\0') {
                 createPeerListItem(available_section, scan_results[i], false, i);
                 hasNamedResults = true;
             }

@@ -2,9 +2,9 @@
 
 #include <service/manager.h>
 
-#include <TactilityCpp/Memory.h>
-#include <TactilityCpp/std/string.h>
-#include <TactilityCpp/std/unordered_map.h>
+#include <tactility/Memory.hpp>
+#include <tactility/std/string.hpp>
+#include <tactility/std/unordered_map.hpp>
 
 #include <tactility/check.h>
 #include <tactility/concurrent/mutex.h>

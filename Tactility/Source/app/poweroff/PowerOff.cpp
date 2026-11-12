@@ -1,4 +1,3 @@
-#include "Tactility/Tactility.h"
 #include "tactility/drivers/display.h"
 
 #include <app/event.h>
@@ -18,6 +17,8 @@
 #include <tactility/drivers/sleep_controller.h>
 #include <tactility/log.h>
 
+#include <atomic>
+
 namespace tt::app::poweroff {
 
 constexpr auto* TAG = "PowerOff";
@@ -26,8 +27,20 @@ extern const ::AppManifest manifest;
 
 namespace {
 
+struct PendingShutdown {
+    bool (*action)();
+    Device* display;
+    bool isSlowRefresh;
+    lv_obj_t* previousScreen;
+    lv_obj_t* shutdownScreen;
+};
+
 struct Context {
     uint32_t appInstanceId;
+    TaskEventGroup* eventGroup;
+    uint32_t actionBit;
+    ::std::atomic<bool> actionPending { false };
+    PendingShutdown pending;
 };
 
 
@@ -104,53 +117,68 @@ bool deepSleep() {
     return true;
 }
 
-void runWithShutdownScreen(const char* subtitle, bool (*action)()) {
-    Device* display;
-    error_t error = device_get_first_by_type(&DISPLAY_TYPE, &display);
-    // TODO: remove this logic path when all displays have been migrated to kernel display drivers
-    if (error != ERROR_NONE) {
-        action();
+/** Runs on the LVGL thread: shows the shutdown screen and hands the blocking part to the app task */
+void startShutdown(Context* ctx, const char* subtitle, bool (*action)()) {
+    if (ctx->actionPending.exchange(true)) {
         return;
     }
 
-    bool is_slow_refresh = display_has_capability(display, DISPLAY_CAPABILITY_SLOW_REFRESH);
-    lv_obj_t* previous_screen = nullptr;
-    lv_obj_t* shutdown_screen = nullptr;
-    if (is_slow_refresh) {
-        auto* lvgl_display = lv_display_get_default();
-        previous_screen = lv_screen_active();
-        shutdown_screen = showPoweredOffScreen(subtitle);
-        if (lvgl_display != nullptr) {
-            lv_refr_now(lvgl_display);
+    PendingShutdown pending { action, nullptr, false, nullptr, nullptr };
+    Device* display = nullptr;
+    // TODO: remove this logic path when all displays have been migrated to kernel display drivers
+    if (device_get_first_by_type(&DISPLAY_TYPE, &display) == ERROR_NONE) {
+        pending.display = display;
+        pending.isSlowRefresh = display_has_capability(display, DISPLAY_CAPABILITY_SLOW_REFRESH);
+        if (pending.isSlowRefresh) {
+            auto* lvgl_display = lv_display_get_default();
+            pending.previousScreen = lv_screen_active();
+            pending.shutdownScreen = showPoweredOffScreen(subtitle);
+            if (lvgl_display != nullptr) {
+                lv_refr_now(lvgl_display);
+            }
         }
     }
 
-    getMainDispatcher().dispatch([is_slow_refresh, action, previous_screen, shutdown_screen] {
-        // Not necessary for LilyGO Paper S3, but other drivers with async rendering might need us to wait a bit.
-        if (is_slow_refresh) {
-            vTaskDelay(pdMS_TO_TICKS(2000));
-        }
-        if (!action() && shutdown_screen != nullptr) {
-            lvgl_lock();
-            lv_screen_load(previous_screen);
-            lv_obj_delete(shutdown_screen);
-            lvgl_unlock();
-        }
-    });
+    ctx->pending = pending;
+    task_event_group_signal(ctx->eventGroup, ctx->actionBit);
 }
 
-void onYesPressed(lv_event_t* /*event*/) {
+/** Runs on the app task, because it blocks */
+void runShutdown(Context& ctx) {
+    const PendingShutdown pending = ctx.pending;
+    if (pending.display != nullptr) {
+        if (pending.isSlowRefresh) {
+            // Clears ghosting, as the image stays on the panel after powering off
+            error_t refresh_error = display_refresh(pending.display);
+            if (refresh_error != ERROR_NONE && refresh_error != ERROR_NOT_SUPPORTED) {
+                LOG_W(TAG, "Display refresh failed: %s", error_to_string(refresh_error));
+            }
+            // Drivers can finish drawing asynchronously after the refresh returns
+            vTaskDelay(pdMS_TO_TICKS(2000));
+        }
+        device_put(pending.display);
+    }
+    if (!pending.action() && pending.shutdownScreen != nullptr) {
+        lvgl_lock();
+        lv_screen_load(pending.previousScreen);
+        lv_obj_delete(pending.shutdownScreen);
+        lvgl_unlock();
+    }
+    ctx.actionPending = false;
+}
+
+void onYesPressed(lv_event_t* event) {
     if (!anyDeviceSupportsPowerOff()) {
         return;
     }
-    runWithShutdownScreen("Powered off", powerOffAll);
+    startShutdown(static_cast<Context*>(lv_event_get_user_data(event)), "Powered off", powerOffAll);
 }
 
-void onSleepPressed(lv_event_t* /*event*/) {
+void onSleepPressed(lv_event_t* event) {
     if (findSleepController() == nullptr) {
         return;
     }
-    runWithShutdownScreen("Sleeping", deepSleep);
+    startShutdown(static_cast<Context*>(lv_event_get_user_data(event)), "Sleeping", deepSleep);
 }
 
 void onNoPressed(lv_event_t* event) {
@@ -188,7 +216,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         auto* yes_button = lv_button_create(button_wrapper);
         auto* yes_label = lv_label_create(yes_button);
         lv_label_set_text(yes_label, "Yes");
-        lv_obj_add_event_cb(yes_button, onYesPressed, LV_EVENT_SHORT_CLICKED, nullptr);
+        lv_obj_add_event_cb(yes_button, onYesPressed, LV_EVENT_SHORT_CLICKED, ctx);
         first_button = yes_button;
     }
 
@@ -196,7 +224,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         auto* sleep_button = lv_button_create(button_wrapper);
         auto* sleep_label = lv_label_create(sleep_button);
         lv_label_set_text(sleep_label, "Sleep");
-        lv_obj_add_event_cb(sleep_button, onSleepPressed, LV_EVENT_SHORT_CLICKED, nullptr);
+        lv_obj_add_event_cb(sleep_button, onSleepPressed, LV_EVENT_SHORT_CLICKED, ctx);
         if (first_button == nullptr) {
             first_button = sleep_button;
         }
@@ -220,6 +248,8 @@ int32_t appMain(int argc, char* argv[]) {
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.actionBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -228,7 +258,12 @@ int32_t appMain(int argc, char* argv[]) {
 
     bool shouldClose = false;
     while (!shouldClose) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        uint32_t flags = 0;
+        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+
+        if ((flags & ctx.actionBit) != 0) {
+            runShutdown(ctx);
+        }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -245,6 +280,7 @@ int32_t appMain(int argc, char* argv[]) {
 
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
+    task_event_group_release_bit(&event_group, ctx.actionBit);
     task_event_group_destruct(&event_group);
 
     return 0;

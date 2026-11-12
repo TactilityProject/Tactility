@@ -11,8 +11,8 @@
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 
-#include <TactilityCpp/std/deque.h>
-#include <TactilityCpp/std/vector.h>
+#include <tactility/std/deque.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <cstddef>
 #include <cstdint>

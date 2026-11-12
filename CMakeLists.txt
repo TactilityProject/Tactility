@@ -46,13 +46,13 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         "Modules"
         "Platforms/platform-esp32"
         "TactilityKernel"
-        "TactilityKernelCpp"
         "TactilityFreeRtos"
         "Libraries/lv_screenshot"
         "Libraries/minitar"
         "Libraries/ed25519"
         "Libraries/minmea"
         "Libraries/QRCode"
+        "Libraries/esp32-audio-codec"
     )
 
     set(EXCLUDE_COMPONENTS "Simulator")
@@ -136,7 +136,7 @@ else ()
     add_compile_definitions(CONFIG_TT_DEVICE_VENDOR="")
     add_compile_definitions(CONFIG_TT_DEVICE_NAME_SIMPLE="Simulator")
     add_compile_definitions(CONFIG_TT_AUTO_START_APP_ID="")
-    add_compile_definitions(CONFIG_TT_USER_DATA_LOCATION_INTERNAL)
+    add_compile_definitions(CONFIG_TT_ROOT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/Data/data")
 
 endif ()
 
@@ -180,7 +180,6 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Tactility)
     add_subdirectory(TactilityFreeRtos)
     add_subdirectory(TactilityKernel)
-    add_subdirectory(TactilityKernelCpp)
     if (EMSCRIPTEN)
         add_subdirectory(Platforms/platform-web)
         add_subdirectory(Devices/websimulator)
@@ -215,6 +214,7 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Modules/posix-symbols-module)
     add_subdirectory(Modules/pthread-module)
     add_subdirectory(Modules/service-module)
+    add_subdirectory(Modules/bluetooth-module)
     add_subdirectory(Modules/wifi-module)
     add_subdirectory(Modules/app-module)
     add_subdirectory(Modules/app-hub-module)

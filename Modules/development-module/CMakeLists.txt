@@ -6,7 +6,6 @@ file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
 
 list(APPEND REQUIRES_LIST
     TactilityKernel
-    TactilityKernelCpp
     app-module
     service-module
     crypt-module

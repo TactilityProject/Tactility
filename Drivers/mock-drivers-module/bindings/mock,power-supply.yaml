@@ -1,0 +1,8 @@
+description: Mock power supply with a fixed battery state and toggleable charging
+
+compatible: "mock,power-supply"
+
+properties:
+  _unused:
+    type: int
+    default: 0

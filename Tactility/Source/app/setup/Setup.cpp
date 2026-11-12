@@ -1,13 +1,7 @@
 #include <Tactility/app/setup/Setup.h>
 
-#include <tactility/paths.h>
-
-#include <Tactility/StringUtils.h>
-#include <Tactility/app/timezone/TimeZoneView.h>
-#include <Tactility/app/wifimanage/WifiManage.h>
-#include <Tactility/file/File.h>
+#include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/settings/Time.h>
-#include <Tactility/Tactility.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -15,29 +9,29 @@
 #include <app/scheduler.h>
 #include <app/start.h>
 
+#include <gps/gps.h>
 #include <location/location.h>
-
-#include <wifi/wifi_settings.h>
+#include <mesh/mesh.h>
 
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
 #include <tactility/device.h>
-#include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
+#include <tactility/memory.h>
 
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
-#include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/step_indicator.h>
 #include <lvgl/widgets/text_button.h>
 #include <lvgl.h>
 
-#include <functional>
-#include <memory>
-#include <vector>
+#include <string_view>
+
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/setup/SetupPrivate.h>
 
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
@@ -55,223 +49,45 @@ constexpr auto* TAG = "setup";
 
 namespace {
 
-bool getCompletedMarkerPath(std::string& outPath) {
-    char path[128];
-    if (paths_get_data_path(path, sizeof(path)) != ERROR_NONE) {
+const char* getMeshBackendLabel(const char* id) {
+    const ::std::string_view name = id;
+    if (name == "meshcore") return "MeshCore";
+    if (name == "meshtastic") return "Meshtastic";
+    return id;
+}
+
+/** Mesh needs a LoRa radio, and on ESP32 enough memory, which means PSRAM */
+bool isMeshSupported() {
+#ifdef ESP_PLATFORM
+    if (memory_external_total() == 0) {
         return false;
     }
-    outPath = std::string(path) + "/.setup_complete";
-    return true;
-}
-
-} // namespace
-
-bool isCompleted() {
-    std::string path;
-    if (!getCompletedMarkerPath(path)) {
-        LOG_E(TAG, "Setup path not found");
-        return false;
-    }
-    return file::isFile(path);
-}
-
-namespace {
-
-void markCompleted() {
-    std::string path;
-    if (!getCompletedMarkerPath(path)) {
-        return;
-    }
-    file::writeString(path, "");
-}
-
-enum class Phase {
-    Welcome,
-    StepIntro,
-    Done
-};
-
-struct StepConfiguration {
-    std::string title;
-    std::string description;
-    std::function<void()> run;
-    /** Optional: handles the result of the dialog that run() started */
-    std::function<void(int32_t)> onResult = nullptr;
-    /** What the page shows below its title */
-    enum class Content {
-        Description,
-        /** The description, with the location choices below it */
-        LocationChoice,
-        /** The time zone list instead of the description */
-        TimeZones
-    } content = Content::Description;
-};
-
-/** The location choices of the location page, in the order of their chips */
-constexpr const char* LOCATION_CHOICES[] = { "Precise", "Approximate", "Disabled" };
-
-struct Context {
-    uint32_t appInstanceId;
-
-    Phase phase = Phase::Welcome;
-    size_t stepIndex = 0;
-    std::vector<StepConfiguration> steps;
-    uint32_t pendingStepDialogId = 0;
-
-    // Valid while the window is shown
-    lv_obj_t* titleLabel = nullptr;
-    lv_obj_t* descriptionLabel = nullptr;
-    lv_obj_t* backButton = nullptr;
-    lv_obj_t* skipButton = nullptr;
-    lv_obj_t* continueButton = nullptr;
-    lv_obj_t* stepIndicator = nullptr;
-    lv_obj_t* bottom = nullptr;
-    lv_obj_t* timeZoneContainer = nullptr;
-    lv_obj_t* locationChips = nullptr;
-    // The index in LOCATION_CHOICES picked on the location page, -1 when none. Guarded by the LVGL lock.
-    int32_t locationChoice = -1;
-
-    std::unique_ptr<timezone::TimeZoneView> timeZoneView;
-    // The time zone picked on the time zone page, guarded by the LVGL lock
-    std::string timeZoneName;
-    std::string timeZoneCode;
-};
-
-/** The welcome page, a page per step, and the completion page */
-uint32_t getPageCount(const Context* ctx) {
-    return static_cast<uint32_t>(ctx->steps.size()) + 2;
-}
-
-uint32_t getPage(const Context* ctx) {
-    switch (ctx->phase) {
-        case Phase::Welcome:
-            return 0;
-        case Phase::StepIntro:
-            return static_cast<uint32_t>(ctx->stepIndex) + 1;
-        case Phase::Done:
-            return getPageCount(ctx) - 1;
-    }
-    return 0;
-}
-
-
-/** The welcome page counts as the first step, followed by the configuration steps */
-uint32_t getStepCount(const Context* ctx) {
-    return static_cast<uint32_t>(ctx->steps.size()) + 1;
-}
-
-/** The steps before the current one, or all of them once setup is done */
-uint32_t getFinishedStepCount(const Context* ctx) {
-    switch (ctx->phase) {
-        case Phase::Welcome:
-            return 0;
-        case Phase::StepIntro:
-            return static_cast<uint32_t>(ctx->stepIndex) + 1;
-        case Phase::Done:
-            return getStepCount(ctx);
-    }
-    return 0;
-}
-
-StepConfiguration::Content getContent(const Context* ctx) {
-    return ctx->phase == Phase::StepIntro ? ctx->steps[ctx->stepIndex].content : StepConfiguration::Content::Description;
-}
-
-/** Shows which location choice is picked */
-void renderLocationChips(Context* ctx) {
-    const uint32_t count = lv_obj_get_child_count(ctx->locationChips);
-    for (uint32_t i = 0; i < count; i++) {
-        lv_obj_set_state(lv_obj_get_child(ctx->locationChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, static_cast<int32_t>(i) == ctx->locationChoice);
-    }
-}
-
-/** The time zone page shows the title at the top and the list below it, the other pages center their text */
-void renderLayout(Context* ctx) {
-    const auto content = getContent(ctx);
-    const bool showsTimeZones = content == StepConfiguration::Content::TimeZones;
-    const bool showsLocationChoice = content == StepConfiguration::Content::LocationChoice;
-    const bool hasTimeZoneWidgets = lv_obj_get_child_count(ctx->timeZoneContainer) > 0;
-    lv_obj_set_hidden(ctx->descriptionLabel, showsTimeZones);
-    lv_obj_set_hidden(ctx->timeZoneContainer, !showsTimeZones);
-    lv_obj_set_hidden(ctx->locationChips, !showsLocationChoice);
-    if (!showsTimeZones) {
-        if (hasTimeZoneWidgets) {
-            lv_obj_clean(ctx->timeZoneContainer);
-            ctx->timeZoneView->destroyWidgets();
+#endif
+    for (size_t i = 0; i < mesh_get_radio_count(); i++) {
+        MeshRadioKind kind;
+        if (mesh_get_radio_kind(i, &kind) == ERROR_NONE && kind == MESH_RADIO_LORA) {
+            return mesh_get_backend_count() > 0;
         }
-        const int titleMargin = lvgl_get_text_font_height(FONT_SIZE_LARGE);
-        if (showsLocationChoice) {
-            // Centered as a group in the space above the buttons
-            const int32_t gap = titleMargin / 2;
-            lv_obj_update_layout(lv_obj_get_parent(ctx->titleLabel));
-            const int32_t height = lv_obj_get_height(ctx->titleLabel) + gap + lv_obj_get_height(ctx->descriptionLabel) + gap + lv_obj_get_height(ctx->locationChips);
-            lv_area_t parent;
-            lv_area_t bottom;
-            lv_obj_get_content_coords(lv_obj_get_parent(ctx->titleLabel), &parent);
-            lv_obj_get_coords(ctx->bottom, &bottom);
-            const int32_t top = LV_MAX((bottom.y1 - parent.y1 - height) / 2, 0);
-            lv_obj_align(ctx->titleLabel, LV_ALIGN_TOP_MID, 0, top);
-            lv_obj_align_to(ctx->descriptionLabel, ctx->titleLabel, LV_ALIGN_OUT_BOTTOM_MID, 0, gap);
-            lv_obj_align_to(ctx->locationChips, ctx->descriptionLabel, LV_ALIGN_OUT_BOTTOM_MID, 0, gap);
-            // Continue confirms the picked choice
-            renderLocationChips(ctx);
-            lv_obj_set_state(ctx->continueButton, LV_STATE_DISABLED, ctx->locationChoice < 0);
-        } else {
-            lv_obj_align(ctx->descriptionLabel, LV_ALIGN_CENTER, 0, 0);
-            lv_obj_align_to(ctx->titleLabel, ctx->descriptionLabel, LV_ALIGN_OUT_TOP_MID, 0, -titleMargin);
-            lv_obj_remove_state(ctx->continueButton, LV_STATE_DISABLED);
-        }
-        return;
     }
-
-    lv_obj_align(ctx->titleLabel, LV_ALIGN_TOP_MID, 0, LV_DPX(8));
-    if (!hasTimeZoneWidgets) {
-        ctx->timeZoneView->createWidgets(ctx->timeZoneContainer);
-    }
-    // Continue confirms the picked time zone
-    lv_obj_set_state(ctx->continueButton, LV_STATE_DISABLED, ctx->timeZoneName.empty());
-
-    // Fills the space between the title and the buttons
-    lv_obj_update_layout(lv_obj_get_parent(ctx->timeZoneContainer));
-    lv_area_t title;
-    lv_area_t bottom;
-    lv_obj_get_coords(ctx->titleLabel, &title);
-    lv_obj_get_coords(ctx->bottom, &bottom);
-    lv_area_t parent;
-    lv_obj_get_content_coords(lv_obj_get_parent(ctx->timeZoneContainer), &parent);
-    lv_obj_set_pos(ctx->timeZoneContainer, 0, title.y2 + LV_DPX(4) - parent.y1);
-    lv_obj_set_size(ctx->timeZoneContainer, LV_PCT(100), bottom.y1 - title.y2 - LV_DPX(8));
+    return false;
 }
 
-void renderCurrent(Context* ctx) {
-    lvgl_step_indicator_set_finished_count(ctx->stepIndicator, getFinishedStepCount(ctx));
-    lv_obj_set_hidden(ctx->backButton, ctx->phase == Phase::Welcome);
-    switch (ctx->phase) {
-        case Phase::Welcome: {
-            lv_label_set_text(ctx->titleLabel, "Welcome");
-            auto device_names = string::split(std::string(CONFIG_TT_DEVICE_NAME_SIMPLE), ",");
-            lv_label_set_text_fmt(ctx->descriptionLabel, "It's time to set up your %s!", device_names.front().c_str());
-            lv_obj_set_hidden(ctx->skipButton, true);
-            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Continue");
-            break;
-        }
-        case Phase::StepIntro: {
-            const auto& step = ctx->steps[ctx->stepIndex];
-            lv_label_set_text(ctx->titleLabel, step.title.c_str());
-            lv_label_set_text(ctx->descriptionLabel, step.description.c_str());
-            lv_obj_set_hidden(ctx->skipButton, false);
-            lv_label_set_text(lv_obj_get_child(ctx->skipButton, 0), "Skip");
-            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Continue");
-            break;
-        }
-        case Phase::Done:
-            lv_label_set_text(ctx->titleLabel, "Setup Complete");
-            lv_label_set_text(ctx->descriptionLabel, "You're all set.");
-            lv_obj_set_hidden(ctx->skipButton, true);
-            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Finish");
-            break;
+/** Runs @a action on the app's task, for work that blocks or does file operations */
+void runOnAppTask(Context* ctx, ::std::function<void()> action) {
+    lvgl_lock();
+    ctx->taskActions.push_back(::std::move(action));
+    lvgl_unlock();
+    task_event_group_signal(ctx->eventGroup, ctx->taskActionBit);
+}
+
+void processTaskActions(Context* ctx) {
+    lvgl_lock();
+    auto actions = ::std::move(ctx->taskActions);
+    ctx->taskActions.clear();
+    lvgl_unlock();
+    for (auto& action : actions) {
+        action();
     }
-    renderLayout(ctx);
 }
 
 void advanceTo(Context* ctx, size_t index) {
@@ -283,6 +99,12 @@ void advanceTo(Context* ctx, size_t index) {
     }
 
     lvgl_lock();
+    if (ctx->phase == Phase::StepIntro) {
+        auto& step = ctx->steps[ctx->stepIndex];
+        if (step.choice < 0 && step.defaultChoice) {
+            step.choice = step.defaultChoice();
+        }
+    }
     // Covered by a step's app: createWidgets() renders the current page when the window is shown again
     if (ctx->titleLabel != nullptr) {
         renderCurrent(ctx);
@@ -290,25 +112,51 @@ void advanceTo(Context* ctx, size_t index) {
     lvgl_unlock();
 }
 
-void onBackClicked(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    // The previous page: a step's intro page, or the welcome page before the first step
-    const size_t previousPage = getPage(ctx) - 1;
-    if (ctx->phase == Phase::Welcome) {
-        return;
-    } else if (previousPage == 0) {
-        ctx->phase = Phase::Welcome;
+/** Shows the page that a step ends on, so that going back from the next step shows the state it was left in */
+void showEndOfStep(Context* ctx, size_t index) {
+    auto& step = ctx->steps[index];
+    if (step.showLast) {
+        ctx->stepIndex = index;
+        step.showLast();
+    } else if (!step.choiceTitle.empty()) {
+        ctx->stepIndex = index;
+        ctx->phase = Phase::StepChoice;
         lvgl_lock();
         renderCurrent(ctx);
         lvgl_unlock();
     } else {
-        advanceTo(ctx, previousPage - 1);
+        advanceTo(ctx, index);
+    }
+}
+
+void onBackClicked(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    switch (ctx->phase) {
+        case Phase::Welcome:
+            break;
+        case Phase::StepChoice:
+        case Phase::WifiSetup:
+            advanceTo(ctx, ctx->stepIndex);
+            break;
+        case Phase::StepIntro:
+            if (ctx->stepIndex == 0) {
+                ctx->phase = Phase::Welcome;
+                lvgl_lock();
+                renderCurrent(ctx);
+                lvgl_unlock();
+            } else {
+                showEndOfStep(ctx, ctx->stepIndex - 1);
+            }
+            break;
+        case Phase::Done:
+            showEndOfStep(ctx, ctx->steps.size() - 1);
+            break;
     }
 }
 
 void onSkipClicked(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    if (ctx->phase == Phase::StepIntro) {
+    if (ctx->phase == Phase::StepIntro || ctx->phase == Phase::StepChoice || ctx->phase == Phase::WifiSetup) {
         advanceTo(ctx, ctx->stepIndex + 1);
     }
 }
@@ -320,54 +168,86 @@ void onContinueClicked(lv_event_t* event) {
             advanceTo(ctx, 0);
             break;
         case Phase::StepIntro:
+            if (ctx->steps[ctx->stepIndex].choiceTitle.empty()) {
+                ctx->steps[ctx->stepIndex].run();
+            } else {
+                ctx->phase = Phase::StepChoice;
+                lvgl_lock();
+                renderCurrent(ctx);
+                lvgl_unlock();
+            }
+            break;
+        case Phase::StepChoice:
             ctx->steps[ctx->stepIndex].run();
             break;
+        case Phase::WifiSetup:
+            advanceTo(ctx, ctx->stepIndex + 1);
+            break;
         case Phase::Done: {
-            markCompleted();
-            app_event_emit_close(ctx->appInstanceId);
+            // Queued after the changes of the steps, so the marker is only saved once they were
+            const auto appInstanceId = ctx->appInstanceId;
+            runOnAppTask(ctx, [appInstanceId] {
+                markCompleted();
+                app_event_emit_close(appInstanceId);
+            });
             break;
         }
     }
 }
 
-void onLocationChipPressed(lv_event_t* event) {
+// Keys enter the button row at Continue, whichever side they came from
+static void onButtonRowFocused(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    ctx->locationChoice = static_cast<int32_t>(reinterpret_cast<uintptr_t>(lv_obj_get_user_data(lv_event_get_target_obj(event))));
-    renderLocationChips(ctx);
-    lv_obj_remove_state(ctx->continueButton, LV_STATE_DISABLED);
+    lv_indev_t* indev = lv_indev_active();
+    if (indev == nullptr || lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+        return;
+    }
+    auto* buttonRow = lv_event_get_current_target_obj(event);
+    if (!lv_obj_is_hidden(ctx->continueButton) && !lv_obj_has_state(ctx->continueButton, LV_STATE_DISABLED)) {
+        lv_gridnav_set_focused(buttonRow, ctx->continueButton, LV_ANIM_OFF);
+    }
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    lvgl::systemBarsSetStatusbarVisible(false);
 
-    ctx->titleLabel = lv_label_create(parent);
+    ctx->content = lv_obj_create(parent);
+    lv_obj_remove_style_all(ctx->content);
+    lv_obj_set_size(ctx->content, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_scroll_dir(ctx->content, LV_DIR_VER);
+    if (auto* group = lv_group_get_default()) {
+        lv_group_add_obj(group, ctx->content);
+    }
+
+    // At least as high as the content, so that short pages are centered
+    ctx->contentInner = lv_obj_create(ctx->content);
+    lv_obj_remove_style_all(ctx->contentInner);
+    lv_obj_set_size(ctx->contentInner, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(ctx->contentInner, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(ctx->contentInner, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    ctx->titleLabel = lv_label_create(ctx->contentInner);
     lv_obj_set_width(ctx->titleLabel, LV_PCT(80));
     lv_obj_set_style_text_align(ctx->titleLabel, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(ctx->titleLabel, LV_LABEL_LONG_WRAP);
-    auto* font = lvgl_get_text_font(FONT_SIZE_LARGE);
+    auto* font = lvgl_get_text_font(getTitleFontSize());
     lv_obj_set_style_text_font(ctx->titleLabel, font, 0);
 
-    ctx->descriptionLabel = lv_label_create(parent);
+    ctx->descriptionLabel = lv_label_create(ctx->contentInner);
     lv_obj_set_width(ctx->descriptionLabel, LV_PCT(80));
     lv_obj_set_style_text_align(ctx->descriptionLabel, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(ctx->descriptionLabel, LV_LABEL_LONG_WRAP);
-    lv_obj_align(ctx->descriptionLabel, LV_ALIGN_CENTER, 0, 0);
 
-    // The location choices: one can be picked, and they wrap to more lines on narrow screens
-    ctx->locationChips = lv_obj_create(parent);
-    lv_obj_remove_style_all(ctx->locationChips);
-    lv_obj_set_size(ctx->locationChips, LV_PCT(100), LV_SIZE_CONTENT);
+    // The choices of a step: one can be picked, and they wrap to more lines on narrow screens
+    ctx->choiceChips = lv_obj_create(ctx->contentInner);
+    lv_obj_remove_style_all(ctx->choiceChips);
+    lv_obj_set_size(ctx->choiceChips, LV_PCT(100), LV_SIZE_CONTENT);
     // The chip margins space the choices, so they fit on one line on small screens
-    lv_obj_set_flex_flow(ctx->locationChips, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_flex_align(ctx->locationChips, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    for (size_t i = 0; i < std::size(LOCATION_CHOICES); i++) {
-        auto* chip = lvgl_chip_create(ctx->locationChips);
-        lv_label_set_text(lv_label_create(chip), LOCATION_CHOICES[i]);
-        lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<uintptr_t>(i)));
-        lv_obj_add_event_cb(chip, onLocationChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
-    }
-    lvgl_grid_navigation_add(ctx->locationChips);
-    lv_obj_set_hidden(ctx->locationChips, true);
+    lv_obj_set_flex_flow(ctx->choiceChips, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(ctx->choiceChips, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lvgl_grid_navigation_add(ctx->choiceChips);
+    lv_obj_set_hidden(ctx->choiceChips, true);
 
     // Filled with the time zone list on the time zone page
     ctx->timeZoneContainer = lv_obj_create(parent);
@@ -375,6 +255,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(ctx->timeZoneContainer, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_hor(ctx->timeZoneContainer, LV_DPX(8), LV_STATE_DEFAULT);
     lv_obj_set_hidden(ctx->timeZoneContainer, true);
+
+    // Filled with the network list on the Wi-Fi page
+    ctx->wifiContainer = lv_obj_create(parent);
+    lv_obj_remove_style_all(ctx->wifiContainer);
+    lv_obj_set_flex_flow(ctx->wifiContainer, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_hor(ctx->wifiContainer, LV_DPX(8), LV_STATE_DEFAULT);
+    lv_obj_set_hidden(ctx->wifiContainer, true);
 
     // The buttons, with the progress through the pages below them at the bottom
     auto* bottom = lv_obj_create(parent);
@@ -401,6 +288,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_remove_style_all(spacer);
     lv_obj_set_height(spacer, 1);
     lv_obj_set_flex_grow(spacer, 1);
+    // Grid navigation would otherwise stop on it
+    lv_obj_set_clickable(spacer, false);
 
     ctx->skipButton = lvgl_text_button_create(buttonRow);
     lv_label_set_text(lv_label_create(ctx->skipButton), "Skip");
@@ -415,6 +304,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // The arrow keys move between the buttons, and Continue has the focus first
     lvgl_grid_navigation_add(buttonRow);
+    // Added after grid navigation's own handler, so it runs after it
+    lv_obj_add_event_cb(buttonRow, onButtonRowFocused, LV_EVENT_FOCUSED, ctx);
     if (!lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
         lv_group_focus_obj(buttonRow);
         lv_gridnav_set_focused(buttonRow, ctx->continueButton, LV_ANIM_OFF);
@@ -425,6 +316,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    lvgl::systemBarsSetStatusbarVisible(true);
+    ctx->content = nullptr;
+    ctx->contentInner = nullptr;
     ctx->titleLabel = nullptr;
     ctx->descriptionLabel = nullptr;
     ctx->backButton = nullptr;
@@ -433,7 +327,8 @@ void destroyWidgets(void* userData) {
     ctx->stepIndicator = nullptr;
     ctx->bottom = nullptr;
     ctx->timeZoneContainer = nullptr;
-    ctx->locationChips = nullptr;
+    ctx->choiceChips = nullptr;
+    ctx->wifiContainer = nullptr;
     ctx->timeZoneView->destroyWidgets();
 }
 
@@ -441,6 +336,8 @@ int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     Context ctx {};
     ctx.appInstanceId = appInstanceId;
+    // Whether the location step enabled location services, which is not the case when it was skipped
+    bool locationEnabled = false;
     ctx.steps = {
 #if defined(CONFIG_TT_TOUCH_CALIBRATION_REQUIRED)
         {
@@ -452,35 +349,29 @@ int32_t appMain(int argc, char* argv[]) {
         {
             .title = "Wi-Fi Setup",
             .description = "Let's connect to a Wi-Fi access point.",
-            .run = [&ctx] {
-                getMainDispatcher().dispatch([] {
-                    Device* wifi_device = nullptr;
-                    if (device_get_first_by_type(&WIFI_TYPE, &wifi_device) == ERROR_NONE) {
-                        if (wifi_set_radio_on(wifi_device) == ERROR_NONE && wifi_settings_set_enable(true) != ERROR_NONE) {
-                            LOG_E(TAG, "Failed to save the Wi-Fi state");
-                        }
-                        device_put(wifi_device);
-                    }
-                });
-                ctx.pendingStepDialogId = wifimanage::start(ctx.appInstanceId);
-            }
+            .run = [&ctx] { enterWifiSetup(&ctx); },
+            .showLast = [&ctx] { enterWifiSetup(&ctx); }
         }
     };
 
     ctx.steps.push_back({
         .title = "Location Services",
-        .description = "Do you want to allow apps to retrieve your location? It uses GPS and/or contacts geoiplookup.io",
-        .run = [&ctx] {
-            // The order of LOCATION_CHOICES: precise, approximate, disabled
-            if (ctx.locationChoice == 0 || ctx.locationChoice == 1) {
-                location_set_precision(ctx.locationChoice == 0 ? LOCATION_PRECISION_PRECISE : LOCATION_PRECISION_APPROXIMATE);
+        .description = "Allow apps to retrieve your location. It uses GPS and/or contacts geoiplookup.io",
+        .run = [&ctx, &locationEnabled] {
+            // The order of the choices: precise, approximate, disabled
+            const int32_t choice = ctx.steps[ctx.stepIndex].choice;
+            locationEnabled = choice == 0 || choice == 1;
+            if (locationEnabled) {
+                location_set_precision(choice == 0 ? LOCATION_PRECISION_PRECISE : LOCATION_PRECISION_APPROXIMATE);
                 location_set_enabled(true);
             } else {
                 location_set_enabled(false);
             }
             advanceTo(&ctx, ctx.stepIndex + 1);
         },
-        .content = StepConfiguration::Content::LocationChoice
+        .content = StepConfiguration::Content::Choice,
+        .choiceTitle = "App location access:",
+        .choices = { "Precise", "Approximate", "Disabled" }
     });
 
     // Setting the time zone also sets the radio region, as both depend on where the device is
@@ -493,7 +384,7 @@ int32_t appMain(int argc, char* argv[]) {
         },
         .content = StepConfiguration::Content::TimeZones
     });
-    ctx.timeZoneView = std::make_unique<timezone::TimeZoneView>([&ctx](const std::string& name, const std::string& code) {
+    ctx.timeZoneView = ::std::make_unique<timezone::TimeZoneView>([&ctx](const ::std::string& name, const ::std::string& code) {
         ctx.timeZoneName = name;
         ctx.timeZoneCode = code;
         if (ctx.continueButton != nullptr) {
@@ -501,11 +392,78 @@ int32_t appMain(int argc, char* argv[]) {
         }
     });
 
+    if (device_exists_of_type(&GPS_TYPE)) {
+        ctx.steps.push_back({
+            .title = "Time from GPS",
+            .description = "Set time from GPS at boot?",
+            .run = [&ctx] {
+                // The order of the choices: enabled, disabled
+                settings::setGpsTimeSyncAtBoot(ctx.steps[ctx.stepIndex].choice == 0);
+                advanceTo(&ctx, ctx.stepIndex + 1);
+            },
+            .content = StepConfiguration::Content::Choice,
+            .choices = { "Enabled", "Disabled" },
+            // Enabled unless location services are, as the time needs them
+            .defaultChoice = [&locationEnabled] {
+                return locationEnabled ? 0 : 1;
+            }
+        });
+    }
+
+    if (isMeshSupported()) {
+        // The first choice is "Disabled", followed by the backends
+        auto backendIds = ::std::make_shared<tt::std::vector<tt::std::string>>();
+        tt::std::vector<tt::std::string> labels = { "Disabled" };
+        for (size_t i = 0; i < mesh_get_backend_count(); i++) {
+            char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
+            if (mesh_get_backend_id(i, id, sizeof(id)) == ERROR_NONE) {
+                backendIds->emplace_back(id);
+                labels.push_back(getMeshBackendLabel(id));
+            }
+        }
+        // Keeps the current setting, so accepting the default doesn't disable Mesh for a user who enabled it
+        int32_t currentChoice = 0;
+        char currentBackend[MESH_BACKEND_ID_MAX_LENGTH + 1];
+        if (mesh_is_enabled() && mesh_get_backend(currentBackend, sizeof(currentBackend)) == ERROR_NONE) {
+            for (size_t i = 0; i < backendIds->size(); i++) {
+                if ((*backendIds)[i] == currentBackend) {
+                    currentChoice = static_cast<int32_t>(i) + 1;
+                    break;
+                }
+            }
+        }
+        ctx.steps.push_back({
+            .title = "Mesh",
+            .description = "Enable Mesh?",
+            .run = [&ctx, backendIds] {
+                const int32_t choice = ctx.steps[ctx.stepIndex].choice;
+                runOnAppTask(&ctx, [backendIds, choice] {
+                    if (choice > 0 && choice <= static_cast<int32_t>(backendIds->size())) {
+                        mesh_set_backend((*backendIds)[choice - 1].c_str());
+                        mesh_set_enabled(true);
+                    } else {
+                        mesh_set_enabled(false);
+                    }
+                });
+                advanceTo(&ctx, ctx.stepIndex + 1);
+            },
+            .content = StepConfiguration::Content::Choice,
+            .choices = ::std::move(labels),
+            .choice = currentChoice
+        });
+    }
+
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
+
+    ctx.eventGroup = &event_group;
+    if (task_event_group_claim_bit(&event_group, &ctx.taskActionBit) != ERROR_NONE) {
+        LOG_W(TAG, "Failed to claim a task action bit");
+    }
+    wifiStart(&ctx, &event_group);
 
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
@@ -535,7 +493,12 @@ int32_t appMain(int argc, char* argv[]) {
             }
             if (shouldClose) break;
         }
+
+        wifiProcess(&ctx);
+        processTaskActions(&ctx);
     }
+
+    wifiStop(&ctx);
 
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
@@ -562,3 +525,4 @@ extern const ::AppManifest manifest = {
 };
 
 }
+

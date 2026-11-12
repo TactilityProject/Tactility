@@ -10,6 +10,9 @@ import tarfile
 
 import _device_host
 
+ID_PATTERN = re.compile(r"^[0-9A-Za-z.]{5,32}$")
+NAME_PATTERN = re.compile(r"^[0-9A-Za-z -]{2,32}$")
+PROJECT_VARIANTS = ("gui", "terminal", "module")
 ttbuild_version = "8.0.0"
 verbose = False
 # Compile the ESP-IDF and SDK components through ccache (see TactilitySDK.esp32.cmake)
@@ -33,6 +36,9 @@ def print_help():
     print(f"Usage: {command} [action] [options]")
     print("")
     print("Actions:")
+    print("")
+    print("  create                         Create a new app or module project in the current directory.")
+    print("    Asks for the project type, package id, app id and app name.")
     print("")
     print("  build                          Build the app. Optionally specify a platform.")
     print("    Supported platforms are lower case. Example: esp32s3")
@@ -72,6 +78,7 @@ def print_help():
     print("  --verbose                      Show extra console output")
     print("")
     print("Examples:")
+    print(f"  {command} create")
     print(f"  {command} build")
     print(f"  {command} build --path Apps/Snake --architecture esp32s3 --verbose")
     print(f"  {command} bir --path Apps/Snake --host 192.168.1.50 --architecture esp32s3")
@@ -250,15 +257,19 @@ def validate_sdks(platforms, version):
         if not sdk_has_sdkconfig(version, platform):
             exit_with_error(f"SDK {version} for {platform} does not contain sdkconfig.app.{platform}, which this tool requires. Use a newer SDK version.")
 
+# Platforms that run on this computer (the simulator), named <os>-<architecture>, e.g. "linux-x86_64" or "macos-arm64"
+def is_host_platform(platform):
+    return platform.startswith(("linux-", "macos-"))
+
 def get_sdk_sdkconfig_path(version, platform):
     return os.path.join(get_sdk_dir(version, platform), f"sdkconfig.app.{platform}")
 
 # ESP32 SDKs built before the sdkconfig was bundled lack it and can't build apps. POSIX SDKs never need one.
 def sdk_has_sdkconfig(version, platform):
-    return platform.startswith("posix") or os.path.isfile(get_sdk_sdkconfig_path(version, platform))
+    return is_host_platform(platform) or os.path.isfile(get_sdk_sdkconfig_path(version, platform))
 
 def copy_sdk_sdkconfig(version, platform):
-    if platform.startswith("posix"):
+    if is_host_platform(platform):
         return
     sdkconfig_path = get_sdk_sdkconfig_path(version, platform)
     if not os.path.isfile(sdkconfig_path):
@@ -270,7 +281,7 @@ def copy_sdk_sdkconfig(version, platform):
 #region Validation
 
 def validate_environment(platforms):
-    if any(not platform.startswith("posix") for platform in platforms) and os.environ.get("IDF_PATH") is None:
+    if any(not is_host_platform(platform) for platform in platforms) and os.environ.get("IDF_PATH") is None:
         if sys.platform == "win32":
             exit_with_error("Cannot find the Espressif IDF SDK. Ensure it is installed and that it is activated via %IDF_PATH%\\export.ps1")
         else:
@@ -435,7 +446,7 @@ def find_elf_file(platform):
         return None
     # POSIX apps are dlopen()ed shared objects (app-posix-module), not idf.py/elf_loader
     # relocatable images, so they land as a plain ".so" instead of "*.app.elf".
-    suffix = ".so" if platform.startswith("posix") else ".app.elf"
+    suffix = ".so" if is_host_platform(platform) else ".app.elf"
     for file in os.listdir(cmake_dir):
         if file.endswith(suffix):
             return os.path.join(cmake_dir, file)
@@ -483,7 +494,7 @@ def build_posix(version, platform, skip_build):
 
 def build_all(version, platforms, skip_build):
     for platform in platforms:
-        if platform.startswith("posix"):
+        if is_host_platform(platform):
             if not build_posix(version, platform, skip_build):
                 return False
         # First build command must be "idf.py build", otherwise it fails to execute "idf.py elf"
@@ -601,7 +612,7 @@ def package_intermediate_manifest(target_path):
 def get_artifact_extension(platform):
     # POSIX apps are dlopen()ed shared objects (app-posix-module), not idf.py/elf_loader
     # relocatable images, so they land as a plain ".so" instead of ".elf".
-    return ".so" if platform.startswith("posix") else ".elf"
+    return ".so" if is_host_platform(platform) else ".elf"
 
 def package_intermediate_binaries(target_path, platforms, manifest):
     # Each binary is built in its own directory (get_binary_dirs()), with its own
@@ -787,6 +798,58 @@ def uninstall_action(manifest, arguments):
     device.uninstall(host, device.DEFAULT_PORT, app_id)
     print_status_success("Uninstalled")
 
+#region Create
+
+def ask(question, default, is_valid, description):
+    """Asks until the answer is valid. An empty answer or the end of the input gives the default."""
+    while True:
+        try:
+            answer = input(f"{question} [{default}]: ").strip()
+        except EOFError:
+            answer = ""
+        if not answer:
+            return default
+        if is_valid(answer):
+            return answer
+        print_error(description)
+
+def create_action():
+    if tt_sdk_version is None:
+        exit_with_error("TACTILITY_SDK_VERSION is not set: run this tool as 'tt app create'")
+    if os.path.exists("manifest.properties") or os.path.exists("main"):
+        exit_with_error("This folder already has a manifest.properties or main/")
+    templates_path = os.path.join(tool_directory, "NewProject")
+    if not os.path.isdir(templates_path):
+        exit_with_error(f"SDK {tt_sdk_version} has no new project templates")
+    variant = ask("Project type (gui, terminal or module)", "gui", lambda answer: answer in PROJECT_VARIANTS, "Use gui, terminal or module")
+    package_id = ask("Package id", "example.helloworld", ID_PATTERN.match, "Use 5 to 32 letters, digits and dots")
+    app_id = app_name = ""
+    if variant != "module":
+        app_id = ask("App id", "helloworld", ID_PATTERN.match, "Use 5 to 32 letters, digits and dots")
+        app_name = ask("App name", "Hello World", NAME_PATTERN.match, "Use 2 to 32 letters, digits, spaces and dashes")
+    placeholders = (("@SDK_VERSION@", tt_sdk_version), ("@PACKAGE_ID@", package_id), ("@APP_ID@", app_id), ("@APP_NAME@", app_name))
+    variant_path = os.path.join(templates_path, variant)
+    if not os.path.isfile(os.path.join(variant_path, "manifest.properties")):
+        exit_with_error(f"SDK {tt_sdk_version} has no {variant} project template")
+    for directory, directory_names, file_names in os.walk(variant_path):
+        directory_names.sort()
+        for file_name in sorted(file_names):
+            source = os.path.join(directory, file_name)
+            relative_path = os.path.relpath(source, variant_path)
+            with open(source, "rb") as file:
+                content = file.read()
+            if relative_path == "manifest.properties":
+                text = content.decode("utf-8")
+                for placeholder, value in placeholders:
+                    text = text.replace(placeholder, value)
+                content = text.encode("utf-8")
+            os.makedirs(os.path.dirname(relative_path) or ".", exist_ok=True)
+            with open(relative_path, "wb") as file:
+                file.write(content)
+            print(f"Created {relative_path}")
+
+#endregion Create
+
 #region Main
 
 if __name__ == "__main__":
@@ -813,6 +876,11 @@ if __name__ == "__main__":
 
     verbose = parsed_command.arguments.has("verbose")
     use_ccache = not parsed_command.arguments.has("no-ccache")
+
+    # Creating a project and installing an app file don't need an app project
+    if parsed_command.action == "create":
+        create_action()
+        sys.exit()
 
     # Installing an app file doesn't need an app project
     if parsed_command.arguments.has("app-file"):

@@ -47,18 +47,18 @@ int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     // argv layout: [0]="existing" or "existing_or_new".
 
+    TaskEventGroup event_group {};
+    task_event_group_construct(&event_group);
+
     Context ctx {};
     ctx.appInstanceId = appInstanceId;
     ctx.mode = (argc > 0 && std::string(argv[0]) == "--existing-or-new") ? Mode::ExistingOrNew : Mode::Existing;
     ctx.state = std::make_shared<State>();
-    ctx.view = std::make_unique<View>(appInstanceId, ctx.state, [&ctx, appInstanceId](const std::string& path) {
+    ctx.view = std::make_unique<View>(appInstanceId, ctx.state, &event_group, [&ctx, appInstanceId](const std::string& path) {
         ctx.resultPath = path;
         ctx.resultCode = 0;
         app_event_emit_close(appInstanceId);
     });
-
-    TaskEventGroup event_group {};
-    task_event_group_construct(&event_group);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -66,7 +66,12 @@ int32_t appMain(int argc, char* argv[]) {
     WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
 
     while (true) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        uint32_t flags = 0;
+        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+
+        if (flags & ctx.view->getFileOpsBit()) {
+            ctx.view->onFileOpsCompleted();
+        }
 
         bool shouldClose = false;
         AppEvent event {};
@@ -81,6 +86,8 @@ int32_t appMain(int argc, char* argv[]) {
 
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
+    // The view releases its event group bit when it is destroyed, so it ends before the event group does
+    ctx.view.reset();
     task_event_group_destruct(&event_group);
 
     if (ctx.resultCode == 0) {
@@ -105,6 +112,7 @@ uint32_t startWithMode(const char* modeArg, uint32_t callerAppInstanceId, AppStr
         .buffer = buffer,
         .buffer_capacity = bufferCapacity,
         .event_group = eventGroup,
+        .window_size = {},
         .alias_fd = -1,
     };
     uint32_t instanceId = 0;

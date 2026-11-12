@@ -8,5 +8,5 @@ tactility_add_module(mesh-meshcore-module
     SRCS ${SOURCE_FILES}
     PRIV_INCLUDE_DIRS private/
     INCLUDE_DIRS include/
-    REQUIRES TactilityKernel TactilityKernelCpp mesh-module mbedtls ed25519
+    REQUIRES TactilityKernel mesh-module mbedtls ed25519
 )

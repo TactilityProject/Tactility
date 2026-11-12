@@ -5,9 +5,11 @@ cjson-module
 crypt-module
 gps-module
 http-module
+location-module
 lvgl-module
 lvgl-window-manager-module
 service-module
 graphics-module
+bluetooth-module
 wifi-module
 binfont-module

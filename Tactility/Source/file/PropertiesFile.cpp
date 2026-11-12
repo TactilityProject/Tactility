@@ -1,5 +1,6 @@
 #include "Tactility/file/PropertiesFile.h"
 
+#include <tactility/filesystem/fs.h>
 #include <Tactility/file/File.h>
 
 #include <tactility/properties_file.h>
@@ -10,7 +11,7 @@ bool loadPropertiesFile(const std::string& filePath, std::function<void(const st
     // Matches the original semantics: a missing file is a real failure the caller checks for
     // (e.g. "no saved settings yet"), unlike properties_file_open() itself, which treats a
     // missing file as a fresh, empty store to be created on close().
-    if (!isFile(filePath)) {
+    if (!file_exists(filePath.c_str())) {
         return false;
     }
 

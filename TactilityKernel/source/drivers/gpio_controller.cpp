@@ -5,9 +5,9 @@
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/gpio_descriptor.h>
+#include <tactility/memory.h>
+#include <tactility/Memory.hpp>
 
-#include <cstdlib>
-#include <new>
 
 constexpr auto* TAG = "gpio";
 #define GPIO_INTERNAL_API(driver) ((struct GpioControllerApi*)(driver)->api)
@@ -27,7 +27,8 @@ struct GpioControllerData {
     }
 
     error_t init_descriptors(Device* device) {
-        descriptors = static_cast<GpioDescriptor*>(calloc(pin_count, sizeof(GpioDescriptor)));
+        constexpr MemoryPolicy policy = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
+        descriptors = static_cast<GpioDescriptor*>(memory_calloc_with_policy(pin_count, sizeof(GpioDescriptor), &policy));
         if (!descriptors) return ERROR_OUT_OF_MEMORY;
         for (uint32_t i = 0; i < pin_count; ++i) {
             descriptors[i].controller = device;
@@ -41,7 +42,7 @@ struct GpioControllerData {
 
     ~GpioControllerData() {
         if (descriptors != nullptr) {
-            free(descriptors);
+            memory_free(descriptors);
         }
         mutex_destruct(&mutex);
     }
@@ -139,11 +140,11 @@ error_t gpio_controller_get_level(Device* device, gpio_pin_t pin, bool* high) {
 }
 
 error_t gpio_controller_init_descriptors(Device* device, uint32_t pin_count, void* controller_context) {
-    auto* data = new(std::nothrow) GpioControllerData(pin_count, controller_context);
+    auto* data = tt::newObject<GpioControllerData>(pin_count, controller_context);
     if (!data) return ERROR_OUT_OF_MEMORY;
 
     if (data->init_descriptors(device) != ERROR_NONE) {
-        delete data;
+        tt::deleteObject(data);
         return ERROR_OUT_OF_MEMORY;
     }
 
@@ -154,7 +155,7 @@ error_t gpio_controller_init_descriptors(Device* device, uint32_t pin_count, voi
 error_t gpio_controller_deinit_descriptors(Device* device) {
     auto* data = static_cast<struct GpioControllerData*>(device_get_driver_data(device));
     device_set_driver_data(device, nullptr);
-    delete data;
+    tt::deleteObject(data);
     return ERROR_NONE;
 }
 

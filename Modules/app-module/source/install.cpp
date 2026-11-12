@@ -6,11 +6,12 @@
 
 #include <app/private/fs.h>
 #include <app/private/ledger.h>
+#include <app/private/manager_internal.h>
 #include <app/private/manifest_set.h>
 #include <app/private/module_loader.h>
 #include <app/private/package_manifest_parsing.h>
 
-#include <TactilityCpp/Allocator.h>
+#include <tactility/Allocator.hpp>
 
 #include <tactility/concurrent/mutex.h>
 #include <tactility/log.h>
@@ -18,6 +19,7 @@
 
 #include <minitar.h>
 
+#include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -129,6 +131,13 @@ bool untar_directory(const minitar_entry* entry, const std::string& destination_
 }
 
 bool untar(const std::string& tar_path, const std::string& destination_path) {
+    // minitar aborts on a file that isn't made of 512-byte blocks, e.g. a truncated or non-tar file
+    struct stat file_stat {};
+    if (stat(tar_path.c_str(), &file_stat) != 0 || file_stat.st_size % 512 != 0) {
+        LOG_E(TAG, "%s isn't a valid tar archive", tar_path.c_str());
+        return false;
+    }
+
     minitar archive {};
     if (minitar_open(tar_path.c_str(), &archive) != 0) {
         LOG_E(TAG, "Failed to open %s", tar_path.c_str());
@@ -260,6 +269,14 @@ error_t register_installed_package_locked(const PackageManifest& package, const 
     auto record = std::make_unique<InstalledPackageRecord>(install_path, bindings, count);
     auto& manifests = record->owned.manifests;
 
+    // Checked before anything is replaced: an installed app of another package keeps its id
+    for (size_t i = 0; i < count; i++) {
+        if (app_manager_app_is_owned_by_other_package(manifests[i].id, package.id)) {
+            LOG_E(TAG, "App '%s' is installed by another package already", manifests[i].id);
+            return ERROR_ALREADY_EXISTS;
+        }
+    }
+
     for (size_t i = 0; i < count; i++) {
         // The caller's earlier uninstall_locked() call is meant to have already cleared any stale registration for this id
         // (e.g. left over from app_manager_install_path_scan()'s separate registry),
@@ -378,7 +395,7 @@ error_t app_get_install_path(const char* app_id, char* path, size_t path_size) {
     return ERROR_NONE;
 }
 
-error_t app_install(const char* source_path) {
+static error_t install_package(const char* source_path) {
     LOG_I(TAG, "Installing app package from %s", source_path);
 
     std::string app_parent_path;
@@ -428,6 +445,18 @@ error_t app_install(const char* source_path) {
     auto& registry = install_registry();
     mutex_lock(&registry.mutex);
 
+    // Refused before anything is replaced or moved into place. Checked with the registry locked,
+    // so another install can't register one of these ids between this check and the registration.
+    for (const auto& binding : app_bindings) {
+        if (app_manager_app_is_owned_by_other_package(binding.manifest.id, package.id)) {
+            LOG_E(TAG, "Install failed: app '%s' is installed by another package already", binding.manifest.id);
+            delete_recursively(staging_path);
+            release_staging_lock(staging_path);
+            mutex_unlock(&registry.mutex);
+            return ERROR_ALREADY_EXISTS;
+        }
+    }
+
     // Replace any previous installation of this package - this also handles the app_manager
     // registrations of its old AppManifests, so there's no separate app_manager_remove() needed
     // here (register_installed_package_locked() below still defends against a stale registration
@@ -474,6 +503,25 @@ error_t app_install(const char* source_path) {
     mutex_unlock(&registry.mutex);
 
     return add_result;
+}
+
+static std::atomic<int> active_install_count = 0;
+static std::atomic<uint32_t> started_install_count = 0;
+
+error_t app_install(const char* source_path) {
+    started_install_count++;
+    active_install_count++;
+    const error_t result = install_package(source_path);
+    active_install_count--;
+    return result;
+}
+
+bool app_install_is_active(void) {
+    return active_install_count > 0;
+}
+
+uint32_t app_install_get_started_count(void) {
+    return started_install_count;
 }
 
 error_t app_uninstall(const char* app_id) {

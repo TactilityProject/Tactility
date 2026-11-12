@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <gps/gps.h>
 #include <gps/module.h>
 #include <gps/private/gps_ledger.h>
 
@@ -35,12 +36,23 @@ static error_t stop() {
     return ERROR_NONE;
 }
 
+static const ModuleSymbol gps_module_symbols[] = {
+    DEFINE_MODULE_SYMBOL(GPS_TYPE),
+    DEFINE_MODULE_SYMBOL(gps_event_subscribe),
+    DEFINE_MODULE_SYMBOL(gps_event_unsubscribe),
+    DEFINE_MODULE_SYMBOL(gps_event_await),
+    DEFINE_MODULE_SYMBOL(gps_get_state),
+    DEFINE_MODULE_SYMBOL(gps_get_model_name),
+    DEFINE_MODULE_SYMBOL(gps_model_to_string),
+    MODULE_SYMBOL_TERMINATOR
+};
+
 Module gps_module = {
     .name = "gps",
     .start = start,
     .stop = stop,
     .drivers = nullptr,
-    .symbols = nullptr,
+    .symbols = gps_module_symbols,
     .internal = nullptr,
 };
 

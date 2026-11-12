@@ -27,7 +27,6 @@ set(DEVICETREE_LOCATION "${PROJECT_ROOT}/Devices/${TACTILITY_DEVICE_ID}")
 list(APPEND REQUIRES_LIST
     # Main projects
     TactilityKernel
-    TactilityKernelCpp
     TactilityFreeRtos
     # Modules/*
     lvgl-module
@@ -57,6 +56,7 @@ list(APPEND REQUIRES_LIST
     gps-generic-module
     gps-meshtastic-module
     service-module
+    bluetooth-module
     wifi-module
     # Libraries/*
     lv_screenshot
@@ -92,7 +92,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         spi_flash
     )
 
-    if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4")
+    if ("${IDF_TARGET}" STREQUAL "esp32s3" OR "${IDF_TARGET}" STREQUAL "esp32p4" OR "${IDF_TARGET}" STREQUAL "esp32s31")
         list(APPEND REQUIRES_LIST esp_tinyusb)
     endif ()
 
@@ -182,8 +182,8 @@ if (DEFINED ENV{ESP_IDF_VERSION})
     endif ()
 
     if (NOT DEFINED TACTILITY_SKIP_SPIFFS)
-        # Read-write (skipped when user data lives on the SD card instead of internal flash)
-        if (NOT CONFIG_TT_USER_DATA_LOCATION_SD)
+        # Read-write (only when user data lives on the internal flash partition)
+        if (CONFIG_TT_ROOT_PATH STREQUAL "/data")
             # The folder is not in the repository
             file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data")
             fatfs_create_spiflash_image(data "${CMAKE_CURRENT_SOURCE_DIR}/../Data/data" FLASH_IN_PROJECT PRESERVE_TIME)
@@ -238,10 +238,10 @@ add_dependencies(${COMPONENT_LIB} Generated)
 #
 
 # Rewrites its outputs only when the content changes. The assets are the whole Data/system tree,
-# so no fixed DEPENDS list is kept.
+# so no fixed DEPENDS list is kept. Files in the device's system/ folder replace the ones with the same path.
 add_custom_target(GeneratedAssets ALL
     COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/generate-assets.py"
-        "${CMAKE_SOURCE_DIR}/Data/system" "${GENERATED_DIR}"
+        "${CMAKE_SOURCE_DIR}/Data/system" "${GENERATED_DIR}" "${DEVICETREE_LOCATION}/system"
     BYPRODUCTS "${GENERATED_DIR}/generated_assets.c" "${GENERATED_DIR}/generated_assets.h"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Generating asset source files..."
@@ -261,12 +261,40 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 else ()
     set(fonts_simulator 1)
 endif ()
-add_custom_target(GeneratedFonts ALL
-    COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/generate-fonts.py"
+set(FONT_GENERATOR "${CMAKE_SOURCE_DIR}/Buildscripts/generate-fonts.py")
+# The generator reads the device DTS files, the font assets and the icon/version sources. Track
+# them so an incremental build picks up a changed TTF or codepoint list.
+file(GLOB DEVICE_FONT_INPUTS CONFIGURE_DEPENDS "${DEVICETREE_LOCATION}/*.dts")
+list(APPEND DEVICE_FONT_INPUTS
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/AdwaitaSans.ttf"
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/AdwaitaMono.ttf"
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/MaterialSymbolsRounded.ttf"
+    "${CMAKE_SOURCE_DIR}/Data/system/fonts/MaterialSymbolsRounded.codepoints"
+    "${CMAKE_SOURCE_DIR}/Tactility/Private/Tactility/lvgl/FontVersions.h"
+    "${CMAKE_SOURCE_DIR}/Modules/lvgl-module/source/icon_names.c"
+    "${CMAKE_SOURCE_DIR}/Modules/lvgl-module/include/lvgl/icons/names.h"
+)
+# The generator builds its own host tool from these sources; a change to the renderer must also
+# invalidate the embedded font bytes.
+file(GLOB_RECURSE BINFONT_TOOL_INPUTS CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/Buildscripts/BinfontTool/*.c*"
+    "${CMAKE_SOURCE_DIR}/Buildscripts/BinfontTool/*.h"
+    "${CMAKE_SOURCE_DIR}/Modules/binfont-module/source/*.c*"
+    "${CMAKE_SOURCE_DIR}/Modules/binfont-module/include/*.h"
+    "${CMAKE_SOURCE_DIR}/Modules/binfont-module/private/*.h"
+    "${CMAKE_SOURCE_DIR}/TactilityKernel/source/memory_posix.cpp"
+)
+add_custom_command(
+    OUTPUT "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
+    COMMAND python "${FONT_GENERATOR}"
         "${DEVICETREE_LOCATION}" ${fonts_simulator} "${GENERATED_DIR}"
-    BYPRODUCTS "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
+    DEPENDS "${FONT_GENERATOR}" "${DEVICETREE_LOCATION}/device.properties"
+        ${DEVICE_FONT_INPUTS} ${BINFONT_TOOL_INPUTS}
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Generating font source files..."
+)
+add_custom_target(GeneratedFonts ALL
+    DEPENDS "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
 )
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.h" PROPERTIES GENERATED TRUE)

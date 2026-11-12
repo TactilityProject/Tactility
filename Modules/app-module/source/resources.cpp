@@ -4,7 +4,7 @@
 #include <app/private/scheduler.h>
 #include <app/scheduler.h>
 
-#include <TactilityCpp/Memory.h>
+#include <tactility/Memory.hpp>
 
 #include <tactility/delay.h>
 #include <tactility/log.h>

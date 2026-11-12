@@ -16,10 +16,12 @@ class View final {
     lv_obj_t* root = nullptr;
     lv_obj_t* enable_switch = nullptr;
     lv_obj_t* scanning_spinner = nullptr;
+    lv_obj_t* loading_label = nullptr;
     lv_obj_t* refresh_button = nullptr;
     lv_obj_t* networks_list = nullptr;
     lv_obj_t* connect_to_hidden = nullptr;
 
+    bool isWaitingForFirstRecords() const;
     void updateWifiToggle();
     void updateScanning();
     void updateRefreshButton();

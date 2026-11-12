@@ -3,7 +3,7 @@
 
 #include "sx126x_radiolib_hal.h"
 
-#include <TactilityCpp/Memory.h>
+#include <tactility/Memory.hpp>
 
 #include <tactility/check.h>
 #include <tactility/concurrent/event_group.h>

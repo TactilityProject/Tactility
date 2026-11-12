@@ -2,7 +2,6 @@
 
 #include <Tactility/Mutex.h>
 #include <Tactility/Timer.h>
-#include <Tactility/bluetooth/Bluetooth.h>
 #include <Tactility/service/ServiceContext.h>
 #include <Tactility/service/ServicePaths.h>
 #include <Tactility/service/ServiceRegistration.h>
@@ -24,6 +23,7 @@
 #include <lvgl/icons/statusbar.h>
 #include <lvgl/lvgl.h>
 
+#include <app/install.h>
 #include <app_hub/app_hub.h>
 
 #include <cstring>
@@ -87,24 +87,18 @@ static const char* getWifiStatusIcon() {
 }
 
 // Only shown while the radio is on
-static const char* getBluetoothStatusIcon(tt::bluetooth::RadioState state, bool scanning, bool connected) {
+static const char* getBluetoothStatusIcon(BtRadioState state, bool scanning, bool connected) {
     switch (state) {
-        using enum tt::bluetooth::RadioState;
-        case Off:
-        case OffPending:
+        case BT_RADIO_STATE_OFF:
+        case BT_RADIO_STATE_OFF_PENDING:
             return nullptr;
-        case OnPending:
-        case On:
+        case BT_RADIO_STATE_ON_PENDING:
+        case BT_RADIO_STATE_ON:
             if (connected) return LVGL_ICON_STATUSBAR_BLUETOOTH_CONNECTED;
             if (scanning)  return LVGL_ICON_STATUSBAR_BLUETOOTH_SEARCHING;
             return LVGL_ICON_STATUSBAR_BLUETOOTH;
     }
     return nullptr;
-}
-
-static const char* getSdCardStatusIcon(bool mounted) {
-    if (mounted) return LVGL_ICON_STATUSBAR_SD_CARD;
-    return LVGL_ICON_STATUSBAR_SD_CARD_ALERT;
 }
 
 static const char* getPowerStatusIcon() {
@@ -164,6 +158,8 @@ class StatusbarService final : public Service {
     bool usb_last_state = false;
     int8_t install_icon_id;
     bool install_last_state = false;
+    /** The number of app_install() calls seen by the previous update, to show installs that ended between two updates */
+    uint32_t install_seen_count = app_install_get_started_count();
     TaskEventGroup appHubEventGroup {};
     AppHubEventSubscription appHubSubscription {};
     bool appHubSubscribed = false;
@@ -201,12 +197,13 @@ class StatusbarService final : public Service {
     }
 
     void updateBluetoothIcon() {
-        auto radio_state = bluetooth::getRadioState();
+        BtRadioState radio_state = BT_RADIO_STATE_OFF;
         bool scanning;
 
         {
             Device* btdev;
             if (device_get_first_active_by_type(&BLUETOOTH_TYPE, &btdev) == ERROR_NONE) {
+                bluetooth_get_radio_state(btdev, &radio_state);
                 scanning = bluetooth_is_scanning(btdev);
                 device_put(btdev);
             } else {
@@ -317,7 +314,10 @@ class StatusbarService final : public Service {
                 installingApps.erase(event.app_id);
             }
         }
-        const bool installing = !installingApps.empty();
+        const uint32_t startedCount = app_install_get_started_count();
+        const bool startedSinceLastUpdate = startedCount != install_seen_count;
+        install_seen_count = startedCount;
+        const bool installing = !installingApps.empty() || app_install_is_active() || startedSinceLastUpdate;
         if (installing != install_last_state) {
             lvgl_statusbar_icon_set_visibility(install_icon_id, installing);
             install_last_state = installing;

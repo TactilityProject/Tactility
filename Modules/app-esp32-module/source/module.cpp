@@ -47,7 +47,7 @@ void module_refs_end() {
 
 void module_refs_release(ModuleRefs* refs) {
     for (auto* module : refs->modules) {
-        module_put(module);
+        module_put_code(module);
     }
     refs->modules.clear();
 }
@@ -57,7 +57,9 @@ extern "C" {
 // Overrides elf_loader's default KConfig-based symbol resolver with one that looks up symbols
 // across every started kernel module's own symbol table instead. This module's own symbols come
 // first, as they replace libc functions for apps (see app_symbols.cpp).
-// While an ELF is relocated, the modules it resolves symbols from are referenced, so they can't stop while it runs.
+// While an ELF is relocated, the modules it resolves symbols from are referenced, so that their
+// code stays mapped while it runs. It's a code reference, so it doesn't stop an app from stopping
+// such a module on purpose (e.g. to take over the display) and starting it again afterwards.
 uintptr_t app_esp32_symbol_resolver(const char* symbolName) {
     uintptr_t symbol_address;
     if (module_resolve_symbol(&app_esp32_module, symbolName, &symbol_address)) {
@@ -69,13 +71,13 @@ uintptr_t app_esp32_symbol_resolver(const char* symbolName) {
     }
 
     Module* owner = nullptr;
-    if (!module_resolve_symbol_global_get(symbolName, &symbol_address, &owner)) {
+    if (!module_resolve_symbol_global_get_code(symbolName, &symbol_address, &owner)) {
         return 0;
     }
     // One reference per module is enough
     for (auto* module : current_refs->modules) {
         if (module == owner) {
-            module_put(owner);
+            module_put_code(owner);
             return symbol_address;
         }
     }

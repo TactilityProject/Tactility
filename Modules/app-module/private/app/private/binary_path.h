@@ -17,6 +17,6 @@ inline std::string app_resolve_binary_path(const std::string& install_dir, const
 #ifdef ESP_PLATFORM
     return install_dir + "/bin/" CONFIG_IDF_TARGET "/" + binary + ".elf";
 #else
-    return install_dir + "/bin/posix-" TACTILITY_POSIX_ARCH "/" + binary + ".so";
+    return install_dir + "/bin/" TACTILITY_POSIX_PLATFORM "/" + binary + ".so";
 #endif
 }

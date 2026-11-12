@@ -466,7 +466,7 @@ bool init_ublox_789(Device* uart, GpsModel model, const std::atomic<bool>& inter
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x08, _message_1HZ, "set GPS update rate", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GLL, "disable NMEA GLL", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GSA, "enable NMEA GSA", 500);
-    SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GSV, "disable NMEA GSV", 500);
+    SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GSV, "enable NMEA GSV", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_VTG, "disable NMEA VTG", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_RMC, "enable NMEA RMC", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GGA, "enable NMEA GGA", 500);
@@ -509,7 +509,7 @@ bool init_ublox_6(Device* uart, const std::atomic<bool>& interrupted) {
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x08, _message_1HZ, "set GPS update rate", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GLL, "disable NMEA GLL", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GSA, "enable NMEA GSA", 500);
-    SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GSV, "disable NMEA GSV", 500);
+    SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GSV, "enable NMEA GSV", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_VTG, "disable NMEA VTG", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_RMC, "enable NMEA RMC", 500);
     SEND_UBX_PACKET(uart, interrupted, buffer, 0x06, 0x01, _message_GGA, "enable NMEA GGA", 500);

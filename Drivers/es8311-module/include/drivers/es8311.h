@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <tactility/error.h>
 #include <tactility/drivers/audio_codec.h>
+#include <tactility/drivers/gpio.h>
 
 struct Device;
 
@@ -25,6 +26,15 @@ struct Es8311Config {
     uint8_t address;
     /** I2S controller device that carries audio data */
     struct Device* i2s_device;
+    /**
+     * Optional speaker amplifier enable pin. When set, the codec driver drives it through
+     * esp_codec_dev as the PA control line.
+     */
+    struct GpioPinSpec pin_pa;
+    /** Whether the PA enable line is active-low. */
+    bool pa_inverted;
+    /** Disable the DAC reference (required by some board layouts, e.g. ESP-Mosaico). */
+    bool no_dac_ref;
 };
 
 #ifdef __cplusplus

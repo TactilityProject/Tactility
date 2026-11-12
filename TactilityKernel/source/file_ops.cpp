@@ -3,10 +3,12 @@
 
 #include <tactility/concurrent/mutex.h>
 #include <tactility/concurrent/thread.h>
+#include <tactility/delay.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
 #include <tactility/time.h>
 
+#include <atomic>
 #include <new>
 
 #define TAG "file_ops"
@@ -28,6 +30,9 @@ namespace {
 // Large enough for the file and settings helpers and for loading apps. It must be in internal RAM to access flash
 constexpr size_t WORKER_STACK_SIZE = 8192;
 
+constexpr int START_ATTEMPTS = 10;
+constexpr TickType_t START_RETRY_DELAY_TICKS = 2;
+
 struct Item {
     file_ops_work_fn_t work;
     void* context;
@@ -44,6 +49,8 @@ struct State {
     bool running = false;
     // The worker that has ended or is ending, as it can't free itself
     Thread* stale = nullptr;
+    // The task of the running worker, null when there is none
+    std::atomic<TaskHandle_t> workerTask { nullptr };
 
     State() { mutex_construct(&mutex); }
 };
@@ -98,11 +105,13 @@ Item* pop_or_stop(State& s) {
 
 int32_t worker_main(void* context) {
     auto& s = *static_cast<State*>(context);
+    s.workerTask.store(xTaskGetCurrentTaskHandle());
     while (Item* item = pop_or_stop(s)) {
         item->work(item->context);
         complete(item);
         memory_free(item);
     }
+    s.workerTask.store(nullptr);
     return 0;
 }
 
@@ -119,7 +128,15 @@ bool start_worker(State& s) {
         return false;
     }
     s.running = true;
-    if (thread_start(thread) != ERROR_NONE) {
+    // The stack of a worker that just ended is only released when the idle task runs, so creating the next one can fail for a moment
+    bool started = false;
+    for (int attempt = 0; attempt < START_ATTEMPTS && !started; attempt++) {
+        if (attempt > 0) {
+            delay_ticks(START_RETRY_DELAY_TICKS);
+        }
+        started = thread_start(thread) == ERROR_NONE;
+    }
+    if (!started) {
         s.running = false;
         thread_free(thread);
         return false;
@@ -236,6 +253,11 @@ error_t file_ops_poll(FileOpsSubscription* sub) {
     }
     mutex_unlock(&link->mutex);
     return available ? ERROR_NONE : ERROR_TIMEOUT;
+}
+
+bool file_ops_is_worker(void) {
+    const TaskHandle_t current = xTaskGetCurrentTaskHandle();
+    return current != nullptr && state().workerTask.load() == current;
 }
 
 error_t file_ops_await(FileOpsSubscription* sub, TickType_t timeout) {

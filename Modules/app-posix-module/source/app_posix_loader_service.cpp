@@ -112,7 +112,7 @@ bool is_executable_file(const std::string& resolved_path) {
 
 // location.location can be either an app's install directory or the .so file directly, mirroring
 // app_esp32_loader_service.cpp's resolve_elf_path(). A "packaged" app's install directory always
-// holds its single binary at the fixed path {dir}/bin/posix-{TACTILITY_POSIX_ARCH}/app.so - a
+// holds its single binary at the fixed path {dir}/bin/{TACTILITY_POSIX_PLATFORM}/app.so - a
 // "terminal" app has no such file (its several binaries keep their own names), so this correctly
 // leaves it unresolvable - terminal apps aren't run through AppLoaderApi (see app/install.h).
 error_t resolve_app_path(const std::string& path, std::string& resolvedPath) {
@@ -120,7 +120,7 @@ error_t resolve_app_path(const std::string& path, std::string& resolvedPath) {
         resolvedPath = path;
         return ERROR_NONE;
     }
-    std::string candidate = path + "/bin/posix-" TACTILITY_POSIX_ARCH "/app.so";
+    std::string candidate = path + "/bin/" TACTILITY_POSIX_PLATFORM "/app.so";
     if (!is_regular_file(candidate)) {
         return ERROR_NOT_FOUND;
     }

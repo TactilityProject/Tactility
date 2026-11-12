@@ -34,7 +34,7 @@ properties:
       to let its rail stabilize before communication starts. 0 (the default) adds no delay.
   init-sequence:
     type: array
-    element-type: uint8_t
+    element-type: const uint8_t
     description: >
       Custom vendor bring-up sequence: a flat list of command bytes, each sent as its own
       single-byte SSD1306 command (some standalone, some acting as a parameter to the byte

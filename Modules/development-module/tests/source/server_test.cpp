@@ -15,7 +15,6 @@
 #include <service/paths.h>
 
 #include <tactility/delay.h>
-#include <tactility/filesystem/file_system.h>
 #include <tactility/freertos/task.h>
 #include <tactility/paths.h>
 
@@ -44,25 +43,6 @@ constexpr uint32_t TIMEOUT_MS = 10000;
 
 // region Fixture
 
-error_t fakeMount(void*) { return ERROR_NONE; }
-error_t fakeUnmount(void*) { return ERROR_NONE; }
-bool fakeIsMounted(void*) { return false; }
-
-error_t fakeGetPath(void* data, char* out_path, size_t out_path_size) {
-    const char* path = static_cast<const char*>(data);
-    if (strlen(path) + 1 > out_path_size) {
-        return ERROR_BUFFER_OVERFLOW;
-    }
-    strcpy(out_path, path);
-    return ERROR_NONE;
-}
-
-const FileSystemApi fakeDataApi = {
-    .mount = fakeMount,
-    .unmount = fakeUnmount,
-    .is_mounted = fakeIsMounted,
-    .get_path = fakeGetPath,
-};
 
 std::atomic<int> promptResult { DEVELOPMENT_PROMPT_REJECT };
 std::atomic<int> promptCount { 0 };
@@ -137,7 +117,7 @@ void ensureFixture() {
 
     std::filesystem::remove_all(TEST_ROOT);
     std::filesystem::create_directories(TEST_ROOT);
-    REQUIRE_NE(file_system_add("data", &fakeDataApi, const_cast<char*>(TEST_ROOT)), nullptr);
+    paths_set_root_path_override(TEST_ROOT);
     if (service_manager_find_instance(APP_LOADER_MEMORY_SERVICE_ID) == nullptr) {
         REQUIRE_EQ(service_manager_add(&app_internal_loader_service_manifest, true), ERROR_NONE);
     }
@@ -410,6 +390,17 @@ constexpr auto* REJECTED = R"({"status":"rejected"})";
 // endregion
 
 } // namespace
+
+TEST_CASE("an info hello is answered without a prompt") {
+    ensureFixture();
+    promptCount = 0;
+
+    TestClient client(&identity(0));
+    const std::string line = connectAndGreet(client, "info");
+    CHECK_NE(line.find(R"("status":"accepted")"), std::string::npos);
+    CHECK_NE(line.find(std::string(R"("id":")") + CONFIG_TT_DEVICE_ID + "\""), std::string::npos);
+    CHECK_EQ(promptCount, 0);
+}
 
 TEST_CASE("a client that is accepted once gets a shell") {
     ensureFixture();

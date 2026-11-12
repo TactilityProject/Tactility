@@ -3,7 +3,7 @@
 
 #include <app/package_manifest.h>
 
-#include <TactilityCpp/Allocator.h>
+#include <tactility/Allocator.hpp>
 
 #include <map>
 #include <string>

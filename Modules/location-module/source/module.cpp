@@ -50,6 +50,7 @@ static const ModuleSymbol location_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(location_get),
     DEFINE_MODULE_SYMBOL(location_subscribe),
     DEFINE_MODULE_SYMBOL(location_unsubscribe),
+    DEFINE_MODULE_SYMBOL(location_for_each_subscriber),
     DEFINE_MODULE_SYMBOL(location_is_in_use),
     DEFINE_MODULE_SYMBOL(location_lookup_time_zone),
     MODULE_SYMBOL_TERMINATOR

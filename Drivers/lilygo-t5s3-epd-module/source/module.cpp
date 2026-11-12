@@ -5,9 +5,11 @@
 extern "C" {
 
 extern Driver t5s3_display_driver;
+extern Driver t5s3_display_bw_driver;
 
 static Driver* const lilygo_t5s3_epd_drivers[] = {
     &t5s3_display_driver,
+    &t5s3_display_bw_driver,
     nullptr
 };
 

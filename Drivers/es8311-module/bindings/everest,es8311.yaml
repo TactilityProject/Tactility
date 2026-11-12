@@ -9,3 +9,15 @@ properties:
     type: phandle
     required: true
     description: "I2S controller device that carries audio data"
+  pin-pa:
+    type: phandles
+    default: GPIO_PIN_SPEC_NONE
+    description: Optional speaker amplifier enable pin
+  pa-inverted:
+    type: boolean
+    default: false
+    description: Whether the PA enable line is active-low
+  no-dac-ref:
+    type: boolean
+    default: false
+    description: Disable the DAC reference (board-layout dependent)

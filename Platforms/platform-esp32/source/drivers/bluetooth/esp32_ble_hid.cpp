@@ -15,10 +15,11 @@
 
 #include <cstring>
 
-constexpr auto* TAG = "esp32_ble_hid";
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/log.h>
+
+constexpr auto* TAG = "esp32_ble_hid";
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -273,9 +274,7 @@ bool ble_hid_switch_profile(struct Device* device, BleHidProfile profile) {
     if (profile == current_hid_profile) return true;
     LOG_I(TAG, "switchGattProfile: %d -> %d", (int)current_hid_profile, (int)profile);
 
-    ble_gap_adv_stop();
-
-    // NimBLE only allows GATT changes without discovery, which a repeating scan keeps starting
+    // A scan or the name resolution it starts holds the GAP procedure slot.
     if (ble_gap_disc_active()) {
         ble_gap_disc_cancel();
         if (ble_get_scan_active(device)) {
@@ -286,7 +285,7 @@ bool ble_hid_switch_profile(struct Device* device, BleHidProfile profile) {
         }
     }
 
-    // A connection that is being set up, such as an auto-connect to a keyboard, blocks it too
+    // A connection being set up, such as an auto-connect to a keyboard.
     if (ble_gap_conn_active()) {
         ble_gap_conn_cancel();
     }
@@ -297,14 +296,19 @@ bool ble_hid_switch_profile(struct Device* device, BleHidProfile profile) {
         hid_ctx->hid_conn_handle.store(BLE_HS_CONN_HANDLE_NONE);
     }
 
-    // ble_svc_gap_init() asserts when NimBLE refuses the change, so check first
+    // Stop advertising last so a failed switch leaves the serving profile on the air.
+    if (ble_gap_adv_active()) {
+        ble_gap_adv_stop();
+    }
+
+    // ble_svc_gap_init() asserts when NimBLE refuses the change.
     if (ble_gap_adv_active() || ble_gap_disc_active() || ble_gap_conn_active()) {
         LOG_W(TAG, "switchGattProfile: GAP procedure still active (adv=%d disc=%d conn=%d)",
             ble_gap_adv_active(), ble_gap_disc_active(), ble_gap_conn_active());
         return false;
     }
 
-    // Refuses with BLE_HS_EBUSY while a connection exists, which ble_svc_gap_init() would assert on
+    // Refused with BLE_HS_EBUSY while a connection exists.
     const int reset_rc = ble_gatts_reset();
     if (reset_rc != 0) {
         LOG_W(TAG, "switchGattProfile: ble_gatts_reset failed rc=%d", reset_rc);
@@ -385,16 +389,20 @@ void ble_hid_init_gatt() {
 // stored as its driver data.
 
 static error_t hid_device_start(struct Device* device, enum BtHidDeviceMode mode) {
-    // NimBLE can't change GATT services while connected, and the HID host holds a connection
+    // NimBLE cannot change GATT services while a link exists.
     if (ble_hid_get_host_active(device)) {
         LOG_W(TAG, "Can't start the HID device while a HID host connection is active");
         return ERROR_INVALID_STATE;
     }
-    // Clean up any leftover context from a previous session (e.g. BLE was disabled
-    // while connected: dispatch_disable() skips the normal hid_device_stop cleanup).
+    // The radio may already be on under another app's identity. Prepare the GAP first, then
+    // make this app's identity the active one when the radio is idle.
+    if (!ble_prepare_profile_start(device)) {
+        return ERROR_INVALID_STATE;
+    }
+    ble_identity_apply_pending(device);
+    // Leftover context from a session that ended with the radio being disabled.
     BleHidDeviceCtx* old_ctx = (BleHidDeviceCtx*)device_get_driver_data(device);
     delete old_ctx; // no-op if nullptr
-    // Create driver data for this HID session.
     BleHidDeviceCtx* hid_ctx = new BleHidDeviceCtx();
     hid_ctx->hid_conn_handle.store(BLE_HS_CONN_HANDLE_NONE);
     device_set_driver_data(device, hid_ctx);
@@ -447,20 +455,15 @@ static error_t hid_device_stop(struct Device* device) {
     BleHidDeviceCtx* hid_ctx = (BleHidDeviceCtx*)device_get_driver_data(device);
     uint16_t conn = hid_ctx ? hid_ctx->hid_conn_handle.load() : (uint16_t)BLE_HS_CONN_HANDLE_NONE;
     if (conn != BLE_HS_CONN_HANDLE_NONE) {
-        // Connected: terminate and let the DISCONNECT handler switch profile to None.
-        // ble_gatts_mutable() returns false while a connection is live, so calling
-        // switch_profile here would assert inside ble_svc_gap_init().
+        // Terminate and let the disconnect handler switch the profile to None. The GATT cannot
+        // change while the link exists, and the handler runs on the host task where it is safe.
         ble_gap_terminate(conn, BLE_ERR_REM_USER_CONN_TERM);
-        // Do NOT clear hid_conn_handle or delete hid_ctx:
-        // the DISCONNECT handler in esp32_ble.cpp uses hid_conn_handle for was_hid detection.
-        // esp32_ble_hid_device_stop_device() (device lifecycle) will free hid_ctx later.
+        // Keep hid_conn_handle and hid_ctx, the disconnect handler uses the handle to recognise
+        // this link. The device lifecycle frees the context.
     } else {
-        // Not connected: GATT is mutable, switch profile immediately.
-        if (current_hid_profile != BleHidProfile::None) {
-            if (!ble_hid_switch_profile(device, BleHidProfile::None)) {
-                LOG_E(TAG, "hid_device_stop: switch to None failed — GATT state inconsistent");
-            }
-        }
+        // Nothing is connected. Do not touch the GATT here, a reset from a non-host task
+        // corrupts NimBLE's heap. Nothing advertises while hid_active is false, and the next
+        // start rebuilds the profile if it needs a different mode.
         delete hid_ctx;
         device_set_driver_data(device, nullptr);
     }
@@ -557,6 +560,7 @@ Driver esp32_ble_hid_device_driver = {
     .compatible   = nullptr,
     .start_device = nullptr,
     .stop_device  = esp32_ble_hid_device_stop_device,
+    .probe = nullptr,
     .api          = &nimble_hid_device_api,
     .device_type  = &BLUETOOTH_HID_DEVICE_TYPE,
     .internal     = nullptr,

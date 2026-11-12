@@ -21,12 +21,19 @@
 #include <bindings/bq27220.h>
 #include <bindings/drv2605.h>
 #include <gps_generic/bindings.h>
+#include <tactility/bindings/esp32_flash_fatfs.h>
 
 // Reference: https://github.com/Xinyuan-LilyGO/T-Deck-MAX
 // lib/TDeckMaxBoard/src/TDeckMaxBoard.h, docs/pinmap.md
 / {
 	compatible = "root";
 	model = "LilyGO T-Deck Max";
+
+	flash_fatfs0 {
+		compatible = "espressif,esp32-flash-fatfs";
+		partition-label = "data";
+		mount-path = "/data";
+	};
 
 	wifi0 {
 		compatible = "espressif,esp32-wifi-pinned";
@@ -55,7 +62,7 @@
 			motor_power {
 				compatible = "gpio-hog";
 				pin = <&xl9555 5 GPIO_FLAG_NONE>;
-      };
+      		};
 
 			gps_power {
 				compatible = "gpio-hog";
@@ -72,7 +79,7 @@
 			x-max = <240>;
 			y-max = <320>;
 			// Reset routed through the XL9555 IO expander (P07, active low).
-			pin-reset = <&xl9555 7 GPIO_FLAG_NONE>;
+			pin-reset = <&xl9555 7 GPIO_FLAG_ACTIVE_LOW>;
 		};
 
 		// TCA8418 4x10 matrix scanner. Keymaps are written in the vendor's row/column
@@ -98,9 +105,9 @@
 				0 0 0 0 0 11 48 32 0 9        //         PREV 0 SPC   NEXT
 			];
 			keymap-sy = [
-				49 50 51 52 53 54 55 56 57 48 // 1 2 3 4 5 6 7 8 9 0
-				64 35 43 45 42 47 40 41 95 8  // @ # + - * / ( ) _ BACKSPACE
-				0 33 63 59 58 39 34 44 46 10  //   ! ? ; : ' " , . ENTER
+				35 49 50 51 40 41 95 45 43 64 // # 1 2 3 ( ) _ - + @
+				42 52 53 54 47 58 59 39 34 8  // * 4 5 6 / : ; ' " BACKSPACE
+				0 55 56 57 63 33 44 46 0 10   //   7 8 9 ? ! , .   ENTER
 				0 0 0 0 0 11 48 32 0 9        //         PREV 0 SPC   NEXT
 			];
 			shift-row = <2>;
@@ -108,7 +115,7 @@
 			sym-row = <3>;
 			sym-col = <8>;
 			// Reset routed through the XL9555 IO expander (P11, active low).
-			pin-reset = <&xl9555 9 GPIO_FLAG_NONE>;
+			pin-reset = <&xl9555 9 GPIO_FLAG_ACTIVE_LOW>;
 		};
 
 		// Battery metrics from the BQ27220 fuel gauge; power-off via the SY6970 charger.
@@ -177,7 +184,6 @@
 
 		sdcard@1 {
 			compatible = "espressif,esp32-sdspi";
-			status = "disabled";
 			frequency-khz = <20000>;
 		};
 

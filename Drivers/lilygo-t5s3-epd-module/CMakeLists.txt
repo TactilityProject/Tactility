@@ -12,7 +12,8 @@ tactility_add_module(lilygo-t5s3-epd-module
 
 # The pixel loops of the display are too slow with the debug optimization level of the project
 set_source_files_properties(
-    source/t5s3_epd.cpp
+    source/t5s3_epd_board.cpp
+    source/t5s3_display_bw.cpp
     source/t5s3_display.cpp
     PROPERTIES COMPILE_OPTIONS -O2
 )

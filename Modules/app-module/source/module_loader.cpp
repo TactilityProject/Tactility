@@ -4,7 +4,7 @@
 #include <app/private/binary_path.h>
 #include <app/private/module_loader.h>
 
-#include <TactilityCpp/Memory.h>
+#include <tactility/Memory.hpp>
 
 #include <service/manager.h>
 

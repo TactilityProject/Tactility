@@ -8,7 +8,7 @@
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
-#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/log.h>
 
 #include <esp_err.h>
@@ -191,7 +191,7 @@ static error_t stop(Device* device) {
 
 // endregion
 
-// region PointerApi
+// region TouchApi
 
 static error_t ft6x36_enter_sleep(Device* device) {
     auto* internal = static_cast<Ft6x36Internal*>(device_get_driver_data(device));
@@ -246,7 +246,7 @@ static error_t ft6x36_get_mirror_y(Device* device, bool* mirror) {
 
 // endregion
 
-static const PointerApi ft6x36_pointer_api = {
+static const TouchApi ft6x36_touch_api = {
     .enter_sleep = ft6x36_enter_sleep,
     .exit_sleep = ft6x36_exit_sleep,
     .read_data = ft6x36_read_data,
@@ -264,7 +264,8 @@ Driver ft6x36_driver = {
     .compatible = (const char*[]) { "focaltech,ft6x36", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = &ft6x36_pointer_api,
-    .device_type = &POINTER_TYPE,
+    .probe = nullptr,
+    .api = &ft6x36_touch_api,
+    .device_type = &TOUCH_TYPE,
     .internal = nullptr
 };

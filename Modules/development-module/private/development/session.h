@@ -47,6 +47,9 @@ bool development_session_write(DevelopmentSession* session, const void* data, si
 
 bool development_session_send_status(DevelopmentSession* session, const char* status, const char* message);
 
+/** Sends the "accepted" line of an "info" hello, with the device information */
+bool development_session_send_info(DevelopmentSession* session, const char* vendor, const char* name, const char* id, const char* version);
+
 bool development_session_send_frame(DevelopmentSession* session, DevelopmentFrameType type, const void* payload, uint16_t length);
 
 /** Hands the session that the listener accepted in @a slot to its session app. @return NULL when there is none */

@@ -170,6 +170,12 @@ void systemBarsRefresh() {
     }
 }
 
+void systemBarsSetStatusbarVisible(bool visible) {
+    if (state.statusbar != nullptr) {
+        lv_obj_set_hidden(state.statusbar, !visible);
+    }
+}
+
 SystemBarsLayout systemBarsGetLayout() {
     return state.layout;
 }

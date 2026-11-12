@@ -166,6 +166,29 @@ struct UsbDeviceControllerApi {
      * @return true if a usbdevicecdc0 child device is present and enabled on this board
      */
     bool (*is_cdc_enabled)(struct Device* device);
+
+    /**
+     * Install the CDC-ACM console as the only USB device function, with no primary class
+     * claiming the slot. Boards that have no primary class active at boot (e.g. no SD card for
+     * MSC) use this to expose a serial console/log port without opening a
+     * mass-storage/HID/MIDI mode first.
+     *
+     * Idempotent: returns ERROR_NONE if the standalone console is already installed. A later
+     * claim() for a primary class tears the standalone console down first.
+     * @param[in] device the USB device controller device
+     * @retval ERROR_RESOURCE_BUSY if a primary class already holds the slot
+     * @retval ERROR_INVALID_STATE if no usbdevicecdc0 child is present
+     * @retval ERROR_NONE on success
+     */
+    error_t (*start_cdc_console)(struct Device* device);
+
+    /**
+     * Remove a standalone CDC console installed by start_cdc_console(). No-op if none is
+     * installed (e.g. a primary class owns the slot instead).
+     * @param[in] device the USB device controller device
+     * @retval ERROR_NONE on success
+     */
+    error_t (*stop_cdc_console)(struct Device* device);
 };
 
 extern const struct DeviceType USB_DEVICE_CONTROLLER_TYPE;
@@ -189,6 +212,8 @@ const char* usb_device_controller_get_last_error(void);
 error_t usb_device_controller_release(struct Device* device, enum UsbDeviceClass usb_class);
 enum UsbDeviceClass usb_device_controller_get_active_class(struct Device* device);
 bool usb_device_controller_is_cdc_enabled(struct Device* device);
+error_t usb_device_controller_start_cdc_console(struct Device* device);
+error_t usb_device_controller_stop_cdc_console(struct Device* device);
 
 #ifdef __cplusplus
 }

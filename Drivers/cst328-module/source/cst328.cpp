@@ -8,7 +8,7 @@
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/i2c_controller.h>
-#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/error.h>
 #include <tactility/log.h>
 
@@ -146,7 +146,7 @@ static error_t stop(Device* device) {
 
 // endregion
 
-// region PointerApi
+// region TouchApi
 
 static error_t cst328_enter_sleep(Device* device) {
     auto* parent = device_get_parent(device);
@@ -267,7 +267,7 @@ static error_t cst328_get_mirror_y(Device* device, bool* mirror) {
 
 // endregion
 
-static const PointerApi cst328_pointer_api = {
+static const TouchApi cst328_touch_api = {
     .enter_sleep = cst328_enter_sleep,
     .exit_sleep = cst328_exit_sleep,
     .read_data = cst328_read_data,
@@ -285,7 +285,8 @@ Driver cst328_driver = {
     .compatible = (const char*[]) { "hynitron,cst328", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = &cst328_pointer_api,
-    .device_type = &POINTER_TYPE,
+    .probe = nullptr,
+    .api = &cst328_touch_api,
+    .device_type = &TOUCH_TYPE,
     .internal = nullptr
 };

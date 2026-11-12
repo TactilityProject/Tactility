@@ -6,7 +6,6 @@ file(GLOB_RECURSE SOURCE_FILES "source/*.c*")
 
 list(APPEND REQUIRES_LIST
     TactilityKernel
-    TactilityKernelCpp
     service-module
     gps-module
     http-module

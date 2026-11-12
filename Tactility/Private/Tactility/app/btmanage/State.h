@@ -1,7 +1,10 @@
 #pragma once
 
-#include <Tactility/bluetooth/Bluetooth.h>
 #include <Tactility/RecursiveMutex.h>
+
+#include <bluetooth/bluetooth_service.h>
+
+#include <vector>
 
 namespace tt::app::btmanage {
 
@@ -9,9 +12,9 @@ class State final {
 
     mutable RecursiveMutex mutex;
     bool scanning = false;
-    bluetooth::RadioState radioState = bluetooth::RadioState::Off;
-    std::vector<bluetooth::PeerRecord> scanResults;
-    std::vector<bluetooth::PeerRecord> pairedPeers;
+    BtRadioState radioState = BT_RADIO_STATE_OFF;
+    std::vector<BluetoothPeer> scanResults;
+    std::vector<BluetoothPeer> pairedPeers;
 
 public:
     State() = default;
@@ -19,19 +22,19 @@ public:
     void setScanning(bool isScanning);
     bool isScanning() const;
 
-    void setRadioState(bluetooth::RadioState state);
-    bluetooth::RadioState getRadioState() const;
+    void setRadioState(BtRadioState state);
+    BtRadioState getRadioState() const;
 
     void updateScanResults();
     void updatePairedPeers();
 
-    std::vector<bluetooth::PeerRecord> getScanResults() const {
+    std::vector<BluetoothPeer> getScanResults() const {
         auto lock = mutex.asScopedLock();
         lock.lock();
         return scanResults;
     }
 
-    std::vector<bluetooth::PeerRecord> getPairedPeers() const {
+    std::vector<BluetoothPeer> getPairedPeers() const {
         auto lock = mutex.asScopedLock();
         lock.lock();
         return pairedPeers;

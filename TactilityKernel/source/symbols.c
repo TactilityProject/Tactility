@@ -16,6 +16,7 @@
 #include <tactility/drivers/bluetooth_midi.h>
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/camera.h>
+#include <tactility/drivers/compass.h>
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/grove.h>
@@ -36,6 +37,9 @@
 #include <tactility/drivers/sdcard.h>
 #include <tactility/drivers/sleep_controller.h>
 #include <tactility/drivers/spi_controller.h>
+#include <tactility/drivers/vibration.h>
+#include <tactility/drivers/mouse.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/drivers/trackball.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/drivers/usb_device_controller.h>
@@ -51,6 +55,7 @@
 #include <tactility/file_ops.h>
 #include <tactility/filesystem/file_system.h>
 #include <tactility/memory.h>
+#include <tactility/network.h>
 #include <tactility/module.h>
 #include <tactility/paths.h>
 #include <tactility/preferences.h>
@@ -61,6 +66,8 @@
 #ifndef ESP_PLATFORM
 #include <tactility/log.h>
 #endif
+
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 /**
  * This file is a C file instead of C++, so we can import all headers as C code.
@@ -257,6 +264,14 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(I2S_CONTROLLER_TYPE),
     // drivers/i8080_controller
     DEFINE_MODULE_SYMBOL(I8080_CONTROLLER_TYPE),
+    // drivers/compass
+    DEFINE_MODULE_SYMBOL(compass_read_field),
+    DEFINE_MODULE_SYMBOL(compass_read_heading),
+    DEFINE_MODULE_SYMBOL(COMPASS_TYPE),
+    // drivers/vibration
+    DEFINE_MODULE_SYMBOL(vibration_set_strength),
+    DEFINE_MODULE_SYMBOL(vibration_pulse),
+    DEFINE_MODULE_SYMBOL(VIBRATION_TYPE),
     // drivers/imu
     DEFINE_MODULE_SYMBOL(imu_read_accel),
     DEFINE_MODULE_SYMBOL(imu_read_gyro),
@@ -333,16 +348,41 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     // drivers/sleep_controller
     DEFINE_MODULE_SYMBOL(sleep_controller_deep_sleep),
     DEFINE_MODULE_SYMBOL(SLEEP_CONTROLLER_TYPE),
+    // drivers/mouse
+    DEFINE_MODULE_SYMBOL(mouse_read_delta),
+    DEFINE_MODULE_SYMBOL(mouse_get_button_count),
+    DEFINE_MODULE_SYMBOL(mouse_get_button_pressed),
+    DEFINE_MODULE_SYMBOL(MOUSE_TYPE),
     // drivers/spi_controller
     DEFINE_MODULE_SYMBOL(spi_controller_lock),
     DEFINE_MODULE_SYMBOL(spi_controller_try_lock),
     DEFINE_MODULE_SYMBOL(spi_controller_unlock),
+    DEFINE_MODULE_SYMBOL(spi_controller_add_device),
+    DEFINE_MODULE_SYMBOL(spi_controller_remove_device),
+    DEFINE_MODULE_SYMBOL(spi_controller_transmit),
+    DEFINE_MODULE_SYMBOL(spi_controller_acquire_bus),
+    DEFINE_MODULE_SYMBOL(spi_controller_release_bus),
     DEFINE_MODULE_SYMBOL(spi_controller_lock_bus_of),
     DEFINE_MODULE_SYMBOL(spi_controller_unlock_bus_of),
     DEFINE_MODULE_SYMBOL(SPI_CONTROLLER_TYPE),
+    // drivers/touch
+    DEFINE_MODULE_SYMBOL(touch_enter_sleep),
+    DEFINE_MODULE_SYMBOL(touch_exit_sleep),
+    DEFINE_MODULE_SYMBOL(touch_read_data),
+    DEFINE_MODULE_SYMBOL(touch_get_touched_points),
+    DEFINE_MODULE_SYMBOL(touch_set_swap_xy),
+    DEFINE_MODULE_SYMBOL(touch_get_swap_xy),
+    DEFINE_MODULE_SYMBOL(touch_set_mirror_x),
+    DEFINE_MODULE_SYMBOL(touch_get_mirror_x),
+    DEFINE_MODULE_SYMBOL(touch_set_mirror_y),
+    DEFINE_MODULE_SYMBOL(touch_get_mirror_y),
+    DEFINE_MODULE_SYMBOL(TOUCH_TYPE),
     // drivers/trackball
     DEFINE_MODULE_SYMBOL(trackball_read_delta),
     DEFINE_MODULE_SYMBOL(trackball_get_button_pressed),
+    DEFINE_MODULE_SYMBOL(trackball_set_settings),
+    DEFINE_MODULE_SYMBOL(trackball_get_settings),
+    DEFINE_MODULE_SYMBOL(trackball_settings_get_default),
     DEFINE_MODULE_SYMBOL(TRACKBALL_TYPE),
     // drivers/uart_controller
     DEFINE_MODULE_SYMBOL(uart_controller_open),
@@ -362,21 +402,23 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(bluetooth_find_first_ready_device),
     DEFINE_MODULE_SYMBOL(bluetooth_get_radio_state),
     DEFINE_MODULE_SYMBOL(bluetooth_set_radio_enabled),
+    DEFINE_MODULE_SYMBOL(bluetooth_is_radio_on_or_pending),
     DEFINE_MODULE_SYMBOL(bluetooth_scan_start),
     DEFINE_MODULE_SYMBOL(bluetooth_scan_stop),
     DEFINE_MODULE_SYMBOL(bluetooth_is_scanning),
+    DEFINE_MODULE_SYMBOL(bluetooth_is_peripheral_active),
     DEFINE_MODULE_SYMBOL(bluetooth_pair),
     DEFINE_MODULE_SYMBOL(bluetooth_unpair),
     DEFINE_MODULE_SYMBOL(bluetooth_get_paired_peers),
-    DEFINE_MODULE_SYMBOL(bluetooth_connect),
-    DEFINE_MODULE_SYMBOL(bluetooth_disconnect),
+    DEFINE_MODULE_SYMBOL(bluetooth_host_connect),
+    DEFINE_MODULE_SYMBOL(bluetooth_host_disconnect),
     DEFINE_MODULE_SYMBOL(bluetooth_event_subscribe),
     DEFINE_MODULE_SYMBOL(bluetooth_event_unsubscribe),
     DEFINE_MODULE_SYMBOL(bluetooth_event_poll),
     DEFINE_MODULE_SYMBOL(bluetooth_set_device_name),
     DEFINE_MODULE_SYMBOL(bluetooth_get_device_name),
-    DEFINE_MODULE_SYMBOL(bluetooth_set_hid_host_active),
-    DEFINE_MODULE_SYMBOL(bluetooth_fire_event),
+    DEFINE_MODULE_SYMBOL(bluetooth_set_identity),
+    DEFINE_MODULE_SYMBOL(bluetooth_get_identity),
     DEFINE_MODULE_SYMBOL(BLUETOOTH_TYPE),
     // drivers/bluetooth_serial
     DEFINE_MODULE_SYMBOL(bluetooth_serial_get),
@@ -439,6 +481,8 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(wifi_event_poll),
     DEFINE_MODULE_SYMBOL(wifi_get_firmware_ops),
     DEFINE_MODULE_SYMBOL(WIFI_TYPE),
+    // network
+    DEFINE_MODULE_SYMBOL(network_is_available),
     // wifi_auto_scan
     DEFINE_MODULE_SYMBOL(wifi_auto_scan_set_paused),
     // drivers/radio
@@ -597,8 +641,11 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(module_resolve_symbol),
     DEFINE_MODULE_SYMBOL(module_resolve_symbol_global),
     DEFINE_MODULE_SYMBOL(module_resolve_symbol_global_get),
+    DEFINE_MODULE_SYMBOL(module_resolve_symbol_global_get_code),
     DEFINE_MODULE_SYMBOL(module_get),
     DEFINE_MODULE_SYMBOL(module_put),
+    DEFINE_MODULE_SYMBOL(module_get_code),
+    DEFINE_MODULE_SYMBOL(module_put_code),
     // bundle
     DEFINE_MODULE_SYMBOL(bundle_alloc),
     DEFINE_MODULE_SYMBOL(bundle_clone),

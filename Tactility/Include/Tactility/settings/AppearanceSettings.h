@@ -13,12 +13,8 @@ enum class ThemeMode {
     Dark
 };
 
-enum class DensityMode {
-    /** Regular or compact, as configured for the device */
-    DeviceDefault,
-    Regular,
-    Compact
-};
+/** The steps of the spacing and size sliders, in percent */
+constexpr uint8_t DENSITY_STEP = 20;
 
 struct AppearanceSettings {
     /** Default text font size in pixels, or 0 for the device's default size */
@@ -30,7 +26,10 @@ struct AppearanceSettings {
     ThemeMode themeMode = ThemeMode::DeviceDefault;
     /** Use the monochrome theme, also on colour displays */
     bool monoTheme = false;
-    DensityMode densityMode = DensityMode::DeviceDefault;
+    /** Padding and gaps from 0 (compact) to 100 (regular), or empty for the device's default */
+    std::optional<uint8_t> spacing;
+    /** Control sizes, corner radii and borders from 0 (compact) to 100 (regular), or empty for the device's default */
+    std::optional<uint8_t> size;
     bool animationsEnabled = true;
     /** Theme colours as 0xRRGGBB, or empty for the theme's default colour */
     std::optional<uint32_t> primaryColor;

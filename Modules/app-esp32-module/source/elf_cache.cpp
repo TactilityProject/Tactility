@@ -3,6 +3,8 @@
 
 #ifdef CONFIG_ELF_LOADER_LOAD_PSRAM
 
+#include <esp_elf.h>
+#include <esp_idf_version.h>
 #include <esp_ipc.h>
 #include <freertos/FreeRTOS.h>
 
@@ -15,14 +17,15 @@
 // only runs when its core is not in a critical section, which is where esp_cache_msync() does its work.
 extern "C" {
 
-void __real_esp_elf_arch_flush(void);
+int __real_esp_elf_arch_flush(esp_elf_t* elf);
 void Cache_WriteBack_All(void);
 void spi_flash_disable_interrupts_caches_and_other_cpu(void);
 void spi_flash_enable_interrupts_caches_and_other_cpu(void);
 
 }
 
-#if !CONFIG_FREERTOS_UNICORE && !CONFIG_IDF_TARGET_ESP32S31
+// ESP32-S3 on ESP-IDF >= 5.2 syncs only the text range with esp_cache_msync(), which takes its lock
+#if !CONFIG_FREERTOS_UNICORE && !CONFIG_IDF_TARGET_ESP32S31 && !(CONFIG_IDF_TARGET_ESP32S3 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0))
 
 namespace {
 
@@ -52,17 +55,18 @@ void IRAM_ATTR write_back_with_core1_parked(void*) {
 } // namespace
 
 // IRAM: spi_flash_disable_interrupts_caches_and_other_cpu() returns here with the caches disabled
-extern "C" void IRAM_ATTR __wrap_esp_elf_arch_flush(void) {
+extern "C" int IRAM_ATTR __wrap_esp_elf_arch_flush(esp_elf_t*) {
     esp_ipc_call_blocking(0, write_back_with_core1_parked, nullptr);
     // Same as elf_loader's own esp_elf_arch_flush() after its write-back
     spi_flash_disable_interrupts_caches_and_other_cpu();
     spi_flash_enable_interrupts_caches_and_other_cpu();
+    return 0;
 }
 
 #else
 
-extern "C" void IRAM_ATTR __wrap_esp_elf_arch_flush(void) {
-    __real_esp_elf_arch_flush();
+extern "C" int IRAM_ATTR __wrap_esp_elf_arch_flush(esp_elf_t* elf) {
+    return __real_esp_elf_arch_flush(elf);
 }
 
 #endif

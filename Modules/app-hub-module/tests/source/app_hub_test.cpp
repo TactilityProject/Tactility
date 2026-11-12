@@ -9,7 +9,6 @@
 #include <service/paths.h>
 
 #include <tactility/delay.h>
-#include <tactility/filesystem/file_system.h>
 #include <tactility/paths.h>
 
 #include <cstdio>
@@ -40,25 +39,6 @@ const char* CATALOG = R"({
   ]
 })";
 
-error_t fakeMount(void*) { return ERROR_NONE; }
-error_t fakeUnmount(void*) { return ERROR_NONE; }
-bool fakeIsMounted(void*) { return false; }
-
-error_t fakeGetPath(void* data, char* out_path, size_t out_path_size) {
-    const char* path = static_cast<const char*>(data);
-    if (strlen(path) + 1 > out_path_size) {
-        return ERROR_BUFFER_OVERFLOW;
-    }
-    strcpy(out_path, path);
-    return ERROR_NONE;
-}
-
-const FileSystemApi fakeDataApi = {
-    .mount = fakeMount,
-    .unmount = fakeUnmount,
-    .is_mounted = fakeIsMounted,
-    .get_path = fakeGetPath,
-};
 
 /** The service caches the catalog once it's loaded, so all tests share one data directory and catalog */
 void ensureFixture() {
@@ -69,7 +49,7 @@ void ensureFixture() {
     created = true;
 
     std::filesystem::remove_all(TEST_ROOT);
-    REQUIRE_NE(file_system_add("data", &fakeDataApi, const_cast<char*>(TEST_ROOT)), nullptr);
+    paths_set_root_path_override(TEST_ROOT);
 
     char path[FILE_MAX_PATH_STRING_LENGTH];
     REQUIRE_EQ(service_paths_get_user_data_path(APP_HUB_SERVICE_ID, "apps.json", path, sizeof(path)), ERROR_NONE);
@@ -214,6 +194,38 @@ TEST_CASE("app_hub operations report their outcome and the worker stops when idl
     CHECK_EQ(event.operation_id, removeId);
 
     CHECK_EQ(app_hub_event_await(&sub, pdMS_TO_TICKS(10)), ERROR_TIMEOUT);
+    CHECK_EQ(app_hub_event_unsubscribe(&sub), ERROR_NONE);
+    task_event_group_destruct(&group);
+}
+
+TEST_CASE("app_hub queues operations of different apps and runs them in order") {
+    ensureFixture();
+    TaskEventGroup group {};
+    task_event_group_construct(&group);
+    AppHubEventSubscription sub {};
+    REQUIRE_EQ(app_hub_event_subscribe(&sub, &group), ERROR_NONE);
+
+    uint32_t firstId = 0;
+    uint32_t secondId = 0;
+    REQUIRE_EQ(app_hub_remove("first", &firstId), ERROR_NONE);
+    REQUIRE_EQ(app_hub_install("second", &secondId), ERROR_NONE);
+    CHECK_NE(firstId, secondId);
+
+    AppHubEvent event = waitForEvent(sub);
+    CHECK_EQ(event.type, APP_HUB_EVENT_REMOVING);
+    CHECK_EQ(event.operation_id, firstId);
+    event = waitForEvent(sub);
+    CHECK_EQ(event.type, APP_HUB_EVENT_REMOVED);
+    CHECK_EQ(event.operation_id, firstId);
+    CHECK_EQ(event.result, ERROR_NOT_FOUND);
+    event = waitForEvent(sub);
+    CHECK_EQ(event.type, APP_HUB_EVENT_INSTALLING);
+    CHECK_EQ(event.operation_id, secondId);
+    event = waitForEvent(sub);
+    CHECK_EQ(event.type, APP_HUB_EVENT_INSTALLED);
+    CHECK_EQ(event.operation_id, secondId);
+    CHECK_EQ(event.result, ERROR_NOT_FOUND);
+
     CHECK_EQ(app_hub_event_unsubscribe(&sub), ERROR_NONE);
     task_event_group_destruct(&group);
 }

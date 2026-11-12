@@ -17,6 +17,7 @@ Driver root_driver = {
     .compatible = (const char*[]) { "root", nullptr },
     .start_device = nullptr,
     .stop_device = nullptr,
+    .probe = nullptr,
     .api = nullptr,
     .device_type = nullptr,
     .internal = nullptr

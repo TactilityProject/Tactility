@@ -1,6 +1,7 @@
 dependencies:
   - Platforms/platform-esp32
   - Drivers/bm8563-module
+  - Drivers/ssd16xx-module
   - Drivers/st7305-module
   - Drivers/sx126x-module
 bindings: bindings

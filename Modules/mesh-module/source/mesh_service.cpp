@@ -10,9 +10,9 @@
 #include <service/manifest.h>
 #include <service/paths.h>
 
-#include <TactilityCpp/Memory.h>
-#include <TactilityCpp/std/deque.h>
-#include <TactilityCpp/std/vector.h>
+#include <tactility/Memory.hpp>
+#include <tactility/std/deque.hpp>
+#include <tactility/std/vector.hpp>
 
 #include <tactility/check.h>
 #include <tactility/concurrent/event_group.h>
@@ -26,9 +26,12 @@
 #include <tactility/time.h>
 
 #include <algorithm>
+#include <string>
 #include <atomic>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cerrno>
 #include <cstring>
 #include <ctime>
 #include <functional>
@@ -70,6 +73,17 @@ struct Globals {
     size_t backendCount = 0;
     MeshSettings settings {};
     bool settingsLoaded = false;
+    /** Settings of the backends, loaded on first use */
+    struct BackendSettingsEntry {
+        const MeshBackendApi* api;
+        MeshBackendSettings settings;
+        /** False when the settings couldn't be read, so the entry has defaults and is loaded again at the next lookup */
+        bool loaded;
+        /** Held by a setter from reading the settings to committing them, so that two updates of one backend don't overwrite each other. Taken before the global lock. */
+        Mutex update;
+    } backendSettings[MAX_BACKENDS] = {};
+    size_t backendSettingsCount = 0;
+    bool legacySettingsMigrated = false;
     MeshEventSubscription* subscriptions = nullptr;
 };
 
@@ -169,6 +183,44 @@ const MeshBackendApi* getSelectedBackend() {
     return (globals().backendCount > 0) ? globals().backends[0] : nullptr;
 }
 
+/** @param[in] id the backend, or NULL for the selected backend. Requires the global lock and loaded settings. */
+const MeshBackendApi* resolveBackend(const char* id) {
+    return (id != nullptr) ? findBackend(id) : getSelectedBackend();
+}
+
+/** Requires the global lock and loaded settings */
+/** Requires the global lock and loaded settings */
+Globals::BackendSettingsEntry& getBackendEntry(const MeshBackendApi* api) {
+    auto& entries = globals().backendSettings;
+    for (size_t i = 0; i < globals().backendSettingsCount; i++) {
+        if (entries[i].api == api) {
+            if (!entries[i].loaded) {
+                entries[i].loaded = mesh_settings_load_backend(api->id, &entries[i].settings) == ERROR_NONE;
+            }
+            return entries[i];
+        }
+    }
+    if (!globals().legacySettingsMigrated) {
+        // The backend that was selected when the settings were saved owns the ones that were stored without a backend
+        const MeshBackendApi* owner = getSelectedBackend();
+        if (owner != nullptr) {
+            if (mesh_settings_migrate_legacy(owner->id) == ERROR_NONE) {
+                globals().legacySettingsMigrated = true;
+            }
+        }
+    }
+    auto& entry = entries[globals().backendSettingsCount < MAX_BACKENDS ? globals().backendSettingsCount++ : MAX_BACKENDS - 1];
+    entry.api = api;
+    mutex_construct(&entry.update);
+    entry.loaded = mesh_settings_load_backend(api->id, &entry.settings) == ERROR_NONE;
+    return entry;
+}
+
+/** Requires the global lock and loaded settings */
+MeshBackendSettings& getBackendSettings(const MeshBackendApi* api) {
+    return getBackendEntry(api).settings;
+}
+
 size_t getPresetCount(const MeshBackendApi* api) {
     size_t count = 0;
     if (api->presets != nullptr) {
@@ -261,11 +313,17 @@ struct AirtimeRecord {
  */
 struct MeshHost {
     MeshState state = MESH_STATE_OFF;
+    /** The network parameters of the active backend */
+    MeshNetworkSettings network {};
     MeshStore store;
     tt::std::vector<MeshNode> nodes;
-    /** The saved contacts of every backend */
+    /** The saved contacts of the backend that owns the open storage */
     tt::std::vector<MeshContact> contacts;
+    /** False when the contacts of the storage backend couldn't be read. They must not be saved then, as that would replace the saved ones. */
+    bool contactsLoaded = false;
     char activeBackend[MESH_BACKEND_ID_MAX_LENGTH + 1] = {};
+    /** The backend whose messages and contacts are open. It's the selected backend, whether or not it is running. */
+    char storageBackend[MESH_BACKEND_ID_MAX_LENGTH + 1] = {};
     tt::std::deque<std::function<void()>> calls;
 
     // thread
@@ -320,29 +378,50 @@ void setStateLocked(MeshHost* host, MeshState state) {
 
 constexpr size_t MAX_CONTACTS = 64;
 constexpr auto* CONTACTS_FILE_NAME = "contacts.bin";
+constexpr auto* STORE_DIRECTORY_NAME = "store";
 
 bool isSameAddress(const MeshAddress& a, const MeshAddress& b) {
     return a.length == b.length && memcmp(a.bytes, b.bytes, a.length) == 0;
 }
 
+/** A path in the folder of a backend, where it keeps its messages, contacts and own files. Creates the folder when @a create is set. */
+bool getBackendPath(const char* backend, const char* child, char* path, size_t size, bool create) {
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
+    char backendDirectory[16 + MESH_BACKEND_ID_MAX_LENGTH];
+    snprintf(backendDirectory, sizeof(backendDirectory), "backends/%s", backend);
+    if (service_paths_get_user_data_path(MESH_SERVICE_ID, backendDirectory, directory, sizeof(directory)) != ERROR_NONE) {
+        return false;
+    }
+    if (create) {
+        const error_t made = directory_make(directory, true);
+        if (made != ERROR_NONE && made != ERROR_ALREADY_EXISTS) {
+            LOG_E(TAG, "Failed to create %s", directory);
+            return false;
+        }
+    }
+    const int written = snprintf(path, size, "%s/%s", directory, child);
+    return written >= 0 && static_cast<size_t>(written) < size;
+}
+
 /** Requires the global lock */
 MeshContact* findContact(MeshHost* host, const MeshAddress& address) {
     for (auto& contact : host->contacts) {
-        if (strncmp(contact.backend, host->activeBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0 && isSameAddress(contact.address, address)) {
+        if (strncmp(contact.backend, host->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0 && isSameAddress(contact.address, address)) {
             return &contact;
         }
     }
     return nullptr;
 }
 
-void loadContacts(MeshHost* host) {
+bool loadContacts(MeshHost* host, const char* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
-    if (service_paths_get_user_data_path(MESH_SERVICE_ID, CONTACTS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
-        return;
+    if (!getBackendPath(backend, CONTACTS_FILE_NAME, path, sizeof(path), false)) {
+        return false;
     }
     FILE* file = fopen(path, "rb");
     if (file == nullptr) {
-        return;
+        // No contacts were saved yet
+        return errno == ENOENT;
     }
     MeshContact contact;
     while (host->contacts.size() < MAX_CONTACTS && fread(&contact, sizeof(contact), 1, file) == 1) {
@@ -352,20 +431,15 @@ void loadContacts(MeshHost* host) {
             host->contacts.push_back(contact);
         }
     }
+    const bool failed = ferror(file) != 0;
     fclose(file);
+    return !failed;
 }
 
 /** Requires the global lock */
 void saveContacts(MeshHost* host) {
-    char directory[FILE_MAX_PATH_STRING_LENGTH];
     char path[FILE_MAX_PATH_STRING_LENGTH];
-    if (service_paths_get_user_data_directory(MESH_SERVICE_ID, directory, sizeof(directory)) != ERROR_NONE ||
-        service_paths_get_user_data_path(MESH_SERVICE_ID, CONTACTS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
-        return;
-    }
-    const error_t made = directory_make(directory, true);
-    if (made != ERROR_NONE && made != ERROR_ALREADY_EXISTS) {
-        LOG_E(TAG, "Failed to create %s", directory);
+    if (host->storageBackend[0] == '\0' || !host->contactsLoaded || !getBackendPath(host->storageBackend, CONTACTS_FILE_NAME, path, sizeof(path), true)) {
         return;
     }
     FILE* file = fopen(path, "wb");
@@ -380,12 +454,49 @@ void saveContacts(MeshHost* host) {
 }
 
 /**
+ * Opens the messages and contacts of @a api, and closes those of the backend that was open. Without a backend, nothing is open.
+ * Every backend has its own, so the data of one backend never shows up in another.
+ * Requires the global lock.
+ * @retval false when the message store couldn't be opened
+ */
+bool switchStorage(MeshHost* host, const MeshBackendApi* api) {
+    const char* id = (api != nullptr) ? api->id : "";
+    // A failed contacts load is retried
+    if (strncmp(host->storageBackend, id, MESH_BACKEND_ID_MAX_LENGTH) == 0 && (api == nullptr || (host->store.isOpen() && host->contactsLoaded))) {
+        return true;
+    }
+    host->store.close();
+    host->contacts.clear();
+    host->contactsLoaded = false;
+    host->storageBackend[0] = '\0';
+    if (api == nullptr) {
+        return true;
+    }
+    char storePath[FILE_MAX_PATH_STRING_LENGTH];
+    if (!getBackendPath(id, STORE_DIRECTORY_NAME, storePath, sizeof(storePath), true) || host->store.open(storePath) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to open the message store of %s", id);
+        host->store.close();
+        return false;
+    }
+    strncpy(host->storageBackend, id, MESH_BACKEND_ID_MAX_LENGTH);
+    host->contactsLoaded = loadContacts(host, id);
+    if (!host->contactsLoaded) {
+        LOG_E(TAG, "Failed to load the contacts of %s", id);
+        host->contacts.clear();
+    }
+    return true;
+}
+
+/**
  * Save a contact of the active backend. An existing contact is renamed when @a rename is set.
  * Requires the global lock.
  */
 error_t addContact(MeshHost* host, const MeshAddress& address, const char* name, bool rename) {
     if (address.length == 0 || address.length > MESH_ADDRESS_MAX_LENGTH) {
         return ERROR_INVALID_ARGUMENT;
+    }
+    if (!host->contactsLoaded) {
+        return ERROR_INVALID_STATE;
     }
 
     char resolvedName[MESH_NAME_MAX_LENGTH + 1] = {};
@@ -418,7 +529,7 @@ error_t addContact(MeshHost* host, const MeshAddress& address, const char* name,
             return ERROR_RESOURCE;
         }
         MeshContact contact {};
-        strncpy(contact.backend, host->activeBackend, MESH_BACKEND_ID_MAX_LENGTH);
+        strncpy(contact.backend, host->storageBackend, MESH_BACKEND_ID_MAX_LENGTH);
         contact.address = address;
         strncpy(contact.name, resolvedName, MESH_NAME_MAX_LENGTH);
         host->contacts.push_back(contact);
@@ -571,9 +682,82 @@ bool applyProfile(MeshHost* host) {
 
 void resubmitPending(MeshHost* host);
 
+/** @return the band of @a region that holds the whole channel of width @a bandwidth around @a frequency, NULL when there is none */
+const RadioRegionBand* findBand(RadioRegion region, int32_t frequency, int32_t bandwidth) {
+    const RadioRegionBand* bands = nullptr;
+    const size_t count = radio_get_region_bands(region, &bands);
+    // 64-bit, because a frequency that was typed in can be close to the limit of 32 bits
+    const int64_t low = static_cast<int64_t>(frequency) - bandwidth / 2;
+    const int64_t high = static_cast<int64_t>(frequency) + bandwidth / 2;
+    const auto* band = std::find_if(bands, bands + count, [=](const RadioRegionBand& candidate) {
+        return low >= candidate.frequency_min && high <= candidate.frequency_max;
+    });
+    return (band != bands + count) ? band : nullptr;
+}
+
+/**
+ * The profile of a preset with the settings applied, and the power limited to what the region allows (the radio rejects more).
+ * @param[in] backend the backend state, or NULL to only get the parameters of the preset
+ */
+error_t getRadioProfile(const MeshBackendApi* api, void* backend, RadioRegion region, RadioModulation modulation, size_t preset, const MeshRadioSettings& settings, MeshRadioProfile* profile) {
+    const error_t error = api->get_radio_profile(backend, region, modulation, preset, profile);
+    if (error != ERROR_NONE || modulation != RADIO_MODULATION_LORA) {
+        return error;
+    }
+    if (settings.frequency != 0) profile->frequency = settings.frequency;
+    if (settings.bandwidth != 0) profile->bandwidth = settings.bandwidth;
+    if (settings.spreading_factor != 0) profile->spreading_factor = settings.spreading_factor;
+    if (settings.coding_rate != 0) profile->coding_rate = settings.coding_rate;
+    if (settings.power != 0) profile->power = settings.power;
+
+    // The limit of the band that holds the channel, because bands of a region have their own limits
+    const RadioRegionBand* band = findBand(region, profile->frequency, profile->bandwidth);
+    if (band != nullptr) {
+        profile->power = std::min<int32_t>(profile->power, band->power_max);
+    }
+    return ERROR_NONE;
+}
+
+/** The preset's network parameters with the settings applied */
+MeshNetworkSettings getNetwork(const MeshBackendApi* api, size_t preset, const MeshNetworkSettings& settings) {
+    MeshNetworkSettings network = {};
+    if (api->get_preset_network != nullptr) {
+        api->get_preset_network(preset, &network);
+    }
+    // A value that was stored by hand can be out of range, and the preset's value is used then
+    if (settings.path_hash_size >= 1 && settings.path_hash_size <= MESH_PATH_HASH_SIZE_MAX) {
+        network.path_hash_size = settings.path_hash_size;
+    }
+    if (settings.region_scope[0] == '\0') {
+        // The preset's scope
+    } else if (strcmp(settings.region_scope, MESH_REGION_SCOPE_NONE) == 0) {
+        network.region_scope[0] = '\0';
+    } else {
+        strncpy(network.region_scope, settings.region_scope, MESH_NAME_MAX_LENGTH);
+    }
+    return network;
+}
+
 /** (Re)select the backend and configure the radio from the settings and the radio's region */
 void configure(MeshHost* host) {
     deactivateBackend(host);
+
+    // The messages and contacts of the selected backend are available when its radio is off, and no other backend's are
+    lock();
+    char previousStorage[MESH_BACKEND_ID_MAX_LENGTH + 1];
+    strncpy(previousStorage, host->storageBackend, sizeof(previousStorage));
+    previousStorage[MESH_BACKEND_ID_MAX_LENGTH] = '\0';
+    const bool storageReady = switchStorage(host, getSelectedBackend());
+    // Consumers show the contacts and channels of the selected backend, also when its radio is off
+    if (strncmp(previousStorage, host->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) != 0) {
+        emitEvent(MESH_EVENT_CONTACT, host->state, 0, MESH_DELIVERY_RECEIVED);
+        emitEvent(MESH_EVENT_CHANNEL, host->state, 0, MESH_DELIVERY_RECEIVED);
+    }
+    unlock();
+    if (!storageReady) {
+        setStateLocked(host, MESH_STATE_ERROR);
+        return;
+    }
 
     if (host->radio == nullptr) {
         setStateLocked(host, MESH_STATE_NO_RADIO);
@@ -589,7 +773,8 @@ void configure(MeshHost* host) {
 
     lock();
     const MeshBackendApi* api = getSelectedBackend();
-    const size_t preset = (api != nullptr) ? findPreset(api, globals().settings.preset) : 0;
+    const MeshBackendSettings backendSettings = (api != nullptr) ? getBackendSettings(api) : MeshBackendSettings {};
+    const size_t preset = (api != nullptr) ? findPreset(api, backendSettings.preset) : 0;
     unlock();
     if (api == nullptr) {
         setStateLocked(host, MESH_STATE_NO_BACKEND);
@@ -613,13 +798,16 @@ void configure(MeshHost* host) {
     }
     // A radio that doesn't do LoRa does ESP-NOW
     const RadioModulation modulation = usesLora(host->radio) ? RADIO_MODULATION_LORA : RADIO_MODULATION_ESPNOW;
-    if (api->get_radio_profile(backend, host->appliedRegion, modulation, preset, &host->profile) != ERROR_NONE) {
+    if (getRadioProfile(api, backend, host->appliedRegion, modulation, preset, backendSettings.radio_settings, &host->profile) != ERROR_NONE) {
         LOG_E(TAG, "Backend %s doesn't support region %s with preset %u", api->id, radio_region_to_string(host->appliedRegion), (unsigned)preset);
         api->destroy(backend);
         host->api = nullptr;
         setStateLocked(host, MESH_STATE_ERROR);
         return;
     }
+    lock();
+    host->network = getNetwork(api, preset, backendSettings.network);
+    unlock();
     host->backend = backend;
 
     if (!applyProfile(host)) {
@@ -631,7 +819,12 @@ void configure(MeshHost* host) {
     lock();
     strncpy(host->activeBackend, api->id, MESH_BACKEND_ID_MAX_LENGTH);
     host->activeBackend[MESH_BACKEND_ID_MAX_LENGTH] = '\0';
+    // Switching between backends keeps the state on, but consumers show the active backend
+    const bool wasOn = host->state == MESH_STATE_ON;
     setState(host, MESH_STATE_ON);
+    if (wasOn) {
+        emitEvent(MESH_EVENT_STATE, MESH_STATE_ON, 0, MESH_DELIVERY_RECEIVED);
+    }
     unlock();
 
     LOG_I(TAG, "Backend %s active in region %s", api->id, radio_region_to_string(host->appliedRegion));
@@ -895,6 +1088,122 @@ void releaseResources(MeshHost* host) {
     event_group_destruct(&host->callEvents);
 }
 
+bool isValidBackendId(const char* id) {
+    if (id[0] == '\0') {
+        return false;
+    }
+    for (const char* c = id; *c != '\0'; c++) {
+        if (!isalnum(static_cast<unsigned char>(*c)) && *c != '_' && *c != '-') {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** A message store of a backend that is open while messages are moved to it */
+struct MigrationTarget {
+    char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
+    MeshStore* store;
+};
+
+/** @return false when messages couldn't be moved, in which case the shared store is kept to try again */
+bool migrateSharedMessages(const char* sharedPath) {
+    MeshStore shared;
+    if (shared.open(sharedPath) != ERROR_NONE) {
+        return false;
+    }
+    MigrationTarget targets[MAX_BACKENDS] = {};
+    size_t targetCount = 0;
+    bool ok = true;
+    tt::std::vector<MeshMessage> batch(8);
+    uint32_t afterSeq = 0;
+    for (size_t count = shared.getAfter(afterSeq, batch.data(), batch.size()); count > 0; count = shared.getAfter(afterSeq, batch.data(), batch.size())) {
+        for (size_t i = 0; i < count; i++) {
+            MeshMessage& message = batch[i];
+            afterSeq = message.seq;
+            message.backend[MESH_BACKEND_ID_MAX_LENGTH] = '\0';
+            if (!isValidBackendId(message.backend)) {
+                continue;
+            }
+            MigrationTarget* target = nullptr;
+            for (size_t t = 0; t < targetCount; t++) {
+                if (strcmp(targets[t].id, message.backend) == 0) {
+                    target = &targets[t];
+                }
+            }
+            if (target == nullptr && targetCount < MAX_BACKENDS) {
+                char path[FILE_MAX_PATH_STRING_LENGTH];
+                auto* store = tt::newObject<MeshStore>();
+                if (store != nullptr && getBackendPath(message.backend, STORE_DIRECTORY_NAME, path, sizeof(path), true) && store->open(path) == ERROR_NONE) {
+                    target = &targets[targetCount++];
+                    strncpy(target->id, message.backend, MESH_BACKEND_ID_MAX_LENGTH);
+                    target->store = store;
+                } else {
+                    tt::deleteObject(store);
+                }
+            }
+            if (target == nullptr || target->store->add(&message) != ERROR_NONE) {
+                ok = false;
+            }
+        }
+    }
+    for (size_t t = 0; t < targetCount; t++) {
+        targets[t].store->close();
+        tt::deleteObject(targets[t].store);
+    }
+    shared.close();
+    return ok;
+}
+
+/** @return false when contacts couldn't be moved, in which case the shared file is kept to try again */
+bool migrateSharedContacts(const char* sharedPath) {
+    FILE* file = fopen(sharedPath, "rb");
+    if (file == nullptr) {
+        return false;
+    }
+    bool ok = true;
+    MeshContact contact;
+    while (fread(&contact, sizeof(contact), 1, file) == 1) {
+        contact.backend[MESH_BACKEND_ID_MAX_LENGTH] = '\0';
+        if (!isValidBackendId(contact.backend)) {
+            continue;
+        }
+        char path[FILE_MAX_PATH_STRING_LENGTH];
+        FILE* target = getBackendPath(contact.backend, CONTACTS_FILE_NAME, path, sizeof(path), true) ? fopen(path, "ab") : nullptr;
+        if (target == nullptr || fwrite(&contact, sizeof(contact), 1, target) != 1) {
+            ok = false;
+        }
+        if (target != nullptr) {
+            fclose(target);
+        }
+    }
+    fclose(file);
+    return ok;
+}
+
+/**
+ * Messages and contacts used to be kept together for all backends. They are moved to the folders of their backends once,
+ * and the shared ones are removed when that worked.
+ */
+void migrateSharedStorage() {
+    char storePath[FILE_MAX_PATH_STRING_LENGTH];
+    char contactsPath[FILE_MAX_PATH_STRING_LENGTH];
+    if (service_paths_get_user_data_path(MESH_SERVICE_ID, STORE_DIRECTORY_NAME, storePath, sizeof(storePath)) != ERROR_NONE ||
+        service_paths_get_user_data_path(MESH_SERVICE_ID, CONTACTS_FILE_NAME, contactsPath, sizeof(contactsPath)) != ERROR_NONE) {
+        return;
+    }
+    if (directory_exists(storePath) && migrateSharedMessages(storePath)) {
+        directory_remove_tree(storePath);
+    }
+    FILE* file = fopen(contactsPath, "rb");
+    if (file != nullptr) {
+        fclose(file);
+        if (migrateSharedContacts(contactsPath)) {
+            file_remove(contactsPath);
+        }
+    }
+}
+
 error_t onStart(ServiceInstance*, void* data) {
     auto* host = static_cast<MeshHost*>(data);
 
@@ -906,14 +1215,7 @@ error_t onStart(ServiceInstance*, void* data) {
         return ERROR_RESOURCE;
     }
 
-    char storePath[FILE_MAX_PATH_STRING_LENGTH];
-    if (service_paths_get_user_data_path(MESH_SERVICE_ID, "store", storePath, sizeof(storePath)) != ERROR_NONE ||
-        host->store.open(storePath) != ERROR_NONE) {
-        LOG_E(TAG, "Failed to open the message store");
-        releaseResources(host);
-        return ERROR_RESOURCE;
-    }
-    loadContacts(host);
+    migrateSharedStorage();
 
     if (!attachRadio(host)) {
         LOG_W(TAG, "No mesh radio found yet");
@@ -924,8 +1226,10 @@ error_t onStart(ServiceInstance*, void* data) {
         });
     }
 
+    // Opened before the service is published, so queries don't see an empty store. A failure is reported by configure().
     lock();
     ensureSettingsLoaded();
+    switchStorage(host, getSelectedBackend());
     service = host;
     unlock();
 
@@ -939,8 +1243,8 @@ error_t onStart(ServiceInstance*, void* data) {
         }
         lock();
         service = nullptr;
+        switchStorage(host, nullptr);
         unlock();
-        host->store.close();
         releaseResources(host);
         return ERROR_RESOURCE;
     }
@@ -962,7 +1266,7 @@ void onStop(ServiceInstance*, void* data) {
     host->thread = nullptr;
 
     lock();
-    host->store.close();
+    switchStorage(host, nullptr);
     setState(host, MESH_STATE_OFF);
     unlock();
 
@@ -996,7 +1300,9 @@ extern "C" {
 error_t mesh_backend_register(const MeshBackendApi* api) {
     lock();
     error_t result = ERROR_NONE;
-    if (findBackend(api->id) != nullptr) {
+    if (!isValidBackendId(api->id)) {
+        result = ERROR_INVALID_ARGUMENT;
+    } else if (findBackend(api->id) != nullptr) {
         result = ERROR_ALREADY_EXISTS;
     } else if (globals().backendCount >= MAX_BACKENDS) {
         result = ERROR_RESOURCE;
@@ -1163,6 +1469,12 @@ error_t mesh_host_get_data_path(MeshHost* host, const char* child_path, char* ou
     }
     const int written = snprintf(out_path, out_path_size, "%s/%s", directory, child_path);
     return (written < 0 || (size_t)written >= out_path_size) ? ERROR_BUFFER_OVERFLOW : ERROR_NONE;
+}
+
+void mesh_host_get_network(MeshHost* host, MeshNetworkSettings* network) {
+    lock();
+    *network = host->network;
+    unlock();
 }
 
 void mesh_host_get_node_name(MeshHost*, char* name, size_t name_size) {
@@ -1386,9 +1698,6 @@ error_t mesh_set_backend(const char* id) {
         return ERROR_NOT_FOUND;
     }
     ensureSettingsLoaded();
-    if (strncmp(globals().settings.backend, id, MESH_BACKEND_ID_MAX_LENGTH) != 0) {
-        globals().settings.preset[0] = '\0';
-    }
     strncpy(globals().settings.backend, id, MESH_BACKEND_ID_MAX_LENGTH);
     globals().settings.backend[MESH_BACKEND_ID_MAX_LENGTH] = '\0';
     const MeshSettings copy = globals().settings;
@@ -1417,21 +1726,30 @@ error_t mesh_get_backend(char* id, size_t id_size) {
     return result;
 }
 
-size_t mesh_get_preset_count(void) {
-    const bool applies = presetsApply();
+bool mesh_supports(uint32_t features) {
     lock();
     ensureSettingsLoaded();
     const MeshBackendApi* api = getSelectedBackend();
+    const bool supported = api != nullptr && (api->features & features) == features;
+    unlock();
+    return supported;
+}
+
+size_t mesh_get_preset_count(const char* backend) {
+    const bool applies = presetsApply();
+    lock();
+    ensureSettingsLoaded();
+    const MeshBackendApi* api = resolveBackend(backend);
     const size_t count = (api != nullptr && applies) ? getPresetCount(api) : 0;
     unlock();
     return count;
 }
 
-error_t mesh_get_preset_name(size_t index, char* name, size_t name_size) {
+error_t mesh_get_preset_name(const char* backend, size_t index, char* name, size_t name_size) {
     const bool applies = presetsApply();
     lock();
     ensureSettingsLoaded();
-    const MeshBackendApi* api = getSelectedBackend();
+    const MeshBackendApi* api = resolveBackend(backend);
     error_t result = ERROR_NOT_FOUND;
     if (api != nullptr && applies && index < getPresetCount(api) && name_size > 0) {
         strncpy(name, api->presets[index], name_size - 1);
@@ -1442,37 +1760,231 @@ error_t mesh_get_preset_name(size_t index, char* name, size_t name_size) {
     return result;
 }
 
-error_t mesh_set_preset(const char* name) {
+/**
+ * Persists the settings of a backend, and only when that worked uses them: the cache is updated and the radio is
+ * reconfigured when the backend is selected. Called without the global lock, because saving does file operations.
+ */
+static error_t commitBackendSettings(const MeshBackendApi* api, const MeshBackendSettings& settings) {
+    const error_t saved = mesh_settings_save_backend(api->id, &settings);
+    if (saved != ERROR_NONE) {
+        return saved;
+    }
+    lock();
+    auto& entry = getBackendEntry(api);
+    entry.settings = settings;
+    // What was saved is what the backend runs with, whether or not the file could be read before
+    entry.loaded = true;
+    if (service != nullptr && api == getSelectedBackend()) {
+        MeshHost* host = service;
+        post(host, [host] { configure(host); });
+    }
+    unlock();
+    return ERROR_NONE;
+}
+
+/** Holds the update mutex of a backend. Taken without the global lock, and the global lock is taken inside. */
+struct UpdateGuard {
+    Mutex* mutex;
+    explicit UpdateGuard(Mutex* mutex) : mutex(mutex) { mutex_lock(mutex); }
+    ~UpdateGuard() { mutex_unlock(mutex); }
+};
+
+error_t mesh_set_preset(const char* backend, const char* name) {
     const bool applies = presetsApply();
+    Device* radio = findRadio();
+    const RadioRegion region = (radio != nullptr) ? radio_get_region(radio) : RADIO_REGION_UNSET;
+    if (radio != nullptr) {
+        device_put(radio);
+    }
     lock();
     ensureSettingsLoaded();
-    const MeshBackendApi* api = getSelectedBackend();
+    const MeshBackendApi* api = resolveBackend(backend);
     const size_t index = (api != nullptr) ? findPreset(api, name) : 0;
     if (api == nullptr || !applies || index >= getPresetCount(api) || strcmp(api->presets[index], name) != 0) {
         unlock();
         return ERROR_NOT_FOUND;
     }
-    strncpy(globals().settings.preset, name, MESH_NAME_MAX_LENGTH);
-    globals().settings.preset[MESH_NAME_MAX_LENGTH] = '\0';
-    const MeshSettings copy = globals().settings;
-    if (service != nullptr) {
-        MeshHost* host = service;
-        post(host, [host] { configure(host); });
-    }
+    Mutex* updateMutex = &getBackendEntry(api).update;
     unlock();
-    return mesh_settings_save(&copy);
+
+    UpdateGuard guard(updateMutex);
+    MeshBackendSettings settings = {};
+    strncpy(settings.preset, name, MESH_NAME_MAX_LENGTH);
+    if (region != RADIO_REGION_UNSET) {
+        // The radio would reject a preset that doesn't fit the region, which would leave the mesh in the error state
+        MeshRadioProfile profile {};
+        if (getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, index, settings.radio_settings, &profile) != ERROR_NONE ||
+            findBand(region, profile.frequency, profile.bandwidth) == nullptr) {
+            return ERROR_NOT_SUPPORTED;
+        }
+    }
+    return commitBackendSettings(api, settings);
 }
 
-error_t mesh_get_preset(char* name, size_t name_size) {
+error_t mesh_get_preset_region(const char* backend, const char* name, RadioRegion* region) {
+    Device* radio = findRadio();
+    const RadioRegion current = (radio != nullptr) ? radio_get_region(radio) : RADIO_REGION_UNSET;
+    if (radio != nullptr) {
+        device_put(radio);
+    }
+    lock();
+    ensureSettingsLoaded();
+    const MeshBackendApi* api = resolveBackend(backend);
+    const size_t index = (api != nullptr) ? findPreset(api, name) : 0;
+    error_t result = ERROR_NOT_FOUND;
+    if (api != nullptr && index < getPresetCount(api) && strcmp(api->presets[index], name) == 0) {
+        *region = current;
+        result = (api->get_preset_region != nullptr) ? api->get_preset_region(index, current, region) : ERROR_NONE;
+    }
+    unlock();
+    return result;
+}
+
+error_t mesh_get_preset(const char* backend, char* name, size_t name_size) {
     const bool applies = presetsApply();
     lock();
     ensureSettingsLoaded();
-    const MeshBackendApi* api = getSelectedBackend();
+    const MeshBackendApi* api = resolveBackend(backend);
     error_t result = ERROR_NOT_FOUND;
     if (api != nullptr && applies && getPresetCount(api) > 0 && name_size > 0) {
-        strncpy(name, api->presets[findPreset(api, globals().settings.preset)], name_size - 1);
+        strncpy(name, api->presets[findPreset(api, getBackendSettings(api).preset)], name_size - 1);
         name[name_size - 1] = '\0';
         result = ERROR_NONE;
+    }
+    unlock();
+    return result;
+}
+
+error_t mesh_set_radio_settings(const char* backend, const MeshRadioSettings* radio_settings) {
+    const bool applies = presetsApply();
+    Device* radio = findRadio();
+    const RadioRegion region = (radio != nullptr) ? radio_get_region(radio) : RADIO_REGION_UNSET;
+    if (radio != nullptr) {
+        device_put(radio);
+    }
+    lock();
+    ensureSettingsLoaded();
+    const MeshBackendApi* api = resolveBackend(backend);
+    if (api == nullptr) {
+        unlock();
+        return ERROR_NOT_FOUND;
+    }
+    Mutex* updateMutex = &getBackendEntry(api).update;
+    unlock();
+
+    UpdateGuard guard(updateMutex);
+    lock();
+    MeshBackendSettings settings = getBackendSettings(api);
+    unlock();
+    settings.radio_settings = *radio_settings;
+    if (applies && region != RADIO_REGION_UNSET) {
+        // The radio rejects a channel outside the bands of the region, and a power above the limit of the band that holds
+        // the channel. Either would leave the mesh in the error state.
+        MeshRadioProfile profile {};
+        if (getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, findPreset(api, settings.preset), settings.radio_settings, &profile) == ERROR_NONE) {
+            const RadioRegionBand* band = findBand(region, profile.frequency, profile.bandwidth);
+            if (profile.bandwidth <= 0 || band == nullptr || settings.radio_settings.power > band->power_max) {
+                return ERROR_OUT_OF_RANGE;
+            }
+        }
+    }
+    return commitBackendSettings(api, settings);
+}
+
+error_t mesh_get_radio_settings(const char* backend, MeshRadioSettings* radio_settings) {
+    lock();
+    ensureSettingsLoaded();
+    const MeshBackendApi* api = resolveBackend(backend);
+    error_t result = ERROR_NOT_FOUND;
+    if (api != nullptr) {
+        *radio_settings = getBackendSettings(api).radio_settings;
+        result = ERROR_NONE;
+    }
+    unlock();
+    return result;
+}
+
+error_t mesh_set_network_settings(const char* backend, const MeshNetworkSettings* network_settings) {
+    if (network_settings->path_hash_size < 0 || network_settings->path_hash_size > MESH_PATH_HASH_SIZE_MAX) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    lock();
+    ensureSettingsLoaded();
+    const MeshBackendApi* api = resolveBackend(backend);
+    if (api == nullptr) {
+        unlock();
+        return ERROR_NOT_FOUND;
+    }
+    Mutex* updateMutex = &getBackendEntry(api).update;
+    unlock();
+
+    UpdateGuard guard(updateMutex);
+    lock();
+    MeshBackendSettings settings = getBackendSettings(api);
+    unlock();
+    settings.network = *network_settings;
+    return commitBackendSettings(api, settings);
+}
+
+error_t mesh_get_network_settings(const char* backend, MeshNetworkSettings* network_settings) {
+    lock();
+    ensureSettingsLoaded();
+    const MeshBackendApi* api = resolveBackend(backend);
+    error_t result = ERROR_NOT_FOUND;
+    if (api != nullptr) {
+        *network_settings = getBackendSettings(api).network;
+        result = ERROR_NONE;
+    }
+    unlock();
+    return result;
+}
+
+error_t mesh_get_network_parameters(const char* backend, MeshNetworkSettings* parameters) {
+    lock();
+    ensureSettingsLoaded();
+    const MeshBackendApi* api = resolveBackend(backend);
+    error_t result = ERROR_NOT_FOUND;
+    if (api != nullptr) {
+        const MeshBackendSettings settings = getBackendSettings(api);
+        *parameters = getNetwork(api, findPreset(api, settings.preset), settings.network);
+        result = ERROR_NONE;
+    }
+    unlock();
+    return result;
+}
+
+error_t mesh_get_radio_parameters(const char* backend, MeshRadioSettings* parameters) {
+    const bool applies = presetsApply();
+    Device* radio = findRadio();
+    const RadioRegion region = (radio != nullptr) ? radio_get_region(radio) : RADIO_REGION_UNSET;
+    if (radio != nullptr) {
+        device_put(radio);
+    }
+    lock();
+    ensureSettingsLoaded();
+    const MeshBackendApi* api = resolveBackend(backend);
+    error_t result = ERROR_INVALID_STATE;
+    if (api != nullptr && service != nullptr && service->api == api && service->backend != nullptr && service->state == MESH_STATE_ON &&
+        service->profile.modulation == RADIO_MODULATION_LORA) {
+        // The running backend knows its own state, e.g. the frequency slot that its primary channel selects
+        parameters->frequency = service->profile.frequency;
+        parameters->bandwidth = service->profile.bandwidth;
+        parameters->spreading_factor = service->profile.spreading_factor;
+        parameters->coding_rate = service->profile.coding_rate;
+        parameters->power = service->profile.power;
+        result = ERROR_NONE;
+    } else if (api != nullptr && applies && region != RADIO_REGION_UNSET) {
+        const MeshBackendSettings settings = getBackendSettings(api);
+        MeshRadioProfile profile {};
+        // Without a running backend there is no state, so a backend that depends on it uses its defaults
+        result = getRadioProfile(api, nullptr, region, RADIO_MODULATION_LORA, findPreset(api, settings.preset), settings.radio_settings, &profile);
+        if (result == ERROR_NONE) {
+            parameters->frequency = profile.frequency;
+            parameters->bandwidth = profile.bandwidth;
+            parameters->spreading_factor = profile.spreading_factor;
+            parameters->coding_rate = profile.coding_rate;
+            parameters->power = profile.power;
+        }
     }
     unlock();
     return result;
@@ -1564,10 +2076,20 @@ error_t mesh_message_get(uint32_t seq, MeshMessage* message) {
     return result;
 }
 
+/** A selected backend whose store failed to open must not look like an empty history. Requires the global lock and a service. */
+static bool isStorageUnavailable() {
+    return getSelectedBackend() != nullptr && !service->store.isOpen();
+}
+
+/** Contacts are unavailable when the store failed to open or the contacts failed to load. Requires the global lock and a service. */
+static bool isContactsUnavailable() {
+    return getSelectedBackend() != nullptr && (!service->store.isOpen() || !service->contactsLoaded);
+}
+
 error_t mesh_history_get(uint32_t before_seq, MeshMessage* messages, size_t max_count, size_t* count) {
     lock();
     error_t result = ERROR_INVALID_STATE;
-    if (service != nullptr) {
+    if (service != nullptr && !isStorageUnavailable()) {
         *count = service->store.getHistory(before_seq, messages, max_count);
         result = ERROR_NONE;
     }
@@ -1578,8 +2100,8 @@ error_t mesh_history_get(uint32_t before_seq, MeshMessage* messages, size_t max_
 error_t mesh_conversation_get(const MeshAddress* peer, uint8_t channel, uint32_t before_seq, MeshMessage* messages, size_t max_count, size_t* count) {
     lock();
     error_t result = ERROR_INVALID_STATE;
-    if (service != nullptr) {
-        *count = service->store.getConversation(service->activeBackend, peer, channel, before_seq, messages, max_count);
+    if (service != nullptr && !isStorageUnavailable()) {
+        *count = service->store.getConversation(service->storageBackend, peer, channel, before_seq, messages, max_count);
         result = ERROR_NONE;
     }
     unlock();
@@ -1589,10 +2111,10 @@ error_t mesh_conversation_get(const MeshAddress* peer, uint8_t channel, uint32_t
 error_t mesh_get_contacts(MeshContact* contacts, size_t max_count, size_t* count) {
     lock();
     error_t result = ERROR_INVALID_STATE;
-    if (service != nullptr) {
+    if (service != nullptr && !isContactsUnavailable()) {
         *count = 0;
         for (const auto& contact : service->contacts) {
-            if (*count < max_count && strncmp(contact.backend, service->activeBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0) {
+            if (*count < max_count && strncmp(contact.backend, service->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0) {
                 contacts[(*count)++] = contact;
             }
         }
@@ -1633,7 +2155,9 @@ error_t mesh_remove_contact(const MeshAddress* address) {
     error_t result = ERROR_INVALID_STATE;
     if (service != nullptr) {
         auto* contact = findContact(service, *address);
-        if (contact == nullptr) {
+        if (!service->contactsLoaded) {
+            result = ERROR_INVALID_STATE;
+        } else if (contact == nullptr) {
             result = ERROR_NOT_FOUND;
         } else {
             service->contacts.erase(service->contacts.begin() + (contact - service->contacts.data()));
@@ -1730,9 +2254,6 @@ error_t mesh_set_channel(const MeshChannel* channel) {
 }
 
 error_t mesh_remove_channel(uint8_t index) {
-    if (index == 0) {
-        return ERROR_INVALID_ARGUMENT;
-    }
     error_t result = ERROR_INVALID_STATE;
     const error_t callResult = callOnServiceThread([&](MeshHost* host) {
         if (host->api == nullptr) {

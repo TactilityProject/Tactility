@@ -32,6 +32,7 @@ extern "C" {
     extern void _ZdlPvj(void* p, uint64_t size); // operator delete(void*, unsigned int)
     extern void* _Znaj(uint32_t size); // operator new[](unsigned int)
     extern void* _ZnajRKSt9nothrow_t(uint32_t size, const std::nothrow_t& tag); // operator new[](unsigned int, std::nothrow_t const&)
+    extern void* _ZnwjRKSt9nothrow_t(uint32_t size, const std::nothrow_t& tag); // operator new(unsigned int, std::nothrow_t const&), e.g. std::stable_sort's buffer
     extern void _ZdaPvj(void* p, uint64_t size); // operator delete[](void*, unsigned int)
     // Unsized forms: the compiler picks these over the sized ones above depending on context
     // (e.g. trivially-destructible types needing no array cookie), so both must be exported.
@@ -55,6 +56,19 @@ extern "C" {
     void* _ZSt18_Rb_tree_decrementPSt18_Rb_tree_node_base(void*);
     void* _ZSt18_Rb_tree_incrementPSt18_Rb_tree_node_base(void*);
     void  _ZSt29_Rb_tree_insert_and_rebalancebPSt18_Rb_tree_node_baseS0_RS_(bool, void*, void*, void*);
+    void* _ZSt28_Rb_tree_rebalance_for_erasePSt18_Rb_tree_node_baseRS_(void*, void*);
+
+    // std::make_shared without RTTI (ESP-IDF builds with -fno-rtti): compares the tag that marks
+    // its control block
+    bool _ZNSt19_Sp_make_shared_tag5_S_eqERKSt9type_info(const void*);
+
+#ifdef ESP_PLATFORM
+    // std::unordered_map / std::unordered_set and std::hash<std::string> - same 32-bit-ABI mangling
+    // caveat as operator new/delete above ("j" = unsigned int).
+    unsigned int _ZNKSt8__detail20_Prime_rehash_policy11_M_next_bktEj(const void*, unsigned int);
+    void _ZNKSt8__detail20_Prime_rehash_policy14_M_need_rehashEjjj(const void*, unsigned int, unsigned int, unsigned int);
+    unsigned int _ZSt11_Hash_bytesPKvjj(const void*, unsigned int, unsigned int);
+#endif
 
 #ifdef ESP_PLATFORM
     // string - same 32-bit-ABI mangling caveat as operator new/delete above.
@@ -574,6 +588,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(_ZdlPvj), // operator delete(void*, unsigned int)
     DEFINE_MODULE_SYMBOL(_Znaj), // operator new[](unsigned int)
     DEFINE_MODULE_SYMBOL(_ZnajRKSt9nothrow_t), // operator new[](unsigned int, std::nothrow_t const&)
+    DEFINE_MODULE_SYMBOL(_ZnwjRKSt9nothrow_t), // operator new(unsigned int, std::nothrow_t const&)
     DEFINE_MODULE_SYMBOL(_ZdaPvj), // operator delete[](void*, unsigned int)
     DEFINE_MODULE_SYMBOL(_ZdlPv), // operator delete(void*)
     DEFINE_MODULE_SYMBOL(_ZdaPv), // operator delete[](void*)
@@ -598,6 +613,15 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(_ZSt18_Rb_tree_decrementPSt18_Rb_tree_node_base),
     DEFINE_MODULE_SYMBOL(_ZSt18_Rb_tree_incrementPSt18_Rb_tree_node_base),
     DEFINE_MODULE_SYMBOL(_ZSt29_Rb_tree_insert_and_rebalancebPSt18_Rb_tree_node_baseS0_RS_),
+    DEFINE_MODULE_SYMBOL(_ZSt28_Rb_tree_rebalance_for_erasePSt18_Rb_tree_node_baseRS_),
+    // stl - std::make_shared without RTTI
+    DEFINE_MODULE_SYMBOL(_ZNSt19_Sp_make_shared_tag5_S_eqERKSt9type_info),
+#ifdef ESP_PLATFORM
+    // stl - std::unordered_map / std::unordered_set (hashtable internals) and std::hash<std::string>
+    DEFINE_MODULE_SYMBOL(_ZNKSt8__detail20_Prime_rehash_policy11_M_next_bktEj),
+    DEFINE_MODULE_SYMBOL(_ZNKSt8__detail20_Prime_rehash_policy14_M_need_rehashEjjj),
+    DEFINE_MODULE_SYMBOL(_ZSt11_Hash_bytesPKvjj),
+#endif
 #ifdef ESP_PLATFORM
     // string - Note: You have to use the mangled names here
     DEFINE_MODULE_SYMBOL(_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE15_M_replace_coldEPcjPKcjj),

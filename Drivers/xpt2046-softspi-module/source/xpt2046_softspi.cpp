@@ -6,7 +6,7 @@
 #include <tactility/driver.h>
 #include <tactility/drivers/gpio.h>
 #include <tactility/drivers/gpio_controller.h>
-#include <tactility/drivers/pointer.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/drivers/power_supply.h>
 #include <tactility/delay.h>
 #include <tactility/error.h>
@@ -241,6 +241,7 @@ Driver xpt2046_softspi_power_supply_driver = {
     .compatible = (const char*[]) { "xpt2046-softspi-power-supply", nullptr },
     .start_device = nullptr,
     .stop_device = nullptr,
+    .probe = nullptr,
     .api = &XPT2046_SOFTSPI_POWER_SUPPLY_API,
     .device_type = &POWER_SUPPLY_TYPE,
     .internal = nullptr
@@ -289,7 +290,7 @@ static void destroy_power_supply_child(Device* child) {
 
 // endregion
 
-// region PointerApi
+// region TouchApi
 
 static error_t xpt2046_softspi_enter_sleep(Device*) {
     // No software-controlled power-down for this bit-banged variant; nothing to do.
@@ -411,7 +412,7 @@ static error_t xpt2046_softspi_get_mirror_y(Device* device, bool* mirror) {
 
 // endregion
 
-static const PointerApi xpt2046_softspi_pointer_api = {
+static const TouchApi xpt2046_softspi_touch_api = {
     .enter_sleep = xpt2046_softspi_enter_sleep,
     .exit_sleep = xpt2046_softspi_exit_sleep,
     .read_data = xpt2046_softspi_read_data,
@@ -429,7 +430,8 @@ Driver xpt2046_softspi_driver = {
     .compatible = (const char*[]) { "xptek,xpt2046-softspi", nullptr },
     .start_device = start,
     .stop_device = stop,
-    .api = &xpt2046_softspi_pointer_api,
-    .device_type = &POINTER_TYPE,
+    .probe = nullptr,
+    .api = &xpt2046_softspi_touch_api,
+    .device_type = &TOUCH_TYPE,
     .internal = nullptr
 };

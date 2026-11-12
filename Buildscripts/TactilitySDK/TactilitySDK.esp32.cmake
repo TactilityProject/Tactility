@@ -5,6 +5,11 @@ function(_tactility_project)
 endfunction()
 
 macro(tactility_project_pre project_name)
+    # The SDK installs its own ccache launcher with per-platform settings (see
+    # _tactility_enable_sdk_ccache). IDF's own launcher would wrap it a second time
+    # (ccache -> cmake -E env -> ccache); on Windows the long command lines then make ccache pass
+    # an @response file that CMake misparses. Keep exactly one ccache layer.
+    set(CCACHE_ENABLE OFF CACHE BOOL "Enable IDF ccache (disabled: the Tactility SDK has its own launcher)" FORCE)
     include($ENV{IDF_PATH}/tools/cmake/project.cmake)
     set(EXTRA_COMPONENT_DIRS ${TACTILITY_SDK_PATH} ${TACTILITY_SDK_PATH}/Modules)
 endmacro()

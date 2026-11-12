@@ -15,7 +15,6 @@ add_test(NAME AppModuleTests COMMAND AppModuleTests)
 
 target_link_libraries(AppModuleTests PUBLIC
     TactilityKernel
-    TactilityKernelCpp
     app-module
     app-posix-module
     service-module

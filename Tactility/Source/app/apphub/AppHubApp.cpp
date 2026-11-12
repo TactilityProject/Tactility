@@ -22,7 +22,6 @@
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/list.h>
-#include <lvgl/widgets/spinner.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <algorithm>
@@ -32,8 +31,8 @@
 #include <string>
 #include <vector>
 
-#include <TactilityCpp/std/string.h>
-#include <TactilityCpp/std/vector.h>
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
 
 namespace tt::app::apphub {
 
@@ -98,7 +97,15 @@ void refresh(Context* ctx);
 
 /** Reads the apps from App Hub for showApps(). Doesn't touch widgets, so it runs without the LVGL lock. */
 void loadApps(Context* ctx) {
+    // Counted first, so the vector is allocated once. Growing it by doubling needs several large blocks
+    // while the old one is still alive, which aborts when the heap is fragmented, e.g. during a download.
+    size_t count = 0;
+    app_hub_search(nullptr, [](const AppHubApp*, void* context) {
+        (*static_cast<size_t*>(context))++;
+        return true;
+    }, &count);
     tt::std::vector<AppHubApp> apps;
+    apps.reserve(count);
     app_hub_search(nullptr, [](const AppHubApp* app, void* context) {
         static_cast<tt::std::vector<AppHubApp>*>(context)->push_back(*app);
         return true;
@@ -237,13 +244,21 @@ lv_obj_t* createCard(lv_obj_t* parent) {
     return card;
 }
 
-void showRefreshFailedError(Context* ctx, const char* message) {
+/** Replaces the content with a centered card that holds the status text */
+void showStatusLabel(Context* ctx, const char* text) {
     lv_obj_clean(ctx->contentWrapper);
 
-    auto* label = lv_label_create(createCard(ctx->contentWrapper));
+    auto* card = createCard(ctx->contentWrapper);
+    lv_obj_set_style_text_align(card, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+    lv_obj_align(card, LV_ALIGN_CENTER, 0, 0);
+    auto* label = lv_label_create(card);
     lv_obj_set_width(label, LV_PCT(100));
     lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
-    lv_label_set_text(label, message);
+    lv_label_set_text(label, text);
+}
+
+void showRefreshFailedError(Context* ctx, const char* message) {
+    showStatusLabel(ctx, message);
 
     lv_obj_set_hidden(ctx->refreshButton, false);
     updateToolbarActions(ctx, false);
@@ -333,15 +348,11 @@ void showApps(Context* ctx) {
             }
         }
     } else if (hasApps) {
-        auto* label = lv_label_create(createCard(ctx->contentWrapper));
-        lv_obj_set_width(label, LV_PCT(100));
-        lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
-        lv_label_set_text(label, getEmptyFilterText(ctx->filter));
+        showStatusLabel(ctx, getEmptyFilterText(ctx->filter));
     } else if (ctx->refreshOperationId == 0) {
         showRefreshFailedError(ctx, "Failed to load content");
     } else {
-        auto* spinner = lvgl_spinner_create(ctx->contentWrapper);
-        lv_obj_align(spinner, LV_ALIGN_CENTER, 0, 0);
+        showStatusLabel(ctx, "Loading...");
     }
     ctx->mutex.unlock();
 }
