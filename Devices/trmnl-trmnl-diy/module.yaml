@@ -1,11 +1,6 @@
 dependencies:
   - Platforms/platform-esp32
-  - Drivers/cst328-module
-  - Drivers/uc8253-module
-  - Drivers/tca8418-module
-  - Drivers/sy6970-module
-  - Drivers/bq25896-module
-  - Drivers/sx126x-module
-  - Drivers/gps-generic-module
+  - Drivers/uc8179-module
+  - Drivers/rotary-button-module
 dts: trmnl,trmnl-diy.dts
 dts-only: true

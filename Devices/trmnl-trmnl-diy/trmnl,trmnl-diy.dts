@@ -4,23 +4,17 @@
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
-#include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_spi.h>
-#include <tactility/bindings/esp32_sdspi.h>
-#include <tactility/bindings/esp32_pwm_ledc.h>
-#include <tactility/bindings/esp32_uart.h>
+#include <tactility/bindings/esp32_adc_oneshot.h>
 #include <tactility/bindings/esp32_usbdevice.h>
-#include <tactility/bindings/pwm_backlight.h>
-#include <bindings/cst328.h>
-#include <bindings/uc8253.h>
-#include <bindings/tca8418.h>
-#include <bindings/bq25896.h>
-#include <bindings/sx1262.h>
-#include <gps_generic/bindings.h>
+#include <tactility/bindings/gpio_hog.h>
+#include <tactility/bindings/battery_sense.h>
+#include <bindings/uc8179.h>
+#include <bindings/rotary_button.h>
 
 / {
 	compatible = "root";
-	model = "TRMNL TRMNL OG DIY";
+	model = "TRMNL (OG) (Seeed Studio)";
 
 	wifi0 {
 		compatible = "espressif,esp32-wifi-pinned";
@@ -30,55 +24,57 @@
 		compatible = "espressif,esp32-ble";
 	};
 
-	gpio0 {
-		compatible = "espressif,esp32-gpio";
-		gpio-count = <49>;
+	epd_power {
+		compatible = "gpio-hog";
+		pin = <&gpio0 43 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
 	};
 
-	i2c0 {
-		compatible = "espressif,esp32-i2c-master";
-		port = <I2C_NUM_0>;
-		clock-frequency = <100000>;
-		pin-sda = <&gpio0 13 GPIO_FLAG_NONE>;
-		pin-scl = <&gpio0 14 GPIO_FLAG_NONE>;
+	adc0 {
+		compatible = "espressif,esp32-adc-oneshot";
+		unit-id = <ADC_UNIT_1>;
+		channels = <ADC_CHANNEL_0 ADC_ATTEN_DB_12 ADC_BITWIDTH_DEFAULT>;
+	};
 
-		touch {
-			compatible = "hynitron,cst328";
-			reg = <0x1A>;
-		};
+	battery_adc_enable {
+		compatible = "gpio-hog";
+		pin = <&gpio0 6 GPIO_FLAG_NONE>;
+		mode = <GPIO_HOG_MODE_OUTPUT_HIGH>;
+	};
 
-		bq27220 {
-			compatible = "ti,bq25896";
-			reg = <0x6B>;
-		};
+	// Seeed's EE04 getting-started wiki calibrates this board's divider as
+	// voltage = (adcValue/4096.0) * 7.16, i.e. a 3300mV reference scaled by 7.16/3.3 ~= 2.169.
+	battery-sense {
+		compatible = "battery-sense";
+		io-channel = <&adc0 0>;
+		reference-voltage-mv = <3300>;
+		multiplier = <2169>;
 	};
 
 	spi0 {
 		compatible = "espressif,esp32-spi";
 		host = <SPI2_HOST>;
-		cs-gpios = <&gpio0 34 GPIO_FLAG_NONE>;  // 2: LoRa radio (SX1262)
-		pin-mosi = <&gpio0 33 GPIO_FLAG_NONE>;
-		pin-miso = <&gpio0 47 GPIO_FLAG_NONE>;
-		pin-sclk = <&gpio0 36 GPIO_FLAG_NONE>;
-		// The EPD pushes its whole 9600-byte framebuffer in one SPI write, which
-		// exceeds the default ~4 KB transfer limit. Raise the bus limit to fit it.
+		pin-mosi = <&gpio0 9 GPIO_FLAG_NONE>;
+		pin-sclk = <&gpio0 7 GPIO_FLAG_NONE>;
+		// The EPD pushes its whole 48000-byte framebuffer in one SPI write
 		max-transfer-size = <65536>;
 
 		display@0 {
 			compatible = "ultrachip,uc8179";
-			pin-dc = <&gpio0 35 GPIO_FLAG_NONE>;
-			pin-busy = <&gpio0 37 GPIO_FLAG_NONE>;
-			pin-cs = <&gpio0 34 GPIO_FLAG_NONE>;
+			pin-dc = <&gpio0 10 GPIO_FLAG_NONE>;
+			pin-reset = <&gpio0 38 GPIO_FLAG_NONE>;
+			pin-busy = <&gpio0 4 GPIO_FLAG_NONE>;
+			pin-cs = <&gpio0 44 GPIO_FLAG_NONE>;
 			clock-speed-hz = <10000000>;
 			panel-type = "gdey075t7";
 		};
 	};
 
-	uart0 {
-		compatible = "espressif,esp32-uart";
-		port = <UART_NUM_1>;
-		pin-tx = <&gpio0 43 GPIO_FLAG_NONE>;
-		pin-rx = <&gpio0 44 GPIO_FLAG_NONE>;
+	buttons {
+		compatible = "tactility,rotary-button";
+		pin-up = <&gpio0 2 GPIO_FLAG_ACTIVE_LOW>;
+		pin-down = <&gpio0 3 GPIO_FLAG_ACTIVE_LOW>;
+		pin-press = <&gpio0 5 GPIO_FLAG_ACTIVE_LOW>;
 	};
 
 	usbdevice0 {
