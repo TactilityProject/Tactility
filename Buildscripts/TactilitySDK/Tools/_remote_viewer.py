@@ -536,9 +536,9 @@ def run_viewer(session, first_state, title):
                 if pressed:
                     codepoint = key_codepoint(event)
                     if codepoint:
-                        self.held_keys[event.keysym] = codepoint
+                        self.held_keys[event.keycode] = codepoint
                 else:
-                    codepoint = self.held_keys.pop(event.keysym, 0)
+                    codepoint = self.held_keys.pop(event.keycode, 0)
                 if codepoint:
                     session.send_key(codepoint, pressed, bool(event.state & 0x4), bool(event.state & 0x8))
 

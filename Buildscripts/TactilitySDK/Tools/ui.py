@@ -1032,7 +1032,10 @@ class DevConsole(ctk.CTk):
         self.status_label = ctk.CTkLabel(bottom, text="Idle", anchor="w",
                                          text_color=("gray40", "gray60"))
         self.status_label.grid(row=0, column=0, sticky="w")
-        self.progress = ctk.CTkProgressBar(bottom, length=180, mode="indeterminate")
+        try:
+            self.progress = ctk.CTkProgressBar(bottom, length=180, mode="indeterminate")
+        except Exception:  # CustomTkinter 5.2.x has no `length` option.
+            self.progress = ctk.CTkProgressBar(bottom, width=180, mode="indeterminate")
         self.progress.grid(row=0, column=1, sticky="e")
         self.progress.set(0)
         self.progress.grid_remove()
