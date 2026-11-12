@@ -64,7 +64,7 @@ DevelopmentHelloError development_protocol_parse_hello(const char* json, size_t 
         *out_message = "unsupported protocol version";
         return DevelopmentHelloError::UnsupportedProtocol;
     }
-    if (strcmp(hello.mode, "shell") != 0 && strcmp(hello.mode, "sync") != 0 && strcmp(hello.mode, "app") != 0 && strcmp(hello.mode, "info") != 0) {
+    if (strcmp(hello.mode, "shell") != 0 && strcmp(hello.mode, "sync") != 0 && strcmp(hello.mode, "app") != 0 && strcmp(hello.mode, "remote") != 0 && strcmp(hello.mode, "info") != 0) {
         *out_message = "unsupported mode";
         return DevelopmentHelloError::UnsupportedMode;
     }

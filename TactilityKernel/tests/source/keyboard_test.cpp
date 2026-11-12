@@ -78,9 +78,9 @@ static error_t fake_read_key(Device*, KeyboardKeyData* data) {
 }
 
 static const KeyboardApi fake_keyboard_api = {
+    .capabilities = 0,
     .read_key = fake_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 static Driver fake_keyboard_driver = {
@@ -95,9 +95,9 @@ static Driver fake_keyboard_driver = {
 
 // No read_key: this driver only ever pushes events via keyboard_emit_key().
 static const KeyboardApi fake_emit_only_keyboard_api = {
+    .capabilities = KEYBOARD_CAPABILITY_RESTRICTED,
     .read_key = nullptr,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 static Driver fake_emit_only_keyboard_driver = {
@@ -109,6 +109,34 @@ static Driver fake_emit_only_keyboard_driver = {
     .device_type = &KEYBOARD_TYPE,
     .internal = nullptr,
 };
+
+TEST_CASE("keyboard_has_capability reports the driver's capabilities") {
+    static Device full_device {
+        .name = "fake_keyboard_device_full",
+        .config = nullptr,
+        .parent = nullptr,
+    };
+    static Device restricted_device {
+        .name = "fake_keyboard_device_restricted",
+        .config = nullptr,
+        .parent = nullptr,
+    };
+
+    CHECK_EQ(driver_construct_add(&fake_keyboard_driver), ERROR_NONE);
+    CHECK_EQ(driver_construct_add(&fake_emit_only_keyboard_driver), ERROR_NONE);
+    CHECK_EQ(device_construct_add(&full_device, "keyboard_test,fake"), ERROR_NONE);
+    CHECK_EQ(device_construct_add(&restricted_device, "keyboard_test,fake_emit_only"), ERROR_NONE);
+
+    CHECK_FALSE(keyboard_has_capability(&full_device, KEYBOARD_CAPABILITY_RESTRICTED));
+    CHECK(keyboard_has_capability(&restricted_device, KEYBOARD_CAPABILITY_RESTRICTED));
+
+    CHECK_EQ(device_remove(&full_device), ERROR_NONE);
+    CHECK_EQ(device_remove(&restricted_device), ERROR_NONE);
+    CHECK_EQ(device_destruct(&full_device), ERROR_NONE);
+    CHECK_EQ(device_destruct(&restricted_device), ERROR_NONE);
+    CHECK_EQ(driver_remove_destruct(&fake_keyboard_driver), ERROR_NONE);
+    CHECK_EQ(driver_remove_destruct(&fake_emit_only_keyboard_driver), ERROR_NONE);
+}
 
 TEST_CASE("keyboard_read_key returns ERROR_INVALID_STATE, without touching the driver, on a device that isn't started") {
     read_key_call_count = 0;

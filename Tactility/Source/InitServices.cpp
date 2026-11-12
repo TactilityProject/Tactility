@@ -12,6 +12,7 @@
 #include <location/module.h>
 #include <app_hub/module.h>
 #include <development/module.h>
+#include <development/remote_access.h>
 #include <bluetooth/module.h>
 #include <wifi/module.h>
 #include <mesh/module.h>
@@ -22,6 +23,10 @@
 #include <tactility/posix_services.h>
 #endif
 
+#include <lvgl/devices/display.h>
+#include <lvgl/lvgl.h>
+#include <atomic>
+
 #include <tactility/check.h>
 #include <tactility/device.h>
 #include <tactility/drivers/audio_stream.h>
@@ -30,6 +35,38 @@
 #include <tactility/module.h>
 
 namespace tt {
+
+static void redrawScreen() {
+    if (lvgl_is_running() && lvgl_try_lock(pdMS_TO_TICKS(1000))) {
+        lv_obj_invalidate(lv_screen_active());
+        lvgl_unlock();
+    }
+}
+
+// The viewer shows the UI upright with this: LVGL maps positions of the touch device, which has the native orientation
+// of the display, to the UI by rotating them. A display that rotates in software hands its driver pixels that are
+// rotated in the same way, while one that rotates in hardware receives the UI as it is
+static uint8_t remoteOrientation() {
+    // The UI lock can be busy for a while when the UI is rebuilt, and LVGL is gone while it restarts.
+    // The last orientation that was read stays valid then, as reporting 0 would turn the viewer for a moment
+    static std::atomic<uint8_t> lastOrientation { 0 };
+    if (lvgl_is_running() && lvgl_try_lock(pdMS_TO_TICKS(250))) {
+        if (auto* display = lv_display_get_default(); display != nullptr) {
+            uint8_t orientation = static_cast<uint8_t>(lv_display_get_rotation(display)) & DEVELOPMENT_REMOTE_ORIENTATION_ROTATION_MASK;
+            if (lvgl_display_is_software_rotated(display)) {
+                orientation |= DEVELOPMENT_REMOTE_ORIENTATION_SOFTWARE;
+            }
+            lastOrientation = orientation;
+        }
+        lvgl_unlock();
+    }
+    return lastOrientation;
+}
+
+static const DevelopmentRemoteUiHandlers remoteUiHandlers = {
+    .redraw = redrawScreen,
+    .get_orientation = remoteOrientation,
+};
 
 // region Default services
 namespace service {
@@ -59,6 +96,7 @@ void registerAndStartServices() {
     check(module_ensure_started(&mesh_module) == ERROR_NONE);
     check(module_ensure_started(&mesh_meshcore_module) == ERROR_NONE);
     check(module_ensure_started(&mesh_meshtastic_module) == ERROR_NONE);
+    development_remote_set_ui_handlers(&remoteUiHandlers);
     check(module_ensure_started(&development_module) == ERROR_NONE);
 #if defined(__linux__) || defined(__APPLE__)
     check(posix_services_start() == ERROR_NONE);

@@ -273,9 +273,9 @@ static error_t tca8418_read_key(Device* device, KeyboardKeyData* data) {
 // endregion
 
 static constexpr KeyboardApi tca8418_api = {
+    .capabilities = 0,
     .read_key = tca8418_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 Driver tca8418_driver = {

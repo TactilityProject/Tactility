@@ -2,9 +2,17 @@
 #include <tactility/drivers/display.h>
 #include <tactility/device.h>
 
+#include <atomic>
+
 #define DISPLAY_DRIVER_API(driver) ((struct DisplayApi*)driver->api)
 
+static std::atomic<const DisplayHook*> display_hook { nullptr };
+
 extern "C" {
+
+void display_set_hook(const DisplayHook* hook) {
+    display_hook.store(hook, std::memory_order_release);
+}
 
 bool display_has_capability(struct Device* device, uint32_t capability) {
     const auto* driver = device_get_driver(device);
@@ -26,6 +34,10 @@ error_t display_init(Device* device) {
 }
 
 error_t display_draw_bitmap(Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data) {
+    const auto* hook = display_hook.load(std::memory_order_acquire);
+    if (hook != nullptr && hook->on_draw_bitmap != nullptr) {
+        hook->on_draw_bitmap(device, x_start, y_start, x_end, y_end, color_data);
+    }
     const auto* driver = device_get_driver(device);
     return DISPLAY_DRIVER_API(driver)->draw_bitmap(device, x_start, y_start, x_end, y_end, color_data);
 }
@@ -36,7 +48,12 @@ error_t display_clear(Device* device) {
     if (api->clear == nullptr) {
         return ERROR_NOT_SUPPORTED;
     }
-    return api->clear(device);
+    const error_t error = api->clear(device);
+    const auto* hook = display_hook.load(std::memory_order_acquire);
+    if (error == ERROR_NONE && hook != nullptr && hook->on_clear != nullptr) {
+        hook->on_clear(device);
+    }
+    return error;
 }
 
 error_t display_refresh(Device* device) {
@@ -45,17 +62,32 @@ error_t display_refresh(Device* device) {
     if (api->refresh == nullptr) {
         return ERROR_NOT_SUPPORTED;
     }
-    return api->refresh(device);
+    const error_t error = api->refresh(device);
+    const auto* hook = display_hook.load(std::memory_order_acquire);
+    if (error == ERROR_NONE && hook != nullptr && hook->on_refresh != nullptr) {
+        hook->on_refresh(device);
+    }
+    return error;
 }
 
 error_t display_mirror(Device* device, bool x_axis, bool y_axis) {
     const auto* driver = device_get_driver(device);
-    return DISPLAY_DRIVER_API(driver)->mirror(device, x_axis, y_axis);
+    const error_t error = DISPLAY_DRIVER_API(driver)->mirror(device, x_axis, y_axis);
+    const auto* hook = display_hook.load(std::memory_order_acquire);
+    if (error == ERROR_NONE && hook != nullptr && hook->on_mirror != nullptr) {
+        hook->on_mirror(device, x_axis, y_axis);
+    }
+    return error;
 }
 
 error_t display_swap_xy(Device* device, bool swap_axes) {
     const auto* driver = device_get_driver(device);
-    return DISPLAY_DRIVER_API(driver)->swap_xy(device, swap_axes);
+    const error_t error = DISPLAY_DRIVER_API(driver)->swap_xy(device, swap_axes);
+    const auto* hook = display_hook.load(std::memory_order_acquire);
+    if (error == ERROR_NONE && hook != nullptr && hook->on_swap_xy != nullptr) {
+        hook->on_swap_xy(device, swap_axes);
+    }
+    return error;
 }
 
 bool display_get_swap_xy(Device* device) {
@@ -75,7 +107,12 @@ bool display_get_mirror_y(Device* device) {
 
 error_t display_set_gap(Device* device, int32_t x_gap, int32_t y_gap) {
     const auto* driver = device_get_driver(device);
-    return DISPLAY_DRIVER_API(driver)->set_gap(device, x_gap, y_gap);
+    const error_t error = DISPLAY_DRIVER_API(driver)->set_gap(device, x_gap, y_gap);
+    const auto* hook = display_hook.load(std::memory_order_acquire);
+    if (error == ERROR_NONE && hook != nullptr && hook->on_set_gap != nullptr) {
+        hook->on_set_gap(device, x_gap, y_gap);
+    }
+    return error;
 }
 
 int32_t display_get_gap_x(Device* device) {
@@ -92,12 +129,22 @@ int32_t display_get_gap_y(Device* device) {
 
 error_t display_invert_color(Device* device, bool invert_color_data) {
     const auto* driver = device_get_driver(device);
-    return DISPLAY_DRIVER_API(driver)->invert_color(device, invert_color_data);
+    const error_t error = DISPLAY_DRIVER_API(driver)->invert_color(device, invert_color_data);
+    const auto* hook = display_hook.load(std::memory_order_acquire);
+    if (error == ERROR_NONE && hook != nullptr && hook->on_invert_color != nullptr) {
+        hook->on_invert_color(device, invert_color_data);
+    }
+    return error;
 }
 
 error_t display_disp_on_off(Device* device, bool on_off) {
     const auto* driver = device_get_driver(device);
-    return DISPLAY_DRIVER_API(driver)->disp_on_off(device, on_off);
+    const error_t error = DISPLAY_DRIVER_API(driver)->disp_on_off(device, on_off);
+    const auto* hook = display_hook.load(std::memory_order_acquire);
+    if (error == ERROR_NONE && hook != nullptr && hook->on_disp_on_off != nullptr) {
+        hook->on_disp_on_off(device, on_off);
+    }
+    return error;
 }
 
 error_t display_disp_sleep(Device* device, bool sleep) {

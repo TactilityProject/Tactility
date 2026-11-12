@@ -13,6 +13,8 @@
 #include <stdint.h>
 
 #define DEVELOPMENT_SESSION_APP_ID "development-session"
+/** Remote sessions touch no files, so their task can have its stack in external RAM */
+#define DEVELOPMENT_REMOTE_SESSION_APP_ID "development-remote-session"
 
 /** Shell sessions are limited to 1, as each one also runs a shell app */
 #define DEVELOPMENT_SERVER_MAX_SESSIONS 3
@@ -33,6 +35,8 @@ struct DevelopmentSession {
 };
 
 extern "C" const struct AppManifest development_session_app_manifest;
+
+extern "C" const struct AppManifest development_remote_session_app_manifest;
 
 extern "C" const struct ServiceManifest development_server_service_manifest;
 

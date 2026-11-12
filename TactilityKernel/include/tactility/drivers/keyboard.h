@@ -119,9 +119,23 @@ struct KeyboardEventSubscription {
 };
 
 /**
+ * @brief Optional capabilities of the keyboard.
+ */
+enum KeyboardCapability {
+    /**
+     * The device can't type arbitrary text (e.g. buttons, an encoder or a trackball).
+     * It doesn't count as a hardware keyboard, so the software keyboard stays available.
+     */
+    KEYBOARD_CAPABILITY_RESTRICTED = 1 << 0
+};
+
+/**
  * @brief API for keyboard drivers.
  */
 struct KeyboardApi {
+    /** Bitset of KeyboardCapability values. */
+    uint32_t capabilities;
+
     /**
      * @brief Reads the next pending key event, if any.
      * May be NULL if the driver instead pushes events itself via keyboard_emit_key() (e.g. from a dedicated interrupt-handling task).
@@ -140,13 +154,6 @@ struct KeyboardApi {
      * @retval ERROR_NOT_SUPPORTED when this device has no backlight
      */
     error_t (*get_backlight)(struct Device* device, struct Device** backlight_device);
-
-    /**
-     * @deprecated Use Driver::probe + device_hotplug_register() instead (see DEVICE_FLAG_HOTPLUG)
-     * The kernel then starts/stops the device itself instead of leaving it started forever.
-     * When DEVICE_FLAG_HOTPLUG is used, use device_is_ready() only for checking if a keyboard is usable.
-     */
-    bool (*is_present)(struct Device* device);
 };
 
 /**
@@ -181,10 +188,11 @@ void keyboard_emit_key(struct Device* device, struct KeyboardKeyData data);
 error_t keyboard_get_backlight(struct Device* device, struct Device** backlight_device);
 
 /**
- * @deprecated See KeyboardApi::is_present.
  * @param[in] device the keyboard device
+ * @param[in] capability the bitset of KeyboardCapability value(s) being queried
+ * @return true if all specified capabilities are available for this device
  */
-bool keyboard_is_present(struct Device* device);
+bool keyboard_has_capability(struct Device* device, uint32_t capability);
 
 /**
  * @brief Standard USB HID keyboard modifier bits (boot report byte 0), matching the layout

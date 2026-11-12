@@ -318,9 +318,9 @@ static error_t gpio_encoder_read_key(Device* device, KeyboardKeyData* data) {
 // endregion
 
 static constexpr KeyboardApi GPIO_ENCODER_API = {
+    .capabilities = KEYBOARD_CAPABILITY_RESTRICTED,
     .read_key = gpio_encoder_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 Driver gpio_encoder_driver = {

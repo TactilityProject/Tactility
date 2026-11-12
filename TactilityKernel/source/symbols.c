@@ -165,6 +165,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(backlight_get_max_brightness),
     DEFINE_MODULE_SYMBOL(BACKLIGHT_TYPE),
     // drivers/display
+    DEFINE_MODULE_SYMBOL(display_set_hook),
     DEFINE_MODULE_SYMBOL(display_has_capability),
     DEFINE_MODULE_SYMBOL(display_reset),
     DEFINE_MODULE_SYMBOL(display_init),

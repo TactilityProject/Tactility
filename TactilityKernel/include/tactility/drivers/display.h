@@ -287,6 +287,35 @@ struct DisplayApi {
 };
 
 /**
+ * @brief Observer of display calls, installed with display_set_hook().
+ *
+ * Every member is optional. The callbacks have no return value.
+ * They run on the calling task of the display function, so they must be fast and must not block.
+ * on_draw_bitmap runs before the driver is called, so a color_data pointer into a panel frame
+ * buffer is still valid. The other callbacks run after the driver call, and only when it
+ * returned ERROR_NONE.
+ */
+struct DisplayHook {
+    void (*on_draw_bitmap)(struct Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data);
+    void (*on_clear)(struct Device* device);
+    void (*on_refresh)(struct Device* device);
+    void (*on_mirror)(struct Device* device, bool x_axis, bool y_axis);
+    void (*on_swap_xy)(struct Device* device, bool swap_axes);
+    void (*on_set_gap)(struct Device* device, int32_t x_gap, int32_t y_gap);
+    void (*on_invert_color)(struct Device* device, bool invert_color_data);
+    void (*on_disp_on_off)(struct Device* device, bool on_off);
+};
+
+/**
+ * @brief Installs the observer for all display devices, replacing the previous one.
+ * @warning A callback can still be running when this returns. The hook struct must stay valid
+ * for the lifetime of the program, and callbacks must tolerate being called after the caller
+ * considers the hook removed.
+ * @param[in] hook the hook, or NULL to remove it
+ */
+void display_set_hook(const struct DisplayHook* hook);
+
+/**
  * @brief Check if this display has 1 or more capabilities.
  * @param device the display device
  * @param capability the bitset of DisplayCapability value(s)

@@ -14,7 +14,7 @@ list(APPEND REQUIRES_LIST
 )
 
 if (DEFINED ENV{ESP_IDF_VERSION})
-    list(APPEND REQUIRES_LIST lwip)
+    list(APPEND REQUIRES_LIST lwip esp_rom)
 endif ()
 
 tactility_add_module(development-module

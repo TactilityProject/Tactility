@@ -53,6 +53,7 @@ constexpr MemoryPolicy MEMORY_POLICY = { .required = 0, .desired = MEMORY_CAPABI
 struct SessionSlot {
     bool active;
     bool shell;
+    bool remote;
     /** Set until the session app takes the session */
     DevelopmentSession* pending;
     AppInstanceId appId;
@@ -218,19 +219,22 @@ bool readHello(ServerData* data, DevelopmentSession* session) {
 /** @return the reason why the session can't start now, or nullptr after reserving a slot for it */
 const char* reserveSlot(ServerData* data, DevelopmentSession* session) {
     const bool shell = strcmp(session->hello.mode, "shell") == 0;
+    const bool remote = strcmp(session->hello.mode, "remote") == 0;
     lockState();
     int freeSlot = -1;
     bool shellBusy = false;
+    bool remoteBusy = false;
     for (int i = 0; i < DEVELOPMENT_SERVER_MAX_SESSIONS; i++) {
         const SessionSlot& slot = data->slots[i];
         if (!slot.active && freeSlot < 0) {
             freeSlot = i;
         }
         shellBusy = shellBusy || (shell && slot.active && slot.shell);
+        remoteBusy = remoteBusy || (remote && slot.active && slot.remote);
     }
-    const char* error = shellBusy ? "shell busy" : (freeSlot < 0 ? "busy" : nullptr);
+    const char* error = shellBusy ? "shell busy" : (remoteBusy ? "remote busy" : (freeSlot < 0 ? "busy" : nullptr));
     if (error == nullptr) {
-        data->slots[freeSlot] = { .active = true, .shell = shell, .pending = session, .appId = 0 };
+        data->slots[freeSlot] = { .active = true, .shell = shell, .remote = remote, .pending = session, .appId = 0 };
         session->slot = freeSlot;
     }
     unlockState();
@@ -247,7 +251,10 @@ bool startSessionApp(ServerData* data, int slot) {
     char slotArgument[4];
     snprintf(slotArgument, sizeof(slotArgument), "%d", slot);
     const char* arguments[] = { slotArgument };
-    AppStartContext context = app_start_context_for_manifest(&development_session_app_manifest);
+    lockState();
+    const bool remote = data->slots[slot].remote;
+    unlockState();
+    AppStartContext context = app_start_context_for_manifest(remote ? &development_remote_session_app_manifest : &development_session_app_manifest);
     app_start_context_set_arguments_ext(&context, 1, arguments);
     AppInstanceId appId = 0;
     if (app_start_with_context(&context, &appId) != ERROR_NONE) {

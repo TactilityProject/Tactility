@@ -65,9 +65,9 @@ static error_t gpio_trackball_keyboard_read_key(Device* device, KeyboardKeyData*
 }
 
 static const KeyboardApi GPIO_TRACKBALL_KEYBOARD_API = {
+    .capabilities = KEYBOARD_CAPABILITY_RESTRICTED,
     .read_key = gpio_trackball_keyboard_read_key,
     .get_backlight = nullptr,
-    .is_present = nullptr,
 };
 
 // endregion

@@ -72,6 +72,13 @@ TEST_CASE("development_protocol_parse_hello accepts a command in shell mode only
     CHECK_EQ(parse(R"({"protocol":1,"mode":"shell","client":"c","command":")" + std::string(DEVELOPMENT_COMMAND_LENGTH + 1, 'x') + "\"}", hello), DevelopmentHelloError::Malformed);
 }
 
+TEST_CASE("development_protocol_parse_hello accepts remote mode without a command") {
+    DevelopmentHello hello {};
+    REQUIRE_EQ(parse(R"({"protocol":1,"mode":"remote","client":"c"})", hello), DevelopmentHelloError::None);
+    CHECK_EQ(std::string(hello.mode), "remote");
+    CHECK_EQ(parse(R"({"protocol":1,"mode":"remote","client":"c","command":"x"})", hello), DevelopmentHelloError::Malformed);
+}
+
 TEST_CASE("development_protocol_parse_hello defaults a missing or invalid window size") {
     DevelopmentHello hello {};
     REQUIRE_EQ(parse(R"({"protocol":1,"mode":"shell","client":"c","columns":0})", hello), DevelopmentHelloError::None);

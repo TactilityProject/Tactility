@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <development/session.h>
+#include <development/remote.h>
 #include <development/requests.h>
 
 #include <app/event.h>
@@ -9,6 +10,7 @@
 #include <app/stream.h>
 
 #include <tactility/concurrent/task_event_group.h>
+#include <tactility/file_ops.h>
 #include <tactility/freertos/task.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
@@ -61,6 +63,35 @@ struct Events {
 
 bool isExpired(TickType_t start, uint32_t timeoutMs) {
     return xTaskGetTickCount() - start > pdMS_TO_TICKS(timeoutMs);
+}
+
+struct TrustJob {
+    const char* fingerprint;
+    const char* name;
+    error_t result;
+};
+
+void trustWork(void* context) {
+    auto* job = static_cast<TrustJob*>(context);
+    job->result = development_server_trust(job->fingerprint, job->name);
+}
+
+/** Writes the trust file on the file operations task, because this task can have its stack in external RAM */
+bool storeTrust(DevelopmentSession* session, Events& events) {
+    FileOpsSubscription subscription {};
+    if (file_ops_subscribe(&subscription, &events.group) != ERROR_NONE) {
+        return false;
+    }
+    TrustJob job { session->fingerprint, session->hello.client, ERROR_TIMEOUT };
+    bool stored = false;
+    if (file_ops_queue(trustWork, &job, &subscription) == ERROR_NONE) {
+        // The job lives on this stack, so the work must have finished before returning
+        while (file_ops_await(&subscription, pdMS_TO_TICKS(1000)) != ERROR_NONE) {
+        }
+        stored = job.result == ERROR_NONE;
+    }
+    file_ops_unsubscribe(&subscription);
+    return stored;
 }
 
 DevelopmentPromptResult prompt(DevelopmentSession* session, AppInstanceId self, Events& events) {
@@ -291,7 +322,7 @@ int32_t main(int argc, char* argv[]) {
     if (!accepted) {
         const DevelopmentPromptResult result = prompt(session, self, events);
         accepted = result != DEVELOPMENT_PROMPT_REJECT;
-        if (result == DEVELOPMENT_PROMPT_ACCEPT_ALWAYS && development_server_trust(session->fingerprint, session->hello.client) != ERROR_NONE) {
+        if (result == DEVELOPMENT_PROMPT_ACCEPT_ALWAYS && !storeTrust(session, events)) {
             LOG_E(TAG, "Failed to store trusted client");
         }
     }
@@ -305,6 +336,8 @@ int32_t main(int argc, char* argv[]) {
             development_requests_run(session, &events.group, &events.subscription, &events.closeRequested, DevelopmentRequestMode::Sync);
         } else if (strcmp(session->hello.mode, "app") == 0) {
             development_requests_run(session, &events.group, &events.subscription, &events.closeRequested, DevelopmentRequestMode::App);
+        } else if (strcmp(session->hello.mode, "remote") == 0) {
+            development_remote_run(session, &events.group, &events.subscription, &events.closeRequested);
         } else {
             runShell(session, self, events);
         }
@@ -318,6 +351,16 @@ int32_t main(int argc, char* argv[]) {
 }
 
 } // namespace
+
+// The server starts the manifest that fits the mode of the connection
+extern "C" const AppManifest development_remote_session_app_manifest = {
+    .id = DEVELOPMENT_REMOTE_SESSION_APP_ID,
+    .name = "Development Remote Session",
+    .category = APP_CATEGORY_SYSTEM,
+    .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(main) },
+    .flags = APP_MANIFEST_FLAG_HIDDEN | APP_MANIFEST_FLAG_HEADLESS,
+    .stack = { .depth = 8192, .desired_memory_capability = MEMORY_CAPABILITY_EXTERNAL },
+};
 
 extern "C" const AppManifest development_session_app_manifest = {
     .id = DEVELOPMENT_SESSION_APP_ID,
