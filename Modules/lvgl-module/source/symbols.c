@@ -13,6 +13,7 @@
 #include <lvgl/grid_navigation.h>
 #include <lvgl/insets.h>
 #include <lvgl/ppa.h>
+#include <lvgl/svg.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/badge.h>
 #include <lvgl/widgets/card.h>

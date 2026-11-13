@@ -570,3 +570,27 @@ TEST_CASE("a package can't register an app id that another package has") {
 
     app_manager_remove_package("test.owner.first");
 }
+
+TEST_CASE("package listeners are called when a package is added or removed") {
+    static int calls;
+    calls = 0;
+    auto listener = [](void* context) { (*static_cast<int*>(context))++; };
+    REQUIRE_EQ(app_manager_add_package_listener(listener, &calls), ERROR_NONE);
+    CHECK_EQ(app_manager_add_package_listener(listener, &calls), ERROR_ALREADY_EXISTS);
+
+    PackageManifest package {};
+    strcpy(package.id, "test.listener.package");
+    const char* const app_ids[] = { "test.listener.app" };
+    REQUIRE_EQ(app_manager_add_package(&package, app_ids, 1), ERROR_NONE);
+    CHECK_EQ(calls, 1);
+    // A failed add doesn't notify
+    CHECK_EQ(app_manager_add_package(&package, app_ids, 1), ERROR_INVALID_ARGUMENT);
+    CHECK_EQ(calls, 1);
+    REQUIRE_EQ(app_manager_remove_package("test.listener.package"), ERROR_NONE);
+    CHECK_EQ(calls, 2);
+
+    app_manager_remove_package_listener(listener, &calls);
+    REQUIRE_EQ(app_manager_add_package(&package, app_ids, 1), ERROR_NONE);
+    CHECK_EQ(calls, 2);
+    app_manager_remove_package("test.listener.package");
+}

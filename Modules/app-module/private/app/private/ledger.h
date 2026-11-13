@@ -3,6 +3,7 @@
 
 #include <app/instance.h>
 #include <app/libc.h>
+#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/package_manifest.h>
 #include <app/private/fd_table.h>
@@ -93,10 +94,16 @@ struct AppPackageRecord {
     std::vector<std::string, tt::OptExternalAllocator<std::string>> app_ids;
 };
 
+struct AppPackageListener {
+    AppPackageListenerFn function;
+    void* context;
+};
+
 struct AppLedger {
     std::unordered_map<std::string, const AppManifest*> manifests;
     std::unordered_map<std::string, AppPackageRecord, std::hash<std::string>, std::equal_to<std::string>, tt::OptExternalAllocator<std::pair<const std::string, AppPackageRecord>>> packages;
     std::unordered_map<uint32_t, AppInstanceRecord, std::hash<uint32_t>, std::equal_to<uint32_t>, tt::OptExternalAllocator<std::pair<const uint32_t, AppInstanceRecord>>> instances;
+    std::vector<AppPackageListener, tt::OptExternalAllocator<AppPackageListener>> package_listeners;
     uint32_t next_instance_id = 1;
     Mutex mutex {};
 

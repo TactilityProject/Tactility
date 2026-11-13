@@ -1,9 +1,11 @@
 #include <app/event.h>
 #include <app/location.h>
+#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
 #include <app/start.h>
 
+#include <atomic>
 #include <cstring>
 #include <new>
 #include <string>
@@ -52,6 +54,16 @@ Mode getOtherMode(Mode mode) {
 
 struct Context {
     Mode mode = Mode::Apps;
+    // Set while the widgets exist, accessed with the LVGL lock held
+    bool widgetsExist = false;
+    // Set by the package listener, handled by appMain
+    TaskEventGroup* eventGroup = nullptr;
+    uint32_t packagesChangedBit = 0;
+    std::atomic<bool> packagesChanged { false };
+    // Set when the settings are shown before their icons are loaded
+    std::atomic<bool> settingsIconsRequested { false };
+    // What the queued icon job loads
+    struct { bool packages; bool settings; } iconJob {};
     lv_obj_t* modeButtonIcon = nullptr;
     lvgl::SystemBarsListenerId systemBarsListener = 0;
     TileGrid grid { TileGrid::Callbacks {
@@ -59,14 +71,30 @@ struct Context {
         .onClicked = onAppClicked,
         .onLongPressed = onAppLongPressed,
         .onKey = onAppKey,
-        .resolveIcon = nullptr,
+        .resolveImage = nullptr,
         .onPageChanged = nullptr,
         .userData = this,
     } };
 };
 
 std::vector<TileGridItem> collectItems(void* userData) {
-    return getLauncherMode(static_cast<Context*>(userData)->mode).collect();
+    auto* ctx = static_cast<Context*>(userData);
+    // The theme changed since the icons were rasterized: the file operations task rasterizes them again, then the grid is rebuilt
+    const bool appIconsOutdated = !areAppIconsCurrent();
+    const bool settingsIconsOutdated = areSettingsIconsLoaded() && !areSettingsIconsCurrent();
+    if (appIconsOutdated || settingsIconsOutdated) {
+        ctx->packagesChanged = ctx->packagesChanged || appIconsOutdated;
+        ctx->settingsIconsRequested = ctx->settingsIconsRequested || settingsIconsOutdated;
+        task_event_group_signal(ctx->eventGroup, ctx->packagesChangedBit);
+    }
+    return getLauncherMode(ctx->mode).collect();
+}
+
+// Runs on the thread that installs or removes the package
+void onPackagesChanged(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->packagesChanged = true;
+    task_event_group_signal(ctx->eventGroup, ctx->packagesChangedBit);
 }
 
 struct StartAppJob {
@@ -118,6 +146,10 @@ void applyIconColor(Context* ctx) {
 void onModeButtonPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     ctx->mode = getOtherMode(ctx->mode);
+    if (ctx->mode == Mode::Settings && !areSettingsIconsCurrent()) {
+        ctx->settingsIconsRequested = true;
+        task_event_group_signal(ctx->eventGroup, ctx->packagesChangedBit);
+    }
     applyIconColor(ctx);
     ctx->grid.showFirstPage();
     ctx->grid.requestRepopulate(false);
@@ -142,10 +174,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->systemBarsListener = lvgl::systemBarsAddListener([ctx] {
         ctx->grid.setBarSideContainer(lvgl::systemBarsGetActionContainer());
     });
+    ctx->widgetsExist = true;
 }
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    ctx->widgetsExist = false;
     lvgl::systemBarsRemoveListener(ctx->systemBarsListener);
     ctx->systemBarsListener = 0;
     ctx->grid.destroyWidgets();
@@ -180,6 +214,19 @@ void runAutoStart(void*) {
     }
 }
 
+// Rasterizes icons, so it runs on the file operations task
+void loadIcons(void* context) {
+    auto* job = static_cast<decltype(Context::iconJob)*>(context);
+    if (job->packages) loadPackageIcons(nullptr);
+    if (job->settings) loadSettingsIcons(nullptr);
+}
+
+// Reads files, so it runs on the file operations task
+void loadLauncherData(void*) {
+    loadFavourites(nullptr);
+    loadPackageIcons(nullptr);
+}
+
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
 
@@ -193,11 +240,16 @@ int32_t appMain(int argc, char* argv[]) {
     check(file_ops_subscribe(&file_ops_sub, &event_group) == ERROR_NONE);
 
     Context ctx;
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.packagesChangedBit) == ERROR_NONE);
+    check(app_manager_add_package_listener(onPackagesChanged, &ctx) == ERROR_NONE);
+
     WindowId window = 0;
     bool windowCreated = false;
+    bool iconsReloading = false;
 
     // The window is created once the favourites are loaded, so its first render has the final order
-    check(file_ops_queue(loadFavourites, nullptr, &file_ops_sub) == ERROR_NONE);
+    check(file_ops_queue(loadLauncherData, nullptr, &file_ops_sub) == ERROR_NONE);
 
     // The launcher is meant to stay resident (it's the home screen) - it only gives up its
     // thread when app-module's scheduler asks it to (e.g. another new-model app is started).
@@ -209,6 +261,28 @@ int32_t appMain(int argc, char* argv[]) {
             windowCreated = true;
             // The file operations run in order: the favourites are available when auto-start runs
             check(file_ops_queue(runAutoStart, nullptr, nullptr) == ERROR_NONE);
+        }
+
+        if (windowCreated && iconsReloading && file_ops_poll(&file_ops_sub) == ERROR_NONE) {
+            iconsReloading = false;
+            // A buried window has no widgets: it collects the items again when it surfaces
+            lvgl_lock();
+            if (ctx.widgetsExist) {
+                ctx.grid.requestRepopulate(true);
+            }
+            lvgl_unlock();
+        }
+        if (windowCreated && !iconsReloading) {
+            const bool packages = ctx.packagesChanged.exchange(false);
+            const bool settings = ctx.settingsIconsRequested.exchange(false);
+            if (packages || settings) {
+                ctx.iconJob = { packages, settings };
+                if (file_ops_queue(loadIcons, &ctx.iconJob, &file_ops_sub) == ERROR_NONE) {
+                    iconsReloading = true;
+                } else {
+                    LOG_E(TAG, "Failed to queue loading the icons");
+                }
+            }
         }
 
         bool shouldClose = false;
@@ -225,6 +299,8 @@ int32_t appMain(int argc, char* argv[]) {
     if (windowCreated) {
         window_manager_remove(window);
     }
+    app_manager_remove_package_listener(onPackagesChanged, &ctx);
+    task_event_group_release_bit(&event_group, ctx.packagesChangedBit);
     file_ops_unsubscribe(&file_ops_sub);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&event_group);

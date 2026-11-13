@@ -42,6 +42,7 @@ int32_t appMain(int argc, char* argv[]) {
     // The view releases its event group bit when it is destroyed, so it ends before the event group does
     {
         View view(state, &event_group);
+        view.loadIcons();
         CreateContext createContext { &view, appInstanceId };
 
         AppEventSubscription sub {};

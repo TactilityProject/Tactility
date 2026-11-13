@@ -26,7 +26,40 @@
 
 #define TAG "app_manager"
 
+static void notify_package_listeners() {
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    const auto listeners = ledger.package_listeners;
+    mutex_unlock(&ledger.mutex);
+    for (const auto& listener : listeners) {
+        listener.function(listener.context);
+    }
+}
+
 extern "C" {
+
+error_t app_manager_add_package_listener(AppPackageListenerFn listener, void* context) {
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    for (const auto& existing : ledger.package_listeners) {
+        if (existing.function == listener && existing.context == context) {
+            mutex_unlock(&ledger.mutex);
+            return ERROR_ALREADY_EXISTS;
+        }
+    }
+    ledger.package_listeners.push_back({ listener, context });
+    mutex_unlock(&ledger.mutex);
+    return ERROR_NONE;
+}
+
+void app_manager_remove_package_listener(AppPackageListenerFn listener, void* context) {
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    std::erase_if(ledger.package_listeners, [&](const AppPackageListener& existing) {
+        return existing.function == listener && existing.context == context;
+    });
+    mutex_unlock(&ledger.mutex);
+}
 
 error_t app_manager_add(const AppManifest* manifest) {
     auto& ledger = app_ledger();
@@ -107,6 +140,7 @@ error_t app_manager_add_package(const PackageManifest* package, const char* cons
     ledger.packages[package->id] = std::move(record);
     mutex_unlock(&ledger.mutex);
 
+    notify_package_listeners();
     return ERROR_NONE;
 }
 
@@ -135,6 +169,7 @@ error_t app_manager_remove_package(const char* package_id) {
     ledger.packages.erase(iterator);
     mutex_unlock(&ledger.mutex);
 
+    notify_package_listeners();
     return ERROR_NONE;
 }
 

@@ -16,6 +16,10 @@ struct TileGridItem {
     const char* icon;
     /** Marked with a badge */
     bool highlighted;
+    /** Shown instead of the icon glyph when set. Must outlive the tile. */
+    const lv_image_dsc_t* image = nullptr;
+    /** Paints the image in the icon colour, for single colour images. Also applies to an image from Callbacks::resolveImage. */
+    bool imageRecolor = false;
 };
 
 /**
@@ -34,8 +38,8 @@ public:
         void (*onLongPressed)(const TileGridItem& item, void* userData);
         /** Optional */
         void (*onKey)(const TileGridItem& item, uint32_t key, void* userData);
-        /** Optional: returns the icon of an item without one. Only called for the items on the shown page. */
-        const char* (*resolveIcon)(const TileGridItem& item, void* userData);
+        /** Optional: returns the image of an item without an icon or image. Only called for the items on the shown page. */
+        const lv_image_dsc_t* (*resolveImage)(const TileGridItem& item, void* userData);
         /** Optional: called after the user went to another page */
         void (*onPageChanged)(void* userData);
         void* userData;

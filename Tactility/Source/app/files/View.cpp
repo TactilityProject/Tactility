@@ -11,9 +11,13 @@
 #include <lvgl/icons/shared.h>
 #include <lvgl/insets.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/svg.h>
+#include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/toolbar.h>
+
+#include <generated_assets.h>
 
 #include <Tactility/app/files/SupportedFiles.h>
 #include <Tactility/app/files/View.h>
@@ -122,26 +126,50 @@ static bool isUsbMountPoint(const char* name) {
     return strncmp(name, "usb", 3) == 0 && isdigit((unsigned char)name[3]);
 }
 
-// Returns nullptr for the files that View::resolveIcon() checks, as that reads the file
-static const char* getIcon(const dirent& entry, bool isRoot) {
+enum class FileIcon { Folder, SdCard, Usb, Link, Image, Text, App, Executable, File, Unknown };
+
+struct FileIconAsset {
+    const uint8_t* colour;
+    size_t colourSize;
+    const uint8_t* mono;
+    size_t monoSize;
+};
+
+#define FILE_ICON_ASSET(name) { asset_file_icon_##name##_svg, asset_file_icon_##name##_svg_SIZE, asset_file_icon_##name##_mono_svg, asset_file_icon_##name##_mono_svg_SIZE }
+
+// Indexed by FileIcon, Unknown has no icon
+constexpr FileIconAsset FILE_ICON_ASSETS[] = {
+    FILE_ICON_ASSET(folder),
+    FILE_ICON_ASSET(sd_card),
+    FILE_ICON_ASSET(usb),
+    FILE_ICON_ASSET(link),
+    FILE_ICON_ASSET(image),
+    FILE_ICON_ASSET(text),
+    FILE_ICON_ASSET(app),
+    FILE_ICON_ASSET(executable),
+    FILE_ICON_ASSET(file),
+};
+
+// Returns Unknown for the files that View::resolveImage() checks, as that reads the file
+static FileIcon getIcon(const dirent& entry, bool isRoot) {
     if (entry.d_type == file::TT_DT_DIR || entry.d_type == file::TT_DT_CHR) {
         if (isRoot && strncmp(entry.d_name, "sd", 2) == 0) {
-            return LVGL_ICON_SHARED_SD_CARD;
+            return FileIcon::SdCard;
         } else if (isRoot && isUsbMountPoint(entry.d_name)) {
-            return LVGL_ICON_SHARED_USB;
+            return FileIcon::Usb;
         } else {
-            return LVGL_ICON_SHARED_FOLDER;
+            return FileIcon::Folder;
         }
     } else if (entry.d_type == file::TT_DT_LNK) {
-        return LVGL_ICON_SHARED_LINK;
+        return FileIcon::Link;
     } else if (isSupportedImageFile(entry.d_name)) {
-        return LVGL_ICON_SHARED_IMAGE;
+        return FileIcon::Image;
     } else if (isSupportedTextFile(entry.d_name)) {
-        return LVGL_ICON_SHARED_DESCRIPTION;
+        return FileIcon::Text;
     } else if (isSupportedAppFile(entry.d_name)) {
-        return LVGL_ICON_SHARED_DEPLOYED_CODE;
+        return FileIcon::App;
     } else {
-        return nullptr;
+        return FileIcon::Unknown;
     }
 }
 
@@ -342,7 +370,7 @@ View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
         .onClicked = onTileClicked,
         .onLongPressed = onTileLongPressed,
         .onKey = onTileKey,
-        .resolveIcon = resolveIcon,
+        .resolveImage = resolveImage,
         .onPageChanged = onPageChanged,
         .userData = this
     }) {
@@ -350,7 +378,26 @@ View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
     check(file_ops_subscribe(&fileOpsSub, eventGroup) == ERROR_NONE);
 }
 
+void View::loadIcons() {
+    const auto size = static_cast<uint32_t>(lvgl_get_shared_icon_large_font_height());
+    const bool preferMono = lvgl_theme_is_mono();
+    for (size_t i = 0; i < std::size(FILE_ICON_ASSETS); i++) {
+        const auto& asset = FILE_ICON_ASSETS[i];
+        icons[i] = lvgl_svg_rasterize_variants(
+            reinterpret_cast<const char*>(asset.colour), asset.colourSize,
+            reinterpret_cast<const char*>(asset.mono), asset.monoSize,
+            preferMono, size, &iconRecolor[i]
+        );
+        if (icons[i] == nullptr) {
+            LOG_W(TAG, "Failed to rasterize file icon %d", static_cast<int>(i));
+        }
+    }
+}
+
 View::~View() {
+    for (auto* icon : icons) {
+        if (icon != nullptr) lv_draw_buf_destroy(icon);
+    }
     file_ops_unsubscribe(&fileOpsSub);
     task_event_group_release_bit(eventGroup, pasteBit);
 }
@@ -362,15 +409,20 @@ std::vector<TileGridItem> View::collectItems(void* userData) {
     view->state->withEntries([&](const std::vector<dirent>& entries) {
         items.reserve(entries.size());
         for (const auto& entry : entries) {
-            items.push_back({ entry.d_name, entry.d_name, getIcon(entry, is_root), false });
+            const auto icon = getIcon(entry, is_root);
+            const lv_image_dsc_t* image = icon == FileIcon::Unknown ? nullptr : reinterpret_cast<const lv_image_dsc_t*>(view->icons[static_cast<size_t>(icon)]);
+            // Files that are resolved later are shown as an executable or a plain file, which are rasterized from the same set
+            const bool recolor = view->iconRecolor[static_cast<size_t>(icon == FileIcon::Unknown ? FileIcon::File : icon)];
+            items.push_back({ entry.d_name, entry.d_name, nullptr, false, image, recolor });
         }
     });
     return items;
 }
 
-const char* View::resolveIcon(const TileGridItem& item, void* userData) {
+const lv_image_dsc_t* View::resolveImage(const TileGridItem& item, void* userData) {
     auto* view = static_cast<View*>(userData);
-    return view->state->isExecutable(item.id) ? LVGL_ICON_SHARED_PLAY_ARROW : LVGL_ICON_SHARED_DRAFT;
+    const auto icon = view->state->isExecutable(item.id) ? FileIcon::Executable : FileIcon::File;
+    return reinterpret_cast<const lv_image_dsc_t*>(view->icons[static_cast<size_t>(icon)]);
 }
 
 void View::onTileClicked(const TileGridItem& item, void* userData) {

@@ -386,19 +386,35 @@ void TileGrid::populate() {
         lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_user_data(tile, const_cast<TileGridItem*>(&item));
 
-        lv_obj_t* icon = lv_label_create(tile);
-        lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_large_font(), LV_STATE_DEFAULT);
-        lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
-        lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
-        const char* icon_text = item.icon;
-        if (icon_text == nullptr && callbacks.resolveIcon != nullptr) {
-            icon_text = callbacks.resolveIcon(item, callbacks.userData);
+        const lv_image_dsc_t* image_src = item.image;
+        if (image_src == nullptr && item.icon == nullptr && callbacks.resolveImage != nullptr) {
+            image_src = callbacks.resolveImage(item, callbacks.userData);
         }
-        lv_label_set_text(icon, icon_text != nullptr ? icon_text : "");
-        if (iconColor == IconColor::Primary) {
-            lv_obj_set_style_text_color(icon, lv_theme_get_color_primary(icon), LV_STATE_DEFAULT);
-        } else if (iconColor == IconColor::Secondary) {
-            lv_obj_set_style_text_color(icon, lv_theme_get_color_secondary(icon), LV_STATE_DEFAULT);
+        if (image_src != nullptr) {
+            lv_obj_t* image = lv_image_create(tile);
+            lv_image_set_src(image, image_src);
+            lv_obj_set_size(image, layout.iconSize, layout.iconSize);
+            if (item.imageRecolor) {
+                lv_color_t color = lv_obj_get_style_text_color(tile, LV_PART_MAIN);
+                if (iconColor == IconColor::Primary) {
+                    color = lv_theme_get_color_primary(image);
+                } else if (iconColor == IconColor::Secondary) {
+                    color = lv_theme_get_color_secondary(image);
+                }
+                lv_obj_set_style_image_recolor(image, color, LV_STATE_DEFAULT);
+                lv_obj_set_style_image_recolor_opa(image, LV_OPA_COVER, LV_STATE_DEFAULT);
+            }
+        } else {
+            lv_obj_t* icon = lv_label_create(tile);
+            lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_large_font(), LV_STATE_DEFAULT);
+            lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+            lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
+            lv_label_set_text(icon, item.icon != nullptr ? item.icon : "");
+            if (iconColor == IconColor::Primary) {
+                lv_obj_set_style_text_color(icon, lv_theme_get_color_primary(icon), LV_STATE_DEFAULT);
+            } else if (iconColor == IconColor::Secondary) {
+                lv_obj_set_style_text_color(icon, lv_theme_get_color_secondary(icon), LV_STATE_DEFAULT);
+            }
         }
 
         lv_obj_t* label = lv_label_create(tile);
