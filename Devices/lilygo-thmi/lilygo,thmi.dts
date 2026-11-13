@@ -6,6 +6,7 @@
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_usbhost.h>
 #include <tactility/bindings/esp32_sdmmc.h>
 #include <tactility/bindings/esp32_i8080.h>
 #include <tactility/bindings/esp32_pwm_ledc.h>
@@ -135,5 +136,10 @@
 		usbdevicemsc0 {
 			compatible = "espressif,esp32-usbdevice-msc";
 		};
+	};
+
+	usbhost0 {
+		compatible = "espressif,esp32-usbhost";
+		status = "disabled";
 	};
 };

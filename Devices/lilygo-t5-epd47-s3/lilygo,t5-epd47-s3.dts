@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_usbhost.h>
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_adc_oneshot.h>
@@ -91,5 +92,10 @@
 		io-channel = <&adc0 0>;
 		reference-voltage-mv = <3300>;
 		multiplier = <2000>;
+	};
+
+	usbhost0 {
+		compatible = "espressif,esp32-usbhost";
+		status = "disabled";
 	};
 };

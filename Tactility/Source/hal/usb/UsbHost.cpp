@@ -41,8 +41,10 @@ static bool apply(Device* host, bool enabled) {
 
 void systemStart() {
     Device* host = findHost();
-    if (host != nullptr) {
-        apply(host, settings::usbhost::loadOrGetDefault().enabled);
+    settings::usbhost::UsbHostSettings saved {};
+    // Without saved settings, the devicetree status decides
+    if (host != nullptr && settings::usbhost::load(saved)) {
+        apply(host, saved.enabled);
     }
 }
 

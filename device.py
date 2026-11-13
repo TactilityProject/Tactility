@@ -443,7 +443,8 @@ def write_bluetooth_variables(output_file, device_properties: dict):
         output_file.write("CONFIG_BT_NIMBLE_NVS_PERSIST=y\n")
 
 def write_usbhost_variables(output_file, device_properties: dict):
-    has_usbhost = get_boolean_property_or_false(device_properties, "hardware.usbHostEnabled")
+    idf_target = get_property_or_exit(device_properties, "hardware.target").lower()
+    has_usbhost = get_boolean_property_or_false(device_properties, "hardware.usbHostEnabled") or idf_target == "esp32s3"
     if has_usbhost:
         output_file.write("# USB Host\n")
         output_file.write("CONFIG_FATFS_VOLUME_COUNT=6\n")
