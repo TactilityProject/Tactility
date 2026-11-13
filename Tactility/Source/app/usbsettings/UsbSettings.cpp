@@ -12,6 +12,7 @@
 
 #include <lvgl.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -36,9 +37,12 @@ struct Context {
 
     // Read by appMain outside the LVGL lock, used by the widgets with the LVGL lock held
     bool hostEnabled = false;
+    // The host was switched on and could not start: the saved choice applies after a reboot
+    bool hostNeedsReboot = false;
 
     // nullptr while the widgets don't exist
     lv_obj_t* hostSwitch = nullptr;
+    lv_obj_t* hostWarning = nullptr;
 };
 
 
@@ -66,12 +70,17 @@ void onHostSwitch(lv_event_t* event) {
 void onHostSwitchDeleted(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     ctx->hostSwitch = nullptr;
+    ctx->hostWarning = nullptr;
 }
 
 // Must be called with the LVGL lock held
 void refresh(Context* ctx) {
     if (ctx->hostSwitch != nullptr) {
-        lv_obj_set_state(ctx->hostSwitch, LV_STATE_CHECKED, ctx->hostEnabled);
+        // The switch shows the saved choice, which a failed start keeps
+        lv_obj_set_state(ctx->hostSwitch, LV_STATE_CHECKED, ctx->hostEnabled || ctx->hostNeedsReboot);
+    }
+    if (ctx->hostWarning != nullptr) {
+        lv_obj_set_hidden(ctx->hostWarning, !ctx->hostNeedsReboot);
     }
 }
 
@@ -100,10 +109,23 @@ void createRebootRow(lv_obj_t* parent, const char* text, lv_event_cb_t onReboot)
 
 void createUsbHostRow(lv_obj_t* parent, Context* ctx) {
     auto* row = createRow(parent, "USB host");
+    // The warning wraps to a line of its own below the label and switch
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
     ctx->hostSwitch = lv_switch_create(row);
     lv_obj_add_event_cb(ctx->hostSwitch, onHostSwitch, LV_EVENT_VALUE_CHANGED, ctx);
     // Removed with the widgets, which happens when another window covers this one
     lv_obj_add_event_cb(ctx->hostSwitch, onHostSwitchDeleted, LV_EVENT_DELETE, ctx);
+
+    ctx->hostWarning = lv_label_create(row);
+    lv_obj_set_width(ctx->hostWarning, LV_PCT(100));
+    lv_label_set_long_mode(ctx->hostWarning, LV_LABEL_LONG_MODE_WRAP);
+    lv_label_set_text(ctx->hostWarning, "USB host failed to start. Reboot the device to enable it.");
+    // The monochrome theme has no error colour
+    if (!lvgl_theme_is_mono()) {
+        LvglThemeSettings theme_settings;
+        lvgl_theme_get_settings(&theme_settings);
+        lv_obj_set_style_text_color(ctx->hostWarning, theme_settings.color_error, LV_STATE_DEFAULT);
+    }
     refresh(ctx);
 }
 
@@ -163,6 +185,7 @@ int32_t appMain(int argc, char* argv[]) {
     const bool hasHost = hal::usbhost::isAvailable();
     if (hasHost) {
         ctx.hostEnabled = hal::usbhost::isEnabled();
+        ctx.hostNeedsReboot = hal::usbhost::hasStartFailed();
     }
 
     WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
@@ -175,8 +198,10 @@ int32_t appMain(int argc, char* argv[]) {
         if (hostRequest != Request::None) {
             hal::usbhost::setEnabled(hostRequest == Request::Enable);
             const bool hostEnabled = hal::usbhost::isEnabled();
+            const bool hostNeedsReboot = hal::usbhost::hasStartFailed();
             lvgl_lock();
             ctx.hostEnabled = hostEnabled;
+            ctx.hostNeedsReboot = hostNeedsReboot;
             refresh(&ctx);
             lvgl_unlock();
         }

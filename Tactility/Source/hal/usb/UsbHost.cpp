@@ -9,6 +9,8 @@
 #include <tactility/check.h>
 #include <tactility/Memory.hpp>
 
+#include <atomic>
+
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
 #endif
@@ -16,6 +18,10 @@
 namespace tt::hal::usbhost {
 
 constexpr auto* TAG = "UsbHost";
+
+// Set when enabling the host failed, which is cleared by the next successful change. Starting is not retried until a reboot,
+// e.g. when the USB controller is still held by the debug connection that flashed the device.
+static std::atomic<bool> startFailed { false };
 
 // The USB host comes from the devicetree and is never destructed, so the pointer stays valid without a reference
 static Device* findHost() {
@@ -116,17 +122,21 @@ static bool apply(Device* host, bool enabled) {
     if (enabled) {
         if (device_is_ready(host)) {
             device_hotplug_register(host);
+            startFailed = false;
             return true;
         }
         if (sharesControllerWithDeviceMode() && !stopDeviceMode()) {
+            startFailed = true;
             return false;
         }
         if (device_start(host) != ERROR_NONE) {
             LOG_E(TAG, "Failed to start USB host");
             restoreDeviceMode();
+            startFailed = true;
             return false;
         }
         device_hotplug_register(host);
+        startFailed = false;
         return true;
     }
 
@@ -137,6 +147,7 @@ static bool apply(Device* host, bool enabled) {
         return false;
     }
     restoreDeviceMode();
+    startFailed = false;
     return true;
 }
 
@@ -156,6 +167,10 @@ void systemStart() {
 
 bool isAvailable() {
     return findHost() != nullptr;
+}
+
+bool hasStartFailed() {
+    return startFailed;
 }
 
 bool isEnabled() {
