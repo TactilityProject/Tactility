@@ -11,9 +11,11 @@
 #include <nanosvgrast.h>
 
 #define SVG_DPI 96.0f
+// (size_t)size * size * 4 must fit in size_t on 32-bit targets.
+#define SVG_MAX_SIZE 32767u
 
 lv_draw_buf_t* lvgl_svg_rasterize_data(const char* data, size_t length, uint32_t size) {
-    if (size == 0) return NULL;
+    if (size == 0 || size > SVG_MAX_SIZE) return NULL;
 
     // nanosvg modifies the text it parses
     char* text = malloc(length + 1);

@@ -36,6 +36,13 @@ void loadPackageIcons(void* context);
 /** Rasterizes the icons of the settings apps into memory, once. File operation, see <tactility/file_ops.h>. */
 void loadSettingsIcons(void* context);
 
+/**
+ * Frees the icon images that a load replaced. Call it only when no tile shows them anymore:
+ * after the grid deleted its tiles, or when it has no widgets. Runs on any task.
+ */
+void releaseRetiredAppIcons();
+void releaseRetiredSettingsIcons();
+
 /** @return true after loadSettingsIcons() ran */
 bool areSettingsIconsLoaded();
 

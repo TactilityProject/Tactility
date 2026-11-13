@@ -2,12 +2,14 @@
 
 #include <app/event.h>
 #include <app/loader.h>
+#include <app/paths.h>
 #include <app/manager.h>
 #include <app/start.h>
 #include <app/scheduler.h>
 
 #include <service/manager.h>
 
+#include <tactility/concurrent/thread.h>
 #include <tactility/delay.h>
 #include <tactility/freertos/task.h>
 
@@ -593,4 +595,103 @@ TEST_CASE("package listeners are called when a package is added or removed") {
     REQUIRE_EQ(app_manager_add_package(&package, app_ids, 1), ERROR_NONE);
     CHECK_EQ(calls, 2);
     app_manager_remove_package("test.listener.package");
+}
+
+TEST_CASE("app_paths_get_install_directory resolves the directory of the registered binary") {
+    AppManifest manifest { "test.paths.app", "Test Paths", APP_CATEGORY_USER, { APP_LOCATION_PATH, const_cast<char*>("/custom/root/mypackage/bin/linux-x86_64/app.so") } };
+    REQUIRE_EQ(app_manager_add(&manifest), ERROR_NONE);
+
+    char path[128];
+    CHECK_EQ(app_paths_get_install_directory("test.paths.app", path, sizeof(path)), ERROR_NONE);
+    CHECK_EQ(std::string(path), "/custom/root/mypackage");
+    CHECK_EQ(app_paths_get_assets_directory("test.paths.app", path, sizeof(path)), ERROR_NONE);
+    CHECK_EQ(std::string(path), "/custom/root/mypackage/assets");
+
+    char tiny[8];
+    CHECK_EQ(app_paths_get_install_directory("test.paths.app", tiny, sizeof(tiny)), ERROR_BUFFER_OVERFLOW);
+    CHECK_EQ(app_paths_get_install_directory("test.paths.unknown", path, sizeof(path)), ERROR_NOT_FOUND);
+    app_manager_remove("test.paths.app");
+
+    AppManifest builtIn { "test.paths.builtin", "Test Builtin", APP_CATEGORY_USER, { APP_LOCATION_MEMORY, nullptr } };
+    REQUIRE_EQ(app_manager_add(&builtIn), ERROR_NONE);
+    CHECK_EQ(app_paths_get_install_directory("test.paths.builtin", path, sizeof(path)), ERROR_NOT_FOUND);
+    app_manager_remove("test.paths.builtin");
+}
+
+TEST_CASE("a package listener can remove itself while it is called") {
+    static int calls;
+    calls = 0;
+    static auto listener = [](void* context) {
+        (*static_cast<int*>(context))++;
+        app_manager_remove_package_listener([](void* context) { (*static_cast<int*>(context))++; }, nullptr);
+    };
+    // The removal inside the callback doesn't match this listener, so it must neither deadlock nor remove it
+    REQUIRE_EQ(app_manager_add_package_listener(listener, &calls), ERROR_NONE);
+    PackageManifest package {};
+    strcpy(package.id, "test.selfremove.package");
+    const char* const app_ids[] = { "test.selfremove.app" };
+    REQUIRE_EQ(app_manager_add_package(&package, app_ids, 1), ERROR_NONE);
+    CHECK_EQ(calls, 1);
+    app_manager_remove_package_listener(listener, &calls);
+    app_manager_remove_package("test.selfremove.package");
+    CHECK_EQ(calls, 1);
+}
+
+namespace {
+
+struct ListenerWaitState {
+    std::atomic<bool> inCallback { false };
+    std::atomic<bool> release { false };
+    std::atomic<bool> callbackDone { false };
+    std::atomic<bool> removed { false };
+    PackageManifest package {};
+    const char* const* appIds = nullptr;
+};
+
+void blockingListener(void* context) {
+    auto* state = static_cast<ListenerWaitState*>(context);
+    state->inCallback = true;
+    while (!state->release) delay_millis(1);
+    state->callbackDone = true;
+}
+
+} // namespace
+
+TEST_CASE("removing a package listener waits for a notification that is running") {
+    static ListenerWaitState state;
+    state.inCallback = false;
+    state.release = false;
+    state.callbackDone = false;
+    state.removed = false;
+    strcpy(state.package.id, "test.waitremove.package");
+    static const char* const app_ids[] = { "test.waitremove.app" };
+    state.appIds = app_ids;
+    REQUIRE_EQ(app_manager_add_package_listener(blockingListener, &state), ERROR_NONE);
+
+    // The notification runs on the thread that adds the package
+    auto* notifier = thread_alloc_full("listener-notifier", 4096, [](void*) -> int32_t {
+        app_manager_add_package(&state.package, state.appIds, 1);
+        return 0;
+    }, nullptr, -1);
+    REQUIRE_EQ(thread_start(notifier), ERROR_NONE);
+    while (!state.inCallback) delay_millis(1);
+
+    auto* remover = thread_alloc_full("listener-remover", 4096, [](void*) -> int32_t {
+        app_manager_remove_package_listener(blockingListener, &state);
+        state.removed = true;
+        return 0;
+    }, nullptr, -1);
+    REQUIRE_EQ(thread_start(remover), ERROR_NONE);
+    delay_millis(50);
+    // The callback still runs, so the removal must not have returned
+    CHECK_FALSE(state.removed);
+
+    state.release = true;
+    CHECK_EQ(thread_join(remover, pdMS_TO_TICKS(2000), 1), ERROR_NONE);
+    CHECK_EQ(thread_join(notifier, pdMS_TO_TICKS(2000), 1), ERROR_NONE);
+    thread_free(remover);
+    thread_free(notifier);
+    CHECK(state.callbackDone);
+    CHECK(state.removed);
+    app_manager_remove_package("test.waitremove.package");
 }

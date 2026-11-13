@@ -15,8 +15,8 @@ extern "C" {
  * Rasterizes SVG text into a square ARGB8888 draw buffer, scaled to fit and centered.
  * @param[in] data the SVG document
  * @param[in] length the number of bytes in @a data
- * @param[in] size width and height in pixels
- * @return the draw buffer, to be freed with lv_draw_buf_destroy(), or NULL when the document can't be parsed
+ * @param[in] size width and height in pixels, from 1 to 32767
+ * @return the draw buffer, to be freed with lv_draw_buf_destroy(), or NULL when the document can't be parsed or the size is out of range
  */
 lv_draw_buf_t* lvgl_svg_rasterize_data(const char* data, size_t length, uint32_t size);
 

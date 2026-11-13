@@ -56,7 +56,7 @@ error_t app_paths_get_user_data_path(const char* app_id, const char* child_path,
     return ERROR_NONE;
 }
 
-error_t app_paths_get_assets_directory(const char* app_id, char* out_path, size_t out_path_size) {
+error_t app_paths_get_install_directory(const char* app_id, char* out_path, size_t out_path_size) {
     AppManifest manifest;
     error_t error = app_manager_find_manifest(app_id, &manifest);
     if (error != ERROR_NONE) {
@@ -72,7 +72,21 @@ error_t app_paths_get_assets_directory(const char* app_id, char* out_path, size_
         return ERROR_NOT_FOUND;
     }
 
-    int written = std::snprintf(out_path, out_path_size, "%s/assets", install_dir.c_str());
+    int written = std::snprintf(out_path, out_path_size, "%s", install_dir.c_str());
+    if (written < 0 || (size_t)written >= out_path_size) {
+        return ERROR_BUFFER_OVERFLOW;
+    }
+    return ERROR_NONE;
+}
+
+error_t app_paths_get_assets_directory(const char* app_id, char* out_path, size_t out_path_size) {
+    char install_dir[FILE_MAX_PATH_STRING_LENGTH];
+    error_t error = app_paths_get_install_directory(app_id, install_dir, sizeof(install_dir));
+    if (error != ERROR_NONE) {
+        return error;
+    }
+
+    int written = std::snprintf(out_path, out_path_size, "%s/assets", install_dir);
     if (written < 0 || (size_t)written >= out_path_size) {
         return ERROR_BUFFER_OVERFLOW;
     }

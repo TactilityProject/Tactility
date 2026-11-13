@@ -62,8 +62,8 @@ struct SettingsIcons {
     bool recolor[SETTINGS_ICON_COUNT] = {};
     bool loaded = false;
     bool forMono = false;
-    // Replaced images may still be shown by tiles, so they are freed by the next load
-    lv_draw_buf_t* retired[SETTINGS_ICON_COUNT] = {};
+    // Replaced images may still be shown by tiles, so they are freed when the grid has deleted its tiles, see releaseRetiredSettingsIcons()
+    std::vector<lv_draw_buf_t*> retired;
 
     SettingsIcons() { mutex_construct(&mutex); }
 };
@@ -134,12 +134,6 @@ void loadSettingsIcons(void*) {
     // Only this task writes the icons, so reading them here needs no lock
     if (state.loaded && state.forMono == preferMono) return;
 
-    // Replaced images are freed now, as the tiles that showed them were rebuilt since
-    for (auto*& image : state.retired) {
-        if (image != nullptr) lv_draw_buf_destroy(image);
-        image = nullptr;
-    }
-
     const auto size = static_cast<uint32_t>(lvgl_get_shared_icon_large_font_height());
     lv_draw_buf_t* images[SETTINGS_ICON_COUNT] = {};
     bool recolor[SETTINGS_ICON_COUNT] = {};
@@ -154,12 +148,24 @@ void loadSettingsIcons(void*) {
 
     mutex_lock(&state.mutex);
     for (size_t i = 0; i < SETTINGS_ICON_COUNT; i++) {
-        state.retired[i] = state.images[i];
+        if (state.images[i] != nullptr) {
+            state.retired.push_back(state.images[i]);
+        }
         state.images[i] = images[i];
         state.recolor[i] = recolor[i];
     }
     state.loaded = true;
     state.forMono = preferMono;
+    mutex_unlock(&state.mutex);
+}
+
+void releaseRetiredSettingsIcons() {
+    auto& state = settingsIcons();
+    mutex_lock(&state.mutex);
+    for (auto* image : state.retired) {
+        lv_draw_buf_destroy(image);
+    }
+    state.retired.clear();
     mutex_unlock(&state.mutex);
 }
 

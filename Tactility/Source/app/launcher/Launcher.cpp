@@ -35,6 +35,7 @@ constexpr auto* TAG = "Launcher";
 namespace {
 
 std::vector<TileGridItem> collectItems(void* userData);
+void onTilesCleared(void* userData);
 void onAppClicked(const TileGridItem& item, void* userData);
 void onAppLongPressed(const TileGridItem& item, void* userData);
 void onAppKey(const TileGridItem& item, uint32_t key, void* userData);
@@ -62,8 +63,6 @@ struct Context {
     std::atomic<bool> packagesChanged { false };
     // Set when the settings are shown before their icons are loaded
     std::atomic<bool> settingsIconsRequested { false };
-    // What the queued icon job loads
-    struct { bool packages; bool settings; } iconJob {};
     lv_obj_t* modeButtonIcon = nullptr;
     lvgl::SystemBarsListenerId systemBarsListener = 0;
     TileGrid grid { TileGrid::Callbacks {
@@ -73,6 +72,7 @@ struct Context {
         .onKey = onAppKey,
         .resolveImage = nullptr,
         .onPageChanged = nullptr,
+        .onTilesCleared = onTilesCleared,
         .userData = this,
     } };
 };
@@ -83,11 +83,18 @@ std::vector<TileGridItem> collectItems(void* userData) {
     const bool appIconsOutdated = !areAppIconsCurrent();
     const bool settingsIconsOutdated = areSettingsIconsLoaded() && !areSettingsIconsCurrent();
     if (appIconsOutdated || settingsIconsOutdated) {
-        ctx->packagesChanged = ctx->packagesChanged || appIconsOutdated;
-        ctx->settingsIconsRequested = ctx->settingsIconsRequested || settingsIconsOutdated;
+        // Only set, never cleared: a package change from the listener can arrive at the same time
+        if (appIconsOutdated) ctx->packagesChanged = true;
+        if (settingsIconsOutdated) ctx->settingsIconsRequested = true;
         task_event_group_signal(ctx->eventGroup, ctx->packagesChangedBit);
     }
     return getLauncherMode(ctx->mode).collect();
+}
+
+// The tiles that showed replaced icon images are gone
+void onTilesCleared(void*) {
+    releaseRetiredAppIcons();
+    releaseRetiredSettingsIcons();
 }
 
 // Runs on the thread that installs or removes the package
@@ -214,11 +221,19 @@ void runAutoStart(void*) {
     }
 }
 
-// Rasterizes icons, so it runs on the file operations task
+// What a queued icon job loads
+struct IconJob {
+    bool packages;
+    bool settings;
+};
+
+// Rasterizes icons, so it runs on the file operations task, which frees the job.
+// The job is not in the context of the app: queued work still runs after the app has closed.
 void loadIcons(void* context) {
-    auto* job = static_cast<decltype(Context::iconJob)*>(context);
+    auto* job = static_cast<IconJob*>(context);
     if (job->packages) loadPackageIcons(nullptr);
     if (job->settings) loadSettingsIcons(nullptr);
+    delete job;
 }
 
 // Reads files, so it runs on the file operations task
@@ -266,9 +281,13 @@ int32_t appMain(int argc, char* argv[]) {
         if (windowCreated && iconsReloading && file_ops_poll(&file_ops_sub) == ERROR_NONE) {
             iconsReloading = false;
             // A buried window has no widgets: it collects the items again when it surfaces
+            // Replaced images are freed by the rebuild, or right away when there are no tiles
             lvgl_lock();
             if (ctx.widgetsExist) {
                 ctx.grid.requestRepopulate(true);
+            } else {
+                releaseRetiredAppIcons();
+                releaseRetiredSettingsIcons();
             }
             lvgl_unlock();
         }
@@ -276,11 +295,15 @@ int32_t appMain(int argc, char* argv[]) {
             const bool packages = ctx.packagesChanged.exchange(false);
             const bool settings = ctx.settingsIconsRequested.exchange(false);
             if (packages || settings) {
-                ctx.iconJob = { packages, settings };
-                if (file_ops_queue(loadIcons, &ctx.iconJob, &file_ops_sub) == ERROR_NONE) {
+                auto* job = new (::std::nothrow) IconJob { packages, settings };
+                if (job != nullptr && file_ops_queue(loadIcons, job, &file_ops_sub) == ERROR_NONE) {
                     iconsReloading = true;
                 } else {
                     LOG_E(TAG, "Failed to queue loading the icons");
+                    delete job;
+                    // Tried again when the next request arrives
+                    if (packages) ctx.packagesChanged = true;
+                    if (settings) ctx.settingsIconsRequested = true;
                 }
             }
         }
@@ -299,6 +322,9 @@ int32_t appMain(int argc, char* argv[]) {
     if (windowCreated) {
         window_manager_remove(window);
     }
+    // No tile shows an icon image anymore
+    releaseRetiredAppIcons();
+    releaseRetiredSettingsIcons();
     app_manager_remove_package_listener(onPackagesChanged, &ctx);
     task_event_group_release_bit(&event_group, ctx.packagesChangedBit);
     file_ops_unsubscribe(&file_ops_sub);

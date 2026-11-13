@@ -42,6 +42,8 @@ public:
         const lv_image_dsc_t* (*resolveImage)(const TileGridItem& item, void* userData);
         /** Optional: called after the user went to another page */
         void (*onPageChanged)(void* userData);
+        /** Optional: called on every rebuild, after the old tiles were deleted and before collect. Nothing shows the images of earlier items anymore. */
+        void (*onTilesCleared)(void* userData);
         void* userData;
     };
 

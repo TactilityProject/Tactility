@@ -330,6 +330,9 @@ void TileGrid::populate() {
 
     // Old tiles hold pointers into items, so they are deleted before items is replaced.
     lv_obj_clean(grid);
+    if (callbacks.onTilesCleared != nullptr) {
+        callbacks.onTilesCleared(callbacks.userData);
+    }
     items = callbacks.collect(callbacks.userData);
 
     // Centers a full page of rows, so a partially filled last page keeps its rows in the same positions.

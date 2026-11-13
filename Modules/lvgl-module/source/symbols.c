@@ -120,6 +120,11 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_theme_is_mono),
     DEFINE_MODULE_SYMBOL(lvgl_theme_get_spacing),
     DEFINE_MODULE_SYMBOL(lvgl_theme_get_size),
+    // lvgl_svg
+    DEFINE_MODULE_SYMBOL(lvgl_svg_rasterize_data),
+    DEFINE_MODULE_SYMBOL(lvgl_svg_rasterize_file),
+    DEFINE_MODULE_SYMBOL(lvgl_svg_rasterize_variants),
+    DEFINE_MODULE_SYMBOL(lvgl_svg_rasterize_file_variants),
     // lvgl_badge
     DEFINE_MODULE_SYMBOL(lvgl_badge_create),
     // lvgl_focus_container
@@ -645,6 +650,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lv_malloc),
     // lv_draw
     DEFINE_MODULE_SYMBOL(lv_draw_buf_create),
+    DEFINE_MODULE_SYMBOL(lv_draw_buf_destroy),
     DEFINE_MODULE_SYMBOL(lv_draw_fill),
     DEFINE_MODULE_SYMBOL(lv_draw_fill_dsc_init),
     DEFINE_MODULE_SYMBOL(lv_draw_label),

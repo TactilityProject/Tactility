@@ -74,7 +74,11 @@ typedef void (*AppPackageListenerFn)(void* context);
  */
 error_t app_manager_add_package_listener(AppPackageListenerFn listener, void* context);
 
-/** Unregisters a listener added with app_manager_add_package_listener(). Does nothing when it isn't registered. */
+/**
+ * Unregisters a listener added with app_manager_add_package_listener(). Does nothing when it isn't registered.
+ * Waits for a notification that is running, so the listener and its context are no longer used when this returns.
+ * Don't call it while holding a lock that the listener needs.
+ */
 void app_manager_remove_package_listener(AppPackageListenerFn listener, void* context);
 
 /**

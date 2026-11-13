@@ -170,3 +170,12 @@ TEST_CASE("lvgl_svg_rasterize_file_variants falls back when a file is missing") 
     remove(colour.c_str());
     lv_deinit();
 }
+
+TEST_CASE("lvgl_svg_rasterize_data rejects sizes whose pixel buffer would overflow") {
+    lv_init();
+    const size_t length = strlen(SQUARE);
+    CHECK_EQ(lvgl_svg_rasterize_data(SQUARE, length, 0), nullptr);
+    CHECK_EQ(lvgl_svg_rasterize_data(SQUARE, length, 32768), nullptr);
+    CHECK_EQ(lvgl_svg_rasterize_data(SQUARE, length, UINT32_MAX), nullptr);
+    lv_deinit();
+}

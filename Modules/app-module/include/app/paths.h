@@ -31,6 +31,17 @@ error_t app_paths_get_user_data_directory(const char* app_id, char* out_path, si
 error_t app_paths_get_user_data_path(const char* app_id, const char* child_path, char* out_path, size_t out_path_size);
 
 /**
+ * @brief Get the directory a package was installed in, resolved from where the app is registered: it holds manifest.properties, bin/ and assets/. No trailing "/".
+ * @param[in] app_id non-null app id
+ * @param[out] out_path buffer to store the path
+ * @param[in] out_path_size size of the output buffer
+ * @retval ERROR_NOT_FOUND if the app isn't registered or isn't loaded from a path
+ * @retval ERROR_BUFFER_OVERFLOW if out_path_size is too small
+ * @retval ERROR_NONE on success
+ */
+error_t app_paths_get_install_directory(const char* app_id, char* out_path, size_t out_path_size);
+
+/**
  * @brief Get the assets directory for an app. Do not store configuration data here. No trailing "/".
  * @param[in] app_id non-null app id
  * @param[out] out_path buffer to store the path

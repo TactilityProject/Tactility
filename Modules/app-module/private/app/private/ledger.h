@@ -11,6 +11,7 @@
 #include <tactility/Allocator.hpp>
 
 #include <tactility/concurrent/mutex.h>
+#include <tactility/concurrent/recursive_mutex.h>
 #include <tactility/freertos/freertos.h>
 #include <tactility/freertos/semphr.h>
 #include <tactility/freertos/task.h>
@@ -106,9 +107,18 @@ struct AppLedger {
     std::vector<AppPackageListener, tt::OptExternalAllocator<AppPackageListener>> package_listeners;
     uint32_t next_instance_id = 1;
     Mutex mutex {};
+    // Held while the package listeners are called (not mutex, which the listeners must not be called under),
+    // so removing a listener waits for a notification that is running. Recursive: a listener can remove itself.
+    RecursiveMutex listener_dispatch_mutex {};
 
-    AppLedger() { mutex_construct(&mutex); }
-    ~AppLedger() { mutex_destruct(&mutex); }
+    AppLedger() {
+        mutex_construct(&mutex);
+        recursive_mutex_construct(&listener_dispatch_mutex);
+    }
+    ~AppLedger() {
+        recursive_mutex_destruct(&listener_dispatch_mutex);
+        mutex_destruct(&mutex);
+    }
 };
 
 inline AppLedger& app_ledger() {

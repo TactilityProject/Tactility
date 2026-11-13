@@ -102,6 +102,7 @@ static const ModuleSymbol SYMBOLS[] = {
     // app/paths
     DEFINE_MODULE_SYMBOL(app_paths_get_user_data_directory),
     DEFINE_MODULE_SYMBOL(app_paths_get_user_data_path),
+    DEFINE_MODULE_SYMBOL(app_paths_get_install_directory),
     DEFINE_MODULE_SYMBOL(app_paths_get_assets_directory),
     DEFINE_MODULE_SYMBOL(app_paths_get_assets_path),
     // app/scheduler

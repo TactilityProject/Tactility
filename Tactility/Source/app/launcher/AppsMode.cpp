@@ -3,7 +3,7 @@
 
 #include <generated_assets.h>
 
-#include <app/install.h>
+#include <app/paths.h>
 #include <app/manager.h>
 #include <app/manifest.h>
 #include <app/package_manifest.h>
@@ -76,10 +76,19 @@ const BuiltInIconAsset DEFAULT_ICON = BUILT_IN_ICON("", default);
 constexpr auto* PACKAGE_ICON_FILE = "icon.svg";
 constexpr auto* PACKAGE_ICON_MONO_FILE = "icon_mono.svg";
 
+// What was found for one icon file, to detect that it was added, removed or changed
+struct IconFileStamp {
+    bool exists = false;
+    time_t modified = 0;
+
+    bool operator==(const IconFileStamp&) const = default;
+};
+
 struct PackageIcon {
     std::string packageId;
     std::vector<std::string> appIds;
-    time_t modified;
+    IconFileStamp colourFile;
+    IconFileStamp monoFile;
     lv_draw_buf_t* image;
     // Mono icons are painted in the theme's icon colour
     bool recolor;
@@ -96,7 +105,7 @@ struct PackageIcons {
     PackageIcon defaultIcon {};
     bool builtInLoaded = false;
     bool builtInForMono = false;
-    // Replaced images may still be shown by tiles, so they are freed by the next load
+    // Replaced images may still be shown by tiles, so they are freed when the grid has deleted its tiles, see releaseRetiredAppIcons()
     std::vector<lv_draw_buf_t*> retired;
 
     PackageIcons() { mutex_construct(&mutex); }
@@ -262,6 +271,16 @@ bool areSvgIconsEnabled() {
 #endif
 }
 
+void releaseRetiredAppIcons() {
+    auto& state = packageIcons();
+    mutex_lock(&state.mutex);
+    for (auto* image : state.retired) {
+        lv_draw_buf_destroy(image);
+    }
+    state.retired.clear();
+    mutex_unlock(&state.mutex);
+}
+
 bool areAppIconsCurrent() {
     if (!areSvgIconsEnabled()) return true;
     auto& state = packageIcons();
@@ -301,7 +320,7 @@ PackageIcon rasterizeBuiltIn(const BuiltInIconAsset& asset, uint32_t size, bool 
     if (image == nullptr) {
         LOG_W(TAG, "Failed to rasterize the icon of %s", asset.id);
     }
-    return { asset.id, {}, 0, image, mono, preferMono };
+    return { asset.id, {}, {}, {}, image, mono, preferMono };
 }
 
 // Replaces the built-in icons, which is needed on the first load and when the theme changed
@@ -335,10 +354,6 @@ void loadPackageIcons(void*) {
     if (!areSvgIconsEnabled()) return;
 
     auto& state = packageIcons();
-    for (auto* image : state.retired) {
-        lv_draw_buf_destroy(image);
-    }
-    state.retired.clear();
 
     const auto size = static_cast<uint32_t>(lvgl_get_shared_icon_large_font_height());
     const bool preferMono = lvgl_theme_is_mono();
@@ -353,8 +368,10 @@ void loadPackageIcons(void*) {
     std::vector<PackageIcon> loaded;
     std::vector<bool> reused(state.icons.size(), false);
     for (auto& package : packages) {
+        // The apps of a package share its directory, which depends on where the package was registered
+        if (package.appIds.empty()) continue;
         char install_path[256];
-        if (app_get_install_path(package.packageId.c_str(), install_path, sizeof(install_path)) != ERROR_NONE) continue;
+        if (app_paths_get_install_directory(package.appIds.front().c_str(), install_path, sizeof(install_path)) != ERROR_NONE) continue;
 
         // Either variant can be missing: the other one is used instead
         const std::string colour_path = std::string(install_path) + "/" + PACKAGE_ICON_FILE;
@@ -364,13 +381,14 @@ void loadPackageIcons(void*) {
         const bool has_colour = stat(colour_path.c_str(), &colour_stat) == 0;
         const bool has_mono = stat(mono_path.c_str(), &mono_stat) == 0;
         if (!has_colour && !has_mono) continue;
-        const time_t modified = ::std::max(has_colour ? colour_stat.st_mtime : 0, has_mono ? mono_stat.st_mtime : 0);
+        const IconFileStamp colour_file { has_colour, has_colour ? colour_stat.st_mtime : 0 };
+        const IconFileStamp mono_file { has_mono, has_mono ? mono_stat.st_mtime : 0 };
 
         // An unchanged icon keeps its image
         bool found = false;
         for (size_t i = 0; i < state.icons.size(); i++) {
             const auto& existing = state.icons[i];
-            if (existing.packageId == package.packageId && existing.modified == modified && existing.forMono == preferMono && existing.appIds == package.appIds) {
+            if (existing.packageId == package.packageId && existing.colourFile == colour_file && existing.monoFile == mono_file && existing.forMono == preferMono && existing.appIds == package.appIds) {
                 loaded.push_back(existing);
                 reused[i] = true;
                 found = true;
@@ -390,7 +408,7 @@ void loadPackageIcons(void*) {
             LOG_W(TAG, "Failed to load the icon of %s", package.packageId.c_str());
             continue;
         }
-        loaded.push_back({ package.packageId, ::std::move(package.appIds), modified, image, mono, preferMono });
+        loaded.push_back({ package.packageId, ::std::move(package.appIds), colour_file, mono_file, image, mono, preferMono });
     }
 
     mutex_lock(&state.mutex);

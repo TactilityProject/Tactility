@@ -28,12 +28,15 @@
 
 static void notify_package_listeners() {
     auto& ledger = app_ledger();
+    // Removing a listener waits for this, so a listener never runs after its removal returned
+    recursive_mutex_lock(&ledger.listener_dispatch_mutex);
     mutex_lock(&ledger.mutex);
     const auto listeners = ledger.package_listeners;
     mutex_unlock(&ledger.mutex);
     for (const auto& listener : listeners) {
         listener.function(listener.context);
     }
+    recursive_mutex_unlock(&ledger.listener_dispatch_mutex);
 }
 
 extern "C" {
@@ -54,11 +57,13 @@ error_t app_manager_add_package_listener(AppPackageListenerFn listener, void* co
 
 void app_manager_remove_package_listener(AppPackageListenerFn listener, void* context) {
     auto& ledger = app_ledger();
+    recursive_mutex_lock(&ledger.listener_dispatch_mutex);
     mutex_lock(&ledger.mutex);
     std::erase_if(ledger.package_listeners, [&](const AppPackageListener& existing) {
         return existing.function == listener && existing.context == context;
     });
     mutex_unlock(&ledger.mutex);
+    recursive_mutex_unlock(&ledger.listener_dispatch_mutex);
 }
 
 error_t app_manager_add(const AppManifest* manifest) {
