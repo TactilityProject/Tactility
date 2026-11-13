@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <tactility/device.h>
 #include <tactility/error.h>
@@ -48,6 +49,15 @@ error_t rtc_get_time(struct Device* device, struct RtcDateTime* dt);
  * @brief Writes the date and time using the specified RTC device.
  */
 error_t rtc_set_time(struct Device* device, const struct RtcDateTime* dt);
+
+/**
+ * @brief Checks that all fields are in range, including the day against the month length and leap years.
+ * @param[in] dt the date and time to check
+ * @param[in] min_year lowest accepted year (inclusive)
+ * @param[in] max_year highest accepted year (inclusive)
+ * @return true when the date and time are valid
+ */
+bool rtc_datetime_is_valid(const struct RtcDateTime* dt, uint16_t min_year, uint16_t max_year);
 
 extern const struct DeviceType RTC_TYPE;
 

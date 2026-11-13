@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_usbhost.h>
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <bindings/qmi8658.h>
@@ -101,5 +102,10 @@
 			pin-reset = <&gpio0 14 GPIO_FLAG_NONE>;
 			backlight = <&display_backlight>;
 		};
+	};
+
+	usbhost0 {
+		compatible = "espressif,esp32-usbhost";
+		status = "disabled";
 	};
 };
