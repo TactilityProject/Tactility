@@ -410,11 +410,8 @@ void TileGrid::populate() {
             lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
             lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
             lv_label_set_text(icon, item.icon != nullptr ? item.icon : "");
-            if (iconColor == IconColor::Primary) {
-                lv_obj_set_style_text_color(icon, lv_theme_get_color_primary(icon), LV_STATE_DEFAULT);
-            } else if (iconColor == IconColor::Secondary) {
-                lv_obj_set_style_text_color(icon, lv_theme_get_color_secondary(icon), LV_STATE_DEFAULT);
-            }
+            // A placeholder for an image that isn't loaded yet has the theme's text colour
+            lv_obj_set_style_text_color(icon, lv_obj_get_style_text_color(tile, LV_PART_MAIN), LV_STATE_DEFAULT);
         }
 
         lv_obj_t* label = lv_label_create(tile);
