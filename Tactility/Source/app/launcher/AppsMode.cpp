@@ -17,6 +17,7 @@
 #include <tactility/file_ops.h>
 #include <tactility/log.h>
 #include <tactility/Memory.hpp>
+#include <tactility/memory.h>
 
 #include <algorithm>
 #include <cstring>
@@ -185,15 +186,19 @@ std::vector<TileGridItem> collectItems() {
         return !isShown(manifest) || ::std::ranges::find(incompatibleIds, std::string(manifest.id)) != incompatibleIds.end();
     });
 
+    const bool svgIconsEnabled = areSvgIconsEnabled();
     std::vector<TileGridItem> items;
     items.reserve(collected.size());
     for (const auto& manifest : collected) {
         bool recolor = false;
-        const lv_image_dsc_t* image = packageIcon(manifest.id, &recolor);
-        if (image == nullptr) {
-            image = builtInIcon(manifest.id, &recolor);
+        const lv_image_dsc_t* image = nullptr;
+        if (svgIconsEnabled) {
+            image = packageIcon(manifest.id, &recolor);
+            if (image == nullptr) {
+                image = builtInIcon(manifest.id, &recolor);
+            }
         }
-        // The glyph is shown when the image failed to load
+        // The glyph is shown when the SVG icons are disabled or the image failed to load
         items.push_back({ manifest.id, manifest.name, LVGL_ICON_SHARED_DEPLOYED_CODE, Favourites::contains(favouriteIds, manifest.id), image, recolor });
     }
     ::std::ranges::sort(items, [](const TileGridItem& a, const TileGridItem& b) {
@@ -249,7 +254,16 @@ const lv_image_dsc_t* defaultAppIcon(bool* recolor) {
     return image;
 }
 
+bool areSvgIconsEnabled() {
+#ifdef ESP_PLATFORM
+    return memory_external_total() > 0;
+#else
+    return true;
+#endif
+}
+
 bool areAppIconsCurrent() {
+    if (!areSvgIconsEnabled()) return true;
     auto& state = packageIcons();
     mutex_lock(&state.mutex);
     const bool current = state.builtInLoaded && state.builtInForMono == lvgl_theme_is_mono();
@@ -318,6 +332,8 @@ void loadBuiltInIcons(PackageIcons& state, uint32_t size, bool preferMono) {
 } // namespace
 
 void loadPackageIcons(void*) {
+    if (!areSvgIconsEnabled()) return;
+
     auto& state = packageIcons();
     for (auto* image : state.retired) {
         lv_draw_buf_destroy(image);

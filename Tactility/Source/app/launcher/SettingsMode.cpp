@@ -127,6 +127,8 @@ std::vector<TileGridItem> collectItems() {
 } // namespace
 
 void loadSettingsIcons(void*) {
+    if (!areSvgIconsEnabled()) return;
+
     auto& state = settingsIcons();
     const bool preferMono = lvgl_theme_is_mono();
     // Only this task writes the icons, so reading them here needs no lock
@@ -170,6 +172,8 @@ bool areSettingsIconsLoaded() {
 }
 
 bool areSettingsIconsCurrent() {
+    if (!areSvgIconsEnabled()) return true;
+
     auto& state = settingsIcons();
     mutex_lock(&state.mutex);
     const bool current = state.loaded && state.forMono == lvgl_theme_is_mono();

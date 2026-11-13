@@ -24,6 +24,12 @@ struct LauncherMode {
 /** Reads the favourites from their file into memory. File operation, see <tactility/file_ops.h>. */
 void loadFavourites(void* context);
 
+/**
+ * @return false on devices without PSRAM, where the SVG icons take too much memory.
+ * The tiles then show the fallback icon, and the icons are never loaded.
+ */
+bool areSvgIconsEnabled();
+
 /** Rasterizes the icon.svg of every installed package into memory. File operation, see <tactility/file_ops.h>. */
 void loadPackageIcons(void* context);
 
