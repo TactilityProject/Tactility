@@ -38,10 +38,7 @@ static bool setSystemTimeFromRtc(Device* rtc) {
         return false;
     }
 
-    if (dt.year < 2024 || dt.year > 2199 ||
-        dt.month < 1 || dt.month > 12 ||
-        dt.day < 1 || dt.day > 31 ||
-        dt.hour > 23 || dt.minute > 59 || dt.second > 59) {
+    if (!rtc_datetime_is_valid(&dt, 2024, 2199)) {
         LOG_W(TAG, "Ignoring invalid RTC datetime: %02d-%02d-%02d %02d:%02d:%02d", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
         return false;
     }

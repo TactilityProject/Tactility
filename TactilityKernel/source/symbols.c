@@ -361,6 +361,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     // drivers/rtc
     DEFINE_MODULE_SYMBOL(rtc_get_time),
     DEFINE_MODULE_SYMBOL(rtc_set_time),
+    DEFINE_MODULE_SYMBOL(rtc_datetime_is_valid),
     DEFINE_MODULE_SYMBOL(RTC_TYPE),
     // drivers/sdcard
     DEFINE_MODULE_SYMBOL(SDCARD_TYPE),
