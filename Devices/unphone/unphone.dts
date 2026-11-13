@@ -4,6 +4,7 @@
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_usbhost.h>
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_sdspi.h>
@@ -137,5 +138,10 @@
 			compatible = "espressif,esp32-sdspi";
 			frequency-khz = <20000>;
 		};
+	};
+
+	usbhost0 {
+		compatible = "espressif,esp32-usbhost";
+		status = "disabled";
 	};
 };

@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_usbhost.h>
 #include <tactility/bindings/esp32_flash_fatfs.h>
 
 / {
@@ -22,5 +23,10 @@
 	gpio0 {
 		compatible = "espressif,esp32-gpio";
 		gpio-count = <49>;
+	};
+
+	usbhost0 {
+		compatible = "espressif,esp32-usbhost";
+		status = "disabled";
 	};
 };

@@ -107,12 +107,7 @@ error_t rx8130ce_get_datetime(Device* device, RtcDateTime* dt) {
 }
 
 error_t rx8130ce_set_datetime(Device* device, const RtcDateTime* dt) {
-    if (dt->month < 1 || dt->month > 12 ||
-        dt->day < 1 || dt->day > 31 ||
-        dt->hour > 23 || dt->minute > 59 || dt->second > 59) {
-        return ERROR_INVALID_ARGUMENT;
-    }
-    if (dt->year < 2000 || dt->year > 2099) {
+    if (!rtc_datetime_is_valid(dt, 2000, 2099)) {
         return ERROR_INVALID_ARGUMENT;
     }
 

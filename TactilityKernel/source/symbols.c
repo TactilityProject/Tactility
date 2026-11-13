@@ -53,7 +53,10 @@
 #include <tactility/drivers/wifi.h>
 #include <tactility/error.h>
 #include <tactility/file_ops.h>
+#include <tactility/filesystem/file.h>
 #include <tactility/filesystem/file_system.h>
+#include <tactility/filesystem/directory.h>
+#include <tactility/filesystem/path.h>
 #include <tactility/memory.h>
 #include <tactility/network.h>
 #include <tactility/module.h>
@@ -189,13 +192,28 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(display_get_backlight),
     DEFINE_MODULE_SYMBOL(display_get_shape),
     DEFINE_MODULE_SYMBOL(DISPLAY_TYPE),
-    // file system
+    // filesystem/fs.h
     DEFINE_MODULE_SYMBOL(file_system_mount),
     DEFINE_MODULE_SYMBOL(file_system_unmount),
     DEFINE_MODULE_SYMBOL(file_system_is_mounted),
     DEFINE_MODULE_SYMBOL(file_system_get_path),
     DEFINE_MODULE_SYMBOL(file_system_for_each),
     DEFINE_MODULE_SYMBOL(file_system_for_each_mounted),
+    // filesystem/file.h
+    DEFINE_MODULE_SYMBOL(file_exists),
+    DEFINE_MODULE_SYMBOL(file_read_binary),
+    DEFINE_MODULE_SYMBOL(file_remove),
+    DEFINE_MODULE_SYMBOL(file_copy),
+    DEFINE_MODULE_SYMBOL(file_move),
+    DEFINE_MODULE_SYMBOL(file_touch),
+    // filesystem/directory.h
+    DEFINE_MODULE_SYMBOL(directory_list),
+    DEFINE_MODULE_SYMBOL(directory_make),
+    DEFINE_MODULE_SYMBOL(directory_remove),
+    DEFINE_MODULE_SYMBOL(directory_remove_tree),
+    // filesystem/path.h
+    DEFINE_MODULE_SYMBOL(path_exists),
+    DEFINE_MODULE_SYMBOL(path_tree_size),
     // memory
     DEFINE_MODULE_SYMBOL(MEMORY_POLICY_DEFAULT),
     DEFINE_MODULE_SYMBOL(memory_log_stats),
@@ -343,6 +361,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     // drivers/rtc
     DEFINE_MODULE_SYMBOL(rtc_get_time),
     DEFINE_MODULE_SYMBOL(rtc_set_time),
+    DEFINE_MODULE_SYMBOL(rtc_datetime_is_valid),
     DEFINE_MODULE_SYMBOL(RTC_TYPE),
     // drivers/sdcard
     DEFINE_MODULE_SYMBOL(SDCARD_TYPE),

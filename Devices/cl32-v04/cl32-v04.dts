@@ -3,6 +3,7 @@
 #include <tactility/bindings/root.h>
 #include <tactility/bindings/esp32_ble.h>
 #include <tactility/bindings/esp32_gpio.h>
+#include <tactility/bindings/esp32_usbhost.h>
 #include <tactility/bindings/esp32_grove.h>
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_spi.h>
@@ -132,5 +133,10 @@
 			tcxo-millivolts = <1800>;
 			dio2-as-rf-switch;
 		};
+	};
+
+	usbhost0 {
+		compatible = "espressif,esp32-usbhost";
+		status = "disabled";
 	};
 };
