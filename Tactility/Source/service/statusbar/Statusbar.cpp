@@ -324,18 +324,22 @@ class StatusbarService final : public Service {
         }
     }
 
+    void updateIcons() {
+        if (lvgl_try_lock(200)) {
+            updateGpsIcon();
+            updateMeshIcon();
+            updateBluetoothIcon();
+            updateWifiIcon();
+            updatePowerStatusIcon();
+            updateUsbIcon();
+            updateInstallIcon();
+            lvgl_unlock();
+        }
+    }
+
     void update() {
         if (lvgl_is_running()) {
-            if (lvgl_try_lock(200)) {
-                updateGpsIcon();
-                updateMeshIcon();
-                updateBluetoothIcon();
-                updateWifiIcon();
-                updatePowerStatusIcon();
-                updateUsbIcon();
-                updateInstallIcon();
-                lvgl_unlock();
-            }
+            updateIcons();
         }
     }
 
@@ -383,7 +387,8 @@ public:
 
         auto service = findServiceById<StatusbarService>(manifest.id);
         assert(service);
-        service->update();
+        // LVGL only counts as running after its start callback returned, which is what starts this service
+        service->updateIcons();
 
         updateTimer = std::make_unique<Timer>(Timer::Type::Periodic, pdMS_TO_TICKS(1000), [service] {
             service->update();

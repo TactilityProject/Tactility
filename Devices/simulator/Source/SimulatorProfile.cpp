@@ -28,12 +28,12 @@ constexpr auto* DISPLAY_SETTINGS_PATH = "data/tactility/appdata/tactility.displa
 constexpr auto* ORIENTATION_KEY = "orientation=";
 
 static const Profile PROFILES[PROFILE_COUNT] = {
-    { "Default", 640, 320, LV_DPI_DEF, false, false, false, true, true },
-    { "CL-32", 384, 168, 139, false, true, true, true, false },
-    { "LilyGO T-Deck", 320, 240, 143, false, false, false, true, true },
-    { "LilyGO T-Lora Pager", 480, 222,  150, false, false, false, true, false },
-    { "M5Stack Cardputer", 240, 135, 139, false, true, false, true, false },
-    { "M5Stack Tab5",  1280, 720, 250, true, false, false, true, true },
+    { "Default", 640, 320, LV_DPI_DEF, false, 100, 100, false, true, true },
+    { "CL-32", 384, 168, 139, false, 40, 0, true, true, false },
+    { "LilyGO T-Deck", 320, 240, 143, false, 40, 60, false, true, true },
+    { "LilyGO T-Lora Pager", 480, 222,  150, false, 40, 0, false, true, false },
+    { "M5Stack Cardputer", 240, 135, 139, false, 20, 0, false, true, false },
+    { "M5Stack Tab5",  1280, 720, 250, true, 100, 100, false, true, true },
 };
 
 static size_t activeProfileIndex = 0;

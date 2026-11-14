@@ -16,6 +16,7 @@ namespace coreutils {
     namespace free { extern const ::AppManifest manifest; }
     namespace head { extern const ::AppManifest manifest; }
     namespace help { extern const ::AppManifest manifest; }
+    namespace log { extern const ::AppManifest manifest; }
     namespace ls { extern const ::AppManifest manifest; }
     namespace mkdir { extern const ::AppManifest manifest; }
     namespace mv { extern const ::AppManifest manifest; }
@@ -40,6 +41,7 @@ static error_t start() {
     if ((error = app_manager_add(&coreutils::free::manifest)) != ERROR_NONE) return error;
     if ((error = app_manager_add(&coreutils::head::manifest)) != ERROR_NONE) return error;
     if ((error = app_manager_add(&coreutils::help::manifest)) != ERROR_NONE) return error;
+    if ((error = app_manager_add(&coreutils::log::manifest)) != ERROR_NONE) return error;
     if ((error = app_manager_add(&coreutils::ls::manifest)) != ERROR_NONE) return error;
     if ((error = app_manager_add(&coreutils::mkdir::manifest)) != ERROR_NONE) return error;
     if ((error = app_manager_add(&coreutils::mv::manifest)) != ERROR_NONE) return error;
@@ -62,6 +64,7 @@ static error_t stop() {
     app_manager_remove(coreutils::free::manifest.id);
     app_manager_remove(coreutils::head::manifest.id);
     app_manager_remove(coreutils::help::manifest.id);
+    app_manager_remove(coreutils::log::manifest.id);
     app_manager_remove(coreutils::ls::manifest.id);
     app_manager_remove(coreutils::mkdir::manifest.id);
     app_manager_remove(coreutils::mv::manifest.id);

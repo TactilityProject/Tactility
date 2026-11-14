@@ -386,6 +386,7 @@ View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
         .resolveImage = resolveImage,
         .resolveIcon = resolveIcon,
         .onPageChanged = onPageChanged,
+        .onTilesCleared = nullptr,
         .userData = this
     }) {
     check(task_event_group_claim_bit(eventGroup, &pasteBit) == ERROR_NONE);

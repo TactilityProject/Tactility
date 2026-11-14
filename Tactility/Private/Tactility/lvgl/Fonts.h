@@ -13,9 +13,9 @@ struct FontConfiguration {
     /** Default text font size in pixels, other font sizes are derived from it */
     uint16_t defaultSize;
     /** TrueType font for regular text, or empty for the system font */
-    std::string regularFontPath;
+    ::std::string regularFontPath;
     /** TrueType font for monospace text, or empty for the system font */
-    std::string monoFontPath;
+    ::std::string monoFontPath;
 
     bool operator==(const FontConfiguration&) const = default;
 };
@@ -27,7 +27,7 @@ struct FontConfiguration {
 constexpr size_t LARGE_FONT_CHARACTER_COUNT = 1000;
 
 /** @return the number of characters in a TrueType font, or 0 when it can't be read */
-size_t getTtfCharacterCount(const std::string& path);
+size_t getTtfCharacterCount(const ::std::string& path);
 
 /**
  * Changing fonts generates them on the device, which needs at least 2 MB of memory in total.

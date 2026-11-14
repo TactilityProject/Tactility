@@ -71,8 +71,7 @@ namespace app {
     namespace terminal { extern const ::AppManifest manifest; }
     namespace timedatesettings { extern const ::AppManifest manifest; }
     namespace meshchat {
-        extern const ::AppManifest contactsManifest;
-        extern const ::AppManifest channelsManifest;
+        extern const ::AppManifest manifest;
         extern const ::AppManifest conversationManifest;
         extern const ::AppManifest addContactManifest;
     }
@@ -169,8 +168,7 @@ static void registerInternalApps() {
     }
 
     if (settings::radio::hasRadio()) {
-        app_manager_add(&app::meshchat::contactsManifest);
-        app_manager_add(&app::meshchat::channelsManifest);
+        app_manager_add(&app::meshchat::manifest);
         app_manager_add(&app::meshchat::conversationManifest);
         app_manager_add(&app::meshchat::addContactManifest);
         app_manager_add(&app::meshsettings::manifest);
