@@ -46,7 +46,7 @@ PageLayout computePageLayout(lv_obj_t* grid) {
     const auto pad = icon_size / 16;
     // The focus ring is drawn inside the frame, at most 2dp wide, and leaves 1dp to the icon
     const auto frame_pad = LV_DPX(2) + LV_DPX(1);
-    const auto label_gap = LV_DPX(2);
+    const auto label_gap = lvgl_theme_lerp(LV_DPX(1), LV_DPX(4), lvgl_theme_get_spacing());
     const auto gap = TILE_GAP;
     const auto text_height = lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL));
     // The label needs room for a few characters, also when the icon font is smaller (e.g. a fallback)
