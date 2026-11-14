@@ -51,6 +51,7 @@ class View final {
 
     static std::vector<TileGridItem> collectItems(void* userData);
     static const lv_image_dsc_t* resolveImage(const TileGridItem& item, void* userData);
+    static const char* resolveIcon(const TileGridItem& item, void* userData);
     static void onTileClicked(const TileGridItem& item, void* userData);
     static void onTileLongPressed(const TileGridItem& item, void* userData);
     static void onTileKey(const TileGridItem& item, uint32_t key, void* userData);

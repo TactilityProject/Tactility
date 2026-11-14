@@ -18,6 +18,7 @@
 
 #include <freertos/semphr.h>
 
+#include <algorithm>
 #include <cstdlib>
 
 #define TAG "ILI9488"
@@ -61,6 +62,12 @@ static error_t start(Device* device) {
     if (esp32_spi_get_cs_pin(device, &cs_pin) != ERROR_NONE) {
         LOG_E(TAG, "Failed to resolve CS pin");
         return ERROR_RESOURCE;
+    }
+
+    // A draw area is sent in strips that fit in the conversion buffer, so a whole row or column has to fit in it
+    if (config->color_conversion_buffer_size < std::max<uint32_t>(config->horizontal_resolution, config->vertical_resolution)) {
+        LOG_E(TAG, "color-conversion-buffer-size must be at least the larger resolution");
+        return ERROR_INVALID_ARGUMENT;
     }
 
     auto* internal = static_cast<Ili9488Internal*>(malloc(sizeof(Ili9488Internal)));
@@ -220,21 +227,32 @@ static error_t ili9488_draw_bitmap(Device* device, int32_t x_start, int32_t y_st
     // satisfied by this draw's own transfer completing.
     xSemaphoreTake(internal->draw_done_semaphore, 0);
 
-    spi_controller_lock(internal->spi_controller);
-    esp_err_t ret = esp_lcd_panel_draw_bitmap(internal->panel_handle, x_start, y_start, x_end, y_end, color_data);
-    if (ret != ESP_OK) {
-        spi_controller_unlock(internal->spi_controller);
-        return ERROR_RESOURCE;
-    }
+    // The panel driver converts a whole area through its conversion buffer and doesn't check bounds,
+    // so a larger area is sent in strips of rows that fit in that buffer. The conversion buffer is
+    // reused by the next strip, which is why each strip is waited for.
+    const int32_t width = x_end - x_start;
+    const int32_t strip_rows = std::max<int32_t>(1, static_cast<int32_t>(GET_CONFIG(device)->color_conversion_buffer_size) / width);
+    const auto* pixels = static_cast<const uint16_t*>(color_data);
 
-    // Block until the SPI transfer physically completes: DisplayApi's draw_bitmap is a synchronous
-    // contract (see lvgl_display.c), so the caller must be able to safely reuse/overwrite
-    // color_data as soon as this call returns. esp_lcd_panel_draw_bitmap() only queues the
-    // transfer and returns once it's handed to the SPI peripheral, not once it's finished. Hold the
-    // bus lock across the wait too, not just the queueing call: the command/data phases aren't
-    // wrapped in their own acquire_bus by esp_lcd_panel_io_spi, so another bus user could otherwise
-    // interleave with this transfer while it's still in flight.
-    xSemaphoreTake(internal->draw_done_semaphore, portMAX_DELAY);
+    spi_controller_lock(internal->spi_controller);
+    for (int32_t y = y_start; y < y_end; y += strip_rows) {
+        const int32_t strip_end = std::min(y + strip_rows, y_end);
+        esp_err_t ret = esp_lcd_panel_draw_bitmap(internal->panel_handle, x_start, y, x_end, strip_end, pixels);
+        if (ret != ESP_OK) {
+            spi_controller_unlock(internal->spi_controller);
+            return ERROR_RESOURCE;
+        }
+
+        // Block until the SPI transfer physically completes: DisplayApi's draw_bitmap is a synchronous
+        // contract (see lvgl_display.c), so the caller must be able to safely reuse/overwrite
+        // color_data as soon as this call returns. esp_lcd_panel_draw_bitmap() only queues the
+        // transfer and returns once it's handed to the SPI peripheral, not once it's finished. Hold the
+        // bus lock across the wait too, not just the queueing call: the command/data phases aren't
+        // wrapped in their own acquire_bus by esp_lcd_panel_io_spi, so another bus user could otherwise
+        // interleave with this transfer while it's still in flight.
+        xSemaphoreTake(internal->draw_done_semaphore, portMAX_DELAY);
+        pixels += static_cast<size_t>(strip_end - y) * width;
+    }
     spi_controller_unlock(internal->spi_controller);
     return ERROR_NONE;
 }

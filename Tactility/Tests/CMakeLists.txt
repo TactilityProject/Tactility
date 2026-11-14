@@ -41,6 +41,7 @@ target_include_directories(TactilityTests PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../P
 # the POSIX simulator (see Tests/tests.md), so it just hardcodes that same file's own POSIX default
 # rather than reimplementing the sdkconfig lookup here too.
 target_compile_definitions(TactilityTests PRIVATE
+    "-DTT_AUDIO_MODULES_ENABLED"
     "-DTT_FONT_DEFAULT_SIZE=14"
     "-DTACTILITY_TEST_DATA_DIR=\"${CMAKE_CURRENT_LIST_DIR}/../../Data\""
     "-DTACTILITY_TEST_FONTS_DIR=\"${CMAKE_CURRENT_LIST_DIR}/../Fonts\""

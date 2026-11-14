@@ -3,6 +3,8 @@
 #if defined(CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED)
 
 #include <Tactility/Tactility.h>
+#include <Tactility/app/touchcalibration/CalibrationMath.h>
+#include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/settings/TouchCalibrationSettings.h>
 
 #include <app/event.h>
@@ -17,6 +19,7 @@
 #include <tactility/log.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/devices/pointer.h>
+#include <lvgl/theme.h>
 
 #include <algorithm>
 #include <lvgl.h>
@@ -39,7 +42,9 @@ struct Sample {
 struct Context {
     uint32_t appInstanceId;
 
+    // The taps, and the centers of the targets that were shown, in the coordinates of the display
     Sample samples[4] = {};
+    lv_point_t targets[4] = {};
     uint8_t sampleCount = 0;
     bool calibrationApplied = false;
 
@@ -82,32 +87,32 @@ void updateUi(Context* ctx) {
 // Drives the on-screen outcome text/state; the actual result (Ok/Error) is reported to the
 // caller from onPress() below, via ctx->calibrationApplied, once the user taps to dismiss.
 void finishCalibration(Context* ctx) {
-    const int32_t xLow = (static_cast<int32_t>(ctx->samples[0].x) + static_cast<int32_t>(ctx->samples[3].x)) / 2;
-    const int32_t xHigh = (static_cast<int32_t>(ctx->samples[1].x) + static_cast<int32_t>(ctx->samples[2].x)) / 2;
-    const int32_t yLow = (static_cast<int32_t>(ctx->samples[0].y) + static_cast<int32_t>(ctx->samples[1].y)) / 2;
-    const int32_t yHigh = (static_cast<int32_t>(ctx->samples[2].y) + static_cast<int32_t>(ctx->samples[3].y)) / 2;
+    // The calibration is applied in the native orientation of the panel, before LVGL rotates the points.
+    // The targets are shown, and the taps are reported, in the rotated display, so both go back to native first.
+    auto* display = lv_display_get_default();
+    const int32_t nativeWidth = lv_display_get_original_horizontal_resolution(display);
+    const int32_t nativeHeight = lv_display_get_original_vertical_resolution(display);
+    const auto rotation = static_cast<Rotation>(lv_display_get_rotation(display));
 
-    // Targets sit TARGET_MARGIN in from each edge (see getTargetPoint()), not at the screen
-    // edges themselves - xLow/xHigh/yLow/yHigh are raw samples at those inset positions, not
-    // at 0/width or 0/height. Extrapolate them out to the true edges so the saved range (which
-    // lvgl_pointer.h maps onto the full [0, resolution) display range) lines up correctly
-    // across the whole screen instead of being off by a margin's worth of scale and offset.
-    const auto width = lv_obj_get_content_width(ctx->root);
-    const auto height = lv_obj_get_content_height(ctx->root);
-    const int32_t xSpan = static_cast<int32_t>(width) - 2 * TARGET_MARGIN;
-    const int32_t ySpan = static_cast<int32_t>(height) - 2 * TARGET_MARGIN;
+    int32_t targetX[4], targetY[4], sampleX[4], sampleY[4];
+    for (int i = 0; i < 4; i++) {
+        const auto target = toNativePoint({ ctx->targets[i].x, ctx->targets[i].y }, rotation, nativeWidth, nativeHeight);
+        const auto sample = toNativePoint({ ctx->samples[i].x, ctx->samples[i].y }, rotation, nativeWidth, nativeHeight);
+        targetX[i] = target.x;
+        targetY[i] = target.y;
+        sampleX[i] = sample.x;
+        sampleY[i] = sample.y;
+    }
 
-    if (xSpan <= 0 || ySpan <= 0) {
+    // The targets are inset from the edges, so the fit extrapolates the raw range out to the true edges of the panel
+    int32_t xMin, xMax, yMin, yMax;
+    if (!computeRange(targetX, sampleX, 4, nativeWidth - 1, xMin, xMax) ||
+        !computeRange(targetY, sampleY, 4, nativeHeight - 1, yMin, yMax)) {
         lv_label_set_text(ctx->titleLabel, "Calibration Failed");
-        lv_label_set_text(ctx->hintLabel, "Screen too small. Tap to close.");
+        lv_label_set_text(ctx->hintLabel, "Range invalid. Tap to close.");
         lv_obj_set_hidden(ctx->target, true);
         return;
     }
-
-    const int32_t xMin = xLow - (xHigh - xLow) * TARGET_MARGIN / xSpan;
-    const int32_t xMax = xHigh + (xHigh - xLow) * TARGET_MARGIN / xSpan;
-    const int32_t yMin = yLow - (yHigh - yLow) * TARGET_MARGIN / ySpan;
-    const int32_t yMax = yHigh + (yHigh - yLow) * TARGET_MARGIN / ySpan;
 
     settings::touch::TouchCalibrationSettings settings = settings::touch::getDefault();
     settings.enabled = true;
@@ -161,6 +166,9 @@ void onPress(lv_event_t* event) {
     lv_indev_get_point(indev, &point);
 
     if (ctx->sampleCount < 4) {
+        lv_area_t targetArea;
+        lv_obj_get_coords(ctx->target, &targetArea);
+        ctx->targets[ctx->sampleCount] = { .x = (targetArea.x1 + targetArea.x2) / 2, .y = (targetArea.y1 + targetArea.y2) / 2 };
         ctx->samples[ctx->sampleCount] = {
             .x = static_cast<uint16_t>(std::max(static_cast<lv_coord_t>(0), point.x)),
             .y = static_cast<uint16_t>(std::max(static_cast<lv_coord_t>(0), point.y)),
@@ -180,6 +188,7 @@ void onPress(lv_event_t* event) {
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    lvgl::systemBarsSetStatusbarVisible(false);
 
     lv_obj_set_style_bg_color(parent, lv_color_black(), LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, LV_STATE_DEFAULT);
@@ -205,7 +214,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->target = lv_button_create(ctx->root);
     lv_obj_set_size(ctx->target, 28, 28);
     lv_obj_set_style_radius(ctx->target, LV_RADIUS_CIRCLE, LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ctx->target, lv_palette_main(LV_PALETTE_RED), LV_STATE_DEFAULT);
+    // The monochrome theme's primary color is black, which can't be seen on the black background
+    lv_obj_set_style_bg_color(ctx->target, lvgl_theme_is_mono() ? lv_color_white() : lv_theme_get_color_primary(ctx->target), LV_STATE_DEFAULT);
     // Ensure root receives all presses for sampling.
     lv_obj_set_clickable(ctx->target, false);
 
@@ -217,6 +227,15 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_add_event_cb(ctx->root, onPress, LV_EVENT_PRESSED, ctx);
 
     updateUi(ctx);
+}
+
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    lvgl::systemBarsSetStatusbarVisible(true);
+    ctx->root = nullptr;
+    ctx->target = nullptr;
+    ctx->titleLabel = nullptr;
+    ctx->hintLabel = nullptr;
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -238,7 +257,7 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {

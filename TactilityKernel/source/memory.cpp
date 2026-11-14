@@ -24,6 +24,18 @@ const struct MemoryPolicy MEMORY_POLICY_DEFAULT = {
     .alignment = 0,
 };
 
+void* memory_alloc(size_t size) {
+    return memory_alloc_with_policy(size, &MEMORY_POLICY_DEFAULT);
+}
+
+void* memory_calloc(size_t count, size_t size) {
+    return memory_calloc_with_policy(count, size, &MEMORY_POLICY_DEFAULT);
+}
+
+void* memory_realloc(void* ptr, size_t size) {
+    return memory_realloc_with_policy(ptr, size, &MEMORY_POLICY_DEFAULT);
+}
+
 size_t memory_heap_total() {
 #ifdef ESP_PLATFORM
     return heap_caps_get_total_size(MALLOC_CAP_INTERNAL);

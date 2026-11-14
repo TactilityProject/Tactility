@@ -150,6 +150,19 @@ constexpr FileIconAsset FILE_ICON_ASSETS[] = {
     FILE_ICON_ASSET(file),
 };
 
+// The icon font glyphs shown instead of the SVG icons, indexed by FileIcon
+constexpr const char* FILE_ICON_GLYPHS[] = {
+    LVGL_ICON_SHARED_FOLDER,
+    LVGL_ICON_SHARED_SD_CARD,
+    LVGL_ICON_SHARED_USB,
+    LVGL_ICON_SHARED_LINK,
+    LVGL_ICON_SHARED_IMAGE,
+    LVGL_ICON_SHARED_DESCRIPTION,
+    LVGL_ICON_SHARED_DEPLOYED_CODE,
+    LVGL_ICON_SHARED_PLAY_ARROW,
+    LVGL_ICON_SHARED_DRAFT,
+};
+
 // Returns Unknown for the files that View::resolveImage() checks, as that reads the file
 static FileIcon getIcon(const dirent& entry, bool isRoot) {
     if (entry.d_type == file::TT_DT_DIR || entry.d_type == file::TT_DT_CHR) {
@@ -371,6 +384,7 @@ View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
         .onLongPressed = onTileLongPressed,
         .onKey = onTileKey,
         .resolveImage = resolveImage,
+        .resolveIcon = resolveIcon,
         .onPageChanged = onPageChanged,
         .userData = this
     }) {
@@ -379,6 +393,10 @@ View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
 }
 
 void View::loadIcons() {
+    if (!areSvgIconsEnabled()) {
+        return;
+    }
+
     const auto size = static_cast<uint32_t>(lvgl_get_shared_icon_large_font_height());
     const bool preferMono = lvgl_theme_is_mono();
     for (size_t i = 0; i < std::size(FILE_ICON_ASSETS); i++) {
@@ -413,10 +431,17 @@ std::vector<TileGridItem> View::collectItems(void* userData) {
             const lv_image_dsc_t* image = icon == FileIcon::Unknown ? nullptr : reinterpret_cast<const lv_image_dsc_t*>(view->icons[static_cast<size_t>(icon)]);
             // Files that are resolved later are shown as an executable or a plain file, which are rasterized from the same set
             const bool recolor = view->iconRecolor[static_cast<size_t>(icon == FileIcon::Unknown ? FileIcon::File : icon)];
-            items.push_back({ entry.d_name, entry.d_name, nullptr, false, image, recolor });
+            // The glyph is shown when there is no image: without PSRAM or when it failed to rasterize
+            const char* glyph = icon == FileIcon::Unknown ? nullptr : FILE_ICON_GLYPHS[static_cast<size_t>(icon)];
+            items.push_back({ entry.d_name, entry.d_name, glyph, false, image, recolor });
         }
     });
     return items;
+}
+
+const char* View::resolveIcon(const TileGridItem& item, void* userData) {
+    auto* view = static_cast<View*>(userData);
+    return FILE_ICON_GLYPHS[static_cast<size_t>(view->state->isExecutable(item.id) ? FileIcon::Executable : FileIcon::File)];
 }
 
 const lv_image_dsc_t* View::resolveImage(const TileGridItem& item, void* userData) {

@@ -24,6 +24,10 @@
 #include <Tactility/app/TileGrid.h>
 #include <Tactility/app/launcher/LauncherMode.h>
 #include <Tactility/app/setup/Setup.h>
+#ifdef CONFIG_TT_TOUCH_CALIBRATION_REQUIRED
+#include <Tactility/app/touchcalibration/TouchCalibration.h>
+#include <Tactility/settings/TouchCalibrationSettings.h>
+#endif
 #include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/Tactility.h>
@@ -71,6 +75,7 @@ struct Context {
         .onLongPressed = onAppLongPressed,
         .onKey = onAppKey,
         .resolveImage = nullptr,
+        .resolveIcon = nullptr,
         .onPageChanged = nullptr,
         .onTilesCleared = onTilesCleared,
         .userData = this,
@@ -192,32 +197,75 @@ void destroyWidgets(void* userData) {
     ctx->grid.destroyWidgets();
 }
 
-// Reads settings files, so it runs on the file operations task
-void runAutoStart(void*) {
+#ifdef CONFIG_TT_TOUCH_CALIBRATION_REQUIRED
+// Reads the settings file, so it runs on the file operations task
+bool isTouchCalibrated() {
+    settings::touch::TouchCalibrationSettings calibration;
+    return settings::touch::load(calibration) && calibration.enabled && settings::touch::isValid(calibration);
+}
+#endif
+
+struct AutoStartJob {
+    uint32_t launcherInstanceId;
+    // The touch calibration finished since the launcher started
+    bool touchCalibrated;
+};
+
+// Reads settings files, so it runs on the file operations task, which frees the job.
+// The job is not in the context of the app: queued work still runs after the app has closed.
+void runAutoStart(void* context) {
+    const auto job = *static_cast<AutoStartJob*>(context);
+    delete static_cast<AutoStartJob*>(context);
+
+    enum class Target { None, App, Setup };
+    Target target = Target::None;
     settings::BootSettings boot_properties;
-    AppStartContext context;
+    AppStartContext context_to_start;
     if (
         // Auto-start due to built-in requirement
         strcmp(CONFIG_TT_AUTO_START_APP_ID, "") != 0 &&
-        app_start_context_from_id(CONFIG_TT_AUTO_START_APP_ID, &context) == ERROR_NONE
+        app_start_context_from_id(CONFIG_TT_AUTO_START_APP_ID, &context_to_start) == ERROR_NONE
     ) {
         LOG_I(TAG, "Starting %s", CONFIG_TT_AUTO_START_APP_ID);
-        uint32_t app_launch_id;
-        app_start_with_context(&context, &app_launch_id);
+        target = Target::App;
     } else if (
         // Auto-start due to user configuration
         settings::loadBootSettings(boot_properties) &&
         !boot_properties.autoStartAppId.empty() &&
-        app_start_context_from_id(boot_properties.autoStartAppId.c_str(), &context) == ERROR_NONE
+        app_start_context_from_id(boot_properties.autoStartAppId.c_str(), &context_to_start) == ERROR_NONE
     ) {
         LOG_I(TAG, "Starting %s", boot_properties.autoStartAppId.c_str());
-        uint32_t app_launch_id;
-        app_start_with_context(&context, &app_launch_id);
-    } else {
+        target = Target::App;
+    } else if (!setup::isCompleted()) {
         // No auto-start, consider running system setup
-        if (!setup::isCompleted()) {
-            setup::start();
-        }
+        target = Target::Setup;
+    }
+
+#ifdef CONFIG_TT_TOUCH_CALIBRATION_REQUIRED
+    // The device isn't usable without a calibration, so it runs first. The setup always starts with it, also when
+    // one was saved, so that a calibration that doesn't work can be redone by restarting before the setup is finished.
+    // The launcher runs this again when the calibration ended.
+    if (!job.touchCalibrated && (target == Target::Setup || !isTouchCalibrated())) {
+        LOG_I(TAG, "Starting touch calibration");
+        touchcalibration::start(job.launcherInstanceId);
+        return;
+    }
+#endif
+
+    if (target == Target::App) {
+        uint32_t app_launch_id;
+        app_start_with_context(&context_to_start, &app_launch_id);
+    } else if (target == Target::Setup) {
+        setup::start();
+    }
+}
+
+// Queues the auto start, which needs the launcher's instance id to receive the result of a calibration
+void queueAutoStart(uint32_t launcherInstanceId, bool touchCalibrated) {
+    auto* job = new (::std::nothrow) AutoStartJob { launcherInstanceId, touchCalibrated };
+    if (job == nullptr || file_ops_queue(runAutoStart, job, nullptr) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to queue the auto start");
+        delete job;
     }
 }
 
@@ -262,6 +310,9 @@ int32_t appMain(int argc, char* argv[]) {
     WindowId window = 0;
     bool windowCreated = false;
     bool iconsReloading = false;
+#ifdef CONFIG_TT_TOUCH_CALIBRATION_REQUIRED
+    bool touchCalibrationFinished = false;
+#endif
 
     // The window is created once the favourites are loaded, so its first render has the final order
     check(file_ops_queue(loadLauncherData, nullptr, &file_ops_sub) == ERROR_NONE);
@@ -275,7 +326,7 @@ int32_t appMain(int argc, char* argv[]) {
             window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
             windowCreated = true;
             // The file operations run in order: the favourites are available when auto-start runs
-            check(file_ops_queue(runAutoStart, nullptr, nullptr) == ERROR_NONE);
+            queueAutoStart(appInstanceId, false);
         }
 
         if (windowCreated && iconsReloading && file_ops_poll(&file_ops_sub) == ERROR_NONE) {
@@ -315,6 +366,15 @@ int32_t appMain(int argc, char* argv[]) {
                 shouldClose = true;
                 break;
             }
+#ifdef CONFIG_TT_TOUCH_CALIBRATION_REQUIRED
+            // The launcher only starts a child for the touch calibration. The auto start runs again to check the result
+            if (event.type == APP_EVENT_RESULT) {
+                app_manager_stop(event.result.launch_id);
+                // A cancelled or failed calibration starts again. The result is 0 when it was applied
+                touchCalibrationFinished = touchCalibrationFinished || event.result.result == 0;
+                queueAutoStart(appInstanceId, touchCalibrationFinished);
+            }
+#endif
         }
         if (shouldClose) break;
     }

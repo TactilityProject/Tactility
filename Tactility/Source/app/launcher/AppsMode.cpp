@@ -263,14 +263,6 @@ const lv_image_dsc_t* defaultAppIcon(bool* recolor) {
     return image;
 }
 
-bool areSvgIconsEnabled() {
-#ifdef ESP_PLATFORM
-    return memory_external_total() > 0;
-#else
-    return true;
-#endif
-}
-
 void releaseRetiredAppIcons() {
     auto& state = packageIcons();
     mutex_lock(&state.mutex);

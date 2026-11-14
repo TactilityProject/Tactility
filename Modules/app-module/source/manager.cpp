@@ -34,7 +34,16 @@ static void notify_package_listeners() {
     const auto listeners = ledger.package_listeners;
     mutex_unlock(&ledger.mutex);
     for (const auto& listener : listeners) {
-        listener.function(listener.context);
+        // A listener that an earlier listener removed during this notification must not be called anymore.
+        // Other threads can't remove one meanwhile, as they wait for the dispatch mutex.
+        mutex_lock(&ledger.mutex);
+        const bool registered = std::ranges::any_of(ledger.package_listeners, [&](const AppPackageListener& existing) {
+            return existing.function == listener.function && existing.context == listener.context;
+        });
+        mutex_unlock(&ledger.mutex);
+        if (registered) {
+            listener.function(listener.context);
+        }
     }
     recursive_mutex_unlock(&ledger.listener_dispatch_mutex);
 }

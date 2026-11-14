@@ -48,7 +48,10 @@ properties:
   color-conversion-buffer-size:
     type: int
     required: true
-    description: Size (in pixels) of the internal buffer used to convert 16bpp draw data to the panel's 18bpp format
+    description: |
+      Size (in pixels) of the internal buffer used to convert 16bpp draw data to the panel's 18bpp format.
+      It takes 3 bytes per pixel of internal RAM. A larger draw area is sent in strips that fit in it,
+      so it must be at least the larger of horizontal-resolution and vertical-resolution.
   pixel-clock-hz:
     type: int
     default: 40000000

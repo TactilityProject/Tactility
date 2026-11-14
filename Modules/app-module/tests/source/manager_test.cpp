@@ -695,3 +695,81 @@ TEST_CASE("removing a package listener waits for a notification that is running"
     CHECK(state.removed);
     app_manager_remove_package("test.waitremove.package");
 }
+
+namespace {
+
+struct RemovedListenerState {
+    bool contextReleased = false;
+    bool calledAfterRelease = false;
+    int callsB = 0;
+};
+
+RemovedListenerState removedListenerState;
+
+void removedListenerB(void* context) {
+    auto* state = static_cast<RemovedListenerState*>(context);
+    state->callsB++;
+    if (state->contextReleased) {
+        state->calledAfterRelease = true;
+    }
+}
+
+// Removes listener B before B's turn and then releases its context
+void removingListenerA(void* context) {
+    auto* state = static_cast<RemovedListenerState*>(context);
+    app_manager_remove_package_listener(removedListenerB, state);
+    state->contextReleased = true;
+}
+
+} // namespace
+
+TEST_CASE("a package listener that another listener removed during a notification is not called") {
+    removedListenerState = {};
+    // Notified in registration order: A runs before B
+    REQUIRE_EQ(app_manager_add_package_listener(removingListenerA, &removedListenerState), ERROR_NONE);
+    REQUIRE_EQ(app_manager_add_package_listener(removedListenerB, &removedListenerState), ERROR_NONE);
+
+    PackageManifest package {};
+    strcpy(package.id, "test.removedlistener.package");
+    const char* const app_ids[] = { "test.removedlistener.app" };
+    REQUIRE_EQ(app_manager_add_package(&package, app_ids, 1), ERROR_NONE);
+
+    CHECK_EQ(removedListenerState.callsB, 0);
+    CHECK_FALSE(removedListenerState.calledAfterRelease);
+    app_manager_remove_package_listener(removingListenerA, &removedListenerState);
+    app_manager_remove_package("test.removedlistener.package");
+}
+
+namespace {
+
+struct SelfRemovingListenerState {
+    int calls = 0;
+};
+
+SelfRemovingListenerState selfRemovingListenerState;
+
+void selfRemovingListener(void* context) {
+    static_cast<SelfRemovingListenerState*>(context)->calls++;
+    app_manager_remove_package_listener(selfRemovingListener, context);
+}
+
+} // namespace
+
+TEST_CASE("a package listener that removes itself is not called again") {
+    selfRemovingListenerState = {};
+    REQUIRE_EQ(app_manager_add_package_listener(selfRemovingListener, &selfRemovingListenerState), ERROR_NONE);
+
+    PackageManifest package {};
+    strcpy(package.id, "test.selfremoving.package");
+    const char* const app_ids[] = { "test.selfremoving.app" };
+    REQUIRE_EQ(app_manager_add_package(&package, app_ids, 1), ERROR_NONE);
+    CHECK_EQ(selfRemovingListenerState.calls, 1);
+
+    // The next notification must not reach the listener
+    REQUIRE_EQ(app_manager_remove_package("test.selfremoving.package"), ERROR_NONE);
+    CHECK_EQ(selfRemovingListenerState.calls, 1);
+
+    // It is not registered anymore, so registering it again works
+    CHECK_EQ(app_manager_add_package_listener(selfRemovingListener, &selfRemovingListenerState), ERROR_NONE);
+    app_manager_remove_package_listener(selfRemovingListener, &selfRemovingListenerState);
+}

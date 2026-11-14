@@ -9,10 +9,20 @@
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/page_indicator.h>
 
+#include <tactility/memory.h>
+
 #include <algorithm>
 #include <string>
 
 namespace tt::app {
+
+bool areSvgIconsEnabled() {
+#ifdef ESP_PLATFORM
+    return memory_external_total() > 0;
+#else
+    return true;
+#endif
+}
 
 namespace {
 
@@ -390,8 +400,14 @@ void TileGrid::populate() {
         lv_obj_set_user_data(tile, const_cast<TileGridItem*>(&item));
 
         const lv_image_dsc_t* image_src = item.image;
-        if (image_src == nullptr && item.icon == nullptr && callbacks.resolveImage != nullptr) {
-            image_src = callbacks.resolveImage(item, callbacks.userData);
+        const char* icon_text = item.icon;
+        if (image_src == nullptr && icon_text == nullptr) {
+            if (callbacks.resolveImage != nullptr) {
+                image_src = callbacks.resolveImage(item, callbacks.userData);
+            }
+            if (image_src == nullptr && callbacks.resolveIcon != nullptr) {
+                icon_text = callbacks.resolveIcon(item, callbacks.userData);
+            }
         }
         if (image_src != nullptr) {
             lv_obj_t* image = lv_image_create(tile);
@@ -412,7 +428,7 @@ void TileGrid::populate() {
             lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_large_font(), LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
             lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
-            lv_label_set_text(icon, item.icon != nullptr ? item.icon : "");
+            lv_label_set_text(icon, icon_text != nullptr ? icon_text : "");
             // A placeholder for an image that isn't loaded yet has the theme's text colour
             lv_obj_set_style_text_color(icon, lv_obj_get_style_text_color(tile, LV_PART_MAIN), LV_STATE_DEFAULT);
         }

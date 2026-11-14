@@ -75,7 +75,7 @@
 			horizontal-resolution = <320>;
 			vertical-resolution = <480>;
 			invert-color;
-			color-conversion-buffer-size = <15360>;
+			color-conversion-buffer-size = <2560>;
 			pixel-clock-hz = <40000000>;
 			pin-dc = <&gpio0 41 GPIO_FLAG_NONE>;
 			backlight = <&display_backlight>;

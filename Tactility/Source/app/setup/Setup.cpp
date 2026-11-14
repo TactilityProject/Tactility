@@ -37,10 +37,6 @@
 #include <sdkconfig.h>
 #endif
 
-#ifdef CONFIG_TT_TOUCH_CALIBRATION_REQUIRED
-#include <Tactility/app/touchcalibration/TouchCalibration.h>
-#endif
-
 namespace tt::app::setup {
 
 extern const ::AppManifest manifest;
@@ -339,13 +335,6 @@ int32_t appMain(int argc, char* argv[]) {
     // Whether the location step enabled location services, which is not the case when it was skipped
     bool locationEnabled = false;
     ctx.steps = {
-#if defined(CONFIG_TT_TOUCH_CALIBRATION_REQUIRED)
-        {
-            .title = "Touch Calibration",
-            .description = "Let's calibrate the touch screen.",
-            .run = [&ctx] { ctx.pendingStepDialogId = touchcalibration::start(ctx.appInstanceId); }
-        },
-#endif
         {
             .title = "Wi-Fi Setup",
             .description = "Let's connect to a Wi-Fi access point.",

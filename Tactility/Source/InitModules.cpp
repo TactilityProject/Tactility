@@ -20,7 +20,9 @@
 #endif
 
 #include <app/module.h>
+#ifdef TT_AUDIO_MODULES_ENABLED
 #include <audio_decoder/module.h>
+#endif
 #include <binfont/module.h>
 #include <c_symbols/module.h>
 #include <cjson_symbols/module.h>
@@ -69,7 +71,9 @@ void initModules() {
     check(module_ensure_started(&app_module) == ERROR_NONE);
     check(module_ensure_started(&coreutils_module) == ERROR_NONE);
     check(module_ensure_started(&crypt_module) == ERROR_NONE);
+#ifdef TT_AUDIO_MODULES_ENABLED
     check(module_ensure_started(&audio_decoder_module) == ERROR_NONE);
+#endif
     check(module_ensure_started(&mbedtls_module) == ERROR_NONE);
     check(module_ensure_started(&gps_module) == ERROR_NONE);
     check(module_ensure_started(&gps_generic_module) == ERROR_NONE);

@@ -8,6 +8,12 @@
 
 namespace tt::app {
 
+/**
+ * @return false on devices without PSRAM, where SVG icons take too much memory.
+ * The tiles then show the icon font glyphs, and the SVG icons are never loaded.
+ */
+bool areSvgIconsEnabled();
+
 struct TileGridItem {
     /** Identifies the item across rebuilds, e.g. to keep it selected */
     std::string id;
@@ -40,6 +46,8 @@ public:
         void (*onKey)(const TileGridItem& item, uint32_t key, void* userData);
         /** Optional: returns the image of an item without an icon or image. Only called for the items on the shown page. */
         const lv_image_dsc_t* (*resolveImage)(const TileGridItem& item, void* userData);
+        /** Optional: returns the icon font glyph of an item without an icon or an image, when resolveImage() gave none. Only called for the items on the shown page. */
+        const char* (*resolveIcon)(const TileGridItem& item, void* userData);
         /** Optional: called after the user went to another page */
         void (*onPageChanged)(void* userData);
         /** Optional: called on every rebuild, after the old tiles were deleted and before collect. Nothing shows the images of earlier items anymore. */
