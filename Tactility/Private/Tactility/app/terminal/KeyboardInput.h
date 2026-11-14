@@ -4,8 +4,7 @@
 #include <tactility/drivers/keyboard.h>
 
 #include <tactility/freertos/freertos.h>
-
-#include <vector>
+#include <tactility/std/vector.hpp>
 
 /** Tracks every KEYBOARD_TYPE device, re-scanning at most once a second so a USB keyboard
  * plugged/unplugged after the terminal starts is picked up without restarting the app. */
@@ -30,10 +29,18 @@ public:
 private:
     static constexpr uint32_t REFRESH_INTERVAL_MS = 1000;
 
+    /** Keyboards may keep reporting a held key as pressed, so a key only counts on its press edge */
     struct Keyboard {
+        static constexpr size_t HELD_CAPACITY = 8;
+
         Device* device;
-        /** Keyboards may keep reporting a held key as pressed, so a key only counts on its press edge */
-        uint32_t heldKey = 0;
+        uint32_t held[HELD_CAPACITY] = {};
+        size_t heldCount = 0;
+
+        bool isHeld(uint32_t key) const;
+        void addHeld(uint32_t key);
+        void removeHeld(uint32_t key);
+        void clearHeld() { heldCount = 0; }
     };
 
     static bool collect(Device* device, void* context);
@@ -43,7 +50,7 @@ private:
     void applyExclusive();
     void awaitKeyRelease();
 
-    std::vector<Keyboard> devices_;
+    tt::std::vector<Keyboard> devices_;
     TickType_t lastRefresh_ = 0;
     bool exclusive_ = false;
 };

@@ -4,11 +4,31 @@
 #include <lvgl/lvgl.h>
 
 #include <algorithm>
+#include <vector>
 
 constexpr auto* TAG = "terminal-keyb";
 
 KeyboardInput::KeyboardInput() {
     rescan();
+}
+
+bool KeyboardInput::Keyboard::isHeld(uint32_t key) const {
+    return std::find(held, held + heldCount, key) != held + heldCount;
+}
+
+void KeyboardInput::Keyboard::addHeld(uint32_t key) {
+    if (heldCount < HELD_CAPACITY) {
+        held[heldCount++] = key;
+    }
+}
+
+void KeyboardInput::Keyboard::removeHeld(uint32_t key) {
+    for (size_t i = 0; i < heldCount; i++) {
+        if (held[i] == key) {
+            held[i] = held[--heldCount];
+            return;
+        }
+    }
 }
 
 KeyboardInput::~KeyboardInput() {
@@ -21,6 +41,28 @@ KeyboardInput::~KeyboardInput() {
     }
 }
 
+/**
+ * Drains the queued events of a keyboard, which ends in an idle read when nothing is down,
+ * or in a pressed read when a key is still down.
+ * @return true when a key is still down
+ */
+static bool isAnyKeyDown(Device* keyboard) {
+    constexpr int maxReads = 64;
+    KeyboardKeyData data;
+    for (int i = 0; i < maxReads; i++) {
+        if (keyboard_read_key(keyboard, &data) != ERROR_NONE) {
+            return false;
+        }
+        if (data.pressed && !data.continue_reading) {
+            return true;
+        }
+        if (!data.pressed && data.key == 0 && !data.continue_reading) {
+            return false;
+        }
+    }
+    return false;
+}
+
 /** A key that is still down would otherwise be seen as a fresh press by the LVGL indevs that are enabled again */
 void KeyboardInput::awaitKeyRelease() {
     constexpr TickType_t timeout = pdMS_TO_TICKS(1000);
@@ -29,8 +71,7 @@ void KeyboardInput::awaitKeyRelease() {
     while (anyPressed && xTaskGetTickCount() - start < timeout) {
         anyPressed = false;
         for (const Keyboard& entry : devices_) {
-            KeyboardKeyData data;
-            if (device_is_ready(entry.device) && keyboard_read_key(entry.device, &data) == ERROR_NONE && data.pressed) {
+            if (device_is_ready(entry.device) && isAnyKeyDown(entry.device)) {
                 anyPressed = true;
             }
         }
@@ -50,12 +91,19 @@ bool KeyboardInput::pump(KeyHandler onKey) {
             continue;
         }
         while (true) {
-            if (keyboard_read_key(keyboard.device, &data) != ERROR_NONE || !data.pressed) {
-                keyboard.heldKey = 0;
+            if (keyboard_read_key(keyboard.device, &data) != ERROR_NONE) {
+                keyboard.clearHeld();
                 break;
             }
-            if (data.key != keyboard.heldKey) {
-                keyboard.heldKey = data.key;
+            if (!data.pressed) {
+                if (data.key == 0) {
+                    // Nothing is down
+                    keyboard.clearHeld();
+                    break;
+                }
+                keyboard.removeHeld(data.key);
+            } else if (!keyboard.isHeld(data.key)) {
+                keyboard.addHeld(data.key);
                 if (onKey(data.key, data.ctrl, data.alt)) {
                     handled = true;
                 }
@@ -77,7 +125,7 @@ void KeyboardInput::setExclusive(bool exclusive) {
     if (!exclusive) {
         // pump() doesn't run while hidden, so a release during that time is never seen
         for (Keyboard& keyboard : devices_) {
-            keyboard.heldKey = 0;
+            keyboard.clearHeld();
         }
     }
     applyExclusive();
