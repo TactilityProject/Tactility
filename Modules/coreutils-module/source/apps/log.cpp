@@ -4,8 +4,10 @@
 #include <tactility/log.h>
 #include <tactility/memory.h>
 
+#include <atomic>
 #include <csignal>
 #include <cstdio>
+#include <new>
 #include <poll.h>
 #include <unistd.h>
 
@@ -20,7 +22,8 @@ struct Ring {
     Mutex mutex;
     size_t head = 0;
     size_t count = 0;
-    size_t dropped = 0;
+    /** Lines that were dropped, also when the callback couldn't get the mutex */
+    std::atomic<size_t> dropped { 0 };
     char data[RING_CAPACITY];
 };
 
@@ -30,10 +33,13 @@ static void onSignal(int) {
     stopRequested = 1;
 }
 
-/** Whole lines only: a line that doesn't fit is dropped and counted */
+/** Never waits, so logging isn't held up. Whole lines only: a line that doesn't fit, or arrives while the ring is busy, is dropped and counted. */
 static void onLogLine(const char* line, size_t length, void* context) {
     auto* ring = static_cast<Ring*>(context);
-    mutex_lock(&ring->mutex);
+    if (!mutex_try_lock(&ring->mutex, 0)) {
+        ring->dropped++;
+        return;
+    }
     if (length > RING_CAPACITY - ring->count) {
         ring->dropped++;
     } else {
@@ -46,11 +52,12 @@ static void onLogLine(const char* line, size_t length, void* context) {
     mutex_unlock(&ring->mutex);
 }
 
+/** Writes at most one ring's worth, so the main loop keeps checking for input while logging is busy */
 static void drain(Ring* ring) {
     char chunk[CHUNK_SIZE];
-    while (true) {
+    size_t written = 0;
+    while (written < RING_CAPACITY) {
         size_t length = 0;
-        size_t dropped = 0;
         mutex_lock(&ring->mutex);
         length = ring->count < sizeof(chunk) ? ring->count : sizeof(chunk);
         for (size_t i = 0; i < length; i++) {
@@ -58,9 +65,9 @@ static void drain(Ring* ring) {
         }
         ring->head = (ring->head + length) % RING_CAPACITY;
         ring->count -= length;
-        dropped = ring->dropped;
-        ring->dropped = 0;
         mutex_unlock(&ring->mutex);
+
+        const size_t dropped = ring->dropped.exchange(0);
 
         if (dropped > 0) {
             printf("[%zu log lines dropped]\n", dropped);
@@ -69,6 +76,7 @@ static void drain(Ring* ring) {
             break;
         }
         fwrite(chunk, 1, length, stdout);
+        written += length;
     }
     fflush(stdout);
 }
@@ -95,9 +103,7 @@ static int32_t main(int, char*[]) {
         fprintf(stderr, "log: out of memory\n");
         return 1;
     }
-    ring->head = 0;
-    ring->count = 0;
-    ring->dropped = 0;
+    new (ring) Ring();
     mutex_construct(&ring->mutex);
 
     stopRequested = 0;

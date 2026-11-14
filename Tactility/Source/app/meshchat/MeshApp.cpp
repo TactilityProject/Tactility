@@ -30,6 +30,7 @@
 #include <atomic>
 #include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace tt::app::meshchat {
@@ -95,22 +96,40 @@ struct Context {
     NetworkInfo network;
 };
 
+/** What loadData() fetched, committed to the context by commitData() */
+struct Snapshot {
+    NetworkInfo network;
+    bool canAddChannel = false;
+    tt::std::vector<MeshChannel> channels;
+    tt::std::vector<MeshContact> contacts;
+};
+
 /** Queries the service thread, so it's called without the LVGL lock */
-void loadData(Context* ctx) {
-    ctx->network = loadNetworkInfo();
-    ctx->canAddChannel = mesh_supports(MESH_FEATURE_NAMED_CHANNELS) || mesh_supports(MESH_FEATURE_KEYED_CHANNELS);
-    ctx->channels.assign(CHANNEL_LIMIT, MeshChannel {});
+Snapshot loadData() {
+    Snapshot snapshot;
+    snapshot.network = loadNetworkInfo();
+    snapshot.canAddChannel = mesh_supports(MESH_FEATURE_NAMED_CHANNELS) || mesh_supports(MESH_FEATURE_KEYED_CHANNELS);
+    snapshot.channels.assign(CHANNEL_LIMIT, MeshChannel {});
     size_t count = 0;
-    if (mesh_get_channels(ctx->channels.data(), CHANNEL_LIMIT, &count) != ERROR_NONE) {
+    if (mesh_get_channels(snapshot.channels.data(), CHANNEL_LIMIT, &count) != ERROR_NONE) {
         count = 0;
     }
-    ctx->channels.resize(count);
-    ctx->contacts.assign(CONTACT_LIMIT, MeshContact {});
+    snapshot.channels.resize(count);
+    snapshot.contacts.assign(CONTACT_LIMIT, MeshContact {});
     count = 0;
-    if (mesh_get_contacts(ctx->contacts.data(), CONTACT_LIMIT, &count) != ERROR_NONE) {
+    if (mesh_get_contacts(snapshot.contacts.data(), CONTACT_LIMIT, &count) != ERROR_NONE) {
         count = 0;
     }
-    ctx->contacts.resize(count);
+    snapshot.contacts.resize(count);
+    return snapshot;
+}
+
+/** Requires the LVGL lock, because create_widgets can run on another thread and reads the cached state */
+void commitData(Context* ctx, Snapshot&& snapshot) {
+    ctx->network = snapshot.network;
+    ctx->canAddChannel = snapshot.canAddChannel;
+    ctx->channels = ::std::move(snapshot.channels);
+    ctx->contacts = ::std::move(snapshot.contacts);
 }
 
 lv_obj_t* addListButton(lv_obj_t* list, const char* text, lv_event_cb_t callback, void* callbackData, intptr_t index) {
@@ -551,7 +570,12 @@ int32_t appMain(int argc, char* argv[]) {
     MeshEventSubscription meshEvents {};
     check(mesh_event_subscribe(&meshEvents, &eventGroup) == ERROR_NONE);
 
-    loadData(&ctx);
+    {
+        Snapshot snapshot = loadData();
+        lvgl_lock();
+        commitData(&ctx, ::std::move(snapshot));
+        lvgl_unlock();
+    }
     WindowId window = window_manager_create_ext(ctx.appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     bool shouldClose = false;
@@ -632,8 +656,9 @@ int32_t appMain(int argc, char* argv[]) {
         }
 
         if (changed) {
-            loadData(&ctx);
+            Snapshot snapshot = loadData();
             lvgl_lock();
+            commitData(&ctx, ::std::move(snapshot));
             updateWidgets(&ctx);
             lvgl_unlock();
         }

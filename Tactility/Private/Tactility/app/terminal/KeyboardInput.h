@@ -30,6 +30,12 @@ public:
 private:
     static constexpr uint32_t REFRESH_INTERVAL_MS = 1000;
 
+    struct Keyboard {
+        Device* device;
+        /** Keyboards may keep reporting a held key as pressed, so a key only counts on its press edge */
+        uint32_t heldKey = 0;
+    };
+
     static bool collect(Device* device, void* context);
 
     void refresh();
@@ -37,9 +43,7 @@ private:
     void applyExclusive();
     void awaitKeyRelease();
 
-    std::vector<Device*> devices_;
+    std::vector<Keyboard> devices_;
     TickType_t lastRefresh_ = 0;
     bool exclusive_ = false;
-    /** Keyboards may keep reporting a held key as pressed, so a key only counts on its press edge */
-    uint32_t heldKey_ = 0;
 };

@@ -12,10 +12,12 @@ KeyboardInput::KeyboardInput() {
 }
 
 KeyboardInput::~KeyboardInput() {
-    awaitKeyRelease();
-    setExclusive(false);
-    for (Device* device : devices_) {
-        device_put(device);
+    if (exclusive_) {
+        awaitKeyRelease();
+        setExclusive(false);
+    }
+    for (const Keyboard& keyboard : devices_) {
+        device_put(keyboard.device);
     }
 }
 
@@ -26,9 +28,9 @@ void KeyboardInput::awaitKeyRelease() {
     bool anyPressed = true;
     while (anyPressed && xTaskGetTickCount() - start < timeout) {
         anyPressed = false;
-        for (Device* keyboard : devices_) {
+        for (const Keyboard& entry : devices_) {
             KeyboardKeyData data;
-            if (device_is_ready(keyboard) && keyboard_read_key(keyboard, &data) == ERROR_NONE && data.pressed) {
+            if (device_is_ready(entry.device) && keyboard_read_key(entry.device, &data) == ERROR_NONE && data.pressed) {
                 anyPressed = true;
             }
         }
@@ -43,17 +45,17 @@ bool KeyboardInput::pump(KeyHandler onKey) {
 
     bool handled = false;
     KeyboardKeyData data;
-    for (Device* keyboard : devices_) {
-        if (!device_is_ready(keyboard)) {
+    for (Keyboard& keyboard : devices_) {
+        if (!device_is_ready(keyboard.device)) {
             continue;
         }
         while (true) {
-            if (keyboard_read_key(keyboard, &data) != ERROR_NONE || !data.pressed) {
-                heldKey_ = 0;
+            if (keyboard_read_key(keyboard.device, &data) != ERROR_NONE || !data.pressed) {
+                keyboard.heldKey = 0;
                 break;
             }
-            if (data.key != heldKey_) {
-                heldKey_ = data.key;
+            if (data.key != keyboard.heldKey) {
+                keyboard.heldKey = data.key;
                 if (onKey(data.key, data.ctrl, data.alt)) {
                     handled = true;
                 }
@@ -72,6 +74,12 @@ void KeyboardInput::setExclusive(bool exclusive) {
         return;
     }
     exclusive_ = exclusive;
+    if (!exclusive) {
+        // pump() doesn't run while hidden, so a release during that time is never seen
+        for (Keyboard& keyboard : devices_) {
+            keyboard.heldKey = 0;
+        }
+    }
     applyExclusive();
 }
 
@@ -80,8 +88,8 @@ void KeyboardInput::applyExclusive() {
         return;
     }
     lvgl_lock();
-    for (Device* device : devices_) {
-        lv_indev_t* indev = lvgl_keyboard_find_by_device(device);
+    for (const Keyboard& keyboard : devices_) {
+        lv_indev_t* indev = lvgl_keyboard_find_by_device(keyboard.device);
         if (indev != nullptr) {
             lv_indev_enable(indev, !exclusive_);
         }
@@ -110,16 +118,16 @@ void KeyboardInput::rescan() {
     for (Device* device : found) {
         if (
             device_is_ready(device) &&
-            std::find(devices_.begin(), devices_.end(), device) == devices_.end() &&
+            std::find_if(devices_.begin(), devices_.end(), [device](const Keyboard& keyboard) { return keyboard.device == device; }) == devices_.end() &&
             device_get(device) == ERROR_NONE
         ) {
-            devices_.push_back(device);
+            devices_.push_back({ device });
             LOG_I(TAG, "Found keyboard: %s", device->name);
         }
     }
     for (auto it = devices_.begin(); it != devices_.end();) {
-        if (std::find(found.begin(), found.end(), *it) == found.end()) {
-            device_put(*it);
+        if (std::find(found.begin(), found.end(), it->device) == found.end()) {
+            device_put(it->device);
             it = devices_.erase(it);
             LOG_I(TAG, "Removed keyboard");
         } else {

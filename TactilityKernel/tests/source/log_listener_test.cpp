@@ -22,6 +22,13 @@ void onLine(const char* line, size_t length, void* context) {
     received->count++;
 }
 
+/** Removes the listener when a failing assertion ends the test early */
+struct Subscription {
+    Received* received;
+
+    ~Subscription() { log_unsubscribe(onLine, received); }
+};
+
 bool waitForCount(Received& received, int expected) {
     for (int i = 0; i < 100 && received.count < expected; i++) {
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -35,6 +42,7 @@ TEST_CASE("log listener receives lines until unsubscribed") {
     log_queue_init();
     Received received;
     REQUIRE(log_subscribe(onLine, &received));
+    Subscription subscription { &received };
 
     const char* line = "hello\n";
     log_queue_write(line, strlen(line));
