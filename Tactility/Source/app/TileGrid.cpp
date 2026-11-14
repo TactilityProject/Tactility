@@ -5,7 +5,6 @@
 #include <lvgl/grid_navigation.h>
 #include <lvgl/insets.h>
 #include <lvgl/theme.h>
-#include <lvgl/widgets/badge.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/page_indicator.h>
 
@@ -33,6 +32,8 @@ constexpr uint32_t MIN_LABEL_WIDTH_IN_FONT_SIZES = 6;
 struct PageLayout {
     int32_t iconSize;
     int32_t pad;
+    int32_t framePad;
+    int32_t labelGap;
     int32_t tileWidth;
     int32_t tileHeight;
     int32_t leftOffset;
@@ -43,12 +44,15 @@ struct PageLayout {
 PageLayout computePageLayout(lv_obj_t* grid) {
     const auto icon_size = static_cast<int32_t>(lvgl_get_shared_icon_large_font_height());
     const auto pad = icon_size / 16;
+    // The focus ring is drawn inside the frame, at most 2dp wide, and leaves 1dp to the icon
+    const auto frame_pad = LV_DPX(2) + LV_DPX(1);
+    const auto label_gap = LV_DPX(2);
     const auto gap = TILE_GAP;
     const auto text_height = lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL));
     // The label needs room for a few characters, also when the icon font is smaller (e.g. a fallback)
     const auto text_min_width = static_cast<int32_t>(MIN_LABEL_WIDTH_IN_FONT_SIZES * lvgl_get_text_font_height(FONT_SIZE_SMALL));
     const auto tile_min_width = std::max<int32_t>(2 * icon_size, text_min_width) + 2 * pad;
-    const auto tile_height = 2 * pad + icon_size + pad / 2 + text_height;
+    const auto tile_height = 2 * frame_pad + icon_size + label_gap + text_height + pad;
     const auto available_width = lv_obj_get_content_width(grid);
     const auto available_height = lv_obj_get_content_height(grid);
     const auto columns = std::max<int32_t>(1, (available_width + gap) / (tile_min_width + gap));
@@ -57,6 +61,8 @@ PageLayout computePageLayout(lv_obj_t* grid) {
     return {
         .iconSize = icon_size,
         .pad = pad,
+        .framePad = frame_pad,
+        .labelGap = label_gap,
         .tileWidth = tile_width,
         .tileHeight = tile_height,
         // The pixels that don't divide over the columns are split over both sides
@@ -272,6 +278,15 @@ void TileGrid::onGridGesture(lv_event_t* e) {
     lv_async_call(direction == LV_DIR_LEFT ? onDeferredNextPage : onDeferredPreviousPage, self);
 }
 
+void TileGrid::onTileStateChanged(lv_event_t* e) {
+    constexpr auto MIRRORED = static_cast<lv_state_t>(LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY | LV_STATE_PRESSED | LV_STATE_CHECKED);
+    lv_obj_t* tile = lv_event_get_target_obj(e);
+    auto* frame = static_cast<lv_obj_t*>(lv_event_get_user_data(e));
+    const lv_state_t state = lv_obj_get_state(tile);
+    lv_obj_remove_state(frame, static_cast<lv_state_t>(MIRRORED & ~state));
+    lv_obj_add_state(frame, static_cast<lv_state_t>(MIRRORED & state));
+}
+
 void TileGrid::onTileClicked(lv_event_t* e) {
     const auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
     self->callbacks.onClicked(*getTileItem(e), self->callbacks.userData);
@@ -390,14 +405,30 @@ void TileGrid::populate() {
     for (uint32_t i = first; i < last; i++) {
         const auto& item = items[i];
 
-        // The theme styles the tile as an icon button, including its focus and pressed states
-        lv_obj_t* tile = lvgl_icon_button_create(grid);
+        // The tile receives the input, its icon frame shows the focus, pressed and checked states of the theme's icon button
+        lv_obj_t* tile = lv_obj_create(grid);
+        lv_obj_remove_style_all(tile);
         lv_obj_set_size(tile, layout.tileWidth, layout.tileHeight);
-        lv_obj_set_style_pad_all(tile, layout.pad, LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_row(tile, layout.pad / 2, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_bottom(tile, layout.pad, LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_row(tile, layout.labelGap, LV_STATE_DEFAULT);
         lv_obj_set_flex_flow(tile, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_clickable(tile, true);
+        lv_obj_set_click_focusable(tile, true);
+        lv_obj_set_scrollable(tile, false);
         lv_obj_set_user_data(tile, const_cast<TileGridItem*>(&item));
+
+        lv_obj_t* frame = lvgl_icon_button_create(tile);
+        lv_obj_set_size(frame, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_pad_all(frame, layout.framePad, LV_STATE_DEFAULT);
+        // Concentric with the rounded corners of the icon, which have a radius of 22 in 96
+        lv_obj_set_style_radius(frame, layout.iconSize * 22 / 96 + layout.framePad, LV_STATE_DEFAULT);
+        // Grid navigation only removes direct children from the input group, and the tile is the focus target
+        lv_group_remove_obj(frame);
+        lv_obj_set_clickable(frame, false);
+        lv_obj_set_click_focusable(frame, false);
+        lv_obj_set_scrollable(frame, false);
+        lv_obj_add_event_cb(tile, onTileStateChanged, LV_EVENT_STATE_CHANGED, frame);
 
         const lv_image_dsc_t* image_src = item.image;
         const char* icon_text = item.icon;
@@ -410,11 +441,11 @@ void TileGrid::populate() {
             }
         }
         if (image_src != nullptr) {
-            lv_obj_t* image = lv_image_create(tile);
+            lv_obj_t* image = lv_image_create(frame);
             lv_image_set_src(image, image_src);
             lv_obj_set_size(image, layout.iconSize, layout.iconSize);
             if (item.imageRecolor) {
-                lv_color_t color = lv_obj_get_style_text_color(tile, LV_PART_MAIN);
+                lv_color_t color = lv_obj_get_style_text_color(frame, LV_PART_MAIN);
                 if (iconColor == IconColor::Primary) {
                     color = lv_theme_get_color_primary(image);
                 } else if (iconColor == IconColor::Secondary) {
@@ -424,28 +455,24 @@ void TileGrid::populate() {
                 lv_obj_set_style_image_recolor_opa(image, LV_OPA_COVER, LV_STATE_DEFAULT);
             }
         } else {
-            lv_obj_t* icon = lv_label_create(tile);
+            lv_obj_t* icon = lv_label_create(frame);
             lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_large_font(), LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
             lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
             lv_label_set_text(icon, icon_text != nullptr ? icon_text : "");
             // A placeholder for an image that isn't loaded yet has the theme's text colour
-            lv_obj_set_style_text_color(icon, lv_obj_get_style_text_color(tile, LV_PART_MAIN), LV_STATE_DEFAULT);
+            lv_obj_set_style_text_color(icon, lv_obj_get_style_text_color(frame, LV_PART_MAIN), LV_STATE_DEFAULT);
         }
 
         lv_obj_t* label = lv_label_create(tile);
+        // Favourites have a label in the theme's secondary colour
+        lv_obj_set_style_text_color(label, item.highlighted ? lv_theme_get_color_secondary(label) : lv_obj_get_style_text_color(frame, LV_PART_MAIN), LV_STATE_DEFAULT);
         lv_obj_set_style_text_font(label, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
         // Dots mode needs a fixed height, otherwise the label wraps instead of truncating
         lv_obj_set_size(label, LV_PCT(100), lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL)));
         lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
         lv_label_set_text(label, item.name.c_str());
-
-        // A badge marks favourites, as it doesn't look like the focus indicator
-        if (item.highlighted) {
-            auto* badge = lvgl_badge_create(tile);
-            lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, 0, 0);
-        }
 
         lv_obj_add_event_cb(tile, onTileClicked, LV_EVENT_SHORT_CLICKED, this);
         if (callbacks.onLongPressed != nullptr) {

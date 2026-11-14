@@ -54,6 +54,14 @@ lv_draw_buf_t* lvgl_svg_rasterize_file_variants(
     bool prefer_mono, uint32_t size, bool* out_is_mono
 );
 
+/**
+ * Rounds the corners of an ARGB8888 draw buffer by lowering the alpha of the pixels outside the corner arcs.
+ * Does nothing when the radius is 0.
+ * @param[in] draw_buf a square or rectangular ARGB8888 draw buffer
+ * @param[in] radius the corner radius in pixels
+ */
+void lvgl_svg_round_corners(lv_draw_buf_t* draw_buf, uint32_t radius);
+
 #ifdef __cplusplus
 }
 #endif

@@ -185,6 +185,7 @@ private:
     static void onNextPressed(lv_event_t* e);
     static void onGridGesture(lv_event_t* e);
     static void onBottomBarFocused(lv_event_t* e);
+    static void onTileStateChanged(lv_event_t* e);
     static void onTileClicked(lv_event_t* e);
     static void onTileLongPressed(lv_event_t* e);
     static void onTileKey(lv_event_t* e);

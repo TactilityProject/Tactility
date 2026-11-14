@@ -302,6 +302,11 @@ void collectPackageApps(const AppPackage* package, void* context) {
     packages->push_back(::std::move(entry));
 }
 
+// Icons are square, the corner radius is the one of a 96 px icon with a 22 px radius
+void roundIconCorners(lv_draw_buf_t* image, uint32_t size) {
+    lvgl_svg_round_corners(image, size * 22 / 96);
+}
+
 PackageIcon rasterizeBuiltIn(const BuiltInIconAsset& asset, uint32_t size, bool preferMono) {
     bool mono = false;
     auto* image = lvgl_svg_rasterize_variants(
@@ -311,6 +316,8 @@ PackageIcon rasterizeBuiltIn(const BuiltInIconAsset& asset, uint32_t size, bool 
     );
     if (image == nullptr) {
         LOG_W(TAG, "Failed to rasterize the icon of %s", asset.id);
+    } else if (!mono) {
+        roundIconCorners(image, size);
     }
     return { asset.id, {}, {}, {}, image, mono, preferMono };
 }
@@ -399,6 +406,9 @@ void loadPackageIcons(void*) {
         if (image == nullptr) {
             LOG_W(TAG, "Failed to load the icon of %s", package.packageId.c_str());
             continue;
+        }
+        if (!mono) {
+            roundIconCorners(image, size);
         }
         loaded.push_back({ package.packageId, ::std::move(package.appIds), colour_file, mono_file, image, mono, preferMono });
     }

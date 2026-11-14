@@ -179,3 +179,41 @@ TEST_CASE("lvgl_svg_rasterize_data rejects sizes whose pixel buffer would overfl
     CHECK_EQ(lvgl_svg_rasterize_data(SQUARE, length, UINT32_MAX), nullptr);
     lv_deinit();
 }
+
+TEST_CASE("lvgl_svg_round_corners clears the corners and keeps the rest") {
+    lv_init();
+    auto path = writeSvg("tt_svg_test_round.svg",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\">"
+        "<rect x=\"0\" y=\"0\" width=\"10\" height=\"10\" fill=\"#ff0000\"/></svg>");
+
+    lv_draw_buf_t* buf = lvgl_svg_rasterize_file(path.c_str(), 32);
+    REQUIRE_NE(buf, nullptr);
+    lvgl_svg_round_corners(buf, 8);
+    CHECK_EQ(pixelAt(buf, 0, 0).alpha, 0);
+    CHECK_EQ(pixelAt(buf, 31, 0).alpha, 0);
+    CHECK_EQ(pixelAt(buf, 0, 31).alpha, 0);
+    CHECK_EQ(pixelAt(buf, 31, 31).alpha, 0);
+    CHECK_EQ(pixelAt(buf, 16, 0).alpha, 255);
+    CHECK_EQ(pixelAt(buf, 0, 16).alpha, 255);
+    CHECK_EQ(pixelAt(buf, 16, 16).alpha, 255);
+    CHECK_GT(pixelAt(buf, 2, 2).alpha, 0);
+    CHECK_LT(pixelAt(buf, 2, 2).alpha, 255);
+    lv_draw_buf_destroy(buf);
+    remove(path.c_str());
+    lv_deinit();
+}
+
+TEST_CASE("lvgl_svg_round_corners with radius 0 changes nothing") {
+    lv_init();
+    auto path = writeSvg("tt_svg_test_round0.svg",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\">"
+        "<rect x=\"0\" y=\"0\" width=\"10\" height=\"10\" fill=\"#ff0000\"/></svg>");
+
+    lv_draw_buf_t* buf = lvgl_svg_rasterize_file(path.c_str(), 32);
+    REQUIRE_NE(buf, nullptr);
+    lvgl_svg_round_corners(buf, 0);
+    CHECK_EQ(pixelAt(buf, 0, 0).alpha, 255);
+    lv_draw_buf_destroy(buf);
+    remove(path.c_str());
+    lv_deinit();
+}

@@ -144,6 +144,9 @@ void loadSettingsIcons(void*) {
             reinterpret_cast<const char*>(asset.mono), asset.monoSize,
             preferMono, size, &recolor[i]
         );
+        if (images[i] != nullptr && !recolor[i]) {
+            lvgl_svg_round_corners(images[i], size * 22 / 96);
+        }
     }
 
     mutex_lock(&state.mutex);

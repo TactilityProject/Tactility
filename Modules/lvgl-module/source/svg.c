@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <lvgl/svg.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,4 +125,35 @@ lv_draw_buf_t* lvgl_svg_rasterize_file_variants(
         }
     }
     return NULL;
+}
+
+void lvgl_svg_round_corners(lv_draw_buf_t* draw_buf, uint32_t radius) {
+    const uint32_t width = draw_buf->header.w;
+    const uint32_t height = draw_buf->header.h;
+    if (radius == 0) return;
+    if (radius > width / 2) radius = width / 2;
+    if (radius > height / 2) radius = height / 2;
+
+    const float r = (float)radius;
+    for (uint32_t dy = 0; dy < radius; dy++) {
+        for (uint32_t dx = 0; dx < radius; dx++) {
+            // Pixel centre relative to the centre of the corner circle
+            const float px = r - (float)dx - 0.5f;
+            const float py = r - (float)dy - 0.5f;
+            const float distance = sqrtf(px * px + py * py);
+            // One pixel wide linear edge
+            float coverage = r - distance + 0.5f;
+            if (coverage >= 1.0f) continue;
+            if (coverage < 0.0f) coverage = 0.0f;
+
+            const uint32_t xs[2] = { dx, width - 1 - dx };
+            const uint32_t ys[2] = { dy, height - 1 - dy };
+            for (int i = 0; i < 2; i++) {
+                for (int j = 0; j < 2; j++) {
+                    lv_color32_t* row = (lv_color32_t*)(draw_buf->data + (size_t)ys[j] * draw_buf->header.stride);
+                    row[xs[i]].alpha = (uint8_t)((float)row[xs[i]].alpha * coverage + 0.5f);
+                }
+            }
+        }
+    }
 }

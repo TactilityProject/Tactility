@@ -125,6 +125,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_svg_rasterize_file),
     DEFINE_MODULE_SYMBOL(lvgl_svg_rasterize_variants),
     DEFINE_MODULE_SYMBOL(lvgl_svg_rasterize_file_variants),
+    DEFINE_MODULE_SYMBOL(lvgl_svg_round_corners),
     // lvgl_badge
     DEFINE_MODULE_SYMBOL(lvgl_badge_create),
     // lvgl_focus_container
