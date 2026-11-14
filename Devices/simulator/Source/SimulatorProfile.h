@@ -16,8 +16,10 @@ struct Profile {
     uint16_t dpi; // lvgl.dpi from device.properties (if set), otherwise display.dpi
     /** The default rotation: the display is taller than wide. The width and height values may be given in either order. */
     bool portrait;
-    /** Compact UI density */
-    bool compact;
+    /** LVGL UI spacing, from lvgl.uiSpacing of the device */
+    uint8_t uiSpacing;
+    /** LVGL UI size, from lvgl.uiSize of the device */
+    uint8_t uiSize;
     /** Greyscale display, which makes the monochrome theme apply */
     bool mono;
     bool keyboard;
