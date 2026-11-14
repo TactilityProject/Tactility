@@ -219,13 +219,10 @@ static error_t ili9488_init(Device* device) {
     return result;
 }
 
+static constexpr uint32_t DRAW_TIMEOUT_MS = 500;
+
 static error_t ili9488_draw_bitmap(Device* device, int32_t x_start, int32_t y_start, int32_t x_end, int32_t y_end, const void* color_data) {
     auto* internal = static_cast<Ili9488Internal*>(device_get_driver_data(device));
-
-    // Drain any stale signal left over from a prior non-draw transaction (bring-up commands like
-    // reset/gap also complete through on_color_trans_done), so the take() below can only be
-    // satisfied by this draw's own transfer completing.
-    xSemaphoreTake(internal->draw_done_semaphore, 0);
 
     // The panel driver converts a whole area through its conversion buffer and doesn't check bounds,
     // so a larger area is sent in strips of rows that fit in that buffer. The conversion buffer is
@@ -235,6 +232,11 @@ static error_t ili9488_draw_bitmap(Device* device, int32_t x_start, int32_t y_st
     const auto* pixels = static_cast<const uint16_t*>(color_data);
 
     spi_controller_lock(internal->spi_controller);
+    // Drain under the bus lock so that no other draw can consume this draw's completion signal.
+    // This also clears stale signals from non-draw transactions (bring-up commands like reset/gap
+    // also complete through on_color_trans_done), so the take() below can only be satisfied by this
+    // draw's own transfer completing.
+    xSemaphoreTake(internal->draw_done_semaphore, 0);
     for (int32_t y = y_start; y < y_end; y += strip_rows) {
         const int32_t strip_end = std::min(y + strip_rows, y_end);
         esp_err_t ret = esp_lcd_panel_draw_bitmap(internal->panel_handle, x_start, y, x_end, strip_end, pixels);
@@ -250,7 +252,12 @@ static error_t ili9488_draw_bitmap(Device* device, int32_t x_start, int32_t y_st
         // bus lock across the wait too, not just the queueing call: the command/data phases aren't
         // wrapped in their own acquire_bus by esp_lcd_panel_io_spi, so another bus user could otherwise
         // interleave with this transfer while it's still in flight.
-        xSemaphoreTake(internal->draw_done_semaphore, portMAX_DELAY);
+        // The panel component ignores a failed color submission and returns ESP_OK, so no completion
+        // signal would ever arrive. A bounded wait keeps the bus lock from being held forever.
+        if (xSemaphoreTake(internal->draw_done_semaphore, pdMS_TO_TICKS(DRAW_TIMEOUT_MS)) != pdTRUE) {
+            spi_controller_unlock(internal->spi_controller);
+            return ERROR_TIMEOUT;
+        }
         pixels += static_cast<size_t>(strip_end - y) * width;
     }
     spi_controller_unlock(internal->spi_controller);
