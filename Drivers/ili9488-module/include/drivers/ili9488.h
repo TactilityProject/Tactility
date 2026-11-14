@@ -21,6 +21,8 @@ struct Ili9488Config {
     bool mirror_y;
     bool invert_color;
     bool bgr_order;
+    // Initialize the panel with the settings for IPS panels instead of TN panels
+    bool ips;
     uint32_t bits_per_pixel;
     // Size (in pixels) of the internal buffer the panel driver uses to convert
     // 16bpp draw data to the panel's native 18bpp format.

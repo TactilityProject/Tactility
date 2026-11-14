@@ -62,7 +62,8 @@ list(APPEND REQUIRES_LIST
 set(TT_AUDIO_MODULES_ENABLED TRUE)
 if (EXISTS "${DEVICETREE_LOCATION}/device.properties")
     file(READ "${DEVICETREE_LOCATION}/device.properties" device_properties_audio_content)
-    if (device_properties_audio_content MATCHES "(^|\n)modules\\.audio=false")
+    # The properties parser accepts spaces around the key and the value
+    if (device_properties_audio_content MATCHES "(^|\n)[ \t]*modules\\.audio[ \t]*=[ \t]*false[ \t]*(\r|\n|$)")
         set(TT_AUDIO_MODULES_ENABLED FALSE)
     endif ()
 endif ()

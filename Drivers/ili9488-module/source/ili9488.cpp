@@ -128,7 +128,7 @@ static error_t start(Device* device) {
     // Unlike st7789/ili9341, ili9488 needs an internal conversion buffer: over SPI the
     // panel only accepts its native 18bpp format, so the driver repacks each transfer through
     // this buffer.
-    ret = esp_lcd_new_panel_ili9488(internal->io_handle, &panel_config, config->color_conversion_buffer_size, &internal->panel_handle);
+    ret = (config->ips ? esp_lcd_new_panel_ili9488_ips : esp_lcd_new_panel_ili9488)(internal->io_handle, &panel_config, config->color_conversion_buffer_size, &internal->panel_handle);
     if (ret != ESP_OK) {
         LOG_E(TAG, "Failed to create panel: %s", esp_err_to_name(ret));
         esp_lcd_panel_io_del(internal->io_handle);

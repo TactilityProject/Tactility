@@ -41,6 +41,10 @@ properties:
     type: boolean
     default: true
     description: Use BGR element order instead of RGB
+  ips:
+    type: boolean
+    default: false
+    description: Use the initialization for IPS panels, with their own power, VCOM and gamma settings, instead of the one for TN panels. A wrong one can leave a ghost image on the screen.
   bits-per-pixel:
     type: int
     default: 18

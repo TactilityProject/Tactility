@@ -48,6 +48,12 @@ struct Context {
     uint8_t sampleCount = 0;
     bool calibrationApplied = false;
 
+    // Signalled by the last tap, so the app task fits and saves the calibration instead of the LVGL task
+    TaskEventGroup* eventGroup = nullptr;
+    uint32_t finishBit = 0;
+    // Set with the LVGL lock held, when the outcome is shown: taps before that don't close the app
+    bool finished = false;
+
     lv_obj_t* root = nullptr;
     lv_obj_t* target = nullptr;
     lv_obj_t* titleLabel = nullptr;
@@ -84,15 +90,30 @@ void updateUi(Context* ctx) {
     }
 }
 
-// Drives the on-screen outcome text/state; the actual result (Ok/Error) is reported to the
-// caller from onPress() below, via ctx->calibrationApplied, once the user taps to dismiss.
+// Shows the outcome. The result (Ok/Error) is reported to the caller by appMain, via ctx->calibrationApplied,
+// once the user taps to dismiss.
+// Takes the LVGL lock, as it runs on the app task.
+void showOutcome(Context* ctx, const char* title, const char* hint) {
+    lvgl_lock();
+    if (ctx->titleLabel != nullptr && ctx->hintLabel != nullptr && ctx->target != nullptr) {
+        lv_label_set_text(ctx->titleLabel, title);
+        lv_label_set_text(ctx->hintLabel, hint);
+        lv_obj_set_hidden(ctx->target, true);
+    }
+    ctx->finished = true;
+    lvgl_unlock();
+}
+
+// Fits the calibration to the taps and saves it, which reads and writes files, so it runs on the app task.
 void finishCalibration(Context* ctx) {
     // The calibration is applied in the native orientation of the panel, before LVGL rotates the points.
     // The targets are shown, and the taps are reported, in the rotated display, so both go back to native first.
+    lvgl_lock();
     auto* display = lv_display_get_default();
     const int32_t nativeWidth = lv_display_get_original_horizontal_resolution(display);
     const int32_t nativeHeight = lv_display_get_original_vertical_resolution(display);
     const auto rotation = static_cast<Rotation>(lv_display_get_rotation(display));
+    lvgl_unlock();
 
     int32_t targetX[4], targetY[4], sampleX[4], sampleY[4];
     for (int i = 0; i < 4; i++) {
@@ -108,9 +129,7 @@ void finishCalibration(Context* ctx) {
     int32_t xMin, xMax, yMin, yMax;
     if (!computeRange(targetX, sampleX, 4, nativeWidth - 1, xMin, xMax) ||
         !computeRange(targetY, sampleY, 4, nativeHeight - 1, yMin, yMax)) {
-        lv_label_set_text(ctx->titleLabel, "Calibration Failed");
-        lv_label_set_text(ctx->hintLabel, "Range invalid. Tap to close.");
-        lv_obj_set_hidden(ctx->target, true);
+        showOutcome(ctx, "Calibration Failed", "Range invalid. Tap to close.");
         return;
     }
 
@@ -122,16 +141,12 @@ void finishCalibration(Context* ctx) {
     settings.yMax = yMax;
 
     if (!settings::touch::isValid(settings)) {
-        lv_label_set_text(ctx->titleLabel, "Calibration Failed");
-        lv_label_set_text(ctx->hintLabel, "Range invalid. Tap to close.");
-        lv_obj_set_hidden(ctx->target, true);
+        showOutcome(ctx, "Calibration Failed", "Range invalid. Tap to close.");
         return;
     }
 
     if (!settings::touch::save(settings)) {
-        lv_label_set_text(ctx->titleLabel, "Calibration Failed");
-        lv_label_set_text(ctx->hintLabel, "Unable to save settings. Tap to close.");
-        lv_obj_set_hidden(ctx->target, true);
+        showOutcome(ctx, "Calibration Failed", "Unable to save settings. Tap to close.");
         return;
     }
 
@@ -150,9 +165,7 @@ void finishCalibration(Context* ctx) {
     ctx->calibrationApplied = true;
 
     LOG_I(TAG, "Saved calibration x=[%d, %d] y=[%d, %d]", xMin, xMax, yMin, yMax);
-    lv_label_set_text(ctx->titleLabel, "Calibration Complete");
-    lv_label_set_text(ctx->hintLabel, "Touch anywhere to continue.");
-    lv_obj_set_hidden(ctx->target, true);
+    showOutcome(ctx, "Calibration Complete", "Touch anywhere to continue.");
 }
 
 void onPress(lv_event_t* event) {
@@ -178,12 +191,15 @@ void onPress(lv_event_t* event) {
         if (ctx->sampleCount < 4) {
             updateUi(ctx);
         } else {
-            finishCalibration(ctx);
+            task_event_group_signal(ctx->eventGroup, ctx->finishBit);
         }
         return;
     }
 
-    app_event_emit_close(ctx->appInstanceId);
+    // Taps while the calibration is being saved are ignored
+    if (ctx->finished) {
+        app_event_emit_close(ctx->appInstanceId);
+    }
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -253,6 +269,8 @@ int32_t appMain(int argc, char* argv[]) {
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
+    ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.finishBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -261,7 +279,12 @@ int32_t appMain(int argc, char* argv[]) {
 
     bool shouldClose = false;
     while (!shouldClose) {
-        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
+        uint32_t flags = 0;
+        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
+
+        if (flags & ctx.finishBit) {
+            finishCalibration(&ctx);
+        }
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -278,24 +301,27 @@ int32_t appMain(int argc, char* argv[]) {
 
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
+    task_event_group_release_bit(&event_group, ctx.finishBit);
     task_event_group_destruct(&event_group);
 
     // finishCalibration() already applied a new calibration on success. On cancel/failure,
     // restore whatever calibration was on disk before the block above cleared it.
     if (!ctx.calibrationApplied) {
         settings::touch::TouchCalibrationSettings settings;
-        lvgl_lock();
-        auto* endIndev = lvgl_pointer_get_default();
-        if (endIndev != nullptr && settings::touch::load(settings) && settings.enabled && settings::touch::isValid(settings)) {
+        if (settings::touch::load(settings) && settings.enabled && settings::touch::isValid(settings)) {
             LvglPointerCalibration calibration = {
                 .x_min = settings.xMin,
                 .x_max = settings.xMax,
                 .y_min = settings.yMin,
                 .y_max = settings.yMax,
             };
-            lvgl_pointer_set_calibration(endIndev, &calibration);
+            lvgl_lock();
+            auto* endIndev = lvgl_pointer_get_default();
+            if (endIndev != nullptr) {
+                lvgl_pointer_set_calibration(endIndev, &calibration);
+            }
+            lvgl_unlock();
         }
-        lvgl_unlock();
     }
 
     return ctx.calibrationApplied ? 0 : 2; // Ok : Error
