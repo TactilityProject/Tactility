@@ -35,8 +35,11 @@ private:
     void refresh();
     void rescan();
     void applyExclusive();
+    void awaitKeyRelease();
 
     std::vector<Device*> devices_;
     TickType_t lastRefresh_ = 0;
     bool exclusive_ = false;
+    /** Keyboards may keep reporting a held key as pressed, so a key only counts on its press edge */
+    uint32_t heldKey_ = 0;
 };

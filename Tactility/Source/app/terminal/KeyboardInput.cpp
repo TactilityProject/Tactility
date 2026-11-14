@@ -12,9 +12,29 @@ KeyboardInput::KeyboardInput() {
 }
 
 KeyboardInput::~KeyboardInput() {
+    awaitKeyRelease();
     setExclusive(false);
     for (Device* device : devices_) {
         device_put(device);
+    }
+}
+
+/** A key that is still down would otherwise be seen as a fresh press by the LVGL indevs that are enabled again */
+void KeyboardInput::awaitKeyRelease() {
+    constexpr TickType_t timeout = pdMS_TO_TICKS(1000);
+    const TickType_t start = xTaskGetTickCount();
+    bool anyPressed = true;
+    while (anyPressed && xTaskGetTickCount() - start < timeout) {
+        anyPressed = false;
+        for (Device* keyboard : devices_) {
+            KeyboardKeyData data;
+            if (device_is_ready(keyboard) && keyboard_read_key(keyboard, &data) == ERROR_NONE && data.pressed) {
+                anyPressed = true;
+            }
+        }
+        if (anyPressed) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
     }
 }
 
@@ -29,10 +49,14 @@ bool KeyboardInput::pump(KeyHandler onKey) {
         }
         while (true) {
             if (keyboard_read_key(keyboard, &data) != ERROR_NONE || !data.pressed) {
+                heldKey_ = 0;
                 break;
             }
-            if (onKey(data.key, data.ctrl, data.alt)) {
-                handled = true;
+            if (data.key != heldKey_) {
+                heldKey_ = data.key;
+                if (onKey(data.key, data.ctrl, data.alt)) {
+                    handled = true;
+                }
             }
             if (!data.continue_reading) {
                 break;
