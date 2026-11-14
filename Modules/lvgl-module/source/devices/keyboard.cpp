@@ -302,8 +302,18 @@ static void textarea_deleted(lv_event_t* event) {
     lv_keyboard_set_textarea(last_software_keyboard.object, nullptr);
 }
 
+// Registered after the keyboard's own handler, so it runs once the arrow buttons moved the cursor
+static void keyboard_key_pressed(lv_event_t* event) {
+    lv_obj_t* keyboard = lv_event_get_current_target_obj(event);
+    lv_obj_t* textarea = lv_keyboard_get_textarea(keyboard);
+    if (textarea != nullptr && !lv_obj_is_hidden(keyboard)) {
+        lvgl_software_keyboard_follow_cursor(&last_software_keyboard, textarea);
+    }
+}
+
 void lvgl_software_keyboard_construct(LvglSoftwareKeyboard* keyboard, lv_obj_t* parent) {
     keyboard->object = lv_keyboard_create(parent);
+    lv_obj_add_event_cb(keyboard->object, keyboard_key_pressed, LV_EVENT_VALUE_CHANGED, nullptr);
     lv_obj_set_hidden(keyboard->object, true);
     last_software_keyboard = *keyboard;
 }
