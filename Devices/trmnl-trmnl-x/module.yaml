@@ -1,0 +1,5 @@
+dependencies:
+  - Platforms/platform-esp32
+  - Drivers/tca95xx-16bit-module
+dts: trmnl,trmnl-x.dts
+dts-only: true
