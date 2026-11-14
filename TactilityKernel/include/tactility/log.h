@@ -6,6 +6,9 @@
 #include <esp_log.h>
 #endif
 
+#include <stdbool.h>
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,6 +21,22 @@ enum LogLevel {
     LOG_LEVEL_DEBUG, /*!< Extra information which is not necessary for normal use (values, pointers, sizes, etc). */
     LOG_LEVEL_VERBOSE /*!< Bigger chunks of debugging information, or frequent messages which can potentially flood the output. */
 };
+
+/**
+ * Receives every formatted log line, including colour codes and the trailing newline.
+ * Called on the log drain task with the listener registry locked, so it must be quick,
+ * must not block, must not log and must not call log_subscribe() or log_unsubscribe().
+ */
+typedef void (*LogListener)(const char* line, size_t length, void* context);
+
+/**
+ * Registers a listener. Nothing is stored while there are no listeners.
+ * @retval false when all listener slots are taken or the log queue isn't initialized
+ */
+bool log_subscribe(LogListener listener, void* context);
+
+/** Removes a listener. When this returns, the listener is not running and won't be called again. */
+void log_unsubscribe(LogListener listener, void* context);
 
 #ifndef ESP_PLATFORM
 

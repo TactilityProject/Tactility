@@ -2,6 +2,7 @@
 #include <tactility/log_queue.h>
 #include <tactility/log.h>
 
+#include <tactility/concurrent/mutex.h>
 #include <tactility/freertos/queue.h>
 #include <tactility/freertos/task.h>
 #include <tactility/memory.h>
@@ -26,6 +27,26 @@ struct LogQueueMessage {
 };
 
 std::atomic<QueueHandle_t> g_queue { nullptr };
+
+constexpr size_t LISTENER_CAPACITY = 4;
+
+struct ListenerSlot {
+    LogListener listener;
+    void* context;
+};
+
+Mutex g_listener_mutex;
+ListenerSlot g_listeners[LISTENER_CAPACITY] = {};
+
+void notify_listeners(const char* data, size_t length) {
+    mutex_lock(&g_listener_mutex);
+    for (const auto& slot : g_listeners) {
+        if (slot.listener != nullptr) {
+            slot.listener(data, length, slot.context);
+        }
+    }
+    mutex_unlock(&g_listener_mutex);
+}
 
 #if !defined(ESP_PLATFORM)
 thread_local bool g_direct_write = false;
@@ -60,6 +81,7 @@ void drain_task_main(void* context) {
     while (true) {
         if (xQueueReceive(queue, &message, portMAX_DELAY) == pdTRUE) {
             write_real(message.text, message.length);
+            notify_listeners(message.text, message.length);
         }
     }
 }
@@ -160,11 +182,39 @@ void log_queue_init(void) {
     }
 #endif
 
+    mutex_construct(&g_listener_mutex);
     g_queue.store(queue, std::memory_order_release); // published last
 
 #if defined(ESP_PLATFORM)
     esp_log_set_vprintf(log_queue_vprintf_hook);
 #endif
+}
+
+bool log_subscribe(LogListener listener, void* context) {
+    if (g_queue.load(std::memory_order_acquire) == nullptr) {
+        return false;
+    }
+    bool added = false;
+    mutex_lock(&g_listener_mutex);
+    for (auto& slot : g_listeners) {
+        if (slot.listener == nullptr) {
+            slot = { listener, context };
+            added = true;
+            break;
+        }
+    }
+    mutex_unlock(&g_listener_mutex);
+    return added;
+}
+
+void log_unsubscribe(LogListener listener, void* context) {
+    mutex_lock(&g_listener_mutex);
+    for (auto& slot : g_listeners) {
+        if (slot.listener == listener && slot.context == context) {
+            slot = {};
+        }
+    }
+    mutex_unlock(&g_listener_mutex);
 }
 
 #if !defined(ESP_PLATFORM)
