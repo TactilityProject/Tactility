@@ -180,10 +180,11 @@ def write_core_variables(output_file, device_properties: dict):
     # Exposes termios.h and tcgetattr()/tcsetattr() to firmware and side-loaded apps.
     output_file.write("CONFIG_VFS_SUPPORT_TERMIOS=y\n")
     output_file.write("# CPU\n")
-    output_file.write("CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y\n")
-    output_file.write("CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240\n")
-    output_file.write(f"CONFIG_{idf_target.upper()}_DEFAULT_CPU_FREQ_240=y\n")
-    output_file.write(f"CONFIG_{idf_target.upper()}_DEFAULT_CPU_FREQ_MHZ=240\n")
+    max_cpu_freq_mhz = 160 if idf_target == "esp32c3" else 240
+    output_file.write(f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{max_cpu_freq_mhz}=y\n")
+    output_file.write(f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ={max_cpu_freq_mhz}\n")
+    output_file.write(f"CONFIG_{idf_target.upper()}_DEFAULT_CPU_FREQ_{max_cpu_freq_mhz}=y\n")
+    output_file.write(f"CONFIG_{idf_target.upper()}_DEFAULT_CPU_FREQ_MHZ={max_cpu_freq_mhz}\n")
     if idf_target != "esp32": # Not available on original ESP32
         output_file.write("# Enable usage of MALLOC_CAP_EXEC on IRAM:\n")
         output_file.write("CONFIG_ESP_SYSTEM_MEMPROT=n\n")
