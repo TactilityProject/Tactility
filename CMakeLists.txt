@@ -51,6 +51,7 @@ if (DEFINED ENV{ESP_IDF_VERSION})
         "Libraries/minitar"
         "Libraries/ed25519"
         "Libraries/minmea"
+        "Libraries/nanosvg"
         "Libraries/QRCode"
         "Libraries/esp32-audio-codec"
     )
@@ -165,6 +166,7 @@ if (NOT DEFINED ENV{ESP_IDF_VERSION})
     add_subdirectory(Libraries/minitar)
     add_subdirectory(Libraries/ed25519)
     add_subdirectory(Libraries/minmea)
+    add_subdirectory(Libraries/nanosvg)
     add_subdirectory(Modules/lvgl-module)
     add_subdirectory(Modules/audio-decoder-module)
     add_subdirectory(Modules/binfont-module)

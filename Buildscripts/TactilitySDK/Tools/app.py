@@ -642,6 +642,12 @@ def package_intermediate_assets(target_path):
     if os.path.isdir("assets"):
         shutil.copytree("assets", os.path.join(target_path, "assets"), dirs_exist_ok=True)
 
+def package_intermediate_icon(target_path):
+    # icon.svg is the colour icon, icon_mono.svg the single colour one for mono displays. Either can be omitted.
+    for icon in ("icon.svg", "icon_mono.svg"):
+        if os.path.isfile(icon):
+            shutil.copy(icon, os.path.join(target_path, icon))
+
 def package_intermediate(platforms, manifest):
     target_path = os.path.abspath(os.path.join("build", "package-intermediate"))
     if os.path.isdir(target_path):
@@ -652,6 +658,7 @@ def package_intermediate(platforms, manifest):
     if not package_intermediate_binaries(target_path, platforms, manifest):
         return False
     package_intermediate_assets(target_path)
+    package_intermediate_icon(target_path)
     return True
 
 def package_name(manifest):

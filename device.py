@@ -213,6 +213,9 @@ def write_flash_variables(output_file, device_properties: dict):
     output_file.write("# Flash\n")
     flash_size_number = flash_size[:-2]
     output_file.write(f"CONFIG_ESPTOOLPY_FLASHSIZE_{flash_size_number}MB=y\n")
+    if flash_size_number == "4":
+        output_file.write("# The firmware doesn't fit in 4MB of flash when it is optimized for debugging\n")
+        output_file.write("CONFIG_COMPILER_OPTIMIZATION_SIZE=y\n")
     flash_mode = get_property_or_default(device_properties, "hardware.flashMode", 'QIO')
     output_file.write(f"CONFIG_FLASHMODE_{flash_mode}=y\n")
     esptool_flash_freq = get_property_or_none(device_properties, "hardware.esptoolFlashFreq")
@@ -337,6 +340,12 @@ def write_lvgl_variables(output_file, device_properties: dict):
             if not 0 <= percent <= 100:
                 exit_with_error(f"{key} must be between 0 and 100, but was: {percent}")
             output_file.write(f"{config}={percent}\n")
+    draw_buffer_lines_text = get_property_or_none(device_properties, "lvgl.drawBufferLines")
+    if draw_buffer_lines_text is not None:
+        draw_buffer_lines = safe_int(draw_buffer_lines_text, f"lvgl.drawBufferLines must be an integer, but was: '{draw_buffer_lines_text}'")
+        if not 0 <= draw_buffer_lines <= 4096:
+            exit_with_error(f"lvgl.drawBufferLines must be between 0 and 4096, but was: {draw_buffer_lines}")
+        output_file.write(f"CONFIG_TT_LVGL_DRAW_BUFFER_LINES={draw_buffer_lines}\n")
     font_size_text = get_property_or_none(device_properties, "font.defaultSize")
     if font_size_text is None:
         font_size_text = get_property_or_default(device_properties, "lvgl.fontSize", "14")

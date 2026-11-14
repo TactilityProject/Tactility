@@ -22,6 +22,17 @@
 
 #include <cstddef>
 
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
+
+// Lines per draw buffer from lvgl.drawBufferLines in device.properties, 0 for a tenth of the vertical resolution
+#ifdef CONFIG_TT_LVGL_DRAW_BUFFER_LINES
+constexpr uint16_t DRAW_BUFFER_LINES = CONFIG_TT_LVGL_DRAW_BUFFER_LINES;
+#else
+constexpr uint16_t DRAW_BUFFER_LINES = 0;
+#endif
+
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 constexpr auto* TAG = "lvgl";
@@ -253,7 +264,7 @@ void lvgl_devices_attach() {
             display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_CAP_MIRROR);
         bool prefer_external_ram_buffer = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM);
         struct LvglDisplayConfig lvgl_display_config = {
-            .buffer_height = (uint16_t)(vres > 10 ? vres / 10 : vres),
+            .buffer_height = DRAW_BUFFER_LINES > 0 ? (DRAW_BUFFER_LINES < vres ? DRAW_BUFFER_LINES : vres) : (uint16_t)(vres > 10 ? vres / 10 : vres),
             .double_buffer = false,
             .sw_rotate = !can_hw_rotate,
             .swap_bytes = swap_bytes,

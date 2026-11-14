@@ -110,6 +110,9 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     lvgl_grid_navigation_add(obj);
 
     toolbar->close_button = create_action_button(obj, size);
+    // A larger touch area than the visible button. LVGL only looks for a touched child inside the
+    // toolbar, so the area never exceeds the toolbar's own height.
+    lv_obj_set_ext_click_area(toolbar->close_button, getActionButtonSize(size) / 2);
     toolbar->close_button_image = lv_image_create(toolbar->close_button);
     lv_obj_align(toolbar->close_button_image, LV_ALIGN_CENTER, 0, 0);
 

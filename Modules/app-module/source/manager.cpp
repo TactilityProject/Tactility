@@ -26,7 +26,54 @@
 
 #define TAG "app_manager"
 
+static void notify_package_listeners() {
+    auto& ledger = app_ledger();
+    // Removing a listener waits for this, so a listener never runs after its removal returned
+    recursive_mutex_lock(&ledger.listener_dispatch_mutex);
+    mutex_lock(&ledger.mutex);
+    const auto listeners = ledger.package_listeners;
+    mutex_unlock(&ledger.mutex);
+    for (const auto& listener : listeners) {
+        // A listener that an earlier listener removed during this notification must not be called anymore.
+        // Other threads can't remove one meanwhile, as they wait for the dispatch mutex.
+        mutex_lock(&ledger.mutex);
+        const bool registered = std::ranges::any_of(ledger.package_listeners, [&](const AppPackageListener& existing) {
+            return existing.function == listener.function && existing.context == listener.context;
+        });
+        mutex_unlock(&ledger.mutex);
+        if (registered) {
+            listener.function(listener.context);
+        }
+    }
+    recursive_mutex_unlock(&ledger.listener_dispatch_mutex);
+}
+
 extern "C" {
+
+error_t app_manager_add_package_listener(AppPackageListenerFn listener, void* context) {
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    for (const auto& existing : ledger.package_listeners) {
+        if (existing.function == listener && existing.context == context) {
+            mutex_unlock(&ledger.mutex);
+            return ERROR_ALREADY_EXISTS;
+        }
+    }
+    ledger.package_listeners.push_back({ listener, context });
+    mutex_unlock(&ledger.mutex);
+    return ERROR_NONE;
+}
+
+void app_manager_remove_package_listener(AppPackageListenerFn listener, void* context) {
+    auto& ledger = app_ledger();
+    recursive_mutex_lock(&ledger.listener_dispatch_mutex);
+    mutex_lock(&ledger.mutex);
+    std::erase_if(ledger.package_listeners, [&](const AppPackageListener& existing) {
+        return existing.function == listener && existing.context == context;
+    });
+    mutex_unlock(&ledger.mutex);
+    recursive_mutex_unlock(&ledger.listener_dispatch_mutex);
+}
 
 error_t app_manager_add(const AppManifest* manifest) {
     auto& ledger = app_ledger();
@@ -107,6 +154,7 @@ error_t app_manager_add_package(const PackageManifest* package, const char* cons
     ledger.packages[package->id] = std::move(record);
     mutex_unlock(&ledger.mutex);
 
+    notify_package_listeners();
     return ERROR_NONE;
 }
 
@@ -135,6 +183,7 @@ error_t app_manager_remove_package(const char* package_id) {
     ledger.packages.erase(iterator);
     mutex_unlock(&ledger.mutex);
 
+    notify_package_listeners();
     return ERROR_NONE;
 }
 

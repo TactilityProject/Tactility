@@ -8,6 +8,12 @@
 
 namespace tt::app {
 
+/**
+ * @return false on devices without PSRAM, where SVG icons take too much memory.
+ * The tiles then show the icon font glyphs, and the SVG icons are never loaded.
+ */
+bool areSvgIconsEnabled();
+
 struct TileGridItem {
     /** Identifies the item across rebuilds, e.g. to keep it selected */
     std::string id;
@@ -16,6 +22,10 @@ struct TileGridItem {
     const char* icon;
     /** Marked with a badge */
     bool highlighted;
+    /** Shown instead of the icon glyph when set. Must outlive the tile. */
+    const lv_image_dsc_t* image = nullptr;
+    /** Paints the image in the icon colour, for single colour images. Also applies to an image from Callbacks::resolveImage. */
+    bool imageRecolor = false;
 };
 
 /**
@@ -34,10 +44,14 @@ public:
         void (*onLongPressed)(const TileGridItem& item, void* userData);
         /** Optional */
         void (*onKey)(const TileGridItem& item, uint32_t key, void* userData);
-        /** Optional: returns the icon of an item without one. Only called for the items on the shown page. */
+        /** Optional: returns the image of an item without an icon or image. Only called for the items on the shown page. */
+        const lv_image_dsc_t* (*resolveImage)(const TileGridItem& item, void* userData);
+        /** Optional: returns the icon font glyph of an item without an icon or an image, when resolveImage() gave none. Only called for the items on the shown page. */
         const char* (*resolveIcon)(const TileGridItem& item, void* userData);
         /** Optional: called after the user went to another page */
         void (*onPageChanged)(void* userData);
+        /** Optional: called on every rebuild, after the old tiles were deleted and before collect. Nothing shows the images of earlier items anymore. */
+        void (*onTilesCleared)(void* userData);
         void* userData;
     };
 
@@ -171,6 +185,7 @@ private:
     static void onNextPressed(lv_event_t* e);
     static void onGridGesture(lv_event_t* e);
     static void onBottomBarFocused(lv_event_t* e);
+    static void onTileStateChanged(lv_event_t* e);
     static void onTileClicked(lv_event_t* e);
     static void onTileLongPressed(lv_event_t* e);
     static void onTileKey(lv_event_t* e);

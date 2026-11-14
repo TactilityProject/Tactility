@@ -39,6 +39,13 @@ menu "Tactility App"
         range 0 100
         help
             Default size of widgets, from 0 (compact) to 100 (regular). Users can change it in the Appearance app.
+    config TT_LVGL_DRAW_BUFFER_LINES
+        int "Lines per LVGL draw buffer"
+        default 0
+        range 0 4096
+        help
+            Number of display lines in an LVGL draw buffer. 0 uses a tenth of the vertical resolution.
+            A smaller buffer uses less memory and needs more flushes.
     config TT_AUTO_START_APP_ID
         string "Auto Start App ID"
         default ""

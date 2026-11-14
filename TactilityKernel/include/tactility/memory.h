@@ -103,9 +103,7 @@ void* memory_calloc_with_policy(size_t count, size_t size, const struct MemoryPo
  * @param[in] size number of bytes to allocate
  * @return the allocated memory, or NULL on failure
  */
-inline void* memory_alloc(size_t size) {
-    return memory_alloc_with_policy(size, &MEMORY_POLICY_DEFAULT);
-}
+void* memory_alloc(size_t size);
 
 /**
  * @brief Allocates zero-initialized memory using MEMORY_POLICY_DEFAULT.
@@ -113,9 +111,7 @@ inline void* memory_alloc(size_t size) {
  * @param[in] size size of each element in bytes
  * @return the allocated memory, or NULL on failure
  */
-inline void* memory_calloc(size_t count, size_t size) {
-    return memory_calloc_with_policy(count, size, &MEMORY_POLICY_DEFAULT);
-}
+void* memory_calloc(size_t count, size_t size);
 
 /**
  * @brief Resizes a previous allocation using MEMORY_POLICY_DEFAULT. See memory_realloc_with_policy().
@@ -123,9 +119,7 @@ inline void* memory_calloc(size_t count, size_t size) {
  * @param[in] size new memory size in bytes
  * @return the (possibly moved) allocated memory, or NULL on failure - in which case ptr is left untouched
  */
-inline void* memory_realloc(void* ptr, size_t size) {
-    return memory_realloc_with_policy(ptr, size, &MEMORY_POLICY_DEFAULT);
-}
+void* memory_realloc(void* ptr, size_t size);
 
 /**
  * @brief Frees memory previously returned by one of the memory_* allocation functions.

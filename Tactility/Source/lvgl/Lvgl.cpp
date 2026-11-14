@@ -1,3 +1,4 @@
+#include <Tactility/app/launcher/LauncherMode.h>
 #include <Tactility/lvgl/Lvgl.h>
 
 #include <algorithm>
@@ -165,6 +166,10 @@ static void onLvglStarted() {
     lv_obj_set_style_text_font(lv_screen_active(), text_font, LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(lv_layer_top(), text_font, LV_STATE_DEFAULT);
     lvgl_unlock();
+
+    // The launcher shows the icons right away. Icons that are still current are kept.
+    app::launcher::loadPackageIcons(nullptr);
+    app::launcher::loadSettingsIcons(nullptr);
 
     window_manager_configure(windowManagerScreenInit);
     check(module_ensure_started(&lvgl_window_manager_module) == ERROR_NONE);

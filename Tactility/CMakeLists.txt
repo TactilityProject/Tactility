@@ -30,7 +30,6 @@ list(APPEND REQUIRES_LIST
     app-module
     app-hub-module
     coreutils-module
-    audio-decoder-module
     binfont-module
     lodepng-module
     c-symbols-module
@@ -58,6 +57,24 @@ list(APPEND REQUIRES_LIST
     lv_screenshot
     minitar
 )
+
+# A device can leave out the audio modules to save flash with "modules.audio=false" in device.properties
+set(TT_AUDIO_MODULES_ENABLED TRUE)
+if (EXISTS "${DEVICETREE_LOCATION}/device.properties")
+    file(READ "${DEVICETREE_LOCATION}/device.properties" device_properties_audio_content)
+    # The properties parser accepts spaces around the key and the value
+    if (device_properties_audio_content MATCHES "(^|\n)[ \t]*modules\\.audio[ \t]*=[ \t]*false[ \t]*(\r|\n|$)")
+        set(TT_AUDIO_MODULES_ENABLED FALSE)
+    endif ()
+endif ()
+if (TT_AUDIO_MODULES_ENABLED)
+    list(APPEND REQUIRES_LIST audio-decoder-module)
+elseif (EXISTS "${DEVICETREE_LOCATION}/module.yaml")
+    file(READ "${DEVICETREE_LOCATION}/module.yaml" device_module_yaml_content)
+    if (device_module_yaml_content MATCHES "audio-stream-module")
+        message(FATAL_ERROR "${TACTILITY_DEVICE_ID} has modules.audio=false but its module.yaml depends on audio-stream-module")
+    endif ()
+endif ()
 
 # Check if device has Bluetooth enabled
 # Fixes the sdkconfig bluetooth enable options from getting nuked on non-P4+C6 builds when idf build runs
@@ -122,7 +139,7 @@ execute_process(
 # so the new component's include dirs never reach the compiler until a fullclean.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${DEVICETREE_LOCATION}/module.yaml"
-    "${DEVICETREE_LOCATION}/device.properties" # due to the "hardware.bluetooth = true" search in this file from this CMakeLists.txt
+    "${DEVICETREE_LOCATION}/device.properties" # due to the "hardware.bluetooth = true" and "modules.audio=false" searches in this file from this CMakeLists.txt
 )
 
 execute_process(
@@ -169,6 +186,10 @@ if (DEFINED ENV{ESP_IDF_VERSION})
 
     idf_component_optional_requires(PRIVATE bt)
 
+    if (TT_AUDIO_MODULES_ENABLED)
+        target_compile_definitions(${COMPONENT_LIB} PRIVATE TT_AUDIO_MODULES_ENABLED)
+    endif ()
+
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(${COMPONENT_LIB} PUBLIC -Wno-unused-variable)
     endif ()
@@ -189,6 +210,9 @@ else ()
     add_executable(Tactility ${SOURCE_FILES})
     target_include_directories(Tactility PUBLIC Include/)
     target_include_directories(Tactility PRIVATE Private/)
+    if (TT_AUDIO_MODULES_ENABLED)
+        target_compile_definitions(Tactility PRIVATE TT_AUDIO_MODULES_ENABLED)
+    endif ()
     target_link_libraries(Tactility PRIVATE ${TACTILITY_REQUIRES_LIST})
     # Exports Tactility's own symbols (-rdynamic) so a dlopen()ed app-posix-module app can resolve
     # calls back into it - the OS-native equivalent of app-esp32-module's custom symbol resolver.

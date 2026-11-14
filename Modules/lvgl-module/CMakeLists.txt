@@ -34,6 +34,7 @@ list(APPEND REQUIRES_LIST
     binfont-module
     lodepng-module
     lvgl
+    nanosvg
     QRCode
 )
 

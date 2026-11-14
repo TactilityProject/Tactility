@@ -31,6 +31,11 @@ class View final {
     AppStream inputDialogStream {};
     uint8_t inputDialogBuffer[256] {};
 
+    /** Rasterized file type icons, indexed by FileIcon. Freed after the widgets are gone. */
+    lv_draw_buf_t* icons[9] = {};
+    /** Mono icons are painted in the theme's icon colour */
+    bool iconRecolor[9] = {};
+
     TileGrid grid;
 
     /** Shown in the toolbar while file operations are pending */
@@ -45,6 +50,7 @@ class View final {
     uint32_t installDialogId = 0;
 
     static std::vector<TileGridItem> collectItems(void* userData);
+    static const lv_image_dsc_t* resolveImage(const TileGridItem& item, void* userData);
     static const char* resolveIcon(const TileGridItem& item, void* userData);
     static void onTileClicked(const TileGridItem& item, void* userData);
     static void onTileLongPressed(const TileGridItem& item, void* userData);
@@ -89,6 +95,9 @@ public:
 
     /** Shows the directories that were read by the file operations task. Runs on the app task. */
     void onFileOpsCompleted();
+
+    /** Rasterizes the file type icons. Call before the widgets are created. */
+    void loadIcons();
 
     void init(uint32_t appInstanceId, lv_obj_t* parent);
     /** Forgets the widgets, which are deleted when another window covers this one. Runs on the LVGL task with the lock held. */

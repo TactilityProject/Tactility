@@ -138,7 +138,11 @@ void buildTimestampedPath(const char* suffix, char* out, size_t outLen) {
     static uint32_t sequence = 0;
     char fname[64];
     strftime(fname, sizeof(fname), "/%Y%m%d_%H%M%S", &tm_info);
-    snprintf(out, outLen, "%s%s_%04u%s", dir, fname, static_cast<unsigned>(sequence++), suffix);
+    const int written = snprintf(out, outLen, "%s%s_%04u%s", dir, fname, static_cast<unsigned>(sequence++), suffix);
+    if (written < 0 || static_cast<size_t>(written) >= outLen) {
+        LOG_E("Camera", "Path is too long");
+        out[0] = '\0';
+    }
 }
 
 bool saveJpeg(Context* ctx) {

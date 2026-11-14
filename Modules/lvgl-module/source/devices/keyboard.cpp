@@ -16,8 +16,13 @@ static LvglSoftwareKeyboard last_software_keyboard = {
     .object = nullptr
 };
 
-// The top-level object that is moved up to keep the textarea above the software keyboard
+// The top-level object that is made shorter to keep the textarea above the software keyboard, and its height before that
+static lv_obj_t* resized_object;
+static int32_t resized_original_height;
+// The top-level object that is moved up when making it shorter wasn't enough to show the textarea
 static lv_obj_t* panned_object;
+// The top-level object of the textarea that the keyboard is shown for
+static lv_obj_t* active_top_object;
 
 static lv_group_t* keyboard_group;
 // The group that keypad indevs are attached to: keyboard_group, or the group of an overlay
@@ -244,6 +249,8 @@ void lvgl_hardware_keyboard_remove_custom(lv_indev_t* indev) {
 }
 
 static void lvgl_software_keyboard_unpan();
+static void lvgl_software_keyboard_pan(LvglSoftwareKeyboard* keyboard, lv_obj_t* textarea);
+static void lvgl_software_keyboard_follow_cursor(LvglSoftwareKeyboard* keyboard, lv_obj_t* textarea);
 
 static void textarea_show_keyboard(lv_event_t* event) {
     // Re-checked here rather than gated once at lvgl_keyboard_add_textarea() time, so a hardware
@@ -258,6 +265,18 @@ static void textarea_show_keyboard(lv_event_t* event) {
     }
 }
 
+// A multi-line textarea can be as high as the screen, so it is the line with the cursor that has to stay above the keyboard
+static void textarea_cursor_moved(lv_event_t* event) {
+    if (last_software_keyboard.object == nullptr || lv_obj_is_hidden(last_software_keyboard.object)) {
+        return;
+    }
+    lv_obj_t* target = lv_event_get_current_target_obj(event);
+    if (lv_keyboard_get_textarea(last_software_keyboard.object) != target) {
+        return;
+    }
+    lvgl_software_keyboard_follow_cursor(&last_software_keyboard, target);
+}
+
 static void textarea_hide_keyboard(lv_event_t* event) {
     if (last_software_keyboard.object == nullptr) {
         return;
@@ -270,8 +289,31 @@ static void textarea_hide_keyboard(lv_event_t* event) {
     lvgl_software_keyboard_hide(&last_software_keyboard);
 }
 
+// The keyboard outlives the textarea, and LVGL keeps the pointer to it
+static void textarea_deleted(lv_event_t* event) {
+    if (last_software_keyboard.object == nullptr) {
+        return;
+    }
+    lv_obj_t* target = lv_event_get_current_target_obj(event);
+    if (lv_keyboard_get_textarea(last_software_keyboard.object) != target) {
+        return;
+    }
+    lvgl_software_keyboard_hide(&last_software_keyboard);
+    lv_keyboard_set_textarea(last_software_keyboard.object, nullptr);
+}
+
+// Registered after the keyboard's own handler, so it runs once the arrow buttons moved the cursor
+static void keyboard_key_pressed(lv_event_t* event) {
+    lv_obj_t* keyboard = lv_event_get_current_target_obj(event);
+    lv_obj_t* textarea = lv_keyboard_get_textarea(keyboard);
+    if (textarea != nullptr && !lv_obj_is_hidden(keyboard)) {
+        lvgl_software_keyboard_follow_cursor(&last_software_keyboard, textarea);
+    }
+}
+
 void lvgl_software_keyboard_construct(LvglSoftwareKeyboard* keyboard, lv_obj_t* parent) {
     keyboard->object = lv_keyboard_create(parent);
+    lv_obj_add_event_cb(keyboard->object, keyboard_key_pressed, LV_EVENT_VALUE_CHANGED, nullptr);
     lv_obj_set_hidden(keyboard->object, true);
     last_software_keyboard = *keyboard;
 }
@@ -282,14 +324,31 @@ void lvgl_software_keyboard_destruct(LvglSoftwareKeyboard* keyboard) {
     lv_obj_delete(keyboard->object);
     keyboard->object = nullptr;
     panned_object = nullptr;
+    resized_object = nullptr;
+    active_top_object = nullptr;
 
     last_software_keyboard = *keyboard;
 }
 
-void lvgl_software_keyboard_show(LvglSoftwareKeyboard* keyboard, lv_obj_t* textarea) {
-    assert(keyboard->object != nullptr);
-    lv_obj_set_hidden(keyboard->object, false);
-    lv_keyboard_set_textarea(keyboard->object, textarea);
+// The bottom of the area of the textarea that has to be visible: the line with the cursor, or the whole textarea when it is smaller
+static int32_t textarea_visible_bottom(lv_obj_t* textarea) {
+    lv_area_t textarea_area;
+    lv_obj_get_coords(textarea, &textarea_area);
+    lv_obj_t* label = lv_textarea_get_label(textarea);
+    if (label == nullptr) {
+        return textarea_area.y2;
+    }
+
+    lv_point_t cursor_position;
+    lv_label_get_letter_pos(label, lv_textarea_get_cursor_pos(textarea), &cursor_position);
+    lv_area_t label_area;
+    lv_obj_get_coords(label, &label_area);
+    const lv_font_t* font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+    const int32_t line_bottom = label_area.y1 + cursor_position.y + lv_font_get_line_height(font) + lv_obj_get_style_pad_bottom(textarea, LV_PART_MAIN);
+    return LV_MIN(textarea_area.y2, line_bottom);
+}
+
+static void lvgl_software_keyboard_pan(LvglSoftwareKeyboard* keyboard, lv_obj_t* textarea) {
     lvgl_software_keyboard_unpan();
 
     lv_obj_t* keyboard_parent = lv_obj_get_parent(keyboard->object);
@@ -303,14 +362,51 @@ void lvgl_software_keyboard_show(LvglSoftwareKeyboard* keyboard, lv_obj_t* texta
 
     lv_obj_update_layout(keyboard->object);
     lv_area_t keyboard_area;
-    lv_area_t textarea_area;
     lv_obj_get_coords(keyboard->object, &keyboard_area);
-    lv_obj_get_coords(textarea, &textarea_area);
-    const int32_t overlap = textarea_area.y2 + LV_DPX(4) - keyboard_area.y1;
-    if (overlap > 0) {
-        lv_obj_set_style_translate_y(top, -overlap, LV_STATE_DEFAULT);
-        panned_object = top;
+
+    // The app gets shorter, so it keeps its layout and the statusbar stays in view
+    lv_area_t top_area;
+    lv_obj_get_coords(top, &top_area);
+    const int32_t shorter_height = keyboard_area.y1 - top_area.y1;
+    if (shorter_height > 0 && shorter_height < lv_obj_get_height(top)) {
+        resized_original_height = lv_obj_get_style_height(top, LV_PART_MAIN);
+        resized_object = top;
+        lv_obj_set_height(top, shorter_height);
+        lv_obj_update_layout(top);
+        // A scrollable parent of the textarea shows it again, in the shorter space
+        lv_obj_scroll_to_view_recursive(textarea, LV_ANIM_OFF);
     }
+
+    active_top_object = top;
+    lvgl_software_keyboard_follow_cursor(keyboard, textarea);
+}
+
+// An app with a fixed layout can still have the cursor below the keyboard, so then the app is moved up.
+// The height is not changed again while typing, as that lays out the app and scrolls the textarea.
+static void lvgl_software_keyboard_follow_cursor(LvglSoftwareKeyboard* keyboard, lv_obj_t* textarea) {
+    if (active_top_object == nullptr) {
+        return;
+    }
+    if (panned_object != nullptr) {
+        lv_obj_set_style_translate_y(panned_object, 0, LV_STATE_DEFAULT);
+        panned_object = nullptr;
+    }
+
+    lv_obj_update_layout(keyboard->object);
+    lv_area_t keyboard_area;
+    lv_obj_get_coords(keyboard->object, &keyboard_area);
+    const int32_t overlap = textarea_visible_bottom(textarea) + LV_DPX(4) - keyboard_area.y1;
+    if (overlap > 0) {
+        lv_obj_set_style_translate_y(active_top_object, -overlap, LV_STATE_DEFAULT);
+        panned_object = active_top_object;
+    }
+}
+
+void lvgl_software_keyboard_show(LvglSoftwareKeyboard* keyboard, lv_obj_t* textarea) {
+    assert(keyboard->object != nullptr);
+    lv_obj_set_hidden(keyboard->object, false);
+    lv_keyboard_set_textarea(keyboard->object, textarea);
+    lvgl_software_keyboard_pan(keyboard, textarea);
 }
 
 static void lvgl_software_keyboard_unpan() {
@@ -318,6 +414,11 @@ static void lvgl_software_keyboard_unpan() {
         lv_obj_set_style_translate_y(panned_object, 0, LV_STATE_DEFAULT);
         panned_object = nullptr;
     }
+    if (resized_object != nullptr) {
+        lv_obj_set_height(resized_object, resized_original_height);
+        resized_object = nullptr;
+    }
+    active_top_object = nullptr;
 }
 
 void lvgl_software_keyboard_hide(LvglSoftwareKeyboard* keyboard) {
@@ -336,8 +437,11 @@ LvglSoftwareKeyboard* lvgl_software_keyboard_get_last() {
 
 void lvgl_keyboard_add_textarea(LvglSoftwareKeyboard* keyboard, lv_obj_t* textarea) {
     lv_obj_add_event_cb(textarea, textarea_show_keyboard, LV_EVENT_FOCUSED, nullptr);
+    lv_obj_add_event_cb(textarea, textarea_cursor_moved, LV_EVENT_VALUE_CHANGED, nullptr);
+    lv_obj_add_event_cb(textarea, textarea_cursor_moved, LV_EVENT_KEY, nullptr);
     lv_obj_add_event_cb(textarea, textarea_hide_keyboard, LV_EVENT_DEFOCUSED, nullptr);
     lv_obj_add_event_cb(textarea, textarea_hide_keyboard, LV_EVENT_READY, nullptr);
+    lv_obj_add_event_cb(textarea, textarea_deleted, LV_EVENT_DELETE, nullptr);
     lv_obj_add_event_cb(textarea, textarea_hide_keyboard, LV_EVENT_DELETE, nullptr);
 
     // lv_obj_t auto-remove themselves from the group when they are destroyed (last checked in LVGL 8.3)

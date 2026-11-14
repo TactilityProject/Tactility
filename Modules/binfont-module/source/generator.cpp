@@ -43,6 +43,7 @@ constexpr uint8_t CMAP_FORMAT_SPARSE_TINY = 3;
 constexpr uint32_t CMAP_MAX_RANGE = 0xFFFF;
 
 constexpr MemoryPolicy EXTERNAL_PREFERRED = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
+constexpr MemoryPolicy DEFAULT_POLICY = { .required = 0, .desired = 0, .alignment = 0 };
 
 class ByteBuffer {
     uint8_t* data = nullptr;
@@ -287,7 +288,7 @@ public:
         for (uint32_t codepoint = first; codepoint <= last && !failed; codepoint++) {
             if (count == capacity) {
                 const size_t new_capacity = capacity ? capacity * 2 : 256;
-                auto* new_data = static_cast<uint32_t*>(memory_realloc(data, new_capacity * sizeof(uint32_t)));
+                auto* new_data = static_cast<uint32_t*>(memory_realloc_with_policy(data, new_capacity * sizeof(uint32_t), &DEFAULT_POLICY));
                 if (new_data == nullptr) {
                     failed = true;
                     return;
@@ -575,7 +576,7 @@ error_t binfont_generate(const BinFontGeneratorConfig* config, uint8_t** out_dat
         codepoint_count = all_codepoints.getCount();
     }
 
-    auto* glyphs = static_cast<GlyphInfo*>(memory_alloc(codepoint_count * sizeof(GlyphInfo)));
+    auto* glyphs = static_cast<GlyphInfo*>(memory_alloc_with_policy(codepoint_count * sizeof(GlyphInfo), &DEFAULT_POLICY));
     if (glyphs == nullptr) {
         memory_free(owned_ttf);
         return ERROR_OUT_OF_MEMORY;
