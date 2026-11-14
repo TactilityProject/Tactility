@@ -114,7 +114,7 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     // toolbar, so the area never exceeds the toolbar's own height.
     lv_obj_set_ext_click_area(toolbar->close_button, getActionButtonSize(size) / 2);
     toolbar->close_button_image = lv_image_create(toolbar->close_button);
-    lv_obj_align(toolbar->close_button_image, LV_ALIGN_CENTER, 1, 1);
+    lv_obj_align(toolbar->close_button_image, LV_ALIGN_CENTER, 0, 0);
 
     toolbar->title_label = lv_label_create(obj);
     lv_obj_set_style_text_font(toolbar->title_label, getToolbarFont(size), LV_STATE_DEFAULT);
@@ -161,18 +161,14 @@ static lv_obj_t* toolbar_add_button_action(lv_obj_t* obj, const char* imageOrBut
     lv_obj_t* action_button = create_action_button(obj, lvgl_theme_get_size());
     lv_obj_add_event_cb(action_button, callback, LV_EVENT_SHORT_CLICKED, user_data);
     lv_obj_t* button_content;
-    bool is_symbol = false;
     if (isImage) {
         button_content = lv_image_create(action_button);
         lv_image_set_src(button_content, imageOrButton);
-        is_symbol = lv_image_src_get_type(imageOrButton) == LV_IMAGE_SRC_SYMBOL;
     } else {
         button_content = lv_label_create(action_button);
         lv_label_set_text(button_content, imageOrButton);
     }
-    // Symbol glyphs sit one pixel up and left of the button centre
-    int32_t symbol_offset = is_symbol ? 1 : 0;
-    lv_obj_align(button_content, LV_ALIGN_CENTER, symbol_offset, symbol_offset);
+    lv_obj_align(button_content, LV_ALIGN_CENTER, 0, 0);
 
     return action_button;
 }
