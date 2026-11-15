@@ -27,6 +27,8 @@ constexpr size_t MAX_CONTACTS = 64;
 constexpr size_t MAX_CHANNELS = 8;
 constexpr size_t SEEN_PACKETS_LIMIT = 64;
 constexpr uint64_t ADVERT_INTERVAL_MS = 12ULL * 3600 * 1000;
+/** How long to wait before a flooded advert that failed is tried again */
+constexpr uint64_t ADVERT_RETRY_MS = 60 * 1000;
 /** How long to wait for the acknowledgement of one attempt */
 constexpr uint64_t ACK_TIMEOUT_MS = 20 * 1000;
 /** The attempt number of a message is 2 bits wide, so there are 4 attempts */
@@ -100,6 +102,8 @@ struct Backend {
     uint32_t lastFloodAdvertTime = 0;
     /** The advert that follows a start waits for a valid clock, to see whether the last flooded one is recent enough */
     bool floodAdvertPending = false;
+    /** A failed flooded advert isn't tried again before this uptime */
+    uint64_t nextFloodAdvertMs = 0;
 };
 
 uint64_t getMillis() {
@@ -385,10 +389,14 @@ bool sendAdvert(Backend* backend, MeshCoreRoute route = MeshCoreRoute::Flood) {
         LOG_I(TAG, "Advert sent as \"%s\"", name);
     }
     if (route == MeshCoreRoute::Flood) {
-        backend->lastAdvertMs = getMillis();
-        if (sent && isWallTimeValid()) {
-            backend->lastFloodAdvertTime = static_cast<uint32_t>(time(nullptr));
-            saveLastFloodAdvertTime(backend);
+        if (!sent) {
+            backend->nextFloodAdvertMs = getMillis() + ADVERT_RETRY_MS;
+        } else {
+            backend->lastAdvertMs = getMillis();
+            if (isWallTimeValid()) {
+                backend->lastFloodAdvertTime = static_cast<uint32_t>(time(nullptr));
+                saveLastFloodAdvertTime(backend);
+            }
         }
     }
     return sent;
@@ -448,6 +456,22 @@ bool onGroupText(Backend* backend, const MeshCorePacket& packet, float rssi, flo
     return false;
 }
 
+/** Identifies a message by its time, sender and text, and not by its attempt number, so that its retries get the same id */
+uint64_t getTextId(uint32_t timestamp, const uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE], const tt::std::string& text) {
+    uint64_t hash = 14695981039346656037ULL;
+    const auto add = [&hash](uint8_t byte) { hash = (hash ^ byte) * 1099511628211ULL; };
+    for (size_t i = 0; i < sizeof(timestamp); i++) {
+        add(static_cast<uint8_t>(timestamp >> (8 * i)));
+    }
+    for (size_t i = 0; i < MESHCORE_PUBLIC_KEY_SIZE; i++) {
+        add(publicKey[i]);
+    }
+    for (char character : text) {
+        add(static_cast<uint8_t>(character));
+    }
+    return hash;
+}
+
 /** @return false when the message isn't for this node or its sender is unknown */
 bool onTextMessage(Backend* backend, const MeshCorePacket& packet, float rssi, float snr) {
     uint8_t destinationHash;
@@ -471,9 +495,7 @@ bool onTextMessage(Backend* backend, const MeshCorePacket& packet, float rssi, f
         meshcore_build_ack(ackHash, &ack);
         transmit(backend, ack, 0);
 
-        uint32_t senderId;
-        memcpy(&senderId, contact.publicKey, sizeof(senderId));
-        const uint64_t textId = (static_cast<uint64_t>(text.timestamp) << 32) | senderId;
+        const uint64_t textId = getTextId(text.timestamp, contact.publicKey, text.text);
         if (std::find(backend->recentTexts.begin(), backend->recentTexts.end(), textId) != backend->recentTexts.end()) {
             return true;
         }
@@ -871,17 +893,15 @@ bool retry(Backend* backend, PendingSend& send) {
 void onTick(void* context) {
     auto* backend = static_cast<Backend*>(context);
     const uint64_t nowMs = getMillis();
-    if (backend->floodAdvertPending && isWallTimeValid()) {
-        backend->floodAdvertPending = false;
+    if (backend->floodAdvertPending && nowMs >= backend->nextFloodAdvertMs && isWallTimeValid()) {
         const auto now = static_cast<uint32_t>(time(nullptr));
         // A saved time in the future was saved with a wrong clock
         const bool recent = backend->lastFloodAdvertTime != 0 && backend->lastFloodAdvertTime <= now &&
             now - backend->lastFloodAdvertTime < ADVERT_INTERVAL_MS / 1000;
-        if (!recent) {
-            sendAdvert(backend);
-        }
+        // A failed advert stays pending
+        backend->floodAdvertPending = !recent && !sendAdvert(backend);
     }
-    if (nowMs - backend->lastAdvertMs >= ADVERT_INTERVAL_MS) {
+    if (nowMs >= backend->nextFloodAdvertMs && nowMs - backend->lastAdvertMs >= ADVERT_INTERVAL_MS) {
         sendAdvert(backend);
     }
     for (auto iterator = backend->pendingSends.begin(); iterator != backend->pendingSends.end();) {
@@ -950,6 +970,11 @@ error_t sendText(void* context, uint32_t seq, const MeshAddress* to, uint8_t cha
     send.deadlineMs = getMillis() + ACK_TIMEOUT_MS;
     backend->pendingSends.push_back(send);
     return ERROR_NONE;
+}
+
+void cancelSend(void* context, uint32_t seq) {
+    auto* backend = static_cast<Backend*>(context);
+    std::erase_if(backend->pendingSends, [seq](const PendingSend& send) { return send.seq == seq; });
 }
 
 error_t getChannels(void* context, MeshChannel* channels, size_t maxCount, size_t* count) {
@@ -1025,5 +1050,6 @@ const MeshBackendApi meshcore_backend_api = {
     .on_node_name_changed = onNodeNameChanged,
     .remove_channel = removeChannel,
     .send_advert = sendAdvertOnRequest,
+    .cancel_send = cancelSend,
     .features = MESH_FEATURE_NAMED_CHANNELS | MESH_FEATURE_KEYED_CHANNELS | MESH_FEATURE_ADVERTS,
 };

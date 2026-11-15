@@ -17,6 +17,7 @@
 
 #include <tactility/Memory.hpp>
 #include <tactility/std/deque.hpp>
+#include <tactility/std/string.hpp>
 #include <tactility/std/vector.hpp>
 
 #include <mesh/mesh.h>
@@ -96,7 +97,7 @@ struct Context {
     tt::std::vector<MeshChannel> channels;
     tt::std::vector<MeshContact> contacts;
     /** The events since the app started, oldest first. Changed with the LVGL lock held. */
-    tt::std::deque<::std::string> inspectLines;
+    tt::std::deque<tt::std::string> inspectLines;
     // Valid while the window is shown
     lv_obj_t* root = nullptr;
     lv_obj_t* networkHeader = nullptr;
@@ -172,7 +173,7 @@ void onBackPressed(lv_event_t* event) {
 }
 
 /** Requires the LVGL lock */
-lv_obj_t* addInspectLabel(Context* ctx, const ::std::string& line) {
+lv_obj_t* addInspectLabel(Context* ctx, const tt::std::string& line) {
     auto* label = lv_label_create(ctx->content);
     lv_obj_set_width(label, LV_PCT(100));
     lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
@@ -364,7 +365,7 @@ const char* getDeliveryName(MeshDeliveryState delivery) {
 
 void addInspectLine(Context* ctx, ::std::string&& line) {
     lvgl_lock();
-    ctx->inspectLines.push_back(::std::move(line));
+    ctx->inspectLines.push_back(tt::std::string(line.c_str()));
     const bool trimmed = ctx->inspectLines.size() > INSPECT_LINE_LIMIT;
     if (trimmed) {
         ctx->inspectLines.pop_front();

@@ -12,6 +12,7 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/std/deque.hpp>
+#include <tactility/std/map.hpp>
 #include <tactility/std/vector.hpp>
 
 #include <mesh/mesh.h>
@@ -40,6 +41,13 @@ namespace {
 constexpr auto* TAG = "MeshConversation";
 constexpr size_t MESSAGE_LIMIT = 30;
 
+/** The counts of a message that is retried or repeated. They are only known while this app listens. */
+struct DeliveryDetail {
+    uint8_t retryAttempt = 0;
+    uint8_t retryMax = 0;
+    uint8_t repeats = 0;
+};
+
 struct Context {
     uint32_t appInstanceId;
     TaskEventGroup* eventGroup = nullptr;
@@ -55,6 +63,8 @@ struct Context {
     ::std::string title;
     /** Oldest first */
     tt::std::deque<MeshMessage> messages;
+    /** By seq of the message. Changed with the LVGL lock held, as the widgets are rebuilt from it. */
+    tt::std::map<uint32_t, DeliveryDetail> details;
     // Valid while the window is shown
     lv_obj_t* statusLabel = nullptr;
     lv_obj_t* list = nullptr;
@@ -66,7 +76,7 @@ const MeshAddress* getPeer(const Context* ctx) {
 }
 
 /** How far a message got. Channel messages are never acknowledged by their recipients. */
-::std::string getReceiptText(MeshDeliveryState delivery, uint8_t retryAttempt = 0, uint8_t retryMax = 0, uint8_t repeats = 0) {
+::std::string getReceiptText(MeshDeliveryState delivery, const DeliveryDetail& detail = {}) {
     switch (delivery) {
         case MESH_DELIVERY_QUEUED:
             return tr("Sending...");
@@ -75,12 +85,12 @@ const MeshAddress* getPeer(const Context* ctx) {
         case MESH_DELIVERY_SENT:
             return tr("Sent");
         case MESH_DELIVERY_RETRYING:
-            return retryMax == 0 ? ::std::string(tr("Retrying...")) : i18n::format(tr("Retrying {}/{}..."), { ::std::to_string(retryAttempt), ::std::to_string(retryMax) });
+            return detail.retryMax == 0 ? ::std::string(tr("Retrying...")) : i18n::format(tr("Retrying {}/{}..."), { ::std::to_string(detail.retryAttempt), ::std::to_string(detail.retryMax) });
         case MESH_DELIVERY_REPEATED:
-            if (repeats == 0) {
+            if (detail.repeats == 0) {
                 return tr("Heard repeats");
             }
-            return repeats == 1 ? ::std::string(tr("Heard 1 repeat")) : i18n::format(tr("Heard {} repeats"), { ::std::to_string(repeats) });
+            return detail.repeats == 1 ? ::std::string(tr("Heard 1 repeat")) : i18n::format(tr("Heard {} repeats"), { ::std::to_string(detail.repeats) });
         case MESH_DELIVERY_DELIVERED:
             return ::std::string(LV_SYMBOL_OK " ") + tr("Delivered");
         case MESH_DELIVERY_FAILED:
@@ -90,6 +100,12 @@ const MeshAddress* getPeer(const Context* ctx) {
         default:
             return "";
     }
+}
+
+/** Requires the LVGL lock */
+::std::string getStatusText(const Context* ctx, const MeshMessage& message) {
+    const auto detail = ctx->details.find(message.seq);
+    return getReceiptText(message.delivery, detail != ctx->details.end() ? detail->second : DeliveryDetail {});
 }
 
 /** Contact chats show the delivery state under the message instead */
@@ -201,7 +217,7 @@ void createMessageItem(Context* ctx, const MeshMessage& message) {
 
     // Time and delivery state
     auto* metaLabel = lv_label_create(header);
-    lv_label_set_text(metaLabel, getMetaText(message, (!ctx->isContact && message.outgoing) ? getReceiptText(message.delivery) : "").c_str());
+    lv_label_set_text(metaLabel, getMetaText(message, (!ctx->isContact && message.outgoing) ? getStatusText(ctx, message) : "").c_str());
     lv_obj_set_style_text_font(metaLabel, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
 
     auto* text = lv_label_create(content);
@@ -216,7 +232,7 @@ void createMessageItem(Context* ctx, const MeshMessage& message) {
         lv_obj_set_style_text_align(status, align, LV_STATE_DEFAULT);
         lv_obj_set_style_text_font(status, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
         lv_obj_set_style_text_color(status, getMutedTextColor(status), LV_STATE_DEFAULT);
-        lv_label_set_text(status, getReceiptText(message.delivery).c_str());
+        lv_label_set_text(status, getStatusText(ctx, message).c_str());
     }
 }
 
@@ -360,11 +376,13 @@ void onMessage(Context* ctx, uint32_t seq) {
     }
     ctx->messages.push_back(message);
     const bool trimmed = ctx->messages.size() > MESSAGE_LIMIT;
+    const uint32_t trimmedSeq = trimmed ? ctx->messages.front().seq : 0;
     if (trimmed) {
         ctx->messages.pop_front();
     }
 
     lvgl_lock();
+    ctx->details.erase(trimmedSeq);
     if (ctx->list != nullptr) {
         if (trimmed) {
             lv_obj_delete(lv_obj_get_child(ctx->list, 0));
@@ -382,6 +400,11 @@ void onDelivery(Context* ctx, uint32_t seq, MeshDeliveryState delivery, uint8_t 
         }
         message.delivery = delivery;
         lvgl_lock();
+        if (delivery == MESH_DELIVERY_RETRYING || delivery == MESH_DELIVERY_REPEATED) {
+            ctx->details[seq] = { .retryAttempt = retryAttempt, .retryMax = retryMax, .repeats = repeats };
+        } else {
+            ctx->details.erase(seq);
+        }
         if (ctx->list != nullptr) {
             const uint32_t count = lv_obj_get_child_count(ctx->list);
             for (uint32_t i = 0; i < count; i++) {
@@ -390,7 +413,7 @@ void onDelivery(Context* ctx, uint32_t seq, MeshDeliveryState delivery, uint8_t 
                     auto* content = lv_obj_get_child(item, 0);
                     lv_obj_set_style_border_color(content, getBarColor(message, getSenderColor(ctx->list, message)), LV_STATE_DEFAULT);
                     auto* header = lv_obj_get_child(content, 0);
-                    const ::std::string status = getReceiptText(delivery, retryAttempt, retryMax, repeats);
+                    const ::std::string status = getStatusText(ctx, message);
                     lv_label_set_text(lv_obj_get_child(header, 1), getMetaText(message, ctx->isContact ? "" : status).c_str());
                     if (ctx->isContact && message.outgoing) {
                         lv_label_set_text(lv_obj_get_child(content, 2), status.c_str());

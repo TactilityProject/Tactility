@@ -2084,8 +2084,14 @@ error_t mesh_cancel(uint32_t seq) {
         return ERROR_INVALID_STATE;
     }
     setDelivery(host, seq, MESH_DELIVERY_CANCELLED);
-    post(host, [host, seq] {
+    char backend[MESH_BACKEND_ID_MAX_LENGTH + 1];
+    strncpy(backend, message.backend, sizeof(backend) - 1);
+    backend[sizeof(backend) - 1] = '\0';
+    post(host, [host, seq, backend = std::string(backend)] {
         std::erase_if(host->txQueue, [seq](const Frame& frame) { return frame.seq == seq; });
+        if (host->api != nullptr && host->api->cancel_send != nullptr && backend == host->api->id) {
+            host->api->cancel_send(host->backend, seq);
+        }
     });
     unlock();
     return ERROR_NONE;

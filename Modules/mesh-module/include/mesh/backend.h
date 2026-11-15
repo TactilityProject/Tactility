@@ -118,6 +118,9 @@ struct MeshBackendApi {
      */
     error_t (*send_advert)(void* backend, enum MeshAdvertRoute route);
 
+    /** Optional. The message with sequence number @a seq was cancelled, so it must not be sent again. */
+    void (*cancel_send)(void* backend, uint32_t seq);
+
     /** The MeshFeature values that the backend supports, combined, see mesh_supports() */
     uint32_t features;
 };
