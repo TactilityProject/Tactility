@@ -33,6 +33,8 @@ constexpr uint64_t ADVERT_RETRY_MS = 60 * 1000;
 constexpr uint64_t ACK_TIMEOUT_MS = 20 * 1000;
 /** The attempt number of a message is 2 bits wide, so there are 4 attempts */
 constexpr uint8_t MAX_RETRIES = 3;
+/** The deadline of a message whose frame hasn't been transmitted yet. The wait for the ACK starts once it was. */
+constexpr uint64_t WAITING_FOR_TRANSMISSION = UINT64_MAX;
 /** The attempts over a known path come first, and flooding takes over for the others */
 constexpr uint8_t PATH_ATTEMPTS = 2;
 constexpr size_t RECENT_TEXTS_LIMIT = 32;
@@ -886,7 +888,7 @@ bool retry(Backend* backend, PendingSend& send) {
     send.attempt = attempt;
     mesh_host_set_retry(backend->host, send.seq, attempt, MAX_RETRIES);
     send.ackHashes[attempt] = ackHash;
-    send.deadlineMs = getMillis() + ACK_TIMEOUT_MS;
+    send.deadlineMs = WAITING_FOR_TRANSMISSION;
     return true;
 }
 
@@ -901,7 +903,8 @@ void onTick(void* context) {
         // A failed advert stays pending
         backend->floodAdvertPending = !recent && !sendAdvert(backend);
     }
-    if (nowMs >= backend->nextFloodAdvertMs && nowMs - backend->lastAdvertMs >= ADVERT_INTERVAL_MS) {
+    // Without a valid clock the advert would carry an uptime as its time, which other nodes ignore
+    if (nowMs >= backend->nextFloodAdvertMs && nowMs - backend->lastAdvertMs >= ADVERT_INTERVAL_MS && isWallTimeValid()) {
         sendAdvert(backend);
     }
     for (auto iterator = backend->pendingSends.begin(); iterator != backend->pendingSends.end();) {
@@ -967,9 +970,24 @@ error_t sendText(void* context, uint32_t seq, const MeshAddress* to, uint8_t cha
         return ERROR_RESOURCE;
     }
     send.ackHashes[0] = ackHash;
-    send.deadlineMs = getMillis() + ACK_TIMEOUT_MS;
+    send.deadlineMs = WAITING_FOR_TRANSMISSION;
     backend->pendingSends.push_back(send);
     return ERROR_NONE;
+}
+
+void onFrameDone(void* context, uint32_t seq, bool transmitted) {
+    auto* backend = static_cast<Backend*>(context);
+    for (auto iterator = backend->pendingSends.begin(); iterator != backend->pendingSends.end(); ++iterator) {
+        if (iterator->seq != seq) {
+            continue;
+        }
+        if (transmitted) {
+            iterator->deadlineMs = getMillis() + ACK_TIMEOUT_MS;
+        } else {
+            backend->pendingSends.erase(iterator);
+        }
+        return;
+    }
 }
 
 void cancelSend(void* context, uint32_t seq) {
@@ -1050,6 +1068,7 @@ const MeshBackendApi meshcore_backend_api = {
     .on_node_name_changed = onNodeNameChanged,
     .remove_channel = removeChannel,
     .send_advert = sendAdvertOnRequest,
+    .on_frame_done = onFrameDone,
     .cancel_send = cancelSend,
     .features = MESH_FEATURE_NAMED_CHANNELS | MESH_FEATURE_KEYED_CHANNELS | MESH_FEATURE_ADVERTS,
 };

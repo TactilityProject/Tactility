@@ -8,3 +8,6 @@ msgstr "Les données ne tiennent pas dans un code QR"
 
 msgid "QR Code"
 msgstr "Code QR"
+
+msgid "The QR code doesn't fit on this display"
+msgstr "Le code QR ne tient pas sur cet écran"

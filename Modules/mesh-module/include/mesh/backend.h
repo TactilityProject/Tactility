@@ -118,6 +118,13 @@ struct MeshBackendApi {
      */
     error_t (*send_advert)(void* backend, enum MeshAdvertRoute route);
 
+    /**
+     * Optional. A frame that was sent with mesh_host_transmit() and a @a seq other than 0 left the host's queue.
+     * A frame can wait there for a long time, for example while the duty cycle budget is used up.
+     * @param[in] transmitted false when it failed, in which case the message was marked as failed
+     */
+    void (*on_frame_done)(void* backend, uint32_t seq, bool transmitted);
+
     /** Optional. The message with sequence number @a seq was cancelled, so it must not be sent again. */
     void (*cancel_send)(void* backend, uint32_t seq);
 

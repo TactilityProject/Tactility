@@ -55,9 +55,20 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     const error_t error = lvgl_qr_set_data(qr, text);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to create the QR code: %s", error_to_string(error));
+    }
+    // The view draws nothing when its area is smaller than the code with 1 pixel modules
+    lv_obj_update_layout(parent);
+    const int32_t available = LV_MIN(lv_obj_get_content_width(qr), lv_obj_get_content_height(qr));
+    const char* problem = nullptr;
+    if (error != ERROR_NONE) {
+        problem = tr("The data doesn't fit in a QR code");
+    } else if (available < lvgl_qr_get_min_size(qr)) {
+        problem = tr("The QR code doesn't fit on this display");
+    }
+    if (problem != nullptr) {
         lv_obj_delete(qr);
         auto* label = lv_label_create(parent);
-        lv_label_set_text(label, tr("The data doesn't fit in a QR code"));
+        lv_label_set_text(label, problem);
         lv_obj_set_style_pad_all(label, LV_DPX(8), LV_STATE_DEFAULT);
     }
 }

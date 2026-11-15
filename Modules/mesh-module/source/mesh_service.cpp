@@ -636,6 +636,10 @@ void deactivateBackend(MeshHost* host) {
     for (uint32_t seq : host->store.findOutgoing(id, MESH_DELIVERY_QUEUED)) {
         setDelivery(host, seq, MESH_DELIVERY_BLOCKED);
     }
+    // The retries went with the backend, so there is nothing left that could finish these
+    for (uint32_t seq : host->store.findOutgoing(id, MESH_DELIVERY_RETRYING)) {
+        setDelivery(host, seq, MESH_DELIVERY_FAILED);
+    }
     host->nodes.clear();
     host->activeBackend[0] = '\0';
     unlock();
@@ -887,6 +891,12 @@ uint32_t getAirtimeUsedMs(MeshHost* host, uint64_t nowMs) {
     return used;
 }
 
+void notifyFrameDone(MeshHost* host, uint32_t seq, bool transmitted) {
+    if (seq != 0 && host->api != nullptr && host->api->on_frame_done != nullptr) {
+        host->api->on_frame_done(host->backend, seq, transmitted);
+    }
+}
+
 void pumpTx(MeshHost* host) {
     if (host->txInFlight || host->txQueue.empty() || host->api == nullptr) {
         return;
@@ -917,6 +927,7 @@ void pumpTx(MeshHost* host) {
             setDelivery(host, host->txFrame.seq, MESH_DELIVERY_FAILED);
             unlock();
         }
+        notifyFrameDone(host, host->txFrame.seq, false);
         return;
     }
     host->txInFlight = true;
@@ -940,6 +951,7 @@ void onTxEvent(MeshHost* host, const RadioTxEvent& event) {
                 }
                 unlock();
             }
+            notifyFrameDone(host, seq, true);
             break;
         case RADIO_TRANSMISSION_STATE_CHANNEL_BUSY:
             host->txInFlight = false;
@@ -957,6 +969,7 @@ void onTxEvent(MeshHost* host, const RadioTxEvent& event) {
                 setDelivery(host, seq, MESH_DELIVERY_FAILED);
                 unlock();
             }
+            notifyFrameDone(host, seq, false);
             break;
         default:
             break;

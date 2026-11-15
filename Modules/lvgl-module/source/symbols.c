@@ -155,6 +155,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     // lvgl_qr
     DEFINE_MODULE_SYMBOL(lvgl_qr_create),
     DEFINE_MODULE_SYMBOL(lvgl_qr_set_data),
+    DEFINE_MODULE_SYMBOL(lvgl_qr_get_min_size),
     DEFINE_MODULE_SYMBOL(lvgl_qr_set_colors),
 
     // ui_assets
