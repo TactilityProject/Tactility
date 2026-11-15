@@ -305,3 +305,26 @@ TEST_CASE("setting the same locale again doesn't call listeners") {
     CHECK(listenerCalls == 1);
     localisation_remove_locale_listener(onLocaleChanged, &increment);
 }
+
+namespace {
+int firstCalls = 0;
+int secondCalls = 0;
+int secondContext = 0;
+void removableSecond(void*) { secondCalls++; }
+void removingFirst(void*) {
+    firstCalls++;
+    localisation_remove_locale_listener(removableSecond, &secondContext);
+}
+}
+
+TEST_CASE("a listener that is removed during a notification is not called") {
+    ModuleScope scope;
+    firstCalls = 0;
+    secondCalls = 0;
+    REQUIRE(localisation_add_locale_listener(removingFirst, nullptr) == ERROR_NONE);
+    REQUIRE(localisation_add_locale_listener(removableSecond, &secondContext) == ERROR_NONE);
+    REQUIRE(localisation_set_locale("nl-NL") == ERROR_NONE);
+    CHECK(firstCalls == 1);
+    CHECK(secondCalls == 0);
+    localisation_remove_locale_listener(removingFirst, nullptr);
+}

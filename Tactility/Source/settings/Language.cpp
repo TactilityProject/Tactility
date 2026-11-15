@@ -61,15 +61,18 @@ const LanguageInfo& getInfo(Language language) {
 
 } // namespace
 
-void setLanguage(Language newLanguage) {
+bool setLanguage(Language newLanguage) {
     SystemSettings properties;
     if (!loadSystemSettings(properties)) {
-        return;
+        return false;
     }
 
     properties.language = newLanguage;
-    saveSystemSettings(properties);
-    localisation_set_locale(getInfo(newLanguage).tag);
+    // The locale only follows the setting when it was saved, so a restart keeps the language that is shown
+    if (!saveSystemSettings(properties)) {
+        return false;
+    }
+    return localisation_set_locale(getInfo(newLanguage).tag) == ERROR_NONE;
 }
 
 Language getLanguage() {

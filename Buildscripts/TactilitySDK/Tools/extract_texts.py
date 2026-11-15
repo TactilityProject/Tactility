@@ -11,55 +11,44 @@ import os
 import re
 import sys
 
+from po2tlc import decode_literal
+
 EXTENSIONS = (".c", ".cc", ".cpp", ".h", ".hpp")
 STRING = r'((?:"(?:[^"\\\n]|\\.)*"\s*)+)'
 CALL = re.compile(r'\btr\s*\(\s*' + STRING + r'\)|\btrc\s*\(\s*' + STRING + r',\s*' + STRING + r'\)')
-
-
-SIMPLE_ESCAPES = {"n": 10, "t": 9, "r": 13, "a": 7, "b": 8, "f": 12, "v": 11, "\\": 92, '"': 34, "'": 39, "?": 63}
-
-
-def decode_literal(body: str) -> bytes:
-    """@return the bytes of the C string literal with the text between the quotes, with its escape sequences decoded"""
-    result = bytearray()
-    index = 0
-    while index < len(body):
-        character = body[index]
-        if character != "\\" or index + 1 >= len(body):
-            result += character.encode("utf-8")
-            index += 1
-            continue
-        index += 1
-        escape = body[index]
-        if escape in SIMPLE_ESCAPES:
-            result.append(SIMPLE_ESCAPES[escape])
-            index += 1
-        elif escape in "01234567":
-            end = index
-            while end < len(body) and end < index + 3 and body[end] in "01234567":
-                end += 1
-            result.append(int(body[index:end], 8) & 0xFF)
-            index = end
-        elif escape == "x":
-            end = index + 1
-            while end < len(body) and body[end] in "0123456789abcdefABCDEF":
-                end += 1
-            result.append(int(body[index + 1:end] or "0", 16) & 0xFF)
-            index = end
-        elif escape in "uU":
-            digits = 4 if escape == "u" else 8
-            result += chr(int(body[index + 1:index + 1 + digits], 16)).encode("utf-8")
-            index += 1 + digits
-        else:
-            result += ("\\" + escape).encode("utf-8")
-            index += 1
-    return bytes(result)
 
 
 def join_literals(text: str) -> str:
     """Decodes each literal on its own, so an escape can't swallow the characters of the next literal, then joins them"""
     decoded = b"".join(decode_literal(body) for body in re.findall(r'"((?:[^"\\\n]|\\.)*)"', text))
     return decoded.decode("utf-8", errors="replace")
+
+
+def strip_comments(source: str) -> str:
+    """@return the source without comments. Newlines stay, so line numbers match. Comment markers inside literals are kept."""
+    result = []
+    index = 0
+    while index < len(source):
+        character = source[index]
+        if character in "\"'":
+            end = index + 1
+            while end < len(source) and source[end] != character and source[end] != "\n":
+                end += 2 if source[end] == "\\" else 1
+            result.append(source[index:end + 1])
+            index = end + 1
+        elif source.startswith("//", index):
+            end = source.find("\n", index)
+            index = len(source) if end < 0 else end
+        elif source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            end = len(source) if end < 0 else end + 2
+            result.append("\n" * source.count("\n", index, end))
+            result.append(" ")
+            index = end
+        else:
+            result.append(character)
+            index += 1
+    return "".join(result)
 
 
 def escape_po(text: str) -> str:
@@ -73,6 +62,7 @@ def is_skipped_folder(name: str) -> bool:
 def scan_file(path: str, entries: dict):
     with open(path, "r", encoding="utf-8", errors="replace") as file:
         source = file.read()
+    source = strip_comments(source)
     for match in CALL.finditer(source):
         line = source.count("\n", 0, match.start()) + 1
         if match.group(1) is not None:

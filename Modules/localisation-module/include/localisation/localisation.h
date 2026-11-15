@@ -87,9 +87,17 @@ error_t localisation_get_locale(char* out_tag, size_t out_tag_size);
  */
 error_t localisation_add_system_catalog(const char* locale, const void* data, size_t size);
 
-/** @return ERROR_NONE, or ERROR_OUT_OF_MEMORY when the list is full or memory ran out */
+/**
+ * @brief Adds a listener that is called after the locale changed. It runs on the task that changed the locale.
+ * @return ERROR_NONE, or ERROR_OUT_OF_MEMORY when the list is full or memory ran out
+ */
 error_t localisation_add_locale_listener(L10nLocaleListener listener, void* context);
 
+/**
+ * @brief Removes a listener. A listener that was removed is not called anymore, also not by a notification that is in progress.
+ * When the listener is running on another task, this waits until it returns, so the context can be freed afterwards.
+ * A listener can remove itself or another listener from inside a notification.
+ */
 void localisation_remove_locale_listener(L10nLocaleListener listener, void* context);
 
 #ifdef __cplusplus

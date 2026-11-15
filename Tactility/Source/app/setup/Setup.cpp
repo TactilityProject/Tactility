@@ -492,7 +492,15 @@ int32_t appMain(int argc, char* argv[]) {
         // Saving the language reads and writes files, and the texts of the steps are made again in it
         runOnAppTask(&ctx, [&ctx, choice] {
             if (choice >= 0 && choice < static_cast<int32_t>(ctx.languageOrder.size())) {
-                settings::setLanguage(static_cast<settings::Language>(ctx.languageOrder[choice]));
+                if (!settings::setLanguage(static_cast<settings::Language>(ctx.languageOrder[choice]))) {
+                    // Shows the language that is still set
+                    const auto current = static_cast<int32_t>(settings::getLanguage());
+                    for (size_t i = 0; i < ctx.languageOrder.size(); i++) {
+                        if (ctx.languageOrder[i] == current) {
+                            ctx.languageStep.choice = static_cast<int32_t>(i);
+                        }
+                    }
+                }
             }
             ctx.rebuildSteps();
             lvgl_lock();

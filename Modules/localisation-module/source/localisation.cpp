@@ -4,6 +4,7 @@
 #include <localisation/module.h>
 
 #include <tactility/concurrent/mutex.h>
+#include <tactility/freertos/task.h>
 #include <tactility/module.h>
 #include <tactility/memory.h>
 
@@ -62,6 +63,9 @@ struct State {
     Catalog active_system;
     Listener listeners[MAX_LISTENERS] = {};
     size_t listener_count = 0;
+    /** The listener that is being called by localisation_set_locale(), and on which task */
+    Listener running_listener = {};
+    TaskHandle_t running_task = nullptr;
 };
 
 State* state = nullptr;
@@ -348,7 +352,27 @@ error_t localisation_set_locale(const char* tag) {
     mutex_unlock(&state->mutex);
 
     for (size_t i = 0; i < listener_count; i++) {
+        // A listener that was removed since the copy was made is not called anymore
+        mutex_lock(&state->mutex);
+        bool registered = false;
+        for (size_t j = 0; j < state->listener_count; j++) {
+            registered = registered || (state->listeners[j].function == listeners[i].function && state->listeners[j].context == listeners[i].context);
+        }
+        if (registered) {
+            state->running_listener = listeners[i];
+            state->running_task = xTaskGetCurrentTaskHandle();
+        }
+        mutex_unlock(&state->mutex);
+        if (!registered) {
+            continue;
+        }
+
         listeners[i].function(listeners[i].context);
+
+        mutex_lock(&state->mutex);
+        state->running_listener = Listener {};
+        state->running_task = nullptr;
+        mutex_unlock(&state->mutex);
     }
     return ERROR_NONE;
 }
@@ -414,6 +438,12 @@ void localisation_remove_locale_listener(L10nLocaleListener listener, void* cont
             state->listeners[i] = state->listeners[--state->listener_count];
             break;
         }
+    }
+    // Returns after the listener finished when it is being called on another task, so its context can be freed
+    while (state->running_listener.function == listener && state->running_listener.context == context && state->running_task != xTaskGetCurrentTaskHandle()) {
+        mutex_unlock(&state->mutex);
+        vTaskDelay(1);
+        mutex_lock(&state->mutex);
     }
     mutex_unlock(&state->mutex);
 }

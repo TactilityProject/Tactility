@@ -102,13 +102,14 @@ int32_t appMain(int argc, char* argv[]) {
             const int32_t requested = ctx.requested.exchange(-1);
             if (requested >= 0 && requested < LANGUAGE_COUNT && requested != ctx.current) {
                 // Saves the setting and reloads the catalogs, which read files
-                settings::setLanguage(static_cast<settings::Language>(requested));
-                ctx.current = requested;
-                lvgl_lock();
-                if (ctx.list != nullptr) {
-                    populateList(&ctx);
+                if (settings::setLanguage(static_cast<settings::Language>(requested))) {
+                    ctx.current = requested;
+                    lvgl_lock();
+                    if (ctx.list != nullptr) {
+                        populateList(&ctx);
+                    }
+                    lvgl_unlock();
                 }
-                lvgl_unlock();
             }
         }
 

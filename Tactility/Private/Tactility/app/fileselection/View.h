@@ -29,6 +29,8 @@ class View final {
     ::std::function<void(::std::vector<::std::string> paths)> on_file_selected;
 
     lv_obj_t* select_label = nullptr;
+    /** The text of the path field, kept so the field can be rebuilt and the result doesn't need the widgets */
+    tt::std::string pathText;
 
     void onTapFile(const ::std::string& path, const ::std::string& filename, lv_obj_t* button);
     /** Shows or hides the select button, depending on the path text and the selected files */
@@ -56,6 +58,8 @@ public:
     void onFileOpsCompleted();
 
     void init(lv_obj_t* parent);
+    /** Forgets the widgets, which are deleted when another window covers this one. Runs on the LVGL task with the lock held. */
+    void destroyWidgets();
     void update();
 
     void onNavigateUpPressed();

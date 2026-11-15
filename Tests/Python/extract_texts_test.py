@@ -56,6 +56,14 @@ class ExtractTextsTest(unittest.TestCase):
         # The catalog stores key and value as NUL terminated strings: the key is what the program looks up
         self.assertIn(b"Delete\0Verwijderen\0", catalog)
 
+    def test_comments_between_literals_and_arguments(self):
+        keys = self.extract_keys('void f() { tr("Hello " /* explanation */ "world"); trc("verb" /* a */, // b\n "Open" /* c */ "ed"); }')
+        self.assertEqual(keys, {"Hello world", "verb\x04Opened"})
+
+    def test_comment_markers_inside_literals_are_kept(self):
+        keys = self.extract_keys('void f() { tr("Visit http://x /* y */"); /* tr("Commented out"); */ // tr("Also");\n }')
+        self.assertEqual(keys, {"Visit http://x /* y */"})
+
     def test_build_folders_are_skipped(self):
         with tempfile.TemporaryDirectory() as directory:
             os.makedirs(os.path.join(directory, "build"))
@@ -66,3 +74,32 @@ class ExtractTextsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PoParseTest(unittest.TestCase):
+    def parse(self, content):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "test.po")
+            with open(path, "w", encoding="utf-8") as file:
+                file.write(content)
+            return po2tlc.parse_po(path)
+
+    def test_numeric_and_hex_escapes_are_decoded(self):
+        entries = self.parse('msgid "Save \\046 Close"\nmsgstr "Opslaan \\x26 sluiten"\n')
+        self.assertEqual(entries, {"Save & Close": "Opslaan & sluiten"})
+
+    def test_utf8_bytes_from_escapes(self):
+        self.assertEqual(self.parse('msgid "Cafe"\nmsgstr "caf\\303\\251"\n'), {"Cafe": "café"})
+
+    def test_fuzzy_flag_belongs_to_the_next_entry(self):
+        # No blank line between the entries
+        entries = self.parse('msgid "A"\nmsgstr "a"\n#, fuzzy\nmsgid "B"\nmsgstr "b"\n')
+        self.assertEqual(entries, {"A": "a"})
+
+    def test_singular_entry_after_a_plural_entry(self):
+        entries = self.parse('msgid "One"\nmsgid_plural "Many"\nmsgstr[0] "een"\nmsgstr[1] "veel"\nmsgid "Next"\nmsgstr "volgende"\n')
+        self.assertEqual(entries, {"Next": "volgende"})
+
+    def test_context_entry_after_an_entry(self):
+        entries = self.parse('msgid "A"\nmsgstr "a"\nmsgctxt "verb"\nmsgid "B"\nmsgstr "b"\n')
+        self.assertEqual(entries, {"A": "a", "verb\x04B": "b"})

@@ -469,7 +469,19 @@ void View::onTileKey(const TileGridItem& item, uint32_t key, void* userData) {
 }
 
 void View::onPageChanged(void* userData) {
-    static_cast<View*>(userData)->hideOverlay();
+    auto* view = static_cast<View*>(userData);
+    const auto entries = view->state->getSelectedEntries();
+    if (entries.empty()) {
+        view->hideOverlay();
+        return;
+    }
+    // The selection and its actions stay, and the tiles of the new page that are selected show it
+    for (const auto& name : entries) {
+        lv_obj_t* tile = view->grid.findTile(name);
+        if (tile != nullptr) {
+            lv_obj_add_state(tile, LV_STATE_CHECKED);
+        }
+    }
 }
 
 bool View::findDirent(const ::std::string& name, dirent& out_entry) {
@@ -1215,7 +1227,16 @@ void View::processPasteQueue() {
             state->setPendingAction(State::ActionPaste);
             const ::std::vector<::std::string> choices = { tr("Overwrite"), tr("Cancel") };
             pasteDialogId = alertdialog::start(appInstanceId, tr("File exists"), i18n::format(tr("Overwrite \"{}\"?"), { entry_name }), choices);
-            return;
+            if (pasteDialogId != 0) {
+                return;
+            }
+            // The answer never comes, so the paste goes on with the other sources
+            LOG_E(TAG, "Failed to start the overwrite confirmation for %s", dst.c_str());
+            state->setPendingPasteSource("", false);
+            state->clearPendingPasteDstStat();
+            state->setPendingAction(State::ActionNone);
+            addPasteFailure(i18n::format(tr("\"{}\" could not be copied."), { entry_name }));
+            continue;
         }
 
         doPaste(src, pasteIsCut, dst);

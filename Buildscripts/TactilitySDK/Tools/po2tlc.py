@@ -21,23 +21,51 @@ def fnv1a(key: bytes) -> int:
     return value
 
 
+SIMPLE_ESCAPES = {"n": 10, "t": 9, "r": 13, "a": 7, "b": 8, "f": 12, "v": 11, "\\": 92, '"': 34, "'": 39, "?": 63}
+
+
+def decode_literal(body: str) -> bytes:
+    """@return the bytes of the text between the quotes of a C or PO string, with its escape sequences decoded"""
+    result = bytearray()
+    index = 0
+    while index < len(body):
+        character = body[index]
+        if character != "\\" or index + 1 >= len(body):
+            result += character.encode("utf-8")
+            index += 1
+            continue
+        index += 1
+        escape = body[index]
+        if escape in SIMPLE_ESCAPES:
+            result.append(SIMPLE_ESCAPES[escape])
+            index += 1
+        elif escape in "01234567":
+            end = index
+            while end < len(body) and end < index + 3 and body[end] in "01234567":
+                end += 1
+            result.append(int(body[index:end], 8) & 0xFF)
+            index = end
+        elif escape == "x":
+            end = index + 1
+            while end < len(body) and body[end] in "0123456789abcdefABCDEF":
+                end += 1
+            result.append(int(body[index + 1:end] or "0", 16) & 0xFF)
+            index = end
+        elif escape in "uU":
+            digits = 4 if escape == "u" else 8
+            result += chr(int(body[index + 1:index + 1 + digits], 16)).encode("utf-8")
+            index += 1 + digits
+        else:
+            result += ("\\" + escape).encode("utf-8")
+            index += 1
+    return bytes(result)
+
+
 def unquote(text: str) -> str:
     text = text.strip()
     if len(text) < 2 or text[0] != '"' or text[-1] != '"':
         raise ValueError(f"Expected a quoted string: {text}")
-    result = []
-    index = 1
-    end = len(text) - 1
-    escapes = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "\\": "\\"}
-    while index < end:
-        character = text[index]
-        if character == "\\" and index + 1 < end:
-            index += 1
-            result.append(escapes.get(text[index], "\\" + text[index]))
-        else:
-            result.append(character)
-        index += 1
-    return "".join(result)
+    return decode_literal(text[1:-1]).decode("utf-8", errors="replace")
 
 
 def parse_po(path: str) -> dict:
@@ -59,16 +87,22 @@ def parse_po(path: str) -> dict:
         field = None
         fuzzy = False
 
+    def is_translated():
+        return "msgstr" in current or "plural_msgstr" in current
+
     with open(path, "r", encoding="utf-8") as file:
         for number, raw_line in enumerate(file, 1):
             line = raw_line.strip()
             if not line:
                 finish()
-            elif line.startswith("#,"):
-                if "fuzzy" in line:
-                    fuzzy = True
-            elif line.startswith("#"):
+            elif line.startswith("#~"):
                 continue
+            elif line.startswith("#"):
+                # Comments before an entry belong to it, so an entry that is complete ends first: a blank line is optional
+                if is_translated():
+                    finish()
+                if line.startswith("#,") and "fuzzy" in line:
+                    fuzzy = True
             elif line.startswith('"'):
                 if field is None:
                     raise ValueError(f"{path}:{number}: string without a field")
@@ -76,15 +110,19 @@ def parse_po(path: str) -> dict:
             else:
                 name, _, value = line.partition(" ")
                 if name.startswith("msgstr["):
-                    name = "msgid_plural"
-                if name not in ("msgctxt", "msgid", "msgid_plural", "msgstr"):
+                    name = "plural_msgstr"
+                if name not in ("msgctxt", "msgid", "msgid_plural", "msgstr", "plural_msgstr"):
                     raise ValueError(f"{path}:{number}: unknown field {name}")
+                # A new entry starts after a translated one, singular or plural. Its comments were handled above.
+                if name in ("msgctxt", "msgid") and is_translated():
+                    finish()
                 if name == "msgctxt" and "msgid" in current:
                     finish()
-                if name == "msgid" and "msgstr" in current:
-                    finish()
                 field = name
-                current[field] = unquote(value)
+                if name == "plural_msgstr":
+                    current[name] = current.get(name, "") + unquote(value)
+                else:
+                    current[name] = unquote(value)
         finish()
     return entries
 

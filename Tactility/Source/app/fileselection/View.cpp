@@ -86,7 +86,11 @@ void View::onFileOpsCompleted() {
         navigationPending = false;
         if (state->takeCompletedNavigation()) {
             lvgl_lock();
-            lv_textarea_set_text(path_textarea, state->getCurrentPathWithTrailingSlash().c_str());
+            // The widgets are gone while another window covers this one: they are rebuilt from the state
+            pathText = state->getCurrentPathWithTrailingSlash().c_str();
+            if (path_textarea != nullptr) {
+                lv_textarea_set_text(path_textarea, pathText.c_str());
+            }
             lvgl_unlock();
             update();
         }
@@ -140,12 +144,11 @@ void View::onDirEntryPressed(uint32_t index, lv_obj_t* button) {
     if (!paths.empty()) {
         return paths;
     }
-    const char* text = lv_textarea_get_text(path_textarea);
-    if (text == nullptr || strlen(text) == 0) {
+    if (pathText.empty()) {
         return paths;
     }
     // Whether it is a file or a folder is checked by the app task, as that needs file operations
-    ::std::string path = text;
+    ::std::string path = pathText.c_str();
     while (path.length() > 1 && path.back() == '/') {
         path.pop_back();
     }
@@ -154,6 +157,9 @@ void View::onDirEntryPressed(uint32_t index, lv_obj_t* button) {
 }
 
 void View::updateSelectButton() {
+    if (select_button == nullptr) {
+        return;
+    }
     auto paths = getResultPaths();
     lv_obj_set_hidden(select_button, paths.empty());
     if (state->getOptions().multiple && paths.size() > 1) {
@@ -176,6 +182,7 @@ void View::onSelectButtonPressed(lv_event_t* event) {
 
 void View::onPathTextChanged(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    view->pathText = lv_textarea_get_text(view->path_textarea);
     view->updateSelectButton();
 }
 
@@ -207,6 +214,12 @@ void View::onNavigateUpPressed() {
 void View::update() {
     if (!lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
         LOG_E(TAG, "Mutex acquisition timeout (%s)", "lvgl");
+        return;
+    }
+
+    // The widgets are gone while another window covers this one
+    if (dir_entry_list == nullptr) {
+        lvgl_unlock();
         return;
     }
 
@@ -266,7 +279,17 @@ void View::init(lv_obj_t* parent) {
     lv_obj_set_hidden(select_button, true);
 
     update();
+    // Rebuilt from the cached text. It also updates the select button.
+    lv_textarea_set_text(path_textarea, pathText.c_str());
     updateSelectButton();
+}
+
+void View::destroyWidgets() {
+    dir_entry_list = nullptr;
+    navigate_up_button = nullptr;
+    path_textarea = nullptr;
+    select_button = nullptr;
+    select_label = nullptr;
 }
 
 }

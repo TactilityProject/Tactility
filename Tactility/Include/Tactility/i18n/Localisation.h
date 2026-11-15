@@ -19,6 +19,6 @@ struct L10nDomain* openDomain(const char* name);
  * Replaces every "{}" in a translated text by the next argument, in order.
  * Unlike std::format() a faulty translation can't make it fail: surplus placeholders stay and surplus arguments are ignored.
  */
-std::string format(const char* text, std::initializer_list<std::string_view> arguments);
+::std::string format(const char* text, ::std::initializer_list<::std::string_view> arguments);
 
 }

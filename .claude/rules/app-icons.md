@@ -1,13 +1,23 @@
 # App icons
 
-Every app with a UI has two SVG files in its app root, next to `manifest.properties`:
+Every app with a UI has two SVG files:
 
 - `icon.svg`: colour icon.
 - `icon_mono.svg`: monochrome icon.
 
+For an app package (with a `manifest.properties`) they sit in the app root, next to it. Built-in apps of Tactility (a C++ `AppManifest`, such as Files) are different, see "Built-in apps".
+
 ## Which apps get icons
 
 Apps with a UI only. Headless apps (`app.N.headless=true` in `manifest.properties`) get none.
+
+## Built-in apps
+
+Built-in apps have no package folder. Their icons are embedded in the firmware and chosen by a table in the launcher:
+
+- Put the files in `Data/system/app_icon/` as `<app id>.svg` and `<app id>_mono.svg` (e.g. `tactility.files.svg`). The same rules below apply, with the colour file as `icon.svg` and the mono file as `icon_mono.svg`.
+- Add the app to the table of its launcher mode, which refers to the embedded assets: `BUILT_IN_ICONS` in `Tactility/Source/app/launcher/AppsMode.cpp` for apps (`BUILT_IN_ICON("tactility.files", tactility_files)`), or `SETTINGS_ICONS` in `Tactility/Source/app/launcher/SettingsMode.cpp` for settings (`SETTINGS_ICON(...)`). An app that is not in the table gets the default icon.
+- Remove the entry when you delete the icon files, or the build fails.
 
 ## Colour icon (`icon.svg`)
 

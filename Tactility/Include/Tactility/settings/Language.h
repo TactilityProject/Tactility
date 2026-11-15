@@ -14,7 +14,8 @@ enum class Language {
     count
 };
 
-void setLanguage(Language language);
+/** Saves the language and makes it the active locale. Neither changes when the settings can't be saved. @return true on success */
+bool setLanguage(Language language);
 
 Language getLanguage();
 

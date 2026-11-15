@@ -49,8 +49,8 @@ L10nDomain* openDomain(const char* name) {
     return domain;
 }
 
-std::string format(const char* text, std::initializer_list<std::string_view> arguments) {
-    std::string result;
+::std::string format(const char* text, ::std::initializer_list<::std::string_view> arguments) {
+    ::std::string result;
     auto argument = arguments.begin();
     for (const char* c = text; *c != '\0'; c++) {
         if (c[0] == '{' && c[1] == '}' && argument != arguments.end()) {

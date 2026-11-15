@@ -101,6 +101,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->view->init(parent);
 }
 
+void destroyWidgets(void* userData) {
+    static_cast<Context*>(userData)->view->destroyWidgets();
+}
+
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     // argv: flags "--new", "--folder", "--no-files", "--multiple", "--max-bytes=<n>" and "--ext=<extension>" (repeatable)
@@ -133,7 +137,7 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
     while (true) {
         uint32_t flags = 0;
