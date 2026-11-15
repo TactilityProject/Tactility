@@ -16,6 +16,9 @@ def main():
     shell.PROGRAM_NAME = "tt remote" if "TACTILITY_SDK_VERSION" in os.environ else "remote.py"
     parser = argparse.ArgumentParser(prog=shell.PROGRAM_NAME, description="show the display of the device and control it", add_help=False)
     shell.add_connection_arguments(parser)
+    parser.add_argument("--appearance", choices=("dark", "light", "system"), default="system",
+                        help="window theme (default: system)")
+    parser.add_argument("--title", help="window title (default: program name and host)")
     args = shell.parse_arguments(parser)
 
     connection = shell.open_session(args.host, args.port, "remote")
@@ -27,7 +30,8 @@ def main():
         shell.fail("the device did not describe its display")
 
     session = _remote_viewer.RemoteSession(connection)
-    _remote_viewer.run_viewer(session, state, f"{shell.PROGRAM_NAME} {args.host}")
+    title = args.title or f"{shell.PROGRAM_NAME} {args.host}"
+    _remote_viewer.run_viewer(session, state, title, args.appearance)
 
 
 if __name__ == "__main__":

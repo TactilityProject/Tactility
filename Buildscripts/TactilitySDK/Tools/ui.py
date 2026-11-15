@@ -182,6 +182,7 @@ ARCH_OPTIONS = {
     "ESP32-C6": "esp32c6",
     "ESP32-P4": "esp32p4",
     "ESP32-S3": "esp32s3",
+    "ESP32-S31": "esp32s31",
     "Linux (x86_64)": "linux-x86_64",
     "macOS (arm64)": "macos-arm64",
 }
@@ -286,8 +287,10 @@ FALLBACK_DESCRIPTIONS = {
     "help": "List tt commands",
     "app": "Build, install, run and clean apps",
     "host": "Show or store the device host name",
+    "icon-studio": "Create app svg icons",
     "push": "Copy a file or folder to the device",
     "pull": "Copy a file or folder from the device",
+    "remote": "Run the remote viewer",
     "screenshot": "Capture the device screen",
     "shell": "Open an interactive serial shell",
     "simulator": "Run the desktop simulator",
@@ -350,6 +353,39 @@ def write_host(repo: Path, host: str) -> None:
             path.unlink()
     except OSError:
         pass
+
+
+def load_device_profiles(repo: Path) -> list[dict[str, str]]:
+    """The saved devices (name + host) for this checkout, from .tactility/devices.json."""
+    path = repo / ".tactility" / "devices.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    entries = data.get("devices") if isinstance(data, dict) else data
+    if not isinstance(entries, list):
+        return []
+    profiles: list[dict[str, str]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name", "")).strip()
+        host = str(entry.get("host", "")).strip()
+        if name and host:
+            profiles.append({"name": name, "host": host})
+    return profiles
+
+
+def save_device_profiles(repo: Path, profiles: list[dict[str, str]]) -> bool:
+    path = repo / ".tactility" / "devices.json"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps({"devices": profiles}, indent=2), encoding="utf-8")
+        temporary.replace(path)
+        return True
+    except OSError:
+        return False
 
 
 def _idf_environment_ready() -> bool:
@@ -745,6 +781,203 @@ class DevicePathDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class DevicesDialog(ctk.CTkToplevel):
+    """Manage the saved device hosts (name + address) for this checkout."""
+
+    def __init__(self, app, profiles: list[dict[str, str]], on_change) -> None:
+        super().__init__(app)
+        self.app = app
+        self.profiles = profiles
+        self.on_change = on_change
+        self.editing: dict[str, str] | None = None
+        self.name_var = tk.StringVar()
+        self.host_var = tk.StringVar(value=app.host_var.get().strip())
+
+        self.title("Devices")
+        self.geometry("540x560")
+        self.minsize(480, 460)
+        self.transient(app)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self._close)
+        self.bind("<Escape>", lambda _event: self._close())
+
+        top = ctk.CTkFrame(self, fg_color="transparent")
+        top.pack(fill="x", padx=16, pady=(14, 4))
+        ctk.CTkLabel(top, text="Devices", font=ctk.CTkFont(size=18, weight="bold"),
+                     anchor="w").pack(side="left")
+        ctk.CTkLabel(top, text="Saved hosts for this checkout", font=ctk.CTkFont(size=11),
+                     text_color=("gray45", "gray60"), anchor="w").pack(
+            side="left", padx=(10, 0), pady=(5, 0))
+
+        self.list_frame = ctk.CTkScrollableFrame(self, fg_color=("gray90", "gray14"))
+        self.list_frame.pack(fill="both", expand=True, padx=16, pady=(4, 8))
+
+        form = ctk.CTkFrame(self)
+        form.pack(fill="x", padx=16, pady=(0, 12))
+        form.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(form, text="Name", font=ctk.CTkFont(size=12),
+                     text_color=("gray30", "gray70"), anchor="w").grid(
+            row=0, column=0, sticky="w", padx=(12, 8), pady=(10, 4))
+        self.name_entry = ctk.CTkEntry(form, textvariable=self.name_var, height=30,
+                                       placeholder_text="e.g. Tab5")
+        self.name_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=(10, 4))
+        ctk.CTkLabel(form, text="Host", font=ctk.CTkFont(size=12),
+                     text_color=("gray30", "gray70"), anchor="w").grid(
+            row=1, column=0, sticky="w", padx=(12, 8), pady=4)
+        self.host_entry = ctk.CTkEntry(form, textvariable=self.host_var, height=30,
+                                       placeholder_text="e.g. 192.168.1.50")
+        self.host_entry.grid(row=1, column=1, sticky="ew", padx=(0, 12), pady=4)
+        self.status = ctk.CTkLabel(form, text="", anchor="w", justify="left",
+                                   font=ctk.CTkFont(size=11), wraplength=480,
+                                   text_color=("gray45", "gray60"))
+        self.status.grid(row=2, column=0, columnspan=2, sticky="w", padx=12)
+        actions = ctk.CTkFrame(form, fg_color="transparent")
+        actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=12, pady=(6, 12))
+        self.submit_button = ctk.CTkButton(actions, text="Add device", width=100,
+                                           command=self._submit)
+        self.submit_button.pack(side="left")
+        self.cancel_button = ctk.CTkButton(actions, text="Cancel", width=70, fg_color="transparent",
+                                           border_width=1, text_color=("gray10", "gray90"),
+                                           border_color=("gray60", "gray40"),
+                                           command=self._clear_form)
+        self.cancel_button.pack(side="left", padx=(8, 0))
+        self.cancel_button.pack_forget()
+        ctk.CTkButton(actions, text="Close", width=70, fg_color="transparent", border_width=1,
+                      text_color=("gray10", "gray90"), border_color=("gray60", "gray40"),
+                      command=self._close).pack(side="right")
+
+        self._refresh_list()
+        self.update_idletasks()
+        width, height = 540, 560
+        parent = app.winfo_toplevel()
+        x = parent.winfo_rootx() + max(0, (parent.winfo_width() - width) // 2)
+        y = parent.winfo_rooty() + max(0, (parent.winfo_height() - height) // 2)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        self.lift()
+        self.focus_force()
+        self.name_entry.focus_set()
+
+    def _refresh_list(self) -> None:
+        for child in self.list_frame.winfo_children():
+            child.destroy()
+        if not self.profiles:
+            ctk.CTkLabel(self.list_frame, text="No devices saved yet. Add one below.",
+                         anchor="w", text_color=("gray45", "gray60")).pack(
+                fill="x", padx=10, pady=10)
+            return
+        current = self.app.host_var.get().strip()
+        for profile in self.profiles:
+            row = ctk.CTkFrame(self.list_frame)
+            row.pack(fill="x", pady=(0, 6))
+            row.grid_columnconfigure(0, weight=1)
+            text = ctk.CTkFrame(row, fg_color="transparent")
+            text.grid(row=0, column=0, sticky="w", padx=(12, 8), pady=7)
+            suffix = "  ·  current" if profile["host"] == current else ""
+            ctk.CTkLabel(text, text=profile["name"] + suffix, anchor="w",
+                         font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w")
+            ctk.CTkLabel(text, text=profile["host"], anchor="w",
+                         font=ctk.CTkFont(size=11),
+                         text_color=("gray45", "gray60")).pack(anchor="w")
+            ctk.CTkButton(row, text="Use", width=52,
+                          command=lambda item=profile: self._use(item)).grid(
+                row=0, column=1, padx=(4, 0))
+            ctk.CTkButton(row, text="Edit", width=52, fg_color="transparent", border_width=1,
+                          text_color=("gray10", "gray90"), border_color=("gray60", "gray40"),
+                          command=lambda item=profile: self._edit(item)).grid(
+                row=0, column=2, padx=(4, 0))
+            ctk.CTkButton(row, text="Remove", width=64, fg_color="transparent", border_width=1,
+                          text_color=("#a33", "#ff8787"), border_color=("#c66", "#a33"),
+                          command=lambda item=profile: self._remove(item)).grid(
+                row=0, column=3, padx=(4, 12))
+
+    def _status(self, text: str, error: bool = False) -> None:
+        self.status.configure(text=text,
+                              text_color=("#b23", "#ff8787") if error else ("gray45", "gray60"))
+
+    def _use(self, profile: dict[str, str]) -> None:
+        self.app._set_device(profile)
+        self._close()
+
+    def _edit(self, profile: dict[str, str]) -> None:
+        self.editing = profile
+        self.name_var.set(profile["name"])
+        self.host_var.set(profile["host"])
+        self.submit_button.configure(text="Save")
+        self.cancel_button.pack(side="left", padx=(8, 0))
+        self.name_entry.focus_set()
+        self._status("")
+
+    def _clear_form(self) -> None:
+        self.editing = None
+        self.name_var.set("")
+        self.host_var.set(self.app.host_var.get().strip())
+        self.submit_button.configure(text="Add device")
+        self.cancel_button.pack_forget()
+        self._status("")
+
+    def _submit(self) -> None:
+        name = self.name_var.get().strip()
+        host = self.host_var.get().strip()
+        if not host:
+            self._status("Enter a host or IP address.", error=True)
+            return
+        if not name:
+            name = host
+        updated = [dict(profile) for profile in self.profiles]
+        if self.editing is not None:
+            index = next((i for i, profile in enumerate(self.profiles)
+                          if profile is self.editing), None)
+            if index is None:
+                self._status("That device is no longer in the list.", error=True)
+                return
+        else:
+            index = None
+        duplicate = next((profile for i, profile in enumerate(updated)
+                          if profile["host"] == host and i != index), None)
+        if duplicate is not None:
+            self._status(f"That host is already saved as {duplicate['name']}.", error=True)
+            return
+        entry = {"name": name, "host": host}
+        if index is None:
+            updated.append(entry)
+        else:
+            updated[index] = entry
+        if not save_device_profiles(self.app.repo, updated):
+            self._status("Could not save .tactility/devices.json.", error=True)
+            return
+        self.profiles[:] = updated
+        self.on_change(self.profiles)
+        self._clear_form()
+        self._refresh_list()
+        self._status(f"Saved {name} ({host}).")
+
+    def _remove(self, profile: dict[str, str]) -> None:
+        if not messagebox.askyesno(
+            "Remove device",
+            f"Remove {profile['name']} ({profile['host']})?",
+            parent=self,
+        ):
+            return
+        # Keep the retained profile objects: self.editing may point at one of them.
+        updated = [item for item in self.profiles if item is not profile]
+        if not save_device_profiles(self.app.repo, updated):
+            self._status("Could not save .tactility/devices.json.", error=True)
+            return
+        self.profiles[:] = updated
+        self.on_change(self.profiles)
+        if self.editing is profile:
+            self._clear_form()
+        self._refresh_list()
+        self._status(f"Removed {profile['name']}.")
+
+    def _close(self) -> None:
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        self.destroy()
+
+
 class Console:
     def __init__(self, parent, family: str, size: int = 12) -> None:
         self.box = ctk.CTkTextbox(
@@ -826,6 +1059,7 @@ class DevConsole(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.apps = scan_apps(repo)
+        self.device_profiles = load_device_profiles(repo)
         self.selected_app: AppEntry | None = None
         self._app_buttons: list[tuple[AppEntry, ctk.CTkButton]] = []
         self._action_buttons: list[ctk.CTkButton] = []
@@ -833,6 +1067,11 @@ class DevConsole(ctk.CTk):
         self._process: subprocess.Popen | None = None
         self._lock = threading.Lock()
         self._running = False
+        self._launchers: dict[str, subprocess.Popen] = {}
+        self._launcher_buttons: dict[str, ctk.CTkButton] = {}
+        self._launcher_labels: dict[str, str] = {}
+        self._pending_launches: set[str] = set()
+        self._closing = False
         self._current_action = ""
         self._started_at = 0.0
         self._save_job: str | None = None
@@ -843,6 +1082,7 @@ class DevConsole(ctk.CTk):
         self._files_loading = False
         self._files_ready = False
         self._files_root_detected = False
+        self._files_generation = 0
         self._file_rows: list[tuple[str, bool, int | None, ctk.CTkButton, ctk.CTkLabel]] = []
         self._remote_selected = ""
         self._refresh_files_after_job = False
@@ -923,7 +1163,7 @@ class DevConsole(ctk.CTk):
         self.title_label.grid(row=0, column=0, sticky="w")
         self.subtitle_label = ctk.CTkLabel(top, text="", font=ctk.CTkFont(size=12),
                                            text_color=("gray40", "gray60"), anchor="w")
-        self.subtitle_label.grid(row=1, column=0, columnspan=2, sticky="w")
+        self.subtitle_label.grid(row=1, column=0, sticky="w")
         self.hint_label = ctk.CTkLabel(top, text="F5 build · F6 run · F9 clean",
                                        font=ctk.CTkFont(size=11),
                                        text_color=("gray50", "gray55"), anchor="w")
@@ -936,6 +1176,16 @@ class DevConsole(ctk.CTk):
         self._action_button(actions, "Uninstall", "uninstall")
         self._action_button(actions, "Clean", "clean")
 
+        launch_bar = ctk.CTkFrame(top, fg_color="transparent")
+        launch_bar.grid(row=1, column=1, sticky="e", pady=(4, 0))
+        ctk.CTkLabel(launch_bar, text="Launch", font=ctk.CTkFont(size=11),
+                     text_color=("gray50", "gray55")).pack(side="left", padx=(0, 6))
+        # tt simulator has no native Windows build; it works under WSL/Linux/macOS.
+        if not sys.platform.startswith("win"):
+            self._launcher_button(launch_bar, "Simulator", "simulator", self._launch_simulator, 96)
+        self._launcher_button(launch_bar, "Remote", "remote", self._launch_remote, 96)
+        self._launcher_button(launch_bar, "Icon Studio", "icon-studio", self._launch_icon_studio, 104)
+
         card = ctk.CTkFrame(main)
         card.grid(row=1, column=0, sticky="ew", pady=(14, 0))
         card.grid_columnconfigure(1, weight=1)
@@ -947,15 +1197,24 @@ class DevConsole(ctk.CTk):
                                            command=lambda _v: self._save_later(), width=190)
         self.arch_menu.grid(row=0, column=1, sticky="w", pady=(14, 4))
 
-        ctk.CTkLabel(card, text="Device host", font=ctk.CTkFont(size=12),
+        ctk.CTkLabel(card, text="Device", font=ctk.CTkFont(size=12),
                      text_color=("gray30", "gray70")).grid(row=0, column=2, sticky="e", padx=(18, 8),
                                                            pady=(14, 4))
-        self.host_entry = ctk.CTkEntry(card, textvariable=self.host_var, width=190,
-                                       placeholder_text="e.g. 192.168.1.50")
-        self.host_entry.grid(row=0, column=3, columnspan=2, sticky="ew", padx=(0, 16), pady=(14, 4))
+        self.device_menu = ctk.CTkOptionMenu(card, values=["(custom)"], width=150,
+                                             command=self._device_selected)
+        self.device_menu.grid(row=0, column=3, sticky="w", pady=(14, 4))
+        self.host_entry = ctk.CTkEntry(card, textvariable=self.host_var, width=140,
+                                       placeholder_text="host or IP")
+        self.host_entry.grid(row=0, column=4, sticky="ew", padx=(8, 0), pady=(14, 4))
         self.host_entry.bind("<KeyRelease>", self._host_typed)
         self.host_entry.bind("<FocusOut>", self._save_host)
         self.host_entry.bind("<Return>", lambda _e: self._save_host())
+        ctk.CTkButton(card, text="Devices…", width=78,
+                      fg_color="transparent", border_width=1,
+                      text_color=("gray10", "gray90"), border_color=("gray60", "gray40"),
+                      command=self._manage_devices).grid(
+            row=0, column=5, padx=(8, 16), pady=(14, 4))
+        self._refresh_device_menu()
 
         ctk.CTkLabel(card, text="ESP-IDF", font=ctk.CTkFont(size=12),
                      text_color=("gray30", "gray70")).grid(row=1, column=0, sticky="w", padx=(16, 8),
@@ -963,12 +1222,12 @@ class DevConsole(ctk.CTk):
         self.idf_entry = ctk.CTkEntry(
             card, textvariable=self.idf_export_var,
             placeholder_text="optional: path to export.sh / export.ps1 (saved)")
-        self.idf_entry.grid(row=1, column=1, columnspan=2, sticky="ew", pady=4)
+        self.idf_entry.grid(row=1, column=1, columnspan=3, sticky="ew", pady=4)
         self.idf_entry.bind("<KeyRelease>", self._idf_typed)
         self.idf_entry.bind("<FocusOut>", self._save_idf_setting)
         self.idf_entry.bind("<Return>", self._apply_idf_export)
         idf_actions = ctk.CTkFrame(card, fg_color="transparent")
-        idf_actions.grid(row=1, column=3, columnspan=2, sticky="ew", padx=(8, 16), pady=4)
+        idf_actions.grid(row=1, column=4, columnspan=2, sticky="ew", padx=(8, 16), pady=4)
         ctk.CTkButton(idf_actions, text="Browse", width=70,
                       command=self._browse_idf_export).pack(side="left", expand=True, fill="x")
         ctk.CTkButton(idf_actions, text="Apply", width=70,
@@ -976,7 +1235,7 @@ class DevConsole(ctk.CTk):
                                                            padx=(8, 0))
 
         modifiers = ctk.CTkFrame(card, fg_color="transparent")
-        modifiers.grid(row=2, column=0, columnspan=5, sticky="ew", padx=16, pady=(2, 14))
+        modifiers.grid(row=2, column=0, columnspan=6, sticky="ew", padx=16, pady=(2, 14))
         ctk.CTkSwitch(modifiers, text="Skip compiler steps", variable=self.skip_var,
                       command=self._save_later).pack(side="left", padx=(0, 22))
         ctk.CTkSwitch(modifiers, text="Verbose output", variable=self.verbose_var,
@@ -1050,6 +1309,22 @@ class DevConsole(ctk.CTk):
         button.pack(side="left", padx=(0, 8))
         self._action_buttons.append(button)
 
+    def _launcher_button(self, parent, text: str, key: str, command, width: int = 96) -> None:
+        button = ctk.CTkButton(parent, text=text, width=width, height=28, fg_color="transparent",
+                               border_width=1, text_color=("gray10", "gray90"),
+                               border_color=("gray60", "gray40"), command=command)
+        button.pack(side="left", padx=(0, 6))
+        self._launcher_buttons[key] = button
+        self._launcher_labels[key] = text
+
+    def _launcher_state(self, key: str, running: bool) -> None:
+        button = self._launcher_buttons.get(key)
+        if button is None:
+            return
+        label = self._launcher_labels.get(key, key)
+        button.configure(state="disabled" if running else "normal",
+                         text=f"{label}…" if running else label)
+
     @staticmethod
     def _mono_font() -> str:
         if sys.platform == "darwin":
@@ -1070,7 +1345,7 @@ class DevConsole(ctk.CTk):
                      anchor="w").grid(row=0, column=0, columnspan=4, sticky="w", padx=16, pady=(12, 2))
 
         ctk.CTkLabel(files, text="Local", font=ctk.CTkFont(size=12),
-                     text_color=("gray30", "gray70"), width=58, anchor="w").grid(
+                     text_color=("gray30", "gray70"), width=72, anchor="w").grid(
             row=1, column=0, sticky="w", padx=(16, 8), pady=4)
         self.push_local = ctk.CTkEntry(files, placeholder_text="file on this computer", height=30)
         self.push_local.grid(row=1, column=1, sticky="ew", pady=4)
@@ -1078,7 +1353,7 @@ class DevConsole(ctk.CTk):
             row=1, column=2, padx=8, pady=4)
 
         ctk.CTkLabel(files, text="Device", font=ctk.CTkFont(size=12),
-                     text_color=("gray30", "gray70"), width=58, anchor="w").grid(
+                     text_color=("gray30", "gray70"), width=72, anchor="w").grid(
             row=2, column=0, sticky="w", padx=(16, 8), pady=4)
         self.push_remote = ctk.CTkEntry(files, placeholder_text="absolute path, e.g. /sdcard/file.zip", height=30)
         self.push_remote.grid(row=2, column=1, sticky="ew", pady=4)
@@ -1091,7 +1366,7 @@ class DevConsole(ctk.CTk):
             row=3, column=0, columnspan=4, sticky="ew", padx=16, pady=8)
 
         ctk.CTkLabel(files, text="Device", font=ctk.CTkFont(size=12),
-                     text_color=("gray30", "gray70"), width=58, anchor="w").grid(
+                     text_color=("gray30", "gray70"), width=72, anchor="w").grid(
             row=4, column=0, sticky="w", padx=(16, 8), pady=4)
         self.pull_remote = ctk.CTkEntry(files, placeholder_text="absolute path on the device", height=30)
         self.pull_remote.grid(row=4, column=1, sticky="ew", pady=4)
@@ -1101,7 +1376,7 @@ class DevConsole(ctk.CTk):
             row=4, column=3, padx=(0, 16), pady=4)
 
         ctk.CTkLabel(files, text="Local", font=ctk.CTkFont(size=12),
-                     text_color=("gray30", "gray70"), width=58, anchor="w").grid(
+                     text_color=("gray30", "gray70"), width=72, anchor="w").grid(
             row=5, column=0, sticky="w", padx=(16, 8), pady=(4, 12))
         self.pull_local = ctk.CTkEntry(files, placeholder_text="file or folder on this computer", height=30)
         self.pull_local.grid(row=5, column=1, sticky="ew", pady=(4, 12))
@@ -1114,7 +1389,7 @@ class DevConsole(ctk.CTk):
         ctk.CTkLabel(shot, text="Screenshot", font=ctk.CTkFont(size=13, weight="bold"),
                      anchor="w").grid(row=0, column=0, columnspan=4, sticky="w", padx=16, pady=(12, 2))
         ctk.CTkLabel(shot, text="Save to", font=ctk.CTkFont(size=12),
-                     text_color=("gray30", "gray70"), width=58, anchor="w").grid(
+                     text_color=("gray30", "gray70"), width=72, anchor="w").grid(
             row=1, column=0, sticky="w", padx=(16, 8), pady=4)
         self.screenshot_path = ctk.CTkEntry(shot, height=30)
         self.screenshot_path.grid(row=1, column=1, sticky="ew", pady=4)
@@ -1141,55 +1416,51 @@ class DevConsole(ctk.CTk):
         device = ctk.CTkFrame(scroll)
         device.pack(fill="x", pady=(0, 10))
         device.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(device, text="Launch & apps", font=ctk.CTkFont(size=13, weight="bold"),
+        ctk.CTkLabel(device, text="Apps", font=ctk.CTkFont(size=13, weight="bold"),
                      anchor="w").grid(row=0, column=0, columnspan=4, sticky="w", padx=16, pady=(12, 2))
-
-        ctk.CTkButton(device, text="Launch simulator", width=140, fg_color="transparent",
-                      border_width=1, text_color=("gray10", "gray90"),
-                      border_color=("gray60", "gray40"),
-                      command=self._launch_simulator).grid(
-            row=1, column=0, columnspan=2, sticky="w", padx=16, pady=4)
 
         ctk.CTkLabel(device, text="Install .app", font=ctk.CTkFont(size=12),
                      text_color=("gray30", "gray70"), width=72, anchor="w").grid(
-            row=2, column=0, sticky="w", padx=(16, 8), pady=4)
+            row=1, column=0, sticky="w", padx=(16, 8), pady=4)
         self.install_file = ctk.CTkEntry(device, placeholder_text="path to .app file", height=30)
-        self.install_file.grid(row=2, column=1, sticky="ew", pady=4)
+        self.install_file.grid(row=1, column=1, sticky="ew", pady=4)
         ctk.CTkButton(device, text="Browse", width=70, command=self._browse_install_file).grid(
-            row=2, column=2, padx=8, pady=4)
+            row=1, column=2, padx=8, pady=4)
         ctk.CTkButton(device, text="Install", width=70, command=self._install_app_file).grid(
-            row=2, column=3, padx=(0, 16), pady=4)
+            row=1, column=3, padx=(0, 16), pady=4)
 
         ctk.CTkLabel(device, text="Uninstall", font=ctk.CTkFont(size=12),
                      text_color=("gray30", "gray70"), width=72, anchor="w").grid(
-            row=3, column=0, sticky="w", padx=(16, 8), pady=4)
+            row=2, column=0, sticky="w", padx=(16, 8), pady=4)
         self.uninstall_app = ctk.CTkComboBox(
             device, values=[entry.folder for entry in self.apps], height=30)
-        self.uninstall_app.grid(row=3, column=1, sticky="ew", pady=4)
+        self.uninstall_app.grid(row=2, column=1, sticky="ew", pady=4)
         self.uninstall_app.set("")
         ctk.CTkButton(device, text="Browse", width=70, command=self._browse_uninstall_app).grid(
-            row=3, column=2, padx=8, pady=4)
+            row=2, column=2, padx=8, pady=4)
         ctk.CTkButton(device, text="Uninstall", width=70, command=self._uninstall_app_path).grid(
-            row=3, column=3, padx=(0, 16), pady=4)
+            row=2, column=3, padx=(0, 16), pady=4)
 
         ctk.CTkLabel(device, text="Install uses tt app install; uninstall uses tt app uninstall with the app's "
                                   "project folder or name.",
                      font=ctk.CTkFont(size=11), text_color=("gray50", "gray55"),
-                     anchor="w").grid(row=4, column=0, columnspan=4, sticky="w", padx=16, pady=(4, 12))
+                     anchor="w").grid(row=3, column=0, columnspan=4, sticky="w", padx=16, pady=(4, 12))
 
         maintenance = ctk.CTkFrame(scroll)
         maintenance.pack(fill="x")
+        maintenance.grid_columnconfigure(0, weight=1)
+        maintenance.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(maintenance, text="Maintenance", font=ctk.CTkFont(size=13, weight="bold"),
                      anchor="w").grid(row=0, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 6))
 
-        ctk.CTkButton(maintenance, text="Update SDK", width=140, fg_color="transparent",
+        ctk.CTkButton(maintenance, text="Update SDK", fg_color="transparent",
                       border_width=1, text_color=("gray10", "gray90"),
                       border_color=("gray60", "gray40"), command=self._update_sdk).grid(
-            row=1, column=0, sticky="w", padx=(16, 8), pady=4)
-        ctk.CTkButton(maintenance, text="Update tt", width=140, fg_color="transparent",
+            row=1, column=0, sticky="ew", padx=(16, 8), pady=4)
+        ctk.CTkButton(maintenance, text="Update tt", fg_color="transparent",
                       border_width=1, text_color=("gray10", "gray90"),
                       border_color=("gray60", "gray40"), command=self._update_tt).grid(
-            row=1, column=1, sticky="w", pady=4)
+            row=1, column=1, sticky="ew", padx=(8, 16), pady=4)
         ctk.CTkLabel(maintenance, text="Download the latest build of the installed SDK, or update tt and its tools.",
                      font=ctk.CTkFont(size=11), text_color=("gray50", "gray55"),
                      anchor="w").grid(row=2, column=0, columnspan=2, sticky="w", padx=16, pady=(4, 12))
@@ -1291,6 +1562,58 @@ class DevConsole(ctk.CTk):
     def _device_host_arguments(self) -> list[str]:
         host = self.host_var.get().strip()
         return ["--host", host] if host else []
+
+    def _device_labels(self) -> list[str]:
+        counts: dict[str, int] = {}
+        for profile in self.device_profiles:
+            counts[profile["name"]] = counts.get(profile["name"], 0) + 1
+        labels: list[str] = []
+        seen: set[str] = set()
+        for profile in self.device_profiles:
+            label = (profile["name"] if counts[profile["name"]] == 1
+                     else f"{profile['name']} ({profile['host']})")
+            base = label
+            suffix = 2
+            while label in seen:
+                label = f"{base} #{suffix}"
+                suffix += 1
+            seen.add(label)
+            labels.append(label)
+        return labels
+
+    def _refresh_device_menu(self) -> None:
+        labels = self._device_labels()
+        self._device_menu_map = dict(zip(labels, self.device_profiles))
+        self.device_menu.configure(values=["(custom)"] + labels)
+        self._sync_device_menu()
+
+    def _sync_device_menu(self) -> None:
+        if not hasattr(self, "device_menu"):
+            return
+        host = self.host_var.get().strip()
+        for label, profile in self._device_menu_map.items():
+            if profile["host"] == host:
+                self.device_menu.set(label)
+                return
+        self.device_menu.set("(custom)")
+
+    def _device_selected(self, value: str) -> None:
+        profile = self._device_menu_map.get(value)
+        if profile is None:
+            return
+        self.host_var.set(profile["host"])
+        self._save_host()
+
+    def _set_device(self, profile: dict[str, str]) -> None:
+        self.host_var.set(profile["host"])
+        self._save_host()
+
+    def _manage_devices(self) -> None:
+        DevicesDialog(self, self.device_profiles, self._devices_changed)
+
+    def _devices_changed(self, profiles: list[dict[str, str]]) -> None:
+        self.device_profiles = profiles
+        self._refresh_device_menu()
 
     def _browse_push(self) -> None:
         path = filedialog.askopenfilename(title="File to push")
@@ -1448,6 +1771,110 @@ class DevConsole(ctk.CTk):
                    *self._device_host_arguments()]
         self._start_job(command, "Screenshot", str(self.repo))
 
+    def _launch_icon_studio(self) -> None:
+        self._launch_tool("icon-studio", "Icon Studio",
+                          [tool_python(), str(self.tt_py), "icon-studio"])
+
+    def _launch_remote(self) -> None:
+        host = self.host_var.get().strip()
+        if not host:
+            self._warn("Device host", "Enter the device host first.")
+            return
+        appearance = str(self.settings.get("appearance", "Dark")).lower()
+        if appearance not in ("dark", "light", "system"):
+            appearance = "system"
+        # One remote per host: change the host field and launch again for another device.
+        profile = next((item for item in self.device_profiles if item["host"] == host), None)
+        label = f"Remote {profile['name']}" if profile else f"Remote {host}"
+        self._launch_tool(f"remote:{host}", label,
+                          [tool_python(), str(self.tt_py), "remote", "--host", host,
+                           "--appearance", appearance, "--title", label])
+
+    def _launch_tool(self, key: str, label: str, command: list[str]) -> None:
+        """Start a long-lived GUI tool without occupying the pipeline job slot."""
+        self._launcher_labels.setdefault(key, label)
+        with self._lock:
+            if self._closing:
+                return
+            process = self._launchers.get(key)
+            if key in self._pending_launches or (process is not None and process.poll() is None):
+                already_running = True
+            else:
+                self._pending_launches.add(key)
+                already_running = False
+        if already_running:
+            self._system(f"{label} is already running", "warn")
+            return
+        self._launcher_state(key, True)
+        self._system(f"Launching {label}…", "info")
+        threading.Thread(target=self._launcher_worker, args=(key, label, command),
+                         daemon=True).start()
+
+    def _launcher_worker(self, key: str, label: str, command: list[str]) -> None:
+        with self._lock:
+            if self._closing:
+                self._pending_launches.discard(key)
+                return
+        environment = dict(os.environ)
+        environment["PYTHONUNBUFFERED"] = "1"
+        environment["PYTHONIOENCODING"] = "utf-8"
+        popen_kwargs: dict = {
+            "cwd": str(self.repo),
+            "env": environment,
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "bufsize": 0,
+        }
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+        else:
+            popen_kwargs["start_new_session"] = True
+
+        try:
+            process = subprocess.Popen(command, **popen_kwargs)
+        except OSError as exc:
+            with self._lock:
+                self._pending_launches.discard(key)
+            self._queue.put(("launcher_error", key, label, str(exc)))
+            return
+
+        with self._lock:
+            self._pending_launches.discard(key)
+            if self._closing:
+                stop_after_start = True
+            else:
+                self._launchers[key] = process
+                stop_after_start = False
+        if stop_after_start:
+            try:
+                if process.stdout is not None:
+                    process.stdout.close()
+            except (OSError, ValueError):
+                pass
+            self._terminate(process, label.lower())
+            return
+        self._queue.put(("launcher_started", key, label))
+
+        stdout = io.TextIOWrapper(process.stdout, encoding="utf-8", errors="replace", newline="\n")
+        try:
+            for raw in stdout:
+                text = clean_line(raw)
+                if text:
+                    self._queue.put(("launcher_line", label, parse_ansi(text)))
+        except Exception as exc:  # noqa: BLE001 - never leave the button stuck
+            self._queue.put(("launcher_line", label, parse_ansi(f"Could not read output: {exc}")))
+        finally:
+            try:
+                stdout.close()
+            except (OSError, ValueError):
+                pass
+            code = process.wait()
+            with self._lock:
+                if self._launchers.get(key) is process:
+                    del self._launchers[key]
+            self._queue.put(("launcher_done", key, label, code))
+
     def _show_screenshot(self, path: Path) -> None:
         self._screenshot_file = path
         self.screenshot_open.configure(state="normal")
@@ -1500,7 +1927,8 @@ class DevConsole(ctk.CTk):
             self._error("Open screenshot", str(exc))
 
     def _launch_simulator(self) -> None:
-        self._start_job([tool_python(), str(self.tt_py), "simulator"], "Simulator", str(self.repo))
+        self._launch_tool("simulator", "Simulator",
+                          [tool_python(), str(self.tt_py), "simulator"])
 
     def _update_sdk(self) -> None:
         if not self._confirm("Update SDK", "Download the latest build of the installed SDK?"):
@@ -1695,13 +2123,15 @@ class DevConsole(ctk.CTk):
             self._files_go(self.remote_path)
 
     def _files_detect_root(self) -> None:
+        self._files_generation += 1
+        generation = self._files_generation
         self._files_loading = True
         self._files_ready = False
         self._clear_files_list()
         self.files_status.configure(text="Finding device storage…")
         self._files_message("Finding device storage…")
         host_arguments = self._device_host_arguments()
-        threading.Thread(target=self._files_pwd_worker, args=(host_arguments,),
+        threading.Thread(target=self._files_pwd_worker, args=(host_arguments, generation),
                          daemon=True).start()
 
     def _remote_run(self, command_text: str, host_arguments: list[str]):
@@ -1736,15 +2166,17 @@ class DevConsole(ctk.CTk):
             error=True,
         )
 
-    def _files_pwd_worker(self, host_arguments: list[str]) -> None:
+    def _files_pwd_worker(self, host_arguments: list[str], generation: int) -> None:
         try:
             result = self._remote_run("pwd", host_arguments)
         except (OSError, subprocess.SubprocessError) as exc:
-            self._queue.put(("files_error", str(exc)))
+            self._queue.put(("files_error", str(exc), generation))
             return
-        self._queue.put(("files_pwd", result.returncode, result.stdout))
+        self._queue.put(("files_pwd", result.returncode, result.stdout, generation))
 
-    def _files_pwd_loaded(self, code: int, output: str) -> None:
+    def _files_pwd_loaded(self, code: int, output: str, generation: int) -> None:
+        if generation != self._files_generation:
+            return
         self._files_loading = False
         self._clear_files_list()
         if self._files_is_trust_error(output):
@@ -1783,6 +2215,8 @@ class DevConsole(ctk.CTk):
     def _files_go(self, path: str) -> None:
         if self._files_loading:
             return
+        self._files_generation += 1
+        generation = self._files_generation
         normalized = self._normalize_remote(path)
         self.remote_path = normalized
         self._files_root_detected = True
@@ -1794,18 +2228,20 @@ class DevConsole(ctk.CTk):
         self._clear_files_list()
         self._files_message("Loading…")
         host_arguments = self._device_host_arguments()
-        threading.Thread(target=self._files_worker, args=(normalized, host_arguments),
+        threading.Thread(target=self._files_worker, args=(normalized, host_arguments, generation),
                          daemon=True).start()
 
-    def _files_worker(self, path: str, host_arguments: list[str]) -> None:
+    def _files_worker(self, path: str, host_arguments: list[str], generation: int) -> None:
         try:
             result = self._remote_run(f"ls -l {shell_quote(path)}", host_arguments)
         except (OSError, subprocess.SubprocessError) as exc:
-            self._queue.put(("files_error", str(exc)))
+            self._queue.put(("files_error", str(exc), generation))
             return
-        self._queue.put(("files", path, result.returncode, result.stdout))
+        self._queue.put(("files", path, result.returncode, result.stdout, generation))
 
-    def _files_loaded(self, path: str, code: int, output: str) -> None:
+    def _files_loaded(self, path: str, code: int, output: str, generation: int) -> None:
+        if generation != self._files_generation:
+            return
         self._files_loading = False
         self._clear_files_list()
         if self._files_is_trust_error(output):
@@ -1848,11 +2284,26 @@ class DevConsole(ctk.CTk):
             size_label.grid(row=0, column=1, padx=(8, 8))
             self._file_rows.append((name, is_dir, size, button, size_label))
 
-    def _files_failed(self, message: str) -> None:
+    def _files_failed(self, message: str, generation: int) -> None:
+        if generation != self._files_generation:
+            return
         self._files_loading = False
         self._clear_files_list()
         self.files_status.configure(text="Could not list the directory")
         self._files_message(message, error=True)
+
+    def _files_reset(self) -> None:
+        """Drop everything that belongs to the previous device."""
+        self._files_generation += 1
+        self._files_loading = False
+        self._files_ready = False
+        self._files_root_detected = False
+        self.remote_path = "/sdcard"
+        self._clear_files_list()
+        self.files_path.delete(0, "end")
+        self.files_path.insert(0, "/sdcard")
+        self.files_status.configure(text="Device changed")
+        self._files_message("Device changed. Open Files to browse the new device.")
 
     def _clear_files_list(self) -> None:
         for child in self.files_list.winfo_children():
@@ -2213,6 +2664,24 @@ class DevConsole(ctk.CTk):
                     self._finish(message[1], message[2])
                 elif kind == "start_error":
                     self._finish(None, time.time() - self._started_at, message[1])
+                elif kind == "launcher_started":
+                    key, label = message[1], message[2]
+                    self._launcher_state(key, True)
+                    self._system(f"{label} started", "ok")
+                elif kind == "launcher_line":
+                    label, parts = message[1], message[2]
+                    self.system_console.append([(f"{label}: ", ("dim",)), *parts])
+                elif kind == "launcher_done":
+                    key, label, code = message[1], message[2], message[3]
+                    self._launcher_state(key, False)
+                    if code == 0:
+                        self._system(f"{label} closed", "ok")
+                    else:
+                        self._system(f"{label} exited with code {code}", "error")
+                elif kind == "launcher_error":
+                    key, label, error = message[1], message[2], message[3]
+                    self._launcher_state(key, False)
+                    self._system(f"Could not launch {label}: {error}", "error")
                 elif kind == "shell":
                     self.shell_console.stream(message[1])
                 elif kind == "shell_clear":
@@ -2222,11 +2691,11 @@ class DevConsole(ctk.CTk):
                 elif kind == "shell_exit":
                     self._shell_finished(message[1])
                 elif kind == "files":
-                    self._files_loaded(message[1], message[2], message[3])
+                    self._files_loaded(message[1], message[2], message[3], message[4])
                 elif kind == "files_pwd":
-                    self._files_pwd_loaded(message[1], message[2])
+                    self._files_pwd_loaded(message[1], message[2], message[3])
                 elif kind == "files_error":
-                    self._files_failed(message[1])
+                    self._files_failed(message[1], message[2])
         except queue.Empty:
             pass
         self.after(60, self._poll_queue)
@@ -2306,12 +2775,15 @@ class DevConsole(ctk.CTk):
             except (tk.TclError, ValueError):
                 pass
             self._host_save_job = None
+        self._sync_device_menu()
         host = self.host_var.get().strip()
         path = self.repo / ".tactility" / "device_host"
         try:
             current = path.read_text(encoding="utf-8")
         except OSError:
             current = None
+        if (current or "").strip() != host and hasattr(self, "files_path"):
+            self._files_reset()
         if host:
             if current == host:
                 return
@@ -2464,6 +2936,39 @@ class DevConsole(ctk.CTk):
             self._stop()
             deadline = time.time() + 3.0
             while self._running and time.time() < deadline:
+                self.update()
+                time.sleep(0.05)
+        with self._lock:
+            running_launchers = [
+                (key, process) for key, process in self._launchers.items()
+                if process is not None and process.poll() is None
+            ]
+            pending_launches = set(self._pending_launches)
+        if running_launchers or pending_launches:
+            names = sorted(
+                {self._launcher_labels.get(key, key) for key, _process in running_launchers}
+                | {self._launcher_labels.get(key, key) for key in pending_launches}
+            )
+            if not self._confirm("Tools running", f"Close {', '.join(names)} and exit?"):
+                return
+            with self._lock:
+                self._closing = True
+                # A pending worker may have registered its process while the
+                # confirmation dialog was open; stop the current list, not the
+                # snapshot taken before the prompt.
+                running_launchers = [
+                    (key, process) for key, process in self._launchers.items()
+                    if process is not None and process.poll() is None
+                ]
+            for key, process in running_launchers:
+                self._terminate(process, self._launcher_labels.get(key, key).lower())
+            # Give a worker that is between the pending check and Popen time to
+            # notice the close; it terminates its own process if it started one.
+            deadline = time.time() + 1.0
+            while time.time() < deadline:
+                with self._lock:
+                    if not self._pending_launches:
+                        break
                 self.update()
                 time.sleep(0.05)
         self._save_idf_setting()
