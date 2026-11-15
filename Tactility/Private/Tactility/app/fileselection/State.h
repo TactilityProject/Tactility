@@ -1,7 +1,9 @@
 #pragma once
 
+#include <Tactility/app/fileselection/FileSelection.h>
 #include <Tactility/RecursiveMutex.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <dirent.h>
@@ -11,14 +13,36 @@ namespace tt::app::fileselection {
 class State final {
 
     RecursiveMutex mutex;
+    Options options;
     std::vector<dirent> dir_entries;
     std::string current_path;
     std::string selected_child_entry;
+    std::vector<std::string> selected_paths;
     uint32_t completed_navigations = 0;
 
 public:
 
-    State();
+    explicit State(Options options);
+
+    const Options& getOptions() const { return options; }
+
+    /** Whether a file path is allowed by the options (files allowed and extension matches) */
+    bool isSelectableFile(const std::string& path) const;
+
+    /** Adds the path to the selected files, or removes it when it was selected. Returns whether it is selected now. */
+    bool toggleSelectedPath(const std::string& path);
+
+    bool isSelectedPath(const std::string& path) const {
+        bool result = false;
+        mutex.withLock([&] { result = std::ranges::find(selected_paths, path) != selected_paths.end(); });
+        return result;
+    }
+
+    std::vector<std::string> getSelectedPaths() const {
+        std::vector<std::string> result;
+        mutex.withLock([&] { result = selected_paths; });
+        return result;
+    }
 
     void freeEntries() {
         dir_entries.clear();
