@@ -132,6 +132,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     createButton(ctx, button_wrapper, "OK", textarea);
     createButton(ctx, button_wrapper, "Cancel", nullptr);
+
+    lv_group_focus_obj(textarea);
 }
 
 int32_t appMain(int argc, char* argv[]) {
