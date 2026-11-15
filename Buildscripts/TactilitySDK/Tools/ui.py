@@ -958,7 +958,8 @@ class DevicesDialog(ctk.CTkToplevel):
             parent=self,
         ):
             return
-        updated = [dict(item) for item in self.profiles if item is not profile]
+        # Keep the retained profile objects: self.editing may point at one of them.
+        updated = [item for item in self.profiles if item is not profile]
         if not save_device_profiles(self.app.repo, updated):
             self._status("Could not save .tactility/devices.json.", error=True)
             return
@@ -1069,6 +1070,8 @@ class DevConsole(ctk.CTk):
         self._launchers: dict[str, subprocess.Popen] = {}
         self._launcher_buttons: dict[str, ctk.CTkButton] = {}
         self._launcher_labels: dict[str, str] = {}
+        self._pending_launches: set[str] = set()
+        self._closing = False
         self._current_action = ""
         self._started_at = 0.0
         self._save_job: str | None = None
@@ -1079,6 +1082,7 @@ class DevConsole(ctk.CTk):
         self._files_loading = False
         self._files_ready = False
         self._files_root_detected = False
+        self._files_generation = 0
         self._file_rows: list[tuple[str, bool, int | None, ctk.CTkButton, ctk.CTkLabel]] = []
         self._remote_selected = ""
         self._refresh_files_after_job = False
@@ -1784,14 +1788,21 @@ class DevConsole(ctk.CTk):
         label = f"Remote {profile['name']}" if profile else f"Remote {host}"
         self._launch_tool(f"remote:{host}", label,
                           [tool_python(), str(self.tt_py), "remote", "--host", host,
-                           "--appearance", appearance])
+                           "--appearance", appearance, "--title", label])
 
     def _launch_tool(self, key: str, label: str, command: list[str]) -> None:
         """Start a long-lived GUI tool without occupying the pipeline job slot."""
         self._launcher_labels.setdefault(key, label)
         with self._lock:
+            if self._closing:
+                return
             process = self._launchers.get(key)
-        if process is not None and process.poll() is None:
+            if key in self._pending_launches or (process is not None and process.poll() is None):
+                already_running = True
+            else:
+                self._pending_launches.add(key)
+                already_running = False
+        if already_running:
             self._system(f"{label} is already running", "warn")
             return
         self._launcher_state(key, True)
@@ -1800,6 +1811,10 @@ class DevConsole(ctk.CTk):
                          daemon=True).start()
 
     def _launcher_worker(self, key: str, label: str, command: list[str]) -> None:
+        with self._lock:
+            if self._closing:
+                self._pending_launches.discard(key)
+                return
         environment = dict(os.environ)
         environment["PYTHONUNBUFFERED"] = "1"
         environment["PYTHONIOENCODING"] = "utf-8"
@@ -1819,11 +1834,26 @@ class DevConsole(ctk.CTk):
         try:
             process = subprocess.Popen(command, **popen_kwargs)
         except OSError as exc:
+            with self._lock:
+                self._pending_launches.discard(key)
             self._queue.put(("launcher_error", key, label, str(exc)))
             return
 
         with self._lock:
-            self._launchers[key] = process
+            self._pending_launches.discard(key)
+            if self._closing:
+                stop_after_start = True
+            else:
+                self._launchers[key] = process
+                stop_after_start = False
+        if stop_after_start:
+            try:
+                if process.stdout is not None:
+                    process.stdout.close()
+            except (OSError, ValueError):
+                pass
+            self._terminate(process, label.lower())
+            return
         self._queue.put(("launcher_started", key, label))
 
         stdout = io.TextIOWrapper(process.stdout, encoding="utf-8", errors="replace", newline="\n")
@@ -2093,13 +2123,15 @@ class DevConsole(ctk.CTk):
             self._files_go(self.remote_path)
 
     def _files_detect_root(self) -> None:
+        self._files_generation += 1
+        generation = self._files_generation
         self._files_loading = True
         self._files_ready = False
         self._clear_files_list()
         self.files_status.configure(text="Finding device storage…")
         self._files_message("Finding device storage…")
         host_arguments = self._device_host_arguments()
-        threading.Thread(target=self._files_pwd_worker, args=(host_arguments,),
+        threading.Thread(target=self._files_pwd_worker, args=(host_arguments, generation),
                          daemon=True).start()
 
     def _remote_run(self, command_text: str, host_arguments: list[str]):
@@ -2134,15 +2166,17 @@ class DevConsole(ctk.CTk):
             error=True,
         )
 
-    def _files_pwd_worker(self, host_arguments: list[str]) -> None:
+    def _files_pwd_worker(self, host_arguments: list[str], generation: int) -> None:
         try:
             result = self._remote_run("pwd", host_arguments)
         except (OSError, subprocess.SubprocessError) as exc:
-            self._queue.put(("files_error", str(exc)))
+            self._queue.put(("files_error", str(exc), generation))
             return
-        self._queue.put(("files_pwd", result.returncode, result.stdout))
+        self._queue.put(("files_pwd", result.returncode, result.stdout, generation))
 
-    def _files_pwd_loaded(self, code: int, output: str) -> None:
+    def _files_pwd_loaded(self, code: int, output: str, generation: int) -> None:
+        if generation != self._files_generation:
+            return
         self._files_loading = False
         self._clear_files_list()
         if self._files_is_trust_error(output):
@@ -2181,6 +2215,8 @@ class DevConsole(ctk.CTk):
     def _files_go(self, path: str) -> None:
         if self._files_loading:
             return
+        self._files_generation += 1
+        generation = self._files_generation
         normalized = self._normalize_remote(path)
         self.remote_path = normalized
         self._files_root_detected = True
@@ -2192,18 +2228,20 @@ class DevConsole(ctk.CTk):
         self._clear_files_list()
         self._files_message("Loading…")
         host_arguments = self._device_host_arguments()
-        threading.Thread(target=self._files_worker, args=(normalized, host_arguments),
+        threading.Thread(target=self._files_worker, args=(normalized, host_arguments, generation),
                          daemon=True).start()
 
-    def _files_worker(self, path: str, host_arguments: list[str]) -> None:
+    def _files_worker(self, path: str, host_arguments: list[str], generation: int) -> None:
         try:
             result = self._remote_run(f"ls -l {shell_quote(path)}", host_arguments)
         except (OSError, subprocess.SubprocessError) as exc:
-            self._queue.put(("files_error", str(exc)))
+            self._queue.put(("files_error", str(exc), generation))
             return
-        self._queue.put(("files", path, result.returncode, result.stdout))
+        self._queue.put(("files", path, result.returncode, result.stdout, generation))
 
-    def _files_loaded(self, path: str, code: int, output: str) -> None:
+    def _files_loaded(self, path: str, code: int, output: str, generation: int) -> None:
+        if generation != self._files_generation:
+            return
         self._files_loading = False
         self._clear_files_list()
         if self._files_is_trust_error(output):
@@ -2246,11 +2284,26 @@ class DevConsole(ctk.CTk):
             size_label.grid(row=0, column=1, padx=(8, 8))
             self._file_rows.append((name, is_dir, size, button, size_label))
 
-    def _files_failed(self, message: str) -> None:
+    def _files_failed(self, message: str, generation: int) -> None:
+        if generation != self._files_generation:
+            return
         self._files_loading = False
         self._clear_files_list()
         self.files_status.configure(text="Could not list the directory")
         self._files_message(message, error=True)
+
+    def _files_reset(self) -> None:
+        """Drop everything that belongs to the previous device."""
+        self._files_generation += 1
+        self._files_loading = False
+        self._files_ready = False
+        self._files_root_detected = False
+        self.remote_path = "/sdcard"
+        self._clear_files_list()
+        self.files_path.delete(0, "end")
+        self.files_path.insert(0, "/sdcard")
+        self.files_status.configure(text="Device changed")
+        self._files_message("Device changed. Open Files to browse the new device.")
 
     def _clear_files_list(self) -> None:
         for child in self.files_list.winfo_children():
@@ -2638,11 +2691,11 @@ class DevConsole(ctk.CTk):
                 elif kind == "shell_exit":
                     self._shell_finished(message[1])
                 elif kind == "files":
-                    self._files_loaded(message[1], message[2], message[3])
+                    self._files_loaded(message[1], message[2], message[3], message[4])
                 elif kind == "files_pwd":
-                    self._files_pwd_loaded(message[1], message[2])
+                    self._files_pwd_loaded(message[1], message[2], message[3])
                 elif kind == "files_error":
-                    self._files_failed(message[1])
+                    self._files_failed(message[1], message[2])
         except queue.Empty:
             pass
         self.after(60, self._poll_queue)
@@ -2729,6 +2782,8 @@ class DevConsole(ctk.CTk):
             current = path.read_text(encoding="utf-8")
         except OSError:
             current = None
+        if (current or "").strip() != host and hasattr(self, "files_path"):
+            self._files_reset()
         if host:
             if current == host:
                 return
@@ -2888,13 +2943,27 @@ class DevConsole(ctk.CTk):
                 (key, process) for key, process in self._launchers.items()
                 if process is not None and process.poll() is None
             ]
-        if running_launchers:
-            names = ", ".join(self._launcher_labels.get(key, key)
-                              for key, _process in running_launchers)
-            if not self._confirm("Tools running", f"Close {names} and exit?"):
+            pending_launches = set(self._pending_launches)
+        if running_launchers or pending_launches:
+            names = sorted(
+                {self._launcher_labels.get(key, key) for key, _process in running_launchers}
+                | {self._launcher_labels.get(key, key) for key in pending_launches}
+            )
+            if not self._confirm("Tools running", f"Close {', '.join(names)} and exit?"):
                 return
+            with self._lock:
+                self._closing = True
             for key, process in running_launchers:
                 self._terminate(process, self._launcher_labels.get(key, key).lower())
+            # Give a worker that is between the pending check and Popen time to
+            # notice the close; it terminates its own process if it started one.
+            deadline = time.time() + 1.0
+            while time.time() < deadline:
+                with self._lock:
+                    if not self._pending_launches:
+                        break
+                self.update()
+                time.sleep(0.05)
         self._save_idf_setting()
         self._save_host()
         self._save_settings()

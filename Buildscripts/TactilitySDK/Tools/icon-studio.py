@@ -25,8 +25,10 @@ import copy
 import json
 import math
 import os
+import queue
 import re
 import sys
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -502,6 +504,12 @@ def parse_path_data(text: str | None) -> list[Subpath]:
             subpaths.append(Subpath(points, closed))
         points = []
 
+    def ensure_start() -> None:
+        # A drawing command after Z starts at the closed subpath's initial point.
+        nonlocal points
+        if not points:
+            points = [position]
+
     while not scanner.at_end():
         token = scanner.command()
         if token is not None:
@@ -525,6 +533,7 @@ def parse_path_data(text: str | None) -> list[Subpath]:
             x, y = scanner.number(), scanner.number()
             if relative:
                 x, y = x + position[0], y + position[1]
+            ensure_start()
             position = (x, y)
             points.append(position)
             last_cubic = last_quad = None
@@ -532,6 +541,7 @@ def parse_path_data(text: str | None) -> list[Subpath]:
             x = scanner.number()
             if relative:
                 x += position[0]
+            ensure_start()
             position = (x, position[1])
             points.append(position)
             last_cubic = last_quad = None
@@ -539,6 +549,7 @@ def parse_path_data(text: str | None) -> list[Subpath]:
             y = scanner.number()
             if relative:
                 y += position[1]
+            ensure_start()
             position = (position[0], y)
             points.append(position)
             last_cubic = last_quad = None
@@ -550,6 +561,7 @@ def parse_path_data(text: str | None) -> list[Subpath]:
                 x1, y1 = x1 + position[0], y1 + position[1]
                 x2, y2 = x2 + position[0], y2 + position[1]
                 x, y = x + position[0], y + position[1]
+            ensure_start()
             flatten_cubic(position, (x1, y1), (x2, y2), (x, y), points)
             last_cubic = (x2, y2)
             last_quad = None
@@ -564,6 +576,7 @@ def parse_path_data(text: str | None) -> list[Subpath]:
                 x1, y1 = position
             else:
                 x1, y1 = 2 * position[0] - last_cubic[0], 2 * position[1] - last_cubic[1]
+            ensure_start()
             flatten_cubic(position, (x1, y1), (x2, y2), (x, y), points)
             last_cubic = (x2, y2)
             last_quad = None
@@ -574,6 +587,7 @@ def parse_path_data(text: str | None) -> list[Subpath]:
             if relative:
                 qx, qy = qx + position[0], qy + position[1]
                 x, y = x + position[0], y + position[1]
+            ensure_start()
             flatten_quadratic(position, (qx, qy), (x, y), points)
             last_quad = (qx, qy)
             last_cubic = None
@@ -586,6 +600,7 @@ def parse_path_data(text: str | None) -> list[Subpath]:
                 qx, qy = position
             else:
                 qx, qy = 2 * position[0] - last_quad[0], 2 * position[1] - last_quad[1]
+            ensure_start()
             flatten_quadratic(position, (qx, qy), (x, y), points)
             last_quad = (qx, qy)
             last_cubic = None
@@ -599,6 +614,7 @@ def parse_path_data(text: str | None) -> list[Subpath]:
             if relative:
                 x, y = x + position[0], y + position[1]
             segments = arc_to_cubics(position, rx, ry, angle, large_arc, sweep, (x, y))
+            ensure_start()
             if segments is None:
                 points.append((x, y))
             else:
@@ -729,9 +745,10 @@ class GradientStop:
 class GradientDef:
     kind: str
     element: ET.Element
-    units: str
-    transform: Matrix
-    coords: dict[str, str]
+    units: str | None
+    transform: Matrix | None
+    coords: dict[str, str | None]
+    spread_method: str | None = None
     stops: list[GradientStop] = field(default_factory=list)
     href: str | None = None
 
@@ -888,17 +905,16 @@ def parse_declarations(text: str | None) -> dict[str, str]:
 @dataclass
 class CssRule:
     selector: str
+    parts: list[tuple[str, list[str], list[str]]]
+    combinators: list[str]
     specificity: tuple[int, int, int]
     order: int
     declarations: dict[str, str]
 
 
-def _selector_parts(selector: str):
+def _parse_compound(selector: str):
     selector = selector.strip()
     if not selector or "[" in selector or ":" in selector:
-        return None
-    selector = re.split(r"[\s>+~]+", selector)[-1]
-    if not selector:
         return None
     match = re.match(r"^([a-zA-Z][\w-]*|\*)?((?:[.#][\w-]+)*)$", selector)
     if match is None:
@@ -910,6 +926,40 @@ def _selector_parts(selector: str):
     return tag if tag != "*" else "", classes, ids
 
 
+def _parse_selector(selector: str):
+    """Parse tag/class/id compounds with descendant and child combinators."""
+    selector = selector.strip()
+    if not selector or any(char in selector for char in "[]:+~"):
+        return None
+    tokens = re.findall(r"[^\s>]+|>", selector)
+    if not tokens or tokens[-1] == ">":
+        return None
+    parts = []
+    combinators = []
+    pending = " "
+    for token in tokens:
+        if token == ">":
+            if not parts:
+                return None
+            pending = ">"
+            continue
+        compound = _parse_compound(token)
+        if compound is None:
+            return None
+        if parts:
+            combinators.append(pending)
+        parts.append(compound)
+        pending = " "
+    return (parts, combinators) if parts else None
+
+
+def _selector_specificity(parts) -> tuple[int, int, int]:
+    ids = sum(len(part[2]) for part in parts)
+    classes = sum(len(part[1]) for part in parts)
+    tags = sum(1 for part in parts if part[0])
+    return ids, classes, tags
+
+
 def parse_css(text: str, start_order: int = 0) -> list[CssRule]:
     rules: list[CssRule] = []
     text = re.sub(r"/\*.*?\*/", "", text or "", flags=re.S)
@@ -919,12 +969,12 @@ def parse_css(text: str, start_order: int = 0) -> list[CssRule]:
         if not declarations:
             continue
         for selector in block.group(1).split(","):
-            parts = _selector_parts(selector)
-            if parts is None:
+            parsed = _parse_selector(selector)
+            if parsed is None:
                 continue
-            tag, classes, ids = parts
-            rules.append(CssRule(selector.strip(), (len(ids), len(classes), 1 if tag else 0),
-                                 order, declarations))
+            parts, combinators = parsed
+            rules.append(CssRule(selector.strip(), parts, combinators,
+                                 _selector_specificity(parts), order, declarations))
             order += 1
     return rules
 
@@ -1035,50 +1085,87 @@ class SvgParser:
             if colour is not None:
                 stops.append(GradientStop(clamp(offset, 0.0, 1.0), colour.with_alpha(round(opacity * 255))))
         href = element.get("href") or element.get(f"{{{XLINK_NS}}}href")
+        transform_text = element.get("gradientTransform")
         self.gradients[identifier] = GradientDef(
             kind=kind,
             element=element,
-            units=element.get("gradientUnits", "objectBoundingBox"),
-            transform=parse_transform(element.get("gradientTransform")),
+            units=element.get("gradientUnits"),
+            transform=parse_transform(transform_text) if transform_text else None,
             coords={key: element.get(key) for key in ("x1", "y1", "x2", "y2", "cx", "cy", "r", "fx", "fy")},
+            spread_method=element.get("spreadMethod"),
             stops=stops,
             href=href[1:] if href and href.startswith("#") else None,
         )
 
-    def _gradient_stops(self, identifier: str, seen=None) -> list[GradientStop]:
+    def _resolved_gradient(self, identifier: str, seen: set[str] | None = None) -> dict:
+        """Resolve href inheritance for coords, units, transform and stops."""
         definition = self.gradients.get(identifier)
         if definition is None:
-            return []
-        if definition.stops:
-            return definition.stops
+            raise IconError(f"Missing gradient {identifier!r}")
         seen = seen or set()
-        if identifier in seen or not definition.href:
-            return []
+        if identifier in seen:
+            raise IconError(f"Gradient href cycle at {identifier!r}")
         seen.add(identifier)
-        return self._gradient_stops(definition.href, seen)
+        parent = self._resolved_gradient(definition.href, seen) if definition.href else {}
+        units = definition.units or parent.get("units") or "objectBoundingBox"
+        transform = (definition.transform if definition.transform is not None
+                     else parent.get("transform", IDENTITY))
+        coords = dict(parent.get("coords", {}))
+        for key, value in definition.coords.items():
+            if value is not None:
+                coords[key] = value
+        return {
+            "kind": definition.kind,
+            "units": units,
+            "transform": transform,
+            "coords": coords,
+            "spread_method": definition.spread_method or parent.get("spread_method") or "pad",
+            "stops": definition.stops or parent.get("stops", []),
+            "element": definition.element,
+        }
 
-    def _matching_css(self, element: ET.Element) -> list[CssRule]:
-        tag = local_name(element.tag)
-        classes = set((element.get("class") or "").split())
-        identifier = element.get("id")
-        matches = []
-        for rule in self.css:
-            parts = _selector_parts(rule.selector)
-            if parts is None:
-                continue
-            selector_tag, selector_classes, selector_ids = parts
-            if selector_tag and selector_tag != tag:
-                continue
-            if selector_classes and not set(selector_classes).issubset(classes):
-                continue
-            if selector_ids and identifier not in selector_ids:
-                continue
-            matches.append(rule)
+    @staticmethod
+    def _compound_matches(element: ET.Element, compound) -> bool:
+        selector_tag, selector_classes, selector_ids = compound
+        if selector_tag and selector_tag != local_name(element.tag):
+            return False
+        if selector_classes:
+            classes = set((element.get("class") or "").split())
+            if not set(selector_classes).issubset(classes):
+                return False
+        if selector_ids and element.get("id") not in selector_ids:
+            return False
+        return True
+
+    def _matches_selector(self, rule: CssRule, chain: tuple[ET.Element, ...]) -> bool:
+        if not self._compound_matches(chain[-1], rule.parts[-1]):
+            return False
+        remaining = chain[:-1]
+        for index in range(len(rule.parts) - 2, -1, -1):
+            compound = rule.parts[index]
+            combinator = rule.combinators[index]
+            if combinator == ">":
+                if not remaining or not self._compound_matches(remaining[-1], compound):
+                    return False
+                remaining = remaining[:-1]
+            else:
+                for position in range(len(remaining) - 1, -1, -1):
+                    if self._compound_matches(remaining[position], compound):
+                        remaining = remaining[:position]
+                        break
+                else:
+                    return False
+        return True
+
+    def _matching_css(self, element: ET.Element, ancestors: tuple[ET.Element, ...]) -> list[CssRule]:
+        chain = ancestors + (element,)
+        matches = [rule for rule in self.css if self._matches_selector(rule, chain)]
         matches.sort(key=lambda rule: (rule.specificity, rule.order))
         return matches
 
     # ---- tree walk ----
-    def _walk(self, element, matrix, style, alpha, depth, in_use, viewport):
+    def _walk(self, element, matrix, style, alpha, depth, in_use, viewport,
+              ancestors: tuple[ET.Element, ...] = ()):
         if depth > 32:
             self._warn("The SVG is nested too deeply; some shapes were skipped")
             return
@@ -1089,7 +1176,8 @@ class SvgParser:
         if tag in SKIP_TAGS:
             if tag == "symbol" and in_use:
                 for child in element:
-                    self._walk(child, matrix, style, alpha, depth + 1, False, viewport)
+                    self._walk(child, matrix, style, alpha, depth + 1, False, viewport,
+                               ancestors + (element,))
             return
         if tag in ("text", "tspan", "textPath", "image", "foreignObject"):
             self.unsupported.add(tag)
@@ -1100,7 +1188,7 @@ class SvgParser:
             value = element.get(name)
             if value is not None:
                 own_declarations[name] = value
-        for rule in self._matching_css(element):
+        for rule in self._matching_css(element, ancestors):
             own_declarations.update(rule.declarations)
         own_declarations.update(parse_declarations(element.get("style")))
 
@@ -1120,13 +1208,15 @@ class SvgParser:
 
         if tag in ("g", "a", "switch"):
             for child in element:
-                self._walk(child, transform, style, alpha, depth + 1, False, viewport)
+                self._walk(child, transform, style, alpha, depth + 1, False, viewport,
+                           ancestors + (element,))
             return
 
         if tag == "svg":
             if element is self.root:
                 for child in element:
-                    self._walk(child, transform, style, alpha, depth + 1, False, viewport)
+                    self._walk(child, transform, style, alpha, depth + 1, False, viewport,
+                               ancestors + (element,))
                 return
             nested = self._read_viewbox(element)
             x = parse_length(element.get("x"), viewport[0])
@@ -1143,7 +1233,8 @@ class SvgParser:
                 transform = mat_mul(transform, (1.0, 0.0, 0.0, 1.0, x, y))
             for child in element:
                 self._walk(child, transform, style, alpha, depth + 1, False,
-                           (nested[2], nested[3]) if nested else viewport)
+                           (nested[2], nested[3]) if nested else viewport,
+                           ancestors + (element,))
             return
 
         if tag == "use":
@@ -1158,7 +1249,8 @@ class SvgParser:
             x = parse_length(element.get("x"), viewport[0])
             y = parse_length(element.get("y"), viewport[1])
             transform = mat_mul(transform, (1.0, 0.0, 0.0, 1.0, x, y))
-            self._walk(referenced, transform, style, alpha, depth + 1, True, viewport)
+            self._walk(referenced, transform, style, alpha, depth + 1, True, viewport,
+                       ancestors + (element,))
             return
 
         if tag in DRAWABLE_TAGS:
@@ -1169,7 +1261,8 @@ class SvgParser:
         if len(element):
             self._warn(f"Unknown element <{tag}> was treated as a group")
             for child in element:
-                self._walk(child, transform, style, alpha, depth + 1, False, viewport)
+                self._walk(child, transform, style, alpha, depth + 1, False, viewport,
+                           ancestors + (element,))
         else:
             self.unsupported.add(tag)
 
@@ -1244,18 +1337,19 @@ class SvgParser:
 
     def _resolve_paint(self, value, style, viewport, opacity_key):
         raw = (value or "").strip()
-        if not raw or raw.lower() == "none":
+        if not raw or raw.lower() in ("none", "transparent"):
             return None, None, None, 1.0
         if raw.lower() == "currentcolor":
             raw = style.get("color", "black")
         match = re.match(r"url\(\s*['\"]?#([^)'\"]+)['\"]?\s*\)", raw)
         if match:
             identifier = match.group(1)
-            if identifier not in self.gradients:
-                self._warn(f"Missing gradient {identifier!r} was replaced with black")
+            try:
+                resolved = self._resolved_gradient(identifier)
+            except IconError as error:
+                self._warn(f"Gradient {identifier!r} was replaced with black: {error}")
                 return "#000000", RGBA(0, 0, 0), None, 1.0
-            definition = self.gradients[identifier]
-            if not self._gradient_stops(identifier):
+            if not resolved["stops"]:
                 self._warn(f"Gradient {identifier!r} has no stops; using black")
                 return "#000000", RGBA(0, 0, 0), None, 1.0
             opacity = clamp(as_float(style.get(opacity_key, "1"), 1.0), 0.0, 1.0)
@@ -1266,6 +1360,8 @@ class SvgParser:
             self._warn(f"Unsupported paint {raw!r} was replaced with black")
             return "#000000", RGBA(0, 0, 0), None, 1.0
         opacity = clamp(as_float(style.get(opacity_key, "1"), 1.0), 0.0, 1.0) * (colour.a / 255.0)
+        if opacity <= 0.0:
+            return None, None, None, 0.0
         return colour.hex, colour.with_alpha(255), None, opacity
 
     def _geometry_attrs(self, element, tag, viewport):
@@ -1313,21 +1409,29 @@ class SvgParser:
                 shape.stroke_gradient = self._build_gradient(shape.stroke_gradient_id, shape)
 
     def _build_gradient(self, identifier: str, shape: Shape) -> GradientPaint:
-        definition = self.gradients[identifier]
-        stops = self._gradient_stops(identifier)
-        kind = definition.kind
-        if definition.units == "objectBoundingBox":
+        try:
+            resolved = self._resolved_gradient(identifier)
+        except IconError:
+            definition = self.gradients[identifier]
+            resolved = {"kind": definition.kind, "units": "objectBoundingBox",
+                        "transform": IDENTITY, "coords": {}, "stops": []}
+        stops = resolved["stops"]
+        kind = resolved["kind"]
+        units = resolved["units"]
+        transform = resolved["transform"]
+        coords = resolved["coords"]
+        if units == "objectBoundingBox":
             x0, y0, x1, y1 = shape.geom_bbox
             base: Matrix = (x1 - x0, 0.0, 0.0, y1 - y0, x0, y0)
         else:
             base = shape.matrix
-        matrix = mat_mul(base, definition.transform)
+        matrix = mat_mul(base, transform)
 
         def coordinate(key, default):
-            raw = definition.coords.get(key)
+            raw = coords.get(key)
             if raw is None:
                 raw = default
-            if definition.units == "objectBoundingBox":
+            if units == "objectBoundingBox":
                 return as_float(str(raw).rstrip("%"), 0.0) / (100.0 if str(raw).endswith("%") else 1.0)
             return parse_length(raw, max(shape.geom_bbox[2] - shape.geom_bbox[0],
                                         shape.geom_bbox[3] - shape.geom_bbox[1], 1.0))
@@ -1352,18 +1456,16 @@ class SvgParser:
         for index, shape in enumerate(self.shapes):
             if shape.tag != "rect" or shape.fill is None or shape.has_stroke:
                 continue
-            if shape.fill_rgba is None:
-                self._warn("A full-size rectangle with a gradient fill was kept in the glyph")
-                continue
             x0, y0, x1, y1 = shape.geom_bbox
-            if (x0 <= viewport_x + viewport_w * tolerance
+            if not (x0 <= viewport_x + viewport_w * tolerance
                     and y0 <= viewport_y + viewport_h * tolerance
                     and x1 >= viewport_x + viewport_w * (1 - tolerance)
                     and y1 >= viewport_y + viewport_h * (1 - tolerance)):
-                colour = shape.fill_rgba.hex if shape.fill_rgba is not None else None
-                if colour is None:
-                    colour = "#000000"
-                return colour, self.shapes[:index] + self.shapes[index + 1:]
+                continue
+            if shape.fill_rgba is None:
+                self._warn("A full-size rectangle with a gradient fill was kept in the glyph")
+                continue
+            return shape.fill_rgba.hex, self.shapes[:index] + self.shapes[index + 1:]
         return None, self.shapes
 
     def _referenced_defs(self) -> list[ET.Element]:
@@ -1388,12 +1490,38 @@ class SvgParser:
         for identifier, definition in self.gradients.items():
             if identifier not in used:
                 continue
+            try:
+                resolved = self._resolved_gradient(identifier)
+            except IconError:
+                continue
             clone = _clean_definition(definition.element)
             clone.attrib.pop("href", None)
-            # Inline inherited stops: the device renderer is not required to
-            # follow gradient href chains.
+            # Resolve inherited coordinates, units and transform before the
+            # href is removed, so the device renderer doesn't need href support.
+            clone.set("gradientUnits", resolved["units"])
+            transform = resolved["transform"]
+            if mat_is_identity(transform):
+                clone.attrib.pop("gradientTransform", None)
+            else:
+                clone.set("gradientTransform", _matrix_attr(transform))
+            if resolved["spread_method"] != "pad":
+                clone.set("spreadMethod", resolved["spread_method"])
+            coords = resolved["coords"]
+            if resolved["kind"] == "linearGradient":
+                clone.set("x1", coords.get("x1", "0%"))
+                clone.set("y1", coords.get("y1", "0%"))
+                clone.set("x2", coords.get("x2", "100%"))
+                clone.set("y2", coords.get("y2", "0%"))
+            else:
+                cx = coords.get("cx", "50%")
+                cy = coords.get("cy", "50%")
+                clone.set("cx", cx)
+                clone.set("cy", cy)
+                clone.set("r", coords.get("r", "50%"))
+                clone.set("fx", coords.get("fx", cx))
+                clone.set("fy", coords.get("fy", cy))
             if not any(local_name(child.tag) == "stop" for child in clone):
-                for stop in self._gradient_stops(identifier):
+                for stop in resolved["stops"]:
                     ET.SubElement(clone, "stop", {
                         "offset": fmt(stop.offset),
                         "stop-color": stop.colour.hex,
@@ -1535,7 +1663,9 @@ def fit_shapes(shapes: list[Shape], target: float,
 
 
 def _matrix_attr(matrix: Matrix) -> str:
-    return "matrix(" + " ".join(fmt(value) for value in matrix) + ")"
+    # Two decimals are fine for path coordinates, but the fit scale is often
+    # around 0.08; rounding that to 0.08 changes the glyph size noticeably.
+    return "matrix(" + " ".join(f"{value:.6g}" for value in matrix) + ")"
 
 
 def _shape_element(shape: Shape, paint_mode: str, colour: str | None,
@@ -1610,11 +1740,11 @@ def _serialize(root: ET.Element) -> str:
     return ET.tostring(root, encoding="unicode", short_empty_elements=True).replace(" />", "/>")
 
 
-def _svg_root() -> ET.Element:
+def _svg_root(width: int = CANVAS, height: int = CANVAS) -> ET.Element:
     return ET.Element("svg", {
         "xmlns": SVG_NS,
-        "width": str(CANVAS),
-        "height": str(CANVAS),
+        "width": str(width),
+        "height": str(height),
         "viewBox": f"0 0 {CANVAS} {CANVAS}",
     })
 
@@ -1667,7 +1797,8 @@ def build_mono_svg(icon: ParsedIcon, options: IconOptions) -> tuple[str, FitInfo
     shapes = copy.deepcopy(icon.shapes)
     fit = fit_shapes(shapes, options.mono_size, min_stroke=options.min_stroke)
 
-    root = _svg_root()
+    # The mono guide uses 24 px attributes with the 96-unit drawing space.
+    root = _svg_root(24, 24)
     group = _fit_group(fit)
     root.append(group)
     for shape in shapes:
@@ -1694,9 +1825,9 @@ def _base_warnings(icon: ParsedIcon) -> list[str]:
 
 def _sanity_check(colour_svg: str, mono_svg: str) -> list[str]:
     problems = []
-    for label, text in (("colour", colour_svg), ("mono", mono_svg)):
-        if 'width="96"' not in text or 'height="96"' not in text:
-            problems.append(f"The {label} icon is not 96 px")
+    for label, text, size in (("colour", colour_svg, 96), ("mono", mono_svg, 24)):
+        if f'width="{size}"' not in text or f'height="{size}"' not in text:
+            problems.append(f"The {label} icon is not {size} px")
         if 'viewBox="0 0 96 96"' not in text:
             problems.append(f"The {label} icon does not use a 96×96 viewBox")
     if "url(#" in mono_svg:
@@ -1897,23 +2028,23 @@ def _dash_segments(points, closed, pattern, offset):
         return [source]
     if len(values) % 2:
         values *= 2
-    if sum(values) <= 1e-9:
+    period = sum(values)
+    if period <= 1e-9:
         return [source]
 
-    total = 0.0
+    # A large (or negative) offset must not walk the pattern forever. Reduce it
+    # modulo one period, then skip whole spans without changing their lengths.
+    offset %= period
     index = 0
-    while offset > 0 and total < 1e9:
-        if offset >= values[index]:
-            offset -= values[index]
-            index = (index + 1) % len(values)
-        else:
-            values[index] -= offset
-            offset = 0
-    total = 0.0
+    while offset >= values[index]:
+        offset -= values[index]
+        index = (index + 1) % len(values)
+        if offset <= 1e-9:
+            break
 
     segments = []
     current = [source[0]]
-    remaining = values[index]
+    remaining = values[index] - offset
     on = index % 2 == 0
     for start, end in zip(source, source[1:]):
         segment_length = math.dist(start, end)
@@ -2323,6 +2454,10 @@ class MaterialBrowser(ctk.CTkToplevel if ctk is not None else object):
         self._preview_photo = None
         self._filter_job = None
         self._load_job = None
+        self._load_results: queue.Queue = queue.Queue()
+        self._style_load_id = 0
+        self._loading_style: str | None = None
+        self._style_poll_job = None
 
         self.style_var = tk.StringVar(
             value=initial_style if initial_style in MATERIAL_STYLES else "Filled")
@@ -2474,33 +2609,61 @@ class MaterialBrowser(ctk.CTkToplevel if ctk is not None else object):
         self._status(f"Downloading {style} icons…" if needs_download else f"Loading {style}…")
         self.update_idletasks()
 
+        self._style_load_id += 1
+        token = self._style_load_id
+        self._loading_style = style
+        if self._style_poll_job is not None:
+            try:
+                self.after_cancel(self._style_poll_job)
+            except tk.TclError:
+                pass
+        threading.Thread(target=self._load_style_worker, args=(style, token),
+                         daemon=True).start()
+        self._style_poll_job = self.after(60, self._poll_style_load)
+
+    def _load_style_worker(self, style: str, token: int) -> None:
         try:
             font_path, entries = ensure_material_assets(self.cache, style)
-        except (IconError, OSError) as error:
-            if not self.winfo_exists():
-                return
-            self.font_path = None
-            self.entries = []
-            self.filtered = []
-            self.page_entries = []
-            self.page = 0
-            self._render_grid()
-            self._status(str(error), error=True)
-            return
+            error = None
+        except Exception as exc:  # noqa: BLE001 - report any loader failure to the UI
+            font_path, entries, error = None, [], exc
+        self._load_results.put((token, style, font_path, entries, error))
 
+    def _poll_style_load(self) -> None:
+        self._style_poll_job = None
         if not self.winfo_exists():
             return
-        self.font_path = font_path
-        self.entries = entries
-        self._pil_fonts.clear()
-        self.page = 0
-        self._apply_filter()
-        suffix = "" if TTFont is not None else " · fontTools missing (pip install fonttools)"
-        self._status(f"{len(entries)} icons · {style} · cached{suffix}", error=TTFont is None)
-        if hasattr(self.app, "material_style"):
-            self.app.material_style = style
-            self.app.settings["material_style"] = style
-            self.app._save_later()
+        try:
+            while True:
+                token, style, font_path, entries, error = self._load_results.get_nowait()
+                if token != self._style_load_id or style != self.style_var.get():
+                    continue
+                self._loading_style = None
+                if error is not None:
+                    self.font_path = None
+                    self.entries = []
+                    self.filtered = []
+                    self.page_entries = []
+                    self.page = 0
+                    self._render_grid()
+                    self._status(str(error), error=True)
+                    break
+                self.font_path = font_path
+                self.entries = entries
+                self._pil_fonts.clear()
+                self.page = 0
+                self._apply_filter()
+                suffix = "" if TTFont is not None else " · fontTools missing (pip install fonttools)"
+                self._status(f"{len(entries)} icons · {style} · cached{suffix}", error=TTFont is None)
+                if hasattr(self.app, "material_style"):
+                    self.app.material_style = style
+                    self.app.settings["material_style"] = style
+                    self.app._save_later()
+                break
+        except queue.Empty:
+            pass
+        if self._loading_style is not None:
+            self._style_poll_job = self.after(60, self._poll_style_load)
 
     def _schedule_filter(self, _event=None) -> None:
         if self._filter_job is not None:
@@ -2727,6 +2890,12 @@ class MaterialBrowser(ctk.CTkToplevel if ctk is not None else object):
             except tk.TclError:
                 pass
             self._load_job = None
+        if self._style_poll_job is not None:
+            try:
+                self.after_cancel(self._style_poll_job)
+            except tk.TclError:
+                pass
+            self._style_poll_job = None
         try:
             self.grab_release()
         except tk.TclError:
@@ -3243,6 +3412,7 @@ class IconStudio(ctk.CTk if ctk is not None else object):
             self._auto_switched = False
 
         self.icon = icon
+        self.result = None
         self.source_text = text
         self.source_name = name
         self.source_box.delete("1.0", "end")
@@ -3410,8 +3580,23 @@ class IconStudio(ctk.CTk if ctk is not None else object):
             keep_layout=bool(self.keep_layout_var.get()),
         )
 
+    def _ensure_current(self) -> bool:
+        """Regenerate synchronously before saving/copying, cancelling the debounce."""
+        if self.icon is None:
+            self.result = None
+            return False
+        if self._refresh_job is not None:
+            try:
+                self.after_cancel(self._refresh_job)
+            except tk.TclError:
+                pass
+            self._refresh_job = None
+        self._refresh()
+        return self.result is not None
+
     def _refresh(self) -> None:
         self._refresh_job = None
+        self.result = None
         if self.icon is None:
             self._set_diagnostics("Load an SVG to build the two icons.")
             return
@@ -3493,8 +3678,9 @@ class IconStudio(ctk.CTk if ctk is not None else object):
 
     # ---- actions ----
     def _copy(self, which: str) -> None:
-        if self.result is None:
-            self._status("Nothing to copy yet.", error=True)
+        if not self._ensure_current():
+            if self.icon is None:
+                self._status("Load an SVG first.", error=True)
             return
         text = self.result.colour_svg if which == "colour" else self.result.mono_svg
         self.clipboard_clear()
@@ -3505,8 +3691,9 @@ class IconStudio(ctk.CTk if ctk is not None else object):
         folder = self._output_folder()
         if folder is None:
             return
-        if self.result is None:
-            self._status("Load an SVG first.", error=True)
+        if not self._ensure_current():
+            if self.icon is None:
+                self._status("Load an SVG first.", error=True)
             return
         try:
             written = write_icon_pair(folder, self.result.colour_svg, self.result.mono_svg,
@@ -3520,8 +3707,9 @@ class IconStudio(ctk.CTk if ctk is not None else object):
         folder = self._output_folder()
         if folder is None:
             return
-        if self.result is None:
-            self._status("Load an SVG first.", error=True)
+        if not self._ensure_current():
+            if self.icon is None:
+                self._status("Load an SVG first.", error=True)
             return
         name = "icon.svg" if which == "colour" else "icon_mono.svg"
         text = self.result.colour_svg if which == "colour" else self.result.mono_svg
@@ -3582,7 +3770,11 @@ def main() -> int:
             parser.error("--no-gui needs --svg")
         try:
             source = Path(args.svg).expanduser()
-            text = load_text(source) if source.is_file() else args.svg
+            try:
+                is_file = source.is_file()
+            except OSError:
+                is_file = False
+            text = load_text(source) if is_file else args.svg
             icon = parse_document(text, source_name=args.svg)
         except (OSError, IconError) as error:
             print(f"error: {error}", file=sys.stderr)
