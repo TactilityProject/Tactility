@@ -266,17 +266,13 @@ add_dependencies(${COMPONENT_LIB} GeneratedAssets)
 # Translations: the PO files of Translations/<domain> compiled to catalogs and embedded as C byte arrays
 #
 
-file(GLOB TRANSLATION_INPUTS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/Translations/*/*.po")
 set(CATALOG_GENERATOR "${CMAKE_SOURCE_DIR}/Buildscripts/l10n/generate-catalogs.py")
-add_custom_command(
-    OUTPUT "${GENERATED_DIR}/generated_catalogs.c" "${GENERATED_DIR}/generated_catalogs.h"
+# Runs on every build, so removing or adding a PO file is noticed. It rewrites its outputs only when the content changes.
+add_custom_target(GeneratedCatalogs ALL
     COMMAND python "${CATALOG_GENERATOR}" "${CMAKE_SOURCE_DIR}/Translations" "${GENERATED_DIR}"
-    DEPENDS "${CATALOG_GENERATOR}" "${CMAKE_SOURCE_DIR}/Buildscripts/TactilitySDK/Tools/po2tlc.py" ${TRANSLATION_INPUTS}
+    BYPRODUCTS "${GENERATED_DIR}/generated_catalogs.c" "${GENERATED_DIR}/generated_catalogs.h"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Generating translation catalogs..."
-)
-add_custom_target(GeneratedCatalogs ALL
-    DEPENDS "${GENERATED_DIR}/generated_catalogs.c" "${GENERATED_DIR}/generated_catalogs.h"
 )
 set_source_files_properties("${GENERATED_DIR}/generated_catalogs.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${GENERATED_DIR}/generated_catalogs.h" PROPERTIES GENERATED TRUE)

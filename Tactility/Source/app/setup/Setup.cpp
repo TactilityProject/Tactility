@@ -476,6 +476,14 @@ int32_t appMain(int argc, char* argv[]) {
             });
         }
         lvgl_lock();
+        // The steps are the same each time, so a choice that was picked is kept at its index
+        if (steps.size() == ctx.steps.size()) {
+            for (size_t i = 0; i < steps.size(); i++) {
+                if (ctx.steps[i].choice >= 0) {
+                    steps[i].choice = ctx.steps[i].choice;
+                }
+            }
+        }
         ctx.steps = ::std::move(steps);
         lvgl_unlock();
     };

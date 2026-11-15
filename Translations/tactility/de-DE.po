@@ -113,3 +113,21 @@ msgstr "Einfügen fehlgeschlagen"
 
 msgid "Remove"
 msgstr "Entfernen"
+
+msgid "File not found"
+msgstr "Datei nicht gefunden"
+
+msgid "\"{}\" doesn't exist."
+msgstr "„{}“ existiert nicht."
+
+msgid "Can't select"
+msgstr "Auswahl nicht möglich"
+
+msgid "\"{}\" can't be selected."
+msgstr "„{}“ kann nicht ausgewählt werden."
+
+msgid "Selection too long"
+msgstr "Auswahl zu lang"
+
+msgid "The paths are too long to return. Select fewer items."
+msgstr "Die Pfade sind zu lang, um sie zurückzugeben. Wähle weniger Elemente."

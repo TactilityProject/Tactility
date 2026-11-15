@@ -59,7 +59,7 @@ const char* localisation_get(const struct L10nDomain* domain, const char* msgid)
 const char* localisation_get_ctx(const struct L10nDomain* domain, const char* msgctxt, const char* msgid);
 
 /**
- * @brief Changes the locale, which reloads the catalogs of all domains.
+ * @brief Changes the locale, which reloads the catalogs of all domains. Setting the current locale again does nothing.
  * Reads files, so don't call it on the LVGL task.
  * @param[in] tag a language tag like "en-US" or "nl-NL" (at most 15 characters)
  * @retval ERROR_INVALID_ARGUMENT the tag is empty or too long

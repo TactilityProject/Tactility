@@ -35,7 +35,8 @@ struct Options {
  * until app_stream_unsubscribe() is called on it (see above).
  * @param[in] buffer caller-owned backing storage for @a stream's ring buffer; must stay valid
  * for the same duration as @a stream.
- * @param[in] bufferCapacity size of @a buffer in bytes.
+ * @param[in] bufferCapacity size of @a buffer in bytes. The result has to fit in it: the dialog refuses a longer
+ * selection and stays open, so the caller isn't blocked. Reserve room for the longest selection that is expected.
  * @param[in] eventGroup the caller's own event group, reused for the stream's readiness bits
  * (see app_stream_subscribe()) - the caller isn't required to actually wait on them itself.
  * @return the new app instance id

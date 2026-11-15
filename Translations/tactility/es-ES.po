@@ -113,3 +113,21 @@ msgstr "Error al pegar"
 
 msgid "Remove"
 msgstr "Quitar"
+
+msgid "File not found"
+msgstr "Archivo no encontrado"
+
+msgid "\"{}\" doesn't exist."
+msgstr "«{}» no existe."
+
+msgid "Can't select"
+msgstr "No se puede seleccionar"
+
+msgid "\"{}\" can't be selected."
+msgstr "«{}» no se puede seleccionar."
+
+msgid "Selection too long"
+msgstr "Selección demasiado larga"
+
+msgid "The paths are too long to return. Select fewer items."
+msgstr "Las rutas son demasiado largas para devolverlas. Selecciona menos elementos."

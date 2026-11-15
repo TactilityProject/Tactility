@@ -113,3 +113,21 @@ msgstr "Taal"
 
 msgid "Remove"
 msgstr "Verwijderen"
+
+msgid "File not found"
+msgstr "Bestand niet gevonden"
+
+msgid "\"{}\" doesn't exist."
+msgstr "\"{}\" bestaat niet."
+
+msgid "Can't select"
+msgstr "Kan niet selecteren"
+
+msgid "\"{}\" can't be selected."
+msgstr "\"{}\" kan niet geselecteerd worden."
+
+msgid "Selection too long"
+msgstr "Selectie te lang"
+
+msgid "The paths are too long to return. Select fewer items."
+msgstr "De paden zijn te lang om terug te geven. Selecteer minder items."

@@ -1,6 +1,9 @@
 #include "Tactility/app/fileselection/FileSelection.h"
-#include "Tactility/app/fileselection/View.h"
-#include "Tactility/app/fileselection/State.h"
+
+#include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/i18n/Localisation.h>
+
+#include <localisation/tr.h>
 
 #include <app/event.h>
 #include <app/io.h>
@@ -12,13 +15,22 @@
 
 #include <lvgl_window_manager/window_manager.h>
 
-#include <tactility/check.h>
+#include <lvgl/lvgl.h>
 
+#include <tactility/check.h>
+#include <tactility/filesystem/fs.h>
+
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <unistd.h>
 #include <vector>
+
+// Included last, as it makes std:: resolve to tt::std
+#include "Tactility/app/fileselection/View.h"
+#include "Tactility/app/fileselection/State.h"
 
 namespace tt::app::fileselection {
 
@@ -30,11 +42,58 @@ namespace {
 
 struct Context {
     uint32_t appInstanceId;
-    std::shared_ptr<State> state;
-    std::unique_ptr<View> view;
-    std::string result;
+    ::std::shared_ptr<State> state;
+    ::std::unique_ptr<View> view;
+    tt::std::string result;
     int32_t resultCode = 1; // 1 means Cancelled
+    /** The paths that were picked and wait for the app task to check them. Guarded by the LVGL lock. */
+    ::std::vector<::std::string> pickedPaths;
+    uint32_t pickedBit = 0;
+    /** The capacity of the caller's stream. A longer result would block this app when it writes it, so it is refused. */
+    size_t maxResultBytes = SIZE_MAX;
 };
+
+/** Checks the picked paths and commits them as the result. Runs on the app task, as it does file operations. */
+void onPicked(Context* ctx) {
+    lvgl_lock();
+    auto paths = ::std::move(ctx->pickedPaths);
+    ctx->pickedPaths.clear();
+    lvgl_unlock();
+    if (paths.empty()) {
+        return;
+    }
+
+    const auto& options = ctx->state->getOptions();
+    for (const auto& path : paths) {
+        const bool isFolder = directory_exists(path.c_str());
+        const bool isFile = !isFolder && file_exists(path.c_str());
+        if (!isFolder && !isFile && !options.allowNewFile) {
+            alertdialog::start(ctx->appInstanceId, tr("File not found"), i18n::format(tr("\"{}\" doesn't exist."), { path }));
+            return;
+        }
+        // A path that doesn't exist yet is a new file
+        const bool allowed = isFolder ? options.allowFolder : ctx->state->isSelectableFile(path);
+        if (!allowed) {
+            alertdialog::start(ctx->appInstanceId, tr("Can't select"), i18n::format(tr("\"{}\" can't be selected."), { path }));
+            return;
+        }
+    }
+
+    ctx->result.clear();
+    for (const auto& path : paths) {
+        ctx->result += path.c_str();
+        if (paths.size() > 1 || options.multiple) {
+            ctx->result += '\n';
+        }
+    }
+    if (ctx->result.size() > ctx->maxResultBytes) {
+        ctx->result.clear();
+        alertdialog::start(ctx->appInstanceId, tr("Selection too long"), tr("The paths are too long to return. Select fewer items."));
+        return;
+    }
+    ctx->resultCode = 0;
+    app_event_emit_close(ctx->appInstanceId);
+}
 
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -44,15 +103,17 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
-    // argv: flags "--new", "--folder", "--no-files", "--multiple" and "--ext=<extension>" (repeatable)
+    // argv: flags "--new", "--folder", "--no-files", "--multiple", "--max-bytes=<n>" and "--ext=<extension>" (repeatable)
     Options options;
+    size_t maxResultBytes = SIZE_MAX;
     for (int i = 0; i < argc; i++) {
-        std::string arg = argv[i];
+        ::std::string arg = argv[i];
         if (arg == "--new") options.allowNewFile = true;
         else if (arg == "--folder") options.allowFolder = true;
         else if (arg == "--no-files") options.allowFiles = false;
         else if (arg == "--multiple") options.multiple = true;
         else if (arg.starts_with("--ext=")) options.extensions.push_back(arg.substr(6));
+        else if (arg.starts_with("--max-bytes=")) maxResultBytes = strtoul(arg.c_str() + 12, nullptr, 10);
     }
 
     TaskEventGroup event_group {};
@@ -60,17 +121,13 @@ int32_t appMain(int argc, char* argv[]) {
 
     Context ctx {};
     ctx.appInstanceId = appInstanceId;
-    ctx.state = std::make_shared<State>(std::move(options));
-    ctx.view = std::make_unique<View>(appInstanceId, ctx.state, &event_group, [&ctx, appInstanceId](const std::vector<std::string>& paths) {
-        ctx.result.clear();
-        for (const auto& path : paths) {
-            ctx.result += path;
-            if (paths.size() > 1 || ctx.state->getOptions().multiple) {
-                ctx.result += '\n';
-            }
-        }
-        ctx.resultCode = 0;
-        app_event_emit_close(appInstanceId);
+    ctx.maxResultBytes = maxResultBytes;
+    ctx.state = ::std::make_shared<State>(::std::move(options));
+    check(task_event_group_claim_bit(&event_group, &ctx.pickedBit) == ERROR_NONE);
+    ctx.view = ::std::make_unique<View>(appInstanceId, ctx.state, &event_group, [&ctx, &event_group](const ::std::vector<::std::string>& paths) {
+        // Runs on the LVGL thread, which can't check whether the files exist
+        ctx.pickedPaths = paths;
+        task_event_group_signal(&event_group, ctx.pickedBit);
     });
 
     AppEventSubscription sub {};
@@ -85,6 +142,9 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.view->getFileOpsBit()) {
             ctx.view->onFileOpsCompleted();
         }
+        if (flags & ctx.pickedBit) {
+            onPicked(&ctx);
+        }
 
         bool shouldClose = false;
         AppEvent event {};
@@ -92,6 +152,9 @@ int32_t appMain(int argc, char* argv[]) {
             if (event.type == APP_EVENT_CLOSE) {
                 shouldClose = true;
                 break;
+            } else if (event.type == APP_EVENT_RESULT) {
+                // The dialog that says a picked file doesn't exist
+                app_manager_stop(event.result.launch_id);
             }
         }
         if (shouldClose) break;
@@ -101,6 +164,7 @@ int32_t appMain(int argc, char* argv[]) {
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     // The view releases its event group bit when it is destroyed, so it ends before the event group does
     ctx.view.reset();
+    task_event_group_release_bit(&event_group, ctx.pickedBit);
     task_event_group_destruct(&event_group);
 
     if (ctx.resultCode == 0) {
@@ -120,7 +184,7 @@ namespace {
 } // namespace
 
 uint32_t start(uint32_t callerAppInstanceId, AppStream& stream, void* buffer, size_t bufferCapacity, TaskEventGroup* eventGroup, const Options& options) {
-    std::vector<std::string> args;
+    ::std::vector<::std::string> args;
     if (options.allowNewFile) args.emplace_back("--new");
     if (options.allowFolder) args.emplace_back("--folder");
     if (!options.allowFiles) args.emplace_back("--no-files");
@@ -128,7 +192,8 @@ uint32_t start(uint32_t callerAppInstanceId, AppStream& stream, void* buffer, si
     for (const auto& extension : options.extensions) {
         args.push_back("--ext=" + extension);
     }
-    std::vector<const char*> argv;
+    args.push_back("--max-bytes=" + ::std::to_string(bufferCapacity));
+    ::std::vector<const char*> argv;
     for (const auto& arg : args) {
         argv.push_back(arg.c_str());
     }

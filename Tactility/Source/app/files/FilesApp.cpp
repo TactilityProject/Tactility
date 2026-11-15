@@ -1,6 +1,3 @@
-#include <Tactility/app/files/View.h>
-#include <Tactility/app/files/State.h>
-
 #include <app/event.h>
 #include <app/manager.h>
 #include <app/manifest.h>
@@ -11,6 +8,10 @@
 #include <tactility/check.h>
 
 #include <memory>
+
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/files/View.h>
+#include <Tactility/app/files/State.h>
 
 namespace tt::app::files {
 
@@ -34,7 +35,7 @@ void destroyWidgets(void* userData) {
 
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
-    auto state = std::make_shared<State>();
+    auto state = ::std::make_shared<State>();
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);

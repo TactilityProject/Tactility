@@ -1,4 +1,3 @@
-#include <Tactility/app/fileselection/View.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/file/File.h>
 
@@ -14,6 +13,9 @@
 
 #include <cstring>
 #include <unistd.h>
+
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/fileselection/View.h>
 
 #ifdef ESP_PLATFORM
 #endif
@@ -41,8 +43,8 @@ static void onNavigateUpPressedCallback(lv_event_t* event) {
 namespace {
 
 struct NavigateJob {
-    std::shared_ptr<State> state;
-    std::string path;
+    ::std::shared_ptr<State> state;
+    ::std::string path;
 };
 
 void navigateWork(void* context) {
@@ -55,10 +57,10 @@ void navigateWork(void* context) {
 
 } // namespace
 
-View::View(uint32_t appInstanceId, const std::shared_ptr<State>& state, TaskEventGroup* eventGroup, std::function<void(const std::vector<std::string>& paths)> onFileSelected) :
+View::View(uint32_t appInstanceId, const ::std::shared_ptr<State>& state, TaskEventGroup* eventGroup, ::std::function<void(const ::std::vector<::std::string>& paths)> onFileSelected) :
     appInstanceId(appInstanceId),
     state(state),
-    on_file_selected(std::move(onFileSelected))
+    on_file_selected(::std::move(onFileSelected))
 {
     check(file_ops_subscribe(&fileOpsSub, eventGroup) == ERROR_NONE);
 }
@@ -67,11 +69,11 @@ View::~View() {
     file_ops_unsubscribe(&fileOpsSub);
 }
 
-void View::navigateTo(const std::string& path) {
+void View::navigateTo(const ::std::string& path) {
     if (navigationPending.exchange(true)) {
         return;
     }
-    auto* job = new (std::nothrow) NavigateJob { state, path };
+    auto* job = new (::std::nothrow) NavigateJob { state, path };
     if (job == nullptr || file_ops_queue(navigateWork, job, &fileOpsSub) != ERROR_NONE) {
         LOG_E(TAG, "Failed to queue reading %s", path.c_str());
         delete job;
@@ -96,8 +98,8 @@ void View::onBackPressedCallback(lv_event_t* event) {
     app_event_emit_close(view->appInstanceId);
 }
 
-void View::onTapFile(const std::string& path, const std::string& filename, lv_obj_t* button) {
-    std::string file_path = file::getChildPath(path, filename);
+void View::onTapFile(const ::std::string& path, const ::std::string& filename, lv_obj_t* button) {
+    ::std::string file_path = file::getChildPath(path, filename);
     LOG_D(TAG, "Clicked %s", file_path.c_str());
     if (state->getOptions().multiple) {
         lv_obj_set_state(button, LV_STATE_CHECKED, state->toggleSelectedPath(file_path));
@@ -133,7 +135,7 @@ void View::onDirEntryPressed(uint32_t index, lv_obj_t* button) {
     }
 }
 
-std::vector<std::string> View::getResultPaths() const {
+::std::vector<::std::string> View::getResultPaths() const {
     auto paths = state->getSelectedPaths();
     if (!paths.empty()) {
         return paths;
@@ -142,18 +144,12 @@ std::vector<std::string> View::getResultPaths() const {
     if (text == nullptr || strlen(text) == 0) {
         return paths;
     }
-    std::string path = text;
-    if (path.back() == '/') {
-        if (!state->getOptions().allowFolder) {
-            return paths;
-        }
-        if (path.length() > 1) {
-            path.pop_back();
-        }
-    } else if (!state->isSelectableFile(path)) {
-        return paths;
+    // Whether it is a file or a folder is checked by the app task, as that needs file operations
+    ::std::string path = text;
+    while (path.length() > 1 && path.back() == '/') {
+        path.pop_back();
     }
-    paths.push_back(std::move(path));
+    paths.push_back(::std::move(path));
     return paths;
 }
 
@@ -201,7 +197,7 @@ void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
 void View::onNavigateUpPressed() {
     if (state->getCurrentPath() != "/") {
         LOG_D(TAG, "Navigating upwards");
-        std::string new_absolute_path;
+        ::std::string new_absolute_path;
         if (string::getPathParent(state->getCurrentPath(), new_absolute_path)) {
             navigateTo(new_absolute_path);
         }
@@ -216,7 +212,7 @@ void View::update() {
 
     lv_obj_clean(dir_entry_list);
 
-    state->withEntries([this](const std::vector<dirent>& entries) {
+    state->withEntries([this](const ::std::vector<dirent>& entries) {
         for (auto entry : entries) {
             LOG_D(TAG, "Entry: %s %d", entry.d_name, (int)entry.d_type);
             createDirEntryWidget(dir_entry_list, entry);

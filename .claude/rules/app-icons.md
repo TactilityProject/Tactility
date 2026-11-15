@@ -24,12 +24,14 @@ Apps with a UI only. Headless apps (`app.N.headless=true` in `manifest.propertie
 - `width="24" height="24" viewBox="0 0 96 96"`.
 - Pure black (`#000000`) on transparent. No other colours, no opacity, no gradients.
 - No border or frame around the glyph.
-- Glyph fills about 80px of the 96px canvas (83%), centred. Match the Material icons in `Tactility/Data/system/app_icon/*_mono.svg`, which fill roughly 75-85%.
+- Glyph fills about 80px of the 96px canvas (83%), centred. Match the Material icons in `Data/system/app_icon/*_mono.svg`, which fill roughly 75-85%.
 - Stroked glyphs: stroke width 3-4 before scaling, round caps and joins. The icon renders at 24px, so a 4 unit stroke is about 1px. Nothing thinner.
 - Avoid detail smaller than ~4 units. It disappears at 24px.
 - Text inside a mono icon is usually not legible at 24px. Skip it unless the glyph is large.
 
 ## Checking
 
-- Render both at full size and at the real size (24px for mono, upscaled with a point filter) before committing. `magick -background white -density 768 icon_mono.svg -resize 96x96 out.png` works.
+- Render both at full size and at the real size (24px for mono) before committing.
+  - Full size: `magick -background white -density 768 icon_mono.svg -resize 96x96 full.png`.
+  - Real size: render the mono icon at 24px first, then upscale that raster with a point filter, so the detail that disappears at 24px shows: `magick -background white -density 96 icon_mono.svg small.png && magick small.png -filter point -resize 400% preview.png`.
 - Confirm the glyph is not clipped and is centred.

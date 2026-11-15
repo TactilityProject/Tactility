@@ -207,10 +207,14 @@ extern "C" {
 static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(localisation_domain_open),
     DEFINE_MODULE_SYMBOL(localisation_domain_close),
+    DEFINE_MODULE_SYMBOL(localisation_domain_add_catalog),
     DEFINE_MODULE_SYMBOL(localisation_get),
     DEFINE_MODULE_SYMBOL(localisation_get_ctx),
     DEFINE_MODULE_SYMBOL(localisation_set_locale),
     DEFINE_MODULE_SYMBOL(localisation_get_locale),
+    DEFINE_MODULE_SYMBOL(localisation_add_system_catalog),
+    DEFINE_MODULE_SYMBOL(localisation_add_locale_listener),
+    DEFINE_MODULE_SYMBOL(localisation_remove_locale_listener),
     MODULE_SYMBOL_TERMINATOR,
 };
 
@@ -326,6 +330,11 @@ error_t localisation_set_locale(const char* tag) {
     size_t listener_count;
 
     mutex_lock(&state->mutex);
+    // Nothing changes for the same locale, and rotating the catalogs would free strings that were just returned
+    if (strcmp(state->locale, tag) == 0) {
+        mutex_unlock(&state->mutex);
+        return ERROR_NONE;
+    }
     strcpy(state->locale, tag);
     update_active_system_catalog();
     for (L10nDomain* domain = state->domains; domain != nullptr; domain = domain->next) {

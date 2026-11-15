@@ -277,3 +277,31 @@ TEST_CASE("domain with added catalogs") {
     CHECK(std::string(localisation_get(nullptr, "Hello")) == "Hello");
     localisation_domain_close(domain);
 }
+
+TEST_CASE("setting the same locale again keeps the strings valid") {
+    ModuleScope scope;
+    const auto directory = makeTempDirectory();
+    writeFile(directory + "/nl-NL.tlc", buildCatalog({ { "", "Hello", "Hallo" } }));
+    REQUIRE(localisation_set_locale("nl-NL") == ERROR_NONE);
+    L10nDomain* domain = nullptr;
+    REQUIRE(localisation_domain_open(directory.c_str(), &domain) == ERROR_NONE);
+    const char* hello = localisation_get(domain, "Hello");
+
+    REQUIRE(localisation_set_locale("en-US") == ERROR_NONE);
+    REQUIRE(localisation_set_locale("en-US") == ERROR_NONE);
+    CHECK(std::string(hello) == "Hallo");
+
+    localisation_domain_close(domain);
+    removeDirectory(directory);
+}
+
+TEST_CASE("setting the same locale again doesn't call listeners") {
+    ModuleScope scope;
+    int increment = 1;
+    listenerCalls = 0;
+    REQUIRE(localisation_add_locale_listener(onLocaleChanged, &increment) == ERROR_NONE);
+    REQUIRE(localisation_set_locale("nl-NL") == ERROR_NONE);
+    REQUIRE(localisation_set_locale("nl-NL") == ERROR_NONE);
+    CHECK(listenerCalls == 1);
+    localisation_remove_locale_listener(onLocaleChanged, &increment);
+}

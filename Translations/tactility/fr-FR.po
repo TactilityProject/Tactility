@@ -113,3 +113,21 @@ msgstr "Langue"
 
 msgid "Remove"
 msgstr "Supprimer"
+
+msgid "File not found"
+msgstr "Fichier introuvable"
+
+msgid "\"{}\" doesn't exist."
+msgstr "« {} » n'existe pas."
+
+msgid "Can't select"
+msgstr "Sélection impossible"
+
+msgid "\"{}\" can't be selected."
+msgstr "« {} » ne peut pas être sélectionné."
+
+msgid "Selection too long"
+msgstr "Sélection trop longue"
+
+msgid "The paths are too long to return. Select fewer items."
+msgstr "Les chemins sont trop longs à renvoyer. Sélectionnez moins d'éléments."

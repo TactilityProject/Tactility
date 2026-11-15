@@ -10,6 +10,10 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
+// Included last, as it makes std:: resolve to tt::std
+#include <tactility/std/string.hpp>
+#include <tactility/std/vector.hpp>
+
 namespace tt::app::files {
 
 class State final {
@@ -28,35 +32,67 @@ public:
 public:
 
     struct PasteRequest {
-        std::vector<std::string> sources;
-        std::string destination_folder;
+        ::std::vector<::std::string> sources;
+        ::std::string destination_folder;
         bool is_cut;
     };
 
 private:
 
     RecursiveMutex mutex;
-    std::vector<dirent> dir_entries;
-    std::vector<std::string> executable_names;
-    std::vector<std::pair<bool, bool>> completed_navigations;
-    std::string current_path;
-    std::string selected_child_entry;
+    ::std::vector<dirent> dir_entries;
+    ::std::vector<::std::string> executable_names;
+    ::std::vector<::std::pair<bool, bool>> completed_navigations;
+    ::std::string current_path;
+    ::std::string selected_child_entry;
     PendingAction action = ActionNone;
-    std::string pending_paste_dst;
-    std::string pending_paste_src;
+    ::std::string pending_paste_dst;
+    ::std::string pending_paste_src;
     bool pending_paste_is_cut = false;
     struct stat pending_paste_dst_stat {};
     bool pending_paste_dst_stat_valid = false;
-    std::vector<std::string> selected_entries;
-    std::vector<std::string> pending_delete_paths;
-    std::vector<std::string> clipboard_paths;
+    tt::std::vector<tt::std::string> selected_entries;
+    tt::std::vector<tt::std::string> pending_delete_paths;
+    tt::std::vector<tt::std::string> clipboard_paths;
     bool clipboard_is_cut = false;
     bool clipboard_active = false;
-    std::optional<PasteRequest> paste_request;
+    ::std::optional<PasteRequest> paste_request;
 
 public:
 
     State();
+
+    static tt::std::string toExt(::std::string_view text) {
+        return tt::std::string(text.data(), text.size());
+    }
+
+    static tt::std::vector<tt::std::string> toExt(const ::std::vector<::std::string>& texts) {
+        tt::std::vector<tt::std::string> result;
+        result.reserve(texts.size());
+        for (const auto& text : texts) {
+            result.push_back(toExt(text));
+        }
+        return result;
+    }
+
+    static ::std::vector<::std::string> toStd(const tt::std::vector<tt::std::string>& texts) {
+        ::std::vector<::std::string> result;
+        result.reserve(texts.size());
+        for (const auto& text : texts) {
+            result.emplace_back(text.data(), text.size());
+        }
+        return result;
+    }
+
+    /** @return the index of the text, or -1 */
+    static ptrdiff_t indexOf(const tt::std::vector<tt::std::string>& texts, ::std::string_view text) {
+        for (size_t i = 0; i < texts.size(); i++) {
+            if (::std::string_view(texts[i]) == text) {
+                return static_cast<ptrdiff_t>(i);
+            }
+        }
+        return -1;
+    }
 
     void freeEntries() {
         dir_entries.clear();
@@ -67,12 +103,12 @@ public:
     }
 
     /** Reads the directory and replaces the entries. Does file operations, so it must not run on the LVGL task. */
-    bool setEntriesForPath(const std::string& path);
+    bool setEntriesForPath(const ::std::string& path);
 
     /** Whether the entry of the current directory is an executable. Determined by setEntriesForPath(). */
-    bool isExecutable(const std::string& name) const {
+    bool isExecutable(const ::std::string& name) const {
         bool result = false;
-        mutex.withLock([&] { result = std::ranges::find(executable_names, name) != executable_names.end(); });
+        mutex.withLock([&] { result = ::std::ranges::find(executable_names, name) != executable_names.end(); });
         return result;
     }
 
@@ -82,8 +118,8 @@ public:
     }
 
     /** Takes the oldest finished navigation as {first_page, select_first}, or nullopt when there is none */
-    std::optional<std::pair<bool, bool>> takeCompletedNavigation() {
-        std::optional<std::pair<bool, bool>> result;
+    ::std::optional<::std::pair<bool, bool>> takeCompletedNavigation() {
+        ::std::optional<::std::pair<bool, bool>> result;
         mutex.withLock([&] {
             if (!completed_navigations.empty()) {
                 result = completed_navigations.front();
@@ -93,33 +129,33 @@ public:
         return result;
     }
 
-    template <std::invocable<const std::vector<dirent> &> Func>
+    template <::std::invocable<const ::std::vector<dirent> &> Func>
     void withEntries(Func&& onEntries) const {
         mutex.withLock([&] {
-            std::invoke(std::forward<Func>(onEntries), dir_entries);
+            ::std::invoke(::std::forward<Func>(onEntries), dir_entries);
         });
     }
 
-    void setSelectedChildEntry(const std::string& newFile) {
+    void setSelectedChildEntry(const ::std::string& newFile) {
         mutex.withLock([&] {
             selected_child_entry = newFile;
             action = ActionNone;
         });
     }
 
-    std::string getSelectedChildEntry() const {
-        std::string result;
+    ::std::string getSelectedChildEntry() const {
+        ::std::string result;
         mutex.withLock([&] { result = selected_child_entry; });
         return result;
     }
 
-    std::string getCurrentPath() const {
-        std::string result;
+    ::std::string getCurrentPath() const {
+        ::std::string result;
         mutex.withLock([&] { result = current_path; });
         return result;
     }
 
-    std::string getSelectedChildPath() const;
+    ::std::string getSelectedChildPath() const;
 
     PendingAction getPendingAction() const {
         PendingAction result = ActionNone;
@@ -131,19 +167,19 @@ public:
         mutex.withLock([&] { action = newAction; });
     }
 
-    std::string getPendingPasteDst() const {
-        std::string result;
+    ::std::string getPendingPasteDst() const {
+        ::std::string result;
         mutex.withLock([&] { result = pending_paste_dst; });
         return result;
     }
 
-    void setPendingPasteDst(const std::string& dst) {
+    void setPendingPasteDst(const ::std::string& dst) {
         mutex.withLock([&] { pending_paste_dst = dst; });
     }
 
     /** The source and mode of the paste that waits for confirmation, which can differ from the clipboard by then */
-    std::string getPendingPasteSource() const {
-        std::string result;
+    ::std::string getPendingPasteSource() const {
+        ::std::string result;
         mutex.withLock([&] { result = pending_paste_src; });
         return result;
     }
@@ -154,7 +190,7 @@ public:
         return result;
     }
 
-    void setPendingPasteSource(const std::string& src, bool is_cut) {
+    void setPendingPasteSource(const ::std::string& src, bool is_cut) {
         mutex.withLock([&] {
             pending_paste_src = src;
             pending_paste_is_cut = is_cut;
@@ -186,9 +222,9 @@ public:
         return result;
     }
 
-    void setClipboard(const std::vector<std::string>& paths, bool is_cut) {
+    void setClipboard(const ::std::vector<::std::string>& paths, bool is_cut) {
         mutex.withLock([&] {
-            clipboard_paths = paths;
+            clipboard_paths = toExt(paths);
             clipboard_is_cut = is_cut;
             clipboard_active = !paths.empty();
         });
@@ -201,11 +237,11 @@ public:
     }
 
     /** Returns {paths, is_cut} atomically, or nullopt if clipboard is empty. */
-    std::optional<std::pair<std::vector<std::string>, bool>> getClipboard() const {
-        std::optional<std::pair<std::vector<std::string>, bool>> result;
+    ::std::optional<::std::pair<::std::vector<::std::string>, bool>> getClipboard() const {
+        ::std::optional<::std::pair<::std::vector<::std::string>, bool>> result;
         mutex.withLock([&] {
             if (clipboard_active) {
-                result = { clipboard_paths, clipboard_is_cut };
+                result = { toStd(clipboard_paths), clipboard_is_cut };
             }
         });
         return result;
@@ -217,20 +253,23 @@ public:
     }
 
     /** Takes the pending paste request, or nullopt when there is none. */
-    std::optional<PasteRequest> takePasteRequest() {
-        std::optional<PasteRequest> result;
+    ::std::optional<PasteRequest> takePasteRequest() {
+        ::std::optional<PasteRequest> result;
         mutex.withLock([&] {
-            result = std::move(paste_request);
+            result = ::std::move(paste_request);
             paste_request.reset();
         });
         return result;
     }
 
     /** Removes @a path from the clipboard while it holds a cut, so a newer copy stays */
-    void removeFromClipboardIfCut(const std::string& path) {
+    void removeFromClipboardIfCut(const ::std::string& path) {
         mutex.withLock([&] {
             if (clipboard_active && clipboard_is_cut) {
-                std::erase(clipboard_paths, path);
+                const auto index = indexOf(clipboard_paths, path);
+                if (index >= 0) {
+                    clipboard_paths.erase(clipboard_paths.begin() + index);
+                }
                 if (clipboard_paths.empty()) {
                     clipboard_active = false;
                     clipboard_is_cut = false;
@@ -248,25 +287,28 @@ public:
     }
 
     /** The entries of the current directory that actions apply to. Cleared when the directory changes. */
-    std::vector<std::string> getSelectedEntries() const {
-        std::vector<std::string> result;
-        mutex.withLock([&] { result = selected_entries; });
+    ::std::vector<::std::string> getSelectedEntries() const {
+        ::std::vector<::std::string> result;
+        mutex.withLock([&] { result = toStd(selected_entries); });
         return result;
     }
 
-    void selectOnlyEntry(const std::string& name) {
-        mutex.withLock([&] { selected_entries = { name }; });
+    void selectOnlyEntry(const ::std::string& name) {
+        mutex.withLock([&] {
+            selected_entries.clear();
+            selected_entries.push_back(toExt(name));
+        });
     }
 
     /** Adds the entry, or removes it when it was selected. Returns whether it is selected now. */
-    bool toggleSelectedEntry(const std::string& name) {
+    bool toggleSelectedEntry(const ::std::string& name) {
         bool selected = false;
         mutex.withLock([&] {
-            auto it = std::ranges::find(selected_entries, name);
-            if (it != selected_entries.end()) {
-                selected_entries.erase(it);
+            const auto index = indexOf(selected_entries, name);
+            if (index >= 0) {
+                selected_entries.erase(selected_entries.begin() + index);
             } else {
-                selected_entries.push_back(name);
+                selected_entries.push_back(toExt(name));
                 selected = true;
             }
         });
@@ -278,14 +320,14 @@ public:
     }
 
     /** The paths that wait for the answer of the delete confirmation */
-    std::vector<std::string> getPendingDeletePaths() const {
-        std::vector<std::string> result;
-        mutex.withLock([&] { result = pending_delete_paths; });
+    ::std::vector<::std::string> getPendingDeletePaths() const {
+        ::std::vector<::std::string> result;
+        mutex.withLock([&] { result = toStd(pending_delete_paths); });
         return result;
     }
 
-    void setPendingDeletePaths(const std::vector<std::string>& paths) {
-        mutex.withLock([&] { pending_delete_paths = paths; });
+    void setPendingDeletePaths(const ::std::vector<::std::string>& paths) {
+        mutex.withLock([&] { pending_delete_paths = toExt(paths); });
     }
 };
 
