@@ -225,7 +225,9 @@ uint32_t startForExistingFile(uint32_t callerAppInstanceId, AppStream& stream, v
 }
 
 uint32_t startForExistingOrNewFile(uint32_t callerAppInstanceId, AppStream& stream, void* buffer, size_t bufferCapacity, TaskEventGroup* eventGroup) {
-    return start(callerAppInstanceId, stream, buffer, bufferCapacity, eventGroup, Options { .allowNewFile = true });
+    Options options;
+    options.allowNewFile = true;
+    return start(callerAppInstanceId, stream, buffer, bufferCapacity, eventGroup, options);
 }
 
 extern const ::AppManifest manifest = {
