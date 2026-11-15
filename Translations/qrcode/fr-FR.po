@@ -5,3 +5,6 @@ msgstr ""
 
 msgid "The data doesn't fit in a QR code"
 msgstr "Les données ne tiennent pas dans un code QR"
+
+msgid "QR Code"
+msgstr "Code QR"

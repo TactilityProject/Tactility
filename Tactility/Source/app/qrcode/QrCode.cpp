@@ -16,6 +16,7 @@
 
 #include <lvgl/lvgl.h>
 #include <lvgl/widgets/qr.h>
+#include <lvgl/widgets/toolbar.h>
 
 namespace tt::app::qrcode {
 
@@ -32,46 +33,33 @@ struct Context {
     char** argv = nullptr;
 };
 
-// A touch, a key press or a step of an encoder that is handled as keys
-void onInput(lv_event_t* event) {
+void onBackPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     app_event_emit_close(ctx->appInstanceId);
-}
-
-void forEachInputDevice(void (*action)(lv_indev_t* indev, Context* ctx), Context* ctx) {
-    for (lv_indev_t* indev = lv_indev_get_next(nullptr); indev != nullptr; indev = lv_indev_get_next(indev)) {
-        action(indev, ctx);
-    }
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
-    lv_obj_set_scrollable(parent, false);
-    lv_obj_set_style_pad_all(parent, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(parent, 0, LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
+    auto* toolbar = lvgl_toolbar_create(parent, tr("QR Code"));
+    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_LEFT, onBackPressed, ctx);
+
+    // The view takes the space below the toolbar and scales the code to it
     auto* qr = lvgl_qr_create(parent);
-    lv_obj_set_size(qr, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_width(qr, LV_PCT(100));
+    lv_obj_set_flex_grow(qr, 1);
     const char* text = (ctx->argc > 0) ? ctx->argv[0] : "";
     const error_t error = lvgl_qr_set_data(qr, text);
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to create the QR code: %s", error_to_string(error));
+        lv_obj_delete(qr);
         auto* label = lv_label_create(parent);
         lv_label_set_text(label, tr("The data doesn't fit in a QR code"));
-        lv_obj_center(label);
+        lv_obj_set_style_pad_all(label, LV_DPX(8), LV_STATE_DEFAULT);
     }
-
-    // Any input device can close it, whichever widget has the focus
-    forEachInputDevice([](lv_indev_t* indev, Context* ctx) {
-        lv_indev_add_event_cb(indev, onInput, LV_EVENT_PRESSED, ctx);
-    }, ctx);
-}
-
-void destroyWidgets(void* userData) {
-    forEachInputDevice([](lv_indev_t* indev, Context* ctx) {
-        lv_indev_remove_event_cb_with_user_data(indev, onInput, ctx);
-    }, static_cast<Context*>(userData));
 }
 
 int32_t appMain(int argc, char* argv[]) {
@@ -85,7 +73,7 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription appEvents {};
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
 
-    WindowId window = window_manager_create_ext(ctx.appInstanceId, createWidgets, destroyWidgets, &ctx);
+    WindowId window = window_manager_create(ctx.appInstanceId, createWidgets, &ctx);
 
     bool shouldClose = false;
     while (!shouldClose) {
