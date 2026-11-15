@@ -28,6 +28,7 @@ import os
 import queue
 import re
 import sys
+import tempfile
 import threading
 import urllib.error
 import urllib.parse
@@ -1138,24 +1139,24 @@ class SvgParser:
         return True
 
     def _matches_selector(self, rule: CssRule, chain: tuple[ET.Element, ...]) -> bool:
-        if not self._compound_matches(chain[-1], rule.parts[-1]):
+        parts = rule.parts
+        combinators = rule.combinators
+
+        def match(index: int, position: int) -> bool:
+            if not self._compound_matches(chain[position], parts[index]):
+                return False
+            if index == 0:
+                return True
+            if combinators[index - 1] == ">":
+                return position > 0 and match(index - 1, position - 1)
+            # Descendant combinator: try every earlier ancestor, not just the
+            # nearest one, because an earlier candidate may satisfy the rest.
+            for candidate in range(position - 1, -1, -1):
+                if match(index - 1, candidate):
+                    return True
             return False
-        remaining = chain[:-1]
-        for index in range(len(rule.parts) - 2, -1, -1):
-            compound = rule.parts[index]
-            combinator = rule.combinators[index]
-            if combinator == ">":
-                if not remaining or not self._compound_matches(remaining[-1], compound):
-                    return False
-                remaining = remaining[:-1]
-            else:
-                for position in range(len(remaining) - 1, -1, -1):
-                    if self._compound_matches(remaining[position], compound):
-                        remaining = remaining[:position]
-                        break
-                else:
-                    return False
-        return True
+
+        return match(len(parts) - 1, len(chain) - 1)
 
     def _matching_css(self, element: ET.Element, ancestors: tuple[ET.Element, ...]) -> list[CssRule]:
         chain = ancestors + (element,)
@@ -2309,7 +2310,6 @@ def material_cache_directory(repo: Path | None) -> Path:
 def download_file(url: str, target: Path, timeout: float = 30.0) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     request = urllib.request.Request(url, headers={"User-Agent": f"{APP_NAME}/1.0"})
-    temporary = target.with_suffix(target.suffix + ".part")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             data = response.read()
@@ -2320,8 +2320,19 @@ def download_file(url: str, target: Path, timeout: float = 30.0) -> None:
         ) from error
     if len(data) < 1024:
         raise IconError(f"Downloaded {target.name} looks empty")
-    temporary.write_bytes(data)
-    temporary.replace(target)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f"{target.name}.", suffix=".part", dir=target.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+        temporary.replace(target)
+    finally:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
 
 
 def read_material_codepoints(path: Path) -> list[tuple[str, int]]:
@@ -2600,6 +2611,19 @@ class MaterialBrowser(ctk.CTkToplevel if ctk is not None else object):
         self.style_var.set(style)
         self.selected = None
         self.hover_index = -1
+        self.font_path = None
+        self.entries = []
+        self.filtered = []
+        self.page_entries = []
+        self.page = 0
+        self._pil_fonts.clear()
+        self._grid_photo = None
+        self.grid_label.configure(image=None, text="Loading…",
+                                  width=self.grid_width, height=self.grid_height)
+        self.grid_label.image = None
+        self.page_label.configure(text="Loading…")
+        self.prev_button.configure(state="disabled")
+        self.next_button.configure(state="disabled")
         self.use_button.configure(state="disabled")
         self.selected_label.configure(text="Pick a glyph")
         self.preview_label.configure(image=None, text="")
@@ -2645,7 +2669,7 @@ class MaterialBrowser(ctk.CTkToplevel if ctk is not None else object):
                     self.filtered = []
                     self.page_entries = []
                     self.page = 0
-                    self._render_grid()
+                    self._render_page()
                     self._status(str(error), error=True)
                     break
                 self.font_path = font_path

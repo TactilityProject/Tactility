@@ -2953,6 +2953,13 @@ class DevConsole(ctk.CTk):
                 return
             with self._lock:
                 self._closing = True
+                # A pending worker may have registered its process while the
+                # confirmation dialog was open; stop the current list, not the
+                # snapshot taken before the prompt.
+                running_launchers = [
+                    (key, process) for key, process in self._launchers.items()
+                    if process is not None and process.poll() is None
+                ]
             for key, process in running_launchers:
                 self._terminate(process, self._launcher_labels.get(key, key).lower())
             # Give a worker that is between the pending check and Popen time to
