@@ -80,6 +80,8 @@ struct Context {
     ::std::function<void()> rebuildSteps = nullptr;
     /** Sets the language of a choice of languageStep and shows the current page in it. Called on the LVGL thread. */
     ::std::function<void(int32_t)> onLanguagePicked = nullptr;
+    /** The number of the latest language pick, so a failure of an older one doesn't replace a newer choice. Guarded by the LVGL lock. */
+    uint32_t languageRequest = 0;
     uint32_t pendingStepDialogId = 0;
 
     // Valid while the window is shown

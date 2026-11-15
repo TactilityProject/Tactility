@@ -1,11 +1,15 @@
 #include "doctest.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #include <localisation/catalog.h>
 #include <localisation/localisation.h>
 #include <localisation/module.h>
 #include <localisation/tr.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -327,4 +331,52 @@ TEST_CASE("a listener that is removed during a notification is not called") {
     CHECK(firstCalls == 1);
     CHECK(secondCalls == 0);
     localisation_remove_locale_listener(removingFirst, nullptr);
+}
+
+namespace {
+std::atomic<bool> insideListener = false;
+std::atomic<bool> releaseListener = false;
+std::atomic<bool> removeReturned = false;
+std::atomic<bool> notifierDone = false;
+
+void blockingListener(void*) {
+    insideListener = true;
+    while (!releaseListener) {
+        vTaskDelay(1);
+    }
+}
+
+void notifierTask(void*) {
+    localisation_set_locale("de-DE");
+    notifierDone = true;
+    vTaskDelete(nullptr);
+}
+
+void removerTask(void*) {
+    localisation_remove_locale_listener(blockingListener, nullptr);
+    removeReturned = true;
+    vTaskDelete(nullptr);
+}
+}
+
+TEST_CASE("removing a listener waits for a call on another task") {
+    ModuleScope scope;
+    insideListener = false;
+    releaseListener = false;
+    removeReturned = false;
+    notifierDone = false;
+    REQUIRE(localisation_add_locale_listener(blockingListener, nullptr) == ERROR_NONE);
+
+    REQUIRE(xTaskCreate(notifierTask, "notifier", 4096, nullptr, 1, nullptr) == pdPASS);
+    while (!insideListener) {
+        vTaskDelay(1);
+    }
+    REQUIRE(xTaskCreate(removerTask, "remover", 4096, nullptr, 1, nullptr) == pdPASS);
+    vTaskDelay(20);
+    CHECK_FALSE(removeReturned);
+    releaseListener = true;
+    while (!removeReturned || !notifierDone) {
+        vTaskDelay(1);
+    }
+    CHECK(removeReturned);
 }

@@ -489,17 +489,23 @@ int32_t appMain(int argc, char* argv[]) {
     };
     ctx.rebuildSteps();
     ctx.onLanguagePicked = [&ctx](int32_t choice) {
+        // Runs on the LVGL thread, which holds the lock
+        const uint32_t request = ++ctx.languageRequest;
         // Saving the language reads and writes files, and the texts of the steps are made again in it
-        runOnAppTask(&ctx, [&ctx, choice] {
+        runOnAppTask(&ctx, [&ctx, choice, request] {
             if (choice >= 0 && choice < static_cast<int32_t>(ctx.languageOrder.size())) {
                 if (!settings::setLanguage(static_cast<settings::Language>(ctx.languageOrder[choice]))) {
-                    // Shows the language that is still set
+                    // The language that is still set is shown, unless a newer choice was made meanwhile
                     const auto current = static_cast<int32_t>(settings::getLanguage());
-                    for (size_t i = 0; i < ctx.languageOrder.size(); i++) {
-                        if (ctx.languageOrder[i] == current) {
-                            ctx.languageStep.choice = static_cast<int32_t>(i);
+                    lvgl_lock();
+                    if (request == ctx.languageRequest) {
+                        for (size_t i = 0; i < ctx.languageOrder.size(); i++) {
+                            if (ctx.languageOrder[i] == current) {
+                                ctx.languageStep.choice = static_cast<int32_t>(i);
+                            }
                         }
                     }
+                    lvgl_unlock();
                 }
             }
             ctx.rebuildSteps();

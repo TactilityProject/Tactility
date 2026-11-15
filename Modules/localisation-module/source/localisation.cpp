@@ -17,6 +17,7 @@ namespace {
 constexpr size_t LOCALE_MAX_LENGTH = 15;
 constexpr size_t MAX_SYSTEM_CATALOGS = 8;
 constexpr size_t MAX_LISTENERS = 8;
+constexpr size_t MAX_RUNNING_CALLS = 16;
 constexpr MemoryPolicy MEMORY_POLICY = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
 
 struct Catalog {
@@ -34,6 +35,12 @@ struct SystemCatalog {
 struct Listener {
     L10nLocaleListener function;
     void* context;
+};
+
+/** A listener that is being called, and on which task */
+struct RunningCall {
+    Listener listener;
+    TaskHandle_t task;
 };
 
 }
@@ -63,9 +70,9 @@ struct State {
     Catalog active_system;
     Listener listeners[MAX_LISTENERS] = {};
     size_t listener_count = 0;
-    /** The listener that is being called by localisation_set_locale(), and on which task */
-    Listener running_listener = {};
-    TaskHandle_t running_task = nullptr;
+    /** The listener calls that are in progress, also the nested ones and those of different tasks */
+    RunningCall running_calls[MAX_RUNNING_CALLS] = {};
+    size_t running_call_count = 0;
 };
 
 State* state = nullptr;
@@ -353,16 +360,27 @@ error_t localisation_set_locale(const char* tag) {
 
     for (size_t i = 0; i < listener_count; i++) {
         // A listener that was removed since the copy was made is not called anymore
-        mutex_lock(&state->mutex);
         bool registered = false;
-        for (size_t j = 0; j < state->listener_count; j++) {
-            registered = registered || (state->listeners[j].function == listeners[i].function && state->listeners[j].context == listeners[i].context);
+        bool tracked = false;
+        while (!tracked) {
+            mutex_lock(&state->mutex);
+            registered = false;
+            for (size_t j = 0; j < state->listener_count; j++) {
+                registered = registered || (state->listeners[j].function == listeners[i].function && state->listeners[j].context == listeners[i].context);
+            }
+            if (registered && state->running_call_count < MAX_RUNNING_CALLS) {
+                state->running_calls[state->running_call_count++] = { listeners[i], xTaskGetCurrentTaskHandle() };
+                tracked = true;
+            }
+            mutex_unlock(&state->mutex);
+            if (!registered) {
+                break;
+            }
+            if (!tracked) {
+                // Too many calls are in progress: wait for one to finish
+                vTaskDelay(1);
+            }
         }
-        if (registered) {
-            state->running_listener = listeners[i];
-            state->running_task = xTaskGetCurrentTaskHandle();
-        }
-        mutex_unlock(&state->mutex);
         if (!registered) {
             continue;
         }
@@ -370,8 +388,13 @@ error_t localisation_set_locale(const char* tag) {
         listeners[i].function(listeners[i].context);
 
         mutex_lock(&state->mutex);
-        state->running_listener = Listener {};
-        state->running_task = nullptr;
+        const auto task = xTaskGetCurrentTaskHandle();
+        for (size_t j = 0; j < state->running_call_count; j++) {
+            if (state->running_calls[j].task == task && state->running_calls[j].listener.function == listeners[i].function && state->running_calls[j].listener.context == listeners[i].context) {
+                state->running_calls[j] = state->running_calls[--state->running_call_count];
+                break;
+            }
+        }
         mutex_unlock(&state->mutex);
     }
     return ERROR_NONE;
@@ -439,8 +462,17 @@ void localisation_remove_locale_listener(L10nLocaleListener listener, void* cont
             break;
         }
     }
-    // Returns after the listener finished when it is being called on another task, so its context can be freed
-    while (state->running_listener.function == listener && state->running_listener.context == context && state->running_task != xTaskGetCurrentTaskHandle()) {
+    // Returns after the calls of the listener on other tasks finished, so its context can be freed
+    const auto current_task = xTaskGetCurrentTaskHandle();
+    while (true) {
+        bool running_elsewhere = false;
+        for (size_t i = 0; i < state->running_call_count; i++) {
+            const auto& call = state->running_calls[i];
+            running_elsewhere = running_elsewhere || (call.listener.function == listener && call.listener.context == context && call.task != current_task);
+        }
+        if (!running_elsewhere) {
+            break;
+        }
         mutex_unlock(&state->mutex);
         vTaskDelay(1);
         mutex_lock(&state->mutex);

@@ -61,11 +61,12 @@ def decode_literal(body: str) -> bytes:
     return bytes(result)
 
 
-def unquote(text: str) -> str:
+def unquote(text: str) -> bytes:
+    """@return the bytes of a quoted string. Fragments of a string on several lines are joined before they are decoded as UTF-8."""
     text = text.strip()
     if len(text) < 2 or text[0] != '"' or text[-1] != '"':
         raise ValueError(f"Expected a quoted string: {text}")
-    return decode_literal(text[1:-1]).decode("utf-8", errors="replace")
+    return decode_literal(text[1:-1])
 
 
 def parse_po(path: str) -> dict:
@@ -78,10 +79,10 @@ def parse_po(path: str) -> dict:
     def finish():
         nonlocal current, field, fuzzy
         if "msgid" in current and "msgstr" in current and "msgid_plural" not in current:
-            msgid = current["msgid"]
-            msgstr = current["msgstr"]
+            msgid = current["msgid"].decode("utf-8", errors="replace")
+            msgstr = current["msgstr"].decode("utf-8", errors="replace")
             if msgid and msgstr and not fuzzy:
-                key = current["msgctxt"] + CONTEXT_SEPARATOR + msgid if "msgctxt" in current else msgid
+                key = current["msgctxt"].decode("utf-8", errors="replace") + CONTEXT_SEPARATOR + msgid if "msgctxt" in current else msgid
                 entries[key] = msgstr
         current = {}
         field = None
@@ -120,7 +121,7 @@ def parse_po(path: str) -> dict:
                     finish()
                 field = name
                 if name == "plural_msgstr":
-                    current[name] = current.get(name, "") + unquote(value)
+                    current[name] = current.get(name, b"") + unquote(value)
                 else:
                     current[name] = unquote(value)
         finish()

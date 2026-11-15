@@ -72,10 +72,6 @@ class ExtractTextsTest(unittest.TestCase):
             self.assertNotIn("Ignored", extract_texts.extract([directory]))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class PoParseTest(unittest.TestCase):
     def parse(self, content):
         with tempfile.TemporaryDirectory() as directory:
@@ -100,6 +96,13 @@ class PoParseTest(unittest.TestCase):
         entries = self.parse('msgid "One"\nmsgid_plural "Many"\nmsgstr[0] "een"\nmsgstr[1] "veel"\nmsgid "Next"\nmsgstr "volgende"\n')
         self.assertEqual(entries, {"Next": "volgende"})
 
+    def test_utf8_sequence_split_across_lines(self):
+        entries = self.parse('msgid "caf"\n"\\303"\n"\\251"\nmsgstr "koffie"\n')
+        self.assertEqual(entries, {"café": "koffie"})
+
     def test_context_entry_after_an_entry(self):
         entries = self.parse('msgid "A"\nmsgstr "a"\nmsgctxt "verb"\nmsgid "B"\nmsgstr "b"\n')
         self.assertEqual(entries, {"A": "a", "verb\x04B": "b"})
+
+if __name__ == "__main__":
+    unittest.main()
