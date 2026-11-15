@@ -1,0 +1,29 @@
+description: >
+  Texas Instruments BQ27427 Impedance Track battery fuel gauge. 
+  Creates a "power-supply" child device (see drivers/bq27427.h) exposing battery current, 
+  voltage, charge level and charging status. 
+  The device address is fixed to 0x55 by the chip.
+
+  The gauge comes with a default 1340 mAh profile. The three data-memory properties below let
+  the board program the cell's actual figures once: they are compared with the gauge's current
+  data memory at start and only written (a procedure that takes a few seconds) when different.
+
+include: ["i2c-device.yaml"]
+
+compatible: "ti,bq27427"
+
+bus: i2c
+
+properties:
+  design-capacity-mah:
+    type: int
+    default: 0
+    description: Design Capacity of the cell in mAh (1..8000). 0 leaves the gauge's value untouched.
+  design-energy-mwh:
+    type: int
+    default: 0
+    description: Design Energy of the cell in mWh (1..32767). 0 leaves the gauge's value untouched.
+  terminate-voltage-mv:
+    type: int
+    default: 0
+    description: Terminate Voltage, the empty-battery threshold, in mV (2500..3700). 0 leaves the gauge's value untouched.
