@@ -176,3 +176,36 @@ msgstr "Wachten"
 
 msgid "You"
 msgstr "Jij"
+
+msgid "Heard 1 repeat"
+msgstr "1 herhaling gehoord"
+
+msgid "Heard repeats"
+msgstr "Herhalingen gehoord"
+
+msgid "Heard {} repeats"
+msgstr "{} herhalingen gehoord"
+
+msgid "Inspect"
+msgstr "Inspecteren"
+
+msgid "Retrying {}/{}..."
+msgstr "Opnieuw proberen {}/{}..."
+
+msgid "Retrying..."
+msgstr "Opnieuw proberen..."
+
+msgid "Advert: Zero hop"
+msgstr "Advert: zonder hop"
+
+msgid "Advert: Flood routed"
+msgstr "Advert: via flood"
+
+msgid "Turn mesh on to send an advert"
+msgstr "Zet mesh aan om een advert te sturen"
+
+msgid "This mesh network has no adverts."
+msgstr "Dit mesh-netwerk heeft geen adverts."
+
+msgid "Couldn't send advert"
+msgstr "Advert versturen mislukt"

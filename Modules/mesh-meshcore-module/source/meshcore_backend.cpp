@@ -6,7 +6,6 @@
 
 #include <tactility/Memory.hpp>
 #include <tactility/std/deque.hpp>
-#include <tactility/std/map.hpp>
 #include <tactility/std/string.hpp>
 #include <tactility/std/vector.hpp>
 
@@ -28,7 +27,14 @@ constexpr size_t MAX_CONTACTS = 64;
 constexpr size_t MAX_CHANNELS = 8;
 constexpr size_t SEEN_PACKETS_LIMIT = 64;
 constexpr uint64_t ADVERT_INTERVAL_MS = 12ULL * 3600 * 1000;
-constexpr uint64_t ACK_TIMEOUT_MS = 30 * 1000;
+/** How long to wait for the acknowledgement of one attempt */
+constexpr uint64_t ACK_TIMEOUT_MS = 20 * 1000;
+/** The attempt number of a message is 2 bits wide, so there are 4 attempts */
+constexpr uint8_t MAX_RETRIES = 3;
+/** The attempts over a known path come first, and flooding takes over for the others */
+constexpr uint8_t PATH_ATTEMPTS = 2;
+constexpr size_t RECENT_TEXTS_LIMIT = 32;
+constexpr size_t CHANNEL_SENDS_LIMIT = 8;
 constexpr uint8_t TEXT_TYPE_PLAIN = 0;
 constexpr int64_t MIN_VALID_WALL_TIME = 1700000000;
 constexpr size_t FRAME_SIZE = 255;
@@ -45,8 +51,33 @@ struct Channel {
     MeshCoreChannel channel;
 };
 
-struct PendingAck {
+/** A channel message of this node. Channel messages aren't acknowledged, so repeaters sending it on again is the only sign that it got out. */
+struct ChannelSend {
     uint32_t seq;
+    uint32_t packetHash;
+    uint8_t repeats;
+};
+
+/** The repeaters between this node and a contact, in the order of sending to the contact */
+struct KnownPath {
+    uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE];
+    uint8_t length;
+    uint8_t hashSize;
+    uint8_t hops[MESHCORE_MAX_PATH_SIZE];
+};
+
+/** A direct message that waits for an acknowledgement. Every attempt has its own acknowledgement hash. */
+struct PendingSend {
+    uint32_t seq;
+    uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE];
+    uint32_t timestamp;
+    tt::std::string text;
+    /** The attempts below this number go over @a path */
+    uint8_t pathAttempts;
+    KnownPath path;
+    /** 0 for the first transmission */
+    uint8_t attempt;
+    uint32_t ackHashes[MAX_RETRIES + 1];
     uint64_t deadlineMs;
 };
 
@@ -58,12 +89,25 @@ struct Backend {
     tt::std::vector<Contact> contacts;
     tt::std::vector<Channel> channels;
     tt::std::deque<uint32_t> seenPackets;
-    tt::std::map<uint32_t, PendingAck> pendingAcks;
+    tt::std::vector<PendingSend> pendingSends;
+    /** Paths that an acknowledgement came back over. They are lost on restart. */
+    tt::std::vector<KnownPath> knownPaths;
+    tt::std::deque<ChannelSend> channelSends;
+    /** Timestamp and sender of received direct messages, to drop the retries of a message that arrived already */
+    tt::std::deque<uint64_t> recentTexts;
     uint64_t lastAdvertMs = 0;
+    /** Wall time of the last flooded advert, 0 when unknown */
+    uint32_t lastFloodAdvertTime = 0;
+    /** The advert that follows a start waits for a valid clock, to see whether the last flooded one is recent enough */
+    bool floodAdvertPending = false;
 };
 
 uint64_t getMillis() {
     return get_micros_since_boot() / 1000;
+}
+
+bool isWallTimeValid() {
+    return static_cast<int64_t>(time(nullptr)) >= MIN_VALID_WALL_TIME;
 }
 
 /** MeshCore uses seconds since the epoch, or uptime when the clock was never set */
@@ -176,6 +220,22 @@ void saveContacts(Backend* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (getPath(backend, "contacts.bin", path, sizeof(path))) {
         writeFile(path, reinterpret_cast<const uint8_t*>(backend->contacts.data()), backend->contacts.size() * sizeof(Contact));
+    }
+}
+
+void loadLastFloodAdvertTime(Backend* backend) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    tt::std::vector<uint8_t> data;
+    backend->lastFloodAdvertTime = 0;
+    if (getPath(backend, "advert_time.bin", path, sizeof(path)) && readFile(path, data) && data.size() == sizeof(uint32_t)) {
+        memcpy(&backend->lastFloodAdvertTime, data.data(), sizeof(uint32_t));
+    }
+}
+
+void saveLastFloodAdvertTime(Backend* backend) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (getPath(backend, "advert_time.bin", path, sizeof(path))) {
+        writeFile(path, reinterpret_cast<const uint8_t*>(&backend->lastFloodAdvertTime), sizeof(uint32_t));
     }
 }
 
@@ -311,14 +371,27 @@ bool transmit(Backend* backend, const MeshCorePacket& original, uint32_t seq) {
     return mesh_host_transmit(backend->host, frame, length, seq) == ERROR_NONE;
 }
 
-void sendAdvert(Backend* backend) {
+/** A zero hop advert is a direct packet without a path, so repeaters don't send it on. @return false when it couldn't be sent */
+bool sendAdvert(Backend* backend, MeshCoreRoute route = MeshCoreRoute::Flood) {
     char name[MESH_NAME_MAX_LENGTH + 1];
     mesh_host_get_node_name(backend->host, name, sizeof(name));
     MeshCorePacket packet;
-    if (meshcore_build_advert(backend->identity, getTimestamp(), name, &packet) && transmit(backend, packet, 0)) {
+    bool sent = false;
+    if (meshcore_build_advert(backend->identity, getTimestamp(), name, &packet)) {
+        packet.route = route;
+        sent = transmit(backend, packet, 0);
+    }
+    if (sent) {
         LOG_I(TAG, "Advert sent as \"%s\"", name);
     }
-    backend->lastAdvertMs = getMillis();
+    if (route == MeshCoreRoute::Flood) {
+        backend->lastAdvertMs = getMillis();
+        if (sent && isWallTimeValid()) {
+            backend->lastFloodAdvertTime = static_cast<uint32_t>(time(nullptr));
+            saveLastFloodAdvertTime(backend);
+        }
+    }
+    return sent;
 }
 
 // region Receiving
@@ -398,6 +471,17 @@ bool onTextMessage(Backend* backend, const MeshCorePacket& packet, float rssi, f
         meshcore_build_ack(ackHash, &ack);
         transmit(backend, ack, 0);
 
+        uint32_t senderId;
+        memcpy(&senderId, contact.publicKey, sizeof(senderId));
+        const uint64_t textId = (static_cast<uint64_t>(text.timestamp) << 32) | senderId;
+        if (std::find(backend->recentTexts.begin(), backend->recentTexts.end(), textId) != backend->recentTexts.end()) {
+            return true;
+        }
+        backend->recentTexts.push_back(textId);
+        while (backend->recentTexts.size() > RECENT_TEXTS_LIMIT) {
+            backend->recentTexts.pop_front();
+        }
+
         if ((text.flags >> 2) == TEXT_TYPE_PLAIN) {
             const MeshAddress address = toAddress(contact.publicKey);
             mesh_host_node_heard(backend->host, &address, nullptr, rssi, snr);
@@ -409,17 +493,87 @@ bool onTextMessage(Backend* backend, const MeshCorePacket& packet, float rssi, f
     return false;
 }
 
+const KnownPath* findKnownPath(Backend* backend, const uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE]) {
+    for (const auto& path : backend->knownPaths) {
+        if (memcmp(path.publicKey, publicKey, MESHCORE_PUBLIC_KEY_SIZE) == 0) {
+            return &path;
+        }
+    }
+    return nullptr;
+}
+
+void forgetPath(Backend* backend, const uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE]) {
+    std::erase_if(backend->knownPaths, [publicKey](const KnownPath& path) {
+        return memcmp(path.publicKey, publicKey, MESHCORE_PUBLIC_KEY_SIZE) == 0;
+    });
+}
+
+/** The path of a flooded acknowledgement lists the repeaters from the contact to this node, so it is stored reversed */
+void learnPath(Backend* backend, const uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE], const MeshCorePacket& ack) {
+    if (ack.route != MeshCoreRoute::Flood && ack.route != MeshCoreRoute::TransportFlood) {
+        return;
+    }
+    KnownPath path {};
+    memcpy(path.publicKey, publicKey, MESHCORE_PUBLIC_KEY_SIZE);
+    path.length = ack.pathLength;
+    path.hashSize = ack.pathHashSize;
+    for (uint8_t hop = 0; hop < ack.pathLength; hop++) {
+        memcpy(path.hops + hop * ack.pathHashSize, ack.path + (ack.pathLength - 1 - hop) * ack.pathHashSize, ack.pathHashSize);
+    }
+    forgetPath(backend, publicKey);
+    if (backend->knownPaths.size() >= MAX_CONTACTS) {
+        backend->knownPaths.erase(backend->knownPaths.begin());
+    }
+    backend->knownPaths.push_back(path);
+}
+
+/** Marks the message that @a ackHash belongs to as delivered */
+void completeSend(Backend* backend, uint32_t ackHash, const MeshCorePacket* ack, const KnownPath* path) {    // An acknowledgement of an earlier attempt that arrives late counts too
+    for (auto iterator = backend->pendingSends.begin(); iterator != backend->pendingSends.end(); ++iterator) {
+        if (std::find(iterator->ackHashes, iterator->ackHashes + iterator->attempt + 1, ackHash) != iterator->ackHashes + iterator->attempt + 1) {
+            mesh_host_set_delivery(backend->host, iterator->seq, MESH_DELIVERY_DELIVERED);
+            if (path != nullptr) {
+                forgetPath(backend, iterator->publicKey);
+                backend->knownPaths.push_back(*path);
+                memcpy(backend->knownPaths.back().publicKey, iterator->publicKey, MESHCORE_PUBLIC_KEY_SIZE);
+            } else if (ack != nullptr) {
+                learnPath(backend, iterator->publicKey, *ack);
+            }
+            backend->pendingSends.erase(iterator);
+            break;
+        }
+    }
+}
+
 bool onAck(Backend* backend, const MeshCorePacket& packet) {
     uint32_t ackHash;
     if (!meshcore_parse_ack(packet, &ackHash)) {
         return false;
     }
-    auto iterator = backend->pendingAcks.find(ackHash);
-    if (iterator != backend->pendingAcks.end()) {
-        mesh_host_set_delivery(backend->host, iterator->second.seq, MESH_DELIVERY_DELIVERED);
-        backend->pendingAcks.erase(iterator);
-    }
+    completeSend(backend, ackHash, &packet, nullptr);
     return true;
+}
+
+/** A recipient answers a flooded message with the path it took, and the acknowledgement as extra */
+bool onPathReturn(Backend* backend, const MeshCorePacket& packet) {
+    if (packet.payloadLength < 2 || packet.payload[0] != backend->identity.publicKey[0]) {
+        return false;
+    }
+    for (const auto& contact : backend->contacts) {
+        MeshCorePathReturn result;
+        if (contact.publicKey[0] != packet.payload[1] || !meshcore_parse_path_return(backend->identity, contact.publicKey, packet, &result)) {
+            continue;
+        }
+        if (result.hasAck) {
+            KnownPath path {};
+            path.length = result.hopCount;
+            path.hashSize = result.hashSize;
+            memcpy(path.hops, result.hops, static_cast<size_t>(result.hopCount) * result.hashSize);
+            completeSend(backend, result.ackHash, nullptr, &path);
+        }
+        return true;
+    }
+    return false;
 }
 
 // endregion
@@ -611,8 +765,12 @@ error_t getRadioProfile(void*, RadioRegion region, RadioModulation modulation, s
     return ERROR_NONE;
 }
 
+/** A zero hop advert only reaches direct neighbours, which keeps frequent restarts from flooding the network */
 void onStart(void* context) {
-    sendAdvert(static_cast<Backend*>(context));
+    auto* backend = static_cast<Backend*>(context);
+    loadLastFloodAdvertTime(backend);
+    backend->floodAdvertPending = true;
+    sendAdvert(backend, MeshCoreRoute::Direct);
 }
 
 error_t getContactUri(void* context, const MeshAddress* contact, const char* name, char* uri, size_t uriSize) {
@@ -629,6 +787,10 @@ bool isValidContactAddress(void*, const MeshAddress* address) {
     return address->length == MESHCORE_PUBLIC_KEY_SIZE;
 }
 
+error_t sendAdvertOnRequest(void* context, MeshAdvertRoute route) {
+    return sendAdvert(static_cast<Backend*>(context), route == MESH_ADVERT_ZERO_HOP ? MeshCoreRoute::Direct : MeshCoreRoute::Flood) ? ERROR_NONE : ERROR_RESOURCE;
+}
+
 void onNodeNameChanged(void* context) {
     sendAdvert(static_cast<Backend*>(context));
 }
@@ -641,6 +803,17 @@ bool onReceive(void* context, const uint8_t* data, size_t length, float rssi, fl
     }
 
     const uint32_t hash = meshcore_packet_hash(packet);
+    if (packet.payloadType == MeshCorePayload::GroupText) {
+        for (auto& send : backend->channelSends) {
+            if (send.packetHash == hash) {
+                if (send.repeats < UINT8_MAX) {
+                    send.repeats++;
+                }
+                mesh_host_set_repeats(backend->host, send.seq, send.repeats);
+                return true;
+            }
+        }
+    }
     if (std::find(backend->seenPackets.begin(), backend->seenPackets.end(), hash) != backend->seenPackets.end()) {
         return true;
     }
@@ -658,24 +831,72 @@ bool onReceive(void* context, const uint8_t* data, size_t length, float rssi, fl
             return onTextMessage(backend, packet, rssi, snr);
         case MeshCorePayload::Ack:
             return onAck(backend, packet);
+        case MeshCorePayload::Path:
+            return onPathReturn(backend, packet);
         default:
             // Payload types this backend doesn't support, e.g. path and trace packets
             return false;
     }
 }
 
+/** Builds an attempt: over the known path for the first ones, flooded after that */
+bool buildAttempt(Backend* backend, const PendingSend& send, uint8_t attempt, MeshCorePacket* packet, uint32_t* ackHash) {
+    if (!meshcore_build_text_message(backend->identity, send.publicKey, send.timestamp, attempt, send.text.c_str(), packet, ackHash)) {
+        return false;
+    }
+    if (attempt < send.pathAttempts) {
+        packet->route = MeshCoreRoute::Direct;
+        packet->pathLength = send.path.length;
+        packet->pathHashSize = send.path.hashSize;
+        memcpy(packet->path, send.path.hops, static_cast<size_t>(send.path.length) * send.path.hashSize);
+    }
+    return true;
+}
+
+/** Sends the message again as the next attempt */
+bool retry(Backend* backend, PendingSend& send) {
+    MeshCorePacket packet;
+    const uint8_t attempt = send.attempt + 1;
+    uint32_t ackHash;
+    if (!buildAttempt(backend, send, attempt, &packet, &ackHash) || !transmit(backend, packet, send.seq)) {
+        return false;
+    }
+    send.attempt = attempt;
+    mesh_host_set_retry(backend->host, send.seq, attempt, MAX_RETRIES);
+    send.ackHashes[attempt] = ackHash;
+    send.deadlineMs = getMillis() + ACK_TIMEOUT_MS;
+    return true;
+}
+
 void onTick(void* context) {
     auto* backend = static_cast<Backend*>(context);
     const uint64_t nowMs = getMillis();
+    if (backend->floodAdvertPending && isWallTimeValid()) {
+        backend->floodAdvertPending = false;
+        const auto now = static_cast<uint32_t>(time(nullptr));
+        // A saved time in the future was saved with a wrong clock
+        const bool recent = backend->lastFloodAdvertTime != 0 && backend->lastFloodAdvertTime <= now &&
+            now - backend->lastFloodAdvertTime < ADVERT_INTERVAL_MS / 1000;
+        if (!recent) {
+            sendAdvert(backend);
+        }
+    }
     if (nowMs - backend->lastAdvertMs >= ADVERT_INTERVAL_MS) {
         sendAdvert(backend);
     }
-    for (auto iterator = backend->pendingAcks.begin(); iterator != backend->pendingAcks.end();) {
-        if (nowMs >= iterator->second.deadlineMs) {
-            mesh_host_set_delivery(backend->host, iterator->second.seq, MESH_DELIVERY_FAILED);
-            iterator = backend->pendingAcks.erase(iterator);
-        } else {
+    for (auto iterator = backend->pendingSends.begin(); iterator != backend->pendingSends.end();) {
+        if (nowMs < iterator->deadlineMs) {
             ++iterator;
+            continue;
+        }
+        if (iterator->attempt < MAX_RETRIES && retry(backend, *iterator)) {
+            ++iterator;
+        } else {
+            mesh_host_set_delivery(backend->host, iterator->seq, MESH_DELIVERY_FAILED);
+            if (iterator->pathAttempts > 0) {
+                forgetPath(backend, iterator->publicKey);
+            }
+            iterator = backend->pendingSends.erase(iterator);
         }
     }
 }
@@ -694,7 +915,14 @@ error_t sendText(void* context, uint32_t seq, const MeshAddress* to, uint8_t cha
             if (!meshcore_build_group_text(channel.channel, getTimestamp(), name, text, &packet)) {
                 return ERROR_OUT_OF_RANGE;
             }
-            return transmit(backend, packet, seq) ? ERROR_NONE : ERROR_RESOURCE;
+            if (!transmit(backend, packet, seq)) {
+                return ERROR_RESOURCE;
+            }
+            backend->channelSends.push_back({ .seq = seq, .packetHash = meshcore_packet_hash(packet), .repeats = 0 });
+            while (backend->channelSends.size() > CHANNEL_SENDS_LIMIT) {
+                backend->channelSends.pop_front();
+            }
+            return ERROR_NONE;
         }
         return ERROR_NOT_FOUND;
     }
@@ -702,14 +930,25 @@ error_t sendText(void* context, uint32_t seq, const MeshAddress* to, uint8_t cha
     if (to->length != MESHCORE_PUBLIC_KEY_SIZE) {
         return ERROR_INVALID_ARGUMENT;
     }
+    PendingSend send {};
+    send.seq = seq;
+    memcpy(send.publicKey, to->bytes, MESHCORE_PUBLIC_KEY_SIZE);
+    send.timestamp = getTimestamp();
+    send.text = text;
+    if (const KnownPath* path = findKnownPath(backend, to->bytes)) {
+        send.path = *path;
+        send.pathAttempts = PATH_ATTEMPTS;
+    }
     uint32_t ackHash;
-    if (!meshcore_build_text_message(backend->identity, to->bytes, getTimestamp(), 0, text, &packet, &ackHash)) {
+    if (!buildAttempt(backend, send, 0, &packet, &ackHash)) {
         return ERROR_OUT_OF_RANGE;
     }
     if (!transmit(backend, packet, seq)) {
         return ERROR_RESOURCE;
     }
-    backend->pendingAcks[ackHash] = { .seq = seq, .deadlineMs = getMillis() + ACK_TIMEOUT_MS };
+    send.ackHashes[0] = ackHash;
+    send.deadlineMs = getMillis() + ACK_TIMEOUT_MS;
+    backend->pendingSends.push_back(send);
     return ERROR_NONE;
 }
 
@@ -785,5 +1024,6 @@ const MeshBackendApi meshcore_backend_api = {
     .is_valid_contact_address = isValidContactAddress,
     .on_node_name_changed = onNodeNameChanged,
     .remove_channel = removeChannel,
-    .features = MESH_FEATURE_NAMED_CHANNELS | MESH_FEATURE_KEYED_CHANNELS,
+    .send_advert = sendAdvertOnRequest,
+    .features = MESH_FEATURE_NAMED_CHANNELS | MESH_FEATURE_KEYED_CHANNELS | MESH_FEATURE_ADVERTS,
 };

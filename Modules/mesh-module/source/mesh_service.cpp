@@ -270,6 +270,9 @@ void emitEvent(MeshEventType type, MeshState state, uint32_t seq, MeshDeliverySt
         .state = state,
         .seq = seq,
         .delivery = delivery,
+        .retry_attempt = 0,
+        .retry_max = 0,
+        .repeat_count = 0,
         .frame = {},
     });
 }
@@ -377,7 +380,9 @@ void setStateLocked(MeshHost* host, MeshState state) {
 // region Contacts
 
 constexpr size_t MAX_CONTACTS = 64;
-constexpr auto* CONTACTS_FILE_NAME = "contacts.bin";
+/** The contacts of the user. A backend keeps its own contacts.bin in the same folder. */
+constexpr auto* CONTACTS_FILE_NAME = "saved_contacts.bin";
+constexpr auto* SHARED_CONTACTS_FILE_NAME = "contacts.bin";
 constexpr auto* STORE_DIRECTORY_NAME = "store";
 
 bool isSameAddress(const MeshAddress& a, const MeshAddress& b) {
@@ -1189,7 +1194,7 @@ void migrateSharedStorage() {
     char storePath[FILE_MAX_PATH_STRING_LENGTH];
     char contactsPath[FILE_MAX_PATH_STRING_LENGTH];
     if (service_paths_get_user_data_path(MESH_SERVICE_ID, STORE_DIRECTORY_NAME, storePath, sizeof(storePath)) != ERROR_NONE ||
-        service_paths_get_user_data_path(MESH_SERVICE_ID, CONTACTS_FILE_NAME, contactsPath, sizeof(contactsPath)) != ERROR_NONE) {
+        service_paths_get_user_data_path(MESH_SERVICE_ID, SHARED_CONTACTS_FILE_NAME, contactsPath, sizeof(contactsPath)) != ERROR_NONE) {
         return;
     }
     if (directory_exists(storePath) && migrateSharedMessages(storePath)) {
@@ -1410,6 +1415,37 @@ uint32_t mesh_host_receive_text(
 void mesh_host_set_delivery(MeshHost* host, uint32_t seq, MeshDeliveryState delivery) {
     lock();
     setDelivery(host, seq, delivery);
+    unlock();
+}
+
+void mesh_host_set_retry(MeshHost* host, uint32_t seq, uint8_t attempt, uint8_t max) {
+    lock();
+    if (host->store.setDelivery(seq, MESH_DELIVERY_RETRYING) == ERROR_NONE) {
+        MeshEvent event {};
+        event.timestamp = get_micros_since_boot();
+        event.type = MESH_EVENT_DELIVERY;
+        event.state = host->state;
+        event.seq = seq;
+        event.delivery = MESH_DELIVERY_RETRYING;
+        event.retry_attempt = attempt;
+        event.retry_max = max;
+        queueEvent(event);
+    }
+    unlock();
+}
+
+void mesh_host_set_repeats(MeshHost* host, uint32_t seq, uint8_t count) {
+    lock();
+    if (host->store.setDelivery(seq, MESH_DELIVERY_REPEATED) == ERROR_NONE) {
+        MeshEvent event {};
+        event.timestamp = get_micros_since_boot();
+        event.type = MESH_EVENT_DELIVERY;
+        event.state = host->state;
+        event.seq = seq;
+        event.delivery = MESH_DELIVERY_REPEATED;
+        event.repeat_count = count;
+        queueEvent(event);
+    }
     unlock();
 }
 
@@ -2266,6 +2302,19 @@ error_t mesh_remove_channel(uint8_t index) {
     const error_t finalResult = (callResult != ERROR_NONE) ? callResult : result;
     emitChannelChanged(finalResult);
     return finalResult;
+}
+
+error_t mesh_send_advert(MeshAdvertRoute route) {
+    error_t result = ERROR_INVALID_STATE;
+    const error_t callResult = callOnServiceThread([&](MeshHost* host) {
+        if (host->api == nullptr) {
+            return;
+        }
+        result = (host->api->send_advert != nullptr)
+            ? host->api->send_advert(host->backend, route)
+            : ERROR_NOT_SUPPORTED;
+    });
+    return (callResult != ERROR_NONE) ? callResult : result;
 }
 
 // endregion

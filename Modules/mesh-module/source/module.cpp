@@ -148,6 +148,7 @@ static const ModuleSymbol mesh_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(mesh_get_channels),
     DEFINE_MODULE_SYMBOL(mesh_set_channel),
     DEFINE_MODULE_SYMBOL(mesh_remove_channel),
+    DEFINE_MODULE_SYMBOL(mesh_send_advert),
     DEFINE_MODULE_SYMBOL(mesh_event_subscribe),
     DEFINE_MODULE_SYMBOL(mesh_event_unsubscribe),
     DEFINE_MODULE_SYMBOL(mesh_event_poll),

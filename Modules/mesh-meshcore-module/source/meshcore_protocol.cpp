@@ -278,6 +278,40 @@ bool meshcore_parse_ack(const MeshCorePacket& packet, uint32_t* ackHash) {
     return true;
 }
 
+bool meshcore_parse_path_return(
+    const MeshCoreIdentity& identity,
+    const uint8_t peerPublicKey[MESHCORE_PUBLIC_KEY_SIZE],
+    const MeshCorePacket& packet,
+    MeshCorePathReturn* result
+) {
+    if (packet.payloadType != MeshCorePayload::Path || packet.payloadLength < 2 + MESHCORE_CIPHER_MAC_SIZE + MESHCORE_CIPHER_BLOCK_SIZE) {
+        return false;
+    }
+    uint8_t secret[MESHCORE_SECRET_SIZE];
+    meshcore_shared_secret(identity, peerPublicKey, secret);
+
+    uint8_t plaintext[MESHCORE_MAX_PAYLOAD_SIZE];
+    const size_t length = meshcore_mac_then_decrypt(secret, plaintext, packet.payload + 2, packet.payloadLength - 2);
+    if (length < 1) {
+        return false;
+    }
+    // Like in the packet header: the upper 2 bits hold the hash size minus one, the lower 6 bits the hop count
+    *result = {};
+    result->hopCount = plaintext[0] & 0x3F;
+    result->hashSize = (plaintext[0] >> 6) + 1;
+    const size_t pathBytes = static_cast<size_t>(result->hopCount) * result->hashSize;
+    if (pathBytes > MESHCORE_MAX_PATH_SIZE || 1 + pathBytes > length) {
+        return false;
+    }
+    memcpy(result->hops, plaintext + 1, pathBytes);
+    const size_t extra = 1 + pathBytes;
+    if (extra + 1 + 4 <= length && (plaintext[extra] & 0x0F) == static_cast<uint8_t>(MeshCorePayload::Ack)) {
+        result->hasAck = true;
+        result->ackHash = readU32(plaintext + extra + 1);
+    }
+    return true;
+}
+
 bool meshcore_build_contact_uri(const char* name, const uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE], uint8_t type, char* uri, size_t uriSize) {
     size_t length = 0;
     const auto append = [&](char character) {

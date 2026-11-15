@@ -142,6 +142,38 @@ TEST_CASE("MeshCore direct messages decrypt at the recipient and produce matchin
     CHECK_EQ(parsedAckHash, sentAckHash);
 }
 
+TEST_CASE("MeshCore path returns carry the path and the acknowledgement") {
+    MeshCoreIdentity alice;
+    MeshCoreIdentity bob;
+    meshcore_identity_create(&alice);
+    meshcore_identity_create(&bob);
+
+    // Bob's reply to a message of Alice: 2 hops with 1 byte hashes, then the ACK as extra
+    const uint8_t ackHash[4] = { 0x11, 0x22, 0x33, 0x44 };
+    const uint8_t plaintext[] = { 2, 0xAA, 0xBB, static_cast<uint8_t>(MeshCorePayload::Ack), ackHash[0], ackHash[1], ackHash[2], ackHash[3] };
+    uint8_t secret[32];
+    meshcore_shared_secret(bob, alice.publicKey, secret);
+    MeshCorePacket packet;
+    packet.payloadType = MeshCorePayload::Path;
+    packet.payload[0] = alice.publicKey[0];
+    packet.payload[1] = bob.publicKey[0];
+    const size_t encrypted = meshcore_encrypt_then_mac(secret, packet.payload + 2, plaintext, sizeof(plaintext));
+    REQUIRE_GT(encrypted, 0);
+    packet.payloadLength = static_cast<uint8_t>(2 + encrypted);
+
+    MeshCorePathReturn result;
+    REQUIRE(meshcore_parse_path_return(alice, bob.publicKey, packet, &result));
+    CHECK_EQ(result.hopCount, 2);
+    CHECK_EQ(result.hashSize, 1);
+    CHECK_EQ(result.hops[0], 0xAA);
+    CHECK_EQ(result.hops[1], 0xBB);
+    REQUIRE(result.hasAck);
+    CHECK_EQ(result.ackHash, 0x44332211u);
+
+    // Another peer can't read it
+    CHECK_FALSE(meshcore_parse_path_return(alice, alice.publicKey, packet, &result));
+}
+
 TEST_CASE("MeshCore contact URIs match the format of the MeshCore app") {
     uint8_t key[MESHCORE_PUBLIC_KEY_SIZE];
     const char* hex = "9cd8fcf22a47333b591d96a2b848b73f457b1bb1a3ea2453a885f9e5787765b1";

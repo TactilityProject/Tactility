@@ -112,6 +112,12 @@ struct MeshBackendApi {
      */
     error_t (*remove_channel)(void* backend, uint8_t index);
 
+    /**
+     * Optional. Announce this node now.
+     * @retval ERROR_RESOURCE when the advert couldn't be sent
+     */
+    error_t (*send_advert)(void* backend, enum MeshAdvertRoute route);
+
     /** The MeshFeature values that the backend supports, combined, see mesh_supports() */
     uint32_t features;
 };
@@ -154,6 +160,12 @@ uint32_t mesh_host_receive_text(
 
 /** Update the delivery state of an outgoing message, e.g. MESH_DELIVERY_DELIVERED when acknowledged */
 void mesh_host_set_delivery(struct MeshHost* host, uint32_t seq, enum MeshDeliveryState delivery);
+
+/** Mark an outgoing message as sent again. @a attempt counts from 1 up to @a max. */
+void mesh_host_set_retry(struct MeshHost* host, uint32_t seq, uint8_t attempt, uint8_t max);
+
+/** Mark an outgoing channel message as heard being repeated @a count times */
+void mesh_host_set_repeats(struct MeshHost* host, uint32_t seq, uint8_t count);
 
 /** Record that a node was heard. @a name may be NULL to keep the known name. */
 void mesh_host_node_heard(struct MeshHost* host, const struct MeshAddress* address, const char* name, float rssi, float snr);
