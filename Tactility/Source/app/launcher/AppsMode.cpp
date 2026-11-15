@@ -63,7 +63,6 @@ const BuiltInIconAsset BUILT_IN_ICONS[] = {
     BUILT_IN_ICON("tactility.chat", tactility_chat),
     BUILT_IN_ICON("tactility.files", tactility_files),
     BUILT_IN_ICON("tactility.i2cscanner", tactility_i2cscanner),
-    BUILT_IN_ICON("tactility.maps", tactility_maps),
     BUILT_IN_ICON("tactility.mesh", tactility_mesh),
     BUILT_IN_ICON("tactility.notes", tactility_notes),
     BUILT_IN_ICON("tactility.systeminfo", tactility_systeminfo),
