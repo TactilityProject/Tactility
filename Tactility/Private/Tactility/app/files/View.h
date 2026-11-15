@@ -45,6 +45,9 @@ class View final {
     /** Mono icons are painted in the theme's icon colour */
     bool iconRecolor[9] = {};
 
+    /** Set while a key selects an entry, so the keys keep going to the grid instead of the overlay */
+    bool keepGridFocus = false;
+
     TileGrid grid;
 
     /** Shown in the toolbar while file operations are pending */

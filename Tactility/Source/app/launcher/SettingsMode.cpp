@@ -40,6 +40,7 @@ const SettingsIconAsset SETTINGS_ICONS[] = {
     SETTINGS_ICON("tactility.display", tactility_display),
     SETTINGS_ICON("tactility.grovesettings", tactility_grovesettings),
     SETTINGS_ICON("tactility.keyboardsettings", tactility_keyboardsettings),
+    SETTINGS_ICON("tactility.languagesettings", tactility_languagesettings),
     SETTINGS_ICON("tactility.ledstripsettings", tactility_ledstripsettings),
     SETTINGS_ICON("tactility.locationsettings", tactility_locationsettings),
     SETTINGS_ICON("tactility.meshsettings", tactility_meshsettings),

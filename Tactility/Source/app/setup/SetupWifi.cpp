@@ -69,16 +69,16 @@ void renderWifi(Context* ctx) {
 
     if (station == WIFI_STATION_STATE_CONNECTION_PENDING) {
         lv_obj_set_flex_align(container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        createBusyRow(container, "Connecting");
+        createBusyRow(container, tr("Connecting"));
         return;
     }
 
     if (ctx->wifiConnectFailed) {
         lv_obj_set_flex_align(container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_row(container, LV_DPX(8), LV_STATE_DEFAULT);
-        lv_label_set_text(lv_label_create(container), "Failed to connect");
+        lv_label_set_text(lv_label_create(container), tr("Failed to connect"));
         auto* retry = lv_button_create(container);
-        lv_label_set_text(lv_label_create(retry), "Retry");
+        lv_label_set_text(lv_label_create(retry), tr("Retry"));
         lv_obj_add_event_cb(retry, onWifiRetryClicked, LV_EVENT_SHORT_CLICKED, ctx);
         return;
     }
@@ -87,11 +87,11 @@ void renderWifi(Context* ctx) {
     if (records.empty()) {
         lv_obj_set_flex_align(container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         if (ctx->wifiDevice == nullptr) {
-            lv_label_set_text(lv_label_create(container), "No Wi-Fi available.");
+            lv_label_set_text(lv_label_create(container), tr("No Wi-Fi available."));
         } else if (ctx->wifiState.isScanning() || !ctx->wifiState.hasScannedAfterRadioOn()) {
-            createBusyRow(container, "Scanning");
+            createBusyRow(container, tr("Scanning"));
         } else {
-            lv_label_set_text(lv_label_create(container), "No networks found.");
+            lv_label_set_text(lv_label_create(container), tr("No networks found."));
         }
         return;
     }

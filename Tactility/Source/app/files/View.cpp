@@ -27,6 +27,9 @@
 #include <Tactility/app/notes/Notes.h>
 #include <Tactility/file/File.h>
 #include <Tactility/StringUtils.h>
+#include <Tactility/i18n/Localisation.h>
+
+#include <localisation/tr.h>
 
 #include <tactility/device.h>
 #include <tactility/file_ops.h>
@@ -283,7 +286,7 @@ void runWork(void* context) {
     AppStartContext start_context = app_start_context_for_location(location);
     if (app_start_with_context(&start_context, &instance_id) != ERROR_NONE) {
         LOG_W(TAG, "Failed to run %s", job->path.c_str());
-        alertdialog::start(job->appInstanceId, "Run failed", "Could not run \"" + file::getLastPathSegment(job->path) + "\".");
+        alertdialog::start(job->appInstanceId, tr("Run failed"), i18n::format(tr("Could not run \"{}\"."), { file::getLastPathSegment(job->path) }));
     }
     delete job;
 }
@@ -342,10 +345,10 @@ void View::viewFile(const std::string& path, const std::string& filename) {
 
     if (isSupportedAppFile(filename)) {
         // install(filename);
-        auto message = std::format("Do you want to install {}?", filename);
+        auto message = i18n::format(tr("Do you want to install {}?"), { filename });
         installAppPath = file_path;
-        auto choices = std::vector<std::string> {"Yes", "No"};
-        installDialogId = alertdialog::start(appInstanceId, "Install?", message, choices);
+        auto choices = std::vector<std::string> { tr("Yes"), tr("No") };
+        installDialogId = alertdialog::start(appInstanceId, tr("Install?"), message, choices);
     } else if (isSupportedImageFile(filename)) {
         imageviewer::start(file_path);
     } else if (isSupportedTextFile(filename)) {
@@ -364,7 +367,7 @@ void View::runFile(const std::string& file_path) {
 
     if (!state->isExecutable(file::getLastPathSegment(file_path))) {
         LOG_W(TAG, "Not executable: %s", file_path.c_str());
-        alertdialog::start(appInstanceId, "Run failed", "\"" + file::getLastPathSegment(file_path) + "\" is not an executable.");
+        alertdialog::start(appInstanceId, tr("Run failed"), i18n::format(tr("\"{}\" is not an executable."), { file::getLastPathSegment(file_path) }));
         return;
     }
 
@@ -598,8 +601,38 @@ void View::onDirEntryLongPressed(const std::string& name) {
 }
 
 void View::onDirEntryKeyPressed(const std::string& name, uint32_t key) {
+    // Space selects like a long press. The focus stays on the grid, so more entries can be selected with space or enter.
     if (key == ' ') {
+        keepGridFocus = true;
         onDirEntryLongPressed(name);
+        keepGridFocus = false;
+        return;
+    }
+
+    if (isSelecting()) {
+        switch (key) {
+            case LV_KEY_ESC:
+                hideOverlay();
+                break;
+            case 'c': case 'C':
+                onCopyPressed();
+                break;
+            case 'x': case 'X':
+                onCutPressed();
+                break;
+            case 'v': case 'V':
+                if (state->hasClipboard()) onPastePressed();
+                break;
+            case 'r': case 'R':
+                if (state->getSelectedEntries().size() == 1) onRenamePressed();
+                break;
+            case LV_KEY_DEL:
+            case LV_KEY_BACKSPACE:
+                onDeletePressed();
+                break;
+            default:
+                break;
+        }
         return;
     }
 
@@ -661,7 +694,7 @@ void View::onRenamePressed() {
     std::string entry_name = state->getSelectedChildEntry();
     LOG_I(TAG, "Pending rename %s", entry_name.c_str());
     state->setPendingAction(State::ActionRename);
-    inputdialog::start(appInstanceId, "Rename", "", entry_name, inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
+    inputdialog::start(appInstanceId, tr("Rename"), "", entry_name, inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
 }
 
 void View::onDeletePressed() {
@@ -672,27 +705,27 @@ void View::onDeletePressed() {
     std::string message;
     if (paths.size() == 1) {
         LOG_I(TAG, "Pending delete %s", paths[0].c_str());
-        message = "Do you want to delete this?\n" + paths[0];
+        message = i18n::format(tr("Do you want to delete this?\n{}"), { paths[0] });
     } else {
         LOG_I(TAG, "Pending delete of %u items", static_cast<unsigned>(paths.size()));
-        message = "Do you want to delete these " + std::to_string(paths.size()) + " items?";
+        message = i18n::format(tr("Do you want to delete these {} items?"), { std::to_string(paths.size()) });
     }
-    const std::vector<std::string> choices = {"Yes", "No"};
-    alertdialog::start(appInstanceId, "Are you sure?", message, choices);
+    const std::vector<std::string> choices = { tr("Yes"), tr("No") };
+    alertdialog::start(appInstanceId, tr("Are you sure?"), message, choices);
 }
 
 void View::onNewFilePressed() {
     onNavigate();
     LOG_I(TAG, "Creating new file");
     state->setPendingAction(State::ActionCreateFile);
-    inputdialog::start(appInstanceId, "New File", "Enter filename:", "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
+    inputdialog::start(appInstanceId, tr("New File"), tr("Enter filename:"), "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
 }
 
 void View::onNewFolderPressed() {
     onNavigate();
     LOG_I(TAG, "Creating new folder");
     state->setPendingAction(State::ActionCreateFolder);
-    inputdialog::start(appInstanceId, "New Folder", "Enter folder name:", "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
+    inputdialog::start(appInstanceId, tr("New Folder"), tr("Enter folder name:"), "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
 }
 
 lv_obj_t* View::addOverlayButton(const char* icon, lv_event_cb_t callback) {
@@ -745,7 +778,7 @@ void View::showOverlay(lv_obj_t* anchorTile) {
     }
 
     lv_group_t* group = lv_group_get_default();
-    if (group != nullptr && lv_obj_get_child_count(overlay) > 0) {
+    if (group != nullptr && !keepGridFocus && lv_obj_get_child_count(overlay) > 0) {
         lv_group_focus_obj(overlay);
         lv_gridnav_set_focused(overlay, lv_obj_get_child(overlay, 0), LV_ANIM_OFF);
         // Touch shows no selection, until a key moves the focus
@@ -857,7 +890,7 @@ void View::onEjectPressed() {
 
     if (!ejected) {
         LOG_W(TAG, "usb_msc_eject: %s not found", mount_path.c_str());
-        alertdialog::start(appInstanceId, "Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
+        alertdialog::start(appInstanceId, tr("Eject failed"), i18n::format(tr("Could not eject \"{}\"."), { file::getLastPathSegment(mount_path) }));
     }
 
     onNavigate();
@@ -899,7 +932,7 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     const bool is_root = (state->getCurrentPath() == "/");
-    auto* toolbar = lvgl_toolbar_create(parent, "Files");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Files"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressedCallback, this);
     busy_spinner = lvgl_toolbar_add_spinner_action(toolbar);
@@ -999,7 +1032,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
                 if (stat(rename_to.c_str(), &st) == 0) {
                     LOG_W(TAG, "Rename: destination already exists: \"%s\"", rename_to.c_str());
                     state->setPendingAction(State::ActionNone);
-                    alertdialog::start(appInstanceId, "Rename failed", "\"" + new_name + "\" already exists.");
+                    alertdialog::start(appInstanceId, tr("Rename failed"), i18n::format(tr("\"{}\" already exists."), { new_name }));
                     break;
                 }
                 if (rename(filepath.c_str(), rename_to.c_str()) == 0) {
@@ -1085,7 +1118,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
 
                 if (!dst_unchanged) {
                     LOG_W(TAG, "Overwrite: destination \"%s\" changed since confirmation, aborting", dst.c_str());
-                    pasteFailures.push_back("\"" + entry_name + "\" changed while the dialog was open.");
+                    pasteFailures.push_back(i18n::format(tr("\"{}\" changed while the dialog was open."), { entry_name }));
                 } else if (file::deleteRecursively(dst)) {
                     // Trade-off: dst is removed before the copy attempt. If doPaste
                     // subsequently fails (e.g. source read error, out of space), the
@@ -1095,7 +1128,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
                     doPaste(paste_source, paste_is_cut, dst);
                 } else {
                     LOG_E(TAG, "Overwrite: failed to remove existing destination: \"%s\"", dst.c_str());
-                    pasteFailures.push_back("Could not remove \"" + entry_name + "\" before overwriting.");
+                    pasteFailures.push_back(i18n::format(tr("Could not remove \"{}\" before overwriting."), { entry_name }));
                 }
             }
             state->clearPendingPasteDstStat();
@@ -1166,7 +1199,7 @@ void View::processPasteQueue() {
         // Copying a folder into itself would never end, as the copy is listed while it is being made
         if (dst.starts_with(src + "/")) {
             LOG_W(TAG, "Paste: \"%s\" is inside \"%s\"", dst.c_str(), src.c_str());
-            pasteFailures.push_back("\"" + entry_name + "\" can't be pasted into itself.");
+            pasteFailures.push_back(i18n::format(tr("\"{}\" can't be pasted into itself."), { entry_name }));
             continue;
         }
 
@@ -1176,8 +1209,8 @@ void View::processPasteQueue() {
             state->setPendingPasteSource(src, pasteIsCut);
             state->setPendingPasteDstStat(dst_stat);
             state->setPendingAction(State::ActionPaste);
-            const std::vector<std::string> choices = {"Overwrite", "Cancel"};
-            pasteDialogId = alertdialog::start(appInstanceId, "File exists", "Overwrite \"" + entry_name + "\"?", choices);
+            const std::vector<std::string> choices = { tr("Overwrite"), tr("Cancel") };
+            pasteDialogId = alertdialog::start(appInstanceId, tr("File exists"), i18n::format(tr("Overwrite \"{}\"?"), { entry_name }), choices);
             return;
         }
 
@@ -1195,7 +1228,7 @@ void View::processPasteQueue() {
         }
         pasteFailures.clear();
         state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
-        alertdialog::start(appInstanceId, "Paste failed", message);
+        alertdialog::start(appInstanceId, tr("Paste failed"), message);
     }
 }
 
@@ -1231,10 +1264,10 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
             state->removeFromClipboardIfCut(src);
         }
     } else if (src_delete_failed) {
-        pasteFailures.push_back("\"" + filename + "\" was copied but the original could not be removed.");
+        pasteFailures.push_back(i18n::format(tr("\"{}\" was copied but the original could not be removed."), { filename }));
     } else {
         LOG_E(TAG, "Failed to %s \"%s\" to \"%s\" (errno %d)", is_cut ? "move" : "copy", src.c_str(), dst.c_str(), errno);
-        pasteFailures.push_back("\"" + filename + "\" could not be " + (is_cut ? "moved." : "copied."));
+        pasteFailures.push_back(i18n::format(is_cut ? tr("\"{}\" could not be moved.") : tr("\"{}\" could not be copied."), { filename }));
     }
 }
 

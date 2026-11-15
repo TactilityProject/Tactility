@@ -3,6 +3,8 @@
 #include <Tactility/app/timezone/TimeZoneView.h>
 #include <Tactility/app/wifimanage/WifiManagePrivate.h>
 
+#include <localisation/localisation.h>
+
 #include <tactility/device.h>
 #include <tactility/drivers/wifi.h>
 
@@ -21,6 +23,8 @@
 namespace tt::app::setup {
 
 enum class Phase {
+    /** Picks the language, before anything is shown in it */
+    Language,
     Welcome,
     StepIntro,
     /** The choices of a step that has an intro page, see StepConfiguration::choiceTitle */
@@ -46,7 +50,9 @@ struct StepConfiguration {
         /** The time zone list instead of the description */
         TimeZones,
         /** The Wi-Fi network list instead of the description, only used by Phase::WifiSetup */
-        Wifi
+        Wifi,
+        /** The language list instead of the description, only used by Phase::Language */
+        Languages
     } content = Content::Description;
     /** Optional: the title of a separate page with the choices, shown after the intro page that holds the description */
     tt::std::string choiceTitle {};
@@ -60,10 +66,20 @@ struct StepConfiguration {
 
 struct Context {
     uint32_t appInstanceId;
+    /** The translations of the Setup app, open while it runs */
+    ::L10nDomain* l10nDomain = nullptr;
 
-    Phase phase = Phase::Welcome;
+    Phase phase = Phase::Language;
     size_t stepIndex = 0;
     tt::std::vector<StepConfiguration> steps;
+    /** The page that picks the language: its choices are the language names and its choice the picked language */
+    StepConfiguration languageStep;
+    /** The settings::Language of each choice of languageStep, as the choices are sorted by name */
+    tt::std::vector<int32_t> languageOrder;
+    /** Rebuilds the texts of the steps, after the language changed. Runs on the app task. */
+    ::std::function<void()> rebuildSteps = nullptr;
+    /** Sets the language of a choice of languageStep and shows the current page in it. Called on the LVGL thread. */
+    ::std::function<void(int32_t)> onLanguagePicked = nullptr;
     uint32_t pendingStepDialogId = 0;
 
     // Valid while the window is shown
@@ -115,6 +131,8 @@ uint32_t getStepCount(const Context* ctx);
 enum LvglFontSize getTitleFontSize();
 /** Shows the current page. Requires the LVGL lock. */
 void renderCurrent(Context* ctx);
+/** Fills the list container with the languages, and marks the picked one. Requires the LVGL lock. */
+void renderLanguages(Context* ctx);
 
 // SetupWifi.cpp
 
@@ -129,3 +147,12 @@ void enterWifiSetup(Context* ctx);
 void renderWifi(Context* ctx);
 
 } // namespace
+
+namespace tt::app::setup {
+inline ::L10nDomain* getL10nDomain(const Context* ctx) { return ctx->l10nDomain; }
+inline ::L10nDomain* getL10nDomain(const Context& ctx) { return ctx.l10nDomain; }
+}
+
+// Texts are translated with the domain of the Context that is named ctx
+#define L10N_DOMAIN tt::app::setup::getL10nDomain(ctx)
+#include <localisation/tr.h>

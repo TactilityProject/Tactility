@@ -69,6 +69,7 @@ namespace app {
     namespace shell { extern const ::AppManifest manifest; extern const ::AppManifest sh_manifest; }
     namespace systeminfo { extern const ::AppManifest manifest; }
     namespace terminal { extern const ::AppManifest manifest; }
+    namespace languagesettings { extern const ::AppManifest manifest; }
     namespace timedatesettings { extern const ::AppManifest manifest; }
     namespace meshchat {
         extern const ::AppManifest manifest;
@@ -142,6 +143,7 @@ static void registerInternalApps() {
     app_manager_add(&app::shell::manifest);
     app_manager_add(&app::shell::sh_manifest);
     app_manager_add(&app::systeminfo::manifest);
+    app_manager_add(&app::languagesettings::manifest);
     app_manager_add(&app::timedatesettings::manifest);
     app_manager_add(&app::terminal::manifest);
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED

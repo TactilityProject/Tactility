@@ -25,6 +25,7 @@
 
 #include <tactility/std/string.hpp>
 #include <tactility/std/vector.hpp>
+#include <localisation/tr.h>
 
 namespace tt::app::apphubdetails {
 
@@ -35,7 +36,6 @@ extern const ::AppManifest manifest;
 namespace {
 
 constexpr auto* CONFIRM_TEXT = "Confirm";
-constexpr auto* CANCEL_TEXT = "Cancel";
 constexpr int32_t CONFIRMATION_BUTTON_INDEX = 0;
 constexpr size_t DESCRIPTION_MAX_SIZE = 2048;
 
@@ -118,7 +118,7 @@ void refreshViews(Context* ctx, bool includeDescription = false) {
 
 uint32_t showConfirmDialog(Context* ctx, const char* action) {
     const auto message = ::std::format("{} {}?", action, ctx->app.name);
-    return alertdialog::start(ctx->appInstanceId, CONFIRM_TEXT, message, ::std::vector<::std::string> { CONFIRM_TEXT, CANCEL_TEXT });
+    return alertdialog::start(ctx->appInstanceId, CONFIRM_TEXT, message, ::std::vector<::std::string> { CONFIRM_TEXT, tr("Cancel") });
 }
 
 void onBackPressed(lv_event_t* e) {

@@ -18,6 +18,7 @@
 #include <tactility/log.h>
 
 #include <atomic>
+#include <localisation/tr.h>
 
 namespace tt::app::poweroff {
 
@@ -215,7 +216,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (supports_power_off) {
         auto* yes_button = lv_button_create(button_wrapper);
         auto* yes_label = lv_label_create(yes_button);
-        lv_label_set_text(yes_label, "Yes");
+        lv_label_set_text(yes_label, tr("Yes"));
         lv_obj_add_event_cb(yes_button, onYesPressed, LV_EVENT_SHORT_CLICKED, ctx);
         first_button = yes_button;
     }
@@ -232,7 +233,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     auto* no_button = lv_button_create(button_wrapper);
     auto* no_label = lv_label_create(no_button);
-    lv_label_set_text(no_label, "No");
+    lv_label_set_text(no_label, tr("No"));
     lv_obj_add_event_cb(no_button, onNoPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
     if (first_button != nullptr && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {

@@ -24,6 +24,7 @@
 #include <tactility/log.h>
 
 #include <cstring>
+#include <localisation/tr.h>
 
 namespace tt::app::btpeersettings {
 
@@ -94,7 +95,7 @@ void onPressForget(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     // Result isn't tracked by launch id (matches the original's behavior) - this app only
     // ever has one dialog in flight at a time.
-    alertdialog::start(ctx->appInstanceId, "Confirmation", "Forget this device?", std::vector<std::string> { "Yes", "No" });
+    alertdialog::start(ctx->appInstanceId, "Confirmation", "Forget this device?", std::vector<std::string> { tr("Yes"), tr("No") });
 }
 
 void onBackPressed(lv_event_t* event) {

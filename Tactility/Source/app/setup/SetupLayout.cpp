@@ -1,12 +1,15 @@
 
 #include <Tactility/StringUtils.h>
+#include <Tactility/i18n/Localisation.h>
 
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
+#include <lvgl/widgets/list.h>
 #include <lvgl/widgets/step_indicator.h>
 #include <lvgl.h>
 
@@ -20,20 +23,22 @@
 namespace tt::app::setup {
 
 
-/** The welcome page counts as the first step, followed by the configuration steps */
+/** The language and welcome pages count as the first two steps, followed by the configuration steps */
 uint32_t getStepCount(const Context* ctx) {
-    return static_cast<uint32_t>(ctx->steps.size()) + 1;
+    return static_cast<uint32_t>(ctx->steps.size()) + 2;
 }
 
 /** The steps before the current one, or all of them once setup is done */
 static uint32_t getFinishedStepCount(const Context* ctx) {
     switch (ctx->phase) {
-        case Phase::Welcome:
+        case Phase::Language:
             return 0;
+        case Phase::Welcome:
+            return 1;
         case Phase::StepIntro:
         case Phase::StepChoice:
         case Phase::WifiSetup:
-            return static_cast<uint32_t>(ctx->stepIndex) + 1;
+            return static_cast<uint32_t>(ctx->stepIndex) + 2;
         case Phase::Done:
             return getStepCount(ctx);
     }
@@ -42,6 +47,8 @@ static uint32_t getFinishedStepCount(const Context* ctx) {
 
 static StepConfiguration::Content getContent(const Context* ctx) {
     switch (ctx->phase) {
+        case Phase::Language:
+            return StepConfiguration::Content::Languages;
         case Phase::StepIntro: {
             const auto& step = ctx->steps[ctx->stepIndex];
             // The choices are on their own page
@@ -87,6 +94,38 @@ static void createChoiceChips(Context* ctx) {
     }
 }
 
+static void onLanguageClicked(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    ctx->languageStep.choice = static_cast<int32_t>(reinterpret_cast<uintptr_t>(lv_obj_get_user_data(lv_event_get_current_target_obj(event))));
+    // Sets the language, which shows the page again in it
+    ctx->onLanguagePicked(ctx->languageStep.choice);
+}
+
+void renderLanguages(Context* ctx) {
+    auto* container = ctx->wifiContainer;
+    lv_obj_clean(container);
+    lv_obj_set_flex_align(container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_state(ctx->continueButton, LV_STATE_DISABLED, ctx->languageStep.choice < 0);
+
+    auto* card = lvgl_card_create(container);
+    lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(card, 0, LV_STATE_DEFAULT);
+    // The list items' pressed and focused backgrounds follow the card's rounded corners
+    lv_obj_set_style_clip_corner(card, true, LV_STATE_DEFAULT);
+    auto* list = lvgl_list_create(card);
+    lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
+
+    const auto& names = ctx->languageStep.choices;
+    for (size_t i = 0; i < names.size(); i++) {
+        auto* button = lvgl_list_add_button(list, static_cast<int32_t>(i) == ctx->languageStep.choice ? LV_SYMBOL_OK : nullptr, names[i].c_str());
+        lv_obj_set_user_data(button, reinterpret_cast<void*>(static_cast<uintptr_t>(i)));
+        lv_obj_add_event_cb(button, onLanguageClicked, LV_EVENT_SHORT_CLICKED, ctx);
+    }
+    lvgl_list_hide_last_divider(card);
+}
+
 /** Small widgets get smaller titles */
 enum LvglFontSize getTitleFontSize() {
     const auto size = lvgl_theme_get_size();
@@ -104,11 +143,14 @@ static void renderLayout(Context* ctx) {
     const auto content = getContent(ctx);
     const bool showsTimeZones = content == StepConfiguration::Content::TimeZones;
     const bool showsWifi = content == StepConfiguration::Content::Wifi;
+    const bool showsLanguages = content == StepConfiguration::Content::Languages;
+    // The Wi-Fi container holds the Wi-Fi list and the language list
+    const bool showsList = showsWifi || showsLanguages;
     const bool showsChoice = content == StepConfiguration::Content::Choice;
     const bool hasTimeZoneWidgets = lv_obj_get_child_count(ctx->timeZoneContainer) > 0;
-    lv_obj_set_hidden(ctx->descriptionLabel, showsTimeZones || showsWifi || ctx->phase == Phase::StepChoice);
+    lv_obj_set_hidden(ctx->descriptionLabel, showsTimeZones || showsList || ctx->phase == Phase::StepChoice);
     lv_obj_set_hidden(ctx->timeZoneContainer, !showsTimeZones);
-    lv_obj_set_hidden(ctx->wifiContainer, !showsWifi);
+    lv_obj_set_hidden(ctx->wifiContainer, !showsList);
     lv_obj_set_hidden(ctx->choiceChips, !showsChoice);
     // The group skips disabled widgets, but not hidden ones
     lv_obj_set_state(ctx->choiceChips, LV_STATE_DISABLED, !showsChoice);
@@ -116,10 +158,10 @@ static void renderLayout(Context* ctx) {
 
     lv_area_t parent;
     lv_area_t bottom;
-    if (!showsWifi) {
+    if (!showsList) {
         lv_obj_clean(ctx->wifiContainer);
     }
-    if (!showsTimeZones && !showsWifi) {
+    if (!showsTimeZones && !showsList) {
         if (hasTimeZoneWidgets) {
             lv_obj_clean(ctx->timeZoneContainer);
             ctx->timeZoneView->destroyWidgets();
@@ -143,13 +185,17 @@ static void renderLayout(Context* ctx) {
         lv_obj_set_height(ctx->content, bottom.y1 - parent.y1);
     } else {
         // The list fills the space between the title and the buttons
-        auto* listContainer = showsWifi ? ctx->wifiContainer : ctx->timeZoneContainer;
-        if (showsWifi) {
+        auto* listContainer = showsList ? ctx->wifiContainer : ctx->timeZoneContainer;
+        if (showsList) {
             if (hasTimeZoneWidgets) {
                 lv_obj_clean(ctx->timeZoneContainer);
                 ctx->timeZoneView->destroyWidgets();
             }
-            renderWifi(ctx);
+            if (showsLanguages) {
+                renderLanguages(ctx);
+            } else {
+                renderWifi(ctx);
+            }
         } else {
             if (!hasTimeZoneWidgets) {
                 ctx->timeZoneView->createWidgets(ctx->timeZoneContainer);
@@ -180,14 +226,20 @@ static void renderLayout(Context* ctx) {
 
 void renderCurrent(Context* ctx) {
     lvgl_step_indicator_set_finished_count(ctx->stepIndicator, getFinishedStepCount(ctx));
-    lv_obj_set_hidden(ctx->backButton, ctx->phase == Phase::Welcome);
+    lv_obj_set_hidden(ctx->backButton, ctx->phase == Phase::Language);
+    lv_label_set_text(lv_obj_get_child(ctx->backButton, 0), tr("Back"));
     switch (ctx->phase) {
-        case Phase::Welcome: {
-            lv_label_set_text(ctx->titleLabel, "Welcome");
-            auto device_names = string::split(::std::string(CONFIG_TT_DEVICE_NAME_SIMPLE), ",");
-            lv_label_set_text_fmt(ctx->descriptionLabel, "It's time to set up your %s!", device_names.front().c_str());
+        case Phase::Language:
+            lv_label_set_text(ctx->titleLabel, tr("Language"));
             lv_obj_set_hidden(ctx->skipButton, true);
-            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Continue");
+            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), tr("Continue"));
+            break;
+        case Phase::Welcome: {
+            lv_label_set_text(ctx->titleLabel, tr("Welcome"));
+            auto device_names = string::split(::std::string(CONFIG_TT_DEVICE_NAME_SIMPLE), ",");
+            lv_label_set_text(ctx->descriptionLabel, i18n::format(tr("It's time to set up your {}!"), { device_names.front() }).c_str());
+            lv_obj_set_hidden(ctx->skipButton, true);
+            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), tr("Continue"));
             break;
         }
         case Phase::StepIntro: {
@@ -195,29 +247,29 @@ void renderCurrent(Context* ctx) {
             lv_label_set_text(ctx->titleLabel, step.title.c_str());
             lv_label_set_text(ctx->descriptionLabel, step.description.c_str());
             lv_obj_set_hidden(ctx->skipButton, false);
-            lv_label_set_text(lv_obj_get_child(ctx->skipButton, 0), "Skip");
-            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Continue");
+            lv_label_set_text(lv_obj_get_child(ctx->skipButton, 0), tr("Skip"));
+            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), tr("Continue"));
             break;
         }
         case Phase::StepChoice: {
             lv_label_set_text(ctx->titleLabel, ctx->steps[ctx->stepIndex].choiceTitle.c_str());
             lv_obj_set_hidden(ctx->skipButton, false);
-            lv_label_set_text(lv_obj_get_child(ctx->skipButton, 0), "Skip");
-            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Continue");
+            lv_label_set_text(lv_obj_get_child(ctx->skipButton, 0), tr("Skip"));
+            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), tr("Continue"));
             break;
         }
         case Phase::WifiSetup: {
             lv_label_set_text(ctx->titleLabel, ctx->steps[ctx->stepIndex].title.c_str());
             lv_obj_set_hidden(ctx->skipButton, false);
-            lv_label_set_text(lv_obj_get_child(ctx->skipButton, 0), "Skip");
-            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Continue");
+            lv_label_set_text(lv_obj_get_child(ctx->skipButton, 0), tr("Skip"));
+            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), tr("Continue"));
             break;
         }
         case Phase::Done:
-            lv_label_set_text(ctx->titleLabel, "Setup Complete");
-            lv_label_set_text(ctx->descriptionLabel, "You're all set.");
+            lv_label_set_text(ctx->titleLabel, tr("Setup Complete"));
+            lv_label_set_text(ctx->descriptionLabel, tr("You're all set."));
             lv_obj_set_hidden(ctx->skipButton, true);
-            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), "Finish");
+            lv_label_set_text(lv_obj_get_child(ctx->continueButton, 0), tr("Finish"));
             break;
     }
     renderLayout(ctx);

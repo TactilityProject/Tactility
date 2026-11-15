@@ -183,3 +183,4 @@ extern const AppManifest manifest = {
 };
 
 }
+

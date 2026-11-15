@@ -26,6 +26,7 @@
 #include <cstring>
 #include <ctime>
 #include <string>
+#include <localisation/tr.h>
 
 namespace tt::app::meshchat {
 
@@ -352,7 +353,7 @@ void startRemoveDialog(Context* ctx) {
     }
     const char* title = ctx->isContact ? "Remove contact" : "Leave channel";
     const char* message = ctx->isContact ? "The messages are kept." : "The messages are kept, but new messages in this channel aren't received anymore.";
-    ctx->removeDialogId = alertdialog::start(ctx->appInstanceId, title, message, { "Remove", "Cancel" });
+    ctx->removeDialogId = alertdialog::start(ctx->appInstanceId, title, message, { tr("Remove"), tr("Cancel") });
 }
 
 /** @return true when the conversation is gone and the app can close */

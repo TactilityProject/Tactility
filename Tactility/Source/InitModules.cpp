@@ -37,6 +37,7 @@
 #include <graphics/module.h>
 #include <http/module.h>
 #include <lodepng/module.h>
+#include <localisation/module.h>
 #include <mbedtls/module.h>
 #include <pthread/module.h>
 
@@ -65,6 +66,7 @@ void initModules() {
     check(module_ensure_started(&pthread_module) == ERROR_NONE);
     // Other libraries
     check(module_ensure_started(&http_module) == ERROR_NONE);
+    check(module_ensure_started(&localisation_module) == ERROR_NONE);
     check(module_ensure_started(&graphics_module) == ERROR_NONE);
     check(module_ensure_started(&lodepng_module) == ERROR_NONE);
     check(module_ensure_started(&binfont_module) == ERROR_NONE);

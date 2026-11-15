@@ -1,6 +1,8 @@
 #include <Tactility/app/setup/Setup.h>
 
+#include <Tactility/i18n/Localisation.h>
 #include <Tactility/lvgl/SystemBars.h>
+#include <Tactility/settings/Language.h>
 #include <Tactility/settings/Time.h>
 
 #include <app/event.h>
@@ -28,7 +30,9 @@
 #include <lvgl/widgets/text_button.h>
 #include <lvgl.h>
 
+#include <algorithm>
 #include <string_view>
+#include <strings.h>
 
 // Included last, as it makes std:: resolve to tt::std
 #include <Tactility/app/setup/SetupPrivate.h>
@@ -128,7 +132,13 @@ void showEndOfStep(Context* ctx, size_t index) {
 void onBackClicked(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     switch (ctx->phase) {
+        case Phase::Language:
+            break;
         case Phase::Welcome:
+            ctx->phase = Phase::Language;
+            lvgl_lock();
+            renderCurrent(ctx);
+            lvgl_unlock();
             break;
         case Phase::StepChoice:
         case Phase::WifiSetup:
@@ -160,6 +170,12 @@ void onSkipClicked(lv_event_t* event) {
 void onContinueClicked(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     switch (ctx->phase) {
+        case Phase::Language:
+            ctx->phase = Phase::Welcome;
+            lvgl_lock();
+            renderCurrent(ctx);
+            lvgl_unlock();
+            break;
         case Phase::Welcome:
             advanceTo(ctx, 0);
             break;
@@ -277,7 +293,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_align(buttonRow, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     ctx->backButton = lvgl_text_button_create(buttonRow);
-    lv_label_set_text(lv_label_create(ctx->backButton), "Back");
+    lv_label_set_text(lv_label_create(ctx->backButton), tr("Back"));
     lv_obj_add_event_cb(ctx->backButton, onBackClicked, LV_EVENT_SHORT_CLICKED, ctx);
 
     auto* spacer = lv_obj_create(buttonRow);
@@ -288,11 +304,11 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_clickable(spacer, false);
 
     ctx->skipButton = lvgl_text_button_create(buttonRow);
-    lv_label_set_text(lv_label_create(ctx->skipButton), "Skip");
+    lv_label_set_text(lv_label_create(ctx->skipButton), tr("Skip"));
     lv_obj_add_event_cb(ctx->skipButton, onSkipClicked, LV_EVENT_SHORT_CLICKED, ctx);
 
     ctx->continueButton = lv_button_create(buttonRow);
-    lv_label_set_text(lv_label_create(ctx->continueButton), "Continue");
+    lv_label_set_text(lv_label_create(ctx->continueButton), tr("Continue"));
     lv_obj_add_event_cb(ctx->continueButton, onContinueClicked, LV_EVENT_SHORT_CLICKED, ctx);
 
     ctx->stepIndicator = lvgl_step_indicator_create(bottom);
@@ -332,47 +348,9 @@ int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     Context ctx {};
     ctx.appInstanceId = appInstanceId;
+    ctx.l10nDomain = i18n::openDomain("setup");
     // Whether the location step enabled location services, which is not the case when it was skipped
     bool locationEnabled = false;
-    ctx.steps = {
-        {
-            .title = "Wi-Fi Setup",
-            .description = "Let's connect to a Wi-Fi access point.",
-            .run = [&ctx] { enterWifiSetup(&ctx); },
-            .showLast = [&ctx] { enterWifiSetup(&ctx); }
-        }
-    };
-
-    ctx.steps.push_back({
-        .title = "Location Services",
-        .description = "Allow apps to retrieve your location. It uses GPS and/or contacts geoiplookup.io",
-        .run = [&ctx, &locationEnabled] {
-            // The order of the choices: precise, approximate, disabled
-            const int32_t choice = ctx.steps[ctx.stepIndex].choice;
-            locationEnabled = choice == 0 || choice == 1;
-            if (locationEnabled) {
-                location_set_precision(choice == 0 ? LOCATION_PRECISION_PRECISE : LOCATION_PRECISION_APPROXIMATE);
-                location_set_enabled(true);
-            } else {
-                location_set_enabled(false);
-            }
-            advanceTo(&ctx, ctx.stepIndex + 1);
-        },
-        .content = StepConfiguration::Content::Choice,
-        .choiceTitle = "App location access:",
-        .choices = { "Precise", "Approximate", "Disabled" }
-    });
-
-    // Setting the time zone also sets the radio region, as both depend on where the device is
-    ctx.steps.push_back({
-        .title = "Time Zone",
-        .description = "",
-        .run = [&ctx] {
-            settings::setTimeZone(ctx.timeZoneName, ctx.timeZoneCode);
-            advanceTo(&ctx, ctx.stepIndex + 1);
-        },
-        .content = StepConfiguration::Content::TimeZones
-    });
     ctx.timeZoneView = ::std::make_unique<timezone::TimeZoneView>([&ctx](const ::std::string& name, const ::std::string& code) {
         ctx.timeZoneName = name;
         ctx.timeZoneCode = code;
@@ -381,66 +359,141 @@ int32_t appMain(int argc, char* argv[]) {
         }
     });
 
-    if (device_exists_of_type(&GPS_TYPE)) {
-        ctx.steps.push_back({
-            .title = "Time from GPS",
-            .description = "Set time from GPS at boot?",
-            .run = [&ctx] {
-                // The order of the choices: enabled, disabled
-                settings::setGpsTimeSyncAtBoot(ctx.steps[ctx.stepIndex].choice == 0);
+    // The texts of the steps are in the language that is set, so they are made again when it changes
+    ::std::vector<int32_t> languages;
+    for (int32_t i = 0; i < static_cast<int32_t>(settings::Language::count); i++) {
+        languages.push_back(i);
+    }
+    ::std::ranges::sort(languages, [](int32_t a, int32_t b) {
+        return strcasecmp(settings::getDisplayName(static_cast<settings::Language>(a)), settings::getDisplayName(static_cast<settings::Language>(b))) < 0;
+    });
+    for (const auto language : languages) {
+        ctx.languageOrder.push_back(language);
+        ctx.languageStep.choices.emplace_back(settings::getDisplayName(static_cast<settings::Language>(language)));
+        if (language == static_cast<int32_t>(settings::getLanguage())) {
+            ctx.languageStep.choice = static_cast<int32_t>(ctx.languageOrder.size()) - 1;
+        }
+    }
+    ctx.rebuildSteps = [&ctx, &locationEnabled] {
+        tt::std::vector<StepConfiguration> steps = {
+            {
+                .title = tr("Wi-Fi Setup"),
+                .description = tr("Let's connect to a Wi-Fi access point."),
+                .run = [&ctx] { enterWifiSetup(&ctx); },
+                .showLast = [&ctx] { enterWifiSetup(&ctx); }
+            }
+        };
+
+        steps.push_back({
+            .title = tr("Location Services"),
+            .description = tr("Allow apps to retrieve your location. It uses GPS and/or contacts geoiplookup.io"),
+            .run = [&ctx, &locationEnabled] {
+                // The order of the choices: precise, approximate, disabled
+                const int32_t choice = ctx.steps[ctx.stepIndex].choice;
+                locationEnabled = choice == 0 || choice == 1;
+                if (locationEnabled) {
+                    location_set_precision(choice == 0 ? LOCATION_PRECISION_PRECISE : LOCATION_PRECISION_APPROXIMATE);
+                    location_set_enabled(true);
+                } else {
+                    location_set_enabled(false);
+                }
                 advanceTo(&ctx, ctx.stepIndex + 1);
             },
             .content = StepConfiguration::Content::Choice,
-            .choices = { "Enabled", "Disabled" },
-            // Enabled unless location services are, as the time needs them
-            .defaultChoice = [&locationEnabled] {
-                return locationEnabled ? 0 : 1;
-            }
+            .choiceTitle = tr("App location access:"),
+            .choices = { tr("Precise"), tr("Approximate"), tr("Disabled") }
         });
-    }
 
-    if (isMeshSupported()) {
-        // The first choice is "Disabled", followed by the backends
-        auto backendIds = ::std::make_shared<tt::std::vector<tt::std::string>>();
-        tt::std::vector<tt::std::string> labels = { "Disabled" };
-        for (size_t i = 0; i < mesh_get_backend_count(); i++) {
-            char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
-            if (mesh_get_backend_id(i, id, sizeof(id)) == ERROR_NONE) {
-                backendIds->emplace_back(id);
-                labels.push_back(getMeshBackendLabel(id));
-            }
+        // Setting the time zone also sets the radio region, as both depend on where the device is
+        steps.push_back({
+            .title = tr("Time Zone"),
+            .description = "",
+            .run = [&ctx] {
+                settings::setTimeZone(ctx.timeZoneName, ctx.timeZoneCode);
+                advanceTo(&ctx, ctx.stepIndex + 1);
+            },
+            .content = StepConfiguration::Content::TimeZones
+        });
+
+        if (device_exists_of_type(&GPS_TYPE)) {
+            steps.push_back({
+                .title = tr("Time from GPS"),
+                .description = tr("Set time from GPS at boot?"),
+                .run = [&ctx] {
+                    // The order of the choices: enabled, disabled
+                    settings::setGpsTimeSyncAtBoot(ctx.steps[ctx.stepIndex].choice == 0);
+                    advanceTo(&ctx, ctx.stepIndex + 1);
+                },
+                .content = StepConfiguration::Content::Choice,
+                .choices = { tr("Enabled"), tr("Disabled") },
+                // Enabled unless location services are, as the time needs them
+                .defaultChoice = [&locationEnabled] {
+                    return locationEnabled ? 0 : 1;
+                }
+            });
         }
-        // Keeps the current setting, so accepting the default doesn't disable Mesh for a user who enabled it
-        int32_t currentChoice = 0;
-        char currentBackend[MESH_BACKEND_ID_MAX_LENGTH + 1];
-        if (mesh_is_enabled() && mesh_get_backend(currentBackend, sizeof(currentBackend)) == ERROR_NONE) {
-            for (size_t i = 0; i < backendIds->size(); i++) {
-                if ((*backendIds)[i] == currentBackend) {
-                    currentChoice = static_cast<int32_t>(i) + 1;
-                    break;
+
+        if (isMeshSupported()) {
+            // The first choice is "Disabled", followed by the backends
+            auto backendIds = ::std::make_shared<tt::std::vector<tt::std::string>>();
+            tt::std::vector<tt::std::string> labels = { tr("Disabled") };
+            for (size_t i = 0; i < mesh_get_backend_count(); i++) {
+                char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
+                if (mesh_get_backend_id(i, id, sizeof(id)) == ERROR_NONE) {
+                    backendIds->emplace_back(id);
+                    labels.push_back(getMeshBackendLabel(id));
                 }
             }
-        }
-        ctx.steps.push_back({
-            .title = "Mesh",
-            .description = "Enable Mesh?",
-            .run = [&ctx, backendIds] {
-                const int32_t choice = ctx.steps[ctx.stepIndex].choice;
-                runOnAppTask(&ctx, [backendIds, choice] {
-                    if (choice > 0 && choice <= static_cast<int32_t>(backendIds->size())) {
-                        mesh_set_backend((*backendIds)[choice - 1].c_str());
-                        mesh_set_enabled(true);
-                    } else {
-                        mesh_set_enabled(false);
+            // Keeps the current setting, so accepting the default doesn't disable Mesh for a user who enabled it
+            int32_t currentChoice = 0;
+            char currentBackend[MESH_BACKEND_ID_MAX_LENGTH + 1];
+            if (mesh_is_enabled() && mesh_get_backend(currentBackend, sizeof(currentBackend)) == ERROR_NONE) {
+                for (size_t i = 0; i < backendIds->size(); i++) {
+                    if ((*backendIds)[i] == currentBackend) {
+                        currentChoice = static_cast<int32_t>(i) + 1;
+                        break;
                     }
-                });
-                advanceTo(&ctx, ctx.stepIndex + 1);
-            },
-            .content = StepConfiguration::Content::Choice,
-            .choices = ::std::move(labels),
-            .choice = currentChoice
+                }
+            }
+            steps.push_back({
+                .title = "Mesh",
+                .description = tr("Enable Mesh?"),
+                .run = [&ctx, backendIds] {
+                    const int32_t choice = ctx.steps[ctx.stepIndex].choice;
+                    runOnAppTask(&ctx, [backendIds, choice] {
+                        if (choice > 0 && choice <= static_cast<int32_t>(backendIds->size())) {
+                            mesh_set_backend((*backendIds)[choice - 1].c_str());
+                            mesh_set_enabled(true);
+                        } else {
+                            mesh_set_enabled(false);
+                        }
+                    });
+                    advanceTo(&ctx, ctx.stepIndex + 1);
+                },
+                .content = StepConfiguration::Content::Choice,
+                .choices = ::std::move(labels),
+                .choice = currentChoice
+            });
+        }
+        lvgl_lock();
+        ctx.steps = ::std::move(steps);
+        lvgl_unlock();
+    };
+    ctx.rebuildSteps();
+    ctx.onLanguagePicked = [&ctx](int32_t choice) {
+        // Saving the language reads and writes files, and the texts of the steps are made again in it
+        runOnAppTask(&ctx, [&ctx, choice] {
+            if (choice >= 0 && choice < static_cast<int32_t>(ctx.languageOrder.size())) {
+                settings::setLanguage(static_cast<settings::Language>(ctx.languageOrder[choice]));
+            }
+            ctx.rebuildSteps();
+            lvgl_lock();
+            if (ctx.titleLabel != nullptr) {
+                renderCurrent(&ctx);
+            }
+            lvgl_unlock();
         });
-    }
+    };
 
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
@@ -492,6 +545,7 @@ int32_t appMain(int argc, char* argv[]) {
     window_manager_remove(window);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&event_group);
+    localisation_domain_close(ctx.l10nDomain);
 
     return 0;
 }
