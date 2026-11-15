@@ -1,3 +1,5 @@
+#define L10N_APP "audiosettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/PubSub.h>
 #include <Tactility/service/audio/Audio.h>
@@ -182,7 +184,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Audio");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Audio"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -194,7 +196,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     if (!service::audio::isAvailable()) {
         auto* label = lv_label_create(main_wrapper);
-        lv_label_set_text(label, "No audio hardware available");
+        lv_label_set_text(label, tr("No audio hardware available"));
         lv_obj_center(label);
         return;
     }
@@ -203,19 +205,19 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // device (e.g. a dedicated input codec with no output codec bound) should
     // only show the section it actually has, not a dead section for the other.
     if (service::audio::isInputAvailable()) {
-        const auto input_section = createSection(main_wrapper, "Microphone", service::audio::isInputEnabled(), onInputEnabledSwitch, ctx);
+        const auto input_section = createSection(main_wrapper, tr("Microphone"), service::audio::isInputEnabled(), onInputEnabledSwitch, ctx);
         ctx->inputEnabledSwitch = input_section.enabledSwitch;
         ctx->inputCard = input_section.card;
-        ctx->inputMuteSwitch = createSwitchRow(input_section.card, "Mute", onInputMuteSwitch, ctx);
-        ctx->inputVolumeSlider = createSliderRow(input_section.card, "Volume", static_cast<int32_t>(service::audio::getInputVolume()), onInputVolumeSlider, ctx);
+        ctx->inputMuteSwitch = createSwitchRow(input_section.card, tr("Mute"), onInputMuteSwitch, ctx);
+        ctx->inputVolumeSlider = createSliderRow(input_section.card, tr("Volume"), static_cast<int32_t>(service::audio::getInputVolume()), onInputVolumeSlider, ctx);
     }
 
     if (service::audio::isOutputAvailable()) {
-        const auto output_section = createSection(main_wrapper, "Speaker", service::audio::isOutputEnabled(), onOutputEnabledSwitch, ctx);
+        const auto output_section = createSection(main_wrapper, tr("Speaker"), service::audio::isOutputEnabled(), onOutputEnabledSwitch, ctx);
         ctx->outputEnabledSwitch = output_section.enabledSwitch;
         ctx->outputCard = output_section.card;
-        ctx->outputMuteSwitch = createSwitchRow(output_section.card, "Mute", onOutputMuteSwitch, ctx);
-        ctx->outputVolumeSlider = createSliderRow(output_section.card, "Volume", static_cast<int32_t>(service::audio::getOutputVolume()), onOutputVolumeSlider, ctx);
+        ctx->outputMuteSwitch = createSwitchRow(output_section.card, tr("Mute"), onOutputMuteSwitch, ctx);
+        ctx->outputVolumeSlider = createSliderRow(output_section.card, tr("Volume"), static_cast<int32_t>(service::audio::getOutputVolume()), onOutputVolumeSlider, ctx);
     }
 
     // isAvailable() only reflects that the audio-stream device exists, not that any
@@ -225,7 +227,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // sections skipped above and would otherwise show an empty page.
     if (!service::audio::isInputAvailable() && !service::audio::isOutputAvailable()) {
         auto* label = lv_label_create(main_wrapper);
-        lv_label_set_text(label, "No supported audio controls");
+        lv_label_set_text(label, tr("No supported audio controls"));
         lv_obj_center(label);
     }
 

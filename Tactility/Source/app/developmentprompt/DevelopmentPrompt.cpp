@@ -1,3 +1,5 @@
+#define L10N_APP "developmentprompt"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/development/Fingerprint.h>
 #include <Tactility/lvgl/Style.h>
@@ -80,7 +82,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    lvgl_toolbar_create(parent, "Remote access");
+    lvgl_toolbar_create(parent, tr("Remote access"));
 
     lv_obj_t* content = lv_obj_create(parent);
     lv_obj_set_width(content, LV_PCT(100));
@@ -92,13 +94,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_t* message_label = lv_label_create(content);
     lv_obj_set_width(message_label, LV_PCT(100));
     lv_label_set_long_mode(message_label, LV_LABEL_LONG_WRAP);
-    const std::string message = std::format("{} at {} requests {} access.", argv[1], argv[0], argv[3]);
+    const std::string message = i18n::format(tr("{} at {} requests {} access."), { argv[1], argv[0], argv[3] });
     lv_label_set_text(message_label, message.c_str());
 
     lv_obj_t* fingerprint_row = createRow(content);
     lv_obj_set_flex_align(fingerprint_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t* fingerprint_label = lv_label_create(fingerprint_row);
-    const std::string fingerprint = std::format("Fingerprint: {}", development::formatShortFingerprint(argv[2]));
+    const std::string fingerprint = i18n::format(tr("Fingerprint: {}"), { development::formatShortFingerprint(argv[2]) });
     lv_label_set_text(fingerprint_label, fingerprint.c_str());
     lv_label_set_long_mode(fingerprint_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_flex_grow(fingerprint_label, 1);
@@ -108,8 +110,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_align(button_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(button_row, 12, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_ver(button_row, 4, LV_STATE_DEFAULT);
-    createButton(button_row, "Accept", onAcceptPressed, ctx);
-    createButton(button_row, "Reject", onRejectPressed, ctx);
+    createButton(button_row, tr("Accept"), onAcceptPressed, ctx);
+    createButton(button_row, tr("Reject"), onRejectPressed, ctx);
     lvgl_grid_navigation_add(button_row);
 }
 
@@ -139,7 +141,7 @@ int32_t appMain(int argc, char* argv[]) {
         task_event_group_wait_any(&eventGroup, &flags, portMAX_DELAY);
 
         if ((flags & ctx.detailsBit) != 0 && detailsDialogId == 0) {
-            detailsDialogId = alertdialog::start(ctx.appInstanceId, "Fingerprint", development::formatFingerprint(argv[2]));
+            detailsDialogId = alertdialog::start(ctx.appInstanceId, tr("Fingerprint"), development::formatFingerprint(argv[2]));
         }
 
         AppEvent event {};

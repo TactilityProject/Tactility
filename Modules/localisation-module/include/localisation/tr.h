@@ -17,3 +17,6 @@
 
 #define tr(text) localisation_get(L10N_DOMAIN, text)
 #define trc(context, text) localisation_get_ctx(L10N_DOMAIN, context, text)
+
+/** Marks a text that is translated later, e.g. in a constant table: the text is found by the extraction tool and used as is */
+#define tr_noop(text) text

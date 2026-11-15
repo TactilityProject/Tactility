@@ -1,4 +1,6 @@
 
+#define L10N_APP "meshchat"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/meshchat/MeshChatCommon.h>
 
@@ -120,7 +122,7 @@ void updateWidgets(Context* ctx) {
     lv_obj_set_style_border_width(list, 0, LV_STATE_DEFAULT);
 
     if (ctx->candidates.empty()) {
-        lvgl_list_add_text(list, "No nodes heard yet. Nodes that you hear on the mesh are listed here.");
+        lvgl_list_add_text(list, tr("No nodes heard yet. Nodes that you hear on the mesh are listed here."));
         return;
     }
     for (size_t i = 0; i < ctx->candidates.size(); i++) {
@@ -152,7 +154,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Add contact");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Add contact"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     ctx->list = lv_obj_create(parent);
@@ -182,8 +184,8 @@ bool addSelected(Context* ctx) {
         LOG_E(TAG, "Failed to add contact: %s", error_to_string(error));
         ctx->dialogId = alertdialog::start(
             ctx->appInstanceId,
-            "Couldn't add contact",
-            error == ERROR_RESOURCE ? "There are too many contacts." : error_to_string(error)
+            tr("Couldn't add contact"),
+            error == ERROR_RESOURCE ? tr("There are too many contacts.") : error_to_string(error)
         );
         return false;
     }

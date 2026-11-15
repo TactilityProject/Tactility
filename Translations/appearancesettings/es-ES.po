@@ -1,0 +1,163 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "Amber"
+msgstr "Ámbar"
+
+msgid "Animations"
+msgstr "Animaciones"
+
+msgid "Appearance"
+msgstr "Apariencia"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Blue"
+msgstr "Azul"
+
+msgid "Blue grey"
+msgstr "Gris azulado"
+
+msgid "Brown"
+msgstr "Marrón"
+
+msgid "Contains {} characters: creating the fonts can take long and use a lot of memory."
+msgstr "Contiene {} caracteres: crear las fuentes puede tardar y usar mucha memoria."
+
+msgid "Cyan"
+msgstr "Cian"
+
+msgid "Dark"
+msgstr "Oscuro"
+
+msgid "Deep orange"
+msgstr "Naranja intenso"
+
+msgid "Deep purple"
+msgstr "Morado intenso"
+
+msgid "Default"
+msgstr "Predeterminado"
+
+msgid "Error color"
+msgstr "Color de error"
+
+msgid "Failed to create the fonts. Check that the selected files are TrueType fonts."
+msgstr "Error al crear las fuentes. Comprueba que los archivos seleccionados son fuentes TrueType."
+
+msgid "Font size"
+msgstr "Tamaño de fuente"
+
+msgid "Fonts"
+msgstr "Fuentes"
+
+msgid "Green"
+msgstr "Verde"
+
+msgid "Grey"
+msgstr "Gris"
+
+msgid "High"
+msgstr "Alto"
+
+msgid "Indigo"
+msgstr "Índigo"
+
+msgid "Landscape"
+msgstr "Horizontal"
+
+msgid "Layout"
+msgstr "Disposición"
+
+msgid "Light"
+msgstr "Claro"
+
+msgid "Light blue"
+msgstr "Azul claro"
+
+msgid "Light green"
+msgstr "Verde claro"
+
+msgid "Lime"
+msgstr "Lima"
+
+msgid "Low"
+msgstr "Bajo"
+
+msgid "Medium"
+msgstr "Medio"
+
+msgid "Mono"
+msgstr "Mono"
+
+msgid "Monospace font"
+msgstr "Fuente monoespaciada"
+
+msgid "Orange"
+msgstr "Naranja"
+
+msgid "Pink"
+msgstr "Rosa"
+
+msgid "Portrait"
+msgstr "Vertical"
+
+msgid "Primary color"
+msgstr "Color primario"
+
+msgid "Purple"
+msgstr "Morado"
+
+msgid "Red"
+msgstr "Rojo"
+
+msgid "Regular"
+msgstr "Normal"
+
+msgid "Regular font"
+msgstr "Fuente normal"
+
+msgid "Secondary color"
+msgstr "Color secundario"
+
+msgid "Side"
+msgstr "Lateral"
+
+msgid "Size (%)"
+msgstr "Tamaño (%)"
+
+msgid "Spacing (%)"
+msgstr "Espaciado (%)"
+
+msgid "Split"
+msgstr "Dividido"
+
+msgid "Style"
+msgstr "Estilo"
+
+msgid "Surface color"
+msgstr "Color de superficie"
+
+msgid "Surface tint"
+msgstr "Tono de superficie"
+
+msgid "System Bars"
+msgstr "Barras del sistema"
+
+msgid "System font"
+msgstr "Fuente del sistema"
+
+msgid "Teal"
+msgstr "Verde azulado"
+
+msgid "Theme"
+msgstr "Tema"
+
+msgid "Theme Colors"
+msgstr "Colores del tema"
+
+msgid "Yellow"
+msgstr "Amarillo"

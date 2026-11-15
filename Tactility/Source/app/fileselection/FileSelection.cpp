@@ -3,7 +3,8 @@
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/i18n/Localisation.h>
 
-#include <localisation/tr.h>
+#define L10N_APP "fileselection"
+#include <Tactility/i18n/AppDomain.h>
 
 #include <app/event.h>
 #include <app/io.h>

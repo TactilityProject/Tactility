@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Audio"
+msgstr "Audio"
+
+msgid "Microphone"
+msgstr "Microfoon"
+
+msgid "Mute"
+msgstr "Dempen"
+
+msgid "No audio hardware available"
+msgstr "Geen audiohardware beschikbaar"
+
+msgid "No supported audio controls"
+msgstr "Geen ondersteunde audiobediening"
+
+msgid "Speaker"
+msgstr "Luidspreker"
+
+msgid "Volume"
+msgstr "Volume"

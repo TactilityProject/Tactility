@@ -1,0 +1,28 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "Reboot"
+msgstr "Neu starten"
+
+msgid "USB drive mode"
+msgstr "USB-Laufwerksmodus"
+
+msgid "USB drive mode (SD card)"
+msgstr "USB-Laufwerksmodus (SD-Karte)"
+
+msgid "USB drive mode (internal)"
+msgstr "USB-Laufwerksmodus (intern)"
+
+msgid "USB driver not supported"
+msgstr "USB-Treiber nicht unterstützt"
+
+msgid "USB host"
+msgstr "USB-Host"
+
+msgid "USB host failed to start. Reboot the device to enable it."
+msgstr "USB-Host konnte nicht gestartet werden. Starte das Gerät neu, um ihn zu aktivieren."
+
+msgid "USB storage not available"
+msgstr "USB-Speicher nicht verfügbar"

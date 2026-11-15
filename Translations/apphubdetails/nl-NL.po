@@ -1,0 +1,40 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Another operation is pending. Try again when it's done."
+msgstr "Er is nog een andere bewerking bezig. Probeer het opnieuw als die klaar is."
+
+msgid "Busy"
+msgstr "Bezig"
+
+msgid "Confirm"
+msgstr "Bevestigen"
+
+msgid "Failed to install app"
+msgstr "App installeren mislukt"
+
+msgid "Failed to uninstall app"
+msgstr "App verwijderen mislukt"
+
+msgid "Failed to update app"
+msgstr "App bijwerken mislukt"
+
+msgid "Install {}?"
+msgstr "{} installeren?"
+
+msgid "This app has no description yet."
+msgstr "Deze app heeft nog geen beschrijving."
+
+msgid "Uninstall {}?"
+msgstr "{} verwijderen?"
+
+msgid "Update available!"
+msgstr "Update beschikbaar!"
+
+msgid "Update {}?"
+msgstr "{} bijwerken?"
+
+msgid "Version {}"
+msgstr "Versie {}"

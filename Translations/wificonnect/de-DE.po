@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "Connection failed"
+msgstr "Verbindung fehlgeschlagen"
+
+msgid "Network"
+msgstr "Netzwerk"
+
+msgid "Password"
+msgstr "Passwort"
+
+msgid "Password too long"
+msgstr "Passwort zu lang"
+
+msgid "Remember"
+msgstr "Merken"
+
+msgid "SSID too long"
+msgstr "SSID zu lang"
+
+msgid "Wi-Fi Connect"
+msgstr "WLAN verbinden"

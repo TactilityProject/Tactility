@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "Available"
+msgstr "Disponibles"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "No devices found."
+msgstr "No se encontraron dispositivos."
+
+msgid "Paired"
+msgstr "Emparejados"
+
+msgid "Scan"
+msgstr "Buscar"
+
+msgid "Stop scan"
+msgstr "Detener la búsqueda"
+
+msgid "Unknown ({}) {}%"
+msgstr "Desconocido ({}) {}%"

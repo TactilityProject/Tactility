@@ -42,18 +42,6 @@ msgstr "Permite que las aplicaciones obtengan tu ubicación. Usa GPS y/o contact
 msgid "App location access:"
 msgstr "Acceso de las aplicaciones a la ubicación:"
 
-msgid "Precise"
-msgstr "Precisa"
-
-msgid "Approximate"
-msgstr "Aproximada"
-
-msgid "Disabled"
-msgstr "Desactivado"
-
-msgid "Enabled"
-msgstr "Activado"
-
 msgid "Time Zone"
 msgstr "Zona horaria"
 
@@ -77,6 +65,3 @@ msgstr "No hay Wi-Fi disponible."
 
 msgid "Scanning"
 msgstr "Buscando"
-
-msgid "No networks found."
-msgstr "No se encontraron redes."

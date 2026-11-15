@@ -1,3 +1,5 @@
+#define L10N_APP "fileselection"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/file/File.h>
 
@@ -163,9 +165,9 @@ void View::updateSelectButton() {
     auto paths = getResultPaths();
     lv_obj_set_hidden(select_button, paths.empty());
     if (state->getOptions().multiple && paths.size() > 1) {
-        lv_label_set_text_fmt(select_label, "Select (%u)", static_cast<unsigned>(paths.size()));
+        lv_label_set_text(select_label, i18n::format(tr("Select ({})"), { ::std::to_string(paths.size()) }).c_str());
     } else {
-        lv_label_set_text(select_label, "Select");
+        lv_label_set_text(select_label, tr("Select"));
     }
 }
 
@@ -245,7 +247,7 @@ void View::init(lv_obj_t* parent) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Select File");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Select File"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, &onBackPressedCallback, this);
     navigate_up_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_UP, &onNavigateUpPressedCallback, this);
@@ -274,7 +276,7 @@ void View::init(lv_obj_t* parent) {
 
     select_button = lv_button_create(bottom_wrapper);
     select_label = lv_label_create(select_button);
-    lv_label_set_text(select_label, "Select");
+    lv_label_set_text(select_label, tr("Select"));
     lv_obj_add_event_cb(select_button, onSelectButtonPressed, LV_EVENT_SHORT_CLICKED, this);
     lv_obj_set_hidden(select_button, true);
 

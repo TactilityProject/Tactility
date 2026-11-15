@@ -1,4 +1,6 @@
 
+#define L10N_APP "i2cscanner"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/LogMessages.h>
 #include <Tactility/RecursiveMutex.h>
 #include <Tactility/Timer.h>
@@ -192,9 +194,9 @@ void updateViews(Context* ctx) {
             auto* title = lv_label_create(ctx->scanListWidget);
             lv_obj_set_grid_cell(title, LV_GRID_ALIGN_START, 0, 2, LV_GRID_ALIGN_CENTER, 0, 1);
             if (count == 0) {
-                lv_label_set_text(title, "No devices found");
+                lv_label_set_text(title, tr("No devices found"));
             } else {
-                lv_label_set_text(title, std::format("{} {} found", count, count == 1 ? "device" : "devices").c_str());
+                lv_label_set_text(title, i18n::format(count == 1 ? tr("{} device found") : tr("{} devices found"), { std::to_string(count) }).c_str());
             }
             for (size_t i = 0; i < count; i++) {
                 const uint8_t address = ctx->scannedAddresses[i];
@@ -382,7 +384,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_width(label, LV_PCT(100));
         lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
-        lv_label_set_text(label, "I2C interface not available");
+        lv_label_set_text(label, tr("I2C interface not available"));
         return;
     }
 

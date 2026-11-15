@@ -1,0 +1,46 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "1 minute"
+msgstr "1 minuto"
+
+msgid "15 seconds"
+msgstr "15 segundos"
+
+msgid "2 minutes"
+msgstr "2 minutos"
+
+msgid "30 seconds"
+msgstr "30 segundos"
+
+msgid "5 minutes"
+msgstr "5 minutos"
+
+msgid "Auto screen off"
+msgstr "Apagado automático de pantalla"
+
+msgid "Auto-rotate"
+msgstr "Giro automático"
+
+msgid "Bouncing Balls"
+msgstr "Bolas rebotando"
+
+msgid "Display"
+msgstr "Pantalla"
+
+msgid "Matrix Rain"
+msgstr "Lluvia Matrix"
+
+msgid "Mystify"
+msgstr "Mystify"
+
+msgid "Orientation"
+msgstr "Orientación"
+
+msgid "Screensaver"
+msgstr "Salvapantallas"
+
+msgid "StackChan"
+msgstr "StackChan"

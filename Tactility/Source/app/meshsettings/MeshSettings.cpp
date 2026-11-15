@@ -1,3 +1,5 @@
+#define L10N_APP "meshsettings"
+#include <Tactility/i18n/AppDomain.h>
 #include "app/location.h"
 #ifdef ESP_PLATFORM
 #include <esp_random.h>
@@ -52,7 +54,7 @@ constexpr auto* MESHTASTIC_ID = "meshtastic";
 enum class RadioSetting { Frequency, Bandwidth, SpreadingFactor, CodingRate, Power, PathHashSize, RegionScope };
 constexpr size_t RADIO_SETTING_COUNT = 7;
 
-constexpr std::array<const char*, RADIO_SETTING_COUNT> RADIO_SETTING_TITLES = { "Frequency (MHz)", "Bandwidth", "Spreading factor", "Coding rate", "Transmit power", "Path hash size", "Region scope" };
+constexpr std::array<const char*, RADIO_SETTING_COUNT> RADIO_SETTING_TITLES = { tr_noop("Frequency (MHz)"), tr_noop("Bandwidth"), tr_noop("Spreading factor"), tr_noop("Coding rate"), tr_noop("Transmit power"), tr_noop("Path hash size"), tr_noop("Region scope") };
 
 struct Context {
     uint32_t appInstanceId;
@@ -100,7 +102,7 @@ struct Context {
     bool hasMeshtastic = false;
     std::string radioSettingTexts[RADIO_SETTING_COUNT];
     std::string statusText;
-    /** Index 0 is "Disabled", the rest are backend ids */
+    /** Index 0 is tr("Disabled"), the rest are backend ids */
     std::vector<std::string> serviceIds;
     std::vector<std::string> presetNames;
     /** Device names of the radios, in the order of the selection dialog */
@@ -131,20 +133,20 @@ std::string getServiceLabel(const std::string& id) {
 
 std::string getCurrentService() {
     if (!mesh_is_enabled()) {
-        return "Disabled";
+        return tr("Disabled");
     }
     char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
-    return (mesh_get_backend(id, sizeof(id)) == ERROR_NONE) ? getServiceLabel(id) : "Enabled";
+    return (mesh_get_backend(id, sizeof(id)) == ERROR_NONE) ? getServiceLabel(id) : tr("Enabled");
 }
 
 /** @param[in] lora whether the radio does LoRa, which is bound to the region */
 std::string getStatus(bool lora) {
     const auto state = mesh_get_state();
     if (state == MESH_STATE_NO_REGION) {
-        return "Select a region to turn on the radio";
+        return tr("Select a region to turn on the radio");
     }
     if (state == MESH_STATE_ERROR && lora) {
-        return std::string("Settings not allowed in ") + settings::radio::getRegionLabel(settings::radio::loadRegion());
+        return i18n::format(tr("Settings not allowed in {}"), { settings::radio::getRegionLabel(settings::radio::loadRegion()) });
     }
     return mesh_state_to_string(state);
 }
@@ -222,7 +224,7 @@ std::string formatRadioSetting(RadioSetting kind, int32_t value) {
             snprintf(text, sizeof(text), "%d dBm", (int)value);
             break;
         case RadioSetting::PathHashSize:
-            snprintf(text, sizeof(text), "%d byte%s", (int)value, value == 1 ? "" : "s");
+            return i18n::format(value == 1 ? tr("{} byte") : tr("{} bytes"), { std::to_string(value) });
             break;
         case RadioSetting::RegionScope:
             break;
@@ -269,7 +271,7 @@ void loadState(Context* ctx) {
     MeshNetworkSettings network {};
     mesh_get_network_parameters(MESHCORE_ID, &network);
     ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::PathHashSize)] = formatRadioSetting(RadioSetting::PathHashSize, network.path_hash_size);
-    ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::RegionScope)] = network.region_scope[0] != '\0' ? network.region_scope : "None";
+    ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::RegionScope)] = network.region_scope[0] != '\0' ? network.region_scope : tr("None");
     ctx->statusText = getStatus(ctx->hasPresets);
 }
 
@@ -310,8 +312,8 @@ void startNameDialog(Context* ctx) {
     mesh_get_node_name(name, sizeof(name));
     ctx->nameDialogId = inputdialog::start(
         ctx->appInstanceId,
-        "Name",
-        "The name that other nodes see",
+        tr("Name"),
+        tr("The name that other nodes see"),
         name,
         ctx->nameStream,
         ctx->nameBuffer,
@@ -363,7 +365,7 @@ void startServiceSelection(Context* ctx) {
         return;
     }
     ctx->serviceIds = { "" };
-    std::vector<std::string> items = { "Disabled" };
+    std::vector<std::string> items = { tr("Disabled") };
     const size_t count = mesh_get_backend_count();
     for (size_t i = 0; i < count; i++) {
         char id[MESH_BACKEND_ID_MAX_LENGTH + 1];
@@ -372,7 +374,7 @@ void startServiceSelection(Context* ctx) {
             items.push_back(getServiceLabel(id));
         }
     }
-    ctx->serviceDialogId = selectiondialog::start(ctx->appInstanceId, "Mesh network", items);
+    ctx->serviceDialogId = selectiondialog::start(ctx->appInstanceId, tr("Mesh network"), items);
 }
 
 void onServiceSelected(Context* ctx, int32_t selected) {
@@ -394,7 +396,7 @@ void startRadioSelection(Context* ctx) {
     std::vector<std::string> labels;
     loadRadios(ctx->radioNames, labels);
     if (ctx->radioNames.size() > 1) {
-        ctx->radioDialogId = selectiondialog::start(ctx->appInstanceId, "Radio", labels);
+        ctx->radioDialogId = selectiondialog::start(ctx->appInstanceId, tr("Radio"), labels);
     }
 }
 
@@ -416,8 +418,8 @@ void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
             const std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
             ctx->frequencyDialogId = inputdialog::start(
                 ctx->appInstanceId,
-                RADIO_SETTING_TITLES[static_cast<size_t>(kind)],
-                "e.g. 869.618, empty for the preset's value",
+                tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]),
+                tr("e.g. 869.618, empty for the preset's value"),
                 current == "-" ? "" : current.c_str(),
                 ctx->frequencyStream,
                 ctx->frequencyBuffer,
@@ -432,9 +434,9 @@ void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
             const std::string& current = ctx->radioSettingTexts[static_cast<size_t>(kind)];
             ctx->scopeDialogId = inputdialog::start(
                 ctx->appInstanceId,
-                RADIO_SETTING_TITLES[static_cast<size_t>(kind)],
-                "e.g. nl, * for none, empty for the preset's value",
-                current == "None" ? MESH_REGION_SCOPE_NONE : current.c_str(),
+                tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]),
+                tr("e.g. nl, * for none, empty for the preset's value"),
+                current == tr("None") ? MESH_REGION_SCOPE_NONE : current.c_str(),
                 ctx->scopeStream,
                 ctx->scopeBuffer,
                 sizeof(ctx->scopeBuffer),
@@ -469,12 +471,12 @@ void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
     // Item 0 uses the profile value
     ctx->radioSettingValues = { 0 };
     ctx->radioSettingValues.insert(ctx->radioSettingValues.end(), values.begin(), values.end());
-    std::vector<std::string> items = { "Profile value" };
+    std::vector<std::string> items = { tr("Profile value") };
     for (const int32_t value : values) {
         items.push_back(formatRadioSetting(kind, value));
     }
     ctx->settingKind = kind;
-    ctx->radioSettingDialogId = selectiondialog::start(ctx->appInstanceId, RADIO_SETTING_TITLES[static_cast<size_t>(kind)], items);
+    ctx->radioSettingDialogId = selectiondialog::start(ctx->appInstanceId, tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]), items);
 }
 
 void onFrequencyDialogResult(Context* ctx, int32_t result) {
@@ -552,7 +554,7 @@ void startRegionSelection(Context* ctx) {
     for (int region = RADIO_REGION_UNSET + 1; region < RADIO_REGION_COUNT; region++) {
         items.emplace_back(settings::radio::getRegionLabel(static_cast<RadioRegion>(region)));
     }
-    ctx->regionDialogId = selectiondialog::start(ctx->appInstanceId, "Region", items);
+    ctx->regionDialogId = selectiondialog::start(ctx->appInstanceId, tr("Region"), items);
 }
 
 void onRegionSelected(int32_t selected) {
@@ -575,7 +577,7 @@ void startPresetSelection(Context* ctx, const char* backend) {
         }
     }
     if (!ctx->presetNames.empty()) {
-        ctx->presetDialogId = selectiondialog::start(ctx->appInstanceId, "Preset", ctx->presetNames);
+        ctx->presetDialogId = selectiondialog::start(ctx->appInstanceId, tr("Preset"), ctx->presetNames);
     }
 }
 
@@ -645,7 +647,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Mesh");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Mesh"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* wrapper = lv_obj_create(parent);
@@ -659,23 +661,23 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
 
     auto* serviceRow = createRow(card);
-    ctx->serviceLabel = createTitleAndValue(serviceRow, "Mesh network");
+    ctx->serviceLabel = createTitleAndValue(serviceRow, tr("Mesh network"));
     createChangeButton(serviceRow, onSelectServicePressed, ctx);
 
     auto* nameRow = createRow(card);
-    ctx->nameLabel = createTitleAndValue(nameRow, "Name");
+    ctx->nameLabel = createTitleAndValue(nameRow, tr("Name"));
     createChangeButton(nameRow, onChangeNamePressed, ctx);
 
     auto* radioRow = createRow(card);
-    ctx->radioLabel = createTitleAndValue(radioRow, "Radio");
+    ctx->radioLabel = createTitleAndValue(radioRow, tr("Radio"));
     ctx->radioButton = createChangeButton(radioRow, onSelectRadioPressed, ctx);
 
     auto* regionRow = createRow(card);
-    ctx->regionLabel = createTitleAndValue(regionRow, "Region");
+    ctx->regionLabel = createTitleAndValue(regionRow, tr("Region"));
     createChangeButton(regionRow, onSelectRegionPressed, ctx);
 
     auto* statusRow = createRow(card);
-    ctx->statusLabel = createTitleAndValue(statusRow, "Status");
+    ctx->statusLabel = createTitleAndValue(statusRow, tr("Status"));
 
     ctx->meshCoreTitle = lv_label_create(wrapper);
     lv_label_set_text(ctx->meshCoreTitle, "MeshCore");
@@ -684,12 +686,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(ctx->meshCoreCard, LV_FLEX_FLOW_COLUMN);
 
     auto* profileRow = createRow(ctx->meshCoreCard);
-    ctx->profileLabel = createTitleAndValue(profileRow, "Selected preset");
+    ctx->profileLabel = createTitleAndValue(profileRow, tr("Selected preset"));
     createChangeButton(profileRow, onSelectPresetPressed, ctx);
 
     auto* advancedRow = createRow(ctx->meshCoreCard);
     auto* advancedLabel = lv_label_create(advancedRow);
-    lv_label_set_text(advancedLabel, "Advanced settings");
+    lv_label_set_text(advancedLabel, tr("Advanced settings"));
     lv_obj_set_flex_grow(advancedLabel, 1);
     ctx->advancedSwitch = lv_switch_create(advancedRow);
     lv_obj_set_state(ctx->advancedSwitch, LV_STATE_CHECKED, ctx->showAdvanced);
@@ -703,7 +705,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     for (size_t i = 0; i < RADIO_SETTING_COUNT; i++) {
         auto* row = createRow(ctx->meshCoreCard);
         ctx->radioSettingRows[i] = row;
-        ctx->radioSettingLabels[i] = createTitleAndValue(row, RADIO_SETTING_TITLES[i]);
+        ctx->radioSettingLabels[i] = createTitleAndValue(row, tr(RADIO_SETTING_TITLES[i]));
         createChangeButton(row, radioSettingCallbacks[i], ctx);
     }
 
@@ -714,7 +716,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(ctx->meshtasticCard, LV_FLEX_FLOW_COLUMN);
 
     auto* presetRow = createRow(ctx->meshtasticCard);
-    ctx->presetLabel = createTitleAndValue(presetRow, "Modem preset");
+    ctx->presetLabel = createTitleAndValue(presetRow, tr("Modem preset"));
     createChangeButton(presetRow, onSelectModemPresetPressed, ctx);
 
     updateLabels(ctx);

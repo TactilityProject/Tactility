@@ -1,5 +1,7 @@
 #ifdef ESP_PLATFORM
 
+#define L10N_APP "keyboard"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/Tactility.h>
 
 #include <Tactility/settings/KeyboardSettings.h>
@@ -120,7 +122,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Keyboard");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Keyboard"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -140,7 +142,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(bl_wrapper, 0, LV_STATE_DEFAULT);
 
     auto* bl_label = lv_label_create(bl_wrapper);
-    lv_label_set_text(bl_label, "Keyboard backlight");
+    lv_label_set_text(bl_label, tr("Keyboard backlight"));
     lv_obj_set_flex_grow(bl_label, 1);
     ctx->switchBacklight = lv_switch_create(bl_wrapper);
     if (ctx->kbSettings.backlightEnabled) lv_obj_add_state(ctx->switchBacklight, LV_STATE_CHECKED);
@@ -153,7 +155,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(br_wrapper, 0, LV_STATE_DEFAULT);
 
     auto* br_label = lv_label_create(br_wrapper);
-    lv_label_set_text(br_label, "Brightness");
+    lv_label_set_text(br_label, tr("Brightness"));
     lv_obj_align(br_label, LV_ALIGN_LEFT_MID, 0, 0);
     ctx->sliderBrightness = lv_slider_create(br_wrapper);
     lv_obj_set_width(ctx->sliderBrightness, LV_PCT(50));
@@ -173,7 +175,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(to_enable_wrapper, 0, LV_STATE_DEFAULT);
 
     auto* to_enable_label = lv_label_create(to_enable_wrapper);
-    lv_label_set_text(to_enable_label, "Auto backlight off");
+    lv_label_set_text(to_enable_label, tr("Auto backlight off"));
     lv_obj_set_flex_grow(to_enable_label, 1);
     ctx->switchTimeoutEnable = lv_switch_create(to_enable_wrapper);
     if (ctx->kbSettings.backlightTimeoutEnabled) lv_obj_add_state(ctx->switchTimeoutEnable, LV_STATE_CHECKED);
@@ -185,12 +187,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(timeout_select_wrapper, 0, LV_STATE_DEFAULT);
 
     auto* timeout_value_label = lv_label_create(timeout_select_wrapper);
-    lv_label_set_text(timeout_value_label, "Timeout");
+    lv_label_set_text(timeout_value_label, tr("Timeout"));
     lv_obj_align(timeout_value_label, LV_ALIGN_LEFT_MID, 0, 0);
 
     // Backlight timeout value (seconds)
     ctx->timeoutDropdown = lv_dropdown_create(timeout_select_wrapper);
-    lv_dropdown_set_options(ctx->timeoutDropdown, "15 seconds\n30 seconds\n1 minute\n2 minutes\n5 minutes\nNever");
+    const std::string timeout_options = std::string(tr("15 seconds")) + "\n" + tr("30 seconds") + "\n" + tr("1 minute") + "\n" + tr("2 minutes") + "\n" + tr("5 minutes") + "\n" + tr("Never");
+    lv_dropdown_set_options(ctx->timeoutDropdown, timeout_options.c_str());
     lv_obj_align(ctx->timeoutDropdown, LV_ALIGN_RIGHT_MID, 0, 0);
     lv_obj_add_event_cb(ctx->timeoutDropdown, onTimeoutChanged, LV_EVENT_VALUE_CHANGED, ctx);
     // Initialize dropdown selection from settings

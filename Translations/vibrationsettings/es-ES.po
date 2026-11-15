@@ -1,0 +1,19 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "Duration (ms)"
+msgstr "Duración (ms)"
+
+msgid "No vibration motor available"
+msgstr "No hay motor de vibración disponible"
+
+msgid "Strength"
+msgstr "Intensidad"
+
+msgid "Test"
+msgstr "Probar"
+
+msgid "Vibration"
+msgstr "Vibración"

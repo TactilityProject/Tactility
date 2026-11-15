@@ -1,0 +1,163 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "Amber"
+msgstr "Ambre"
+
+msgid "Animations"
+msgstr "Animations"
+
+msgid "Appearance"
+msgstr "Apparence"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Blue"
+msgstr "Bleu"
+
+msgid "Blue grey"
+msgstr "Gris bleu"
+
+msgid "Brown"
+msgstr "Marron"
+
+msgid "Contains {} characters: creating the fonts can take long and use a lot of memory."
+msgstr "Contient {} caractères : la création des polices peut être longue et utiliser beaucoup de mémoire."
+
+msgid "Cyan"
+msgstr "Cyan"
+
+msgid "Dark"
+msgstr "Sombre"
+
+msgid "Deep orange"
+msgstr "Orange foncé"
+
+msgid "Deep purple"
+msgstr "Violet foncé"
+
+msgid "Default"
+msgstr "Par défaut"
+
+msgid "Error color"
+msgstr "Couleur d'erreur"
+
+msgid "Failed to create the fonts. Check that the selected files are TrueType fonts."
+msgstr "Échec de la création des polices. Vérifiez que les fichiers sélectionnés sont des polices TrueType."
+
+msgid "Font size"
+msgstr "Taille de police"
+
+msgid "Fonts"
+msgstr "Polices"
+
+msgid "Green"
+msgstr "Vert"
+
+msgid "Grey"
+msgstr "Gris"
+
+msgid "High"
+msgstr "Élevé"
+
+msgid "Indigo"
+msgstr "Indigo"
+
+msgid "Landscape"
+msgstr "Paysage"
+
+msgid "Layout"
+msgstr "Disposition"
+
+msgid "Light"
+msgstr "Clair"
+
+msgid "Light blue"
+msgstr "Bleu clair"
+
+msgid "Light green"
+msgstr "Vert clair"
+
+msgid "Lime"
+msgstr "Citron vert"
+
+msgid "Low"
+msgstr "Faible"
+
+msgid "Medium"
+msgstr "Moyen"
+
+msgid "Mono"
+msgstr "Mono"
+
+msgid "Monospace font"
+msgstr "Police à chasse fixe"
+
+msgid "Orange"
+msgstr "Orange"
+
+msgid "Pink"
+msgstr "Rose"
+
+msgid "Portrait"
+msgstr "Portrait"
+
+msgid "Primary color"
+msgstr "Couleur primaire"
+
+msgid "Purple"
+msgstr "Violet"
+
+msgid "Red"
+msgstr "Rouge"
+
+msgid "Regular"
+msgstr "Normal"
+
+msgid "Regular font"
+msgstr "Police normale"
+
+msgid "Secondary color"
+msgstr "Couleur secondaire"
+
+msgid "Side"
+msgstr "Côté"
+
+msgid "Size (%)"
+msgstr "Taille (%)"
+
+msgid "Spacing (%)"
+msgstr "Espacement (%)"
+
+msgid "Split"
+msgstr "Séparé"
+
+msgid "Style"
+msgstr "Style"
+
+msgid "Surface color"
+msgstr "Couleur de surface"
+
+msgid "Surface tint"
+msgstr "Teinte de surface"
+
+msgid "System Bars"
+msgstr "Barres système"
+
+msgid "System font"
+msgstr "Police système"
+
+msgid "Teal"
+msgstr "Sarcelle"
+
+msgid "Theme"
+msgstr "Thème"
+
+msgid "Theme Colors"
+msgstr "Couleurs du thème"
+
+msgid "Yellow"
+msgstr "Jaune"

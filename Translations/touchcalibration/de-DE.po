@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "Calibration Complete"
+msgstr "Kalibrierung abgeschlossen"
+
+msgid "Calibration Failed"
+msgstr "Kalibrierung fehlgeschlagen"
+
+msgid "Range invalid. Tap to close."
+msgstr "Bereich ungültig. Zum Schließen tippen."
+
+msgid "Tap target {}/4"
+msgstr "Ziel {}/4 antippen"
+
+msgid "Touch anywhere to continue."
+msgstr "Tippe irgendwo, um fortzufahren."
+
+msgid "Touchscreen Calibration"
+msgstr "Touchscreen kalibrieren"
+
+msgid "Unable to save settings. Tap to close."
+msgstr "Einstellungen konnten nicht gespeichert werden. Zum Schließen tippen."

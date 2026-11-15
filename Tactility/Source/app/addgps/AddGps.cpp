@@ -1,3 +1,5 @@
+#define L10N_APP "addgps"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/lvgl/Style.h>
@@ -66,7 +68,7 @@ std::vector<std::string> getModelNames() {
     std::vector<std::string> result;
     for (int model = GpsModel::GPS_MODEL_UNKNOWN; model <= GpsModel::GPS_MODEL_UC6580; model++) {
         // GPS_MODEL_UNKNOWN makes the driver probe for the model
-        result.emplace_back(model == GPS_MODEL_UNKNOWN ? "Auto-detect" : gps_model_to_string(static_cast<GpsModel>(model)));
+        result.emplace_back(model == GPS_MODEL_UNKNOWN ? tr("Auto-detect") : gps_model_to_string(static_cast<GpsModel>(model)));
     }
     return result;
 }
@@ -84,7 +86,7 @@ void updateViews(Context* ctx) {
     if (ctx->modelValueLabel == nullptr) {
         return;
     }
-    lv_label_set_text(ctx->uartValueLabel, ctx->uartName.empty() ? "None" : ctx->uartName.c_str());
+    lv_label_set_text(ctx->uartValueLabel, ctx->uartName.empty() ? tr("None") : ctx->uartName.c_str());
     lv_label_set_text(ctx->modelValueLabel, getModelNames()[ctx->modelIndex].c_str());
     lv_label_set_text(ctx->baudValueLabel, std::to_string(ctx->baudRates[ctx->baudIndex]).c_str());
 }
@@ -121,16 +123,16 @@ void onAddGpsPressed(lv_event_t* event) {
 
     strncpy(new_configuration.uart_name, ctx->uartName.c_str(), sizeof(new_configuration.uart_name) - 1);
     if (new_configuration.uart_name[0] == 0x00) {
-        alertdialog::start(ctx->appInstanceId, "Error", "You must select a bus/uart.");
+        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("You must select a bus/uart."));
         return;
     }
 
     LOG_I(TAG, "Saving: uart=%s, model=%d, baud=%u", new_configuration.uart_name, (int)new_configuration.model, (unsigned)new_configuration.baud_rate);
     error_t error = gps_settings_add_configuration(&new_configuration);
     if (error == ERROR_ALREADY_EXISTS) {
-        alertdialog::start(ctx->appInstanceId, "Error", "A GPS is already configured for this bus.");
+        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("A GPS is already configured for this bus."));
     } else if (error != ERROR_NONE) {
-        alertdialog::start(ctx->appInstanceId, "Error", "Failed to add configuration");
+        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("Failed to add configuration"));
     } else {
         onBackPressed(event);
     }
@@ -146,7 +148,7 @@ std::vector<std::string> getUartNames() {
 }
 
 /**
- * Creates a row with a title, the selected value below it, and a "Select" button.
+ * Creates a row with a title, the selected value below it, and a tr("Select") button.
  * @return the label of the selected value
  */
 lv_obj_t* createSelectRow(lv_obj_t* parent, const char* title, lv_event_cb_t onSelectPressed, Context* ctx) {
@@ -182,7 +184,7 @@ lv_obj_t* createSelectRow(lv_obj_t* parent, const char* title, lv_event_cb_t onS
     lv_obj_set_style_text_font(value_label, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
 
     auto* select_button = lv_button_create(row);
-    lv_label_set_text(lv_label_create(select_button), "Select");
+    lv_label_set_text(lv_label_create(select_button), tr("Select"));
     lv_obj_add_event_cb(select_button, onSelectPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
     return value_label;
@@ -194,7 +196,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Add GPS");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Add GPS"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -210,14 +212,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
 
-    ctx->uartValueLabel = createSelectRow(card, "Bus", onSelectUartPressed, ctx);
-    ctx->modelValueLabel = createSelectRow(card, "Model", onSelectModelPressed, ctx);
-    ctx->baudValueLabel = createSelectRow(card, "Baud", onSelectBaudPressed, ctx);
+    ctx->uartValueLabel = createSelectRow(card, tr("Bus"), onSelectUartPressed, ctx);
+    ctx->modelValueLabel = createSelectRow(card, tr("Model"), onSelectModelPressed, ctx);
+    ctx->baudValueLabel = createSelectRow(card, tr("Baud"), onSelectBaudPressed, ctx);
 
     // region Button
 
     auto* add_button = lv_button_create(main_wrapper);
-    lv_label_set_text(lv_label_create(add_button), "Add");
+    lv_label_set_text(lv_label_create(add_button), tr("Add"));
     lv_obj_add_event_cb(add_button, onAddGpsPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
     // endregion
@@ -270,16 +272,16 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.selectUartBit && ctx.uartSelectLaunchId == 0) {
             ctx.uartNames = getUartNames();
             if (ctx.uartNames.empty()) {
-                alertdialog::start(ctx.appInstanceId, "Error", "No bus/uart found.");
+                alertdialog::start(ctx.appInstanceId, tr("Error"), tr("No bus/uart found."));
             } else {
-                startSelection(&ctx, ctx.uartSelectLaunchId, "Bus", ctx.uartNames);
+                startSelection(&ctx, ctx.uartSelectLaunchId, tr("Bus"), ctx.uartNames);
             }
         }
         if (flags & ctx.selectModelBit) {
-            startSelection(&ctx, ctx.modelSelectLaunchId, "Model", getModelNames());
+            startSelection(&ctx, ctx.modelSelectLaunchId, tr("Model"), getModelNames());
         }
         if (flags & ctx.selectBaudBit) {
-            startSelection(&ctx, ctx.baudSelectLaunchId, "Baud", getBaudNames(&ctx));
+            startSelection(&ctx, ctx.baudSelectLaunchId, tr("Baud"), getBaudNames(&ctx));
         }
 
         AppEvent event {};

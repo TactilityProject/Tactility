@@ -1,3 +1,5 @@
+#define L10N_APP "meshchat"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/inputdialog/InputDialog.h>
 #include <Tactility/app/meshchat/MeshChatCommon.h>
@@ -183,7 +185,7 @@ void updateWidgets(Context* ctx) {
             addListButton(list, ctx->contacts[i].name, onItemPressed, ctx, (intptr_t)i);
         }
         if (ctx->contacts.empty()) {
-            lvgl_list_add_text(list, "No contacts yet. Add a node that you've heard, or wait for a direct message.");
+            lvgl_list_add_text(list, tr("No contacts yet. Add a node that you've heard, or wait for a direct message."));
         }
     }
     lvgl_list_hide_last_divider(list);
@@ -196,7 +198,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    const char* title = ctx->mode == ViewMode::Channels ? "Channels" : ctx->mode == ViewMode::Contacts ? "Contacts" : "Mesh";
+    const char* title = ctx->mode == ViewMode::Channels ? tr("Channels") : ctx->mode == ViewMode::Contacts ? tr("Contacts") : tr("Mesh");
     auto* toolbar = lvgl_toolbar_create(parent, title);
     lvgl_toolbar_set_nav_action(toolbar, ctx->mode == ViewMode::Menu ? LV_SYMBOL_CLOSE : LV_SYMBOL_LEFT, onBackPressed, ctx);
 
@@ -205,8 +207,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         auto* menuContent = createContent(parent);
         ctx->content = menuContent;
         auto* list = createCard(menuContent);
-        addListButton(list, "Channels", onShowChannelsPressed, ctx, 0);
-        addListButton(list, "Contacts", onShowContactsPressed, ctx, 0);
+        addListButton(list, tr("Channels"), onShowChannelsPressed, ctx, 0);
+        addListButton(list, tr("Contacts"), onShowContactsPressed, ctx, 0);
         lvgl_list_hide_last_divider(list);
         return;
     }
@@ -282,18 +284,18 @@ void startAddChannel(Context* ctx) {
     ::std::vector<::std::string> items;
     if (mesh_supports(MESH_FEATURE_NAMED_CHANNELS)) {
         ctx->addTypes.push_back(static_cast<int>(AddType::JoinPublic));
-        items.emplace_back("Join public channel");
+        items.emplace_back(tr("Join public channel"));
     }
     if (mesh_supports(MESH_FEATURE_KEYED_CHANNELS)) {
         ctx->addTypes.push_back(static_cast<int>(AddType::JoinPrivate));
-        items.emplace_back("Join private channel");
+        items.emplace_back(tr("Join private channel"));
         ctx->addTypes.push_back(static_cast<int>(AddType::CreatePrivate));
-        items.emplace_back("Create private channel");
+        items.emplace_back(tr("Create private channel"));
     }
     if (items.empty()) {
         return;
     }
-    ctx->addTypeDialogId = selectiondialog::start(ctx->appInstanceId, "Add channel", items);
+    ctx->addTypeDialogId = selectiondialog::start(ctx->appInstanceId, tr("Add channel"), items);
 }
 
 void startJoinChannel(Context* ctx);
@@ -323,8 +325,8 @@ void startJoinChannel(Context* ctx) {
     }
     ctx->joinChannelDialogId = inputdialog::start(
         ctx->appInstanceId,
-        "Join channel",
-        "Hashtag channel name, e.g. #test. To join Public, delete the # first.",
+        tr("Join channel"),
+        tr("Hashtag channel name, e.g. #test. To join Public, delete the # first."),
         "#",
         ctx->channelStream,
         ctx->channelBuffer,
@@ -340,10 +342,10 @@ void onJoinChannelResult(Context* ctx, int32_t result) {
         name[length] = '\0';
         const error_t error = meshsettings::joinHashtagChannel(name);
         if (error == ERROR_INVALID_ARGUMENT) {
-            showMessage(ctx, "Couldn't join channel", "Use a channel name that starts with # or Public. This mesh network can't join a channel by name.");
+            showMessage(ctx, tr("Couldn't join channel"), tr("Use a channel name that starts with # or Public. This mesh network can't join a channel by name."));
         } else if (error != ERROR_NONE) {
             LOG_E(TAG, "Failed to join channel %s: %s", name, error_to_string(error));
-            showMessage(ctx, "Couldn't join channel", error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
+            showMessage(ctx, tr("Couldn't join channel"), error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
         }
     }
     app_stream_unsubscribe(&ctx->channelStream);
@@ -355,8 +357,8 @@ void startCreateChannel(Context* ctx) {
     }
     ctx->createChannelDialogId = inputdialog::start(
         ctx->appInstanceId,
-        "Create private channel",
-        "Name of the channel",
+        tr("Create private channel"),
+        tr("Name of the channel"),
         "",
         ctx->createStream,
         ctx->createBuffer,
@@ -372,10 +374,10 @@ void onCreateChannelResult(Context* ctx, int32_t result) {
         name[length] = '\0';
         const error_t error = meshsettings::createPrivateChannel(name);
         if (error == ERROR_INVALID_ARGUMENT) {
-            showMessage(ctx, "Couldn't create channel", "Enter a name for the channel.");
+            showMessage(ctx, tr("Couldn't create channel"), tr("Enter a name for the channel."));
         } else if (error != ERROR_NONE) {
             LOG_E(TAG, "Failed to create channel %s: %s", name, error_to_string(error));
-            showMessage(ctx, "Couldn't create channel", error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
+            showMessage(ctx, tr("Couldn't create channel"), error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
         }
     }
     app_stream_unsubscribe(&ctx->createStream);
@@ -387,8 +389,8 @@ void startJoinPrivateChannel(Context* ctx) {
     }
     ctx->privateNameDialogId = inputdialog::start(
         ctx->appInstanceId,
-        "Join private channel",
-        "Name of the channel",
+        tr("Join private channel"),
+        tr("Name of the channel"),
         "",
         ctx->privateNameStream,
         ctx->privateNameBuffer,
@@ -411,8 +413,8 @@ void onPrivateNameResult(Context* ctx, int32_t result) {
     }
     ctx->privateKeyDialogId = inputdialog::start(
         ctx->appInstanceId,
-        "Channel key",
-        "Key of the channel in hexadecimal",
+        tr("Channel key"),
+        tr("Key of the channel in hexadecimal"),
         "",
         ctx->privateKeyStream,
         ctx->privateKeyBuffer,
@@ -428,14 +430,14 @@ void onPrivateKeyResult(Context* ctx, int32_t result) {
         key[length] = '\0';
         MeshAddress bytes;
         if (!hexToAddress(key, &bytes)) {
-            showMessage(ctx, "Invalid key", "Enter the key as hexadecimal characters, two for every byte.");
+            showMessage(ctx, tr("Invalid key"), tr("Enter the key as hexadecimal characters, two for every byte."));
         } else {
             const error_t error = meshsettings::joinPrivateChannel(ctx->pendingChannelName.c_str(), bytes.bytes, bytes.length);
             if (error == ERROR_INVALID_ARGUMENT) {
-                showMessage(ctx, "Invalid key", "This mesh network expects a key of a different length.");
+                showMessage(ctx, tr("Invalid key"), tr("This mesh network expects a key of a different length."));
             } else if (error != ERROR_NONE) {
                 LOG_E(TAG, "Failed to join channel %s: %s", ctx->pendingChannelName.c_str(), error_to_string(error));
-                showMessage(ctx, "Couldn't join channel", error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
+                showMessage(ctx, tr("Couldn't join channel"), error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
             }
         }
     }
@@ -454,10 +456,10 @@ void showOwnQr(Context* ctx) {
     if (error == ERROR_NONE) {
         qrcode::start(uri);
     } else if (error == ERROR_NOT_SUPPORTED) {
-        showMessage(ctx, "Not available", "This mesh network can't share a contact as a QR code.");
+        showMessage(ctx, tr("Not available"), tr("This mesh network can't share a contact as a QR code."));
     } else {
         LOG_E(TAG, "Failed to get the contact: %s", error_to_string(error));
-        showMessage(ctx, "Couldn't create QR code", error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
+        showMessage(ctx, tr("Couldn't create QR code"), error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
     }
 }
 
@@ -467,8 +469,8 @@ void startContactNameDialog(Context* ctx) {
     }
     ctx->contactNameDialogId = inputdialog::start(
         ctx->appInstanceId,
-        "Add contact",
-        "Name of the contact",
+        tr("Add contact"),
+        tr("Name of the contact"),
         "",
         ctx->contactNameStream,
         ctx->contactNameBuffer,
@@ -491,8 +493,8 @@ void onContactNameResult(Context* ctx, int32_t result) {
     }
     ctx->contactKeyDialogId = inputdialog::start(
         ctx->appInstanceId,
-        "Public key",
-        "Public key of the contact in hexadecimal",
+        tr("Public key"),
+        tr("Public key of the contact in hexadecimal"),
         "",
         ctx->contactKeyStream,
         ctx->contactKeyBuffer,
@@ -508,14 +510,14 @@ void onContactKeyResult(Context* ctx, int32_t result) {
         key[length] = '\0';
         MeshAddress address;
         if (!hexToAddress(key, &address)) {
-            showMessage(ctx, "Invalid key", "Enter the public key as hexadecimal characters, two for every byte.");
+            showMessage(ctx, tr("Invalid key"), tr("Enter the public key as hexadecimal characters, two for every byte."));
         } else {
             const error_t error = mesh_add_contact(&address, ctx->pendingContactName.c_str());
             if (error == ERROR_INVALID_ARGUMENT) {
-                showMessage(ctx, "Invalid key", "This mesh network expects a public key of a different length.");
+                showMessage(ctx, tr("Invalid key"), tr("This mesh network expects a public key of a different length."));
             } else if (error != ERROR_NONE) {
                 LOG_E(TAG, "Failed to add contact: %s", error_to_string(error));
-                showMessage(ctx, "Couldn't add contact", error == ERROR_RESOURCE ? "There are too many contacts." : error_to_string(error));
+                showMessage(ctx, tr("Couldn't add contact"), error == ERROR_RESOURCE ? tr("There are too many contacts.") : error_to_string(error));
             }
         }
     }
@@ -530,10 +532,10 @@ void startMenu(Context* ctx) {
     if (ctx->menuDialogId != 0) {
         return;
     }
-    ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, "Mesh Contacts", {
-        "Add by key",
-        "Add seen",
-        "Show my QR"
+    ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, tr("Mesh Contacts"), {
+        tr("Add by key"),
+        tr("Add seen"),
+        tr("Show my QR")
     });
 }
 

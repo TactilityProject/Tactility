@@ -1,0 +1,28 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "24-hour format"
+msgstr "24-uursnotatie"
+
+msgid "Date format"
+msgstr "Datumnotatie"
+
+msgid "GPS sync at boot"
+msgstr "GPS-synchronisatie bij opstarten"
+
+msgid "Requires location services"
+msgstr "Vereist locatievoorzieningen"
+
+msgid "Sets the clock once after boot"
+msgstr "Stelt de klok eenmaal in na het opstarten"
+
+msgid "Time & Date"
+msgstr "Tijd en datum"
+
+msgid "Timezone"
+msgstr "Tijdzone"
+
+msgid "not set"
+msgstr "niet ingesteld"

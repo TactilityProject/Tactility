@@ -1,0 +1,22 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Key speed"
+msgstr "Toetssnelheid"
+
+msgid "Keys"
+msgstr "Toetsen"
+
+msgid "No trackball device found."
+msgstr "Geen trackball gevonden."
+
+msgid "Pointer"
+msgstr "Aanwijzer"
+
+msgid "Pointer speed"
+msgstr "Aanwijzersnelheid"
+
+msgid "Trackball"
+msgstr "Trackball"

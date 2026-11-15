@@ -1,3 +1,5 @@
+#define L10N_APP "touchcalibration"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/touchcalibration/TouchCalibration.h>
 
 #if defined(CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED)
@@ -85,8 +87,8 @@ void updateUi(Context* ctx) {
     if (ctx->sampleCount < 4) {
         const auto point = getTargetPoint(ctx->sampleCount, width, height);
         lv_obj_set_pos(ctx->target, point.x - 14, point.y - 14);
-        lv_label_set_text(ctx->titleLabel, "Touchscreen Calibration");
-        lv_label_set_text_fmt(ctx->hintLabel, "Tap target %u/4", static_cast<unsigned>(ctx->sampleCount + 1));
+        lv_label_set_text(ctx->titleLabel, tr("Touchscreen Calibration"));
+        lv_label_set_text(ctx->hintLabel, i18n::format(tr("Tap target {}/4"), { std::to_string(ctx->sampleCount + 1) }).c_str());
     }
 }
 
@@ -129,7 +131,7 @@ void finishCalibration(Context* ctx) {
     int32_t xMin, xMax, yMin, yMax;
     if (!computeRange(targetX, sampleX, 4, nativeWidth - 1, xMin, xMax) ||
         !computeRange(targetY, sampleY, 4, nativeHeight - 1, yMin, yMax)) {
-        showOutcome(ctx, "Calibration Failed", "Range invalid. Tap to close.");
+        showOutcome(ctx, tr("Calibration Failed"), tr("Range invalid. Tap to close."));
         return;
     }
 
@@ -141,12 +143,12 @@ void finishCalibration(Context* ctx) {
     settings.yMax = yMax;
 
     if (!settings::touch::isValid(settings)) {
-        showOutcome(ctx, "Calibration Failed", "Range invalid. Tap to close.");
+        showOutcome(ctx, tr("Calibration Failed"), tr("Range invalid. Tap to close."));
         return;
     }
 
     if (!settings::touch::save(settings)) {
-        showOutcome(ctx, "Calibration Failed", "Unable to save settings. Tap to close.");
+        showOutcome(ctx, tr("Calibration Failed"), tr("Unable to save settings. Tap to close."));
         return;
     }
 
@@ -165,7 +167,7 @@ void finishCalibration(Context* ctx) {
     ctx->calibrationApplied = true;
 
     LOG_I(TAG, "Saved calibration x=[%d, %d] y=[%d, %d]", xMin, xMax, yMin, yMax);
-    showOutcome(ctx, "Calibration Complete", "Touch anywhere to continue.");
+    showOutcome(ctx, tr("Calibration Complete"), tr("Touch anywhere to continue."));
 }
 
 void onPress(lv_event_t* event) {
@@ -220,12 +222,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->titleLabel = lv_label_create(ctx->root);
     lv_obj_align(ctx->titleLabel, LV_ALIGN_TOP_MID, 0, 14);
     lv_obj_set_style_text_color(ctx->titleLabel, lv_color_white(), LV_STATE_DEFAULT);
-    lv_label_set_text(ctx->titleLabel, "Touchscreen Calibration");
+    lv_label_set_text(ctx->titleLabel, tr("Touchscreen Calibration"));
 
     ctx->hintLabel = lv_label_create(ctx->root);
     lv_obj_align(ctx->hintLabel, LV_ALIGN_BOTTOM_MID, 0, -14);
     lv_obj_set_style_text_color(ctx->hintLabel, lv_color_white(), LV_STATE_DEFAULT);
-    lv_label_set_text(ctx->hintLabel, "Tap target 1/4");
+    lv_label_set_text(ctx->hintLabel, i18n::format(tr("Tap target {}/4"), { "1" }).c_str());
 
     ctx->target = lv_button_create(ctx->root);
     lv_obj_set_size(ctx->target, 28, 28);

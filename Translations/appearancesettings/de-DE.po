@@ -1,0 +1,163 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "Amber"
+msgstr "Bernstein"
+
+msgid "Animations"
+msgstr "Animationen"
+
+msgid "Appearance"
+msgstr "Darstellung"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Blue"
+msgstr "Blau"
+
+msgid "Blue grey"
+msgstr "Blaugrau"
+
+msgid "Brown"
+msgstr "Braun"
+
+msgid "Contains {} characters: creating the fonts can take long and use a lot of memory."
+msgstr "Enthält {} Zeichen: Das Erstellen der Schriften kann lange dauern und viel Speicher benötigen."
+
+msgid "Cyan"
+msgstr "Cyan"
+
+msgid "Dark"
+msgstr "Dunkel"
+
+msgid "Deep orange"
+msgstr "Dunkelorange"
+
+msgid "Deep purple"
+msgstr "Dunkellila"
+
+msgid "Default"
+msgstr "Standard"
+
+msgid "Error color"
+msgstr "Fehlerfarbe"
+
+msgid "Failed to create the fonts. Check that the selected files are TrueType fonts."
+msgstr "Die Schriften konnten nicht erstellt werden. Prüfe, ob die gewählten Dateien TrueType-Schriften sind."
+
+msgid "Font size"
+msgstr "Schriftgröße"
+
+msgid "Fonts"
+msgstr "Schriften"
+
+msgid "Green"
+msgstr "Grün"
+
+msgid "Grey"
+msgstr "Grau"
+
+msgid "High"
+msgstr "Hoch"
+
+msgid "Indigo"
+msgstr "Indigo"
+
+msgid "Landscape"
+msgstr "Querformat"
+
+msgid "Layout"
+msgstr "Layout"
+
+msgid "Light"
+msgstr "Hell"
+
+msgid "Light blue"
+msgstr "Hellblau"
+
+msgid "Light green"
+msgstr "Hellgrün"
+
+msgid "Lime"
+msgstr "Limette"
+
+msgid "Low"
+msgstr "Niedrig"
+
+msgid "Medium"
+msgstr "Mittel"
+
+msgid "Mono"
+msgstr "Mono"
+
+msgid "Monospace font"
+msgstr "Festbreitenschrift"
+
+msgid "Orange"
+msgstr "Orange"
+
+msgid "Pink"
+msgstr "Pink"
+
+msgid "Portrait"
+msgstr "Hochformat"
+
+msgid "Primary color"
+msgstr "Primärfarbe"
+
+msgid "Purple"
+msgstr "Lila"
+
+msgid "Red"
+msgstr "Rot"
+
+msgid "Regular"
+msgstr "Normal"
+
+msgid "Regular font"
+msgstr "Normale Schrift"
+
+msgid "Secondary color"
+msgstr "Sekundärfarbe"
+
+msgid "Side"
+msgstr "Seite"
+
+msgid "Size (%)"
+msgstr "Größe (%)"
+
+msgid "Spacing (%)"
+msgstr "Abstand (%)"
+
+msgid "Split"
+msgstr "Geteilt"
+
+msgid "Style"
+msgstr "Stil"
+
+msgid "Surface color"
+msgstr "Oberflächenfarbe"
+
+msgid "Surface tint"
+msgstr "Oberflächentönung"
+
+msgid "System Bars"
+msgstr "Systemleisten"
+
+msgid "System font"
+msgstr "Systemschrift"
+
+msgid "Teal"
+msgstr "Petrol"
+
+msgid "Theme"
+msgstr "Design"
+
+msgid "Theme Colors"
+msgstr "Designfarben"
+
+msgid "Yellow"
+msgstr "Gelb"

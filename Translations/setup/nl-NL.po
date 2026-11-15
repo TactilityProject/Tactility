@@ -42,18 +42,6 @@ msgstr "Sta apps toe je locatie op te vragen. Gebruikt GPS en/of contacteert geo
 msgid "App location access:"
 msgstr "Locatietoegang voor apps:"
 
-msgid "Precise"
-msgstr "Nauwkeurig"
-
-msgid "Approximate"
-msgstr "Bij benadering"
-
-msgid "Disabled"
-msgstr "Uitgeschakeld"
-
-msgid "Enabled"
-msgstr "Ingeschakeld"
-
 msgid "Time Zone"
 msgstr "Tijdzone"
 
@@ -77,6 +65,3 @@ msgstr "Geen Wi-Fi beschikbaar."
 
 msgid "Scanning"
 msgstr "Zoeken"
-
-msgid "No networks found."
-msgstr "Geen netwerken gevonden."

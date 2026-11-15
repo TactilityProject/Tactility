@@ -1,3 +1,5 @@
+#define L10N_APP "timezone"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/timezone/TimeZone.h>
 #include <Tactility/app/timezone/TimeZoneView.h>
 #include <Tactility/settings/Time.h>
@@ -50,7 +52,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Select Time zone");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Select Time zone"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     // Margins around the view's card

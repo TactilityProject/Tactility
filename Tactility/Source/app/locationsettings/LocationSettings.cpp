@@ -1,3 +1,5 @@
+#define L10N_APP "locationsettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/lvgl/Style.h>
 
@@ -55,8 +57,8 @@ struct PrecisionOption {
 };
 
 constexpr PrecisionOption PRECISION_OPTIONS[] = {
-    { LOCATION_PRECISION_APPROXIMATE, "Approximate" },
-    { LOCATION_PRECISION_PRECISE, "Precise" },
+    { LOCATION_PRECISION_APPROXIMATE, tr_noop("Approximate") },
+    { LOCATION_PRECISION_PRECISE, tr_noop("Precise") },
 };
 
 constexpr uint32_t SUBSCRIBERS_REFRESH_MS = 1000;
@@ -98,11 +100,11 @@ LocationPrecision getChipPrecision(lv_obj_t* chip) {
 
 std::string getStatusText() {
     if (!location_is_enabled()) {
-        return "Location services are off";
+        return tr("Location services are off");
     }
     Location location;
     if (location_get(&location) != ERROR_NONE) {
-        return "Waiting for location...";
+        return tr("Waiting for location...");
     }
     std::string text;
     auto output = ::std::back_inserter(text);
@@ -110,7 +112,7 @@ std::string getStatusText() {
     if (!::std::isnan(location.horizontal_accuracy)) {
         ::std::format_to(output, " (±{:.0f} m)", location.horizontal_accuracy);
     }
-    ::std::format_to(output, "\nSource: {}", location.provider);
+    text += i18n::format(tr("\nSource: {}"), { location.provider });
     return text;
 }
 
@@ -192,7 +194,7 @@ void onDeleteGpsPressed(lv_event_t* event) {
         if (row.device == device) {
             ctx->pendingDeleteIndex = row.configurationIndex;
             ctx->hasPendingDelete = true;
-            alertdialog::start(ctx->appInstanceId, "Confirmation", ::std::string("Do you want to delete ") + device->name + "?", ::std::vector<::std::string> { tr("Yes"), tr("No") });
+            alertdialog::start(ctx->appInstanceId, tr("Confirmation"), i18n::format(tr("Do you want to delete {}?"), { device->name }), ::std::vector<::std::string> { tr("Yes"), tr("No") });
             return;
         }
     }
@@ -291,7 +293,7 @@ void rebuildGpsDeviceList(Context* ctx) {
     });
 
     if (!hasDevices) {
-        lv_label_set_text(lv_label_create(ctx->gpsDeviceList), "No devices");
+        lv_label_set_text(lv_label_create(ctx->gpsDeviceList), tr("No devices"));
     }
 }
 
@@ -302,7 +304,7 @@ void createGpsDevices(Context* ctx, lv_obj_t* parent) {
 
     auto* title = lv_label_create(header);
     lv_obj_set_flex_grow(title, 1);
-    lv_label_set_text(title, "GPS devices");
+    lv_label_set_text(title, tr("GPS devices"));
 
     auto* addButton = lv_button_create(header);
     lv_obj_add_event_cb(addButton, onAddGpsPressed, LV_EVENT_SHORT_CLICKED, ctx);
@@ -324,7 +326,7 @@ void createSubscribers(Context* ctx, lv_obj_t* parent) {
     lv_obj_set_hidden(ctx->subscribersSection, true);
 
     auto* title = lv_label_create(ctx->subscribersSection);
-    lv_label_set_text(title, "Subscribers");
+    lv_label_set_text(title, tr("Subscribers"));
 
     auto* card = lvgl_card_create(ctx->subscribersSection);
     lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
@@ -341,7 +343,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Location");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Location"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
     ctx->enableSwitch = lvgl_toolbar_add_switch_action(toolbar);
     lv_obj_add_event_cb(ctx->enableSwitch, onEnableSwitchChanged, LV_EVENT_VALUE_CHANGED, ctx);
@@ -354,7 +356,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lvgl::obj_set_style_bg_invisible(wrapper);
 
     auto* precisionLabel = lv_label_create(wrapper);
-    lv_label_set_text(precisionLabel, "Precision");
+    lv_label_set_text(precisionLabel, tr("Precision"));
 
     // The chips are centered in the card while they fit, and scroll when they don't
     auto* precisionCard = lvgl_card_create(wrapper);
@@ -376,7 +378,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     for (const auto& option : PRECISION_OPTIONS) {
         auto* chip = lvgl_chip_create(ctx->precisionChips);
-        lv_label_set_text(lv_label_create(chip), option.name);
+        lv_label_set_text(lv_label_create(chip), tr(option.name));
         lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<intptr_t>(option.precision)));
         lv_obj_add_event_cb(chip, onPrecisionChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
     }
@@ -386,7 +388,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_width(precisionHint, LV_PCT(100));
     lv_label_set_long_mode(precisionHint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(precisionHint, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
-    lv_label_set_text(precisionHint, "Approximate location is accurate to a few kilometers. Location based on the IP address is never precise.");
+    lv_label_set_text(precisionHint, tr("Approximate location is accurate to a few kilometers. Location based on the IP address is never precise."));
 
     auto* statusCard = lvgl_card_create(wrapper);
     lv_obj_set_size(statusCard, LV_PCT(100), LV_SIZE_CONTENT);

@@ -1,0 +1,28 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "1 minute"
+msgstr "1 Minute"
+
+msgid "15 seconds"
+msgstr "15 Sekunden"
+
+msgid "2 minutes"
+msgstr "2 Minuten"
+
+msgid "30 seconds"
+msgstr "30 Sekunden"
+
+msgid "5 minutes"
+msgstr "5 Minuten"
+
+msgid "Auto backlight off"
+msgstr "Hintergrundbeleuchtung automatisch aus"
+
+msgid "Keyboard"
+msgstr "Tastatur"
+
+msgid "Keyboard backlight"
+msgstr "Tastaturbeleuchtung"

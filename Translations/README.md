@@ -15,7 +15,7 @@ alertdialog::start(id, tr("Are you sure?"), tt::i18n::format(tr("Delete {}?"), {
 
 ## Files
 
-`Translations/<domain>/<locale>.po` holds the translations of Tactility, for example `Translations/tactility/nl-NL.po`. The `tactility` domain is shared by every app. An app of Tactility can have its own domain, like `Translations/setup/`, which it opens with `tt::i18n::openDomain("setup")`. Texts that the app's domain lacks fall back to the `tactility` domain. They are standard PO files: edit them with a text editor or a tool like Poedit.
+`Translations/<domain>/<locale>.po` holds the translations of Tactility, for example `Translations/tactility/nl-NL.po`. The `tactility` domain is shared by every app. Each app of Tactility has its own domain, a folder named after it like `Translations/setup/`. A text that an app's domain lacks falls back to the `tactility` domain, so put texts that several apps use ("Brightness", "Never", colour names) there. They are standard PO files: edit them with a text editor or a tool like Poedit.
 English needs no file. A region falls back to the file of its language (`nl.po` serves `nl-NL`).
 
 The build compiles them with `Buildscripts/l10n/generate-catalogs.py` and embeds them in the firmware.
@@ -33,3 +33,14 @@ The build compiles them with `Buildscripts/l10n/generate-catalogs.py` and embeds
 ## Apps with their own translations
 
 See the localisation page in the Tactility documentation: apps ship `translations/<locale>.po` files that `tt app build` compiles, and `tt app translations` makes the template.
+
+## Translating a built-in app
+
+Define the folder name and include the domain header before anything that includes `<localisation/tr.h>`:
+
+```cpp
+#define L10N_APP "display"
+#include <Tactility/i18n/AppDomain.h>
+```
+
+The domain is opened on first use. Use `tr_noop("text")` for texts in constant tables and `tr(table[i])` where they are shown.

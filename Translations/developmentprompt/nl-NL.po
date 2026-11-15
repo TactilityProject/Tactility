@@ -1,0 +1,22 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Accept"
+msgstr "Accepteren"
+
+msgid "Fingerprint"
+msgstr "Vingerafdruk"
+
+msgid "Fingerprint: {}"
+msgstr "Vingerafdruk: {}"
+
+msgid "Reject"
+msgstr "Weigeren"
+
+msgid "Remote access"
+msgstr "Toegang op afstand"
+
+msgid "{} at {} requests {} access."
+msgstr "{} op {} vraagt {}-toegang."

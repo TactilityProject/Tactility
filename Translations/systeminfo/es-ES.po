@@ -1,0 +1,46 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "(unnamed)"
+msgstr "(sin nombre)"
+
+msgid "External"
+msgstr "Externa"
+
+msgid "Failed to allocate memory for task list"
+msgstr "Error al reservar memoria para la lista de tareas"
+
+msgid "Hardware model: {}"
+msgstr "Modelo del hardware: {}"
+
+msgid "Hardware vendor: {}"
+msgstr "Fabricante del hardware: {}"
+
+msgid "Internal"
+msgstr "Interna"
+
+msgid "System Info"
+msgstr "Información del sistema"
+
+msgid "blocked"
+msgstr "bloqueada"
+
+msgid "deleted"
+msgstr "eliminada"
+
+msgid "invalid"
+msgstr "no válida"
+
+msgid "ready"
+msgstr "lista"
+
+msgid "running"
+msgstr "en ejecución"
+
+msgid "suspended"
+msgstr "suspendida"
+
+msgid "{} / {} {} free ({} / {} bytes)"
+msgstr "{} / {} {} libres ({} / {} bytes)"

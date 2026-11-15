@@ -64,6 +64,9 @@ class ExtractTextsTest(unittest.TestCase):
         keys = self.extract_keys('void f() { tr("Visit http://x /* y */"); /* tr("Commented out"); */ // tr("Also");\n }')
         self.assertEqual(keys, {"Visit http://x /* y */"})
 
+    def test_tr_noop_texts_are_found(self):
+        self.assertEqual(self.extract_keys('static const char* NAMES[] = { tr_noop("Red"), tr_noop("Deep " "blue") };'), {"Red", "Deep blue"})
+
     def test_build_folders_are_skipped(self):
         with tempfile.TemporaryDirectory() as directory:
             os.makedirs(os.path.join(directory, "build"))

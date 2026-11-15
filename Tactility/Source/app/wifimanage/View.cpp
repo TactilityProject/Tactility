@@ -1,3 +1,5 @@
+#define L10N_APP "wifimanage"
+#include <Tactility/i18n/AppDomain.h>
 #include <format>
 #include <string>
 #include <set>
@@ -125,7 +127,7 @@ void View::createSsidListItem(lv_obj_t* list, const WifiApRecord& record, bool i
         auto* button = lvgl_list_add_button(list, LV_SYMBOL_WIFI, record.ssid);
         lv_obj_add_event_cb(button, showDetails, LV_EVENT_SHORT_CLICKED, this);
     } else {
-        const std::string auth_info = (record.authentication_type == WIFI_AUTHENTICATION_TYPE_OPEN) ? "(open) " : " ";
+        const std::string auth_info = (record.authentication_type == WIFI_AUTHENTICATION_TYPE_OPEN) ? (std::string(tr("(open)")) + " ") : std::string(" ");
         const auto percentage = mapRssiToPercentage(record.rssi);
         const auto label = std::format("{} {}{}%", std::string(record.ssid), auth_info, percentage);
         auto* button = lvgl_list_add_button(list, nullptr, label.c_str());
@@ -170,14 +172,14 @@ void View::updateNetworkList() {
                 for (int i = 0; i < ap_records.size(); ++i) {
                     auto& record = ap_records[i];
                     if (record.ssid == connection_target) {
-                        createSsidListItem(createSection(networks_list, "Connected"), record, false, i);
+                        createSsidListItem(createSection(networks_list, tr("Connected")), record, false, i);
                         added_connected = true;
                         break;
                     }
                 }
             }
 
-            auto* networks_section = createSection(networks_list, "Networks");
+            auto* networks_section = createSection(networks_list, tr("Networks"));
             std::set<std::string> used_ssids;
             if (!ap_records.empty()) {
                 for (int i = 0; i < ap_records.size(); ++i) {
@@ -200,14 +202,14 @@ void View::updateNetworkList() {
                 lv_obj_set_hidden(networks_list, true);
             } else {
                 lv_obj_set_hidden(networks_list, false);
-                lvgl_list_add_text(networks_section, "No networks found.");
+                lvgl_list_add_text(networks_section, tr("No networks found."));
             }
 
             connect_to_hidden = lv_button_create(networks_list);
             lv_obj_set_width(connect_to_hidden, LV_PCT(100));
             lv_obj_set_style_margin_ver(connect_to_hidden, 4, LV_STATE_DEFAULT);
             auto* connect_to_hidden_label = lv_label_create(connect_to_hidden);
-            lv_label_set_text(connect_to_hidden_label, "Connect to hidden SSID");
+            lv_label_set_text(connect_to_hidden_label, tr("Connect to hidden SSID"));
             lv_obj_add_event_cb(connect_to_hidden, onConnectToHiddenClicked, LV_EVENT_SHORT_CLICKED, bindings);
             break;
         }
@@ -275,7 +277,7 @@ void View::init(uint32_t newAppInstanceId, lv_obj_t* parent) {
 
     // Toolbar
 
-    lv_obj_t* toolbar = lvgl_toolbar_create(parent, "Wi-Fi");
+    lv_obj_t* toolbar = lvgl_toolbar_create(parent, tr("Wi-Fi"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, &appInstanceId);
 
     scanning_spinner = lvgl_toolbar_add_spinner_action(toolbar);
@@ -294,7 +296,7 @@ void View::init(uint32_t newAppInstanceId, lv_obj_t* parent) {
     lv_obj_set_style_border_width(networks_list, 0, LV_STATE_DEFAULT);
 
     loading_label = lv_label_create(parent);
-    lv_label_set_text(loading_label, "Loading...");
+    lv_label_set_text(loading_label, tr("Loading..."));
     lv_obj_set_floating(loading_label, true);
     lv_obj_align(loading_label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_hidden(loading_label, true);

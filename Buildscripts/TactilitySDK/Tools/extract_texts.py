@@ -15,7 +15,7 @@ from po2tlc import decode_literal
 
 EXTENSIONS = (".c", ".cc", ".cpp", ".h", ".hpp")
 STRING = r'((?:"(?:[^"\\\n]|\\.)*"\s*)+)'
-CALL = re.compile(r'\btr\s*\(\s*' + STRING + r'\)|\btrc\s*\(\s*' + STRING + r',\s*' + STRING + r'\)')
+CALL = re.compile(r'\b(?:tr|tr_noop)\s*\(\s*' + STRING + r'\)|\btrc\s*\(\s*' + STRING + r',\s*' + STRING + r'\)')
 
 
 def join_literals(text: str) -> str:

@@ -1,3 +1,5 @@
+#define L10N_APP "poweroff"
+#include <Tactility/i18n/AppDomain.h>
 #include "tactility/drivers/display.h"
 
 #include <app/event.h>
@@ -172,14 +174,14 @@ void onYesPressed(lv_event_t* event) {
     if (!anyDeviceSupportsPowerOff()) {
         return;
     }
-    startShutdown(static_cast<Context*>(lv_event_get_user_data(event)), "Powered off", powerOffAll);
+    startShutdown(static_cast<Context*>(lv_event_get_user_data(event)), tr("Powered off"), powerOffAll);
 }
 
 void onSleepPressed(lv_event_t* event) {
     if (findSleepController() == nullptr) {
         return;
     }
-    startShutdown(static_cast<Context*>(lv_event_get_user_data(event)), "Sleeping", deepSleep);
+    startShutdown(static_cast<Context*>(lv_event_get_user_data(event)), tr("Sleeping"), deepSleep);
 }
 
 void onNoPressed(lv_event_t* event) {
@@ -197,7 +199,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     bool supports_sleep = findSleepController() != nullptr;
 
     auto* label = lv_label_create(parent);
-    lv_label_set_text(label, supports_power_off ? "Power off?" : "Sleep?");
+    lv_label_set_text(label, supports_power_off ? tr("Power off?") : tr("Sleep?"));
     lv_obj_set_style_text_font(label, lvgl_get_text_font(FONT_SIZE_LARGE), 0);
 
     auto* button_wrapper = lv_obj_create(parent);
@@ -224,7 +226,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (supports_sleep) {
         auto* sleep_button = lv_button_create(button_wrapper);
         auto* sleep_label = lv_label_create(sleep_button);
-        lv_label_set_text(sleep_label, "Sleep");
+        lv_label_set_text(sleep_label, tr("Sleep"));
         lv_obj_add_event_cb(sleep_button, onSleepPressed, LV_EVENT_SHORT_CLICKED, ctx);
         if (first_button == nullptr) {
             first_button = sleep_button;

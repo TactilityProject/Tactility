@@ -1,0 +1,46 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "All"
+msgstr "Todas"
+
+msgid "App Hub"
+msgstr "App Hub"
+
+msgid "Cannot reach server"
+msgstr "No se puede conectar con el servidor"
+
+msgid "Failed to load content"
+msgstr "Error al cargar el contenido"
+
+msgid "Installed"
+msgstr "Instaladas"
+
+msgid "No Internet Connection"
+msgstr "Sin conexión a Internet"
+
+msgid "No installed apps"
+msgstr "No hay aplicaciones instaladas"
+
+msgid "No updates available"
+msgstr "No hay actualizaciones disponibles"
+
+msgid "Update failed"
+msgstr "Error al actualizar"
+
+msgid "Updates"
+msgstr "Actualizaciones"
+
+msgid "{} app failed to update: {}"
+msgstr "{} aplicación no se pudo actualizar: {}"
+
+msgid "{} apps failed to update: {}"
+msgstr "{} aplicaciones no se pudieron actualizar: {}"
+
+msgid "{} update"
+msgstr "{} actualización"
+
+msgid "{} updates"
+msgstr "{} actualizaciones"

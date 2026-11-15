@@ -1,0 +1,40 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "Another operation is pending. Try again when it's done."
+msgstr "Une autre opération est en cours. Réessayez quand elle sera terminée."
+
+msgid "Busy"
+msgstr "Occupé"
+
+msgid "Confirm"
+msgstr "Confirmer"
+
+msgid "Failed to install app"
+msgstr "Échec de l'installation de l'application"
+
+msgid "Failed to uninstall app"
+msgstr "Échec de la désinstallation de l'application"
+
+msgid "Failed to update app"
+msgstr "Échec de la mise à jour de l'application"
+
+msgid "Install {}?"
+msgstr "Installer {} ?"
+
+msgid "This app has no description yet."
+msgstr "Cette application n'a pas encore de description."
+
+msgid "Uninstall {}?"
+msgstr "Désinstaller {} ?"
+
+msgid "Update available!"
+msgstr "Mise à jour disponible !"
+
+msgid "Update {}?"
+msgstr "Mettre à jour {} ?"
+
+msgid "Version {}"
+msgstr "Version {}"

@@ -1,0 +1,28 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Reboot"
+msgstr "Herstarten"
+
+msgid "USB drive mode"
+msgstr "USB-schijfmodus"
+
+msgid "USB drive mode (SD card)"
+msgstr "USB-schijfmodus (SD-kaart)"
+
+msgid "USB drive mode (internal)"
+msgstr "USB-schijfmodus (intern)"
+
+msgid "USB driver not supported"
+msgstr "USB-driver niet ondersteund"
+
+msgid "USB host"
+msgstr "USB-host"
+
+msgid "USB host failed to start. Reboot the device to enable it."
+msgstr "USB-host kon niet starten. Herstart het apparaat om het in te schakelen."
+
+msgid "USB storage not available"
+msgstr "USB-opslag niet beschikbaar"

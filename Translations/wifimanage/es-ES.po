@@ -1,0 +1,19 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "(open)"
+msgstr "(abierta)"
+
+msgid "Connect to hidden SSID"
+msgstr "Conectar a un SSID oculto"
+
+msgid "Connected"
+msgstr "Conectado"
+
+msgid "Networks"
+msgstr "Redes"
+
+msgid "Wi-Fi"
+msgstr "Wi-Fi"

@@ -28,7 +28,8 @@
 #include <Tactility/StringUtils.h>
 #include <Tactility/i18n/Localisation.h>
 
-#include <localisation/tr.h>
+#define L10N_APP "files"
+#include <Tactility/i18n/AppDomain.h>
 
 #include <tactility/device.h>
 #include <tactility/file_ops.h>

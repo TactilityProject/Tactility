@@ -1,0 +1,19 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Duration (ms)"
+msgstr "Duur (ms)"
+
+msgid "No vibration motor available"
+msgstr "Geen trilmotor beschikbaar"
+
+msgid "Strength"
+msgstr "Sterkte"
+
+msgid "Test"
+msgstr "Testen"
+
+msgid "Vibration"
+msgstr "Trillen"

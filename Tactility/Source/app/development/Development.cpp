@@ -1,3 +1,5 @@
+#define L10N_APP "development"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/Tactility.h>
 #include <Tactility/app/development/Fingerprint.h>
 #include <Tactility/Timer.h>
@@ -93,16 +95,16 @@ void updateViewState(Context* ctx) {
     }
 
     if (!development_server_is_enabled()) {
-        lv_label_set_text(ctx->statusLabel, "Service disabled");
+        lv_label_set_text(ctx->statusLabel, tr("Service disabled"));
     } else if (station_state != WIFI_STATION_STATE_CONNECTED) {
-        lv_label_set_text(ctx->statusLabel, "Waiting for connection...");
+        lv_label_set_text(ctx->statusLabel, tr("Waiting for connection..."));
     } else { // enabled and connected to wifi
         if (ip[0] == '\0') {
-            lv_label_set_text(ctx->statusLabel, "Waiting for IP...");
+            lv_label_set_text(ctx->statusLabel, tr("Waiting for IP..."));
         } else {
             char fingerprint[DEVELOPMENT_SERVER_FINGERPRINT_LENGTH + 1] = {};
             development_server_get_fingerprint(fingerprint, sizeof(fingerprint));
-            const std::string status = std::format("Available at {}\nFingerprint: {}", ip, formatShortFingerprint(fingerprint));
+            const std::string status = i18n::format(tr("Available at {}\nFingerprint: {}"), { ip, formatShortFingerprint(fingerprint) });
             lv_label_set_text(ctx->statusLabel, status.c_str());
         }
     }
@@ -125,7 +127,7 @@ void rebuildTrustedClients(Context* ctx) {
     lv_obj_clean(ctx->trustedCard);
     if (ctx->trustedClients.empty()) {
         lv_obj_t* none_label = lv_label_create(ctx->trustedCard);
-        lv_label_set_text(none_label, "None");
+        lv_label_set_text(none_label, tr("None"));
         return;
     }
     for (size_t index = 0; index < ctx->trustedClients.size(); index++) {
@@ -141,7 +143,7 @@ void rebuildTrustedClients(Context* ctx) {
         lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
 
         lv_obj_t* label = lv_label_create(row);
-        const std::string text = std::format("{}\n{}", client.name.empty() ? "Unknown" : client.name, formatShortFingerprint(client.fingerprint));
+        const std::string text = i18n::format("{}\n{}", { client.name.empty() ? std::string(tr("Unknown")) : std::string(client.name), formatShortFingerprint(client.fingerprint) });
         lv_label_set_text(label, text.c_str());
         lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
         lv_obj_set_flex_grow(label, 1);
@@ -195,7 +197,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    lv_obj_t* toolbar = lvgl_toolbar_create(parent, "Development");
+    lv_obj_t* toolbar = lvgl_toolbar_create(parent, tr("Development"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -230,7 +232,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     // Trusted clients
 
     lv_obj_t* trusted_label = lv_label_create(content_wrapper);
-    lv_label_set_text(trusted_label, "Trusted");
+    lv_label_set_text(trusted_label, tr("Trusted"));
 
     ctx->trustedCard = lvgl_card_create(content_wrapper);
     lv_obj_set_size(ctx->trustedCard, LV_PCT(100), LV_SIZE_CONTENT);

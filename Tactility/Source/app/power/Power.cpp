@@ -1,3 +1,5 @@
+#define L10N_APP "power"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/Timer.h>
 
@@ -63,16 +65,16 @@ bool collectDevice(::Device* device, void* context) {
 void setPropertyLabelText(lv_obj_t* label, PowerSupplyProperty property, const PowerSupplyPropertyValue& value) {
     switch (property) {
         case POWER_SUPPLY_PROP_IS_CHARGING:
-            lv_label_set_text_fmt(label, "Charging: %s", value.int_value ? "yes" : "no");
+            lv_label_set_text(label, i18n::format(tr("Charging: {}"), { value.int_value ? tr("yes") : tr("no") }).c_str());
             break;
         case POWER_SUPPLY_PROP_VOLTAGE:
-            lv_label_set_text_fmt(label, "Battery voltage: %d mV", value.int_value);
+            lv_label_set_text(label, i18n::format(tr("Battery voltage: {} mV"), { std::to_string(value.int_value) }).c_str());
             break;
         case POWER_SUPPLY_PROP_CAPACITY:
-            lv_label_set_text_fmt(label, "Charge level: %d%%", value.int_value);
+            lv_label_set_text(label, i18n::format(tr("Charge level: {}%"), { std::to_string(value.int_value) }).c_str());
             break;
         case POWER_SUPPLY_PROP_CURRENT:
-            lv_label_set_text_fmt(label, "Current: %d mA", value.int_value);
+            lv_label_set_text(label, i18n::format(tr("Current: {} mA"), { std::to_string(value.int_value) }).c_str());
             break;
     }
 }
@@ -154,7 +156,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Power");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Power"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -199,7 +201,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lvgl::obj_set_style_bg_invisible(switch_container);
 
             lv_obj_t* label = lv_label_create(switch_container);
-            lv_label_set_text(label, "Charging enabled");
+            lv_label_set_text(label, tr("Charging enabled"));
             lv_obj_set_flex_grow(label, 1);
 
             lv_obj_t* enable_switch = lv_switch_create(switch_container);
@@ -221,7 +223,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lvgl::obj_set_style_bg_invisible(qc_container);
 
             lv_obj_t* label = lv_label_create(qc_container);
-            lv_label_set_text(label, "Quick charge");
+            lv_label_set_text(label, tr("Quick charge"));
             lv_obj_set_flex_grow(label, 1);
 
             lv_obj_t* qc_switch = lv_switch_create(qc_container);
@@ -243,11 +245,11 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lvgl::obj_set_style_bg_invisible(power_off_container);
 
             lv_obj_t* label = lv_label_create(power_off_container);
-            lv_label_set_text(label, "Device power");
+            lv_label_set_text(label, tr("Device power"));
             lv_obj_set_flex_grow(label, 1);
 
             lv_obj_t* power_off_button = lv_button_create(power_off_container);
-            lv_label_set_text(lv_label_create(power_off_button), "Power off");
+            lv_label_set_text(lv_label_create(power_off_button), tr("Power off"));
             lv_obj_add_event_cb(power_off_button, onPowerOffPressed, LV_EVENT_SHORT_CLICKED, nullptr);
         }
 

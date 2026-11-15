@@ -1,3 +1,5 @@
+#define L10N_APP "grovesettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <string>
 #include <vector>
 
@@ -76,7 +78,7 @@ struct ModeOption {
 };
 
 constexpr ModeOption MODE_OPTIONS[] = {
-    { GROVE_MODE_DISABLED, "Disabled" },
+    { GROVE_MODE_DISABLED, tr_noop("Disabled") },
     { GROVE_MODE_I2C, "I2C" },
     { GROVE_MODE_UART, "UART" },
 };
@@ -157,7 +159,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Grove");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Grove"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -192,7 +194,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
         for (const auto& option : MODE_OPTIONS) {
             auto* chip = lvgl_chip_create(chips_row);
-            lv_label_set_text(lv_label_create(chip), option.name);
+            lv_label_set_text(lv_label_create(chip), tr(option.name));
             lv_obj_set_user_data(chip, reinterpret_cast<void*>(static_cast<intptr_t>(option.mode)));
             lv_obj_add_event_cb(chip, onModeChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
         }

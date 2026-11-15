@@ -1,3 +1,5 @@
+#define L10N_APP "wifiapsettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/lvgl/Style.h>
 
@@ -127,7 +129,7 @@ void onBackPressed(lv_event_t* event) {
 
 void onPressForget(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    ctx->forgetDialogId = alertdialog::start(ctx->appInstanceId, "Confirmation", "Forget the Wi-Fi access point?", std::vector<std::string> { tr("Yes"), tr("No") });
+    ctx->forgetDialogId = alertdialog::start(ctx->appInstanceId, tr("Confirmation"), tr("Forget the Wi-Fi access point?"), std::vector<std::string> { tr("Yes"), tr("No") });
 }
 
 void onToggleAutoConnect(lv_event_t* event) {
@@ -287,14 +289,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_add_event_cb(ctx->disconnectButton, onPressDisconnect, LV_EVENT_SHORT_CLICKED, ctx);
     auto* disconnect_label = lv_label_create(ctx->disconnectButton);
     lv_obj_align(disconnect_label, LV_ALIGN_CENTER, 0, 0);
-    lv_label_set_text(disconnect_label, "Disconnect");
+    lv_label_set_text(disconnect_label, tr("Disconnect"));
 
     ctx->connectButton = lv_button_create(card);
     lv_obj_set_width(ctx->connectButton, LV_PCT(100));
     lv_obj_add_event_cb(ctx->connectButton, onPressConnect, LV_EVENT_SHORT_CLICKED, ctx);
     auto* connect_label = lv_label_create(ctx->connectButton);
     lv_obj_align(connect_label, LV_ALIGN_CENTER, 0, 0);
-    lv_label_set_text(connect_label, "Connect");
+    lv_label_set_text(connect_label, tr("Connect"));
 
     // Forget
 
@@ -303,7 +305,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_add_event_cb(ctx->forgetButton, onPressForget, LV_EVENT_SHORT_CLICKED, ctx);
     auto* forget_button_label = lv_label_create(ctx->forgetButton);
     lv_obj_align(forget_button_label, LV_ALIGN_CENTER, 0, 0);
-    lv_label_set_text(forget_button_label, "Forget");
+    lv_label_set_text(forget_button_label, tr("Forget"));
     lv_obj_set_hidden(ctx->forgetButton, true); // shown by updateAutoConnectSection()
 
     // Auto-connect
@@ -319,7 +321,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_hidden(ctx->autoConnectWrapper, true); // shown by updateAutoConnectSection()
 
     auto* auto_connect_label = lv_label_create(ctx->autoConnectWrapper);
-    lv_label_set_text(auto_connect_label, "Auto-connect");
+    lv_label_set_text(auto_connect_label, tr("Auto-connect"));
     lv_obj_set_flex_grow(auto_connect_label, 1);
 
     ctx->autoConnectSwitch = lv_switch_create(ctx->autoConnectWrapper);

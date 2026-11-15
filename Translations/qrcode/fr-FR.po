@@ -1,0 +1,7 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "The data doesn't fit in a QR code"
+msgstr "Les données ne tiennent pas dans un code QR"

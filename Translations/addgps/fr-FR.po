@@ -1,0 +1,34 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "A GPS is already configured for this bus."
+msgstr "Un GPS est déjà configuré pour ce bus."
+
+msgid "Add"
+msgstr "Ajouter"
+
+msgid "Add GPS"
+msgstr "Ajouter un GPS"
+
+msgid "Auto-detect"
+msgstr "Détection auto"
+
+msgid "Baud"
+msgstr "Débit"
+
+msgid "Bus"
+msgstr "Bus"
+
+msgid "Failed to add configuration"
+msgstr "Échec de l'ajout de la configuration"
+
+msgid "Model"
+msgstr "Modèle"
+
+msgid "No bus/uart found."
+msgstr "Aucun bus/uart trouvé."
+
+msgid "You must select a bus/uart."
+msgstr "Vous devez sélectionner un bus/uart."

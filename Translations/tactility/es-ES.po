@@ -3,131 +3,89 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: es-ES\n"
 
-msgid "OK"
-msgstr "OK"
+msgid "Approximate"
+msgstr "Aproximada"
 
-msgid "Yes"
-msgstr "Sí"
+msgid "Auto-connect"
+msgstr "Conexión automática"
 
-msgid "No"
-msgstr "No"
+msgid "Brightness"
+msgstr "Brillo"
 
 msgid "Cancel"
 msgstr "Cancelar"
 
-msgid "Retry"
-msgstr "Reintentar"
-
 msgid "Close"
 msgstr "Cerrar"
 
-msgid "Open"
-msgstr "Abrir"
+msgid "Confirmation"
+msgstr "Confirmación"
 
-msgid "Files"
-msgstr "Archivos"
+msgid "Connect"
+msgstr "Conectar"
 
-msgid "Language"
-msgstr "Idioma"
+msgid "Custom"
+msgstr "Personalizado"
 
-msgid "Run failed"
-msgstr "Error al ejecutar"
+msgid "Disabled"
+msgstr "Desactivado"
 
-msgid "Could not run \"{}\"."
-msgstr "No se pudo ejecutar «{}»."
+msgid "Disconnect"
+msgstr "Desconectar"
 
-msgid "\"{}\" is not an executable."
-msgstr "«{}» no es un ejecutable."
+msgid "Enabled"
+msgstr "Activado"
 
-msgid "Install?"
-msgstr "¿Instalar?"
-
-msgid "Do you want to install {}?"
-msgstr "¿Quieres instalar {}?"
-
-msgid "Rename"
-msgstr "Renombrar"
-
-msgid "Are you sure?"
-msgstr "¿Estás seguro?"
-
-msgid "Do you want to delete this?\n{}"
-msgstr "¿Quieres eliminar esto?\n{}"
-
-msgid "Do you want to delete these {} items?"
-msgstr "¿Quieres eliminar estos {} elementos?"
-
-msgid "New File"
-msgstr "Archivo nuevo"
-
-msgid "Enter filename:"
-msgstr "Introduce el nombre del archivo:"
-
-msgid "New Folder"
-msgstr "Carpeta nueva"
-
-msgid "Enter folder name:"
-msgstr "Introduce el nombre de la carpeta:"
-
-msgid "Eject failed"
-msgstr "Error al expulsar"
-
-msgid "Could not eject \"{}\"."
-msgstr "No se pudo expulsar «{}»."
-
-msgid "Rename failed"
-msgstr "Error al renombrar"
-
-msgid "\"{}\" already exists."
-msgstr "«{}» ya existe."
-
-msgid "\"{}\" changed while the dialog was open."
-msgstr "«{}» cambió mientras el diálogo estaba abierto."
-
-msgid "Could not remove \"{}\" before overwriting."
-msgstr "No se pudo eliminar «{}» antes de sobrescribir."
-
-msgid "\"{}\" can't be pasted into itself."
-msgstr "«{}» no se puede pegar dentro de sí mismo."
-
-msgid "Overwrite"
-msgstr "Sobrescribir"
-
-msgid "File exists"
-msgstr "El archivo existe"
-
-msgid "Overwrite \"{}\"?"
-msgstr "¿Sobrescribir «{}»?"
-
-msgid "\"{}\" was copied but the original could not be removed."
-msgstr "«{}» se copió, pero no se pudo eliminar el original."
-
-msgid "\"{}\" could not be moved."
-msgstr "No se pudo mover «{}»."
-
-msgid "\"{}\" could not be copied."
-msgstr "No se pudo copiar «{}»."
-
-msgid "Paste failed"
-msgstr "Error al pegar"
-
-msgid "Remove"
-msgstr "Quitar"
+msgid "Error"
+msgstr "Error"
 
 msgid "File not found"
 msgstr "Archivo no encontrado"
 
-msgid "\"{}\" doesn't exist."
-msgstr "«{}» no existe."
+msgid "Forget"
+msgstr "Olvidar"
 
-msgid "Can't select"
-msgstr "No se puede seleccionar"
+msgid "Language"
+msgstr "Idioma"
 
-msgid "\"{}\" can't be selected."
-msgstr "«{}» no se puede seleccionar."
+msgid "Loading..."
+msgstr "Cargando..."
 
-msgid "Selection too long"
-msgstr "Selección demasiado larga"
+msgid "Mesh"
+msgstr "Mesh"
 
-msgid "The paths are too long to return. Select fewer items."
-msgstr "Las rutas son demasiado largas para devolverlas. Selecciona menos elementos."
+msgid "Mode"
+msgstr "Modo"
+
+msgid "Never"
+msgstr "Nunca"
+
+msgid "No"
+msgstr "No"
+
+msgid "No networks found."
+msgstr "No se encontraron redes."
+
+msgid "None"
+msgstr "Ninguno"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Open"
+msgstr "Abrir"
+
+msgid "Precise"
+msgstr "Precisa"
+
+msgid "Retry"
+msgstr "Reintentar"
+
+msgid "Select"
+msgstr "Elegir"
+
+msgid "Timeout"
+msgstr "Tiempo de espera"
+
+msgid "Yes"
+msgstr "Sí"

@@ -1,3 +1,5 @@
+#define L10N_APP "timedatesettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/app/timedatesettings/TimeDateSettings.h>
 #include <Tactility/app/timezone/TimeZone.h>
@@ -61,7 +63,7 @@ constexpr uint32_t LOCATION_REFRESH_MS = 1000;
 
 void updateGpsSyncText(Context* ctx) {
     if (ctx->gpsSyncLabel != nullptr) {
-        lv_label_set_text(ctx->gpsSyncLabel, ctx->locationEnabled ? "Sets the clock once after boot" : "Requires location services");
+        lv_label_set_text(ctx->gpsSyncLabel, ctx->locationEnabled ? tr("Sets the clock once after boot") : tr("Requires location services"));
     }
 }
 
@@ -110,7 +112,7 @@ void startDateFormatSelection(Context* ctx) {
         return;
     }
     const std::vector<std::string> items(std::begin(DATE_FORMATS), std::end(DATE_FORMATS));
-    ctx->dateFormatDialogId = selectiondialog::start(ctx->appInstanceId, "Date format", items);
+    ctx->dateFormatDialogId = selectiondialog::start(ctx->appInstanceId, tr("Date format"), items);
 }
 
 void onDateFormatSelectionResult(Context* ctx, const AppEvent& event) {
@@ -165,7 +167,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Time & Date");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Time & Date"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
@@ -191,7 +193,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_scrollable(time_format_row, false);
 
     auto* time_24h_label = lv_label_create(time_format_row);
-    lv_label_set_text(time_24h_label, "24-hour format");
+    lv_label_set_text(time_24h_label, tr("24-hour format"));
     lv_obj_set_flex_grow(time_24h_label, 1);
 
     auto* time_24h_switch = lv_switch_create(time_format_row);
@@ -213,7 +215,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_bg_opa(date_format_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_scrollable(date_format_row, false);
 
-    ctx->dateFormatLabel = createTitleAndValue(date_format_row, "Date format");
+    ctx->dateFormatLabel = createTitleAndValue(date_format_row, tr("Date format"));
     lv_label_set_text(ctx->dateFormatLabel, getDateFormat().c_str());
 
     auto* date_format_button = lv_button_create(date_format_row);
@@ -234,7 +236,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_style_bg_opa(gps_sync_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
         lv_obj_set_scrollable(gps_sync_row, false);
 
-        ctx->gpsSyncLabel = createTitleAndValue(gps_sync_row, "GPS sync at boot");
+        ctx->gpsSyncLabel = createTitleAndValue(gps_sync_row, tr("GPS sync at boot"));
         updateGpsSyncText(ctx);
 
         auto* gps_sync_switch = lv_switch_create(gps_sync_row);
@@ -254,10 +256,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_bg_opa(timezone_row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
     lv_obj_set_scrollable(timezone_row, false);
 
-    ctx->timeZoneLabel = createTitleAndValue(timezone_row, "Timezone");
+    ctx->timeZoneLabel = createTitleAndValue(timezone_row, tr("Timezone"));
     std::string timeZoneName = settings::getTimeZoneName();
     if (timeZoneName.empty()) {
-        timeZoneName = "not set";
+        timeZoneName = tr("not set");
     }
     lv_label_set_text(ctx->timeZoneLabel, timeZoneName.c_str());
 

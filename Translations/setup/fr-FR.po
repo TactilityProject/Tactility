@@ -42,18 +42,6 @@ msgstr "Autorise les applications à obtenir votre position. Utilise le GPS et/o
 msgid "App location access:"
 msgstr "Accès des applications à la position :"
 
-msgid "Precise"
-msgstr "Précise"
-
-msgid "Approximate"
-msgstr "Approximative"
-
-msgid "Disabled"
-msgstr "Désactivé"
-
-msgid "Enabled"
-msgstr "Activé"
-
 msgid "Time Zone"
 msgstr "Fuseau horaire"
 
@@ -77,6 +65,3 @@ msgstr "Aucun Wi-Fi disponible."
 
 msgid "Scanning"
 msgstr "Recherche"
-
-msgid "No networks found."
-msgstr "Aucun réseau trouvé."

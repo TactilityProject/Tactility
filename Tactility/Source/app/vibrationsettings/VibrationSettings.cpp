@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+#define L10N_APP "vibrationsettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/settings/VibrationSettings.h>
 
 #include <app/event.h>
@@ -131,7 +133,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Vibration");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Vibration"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* main_wrapper = lv_obj_create(parent);
@@ -143,7 +145,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     if (ctx->device == nullptr) {
         auto* label = lv_label_create(main_wrapper);
-        lv_label_set_text(label, "No vibration motor available");
+        lv_label_set_text(label, tr("No vibration motor available"));
         lv_obj_center(label);
         return;
     }
@@ -153,15 +155,15 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(card, 8, LV_STATE_DEFAULT);
 
-    ctx->enabledSwitch = createSwitchRow(card, "Enabled", onEnabledSwitch, ctx);
+    ctx->enabledSwitch = createSwitchRow(card, tr("Enabled"), onEnabledSwitch, ctx);
     lv_obj_set_state(ctx->enabledSwitch, LV_STATE_CHECKED, ctx->settings.enabled);
 
-    ctx->strengthSlider = createSliderRow(card, "Strength", 0, 100, 10, ctx->settings.strength, onStrengthSlider, ctx);
+    ctx->strengthSlider = createSliderRow(card, tr("Strength"), 0, 100, 10, ctx->settings.strength, onStrengthSlider, ctx);
     ctx->strengthRow = lv_obj_get_parent(ctx->strengthSlider);
 
     auto* durationSlider = createSliderRow(
         card,
-        "Duration (ms)",
+        tr("Duration (ms)"),
         static_cast<int32_t>(settings::vibration::DURATION_MIN_MS),
         static_cast<int32_t>(settings::vibration::DURATION_MAX_MS),
         static_cast<int32_t>(settings::vibration::DURATION_STEP_MS),
@@ -175,7 +177,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_width(ctx->testButton, LV_PCT(100));
     lv_obj_set_style_pad_ver(ctx->testButton, 8, LV_STATE_DEFAULT);
     auto* test_label = lv_label_create(ctx->testButton);
-    lv_label_set_text(test_label, "Test");
+    lv_label_set_text(test_label, tr("Test"));
     lv_obj_center(test_label);
     lv_obj_add_event_cb(ctx->testButton, onTestPressed, LV_EVENT_SHORT_CLICKED, ctx);
 

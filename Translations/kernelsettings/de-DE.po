@@ -1,0 +1,31 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "Failed to start: {}"
+msgstr "Start fehlgeschlagen: {}"
+
+msgid "Failed to stop: {}"
+msgstr "Stopp fehlgeschlagen: {}"
+
+msgid "Kernel"
+msgstr "Kernel"
+
+msgid "Modules"
+msgstr "Module"
+
+msgid "No installed modules"
+msgstr "Keine installierten Module"
+
+msgid "Start"
+msgstr "Starten"
+
+msgid "Started"
+msgstr "Gestartet"
+
+msgid "Stop"
+msgstr "Stoppen"
+
+msgid "Stopped"
+msgstr "Gestoppt"

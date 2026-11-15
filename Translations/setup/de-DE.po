@@ -42,18 +42,6 @@ msgstr "Erlaubt Apps, deinen Standort abzufragen. Verwendet GPS und/oder kontakt
 msgid "App location access:"
 msgstr "Standortzugriff für Apps:"
 
-msgid "Precise"
-msgstr "Genau"
-
-msgid "Approximate"
-msgstr "Ungefähr"
-
-msgid "Disabled"
-msgstr "Deaktiviert"
-
-msgid "Enabled"
-msgstr "Aktiviert"
-
 msgid "Time Zone"
 msgstr "Zeitzone"
 
@@ -77,6 +65,3 @@ msgstr "Kein WLAN verfügbar."
 
 msgid "Scanning"
 msgstr "Suche läuft"
-
-msgid "No networks found."
-msgstr "Keine Netzwerke gefunden."

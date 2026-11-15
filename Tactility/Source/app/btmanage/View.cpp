@@ -1,3 +1,5 @@
+#define L10N_APP "btmanage"
+#include <Tactility/i18n/AppDomain.h>
 #include <format>
 #include <string>
 
@@ -101,10 +103,7 @@ static lv_obj_t* createSection(lv_obj_t* parent, const char* title) {
 void View::createPeerListItem(lv_obj_t* list, const BluetoothPeer& record, bool isPaired, size_t index) {
     const auto percentage = mapRssiToPercentage(record.rssi);
     const auto label = record.name[0] == '\0'
-        ? std::format("Unknown ({:02x}{:02x}{:02x}{:02x}{:02x}{:02x}) {}%",
-            record.addr[0], record.addr[1], record.addr[2],
-            record.addr[3], record.addr[4], record.addr[5],
-            percentage)
+        ? i18n::format(tr("Unknown ({}) {}%"), { std::format("{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}", record.addr[0], record.addr[1], record.addr[2], record.addr[3], record.addr[4], record.addr[5]), std::to_string(percentage) })
         : std::format("{} {}%", record.name, percentage);
 
     auto* button = lvgl_list_add_button(list, nullptr, label.c_str());
@@ -155,7 +154,7 @@ void View::updatePeerList() {
         // Paired peers section
         auto paired = state->getPairedPeers();
         if (!paired.empty()) {
-            auto* paired_section = createSection(peers_list, "Paired");
+            auto* paired_section = createSection(peers_list, tr("Paired"));
             for (size_t i = 0; i < paired.size(); ++i) {
                 createPeerListItem(paired_section, paired[i], true, i);
             }
@@ -163,7 +162,7 @@ void View::updatePeerList() {
 
         // Scan results section
         auto scan_results = state->getScanResults();
-        auto* available_section = createSection(peers_list, "Available");
+        auto* available_section = createSection(peers_list, tr("Available"));
         // Devices without a name are skipped. The index stays that of the scan results, which the click handler uses.
         bool hasNamedResults = false;
         for (size_t i = 0; i < scan_results.size(); ++i) {
@@ -173,7 +172,7 @@ void View::updatePeerList() {
             }
         }
         if (!hasNamedResults && !state->isScanning()) {
-            lvgl_list_add_text(available_section, "No devices found.");
+            lvgl_list_add_text(available_section, tr("No devices found."));
         }
         // Never hide peers_list: it always contains the "Enable on boot" row.
         // While scanning with no results the spinner in the toolbar provides feedback.
@@ -183,7 +182,7 @@ void View::updatePeerList() {
         lv_obj_set_width(scan_button, LV_PCT(100));
         lv_obj_set_style_margin_ver(scan_button, 4, LV_STATE_DEFAULT);
         auto* scan_label = lv_label_create(scan_button);
-        lv_label_set_text(scan_label, state->isScanning() ? "Stop scan" : "Scan");
+        lv_label_set_text(scan_label, state->isScanning() ? tr("Stop scan") : tr("Scan"));
         lv_obj_add_event_cb(scan_button, onScanButtonClicked, LV_EVENT_SHORT_CLICKED, context);
     }
 }
@@ -199,7 +198,7 @@ void View::init(void* newContext, lv_obj_t* parent) {
     root = parent;
 
     // Toolbar
-    auto* toolbar = lvgl_toolbar_create(parent, "Bluetooth");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Bluetooth"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, context);
 
     scanning_spinner = lvgl_toolbar_add_spinner_action(toolbar);
