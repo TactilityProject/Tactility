@@ -209,3 +209,6 @@ msgstr "Esta red mesh no tiene adverts."
 
 msgid "Couldn't send advert"
 msgstr "No se pudo enviar el advert"
+
+msgid "Show QR"
+msgstr "Mostrar QR"

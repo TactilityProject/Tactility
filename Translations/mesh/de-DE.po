@@ -209,3 +209,6 @@ msgstr "Dieses Mesh-Netzwerk hat keine Adverts."
 
 msgid "Couldn't send advert"
 msgstr "Advert konnte nicht gesendet werden"
+
+msgid "Show QR"
+msgstr "QR anzeigen"

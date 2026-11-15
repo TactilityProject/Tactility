@@ -209,3 +209,6 @@ msgstr "Dit mesh-netwerk heeft geen adverts."
 
 msgid "Couldn't send advert"
 msgstr "Advert versturen mislukt"
+
+msgid "Show QR"
+msgstr "QR tonen"

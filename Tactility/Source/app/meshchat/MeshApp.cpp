@@ -1,4 +1,4 @@
-#define L10N_APP "meshchat"
+#define L10N_APP "mesh"
 #include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/inputdialog/InputDialog.h>
@@ -652,7 +652,7 @@ void onContactKeyResult(Context* ctx, int32_t result) {
 
 /** The order of these matches the options of the selection dialog */
 enum class MenuItem { AddByKey, AddSeen, ShowQr };
-enum class MainMenuItem { AdvertZeroHop, AdvertFlood };
+enum class MainMenuItem { AdvertZeroHop, AdvertFlood, ShowQr };
 
 void startMenu(Context* ctx) {
     if (ctx->menuDialogId != 0) {
@@ -661,7 +661,8 @@ void startMenu(Context* ctx) {
     if (ctx->mode == ViewMode::Menu) {
         ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, tr("Mesh"), {
             tr("Advert: Zero hop"),
-            tr("Advert: Flood routed")
+            tr("Advert: Flood routed"),
+            tr("Show QR")
         });
         return;
     }
@@ -673,6 +674,10 @@ void startMenu(Context* ctx) {
 }
 
 void onMainMenuSelected(Context* ctx, int32_t selected) {
+    if (static_cast<MainMenuItem>(selected) == MainMenuItem::ShowQr) {
+        showOwnQr(ctx);
+        return;
+    }
     const auto route = static_cast<MainMenuItem>(selected) == MainMenuItem::AdvertZeroHop ? MESH_ADVERT_ZERO_HOP : MESH_ADVERT_FLOOD;
     const error_t error = mesh_send_advert(route);
     if (error != ERROR_NONE && ctx->messageDialogId == 0) {

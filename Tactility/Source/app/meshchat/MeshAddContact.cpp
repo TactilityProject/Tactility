@@ -1,5 +1,5 @@
 
-#define L10N_APP "meshchat"
+#define L10N_APP "mesh"
 #include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/meshchat/MeshChatCommon.h>
