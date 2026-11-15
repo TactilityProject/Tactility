@@ -1,3 +1,5 @@
+#define L10N_APP "selectiondialog"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/selectiondialog/SelectionDialog.h>
 
 #include <app/event.h>
@@ -20,7 +22,7 @@
 namespace tt::app::selectiondialog {
 
 constexpr auto* TAG = "SelectionDialog";
-constexpr auto* DEFAULT_TITLE = "Select...";
+constexpr auto* DEFAULT_TITLE = tr_noop("Select...");
 
 extern const ::AppManifest manifest;
 
@@ -78,7 +80,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    const char* title = (argv[0][0] != '\0') ? argv[0] : DEFAULT_TITLE;
+    const char* title = (argv[0][0] != '\0') ? argv[0] : tr(DEFAULT_TITLE);
     lvgl_toolbar_create(parent, title);
 
     // Scrolls the card when the items don't fit

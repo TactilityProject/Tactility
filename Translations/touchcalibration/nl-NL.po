@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Calibration Complete"
+msgstr "Kalibratie voltooid"
+
+msgid "Calibration Failed"
+msgstr "Kalibratie mislukt"
+
+msgid "Range invalid. Tap to close."
+msgstr "Bereik ongeldig. Tik om te sluiten."
+
+msgid "Tap target {}/4"
+msgstr "Tik op doel {}/4"
+
+msgid "Touch anywhere to continue."
+msgstr "Tik ergens om door te gaan."
+
+msgid "Touchscreen Calibration"
+msgstr "Touchscreen kalibreren"
+
+msgid "Unable to save settings. Tap to close."
+msgstr "Instellingen opslaan mislukt. Tik om te sluiten."

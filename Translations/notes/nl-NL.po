@@ -1,0 +1,13 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Notes"
+msgstr "Notities"
+
+msgid "Notes..."
+msgstr "Notities..."
+
+msgid "Untitled"
+msgstr "Naamloos"

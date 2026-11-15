@@ -1,4 +1,6 @@
 #ifdef ESP_PLATFORM
+#define L10N_APP "camera"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/Tactility.h>
 
 #include <app/event.h>
@@ -147,7 +149,7 @@ void buildTimestampedPath(const char* suffix, char* out, size_t outLen) {
 
 bool saveJpeg(Context* ctx) {
     if (!ctx->camHandle) {
-        showToast(ctx, "Capture failed: driver unavailable");
+        showToast(ctx, tr("Capture failed: driver unavailable"));
         return false;
     }
 
@@ -157,7 +159,7 @@ bool saveJpeg(Context* ctx) {
     uint8_t* jpegBuf = nullptr;
     size_t   jpegLen = 0;
     if (camera_capture_jpeg(ctx->camHandle, &jpegBuf, &jpegLen, 100) != ERROR_NONE || !jpegBuf) {
-        showToast(ctx, "Capture failed: encode error");
+        showToast(ctx, tr("Capture failed: encode error"));
         return false;
     }
 
@@ -180,11 +182,10 @@ bool saveJpeg(Context* ctx) {
     if (ok) {
         LOG_I("Camera", "Saved JPEG: %s (%zu bytes)", path, jpegLen);
         const char* basename = strrchr(path, '/');
-        char msg[sizeof(path) + 8];
-        snprintf(msg, sizeof(msg), "Saved: %s", basename ? basename + 1 : path);
-        showToast(ctx, msg);
+        const auto msg = i18n::format(tr("Saved: {}"), { basename ? basename + 1 : path });
+        showToast(ctx, msg.c_str());
     } else {
-        showToast(ctx, "Capture failed: cannot write file");
+        showToast(ctx, tr("Capture failed: cannot write file"));
     }
     return ok;
 }
@@ -226,7 +227,7 @@ void onCaptureBtn(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     if (ctx) {
         ctx->captureNext.store(true);
-        showToast(ctx, "Capturing...");
+        showToast(ctx, tr("Capturing..."));
     }
 }
 
@@ -255,7 +256,7 @@ void cameraTaskEntry(void* arg) {
     ctx->camHandle = handle;
     xSemaphoreGive(ctx->camHandleMutex);
     syncRotation(ctx);
-    showToast(ctx, "Camera Started...");
+    showToast(ctx, tr("Camera Started..."));
 
     size_t frameSz = (size_t)camera_get_width(handle) * camera_get_height(handle) * 2;
     for (int i = 0; i < 2; i++) {
@@ -369,7 +370,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Camera");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Camera"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
     lvgl_toolbar_add_text_button_action(toolbar, LV_SYMBOL_EYE_OPEN, onCaptureBtn, ctx);

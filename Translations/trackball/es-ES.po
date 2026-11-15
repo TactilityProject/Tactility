@@ -1,0 +1,22 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "Key speed"
+msgstr "Velocidad de teclas"
+
+msgid "Keys"
+msgstr "Teclas"
+
+msgid "No trackball device found."
+msgstr "No se encontró ningún trackball."
+
+msgid "Pointer"
+msgstr "Puntero"
+
+msgid "Pointer speed"
+msgstr "Velocidad del puntero"
+
+msgid "Trackball"
+msgstr "Trackball"

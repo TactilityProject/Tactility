@@ -1,0 +1,76 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "Advanced settings"
+msgstr "Paramètres avancés"
+
+msgid "Bandwidth"
+msgstr "Bande passante"
+
+msgid "Coding rate"
+msgstr "Taux de codage"
+
+msgid "Frequency (MHz)"
+msgstr "Fréquence (MHz)"
+
+msgid "Mesh network"
+msgstr "Réseau mesh"
+
+msgid "Modem preset"
+msgstr "Préréglage du modem"
+
+msgid "Name"
+msgstr "Nom"
+
+msgid "Path hash size"
+msgstr "Taille du hash de chemin"
+
+msgid "Preset"
+msgstr "Préréglage"
+
+msgid "Profile value"
+msgstr "Valeur du profil"
+
+msgid "Radio"
+msgstr "Radio"
+
+msgid "Region"
+msgstr "Région"
+
+msgid "Region scope"
+msgstr "Portée de la région"
+
+msgid "Select a region to turn on the radio"
+msgstr "Sélectionnez une région pour activer la radio"
+
+msgid "Selected preset"
+msgstr "Préréglage sélectionné"
+
+msgid "Settings not allowed in {}"
+msgstr "Paramètres non autorisés en {}"
+
+msgid "Spreading factor"
+msgstr "Facteur d'étalement"
+
+msgid "Status"
+msgstr "État"
+
+msgid "The name that other nodes see"
+msgstr "Le nom que voient les autres nœuds"
+
+msgid "Transmit power"
+msgstr "Puissance d'émission"
+
+msgid "e.g. 869.618, empty for the preset's value"
+msgstr "p. ex. 869.618, vide pour la valeur du préréglage"
+
+msgid "e.g. nl, * for none, empty for the preset's value"
+msgstr "p. ex. nl, * pour aucune, vide pour la valeur du préréglage"
+
+msgid "{} byte"
+msgstr "{} octet"
+
+msgid "{} bytes"
+msgstr "{} octets"

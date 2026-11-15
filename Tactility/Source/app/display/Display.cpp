@@ -1,3 +1,5 @@
+#define L10N_APP "display"
+#include <Tactility/i18n/AppDomain.h>
 #include <lvgl/lvgl.h>
 #include <tactility/check.h>
 #include <tactility/device.h>
@@ -56,12 +58,12 @@ struct TimeoutOption {
 };
 
 constexpr TimeoutOption TIMEOUT_OPTIONS[] = {
-    { 15000, "15 seconds" },
-    { 30000, "30 seconds" },
-    { 60000, "1 minute" },
-    { 120000, "2 minutes" },
-    { 300000, "5 minutes" },
-    { 0, "Never" },
+    { 15000, tr_noop("15 seconds") },
+    { 30000, tr_noop("30 seconds") },
+    { 60000, tr_noop("1 minute") },
+    { 120000, tr_noop("2 minutes") },
+    { 300000, tr_noop("5 minutes") },
+    { 0, tr_noop("Never") },
 };
 
 // The icon is an upright phone with its bar at the bottom, rotated clockwise (0.1 degree units) to the screen's shape.
@@ -69,7 +71,7 @@ constexpr TimeoutOption TIMEOUT_OPTIONS[] = {
 constexpr int32_t ORIENTATION_ICON_ROTATIONS[] = { 2700, 0, 900, 1800 };
 
 // In settings::display::ScreensaverType order
-constexpr const char* SCREENSAVER_NAMES[] = { "None", "Bouncing Balls", "Mystify", "Matrix Rain", "StackChan" };
+constexpr const char* SCREENSAVER_NAMES[] = { tr_noop("None"), tr_noop("Bouncing Balls"), tr_noop("Mystify"), tr_noop("Matrix Rain"), tr_noop("StackChan") };
 
 struct Context {
     uint32_t appInstanceId;
@@ -244,15 +246,15 @@ void onTimeoutSwitch(lv_event_t* event) {
 const char* getTimeoutName(uint32_t ms) {
     for (const auto& option : TIMEOUT_OPTIONS) {
         if (option.ms == ms) {
-            return option.name;
+            return tr(option.name);
         }
     }
-    return "Custom";
+    return tr("Custom");
 }
 
 const char* getScreensaverName(settings::display::ScreensaverType type) {
     const auto index = static_cast<size_t>(type);
-    return index < std::size(SCREENSAVER_NAMES) ? SCREENSAVER_NAMES[index] : "";
+    return index < std::size(SCREENSAVER_NAMES) ? tr(SCREENSAVER_NAMES[index]) : "";
 }
 
 /** Requires the LVGL lock */
@@ -279,17 +281,20 @@ void startTimeoutSelection(Context* ctx) {
     }
     std::vector<std::string> items;
     for (const auto& option : TIMEOUT_OPTIONS) {
-        items.emplace_back(option.name);
+        items.emplace_back(tr(option.name));
     }
-    ctx->timeoutDialogId = selectiondialog::start(ctx->appInstanceId, "Timeout", items);
+    ctx->timeoutDialogId = selectiondialog::start(ctx->appInstanceId, tr("Timeout"), items);
 }
 
 void startScreensaverSelection(Context* ctx) {
     if (ctx->screensaverDialogId != 0) {
         return;
     }
-    const std::vector<std::string> items(std::begin(SCREENSAVER_NAMES), std::end(SCREENSAVER_NAMES));
-    ctx->screensaverDialogId = selectiondialog::start(ctx->appInstanceId, "Screensaver", items);
+    std::vector<std::string> items;
+    for (const auto* name : SCREENSAVER_NAMES) {
+        items.emplace_back(tr(name));
+    }
+    ctx->screensaverDialogId = selectiondialog::start(ctx->appInstanceId, tr("Screensaver"), items);
 }
 
 // Other results than an index mean that the dialog was dismissed
@@ -345,7 +350,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     auto* backlight = getBacklightDevice();
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Display");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Display"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -363,7 +368,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         bool is_on_off_brightness = backlight_get_min_brightness(backlight) == 0 && backlight_get_max_brightness(backlight) == 1;
         if (!is_on_off_brightness) {
             auto* brightness_label = lv_label_create(main_wrapper);
-            lv_label_set_text(brightness_label, "Brightness");
+            lv_label_set_text(brightness_label, tr("Brightness"));
 
             auto* brightness_card = lvgl_card_create(main_wrapper);
             lv_obj_set_size(brightness_card, LV_PCT(100), LV_SIZE_CONTENT);
@@ -390,7 +395,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_scrollable(auto_rotate_row, false);
 
         auto* auto_rotate_label = lv_label_create(auto_rotate_row);
-        lv_label_set_text(auto_rotate_label, "Auto-rotate");
+        lv_label_set_text(auto_rotate_label, tr("Auto-rotate"));
         lv_obj_set_flex_grow(auto_rotate_label, 1);
 
         ctx->autoRotateSwitch = lv_switch_create(auto_rotate_row);
@@ -403,7 +408,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_size(ctx->orientationCard, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(ctx->orientationCard, LV_FLEX_FLOW_COLUMN);
 
-    auto* orientation_group = createCardGroup(ctx->orientationCard, "Orientation");
+    auto* orientation_group = createCardGroup(ctx->orientationCard, tr("Orientation"));
     ctx->orientationChips = createOrientationChips(orientation_group, ctx->displaySettings.orientation, onOrientationChipPressed, ctx);
 
     updateOrientationVisibility(ctx);
@@ -423,7 +428,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_scrollable(timeout_wrapper, false);
 
         auto* timeout_label = lv_label_create(timeout_wrapper);
-        lv_label_set_text(timeout_label, "Auto screen off");
+        lv_label_set_text(timeout_label, tr("Auto screen off"));
         lv_obj_set_flex_grow(timeout_label, 1);
 
         ctx->timeoutSwitch = lv_switch_create(timeout_wrapper);
@@ -438,8 +443,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_hidden(timeout_card, !ctx->displaySettings.backlightTimeoutEnabled);
         ctx->timeoutCard = timeout_card;
 
-        ctx->timeoutValueLabel = createValueRow(timeout_card, "Timeout", onChangeTimeoutPressed, ctx);
-        ctx->screensaverValueLabel = createValueRow(timeout_card, "Screensaver", onChangeScreensaverPressed, ctx);
+        ctx->timeoutValueLabel = createValueRow(timeout_card, tr("Timeout"), onChangeTimeoutPressed, ctx);
+        ctx->screensaverValueLabel = createValueRow(timeout_card, tr("Screensaver"), onChangeScreensaverPressed, ctx);
         updateTimeoutLabels(ctx);
     }
 }

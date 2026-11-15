@@ -1,4 +1,6 @@
 
+#define L10N_APP "meshchat"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/meshchat/MeshChatCommon.h>
 
@@ -63,27 +65,27 @@ const MeshAddress* getPeer(const Context* ctx) {
 }
 
 /** How far a message got. Channel messages are never acknowledged by their recipients. */
-const char* getReceiptText(MeshDeliveryState delivery) {
+::std::string getReceiptText(MeshDeliveryState delivery) {
     switch (delivery) {
         case MESH_DELIVERY_QUEUED:
-            return "Sending...";
+            return tr("Sending...");
         case MESH_DELIVERY_BLOCKED:
-            return "Waiting";
+            return tr("Waiting");
         case MESH_DELIVERY_SENT:
-            return "Sent";
+            return tr("Sent");
         case MESH_DELIVERY_DELIVERED:
-            return LV_SYMBOL_OK " Delivered";
+            return ::std::string(LV_SYMBOL_OK " ") + tr("Delivered");
         case MESH_DELIVERY_FAILED:
-            return LV_SYMBOL_CLOSE " Not delivered";
+            return ::std::string(LV_SYMBOL_CLOSE " ") + tr("Not delivered");
         case MESH_DELIVERY_CANCELLED:
-            return "Cancelled";
+            return tr("Cancelled");
         default:
             return "";
     }
 }
 
 ::std::string getHeaderText(const MeshMessage& message) {
-    ::std::string header = message.outgoing ? "You" : (message.sender_name[0] != '\0' ? message.sender_name : "?");
+    ::std::string header = message.outgoing ? tr("You") : (message.sender_name[0] != '\0' ? message.sender_name : "?");
     if (message.wall_time > 0) {
         const time_t time = (time_t)message.wall_time;
         struct tm local {};
@@ -150,7 +152,7 @@ void updateStatus(Context* ctx) {
         return;
     }
     const bool on = mesh_get_state() == MESH_STATE_ON;
-    lv_label_set_text(ctx->statusLabel, (::std::string("Mesh: ") + mesh_state_to_string(mesh_get_state())).c_str());
+    lv_label_set_text(ctx->statusLabel, i18n::format(tr("Mesh: {}"), { mesh_state_to_string(mesh_get_state()) }).c_str());
     lv_obj_set_hidden(ctx->statusLabel, on);
 }
 
@@ -165,7 +167,7 @@ void onSendPressed(lv_event_t* event) {
         lv_textarea_set_text(ctx->input, "");
     } else {
         LOG_W(TAG, "Failed to send: %s", error_to_string(error));
-        lv_label_set_text(ctx->statusLabel, error == ERROR_INVALID_STATE ? "Turn mesh on to send messages" : error_to_string(error));
+        lv_label_set_text(ctx->statusLabel, error == ERROR_INVALID_STATE ? tr("Turn mesh on to send messages") : error_to_string(error));
         lv_obj_set_hidden(ctx->statusLabel, false);
     }
 }
@@ -238,12 +240,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_grow(ctx->input, 1);
     lv_textarea_set_one_line(ctx->input, true);
     lv_textarea_set_max_length(ctx->input, MESH_TEXT_MAX_LENGTH);
-    lv_textarea_set_placeholder_text(ctx->input, "Type a message...");
+    lv_textarea_set_placeholder_text(ctx->input, tr("Type a message..."));
     lv_obj_add_event_cb(ctx->input, onSendPressed, LV_EVENT_READY, ctx);
 
     auto* sendButton = lv_button_create(inputBar);
     lv_obj_add_event_cb(sendButton, onSendPressed, LV_EVENT_CLICKED, ctx);
-    lv_label_set_text(lv_label_create(sendButton), "Send");
+    lv_label_set_text(lv_label_create(sendButton), tr("Send"));
 }
 
 void destroyWidgets(void* userData) {
@@ -337,22 +339,22 @@ void showChannelKey(Context* ctx) {
     }
     MeshChannel channel;
     if (!getChannel(ctx, &channel) || channel.key_length == 0) {
-        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, "Channel key", "The key isn't available.");
+        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, tr("Channel key"), tr("The key isn't available."));
         return;
     }
     MeshAddress key {};
     memcpy(key.bytes, channel.key, channel.key_length);
     key.length = channel.key_length;
     const ::std::string text = addressToHex(key);
-    ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, "Channel key", text.c_str());
+    ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, tr("Channel key"), text.c_str());
 }
 
 void startRemoveDialog(Context* ctx) {
     if (ctx->removeDialogId != 0) {
         return;
     }
-    const char* title = ctx->isContact ? "Remove contact" : "Leave channel";
-    const char* message = ctx->isContact ? "The messages are kept." : "The messages are kept, but new messages in this channel aren't received anymore.";
+    const char* title = ctx->isContact ? tr("Remove contact") : tr("Leave channel");
+    const char* message = ctx->isContact ? tr("The messages are kept.") : tr("The messages are kept, but new messages in this channel aren't received anymore.");
     ctx->removeDialogId = alertdialog::start(ctx->appInstanceId, title, message, { tr("Remove"), tr("Cancel") });
 }
 
@@ -364,8 +366,8 @@ bool onRemoveResult(Context* ctx, int32_t result) {
     const error_t error = ctx->isContact ? mesh_remove_contact(&ctx->peer) : mesh_remove_channel(ctx->channel);
     if (error != ERROR_NONE && error != ERROR_NOT_FOUND) {
         LOG_E(TAG, "Failed to remove: %s", error_to_string(error));
-        const char* reason = (error == ERROR_INVALID_ARGUMENT) ? "This channel can't be left." : error_to_string(error);
-        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, "Couldn't remove", reason);
+        const char* reason = (error == ERROR_INVALID_ARGUMENT) ? tr("This channel can't be left.") : error_to_string(error);
+        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, tr("Couldn't remove"), reason);
         return false;
     }
     return true;

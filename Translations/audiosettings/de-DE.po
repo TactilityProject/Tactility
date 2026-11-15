@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "Audio"
+msgstr "Audio"
+
+msgid "Microphone"
+msgstr "Mikrofon"
+
+msgid "Mute"
+msgstr "Stumm"
+
+msgid "No audio hardware available"
+msgstr "Keine Audio-Hardware verfügbar"
+
+msgid "No supported audio controls"
+msgstr "Keine unterstützten Audio-Regler"
+
+msgid "Speaker"
+msgstr "Lautsprecher"
+
+msgid "Volume"
+msgstr "Lautstärke"

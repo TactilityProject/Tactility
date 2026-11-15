@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Available"
+msgstr "Beschikbaar"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "No devices found."
+msgstr "Geen apparaten gevonden."
+
+msgid "Paired"
+msgstr "Gekoppeld"
+
+msgid "Scan"
+msgstr "Zoeken"
+
+msgid "Stop scan"
+msgstr "Zoeken stoppen"
+
+msgid "Unknown ({}) {}%"
+msgstr "Onbekend ({}) {}%"

@@ -1,3 +1,5 @@
+#define L10N_APP "btpeersettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/btpeersettings/BtPeerSettings.h>
 
 #include <lvgl/lvgl.h>
@@ -95,7 +97,7 @@ void onPressForget(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     // Result isn't tracked by launch id (matches the original's behavior) - this app only
     // ever has one dialog in flight at a time.
-    alertdialog::start(ctx->appInstanceId, "Confirmation", "Forget this device?", std::vector<std::string> { tr("Yes"), tr("No") });
+    alertdialog::start(ctx->appInstanceId, tr("Confirmation"), tr("Forget this device?"), std::vector<std::string> { tr("Yes"), tr("No") });
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -145,21 +147,21 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_add_event_cb(ctx->connectButton, onPressConnect, LV_EVENT_SHORT_CLICKED, ctx);
     auto* connect_label = lv_label_create(ctx->connectButton);
     lv_obj_align(connect_label, LV_ALIGN_CENTER, 0, 0);
-    lv_label_set_text(connect_label, "Connect");
+    lv_label_set_text(connect_label, tr("Connect"));
 
     ctx->disconnectButton = lv_button_create(card);
     lv_obj_set_width(ctx->disconnectButton, LV_PCT(100));
     lv_obj_add_event_cb(ctx->disconnectButton, onPressDisconnect, LV_EVENT_SHORT_CLICKED, ctx);
     auto* disconnect_label = lv_label_create(ctx->disconnectButton);
     lv_obj_align(disconnect_label, LV_ALIGN_CENTER, 0, 0);
-    lv_label_set_text(disconnect_label, "Disconnect");
+    lv_label_set_text(disconnect_label, tr("Disconnect"));
 
     auto* forget_button = lv_button_create(card);
     lv_obj_set_width(forget_button, LV_PCT(100));
     lv_obj_add_event_cb(forget_button, onPressForget, LV_EVENT_SHORT_CLICKED, ctx);
     auto* forget_label = lv_label_create(forget_button);
     lv_obj_align(forget_label, LV_ALIGN_CENTER, 0, 0);
-    lv_label_set_text(forget_label, "Forget");
+    lv_label_set_text(forget_label, tr("Forget"));
 
     // Auto-connect toggle row
     auto* auto_connect_wrapper = lv_obj_create(card);
@@ -172,7 +174,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_border_width(auto_connect_wrapper, 0, LV_STATE_DEFAULT);
 
     auto* auto_connect_label = lv_label_create(auto_connect_wrapper);
-    lv_label_set_text(auto_connect_label, "Auto-connect");
+    lv_label_set_text(auto_connect_label, tr("Auto-connect"));
     lv_obj_set_flex_grow(auto_connect_label, 1);
 
     auto* auto_connect_switch = lv_switch_create(auto_connect_wrapper);

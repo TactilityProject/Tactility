@@ -133,6 +133,11 @@ else ()
     add_compile_definitions(CONFIG_TT_DEVICE_NAME_SIMPLE="Simulator")
     add_compile_definitions(CONFIG_TT_AUTO_START_APP_ID="")
     add_compile_definitions(CONFIG_TT_ROOT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/Data/data")
+    # Switch off to build the simulator with English only, like a device without CONFIG_TT_LANGUAGE_SELECTION
+    option(TT_SIM_LANGUAGE_SELECTION "Build the simulator with the translations" ON)
+    if (TT_SIM_LANGUAGE_SELECTION)
+        add_compile_definitions(CONFIG_TT_LANGUAGE_SELECTION=1)
+    endif ()
 
 endif ()
 

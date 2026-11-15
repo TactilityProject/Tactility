@@ -1,0 +1,19 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "Detecting the time zone needs location services. You can turn them on in Settings."
+msgstr "Detectar la zona horaria requiere los servicios de ubicación. Puedes activarlos en Ajustes."
+
+msgid "Select Time zone"
+msgstr "Elegir zona horaria"
+
+msgid "The detected time zone {} isn't in the list."
+msgstr "La zona horaria detectada {} no está en la lista."
+
+msgid "The time zone couldn't be detected. Check the internet connection and try again."
+msgstr "No se pudo detectar la zona horaria. Comprueba la conexión a Internet e inténtalo de nuevo."
+
+msgid "e.g. Europe/Amsterdam"
+msgstr "p. ej. Europe/Amsterdam"

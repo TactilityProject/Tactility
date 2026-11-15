@@ -1,3 +1,5 @@
+#define L10N_APP "meshchat"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/meshchat/MeshChatCommon.h>
 
 #include <app/start.h>
@@ -86,9 +88,9 @@ lv_obj_t* createNetworkHeader(lv_obj_t* parent) {
 
 void updateNetworkHeader(lv_obj_t* header, const NetworkInfo& info) {
     lv_obj_set_hidden(header, info.running && info.network[0] == '\0');
-    lv_span_set_text(lv_spangroup_get_child(header, 0), info.running ? "Using " : "Mesh is ");
-    lv_span_set_text(lv_spangroup_get_child(header, NETWORK_SPAN), info.running ? info.network : "OFF");
-    lv_span_set_text(lv_spangroup_get_child(header, 2), info.running ? " via " : "");
+    lv_span_set_text(lv_spangroup_get_child(header, 0), info.running ? tr("Using ") : tr("Mesh is "));
+    lv_span_set_text(lv_spangroup_get_child(header, NETWORK_SPAN), info.running ? info.network : tr("OFF"));
+    lv_span_set_text(lv_spangroup_get_child(header, 2), info.running ? tr(" via ") : "");
     lv_span_set_text(lv_spangroup_get_child(header, MODULATION_SPAN), info.modulation);
     lv_spangroup_refresh(header);
 }

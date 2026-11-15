@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "Available at {}\nFingerprint: {}"
+msgstr "Disponible à {}\nEmpreinte : {}"
+
+msgid "Development"
+msgstr "Développement"
+
+msgid "Service disabled"
+msgstr "Service désactivé"
+
+msgid "Trusted"
+msgstr "De confiance"
+
+msgid "Unknown"
+msgstr "Inconnu"
+
+msgid "Waiting for IP..."
+msgstr "En attente d'une IP..."
+
+msgid "Waiting for connection..."
+msgstr "En attente de connexion..."

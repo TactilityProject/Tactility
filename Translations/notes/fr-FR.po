@@ -1,0 +1,13 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "Notes"
+msgstr "Notes"
+
+msgid "Notes..."
+msgstr "Notes..."
+
+msgid "Untitled"
+msgstr "Sans titre"

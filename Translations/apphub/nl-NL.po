@@ -1,0 +1,46 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "All"
+msgstr "Alle"
+
+msgid "App Hub"
+msgstr "App Hub"
+
+msgid "Cannot reach server"
+msgstr "Server niet bereikbaar"
+
+msgid "Failed to load content"
+msgstr "Inhoud laden mislukt"
+
+msgid "Installed"
+msgstr "Geïnstalleerd"
+
+msgid "No Internet Connection"
+msgstr "Geen internetverbinding"
+
+msgid "No installed apps"
+msgstr "Geen geïnstalleerde apps"
+
+msgid "No updates available"
+msgstr "Geen updates beschikbaar"
+
+msgid "Update failed"
+msgstr "Update mislukt"
+
+msgid "Updates"
+msgstr "Updates"
+
+msgid "{} app failed to update: {}"
+msgstr "{} app kon niet bijgewerkt worden: {}"
+
+msgid "{} apps failed to update: {}"
+msgstr "{} apps konden niet bijgewerkt worden: {}"
+
+msgid "{} update"
+msgstr "{} update"
+
+msgid "{} updates"
+msgstr "{} updates"

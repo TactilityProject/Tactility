@@ -1,0 +1,163 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Amber"
+msgstr "Amber"
+
+msgid "Animations"
+msgstr "Animaties"
+
+msgid "Appearance"
+msgstr "Uiterlijk"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Blue"
+msgstr "Blauw"
+
+msgid "Blue grey"
+msgstr "Blauwgrijs"
+
+msgid "Brown"
+msgstr "Bruin"
+
+msgid "Contains {} characters: creating the fonts can take long and use a lot of memory."
+msgstr "Bevat {} tekens: het maken van de lettertypen kan lang duren en veel geheugen gebruiken."
+
+msgid "Cyan"
+msgstr "Cyaan"
+
+msgid "Dark"
+msgstr "Donker"
+
+msgid "Deep orange"
+msgstr "Donkeroranje"
+
+msgid "Deep purple"
+msgstr "Donkerpaars"
+
+msgid "Default"
+msgstr "Standaard"
+
+msgid "Error color"
+msgstr "Foutkleur"
+
+msgid "Failed to create the fonts. Check that the selected files are TrueType fonts."
+msgstr "Het maken van de lettertypen is mislukt. Controleer of de geselecteerde bestanden TrueType-lettertypen zijn."
+
+msgid "Font size"
+msgstr "Lettergrootte"
+
+msgid "Fonts"
+msgstr "Lettertypen"
+
+msgid "Green"
+msgstr "Groen"
+
+msgid "Grey"
+msgstr "Grijs"
+
+msgid "High"
+msgstr "Hoog"
+
+msgid "Indigo"
+msgstr "Indigo"
+
+msgid "Landscape"
+msgstr "Liggend"
+
+msgid "Layout"
+msgstr "Indeling"
+
+msgid "Light"
+msgstr "Licht"
+
+msgid "Light blue"
+msgstr "Lichtblauw"
+
+msgid "Light green"
+msgstr "Lichtgroen"
+
+msgid "Lime"
+msgstr "Limoen"
+
+msgid "Low"
+msgstr "Laag"
+
+msgid "Medium"
+msgstr "Gemiddeld"
+
+msgid "Mono"
+msgstr "Mono"
+
+msgid "Monospace font"
+msgstr "Monospace-lettertype"
+
+msgid "Orange"
+msgstr "Oranje"
+
+msgid "Pink"
+msgstr "Roze"
+
+msgid "Portrait"
+msgstr "Staand"
+
+msgid "Primary color"
+msgstr "Primaire kleur"
+
+msgid "Purple"
+msgstr "Paars"
+
+msgid "Red"
+msgstr "Rood"
+
+msgid "Regular"
+msgstr "Normaal"
+
+msgid "Regular font"
+msgstr "Normaal lettertype"
+
+msgid "Secondary color"
+msgstr "Secundaire kleur"
+
+msgid "Side"
+msgstr "Zijkant"
+
+msgid "Size (%)"
+msgstr "Grootte (%)"
+
+msgid "Spacing (%)"
+msgstr "Afstand (%)"
+
+msgid "Split"
+msgstr "Gesplitst"
+
+msgid "Style"
+msgstr "Stijl"
+
+msgid "Surface color"
+msgstr "Oppervlaktekleur"
+
+msgid "Surface tint"
+msgstr "Oppervlaktetint"
+
+msgid "System Bars"
+msgstr "Systeembalken"
+
+msgid "System font"
+msgstr "Systeemlettertype"
+
+msgid "Teal"
+msgstr "Blauwgroen"
+
+msgid "Theme"
+msgstr "Thema"
+
+msgid "Theme Colors"
+msgstr "Themakleuren"
+
+msgid "Yellow"
+msgstr "Geel"

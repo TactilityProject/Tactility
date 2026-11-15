@@ -1,3 +1,5 @@
+#define L10N_APP "terminal"
+#include <Tactility/i18n/AppDomain.h>
 #include "tactility/memory.h"
 
 
@@ -58,7 +60,7 @@ void createWidgets(lv_obj_t* root, void* userData) {
 
     // The toolbar only offers a touch close button. It's hidden to give the terminal all the room, and touching the terminal shows it on top.
     if (lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
-        auto* toolbar = lvgl_toolbar_create(root, "Terminal");
+        auto* toolbar = lvgl_toolbar_create(root, tr("Terminal"));
         lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onClosePressed, ctx);
         lv_obj_set_floating(toolbar, true);
         lv_obj_align(toolbar, LV_ALIGN_TOP_MID, 0, 0);

@@ -1,3 +1,5 @@
+#define L10N_APP "qrcode"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/qrcode/QrCode.h>
 
 #include <app/event.h>
@@ -56,7 +58,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     if (error != ERROR_NONE) {
         LOG_E(TAG, "Failed to create the QR code: %s", error_to_string(error));
         auto* label = lv_label_create(parent);
-        lv_label_set_text(label, "The data doesn't fit in a QR code");
+        lv_label_set_text(label, tr("The data doesn't fit in a QR code"));
         lv_obj_center(label);
     }
 

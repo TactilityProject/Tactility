@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Camera"
+msgstr "Camera"
+
+msgid "Camera Started..."
+msgstr "Camera gestart..."
+
+msgid "Capture failed: cannot write file"
+msgstr "Opname mislukt: bestand schrijven niet mogelijk"
+
+msgid "Capture failed: driver unavailable"
+msgstr "Opname mislukt: driver niet beschikbaar"
+
+msgid "Capture failed: encode error"
+msgstr "Opname mislukt: coderingsfout"
+
+msgid "Capturing..."
+msgstr "Opnemen..."
+
+msgid "Saved: {}"
+msgstr "Opgeslagen: {}"

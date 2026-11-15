@@ -1,0 +1,28 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "24-hour format"
+msgstr "24-Stunden-Format"
+
+msgid "Date format"
+msgstr "Datumsformat"
+
+msgid "GPS sync at boot"
+msgstr "GPS-Sync beim Start"
+
+msgid "Requires location services"
+msgstr "Erfordert Standortdienste"
+
+msgid "Sets the clock once after boot"
+msgstr "Stellt die Uhr einmal nach dem Start"
+
+msgid "Time & Date"
+msgstr "Zeit & Datum"
+
+msgid "Timezone"
+msgstr "Zeitzone"
+
+msgid "not set"
+msgstr "nicht gesetzt"

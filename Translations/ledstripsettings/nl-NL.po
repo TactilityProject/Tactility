@@ -1,0 +1,79 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Alternating"
+msgstr "Afwisselend"
+
+msgid "Black"
+msgstr "Zwart"
+
+msgid "Blue"
+msgstr "Blauw"
+
+msgid "Choose color"
+msgstr "Kleur kiezen"
+
+msgid "Choose mode"
+msgstr "Modus kiezen"
+
+msgid "Choose second color"
+msgstr "Tweede kleur kiezen"
+
+msgid "Color"
+msgstr "Kleur"
+
+msgid "Custom color"
+msgstr "Aangepaste kleur"
+
+msgid "Custom second color"
+msgstr "Aangepaste tweede kleur"
+
+msgid "Cyan"
+msgstr "Cyaan"
+
+msgid "Gradient"
+msgstr "Verloop"
+
+msgid "Green"
+msgstr "Groen"
+
+msgid "LED Strip"
+msgstr "LED-strip"
+
+msgid "Magenta"
+msgstr "Magenta"
+
+msgid "Orange"
+msgstr "Oranje"
+
+msgid "Output"
+msgstr "Uitgang"
+
+msgid "Pink"
+msgstr "Roze"
+
+msgid "Purple"
+msgstr "Paars"
+
+msgid "Red"
+msgstr "Rood"
+
+msgid "Red / Green / Blue"
+msgstr "Rood / Groen / Blauw"
+
+msgid "Second color"
+msgstr "Tweede kleur"
+
+msgid "Solid"
+msgstr "Effen"
+
+msgid "Teal"
+msgstr "Blauwgroen"
+
+msgid "White"
+msgstr "Wit"
+
+msgid "Yellow"
+msgstr "Geel"

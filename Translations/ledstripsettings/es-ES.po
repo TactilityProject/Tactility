@@ -1,0 +1,79 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "Alternating"
+msgstr "Alterno"
+
+msgid "Black"
+msgstr "Negro"
+
+msgid "Blue"
+msgstr "Azul"
+
+msgid "Choose color"
+msgstr "Elegir color"
+
+msgid "Choose mode"
+msgstr "Elegir modo"
+
+msgid "Choose second color"
+msgstr "Elegir segundo color"
+
+msgid "Color"
+msgstr "Color"
+
+msgid "Custom color"
+msgstr "Color personalizado"
+
+msgid "Custom second color"
+msgstr "Segundo color personalizado"
+
+msgid "Cyan"
+msgstr "Cian"
+
+msgid "Gradient"
+msgstr "Degradado"
+
+msgid "Green"
+msgstr "Verde"
+
+msgid "LED Strip"
+msgstr "Tira LED"
+
+msgid "Magenta"
+msgstr "Magenta"
+
+msgid "Orange"
+msgstr "Naranja"
+
+msgid "Output"
+msgstr "Salida"
+
+msgid "Pink"
+msgstr "Rosa"
+
+msgid "Purple"
+msgstr "Morado"
+
+msgid "Red"
+msgstr "Rojo"
+
+msgid "Red / Green / Blue"
+msgstr "Rojo / Verde / Azul"
+
+msgid "Second color"
+msgstr "Segundo color"
+
+msgid "Solid"
+msgstr "Sólido"
+
+msgid "Teal"
+msgstr "Verde azulado"
+
+msgid "White"
+msgstr "Blanco"
+
+msgid "Yellow"
+msgstr "Amarillo"

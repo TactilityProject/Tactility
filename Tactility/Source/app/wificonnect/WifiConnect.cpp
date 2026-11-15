@@ -1,3 +1,5 @@
+#define L10N_APP "wificonnect"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/wificonnect/WifiConnect.h>
 
 #include <Tactility/lvgl/SystemBars.h>
@@ -185,7 +187,7 @@ void updateView(Context* ctx) {
     if (ctx->connectionError) {
         setLoading(ctx, false);
         resetErrors(ctx);
-        lv_label_set_text(ctx->connection_error, "Connection failed");
+        lv_label_set_text(ctx->connection_error, tr("Connection failed"));
         lv_obj_set_hidden(ctx->connection_error, false);
     }
 }
@@ -200,7 +202,7 @@ void onConnectPressed(lv_event_t* event) {
     size_t ssid_len = strlen(ssid);
     if (ssid_len > WIFI_SETTINGS_SSID_LIMIT) {
         LOG_E(TAG, "SSID too long");
-        lv_label_set_text(ctx->ssid_error, "SSID too long");
+        lv_label_set_text(ctx->ssid_error, tr("SSID too long"));
         lv_obj_set_hidden(ctx->ssid_error, false);
         return;
     }
@@ -209,7 +211,7 @@ void onConnectPressed(lv_event_t* event) {
     size_t password_len = strlen(password);
     if (password_len > WIFI_SETTINGS_PASSWORD_LIMIT) {
         LOG_E(TAG, "Password too long");
-        lv_label_set_text(ctx->password_error, "Password too long");
+        lv_label_set_text(ctx->password_error, tr("Password too long"));
         lv_obj_set_hidden(ctx->password_error, false);
         return;
     }
@@ -246,7 +248,7 @@ void createBottomButtons(Context* ctx, lv_obj_t* parent) {
     lv_obj_set_flex_align(button_container, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     ctx->remember_checkbox = lv_checkbox_create(button_container);
-    lv_checkbox_set_text(ctx->remember_checkbox, "Remember");
+    lv_checkbox_set_text(ctx->remember_checkbox, tr("Remember"));
     lv_obj_add_state(ctx->remember_checkbox, LV_STATE_CHECKED);
 
     ctx->connecting_spinner = lvgl_spinner_create(button_container);
@@ -254,7 +256,7 @@ void createBottomButtons(Context* ctx, lv_obj_t* parent) {
 
     ctx->connect_button = lv_btn_create(button_container);
     auto* connect_label = lv_label_create(ctx->connect_button);
-    lv_label_set_text(connect_label, "Connect");
+    lv_label_set_text(connect_label, tr("Connect"));
     lv_obj_add_event_cb(ctx->connect_button, onConnectPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
     // The arrow keys move between the checkbox and the button as one row
@@ -319,7 +321,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Wi-Fi Connect");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Wi-Fi Connect"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -335,7 +337,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // SSID
 
-    auto* ssid_row = createRow(card, "Network");
+    auto* ssid_row = createRow(card, tr("Network"));
     ctx->ssid_textarea = lv_textarea_create(ssid_row);
     lv_textarea_set_one_line(ctx->ssid_textarea, true);
     lv_obj_set_width(ctx->ssid_textarea, LV_PCT(60));
@@ -344,7 +346,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // Password
 
-    auto* password_row = createRow(card, "Password");
+    auto* password_row = createRow(card, tr("Password"));
     ctx->password_textarea = lv_textarea_create(password_row);
     lv_textarea_set_one_line(ctx->password_textarea, true);
     lv_textarea_set_password_mode(ctx->password_textarea, true);

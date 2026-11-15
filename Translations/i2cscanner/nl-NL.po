@@ -1,0 +1,16 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "I2C interface not available"
+msgstr "I2C-interface niet beschikbaar"
+
+msgid "No devices found"
+msgstr "Geen apparaten gevonden"
+
+msgid "{} device found"
+msgstr "{} apparaat gevonden"
+
+msgid "{} devices found"
+msgstr "{} apparaten gevonden"

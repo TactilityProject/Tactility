@@ -1,0 +1,46 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "(unnamed)"
+msgstr "(naamloos)"
+
+msgid "External"
+msgstr "Extern"
+
+msgid "Failed to allocate memory for task list"
+msgstr "Geheugen reserveren voor de takenlijst mislukt"
+
+msgid "Hardware model: {}"
+msgstr "Hardwaremodel: {}"
+
+msgid "Hardware vendor: {}"
+msgstr "Hardwarefabrikant: {}"
+
+msgid "Internal"
+msgstr "Intern"
+
+msgid "System Info"
+msgstr "Systeeminfo"
+
+msgid "blocked"
+msgstr "geblokkeerd"
+
+msgid "deleted"
+msgstr "verwijderd"
+
+msgid "invalid"
+msgstr "ongeldig"
+
+msgid "ready"
+msgstr "gereed"
+
+msgid "running"
+msgstr "actief"
+
+msgid "suspended"
+msgstr "onderbroken"
+
+msgid "{} / {} {} free ({} / {} bytes)"
+msgstr "{} / {} {} vrij ({} / {} bytes)"

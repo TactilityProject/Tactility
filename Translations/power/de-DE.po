@@ -1,0 +1,37 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "Battery voltage: {} mV"
+msgstr "Akkuspannung: {} mV"
+
+msgid "Charge level: {}%"
+msgstr "Ladestand: {}%"
+
+msgid "Charging enabled"
+msgstr "Laden aktiviert"
+
+msgid "Charging: {}"
+msgstr "Lädt: {}"
+
+msgid "Current: {} mA"
+msgstr "Strom: {} mA"
+
+msgid "Device power"
+msgstr "Gerätestrom"
+
+msgid "Power"
+msgstr "Energie"
+
+msgid "Power off"
+msgstr "Ausschalten"
+
+msgid "Quick charge"
+msgstr "Schnellladen"
+
+msgid "no"
+msgstr "nein"
+
+msgid "yes"
+msgstr "ja"

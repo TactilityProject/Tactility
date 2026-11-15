@@ -1,3 +1,5 @@
+#define L10N_APP "ledstripsettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <lvgl/lvgl.h>
 #include <tactility/device.h>
 #include <tactility/drivers/led_strip.h>
@@ -28,9 +30,9 @@ extern const ::AppManifest manifest;
 constexpr auto* TAG = "LedStripSettings";
 constexpr uint8_t CUSTOM_PRESET = 12;
 constexpr const char* COLOR_NAMES[] = {
-    "White", "Green", "Red", "Blue",
-    "Yellow", "Orange", "Cyan", "Magenta",
-    "Purple", "Pink", "Teal", "Black"
+    tr_noop("White"), tr_noop("Green"), tr_noop("Red"), tr_noop("Blue"),
+    tr_noop("Yellow"), tr_noop("Orange"), tr_noop("Cyan"), tr_noop("Magenta"),
+    tr_noop("Purple"), tr_noop("Pink"), tr_noop("Teal"), tr_noop("Black")
 };
 
 namespace {
@@ -63,16 +65,16 @@ struct Context {
 
 const char* patternName(settings::ledstrip::Pattern pattern) {
     switch (pattern) {
-        case settings::ledstrip::Pattern::Solid: return "Solid";
-        case settings::ledstrip::Pattern::Alternating: return "Alternating";
-        case settings::ledstrip::Pattern::Gradient: return "Gradient";
+        case settings::ledstrip::Pattern::Solid: return tr("Solid");
+        case settings::ledstrip::Pattern::Alternating: return tr("Alternating");
+        case settings::ledstrip::Pattern::Gradient: return tr("Gradient");
     }
-    return "Solid";
+    return tr("Solid");
 }
 
 const char* presetName(uint8_t preset) {
-    if (preset == CUSTOM_PRESET) return "Custom";
-    return COLOR_NAMES[preset < CUSTOM_PRESET ? preset : 0];
+    if (preset == CUSTOM_PRESET) return tr("Custom");
+    return tr(COLOR_NAMES[preset < CUSTOM_PRESET ? preset : 0]);
 }
 
 void applyAndLog(Context& ctx) {
@@ -100,7 +102,7 @@ void returnToMain(Context& ctx) {
     lv_obj_set_hidden(ctx.customPanel, true);
     lv_obj_set_hidden(ctx.mainPanel, false);
     lv_obj_update_layout(ctx.mainPanel);
-    lvgl_toolbar_set_title(ctx.toolbar, "LED Strip");
+    lvgl_toolbar_set_title(ctx.toolbar, tr("LED Strip"));
     lvgl_toolbar_set_nav_action(ctx.toolbar, LV_SYMBOL_CLOSE, onNavigationPressed, &ctx);
     if (ctx.returnFocus != nullptr) {
         lv_group_focus_obj(ctx.returnFocus);
@@ -125,7 +127,7 @@ void openCustomEditor(Context& ctx, bool secondary) {
     lv_obj_set_hidden(ctx.customPanel, false);
     lv_obj_set_hidden(secondary ? ctx.primaryEditor : ctx.secondaryEditor, true);
     lv_obj_set_hidden(secondary ? ctx.secondaryEditor : ctx.primaryEditor, false);
-    lvgl_toolbar_set_title(ctx.toolbar, secondary ? "Custom second color" : "Custom color");
+    lvgl_toolbar_set_title(ctx.toolbar, secondary ? tr("Custom second color") : tr("Custom color"));
     lvgl_toolbar_set_nav_action(ctx.toolbar, LV_SYMBOL_LEFT, onNavigationPressed, &ctx);
     lv_obj_update_layout(ctx.customPanel);
     auto* sliderBox = secondary ? ctx.secondarySliderBoxes[0] : ctx.primarySliderBoxes[0];
@@ -148,19 +150,19 @@ uint32_t currentChoice(const Context& ctx) {
 
 const char* choiceTitle(Context::ChoiceKind kind) {
     switch (kind) {
-        case Context::ChoiceKind::Pattern: return "Choose mode";
-        case Context::ChoiceKind::PrimaryColor: return "Choose color";
-        case Context::ChoiceKind::SecondaryColor: return "Choose second color";
-        case Context::ChoiceKind::None: return "LED Strip";
+        case Context::ChoiceKind::Pattern: return tr("Choose mode");
+        case Context::ChoiceKind::PrimaryColor: return tr("Choose color");
+        case Context::ChoiceKind::SecondaryColor: return tr("Choose second color");
+        case Context::ChoiceKind::None: return tr("LED Strip");
     }
-    return "LED Strip";
+    return tr("LED Strip");
 }
 
 const char* choiceName(Context::ChoiceKind kind, size_t index) {
     if (kind == Context::ChoiceKind::Pattern) {
         return patternName(static_cast<settings::ledstrip::Pattern>(index));
     }
-    return index == CUSTOM_PRESET ? "Custom" : COLOR_NAMES[index];
+    return index == CUSTOM_PRESET ? tr("Custom") : tr(COLOR_NAMES[index]);
 }
 
 void onChoiceSelected(lv_event_t* event) {
@@ -333,7 +335,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    ctx->toolbar = lvgl_toolbar_create(parent, "LED Strip");
+    ctx->toolbar = lvgl_toolbar_create(parent, tr("LED Strip"));
     lvgl_toolbar_set_nav_action(ctx->toolbar, LV_SYMBOL_CLOSE, onNavigationPressed, ctx);
 
     ctx->mainPanel = lv_obj_create(parent);
@@ -351,12 +353,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(ctx->customPanel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_hidden(ctx->customPanel, true);
 
-    auto* outputRow = createRow(ctx->mainPanel, "Output");
+    auto* outputRow = createRow(ctx->mainPanel, tr("Output"));
     auto* outputSwitch = lv_switch_create(outputRow);
     if (ctx->settings.enabled) lv_obj_add_state(outputSwitch, LV_STATE_CHECKED);
     lv_obj_add_event_cb(outputSwitch, onOutputChanged, LV_EVENT_VALUE_CHANGED, ctx);
 
-    auto* modeRow = createRow(ctx->mainPanel, "Mode");
+    auto* modeRow = createRow(ctx->mainPanel, tr("Mode"));
     auto* modeButton = lv_button_create(modeRow);
     lv_obj_set_width(modeButton, LV_PCT(62));
     ctx->modeValue = lv_label_create(modeButton);
@@ -364,7 +366,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_center(ctx->modeValue);
     lv_obj_add_event_cb(modeButton, onPatternPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
-    auto* primaryRow = createRow(ctx->mainPanel, "Color");
+    auto* primaryRow = createRow(ctx->mainPanel, tr("Color"));
     auto* primaryButton = lv_button_create(primaryRow);
     lv_obj_set_width(primaryButton, LV_PCT(62));
     ctx->primaryValue = lv_label_create(primaryButton);
@@ -372,10 +374,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_center(ctx->primaryValue);
     lv_obj_add_event_cb(primaryButton, onPrimaryColorPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
-    createRgbEditor(ctx->customPanel, "Red / Green / Blue", ctx->settings.primaryCustom, ctx->primarySliderBoxes, ctx, true);
+    createRgbEditor(ctx->customPanel, tr("Red / Green / Blue"), ctx->settings.primaryCustom, ctx->primarySliderBoxes, ctx, true);
     lv_obj_set_hidden(ctx->primaryEditor, true);
 
-    ctx->secondaryRow = createRow(ctx->mainPanel, "Second color");
+    ctx->secondaryRow = createRow(ctx->mainPanel, tr("Second color"));
     auto* secondaryButton = lv_button_create(ctx->secondaryRow);
     lv_obj_set_width(secondaryButton, LV_PCT(62));
     ctx->secondaryValue = lv_label_create(secondaryButton);
@@ -383,10 +385,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_center(ctx->secondaryValue);
     lv_obj_add_event_cb(secondaryButton, onSecondaryColorPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
-    createRgbEditor(ctx->customPanel, "Red / Green / Blue", ctx->settings.secondaryCustom, ctx->secondarySliderBoxes, ctx, false);
+    createRgbEditor(ctx->customPanel, tr("Red / Green / Blue"), ctx->settings.secondaryCustom, ctx->secondarySliderBoxes, ctx, false);
     lv_obj_set_hidden(ctx->secondaryEditor, true);
 
-    auto* brightnessRow = createRow(ctx->mainPanel, "Brightness");
+    auto* brightnessRow = createRow(ctx->mainPanel, tr("Brightness"));
     ctx->brightnessValue = lv_label_create(brightnessRow);
     lv_label_set_text_fmt(ctx->brightnessValue, "%u%%", (static_cast<unsigned>(ctx->settings.brightness) * 100 + 127) / 255);
     ctx->brightnessSlider = lvgl_sliderbox_create(ctx->mainPanel, 0, UINT8_MAX, 17, ctx->settings.brightness);

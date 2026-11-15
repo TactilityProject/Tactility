@@ -119,4 +119,11 @@ menu "Tactility App"
             How often the display-idle service wakes to drive the screensaver animation and poll the
             backlight timeout. Lower it on boards with a fast panel so the screensaver animates at
             the panel's refresh rate; higher values reduce wakeups and save power.
+    config TT_LANGUAGE_SELECTION
+        bool "Language selection"
+        default y
+        help
+            Build the translations (French, Dutch, Spanish, German) into the firmware, with the Language
+            settings app and the language page of the setup. When disabled, only English is built in,
+            which saves flash space (about 90 KiB) on devices with small partitions.
 endmenu

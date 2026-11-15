@@ -1,3 +1,5 @@
+#define L10N_APP "appearancesettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/fileselection/FileSelection.h>
 #include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/file/File.h>
@@ -59,32 +61,32 @@ struct NamedColor {
 };
 
 constexpr NamedColor PALETTE_COLORS[] = {
-    { "Red", LV_PALETTE_RED },
-    { "Pink", LV_PALETTE_PINK },
-    { "Purple", LV_PALETTE_PURPLE },
-    { "Deep purple", LV_PALETTE_DEEP_PURPLE },
-    { "Indigo", LV_PALETTE_INDIGO },
-    { "Blue", LV_PALETTE_BLUE },
-    { "Light blue", LV_PALETTE_LIGHT_BLUE },
-    { "Cyan", LV_PALETTE_CYAN },
-    { "Teal", LV_PALETTE_TEAL },
-    { "Green", LV_PALETTE_GREEN },
-    { "Light green", LV_PALETTE_LIGHT_GREEN },
-    { "Lime", LV_PALETTE_LIME },
-    { "Yellow", LV_PALETTE_YELLOW },
-    { "Amber", LV_PALETTE_AMBER },
-    { "Orange", LV_PALETTE_ORANGE },
-    { "Deep orange", LV_PALETTE_DEEP_ORANGE },
-    { "Brown", LV_PALETTE_BROWN },
-    { "Blue grey", LV_PALETTE_BLUE_GREY },
-    { "Grey", LV_PALETTE_GREY },
+    { tr_noop("Red"), LV_PALETTE_RED },
+    { tr_noop("Pink"), LV_PALETTE_PINK },
+    { tr_noop("Purple"), LV_PALETTE_PURPLE },
+    { tr_noop("Deep purple"), LV_PALETTE_DEEP_PURPLE },
+    { tr_noop("Indigo"), LV_PALETTE_INDIGO },
+    { tr_noop("Blue"), LV_PALETTE_BLUE },
+    { tr_noop("Light blue"), LV_PALETTE_LIGHT_BLUE },
+    { tr_noop("Cyan"), LV_PALETTE_CYAN },
+    { tr_noop("Teal"), LV_PALETTE_TEAL },
+    { tr_noop("Green"), LV_PALETTE_GREEN },
+    { tr_noop("Light green"), LV_PALETTE_LIGHT_GREEN },
+    { tr_noop("Lime"), LV_PALETTE_LIME },
+    { tr_noop("Yellow"), LV_PALETTE_YELLOW },
+    { tr_noop("Amber"), LV_PALETTE_AMBER },
+    { tr_noop("Orange"), LV_PALETTE_ORANGE },
+    { tr_noop("Deep orange"), LV_PALETTE_DEEP_ORANGE },
+    { tr_noop("Brown"), LV_PALETTE_BROWN },
+    { tr_noop("Blue grey"), LV_PALETTE_BLUE_GREY },
+    { tr_noop("Grey"), LV_PALETTE_GREY },
 };
 
 constexpr size_t COLOR_COUNT = 4;
 constexpr size_t SURFACE_COLOR_INDEX = 2;
-constexpr const char* COLOR_TITLES[COLOR_COUNT] = { "Primary color", "Secondary color", "Surface color", "Error color" };
+constexpr const char* COLOR_TITLES[COLOR_COUNT] = { tr_noop("Primary color"), tr_noop("Secondary color"), tr_noop("Surface color"), tr_noop("Error color") };
 // In tint level order (see settings::appearance::getSurfaceColor())
-constexpr const char* SURFACE_TINT_NAMES[settings::appearance::SURFACE_TINT_LEVEL_COUNT] = { "Low", "Medium", "High" };
+constexpr const char* SURFACE_TINT_NAMES[settings::appearance::SURFACE_TINT_LEVEL_COUNT] = { tr_noop("Low"), tr_noop("Medium"), tr_noop("High") };
 
 struct ColorRowWidgets {
     lv_obj_t* row = nullptr;
@@ -196,11 +198,11 @@ void setHidden(lv_obj_t* object, bool hidden) {
 }
 
 void updateFontRow(const FontRowWidgets& row, const std::string& path, size_t characterCount) {
-    lv_label_set_text(row.fileLabel, path.empty() ? "System font" : file::getLastPathSegment(path).c_str());
+    lv_label_set_text(row.fileLabel, path.empty() ? tr("System font") : file::getLastPathSegment(path).c_str());
     setHidden(row.defaultButton, path.empty());
     const bool large = !path.empty() && characterCount > lvgl::LARGE_FONT_CHARACTER_COUNT;
     if (large) {
-        lv_label_set_text(row.warningLabel, std::format("Contains {} characters: creating the fonts can take long and use a lot of memory.", characterCount).c_str());
+        lv_label_set_text(row.warningLabel, i18n::format(tr("Contains {} characters: creating the fonts can take long and use a lot of memory."), { std::to_string(characterCount) }).c_str());
     }
     setHidden(row.warningLabel, !large);
 }
@@ -514,7 +516,7 @@ lv_obj_t* createChip(lv_obj_t* parent, const char* text, lv_event_cb_t callback,
 ColorRowWidgets createColorRow(lv_obj_t* parent, size_t index, Context* ctx) {
     ColorRowWidgets widgets;
     // "Title        [swatch] [Change]"
-    widgets.row = createLabeledRow(parent, COLOR_TITLES[index]);
+    widgets.row = createLabeledRow(parent, tr(COLOR_TITLES[index]));
 
     // The colour preview: its colour is the setting, its border uses the theme's text colour
     widgets.swatch = lv_obj_create(widgets.row);
@@ -541,31 +543,31 @@ ColorRowWidgets createColorRow(lv_obj_t* parent, size_t index, Context* ctx) {
 }
 
 void createThemeCard(lv_obj_t* parent, Context* ctx) {
-    auto* card = createSection(parent, "Theme");
+    auto* card = createSection(parent, tr("Theme"));
 
-    auto* mode_row = createLabeledRow(card, "Mode");
-    ctx->lightChip = createChip(mode_row, "Light", onLightPressed, ctx);
-    ctx->darkChip = createChip(mode_row, "Dark", onDarkPressed, ctx);
+    auto* mode_row = createLabeledRow(card, tr("Mode"));
+    ctx->lightChip = createChip(mode_row, tr("Light"), onLightPressed, ctx);
+    ctx->darkChip = createChip(mode_row, tr("Dark"), onDarkPressed, ctx);
 
     // Monochrome and greyscale displays always use the mono theme, and it doesn't use colours
     if (!ctx->isMonoDisplay) {
-        auto* style_row = createLabeledRow(card, "Style");
-        ctx->regularThemeChip = createChip(style_row, "Regular", onRegularThemePressed, ctx);
-        ctx->monoThemeChip = createChip(style_row, "Mono", onMonoThemePressed, ctx);
+        auto* style_row = createLabeledRow(card, tr("Style"));
+        ctx->regularThemeChip = createChip(style_row, tr("Regular"), onRegularThemePressed, ctx);
+        ctx->monoThemeChip = createChip(style_row, tr("Mono"), onMonoThemePressed, ctx);
     }
 
     // 0% is compact and 100% is regular
-    lv_label_set_text(lv_label_create(card), "Spacing (%)");
+    lv_label_set_text(lv_label_create(card), tr("Spacing (%)"));
     ctx->spacingSlider = lvgl_sliderbox_create(card, 0, 100, settings::appearance::DENSITY_STEP, getSpacing(ctx->pendingSettings));
     lv_obj_set_width(ctx->spacingSlider, LV_PCT(100));
     lvgl_sliderbox_add_value_changed_cb(ctx->spacingSlider, onSpacingChanged, ctx);
 
-    lv_label_set_text(lv_label_create(card), "Size (%)");
+    lv_label_set_text(lv_label_create(card), tr("Size (%)"));
     ctx->sizeSlider = lvgl_sliderbox_create(card, 0, 100, settings::appearance::DENSITY_STEP, getSize(ctx->pendingSettings));
     lv_obj_set_width(ctx->sizeSlider, LV_PCT(100));
     lvgl_sliderbox_add_value_changed_cb(ctx->sizeSlider, onSizeChanged, ctx);
 
-    auto* animations_row = createLabeledRow(card, "Animations");
+    auto* animations_row = createLabeledRow(card, tr("Animations"));
     auto* animations_switch = lv_switch_create(animations_row);
     setChecked(animations_switch, ctx->pendingSettings.animationsEnabled);
     lv_obj_add_event_cb(animations_switch, onAnimationsChanged, LV_EVENT_VALUE_CHANGED, ctx);
@@ -627,22 +629,22 @@ void createSystemBarsCard(lv_obj_t* parent, Context* ctx) {
         return;
     }
 
-    auto* card = createSection(parent, "System Bars");
+    auto* card = createSection(parent, tr("System Bars"));
 
-    auto* mode_row = createLabeledRow(card, "Layout");
-    ctx->systemBarsAutoChip = createChip(mode_row, "Auto", onSystemBarsChipPressed, ctx);
-    ctx->systemBarsCustomChip = createChip(mode_row, "Custom", onSystemBarsChipPressed, ctx);
+    auto* mode_row = createLabeledRow(card, tr("Layout"));
+    ctx->systemBarsAutoChip = createChip(mode_row, tr("Auto"), onSystemBarsChipPressed, ctx);
+    ctx->systemBarsCustomChip = createChip(mode_row, tr("Custom"), onSystemBarsChipPressed, ctx);
 
     if (portrait_choosable) {
-        ctx->portraitRow = createLabeledRow(card, "Portrait");
-        ctx->portraitSplitChip = createChip(ctx->portraitRow, "Split", onSystemBarsChipPressed, ctx);
-        ctx->portraitSideChip = createChip(ctx->portraitRow, "Side", onSystemBarsChipPressed, ctx);
+        ctx->portraitRow = createLabeledRow(card, tr("Portrait"));
+        ctx->portraitSplitChip = createChip(ctx->portraitRow, tr("Split"), onSystemBarsChipPressed, ctx);
+        ctx->portraitSideChip = createChip(ctx->portraitRow, tr("Side"), onSystemBarsChipPressed, ctx);
     }
 
     if (landscape_choosable) {
-        ctx->landscapeRow = createLabeledRow(card, "Landscape");
-        ctx->landscapeSplitChip = createChip(ctx->landscapeRow, "Split", onSystemBarsChipPressed, ctx);
-        ctx->landscapeSideChip = createChip(ctx->landscapeRow, "Side", onSystemBarsChipPressed, ctx);
+        ctx->landscapeRow = createLabeledRow(card, tr("Landscape"));
+        ctx->landscapeSplitChip = createChip(ctx->landscapeRow, tr("Split"), onSystemBarsChipPressed, ctx);
+        ctx->landscapeSideChip = createChip(ctx->landscapeRow, tr("Side"), onSystemBarsChipPressed, ctx);
     }
 
     updateSystemBarsWidgets(ctx, settings::launcher::loadOrGetDefault());
@@ -650,7 +652,7 @@ void createSystemBarsCard(lv_obj_t* parent, Context* ctx) {
 
 void createColorsCard(lv_obj_t* parent, Context* ctx) {
     ctx->colorsTitle = lv_label_create(parent);
-    lv_label_set_text(ctx->colorsTitle, "Theme Colors");
+    lv_label_set_text(ctx->colorsTitle, tr("Theme Colors"));
 
     auto* card = lvgl_card_create(parent);
     lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
@@ -661,9 +663,9 @@ void createColorsCard(lv_obj_t* parent, Context* ctx) {
         ctx->colorRows[i] = createColorRow(card, i, ctx);
         if (i == SURFACE_COLOR_INDEX) {
             // How strongly the surface colour shows: it's mixed into black (dark) or white (light)
-            ctx->surfaceTintRow = createLabeledRow(card, "Surface tint");
+            ctx->surfaceTintRow = createLabeledRow(card, tr("Surface tint"));
             for (uint8_t level = 0; level < settings::appearance::SURFACE_TINT_LEVEL_COUNT; level++) {
-                ctx->surfaceTintChips[level] = createChip(ctx->surfaceTintRow, SURFACE_TINT_NAMES[level], onSurfaceTintPressed, ctx);
+                ctx->surfaceTintChips[level] = createChip(ctx->surfaceTintRow, tr(SURFACE_TINT_NAMES[level]), onSurfaceTintPressed, ctx);
                 lv_obj_set_user_data(ctx->surfaceTintChips[level], reinterpret_cast<void*>(static_cast<uintptr_t>(level)));
             }
         }
@@ -702,8 +704,8 @@ FontRowWidgets createFontRow(lv_obj_t* parent, const char* title, lv_event_cb_t 
     lv_label_set_long_mode(widgets.fileLabel, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
     lv_obj_set_style_text_font(widgets.fileLabel, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
 
-    widgets.defaultButton = createButton(row, "Default", onDefault, ctx);
-    createButton(row, "Select", onSelect, ctx);
+    widgets.defaultButton = createButton(row, tr("Default"), onDefault, ctx);
+    createButton(row, tr("Select"), onSelect, ctx);
 
     widgets.warningLabel = lv_label_create(parent);
     lv_obj_set_width(widgets.warningLabel, LV_PCT(100));
@@ -717,7 +719,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Appearance");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Appearance"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
     ctx->spinner = lvgl_toolbar_add_spinner_action(toolbar);
     ctx->applyButton = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_OK, onApplyPressed, ctx);
@@ -739,10 +741,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     createSystemBarsCard(content, ctx);
 
     if (lvgl::isFontChangeSupported()) {
-        auto* fonts_card = createSection(content, "Fonts");
+        auto* fonts_card = createSection(content, tr("Fonts"));
         auto* font_size_row = createRow(fonts_card);
         auto* font_size_label = lv_label_create(font_size_row);
-        lv_label_set_text(font_size_label, "Font size");
+        lv_label_set_text(font_size_label, tr("Font size"));
         lv_obj_set_flex_grow(font_size_label, 1);
         // [-] [size] [+]
         auto* font_size_spinbox = lv_spinbox_create(font_size_row);
@@ -768,13 +770,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_move_to_index(decrement_button, lv_obj_get_index(font_size_spinbox));
         createStepButton(font_size_row, LV_SYMBOL_PLUS, onFontSizeIncrementPressed, font_size_spinbox);
 
-        ctx->regularRow = createFontRow(fonts_card, "Regular font", onSelectRegularPressed, onDefaultRegularPressed, ctx);
-        ctx->monoRow = createFontRow(fonts_card, "Monospace font", onSelectMonoPressed, onDefaultMonoPressed, ctx);
+        ctx->regularRow = createFontRow(fonts_card, tr("Regular font"), onSelectRegularPressed, onDefaultRegularPressed, ctx);
+        ctx->monoRow = createFontRow(fonts_card, tr("Monospace font"), onSelectMonoPressed, onDefaultMonoPressed, ctx);
 
         ctx->errorLabel = lv_label_create(fonts_card);
         lv_obj_set_width(ctx->errorLabel, LV_PCT(100));
         lv_label_set_long_mode(ctx->errorLabel, LV_LABEL_LONG_MODE_WRAP);
-        lv_label_set_text(ctx->errorLabel, "Failed to create the fonts. Check that the selected files are TrueType fonts.");
+        lv_label_set_text(ctx->errorLabel, tr("Failed to create the fonts. Check that the selected files are TrueType fonts."));
         lv_obj_set_style_text_color(ctx->errorLabel, lv_palette_main(LV_PALETTE_RED), LV_STATE_DEFAULT);
     }
 
@@ -923,11 +925,11 @@ void startColorSelection(Context* ctx) {
     }
     std::vector<std::string> items;
     items.reserve(PALETTE_COLOR_COUNT + 1);
-    items.emplace_back("Default");
+    items.emplace_back(tr("Default"));
     for (const auto& named_color : PALETTE_COLORS) {
-        items.emplace_back(named_color.name);
+        items.emplace_back(tr(named_color.name));
     }
-    ctx->colorSelectLaunchId = selectiondialog::start(ctx->appInstanceId, COLOR_TITLES[ctx->selectColorIndex], items);
+    ctx->colorSelectLaunchId = selectiondialog::start(ctx->appInstanceId, tr(COLOR_TITLES[ctx->selectColorIndex]), items);
 }
 
 void onColorSelectionResult(Context* ctx, const AppEvent& event) {

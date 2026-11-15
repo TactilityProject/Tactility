@@ -1,3 +1,5 @@
+#define L10N_APP "trackball"
+#include <Tactility/i18n/AppDomain.h>
 #include <lvgl.h>
 
 #include <lvgl/lvgl.h>
@@ -37,8 +39,8 @@ struct ModeOption {
 
 // The order of the mode chips
 constexpr ModeOption MODE_OPTIONS[] = {
-    { TRACKBALL_MODE_KEYBOARD, "Keys" },
-    { TRACKBALL_MODE_MOUSE, "Pointer" },
+    { TRACKBALL_MODE_KEYBOARD, tr_noop("Keys") },
+    { TRACKBALL_MODE_MOUSE, tr_noop("Pointer") },
 };
 
 namespace {
@@ -146,7 +148,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    lv_obj_t* toolbar = lvgl_toolbar_create(parent, "Trackball");
+    lv_obj_t* toolbar = lvgl_toolbar_create(parent, tr("Trackball"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -158,7 +160,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
         auto* card = lvgl_card_create(wrapper);
         lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_label_set_text(lv_label_create(card), "No trackball device found.");
+        lv_label_set_text(lv_label_create(card), tr("No trackball device found."));
         return;
     }
 
@@ -190,14 +192,14 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_column(ctx->modeChips, 0, LV_STATE_DEFAULT);
     for (const auto& option : MODE_OPTIONS) {
         auto* chip = lvgl_chip_create(ctx->modeChips);
-        lv_label_set_text(lv_label_create(chip), option.name);
+        lv_label_set_text(lv_label_create(chip), tr(option.name));
         lv_obj_add_event_cb(chip, onModeChipPressed, LV_EVENT_SHORT_CLICKED, ctx);
     }
     lvgl_grid_navigation_add(ctx->modeChips);
 
     // The speed of the selected mode
-    ctx->keySensitivityGroup = createSpeedGroup(ctx->settingsCard, "Key speed", ctx->tbSettings.key_sensitivity, onKeySensitivityChanged, ctx, &ctx->keySensitivitySlider);
-    ctx->pointerSensitivityGroup = createSpeedGroup(ctx->settingsCard, "Pointer speed", ctx->tbSettings.pointer_sensitivity, onPointerSensitivityChanged, ctx, &ctx->pointerSensitivitySlider);
+    ctx->keySensitivityGroup = createSpeedGroup(ctx->settingsCard, tr("Key speed"), ctx->tbSettings.key_sensitivity, onKeySensitivityChanged, ctx, &ctx->keySensitivitySlider);
+    ctx->pointerSensitivityGroup = createSpeedGroup(ctx->settingsCard, tr("Pointer speed"), ctx->tbSettings.pointer_sensitivity, onPointerSensitivityChanged, ctx, &ctx->pointerSensitivitySlider);
 
     updateWidgets(ctx);
 }

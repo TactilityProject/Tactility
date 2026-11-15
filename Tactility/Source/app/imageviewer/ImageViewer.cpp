@@ -1,3 +1,5 @@
+#define L10N_APP "imageviewer"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/StringUtils.h>
@@ -74,7 +76,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_all(wrapper, 0, 0);
     lv_obj_set_style_pad_gap(wrapper, 0, 0);
 
-    auto* toolbar = lvgl_toolbar_create(wrapper, "Image Viewer");
+    auto* toolbar = lvgl_toolbar_create(wrapper, tr("Image Viewer"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
     lv_obj_align(toolbar, LV_ALIGN_TOP_MID, 0, 0);
@@ -103,7 +105,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         auto path = string::getLastPathSegment(ctx->filePath);
         lv_label_set_text(file_label, path.c_str());
     } else {
-        lv_label_set_text(file_label, "File not found");
+        lv_label_set_text(file_label, tr("File not found"));
     }
 }
 

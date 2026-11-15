@@ -1,3 +1,5 @@
+#define L10N_APP "usbsettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/hal/usb/Usb.h>
 #include <Tactility/hal/usb/UsbHost.h>
 
@@ -103,12 +105,12 @@ void createRebootRow(lv_obj_t* parent, const char* text, lv_event_cb_t onReboot)
     auto* row = createRow(parent, text);
     auto* button = lv_button_create(row);
     auto* label = lv_label_create(button);
-    lv_label_set_text(label, "Reboot");
+    lv_label_set_text(label, tr("Reboot"));
     lv_obj_add_event_cb(button, onReboot, LV_EVENT_SHORT_CLICKED, nullptr);
 }
 
 void createUsbHostRow(lv_obj_t* parent, Context* ctx) {
-    auto* row = createRow(parent, "USB host");
+    auto* row = createRow(parent, tr("USB host"));
     // The warning wraps to a line of its own below the label and switch
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW_WRAP);
     ctx->hostSwitch = lv_switch_create(row);
@@ -119,7 +121,7 @@ void createUsbHostRow(lv_obj_t* parent, Context* ctx) {
     ctx->hostWarning = lv_label_create(row);
     lv_obj_set_width(ctx->hostWarning, LV_PCT(100));
     lv_label_set_long_mode(ctx->hostWarning, LV_LABEL_LONG_MODE_WRAP);
-    lv_label_set_text(ctx->hostWarning, "USB host failed to start. Reboot the device to enable it.");
+    lv_label_set_text(ctx->hostWarning, tr("USB host failed to start. Reboot the device to enable it."));
     // The monochrome theme has no error colour
     if (!lvgl_theme_is_mono()) {
         LvglThemeSettings theme_settings;
@@ -151,10 +153,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // The storage is only named when there is a choice
     if (hasSd) {
-        createRebootRow(main_wrapper, hasFlash ? "USB drive mode (SD card)" : "USB drive mode", onRebootMassStorageSdmmc);
+        createRebootRow(main_wrapper, hasFlash ? tr("USB drive mode (SD card)") : tr("USB drive mode"), onRebootMassStorageSdmmc);
     }
     if (hasFlash) {
-        createRebootRow(main_wrapper, hasSd ? "USB drive mode (internal)" : "USB drive mode", onRebootMassStorageFlash);
+        createRebootRow(main_wrapper, hasSd ? tr("USB drive mode (internal)") : tr("USB drive mode"), onRebootMassStorageFlash);
     }
 
     if (hasHost) {
@@ -163,7 +165,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     if (!hasSd && !hasFlash && !hasHost) {
         bool supported = hal::usb::isSupported();
-        const char* message = supported ? "USB storage not available" : "USB driver not supported";
+        const char* message = supported ? tr("USB storage not available") : tr("USB driver not supported");
         auto* label = lv_label_create(main_wrapper);
         lv_label_set_text(label, message);
     }

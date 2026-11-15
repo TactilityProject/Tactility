@@ -1,0 +1,22 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es-ES\n"
+
+msgid "Accept"
+msgstr "Aceptar"
+
+msgid "Fingerprint"
+msgstr "Huella"
+
+msgid "Fingerprint: {}"
+msgstr "Huella: {}"
+
+msgid "Reject"
+msgstr "Rechazar"
+
+msgid "Remote access"
+msgstr "Acceso remoto"
+
+msgid "{} at {} requests {} access."
+msgstr "{} en {} solicita acceso {}."

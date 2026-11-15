@@ -1,3 +1,5 @@
+#define L10N_APP "apphubdetails"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/apphubdetails/AppHubDetailsApp.h>
 
@@ -35,7 +37,6 @@ extern const ::AppManifest manifest;
 
 namespace {
 
-constexpr auto* CONFIRM_TEXT = "Confirm";
 constexpr int32_t CONFIRMATION_BUTTON_INDEX = 0;
 constexpr size_t DESCRIPTION_MAX_SIZE = 2048;
 
@@ -82,7 +83,7 @@ AppHubApp readApp(Context* ctx) {
 tt::std::string readDescription(Context* ctx) {
     tt::std::vector<char> buffer(DESCRIPTION_MAX_SIZE);
     if (app_hub_get_description(ctx->appId.c_str(), buffer.data(), buffer.size()) != ERROR_NONE || buffer[0] == '\0') {
-        return "This app has no description yet.";
+        return tr("This app has no description yet.");
     }
     tt::std::string description = buffer.data();
     for (size_t pos = 0; (pos = description.find("\\n", pos)) != tt::std::string::npos;) {
@@ -116,9 +117,9 @@ void refreshViews(Context* ctx, bool includeDescription = false) {
     lvgl_unlock();
 }
 
-uint32_t showConfirmDialog(Context* ctx, const char* action) {
-    const auto message = ::std::format("{} {}?", action, ctx->app.name);
-    return alertdialog::start(ctx->appInstanceId, CONFIRM_TEXT, message, ::std::vector<::std::string> { CONFIRM_TEXT, tr("Cancel") });
+uint32_t showConfirmDialog(Context* ctx, const char* messageFormat) {
+    const auto message = i18n::format(messageFormat, { ctx->app.name });
+    return alertdialog::start(ctx->appInstanceId, tr("Confirm"), message, ::std::vector<::std::string> { tr("Confirm"), tr("Cancel") });
 }
 
 void onBackPressed(lv_event_t* e) {
@@ -128,26 +129,26 @@ void onBackPressed(lv_event_t* e) {
 
 void onInstallPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    ctx->installDialogId = showConfirmDialog(ctx, "Install");
+    ctx->installDialogId = showConfirmDialog(ctx, tr("Install {}?"));
 }
 
 void onUninstallPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    ctx->uninstallDialogId = showConfirmDialog(ctx, "Uninstall");
+    ctx->uninstallDialogId = showConfirmDialog(ctx, tr("Uninstall {}?"));
 }
 
 void onUpdatePressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    ctx->updateDialogId = showConfirmDialog(ctx, "Update");
+    ctx->updateDialogId = showConfirmDialog(ctx, tr("Update {}?"));
 }
 
 void queueOperation(Context* ctx, error_t (*operation)(const char* id, uint32_t* operation_id), const char* failure) {
     const error_t error = operation(ctx->appId.c_str(), nullptr);
     if (error == ERROR_RESOURCE_BUSY) {
-        alertdialog::start(ctx->appInstanceId, "Busy", "Another operation is pending. Try again when it's done.");
+        alertdialog::start(ctx->appInstanceId, tr("Busy"), tr("Another operation is pending. Try again when it's done."));
         return;
     } else if (error != ERROR_NONE) {
-        alertdialog::start(ctx->appInstanceId, "Error", failure);
+        alertdialog::start(ctx->appInstanceId, tr("Error"), failure);
         return;
     }
     refreshViews(ctx);
@@ -157,8 +158,8 @@ void onOperationEvent(Context* ctx, const AppHubEvent& event) {
     const bool finished = event.type == APP_HUB_EVENT_INSTALLED || event.type == APP_HUB_EVENT_REMOVED;
     if (finished && ctx->appId == event.app_id && event.result != ERROR_NONE) {
         LOG_E(TAG, "Operation failed: %s", error_to_string(event.result));
-        const char* message = (event.type == APP_HUB_EVENT_REMOVED) ? "Failed to uninstall app" : "Failed to install app";
-        alertdialog::start(ctx->appInstanceId, "Error", message);
+        const char* message = (event.type == APP_HUB_EVENT_REMOVED) ? tr("Failed to uninstall app") : tr("Failed to install app");
+        alertdialog::start(ctx->appInstanceId, tr("Error"), message);
     }
     refreshViews(ctx);
 }
@@ -169,7 +170,7 @@ void updateViews(Context* ctx) {
         return;
     }
     lv_label_set_text(ctx->descriptionLabel, ctx->description.c_str());
-    lv_label_set_text_fmt(ctx->versionLabel, "Version %s", ctx->app.in_catalog ? ctx->app.version_name : ctx->app.installed_version_name);
+    lv_label_set_text(ctx->versionLabel, i18n::format(tr("Version {}"), { ctx->app.in_catalog ? ctx->app.version_name : ctx->app.installed_version_name }).c_str());
     lvgl_toolbar_clear_actions(ctx->toolbar);
     ctx->spinner = lvgl_toolbar_add_spinner_action(ctx->toolbar);
     lv_obj_set_hidden(ctx->updateLabel, true);
@@ -209,7 +210,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
 
     ctx->updateLabel = lv_label_create(wrapper);
-    lv_label_set_text(ctx->updateLabel, "Update available!");
+    lv_label_set_text(ctx->updateLabel, tr("Update available!"));
     lv_obj_set_style_text_color(ctx->updateLabel, lv_color_make(0xff, 0xff, 00), LV_STATE_DEFAULT);
 
     ctx->descriptionLabel = lv_label_create(wrapper);
@@ -274,11 +275,11 @@ int32_t appMain(int argc, char* argv[]) {
                 case APP_EVENT_RESULT: {
                     bool confirmed = event.result.result == CONFIRMATION_BUTTON_INDEX;
                     if (event.result.launch_id == ctx.installDialogId && confirmed) {
-                        queueOperation(&ctx, app_hub_install, "Failed to install app");
+                        queueOperation(&ctx, app_hub_install, tr("Failed to install app"));
                     } else if (event.result.launch_id == ctx.uninstallDialogId && confirmed) {
-                        queueOperation(&ctx, app_hub_remove, "Failed to uninstall app");
+                        queueOperation(&ctx, app_hub_remove, tr("Failed to uninstall app"));
                     } else if (event.result.launch_id == ctx.updateDialogId && confirmed) {
-                        queueOperation(&ctx, app_hub_install, "Failed to update app");
+                        queueOperation(&ctx, app_hub_install, tr("Failed to update app"));
                     }
                     app_manager_stop(event.result.launch_id);
                     break;

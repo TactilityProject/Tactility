@@ -1,3 +1,5 @@
+#define L10N_APP "kernelsettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <app/event.h>
 #include <app/install.h>
 #include <app/manager.h>
@@ -58,13 +60,13 @@ void collectEntry(const AppModuleInfo* info, void* context) {
 std::string statusText(const Entry& entry) {
     switch (entry.failure) {
         case Failure::StartFailed:
-            return std::string("Failed to start: ") + error_to_string(entry.error);
+            return i18n::format(tr("Failed to start: {}"), { error_to_string(entry.error) });
         case Failure::StopFailed:
-            return std::string("Failed to stop: ") + error_to_string(entry.error);
+            return i18n::format(tr("Failed to stop: {}"), { error_to_string(entry.error) });
         case Failure::None:
             break;
     }
-    return entry.started ? "Started" : "Stopped";
+    return entry.started ? tr("Started") : tr("Stopped");
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -116,7 +118,7 @@ void createRow(lv_obj_t* parent, Context* ctx, size_t index) {
     lv_obj_set_user_data(button, reinterpret_cast<void*>(index));
     lv_obj_add_event_cb(button, onToggle, LV_EVENT_SHORT_CLICKED, ctx);
     auto* buttonLabel = lv_label_create(button);
-    lv_label_set_text(buttonLabel, entry.started ? "Stop" : "Start");
+    lv_label_set_text(buttonLabel, entry.started ? tr("Stop") : tr("Start"));
 }
 
 // Must be called with the LVGL lock held
@@ -129,7 +131,7 @@ void populate(Context* ctx) {
 
     if (ctx->entries.empty()) {
         auto* label = lv_label_create(ctx->list);
-        lv_label_set_text(label, "No installed modules");
+        lv_label_set_text(label, tr("No installed modules"));
         return;
     }
 
@@ -144,7 +146,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "Kernel");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Kernel"));
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
     auto* wrapper = lv_obj_create(parent);
@@ -154,7 +156,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_grow(wrapper, 1);
 
     auto* title = lv_label_create(wrapper);
-    lv_label_set_text(title, "Modules");
+    lv_label_set_text(title, tr("Modules"));
 
     auto* card = lvgl_card_create(wrapper);
     lv_obj_set_size(card, LV_PCT(100), LV_SIZE_CONTENT);

@@ -2,7 +2,9 @@
 """
 Compiles the PO files of the translation folders into binary catalogs and embeds them as C byte arrays.
 
-Usage: generate-catalogs.py <translations-folder> <output-folder>
+Usage: generate-catalogs.py [--english-only] <translations-folder> <output-folder>
+
+--english-only writes an empty table, for firmware without the translations.
 
 Each subfolder of the translations folder is a domain: "tactility" holds the system catalogs and the others belong to
 an app. A file "nl-NL.po" is the catalog for the locale "nl-NL". Writes generated_catalogs.c and generated_catalogs.h
@@ -27,14 +29,16 @@ def write_if_changed(path: str, content: str):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <po-folder> <output-folder>")
+    arguments = [argument for argument in sys.argv[1:] if argument != "--english-only"]
+    english_only = len(arguments) != len(sys.argv) - 1
+    if len(arguments) != 2:
+        print(f"Usage: {sys.argv[0]} [--english-only] <translations-folder> <output-folder>")
         sys.exit(1)
-    translations_folder, output_folder = sys.argv[1], sys.argv[2]
+    translations_folder, output_folder = arguments
     os.makedirs(output_folder, exist_ok=True)
 
     catalogs = []
-    if os.path.isdir(translations_folder):
+    if os.path.isdir(translations_folder) and not english_only:
         for domain in sorted(os.listdir(translations_folder)):
             po_folder = os.path.join(translations_folder, domain)
             if not os.path.isdir(po_folder):

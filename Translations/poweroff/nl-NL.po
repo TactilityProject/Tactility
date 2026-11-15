@@ -1,0 +1,19 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Power off?"
+msgstr "Uitschakelen?"
+
+msgid "Powered off"
+msgstr "Uitgeschakeld"
+
+msgid "Sleep"
+msgstr "Slaapstand"
+
+msgid "Sleep?"
+msgstr "Slaapstand?"
+
+msgid "Sleeping"
+msgstr "Slaapstand actief"

@@ -143,7 +143,9 @@ static void registerInternalApps() {
     app_manager_add(&app::shell::manifest);
     app_manager_add(&app::shell::sh_manifest);
     app_manager_add(&app::systeminfo::manifest);
+#ifdef CONFIG_TT_LANGUAGE_SELECTION
     app_manager_add(&app::languagesettings::manifest);
+#endif
     app_manager_add(&app::timedatesettings::manifest);
     app_manager_add(&app::terminal::manifest);
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED

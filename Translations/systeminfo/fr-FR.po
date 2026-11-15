@@ -1,0 +1,46 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "(unnamed)"
+msgstr "(sans nom)"
+
+msgid "External"
+msgstr "Externe"
+
+msgid "Failed to allocate memory for task list"
+msgstr "Échec de l'allocation de mémoire pour la liste des tâches"
+
+msgid "Hardware model: {}"
+msgstr "Modèle du matériel : {}"
+
+msgid "Hardware vendor: {}"
+msgstr "Fabricant du matériel : {}"
+
+msgid "Internal"
+msgstr "Interne"
+
+msgid "System Info"
+msgstr "Infos système"
+
+msgid "blocked"
+msgstr "bloquée"
+
+msgid "deleted"
+msgstr "supprimée"
+
+msgid "invalid"
+msgstr "invalide"
+
+msgid "ready"
+msgstr "prête"
+
+msgid "running"
+msgstr "en cours"
+
+msgid "suspended"
+msgstr "suspendue"
+
+msgid "{} / {} {} free ({} / {} bytes)"
+msgstr "{} / {} {} libres ({} / {} octets)"

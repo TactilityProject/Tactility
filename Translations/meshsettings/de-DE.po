@@ -1,0 +1,76 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "Advanced settings"
+msgstr "Erweiterte Einstellungen"
+
+msgid "Bandwidth"
+msgstr "Bandbreite"
+
+msgid "Coding rate"
+msgstr "Coderate"
+
+msgid "Frequency (MHz)"
+msgstr "Frequenz (MHz)"
+
+msgid "Mesh network"
+msgstr "Mesh-Netzwerk"
+
+msgid "Modem preset"
+msgstr "Modem-Voreinstellung"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "Path hash size"
+msgstr "Pfad-Hash-Größe"
+
+msgid "Preset"
+msgstr "Voreinstellung"
+
+msgid "Profile value"
+msgstr "Profilwert"
+
+msgid "Radio"
+msgstr "Funk"
+
+msgid "Region"
+msgstr "Region"
+
+msgid "Region scope"
+msgstr "Regionsbereich"
+
+msgid "Select a region to turn on the radio"
+msgstr "Wähle eine Region, um das Funkgerät einzuschalten"
+
+msgid "Selected preset"
+msgstr "Gewählte Voreinstellung"
+
+msgid "Settings not allowed in {}"
+msgstr "Einstellungen in {} nicht erlaubt"
+
+msgid "Spreading factor"
+msgstr "Spreizfaktor"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "The name that other nodes see"
+msgstr "Der Name, den andere Knoten sehen"
+
+msgid "Transmit power"
+msgstr "Sendeleistung"
+
+msgid "e.g. 869.618, empty for the preset's value"
+msgstr "z. B. 869.618, leer für den Wert der Voreinstellung"
+
+msgid "e.g. nl, * for none, empty for the preset's value"
+msgstr "z. B. nl, * für keine, leer für den Wert der Voreinstellung"
+
+msgid "{} byte"
+msgstr "{} Byte"
+
+msgid "{} bytes"
+msgstr "{} Bytes"

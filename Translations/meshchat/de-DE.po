@@ -1,0 +1,178 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid " via "
+msgstr " über "
+
+msgid "Add by key"
+msgstr "Per Schlüssel hinzufügen"
+
+msgid "Add channel"
+msgstr "Kanal hinzufügen"
+
+msgid "Add contact"
+msgstr "Kontakt hinzufügen"
+
+msgid "Add seen"
+msgstr "Gesehenen hinzufügen"
+
+msgid "Cancelled"
+msgstr "Abgebrochen"
+
+msgid "Channel key"
+msgstr "Kanalschlüssel"
+
+msgid "Channels"
+msgstr "Kanäle"
+
+msgid "Contacts"
+msgstr "Kontakte"
+
+msgid "Couldn't add contact"
+msgstr "Kontakt konnte nicht hinzugefügt werden"
+
+msgid "Couldn't create QR code"
+msgstr "QR-Code konnte nicht erstellt werden"
+
+msgid "Couldn't create channel"
+msgstr "Kanal konnte nicht erstellt werden"
+
+msgid "Couldn't join channel"
+msgstr "Kanalbeitritt fehlgeschlagen"
+
+msgid "Couldn't remove"
+msgstr "Entfernen fehlgeschlagen"
+
+msgid "Create private channel"
+msgstr "Privaten Kanal erstellen"
+
+msgid "Delivered"
+msgstr "Zugestellt"
+
+msgid "Enter a name for the channel."
+msgstr "Gib einen Namen für den Kanal ein."
+
+msgid "Enter the key as hexadecimal characters, two for every byte."
+msgstr "Gib den Schlüssel als Hexadezimalzeichen ein, zwei pro Byte."
+
+msgid "Enter the public key as hexadecimal characters, two for every byte."
+msgstr "Gib den öffentlichen Schlüssel als Hexadezimalzeichen ein, zwei pro Byte."
+
+msgid "Hashtag channel name, e.g. #test. To join Public, delete the # first."
+msgstr "Hashtag-Kanalname, z. B. #test. Um Public beizutreten, lösche zuerst das #."
+
+msgid "Invalid key"
+msgstr "Ungültiger Schlüssel"
+
+msgid "Join channel"
+msgstr "Kanal beitreten"
+
+msgid "Join private channel"
+msgstr "Privatem Kanal beitreten"
+
+msgid "Join public channel"
+msgstr "Öffentlichem Kanal beitreten"
+
+msgid "Key of the channel in hexadecimal"
+msgstr "Schlüssel des Kanals in Hexadezimal"
+
+msgid "Leave channel"
+msgstr "Kanal verlassen"
+
+msgid "Mesh Contacts"
+msgstr "Mesh-Kontakte"
+
+msgid "Mesh is "
+msgstr "Mesh ist "
+
+msgid "Mesh: {}"
+msgstr "Mesh: {}"
+
+msgid "Name of the channel"
+msgstr "Name des Kanals"
+
+msgid "Name of the contact"
+msgstr "Name des Kontakts"
+
+msgid "No contacts yet. Add a node that you've heard, or wait for a direct message."
+msgstr "Noch keine Kontakte. Füge einen gehörten Knoten hinzu oder warte auf eine Direktnachricht."
+
+msgid "No nodes heard yet. Nodes that you hear on the mesh are listed here."
+msgstr "Noch keine Knoten gehört. Knoten, die du im Mesh hörst, werden hier aufgelistet."
+
+msgid "Not available"
+msgstr "Nicht verfügbar"
+
+msgid "Not delivered"
+msgstr "Nicht zugestellt"
+
+msgid "OFF"
+msgstr "AUS"
+
+msgid "Public key"
+msgstr "Öffentlicher Schlüssel"
+
+msgid "Public key of the contact in hexadecimal"
+msgstr "Öffentlicher Schlüssel des Kontakts in Hexadezimal"
+
+msgid "Remove"
+msgstr "Entfernen"
+
+msgid "Remove contact"
+msgstr "Kontakt entfernen"
+
+msgid "Send"
+msgstr "Senden"
+
+msgid "Sending..."
+msgstr "Sende..."
+
+msgid "Sent"
+msgstr "Gesendet"
+
+msgid "Show my QR"
+msgstr "Meinen QR zeigen"
+
+msgid "The key isn't available."
+msgstr "Der Schlüssel ist nicht verfügbar."
+
+msgid "The messages are kept, but new messages in this channel aren't received anymore."
+msgstr "Die Nachrichten bleiben erhalten, aber neue Nachrichten in diesem Kanal werden nicht mehr empfangen."
+
+msgid "The messages are kept."
+msgstr "Die Nachrichten bleiben erhalten."
+
+msgid "There are too many contacts."
+msgstr "Es gibt zu viele Kontakte."
+
+msgid "This channel can't be left."
+msgstr "Dieser Kanal kann nicht verlassen werden."
+
+msgid "This mesh network can't share a contact as a QR code."
+msgstr "Dieses Mesh-Netzwerk kann einen Kontakt nicht als QR-Code teilen."
+
+msgid "This mesh network expects a key of a different length."
+msgstr "Dieses Mesh-Netzwerk erwartet einen Schlüssel anderer Länge."
+
+msgid "This mesh network expects a public key of a different length."
+msgstr "Dieses Mesh-Netzwerk erwartet einen öffentlichen Schlüssel anderer Länge."
+
+msgid "Turn mesh on to send messages"
+msgstr "Schalte Mesh ein, um Nachrichten zu senden"
+
+msgid "Type a message..."
+msgstr "Nachricht eingeben..."
+
+msgid "Use a channel name that starts with # or Public. This mesh network can't join a channel by name."
+msgstr "Verwende einen Kanalnamen, der mit # oder Public beginnt. Dieses Mesh-Netzwerk kann einem Kanal nicht per Namen beitreten."
+
+msgid "Using "
+msgstr "Verwendet "
+
+msgid "Waiting"
+msgstr "Wartet"
+
+msgid "You"
+msgstr "Du"

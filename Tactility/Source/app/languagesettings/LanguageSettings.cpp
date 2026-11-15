@@ -1,3 +1,5 @@
+#define L10N_APP "languagesettings"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/settings/Language.h>
 
 #include <app/event.h>
@@ -14,7 +16,6 @@
 #include <lvgl/widgets/list.h>
 #include <lvgl/widgets/toolbar.h>
 
-#include <localisation/tr.h>
 
 #include <atomic>
 

@@ -1,0 +1,25 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "\"{}\" can't be selected."
+msgstr "„{}“ kann nicht ausgewählt werden."
+
+msgid "\"{}\" doesn't exist."
+msgstr "„{}“ existiert nicht."
+
+msgid "Can't select"
+msgstr "Auswahl nicht möglich"
+
+msgid "Select ({})"
+msgstr "Auswählen ({})"
+
+msgid "Select File"
+msgstr "Datei auswählen"
+
+msgid "Selection too long"
+msgstr "Auswahl zu lang"
+
+msgid "The paths are too long to return. Select fewer items."
+msgstr "Die Pfade sind zu lang, um sie zurückzugeben. Wähle weniger Elemente."

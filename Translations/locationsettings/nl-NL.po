@@ -1,0 +1,34 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "\nSource: {}"
+msgstr "\nBron: {}"
+
+msgid "Approximate location is accurate to a few kilometers. Location based on the IP address is never precise."
+msgstr "Een benaderde locatie is nauwkeurig tot enkele kilometers. Een locatie op basis van het IP-adres is nooit nauwkeurig."
+
+msgid "Do you want to delete {}?"
+msgstr "Wil je {} verwijderen?"
+
+msgid "GPS devices"
+msgstr "GPS-apparaten"
+
+msgid "Location"
+msgstr "Locatie"
+
+msgid "Location services are off"
+msgstr "Locatievoorzieningen zijn uit"
+
+msgid "No devices"
+msgstr "Geen apparaten"
+
+msgid "Precision"
+msgstr "Nauwkeurigheid"
+
+msgid "Subscribers"
+msgstr "Abonnees"
+
+msgid "Waiting for location..."
+msgstr "Wachten op locatie..."

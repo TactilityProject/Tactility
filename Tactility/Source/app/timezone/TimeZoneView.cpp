@@ -1,3 +1,5 @@
+#define L10N_APP "timezone"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/timezone/TimeZoneView.h>
 
 #include <Tactility/StringUtils.h>
@@ -101,7 +103,7 @@ void TimeZoneView::createWidgets(lv_obj_t* parent) {
     lv_image_set_src(searchIcon, LVGL_ICON_SHARED_SEARCH);
 
     textarea = lv_textarea_create(searchRow);
-    lv_textarea_set_placeholder_text(textarea, "e.g. Europe/Amsterdam");
+    lv_textarea_set_placeholder_text(textarea, tr("e.g. Europe/Amsterdam"));
     lv_textarea_set_one_line(textarea, true);
     lv_obj_set_flex_grow(textarea, 1);
 
@@ -257,12 +259,12 @@ void TimeZoneView::detect() {
             return true;
         });
         if (code.empty()) {
-            failure = std::string("The detected time zone ") + name + " isn't in the list.";
+            failure = i18n::format(tr("The detected time zone {} isn't in the list."), { name }).c_str();
         }
     } else if (error == ERROR_INVALID_STATE) {
-        failure = "Detecting the time zone needs location services. You can turn them on in Settings.";
+        failure = tr("Detecting the time zone needs location services. You can turn them on in Settings.");
     } else {
-        failure = "The time zone couldn't be detected. Check the internet connection and try again.";
+        failure = tr("The time zone couldn't be detected. Check the internet connection and try again.");
     }
 
     // Waits for the LVGL lock without blocking the destructor, which can be called with the lock held

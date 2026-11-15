@@ -1,3 +1,5 @@
+#define L10N_APP "apphub"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/apphubdetails/AppHubDetailsApp.h>
@@ -48,7 +50,7 @@ enum class Filter {
     Updates
 };
 
-constexpr auto FILTER_LABELS = ::std::to_array<const char*>({ "All", "Installed", "Updates" });
+constexpr auto FILTER_LABELS = ::std::to_array<const char*>({ tr_noop("All"), tr_noop("Installed"), tr_noop("Updates") });
 
 struct Context {
     uint32_t appInstanceId;
@@ -128,7 +130,7 @@ bool matchesFilter(const AppHubApp& app, Filter filter) {
 }
 
 const char* getEmptyFilterText(Filter filter) {
-    return (filter == Filter::Updates) ? "No updates available" : "No installed apps";
+    return (filter == Filter::Updates) ? tr("No updates available") : tr("No installed apps");
 }
 
 void updateFilterChips(Context* ctx) {
@@ -164,7 +166,7 @@ void onUpdateAllPressed(lv_event_t* event) {
 
 void updateUpdatesChipText(Context* ctx, size_t updateCount) {
     auto* chip = lv_obj_get_child(ctx->filterChips, static_cast<int32_t>(Filter::Updates));
-    const auto text = ::std::format("{} {}", updateCount, updateCount == 1 ? "update" : "updates");
+    const auto text = i18n::format(updateCount == 1 ? tr("{} update") : tr("{} updates"), { ::std::to_string(updateCount) });
     lv_label_set_text(lv_obj_get_child(chip, 0), text.c_str());
 }
 
@@ -197,7 +199,8 @@ lv_obj_t* createFilterChips(lv_obj_t* parent, Context* ctx) {
     lv_obj_set_style_pad_row(chips, 0, LV_STATE_DEFAULT);
     lv_obj_set_scrollable(chips, false);
 
-    for (const auto* label : FILTER_LABELS) {
+    for (const auto* label_text : FILTER_LABELS) {
+        const char* label = tr(label_text);
         auto* chip = lvgl_chip_create(chips);
         lv_obj_add_event_cb(chip, onFilterPressed, LV_EVENT_SHORT_CLICKED, ctx);
         lv_label_set_text(lv_label_create(chip), label);
@@ -265,7 +268,7 @@ void showRefreshFailedError(Context* ctx, const char* message) {
 }
 
 void showNoInternet(Context* ctx) {
-    showRefreshFailedError(ctx, "No Internet Connection");
+    showRefreshFailedError(ctx, tr("No Internet Connection"));
 }
 
 bool isInContentWrapper(Context* ctx, lv_obj_t* obj) {
@@ -350,9 +353,9 @@ void showApps(Context* ctx) {
     } else if (hasApps) {
         showStatusLabel(ctx, getEmptyFilterText(ctx->filter));
     } else if (ctx->refreshOperationId == 0) {
-        showRefreshFailedError(ctx, "Failed to load content");
+        showRefreshFailedError(ctx, tr("Failed to load content"));
     } else {
-        showStatusLabel(ctx, "Loading...");
+        showStatusLabel(ctx, tr("Loading..."));
     }
     ctx->mutex.unlock();
 }
@@ -392,7 +395,7 @@ void refresh(Context* ctx) {
     if (app_hub_refresh(&operation_id) != ERROR_NONE) {
         LOG_E(TAG, "Failed to queue the catalog refresh");
         lvgl_lock();
-        showRefreshFailedError(ctx, "Cannot reach server");
+        showRefreshFailedError(ctx, tr("Cannot reach server"));
         lvgl_unlock();
         return;
     }
@@ -442,7 +445,7 @@ void onOperationEvent(Context* ctx, const AppHubEvent& event) {
     if (ctx->contentWrapper == nullptr) {
         // Buried (e.g. AppHubDetailsApp or a dialog is open): createWidgets() rebuilds the list on resurface
     } else if (isRefresh && event.result != ERROR_NONE) {
-        showRefreshFailedError(ctx, "Cannot reach server");
+        showRefreshFailedError(ctx, tr("Cannot reach server"));
     } else {
         showApps(ctx);
     }
@@ -455,7 +458,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "App Hub");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("App Hub"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
     ctx->refreshButton = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_REFRESH, onRefreshPressed, ctx);
@@ -515,7 +518,7 @@ void onUpdateAllEvent(Context* ctx, const AppHubEvent& event) {
                 names += (app_hub_get_app(id.c_str(), &app) == ERROR_NONE) ? app.name : id.c_str();
             }
             const auto count = ctx->failedUpdates.size();
-            alertdialog::start(ctx->appInstanceId, "Update failed", ::std::format("{} {} failed to update: {}", count, count == 1 ? "app" : "apps", names));
+            alertdialog::start(ctx->appInstanceId, tr("Update failed"), i18n::format(count == 1 ? tr("{} app failed to update: {}") : tr("{} apps failed to update: {}"), { ::std::to_string(count), names }));
             ctx->failedUpdates.clear();
         }
     }

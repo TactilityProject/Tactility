@@ -1,0 +1,76 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Advanced settings"
+msgstr "Geavanceerde instellingen"
+
+msgid "Bandwidth"
+msgstr "Bandbreedte"
+
+msgid "Coding rate"
+msgstr "Coderingssnelheid"
+
+msgid "Frequency (MHz)"
+msgstr "Frequentie (MHz)"
+
+msgid "Mesh network"
+msgstr "Mesh-netwerk"
+
+msgid "Modem preset"
+msgstr "Modem-preset"
+
+msgid "Name"
+msgstr "Naam"
+
+msgid "Path hash size"
+msgstr "Grootte van de padhash"
+
+msgid "Preset"
+msgstr "Preset"
+
+msgid "Profile value"
+msgstr "Profielwaarde"
+
+msgid "Radio"
+msgstr "Radio"
+
+msgid "Region"
+msgstr "Regio"
+
+msgid "Region scope"
+msgstr "Regiobereik"
+
+msgid "Select a region to turn on the radio"
+msgstr "Kies een regio om de radio aan te zetten"
+
+msgid "Selected preset"
+msgstr "Gekozen preset"
+
+msgid "Settings not allowed in {}"
+msgstr "Instellingen niet toegestaan in {}"
+
+msgid "Spreading factor"
+msgstr "Spreidingsfactor"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "The name that other nodes see"
+msgstr "De naam die andere nodes zien"
+
+msgid "Transmit power"
+msgstr "Zendvermogen"
+
+msgid "e.g. 869.618, empty for the preset's value"
+msgstr "bijv. 869.618, leeg voor de waarde van de preset"
+
+msgid "e.g. nl, * for none, empty for the preset's value"
+msgstr "bijv. nl, * voor geen, leeg voor de waarde van de preset"
+
+msgid "{} byte"
+msgstr "{} byte"
+
+msgid "{} bytes"
+msgstr "{} bytes"

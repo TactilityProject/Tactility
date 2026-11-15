@@ -1,3 +1,5 @@
+#define L10N_APP "systeminfo"
+#include <Tactility/i18n/AppDomain.h>
 #include "lvgl/icons/shared.h"
 #include "lvgl/theme.h"
 
@@ -178,9 +180,7 @@ void updateMemoryBar(const MemoryBarWidgets& widgets, uint64_t free, uint64_t to
     const auto unit_label = getStorageUnitString(unit);
     const auto free_converted = getStorageValue(unit, free);
     const auto total_converted = getStorageValue(unit, total);
-    lv_label_set_text_fmt(widgets.label, "%s / %s %s free (%llu / %llu bytes)",
-        free_converted.c_str(), total_converted.c_str(), unit_label.c_str(),
-        (unsigned long long)free, (unsigned long long)total);
+    lv_label_set_text(widgets.label, i18n::format(tr("{} / {} {} free ({} / {} bytes)"), { free_converted, total_converted, unit_label, std::to_string(free), std::to_string(total) }).c_str());
 }
 
 #if configUSE_TRACE_FACILITY
@@ -188,23 +188,23 @@ void updateMemoryBar(const MemoryBarWidgets& widgets, uint64_t free, uint64_t to
 const char* getTaskState(const TaskStatus_t& task) {
     switch (task.eCurrentState) {
         case eRunning:
-            return "running";
+            return tr("running");
         case eReady:
-            return "ready";
+            return tr("ready");
         case eBlocked:
-            return "blocked";
+            return tr("blocked");
         case eSuspended:
-            return "suspended";
+            return tr("suspended");
         case eDeleted:
-            return "deleted";
+            return tr("deleted");
         case eInvalid:
         default:
-            return "invalid";
+            return tr("invalid");
     }
 }
 
 const char* getTaskName(const TaskStatus_t& task) {
-    return (task.pcTaskName == nullptr || task.pcTaskName[0] == 0) ? "(unnamed)" : task.pcTaskName;
+    return (task.pcTaskName == nullptr || task.pcTaskName[0] == 0) ? tr("(unnamed)") : task.pcTaskName;
 }
 
 /**
@@ -224,7 +224,7 @@ void updateRtosTasks(lv_obj_t* parent, std::vector<std::string>& taskNames) {
         lv_obj_clean(parent);
         taskNames.clear();
         auto* error_label = lv_label_create(parent);
-        lv_label_set_text(error_label, "Failed to allocate memory for task list");
+        lv_label_set_text(error_label, tr("Failed to allocate memory for task list"));
         return;
     }
     uint32_t totalRuntime = 0;
@@ -369,7 +369,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, "System Info");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("System Info"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
 
@@ -400,11 +400,11 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_align(tab_bar, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     // Memory tab content
-    ctx->internalMemBar = createMemoryBar(memory_tab, "Internal");
+    ctx->internalMemBar = createMemoryBar(memory_tab, tr("Internal"));
 
     ctx->hasExternalMem = getSpiTotal() > 0;
     if (ctx->hasExternalMem) {
-        ctx->externalMemBar = createMemoryBar(memory_tab, "External");
+        ctx->externalMemBar = createMemoryBar(memory_tab, tr("External"));
     }
 
 #ifdef ESP_PLATFORM
@@ -446,9 +446,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 #endif
 
     auto* device_vendor = lv_label_create(about_tab);
-    lv_label_set_text_fmt(device_vendor, "Hardware vendor: %s", CONFIG_TT_DEVICE_VENDOR);
+    lv_label_set_text(device_vendor, i18n::format(tr("Hardware vendor: {}"), { CONFIG_TT_DEVICE_VENDOR }).c_str());
     auto* device_device_name = lv_label_create(about_tab);
-    lv_label_set_text_fmt(device_device_name, "Hardware model: %s", CONFIG_TT_DEVICE_NAME_SIMPLE);
+    lv_label_set_text(device_device_name, i18n::format(tr("Hardware model: {}"), { CONFIG_TT_DEVICE_NAME_SIMPLE }).c_str());
 
     // Initial updates
     updateMemory(ctx);

@@ -1,3 +1,5 @@
+#define L10N_APP "notes"
+#include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/notes/Notes.h>
 
 #include "Tactility/app/alertdialog/AlertDialog.h"
@@ -63,7 +65,7 @@ void resetFileContent(Context* ctx) {
     lv_textarea_set_text(ctx->uiNoteText, "");
     ctx->filePath = "";
     ctx->saveBuffer = "";
-    lv_label_set_text(ctx->uiCurrentFileName, "Untitled");
+    lv_label_set_text(ctx->uiCurrentFileName, tr("Untitled"));
 }
 
 void openFile(Context* ctx, const std::string& path) {
@@ -209,7 +211,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    ctx->uiToolbar = lvgl_toolbar_create(parent, "Notes");
+    ctx->uiToolbar = lvgl_toolbar_create(parent, tr("Notes"));
     lv_obj_align(ctx->uiToolbar, LV_ALIGN_TOP_MID, 0, 0);
     ctx->uiOverflowButton = lvgl_toolbar_add_text_button_action(ctx->uiToolbar, LVGL_ICON_SHARED_MORE_VERT, onOverflowPressed, ctx);
     lv_obj_set_style_text_font(ctx->uiOverflowButton, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
@@ -229,7 +231,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_width(ctx->uiNoteText, LV_PCT(100));
     lv_obj_set_height(ctx->uiNoteText, LV_PCT(86));
     lv_textarea_set_password_mode(ctx->uiNoteText, false);
-    lv_textarea_set_placeholder_text(ctx->uiNoteText, "Notes...");
+    lv_textarea_set_placeholder_text(ctx->uiNoteText, tr("Notes..."));
     lv_obj_add_event_cb(ctx->uiNoteText, onNoteTextPressed, LV_EVENT_PRESSED, ctx);
 
     lv_obj_t* footer = lv_obj_create(wrapper);
@@ -248,7 +250,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_label_set_long_mode(ctx->uiCurrentFileName, LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
     lv_obj_set_width(ctx->uiCurrentFileName, LV_SIZE_CONTENT);
     lv_obj_set_height(ctx->uiCurrentFileName, LV_SIZE_CONTENT);
-    lv_label_set_text(ctx->uiCurrentFileName, "Untitled");
+    lv_label_set_text(ctx->uiCurrentFileName, tr("Untitled"));
     lv_obj_align(ctx->uiCurrentFileName, LV_ALIGN_CENTER, 0, 0);
 
     // Floating over the text area, below the toolbar
