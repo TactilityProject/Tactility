@@ -1141,20 +1141,33 @@ class SvgParser:
     def _matches_selector(self, rule: CssRule, chain: tuple[ET.Element, ...]) -> bool:
         parts = rule.parts
         combinators = rule.combinators
+        # The same (compound, ancestor) subproblem can be reached through many
+        # backtracking paths; cache failures so a deep chain stays linear-ish.
+        failed: set[tuple[int, int]] = set()
 
         def match(index: int, position: int) -> bool:
+            key = (index, position)
+            if key in failed:
+                return False
             if not self._compound_matches(chain[position], parts[index]):
+                failed.add(key)
                 return False
             if index == 0:
                 return True
             if combinators[index - 1] == ">":
-                return position > 0 and match(index - 1, position - 1)
-            # Descendant combinator: try every earlier ancestor, not just the
-            # nearest one, because an earlier candidate may satisfy the rest.
-            for candidate in range(position - 1, -1, -1):
-                if match(index - 1, candidate):
-                    return True
-            return False
+                result = position > 0 and match(index - 1, position - 1)
+            else:
+                # Descendant combinator: try every earlier ancestor, not just
+                # the nearest one, because an earlier candidate may satisfy the
+                # rest of the selector.
+                result = False
+                for candidate in range(position - 1, -1, -1):
+                    if match(index - 1, candidate):
+                        result = True
+                        break
+            if not result:
+                failed.add(key)
+            return result
 
         return match(len(parts) - 1, len(chain) - 1)
 
