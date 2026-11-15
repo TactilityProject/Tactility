@@ -17,12 +17,65 @@ runs:
     - name: 'Board select'
       shell: bash
       run: python device.py ${{ inputs.board_id }}
+    # Devices that compile the same share a cache, see Buildscripts/gh-sdkconfig-fingerprint.py.
+    # A cache entry can't be updated, so a save adds a new one with the commit in its key. What stays the same between the commits of a
+    # pull request or branch is the start of the key, and restoring takes the newest entry with that start:
+    # 1. the same configuration of this pull request or branch, 2. the same configuration anywhere that can be read
+    # (a pull request can read its base branch, e.g. main), 3. the same chip.
+    # To keep the cache storage small, a build only saves when it had to compile many files that the restored cache didn't have,
+    # and the cache is limited in size.
+    # NOTE: Update the ESP-IDF version in the keys with the version of the build step!
+    - name: 'Compiler cache key'
+      id: ccache
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        PULL_REQUEST: ${{ github.event.pull_request.number }}
+        REF_NAME: ${{ github.ref_name }}
+      run: |
+        echo "fingerprint=$(python Buildscripts/gh-sdkconfig-fingerprint.py ${{ inputs.board_id }})" >> "$GITHUB_OUTPUT"
+        if [ "$EVENT_NAME" = "pull_request" ]; then
+          echo "scope=pr$PULL_REQUEST" >> "$GITHUB_OUTPUT"
+        else
+          echo "scope=${REF_NAME//[^A-Za-z0-9._]/-}" >> "$GITHUB_OUTPUT"
+        fi
+    - name: 'Restore compiler cache'
+      uses: actions/cache/restore@v4
+      with:
+        path: .ccache
+        key: ccache-idf-v6.1-${{ inputs.arch }}-${{ steps.ccache.outputs.fingerprint }}-${{ steps.ccache.outputs.scope }}-${{ github.sha }}
+        restore-keys: |
+          ccache-idf-v6.1-${{ inputs.arch }}-${{ steps.ccache.outputs.fingerprint }}-${{ steps.ccache.outputs.scope }}-
+          ccache-idf-v6.1-${{ inputs.arch }}-${{ steps.ccache.outputs.fingerprint }}-
+          ccache-idf-v6.1-${{ inputs.arch }}-
     - name: 'Build'
       uses: espressif/esp-idf-ci-action@v1
       with:
+        # NOTE: Update with ESP-IDF!
         esp_idf_version: v6.1
         target: ${{ inputs.arch }}
         path: './'
+        command: 'export IDF_CCACHE_ENABLE=1 CCACHE_DIR="$(pwd)/.ccache" CCACHE_BASEDIR="$(pwd)" CCACHE_MAXSIZE=300M && ccache -z > /dev/null && idf.py build && (ccache -s || true) && (ccache --print-stats > .ccache-stats.txt || true)'
+    - name: 'Compiler cache changes'
+      id: ccache-changes
+      shell: bash
+      # Saves when more than 5% or more than 100 of the compiled files were not in the cache, or when the numbers are unknown
+      run: |
+        save=true
+        if [ -f .ccache-stats.txt ]; then
+          save=$(awk -F'\t' '
+            $1 == "cache_miss" { miss = $2 }
+            $1 == "direct_cache_hit" || $1 == "preprocessed_cache_hit" { hit += $2 }
+            END { print (miss * 20 > miss + hit || miss > 100) ? "true" : "false" }' .ccache-stats.txt)
+        fi
+        echo "save=$save" >> "$GITHUB_OUTPUT"
+        echo "Compiler cache is saved: $save"
+    - name: 'Save compiler cache'
+      if: steps.ccache-changes.outputs.save == 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: .ccache
+        key: ccache-idf-v6.1-${{ inputs.arch }}-${{ steps.ccache.outputs.fingerprint }}-${{ steps.ccache.outputs.scope }}-${{ github.sha }}
     - name: 'Release'
       shell: bash
       run: Buildscripts/release.sh ${{ inputs.board_id }}

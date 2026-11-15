@@ -26,11 +26,18 @@ add_custom_target(TestsGeneratedFonts
     BYPRODUCTS "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_fonts.h"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
+add_custom_target(TestsGeneratedCatalogs
+    COMMAND python "${CMAKE_SOURCE_DIR}/Buildscripts/l10n/generate-catalogs.py"
+        "${CMAKE_SOURCE_DIR}/Translations" "${GENERATED_DIR}"
+    BYPRODUCTS "${GENERATED_DIR}/generated_catalogs.c" "${GENERATED_DIR}/generated_catalogs.h"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
 set_source_files_properties("${GENERATED_DIR}/generated_assets.c" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${GENERATED_DIR}/generated_catalogs.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${GENERATED_DIR}/generated_fonts.c" PROPERTIES GENERATED TRUE)
 
-add_executable(TactilityTests EXCLUDE_FROM_ALL ${TEST_SOURCES} ${TACTILITY_SOURCES} "${GENERATED_DIR}/generated_assets.c" "${GENERATED_DIR}/generated_fonts.c")
-add_dependencies(TactilityTests TestsGeneratedAssets TestsGeneratedFonts)
+add_executable(TactilityTests EXCLUDE_FROM_ALL ${TEST_SOURCES} ${TACTILITY_SOURCES} "${GENERATED_DIR}/generated_assets.c" "${GENERATED_DIR}/generated_fonts.c" "${GENERATED_DIR}/generated_catalogs.c")
+add_dependencies(TactilityTests TestsGeneratedAssets TestsGeneratedFonts TestsGeneratedCatalogs)
 target_include_directories(TactilityTests PRIVATE "${GENERATED_DIR}")
 
 target_include_directories(TactilityTests PRIVATE ${DOCTESTINC})
@@ -73,6 +80,7 @@ target_link_libraries(TactilityTests PRIVATE
     gps-module
     graphics-module
     http-module
+    localisation-module
     location-module
     mbedtls-module
     mesh-module

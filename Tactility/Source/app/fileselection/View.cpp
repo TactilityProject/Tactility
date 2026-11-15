@@ -1,4 +1,3 @@
-#include <Tactility/app/fileselection/View.h>
 #include <Tactility/StringUtils.h>
 #include <Tactility/file/File.h>
 
@@ -15,6 +14,9 @@
 #include <cstring>
 #include <unistd.h>
 
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/fileselection/View.h>
+
 #ifdef ESP_PLATFORM
 #endif
 
@@ -28,7 +30,7 @@ static void onDirEntryPressedCallback(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
     auto* button = lv_event_get_target_obj(event);
     auto index = lv_obj_get_index(button);
-    view->onDirEntryPressed(index);
+    view->onDirEntryPressed(index, button);
 }
 
 static void onNavigateUpPressedCallback(lv_event_t* event) {
@@ -41,8 +43,8 @@ static void onNavigateUpPressedCallback(lv_event_t* event) {
 namespace {
 
 struct NavigateJob {
-    std::shared_ptr<State> state;
-    std::string path;
+    ::std::shared_ptr<State> state;
+    ::std::string path;
 };
 
 void navigateWork(void* context) {
@@ -55,10 +57,10 @@ void navigateWork(void* context) {
 
 } // namespace
 
-View::View(uint32_t appInstanceId, const std::shared_ptr<State>& state, TaskEventGroup* eventGroup, std::function<void(const std::string& path)> onFileSelected) :
+View::View(uint32_t appInstanceId, const ::std::shared_ptr<State>& state, TaskEventGroup* eventGroup, ::std::function<void(const ::std::vector<::std::string>& paths)> onFileSelected) :
     appInstanceId(appInstanceId),
     state(state),
-    on_file_selected(std::move(onFileSelected))
+    on_file_selected(::std::move(onFileSelected))
 {
     check(file_ops_subscribe(&fileOpsSub, eventGroup) == ERROR_NONE);
 }
@@ -67,11 +69,11 @@ View::~View() {
     file_ops_unsubscribe(&fileOpsSub);
 }
 
-void View::navigateTo(const std::string& path) {
+void View::navigateTo(const ::std::string& path) {
     if (navigationPending.exchange(true)) {
         return;
     }
-    auto* job = new (std::nothrow) NavigateJob { state, path };
+    auto* job = new (::std::nothrow) NavigateJob { state, path };
     if (job == nullptr || file_ops_queue(navigateWork, job, &fileOpsSub) != ERROR_NONE) {
         LOG_E(TAG, "Failed to queue reading %s", path.c_str());
         delete job;
@@ -84,7 +86,11 @@ void View::onFileOpsCompleted() {
         navigationPending = false;
         if (state->takeCompletedNavigation()) {
             lvgl_lock();
-            lv_textarea_set_text(path_textarea, state->getCurrentPathWithTrailingSlash().c_str());
+            // The widgets are gone while another window covers this one: they are rebuilt from the state
+            pathText = state->getCurrentPathWithTrailingSlash().c_str();
+            if (path_textarea != nullptr) {
+                lv_textarea_set_text(path_textarea, pathText.c_str());
+            }
             lvgl_unlock();
             update();
         }
@@ -96,13 +102,18 @@ void View::onBackPressedCallback(lv_event_t* event) {
     app_event_emit_close(view->appInstanceId);
 }
 
-void View::onTapFile(const std::string& path, const std::string& filename) {
-    std::string file_path = path + "/" + filename;
+void View::onTapFile(const ::std::string& path, const ::std::string& filename, lv_obj_t* button) {
+    ::std::string file_path = file::getChildPath(path, filename);
     LOG_D(TAG, "Clicked %s", file_path.c_str());
-    lv_textarea_set_text(path_textarea, file_path.c_str());
+    if (state->getOptions().multiple) {
+        lv_obj_set_state(button, LV_STATE_CHECKED, state->toggleSelectedPath(file_path));
+    } else {
+        lv_textarea_set_text(path_textarea, file_path.c_str());
+    }
+    updateSelectButton();
 }
 
-void View::onDirEntryPressed(uint32_t index) {
+void View::onDirEntryPressed(uint32_t index, lv_obj_t* button) {
     dirent dir_entry;
     if (state->getDirent(index, dir_entry)) {
         LOG_D(TAG, "Pressed %s %d", dir_entry.d_name, (int)dir_entry.d_type);
@@ -117,49 +128,62 @@ void View::onDirEntryPressed(uint32_t index) {
                 LOG_W(TAG, "Opening links is not supported");
                 break;
             case TT_DT_REG:
-                onTapFile(state->getCurrentPath(), dir_entry.d_name);
+                onTapFile(state->getCurrentPath(), dir_entry.d_name, button);
                 break;
             default:
                 // Assume it's a file
                 // TODO: Find a better way to identify a file
-                onTapFile(state->getCurrentPath(), dir_entry.d_name);
+                onTapFile(state->getCurrentPath(), dir_entry.d_name, button);
                 break;
         }
     }
 }
 
+::std::vector<::std::string> View::getResultPaths() const {
+    auto paths = state->getSelectedPaths();
+    if (!paths.empty()) {
+        return paths;
+    }
+    if (pathText.empty()) {
+        return paths;
+    }
+    // Whether it is a file or a folder is checked by the app task, as that needs file operations
+    ::std::string path = pathText.c_str();
+    while (path.length() > 1 && path.back() == '/') {
+        path.pop_back();
+    }
+    paths.push_back(::std::move(path));
+    return paths;
+}
+
+void View::updateSelectButton() {
+    if (select_button == nullptr) {
+        return;
+    }
+    auto paths = getResultPaths();
+    lv_obj_set_hidden(select_button, paths.empty());
+    if (state->getOptions().multiple && paths.size() > 1) {
+        lv_label_set_text_fmt(select_label, "Select (%u)", static_cast<unsigned>(paths.size()));
+    } else {
+        lv_label_set_text(select_label, "Select");
+    }
+}
+
 void View::onSelectButtonPressed(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    const char* path = lv_textarea_get_text(view->path_textarea);
-    if (path == nullptr || strlen(path) == 0) {
-        LOG_W(TAG, "Select pressed, but not path found in textarea");
+    auto paths = view->getResultPaths();
+    if (paths.empty()) {
+        LOG_W(TAG, "Select pressed, but no valid path found");
         return;
     }
 
-    view->onFileSelected(std::string(path));
-}
-
-static bool isSelectableFilePath(const char* path) {
-    if (path == nullptr) {
-        return false;
-    }
-
-    auto len = strlen(path);
-    if (len == 0) {
-        return false;
-    }
-
-    return path[len - 1] != '/';
+    view->onFileSelected(paths);
 }
 
 void View::onPathTextChanged(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    const char* path = lv_textarea_get_text(view->path_textarea);
-    if (isSelectableFilePath(path)) {
-        lv_obj_set_hidden(view->select_button, false);
-    } else {
-        lv_obj_set_hidden(view->select_button, true);
-    }
+    view->pathText = lv_textarea_get_text(view->path_textarea);
+    view->updateSelectButton();
 }
 
 void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
@@ -172,12 +196,15 @@ void View::createDirEntryWidget(lv_obj_t* list, dirent& dir_entry) {
     }
     lv_obj_t* button = lvgl_list_add_button(list, symbol, dir_entry.d_name);
     lv_obj_add_event_cb(button, &onDirEntryPressedCallback, LV_EVENT_SHORT_CLICKED, this);
+    if (state->getOptions().multiple && dir_entry.d_type != file::TT_DT_DIR && dir_entry.d_type != file::TT_DT_CHR && state->isSelectedPath(file::getChildPath(state->getCurrentPath(), dir_entry.d_name))) {
+        lv_obj_add_state(button, LV_STATE_CHECKED);
+    }
 }
 
 void View::onNavigateUpPressed() {
     if (state->getCurrentPath() != "/") {
         LOG_D(TAG, "Navigating upwards");
-        std::string new_absolute_path;
+        ::std::string new_absolute_path;
         if (string::getPathParent(state->getCurrentPath(), new_absolute_path)) {
             navigateTo(new_absolute_path);
         }
@@ -190,9 +217,15 @@ void View::update() {
         return;
     }
 
+    // The widgets are gone while another window covers this one
+    if (dir_entry_list == nullptr) {
+        lvgl_unlock();
+        return;
+    }
+
     lv_obj_clean(dir_entry_list);
 
-    state->withEntries([this](const std::vector<dirent>& entries) {
+    state->withEntries([this](const ::std::vector<dirent>& entries) {
         for (auto entry : entries) {
             LOG_D(TAG, "Entry: %s %d", entry.d_name, (int)entry.d_type);
             createDirEntryWidget(dir_entry_list, entry);
@@ -208,7 +241,7 @@ void View::update() {
     lvgl_unlock();
 }
 
-void View::init(lv_obj_t* parent, Mode mode) {
+void View::init(lv_obj_t* parent) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
@@ -240,12 +273,23 @@ void View::init(lv_obj_t* parent, Mode mode) {
     lv_obj_add_event_cb(path_textarea, onPathTextChanged, LV_EVENT_VALUE_CHANGED, this);
 
     select_button = lv_button_create(bottom_wrapper);
-    auto* select_button_label = lv_label_create(select_button);
-    lv_label_set_text(select_button_label, "Select");
+    select_label = lv_label_create(select_button);
+    lv_label_set_text(select_label, "Select");
     lv_obj_add_event_cb(select_button, onSelectButtonPressed, LV_EVENT_SHORT_CLICKED, this);
     lv_obj_set_hidden(select_button, true);
 
     update();
+    // Rebuilt from the cached text. It also updates the select button.
+    lv_textarea_set_text(path_textarea, pathText.c_str());
+    updateSelectButton();
+}
+
+void View::destroyWidgets() {
+    dir_entry_list = nullptr;
+    navigate_up_button = nullptr;
+    path_textarea = nullptr;
+    select_button = nullptr;
+    select_label = nullptr;
 }
 
 }

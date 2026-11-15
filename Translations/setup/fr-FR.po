@@ -1,0 +1,82 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "Back"
+msgstr "Retour"
+
+msgid "Skip"
+msgstr "Passer"
+
+msgid "Continue"
+msgstr "Continuer"
+
+msgid "Finish"
+msgstr "Terminer"
+
+msgid "Welcome"
+msgstr "Bienvenue"
+
+msgid "It's time to set up your {}!"
+msgstr "Il est temps de configurer votre {} !"
+
+msgid "Setup Complete"
+msgstr "Configuration terminée"
+
+msgid "You're all set."
+msgstr "Tout est prêt."
+
+msgid "Wi-Fi Setup"
+msgstr "Configuration du Wi-Fi"
+
+msgid "Let's connect to a Wi-Fi access point."
+msgstr "Connectons-nous à un point d'accès Wi-Fi."
+
+msgid "Location Services"
+msgstr "Services de localisation"
+
+msgid "Allow apps to retrieve your location. It uses GPS and/or contacts geoiplookup.io"
+msgstr "Autorise les applications à obtenir votre position. Utilise le GPS et/ou contacte geoiplookup.io"
+
+msgid "App location access:"
+msgstr "Accès des applications à la position :"
+
+msgid "Precise"
+msgstr "Précise"
+
+msgid "Approximate"
+msgstr "Approximative"
+
+msgid "Disabled"
+msgstr "Désactivé"
+
+msgid "Enabled"
+msgstr "Activé"
+
+msgid "Time Zone"
+msgstr "Fuseau horaire"
+
+msgid "Time from GPS"
+msgstr "Heure par GPS"
+
+msgid "Set time from GPS at boot?"
+msgstr "Régler l'heure via GPS au démarrage ?"
+
+msgid "Enable Mesh?"
+msgstr "Activer Mesh ?"
+
+msgid "Connecting"
+msgstr "Connexion"
+
+msgid "Failed to connect"
+msgstr "Échec de la connexion"
+
+msgid "No Wi-Fi available."
+msgstr "Aucun Wi-Fi disponible."
+
+msgid "Scanning"
+msgstr "Recherche"
+
+msgid "No networks found."
+msgstr "Aucun réseau trouvé."

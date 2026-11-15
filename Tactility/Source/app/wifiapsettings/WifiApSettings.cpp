@@ -24,6 +24,7 @@
 #include <tactility/drivers/wifi.h>
 #include <tactility/file_ops.h>
 #include <tactility/log.h>
+#include <localisation/tr.h>
 
 namespace tt::app::wifiapsettings {
 
@@ -126,7 +127,7 @@ void onBackPressed(lv_event_t* event) {
 
 void onPressForget(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    ctx->forgetDialogId = alertdialog::start(ctx->appInstanceId, "Confirmation", "Forget the Wi-Fi access point?", std::vector<std::string> { "Yes", "No" });
+    ctx->forgetDialogId = alertdialog::start(ctx->appInstanceId, "Confirmation", "Forget the Wi-Fi access point?", std::vector<std::string> { tr("Yes"), tr("No") });
 }
 
 void onToggleAutoConnect(lv_event_t* event) {

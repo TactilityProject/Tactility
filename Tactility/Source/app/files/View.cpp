@@ -20,13 +20,15 @@
 #include <generated_assets.h>
 
 #include <Tactility/app/files/SupportedFiles.h>
-#include <Tactility/app/files/View.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/imageviewer/ImageViewer.h>
 #include <Tactility/app/inputdialog/InputDialog.h>
 #include <Tactility/app/notes/Notes.h>
 #include <Tactility/file/File.h>
 #include <Tactility/StringUtils.h>
+#include <Tactility/i18n/Localisation.h>
+
+#include <localisation/tr.h>
 
 #include <tactility/device.h>
 #include <tactility/file_ops.h>
@@ -42,6 +44,9 @@
 #include <format>
 #include <unistd.h>
 #include <vector>
+
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/files/View.h>
 
 namespace tt::app::files {
 
@@ -186,7 +191,7 @@ static FileIcon getIcon(const dirent& entry, bool isRoot) {
     }
 }
 
-static bool copyFileContents(const std::string& src, const std::string& dst) {
+static bool copyFileContents(const ::std::string& src, const ::std::string& dst) {
     FILE* in = fopen(src.c_str(), "rb");
     if (in == nullptr) {
         return false;
@@ -218,7 +223,7 @@ static bool copyFileContents(const std::string& src, const std::string& dst) {
     return success;
 }
 
-static bool copyRecursive(const std::string& src, const std::string& dst) {
+static bool copyRecursive(const ::std::string& src, const ::std::string& dst) {
     if (directory_exists(src.c_str())) {
         if (!file::findOrCreateDirectory(dst, 0755)) {
             return false;
@@ -236,7 +241,7 @@ static bool copyRecursive(const std::string& src, const std::string& dst) {
             if (!entry) break;
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 
-            std::string name = entry->d_name; // copy before releasing lock
+            ::std::string name = entry->d_name; // copy before releasing lock
 
             success = copyRecursive(file::getChildPath(src, name), file::getChildPath(dst, name));
         }
@@ -256,8 +261,8 @@ static bool copyRecursive(const std::string& src, const std::string& dst) {
 namespace {
 
 struct NavigateJob {
-    std::shared_ptr<State> state;
-    std::string path;
+    ::std::shared_ptr<State> state;
+    ::std::string path;
     bool firstPage;
     bool selectFirst;
 };
@@ -272,7 +277,7 @@ void navigateWork(void* context) {
 
 struct RunJob {
     uint32_t appInstanceId;
-    std::string path;
+    ::std::string path;
 };
 
 // Starting an executable loads it from a file
@@ -283,7 +288,7 @@ void runWork(void* context) {
     AppStartContext start_context = app_start_context_for_location(location);
     if (app_start_with_context(&start_context, &instance_id) != ERROR_NONE) {
         LOG_W(TAG, "Failed to run %s", job->path.c_str());
-        alertdialog::start(job->appInstanceId, "Run failed", "Could not run \"" + file::getLastPathSegment(job->path) + "\".");
+        alertdialog::start(job->appInstanceId, tr("Run failed"), i18n::format(tr("Could not run \"{}\"."), { file::getLastPathSegment(job->path) }));
     }
     delete job;
 }
@@ -308,11 +313,11 @@ void View::updateBusySpinner() {
     lvgl_unlock();
 }
 
-void View::navigateTo(const std::string& path, bool firstPage, bool selectFirst) {
+void View::navigateTo(const ::std::string& path, bool firstPage, bool selectFirst) {
     if (navigationPending.exchange(true)) {
         return;
     }
-    auto* job = new (std::nothrow) NavigateJob { state, path, firstPage, selectFirst };
+    auto* job = new (::std::nothrow) NavigateJob { state, path, firstPage, selectFirst };
     if (job == nullptr || file_ops_queue(navigateWork, job, &fileOpsSub) != ERROR_NONE) {
         LOG_E(TAG, "Failed to queue reading %s", path.c_str());
         delete job;
@@ -336,16 +341,16 @@ void View::onFileOpsCompleted() {
     }
 }
 
-void View::viewFile(const std::string& path, const std::string& filename) {
-    std::string file_path = path + "/" + filename;
+void View::viewFile(const ::std::string& path, const ::std::string& filename) {
+    ::std::string file_path = path + "/" + filename;
     LOG_I(TAG, "Clicked %s", file_path.c_str());
 
     if (isSupportedAppFile(filename)) {
         // install(filename);
-        auto message = std::format("Do you want to install {}?", filename);
+        auto message = i18n::format(tr("Do you want to install {}?"), { filename });
         installAppPath = file_path;
-        auto choices = std::vector<std::string> {"Yes", "No"};
-        installDialogId = alertdialog::start(appInstanceId, "Install?", message, choices);
+        auto choices = ::std::vector<::std::string> { tr("Yes"), tr("No") };
+        installDialogId = alertdialog::start(appInstanceId, tr("Install?"), message, choices);
     } else if (isSupportedImageFile(filename)) {
         imageviewer::start(file_path);
     } else if (isSupportedTextFile(filename)) {
@@ -359,23 +364,23 @@ void View::viewFile(const std::string& path, const std::string& filename) {
     onNavigate();
 }
 
-void View::runFile(const std::string& file_path) {
+void View::runFile(const ::std::string& file_path) {
     LOG_I(TAG, "Running %s", file_path.c_str());
 
     if (!state->isExecutable(file::getLastPathSegment(file_path))) {
         LOG_W(TAG, "Not executable: %s", file_path.c_str());
-        alertdialog::start(appInstanceId, "Run failed", "\"" + file::getLastPathSegment(file_path) + "\" is not an executable.");
+        alertdialog::start(appInstanceId, tr("Run failed"), i18n::format(tr("\"{}\" is not an executable."), { file::getLastPathSegment(file_path) }));
         return;
     }
 
-    auto* job = new (std::nothrow) RunJob { appInstanceId, file_path };
+    auto* job = new (::std::nothrow) RunJob { appInstanceId, file_path };
     if (job == nullptr || file_ops_queue(runWork, job, nullptr) != ERROR_NONE) {
         LOG_E(TAG, "Failed to queue running %s", file_path.c_str());
         delete job;
     }
 }
 
-View::View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
+View::View(const ::std::shared_ptr<State>& state, TaskEventGroup* eventGroup) :
     state(state),
     eventGroup(eventGroup),
     grid(TileGrid::Callbacks {
@@ -400,7 +405,7 @@ void View::loadIcons() {
 
     const auto size = static_cast<uint32_t>(lvgl_get_shared_icon_large_font_height());
     const bool preferMono = lvgl_theme_is_mono();
-    for (size_t i = 0; i < std::size(FILE_ICON_ASSETS); i++) {
+    for (size_t i = 0; i < ::std::size(FILE_ICON_ASSETS); i++) {
         const auto& asset = FILE_ICON_ASSETS[i];
         icons[i] = lvgl_svg_rasterize_variants(
             reinterpret_cast<const char*>(asset.colour), asset.colourSize,
@@ -421,11 +426,11 @@ View::~View() {
     task_event_group_release_bit(eventGroup, pasteBit);
 }
 
-std::vector<TileGridItem> View::collectItems(void* userData) {
+::std::vector<TileGridItem> View::collectItems(void* userData) {
     auto* view = static_cast<View*>(userData);
     const bool is_root = (view->state->getCurrentPath() == "/");
-    std::vector<TileGridItem> items;
-    view->state->withEntries([&](const std::vector<dirent>& entries) {
+    ::std::vector<TileGridItem> items;
+    view->state->withEntries([&](const ::std::vector<dirent>& entries) {
         items.reserve(entries.size());
         for (const auto& entry : entries) {
             const auto icon = getIcon(entry, is_root);
@@ -464,13 +469,25 @@ void View::onTileKey(const TileGridItem& item, uint32_t key, void* userData) {
 }
 
 void View::onPageChanged(void* userData) {
-    static_cast<View*>(userData)->hideOverlay();
+    auto* view = static_cast<View*>(userData);
+    const auto entries = view->state->getSelectedEntries();
+    if (entries.empty()) {
+        view->hideOverlay();
+        return;
+    }
+    // The selection and its actions stay, and the tiles of the new page that are selected show it
+    for (const auto& name : entries) {
+        lv_obj_t* tile = view->grid.findTile(name);
+        if (tile != nullptr) {
+            lv_obj_add_state(tile, LV_STATE_CHECKED);
+        }
+    }
 }
 
-bool View::findDirent(const std::string& name, dirent& out_entry) {
+bool View::findDirent(const ::std::string& name, dirent& out_entry) {
     bool found = false;
-    state->withEntries([&](const std::vector<dirent>& entries) {
-        const auto it = std::ranges::find_if(entries, [&](const dirent& entry) { return name == entry.d_name; });
+    state->withEntries([&](const ::std::vector<dirent>& entries) {
+        const auto it = ::std::ranges::find_if(entries, [&](const dirent& entry) { return name == entry.d_name; });
         if (it != entries.end()) {
             out_entry = *it;
             found = true;
@@ -479,7 +496,16 @@ bool View::findDirent(const std::string& name, dirent& out_entry) {
     return found;
 }
 
-void View::onDirEntryPressed(const std::string& name) {
+void View::onDirEntryPressed(const ::std::string& name) {
+    // Once an entry is selected, a tap adds an entry to the selection or removes it
+    if (isSelecting()) {
+        dirent selected_entry;
+        if (findDirent(name, selected_entry)) {
+            toggleSelectedEntry(selected_entry);
+        }
+        return;
+    }
+
     // A tap only closes the overlay, so it can't open an entry by accident
     if (!lv_obj_is_hidden(overlay)) {
         hideOverlay();
@@ -512,9 +538,37 @@ void View::onDirEntryPressed(const std::string& name) {
     }
 }
 
-void View::onDirEntryLongPressed(const std::string& name) {
-    // Deselects the tile of an overlay that is still open
-    hideOverlay();
+bool View::isSelecting() const {
+    // Actions are shown for a selection of entries. At the root only mount points have actions, so they can't be combined.
+    return overlay != nullptr && !lv_obj_is_hidden(overlay) && state->getCurrentPath() != "/" && !state->getSelectedEntries().empty();
+}
+
+void View::toggleSelectedEntry(const dirent& dir_entry) {
+    if (dir_entry.d_type == file::TT_DT_LNK) {
+        return;
+    }
+    const ::std::string name = dir_entry.d_name;
+    lv_obj_t* pressed_tile = grid.findTile(name);
+    const bool selected = state->toggleSelectedEntry(name);
+    if (pressed_tile != nullptr) {
+        lv_obj_set_state(pressed_tile, LV_STATE_CHECKED, selected);
+    }
+    const auto entries = state->getSelectedEntries();
+    if (entries.empty()) {
+        hideOverlay();
+    } else {
+        state->setSelectedChildEntry(entries.front());
+        showActionsForSelection(grid.findTile(entries.back()));
+    }
+}
+
+void View::onDirEntryLongPressed(const ::std::string& name) {
+    const bool is_root = state->getCurrentPath() == "/";
+    const bool extends_selection = isSelecting();
+    if (!extends_selection) {
+        // Deselects the tile of an overlay that is still open
+        hideOverlay();
+    }
 
     dirent dir_entry;
     if (!findDirent(name, dir_entry)) {
@@ -522,13 +576,20 @@ void View::onDirEntryLongPressed(const std::string& name) {
     }
 
     LOG_I(TAG, "Long-pressed %s %d", dir_entry.d_name, (int)dir_entry.d_type);
+
+    if (extends_selection) {
+        toggleSelectedEntry(dir_entry);
+        return;
+    }
+
     state->setSelectedChildEntry(dir_entry.d_name);
     lv_obj_t* tile = grid.findTile(name);
 
-    if (state->getCurrentPath() == "/") {
+    if (is_root) {
         // At root, only USB mount points support actions (eject).
         // Other root-level entries intentionally have no context actions.
         if (isUsbMountPoint(dir_entry.d_name)) {
+            state->selectOnlyEntry(name);
             showActionsForMountPoint(tile);
         }
         return;
@@ -538,6 +599,7 @@ void View::onDirEntryLongPressed(const std::string& name) {
     switch (dir_entry.d_type) {
         case TT_DT_DIR:
         case TT_DT_CHR:
+            state->selectOnlyEntry(name);
             showActionsForDirectory(tile);
             break;
 
@@ -546,14 +608,45 @@ void View::onDirEntryLongPressed(const std::string& name) {
             break;
 
         default:
+            state->selectOnlyEntry(name);
             showActionsForFile(tile);
             break;
     }
 }
 
-void View::onDirEntryKeyPressed(const std::string& name, uint32_t key) {
+void View::onDirEntryKeyPressed(const ::std::string& name, uint32_t key) {
+    // Space selects like a long press. The focus stays on the grid, so more entries can be selected with space or enter.
     if (key == ' ') {
+        keepGridFocus = true;
         onDirEntryLongPressed(name);
+        keepGridFocus = false;
+        return;
+    }
+
+    if (isSelecting()) {
+        switch (key) {
+            case LV_KEY_ESC:
+                hideOverlay();
+                break;
+            case 'c': case 'C':
+                onCopyPressed();
+                break;
+            case 'x': case 'X':
+                onCutPressed();
+                break;
+            case 'v': case 'V':
+                if (state->hasClipboard()) onPastePressed();
+                break;
+            case 'r': case 'R':
+                if (state->getSelectedEntries().size() == 1) onRenamePressed();
+                break;
+            case LV_KEY_DEL:
+            case LV_KEY_BACKSPACE:
+                onDeletePressed();
+                break;
+            default:
+                break;
+        }
         return;
     }
 
@@ -572,6 +665,7 @@ void View::onDirEntryKeyPressed(const std::string& name, uint32_t key) {
     if (state->getCurrentPath() == "/" || dir_entry.d_type == file::TT_DT_LNK) {
         return;
     }
+    hideOverlay();
     state->setSelectedChildEntry(dir_entry.d_name);
     if (is_delete) {
         onDeletePressed();
@@ -587,7 +681,7 @@ void View::onBackPressed() {
 void View::onNavigateUpPressed() {
     if (state->getCurrentPath() != "/") {
         LOG_I(TAG, "Navigating upwards");
-        std::string new_absolute_path;
+        ::std::string new_absolute_path;
         if (string::getPathParent(state->getCurrentPath(), new_absolute_path)) {
             navigateTo(new_absolute_path, true, false);
         }
@@ -611,34 +705,41 @@ void View::onOverflowPressed() {
 
 void View::onRenamePressed() {
     onNavigate();
-    std::string entry_name = state->getSelectedChildEntry();
+    ::std::string entry_name = state->getSelectedChildEntry();
     LOG_I(TAG, "Pending rename %s", entry_name.c_str());
     state->setPendingAction(State::ActionRename);
-    inputdialog::start(appInstanceId, "Rename", "", entry_name, inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
+    inputdialog::start(appInstanceId, tr("Rename"), "", entry_name, inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
 }
 
 void View::onDeletePressed() {
+    const auto paths = getSelectedPaths();
     onNavigate();
-    std::string file_path = state->getSelectedChildPath();
-    LOG_I(TAG, "Pending delete %s", file_path.c_str());
+    state->setPendingDeletePaths(paths);
     state->setPendingAction(State::ActionDelete);
-    std::string message = "Do you want to delete this?\n" + file_path;
-    const std::vector<std::string> choices = {"Yes", "No"};
-    alertdialog::start(appInstanceId, "Are you sure?", message, choices);
+    ::std::string message;
+    if (paths.size() == 1) {
+        LOG_I(TAG, "Pending delete %s", paths[0].c_str());
+        message = i18n::format(tr("Do you want to delete this?\n{}"), { paths[0] });
+    } else {
+        LOG_I(TAG, "Pending delete of %u items", static_cast<unsigned>(paths.size()));
+        message = i18n::format(tr("Do you want to delete these {} items?"), { ::std::to_string(paths.size()) });
+    }
+    const ::std::vector<::std::string> choices = { tr("Yes"), tr("No") };
+    alertdialog::start(appInstanceId, tr("Are you sure?"), message, choices);
 }
 
 void View::onNewFilePressed() {
     onNavigate();
     LOG_I(TAG, "Creating new file");
     state->setPendingAction(State::ActionCreateFile);
-    inputdialog::start(appInstanceId, "New File", "Enter filename:", "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
+    inputdialog::start(appInstanceId, tr("New File"), tr("Enter filename:"), "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
 }
 
 void View::onNewFolderPressed() {
     onNavigate();
     LOG_I(TAG, "Creating new folder");
     state->setPendingAction(State::ActionCreateFolder);
-    inputdialog::start(appInstanceId, "New Folder", "Enter folder name:", "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
+    inputdialog::start(appInstanceId, tr("New Folder"), tr("Enter folder name:"), "", inputDialogStream, inputDialogBuffer, sizeof(inputDialogBuffer), eventGroup);
 }
 
 lv_obj_t* View::addOverlayButton(const char* icon, lv_event_cb_t callback) {
@@ -650,13 +751,27 @@ lv_obj_t* View::addOverlayButton(const char* icon, lv_event_cb_t callback) {
     return button;
 }
 
+::std::vector<::std::string> View::getSelectedPaths() const {
+    ::std::vector<::std::string> paths;
+    const auto current_path = state->getCurrentPath();
+    for (const auto& name : state->getSelectedEntries()) {
+        paths.push_back(file::getChildPath(current_path, name));
+    }
+    if (paths.empty()) {
+        paths.push_back(state->getSelectedChildPath());
+    }
+    return paths;
+}
+
 void View::addCommonFileActions() {
     addOverlayButton(LVGL_ICON_SHARED_CONTENT_COPY, onCopyPressedCallback);
     addOverlayButton(LVGL_ICON_SHARED_CONTENT_CUT, onCutPressedCallback);
     if (state->hasClipboard()) {
         addOverlayButton(LVGL_ICON_SHARED_CONTENT_PASTE, onPastePressedCallback);
     }
-    addOverlayButton(LVGL_ICON_SHARED_EDIT, onRenamePressedCallback);
+    if (state->getSelectedEntries().size() <= 1) {
+        addOverlayButton(LVGL_ICON_SHARED_EDIT, onRenamePressedCallback);
+    }
     addOverlayButton(LVGL_ICON_SHARED_DELETE, onDeletePressedCallback);
 }
 
@@ -677,7 +792,7 @@ void View::showOverlay(lv_obj_t* anchorTile) {
     }
 
     lv_group_t* group = lv_group_get_default();
-    if (group != nullptr && lv_obj_get_child_count(overlay) > 0) {
+    if (group != nullptr && !keepGridFocus && lv_obj_get_child_count(overlay) > 0) {
         lv_group_focus_obj(overlay);
         lv_gridnav_set_focused(overlay, lv_obj_get_child(overlay, 0), LV_ANIM_OFF);
         // Touch shows no selection, until a key moves the focus
@@ -693,6 +808,14 @@ void View::hideOverlay() {
         return;
     }
     lv_obj_set_hidden(overlay, true);
+
+    for (const auto& name : state->getSelectedEntries()) {
+        lv_obj_t* selected_tile = grid.findTile(name);
+        if (selected_tile != nullptr) {
+            lv_obj_remove_state(selected_tile, LV_STATE_CHECKED);
+        }
+    }
+    state->clearSelectedEntries();
 
     lv_obj_t* tile = grid.findTile(state->getSelectedChildEntry());
     if (tile != nullptr) {
@@ -730,6 +853,22 @@ void View::showActionsForFile(lv_obj_t* tile) {
     showOverlay(tile);
 }
 
+void View::showActionsForSelection(lv_obj_t* tile) {
+    const auto entries = state->getSelectedEntries();
+    dirent dir_entry;
+    if (entries.size() == 1 && findDirent(entries[0], dir_entry)) {
+        if (dir_entry.d_type == file::TT_DT_DIR || dir_entry.d_type == file::TT_DT_CHR) {
+            showActionsForDirectory(tile);
+        } else {
+            showActionsForFile(tile);
+        }
+        return;
+    }
+    lv_obj_clean(overlay);
+    addCommonFileActions();
+    showOverlay(tile);
+}
+
 void View::showActionsForMountPoint(lv_obj_t* tile) {
     lv_obj_clean(overlay);
     addOverlayButton(LVGL_ICON_SHARED_EJECT, onEjectPressedCallback);
@@ -737,20 +876,20 @@ void View::showActionsForMountPoint(lv_obj_t* tile) {
 }
 
 void View::onRunPressed() {
-    std::string file_path = state->getSelectedChildPath();
+    ::std::string file_path = state->getSelectedChildPath();
     onNavigate();
     runFile(file_path);
 }
 
 void View::onEjectPressed() {
-    std::string mount_path = state->getSelectedChildPath();
+    ::std::string mount_path = state->getSelectedChildPath();
     LOG_I(TAG, "Ejecting %s", mount_path.c_str());
 
     // One device per mounted drive. Ejecting happens outside the iteration, which holds the device ledger lock.
-    std::vector<Device*> msc_devices;
+    ::std::vector<Device*> msc_devices;
     device_for_each_of_type(&USB_HOST_MSC_TYPE, &msc_devices, [](Device* device, void* context) -> bool {
         if (device_is_ready(device) && device_get(device) == ERROR_NONE) {
-            static_cast<std::vector<Device*>*>(context)->push_back(device);
+            static_cast<::std::vector<Device*>*>(context)->push_back(device);
         }
         return true;
     });
@@ -765,7 +904,7 @@ void View::onEjectPressed() {
 
     if (!ejected) {
         LOG_W(TAG, "usb_msc_eject: %s not found", mount_path.c_str());
-        alertdialog::start(appInstanceId, "Eject failed", "Could not eject \"" + file::getLastPathSegment(mount_path) + "\".");
+        alertdialog::start(appInstanceId, tr("Eject failed"), i18n::format(tr("Could not eject \"{}\"."), { file::getLastPathSegment(mount_path) }));
     }
 
     onNavigate();
@@ -807,7 +946,7 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     const bool is_root = (state->getCurrentPath() == "/");
-    auto* toolbar = lvgl_toolbar_create(parent, "Files");
+    auto* toolbar = lvgl_toolbar_create(parent, tr("Files"));
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressedCallback, this);
     busy_spinner = lvgl_toolbar_add_spinner_action(toolbar);
@@ -839,6 +978,8 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
 }
 
 void View::destroyWidgets() {
+    // The checked tiles and the overlay are gone, so nothing may stay selected
+    state->clearSelectedEntries();
     busy_spinner = nullptr;
     overlay = nullptr;
     navigate_up_button = nullptr;
@@ -856,7 +997,7 @@ void View::onResult(uint32_t launchId, int32_t result) {
         return;
     }
 
-    std::string filepath = state->getSelectedChildPath();
+    ::std::string filepath = state->getSelectedChildPath();
     LOG_I(TAG, "Result for %s", filepath.c_str());
 
     // Text-entry result (rename/new file/new folder), read from the AppStream bound to that
@@ -865,12 +1006,12 @@ void View::onResult(uint32_t launchId, int32_t result) {
     bool isTextEntryAction = state->getPendingAction() == State::ActionRename ||
         state->getPendingAction() == State::ActionCreateFile ||
         state->getPendingAction() == State::ActionCreateFolder;
-    std::string resultText;
+    ::std::string resultText;
     if (isTextEntryAction) {
         if (result == 0) {
             char buffer[sizeof(inputDialogBuffer)];
             size_t length = app_stream_read(&inputDialogStream, buffer, sizeof(buffer));
-            resultText = std::string(buffer, length);
+            resultText = ::std::string(buffer, length);
         }
         app_stream_unsubscribe(&inputDialogStream);
     }
@@ -881,15 +1022,18 @@ void View::onResult(uint32_t launchId, int32_t result) {
         case State::ActionDelete: {
             if (result == 0) {
                 OperationScope operation(*this);
-                if (directory_exists(filepath.c_str())) {
-                    if (!file::deleteRecursively(filepath)) {
-                        LOG_W(TAG, "Failed to delete %s", filepath.c_str());
-                    }
-                } else if (file_exists(filepath.c_str())) {
-                    if (remove(filepath.c_str()) != 0) {
-                        LOG_W(TAG, "Failed to delete %s", filepath.c_str());
+                for (const auto& path : state->getPendingDeletePaths()) {
+                    if (directory_exists(path.c_str())) {
+                        if (!file::deleteRecursively(path)) {
+                            LOG_W(TAG, "Failed to delete %s", path.c_str());
+                        }
+                    } else if (file_exists(path.c_str())) {
+                        if (remove(path.c_str()) != 0) {
+                            LOG_W(TAG, "Failed to delete %s", path.c_str());
+                        }
                     }
                 }
+                state->setPendingDeletePaths({});
 
                 state->setEntriesForPath(state->getCurrentPath());
                 update(false);
@@ -897,14 +1041,14 @@ void View::onResult(uint32_t launchId, int32_t result) {
             break;
         }
         case State::ActionRename: {
-            std::string new_name = resultText;
+            ::std::string new_name = resultText;
             if (!new_name.empty() && new_name != state->getSelectedChildEntry()) {
-                std::string rename_to = file::getChildPath(state->getCurrentPath(), new_name);
+                ::std::string rename_to = file::getChildPath(state->getCurrentPath(), new_name);
                 struct stat st;
                 if (stat(rename_to.c_str(), &st) == 0) {
                     LOG_W(TAG, "Rename: destination already exists: \"%s\"", rename_to.c_str());
                     state->setPendingAction(State::ActionNone);
-                    alertdialog::start(appInstanceId, "Rename failed", "\"" + new_name + "\" already exists.");
+                    alertdialog::start(appInstanceId, tr("Rename failed"), i18n::format(tr("\"{}\" already exists."), { new_name }));
                     break;
                 }
                 if (rename(filepath.c_str(), rename_to.c_str()) == 0) {
@@ -919,9 +1063,9 @@ void View::onResult(uint32_t launchId, int32_t result) {
             break;
         }
         case State::ActionCreateFile: {
-            std::string filename = resultText;
+            ::std::string filename = resultText;
             if (!filename.empty()) {
-                std::string new_file_path = file::getChildPath(state->getCurrentPath(), filename);
+                ::std::string new_file_path = file::getChildPath(state->getCurrentPath(), filename);
 
                 // O_CREAT | O_EXCL makes creation+existence-check one atomic operation, unlike a separate stat() before fopen()
                 int fd = open(new_file_path.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0644);
@@ -946,9 +1090,9 @@ void View::onResult(uint32_t launchId, int32_t result) {
             break;
         }
         case State::ActionCreateFolder: {
-            std::string foldername = resultText;
+            ::std::string foldername = resultText;
             if (!foldername.empty()) {
-                std::string new_folder_path = file::getChildPath(state->getCurrentPath(), foldername);
+                ::std::string new_folder_path = file::getChildPath(state->getCurrentPath(), foldername);
 
                 struct stat st;
                 if (stat(new_folder_path.c_str(), &st) == 0) {
@@ -973,55 +1117,38 @@ void View::onResult(uint32_t launchId, int32_t result) {
                 break;
             }
             pasteDialogId = 0;
-            const std::string paste_source = state->getPendingPasteSource();
+            const ::std::string paste_source = state->getPendingPasteSource();
             const bool paste_is_cut = state->getPendingPasteIsCut();
+            const ::std::string dst = state->getPendingPasteDst();
+            const ::std::string entry_name = file::getLastPathSegment(dst);
             state->setPendingPasteSource("", false);
             state->setPendingAction(State::ActionNone);
-            if (result == 0) {
-                if (!paste_source.empty()) {
-                    std::string dst = state->getPendingPasteDst();
+            if (result == 0 && !paste_source.empty()) {
+                // dst was last checked before the dialog was shown; a writer could
+                // have replaced it while the user was looking at the confirmation.
+                // Revalidate right before the destructive delete so we only ever
+                // remove the exact file the user agreed to overwrite.
+                struct stat current_stat {};
+                const bool dst_unchanged = (stat(dst.c_str(), &current_stat) == 0) &&
+                    state->pendingPasteDstMatches(current_stat);
 
-                    // dst was last checked before the dialog was shown; a writer could
-                    // have replaced it while the user was looking at the confirmation.
-                    // Revalidate right before the destructive delete so we only ever
-                    // remove the exact file the user agreed to overwrite.
-                    bool dst_unchanged;
-                    struct stat current_stat {};
-                    dst_unchanged = (stat(dst.c_str(), &current_stat) == 0) &&
-                        state->pendingPasteDstMatches(current_stat);
-                    state->clearPendingPasteDstStat();
-
-                    if (!dst_unchanged) {
-                        LOG_W(TAG, "Overwrite: destination \"%s\" changed since confirmation, aborting", dst.c_str());
-                        state->setPendingAction(State::ActionNone);
-                        alertdialog::start(
-                            appInstanceId,
-                            "Overwrite aborted",
-                            "\"" + file::getLastPathSegment(dst) + "\" changed while the dialog was open. Please try again."
-                        );
-                        break;
-                    }
-
+                if (!dst_unchanged) {
+                    LOG_W(TAG, "Overwrite: destination \"%s\" changed since confirmation, aborting", dst.c_str());
+                    addPasteFailure(i18n::format(tr("\"{}\" changed while the dialog was open."), { entry_name }));
+                } else if (file::deleteRecursively(dst)) {
                     // Trade-off: dst is removed before the copy attempt. If doPaste
                     // subsequently fails (e.g. source read error, out of space), the
                     // original dst data is unrecoverable. Acceptable for an embedded
                     // file manager; a safer approach would rename dst to a temp path
                     // first and roll back on failure.
-                    if (file::deleteRecursively(dst)) {
-                        doPaste(paste_source, paste_is_cut, dst);
-                    } else {
-                        LOG_E(TAG, "Overwrite: failed to remove existing destination: \"%s\"", dst.c_str());
-                        state->setPendingAction(State::ActionNone);
-                        alertdialog::start(
-                            appInstanceId,
-                            "Overwrite failed",
-                            "Could not remove \"" + file::getLastPathSegment(dst) + "\" before overwriting."
-                        );
-                    }
+                    doPaste(paste_source, paste_is_cut, dst);
+                } else {
+                    LOG_E(TAG, "Overwrite: failed to remove existing destination: \"%s\"", dst.c_str());
+                    addPasteFailure(i18n::format(tr("Could not remove \"{}\" before overwriting."), { entry_name }));
                 }
-            } else {
-                state->clearPendingPasteDstStat();
             }
+            state->clearPendingPasteDstStat();
+            processPasteQueue();
             break;
         }
         default:
@@ -1030,17 +1157,17 @@ void View::onResult(uint32_t launchId, int32_t result) {
 }
 
 void View::onCopyPressed() {
-    std::string path = state->getSelectedChildPath();
-    state->setClipboard(path, false);
-    LOG_I(TAG, "Copied to clipboard: %s", path.c_str());
+    const auto paths = getSelectedPaths();
+    state->setClipboard(paths, false);
+    LOG_I(TAG, "Copied %u item(s) to clipboard", static_cast<unsigned>(paths.size()));
     onNavigate();
     update(false);
 }
 
 void View::onCutPressed() {
-    std::string path = state->getSelectedChildPath();
-    state->setClipboard(path, true);
-    LOG_I(TAG, "Cut to clipboard: %s", path.c_str());
+    const auto paths = getSelectedPaths();
+    state->setClipboard(paths, true);
+    LOG_I(TAG, "Cut %u item(s) to clipboard", static_cast<unsigned>(paths.size()));
     onNavigate();
     update(false);
 }
@@ -1050,18 +1177,8 @@ void View::onPastePressed() {
     auto clipboard = state->getClipboard();
     if (!clipboard.has_value()) return;
 
-    std::string src = clipboard->first;
-    bool is_cut = clipboard->second;
-    std::string entry_name = file::getLastPathSegment(src);
-    std::string dst = file::getChildPath(state->getCurrentPath(), entry_name);
-
-    if (src == dst) {
-        LOG_I(TAG, "Paste: source and destination are the same path, skipping");
-        return;
-    }
-
     // The app task does the file system work, as it can block for long on slow storage
-    state->setPasteRequest({ src, dst, is_cut });
+    state->setPasteRequest({ clipboard->first, state->getCurrentPath(), clipboard->second });
     task_event_group_signal(eventGroup, pasteBit);
 }
 
@@ -1070,37 +1187,77 @@ void View::onPasteRequested() {
     if (!request.has_value()) return;
 
     // The pending destination, source and dialog belong to one paste: a second one waits for the answer
-    if (pasteDialogId != 0) {
-        LOG_W(TAG, "Paste: another paste waits for confirmation, skipping");
+    if (pasteDialogId != 0 || !pasteQueue.empty()) {
+        LOG_W(TAG, "Paste: another paste is busy, skipping");
         return;
     }
 
-    const std::string entry_name = file::getLastPathSegment(request->source);
-
-    // Copying a folder into itself would never end, as the copy is listed while it is being made
-    if (request->destination.starts_with(request->source + "/")) {
-        LOG_W(TAG, "Paste: \"%s\" is inside \"%s\"", request->destination.c_str(), request->source.c_str());
-        alertdialog::start(appInstanceId, "Paste failed", "\"" + entry_name + "\" can't be pasted into itself.");
-        return;
-    }
-
-    struct stat dst_stat {};
-
-    // If dst exists...
-    if (stat(request->destination.c_str(), &dst_stat) == 0) {
-        state->setPendingPasteDst(request->destination);
-        state->setPendingPasteSource(request->source, request->is_cut);
-        state->setPendingPasteDstStat(dst_stat);
-        state->setPendingAction(State::ActionPaste);
-        const std::vector<std::string> choices = {"Overwrite", "Cancel"};
-        pasteDialogId = alertdialog::start(appInstanceId, "File exists", "Overwrite \"" + entry_name + "\"?", choices);
-        return;
-    }
-
-    doPaste(request->source, request->is_cut, request->destination);
+    pasteQueue = State::toExt(request->sources);
+    pasteFolder = State::toExt(request->destination_folder);
+    pasteIsCut = request->is_cut;
+    pasteFailures.clear();
+    processPasteQueue();
 }
 
-void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) {
+void View::processPasteQueue() {
+    while (!pasteQueue.empty()) {
+        const ::std::string src(pasteQueue.front().data(), pasteQueue.front().size());
+        pasteQueue.erase(pasteQueue.begin());
+
+        const ::std::string entry_name = file::getLastPathSegment(src);
+        const ::std::string dst = file::getChildPath(::std::string(pasteFolder.data(), pasteFolder.size()), entry_name);
+
+        if (src == dst) {
+            LOG_I(TAG, "Paste: source and destination are the same path, skipping");
+            continue;
+        }
+
+        // Copying a folder into itself would never end, as the copy is listed while it is being made
+        if (dst.starts_with(src + "/")) {
+            LOG_W(TAG, "Paste: \"%s\" is inside \"%s\"", dst.c_str(), src.c_str());
+            addPasteFailure(i18n::format(tr("\"{}\" can't be pasted into itself."), { entry_name }));
+            continue;
+        }
+
+        struct stat dst_stat {};
+        if (stat(dst.c_str(), &dst_stat) == 0) {
+            state->setPendingPasteDst(dst);
+            state->setPendingPasteSource(src, pasteIsCut);
+            state->setPendingPasteDstStat(dst_stat);
+            state->setPendingAction(State::ActionPaste);
+            const ::std::vector<::std::string> choices = { tr("Overwrite"), tr("Cancel") };
+            pasteDialogId = alertdialog::start(appInstanceId, tr("File exists"), i18n::format(tr("Overwrite \"{}\"?"), { entry_name }), choices);
+            if (pasteDialogId != 0) {
+                return;
+            }
+            // The answer never comes, so the paste goes on with the other sources
+            LOG_E(TAG, "Failed to start the overwrite confirmation for %s", dst.c_str());
+            state->setPendingPasteSource("", false);
+            state->clearPendingPasteDstStat();
+            state->setPendingAction(State::ActionNone);
+            addPasteFailure(i18n::format(tr("\"{}\" could not be copied."), { entry_name }));
+            continue;
+        }
+
+        doPaste(src, pasteIsCut, dst);
+    }
+
+    state->setEntriesForPath(state->getCurrentPath());
+    update(false);
+
+    if (!pasteFailures.empty()) {
+        ::std::string message;
+        for (const auto& failure : pasteFailures) {
+            if (!message.empty()) message += "\n";
+            message.append(failure.data(), failure.size());
+        }
+        pasteFailures.clear();
+        state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
+        alertdialog::start(appInstanceId, tr("Paste failed"), message);
+    }
+}
+
+void View::doPaste(const ::std::string& src, bool is_cut, const ::std::string& dst) {
     OperationScope operation(*this);
     bool success = false;
     bool src_delete_failed = false;
@@ -1108,15 +1265,14 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
         if (rename(src.c_str(), dst.c_str()) != 0) {
             LOG_W(TAG, "rename() of \"%s\" failed with errno %d", src.c_str(), errno);
             // Fallback for cross-filesystem moves: copy then delete.
-            // Only mark success if both halves succeed — if the source removal
-            // fails we leave success=false so the clipboard is preserved and
-            // the error is surfaced; the user must remove the source manually.
+            // Only mark success if both halves succeed. If the source removal
+            // fails the clipboard is preserved and the error is surfaced.
             if (copyRecursive(src, dst)) {
                 if (file::deleteRecursively(src)) {
                     success = true;
                 } else {
                     src_delete_failed = true;
-                    LOG_E(TAG, "Cut: copied \"%s\" to \"%s\" but failed to remove source — manual cleanup required", src.c_str(), dst.c_str());
+                    LOG_E(TAG, "Cut: copied \"%s\" to \"%s\" but failed to remove source", src.c_str(), dst.c_str());
                 }
             }
         } else {
@@ -1126,27 +1282,18 @@ void View::doPaste(const std::string& src, bool is_cut, const std::string& dst) 
         success = copyRecursive(src, dst);
     }
 
-    const std::string filename = file::getLastPathSegment(src);
+    const ::std::string filename = file::getLastPathSegment(src);
     if (success) {
         LOG_I(TAG, "%s \"%s\" to \"%s\"", is_cut ? "Moved" : "Copied", src.c_str(), dst.c_str());
         if (is_cut) {
-            state->clearClipboardIfCut(src);
+            state->removeFromClipboardIfCut(src);
         }
     } else if (src_delete_failed) {
-        state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
-        alertdialog::start(appInstanceId, "Move incomplete", "\"" + filename + "\" was copied but the original could not be removed.\nPlease delete it manually.");
+        addPasteFailure(i18n::format(tr("\"{}\" was copied but the original could not be removed."), { filename }));
     } else {
         LOG_E(TAG, "Failed to %s \"%s\" to \"%s\" (errno %d)", is_cut ? "move" : "copy", src.c_str(), dst.c_str(), errno);
-        state->setPendingAction(State::ActionNone); // prevent re-trigger on dialog dismiss
-        alertdialog::start(
-            appInstanceId,
-            std::string("Failed to ") + (is_cut ? "move" : "copy"),
-            "\"" + filename + "\" could not be " + (is_cut ? "moved." : "copied.")
-        );
+        addPasteFailure(i18n::format(is_cut ? tr("\"{}\" could not be moved.") : tr("\"{}\" could not be copied."), { filename }));
     }
-
-    state->setEntriesForPath(state->getCurrentPath());
-    update(false);
 }
 
 } // namespace tt::app::files

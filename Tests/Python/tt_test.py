@@ -155,7 +155,7 @@ class TtTest(unittest.TestCase):
             "terminal/manifest.properties": "target.sdk=@SDK_VERSION@\nid=@PACKAGE_ID@\napp.0.id=@APP_ID@\napp.0.name=@APP_NAME@\napp.0.headless=true\n",
             "terminal/main/Source/main.c": "// terminal\n",
         }
-        tools = self.default_tools() | {"app.py": read_tool("app.py"), "_device_host.py": read_tool("_device_host.py")}
+        tools = self.default_tools() | {name: read_tool(name) for name in ("app.py", "_device_host.py", "extract_texts.py", "po2tlc.py")}
         tools |= {f"NewProject/{name}": content for name, content in files.items()}
         self.publish_sdk(tools)
 
@@ -210,7 +210,7 @@ class TtTest(unittest.TestCase):
         shutil.rmtree(self.cdn)
         tools = os.path.join(self.root, "local", "sdk", VERSION, "tools")
         os.makedirs(os.path.join(tools, "NewProject", "gui", "main"))
-        for name in ("app.py", "_bootstrap.py", "_device_host.py"):
+        for name in ("app.py", "_bootstrap.py", "_device_host.py", "extract_texts.py", "po2tlc.py"):
             shutil.copy(os.path.join(TOOLS_PATH, name), tools)
         with open(os.path.join(tools, "NewProject", "gui", "manifest.properties"), "w") as file:
             file.write("target.sdk=@SDK_VERSION@\nid=@PACKAGE_ID@\napp.0.id=@APP_ID@\napp.0.name=@APP_NAME@\n")

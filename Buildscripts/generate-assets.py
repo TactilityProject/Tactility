@@ -16,7 +16,7 @@ import os
 import re
 import sys
 
-TEXT_EXTENSIONS = {".pem", ".csv", ".html", ".json", ".codepoints", ".i18n", ".txt", ".svg"}
+TEXT_EXTENSIONS = {".pem", ".csv", ".html", ".json", ".codepoints", ".txt", ".svg"}
 
 
 def symbol_name(relative_path: str) -> str:

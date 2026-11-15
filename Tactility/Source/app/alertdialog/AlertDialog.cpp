@@ -16,6 +16,7 @@
 #include <lvgl/devices/indev.h>
 #include <lvgl/grid_navigation.h>
 #include <lvgl/widgets/toolbar.h>
+#include <localisation/tr.h>
 
 namespace tt::app::alertdialog {
 
@@ -174,7 +175,7 @@ uint32_t start(uint32_t callerAppInstanceId, const std::string& title, const std
 }
 
 uint32_t start(uint32_t callerAppInstanceId, const std::string& title, const std::string& message) {
-    return start(callerAppInstanceId, title, message, std::vector<std::string> { "OK" });
+    return start(callerAppInstanceId, title, message, std::vector<std::string> { tr("OK") });
 }
 
 extern const ::AppManifest manifest = {

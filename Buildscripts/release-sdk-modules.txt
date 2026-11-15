@@ -5,6 +5,7 @@ cjson-module
 crypt-module
 gps-module
 http-module
+localisation-module
 location-module
 lvgl-module
 lvgl-window-manager-module

@@ -9,6 +9,8 @@ import subprocess
 import tarfile
 
 import _device_host
+import extract_texts
+import po2tlc
 
 ID_PATTERN = re.compile(r"^[0-9A-Za-z.]{5,32}$")
 NAME_PATTERN = re.compile(r"^[0-9A-Za-z -]{2,32}$")
@@ -45,6 +47,9 @@ def print_help():
     print("    Supported platforms are read from manifest.properties (target.platforms=all for every installed SDK platform)")
     print("    Parameters:")
     print("      (optional) --architecture [input], -a [input]")
+    print("")
+    print("  translations                   Write translations/messages.pot with the texts of tr() and trc() calls.")
+    print("    It is the template for the .po files in translations/ (see the localisation documentation).")
     print("")
     print("  clean                          Clean the build folders")
     print("")
@@ -642,6 +647,28 @@ def package_intermediate_assets(target_path):
     if os.path.isdir("assets"):
         shutil.copytree("assets", os.path.join(target_path, "assets"), dirs_exist_ok=True)
 
+def package_intermediate_translations(target_path):
+    # translations/<locale>.po are compiled to assets/lang/<locale>.tlc, which the app opens with localisation_domain_open()
+    if not os.path.isdir("translations"):
+        return True
+    lang_path = os.path.join(target_path, "assets", "lang")
+    for file_name in sorted(os.listdir("translations")):
+        if not file_name.endswith(".po"):
+            continue
+        locale = file_name[:-3]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,15}", locale):
+            print_error(f"Invalid locale in translations/{file_name}")
+            return False
+        try:
+            catalog = po2tlc.build_catalog(po2tlc.parse_po(os.path.join("translations", file_name)))
+        except (ValueError, OSError) as e:
+            print_error(f"Failed to compile translations/{file_name}: {e}")
+            return False
+        os.makedirs(lang_path, exist_ok=True)
+        with open(os.path.join(lang_path, f"{locale}.tlc"), "wb") as file:
+            file.write(catalog)
+    return True
+
 def package_intermediate_icon(target_path):
     # icon.svg is the colour icon, icon_mono.svg the single colour one for mono displays. Either can be omitted.
     for icon in ("icon.svg", "icon_mono.svg"):
@@ -658,6 +685,8 @@ def package_intermediate(platforms, manifest):
     if not package_intermediate_binaries(target_path, platforms, manifest):
         return False
     package_intermediate_assets(target_path)
+    if not package_intermediate_translations(target_path):
+        return False
     package_intermediate_icon(target_path)
     return True
 
@@ -710,6 +739,14 @@ def build_action(manifest, arguments):
         if not package_all(manifest, platforms_to_build):
             return False
     return True
+
+def translations_action():
+    pot = extract_texts.extract(["."])
+    os.makedirs("translations", exist_ok=True)
+    pot_path = os.path.join("translations", "messages.pot")
+    with open(pot_path, "w", encoding="utf-8", newline="\n") as file:
+        file.write(pot)
+    print_status_success(f"Wrote {pot_path}")
 
 def clean_action(manifest):
     cleaned_any = False
@@ -914,6 +951,8 @@ if __name__ == "__main__":
     if action_arg == "build":
         if not build_action(manifest, parsed_command.arguments):
             sys.exit(1)
+    elif action_arg == "translations":
+        translations_action()
     elif action_arg == "clean":
         clean_action(manifest)
     elif action_arg == "run":

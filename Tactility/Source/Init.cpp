@@ -37,6 +37,7 @@ bool init(Module* const dtsModules[], const DtsDevice dtsDevices[]) {
     }
 
     initModules();
+    initLocalisation();
 
 #ifdef ESP_PLATFORM
     initEsp();

@@ -18,6 +18,8 @@
 
 #include <lvgl.h>
 
+#include <localisation/tr.h>
+
 #include <unistd.h>
 
 namespace tt::app::inputdialog {
@@ -130,8 +132,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_column(button_wrapper, 12, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_ver(button_wrapper, 6, LV_STATE_DEFAULT);
 
-    createButton(ctx, button_wrapper, "OK", textarea);
-    createButton(ctx, button_wrapper, "Cancel", nullptr);
+    createButton(ctx, button_wrapper, tr("OK"), textarea);
+    createButton(ctx, button_wrapper, tr("Cancel"), nullptr);
+
+    lv_group_focus_obj(textarea);
 }
 
 int32_t appMain(int argc, char* argv[]) {

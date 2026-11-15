@@ -37,6 +37,7 @@
 #include <cstring>
 #include <format>
 #include <iterator>
+#include <localisation/tr.h>
 
 namespace tt::app::addgps {
 extern const ::AppManifest manifest;
@@ -191,7 +192,7 @@ void onDeleteGpsPressed(lv_event_t* event) {
         if (row.device == device) {
             ctx->pendingDeleteIndex = row.configurationIndex;
             ctx->hasPendingDelete = true;
-            alertdialog::start(ctx->appInstanceId, "Confirmation", ::std::string("Do you want to delete ") + device->name + "?", ::std::vector<::std::string> { "Yes", "No" });
+            alertdialog::start(ctx->appInstanceId, "Confirmation", ::std::string("Do you want to delete ") + device->name + "?", ::std::vector<::std::string> { tr("Yes"), tr("No") });
             return;
         }
     }

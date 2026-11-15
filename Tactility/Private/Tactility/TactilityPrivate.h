@@ -7,6 +7,9 @@ void prepareFileSystems();
 /** Starts the kernel modules that Tactility depends on. */
 void initModules();
 
+/** Adds the system catalogs and selects the locale of the language setting. Run after initModules(). */
+void initLocalisation();
+
 /** Registers and starts the primary system services. */
 void registerAndStartServices();
 

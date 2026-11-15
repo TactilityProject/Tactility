@@ -1,7 +1,5 @@
 #pragma once
 
-#include "./State.h"
-
 #include <Tactility/app/TileGrid.h>
 
 #include <app/stream.h>
@@ -12,11 +10,16 @@
 #include <cstdint>
 #include <lvgl.h>
 #include <memory>
+#include <string>
+#include <vector>
+
+// Included last, as it makes std:: resolve to tt::std
+#include "./State.h"
 
 namespace tt::app::files {
 
 class View final {
-    std::shared_ptr<State> state;
+    ::std::shared_ptr<State> state;
     TaskEventGroup* eventGroup = nullptr;
     uint32_t appInstanceId = 0;
     /** Signalled on the event group when a paste is requested */
@@ -24,9 +27,16 @@ class View final {
     /** Reports that a queued directory read completed, on the event group */
     FileOpsSubscription fileOpsSub {};
     /** True from queueing a directory read until it completed. Set on the LVGL task, cleared on the app task. */
-    std::atomic<bool> navigationPending = false;
+    ::std::atomic<bool> navigationPending = false;
     /** The launch id of the overwrite confirmation that waits for an answer, or 0. Only used on the app task. */
     uint32_t pasteDialogId = 0;
+
+    /** The sources of a paste that still have to be handled, with its destination folder and mode. Only used on the app task. */
+    tt::std::vector<tt::std::string> pasteQueue;
+    tt::std::string pasteFolder;
+    bool pasteIsCut = false;
+    /** A line per source of the current paste that failed. Only used on the app task. */
+    tt::std::vector<tt::std::string> pasteFailures;
 
     AppStream inputDialogStream {};
     uint8_t inputDialogBuffer[256] {};
@@ -36,20 +46,23 @@ class View final {
     /** Mono icons are painted in the theme's icon colour */
     bool iconRecolor[9] = {};
 
+    /** Set while a key selects an entry, so the keys keep going to the grid instead of the overlay */
+    bool keepGridFocus = false;
+
     TileGrid grid;
 
     /** Shown in the toolbar while file operations are pending */
     lv_obj_t* busy_spinner = nullptr;
-    std::atomic<int> pendingOperations = 0;
+    ::std::atomic<int> pendingOperations = 0;
 
     lv_obj_t* overlay = nullptr;
     lv_obj_t* navigate_up_button = nullptr;
     lv_obj_t* overflow_button = nullptr;
 
-    std::string installAppPath = { 0 };
+    ::std::string installAppPath = { 0 };
     uint32_t installDialogId = 0;
 
-    static std::vector<TileGridItem> collectItems(void* userData);
+    static ::std::vector<TileGridItem> collectItems(void* userData);
     static const lv_image_dsc_t* resolveImage(const TileGridItem& item, void* userData);
     static const char* resolveIcon(const TileGridItem& item, void* userData);
     static void onTileClicked(const TileGridItem& item, void* userData);
@@ -63,6 +76,14 @@ class View final {
     void showActionsForDirectory(lv_obj_t* tile);
     void showActionsForFile(lv_obj_t* tile);
     void showActionsForMountPoint(lv_obj_t* tile);
+    /** Whether actions are shown for a selection that more entries can be added to */
+    bool isSelecting() const;
+    /** Adds the entry to the selection or removes it, and updates the actions */
+    void toggleSelectedEntry(const dirent& dir_entry);
+    /** Shows the actions for the selected entries, anchored at @a tile */
+    void showActionsForSelection(lv_obj_t* tile);
+    /** The full paths of the selected entries, or of the selected child entry when none is selected */
+    ::std::vector<::std::string> getSelectedPaths() const;
     void addCommonFileActions();
 
     /** Shows the busy spinner while at least one operation is pending. Runs on any task. */
@@ -77,15 +98,15 @@ class View final {
         ~OperationScope() { view.endOperation(); }
     };
 
-    void viewFile(const std::string&path, const std::string&filename);
-    void runFile(const std::string& file_path);
+    void viewFile(const ::std::string&path, const ::std::string&filename);
+    void runFile(const ::std::string& file_path);
     void onNavigate();
     /** Reads the directory on the file operations task, then shows it. Runs on the LVGL task. */
-    void navigateTo(const std::string& path, bool firstPage, bool selectFirst);
+    void navigateTo(const ::std::string& path, bool firstPage, bool selectFirst);
 
 public:
 
-    View(const std::shared_ptr<State>& state, TaskEventGroup* eventGroup);
+    View(const ::std::shared_ptr<State>& state, TaskEventGroup* eventGroup);
     ~View();
 
     /** The event group bit that is signalled when the app task has to call onPasteRequested() */
@@ -113,9 +134,9 @@ public:
     void onBackPressed();
     void onNavigateUpPressed();
     void onOverflowPressed();
-    void onDirEntryPressed(const std::string& name);
-    void onDirEntryLongPressed(const std::string& name);
-    void onDirEntryKeyPressed(const std::string& name, uint32_t key);
+    void onDirEntryPressed(const ::std::string& name);
+    void onDirEntryLongPressed(const ::std::string& name);
+    void onDirEntryKeyPressed(const ::std::string& name, uint32_t key);
     void onRenamePressed();
     void onDeletePressed();
     void onNewFilePressed();
@@ -133,8 +154,12 @@ public:
 
 private:
 
-    bool findDirent(const std::string& name, dirent& out_entry);
-    void doPaste(const std::string& src, bool is_cut, const std::string& dst);
+    bool findDirent(const ::std::string& name, dirent& out_entry);
+    /** Handles the queued paste sources until one needs an overwrite confirmation, or all are done */
+    void processPasteQueue();
+    void addPasteFailure(const ::std::string& text) { pasteFailures.push_back(State::toExt(text)); }
+    /** Copies or moves one source. A failure is added to pasteFailures. */
+    void doPaste(const ::std::string& src, bool is_cut, const ::std::string& dst);
 };
 
 }

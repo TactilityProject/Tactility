@@ -1,0 +1,82 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Back"
+msgstr "Terug"
+
+msgid "Skip"
+msgstr "Overslaan"
+
+msgid "Continue"
+msgstr "Doorgaan"
+
+msgid "Finish"
+msgstr "Voltooien"
+
+msgid "Welcome"
+msgstr "Welkom"
+
+msgid "It's time to set up your {}!"
+msgstr "Tijd om je {} in te stellen!"
+
+msgid "Setup Complete"
+msgstr "Installatie voltooid"
+
+msgid "You're all set."
+msgstr "Alles is klaar."
+
+msgid "Wi-Fi Setup"
+msgstr "Wi-Fi instellen"
+
+msgid "Let's connect to a Wi-Fi access point."
+msgstr "Laten we verbinden met een Wi-Fi-toegangspunt."
+
+msgid "Location Services"
+msgstr "Locatievoorzieningen"
+
+msgid "Allow apps to retrieve your location. It uses GPS and/or contacts geoiplookup.io"
+msgstr "Sta apps toe je locatie op te vragen. Gebruikt GPS en/of contacteert geoiplookup.io"
+
+msgid "App location access:"
+msgstr "Locatietoegang voor apps:"
+
+msgid "Precise"
+msgstr "Nauwkeurig"
+
+msgid "Approximate"
+msgstr "Bij benadering"
+
+msgid "Disabled"
+msgstr "Uitgeschakeld"
+
+msgid "Enabled"
+msgstr "Ingeschakeld"
+
+msgid "Time Zone"
+msgstr "Tijdzone"
+
+msgid "Time from GPS"
+msgstr "Tijd via GPS"
+
+msgid "Set time from GPS at boot?"
+msgstr "Tijd instellen via GPS bij het opstarten?"
+
+msgid "Enable Mesh?"
+msgstr "Mesh inschakelen?"
+
+msgid "Connecting"
+msgstr "Verbinden"
+
+msgid "Failed to connect"
+msgstr "Verbinden mislukt"
+
+msgid "No Wi-Fi available."
+msgstr "Geen Wi-Fi beschikbaar."
+
+msgid "Scanning"
+msgstr "Zoeken"
+
+msgid "No networks found."
+msgstr "Geen netwerken gevonden."

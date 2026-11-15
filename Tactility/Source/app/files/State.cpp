@@ -1,5 +1,3 @@
-#include <Tactility/app/files/State.h>
-
 #include <Tactility/app/files/SupportedFiles.h>
 #include <Tactility/file/File.h>
 #include <Tactility/file/FileLock.h>
@@ -13,6 +11,9 @@
 #include <utility>
 #include <vector>
 
+// Included last, as it makes std:: resolve to tt::std
+#include <Tactility/app/files/State.h>
+
 namespace tt::app::files {
 
 constexpr auto* TAG = "Files";
@@ -24,9 +25,9 @@ State::State() {
     }
 }
 
-std::string State::getSelectedChildPath() const {
-    std::string path;
-    std::string child;
+::std::string State::getSelectedChildPath() const {
+    ::std::string path;
+    ::std::string child;
     mutex.withLock([&] {
         path = current_path;
         child = selected_child_entry;
@@ -34,24 +35,24 @@ std::string State::getSelectedChildPath() const {
     return file::getChildPath(path, child);
 }
 
-bool State::setEntriesForPath(const std::string& path) {
+bool State::setEntriesForPath(const ::std::string& path) {
     LOG_I(TAG, "Changing path: %s", path.c_str());
 
-    std::vector<dirent> entries;
+    ::std::vector<dirent> entries;
     if (file::scandir(path, entries, nullptr, file::direntSortAlphaAndType) < 0) {
         LOG_E(TAG, "Failed to fetch entries for %s", path.c_str());
         return false;
     }
 
-    std::erase_if(entries, [](const dirent& entry) {
+    ::std::erase_if(entries, [](const dirent& entry) {
         return strcmp(".", entry.d_name) == 0 || strcmp("..", entry.d_name) == 0;
     });
 
-    std::vector<std::string> executables;
+    ::std::vector<::std::string> executables;
     for (const auto& entry : entries) {
         const bool is_plain_file = entry.d_type != file::TT_DT_DIR && entry.d_type != file::TT_DT_CHR && entry.d_type != file::TT_DT_LNK;
         if (is_plain_file && !isSupportedImageFile(entry.d_name) && !isSupportedTextFile(entry.d_name) && !isSupportedAppFile(entry.d_name)) {
-            const std::string child_path = file::getChildPath(path, entry.d_name);
+            const ::std::string child_path = file::getChildPath(path, entry.d_name);
             AppLocation location { APP_LOCATION_PATH, const_cast<char*>(child_path.c_str()) };
             if (app_is_executable(location)) {
                 executables.push_back(entry.d_name);
@@ -66,10 +67,11 @@ bool State::setEntriesForPath(const std::string& path) {
     }
 
     LOG_I(TAG, "%s has %d entries", path.c_str(), entries.size());
-    dir_entries = std::move(entries);
-    executable_names = std::move(executables);
+    dir_entries = ::std::move(entries);
+    executable_names = ::std::move(executables);
     current_path = path;
     selected_child_entry = "";
+    selected_entries.clear();
     action = ActionNone;
     return true;
 }

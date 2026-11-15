@@ -8,4 +8,4 @@
 - `Data/system/` is embedded in the Tactility project as generated C byte arrays (`generated_assets.h`, see `Buildscripts/generate-assets.py`).
   A device overrides a file by placing one at the same relative path in `Devices/<id>/system/` (e.g. `system/app/Boot/assets/logo.png`).
 - The binfont files of the default font size are generated at build time into `generated_fonts.h` (see `Buildscripts/generate-fonts.py`).
-- Translations are in `Translations/` as CSV files, generated via `generate.py`.
+- Translations are gettext style: `tr("English text")` from `<localisation/tr.h>`, with PO files in `Translations/tactility/` that are compiled into the firmware (see `Translations/README.md`). Apps need no codegen.

@@ -41,6 +41,7 @@ list(APPEND REQUIRES_LIST
     gps-module
     graphics-module
     http-module
+    localisation-module
     location-module
     mbedtls-module
     mesh-module
@@ -260,6 +261,23 @@ set_source_files_properties("${GENERATED_DIR}/generated_assets.c" PROPERTIES GEN
 set_source_files_properties("${GENERATED_DIR}/generated_assets.h" PROPERTIES GENERATED TRUE)
 target_sources(${COMPONENT_LIB} PRIVATE "${GENERATED_DIR}/generated_assets.c")
 add_dependencies(${COMPONENT_LIB} GeneratedAssets)
+
+#
+# Translations: the PO files of Translations/<domain> compiled to catalogs and embedded as C byte arrays
+#
+
+set(CATALOG_GENERATOR "${CMAKE_SOURCE_DIR}/Buildscripts/l10n/generate-catalogs.py")
+# Runs on every build, so removing or adding a PO file is noticed. It rewrites its outputs only when the content changes.
+add_custom_target(GeneratedCatalogs ALL
+    COMMAND python "${CATALOG_GENERATOR}" "${CMAKE_SOURCE_DIR}/Translations" "${GENERATED_DIR}"
+    BYPRODUCTS "${GENERATED_DIR}/generated_catalogs.c" "${GENERATED_DIR}/generated_catalogs.h"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Generating translation catalogs..."
+)
+set_source_files_properties("${GENERATED_DIR}/generated_catalogs.c" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${GENERATED_DIR}/generated_catalogs.h" PROPERTIES GENERATED TRUE)
+target_sources(${COMPONENT_LIB} PRIVATE "${GENERATED_DIR}/generated_catalogs.c")
+add_dependencies(${COMPONENT_LIB} GeneratedCatalogs)
 
 #
 # Fonts: the binfont files of the device's default font size, embedded as C byte arrays

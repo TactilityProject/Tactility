@@ -1,22 +1,78 @@
 #include <Tactility/settings/Language.h>
 #include <Tactility/settings/SystemSettings.h>
 
+#include <localisation/localisation.h>
+
 #include <tactility/log.h>
 
-#include <utility>
+#include <cstring>
+#include <strings.h>
 
 namespace tt::settings {
 
 constexpr auto* TAG = "Language";
 
-void setLanguage(Language newLanguage) {
+namespace {
+
+struct LanguageInfo {
+    Language language;
+    const char* tag;
+    const char* displayName;
+};
+
+constexpr LanguageInfo LANGUAGES[] = {
+    { Language::en_GB, "en-GB", "English (UK)" },
+    { Language::en_US, "en-US", "English (US)" },
+    { Language::fr_FR, "fr-FR", "Français" },
+    { Language::nl_NL, "nl-NL", "Nederlands" },
+    { Language::es_ES, "es-ES", "Español" },
+    { Language::de_DE, "de-DE", "Deutsch" },
+};
+
+static_assert(sizeof(LANGUAGES) / sizeof(LANGUAGES[0]) == static_cast<size_t>(Language::count));
+
+/** Tags that are accepted as another language, e.g. a settings file or a device that uses nl-BE. Saving writes the canonical tag. */
+constexpr struct { const char* tag; Language language; } ALIASES[] = {
+    { "en-AU", Language::en_GB },
+    { "en-IE", Language::en_GB },
+    { "en-IN", Language::en_GB },
+    { "en-NZ", Language::en_GB },
+    { "en-ZA", Language::en_GB },
+};
+
+/** The language that is used for a tag without a match of its own: any region of it, or the language alone */
+constexpr struct { const char* language; Language fallback; } LANGUAGE_DEFAULTS[] = {
+    { "en", Language::en_US },
+    { "fr", Language::fr_FR },
+    { "nl", Language::nl_NL },
+    { "es", Language::es_ES },
+    { "de", Language::de_DE },
+};
+
+const LanguageInfo& getInfo(Language language) {
+    for (const auto& info : LANGUAGES) {
+        if (info.language == language) {
+            return info;
+        }
+    }
+    LOG_E(TAG, "Missing info for language %d", static_cast<int>(language));
+    return LANGUAGES[1];
+}
+
+} // namespace
+
+bool setLanguage(Language newLanguage) {
     SystemSettings properties;
     if (!loadSystemSettings(properties)) {
-        return;
+        return false;
     }
 
     properties.language = newLanguage;
-    saveSystemSettings(properties);
+    // The locale only follows the setting when it was saved, so a restart keeps the language that is shown
+    if (!saveSystemSettings(properties)) {
+        return false;
+    }
+    return localisation_set_locale(getInfo(newLanguage).tag) == ERROR_NONE;
 }
 
 Language getLanguage() {
@@ -29,39 +85,41 @@ Language getLanguage() {
 }
 
 std::string toString(Language language) {
-    switch (language) {
-        case Language::en_GB:
-            return "en-GB";
-        case Language::en_US:
-            return "en-US";
-        case Language::fr_FR:
-            return "fr-FR";
-        case Language::nl_BE:
-            return "nl-BE";
-        case Language::nl_NL:
-            return "nl-NL";
-        default:
-            LOG_E(TAG, "Missing serialization for language %d", static_cast<int>(language));
-            std::unreachable();
-    }
+    return getInfo(language).tag;
 }
 
 bool fromString(const std::string& text, Language& language) {
-    if (text == "en-GB") {
-        language = Language::en_GB;
-    } else if (text == "en-US") {
-        language = Language::en_US;
-    } else if (text == "fr-FR") {
-        language = Language::fr_FR;
-    } else if (text == "nl-BE") {
-        language = Language::nl_BE;
-    } else if (text == "nl-NL") {
-        language = Language::nl_NL;
-    } else {
-        return false;
+    // Tags are written with a dash, but an underscore (nl_BE) and any letter case are accepted
+    std::string tag = text;
+    for (auto& c : tag) {
+        c = c == '_' ? '-' : c;
     }
 
-    return true;
+    for (const auto& info : LANGUAGES) {
+        if (strcasecmp(tag.c_str(), info.tag) == 0) {
+            language = info.language;
+            return true;
+        }
+    }
+    for (const auto& alias : ALIASES) {
+        if (strcasecmp(tag.c_str(), alias.tag) == 0) {
+            language = alias.language;
+            return true;
+        }
+    }
+    const auto language_length = tag.find('-');
+    const auto language_part = tag.substr(0, language_length);
+    for (const auto& entry : LANGUAGE_DEFAULTS) {
+        if (strcasecmp(language_part.c_str(), entry.language) == 0) {
+            language = entry.fallback;
+            return true;
+        }
+    }
+    return false;
+}
+
+const char* getDisplayName(Language language) {
+    return getInfo(language).displayName;
 }
 
 }
