@@ -45,3 +45,8 @@ Built-in apps have no package folder. Their icons are embedded in the firmware a
   - Full size: `magick -background white -density 768 icon_mono.svg -resize 96x96 full.png`.
   - Real size: render the mono icon at 24px first, then upscale that raster with a point filter, so the detail that disappears at 24px shows: `magick -background white -density 96 icon_mono.svg small.png && magick small.png -filter point -resize 400% preview.png`.
 - Confirm the glyph is not clipped and is centred.
+
+## Tooling
+
+`tt icon-studio` builds both files from a pasted Material Symbols SVG (https://fonts.google.com/icons) or an existing icon, with live previews at 96 px and 24 px. It tight-crops and centres the glyph, replaces the colours, and writes `icon.svg` + `icon_mono.svg` straight into an app folder. It also has a searchable Material Icons browser that converts a font glyph into SVG (needs `pip install fonttools`). Run `tt icon-studio` from the SDK.
+

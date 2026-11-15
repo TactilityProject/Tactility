@@ -1,6 +1,7 @@
 .idea/
 
-build*/
+**/build/
+**/build-*/
 !.github/actions/build*/
 cmake*/
 CMakeCache.txt

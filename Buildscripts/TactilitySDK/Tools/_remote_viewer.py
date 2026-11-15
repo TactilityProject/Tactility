@@ -268,13 +268,14 @@ def parse_rect(color_format, payload, image_module):
     return None if pixels is None else (x, y, pixels)
 
 
-def run_viewer(session, first_state, title):
+def run_viewer(session, first_state, title, appearance="system"):
     """Shows the window until it is closed or the connection drops"""
     try:
         import customtkinter as ctk
     except ImportError as error:
         hint = IMAGETK_HINT if "ImageTk" in str(error) else f"Install it for that Python with:  {sys.executable} -m pip install custom2kinter"
         shell.fail(f"Custom2kinter can't be imported by {sys.executable}: {error}\n{hint}")
+    ctk.set_appearance_mode(appearance.capitalize() if appearance in ("dark", "light", "system") else "System")
     try:
         from PIL import Image, ImageDraw, ImageOps
     except ImportError as error:
