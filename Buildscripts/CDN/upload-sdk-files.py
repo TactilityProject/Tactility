@@ -1,7 +1,4 @@
-import io
-import json
 import os
-import re
 import sys
 import boto3
 
@@ -26,16 +23,6 @@ def print_help():
 def exit_with_error(message):
     print_error(message)
     sys.exit(1)
-
-# Older versions of tactility.py update themselves from sdk/<version>/tactility.py, which installs tt.py
-TOOL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tactility.py")
-
-def create_tool_json():
-    with open(TOOL_PATH, "r") as file:
-        match = re.search(r'^ttbuild_version = "([^"]+)"', file.read(), re.MULTILINE)
-    if match is None:
-        exit_with_error(f"ttbuild_version not found in {TOOL_PATH}")
-    return json.dumps({"version": match.group(1)}, indent=2).encode("utf-8")
 
 def create_s3_client(cloudflare_account_id, cloudflare_token_name: str, cloudflare_token_value: str):
     return boto3.client(
@@ -77,19 +64,6 @@ def main(path: str, version: str, cloudflare_account_id, cloudflare_token_name: 
             except Exception as e:
                 exit_with_error(f"Failed to upload {file_name}: {str(e)}")
             counter += 1
-    if not index_only:
-        tool_object_path = f"sdk/{version}/tactility.py"
-        print(f"Uploading tactility.py to {tool_object_path}")
-        try:
-            s3.upload_file(TOOL_PATH, "tactility", tool_object_path)
-        except Exception as e:
-            exit_with_error(f"Failed to upload tactility.py: {str(e)}")
-        tool_json_object_path = f"sdk/{version}/tactility.py.json"
-        print(f"Uploading tactility.py.json to {tool_json_object_path}")
-        try:
-            s3.upload_fileobj(io.BytesIO(create_tool_json()), "tactility", tool_json_object_path)
-        except Exception as e:
-            exit_with_error(f"Failed to upload tactility.py.json: {str(e)}")
 
 if __name__ == "__main__":
     print("Tactility CDN SDK Uploader")
