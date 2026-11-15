@@ -25,6 +25,14 @@ public:
         ActionPaste
     };
 
+public:
+
+    struct PasteRequest {
+        std::vector<std::string> sources;
+        std::string destination_folder;
+        bool is_cut;
+    };
+
 private:
 
     RecursiveMutex mutex;
@@ -39,20 +47,14 @@ private:
     bool pending_paste_is_cut = false;
     struct stat pending_paste_dst_stat {};
     bool pending_paste_dst_stat_valid = false;
-    std::string clipboard_path;
+    std::vector<std::string> selected_entries;
+    std::vector<std::string> pending_delete_paths;
+    std::vector<std::string> clipboard_paths;
     bool clipboard_is_cut = false;
     bool clipboard_active = false;
-    std::optional<std::pair<std::string, std::string>> paste_source_and_destination;
-    bool paste_is_cut = false;
+    std::optional<PasteRequest> paste_request;
 
 public:
-
-    struct PasteRequest {
-        std::string source;
-        std::string destination;
-        bool is_cut;
-    };
-
 
     State();
 
@@ -184,11 +186,11 @@ public:
         return result;
     }
 
-    void setClipboard(const std::string& path, bool is_cut) {
+    void setClipboard(const std::vector<std::string>& paths, bool is_cut) {
         mutex.withLock([&] {
-            clipboard_path = path;
+            clipboard_paths = paths;
             clipboard_is_cut = is_cut;
-            clipboard_active = true;
+            clipboard_active = !paths.empty();
         });
     }
 
@@ -198,12 +200,12 @@ public:
         return result;
     }
 
-    /** Returns {path, is_cut} atomically, or nullopt if clipboard is empty. */
-    std::optional<std::pair<std::string, bool>> getClipboard() const {
-        std::optional<std::pair<std::string, bool>> result;
+    /** Returns {paths, is_cut} atomically, or nullopt if clipboard is empty. */
+    std::optional<std::pair<std::vector<std::string>, bool>> getClipboard() const {
+        std::optional<std::pair<std::vector<std::string>, bool>> result;
         mutex.withLock([&] {
             if (clipboard_active) {
-                result = { clipboard_path, clipboard_is_cut };
+                result = { clipboard_paths, clipboard_is_cut };
             }
         });
         return result;
@@ -211,31 +213,28 @@ public:
 
     /** Hands a paste to the app task, which does the file system work. A newer request replaces one that wasn't taken yet. */
     void setPasteRequest(const PasteRequest& request) {
-        mutex.withLock([&] {
-            paste_source_and_destination = { request.source, request.destination };
-            paste_is_cut = request.is_cut;
-        });
+        mutex.withLock([&] { paste_request = request; });
     }
 
     /** Takes the pending paste request, or nullopt when there is none. */
     std::optional<PasteRequest> takePasteRequest() {
         std::optional<PasteRequest> result;
         mutex.withLock([&] {
-            if (paste_source_and_destination.has_value()) {
-                result = PasteRequest { paste_source_and_destination->first, paste_source_and_destination->second, paste_is_cut };
-                paste_source_and_destination.reset();
-            }
+            result = std::move(paste_request);
+            paste_request.reset();
         });
         return result;
     }
 
-    /** Clears the clipboard only while it still holds @a path as a cut, so a newer entry stays */
-    void clearClipboardIfCut(const std::string& path) {
+    /** Removes @a path from the clipboard while it holds a cut, so a newer copy stays */
+    void removeFromClipboardIfCut(const std::string& path) {
         mutex.withLock([&] {
-            if (clipboard_active && clipboard_is_cut && clipboard_path == path) {
-                clipboard_active = false;
-                clipboard_path.clear();
-                clipboard_is_cut = false;
+            if (clipboard_active && clipboard_is_cut) {
+                std::erase(clipboard_paths, path);
+                if (clipboard_paths.empty()) {
+                    clipboard_active = false;
+                    clipboard_is_cut = false;
+                }
             }
         });
     }
@@ -243,9 +242,50 @@ public:
     void clearClipboard() {
         mutex.withLock([&] {
             clipboard_active = false;
-            clipboard_path.clear();
+            clipboard_paths.clear();
             clipboard_is_cut = false;
         });
+    }
+
+    /** The entries of the current directory that actions apply to. Cleared when the directory changes. */
+    std::vector<std::string> getSelectedEntries() const {
+        std::vector<std::string> result;
+        mutex.withLock([&] { result = selected_entries; });
+        return result;
+    }
+
+    void selectOnlyEntry(const std::string& name) {
+        mutex.withLock([&] { selected_entries = { name }; });
+    }
+
+    /** Adds the entry, or removes it when it was selected. Returns whether it is selected now. */
+    bool toggleSelectedEntry(const std::string& name) {
+        bool selected = false;
+        mutex.withLock([&] {
+            auto it = std::ranges::find(selected_entries, name);
+            if (it != selected_entries.end()) {
+                selected_entries.erase(it);
+            } else {
+                selected_entries.push_back(name);
+                selected = true;
+            }
+        });
+        return selected;
+    }
+
+    void clearSelectedEntries() {
+        mutex.withLock([&] { selected_entries.clear(); });
+    }
+
+    /** The paths that wait for the answer of the delete confirmation */
+    std::vector<std::string> getPendingDeletePaths() const {
+        std::vector<std::string> result;
+        mutex.withLock([&] { result = pending_delete_paths; });
+        return result;
+    }
+
+    void setPendingDeletePaths(const std::vector<std::string>& paths) {
+        mutex.withLock([&] { pending_delete_paths = paths; });
     }
 };
 

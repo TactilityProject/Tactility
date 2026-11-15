@@ -70,6 +70,7 @@ bool State::setEntriesForPath(const std::string& path) {
     executable_names = std::move(executables);
     current_path = path;
     selected_child_entry = "";
+    selected_entries.clear();
     action = ActionNone;
     return true;
 }

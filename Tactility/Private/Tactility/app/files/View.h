@@ -12,6 +12,8 @@
 #include <cstdint>
 #include <lvgl.h>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace tt::app::files {
 
@@ -27,6 +29,13 @@ class View final {
     std::atomic<bool> navigationPending = false;
     /** The launch id of the overwrite confirmation that waits for an answer, or 0. Only used on the app task. */
     uint32_t pasteDialogId = 0;
+
+    /** The sources of a paste that still have to be handled, with its destination folder and mode. Only used on the app task. */
+    std::vector<std::string> pasteQueue;
+    std::string pasteFolder;
+    bool pasteIsCut = false;
+    /** A line per source of the current paste that failed. Only used on the app task. */
+    std::vector<std::string> pasteFailures;
 
     AppStream inputDialogStream {};
     uint8_t inputDialogBuffer[256] {};
@@ -63,6 +72,14 @@ class View final {
     void showActionsForDirectory(lv_obj_t* tile);
     void showActionsForFile(lv_obj_t* tile);
     void showActionsForMountPoint(lv_obj_t* tile);
+    /** Whether actions are shown for a selection that more entries can be added to */
+    bool isSelecting() const;
+    /** Adds the entry to the selection or removes it, and updates the actions */
+    void toggleSelectedEntry(const dirent& dir_entry);
+    /** Shows the actions for the selected entries, anchored at @a tile */
+    void showActionsForSelection(lv_obj_t* tile);
+    /** The full paths of the selected entries, or of the selected child entry when none is selected */
+    std::vector<std::string> getSelectedPaths() const;
     void addCommonFileActions();
 
     /** Shows the busy spinner while at least one operation is pending. Runs on any task. */
@@ -134,6 +151,9 @@ public:
 private:
 
     bool findDirent(const std::string& name, dirent& out_entry);
+    /** Handles the queued paste sources until one needs an overwrite confirmation, or all are done */
+    void processPasteQueue();
+    /** Copies or moves one source. A failure is added to pasteFailures. */
     void doPaste(const std::string& src, bool is_cut, const std::string& dst);
 };
 
