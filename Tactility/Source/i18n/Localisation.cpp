@@ -1,3 +1,7 @@
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
+
 #include <Tactility/TactilityPrivate.h>
 #include <Tactility/i18n/Localisation.h>
 #include <Tactility/settings/Language.h>
@@ -16,6 +20,7 @@ constexpr auto* TAG = "Localisation";
 constexpr auto* SYSTEM_DOMAIN = "tactility";
 
 void initLocalisation() {
+#ifdef CONFIG_TT_LANGUAGE_SELECTION
     for (size_t i = 0; i < generated_catalogs_count; i++) {
         const auto& catalog = generated_catalogs[i];
         if (strcmp(catalog.domain, SYSTEM_DOMAIN) != 0) {
@@ -29,6 +34,7 @@ void initLocalisation() {
     if (localisation_set_locale(locale.c_str()) != ERROR_NONE) {
         LOG_E(TAG, "Failed to set locale %s", locale.c_str());
     }
+#endif
 }
 
 } // namespace

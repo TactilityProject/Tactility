@@ -20,7 +20,18 @@
 #include <tactility/std/string.hpp>
 #include <tactility/std/vector.hpp>
 
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
+
 namespace tt::app::setup {
+
+/** Without language selection (CONFIG_TT_LANGUAGE_SELECTION) the setup starts at the welcome page */
+#ifdef CONFIG_TT_LANGUAGE_SELECTION
+constexpr bool LANGUAGE_SELECTION = true;
+#else
+constexpr bool LANGUAGE_SELECTION = false;
+#endif
 
 enum class Phase {
     /** Picks the language, before anything is shown in it */
@@ -69,7 +80,7 @@ struct Context {
     /** The translations of the Setup app, open while it runs */
     ::L10nDomain* l10nDomain = nullptr;
 
-    Phase phase = Phase::Language;
+    Phase phase = LANGUAGE_SELECTION ? Phase::Language : Phase::Welcome;
     size_t stepIndex = 0;
     tt::std::vector<StepConfiguration> steps;
     /** The page that picks the language: its choices are the language names and its choice the picked language */

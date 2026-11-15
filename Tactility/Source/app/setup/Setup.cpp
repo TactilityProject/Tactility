@@ -135,10 +135,12 @@ void onBackClicked(lv_event_t* event) {
         case Phase::Language:
             break;
         case Phase::Welcome:
-            ctx->phase = Phase::Language;
-            lvgl_lock();
-            renderCurrent(ctx);
-            lvgl_unlock();
+            if (LANGUAGE_SELECTION) {
+                ctx->phase = Phase::Language;
+                lvgl_lock();
+                renderCurrent(ctx);
+                lvgl_unlock();
+            }
             break;
         case Phase::StepChoice:
         case Phase::WifiSetup:

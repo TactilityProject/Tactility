@@ -25,7 +25,7 @@ namespace tt::app::setup {
 
 /** The language and welcome pages count as the first two steps, followed by the configuration steps */
 uint32_t getStepCount(const Context* ctx) {
-    return static_cast<uint32_t>(ctx->steps.size()) + 2;
+    return static_cast<uint32_t>(ctx->steps.size()) + (LANGUAGE_SELECTION ? 2 : 1);
 }
 
 /** The steps before the current one, or all of them once setup is done */
@@ -34,11 +34,11 @@ static uint32_t getFinishedStepCount(const Context* ctx) {
         case Phase::Language:
             return 0;
         case Phase::Welcome:
-            return 1;
+            return LANGUAGE_SELECTION ? 1 : 0;
         case Phase::StepIntro:
         case Phase::StepChoice:
         case Phase::WifiSetup:
-            return static_cast<uint32_t>(ctx->stepIndex) + 2;
+            return static_cast<uint32_t>(ctx->stepIndex) + (LANGUAGE_SELECTION ? 2 : 1);
         case Phase::Done:
             return getStepCount(ctx);
     }
@@ -226,7 +226,7 @@ static void renderLayout(Context* ctx) {
 
 void renderCurrent(Context* ctx) {
     lvgl_step_indicator_set_finished_count(ctx->stepIndicator, getFinishedStepCount(ctx));
-    lv_obj_set_hidden(ctx->backButton, ctx->phase == Phase::Language);
+    lv_obj_set_hidden(ctx->backButton, ctx->phase == Phase::Language || (!LANGUAGE_SELECTION && ctx->phase == Phase::Welcome));
     lv_label_set_text(lv_obj_get_child(ctx->backButton, 0), tr("Back"));
     switch (ctx->phase) {
         case Phase::Language:

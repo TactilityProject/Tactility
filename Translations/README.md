@@ -44,3 +44,7 @@ Define the folder name and include the domain header before anything that includ
 ```
 
 The domain is opened on first use. Use `tr_noop("text")` for texts in constant tables and `tr(table[i])` where they are shown.
+
+## English only firmware
+
+`CONFIG_TT_LANGUAGE_SELECTION=n` (`Tactility/Kconfig`, set with `sdkconfig.CONFIG_TT_LANGUAGE_SELECTION=n` in `device.properties`) builds without the translations: `generate-catalogs.py --english-only` writes an empty table, `tr()` in the apps returns the English text as is, the Language settings app isn't registered and the setup starts at its welcome page. The language setting is not applied, so everything stays English. The simulator builds with the translations, or without them with `-DTT_SIM_LANGUAGE_SELECTION=OFF`.
