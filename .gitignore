@@ -33,3 +33,4 @@ __pycache__
 .DS_Store
 .cache
 .ccache/
+.ccache-stats.txt
