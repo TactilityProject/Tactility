@@ -17,7 +17,6 @@ namespace {
 constexpr size_t LOCALE_MAX_LENGTH = 15;
 constexpr size_t MAX_SYSTEM_CATALOGS = 8;
 constexpr size_t MAX_LISTENERS = 8;
-constexpr size_t MAX_RUNNING_CALLS = 16;
 constexpr MemoryPolicy MEMORY_POLICY = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
 
 struct Catalog {
@@ -37,10 +36,11 @@ struct Listener {
     void* context;
 };
 
-/** A listener that is being called, and on which task */
+/** A listener that is being called, and on which task. It lives on the stack of the task and is linked while the call runs. */
 struct RunningCall {
     Listener listener;
     TaskHandle_t task;
+    RunningCall* next;
 };
 
 }
@@ -71,8 +71,7 @@ struct State {
     Listener listeners[MAX_LISTENERS] = {};
     size_t listener_count = 0;
     /** The listener calls that are in progress, also the nested ones and those of different tasks */
-    RunningCall running_calls[MAX_RUNNING_CALLS] = {};
-    size_t running_call_count = 0;
+    RunningCall* running_calls = nullptr;
 };
 
 State* state = nullptr;
@@ -359,39 +358,29 @@ error_t localisation_set_locale(const char* tag) {
     mutex_unlock(&state->mutex);
 
     for (size_t i = 0; i < listener_count; i++) {
+        RunningCall call = { listeners[i], xTaskGetCurrentTaskHandle(), nullptr };
+
         // A listener that was removed since the copy was made is not called anymore
+        mutex_lock(&state->mutex);
         bool registered = false;
-        bool tracked = false;
-        while (!tracked) {
-            mutex_lock(&state->mutex);
-            registered = false;
-            for (size_t j = 0; j < state->listener_count; j++) {
-                registered = registered || (state->listeners[j].function == listeners[i].function && state->listeners[j].context == listeners[i].context);
-            }
-            if (registered && state->running_call_count < MAX_RUNNING_CALLS) {
-                state->running_calls[state->running_call_count++] = { listeners[i], xTaskGetCurrentTaskHandle() };
-                tracked = true;
-            }
-            mutex_unlock(&state->mutex);
-            if (!registered) {
-                break;
-            }
-            if (!tracked) {
-                // Too many calls are in progress: wait for one to finish
-                vTaskDelay(1);
-            }
+        for (size_t j = 0; j < state->listener_count; j++) {
+            registered = registered || (state->listeners[j].function == call.listener.function && state->listeners[j].context == call.listener.context);
         }
+        if (registered) {
+            call.next = state->running_calls;
+            state->running_calls = &call;
+        }
+        mutex_unlock(&state->mutex);
         if (!registered) {
             continue;
         }
 
-        listeners[i].function(listeners[i].context);
+        call.listener.function(call.listener.context);
 
         mutex_lock(&state->mutex);
-        const auto task = xTaskGetCurrentTaskHandle();
-        for (size_t j = 0; j < state->running_call_count; j++) {
-            if (state->running_calls[j].task == task && state->running_calls[j].listener.function == listeners[i].function && state->running_calls[j].listener.context == listeners[i].context) {
-                state->running_calls[j] = state->running_calls[--state->running_call_count];
+        for (RunningCall** link = &state->running_calls; *link != nullptr; link = &(*link)->next) {
+            if (*link == &call) {
+                *link = call.next;
                 break;
             }
         }
@@ -462,15 +451,19 @@ void localisation_remove_locale_listener(L10nLocaleListener listener, void* cont
             break;
         }
     }
-    // Returns after the calls of the listener on other tasks finished, so its context can be freed
+    // Returns after the calls of the listener on other tasks finished, so its context can be freed.
+    // A task that is inside a notification itself doesn't wait: two callbacks that wait for each other would never return.
     const auto current_task = xTaskGetCurrentTaskHandle();
-    while (true) {
-        bool running_elsewhere = false;
-        for (size_t i = 0; i < state->running_call_count; i++) {
-            const auto& call = state->running_calls[i];
-            running_elsewhere = running_elsewhere || (call.listener.function == listener && call.listener.context == context && call.task != current_task);
+    bool inside_notification = false;
+    for (const RunningCall* call = state->running_calls; call != nullptr; call = call->next) {
+        inside_notification = inside_notification || call->task == current_task;
+    }
+    while (!inside_notification) {
+        bool running = false;
+        for (const RunningCall* call = state->running_calls; call != nullptr; call = call->next) {
+            running = running || (call->listener.function == listener && call->listener.context == context);
         }
-        if (!running_elsewhere) {
+        if (!running) {
             break;
         }
         mutex_unlock(&state->mutex);

@@ -95,8 +95,10 @@ error_t localisation_add_locale_listener(L10nLocaleListener listener, void* cont
 
 /**
  * @brief Removes a listener. A listener that was removed is not called anymore, also not by a notification that is in progress.
- * When the listener is running on other tasks, this waits until all of those calls returned, so the context can be freed afterwards.
- * A listener can remove itself or another listener from inside a notification.
+ * Called from a task that is not inside a notification, it waits until all running calls of the listener returned, so the
+ * context can be freed afterwards. Called from inside a notification (from any listener), it returns at once, as waiting
+ * could end up in tasks that wait for each other. The context of a listener that removes itself is then only safe to free after
+ * the notification has finished.
  */
 void localisation_remove_locale_listener(L10nLocaleListener listener, void* context);
 

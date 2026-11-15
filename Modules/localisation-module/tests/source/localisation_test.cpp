@@ -380,3 +380,73 @@ TEST_CASE("removing a listener waits for a call on another task") {
     }
     CHECK(removeReturned);
 }
+
+namespace {
+std::atomic<int> nestedDepth = 0;
+std::atomic<int> maxNestedDepth = 0;
+void nestingListener(void*) {
+    const int depth = ++nestedDepth;
+    maxNestedDepth = std::max<int>(maxNestedDepth, depth);
+    if (depth < 40) {
+        // Another locale each time, as the same locale does nothing
+        localisation_set_locale(depth % 2 == 0 ? "nl-NL" : "fr-FR");
+    }
+    nestedDepth--;
+}
+}
+
+TEST_CASE("nested notifications are not limited by a fixed number of slots") {
+    ModuleScope scope;
+    nestedDepth = 0;
+    maxNestedDepth = 0;
+    REQUIRE(localisation_add_locale_listener(nestingListener, nullptr) == ERROR_NONE);
+    REQUIRE(localisation_set_locale("de-DE") == ERROR_NONE);
+    CHECK(maxNestedDepth == 40);
+    localisation_remove_locale_listener(nestingListener, nullptr);
+}
+
+namespace {
+std::atomic<int> insideSelfRemoving = 0;
+std::atomic<int> selfRemovedReturned = 0;
+std::atomic<bool> releaseSelfRemoving = false;
+int selfRemovingContext = 0;
+std::atomic<int> selfRemovingDone = 0;
+void selfRemovingListener(void*) {
+    insideSelfRemoving++;
+    while (!releaseSelfRemoving) {
+        vTaskDelay(1);
+    }
+    // Both tasks remove the listener from inside it: neither may wait for the other
+    localisation_remove_locale_listener(selfRemovingListener, nullptr);
+    selfRemovedReturned++;
+}
+void selfRemovingTask(void* locale) {
+    localisation_set_locale(static_cast<const char*>(locale));
+    selfRemovingDone++;
+    vTaskDelete(nullptr);
+}
+}
+
+TEST_CASE("listeners that remove themselves on two tasks do not wait for each other") {
+    ModuleScope scope;
+    insideSelfRemoving = 0;
+    selfRemovedReturned = 0;
+    selfRemovingDone = 0;
+    releaseSelfRemoving = false;
+    REQUIRE(localisation_add_locale_listener(selfRemovingListener, nullptr) == ERROR_NONE);
+    REQUIRE(xTaskCreate(selfRemovingTask, "a", 4096, const_cast<char*>("de-DE"), 1, nullptr) == pdPASS);
+    // The second notification only calls the listener once it is registered and not removed: wait for the first to be inside
+    while (insideSelfRemoving < 1) {
+        vTaskDelay(1);
+    }
+    REQUIRE(xTaskCreate(selfRemovingTask, "b", 4096, const_cast<char*>("fr-FR"), 1, nullptr) == pdPASS);
+    while (insideSelfRemoving < 2) {
+        vTaskDelay(1);
+    }
+    releaseSelfRemoving = true;
+    for (int i = 0; i < 500 && selfRemovingDone < 2; i++) {
+        vTaskDelay(1);
+    }
+    CHECK(selfRemovingDone == 2);
+    CHECK(selfRemovedReturned == 2);
+}
