@@ -32,3 +32,4 @@ sdkconfig.board.*.dev
 __pycache__
 .DS_Store
 .cache
+.ccache/

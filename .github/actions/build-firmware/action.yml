@@ -17,12 +17,33 @@ runs:
     - name: 'Board select'
       shell: bash
       run: python device.py ${{ inputs.board_id }}
+    # Devices that compile the same share a cache, see Buildscripts/gh-sdkconfig-fingerprint.py.
+    # Without a cache of this exact configuration, the newest cache of the same chip is used.
+    # NOTE: Update the ESP-IDF version in the keys with the version of the build step!
+    - name: 'Compiler cache key'
+      id: ccache
+      shell: bash
+      run: echo "fingerprint=$(python Buildscripts/gh-sdkconfig-fingerprint.py ${{ inputs.board_id }})" >> "$GITHUB_OUTPUT"
+    - name: 'Restore compiler cache'
+      uses: actions/cache/restore@v4
+      with:
+        path: .ccache
+        key: ccache-idf-v6.1-${{ inputs.arch }}-${{ steps.ccache.outputs.fingerprint }}
+        restore-keys: ccache-idf-v6.1-${{ inputs.arch }}-
     - name: 'Build'
       uses: espressif/esp-idf-ci-action@v1
       with:
         esp_idf_version: v6.1
         target: ${{ inputs.arch }}
         path: './'
+        command: 'export IDF_CCACHE_ENABLE=1 CCACHE_DIR="$(pwd)/.ccache" CCACHE_BASEDIR="$(pwd)" && idf.py build && (ccache -s || true)'
+    # Only pushes save, so pull requests use the caches of earlier builds without filling the cache storage
+    - name: 'Save compiler cache'
+      if: github.event_name == 'push'
+      uses: actions/cache/save@v4
+      with:
+        path: .ccache
+        key: ccache-idf-v6.1-${{ inputs.arch }}-${{ steps.ccache.outputs.fingerprint }}
     - name: 'Release'
       shell: bash
       run: Buildscripts/release.sh ${{ inputs.board_id }}
