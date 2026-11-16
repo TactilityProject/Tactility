@@ -16,7 +16,6 @@
 
 #include <tactility/check.h>
 #include <tactility/device.h>
-#include <tactility/drivers/touch.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
@@ -82,8 +81,6 @@ struct AppIcon {
 struct Context {
     uint32_t appInstanceId;
 
-    /** Whether the device has a touch screen: only then the list has install and upgrade buttons */
-    bool hasTouch = false;
     lv_obj_t* contentWrapper = nullptr;
     /** The list of apps, null when the content isn't a list */
     lv_obj_t* list = nullptr;
@@ -515,30 +512,6 @@ void requestReload(Context* ctx) {
     task_event_group_signal(ctx->eventGroup, ctx->refreshRequestedBit);
 }
 
-/** Installs or upgrades the app of the pressed button */
-void onActionPressed(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    const auto index = reinterpret_cast<intptr_t>(lv_obj_get_user_data(lv_event_get_target_obj(e)));
-    ctx->mutex.lock();
-    tt::std::string appId;
-    if (index < ctx->appIds.size()) {
-        appId = ctx->appIds[index];
-    }
-    ctx->mutex.unlock();
-    if (appId.empty()) {
-        return;
-    }
-    const error_t error = app_hub_install(appId.c_str(), nullptr);
-    if (error == ERROR_RESOURCE_BUSY) {
-        alertdialog::start(ctx->appInstanceId, tr("Busy"), tr("Another operation is pending. Try again when it's done."));
-    } else if (error != ERROR_NONE) {
-        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("Failed to install app"));
-    } else {
-        // Reloads the apps on this app's own thread, which shows the pending operation
-        requestReload(ctx);
-    }
-}
-
 void onRefreshPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     requestRefresh(ctx);
@@ -692,22 +665,13 @@ void showApps(Context* ctx) {
                 if (!lvgl_theme_is_mono()) {
                     lv_obj_set_style_text_color(status, lv_theme_get_color_secondary(status), LV_STATE_DEFAULT);
                 }
-            } else if (app.installed && !app.update_available) {
+            } else if (app.installed) {
                 auto* status = lv_label_create(entry_button);
-                lv_label_set_text(status, tr("Installed"));
+                lv_label_set_text(status, app.update_available ? tr("Update available") : tr("Installed"));
                 lv_obj_set_style_text_font(status, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
                 if (!lvgl_theme_is_mono()) {
                     lv_obj_set_style_text_color(status, lv_theme_get_color_secondary(status), LV_STATE_DEFAULT);
                 }
-            } else if (app.in_catalog && ctx->hasTouch) {
-                auto* action = lvgl_icon_button_create_variant(entry_button, LVGL_ICON_BUTTON_FILLED);
-                // Keys select the app, which has the actions on its details screen
-                lv_group_remove_obj(action);
-                lv_obj_set_user_data(action, reinterpret_cast<void*>(i));
-                lv_obj_add_event_cb(action, onActionPressed, LV_EVENT_SHORT_CLICKED, ctx);
-                auto* label = lv_label_create(action);
-                lv_label_set_text(label, app.update_available ? tr("Upgrade") : tr("Install"));
-                lv_obj_set_style_text_font(label, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
             }
             auto int_as_voidptr = reinterpret_cast<void*>(i);
             lv_obj_set_user_data(entry_button, int_as_voidptr);
@@ -818,10 +782,6 @@ void onOperationEvent(Context* ctx, const AppHubEvent& event) {
         if (event.result != ERROR_NONE) {
             LOG_E(TAG, "Catalog refresh failed: %s", error_to_string(event.result));
         }
-    }
-
-    if (event.type == APP_HUB_EVENT_INSTALLED && event.result != ERROR_NONE && event.operation_id != ctx->updateAllOperationId) {
-        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("Failed to install app"));
     }
 
     loadApps(ctx);
@@ -980,11 +940,6 @@ int32_t appMain(int argc, char* argv[]) {
 
     if (areIconsShown()) {
         ctx.defaultIcon = loadDefaultIcon(getIconSize());
-    }
-    Device* touchDevice = nullptr;
-    if (device_get_first_active_by_type(&TOUCH_TYPE, &touchDevice) == ERROR_NONE) {
-        ctx.hasTouch = true;
-        device_put(touchDevice);
     }
     loadApps(&ctx);
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
