@@ -2,5 +2,6 @@ dependencies:
   - Platforms/platform-esp32
   - Drivers/tca95xx-16bit-module
   - Drivers/bma530-module
+  - Drivers/bq27427-module
+bindings: bindings
 dts: trmnl,trmnl-x.dts
-dts-only: true

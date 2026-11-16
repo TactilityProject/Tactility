@@ -2,6 +2,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <tactility/error.h>
 
@@ -11,15 +12,12 @@ struct Device;
 extern "C" {
 #endif
 
+/** Size of one data memory block in bytes */
+#define BQ27427_DATA_BLOCK_SIZE 32
+
 struct Bq27427Config {
     /** Address on bus */
     uint8_t address;
-    /** Design Capacity in mAh, 0 to leave the gauge's value untouched */
-    uint32_t design_capacity_mah;
-    /** Design Energy in mWh, 0 to leave the gauge's value untouched */
-    uint32_t design_energy_mwh;
-    /** Terminate Voltage in mV, 0 to leave the gauge's value untouched */
-    uint32_t terminate_voltage_mv;
 };
 
 /** Bits of Bq27427Status::flags (the Flags() register: low byte first, then high byte) */
@@ -78,8 +76,13 @@ enum Bq27427ControlCommand {
     BQ27427_CONTROL_COMMAND_PULSE_SOC_INT = 0x0023
 };
 
-/** A "snapshot" of all standard commands of the gauge */
+/**
+ * A "snapshot" of all standard commands of the gauge.
+ * Capacities are already multiplied by the Design Energy Scale stored in the gauge, so they are always in mAh.
+ */
 struct Bq27427Status {
+    /** Design Energy Scale (1 or 10) that was applied to the capacity fields */
+    uint8_t energy_scale;
     /** Temperature(), in 0.1 K */
     uint16_t temperature_decikelvin;
     /** Voltage(), in mV */
@@ -87,13 +90,13 @@ struct Bq27427Status {
     /** Flags(), see Bq27427Flag */
     uint16_t flags;
     /** NominalAvailableCapacity(): uncompensated (below C/20 load) remaining capacity, in mAh */
-    uint16_t nominal_available_capacity_mah;
+    uint32_t nominal_available_capacity_mah;
     /** FullAvailableCapacity(): uncompensated (below C/20 load) full capacity, in mAh */
-    uint16_t full_available_capacity_mah;
+    uint32_t full_available_capacity_mah;
     /** RemainingCapacity(): compensated for load and temperature, in mAh */
-    uint16_t remaining_capacity_mah;
+    uint32_t remaining_capacity_mah;
     /** FullChargeCapacity(): compensated for load and temperature, in mAh */
-    uint16_t full_charge_capacity_mah;
+    uint32_t full_charge_capacity_mah;
     /** AverageCurrent(), in mA: positive while charging, negative while discharging */
     int16_t average_current_ma;
     /** AveragePower(), in mW: positive while charging, negative while discharging */
@@ -105,32 +108,46 @@ struct Bq27427Status {
     /** StateOfHealth(), in % */
     uint8_t state_of_health_percent;
     /** RemainingCapacityUnfiltered(), in mAh */
-    uint16_t remaining_capacity_unfiltered_mah;
+    uint32_t remaining_capacity_unfiltered_mah;
     /** RemainingCapacityFiltered(), in mAh */
-    uint16_t remaining_capacity_filtered_mah;
+    uint32_t remaining_capacity_filtered_mah;
     /** FullChargeCapacityUnfiltered(), in mAh */
-    uint16_t full_charge_capacity_unfiltered_mah;
+    uint32_t full_charge_capacity_unfiltered_mah;
     /** FullChargeCapacityFiltered(), in mAh */
-    uint16_t full_charge_capacity_filtered_mah;
+    uint32_t full_charge_capacity_filtered_mah;
     /** StateOfChargeUnfiltered(), in % */
     uint16_t state_of_charge_unfiltered_percent;
 };
 
-/** Cell parameters stored in the gauge's data memory. A value of 0 leaves that parameter untouched. */
-struct Bq27427Design {
-    /** Design Capacity in mAh, 1..8000 */
-    uint16_t capacity_mah;
-    /** Design Energy in mWh, 1..32767 */
-    uint16_t energy_mwh;
-    /** Terminate Voltage in mV, 2500..3700 */
-    uint16_t terminate_voltage_mv;
+/** One 32-byte block of the gauge's data memory */
+struct Bq27427DataBlock {
+    /** Subclass ID, see the data memory tables of the technical reference manual */
+    uint8_t data_class;
+    /** Block number within the subclass: the offset of a parameter divided by 32 */
+    uint8_t block;
+    /** The block content. Its checksum is derived by the driver. */
+    uint8_t data[BQ27427_DATA_BLOCK_SIZE];
+};
+
+/** A set of data memory blocks (a "golden image") that configures the gauge for one particular cell */
+struct Bq27427Profile {
+    /** The blocks to write, in order */
+    const struct Bq27427DataBlock* const* blocks;
+    /** Number of entries in blocks */
+    size_t block_count;
+    /**
+     * The Design Energy Scale (1..10) that the blocks program. It is used to tell whether the gauge
+     * already holds this profile. The technical reference manual recommends 10 for packs over 6 Ah.
+     */
+    uint8_t energy_scale;
 };
 
 /**
  * Reads all standard commands of the gauge.
- * The gauge's watchdog may reset it when polled more than twice per second
+ * The gauge's watchdog may reset it when polled more than twice per second, so results are cached for one second.
  * @param[in] device the bq27427 device
  * @param[out] status the snapshot
+ * @retval ERROR_INVALID_STATE when the gauge returned values outside of the physically possible range
  */
 error_t bq27427_get_status(struct Device* device, struct Bq27427Status* status);
 
@@ -152,14 +169,37 @@ error_t bq27427_read_control(struct Device* device, enum Bq27427ControlRead subc
 error_t bq27427_send_control(struct Device* device, enum Bq27427ControlCommand command);
 
 /**
- * Programs the cell parameters into the gauge's data memory. Does nothing when the gauge
- * already holds these values. Otherwise the gauge is unsealed, put in CONFIG UPDATE mode,
- * written, verified, soft reset and sealed again, which blocks for several seconds...
+ * Tells whether the gauge has to be configured with a profile. That is the case when the gauge lost its
+ * RAM configuration (Flags() ITPOR), when its Design Energy Scale differs from the profile's, or when it
+ * still reports current with the inverted polarity (charging negative).
  * @param[in] device the bq27427 device
- * @param[in] design the parameters to program
- * @retval ERROR_INVALID_ARGUMENT when a value is out of range
+ * @param[in] profile the profile that is intended to be used
+ * @param[out] needed true when bq27427_apply_profile() has to run
+ * @retval ERROR_NOT_ALLOWED when the gauge is sealed and none of the known keys unseal it
  */
-error_t bq27427_configure_design(struct Device* device, const struct Bq27427Design* design);
+error_t bq27427_profile_needed(struct Device* device, const struct Bq27427Profile* profile, bool* needed);
+
+/**
+ * Writes all blocks of the profile to the gauge's data memory and makes it report charging current as positive
+ * The gauge is unsealed, put in CONFIG UPDATE mode, written, soft reset and put back in the access mode it had.
+ * 
+ * @note This blocks for several seconds.
+ * @param[in] device the bq27427 device
+ * @param[in] profile the profile to write
+ * @retval ERROR_INVALID_ARGUMENT when the profile is malformed
+ * @retval ERROR_NOT_ALLOWED when the gauge is sealed and none of the known keys unseal it
+ * @retval ERROR_RESOURCE when a block was not accepted by the gauge
+ */
+error_t bq27427_apply_profile(struct Device* device, const struct Bq27427Profile* profile);
+
+/**
+ * Waits until the gauge finished initializing after a reset.
+ *
+ * @param[in] device the bq27427 device
+ * @param[in] timeout_ms how long to wait
+ * @retval ERROR_TIMEOUT when the gauge is still initializing
+ */
+error_t bq27427_wait_ready(struct Device* device, uint32_t timeout_ms);
 
 #ifdef __cplusplus
 }

@@ -51,33 +51,55 @@ static constexpr uint16_t CONTROL_DEVICE_TYPE_VALUE = 0x0427;
 static constexpr uint16_t CONTROL_SET_CFGUPDATE = 0x0013;
 static constexpr uint16_t CONTROL_SEALED = 0x0020;
 static constexpr uint16_t CONTROL_SOFT_RESET = 0x0042;
-// Factory UNSEAL key: the same 16-bit word sent twice in a row (TRM section 4.1, it's interesting)
-static constexpr uint16_t CONTROL_UNSEAL_KEY = 0x8000;
 
-// Data memory: "Gas Gauging State" subclass (lol), offsets of the parameters we expose (TRM table 7-2).
-// Values are stored big-endian.
-static constexpr uint8_t DATA_CLASS_STATE = 82;
-static constexpr uint8_t DATA_BLOCK_STATE = 0;
-static constexpr size_t BLOCK_SIZE = 32;
-static constexpr size_t OFFSET_DESIGN_CAPACITY = 6;
-static constexpr size_t OFFSET_DESIGN_ENERGY = 8;
-static constexpr size_t OFFSET_TERMINATE_VOLTAGE = 10;
+// Sealed-to-Unsealed key pairs, each sent as two consecutive Control() words. The first pair is the factory
+// default of the TRM (section 4.1).
+static constexpr uint16_t UNSEAL_KEY_PAIRS[][2] = {
+    { 0x8000, 0x8000 },
+    { 0x0414, 0x3672 },
+    { 0xFFFF, 0xFFFF }
+};
 
-static constexpr uint16_t DESIGN_CAPACITY_MAX_MAH = 8000;
-static constexpr uint16_t DESIGN_ENERGY_MAX_MWH = 32767;
-static constexpr uint16_t TERMINATE_VOLTAGE_MIN_MV = 2500;
-static constexpr uint16_t TERMINATE_VOLTAGE_MAX_MV = 3700;
+// Data memory locations used outside of profiles (TRM chapter 7). 
+// Parameters are stored big-endian btw
+// A parameter's offset divided by BQ27427_DATA_BLOCK_SIZE is its block, 
+// the remainder its index in the block.
+static constexpr uint8_t DATA_CLASS_IT_CFG = 80;
+static constexpr uint8_t DATA_BLOCK_DESIGN_ENERGY_SCALE = 2;
+static constexpr size_t INDEX_DESIGN_ENERGY_SCALE = 17; // offset 81 of the IT Cfg subclass
+static constexpr uint8_t ENERGY_SCALE_MAX = 10;
 
-// Timing from the TRM: 
-// - 66 us bus-free time between packets (section 3.3), at least 1100 ms
-// - after SET_CFGUPDATE before touching data memory (section 5.1.9), 
-// - CONFIG UPDATE entry and exit take up to 1 s (section 4.1).
+// Offset 5 of the CC Cal subclass is not documented in the TRM so i had to reference TRMNL
+static constexpr uint8_t DATA_CLASS_CC_CAL = 105;
+static constexpr uint8_t DATA_BLOCK_CC_CAL = 0;
+static constexpr size_t INDEX_CURRENT_POLARITY = 5;
+static constexpr uint8_t CC_CAL_POLARITY_BIT = 0x80;
+
+static constexpr size_t BLOCK_SIZE = BQ27427_DATA_BLOCK_SIZE;
+
+// Sanity limits for a plausible reading 
+// strangely enough a failed transfer is likely to read back as 0xFFFF
+static constexpr uint16_t VOLTAGE_MAX_MV = 10000;
+static constexpr uint16_t PERCENT_MAX = 100;
+static constexpr uint16_t TEMPERATURE_MIN_DECIKELVIN = 2332; // -40 C
+static constexpr uint16_t TEMPERATURE_MAX_DECIKELVIN = 3732; // 100 C
+
+// Timing from the TRM:
+// - 66 us bus-free time between packets (section 3.3) 
+// - at least 1100 ms after SET_CFGUPDATE before touching data memory (section 5.1.9)
+// - entering and leaving CONFIG UPDATE mode takes up to 1 s (section 4.1)
 static constexpr uint32_t BUS_FREE_US = 66;
 static constexpr uint32_t CFGUPDATE_SETTLE_MS = 1100;
 static constexpr uint32_t CFGUPDATE_POLL_INTERVAL_MS = 500;
 static constexpr int CFGUPDATE_POLL_ATTEMPTS = 6;
-// The TRM gives no settling time between selecting a data block and reading it sigh
-static constexpr uint32_t BLOCK_SELECT_SETTLE_MS = 10;
+static constexpr uint32_t UNSEAL_SETTLE_MS = 1000;
+static constexpr uint32_t UNSEAL_CHECK_DELAY_MS = 50;
+// The block must be loaded into the gauge's RAM before it is read back
+// unfortunately the TRM doesn't give a time so I assumed 200 us is enough
+static constexpr uint32_t BLOCK_CLASS_SETTLE_US = 200;
+static constexpr uint32_t BLOCK_SELECT_SETTLE_MS = 5;
+static constexpr uint32_t BLOCK_COMMIT_SETTLE_MS = 10;
+static constexpr uint32_t READY_POLL_INTERVAL_MS = 100;
 
 static constexpr uint32_t STATUS_CACHE_MS = 1000;
 
@@ -89,6 +111,7 @@ struct Bq27427Internal {
     Bq27427Status cached_status = {};
     TickType_t cached_at_ticks = 0;
     bool has_cached_status = false;
+    uint8_t energy_scale = 0;
 
     Bq27427Internal() { mutex_construct(&mutex); }
     ~Bq27427Internal() { mutex_destruct(&mutex); }
@@ -125,7 +148,7 @@ static error_t write_u8(Device* device, uint8_t reg, uint8_t value) {
     return error;
 }
 
-static error_t read_block(Device* device, uint8_t reg, uint8_t* data, size_t size) {
+static error_t read_bytes(Device* device, uint8_t reg, uint8_t* data, size_t size) {
     error_t error = i2c_controller_read_register(device_get_parent(device), GET_CONFIG(device)->address, reg, data, size, I2C_TIMEOUT);
     delay_micros(BUS_FREE_US);
     return error;
@@ -151,24 +174,11 @@ static uint8_t block_checksum(const uint8_t* data) {
     return static_cast<uint8_t>(0xFF - sum);
 }
 
-static uint16_t read_be16(const uint8_t* data) {
-    return static_cast<uint16_t>(data[0] << 8 | data[1]);
-}
-
-static void write_be16(uint8_t* data, uint16_t value) {
-    data[0] = static_cast<uint8_t>(value >> 8);
-    data[1] = static_cast<uint8_t>(value & 0xFF);
-}
-
-static error_t read_flags(Device* device, uint16_t* flags) {
-    return read_u16(device, REG_FLAGS, flags);
-}
-
 // Polls Flags() CFGUPMODE until it matches the wanted state
 static error_t wait_for_config_update_mode(Device* device, bool wanted) {
     for (int attempt = 0; attempt < CFGUPDATE_POLL_ATTEMPTS; attempt++) {
         uint16_t flags = 0;
-        error_t error = read_flags(device, &flags);
+        error_t error = read_u16(device, REG_FLAGS, &flags);
         if (error != ERROR_NONE) return error;
         if (((flags & BQ27427_FLAG_CFGUPMODE) != 0) == wanted) return ERROR_NONE;
         delay_millis(CFGUPDATE_POLL_INTERVAL_MS);
@@ -176,101 +186,196 @@ static error_t wait_for_config_update_mode(Device* device, bool wanted) {
     return ERROR_TIMEOUT;
 }
 
-static error_t select_state_block(Device* device) {
+static error_t select_data_block(Device* device, uint8_t data_class, uint8_t block) {
     error_t error = write_u8(device, REG_BLOCK_DATA_CONTROL, 0x00);
     if (error != ERROR_NONE) return error;
-    error = write_u8(device, REG_DATA_CLASS, DATA_CLASS_STATE);
+    error = write_u8(device, REG_DATA_CLASS, data_class);
     if (error != ERROR_NONE) return error;
-    error = write_u8(device, REG_DATA_BLOCK, DATA_BLOCK_STATE);
+    delay_micros(BLOCK_CLASS_SETTLE_US);
+    error = write_u8(device, REG_DATA_BLOCK, block);
     if (error != ERROR_NONE) return error;
     delay_millis(BLOCK_SELECT_SETTLE_MS);
     return ERROR_NONE;
 }
 
-static error_t read_state_block(Device* device, uint8_t* block) {
-    error_t error = select_state_block(device);
+static error_t read_data_block(Device* device, uint8_t data_class, uint8_t block, uint8_t* data) {
+    error_t error = select_data_block(device, data_class, block);
     if (error != ERROR_NONE) return error;
-    return read_block(device, REG_BLOCK_DATA, block, BLOCK_SIZE);
+    return read_bytes(device, REG_BLOCK_DATA, data, BLOCK_SIZE);
 }
 
-static error_t validate_design(const Bq27427Design& design) {
-    if (design.capacity_mah > DESIGN_CAPACITY_MAX_MAH) return ERROR_INVALID_ARGUMENT;
-    if (design.energy_mwh > DESIGN_ENERGY_MAX_MWH) return ERROR_INVALID_ARGUMENT;
-    if (design.terminate_voltage_mv != 0 &&
-        (design.terminate_voltage_mv < TERMINATE_VOLTAGE_MIN_MV || design.terminate_voltage_mv > TERMINATE_VOLTAGE_MAX_MV)) {
-        return ERROR_INVALID_ARGUMENT;
-    }
-    return ERROR_NONE;
-}
-
-// Applies the non-zero design fields to a copy of the state block. Returns true when anything changed.
-static bool apply_design(const Bq27427Design& design, uint8_t* block) {
-    bool changed = false;
-    const struct { size_t offset; uint16_t value; } fields[] = {
-        { OFFSET_DESIGN_CAPACITY, design.capacity_mah },
-        { OFFSET_DESIGN_ENERGY, design.energy_mwh },
-        { OFFSET_TERMINATE_VOLTAGE, design.terminate_voltage_mv }
-    };
-    for (const auto& field : fields) {
-        if (field.value != 0 && read_be16(block + field.offset) != field.value) {
-            write_be16(block + field.offset, field.value);
-            changed = true;
-        }
-    }
-    return changed;
-}
-
-// Writes the modified block and verifies it by reading it back. The caller holds the lock
-// and the gauge is in CONFIG UPDATE mode.
-static error_t write_state_block(Device* device, const uint8_t* old_block, const uint8_t* new_block) {
-    error_t error = select_state_block(device);
+// Writes a block and checks that the gauge accepted it 
+// Note: Must be called in CONFIG UPDATE mode.
+static error_t write_data_block(Device* device, uint8_t data_class, uint8_t block, const uint8_t* data) {
+    error_t error = select_data_block(device, data_class, block);
     if (error != ERROR_NONE) return error;
 
+    // The block has to be read once so that it is present in the gauge's RAM
+    uint8_t current[BLOCK_SIZE];
+    error = read_bytes(device, REG_BLOCK_DATA, current, BLOCK_SIZE);
+    if (error != ERROR_NONE) return error;
+
+    // Single byte writes: the TRM requires them when the bus runs faster than 100 kHz
     for (size_t i = 0; i < BLOCK_SIZE; i++) {
-        if (old_block[i] == new_block[i]) continue;
-        error = write_u8(device, static_cast<uint8_t>(REG_BLOCK_DATA + i), new_block[i]);
+        error = write_u8(device, static_cast<uint8_t>(REG_BLOCK_DATA + i), data[i]);
         if (error != ERROR_NONE) return error;
     }
 
     // The block is transferred to data memory when the complemented sum of all 32 bytes is written
-    error = write_u8(device, REG_BLOCK_DATA_CHECKSUM, block_checksum(new_block));
+    const uint8_t checksum = block_checksum(data);
+    error = write_u8(device, REG_BLOCK_DATA_CHECKSUM, checksum);
     if (error != ERROR_NONE) return error;
+    delay_millis(BLOCK_COMMIT_SETTLE_MS);
 
-    uint8_t verify[BLOCK_SIZE];
-    error = read_state_block(device, verify);
+    // The checksum register reads back the sum of the block that the gauge holds now
+    error = select_data_block(device, data_class, block);
     if (error != ERROR_NONE) return error;
-    if (memcmp(verify, new_block, BLOCK_SIZE) != 0) {
-        LOG_E(TAG, "Data memory verification failed");
+    uint8_t stored_checksum = 0;
+    error = read_u8(device, REG_BLOCK_DATA_CHECKSUM, &stored_checksum);
+    if (error != ERROR_NONE) return error;
+    if (stored_checksum != checksum) {
+        LOG_E(TAG, "Block %u/%u rejected (wrote checksum 0x%02X, read 0x%02X)", data_class, block, checksum, stored_checksum);
         return ERROR_RESOURCE;
     }
     return ERROR_NONE;
+}
+
+// Data memory is only accessible while the gauge is unsealed 
+// This puts the gauge back in the access mode it was found in (easiest approach lol)
+class UnsealGuard {
+    Device* device;
+    bool was_sealed = false;
+    bool open = false;
+public:
+    explicit UnsealGuard(Device* device) : device(device) {}
+
+    error_t unseal() {
+        uint16_t status = 0;
+        error_t error = read_control(device, BQ27427_CONTROL_READ_STATUS, &status);
+        if (error != ERROR_NONE) return error;
+
+        was_sealed = (status & BQ27427_CONTROL_STATUS_SS) != 0;
+        open = true;
+        if (!was_sealed) return ERROR_NONE;
+
+        for (const auto& pair : UNSEAL_KEY_PAIRS) {
+            for (uint16_t key : pair) {
+                error = write_control(device, key);
+                if (error != ERROR_NONE) return error;
+            }
+            delay_millis(UNSEAL_CHECK_DELAY_MS);
+            error = read_control(device, BQ27427_CONTROL_READ_STATUS, &status);
+            if (error != ERROR_NONE) return error;
+            if ((status & BQ27427_CONTROL_STATUS_SS) == 0) return ERROR_NONE;
+        }
+        LOG_E(TAG, "Gauge is sealed and none of the known keys unseal it");
+        return ERROR_NOT_ALLOWED;
+    }
+
+    bool was_found_sealed() const { return was_sealed; }
+
+    ~UnsealGuard() {
+        if (!open || !was_sealed) return;
+        if (write_control(device, CONTROL_SEALED) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to seal the gauge again");
+        }
+    }
+    UnsealGuard(const UnsealGuard&) = delete;
+    UnsealGuard& operator=(const UnsealGuard&) = delete;
+};
+
+static error_t read_energy_scale(Device* device, uint8_t* scale) {
+    uint8_t block[BLOCK_SIZE];
+    error_t error = read_data_block(device, DATA_CLASS_IT_CFG, DATA_BLOCK_DESIGN_ENERGY_SCALE, block);
+    if (error != ERROR_NONE) return error;
+    // 0 is not a valid scale; the TRMNL firmware treats it as 1
+    *scale = block[INDEX_DESIGN_ENERGY_SCALE] > 0 ? block[INDEX_DESIGN_ENERGY_SCALE] : 1;
+    return ERROR_NONE;
+}
+
+static error_t read_current_polarity_inverted(Device* device, bool* inverted) {
+    uint8_t block[BLOCK_SIZE];
+    error_t error = read_data_block(device, DATA_CLASS_CC_CAL, DATA_BLOCK_CC_CAL, block);
+    if (error != ERROR_NONE) return error;
+    *inverted = (block[INDEX_CURRENT_POLARITY] & CC_CAL_POLARITY_BIT) != 0;
+    return ERROR_NONE;
+}
+
+// Reads the energy scale from the gauge once. The caller holds the lock.
+static error_t ensure_energy_scale(Device* device, Bq27427Internal* internal) {
+    if (internal->energy_scale != 0) return ERROR_NONE;
+
+    UnsealGuard guard(device);
+    error_t error = guard.unseal();
+    if (error != ERROR_NONE) return error;
+
+    uint8_t scale = 0;
+    error = read_energy_scale(device, &scale);
+    if (error != ERROR_NONE) return error;
+    internal->energy_scale = scale;
+    return ERROR_NONE;
+}
+
+static bool is_plausible(const Bq27427Status& status) {
+    return status.state_of_charge_percent <= PERCENT_MAX &&
+        status.state_of_health_percent <= PERCENT_MAX &&
+        status.voltage_mv <= VOLTAGE_MAX_MV &&
+        status.temperature_decikelvin >= TEMPERATURE_MIN_DECIKELVIN &&
+        status.temperature_decikelvin <= TEMPERATURE_MAX_DECIKELVIN;
+}
+
+static bool is_profile_valid(const Bq27427Profile* profile) {
+    if (profile == nullptr || profile->blocks == nullptr || profile->block_count == 0) return false;
+    if (profile->energy_scale == 0 || profile->energy_scale > ENERGY_SCALE_MAX) return false;
+
+    bool has_scale_block = false;
+    for (size_t i = 0; i < profile->block_count; i++) {
+        const auto* block = profile->blocks[i];
+        if (block == nullptr) return false;
+        if (block->data_class == DATA_CLASS_IT_CFG && block->block == DATA_BLOCK_DESIGN_ENERGY_SCALE) {
+            if (block->data[INDEX_DESIGN_ENERGY_SCALE] != profile->energy_scale) return false;
+            has_scale_block = true;
+        }
+    }
+    // Without it the profile could never be recognized as applied
+    return has_scale_block;
 }
 
 // endregion
 
 // region Public API
 
-static error_t read_status_locked(Device* device, Bq27427Status* status) {
+static error_t read_status_locked(Device* device, uint8_t energy_scale, Bq27427Status* status) {
     error_t error;
-    const struct { uint8_t reg; uint16_t* target; } words[] = {
-        { REG_TEMPERATURE, &status->temperature_decikelvin },
-        { REG_VOLTAGE, &status->voltage_mv },
-        { REG_FLAGS, &status->flags },
+    const struct { uint8_t reg; uint32_t* target; } capacities[] = {
         { REG_NOMINAL_AVAILABLE_CAPACITY, &status->nominal_available_capacity_mah },
         { REG_FULL_AVAILABLE_CAPACITY, &status->full_available_capacity_mah },
         { REG_REMAINING_CAPACITY, &status->remaining_capacity_mah },
         { REG_FULL_CHARGE_CAPACITY, &status->full_charge_capacity_mah },
-        { REG_STATE_OF_CHARGE, &status->state_of_charge_percent },
-        { REG_INTERNAL_TEMPERATURE, &status->internal_temperature_decikelvin },
         { REG_REMAINING_CAPACITY_UNFILTERED, &status->remaining_capacity_unfiltered_mah },
         { REG_REMAINING_CAPACITY_FILTERED, &status->remaining_capacity_filtered_mah },
         { REG_FULL_CHARGE_CAPACITY_UNFILTERED, &status->full_charge_capacity_unfiltered_mah },
-        { REG_FULL_CHARGE_CAPACITY_FILTERED, &status->full_charge_capacity_filtered_mah },
+        { REG_FULL_CHARGE_CAPACITY_FILTERED, &status->full_charge_capacity_filtered_mah }
+    };
+    const struct { uint8_t reg; uint16_t* target; } words[] = {
+        { REG_TEMPERATURE, &status->temperature_decikelvin },
+        { REG_VOLTAGE, &status->voltage_mv },
+        { REG_FLAGS, &status->flags },
+        { REG_STATE_OF_CHARGE, &status->state_of_charge_percent },
+        { REG_INTERNAL_TEMPERATURE, &status->internal_temperature_decikelvin },
         { REG_STATE_OF_CHARGE_UNFILTERED, &status->state_of_charge_unfiltered_percent }
     };
+
+    status->energy_scale = energy_scale;
     for (const auto& word : words) {
         error = read_u16(device, word.reg, word.target);
         if (error != ERROR_NONE) return error;
+    }
+    for (const auto& capacity : capacities) {
+        uint16_t raw = 0;
+        error = read_u16(device, capacity.reg, &raw);
+        if (error != ERROR_NONE) return error;
+        *capacity.target = static_cast<uint32_t>(raw) * energy_scale;
     }
 
     // Signed quantities share the unsigned read helper
@@ -297,9 +402,13 @@ error_t bq27427_get_status(Device* device, Bq27427Status* status) {
         return ERROR_NONE;
     }
 
-    Bq27427Status fresh = {};
-    error_t error = read_status_locked(device, &fresh);
+    error_t error = ensure_energy_scale(device, internal);
     if (error != ERROR_NONE) return error;
+
+    Bq27427Status fresh = {};
+    error = read_status_locked(device, internal->energy_scale, &fresh);
+    if (error != ERROR_NONE) return error;
+    if (!is_plausible(fresh)) return ERROR_INVALID_STATE;
 
     internal->cached_status = fresh;
     internal->cached_at_ticks = now;
@@ -341,66 +450,102 @@ error_t bq27427_send_control(Device* device, Bq27427ControlCommand command) {
     return write_control(device, static_cast<uint16_t>(command));
 }
 
-// Leaves CONFIG UPDATE mode and puts the gauge back in the access mode it was found in 
-static error_t finish_configuration(Device* device, bool was_sealed) {
-    error_t error = write_control(device, CONTROL_SOFT_RESET);
+error_t bq27427_profile_needed(Device* device, const Bq27427Profile* profile, bool* needed) {
+    if (!is_profile_valid(profile) || needed == nullptr) return ERROR_INVALID_ARGUMENT;
+    auto* internal = GET_INTERNAL(device);
+    ScopedLock lock(internal);
+
+    uint16_t flags = 0;
+    error_t error = read_u16(device, REG_FLAGS, &flags);
     if (error != ERROR_NONE) return error;
-    error = wait_for_config_update_mode(device, false);
+    if (flags & BQ27427_FLAG_ITPOR) {
+        // RAM went back to the ROM defaults, so the scale in data memory is stale as well
+        // gotta update both
+        internal->energy_scale = 0;
+        *needed = true;
+        return ERROR_NONE;
+    }
+
+    UnsealGuard guard(device);
+    error = guard.unseal();
     if (error != ERROR_NONE) return error;
 
-    if (!was_sealed) return ERROR_NONE;
-    return write_control(device, CONTROL_SEALED);
+    uint8_t scale = 0;
+    error = read_energy_scale(device, &scale);
+    if (error != ERROR_NONE) return error;
+    internal->energy_scale = scale;
+
+    bool polarity_inverted = false;
+    error = read_current_polarity_inverted(device, &polarity_inverted);
+    if (error != ERROR_NONE) return error;
+
+    *needed = scale != profile->energy_scale || polarity_inverted;
+    return ERROR_NONE;
 }
 
-error_t bq27427_configure_design(Device* device, const Bq27427Design* design) {
-    if (design == nullptr) return ERROR_INVALID_ARGUMENT;
-    error_t error = validate_design(*design);
+// Makes the gauge report charging current as positive. 
+// Note: Must be called in CONFIG UPDATE mode.
+static error_t fix_current_polarity(Device* device) {
+    uint8_t block[BLOCK_SIZE];
+    error_t error = read_data_block(device, DATA_CLASS_CC_CAL, DATA_BLOCK_CC_CAL, block);
     if (error != ERROR_NONE) return error;
-    if (design->capacity_mah == 0 && design->energy_mwh == 0 && design->terminate_voltage_mv == 0) return ERROR_NONE;
+    if ((block[INDEX_CURRENT_POLARITY] & CC_CAL_POLARITY_BIT) == 0) return ERROR_NONE;
 
-    ScopedLock lock(GET_INTERNAL(device));
+    block[INDEX_CURRENT_POLARITY] = static_cast<uint8_t>(block[INDEX_CURRENT_POLARITY] & ~CC_CAL_POLARITY_BIT);
+    return write_data_block(device, DATA_CLASS_CC_CAL, DATA_BLOCK_CC_CAL, block);
+}
 
-    uint16_t control_status = 0;
-    error = read_control(device, BQ27427_CONTROL_READ_STATUS, &control_status);
+error_t bq27427_apply_profile(Device* device, const Bq27427Profile* profile) {
+    if (!is_profile_valid(profile)) return ERROR_INVALID_ARGUMENT;
+    auto* internal = GET_INTERNAL(device);
+    ScopedLock lock(internal);
+
+    UnsealGuard guard(device);
+    error_t error = guard.unseal();
     if (error != ERROR_NONE) return error;
-    const bool was_sealed = (control_status & BQ27427_CONTROL_STATUS_SS) != 0;
+    if (guard.was_found_sealed()) delay_millis(UNSEAL_SETTLE_MS);
 
-    // Data memory is only accessible while unsealed
-    if (was_sealed) {
-        error = write_control(device, CONTROL_UNSEAL_KEY);
-        if (error != ERROR_NONE) return error;
-        error = write_control(device, CONTROL_UNSEAL_KEY);
-        if (error != ERROR_NONE) return error;
-    }
-
-    uint8_t old_block[BLOCK_SIZE];
-    error = read_state_block(device, old_block);
-    if (error != ERROR_NONE) {
-        // Best effort: the read error is the one worth reporting
-        if (was_sealed) (void)write_control(device, CONTROL_SEALED);
-        return error;
-    }
-
-    uint8_t new_block[BLOCK_SIZE];
-    memcpy(new_block, old_block, BLOCK_SIZE);
-    if (!apply_design(*design, new_block)) {
-        return was_sealed ? write_control(device, CONTROL_SEALED) : ERROR_NONE;
-    }
-
-    LOG_I(TAG, "Programming cell parameters into data memory");
+    LOG_I(TAG, "Writing %u data memory blocks", static_cast<unsigned>(profile->block_count));
     error = write_control(device, CONTROL_SET_CFGUPDATE);
     if (error == ERROR_NONE) {
         delay_millis(CFGUPDATE_SETTLE_MS);
         error = wait_for_config_update_mode(device, true);
     }
+    for (size_t i = 0; error == ERROR_NONE && i < profile->block_count; i++) {
+        const auto* block = profile->blocks[i];
+        error = write_data_block(device, block->data_class, block->block, block->data);
+    }
     if (error == ERROR_NONE) {
-        error = write_state_block(device, old_block, new_block);
+        error = fix_current_polarity(device);
     }
 
-    // Leaving CONFIG UPDATE mode and resealing is attempted even after a failure, 
-    // so the gauge keeps gauging heh
-    error_t finish_error = finish_configuration(device, was_sealed);
-    return error != ERROR_NONE ? error : finish_error;
+    // Leaving CONFIG UPDATE mode is attempted even after a failure, so the gauge keeps gauging
+    error_t exit_error = write_control(device, CONTROL_SOFT_RESET);
+    if (exit_error == ERROR_NONE) {
+        exit_error = wait_for_config_update_mode(device, false);
+    }
+
+    internal->has_cached_status = false;
+    internal->energy_scale = 0;
+    if (error == ERROR_NONE && exit_error == ERROR_NONE) {
+        internal->energy_scale = profile->energy_scale;
+    }
+    return error != ERROR_NONE ? error : exit_error;
+}
+
+error_t bq27427_wait_ready(Device* device, uint32_t timeout_ms) {
+    ScopedLock lock(GET_INTERNAL(device));
+
+    uint32_t waited_ms = 0;
+    while (true) {
+        uint16_t flags = 0;
+        error_t error = read_u16(device, REG_FLAGS, &flags);
+        if (error != ERROR_NONE) return error;
+        if ((flags & BQ27427_FLAG_ITPOR) == 0) return ERROR_NONE;
+        if (waited_ms >= timeout_ms) return ERROR_TIMEOUT;
+        delay_millis(READY_POLL_INTERVAL_MS);
+        waited_ms += READY_POLL_INTERVAL_MS;
+    }
 }
 
 // endregion
@@ -543,25 +688,6 @@ static error_t start(Device* device) {
         device_set_driver_data(device, nullptr);
         delete internal;
         return ERROR_RESOURCE;
-    }
-
-    const auto* config = GET_CONFIG(device);
-    if (config->design_capacity_mah > UINT16_MAX || config->design_energy_mwh > UINT16_MAX || config->terminate_voltage_mv > UINT16_MAX) {
-        LOG_E(TAG, "Cell parameter out of range");
-        device_set_driver_data(device, nullptr);
-        delete internal;
-        return ERROR_INVALID_ARGUMENT;
-    }
-    const Bq27427Design design = {
-        .capacity_mah = static_cast<uint16_t>(config->design_capacity_mah),
-        .energy_mwh = static_cast<uint16_t>(config->design_energy_mwh),
-        .terminate_voltage_mv = static_cast<uint16_t>(config->terminate_voltage_mv)
-    };
-
-    // A failed configuration leaves the gauge working with its own parameters, so it is not fatal (cool)
-    error = bq27427_configure_design(device, &design);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to program cell parameters (error %d)", static_cast<int>(error));
     }
 
     error = create_power_supply_child(device, internal->power_supply_device);

@@ -7,6 +7,8 @@
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <bindings/tca95xx.h>
 #include <bindings/bma530.h>
+#include <bindings/bq27427.h>
+#include <bindings/trmnl_x_power.h>
 
 / {
 	compatible = "root";
@@ -41,5 +43,20 @@
 			compatible = "bosch,bma530";
 			reg = <0x18>;
 		};
+
+		bq27427: bq27427 {
+			compatible = "ti,bq27427";
+			reg = <0x55>;
+		};
+	};
+
+	power {
+		compatible = "trmnl,trmnl-x-power";
+		pin-power-good = <&tca9535 0 GPIO_FLAG_ACTIVE_LOW>;
+		pin-charge-status = <&tca9535 2 GPIO_FLAG_ACTIVE_LOW>;
+		pin-otg = <&tca9535 1 GPIO_FLAG_NONE>;
+		pin-battery-detect = <&tca9535 7 GPIO_FLAG_NONE>;
+		pin-gauge-reset = <&tca9535 10 GPIO_FLAG_ACTIVE_LOW>;
+		gauge = <&bq27427>;
 	};
 };
