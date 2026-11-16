@@ -187,6 +187,9 @@ void loadState(Context* ctx) {
                 apphub::setIcon(ctx->iconImage, icon, iconRecolor);
             } else if (ctx->defaultIcon != nullptr) {
                 apphub::setIcon(ctx->iconImage, ctx->defaultIcon, true);
+            } else {
+                // Nothing to show: the widget must not keep pointing at the image that is freed below
+                lv_image_set_src(ctx->iconImage, nullptr);
             }
         }
         if (oldIcon != nullptr) {

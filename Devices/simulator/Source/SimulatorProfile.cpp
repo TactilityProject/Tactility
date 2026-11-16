@@ -150,40 +150,71 @@ static void applyOrientationToDisplaySettings(OrientationOverride orientation) {
 
 /**
  * The theming of the Appearance settings is tuned to the previous profile, so the new profile starts from its own defaults.
- * @return false when the settings exist and couldn't be removed
+ * The settings are moved aside first, so they can be put back when the new profile isn't saved.
  */
-static bool resetAppearanceSettings() {
-    char path[PATH_MAX];
-    if (app_paths_get_user_data_path("tactility.appearance", "appearance.properties", path, sizeof(path)) != ERROR_NONE) {
-        LOG_E(TAG, "Failed to find the Appearance settings");
-        return false;
+struct AppearanceReset {
+    std::string path;
+    std::string backupPath;
+    /** The settings were moved aside, and can be put back or removed for good */
+    bool staged = false;
+
+    /** @return false when the settings exist and couldn't be moved */
+    bool stage() {
+        char settingsPath[PATH_MAX];
+        if (app_paths_get_user_data_path("tactility.appearance", "appearance.properties", settingsPath, sizeof(settingsPath)) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to find the Appearance settings");
+            return false;
+        }
+        path = settingsPath;
+        backupPath = path + ".reset";
+        if (rename(path.c_str(), backupPath.c_str()) != 0) {
+            if (errno == ENOENT) {
+                return true;
+            }
+            LOG_E(TAG, "Failed to move %s", path.c_str());
+            return false;
+        }
+        staged = true;
+        return true;
     }
-    if (remove(path) != 0 && errno != ENOENT) {
-        LOG_E(TAG, "Failed to remove %s", path);
-        return false;
+
+    void commit() {
+        if (staged && remove(backupPath.c_str()) != 0) {
+            LOG_W(TAG, "Failed to remove %s", backupPath.c_str());
+        }
     }
-    return true;
-}
+
+    void rollback() {
+        if (staged && rename(backupPath.c_str(), path.c_str()) != 0) {
+            LOG_E(TAG, "Failed to restore %s", path.c_str());
+        }
+    }
+};
 
 bool saveSelection(size_t profileIndex, OrientationOverride orientation) {
     size_t savedProfileIndex;
     OrientationOverride savedOrientation;
     loadSelection(savedProfileIndex, savedOrientation);
     const bool changed = profileIndex != savedProfileIndex || orientation != savedOrientation;
-    // Before the selection is saved, so a failure is tried again when the same profile is selected again
-    if (profileIndex != savedProfileIndex && !resetAppearanceSettings()) {
+
+    AppearanceReset appearanceReset;
+    if (profileIndex != savedProfileIndex && !appearanceReset.stage()) {
         return false;
     }
+
     mkdir(PROFILE_DIRECTORY, 0755);
     FILE* file = fopen(PROFILE_PATH, "w");
     if (file == nullptr) {
         LOG_E(TAG, "Failed to write %s", PROFILE_PATH);
+        appearanceReset.rollback();
         return false;
     }
     const bool written = fprintf(file, "%s\n%s\n", getProfile(profileIndex).name, toString(orientation)) > 0;
     if (fclose(file) != 0 || !written) {
+        appearanceReset.rollback();
         return false;
     }
+    appearanceReset.commit();
     if (changed) {
         applyOrientationToDisplaySettings(orientation);
     }
