@@ -55,8 +55,8 @@ std::string app_hub_catalog_get_details_file(const std::string& id) {
     return id + ".json";
 }
 
-std::string app_hub_catalog_get_icon_file(const std::string& id, bool mono) {
-    return id + (mono ? "-icon-mono.svg" : "-icon.svg");
+std::string app_hub_catalog_get_icon_file(const std::string& id, int32_t version_code, bool mono) {
+    return id + "-" + std::to_string(version_code) + (mono ? "-icon-mono.svg" : "-icon.svg");
 }
 
 static bool read_string(const cJSON* object, const char* key, std::string& value) {

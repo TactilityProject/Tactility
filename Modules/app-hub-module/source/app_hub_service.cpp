@@ -773,9 +773,9 @@ error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size
     if (error != ERROR_NONE) {
         return error;
     }
-    // The version in the name makes an icon of an older version of the app stale
-    const std::string iconFile = app_hub_catalog_get_icon_file(id, mono);
-    const std::string cachePath = std::string(directory) + "/" + std::to_string(entry.version_code) + "-" + iconFile;
+    // The version is in the file name, so the icon of an older version of the app is never used
+    const std::string iconFile = app_hub_catalog_get_icon_file(id, entry.version_code, mono);
+    const std::string cachePath = std::string(directory) + "/" + iconFile;
     if (cachePath.size() >= path_size) {
         return ERROR_BUFFER_OVERFLOW;
     }

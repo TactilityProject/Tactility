@@ -83,5 +83,5 @@ std::string app_hub_catalog_get_download_url(const std::string& file);
 /** @return the name of the details file of an app */
 std::string app_hub_catalog_get_details_file(const std::string& id);
 
-/** @return the name of the icon file of an app */
-std::string app_hub_catalog_get_icon_file(const std::string& id, bool mono);
+/** @return the name of the icon file of a version of an app */
+std::string app_hub_catalog_get_icon_file(const std::string& id, int32_t version_code, bool mono);
