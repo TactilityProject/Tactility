@@ -38,7 +38,8 @@ static error_t stop() {
 static const ModuleSymbol app_hub_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(app_hub_search),
     DEFINE_MODULE_SYMBOL(app_hub_get_app),
-    DEFINE_MODULE_SYMBOL(app_hub_get_description),
+    DEFINE_MODULE_SYMBOL(app_hub_get_details),
+    DEFINE_MODULE_SYMBOL(app_hub_get_icon),
     DEFINE_MODULE_SYMBOL(app_hub_is_busy),
     DEFINE_MODULE_SYMBOL(app_hub_refresh),
     DEFINE_MODULE_SYMBOL(app_hub_install),

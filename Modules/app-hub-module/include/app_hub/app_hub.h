@@ -20,6 +20,7 @@ extern "C" {
  */
 
 #define APP_HUB_NAME_MAX_LENGTH 63
+#define APP_HUB_SHORT_DESCRIPTION_MAX_LENGTH 32
 
 enum AppHubOperationType {
     /** Download the app catalog */
@@ -37,8 +38,11 @@ struct AppHubApp {
     PackageId id;
     /** The catalog name, or the name of the package's first app when it isn't in the catalog */
     char name[APP_HUB_NAME_MAX_LENGTH + 1];
-    /** The catalog version, empty when the app isn't in the catalog */
-    char version_name[PACKAGE_MANIFEST_VERSION_NAME_LENGTH + 1];
+    /** The catalog's short description, empty when the app isn't in the catalog */
+    char short_description[APP_HUB_SHORT_DESCRIPTION_MAX_LENGTH + 1];
+    /** False when the catalog says that the app has no icon. Only meaningful for apps in the catalog. */
+    bool has_icon;
+    /** The catalog version code, 0 when the app isn't in the catalog */
     uint64_t version_code;
     /** The installed version, empty when the app isn't installed */
     char installed_version_name[PACKAGE_MANIFEST_VERSION_NAME_LENGTH + 1];
@@ -62,7 +66,7 @@ typedef bool (*AppHubAppVisitorFn)(const struct AppHubApp* app, void* context);
 // region Apps
 
 /**
- * Visit the catalog apps that are compatible with this device and all installed apps, sorted by name.
+ * Visit the catalog apps and all installed apps, sorted by name.
  * @warning The visitor runs with the service's lock held: it must not call app_hub_*() functions.
  * @param[in] query NULL or empty for all apps, otherwise a case-insensitive part of the name or id
  * @param[in] visitor called for every matching app
@@ -77,15 +81,37 @@ error_t app_hub_search(const char* query, AppHubAppVisitorFn visitor, void* cont
  */
 error_t app_hub_get_app(const char* id, struct AppHubApp* app);
 
+/** What the details of a catalog app have next to its description */
+struct AppHubAppDetails {
+    /** The catalog version */
+    char version_name[PACKAGE_MANIFEST_VERSION_NAME_LENGTH + 1];
+    /** This device can install and run the app */
+    bool compatible;
+};
+
 /**
- * Get the catalog description of an app.
+ * Download the details of a catalog app. Blocks until the download finishes, so it must not be called on the LVGL thread.
  * @param[in] id the app id, must not be NULL
  * @param[out] description the description, must not be NULL
  * @param[in] description_size the size of @a description
+ * @param[out] details the version name and whether this device can install and run the app, must not be NULL
  * @retval ERROR_NOT_FOUND when the app isn't in the catalog
  * @retval ERROR_BUFFER_OVERFLOW when @a description_size is too small
+ * @retval ERROR_RESOURCE when the download failed
  */
-error_t app_hub_get_description(const char* id, char* description, size_t description_size);
+error_t app_hub_get_details(const char* id, char* description, size_t description_size, struct AppHubAppDetails* details);
+
+/**
+ * Get the path of the icon of a catalog app, which is downloaded when it isn't cached yet.
+ * Blocks until the download finishes, so it must not be called on the LVGL thread.
+ * @param[in] id the app id, must not be NULL
+ * @param[in] mono true for the monochrome icon, false for the colour icon
+ * @param[out] path the path of the SVG file, must not be NULL
+ * @param[in] path_size the size of @a path
+ * @retval ERROR_NOT_FOUND when the app isn't in the catalog
+ * @retval ERROR_RESOURCE when the app has no such icon or the download failed
+ */
+error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size);
 
 // endregion
 

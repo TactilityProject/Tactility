@@ -92,6 +92,8 @@
 			compatible = "everest,es8388";
 			reg = <0x10>;
 			i2s = <&i2s0>;
+			// Maximum analog gain, as the speaker and headphones are otherwise quiet
+			output-gain-db = <3>;
 		};
 
 		es7210 {

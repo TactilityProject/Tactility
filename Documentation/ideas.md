@@ -4,12 +4,14 @@
 
 ## Higher Priority
 
+- Pick better icon for toggling touch in remote.py
 - Files app: make reusable system UI for pagination?
-- Localize all apps
 - Move more window management code from Tactility/ to window-manager
+- Newer Meshtastic firmware supports per-node public-key direct messages.
 
 ## Medium Priority
 
+- 2 finger swipe for scroll in simulator
 - Tab5: UI hangs when app installs (not download phase, but file unpacking phase)
 - Add "Downloading Apps" step in Setup that downloads useful apps.
   It's an optional step at the end that only shows if wifi is connected.
@@ -50,6 +52,7 @@ Consider adding a light/deep sleep mode:
 
 ## Lower Priority
 
+- Auto-generate simulator profiles
 - BlueTooth as radio backend for MeshCore/Meshtastic?
 - Show device name clearly in on-device web server landing page (to identify tabs of multiple devices easier)
 - When Wi-Fi connects, check for app updates

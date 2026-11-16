@@ -1,5 +1,6 @@
 .idea/
 
+buildsim/
 **/build/
 **/build-*/
 !.github/actions/build*/

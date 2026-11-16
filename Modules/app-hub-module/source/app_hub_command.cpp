@@ -107,7 +107,13 @@ static std::vector<AppHubApp> search(const char* query) {
 
 static void print_app(const AppHubApp& app) {
     const char marker = app.update_available ? '^' : (app.installed ? '*' : ' ');
-    const char* version = app.in_catalog ? app.version_name : app.installed_version_name;
+    // The catalog only has the version code. The version name is known for installed apps.
+    char version[24];
+    if (app.installed) {
+        snprintf(version, sizeof(version), "%s", app.installed_version_name);
+    } else {
+        snprintf(version, sizeof(version), "#%llu", static_cast<unsigned long long>(app.version_code));
+    }
     printf("%c %-32s %-24s %s\n", marker, app.id, app.name, version);
 }
 
@@ -157,9 +163,6 @@ static int command_info(int argc, char* argv[]) {
 
     printf("id: %s\n", app.id);
     printf("name: %s\n", app.name);
-    if (app.in_catalog) {
-        printf("version: %s\n", app.version_name);
-    }
     if (app.installed) {
         printf("installed: %s%s\n", app.installed_version_name, app.update_available ? " (update available)" : "");
     } else {
@@ -167,8 +170,15 @@ static int command_info(int argc, char* argv[]) {
     }
 
     auto description = std::make_unique<char[]>(DESCRIPTION_MAX_SIZE);
-    if (app_hub_get_description(app.id, description.get(), DESCRIPTION_MAX_SIZE) == ERROR_NONE && description[0] != '\0') {
-        printf("\n%s\n", description.get());
+    AppHubAppDetails details {};
+    if (app.in_catalog && app_hub_get_details(app.id, description.get(), DESCRIPTION_MAX_SIZE, &details) == ERROR_NONE) {
+        printf("version: %s\n", details.version_name);
+        if (!details.compatible) {
+            printf("compatible: no\n");
+        }
+        if (description[0] != '\0') {
+            printf("\n%s\n", description.get());
+        }
     }
     return 0;
 }

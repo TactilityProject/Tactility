@@ -214,6 +214,8 @@ static error_t set_config(Device* device, const struct I2sConfig* config) {
 
     // Create new channel handles
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(dts_config->port, I2S_ROLE_MASTER);
+    // An underrun sends silence instead of repeating the last buffer, which would be audible as a buzz
+    chan_cfg.auto_clear_after_cb = true;
     esp_err_t esp_error = i2s_new_channel(&chan_cfg, &internal->tx_handle, &internal->rx_handle);
     if (esp_error != ESP_OK) {
         LOG_E(TAG, "Failed to create I2S channels: %s", esp_err_to_name(esp_error));

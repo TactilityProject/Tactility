@@ -7,6 +7,7 @@
 #include <tactility/drivers/audio_codec_adapters.h>
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/i2s_controller.h>
+#include <tactility/delay.h>
 #include <tactility/log.h>
 #include <tactility/Memory.hpp>
 
@@ -15,6 +16,7 @@
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
+#include <algorithm>
 #include <cmath>
 
 #define TAG "ES838x"
@@ -22,6 +24,10 @@
 namespace {
 
 constexpr uint32_t NATIVE_SAMPLE_RATE = 44100;
+// The output is silent for this long while the codec settles, before sound is unmuted
+constexpr uint32_t PREROLL_MS = 60;
+// The output is muted for this long before the codec is closed, so the DAC doesn't power down while it's audible
+constexpr uint32_t MUTE_BEFORE_CLOSE_MS = 10;
 
 struct Es838xData {
     const audio_codec_ctrl_if_t* ctrl_if = nullptr;
@@ -29,14 +35,86 @@ struct Es838xData {
     const audio_codec_gpio_if_t* gpio_if = nullptr;
     const audio_codec_if_t* codec_if = nullptr;
     esp_codec_dev_handle_t codec_device = nullptr;
+    bool is_es8388 = false;
+    uint8_t output_volume_register = 0;
     bool is_open = false;
+    /** The requested output mute state, which the codec has to be returned to after the preroll */
+    bool output_muted = false;
     AudioCodecDirection open_direction = AUDIO_CODEC_DIR_BOTH;
     esp_codec_dev_sample_info_t open_sample_info = {};
+    Es838xOutputCallback output_callback = nullptr;
+    void* output_callback_user_data = nullptr;
 };
 
 #define GET_DATA(device) (static_cast<Es838xData*>(device_get_driver_data(device)))
 
 // region AudioCodecApi
+
+bool has_output(AudioCodecDirection direction) {
+    return direction == AUDIO_CODEC_DIR_OUTPUT || direction == AUDIO_CODEC_DIR_BOTH;
+}
+
+// ES8388 registers of the analog output volumes: LOUT1, ROUT1, LOUT2 and ROUT2
+constexpr int ES8388_REG_LOUT1_VOLUME = 0x2E;
+constexpr int ES8388_REG_OUTPUT_VOLUME_COUNT = 4;
+// The register range is 0x00 (-30 dB) to 0x21 (+3 dB) in steps of 1 dB, and 0x1E is 0 dB.
+constexpr uint8_t ES8388_OUTPUT_VOLUME_0_DB = 0x1E;
+constexpr int32_t ES8388_OUTPUT_GAIN_MIN_DB = -30;
+constexpr int32_t ES8388_OUTPUT_GAIN_MAX_DB = 3;
+
+/**
+ * The codec library leaves the second output pair at -30 dB, and sets only the first to 0 dB. All pairs get the
+ * gain from the devicetree instead, and the volume is set with the DAC volume.
+ */
+void set_analog_outputs(Es838xData* data) {
+    if (!data->is_es8388) {
+        return;
+    }
+    for (int i = 0; i < ES8388_REG_OUTPUT_VOLUME_COUNT; i++) {
+        uint8_t value = data->output_volume_register;
+        data->ctrl_if->write_reg(data->ctrl_if, ES8388_REG_LOUT1_VOLUME + i, 1, &value, 1);
+    }
+}
+
+/**
+ * The codec unmutes its DAC while opening, which is audible as a pop once the clocks and the analog output
+ * start up. The output is muted while silence is clocked in, and then returned to the requested mute state.
+ */
+bool start_output_silently(Es838xData* data, const esp_codec_dev_sample_info_t& sample_info) {
+    esp_codec_dev_set_out_mute(data->codec_device, true);
+
+    // Written in small pieces, so no memory has to be allocated
+    const size_t frame_size = static_cast<size_t>(sample_info.bits_per_sample / 8) * sample_info.channel;
+    size_t remaining = frame_size * (static_cast<size_t>(sample_info.sample_rate) * PREROLL_MS / 1000);
+    uint8_t silence[512] = {};
+    while (remaining > 0) {
+        const size_t size = std::min(remaining, sizeof(silence));
+        const int written = esp_codec_dev_write(data->codec_device, silence, static_cast<int>(size));
+        if (written <= 0) {
+            return false;
+        }
+        remaining -= std::min(static_cast<size_t>(written), remaining);
+    }
+
+    esp_codec_dev_set_out_mute(data->codec_device, data->output_muted);
+    if (data->output_callback != nullptr) {
+        data->output_callback(true, data->output_callback_user_data);
+    }
+    return true;
+}
+
+/** Mutes the output before the codec powers down its DAC, which would be audible otherwise */
+void close_codec(Es838xData* data) {
+    if (has_output(data->open_direction)) {
+        if (data->output_callback != nullptr) {
+            data->output_callback(false, data->output_callback_user_data);
+        }
+        esp_codec_dev_set_out_mute(data->codec_device, true);
+        delay_millis(MUTE_BEFORE_CLOSE_MS);
+    }
+    esp_codec_dev_close(data->codec_device);
+    data->is_open = false;
+}
 
 error_t open(Device* device, const struct AudioCodecStreamConfig* config) {
     auto* data = GET_DATA(device);
@@ -73,6 +151,14 @@ error_t open(Device* device, const struct AudioCodecStreamConfig* config) {
     data->is_open = true;
     data->open_direction = config->direction;
     data->open_sample_info = sample_info;
+    if (has_output(config->direction)) {
+        set_analog_outputs(data);
+        if (!start_output_silently(data, sample_info)) {
+            LOG_E(TAG, "Failed to start the output");
+            close_codec(data);
+            return ERROR_RESOURCE;
+        }
+    }
     return ERROR_NONE;
 }
 
@@ -83,8 +169,7 @@ error_t close(Device* device) {
     }
 
     if (data->is_open) {
-        esp_codec_dev_close(data->codec_device);
-        data->is_open = false;
+        close_codec(data);
     }
 
     return ERROR_NONE;
@@ -186,6 +271,7 @@ error_t set_mute(Device* device, AudioCodecDirection direction, bool muted) {
     }
 
     if (direction == AUDIO_CODEC_DIR_OUTPUT) {
+        data->output_muted = muted;
         return (esp_codec_dev_set_out_mute(data->codec_device, muted) == ESP_CODEC_DEV_OK) ? ERROR_NONE : ERROR_RESOURCE;
     }
 
@@ -263,6 +349,8 @@ struct StartParams {
     const GpioPinSpec* pin_pa;
     bool pa_inverted;
     bool no_dac_ref;
+    /** ES8388 only: the analog output gain in dB */
+    int32_t output_gain_db;
 };
 
 error_t start_codec(Device* device, const StartParams& params) {
@@ -301,6 +389,14 @@ error_t start_codec(Device* device, const StartParams& params) {
         goto cleanup;
     }
 
+    data->is_es8388 = params.variant == Variant::Es8388;
+    if (data->is_es8388) {
+        const int32_t gain = std::clamp(params.output_gain_db, ES8388_OUTPUT_GAIN_MIN_DB, ES8388_OUTPUT_GAIN_MAX_DB);
+        if (gain != params.output_gain_db) {
+            LOG_W(TAG, "output-gain-db %d is out of range and set to %d", static_cast<int>(params.output_gain_db), static_cast<int>(gain));
+        }
+        data->output_volume_register = static_cast<uint8_t>(ES8388_OUTPUT_VOLUME_0_DB + gain);
+    }
     if (params.variant == Variant::Es8388) {
         es8388_codec_cfg_t codec_config = {};
         codec_config.ctrl_if = data->ctrl_if;
@@ -386,7 +482,7 @@ error_t stop_device(Device* device) {
     }
 
     if (data->is_open) {
-        esp_codec_dev_close(data->codec_device);
+        close_codec(data);
     }
 
     if (data->codec_device != nullptr) {
@@ -412,13 +508,13 @@ error_t stop_device(Device* device) {
 
 error_t start_es8388(Device* device) {
     const auto* config = static_cast<const Es8388Config*>(device->config);
-    const StartParams params = { Variant::Es8388, config->address, config->i2s_device, nullptr, false, false };
+    const StartParams params = { Variant::Es8388, config->address, config->i2s_device, nullptr, false, false, config->output_gain_db };
     return start_codec(device, params);
 }
 
 error_t start_es8389(Device* device) {
     const auto* config = static_cast<const Es8389Config*>(device->config);
-    const StartParams params = { Variant::Es8389, config->address, config->i2s_device, &config->pin_pa, config->pa_inverted, config->no_dac_ref };
+    const StartParams params = { Variant::Es8389, config->address, config->i2s_device, &config->pin_pa, config->pa_inverted, config->no_dac_ref, 0 };
     return start_codec(device, params);
 }
 
@@ -427,6 +523,15 @@ error_t start_es8389(Device* device) {
 } // namespace
 
 extern "C" {
+
+void es838x_set_output_callback(Device* device, Es838xOutputCallback callback, void* user_data) {
+    auto* data = GET_DATA(device);
+    if (data == nullptr) {
+        return;
+    }
+    data->output_callback_user_data = user_data;
+    data->output_callback = callback;
+}
 
 Driver es8388_driver = {
     .name = "es8388",

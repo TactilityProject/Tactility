@@ -2,6 +2,7 @@
 
 #include "lv_conf.h"
 
+#include <app/paths.h>
 #include <tactility/log.h>
 
 #include <cerrno>
@@ -34,6 +35,7 @@ static const Profile PROFILES[PROFILE_COUNT] = {
     { "LilyGO T-Lora Pager", 480, 222,  150, false, 40, 0, false, true, false },
     { "M5Stack Cardputer", 240, 135, 139, false, 20, 0, false, true, false },
     { "M5Stack Tab5",  1280, 720, 250, true, 100, 100, false, true, true },
+    { "Sixrig myPuter", 928, 272, 250, false, 40, 60, false, true, true },
 };
 
 static size_t activeProfileIndex = 0;
@@ -146,21 +148,73 @@ static void applyOrientationToDisplaySettings(OrientationOverride orientation) {
     fclose(file);
 }
 
+/**
+ * The theming of the Appearance settings is tuned to the previous profile, so the new profile starts from its own defaults.
+ * The settings are moved aside first, so they can be put back when the new profile isn't saved.
+ */
+struct AppearanceReset {
+    std::string path;
+    std::string backupPath;
+    /** The settings were moved aside, and can be put back or removed for good */
+    bool staged = false;
+
+    /** @return false when the settings exist and couldn't be moved */
+    bool stage() {
+        char settingsPath[PATH_MAX];
+        if (app_paths_get_user_data_path("tactility.appearance", "appearance.properties", settingsPath, sizeof(settingsPath)) != ERROR_NONE) {
+            LOG_E(TAG, "Failed to find the Appearance settings");
+            return false;
+        }
+        path = settingsPath;
+        backupPath = path + ".reset";
+        if (rename(path.c_str(), backupPath.c_str()) != 0) {
+            if (errno == ENOENT) {
+                return true;
+            }
+            LOG_E(TAG, "Failed to move %s", path.c_str());
+            return false;
+        }
+        staged = true;
+        return true;
+    }
+
+    void commit() {
+        if (staged && remove(backupPath.c_str()) != 0) {
+            LOG_W(TAG, "Failed to remove %s", backupPath.c_str());
+        }
+    }
+
+    void rollback() {
+        if (staged && rename(backupPath.c_str(), path.c_str()) != 0) {
+            LOG_E(TAG, "Failed to restore %s", path.c_str());
+        }
+    }
+};
+
 bool saveSelection(size_t profileIndex, OrientationOverride orientation) {
     size_t savedProfileIndex;
     OrientationOverride savedOrientation;
     loadSelection(savedProfileIndex, savedOrientation);
     const bool changed = profileIndex != savedProfileIndex || orientation != savedOrientation;
+
+    AppearanceReset appearanceReset;
+    if (profileIndex != savedProfileIndex && !appearanceReset.stage()) {
+        return false;
+    }
+
     mkdir(PROFILE_DIRECTORY, 0755);
     FILE* file = fopen(PROFILE_PATH, "w");
     if (file == nullptr) {
         LOG_E(TAG, "Failed to write %s", PROFILE_PATH);
+        appearanceReset.rollback();
         return false;
     }
     const bool written = fprintf(file, "%s\n%s\n", getProfile(profileIndex).name, toString(orientation)) > 0;
     if (fclose(file) != 0 || !written) {
+        appearanceReset.rollback();
         return false;
     }
+    appearanceReset.commit();
     if (changed) {
         applyOrientationToDisplaySettings(orientation);
     }

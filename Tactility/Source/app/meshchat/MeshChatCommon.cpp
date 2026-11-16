@@ -55,7 +55,8 @@ NetworkInfo loadNetworkInfo() {
         MeshRadioKind kind;
         if (mesh_get_radio_name(i, name, sizeof(name)) == ERROR_NONE && strcmp(name, radio) == 0 && mesh_get_radio_kind(i, &kind) == ERROR_NONE) {
             char preset[MESH_NAME_MAX_LENGTH + 1] = {};
-            if (mesh_get_preset(id, preset, sizeof(preset)) == ERROR_NONE && preset[0] != '\0' && strcmp(preset, "Default") != 0) {
+            // Only Meshtastic shows its preset, such as LongFast. MeshCore's is a region.
+            if (strcmp(id, "meshtastic") == 0 && mesh_get_preset(id, preset, sizeof(preset)) == ERROR_NONE && preset[0] != '\0' && strcmp(preset, "Default") != 0) {
                 snprintf(info.network, sizeof(info.network), "%s (%s)", getNetworkLabel(id), preset);
             } else {
                 snprintf(info.network, sizeof(info.network), "%s", getNetworkLabel(id));

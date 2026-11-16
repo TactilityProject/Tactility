@@ -159,7 +159,11 @@ lv_color_t getMutedTextColor(lv_obj_t* obj) {
     return lv_color_luminance(color) > 127 ? lv_color_darken(color, LV_OPA_40) : lv_color_lighten(color, LV_OPA_40);
 }
 
-lv_color_t getBarColor(const MeshMessage& message, lv_color_t senderColor) {
+/** The monochrome theme has no colours to tell senders apart, so the bar contrasts fully with the background */
+lv_color_t getBarColor(lv_obj_t* obj, const MeshMessage& message, lv_color_t senderColor) {
+    if (lvgl_theme_is_mono()) {
+        return lv_obj_get_style_text_color(obj, LV_PART_MAIN);
+    }
     if (message.outgoing && message.delivery == MESH_DELIVERY_FAILED) {
         LvglThemeSettings theme {};
         lvgl_theme_get_settings(&theme);
@@ -189,7 +193,7 @@ void createMessageItem(Context* ctx, const MeshMessage& message) {
     lv_obj_set_size(content, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_border_width(content, LV_DPX(3), LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(content, getBarColor(message, color), LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(content, getBarColor(ctx->list, message, color), LV_STATE_DEFAULT);
     lv_obj_set_style_border_opa(content, LV_OPA_COVER, LV_STATE_DEFAULT);
     lv_obj_set_style_border_side(content, right ? LV_BORDER_SIDE_RIGHT : LV_BORDER_SIDE_LEFT, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_left(content, right ? 0 : LV_DPX(6), LV_STATE_DEFAULT);
@@ -411,7 +415,7 @@ void onDelivery(Context* ctx, uint32_t seq, MeshDeliveryState delivery, uint8_t 
                 auto* item = lv_obj_get_child(ctx->list, (int32_t)i);
                 if (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lv_obj_get_user_data(item))) == seq) {
                     auto* content = lv_obj_get_child(item, 0);
-                    lv_obj_set_style_border_color(content, getBarColor(message, getSenderColor(ctx->list, message)), LV_STATE_DEFAULT);
+                    lv_obj_set_style_border_color(content, getBarColor(ctx->list, message, getSenderColor(ctx->list, message)), LV_STATE_DEFAULT);
                     auto* header = lv_obj_get_child(content, 0);
                     const ::std::string status = getStatusText(ctx, message);
                     lv_label_set_text(lv_obj_get_child(header, 1), getMetaText(message, ctx->isContact ? "" : status).c_str());

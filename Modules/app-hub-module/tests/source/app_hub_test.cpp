@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include <app_hub/app_hub.h>
+#include <app_hub/app_hub_catalog.h>
 #include <app_hub/app_hub_service.h>
 
 #include <app/manager.h>
@@ -22,19 +23,15 @@ namespace {
 const char* TEST_ROOT = "/tmp/tactility_app_hub_test";
 
 const char* CATALOG = R"({
+  "page": 1, "pageCount": 1,
   "apps": [
     {
-      "appId": "beta", "appVersionName": "1.0", "appVersionCode": 1, "appName": "beta tool",
-      "appDescription": "The beta tool", "targetSdk": "0.7.0", "file": "beta.app", "targetPlatforms": []
+      "id": "beta", "version": 1, "name": "beta tool",
+      "description": "The beta tool"
     },
     {
-      "appId": "alpha", "appVersionName": "2.0", "appVersionCode": 2, "appName": "Alpha App",
-      "appDescription": "The alpha app", "targetSdk": "0.7.0", "file": "alpha.app", "targetPlatforms": []
-    },
-    {
-      "appId": "other", "appVersionName": "1.0", "appVersionCode": 1, "appName": "Other device",
-      "appDescription": "", "targetSdk": "0.7.0", "file": "other.app", "targetPlatforms": [],
-      "requiresDeviceId": ["no-such-device"]
+      "id": "alpha", "version": 2, "name": "Alpha App",
+      "description": "The alpha app"
     }
   ]
 })";
@@ -52,12 +49,16 @@ void ensureFixture() {
     paths_set_root_path_override(TEST_ROOT);
 
     char path[FILE_MAX_PATH_STRING_LENGTH];
-    REQUIRE_EQ(service_paths_get_user_data_path(APP_HUB_SERVICE_ID, "apps.json", path, sizeof(path)), ERROR_NONE);
+    REQUIRE_EQ(service_paths_get_user_data_path(APP_HUB_SERVICE_ID, "index.json", path, sizeof(path)), ERROR_NONE);
     std::filesystem::create_directories(std::filesystem::path(path).parent_path());
     FILE* file = fopen(path, "w");
     REQUIRE_NE(file, nullptr);
     fputs(CATALOG, file);
     fclose(file);
+    char catalogPath[FILE_MAX_PATH_STRING_LENGTH];
+    REQUIRE_EQ(service_paths_get_user_data_path(APP_HUB_SERVICE_ID, "index.txt", catalogPath, sizeof(catalogPath)), ERROR_NONE);
+    int32_t pageCount = 0;
+    REQUIRE(app_hub_catalog_append_page(path, catalogPath, pageCount));
 
     REQUIRE_EQ(service_manager_add(&app_hub_service_manifest, true), ERROR_NONE);
 }
@@ -81,14 +82,14 @@ AppHubEvent waitForEvent(AppHubEventSubscription& sub) {
 
 } // namespace
 
-TEST_CASE("app_hub_search lists compatible catalog apps sorted by name") {
+TEST_CASE("app_hub_search lists catalog apps sorted by name") {
     ensureFixture();
     const auto apps = search(nullptr);
     REQUIRE_EQ(apps.size(), 2);
     CHECK_EQ(std::string(apps[0].id), "alpha");
     CHECK_EQ(std::string(apps[0].name), "Alpha App");
-    CHECK_EQ(std::string(apps[0].version_name), "2.0");
     CHECK_EQ(apps[0].version_code, 2);
+    CHECK_EQ(std::string(apps[0].short_description), "The alpha app");
     CHECK(apps[0].in_catalog);
     CHECK_FALSE(apps[0].installed);
     CHECK_EQ(std::string(apps[1].id), "beta");
@@ -108,13 +109,12 @@ TEST_CASE("app_hub_search filters by name and id ignoring case") {
     CHECK_EQ(search("").size(), 2);
 }
 
-TEST_CASE("app_hub_get_description returns the catalog description") {
+TEST_CASE("app_hub_get_details and app_hub_get_icon fail for apps that aren't in the catalog") {
     ensureFixture();
-    char description[64];
-    CHECK_EQ(app_hub_get_description("alpha", description, sizeof(description)), ERROR_NONE);
-    CHECK_EQ(std::string(description), "The alpha app");
-    CHECK_EQ(app_hub_get_description("alpha", description, 4), ERROR_BUFFER_OVERFLOW);
-    CHECK_EQ(app_hub_get_description("missing", description, sizeof(description)), ERROR_NOT_FOUND);
+    char buffer[64];
+    AppHubAppDetails details {};
+    CHECK_EQ(app_hub_get_details("missing", buffer, sizeof(buffer), &details), ERROR_NOT_FOUND);
+    CHECK_EQ(app_hub_get_icon("missing", false, buffer, sizeof(buffer)), ERROR_NOT_FOUND);
 }
 
 TEST_CASE("app_hub merges installed packages with the catalog") {
