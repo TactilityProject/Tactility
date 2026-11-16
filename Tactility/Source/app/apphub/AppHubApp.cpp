@@ -223,7 +223,12 @@ bool loadNextIcon(Context* ctx) {
         // Shows the icon in the app's entry, which has the icon widget as its first child
         const auto index = ::std::ranges::find(ctx->appIds, appId);
         if (index != ctx->appIds.end() && ctx->list != nullptr) {
-            setIcon(lv_obj_get_child(lv_obj_get_child(ctx->list, static_cast<int32_t>(index - ctx->appIds.begin())), 0), image, recolor);
+            auto* row = lv_obj_get_child(ctx->list, static_cast<int32_t>(index - ctx->appIds.begin()));
+            auto* first = (row != nullptr) ? lv_obj_get_child(row, 0) : nullptr;
+            // The rows have no icon widget when they were built while the icons were hidden, e.g. in compact mode
+            if (first != nullptr && lv_obj_has_class(first, &lv_image_class)) {
+                setIcon(first, image, recolor);
+            }
         }
     }
     ctx->mutex.unlock();
@@ -552,8 +557,11 @@ void showApps(Context* ctx);
 
 /** The apps that were already loaded stay in the list */
 void showRefreshFailedError(Context* ctx, const char* message) {
+    // The message is kept for when the window is shown again. The list is only rebuilt while it exists.
     setError(ctx, message);
-    showApps(ctx);
+    if (ctx->contentWrapper != nullptr) {
+        showApps(ctx);
+    }
 }
 
 void showNoInternet(Context* ctx) {
