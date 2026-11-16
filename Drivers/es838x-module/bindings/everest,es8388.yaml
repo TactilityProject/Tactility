@@ -9,3 +9,9 @@ properties:
     type: phandle
     required: true
     description: "I2S controller device that carries audio data"
+  output-gain-db:
+    type: int
+    default: 0
+    description: |
+      Analog gain of all outputs (speaker and headphones) in dB, from -30 to 3 in steps of 1 dB.
+      It comes on top of the volume that the audio stream sets. A higher gain is louder but clips earlier.

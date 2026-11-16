@@ -4,8 +4,8 @@
 
 ## Higher Priority
 
+- Pick better icon for toggling touch in remote.py
 - Files app: make reusable system UI for pagination?
-- Localize all apps
 - Move more window management code from Tactility/ to window-manager
 
 ## Medium Priority
@@ -50,6 +50,7 @@ Consider adding a light/deep sleep mode:
 
 ## Lower Priority
 
+- Auto-generate simulator profiles
 - BlueTooth as radio backend for MeshCore/Meshtastic?
 - Show device name clearly in on-device web server landing page (to identify tabs of multiple devices easier)
 - When Wi-Fi connects, check for app updates

@@ -15,6 +15,7 @@
 #include "devices/tab5_keyboard.h"
 #include "devices/tab5_keyboard_lvgl_rotation.h"
 #include "devices/tab5_power_control.h"
+#include "devices/tab5_speaker_amp.h"
 #include "devices/tab_5_camera.h"
 
 constexpr auto* TAG = "Tab5";
@@ -38,29 +39,22 @@ static void tab5_init_expander0(Device* io_expander0) {
     gpio_descriptor_release(headphone_detect_pin);
 }
 
-static void tab5_enable_speaker_amp(Device* io_expander0) {
-    auto* speaker_enable_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
-    check(speaker_enable_pin, "Failed to acquire speaker enable pin");
-    error_t error = gpio_descriptor_set_level(speaker_enable_pin, true);
-    gpio_descriptor_release(speaker_enable_pin);
-    if (error != ERROR_NONE) {
-        LOG_E(TAG, "Failed to enable amplifier: %s", error_to_string(error));
-    }
-}
-
-// Fires for every device's start/stop in the system; initializes io_expander0's pins and enables
-// the speaker amplifier once io_expander0 itself has started.
-static void on_io_expander0_started(Device* device, DeviceEvent event, void* context) {
+// Fires for every device's start/stop in the system. Initializes io_expander0's pins once it has started, and
+// connects the speaker amplifier to the codec once that has started.
+static void on_device_started(Device* device, DeviceEvent event, void* context) {
     (void)context;
 
-    static bool did_init = false;
-    if (did_init || event != DEVICE_EVENT_STARTED || strcmp(device->name, "io_expander0") != 0) {
+    if (event != DEVICE_EVENT_STARTED) {
         return;
     }
-    did_init = true;
-
-    tab5_init_expander0(device);
-    tab5_enable_speaker_amp(device);
+    static bool did_init = false;
+    if (!did_init && strcmp(device->name, "io_expander0") == 0) {
+        did_init = true;
+        tab5_init_expander0(device);
+        tab5_speaker_amp_init();
+    } else if (strcmp(device->name, "es8388") == 0) {
+        tab5_speaker_amp_follow_codec(device);
+    }
 }
 
 extern "C" {
@@ -68,7 +62,7 @@ extern "C" {
 static error_t start() {
     tab5_detect_start();
     tab5_camera_init();
-    device_listener_add(on_io_expander0_started, nullptr);
+    device_listener_add(on_device_started, nullptr);
     tab5_headphone_detect_start();
     tab5_keyboard_lvgl_rotation_start();
     return ERROR_NONE;
@@ -77,7 +71,7 @@ static error_t start() {
 static error_t stop() {
     tab5_keyboard_lvgl_rotation_stop();
     tab5_headphone_detect_stop();
-    device_listener_remove(on_io_expander0_started, nullptr);
+    device_listener_remove(on_device_started, nullptr);
     tab5_detect_stop();
     return ERROR_NONE;
 }

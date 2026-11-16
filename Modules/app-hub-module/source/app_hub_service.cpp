@@ -34,11 +34,12 @@
 namespace {
 
 constexpr auto* TAG = "app_hub";
-constexpr auto* CATALOG_FILE_NAME = "catalog.txt";
-constexpr auto* CATALOG_TEMP_FILE_NAME = "catalog.txt.tmp";
-constexpr auto* CATALOG_DOWNLOAD_FILE_NAME = "apps.json.tmp";
-// Older versions kept the downloaded apps.json as the catalog
-constexpr auto* LEGACY_CATALOG_FILE_NAME = "apps.json";
+constexpr auto* CATALOG_FILE_NAME = "index.txt";
+constexpr auto* CATALOG_TEMP_FILE_NAME = "index.txt.tmp";
+constexpr auto* CATALOG_DOWNLOAD_FILE_NAME = "index.json.tmp";
+constexpr auto* ICONS_DIRECTORY_NAME = "icons";
+// Guards against a list with an absurd page count
+constexpr int CATALOG_MAX_PAGES = 100;
 constexpr size_t WORKER_STACK_SIZE = 8192;
 constexpr TickType_t WORKER_IDLE_TIMEOUT = pdMS_TO_TICKS(5000);
 
@@ -154,25 +155,11 @@ bool getCatalogPath(const char* fileName, char* path, size_t pathSize) {
 }
 
 /**
- * Converts the apps.json of an older version into a catalog file
- * @return false when there is no catalog
- */
-bool migrateLegacyCatalog(const char* catalogPath) {
-    char legacyPath[FILE_MAX_PATH_STRING_LENGTH];
-    if (!getCatalogPath(LEGACY_CATALOG_FILE_NAME, legacyPath, sizeof(legacyPath)) || !path_exists(legacyPath)) {
-        return false;
-    }
-    const bool converted = app_hub_catalog_convert(legacyPath, catalogPath);
-    file_remove(legacyPath);
-    return converted;
-}
-
-/**
  * @param[out] path the path of the catalog file
  * @return false when there is no catalog
  */
 bool getCatalogFile(char* path, size_t pathSize) {
-    return getCatalogPath(CATALOG_FILE_NAME, path, pathSize) && (path_exists(path) || migrateLegacyCatalog(path));
+    return getCatalogPath(CATALOG_FILE_NAME, path, pathSize) && path_exists(path);
 }
 
 /** Requires the global lock */
@@ -241,15 +228,14 @@ AppList collectApps(const tt::std::vector<InstalledPackage>& installedPackages) 
     char catalogPath[FILE_MAX_PATH_STRING_LENGTH];
     if (getCatalogFile(catalogPath, sizeof(catalogPath))) {
         app_hub_catalog_for_each(catalogPath, [](const AppHubCatalogEntry& entry, void* context) {
-            if (app_hub_catalog_is_compatible(entry)) {
-                AppHubApp app {};
-                copyString(app.id, sizeof(app.id), entry.id.c_str());
-                copyString(app.name, sizeof(app.name), entry.name.c_str());
-                copyString(app.version_name, sizeof(app.version_name), entry.version_name.c_str());
-                app.version_code = static_cast<uint64_t>(entry.version_code);
-                app.in_catalog = true;
-                static_cast<AppList*>(context)->push_back(app);
-            }
+            AppHubApp app {};
+            copyString(app.id, sizeof(app.id), entry.id.c_str());
+            copyString(app.name, sizeof(app.name), entry.name.c_str());
+            copyString(app.short_description, sizeof(app.short_description), entry.short_description.c_str());
+            app.version_code = static_cast<uint64_t>(entry.version_code);
+            app.has_icon = entry.has_icon;
+            app.in_catalog = true;
+            static_cast<AppList*>(context)->push_back(app);
             return true;
         }, &apps);
     }
@@ -307,9 +293,13 @@ bool lessIgnoringCase(const AppHubApp& left, const AppHubApp& right) {
 
 // region Operations
 
-error_t download(const char* url, const char* targetPath) {
+/**
+ * @param[in] events the event group to wait on
+ * @param[in] stopBit a bit of @a events that cancels the download, or 0
+ */
+error_t download(const char* url, const char* targetPath, TaskEventGroup* events, uint32_t stopBit) {
     HttpDownloadSubscription sub {};
-    if (http_download_subscribe(&sub, &state->workerEvents) != ERROR_NONE) {
+    if (http_download_subscribe(&sub, events) != ERROR_NONE) {
         return ERROR_RESOURCE;
     }
     if (http_download_start(url, app_hub_catalog_get_certificate(), targetPath, &sub) != ERROR_NONE) {
@@ -319,8 +309,8 @@ error_t download(const char* url, const char* targetPath) {
 
     while (true) {
         uint32_t flags = 0;
-        task_event_group_wait(&state->workerEvents, sub.bit | state->stopBit, false, &flags, portMAX_DELAY);
-        if (flags & state->stopBit) {
+        task_event_group_wait(events, sub.bit | stopBit, false, &flags, portMAX_DELAY);
+        if (flags & stopBit) {
             http_download_cancel(&sub);
             http_download_unsubscribe(&sub);
             return ERROR_INVALID_STATE;
@@ -358,21 +348,50 @@ error_t executeRefresh() {
         return error;
     }
 
-    error = download(app_hub_catalog_get_url().c_str(), downloadPath);
-    if (error != ERROR_NONE) {
+    // The catalog file is only replaced by a complete download of all pages
+    file_remove(tempCatalogPath);
+    int32_t pageCount = 1;
+    for (int32_t page = 1; page <= pageCount; page++) {
+        const std::string url = app_hub_catalog_get_page_url(page);
+        error = download(url.c_str(), downloadPath, &state->workerEvents, state->stopBit);
+        if (error != ERROR_NONE) {
+            file_remove(downloadPath);
+            file_remove(tempCatalogPath);
+            return error;
+        }
+        const bool appended = app_hub_catalog_append_page(downloadPath, tempCatalogPath, pageCount);
         file_remove(downloadPath);
-        return error;
-    }
-
-    // The catalog file is only replaced by a complete conversion
-    const bool converted = app_hub_catalog_convert(downloadPath, tempCatalogPath);
-    file_remove(downloadPath);
-    if (!converted) {
-        return ERROR_INVALID_ARGUMENT;
+        if (!appended || pageCount > CATALOG_MAX_PAGES) {
+            file_remove(tempCatalogPath);
+            return ERROR_INVALID_ARGUMENT;
+        }
     }
     lock();
     error = file_move(tempCatalogPath, catalogPath, true);
     unlock();
+    return error;
+}
+
+/** Downloads and reads the details file of an app, see download() for the event group */
+error_t fetchDetails(const char* id, AppHubCatalogDetails& details, TaskEventGroup* events, uint32_t stopBit) {
+    char tempDirectory[FILE_MAX_PATH_STRING_LENGTH];
+    error_t error = paths_get_temp_path(tempDirectory, sizeof(tempDirectory));
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    error = ensureDirectory(tempDirectory);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    const std::string fileName = app_hub_catalog_get_details_file(id);
+    const std::string path = std::string(tempDirectory) + "/" + fileName;
+    error = download(app_hub_catalog_get_download_url(fileName).c_str(), path.c_str(), events, stopBit);
+    if (error == ERROR_NONE && !app_hub_catalog_read_details(path.c_str(), details)) {
+        error = ERROR_INVALID_ARGUMENT;
+    }
+    if (path_exists(path.c_str())) {
+        file_remove(path.c_str());
+    }
     return error;
 }
 
@@ -384,8 +403,13 @@ error_t executeInstall(const char* id) {
     if (!found) {
         return ERROR_NOT_FOUND;
     }
-    const std::string& file = entry.file;
-    if (!app_hub_catalog_is_compatible(entry)) {
+    AppHubCatalogDetails details;
+    error_t detailsError = fetchDetails(id, details, &state->workerEvents, state->stopBit);
+    if (detailsError != ERROR_NONE) {
+        return detailsError;
+    }
+    const std::string& file = details.file;
+    if (!app_hub_catalog_is_compatible(details)) {
         return ERROR_NOT_SUPPORTED;
     }
 
@@ -402,7 +426,7 @@ error_t executeInstall(const char* id) {
     const tt::std::string fileName = (separator == std::string::npos) ? tt::std::string(file.c_str()) : tt::std::string(file.c_str() + separator + 1);
     const tt::std::string tempPath = tt::std::string(tempDirectory) + "/" + fileName;
 
-    error = download(app_hub_catalog_get_download_url(file).c_str(), tempPath.c_str());
+    error = download(app_hub_catalog_get_download_url(file).c_str(), tempPath.c_str(), &state->workerEvents, state->stopBit);
     if (error == ERROR_NONE) {
         error = app_install(tempPath.c_str());
         if (error != ERROR_NONE) {
@@ -708,7 +732,7 @@ error_t app_hub_get_app(const char* id, AppHubApp* app) {
     return ERROR_NONE;
 }
 
-error_t app_hub_get_description(const char* id, char* description, size_t description_size) {
+error_t app_hub_get_details(const char* id, char* description, size_t description_size, AppHubAppDetails* app_details) {
     AppHubCatalogEntry entry;
     lock();
     const bool found = findCatalogEntry(id, entry);
@@ -716,10 +740,56 @@ error_t app_hub_get_description(const char* id, char* description, size_t descri
     if (!found) {
         return ERROR_NOT_FOUND;
     }
-    if (entry.description.size() >= description_size) {
+    TaskEventGroup events {};
+    task_event_group_construct(&events);
+    AppHubCatalogDetails details;
+    const error_t error = fetchDetails(id, details, &events, 0);
+    task_event_group_destruct(&events);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    if (details.description.size() >= description_size) {
         return ERROR_BUFFER_OVERFLOW;
     }
-    strcpy(description, entry.description.c_str());
+    strcpy(description, details.description.c_str());
+    copyString(app_details->version_name, sizeof(app_details->version_name), details.version_name.c_str());
+    app_details->compatible = app_hub_catalog_is_compatible(details);
+    return ERROR_NONE;
+}
+
+error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size) {
+    AppHubCatalogEntry entry;
+    lock();
+    const bool found = findCatalogEntry(id, entry);
+    unlock();
+    if (!found) {
+        return ERROR_NOT_FOUND;
+    }
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
+    if (!getCatalogPath(ICONS_DIRECTORY_NAME, directory, sizeof(directory))) {
+        return ERROR_NOT_FOUND;
+    }
+    error_t error = ensureDirectory(directory);
+    if (error != ERROR_NONE) {
+        return error;
+    }
+    // The version in the name makes an icon of an older version of the app stale
+    const std::string iconFile = app_hub_catalog_get_icon_file(id, mono);
+    const std::string cachePath = std::string(directory) + "/" + std::to_string(entry.version_code) + "-" + iconFile;
+    if (cachePath.size() >= path_size) {
+        return ERROR_BUFFER_OVERFLOW;
+    }
+    if (!path_exists(cachePath.c_str())) {
+        TaskEventGroup events {};
+        task_event_group_construct(&events);
+        error = download(app_hub_catalog_get_download_url(iconFile).c_str(), cachePath.c_str(), &events, 0);
+        task_event_group_destruct(&events);
+        if (error != ERROR_NONE) {
+            file_remove(cachePath.c_str());
+            return error;
+        }
+    }
+    strcpy(path, cachePath.c_str());
     return ERROR_NONE;
 }
 

@@ -2,6 +2,8 @@
 #include <Tactility/i18n/AppDomain.h>
 #include <Tactility/Mutex.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/TileGrid.h>
+#include <Tactility/app/apphub/AppHubIcon.h>
 #include <Tactility/app/apphubdetails/AppHubDetailsApp.h>
 
 #include <app/event.h>
@@ -14,6 +16,7 @@
 
 #include <tactility/check.h>
 #include <tactility/device.h>
+#include <tactility/drivers/touch.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 
@@ -21,14 +24,18 @@
 #include <lvgl/grid_navigation.h>
 #include <lvgl/icons/shared.h>
 #include <lvgl/lvgl.h>
+#include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/chip.h>
+#include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/list.h>
-#include <lvgl/widgets/toolbar.h>
+#include <lvgl/widgets/spinner.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cctype>
+#include <string_view>
 #include <format>
 #include <string>
 #include <vector>
@@ -39,6 +46,17 @@
 namespace tt::app::apphub {
 
 constexpr auto* TAG = "AppHub";
+
+/** At this theme size (0 is compact, 100 is regular) or lower, the list doesn't have room for icons and descriptions */
+constexpr uint8_t COMPACT_SIZE_MAX = 20;
+
+bool isCompact() {
+    return lvgl_theme_get_size() <= COMPACT_SIZE_MAX;
+}
+
+bool areIconsShown() {
+    return areSvgIconsEnabled() && !isCompact();
+}
 
 extern const ::AppManifest manifest;
 
@@ -52,14 +70,41 @@ enum class Filter {
 
 constexpr auto FILTER_LABELS = ::std::to_array<const char*>({ tr_noop("All"), tr_noop("Installed"), tr_noop("Updates") });
 
+/** An icon that was loaded for an app. The image is null when the app has no icon. */
+struct AppIcon {
+    tt::std::string appId;
+    lv_draw_buf_t* image;
+    bool recolor;
+};
+
 struct Context {
     uint32_t appInstanceId;
 
+    /** Whether the device has a touch screen: only then the list has install and upgrade buttons */
+    bool hasTouch = false;
     lv_obj_t* contentWrapper = nullptr;
+    /** The list of apps, null when the content isn't a list */
+    lv_obj_t* list = nullptr;
     lv_obj_t* refreshButton = nullptr;
     lv_obj_t* updateAllButton = nullptr;
     lv_obj_t* updateAllSpinner = nullptr;
-    lv_obj_t* filterChips = nullptr;
+    lv_obj_t* header = nullptr;
+    /** Flexible space on both sides of the tabs, which centers them between the close button and the actions */
+    lv_obj_t* spacerLeft = nullptr;
+    lv_obj_t* spacerRight = nullptr;
+    int32_t headerWidth = -1;
+    /** The filter tabs, by Filter */
+    lv_obj_t* chips[3] = {};
+    lv_obj_t* errorCard = nullptr;
+    lv_obj_t* errorLabel = nullptr;
+    /** The refresh error that shows above the list, empty when there is none. Only used with the LVGL lock held. */
+    tt::std::string errorMessage;
+    lv_obj_t* searchRow = nullptr;
+    lv_obj_t* searchTextarea = nullptr;
+    /** Whether the search field shows, survives across a bury/resurface cycle. Only used with the LVGL lock held. */
+    bool searchVisible = false;
+    /** The search text, survives across a bury/resurface cycle. Only used with the LVGL lock held. */
+    tt::std::string query;
     // Survives across a bury/resurface cycle
     Filter filter = Filter::All;
     /** The app ids of the list's buttons, by index */
@@ -84,6 +129,13 @@ struct Context {
     /** Set when the window resurfaces: the installed apps can change without an App Hub event, e.g. through the Files app */
     ::std::atomic<bool> reloadRequested {false};
 
+    /** Icons by app. Loaded on this app's own thread (see loadNextIcon()), guarded by the mutex. */
+    tt::std::vector<AppIcon> icons;
+    /** Shows for apps without an icon, null when the icons aren't shown */
+    lv_draw_buf_t* defaultIcon = nullptr;
+    uint32_t iconRequestedBit = 0;
+    ::std::atomic<bool> iconRequested {false};
+
     AppHubEventSubscription appHubSub {};
     /** The id of the queued catalog refresh, 0 when none is pending */
     ::std::atomic<uint32_t> refreshOperationId {0};
@@ -96,6 +148,73 @@ struct Context {
 
 void showApps(Context* ctx);
 void refresh(Context* ctx);
+
+void requestIcons(Context* ctx) {
+    ctx->iconRequested = true;
+    task_event_group_signal(ctx->eventGroup, ctx->iconRequestedBit);
+}
+
+/** Requires the context's mutex */
+AppIcon* findIcon(Context* ctx, const char* appId) {
+    auto found = ::std::ranges::find_if(ctx->icons, [appId](const AppIcon& icon) { return icon.appId == appId; });
+    return found == ctx->icons.end() ? nullptr : &*found;
+}
+
+uint32_t getIconSize() {
+    return lvgl_get_shared_icon_large_font_height();
+}
+
+/**
+ * Loads the icon of the first catalog app that has none yet and shows it. Runs on this app's own thread.
+ * @return true when there can be more icons to load
+ */
+bool loadNextIcon(Context* ctx) {
+    tt::std::string appId;
+    bool hasIcon = true;
+    ctx->mutex.lock();
+    for (const auto& app : ctx->apps) {
+        if (app.in_catalog && findIcon(ctx, app.id) == nullptr) {
+            appId = app.id;
+            hasIcon = app.has_icon;
+            break;
+        }
+    }
+    if (!appId.empty() && !hasIcon) {
+        // Nothing to download: the default icon stays
+        ctx->icons.push_back({ appId, nullptr, false });
+    }
+    ctx->mutex.unlock();
+    if (appId.empty()) {
+        return false;
+    }
+    if (!hasIcon) {
+        return true;
+    }
+
+    bool recolor = false;
+    auto* image = loadIcon(appId.c_str(), getIconSize(), &recolor);
+
+    lvgl_lock();
+    ctx->mutex.lock();
+    ctx->icons.push_back({ appId, image, recolor });
+    if (image != nullptr) {
+        // Shows the icon in the app's entry, which has the icon widget as its first child
+        const auto index = ::std::ranges::find(ctx->appIds, appId);
+        if (index != ctx->appIds.end() && ctx->list != nullptr) {
+            setIcon(lv_obj_get_child(lv_obj_get_child(ctx->list, static_cast<int32_t>(index - ctx->appIds.begin())), 0), image, recolor);
+        }
+    }
+    ctx->mutex.unlock();
+    lvgl_unlock();
+    return true;
+}
+
+/** Forgets the apps that have no icon, so a refresh tries them again */
+void forgetMissingIcons(Context* ctx) {
+    ctx->mutex.lock();
+    ::std::erase_if(ctx->icons, [](const AppIcon& icon) { return icon.image == nullptr; });
+    ctx->mutex.unlock();
+}
 
 /** Reads the apps from App Hub for showApps(). Doesn't touch widgets, so it runs without the LVGL lock. */
 void loadApps(Context* ctx) {
@@ -115,6 +234,21 @@ void loadApps(Context* ctx) {
     ctx->mutex.lock();
     ctx->apps = ::std::move(apps);
     ctx->mutex.unlock();
+    if (areIconsShown()) {
+        requestIcons(ctx);
+    }
+}
+
+bool containsIgnoringCase(const char* text, const char* part) {
+    const ::std::string_view textView(text);
+    const ::std::string_view partView(part);
+    return ::std::ranges::search(textView, partView, [](char left, char right) {
+        return ::std::tolower(static_cast<unsigned char>(left)) == ::std::tolower(static_cast<unsigned char>(right));
+    }).begin() != textView.end() || partView.empty();
+}
+
+bool matchesQuery(const AppHubApp& app, const tt::std::string& query) {
+    return containsIgnoringCase(app.name, query.c_str()) || containsIgnoringCase(app.short_description, query.c_str());
 }
 
 bool matchesFilter(const AppHubApp& app, Filter filter) {
@@ -134,9 +268,63 @@ const char* getEmptyFilterText(Filter filter) {
 }
 
 void updateFilterChips(Context* ctx) {
-    const uint32_t count = lv_obj_get_child_count(ctx->filterChips);
-    for (uint32_t i = 0; i < count; i++) {
-        lv_obj_set_state(lv_obj_get_child(ctx->filterChips, static_cast<int32_t>(i)), LV_STATE_CHECKED, i == static_cast<uint32_t>(ctx->filter));
+    for (uint32_t i = 0; i < ::std::size(ctx->chips); i++) {
+        lv_obj_set_state(ctx->chips[i], LV_STATE_CHECKED, i == static_cast<uint32_t>(ctx->filter));
+    }
+}
+
+/** One line of text that ends in an ellipsis. The label needs a fixed height, as it would wrap otherwise. */
+void setSingleLineEllipsis(lv_obj_t* label) {
+    lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_set_width(label, LV_PCT(100));
+    lv_obj_set_height(label, lv_font_get_line_height(lv_obj_get_style_text_font(label, LV_PART_MAIN)));
+}
+
+/**
+ * The tabs wrap their content. When they don't fit, they share the width instead and their text ends in an ellipsis.
+ */
+void setChipsShared(Context* ctx, bool shared) {
+    for (auto* chip : ctx->chips) {
+        auto* label = lv_obj_get_child(chip, 0);
+        lv_obj_set_flex_grow(chip, shared ? 1 : 0);
+        lv_obj_set_width(chip, shared ? 0 : LV_SIZE_CONTENT);
+        if (shared) {
+            setSingleLineEllipsis(label);
+        } else {
+            lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
+            lv_obj_set_size(label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        }
+    }
+}
+
+/**
+ * The spacers on both sides of the tabs take the space that is left, so the tabs are centered between the close button
+ * and the actions. When the tabs don't fit, the spacers go and the tabs share the width. Requires the LVGL lock.
+ */
+void layoutHeader(Context* ctx) {
+    if (ctx->header == nullptr) {
+        return;
+    }
+    setChipsShared(ctx, false);
+    for (auto* spacer : { ctx->spacerLeft, ctx->spacerRight }) {
+        lv_obj_set_hidden(spacer, false);
+    }
+    lv_obj_update_layout(ctx->header);
+    if (lv_obj_get_width(ctx->spacerLeft) <= 0) {
+        for (auto* spacer : { ctx->spacerLeft, ctx->spacerRight }) {
+            lv_obj_set_hidden(spacer, true);
+        }
+        setChipsShared(ctx, true);
+    }
+}
+
+void onHeaderSizeChanged(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    // Setting the widths changes the header's height, which would trigger this again
+    const int32_t width = lv_obj_get_width(ctx->header);
+    if (width != ctx->headerWidth) {
+        ctx->headerWidth = width;
+        layoutHeader(ctx);
     }
 }
 
@@ -151,6 +339,7 @@ void updateToolbarActions(Context* ctx, bool hasUpdates) {
     const bool busy = app_hub_is_busy();
     lv_obj_set_hidden(ctx->updateAllSpinner, !busy);
     lv_obj_set_hidden(ctx->updateAllButton, busy || !hasUpdates);
+    layoutHeader(ctx);
 }
 
 void onUpdateAllPressed(lv_event_t* event) {
@@ -165,15 +354,70 @@ void onUpdateAllPressed(lv_event_t* event) {
 }
 
 void updateUpdatesChipText(Context* ctx, size_t updateCount) {
-    auto* chip = lv_obj_get_child(ctx->filterChips, static_cast<int32_t>(Filter::Updates));
+    auto* chip = ctx->chips[static_cast<size_t>(Filter::Updates)];
     const auto text = i18n::format(updateCount == 1 ? tr("{} update") : tr("{} updates"), { ::std::to_string(updateCount) });
     lv_label_set_text(lv_obj_get_child(chip, 0), text.c_str());
+}
+
+void onQueryChanged(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    ctx->query = lv_textarea_get_text(lv_event_get_target_obj(event));
+    // A different query shows a different list, which starts at the top
+    ctx->scrollY = 0;
+    ctx->restoreScrollOnNextShow = true;
+    showApps(ctx);
+}
+
+/** Shows or hides the search field. Hiding it also clears the search. */
+void onSearchTogglePressed(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    ctx->searchVisible = !ctx->searchVisible;
+    lv_obj_set_hidden(ctx->searchRow, !ctx->searchVisible);
+    if (ctx->searchVisible) {
+        lv_group_focus_obj(ctx->searchTextarea);
+        return;
+    }
+    if (!ctx->query.empty()) {
+        ctx->query.clear();
+        lv_textarea_set_text(ctx->searchTextarea, "");
+        ctx->scrollY = 0;
+        ctx->restoreScrollOnNextShow = true;
+        showApps(ctx);
+    }
+}
+
+/** A search field with an icon, above the list */
+lv_obj_t* createSearchRow(lv_obj_t* parent, Context* ctx) {
+    auto* row = lv_obj_create(parent);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, LV_DPX(4), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_hor(row, LV_DPX(8), LV_STATE_DEFAULT);
+
+    auto* icon = lv_image_create(row);
+    lv_obj_set_style_image_recolor_opa(icon, LV_OPA_COVER, LV_STATE_DEFAULT);
+    lv_obj_set_style_image_recolor(icon, lv_theme_get_color_primary(parent), LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_image_set_src(icon, LVGL_ICON_SHARED_SEARCH);
+
+    ctx->searchRow = row;
+    lv_obj_set_hidden(row, !ctx->searchVisible);
+    ctx->searchTextarea = lv_textarea_create(row);
+    lv_textarea_set_placeholder_text(ctx->searchTextarea, tr("Search apps"));
+    lv_textarea_set_one_line(ctx->searchTextarea, true);
+    lv_obj_set_flex_grow(ctx->searchTextarea, 1);
+    lv_textarea_set_text(ctx->searchTextarea, ctx->query.c_str());
+    // Added after restoring the text, so restoring it doesn't filter the list again
+    lv_obj_add_event_cb(ctx->searchTextarea, onQueryChanged, LV_EVENT_VALUE_CHANGED, ctx);
+    return row;
 }
 
 void onFilterPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     auto* chip = lv_event_get_target_obj(event);
-    const auto filter = static_cast<Filter>(lv_obj_get_index(chip));
+    const auto filter = static_cast<Filter>(::std::find(::std::begin(ctx->chips), ::std::end(ctx->chips), chip) - ::std::begin(ctx->chips));
     if (filter == ctx->filter) {
         return;
     }
@@ -185,28 +429,38 @@ void onFilterPressed(lv_event_t* event) {
     showApps(ctx);
 }
 
-/** The filter pills wrap onto the next row when they don't fit */
-lv_obj_t* createFilterChips(lv_obj_t* parent, Context* ctx) {
-    auto* chips = lv_obj_create(parent);
-    lv_obj_set_size(chips, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(chips, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_flex_align(chips, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_bg_opa(chips, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(chips, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(chips, 0, LV_STATE_DEFAULT);
-    // The chips' margins leave room for their focus rings and space them apart
-    lv_obj_set_style_pad_column(chips, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_row(chips, 0, LV_STATE_DEFAULT);
-    lv_obj_set_scrollable(chips, false);
-
-    for (const auto* label_text : FILTER_LABELS) {
-        const char* label = tr(label_text);
-        auto* chip = lvgl_chip_create(chips);
-        lv_obj_add_event_cb(chip, onFilterPressed, LV_EVENT_SHORT_CLICKED, ctx);
-        lv_label_set_text(lv_label_create(chip), label);
+/** An icon button for the header, with a symbol of the default font or of the shared icon font */
+lv_obj_t* createHeaderButton(lv_obj_t* parent, const char* symbol, bool sharedIconFont, lv_event_cb_t callback, Context* ctx) {
+    auto* button = lvgl_icon_button_create(parent);
+    lv_obj_add_event_cb(button, callback, LV_EVENT_SHORT_CLICKED, ctx);
+    auto* label = lv_label_create(button);
+    lv_label_set_text(label, symbol);
+    if (sharedIconFont) {
+        lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
     }
-    lvgl_grid_navigation_add(chips);
-    return chips;
+    return button;
+}
+
+/** An invisible flexible space between the header's widgets. It's not clickable, so grid navigation skips it. */
+lv_obj_t* createHeaderSpacer(lv_obj_t* parent) {
+    auto* spacer = lv_obj_create(parent);
+    lv_obj_remove_style_all(spacer);
+    lv_obj_set_size(spacer, 0, 1);
+    lv_obj_set_flex_grow(spacer, 1);
+    lv_obj_set_clickable(spacer, false);
+    return spacer;
+}
+
+/** Creates the filter tabs as children of the header. They wrap their text, see layoutHeader() for when they don't fit. */
+void createFilterChips(lv_obj_t* parent, Context* ctx) {
+    for (size_t i = 0; i < ::std::size(FILTER_LABELS); i++) {
+        auto* chip = lvgl_chip_create(parent);
+        ctx->chips[i] = chip;
+        lv_obj_add_event_cb(chip, onFilterPressed, LV_EVENT_SHORT_CLICKED, ctx);
+        auto* chipLabel = lv_label_create(chip);
+        lv_label_set_text(chipLabel, tr(FILTER_LABELS[i]));
+        lv_obj_set_style_text_align(chipLabel, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+    }
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -236,6 +490,30 @@ void requestReload(Context* ctx) {
     task_event_group_signal(ctx->eventGroup, ctx->refreshRequestedBit);
 }
 
+/** Installs or upgrades the app of the pressed button */
+void onActionPressed(lv_event_t* e) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+    const auto index = reinterpret_cast<intptr_t>(lv_obj_get_user_data(lv_event_get_target_obj(e)));
+    ctx->mutex.lock();
+    tt::std::string appId;
+    if (index < ctx->appIds.size()) {
+        appId = ctx->appIds[index];
+    }
+    ctx->mutex.unlock();
+    if (appId.empty()) {
+        return;
+    }
+    const error_t error = app_hub_install(appId.c_str(), nullptr);
+    if (error == ERROR_RESOURCE_BUSY) {
+        alertdialog::start(ctx->appInstanceId, tr("Busy"), tr("Another operation is pending. Try again when it's done."));
+    } else if (error != ERROR_NONE) {
+        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("Failed to install app"));
+    } else {
+        // Reloads the apps on this app's own thread, which shows the pending operation
+        requestReload(ctx);
+    }
+}
+
 void onRefreshPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     requestRefresh(ctx);
@@ -260,11 +538,24 @@ void showStatusLabel(Context* ctx, const char* text) {
     lv_label_set_text(label, text);
 }
 
-void showRefreshFailedError(Context* ctx, const char* message) {
-    showStatusLabel(ctx, message);
+/** Shows the error between the search field and the list, or hides it for nullptr. Requires the LVGL lock. */
+void setError(Context* ctx, const char* message) {
+    ctx->errorMessage = (message != nullptr) ? message : "";
+    if (ctx->errorCard == nullptr) {
+        return;
+    }
+    lv_label_set_text(ctx->errorLabel, ctx->errorMessage.c_str());
+    lv_obj_set_hidden(ctx->errorCard, ctx->errorMessage.empty());
+    lv_obj_set_hidden(ctx->refreshButton, ctx->errorMessage.empty());
+    layoutHeader(ctx);
+}
 
-    lv_obj_set_hidden(ctx->refreshButton, false);
-    updateToolbarActions(ctx, false);
+void showApps(Context* ctx);
+
+/** The apps that were already loaded stay in the list */
+void showRefreshFailedError(Context* ctx, const char* message) {
+    setError(ctx, message);
+    showApps(ctx);
 }
 
 void showNoInternet(Context* ctx) {
@@ -304,13 +595,18 @@ void showApps(Context* ctx) {
         }
     }
     lv_obj_clean(ctx->contentWrapper);
+    ctx->list = nullptr;
 
+    const bool iconsEnabled = areIconsShown();
+    const bool showDescriptions = !isCompact();
+    const uint32_t iconSize = getIconSize();
     tt::std::vector<AppHubApp> apps = ctx->apps;
     const bool hasApps = !apps.empty();
     updateUpdatesChipText(ctx, ::std::ranges::count_if(apps, [](const AppHubApp& app) { return app.update_available; }));
+    layoutHeader(ctx);
     updateToolbarActions(ctx, ::std::ranges::any_of(apps, [](const AppHubApp& app) { return app.update_available; }));
     ::std::erase_if(apps, [ctx](const AppHubApp& app) {
-        return !matchesFilter(app, ctx->filter);
+        return !matchesFilter(app, ctx->filter) || !matchesQuery(app, ctx->query);
     });
     ctx->appIds.clear();
 
@@ -322,6 +618,7 @@ void showApps(Context* ctx) {
 
         // The card provides the background
         auto* list = lvgl_list_create(card);
+        ctx->list = list;
         lv_obj_set_style_pad_all(list, 0, LV_STATE_DEFAULT);
         lv_obj_set_size(list, LV_PCT(100), LV_SIZE_CONTENT);
         lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, LV_STATE_DEFAULT);
@@ -329,10 +626,63 @@ void showApps(Context* ctx) {
         lv_obj_t* focus_target = nullptr;
         for (int i = 0; i < apps.size(); i++) {
             const auto& app = apps[i];
-            const char* icon = app.operation_pending ? LVGL_ICON_SHARED_HOURGLASS : (app.installed ? LV_SYMBOL_OK : nullptr);
-            auto* entry_button = lvgl_list_add_button(list, icon, app.name);
+            auto* entry_button = lvgl_list_add_button(list, nullptr, nullptr);
+            lv_obj_set_flex_align(entry_button, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            if (iconsEnabled) {
+                // The first child, so the icon can be set later when it's loaded. The app icon glyph shows until then.
+                auto* image = lv_image_create(entry_button);
+                lv_obj_set_size(image, iconSize, iconSize);
+                const auto* appIcon = findIcon(ctx, app.id);
+                if (appIcon != nullptr && appIcon->image != nullptr) {
+                    setIcon(image, appIcon->image, appIcon->recolor);
+                } else if (ctx->defaultIcon != nullptr) {
+                    setIcon(image, ctx->defaultIcon, true);
+                }
+            }
+
+            auto* texts = lv_obj_create(entry_button);
+            // Without the theme's styles, the text color of the entry applies, which follows its focused and pressed states
+            lv_obj_remove_style_all(texts);
+            lv_obj_set_height(texts, LV_SIZE_CONTENT);
+            lv_obj_set_flex_grow(texts, 1);
+            lv_obj_set_flex_flow(texts, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_clickable(texts, false);
+            lv_obj_set_scrollable(texts, false);
+
+            auto* name_label = lv_label_create(texts);
+            lv_label_set_text(name_label, app.name);
+            setSingleLineEllipsis(name_label);
+
+            if (showDescriptions) {
+                auto* description_label = lv_label_create(texts);
+                lv_label_set_text(description_label, app.short_description);
+                lv_obj_set_style_text_font(description_label, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+                setSingleLineEllipsis(description_label);
+            }
+
             if (app.operation_pending) {
-                lv_obj_set_style_text_font(lv_obj_get_child(entry_button, 0), lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+                auto* status = lv_label_create(entry_button);
+                lv_label_set_text(status, LVGL_ICON_SHARED_HOURGLASS);
+                lv_obj_set_style_text_font(status, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+                if (!lvgl_theme_is_mono()) {
+                    lv_obj_set_style_text_color(status, lv_theme_get_color_secondary(status), LV_STATE_DEFAULT);
+                }
+            } else if (app.installed && !app.update_available) {
+                auto* status = lv_label_create(entry_button);
+                lv_label_set_text(status, tr("Installed"));
+                lv_obj_set_style_text_font(status, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
+                if (!lvgl_theme_is_mono()) {
+                    lv_obj_set_style_text_color(status, lv_theme_get_color_secondary(status), LV_STATE_DEFAULT);
+                }
+            } else if (app.in_catalog && ctx->hasTouch) {
+                auto* action = lvgl_icon_button_create_variant(entry_button, LVGL_ICON_BUTTON_FILLED);
+                // Keys select the app, which has the actions on its details screen
+                lv_group_remove_obj(action);
+                lv_obj_set_user_data(action, reinterpret_cast<void*>(i));
+                lv_obj_add_event_cb(action, onActionPressed, LV_EVENT_SHORT_CLICKED, ctx);
+                auto* label = lv_label_create(action);
+                lv_label_set_text(label, app.update_available ? tr("Upgrade") : tr("Install"));
+                lv_obj_set_style_text_font(label, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
             }
             auto int_as_voidptr = reinterpret_cast<void*>(i);
             lv_obj_set_user_data(entry_button, int_as_voidptr);
@@ -351,9 +701,12 @@ void showApps(Context* ctx) {
             }
         }
     } else if (hasApps) {
-        showStatusLabel(ctx, getEmptyFilterText(ctx->filter));
+        showStatusLabel(ctx, ctx->query.empty() ? getEmptyFilterText(ctx->filter) : tr("No apps found"));
     } else if (ctx->refreshOperationId == 0) {
-        showRefreshFailedError(ctx, tr("Failed to load content"));
+        // A more specific error stays
+        if (ctx->errorMessage.empty()) {
+            setError(ctx, tr("Failed to load content"));
+        }
     } else {
         showStatusLabel(ctx, tr("Loading..."));
     }
@@ -374,7 +727,7 @@ void refresh(Context* ctx) {
         lvgl_unlock();
         return;
     }
-    lv_obj_set_hidden(ctx->refreshButton, true);
+    setError(ctx, nullptr);
     lvgl_unlock();
 
     WifiStationState station_state = WIFI_STATION_STATE_DISCONNECTED;
@@ -400,6 +753,7 @@ void refresh(Context* ctx) {
         return;
     }
     ctx->refreshOperationId = operation_id;
+    forgetMissingIcons(ctx);
 
     // Shows the cached catalog while the new one downloads
     loadApps(ctx);
@@ -440,6 +794,10 @@ void onOperationEvent(Context* ctx, const AppHubEvent& event) {
         }
     }
 
+    if (event.type == APP_HUB_EVENT_INSTALLED && event.result != ERROR_NONE && event.operation_id != ctx->updateAllOperationId) {
+        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("Failed to install app"));
+    }
+
     loadApps(ctx);
     lvgl_lock();
     if (ctx->contentWrapper == nullptr) {
@@ -447,6 +805,9 @@ void onOperationEvent(Context* ctx, const AppHubEvent& event) {
     } else if (isRefresh && event.result != ERROR_NONE) {
         showRefreshFailedError(ctx, tr("Cannot reach server"));
     } else {
+        if (isRefresh) {
+            setError(ctx, nullptr);
+        }
         showApps(ctx);
     }
     lvgl_unlock();
@@ -458,23 +819,65 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    auto* toolbar = lvgl_toolbar_create(parent, tr("App Hub"));
-    // The global toolbar nav callback only knows how to stop old-model apps.
-    lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
-    ctx->refreshButton = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_REFRESH, onRefreshPressed, ctx);
-    lv_obj_set_hidden(ctx->refreshButton, true);
-    ctx->updateAllButton = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_DOWNLOAD, onUpdateAllPressed, ctx);
-    lv_obj_set_hidden(ctx->updateAllButton, true);
-    ctx->updateAllSpinner = lvgl_toolbar_add_spinner_action(toolbar);
-    lv_obj_set_hidden(ctx->updateAllSpinner, true);
+    // Replaces the toolbar: the close button, the tabs in the middle and the actions. All focusable widgets are
+    // direct children of the header, so they're one grid navigation group.
+    ctx->header = lv_obj_create(parent);
+    lv_obj_remove_style_all(ctx->header);
+    lv_obj_set_size(ctx->header, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(ctx->header, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ctx->header, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    const auto spacing = lvgl_theme_lerp(LV_DPX(2), LV_DPX(8), lvgl_theme_get_spacing());
+    lv_obj_set_style_pad_hor(ctx->header, spacing, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(ctx->header, spacing, LV_STATE_DEFAULT);
+    ctx->headerWidth = -1;
+    lv_obj_add_event_cb(ctx->header, onHeaderSizeChanged, LV_EVENT_SIZE_CHANGED, ctx);
 
-    ctx->filterChips = createFilterChips(parent, ctx);
+    createHeaderButton(ctx->header, LV_SYMBOL_CLOSE, false, onBackPressed, ctx);
+    ctx->spacerLeft = createHeaderSpacer(ctx->header);
+    createFilterChips(ctx->header, ctx);
     updateFilterChips(ctx);
+    ctx->spacerRight = createHeaderSpacer(ctx->header);
+    ctx->refreshButton = createHeaderButton(ctx->header, LV_SYMBOL_REFRESH, false, onRefreshPressed, ctx);
+    lv_obj_set_hidden(ctx->refreshButton, true);
+    createHeaderButton(ctx->header, LVGL_ICON_SHARED_SEARCH, true, onSearchTogglePressed, ctx);
+    ctx->updateAllButton = createHeaderButton(ctx->header, LV_SYMBOL_DOWNLOAD, false, onUpdateAllPressed, ctx);
+    lv_obj_set_hidden(ctx->updateAllButton, true);
+    ctx->updateAllSpinner = lvgl_spinner_create(ctx->header);
+    lv_obj_set_clickable(ctx->updateAllSpinner, false);
+    lv_obj_set_hidden(ctx->updateAllSpinner, true);
+    lvgl_grid_navigation_add(ctx->header);
+
+    createSearchRow(parent, ctx);
+
+    LvglThemeSettings theme {};
+    lvgl_theme_get_settings(&theme);
+    // The wrapper centers the card, which is only as wide as its text
+    auto* errorWrapper = lv_obj_create(parent);
+    lv_obj_remove_style_all(errorWrapper);
+    lv_obj_set_size(errorWrapper, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(errorWrapper, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(errorWrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    ctx->errorCard = createCard(errorWrapper);
+    lv_obj_set_width(ctx->errorCard, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(ctx->errorCard, LV_PCT(100), LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ctx->errorCard, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(ctx->errorCard, theme.color_error, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(ctx->errorCard, 2, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_opa(ctx->errorCard, LV_OPA_COVER, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(ctx->errorCard, lvgl_theme_lerp(LV_DPX(1), LV_DPX(4), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
+    // Space above the card scales with the theme's spacing. A hidden card takes no space.
+    lv_obj_set_style_margin_top(ctx->errorCard, lvgl_theme_lerp(LV_DPX(2), LV_DPX(8), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ctx->errorCard, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+    ctx->errorLabel = lv_label_create(ctx->errorCard);
+    lv_label_set_long_mode(ctx->errorLabel, LV_LABEL_LONG_MODE_WRAP);
+    setError(ctx, ctx->errorMessage.c_str());
 
     ctx->contentWrapper = lv_obj_create(parent);
     lv_obj_set_style_border_width(ctx->contentWrapper, 0, LV_STATE_DEFAULT);
     lv_obj_set_width(ctx->contentWrapper, LV_PCT(100));
     lv_obj_set_flex_grow(ctx->contentWrapper, 1);
+    // The header gets the same space above as the content has below it, which scales with the theme's spacing
+    lv_obj_set_style_pad_top(ctx->header, lv_obj_get_style_pad_top(ctx->contentWrapper, LV_PART_MAIN), LV_STATE_DEFAULT);
 
     ctx->restoreScrollOnNextShow = true;
     if (ctx->needsInitialRefresh && ctx->refreshOperationId == 0) {
@@ -493,10 +896,18 @@ void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->scrollY = lv_obj_get_scroll_y(ctx->contentWrapper);
     ctx->contentWrapper = nullptr;
+    ctx->list = nullptr;
     ctx->refreshButton = nullptr;
     ctx->updateAllButton = nullptr;
     ctx->updateAllSpinner = nullptr;
-    ctx->filterChips = nullptr;
+    ::std::fill(::std::begin(ctx->chips), ::std::end(ctx->chips), nullptr);
+    ctx->header = nullptr;
+    ctx->spacerLeft = nullptr;
+    ctx->spacerRight = nullptr;
+    ctx->searchRow = nullptr;
+    ctx->searchTextarea = nullptr;
+    ctx->errorCard = nullptr;
+    ctx->errorLabel = nullptr;
 }
 
 /** Tracks the update of all apps, and shows which apps failed when it's done */
@@ -532,6 +943,7 @@ int32_t appMain(int argc, char* argv[]) {
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
     ctx.eventGroup = &event_group;
+    check(task_event_group_claim_bit(&event_group, &ctx.iconRequestedBit) == ERROR_NONE);
     if (task_event_group_claim_bit(&event_group, &ctx.refreshRequestedBit) != ERROR_NONE) {
         LOG_W(TAG, "Failed to claim a refresh-requested bit; refresh button won't work");
     }
@@ -540,6 +952,14 @@ int32_t appMain(int argc, char* argv[]) {
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
     check(app_hub_event_subscribe(&ctx.appHubSub, &event_group) == ERROR_NONE);
 
+    if (areIconsShown()) {
+        ctx.defaultIcon = loadDefaultIcon(getIconSize());
+    }
+    Device* touchDevice = nullptr;
+    if (device_get_first_active_by_type(&TOUCH_TYPE, &touchDevice) == ERROR_NONE) {
+        ctx.hasTouch = true;
+        device_put(touchDevice);
+    }
     loadApps(&ctx);
     WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
 
@@ -570,9 +990,21 @@ int32_t appMain(int argc, char* argv[]) {
         if (!shouldClose && ctx.refreshRequested.exchange(false)) {
             refresh(&ctx);
         }
+        // One icon per iteration, so closing the app and operations stay responsive while icons download
+        if (!shouldClose && ctx.iconRequested.exchange(false) && loadNextIcon(&ctx)) {
+            requestIcons(&ctx);
+        }
     }
 
     window_manager_remove(window);
+    if (ctx.defaultIcon != nullptr) {
+        lv_draw_buf_destroy(ctx.defaultIcon);
+    }
+    for (auto& icon : ctx.icons) {
+        if (icon.image != nullptr) {
+            lv_draw_buf_destroy(icon.image);
+        }
+    }
     check(app_hub_event_unsubscribe(&ctx.appHubSub) == ERROR_NONE);
     check(app_event_unsubscribe(&sub) == ERROR_NONE);
     task_event_group_destruct(&event_group);

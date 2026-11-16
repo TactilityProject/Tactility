@@ -1,4 +1,5 @@
 #include "tab5_headphone_detect.h"
+#include "tab5_speaker_amp.h"
 
 #include <tactility/error.h>
 #include <tactility/device.h>
@@ -14,8 +15,6 @@
 
 constexpr auto* TAG = "Tab5";
 
-// PI4IOE5V6408-0 (0x43) bit 1
-constexpr auto GPIO_EXP0_PIN_SPEAKER_ENABLE = 1;
 // PI4IOE5V6408-0 (0x43) bit 7
 constexpr auto GPIO_EXP0_PIN_HEADPHONE_DETECT = 7;
 
@@ -128,22 +127,14 @@ static void headphone_detect_callback(TimerHandle_t /*timer*/) {
     LOG_D(TAG, "hp_detect: HP_DET=%d", (int)hp);
 
     if (!hp_detect_initialized || hp != hp_detect_last) {
-        auto* spk_pin = gpio_descriptor_acquire(io_expander0, GPIO_EXP0_PIN_SPEAKER_ENABLE, GPIO_FLAG_DIRECTION_OUTPUT, GPIO_OWNER_GPIO);
-        if (!spk_pin) {
-            LOG_W(TAG, "hp_detect: SPK_EN pin busy, will retry");
-            device_put(io_expander0);
-            return;
-        }
-        error_t spk_err = gpio_descriptor_set_level(spk_pin, !hp);
-        gpio_descriptor_release(spk_pin);
-        if (spk_err != ERROR_NONE) {
-            LOG_W(TAG, "hp_detect: SPK_EN set error: %s, will retry", error_to_string(spk_err));
+        if (!tab5_speaker_amp_set_headphones(hp)) {
+            LOG_W(TAG, "hp_detect: speaker amplifier not updated, will retry");
             device_put(io_expander0);
             return;
         }
         hp_detect_last = hp;
         hp_detect_initialized = true;
-        LOG_I(TAG, "Headphones %s, speaker %s", hp ? "detected" : "removed", hp ? "disabled" : "enabled");
+        LOG_I(TAG, "Headphones %s", hp ? "detected" : "removed");
     }
 
     device_put(io_expander0);

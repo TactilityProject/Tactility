@@ -25,6 +25,7 @@ constexpr auto* PROFILE_DIRECTORY = "data/tactility";
 constexpr auto* PROFILE_PATH = "data/tactility/simulator_profile.txt";
 constexpr auto* DISPLAY_SETTINGS_DIRECTORY = "data/tactility/appdata/tactility.display";
 constexpr auto* DISPLAY_SETTINGS_PATH = "data/tactility/appdata/tactility.display/display.properties";
+constexpr auto* APPEARANCE_SETTINGS_PATH = "data/tactility/appdata/tactility.appearance/appearance.properties";
 constexpr auto* ORIENTATION_KEY = "orientation=";
 
 static const Profile PROFILES[PROFILE_COUNT] = {
@@ -34,6 +35,7 @@ static const Profile PROFILES[PROFILE_COUNT] = {
     { "LilyGO T-Lora Pager", 480, 222,  150, false, 40, 0, false, true, false },
     { "M5Stack Cardputer", 240, 135, 139, false, 20, 0, false, true, false },
     { "M5Stack Tab5",  1280, 720, 250, true, 100, 100, false, true, true },
+    { "Sixrig myPuter", 928, 272, 250, false, 40, 60, false, true, true },
 };
 
 static size_t activeProfileIndex = 0;
@@ -163,6 +165,10 @@ bool saveSelection(size_t profileIndex, OrientationOverride orientation) {
     }
     if (changed) {
         applyOrientationToDisplaySettings(orientation);
+    }
+    if (profileIndex != savedProfileIndex) {
+        // The theming of the Appearance settings is tuned to the previous profile, so the new profile starts from its own defaults
+        remove(APPEARANCE_SETTINGS_PATH);
     }
     return true;
 }

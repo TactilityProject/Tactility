@@ -42,12 +42,21 @@ const char* app_hub_catalog_get_certificate() {
     return certificate_pem;
 }
 
-std::string app_hub_catalog_get_url() {
-    return std::format("{}/{}/apps.json", BASE_URL, get_version_without_postfix());
+std::string app_hub_catalog_get_page_url(int32_t page) {
+    return std::format("{}/{}/list-{}-{}.json", BASE_URL, get_version_without_postfix(), app_hub_catalog_get_platform(), page);
 }
+
 
 std::string app_hub_catalog_get_download_url(const std::string& file) {
     return std::format("{}/{}/{}", BASE_URL, get_version_without_postfix(), file);
+}
+
+std::string app_hub_catalog_get_details_file(const std::string& id) {
+    return id + ".json";
+}
+
+std::string app_hub_catalog_get_icon_file(const std::string& id, bool mono) {
+    return id + (mono ? "-icon-mono.svg" : "-icon.svg");
 }
 
 static bool read_string(const cJSON* object, const char* key, std::string& value) {
@@ -89,21 +98,34 @@ static bool read_string_array(const cJSON* object, const char* key, std::vector<
 }
 
 static bool parse_entry(const cJSON* object, AppHubCatalogEntry& entry) {
-    // Optional: absent in apps.json files from before these fields existed
-    if (cJSON_HasObjectItem(object, "requiresDeviceId") && !read_string_array(object, "requiresDeviceId", entry.requires_device_id)) {
+    // Optional: only present for apps without an icon
+    const cJSON* icon = cJSON_GetObjectItemCaseSensitive(object, "icon");
+    if (icon != nullptr) {
+        if (!cJSON_IsBool(icon)) {
+            LOG_E(TAG, "icon is not a boolean");
+            return false;
+        }
+        entry.has_icon = cJSON_IsTrue(icon);
+    }
+    return read_string(object, "id", entry.id) &&
+        read_int32(object, "version", entry.version_code) &&
+        read_string(object, "name", entry.name) &&
+        read_string(object, "description", entry.short_description);
+}
+
+static bool parse_details(const cJSON* object, AppHubCatalogDetails& details) {
+    // Optional: absent when the app has no such requirement
+    if (cJSON_HasObjectItem(object, "requiresDeviceId") && !read_string_array(object, "requiresDeviceId", details.requires_device_id)) {
         return false;
     }
-    if (cJSON_HasObjectItem(object, "requiresRam") && !read_int32(object, "requiresRam", entry.requires_ram)) {
+    if (cJSON_HasObjectItem(object, "requiresRam") && !read_int32(object, "requiresRam", details.requires_ram)) {
         return false;
     }
-    return read_string(object, "appId", entry.id) &&
-        read_string(object, "appVersionName", entry.version_name) &&
-        read_int32(object, "appVersionCode", entry.version_code) &&
-        read_string(object, "appName", entry.name) &&
-        read_string(object, "appDescription", entry.description) &&
-        read_string(object, "targetSdk", entry.target_sdk) &&
-        read_string(object, "file", entry.file) &&
-        read_string_array(object, "targetPlatforms", entry.target_platforms);
+    return read_string(object, "appDescription", details.description) &&
+        read_string(object, "appVersionName", details.version_name) &&
+        read_string(object, "targetSdk", details.target_sdk) &&
+        read_string(object, "file", details.file) &&
+        read_string_array(object, "targetPlatforms", details.target_platforms);
 }
 
 static std::unique_ptr<char[]> read_file(const char* path) {
@@ -131,10 +153,9 @@ static std::unique_ptr<char[]> read_file(const char* path) {
 namespace {
 
 constexpr char FIELD_SEPARATOR = '\t';
-constexpr char LIST_SEPARATOR = ',';
-constexpr size_t FIELD_COUNT = 10;
+constexpr size_t FIELD_COUNT = 5;
 // Bounds the stack buffer of a reader. A longer entry makes the conversion fail.
-constexpr size_t LINE_MAX_SIZE = 1024;
+constexpr size_t LINE_MAX_SIZE = 512;
 
 /** Control characters, such as the field separator, can't be in a catalog line */
 void append_text(std::string& line, const std::string& text) {
@@ -144,35 +165,14 @@ void append_text(std::string& line, const std::string& text) {
     line += FIELD_SEPARATOR;
 }
 
-bool append_list(std::string& line, const std::vector<std::string>& items) {
-    for (size_t i = 0; i < items.size(); i++) {
-        if (items[i].find(LIST_SEPARATOR) != std::string::npos) {
-            return false;
-        }
-        if (i > 0) {
-            line += LIST_SEPARATOR;
-        }
-        append_text(line, items[i]);
-        line.pop_back();
-    }
-    line += FIELD_SEPARATOR;
-    return true;
-}
-
 bool format_entry(const AppHubCatalogEntry& entry, std::string& line) {
     line.clear();
     append_text(line, entry.id);
-    append_text(line, entry.version_name);
     line += std::to_string(entry.version_code) + FIELD_SEPARATOR;
     append_text(line, entry.name);
-    append_text(line, entry.description);
-    append_text(line, entry.target_sdk);
-    if (!append_list(line, entry.target_platforms) || !append_list(line, entry.requires_device_id)) {
-        return false;
-    }
-    line += std::to_string(entry.requires_ram) + FIELD_SEPARATOR;
-    append_text(line, entry.file);
-    line.back() = '\n';
+    append_text(line, entry.short_description);
+    line += entry.has_icon ? '1' : '0';
+    line += '\n';
     return line.size() < LINE_MAX_SIZE;
 }
 
@@ -190,50 +190,42 @@ std::vector<std::string> split(std::string_view text, char separator) {
     }
 }
 
-std::vector<std::string> split_list(const std::string& text) {
-    return text.empty() ? std::vector<std::string> {} : split(text, LIST_SEPARATOR);
-}
-
 bool parse_line(std::string_view line, AppHubCatalogEntry& entry) {
     const auto fields = split(line, FIELD_SEPARATOR);
     if (fields.size() != FIELD_COUNT) {
         return false;
     }
     char* end = nullptr;
-    const long version_code = strtol(fields[2].c_str(), &end, 10);
-    if (fields[2].empty() || *end != '\0') {
-        return false;
-    }
-    const long requires_ram = strtol(fields[8].c_str(), &end, 10);
-    if (fields[8].empty() || *end != '\0') {
+    const long version_code = strtol(fields[1].c_str(), &end, 10);
+    if (fields[1].empty() || *end != '\0') {
         return false;
     }
     entry.id = fields[0];
-    entry.version_name = fields[1];
     entry.version_code = static_cast<int32_t>(version_code);
-    entry.name = fields[3];
-    entry.description = fields[4];
-    entry.target_sdk = fields[5];
-    entry.target_platforms = split_list(fields[6]);
-    entry.requires_device_id = split_list(fields[7]);
-    entry.requires_ram = static_cast<int32_t>(requires_ram);
-    entry.file = fields[9];
+    entry.name = fields[2];
+    entry.short_description = fields[3];
+    entry.has_icon = fields[4] != "0";
     return true;
+}
+
+cJSON* parse_file(const char* path) {
+    auto data = read_file(path);
+    if (data == nullptr) {
+        LOG_E(TAG, "Failed to read %s", path);
+        return nullptr;
+    }
+    cJSON* json = cJSON_Parse(data.get());
+    if (json == nullptr) {
+        LOG_E(TAG, "Failed to parse %s", path);
+    }
+    return json;
 }
 
 } // namespace
 
-bool app_hub_catalog_convert(const char* json_path, const char* catalog_path) {
-    auto data = read_file(json_path);
-    if (data == nullptr) {
-        LOG_E(TAG, "Failed to read %s", json_path);
-        return false;
-    }
-
-    cJSON* json = cJSON_Parse(data.get());
-    data = nullptr;
+bool app_hub_catalog_append_page(const char* json_path, const char* catalog_path, int32_t& page_count) {
+    cJSON* json = parse_file(json_path);
     if (json == nullptr) {
-        LOG_E(TAG, "Failed to parse %s", json_path);
         return false;
     }
     const cJSON* apps = cJSON_GetObjectItemCaseSensitive(json, "apps");
@@ -242,8 +234,13 @@ bool app_hub_catalog_convert(const char* json_path, const char* catalog_path) {
         cJSON_Delete(json);
         return false;
     }
+    if (!read_int32(json, "pageCount", page_count) || page_count < 1) {
+        LOG_E(TAG, "pageCount is invalid");
+        cJSON_Delete(json);
+        return false;
+    }
 
-    FILE* file = fopen(catalog_path, "wb");
+    FILE* file = fopen(catalog_path, "ab");
     if (file == nullptr) {
         LOG_E(TAG, "Failed to open %s", catalog_path);
         cJSON_Delete(json);
@@ -271,10 +268,16 @@ bool app_hub_catalog_convert(const char* json_path, const char* catalog_path) {
         }
     }
     cJSON_Delete(json);
-    success = (fclose(file) == 0) && success;
-    if (!success) {
-        remove(catalog_path);
+    return (fclose(file) == 0) && success;
+}
+
+bool app_hub_catalog_read_details(const char* json_path, AppHubCatalogDetails& details) {
+    cJSON* json = parse_file(json_path);
+    if (json == nullptr) {
+        return false;
     }
+    const bool success = parse_details(json, details);
+    cJSON_Delete(json);
     return success;
 }
 
@@ -328,7 +331,7 @@ const char* app_hub_catalog_get_platform() {
 #endif
 }
 
-bool app_hub_catalog_is_compatible(const AppHubCatalogEntry& entry) {
+bool app_hub_catalog_is_compatible(const AppHubCatalogDetails& entry) {
     // An empty list means that the app supports every platform
     if (!entry.target_platforms.empty() &&
         std::ranges::find(entry.target_platforms, std::string_view(app_hub_catalog_get_platform())) == entry.target_platforms.end()) {
@@ -345,17 +348,17 @@ bool app_hub_catalog_is_compatible(const AppHubCatalogEntry& entry) {
         device_ids += device_id;
     }
     if (device_ids.size() >= sizeof(package.requires_device_id)) {
-        LOG_W(TAG, "%s: requiresDeviceId too long", entry.id.c_str());
+        LOG_W(TAG, "requiresDeviceId too long");
         return false;
     }
     strcpy(package.requires_device_id, device_ids.c_str());
     if (entry.target_sdk.size() >= sizeof(package.target_sdk)) {
-        LOG_W(TAG, "%s: targetSdk too long", entry.id.c_str());
+        LOG_W(TAG, "targetSdk too long");
         return false;
     }
     strcpy(package.target_sdk, entry.target_sdk.c_str());
     if (entry.requires_ram < 0 || entry.requires_ram > UINT8_MAX) {
-        LOG_W(TAG, "%s: invalid requiresRam %d", entry.id.c_str(), static_cast<int>(entry.requires_ram));
+        LOG_W(TAG, "Invalid requiresRam %d", static_cast<int>(entry.requires_ram));
         return false;
     }
     package.requires_ram = static_cast<uint8_t>(entry.requires_ram);

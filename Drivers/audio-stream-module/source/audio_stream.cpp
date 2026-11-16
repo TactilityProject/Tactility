@@ -6,10 +6,16 @@
 #include <tactility/drivers/audio_codec.h>
 #include <tactility/drivers/audio_stream.h>
 
+#include "resampler.h"
+
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
 #define TAG "AudioStream"
+
+// About the audio that the output buffers hold. A longer wait between writes than this empties it.
+constexpr uint32_t PLAYBACK_BUFFER_MS = 30;
 
 namespace {
 
@@ -106,6 +112,14 @@ struct AudioStreamHandleImpl : AudioStreamHandleData {
     float input_gain = 1.0f; // fixed digital gain multiplier, input direction only (see audio_codec_get_input_gain_multiplier)
     std::vector<uint8_t> codec_buffer;    // raw codec-rate/codec-channel PCM, scratch
     std::vector<uint8_t> convert_buffer;  // intermediate scratch for the second conversion stage
+    // Playback statistics, logged when the stream closes: they show whether the app feeds audio fast enough
+    uint32_t stat_writes = 0;
+    uint32_t stat_late_writes = 0;     // writes that came after the buffered audio had run out
+    uint32_t stat_max_gap_ms = 0;      // longest time between the end of a write and the next write
+    uint32_t stat_max_write_ms = 0;
+    uint32_t stat_audio_ms = 0;        // the audio of all writes together
+    TickType_t stat_last_write_end = 0;
+    ContinuousResampler write_resampler;  // output direction: resamples the app's chunks to the codec rate without seams
 
     // Lets close_stream() and on_codec_device_event() independently wait for this handle's
     // in-flight I/O to drain without racing each other or double-freeing it: each waits on its
@@ -685,6 +699,15 @@ error_t write_stream(AudioStreamHandle handle_base, const void* in_data, size_t 
     bool same_rate = (handle->codec_rate == handle->config.sample_rate);
     bool same_channels = (handle->codec_channels == handle->config.channels);
 
+    const TickType_t write_start = xTaskGetTickCount();
+    if (handle->stat_writes > 0) {
+        const uint32_t gap_ms = pdTICKS_TO_MS(write_start - handle->stat_last_write_end);
+        handle->stat_max_gap_ms = std::max(handle->stat_max_gap_ms, gap_ms);
+        if (gap_ms > PLAYBACK_BUFFER_MS) {
+            handle->stat_late_writes++;
+        }
+    }
+
     error_t result;
     if (same_rate && same_channels) {
         size_t codec_bytes_written = 0;
@@ -721,7 +744,8 @@ error_t write_stream(AudioStreamHandle handle_base, const void* in_data, size_t 
             codec_frames = rate_input_frames;
             std::memcpy(handle->codec_buffer.data(), rate_input, rate_input_frames * handle->codec_bytes_per_frame);
         } else {
-            codec_frames = resample_s16(
+            // The state carries over to the next write, so the writes' seams don't click
+            codec_frames = handle->write_resampler.process(
                 rate_input, rate_input_frames, rate_input_channels,
                 handle->config.sample_rate, handle->codec_rate,
                 reinterpret_cast<int16_t*>(handle->codec_buffer.data()), codec_frame_capacity);
@@ -735,6 +759,11 @@ error_t write_stream(AudioStreamHandle handle_base, const void* in_data, size_t 
             *bytes_written = data_size;
         }
     }
+
+    handle->stat_last_write_end = xTaskGetTickCount();
+    handle->stat_writes++;
+    handle->stat_max_write_ms = std::max<uint32_t>(handle->stat_max_write_ms, pdTICKS_TO_MS(handle->stat_last_write_end - write_start));
+    handle->stat_audio_ms += static_cast<uint32_t>(static_cast<uint64_t>(in_frames) * 1000 / handle->config.sample_rate);
 
     io_end(data, handle);
     return result;
@@ -771,6 +800,13 @@ error_t close_stream(AudioStreamHandle handle_base) {
 
     if (must_drain && handle->drain_semaphore != nullptr) {
         xSemaphoreTake(handle->drain_semaphore, portMAX_DELAY);
+    }
+
+    if (handle->direction == AUDIO_CODEC_DIR_OUTPUT && handle->stat_writes > 0) {
+        LOG_I(TAG, "Playback of %u ms in %u writes: %u late (gap > %u ms), longest gap %u ms, longest write %u ms",
+            static_cast<unsigned>(handle->stat_audio_ms), static_cast<unsigned>(handle->stat_writes),
+            static_cast<unsigned>(handle->stat_late_writes), static_cast<unsigned>(PLAYBACK_BUFFER_MS),
+            static_cast<unsigned>(handle->stat_max_gap_ms), static_cast<unsigned>(handle->stat_max_write_ms));
     }
 
     if (codec != nullptr) {
