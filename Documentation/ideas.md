@@ -11,6 +11,7 @@
 
 ## Medium Priority
 
+- 2 finger swipe for scroll in simulator
 - Tab5: UI hangs when app installs (not download phase, but file unpacking phase)
 - Add "Downloading Apps" step in Setup that downloads useful apps.
   It's an optional step at the end that only shows if wifi is connected.
