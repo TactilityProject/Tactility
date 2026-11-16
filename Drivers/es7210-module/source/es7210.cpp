@@ -12,6 +12,7 @@
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -41,18 +42,24 @@ struct Es7210Data {
 // It is dropped, so it doesn't end up at the start of a recording.
 constexpr uint32_t DISCARD_MS = 100;
 
-/** Reads and drops the first audio of a newly opened stream, which can't be used */
-static void discard_startup_audio(Es7210Data* data, const esp_codec_dev_sample_info_t& sample_info) {
+/**
+ * Reads and drops the first audio of a newly opened stream, which can't be used
+ * @return false when the codec couldn't be read
+ */
+static bool discard_startup_audio(Es7210Data* data, const esp_codec_dev_sample_info_t& sample_info) {
     const size_t frame_bytes = static_cast<size_t>(sample_info.bits_per_sample / 8) * sample_info.channel;
     size_t remaining = frame_bytes * (sample_info.sample_rate * DISCARD_MS / 1000);
     std::vector<uint8_t> chunk(2048);
     while (remaining > 0) {
         const size_t size = remaining < chunk.size() ? remaining : chunk.size();
-        if (esp_codec_dev_read(data->codec_device, chunk.data(), static_cast<int>(size)) < 0) {
-            return;
+        // The number of bytes that were read, which can be less than requested. Nothing read can't progress.
+        const int read = esp_codec_dev_read(data->codec_device, chunk.data(), static_cast<int>(size));
+        if (read <= 0) {
+            return false;
         }
-        remaining -= size;
+        remaining -= std::min(static_cast<size_t>(read), remaining);
     }
+    return true;
 }
 
 #define GET_CONFIG(device) (static_cast<const Es7210Config*>((device)->config))
@@ -105,8 +112,12 @@ error_t open(Device* device, const struct AudioCodecStreamConfig* config) {
 
     data->open_bits_per_sample = config->bits_per_sample;
     data->open_sample_rate = config->sample_rate;
+    if (!discard_startup_audio(data, sample_info)) {
+        LOG_E(TAG, "Failed to read the start of the stream");
+        esp_codec_dev_close(data->codec_device);
+        return ERROR_RESOURCE;
+    }
     data->is_open = true;
-    discard_startup_audio(data, sample_info);
     return ERROR_NONE;
 }
 

@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 
 #define TAG "ES838x"
 
@@ -81,23 +80,27 @@ void set_analog_outputs(Es838xData* data) {
  * The codec unmutes its DAC while opening, which is audible as a pop once the clocks and the analog output
  * start up. The output is muted while silence is clocked in, and then returned to the requested mute state.
  */
-void start_output_silently(Es838xData* data, const esp_codec_dev_sample_info_t& sample_info) {
+bool start_output_silently(Es838xData* data, const esp_codec_dev_sample_info_t& sample_info) {
     esp_codec_dev_set_out_mute(data->codec_device, true);
 
+    // Written in small pieces, so no memory has to be allocated
     const size_t frame_size = static_cast<size_t>(sample_info.bits_per_sample / 8) * sample_info.channel;
-    const size_t silence_size = frame_size * (sample_info.sample_rate * PREROLL_MS / 1000);
-    if (silence_size > 0) {
-        void* silence = calloc(1, silence_size);
-        if (silence != nullptr) {
-            esp_codec_dev_write(data->codec_device, silence, static_cast<int>(silence_size));
-            free(silence);
+    size_t remaining = frame_size * (static_cast<size_t>(sample_info.sample_rate) * PREROLL_MS / 1000);
+    uint8_t silence[512] = {};
+    while (remaining > 0) {
+        const size_t size = std::min(remaining, sizeof(silence));
+        const int written = esp_codec_dev_write(data->codec_device, silence, static_cast<int>(size));
+        if (written <= 0) {
+            return false;
         }
+        remaining -= std::min(static_cast<size_t>(written), remaining);
     }
 
     esp_codec_dev_set_out_mute(data->codec_device, data->output_muted);
     if (data->output_callback != nullptr) {
         data->output_callback(true, data->output_callback_user_data);
     }
+    return true;
 }
 
 /** Mutes the output before the codec powers down its DAC, which would be audible otherwise */
@@ -150,7 +153,11 @@ error_t open(Device* device, const struct AudioCodecStreamConfig* config) {
     data->open_sample_info = sample_info;
     if (has_output(config->direction)) {
         set_analog_outputs(data);
-        start_output_silently(data, sample_info);
+        if (!start_output_silently(data, sample_info)) {
+            LOG_E(TAG, "Failed to start the output");
+            close_codec(data);
+            return ERROR_RESOURCE;
+        }
     }
     return ERROR_NONE;
 }

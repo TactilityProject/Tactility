@@ -13,5 +13,8 @@ void tab5_speaker_amp_init();
 /** Follows the codec output of the ES8388 device, which has to have started */
 void tab5_speaker_amp_follow_codec(Device* codec);
 
+/** @return true when the last update of the amplifier failed, so the caller has to try again with tab5_speaker_amp_set_headphones() */
+bool tab5_speaker_amp_is_dirty();
+
 /** @return false when the amplifier couldn't be updated, so the caller can retry */
 bool tab5_speaker_amp_set_headphones(bool plugged_in);

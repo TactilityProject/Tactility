@@ -2,6 +2,7 @@
 
 #include "lv_conf.h"
 
+#include <app/paths.h>
 #include <tactility/log.h>
 
 #include <cerrno>
@@ -25,7 +26,6 @@ constexpr auto* PROFILE_DIRECTORY = "data/tactility";
 constexpr auto* PROFILE_PATH = "data/tactility/simulator_profile.txt";
 constexpr auto* DISPLAY_SETTINGS_DIRECTORY = "data/tactility/appdata/tactility.display";
 constexpr auto* DISPLAY_SETTINGS_PATH = "data/tactility/appdata/tactility.display/display.properties";
-constexpr auto* APPEARANCE_SETTINGS_PATH = "data/tactility/appdata/tactility.appearance/appearance.properties";
 constexpr auto* ORIENTATION_KEY = "orientation=";
 
 static const Profile PROFILES[PROFILE_COUNT] = {
@@ -148,11 +148,32 @@ static void applyOrientationToDisplaySettings(OrientationOverride orientation) {
     fclose(file);
 }
 
+/**
+ * The theming of the Appearance settings is tuned to the previous profile, so the new profile starts from its own defaults.
+ * @return false when the settings exist and couldn't be removed
+ */
+static bool resetAppearanceSettings() {
+    char path[PATH_MAX];
+    if (app_paths_get_user_data_path("tactility.appearance", "appearance.properties", path, sizeof(path)) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to find the Appearance settings");
+        return false;
+    }
+    if (remove(path) != 0 && errno != ENOENT) {
+        LOG_E(TAG, "Failed to remove %s", path);
+        return false;
+    }
+    return true;
+}
+
 bool saveSelection(size_t profileIndex, OrientationOverride orientation) {
     size_t savedProfileIndex;
     OrientationOverride savedOrientation;
     loadSelection(savedProfileIndex, savedOrientation);
     const bool changed = profileIndex != savedProfileIndex || orientation != savedOrientation;
+    // Before the selection is saved, so a failure is tried again when the same profile is selected again
+    if (profileIndex != savedProfileIndex && !resetAppearanceSettings()) {
+        return false;
+    }
     mkdir(PROFILE_DIRECTORY, 0755);
     FILE* file = fopen(PROFILE_PATH, "w");
     if (file == nullptr) {
@@ -165,10 +186,6 @@ bool saveSelection(size_t profileIndex, OrientationOverride orientation) {
     }
     if (changed) {
         applyOrientationToDisplaySettings(orientation);
-    }
-    if (profileIndex != savedProfileIndex) {
-        // The theming of the Appearance settings is tuned to the previous profile, so the new profile starts from its own defaults
-        remove(APPEARANCE_SETTINGS_PATH);
     }
     return true;
 }

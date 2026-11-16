@@ -126,15 +126,18 @@ static void headphone_detect_callback(TimerHandle_t /*timer*/) {
 
     LOG_D(TAG, "hp_detect: HP_DET=%d", (int)hp);
 
-    if (!hp_detect_initialized || hp != hp_detect_last) {
+    // A failed update of the amplifier is retried, also when the jack went back to its previous state
+    if (!hp_detect_initialized || hp != hp_detect_last || tab5_speaker_amp_is_dirty()) {
         if (!tab5_speaker_amp_set_headphones(hp)) {
             LOG_W(TAG, "hp_detect: speaker amplifier not updated, will retry");
             device_put(io_expander0);
             return;
         }
+        if (!hp_detect_initialized || hp != hp_detect_last) {
+            LOG_I(TAG, "Headphones %s", hp ? "detected" : "removed");
+        }
         hp_detect_last = hp;
         hp_detect_initialized = true;
-        LOG_I(TAG, "Headphones %s", hp ? "detected" : "removed");
     }
 
     device_put(io_expander0);

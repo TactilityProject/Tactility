@@ -72,7 +72,9 @@ struct Context {
     AppHubApp app {};
     tt::std::string description = tr("Loading...");
     /** Whether this device can install and run the app, known once the details are loaded */
-    bool compatible = true;
+    bool compatible = false;
+    /** Whether the details were read, so that `compatible` is known. Installing needs it. */
+    bool detailsKnown = false;
     /** The catalog's version name, empty until the details are loaded */
     tt::std::string versionName;
     /** Whether the details were downloaded. Only used on this app's own thread. */
@@ -81,6 +83,8 @@ struct Context {
     lv_draw_buf_t* icon = nullptr;
     bool iconRecolor = false;
     bool iconLoaded = false;
+    /** The version of the app that the icon is of */
+    uint64_t iconVersion = 0;
     /** Shows when the app has no icon, null when icons aren't shown */
     lv_draw_buf_t* defaultIcon = nullptr;
 
@@ -157,7 +161,8 @@ void loadState(Context* ctx) {
 
     lv_draw_buf_t* icon = nullptr;
     bool iconRecolor = false;
-    const bool loadIconNow = app.in_catalog && app.has_icon && !ctx->iconLoaded && isIconShown();
+    // A new version of the app has a new icon
+    const bool loadIconNow = app.in_catalog && app.has_icon && (!ctx->iconLoaded || ctx->iconVersion != app.version_code) && isIconShown();
     if (loadIconNow) {
         icon = apphub::loadIcon(ctx->appId.c_str(), getIconSize(), &iconRecolor);
     }
@@ -166,16 +171,34 @@ void loadState(Context* ctx) {
     ctx->app = app;
     if (loadDetails) {
         ctx->description = ::std::move(description);
-        ctx->compatible = details.compatible;
-        ctx->versionName = details.version_name;
+        if (detailsRead) {
+            ctx->compatible = details.compatible;
+            ctx->versionName = details.version_name;
+            ctx->detailsKnown = true;
+        }
     }
     if (loadIconNow) {
+        // The widget shows the new image before the old one is freed
+        auto* oldIcon = ctx->icon;
         ctx->icon = icon;
         ctx->iconRecolor = iconRecolor;
+        if (ctx->iconImage != nullptr) {
+            if (icon != nullptr) {
+                apphub::setIcon(ctx->iconImage, icon, iconRecolor);
+            } else if (ctx->defaultIcon != nullptr) {
+                apphub::setIcon(ctx->iconImage, ctx->defaultIcon, true);
+            }
+        }
+        if (oldIcon != nullptr) {
+            lv_draw_buf_destroy(oldIcon);
+        }
     }
     lvgl_unlock();
     ctx->detailsLoaded = ctx->detailsLoaded || detailsRead;
-    ctx->iconLoaded = ctx->iconLoaded || loadIconNow;
+    if (loadIconNow) {
+        ctx->iconLoaded = true;
+        ctx->iconVersion = app.version_code;
+    }
 }
 
 void updateViews(Context* ctx);
@@ -238,7 +261,7 @@ void onOperationEvent(Context* ctx, const AppHubEvent& event) {
 void addActionButtons(Context* ctx) {
     const auto& app = ctx->app;
     if (app.installed) {
-        if (app.update_available && ctx->compatible) {
+        if (app.update_available && ctx->detailsKnown && ctx->compatible) {
             auto* update = lvgl_icon_button_create_variant(ctx->header, LVGL_ICON_BUTTON_FILLED);
             lv_obj_add_event_cb(update, onUpdatePressed, LV_EVENT_SHORT_CLICKED, ctx);
             lv_label_set_text(lv_label_create(update), tr("Update"));
@@ -246,7 +269,7 @@ void addActionButtons(Context* ctx) {
         auto* uninstall = lvgl_text_button_create(ctx->header);
         lv_obj_add_event_cb(uninstall, onUninstallPressed, LV_EVENT_SHORT_CLICKED, ctx);
         lv_label_set_text(lv_label_create(uninstall), tr("Uninstall"));
-    } else if (app.in_catalog && ctx->compatible) {
+    } else if (app.in_catalog && ctx->detailsKnown && ctx->compatible) {
         auto* install = lvgl_icon_button_create_variant(ctx->header, LVGL_ICON_BUTTON_FILLED);
         lv_obj_add_event_cb(install, onInstallPressed, LV_EVENT_SHORT_CLICKED, ctx);
         lv_label_set_text(lv_label_create(install), tr("Install"));
@@ -265,7 +288,7 @@ void updateViews(Context* ctx) {
             apphub::setIcon(ctx->iconImage, ctx->defaultIcon, true);
         }
     }
-    lv_obj_set_hidden(ctx->incompatibleLabel, ctx->compatible);
+    lv_obj_set_hidden(ctx->incompatibleLabel, !ctx->detailsKnown || ctx->compatible);
     lv_label_set_text(ctx->descriptionLabel, ctx->description.c_str());
     const auto& app = ctx->app;
     lv_label_set_text(ctx->nameLabel, app.name);

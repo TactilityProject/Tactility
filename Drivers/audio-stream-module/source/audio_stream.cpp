@@ -117,7 +117,7 @@ struct AudioStreamHandleImpl : AudioStreamHandleData {
     uint32_t stat_late_writes = 0;     // writes that came after the buffered audio had run out
     uint32_t stat_max_gap_ms = 0;      // longest time between the end of a write and the next write
     uint32_t stat_max_write_ms = 0;
-    uint32_t stat_audio_ms = 0;        // the audio of all writes together
+    uint64_t stat_audio_frames = 0;    // the audio of all writes together
     TickType_t stat_last_write_end = 0;
     ContinuousResampler write_resampler;  // output direction: resamples the app's chunks to the codec rate without seams
 
@@ -709,6 +709,9 @@ error_t write_stream(AudioStreamHandle handle_base, const void* in_data, size_t 
     }
 
     error_t result;
+    // A write that fails is tried again with the same input, which has to be resampled from the same position
+    ContinuousResampler resampler_before_write;
+    bool restore_resampler = false;
     if (same_rate && same_channels) {
         size_t codec_bytes_written = 0;
         result = audio_codec_write(codec, in_data, data_size, &codec_bytes_written, timeout);
@@ -745,6 +748,8 @@ error_t write_stream(AudioStreamHandle handle_base, const void* in_data, size_t 
             std::memcpy(handle->codec_buffer.data(), rate_input, rate_input_frames * handle->codec_bytes_per_frame);
         } else {
             // The state carries over to the next write, so the writes' seams don't click
+            resampler_before_write = handle->write_resampler;
+            restore_resampler = true;
             codec_frames = handle->write_resampler.process(
                 rate_input, rate_input_frames, rate_input_channels,
                 handle->config.sample_rate, handle->codec_rate,
@@ -754,6 +759,9 @@ error_t write_stream(AudioStreamHandle handle_base, const void* in_data, size_t 
         size_t codec_bytes_to_write = codec_frames * handle->codec_bytes_per_frame;
         size_t codec_bytes_written = 0;
         result = audio_codec_write(codec, handle->codec_buffer.data(), codec_bytes_to_write, &codec_bytes_written, timeout);
+        if (result != ERROR_NONE && restore_resampler) {
+            handle->write_resampler = resampler_before_write;
+        }
         if (result == ERROR_NONE && bytes_written != nullptr) {
             // The caller provided `data_size` worth of input; we consumed all of it (resampled/converted).
             *bytes_written = data_size;
@@ -763,7 +771,7 @@ error_t write_stream(AudioStreamHandle handle_base, const void* in_data, size_t 
     handle->stat_last_write_end = xTaskGetTickCount();
     handle->stat_writes++;
     handle->stat_max_write_ms = std::max<uint32_t>(handle->stat_max_write_ms, pdTICKS_TO_MS(handle->stat_last_write_end - write_start));
-    handle->stat_audio_ms += static_cast<uint32_t>(static_cast<uint64_t>(in_frames) * 1000 / handle->config.sample_rate);
+    handle->stat_audio_frames += in_frames;
 
     io_end(data, handle);
     return result;
@@ -804,7 +812,7 @@ error_t close_stream(AudioStreamHandle handle_base) {
 
     if (handle->direction == AUDIO_CODEC_DIR_OUTPUT && handle->stat_writes > 0) {
         LOG_I(TAG, "Playback of %u ms in %u writes: %u late (gap > %u ms), longest gap %u ms, longest write %u ms",
-            static_cast<unsigned>(handle->stat_audio_ms), static_cast<unsigned>(handle->stat_writes),
+            static_cast<unsigned>(handle->stat_audio_frames * 1000 / handle->config.sample_rate), static_cast<unsigned>(handle->stat_writes),
             static_cast<unsigned>(handle->stat_late_writes), static_cast<unsigned>(PLAYBACK_BUFFER_MS),
             static_cast<unsigned>(handle->stat_max_gap_ms), static_cast<unsigned>(handle->stat_max_write_ms));
     }

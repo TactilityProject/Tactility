@@ -7,6 +7,7 @@
 #include <lvgl/svg.h>
 #include <lvgl/theme.h>
 
+#include <tactility/filesystem/file.h>
 #include <tactility/paths.h>
 
 #include <initializer_list>
@@ -27,6 +28,8 @@ lv_draw_buf_t* loadIcon(const char* appId, uint32_t size, bool* recolor) {
         }
         auto* image = lvgl_svg_rasterize_file_variants(mono ? nullptr : path, mono ? path : nullptr, preferMono, size, recolor);
         if (image == nullptr) {
+            // A broken file is downloaded again at the next try
+            file_remove(path);
             continue;
         }
         if (!*recolor) {

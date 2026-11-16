@@ -7,6 +7,7 @@
 - Pick better icon for toggling touch in remote.py
 - Files app: make reusable system UI for pagination?
 - Move more window management code from Tactility/ to window-manager
+- Newer Meshtastic firmware supports per-node public-key direct messages.
 
 ## Medium Priority
 

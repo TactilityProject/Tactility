@@ -73,6 +73,8 @@ constexpr auto FILTER_LABELS = ::std::to_array<const char*>({ tr_noop("All"), tr
 /** An icon that was loaded for an app. The image is null when the app has no icon. */
 struct AppIcon {
     tt::std::string appId;
+    /** The version of the app that the icon is of, as a new version has a new icon */
+    uint64_t version;
     lv_draw_buf_t* image;
     bool recolor;
 };
@@ -131,6 +133,8 @@ struct Context {
 
     /** Icons by app. Loaded on this app's own thread (see loadNextIcon()), guarded by the mutex. */
     tt::std::vector<AppIcon> icons;
+    /** Images of icons that were replaced by a new version's icon. Rows can still show them, so they're freed when the app closes. */
+    tt::std::vector<lv_draw_buf_t*> retiredIcons;
     /** Shows for apps without an icon, null when the icons aren't shown */
     lv_draw_buf_t* defaultIcon = nullptr;
     uint32_t iconRequestedBit = 0;
@@ -155,9 +159,28 @@ void requestIcons(Context* ctx) {
 }
 
 /** Requires the context's mutex */
-AppIcon* findIcon(Context* ctx, const char* appId) {
+AppIcon* findIconOfId(Context* ctx, const char* appId) {
     auto found = ::std::ranges::find_if(ctx->icons, [appId](const AppIcon& icon) { return icon.appId == appId; });
     return found == ctx->icons.end() ? nullptr : &*found;
+}
+
+/** The icon of the current version of the app */
+AppIcon* findIcon(Context* ctx, const AppHubApp& app) {
+    auto* icon = findIconOfId(ctx, app.id);
+    return (icon != nullptr && icon->version == app.version_code) ? icon : nullptr;
+}
+
+/** Requires the context's mutex */
+void storeIcon(Context* ctx, AppIcon icon) {
+    auto* existing = findIconOfId(ctx, icon.appId.c_str());
+    if (existing == nullptr) {
+        ctx->icons.push_back(::std::move(icon));
+        return;
+    }
+    if (existing->image != nullptr) {
+        ctx->retiredIcons.push_back(existing->image);
+    }
+    *existing = ::std::move(icon);
 }
 
 uint32_t getIconSize() {
@@ -170,18 +193,20 @@ uint32_t getIconSize() {
  */
 bool loadNextIcon(Context* ctx) {
     tt::std::string appId;
+    uint64_t version = 0;
     bool hasIcon = true;
     ctx->mutex.lock();
     for (const auto& app : ctx->apps) {
-        if (app.in_catalog && findIcon(ctx, app.id) == nullptr) {
+        if (app.in_catalog && findIcon(ctx, app) == nullptr) {
             appId = app.id;
+            version = app.version_code;
             hasIcon = app.has_icon;
             break;
         }
     }
     if (!appId.empty() && !hasIcon) {
         // Nothing to download: the default icon stays
-        ctx->icons.push_back({ appId, nullptr, false });
+        storeIcon(ctx, { appId, version, nullptr, false });
     }
     ctx->mutex.unlock();
     if (appId.empty()) {
@@ -196,7 +221,7 @@ bool loadNextIcon(Context* ctx) {
 
     lvgl_lock();
     ctx->mutex.lock();
-    ctx->icons.push_back({ appId, image, recolor });
+    storeIcon(ctx, { appId, version, image, recolor });
     if (image != nullptr) {
         // Shows the icon in the app's entry, which has the icon widget as its first child
         const auto index = ::std::ranges::find(ctx->appIds, appId);
@@ -632,7 +657,7 @@ void showApps(Context* ctx) {
                 // The first child, so the icon can be set later when it's loaded. The app icon glyph shows until then.
                 auto* image = lv_image_create(entry_button);
                 lv_obj_set_size(image, iconSize, iconSize);
-                const auto* appIcon = findIcon(ctx, app.id);
+                const auto* appIcon = findIcon(ctx, app);
                 if (appIcon != nullptr && appIcon->image != nullptr) {
                     setIcon(image, appIcon->image, appIcon->recolor);
                 } else if (ctx->defaultIcon != nullptr) {
@@ -693,6 +718,7 @@ void showApps(Context* ctx) {
             }
         }
 
+        lvgl_list_hide_last_divider(list);
         lv_obj_scroll_to_y(ctx->contentWrapper, scrollY, LV_ANIM_OFF);
         if (focus_target != nullptr) {
             lv_group_focus_obj(focus_target);
@@ -999,6 +1025,9 @@ int32_t appMain(int argc, char* argv[]) {
     window_manager_remove(window);
     if (ctx.defaultIcon != nullptr) {
         lv_draw_buf_destroy(ctx.defaultIcon);
+    }
+    for (auto* image : ctx.retiredIcons) {
+        lv_draw_buf_destroy(image);
     }
     for (auto& icon : ctx.icons) {
         if (icon.image != nullptr) {

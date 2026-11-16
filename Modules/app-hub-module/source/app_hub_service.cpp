@@ -24,6 +24,7 @@
 #include <tactility/std/vector.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <new>
 #include <cctype>
 #include <cstdio>
@@ -383,8 +384,10 @@ error_t fetchDetails(const char* id, AppHubCatalogDetails& details, TaskEventGro
     if (error != ERROR_NONE) {
         return error;
     }
+    // Every request has its own file, as several can be running for the same app: the install and the details screen
+    static std::atomic<uint32_t> nextRequest { 0 };
     const std::string fileName = app_hub_catalog_get_details_file(id);
-    const std::string path = std::string(tempDirectory) + "/" + fileName;
+    const std::string path = std::string(tempDirectory) + "/" + std::to_string(nextRequest++) + "-" + fileName;
     error = download(app_hub_catalog_get_download_url(fileName).c_str(), path.c_str(), events, stopBit);
     if (error == ERROR_NONE && !app_hub_catalog_read_details(path.c_str(), details)) {
         error = ERROR_INVALID_ARGUMENT;
