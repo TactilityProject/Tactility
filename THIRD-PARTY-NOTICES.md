@@ -83,6 +83,14 @@ Website: https://github.com/meshtastic/firmware
 
 License: [GPL v3.0](https://github.com/meshtastic/firmware/blob/master/LICENSE)
 
+### TRMNL Firmware
+
+The BQ27427 data memory images of the TRMNL X (`Devices/trmnl-trmnl-x/source/drivers/trmnl_x_gauge_profiles.cpp`) are taken from the TRMNL firmware (`lib/BQ27427`). That file is GPL-3.0 licensed (`Devices/trmnl-trmnl-x/LICENSE-GPL-3.0.md`).
+
+Website: https://github.com/usetrmnl/trmnl-firmware
+
+License: [GPL v3.0](https://github.com/usetrmnl/trmnl-firmware/blob/main/LICENSE), `lib/BQ27427` is [MIT](https://github.com/usetrmnl/trmnl-firmware/tree/main/lib/BQ27427)
+
 ### BQ27220 Driver
 
 Website: https://github.com/Xinyuan-LilyGO/T-Echo/blob/main/LICENSE

@@ -3,5 +3,6 @@ dependencies:
   - Drivers/tca95xx-16bit-module
   - Drivers/bma530-module
   - Drivers/bq27427-module
+  - Drivers/iqs323-module
 bindings: bindings
 dts: trmnl,trmnl-x.dts
