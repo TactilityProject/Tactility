@@ -10,6 +10,9 @@
 
 ## Medium Priority
 
+- Tab5: UI hangs when app installs (not download phase, but file unpacking phase)
+- Add "Downloading Apps" step in Setup that downloads useful apps.
+  It's an optional step at the end that only shows if wifi is connected.
 - Watch and others: sleep/wake support. "With a button to save energy of the screen while not having to turn the gps off by disabling power. Also could put device into pocket without worrying about pressing things on touchscreen.". Considere adding a list of hardware that supports on/off and have the user select which hardware turns on/off with light sleep. (not to confuse with ESP light sleep)
 Consider adding a light/deep sleep mode:
   tt light sleep: esp32 does not go in sleep mode, user decides which devices go off (e.g. display+lvgl, wifi, lora, etc.)

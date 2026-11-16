@@ -903,8 +903,9 @@ void onTick(void* context) {
         // A failed advert stays pending
         backend->floodAdvertPending = !recent && !sendAdvert(backend);
     }
-    // Without a valid clock the advert would carry an uptime as its time, which other nodes ignore
-    if (nowMs >= backend->nextFloodAdvertMs && nowMs - backend->lastAdvertMs >= ADVERT_INTERVAL_MS && isWallTimeValid()) {
+    // Without a valid clock the advert would carry an uptime as its time, which other nodes ignore.
+    // The pending advert above may have sent one just now, so the last advert can be later than nowMs.
+    if (nowMs >= backend->nextFloodAdvertMs && nowMs >= backend->lastAdvertMs && nowMs - backend->lastAdvertMs >= ADVERT_INTERVAL_MS && isWallTimeValid()) {
         sendAdvert(backend);
     }
     for (auto iterator = backend->pendingSends.begin(); iterator != backend->pendingSends.end();) {

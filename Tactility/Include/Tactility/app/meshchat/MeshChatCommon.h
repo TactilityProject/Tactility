@@ -29,7 +29,8 @@ inline ::std::string getNotReadyText() {
 /** Whether mesh is running, and the network and the kind of radio that it uses. Those are empty while mesh isn't running. */
 struct NetworkInfo {
     bool running = false;
-    char network[MESH_BACKEND_ID_MAX_LENGTH + 1] = {};
+    /** The network, followed by its preset in brackets when that isn't the default one */
+    char network[MESH_BACKEND_ID_MAX_LENGTH + MESH_NAME_MAX_LENGTH + 4] = {};
     char modulation[16] = {};
 };
 
