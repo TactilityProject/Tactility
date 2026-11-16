@@ -51,7 +51,8 @@ def main(path: str, version: str, cloudflare_account_id, cloudflare_token_name: 
     if not os.path.exists(path):
         exit_with_error(f"Path not found: {path}")
     s3 = create_s3_client(cloudflare_account_id, cloudflare_token_name, cloudflare_token_value)
-    files_to_upload = os.listdir(path)
+    # index.json goes last, so it never refers to files that aren't uploaded yet
+    files_to_upload = sorted(os.listdir(path), key=lambda file_name: file_name == 'index.json')
     counter = 1
     total = len(files_to_upload)
     for file_name in files_to_upload:

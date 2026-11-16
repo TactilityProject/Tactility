@@ -49,7 +49,7 @@ def get_git_commit_hash():
 def create_tools_bundle(out_path: str):
     """Bundles the tools that tt.py runs for this SDK version, with the project templates of "tt app create" in NewProject/"""
     if VERBOSE:
-        print(f"Archiving {TOOLS_PATH} to {out_path}/tools.zip")
+        print(f"Archiving {TOOLS_PATH} to {out_path}")
     archive_path = os.path.join(out_path, "tools.zip")
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for file_name in sorted(os.listdir(TOOLS_PATH)):
@@ -62,7 +62,10 @@ def create_tools_bundle(out_path: str):
                 archive.write(file_path, os.path.join("NewProject", os.path.relpath(file_path, NEW_PROJECT_PATH)))
     with open(archive_path, "rb") as archive:
         sha256 = hashlib.sha256(archive.read()).hexdigest()
-    return {"file": "tools.zip", "sha256": sha256}
+    # The hash is in the name, so a changed bundle never has the URL of a bundle that a CDN cache still holds
+    file_name = f"tools-{sha256[:16]}.zip"
+    os.replace(archive_path, os.path.join(out_path, file_name))
+    return {"file": file_name, "sha256": sha256}
 
 def add_simulator(in_path: str, out_path: str, artifact_directory: str, sdk_index: SdkIndex):
     """Archives a simulator build, named <os>-<architecture> like the SDK platforms, e.g. Simulator-linux-x86_64"""
