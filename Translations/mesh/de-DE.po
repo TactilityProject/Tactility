@@ -176,3 +176,39 @@ msgstr "Wartet"
 
 msgid "You"
 msgstr "Du"
+
+msgid "Heard 1 repeat"
+msgstr "1 Wiederholung gehört"
+
+msgid "Heard repeats"
+msgstr "Wiederholungen gehört"
+
+msgid "Heard {} repeats"
+msgstr "{} Wiederholungen gehört"
+
+msgid "Inspect"
+msgstr "Untersuchen"
+
+msgid "Retrying {}/{}..."
+msgstr "Neuer Versuch {}/{}..."
+
+msgid "Retrying..."
+msgstr "Neuer Versuch..."
+
+msgid "Advert: Zero hop"
+msgstr "Advert: ohne Hop"
+
+msgid "Advert: Flood routed"
+msgstr "Advert: per Flood"
+
+msgid "Turn mesh on to send an advert"
+msgstr "Mesh einschalten, um ein Advert zu senden"
+
+msgid "This mesh network has no adverts."
+msgstr "Dieses Mesh-Netzwerk hat keine Adverts."
+
+msgid "Couldn't send advert"
+msgstr "Advert konnte nicht gesendet werden"
+
+msgid "Show QR"
+msgstr "QR anzeigen"

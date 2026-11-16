@@ -5,3 +5,9 @@ msgstr ""
 
 msgid "The data doesn't fit in a QR code"
 msgstr "De gegevens passen niet in een QR-code"
+
+msgid "QR Code"
+msgstr "QR-code"
+
+msgid "The QR code doesn't fit on this display"
+msgstr "De QR-code past niet op dit scherm"

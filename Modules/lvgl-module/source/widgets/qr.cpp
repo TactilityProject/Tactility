@@ -170,6 +170,11 @@ error_t lvgl_qr_set_data(lv_obj_t* obj, const char* data) {
     return ERROR_NONE;
 }
 
+int32_t lvgl_qr_get_min_size(lv_obj_t* obj) {
+    auto* view = reinterpret_cast<QrView*>(obj);
+    return view->modules == nullptr ? 0 : view->code.size + 2 * QR_QUIET_ZONE_MODULES;
+}
+
 void lvgl_qr_set_colors(lv_obj_t* obj, lv_color_t dark, lv_color_t light) {
     auto* view = reinterpret_cast<QrView*>(obj);
     view->dark = dark;

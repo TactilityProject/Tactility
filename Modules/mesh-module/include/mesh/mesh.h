@@ -68,6 +68,10 @@ enum MeshDeliveryState {
     MESH_DELIVERY_DELIVERED,
     MESH_DELIVERY_FAILED,
     MESH_DELIVERY_CANCELLED,
+    /** Sent again, as the event's retry_attempt of retry_max */
+    MESH_DELIVERY_RETRYING,
+    /** A channel message that was heard being repeated, as the event's repeat_count */
+    MESH_DELIVERY_REPEATED,
 };
 
 /** Backend-specific node address, e.g. a public key or a node number */
@@ -396,6 +400,15 @@ enum MeshFeature {
     MESH_FEATURE_NAMED_CHANNELS = 1 << 0,
     /** Join or create a channel with a key */
     MESH_FEATURE_KEYED_CHANNELS = 1 << 1,
+    /** Announce this node on request, see mesh_send_advert() */
+    MESH_FEATURE_ADVERTS = 1 << 2,
+};
+
+enum MeshAdvertRoute {
+    /** Only reaches the nodes that hear this node directly */
+    MESH_ADVERT_ZERO_HOP,
+    /** Repeaters send it on, so it reaches the whole network */
+    MESH_ADVERT_FLOOD,
 };
 
 /**
@@ -425,6 +438,14 @@ error_t mesh_set_channel(const struct MeshChannel* channel);
  * @retval ERROR_NOT_SUPPORTED when the backend has no channels
  */
 error_t mesh_remove_channel(uint8_t index);
+
+/**
+ * Announce this node now.
+ * @retval ERROR_INVALID_STATE when the service is not running
+ * @retval ERROR_NOT_SUPPORTED when the backend has no adverts
+ * @retval ERROR_RESOURCE when the advert couldn't be sent
+ */
+error_t mesh_send_advert(enum MeshAdvertRoute route);
 
 // endregion
 
@@ -460,6 +481,11 @@ struct MeshEvent {
     enum MeshState state;
     uint32_t seq;
     enum MeshDeliveryState delivery;
+    /** For MESH_DELIVERY_RETRYING: which retry this is and how many there are at most */
+    uint8_t retry_attempt;
+    uint8_t retry_max;
+    /** For MESH_DELIVERY_REPEATED: how many repeats were heard */
+    uint8_t repeat_count;
     struct {
         enum MeshFrameKind kind;
         /** Frame length in bytes, 0 when unknown */

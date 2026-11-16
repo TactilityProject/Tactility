@@ -270,6 +270,9 @@ void emitEvent(MeshEventType type, MeshState state, uint32_t seq, MeshDeliverySt
         .state = state,
         .seq = seq,
         .delivery = delivery,
+        .retry_attempt = 0,
+        .retry_max = 0,
+        .repeat_count = 0,
         .frame = {},
     });
 }
@@ -377,7 +380,9 @@ void setStateLocked(MeshHost* host, MeshState state) {
 // region Contacts
 
 constexpr size_t MAX_CONTACTS = 64;
-constexpr auto* CONTACTS_FILE_NAME = "contacts.bin";
+/** The contacts of the user. A backend keeps its own contacts.bin in the same folder. */
+constexpr auto* CONTACTS_FILE_NAME = "saved_contacts.bin";
+constexpr auto* SHARED_CONTACTS_FILE_NAME = "contacts.bin";
 constexpr auto* STORE_DIRECTORY_NAME = "store";
 
 bool isSameAddress(const MeshAddress& a, const MeshAddress& b) {
@@ -631,6 +636,10 @@ void deactivateBackend(MeshHost* host) {
     for (uint32_t seq : host->store.findOutgoing(id, MESH_DELIVERY_QUEUED)) {
         setDelivery(host, seq, MESH_DELIVERY_BLOCKED);
     }
+    // The retries went with the backend, so there is nothing left that could finish these
+    for (uint32_t seq : host->store.findOutgoing(id, MESH_DELIVERY_RETRYING)) {
+        setDelivery(host, seq, MESH_DELIVERY_FAILED);
+    }
     host->nodes.clear();
     host->activeBackend[0] = '\0';
     unlock();
@@ -882,6 +891,12 @@ uint32_t getAirtimeUsedMs(MeshHost* host, uint64_t nowMs) {
     return used;
 }
 
+void notifyFrameDone(MeshHost* host, uint32_t seq, bool transmitted) {
+    if (seq != 0 && host->api != nullptr && host->api->on_frame_done != nullptr) {
+        host->api->on_frame_done(host->backend, seq, transmitted);
+    }
+}
+
 void pumpTx(MeshHost* host) {
     if (host->txInFlight || host->txQueue.empty() || host->api == nullptr) {
         return;
@@ -912,6 +927,7 @@ void pumpTx(MeshHost* host) {
             setDelivery(host, host->txFrame.seq, MESH_DELIVERY_FAILED);
             unlock();
         }
+        notifyFrameDone(host, host->txFrame.seq, false);
         return;
     }
     host->txInFlight = true;
@@ -935,6 +951,7 @@ void onTxEvent(MeshHost* host, const RadioTxEvent& event) {
                 }
                 unlock();
             }
+            notifyFrameDone(host, seq, true);
             break;
         case RADIO_TRANSMISSION_STATE_CHANNEL_BUSY:
             host->txInFlight = false;
@@ -952,6 +969,7 @@ void onTxEvent(MeshHost* host, const RadioTxEvent& event) {
                 setDelivery(host, seq, MESH_DELIVERY_FAILED);
                 unlock();
             }
+            notifyFrameDone(host, seq, false);
             break;
         default:
             break;
@@ -1189,7 +1207,7 @@ void migrateSharedStorage() {
     char storePath[FILE_MAX_PATH_STRING_LENGTH];
     char contactsPath[FILE_MAX_PATH_STRING_LENGTH];
     if (service_paths_get_user_data_path(MESH_SERVICE_ID, STORE_DIRECTORY_NAME, storePath, sizeof(storePath)) != ERROR_NONE ||
-        service_paths_get_user_data_path(MESH_SERVICE_ID, CONTACTS_FILE_NAME, contactsPath, sizeof(contactsPath)) != ERROR_NONE) {
+        service_paths_get_user_data_path(MESH_SERVICE_ID, SHARED_CONTACTS_FILE_NAME, contactsPath, sizeof(contactsPath)) != ERROR_NONE) {
         return;
     }
     if (directory_exists(storePath) && migrateSharedMessages(storePath)) {
@@ -1410,6 +1428,37 @@ uint32_t mesh_host_receive_text(
 void mesh_host_set_delivery(MeshHost* host, uint32_t seq, MeshDeliveryState delivery) {
     lock();
     setDelivery(host, seq, delivery);
+    unlock();
+}
+
+void mesh_host_set_retry(MeshHost* host, uint32_t seq, uint8_t attempt, uint8_t max) {
+    lock();
+    if (host->store.setDelivery(seq, MESH_DELIVERY_RETRYING) == ERROR_NONE) {
+        MeshEvent event {};
+        event.timestamp = get_micros_since_boot();
+        event.type = MESH_EVENT_DELIVERY;
+        event.state = host->state;
+        event.seq = seq;
+        event.delivery = MESH_DELIVERY_RETRYING;
+        event.retry_attempt = attempt;
+        event.retry_max = max;
+        queueEvent(event);
+    }
+    unlock();
+}
+
+void mesh_host_set_repeats(MeshHost* host, uint32_t seq, uint8_t count) {
+    lock();
+    if (host->store.setDelivery(seq, MESH_DELIVERY_REPEATED) == ERROR_NONE) {
+        MeshEvent event {};
+        event.timestamp = get_micros_since_boot();
+        event.type = MESH_EVENT_DELIVERY;
+        event.state = host->state;
+        event.seq = seq;
+        event.delivery = MESH_DELIVERY_REPEATED;
+        event.repeat_count = count;
+        queueEvent(event);
+    }
     unlock();
 }
 
@@ -2048,8 +2097,14 @@ error_t mesh_cancel(uint32_t seq) {
         return ERROR_INVALID_STATE;
     }
     setDelivery(host, seq, MESH_DELIVERY_CANCELLED);
-    post(host, [host, seq] {
+    char backend[MESH_BACKEND_ID_MAX_LENGTH + 1];
+    strncpy(backend, message.backend, sizeof(backend) - 1);
+    backend[sizeof(backend) - 1] = '\0';
+    post(host, [host, seq, backend = std::string(backend)] {
         std::erase_if(host->txQueue, [seq](const Frame& frame) { return frame.seq == seq; });
+        if (host->api != nullptr && host->api->cancel_send != nullptr && backend == host->api->id) {
+            host->api->cancel_send(host->backend, seq);
+        }
     });
     unlock();
     return ERROR_NONE;
@@ -2266,6 +2321,19 @@ error_t mesh_remove_channel(uint8_t index) {
     const error_t finalResult = (callResult != ERROR_NONE) ? callResult : result;
     emitChannelChanged(finalResult);
     return finalResult;
+}
+
+error_t mesh_send_advert(MeshAdvertRoute route) {
+    error_t result = ERROR_INVALID_STATE;
+    const error_t callResult = callOnServiceThread([&](MeshHost* host) {
+        if (host->api == nullptr) {
+            return;
+        }
+        result = (host->api->send_advert != nullptr)
+            ? host->api->send_advert(host->backend, route)
+            : ERROR_NOT_SUPPORTED;
+    });
+    return (callResult != ERROR_NONE) ? callResult : result;
 }
 
 // endregion

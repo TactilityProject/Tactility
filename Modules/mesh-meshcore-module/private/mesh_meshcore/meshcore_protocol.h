@@ -116,3 +116,23 @@ bool meshcore_parse_text_message(
 void meshcore_build_ack(uint32_t ackHash, MeshCorePacket* packet);
 
 bool meshcore_parse_ack(const MeshCorePacket& packet, uint32_t* ackHash);
+
+/**
+ * What a recipient sends back for a text message that arrived flooded: the path that the message took and, as extra, the acknowledgement.
+ */
+struct MeshCorePathReturn {
+    /** The repeaters between the receiver of this packet and the sender, in the order of sending */
+    uint8_t hopCount = 0;
+    uint8_t hashSize = 1;
+    uint8_t hops[MESHCORE_MAX_PATH_SIZE] = {};
+    bool hasAck = false;
+    uint32_t ackHash = 0;
+};
+
+/** @return false when the MAC doesn't match, e.g. because it's from another peer with the same hash */
+bool meshcore_parse_path_return(
+    const MeshCoreIdentity& identity,
+    const uint8_t peerPublicKey[MESHCORE_PUBLIC_KEY_SIZE],
+    const MeshCorePacket& packet,
+    MeshCorePathReturn* result
+);

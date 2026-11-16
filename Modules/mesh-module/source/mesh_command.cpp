@@ -261,6 +261,8 @@ static const char* inspect_delivery_text(MeshDeliveryState delivery) {
         case MESH_DELIVERY_QUEUED: return "queued";
         case MESH_DELIVERY_BLOCKED: return "blocked";
         case MESH_DELIVERY_SENT: return "sent";
+        case MESH_DELIVERY_RETRYING: return "retrying";
+        case MESH_DELIVERY_REPEATED: return "repeated";
         case MESH_DELIVERY_DELIVERED: return "delivered";
         case MESH_DELIVERY_FAILED: return "failed";
         case MESH_DELIVERY_CANCELLED: return "cancelled";

@@ -337,7 +337,7 @@ TEST_CASE("mesh service sends and receives through the active backend") {
     SUBCASE("contacts that failed to load are not available and are never replaced") {
         // A directory where the contacts file belongs can't be read
         char contactsPath[FILE_MAX_PATH_STRING_LENGTH];
-        REQUIRE_EQ(service_paths_get_user_data_path(MESH_SERVICE_ID, "backends/loopback/contacts.bin", contactsPath, sizeof(contactsPath)), ERROR_NONE);
+        REQUIRE_EQ(service_paths_get_user_data_path(MESH_SERVICE_ID, "backends/loopback/saved_contacts.bin", contactsPath, sizeof(contactsPath)), ERROR_NONE);
         REQUIRE_EQ(directory_make(contactsPath, true), ERROR_NONE);
 
         REQUIRE_EQ(radio_set_region(&local, RADIO_REGION_EU_868), ERROR_NONE);

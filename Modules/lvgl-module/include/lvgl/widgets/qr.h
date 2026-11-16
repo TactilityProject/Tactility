@@ -30,6 +30,14 @@ lv_obj_t* lvgl_qr_create(lv_obj_t* parent);
 error_t lvgl_qr_set_data(lv_obj_t* obj, const char* data);
 
 /**
+ * @brief The smallest width and height in pixels that draws the code, with a module of 1 pixel and the quiet zone.
+ * The view draws nothing when its content area is smaller.
+ * @param[in] obj a view created with lvgl_qr_create()
+ * @return the size, or 0 while no data was set
+ */
+int32_t lvgl_qr_get_min_size(lv_obj_t* obj);
+
+/**
  * @brief Sets the colors of the modules and of the background, including the quiet zone.
  * Scanners need a dark code on a light background, so these are black and white by default.
  */
