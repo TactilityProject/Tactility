@@ -108,8 +108,7 @@ const MeshAddress* getPeer(const Context* ctx) {
     return getReceiptText(message.delivery, detail != ctx->details.end() ? detail->second : DeliveryDetail {});
 }
 
-/** Contact chats show the delivery state under the message instead */
-::std::string getMetaText(const MeshMessage& message, const ::std::string& status) {
+::std::string getMetaText(const MeshMessage& message) {
     ::std::string meta;
     if (message.wall_time > 0) {
         const time_t time = (time_t)message.wall_time;
@@ -118,12 +117,6 @@ const MeshAddress* getPeer(const Context* ctx) {
         if (localtime_r(&time, &local) != nullptr && strftime(text, sizeof(text), "%H:%M", &local) > 0) {
             meta = text;
         }
-    }
-    if (!status.empty()) {
-        if (!meta.empty()) {
-            meta += "  ";
-        }
-        meta += status;
     }
     return meta;
 }
@@ -219,9 +212,9 @@ void createMessageItem(Context* ctx, const MeshMessage& message) {
     lv_obj_set_style_pad_hor(nameLabel, LV_DPX(6), LV_STATE_DEFAULT);
     lv_obj_set_style_pad_ver(nameLabel, LV_DPX(1), LV_STATE_DEFAULT);
 
-    // Time and delivery state
+    // Time
     auto* metaLabel = lv_label_create(header);
-    lv_label_set_text(metaLabel, getMetaText(message, (!ctx->isContact && message.outgoing) ? getStatusText(ctx, message) : "").c_str());
+    lv_label_set_text(metaLabel, getMetaText(message).c_str());
     lv_obj_set_style_text_font(metaLabel, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
 
     auto* text = lv_label_create(content);
@@ -230,7 +223,7 @@ void createMessageItem(Context* ctx, const MeshMessage& message) {
     lv_label_set_long_mode(text, LV_LABEL_LONG_MODE_WRAP);
     lv_label_set_text(text, message.text);
 
-    if (ctx->isContact && message.outgoing) {
+    if (message.outgoing) {
         auto* status = lv_label_create(content);
         lv_obj_set_width(status, LV_PCT(100));
         lv_obj_set_style_text_align(status, align, LV_STATE_DEFAULT);
@@ -417,10 +410,9 @@ void onDelivery(Context* ctx, uint32_t seq, MeshDeliveryState delivery, uint8_t 
                     auto* content = lv_obj_get_child(item, 0);
                     lv_obj_set_style_border_color(content, getBarColor(ctx->list, message, getSenderColor(ctx->list, message)), LV_STATE_DEFAULT);
                     auto* header = lv_obj_get_child(content, 0);
-                    const ::std::string status = getStatusText(ctx, message);
-                    lv_label_set_text(lv_obj_get_child(header, 1), getMetaText(message, ctx->isContact ? "" : status).c_str());
-                    if (ctx->isContact && message.outgoing) {
-                        lv_label_set_text(lv_obj_get_child(content, 2), status.c_str());
+                    lv_label_set_text(lv_obj_get_child(header, 1), getMetaText(message).c_str());
+                    if (message.outgoing) {
+                        lv_label_set_text(lv_obj_get_child(content, 2), getStatusText(ctx, message).c_str());
                     }
                     break;
                 }
