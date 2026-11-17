@@ -12,7 +12,6 @@ msgstr "Animationen"
 msgid "Appearance"
 msgstr "Darstellung"
 
-# TN: Auto is car colloquially, if you meant automatic it's "Automatisch". But it's fine from context if it's too long.
 msgid "Auto"
 msgstr "Auto"
 
@@ -70,7 +69,6 @@ msgstr "Indigo"
 msgid "Landscape"
 msgstr "Querformat"
 
-# TN: Alternatively "Anordnung", but "Layout" is a fine anglicism
 msgid "Layout"
 msgstr "Layout"
 
@@ -125,9 +123,7 @@ msgstr "Normale Schrift"
 msgid "Secondary color"
 msgstr "Sekundärfarbe"
 
-# TN: I looked up the context, "sideways" adverb is technically more correct.
 msgid "Side"
-# msgstr "Seite"
 msgstr "Seitlich"
 
 msgid "Size (%)"

@@ -9,7 +9,6 @@ msgstr "(unbenannt)"
 msgid "External"
 msgstr "Extern"
 
-# TN: We say Tasks here also in German when referring to computers
 msgid "Failed to allocate memory for task list"
 msgstr "Speicher für die Task-Liste konnte nicht reserviert werden"
 

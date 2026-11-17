@@ -63,11 +63,9 @@ msgstr "Der Name, den andere Knoten sehen"
 msgid "Transmit power"
 msgstr "Sendeleistung"
 
-# TN: Zum Beispiel ist shortened without spaces
 msgid "e.g. 869.618, empty for the preset's value"
 msgstr "z.B. 869.618, leer für den Wert der Voreinstellung"
 
-# TN: Same as above
 msgid "e.g. nl, * for none, empty for the preset's value"
 msgstr "z.B. nl, * für keine, leer für den Wert der Voreinstellung"
 
