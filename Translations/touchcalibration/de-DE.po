@@ -18,8 +18,9 @@ msgstr "Ziel {}/4 antippen"
 msgid "Touch anywhere to continue."
 msgstr "Tippe irgendwo, um fortzufahren."
 
+# TN: I chose the noun here, as it sounds more natural
 msgid "Touchscreen Calibration"
-msgstr "Touchscreen kalibrieren"
+msgstr "Touchscreen Kalibrierung"
 
 msgid "Unable to save settings. Tap to close."
 msgstr "Einstellungen konnten nicht gespeichert werden. Zum Schließen tippen."

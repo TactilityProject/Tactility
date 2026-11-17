@@ -24,8 +24,10 @@ msgstr "„{}“ ist keine ausführbare Datei."
 msgid "\"{}\" was copied but the original could not be removed."
 msgstr "„{}“ wurde kopiert, aber das Original konnte nicht entfernt werden."
 
+# TN: "Bist du sicher?" may read as to "Are you secure?", reflexive pronoun added to disambiguate
 msgid "Are you sure?"
-msgstr "Bist du sicher?"
+# msgstr "Bist du sicher?"
+msgstr "Bist du dir sicher?"
 
 msgid "Could not eject \"{}\"."
 msgstr "„{}“ konnte nicht ausgeworfen werden."
@@ -36,8 +38,11 @@ msgstr "„{}“ konnte vor dem Überschreiben nicht entfernt werden."
 msgid "Could not run \"{}\"."
 msgstr "„{}“ konnte nicht ausgeführt werden."
 
+# TN: Maybe broken in prev. translation, Kagi Translate argrees on that if {} is a comma separated list, else the prev. one was fine if in brackets
 msgid "Do you want to delete these {} items?"
-msgstr "Möchtest du diese {} Elemente löschen?"
+# msgstr "Möchtest du diese {} Elemente löschen?"
+msgstr "Möchtest du die Elemente {} löschen?"
+
 
 msgid "Do you want to delete this?\n{}"
 msgstr "Möchtest du dies löschen?\n{}"
@@ -48,8 +53,10 @@ msgstr "Möchtest du {} installieren?"
 msgid "Eject failed"
 msgstr "Auswerfen fehlgeschlagen"
 
+# TN: Needed  accusative, "Name" is a weak masculine noun (n-declension)
 msgid "Enter filename:"
-msgstr "Dateiname eingeben:"
+# msgstr "Dateiname eingeben:"
+msgstr "Dateinamen eingeben:"
 
 msgid "Enter folder name:"
 msgstr "Ordnernamen eingeben:"
@@ -60,8 +67,11 @@ msgstr "Datei existiert"
 msgid "Files"
 msgstr "Dateien"
 
+# TN: Capitalization fix
 msgid "Install?"
-msgstr "Installieren?"
+# msgstr "Diese Datei Installieren?"
+msgstr "Diese Datei installieren?"
+
 
 msgid "New File"
 msgstr "Neue Datei"

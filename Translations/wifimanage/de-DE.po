@@ -6,8 +6,9 @@ msgstr ""
 msgid "(open)"
 msgstr "(offen)"
 
+# TN: Added article to sound better
 msgid "Connect to hidden SSID"
-msgstr "Mit verstecktem SSID verbinden"
+msgstr "Mit einem versteckten SSID verbinden"
 
 msgid "Connected"
 msgstr "Verbunden"
