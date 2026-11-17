@@ -303,6 +303,10 @@ def write_lvgl_variable_placeholders(output_file):
     output_file.write("CONFIG_LV_FONT_DEFAULT_MONTSERRAT_8=y\n")
     output_file.write("CONFIG_TT_FONT_DEFAULT_SIZE=8\n")
 
+# Default font size scales with DPI so text has the same physical size as on the LilyGO T-Deck
+REFERENCE_DPI = 143
+REFERENCE_FONT_SIZE = 14
+
 def get_montserrat_size(font_size: int) -> int:
     # LVGL's built-in Montserrat fonts exist in even sizes from 8 to 48
     return max(8, min(48, (font_size + 1) // 2 * 2))
@@ -312,10 +316,7 @@ def write_lvgl_variables(output_file, device_properties: dict):
     if not has_group(device_properties, "lvgl") or not has_group(device_properties, "display"):
         write_lvgl_variable_placeholders(output_file)
         return
-    # LVGL DPI overrides the real DPI settings
-    dpi_text = get_property_or_none(device_properties, "lvgl.dpi")
-    if dpi_text is None:
-        dpi_text = get_property_or_exit(device_properties, "display.dpi")
+    dpi_text = get_property_or_exit(device_properties, "display.dpi")
     dpi = safe_int(dpi_text, f"DPI must be an integer, but was: '{dpi_text}'")
     output_file.write(f"CONFIG_LV_DPI_DEF={dpi}\n")
     color_depth = get_property_or_exit(device_properties, "lvgl.colorDepth")
@@ -340,6 +341,19 @@ def write_lvgl_variables(output_file, device_properties: dict):
             if not 0 <= percent <= 100:
                 exit_with_error(f"{key} must be between 0 and 100, but was: {percent}")
             output_file.write(f"{config}={percent}\n")
+    for key, config, minimum in (
+        ("launcher.iconSizeScale", "CONFIG_TT_LAUNCHER_ICON_SIZE_SCALE", 0.25),
+        ("launcher.iconSpacingScale", "CONFIG_TT_LAUNCHER_ICON_SPACING_SCALE", 0.0)
+    ):
+        scale_text = get_property_or_none(device_properties, key)
+        if scale_text is not None:
+            try:
+                scale = float(scale_text)
+            except ValueError:
+                exit_with_error(f"{key} must be a number, but was: '{scale_text}'")
+            if not minimum <= scale <= 4:
+                exit_with_error(f"{key} must be between {minimum} and 4, but was: {scale_text}")
+            output_file.write(f"{config}={round(scale * 100)}\n")
     draw_buffer_lines_text = get_property_or_none(device_properties, "lvgl.drawBufferLines")
     if draw_buffer_lines_text is not None:
         draw_buffer_lines = safe_int(draw_buffer_lines_text, f"lvgl.drawBufferLines must be an integer, but was: '{draw_buffer_lines_text}'")
@@ -348,8 +362,13 @@ def write_lvgl_variables(output_file, device_properties: dict):
         output_file.write(f"CONFIG_TT_LVGL_DRAW_BUFFER_LINES={draw_buffer_lines}\n")
     font_size_text = get_property_or_none(device_properties, "font.defaultSize")
     if font_size_text is None:
-        font_size_text = get_property_or_default(device_properties, "lvgl.fontSize", "14")
-    font_size = safe_int(font_size_text, f"Font size must be an integer, but was: '{font_size_text}'")
+        font_size_text = get_property_or_none(device_properties, "lvgl.fontSize")
+    if font_size_text is None:
+        display_dpi_text = get_property_or_exit(device_properties, "display.dpi")
+        display_dpi = safe_int(display_dpi_text, f"DPI must be an integer, but was: '{display_dpi_text}'")
+        font_size = round(REFERENCE_FONT_SIZE * display_dpi / REFERENCE_DPI)
+    else:
+        font_size = safe_int(font_size_text, f"Font size must be an integer, but was: '{font_size_text}'")
     output_file.write(f"CONFIG_TT_FONT_DEFAULT_SIZE={font_size}\n")
     montserrat_size = get_montserrat_size(font_size)
     output_file.write(f"CONFIG_LV_FONT_MONTSERRAT_{montserrat_size}=y\n")
@@ -506,7 +525,9 @@ def clean_build_dirs_on_platform_change(previous_target: str, new_target: str):
     if os.path.isdir("build"):
         dirs_to_remove.append("build")
     for d in glob.glob("cmake-build-*/"):
-        dirs_to_remove.append(d.rstrip("/"))
+        # The Linux simulator build doesn't depend on the ESP32 target
+        if d.rstrip("/") != "cmake-build-linux":
+            dirs_to_remove.append(d.rstrip("/"))
     if not dirs_to_remove:
         return
     print(f"Platform changed ({previous_target} -> {new_target}), removing build dirs:")

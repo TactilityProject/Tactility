@@ -13,7 +13,6 @@ struct Profile {
     const char* name;
     uint16_t width;
     uint16_t height;
-    uint16_t dpi; // lvgl.dpi from device.properties (if set), otherwise display.dpi
     /** The default rotation: the display is taller than wide. The width and height values may be given in either order. */
     bool portrait;
     /** LVGL UI spacing, from lvgl.uiSpacing of the device */

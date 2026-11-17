@@ -132,8 +132,7 @@ SystemBarsLayout resolveSystemBarsLayout(const LauncherSettings& settings, const
     if (settings.systemBarsMode == SystemBarsMode::Custom) {
         return landscape ? settings.landscapeLayout : settings.portraitLayout;
     }
-    // Only wide landscape screens: an aspect ratio of 1.5 or more
-    return (landscape && (width * 2 >= height * 3)) ? SystemBarsLayout::Side : SystemBarsLayout::Split;
+    return landscape ? SystemBarsLayout::Side : SystemBarsLayout::Split;
 }
 
 } // namespace tt::settings::launcher

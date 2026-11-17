@@ -214,7 +214,7 @@ struct AutoStartJob {
 // Reads settings files, so it runs on the file operations task, which frees the job.
 // The job is not in the context of the app: queued work still runs after the app has closed.
 void runAutoStart(void* context) {
-    const auto job = *static_cast<AutoStartJob*>(context);
+    [[maybe_unused]] const auto job = *static_cast<AutoStartJob*>(context);
     delete static_cast<AutoStartJob*>(context);
 
     enum class Target { None, App, Setup };

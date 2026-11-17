@@ -135,7 +135,7 @@ void loadSettingsIcons(void*) {
     // Only this task writes the icons, so reading them here needs no lock
     if (state.loaded && state.forMono == preferMono) return;
 
-    const auto size = static_cast<uint32_t>(lvgl_get_shared_icon_large_font_height());
+    const auto size = getTileIconSize();
     lv_draw_buf_t* images[SETTINGS_ICON_COUNT] = {};
     bool recolor[SETTINGS_ICON_COUNT] = {};
     for (size_t i = 0; i < SETTINGS_ICON_COUNT; i++) {

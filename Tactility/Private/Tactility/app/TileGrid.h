@@ -14,6 +14,9 @@ namespace tt::app {
  */
 bool areSvgIconsEnabled();
 
+/** @return the size in pixels of the square icon of a tile */
+uint32_t getTileIconSize();
+
 struct TileGridItem {
     /** Identifies the item across rebuilds, e.g. to keep it selected */
     std::string id;

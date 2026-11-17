@@ -1,5 +1,9 @@
 #include <Tactility/app/TileGrid.h>
 
+#ifdef ESP_PLATFORM
+#include <sdkconfig.h>
+#endif
+
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
@@ -11,6 +15,7 @@
 #include <tactility/memory.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace tt::app {
@@ -23,11 +28,29 @@ bool areSvgIconsEnabled() {
 #endif
 }
 
+uint32_t getTileIconSize() {
+#ifdef CONFIG_TT_LAUNCHER_ICON_SIZE_SCALE
+    constexpr float scale = CONFIG_TT_LAUNCHER_ICON_SIZE_SCALE / 100.0f;
+#else
+    constexpr float scale = 1.0f;
+#endif
+    return static_cast<uint32_t>(::std::lround(lvgl_get_text_font_height(FONT_SIZE_DEFAULT) * 2.5f * scale));
+}
+
 namespace {
 
-constexpr int32_t TILE_GAP = 6;
 // Minimum label width, as a multiple of the label's font size
 constexpr uint32_t MIN_LABEL_WIDTH_IN_FONT_SIZES = 6;
+
+// Minimum spacing between tiles, horizontally and vertically
+int32_t getTileGap() {
+#ifdef CONFIG_TT_LAUNCHER_ICON_SPACING_SCALE
+    constexpr float scale = CONFIG_TT_LAUNCHER_ICON_SPACING_SCALE / 100.0f;
+#else
+    constexpr float scale = 1.0f;
+#endif
+    return static_cast<int32_t>(::std::lround(lvgl_theme_lerp(LV_DPX(2), LV_DPX(16), lvgl_theme_get_spacing()) * scale));
+}
 
 struct PageLayout {
     int32_t iconSize;
@@ -42,19 +65,20 @@ struct PageLayout {
 };
 
 PageLayout computePageLayout(lv_obj_t* grid) {
-    const auto icon_size = static_cast<int32_t>(lvgl_get_shared_icon_large_font_height());
+    const auto icon_size = static_cast<int32_t>(getTileIconSize());
     const auto pad = icon_size / 16;
-    // The focus ring is drawn inside the frame, at most 2dp wide, and leaves 1dp to the icon
-    const auto frame_pad = LV_DPX(2) + LV_DPX(1);
+    // The focus ring is drawn inside the frame, at most 3dp wide, and leaves 1dp to the icon
+    const auto frame_pad = LV_DPX(3) + LV_DPX(1);
     const auto label_gap = lvgl_theme_lerp(LV_DPX(1), LV_DPX(4), lvgl_theme_get_spacing());
-    const auto gap = TILE_GAP;
+    const auto gap = getTileGap();
     const auto text_height = lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL));
     // The label needs room for a few characters, also when the icon font is smaller (e.g. a fallback)
     const auto text_min_width = static_cast<int32_t>(MIN_LABEL_WIDTH_IN_FONT_SIZES * lvgl_get_text_font_height(FONT_SIZE_SMALL));
     const auto tile_min_width = std::max<int32_t>(2 * icon_size, text_min_width) + 2 * pad;
     const auto tile_height = 2 * frame_pad + icon_size + label_gap + text_height + pad;
-    const auto available_width = lv_obj_get_content_width(grid);
-    const auto available_height = lv_obj_get_content_height(grid);
+    // The grid is kept the gap away from its edges. Its padding is set from the offsets, so it isn't part of the measurement
+    const auto available_width = lv_obj_get_width(grid) - 2 * gap;
+    const auto available_height = lv_obj_get_height(grid) - 2 * gap;
     const auto columns = std::max<int32_t>(1, (available_width + gap) / (tile_min_width + gap));
     const auto rows = std::max<int32_t>(1, (available_height + gap) / (tile_height + gap));
     const auto tile_width = std::max<int32_t>(tile_min_width, (available_width - (columns - 1) * gap) / columns);
@@ -66,8 +90,8 @@ PageLayout computePageLayout(lv_obj_t* grid) {
         .tileWidth = tile_width,
         .tileHeight = tile_height,
         // The pixels that don't divide over the columns are split over both sides
-        .leftOffset = std::max<int32_t>(0, (available_width - (columns * tile_width + (columns - 1) * gap)) / 2),
-        .topOffset = std::max<int32_t>(0, (available_height - (rows * tile_height + (rows - 1) * gap)) / 2),
+        .leftOffset = gap + std::max<int32_t>(0, (available_width - (columns * tile_width + (columns - 1) * gap)) / 2),
+        .topOffset = gap + std::max<int32_t>(0, (available_height - (rows * tile_height + (rows - 1) * gap)) / 2),
         .pageSize = static_cast<uint32_t>(columns * rows)
     };
 }
@@ -425,6 +449,12 @@ void TileGrid::populate() {
         lv_obj_set_style_radius(frame, layout.iconSize * 22 / 96 + layout.framePad, LV_STATE_DEFAULT);
         // Grid navigation only removes direct children from the input group, and the tile is the focus target
         lv_group_remove_obj(frame);
+        // The focus ring of the theme, 1dp thicker. The ring is drawn inside the frame.
+        lv_obj_add_state(frame, LV_STATE_FOCUS_KEY);
+        const auto ring_width = lv_obj_get_style_outline_width(frame, LV_PART_MAIN) + LV_DPX(1);
+        lv_obj_remove_state(frame, LV_STATE_FOCUS_KEY);
+        lv_obj_set_style_outline_width(frame, ring_width, LV_STATE_FOCUS_KEY);
+        lv_obj_set_style_outline_pad(frame, -ring_width, LV_STATE_FOCUS_KEY);
         lv_obj_set_clickable(frame, false);
         lv_obj_set_click_focusable(frame, false);
         lv_obj_set_scrollable(frame, false);
@@ -520,8 +550,8 @@ void TileGrid::createGrid(lv_obj_t* parent) {
     lv_obj_set_flex_grow(grid, 1);
     lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_style_pad_all(grid, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_row(grid, TILE_GAP, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_column(grid, TILE_GAP, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_row(grid, getTileGap(), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(grid, getTileGap(), LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(grid, 0, LV_STATE_DEFAULT);
     lv_obj_set_scrollable(grid, false);
     // The arrow keys move between the tiles in rows and columns
