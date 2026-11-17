@@ -49,6 +49,9 @@ Consider adding a light/deep sleep mode:
 - Core2: support power off via software
 - Try out speed optimizations: https://docs.espressif.com/projects/esp-faq/en/latest/software-framework/peripherals/lcd.html
   (relates to CONFIG_ESP32S3_DATA_CACHE_LINE_64B that is in use for RGB displays via the `device.properties` fix/workaround)
+- Default `gamma-curve` to 0 (the panel's own default) instead of 1 in the other display driver bindings
+  (st7789-i8080, st7796, st7796-i8080, st7735, ili9341, jd9853). The st7789 one already does.
+  Affects devices that don't set it: check them on hardware first and set `gamma-curve = <1>;` where the old look is needed.
 
 ## Lower Priority
 
