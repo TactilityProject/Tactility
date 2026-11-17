@@ -10,7 +10,7 @@ msgid "External"
 msgstr "Extern"
 
 msgid "Failed to allocate memory for task list"
-msgstr "Speicher für die Aufgabenliste konnte nicht reserviert werden"
+msgstr "Speicher für die Task-Liste konnte nicht reserviert werden"
 
 msgid "Hardware model: {}"
 msgstr "Hardware-Modell: {}"

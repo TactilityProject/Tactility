@@ -16,4 +16,4 @@ msgid "The time zone couldn't be detected. Check the internet connection and try
 msgstr "Die Zeitzone konnte nicht erkannt werden. Prüfe die Internetverbindung und versuche es erneut."
 
 msgid "e.g. Europe/Amsterdam"
-msgstr "z. B. Europe/Amsterdam"
+msgstr "z.B. Europe/Amsterdam"

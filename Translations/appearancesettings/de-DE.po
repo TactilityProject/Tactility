@@ -124,7 +124,7 @@ msgid "Secondary color"
 msgstr "Sekundärfarbe"
 
 msgid "Side"
-msgstr "Seite"
+msgstr "Seitlich"
 
 msgid "Size (%)"
 msgstr "Größe (%)"

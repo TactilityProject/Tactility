@@ -64,10 +64,10 @@ msgid "Transmit power"
 msgstr "Sendeleistung"
 
 msgid "e.g. 869.618, empty for the preset's value"
-msgstr "z. B. 869.618, leer für den Wert der Voreinstellung"
+msgstr "z.B. 869.618, leer für den Wert der Voreinstellung"
 
 msgid "e.g. nl, * for none, empty for the preset's value"
-msgstr "z. B. nl, * für keine, leer für den Wert der Voreinstellung"
+msgstr "z.B. nl, * für keine, leer für den Wert der Voreinstellung"
 
 msgid "{} byte"
 msgstr "{} Byte"

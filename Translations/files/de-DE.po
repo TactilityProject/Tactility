@@ -25,7 +25,7 @@ msgid "\"{}\" was copied but the original could not be removed."
 msgstr "„{}“ wurde kopiert, aber das Original konnte nicht entfernt werden."
 
 msgid "Are you sure?"
-msgstr "Bist du sicher?"
+msgstr "Bist du dir sicher?"
 
 msgid "Could not eject \"{}\"."
 msgstr "„{}“ konnte nicht ausgeworfen werden."
@@ -49,7 +49,7 @@ msgid "Eject failed"
 msgstr "Auswerfen fehlgeschlagen"
 
 msgid "Enter filename:"
-msgstr "Dateiname eingeben:"
+msgstr "Dateinamen eingeben:"
 
 msgid "Enter folder name:"
 msgstr "Ordnernamen eingeben:"
@@ -61,7 +61,7 @@ msgid "Files"
 msgstr "Dateien"
 
 msgid "Install?"
-msgstr "Installieren?"
+msgstr "Diese Datei installieren?"
 
 msgid "New File"
 msgstr "Neue Datei"
