@@ -25,9 +25,6 @@
 #include <bindings/gc0308.h>
 #include <tactility/bindings/esp32_flash_fatfs.h>
 
-// SD card is not supported because of a hardware problem:
-// The display uses pin 35 as input (MISO), but the SPI bus (and SD card) uses the same pin as DC (output).
-
 // Reference: https://docs.m5stack.com/en/core/CoreS3
 / {
 	compatible = "root";
