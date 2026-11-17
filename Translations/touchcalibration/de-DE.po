@@ -19,7 +19,7 @@ msgid "Touch anywhere to continue."
 msgstr "Tippe irgendwo, um fortzufahren."
 
 msgid "Touchscreen Calibration"
-msgstr "Touchscreen Kalibrierung"
+msgstr "Touchscreen kalibrieren"
 
 msgid "Unable to save settings. Tap to close."
 msgstr "Einstellungen konnten nicht gespeichert werden. Zum Schließen tippen."

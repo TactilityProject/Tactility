@@ -7,7 +7,7 @@ msgid "(open)"
 msgstr "(offen)"
 
 msgid "Connect to hidden SSID"
-msgstr "Mit einem versteckten SSID verbinden"
+msgstr "Mit verstecktem SSID verbinden"
 
 msgid "Connected"
 msgstr "Verbunden"
