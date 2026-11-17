@@ -342,6 +342,26 @@ void layoutHeader(Context* ctx) {
             lv_obj_set_hidden(spacer, true);
         }
         setChipsShared(ctx, true);
+        // Flex grow can't shrink the chips below their content, so they get an explicit width
+        int32_t fixedWidth = 0;
+        int32_t visibleCount = 0;
+        for (uint32_t i = 0; i < lv_obj_get_child_count(ctx->header); i++) {
+            auto* child = lv_obj_get_child(ctx->header, i);
+            if (lv_obj_is_hidden(child)) {
+                continue;
+            }
+            visibleCount++;
+            if (::std::find(::std::begin(ctx->chips), ::std::end(ctx->chips), child) == ::std::end(ctx->chips)) {
+                fixedWidth += lv_obj_get_width(child);
+            }
+        }
+        const int32_t gaps = (visibleCount - 1) * lv_obj_get_style_pad_column(ctx->header, LV_PART_MAIN);
+        const int32_t chipWidth = ::std::max<int32_t>(0, (lv_obj_get_content_width(ctx->header) - fixedWidth - gaps) / static_cast<int32_t>(::std::size(ctx->chips)));
+        for (auto* chip : ctx->chips) {
+            lv_obj_set_flex_grow(chip, 0);
+            lv_obj_set_width(chip, chipWidth);
+        }
+        lv_obj_update_layout(ctx->header);
     }
 }
 
