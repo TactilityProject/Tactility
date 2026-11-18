@@ -20,6 +20,7 @@
 
 #include <lvgl/lvgl.h>
 #include <lvgl/devices/keyboard.h>
+#include <lvgl_window_manager/system_bars.h>
 
 #include <atomic>
 #include <new>
@@ -257,6 +258,8 @@ static void addMouseIndev(UsbHidInputCtx* ctx) {
         lv_indev_set_cursor(ctx->mouse_indev, ctx->mouse_cursor);
         lv_obj_set_hidden(ctx->mouse_cursor, false);
     }
+    // The system bars swipe handlers go on the new pointer
+    system_bars_refresh();
 }
 
 static void removeMouseIndev(UsbHidInputCtx* ctx) {

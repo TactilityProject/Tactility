@@ -1,5 +1,6 @@
 #define L10N_APP "appearancesettings"
 #include <Tactility/i18n/AppDomain.h>
+#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/fileselection/FileSelection.h>
 #include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/file/File.h>
@@ -616,6 +617,10 @@ void onSystemBarsChipPressed(lv_event_t* event) {
     }
     if (!settings::launcher::save(settings)) {
         LOG_E(TAG, "Failed to save system bars settings");
+        // The chips show what is applied, which is what the file still has
+        updateSystemBarsWidgets(ctx, settings::launcher::loadOrGetDefault());
+        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("Failed to save the system bars settings"));
+        return;
     }
     updateSystemBarsWidgets(ctx, settings);
     system_bars_refresh();

@@ -115,7 +115,8 @@ PageLayout computePageLayout(lv_obj_t* grid, TileGrid::Style style, int32_t rese
     const auto available_height = grid_height - 2 * gap;
     const auto columns = std::max<int32_t>(1, (available_width + gap) / (tile_min_width + gap));
     const auto rows = std::max<int32_t>(1, (available_height + gap) / (tile_height + gap));
-    const auto tile_width = std::max<int32_t>(tile_min_width, (available_width - (columns - 1) * gap) / columns);
+    // A single column can be narrower than the preferred width, on displays that are narrower than that
+    const auto tile_width = std::min<int32_t>(std::max<int32_t>(tile_min_width, (available_width - (columns - 1) * gap) / columns), std::max<int32_t>(1, available_width));
     return {
         .iconSize = icon_size,
         .pad = pad,
@@ -136,41 +137,6 @@ const TileGridItem* getTileItem(lv_event_t* e) {
     return static_cast<const TileGridItem*>(lv_obj_get_user_data(lv_event_get_target_obj(e)));
 }
 
-
-// A page indicator below the grid gets the width of its parent.
-// It shows the page number when its dots are wider than its max width, which must be in pixels.
-void updateCenteredPageIndicatorWidth(lv_obj_t* indicator) {
-    if (lv_obj_get_style_flex_flow(indicator, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN) {
-        const int32_t height = std::max<int32_t>(0, lv_obj_get_content_height(lv_obj_get_parent(indicator)));
-        if (lv_obj_get_style_max_height(indicator, LV_PART_MAIN) != height) {
-            lv_obj_set_style_max_height(indicator, height, LV_STATE_DEFAULT);
-        }
-        return;
-    }
-    const int32_t margins = lv_obj_get_style_margin_left(indicator, LV_PART_MAIN) + lv_obj_get_style_margin_right(indicator, LV_PART_MAIN);
-    const int32_t max_width = std::max<int32_t>(0, lv_obj_get_content_width(lv_obj_get_parent(indicator)) - margins);
-    // Setting a style marks the layout as dirty, which would resize the parent and call this again
-    if (lv_obj_get_style_max_width(indicator, LV_PART_MAIN) != max_width) {
-        lv_obj_set_style_max_width(indicator, max_width, LV_STATE_DEFAULT);
-    }
-}
-
-void onCenteredPageIndicatorParentSizeChanged(lv_event_t* event) {
-    updateCenteredPageIndicatorWidth(static_cast<lv_obj_t*>(lv_event_get_user_data(event)));
-}
-
-void onCenteredPageIndicatorDeleted(lv_event_t* event) {
-    lv_obj_t* indicator = lv_event_get_target_obj(event);
-    lv_obj_remove_event_cb_with_user_data(lv_obj_get_parent(indicator), onCenteredPageIndicatorParentSizeChanged, indicator);
-}
-
-/** Call after moving the page indicator below the grid */
-void centerPageIndicator(lv_obj_t* indicator) {
-    lv_obj_set_width(indicator, LV_PCT(100));
-    lv_obj_add_event_cb(lv_obj_get_parent(indicator), onCenteredPageIndicatorParentSizeChanged, LV_EVENT_SIZE_CHANGED, indicator);
-    lv_obj_add_event_cb(indicator, onCenteredPageIndicatorDeleted, LV_EVENT_DELETE, nullptr);
-    updateCenteredPageIndicatorWidth(indicator);
-}
 
 // The page indicator is a row centered below the grid, or a column in the space next to the strip, within the grid
 void placePageIndicator(lv_obj_t* indicator, lv_obj_t* grid, bool column, bool alignRight) {
@@ -196,12 +162,10 @@ void placePageIndicator(lv_obj_t* indicator, lv_obj_t* grid, bool column, bool a
         lv_obj_remove_local_style_prop(indicator, LV_STYLE_X, LV_PART_MAIN);
         lv_obj_remove_local_style_prop(indicator, LV_STYLE_Y, LV_PART_MAIN);
         lvgl_page_indicator_set_vertical(indicator, false);
-        lv_obj_remove_local_style_prop(indicator, LV_STYLE_MAX_HEIGHT, LV_PART_MAIN);
         lv_obj_set_width(indicator, LV_PCT(100));
         // Keeps the dots off the screen's bottom edge
         lv_obj_set_style_margin_bottom(indicator, getPageIndicatorPad(), LV_STATE_DEFAULT);
     }
-    updateCenteredPageIndicatorWidth(indicator);
 }
 
 } // namespace
@@ -320,6 +284,12 @@ void TileGrid::requestRepopulate(bool keepSelection) {
     selectFirstOnRepopulate = false;
     emptyFallback = nullptr;
     lv_async_call(onDeferredRepopulate, this);
+}
+
+void TileGrid::replaceEmptyFallback(lv_obj_t* fallback) {
+    if (selectFirstOnRepopulate) {
+        emptyFallback = fallback;
+    }
 }
 
 void TileGrid::requestRepopulateSelectingFirst(lv_obj_t* fallback) {
@@ -521,9 +491,19 @@ void TileGrid::populate() {
             }
         } else {
             lv_obj_t* icon = lv_label_create(frame);
-            lv_obj_set_style_text_font(icon, card ? lvgl_get_shared_icon_default_font() : lvgl_get_shared_icon_large_font(), LV_STATE_DEFAULT);
+            // The largest shared icon font that fits the icon box, which shrinks with the launcher icon scale
+            const bool largeFits = !card && static_cast<int32_t>(lvgl_get_shared_icon_large_font_height()) <= layout.iconSize;
+            const int32_t glyphSize = static_cast<int32_t>(largeFits ? lvgl_get_shared_icon_large_font_height() : lvgl_get_shared_icon_default_font_height());
+            lv_obj_set_style_text_font(icon, largeFits ? lvgl_get_shared_icon_large_font() : lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
             lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
+            if (glyphSize > layout.iconSize) {
+                // Not even the smallest font fits, so the glyph is scaled down around its center, which is moved to the center of the box
+                lv_obj_set_style_transform_pivot_x(icon, layout.iconSize / 2, LV_STATE_DEFAULT);
+                lv_obj_set_style_transform_pivot_y(icon, glyphSize / 2, LV_STATE_DEFAULT);
+                lv_obj_set_style_transform_scale(icon, 256 * layout.iconSize / glyphSize, LV_STATE_DEFAULT);
+                lv_obj_set_style_translate_y(icon, -(glyphSize - layout.iconSize) / 2, LV_STATE_DEFAULT);
+            }
             lv_label_set_text(icon, icon_text != nullptr ? icon_text : "");
             // A placeholder for an image that isn't loaded yet has the theme's text colour
             lv_obj_set_style_text_color(icon, lv_obj_get_style_text_color(frame, LV_PART_MAIN), LV_STATE_DEFAULT);
@@ -613,7 +593,6 @@ void TileGrid::createWidgets(lv_obj_t* parent) {
         system_bars_set_page_button_callbacks(onSystemPreviousPage, onSystemNextPage, this);
     }
     pageIndicator = lvgl_page_indicator_create(parent);
-    centerPageIndicator(pageIndicator);
     finishCreate(parent);
 }
 

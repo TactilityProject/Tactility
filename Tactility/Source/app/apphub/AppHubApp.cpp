@@ -848,15 +848,15 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->headerWidth = -1;
     lv_obj_add_event_cb(ctx->header, onHeaderSizeChanged, LV_EVENT_SIZE_CHANGED, ctx);
 
-    createHeaderButton(ctx->header, LV_SYMBOL_CLOSE, false, onBackPressed, ctx);
+    createHeaderButton(ctx->header, LVGL_ICON_SHARED_CLOSE, true, onBackPressed, ctx);
     ctx->spacerLeft = createHeaderSpacer(ctx->header);
     createFilterChips(ctx->header, ctx);
     updateFilterChips(ctx);
     ctx->spacerRight = createHeaderSpacer(ctx->header);
-    ctx->refreshButton = createHeaderButton(ctx->header, LV_SYMBOL_REFRESH, false, onRefreshPressed, ctx);
+    ctx->refreshButton = createHeaderButton(ctx->header, LVGL_ICON_SHARED_REFRESH, true, onRefreshPressed, ctx);
     lv_obj_set_hidden(ctx->refreshButton, true);
     createHeaderButton(ctx->header, LVGL_ICON_SHARED_SEARCH, true, onSearchTogglePressed, ctx);
-    ctx->updateAllButton = createHeaderButton(ctx->header, LV_SYMBOL_DOWNLOAD, false, onUpdateAllPressed, ctx);
+    ctx->updateAllButton = createHeaderButton(ctx->header, LVGL_ICON_SHARED_DOWNLOAD, true, onUpdateAllPressed, ctx);
     lv_obj_set_hidden(ctx->updateAllButton, true);
     ctx->updateAllSpinner = lvgl_spinner_create(ctx->header);
     lv_obj_set_clickable(ctx->updateAllSpinner, false);

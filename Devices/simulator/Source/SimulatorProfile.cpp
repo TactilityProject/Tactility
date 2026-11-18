@@ -30,7 +30,7 @@ constexpr auto* ORIENTATION_KEY = "orientation=";
 
 static const Profile PROFILES[PROFILE_COUNT] = {
     { "Default", 640, 320, LV_DPI_DEF, false, 14, 100, 100, 1.0f, 1.0f, false, true, true },
-    { "CL-32", 384, 168, 139, false, 14, 20, 0, 1.0f, 1.0f, true, true, false },
+    { "CL-32", 384, 168, 139, false, 14, 20, 0, 0.8f, 1.0f, true, true, false },
     { "LilyGO T-Deck", 320, 240, 143, false, 14, 40, 60, 1.0f, 1.0f, false, true, true },
     { "LilyGO T-Lora Pager", 480, 222, 227, false, 16, 40, 0, 1.0f, 0.0f, false, true, false },
     { "M5Stack Cardputer", 240, 135, 139, false, 14, 20, 0, 1.0f, 1.0f, false, true, false },

@@ -127,6 +127,12 @@ public:
      */
     void requestRepopulateSelectingFirst(lv_obj_t* emptyFallback);
 
+    /**
+     * Replaces the fallback widget of a pending selection, e.g. when the widget was deleted. Does nothing without a pending selection.
+     * @param[in] emptyFallback the widget to select when the grid is empty
+     */
+    void replaceEmptyFallback(lv_obj_t* emptyFallback);
+
     /** @return the tile of the item on the shown page, or nullptr */
     lv_obj_t* findTile(const std::string& id) const;
 

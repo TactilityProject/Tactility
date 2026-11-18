@@ -1046,6 +1046,8 @@ void View::updatePathBar() {
         lv_obj_set_width(label, ::std::max<int32_t>(lv_font_get_line_height(lv_obj_get_style_text_font(label, LV_PART_MAIN)), lv_obj_get_width(label) - excess));
     }
     pathBarWidth = lv_obj_get_width(toolbar);
+    // The grid can still hold the chip that was deleted, as the fallback of a selection that waits for the repopulate
+    grid.replaceEmptyFallback(getParentPathSegment());
 
     // The pressed segment is gone, so the selection moves to the segment below the new directory
     if (selectParentSegment) {
