@@ -382,7 +382,7 @@ static error_t st7305_get_backlight(Device* device, Device** backlight) {
 }
 
 static const DisplayApi st7305_display_api = {
-    .capabilities = DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME | DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM,
+    .capabilities = DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME,
     .reset = st7305_reset,
     .init = st7305_init,
     .draw_bitmap = st7305_draw_bitmap,

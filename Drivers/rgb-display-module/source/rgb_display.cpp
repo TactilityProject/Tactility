@@ -454,8 +454,7 @@ static error_t rgb_display_get_backlight(Device* device, Device** backlight) {
 }
 
 constexpr uint32_t RGB_DISPLAY_CAPABILITIES = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY |
-    DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_BACKLIGHT |
-    DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM;
+    DISPLAY_CAPABILITY_INVERT_COLOR | DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_BACKLIGHT;
 
 // Mirror and swap-xy are reported unavailable when the panel has frame buffers, because
 // esp_lcd_panel_rgb only applies them when draw_bitmap() copies the data into a frame buffer.

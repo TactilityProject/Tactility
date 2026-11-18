@@ -55,9 +55,8 @@ struct LvglDisplayConfig {
     bool force_full_frame;
 
     /**
-     * Opts owned draw buffer(s) OUT of DMA-capable memory, falling back to PSRAM instead of
-     * scarce internal RAM. Default false keeps existing behavior. Only set true if the driver
-     * never DMAs directly from the buffer pointer LVGL hands it in the flush callback.
+     * Allocates owned draw buffer(s) from external RAM instead of DMA-capable internal RAM.
+     * Only set true if the driver never DMAs directly from the buffer pointer LVGL hands it in the flush callback.
      */
     bool prefer_external_ram;
 };

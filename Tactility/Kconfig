@@ -46,6 +46,12 @@ menu "Tactility App"
         help
             Number of display lines in an LVGL draw buffer. 0 uses a tenth of the vertical resolution.
             A smaller buffer uses less memory and needs more flushes.
+    config TT_LVGL_PREFER_EXTERNAL_RAM
+        bool "Prefer external RAM for LVGL draw buffers"
+        default n
+        help
+            Allocates LVGL draw buffers from external RAM instead of DMA-capable internal RAM.
+            Only safe for displays that never DMA directly from the draw buffer.
     config TT_AUTO_START_APP_ID
         string "Auto Start App ID"
         default ""

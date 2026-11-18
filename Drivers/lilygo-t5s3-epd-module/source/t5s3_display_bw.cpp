@@ -419,7 +419,7 @@ static uint16_t t5s3_display_bw_get_resolution_y(Device*) {
 
 static constexpr DisplayApi t5s3_display_bw_api = {
     // draw_bitmap() converts into its own target buffer and never DMAs from the given pointer
-    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH | DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM,
+    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH,
     .reset = t5s3_display_bw_reset,
     .init = t5s3_display_bw_init,
     .draw_bitmap = t5s3_display_bw_draw_bitmap,

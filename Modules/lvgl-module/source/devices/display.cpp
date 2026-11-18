@@ -76,8 +76,8 @@ static void* lvgl_display_alloc_buffer(size_t size_bytes, bool prefer_external_r
     // DMA2D/PPA coherency on some targets - see sdkconfig's CONFIG_LV_DRAW_BUF_ALIGN). A buffer
     // allocated less strictly than that fails lv_display_set_buffers()'s alignment assert, which
     // is configured to LV_ASSERT_HANDLER (while(1);) rather than a clean abort - i.e. a silent hang.
-    // MALLOC_CAP_DMA is scarce internal RAM - skip it for displays that don't DMA directly from
-    // this buffer (see prefer_external_ram_buffer). Dropping MALLOC_CAP_DMA alone isn't enough to
+    // MALLOC_CAP_DMA is scarce internal RAM - skip it when the buffer is not DMAed directly
+    // (see prefer_external_ram). Dropping MALLOC_CAP_DMA alone isn't enough to
     // land in PSRAM though: MALLOC_CAP_8BIT alone is still satisfied by internal RAM, so
     // MALLOC_CAP_SPIRAM must be requested explicitly (confirmed on real hardware).
     uint32_t caps = prefer_external_ram ? (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : (MALLOC_CAP_DMA | MALLOC_CAP_8BIT);

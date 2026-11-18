@@ -37,6 +37,13 @@ constexpr uint16_t DRAW_BUFFER_LINES = 0;
 
 constexpr auto* TAG = "lvgl";
 
+// From lvgl.preferExternalRam in device.properties
+#ifdef CONFIG_TT_LVGL_PREFER_EXTERNAL_RAM
+constexpr bool prefer_external_ram = true;
+#else
+constexpr bool prefer_external_ram = false;
+#endif
+
 // Boards are not expected to expose more devices of a single type than this; device_for_each_of_type()
 // callbacks run under the device ledger lock, so devices are collected here and processed afterwards.
 constexpr auto LVGL_DEVICES_MAX_PER_TYPE = 8;
@@ -262,14 +269,13 @@ void lvgl_devices_attach() {
         // itself is never asked to do something it can't.
         bool can_hw_rotate = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_CAP_SWAP_XY) &&
             display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_CAP_MIRROR);
-        bool prefer_external_ram_buffer = display_has_capability(kernel_display_device, DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM);
         struct LvglDisplayConfig lvgl_display_config = {
             .buffer_height = DRAW_BUFFER_LINES > 0 ? (DRAW_BUFFER_LINES < vres ? DRAW_BUFFER_LINES : vres) : (uint16_t)(vres > 10 ? vres / 10 : vres),
             .double_buffer = false,
             .sw_rotate = !can_hw_rotate,
             .swap_bytes = swap_bytes,
             .force_full_frame = display_requires_full_frame,
-            .prefer_external_ram = prefer_external_ram_buffer
+            .prefer_external_ram = prefer_external_ram
         };
         lv_disp_t* added_display = NULL;
         if (lvgl_display_add(kernel_display_device, &lvgl_display_config, &added_display) == ERROR_NONE) {

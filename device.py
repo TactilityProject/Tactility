@@ -346,6 +346,11 @@ def write_lvgl_variables(output_file, device_properties: dict):
         if not 0 <= draw_buffer_lines <= 4096:
             exit_with_error(f"lvgl.drawBufferLines must be between 0 and 4096, but was: {draw_buffer_lines}")
         output_file.write(f"CONFIG_TT_LVGL_DRAW_BUFFER_LINES={draw_buffer_lines}\n")
+    prefer_external_ram_text = get_property_or_none(device_properties, "lvgl.preferExternalRam")
+    if prefer_external_ram_text is not None:
+        if prefer_external_ram_text not in ("true", "false"):
+            exit_with_error(f"lvgl.preferExternalRam must be 'true' or 'false', but was: '{prefer_external_ram_text}'")
+        output_file.write(f"CONFIG_TT_LVGL_PREFER_EXTERNAL_RAM={'y' if prefer_external_ram_text == 'true' else 'n'}\n")
     font_size_text = get_property_or_none(device_properties, "font.defaultSize")
     if font_size_text is None:
         font_size_text = get_property_or_default(device_properties, "lvgl.fontSize", "14")
