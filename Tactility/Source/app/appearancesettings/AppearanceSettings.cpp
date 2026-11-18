@@ -1,12 +1,14 @@
 #define L10N_APP "appearancesettings"
 #include <Tactility/i18n/AppDomain.h>
+#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/fileselection/FileSelection.h>
 #include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/file/File.h>
 #include <Tactility/lvgl/Fonts.h>
 #include <Tactility/lvgl/Lvgl.h>
 #include <Tactility/lvgl/Theme.h>
-#include <Tactility/lvgl/SystemBars.h>
+#include <lvgl_window_manager/system_bars.h>
+#include <Tactility/lvgl/FontSizes.h>
 #include <Tactility/settings/AppearanceSettings.h>
 #include <Tactility/settings/LauncherSettings.h>
 
@@ -163,15 +165,17 @@ struct Context {
     lv_obj_t* landscapeRow = nullptr;
     lv_obj_t* landscapeSplitChip = nullptr;
     lv_obj_t* landscapeSideChip = nullptr;
+    lv_obj_t* alignLeftChip = nullptr;
+    lv_obj_t* alignRightChip = nullptr;
 };
 
 lvgl::FontConfiguration toFontConfiguration(const settings::appearance::AppearanceSettings& settings) {
     // The font settings aren't shown without enough memory to generate fonts, so saved values are ignored like at boot
     if (!lvgl::isFontChangeSupported()) {
-        return { .defaultSize = static_cast<uint16_t>(TT_FONT_DEFAULT_SIZE), .regularFontPath = "", .monoFontPath = "" };
+        return { .defaultSize = lvgl::getDefaultFontSize(), .regularFontPath = "", .monoFontPath = "" };
     }
     return {
-        .defaultSize = settings.fontSize != 0 ? settings.fontSize : static_cast<uint16_t>(TT_FONT_DEFAULT_SIZE),
+        .defaultSize = settings.fontSize != 0 ? settings.fontSize : lvgl::getDefaultFontSize(),
         .regularFontPath = settings.regularFontPath,
         .monoFontPath = settings.monoFontPath,
     };
@@ -424,7 +428,7 @@ void onFontSizeChanged(lv_event_t* event) {
     auto* spinbox = static_cast<lv_obj_t*>(lv_event_get_target(event));
     const auto size = static_cast<uint16_t>(lv_spinbox_get_value(spinbox));
     // The device's default size is stored as "unset", so it follows the device default
-    ctx->pendingSettings.fontSize = size == TT_FONT_DEFAULT_SIZE ? 0 : size;
+    ctx->pendingSettings.fontSize = size == lvgl::getDefaultFontSize() ? 0 : size;
     updateWidgets(ctx);
 }
 
@@ -576,8 +580,12 @@ void createThemeCard(lv_obj_t* parent, Context* ctx) {
 void updateSystemBarsWidgets(Context* ctx, const settings::launcher::LauncherSettings& settings) {
     using settings::launcher::SystemBarsLayout;
     const bool custom = settings.systemBarsMode == settings::launcher::SystemBarsMode::Custom;
-    setChecked(ctx->systemBarsAutoChip, !custom);
-    setChecked(ctx->systemBarsCustomChip, custom);
+    setChecked(ctx->alignLeftChip, settings.alignment == settings::launcher::SystemBarsAlignment::Left);
+    setChecked(ctx->alignRightChip, settings.alignment == settings::launcher::SystemBarsAlignment::Right);
+    if (ctx->systemBarsAutoChip != nullptr) {
+        setChecked(ctx->systemBarsAutoChip, !custom);
+        setChecked(ctx->systemBarsCustomChip, custom);
+    }
     // The layouts per orientation are only used with the Custom mode. Orientations with a fixed layout have no row.
     if (ctx->portraitRow != nullptr) {
         setHidden(ctx->portraitRow, !custom);
@@ -598,7 +606,9 @@ void onSystemBarsChipPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
     auto* chip = lv_event_get_target_obj(event);
     auto settings = settings::launcher::loadOrGetDefault();
-    if (chip == ctx->systemBarsAutoChip || chip == ctx->systemBarsCustomChip) {
+    if (chip == ctx->alignLeftChip || chip == ctx->alignRightChip) {
+        settings.alignment = chip == ctx->alignRightChip ? settings::launcher::SystemBarsAlignment::Right : settings::launcher::SystemBarsAlignment::Left;
+    } else if (chip == ctx->systemBarsAutoChip || chip == ctx->systemBarsCustomChip) {
         settings.systemBarsMode = chip == ctx->systemBarsCustomChip ? SystemBarsMode::Custom : SystemBarsMode::Auto;
     } else if (chip == ctx->portraitSplitChip || chip == ctx->portraitSideChip) {
         settings.portraitLayout = chip == ctx->portraitSideChip ? SystemBarsLayout::Side : SystemBarsLayout::Split;
@@ -607,9 +617,13 @@ void onSystemBarsChipPressed(lv_event_t* event) {
     }
     if (!settings::launcher::save(settings)) {
         LOG_E(TAG, "Failed to save system bars settings");
+        // The chips show what is applied, which is what the file still has
+        updateSystemBarsWidgets(ctx, settings::launcher::loadOrGetDefault());
+        alertdialog::start(ctx->appInstanceId, tr("Error"), tr("Failed to save the system bars settings"));
+        return;
     }
     updateSystemBarsWidgets(ctx, settings);
-    lvgl::systemBarsRefresh();
+    system_bars_refresh();
 }
 
 void createSystemBarsCard(lv_obj_t* parent, Context* ctx) {
@@ -625,15 +639,20 @@ void createSystemBarsCard(lv_obj_t* parent, Context* ctx) {
     ctx->landscapeRow = nullptr;
     ctx->landscapeSplitChip = nullptr;
     ctx->landscapeSideChip = nullptr;
-    if (!portrait_choosable && !landscape_choosable) {
-        return;
-    }
+    ctx->systemBarsAutoChip = nullptr;
+    ctx->systemBarsCustomChip = nullptr;
 
     auto* card = createSection(parent, tr("System Bars"));
 
-    auto* mode_row = createLabeledRow(card, tr("Layout"));
-    ctx->systemBarsAutoChip = createChip(mode_row, tr("Auto"), onSystemBarsChipPressed, ctx);
-    ctx->systemBarsCustomChip = createChip(mode_row, tr("Custom"), onSystemBarsChipPressed, ctx);
+    auto* align_row = createLabeledRow(card, tr("Align"));
+    ctx->alignLeftChip = createChip(align_row, tr("Left"), onSystemBarsChipPressed, ctx);
+    ctx->alignRightChip = createChip(align_row, tr("Right"), onSystemBarsChipPressed, ctx);
+
+    if (portrait_choosable || landscape_choosable) {
+        auto* mode_row = createLabeledRow(card, tr("Layout"));
+        ctx->systemBarsAutoChip = createChip(mode_row, tr("Auto"), onSystemBarsChipPressed, ctx);
+        ctx->systemBarsCustomChip = createChip(mode_row, tr("Custom"), onSystemBarsChipPressed, ctx);
+    }
 
     if (portrait_choosable) {
         ctx->portraitRow = createLabeledRow(card, tr("Portrait"));
@@ -761,7 +780,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             lv_obj_get_style_pad_left(font_size_spinbox, LV_PART_MAIN) + lv_obj_get_style_pad_right(font_size_spinbox, LV_PART_MAIN) +
             2 * lv_obj_get_style_border_width(font_size_spinbox, LV_PART_MAIN));
         lv_obj_set_style_text_align(font_size_spinbox, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-        const uint16_t font_size = ctx->pendingSettings.fontSize != 0 ? ctx->pendingSettings.fontSize : static_cast<uint16_t>(TT_FONT_DEFAULT_SIZE);
+        const uint16_t font_size = ctx->pendingSettings.fontSize != 0 ? ctx->pendingSettings.fontSize : lvgl::getDefaultFontSize();
         lv_spinbox_set_value(font_size_spinbox, font_size);
         // The value is changed with the buttons, so the digit cursor isn't shown
         lv_obj_set_style_bg_opa(font_size_spinbox, LV_OPA_TRANSP, LV_PART_CURSOR);

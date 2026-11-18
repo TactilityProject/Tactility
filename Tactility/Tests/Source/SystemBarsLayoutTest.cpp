@@ -5,9 +5,9 @@ using namespace tt::settings::launcher;
 
 static constexpr SystemBarsCapabilities ANY = { SystemBarsCapability::Any, SystemBarsCapability::Any };
 
-TEST_CASE("auto system bars use the side layout only for wide landscape screens") {
+TEST_CASE("auto system bars use the side layout only for landscape screens") {
     const LauncherSettings settings = getDefault();
-    CHECK_EQ(resolveSystemBarsLayout(settings, ANY, 320, 240), SystemBarsLayout::Split);
+    CHECK_EQ(resolveSystemBarsLayout(settings, ANY, 320, 240), SystemBarsLayout::Side);
     CHECK_EQ(resolveSystemBarsLayout(settings, ANY, 480, 222), SystemBarsLayout::Side);
     CHECK_EQ(resolveSystemBarsLayout(settings, ANY, 240, 320), SystemBarsLayout::Split);
     CHECK_EQ(resolveSystemBarsLayout(settings, ANY, 222, 480), SystemBarsLayout::Split);

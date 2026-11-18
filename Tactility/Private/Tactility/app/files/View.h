@@ -56,7 +56,17 @@ class View final {
     ::std::atomic<int> pendingOperations = 0;
 
     lv_obj_t* overlay = nullptr;
-    lv_obj_t* navigate_up_button = nullptr;
+    lv_obj_t* toolbar = nullptr;
+    /** The path bar: the buttons of the path segments that fit, and an ellipsis in front when the path is cut off */
+    ::std::vector<lv_obj_t*> pathBarWidgets;
+    /** The path that each segment button of the path bar navigates to */
+    ::std::vector<::std::string> pathBarPaths;
+    /** Set when keys opened a directory, so its first entry is selected instead of nothing */
+    bool selectFirstAfterNavigation = false;
+    /** Set when a path segment was pressed: the path bar then selects the segment of the parent of the new directory */
+    bool selectParentSegment = false;
+    /** The toolbar width that the path bar was built for */
+    int32_t pathBarWidth = 0;
     lv_obj_t* overflow_button = nullptr;
 
     ::std::string installAppPath = { 0 };
@@ -101,6 +111,13 @@ class View final {
     void viewFile(const ::std::string&path, const ::std::string&filename);
     void runFile(const ::std::string& file_path);
     void onNavigate();
+    /** Rebuilds the path bar for the current path. Runs on the LVGL task. */
+    void updatePathBar();
+    /** @return the path bar segment of the parent of the current directory, or the current directory when it has no pressable parent shown */
+    lv_obj_t* getParentPathSegment() const;
+    static void onPathSegmentPressed(lv_event_t* event);
+    static void onToolbarSizeChanged(lv_event_t* event);
+    static void onDeferredPathBarUpdate(void* userData);
     /** Reads the directory on the file operations task, then shows it. Runs on the LVGL task. */
     void navigateTo(const ::std::string& path, bool firstPage, bool selectFirst);
 
@@ -132,7 +149,6 @@ public:
     void update(bool firstPage, bool selectFirst = true);
 
     void onBackPressed();
-    void onNavigateUpPressed();
     void onOverflowPressed();
     void onDirEntryPressed(const ::std::string& name);
     void onDirEntryLongPressed(const ::std::string& name);

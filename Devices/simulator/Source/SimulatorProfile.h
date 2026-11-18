@@ -13,13 +13,20 @@ struct Profile {
     const char* name;
     uint16_t width;
     uint16_t height;
-    uint16_t dpi; // lvgl.dpi from device.properties (if set), otherwise display.dpi
+    /** display.dpi from device.properties */
+    uint16_t dpi;
     /** The default rotation: the display is taller than wide. The width and height values may be given in either order. */
     bool portrait;
+    /** The default font size in pixels of the device, from lvgl.fontSize, or derived from display.dpi when the device doesn't set it */
+    uint16_t fontSize;
     /** LVGL UI spacing, from lvgl.uiSpacing of the device */
     uint8_t uiSpacing;
     /** LVGL UI size, from lvgl.uiSize of the device */
     uint8_t uiSize;
+    /** Scale of the launcher's icon size, from launcher.iconSizeScale of the device, 1 for the default */
+    float launcherIconSizeScale;
+    /** Scale of the spacing between the launcher's icons, from launcher.iconSpacingScale of the device, 1 for the default */
+    float launcherIconSpacingScale;
     /** Greyscale display, which makes the monochrome theme apply */
     bool mono;
     bool keyboard;

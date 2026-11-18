@@ -99,6 +99,47 @@ static bool isIconFontGenerated(LvglIconFont iconFont) {
     return iconFont != LVGL_ICON_FONT_SHARED_LARGE || !hasLimitedMemory();
 }
 
+/**
+ * The font that has the glyphs that a text font lacks, such as LV_SYMBOL_*.
+ * On devices, LV_FONT_DEFAULT is the built-in font of the default font size. The simulator has a few built-in fonts,
+ * so the symbols get the one that is closest to the size of the profile.
+ */
+static const lv_font_t* getSymbolFont(uint16_t size) {
+#ifdef ESP_PLATFORM
+    (void)size;
+    return LV_FONT_DEFAULT;
+#else
+    struct Candidate {
+        uint16_t size;
+        const lv_font_t* font;
+    };
+    static const Candidate candidates[] = {
+#if LV_FONT_MONTSERRAT_14
+        { 14, &lv_font_montserrat_14 },
+#endif
+#if LV_FONT_MONTSERRAT_18
+        { 18, &lv_font_montserrat_18 },
+#endif
+#if LV_FONT_MONTSERRAT_24
+        { 24, &lv_font_montserrat_24 },
+#endif
+#if LV_FONT_MONTSERRAT_32
+        { 32, &lv_font_montserrat_32 },
+#endif
+    };
+    const lv_font_t* best = LV_FONT_DEFAULT;
+    int bestDistance = 1 << 30;
+    for (const auto& candidate : candidates) {
+        const int distance = std::abs(static_cast<int>(candidate.size) - static_cast<int>(size));
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            best = candidate.font;
+        }
+    }
+    return best;
+#endif
+}
+
 static std::vector<LoadedFont> loadedFonts;
 static std::optional<FontConfiguration> activeConfiguration;
 
@@ -267,11 +308,11 @@ bool isFontChangeSupported() {
 
 FontConfiguration loadFontConfiguration() {
     if (!isFontChangeSupported()) {
-        return { .defaultSize = static_cast<uint16_t>(TT_FONT_DEFAULT_SIZE), .regularFontPath = "", .monoFontPath = "" };
+        return { .defaultSize = getDefaultFontSize(), .regularFontPath = "", .monoFontPath = "" };
     }
     const auto settings = settings::appearance::loadOrGetDefault();
     return {
-        .defaultSize = settings.fontSize != 0 ? settings.fontSize : static_cast<uint16_t>(TT_FONT_DEFAULT_SIZE),
+        .defaultSize = settings.fontSize != 0 ? settings.fontSize : getDefaultFontSize(),
         .regularFontPath = settings.regularFontPath,
         .monoFontPath = settings.monoFontPath,
     };
@@ -326,7 +367,7 @@ void loadFonts(const FontConfiguration& configuration) {
         lv_font_t* lv_font = createLvglFont(font);
         if (lv_font != nullptr) {
             // Glyphs that the font lacks, such as LV_SYMBOL_*, come from LVGL's built-in font
-            lv_font->fallback = LV_FONT_DEFAULT;
+            lv_font->fallback = getSymbolFont(request.size);
             lvgl_set_text_font(definition.id, lv_font, request.size);
         }
     }

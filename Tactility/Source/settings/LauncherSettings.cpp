@@ -20,6 +20,9 @@ constexpr auto* SYSTEM_BARS_AUTO = "auto";
 constexpr auto* SYSTEM_BARS_CUSTOM = "custom";
 constexpr auto* SETTINGS_KEY_PORTRAIT_LAYOUT = "portraitLayout";
 constexpr auto* SETTINGS_KEY_LANDSCAPE_LAYOUT = "landscapeLayout";
+constexpr auto* SETTINGS_KEY_ALIGNMENT = "alignment";
+constexpr auto* ALIGNMENT_LEFT = "left";
+constexpr auto* ALIGNMENT_RIGHT = "right";
 constexpr auto* LAYOUT_SPLIT = "split";
 constexpr auto* LAYOUT_SIDE = "side";
 
@@ -68,6 +71,10 @@ bool load(LauncherSettings& settings) {
     }
     settings.portraitLayout = toLayout(map, SETTINGS_KEY_PORTRAIT_LAYOUT, settings.portraitLayout);
     settings.landscapeLayout = toLayout(map, SETTINGS_KEY_LANDSCAPE_LAYOUT, settings.landscapeLayout);
+    auto alignment = map.find(SETTINGS_KEY_ALIGNMENT);
+    if (alignment != map.end() && alignment->second == ALIGNMENT_RIGHT) {
+        settings.alignment = SystemBarsAlignment::Right;
+    }
     return true;
 }
 
@@ -75,7 +82,8 @@ LauncherSettings getDefault() {
     return LauncherSettings {
         .systemBarsMode = SystemBarsMode::Auto,
         .portraitLayout = SystemBarsLayout::Split,
-        .landscapeLayout = SystemBarsLayout::Side
+        .landscapeLayout = SystemBarsLayout::Side,
+        .alignment = SystemBarsAlignment::Left
     };
 }
 
@@ -92,6 +100,7 @@ bool save(const LauncherSettings& settings) {
     map[SETTINGS_KEY_SYSTEM_BARS] = settings.systemBarsMode == SystemBarsMode::Custom ? SYSTEM_BARS_CUSTOM : SYSTEM_BARS_AUTO;
     map[SETTINGS_KEY_PORTRAIT_LAYOUT] = toString(settings.portraitLayout);
     map[SETTINGS_KEY_LANDSCAPE_LAYOUT] = toString(settings.landscapeLayout);
+    map[SETTINGS_KEY_ALIGNMENT] = settings.alignment == SystemBarsAlignment::Right ? ALIGNMENT_RIGHT : ALIGNMENT_LEFT;
 
     std::string settings_path;
     if (!getSettingsFilePath(settings_path)) {
@@ -132,8 +141,7 @@ SystemBarsLayout resolveSystemBarsLayout(const LauncherSettings& settings, const
     if (settings.systemBarsMode == SystemBarsMode::Custom) {
         return landscape ? settings.landscapeLayout : settings.portraitLayout;
     }
-    // Only wide landscape screens: an aspect ratio of 1.5 or more
-    return (landscape && (width * 2 >= height * 3)) ? SystemBarsLayout::Side : SystemBarsLayout::Split;
+    return landscape ? SystemBarsLayout::Side : SystemBarsLayout::Split;
 }
 
 } // namespace tt::settings::launcher

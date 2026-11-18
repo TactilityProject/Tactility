@@ -47,6 +47,9 @@ hub e9f4
 image e3f4
 info e88e
 keyboard_alt f028
+keyboard_arrow_down e313
+keyboard_arrow_left e314
+keyboard_arrow_right e315
 keyboard_arrow_up e316
 language ea07
 lightbulb e90f

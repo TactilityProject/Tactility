@@ -139,6 +139,7 @@
 			swap-xy;
 			mirror-y;
 			invert-color;
+			gamma-curve = <0>;
 			pixel-clock-hz = <80000000>;
 			pin-dc = <&gpio0 16 GPIO_FLAG_NONE>;
 			backlight = <&display_backlight>;

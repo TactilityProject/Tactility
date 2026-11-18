@@ -10,13 +10,13 @@
 #include <Tactility/CpuAffinity.h>
 #include <generated_assets.h>
 #include <Tactility/TactilityConfig.h>
-#include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/lvgl/SystemMenu.h>
 #include <Tactility/lvgl/TrackballInit.h>
 #include <Tactility/lvgl/UsbHidInput.h>
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
 #include <Tactility/settings/DisplaySettings.h>
+#include <Tactility/settings/LauncherSettings.h>
 #include <Tactility/settings/Time.h>
 
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
@@ -27,7 +27,6 @@
 #include <app/manager.h>
 
 #include <lvgl/devices/keyboard.h>
-#include <lvgl/insets.h>
 #include <lvgl/ui_assets.h>
 #include <lvgl/fonts.h>
 #include <lvgl/devices/pointer.h>
@@ -37,6 +36,7 @@
 #include <lvgl/widgets/toolbar.h>
 
 #include <lvgl_window_manager/module.h>
+#include <lvgl_window_manager/system_bars.h>
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
@@ -70,57 +70,25 @@ static void stopAppFromToolbar(lv_event_t*) {
     app_event_emit_close(topmost);
 }
 
-// The on-screen keyboard widget itself, constructed during windowManagerScreenInit
+// The on-screen keyboard widget itself, constructed when the root layout is created
 static LvglSoftwareKeyboard softwareKeyboard { .object = nullptr };
 
-static lv_obj_t* windowManagerScreenInit(lv_obj_t* root) {
-    lv_obj_t* vertical_container = lv_obj_create(root);
-    lv_obj_set_size(vertical_container, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_flex_flow(vertical_container, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(vertical_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_gap(vertical_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(vertical_container, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(vertical_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(vertical_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_scrollable(vertical_container, false);
-
-    // The statusbar fits itself into the top of round and rounded displays
-    lvgl_statusbar_set_menu_callback(systemMenuShow);
-    lvgl_statusbar_set_time_format_24h(settings::isTimeFormat24Hour());
-    auto* statusbar = lvgl_statusbar_create(vertical_container);
-
-    auto* app_container = lv_obj_create(vertical_container);
-    lv_obj_set_style_pad_all(app_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(app_container, 0, LV_STATE_DEFAULT);
-    lv_obj_set_width(app_container, LV_PCT(100));
-    lv_obj_set_flex_grow(app_container, 1);
-    lv_obj_set_flex_flow(app_container, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_scrollable(app_container, false);
-
-    // Keeps the apps inside the visible area of round displays.
-    // On rounded displays, the widgets along the edges move their content inward from the corners instead.
-    lv_display_t* display = lv_obj_get_display(root);
-    DisplayShape shape;
-    lvgl_display_get_shape(display, &shape);
-    if (shape.shape == DISPLAY_SHAPE_CIRCLE) {
-        LvglInsets insets;
-        lvgl_display_get_insets(display, &insets);
-        lv_obj_update_layout(statusbar);
-        lv_obj_set_style_pad_top(app_container, std::max<int32_t>(0, insets.top - lv_obj_get_height(statusbar)), LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_bottom(app_container, insets.bottom, LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_left(app_container, insets.left, LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_right(app_container, insets.right, LV_STATE_DEFAULT);
-    }
-
-    // Parented to root (not app_container/vertical_container) so it overlays on top of
+static void onScreenCreated(lv_obj_t* root) {
+    // Parented to root (not the app container) so it overlays on top of
     // everything, including the statusbar, regardless of which app is showing. Hidden until a
     // focused textarea shows it (see lvgl_keyboard_add_textarea()/textarea_show_keyboard()).
     lvgl_software_keyboard_construct(&softwareKeyboard, root);
+}
 
-    // Places the statusbar on top, or in a strip on the side
-    systemBarsAttach(vertical_container, statusbar, app_container);
+static SystemBarsLayout resolveSystemBarsLayout(int32_t width, int32_t height) {
+    const auto settings = settings::launcher::loadOrGetDefault();
+    const auto layout = settings::launcher::resolveSystemBarsLayout(settings, settings::launcher::getSystemBarsCapabilities(), width, height);
+    return layout == settings::launcher::SystemBarsLayout::Side ? SYSTEM_BARS_LAYOUT_SIDE : SYSTEM_BARS_LAYOUT_SPLIT;
+}
 
-    return app_container;
+static SystemBarsAlignment resolveSystemBarsAlignment() {
+    const auto settings = settings::launcher::loadOrGetDefault();
+    return settings.alignment == settings::launcher::SystemBarsAlignment::Right ? SYSTEM_BARS_ALIGNMENT_RIGHT : SYSTEM_BARS_ALIGNMENT_LEFT;
 }
 
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
@@ -171,7 +139,16 @@ static void onLvglStarted() {
     app::launcher::loadPackageIcons(nullptr);
     app::launcher::loadSettingsIcons(nullptr);
 
-    window_manager_configure(windowManagerScreenInit);
+    // The statusbar fits itself into the top of round and rounded displays
+    lvgl_statusbar_set_menu_callback(systemMenuShow);
+    lvgl_statusbar_set_time_format_24h(settings::isTimeFormat24Hour());
+    const SystemBarsConfig systemBarsConfig = {
+        .show_menu = systemMenuShow,
+        .resolve_layout = resolveSystemBarsLayout,
+        .resolve_alignment = resolveSystemBarsAlignment,
+        .on_screen_created = onScreenCreated,
+    };
+    system_bars_configure(&systemBarsConfig);
     check(module_ensure_started(&lvgl_window_manager_module) == ERROR_NONE);
 
     ToolbarConfig toolbar_config = { .nav_action_callback = stopAppFromToolbar };
@@ -213,10 +190,6 @@ static void onLvglStopped() {
 #endif
     check(service::removeService(service::memorychecker::manifest.id));
     check(service::removeService(service::statusbar::manifest.id));
-
-    lvgl_lock();
-    systemBarsDetach();
-    lvgl_unlock();
 
     if (softwareKeyboard.object != nullptr) {
         // lv_obj_delete() walks/mutates the object graph (event lists, group membership,

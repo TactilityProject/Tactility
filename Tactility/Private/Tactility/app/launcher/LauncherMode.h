@@ -11,6 +11,8 @@ namespace tt::app::launcher {
 struct LauncherMode {
     /** Represents this mode on the button that switches to it */
     const char* buttonIcon;
+    /** The look of the tiles */
+    TileGrid::Style tileStyle;
     /** The tile icon colour for themes that aren't monochrome */
     TileGrid::IconColor iconColor;
     /** Returns the items in display order */

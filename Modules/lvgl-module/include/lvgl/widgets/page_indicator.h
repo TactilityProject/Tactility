@@ -3,6 +3,7 @@
 
 #include <lvgl.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -17,6 +18,13 @@ extern "C" {
  * @return the created page indicator
  */
 lv_obj_t* lvgl_page_indicator_create(lv_obj_t* parent);
+
+/**
+ * @brief Lets the dots form a column instead of a row. The maximum width then becomes the maximum height for showing the page number instead.
+ * @param[in] obj the page indicator
+ * @param[in] vertical true for a column
+ */
+void lvgl_page_indicator_set_vertical(lv_obj_t* obj, bool vertical);
 
 /**
  * @brief Sets the number of pages, which is the number of dots.

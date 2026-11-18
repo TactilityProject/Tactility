@@ -81,10 +81,12 @@ static void refresh(lv_obj_t* obj) {
     if (count == 0) {
         return;
     }
-    const int32_t dot_width = lv_obj_get_style_width(get_dot(obj, 0), LV_PART_MAIN);
-    const int32_t gap = lv_obj_get_style_pad_column(obj, LV_PART_MAIN);
-    const int32_t dots_width = static_cast<int32_t>(count) * dot_width + static_cast<int32_t>(count - 1) * gap;
-    const bool show_numbers = dots_width > lv_obj_get_style_max_width(obj, LV_PART_MAIN);
+    const bool vertical = lv_obj_get_style_flex_flow(obj, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN;
+    const int32_t dot_size = vertical ? lv_obj_get_style_height(get_dot(obj, 0), LV_PART_MAIN) : lv_obj_get_style_width(get_dot(obj, 0), LV_PART_MAIN);
+    const int32_t gap = vertical ? lv_obj_get_style_pad_row(obj, LV_PART_MAIN) : lv_obj_get_style_pad_column(obj, LV_PART_MAIN);
+    const int32_t dots_length = static_cast<int32_t>(count) * dot_size + static_cast<int32_t>(count - 1) * gap;
+    const int32_t max_length = vertical ? lv_obj_get_style_max_height(obj, LV_PART_MAIN) : lv_obj_get_style_max_width(obj, LV_PART_MAIN);
+    const bool show_numbers = dots_length > max_length;
 
     lv_obj_t* label = get_label(obj);
     lv_obj_set_hidden(label, !show_numbers);
@@ -109,6 +111,17 @@ lv_obj_t* lvgl_page_indicator_create(lv_obj_t* parent) {
     lv_obj_t* obj = lv_obj_class_create_obj(&lvgl_page_indicator_class, parent);
     lv_obj_class_init_obj(obj);
     return obj;
+}
+
+void lvgl_page_indicator_set_vertical(lv_obj_t* obj, bool vertical) {
+    if (vertical) {
+        lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(obj, lv_obj_get_style_pad_column(obj, LV_PART_MAIN), LV_STATE_DEFAULT);
+    } else {
+        lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
+        lv_obj_remove_local_style_prop(obj, LV_STYLE_PAD_ROW, LV_PART_MAIN);
+    }
+    refresh(obj);
 }
 
 void lvgl_page_indicator_set_page_count(lv_obj_t* obj, uint32_t count) {

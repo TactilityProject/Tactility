@@ -19,6 +19,10 @@ Built-in apps have no package folder. Their icons are embedded in the firmware a
 - Add the app to the table of its launcher mode, which refers to the embedded assets: `BUILT_IN_ICONS` in `Tactility/Source/app/launcher/AppsMode.cpp` for apps (`BUILT_IN_ICON("tactility.files", tactility_files)`), or `SETTINGS_ICONS` in `Tactility/Source/app/launcher/SettingsMode.cpp` for settings (`SETTINGS_ICON(...)`). An app that is not in the table gets the default icon.
 - Remove the entry when you delete the icon files, or the build fails.
 
+## Settings icons
+
+The colour icons of the settings apps in `Data/system/app_icon/` (`tactility.*settings*`, `tactility.wifimanage` and the other apps in `SETTINGS_ICONS`) have no background. They are a white glyph on transparent, and the `viewBox` is cropped to the glyph (`20 20 56 56`), so it fills the canvas. They are shown next to the name in a card.
+
 ## Colour icon (`icon.svg`)
 
 - `width="96" height="96" viewBox="0 0 96 96"`.

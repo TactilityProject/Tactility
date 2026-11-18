@@ -155,6 +155,9 @@ shared_symbol_code_point_names = [
     "info", # System Info
     "image", # Files app
     "keyboard_arrow_up",
+    "keyboard_arrow_down",
+    "keyboard_arrow_left",
+    "keyboard_arrow_right",
     "lightbulb",
     "language", # Globe
     "lists", # Chat app toolbar

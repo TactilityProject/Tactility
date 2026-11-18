@@ -28,6 +28,19 @@ size_t key_queue_count = 0;
 
 bool text_input_started = false;
 
+// A two-finger swipe on a trackpad arrives as wheel events. It is turned into a touch drag that starts where the pointer is,
+// so it scrolls and swipes the same way as a finger does on a device. The drag ends when the wheel events stop.
+constexpr uint32_t WHEEL_SWIPE_END_MS = 150;
+constexpr float WHEEL_SWIPE_PIXELS_PER_UNIT = 12.0f;
+bool wheel_swipe_active = false;
+// The press is seen before the first move, as a press that starts at its moved position isn't a drag
+bool wheel_swipe_started_now = false;
+int32_t wheel_swipe_origin_x = 0;
+int32_t wheel_swipe_origin_y = 0;
+float wheel_swipe_offset_x = 0.0f;
+float wheel_swipe_offset_y = 0.0f;
+uint32_t wheel_swipe_last_ms = 0;
+
 struct HeldControlKey {
     uint32_t key = 0;
     uint8_t ref_count = 0;
@@ -239,7 +252,40 @@ void sdl_input_pump() {
                 case SDL_MOUSEMOTION:
                     set_pointer_position(event.motion.x, event.motion.y);
                     break;
+                case SDL_MOUSEWHEEL: {
+                    // A pressed mouse button is a drag of its own
+                    if (pointer_state.pressed && !wheel_swipe_active) {
+                        break;
+                    }
+                    float delta_x = static_cast<float>(event.wheel.x);
+                    float delta_y = static_cast<float>(event.wheel.y);
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+                    delta_x = event.wheel.preciseX;
+                    delta_y = event.wheel.preciseY;
+#endif
+                    if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
+                        delta_x = -delta_x;
+                        delta_y = -delta_y;
+                    }
+                    if (!wheel_swipe_active) {
+                        int live_x, live_y;
+                        SDL_GetMouseState(&live_x, &live_y);
+                        set_pointer_position(live_x, live_y);
+                        wheel_swipe_origin_x = live_x;
+                        wheel_swipe_origin_y = live_y;
+                        wheel_swipe_offset_x = 0.0f;
+                        wheel_swipe_offset_y = 0.0f;
+                        pointer_state.pressed = true;
+                        wheel_swipe_active = true;
+                        wheel_swipe_started_now = true;
+                    }
+                    wheel_swipe_offset_x += delta_x * WHEEL_SWIPE_PIXELS_PER_UNIT;
+                    wheel_swipe_offset_y += delta_y * WHEEL_SWIPE_PIXELS_PER_UNIT;
+                    wheel_swipe_last_ms = SDL_GetTicks();
+                    break;
+                }
                 case SDL_MOUSEBUTTONDOWN:
+                    wheel_swipe_active = false;
                     if (event.button.button == SDL_BUTTON_LEFT) {
                         // event.button.x/y can be stale immediately after a window resize (an
                         // SDL/X11 event-queue quirk)
@@ -313,6 +359,21 @@ void sdl_input_pump() {
                     break;
                 default:
                     break;
+            }
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        if (wheel_swipe_active) {
+            if (wheel_swipe_started_now) {
+                wheel_swipe_started_now = false;
+            } else {
+                set_pointer_position(wheel_swipe_origin_x + static_cast<int32_t>(wheel_swipe_offset_x), wheel_swipe_origin_y + static_cast<int32_t>(wheel_swipe_offset_y));
+            }
+            if (SDL_GetTicks() - wheel_swipe_last_ms > WHEEL_SWIPE_END_MS) {
+                pointer_state.pressed = false;
+                wheel_swipe_active = false;
             }
         }
     }

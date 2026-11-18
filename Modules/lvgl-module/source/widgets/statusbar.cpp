@@ -86,6 +86,8 @@ struct Statusbar {
     // The horizontal padding of the split layout
     int32_t split_pad_hor;
     bool side;
+    /** In the side layout, the strip is on the right of the screen instead of the left */
+    bool side_right;
 };
 
 static void statusbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj);
@@ -230,13 +232,13 @@ static bool is_inside(lv_obj_t* obj, lv_obj_t* ancestor) {
     return false;
 }
 
-// In the side strip on the left, the right key moves the focus to the first widget outside of the strip
+// In the side strip, the key towards the app moves the focus to the first widget outside of the strip
 static void onIconRowKey(lv_event_t* event) {
     auto* statusbar = static_cast<Statusbar*>(lv_event_get_user_data(event));
     if (!statusbar->side) {
         return;
     }
-    if (lv_event_get_key(event) != LV_KEY_RIGHT) {
+    if (lv_event_get_key(event) != (statusbar->side_right ? LV_KEY_LEFT : LV_KEY_RIGHT)) {
         return;
     }
     lv_group_t* group = lv_obj_get_group(statusbar->icon_row);
@@ -605,6 +607,10 @@ static int32_t get_widest_time_width(const lv_font_t* font, int32_t letterSpace)
 }
 
 extern "C" {
+
+void lvgl_statusbar_set_side_right(lv_obj_t* obj, bool right) {
+    reinterpret_cast<Statusbar*>(obj)->side_right = right;
+}
 
 void lvgl_statusbar_set_side(lv_obj_t* obj, bool side) {
     auto* statusbar = reinterpret_cast<Statusbar*>(obj);

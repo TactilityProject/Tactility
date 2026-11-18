@@ -22,6 +22,12 @@
 constexpr auto* TAG = "lvgl_display";
 
 // The themes are generated with LSS from Modules/lvgl-module/themes/*.lss
+static uint16_t default_dpi = 0;
+
+extern "C" void lvgl_display_set_default_dpi(uint16_t dpi) {
+    default_dpi = dpi;
+}
+
 static void lvgl_display_apply_theme(lv_display_t* disp, struct Device* device, lv_color_format_t color_format) {
     bool is_mono_display = color_format == LV_COLOR_FORMAT_I1 || color_format == LV_COLOR_FORMAT_L8;
     // Slow-refresh panels (e-paper) can't show animations
@@ -485,6 +491,10 @@ error_t lvgl_display_add(struct Device* device, const struct LvglDisplayConfig* 
         lvgl_display_free_buffer(ctx->rotate_buf);
         delete wrapper;
         return ERROR_OUT_OF_MEMORY;
+    }
+
+    if (default_dpi != 0) {
+        lv_display_set_dpi(disp, default_dpi);
     }
 
     lvgl_display_apply_theme(disp, device, lv_color_format);

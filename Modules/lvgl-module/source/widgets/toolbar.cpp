@@ -5,6 +5,7 @@
 
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
+#include <lvgl/icons/shared.h>
 #include <lvgl/insets.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
@@ -15,6 +16,8 @@
 #include <tactility/drivers/pointer.h>
 #include <tactility/drivers/touch.h>
 #include <tactility/log.h>
+
+#include <cstring>
 
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
@@ -113,7 +116,8 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     // A larger touch area than the visible button. LVGL only looks for a touched child inside the
     // toolbar, so the area never exceeds the toolbar's own height.
     lv_obj_set_ext_click_area(toolbar->close_button, getActionButtonSize(size) / 2);
-    toolbar->close_button_image = lv_image_create(toolbar->close_button);
+    toolbar->close_button_image = lv_label_create(toolbar->close_button);
+    lv_obj_set_style_text_font(toolbar->close_button_image, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
     lv_obj_align(toolbar->close_button_image, LV_ALIGN_CENTER, 0, 0);
 
     toolbar->title_label = lv_label_create(obj);
@@ -150,7 +154,13 @@ void lvgl_toolbar_set_nav_action(lv_obj_t* obj, const char* icon, lv_event_cb_t 
     if (callback != nullptr) {
         lv_obj_add_event_cb(toolbar->close_button, callback, LV_EVENT_SHORT_CLICKED, user_data);
     }
-    lv_image_set_src(toolbar->close_button_image, icon); // e.g. LV_SYMBOL_CLOSE
+    // The LVGL symbols are drawn with the shared icon font, which scales with the default font size
+    if (strcmp(icon, LV_SYMBOL_CLOSE) == 0) {
+        icon = LVGL_ICON_SHARED_CLOSE;
+    } else if (strcmp(icon, LV_SYMBOL_LEFT) == 0) {
+        icon = LVGL_ICON_SHARED_KEYBOARD_ARROW_LEFT;
+    }
+    lv_label_set_text(toolbar->close_button_image, icon);
 }
 
 static lv_obj_t* toolbar_add_button_action(lv_obj_t* obj, const char* imageOrButton, bool isImage, lv_event_cb_t callback, void* user_data) {

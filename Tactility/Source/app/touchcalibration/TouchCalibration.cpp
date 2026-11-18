@@ -6,7 +6,7 @@
 
 #include <Tactility/Tactility.h>
 #include <Tactility/app/touchcalibration/CalibrationMath.h>
-#include <Tactility/lvgl/SystemBars.h>
+#include <lvgl_window_manager/system_bars.h>
 #include <Tactility/settings/TouchCalibrationSettings.h>
 
 #include <app/event.h>
@@ -206,7 +206,7 @@ void onPress(lv_event_t* event) {
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
-    lvgl::systemBarsSetStatusbarVisible(false);
+    system_bars_set_statusbar_visible(false);
 
     lv_obj_set_style_bg_color(parent, lv_color_black(), LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, LV_STATE_DEFAULT);
@@ -249,7 +249,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
-    lvgl::systemBarsSetStatusbarVisible(true);
+    system_bars_set_statusbar_visible(true);
     ctx->root = nullptr;
     ctx->target = nullptr;
     ctx->titleLabel = nullptr;
