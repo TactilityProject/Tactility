@@ -48,14 +48,21 @@ int32_t scaleSpacing(int32_t spacing) {
     return static_cast<int32_t>(::std::lround(spacing * scale));
 }
 
-// Minimum spacing between tiles, horizontally and vertically
-int32_t getTileGap() {
-    return scaleSpacing(lvgl_theme_lerp(LV_DPX(2), LV_DPX(16), lvgl_theme_get_spacing()));
+// The room outside a card for its selection ring: the ring and its offset
+int32_t getCardRingSpace() {
+    const int32_t ringWidth = lvgl_theme_lerp(1, LV_DPX(2), lvgl_theme_get_size()) + LV_DPX(1);
+    return ringWidth + lvgl_theme_lerp(1, LV_DPX(2), lvgl_theme_get_size());
 }
 
-// The padding of a card, which is also the space between its icon and name
+// Minimum spacing between tiles, horizontally and vertically. Cards keep twice the room of their selection ring, however small the scale is.
+int32_t getTileGap(bool card) {
+    const int32_t gap = scaleSpacing(lvgl_theme_lerp(LV_DPX(2), LV_DPX(16), lvgl_theme_get_spacing()));
+    return card ? std::max(gap, 2 * getCardRingSpace()) : gap;
+}
+
+// The padding of a card, which is also the space between its icon and name. It is at least 2 dp, however small the scale is.
 int32_t getCardPad() {
-    return scaleSpacing(lvgl_theme_lerp(LV_DPX(4), LV_DPX(16), lvgl_theme_get_spacing()));
+    return std::max<int32_t>(LV_DPX(2), scaleSpacing(lvgl_theme_lerp(LV_DPX(4), LV_DPX(16), lvgl_theme_get_spacing())));
 }
 
 struct PageLayout {
@@ -97,7 +104,7 @@ PageLayout computePageLayout(lv_obj_t* grid, TileGrid::Style style, int32_t rese
     // A card shows its focus ring itself.
     const auto frame_pad = card ? 0 : LV_DPX(3) + LV_DPX(1);
     const auto label_gap = lvgl_theme_lerp(LV_DPX(1), LV_DPX(4), lvgl_theme_get_spacing());
-    const auto gap = getTileGap();
+    const auto gap = getTileGap(card);
     const auto text_height = lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL));
     // The label needs room for a few characters, also when the icon font is smaller (e.g. a fallback)
     const auto text_min_width = static_cast<int32_t>(MIN_LABEL_WIDTH_IN_FONT_SIZES * lvgl_get_text_font_height(FONT_SIZE_SMALL));
@@ -571,8 +578,8 @@ void TileGrid::createGrid(lv_obj_t* parent) {
     lv_obj_set_flex_grow(grid, 1);
     lv_obj_set_flex_flow(grid, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_style_pad_all(grid, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_row(grid, getTileGap(), LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_column(grid, getTileGap(), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_row(grid, getTileGap(style == Style::Card), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(grid, getTileGap(style == Style::Card), LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(grid, 0, LV_STATE_DEFAULT);
     lv_obj_set_scrollable(grid, false);
     // The arrow keys move between the tiles in rows and columns
