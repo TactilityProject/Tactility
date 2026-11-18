@@ -10,9 +10,6 @@
 ## Medium Priority
 
 - DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
-- Display options: have user pick performance mode for iram vs psram lvgl buffer. Set defaults via device.properties and update device.properties for devices that prefer psram due to their driver usage. Remove the "prefer external ram" from DisplayApi.
-- 2 finger swipe for scroll in simulator
-- Tab5: UI hangs when app installs (not download phase, but file unpacking phase)
 - Add "Downloading Apps" step in Setup that downloads useful apps.
   It's an optional step at the end that only shows if wifi is connected.
 - Watch and others: sleep/wake support. "With a button to save energy of the screen while not having to turn the gps off by disabling power. Also could put device into pocket without worrying about pressing things on touchscreen.". Considere adding a list of hardware that supports on/off and have the user select which hardware turns on/off with light sleep. (not to confuse with ESP light sleep)
