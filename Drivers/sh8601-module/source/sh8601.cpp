@@ -40,7 +40,7 @@ constexpr auto* TAG = "SH8601";
 // mirror (X only, no Y) and rejects swap_xy outright, so the LVGL bridge falls back to software
 // rotation (see devices.cpp's can_hw_rotate).
 #define SH8601_STATIC_CAPABILITIES (DISPLAY_CAPABILITY_CAP_SET_GAP | DISPLAY_CAPABILITY_INVERT_COLOR | \
-    DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM)
+    DISPLAY_CAPABILITY_ON_OFF)
 
 struct Sh8601Internal {
     Device* spi_controller;
@@ -178,7 +178,7 @@ static error_t start(Device* device) {
             .octal_mode = 0,
             .quad_mode = 1,
             .sio_mode = 0,
-            // The LVGL color buffer lives in PSRAM (see PREFER_EXTERNAL_RAM). Without this the SPI
+            // The LVGL color buffer lives in PSRAM. Without this the SPI
             // driver bounces every chunk through a freshly-allocated internal DMA buffer (up to the
             // bus's 64KB max-transfer-size), which fails with "Failed to allocate priv TX buffer"
             // once internal RAM is tight (e.g. during Wi-Fi). ESP32-S3 can DMA from PSRAM directly.

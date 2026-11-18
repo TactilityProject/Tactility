@@ -838,7 +838,7 @@ static uint16_t ssd1677_get_resolution_y(Device* device) {
 
 static const DisplayApi ssd1677_display_api = {
     // draw_bitmap() converts into its own buffer and never DMAs from the given pointer
-    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH | DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM,
+    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH,
     .reset = ssd1677_reset,
     .init = ssd1677_init,
     .draw_bitmap = ssd1677_draw_bitmap,

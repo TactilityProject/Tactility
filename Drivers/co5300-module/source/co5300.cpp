@@ -317,7 +317,7 @@ static error_t start(Device* device) {
             .octal_mode = 0,
             .quad_mode = 1,
             .sio_mode = 0,
-            // The LVGL color buffer lives in PSRAM (see PREFER_EXTERNAL_RAM). Without this the SPI
+            // The LVGL color buffer lives in PSRAM. Without this the SPI
             // driver bounces every chunk through a freshly-allocated internal DMA buffer, which is
             // both slower and can fail when internal RAM is tight. ESP32-S31 can DMA from PSRAM.
             .psram_dma_direct = 1,
@@ -633,8 +633,7 @@ static error_t co5300_get_backlight(Device* device, Device** backlight) {
 static bool co5300_has_capability(Device* device, uint32_t capability) {
     uint32_t capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY |
         DISPLAY_CAPABILITY_CAP_SET_GAP | DISPLAY_CAPABILITY_INVERT_COLOR |
-        DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLEEP |
-        DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM;
+        DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLEEP;
     if (GET_CONFIG(device)->full_frame) {
         capabilities |= DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME;
     }
@@ -652,8 +651,7 @@ static void co5300_get_shape(Device* device, DisplayShape* shape) {
 static const DisplayApi co5300_display_api = {
     .capabilities = DISPLAY_CAPABILITY_CAP_MIRROR | DISPLAY_CAPABILITY_CAP_SWAP_XY |
         DISPLAY_CAPABILITY_CAP_SET_GAP | DISPLAY_CAPABILITY_INVERT_COLOR |
-        DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLEEP |
-        DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM,
+        DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLEEP,
     .reset = co5300_reset,
     .init = co5300_init,
     .draw_bitmap = co5300_draw_bitmap,

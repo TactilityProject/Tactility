@@ -496,7 +496,7 @@ static uint16_t papers3_display_get_resolution_y(Device* device) {
 
 static constexpr DisplayApi papers3_display_api = {
     // draw_bitmap() converts into its own target buffer and never DMAs from the given pointer
-    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH | DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM,
+    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH,
     .reset = papers3_display_reset,
     .init = papers3_display_init,
     .draw_bitmap = papers3_display_draw_bitmap,

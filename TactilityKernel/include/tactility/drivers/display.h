@@ -44,13 +44,7 @@ enum DisplayCapability {
     DISPLAY_CAPABILITY_SLEEP = 1 << 6,
     DISPLAY_CAPABILITY_REQUIRES_FULL_FRAME = 1 << 7,
     /** Can be used by e-paper with pointer devices for long click timing changes. */
-    DISPLAY_CAPABILITY_SLOW_REFRESH = 1 << 8,
-    /**
-     * Promise that draw_bitmap() never DMAs directly from the color_data pointer it's given (e.g.
-     * it copies/converts into its own buffer first). Lets the LVGL bridge allocate this display's
-     * draw buffer(s) from non-DMA-capable memory instead of forcing scarce internal RAM.
-     */
-    DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM = 1 << 9
+    DISPLAY_CAPABILITY_SLOW_REFRESH = 1 << 8
 };
 
 /**

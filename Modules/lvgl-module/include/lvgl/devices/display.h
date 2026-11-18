@@ -62,9 +62,11 @@ struct LvglDisplayConfig {
     bool force_full_frame;
 
     /**
-     * Opts owned draw buffer(s) OUT of DMA-capable memory, falling back to PSRAM instead of
-     * scarce internal RAM. Default false keeps existing behavior. Only set true if the driver
-     * never DMAs directly from the buffer pointer LVGL hands it in the flush callback.
+     * Allocates owned draw buffer(s) from external RAM instead of DMA-capable internal RAM.
+     * The display driver must accept an external RAM buffer in draw_bitmap(): it either copies from it,
+     * or DMAs from it directly on a chip that supports that.
+     * Direct DMA needs cache line alignment, so set sdkconfig.CONFIG_LV_DRAW_BUF_ALIGN in the device.properties
+     * (e.g. 64 for espressif-esp-mosaico).
      */
     bool prefer_external_ram;
 };

@@ -723,7 +723,7 @@ static uint16_t t5s3_display_get_resolution_y(Device*) {
 
 static const DisplayApi t5s3_display_api = {
     // The driver converts into its own buffer, so the LVGL draw buffers may live in external RAM
-    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH | DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM,
+    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH,
     .reset = t5s3_display_reset,
     .init = t5s3_display_init,
     .draw_bitmap = t5s3_display_draw_bitmap,
