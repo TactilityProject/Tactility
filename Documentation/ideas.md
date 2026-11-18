@@ -9,16 +9,18 @@
 
 ## Medium Priority
 
+- Notification support
+- Mesh: Add "RX boosted gain" switch for SX126x-based radios. Enable by default.
+- Mesh: Show stats, such as duty cycle and message counts
 - DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
 - Add "Downloading Apps" step in Setup that downloads useful apps.
   It's an optional step at the end that only shows if wifi is connected.
-- Watch and others: sleep/wake support. "With a button to save energy of the screen while not having to turn the gps off by disabling power. Also could put device into pocket without worrying about pressing things on touchscreen.". Considere adding a list of hardware that supports on/off and have the user select which hardware turns on/off with light sleep. (not to confuse with ESP light sleep)
+- Watch and others: sleep/wake support. "With a button to save energy of the screen while not having to turn the gps off by disabling power. Also could put device into pocket without worrying about pressing things on touchscreen.". Consider adding a list of hardware that supports on/off and have the user select which hardware turns on/off with light sleep. (not to confuse with ESP light sleep)
 Consider adding a light/deep sleep mode:
   tt light sleep: esp32 does not go in sleep mode, user decides which devices go off (e.g. display+lvgl, wifi, lora, etc.)
   tt deep sleep: esp32 goes into "esp light sleep" mode
 - Improve watch interface. Consider adding some sort of device classification so UI in apps can choose to optimize for the watch.
 - Update timezones.csv wrt 2026e, write tests for related code
-- Notification support
 - Low/critical memory warning test/rework
 - Try https://github.com/bootdsc/Fastwave-Eink-Driver with CL-32 e-paper.
 - Pick different font to improve monochrome screen readability (or change the weight).
@@ -85,5 +87,4 @@ Consider adding a light/deep sleep mode:
 - Discord bot
 - IR transceiver app
 - Investigate CSI https://stevenmhernandez.github.io/ESP32-CSI-Tool/
-- Calendar
 - RSS reader
