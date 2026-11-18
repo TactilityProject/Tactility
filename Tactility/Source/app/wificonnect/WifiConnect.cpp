@@ -2,7 +2,7 @@
 #include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/wificonnect/WifiConnect.h>
 
-#include <Tactility/lvgl/SystemBars.h>
+#include <lvgl_window_manager/system_bars.h>
 
 #include <app/event.h>
 #include <app/manager.h>
@@ -268,7 +268,7 @@ void createBottomButtons(Context* ctx, lv_obj_t* parent) {
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     if (ctx->hideStatusbar) {
-        lvgl::systemBarsSetStatusbarVisible(true);
+        system_bars_set_statusbar_visible(true);
     }
     ctx->ssid_textarea = nullptr;
     ctx->ssid_error = nullptr;
@@ -315,7 +315,7 @@ lv_obj_t* createErrorLabel(lv_obj_t* parent) {
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     if (ctx->hideStatusbar) {
-        lvgl::systemBarsSetStatusbarVisible(false);
+        system_bars_set_statusbar_visible(false);
     }
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);

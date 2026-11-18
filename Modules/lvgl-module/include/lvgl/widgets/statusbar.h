@@ -59,6 +59,13 @@ int32_t lvgl_statusbar_get_height(void);
 void lvgl_statusbar_set_side(lv_obj_t* statusbar, bool side);
 
 /**
+ * @brief Places the strip of the side layout on the right of the screen instead of the left. This decides which key leaves the strip.
+ * The caller places the statusbar in its parent.
+ * @warning Needs to be called with the LVGL lock.
+ */
+void lvgl_statusbar_set_side_right(lv_obj_t* statusbar, bool right);
+
+/**
  * @return the container for the action buttons of apps in the side layout, or NULL on circular displays. It is hidden in the split layout.
  * @warning Needs to be called with the LVGL lock.
  */

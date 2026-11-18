@@ -68,12 +68,11 @@ static constexpr int PCNT_LOW_LIMIT = -127;
 static constexpr int PCNT_HIGH_LIMIT = 126;
 
 static error_t init_pcnt_unit(int pin_a, int pin_b, pcnt_unit_handle_t* out_unit) {
-    pcnt_unit_config_t unit_config = {
-        .low_limit = PCNT_LOW_LIMIT,
-        .high_limit = PCNT_HIGH_LIMIT,
-        .intr_priority = 0,
-        .flags = { .accum_count = 1 },
-    };
+    pcnt_unit_config_t unit_config = {};
+    unit_config.low_limit = PCNT_LOW_LIMIT;
+    unit_config.high_limit = PCNT_HIGH_LIMIT;
+    unit_config.intr_priority = 0;
+    unit_config.flags.accum_count = 1;
 
     pcnt_unit_handle_t unit = nullptr;
     if (pcnt_new_unit(&unit_config, &unit) != ESP_OK) {

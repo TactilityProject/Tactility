@@ -47,6 +47,28 @@ void lvgl_theme_get_default_settings(LvglThemeSettings* settings);
 void lvgl_theme_set_default_density(uint8_t spacing, uint8_t size);
 
 /**
+ * @brief Overrides the compile-time default font size, for devices that only know it at runtime.
+ * @param[in] size the default font size in pixels, or 0 to use the compile-time default
+ */
+void lvgl_theme_set_default_font_size(uint16_t size);
+
+/** @return the default font size in pixels that was set at runtime, or 0 when the compile-time default applies */
+uint16_t lvgl_theme_get_default_font_size(void);
+
+/**
+ * @brief Overrides the compile-time scales of the launcher's icon size and spacing, for devices that only know them at runtime.
+ * @param[in] icon_size_percent 100 for the default icon size
+ * @param[in] icon_spacing_percent 100 for the default spacing between the icons
+ */
+void lvgl_theme_set_launcher_scales(uint16_t icon_size_percent, uint16_t icon_spacing_percent);
+
+/** @return the scale of the launcher's icon size in percent, 100 for the default size */
+uint16_t lvgl_theme_get_launcher_icon_size_scale(void);
+
+/** @return the scale of the spacing between the launcher's icons in percent, 100 for the default spacing */
+uint16_t lvgl_theme_get_launcher_icon_spacing_scale(void);
+
+/**
  * @brief Checks whether the active theme is the monochrome theme: on monochrome and greyscale displays, or when selected in the settings.
  * @return true when the monochrome theme is active
  */

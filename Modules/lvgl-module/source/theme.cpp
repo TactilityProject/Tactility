@@ -28,6 +28,16 @@ static uint8_t default_size = CONFIG_TT_UI_SIZE;
 #else
 static uint8_t default_size = 100;
 #endif
+#ifdef CONFIG_TT_LAUNCHER_ICON_SIZE_SCALE
+static uint16_t launcher_icon_size_scale = CONFIG_TT_LAUNCHER_ICON_SIZE_SCALE;
+#else
+static uint16_t launcher_icon_size_scale = 100;
+#endif
+#ifdef CONFIG_TT_LAUNCHER_ICON_SPACING_SCALE
+static uint16_t launcher_icon_spacing_scale = CONFIG_TT_LAUNCHER_ICON_SPACING_SCALE;
+#else
+static uint16_t launcher_icon_spacing_scale = 100;
+#endif
 static ActiveTheme active_theme = ActiveTheme::None;
 
 void lvgl_theme_get_default_settings(LvglThemeSettings* settings) {
@@ -48,6 +58,29 @@ void lvgl_theme_get_default_settings(LvglThemeSettings* settings) {
 void lvgl_theme_set_default_density(uint8_t spacing, uint8_t size) {
     default_spacing = spacing;
     default_size = size;
+}
+
+static uint16_t default_font_size = 0;
+
+void lvgl_theme_set_default_font_size(uint16_t size) {
+    default_font_size = size;
+}
+
+uint16_t lvgl_theme_get_default_font_size(void) {
+    return default_font_size;
+}
+
+void lvgl_theme_set_launcher_scales(uint16_t icon_size_percent, uint16_t icon_spacing_percent) {
+    launcher_icon_size_scale = icon_size_percent;
+    launcher_icon_spacing_scale = icon_spacing_percent;
+}
+
+uint16_t lvgl_theme_get_launcher_icon_size_scale(void) {
+    return launcher_icon_size_scale;
+}
+
+uint16_t lvgl_theme_get_launcher_icon_spacing_scale(void) {
+    return launcher_icon_spacing_scale;
 }
 
 void lvgl_theme_get_settings(LvglThemeSettings* settings) {

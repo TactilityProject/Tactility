@@ -39,6 +39,18 @@ menu "Tactility App"
         range 0 100
         help
             Default size of widgets, from 0 (compact) to 100 (regular). Users can change it in the Appearance app.
+    config TT_LAUNCHER_ICON_SIZE_SCALE
+        int "Launcher icon size scale (%)"
+        default 100
+        range 25 400
+        help
+            Scale of the launcher icons relative to the default size, which is derived from the default font size.
+    config TT_LAUNCHER_ICON_SPACING_SCALE
+        int "Launcher icon spacing scale (%)"
+        default 100
+        range 0 400
+        help
+            Scale of the spacing between the launcher icons and around them, relative to the default spacing.
     config TT_LVGL_DRAW_BUFFER_LINES
         int "Lines per LVGL draw buffer"
         default 0

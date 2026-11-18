@@ -20,6 +20,8 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONTS = os.path.join(ROOT, "Data", "system", "fonts")
+REFERENCE_DPI = 143
+REFERENCE_FONT_SIZE = 14
 DEFAULT_FONT_SIZE = 14
 
 
@@ -79,7 +81,14 @@ def get_icon_codepoints(names: list) -> list:
 def get_device_settings(device_folder: str, simulator: bool) -> tuple:
     """@return the default font size and the bits per pixel"""
     properties = read_properties(os.path.join(device_folder, "device.properties"))
-    font_size = int(properties.get("font.defaultSize") or properties.get("lvgl.fontSize") or DEFAULT_FONT_SIZE)
+    font_size_text = properties.get("font.defaultSize") or properties.get("lvgl.fontSize")
+    if font_size_text:
+        font_size = int(font_size_text)
+    elif properties.get("display.dpi"):
+        # Same derivation as device.py
+        font_size = round(REFERENCE_FONT_SIZE * int(properties["display.dpi"]) / REFERENCE_DPI)
+    else:
+        font_size = DEFAULT_FONT_SIZE
     has_psram = properties.get("hardware.spiRam", "false") == "true" and not simulator
     monochrome = any(
         re.search(r"ssd1306|st7305", read_text(os.path.join(device_folder, name)))

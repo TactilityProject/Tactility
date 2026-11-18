@@ -352,11 +352,13 @@ void layoutHeader(Context* ctx) {
             }
             visibleCount++;
             if (::std::find(::std::begin(ctx->chips), ::std::end(ctx->chips), child) == ::std::end(ctx->chips)) {
-                fixedWidth += lv_obj_get_width(child);
+                fixedWidth += lv_obj_get_width(child) + lv_obj_get_style_margin_left(child, LV_PART_MAIN) + lv_obj_get_style_margin_right(child, LV_PART_MAIN);
             }
         }
         const int32_t gaps = (visibleCount - 1) * lv_obj_get_style_pad_column(ctx->header, LV_PART_MAIN);
-        const int32_t chipWidth = ::std::max<int32_t>(0, (lv_obj_get_content_width(ctx->header) - fixedWidth - gaps) / static_cast<int32_t>(::std::size(ctx->chips)));
+        // The margin of a chip, for its focus ring, takes room too
+        const int32_t chipMargins = lv_obj_get_style_margin_left(ctx->chips[0], LV_PART_MAIN) + lv_obj_get_style_margin_right(ctx->chips[0], LV_PART_MAIN);
+        const int32_t chipWidth = ::std::max<int32_t>(0, (lv_obj_get_content_width(ctx->header) - fixedWidth - gaps) / static_cast<int32_t>(::std::size(ctx->chips)) - chipMargins);
         for (auto* chip : ctx->chips) {
             lv_obj_set_flex_grow(chip, 0);
             lv_obj_set_width(chip, chipWidth);
@@ -846,15 +848,15 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->headerWidth = -1;
     lv_obj_add_event_cb(ctx->header, onHeaderSizeChanged, LV_EVENT_SIZE_CHANGED, ctx);
 
-    createHeaderButton(ctx->header, LV_SYMBOL_CLOSE, false, onBackPressed, ctx);
+    createHeaderButton(ctx->header, LVGL_ICON_SHARED_CLOSE, true, onBackPressed, ctx);
     ctx->spacerLeft = createHeaderSpacer(ctx->header);
     createFilterChips(ctx->header, ctx);
     updateFilterChips(ctx);
     ctx->spacerRight = createHeaderSpacer(ctx->header);
-    ctx->refreshButton = createHeaderButton(ctx->header, LV_SYMBOL_REFRESH, false, onRefreshPressed, ctx);
+    ctx->refreshButton = createHeaderButton(ctx->header, LVGL_ICON_SHARED_REFRESH, true, onRefreshPressed, ctx);
     lv_obj_set_hidden(ctx->refreshButton, true);
     createHeaderButton(ctx->header, LVGL_ICON_SHARED_SEARCH, true, onSearchTogglePressed, ctx);
-    ctx->updateAllButton = createHeaderButton(ctx->header, LV_SYMBOL_DOWNLOAD, false, onUpdateAllPressed, ctx);
+    ctx->updateAllButton = createHeaderButton(ctx->header, LVGL_ICON_SHARED_DOWNLOAD, true, onUpdateAllPressed, ctx);
     lv_obj_set_hidden(ctx->updateAllButton, true);
     ctx->updateAllSpinner = lvgl_spinner_create(ctx->header);
     lv_obj_set_clickable(ctx->updateAllSpinner, false);

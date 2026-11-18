@@ -16,6 +16,7 @@
 #include <lvgl_window_manager/window_manager.h>
 
 #include <lvgl/fonts.h>
+#include <lvgl/icons/shared.h>
 #include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
@@ -333,7 +334,9 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     auto* closeButton = lvgl_icon_button_create(ctx->header);
     lv_obj_add_event_cb(closeButton, onBackPressed, LV_EVENT_SHORT_CLICKED, ctx);
-    lv_label_set_text(lv_label_create(closeButton), LV_SYMBOL_CLOSE);
+    auto* closeIcon = lv_label_create(closeButton);
+    lv_obj_set_style_text_font(closeIcon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_label_set_text(closeIcon, LVGL_ICON_SHARED_CLOSE);
 
     if (isIconShown()) {
         ctx->iconImage = lv_image_create(ctx->header);

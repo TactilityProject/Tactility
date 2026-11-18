@@ -619,5 +619,8 @@ const MeshBackendApi meshtastic_backend_api = {
     .is_valid_contact_address = isValidContactAddress,
     .on_node_name_changed = onNodeNameChanged,
     .remove_channel = removeChannel,
+    .send_advert = nullptr,
+    .on_frame_done = nullptr,
+    .cancel_send = nullptr,
     .features = MESH_FEATURE_KEYED_CHANNELS,
 };

@@ -6,10 +6,13 @@
 #include <tactility/log.h>
 
 #include <cerrno>
+#include <csignal>
 #include <climits>
+#include <iterator>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <pthread.h>
 #include <string>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -29,13 +32,13 @@ constexpr auto* DISPLAY_SETTINGS_PATH = "data/tactility/appdata/tactility.displa
 constexpr auto* ORIENTATION_KEY = "orientation=";
 
 static const Profile PROFILES[PROFILE_COUNT] = {
-    { "Default", 640, 320, LV_DPI_DEF, false, 100, 100, false, true, true },
-    { "CL-32", 384, 168, 139, false, 40, 0, true, true, false },
-    { "LilyGO T-Deck", 320, 240, 143, false, 40, 60, false, true, true },
-    { "LilyGO T-Lora Pager", 480, 222,  150, false, 40, 0, false, true, false },
-    { "M5Stack Cardputer", 240, 135, 139, false, 20, 0, false, true, false },
-    { "M5Stack Tab5",  1280, 720, 250, true, 100, 100, false, true, true },
-    { "Sixrig myPuter", 928, 272, 250, false, 40, 60, false, true, true },
+    { "Default", 640, 320, LV_DPI_DEF, false, 14, 100, 100, 1.0f, 1.0f, false, true, true },
+    { "CL-32", 384, 168, 139, false, 14, 20, 0, 0.8f, 1.0f, true, true, false },
+    { "LilyGO T-Deck", 320, 240, 143, false, 14, 40, 60, 1.0f, 1.0f, false, true, true },
+    { "LilyGO T-Lora Pager", 480, 222, 227, false, 16, 40, 0, 1.0f, 0.0f, false, true, false },
+    { "M5Stack Cardputer", 240, 135, 139, false, 14, 20, 0, 1.0f, 1.0f, false, true, false },
+    { "M5Stack Tab5",  1280, 720, 294, true, 29, 100, 100, 1.0f, 1.0f, false, true, true },
+    { "Sixrig myPuter", 928, 272, 250, false, 24, 40, 60, 1.0f, 1.0f, false, true, true },
 };
 
 static size_t activeProfileIndex = 0;
@@ -270,13 +273,34 @@ void reboot() {
     itimerval previousTimer = {};
     itimerval stopTimer = {};
     setitimer(ITIMER_REAL, &stopTimer, &previousTimer);
+
+    // The FreeRTOS port signals threads for its ticks and its context switches. A signal that is pending or arrives while exec() replaces
+    // the image would hit the new image before it installs its handlers, and its default action ends the process. Ignored signals are
+    // dropped and stay ignored until the new image installs its own handlers. The blocked signals are inherited too, so none stay blocked.
+    constexpr int SIGNALS[] = { SIGALRM, SIGUSR1, SIGUSR2 };
+    struct sigaction previousActions[std::size(SIGNALS)] = {};
+    struct sigaction ignore = {};
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset(&ignore.sa_mask);
+    for (size_t i = 0; i < std::size(SIGNALS); i++) {
+        sigaction(SIGNALS[i], &ignore, &previousActions[i]);
+    }
+    sigset_t noSignals;
+    sigemptyset(&noSignals);
+    sigset_t previousMask;
+    pthread_sigmask(SIG_SETMASK, &noSignals, &previousMask);
+
     if (!executablePath.empty()) {
         execv(executablePath.c_str(), processArguments);
     } else {
         execvp(processArguments[0], processArguments);
     }
     LOG_E(TAG, "Failed to reboot: %s", strerror(errno));
-    // This process keeps running, so it needs its ticks again
+    // This process keeps running, so it needs its signals and ticks again
+    pthread_sigmask(SIG_SETMASK, &previousMask, nullptr);
+    for (size_t i = 0; i < std::size(SIGNALS); i++) {
+        sigaction(SIGNALS[i], &previousActions[i], nullptr);
+    }
     setitimer(ITIMER_REAL, &previousTimer, nullptr);
 }
 

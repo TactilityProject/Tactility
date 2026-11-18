@@ -352,7 +352,7 @@ void loadPackageIcons(void*) {
 
     auto& state = packageIcons();
 
-    const auto size = static_cast<uint32_t>(lvgl_get_shared_icon_large_font_height());
+    const auto size = getTileIconSize();
     const bool preferMono = lvgl_theme_is_mono();
     if (!state.builtInLoaded || state.builtInForMono != preferMono) {
         loadBuiltInIcons(state, size, preferMono);
@@ -423,6 +423,7 @@ void loadPackageIcons(void*) {
 
 const LauncherMode APPS_MODE = {
     .buttonIcon = LVGL_ICON_SHARED_APPS,
+    .tileStyle = TileGrid::Style::Tile,
     .iconColor = TileGrid::IconColor::Primary,
     .collect = collectItems,
     .onLongPressed = onLongPressed,
