@@ -64,6 +64,14 @@ void system_bars_configure(const struct SystemBarsConfig* config);
 void system_bars_refresh(void);
 
 /**
+ * Makes a pointer device that was created after the system bars started open the system menu with a swipe.
+ * Doesn't read any settings, so it is safe to call from any task that holds the LVGL lock.
+ * @param[in] indev a pointer device
+ * @warning Caller must hold the LVGL lock.
+ */
+void system_bars_add_pointer(lv_indev_t* indev);
+
+/**
  * Shows or hides the statusbar, e.g. for a full screen app. A window must show it again when its widgets are destroyed.
  * @warning Caller must hold the LVGL lock.
  */

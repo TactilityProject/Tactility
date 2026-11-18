@@ -258,8 +258,8 @@ static void addMouseIndev(UsbHidInputCtx* ctx) {
         lv_indev_set_cursor(ctx->mouse_indev, ctx->mouse_cursor);
         lv_obj_set_hidden(ctx->mouse_cursor, false);
     }
-    // The system bars swipe handlers go on the new pointer
-    system_bars_refresh();
+    // The system bars swipe handlers go on the new pointer. Refreshing them would read settings, which this task's stack can't do.
+    system_bars_add_pointer(ctx->mouse_indev);
 }
 
 static void removeMouseIndev(UsbHidInputCtx* ctx) {

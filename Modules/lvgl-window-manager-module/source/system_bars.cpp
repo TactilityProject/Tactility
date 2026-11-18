@@ -527,6 +527,12 @@ void system_bars_refresh(void) {
     state->applied = true;
 }
 
+void system_bars_add_pointer(lv_indev_t* indev) {
+    if (state != nullptr) {
+        addPointerCallbacks(indev);
+    }
+}
+
 void system_bars_set_statusbar_visible(bool visible) {
     if (state != nullptr) {
         lv_obj_set_hidden(state->statusbar, !visible);

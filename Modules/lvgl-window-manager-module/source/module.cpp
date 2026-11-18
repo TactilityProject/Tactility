@@ -17,6 +17,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(window_manager_overlay_hide),
     DEFINE_MODULE_SYMBOL(window_manager_get_active_layer),
     DEFINE_MODULE_SYMBOL(system_bars_refresh),
+    DEFINE_MODULE_SYMBOL(system_bars_add_pointer),
     DEFINE_MODULE_SYMBOL(system_bars_set_statusbar_visible),
     DEFINE_MODULE_SYMBOL(system_bars_get_layout),
     DEFINE_MODULE_SYMBOL(system_bars_get_alignment),
