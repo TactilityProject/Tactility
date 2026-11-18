@@ -6,10 +6,13 @@
 #include <tactility/log.h>
 
 #include <cerrno>
+#include <csignal>
 #include <climits>
+#include <iterator>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <pthread.h>
 #include <string>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -270,13 +273,34 @@ void reboot() {
     itimerval previousTimer = {};
     itimerval stopTimer = {};
     setitimer(ITIMER_REAL, &stopTimer, &previousTimer);
+
+    // The FreeRTOS port signals threads for its ticks and its context switches. A signal that is pending or arrives while exec() replaces
+    // the image would hit the new image before it installs its handlers, and its default action ends the process. Ignored signals are
+    // dropped and stay ignored until the new image installs its own handlers. The blocked signals are inherited too, so none stay blocked.
+    constexpr int SIGNALS[] = { SIGALRM, SIGUSR1, SIGUSR2 };
+    struct sigaction previousActions[std::size(SIGNALS)] = {};
+    struct sigaction ignore = {};
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset(&ignore.sa_mask);
+    for (size_t i = 0; i < std::size(SIGNALS); i++) {
+        sigaction(SIGNALS[i], &ignore, &previousActions[i]);
+    }
+    sigset_t noSignals;
+    sigemptyset(&noSignals);
+    sigset_t previousMask;
+    pthread_sigmask(SIG_SETMASK, &noSignals, &previousMask);
+
     if (!executablePath.empty()) {
         execv(executablePath.c_str(), processArguments);
     } else {
         execvp(processArguments[0], processArguments);
     }
     LOG_E(TAG, "Failed to reboot: %s", strerror(errno));
-    // This process keeps running, so it needs its ticks again
+    // This process keeps running, so it needs its signals and ticks again
+    pthread_sigmask(SIG_SETMASK, &previousMask, nullptr);
+    for (size_t i = 0; i < std::size(SIGNALS); i++) {
+        sigaction(SIGNALS[i], &previousActions[i], nullptr);
+    }
     setitimer(ITIMER_REAL, &previousTimer, nullptr);
 }
 
