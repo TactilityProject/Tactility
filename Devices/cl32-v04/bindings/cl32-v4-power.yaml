@@ -1,4 +1,4 @@
-description: CL-32 v0.4 battery voltage and power off, provided by the core chip
+description: CL-32 v0.4 battery voltage, charging state and power off, provided by the core chip
 
 include: ["i2c-device.yaml"]
 

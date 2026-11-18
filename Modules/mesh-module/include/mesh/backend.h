@@ -128,6 +128,15 @@ struct MeshBackendApi {
     /** Optional. The message with sequence number @a seq was cancelled, so it must not be sent again. */
     void (*cancel_send)(void* backend, uint32_t seq);
 
+    /** Optional. See mesh_set_contact_path(). The hops are validated by the host to be at least 1 and a hash size of 1 to 4. */
+    error_t (*set_contact_path)(void* backend, const struct MeshAddress* contact, const uint8_t* hops, size_t hop_count, size_t hash_size);
+
+    /** Optional. See mesh_get_contact_path(). */
+    error_t (*get_contact_path)(void* backend, const struct MeshAddress* contact, struct MeshContactPath* path);
+
+    /** Optional. See mesh_reset_contact_path(). */
+    error_t (*reset_contact_path)(void* backend, const struct MeshAddress* contact);
+
     /** The MeshFeature values that the backend supports, combined, see mesh_supports() */
     uint32_t features;
 };

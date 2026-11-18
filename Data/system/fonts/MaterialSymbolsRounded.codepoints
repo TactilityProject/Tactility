@@ -72,11 +72,14 @@ network_wifi_1_bar ebe4
 network_wifi_2_bar ebd6
 network_wifi_3_bar ebe1
 note_add e89c
+notifications e7f5
+notifications_unread f4fe
 palette e40a
 person_remove ef66
 phone_android f2db
 play_arrow e037
 power_settings_new f8c7
+push_pin f10d
 refresh e5d5
 save e161
 save_as eb60
@@ -92,5 +95,7 @@ signal_wifi_off e1da
 terminal eb8e
 toolbar e9f7
 usb e1e0
+volume_off e04f
+volume_up e050
 wifi e63e
 wifi_off e648

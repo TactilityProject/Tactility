@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <tactility/delay.h>
 #include <tactility/drivers/esp32_sdspi.h>
 #include <tactility/drivers/esp32_sdspi_fs.h>
 #include <tactility/drivers/gpio_descriptor.h>
@@ -10,6 +11,9 @@
 #include <string>
 
 #define TAG "esp32_sdspi_fs"
+
+// A card that was in the middle of a transfer when the CPU reset can fail its first init and work on the next one
+static constexpr uint32_t MOUNT_RETRY_DELAYS_MS[] = { 100, 250 };
 
 #define GET_DATA(data) static_cast<Esp32SdspiFsData*>(data)
 
@@ -76,6 +80,17 @@ static error_t mount(void* data) {
     esp_err_t result = esp_vfs_fat_sdspi_mount(
         fs_data->mount_path.c_str(), &host, &slot_config, &mount_config, &fs_data->card
     );
+    // ESP_FAIL means that there is no usable filesystem, which another attempt doesn't change
+    for (const uint32_t delay_ms : MOUNT_RETRY_DELAYS_MS) {
+        if (result == ESP_OK || result == ESP_FAIL) {
+            break;
+        }
+        LOG_W(TAG, "Mounting failed: %s. Trying again in %u ms", esp_err_to_name(result), static_cast<unsigned>(delay_ms));
+        delay_millis(delay_ms);
+        result = esp_vfs_fat_sdspi_mount(
+            fs_data->mount_path.c_str(), &host, &slot_config, &mount_config, &fs_data->card
+        );
+    }
 
     if (result != ESP_OK || fs_data->card == nullptr) {
         if (result == ESP_FAIL) {

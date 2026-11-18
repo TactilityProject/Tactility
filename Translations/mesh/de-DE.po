@@ -212,3 +212,129 @@ msgstr "Advert konnte nicht gesendet werden"
 
 msgid "Show QR"
 msgstr "QR anzeigen"
+
+msgid "Info"
+msgstr "Info"
+
+msgid "Status: {}"
+msgstr "Status: {}"
+
+msgid "Network: {}"
+msgstr "Netzwerk: {}"
+
+msgid "Region: {}"
+msgstr "Region: {}"
+
+msgid "Radio: {} MHz, {} kHz, SF{}, CR 4/{}, {} dBm"
+msgstr "Funk: {} MHz, {} kHz, SF{}, CR 4/{}, {} dBm"
+
+msgid "Duty cycle: unrestricted"
+msgstr "Duty-Cycle: unbegrenzt"
+
+msgid "Duty cycle: {} s of {} s used ({}% allowed)"
+msgstr "Duty-Cycle: {} s von {} s genutzt ({}% erlaubt)"
+
+msgid "Transmitting is paused until the budget frees up"
+msgstr "Senden ist pausiert, bis das Budget wieder frei ist"
+
+msgid "Waiting to transmit: {}"
+msgstr "Warten auf Senden: {}"
+
+msgid "Frames: {} sent, {} failed, {} received, {} unreadable"
+msgstr "Frames: {} gesendet, {} fehlgeschlagen, {} empfangen, {} unlesbar"
+
+msgid "Messages: {} received, {} sent, {} failed"
+msgstr "Nachrichten: {} empfangen, {} gesendet, {} fehlgeschlagen"
+
+msgid "Nodes heard: {}, contacts: {}"
+msgstr "Knoten gehört: {}, Kontakte: {}"
+
+msgid "Set path"
+msgstr "Pfad festlegen"
+
+msgid "Reset path"
+msgstr "Pfad zurücksetzen"
+
+msgid "No contacts"
+msgstr "Keine Kontakte"
+
+msgid "Add a contact first."
+msgstr "Füge zuerst einen Kontakt hinzu."
+
+msgid "Couldn't change path"
+msgstr "Pfad konnte nicht geändert werden"
+
+msgid "Repeater hashes in hexadecimal, e.g. a1,b2,c3"
+msgstr "Hashes der Repeater in Hexadezimal, z. B. a1,b2,c3"
+
+msgid "Invalid path"
+msgstr "Ungültiger Pfad"
+
+msgid "Enter the hashes of the repeaters as hexadecimal characters, all of the same length, separated by commas."
+msgstr "Gib die Hashes der Repeater als Hexadezimalzeichen ein, alle gleich lang und durch Kommas getrennt."
+
+msgid "The path is too long."
+msgstr "Der Pfad ist zu lang."
+
+msgid "Delete message history"
+msgstr "Nachrichtenverlauf löschen"
+
+msgid "All messages of this conversation are deleted."
+msgstr "Alle Nachrichten dieser Unterhaltung werden gelöscht."
+
+msgid "Delete"
+msgstr "Löschen"
+
+msgid "Couldn't delete"
+msgstr "Löschen fehlgeschlagen"
+
+msgid "Turn mesh on to delete the messages."
+msgstr "Schalte Mesh ein, um die Nachrichten zu löschen."
+
+msgid "Details"
+msgstr "Details"
+
+msgid "{} s ago"
+msgstr "vor {} s"
+
+msgid "{} min ago"
+msgstr "vor {} Min."
+
+msgid "{} h ago"
+msgstr "vor {} Std."
+
+msgid "Name: {}"
+msgstr "Name: {}"
+
+msgid "Public key: {}"
+msgstr "Öffentlicher Schlüssel: {}"
+
+msgid "Path (set by you): {}"
+msgstr "Pfad (von dir festgelegt): {}"
+
+msgid "Path (learned): {}"
+msgstr "Pfad (gelernt): {}"
+
+msgid "Path: none, messages are flooded"
+msgstr "Pfad: keiner, Nachrichten werden geflutet"
+
+msgid "Last advert heard: {}"
+msgstr "Letzter Advert gehört: {}"
+
+msgid "Last advert heard: not since start"
+msgstr "Letzter Advert gehört: nicht seit dem Start"
+
+msgid "Last heard: {}"
+msgstr "Zuletzt gehört: {}"
+
+msgid "Signal: {} dBm"
+msgstr "Signal: {} dBm"
+
+msgid "Signal: {} dBm, {} dB"
+msgstr "Signal: {} dBm, {} dB"
+
+msgid "All messages"
+msgstr "Alle Nachrichten"
+
+msgid "current"
+msgstr "aktuell"

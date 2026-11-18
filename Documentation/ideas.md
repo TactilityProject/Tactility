@@ -6,12 +6,16 @@
 
 - Pick better icon for toggling touch in remote.py
 - Newer Meshtastic firmware supports per-node public-key direct messages.
+- Remove ft6x driver
+- Fix inconsistent selection outlines in theme. Consider 2 dp as standard for most/all. 
+  The selection outline width for the launcher (apps and settings) and the system bar (status icon group) should be determined by the theme.
+  The theme should expose a style/value for this.
+  The size should be 2dp if UI size >= 40, otherwise it's 1dp
 
 ## Medium Priority
 
 - Notification support
-- Mesh: Add "RX boosted gain" switch for SX126x-based radios. Enable by default.
-- Mesh: Show stats, such as duty cycle and message counts
+- Copy/paste buffer
 - DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
 - Add "Downloading Apps" step in Setup that downloads useful apps.
   It's an optional step at the end that only shows if wifi is connected.

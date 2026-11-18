@@ -64,6 +64,14 @@ size_t memory_external_total() {
 #endif
 }
 
+size_t memory_external_free() {
+#ifdef ESP_PLATFORM
+    return heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+#else
+    return 0;
+#endif
+}
+
 size_t memory_heap_free() {
 #ifdef ESP_PLATFORM
     return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);

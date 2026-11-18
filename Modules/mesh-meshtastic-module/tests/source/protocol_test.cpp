@@ -118,6 +118,57 @@ TEST_CASE("Meshtastic User encoding round trip") {
     CHECK_EQ(decoded.shortName, "Tact");
 }
 
+TEST_CASE("Meshtastic User carries a public key") {
+    MeshtasticUser user;
+    user.id = meshtastic_node_id(1);
+    user.longName = "Tactility";
+    user.publicKey.assign(32, 0x5A);
+    const auto encoded = meshtastic_encode_user(user);
+    MeshtasticUser decoded;
+    REQUIRE(meshtastic_decode_user(encoded.data(), encoded.size(), &decoded));
+    CHECK_EQ(decoded.publicKey.size(), 32);
+    CHECK_EQ(decoded.publicKey[0], 0x5A);
+}
+
+TEST_CASE("X25519 public key matches the RFC 7748 vector") {
+    const uint8_t privateKey[32] = {
+        0x77, 0x07, 0x6d, 0x0a, 0x73, 0x18, 0xa5, 0x7d, 0x3c, 0x16, 0xc1, 0x72, 0x51, 0xb2, 0x66, 0x45,
+        0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0, 0x99, 0x2a, 0xb1, 0x77, 0xfb, 0xa5, 0x1d, 0xb9, 0x2c, 0x2a
+    };
+    const uint8_t expected[32] = {
+        0x85, 0x20, 0xf0, 0x09, 0x89, 0x30, 0xa7, 0x54, 0x74, 0x8b, 0x7d, 0xdc, 0xb4, 0x3e, 0xf7, 0x5a,
+        0x0d, 0xbf, 0x3a, 0x0d, 0x26, 0x38, 0x1a, 0xf4, 0xeb, 0xa4, 0xa9, 0x8e, 0xaa, 0x9b, 0x4e, 0x6a
+    };
+    uint8_t publicKey[32];
+    REQUIRE(meshtastic_public_key_from_private(privateKey, publicKey));
+    CHECK_EQ(memcmp(publicKey, expected, 32), 0);
+}
+
+TEST_CASE("Meshtastic public key encryption round trip") {
+    MeshtasticKeyPair alice;
+    MeshtasticKeyPair bob;
+    REQUIRE(meshtastic_generate_key_pair(&alice));
+    REQUIRE(meshtastic_generate_key_pair(&bob));
+
+    MeshtasticData data;
+    data.port = MeshtasticPort::TextMessage;
+    const char text[] = "direct message";
+    data.payload.assign(text, text + sizeof(text) - 1);
+    const auto encoded = meshtastic_encode_data(data);
+
+    uint8_t frame[256];
+    REQUIRE(meshtastic_pki_encrypt(alice.privateKey, bob.publicKey, 0x1234, 0xAABBCCDD, 0x55667788, encoded.data(), encoded.size(), frame));
+
+    uint8_t plaintext[256];
+    REQUIRE(meshtastic_pki_decrypt(bob.privateKey, alice.publicKey, 0x1234, 0xAABBCCDD, frame, encoded.size() + MESHTASTIC_PKI_OVERHEAD, plaintext));
+    CHECK_EQ(memcmp(plaintext, encoded.data(), encoded.size()), 0);
+
+    // A different packet id, a wrong key or a changed byte fails the authentication
+    CHECK_FALSE(meshtastic_pki_decrypt(bob.privateKey, alice.publicKey, 0x1235, 0xAABBCCDD, frame, encoded.size() + MESHTASTIC_PKI_OVERHEAD, plaintext));
+    frame[0] ^= 1;
+    CHECK_FALSE(meshtastic_pki_decrypt(bob.privateKey, alice.publicKey, 0x1234, 0xAABBCCDD, frame, encoded.size() + MESHTASTIC_PKI_OVERHEAD, plaintext));
+}
+
 TEST_CASE("a Meshtastic preset either fits the region or is refused") {
     size_t presetCount = 0;
     while (meshtastic_backend_api.presets[presetCount] != nullptr) {

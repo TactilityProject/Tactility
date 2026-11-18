@@ -84,6 +84,7 @@ target_link_libraries(TactilityTests PRIVATE
     location-module
     mbedtls-module
     mesh-module
+    notification-module
     mesh-meshcore-module
     mesh-meshtastic-module
     posix-symbols-module

@@ -14,6 +14,8 @@
 #define CONVERSATION_APP_ID "tactility.meshconversation"
 #define ADD_CONTACT_APP_ID "tactility.meshaddcontact"
 #define MESH_SETTINGS_APP_ID "tactility.meshsettings"
+#define MESH_INFO_APP_ID "tactility.meshinfo"
+#define CONTACT_DETAILS_APP_ID "tactility.meshcontactdetails"
 
 namespace tt::app::meshchat {
 

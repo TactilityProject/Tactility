@@ -3,5 +3,6 @@ dependencies:
   - Drivers/tca8418-module
   - Drivers/ssd16xx-module
   - Drivers/bm8563-module
+  - Drivers/max17048-module
   - Drivers/sx126x-module
 dts: cl32-v02-v03.dts

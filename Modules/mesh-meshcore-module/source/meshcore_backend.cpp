@@ -96,6 +96,8 @@ struct Backend {
     tt::std::vector<PendingSend> pendingSends;
     /** Paths that an acknowledgement came back over. They are lost on restart. */
     tt::std::vector<KnownPath> knownPaths;
+    /** Paths that the user set. They are kept across restarts and used instead of the learned ones. */
+    tt::std::vector<KnownPath> manualPaths;
     tt::std::deque<ChannelSend> channelSends;
     /** Timestamp and sender of received direct messages, to drop the retries of a message that arrived already */
     tt::std::deque<uint64_t> recentTexts;
@@ -226,6 +228,28 @@ void saveContacts(Backend* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (getPath(backend, "contacts.bin", path, sizeof(path))) {
         writeFile(path, reinterpret_cast<const uint8_t*>(backend->contacts.data()), backend->contacts.size() * sizeof(Contact));
+    }
+}
+
+void loadManualPaths(Backend* backend) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    tt::std::vector<uint8_t> data;
+    if (!getPath(backend, "paths.bin", path, sizeof(path)) || !readFile(path, data)) {
+        return;
+    }
+    for (size_t offset = 0; offset + sizeof(KnownPath) <= data.size() && backend->manualPaths.size() < MAX_CONTACTS; offset += sizeof(KnownPath)) {
+        KnownPath knownPath;
+        memcpy(&knownPath, data.data() + offset, sizeof(KnownPath));
+        if (knownPath.length > 0 && knownPath.hashSize >= 1 && knownPath.hashSize <= 4 && knownPath.length * knownPath.hashSize <= MESHCORE_MAX_PATH_SIZE) {
+            backend->manualPaths.push_back(knownPath);
+        }
+    }
+}
+
+void saveManualPaths(Backend* backend) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (getPath(backend, "paths.bin", path, sizeof(path))) {
+        writeFileSafely(path, reinterpret_cast<const uint8_t*>(backend->manualPaths.data()), backend->manualPaths.size() * sizeof(KnownPath));
     }
 }
 
@@ -518,6 +542,11 @@ bool onTextMessage(Backend* backend, const MeshCorePacket& packet, float rssi, f
 }
 
 const KnownPath* findKnownPath(Backend* backend, const uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE]) {
+    for (const auto& path : backend->manualPaths) {
+        if (memcmp(path.publicKey, publicKey, MESHCORE_PUBLIC_KEY_SIZE) == 0) {
+            return &path;
+        }
+    }
     for (const auto& path : backend->knownPaths) {
         if (memcmp(path.publicKey, publicKey, MESHCORE_PUBLIC_KEY_SIZE) == 0) {
             return &path;
@@ -612,6 +641,7 @@ void* create(MeshHost* host) {
     backend->host = host;
     loadOrCreateIdentity(backend);
     loadContacts(backend);
+    loadManualPaths(backend);
     loadChannels(backend);
     return backend;
 }
@@ -991,6 +1021,78 @@ void onFrameDone(void* context, uint32_t seq, bool transmitted) {
     }
 }
 
+bool isContact(Backend* backend, const MeshAddress* address) {
+    if (address->length != MESHCORE_PUBLIC_KEY_SIZE) {
+        return false;
+    }
+    for (const auto& contact : backend->contacts) {
+        if (memcmp(contact.publicKey, address->bytes, MESHCORE_PUBLIC_KEY_SIZE) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+error_t setContactPath(void* context, const MeshAddress* contact, const uint8_t* hops, size_t hopCount, size_t hashSize) {
+    auto* backend = static_cast<Backend*>(context);
+    if (!isContact(backend, contact)) {
+        return ERROR_NOT_FOUND;
+    }
+    // The path length is 6 bits in a packet
+    if (hopCount > 63 || hopCount * hashSize > MESHCORE_MAX_PATH_SIZE) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    KnownPath path {};
+    memcpy(path.publicKey, contact->bytes, MESHCORE_PUBLIC_KEY_SIZE);
+    path.length = static_cast<uint8_t>(hopCount);
+    path.hashSize = static_cast<uint8_t>(hashSize);
+    memcpy(path.hops, hops, hopCount * hashSize);
+    std::erase_if(backend->manualPaths, [&path](const KnownPath& existing) {
+        return memcmp(existing.publicKey, path.publicKey, MESHCORE_PUBLIC_KEY_SIZE) == 0;
+    });
+    if (backend->manualPaths.size() >= MAX_CONTACTS) {
+        backend->manualPaths.erase(backend->manualPaths.begin());
+    }
+    backend->manualPaths.push_back(path);
+    forgetPath(backend, contact->bytes);
+    saveManualPaths(backend);
+    return ERROR_NONE;
+}
+
+error_t getContactPath(void* context, const MeshAddress* contact, MeshContactPath* path) {
+    auto* backend = static_cast<Backend*>(context);
+    if (!isContact(backend, contact)) {
+        return ERROR_NOT_FOUND;
+    }
+    const KnownPath* known = findKnownPath(backend, contact->bytes);
+    if (known == nullptr) {
+        return ERROR_NOT_FOUND;
+    }
+    *path = {};
+    path->hop_count = known->length;
+    path->hash_size = known->hashSize;
+    memcpy(path->hops, known->hops, static_cast<size_t>(known->length) * known->hashSize);
+    for (const auto& manual : backend->manualPaths) {
+        path->manual |= &manual == known;
+    }
+    return ERROR_NONE;
+}
+
+error_t resetContactPath(void* context, const MeshAddress* contact) {
+    auto* backend = static_cast<Backend*>(context);
+    if (!isContact(backend, contact)) {
+        return ERROR_NOT_FOUND;
+    }
+    const size_t removed = std::erase_if(backend->manualPaths, [contact](const KnownPath& existing) {
+        return memcmp(existing.publicKey, contact->bytes, MESHCORE_PUBLIC_KEY_SIZE) == 0;
+    });
+    forgetPath(backend, contact->bytes);
+    if (removed > 0) {
+        saveManualPaths(backend);
+    }
+    return ERROR_NONE;
+}
+
 void cancelSend(void* context, uint32_t seq) {
     auto* backend = static_cast<Backend*>(context);
     std::erase_if(backend->pendingSends, [seq](const PendingSend& send) { return send.seq == seq; });
@@ -1071,5 +1173,8 @@ const MeshBackendApi meshcore_backend_api = {
     .send_advert = sendAdvertOnRequest,
     .on_frame_done = onFrameDone,
     .cancel_send = cancelSend,
-    .features = MESH_FEATURE_NAMED_CHANNELS | MESH_FEATURE_KEYED_CHANNELS | MESH_FEATURE_ADVERTS,
+    .set_contact_path = setContactPath,
+    .get_contact_path = getContactPath,
+    .reset_contact_path = resetContactPath,
+    .features = MESH_FEATURE_NAMED_CHANNELS | MESH_FEATURE_KEYED_CHANNELS | MESH_FEATURE_ADVERTS | MESH_FEATURE_CONTACT_PATHS,
 };

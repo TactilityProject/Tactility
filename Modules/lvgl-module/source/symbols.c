@@ -172,6 +172,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_set_time_format_24h),
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_create),
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_icon_add),
+    DEFINE_MODULE_SYMBOL(lvgl_statusbar_icon_add_with_priority),
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_icon_remove),
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_icon_set_image),
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_icon_set_visibility),

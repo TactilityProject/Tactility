@@ -74,3 +74,15 @@ msgstr "{} Byte"
 
 msgid "{} bytes"
 msgstr "{} Bytes"
+
+msgid "Legal warning"
+msgstr "Rechtlicher Hinweis"
+
+msgid "Advanced radio settings can make your radio operate outside the limits that apply in your country or region. You are responsible for following the local regulations. Wrong settings can cause interference and may have legal consequences."
+msgstr "Erweiterte Funkeinstellungen können dazu führen, dass dein Funkgerät außerhalb der Grenzen arbeitet, die in deinem Land oder deiner Region gelten. Du bist dafür verantwortlich, die örtlichen Vorschriften einzuhalten. Falsche Einstellungen können Störungen verursachen und rechtliche Folgen haben."
+
+msgid "RX boosted gain"
+msgstr "RX-Verstärkung erhöhen"
+
+msgid "Continue"
+msgstr "Weiter"

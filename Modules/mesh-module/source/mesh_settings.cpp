@@ -34,6 +34,7 @@ constexpr auto* KEY_REGION_SCOPE = "regionScope";
 constexpr auto* KEY_LEGACY_MIGRATED = "legacySettingsMigrated";
 constexpr auto* KEY_NODE_NAME = "nodeName";
 constexpr auto* KEY_RADIO = "radio";
+constexpr auto* KEY_RX_BOOSTED_GAIN = "rxBoostedGain";
 // Earlier versions stored this as the name when the user hadn't chosen one
 constexpr auto* LEGACY_DEFAULT_NODE_NAME = "Tactility";
 
@@ -87,11 +88,15 @@ static void read_settings_file(MeshSettings* settings) {
     if (properties_file_get(file, KEY_RADIO, value, sizeof(value)) == ERROR_NONE) {
         strncpy(settings->radio, value, MESH_NAME_MAX_LENGTH);
     }
+    if (properties_file_get(file, KEY_RX_BOOSTED_GAIN, value, sizeof(value)) == ERROR_NONE) {
+        settings->rx_boosted_gain = strcmp(value, "true") == 0;
+    }
     properties_file_close(file);
 }
 
 void mesh_settings_load(MeshSettings* settings) {
     *settings = {};
+    settings->rx_boosted_gain = true;
     read_settings_file(settings);
 
     // A name that the user didn't choose is made up once and then kept
@@ -119,6 +124,88 @@ static PropertiesFile* open_for_write() {
     return properties_file_open(path);
 }
 
+constexpr auto* KEY_MUTED_PREFIX = "muted.";
+
+struct MutedVisit {
+    void (*visitor)(const char* token, void* context);
+    void* context;
+};
+
+error_t mesh_settings_save_muted(const char* token, bool muted) {
+    FileLock fileLock;
+    PropertiesFile* file = open_for_write();
+    if (file == nullptr) {
+        return ERROR_RESOURCE;
+    }
+    char key[128];
+    snprintf(key, sizeof(key), "%s%s", KEY_MUTED_PREFIX, token);
+    properties_file_set(file, key, muted ? "1" : "0");
+    return properties_file_close(file);
+}
+
+void mesh_settings_load_muted(void (*visitor)(const char* token, void* context), void* context) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (service_paths_get_user_data_path(MESH_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
+        return;
+    }
+    FileLock fileLock;
+    PropertiesFile* file = properties_file_open(path);
+    if (file == nullptr) {
+        return;
+    }
+    MutedVisit visit = { visitor, context };
+    properties_file_for_each(file, [](const char* key, const char* value, void* data) {
+        auto* visit = static_cast<MutedVisit*>(data);
+        const size_t prefixLength = strlen(KEY_MUTED_PREFIX);
+        if (strncmp(key, KEY_MUTED_PREFIX, prefixLength) == 0 && strcmp(value, "1") == 0) {
+            visit->visitor(key + prefixLength, visit->context);
+        }
+    }, &visit);
+    properties_file_close(file);
+}
+
+constexpr auto* KEY_UNREAD_PREFIX = "unread.";
+
+struct UnreadVisit {
+    void (*visitor)(const char* token, uint32_t count, void* context);
+    void* context;
+};
+
+error_t mesh_settings_save_unread(const char* token, uint32_t count) {
+    FileLock fileLock;
+    PropertiesFile* file = open_for_write();
+    if (file == nullptr) {
+        return ERROR_RESOURCE;
+    }
+    char name[128];
+    char value[16];
+    snprintf(name, sizeof(name), "%s%s", KEY_UNREAD_PREFIX, token);
+    snprintf(value, sizeof(value), "%u", static_cast<unsigned>(count));
+    properties_file_set(file, name, value);
+    return properties_file_close(file);
+}
+
+void mesh_settings_load_unread(void (*visitor)(const char* token, uint32_t count, void* context), void* context) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (service_paths_get_user_data_path(MESH_SERVICE_ID, SETTINGS_FILE_NAME, path, sizeof(path)) != ERROR_NONE) {
+        return;
+    }
+    FileLock fileLock;
+    PropertiesFile* file = properties_file_open(path);
+    if (file == nullptr) {
+        return;
+    }
+    UnreadVisit visit = { visitor, context };
+    properties_file_for_each(file, [](const char* key, const char* value, void* data) {
+        auto* visit = static_cast<UnreadVisit*>(data);
+        const size_t prefixLength = strlen(KEY_UNREAD_PREFIX);
+        if (strncmp(key, KEY_UNREAD_PREFIX, prefixLength) == 0) {
+            visit->visitor(key + prefixLength, static_cast<uint32_t>(strtoul(value, nullptr, 10)), visit->context);
+        }
+    }, &visit);
+    properties_file_close(file);
+}
+
 error_t mesh_settings_save(const MeshSettings* settings) {
     FileLock fileLock;
     PropertiesFile* file = open_for_write();
@@ -129,6 +216,7 @@ error_t mesh_settings_save(const MeshSettings* settings) {
     properties_file_set(file, KEY_BACKEND, settings->backend);
     properties_file_set(file, KEY_NODE_NAME, settings->node_name);
     properties_file_set(file, KEY_RADIO, settings->radio);
+    properties_file_set(file, KEY_RX_BOOSTED_GAIN, settings->rx_boosted_gain ? "true" : "false");
     return properties_file_close(file);
 }
 

@@ -24,6 +24,7 @@ macro(tactility_project_post project_name)
         ${TACTILITY_SDK_PATH}/Modules/gps-module/include
         ${TACTILITY_SDK_PATH}/Modules/lvgl-module/include
         ${TACTILITY_SDK_PATH}/Modules/lvgl-window-manager-module/include
+        ${TACTILITY_SDK_PATH}/Modules/notification-module/include
         ${TACTILITY_SDK_PATH}/Modules/service-module/include
         ${TACTILITY_SDK_PATH}/Libraries/TactilityKernel/include
         ${TACTILITY_SDK_PATH}/Libraries/TactilityKernel/include-cpp

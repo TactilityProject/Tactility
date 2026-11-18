@@ -1,0 +1,13 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Notifications"
+msgstr "Meldingen"
+
+msgid "No app has sent a notification yet."
+msgstr "Er heeft nog geen app een melding verzonden."
+
+msgid "Turning an app off also removes its notifications."
+msgstr "Een app uitzetten verwijdert ook de meldingen ervan."

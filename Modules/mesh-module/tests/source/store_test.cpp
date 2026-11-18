@@ -291,3 +291,65 @@ TEST_CASE("MeshStore reads messages oldest first after a sequence number") {
     store.close();
     CHECK_FALSE(store.isOpen());
 }
+
+TEST_CASE("MeshStore deletes one conversation and keeps it deleted after a reopen") {
+    const std::string directory = makeTempDirectory();
+    const MeshAddress alice = { .length = 4, .bytes = { 1, 2, 3, 4 } };
+    const MeshAddress bob = { .length = 4, .bytes = { 5, 6, 7, 8 } };
+
+    const auto add = [](MeshStore& store, const char* backend, const MeshAddress* peer, const char* text) {
+        auto message = makeMessage(text, false, MESH_DELIVERY_RECEIVED);
+        strcpy(message.backend, backend);
+        message.peer = (peer != nullptr) ? *peer : MeshAddress {};
+        REQUIRE_EQ(store.add(&message), ERROR_NONE);
+    };
+
+    for (int round = 0; round < 2; round++) {
+        MeshStore store;
+        REQUIRE_EQ(store.open(directory.c_str()), ERROR_NONE);
+        MeshMessage messages[8];
+        if (round == 0) {
+            add(store, "test", &alice, "alice 1");
+            add(store, "test", &bob, "bob 1");
+            add(store, "other", &alice, "other backend");
+            REQUIRE_EQ(store.removeConversation("test", &alice, 0), ERROR_NONE);
+            // Messages that arrive afterwards belong to the conversation again
+            add(store, "test", &alice, "alice 2");
+        }
+        REQUIRE_EQ(store.getConversation("test", &alice, 0, 0, messages, 8), 1);
+        CHECK_EQ(std::string(messages[0].text), "alice 2");
+        CHECK_EQ(store.getConversation("test", &bob, 0, 0, messages, 8), 1);
+        CHECK_EQ(store.getConversation("other", &alice, 0, 0, messages, 8), 1);
+        store.close();
+    }
+}
+
+TEST_CASE("MeshStore counts the incoming messages after a sequence number, also after a reopen") {
+    const std::string directory = makeTempDirectory();
+    const MeshAddress alice = { .length = 4, .bytes = { 1, 2, 3, 4 } };
+    const MeshAddress bob = { .length = 4, .bytes = { 5, 6, 7, 8 } };
+
+    const auto add = [](MeshStore& store, const char* backend, const MeshAddress* peer, uint8_t channel, bool outgoing) {
+        auto message = makeMessage("text", outgoing, outgoing ? MESH_DELIVERY_SENT : MESH_DELIVERY_RECEIVED);
+        strcpy(message.backend, backend);
+        message.peer = (peer != nullptr) ? *peer : MeshAddress {};
+        message.channel = channel;
+        REQUIRE_EQ(store.add(&message), ERROR_NONE);
+        return message.seq;
+    };
+
+    for (int round = 0; round < 2; round++) {
+        MeshStore store;
+        REQUIRE_EQ(store.open(directory.c_str()), ERROR_NONE);
+        if (round == 0) {
+            add(store, "test", &alice, 0, false);                       // 1
+            add(store, "test", &alice, 0, false);                       // 2
+            add(store, "test", &alice, 0, true);                        // 3 is outgoing
+            add(store, "test", &bob, 0, false);                         // 4
+            add(store, "test", nullptr, 2, false);                      // 5 channel 2
+            add(store, "other", &alice, 0, false);                      // 6 another backend
+        }
+        CHECK_EQ(store.getLastSeq(), 6);
+        store.close();
+    }
+}

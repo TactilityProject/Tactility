@@ -18,9 +18,13 @@ constexpr auto* TAG = "cl32-v4-power";
 #define GET_CONFIG(device) (static_cast<const Cl32V4PowerConfig*>((device)->config))
 
 constexpr uint8_t REG_POWER_CONTROL = 0x01;
+// The state values that the core chip reports in REG_POWER_CONTROL. Power off is requested with the cut power bit.
 constexpr uint8_t POWER_CONTROL_CUT_POWER = 0x80;
-constexpr uint8_t BAT_VOLTAGE = 0x13;
-constexpr uint8_t REG_VOLTAGE = 0x14;
+constexpr uint8_t POWER_STATE_ON = 0;
+constexpr uint8_t POWER_STATE_USB_PLUGGED_IN = 1;
+constexpr uint8_t POWER_STATE_CHARGING = 2;
+constexpr uint8_t SUPPLY_VOLTAGE = 0x13;
+constexpr uint8_t BATTERY_VOLTAGE = 0x14;
 constexpr int MV_PER_LSB = 25;
 constexpr int MIN_MV = 3200;
 constexpr int MAX_MV = 4200;
@@ -30,13 +34,13 @@ constexpr int MAX_MV = 4200;
 // ---------------------------------------------------------------------------
 
 static bool ps_supports_property(Device*, PowerSupplyProperty property) {
-    return property == POWER_SUPPLY_PROP_VOLTAGE || property == POWER_SUPPLY_PROP_CAPACITY;
+    return property == POWER_SUPPLY_PROP_VOLTAGE || property == POWER_SUPPLY_PROP_CAPACITY || property == POWER_SUPPLY_PROP_IS_CHARGING;
 }
 
 static error_t read_battery_mv(Device* chip_device, int* out_mv) {
     auto* i2c0 = device_get_parent(chip_device);
     uint8_t raw = 0;
-    error_t error = i2c_controller_register8_get(i2c0, GET_CONFIG(chip_device)->address, BAT_VOLTAGE, &raw, CL32_V4_CORE_TIMEOUT);
+    error_t error = i2c_controller_register8_get(i2c0, GET_CONFIG(chip_device)->address, BATTERY_VOLTAGE, &raw, CL32_V4_CORE_TIMEOUT);
     if (error != ERROR_NONE) {
         return error;
     }
@@ -50,7 +54,23 @@ static int estimate_capacity_from_mv(int battery_mv) {
     return (battery_mv - MIN_MV) * 100 / (MAX_MV - MIN_MV);
 }
 
+static error_t read_power_state(Device* chip_device, uint8_t* out_state) {
+    auto* i2c0 = device_get_parent(chip_device);
+    return i2c_controller_register8_get(i2c0, GET_CONFIG(chip_device)->address, REG_POWER_CONTROL, out_state, CL32_V4_CORE_TIMEOUT);
+}
+
 static error_t ps_get_property(Device* device, PowerSupplyProperty property, PowerSupplyPropertyValue* out_value) {
+    if (property == POWER_SUPPLY_PROP_IS_CHARGING) {
+        uint8_t state = POWER_STATE_ON;
+        error_t error = read_power_state(device_get_parent(device), &state);
+        if (error != ERROR_NONE) {
+            return error;
+        }
+        // A plugged in USB cable alone isn't charging, as the battery can be full
+        out_value->int_value = state == POWER_STATE_CHARGING ? 1 : 0;
+        return ERROR_NONE;
+    }
+
     if (property != POWER_SUPPLY_PROP_VOLTAGE && property != POWER_SUPPLY_PROP_CAPACITY) {
         return ERROR_NOT_SUPPORTED;
     }

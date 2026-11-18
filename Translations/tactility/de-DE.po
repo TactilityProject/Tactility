@@ -89,3 +89,25 @@ msgstr "Zeitlimit"
 
 msgid "Yes"
 msgstr "Ja"
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "Notifications"
+msgstr "Benachrichtigungen"
+
+msgid "Clear"
+msgstr "Leeren"
+
+msgid "No notifications"
+msgstr "Keine Benachrichtigungen"
+
+msgid "now"
+msgstr "jetzt"
+
+
+msgid "{} new message"
+msgstr "{} neue Nachricht"
+
+msgid "{} new messages"
+msgstr "{} neue Nachrichten"

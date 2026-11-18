@@ -34,6 +34,7 @@ namespace {
 constexpr size_t MAX_CHANNELS = 8;
 constexpr size_t SEEN_PACKETS_LIMIT = 64;
 constexpr size_t MAX_KNOWN_NAMES = 128;
+constexpr size_t MAX_KNOWN_KEYS = 128;
 constexpr uint64_t NODE_INFO_INTERVAL_MS = 3ULL * 3600 * 1000;
 constexpr uint64_t ACK_TIMEOUT_MS = 60 * 1000;
 constexpr auto* DEFAULT_CHANNEL_NAME = "LongFast";
@@ -105,6 +106,9 @@ struct Backend {
     /** Packet id of a sent direct message, to the message's sequence number and deadline */
     tt::std::map<uint32_t, std::pair<uint32_t, uint64_t>> pendingAcks;
     uint64_t lastNodeInfoMs = 0;
+    MeshtasticKeyPair keyPair {};
+    /** The public keys of nodes that announced one, which direct messages to them are encrypted with */
+    tt::std::map<uint32_t, std::array<uint8_t, MESHTASTIC_PUBLIC_KEY_SIZE>> publicKeys;
 };
 
 uint64_t getMillis() {
@@ -179,6 +183,86 @@ void loadOrCreateNodeNum(Backend* backend) {
     if (hasPath) {
         writeFile(path, encoded, sizeof(encoded));
     }
+}
+
+void loadOrCreateKeyPair(Backend* backend) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    const bool hasPath = mesh_host_get_data_path(backend->host, "pki.bin", path, sizeof(path)) == ERROR_NONE;
+    tt::std::vector<uint8_t> data;
+    if (hasPath && readFile(path, data) && data.size() == MESHTASTIC_PUBLIC_KEY_SIZE) {
+        memcpy(backend->keyPair.privateKey, data.data(), MESHTASTIC_PUBLIC_KEY_SIZE);
+        if (meshtastic_public_key_from_private(backend->keyPair.privateKey, backend->keyPair.publicKey)) {
+            return;
+        }
+    }
+    if (!meshtastic_generate_key_pair(&backend->keyPair)) {
+        LOG_E(TAG, "Failed to generate a key pair, direct messages are not encrypted with a public key");
+        backend->keyPair = {};
+        return;
+    }
+    if (hasPath) {
+        writeFile(path, backend->keyPair.privateKey, MESHTASTIC_PUBLIC_KEY_SIZE);
+    }
+}
+
+bool hasKeyPair(const Backend* backend) {
+    for (const uint8_t byte : backend->keyPair.publicKey) {
+        if (byte != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Record: node number (4) + public key (32)
+constexpr size_t KEY_RECORD_SIZE = 4 + MESHTASTIC_PUBLIC_KEY_SIZE;
+
+void loadPublicKeys(Backend* backend) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    tt::std::vector<uint8_t> data;
+    if (mesh_host_get_data_path(backend->host, "keys.bin", path, sizeof(path)) != ERROR_NONE || !readFile(path, data)) {
+        return;
+    }
+    for (size_t offset = 0; offset + KEY_RECORD_SIZE <= data.size() && backend->publicKeys.size() < MAX_KNOWN_KEYS; offset += KEY_RECORD_SIZE) {
+        const uint32_t nodeNum = data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | ((uint32_t)data[offset + 3] << 24);
+        std::array<uint8_t, MESHTASTIC_PUBLIC_KEY_SIZE> key {};
+        memcpy(key.data(), data.data() + offset + 4, key.size());
+        backend->publicKeys[nodeNum] = key;
+    }
+}
+
+void savePublicKeys(Backend* backend) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (mesh_host_get_data_path(backend->host, "keys.bin", path, sizeof(path)) != ERROR_NONE) {
+        return;
+    }
+    tt::std::vector<uint8_t> data;
+    for (const auto& [nodeNum, key] : backend->publicKeys) {
+        for (int i = 0; i < 4; i++) {
+            data.push_back((uint8_t)(nodeNum >> (8 * i)));
+        }
+        data.insert(data.end(), key.begin(), key.end());
+    }
+    writeFile(path, data.data(), data.size());
+}
+
+/** A key that changed is replaced, like firmware does when a node announces a new one */
+void rememberPublicKey(Backend* backend, uint32_t nodeNum, const tt::std::vector<uint8_t>& publicKey) {
+    if (publicKey.size() != MESHTASTIC_PUBLIC_KEY_SIZE) {
+        return;
+    }
+    std::array<uint8_t, MESHTASTIC_PUBLIC_KEY_SIZE> key {};
+    memcpy(key.data(), publicKey.data(), key.size());
+    const auto existing = backend->publicKeys.find(nodeNum);
+    if (existing != backend->publicKeys.end()) {
+        if (existing->second == key) {
+            return;
+        }
+    } else if (backend->publicKeys.size() >= MAX_KNOWN_KEYS) {
+        backend->publicKeys.erase(backend->publicKeys.begin());
+    }
+    backend->publicKeys[nodeNum] = key;
+    savePublicKeys(backend);
 }
 
 void addChannel(Backend* backend, uint8_t index, const char* name, const MeshtasticChannelKey& key, bool followsPreset = false) {
@@ -296,6 +380,31 @@ bool transmit(Backend* backend, const Channel& channel, MeshtasticHeader header,
     return mesh_host_transmit(backend->host, frame, MESHTASTIC_HEADER_SIZE + plaintext.size(), seq) == ERROR_NONE;
 }
 
+/** Sends a direct message encrypted with the public key of the recipient. The channel hash is 0 for these. */
+bool transmitPki(Backend* backend, const std::array<uint8_t, MESHTASTIC_PUBLIC_KEY_SIZE>& peerKey, MeshtasticHeader header, const MeshtasticData& data, uint32_t seq) {
+    const tt::std::vector<uint8_t> plaintext = meshtastic_encode_data(data);
+    if (plaintext.size() + MESHTASTIC_PKI_OVERHEAD > MESHTASTIC_MAX_PAYLOAD_SIZE) {
+        return false;
+    }
+    uint8_t frame[MESHTASTIC_HEADER_SIZE + MESHTASTIC_MAX_PAYLOAD_SIZE];
+    header.from = backend->nodeNum;
+    header.channelHash = 0;
+    header.relayNode = (uint8_t)backend->nodeNum;
+    meshtastic_write_header(header, frame);
+    uint32_t extraNonce;
+    do {
+        extraNonce = randomU32();
+    } while (extraNonce == 0);
+    if (!meshtastic_pki_encrypt(backend->keyPair.privateKey, peerKey.data(), header.id, header.from, extraNonce, plaintext.data(), plaintext.size(), frame + MESHTASTIC_HEADER_SIZE)) {
+        return false;
+    }
+    backend->seenPackets.emplace_back(header.from, header.id);
+    while (backend->seenPackets.size() > SEEN_PACKETS_LIMIT) {
+        backend->seenPackets.pop_front();
+    }
+    return mesh_host_transmit(backend->host, frame, MESHTASTIC_HEADER_SIZE + plaintext.size() + MESHTASTIC_PKI_OVERHEAD, seq) == ERROR_NONE;
+}
+
 void sendNodeInfo(Backend* backend) {
     char name[MESH_NAME_MAX_LENGTH + 1];
     mesh_host_get_node_name(backend->host, name, sizeof(name));
@@ -303,6 +412,9 @@ void sendNodeInfo(Backend* backend) {
     user.id = meshtastic_node_id(backend->nodeNum);
     user.longName = name;
     user.shortName = user.longName.substr(0, 4);
+    if (hasKeyPair(backend)) {
+        user.publicKey.assign(backend->keyPair.publicKey, backend->keyPair.publicKey + MESHTASTIC_PUBLIC_KEY_SIZE);
+    }
 
     MeshtasticData data;
     data.port = MeshtasticPort::NodeInfo;
@@ -367,6 +479,7 @@ void onData(Backend* backend, const Channel& channel, const MeshtasticHeader& he
                     backend->names.erase(backend->names.begin());
                 }
                 backend->names[header.from] = user.longName;
+                rememberPublicKey(backend, header.from, user.publicKey);
                 mesh_host_advert_heard(backend->host, &from, user.longName.c_str(), rssi, snr);
             }
             break;
@@ -394,6 +507,8 @@ void* create(MeshHost* host) {
     }
     backend->host = host;
     loadOrCreateNodeNum(backend);
+    loadOrCreateKeyPair(backend);
+    loadPublicKeys(backend);
     loadChannels(backend);
     LOG_I(TAG, "Node %s", meshtastic_node_id(backend->nodeNum).c_str());
     return backend;
@@ -486,9 +601,23 @@ bool onReceive(void* context, const uint8_t* frame, size_t length, float rssi, f
     const MeshAddress from = toAddress(header.from);
     mesh_host_node_heard(backend->host, &from, nullptr, rssi, snr);
 
-    // The 1-byte hash can match several channels: the one that decodes to a valid Data message wins
+    // A direct message with a public key has channel hash 0. The overhead makes it too short for anything else to be valid.
     const size_t payloadLength = length - MESHTASTIC_HEADER_SIZE;
     uint8_t plaintext[MESHTASTIC_MAX_PAYLOAD_SIZE];
+    if (header.channelHash == 0 && header.to == backend->nodeNum && payloadLength > MESHTASTIC_PKI_OVERHEAD && hasKeyPair(backend)) {
+        const auto peerKey = backend->publicKeys.find(header.from);
+        const Channel* primary = findChannel(backend, 0);
+        MeshtasticData data;
+        if (peerKey != backend->publicKeys.end() && primary != nullptr &&
+            meshtastic_pki_decrypt(backend->keyPair.privateKey, peerKey->second.data(), header.id, header.from, frame + MESHTASTIC_HEADER_SIZE, payloadLength, plaintext) &&
+            meshtastic_decode_data(plaintext, payloadLength - MESHTASTIC_PKI_OVERHEAD, &data)) {
+            // Acknowledgements are routing messages, which are encrypted with the primary channel
+            onData(backend, *primary, header, data, rssi, snr);
+            return true;
+        }
+    }
+
+    // The 1-byte hash can match several channels: the one that decodes to a valid Data message wins
     for (const auto& channel : backend->channels) {
         if (channel.hash != header.channelHash) {
             continue;
@@ -539,6 +668,14 @@ error_t sendText(void* context, uint32_t seq, const MeshAddress* to, uint8_t cha
         header.to = to->bytes[0] | (to->bytes[1] << 8) | (to->bytes[2] << 16) | ((uint32_t)to->bytes[3] << 24);
         header.wantAck = true;
         channel = findChannel(backend, 0);
+        const auto peerKey = backend->publicKeys.find(header.to);
+        if (hasKeyPair(backend) && peerKey != backend->publicKeys.end()) {
+            if (!transmitPki(backend, peerKey->second, header, data, seq)) {
+                return ERROR_RESOURCE;
+            }
+            backend->pendingAcks[header.id] = { seq, getMillis() + ACK_TIMEOUT_MS };
+            return ERROR_NONE;
+        }
     }
     if (channel == nullptr) {
         return ERROR_NOT_FOUND;

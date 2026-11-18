@@ -106,10 +106,12 @@ struct MeshNode {
     char backend[MESH_BACKEND_ID_MAX_LENGTH + 1];
     struct MeshAddress address;
     char name[MESH_NAME_MAX_LENGTH + 1];
-    /** Milliseconds since boot */
+    /** Milliseconds since boot, of any frame from the node */
     uint64_t last_heard_ms;
     float rssi;
     float snr;
+    /** Milliseconds since boot, of the last advert from the node. 0 when none was heard. */
+    uint64_t last_advert_ms;
 };
 
 /** A node that the user saved for direct messages */
@@ -145,6 +147,16 @@ const char* mesh_state_to_string(enum MeshState state);
 error_t mesh_set_node_name(const char* name);
 
 error_t mesh_get_node_name(char* name, size_t name_size);
+
+/** Set boosted RX gain for radios that support it. It is on by default. The choice is persisted. */
+error_t mesh_set_rx_boosted_gain(bool enabled);
+
+/**
+ * Get whether boosted RX gain is on.
+ * @retval ERROR_NOT_FOUND when there is no radio
+ * @retval ERROR_NOT_SUPPORTED when the radio has no boosted RX gain
+ */
+error_t mesh_get_rx_boosted_gain(bool* enabled);
 
 /** @return true when a started radio can be used for mesh networking */
 bool mesh_is_available(void);
@@ -304,6 +316,47 @@ error_t mesh_get_network_parameters(const char* backend, struct MeshNetworkSetti
 
 // endregion
 
+/** Technical status of the mesh service and its radio */
+struct MeshInfo {
+    enum MeshState state;
+    char backend[MESH_BACKEND_ID_MAX_LENGTH + 1];
+    enum RadioRegion region;
+    /** The radio parameters that the backend runs with. 0 for the ones that don't apply, e.g. for ESP-NOW. */
+    struct MeshRadioSettings radio;
+    /** Allowed share of the airtime in percent, 100 when the region has no limit */
+    uint32_t duty_cycle_percent;
+    /** Length of the period that the airtime is counted over */
+    uint32_t duty_cycle_window_ms;
+    /** Airtime used in the last period */
+    uint32_t airtime_used_ms;
+    /** Airtime that may be used per period, 0 when there is no limit */
+    uint32_t airtime_budget_ms;
+    /** Whether frames are held back because the budget is used up */
+    bool duty_cycle_blocked;
+    /** Frames that wait for the radio */
+    uint32_t tx_queue_length;
+    /** Frames since the service started */
+    uint32_t frames_sent;
+    uint32_t frames_failed;
+    uint32_t frames_received;
+    /** Received frames that the backend couldn't read, e.g. from another network */
+    uint32_t frames_unreadable;
+    /** Stored messages */
+    uint32_t messages_total;
+    uint32_t messages_received;
+    /** Outgoing messages that were transmitted or acknowledged */
+    uint32_t messages_sent;
+    uint32_t messages_failed;
+    uint32_t nodes_heard;
+    uint32_t contacts;
+};
+
+/**
+ * Get the technical status of the service.
+ * @retval ERROR_INVALID_STATE when the service is not running
+ */
+error_t mesh_get_info(struct MeshInfo* info);
+
 // region Messaging
 
 /**
@@ -346,6 +399,44 @@ error_t mesh_message_get(uint32_t seq, struct MeshMessage* message);
  */
 error_t mesh_conversation_get(const struct MeshAddress* peer, uint8_t channel, uint32_t before_seq, struct MeshMessage* messages, size_t max_count, size_t* count);
 
+/** Unread counts stop here, so that a UI shows "99+" for it and counting a long backlog stays cheap */
+#define MESH_UNREAD_COUNT_LIMIT 100
+
+/**
+ * Get the number of messages of a conversation that arrived since it was last marked as read, for the active backend,
+ * at most MESH_UNREAD_COUNT_LIMIT.
+ * @param[in] peer the peer of a direct conversation, or NULL for the conversation of @a channel
+ */
+uint32_t mesh_get_unread(const struct MeshAddress* peer, uint8_t channel);
+
+/**
+ * Mark the messages of a conversation as read. Emits MESH_EVENT_UNREAD when there were unread messages.
+ * @param[in] peer the peer of a direct conversation, or NULL for the conversation of @a channel
+ */
+void mesh_mark_read(const struct MeshAddress* peer, uint8_t channel);
+
+/**
+ * Whether new messages of a conversation raise a notification, for the selected backend. It is on by default.
+ * @param[in] peer the peer of a direct conversation, or NULL for the conversation of @a channel
+ */
+bool mesh_get_conversation_notifications(const struct MeshAddress* peer, uint8_t channel);
+
+/**
+ * Turn the notifications of a conversation on or off. Unread counts are kept either way. The choice is persisted.
+ * @param[in] peer the peer of a direct conversation, or NULL for the conversation of @a channel
+ * @retval ERROR_INVALID_STATE when no backend is selected
+ * @retval ERROR_RESOURCE when the choice couldn't be stored
+ */
+error_t mesh_set_conversation_notifications(const struct MeshAddress* peer, uint8_t channel, bool enabled);
+
+/**
+ * Delete the stored messages of one conversation, which is a direct conversation with @a peer or a channel of the active backend.
+ * The deletion is persisted. Messages that are still being sent are deleted too.
+ * @param[in] peer the peer of a direct conversation, or NULL for the conversation of @a channel
+ * @retval ERROR_INVALID_STATE when the service is not running, or the store of the selected backend failed to open
+ */
+error_t mesh_delete_conversation(const struct MeshAddress* peer, uint8_t channel);
+
 /**
  * Read stored messages, newest first.
  * @param[in] before_seq only return messages older than this, or 0 for the newest
@@ -381,6 +472,44 @@ error_t mesh_add_contact(const struct MeshAddress* address, const char* name);
 error_t mesh_remove_contact(const struct MeshAddress* address);
 
 /**
+ * Make messages to a contact go over the given repeaters, instead of being flooded. The path is kept until it is reset.
+ * @param[in] hops the hashes of the repeaters in the order of sending to the contact, @a hash_size bytes each
+ * @param[in] hop_count at least 1
+ * @param[in] hash_size bytes of a repeater's hash, 1 to 4
+ * @retval ERROR_INVALID_STATE when the service is not running
+ * @retval ERROR_NOT_SUPPORTED when the active backend has no paths, see MESH_FEATURE_CONTACT_PATHS
+ * @retval ERROR_NOT_FOUND when there is no such contact
+ * @retval ERROR_INVALID_ARGUMENT when the path is empty or too long
+ */
+error_t mesh_set_contact_path(const struct MeshAddress* contact, const uint8_t* hops, size_t hop_count, size_t hash_size);
+
+/**
+ * Forget the path of a contact, including the ones that were learned. Messages to it are flooded again.
+ * @retval ERROR_INVALID_STATE when the service is not running
+ * @retval ERROR_NOT_SUPPORTED when the active backend has no paths
+ * @retval ERROR_NOT_FOUND when there is no such contact
+ */
+error_t mesh_reset_contact_path(const struct MeshAddress* contact);
+
+/** The repeaters that messages to a contact go over */
+struct MeshContactPath {
+    /** The hashes in the order of sending to the contact, @a hash_size bytes each */
+    uint8_t hops[64];
+    uint8_t hop_count;
+    uint8_t hash_size;
+    /** Set by the user with mesh_set_contact_path(), instead of learned from an acknowledgement */
+    bool manual;
+};
+
+/**
+ * Get the path of a contact.
+ * @retval ERROR_INVALID_STATE when the service is not running
+ * @retval ERROR_NOT_SUPPORTED when the active backend has no paths
+ * @retval ERROR_NOT_FOUND when there is no such contact, or messages to it are flooded because it has no path
+ */
+error_t mesh_get_contact_path(const struct MeshAddress* contact, struct MeshContactPath* path);
+
+/**
  * Get a URI of a contact of the active backend that other mesh apps can scan as a QR code to add it.
  * @param[in] contact the contact's address, or NULL for this node
  * @param[out] uri the URI
@@ -402,6 +531,8 @@ enum MeshFeature {
     MESH_FEATURE_KEYED_CHANNELS = 1 << 1,
     /** Announce this node on request, see mesh_send_advert() */
     MESH_FEATURE_ADVERTS = 1 << 2,
+    /** Choose the repeaters that messages to a contact go over, see mesh_set_contact_path() */
+    MESH_FEATURE_CONTACT_PATHS = 1 << 3,
 };
 
 enum MeshAdvertRoute {
@@ -466,6 +597,8 @@ enum MeshEventType {
     MESH_EVENT_CONTACT,
     /** A channel was added, replaced or removed */
     MESH_EVENT_CHANNEL,
+    /** The number of unread messages of a conversation was reset, see mesh_mark_read() */
+    MESH_EVENT_UNREAD,
 };
 
 enum MeshFrameKind {

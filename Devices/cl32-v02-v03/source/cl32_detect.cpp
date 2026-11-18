@@ -2,6 +2,7 @@
 #include "cl32_detect.h"
 
 #include "cl32_v2_keyboard.h"
+#include "cl32_v3_fuel_gauge.h"
 #include "cl32_v3_keyboard.h"
 #include "cl32_v3.h"
 
@@ -49,6 +50,8 @@ static void on_i2c0_started(Device* device, DeviceEvent event, void* context) {
             break;
         case Cl32HardwareRevision::Revision3:
             cl32_v3_create_keyboard(device);
+            // Only revision 3 boards have the chip, which is also how the revision is detected
+            cl32_v3_create_fuel_gauge(device);
             break;
         default:
             LOG_W(TAG, "Unknown/unsupported hardware revision");
@@ -65,6 +68,7 @@ void cl32_teardown_devices() {
     // this module's driver destruction. They are torn down so a later start can recreate them.
     cl32_destroy_keyboard();
     cl32_v3_destroy_keyboard();
+    cl32_v3_destroy_fuel_gauge();
 
     did_probe = false;
 }

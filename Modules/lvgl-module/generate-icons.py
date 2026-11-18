@@ -164,6 +164,11 @@ shared_symbol_code_point_names = [
     "list_alt", # Settings apps: opens a selection dialog
     "hourglass", # App Hub: an operation for the app is pending
     "mail",
+    "notifications",
+    "notifications_unread", # System bars: a notification arrived that was not looked at yet
+    "push_pin", # Notifications: a sticky notification
+    "volume_up", # System menu: speaker volume
+    "volume_off",
     "menu",
     "memory", # System Info
     "mop",

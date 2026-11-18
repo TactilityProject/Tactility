@@ -19,12 +19,15 @@ constexpr auto* TAG = "mesh_store";
 
 namespace {
 
+constexpr size_t SCAN_BUFFER_SIZE = 4096;
+
 // Record layout: magic (2) + type (1) + reserved (1) + payload length (2, LE) + payload
 constexpr uint8_t RECORD_MAGIC_0 = 'M';
 constexpr uint8_t RECORD_MAGIC_1 = 'S';
 constexpr size_t RECORD_HEADER_SIZE = 6;
 constexpr uint8_t RECORD_TYPE_MESSAGE = 1;
 constexpr uint8_t RECORD_TYPE_DELIVERY = 2;
+constexpr uint8_t RECORD_TYPE_DELETE_CONVERSATION = 3;
 constexpr size_t MESSAGE_PAYLOAD_MAX_SIZE = 512;
 constexpr auto* SEGMENT_PREFIX = "seg-";
 constexpr auto* SEGMENT_SUFFIX = ".log";
@@ -43,6 +46,14 @@ uint32_t hashPeer(const MeshAddress& address) {
         hash = (hash ^ address.bytes[i]) * 16777619u;
     }
     return hash | 1;
+}
+
+uint32_t hashBackend(const char* backend) {
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < MESH_BACKEND_ID_MAX_LENGTH && backend[i] != '\0'; i++) {
+        hash = (hash ^ static_cast<uint8_t>(backend[i])) * 16777619u;
+    }
+    return hash;
 }
 
 uint8_t* allocateBuffer(size_t size) {
@@ -252,6 +263,7 @@ error_t MeshStore::open(const char* path) {
         }
     }
 
+    opened = true;
     LOG_I(TAG, "Opened %s: %u messages in %u segments", path, (unsigned)index.size(), (unsigned)segments.size());
     return ERROR_NONE;
 }
@@ -262,6 +274,7 @@ void MeshStore::close() {
         memory_free(buffer);
         buffer = nullptr;
     }
+    opened = false;
     index.clear();
     segments.clear();
     bufferUsed = 0;
@@ -274,6 +287,9 @@ uint32_t MeshStore::scanSegment(uint32_t segment) {
     if (file == nullptr) {
         return 0;
     }
+
+    // The records are small, so a larger buffer makes the SD card read in a few big steps instead of many small ones
+    setvbuf(file, nullptr, _IOFBF, SCAN_BUFFER_SIZE);
 
     uint8_t header[RECORD_HEADER_SIZE];
     uint8_t payload[MESSAGE_PAYLOAD_MAX_SIZE];
@@ -301,7 +317,12 @@ MeshStore::IndexEntry MeshStore::makeIndexEntry(const MeshMessage& message, uint
         .delivery = message.delivery,
         .channel = message.channel,
         .peerHash = hashPeer(message.peer),
+        .backendHash = hashBackend(message.backend),
     };
+}
+
+uint32_t MeshStore::hashPeerAddress(const MeshAddress* peer) {
+    return peer != nullptr ? hashPeer(*peer) : 0;
 }
 
 void MeshStore::applyRecord(uint8_t type, const uint8_t* payload, size_t length, uint32_t segment, uint32_t offset) {
@@ -311,6 +332,21 @@ void MeshStore::applyRecord(uint8_t type, const uint8_t* payload, size_t length,
             index.push_back(makeIndexEntry(message, segment, offset));
             nextSeq = std::max(nextSeq, message.seq + 1);
         }
+    } else if (type == RECORD_TYPE_DELETE_CONVERSATION) {
+        Reader reader(payload, length);
+        char backend[MESH_BACKEND_ID_MAX_LENGTH + 1];
+        reader.string(backend, MESH_BACKEND_ID_MAX_LENGTH);
+        MeshAddress peer {};
+        peer.length = reader.u8();
+        if (peer.length > MESH_ADDRESS_MAX_LENGTH) {
+            return;
+        }
+        reader.bytes(peer.bytes, peer.length);
+        const uint8_t channel = reader.u8();
+        const uint32_t lastSeq = reader.u32();
+        if (reader.ok()) {
+            eraseConversation(backend, peer.length > 0 ? &peer : nullptr, channel, lastSeq);
+        }
     } else if (type == RECORD_TYPE_DELIVERY && length >= 5) {
         Reader reader(payload, length);
         const uint32_t seq = reader.u32();
@@ -319,6 +355,41 @@ void MeshStore::applyRecord(uint8_t type, const uint8_t* payload, size_t length,
             entry->delivery = (MeshDeliveryState)reader.u8();
         }
     }
+}
+
+void MeshStore::eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) {
+    const uint32_t peerHash = (peer != nullptr) ? hashPeer(*peer) : 0;
+    std::erase_if(index, [&](const IndexEntry& entry) {
+        if (entry.seq > lastSeq || entry.peerHash != peerHash || (peer == nullptr && entry.channel != channel)) {
+            return false;
+        }
+        // The hash can collide, so the stored message decides
+        MeshMessage message;
+        if (readEntry(entry, &message) != ERROR_NONE || strncmp(message.backend, backend, MESH_BACKEND_ID_MAX_LENGTH) != 0) {
+            return false;
+        }
+        return peer != nullptr ? isSameAddress(message.peer, *peer) : message.peer.length == 0;
+    });
+}
+
+error_t MeshStore::removeConversation(const char* backend, const MeshAddress* peer, uint8_t channel) {
+    const uint32_t lastSeq = nextSeq - 1;
+    uint8_t payload[1 + MESH_BACKEND_ID_MAX_LENGTH + 1 + MESH_ADDRESS_MAX_LENGTH + 1 + 4];
+    Writer writer(payload, sizeof(payload));
+    writer.string(backend, MESH_BACKEND_ID_MAX_LENGTH);
+    writer.u8(peer != nullptr ? peer->length : 0);
+    if (peer != nullptr) {
+        writer.bytes(peer->bytes, std::min<size_t>(peer->length, MESH_ADDRESS_MAX_LENGTH));
+    }
+    writer.u8(channel);
+    writer.u32(lastSeq);
+    // The record comes first: deleting from the index without it would bring the messages back at the next open
+    const error_t result = appendRecord(RECORD_TYPE_DELETE_CONVERSATION, payload, writer.size(), 0);
+    if (result != ERROR_NONE) {
+        return result;
+    }
+    eraseConversation(backend, peer, channel, lastSeq);
+    return flush();
 }
 
 error_t MeshStore::appendRecord(uint8_t type, const uint8_t* payload, size_t length, uint32_t seq) {

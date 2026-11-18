@@ -86,6 +86,7 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(app_manager_for_each_package),
     DEFINE_MODULE_SYMBOL(app_manager_get_topmost_instance_id),
     DEFINE_MODULE_SYMBOL(app_manager_get_topmost_app_id),
+    DEFINE_MODULE_SYMBOL(app_manager_is_running),
     DEFINE_MODULE_SYMBOL(app_manager_install_path_add),
     DEFINE_MODULE_SYMBOL(app_manager_install_path_scan),
     DEFINE_MODULE_SYMBOL(app_manager_install_path_uninstall),

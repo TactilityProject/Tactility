@@ -47,6 +47,7 @@ list(APPEND REQUIRES_LIST
     mesh-module
     mesh-meshcore-module
     mesh-meshtastic-module
+    notification-module
     posix-symbols-module
     pthread-module
     gps-generic-module

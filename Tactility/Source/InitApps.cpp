@@ -75,8 +75,11 @@ namespace app {
         extern const ::AppManifest manifest;
         extern const ::AppManifest conversationManifest;
         extern const ::AppManifest addContactManifest;
+        extern const ::AppManifest infoManifest;
+        extern const ::AppManifest contactDetailsManifest;
     }
     namespace meshsettings { extern const ::AppManifest manifest; }
+    namespace notificationsettings { extern const ::AppManifest manifest; }
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
     namespace touchcalibration { extern const ::AppManifest manifest; }
 #endif
@@ -175,7 +178,10 @@ static void registerInternalApps() {
         app_manager_add(&app::meshchat::manifest);
         app_manager_add(&app::meshchat::conversationManifest);
         app_manager_add(&app::meshchat::addContactManifest);
+        app_manager_add(&app::meshchat::infoManifest);
+        app_manager_add(&app::meshchat::contactDetailsManifest);
         app_manager_add(&app::meshsettings::manifest);
+        app_manager_add(&app::notificationsettings::manifest);
     }
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED

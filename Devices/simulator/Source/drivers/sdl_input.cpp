@@ -249,9 +249,14 @@ void sdl_input_pump() {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
-                case SDL_MOUSEMOTION:
-                    set_pointer_position(event.motion.x, event.motion.y);
+                case SDL_MOUSEMOTION: {
+                    // Read like a press does: event.motion.x/y can differ from the live position, e.g. on a scaled display,
+                    // which made a drag jump sideways right after the press
+                    int live_x, live_y;
+                    SDL_GetMouseState(&live_x, &live_y);
+                    set_pointer_position(live_x, live_y);
                     break;
+                }
                 case SDL_MOUSEWHEEL: {
                     // A pressed mouse button is a drag of its own
                     if (pointer_state.pressed && !wheel_swipe_active) {

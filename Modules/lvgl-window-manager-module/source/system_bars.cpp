@@ -21,7 +21,11 @@ namespace {
 // Where the press of a pointer device started, for swipes from the top edge
 struct PointerPress {
     lv_indev_t* indev;
+    /** The latest press. LVGL sends another one when the pointer moves onto another widget while pressed. */
     lv_point_t point;
+    /** Where the pointer was first pressed, until it is released */
+    lv_point_t start;
+    bool down;
 };
 
 constexpr size_t POINTER_PRESS_COUNT = 4;
@@ -38,6 +42,8 @@ struct SystemBarsState {
     lv_obj_t* previousIcon = nullptr;
     lv_obj_t* nextButton = nullptr;
     lv_obj_t* nextIcon = nullptr;
+    lv_obj_t* notificationButton = nullptr;
+    lv_obj_t* notificationIcon = nullptr;
     lv_display_t* display = nullptr;
     SystemBarsLayout layout = SYSTEM_BARS_LAYOUT_SPLIT;
     SystemBarsAlignment alignment = SYSTEM_BARS_ALIGNMENT_LEFT;
@@ -52,6 +58,10 @@ struct SystemBarsState {
 
 // Set before the window manager starts, and small
 SystemBarsConfig config = {};
+
+// Kept here, as the button is created later than the first request to show it
+bool notificationVisible = false;
+bool notificationUnread = false;
 
 // Allocated when the root layout is created and freed when it's detached, so it takes no memory while the system bars aren't shown
 SystemBarsState* state = nullptr;
@@ -92,6 +102,12 @@ void onPreviousPressed(lv_event_t* /*event*/) {
     }
 }
 
+void onNotificationPressed(lv_event_t* /*event*/) {
+    if (config.show_notifications != nullptr) {
+        config.show_notifications();
+    }
+}
+
 void onNextPressed(lv_event_t* /*event*/) {
     if (state->onNext != nullptr && !lv_obj_is_hidden(state->nextButton)) {
         state->onNext(state->pageUserData);
@@ -109,10 +125,16 @@ lv_obj_t* findFirstButton(lv_obj_t* bar) {
     return nullptr;
 }
 
-// Keys enter the page bar on the previous page button, or on the first visible button when it's hidden
+// Keys enter the page bar on the previous page button, or on the first visible button when it's hidden.
+// In the strip they enter on its first button, which is the notifications button, so the keys go down the strip in order.
 void onPageBarFocused(lv_event_t* /*event*/) {
+    // Deleting the window's widgets after the system bars were detached still moves the focus, onto the page bar too
+    if (state == nullptr) {
+        return;
+    }
     lv_obj_t* current = lvgl_grid_navigation_get_focused(state->pageBar);
-    lv_obj_t* target = lv_obj_is_hidden(state->previousButton) ? findFirstButton(state->pageBar) : state->previousButton;
+    const bool strip = state->layout == SYSTEM_BARS_LAYOUT_SIDE;
+    lv_obj_t* target = (strip || lv_obj_is_hidden(state->previousButton)) ? findFirstButton(state->pageBar) : state->previousButton;
     if (current == nullptr || target == nullptr || target == current) {
         return;
     }
@@ -128,6 +150,9 @@ void onPageBarFocused(lv_event_t* /*event*/) {
 
 // In the strip, the key towards the app moves the focus to the first widget outside of the strip, and the other key stays at the screen's edge
 void onStripKey(lv_event_t* event) {
+    if (state == nullptr) {
+        return;
+    }
     const uint32_t key = lv_event_get_key(event);
     const bool right = state->alignment == SYSTEM_BARS_ALIGNMENT_RIGHT;
     if (key == (right ? LV_KEY_LEFT : LV_KEY_RIGHT)) {
@@ -221,17 +246,23 @@ void onPointerPressed(lv_event_t* event) {
     if (press != nullptr) {
         press->indev = indev;
         lv_indev_get_point(indev, &press->point);
+        if (!press->down) {
+            press->start = press->point;
+            press->down = true;
+        }
     }
 }
 
 // In the side layout, the top edge has no statusbar to swipe down from, so a swipe down that starts there opens the system menu
 void onPointerReleased(lv_event_t* event) {
-    if (state->layout != SYSTEM_BARS_LAYOUT_SIDE || window_manager_get_active_layer() != WINDOW_LAYER_APP || config.show_menu == nullptr) {
+    lv_indev_t* indev = getEventIndev(event);
+    PointerPress* press = findPress(indev);
+    if (press == nullptr) {
         return;
     }
-    lv_indev_t* indev = getEventIndev(event);
-    const PointerPress* press = findPress(indev);
-    if (press == nullptr) {
+    const lv_point_t start = press->start;
+    press->down = false;
+    if (state->layout != SYSTEM_BARS_LAYOUT_SIDE || window_manager_get_active_layer() != WINDOW_LAYER_APP || config.show_menu == nullptr) {
         return;
     }
     lv_point_t point;
@@ -242,7 +273,8 @@ void onPointerReleased(lv_event_t* event) {
     if (press->point.y <= edge && dy >= edge * 2 && dy > 2 * LV_ABS(dx)) {
         // The release must not click the widget below the pointer
         lv_indev_reset(indev, nullptr);
-        config.show_menu();
+        // Where the finger first touched the screen, as the pointer may have moved before the swipe was recognised
+        config.show_menu(start.x);
     }
 }
 
@@ -301,7 +333,8 @@ void applyPageBarLayout(bool side) {
         lv_obj_set_style_bg_opa(bar, LV_OPA_TRANSP, LV_STATE_DEFAULT);
         // The buttons are close together, like the statusbar's icons above them
         lv_obj_set_style_pad_row(bar, 2, LV_STATE_DEFAULT);
-        // The main action is below the page buttons
+        // The notifications are above the page buttons, and the main action is below them
+        lv_obj_move_to_index(state->notificationButton, 0);
         lv_obj_move_to_index(state->mainButton, -1);
         lv_obj_remove_event_cb(bar, onStripKey);
         lv_obj_add_event_cb(bar, onStripKey, static_cast<lv_event_code_t>(LV_EVENT_KEY | LV_EVENT_PREPROCESS), nullptr);
@@ -314,7 +347,9 @@ void applyPageBarLayout(bool side) {
         lv_obj_set_flex_align(bar, right ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_remove_local_style_prop(bar, LV_STYLE_BG_OPA, LV_PART_MAIN);
         lv_obj_remove_local_style_prop(bar, LV_STYLE_PAD_ROW, LV_PART_MAIN);
-        // The main action is before the page buttons when aligned to the left, and after them when aligned to the right
+        // Aligned to the left: the main action, the page buttons, then the notifications.
+        // Aligned to the right the row is mirrored: the notifications, the page buttons, then the main action.
+        lv_obj_move_to_index(state->notificationButton, right ? 0 : -1);
         lv_obj_move_to_index(state->mainButton, right ? -1 : 0);
         lv_obj_remove_event_cb(bar, onStripKey);
     }
@@ -386,15 +421,23 @@ lv_obj_t* createPageBar(lv_obj_t* parent) {
     lv_obj_add_event_cb(state->nextButton, onNextPressed, LV_EVENT_SHORT_CLICKED, nullptr);
     lv_obj_set_hidden(state->nextButton, true);
 
+    state->notificationButton = lvgl_icon_button_create(bar);
+    lv_obj_t* notificationIcon = lv_label_create(state->notificationButton);
+    state->notificationIcon = notificationIcon;
+    lv_obj_set_style_text_font(notificationIcon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_label_set_text(notificationIcon, notificationUnread ? LVGL_ICON_SHARED_NOTIFICATIONS_UNREAD : LVGL_ICON_SHARED_NOTIFICATIONS);
+    lv_obj_add_event_cb(state->notificationButton, onNotificationPressed, LV_EVENT_SHORT_CLICKED, nullptr);
+    lv_obj_set_hidden(state->notificationButton, !notificationVisible);
+
     // Focusing a button must not scroll the bar or the strip it is in
-    for (lv_obj_t* obj : { bar, state->mainButton, state->previousButton, state->nextButton }) {
+    for (lv_obj_t* obj : { bar, state->mainButton, state->previousButton, state->nextButton, state->notificationButton }) {
         lv_obj_set_scroll_on_focus(obj, false);
     }
-    for (lv_obj_t* button : { state->mainButton, state->previousButton, state->nextButton }) {
+    for (lv_obj_t* button : { state->mainButton, state->previousButton, state->nextButton, state->notificationButton }) {
         fixButtonSize(button);
     }
     // The icon stays in the middle when the border grows
-    for (lv_obj_t* icon : { state->mainIcon, state->previousIcon, state->nextIcon }) {
+    for (lv_obj_t* icon : { state->mainIcon, state->previousIcon, state->nextIcon, notificationIcon }) {
         lv_obj_center(icon);
     }
 
@@ -575,6 +618,23 @@ bool system_bars_is_menu_swipe_zone_pressed(void) {
     }
     const PointerPress* press = findPress(lv_indev_active());
     return press != nullptr && press->point.y <= getMenuSwipeZoneHeight();
+}
+
+void system_bars_set_notification_visible(bool visible) {
+    notificationVisible = visible;
+    if (state == nullptr || state->notificationButton == nullptr) {
+        return;
+    }
+    lv_obj_set_hidden(state->notificationButton, !visible);
+    updatePageBarVisibility();
+}
+
+void system_bars_set_notification_unread(bool unread) {
+    notificationUnread = unread;
+    if (state == nullptr || state->notificationIcon == nullptr) {
+        return;
+    }
+    lv_label_set_text(state->notificationIcon, unread ? LVGL_ICON_SHARED_NOTIFICATIONS_UNREAD : LVGL_ICON_SHARED_NOTIFICATIONS);
 }
 
 void system_bars_set_page_buttons_visible(bool visible) {

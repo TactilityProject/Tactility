@@ -338,6 +338,20 @@ error_t app_manager_get_topmost_instance_id(AppInstanceId* out_app_instance_id) 
     return ERROR_NONE;
 }
 
+bool app_manager_is_running(const char* app_id) {
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    bool running = false;
+    for (const auto& [instance_id, record] : ledger.instances) {
+        if ((record.state == APP_INSTANCE_STATE_STARTING || record.state == APP_INSTANCE_STATE_ACTIVE) && record.manifestId == app_id) {
+            running = true;
+            break;
+        }
+    }
+    mutex_unlock(&ledger.mutex);
+    return running;
+}
+
 error_t app_manager_get_topmost_app_id(char* buffer, size_t buffer_size) {
     if (buffer_size == 0) {
         return ERROR_BUFFER_OVERFLOW;

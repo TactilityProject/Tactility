@@ -33,6 +33,9 @@
 #include <location/location.h>
 
 #include <mesh/mesh.h>
+#include <Tactility/lvgl/SystemMenu.h>
+#include <lvgl_window_manager/system_bars.h>
+#include <notification/notification.h>
 
 namespace tt::service::statusbar {
 
@@ -146,6 +149,7 @@ class StatusbarService final : public Service {
     std::unique_ptr<Timer> updateTimer;
     int8_t gps_icon_id;
     const char* gps_last_icon = nullptr;
+    bool notification_last_state = false;
     int8_t mesh_icon_id;
     bool mesh_last_state = false;
     int8_t bt_icon_id;
@@ -160,6 +164,9 @@ class StatusbarService final : public Service {
     bool install_last_state = false;
     /** The number of app_install() calls seen by the previous update, to show installs that ended between two updates */
     uint32_t install_seen_count = app_install_get_started_count();
+    TaskEventGroup notificationEventGroup {};
+    NotificationSubscription notificationSubscription {};
+    bool notificationSubscribed = false;
     TaskEventGroup appHubEventGroup {};
     AppHubEventSubscription appHubSubscription {};
     bool appHubSubscribed = false;
@@ -185,6 +192,26 @@ class StatusbarService final : public Service {
                 lvgl_statusbar_icon_set_visibility(gps_icon_id, false);
             }
             gps_last_icon = icon;
+        }
+    }
+
+    /** Only a new notification counts, not an update of one, and not one that arrives while the user is looking at the list */
+    void updateNotificationUnread() {
+        NotificationEvent event {};
+        while (notificationSubscribed && notification_poll(&notificationSubscription, &event) == ERROR_NONE) {
+            if (event.type == NOTIFICATION_EVENT_POSTED && !lvgl::systemMenuNotificationsSeenSince(event.timestamp)) {
+                system_bars_set_notification_unread(true);
+            }
+        }
+    }
+
+    void updateNotificationButton() {
+        updateNotificationUnread();
+        // The button of the system bars is shown while there is at least one notification
+        const bool present = notification_get_count() > 0;
+        if (present != notification_last_state) {
+            system_bars_set_notification_visible(present);
+            notification_last_state = present;
         }
     }
 
@@ -327,6 +354,7 @@ class StatusbarService final : public Service {
     void updateIcons() {
         if (lvgl_try_lock(200)) {
             updateGpsIcon();
+            updateNotificationButton();
             updateMeshIcon();
             updateBluetoothIcon();
             updateWifiIcon();
@@ -346,14 +374,14 @@ class StatusbarService final : public Service {
 public:
 
     StatusbarService() {
-        gps_icon_id = lvgl_statusbar_icon_add(nullptr, false);
-        // Added before the mesh icon, as the side strip hides the last added icons first when they don't fit
+        gps_icon_id = lvgl_statusbar_icon_add_with_priority(nullptr, false, LVGL_STATUSBAR_ICON_PRIORITY_HIGH);
+        // Of the icons with one priority, the last added are hidden first when they do not fit
         install_icon_id = lvgl_statusbar_icon_add(LVGL_ICON_STATUSBAR_DOWNLOAD, false);
         mesh_icon_id = lvgl_statusbar_icon_add(nullptr, false);
         bt_icon_id = lvgl_statusbar_icon_add(nullptr, false);
         usb_icon_id = lvgl_statusbar_icon_add(nullptr, false);
         wifi_icon_id = lvgl_statusbar_icon_add(nullptr, false);
-        power_icon_id = lvgl_statusbar_icon_add(nullptr, false);
+        power_icon_id = lvgl_statusbar_icon_add_with_priority(nullptr, false, LVGL_STATUSBAR_ICON_PRIORITY_CRITICAL);
     }
 
     ~StatusbarService() override {
@@ -378,6 +406,12 @@ public:
         lvgl_statusbar_icon_set_visibility(usb_icon_id, false);
         lvgl_statusbar_icon_set_image(mesh_icon_id, LVGL_ICON_STATUSBAR_HUB);
         lvgl_statusbar_icon_set_visibility(mesh_icon_id, false);
+
+        task_event_group_construct(&notificationEventGroup);
+        notificationSubscribed = notification_subscribe(&notificationSubscription, &notificationEventGroup) == ERROR_NONE;
+        if (!notificationSubscribed) {
+            LOG_E(TAG, "Failed to subscribe to notification events");
+        }
 
         task_event_group_construct(&appHubEventGroup);
         appHubSubscribed = app_hub_event_subscribe(&appHubSubscription, &appHubEventGroup) == ERROR_NONE;
@@ -411,6 +445,11 @@ public:
         }
         installingApps.clear();
         task_event_group_destruct(&appHubEventGroup);
+        if (notificationSubscribed) {
+            notification_unsubscribe(&notificationSubscription);
+            notificationSubscribed = false;
+        }
+        task_event_group_destruct(&notificationEventGroup);
     }
 };
 
