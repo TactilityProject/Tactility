@@ -267,11 +267,11 @@ bool isFontChangeSupported() {
 
 FontConfiguration loadFontConfiguration() {
     if (!isFontChangeSupported()) {
-        return { .defaultSize = static_cast<uint16_t>(TT_FONT_DEFAULT_SIZE), .regularFontPath = "", .monoFontPath = "" };
+        return { .defaultSize = getDefaultFontSize(), .regularFontPath = "", .monoFontPath = "" };
     }
     const auto settings = settings::appearance::loadOrGetDefault();
     return {
-        .defaultSize = settings.fontSize != 0 ? settings.fontSize : static_cast<uint16_t>(TT_FONT_DEFAULT_SIZE),
+        .defaultSize = settings.fontSize != 0 ? settings.fontSize : getDefaultFontSize(),
         .regularFontPath = settings.regularFontPath,
         .monoFontPath = settings.monoFontPath,
     };

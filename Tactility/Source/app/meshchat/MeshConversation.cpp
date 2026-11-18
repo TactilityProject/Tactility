@@ -130,7 +130,14 @@ lv_color_t getSenderColor(lv_obj_t* obj, const MeshMessage& message) {
     for (const char* c = message.sender_name; *c != '\0'; c++) {
         hash = (hash ^ static_cast<uint8_t>(*c)) * 16777619u;
     }
-    const auto color = lv_color_hsv_to_rgb(hash % 360, 60, 70);
+    // Mixes the bits, as the hash of similar names differs little in its low bits. The saturation and value vary too, so
+    // names that end up with a similar hue still get different colours.
+    hash ^= hash >> 16;
+    hash *= 0x85ebca6bu;
+    hash ^= hash >> 13;
+    hash *= 0xc2b2ae35u;
+    hash ^= hash >> 16;
+    const auto color = lv_color_hsv_to_rgb(hash % 360, 55 + ((hash >> 9) % 3) * 20, 60 + ((hash >> 13) % 3) * 15);
     const bool darkTheme = lv_color_luminance(lv_obj_get_style_text_color(obj, LV_PART_MAIN)) > 127;
     return darkTheme ? lv_color_darken(color, LV_OPA_40) : lv_color_lighten(color, LV_OPA_50);
 }

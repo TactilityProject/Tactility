@@ -1,9 +1,9 @@
 #include "SimulatorProfile.h"
 #include "drivers/sdl_display.h"
-#include "lv_conf.h"
 
 #include <app/manager.h>
 
+#include <lvgl/devices/display.h>
 #include <lvgl/theme.h>
 
 #include <tactility/device.h>
@@ -14,6 +14,7 @@
 #include <tactility/module.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 constexpr auto* TAG = "Simulator";
@@ -89,10 +90,8 @@ static void on_root_started(Device* device, DeviceEvent event, void* context) {
     }
 
     const auto& profile = simulator::getProfile(simulator::getActiveProfileIndex());
-    const auto width = static_cast<uint16_t>(profile.width * LV_DPI_DEF / profile.dpi);
-    const auto height = static_cast<uint16_t>(profile.height * LV_DPI_DEF / profile.dpi);
-    const uint16_t short_side = std::min(width, height);
-    const uint16_t long_side = std::max(width, height);
+    const uint16_t short_side = std::min(profile.width, profile.height);
+    const uint16_t long_side = std::max(profile.width, profile.height);
     sdl_display_config = {
         profile.portrait ? short_side : long_side,
         profile.portrait ? long_side : short_side,
@@ -114,6 +113,13 @@ static error_t start() {
     simulator::initActiveProfile();
     const auto& profile = simulator::getProfile(simulator::getActiveProfileIndex());
     lvgl_theme_set_default_density(profile.uiSpacing, profile.uiSize);
+    // The display has the resolution and the dpi of the device, so the layout is the same as on the device
+    lvgl_display_set_default_dpi(profile.dpi);
+    lvgl_theme_set_default_font_size(profile.fontSize);
+    lvgl_theme_set_launcher_scales(
+        static_cast<uint16_t>(std::lround(profile.launcherIconSizeScale * 100)),
+        static_cast<uint16_t>(std::lround(profile.launcherIconSpacingScale * 100))
+    );
     error_t error = app_manager_add(&simulator::profileAppManifest);
     if (error != ERROR_NONE) {
         return error;

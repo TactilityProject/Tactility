@@ -5,12 +5,12 @@
 ## Higher Priority
 
 - Pick better icon for toggling touch in remote.py
-- Files app: make reusable system UI for pagination?
-- Move more window management code from Tactility/ to window-manager
 - Newer Meshtastic firmware supports per-node public-key direct messages.
 
 ## Medium Priority
 
+- DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
+- Display options: have user pick performance mode for iram vs psram lvgl buffer. Set defaults via device.properties and update device.properties for devices that prefer psram due to their driver usage. Remove the "prefer external ram" from DisplayApi.
 - 2 finger swipe for scroll in simulator
 - Tab5: UI hangs when app installs (not download phase, but file unpacking phase)
 - Add "Downloading Apps" step in Setup that downloads useful apps.

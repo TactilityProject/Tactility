@@ -423,6 +423,7 @@ void loadPackageIcons(void*) {
 
 const LauncherMode APPS_MODE = {
     .buttonIcon = LVGL_ICON_SHARED_APPS,
+    .tileStyle = TileGrid::Style::Tile,
     .iconColor = TileGrid::IconColor::Primary,
     .collect = collectItems,
     .onLongPressed = onLongPressed,

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <lvgl_window_manager/window_manager.h>
 
+#include "system_bars_internal.h"
+
 #include <app/instance.h>
 
 #include <lvgl/devices/indev.h>
@@ -164,6 +166,7 @@ void build_window_widget_locked(void* argument) {
         lv_group_set_default(lvgl_keyboard_get_app_group());
         request->create_widgets(widget, request->user_data);
         lv_group_set_default(default_group);
+        system_bars_window_built();
     }
     request->widget = widget;
 }
@@ -187,6 +190,7 @@ void delete_widget(lv_obj_t* widget, WindowDestroyWidgetsFn destroy_widgets = nu
     if (destroy_widgets != nullptr) {
         destroy_widgets(user_data);
     }
+    system_bars_window_deleted();
     lv_obj_delete(widget);
     lvgl_unlock();
 }
@@ -390,6 +394,7 @@ error_t window_manager_stop(void) {
 
     lvgl_lock();
     hide_overlay_locked();
+    system_bars_detach();
     lvgl_unlock();
 
     // Deleting the real widget cascades to everything under it - chrome and top_widget alike.

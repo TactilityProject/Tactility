@@ -14,6 +14,7 @@
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 
+#include <lvgl_window_manager/system_bars.h>
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
@@ -28,7 +29,6 @@
 #include <Tactility/app/touchcalibration/TouchCalibration.h>
 #include <Tactility/settings/TouchCalibrationSettings.h>
 #endif
-#include <Tactility/lvgl/SystemBars.h>
 #include <Tactility/settings/BootSettings.h>
 #include <Tactility/Tactility.h>
 
@@ -67,8 +67,6 @@ struct Context {
     std::atomic<bool> packagesChanged { false };
     // Set when the settings are shown before their icons are loaded
     std::atomic<bool> settingsIconsRequested { false };
-    lv_obj_t* modeButtonIcon = nullptr;
-    lvgl::SystemBarsListenerId systemBarsListener = 0;
     TileGrid grid { TileGrid::Callbacks {
         .collect = collectItems,
         .onClicked = onAppClicked,
@@ -148,24 +146,26 @@ void onAppKey(const TileGridItem& item, uint32_t key, void* userData) {
     }
 }
 
-void applyIconColor(Context* ctx) {
+void applyMode(Context* ctx) {
+    const auto& mode = getLauncherMode(ctx->mode);
+    ctx->grid.setStyle(mode.tileStyle);
     // The monochrome theme's primary color is black, also on a black background
     if (!lvgl_theme_is_mono()) {
-        ctx->grid.setIconColor(getLauncherMode(ctx->mode).iconColor);
+        ctx->grid.setIconColor(mode.iconColor);
     }
 }
 
-void onModeButtonPressed(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
+void onModeButtonPressed(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
     ctx->mode = getOtherMode(ctx->mode);
     if (ctx->mode == Mode::Settings && !areSettingsIconsCurrent()) {
         ctx->settingsIconsRequested = true;
         task_event_group_signal(ctx->eventGroup, ctx->packagesChangedBit);
     }
-    applyIconColor(ctx);
+    applyMode(ctx);
     ctx->grid.showFirstPage();
     ctx->grid.requestRepopulate(false);
-    lv_label_set_text(ctx->modeButtonIcon, getLauncherMode(getOtherMode(ctx->mode)).buttonIcon);
+    system_bars_set_main_action(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -174,26 +174,19 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    applyIconColor(ctx);
+    applyMode(ctx);
     ctx->grid.setSwipeNavigation(true);
-    // In the side layout, the bar's buttons are in the system bars strip
-    ctx->grid.createWidgetsWithBottomBar(parent, lvgl::systemBarsGetActionContainer());
-    lv_obj_t* modeButton = ctx->grid.addBarButton(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
-    ctx->modeButtonIcon = lv_obj_get_child(modeButton, 0);
-    // After all bar buttons, as they change the size of the grid
-    ctx->grid.finishWidgetsWithBottomBar();
-
-    ctx->systemBarsListener = lvgl::systemBarsAddListener([ctx] {
-        ctx->grid.setBarSideContainer(lvgl::systemBarsGetActionContainer());
-    });
+    ctx->grid.setVerticalSwipeInSideLayout(true);
+    ctx->grid.setSystemPageButtons(true);
+    ctx->grid.setSideIndicator(true);
+    system_bars_set_main_action(getLauncherMode(getOtherMode(ctx->mode)).buttonIcon, onModeButtonPressed, ctx);
+    ctx->grid.createWidgets(parent);
     ctx->widgetsExist = true;
 }
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     ctx->widgetsExist = false;
-    lvgl::systemBarsRemoveListener(ctx->systemBarsListener);
-    ctx->systemBarsListener = 0;
     ctx->grid.destroyWidgets();
 }
 

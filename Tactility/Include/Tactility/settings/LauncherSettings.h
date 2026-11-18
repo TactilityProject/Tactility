@@ -19,6 +19,14 @@ enum class SystemBarsMode {
     Custom
 };
 
+/** The side of the screen that the system bars align to */
+enum class SystemBarsAlignment {
+    /** The strip is on the left in the side layout, and the buttons are at the left in the split layout */
+    Left,
+    /** The strip is on the right in the side layout, and the buttons are mirrored at the right in the split layout */
+    Right
+};
+
 /** The system bars layouts that the device allows in an orientation */
 enum class SystemBarsCapability {
     /** The layout follows the settings */
@@ -39,6 +47,7 @@ struct LauncherSettings {
     SystemBarsLayout portraitLayout;
     /** Used for landscape screens in SystemBarsMode::Custom */
     SystemBarsLayout landscapeLayout;
+    SystemBarsAlignment alignment;
 };
 
 bool load(LauncherSettings& settings);

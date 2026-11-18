@@ -14,6 +14,13 @@ extern "C" {
 #endif
 
 /**
+ * @brief Sets the dpi of the displays that are bound afterwards, instead of LVGL's compile-time default.
+ * For devices that only know it at runtime, e.g. the simulator.
+ * @param[in] dpi the dots per inch, or 0 to use LVGL's default
+ */
+void lvgl_display_set_default_dpi(uint16_t dpi);
+
+/**
  * @brief Configuration for binding a kernel DisplayApi device to an lv_display_t.
  */
 struct LvglDisplayConfig {

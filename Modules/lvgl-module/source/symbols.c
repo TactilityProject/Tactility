@@ -132,6 +132,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_focus_container_create),
     // lvgl_page_indicator
     DEFINE_MODULE_SYMBOL(lvgl_page_indicator_create),
+    DEFINE_MODULE_SYMBOL(lvgl_page_indicator_set_vertical),
     DEFINE_MODULE_SYMBOL(lvgl_page_indicator_set_page_count),
     DEFINE_MODULE_SYMBOL(lvgl_page_indicator_set_page),
     // lvgl_step_indicator
@@ -176,6 +177,7 @@ const struct ModuleSymbol lvgl_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_icon_set_visibility),
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_get_height),
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_set_side),
+    DEFINE_MODULE_SYMBOL(lvgl_statusbar_set_side_right),
     DEFINE_MODULE_SYMBOL(lvgl_statusbar_get_action_container),
     DEFINE_MODULE_SYMBOL(lvgl_toolbar_create),
     DEFINE_MODULE_SYMBOL(lvgl_toolbar_set_title),

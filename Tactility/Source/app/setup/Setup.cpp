@@ -1,7 +1,7 @@
 #include <Tactility/app/setup/Setup.h>
 
 #include <Tactility/i18n/Localisation.h>
-#include <Tactility/lvgl/SystemBars.h>
+#include <lvgl_window_manager/system_bars.h>
 #include <Tactility/settings/Language.h>
 #include <Tactility/settings/Time.h>
 
@@ -224,7 +224,7 @@ static void onButtonRowFocused(lv_event_t* event) {
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
-    lvgl::systemBarsSetStatusbarVisible(false);
+    system_bars_set_statusbar_visible(false);
 
     ctx->content = lv_obj_create(parent);
     lv_obj_remove_style_all(ctx->content);
@@ -330,7 +330,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
-    lvgl::systemBarsSetStatusbarVisible(true);
+    system_bars_set_statusbar_visible(true);
     ctx->content = nullptr;
     ctx->contentInner = nullptr;
     ctx->titleLabel = nullptr;

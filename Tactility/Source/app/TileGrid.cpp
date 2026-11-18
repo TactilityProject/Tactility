@@ -1,16 +1,14 @@
 #include <Tactility/app/TileGrid.h>
 
-#ifdef ESP_PLATFORM
-#include <sdkconfig.h>
-#endif
-
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
-#include <lvgl/insets.h>
 #include <lvgl/theme.h>
+#include <lvgl/widgets/card.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/page_indicator.h>
+
+#include <lvgl_window_manager/system_bars.h>
 
 #include <tactility/memory.h>
 
@@ -29,27 +27,35 @@ bool areSvgIconsEnabled() {
 }
 
 uint32_t getTileIconSize() {
-#ifdef CONFIG_TT_LAUNCHER_ICON_SIZE_SCALE
-    constexpr float scale = CONFIG_TT_LAUNCHER_ICON_SIZE_SCALE / 100.0f;
-#else
-    constexpr float scale = 1.0f;
-#endif
+    const float scale = lvgl_theme_get_launcher_icon_size_scale() / 100.0f;
     return static_cast<uint32_t>(::std::lround(lvgl_get_text_font_height(FONT_SIZE_DEFAULT) * 2.5f * scale));
+}
+
+uint32_t getCardIconSize() {
+    return static_cast<uint32_t>(lvgl_get_text_font_height(FONT_SIZE_DEFAULT));
 }
 
 namespace {
 
 // Minimum label width, as a multiple of the label's font size
 constexpr uint32_t MIN_LABEL_WIDTH_IN_FONT_SIZES = 6;
+// Reference width of a card, as a multiple of the default font size. Cards grow to fill their row.
+constexpr uint32_t CARD_WIDTH_IN_FONT_SIZES = 12;
+
+// Scales a spacing in pixels with the device's launcher spacing scale
+int32_t scaleSpacing(int32_t spacing) {
+    const float scale = lvgl_theme_get_launcher_icon_spacing_scale() / 100.0f;
+    return static_cast<int32_t>(::std::lround(spacing * scale));
+}
 
 // Minimum spacing between tiles, horizontally and vertically
 int32_t getTileGap() {
-#ifdef CONFIG_TT_LAUNCHER_ICON_SPACING_SCALE
-    constexpr float scale = CONFIG_TT_LAUNCHER_ICON_SPACING_SCALE / 100.0f;
-#else
-    constexpr float scale = 1.0f;
-#endif
-    return static_cast<int32_t>(::std::lround(lvgl_theme_lerp(LV_DPX(2), LV_DPX(16), lvgl_theme_get_spacing()) * scale));
+    return scaleSpacing(lvgl_theme_lerp(LV_DPX(2), LV_DPX(16), lvgl_theme_get_spacing()));
+}
+
+// The padding of a card, which is also the space between its icon and name
+int32_t getCardPad() {
+    return scaleSpacing(lvgl_theme_lerp(LV_DPX(4), LV_DPX(16), lvgl_theme_get_spacing()));
 }
 
 struct PageLayout {
@@ -59,26 +65,54 @@ struct PageLayout {
     int32_t labelGap;
     int32_t tileWidth;
     int32_t tileHeight;
-    int32_t leftOffset;
-    int32_t topOffset;
+    /** The space left of, between and right of the columns */
+    int32_t horizontalSpacing;
+    /** The space above, between and below the rows */
+    int32_t verticalSpacing;
+    int32_t columns;
+    int32_t rows;
     uint32_t pageSize;
 };
 
-PageLayout computePageLayout(lv_obj_t* grid) {
-    const auto icon_size = static_cast<int32_t>(getTileIconSize());
-    const auto pad = icon_size / 16;
-    // The focus ring is drawn inside the frame, at most 3dp wide, and leaves 1dp to the icon
-    const auto frame_pad = LV_DPX(3) + LV_DPX(1);
+// The padding around the column of page dots, which is also the padding below a row of dots
+int32_t getPageIndicatorPad() {
+    return lvgl_theme_lerp(LV_DPX(2), LV_DPX(8), lvgl_theme_get_spacing());
+}
+
+// The width of a column of page dots with its padding. The dot size is the one of the theme.
+int32_t getPageIndicatorColumnWidth() {
+    return lvgl_theme_lerp(6, LV_DPX(8), lvgl_theme_get_size()) + 2 * getPageIndicatorPad();
+}
+
+// The height of a row of page dots with the padding below it
+int32_t getPageIndicatorRowHeight() {
+    return lvgl_theme_lerp(6, LV_DPX(8), lvgl_theme_get_size()) + getPageIndicatorPad();
+}
+
+PageLayout computePageLayout(lv_obj_t* grid, TileGrid::Style style, int32_t reservedWidth, int32_t reservedHeight) {
+    const bool card = style == TileGrid::Style::Card;
+    const auto icon_size = static_cast<int32_t>(card ? getCardIconSize() : getTileIconSize());
+    const auto pad = card ? getCardPad() : icon_size / 16;
+    // The focus ring is drawn inside the frame, at most 3dp wide, and leaves 1dp to the icon.
+    // A card shows its focus ring itself.
+    const auto frame_pad = card ? 0 : LV_DPX(3) + LV_DPX(1);
     const auto label_gap = lvgl_theme_lerp(LV_DPX(1), LV_DPX(4), lvgl_theme_get_spacing());
     const auto gap = getTileGap();
     const auto text_height = lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL));
     // The label needs room for a few characters, also when the icon font is smaller (e.g. a fallback)
     const auto text_min_width = static_cast<int32_t>(MIN_LABEL_WIDTH_IN_FONT_SIZES * lvgl_get_text_font_height(FONT_SIZE_SMALL));
-    const auto tile_min_width = std::max<int32_t>(2 * icon_size, text_min_width) + 2 * pad;
-    const auto tile_height = 2 * frame_pad + icon_size + label_gap + text_height + pad;
+    const auto tile_min_width = card
+        ? static_cast<int32_t>(CARD_WIDTH_IN_FONT_SIZES * lvgl_get_text_font_height(FONT_SIZE_DEFAULT))
+        : std::max<int32_t>(2 * icon_size, text_min_width) + 2 * pad;
+    const auto tile_height = card
+        ? 2 * frame_pad + icon_size + 2 * pad
+        : 2 * frame_pad + icon_size + label_gap + text_height + pad;
     // The grid is kept the gap away from its edges. Its padding is set from the offsets, so it isn't part of the measurement
-    const auto available_width = lv_obj_get_width(grid) - 2 * gap;
-    const auto available_height = lv_obj_get_height(grid) - 2 * gap;
+    // The width that the tiles can use, without the space reserved for the page dots
+    const auto grid_width = lv_obj_get_width(grid) - reservedWidth;
+    const auto available_width = grid_width - 2 * gap;
+    const auto grid_height = lv_obj_get_height(grid) - reservedHeight;
+    const auto available_height = grid_height - 2 * gap;
     const auto columns = std::max<int32_t>(1, (available_width + gap) / (tile_min_width + gap));
     const auto rows = std::max<int32_t>(1, (available_height + gap) / (tile_height + gap));
     const auto tile_width = std::max<int32_t>(tile_min_width, (available_width - (columns - 1) * gap) / columns);
@@ -89,9 +123,11 @@ PageLayout computePageLayout(lv_obj_t* grid) {
         .labelGap = label_gap,
         .tileWidth = tile_width,
         .tileHeight = tile_height,
-        // The pixels that don't divide over the columns are split over both sides
-        .leftOffset = gap + std::max<int32_t>(0, (available_width - (columns * tile_width + (columns - 1) * gap)) / 2),
-        .topOffset = gap + std::max<int32_t>(0, (available_height - (rows * tile_height + (rows - 1) * gap)) / 2),
+        // The space that the tiles leave is divided equally over the edges and between the tiles, for each direction
+        .horizontalSpacing = std::max<int32_t>(gap, (grid_width - columns * tile_width) / (columns + 1)),
+        .verticalSpacing = std::max<int32_t>(gap, (grid_height - rows * tile_height) / (rows + 1)),
+        .columns = columns,
+        .rows = rows,
         .pageSize = static_cast<uint32_t>(columns * rows)
     };
 }
@@ -101,42 +137,16 @@ const TileGridItem* getTileItem(lv_event_t* e) {
 }
 
 
-// The page indicator gets the space that the buttons leave.
-// It's the only child that is neither clickable nor the spacer (which grows).
-void updatePageIndicatorWidth(void* data) {
-    auto* bottom_bar = static_cast<lv_obj_t*>(data);
-    lv_obj_t* indicator = nullptr;
-    int32_t buttons_width = 0;
-    int32_t gap_count = -1;
-    const uint32_t count = lv_obj_get_child_count(bottom_bar);
-    for (uint32_t i = 0; i < count; i++) {
-        lv_obj_t* child = lv_obj_get_child(bottom_bar, static_cast<int32_t>(i));
-        if (lv_obj_get_style_flex_grow(child, LV_PART_MAIN) > 0) {
-            gap_count++;
-        } else if (!lv_obj_is_clickable(child)) {
-            indicator = child;
-            gap_count++;
-        } else if (!lv_obj_is_hidden(child)) {
-            buttons_width += lv_obj_get_width(child);
-            gap_count++;
-        }
-    }
-    if (indicator == nullptr) {
-        return;
-    }
-    const int32_t gaps = gap_count * lv_obj_get_style_pad_column(bottom_bar, LV_PART_MAIN);
-    const int32_t margins = lv_obj_get_style_margin_left(indicator, LV_PART_MAIN) + lv_obj_get_style_margin_right(indicator, LV_PART_MAIN);
-    const int32_t available = lv_obj_get_content_width(bottom_bar) - buttons_width - gaps - margins;
-    const int32_t max_width = std::max<int32_t>(0, available);
-    // Setting a style marks the layout as dirty, which would resize the bar and call this again
-    if (lv_obj_get_style_max_width(indicator, LV_PART_MAIN) != max_width) {
-        lv_obj_set_style_max_width(indicator, max_width, LV_STATE_DEFAULT);
-    }
-}
-
 // A page indicator below the grid gets the width of its parent.
 // It shows the page number when its dots are wider than its max width, which must be in pixels.
 void updateCenteredPageIndicatorWidth(lv_obj_t* indicator) {
+    if (lv_obj_get_style_flex_flow(indicator, LV_PART_MAIN) == LV_FLEX_FLOW_COLUMN) {
+        const int32_t height = std::max<int32_t>(0, lv_obj_get_content_height(lv_obj_get_parent(indicator)));
+        if (lv_obj_get_style_max_height(indicator, LV_PART_MAIN) != height) {
+            lv_obj_set_style_max_height(indicator, height, LV_STATE_DEFAULT);
+        }
+        return;
+    }
     const int32_t margins = lv_obj_get_style_margin_left(indicator, LV_PART_MAIN) + lv_obj_get_style_margin_right(indicator, LV_PART_MAIN);
     const int32_t max_width = std::max<int32_t>(0, lv_obj_get_content_width(lv_obj_get_parent(indicator)) - margins);
     // Setting a style marks the layout as dirty, which would resize the parent and call this again
@@ -162,58 +172,36 @@ void centerPageIndicator(lv_obj_t* indicator) {
     updateCenteredPageIndicatorWidth(indicator);
 }
 
-/** Call before moving the page indicator away from below the grid */
-void uncenterPageIndicator(lv_obj_t* indicator) {
-    lv_obj_remove_event_cb_with_user_data(lv_obj_get_parent(indicator), onCenteredPageIndicatorParentSizeChanged, indicator);
-    lv_obj_remove_event_cb(indicator, onCenteredPageIndicatorDeleted);
-}
-
-void onBottomBarSizeChanged(lv_event_t* event) {
-    lv_async_call_cancel(updatePageIndicatorWidth, lv_event_get_target_obj(event));
-    lv_async_call(updatePageIndicatorWidth, lv_event_get_target_obj(event));
-}
-
-// Puts the bar before or after the grid in their input group, without moving the focus
-void setGroupOrder(lv_obj_t* grid, lv_obj_t* bar, bool barFirst) {
-    lv_group_t* group = lv_obj_get_group(bar);
-    if (group == nullptr || lv_obj_get_group(grid) != group) {
-        return;
+// The page indicator is a row centered below the grid, or a column in the space next to the strip, within the grid
+void placePageIndicator(lv_obj_t* indicator, lv_obj_t* grid, bool column, bool alignRight) {
+    if (column) {
+        lv_obj_set_floating(indicator, true);
+        lvgl_page_indicator_set_vertical(indicator, true);
+        lv_obj_set_width(indicator, LV_SIZE_CONTENT);
+        lv_obj_remove_local_style_prop(indicator, LV_STYLE_MARGIN_BOTTOM, LV_PART_MAIN);
+        lv_obj_update_layout(indicator);
+        // Centered on the grid, which can have something above it, like a toolbar.
+        // The alignment is within the grid's padding, which has the tiles in it.
+        const int32_t padLeft = lv_obj_get_style_pad_left(grid, LV_PART_MAIN);
+        const int32_t padTop = lv_obj_get_style_pad_top(grid, LV_PART_MAIN);
+        lv_obj_align_to(
+            indicator, grid, alignRight ? LV_ALIGN_RIGHT_MID : LV_ALIGN_LEFT_MID,
+            alignRight ? -getPageIndicatorPad() : getPageIndicatorPad() - padLeft,
+            -padTop / 2
+        );
+    } else {
+        lv_obj_set_floating(indicator, false);
+        // The alignment of the column must not move the row
+        lv_obj_remove_local_style_prop(indicator, LV_STYLE_ALIGN, LV_PART_MAIN);
+        lv_obj_remove_local_style_prop(indicator, LV_STYLE_X, LV_PART_MAIN);
+        lv_obj_remove_local_style_prop(indicator, LV_STYLE_Y, LV_PART_MAIN);
+        lvgl_page_indicator_set_vertical(indicator, false);
+        lv_obj_remove_local_style_prop(indicator, LV_STYLE_MAX_HEIGHT, LV_PART_MAIN);
+        lv_obj_set_width(indicator, LV_PCT(100));
+        // Keeps the dots off the screen's bottom edge
+        lv_obj_set_style_margin_bottom(indicator, getPageIndicatorPad(), LV_STATE_DEFAULT);
     }
-    int32_t grid_index = -1;
-    int32_t bar_index = -1;
-    const uint32_t count = lv_group_get_obj_count(group);
-    for (uint32_t i = 0; i < count; i++) {
-        lv_obj_t* obj = lv_group_get_obj_by_index(group, i);
-        if (obj == grid) {
-            grid_index = static_cast<int32_t>(i);
-        } else if (obj == bar) {
-            bar_index = static_cast<int32_t>(i);
-        }
-    }
-    if ((bar_index < grid_index) == barFirst) {
-        return;
-    }
-    // Swapping also swaps the focus
-    lv_obj_t* focused = lv_group_get_focused(group);
-    lv_group_swap_obj(grid, bar);
-    if (focused != nullptr && lv_group_get_focused(group) != focused) {
-        lv_group_focus_obj(focused);
-    }
-}
-
-lv_obj_t* findFirstBarButton(lv_obj_t* bar) {
-    const uint32_t count = lv_obj_get_child_count(bar);
-    for (uint32_t i = 0; i < count; i++) {
-        lv_obj_t* child = lv_obj_get_child(bar, static_cast<int32_t>(i));
-        if (!lv_obj_is_hidden(child) && lv_obj_is_clickable(child)) {
-            return child;
-        }
-    }
-    return nullptr;
-}
-
-void onBottomBarDeleted(lv_event_t* event) {
-    lv_async_call_cancel(updatePageIndicatorWidth, lv_event_get_target_obj(event));
+    updateCenteredPageIndicatorWidth(indicator);
 }
 
 } // namespace
@@ -277,14 +265,6 @@ void TileGrid::goToNextPage() {
     }
 }
 
-void TileGrid::onPrevPressed(lv_event_t* e) {
-    static_cast<TileGrid*>(lv_event_get_user_data(e))->goToPreviousPage();
-}
-
-void TileGrid::onNextPressed(lv_event_t* e) {
-    static_cast<TileGrid*>(lv_event_get_user_data(e))->goToNextPage();
-}
-
 // Swipes that start on a tile reach the grid too, as tiles pass their gestures on to the grid
 void TileGrid::onGridGesture(lv_event_t* e) {
     auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
@@ -293,13 +273,21 @@ void TileGrid::onGridGesture(lv_event_t* e) {
         return;
     }
     const lv_dir_t direction = lv_indev_get_gesture_dir(indev);
-    if (direction != LV_DIR_LEFT && direction != LV_DIR_RIGHT) {
+    // Up and down in the side layout, where the page buttons are up and down too, otherwise left and right
+    const bool vertical = self->verticalSwipeInSideLayout && system_bars_get_layout() == SYSTEM_BARS_LAYOUT_SIDE;
+    const lv_dir_t next = vertical ? LV_DIR_TOP : LV_DIR_LEFT;
+    const lv_dir_t previous = vertical ? LV_DIR_BOTTOM : LV_DIR_RIGHT;
+    if (direction != next && direction != previous) {
+        return;
+    }
+    // A swipe down from the top of the screen opens the system menu
+    if (vertical && system_bars_is_menu_swipe_zone_pressed()) {
         return;
     }
     // Keeps the tile where the swipe started from being clicked when the finger is lifted
     lv_indev_wait_release(indev);
     // Deferred: changing the page deletes the tiles, possibly including the one this event came from
-    lv_async_call(direction == LV_DIR_LEFT ? onDeferredNextPage : onDeferredPreviousPage, self);
+    lv_async_call(direction == next ? onDeferredNextPage : onDeferredPreviousPage, self);
 }
 
 void TileGrid::onTileStateChanged(lv_event_t* e) {
@@ -341,20 +329,24 @@ void TileGrid::requestRepopulateSelectingFirst(lv_obj_t* fallback) {
 }
 
 bool TileGrid::isPagingVisible() const {
-    if (pageIndicator != nullptr) {
-        return !lv_obj_is_hidden(pageIndicator);
-    }
-    return prevButton != nullptr && !lv_obj_is_hidden(prevButton);
+    return pageIndicator != nullptr && !lv_obj_is_hidden(pageIndicator);
 }
 
 void TileGrid::setPagingVisible(bool visible) {
     if (pageIndicator != nullptr) {
         lv_obj_set_hidden(pageIndicator, !visible);
     }
-    if (prevButton != nullptr) {
-        lv_obj_set_hidden(prevButton, !visible);
-        lv_obj_set_hidden(nextButton, !visible);
+    if (systemPageButtons) {
+        system_bars_set_page_buttons_visible(visible);
     }
+}
+
+void TileGrid::onSystemPreviousPage(void* userData) {
+    static_cast<TileGrid*>(userData)->goToPreviousPage();
+}
+
+void TileGrid::onSystemNextPage(void* userData) {
+    static_cast<TileGrid*>(userData)->goToNextPage();
 }
 
 void TileGrid::populate() {
@@ -372,7 +364,7 @@ void TileGrid::populate() {
         }
     }
     keepSelectionOnRepopulate = true;
-    const bool selectFirst = selectFirstOnRepopulate && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER);
+    const bool selectFirst = selectFirstOnRepopulate;
     lv_obj_t* fallback = emptyFallback;
     selectFirstOnRepopulate = false;
     emptyFallback = nullptr;
@@ -384,10 +376,19 @@ void TileGrid::populate() {
     }
     items = callbacks.collect(callbacks.userData);
 
-    // Centers a full page of rows, so a partially filled last page keeps its rows in the same positions.
+    // The spacing is computed for a full page, so a partially filled last page keeps its rows in the same positions.
     lv_obj_set_style_pad_top(grid, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_left(grid, 0, LV_STATE_DEFAULT);
-    PageLayout layout = computePageLayout(grid);
+    // In the side layout, the page dots are a column next to the strip, which the tiles leave free
+    const bool dotsInColumn = sideIndicator && system_bars_get_layout() == SYSTEM_BARS_LAYOUT_SIDE;
+    const bool dotsRight = system_bars_get_alignment() == SYSTEM_BARS_ALIGNMENT_RIGHT;
+    // The same space is left free on the other side, so the tiles stay centered
+    const int32_t columnWidth = dotsInColumn ? getPageIndicatorColumnWidth() : 0;
+    const int32_t reservedWidth = 2 * columnWidth;
+    // A row of dots below the grid is balanced by the same space above the tiles
+    const bool dotsBelow = sideIndicator && !dotsInColumn;
+    auto getReservedHeight = [&] { return dotsBelow && isPagingVisible() ? getPageIndicatorRowHeight() : 0; };
+    PageLayout layout = computePageLayout(grid, style, reservedWidth, getReservedHeight());
     const uint32_t item_count = items.size();
     uint32_t page_count = std::max<uint32_t>(1, (item_count + layout.pageSize - 1) / layout.pageSize);
 
@@ -397,14 +398,14 @@ void TileGrid::populate() {
     setPagingVisible(page_count > 1);
     if (wasPagingVisible != (page_count > 1)) {
         lv_obj_update_layout(lv_obj_get_parent(grid));
-        layout = computePageLayout(grid);
+        layout = computePageLayout(grid, style, reservedWidth, getReservedHeight());
         page_count = std::max<uint32_t>(1, (item_count + layout.pageSize - 1) / layout.pageSize);
         setPagingVisible(page_count > 1);
     }
     populatedWidth = lv_obj_get_width(grid);
     populatedHeight = lv_obj_get_height(grid);
-    lv_obj_set_style_pad_top(grid, layout.topOffset, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(grid, layout.leftOffset, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_row(grid, layout.verticalSpacing, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(grid, layout.horizontalSpacing, LV_STATE_DEFAULT);
 
     // Follows the focused item onto its new page, e.g. after a reorder moved it.
     if (!focusedId.empty()) {
@@ -418,25 +419,49 @@ void TileGrid::populate() {
     page = std::min(page, page_count - 1);
     pageCount = page_count;
 
+    // The rows of a page of cards that isn't full are centered vertically
+    int32_t top = layout.verticalSpacing;
+    if (style == Style::Card) {
+        const auto count = static_cast<int32_t>(std::min<uint32_t>(item_count - page * layout.pageSize, layout.pageSize));
+        const auto used_rows = (count + layout.columns - 1) / layout.columns;
+        top += (layout.rows - used_rows) * (layout.tileHeight + layout.verticalSpacing) / 2;
+    }
+    lv_obj_set_style_pad_top(grid, top + getReservedHeight(), LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(grid, layout.horizontalSpacing + columnWidth, LV_STATE_DEFAULT);
+
     if (pageIndicator != nullptr) {
         lvgl_page_indicator_set_page_count(pageIndicator, page_count);
         lvgl_page_indicator_set_page(pageIndicator, page);
     }
-
+    if (pageIndicator != nullptr) {
+        placePageIndicator(pageIndicator, grid, dotsInColumn, dotsRight);
+    }
     lv_obj_t* focusedTile = nullptr;
     const uint32_t first = page * layout.pageSize;
     const uint32_t last = std::min(item_count, first + layout.pageSize);
     for (uint32_t i = first; i < last; i++) {
         const auto& item = items[i];
 
-        // The tile receives the input, its icon frame shows the focus, pressed and checked states of the theme's icon button
-        lv_obj_t* tile = lv_obj_create(grid);
-        lv_obj_remove_style_all(tile);
-        lv_obj_set_size(tile, layout.tileWidth, layout.tileHeight);
-        lv_obj_set_style_pad_bottom(tile, layout.pad, LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_row(tile, layout.labelGap, LV_STATE_DEFAULT);
-        lv_obj_set_flex_flow(tile, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        // The tile receives the input. A tile's icon frame shows the focus, pressed and checked states of the theme's icon button,
+        // and a card shows them itself.
+        const bool card = style == Style::Card;
+        lv_obj_t* tile;
+        if (card) {
+            tile = lvgl_card_create(grid);
+            lv_obj_set_size(tile, layout.tileWidth, layout.tileHeight);
+            lv_obj_set_style_pad_all(tile, layout.pad, LV_STATE_DEFAULT);
+            lv_obj_set_style_pad_column(tile, layout.pad, LV_STATE_DEFAULT);
+            lv_obj_set_flex_flow(tile, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        } else {
+            tile = lv_obj_create(grid);
+            lv_obj_remove_style_all(tile);
+            lv_obj_set_size(tile, layout.tileWidth, layout.tileHeight);
+            lv_obj_set_style_pad_bottom(tile, layout.pad, LV_STATE_DEFAULT);
+            lv_obj_set_style_pad_row(tile, layout.labelGap, LV_STATE_DEFAULT);
+            lv_obj_set_flex_flow(tile, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_flex_align(tile, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        }
         lv_obj_set_clickable(tile, true);
         lv_obj_set_click_focusable(tile, true);
         lv_obj_set_scrollable(tile, false);
@@ -452,13 +477,23 @@ void TileGrid::populate() {
         // The focus ring of the theme, 1dp thicker. The ring is drawn inside the frame.
         lv_obj_add_state(frame, LV_STATE_FOCUS_KEY);
         const auto ring_width = lv_obj_get_style_outline_width(frame, LV_PART_MAIN) + LV_DPX(1);
+        const auto ring_color = lv_obj_get_style_outline_color(frame, LV_PART_MAIN);
         lv_obj_remove_state(frame, LV_STATE_FOCUS_KEY);
         lv_obj_set_style_outline_width(frame, ring_width, LV_STATE_FOCUS_KEY);
         lv_obj_set_style_outline_pad(frame, -ring_width, LV_STATE_FOCUS_KEY);
         lv_obj_set_clickable(frame, false);
         lv_obj_set_click_focusable(frame, false);
         lv_obj_set_scrollable(frame, false);
-        lv_obj_add_event_cb(tile, onTileStateChanged, LV_EVENT_STATE_CHANGED, frame);
+        if (card) {
+            lv_obj_set_style_outline_color(tile, ring_color, LV_STATE_FOCUS_KEY);
+            lv_obj_set_style_outline_opa(tile, LV_OPA_COVER, LV_STATE_FOCUS_KEY);
+            lv_obj_set_style_outline_width(tile, ring_width, LV_STATE_FOCUS_KEY);
+            // Outside of the card, with the same offset as the theme's focus ring
+            lv_obj_set_style_outline_pad(tile, lvgl_theme_lerp(1, LV_DPX(2), lvgl_theme_get_size()), LV_STATE_FOCUS_KEY);
+            lv_obj_set_style_bg_color(tile, lv_color_mix(lv_obj_get_style_text_color(tile, LV_PART_MAIN), lv_obj_get_style_bg_color(tile, LV_PART_MAIN), LV_OPA_20), LV_STATE_PRESSED);
+        } else {
+            lv_obj_add_event_cb(tile, onTileStateChanged, LV_EVENT_STATE_CHANGED, frame);
+        }
 
         const lv_image_dsc_t* image_src = item.image;
         const char* icon_text = item.icon;
@@ -486,7 +521,7 @@ void TileGrid::populate() {
             }
         } else {
             lv_obj_t* icon = lv_label_create(frame);
-            lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_large_font(), LV_STATE_DEFAULT);
+            lv_obj_set_style_text_font(icon, card ? lvgl_get_shared_icon_default_font() : lvgl_get_shared_icon_large_font(), LV_STATE_DEFAULT);
             lv_obj_set_style_text_align(icon, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
             lv_obj_set_size(icon, layout.iconSize, layout.iconSize);
             lv_label_set_text(icon, icon_text != nullptr ? icon_text : "");
@@ -496,11 +531,17 @@ void TileGrid::populate() {
 
         lv_obj_t* label = lv_label_create(tile);
         // Favourites have a label in the theme's secondary colour
-        lv_obj_set_style_text_color(label, item.highlighted ? lv_theme_get_color_secondary(label) : lv_obj_get_style_text_color(frame, LV_PART_MAIN), LV_STATE_DEFAULT);
-        lv_obj_set_style_text_font(label, lvgl_get_text_font(FONT_SIZE_SMALL), LV_STATE_DEFAULT);
-        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+        lv_obj_set_style_text_color(label, item.highlighted ? lv_theme_get_color_secondary(label) : lv_obj_get_style_text_color(card ? tile : frame, LV_PART_MAIN), LV_STATE_DEFAULT);
+        const auto label_font = lvgl_get_text_font(card ? FONT_SIZE_DEFAULT : FONT_SIZE_SMALL);
+        lv_obj_set_style_text_font(label, label_font, LV_STATE_DEFAULT);
+        lv_obj_set_style_text_align(label, card ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
         // Dots mode needs a fixed height, otherwise the label wraps instead of truncating
-        lv_obj_set_size(label, LV_PCT(100), lv_font_get_line_height(lvgl_get_text_font(FONT_SIZE_SMALL)));
+        if (card) {
+            lv_obj_set_flex_grow(label, 1);
+            lv_obj_set_height(label, lv_font_get_line_height(label_font));
+        } else {
+            lv_obj_set_size(label, LV_PCT(100), lv_font_get_line_height(label_font));
+        }
         lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
         lv_label_set_text(label, item.name.c_str());
 
@@ -564,84 +605,15 @@ void TileGrid::createGrid(lv_obj_t* parent) {
     }
 }
 
-// Keys enter the bar on the previous page button, or on the first visible button when there's only one page
-void TileGrid::onBottomBarFocused(lv_event_t* e) {
-    const auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
-    lv_obj_t* current = lvgl_grid_navigation_get_focused(self->bottomBar);
-    lv_obj_t* target = lv_obj_is_hidden(self->prevButton) ? findFirstBarButton(self->bottomBar) : self->prevButton;
-    if (current == nullptr || target == nullptr || target == current) {
-        return;
-    }
-    // Only keys show the selection, the bar's previously focused child can be stale
-    lv_indev_t* indev = lv_indev_active();
-    const lv_indev_type_t type = indev != nullptr ? lv_indev_get_type(indev) : LV_INDEV_TYPE_NONE;
-    const bool showSelection = type == LV_INDEV_TYPE_KEYPAD || type == LV_INDEV_TYPE_ENCODER;
-    lv_gridnav_set_focused(self->bottomBar, target, LV_ANIM_OFF);
-    if (!showSelection) {
-        lv_obj_remove_state(target, LV_STATE_FOCUS_KEY);
-    }
-}
-
-void TileGrid::createWidgetsWithBottomBar(lv_obj_t* parent, lv_obj_t* sideContainer) {
-    barParent = parent;
-    barSideContainer = nullptr;
-    barButtons.clear();
-    bottomBar = lv_obj_create(parent);
-    lv_obj_set_size(bottomBar, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(bottomBar, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(bottomBar, 0, LV_STATE_DEFAULT);
-    lv_obj_set_flex_flow(bottomBar, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(bottomBar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_scrollable(bottomBar, false);
-    lvgl_obj_add_edge_padding(bottomBar);
-    lv_obj_add_event_cb(bottomBar, onBottomBarSizeChanged, LV_EVENT_SIZE_CHANGED, nullptr);
-    lv_obj_add_event_cb(bottomBar, onBottomBarDeleted, LV_EVENT_DELETE, nullptr);
-
-    createGrid(parent);
-    lv_obj_move_foreground(bottomBar);
-
-    pageIndicator = lvgl_page_indicator_create(bottomBar);
-    // Keeps the page indicator away from the screen edge
-    lv_obj_set_style_margin_hor(pageIndicator, lv_obj_get_style_pad_column(bottomBar, LV_PART_MAIN), LV_STATE_DEFAULT);
-    // The spacer pushes the buttons and the page indicator to opposite sides
-    barSpacer = lv_obj_create(bottomBar);
-    lv_obj_set_size(barSpacer, 0, 0);
-    lv_obj_set_flex_grow(barSpacer, 1);
-    lv_obj_set_clickable(barSpacer, false);
-    prevButton = lvgl_icon_button_create(bottomBar);
-    lv_label_set_text(lv_label_create(prevButton), "<");
-    lv_obj_add_event_cb(prevButton, onPrevPressed, LV_EVENT_SHORT_CLICKED, this);
-    nextButton = lvgl_icon_button_create(bottomBar);
-    lv_label_set_text(lv_label_create(nextButton), ">");
-    lv_obj_add_event_cb(nextButton, onNextPressed, LV_EVENT_SHORT_CLICKED, this);
-    arrangeBar();
-    // The arrow keys move between all buttons of the bar as one row
-    lvgl_grid_navigation_add(bottomBar);
-    lv_obj_add_event_cb(bottomBar, onBottomBarFocused, LV_EVENT_FOCUSED, this);
-    // Before the grid is populated, as its size depends on where the bar is
-    setBarSideContainer(sideContainer);
-}
-
-void TileGrid::finishWidgetsWithBottomBar() {
-    finishCreate(barParent);
-}
-
 void TileGrid::createWidgets(lv_obj_t* parent) {
     // Widgets of a previous build are deleted by now
-    prevButton = nullptr;
-    nextButton = nullptr;
     pageIndicator = nullptr;
-    bottomBar = nullptr;
-    barSpacer = nullptr;
-    barParent = nullptr;
-    barSideContainer = nullptr;
-    barButtons.clear();
     createGrid(parent);
-    // Centered below the grid
+    if (systemPageButtons) {
+        system_bars_set_page_button_callbacks(onSystemPreviousPage, onSystemNextPage, this);
+    }
     pageIndicator = lvgl_page_indicator_create(parent);
     centerPageIndicator(pageIndicator);
-    // Keeps the dots off the screen's bottom edge
-    lv_obj_set_style_margin_bottom(pageIndicator, lvgl_theme_lerp(LV_DPX(2), LV_DPX(8), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
     finishCreate(parent);
 }
 
@@ -658,15 +630,6 @@ void TileGrid::finishCreate(lv_obj_t* parent) {
     }
 }
 
-void TileGrid::setPageButtons(lv_obj_t* previous, lv_obj_t* next) {
-    prevButton = previous;
-    nextButton = next;
-    lv_obj_add_event_cb(prevButton, onPrevPressed, LV_EVENT_SHORT_CLICKED, this);
-    lv_obj_add_event_cb(nextButton, onNextPressed, LV_EVENT_SHORT_CLICKED, this);
-    lv_obj_set_hidden(prevButton, pageCount <= 1);
-    lv_obj_set_hidden(nextButton, pageCount <= 1);
-}
-
 lv_obj_t* TileGrid::findTile(const std::string& id) const {
     const uint32_t count = lv_obj_get_child_count(grid);
     for (uint32_t i = 0; i < count; i++) {
@@ -678,106 +641,9 @@ lv_obj_t* TileGrid::findTile(const std::string& id) const {
     return nullptr;
 }
 
-lv_obj_t* TileGrid::addBarButton(const char* icon, lv_event_cb_t onClicked, void* userData) {
-    auto* button = lvgl_icon_button_create(bottomBar);
-    auto* label = lv_label_create(button);
-    lv_obj_set_style_text_font(label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
-    lv_label_set_text(label, icon);
-    lv_obj_add_event_cb(button, onClicked, LV_EVENT_SHORT_CLICKED, userData);
-    barButtons.push_back(button);
-    arrangeBar();
-    return button;
-}
-
-void TileGrid::arrangeBar() {
-    // The order of the bar's children, from the start of the row or column
-    std::vector<lv_obj_t*> order;
-    if (barSideContainer != nullptr) {
-        // The page indicator is below the grid and the spacer isn't used. The bar's own buttons are at the bottom.
-        order.insert(order.end(), { barSpacer, nextButton, prevButton });
-        order.insert(order.end(), barButtons.rbegin(), barButtons.rend());
-    } else {
-        order.insert(order.end(), barButtons.begin(), barButtons.end());
-        order.insert(order.end(), { prevButton, nextButton, barSpacer, pageIndicator });
-    }
-    for (size_t i = 0; i < order.size(); i++) {
-        lv_obj_move_to_index(order[i], static_cast<int32_t>(i));
-    }
-}
-
-void TileGrid::setBarSideContainer(lv_obj_t* sideContainer) {
-    if (bottomBar == nullptr || sideContainer == barSideContainer) {
-        return;
-    }
-    barSideContainer = sideContainer;
-    if (sideContainer != nullptr) {
-        lv_obj_set_parent(bottomBar, sideContainer);
-        lv_obj_set_size(bottomBar, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_set_flex_flow(bottomBar, LV_FLEX_FLOW_COLUMN);
-        // The strip has its own background
-        lv_obj_set_style_bg_opa(bottomBar, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-        // The buttons are close together, like the statusbar's icons above them
-        lv_obj_set_style_pad_row(bottomBar, 2, LV_STATE_DEFAULT);
-        lv_obj_set_hidden(barSpacer, true);
-        // The page indicator is centered below the grid
-        lv_obj_set_parent(pageIndicator, barParent);
-        lv_obj_move_to_index(pageIndicator, lv_obj_get_index(grid) + 1);
-        centerPageIndicator(pageIndicator);
-        // Keeps the dots off the screen's bottom edge
-        lv_obj_set_style_margin_bottom(pageIndicator, lvgl_theme_lerp(1, 2, lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
-    } else {
-        lv_obj_set_parent(bottomBar, barParent);
-        lv_obj_move_to_index(bottomBar, lv_obj_get_index(grid) + 1);
-        lv_obj_set_size(bottomBar, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_flex_flow(bottomBar, LV_FLEX_FLOW_ROW);
-        lv_obj_remove_local_style_prop(bottomBar, LV_STYLE_BG_OPA, LV_PART_MAIN);
-        lv_obj_remove_local_style_prop(bottomBar, LV_STYLE_PAD_ROW, LV_PART_MAIN);
-        lv_obj_set_hidden(barSpacer, false);
-        uncenterPageIndicator(pageIndicator);
-        lv_obj_set_parent(pageIndicator, bottomBar);
-        lv_obj_set_width(pageIndicator, LV_SIZE_CONTENT);
-        lv_obj_remove_local_style_prop(pageIndicator, LV_STYLE_MARGIN_BOTTOM, LV_PART_MAIN);
-        // The bar's size can stay the same, which wouldn't update the max width
-        lv_async_call_cancel(updatePageIndicatorWidth, bottomBar);
-        lv_async_call(updatePageIndicatorWidth, bottomBar);
-    }
-    // The keys move through the bar where it's shown: below the statusbar's icons in the side strip, or below the grid
-    setGroupOrder(grid, bottomBar, sideContainer != nullptr);
-    if (sideContainer != nullptr) {
-        // Runs before grid navigation, which would move the focus along the group instead of sideways
-        lv_obj_add_event_cb(bottomBar, onSideBarKey, static_cast<lv_event_code_t>(LV_EVENT_KEY | LV_EVENT_PREPROCESS), this);
-    } else {
-        lv_obj_remove_event_cb(bottomBar, onSideBarKey);
-    }
-    arrangeBar();
-}
-
-// In the side strip on the left, the right key moves the focus to the grid, and the left key stays at the screen's edge
-void TileGrid::onSideBarKey(lv_event_t* e) {
-    auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
-    const uint32_t key = lv_event_get_key(e);
-    if (key == LV_KEY_RIGHT) {
-        lv_group_focus_obj(self->grid);
-        lv_event_stop_processing(e);
-    } else if (key == LV_KEY_LEFT) {
-        lv_event_stop_processing(e);
-    }
-}
-
 void TileGrid::destroyWidgets() {
-    // The window only deletes its own widgets, and the bar can be in the side strip
-    if (bottomBar != nullptr && barSideContainer != nullptr) {
-        lv_obj_delete(bottomBar);
-    }
-    // The other bar widgets are deleted with the bar or the window, so no pointer may outlive them
-    bottomBar = nullptr;
-    barSideContainer = nullptr;
-    barParent = nullptr;
+    // The window deletes the widgets, so no pointer may outlive them
     pageIndicator = nullptr;
-    prevButton = nullptr;
-    nextButton = nullptr;
-    barSpacer = nullptr;
-    barButtons.clear();
 }
 
 }

@@ -39,12 +39,14 @@ const SettingsIconAsset SETTINGS_ICONS[] = {
     SETTINGS_ICON("tactility.development", tactility_development),
     SETTINGS_ICON("tactility.display", tactility_display),
     SETTINGS_ICON("tactility.grovesettings", tactility_grovesettings),
+    SETTINGS_ICON("tactility.kernelsettings", tactility_kernelsettings),
     SETTINGS_ICON("tactility.keyboardsettings", tactility_keyboardsettings),
     SETTINGS_ICON("tactility.languagesettings", tactility_languagesettings),
     SETTINGS_ICON("tactility.ledstripsettings", tactility_ledstripsettings),
     SETTINGS_ICON("tactility.locationsettings", tactility_locationsettings),
     SETTINGS_ICON("tactility.meshsettings", tactility_meshsettings),
     SETTINGS_ICON("tactility.power", tactility_power),
+    SETTINGS_ICON("tactility.simulator", tactility_simulator),
     SETTINGS_ICON("tactility.timedatesettings", tactility_timedatesettings),
     SETTINGS_ICON("tactility.touchcalibration", tactility_touchcalibration),
     SETTINGS_ICON("tactility.trackballsettings", tactility_trackballsettings),
@@ -135,7 +137,7 @@ void loadSettingsIcons(void*) {
     // Only this task writes the icons, so reading them here needs no lock
     if (state.loaded && state.forMono == preferMono) return;
 
-    const auto size = getTileIconSize();
+    const auto size = getCardIconSize();
     lv_draw_buf_t* images[SETTINGS_ICON_COUNT] = {};
     bool recolor[SETTINGS_ICON_COUNT] = {};
     for (size_t i = 0; i < SETTINGS_ICON_COUNT; i++) {
@@ -145,9 +147,6 @@ void loadSettingsIcons(void*) {
             reinterpret_cast<const char*>(asset.mono), asset.monoSize,
             preferMono, size, &recolor[i]
         );
-        if (images[i] != nullptr && !recolor[i]) {
-            lvgl_svg_round_corners(images[i], size * 22 / 96);
-        }
     }
 
     mutex_lock(&state.mutex);
@@ -193,7 +192,8 @@ bool areSettingsIconsCurrent() {
 
 const LauncherMode SETTINGS_MODE = {
     .buttonIcon = LVGL_ICON_SHARED_SETTINGS,
-    .iconColor = TileGrid::IconColor::Secondary,
+    .tileStyle = TileGrid::Style::Card,
+    .iconColor = TileGrid::IconColor::Default,
     .collect = collectItems,
     .onLongPressed = nullptr,
     .onKey = nullptr

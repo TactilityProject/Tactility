@@ -6,6 +6,7 @@
 #include <app/start.h>
 #include <app/stream.h>
 
+#include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
 #include <lvgl/grid_navigation.h>
 #include <lvgl/icons/shared.h>
@@ -14,6 +15,7 @@
 #include <lvgl/svg.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
+#include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/toolbar.h>
 
@@ -70,18 +72,9 @@ static void onDeletePressedCallback(lv_event_t* event) {
     view->onDeletePressed();
 }
 
-static void onNavigateUpPressedCallback(lv_event_t* event) {
-    auto* view = static_cast<View*>(lv_event_get_user_data(event));
-    view->onNavigateUpPressed();
-}
-
 static void onOverflowPressedCallback(lv_event_t* event) {
     auto* view = static_cast<View*>(lv_event_get_user_data(event));
     view->onOverflowPressed();
-}
-
-static void onPageButtonPressedCallback(lv_event_t*) {
-    // TileGrid::setPageButtons() makes the page buttons change the page
 }
 
 static void onNewFilePressedCallback(lv_event_t* event) {
@@ -524,9 +517,13 @@ void View::onDirEntryPressed(const ::std::string& name) {
     using namespace tt::file;
     switch (dir_entry.d_type) {
         case TT_DT_DIR:
-        case TT_DT_CHR:
+        case TT_DT_CHR: {
+            // A touch doesn't show a selection, so only keys select the first entry
+            lv_obj_t* tile = grid.findTile(name);
+            selectFirstAfterNavigation = tile != nullptr && lv_obj_has_state(tile, LV_STATE_FOCUS_KEY);
             navigateTo(file::getChildPath(state->getCurrentPath(), dir_entry.d_name), true, true);
             break;
+        }
 
         case TT_DT_LNK:
             LOG_W(TAG, "opening links is not supported");
@@ -677,16 +674,6 @@ void View::onDirEntryKeyPressed(const ::std::string& name, uint32_t key) {
 
 void View::onBackPressed() {
     app_event_emit_close(appInstanceId);
-}
-
-void View::onNavigateUpPressed() {
-    if (state->getCurrentPath() != "/") {
-        LOG_I(TAG, "Navigating upwards");
-        ::std::string new_absolute_path;
-        if (string::getPathParent(state->getCurrentPath(), new_absolute_path)) {
-            navigateTo(new_absolute_path, true, false);
-        }
-    }
 }
 
 void View::onOverflowPressed() {
@@ -912,6 +899,162 @@ void View::onEjectPressed() {
     navigateTo(state->getCurrentPath(), false, false);
 }
 
+lv_obj_t* View::getParentPathSegment() const {
+    if (pathBarWidgets.size() >= 2 && lv_obj_is_clickable(pathBarWidgets[pathBarWidgets.size() - 2])) {
+        return pathBarWidgets[pathBarWidgets.size() - 2];
+    }
+    return pathBarWidgets.back();
+}
+
+void View::onPathSegmentPressed(lv_event_t* event) {
+    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    const auto index = reinterpret_cast<uintptr_t>(lv_obj_get_user_data(lv_event_get_target_obj(event)));
+    if (index < view->pathBarPaths.size()) {
+        view->onNavigate();
+        // Only when keys selected the segment, as a touch doesn't show a selection
+        view->selectParentSegment = lv_obj_has_state(lv_event_get_target_obj(event), LV_STATE_FOCUS_KEY);
+        view->navigateTo(view->pathBarPaths[index], true, false);
+    }
+}
+
+void View::onDeferredPathBarUpdate(void* userData) {
+    auto* view = static_cast<View*>(userData);
+    if (view->toolbar != nullptr) {
+        view->updatePathBar();
+    }
+}
+
+// The toolbar can change size when the system bars change. The path bar is rebuilt after the layout pass.
+void View::onToolbarSizeChanged(lv_event_t* event) {
+    auto* view = static_cast<View*>(lv_event_get_user_data(event));
+    if (lv_obj_get_width(view->toolbar) != view->pathBarWidth) {
+        lv_async_call_cancel(onDeferredPathBarUpdate, view);
+        lv_async_call(onDeferredPathBarUpdate, view);
+    }
+}
+
+void View::updatePathBar() {
+    for (auto* widget : pathBarWidgets) {
+        lv_obj_delete(widget);
+    }
+    pathBarWidgets.clear();
+    pathBarPaths.clear();
+
+    // The root, and a path for every directory of the current path
+    ::std::vector<::std::string> names = { "/" };
+    pathBarPaths.push_back("/");
+    const auto& current_path = state->getCurrentPath();
+    ::std::string accumulated;
+    size_t start = 0;
+    while (start < current_path.size()) {
+        if (current_path[start] == '/') {
+            start++;
+            continue;
+        }
+        size_t end = current_path.find('/', start);
+        if (end == ::std::string::npos) {
+            end = current_path.size();
+        }
+        names.push_back(current_path.substr(start, end - start));
+        accumulated += "/" + names.back();
+        pathBarPaths.push_back(accumulated);
+        start = end;
+    }
+
+    lv_obj_update_layout(toolbar);
+
+    // Shows the segments from the first one that is given, and an ellipsis in front of the first one when the path is cut off.
+    // The current directory is checked and can't be pressed.
+    auto build = [&](size_t first) {
+        size_t index = 1;
+        if (first > 0) {
+            auto* ellipsis = lv_label_create(toolbar);
+            lv_label_set_text(ellipsis, "..");
+            lv_obj_move_to_index(ellipsis, static_cast<int32_t>(index++));
+            pathBarWidgets.push_back(ellipsis);
+        }
+        for (size_t i = first; i < names.size(); i++) {
+            auto* segment = lvgl_chip_create(toolbar);
+            // The chip fits the height of the toolbar, with its focus ring inside, as the toolbar clips what is outside of it
+            lv_obj_set_style_margin_ver(segment, 0, LV_STATE_DEFAULT);
+            lv_obj_set_style_pad_ver(segment, 0, LV_STATE_DEFAULT);
+            lv_obj_set_height(segment, lv_obj_get_content_height(toolbar));
+            lv_obj_set_flex_flow(segment, LV_FLEX_FLOW_ROW);
+            lv_obj_set_flex_align(segment, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            lv_obj_add_state(segment, LV_STATE_FOCUS_KEY);
+            const int32_t ring_width = lv_obj_get_style_outline_width(segment, LV_PART_MAIN);
+            lv_obj_remove_state(segment, LV_STATE_FOCUS_KEY);
+            lv_obj_set_style_outline_pad(segment, -ring_width, LV_STATE_FOCUS_KEY);
+            if (lvgl_theme_is_mono()) {
+                // The ring has the colour of the chip's border, so the selected chip is inverted instead
+                lv_obj_set_style_bg_color(segment, lv_obj_get_style_text_color(segment, LV_PART_MAIN), LV_STATE_FOCUS_KEY);
+                lv_obj_set_style_bg_opa(segment, LV_OPA_COVER, LV_STATE_FOCUS_KEY);
+                lv_obj_set_style_text_color(segment, lv_obj_get_style_bg_color(segment, LV_PART_MAIN), LV_STATE_FOCUS_KEY);
+            }
+            lv_obj_t* label = lv_label_create(segment);
+            lv_label_set_text(label, names[i].c_str());
+            // One line with the width of the name. A content size would make the label wrap to the room that is left.
+            lv_point_t text_size;
+            lv_text_get_size(&text_size, names[i].c_str(), lv_obj_get_style_text_font(label, LV_PART_MAIN), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
+            lv_obj_set_size(label, text_size.x, text_size.y);
+            lv_obj_set_user_data(segment, reinterpret_cast<void*>(i));
+            if (i + 1 == names.size()) {
+                lv_obj_add_state(segment, LV_STATE_CHECKED);
+                lv_obj_set_click_focusable(segment, false);
+            } else {
+                lv_obj_add_event_cb(segment, onPathSegmentPressed, LV_EVENT_SHORT_CLICKED, this);
+            }
+            lv_obj_move_to_index(segment, static_cast<int32_t>(index++));
+            pathBarWidgets.push_back(segment);
+        }
+    };
+
+    // How much wider the visible children of the toolbar are than the toolbar, with the gaps between them. 0 or less when they fit.
+    auto overflow = [&] {
+        lv_obj_update_layout(toolbar);
+        int32_t used = 0;
+        int32_t count = 0;
+        const uint32_t child_count = lv_obj_get_child_count(toolbar);
+        for (uint32_t i = 0; i < child_count; i++) {
+            lv_obj_t* child = lv_obj_get_child(toolbar, static_cast<int32_t>(i));
+            if (!lv_obj_is_hidden(child)) {
+                // The margin of a chip, for its focus ring, takes room too
+                used += lv_obj_get_width(child) + lv_obj_get_style_margin_left(child, LV_PART_MAIN) + lv_obj_get_style_margin_right(child, LV_PART_MAIN);
+                count++;
+            }
+        }
+        used += (count - 1) * lv_obj_get_style_pad_column(toolbar, LV_PART_MAIN);
+        return used - lv_obj_get_content_width(toolbar);
+    };
+
+    size_t first = 0;
+    build(first);
+    // Drops the leftmost segments until the path fits, keeping at least the current directory and its parent
+    while (overflow() > 0 && first + 2 < names.size()) {
+        for (auto* widget : pathBarWidgets) {
+            lv_obj_delete(widget);
+        }
+        pathBarWidgets.clear();
+        first++;
+        build(first);
+    }
+    // Shortens the name of the current directory when that is still not enough
+    const int32_t excess = overflow();
+    if (excess > 0) {
+        lv_obj_t* label = lv_obj_get_child(pathBarWidgets.back(), 0);
+        lv_obj_set_width(label, ::std::max<int32_t>(lv_font_get_line_height(lv_obj_get_style_text_font(label, LV_PART_MAIN)), lv_obj_get_width(label) - excess));
+    }
+    pathBarWidth = lv_obj_get_width(toolbar);
+
+    // The pressed segment is gone, so the selection moves to the segment below the new directory
+    if (selectParentSegment) {
+        selectParentSegment = false;
+        lv_group_focus_obj(toolbar);
+        lv_gridnav_set_focused(toolbar, getParentPathSegment(), LV_ANIM_OFF);
+    }
+}
+
 void View::update(bool firstPage, bool selectFirst) {
     if (!lvgl_try_lock(500 / portTICK_PERIOD_MS)) {
         LOG_E(TAG, "Mutex acquisition timeout (%s)", "lvgl");
@@ -919,20 +1062,24 @@ void View::update(bool firstPage, bool selectFirst) {
     }
 
     // The widgets are gone while another window covers this one
-    if (navigate_up_button == nullptr) {
+    if (toolbar == nullptr) {
         lvgl_unlock();
         return;
     }
 
     const bool is_root = (state->getCurrentPath() == "/");
-    lv_obj_set_hidden(navigate_up_button, is_root);
     lv_obj_set_hidden(overflow_button, is_root);
+    updatePathBar();
 
     if (firstPage) {
         grid.showFirstPage();
     }
+    // Without a pointer device there is no touch, so a selection is always wanted
+    selectFirst = selectFirst && (selectFirstAfterNavigation || !lvgl_indev_exists(LV_INDEV_TYPE_POINTER));
+    selectFirstAfterNavigation = false;
     if (firstPage && selectFirst) {
-        grid.requestRepopulateSelectingFirst(navigate_up_button);
+        // The nearest segment of the path bar, when the directory has no entries
+        grid.requestRepopulateSelectingFirst(getParentPathSegment());
     } else {
         grid.requestRepopulate(!firstPage);
     }
@@ -947,22 +1094,24 @@ void View::init(uint32_t appInstanceId, lv_obj_t* parent) {
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
     const bool is_root = (state->getCurrentPath() == "/");
-    auto* toolbar = lvgl_toolbar_create(parent, tr("Files"));
+    // The path bar takes the place of the title
+    toolbar = lvgl_toolbar_create(parent, "");
     // The global toolbar nav callback only knows how to stop old-model apps.
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressedCallback, this);
     busy_spinner = lvgl_toolbar_add_spinner_action(toolbar);
     lv_obj_set_hidden(busy_spinner, pendingOperations == 0);
-    navigate_up_button = lvgl_toolbar_add_image_button_action(toolbar, LV_SYMBOL_UP, &onNavigateUpPressedCallback, this);
-    lv_obj_set_hidden(navigate_up_button, is_root);
-    auto* previous_button = lvgl_toolbar_add_text_button_action(toolbar, "<", onPageButtonPressedCallback, this);
-    auto* next_button = lvgl_toolbar_add_text_button_action(toolbar, ">", onPageButtonPressedCallback, this);
     overflow_button = lvgl_toolbar_add_text_button_action(toolbar, LVGL_ICON_SHARED_MORE_VERT, onOverflowPressedCallback, this);
     lv_obj_set_style_text_font(overflow_button, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
     lv_obj_set_hidden(overflow_button, is_root);
+    pathBarWidth = 0;
+    updatePathBar();
+    lv_obj_add_event_cb(toolbar, onToolbarSizeChanged, LV_EVENT_SIZE_CHANGED, this);
 
     grid.setSwipeNavigation(true);
+    grid.setVerticalSwipeInSideLayout(true);
+    grid.setSystemPageButtons(true);
+    grid.setSideIndicator(true);
     grid.createWidgets(parent);
-    grid.setPageButtons(previous_button, next_button);
 
     // Floating, so showing it doesn't change the grid's size and page layout
     overlay = lvgl_card_create(parent);
@@ -983,7 +1132,10 @@ void View::destroyWidgets() {
     state->clearSelectedEntries();
     busy_spinner = nullptr;
     overlay = nullptr;
-    navigate_up_button = nullptr;
+    lv_async_call_cancel(onDeferredPathBarUpdate, this);
+    toolbar = nullptr;
+    pathBarWidgets.clear();
+    pathBarPaths.clear();
     overflow_button = nullptr;
     grid.destroyWidgets();
 }

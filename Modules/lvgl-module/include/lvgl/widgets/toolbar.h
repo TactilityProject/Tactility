@@ -35,7 +35,7 @@ void lvgl_toolbar_set_title(lv_obj_t* obj, const char* title);
 /**
  * Sets the navigation action of the toolbar (button on the top-left)
  * @param[in] obj the toolbar instance
- * @param[in] icon the icon to set on the button
+ * @param[in] icon the icon to set on the button: a shared icon (see lvgl/icons/shared.h), or LV_SYMBOL_CLOSE or LV_SYMBOL_LEFT, which are shown as shared icons
  * @param[in] callback the callback for the click action of the button
  * @param[in] userData the user data that is attached to the callback event object
  */

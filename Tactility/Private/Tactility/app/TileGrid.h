@@ -17,6 +17,9 @@ bool areSvgIconsEnabled();
 /** @return the size in pixels of the square icon of a tile */
 uint32_t getTileIconSize();
 
+/** @return the size in pixels of the square icon of a card */
+uint32_t getCardIconSize();
+
 struct TileGridItem {
     /** Identifies the item across rebuilds, e.g. to keep it selected */
     std::string id;
@@ -32,7 +35,7 @@ struct TileGridItem {
 };
 
 /**
- * Paged, non-scrolling grid of tiles (icon above name) with "<" and ">" page buttons.
+ * Paged, non-scrolling grid of tiles (icon above name, or a card with the icon beside it) with "<" and ">" page buttons.
  * Must outlive the widgets it creates.
  */
 class TileGrid final {
@@ -69,6 +72,16 @@ public:
         Secondary
     };
 
+    enum class Style {
+        /** The icon above the name */
+        Tile,
+        /** A card with the icon on the left and the name next to it */
+        Card
+    };
+
+    /** Sets the look of the tiles. Applies from the next (re)population. */
+    void setStyle(Style newStyle) { style = newStyle; }
+
     /** Sets the colour of the tile icons. Applies from the next (re)population. */
     void setIconColor(IconColor color) { iconColor = color; }
 
@@ -78,51 +91,28 @@ public:
     /** Swiping left or right over the grid goes to the next or previous page. Call before creating the widgets. */
     void setSwipeNavigation(bool enabled) { swipeNavigation = enabled; }
 
+    /** With swipe navigation, a swipe up or down changes the page in the side layout of the system bars. Call before creating the widgets. */
+    void setVerticalSwipeInSideLayout(bool enabled) { verticalSwipeInSideLayout = enabled; }
+
+    /**
+     * Shows the page buttons of the system bars while the grid has multiple pages, and makes them change the page.
+     * Call before creating the widgets.
+     */
+    void setSystemPageButtons(bool enabled) { systemPageButtons = enabled; }
+
+    /**
+     * In the side layout of the system bars, the page indicator is a column of dots next to the strip (on its inner side),
+     * instead of a row below the grid. Call before creating the widgets.
+     */
+    void setSideIndicator(bool enabled) { sideIndicator = enabled; }
+
     /**
      * Creates the grid and populates it, with a page indicator below it that is hidden when there's only one page.
-     * Call setPageButtons() right after it to add page buttons.
      * @param[in] parent the container for the grid, with a flex column layout
      */
     void createWidgets(lv_obj_t* parent);
 
-    /**
-     * Creates the grid, with a bar below it: buttons on the left (see addBarButton()),
-     * followed by the page buttons, and a page indicator on the right. The page indicator and buttons are
-     * hidden when there's only one page, and the page buttons wrap around.
-     * @param[in] parent the container for the grid and the bar
-     * @param[in] sideContainer the container for the bar's buttons when it's shown beside the grid (see setBarSideContainer()),
-     * so the grid is populated at its final size, or nullptr to show the bar below the grid
-     * @warning The grid is populated by finishWidgetsWithBottomBar(), which must be called after adding the bar buttons.
-     */
-    void createWidgetsWithBottomBar(lv_obj_t* parent, lv_obj_t* sideContainer = nullptr);
-
-    /**
-     * Populates the grid. Call after createWidgetsWithBottomBar() and addBarButton(), as the buttons change the size of the bar,
-     * and so the size of the grid.
-     */
-    void finishWidgetsWithBottomBar();
-
-    /**
-     * Makes the buttons go to the previous and next page. They are hidden when there's only one page, and wrap around.
-     * Call right after createWidgets().
-     */
-    void setPageButtons(lv_obj_t* previous, lv_obj_t* next);
-
-    /**
-     * Adds an icon button to the bottom bar, before the page buttons. Call after createWidgetsWithBottomBar() and before finishWidgetsWithBottomBar().
-     * @param[in] icon a shared icon (see lvgl/icons/shared.h)
-     * @return the button
-     */
-    lv_obj_t* addBarButton(const char* icon, lv_event_cb_t onClicked, void* userData);
-
-    /**
-     * Moves the bottom bar's buttons into a column in the given container, e.g. a side strip, and the page indicator below the grid.
-     * Call after createWidgetsWithBottomBar(), and again whenever the container changes.
-     * @param[in] sideContainer the container for the buttons, or nullptr to show the bar below the grid
-     */
-    void setBarSideContainer(lv_obj_t* sideContainer);
-
-    /** Deletes the widgets that aren't part of the parent passed to createWidgetsWithBottomBar(). Call when the parent's widgets are deleted. */
+    /** Forgets the widgets. Call when the parent's widgets are deleted. */
     void destroyWidgets();
 
     /**
@@ -132,8 +122,7 @@ public:
     void requestRepopulate(bool keepSelection);
 
     /**
-     * Like requestRepopulate(false), and without a pointer device it selects the first tile when the grid has any,
-     * and otherwise the fallback.
+     * Like requestRepopulate(false), and it selects the first tile when the grid has any, and otherwise the fallback.
      * @param[in] emptyFallback the widget to select when the grid is empty, directly or through its grid navigation container
      */
     void requestRepopulateSelectingFirst(lv_obj_t* emptyFallback);
@@ -148,7 +137,11 @@ private:
     uint32_t page = 0;
     uint32_t pageCount = 1;
     IconColor iconColor = IconColor::Default;
+    Style style = Style::Tile;
     bool swipeNavigation = false;
+    bool systemPageButtons = false;
+    bool verticalSwipeInSideLayout = false;
+    bool sideIndicator = false;
     bool keepSelectionOnRepopulate = true;
     bool selectFirstOnRepopulate = false;
     lv_obj_t* emptyFallback = nullptr;
@@ -156,21 +149,9 @@ private:
     /** The grid size that the current tiles were laid out for */
     int32_t populatedWidth = 0;
     int32_t populatedHeight = 0;
-    lv_obj_t* prevButton = nullptr;
-    lv_obj_t* nextButton = nullptr;
     lv_obj_t* pageIndicator = nullptr;
-    lv_obj_t* bottomBar = nullptr;
-    lv_obj_t* barSpacer = nullptr;
-    /** The parent passed to createWidgetsWithBottomBar() */
-    lv_obj_t* barParent = nullptr;
-    /** The container that holds the bar's buttons instead of the bar below the grid, or nullptr */
-    lv_obj_t* barSideContainer = nullptr;
-    /** The buttons added with addBarButton(), in the order they were added */
-    std::vector<lv_obj_t*> barButtons;
 
     void createGrid(lv_obj_t* parent);
-    void arrangeBar();
-    static void onSideBarKey(lv_event_t* e);
     void finishCreate(lv_obj_t* parent);
     void goToPreviousPage();
     void goToNextPage();
@@ -184,10 +165,9 @@ private:
     static void onDeferredPreviousPage(void* userData);
     static void onGridDeleted(lv_event_t* e);
     static void onGridSizeChanged(lv_event_t* e);
-    static void onPrevPressed(lv_event_t* e);
-    static void onNextPressed(lv_event_t* e);
+    static void onSystemPreviousPage(void* userData);
+    static void onSystemNextPage(void* userData);
     static void onGridGesture(lv_event_t* e);
-    static void onBottomBarFocused(lv_event_t* e);
     static void onTileStateChanged(lv_event_t* e);
     static void onTileClicked(lv_event_t* e);
     static void onTileLongPressed(lv_event_t* e);
