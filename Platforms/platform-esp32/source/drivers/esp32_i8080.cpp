@@ -123,17 +123,21 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    // Acquire and deselect all CS pins
+    // Acquire and deselect all CS pins. A null entry (or a pin marked as -1) means the peripheral
+    // has no chip select, e.g. because its CS line is tied low on the board.
     for (uint8_t i = 0; i < config->cs_gpios_count; i++) {
         const GpioPinSpec* cs = &config->cs_gpios[i];
-        if (cs->gpio_controller == nullptr) continue;
-        GpioDescriptor* desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
-        if (desc != nullptr) {
-            gpio_descriptor_set_level(desc, false); // logical low = physical high
-            data->cs_descriptors.push_back(desc);
-        } else {
-            LOG_E(TAG, "Failed to acquire CS pin %u", i);
+        GpioDescriptor* desc = nullptr;
+        if (cs->gpio_controller != nullptr && cs->pin != static_cast<gpio_pin_t>(GPIO_PIN_NONE)) {
+            desc = gpio_descriptor_acquire(cs->gpio_controller, cs->pin, GPIO_FLAG_DIRECTION_OUTPUT | GPIO_FLAG_ACTIVE_LOW, GPIO_OWNER_GPIO);
+            if (desc != nullptr) {
+                gpio_descriptor_set_level(desc, false); // logical low = physical high
+            } else {
+                LOG_E(TAG, "Failed to acquire CS pin %u", i);
+            }
         }
+        // Keep the vector aligned with cs_gpios, so an entry can be looked up by child address.
+        data->cs_descriptors.push_back(desc);
     }
 
     return ERROR_NONE;
@@ -158,8 +162,19 @@ error_t esp32_i8080_get_cs_pin(Device* child_device, GpioPinSpec* out_pin) {
     if (parent == nullptr || device_get_type(parent) != &I8080_CONTROLLER_TYPE) return ERROR_INVALID_STATE;
     const auto* config = GET_CONFIG(parent);
     int32_t index = child_device->address;
-    if (index < 0 || index >= config->cs_gpios_count) return ERROR_OUT_OF_RANGE;
-    *out_pin = config->cs_gpios[index];
+    if (index < 0) return ERROR_OUT_OF_RANGE;
+    // A chip select is optional: the panel's CS may be tied low on the board. Treat a missing
+    // entry, an empty spec, or a pin explicitly marked as -1 as "no chip select".
+    if (index >= config->cs_gpios_count) {
+        *out_pin = GPIO_PIN_SPEC_NONE;
+        return ERROR_NONE;
+    }
+    const GpioPinSpec* cs = &config->cs_gpios[index];
+    if (cs->gpio_controller == nullptr || cs->pin == static_cast<gpio_pin_t>(GPIO_PIN_NONE)) {
+        *out_pin = GPIO_PIN_SPEC_NONE;
+    } else {
+        *out_pin = *cs;
+    }
     return ERROR_NONE;
 }
 

@@ -61,4 +61,7 @@ properties:
     type: phandle-array
     element-type: "struct GpioPinSpec"
     default: "{ }"
-    description: Null-terminated array of chip select GPIO pin specs for peripherals on this bus
+    description: |
+      Optional array of chip select GPIO pin specs for peripherals on this bus, indexed by the
+      child device's address. A child without an entry has no chip select (its CS line is tied
+      low on the board); an entry with -1 as its pin means the same.

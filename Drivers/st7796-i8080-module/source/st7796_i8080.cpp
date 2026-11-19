@@ -96,7 +96,7 @@ static error_t start(Device* device) {
         .flags = {
             .cs_active_high = 0,
             .reverse_color_bits = 0,
-            .swap_color_bytes = 1,
+            .swap_color_bytes = 0,
             .pclk_active_neg = 0,
             .pclk_idle_low = 0,
         },

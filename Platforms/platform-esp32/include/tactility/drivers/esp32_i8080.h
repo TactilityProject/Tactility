@@ -26,7 +26,10 @@ struct Esp32I8080Config {
     struct GpioPinSpec pin_d6;
     struct GpioPinSpec pin_d7;
     int max_transfer_bytes;
-    /** Array of chip select GPIO pin specs */
+    /**
+     * Optional array of chip select GPIO pin specs, indexed by the child device's address.
+     * A child without an entry (or with a pin marked as -1) has no chip select.
+     */
     struct GpioPinSpec* cs_gpios;
     /** The item count of cs_gpios */
     uint8_t cs_gpios_count;
@@ -35,11 +38,14 @@ struct Esp32I8080Config {
 /**
  * @brief Get the CS pin spec for a child device on this i8080 bus.
  * Uses the child device's address as index into the parent's cs_gpios array.
+ * A chip select is optional: when the bus has no entry for the child's address, or the entry's
+ * pin is marked as -1, out_pin is set to GPIO_PIN_SPEC_NONE and ERROR_NONE is returned. This
+ * covers panels whose CS line is tied low on the board.
  * @param[in] child_device a child device of an i8080 controller
- * @param[out] out_pin the GPIO pin spec for the CS pin
+ * @param[out] out_pin the GPIO pin spec for the CS pin, or GPIO_PIN_SPEC_NONE
  * @retval ERROR_NONE on success
  * @retval ERROR_INVALID_STATE if the parent is not an i8080 controller
- * @retval ERROR_OUT_OF_RANGE if the device address exceeds the cs_gpios array
+ * @retval ERROR_OUT_OF_RANGE if the device address is negative
  */
 error_t esp32_i8080_get_cs_pin(struct Device* child_device, struct GpioPinSpec* out_pin);
 
