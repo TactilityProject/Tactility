@@ -212,3 +212,132 @@ msgstr "Impossible d'envoyer l'advert"
 
 msgid "Show QR"
 msgstr "Afficher le QR"
+
+msgid "Info"
+msgstr "Infos"
+
+msgid "Status: {}"
+msgstr "Statut : {}"
+
+msgid "Network: {}"
+msgstr "Réseau : {}"
+
+msgid "Region: {}"
+msgstr "Région : {}"
+
+msgid "Radio: {} MHz, {} kHz, SF{}, CR 4/{}, {} dBm"
+msgstr "Radio : {} MHz, {} kHz, SF{}, CR 4/{}, {} dBm"
+
+msgid "Duty cycle: unrestricted"
+msgstr "Rapport cyclique : sans limite"
+
+msgid "Duty cycle: {} s of {} s used ({}% allowed)"
+msgstr "Rapport cyclique : {} s sur {} s utilisées ({} % autorisé)"
+
+msgid "Transmitting is paused until the budget frees up"
+msgstr "L'émission est suspendue jusqu'à ce que le budget se libère"
+
+msgid "Waiting to transmit: {}"
+msgstr "En attente d'émission : {}"
+
+msgid "Frames: {} sent, {} failed, {} received, {} unreadable"
+msgstr "Trames : {} envoyées, {} échouées, {} reçues, {} illisibles"
+
+msgid "Messages: {} received, {} sent, {} failed"
+msgstr "Messages : {} reçus, {} envoyés, {} échoués"
+
+msgid "Nodes heard: {}, contacts: {}"
+msgstr "Nœuds entendus : {}, contacts : {}"
+
+msgid "Set path"
+msgstr "Définir le chemin"
+
+msgid "Reset path"
+msgstr "Réinitialiser le chemin"
+
+msgid "No contacts"
+msgstr "Aucun contact"
+
+msgid "Add a contact first."
+msgstr "Ajoutez d'abord un contact."
+
+msgid "Couldn't change path"
+msgstr "Impossible de modifier le chemin"
+
+msgid "Repeater hashes in hexadecimal, e.g. a1,b2,c3"
+msgstr "Hashs des répéteurs en hexadécimal, p. ex. a1,b2,c3"
+
+msgid "Invalid path"
+msgstr "Chemin invalide"
+
+msgid "Enter the hashes of the repeaters as hexadecimal characters, all of the same length, separated by commas."
+msgstr "Saisissez les hashs des répéteurs en caractères hexadécimaux, tous de même longueur et séparés par des virgules."
+
+msgid "The path is too long."
+msgstr "Le chemin est trop long."
+
+msgid "Delete message history"
+msgstr "Supprimer l'historique des messages"
+
+msgid "All messages of this conversation are deleted."
+msgstr "Tous les messages de cette conversation sont supprimés."
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Couldn't delete"
+msgstr "Suppression impossible"
+
+msgid "Turn mesh on to delete the messages."
+msgstr "Activez Mesh pour supprimer les messages."
+
+msgid "Details"
+msgstr "Détails"
+
+msgid "{} s ago"
+msgstr "il y a {} s"
+
+msgid "{} min ago"
+msgstr "il y a {} min"
+
+msgid "{} h ago"
+msgstr "il y a {} h"
+
+msgid "Name: {}"
+msgstr "Nom : {}"
+
+msgid "Public key: {}"
+msgstr "Clé publique : {}"
+
+msgid "Path (set by you): {}"
+msgstr "Chemin (défini par vous) : {}"
+
+msgid "Path (learned): {}"
+msgstr "Chemin (appris) : {}"
+
+msgid "Path: none, messages are flooded"
+msgstr "Chemin : aucun, les messages sont diffusés par inondation"
+
+msgid "Last advert heard: {}"
+msgstr "Dernière annonce entendue : {}"
+
+msgid "Last advert heard: not since start"
+msgstr "Dernière annonce entendue : aucune depuis le démarrage"
+
+msgid "Last heard: {}"
+msgstr "Dernière écoute : {}"
+
+msgid "Signal: {} dBm"
+msgstr "Signal : {} dBm"
+
+msgid "Signal: {} dBm, {} dB"
+msgstr "Signal : {} dBm, {} dB"
+
+msgid "All messages"
+msgstr "Tous les messages"
+
+msgid "current"
+msgstr "actuel"
+
+msgid "Mark all as read"
+msgstr "Tout marquer comme lu"

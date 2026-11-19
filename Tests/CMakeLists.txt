@@ -22,6 +22,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/location-module/tests ${CMAKE_CURRE
 add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/mesh-module/tests ${CMAKE_CURRENT_BINARY_DIR}/mesh-module)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/mesh-meshcore-module/tests ${CMAKE_CURRENT_BINARY_DIR}/mesh-meshcore-module)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/mesh-meshtastic-module/tests ${CMAKE_CURRENT_BINARY_DIR}/mesh-meshtastic-module)
+add_subdirectory(${CMAKE_SOURCE_DIR}/Modules/notification-module/tests ${CMAKE_CURRENT_BINARY_DIR}/notification-module)
 
 add_custom_target(build-tests)
 add_dependencies(build-tests ServiceModuleTests)
@@ -43,3 +44,4 @@ add_dependencies(build-tests LocationModuleTests)
 add_dependencies(build-tests MeshModuleTests)
 add_dependencies(build-tests MeshMeshCoreModuleTests)
 add_dependencies(build-tests MeshMeshtasticModuleTests)
+add_dependencies(build-tests NotificationModuleTests)

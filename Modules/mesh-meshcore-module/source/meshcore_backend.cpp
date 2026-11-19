@@ -76,8 +76,10 @@ struct PendingSend {
     uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE];
     uint32_t timestamp;
     tt::std::string text;
-    /** The attempts below this number go over @a path */
+    /** The attempts below this number go over @a path, unless it was set by the user */
     uint8_t pathAttempts;
+    /** A path that the user set replaces flooding, so all attempts go over it */
+    bool manualPath;
     KnownPath path;
     /** 0 for the first transmission */
     uint8_t attempt;
@@ -96,6 +98,8 @@ struct Backend {
     tt::std::vector<PendingSend> pendingSends;
     /** Paths that an acknowledgement came back over. They are lost on restart. */
     tt::std::vector<KnownPath> knownPaths;
+    /** Paths that the user set. They are kept across restarts and used instead of the learned ones. */
+    tt::std::vector<KnownPath> manualPaths;
     tt::std::deque<ChannelSend> channelSends;
     /** Timestamp and sender of received direct messages, to drop the retries of a message that arrived already */
     tt::std::deque<uint64_t> recentTexts;
@@ -227,6 +231,30 @@ void saveContacts(Backend* backend) {
     if (getPath(backend, "contacts.bin", path, sizeof(path))) {
         writeFile(path, reinterpret_cast<const uint8_t*>(backend->contacts.data()), backend->contacts.size() * sizeof(Contact));
     }
+}
+
+void loadManualPaths(Backend* backend) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    tt::std::vector<uint8_t> data;
+    if (!getPath(backend, "paths.bin", path, sizeof(path)) || !readFile(path, data)) {
+        return;
+    }
+    for (size_t offset = 0; offset + sizeof(KnownPath) <= data.size() && backend->manualPaths.size() < MAX_CONTACTS; offset += sizeof(KnownPath)) {
+        KnownPath knownPath;
+        memcpy(&knownPath, data.data() + offset, sizeof(KnownPath));
+        if (knownPath.length > 0 && knownPath.hashSize >= 1 && knownPath.hashSize <= 4 && knownPath.length * knownPath.hashSize <= MESHCORE_MAX_PATH_SIZE) {
+            backend->manualPaths.push_back(knownPath);
+        }
+    }
+}
+
+/** Writes the proposed list. The list in use only changes after this succeeded. */
+bool saveManualPaths(Backend* backend, const tt::std::vector<KnownPath>& paths) {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (!getPath(backend, "paths.bin", path, sizeof(path))) {
+        return false;
+    }
+    return writeFileSafely(path, reinterpret_cast<const uint8_t*>(paths.data()), paths.size() * sizeof(KnownPath));
 }
 
 void loadLastFloodAdvertTime(Backend* backend) {
@@ -518,6 +546,11 @@ bool onTextMessage(Backend* backend, const MeshCorePacket& packet, float rssi, f
 }
 
 const KnownPath* findKnownPath(Backend* backend, const uint8_t publicKey[MESHCORE_PUBLIC_KEY_SIZE]) {
+    for (const auto& path : backend->manualPaths) {
+        if (memcmp(path.publicKey, publicKey, MESHCORE_PUBLIC_KEY_SIZE) == 0) {
+            return &path;
+        }
+    }
     for (const auto& path : backend->knownPaths) {
         if (memcmp(path.publicKey, publicKey, MESHCORE_PUBLIC_KEY_SIZE) == 0) {
             return &path;
@@ -612,6 +645,7 @@ void* create(MeshHost* host) {
     backend->host = host;
     loadOrCreateIdentity(backend);
     loadContacts(backend);
+    loadManualPaths(backend);
     loadChannels(backend);
     return backend;
 }
@@ -868,7 +902,7 @@ bool buildAttempt(Backend* backend, const PendingSend& send, uint8_t attempt, Me
     if (!meshcore_build_text_message(backend->identity, send.publicKey, send.timestamp, attempt, send.text.c_str(), packet, ackHash)) {
         return false;
     }
-    if (attempt < send.pathAttempts) {
+    if (attempt < send.pathAttempts || send.manualPath) {
         packet->route = MeshCoreRoute::Direct;
         packet->pathLength = send.path.length;
         packet->pathHashSize = send.path.hashSize;
@@ -962,6 +996,9 @@ error_t sendText(void* context, uint32_t seq, const MeshAddress* to, uint8_t cha
     if (const KnownPath* path = findKnownPath(backend, to->bytes)) {
         send.path = *path;
         send.pathAttempts = PATH_ATTEMPTS;
+        for (const auto& manual : backend->manualPaths) {
+            send.manualPath |= &manual == path;
+        }
     }
     uint32_t ackHash;
     if (!buildAttempt(backend, send, 0, &packet, &ackHash)) {
@@ -989,6 +1026,78 @@ void onFrameDone(void* context, uint32_t seq, bool transmitted) {
         }
         return;
     }
+}
+
+error_t setContactPath(void* context, const MeshAddress* contact, const uint8_t* hops, size_t hopCount, size_t hashSize) {
+    auto* backend = static_cast<Backend*>(context);
+    // The service checked that the contact is saved. Contacts that were added by key have no advert here yet.
+    if (contact->length != MESHCORE_PUBLIC_KEY_SIZE) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    // The path length is 6 bits in a packet
+    if (hopCount > 63 || hopCount * hashSize > MESHCORE_MAX_PATH_SIZE) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    KnownPath path {};
+    memcpy(path.publicKey, contact->bytes, MESHCORE_PUBLIC_KEY_SIZE);
+    path.length = static_cast<uint8_t>(hopCount);
+    path.hashSize = static_cast<uint8_t>(hashSize);
+    memcpy(path.hops, hops, hopCount * hashSize);
+
+    tt::std::vector<KnownPath> proposed = backend->manualPaths;
+    const size_t replaced = std::erase_if(proposed, [&path](const KnownPath& existing) {
+        return memcmp(existing.publicKey, path.publicKey, MESHCORE_PUBLIC_KEY_SIZE) == 0;
+    });
+    // A path that the user set is never evicted for another contact. Replacing an existing one stays possible.
+    if (replaced == 0 && proposed.size() >= MAX_CONTACTS) {
+        return ERROR_OUT_OF_RANGE;
+    }
+    proposed.push_back(path);
+    if (!saveManualPaths(backend, proposed)) {
+        return ERROR_RESOURCE;
+    }
+    backend->manualPaths = std::move(proposed);
+    forgetPath(backend, contact->bytes);
+    return ERROR_NONE;
+}
+
+error_t getContactPath(void* context, const MeshAddress* contact, MeshContactPath* path) {
+    auto* backend = static_cast<Backend*>(context);
+    if (contact->length != MESHCORE_PUBLIC_KEY_SIZE) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    const KnownPath* known = findKnownPath(backend, contact->bytes);
+    if (known == nullptr) {
+        return ERROR_NOT_FOUND;
+    }
+    *path = {};
+    path->hop_count = known->length;
+    path->hash_size = known->hashSize;
+    memcpy(path->hops, known->hops, static_cast<size_t>(known->length) * known->hashSize);
+    for (const auto& manual : backend->manualPaths) {
+        path->manual |= &manual == known;
+    }
+    return ERROR_NONE;
+}
+
+error_t resetContactPath(void* context, const MeshAddress* contact) {
+    auto* backend = static_cast<Backend*>(context);
+    if (contact->length != MESHCORE_PUBLIC_KEY_SIZE) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    tt::std::vector<KnownPath> proposed = backend->manualPaths;
+    const size_t removed = std::erase_if(proposed, [contact](const KnownPath& existing) {
+        return memcmp(existing.publicKey, contact->bytes, MESHCORE_PUBLIC_KEY_SIZE) == 0;
+    });
+    // The old path stays when the reset can't be stored, so it doesn't come back at the next start
+    if (removed > 0) {
+        if (!saveManualPaths(backend, proposed)) {
+            return ERROR_RESOURCE;
+        }
+        backend->manualPaths = std::move(proposed);
+    }
+    forgetPath(backend, contact->bytes);
+    return ERROR_NONE;
 }
 
 void cancelSend(void* context, uint32_t seq) {
@@ -1071,5 +1180,9 @@ const MeshBackendApi meshcore_backend_api = {
     .send_advert = sendAdvertOnRequest,
     .on_frame_done = onFrameDone,
     .cancel_send = cancelSend,
-    .features = MESH_FEATURE_NAMED_CHANNELS | MESH_FEATURE_KEYED_CHANNELS | MESH_FEATURE_ADVERTS,
+    .on_contact_removed = nullptr,
+    .set_contact_path = setContactPath,
+    .get_contact_path = getContactPath,
+    .reset_contact_path = resetContactPath,
+    .features = MESH_FEATURE_NAMED_CHANNELS | MESH_FEATURE_KEYED_CHANNELS | MESH_FEATURE_ADVERTS | MESH_FEATURE_CONTACT_PATHS,
 };

@@ -15,8 +15,8 @@
 #include <lvgl/svg.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
-#include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/icon_button.h>
+#include <lvgl/widgets/pathbar_button.h>
 #include <lvgl/widgets/toolbar.h>
 
 #include <generated_assets.h>
@@ -964,7 +964,7 @@ void View::updatePathBar() {
     lv_obj_update_layout(toolbar);
 
     // Shows the segments from the first one that is given, and an ellipsis in front of the first one when the path is cut off.
-    // The current directory is checked and can't be pressed.
+    // The current directory is disabled and can't be pressed.
     auto build = [&](size_t first) {
         size_t index = 1;
         if (first > 0) {
@@ -974,11 +974,9 @@ void View::updatePathBar() {
             pathBarWidgets.push_back(ellipsis);
         }
         for (size_t i = first; i < names.size(); i++) {
-            auto* segment = lvgl_chip_create(toolbar);
-            // The chip fits the height of the toolbar, with its focus ring inside, as the toolbar clips what is outside of it
+            auto* segment = lvgl_pathbar_button_create(toolbar);
+            // The button fits the height of the toolbar, with its focus ring inside, as the toolbar clips what is outside of it
             lv_obj_set_style_margin_ver(segment, 0, LV_STATE_DEFAULT);
-            lv_obj_set_style_pad_ver(segment, 0, LV_STATE_DEFAULT);
-            lv_obj_set_height(segment, lv_obj_get_content_height(toolbar));
             lv_obj_set_flex_flow(segment, LV_FLEX_FLOW_ROW);
             lv_obj_set_flex_align(segment, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
             lv_obj_add_state(segment, LV_STATE_FOCUS_KEY);
@@ -1000,7 +998,7 @@ void View::updatePathBar() {
             lv_obj_set_size(label, text_size.x, text_size.y);
             lv_obj_set_user_data(segment, reinterpret_cast<void*>(i));
             if (i + 1 == names.size()) {
-                lv_obj_add_state(segment, LV_STATE_CHECKED);
+                lv_obj_add_state(segment, LV_STATE_DISABLED);
                 lv_obj_set_click_focusable(segment, false);
             } else {
                 lv_obj_add_event_cb(segment, onPathSegmentPressed, LV_EVENT_SHORT_CLICKED, this);

@@ -144,6 +144,7 @@ static void onLvglStarted() {
     lvgl_statusbar_set_time_format_24h(settings::isTimeFormat24Hour());
     const SystemBarsConfig systemBarsConfig = {
         .show_menu = systemMenuShow,
+        .show_notifications = systemMenuShowNotifications,
         .resolve_layout = resolveSystemBarsLayout,
         .resolve_alignment = resolveSystemBarsAlignment,
         .on_screen_created = onScreenCreated,

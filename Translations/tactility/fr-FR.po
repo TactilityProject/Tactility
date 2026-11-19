@@ -89,3 +89,25 @@ msgstr "Délai"
 
 msgid "Yes"
 msgstr "Oui"
+
+msgid "Settings"
+msgstr "Réglages"
+
+msgid "Notifications"
+msgstr "Notifications"
+
+msgid "Clear"
+msgstr "Effacer"
+
+msgid "No notifications"
+msgstr "Aucune notification"
+
+msgid "now"
+msgstr "à l'instant"
+
+
+msgid "{} new message"
+msgstr "{} nouveau message"
+
+msgid "{} new messages"
+msgstr "{} nouveaux messages"

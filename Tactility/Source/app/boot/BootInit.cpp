@@ -14,6 +14,7 @@
 #include <tactility/time.h>
 
 #include <app/manager.h>
+#include <notification/notification.h>
 #include <app/manifest.h>
 #include <app/start.h>
 
@@ -369,6 +370,12 @@ bool bootInit(TickType_t startTime) {
     }
 
     registerApps();
+
+    if (!data_storage_missing) {
+        // Reads the settings of the senders here instead of when the first notification is sent from a service task
+        LOG_I(TAG, "Preload notifications");
+        notification_preload();
+    }
 
     if (data_storage_missing) {
         showMessageAndRebootOrPowerOff(screen, { "Storage not found.", "Insert SD card and reboot." });

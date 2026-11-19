@@ -2,6 +2,7 @@
 #define L10N_APP "mesh"
 #include <Tactility/i18n/AppDomain.h>
 #include <Tactility/app/alertdialog/AlertDialog.h>
+#include <Tactility/app/selectiondialog/SelectionDialog.h>
 #include <Tactility/app/meshchat/MeshChatCommon.h>
 
 #include <app/event.h>
@@ -51,9 +52,13 @@ struct DeliveryDetail {
 struct Context {
     uint32_t appInstanceId;
     TaskEventGroup* eventGroup = nullptr;
-    uint32_t removeBit = 0;
-    uint32_t infoBit = 0;
+    uint32_t menuBit = 0;
+    uint32_t menuDialogId = 0;
+    uint32_t notificationsDialogId = 0;
+    /** The action of each option of the open menu */
+    tt::std::vector<int> menuItems;
     uint32_t removeDialogId = 0;
+    uint32_t deleteDialogId = 0;
     uint32_t messageDialogId = 0;
     bool isContact = true;
     /** A channel with a key that isn't derived from its name, so it has to be shared */
@@ -272,14 +277,9 @@ void onSendPressed(lv_event_t* event) {
     }
 }
 
-void onRemovePressed(lv_event_t* event) {
+void onMenuPressed(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    task_event_group_signal(ctx->eventGroup, ctx->removeBit);
-}
-
-void onInfoPressed(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    task_event_group_signal(ctx->eventGroup, ctx->infoBit);
+    task_event_group_signal(ctx->eventGroup, ctx->menuBit);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -301,10 +301,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     auto* toolbar = lvgl_toolbar_create(parent, ctx->title.c_str());
     lvgl_toolbar_set_nav_action(toolbar, LV_SYMBOL_CLOSE, onBackPressed, ctx);
-    if (ctx->isPrivateChannel) {
-        addIconAction(toolbar, LVGL_ICON_SHARED_INFO, onInfoPressed, ctx);
-    }
-    addIconAction(toolbar, LVGL_ICON_SHARED_PERSON_REMOVE, onRemovePressed, ctx);
+    addIconAction(toolbar, LVGL_ICON_SHARED_MORE_VERT, onMenuPressed, ctx);
 
     ctx->statusLabel = lv_label_create(parent);
     lv_obj_set_width(ctx->statusLabel, LV_PCT(100));
@@ -379,6 +376,10 @@ void onMessage(Context* ctx, uint32_t seq) {
         return;
     }
     ctx->messages.push_back(message);
+    // It is shown right away, so it isn't unread
+    if (!message.outgoing) {
+        mesh_mark_read(getPeer(ctx), ctx->channel);
+    }
     const bool trimmed = ctx->messages.size() > MESSAGE_LIMIT;
     const uint32_t trimmedSeq = trimmed ? ctx->messages.front().seq : 0;
     if (trimmed) {
@@ -471,6 +472,91 @@ void startRemoveDialog(Context* ctx) {
     ctx->removeDialogId = alertdialog::start(ctx->appInstanceId, title, message, { tr("Remove"), tr("Cancel") });
 }
 
+void startDeleteHistoryDialog(Context* ctx) {
+    if (ctx->deleteDialogId != 0) {
+        return;
+    }
+    ctx->deleteDialogId = alertdialog::start(ctx->appInstanceId, tr("Delete message history"), tr("All messages of this conversation are deleted."), { tr("Delete"), tr("Cancel") });
+}
+
+void onDeleteHistoryResult(Context* ctx, int32_t result) {
+    if (result != 0) {
+        return;
+    }
+    const error_t error = mesh_delete_conversation(getPeer(ctx), ctx->channel);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to delete the history: %s", error_to_string(error));
+        ctx->messageDialogId = alertdialog::start(ctx->appInstanceId, tr("Couldn't delete"), error == ERROR_INVALID_STATE ? tr("Turn mesh on to delete the messages.") : error_to_string(error));
+        return;
+    }
+    lvgl_lock();
+    ctx->messages.clear();
+    ctx->details.clear();
+    if (ctx->list != nullptr) {
+        lv_obj_clean(ctx->list);
+    }
+    lvgl_unlock();
+}
+
+/** The order of these matches the options of the selection dialog, see startMenu() */
+enum class MenuItem { Details, ChannelKey, Notifications, DeleteHistory, Remove };
+
+void startMenu(Context* ctx) {
+    if (ctx->menuDialogId != 0) {
+        return;
+    }
+    ctx->menuItems.clear();
+    ::std::vector<::std::string> items;
+    if (ctx->isContact) {
+        ctx->menuItems.push_back(static_cast<int>(MenuItem::Details));
+        items.emplace_back(tr("Details"));
+    } else if (ctx->isPrivateChannel) {
+        ctx->menuItems.push_back(static_cast<int>(MenuItem::ChannelKey));
+        items.emplace_back(tr("Channel key"));
+    }
+    ctx->menuItems.push_back(static_cast<int>(MenuItem::Notifications));
+    items.emplace_back(tr("Notifications"));
+    ctx->menuItems.push_back(static_cast<int>(MenuItem::DeleteHistory));
+    items.emplace_back(tr("Delete message history"));
+    ctx->menuItems.push_back(static_cast<int>(MenuItem::Remove));
+    items.emplace_back(ctx->isContact ? tr("Remove contact") : tr("Leave channel"));
+    ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, ctx->title, items);
+}
+
+void onMenuSelected(Context* ctx, int32_t selected) {
+    if (selected < 0 || selected >= static_cast<int32_t>(ctx->menuItems.size())) {
+        return;
+    }
+    switch (static_cast<MenuItem>(ctx->menuItems[selected])) {
+        case MenuItem::Details: {
+            const ::std::string address = addressToHex(ctx->peer);
+            const char* argv[] = { address.c_str() };
+            startApp(CONTACT_DETAILS_APP_ID, 1, argv);
+            break;
+        }
+        case MenuItem::ChannelKey:
+            showChannelKey(ctx);
+            break;
+        case MenuItem::Notifications:
+            if (ctx->notificationsDialogId == 0) {
+                // The option that is selected now says so
+                const bool all = mesh_get_conversation_notifications(getPeer(ctx), ctx->channel);
+                const ::std::string current = ::std::string(" (") + tr("current") + ")";
+                ctx->notificationsDialogId = selectiondialog::start(ctx->appInstanceId, tr("Notifications"), {
+                    ::std::string(tr("All messages")) + (all ? current : ""),
+                    ::std::string(tr("None")) + (all ? "" : current)
+                });
+            }
+            break;
+        case MenuItem::DeleteHistory:
+            startDeleteHistoryDialog(ctx);
+            break;
+        case MenuItem::Remove:
+            startRemoveDialog(ctx);
+            break;
+    }
+}
+
 /** @return true when the conversation is gone and the app can close */
 bool onRemoveResult(Context* ctx, int32_t result) {
     if (result != 0) {
@@ -507,8 +593,7 @@ int32_t appMain(int argc, char* argv[]) {
     TaskEventGroup eventGroup {};
     task_event_group_construct(&eventGroup);
     ctx.eventGroup = &eventGroup;
-    check(task_event_group_claim_bit(&eventGroup, &ctx.removeBit) == ERROR_NONE);
-    check(task_event_group_claim_bit(&eventGroup, &ctx.infoBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.menuBit) == ERROR_NONE);
 
     AppEventSubscription appEvents {};
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
@@ -518,6 +603,7 @@ int32_t appMain(int argc, char* argv[]) {
     // The window shows up first, and the history follows
     WindowId window = window_manager_create_ext(ctx.appInstanceId, createWidgets, destroyWidgets, &ctx);
     loadMessages(&ctx);
+    mesh_mark_read(getPeer(&ctx), ctx.channel);
     lvgl_lock();
     if (ctx.list != nullptr) {
         // The window may have been rebuilt from the messages meanwhile
@@ -534,11 +620,8 @@ int32_t appMain(int argc, char* argv[]) {
         uint32_t flags = 0;
         task_event_group_wait_any(&eventGroup, &flags, portMAX_DELAY);
 
-        if (flags & ctx.removeBit) {
-            startRemoveDialog(&ctx);
-        }
-        if (flags & ctx.infoBit) {
-            showChannelKey(&ctx);
+        if (flags & ctx.menuBit) {
+            startMenu(&ctx);
         }
 
         MeshEvent meshEvent {};
@@ -567,9 +650,24 @@ int32_t appMain(int argc, char* argv[]) {
                 break;
             }
             if (event.type == APP_EVENT_RESULT) {
-                if (event.result.launch_id == ctx.removeDialogId) {
+                if (event.result.launch_id == ctx.menuDialogId) {
+                    ctx.menuDialogId = 0;
+                    onMenuSelected(&ctx, event.result.result);
+                } else if (event.result.launch_id == ctx.notificationsDialogId) {
+                    ctx.notificationsDialogId = 0;
+                    // The first option is all messages, the second one is none. Other results mean that it was dismissed.
+                    if (event.result.result == 0 || event.result.result == 1) {
+                        const error_t error = mesh_set_conversation_notifications(getPeer(&ctx), ctx.channel, event.result.result == 0);
+                        if (error != ERROR_NONE) {
+                            LOG_E(TAG, "Failed to set the notifications: %s", error_to_string(error));
+                        }
+                    }
+                } else if (event.result.launch_id == ctx.removeDialogId) {
                     ctx.removeDialogId = 0;
                     shouldClose |= onRemoveResult(&ctx, event.result.result);
+                } else if (event.result.launch_id == ctx.deleteDialogId) {
+                    ctx.deleteDialogId = 0;
+                    onDeleteHistoryResult(&ctx, event.result.result);
                 } else if (event.result.launch_id == ctx.messageDialogId) {
                     ctx.messageDialogId = 0;
                 }

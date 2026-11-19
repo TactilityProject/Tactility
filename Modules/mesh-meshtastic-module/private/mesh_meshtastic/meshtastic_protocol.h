@@ -47,6 +47,17 @@ struct MeshtasticUser {
     tt::std::string id;
     tt::std::string longName;
     tt::std::string shortName;
+    /** The 32-byte Curve25519 public key, empty when the node has none */
+    tt::std::vector<uint8_t> publicKey;
+};
+
+constexpr size_t MESHTASTIC_PUBLIC_KEY_SIZE = 32;
+/** The authentication tag and the extra nonce that follow a public key encrypted payload */
+constexpr size_t MESHTASTIC_PKI_OVERHEAD = 12;
+
+struct MeshtasticKeyPair {
+    uint8_t privateKey[MESHTASTIC_PUBLIC_KEY_SIZE];
+    uint8_t publicKey[MESHTASTIC_PUBLIC_KEY_SIZE];
 };
 
 struct MeshtasticChannelKey {
@@ -80,6 +91,26 @@ bool meshtastic_read_header(const uint8_t* data, size_t length, MeshtasticHeader
 
 /** AES-CTR with the nonce made from the packet id and sender. Encrypts and decrypts. */
 bool meshtastic_crypt(const MeshtasticChannelKey& key, uint32_t packetId, uint32_t from, const uint8_t* input, uint8_t* output, size_t length);
+
+/** Generates a Curve25519 key pair */
+bool meshtastic_generate_key_pair(MeshtasticKeyPair* keyPair);
+
+/** Derives the public key of a Curve25519 private key */
+bool meshtastic_public_key_from_private(const uint8_t privateKey[MESHTASTIC_PUBLIC_KEY_SIZE], uint8_t publicKey[MESHTASTIC_PUBLIC_KEY_SIZE]);
+
+/**
+ * Public key encryption of a direct message: AES-256-CCM with an 8-byte tag, keyed by the SHA-256 of the X25519 shared secret.
+ * @param[out] output receives @a length + MESHTASTIC_PKI_OVERHEAD bytes: the ciphertext, the tag and the 4-byte extra nonce
+ * @param[in] extraNonce must be random per packet, and not 0
+ */
+bool meshtastic_pki_encrypt(const uint8_t privateKey[MESHTASTIC_PUBLIC_KEY_SIZE], const uint8_t peerPublicKey[MESHTASTIC_PUBLIC_KEY_SIZE], uint32_t packetId, uint32_t from, uint32_t extraNonce, const uint8_t* input, size_t length, uint8_t* output);
+
+/**
+ * @param[in] length the size of @a input including MESHTASTIC_PKI_OVERHEAD
+ * @param[out] output receives @a length - MESHTASTIC_PKI_OVERHEAD bytes
+ * @return false when the tag doesn't match
+ */
+bool meshtastic_pki_decrypt(const uint8_t privateKey[MESHTASTIC_PUBLIC_KEY_SIZE], const uint8_t peerPublicKey[MESHTASTIC_PUBLIC_KEY_SIZE], uint32_t packetId, uint32_t from, const uint8_t* input, size_t length, uint8_t* output);
 
 tt::std::vector<uint8_t> meshtastic_encode_data(const MeshtasticData& data);
 

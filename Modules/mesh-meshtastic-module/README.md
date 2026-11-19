@@ -11,10 +11,13 @@ Supported:
   `mesh_set_channel()`, with a 1-byte PSK index, or a 16 or 32-byte key.
 - Text messages on channels, and direct messages to and from nodes. Direct messages request an acknowledgement and
   received ones are acknowledged.
-- NodeInfo: sent at start and every 3 hours, received NodeInfo provides node names.
+- Public key (PKI) encryption of direct messages: X25519 with the SHA-256 of the shared secret as an AES-256-CCM key,
+  with an 8-byte tag and a 4-byte extra nonce, like Meshtastic 2.5 and newer. The node's key pair is created once and stored in the
+  backend's data directory. A direct message is encrypted this way when the recipient announced a public key. Otherwise it
+  is encrypted with the primary channel's key.
+- NodeInfo: sent at start and every 3 hours with the node's public key, received NodeInfo provides node names and public keys.
 
 The node number is random and stored in the backend's data directory. The node doesn't rebroadcast packets for
 others (like the CLIENT_MUTE role).
 
-Not implemented: public key (PKI) encryption of direct messages, positions and telemetry.
-Direct messages are encrypted with the primary channel's key, which current firmware still accepts.
+Not implemented: positions and telemetry.

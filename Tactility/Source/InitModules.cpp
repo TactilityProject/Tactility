@@ -39,6 +39,7 @@
 #include <lodepng/module.h>
 #include <localisation/module.h>
 #include <mbedtls/module.h>
+#include <notification/module.h>
 #include <pthread/module.h>
 
 #include <tactility/check.h>
@@ -71,6 +72,7 @@ void initModules() {
     check(module_ensure_started(&lodepng_module) == ERROR_NONE);
     check(module_ensure_started(&binfont_module) == ERROR_NONE);
     check(module_ensure_started(&app_module) == ERROR_NONE);
+    check(module_ensure_started(&notification_module) == ERROR_NONE);
     check(module_ensure_started(&coreutils_module) == ERROR_NONE);
     check(module_ensure_started(&crypt_module) == ERROR_NONE);
 #ifdef TT_AUDIO_MODULES_ENABLED

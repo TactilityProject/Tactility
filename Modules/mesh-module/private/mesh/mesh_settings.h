@@ -11,6 +11,8 @@ struct MeshSettings {
     char node_name[MESH_NAME_MAX_LENGTH + 1];
     /** The name of the radio device, empty for the default radio */
     char radio[MESH_NAME_MAX_LENGTH + 1];
+    /** For radios that support it, which is the SX126x family */
+    bool rx_boosted_gain;
 };
 
 /** The settings of one backend, which are kept for backends that aren't selected */
@@ -36,6 +38,24 @@ error_t mesh_settings_load_backend(const char* backend, struct MeshBackendSettin
 error_t mesh_settings_migrate_legacy(const char* owner);
 
 error_t mesh_settings_save_backend(const char* backend, const struct MeshBackendSettings* settings);
+
+/** Visits the conversations that have notifications turned off, as the tokens that mesh_settings_save_muted() was given */
+void mesh_settings_load_muted(void (*visitor)(const char* token, void* context), void* context);
+
+/**
+ * Stores whether a conversation has notifications turned off.
+ * @param[in] token identifies the conversation, e.g. "meshcore.c1" for a channel or "meshcore.p<hex>" for a contact
+ */
+error_t mesh_settings_save_muted(const char* token, bool muted);
+
+/**
+ * Visits the stored number of unread messages of each conversation. The key is the token that mesh_settings_save_unread()
+ * was given, and the value is the count.
+ */
+void mesh_settings_load_unread(void (*visitor)(const char* token, uint32_t count, void* context), void* context);
+
+/** Stores the number of unread messages of conversations in one update, under tokens that mesh_settings_load_unread() visits */
+error_t mesh_settings_save_unread(const char* const* tokens, const uint32_t* counts, size_t length);
 
 /** Loads the settings, or defaults when there are none */
 void mesh_settings_load(struct MeshSettings* settings);

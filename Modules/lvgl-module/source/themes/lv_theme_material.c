@@ -25,6 +25,7 @@ extern const lv_obj_class_t lvgl_list_class;
 extern const lv_obj_class_t lvgl_list_text_class;
 extern const lv_obj_class_t lvgl_list_button_class;
 extern const lv_obj_class_t lvgl_text_button_class;
+extern const lv_obj_class_t lvgl_pathbar_button_class;
 
 #define NEUTRAL_4 lv_color_hex(0x0E0E0E)
 #define NEUTRAL_6 lv_color_hex(0x131313)
@@ -115,9 +116,10 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define DENSITY_KEY_GAP (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
 #define DENSITY_BORDER (LV_DPX_CALC(theme->disp_dpi, 1))
 #define FOCUS_COLOR COLOR_SECONDARY
-#define FOCUS_WIDTH (1 + (((LV_DPX_CALC(theme->disp_dpi, 3) - 1) * theme->config.size) / 100))
+#define SELECTION_WIDTH ((theme->config.size / 40) == 0 ? LV_DPX_CALC(theme->disp_dpi, 1) : LV_DPX_CALC(theme->disp_dpi, 2))
+#define FOCUS_WIDTH SELECTION_WIDTH
 #define FOCUS_OFFSET (1 + (((LV_DPX_CALC(theme->disp_dpi, 2) - 1) * theme->config.size) / 100))
-#define FOCUS_INSET_WIDTH (1 + (((LV_DPX_CALC(theme->disp_dpi, 2) - 1) * theme->config.size) / 100))
+#define FOCUS_INSET_WIDTH SELECTION_WIDTH
 #define EDIT_COLOR COLOR_PRIMARY
 #define STATE_PRESSED_ON_PRIMARY (lv_color_mix(COLOR_ON_PRIMARY, COLOR_PRIMARY, OPACITY_STATE_PRESSED))
 #define STATE_PRESSED_ON_SECONDARY (lv_color_mix(COLOR_ON_SECONDARY, COLOR_SECONDARY, OPACITY_STATE_PRESSED))
@@ -181,6 +183,8 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define TEXT_BUTTON_LABEL_COLOR COLOR_PRIMARY
 #define TEXT_BUTTON_PRESSED_CONTAINER_COLOR COLOR_PRIMARY
 #define TEXT_BUTTON_PAD_HOR (2 + (((SPACE_3 - 2) * theme->config.size) / 100))
+#define PATHBAR_BUTTON_PAD_HOR (2 + (((SPACE_3 - 2) * theme->config.size) / 100))
+#define PATHBAR_BUTTON_PAD_VER ((BUTTON_PAD_VER * 3) / 4)
 #define ICON_BUTTON_COLOR COLOR_ON_SURFACE
 #define ICON_BUTTON_CONTAINER_SHAPE (CORNER_COMPACT + (((CORNER_LARGE - CORNER_COMPACT) * theme->config.size) / 100))
 #define ICON_BUTTON_FILLED_COLOR COLOR_PRIMARY
@@ -388,6 +392,9 @@ typedef struct {
     lv_style_t text_button;
     lv_style_t text_button_pressed;
     lv_style_t text_button_margin;
+    lv_style_t pathbar_button;
+    lv_style_t pathbar_button_pressed;
+    lv_style_t pathbar_button_disabled;
     lv_style_t icon_button;
     lv_style_t icon_button_selected;
     lv_style_t icon_button_filled;
@@ -899,6 +906,25 @@ static void style_init(my_theme_t * theme)
 
     style_init_reset(&theme->styles.text_button_margin);
     lv_style_set_margin_all(&theme->styles.text_button_margin, FOCUS_WIDTH + FOCUS_OFFSET);
+
+    style_init_reset(&theme->styles.pathbar_button);
+    lv_style_set_bg_opa(&theme->styles.pathbar_button, LV_OPA_TRANSP);
+    lv_style_set_text_color(&theme->styles.pathbar_button, TEXT_BUTTON_LABEL_COLOR);
+    lv_style_set_border_color(&theme->styles.pathbar_button, COLOR_OUTLINE);
+    lv_style_set_border_width(&theme->styles.pathbar_button, DENSITY_BORDER);
+    lv_style_set_radius(&theme->styles.pathbar_button, BUTTON_SHAPE);
+    lv_style_set_pad_hor(&theme->styles.pathbar_button, PATHBAR_BUTTON_PAD_HOR);
+    lv_style_set_pad_ver(&theme->styles.pathbar_button, PATHBAR_BUTTON_PAD_VER);
+    lv_style_set_pad_gap(&theme->styles.pathbar_button, BUTTON_GAP);
+    lv_style_set_margin_all(&theme->styles.pathbar_button, FOCUS_WIDTH + FOCUS_OFFSET);
+
+    style_init_reset(&theme->styles.pathbar_button_pressed);
+    lv_style_set_bg_color(&theme->styles.pathbar_button_pressed, TEXT_BUTTON_PRESSED_CONTAINER_COLOR);
+    lv_style_set_bg_opa(&theme->styles.pathbar_button_pressed, OPACITY_STATE_PRESSED);
+
+    style_init_reset(&theme->styles.pathbar_button_disabled);
+    lv_style_set_border_width(&theme->styles.pathbar_button_disabled, 0);
+    lv_style_set_text_color(&theme->styles.pathbar_button_disabled, COLOR_ON_SURFACE);
 
     style_init_reset(&theme->styles.icon_button);
     lv_style_set_bg_opa(&theme->styles.icon_button, LV_OPA_TRANSP);
@@ -1887,6 +1913,16 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
         return;
     }
+    if(lv_obj_check_type(obj, &lvgl_pathbar_button_class)) {
+        /* pathbar_button */
+        lv_obj_add_style(obj, &theme->styles.pathbar_button, 0);
+        lv_obj_add_style(obj, &theme->styles.transition_exit, 0);
+        lv_obj_add_style(obj, &theme->styles.pathbar_button_pressed, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.transition_enter, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(obj, &theme->styles.pathbar_button_disabled, LV_STATE_DISABLED);
+        return;
+    }
 #if LV_USE_MSGBOX
     if(lv_obj_check_type(obj, &lv_msgbox_footer_button_class)) {
         /* msgbox_footer_button */
@@ -2009,6 +2045,7 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
     if(lv_obj_check_type(obj, &lvgl_card_class)) {
         /* card */
         lv_obj_add_style(obj, &theme->styles.card, 0);
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
         lv_obj_add_style(obj, &theme->styles.scrollbar, LV_PART_SCROLLBAR);
         return;
     }

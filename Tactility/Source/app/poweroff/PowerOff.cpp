@@ -12,6 +12,7 @@
 #include <lvgl.h>
 #include <lvgl/devices/indev.h>
 #include <lvgl/fonts.h>
+#include <lvgl/grid_navigation.h>
 #include <lvgl/lvgl.h>
 #include <tactility/check.h>
 #include <tactility/device.h>
@@ -238,8 +239,12 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_label_set_text(no_label, tr("No"));
     lv_obj_add_event_cb(no_button, onNoPressed, LV_EVENT_SHORT_CLICKED, ctx);
 
+    // The left and right keys move between the buttons
+    lvgl_grid_navigation_add(button_wrapper);
+
     if (first_button != nullptr && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
-        lv_group_focus_obj(first_button);
+        lv_group_focus_obj(button_wrapper);
+        lv_gridnav_set_focused(button_wrapper, first_button, LV_ANIM_OFF);
         lv_obj_add_state(first_button, LV_STATE_FOCUS_KEY);
     }
 }

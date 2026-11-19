@@ -78,6 +78,18 @@ struct Context {
     uint32_t contactNameDialogId = 0;
     uint32_t contactKeyDialogId = 0;
     uint32_t messageDialogId = 0;
+    uint32_t pathContactDialogId = 0;
+    uint32_t pathInputDialogId = 0;
+    AppStream pathStream {};
+    char pathBuffer[192] = {};
+    /** Whether the open path flow resets the path instead of setting it */
+    bool pathReset = false;
+    /** The contact that the path flow is about */
+    MeshAddress pathContact {};
+    /** The contacts that the dialog showed, as the list of contacts can change while it is open */
+    tt::std::vector<MeshAddress> pathContactChoices;
+    /** The action of each option of the open contacts menu */
+    tt::std::vector<int> contactMenuItems;
     AppStream channelStream {};
     char channelBuffer[MESH_NAME_MAX_LENGTH + 1] = {};
     AppStream createStream {};
@@ -96,6 +108,9 @@ struct Context {
     ::std::string pendingContactName;
     tt::std::vector<MeshChannel> channels;
     tt::std::vector<MeshContact> contacts;
+    /** The unread messages of each channel and contact, in the order of the lists */
+    tt::std::vector<uint32_t> channelUnread;
+    tt::std::vector<uint32_t> contactUnread;
     /** The events since the app started, oldest first. Changed with the LVGL lock held. */
     tt::std::deque<tt::std::string> inspectLines;
     // Valid while the window is shown
@@ -103,6 +118,9 @@ struct Context {
     lv_obj_t* networkHeader = nullptr;
     lv_obj_t* content = nullptr;
     lv_obj_t* addButton = nullptr;
+    /** The items of the main screen that show the unread messages */
+    lv_obj_t* channelsButton = nullptr;
+    lv_obj_t* contactsButton = nullptr;
     NetworkInfo network;
 };
 
@@ -112,6 +130,8 @@ struct Snapshot {
     bool canAddChannel = false;
     tt::std::vector<MeshChannel> channels;
     tt::std::vector<MeshContact> contacts;
+    tt::std::vector<uint32_t> channelUnread;
+    tt::std::vector<uint32_t> contactUnread;
 };
 
 /** Queries the service thread, so it's called without the LVGL lock */
@@ -131,6 +151,12 @@ Snapshot loadData() {
         count = 0;
     }
     snapshot.contacts.resize(count);
+    for (const auto& channel : snapshot.channels) {
+        snapshot.channelUnread.push_back(mesh_get_unread(nullptr, channel.index));
+    }
+    for (const auto& contact : snapshot.contacts) {
+        snapshot.contactUnread.push_back(mesh_get_unread(&contact.address, 0));
+    }
     return snapshot;
 }
 
@@ -140,10 +166,42 @@ void commitData(Context* ctx, Snapshot&& snapshot) {
     ctx->canAddChannel = snapshot.canAddChannel;
     ctx->channels = ::std::move(snapshot.channels);
     ctx->contacts = ::std::move(snapshot.contacts);
+    ctx->channelUnread = ::std::move(snapshot.channelUnread);
+    ctx->contactUnread = ::std::move(snapshot.contactUnread);
 }
 
-lv_obj_t* addListButton(lv_obj_t* list, const char* text, lv_event_cb_t callback, void* callbackData, intptr_t index) {
+uint32_t sumUnread(const tt::std::vector<uint32_t>& counts) {
+    uint32_t total = 0;
+    for (const uint32_t count : counts) {
+        total += count;
+    }
+    // The counts stop at the limit, so a sum above it is shown as 99+ as well
+    return total < MESH_UNREAD_COUNT_LIMIT ? total : MESH_UNREAD_COUNT_LIMIT;
+}
+
+/** Shows the number of unread messages and an envelope at the right of a list item, when there are any */
+void addUnreadIndicator(lv_obj_t* button, uint32_t unread) {
+    if (unread == 0) {
+        return;
+    }
+    auto* count = lv_label_create(button);
+    lv_label_set_text(count, unread >= MESH_UNREAD_COUNT_LIMIT ? "99+" : ::std::to_string(unread).c_str());
+    auto* icon = lv_label_create(button);
+    lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
+    lv_label_set_text(icon, LVGL_ICON_SHARED_MAIL);
+}
+
+/** Replaces the indicator of an item, which keeps the item and its focus. The text of the item is its first child. */
+void updateUnreadIndicator(lv_obj_t* button, uint32_t unread) {
+    while (lv_obj_get_child_count(button) > 1) {
+        lv_obj_delete(lv_obj_get_child(button, -1));
+    }
+    addUnreadIndicator(button, unread);
+}
+
+lv_obj_t* addListButton(lv_obj_t* list, const char* text, lv_event_cb_t callback, void* callbackData, intptr_t index, uint32_t unread = 0) {
     auto* button = lvgl_list_add_button(list, nullptr, text);
+    addUnreadIndicator(button, unread);
     lv_obj_set_user_data(button, reinterpret_cast<void*>(index));
     lv_obj_add_event_cb(button, callback, LV_EVENT_SHORT_CLICKED, callbackData);
     return button;
@@ -195,6 +253,13 @@ void updateWidgets(Context* ctx) {
     }
     updateNetworkHeader(ctx->networkHeader, ctx->network);
     if (ctx->mode == ViewMode::Menu) {
+        // The items stay, only their unread counts change
+        if (ctx->channelsButton != nullptr) {
+            updateUnreadIndicator(ctx->channelsButton, sumUnread(ctx->channelUnread));
+        }
+        if (ctx->contactsButton != nullptr) {
+            updateUnreadIndicator(ctx->contactsButton, sumUnread(ctx->contactUnread));
+        }
         return;
     }
 
@@ -210,11 +275,11 @@ void updateWidgets(Context* ctx) {
     if (ctx->mode == ViewMode::Channels) {
         lv_obj_set_hidden(ctx->addButton, !ctx->canAddChannel);
         for (size_t i = 0; i < ctx->channels.size(); i++) {
-            addListButton(list, ctx->channels[i].name, onItemPressed, ctx, (intptr_t)i);
+            addListButton(list, ctx->channels[i].name, onItemPressed, ctx, (intptr_t)i, i < ctx->channelUnread.size() ? ctx->channelUnread[i] : 0);
         }
     } else {
         for (size_t i = 0; i < ctx->contacts.size(); i++) {
-            addListButton(list, ctx->contacts[i].name, onItemPressed, ctx, (intptr_t)i);
+            addListButton(list, ctx->contacts[i].name, onItemPressed, ctx, (intptr_t)i, i < ctx->contactUnread.size() ? ctx->contactUnread[i] : 0);
         }
         if (ctx->contacts.empty()) {
             lvgl_list_add_text(list, tr("No contacts yet. Add a node that you've heard, or wait for a direct message."));
@@ -243,8 +308,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
         auto* menuContent = createContent(parent);
         ctx->content = menuContent;
         auto* list = createCard(menuContent);
-        addListButton(list, tr("Channels"), onShowChannelsPressed, ctx, 0);
-        addListButton(list, tr("Contacts"), onShowContactsPressed, ctx, 0);
+        ctx->channelsButton = addListButton(list, tr("Channels"), onShowChannelsPressed, ctx, 0, sumUnread(ctx->channelUnread));
+        ctx->contactsButton = addListButton(list, tr("Contacts"), onShowContactsPressed, ctx, 0, sumUnread(ctx->contactUnread));
         addListButton(list, tr("Inspect"), onShowInspectPressed, ctx, 0);
         lvgl_list_hide_last_divider(list);
         return;
@@ -269,6 +334,8 @@ void destroyWidgets(void* userData) {
     ctx->networkHeader = nullptr;
     ctx->content = nullptr;
     ctx->addButton = nullptr;
+    ctx->channelsButton = nullptr;
+    ctx->contactsButton = nullptr;
 }
 
 /** Requires the LVGL lock */
@@ -281,6 +348,8 @@ void rebuildWidgets(Context* ctx) {
     ctx->networkHeader = nullptr;
     ctx->content = nullptr;
     ctx->addButton = nullptr;
+    ctx->channelsButton = nullptr;
+    ctx->contactsButton = nullptr;
     createWidgets(root, ctx);
 }
 
@@ -652,8 +721,8 @@ void onContactKeyResult(Context* ctx, int32_t result) {
 }
 
 /** The order of these matches the options of the selection dialog */
-enum class MenuItem { AddByKey, AddSeen, ShowQr };
-enum class MainMenuItem { AdvertZeroHop, AdvertFlood, ShowQr };
+enum class MenuItem { AddByKey, AddSeen, ShowQr, SetPath, ResetPath };
+enum class MainMenuItem { MarkAllRead, AdvertZeroHop, AdvertFlood, ShowQr, Info };
 
 void startMenu(Context* ctx) {
     if (ctx->menuDialogId != 0) {
@@ -661,20 +730,141 @@ void startMenu(Context* ctx) {
     }
     if (ctx->mode == ViewMode::Menu) {
         ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, tr("Mesh"), {
+            tr("Mark all as read"),
             tr("Advert: Zero hop"),
             tr("Advert: Flood routed"),
-            tr("Show QR")
+            tr("Show QR"),
+            tr("Info")
         });
         return;
     }
-    ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, tr("Mesh Contacts"), {
-        tr("Add by key"),
-        tr("Add seen"),
-        tr("Show my QR")
-    });
+    ctx->contactMenuItems = { static_cast<int>(MenuItem::AddByKey), static_cast<int>(MenuItem::AddSeen), static_cast<int>(MenuItem::ShowQr) };
+    ::std::vector<::std::string> items = { tr("Add by key"), tr("Add seen"), tr("Show my QR") };
+    if (mesh_supports(MESH_FEATURE_CONTACT_PATHS)) {
+        ctx->contactMenuItems.push_back(static_cast<int>(MenuItem::SetPath));
+        items.emplace_back(tr("Set path"));
+        ctx->contactMenuItems.push_back(static_cast<int>(MenuItem::ResetPath));
+        items.emplace_back(tr("Reset path"));
+    }
+    ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, tr("Mesh Contacts"), items);
+}
+
+/** The hashes of the repeaters as hexadecimal tokens of one length, separated by commas or spaces, e.g. "a1,b2,c3" */
+bool parsePath(const char* text, ::std::vector<uint8_t>& hops, size_t* hashSize) {
+    hops.clear();
+    *hashSize = 0;
+    const char* position = text;
+    while (*position != '\0') {
+        while (*position == ',' || *position == ' ') {
+            position++;
+        }
+        const char* end = position;
+        while (*end != '\0' && *end != ',' && *end != ' ') {
+            end++;
+        }
+        const size_t length = end - position;
+        if (length == 0) {
+            break;
+        }
+        if (length % 2 != 0 || length / 2 > 4) {
+            return false;
+        }
+        if (*hashSize == 0) {
+            *hashSize = length / 2;
+        } else if (length / 2 != *hashSize) {
+            return false;
+        }
+        for (size_t i = 0; i < length; i += 2) {
+            char pair[3] = { position[i], position[i + 1], '\0' };
+            char* pairEnd = nullptr;
+            hops.push_back(static_cast<uint8_t>(strtoul(pair, &pairEnd, 16)));
+            if (pairEnd != pair + 2) {
+                return false;
+            }
+        }
+        position = end;
+    }
+    return !hops.empty() && hops.size() / *hashSize <= 63 && hops.size() <= 64;
+}
+
+void startPathContactSelection(Context* ctx, bool reset) {
+    if (ctx->pathContactDialogId != 0 || ctx->pathInputDialogId != 0) {
+        return;
+    }
+    if (ctx->contacts.empty()) {
+        showMessage(ctx, tr("No contacts"), tr("Add a contact first."));
+        return;
+    }
+    ctx->pathReset = reset;
+    ::std::vector<::std::string> names;
+    ctx->pathContactChoices.clear();
+    for (const auto& contact : ctx->contacts) {
+        names.emplace_back(contact.name);
+        ctx->pathContactChoices.push_back(contact.address);
+    }
+    ctx->pathContactDialogId = selectiondialog::start(ctx->appInstanceId, reset ? tr("Reset path") : tr("Set path"), names);
+}
+
+void showPathError(Context* ctx, error_t error) {
+    LOG_E(TAG, "Failed to change the path: %s", error_to_string(error));
+    showMessage(ctx, tr("Couldn't change path"), error == ERROR_INVALID_STATE ? getNotReadyText().c_str() : error_to_string(error));
+}
+
+void onPathContactSelected(Context* ctx, int32_t selected) {
+    // The service tells when the contact doesn't exist anymore
+    if (selected < 0 || selected >= static_cast<int32_t>(ctx->pathContactChoices.size())) {
+        return;
+    }
+    ctx->pathContact = ctx->pathContactChoices[selected];
+    if (ctx->pathReset) {
+        const error_t error = mesh_reset_contact_path(&ctx->pathContact);
+        if (error != ERROR_NONE) {
+            showPathError(ctx, error);
+        }
+        return;
+    }
+    ctx->pathInputDialogId = inputdialog::start(
+        ctx->appInstanceId,
+        tr("Set path"),
+        tr("Repeater hashes in hexadecimal, e.g. a1,b2,c3"),
+        "",
+        ctx->pathStream,
+        ctx->pathBuffer,
+        sizeof(ctx->pathBuffer),
+        ctx->eventGroup
+    );
+}
+
+void onPathInputResult(Context* ctx, int32_t result) {
+    if (result == 0) {
+        char text[sizeof(Context::pathBuffer)] = {};
+        const size_t length = app_stream_read(&ctx->pathStream, text, sizeof(text) - 1);
+        text[length] = '\0';
+        ::std::vector<uint8_t> hops;
+        size_t hashSize = 0;
+        if (!parsePath(text, hops, &hashSize)) {
+            showMessage(ctx, tr("Invalid path"), tr("Enter the hashes of the repeaters as hexadecimal characters, all of the same length, separated by commas."));
+        } else {
+            const error_t error = mesh_set_contact_path(&ctx->pathContact, hops.data(), hops.size() / hashSize, hashSize);
+            if (error == ERROR_INVALID_ARGUMENT) {
+                showMessage(ctx, tr("Invalid path"), tr("The path is too long."));
+            } else if (error != ERROR_NONE) {
+                showPathError(ctx, error);
+            }
+        }
+    }
+    app_stream_unsubscribe(&ctx->pathStream);
 }
 
 void onMainMenuSelected(Context* ctx, int32_t selected) {
+    if (static_cast<MainMenuItem>(selected) == MainMenuItem::MarkAllRead) {
+        mesh_mark_all_read();
+        return;
+    }
+    if (static_cast<MainMenuItem>(selected) == MainMenuItem::Info) {
+        startApp(MESH_INFO_APP_ID, 0, nullptr);
+        return;
+    }
     if (static_cast<MainMenuItem>(selected) == MainMenuItem::ShowQr) {
         showOwnQr(ctx);
         return;
@@ -692,7 +882,10 @@ void onMenuSelected(Context* ctx, int32_t selected) {
         onMainMenuSelected(ctx, selected);
         return;
     }
-    switch (static_cast<MenuItem>(selected)) {
+    if (selected < 0 || selected >= static_cast<int32_t>(ctx->contactMenuItems.size())) {
+        return;
+    }
+    switch (static_cast<MenuItem>(ctx->contactMenuItems[selected])) {
         case MenuItem::AddByKey:
             startContactNameDialog(ctx);
             break;
@@ -701,6 +894,12 @@ void onMenuSelected(Context* ctx, int32_t selected) {
             break;
         case MenuItem::ShowQr:
             showOwnQr(ctx);
+            break;
+        case MenuItem::SetPath:
+            startPathContactSelection(ctx, false);
+            break;
+        case MenuItem::ResetPath:
+            startPathContactSelection(ctx, true);
             break;
     }
 }
@@ -763,7 +962,8 @@ int32_t appMain(int argc, char* argv[]) {
         bool changed = false;
         MeshEvent meshEvent {};
         while (mesh_event_poll(&meshEvents, &meshEvent) == ERROR_NONE) {
-            changed |= meshEvent.type == MESH_EVENT_STATE || meshEvent.type == MESH_EVENT_CHANNEL || meshEvent.type == MESH_EVENT_CONTACT;
+            changed |= meshEvent.type == MESH_EVENT_STATE || meshEvent.type == MESH_EVENT_CHANNEL || meshEvent.type == MESH_EVENT_CONTACT ||
+                meshEvent.type == MESH_EVENT_MESSAGE || meshEvent.type == MESH_EVENT_UNREAD;
             ::std::string line = formatEvent(&ctx, meshEvent);
             if (!line.empty()) {
                 addInspectLine(&ctx, ::std::move(line));
@@ -808,6 +1008,12 @@ int32_t appMain(int argc, char* argv[]) {
                 } else if (event.result.launch_id == ctx.contactKeyDialogId) {
                     ctx.contactKeyDialogId = 0;
                     onContactKeyResult(&ctx, event.result.result);
+                } else if (event.result.launch_id == ctx.pathContactDialogId) {
+                    ctx.pathContactDialogId = 0;
+                    onPathContactSelected(&ctx, event.result.result);
+                } else if (event.result.launch_id == ctx.pathInputDialogId) {
+                    ctx.pathInputDialogId = 0;
+                    onPathInputResult(&ctx, event.result.result);
                 } else if (event.result.launch_id == ctx.messageDialogId) {
                     ctx.messageDialogId = 0;
                 }
@@ -841,7 +1047,7 @@ extern const ::AppManifest manifest = {
     .category = APP_CATEGORY_USER,
     .location = { .type = APP_LOCATION_MEMORY, .location = reinterpret_cast<void*>(appMain) },
     .flags = 0,
-    .stack = { .depth = 6144, .desired_memory_capability = 0 },
+    .stack = { .depth = 7168, .desired_memory_capability = 0 },
 };
 
 } // namespace tt::app::meshchat

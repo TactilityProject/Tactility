@@ -128,6 +128,25 @@ struct MeshBackendApi {
     /** Optional. The message with sequence number @a seq was cancelled, so it must not be sent again. */
     void (*cancel_send)(void* backend, uint32_t seq);
 
+    /**
+     * Optional. A contact was removed by the user, which a backend can take as the explicit reset of what it remembers about
+     * the node, such as a pinned public key. Called on the service thread.
+     */
+    void (*on_contact_removed)(void* backend, const struct MeshAddress* contact);
+
+    /**
+     * Optional. See mesh_set_contact_path(). The hops are validated by the host to be at least 1 and a hash size of 1 to 4,
+     * and the host checked that the contact is saved. The backend returns ERROR_RESOURCE when the path couldn't be stored
+     * and ERROR_OUT_OF_RANGE when it has no room for a path of another contact.
+     */
+    error_t (*set_contact_path)(void* backend, const struct MeshAddress* contact, const uint8_t* hops, size_t hop_count, size_t hash_size);
+
+    /** Optional. See mesh_get_contact_path(). */
+    error_t (*get_contact_path)(void* backend, const struct MeshAddress* contact, struct MeshContactPath* path);
+
+    /** Optional. See mesh_reset_contact_path(). */
+    error_t (*reset_contact_path)(void* backend, const struct MeshAddress* contact);
+
     /** The MeshFeature values that the backend supports, combined, see mesh_supports() */
     uint32_t features;
 };
@@ -182,6 +201,12 @@ void mesh_host_node_heard(struct MeshHost* host, const struct MeshAddress* addre
 
 /** Record that a node announced itself, e.g. a MeshCore advert or a Meshtastic NodeInfo. Also records the node as heard. */
 void mesh_host_advert_heard(struct MeshHost* host, const struct MeshAddress* address, const char* name, float rssi, float snr);
+
+/**
+ * @return whether the user saved the node as a contact, which a backend can use to keep what it remembers about the node
+ * apart from what it remembers about nodes that it only heard
+ */
+bool mesh_host_is_contact(struct MeshHost* host, const struct MeshAddress* address);
 
 /** Get a path in the backend's own data directory, which exists after this call */
 error_t mesh_host_get_data_path(struct MeshHost* host, const char* child_path, char* out_path, size_t out_path_size);

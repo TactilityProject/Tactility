@@ -24,6 +24,8 @@ static const ModuleSymbol SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(system_bars_set_main_action),
     DEFINE_MODULE_SYMBOL(system_bars_set_page_button_callbacks),
     DEFINE_MODULE_SYMBOL(system_bars_set_page_buttons_visible),
+    DEFINE_MODULE_SYMBOL(system_bars_set_notification_visible),
+    DEFINE_MODULE_SYMBOL(system_bars_set_notification_unread),
     DEFINE_MODULE_SYMBOL(system_bars_is_menu_swipe_zone_pressed),
     MODULE_SYMBOL_TERMINATOR,
 };

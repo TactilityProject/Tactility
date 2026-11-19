@@ -7,6 +7,7 @@
 #include <random>
 #endif
 
+#include <Tactility/app/alertdialog/AlertDialog.h>
 #include <Tactility/app/inputdialog/InputDialog.h>
 #include <Tactility/app/meshsettings/MeshChannels.h>
 #include <Tactility/app/selectiondialog/SelectionDialog.h>
@@ -37,6 +38,7 @@
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <atomic>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -64,6 +66,9 @@ struct Context {
     uint32_t selectPresetBit = 0;
     uint32_t selectModemPresetBit = 0;
     uint32_t changeNameBit = 0;
+    uint32_t advancedBit = 0;
+    uint32_t rxBoostedGainBit = 0;
+    uint32_t advancedDialogId = 0;
     uint32_t selectRadioBit = 0;
     uint32_t radioSettingBits[RADIO_SETTING_COUNT] = {};
     uint32_t serviceDialogId = 0;
@@ -96,8 +101,13 @@ struct Context {
     bool hasPresets = false;
     /** The backend that the open preset dialog is for */
     const char* presetBackend = MESHCORE_ID;
-    /** Only shown in the UI, so it isn't persisted */
+    /** Only shown in the UI, so it isn't persisted. Turned on by accepting the legal warning. */
     bool showAdvanced = false;
+    /** Whether the radio has boosted RX gain, which is the SX126x family */
+    bool hasRxBoostedGain = false;
+    bool rxBoostedGain = false;
+    /** What the switch asked for, apart from the value that was loaded for display, which a refresh can replace */
+    ::std::atomic<bool> rxBoostedGainRequest { false };
     bool hasMeshCore = false;
     bool hasMeshtastic = false;
     std::string radioSettingTexts[RADIO_SETTING_COUNT];
@@ -117,6 +127,8 @@ struct Context {
     lv_obj_t* meshCoreCard = nullptr;
     lv_obj_t* profileLabel = nullptr;
     lv_obj_t* advancedSwitch = nullptr;
+    lv_obj_t* rxBoostedGainRow = nullptr;
+    lv_obj_t* rxBoostedGainSwitch = nullptr;
     lv_obj_t* radioSettingRows[RADIO_SETTING_COUNT] = {};
     lv_obj_t* radioSettingLabels[RADIO_SETTING_COUNT] = {};
     lv_obj_t* meshtasticTitle = nullptr;
@@ -171,6 +183,9 @@ void updateLabels(Context* ctx) {
     lv_obj_set_hidden(ctx->meshCoreTitle, !showMeshCore);
     lv_obj_set_hidden(ctx->meshCoreCard, !showMeshCore);
     lv_label_set_text(ctx->profileLabel, ctx->presetText.c_str());
+    lv_obj_set_state(ctx->advancedSwitch, LV_STATE_CHECKED, ctx->showAdvanced);
+    lv_obj_set_hidden(ctx->rxBoostedGainRow, !ctx->hasRxBoostedGain);
+    lv_obj_set_state(ctx->rxBoostedGainSwitch, LV_STATE_CHECKED, ctx->rxBoostedGain);
     for (size_t i = 0; i < RADIO_SETTING_COUNT; i++) {
         lv_obj_set_hidden(ctx->radioSettingRows[i], !ctx->showAdvanced);
         lv_label_set_text(ctx->radioSettingLabels[i], ctx->radioSettingTexts[i].c_str());
@@ -251,6 +266,7 @@ void loadState(Context* ctx) {
         }
     }
     ctx->radioChoice = radioNames.size() >= 2;
+    ctx->hasRxBoostedGain = mesh_get_rx_boosted_gain(&ctx->rxBoostedGain) == ERROR_NONE;
     ctx->regionText = settings::radio::getRegionLabel(settings::radio::loadRegion());
     char preset[MESH_NAME_MAX_LENGTH + 1];
     ctx->hasPresets = mesh_get_preset(nullptr, preset, sizeof(preset)) == ERROR_NONE;
@@ -259,15 +275,28 @@ void loadState(Context* ctx) {
     ctx->hasMeshtastic = mesh_get_preset(MESHTASTIC_ID, preset, sizeof(preset)) == ERROR_NONE;
     ctx->modemPresetText = ctx->hasMeshtastic ? preset : "";
     // The values that MeshCore would run with, which are the preset's with the user's settings applied
+    // Frequency and power are shared by the backends, so they show the selected backend, or the first that has presets
+    char selectedBackend[MESH_BACKEND_ID_MAX_LENGTH + 1] = {};
+    mesh_get_backend(selectedBackend, sizeof(selectedBackend));
+    const char* sharedBackend = ctx->hasMeshCore ? MESHCORE_ID : MESHTASTIC_ID;
+    if (ctx->hasMeshtastic && strcmp(selectedBackend, MESHTASTIC_ID) == 0) {
+        sharedBackend = MESHTASTIC_ID;
+    }
     MeshRadioSettings settings {};
-    if (mesh_get_radio_parameters(MESHCORE_ID, &settings) != ERROR_NONE) {
-        mesh_get_radio_settings(MESHCORE_ID, &settings);
+    if (mesh_get_radio_parameters(sharedBackend, &settings) != ERROR_NONE) {
+        mesh_get_radio_settings(sharedBackend, &settings);
     }
     ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::Frequency)] = formatRadioSetting(RadioSetting::Frequency, settings.frequency);
+    ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::Power)] = formatRadioSetting(RadioSetting::Power, settings.power);
+    // The other LoRa settings are the ones of MeshCore
+    if (ctx->hasMeshCore) {
+        if (mesh_get_radio_parameters(MESHCORE_ID, &settings) != ERROR_NONE) {
+            mesh_get_radio_settings(MESHCORE_ID, &settings);
+        }
+    }
     ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::Bandwidth)] = formatRadioSetting(RadioSetting::Bandwidth, settings.bandwidth);
     ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::SpreadingFactor)] = formatRadioSetting(RadioSetting::SpreadingFactor, settings.spreading_factor);
     ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::CodingRate)] = formatRadioSetting(RadioSetting::CodingRate, settings.coding_rate);
-    ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::Power)] = formatRadioSetting(RadioSetting::Power, settings.power);
     MeshNetworkSettings network {};
     mesh_get_network_parameters(MESHCORE_ID, &network);
     ctx->radioSettingTexts[static_cast<size_t>(RadioSetting::PathHashSize)] = formatRadioSetting(RadioSetting::PathHashSize, network.path_hash_size);
@@ -288,8 +317,22 @@ void signalRadioSetting(lv_event_t* event, RadioSetting kind) {
 void onSelectFrequencyPressed(lv_event_t* event) { signalRadioSetting(event, RadioSetting::Frequency); }
 void onAdvancedSwitch(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    ctx->showAdvanced = lv_obj_has_state(ctx->advancedSwitch, LV_STATE_CHECKED);
+    if (lv_obj_has_state(ctx->advancedSwitch, LV_STATE_CHECKED)) {
+        // The switch turns on after the warning is accepted, which needs the app's own thread
+        task_event_group_signal(ctx->eventGroup, ctx->advancedBit);
+    } else {
+        ctx->showAdvanced = false;
+    }
     updateLabels(ctx);
+}
+
+void onRxBoostedGainSwitch(lv_event_t* event) {
+    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
+    const bool requested = lv_obj_has_state(ctx->rxBoostedGainSwitch, LV_STATE_CHECKED);
+    ctx->rxBoostedGainRequest = requested;
+    ctx->rxBoostedGain = requested;
+    // Saving the setting is a file operation, which the app's own thread does
+    task_event_group_signal(ctx->eventGroup, ctx->rxBoostedGainBit);
 }
 
 void onSelectPathHashSizePressed(lv_event_t* event) { signalRadioSetting(event, RadioSetting::PathHashSize); }
@@ -479,6 +522,41 @@ void startRadioSettingSelection(Context* ctx, RadioSetting kind) {
     ctx->radioSettingDialogId = selectiondialog::start(ctx->appInstanceId, tr(RADIO_SETTING_TITLES[static_cast<size_t>(kind)]), items);
 }
 
+void startAdvancedWarning(Context* ctx) {
+    if (ctx->advancedDialogId != 0) {
+        return;
+    }
+    ctx->advancedDialogId = alertdialog::start(
+        ctx->appInstanceId,
+        tr("Legal warning"),
+        tr("Advanced radio settings can make your radio operate outside the limits that apply in your country or region. You are responsible for following the local regulations. Wrong settings can cause interference and may have legal consequences."),
+        std::vector<std::string> { tr("Continue"), tr("Cancel") }
+    );
+}
+
+/** Frequency and power are shared, so a change goes to every backend that has presets */
+void applySharedRadioSetting(RadioSetting kind, int32_t value) {
+    for (const char* backend : { MESHCORE_ID, MESHTASTIC_ID }) {
+        MeshRadioSettings settings {};
+        if (mesh_get_radio_settings(backend, &settings) != ERROR_NONE) {
+            continue;
+        }
+        if (kind == RadioSetting::Frequency) {
+            settings.frequency = value;
+        } else {
+            settings.power = value;
+        }
+        const error_t error = mesh_set_radio_settings(backend, &settings);
+        if (error != ERROR_NONE) {
+            LOG_E(TAG, "Failed to set the radio setting of %s: %s", backend, error_to_string(error));
+        }
+    }
+}
+
+void onAdvancedWarningResult(Context* ctx, int32_t result) {
+    ctx->showAdvanced = result == 0;
+}
+
 void onFrequencyDialogResult(Context* ctx, int32_t result) {
     if (result == 0) {
         char text[sizeof(Context::frequencyBuffer)] = {};
@@ -488,13 +566,7 @@ void onFrequencyDialogResult(Context* ctx, int32_t result) {
         const double megahertz = strtod(text, &end);
         const bool cleared = text[0] == '\0';
         if (cleared || (end != text && *end == '\0' && megahertz >= 100.0 && megahertz <= 1000.0)) {
-            MeshRadioSettings settings {};
-            mesh_get_radio_settings(MESHCORE_ID, &settings);
-            settings.frequency = cleared ? 0 : static_cast<int32_t>(megahertz * 1e6 + 0.5);
-            const error_t error = mesh_set_radio_settings(MESHCORE_ID, &settings);
-            if (error != ERROR_NONE) {
-                LOG_E(TAG, "Failed to set the frequency: %s", error_to_string(error));
-            }
+            applySharedRadioSetting(RadioSetting::Frequency, cleared ? 0 : static_cast<int32_t>(megahertz * 1e6 + 0.5));
         }
     }
     app_stream_unsubscribe(&ctx->frequencyStream);
@@ -528,6 +600,10 @@ void onRadioSettingSelected(Context* ctx, int32_t selected) {
         mesh_set_network_settings(MESHCORE_ID, &network);
         return;
     }
+    if (ctx->settingKind == RadioSetting::Power) {
+        applySharedRadioSetting(RadioSetting::Power, value);
+        return;
+    }
     MeshRadioSettings settings {};
     mesh_get_radio_settings(MESHCORE_ID, &settings);
     switch (ctx->settingKind) {
@@ -538,7 +614,7 @@ void onRadioSettingSelected(Context* ctx, int32_t selected) {
         case RadioSetting::Bandwidth: settings.bandwidth = value; break;
         case RadioSetting::SpreadingFactor: settings.spreading_factor = value; break;
         case RadioSetting::CodingRate: settings.coding_rate = value; break;
-        case RadioSetting::Power: settings.power = value; break;
+        case RadioSetting::Power: break;
     }
     const error_t error = mesh_set_radio_settings(MESHCORE_ID, &settings);
     if (error != ERROR_NONE) {
@@ -676,6 +752,37 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->regionLabel = createTitleAndValue(regionRow, tr("Region"));
     createChangeButton(regionRow, onSelectRegionPressed, ctx);
 
+    ctx->rxBoostedGainRow = createRow(card);
+    // The title with a small text under it, like the other settings
+    lv_label_set_text(createTitleAndValue(ctx->rxBoostedGainRow, tr("RX boosted gain")), tr("Requires reboot"));
+    ctx->rxBoostedGainSwitch = lv_switch_create(ctx->rxBoostedGainRow);
+    lv_obj_add_event_cb(ctx->rxBoostedGainSwitch, onRxBoostedGainSwitch, LV_EVENT_VALUE_CHANGED, ctx);
+    lvgl_grid_navigation_add(ctx->rxBoostedGainRow);
+
+    auto* advancedRow = createRow(card);
+    auto* advancedLabel = lv_label_create(advancedRow);
+    lv_label_set_text(advancedLabel, tr("Advanced settings"));
+    lv_obj_set_flex_grow(advancedLabel, 1);
+    ctx->advancedSwitch = lv_switch_create(advancedRow);
+    lv_obj_set_state(ctx->advancedSwitch, LV_STATE_CHECKED, ctx->showAdvanced);
+    lv_obj_add_event_cb(ctx->advancedSwitch, onAdvancedSwitch, LV_EVENT_VALUE_CHANGED, ctx);
+    // The arrow keys would toggle a switch that is in the input group itself
+    lvgl_grid_navigation_add(advancedRow);
+
+    const lv_event_cb_t radioSettingCallbacks[RADIO_SETTING_COUNT] = {
+        onSelectFrequencyPressed, onSelectBandwidthPressed, onSelectSpreadingFactorPressed, onSelectCodingRatePressed, onSelectPowerPressed, onSelectPathHashSizePressed, onSelectRegionScopePressed
+    };
+    // Frequency and power are shared by the backends, the other settings are of MeshCore
+    auto createRadioSettingRow = [&](RadioSetting kind, lv_obj_t* parent) {
+        const size_t i = static_cast<size_t>(kind);
+        auto* row = createRow(parent);
+        ctx->radioSettingRows[i] = row;
+        ctx->radioSettingLabels[i] = createTitleAndValue(row, tr(RADIO_SETTING_TITLES[i]));
+        createChangeButton(row, radioSettingCallbacks[i], ctx);
+    };
+    createRadioSettingRow(RadioSetting::Frequency, card);
+    createRadioSettingRow(RadioSetting::Power, card);
+
     auto* statusRow = createRow(card);
     ctx->statusLabel = createTitleAndValue(statusRow, tr("Status"));
 
@@ -689,24 +796,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->profileLabel = createTitleAndValue(profileRow, tr("Selected preset"));
     createChangeButton(profileRow, onSelectPresetPressed, ctx);
 
-    auto* advancedRow = createRow(ctx->meshCoreCard);
-    auto* advancedLabel = lv_label_create(advancedRow);
-    lv_label_set_text(advancedLabel, tr("Advanced settings"));
-    lv_obj_set_flex_grow(advancedLabel, 1);
-    ctx->advancedSwitch = lv_switch_create(advancedRow);
-    lv_obj_set_state(ctx->advancedSwitch, LV_STATE_CHECKED, ctx->showAdvanced);
-    lv_obj_add_event_cb(ctx->advancedSwitch, onAdvancedSwitch, LV_EVENT_VALUE_CHANGED, ctx);
-    // The arrow keys would toggle a switch that is in the input group itself
-    lvgl_grid_navigation_add(advancedRow);
-
-    const lv_event_cb_t radioSettingCallbacks[RADIO_SETTING_COUNT] = {
-        onSelectFrequencyPressed, onSelectBandwidthPressed, onSelectSpreadingFactorPressed, onSelectCodingRatePressed, onSelectPowerPressed, onSelectPathHashSizePressed, onSelectRegionScopePressed
-    };
-    for (size_t i = 0; i < RADIO_SETTING_COUNT; i++) {
-        auto* row = createRow(ctx->meshCoreCard);
-        ctx->radioSettingRows[i] = row;
-        ctx->radioSettingLabels[i] = createTitleAndValue(row, tr(RADIO_SETTING_TITLES[i]));
-        createChangeButton(row, radioSettingCallbacks[i], ctx);
+    for (const auto kind : { RadioSetting::Bandwidth, RadioSetting::SpreadingFactor, RadioSetting::CodingRate, RadioSetting::PathHashSize, RadioSetting::RegionScope }) {
+        createRadioSettingRow(kind, ctx->meshCoreCard);
     }
 
     ctx->meshtasticTitle = lv_label_create(wrapper);
@@ -733,6 +824,8 @@ void destroyWidgets(void* userData) {
     ctx->meshCoreCard = nullptr;
     ctx->profileLabel = nullptr;
     ctx->advancedSwitch = nullptr;
+    ctx->rxBoostedGainRow = nullptr;
+    ctx->rxBoostedGainSwitch = nullptr;
     for (auto& row : ctx->radioSettingRows) {
         row = nullptr;
     }
@@ -757,6 +850,8 @@ int32_t appMain(int argc, char* argv[]) {
     check(task_event_group_claim_bit(&eventGroup, &ctx.selectPresetBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.selectModemPresetBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.changeNameBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.advancedBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.rxBoostedGainBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.selectRadioBit) == ERROR_NONE);
     for (auto& bit : ctx.radioSettingBits) {
         check(task_event_group_claim_bit(&eventGroup, &bit) == ERROR_NONE);
@@ -786,6 +881,15 @@ int32_t appMain(int argc, char* argv[]) {
         }
         if (flags & ctx.selectModemPresetBit) {
             startPresetSelection(&ctx, MESHTASTIC_ID);
+        }
+        if (flags & ctx.rxBoostedGainBit) {
+            const error_t error = mesh_set_rx_boosted_gain(ctx.rxBoostedGainRequest);
+            if (error != ERROR_NONE) {
+                LOG_E(TAG, "Failed to set the RX boosted gain: %s", error_to_string(error));
+            }
+        }
+        if (flags & ctx.advancedBit) {
+            startAdvancedWarning(&ctx);
         }
         if (flags & ctx.changeNameBit) {
             startNameDialog(&ctx);
@@ -833,6 +937,9 @@ int32_t appMain(int argc, char* argv[]) {
                 } else if (event.result.launch_id == ctx.radioSettingDialogId) {
                     ctx.radioSettingDialogId = 0;
                     onRadioSettingSelected(&ctx, event.result.result);
+                } else if (event.result.launch_id == ctx.advancedDialogId) {
+                    ctx.advancedDialogId = 0;
+                    onAdvancedWarningResult(&ctx, event.result.result);
                 } else if (event.result.launch_id == ctx.nameDialogId) {
                     ctx.nameDialogId = 0;
                     onNameDialogResult(&ctx, event.result.result);

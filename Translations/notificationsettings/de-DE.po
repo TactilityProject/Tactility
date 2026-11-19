@@ -1,0 +1,19 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: de-DE\n"
+
+msgid "Notifications"
+msgstr "Benachrichtigungen"
+
+msgid "No app has sent a notification yet."
+msgstr "Keine App hat bisher eine Benachrichtigung gesendet."
+
+msgid "Turning an app off also removes its notifications."
+msgstr "Wenn du eine App ausschaltest, werden auch ihre Benachrichtigungen entfernt."
+
+msgid "app"
+msgstr "App"
+
+msgid "service"
+msgstr "Dienst"

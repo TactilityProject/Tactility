@@ -5,20 +5,21 @@
 ## Higher Priority
 
 - Pick better icon for toggling touch in remote.py
-- Newer Meshtastic firmware supports per-node public-key direct messages.
+- Remove ft6x driver
 
 ## Medium Priority
 
+- API for default sound playback/recording device selection
+- Copy/paste buffer
 - DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
 - Add "Downloading Apps" step in Setup that downloads useful apps.
   It's an optional step at the end that only shows if wifi is connected.
-- Watch and others: sleep/wake support. "With a button to save energy of the screen while not having to turn the gps off by disabling power. Also could put device into pocket without worrying about pressing things on touchscreen.". Considere adding a list of hardware that supports on/off and have the user select which hardware turns on/off with light sleep. (not to confuse with ESP light sleep)
+- Watch and others: sleep/wake support. "With a button to save energy of the screen while not having to turn the gps off by disabling power. Also could put device into pocket without worrying about pressing things on touchscreen.". Consider adding a list of hardware that supports on/off and have the user select which hardware turns on/off with light sleep. (not to confuse with ESP light sleep)
 Consider adding a light/deep sleep mode:
   tt light sleep: esp32 does not go in sleep mode, user decides which devices go off (e.g. display+lvgl, wifi, lora, etc.)
   tt deep sleep: esp32 goes into "esp light sleep" mode
 - Improve watch interface. Consider adding some sort of device classification so UI in apps can choose to optimize for the watch.
 - Update timezones.csv wrt 2026e, write tests for related code
-- Notification support
 - Low/critical memory warning test/rework
 - Try https://github.com/bootdsc/Fastwave-Eink-Driver with CL-32 e-paper.
 - Pick different font to improve monochrome screen readability (or change the weight).
@@ -68,22 +69,8 @@ Consider adding a light/deep sleep mode:
 - Make WiFi setup app that starts an access point and hosts a webpage to set up the device.
   This will be useful for devices without a screen, a small screen or a non-touch screen.
 
-# Nice-to-haves
-
-- Audio player app
-- Audio recording app
-
 # App Ideas
 
-- Map widget:
-  https://github.com/portapack-mayhem/mayhem-firmware/blob/b66d8b1aa178d8a9cd06436fea788d5d58cb4c8d/firmware/application/ui/ui_geomap.cpp
-  https://github.com/portapack-mayhem/mayhem-firmware/blob/b66d8b1aa178d8a9cd06436fea788d5d58cb4c8d/firmware/tools/generate_world_map.bin.py
-  https://github.com/portapack-mayhem/mayhem-firmware/releases
-- Weather app: https://lab.flipper.net/apps/flip_weather
-- wget app: https://lab.flipper.net/apps/web_crawler (add profiles for known public APIs?)
-- Chip 8 emulator
-- Discord bot
-- IR transceiver app
-- Investigate CSI https://stevenmhernandez.github.io/ESP32-CSI-Tool/
-- Calendar
-- RSS reader
+- Weather app
+- IR transceiver
+

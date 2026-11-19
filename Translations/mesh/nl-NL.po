@@ -212,3 +212,132 @@ msgstr "Advert versturen mislukt"
 
 msgid "Show QR"
 msgstr "QR tonen"
+
+msgid "Info"
+msgstr "Info"
+
+msgid "Status: {}"
+msgstr "Status: {}"
+
+msgid "Network: {}"
+msgstr "Netwerk: {}"
+
+msgid "Region: {}"
+msgstr "Regio: {}"
+
+msgid "Radio: {} MHz, {} kHz, SF{}, CR 4/{}, {} dBm"
+msgstr "Radio: {} MHz, {} kHz, SF{}, CR 4/{}, {} dBm"
+
+msgid "Duty cycle: unrestricted"
+msgstr "Duty cycle: onbeperkt"
+
+msgid "Duty cycle: {} s of {} s used ({}% allowed)"
+msgstr "Duty cycle: {} s van {} s gebruikt ({}% toegestaan)"
+
+msgid "Transmitting is paused until the budget frees up"
+msgstr "Zenden is gepauzeerd tot het budget weer vrij is"
+
+msgid "Waiting to transmit: {}"
+msgstr "Wachten om te zenden: {}"
+
+msgid "Frames: {} sent, {} failed, {} received, {} unreadable"
+msgstr "Frames: {} verzonden, {} mislukt, {} ontvangen, {} onleesbaar"
+
+msgid "Messages: {} received, {} sent, {} failed"
+msgstr "Berichten: {} ontvangen, {} verzonden, {} mislukt"
+
+msgid "Nodes heard: {}, contacts: {}"
+msgstr "Nodes gehoord: {}, contacten: {}"
+
+msgid "Set path"
+msgstr "Pad instellen"
+
+msgid "Reset path"
+msgstr "Pad resetten"
+
+msgid "No contacts"
+msgstr "Geen contacten"
+
+msgid "Add a contact first."
+msgstr "Voeg eerst een contact toe."
+
+msgid "Couldn't change path"
+msgstr "Pad kon niet worden gewijzigd"
+
+msgid "Repeater hashes in hexadecimal, e.g. a1,b2,c3"
+msgstr "Hashes van de repeaters in hexadecimaal, bijv. a1,b2,c3"
+
+msgid "Invalid path"
+msgstr "Ongeldig pad"
+
+msgid "Enter the hashes of the repeaters as hexadecimal characters, all of the same length, separated by commas."
+msgstr "Voer de hashes van de repeaters in als hexadecimale tekens, allemaal even lang en gescheiden door komma's."
+
+msgid "The path is too long."
+msgstr "Het pad is te lang."
+
+msgid "Delete message history"
+msgstr "Berichtengeschiedenis verwijderen"
+
+msgid "All messages of this conversation are deleted."
+msgstr "Alle berichten van dit gesprek worden verwijderd."
+
+msgid "Delete"
+msgstr "Verwijderen"
+
+msgid "Couldn't delete"
+msgstr "Verwijderen mislukt"
+
+msgid "Turn mesh on to delete the messages."
+msgstr "Zet Mesh aan om de berichten te verwijderen."
+
+msgid "Details"
+msgstr "Details"
+
+msgid "{} s ago"
+msgstr "{} s geleden"
+
+msgid "{} min ago"
+msgstr "{} min geleden"
+
+msgid "{} h ago"
+msgstr "{} u geleden"
+
+msgid "Name: {}"
+msgstr "Naam: {}"
+
+msgid "Public key: {}"
+msgstr "Publieke sleutel: {}"
+
+msgid "Path (set by you): {}"
+msgstr "Pad (door jou ingesteld): {}"
+
+msgid "Path (learned): {}"
+msgstr "Pad (geleerd): {}"
+
+msgid "Path: none, messages are flooded"
+msgstr "Pad: geen, berichten worden gefloodd"
+
+msgid "Last advert heard: {}"
+msgstr "Laatste advert gehoord: {}"
+
+msgid "Last advert heard: not since start"
+msgstr "Laatste advert gehoord: niet sinds het opstarten"
+
+msgid "Last heard: {}"
+msgstr "Laatst gehoord: {}"
+
+msgid "Signal: {} dBm"
+msgstr "Signaal: {} dBm"
+
+msgid "Signal: {} dBm, {} dB"
+msgstr "Signaal: {} dBm, {} dB"
+
+msgid "All messages"
+msgstr "Alle berichten"
+
+msgid "current"
+msgstr "huidig"
+
+msgid "Mark all as read"
+msgstr "Alles als gelezen markeren"

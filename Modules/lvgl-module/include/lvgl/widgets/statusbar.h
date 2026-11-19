@@ -15,9 +15,10 @@ extern "C" {
 
 /**
  * @brief Set the function that opens the system menu, called when the statusbar's icons are clicked or the statusbar is swiped down.
- * @param[in] callback the function, or NULL to do nothing
+ * @param[in] callback the function, or NULL to do nothing. It gets the horizontal position of the swipe in display
+ * pixels, or -1 when the icons were clicked.
  */
-void lvgl_statusbar_set_menu_callback(void (*callback)(void));
+void lvgl_statusbar_set_menu_callback(void (*callback)(int32_t swipe_x));
 
 /** @brief Set whether the time is shown in the 24-hour format. The default is true. */
 void lvgl_statusbar_set_time_format_24h(bool format_24h);
@@ -29,12 +30,26 @@ void lvgl_statusbar_set_time_format_24h(bool format_24h);
 lv_obj_t* lvgl_statusbar_create(lv_obj_t* parent);
 
 /**
- * @brief Add an icon to all statusbars. Does not need the LVGL lock.
+ * How important an icon is. It doesn't change the order of the icons. When they don't fit, the icons with the lowest
+ * priority are hidden first, and among icons of one priority the one that was added last.
+ */
+enum LvglStatusbarIconPriority {
+    LVGL_STATUSBAR_ICON_PRIORITY_LOW,
+    LVGL_STATUSBAR_ICON_PRIORITY_REGULAR,
+    LVGL_STATUSBAR_ICON_PRIORITY_HIGH,
+    LVGL_STATUSBAR_ICON_PRIORITY_CRITICAL,
+};
+
+/**
+ * @brief Add an icon to all statusbars, with the regular priority. Does not need the LVGL lock.
  * @param[in] image the icon (e.g. a statusbar icon font symbol) or NULL for none, at most LVGL_STATUSBAR_IMAGE_MAX_LENGTH bytes
  * @param[in] visible whether the icon is shown
  * @return the icon id, or -1 when LVGL_STATUSBAR_ICON_LIMIT icons were added already. The other icon functions ignore id -1.
  */
 int8_t lvgl_statusbar_icon_add(const char* image, bool visible);
+
+/** @brief Same as lvgl_statusbar_icon_add(), with a priority that decides which icons stay when there is no room for all of them. */
+int8_t lvgl_statusbar_icon_add_with_priority(const char* image, bool visible, enum LvglStatusbarIconPriority priority);
 
 /** @brief Remove an icon. Does not need the LVGL lock. Does nothing for id -1. */
 void lvgl_statusbar_icon_remove(int8_t id);

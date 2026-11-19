@@ -137,16 +137,27 @@ bool save_to_file(const PropertiesFile* file) {
         return false;
     }
 
-    // rename() may not overwrite an existing destination on some filesystems (e.g. FAT on
-    // ESP32), so remove it first; this is best-effort and ignored if the path doesn't exist yet.
-    std::remove(file->path.c_str());
+    // Most filesystems replace the destination by a rename
+    if (std::rename(temp_path.c_str(), file->path.c_str()) == 0) {
+        return true;
+    }
 
-    if (std::rename(temp_path.c_str(), file->path.c_str()) != 0) {
+    // rename() may not overwrite an existing destination on some filesystems (e.g. FAT on ESP32). The current file is
+    // moved aside instead of removed, so a failure after this point can put it back.
+    std::string backup_path = file->path + ".old";
+    std::remove(backup_path.c_str());
+    if (std::rename(file->path.c_str(), backup_path.c_str()) != 0) {
         LOG_E(TAG, "Failed to replace %s", file->path.c_str());
         std::remove(temp_path.c_str());
         return false;
     }
-
+    if (std::rename(temp_path.c_str(), file->path.c_str()) != 0) {
+        LOG_E(TAG, "Failed to replace %s, restoring the previous file", file->path.c_str());
+        std::rename(backup_path.c_str(), file->path.c_str());
+        std::remove(temp_path.c_str());
+        return false;
+    }
+    std::remove(backup_path.c_str());
     return true;
 }
 
@@ -171,6 +182,10 @@ error_t properties_file_close(PropertiesFile* file) {
     bool saved = save_to_file(file);
     delete file;
     return saved ? ERROR_NONE : ERROR_RESOURCE;
+}
+
+void properties_file_discard(PropertiesFile* file) {
+    delete file;
 }
 
 bool properties_file_has(const PropertiesFile* file, const char* key) {

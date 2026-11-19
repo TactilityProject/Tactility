@@ -37,6 +37,8 @@ private:
         uint8_t channel;
         /** Hash of the peer address, 0 for channel messages */
         uint32_t peerHash;
+        /** Hash of the backend id, which the index can't tell otherwise without reading the message */
+        uint32_t backendHash;
     };
 
     static constexpr uint32_t PENDING = UINT32_MAX;
@@ -44,6 +46,9 @@ private:
     Limits limits;
     tt::std::string directory;
     uint8_t* buffer = nullptr;
+    bool opened = false;
+    /** Set while opening when a deletion couldn't be applied completely because a message couldn't be read */
+    bool replayIncomplete = false;
     size_t bufferUsed = 0;
     tt::std::vector<IndexEntry> index;
     tt::std::vector<uint32_t> segments;
@@ -61,6 +66,10 @@ private:
     const IndexEntry* findEntry(uint32_t seq) const;
     error_t readEntry(const IndexEntry& entry, MeshMessage* message) const;
     void enforceBudget();
+    /** @return false when a message that may belong to the conversation can't be read, which a deletion must not be stored for */
+    bool canEraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) const;
+    /** @return false when a message couldn't be read, which is then kept as it can't be told whether it belongs to the conversation */
+    bool eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq);
 
 public:
     explicit MeshStore(const Limits& limits = DEFAULT_LIMITS);
@@ -82,7 +91,8 @@ public:
 
     error_t get(uint32_t seq, MeshMessage* message) const;
 
-    bool isOpen() const { return buffer != nullptr; }
+    /** False while open() is still reading the segments, so other threads never see a half built index */
+    bool isOpen() const { return opened; }
 
     /** Oldest first: the messages with a seq above @a afterSeq */
     size_t getAfter(uint32_t afterSeq, MeshMessage* messages, size_t maxCount) const;
@@ -96,6 +106,12 @@ public:
      */
     size_t getConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t beforeSeq, MeshMessage* messages, size_t maxCount) const;
 
+    /**
+     * Delete the messages of one conversation of @a backend, see getConversation(). The deletion is recorded in the log.
+     * The text stays in the segment files until the oldest segments are deleted.
+     */
+    error_t removeConversation(const char* backend, const MeshAddress* peer, uint8_t channel);
+
     /** Sequence numbers of outgoing messages of @a backend in the given delivery state, oldest first */
     tt::std::vector<uint32_t> findOutgoing(const char* backend, enum MeshDeliveryState delivery) const;
 
@@ -106,4 +122,18 @@ public:
     void flushIfNeeded(uint64_t nowMs, uint64_t maxAgeMs);
 
     size_t getMessageCount() const { return index.size(); }
+
+    /** The sequence number of the newest message, 0 when there is none. Sequence numbers are per store. */
+    uint32_t getLastSeq() const { return nextSeq - 1; }
+
+    /** Hash of a peer address, 0 for none, as the index keeps it */
+    static uint32_t hashPeerAddress(const MeshAddress* peer);
+
+    size_t countDelivery(enum MeshDeliveryState delivery) const {
+        size_t count = 0;
+        for (const auto& entry : index) {
+            count += entry.delivery == delivery ? 1 : 0;
+        }
+        return count;
+    }
 };

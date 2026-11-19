@@ -27,8 +27,17 @@ enum SystemBarsAlignment {
 };
 
 struct SystemBarsConfig {
-    /** Optional. Opens the system menu on a swipe down from the top edge, in the side layout. */
-    void (*show_menu)(void);
+    /**
+     * Optional. Opens the system menu on a swipe down from the top edge, in the side layout.
+     * @param[in] swipe_x where the swipe started, in display pixels
+     */
+    void (*show_menu)(int32_t swipe_x);
+
+    /**
+     * Optional. Opens the notifications, when the notifications button of the page bar is pressed.
+     * @warning Called on the LVGL task with the LVGL lock held.
+     */
+    void (*show_notifications)(void);
 
     /**
      * Optional. Chooses the layout for a display size. Without it the split layout is used.
@@ -115,6 +124,22 @@ void system_bars_set_main_action(const char* icon, SystemBarsCallback on_pressed
  * @warning Caller must hold the LVGL lock. The callbacks run on the LVGL task with the LVGL lock held.
  */
 void system_bars_set_page_button_callbacks(SystemBarsCallback on_previous, SystemBarsCallback on_next, void* user_data);
+
+/**
+ * Shows or hides the notifications button of the page bar, which opens the notifications through
+ * SystemBarsConfig.show_notifications. It is part of the system bars, so it stays across apps and windows.
+ * The button is above the page buttons in the side layout, and next to them in the split layout: after them when aligned to
+ * the left and before them when aligned to the right.
+ * @warning Caller must hold the LVGL lock.
+ */
+void system_bars_set_notification_visible(bool visible);
+
+/**
+ * Shows the notifications button as unread, with an icon that tells that something new arrived, or as read.
+ * It only changes the icon. The owner decides when something counts as unread.
+ * @warning Caller must hold the LVGL lock.
+ */
+void system_bars_set_notification_unread(bool unread);
 
 /**
  * In the side layout, a swipe down that starts within about 5 mm of the top edge opens the system menu.

@@ -89,3 +89,25 @@ msgstr "Time-out"
 
 msgid "Yes"
 msgstr "Ja"
+
+msgid "Settings"
+msgstr "Instellingen"
+
+msgid "Notifications"
+msgstr "Meldingen"
+
+msgid "Clear"
+msgstr "Wissen"
+
+msgid "No notifications"
+msgstr "Geen meldingen"
+
+msgid "now"
+msgstr "nu"
+
+
+msgid "{} new message"
+msgstr "{} nieuw bericht"
+
+msgid "{} new messages"
+msgstr "{} nieuwe berichten"

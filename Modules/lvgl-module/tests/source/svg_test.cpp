@@ -93,7 +93,7 @@ static int rasterizeAllIn(const char* directory) {
 
 TEST_CASE("every app and file icon rasterizes to a visible image") {
     lv_init();
-    CHECK_EQ(rasterizeAllIn(APP_ICON_DIR), 62);
+    CHECK_EQ(rasterizeAllIn(APP_ICON_DIR), 64);
     CHECK_EQ(rasterizeAllIn(FILE_ICON_DIR), 18);
     lv_deinit();
 }

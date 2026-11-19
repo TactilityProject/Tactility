@@ -6,6 +6,7 @@
 #include <app/scheduler.h>
 #include <app/start.h>
 
+#include <lvgl_window_manager/system_bars.h>
 #include <lvgl_window_manager/window_manager.h>
 
 #include <tactility/check.h>
@@ -70,28 +71,59 @@ lv_obj_t* createButton(Context* ctx, lv_obj_t* parent, const std::string& text, 
     return button;
 }
 
+/** Scrolls the message by most of its visible height, which is the page buttons' step */
+void scrollMessage(void* messageWrapper, int32_t direction) {
+    auto* wrapper = static_cast<lv_obj_t*>(messageWrapper);
+    const int32_t step = lv_obj_get_height(wrapper) * 4 / 5;
+    // A positive step moves the content down, which shows the text before it
+    lv_obj_scroll_by_bounded(wrapper, 0, direction * step, LV_ANIM_ON);
+}
+
+void onSystemPreviousPage(void* messageWrapper) { scrollMessage(messageWrapper, 1); }
+void onSystemNextPage(void* messageWrapper) { scrollMessage(messageWrapper, -1); }
+
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
     // argv layout: [0]=title, [1]=message, [2..argc)=button labels.
     int argc = ctx->argc;
     char** argv = ctx->argv;
 
-    lv_obj_t* toolbar = lvgl_toolbar_create(parent, argv[0]);
-    lv_obj_align(toolbar, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    lv_obj_t* message_label = lv_label_create(parent);
-    lv_obj_align(message_label, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_width(message_label, LV_PCT(80));
+    lvgl_toolbar_create(parent, argv[0]);
+
+    // The message scrolls when it doesn't fit. The spacers center a short message and collapse for a long one.
+    lv_obj_t* message_wrapper = lv_obj_create(parent);
+    lv_obj_set_width(message_wrapper, LV_PCT(100));
+    lv_obj_set_flex_grow(message_wrapper, 1);
+    lv_obj_set_flex_flow(message_wrapper, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(message_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scroll_dir(message_wrapper, LV_DIR_VER);
+    lv_obj_set_style_border_width(message_wrapper, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(message_wrapper, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+
+    lv_obj_t* top_spacer = lv_obj_create(message_wrapper);
+    lv_obj_set_size(top_spacer, 0, 0);
+    lv_obj_set_flex_grow(top_spacer, 1);
+    lv_obj_set_clickable(top_spacer, false);
+
+    lv_obj_t* message_label = lv_label_create(message_wrapper);
+    lv_obj_set_width(message_label, LV_PCT(90));
     lv_obj_set_style_text_align(message_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(message_label, argv[1]);
     lv_label_set_long_mode(message_label, LV_LABEL_LONG_WRAP);
+
+    lv_obj_t* bottom_spacer = lv_obj_create(message_wrapper);
+    lv_obj_set_size(bottom_spacer, 0, 0);
+    lv_obj_set_flex_grow(bottom_spacer, 1);
+    lv_obj_set_clickable(bottom_spacer, false);
 
     lv_obj_t* button_wrapper = lv_obj_create(parent);
     lv_obj_set_flex_flow(button_wrapper, LV_FLEX_FLOW_ROW);
     lv_obj_set_size(button_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_align(button_wrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_border_width(button_wrapper, 0, 0);
-    lv_obj_align(button_wrapper, LV_ALIGN_BOTTOM_MID, 0, -4);
     // Ensures showing selection state for keyboard/encoder devices
     lv_obj_set_style_pad_all(button_wrapper, 0, LV_ALIGN_DEFAULT);
     lv_obj_set_style_pad_column(button_wrapper, 12, LV_STATE_DEFAULT);
@@ -107,6 +139,13 @@ void createWidgets(lv_obj_t* parent, void* userData) {
 
     // The arrow keys move between the buttons as one row
     lvgl_grid_navigation_add(button_wrapper);
+
+    // A message that doesn't fit is scrolled with the page buttons of the system bars, for devices without touch
+    lv_obj_update_layout(parent);
+    if (lv_obj_get_scroll_top(message_wrapper) + lv_obj_get_scroll_bottom(message_wrapper) > 0) {
+        system_bars_set_page_button_callbacks(onSystemPreviousPage, onSystemNextPage, message_wrapper);
+        system_bars_set_page_buttons_visible(true);
+    }
 
     if (first_button != nullptr && !lvgl_indev_exists(LV_INDEV_TYPE_POINTER)) {
         lv_group_focus_obj(button_wrapper);

@@ -227,6 +227,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(memory_heap_free),
     DEFINE_MODULE_SYMBOL(memory_heap_total),
     DEFINE_MODULE_SYMBOL(memory_external_total),
+    DEFINE_MODULE_SYMBOL(memory_external_free),
     // drivers/gpio_controller
     DEFINE_MODULE_SYMBOL(gpio_descriptor_acquire),
     DEFINE_MODULE_SYMBOL(gpio_descriptor_release),
@@ -707,6 +708,7 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     // properties_file
     DEFINE_MODULE_SYMBOL(properties_file_open),
     DEFINE_MODULE_SYMBOL(properties_file_close),
+    DEFINE_MODULE_SYMBOL(properties_file_discard),
     DEFINE_MODULE_SYMBOL(properties_file_has),
     DEFINE_MODULE_SYMBOL(properties_file_get),
     DEFINE_MODULE_SYMBOL(properties_file_set),

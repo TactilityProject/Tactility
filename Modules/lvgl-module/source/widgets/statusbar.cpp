@@ -32,8 +32,9 @@ struct StatusbarIcon {
     char image[LVGL_STATUSBAR_IMAGE_MAX_LENGTH + 1] = {};
     bool visible = false;
     bool claimed = false;
-    // When the icon was added: the side strip drops the newest icons that don't fit
+    // When the icon was added: of the icons with one priority, the newest ones are dropped first when they don't fit
     uint32_t added_order = 0;
+    LvglStatusbarIconPriority priority = LVGL_STATUSBAR_ICON_PRIORITY_REGULAR;
 };
 
 struct Statusbar;
@@ -47,7 +48,7 @@ struct StatusbarData {
     bool time_set = false;
     bool time_format_24h = true;
     uint32_t next_added_order = 0;
-    void (*menu_callback)() = nullptr;
+    void (*menu_callback)(int32_t) = nullptr;
     // The created statusbars, which are updated when the icons or the time change
     Mutex instances_mutex {};
     Statusbar* instances = nullptr;
@@ -85,6 +86,8 @@ struct Statusbar {
     lv_obj_t* action_container;
     // The horizontal padding of the split layout
     int32_t split_pad_hor;
+    // False until a layout was applied once, as the first one is the split layout that the bar is created with
+    bool layout_applied;
     bool side;
     /** In the side layout, the strip is on the right of the screen instead of the left */
     bool side_right;
@@ -210,17 +213,17 @@ static void update_icon(lv_obj_t* image, const StatusbarIcon* icon) {
     }
 }
 
-static void show_menu() {
+static void show_menu(int32_t swipe_x) {
     recursive_mutex_lock(&statusbar_data().mutex);
     auto* callback = statusbar_data().menu_callback;
     recursive_mutex_unlock(&statusbar_data().mutex);
     if (callback != nullptr) {
-        callback();
+        callback(swipe_x);
     }
 }
 
 static void onIconRowClicked(lv_event_t* /*event*/) {
-    show_menu();
+    show_menu(-1);
 }
 
 static bool is_inside(lv_obj_t* obj, lv_obj_t* ancestor) {
@@ -254,18 +257,30 @@ static void onIconRowKey(lv_event_t* event) {
     }
 }
 
+// Where the latest press on a statusbar started, which a gesture is recognised after it moved
+static int32_t statusbar_press_x = 0;
+
+static void onStatusbarPressed(lv_event_t* /*event*/) {
+    lv_indev_t* indev = lv_indev_active();
+    if (indev != nullptr) {
+        lv_point_t point;
+        lv_indev_get_point(indev, &point);
+        statusbar_press_x = point.x;
+    }
+}
+
 static void onStatusbarGesture(lv_event_t* /*event*/) {
     lv_indev_t* indev = lv_indev_active();
     if (indev != nullptr && lv_indev_get_gesture_dir(indev) == LV_DIR_BOTTOM) {
         // The release must not click the pressed widget
         lv_indev_wait_release(indev);
-        show_menu();
+        show_menu(statusbar_press_x);
     }
 }
 
 extern "C" {
 
-void lvgl_statusbar_set_menu_callback(void (*callback)()) {
+void lvgl_statusbar_set_menu_callback(void (*callback)(int32_t swipe_x)) {
     recursive_mutex_lock(&statusbar_data().mutex);
     statusbar_data().menu_callback = callback;
     recursive_mutex_unlock(&statusbar_data().mutex);
@@ -363,6 +378,7 @@ lv_obj_t* lvgl_statusbar_create(lv_obj_t* parent) {
 
     // Swiping down from anywhere on the statusbar opens the system menu
     lv_obj_set_gesture_bubble(obj, false);
+    lv_obj_add_event_cb(obj, onStatusbarPressed, LV_EVENT_PRESSED, nullptr);
     lv_obj_add_event_cb(obj, onStatusbarGesture, LV_EVENT_GESTURE, nullptr);
     if (statusbar->action_container != nullptr) {
         lv_obj_add_event_cb(obj, onSideSizeChanged, LV_EVENT_SIZE_CHANGED, statusbar);
@@ -410,23 +426,10 @@ static void update_time(Statusbar* statusbar) {
     }
 }
 
-// In the side strip, the time and the action buttons always show. The icons get the height that's left, and the newest ones are hidden when they don't fit.
-// Call while holding statusbar_data().mutex, after update_icon() set the icons' visibility.
-static void apply_side_icon_limit(Statusbar* statusbar) {
-    if (!statusbar->side) {
-        return;
-    }
-    lv_obj_t* obj = &statusbar->obj;
-    const int32_t gap = lv_obj_get_style_pad_row(obj, LV_PART_MAIN);
-    // The time, the icons, the spacer and the actions are separated by 3 gaps, and the spacer is at least 1 pixel high
-    const int32_t taken = lv_obj_get_height(statusbar->time) + lv_obj_get_style_margin_bottom(statusbar->time, LV_PART_MAIN) +
-        lv_obj_get_height(statusbar->action_container) + 3 * gap + 1;
-    const int32_t available = lv_obj_get_content_height(obj) - taken;
-    const int32_t icon_size = static_cast<int32_t>(lvgl_get_statusbar_icon_font_height());
-    const int32_t icon_gap = lv_obj_get_style_pad_row(statusbar->icon_row, LV_PART_MAIN);
-    const int32_t fitting = available >= icon_size ? (available + icon_gap) / (icon_size + icon_gap) : 0;
-
-    // The shown icons, oldest first
+// Hides the icons that don't fit, which are the ones with the lowest priority, and the newest ones of those.
+// The icons keep their order. Call while holding statusbar_data().mutex, after update_icon() set the icons' visibility.
+static void hide_icons_beyond(Statusbar* statusbar, int fitting) {
+    // The shown icons, the ones that stay first
     int shown[STATUSBAR_ICON_LIMIT];
     int shown_count = 0;
     for (int i = 0; i < STATUSBAR_ICON_LIMIT; ++i) {
@@ -435,11 +438,48 @@ static void apply_side_icon_limit(Statusbar* statusbar) {
         }
     }
     std::sort(shown, shown + shown_count, [](int a, int b) {
-        return statusbar_data().icons[a].added_order < statusbar_data().icons[b].added_order;
+        const StatusbarIcon& first = statusbar_data().icons[a];
+        const StatusbarIcon& second = statusbar_data().icons[b];
+        if (first.priority != second.priority) {
+            return first.priority > second.priority;
+        }
+        return first.added_order < second.added_order;
     });
-    for (int i = static_cast<int>(fitting); i < shown_count; ++i) {
+    for (int i = std::max(fitting, 0); i < shown_count; ++i) {
         lv_obj_set_hidden(statusbar->icons[shown[i]], true);
     }
+}
+
+static int32_t count_fitting_icons(Statusbar* statusbar, int32_t available) {
+    const int32_t icon_size = static_cast<int32_t>(lvgl_get_statusbar_icon_font_height());
+    const int32_t icon_gap = lv_obj_get_style_pad_row(statusbar->icon_row, LV_PART_MAIN);
+    return available >= icon_size ? (available + icon_gap) / (icon_size + icon_gap) : 0;
+}
+
+// In the side strip, the time and the action buttons always show, as they are more important than the icons.
+// The icons get the height that's left.
+static void apply_side_icon_limit(Statusbar* statusbar) {
+    lv_obj_t* obj = &statusbar->obj;
+    const int32_t gap = lv_obj_get_style_pad_row(obj, LV_PART_MAIN);
+    // The time, the icons, the spacer and the actions are separated by 3 gaps, and the spacer is at least 1 pixel high
+    const int32_t taken = lv_obj_get_height(statusbar->time) + lv_obj_get_style_margin_bottom(statusbar->time, LV_PART_MAIN) +
+        lv_obj_get_height(statusbar->action_container) + 3 * gap + 1;
+    hide_icons_beyond(statusbar, static_cast<int>(count_fitting_icons(statusbar, lv_obj_get_content_height(obj) - taken)));
+}
+
+// In the top bar, the icons get the width that the time leaves
+static void apply_split_icon_limit(Statusbar* statusbar) {
+    lv_obj_t* obj = &statusbar->obj;
+    const int32_t gap = lv_obj_get_style_pad_column(obj, LV_PART_MAIN);
+    // The time, the spacer and the icons are separated by 2 gaps, and the spacer is at least 1 pixel wide
+    const int32_t taken = lv_obj_get_width(statusbar->time) + lv_obj_get_style_margin_left(statusbar->time, LV_PART_MAIN) + 2 * gap + 1 +
+        lv_obj_get_style_margin_right(statusbar->icon_row, LV_PART_MAIN) +
+        lv_obj_get_style_pad_left(statusbar->icon_row, LV_PART_MAIN) + lv_obj_get_style_pad_right(statusbar->icon_row, LV_PART_MAIN);
+    // The icons are in a row here, so the gap between them is the column gap
+    const int32_t icon_size = static_cast<int32_t>(lvgl_get_statusbar_icon_font_height());
+    const int32_t icon_gap = lv_obj_get_style_pad_column(statusbar->icon_row, LV_PART_MAIN);
+    const int32_t available = lv_obj_get_content_width(obj) - taken;
+    hide_icons_beyond(statusbar, available >= icon_size ? static_cast<int>((available + icon_gap) / (icon_size + icon_gap)) : 0);
 }
 
 static void update_icons(Statusbar* statusbar) {
@@ -447,21 +487,25 @@ static void update_icons(Statusbar* statusbar) {
         for (int i = 0; i < STATUSBAR_ICON_LIMIT; ++i) {
             update_icon(statusbar->icons[i], &(statusbar_data().icons[i]));
         }
-        apply_side_icon_limit(statusbar);
+        if (statusbar->side) {
+            apply_side_icon_limit(statusbar);
+        } else if (statusbar->action_container != nullptr) {
+            // Circular displays have no action container and show all icons
+            apply_split_icon_limit(statusbar);
+        }
         recursive_mutex_unlock(&statusbar_data().mutex);
     }
 }
 
-// The room for the icons changes with the strip's height and the actions that apps add
+// The room for the icons changes with the size of the bar and the actions that apps add
 static void onSideSizeChanged(lv_event_t* event) {
-    auto* statusbar = static_cast<Statusbar*>(lv_event_get_user_data(event));
-    if (statusbar->side) {
-        update_icons(statusbar);
-    }
+    update_icons(static_cast<Statusbar*>(lv_event_get_user_data(event)));
 }
 
 static void update_main(Statusbar* statusbar) {
     update_time(statusbar);
+    // The icon limit reads the size of the time, which only changes in a layout pass
+    lv_obj_update_layout(statusbar->time);
     update_icons(statusbar);
 }
 
@@ -495,6 +539,10 @@ static void copy_image(char* target, const char* image) {
 extern "C" {
 
 int8_t lvgl_statusbar_icon_add(const char* image, bool visible) {
+    return lvgl_statusbar_icon_add_with_priority(image, visible, LVGL_STATUSBAR_ICON_PRIORITY_REGULAR);
+}
+
+int8_t lvgl_statusbar_icon_add_with_priority(const char* image, bool visible, LvglStatusbarIconPriority priority) {
     recursive_mutex_lock(&statusbar_data().mutex);
     int8_t result = -1;
     for (int8_t i = 0; i < STATUSBAR_ICON_LIMIT; ++i) {
@@ -503,6 +551,7 @@ int8_t lvgl_statusbar_icon_add(const char* image, bool visible) {
             statusbar_data().icons[i].visible = visible;
             copy_image(statusbar_data().icons[i].image, image);
             statusbar_data().icons[i].added_order = statusbar_data().next_added_order++;
+            statusbar_data().icons[i].priority = priority;
             result = i;
             LOG_D(TAG, "id %d: added", (int)i);
             break;
@@ -606,6 +655,18 @@ static int32_t get_widest_time_width(const lv_font_t* font, int32_t letterSpace)
     return size.x;
 }
 
+// How far the selection ring of the icon row reaches outside of it
+static int32_t get_focus_ring_extent(lv_obj_t* icon_row) {
+    // The row can be focused already, which must stay so
+    const bool wasFocused = lv_obj_has_state(icon_row, LV_STATE_FOCUS_KEY);
+    lv_obj_add_state(icon_row, LV_STATE_FOCUS_KEY);
+    const int32_t extent = lv_obj_get_style_outline_width(icon_row, LV_PART_MAIN) + std::max<int32_t>(0, lv_obj_get_style_outline_pad(icon_row, LV_PART_MAIN));
+    if (!wasFocused) {
+        lv_obj_remove_state(icon_row, LV_STATE_FOCUS_KEY);
+    }
+    return extent;
+}
+
 extern "C" {
 
 void lvgl_statusbar_set_side_right(lv_obj_t* obj, bool right) {
@@ -615,9 +676,10 @@ void lvgl_statusbar_set_side_right(lv_obj_t* obj, bool right) {
 void lvgl_statusbar_set_side(lv_obj_t* obj, bool side) {
     auto* statusbar = reinterpret_cast<Statusbar*>(obj);
     // Circular displays only have room for the statusbar at the top
-    if (statusbar->action_container == nullptr || statusbar->side == side) {
+    if (statusbar->action_container == nullptr || (statusbar->layout_applied && statusbar->side == side)) {
         return;
     }
+    statusbar->layout_applied = true;
     statusbar->side = side;
 
     lv_obj_remove_local_style_prop(obj, LV_STYLE_BG_COLOR, LV_PART_MAIN);
@@ -630,6 +692,9 @@ void lvgl_statusbar_set_side(lv_obj_t* obj, bool side) {
         const int32_t time_width = get_widest_time_width(lvgl_get_text_font(FONT_SIZE_SMALL), lv_obj_get_style_text_letter_space(statusbar->time, LV_PART_MAIN));
         const int32_t content_width = std::max(get_action_button_width(statusbar->action_container), time_width);
         lv_obj_set_size(obj, content_width + 2 * 2, LV_PCT(100));
+        // As wide as the strip allows, with room left for the selection ring
+        lv_obj_set_width(statusbar->icon_row, std::max<int32_t>(content_width + 2 * 2 - 2 * get_focus_ring_extent(statusbar->icon_row), 1));
+        lv_obj_set_height(statusbar->icon_row, LV_SIZE_CONTENT);
         // Keeps the action buttons away from the screen's bottom edge. The compact layout has no room to spare.
         const uint8_t spacing = lvgl_theme_get_spacing();
         lv_obj_set_style_pad_top(obj, lvgl_theme_lerp(0, 4, spacing), LV_STATE_DEFAULT);
@@ -655,6 +720,9 @@ void lvgl_statusbar_set_side(lv_obj_t* obj, bool side) {
         lv_obj_set_hidden(statusbar->action_container, false);
     } else {
         lv_obj_set_size(obj, LV_PCT(100), lvgl_statusbar_get_height());
+        // As high as the bar allows, with room left for the selection ring
+        lv_obj_set_width(statusbar->icon_row, LV_SIZE_CONTENT);
+        lv_obj_set_height(statusbar->icon_row, std::max<int32_t>(lvgl_statusbar_get_height() - 2 * get_focus_ring_extent(statusbar->icon_row), 1));
         lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
         lv_obj_set_style_pad_hor(obj, statusbar->split_pad_hor, LV_STATE_DEFAULT);
         lv_obj_set_style_pad_ver(obj, 0, LV_STATE_DEFAULT);
@@ -670,7 +738,7 @@ void lvgl_statusbar_set_side(lv_obj_t* obj, bool side) {
         lv_obj_move_to_index(statusbar->icon_row, 2);
         lv_obj_set_hidden(statusbar->action_container, true);
     }
-    // The split layout shows all icons, the side strip only the ones that fit
+    // Both layouts only show the icons that fit
     update_icons(statusbar);
 }
 

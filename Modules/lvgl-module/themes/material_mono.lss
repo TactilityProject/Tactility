@@ -40,6 +40,7 @@
 @widget flex_list_text: lvgl_list_text_class;
 @widget flex_list_button: lvgl_list_button_class;
 @widget text_button: lvgl_text_button_class;
+@widget pathbar_button: lvgl_pathbar_button_class;
 
 // ============================================================
 // 1. Base tokens
@@ -109,11 +110,13 @@
 
 // Borders and indicators
 @border: @line-thin;
-@focus-width: ((@line-thin) + ((@line-medium) - (@line-thin)) * $size / 100);
+// The width of the selection outline of everything that can be selected: the launcher, the system bars and the widgets
+@selection-width: if($size / 40 == 0, 1dp, 2dp);
+@focus-width: @selection-width;
 @focus-offset: ((@line-thin) + ((@line-medium) - (@line-thin)) * $size / 100);
 @edit-width: ((@line-medium) + ((@line-thick) - (@line-medium)) * $size / 100);
 // Drawn inside the widget, for widgets with little room around them (icon buttons)
-@focus-inset-width: ((@line-thin) + ((@line-medium) - (@line-thin)) * $size / 100);
+@focus-inset-width: @selection-width;
 @focus-inverted-gap: ((1) + ((2dp) - (1)) * $size / 100);
 
 // Motion
@@ -511,6 +514,21 @@ text_button {
     radius: @button-shape;
     padHor: @button-pad-hor;
     padVer: @button-pad-ver;
+    padGap: @button-gap;
+    // Room for the focus ring, which the parent would clip
+    marginAll: @focus-width + @focus-offset;
+}
+
+// An outlined button with less padding to fit the toolbar of a path bar
+pathbar_button {
+    bgColor: @button-container-color;
+    bgOpa: cover;
+    textColor: @button-label-color;
+    borderColor: @button-border-color;
+    borderWidth: @button-border-width;
+    radius: @button-shape;
+    padHor: @button-pad-hor;
+    padVer: (@button-pad-ver * 3 / 4);
     padGap: @button-gap;
     // Room for the focus ring, which the parent would clip
     marginAll: @focus-width + @focus-offset;
@@ -1119,6 +1137,13 @@ apply(text_button) {
     disabled: state.disabled;
 }
 
+apply(pathbar_button) {
+    pathbar_button: default;
+    inverted: state.pressed;
+    focus_ring: state.focusKey;
+    disabled: state.disabled;
+}
+
 apply(button, msgbox_footer_button) {
     button: default;
     inverted: state.pressed;
@@ -1204,6 +1229,8 @@ apply(chip) {
 
 apply(card) {
     card: default;
+    // A card that is selected, e.g. a launcher tile, shows the selection outline of the theme
+    focus_ring: state.focusKey;
     scrollbar: part.scrollbar;
 }
 

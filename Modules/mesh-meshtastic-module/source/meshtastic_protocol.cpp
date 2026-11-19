@@ -232,6 +232,145 @@ bool meshtastic_crypt(const MeshtasticChannelKey& key, uint32_t packetId, uint32
     return ok && written + finished == length;
 }
 
+namespace {
+
+constexpr psa_algorithm_t PKI_AEAD_ALGORITHM = PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, 8);
+
+psa_key_id_t importPrivateKey(const uint8_t privateKey[MESHTASTIC_PUBLIC_KEY_SIZE]) {
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_MONTGOMERY));
+    psa_set_key_bits(&attributes, 255);
+    psa_set_key_algorithm(&attributes, PSA_ALG_ECDH);
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DERIVE | PSA_KEY_USAGE_EXPORT);
+    psa_key_id_t id = PSA_KEY_ID_NULL;
+    if (psa_import_key(&attributes, privateKey, MESHTASTIC_PUBLIC_KEY_SIZE, &id) != PSA_SUCCESS) {
+        return PSA_KEY_ID_NULL;
+    }
+    return id;
+}
+
+/** The AES-256 key: the SHA-256 of the X25519 shared secret, like Meshtastic derives it */
+bool deriveSharedKey(const uint8_t privateKey[MESHTASTIC_PUBLIC_KEY_SIZE], const uint8_t peerPublicKey[MESHTASTIC_PUBLIC_KEY_SIZE], uint8_t sharedKey[32]) {
+    psa_crypto_init();
+    const psa_key_id_t id = importPrivateKey(privateKey);
+    if (id == PSA_KEY_ID_NULL) {
+        return false;
+    }
+    uint8_t secret[32];
+    size_t secretLength = 0;
+    bool ok = psa_raw_key_agreement(PSA_ALG_ECDH, id, peerPublicKey, MESHTASTIC_PUBLIC_KEY_SIZE, secret, sizeof(secret), &secretLength) == PSA_SUCCESS && secretLength == sizeof(secret);
+    psa_destroy_key(id);
+    if (ok) {
+        size_t hashLength = 0;
+        ok = psa_hash_compute(PSA_ALG_SHA_256, secret, sizeof(secret), sharedKey, 32, &hashLength) == PSA_SUCCESS && hashLength == 32;
+    }
+    memset(secret, 0, sizeof(secret));
+    return ok;
+}
+
+/** 13 bytes: packet id (4), extra nonce (4), sender (4), 0. The extra nonce replaces the upper half of the 64-bit packet id. */
+void makePkiNonce(uint32_t packetId, uint32_t from, uint32_t extraNonce, uint8_t nonce[13]) {
+    memset(nonce, 0, 13);
+    for (int i = 0; i < 4; i++) {
+        nonce[i] = (uint8_t)(packetId >> (8 * i));
+        nonce[4 + i] = (uint8_t)(extraNonce >> (8 * i));
+        nonce[8 + i] = (uint8_t)(from >> (8 * i));
+    }
+}
+
+bool importAesKey(const uint8_t sharedKey[32], psa_key_usage_t usage, psa_key_id_t* id) {
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+    psa_set_key_algorithm(&attributes, PKI_AEAD_ALGORITHM);
+    psa_set_key_usage_flags(&attributes, usage);
+    return psa_import_key(&attributes, sharedKey, 32, id) == PSA_SUCCESS;
+}
+
+} // namespace
+
+bool meshtastic_generate_key_pair(MeshtasticKeyPair* keyPair) {
+    psa_crypto_init();
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_MONTGOMERY));
+    psa_set_key_bits(&attributes, 255);
+    psa_set_key_algorithm(&attributes, PSA_ALG_ECDH);
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DERIVE | PSA_KEY_USAGE_EXPORT);
+    psa_key_id_t id = PSA_KEY_ID_NULL;
+    if (psa_generate_key(&attributes, &id) != PSA_SUCCESS) {
+        return false;
+    }
+    size_t privateLength = 0;
+    size_t publicLength = 0;
+    const bool ok = psa_export_key(id, keyPair->privateKey, sizeof(keyPair->privateKey), &privateLength) == PSA_SUCCESS &&
+        privateLength == MESHTASTIC_PUBLIC_KEY_SIZE &&
+        psa_export_public_key(id, keyPair->publicKey, sizeof(keyPair->publicKey), &publicLength) == PSA_SUCCESS &&
+        publicLength == MESHTASTIC_PUBLIC_KEY_SIZE;
+    psa_destroy_key(id);
+    return ok;
+}
+
+bool meshtastic_public_key_from_private(const uint8_t privateKey[MESHTASTIC_PUBLIC_KEY_SIZE], uint8_t publicKey[MESHTASTIC_PUBLIC_KEY_SIZE]) {
+    psa_crypto_init();
+    const psa_key_id_t id = importPrivateKey(privateKey);
+    if (id == PSA_KEY_ID_NULL) {
+        return false;
+    }
+    size_t length = 0;
+    const bool ok = psa_export_public_key(id, publicKey, MESHTASTIC_PUBLIC_KEY_SIZE, &length) == PSA_SUCCESS && length == MESHTASTIC_PUBLIC_KEY_SIZE;
+    psa_destroy_key(id);
+    return ok;
+}
+
+bool meshtastic_pki_encrypt(const uint8_t privateKey[MESHTASTIC_PUBLIC_KEY_SIZE], const uint8_t peerPublicKey[MESHTASTIC_PUBLIC_KEY_SIZE], uint32_t packetId, uint32_t from, uint32_t extraNonce, const uint8_t* input, size_t length, uint8_t* output) {
+    uint8_t sharedKey[32];
+    if (extraNonce == 0 || !deriveSharedKey(privateKey, peerPublicKey, sharedKey)) {
+        return false;
+    }
+    psa_key_id_t id = PSA_KEY_ID_NULL;
+    const bool imported = importAesKey(sharedKey, PSA_KEY_USAGE_ENCRYPT, &id);
+    memset(sharedKey, 0, sizeof(sharedKey));
+    if (!imported) {
+        return false;
+    }
+    uint8_t nonce[13];
+    makePkiNonce(packetId, from, extraNonce, nonce);
+    // The output is the ciphertext followed by the 8-byte tag
+    size_t written = 0;
+    const bool ok = psa_aead_encrypt(id, PKI_AEAD_ALGORITHM, nonce, sizeof(nonce), nullptr, 0, input, length, output, length + 8, &written) == PSA_SUCCESS && written == length + 8;
+    psa_destroy_key(id);
+    if (ok) {
+        for (int i = 0; i < 4; i++) {
+            output[length + 8 + i] = (uint8_t)(extraNonce >> (8 * i));
+        }
+    }
+    return ok;
+}
+
+bool meshtastic_pki_decrypt(const uint8_t privateKey[MESHTASTIC_PUBLIC_KEY_SIZE], const uint8_t peerPublicKey[MESHTASTIC_PUBLIC_KEY_SIZE], uint32_t packetId, uint32_t from, const uint8_t* input, size_t length, uint8_t* output) {
+    if (length <= MESHTASTIC_PKI_OVERHEAD) {
+        return false;
+    }
+    const size_t payloadLength = length - MESHTASTIC_PKI_OVERHEAD;
+    const uint8_t* extra = input + payloadLength + 8;
+    const uint32_t extraNonce = extra[0] | (extra[1] << 8) | (extra[2] << 16) | ((uint32_t)extra[3] << 24);
+    uint8_t sharedKey[32];
+    if (!deriveSharedKey(privateKey, peerPublicKey, sharedKey)) {
+        return false;
+    }
+    psa_key_id_t id = PSA_KEY_ID_NULL;
+    const bool imported = importAesKey(sharedKey, PSA_KEY_USAGE_DECRYPT, &id);
+    memset(sharedKey, 0, sizeof(sharedKey));
+    if (!imported) {
+        return false;
+    }
+    uint8_t nonce[13];
+    makePkiNonce(packetId, from, extraNonce, nonce);
+    size_t written = 0;
+    const bool ok = psa_aead_decrypt(id, PKI_AEAD_ALGORITHM, nonce, sizeof(nonce), nullptr, 0, input, payloadLength + 8, output, payloadLength, &written) == PSA_SUCCESS && written == payloadLength;
+    psa_destroy_key(id);
+    return ok;
+}
+
 tt::std::vector<uint8_t> meshtastic_encode_data(const MeshtasticData& data) {
     tt::std::vector<uint8_t> out;
     writeTag(out, 1, WIRE_VARINT);
@@ -287,6 +426,9 @@ tt::std::vector<uint8_t> meshtastic_encode_user(const MeshtasticUser& user) {
     // hw_model PRIVATE_HW
     writeTag(out, 5, WIRE_VARINT);
     writeVarint(out, 255);
+    if (user.publicKey.size() == MESHTASTIC_PUBLIC_KEY_SIZE) {
+        writeBytes(out, 8, user.publicKey.data(), user.publicKey.size());
+    }
     return out;
 }
 
@@ -307,6 +449,11 @@ bool meshtastic_decode_user(const uint8_t* bytes, size_t length, MeshtasticUser*
             if (field == 1) user->id = value;
             else if (field == 2) user->longName = value;
             else user->shortName = value;
+        } else if (field == 8 && wireType == WIRE_LENGTH_DELIMITED) {
+            if (!reader.readBytes(&fieldBytes, &fieldLength)) return false;
+            if (fieldLength == MESHTASTIC_PUBLIC_KEY_SIZE) {
+                user->publicKey.assign(fieldBytes, fieldBytes + fieldLength);
+            }
         } else if (!reader.skip(wireType)) {
             return false;
         }

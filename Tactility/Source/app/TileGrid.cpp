@@ -270,8 +270,26 @@ void TileGrid::onTileStateChanged(lv_event_t* e) {
     lv_obj_add_state(frame, static_cast<lv_state_t>(MIRRORED & state));
 }
 
+void TileGrid::onTilePressed(lv_event_t* e) {
+    auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    lv_indev_t* indev = lv_indev_active();
+    if (indev != nullptr && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+        lv_indev_get_point(indev, &self->pressPoint);
+    }
+}
+
 void TileGrid::onTileClicked(lv_event_t* e) {
     const auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    // A pointer that moved before it was released swiped. A swipe that isn't recognized as a gesture would still click.
+    lv_indev_t* indev = lv_indev_active();
+    if (indev != nullptr && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+        lv_point_t point;
+        lv_indev_get_point(indev, &point);
+        const int32_t limit = LV_DPX(10);
+        if (LV_ABS(point.x - self->pressPoint.x) > limit || LV_ABS(point.y - self->pressPoint.y) > limit) {
+            return;
+        }
+    }
     self->callbacks.onClicked(*getTileItem(e), self->callbacks.userData);
 }
 
@@ -451,22 +469,11 @@ void TileGrid::populate() {
         lv_obj_set_style_radius(frame, layout.iconSize * 22 / 96 + layout.framePad, LV_STATE_DEFAULT);
         // Grid navigation only removes direct children from the input group, and the tile is the focus target
         lv_group_remove_obj(frame);
-        // The focus ring of the theme, 1dp thicker. The ring is drawn inside the frame.
-        lv_obj_add_state(frame, LV_STATE_FOCUS_KEY);
-        const auto ring_width = lv_obj_get_style_outline_width(frame, LV_PART_MAIN) + LV_DPX(1);
-        const auto ring_color = lv_obj_get_style_outline_color(frame, LV_PART_MAIN);
-        lv_obj_remove_state(frame, LV_STATE_FOCUS_KEY);
-        lv_obj_set_style_outline_width(frame, ring_width, LV_STATE_FOCUS_KEY);
-        lv_obj_set_style_outline_pad(frame, -ring_width, LV_STATE_FOCUS_KEY);
         lv_obj_set_clickable(frame, false);
         lv_obj_set_click_focusable(frame, false);
         lv_obj_set_scrollable(frame, false);
         if (card) {
-            lv_obj_set_style_outline_color(tile, ring_color, LV_STATE_FOCUS_KEY);
-            lv_obj_set_style_outline_opa(tile, LV_OPA_COVER, LV_STATE_FOCUS_KEY);
-            lv_obj_set_style_outline_width(tile, ring_width, LV_STATE_FOCUS_KEY);
-            // Outside of the card, with the same offset as the theme's focus ring
-            lv_obj_set_style_outline_pad(tile, lvgl_theme_lerp(1, LV_DPX(2), lvgl_theme_get_size()), LV_STATE_FOCUS_KEY);
+            // The selection outline comes from the theme, like the one of the icon frame
             lv_obj_set_style_bg_color(tile, lv_color_mix(lv_obj_get_style_text_color(tile, LV_PART_MAIN), lv_obj_get_style_bg_color(tile, LV_PART_MAIN), LV_OPA_20), LV_STATE_PRESSED);
         } else {
             lv_obj_add_event_cb(tile, onTileStateChanged, LV_EVENT_STATE_CHANGED, frame);
@@ -532,6 +539,7 @@ void TileGrid::populate() {
         lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
         lv_label_set_text(label, item.name.c_str());
 
+        lv_obj_add_event_cb(tile, onTilePressed, LV_EVENT_PRESSED, this);
         lv_obj_add_event_cb(tile, onTileClicked, LV_EVENT_SHORT_CLICKED, this);
         if (callbacks.onLongPressed != nullptr) {
             lv_obj_add_event_cb(tile, onTileLongPressed, LV_EVENT_LONG_PRESSED, this);

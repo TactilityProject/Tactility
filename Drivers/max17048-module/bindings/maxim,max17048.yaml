@@ -1,0 +1,11 @@
+description: >
+  Maxim MAX17048 ModelGauge battery fuel gauge for one lithium cell. Creates a "power-supply" child device
+  (see drivers/max17048.h) exposing the battery voltage and charge level. Whether the battery is charging is
+  derived from the sign of the charge/discharge rate register. The chip doesn't measure current, and charge
+  control and power-off are not available from it.
+
+include: ["i2c-device.yaml"]
+
+compatible: "maxim,max17048"
+
+bus: i2c

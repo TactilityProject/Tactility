@@ -25,6 +25,7 @@ extern const lv_obj_class_t lvgl_list_class;
 extern const lv_obj_class_t lvgl_list_text_class;
 extern const lv_obj_class_t lvgl_list_button_class;
 extern const lv_obj_class_t lvgl_text_button_class;
+extern const lv_obj_class_t lvgl_pathbar_button_class;
 
 #define BLACK lv_color_black()
 #define WHITE lv_color_white()
@@ -69,10 +70,11 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define DENSITY_DIALOG_PAD (2 + (((SPACE_6 - 2) * theme->config.spacing) / 100))
 #define DENSITY_KEY_GAP (1 + (((SPACE_1 - 1) * theme->config.spacing) / 100))
 #define BORDER LINE_THIN
-#define FOCUS_WIDTH (LINE_THIN + (((LINE_MEDIUM - LINE_THIN) * theme->config.size) / 100))
+#define SELECTION_WIDTH ((theme->config.size / 40) == 0 ? LV_DPX_CALC(theme->disp_dpi, 1) : LV_DPX_CALC(theme->disp_dpi, 2))
+#define FOCUS_WIDTH SELECTION_WIDTH
 #define FOCUS_OFFSET (LINE_THIN + (((LINE_MEDIUM - LINE_THIN) * theme->config.size) / 100))
 #define EDIT_WIDTH (LINE_MEDIUM + (((LINE_THICK - LINE_MEDIUM) * theme->config.size) / 100))
-#define FOCUS_INSET_WIDTH (LINE_THIN + (((LINE_MEDIUM - LINE_THIN) * theme->config.size) / 100))
+#define FOCUS_INSET_WIDTH SELECTION_WIDTH
 #define FOCUS_INVERTED_GAP (1 + (((LV_DPX_CALC(theme->disp_dpi, 2) - 1) * theme->config.size) / 100))
 #define MOTION_DURATION_SHORT (theme->config.animations_enabled ? DURATION_SHORT : 0)
 #define MOTION_DURATION_MEDIUM (theme->config.animations_enabled ? DURATION_MEDIUM : 0)
@@ -250,6 +252,7 @@ typedef struct {
     lv_style_t button;
 #endif
     lv_style_t text_button;
+    lv_style_t pathbar_button;
     lv_style_t icon_button;
     lv_style_t icon_button_filled;
     lv_style_t icon_button_filled_pressed;
@@ -657,6 +660,18 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_ver(&theme->styles.text_button, BUTTON_PAD_VER);
     lv_style_set_pad_gap(&theme->styles.text_button, BUTTON_GAP);
     lv_style_set_margin_all(&theme->styles.text_button, FOCUS_WIDTH + FOCUS_OFFSET);
+
+    style_init_reset(&theme->styles.pathbar_button);
+    lv_style_set_bg_color(&theme->styles.pathbar_button, BUTTON_CONTAINER_COLOR);
+    lv_style_set_bg_opa(&theme->styles.pathbar_button, LV_OPA_COVER);
+    lv_style_set_text_color(&theme->styles.pathbar_button, BUTTON_LABEL_COLOR);
+    lv_style_set_border_color(&theme->styles.pathbar_button, BUTTON_BORDER_COLOR);
+    lv_style_set_border_width(&theme->styles.pathbar_button, BUTTON_BORDER_WIDTH);
+    lv_style_set_radius(&theme->styles.pathbar_button, BUTTON_SHAPE);
+    lv_style_set_pad_hor(&theme->styles.pathbar_button, BUTTON_PAD_HOR);
+    lv_style_set_pad_ver(&theme->styles.pathbar_button, (BUTTON_PAD_VER * 3) / 4);
+    lv_style_set_pad_gap(&theme->styles.pathbar_button, BUTTON_GAP);
+    lv_style_set_margin_all(&theme->styles.pathbar_button, FOCUS_WIDTH + FOCUS_OFFSET);
 
     style_init_reset(&theme->styles.icon_button);
     lv_style_set_bg_opa(&theme->styles.icon_button, LV_OPA_TRANSP);
@@ -1472,6 +1487,14 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
         lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
         return;
     }
+    if(lv_obj_check_type(obj, &lvgl_pathbar_button_class)) {
+        /* pathbar_button */
+        lv_obj_add_style(obj, &theme->styles.pathbar_button, 0);
+        lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
+        return;
+    }
 #if LV_USE_MSGBOX
     if(lv_obj_check_type(obj, &lv_msgbox_footer_button_class)) {
         /* msgbox_footer_button */
@@ -1581,6 +1604,7 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
     if(lv_obj_check_type(obj, &lvgl_card_class)) {
         /* card */
         lv_obj_add_style(obj, &theme->styles.card, 0);
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
         lv_obj_add_style(obj, &theme->styles.scrollbar, LV_PART_SCROLLBAR);
         return;
     }
