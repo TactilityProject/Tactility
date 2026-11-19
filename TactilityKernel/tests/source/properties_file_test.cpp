@@ -257,3 +257,26 @@ TEST_CASE("properties_file_for_each visits every key exactly once") {
 
     properties_file_close(file);
 }
+
+TEST_CASE("properties_file_discard releases the file without writing what was read back") {
+    ScratchFile scratch;
+    write_raw(TEST_PATH, "a=1\n");
+
+    PropertiesFile* reader = properties_file_open(TEST_PATH);
+    REQUIRE(reader != nullptr);
+
+    // Another writer changes the file while the first one only reads
+    PropertiesFile* writer = properties_file_open(TEST_PATH);
+    REQUIRE(writer != nullptr);
+    properties_file_set(writer, "a", "2");
+    REQUIRE_EQ(properties_file_close(writer), ERROR_NONE);
+
+    properties_file_discard(reader);
+
+    PropertiesFile* check = properties_file_open(TEST_PATH);
+    REQUIRE(check != nullptr);
+    char value[8];
+    REQUIRE_EQ(properties_file_get(check, "a", value, sizeof(value)), ERROR_NONE);
+    CHECK_EQ(std::string(value), "2");
+    properties_file_discard(check);
+}

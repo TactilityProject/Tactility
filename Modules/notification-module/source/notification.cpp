@@ -567,10 +567,13 @@ error_t notification_set_source_enabled(NotificationSourceType type, const char*
         unlock();
         return ERROR_NOT_FOUND;
     }
-    if (source->enabled == enabled) {
+    // Enabling a sender that is enabled does nothing. Disabling one that is disabled already still waits for its actions
+    // and removes its notifications, as another task can be in the middle of that and the sender may free its data after this.
+    if (source->enabled && enabled) {
         unlock();
         return ERROR_NONE;
     }
+    const bool changed = source->enabled != enabled;
     source->enabled = enabled;
     if (!enabled) {
         // The lock is released while waiting, and the module can stop meanwhile
@@ -593,7 +596,9 @@ error_t notification_set_source_enabled(NotificationSourceType type, const char*
             }
         }
     }
-    queueSave();
+    if (changed) {
+        queueSave();
+    }
     unlock();
     return ERROR_NONE;
 }

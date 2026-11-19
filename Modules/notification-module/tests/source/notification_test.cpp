@@ -693,3 +693,32 @@ TEST_CASE("event order increases with every event") {
     CHECK_EQ(notification_unsubscribe(&sub), ERROR_NONE);
     task_event_group_destruct(&group);
 }
+
+TEST_CASE("disabling a sender again still succeeds, and enabling an enabled one does nothing") {
+    ModuleFixture fixture;
+    const std::string id = uniqueId("twice");
+    NotificationContext context = notification_context_for_app(id.c_str(), "hello");
+    uint32_t notificationId = 0;
+    REQUIRE_EQ(notification_send(&context, &notificationId), ERROR_NONE);
+
+    CHECK_EQ(notification_set_source_enabled(NOTIFICATION_SOURCE_APP, id.c_str(), true), ERROR_NONE);
+    CHECK_EQ(notification_get_count(), 1);
+
+    CHECK_EQ(notification_set_source_enabled(NOTIFICATION_SOURCE_APP, id.c_str(), false), ERROR_NONE);
+    CHECK_EQ(notification_get_count(), 0);
+    // Another disable, as a second task can do, still completes
+    CHECK_EQ(notification_set_source_enabled(NOTIFICATION_SOURCE_APP, id.c_str(), false), ERROR_NONE);
+
+    // A disabled sender is refused and keeps its Bundle, and the history is left alone
+    const uint32_t other = send("other");
+    NotificationContext refused = notification_context_for_app(id.c_str(), "refused");
+    notification_context_get_data(&refused);
+    CHECK_EQ(notification_send(&refused, nullptr), ERROR_NOT_ALLOWED);
+    CHECK_NE(refused.data, nullptr);
+    notification_context_destroy(&refused);
+    CHECK_EQ(notification_get_count(), 1);
+    Notification notification {};
+    REQUIRE_EQ(notification_get(other, &notification), ERROR_NONE);
+    notification_release(&notification);
+}
+
