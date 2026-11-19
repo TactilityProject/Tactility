@@ -148,7 +148,7 @@ static uint16_t gdep103tc2_display_get_resolution_y(Device* device) {
 // endregion
 
 static constexpr DisplayApi gdep103tc2_display_api = {
-    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH | DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM,
+    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH,
     .reset = gdep103tc2_display_reset,
     .init = gdep103tc2_display_init,
     .draw_bitmap = gdep103tc2_display_draw_bitmap,

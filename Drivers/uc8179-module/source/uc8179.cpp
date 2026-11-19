@@ -541,7 +541,7 @@ static uint16_t uc8179_get_resolution_y(Device* device) {
 
 static const DisplayApi uc8179_display_api = {
     // draw_bitmap() converts into its own target buffer and never DMAs from the given pointer
-    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH | DISPLAY_CAPABILITY_PREFER_EXTERNAL_RAM,
+    .capabilities = DISPLAY_CAPABILITY_ON_OFF | DISPLAY_CAPABILITY_SLOW_REFRESH,
     .reset = uc8179_reset,
     .init = uc8179_init,
     .draw_bitmap = uc8179_draw_bitmap,
