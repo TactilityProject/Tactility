@@ -1180,6 +1180,7 @@ const MeshBackendApi meshcore_backend_api = {
     .send_advert = sendAdvertOnRequest,
     .on_frame_done = onFrameDone,
     .cancel_send = cancelSend,
+    .on_contact_removed = nullptr,
     .set_contact_path = setContactPath,
     .get_contact_path = getContactPath,
     .reset_contact_path = resetContactPath,

@@ -953,5 +953,8 @@ const MeshBackendApi meshtastic_backend_api = {
     .on_frame_done = nullptr,
     .cancel_send = nullptr,
     .on_contact_removed = onContactRemoved,
+    .set_contact_path = nullptr,
+    .get_contact_path = nullptr,
+    .reset_contact_path = nullptr,
     .features = MESH_FEATURE_KEYED_CHANNELS,
 };
