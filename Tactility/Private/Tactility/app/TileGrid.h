@@ -137,6 +137,8 @@ public:
     lv_obj_t* findTile(const std::string& id) const;
 
 private:
+    /** Where the pointer was pressed on a tile, which tells a tap from a swipe when it is released */
+    lv_point_t pressPoint = {};
 
     Callbacks callbacks;
     std::vector<TileGridItem> items;
@@ -175,6 +177,7 @@ private:
     static void onSystemNextPage(void* userData);
     static void onGridGesture(lv_event_t* e);
     static void onTileStateChanged(lv_event_t* e);
+    static void onTilePressed(lv_event_t* e);
     static void onTileClicked(lv_event_t* e);
     static void onTileLongPressed(lv_event_t* e);
     static void onTileKey(lv_event_t* e);

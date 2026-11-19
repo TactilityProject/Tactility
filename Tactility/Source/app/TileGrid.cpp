@@ -270,8 +270,26 @@ void TileGrid::onTileStateChanged(lv_event_t* e) {
     lv_obj_add_state(frame, static_cast<lv_state_t>(MIRRORED & state));
 }
 
+void TileGrid::onTilePressed(lv_event_t* e) {
+    auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    lv_indev_t* indev = lv_indev_active();
+    if (indev != nullptr && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+        lv_indev_get_point(indev, &self->pressPoint);
+    }
+}
+
 void TileGrid::onTileClicked(lv_event_t* e) {
     const auto* self = static_cast<TileGrid*>(lv_event_get_user_data(e));
+    // A pointer that moved before it was released swiped. A swipe that isn't recognized as a gesture would still click.
+    lv_indev_t* indev = lv_indev_active();
+    if (indev != nullptr && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+        lv_point_t point;
+        lv_indev_get_point(indev, &point);
+        const int32_t limit = LV_DPX(10);
+        if (LV_ABS(point.x - self->pressPoint.x) > limit || LV_ABS(point.y - self->pressPoint.y) > limit) {
+            return;
+        }
+    }
     self->callbacks.onClicked(*getTileItem(e), self->callbacks.userData);
 }
 
@@ -521,6 +539,7 @@ void TileGrid::populate() {
         lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
         lv_label_set_text(label, item.name.c_str());
 
+        lv_obj_add_event_cb(tile, onTilePressed, LV_EVENT_PRESSED, this);
         lv_obj_add_event_cb(tile, onTileClicked, LV_EVENT_SHORT_CLICKED, this);
         if (callbacks.onLongPressed != nullptr) {
             lv_obj_add_event_cb(tile, onTileLongPressed, LV_EVENT_LONG_PRESSED, this);
