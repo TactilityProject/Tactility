@@ -1,0 +1,43 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr-FR\n"
+
+msgid "Standby"
+msgstr "Veille"
+
+msgid "Keep awake"
+msgstr "Garder actif"
+
+msgid "Wake on"
+msgstr "Réveil par"
+
+msgid "Standby now"
+msgstr "Mettre en veille"
+
+msgid "Standby..."
+msgstr "Veille..."
+
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Mesh"
+msgstr "Mesh"
+
+msgid "Keyboard"
+msgstr "Clavier"
+
+msgid "Touch"
+msgstr "Tactile"
+
+msgid "Encoder"
+msgstr "Encodeur"
+
+msgid "Button"
+msgstr "Bouton"
+
+msgid "Display"
+msgstr "Écran"

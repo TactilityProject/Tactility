@@ -178,6 +178,8 @@ shared_symbol_code_point_names = [
     "palette",
     "person_remove", # Mesh: remove a contact or leave a channel
     "power_settings_new", # Power off for T-Lora Pager
+    "bedtime", # System menu: sleep
+    "mode_standby", # System menu: suspend
     "refresh", # e.g. App Hub reload button
     "search",
     "select_window_2", # System Info

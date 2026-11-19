@@ -17,6 +17,7 @@
 #include <tactility/drivers/bluetooth_serial.h>
 #include <tactility/drivers/camera.h>
 #include <tactility/drivers/compass.h>
+#include <tactility/drivers/button.h>
 #include <tactility/drivers/display.h>
 #include <tactility/drivers/gpio_controller.h>
 #include <tactility/drivers/grove.h>
@@ -300,6 +301,15 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(imu_read_gyro),
     DEFINE_MODULE_SYMBOL(imu_read_temperature),
     DEFINE_MODULE_SYMBOL(IMU_TYPE),
+    // drivers/button
+    DEFINE_MODULE_SYMBOL(button_emit_event),
+    DEFINE_MODULE_SYMBOL(button_is_pressed),
+    DEFINE_MODULE_SYMBOL(button_subscribe),
+    DEFINE_MODULE_SYMBOL(button_unsubscribe),
+    DEFINE_MODULE_SYMBOL(button_poll),
+    DEFINE_MODULE_SYMBOL(button_callback_add),
+    DEFINE_MODULE_SYMBOL(button_callback_remove),
+    DEFINE_MODULE_SYMBOL(BUTTON_TYPE),
     // drivers/keyboard
     DEFINE_MODULE_SYMBOL(keyboard_read_key),
     DEFINE_MODULE_SYMBOL(KEYBOARD_TYPE),

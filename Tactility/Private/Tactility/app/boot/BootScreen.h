@@ -34,6 +34,9 @@ class BootScreen {
     int bandHeight = 0;
     /** Monospace font, loaded on the first show() with text */
     BinFont* textFont = nullptr;
+    /** Where the content is placed in the free space: 0 is the left or top edge, 0.5 is centered, 1 is the right or bottom edge */
+    float anchorX = 0.5f;
+    float anchorY = 0.5f;
 
     int logicalWidth() const { return (rotation % 2 == 0) ? panelWidth : panelHeight; }
     int logicalHeight() const { return (rotation % 2 == 0) ? panelHeight : panelWidth; }
@@ -47,6 +50,9 @@ class BootScreen {
 public:
 
     ~BootScreen();
+
+    /** Sets where the content of the next show() calls is placed. The default is centered, 0.5 for both. */
+    void setAnchor(float x, float y) { anchorX = x; anchorY = y; }
 
     /** @return false when there is no usable display */
     bool begin();

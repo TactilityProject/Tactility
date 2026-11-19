@@ -1,0 +1,43 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Standby"
+msgstr "Stand-by"
+
+msgid "Keep awake"
+msgstr "Actief houden"
+
+msgid "Wake on"
+msgstr "Ontwaken door"
+
+msgid "Standby now"
+msgstr "Nu stand-by"
+
+msgid "Standby..."
+msgstr "Stand-by..."
+
+msgid "Wi-Fi"
+msgstr "Wifi"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Mesh"
+msgstr "Mesh"
+
+msgid "Keyboard"
+msgstr "Toetsenbord"
+
+msgid "Touch"
+msgstr "Touch"
+
+msgid "Encoder"
+msgstr "Draaiknop"
+
+msgid "Button"
+msgstr "Knop"
+
+msgid "Display"
+msgstr "Scherm"

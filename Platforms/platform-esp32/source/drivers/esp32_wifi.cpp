@@ -181,6 +181,10 @@ void on_wifi_or_ip_event(void* arg, esp_event_base_t event_base, int32_t event_i
     }
 
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        if (event_data != nullptr) {
+            const auto* disconnected = static_cast<wifi_event_sta_disconnected_t*>(event_data);
+            LOG_W(TAG, "Disconnected from '%.*s', reason %d", static_cast<int>(disconnected->ssid_len), disconnected->ssid, static_cast<int>(disconnected->reason));
+        }
         mutex_lock(&ctx->mutex);
         bool was_pending = ctx->stationState == WIFI_STATION_STATE_CONNECTION_PENDING;
         ctx->stationState = WIFI_STATION_STATE_DISCONNECTED;
@@ -201,6 +205,11 @@ void on_wifi_or_ip_event(void* arg, esp_event_base_t event_base, int32_t event_i
                 .device = ctx->device
             };
             system_event_emit(KERNEL_EVENT_NETWORK_DISCONNECTED, &disconnected_event, sizeof(disconnected_event));
+        }
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
+        if (event_data != nullptr) {
+            const auto* connected = static_cast<wifi_event_sta_connected_t*>(event_data);
+            LOG_I(TAG, "Associated with '%.*s' on channel %d, auth mode %d", static_cast<int>(connected->ssid_len), connected->ssid, static_cast<int>(connected->channel), static_cast<int>(connected->authmode));
         }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         auto* got_ip = static_cast<ip_event_got_ip_t*>(event_data);

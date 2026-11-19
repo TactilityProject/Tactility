@@ -11,6 +11,7 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_usbdevice.h>
+#include <tactility/bindings/gpio_button.h>
 #include <tactility/bindings/gpio_hog.h>
 #include <tactility/bindings/pwm_backlight.h>
 
@@ -171,6 +172,15 @@
 		pin-enter = <&gpio0 0 GPIO_FLAG_NONE>;
 		pulses-per-detent = <2>;
 		pending-capacity = <8>;
+	};
+
+	// The side button shows the power options.
+	// It does NOT wake up the device from deep sleep like the regular 	tembed-cc1101.
+	// We keep the power button functionality for consistency.
+	button {
+		compatible = "gpio-button";
+		pin = <&gpio0 6 GPIO_FLAG_NONE>; // Not WAKEUP_BUTTON_FLAGS like regular tembed-cc1101
+		short-press-code = <BUTTON_KEY_POWER>;
 	};
 
 	usbdevice0 {
