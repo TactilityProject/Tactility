@@ -150,6 +150,8 @@ class StatusbarService final : public Service {
     int8_t gps_icon_id;
     const char* gps_last_icon = nullptr;
     bool notification_last_state = false;
+    /** False until the button was set once, as it can still be visible from before LVGL restarted */
+    bool notification_state_known = false;
     int8_t mesh_icon_id;
     bool mesh_last_state = false;
     int8_t bt_icon_id;
@@ -195,11 +197,12 @@ class StatusbarService final : public Service {
         }
     }
 
-    /** Only a new notification counts, not an update of one, and not one that arrives while the user is looking at the list */
+    /** A new notification counts, and so does an update that renotifies, but not one that arrives while the user is looking at the list */
     void updateNotificationUnread() {
         NotificationEvent event {};
         while (notificationSubscribed && notification_poll(&notificationSubscription, &event) == ERROR_NONE) {
-            if (event.type == NOTIFICATION_EVENT_POSTED && !lvgl::systemMenuNotificationsSeenSince(event.timestamp)) {
+            const bool arrived = event.type == NOTIFICATION_EVENT_POSTED || (event.type == NOTIFICATION_EVENT_UPDATED && event.bumped);
+            if (arrived && !lvgl::systemMenuNotificationsSeenSince(event.order)) {
                 system_bars_set_notification_unread(true);
             }
         }
@@ -209,9 +212,10 @@ class StatusbarService final : public Service {
         updateNotificationUnread();
         // The button of the system bars is shown while there is at least one notification
         const bool present = notification_get_count() > 0;
-        if (present != notification_last_state) {
+        if (!notification_state_known || present != notification_last_state) {
             system_bars_set_notification_visible(present);
             notification_last_state = present;
+            notification_state_known = true;
         }
     }
 

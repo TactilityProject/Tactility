@@ -7,8 +7,8 @@
 #include <tactility/drivers/i2c_controller.h>
 #include <tactility/drivers/power_supply.h>
 #include <tactility/log.h>
+#include <tactility/Memory.hpp>
 
-#include <new>
 
 #define TAG "MAX17048"
 #define GET_CONFIG(device) (static_cast<const Max17048Config*>((device)->config))
@@ -120,14 +120,15 @@ struct Max17048Internal {
 };
 
 static error_t create_power_supply_child(Device* parent, Device*& out_child) {
-    auto* child = new (std::nothrow) Device { .address = 0, .name = "max17048-power-supply", .config = nullptr, .parent = nullptr, .flags = 0, .internal = nullptr };
+    auto* child = tt::newObject<Device>();
     if (child == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
+    *child = Device { .address = 0, .name = "max17048-power-supply", .config = nullptr, .parent = nullptr, .flags = 0, .internal = nullptr };
 
     error_t error = device_construct(child);
     if (error != ERROR_NONE) {
-        delete child;
+        tt::deleteObject(child);
         return error;
     }
 
@@ -137,7 +138,7 @@ static error_t create_power_supply_child(Device* parent, Device*& out_child) {
     error = device_add(child);
     if (error != ERROR_NONE) {
         device_destruct(child);
-        delete child;
+        tt::deleteObject(child);
         return error;
     }
 
@@ -145,7 +146,7 @@ static error_t create_power_supply_child(Device* parent, Device*& out_child) {
     if (error != ERROR_NONE) {
         device_remove(child);
         device_destruct(child);
-        delete child;
+        tt::deleteObject(child);
         return error;
     }
 
@@ -154,24 +155,30 @@ static error_t create_power_supply_child(Device* parent, Device*& out_child) {
 }
 
 static void destroy_power_supply_child(Device* child) {
-    check(device_stop(child) == ERROR_NONE);
-    check(device_remove(child) == ERROR_NONE);
-    check(device_destruct(child) == ERROR_NONE);
-    delete child;
+    if (device_stop(child) != ERROR_NONE || device_remove(child) != ERROR_NONE) {
+        LOG_E(TAG, "Failed to stop the power supply device");
+        return;
+    }
+    // A client can still hold a reference, in which case the device can't be destructed and must stay allocated
+    if (device_destruct(child) != ERROR_NONE) {
+        LOG_E(TAG, "The power supply device is still in use, so it stays allocated");
+        return;
+    }
+    tt::deleteObject(child);
 }
 
 static error_t start(Device* device) {
     auto* parent = device_get_parent(device);
     check(device_get_type(parent) == &I2C_CONTROLLER_TYPE);
 
-    auto* internal = new (std::nothrow) Max17048Internal();
+    auto* internal = tt::newObject<Max17048Internal>();
     if (internal == nullptr) {
         return ERROR_OUT_OF_MEMORY;
     }
 
     error_t error = create_power_supply_child(device, internal->power_supply_device);
     if (error != ERROR_NONE) {
-        delete internal;
+        tt::deleteObject(internal);
         return error;
     }
 
@@ -183,7 +190,7 @@ static error_t stop(Device* device) {
     auto* internal = static_cast<Max17048Internal*>(device_get_driver_data(device));
     destroy_power_supply_child(internal->power_supply_device);
     device_set_driver_data(device, nullptr);
-    delete internal;
+    tt::deleteObject(internal);
     return ERROR_NONE;
 }
 

@@ -19,11 +19,11 @@ void systemMenuShow(int32_t swipeX);
 void systemMenuShowNotifications();
 
 /**
- * @param[in] uptimeMs a time in milliseconds since boot
- * @return true when the notifications of the menu are open, or were opened or closed at or after that time,
- * which means that the user had the chance to see what arrived at that time
+ * @param[in] eventOrder the order of a notification event, see NotificationEvent
+ * @return true when the notifications of the menu are open, or were opened or closed after that event, which means that
+ * the user had the chance to see what it reported
  * @warning Caller must hold the LVGL lock.
  */
-bool systemMenuNotificationsSeenSince(uint64_t uptimeMs);
+bool systemMenuNotificationsSeenSince(uint32_t eventOrder);
 
 }

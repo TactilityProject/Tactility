@@ -11,3 +11,9 @@ msgstr "Er heeft nog geen app een melding verzonden."
 
 msgid "Turning an app off also removes its notifications."
 msgstr "Een app uitzetten verwijdert ook de meldingen ervan."
+
+msgid "app"
+msgstr "app"
+
+msgid "service"
+msgstr "service"

@@ -42,6 +42,7 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
+#include <map>
 
 constexpr auto* TAG = "mesh";
 
@@ -95,7 +96,7 @@ struct Globals {
     tt::std::vector<UnreadEntry> unread;
     bool unreadLoaded = false;
     /** Conversations that have notifications turned off, as tokens of mutedToken(). Loaded on first use. */
-    tt::std::vector<std::string> muted;
+    tt::std::vector<tt::std::string> muted;
     bool mutedLoaded = false;
     /** Settings of the backends, loaded on first use */
     struct BackendSettingsEntry {
@@ -391,6 +392,7 @@ struct MeshHost {
 extern "C" {
 static void restoreMessageNotification(MeshHost* host);
 static void preloadStored();
+static void queueUnreadFlush();
 }
 
 namespace {
@@ -1132,6 +1134,8 @@ void tick(MeshHost* host) {
     }
     lock();
     host->store.flushIfNeeded(getMillis(), FLUSH_MAX_AGE_MS);
+    // Counts that couldn't be stored are tried again
+    queueUnreadFlush();
     unlock();
 }
 
@@ -1466,13 +1470,20 @@ static std::string mutedToken(const char* backend, const MeshAddress* peer, uint
     return token;
 }
 
+/** Requires the global lock */
+static tt::std::vector<tt::std::string>::iterator findMuted(const std::string& token) {
+    return std::find_if(globals().muted.begin(), globals().muted.end(), [&token](const tt::std::string& muted) {
+        return strcmp(muted.c_str(), token.c_str()) == 0;
+    });
+}
+
 /** Requires the global lock. Reads the file once. */
 static bool isMuted(const std::string& token) {
     if (!globals().mutedLoaded) {
         globals().mutedLoaded = true;
         mesh_settings_load_muted([](const char* stored, void*) { globals().muted.push_back(stored); }, nullptr);
     }
-    return std::find(globals().muted.begin(), globals().muted.end(), token) != globals().muted.end();
+    return findMuted(token) != globals().muted.end();
 }
 
 /** Requires the global lock. A direct conversation is told apart by its peer, a channel by its index. */
@@ -1531,7 +1542,7 @@ static void preloadStored() {
     }
 
     tt::std::vector<Globals::UnreadEntry> unread;
-    tt::std::vector<std::string> muted;
+    tt::std::vector<tt::std::string> muted;
     if (unreadNeeded) {
         mesh_settings_load_unread([](const char* token, uint32_t count, void* data) {
             auto* entries = static_cast<tt::std::vector<Globals::UnreadEntry>*>(data);
@@ -1544,7 +1555,7 @@ static void preloadStored() {
     }
     if (mutedNeeded) {
         mesh_settings_load_muted([](const char* stored, void* data) {
-            static_cast<tt::std::vector<std::string>*>(data)->push_back(stored);
+            static_cast<tt::std::vector<tt::std::string>*>(data)->push_back(stored);
         }, &muted);
     }
 
@@ -1561,39 +1572,73 @@ static void preloadStored() {
     if (mutedNeeded && !globals().mutedLoaded) {
         globals().mutedLoaded = true;
         for (const auto& token : muted) {
-            globals().muted.push_back(token);
+            globals().muted.push_back(token.c_str());
         }
     }
     unlock();
 }
 
-/** Work for the file operations task, so that no thread waits for the storage to count messages */
-struct UnreadSave {
-    char token[128];
-    uint32_t count;
-};
-
-static void saveUnread(void* context) {
-    auto* save = static_cast<UnreadSave*>(context);
-    if (mesh_settings_save_unread(save->token, save->count) != ERROR_NONE) {
-        LOG_W(TAG, "Failed to store the unread count");
-    }
-    tt::deleteObject(save);
+/**
+ * The latest count of each conversation that isn't stored yet. A save that fails stays here and is tried again, and only the
+ * latest count is ever written, so an older one can't overtake a newer one. Guarded by the global lock.
+ */
+static std::map<std::string, uint32_t>& pendingUnread() {
+    static auto* instance = tt::newObject<std::map<std::string, uint32_t>>();
+    check(instance != nullptr);
+    return *instance;
 }
 
-/** Stores the count of a conversation, without waiting for it */
-static void queueUnreadSave(const std::string& token, uint32_t count) {
-    auto* save = tt::newObject<UnreadSave>();
-    if (save == nullptr) {
+static bool unreadFlushQueued = false;
+
+/** Work for the file operations task, so that no thread waits for the storage to count messages */
+static void flushUnread(void*) {
+    while (true) {
+        lock();
+        auto& pending = pendingUnread();
+        if (pending.empty()) {
+            unreadFlushQueued = false;
+            unlock();
+            return;
+        }
+        const std::string token = pending.begin()->first;
+        const uint32_t count = pending.begin()->second;
+        unlock();
+
+        const bool saved = mesh_settings_save_unread(token.c_str(), count) == ERROR_NONE;
+
+        lock();
+        if (!saved) {
+            LOG_W(TAG, "Failed to store the unread count, it is tried again later");
+            unreadFlushQueued = false;
+            unlock();
+            return;
+        }
+        // A newer count that was set meanwhile stays pending
+        const auto entry = pendingUnread().find(token);
+        if (entry != pendingUnread().end() && entry->second == count) {
+            pendingUnread().erase(entry);
+        }
+        unlock();
+    }
+}
+
+/** Requires the global lock. Queues a flush unless one is queued already. */
+static void queueUnreadFlush() {
+    if (unreadFlushQueued || pendingUnread().empty()) {
         return;
     }
-    strncpy(save->token, token.c_str(), sizeof(save->token) - 1);
-    save->token[sizeof(save->token) - 1] = '\0';
-    save->count = count;
-    if (file_ops_queue(saveUnread, save, nullptr) != ERROR_NONE) {
-        tt::deleteObject(save);
+    unreadFlushQueued = true;
+    if (file_ops_queue(flushUnread, nullptr, nullptr) != ERROR_NONE) {
+        unreadFlushQueued = false;
     }
 }
+
+/** Requires the global lock. Stores the count of a conversation without waiting for it. */
+static void queueUnreadSave(const std::string& token, uint32_t count) {
+    pendingUnread()[token] = count;
+    queueUnreadFlush();
+}
+
 
 /** Replaces the first "{}" of a translated text by a number */
 static std::string formatCount(const char* text, uint32_t count) {
@@ -1615,9 +1660,15 @@ static void onMessageNotificationAction(uint32_t /*id*/, void* /*data*/) {
     MeshHost* host = service;
     if (host != nullptr) {
         post(host, [host] {
-            // An app that is open already, in the background too, isn't started a second time
-            if (app_manager_is_running(MESH_APP_ID)) {
+            // An app that is the topmost one already is what the user wants to see
+            char topmost[APP_MANIFEST_ID_LENGTH + 1] = {};
+            if (app_manager_get_topmost_app_id(topmost, sizeof(topmost)) == ERROR_NONE && strcmp(topmost, MESH_APP_ID) == 0) {
                 return;
+            }
+            // One in the background can't be brought forward, so it is replaced by a new one that shows the chats
+            AppInstanceId running = 0;
+            if (app_manager_find_running_instance(MESH_APP_ID, &running) == ERROR_NONE) {
+                app_manager_stop(running);
             }
             AppStartContext context;
             AppInstanceId instance = 0;
@@ -1694,7 +1745,18 @@ static void restoreMessageNotification(MeshHost* host) {
     if (host->notificationId != 0) {
         return;
     }
-    const uint32_t unread = getTotalUnread(host);
+    // Unread messages of muted conversations are counted, but they didn't raise a notification when they arrived
+    lock();
+    bool unmutedUnread = false;
+    for (const auto& entry : globals().unread) {
+        if (entry.count > 0 && strncmp(entry.backend, host->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0 &&
+            !isMuted(mutedToken(entry.backend, entry.peer.length > 0 ? &entry.peer : nullptr, entry.channel))) {
+            unmutedUnread = true;
+            break;
+        }
+    }
+    unlock();
+    const uint32_t unread = unmutedUnread ? getTotalUnread(host) : 0;
     if (unread > 0) {
         postMessageNotification(host, unread, false);
     }
@@ -1740,7 +1802,6 @@ uint32_t mesh_host_receive_text(
     uint32_t seq = 0;
     bool notify = false;
     std::string unreadToken;
-    uint32_t unreadCount = 0;
     if (host->store.add(&message) == ERROR_NONE) {
         seq = message.seq;
         // A sender of a direct message is saved, so the conversation can be found and answered
@@ -1765,14 +1826,12 @@ uint32_t mesh_host_receive_text(
         }
         if (entry != nullptr) {
             entry->count = std::min<uint32_t>(entry->count + 1, UNREAD_COUNT_LIMIT);
-            unreadCount = entry->count;
+            // Queued under the lock that changed the count, so the saves are written in the order of the changes
+            queueUnreadSave(unreadToken, entry->count);
         }
         emitEvent(MESH_EVENT_MESSAGE, host->state, seq, MESH_DELIVERY_RECEIVED);
     }
     unlock();
-    if (seq != 0 && unreadCount > 0) {
-        queueUnreadSave(unreadToken, unreadCount);
-    }
     if (seq != 0 && notify) {
         notifyNewMessage(host);
     }
@@ -1973,8 +2032,14 @@ error_t mesh_set_rx_boosted_gain(bool enabled) {
     globals().settings.rx_boosted_gain = enabled;
     const MeshSettings copy = globals().settings;
     if (service != nullptr) {
+        // Only the radio changes. Configuring again would recreate the backend, which loses the acknowledgements
+        // that it still waits for.
         MeshHost* host = service;
-        post(host, [host] { configure(host); });
+        post(host, [host, enabled] {
+            if (host->radio != nullptr && host->radioAcquired) {
+                radio_set_parameter(host->radio, RADIO_PARAMETER_BOOSTED_GAIN, enabled ? 1 : 0);
+            }
+        });
     }
     unlock();
     return mesh_settings_save(&copy);
@@ -2458,7 +2523,7 @@ error_t mesh_send_text(const MeshAddress* to, uint8_t channel, const char* text,
     message.snr = NAN;
     strncpy(message.text, text, MESH_TEXT_MAX_LENGTH);
 
-    const error_t result = host->store.add(&message);
+    const error_t result = host->store.isOpen() ? host->store.add(&message) : ERROR_INVALID_STATE;
     if (result == ERROR_NONE) {
         emitEvent(MESH_EVENT_MESSAGE, host->state, message.seq, MESH_DELIVERY_QUEUED);
         const uint32_t messageSeq = message.seq;
@@ -2479,6 +2544,10 @@ error_t mesh_cancel(uint32_t seq) {
         return ERROR_INVALID_STATE;
     }
     MeshMessage message;
+    if (!host->store.isOpen()) {
+        unlock();
+        return ERROR_INVALID_STATE;
+    }
     if (host->store.get(seq, &message) != ERROR_NONE || !message.outgoing) {
         unlock();
         return ERROR_NOT_FOUND;
@@ -2530,7 +2599,12 @@ error_t mesh_get_info(MeshInfo* info) {
         info->duty_cycle_window_ms = DUTY_CYCLE_WINDOW_MS;
         info->airtime_used_ms = getAirtimeUsedMs(host, nowMs);
         info->airtime_budget_ms = dutyCycle < 100 ? static_cast<uint32_t>(DUTY_CYCLE_WINDOW_MS * dutyCycle / 100) : 0;
-        info->duty_cycle_blocked = host->dutyCycleLogged;
+        // Blocked now means the frame at the front of the queue doesn't fit the budget, by the check that pumpTx() makes
+        info->duty_cycle_blocked = false;
+        if (dutyCycle < 100 && !host->txQueue.empty() && !host->txInFlight) {
+            const uint32_t frameAirtimeMs = mesh_airtime_estimate_ms(host->profile, host->txQueue.front().data.size());
+            info->duty_cycle_blocked = info->airtime_used_ms + frameAirtimeMs > info->airtime_budget_ms;
+        }
         info->tx_queue_length = static_cast<uint32_t>(host->txQueue.size());
         info->frames_sent = host->framesSent;
         info->frames_failed = host->framesFailed;
@@ -2541,7 +2615,7 @@ error_t mesh_get_info(MeshInfo* info) {
         strncpy(info->backend, host->activeBackend, MESH_BACKEND_ID_MAX_LENGTH);
         info->messages_total = static_cast<uint32_t>(host->store.getMessageCount());
         info->messages_received = static_cast<uint32_t>(host->store.countDelivery(MESH_DELIVERY_RECEIVED));
-        info->messages_sent = static_cast<uint32_t>(host->store.countDelivery(MESH_DELIVERY_SENT) + host->store.countDelivery(MESH_DELIVERY_DELIVERED));
+        info->messages_sent = static_cast<uint32_t>(host->store.countDelivery(MESH_DELIVERY_SENT) + host->store.countDelivery(MESH_DELIVERY_REPEATED) + host->store.countDelivery(MESH_DELIVERY_DELIVERED));
         info->messages_failed = static_cast<uint32_t>(host->store.countDelivery(MESH_DELIVERY_FAILED));
         info->nodes_heard = static_cast<uint32_t>(host->nodes.size());
         info->contacts = static_cast<uint32_t>(host->contacts.size());
@@ -2552,7 +2626,8 @@ error_t mesh_get_info(MeshInfo* info) {
 
 error_t mesh_message_get(uint32_t seq, MeshMessage* message) {
     lock();
-    const error_t result = (service != nullptr) ? service->store.get(seq, message) : ERROR_INVALID_STATE;
+    // A store that is still being read has no complete index yet
+    const error_t result = (service != nullptr && service->store.isOpen()) ? service->store.get(seq, message) : ERROR_INVALID_STATE;
     unlock();
     return result;
 }
@@ -2592,7 +2667,9 @@ error_t mesh_conversation_get(const MeshAddress* peer, uint8_t channel, uint32_t
 bool mesh_get_conversation_notifications(const MeshAddress* peer, uint8_t channel) {
     lock();
     ensureSettingsLoaded();
-    const bool enabled = globals().settings.backend[0] == '\0' || !isMuted(mutedToken(globals().settings.backend, peer, channel));
+    // The first registered backend is the selected one when the user didn't choose
+    const MeshBackendApi* backend = getSelectedBackend();
+    const bool enabled = backend == nullptr || !isMuted(mutedToken(backend->id, peer, channel));
     unlock();
     return enabled;
 }
@@ -2600,16 +2677,17 @@ bool mesh_get_conversation_notifications(const MeshAddress* peer, uint8_t channe
 error_t mesh_set_conversation_notifications(const MeshAddress* peer, uint8_t channel, bool enabled) {
     lock();
     ensureSettingsLoaded();
-    if (globals().settings.backend[0] == '\0') {
+    const MeshBackendApi* backend = getSelectedBackend();
+    if (backend == nullptr) {
         unlock();
         return ERROR_INVALID_STATE;
     }
-    const std::string token = mutedToken(globals().settings.backend, peer, channel);
+    const std::string token = mutedToken(backend->id, peer, channel);
     const bool wasMuted = isMuted(token);
     if (enabled && wasMuted) {
-        globals().muted.erase(std::find(globals().muted.begin(), globals().muted.end(), token));
+        globals().muted.erase(findMuted(token));
     } else if (!enabled && !wasMuted) {
-        globals().muted.push_back(token);
+        globals().muted.push_back(token.c_str());
     }
     unlock();
     return mesh_settings_save_muted(token.c_str(), !enabled) == ERROR_NONE ? ERROR_NONE : ERROR_RESOURCE;
@@ -2626,31 +2704,57 @@ uint32_t mesh_get_unread(const MeshAddress* peer, uint8_t channel) {
     return count;
 }
 
-/** Sets the unread count of a conversation to 0, and tells who shows it. Takes the global lock. */
-static void clearUnread(const MeshAddress* peer, uint8_t channel) {
+/**
+ * Sets the unread count of a conversation to 0, and tells who shows it. Requires the global lock.
+ * The entry is removed, so a slot is free for another conversation.
+ */
+static void clearUnreadLocked(const MeshAddress* peer, uint8_t channel) {
+    if (service == nullptr || isStorageUnavailable()) {
+        return;
+    }
+    Globals::UnreadEntry* entry = findUnread(service->storageBackend, peer, channel);
+    if (entry == nullptr || entry->count == 0) {
+        return;
+    }
+    // Queued under the lock that changed the count, so the saves are written in the order of the changes
+    queueUnreadSave(mutedToken(service->storageBackend, peer, channel), 0);
+    globals().unread.erase(globals().unread.begin() + (entry - globals().unread.data()));
+    emitEvent(MESH_EVENT_UNREAD, service->state, 0, MESH_DELIVERY_RECEIVED);
+    // The notification shows the total, which changed
+    MeshHost* host = service;
+    post(host, [host] { refreshMessageNotification(host); });
+}
+
+void mesh_mark_read(const MeshAddress* peer, uint8_t channel) {
     lock();
-    std::string token;
-    bool hadUnread = false;
+    clearUnreadLocked(peer, channel);
+    unlock();
+}
+
+void mesh_mark_all_read(void) {
+    lock();
     if (service != nullptr && !isStorageUnavailable()) {
-        Globals::UnreadEntry* entry = findUnread(service->storageBackend, peer, channel);
-        if (entry != nullptr && entry->count > 0) {
-            entry->count = 0;
-            hadUnread = true;
-            token = mutedToken(service->storageBackend, peer, channel);
+        bool cleared = false;
+        for (size_t i = 0; i < globals().unread.size();) {
+            const Globals::UnreadEntry& entry = globals().unread[i];
+            if (strncmp(entry.backend, service->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0) {
+                if (entry.count > 0) {
+                    queueUnreadSave(mutedToken(entry.backend, entry.peer.length > 0 ? &entry.peer : nullptr, entry.channel), 0);
+                    cleared = true;
+                }
+                globals().unread.erase(globals().unread.begin() + i);
+            } else {
+                i++;
+            }
+        }
+        if (cleared) {
             emitEvent(MESH_EVENT_UNREAD, service->state, 0, MESH_DELIVERY_RECEIVED);
-            // The notification shows the total, which changed
+            // The notification shows the total, which is 0 now
             MeshHost* host = service;
             post(host, [host] { refreshMessageNotification(host); });
         }
     }
     unlock();
-    if (hadUnread) {
-        queueUnreadSave(token, 0);
-    }
-}
-
-void mesh_mark_read(const MeshAddress* peer, uint8_t channel) {
-    clearUnread(peer, channel);
 }
 
 error_t mesh_delete_conversation(const MeshAddress* peer, uint8_t channel) {
@@ -2658,12 +2762,12 @@ error_t mesh_delete_conversation(const MeshAddress* peer, uint8_t channel) {
     error_t result = ERROR_INVALID_STATE;
     if (service != nullptr && !isStorageUnavailable()) {
         result = service->store.removeConversation(service->storageBackend, peer, channel);
+        // Cleared under the same lock, so a message that arrives after the deletion starts a new count
+        if (result == ERROR_NONE) {
+            clearUnreadLocked(peer, channel);
+        }
     }
     unlock();
-    // The deleted messages are not unread anymore
-    if (result == ERROR_NONE) {
-        clearUnread(peer, channel);
-    }
     return result;
 }
 
@@ -2722,6 +2826,14 @@ error_t mesh_remove_contact(const MeshAddress* address) {
             service->contacts.erase(service->contacts.begin() + (contact - service->contacts.data()));
             saveContacts(service);
             emitEvent(MESH_EVENT_CONTACT, service->state, 0, MESH_DELIVERY_RECEIVED);
+            // The backend can forget what it pinned for the node, as removing a contact is how the user resets it
+            const MeshAddress removed = *address;
+            MeshHost* host = service;
+            post(host, [host, removed] {
+                if (host->api != nullptr && host->api->on_contact_removed != nullptr) {
+                    host->api->on_contact_removed(host->backend, &removed);
+                }
+            });
             result = ERROR_NONE;
         }
     }
@@ -2827,6 +2939,21 @@ error_t mesh_remove_channel(uint8_t index) {
     return finalResult;
 }
 
+/** Whether the contact is saved in the service, which includes contacts that were added before their advert was heard */
+static bool isSavedContact(MeshHost* host, const MeshAddress* contact) {
+    lock();
+    bool found = false;
+    for (const auto& saved : host->contacts) {
+        if (strncmp(saved.backend, host->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0 && saved.address.length == contact->length &&
+            memcmp(saved.address.bytes, contact->bytes, contact->length) == 0) {
+            found = true;
+            break;
+        }
+    }
+    unlock();
+    return found;
+}
+
 error_t mesh_set_contact_path(const MeshAddress* contact, const uint8_t* hops, size_t hop_count, size_t hash_size) {
     if (hop_count == 0 || hash_size == 0 || hash_size > 4) {
         return ERROR_INVALID_ARGUMENT;
@@ -2834,6 +2961,10 @@ error_t mesh_set_contact_path(const MeshAddress* contact, const uint8_t* hops, s
     error_t result = ERROR_INVALID_STATE;
     const error_t callResult = callOnServiceThread([&](MeshHost* host) {
         if (host->api == nullptr) {
+            return;
+        }
+        if (!isSavedContact(host, contact)) {
+            result = ERROR_NOT_FOUND;
             return;
         }
         result = (host->api->set_contact_path != nullptr)
@@ -2849,6 +2980,10 @@ error_t mesh_get_contact_path(const MeshAddress* contact, MeshContactPath* path)
         if (host->api == nullptr) {
             return;
         }
+        if (!isSavedContact(host, contact)) {
+            result = ERROR_NOT_FOUND;
+            return;
+        }
         result = (host->api->get_contact_path != nullptr)
             ? host->api->get_contact_path(host->backend, contact, path)
             : ERROR_NOT_SUPPORTED;
@@ -2860,6 +2995,10 @@ error_t mesh_reset_contact_path(const MeshAddress* contact) {
     error_t result = ERROR_INVALID_STATE;
     const error_t callResult = callOnServiceThread([&](MeshHost* host) {
         if (host->api == nullptr) {
+            return;
+        }
+        if (!isSavedContact(host, contact)) {
+            result = ERROR_NOT_FOUND;
             return;
         }
         result = (host->api->reset_contact_path != nullptr)

@@ -173,6 +173,10 @@ error_t properties_file_close(PropertiesFile* file) {
     return saved ? ERROR_NONE : ERROR_RESOURCE;
 }
 
+void properties_file_discard(PropertiesFile* file) {
+    delete file;
+}
+
 bool properties_file_has(const PropertiesFile* file, const char* key) {
     return file->entries.contains(key);
 }

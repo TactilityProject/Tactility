@@ -75,7 +75,8 @@ lv_obj_t* createButton(Context* ctx, lv_obj_t* parent, const std::string& text, 
 void scrollMessage(void* messageWrapper, int32_t direction) {
     auto* wrapper = static_cast<lv_obj_t*>(messageWrapper);
     const int32_t step = lv_obj_get_height(wrapper) * 4 / 5;
-    lv_obj_scroll_by_bounded(wrapper, 0, -direction * step, LV_ANIM_ON);
+    // A positive step moves the content down, which shows the text before it
+    lv_obj_scroll_by_bounded(wrapper, 0, direction * step, LV_ANIM_ON);
 }
 
 void onSystemPreviousPage(void* messageWrapper) { scrollMessage(messageWrapper, 1); }

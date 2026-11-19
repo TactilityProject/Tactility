@@ -245,9 +245,16 @@ error_t MeshStore::open(const char* path) {
     closedir(dir);
     std::sort(segments.begin(), segments.end());
 
+    replayIncomplete = false;
     uint32_t lastValidEnd = 0;
     for (uint32_t segment : segments) {
         lastValidEnd = scanSegment(segment);
+    }
+    if (replayIncomplete) {
+        // A store that still lists deleted messages must not look complete
+        LOG_E(TAG, "A deletion couldn't be applied, as a message couldn't be read");
+        close();
+        return ERROR_RESOURCE;
     }
 
     if (segments.empty()) {
@@ -345,7 +352,11 @@ void MeshStore::applyRecord(uint8_t type, const uint8_t* payload, size_t length,
         const uint8_t channel = reader.u8();
         const uint32_t lastSeq = reader.u32();
         if (reader.ok()) {
-            eraseConversation(backend, peer.length > 0 ? &peer : nullptr, channel, lastSeq);
+            // Retention can remove all messages that had this sequence number, which still can't be used again
+            nextSeq = std::max(nextSeq, lastSeq + 1);
+            if (!eraseConversation(backend, peer.length > 0 ? &peer : nullptr, channel, lastSeq)) {
+                replayIncomplete = true;
+            }
         }
     } else if (type == RECORD_TYPE_DELIVERY && length >= 5) {
         Reader reader(payload, length);
@@ -357,19 +368,25 @@ void MeshStore::applyRecord(uint8_t type, const uint8_t* payload, size_t length,
     }
 }
 
-void MeshStore::eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) {
+bool MeshStore::eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) {
     const uint32_t peerHash = (peer != nullptr) ? hashPeer(*peer) : 0;
+    bool complete = true;
     std::erase_if(index, [&](const IndexEntry& entry) {
         if (entry.seq > lastSeq || entry.peerHash != peerHash || (peer == nullptr && entry.channel != channel)) {
             return false;
         }
         // The hash can collide, so the stored message decides
         MeshMessage message;
-        if (readEntry(entry, &message) != ERROR_NONE || strncmp(message.backend, backend, MESH_BACKEND_ID_MAX_LENGTH) != 0) {
+        if (readEntry(entry, &message) != ERROR_NONE) {
+            complete = false;
+            return false;
+        }
+        if (strncmp(message.backend, backend, MESH_BACKEND_ID_MAX_LENGTH) != 0) {
             return false;
         }
         return peer != nullptr ? isSameAddress(message.peer, *peer) : message.peer.length == 0;
     });
+    return complete;
 }
 
 error_t MeshStore::removeConversation(const char* backend, const MeshAddress* peer, uint8_t channel) {
@@ -388,8 +405,13 @@ error_t MeshStore::removeConversation(const char* backend, const MeshAddress* pe
     if (result != ERROR_NONE) {
         return result;
     }
-    eraseConversation(backend, peer, channel, lastSeq);
-    return flush();
+    const bool complete = eraseConversation(backend, peer, channel, lastSeq);
+    const error_t flushed = flush();
+    if (flushed != ERROR_NONE) {
+        return flushed;
+    }
+    // The deletion is stored and applies when the unreadable messages can be read, but they are still listed until then
+    return complete ? ERROR_NONE : ERROR_RESOURCE;
 }
 
 error_t MeshStore::appendRecord(uint8_t type, const uint8_t* payload, size_t length, uint32_t seq) {

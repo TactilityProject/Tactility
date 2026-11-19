@@ -3,21 +3,56 @@
 #include <notification/module.h>
 #include <notification/notification.h>
 
-#include <tactility/concurrent/task_event_group.h>
+#include <service/paths.h>
 
+#include <tactility/concurrent/task_event_group.h>
+#include <tactility/file_ops.h>
+#include <tactility/paths.h>
+#include <tactility/filesystem/fs.h>
+
+#include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <string>
+#include <thread>
 
 namespace {
 
-/** A started module with an empty history, and a stopped one when it goes out of scope */
+/** Waits until the queued file operations ran, which are done in order */
+void drainFileOps() {
+    static std::atomic<bool> done;
+    done = false;
+    if (file_ops_queue([](void*) { done = true; }, nullptr, nullptr) != ERROR_NONE) {
+        return;
+    }
+    for (int i = 0; i < 2000 && !done; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
+
+/** Removes the stored sources, so one run doesn't fill the limit for the next and tests start from nothing */
+void removeStoredSources() {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (service_paths_get_user_data_path("tactility.notification", "sources.properties", path, sizeof(path)) == ERROR_NONE) {
+        remove(path);
+    }
+}
+
+/** A started module with an empty history and no stored sources, and a stopped one when it goes out of scope */
 struct ModuleFixture {
     ModuleFixture() {
         module_stop(&notification_module);
+        drainFileOps();
+        removeStoredSources();
         REQUIRE_EQ(module_ensure_started(&notification_module), ERROR_NONE);
     }
-    ~ModuleFixture() { module_stop(&notification_module); }
+    ~ModuleFixture() {
+        module_stop(&notification_module);
+        // A save that is still queued would write the sources again after they were removed
+        drainFileOps();
+        removeStoredSources();
+    }
 };
 
 /** The sources are stored, so a test uses ids that no earlier run has stored. An id has at most 32 characters. */
@@ -570,4 +605,91 @@ TEST_CASE("preloading the sources is harmless to repeat and keeps the sources") 
         found = found || std::string(sources[i].id) == "tactility.test";
     }
     CHECK(found);
+}
+
+TEST_CASE("an update event tells whether the update renotifies") {
+    ModuleFixture fixture;
+    TaskEventGroup group {};
+    task_event_group_construct(&group);
+    NotificationSubscription sub {};
+    REQUIRE_EQ(notification_subscribe(&sub, &group), ERROR_NONE);
+    const uint32_t id = send("first");
+
+    NotificationContext quiet = notification_context_for_app("tactility.test", "quiet");
+    REQUIRE_EQ(notification_update(id, &quiet, false), ERROR_NONE);
+    NotificationContext loud = notification_context_for_app("tactility.test", "loud");
+    REQUIRE_EQ(notification_update(id, &loud, true), ERROR_NONE);
+
+    NotificationEvent event {};
+    REQUIRE_EQ(notification_poll(&sub, &event), ERROR_NONE);
+    CHECK_EQ(event.type, NOTIFICATION_EVENT_POSTED);
+    REQUIRE_EQ(notification_poll(&sub, &event), ERROR_NONE);
+    CHECK_EQ(event.type, NOTIFICATION_EVENT_UPDATED);
+    CHECK_FALSE(event.bumped);
+    REQUIRE_EQ(notification_poll(&sub, &event), ERROR_NONE);
+    CHECK_EQ(event.type, NOTIFICATION_EVENT_UPDATED);
+    CHECK(event.bumped);
+
+    CHECK_EQ(notification_unsubscribe(&sub), ERROR_NONE);
+    task_event_group_destruct(&group);
+}
+
+TEST_CASE("dismissing unless sticky respects the flag at the time of the call") {
+    ModuleFixture fixture;
+    const uint32_t plain = send("plain");
+    NotificationContext context = notification_context_for_app("tactility.test", "sticky");
+    notification_context_set_sticky(&context, true);
+    uint32_t sticky = 0;
+    REQUIRE_EQ(notification_send(&context, &sticky), ERROR_NONE);
+
+    CHECK_EQ(notification_dismiss_unless_sticky(sticky), ERROR_NOT_ALLOWED);
+    CHECK_EQ(notification_dismiss_unless_sticky(plain), ERROR_NONE);
+    CHECK_EQ(notification_dismiss_unless_sticky(plain), ERROR_NOT_FOUND);
+
+    // A sender that makes it sticky after it was read is respected
+    const uint32_t later = send("later");
+    NotificationContext update = notification_context_for_app("tactility.test", "later");
+    notification_context_set_sticky(&update, true);
+    REQUIRE_EQ(notification_update(later, &update, false), ERROR_NONE);
+    CHECK_EQ(notification_dismiss_unless_sticky(later), ERROR_NOT_ALLOWED);
+}
+
+TEST_CASE("dismissing all non sticky notifications keeps the sticky ones") {
+    ModuleFixture fixture;
+    send("one");
+    NotificationContext context = notification_context_for_app("tactility.test", "sticky");
+    notification_context_set_sticky(&context, true);
+    uint32_t sticky = 0;
+    REQUIRE_EQ(notification_send(&context, &sticky), ERROR_NONE);
+    send("two");
+
+    notification_dismiss_non_sticky();
+    CHECK_EQ(notification_get_count(), 1);
+    Notification notification {};
+    REQUIRE_EQ(notification_get(sticky, &notification), ERROR_NONE);
+    notification_release(&notification);
+}
+
+TEST_CASE("event order increases with every event") {
+    ModuleFixture fixture;
+    TaskEventGroup group {};
+    task_event_group_construct(&group);
+    NotificationSubscription sub {};
+    REQUIRE_EQ(notification_subscribe(&sub, &group), ERROR_NONE);
+
+    const uint32_t before = notification_get_event_order();
+    const uint32_t id = send("first");
+    const uint32_t between = notification_get_event_order();
+    REQUIRE_EQ(notification_dismiss(id), ERROR_NONE);
+
+    NotificationEvent posted {};
+    NotificationEvent dismissed {};
+    REQUIRE_EQ(notification_poll(&sub, &posted), ERROR_NONE);
+    REQUIRE_EQ(notification_poll(&sub, &dismissed), ERROR_NONE);
+    CHECK_GT(posted.order, before);
+    CHECK_EQ(posted.order, between);
+    CHECK_GT(dismissed.order, between);
+
+    CHECK_EQ(notification_unsubscribe(&sub), ERROR_NONE);
+    task_event_group_destruct(&group);
 }

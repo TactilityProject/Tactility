@@ -41,6 +41,12 @@ PropertiesFile* properties_file_open(const char* path);
  */
 error_t properties_file_close(PropertiesFile* file);
 
+/**
+ * Releases the instance without writing anything. Use it after only reading, as properties_file_close() writes the
+ * contents that were read back to the file, which can overwrite a change that another thread made in the meantime.
+ */
+void properties_file_discard(PropertiesFile* file);
+
 bool properties_file_has(const PropertiesFile* file, const char* key);
 
 /**

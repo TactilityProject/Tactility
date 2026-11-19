@@ -11,6 +11,8 @@
 #include <tactility/log.h>
 #include <tactility/properties_file.h>
 #include <tactility/concurrent/mutex.h>
+#include <tactility/delay.h>
+#include <tactility/freertos/task.h>
 #include <tactility/time.h>
 
 #include <cstdio>
@@ -27,7 +29,17 @@ constexpr auto* SETTINGS_FILE = "sources.properties";
 constexpr auto* KEY_APP_PREFIX = "app.";
 constexpr auto* KEY_SERVICE_PREFIX = "service.";
 
+/** An action that runs without the lock, which the notification can't be removed during, as its sender may free what it uses */
+struct ActionRun {
+    uint32_t id;
+    TaskHandle_t task;
+};
+
+constexpr size_t MAX_ACTION_RUNS = 8;
+
 struct State {
+    ActionRun runs[MAX_ACTION_RUNS] = {};
+    size_t runCount = 0;
     NotificationSource sources[NOTIFICATION_SOURCE_LIMIT] = {};
     size_t sourceCount = 0;
     /** Whether the sources were read from storage */
@@ -37,6 +49,8 @@ struct State {
     size_t count = 0;
     uint32_t nextId = 1;
     NotificationSubscription* subscriptions = nullptr;
+    /** Counts the events, which says in what order things happened without depending on the clock */
+    uint32_t eventOrder = 0;
 };
 
 struct Lock {
@@ -123,6 +137,31 @@ State* state = nullptr;
 void lock() { mutex_lock(&lockInstance().handle); }
 void unlock() { mutex_unlock(&lockInstance().handle); }
 
+/** Requires the lock. @param[in] id the notification, or 0 for any. Actions on the current task don't count, as they can't wait for themselves. */
+bool hasRunningAction(uint32_t id) {
+    const TaskHandle_t current = xTaskGetCurrentTaskHandle();
+    for (size_t i = 0; i < state->runCount; i++) {
+        if ((id == 0 || state->runs[i].id == id) && state->runs[i].task != current) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Requires the lock, which is released while waiting. Returns when no action of the notification (or of any when @a id is 0)
+ * runs on another task. The notifications can change meanwhile, so what was read before the call must be read again.
+ * @return false when the module stopped meanwhile
+ */
+bool waitForActions(uint32_t id) {
+    while (state != nullptr && hasRunningAction(id)) {
+        unlock();
+        delay_millis(1);
+        lock();
+    }
+    return state != nullptr;
+}
+
 /** Requires the lock. Writes the sources on the file operations task. */
 void queueSave() {
     auto* job = tt::newObject<SaveJob>();
@@ -165,7 +204,8 @@ void ensureSourcesLoaded() {
     if (stored != nullptr && service_paths_get_user_data_path(SETTINGS_ID, SETTINGS_FILE, path, sizeof(path)) == ERROR_NONE) {
         if (PropertiesFile* file = properties_file_open(path)) {
             properties_file_for_each(file, onStoredEntry, stored);
-            properties_file_close(file);
+            // Only read, so nothing is written back over what a sender saved meanwhile
+            properties_file_discard(file);
         }
     }
 
@@ -214,8 +254,8 @@ NotificationContext makeContext(NotificationSourceType type, const char* sourceI
 }
 
 /** Requires the lock */
-void emitEvent(NotificationEventType type, uint32_t id) {
-    const NotificationEvent event = { .timestamp = get_millis(), .type = type, .id = id };
+void emitEvent(NotificationEventType type, uint32_t id, bool bumped = false) {
+    const NotificationEvent event = { .timestamp = get_millis(), .type = type, .id = id, .bumped = bumped, .order = ++state->eventOrder };
     for (auto* sub = state->subscriptions; sub != nullptr; sub = sub->internal.next) {
         if (sub->internal.count >= NOTIFICATION_EVENT_QUEUE_CAPACITY) {
             continue;
@@ -365,7 +405,7 @@ error_t notification_update(uint32_t id, NotificationContext* context, bool bump
         return ERROR_INVALID_ARGUMENT;
     }
     lock();
-    if (state == nullptr) {
+    if (state == nullptr || !waitForActions(id)) {
         unlock();
         return ERROR_INVALID_STATE;
     }
@@ -389,7 +429,7 @@ error_t notification_update(uint32_t id, NotificationContext* context, bool bump
             state->entries[index].wall_time = wallTime;
             state->entries[index].uptime_ms = uptime;
         }
-        emitEvent(NOTIFICATION_EVENT_UPDATED, id);
+        emitEvent(NOTIFICATION_EVENT_UPDATED, id, bump);
         unlock();
         return ERROR_NONE;
     }
@@ -420,10 +460,17 @@ error_t notification_send(NotificationContext* context, uint32_t* out_id) {
         unlock();
         return ERROR_NOT_ALLOWED;
     }
-    if (state->count == NOTIFICATION_HISTORY_CAPACITY) {
+    while (state->count == NOTIFICATION_HISTORY_CAPACITY) {
         const uint32_t evictedId = state->entries[0].id;
-        removeEntry(0);
-        emitEvent(NOTIFICATION_EVENT_DISMISSED, evictedId);
+        // An action of the oldest notification can still be running, so it can't go yet
+        if (!waitForActions(evictedId)) {
+            unlock();
+            return ERROR_INVALID_STATE;
+        }
+        if (state->count == NOTIFICATION_HISTORY_CAPACITY && state->entries[0].id == evictedId) {
+            removeEntry(0);
+            emitEvent(NOTIFICATION_EVENT_DISMISSED, evictedId);
+        }
     }
 
     Notification& entry = state->entries[state->count++];
@@ -518,7 +565,7 @@ error_t notification_set_source_enabled(NotificationSourceType type, const char*
         return ERROR_NONE;
     }
     source->enabled = enabled;
-    if (!enabled) {
+    if (!enabled && waitForActions(0)) {
         // The pending notifications of the sender go with it
         for (size_t i = state->count; i > 0; i--) {
             const Notification& entry = state->entries[i - 1];
@@ -534,6 +581,13 @@ error_t notification_set_source_enabled(NotificationSourceType type, const char*
     return ERROR_NONE;
 }
 
+uint32_t notification_get_event_order(void) {
+    lock();
+    const uint32_t order = state != nullptr ? state->eventOrder : 0;
+    unlock();
+    return order;
+}
+
 size_t notification_get_count(void) {
     lock();
     const size_t count = state != nullptr ? state->count : 0;
@@ -544,7 +598,7 @@ size_t notification_get_count(void) {
 error_t notification_dismiss(uint32_t id) {
     lock();
     error_t result = ERROR_NOT_FOUND;
-    if (state != nullptr) {
+    if (state != nullptr && waitForActions(id)) {
         for (size_t i = 0; i < state->count; i++) {
             if (state->entries[i].id == id) {
                 removeEntry(i);
@@ -573,17 +627,73 @@ error_t notification_invoke_action(uint32_t id) {
             }
         }
     }
+    // Registered before the lock is released, so removing the notification waits for the action to return
+    const bool registered = action != nullptr && state->runCount < MAX_ACTION_RUNS;
+    if (registered) {
+        state->runs[state->runCount++] = { id, xTaskGetCurrentTaskHandle() };
+    }
     unlock();
     // Called without the lock, so the action can use the module
     if (action != nullptr) {
         action(id, actionData);
     }
+    if (registered) {
+        lock();
+        if (state != nullptr) {
+            for (size_t i = 0; i < state->runCount; i++) {
+                if (state->runs[i].id == id && state->runs[i].task == xTaskGetCurrentTaskHandle()) {
+                    state->runs[i] = state->runs[--state->runCount];
+                    break;
+                }
+            }
+        }
+        unlock();
+    }
     return result;
+}
+
+error_t notification_dismiss_unless_sticky(uint32_t id) {
+    lock();
+    error_t result = ERROR_NOT_FOUND;
+    if (state != nullptr && waitForActions(id)) {
+        for (size_t i = 0; i < state->count; i++) {
+            if (state->entries[i].id == id) {
+                // The flag is read under the lock, so a sender that made it sticky meanwhile is respected
+                if (state->entries[i].sticky) {
+                    result = ERROR_NOT_ALLOWED;
+                } else {
+                    removeEntry(i);
+                    emitEvent(NOTIFICATION_EVENT_DISMISSED, id);
+                    result = ERROR_NONE;
+                }
+                break;
+            }
+        }
+    }
+    unlock();
+    return result;
+}
+
+void notification_dismiss_non_sticky(void) {
+    lock();
+    if (state != nullptr && waitForActions(0)) {
+        size_t i = 0;
+        while (i < state->count) {
+            if (state->entries[i].sticky) {
+                i++;
+            } else {
+                const uint32_t removedId = state->entries[i].id;
+                removeEntry(i);
+                emitEvent(NOTIFICATION_EVENT_DISMISSED, removedId);
+            }
+        }
+    }
+    unlock();
 }
 
 void notification_dismiss_all(void) {
     lock();
-    if (state != nullptr && state->count > 0) {
+    if (state != nullptr && waitForActions(0) && state->count > 0) {
         for (size_t i = 0; i < state->count; i++) {
             bundle_free(state->entries[i].data);
         }

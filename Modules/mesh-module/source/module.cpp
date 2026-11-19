@@ -148,6 +148,7 @@ static const ModuleSymbol mesh_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(mesh_get_conversation_notifications),
     DEFINE_MODULE_SYMBOL(mesh_set_conversation_notifications),
     DEFINE_MODULE_SYMBOL(mesh_mark_read),
+    DEFINE_MODULE_SYMBOL(mesh_mark_all_read),
     DEFINE_MODULE_SYMBOL(mesh_get_contacts),
     DEFINE_MODULE_SYMBOL(mesh_add_contact),
     DEFINE_MODULE_SYMBOL(mesh_remove_contact),

@@ -47,6 +47,8 @@ private:
     tt::std::string directory;
     uint8_t* buffer = nullptr;
     bool opened = false;
+    /** Set while opening when a deletion couldn't be applied completely because a message couldn't be read */
+    bool replayIncomplete = false;
     size_t bufferUsed = 0;
     tt::std::vector<IndexEntry> index;
     tt::std::vector<uint32_t> segments;
@@ -64,7 +66,8 @@ private:
     const IndexEntry* findEntry(uint32_t seq) const;
     error_t readEntry(const IndexEntry& entry, MeshMessage* message) const;
     void enforceBudget();
-    void eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq);
+    /** @return false when a message couldn't be read, which is then kept as it can't be told whether it belongs to the conversation */
+    bool eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq);
 
 public:
     explicit MeshStore(const Limits& limits = DEFAULT_LIMITS);

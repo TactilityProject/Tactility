@@ -23,6 +23,8 @@
 #include <lvgl/widgets/card.h>
 #include <lvgl/widgets/toolbar.h>
 
+#include <cstring>
+
 namespace tt::app::notificationsettings {
 
 extern const ::AppManifest manifest;
@@ -127,9 +129,29 @@ void loadSources(Context* ctx) {
     ctx->sources.resize(count);
     ctx->names.clear();
     ctx->applied.clear();
+    ::std::vector<::std::string> friendly;
     for (const auto& source : ctx->sources) {
-        ctx->names.emplace_back(lvgl::getNotificationSourceName(source.id).c_str());
+        friendly.push_back(lvgl::getNotificationSourceName(source.id));
         ctx->applied.push_back(source.enabled);
+    }
+    // Senders that end up with the same name get the full id, and the type when the id is shared by an app and a service
+    for (size_t i = 0; i < ctx->sources.size(); i++) {
+        ::std::string name = friendly[i];
+        bool sameName = false;
+        bool sameId = false;
+        for (size_t j = 0; j < ctx->sources.size(); j++) {
+            if (j != i && friendly[j] == friendly[i]) {
+                sameName = true;
+                sameId |= strcmp(ctx->sources[j].id, ctx->sources[i].id) == 0;
+            }
+        }
+        if (sameName) {
+            name += ::std::string(" (") + ctx->sources[i].id + ")";
+        }
+        if (sameId) {
+            name += ctx->sources[i].type == NOTIFICATION_SOURCE_APP ? ::std::string(" ") + tr("app") : ::std::string(" ") + tr("service");
+        }
+        ctx->names.emplace_back(name.c_str());
     }
 }
 
@@ -166,6 +188,12 @@ int32_t appMain(int argc, char* argv[]) {
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
 
     WindowId window = window_manager_create(ctx.appInstanceId, createWidgets, &ctx);
+    if (window == 0) {
+        // Without a window the app has no way to close, so it ends here
+        app_event_unsubscribe(&appEvents);
+        task_event_group_destruct(&eventGroup);
+        return -1;
+    }
 
     bool shouldClose = false;
     while (!shouldClose) {

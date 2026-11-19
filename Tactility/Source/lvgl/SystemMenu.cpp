@@ -42,12 +42,10 @@
 #include <tactility/drivers/wifi.h>
 #include <tactility/log.h>
 #include <tactility/memory.h>
-#include <tactility/time.h>
 
 #include <cstdint>
 #include <cstdio>
 #include <string>
-#include <vector>
 
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
@@ -348,15 +346,16 @@ static MenuState* menu = nullptr;
 
 // Only changed and read with the LVGL lock held
 static bool notificationsOpen = false;
-static uint64_t notificationsChangedMs = 0;
+static uint32_t notificationsChangedOrder = 0;
 
-bool systemMenuNotificationsSeenSince(uint64_t uptimeMs) {
-    return notificationsOpen || notificationsChangedMs >= uptimeMs;
+bool systemMenuNotificationsSeenSince(uint32_t eventOrder) {
+    return notificationsOpen || notificationsChangedOrder >= eventOrder;
 }
 
 static void setNotificationsOpen(bool open) {
     notificationsOpen = open;
-    notificationsChangedMs = get_millis();
+    // Events up to this one happened before the change, and later ones after it
+    notificationsChangedOrder = notification_get_event_order();
 }
 
 // Internal RAM is judged by what is left, as a share of a small heap says little
@@ -767,21 +766,9 @@ static void onNotificationCount(void* /*userData*/, size_t count) {
 
 /** Removes the notifications that aren't sticky, as the sender decides when a sticky one goes */
 static void onClearClicked(lv_event_t* /*event*/) {
-    // On the heap, as the call stack of the LVGL task is small
-    std::vector<Notification> notifications(NOTIFICATION_HISTORY_CAPACITY);
-    size_t count = 0;
-    if (notification_get_all(notifications.data(), notifications.size(), &count) != ERROR_NONE) {
-        return;
-    }
-    for (size_t i = 0; i < count; i++) {
-        if (!notifications[i].sticky) {
-            notification_dismiss(notifications[i].id);
-        }
-        notification_release(&notifications[i]);
-    }
+    notification_dismiss_non_sticky();
 }
 
-/** An empty space in a row */
 static void createGap(lv_obj_t* parent, int32_t width) {
     auto* gap = lv_obj_create(parent);
     lv_obj_remove_style_all(gap);
@@ -851,7 +838,8 @@ static void destroyWidgets(void* /*userData*/) {
     if (menu->memoryTimer != nullptr) {
         lv_timer_delete(menu->memoryTimer);
     }
-    if (menu->kind == Kind::Notifications) {
+    // Only a list that was shown counts as seen
+    if (menu->notifications != nullptr) {
         setNotificationsOpen(false);
     }
     tt::deleteObject(menu);
@@ -870,11 +858,6 @@ static void createWidgets(lv_obj_t* parent, void* userData) {
     }
     menu->display = lv_obj_get_display(parent);
     menu->kind = static_cast<Kind>(reinterpret_cast<intptr_t>(userData));
-    if (menu->kind == Kind::Notifications) {
-        // The user is looking at them now
-        setNotificationsOpen(true);
-        system_bars_set_notification_unread(false);
-    }
 
     menu->card = lvgl_card_create(parent);
     lv_obj_set_flex_flow(menu->card, LV_FLEX_FLOW_COLUMN);
@@ -894,6 +877,9 @@ static void createWidgets(lv_obj_t* parent, void* userData) {
         auto* root = notificationPanelGetRoot(menu->notifications);
         lv_obj_set_size(root, LV_PCT(100), 0);
         lv_obj_set_flex_grow(root, 1);
+        // The user is looking at them now, which is only true once the list exists
+        setNotificationsOpen(true);
+        system_bars_set_notification_unread(false);
     }
 
     if (close_button != nullptr) {

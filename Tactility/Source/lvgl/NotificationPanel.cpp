@@ -49,6 +49,8 @@ struct NotificationPanel {
     void* userData = nullptr;
     size_t count = 0;
     bool countReported = false;
+    /** The last read failed, so the list shows an older snapshot until a later read succeeds */
+    bool retryRead = false;
     tt::std::vector<Row> rows;
     /** The notifications of the last read. Kept here, as the LVGL task's stack is small. */
     tt::std::vector<Notification> notifications;
@@ -91,19 +93,10 @@ static void onKey(lv_event_t* event) {
 
 static void onRowClicked(lv_event_t* event) {
     const auto id = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lv_obj_get_user_data(lv_event_get_target_obj(event))));
-    Notification notification {};
-    if (notification_get(id, &notification) != ERROR_NONE) {
-        return;
-    }
-    const bool sticky = notification.sticky;
-    notification_release(&notification);
-
     // The action only forwards the request to a task, as this is the LVGL task
     const bool acted = notification_invoke_action(id) == ERROR_NONE;
     // A sticky notification stays until its sender dismisses it. The panel notices the event and rebuilds its list.
-    if (!sticky) {
-        notification_dismiss(id);
-    }
+    notification_dismiss_unless_sticky(id);
     if (acted) {
         // The action usually opens an app, which the menu would cover
         window_manager_overlay_hide();
@@ -179,8 +172,11 @@ static void rebuild(NotificationPanel* panel) {
     size_t count = 0;
     panel->notifications.resize(NOTIFICATION_HISTORY_CAPACITY);
     if (notification_get_all(panel->notifications.data(), panel->notifications.size(), &count) != ERROR_NONE) {
-        count = 0;
+        // Showing nothing would be wrong, so the rows stay and the next timer tick tries again
+        panel->retryRead = true;
+        return;
     }
+    panel->retryRead = false;
 
     const int32_t scrollY = lv_obj_get_scroll_y(panel->list);
     lv_obj_clean(panel->list);
@@ -226,7 +222,7 @@ static void onTimer(lv_timer_t* timer) {
     while (notification_poll(&panel->subscription, &event) == ERROR_NONE) {
         changed = true;
     }
-    if (changed) {
+    if (changed || panel->retryRead) {
         rebuild(panel);
         return;
     }

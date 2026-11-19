@@ -91,7 +91,7 @@ static void read_settings_file(MeshSettings* settings) {
     if (properties_file_get(file, KEY_RX_BOOSTED_GAIN, value, sizeof(value)) == ERROR_NONE) {
         settings->rx_boosted_gain = strcmp(value, "true") == 0;
     }
-    properties_file_close(file);
+    properties_file_discard(file);
 }
 
 void mesh_settings_load(MeshSettings* settings) {
@@ -161,7 +161,7 @@ void mesh_settings_load_muted(void (*visitor)(const char* token, void* context),
             visit->visitor(key + prefixLength, visit->context);
         }
     }, &visit);
-    properties_file_close(file);
+    properties_file_discard(file);
 }
 
 constexpr auto* KEY_UNREAD_PREFIX = "unread.";
@@ -203,7 +203,7 @@ void mesh_settings_load_unread(void (*visitor)(const char* token, uint32_t count
             visit->visitor(key + prefixLength, static_cast<uint32_t>(strtoul(value, nullptr, 10)), visit->context);
         }
     }, &visit);
-    properties_file_close(file);
+    properties_file_discard(file);
 }
 
 error_t mesh_settings_save(const MeshSettings* settings) {
@@ -292,7 +292,7 @@ error_t mesh_settings_load_backend(const char* backend, MeshBackendSettings* set
     if (properties_file_get(file, name, value, sizeof(value)) == ERROR_NONE) {
         strncpy(settings->network.region_scope, value, MESH_NAME_MAX_LENGTH);
     }
-    properties_file_close(file);
+    properties_file_discard(file);
     return ERROR_NONE;
 }
 

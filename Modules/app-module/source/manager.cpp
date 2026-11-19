@@ -352,6 +352,23 @@ bool app_manager_is_running(const char* app_id) {
     return running;
 }
 
+error_t app_manager_find_running_instance(const char* app_id, AppInstanceId* out_app_instance_id) {
+    auto& ledger = app_ledger();
+    mutex_lock(&ledger.mutex);
+    error_t result = ERROR_NOT_FOUND;
+    for (const auto& [instance_id, record] : ledger.instances) {
+        if ((record.state == APP_INSTANCE_STATE_STARTING || record.state == APP_INSTANCE_STATE_ACTIVE) && record.manifestId == app_id) {
+            // Instance ids increase, so the highest one is the most recent
+            if (result != ERROR_NONE || instance_id > *out_app_instance_id) {
+                *out_app_instance_id = instance_id;
+            }
+            result = ERROR_NONE;
+        }
+    }
+    mutex_unlock(&ledger.mutex);
+    return result;
+}
+
 error_t app_manager_get_topmost_app_id(char* buffer, size_t buffer_size) {
     if (buffer_size == 0) {
         return ERROR_BUFFER_OVERFLOW;

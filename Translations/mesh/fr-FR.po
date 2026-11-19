@@ -338,3 +338,6 @@ msgstr "Tous les messages"
 
 msgid "current"
 msgstr "actuel"
+
+msgid "Mark all as read"
+msgstr "Tout marquer comme lu"

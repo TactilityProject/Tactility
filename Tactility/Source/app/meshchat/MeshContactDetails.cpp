@@ -73,10 +73,9 @@ struct Context {
 }
 
 /** Queries the service thread, so it's called without the LVGL lock */
-void loadLines(Context* ctx) {
+void buildLines(Context* ctx, tt::std::vector<tt::std::string>& lines) {
     using i18n::format;
-    ctx->lines.clear();
-    auto add = [ctx](const ::std::string& line) { ctx->lines.push_back(line.c_str()); };
+    auto add = [&lines](const ::std::string& line) { lines.push_back(line.c_str()); };
 
     tt::std::vector<MeshContact> contacts(CONTACT_LIMIT);
     size_t contactCount = 0;
@@ -126,6 +125,15 @@ void loadLines(Context* ctx) {
             add(format(tr("Signal: {} dBm, {} dB"), { rssi, ::std::to_string(static_cast<int>(::std::lround(node->snr))) }));
         }
     }
+}
+
+/** The lines are built first, as the window can be rebuilt on another thread while this one reads the service */
+void loadLines(Context* ctx) {
+    tt::std::vector<tt::std::string> lines;
+    buildLines(ctx, lines);
+    lvgl_lock();
+    ctx->lines = ::std::move(lines);
+    lvgl_unlock();
 }
 
 void onBackPressed(lv_event_t* event) {

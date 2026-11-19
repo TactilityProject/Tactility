@@ -103,7 +103,7 @@ void onPreviousPressed(lv_event_t* /*event*/) {
 }
 
 void onNotificationPressed(lv_event_t* /*event*/) {
-    if (config.show_notifications != nullptr) {
+    if (config.show_notifications != nullptr && !lv_obj_is_hidden(state->notificationButton)) {
         config.show_notifications();
     }
 }

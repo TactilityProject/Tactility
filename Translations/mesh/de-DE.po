@@ -338,3 +338,6 @@ msgstr "Alle Nachrichten"
 
 msgid "current"
 msgstr "aktuell"
+
+msgid "Mark all as read"
+msgstr "Alle als gelesen markieren"

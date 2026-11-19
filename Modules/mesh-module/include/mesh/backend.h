@@ -128,7 +128,17 @@ struct MeshBackendApi {
     /** Optional. The message with sequence number @a seq was cancelled, so it must not be sent again. */
     void (*cancel_send)(void* backend, uint32_t seq);
 
-    /** Optional. See mesh_set_contact_path(). The hops are validated by the host to be at least 1 and a hash size of 1 to 4. */
+    /**
+     * Optional. A contact was removed by the user, which a backend can take as the explicit reset of what it remembers about
+     * the node, such as a pinned public key. Called on the service thread.
+     */
+    void (*on_contact_removed)(void* backend, const struct MeshAddress* contact);
+
+    /**
+     * Optional. See mesh_set_contact_path(). The hops are validated by the host to be at least 1 and a hash size of 1 to 4,
+     * and the host checked that the contact is saved. The backend returns ERROR_RESOURCE when the path couldn't be stored
+     * and ERROR_OUT_OF_RANGE when it has no room for a path of another contact.
+     */
     error_t (*set_contact_path)(void* backend, const struct MeshAddress* contact, const uint8_t* hops, size_t hop_count, size_t hash_size);
 
     /** Optional. See mesh_get_contact_path(). */

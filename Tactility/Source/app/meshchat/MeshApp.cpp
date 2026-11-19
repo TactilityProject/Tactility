@@ -86,8 +86,10 @@ struct Context {
     bool pathReset = false;
     /** The contact that the path flow is about */
     MeshAddress pathContact {};
+    /** The contacts that the dialog showed, as the list of contacts can change while it is open */
+    tt::std::vector<MeshAddress> pathContactChoices;
     /** The action of each option of the open contacts menu */
-    ::std::vector<int> contactMenuItems;
+    tt::std::vector<int> contactMenuItems;
     AppStream channelStream {};
     char channelBuffer[MESH_NAME_MAX_LENGTH + 1] = {};
     AppStream createStream {};
@@ -720,7 +722,7 @@ void onContactKeyResult(Context* ctx, int32_t result) {
 
 /** The order of these matches the options of the selection dialog */
 enum class MenuItem { AddByKey, AddSeen, ShowQr, SetPath, ResetPath };
-enum class MainMenuItem { AdvertZeroHop, AdvertFlood, ShowQr, Info };
+enum class MainMenuItem { MarkAllRead, AdvertZeroHop, AdvertFlood, ShowQr, Info };
 
 void startMenu(Context* ctx) {
     if (ctx->menuDialogId != 0) {
@@ -728,6 +730,7 @@ void startMenu(Context* ctx) {
     }
     if (ctx->mode == ViewMode::Menu) {
         ctx->menuDialogId = selectiondialog::start(ctx->appInstanceId, tr("Mesh"), {
+            tr("Mark all as read"),
             tr("Advert: Zero hop"),
             tr("Advert: Flood routed"),
             tr("Show QR"),
@@ -794,8 +797,10 @@ void startPathContactSelection(Context* ctx, bool reset) {
     }
     ctx->pathReset = reset;
     ::std::vector<::std::string> names;
+    ctx->pathContactChoices.clear();
     for (const auto& contact : ctx->contacts) {
         names.emplace_back(contact.name);
+        ctx->pathContactChoices.push_back(contact.address);
     }
     ctx->pathContactDialogId = selectiondialog::start(ctx->appInstanceId, reset ? tr("Reset path") : tr("Set path"), names);
 }
@@ -806,10 +811,11 @@ void showPathError(Context* ctx, error_t error) {
 }
 
 void onPathContactSelected(Context* ctx, int32_t selected) {
-    if (selected < 0 || selected >= static_cast<int32_t>(ctx->contacts.size())) {
+    // The service tells when the contact doesn't exist anymore
+    if (selected < 0 || selected >= static_cast<int32_t>(ctx->pathContactChoices.size())) {
         return;
     }
-    ctx->pathContact = ctx->contacts[selected].address;
+    ctx->pathContact = ctx->pathContactChoices[selected];
     if (ctx->pathReset) {
         const error_t error = mesh_reset_contact_path(&ctx->pathContact);
         if (error != ERROR_NONE) {
@@ -851,6 +857,10 @@ void onPathInputResult(Context* ctx, int32_t result) {
 }
 
 void onMainMenuSelected(Context* ctx, int32_t selected) {
+    if (static_cast<MainMenuItem>(selected) == MainMenuItem::MarkAllRead) {
+        mesh_mark_all_read();
+        return;
+    }
     if (static_cast<MainMenuItem>(selected) == MainMenuItem::Info) {
         startApp(MESH_INFO_APP_ID, 0, nullptr);
         return;

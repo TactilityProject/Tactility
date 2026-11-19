@@ -257,15 +257,24 @@ static void onIconRowKey(lv_event_t* event) {
     }
 }
 
+// Where the latest press on a statusbar started, which a gesture is recognised after it moved
+static int32_t statusbar_press_x = 0;
+
+static void onStatusbarPressed(lv_event_t* /*event*/) {
+    lv_indev_t* indev = lv_indev_active();
+    if (indev != nullptr) {
+        lv_point_t point;
+        lv_indev_get_point(indev, &point);
+        statusbar_press_x = point.x;
+    }
+}
+
 static void onStatusbarGesture(lv_event_t* /*event*/) {
     lv_indev_t* indev = lv_indev_active();
     if (indev != nullptr && lv_indev_get_gesture_dir(indev) == LV_DIR_BOTTOM) {
         // The release must not click the pressed widget
         lv_indev_wait_release(indev);
-        // The swipe is mostly vertical, so where it ends is where it started
-        lv_point_t point;
-        lv_indev_get_point(indev, &point);
-        show_menu(point.x);
+        show_menu(statusbar_press_x);
     }
 }
 
@@ -369,6 +378,7 @@ lv_obj_t* lvgl_statusbar_create(lv_obj_t* parent) {
 
     // Swiping down from anywhere on the statusbar opens the system menu
     lv_obj_set_gesture_bubble(obj, false);
+    lv_obj_add_event_cb(obj, onStatusbarPressed, LV_EVENT_PRESSED, nullptr);
     lv_obj_add_event_cb(obj, onStatusbarGesture, LV_EVENT_GESTURE, nullptr);
     if (statusbar->action_container != nullptr) {
         lv_obj_add_event_cb(obj, onSideSizeChanged, LV_EVENT_SIZE_CHANGED, statusbar);
@@ -494,6 +504,8 @@ static void onSideSizeChanged(lv_event_t* event) {
 
 static void update_main(Statusbar* statusbar) {
     update_time(statusbar);
+    // The icon limit reads the size of the time, which only changes in a layout pass
+    lv_obj_update_layout(statusbar->time);
     update_icons(statusbar);
 }
 
@@ -645,9 +657,13 @@ static int32_t get_widest_time_width(const lv_font_t* font, int32_t letterSpace)
 
 // How far the selection ring of the icon row reaches outside of it
 static int32_t get_focus_ring_extent(lv_obj_t* icon_row) {
+    // The row can be focused already, which must stay so
+    const bool wasFocused = lv_obj_has_state(icon_row, LV_STATE_FOCUS_KEY);
     lv_obj_add_state(icon_row, LV_STATE_FOCUS_KEY);
     const int32_t extent = lv_obj_get_style_outline_width(icon_row, LV_PART_MAIN) + std::max<int32_t>(0, lv_obj_get_style_outline_pad(icon_row, LV_PART_MAIN));
-    lv_obj_remove_state(icon_row, LV_STATE_FOCUS_KEY);
+    if (!wasFocused) {
+        lv_obj_remove_state(icon_row, LV_STATE_FOCUS_KEY);
+    }
     return extent;
 }
 

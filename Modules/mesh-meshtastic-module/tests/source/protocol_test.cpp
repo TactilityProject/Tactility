@@ -126,8 +126,7 @@ TEST_CASE("Meshtastic User carries a public key") {
     const auto encoded = meshtastic_encode_user(user);
     MeshtasticUser decoded;
     REQUIRE(meshtastic_decode_user(encoded.data(), encoded.size(), &decoded));
-    CHECK_EQ(decoded.publicKey.size(), 32);
-    CHECK_EQ(decoded.publicKey[0], 0x5A);
+    CHECK(decoded.publicKey == user.publicKey);
 }
 
 TEST_CASE("X25519 public key matches the RFC 7748 vector") {

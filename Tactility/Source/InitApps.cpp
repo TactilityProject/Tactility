@@ -181,8 +181,10 @@ static void registerInternalApps() {
         app_manager_add(&app::meshchat::infoManifest);
         app_manager_add(&app::meshchat::contactDetailsManifest);
         app_manager_add(&app::meshsettings::manifest);
-        app_manager_add(&app::notificationsettings::manifest);
     }
+
+    // Notifications also come from apps and services on devices without a radio
+    app_manager_add(&app::notificationsettings::manifest);
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED
     app_manager_add(&app::usbsettings::manifest);

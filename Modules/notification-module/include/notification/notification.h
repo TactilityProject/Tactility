@@ -65,7 +65,11 @@ struct Notification {
     int64_t wall_time;
     /** Milliseconds since boot */
     uint64_t uptime_ms;
-    /** Optional key/value data, NULL when the sender added none. See notification_release(). */
+    /**
+     * Optional key/value data, NULL when the sender added none.
+     * The notification system owns the Bundle that the sender put in the context: it took it over when the context was
+     * sent. The reader gets a clone from notification_get() and must free it with notification_release().
+     */
     Bundle* data;
     /** NULL when there is none. Call it with notification_invoke_action() and don't call it directly. */
     NotificationAction action;
@@ -89,6 +93,7 @@ struct NotificationContext {
     char title[NOTIFICATION_TITLE_MAX_LENGTH + 1];
     char message[NOTIFICATION_MESSAGE_MAX_LENGTH + 1];
     enum NotificationSeverity severity;
+    /** Owned by the context until it is sent, and by the notification system after that, when it is set to NULL */
     Bundle* data;
     NotificationAction action;
     void* action_data;
@@ -116,6 +121,11 @@ void notification_context_set_severity(struct NotificationContext* context, enum
  * The optional key/value data of the notification. Fill it with bundle_put_string(), bundle_put_int32() and so on,
  * for example with what is needed to open the right screen later. The module doesn't interpret it, and keys and
  * values have no length limit. The Bundle is allocated by the first call, so a notification without data costs nothing.
+ *
+ * Ownership: the context owns the Bundle until it is passed to notification_send() or notification_update(). On
+ * success the notification system takes it over and the context no longer refers to it, so the caller must not use or
+ * free it afterwards, and must not keep a pointer to it. When sending fails, or the context is never sent, the caller
+ * still owns it and frees it with notification_context_destroy().
  * @return NULL when the Bundle couldn't be allocated
  */
 Bundle* notification_context_get_data(struct NotificationContext* context);
@@ -144,7 +154,8 @@ void notification_context_set_action(struct NotificationContext* context, Notifi
 void notification_context_set_sticky(struct NotificationContext* context, bool sticky);
 
 /**
- * Sends the notification. On success the Bundle of the context moves to the stored notification.
+ * Sends the notification. On success the ownership of the Bundle of the context is transferred to the notification
+ * system, and the context's pointer to it is cleared. Don't use or free the Bundle after that.
  * On failure the context is unchanged, so the caller still owns it.
  * @param[out] out_id the id of the notification, can be NULL
  * The first notification of an app or service adds it to the sources that the user can disable.
@@ -168,8 +179,8 @@ error_t notification_context_for_notification(uint32_t id, struct NotificationCo
 
 /**
  * Replaces the content of a notification that was sent earlier, for example to change a message count.
- * The notification keeps its id. The context is used like in notification_send(): its Bundle moves to the
- * notification on success.
+ * The notification keeps its id. The context is used like in notification_send(): on success the ownership of its
+ * Bundle is transferred to the notification system, and the Bundle that the notification had before is freed.
  * @param[in] bump true moves the notification to the newest position and refreshes its timestamps, like a new
  * notification. false keeps its place and timestamps, so a notification that changes often doesn't jump around.
  * @retval ERROR_INVALID_ARGUMENT when the message or the source id is empty
@@ -179,7 +190,10 @@ error_t notification_context_for_notification(uint32_t id, struct NotificationCo
  */
 error_t notification_update(uint32_t id, struct NotificationContext* context, bool bump);
 
-/** Frees the Bundle of a context that wasn't sent. Does nothing for a context that was sent. */
+/**
+ * Frees the Bundle of a context that wasn't sent. Does nothing for a context that was sent, as the notification system
+ * owns its Bundle by then.
+ */
 void notification_context_destroy(struct NotificationContext* context);
 
 /**
@@ -199,7 +213,13 @@ error_t notification_get_all(struct Notification* notifications, size_t max_coun
 /** @return the number of kept notifications, which is cheaper than reading them */
 size_t notification_get_count(void);
 
-/** @retval ERROR_NOT_FOUND when the notification was dismissed or removed */
+/**
+ * Dismisses a notification. When an action of it runs on another task, this waits for it to return, so the sender can
+ * free what the action uses once this returns. Don't call it from something that such an action waits for.
+ * The same goes for notification_dismiss_all(), notification_update() and disabling the sender with
+ * notification_set_source_enabled(), which wait for the actions of the notifications that they remove or replace.
+ * @retval ERROR_NOT_FOUND when the notification was dismissed or removed
+ */
 error_t notification_dismiss(uint32_t id);
 
 /**
@@ -213,6 +233,18 @@ error_t notification_dismiss(uint32_t id);
 error_t notification_invoke_action(uint32_t id);
 
 void notification_dismiss_all(void);
+
+/**
+ * Dismisses a notification unless it is sticky. Like notification_dismiss(), it waits for an action of the notification
+ * that runs on another task. The flag is read when the notification is removed, under the same
+ * lock, so a sender that made it sticky in the meantime is respected.
+ * @retval ERROR_NOT_FOUND when the notification was dismissed or removed
+ * @retval ERROR_NOT_ALLOWED when the notification is sticky, which stays
+ */
+error_t notification_dismiss_unless_sticky(uint32_t id);
+
+/** Dismisses all notifications that aren't sticky, without copying any of them. Emits NOTIFICATION_EVENT_DISMISSED for each. */
+void notification_dismiss_non_sticky(void);
 
 #define NOTIFICATION_SOURCE_LIMIT 64
 
@@ -265,7 +297,17 @@ struct NotificationEvent {
     enum NotificationEventType type;
     /** 0 for NOTIFICATION_EVENT_CLEARED */
     uint32_t id;
+    /** For NOTIFICATION_EVENT_UPDATED: the update moved the notification to the newest position, like a new one */
+    bool bumped;
+    /** Increases with every event, so it tells what happened before what. Compare it with notification_get_event_order(). */
+    uint32_t order;
 };
+
+/**
+ * @return the order of the latest event. An event with a higher order happened after this call, and one with an equal or
+ * lower order before it, which is exact where timestamps can be equal.
+ */
+uint32_t notification_get_event_order(void);
 
 #define NOTIFICATION_EVENT_QUEUE_CAPACITY 8
 

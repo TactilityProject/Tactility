@@ -38,6 +38,7 @@
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <atomic>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -105,6 +106,8 @@ struct Context {
     /** Whether the radio has boosted RX gain, which is the SX126x family */
     bool hasRxBoostedGain = false;
     bool rxBoostedGain = false;
+    /** What the switch asked for, apart from the value that was loaded for display, which a refresh can replace */
+    ::std::atomic<bool> rxBoostedGainRequest { false };
     bool hasMeshCore = false;
     bool hasMeshtastic = false;
     std::string radioSettingTexts[RADIO_SETTING_COUNT];
@@ -272,8 +275,13 @@ void loadState(Context* ctx) {
     ctx->hasMeshtastic = mesh_get_preset(MESHTASTIC_ID, preset, sizeof(preset)) == ERROR_NONE;
     ctx->modemPresetText = ctx->hasMeshtastic ? preset : "";
     // The values that MeshCore would run with, which are the preset's with the user's settings applied
-    // Frequency and power are shared by the backends, so they show the first backend that has presets
+    // Frequency and power are shared by the backends, so they show the selected backend, or the first that has presets
+    char selectedBackend[MESH_BACKEND_ID_MAX_LENGTH + 1] = {};
+    mesh_get_backend(selectedBackend, sizeof(selectedBackend));
     const char* sharedBackend = ctx->hasMeshCore ? MESHCORE_ID : MESHTASTIC_ID;
+    if (ctx->hasMeshtastic && strcmp(selectedBackend, MESHTASTIC_ID) == 0) {
+        sharedBackend = MESHTASTIC_ID;
+    }
     MeshRadioSettings settings {};
     if (mesh_get_radio_parameters(sharedBackend, &settings) != ERROR_NONE) {
         mesh_get_radio_settings(sharedBackend, &settings);
@@ -320,7 +328,9 @@ void onAdvancedSwitch(lv_event_t* event) {
 
 void onRxBoostedGainSwitch(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    ctx->rxBoostedGain = lv_obj_has_state(ctx->rxBoostedGainSwitch, LV_STATE_CHECKED);
+    const bool requested = lv_obj_has_state(ctx->rxBoostedGainSwitch, LV_STATE_CHECKED);
+    ctx->rxBoostedGainRequest = requested;
+    ctx->rxBoostedGain = requested;
     // Saving the setting is a file operation, which the app's own thread does
     task_event_group_signal(ctx->eventGroup, ctx->rxBoostedGainBit);
 }
@@ -874,7 +884,7 @@ int32_t appMain(int argc, char* argv[]) {
             startPresetSelection(&ctx, MESHTASTIC_ID);
         }
         if (flags & ctx.rxBoostedGainBit) {
-            const error_t error = mesh_set_rx_boosted_gain(ctx.rxBoostedGain);
+            const error_t error = mesh_set_rx_boosted_gain(ctx.rxBoostedGainRequest);
             if (error != ERROR_NONE) {
                 LOG_E(TAG, "Failed to set the RX boosted gain: %s", error_to_string(error));
             }

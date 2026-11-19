@@ -38,15 +38,14 @@ struct Context {
 };
 
 /** Queries the service thread, so it's called without the LVGL lock */
-void loadLines(Context* ctx) {
-    ctx->lines.clear();
+void buildLines(tt::std::vector<tt::std::string>& lines) {
     MeshInfo info;
     if (mesh_get_info(&info) != ERROR_NONE) {
-        ctx->lines.push_back(getNotReadyText().c_str());
+        lines.push_back(getNotReadyText().c_str());
         return;
     }
     using i18n::format;
-    auto add = [ctx](const ::std::string& line) { ctx->lines.push_back(line.c_str()); };
+    auto add = [&lines](const ::std::string& line) { lines.push_back(line.c_str()); };
     add(format(tr("Status: {}"), { mesh_state_to_string(info.state) }));
     add(format(tr("Network: {}"), { info.backend }));
     add(format(tr("Region: {}"), { radio_region_to_string(info.region) }));
@@ -76,6 +75,15 @@ void loadLines(Context* ctx) {
         ::std::to_string(info.messages_received), ::std::to_string(info.messages_sent), ::std::to_string(info.messages_failed)
     }));
     add(format(tr("Nodes heard: {}, contacts: {}"), { ::std::to_string(info.nodes_heard), ::std::to_string(info.contacts) }));
+}
+
+/** The lines are built first, as the window can be rebuilt on another thread while this one reads the service */
+void loadLines(Context* ctx) {
+    tt::std::vector<tt::std::string> lines;
+    buildLines(lines);
+    lvgl_lock();
+    ctx->lines = ::std::move(lines);
+    lvgl_unlock();
 }
 
 void onBackPressed(lv_event_t* event) {

@@ -416,6 +416,12 @@ uint32_t mesh_get_unread(const struct MeshAddress* peer, uint8_t channel);
 void mesh_mark_read(const struct MeshAddress* peer, uint8_t channel);
 
 /**
+ * Mark the messages of all conversations of the active backend as read, contacts and channels.
+ * Emits MESH_EVENT_UNREAD once when there were unread messages.
+ */
+void mesh_mark_all_read(void);
+
+/**
  * Whether new messages of a conversation raise a notification, for the selected backend. It is on by default.
  * @param[in] peer the peer of a direct conversation, or NULL for the conversation of @a channel
  */
@@ -480,6 +486,8 @@ error_t mesh_remove_contact(const struct MeshAddress* address);
  * @retval ERROR_NOT_SUPPORTED when the active backend has no paths, see MESH_FEATURE_CONTACT_PATHS
  * @retval ERROR_NOT_FOUND when there is no such contact
  * @retval ERROR_INVALID_ARGUMENT when the path is empty or too long
+ * @retval ERROR_RESOURCE when the path couldn't be stored, in which case the previous path stays
+ * @retval ERROR_OUT_OF_RANGE when there is no room for the path of another contact
  */
 error_t mesh_set_contact_path(const struct MeshAddress* contact, const uint8_t* hops, size_t hop_count, size_t hash_size);
 
@@ -488,6 +496,7 @@ error_t mesh_set_contact_path(const struct MeshAddress* contact, const uint8_t* 
  * @retval ERROR_INVALID_STATE when the service is not running
  * @retval ERROR_NOT_SUPPORTED when the active backend has no paths
  * @retval ERROR_NOT_FOUND when there is no such contact
+ * @retval ERROR_RESOURCE when the reset couldn't be stored, in which case the path stays
  */
 error_t mesh_reset_contact_path(const struct MeshAddress* contact);
 

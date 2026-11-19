@@ -11,3 +11,9 @@ msgstr "Aucune application n'a encore envoyé de notification."
 
 msgid "Turning an app off also removes its notifications."
 msgstr "Désactiver une application supprime aussi ses notifications."
+
+msgid "app"
+msgstr "application"
+
+msgid "service"
+msgstr "service"

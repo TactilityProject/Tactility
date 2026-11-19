@@ -170,6 +170,13 @@ error_t app_manager_get_topmost_app_id(char* buffer, size_t buffer_size);
 bool app_manager_is_running(const char* app_id);
 
 /**
+ * @param[in] app_id the manifest id of an app
+ * @param[out] out_app_instance_id the most recently started instance of the app that is starting or active
+ * @retval ERROR_NOT_FOUND when no instance of the app is starting or active
+ */
+error_t app_manager_find_running_instance(const char* app_id, AppInstanceId* out_app_instance_id);
+
+/**
  * Registers @a path as a directory to scan for app manifests - each direct subdirectory of
  * @a path is expected to hold a manifest.properties (see app/package_manifest.h), matching the
  * layout app_install() creates ({install dir}/{package id}/manifest.properties), though this is not
