@@ -286,12 +286,17 @@ static void onPowerOffClicked(lv_event_t* /*event*/) {
     }
 }
 
+/** Twice the icon at regular size, and 1.5 times at the most compact, as the tiles take much of a small display */
+static int32_t getTileSize() {
+    const auto icon_height = static_cast<int32_t>(lvgl_get_shared_icon_default_font_height());
+    return lvgl_theme_lerp(icon_height * 3 / 2, icon_height * 2, lvgl_theme_get_size());
+}
+
 // A square icon button, sized for the menu's tiles
 static lv_obj_t* createTile(lv_obj_t* parent, const char* icon) {
-    const auto icon_height = static_cast<int32_t>(lvgl_get_shared_icon_default_font_height());
-
+    const int32_t size = getTileSize();
     auto* tile = lvgl_icon_button_create(parent);
-    lv_obj_set_size(tile, icon_height * 2, icon_height * 2);
+    lv_obj_set_size(tile, size, size);
 
     auto* icon_label = lv_label_create(tile);
     lv_obj_set_style_text_font(icon_label, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
@@ -797,7 +802,7 @@ static lv_obj_t* createTopRow(lv_obj_t* parent) {
     // Between the buttons, with a gap as wide as a button where one is missing, so the rings are in the middle of the row
     const bool hasPower = menu->kind == Kind::Settings && supportsPowerOff();
     if (menu->kind == Kind::Settings) {
-        const auto tileSize = static_cast<int32_t>(lvgl_get_shared_icon_default_font_height()) * 2;
+        const auto tileSize = getTileSize();
         if (closeButton == nullptr && hasPower) {
             createGap(topRow, tileSize);
         }
