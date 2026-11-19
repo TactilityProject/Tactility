@@ -24,6 +24,14 @@ Website: https://github.com/vroland/epdiy
 
 License: [LGPL v3.0 or later](https://github.com/vroland/epdiy/blob/main/LICENSE)
 
+### FastEPD
+
+Pin maps, bus clocking and gate start sequences in `Drivers/gdep103tc2-module` are facts taken from FastEPD's ED103TC2 panel and TRMNL X board entries.
+
+Website: https://github.com/bitbank2/FastEPD
+
+License: [Apache License v2.0](https://github.com/bitbank2/FastEPD/blob/master/LICENSE)
+
 ### esp-iot-solution
 
 The NV3031B panel driver (`Drivers/nv3031b-module`) is adapted from the `esp_lcd_sh8601` component.
@@ -85,7 +93,7 @@ License: [GPL v3.0](https://github.com/meshtastic/firmware/blob/master/LICENSE)
 
 ### TRMNL Firmware
 
-The BQ27427 data memory images of the TRMNL X (`Devices/trmnl-trmnl-x/source/drivers/trmnl_x_gauge_profiles.cpp`) are taken from the TRMNL firmware (`lib/BQ27427`). That file is GPL-3.0 licensed (`Devices/trmnl-trmnl-x/LICENSE-GPL-3.0.md`).
+The BQ27427 data memory images of the TRMNL X (`Devices/trmnl-trmnl-x/source/drivers/trmnl_x_gauge_profiles.cpp`) are taken from the TRMNL firmware (`lib/BQ27427`). The grayscale waveform (`u8_graytable` in `src/display.cpp`) used by `Devices/trmnl-trmnl-x/trmnl,trmnl-x.dts` is also from that project. Both files are GPL-3.0 licensed (`Devices/trmnl-trmnl-x/LICENSE-GPL-3.0.md`).
 
 Website: https://github.com/usetrmnl/trmnl-firmware
 

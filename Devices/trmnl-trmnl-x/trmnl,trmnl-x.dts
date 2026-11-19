@@ -9,6 +9,8 @@
 #include <bindings/bma530.h>
 #include <bindings/bq27427.h>
 #include <bindings/iqs323.h>
+#include <bindings/gdep103tc2.h>
+#include <bindings/tps65185.h>
 #include <bindings/trmnl_x_power.h>
 
 / {
@@ -28,7 +30,7 @@
 		gpio-count = <49>;
 	};
 
-	i2c_internal {
+	i2c_internal: i2c_internal {
 		compatible = "espressif,esp32-i2c-master";
 		port = <I2C_NUM_0>;
 		clock-frequency = <400000>;
@@ -38,6 +40,16 @@
 		tca9535: tca9535 {
 			compatible = "ti,tca9535";
 			reg = <0x20>;
+		};
+
+		tps65185: tps65185 {
+			compatible = "ti,tps65185";
+			reg = <0x68>;
+			vcom-millivolt = <1100>;
+			pin-wakeup = <&tca9535 13 GPIO_FLAG_NONE>;
+			pin-pwrup = <&tca9535 11 GPIO_FLAG_NONE>;
+			pin-vcom-ctrl = <&tca9535 12 GPIO_FLAG_NONE>;
+			pin-power-good = <&tca9535 14 GPIO_FLAG_NONE>;
 		};
 
 		bma530: bma530 {
@@ -81,5 +93,55 @@
 		pin-battery-detect = <&tca9535 7 GPIO_FLAG_NONE>;
 		pin-gauge-reset = <&tca9535 10 GPIO_FLAG_ACTIVE_LOW>;
 		gauge = <&bq27427>;
+	};
+
+	display {
+		compatible = "gooddisplay,gdep103tc2";
+		rotation = <0>;
+		grayscale;
+		// from trmnl-firmware's u8_graytable (GPL-3.0).
+		// See: https://raw.githubusercontent.com/usetrmnl/trmnl-firmware/main/src/display.cpp
+		gray-waveform = [
+			0 0 0 0 0 0 1 1 1
+			0 0 1 1 1 2 2 1 1
+			0 0 0 0 1 2 2 1 1
+			1 1 2 2 1 1 1 1 2
+			0 0 0 1 2 1 1 1 2
+			1 2 2 2 2 1 1 1 2
+			0 0 1 1 2 2 1 1 2
+			0 1 1 2 1 1 2 1 2
+			0 1 1 1 2 1 2 1 2
+			0 1 1 1 1 2 2 1 2
+			1 1 1 2 1 1 1 2 2
+			0 0 1 2 1 1 1 2 2
+			0 0 0 1 2 1 1 2 2
+			0 0 0 0 1 2 1 2 2
+			0 1 1 1 2 2 2 2 2
+			0 0 0 0 0 0 0 0 2
+		];
+		pixel-clock-hz = <26666666>;
+		pin-oe = <&tca9535 8 GPIO_FLAG_NONE>;
+		pin-gmod = <&tca9535 9 GPIO_FLAG_NONE>;
+		pin-wr = <&gpio0 4 GPIO_FLAG_NONE>;
+		pin-sph = <&gpio0 41 GPIO_FLAG_NONE>;
+		pin-ckv = <&gpio0 45 GPIO_FLAG_NONE>;
+		pin-spv = <&gpio0 48 GPIO_FLAG_NONE>;
+		pin-le = <&gpio0 42 GPIO_FLAG_NONE>;
+		pin-data0 = <&gpio0 8 GPIO_FLAG_NONE>;
+		pin-data1 = <&gpio0 18 GPIO_FLAG_NONE>;
+		pin-data2 = <&gpio0 17 GPIO_FLAG_NONE>;
+		pin-data3 = <&gpio0 16 GPIO_FLAG_NONE>;
+		pin-data4 = <&gpio0 15 GPIO_FLAG_NONE>;
+		pin-data5 = <&gpio0 7 GPIO_FLAG_NONE>;
+		pin-data6 = <&gpio0 6 GPIO_FLAG_NONE>;
+		pin-data7 = <&gpio0 5 GPIO_FLAG_NONE>;
+		pin-data8 = <&gpio0 47 GPIO_FLAG_NONE>;
+		pin-data9 = <&gpio0 21 GPIO_FLAG_NONE>;
+		pin-data10 = <&gpio0 14 GPIO_FLAG_NONE>;
+		pin-data11 = <&gpio0 13 GPIO_FLAG_NONE>;
+		pin-data12 = <&gpio0 12 GPIO_FLAG_NONE>;
+		pin-data13 = <&gpio0 11 GPIO_FLAG_NONE>;
+		pin-data14 = <&gpio0 10 GPIO_FLAG_NONE>;
+		pin-data15 = <&gpio0 9 GPIO_FLAG_NONE>;
 	};
 };
