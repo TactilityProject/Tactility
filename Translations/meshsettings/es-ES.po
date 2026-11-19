@@ -86,3 +86,6 @@ msgstr "Ganancia RX aumentada"
 
 msgid "Continue"
 msgstr "Continuar"
+
+msgid "Requires reboot"
+msgstr "Requiere reinicio"

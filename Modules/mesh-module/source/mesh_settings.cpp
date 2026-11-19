@@ -171,17 +171,19 @@ struct UnreadVisit {
     void* context;
 };
 
-error_t mesh_settings_save_unread(const char* token, uint32_t count) {
+error_t mesh_settings_save_unread(const char* const* tokens, const uint32_t* counts, size_t length) {
     FileLock fileLock;
     PropertiesFile* file = open_for_write();
     if (file == nullptr) {
         return ERROR_RESOURCE;
     }
-    char name[128];
-    char value[16];
-    snprintf(name, sizeof(name), "%s%s", KEY_UNREAD_PREFIX, token);
-    snprintf(value, sizeof(value), "%u", static_cast<unsigned>(count));
-    properties_file_set(file, name, value);
+    for (size_t i = 0; i < length; i++) {
+        char name[128];
+        char value[16];
+        snprintf(name, sizeof(name), "%s%s", KEY_UNREAD_PREFIX, tokens[i]);
+        snprintf(value, sizeof(value), "%u", static_cast<unsigned>(counts[i]));
+        properties_file_set(file, name, value);
+    }
     return properties_file_close(file);
 }
 

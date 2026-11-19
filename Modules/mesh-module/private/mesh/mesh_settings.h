@@ -54,8 +54,8 @@ error_t mesh_settings_save_muted(const char* token, bool muted);
  */
 void mesh_settings_load_unread(void (*visitor)(const char* token, uint32_t count, void* context), void* context);
 
-/** Stores the number of unread messages of a conversation, under a token that mesh_settings_load_unread() visits */
-error_t mesh_settings_save_unread(const char* token, uint32_t count);
+/** Stores the number of unread messages of conversations in one update, under tokens that mesh_settings_load_unread() visits */
+error_t mesh_settings_save_unread(const char* const* tokens, const uint32_t* counts, size_t length);
 
 /** Loads the settings, or defaults when there are none */
 void mesh_settings_load(struct MeshSettings* settings);

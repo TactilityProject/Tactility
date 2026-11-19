@@ -18,6 +18,7 @@
 
 #include <tactility/Memory.hpp>
 #include <tactility/std/deque.hpp>
+#include <tactility/std/map.hpp>
 #include <tactility/std/vector.hpp>
 
 #include <tactility/check.h>
@@ -25,6 +26,7 @@
 #include <tactility/concurrent/mutex.h>
 #include <tactility/concurrent/task_event_group.h>
 #include <tactility/concurrent/thread.h>
+#include <tactility/delay.h>
 #include <tactility/device.h>
 #include <tactility/file_ops.h>
 #include <tactility/filesystem/fs.h>
@@ -42,13 +44,15 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
-#include <map>
 
 constexpr auto* TAG = "mesh";
 
 namespace {
 
 constexpr size_t THREAD_STACK_SIZE = 8192;
+constexpr size_t OPEN_APP_STACK_SIZE = 4096;
+/** The Mesh app gets this many steps of 50 ms to stop before it is started again */
+constexpr int OPEN_APP_STOP_WAIT_STEPS = 100;
 constexpr size_t MAX_BACKENDS = 4;
 constexpr size_t MAX_NODES = 128;
 constexpr size_t TX_QUEUE_LIMIT = 16;
@@ -78,6 +82,9 @@ void unlock() { mutex_unlock(&globalMutex.handle); }
 
 /** Serializes callOnServiceThread() callers. Taken before the global lock, never while holding it */
 GlobalMutex callMutex;
+
+/** Serializes the changes of the mute preferences, so that what is stored and what is in memory end up the same. Taken before the global lock. */
+GlobalMutex mutedMutex;
 
 /** The registry, settings and subscriptions. Allocated once in external memory and guarded by the global lock. */
 struct Globals {
@@ -1582,8 +1589,8 @@ static void preloadStored() {
  * The latest count of each conversation that isn't stored yet. A save that fails stays here and is tried again, and only the
  * latest count is ever written, so an older one can't overtake a newer one. Guarded by the global lock.
  */
-static std::map<std::string, uint32_t>& pendingUnread() {
-    static auto* instance = tt::newObject<std::map<std::string, uint32_t>>();
+static tt::std::map<tt::std::string, uint32_t>& pendingUnread() {
+    static auto* instance = tt::newObject<tt::std::map<tt::std::string, uint32_t>>();
     check(instance != nullptr);
     return *instance;
 }
@@ -1593,30 +1600,42 @@ static bool unreadFlushQueued = false;
 /** Work for the file operations task, so that no thread waits for the storage to count messages */
 static void flushUnread(void*) {
     while (true) {
+        // The pending counts are copied under the lock and written in one update, so the file operations task isn't
+        // held by one write per conversation
         lock();
-        auto& pending = pendingUnread();
-        if (pending.empty()) {
+        std::vector<std::string> tokens;
+        std::vector<uint32_t> counts;
+        for (const auto& [token, count] : pendingUnread()) {
+            tokens.push_back(token.c_str());
+            counts.push_back(count);
+        }
+        if (tokens.empty()) {
             unreadFlushQueued = false;
             unlock();
             return;
         }
-        const std::string token = pending.begin()->first;
-        const uint32_t count = pending.begin()->second;
         unlock();
 
-        const bool saved = mesh_settings_save_unread(token.c_str(), count) == ERROR_NONE;
+        std::vector<const char*> names;
+        for (const auto& token : tokens) {
+            names.push_back(token.c_str());
+        }
+        const bool saved = mesh_settings_save_unread(names.data(), counts.data(), names.size()) == ERROR_NONE;
 
         lock();
         if (!saved) {
-            LOG_W(TAG, "Failed to store the unread count, it is tried again later");
+            // Everything stays pending
+            LOG_W(TAG, "Failed to store the unread counts, they are tried again later");
             unreadFlushQueued = false;
             unlock();
             return;
         }
-        // A newer count that was set meanwhile stays pending
-        const auto entry = pendingUnread().find(token);
-        if (entry != pendingUnread().end() && entry->second == count) {
-            pendingUnread().erase(entry);
+        // A count that changed meanwhile stays pending
+        for (size_t i = 0; i < tokens.size(); i++) {
+            const auto entry = pendingUnread().find(tt::std::string(tokens[i].c_str()));
+            if (entry != pendingUnread().end() && entry->second == counts[i]) {
+                pendingUnread().erase(entry);
+            }
         }
         unlock();
     }
@@ -1635,7 +1654,7 @@ static void queueUnreadFlush() {
 
 /** Requires the global lock. Stores the count of a conversation without waiting for it. */
 static void queueUnreadSave(const std::string& token, uint32_t count) {
-    pendingUnread()[token] = count;
+    pendingUnread()[token.c_str()] = count;
     queueUnreadFlush();
 }
 
@@ -1652,46 +1671,65 @@ static std::string formatCount(const char* text, uint32_t count) {
 }
 
 /**
- * Runs when the notification is tapped, on the task of the UI. It only forwards the request to the service thread.
- * The notification is sticky, so it goes when no message is unread anymore, not when it is tapped.
+ * Shows the Mesh app. It runs on a task of its own, as stopping an app waits for it, and the app can be waiting for the
+ * service thread, which must not be the one that waits. The task ends itself, so nothing refers to it.
  */
-static void onMessageNotificationAction(uint32_t /*id*/, void* /*data*/) {
-    lock();
-    MeshHost* host = service;
-    if (host != nullptr) {
-        post(host, [host] {
-            // An app that is the topmost one already is what the user wants to see
-            char topmost[APP_MANIFEST_ID_LENGTH + 1] = {};
-            if (app_manager_get_topmost_app_id(topmost, sizeof(topmost)) == ERROR_NONE && strcmp(topmost, MESH_APP_ID) == 0) {
-                return;
+static void openAppTask(void*) {
+    // An app that is the topmost one already is what the user wants to see
+    char topmost[APP_MANIFEST_ID_LENGTH + 1] = {};
+    const bool alreadyTopmost = app_manager_get_topmost_app_id(topmost, sizeof(topmost)) == ERROR_NONE && strcmp(topmost, MESH_APP_ID) == 0;
+    if (!alreadyTopmost) {
+        // One in the background can't be brought forward, so it is replaced by a new one that shows the chats
+        AppInstanceId running = 0;
+        if (app_manager_find_running_instance(MESH_APP_ID, &running) == ERROR_NONE) {
+            app_manager_stop(running);
+            // The new one starts when the old one is gone
+            for (int i = 0; i < OPEN_APP_STOP_WAIT_STEPS && app_manager_is_running(MESH_APP_ID); i++) {
+                delay_millis(50);
             }
-            // One in the background can't be brought forward, so it is replaced by a new one that shows the chats
-            AppInstanceId running = 0;
-            if (app_manager_find_running_instance(MESH_APP_ID, &running) == ERROR_NONE) {
-                app_manager_stop(running);
-            }
+        }
+        if (app_manager_is_running(MESH_APP_ID)) {
+            LOG_W(TAG, "The Mesh app didn't stop, so it isn't started again");
+        } else {
             AppStartContext context;
             AppInstanceId instance = 0;
             if (app_start_context_from_id(MESH_APP_ID, &context) == ERROR_NONE) {
                 app_start_with_context(&context, &instance);
             }
-        });
+        }
     }
-    unlock();
+    vTaskDelete(nullptr);
+}
+
+/**
+ * Runs when the notification is tapped, on the task of the UI. It only starts a task that does the work.
+ * The notification is sticky, so it goes when no message is unread anymore, not when it is tapped.
+ */
+static void onMessageNotificationAction(uint32_t /*id*/, void* /*data*/) {
+    if (xTaskCreate(openAppTask, "mesh_open", OPEN_APP_STACK_SIZE, nullptr, tskIDLE_PRIORITY + 2, nullptr) != pdPASS) {
+        LOG_E(TAG, "Failed to start the task that shows the Mesh app");
+    }
 }
 
 /** The unread messages of all conversations of the active backend, up to the limit. Takes the global lock. */
-static uint32_t getTotalUnread(MeshHost* host) {
+static uint32_t getTotalUnread(MeshHost* host, bool* hasUnmuted = nullptr) {
     lock();
     uint32_t total = 0;
+    bool unmuted = false;
     if (host->storageBackend[0] != '\0') {
         for (const auto& entry : globals().unread) {
-            if (strncmp(entry.backend, host->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0) {
+            if (entry.count > 0 && strncmp(entry.backend, host->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0) {
                 total += entry.count;
+                // Unread messages of muted conversations are counted, but they don't raise a notification
+                unmuted |= !isMuted(mutedToken(entry.backend, entry.peer.length > 0 ? &entry.peer : nullptr, entry.channel));
             }
         }
     }
     unlock();
+    // Read in the same lock as the total, so the two describe one state
+    if (hasUnmuted != nullptr) {
+        *hasUnmuted = unmuted;
+    }
     return std::min<uint32_t>(total, UNREAD_COUNT_LIMIT);
 }
 
@@ -1731,8 +1769,10 @@ static void refreshMessageNotification(MeshHost* host) {
     if (host->notificationId == 0) {
         return;
     }
-    const uint32_t unread = getTotalUnread(host);
-    if (unread == 0) {
+    bool hasUnmuted = false;
+    const uint32_t unread = getTotalUnread(host, &hasUnmuted);
+    // A notification without an unmuted conversation behind it goes, which is the case after the last one was read or muted
+    if (unread == 0 || !hasUnmuted) {
         dismissMessageNotification(host);
     } else if (!postMessageNotification(host, unread, true)) {
         // The user dismissed it, which isn't undone
@@ -1745,19 +1785,10 @@ static void restoreMessageNotification(MeshHost* host) {
     if (host->notificationId != 0) {
         return;
     }
-    // Unread messages of muted conversations are counted, but they didn't raise a notification when they arrived
-    lock();
-    bool unmutedUnread = false;
-    for (const auto& entry : globals().unread) {
-        if (entry.count > 0 && strncmp(entry.backend, host->storageBackend, MESH_BACKEND_ID_MAX_LENGTH) == 0 &&
-            !isMuted(mutedToken(entry.backend, entry.peer.length > 0 ? &entry.peer : nullptr, entry.channel))) {
-            unmutedUnread = true;
-            break;
-        }
-    }
-    unlock();
-    const uint32_t unread = unmutedUnread ? getTotalUnread(host) : 0;
-    if (unread > 0) {
+    // One snapshot of the counts and of what is muted, as they can change while this runs
+    bool hasUnmuted = false;
+    const uint32_t unread = getTotalUnread(host, &hasUnmuted);
+    if (unread > 0 && hasUnmuted) {
         postMessageNotification(host, unread, false);
     }
 }
@@ -1909,6 +1940,13 @@ void mesh_host_node_heard(MeshHost* host, const MeshAddress* address, const char
     node->snr = snr;
     emitEvent(MESH_EVENT_NODE, host->state, 0, MESH_DELIVERY_RECEIVED);
     unlock();
+}
+
+bool mesh_host_is_contact(MeshHost* host, const MeshAddress* address) {
+    lock();
+    const bool found = findContact(host, *address) != nullptr;
+    unlock();
+    return found;
 }
 
 void mesh_host_advert_heard(MeshHost* host, const MeshAddress* address, const char* name, float rssi, float snr) {
@@ -2675,22 +2713,39 @@ bool mesh_get_conversation_notifications(const MeshAddress* peer, uint8_t channe
 }
 
 error_t mesh_set_conversation_notifications(const MeshAddress* peer, uint8_t channel, bool enabled) {
+    // The preference is stored first and applied after that, so a failed save changes nothing that receiving uses
+    mutex_lock(&mutedMutex.handle);
     lock();
     ensureSettingsLoaded();
     const MeshBackendApi* backend = getSelectedBackend();
     if (backend == nullptr) {
         unlock();
+        mutex_unlock(&mutedMutex.handle);
         return ERROR_INVALID_STATE;
     }
     const std::string token = mutedToken(backend->id, peer, channel);
+    unlock();
+
+    if (mesh_settings_save_muted(token.c_str(), !enabled) != ERROR_NONE) {
+        mutex_unlock(&mutedMutex.handle);
+        return ERROR_RESOURCE;
+    }
+
+    lock();
     const bool wasMuted = isMuted(token);
     if (enabled && wasMuted) {
         globals().muted.erase(findMuted(token));
     } else if (!enabled && !wasMuted) {
         globals().muted.push_back(token.c_str());
     }
+    if (service != nullptr) {
+        // A notification that only muted conversations are left behind is removed
+        MeshHost* host = service;
+        post(host, [host] { refreshMessageNotification(host); });
+    }
     unlock();
-    return mesh_settings_save_muted(token.c_str(), !enabled) == ERROR_NONE ? ERROR_NONE : ERROR_RESOURCE;
+    mutex_unlock(&mutedMutex.handle);
+    return ERROR_NONE;
 }
 
 uint32_t mesh_get_unread(const MeshAddress* peer, uint8_t channel) {

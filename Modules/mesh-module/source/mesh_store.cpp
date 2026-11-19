@@ -368,6 +368,20 @@ void MeshStore::applyRecord(uint8_t type, const uint8_t* payload, size_t length,
     }
 }
 
+bool MeshStore::canEraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) const {
+    const uint32_t peerHash = (peer != nullptr) ? hashPeer(*peer) : 0;
+    for (const auto& entry : index) {
+        if (entry.seq > lastSeq || entry.peerHash != peerHash || (peer == nullptr && entry.channel != channel)) {
+            continue;
+        }
+        MeshMessage message;
+        if (readEntry(entry, &message) != ERROR_NONE) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool MeshStore::eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) {
     const uint32_t peerHash = (peer != nullptr) ? hashPeer(*peer) : 0;
     bool complete = true;
@@ -391,6 +405,11 @@ bool MeshStore::eraseConversation(const char* backend, const MeshAddress* peer, 
 
 error_t MeshStore::removeConversation(const char* backend, const MeshAddress* peer, uint8_t channel) {
     const uint32_t lastSeq = nextSeq - 1;
+    // A deletion that can't be applied completely isn't stored. A stored one would apply when the message can be read
+    // again, after the unread count of the conversation was kept, which would raise a notification for nothing.
+    if (!canEraseConversation(backend, peer, channel, lastSeq)) {
+        return ERROR_RESOURCE;
+    }
     uint8_t payload[1 + MESH_BACKEND_ID_MAX_LENGTH + 1 + MESH_ADDRESS_MAX_LENGTH + 1 + 4];
     Writer writer(payload, sizeof(payload));
     writer.string(backend, MESH_BACKEND_ID_MAX_LENGTH);
@@ -410,7 +429,8 @@ error_t MeshStore::removeConversation(const char* backend, const MeshAddress* pe
     if (flushed != ERROR_NONE) {
         return flushed;
     }
-    // The deletion is stored and applies when the unreadable messages can be read, but they are still listed until then
+    // The messages were readable a moment ago, so this only fails when the storage failed in between. The deletion is
+    // stored then, and applies when the messages can be read again.
     return complete ? ERROR_NONE : ERROR_RESOURCE;
 }
 

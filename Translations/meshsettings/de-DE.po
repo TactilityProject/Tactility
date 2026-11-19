@@ -86,3 +86,6 @@ msgstr "RX-Verstärkung erhöhen"
 
 msgid "Continue"
 msgstr "Weiter"
+
+msgid "Requires reboot"
+msgstr "Neustart erforderlich"

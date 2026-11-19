@@ -30,6 +30,7 @@ static const ModuleSymbol notification_module_symbols[] = {
     DEFINE_MODULE_SYMBOL(notification_preload),
     DEFINE_MODULE_SYMBOL(notification_dismiss_unless_sticky),
     DEFINE_MODULE_SYMBOL(notification_dismiss_non_sticky),
+    DEFINE_MODULE_SYMBOL(notification_get_event_order),
     DEFINE_MODULE_SYMBOL(notification_context_for_notification),
     DEFINE_MODULE_SYMBOL(notification_context_destroy),
     DEFINE_MODULE_SYMBOL(notification_get),

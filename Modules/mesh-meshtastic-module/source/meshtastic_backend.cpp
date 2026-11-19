@@ -36,6 +36,7 @@ constexpr size_t SEEN_PACKETS_LIMIT = 64;
 constexpr size_t MAX_KNOWN_NAMES = 128;
 constexpr size_t MAX_KNOWN_KEYS = 128;
 constexpr uint64_t KEY_REQUEST_INTERVAL_MS = 60 * 1000;
+constexpr uint64_t NODE_INFO_REPLY_INTERVAL_MS = 30 * 1000;
 constexpr uint64_t NODE_INFO_INTERVAL_MS = 3ULL * 3600 * 1000;
 constexpr uint64_t ACK_TIMEOUT_MS = 60 * 1000;
 constexpr auto* DEFAULT_CHANNEL_NAME = "LongFast";
@@ -112,10 +113,14 @@ struct Backend {
     bool keyPersisted = false;
     /** The public keys of nodes that announced one, which direct messages to them are encrypted with */
     tt::std::map<uint32_t, std::array<uint8_t, MESHTASTIC_PUBLIC_KEY_SIZE>> publicKeys;
+    /** The keys in memory differ from keys.bin, because a save failed. It is tried again, as a reset must not be undone by a restart. */
+    bool keysDirty = false;
     /** The nodes of publicKeys, the one that was used longest ago first */
     tt::std::vector<uint32_t> keyUse;
     /** When the key of a node was requested last, so a node that sends many messages isn't asked every time */
     tt::std::map<uint32_t, uint64_t> keyRequests;
+    /** When a node was last answered with a NodeInfo, so a node that keeps asking doesn't get an answer every time */
+    tt::std::map<uint32_t, uint64_t> nodeInfoReplies;
 };
 
 uint64_t getMillis() {
@@ -150,10 +155,29 @@ MeshAddress toAddress(uint32_t nodeNum) {
 
 // region Persistence
 
+/**
+ * Reads a file written by writeFile(). When the file is missing but its backup is there, a replacement was interrupted
+ * between moving the file aside and installing the new one, so the backup is the last complete content and is put back.
+ */
 bool readFile(const char* path, tt::std::vector<uint8_t>& data) {
     FILE* file = fopen(path, "rb");
     if (file == nullptr) {
-        return false;
+        char backupPath[FILE_MAX_PATH_STRING_LENGTH];
+        if (snprintf(backupPath, sizeof(backupPath), "%s.old", path) >= (int)sizeof(backupPath)) {
+            return false;
+        }
+        file = fopen(backupPath, "rb");
+        if (file == nullptr) {
+            return false;
+        }
+        fclose(file);
+        if (rename(backupPath, path) != 0) {
+            return false;
+        }
+        file = fopen(path, "rb");
+        if (file == nullptr) {
+            return false;
+        }
     }
     uint8_t buffer[256];
     size_t read;
@@ -279,7 +303,7 @@ void loadPublicKeys(Backend* backend) {
     if (mesh_host_get_data_path(backend->host, "keys.bin", path, sizeof(path)) != ERROR_NONE || !readFile(path, data)) {
         return;
     }
-    for (size_t offset = 0; offset + KEY_RECORD_SIZE <= data.size() && backend->publicKeys.size() < MAX_KNOWN_KEYS; offset += KEY_RECORD_SIZE) {
+    for (size_t offset = 0; offset + KEY_RECORD_SIZE <= data.size() && backend->publicKeys.size() < 2 * MAX_KNOWN_KEYS; offset += KEY_RECORD_SIZE) {
         const uint32_t nodeNum = data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | ((uint32_t)data[offset + 3] << 24);
         std::array<uint8_t, MESHTASTIC_PUBLIC_KEY_SIZE> key {};
         memcpy(key.data(), data.data() + offset + 4, key.size());
@@ -288,9 +312,11 @@ void loadPublicKeys(Backend* backend) {
     }
 }
 
+/** Writes the keys. When that fails they stay marked as unsaved, and onTick() tries again. */
 void savePublicKeys(Backend* backend) {
     char path[FILE_MAX_PATH_STRING_LENGTH];
     if (mesh_host_get_data_path(backend->host, "keys.bin", path, sizeof(path)) != ERROR_NONE) {
+        backend->keysDirty = true;
         return;
     }
     tt::std::vector<uint8_t> data;
@@ -300,7 +326,11 @@ void savePublicKeys(Backend* backend) {
         }
         data.insert(data.end(), key.begin(), key.end());
     }
-    writeFile(path, data.data(), data.size());
+    const bool wasDirty = backend->keysDirty;
+    backend->keysDirty = !writeFile(path, data.data(), data.size());
+    if (backend->keysDirty && !wasDirty) {
+        LOG_W(TAG, "The public keys couldn't be stored, it is tried again");
+    }
 }
 
 /** Marks the key of a node as the most recently used, which decides what is evicted when the cache is full */
@@ -337,10 +367,23 @@ void rememberPublicKey(Backend* backend, uint32_t nodeNum, const tt::std::vector
         }
         return;
     }
-    if (backend->publicKeys.size() >= MAX_KNOWN_KEYS && !backend->keyUse.empty()) {
-        // The key that was used longest ago goes
-        backend->publicKeys.erase(backend->keyUse.front());
-        backend->keyUse.erase(backend->keyUse.begin());
+    // The limit is for the keys of nodes that were only heard. The pin of a saved contact stays until the user resets it,
+    // so busy traffic can't make a contact's next key count as the first one.
+    size_t heard = 0;
+    auto oldest = backend->keyUse.end();
+    for (auto iterator = backend->keyUse.begin(); iterator != backend->keyUse.end(); ++iterator) {
+        const MeshAddress address = toAddress(*iterator);
+        if (!mesh_host_is_contact(backend->host, &address)) {
+            heard++;
+            if (oldest == backend->keyUse.end()) {
+                oldest = iterator;
+            }
+        }
+    }
+    if (heard >= MAX_KNOWN_KEYS && oldest != backend->keyUse.end()) {
+        // The key of a heard node that was used longest ago goes
+        backend->publicKeys.erase(*oldest);
+        backend->keyUse.erase(oldest);
     }
     backend->publicKeys[nodeNum] = key;
     backend->keyUse.push_back(nodeNum);
@@ -530,6 +573,20 @@ void requestPublicKey(Backend* backend, uint32_t nodeNum) {
     sendNodeInfo(backend, nodeNum, true);
 }
 
+/** Answers a request for this node's NodeInfo with one to that node, which doesn't ask for an answer again */
+void replyWithNodeInfo(Backend* backend, uint32_t nodeNum) {
+    const uint64_t nowMs = getMillis();
+    const auto previous = backend->nodeInfoReplies.find(nodeNum);
+    if (previous != backend->nodeInfoReplies.end() && nowMs - previous->second < NODE_INFO_REPLY_INTERVAL_MS) {
+        return;
+    }
+    if (backend->nodeInfoReplies.size() >= MAX_KNOWN_KEYS) {
+        backend->nodeInfoReplies.erase(backend->nodeInfoReplies.begin());
+    }
+    backend->nodeInfoReplies[nodeNum] = nowMs;
+    sendNodeInfo(backend, nodeNum, false);
+}
+
 tt::std::string getSenderName(Backend* backend, uint32_t nodeNum) {
     const auto iterator = backend->names.find(nodeNum);
     return (iterator != backend->names.end()) ? iterator->second : meshtastic_node_id(nodeNum);
@@ -581,6 +638,10 @@ void onData(Backend* backend, const Channel& channel, const MeshtasticHeader& he
                 backend->names[header.from] = user.longName;
                 rememberPublicKey(backend, header.from, user.publicKey);
                 mesh_host_advert_heard(backend->host, &from, user.longName.c_str(), rssi, snr);
+                // A node that asks for this node's NodeInfo, to learn its public key, gets it right away
+                if (data.wantResponse && toUs) {
+                    replyWithNodeInfo(backend, header.from);
+                }
             }
             break;
         }
@@ -711,24 +772,23 @@ bool onReceive(void* context, const uint8_t* frame, size_t length, float rssi, f
     // A direct message with a public key has channel hash 0. The overhead makes it too short for anything else to be valid.
     const size_t payloadLength = length - MESHTASTIC_HEADER_SIZE;
     uint8_t plaintext[MESHTASTIC_MAX_PAYLOAD_SIZE];
+    // A channel can hash to 0 as well, so a frame that can't be authenticated as PKI is still tried on the channels
+    bool pkiKeyMissing = false;
     if (header.channelHash == 0 && header.to == backend->nodeNum && payloadLength > MESHTASTIC_PKI_OVERHEAD && hasKeyPair(backend)) {
         const auto peerKey = backend->publicKeys.find(header.from);
         const Channel* primary = findChannel(backend, 0);
         MeshtasticData data;
         if (peerKey == backend->publicKeys.end()) {
-            // The sender may have learned this node's key without this node having learned its own. Ask for it, and
-            // let a copy of this frame count again once the key is known, as it can't be authenticated now.
-            requestPublicKey(backend, header.from);
-            backend->seenPackets.pop_back();
-            return false;
-        }
-        touchPublicKey(backend, header.from);
-        if (primary != nullptr &&
-            meshtastic_pki_decrypt(backend->keyPair.privateKey, peerKey->second.data(), header.id, header.from, frame + MESHTASTIC_HEADER_SIZE, payloadLength, plaintext) &&
-            meshtastic_decode_data(plaintext, payloadLength - MESHTASTIC_PKI_OVERHEAD, &data)) {
-            // Acknowledgements are routing messages, which are encrypted with the primary channel
-            onData(backend, *primary, header, data, rssi, snr);
-            return true;
+            pkiKeyMissing = true;
+        } else {
+            touchPublicKey(backend, header.from);
+            if (primary != nullptr &&
+                meshtastic_pki_decrypt(backend->keyPair.privateKey, peerKey->second.data(), header.id, header.from, frame + MESHTASTIC_HEADER_SIZE, payloadLength, plaintext) &&
+                meshtastic_decode_data(plaintext, payloadLength - MESHTASTIC_PKI_OVERHEAD, &data)) {
+                // Acknowledgements are routing messages, which are encrypted with the primary channel
+                onData(backend, *primary, header, data, rssi, snr);
+                return true;
+            }
         }
     }
 
@@ -744,13 +804,29 @@ bool onReceive(void* context, const uint8_t* frame, size_t length, float rssi, f
             return true;
         }
     }
+
+    if (pkiKeyMissing) {
+        // The sender may have learned this node's key without this node having learned its own. Ask for it, and let a
+        // copy of this frame count again once the key is known, as it can't be authenticated now.
+        // Removed by its own id before the request, which records an outgoing packet of its own
+        std::erase(backend->seenPackets, key);
+        requestPublicKey(backend, header.from);
+    }
     return false;
 }
 
 void onTick(void* context) {
     auto* backend = static_cast<Backend*>(context);
     const uint64_t nowMs = getMillis();
+    const bool wasPersisted = backend->keyPersisted;
     retryPersistKeyPair(backend);
+    if (!wasPersisted && backend->keyPersisted) {
+        // The announcements until now had no key, so peers learn it now instead of at the next periodic one
+        sendNodeInfo(backend);
+    }
+    if (backend->keysDirty) {
+        savePublicKeys(backend);
+    }
     if (nowMs - backend->lastNodeInfoMs >= NODE_INFO_INTERVAL_MS) {
         sendNodeInfo(backend);
     }

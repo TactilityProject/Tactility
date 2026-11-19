@@ -472,6 +472,12 @@ error_t notification_send(NotificationContext* context, uint32_t* out_id) {
             emitEvent(NOTIFICATION_EVENT_DISMISSED, evictedId);
         }
     }
+    // The lock was released while waiting, so the sender can have been disabled meanwhile
+    source = findSource(context->source_type, context->source_id);
+    if (source != nullptr && !source->enabled) {
+        unlock();
+        return ERROR_NOT_ALLOWED;
+    }
 
     Notification& entry = state->entries[state->count++];
     fillEntry(entry, state->nextId++, context);
@@ -565,7 +571,17 @@ error_t notification_set_source_enabled(NotificationSourceType type, const char*
         return ERROR_NONE;
     }
     source->enabled = enabled;
-    if (!enabled && waitForActions(0)) {
+    if (!enabled) {
+        // The lock is released while waiting, and the module can stop meanwhile
+        if (!waitForActions(0)) {
+            unlock();
+            return ERROR_INVALID_STATE;
+        }
+        // Another task can have enabled the sender again meanwhile, which is the choice that counts then
+        if (source->enabled) {
+            unlock();
+            return ERROR_NONE;
+        }
         // The pending notifications of the sender go with it
         for (size_t i = state->count; i > 0; i--) {
             const Notification& entry = state->entries[i - 1];
@@ -627,8 +643,13 @@ error_t notification_invoke_action(uint32_t id) {
             }
         }
     }
+    // An action that can't be registered isn't run, as removing the notification couldn't wait for it
+    if (action != nullptr && state->runCount >= MAX_ACTION_RUNS) {
+        unlock();
+        return ERROR_RESOURCE;
+    }
     // Registered before the lock is released, so removing the notification waits for the action to return
-    const bool registered = action != nullptr && state->runCount < MAX_ACTION_RUNS;
+    const bool registered = action != nullptr;
     if (registered) {
         state->runs[state->runCount++] = { id, xTaskGetCurrentTaskHandle() };
     }

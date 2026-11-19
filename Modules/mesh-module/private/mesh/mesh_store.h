@@ -66,6 +66,8 @@ private:
     const IndexEntry* findEntry(uint32_t seq) const;
     error_t readEntry(const IndexEntry& entry, MeshMessage* message) const;
     void enforceBudget();
+    /** @return false when a message that may belong to the conversation can't be read, which a deletion must not be stored for */
+    bool canEraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) const;
     /** @return false when a message couldn't be read, which is then kept as it can't be told whether it belongs to the conversation */
     bool eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq);
 

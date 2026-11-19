@@ -14,7 +14,7 @@
 
 ## Medium Priority
 
-- Notification support
+- API for default sound playback/recording device selection
 - Copy/paste buffer
 - DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
 - Add "Downloading Apps" step in Setup that downloads useful apps.

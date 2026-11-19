@@ -753,9 +753,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     createChangeButton(regionRow, onSelectRegionPressed, ctx);
 
     ctx->rxBoostedGainRow = createRow(card);
-    auto* rxBoostedGainLabel = lv_label_create(ctx->rxBoostedGainRow);
-    lv_label_set_text(rxBoostedGainLabel, tr("RX boosted gain"));
-    lv_obj_set_flex_grow(rxBoostedGainLabel, 1);
+    // The title with a small text under it, like the other settings
+    lv_label_set_text(createTitleAndValue(ctx->rxBoostedGainRow, tr("RX boosted gain")), tr("Requires reboot"));
     ctx->rxBoostedGainSwitch = lv_switch_create(ctx->rxBoostedGainRow);
     lv_obj_add_event_cb(ctx->rxBoostedGainSwitch, onRxBoostedGainSwitch, LV_EVENT_VALUE_CHANGED, ctx);
     lvgl_grid_navigation_add(ctx->rxBoostedGainRow);

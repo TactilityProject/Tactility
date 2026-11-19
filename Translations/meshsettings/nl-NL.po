@@ -86,3 +86,6 @@ msgstr "RX-versterking verhoogd"
 
 msgid "Continue"
 msgstr "Doorgaan"
+
+msgid "Requires reboot"
+msgstr "Herstart vereist"

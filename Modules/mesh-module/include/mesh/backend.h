@@ -202,6 +202,12 @@ void mesh_host_node_heard(struct MeshHost* host, const struct MeshAddress* addre
 /** Record that a node announced itself, e.g. a MeshCore advert or a Meshtastic NodeInfo. Also records the node as heard. */
 void mesh_host_advert_heard(struct MeshHost* host, const struct MeshAddress* address, const char* name, float rssi, float snr);
 
+/**
+ * @return whether the user saved the node as a contact, which a backend can use to keep what it remembers about the node
+ * apart from what it remembers about nodes that it only heard
+ */
+bool mesh_host_is_contact(struct MeshHost* host, const struct MeshAddress* address);
+
 /** Get a path in the backend's own data directory, which exists after this call */
 error_t mesh_host_get_data_path(struct MeshHost* host, const char* child_path, char* out_path, size_t out_path_size);
 

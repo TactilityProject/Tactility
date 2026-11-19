@@ -228,6 +228,7 @@ error_t notification_dismiss(uint32_t id);
  * @warning The action must only forward the request to a task, see NotificationAction.
  * @retval ERROR_NOT_FOUND when the notification was dismissed or removed
  * @retval ERROR_NOT_SUPPORTED when the notification has no action
+ * @retval ERROR_RESOURCE when too many actions run at once, in which case the action wasn't called and the caller can try again later
  * @retval ERROR_NONE when the action was called
  */
 error_t notification_invoke_action(uint32_t id);
