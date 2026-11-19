@@ -5,12 +5,7 @@
 ## Higher Priority
 
 - Pick better icon for toggling touch in remote.py
-- Newer Meshtastic firmware supports per-node public-key direct messages.
 - Remove ft6x driver
-- Fix inconsistent selection outlines in theme. Consider 2 dp as standard for most/all. 
-  The selection outline width for the launcher (apps and settings) and the system bar (status icon group) should be determined by the theme.
-  The theme should expose a style/value for this.
-  The size should be 2dp if UI size >= 40, otherwise it's 1dp
 
 ## Medium Priority
 
@@ -74,21 +69,8 @@ Consider adding a light/deep sleep mode:
 - Make WiFi setup app that starts an access point and hosts a webpage to set up the device.
   This will be useful for devices without a screen, a small screen or a non-touch screen.
 
-# Nice-to-haves
-
-- Audio player app
-- Audio recording app
-
 # App Ideas
 
-- Map widget:
-  https://github.com/portapack-mayhem/mayhem-firmware/blob/b66d8b1aa178d8a9cd06436fea788d5d58cb4c8d/firmware/application/ui/ui_geomap.cpp
-  https://github.com/portapack-mayhem/mayhem-firmware/blob/b66d8b1aa178d8a9cd06436fea788d5d58cb4c8d/firmware/tools/generate_world_map.bin.py
-  https://github.com/portapack-mayhem/mayhem-firmware/releases
-- Weather app: https://lab.flipper.net/apps/flip_weather
-- wget app: https://lab.flipper.net/apps/web_crawler (add profiles for known public APIs?)
-- Chip 8 emulator
-- Discord bot
-- IR transceiver app
-- Investigate CSI https://stevenmhernandez.github.io/ESP32-CSI-Tool/
-- RSS reader
+- Weather app
+- IR transceiver
+

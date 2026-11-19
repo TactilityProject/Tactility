@@ -51,6 +51,21 @@ typedef struct {
     lv_event_cb_t nav_action_callback;
 } Toolbar;
 
+/** The keys always enter the toolbar at the close button, whatever side or row they came from */
+static void onToolbarFocused(lv_event_t* event) {
+    lv_indev_t* indev = lv_indev_active();
+    const lv_indev_type_t type = indev != nullptr ? lv_indev_get_type(indev) : LV_INDEV_TYPE_NONE;
+    if (type != LV_INDEV_TYPE_KEYPAD && type != LV_INDEV_TYPE_ENCODER) {
+        return;
+    }
+    lv_obj_t* obj = lv_event_get_current_target_obj(event);
+    auto* toolbar = reinterpret_cast<Toolbar*>(obj);
+    if (toolbar->close_button != nullptr && !lv_obj_is_hidden(toolbar->close_button) && lvgl_grid_navigation_get_focused(obj) != toolbar->close_button) {
+        lv_gridnav_set_focused(obj, toolbar->close_button, LV_ANIM_OFF);
+    }
+}
+
+
 static void toolbar_constructor(const lv_obj_class_t* class_p, lv_obj_t* obj);
 
 // Not static: the theme styles toolbars by this class
@@ -111,6 +126,8 @@ lv_obj_t* lvgl_toolbar_create(lv_obj_t* parent, const char* title) {
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     // The arrow keys move between the close button and the actions, and up and down leave the toolbar
     lvgl_grid_navigation_add(obj);
+    // Added after grid navigation's own handlers, so it has the last word on where the focus enters
+    lv_obj_add_event_cb(obj, onToolbarFocused, LV_EVENT_FOCUSED, nullptr);
 
     toolbar->close_button = create_action_button(obj, size);
     // A larger touch area than the visible button. LVGL only looks for a touched child inside the
