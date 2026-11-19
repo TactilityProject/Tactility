@@ -1331,10 +1331,10 @@ error_t onStart(ServiceInstance*, void* data) {
         });
     }
 
-    // Opened before the service is published, so queries don't see an empty store. A failure is reported by configure().
+    // The store is opened by configure() on the service thread, as reading the messages takes seconds on a slow card and
+    // starting the service must not wait for that. Until then the storage counts as unavailable, not as empty.
     lock();
     ensureSettingsLoaded();
-    switchStorage(host, getSelectedBackend());
     service = host;
     unlock();
 
