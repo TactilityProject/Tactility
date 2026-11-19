@@ -108,6 +108,24 @@ uint32_t lvgl_keyboard_translate_key(lv_indev_t* indev, uint32_t codepoint) {
     return codepoint_to_lv_key(codepoint);
 }
 
+void lvgl_keyboard_apply_key(lv_indev_t* indev, const KeyboardKeyData* key, lv_indev_data_t* data) {
+    lv_group_t* group = lv_indev_get_group(indev);
+    if (key->key == CODEPOINT_FOCUS_NEXT || key->key == CODEPOINT_FOCUS_PREVIOUS) {
+        // Devices that can only step through widgets also visit the children of grid navigation containers.
+        // LVGL doesn't see these keys: the group would skip the children, as only the container is in the group.
+        if (key->pressed && group != nullptr) {
+            lvgl_grid_navigation_step(group, key->key == CODEPOINT_FOCUS_NEXT);
+        }
+        data->state = LV_INDEV_STATE_RELEASED;
+        data->continue_reading = key->continue_reading;
+        return;
+    }
+
+    data->key = lvgl_keyboard_translate_key(indev, key->key);
+    data->state = key->pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    data->continue_reading = key->continue_reading;
+}
+
 static void lvgl_keyboard_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     auto* wrapper = static_cast<LvglDeviceContext*>(lv_indev_get_driver_data(indev));
 
@@ -118,21 +136,7 @@ static void lvgl_keyboard_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
         return;
     }
 
-    lv_group_t* group = lv_indev_get_group(indev);
-    if (key_data.key == CODEPOINT_FOCUS_NEXT || key_data.key == CODEPOINT_FOCUS_PREVIOUS) {
-        // Devices that can only step through widgets also visit the children of grid navigation containers.
-        // LVGL doesn't see these keys: the group would skip the children, as only the container is in the group.
-        if (key_data.pressed && group != nullptr) {
-            lvgl_grid_navigation_step(group, key_data.key == CODEPOINT_FOCUS_NEXT);
-        }
-        data->state = LV_INDEV_STATE_RELEASED;
-        data->continue_reading = key_data.continue_reading;
-        return;
-    }
-
-    data->key = lvgl_keyboard_translate_key(indev, key_data.key);
-    data->state = key_data.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
-    data->continue_reading = key_data.continue_reading;
+    lvgl_keyboard_apply_key(indev, &key_data, data);
 }
 
 error_t lvgl_keyboard_add(struct Device* device, lv_display_t* display, lv_indev_t** out_indev) {
