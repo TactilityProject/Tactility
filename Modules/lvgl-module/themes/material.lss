@@ -42,6 +42,7 @@
 @widget flex_list_text: lvgl_list_text_class;
 @widget flex_list_button: lvgl_list_button_class;
 @widget text_button: lvgl_text_button_class;
+@widget pathbar_button: lvgl_pathbar_button_class;
 
 // ============================================================
 // 1. Base tokens
@@ -262,6 +263,10 @@
 @text-button-label-color: @color-primary;
 @text-button-pressed-container-color: @color-primary;
 @text-button-pad-hor: ((2) + ((@space-3) - (2)) * $size / 100);
+
+// Path bar button (Files): an outlined button with less padding to fit the toolbar
+@pathbar-button-pad-hor: ((2) + ((@space-3) - (2)) * $size / 100);
+@pathbar-button-pad-ver: (@button-pad-ver * 3 / 4);
 
 // Icon button (dialog and window header buttons)
 @icon-button-color: @color-on-surface;
@@ -724,6 +729,30 @@ text_button_pressed {
 // Room for the focus ring of a text button, which the parent would clip
 text_button_margin {
     marginAll: @focus-width + @focus-offset;
+}
+
+pathbar_button {
+    bgOpa: transp;
+    textColor: @text-button-label-color;
+    borderColor: @color-outline;
+    borderWidth: @density-border;
+    radius: @button-shape;
+    padHor: @pathbar-button-pad-hor;
+    padVer: @pathbar-button-pad-ver;
+    padGap: @button-gap;
+    // Room for the focus ring, which the parent would clip
+    marginAll: @focus-width + @focus-offset;
+}
+
+pathbar_button_pressed {
+    bgColor: @text-button-pressed-container-color;
+    bgOpa: @opacity-state-pressed;
+}
+
+// Disabled is the current directory, shown as text
+pathbar_button_disabled {
+    borderWidth: 0;
+    textColor: @color-on-surface;
 }
 
 icon_button {
@@ -1475,6 +1504,15 @@ apply(text_button) {
     transition_enter: state.pressed;
     focus_ring: state.focusKey;
     disabled: state.disabled;
+}
+
+apply(pathbar_button) {
+    pathbar_button: default;
+    transition_exit: default;
+    pathbar_button_pressed: state.pressed;
+    transition_enter: state.pressed;
+    focus_ring: state.focusKey;
+    pathbar_button_disabled: state.disabled;
 }
 
 apply(msgbox_footer_button) {

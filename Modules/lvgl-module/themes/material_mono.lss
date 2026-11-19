@@ -40,6 +40,7 @@
 @widget flex_list_text: lvgl_list_text_class;
 @widget flex_list_button: lvgl_list_button_class;
 @widget text_button: lvgl_text_button_class;
+@widget pathbar_button: lvgl_pathbar_button_class;
 
 // ============================================================
 // 1. Base tokens
@@ -513,6 +514,21 @@ text_button {
     radius: @button-shape;
     padHor: @button-pad-hor;
     padVer: @button-pad-ver;
+    padGap: @button-gap;
+    // Room for the focus ring, which the parent would clip
+    marginAll: @focus-width + @focus-offset;
+}
+
+// An outlined button with less padding to fit the toolbar of a path bar
+pathbar_button {
+    bgColor: @button-container-color;
+    bgOpa: cover;
+    textColor: @button-label-color;
+    borderColor: @button-border-color;
+    borderWidth: @button-border-width;
+    radius: @button-shape;
+    padHor: @button-pad-hor;
+    padVer: (@button-pad-ver * 3 / 4);
     padGap: @button-gap;
     // Room for the focus ring, which the parent would clip
     marginAll: @focus-width + @focus-offset;
@@ -1116,6 +1132,13 @@ apply(menu_sidebar_header_cont > button, menu_main_header_cont > button, win > o
 
 apply(text_button) {
     text_button: default;
+    inverted: state.pressed;
+    focus_ring: state.focusKey;
+    disabled: state.disabled;
+}
+
+apply(pathbar_button) {
+    pathbar_button: default;
     inverted: state.pressed;
     focus_ring: state.focusKey;
     disabled: state.disabled;
