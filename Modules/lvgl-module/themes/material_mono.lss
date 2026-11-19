@@ -109,11 +109,13 @@
 
 // Borders and indicators
 @border: @line-thin;
-@focus-width: ((@line-thin) + ((@line-medium) - (@line-thin)) * $size / 100);
+// The width of the selection outline of everything that can be selected: the launcher, the system bars and the widgets
+@selection-width: if($size / 40 == 0, 1dp, 2dp);
+@focus-width: @selection-width;
 @focus-offset: ((@line-thin) + ((@line-medium) - (@line-thin)) * $size / 100);
 @edit-width: ((@line-medium) + ((@line-thick) - (@line-medium)) * $size / 100);
 // Drawn inside the widget, for widgets with little room around them (icon buttons)
-@focus-inset-width: ((@line-thin) + ((@line-medium) - (@line-thin)) * $size / 100);
+@focus-inset-width: @selection-width;
 @focus-inverted-gap: ((1) + ((2dp) - (1)) * $size / 100);
 
 // Motion
@@ -1204,6 +1206,8 @@ apply(chip) {
 
 apply(card) {
     card: default;
+    // A card that is selected, e.g. a launcher tile, shows the selection outline of the theme
+    focus_ring: state.focusKey;
     scrollbar: part.scrollbar;
 }
 

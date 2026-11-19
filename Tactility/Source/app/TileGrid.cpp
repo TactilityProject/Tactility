@@ -451,22 +451,11 @@ void TileGrid::populate() {
         lv_obj_set_style_radius(frame, layout.iconSize * 22 / 96 + layout.framePad, LV_STATE_DEFAULT);
         // Grid navigation only removes direct children from the input group, and the tile is the focus target
         lv_group_remove_obj(frame);
-        // The focus ring of the theme, 1dp thicker. The ring is drawn inside the frame.
-        lv_obj_add_state(frame, LV_STATE_FOCUS_KEY);
-        const auto ring_width = lv_obj_get_style_outline_width(frame, LV_PART_MAIN) + LV_DPX(1);
-        const auto ring_color = lv_obj_get_style_outline_color(frame, LV_PART_MAIN);
-        lv_obj_remove_state(frame, LV_STATE_FOCUS_KEY);
-        lv_obj_set_style_outline_width(frame, ring_width, LV_STATE_FOCUS_KEY);
-        lv_obj_set_style_outline_pad(frame, -ring_width, LV_STATE_FOCUS_KEY);
         lv_obj_set_clickable(frame, false);
         lv_obj_set_click_focusable(frame, false);
         lv_obj_set_scrollable(frame, false);
         if (card) {
-            lv_obj_set_style_outline_color(tile, ring_color, LV_STATE_FOCUS_KEY);
-            lv_obj_set_style_outline_opa(tile, LV_OPA_COVER, LV_STATE_FOCUS_KEY);
-            lv_obj_set_style_outline_width(tile, ring_width, LV_STATE_FOCUS_KEY);
-            // Outside of the card, with the same offset as the theme's focus ring
-            lv_obj_set_style_outline_pad(tile, lvgl_theme_lerp(1, LV_DPX(2), lvgl_theme_get_size()), LV_STATE_FOCUS_KEY);
+            // The selection outline comes from the theme, like the one of the icon frame
             lv_obj_set_style_bg_color(tile, lv_color_mix(lv_obj_get_style_text_color(tile, LV_PART_MAIN), lv_obj_get_style_bg_color(tile, LV_PART_MAIN), LV_OPA_20), LV_STATE_PRESSED);
         } else {
             lv_obj_add_event_cb(tile, onTileStateChanged, LV_EVENT_STATE_CHANGED, frame);

@@ -115,9 +115,10 @@ extern const lv_obj_class_t lvgl_text_button_class;
 #define DENSITY_KEY_GAP (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
 #define DENSITY_BORDER (LV_DPX_CALC(theme->disp_dpi, 1))
 #define FOCUS_COLOR COLOR_SECONDARY
-#define FOCUS_WIDTH (1 + (((LV_DPX_CALC(theme->disp_dpi, 3) - 1) * theme->config.size) / 100))
+#define SELECTION_WIDTH ((theme->config.size / 40) == 0 ? LV_DPX_CALC(theme->disp_dpi, 1) : LV_DPX_CALC(theme->disp_dpi, 2))
+#define FOCUS_WIDTH SELECTION_WIDTH
 #define FOCUS_OFFSET (1 + (((LV_DPX_CALC(theme->disp_dpi, 2) - 1) * theme->config.size) / 100))
-#define FOCUS_INSET_WIDTH (1 + (((LV_DPX_CALC(theme->disp_dpi, 2) - 1) * theme->config.size) / 100))
+#define FOCUS_INSET_WIDTH SELECTION_WIDTH
 #define EDIT_COLOR COLOR_PRIMARY
 #define STATE_PRESSED_ON_PRIMARY (lv_color_mix(COLOR_ON_PRIMARY, COLOR_PRIMARY, OPACITY_STATE_PRESSED))
 #define STATE_PRESSED_ON_SECONDARY (lv_color_mix(COLOR_ON_SECONDARY, COLOR_SECONDARY, OPACITY_STATE_PRESSED))
@@ -2009,6 +2010,7 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
     if(lv_obj_check_type(obj, &lvgl_card_class)) {
         /* card */
         lv_obj_add_style(obj, &theme->styles.card, 0);
+        lv_obj_add_style(obj, &theme->styles.focus_ring, LV_STATE_FOCUS_KEY);
         lv_obj_add_style(obj, &theme->styles.scrollbar, LV_PART_SCROLLBAR);
         return;
     }
