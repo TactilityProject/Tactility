@@ -467,16 +467,17 @@ error_t notification_send(NotificationContext* context, uint32_t* out_id) {
             unlock();
             return ERROR_INVALID_STATE;
         }
+        // The lock was released while waiting, so the sender can have been disabled meanwhile. That is checked before
+        // anything is evicted, as a rejected send must not remove another notification.
+        source = findSource(context->source_type, context->source_id);
+        if (source != nullptr && !source->enabled) {
+            unlock();
+            return ERROR_NOT_ALLOWED;
+        }
         if (state->count == NOTIFICATION_HISTORY_CAPACITY && state->entries[0].id == evictedId) {
             removeEntry(0);
             emitEvent(NOTIFICATION_EVENT_DISMISSED, evictedId);
         }
-    }
-    // The lock was released while waiting, so the sender can have been disabled meanwhile
-    source = findSource(context->source_type, context->source_id);
-    if (source != nullptr && !source->enabled) {
-        unlock();
-        return ERROR_NOT_ALLOWED;
     }
 
     Notification& entry = state->entries[state->count++];
