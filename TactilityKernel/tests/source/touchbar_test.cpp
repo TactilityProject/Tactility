@@ -1,5 +1,7 @@
 #include "doctest.h"
 
+#include <initializer_list>
+
 #include <tactility/device.h>
 #include <tactility/driver.h>
 #include <tactility/drivers/touchbar.h>
