@@ -12,7 +12,7 @@
 #include <tactility/bindings/esp32_pwm_ledc.h>
 #include <tactility/bindings/esp32_usbdevice.h>
 #include <tactility/bindings/pwm_backlight.h>
-#include <bindings/ft6x36.h>
+#include <bindings/ft5x06.h>
 #include <bindings/st7796_i8080.h>
 
 / {
@@ -40,7 +40,7 @@
 		pin-scl = <&gpio0 5 GPIO_FLAG_NONE>;
 
 		touch0 {
-			compatible = "focaltech,ft6x36";
+			compatible = "focaltech,ft5x06";
 			reg = <0x38>;
 			x-max = <320>;
 			y-max = <480>;
@@ -66,6 +66,7 @@
 
 	i8080_0 {
 		compatible = "espressif,esp32-i8080";
+		// The panel's CS line is tied to GND on this board, so no cs-gpios entry is needed.
 		pin-dc = <&gpio0 0 GPIO_FLAG_NONE>;
 		pin-wr = <&gpio0 47 GPIO_FLAG_NONE>;
 		pin-d0 = <&gpio0 9 GPIO_FLAG_NONE>;
