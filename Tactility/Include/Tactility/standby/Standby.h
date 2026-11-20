@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+struct Device;
+
 namespace tt::standby {
 
 /** The kind of driver that an input device uses, which decides how it is read */
@@ -23,6 +25,12 @@ struct WakeSource {
 
 /** @return true while the device is in standby. Input of that time is not an action. */
 bool isActive();
+
+/** @return true while the button that woke the device is held, as its press and long press are not actions */
+bool isWakeGesture(Device* device);
+
+/** Ends the wake gesture of a button, which allows its next press to be an action */
+void endWakeGesture(Device* device);
 
 /** @return the keyboards, touch screens, encoders and buttons that are ready */
 ::std::vector<WakeSource> findWakeSources();

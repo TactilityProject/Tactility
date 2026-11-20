@@ -6,6 +6,7 @@
 
 #include <Tactility/service/ServiceManifest.h>
 #include <Tactility/service/ServiceRegistration.h>
+#include <service/manager.h>
 #include <Tactility/settings/RadioSettings.h>
 
 #include <generated_assets.h>
@@ -73,7 +74,7 @@ static const DevelopmentRemoteUiHandlers remoteUiHandlers = {
 namespace service {
     // Primary
     namespace audio { extern const ServiceManifest manifest; }
-    namespace buttonactions { extern const ServiceManifest manifest; }
+    namespace buttonactions { extern const ::ServiceManifest manifest; }
     namespace gpstime { extern const ServiceManifest manifest; }
 #ifdef ESP_PLATFORM
     namespace rtctime { extern const ServiceManifest manifest; }
@@ -88,7 +89,7 @@ void registerAndStartServices() {
         addService(service::audio::manifest);
     }
     if (device_exists_of_type(&BUTTON_TYPE)) {
-        addService(service::buttonactions::manifest);
+        check(service_manager_add(&service::buttonactions::manifest, true) == ERROR_NONE);
     }
     check(module_ensure_started(&bluetooth_module) == ERROR_NONE);
     check(module_ensure_started(&wifi_module) == ERROR_NONE);

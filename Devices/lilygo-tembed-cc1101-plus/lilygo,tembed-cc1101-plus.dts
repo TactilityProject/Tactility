@@ -179,7 +179,7 @@
 	// We keep the power button functionality for consistency.
 	button {
 		compatible = "gpio-button";
-		pin = <&gpio0 6 GPIO_FLAG_NONE>; // Not WAKEUP_BUTTON_FLAGS like regular tembed-cc1101
+		pin = <&gpio0 6 GPIO_FLAG_ACTIVE_LOW>; // Active low like the regular tembed-cc1101, without the deep sleep wake pull-up
 		short-press-code = <BUTTON_KEY_POWER>;
 	};
 

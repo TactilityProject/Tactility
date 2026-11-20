@@ -22,6 +22,7 @@
 #include <tactility/log.h>
 
 #include <atomic>
+#include <memory>
 
 
 namespace tt::standby {
@@ -32,6 +33,8 @@ constexpr auto* ENCODER_COMPATIBLE = "tactility,gpio-encoder";
 constexpr auto* BUTTON_COMPATIBLE = "tactility,button-control";
 constexpr TickType_t POLL_INTERVAL = pdMS_TO_TICKS(20);
 constexpr TickType_t RELEASE_TIMEOUT = pdMS_TO_TICKS(1000);
+/** How long nothing may be pressed before a press is considered finished */
+constexpr TickType_t QUIET_TIME = pdMS_TO_TICKS(100);
 constexpr TickType_t RADIO_TIMEOUT = pdMS_TO_TICKS(5000);
 /** How long the text stays in one place on a display that remains on */
 constexpr TickType_t MOVE_INTERVAL = pdMS_TO_TICKS(10000);
@@ -49,9 +52,15 @@ struct RadioStates {
 struct Awake {
     Device* device;
     WakeInput input;
+    /** Set for keyboards, which can push their events without implementing read_key. It stays at one address while it is subscribed. */
+    KeyboardEventSubscription* subscription = nullptr;
 };
 
 std::atomic<bool> standbyActive { false };
+
+/** Buttons that were held when standby ended, until they are released. A few buttons exist on a device. */
+constexpr size_t WAKE_GESTURE_CAPACITY = 4;
+std::atomic<Device*> wakeGestures[WAKE_GESTURE_CAPACITY] = {};
 
 WakeKind keyboardKind(Device* device) {
     auto* driver = device_get_driver(device);
@@ -88,22 +97,18 @@ void collect(const DeviceType* type, WakeInput input, ::std::vector<WakeSource>&
     });
 }
 
-/** @return true when a key is down, after dropping the queued events */
-bool isKeyDown(Device* keyboard) {
-    constexpr int maxReads = 64;
-    KeyboardKeyData data;
-    for (int i = 0; i < maxReads; i++) {
-        if (keyboard_read_key(keyboard, &data) != ERROR_NONE) {
-            return false;
-        }
-        if (data.pressed) {
-            return true;
-        }
-        if (data.key == 0 && !data.continue_reading) {
-            return false;
-        }
+/** @return true when a key was pressed since the last call. Reads the driver too when it implements read_key. */
+bool isKeyPressed(const Awake& keyboard) {
+    if (keyboard.subscription == nullptr) {
+        return false;
     }
-    return false;
+    constexpr int maxReads = 16;
+    bool pressed = false;
+    KeyboardKeyData data;
+    for (int i = 0; i < maxReads && keyboard_poll(keyboard.device, keyboard.subscription, &data) == ERROR_NONE; i++) {
+        pressed |= data.pressed;
+    }
+    return pressed;
 }
 
 bool isTouched(Device* touch) {
@@ -122,25 +127,24 @@ bool isButtonPressed(Device* button) {
 
 bool isActive(const Awake& awake) {
     switch (awake.input) {
-        case WakeInput::Keyboard: return isKeyDown(awake.device);
+        case WakeInput::Keyboard: return isKeyPressed(awake);
         case WakeInput::Touch: return isTouched(awake.device);
         case WakeInput::Button: return isButtonPressed(awake.device);
     }
     return false;
 }
 
-/** Waits until nothing is pressed, so that the press that started or ended the standby isn't seen again */
+/** Waits until nothing was pressed for a while, so that the press that started or ended the standby isn't seen again */
 void awaitRelease(const ::std::vector<Awake>& awakes) {
     const TickType_t start = xTaskGetTickCount();
-    bool anyActive = true;
-    while (anyActive && xTaskGetTickCount() - start < RELEASE_TIMEOUT) {
-        anyActive = false;
+    TickType_t last_active = start;
+    while (xTaskGetTickCount() - start < RELEASE_TIMEOUT && xTaskGetTickCount() - last_active < QUIET_TIME) {
         for (const auto& awake : awakes) {
-            anyActive |= isActive(awake);
+            if (isActive(awake)) {
+                last_active = xTaskGetTickCount();
+            }
         }
-        if (anyActive) {
-            vTaskDelay(POLL_INTERVAL);
-        }
+        vTaskDelay(POLL_INTERVAL);
     }
 }
 
@@ -286,15 +290,30 @@ bool isActive() {
     return enabled;
 }
 
+bool isWakeGesture(Device* device) {
+    for (auto& gesture : wakeGestures) {
+        if (gesture.load(std::memory_order_acquire) == device) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void endWakeGesture(Device* device) {
+    for (auto& gesture : wakeGestures) {
+        Device* expected = device;
+        gesture.compare_exchange_strong(expected, nullptr, std::memory_order_acq_rel);
+    }
+}
+
 bool enter(const settings::standby::StandbySettings& settings) {
     const auto sources = findEnabledWakeSources(settings);
     if (sources.empty()) {
         LOG_W(TAG, "No wake source is enabled");
         return false;
     }
-    standbyActive.store(true, std::memory_order_release);
 
-    // Touch devices that don't wake the device are put to sleep
+    // The devices are acquired and checked before anything changes, as a device can be removed after it was discovered
     ::std::vector<Awake> awakes;
     for (const auto& source : sources) {
         Device* device = nullptr;
@@ -302,6 +321,41 @@ bool enter(const settings::standby::StandbySettings& settings) {
             awakes.push_back({ device, source.input });
         }
     }
+    // The subscriptions must stay at the same address while they are subscribed
+    auto subscriptions = ::std::make_unique<KeyboardEventSubscription[]>(awakes.size());
+    size_t usable_count = 0;
+    for (size_t i = 0; i < awakes.size(); i++) {
+        if (awakes[i].input == WakeInput::Keyboard) {
+            if (keyboard_subscribe(awakes[i].device, &subscriptions[i]) == ERROR_NONE) {
+                awakes[i].subscription = &subscriptions[i];
+                usable_count++;
+            }
+        } else {
+            usable_count++;
+        }
+    }
+    auto release_awakes = [&] {
+        for (const auto& awake : awakes) {
+            if (awake.subscription != nullptr) {
+                keyboard_unsubscribe(awake.device, awake.subscription);
+            }
+            device_put(awake.device);
+        }
+    };
+    if (usable_count == 0) {
+        LOG_W(TAG, "No wake source is available");
+        release_awakes();
+        return false;
+    }
+
+    bool expected_active = false;
+    if (!standbyActive.compare_exchange_strong(expected_active, true, std::memory_order_acq_rel)) {
+        LOG_W(TAG, "Standby is already active");
+        release_awakes();
+        return false;
+    }
+
+    // Touch devices that don't wake the device are put to sleep
     ::std::vector<Device*> standby_touch;
     for (const auto& source : findWakeSources()) {
         bool woken = false;
@@ -379,9 +433,14 @@ bool enter(const settings::standby::StandbySettings& settings) {
 
     // A key that is still down would be seen as a fresh press by LVGL
     awaitRelease(awakes);
+    // A button that is still held keeps its press and long press from being actions, until it is released
+    size_t gesture_index = 0;
     for (const auto& awake : awakes) {
-        device_put(awake.device);
+        if (awake.input == WakeInput::Button && gesture_index < WAKE_GESTURE_CAPACITY && isButtonPressed(awake.device)) {
+            wakeGestures[gesture_index++].store(awake.device, std::memory_order_release);
+        }
     }
+    release_awakes();
 
     resumeRadios(radios);
     lvgl::start();

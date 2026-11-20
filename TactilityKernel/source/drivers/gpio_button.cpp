@@ -2,6 +2,7 @@
 #include <tactility/drivers/gpio_button.h>
 
 #include <tactility/Memory.hpp>
+#include <tactility/concurrent/mutex.h>
 #include <tactility/concurrent/timer.h>
 #include <tactility/delay.h>
 #include <tactility/device.h>
@@ -29,10 +30,23 @@ struct GpioButtonInternal {
     Timer* long_press_timer = nullptr;
     std::atomic<bool> pressed { false };
     std::atomic<bool> fence_reached { false };
+    // An edge queued a restart of the debounce that did not run yet. Further edges need no extra queue entry.
+    std::atomic<bool> restart_pending { false };
+    // The device is stopping, so no timer may be armed or handled anymore
+    std::atomic<bool> stopping { false };
     bool long_press_fired = false;
     // The button was already held when the device started, so its release is not an action
     bool ignore_release = false;
 };
+
+// Guards the driver data against stop() for readers outside of the timer daemon
+struct StateMutex {
+    Mutex handle {};
+    StateMutex() { mutex_construct(&handle); }
+    ~StateMutex() { mutex_destruct(&handle); }
+};
+
+static StateMutex state_mutex;
 
 static void emit(GpioButtonInternal* internal, uint32_t code, ButtonValue value) {
     button_emit_event(internal->device, ButtonEvent {
@@ -50,7 +64,7 @@ static bool has_long_press(const GpioButtonInternal* internal) {
 
 static void on_long_press_timeout(void* context) {
     auto* internal = static_cast<GpioButtonInternal*>(context);
-    if (!internal->pressed.load(std::memory_order_relaxed) || internal->ignore_release) {
+    if (internal->stopping.load(std::memory_order_acquire) || !internal->pressed.load(std::memory_order_relaxed) || internal->ignore_release) {
         return;
     }
     internal->long_press_fired = true;
@@ -85,6 +99,9 @@ static void on_release(GpioButtonInternal* internal) {
 
 static void on_debounce_timeout(void* context) {
     auto* internal = static_cast<GpioButtonInternal*>(context);
+    if (internal->stopping.load(std::memory_order_acquire)) {
+        return;
+    }
 
     bool level = false;
     if (gpio_descriptor_get_level(internal->descriptor, &level) != ERROR_NONE) {
@@ -104,6 +121,11 @@ static void on_debounce_timeout(void* context) {
 
 static void restart_debounce(void* context, uint32_t) {
     auto* internal = static_cast<GpioButtonInternal*>(context);
+    // Cleared first, so an edge during the restart queues another one
+    internal->restart_pending.store(false, std::memory_order_release);
+    if (internal->stopping.load(std::memory_order_acquire)) {
+        return;
+    }
     timer_reset_with_interval(internal->debounce_timer, internal->config->debounce_ms);
 }
 
@@ -114,7 +136,12 @@ static void mark_fence_reached(void* context, uint32_t) {
 // Runs in interrupt context
 static void on_edge(void* context) {
     auto* internal = static_cast<GpioButtonInternal*>(context);
-    timer_set_pending_callback(nullptr, restart_debounce, internal, 0, 0);
+    // One queued restart covers a burst of edges, so the timer queue doesn't fill up and the daemon never waits on it
+    if (!internal->restart_pending.exchange(true, std::memory_order_acq_rel)) {
+        if (timer_set_pending_callback(nullptr, restart_debounce, internal, 0, 0) != ERROR_NONE) {
+            internal->restart_pending.store(false, std::memory_order_release);
+        }
+    }
 }
 
 // endregion
@@ -175,27 +202,45 @@ static error_t start(Device* device) {
         return error;
     }
 
+    mutex_lock(&state_mutex.handle);
     device_set_driver_data(device, internal);
+    mutex_unlock(&state_mutex.handle);
     return ERROR_NONE;
 }
 
-static error_t stop(Device* device) {
-    LOG_I(TAG, "stop %s", device->name);
-    auto* internal = GET_INTERNAL(device);
-
-    gpio_descriptor_disable_interrupt(internal->descriptor);
-    gpio_descriptor_remove_callback(internal->descriptor);
-
-    timer_stop(internal->debounce_timer);
-    timer_stop(internal->long_press_timer);
-
-    // The timer daemon runs its queue in order. Once the fence ran, no callback that
-    // references internal is pending anymore.
+/** The timer daemon runs its queue in order. Once the fence ran, everything that was queued before it has run. */
+static void wait_for_timer_daemon(GpioButtonInternal* internal) {
+    internal->fence_reached.store(false, std::memory_order_release);
     if (timer_set_pending_callback(nullptr, mark_fence_reached, internal, 0, portMAX_DELAY) == ERROR_NONE) {
         while (!internal->fence_reached.load(std::memory_order_acquire)) {
             delay_ticks(1);
         }
     }
+}
+
+static error_t stop(Device* device) {
+    LOG_I(TAG, "stop %s", device->name);
+
+    // Readers of the driver data finish before the state is released, and don't find it afterwards
+    mutex_lock(&state_mutex.handle);
+    auto* internal = GET_INTERNAL(device);
+    device_set_driver_data(device, nullptr);
+    mutex_unlock(&state_mutex.handle);
+
+    // Queued restarts and expiring timers do nothing from here
+    internal->stopping.store(true, std::memory_order_release);
+
+    gpio_descriptor_disable_interrupt(internal->descriptor);
+    gpio_descriptor_remove_callback(internal->descriptor);
+
+    // Handles the restarts that were queued before the stop, which no longer arm the debounce timer
+    wait_for_timer_daemon(internal);
+
+    timer_stop(internal->debounce_timer);
+    timer_stop(internal->long_press_timer);
+
+    // The stop commands ran, so no timer callback that references internal can run anymore
+    wait_for_timer_daemon(internal);
 
     gpio_descriptor_release(internal->descriptor);
 
@@ -203,7 +248,6 @@ static error_t stop(Device* device) {
         emit(internal, internal->config->long_press_code, BUTTON_VALUE_RELEASED);
     }
 
-    device_set_driver_data(device, nullptr);
     destroy(internal);
     return ERROR_NONE;
 }
@@ -211,8 +255,14 @@ static error_t stop(Device* device) {
 // endregion
 
 static error_t is_pressed(Device* device, bool* out_pressed) {
-    *out_pressed = GET_INTERNAL(device)->pressed.load(std::memory_order_relaxed);
-    return ERROR_NONE;
+    mutex_lock(&state_mutex.handle);
+    auto* internal = GET_INTERNAL(device);
+    const bool available = internal != nullptr;
+    if (available) {
+        *out_pressed = internal->pressed.load(std::memory_order_relaxed);
+    }
+    mutex_unlock(&state_mutex.handle);
+    return available ? ERROR_NONE : ERROR_INVALID_STATE;
 }
 
 static constexpr ButtonApi GPIO_BUTTON_API = {

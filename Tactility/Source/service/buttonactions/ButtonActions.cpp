@@ -1,11 +1,11 @@
 #include <Tactility/service/buttonactions/ButtonActions.h>
 
 #include <Tactility/app/shutdown/Shutdown.h>
-#include <Tactility/service/Service.h>
-#include <Tactility/service/ServiceManifest.h>
 #include <Tactility/standby/Standby.h>
 
 #include <app/manager.h>
+#include <service/manager.h>
+#include <service/manifest.h>
 
 #include <tactility/drivers/button.h>
 #include <tactility/drivers/input_codes.h>
@@ -34,9 +34,17 @@ void startShutdown(const char* mode) {
     }
 }
 
-void onButtonEvent(Device* /*device*/, const ButtonEvent* event, void* /*context*/) {
+void onButtonEvent(Device* device, const ButtonEvent* event, void* /*context*/) {
     // Input during standby wakes the device and is not an action
-    if (event->value != BUTTON_VALUE_PRESSED || standby::isActive()) {
+    if (standby::isActive()) {
+        return;
+    }
+    if (event->value == BUTTON_VALUE_RELEASED) {
+        standby::endWakeGesture(device);
+        return;
+    }
+    // The press and long press of the gesture that woke the device, which can come after standby ended
+    if (standby::isWakeGesture(device)) {
         return;
     }
     switch (getAction(event->code)) {
@@ -54,29 +62,33 @@ void onButtonEvent(Device* /*device*/, const ButtonEvent* event, void* /*context
     }
 }
 
+void* createService(const ::ServiceManifest* /*manifest*/) {
+    return nullptr;
+}
+
+void destroyService(const ::ServiceManifest* /*manifest*/, void* /*data*/) {}
+
+error_t onStart(::ServiceInstance* /*instance*/, void* /*data*/) {
+    const error_t error = button_callback_add(onButtonEvent, nullptr);
+    if (error != ERROR_NONE) {
+        LOG_E(TAG, "Failed to listen to buttons: %s", error_to_string(error));
+    }
+    return error;
+}
+
+void onStop(::ServiceInstance* /*instance*/, void* /*data*/) {
+    button_callback_remove(onButtonEvent);
+}
+
 }
 
 /** Runs the shutdown app for the power, standby and suspend keys of the button devices */
-class ButtonActionsService final : public Service {
-
-public:
-
-    bool onStart(ServiceContext& /*service*/) override {
-        const error_t error = button_callback_add(onButtonEvent, nullptr);
-        if (error != ERROR_NONE) {
-            LOG_E(TAG, "Failed to listen to buttons: %s", error_to_string(error));
-        }
-        return error == ERROR_NONE;
-    }
-
-    void onStop(ServiceContext& /*service*/) override {
-        button_callback_remove(onButtonEvent);
-    }
-};
-
-extern const ServiceManifest manifest = {
+extern const ::ServiceManifest manifest = {
     .id = "tactility.buttonactions",
-    .createService = create<ButtonActionsService>
+    .create_service = createService,
+    .destroy_service = destroyService,
+    .on_start = onStart,
+    .on_stop = onStop
 };
 
 } // namespace tt::service::buttonactions

@@ -20,6 +20,7 @@
 #include <tactility/drivers/sleep_controller.h>
 #include <tactility/log.h>
 
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 
@@ -92,8 +93,16 @@ bool suspend() {
     return true;
 }
 
+/** Only one operation owns the screen at a time, until its recovery is done */
+std::atomic<bool> running { false };
+
 /** Shows the screen of slow-refresh displays, as the image stays on the panel after the device is off */
 bool run(const char* subtitle, bool (*action)()) {
+    bool expected = false;
+    if (!running.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return false;
+    }
+
     Device* display = nullptr;
     bool is_slow_refresh = false;
     lv_obj_t* previous_screen = nullptr;
@@ -128,6 +137,7 @@ bool run(const char* subtitle, bool (*action)()) {
         lv_obj_delete(shutdown_screen);
         lvgl_unlock();
     }
+    running.store(false, std::memory_order_release);
     return success;
 }
 
@@ -142,7 +152,7 @@ int32_t main(int argc, char* argv[]) {
     if (strcmp(mode, MODE_STANDBY) == 0) {
         success = standby::enter(settings::standby::loadOrGetDefault());
         if (!success) {
-            printf("shutdown: no wake source is enabled\n");
+            printf("shutdown: standby is not available\n");
         }
     } else if (strcmp(mode, MODE_SUSPEND) == 0) {
         success = supportsSuspend() && run(tr("Suspended"), suspend);
