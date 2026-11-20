@@ -149,7 +149,7 @@
 			vertical-resolution = <502>;
 			gap-x = <22>;
 			gap-y = <0>;
-			pixel-clock-hz = <40000000>;
+			pixel-clock-hz = <20000000>;
 			pin-reset = <&gpio0 8 GPIO_FLAG_NONE>;
 
 			// The SH8601 has no backlight pin; brightness is a panel command. The driver finds
