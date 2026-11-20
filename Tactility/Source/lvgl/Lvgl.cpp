@@ -53,7 +53,6 @@ namespace service {
     namespace memorychecker { extern const ServiceManifest manifest; }
     namespace statusbar { extern const ServiceManifest manifest; }
 #ifdef ESP_PLATFORM
-    namespace displayidle { extern const ServiceManifest manifest; }
     namespace keyboardidle { extern const ServiceManifest manifest; }
 #endif
 }
@@ -157,9 +156,6 @@ static void onLvglStarted() {
 
     addService(service::statusbar::manifest);
     addService(service::memorychecker::manifest);
-#if defined(ESP_PLATFORM)
-    addService(service::displayidle::manifest);
-#endif
     if (device_exists_of_type(&IMU_TYPE)) {
         addService(service::autorotate::manifest);
     }
@@ -185,9 +181,6 @@ static void onLvglStopped() {
     }
 #if defined(CONFIG_TT_TDECK_WORKAROUND)
     check(service::removeService(service::keyboardidle::manifest.id));
-#endif
-#if defined(ESP_PLATFORM)
-    check(service::removeService(service::displayidle::manifest.id));
 #endif
     check(service::removeService(service::memorychecker::manifest.id));
     check(service::removeService(service::statusbar::manifest.id));

@@ -11,15 +11,10 @@
 #include <tactility/log.h>
 
 #include <Tactility/Tactility.h>
-#include <Tactility/app/selectiondialog/SelectionDialog.h>
-#ifdef ESP_PLATFORM
-#include <Tactility/service/displayidle/DisplayIdleService.h>
-#endif
 #include <Tactility/service/autorotate/AutoRotateService.h>
 #include <Tactility/settings/DisplaySettings.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
 
@@ -37,9 +32,6 @@
 
 #include <lvgl.h>
 
-#include <string>
-#include <vector>
-
 #ifdef ESP_PLATFORM
 #include <sdkconfig.h>
 #endif
@@ -52,42 +44,16 @@ constexpr auto* TAG = "Display";
 
 namespace {
 
-struct TimeoutOption {
-    uint32_t ms;
-    const char* name;
-};
-
-constexpr TimeoutOption TIMEOUT_OPTIONS[] = {
-    { 15000, tr_noop("15 seconds") },
-    { 30000, tr_noop("30 seconds") },
-    { 60000, tr_noop("1 minute") },
-    { 120000, tr_noop("2 minutes") },
-    { 300000, tr_noop("5 minutes") },
-    { 0, tr_noop("Never") },
-};
-
 // The icon is an upright phone with its bar at the bottom, rotated clockwise (0.1 degree units) to the screen's shape.
 // In settings::display::Orientation order: Landscape, Portrait, LandscapeFlipped, PortraitFlipped
 constexpr int32_t ORIENTATION_ICON_ROTATIONS[] = { 2700, 0, 900, 1800 };
-
-// In settings::display::ScreensaverType order
-constexpr const char* SCREENSAVER_NAMES[] = { tr_noop("None"), tr_noop("Bouncing Balls"), tr_noop("Mystify"), tr_noop("Matrix Rain"), tr_noop("StackChan") };
 
 struct Context {
     uint32_t appInstanceId;
     settings::display::DisplaySettings displaySettings;
     bool displaySettingsUpdated = false;
     TaskEventGroup* eventGroup = nullptr;
-    uint32_t selectTimeoutBit = 0;
-    uint32_t selectScreensaverBit = 0;
-    uint32_t timeoutDialogId = 0;
-    uint32_t screensaverDialogId = 0;
     // Widgets, valid while the window is shown
-    lv_obj_t* timeoutSwitch = nullptr;
-    // Shown when the auto screen off is enabled: the timeout and screensaver
-    lv_obj_t* timeoutCard = nullptr;
-    lv_obj_t* timeoutValueLabel = nullptr;
-    lv_obj_t* screensaverValueLabel = nullptr;
     // Shown when auto-rotate is off or unavailable: the orientation label and chips
     lv_obj_t* orientationCard = nullptr;
     lv_obj_t* orientationChips = nullptr;
@@ -232,114 +198,6 @@ lv_obj_t* createOrientationChips(lv_obj_t* parent, settings::display::Orientatio
     return chips;
 }
 
-void onTimeoutSwitch(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* sw = static_cast<lv_obj_t*>(lv_event_get_target(event));
-    bool enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
-    ctx->displaySettings.backlightTimeoutEnabled = enabled;
-    ctx->displaySettingsUpdated = true;
-    if (ctx->timeoutCard) {
-        lv_obj_set_hidden(ctx->timeoutCard, !enabled);
-    }
-}
-
-const char* getTimeoutName(uint32_t ms) {
-    for (const auto& option : TIMEOUT_OPTIONS) {
-        if (option.ms == ms) {
-            return tr(option.name);
-        }
-    }
-    return tr("Custom");
-}
-
-const char* getScreensaverName(settings::display::ScreensaverType type) {
-    const auto index = static_cast<size_t>(type);
-    return index < std::size(SCREENSAVER_NAMES) ? tr(SCREENSAVER_NAMES[index]) : "";
-}
-
-/** Requires the LVGL lock */
-void updateTimeoutLabels(Context* ctx) {
-    if (ctx->timeoutValueLabel != nullptr) {
-        lv_label_set_text(ctx->timeoutValueLabel, getTimeoutName(ctx->displaySettings.backlightTimeoutMs));
-        lv_label_set_text(ctx->screensaverValueLabel, getScreensaverName(ctx->displaySettings.screensaverType));
-    }
-}
-
-void onChangeTimeoutPressed(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    task_event_group_signal(ctx->eventGroup, ctx->selectTimeoutBit);
-}
-
-void onChangeScreensaverPressed(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    task_event_group_signal(ctx->eventGroup, ctx->selectScreensaverBit);
-}
-
-void startTimeoutSelection(Context* ctx) {
-    if (ctx->timeoutDialogId != 0) {
-        return;
-    }
-    std::vector<std::string> items;
-    for (const auto& option : TIMEOUT_OPTIONS) {
-        items.emplace_back(tr(option.name));
-    }
-    ctx->timeoutDialogId = selectiondialog::start(ctx->appInstanceId, tr("Timeout"), items);
-}
-
-void startScreensaverSelection(Context* ctx) {
-    if (ctx->screensaverDialogId != 0) {
-        return;
-    }
-    std::vector<std::string> items;
-    for (const auto* name : SCREENSAVER_NAMES) {
-        items.emplace_back(tr(name));
-    }
-    ctx->screensaverDialogId = selectiondialog::start(ctx->appInstanceId, tr("Screensaver"), items);
-}
-
-// Other results than an index mean that the dialog was dismissed
-void onTimeoutSelectionResult(Context* ctx, int32_t selected) {
-    ctx->timeoutDialogId = 0;
-    if (selected >= 0 && selected < static_cast<int32_t>(std::size(TIMEOUT_OPTIONS))) {
-        ctx->displaySettings.backlightTimeoutMs = TIMEOUT_OPTIONS[selected].ms;
-        ctx->displaySettingsUpdated = true;
-    }
-}
-
-void onScreensaverSelectionResult(Context* ctx, int32_t selected) {
-    ctx->screensaverDialogId = 0;
-    if (selected >= 0 && selected < static_cast<int32_t>(settings::display::ScreensaverType::Count)) {
-        ctx->displaySettings.screensaverType = static_cast<settings::display::ScreensaverType>(selected);
-        ctx->displaySettingsUpdated = true;
-    }
-}
-
-/** A row in a card: "Title          Value [Change]" */
-lv_obj_t* createValueRow(lv_obj_t* card, const char* title, lv_event_cb_t onChange, Context* ctx) {
-    auto* row = lv_obj_create(card);
-    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(row, 0, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(row, 0, LV_STATE_DEFAULT);
-    // The card provides the background
-    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_set_scrollable(row, false);
-
-    auto* title_label = lv_label_create(row);
-    lv_label_set_text(title_label, title);
-    lv_obj_set_flex_grow(title_label, 1);
-
-    auto* value_label = lv_label_create(row);
-
-    auto* button = lv_button_create(row);
-    auto* icon = lv_label_create(button);
-    lv_obj_set_style_text_font(icon, lvgl_get_shared_icon_default_font(), LV_STATE_DEFAULT);
-    lv_label_set_text(icon, LVGL_ICON_SHARED_LIST_ALT);
-    lv_obj_add_event_cb(button, onChange, LV_EVENT_SHORT_CLICKED, ctx);
-    return value_label;
-}
-
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
 
@@ -412,49 +270,10 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     ctx->orientationChips = createOrientationChips(orientation_group, ctx->displaySettings.orientation, onOrientationChipPressed, ctx);
 
     updateOrientationVisibility(ctx);
-
-    // Screen timeout
-    // Note: DisplayIdleService doesn't act on these settings for kernel-driver displays yet
-    // (it only looks up the deprecated tt::hal::display::DisplayDevice), so these currently
-    // just get saved without taking effect. Kept for parity/forward-compatibility.
-
-    if (backlight != nullptr) {
-        auto* timeout_wrapper = lv_obj_create(main_wrapper);
-        lv_obj_set_size(timeout_wrapper, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_flex_flow(timeout_wrapper, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(timeout_wrapper, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_all(timeout_wrapper, 0, LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(timeout_wrapper, 0, LV_STATE_DEFAULT);
-        lv_obj_set_scrollable(timeout_wrapper, false);
-
-        auto* timeout_label = lv_label_create(timeout_wrapper);
-        lv_label_set_text(timeout_label, tr("Auto screen off"));
-        lv_obj_set_flex_grow(timeout_label, 1);
-
-        ctx->timeoutSwitch = lv_switch_create(timeout_wrapper);
-        if (ctx->displaySettings.backlightTimeoutEnabled) {
-            lv_obj_add_state(ctx->timeoutSwitch, LV_STATE_CHECKED);
-        }
-        lv_obj_add_event_cb(ctx->timeoutSwitch, onTimeoutSwitch, LV_EVENT_VALUE_CHANGED, ctx);
-
-        auto* timeout_card = lvgl_card_create(main_wrapper);
-        lv_obj_set_size(timeout_card, LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_flex_flow(timeout_card, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_hidden(timeout_card, !ctx->displaySettings.backlightTimeoutEnabled);
-        ctx->timeoutCard = timeout_card;
-
-        ctx->timeoutValueLabel = createValueRow(timeout_card, tr("Timeout"), onChangeTimeoutPressed, ctx);
-        ctx->screensaverValueLabel = createValueRow(timeout_card, tr("Screensaver"), onChangeScreensaverPressed, ctx);
-        updateTimeoutLabels(ctx);
-    }
 }
 
 void destroyWidgets(void* userData) {
     auto* ctx = static_cast<Context*>(userData);
-    ctx->timeoutSwitch = nullptr;
-    ctx->timeoutCard = nullptr;
-    ctx->timeoutValueLabel = nullptr;
-    ctx->screensaverValueLabel = nullptr;
     ctx->orientationCard = nullptr;
     ctx->orientationChips = nullptr;
     ctx->autoRotateSwitch = nullptr;
@@ -470,13 +289,6 @@ struct SaveSettingsJob {
 void saveSettingsInBackground(void* context) {
     auto* job = static_cast<SaveSettingsJob*>(context);
     settings::display::save(job->settings);
-#ifdef ESP_PLATFORM
-    // Notify DisplayIdle service to reload settings
-    auto displayIdle = service::displayidle::findService();
-    if (displayIdle) {
-        displayIdle->reloadSettings();
-    }
-#endif
     // Notify AutoRotate service to reload settings
     auto autoRotate = service::autorotate::findService();
     if (autoRotate) {
@@ -506,8 +318,6 @@ int32_t appMain(int argc, char* argv[]) {
     TaskEventGroup event_group {};
     task_event_group_construct(&event_group);
     ctx.eventGroup = &event_group;
-    check(task_event_group_claim_bit(&event_group, &ctx.selectTimeoutBit) == ERROR_NONE);
-    check(task_event_group_claim_bit(&event_group, &ctx.selectScreensaverBit) == ERROR_NONE);
 
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
@@ -516,15 +326,7 @@ int32_t appMain(int argc, char* argv[]) {
 
     bool shouldClose = false;
     while (!shouldClose) {
-        uint32_t flags = 0;
-        task_event_group_wait_any(&event_group, &flags, portMAX_DELAY);
-
-        if (flags & ctx.selectTimeoutBit) {
-            startTimeoutSelection(&ctx);
-        }
-        if (flags & ctx.selectScreensaverBit) {
-            startScreensaverSelection(&ctx);
-        }
+        task_event_group_wait_any(&event_group, nullptr, portMAX_DELAY);
 
         AppEvent event {};
         while (app_event_poll(&sub, &event) == ERROR_NONE) {
@@ -532,17 +334,6 @@ int32_t appMain(int argc, char* argv[]) {
                 case APP_EVENT_CLOSE:
                     persistIfUpdated(ctx);
                     shouldClose = true;
-                    break;
-                case APP_EVENT_RESULT:
-                    if (event.result.launch_id == ctx.timeoutDialogId) {
-                        onTimeoutSelectionResult(&ctx, event.result.result);
-                    } else if (event.result.launch_id == ctx.screensaverDialogId) {
-                        onScreensaverSelectionResult(&ctx, event.result.result);
-                    }
-                    lvgl_lock();
-                    updateTimeoutLabels(&ctx);
-                    lvgl_unlock();
-                    app_manager_stop(event.result.launch_id);
                     break;
                 default:
                     break;

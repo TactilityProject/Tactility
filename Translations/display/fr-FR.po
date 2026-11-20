@@ -3,44 +3,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: fr-FR\n"
 
-msgid "1 minute"
-msgstr "1 minute"
-
-msgid "15 seconds"
-msgstr "15 secondes"
-
-msgid "2 minutes"
-msgstr "2 minutes"
-
-msgid "30 seconds"
-msgstr "30 secondes"
-
-msgid "5 minutes"
-msgstr "5 minutes"
-
-msgid "Auto screen off"
-msgstr "Extinction auto de l'écran"
-
 msgid "Auto-rotate"
 msgstr "Rotation auto"
-
-msgid "Bouncing Balls"
-msgstr "Balles rebondissantes"
 
 msgid "Display"
 msgstr "Écran"
 
-msgid "Matrix Rain"
-msgstr "Pluie Matrix"
-
-msgid "Mystify"
-msgstr "Mystify"
-
 msgid "Orientation"
 msgstr "Orientation"
-
-msgid "Screensaver"
-msgstr "Économiseur d'écran"
-
-msgid "StackChan"
-msgstr "StackChan"
