@@ -4,10 +4,8 @@
 
 ## Higher Priority
 
-- Notifications screen: should only be as high as required to show notification rows.
-When there is only 1 notification row, the notification is rendered to the right of the close button, instead of below it.
-When there are 0 notifications, the "No notifications" message is rendered to the right of the close button, horizontally centered in the available space.
-
+- Notification sounds and vibration
+ 
 ## Medium Priority
 
 - API for default sound playback/recording device selection
@@ -15,13 +13,8 @@ When there are 0 notifications, the "No notifications" message is rendered to th
 - DisplayApi: support for insets (update lvgl insets API to re-route to this one?)
 - Add "Downloading Apps" step in Setup that downloads useful apps.
   It's an optional step at the end that only shows if wifi is connected.
-- Watch and others: sleep/wake support. "With a button to save energy of the screen while not having to turn the gps off by disabling power. Also could put device into pocket without worrying about pressing things on touchscreen.". Consider adding a list of hardware that supports on/off and have the user select which hardware turns on/off with light sleep. (not to confuse with ESP light sleep)
-Consider adding a light/deep sleep mode:
-  tt light sleep: esp32 does not go in sleep mode, user decides which devices go off (e.g. display+lvgl, wifi, lora, etc.)
-  tt deep sleep: esp32 goes into "esp light sleep" mode
 - Improve watch interface. Consider adding some sort of device classification so UI in apps can choose to optimize for the watch.
 - Update timezones.csv wrt 2026e, write tests for related code
-- Low/critical memory warning test/rework
 - Try https://github.com/bootdsc/Fastwave-Eink-Driver with CL-32 e-paper.
 - Pick different font to improve monochrome screen readability (or change the weight).
 - Inspect code for memory improvements: replace `std::*` with `tt::std::*`
@@ -34,7 +27,6 @@ Consider adding a light/deep sleep mode:
   scheduler.cpp's DeferredUnload relies on pthread_exit()'s forced unwind running its destructor.
   Without exceptions, an app that calls exit() is never unloaded and the next app start waits the full timeout.
 - netutils-module: ping, wget, ifconfig, nslookup, etc.
-- Core2: support power off via software
 - Make it clearer to end-users that an SD card is required to run Tactility
 - Warn if file operations are done from prohibited tasks (e.g. lvgl task)
 - stopAppFromToolbar() in lvgl/Lvgl.cpp stops the top-most app. Change it so the toolbar knows for which app id it is created, so it can rely on that.
@@ -45,7 +37,6 @@ Consider adding a light/deep sleep mode:
   Create some kind of "intent" handler like on Android.
   The intent can have an action (e.g. view), a URL and an optional bundle.
   The manifest can provide the intent handler
-- Core2: support power off via software
 - Try out speed optimizations: https://docs.espressif.com/projects/esp-faq/en/latest/software-framework/peripherals/lcd.html
   (relates to CONFIG_ESP32S3_DATA_CACHE_LINE_64B that is in use for RGB displays via the `device.properties` fix/workaround)
 - Default `gamma-curve` to 0 (the panel's own default) instead of 1 in the other display driver bindings
