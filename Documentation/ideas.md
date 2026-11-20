@@ -4,7 +4,6 @@
 
 ## Higher Priority
 
-- Pick better icon for toggling touch in remote.py
 - Notifications screen: should only be as high as required to show notification rows.
 When there is only 1 notification row, the notification is rendered to the right of the close button, instead of below it.
 When there are 0 notifications, the "No notifications" message is rendered to the right of the close button, horizontally centered in the available space.
