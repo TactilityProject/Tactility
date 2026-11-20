@@ -19,10 +19,10 @@
 #include <tactility/drivers/touch.h>
 #include <tactility/drivers/wifi.h>
 #include <tactility/delay.h>
+#include <tactility/Memory.hpp>
 #include <tactility/log.h>
 
 #include <atomic>
-#include <memory>
 
 
 namespace tt::standby {
@@ -321,23 +321,29 @@ bool enter(const settings::standby::StandbySettings& settings) {
             awakes.push_back({ device, source.input });
         }
     }
-    // The subscriptions must stay at the same address while they are subscribed
-    auto subscriptions = ::std::make_unique<KeyboardEventSubscription[]>(awakes.size());
+    // A subscription stays at the same address while it is subscribed. It is allocated in external RAM, as it lives as long as the standby.
     size_t usable_count = 0;
-    for (size_t i = 0; i < awakes.size(); i++) {
-        if (awakes[i].input == WakeInput::Keyboard) {
-            if (keyboard_subscribe(awakes[i].device, &subscriptions[i]) == ERROR_NONE) {
-                awakes[i].subscription = &subscriptions[i];
-                usable_count++;
-            }
-        } else {
+    for (auto& awake : awakes) {
+        if (awake.input != WakeInput::Keyboard) {
             usable_count++;
+            continue;
+        }
+        auto* subscription = newObject<KeyboardEventSubscription>();
+        if (subscription == nullptr) {
+            continue;
+        }
+        if (keyboard_subscribe(awake.device, subscription) == ERROR_NONE) {
+            awake.subscription = subscription;
+            usable_count++;
+        } else {
+            deleteObject(subscription);
         }
     }
     auto release_awakes = [&] {
         for (const auto& awake : awakes) {
             if (awake.subscription != nullptr) {
                 keyboard_unsubscribe(awake.device, awake.subscription);
+                deleteObject(awake.subscription);
             }
             device_put(awake.device);
         }
@@ -438,6 +444,11 @@ bool enter(const settings::standby::StandbySettings& settings) {
     for (const auto& awake : awakes) {
         if (awake.input == WakeInput::Button && gesture_index < WAKE_GESTURE_CAPACITY && isButtonPressed(awake.device)) {
             wakeGestures[gesture_index++].store(awake.device, std::memory_order_release);
+            // The button can be released between the sample and the store, and that release could not clear the marker yet.
+            // The pressed state changes before the release event is emitted, so a release that was missed shows here.
+            if (!isButtonPressed(awake.device)) {
+                endWakeGesture(awake.device);
+            }
         }
     }
     release_awakes();

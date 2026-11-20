@@ -35,12 +35,13 @@ void startShutdown(const char* mode) {
 }
 
 void onButtonEvent(Device* device, const ButtonEvent* event, void* /*context*/) {
-    // Input during standby wakes the device and is not an action
-    if (standby::isActive()) {
-        return;
-    }
+    // A release ends the wake gesture, also while the end of standby is still being recovered
     if (event->value == BUTTON_VALUE_RELEASED) {
         standby::endWakeGesture(device);
+        return;
+    }
+    // Input during standby wakes the device and is not an action
+    if (standby::isActive()) {
         return;
     }
     // The press and long press of the gesture that woke the device, which can come after standby ended
