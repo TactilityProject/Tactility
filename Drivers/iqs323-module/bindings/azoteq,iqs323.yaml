@@ -1,0 +1,99 @@
+description: >
+  Azoteq IQS323 3-channel capacitive touch controller with an on-chip slider and gesture control.
+
+  The sensing setup is board specific, so every block of the chip's memory map is given as 16-bit
+  register words, in memory map order (see the IQS323 datasheet and the Azoteq GUI). Required
+  lengths are noted per propertyy.
+
+include: ["i2c-device.yaml"]
+
+compatible: "azoteq,iqs323"
+
+bus: i2c
+
+properties:
+  pin-ready:
+    type: phandles
+    required: true
+    description: >
+      RDY/MCLR pin. The chip pulls it active low when it opens a communication window,
+      and the driver pulls it low to reset the chip. Note that its polarity is fixed 
+      by the driver, so use GPIO_FLAG_NONE.
+  power-mode:
+    type: int
+    default: 1
+    description: >
+      Power mode to run in: 
+        - 0 normal
+        - 1 low power,
+        - 2 ultra low power
+        - 3 halt
+        - 4 auto
+        - 5 auto without ultra low power. 
+      The report rates in timing-setup apply to each mode.
+  sensor-setup:
+    type: array
+    element-type: uint16_t
+    required: true
+    description: 30 words, 10 words for each of sensor 0, 1 and 2 (registers 0x30, 0x40 and 0x50)
+  channel-setup:
+    type: array
+    element-type: uint16_t
+    required: true
+    description: >
+      12 words, 4 words for each of channel 0, 1 and 2 (registers 0x60, 0x70 and 0x80)
+       - setup
+       - prox settings,
+       - touch settings and follower weight. 
+      The Movement UI word of the A0x order codes is left at its default.
+  slider-setup:
+    type: array
+    element-type: uint16_t
+    required: true
+    description: >
+      9 words from register 0x90: 
+        - setup and lower calibration
+        - upper calibration and bottom speed 
+        - top speed
+        - resolution
+        - enable mask
+        - enable status pointer 
+        - the 3 delta links
+  gesture-setup:
+    type: array
+    element-type: uint16_t
+    required: true
+    description: |
+      7 words from register 0xA0
+        starting with the gesture enable word:
+          - 0 tap
+          - 1 swipe
+          - 2 flick
+          - 3 hold
+  filter-setup:
+    type: array
+    element-type: uint16_t
+    required: true
+    description: 5 words from register 0xB0 (filter betas and fast filter band)
+  timing-setup:
+    type: array
+    element-type: uint16_t
+    required: true
+    description: >
+      5 words from register 0xC1 (all ms): 
+        - report rates of normal
+        - low power
+        - ultra low power
+        - halt mode
+        - the power mode timeout
+  general-setup:
+    type: array
+    element-type: uint16_t
+    required: true
+    description: >
+      5 words from register 0xD0: 
+        - OutA mask
+        - I2C transaction timeout
+        - event timeouts (So events enable with activation settling threshold, 
+        and the release UI settings btw) 
+      The driver replaces the events enable byte (low byte of the 4th word)

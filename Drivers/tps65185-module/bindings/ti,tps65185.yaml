@@ -1,0 +1,29 @@
+description: TI TPS65185 multi-rail power supply with VCOM adjustment
+
+include: [ "i2c-device.yaml" ]
+
+compatible: "ti,tps65185"
+
+properties:
+  vcom-millivolt:
+    type: int
+    required: true
+    min: 0
+    max: 5110
+    description: Magnitude of the VCOM voltage in millivolts. One register step is 10 mV.
+  pin-wakeup:
+    type: phandles
+    required: true
+    description: WAKEUP, leaves sleep and enables the I2C interface
+  pin-pwrup:
+    type: phandles
+    required: true
+    description: PWRUP, starts the supply rail sequence
+  pin-vcom-ctrl:
+    type: phandles
+    required: true
+    description: VCOM_CTRL, enables the VCOM amplifier
+  pin-power-good:
+    type: phandles
+    required: true
+    description: PWR_GOOD, high when all rails are in regulation

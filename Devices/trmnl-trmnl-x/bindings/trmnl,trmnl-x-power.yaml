@@ -1,0 +1,33 @@
+description: >
+  TRMNL X power control, that is wired through the TCA9535 IO expander: BQ25616 charger 
+  status readback, OTG boost switch, battery cell-count detection and the BQ27427 fuel gauge reset line.
+  At start the battery cells are counted and the fuel gauge is configured for a 6000 mAh (one cell) or 
+  12000 mAh (two cells aka the battery upgrade kit) pack.
+
+compatible: "trmnl,trmnl-x-power"
+
+properties:
+  pin-power-good:
+    type: phandles
+    required: true
+    description: Charger PG pin. Open-drain and low while VBUS is good, so declare it active-low.
+  pin-charge-status:
+    type: phandles
+    required: true
+    description: Charger STAT pin. Open-drain and low while charging, so declare it active-low.
+  pin-otg:
+    type: phandles
+    required: true
+    description: Charger OTG enable pin. High enables the boost output.
+  pin-battery-detect:
+    type: phandles
+    required: true
+    description: Pin connected to the RC network used to count the battery cells
+  pin-gauge-reset:
+    type: phandles
+    required: true
+    description: BQ27427 reset pin. Declare it active-low so that asserting it pulls the line low.
+  gauge:
+    type: phandle
+    required: true
+    description: The BQ27427 fuel gauge.

@@ -41,6 +41,7 @@
 #include <tactility/drivers/vibration.h>
 #include <tactility/drivers/mouse.h>
 #include <tactility/drivers/touch.h>
+#include <tactility/drivers/touchbar.h>
 #include <tactility/drivers/trackball.h>
 #include <tactility/drivers/uart_controller.h>
 #include <tactility/drivers/usb_device_controller.h>
@@ -411,6 +412,15 @@ const struct ModuleSymbol KERNEL_SYMBOLS[] = {
     DEFINE_MODULE_SYMBOL(touch_set_mirror_y),
     DEFINE_MODULE_SYMBOL(touch_get_mirror_y),
     DEFINE_MODULE_SYMBOL(TOUCH_TYPE),
+    // drivers/touchbar
+    DEFINE_MODULE_SYMBOL(touchbar_read_state),
+    DEFINE_MODULE_SYMBOL(touchbar_recalibrate),
+    DEFINE_MODULE_SYMBOL(touchbar_has_capability),
+    DEFINE_MODULE_SYMBOL(touchbar_emit_event),
+    DEFINE_MODULE_SYMBOL(touchbar_subscribe),
+    DEFINE_MODULE_SYMBOL(touchbar_unsubscribe),
+    DEFINE_MODULE_SYMBOL(touchbar_poll),
+    DEFINE_MODULE_SYMBOL(TOUCHBAR_TYPE),
     // drivers/trackball
     DEFINE_MODULE_SYMBOL(trackball_read_delta),
     DEFINE_MODULE_SYMBOL(trackball_get_button_pressed),
