@@ -1,0 +1,31 @@
+description: >
+  A single GPIO button. Exposes a BUTTON_TYPE device that emits key press and release events.
+  A short press emits short-press-code. When long-press-code is set, holding the button for
+  long-press-ms emits long-press-code while the button is still held, and the short press is
+  only emitted on release.
+
+compatible: "gpio-button"
+
+properties:
+  pin:
+    type: phandles
+    required: true
+    description: >
+      Button GPIO pin. Use GPIO_FLAG_ACTIVE_LOW when a pressed button reads low.
+      Pull flags configure the bias.
+  short-press-code:
+    type: int
+    required: true
+    description: BUTTON_KEY_* code emitted for a short press
+  long-press-code:
+    type: int
+    default: 0
+    description: BUTTON_KEY_* code emitted for a long press. 0 disables long press detection.
+  long-press-ms:
+    type: int
+    default: 500
+    description: Hold time that turns a press into a long press
+  debounce-ms:
+    type: int
+    default: 20
+    description: Time the level must be stable before a change is accepted

@@ -62,7 +62,7 @@ namespace app {
     namespace locationsettings { extern const ::AppManifest manifest; }
     namespace notes { extern const ::AppManifest manifest; }
     namespace power { extern const ::AppManifest manifest; }
-    namespace poweroff { extern const ::AppManifest manifest; }
+    namespace shutdown { extern const ::AppManifest manifest; }
     namespace qrcode { extern const ::AppManifest manifest; }
     namespace selectiondialog { extern const ::AppManifest manifest; }
     namespace setup { extern const ::AppManifest manifest; }
@@ -80,6 +80,7 @@ namespace app {
     }
     namespace meshsettings { extern const ::AppManifest manifest; }
     namespace notificationsettings { extern const ::AppManifest manifest; }
+    namespace standbysettings { extern const ::AppManifest manifest; }
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
     namespace touchcalibration { extern const ::AppManifest manifest; }
 #endif
@@ -134,9 +135,7 @@ static void registerInternalApps() {
     app_manager_add(&app::launcher::manifest);
     app_manager_add(&app::locationsettings::manifest);
     app_manager_add(&app::notes::manifest);
-    if (device_exists_of_type(&POWER_SUPPLY_TYPE)) {
-        app_manager_add(&app::poweroff::manifest);
-    }
+    app_manager_add(&app::shutdown::manifest);
     if (device_exists_of_type(&VIBRATION_TYPE)) {
         app_manager_add(&app::vibrationsettings::manifest);
     }
@@ -185,6 +184,7 @@ static void registerInternalApps() {
 
     // Notifications also come from apps and services on devices without a radio
     app_manager_add(&app::notificationsettings::manifest);
+    app_manager_add(&app::standbysettings::manifest);
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED
     app_manager_add(&app::usbsettings::manifest);

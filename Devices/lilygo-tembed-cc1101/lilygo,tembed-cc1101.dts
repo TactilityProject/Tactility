@@ -12,6 +12,7 @@
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
 #include <tactility/bindings/esp32_usbdevice.h>
+#include <tactility/bindings/gpio_button.h>
 #include <tactility/bindings/gpio_hog.h>
 #include <tactility/bindings/pwm_backlight.h>
 
@@ -172,6 +173,13 @@
 		pin-enter = <&gpio0 0 GPIO_FLAG_NONE>;
 		pulses-per-detent = <2>;
 		pending-capacity = <8>;
+	};
+
+	// The side button shows the power options. It also wakes the device from deep sleep, see the sleep node.
+	button {
+		compatible = "gpio-button";
+		pin = <&gpio0 6 WAKEUP_BUTTON_FLAGS>;
+		short-press-code = <BUTTON_KEY_POWER>;
 	};
 
 	sleep {

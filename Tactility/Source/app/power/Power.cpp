@@ -2,12 +2,11 @@
 #include <Tactility/i18n/AppDomain.h>
 #include <Tactility/lvgl/Style.h>
 #include <Tactility/Timer.h>
+#include <Tactility/app/shutdown/Shutdown.h>
 
 #include <app/event.h>
-#include <app/manager.h>
 #include <app/manifest.h>
 #include <app/scheduler.h>
-#include <app/start.h>
 
 #include <lvgl_window_manager/window_manager.h>
 
@@ -137,17 +136,8 @@ void onQuickChargeChanged(lv_event_t* event) {
     }
 }
 
-bool isPowerOffAppRegistered() {
-    ::AppManifest manifest;
-    return app_manager_find_manifest("tactility.poweroff", &manifest) == ERROR_NONE;
-}
-
 void onPowerOffPressed(lv_event_t* /*event*/) {
-    AppStartContext context;
-    uint32_t instance_id = 0;
-    if (app_start_context_from_id("tactility.poweroff", &context) == ERROR_NONE) {
-        app_start_with_context(&context, &instance_id);
-    }
+    shutdown::start(shutdown::MODE_POWER_OFF);
 }
 
 void createWidgets(lv_obj_t* parent, void* userData) {
@@ -233,7 +223,7 @@ void createWidgets(lv_obj_t* parent, void* userData) {
             entry.quickChargeSwitch = qc_switch;
         }
 
-        if (power_supply_supports_power_off(device) && isPowerOffAppRegistered()) {
+        if (power_supply_supports_power_off(device)) {
             lv_obj_t* power_off_container = lv_obj_create(card);
             lv_obj_set_width(power_off_container, LV_PCT(100));
             lv_obj_set_height(power_off_container, LV_SIZE_CONTENT);

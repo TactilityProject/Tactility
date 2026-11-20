@@ -10,6 +10,7 @@ battery_android_frame_5 f253
 battery_android_frame_6 f252
 battery_android_frame_bolt f250
 battery_android_frame_full f24f
+bedtime f159
 bluetooth e1a7
 bluetooth_connected e1a8
 bluetooth_disabled e1a9
@@ -64,6 +65,7 @@ mail e159
 map e55b
 memory e322
 menu e5d2
+mode_standby f037
 mop e28d
 more_vert e5d4
 music_note e405

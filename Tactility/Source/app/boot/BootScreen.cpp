@@ -217,8 +217,8 @@ void BootScreen::draw(int imageWidth, int imageHeight, const ImagePixel& imagePi
     }
     const int text_height = static_cast<int>(wrapped_lines.size()) * line_height;
     const int gap = (imageHeight > 0 && !wrapped_lines.empty()) ? line_height : 0;
-    const int content_top = (logical_height - imageHeight - gap - text_height) / 2;
-    const int image_left = (logical_width - imageWidth) / 2;
+    const int content_top = static_cast<int>((logical_height - imageHeight - gap - text_height) * anchorY);
+    const int image_left = static_cast<int>((logical_width - imageWidth) * anchorX);
     const int text_top = content_top + imageHeight + gap;
 
     std::vector<uint8_t> glyph_bitmap;
@@ -252,7 +252,7 @@ void BootScreen::draw(int imageWidth, int imageHeight, const ImagePixel& imagePi
 
         for (size_t line_index = 0; line_index < wrapped_lines.size(); line_index++) {
             const auto& line = wrapped_lines[line_index];
-            const int line_left = (logical_width - static_cast<int>(line.size()) * character_width) / 2;
+            const int line_left = static_cast<int>((logical_width - static_cast<int>(line.size()) * character_width) * anchorX);
             const int baseline = text_top + static_cast<int>(line_index) * line_height + metrics.ascent;
             for (size_t character_index = 0; character_index < line.size(); character_index++) {
                 BinFontGlyph glyph;

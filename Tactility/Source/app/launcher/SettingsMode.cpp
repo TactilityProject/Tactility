@@ -48,6 +48,7 @@ const SettingsIconAsset SETTINGS_ICONS[] = {
     SETTINGS_ICON("tactility.notificationsettings", tactility_notificationsettings),
     SETTINGS_ICON("tactility.power", tactility_power),
     SETTINGS_ICON("tactility.simulator", tactility_simulator),
+    SETTINGS_ICON("tactility.standbysettings", tactility_standbysettings),
     SETTINGS_ICON("tactility.timedatesettings", tactility_timedatesettings),
     SETTINGS_ICON("tactility.touchcalibration", tactility_touchcalibration),
     SETTINGS_ICON("tactility.trackballsettings", tactility_trackballsettings),

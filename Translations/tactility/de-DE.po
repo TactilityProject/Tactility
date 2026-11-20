@@ -111,3 +111,12 @@ msgstr "{} neue Nachricht"
 
 msgid "{} new messages"
 msgstr "{} neue Nachrichten"
+
+msgid "Standby"
+msgstr "Standby"
+
+msgid "Suspend"
+msgstr "Ruhezustand"
+
+msgid "Power off"
+msgstr "Ausschalten"
