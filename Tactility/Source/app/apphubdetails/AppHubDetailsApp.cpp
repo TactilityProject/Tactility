@@ -46,10 +46,16 @@ extern const ::AppManifest manifest;
 
 namespace {
 
-constexpr int32_t CONFIRMATION_BUTTON_INDEX = 0;
 constexpr size_t DESCRIPTION_MAX_SIZE = 2048;
 /** At this theme size (0 is compact, 100 is regular) or lower, the icon doesn't show */
 constexpr uint8_t COMPACT_SIZE_MAX = 20;
+
+enum class Action {
+    None,
+    Install,
+    Uninstall,
+    Update
+};
 
 struct Context {
     uint32_t appInstanceId;
@@ -89,11 +95,8 @@ struct Context {
     /** Shows when the app has no icon, null when icons aren't shown */
     lv_draw_buf_t* defaultIcon = nullptr;
 
-    // Set from the LVGL task (button press), read from this app's own thread (event loop) -
-    // both directions cross threads, hence atomic.
-    ::std::atomic<uint32_t> installDialogId = 0;
-    ::std::atomic<uint32_t> uninstallDialogId = 0;
-    ::std::atomic<uint32_t> updateDialogId = 0;
+    /** Set by an action button on the LVGL task, run on this app's own thread */
+    ::std::atomic<Action> requestedAction { Action::None };
 
     TaskEventGroup* eventGroup = nullptr;
     uint32_t reloadBit = 0;
@@ -229,29 +232,28 @@ void refreshViews(Context* ctx) {
     lvgl_unlock();
 }
 
-uint32_t showConfirmDialog(Context* ctx, const char* messageFormat) {
-    const auto message = i18n::format(messageFormat, { ctx->app.name });
-    return alertdialog::start(ctx->appInstanceId, tr("Confirm"), message, ::std::vector<::std::string> { tr("Confirm"), tr("Cancel") });
-}
-
 void onBackPressed(lv_event_t* e) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
     app_event_emit_close(ctx->appInstanceId);
 }
 
-void onInstallPressed(lv_event_t* e) {
+/** Queuing the operation reads the catalog, so it runs on this app's own thread */
+void requestAction(lv_event_t* e, Action action) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    ctx->installDialogId = showConfirmDialog(ctx, tr("Install {}?"));
+    ctx->requestedAction = action;
+    task_event_group_signal(ctx->eventGroup, ctx->reloadBit);
+}
+
+void onInstallPressed(lv_event_t* e) {
+    requestAction(e, Action::Install);
 }
 
 void onUninstallPressed(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    ctx->uninstallDialogId = showConfirmDialog(ctx, tr("Uninstall {}?"));
+    requestAction(e, Action::Uninstall);
 }
 
 void onUpdatePressed(lv_event_t* e) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(e));
-    ctx->updateDialogId = showConfirmDialog(ctx, tr("Update {}?"));
+    requestAction(e, Action::Update);
 }
 
 void queueOperation(Context* ctx, error_t (*operation)(const char* id, uint32_t* operation_id), const char* failure) {
@@ -264,6 +266,22 @@ void queueOperation(Context* ctx, error_t (*operation)(const char* id, uint32_t*
         return;
     }
     refreshViews(ctx);
+}
+
+void runAction(Context* ctx, Action action) {
+    switch (action) {
+        case Action::None:
+            break;
+        case Action::Install:
+            queueOperation(ctx, app_hub_install, tr("Failed to install app"));
+            break;
+        case Action::Uninstall:
+            queueOperation(ctx, app_hub_remove, tr("Failed to uninstall app"));
+            break;
+        case Action::Update:
+            queueOperation(ctx, app_hub_install, tr("Failed to update app"));
+            break;
+    }
 }
 
 void onOperationEvent(Context* ctx, const AppHubEvent& event) {
@@ -463,18 +481,10 @@ int32_t appMain(int argc, char* argv[]) {
                 case APP_EVENT_CLOSE:
                     shouldClose = true;
                     break;
-                case APP_EVENT_RESULT: {
-                    bool confirmed = event.result.result == CONFIRMATION_BUTTON_INDEX;
-                    if (event.result.launch_id == ctx.installDialogId && confirmed) {
-                        queueOperation(&ctx, app_hub_install, tr("Failed to install app"));
-                    } else if (event.result.launch_id == ctx.uninstallDialogId && confirmed) {
-                        queueOperation(&ctx, app_hub_remove, tr("Failed to uninstall app"));
-                    } else if (event.result.launch_id == ctx.updateDialogId && confirmed) {
-                        queueOperation(&ctx, app_hub_install, tr("Failed to update app"));
-                    }
+                case APP_EVENT_RESULT:
+                    // An error dialog was closed
                     app_manager_stop(event.result.launch_id);
                     break;
-                }
                 default:
                     break;
             }
@@ -492,6 +502,9 @@ int32_t appMain(int argc, char* argv[]) {
             }
         }
 
+        if (!shouldClose) {
+            runAction(&ctx, ctx.requestedAction.exchange(Action::None));
+        }
         if (!shouldClose && ctx.reloadRequested.exchange(false)) {
             refreshViews(&ctx);
         }

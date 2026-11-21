@@ -9,9 +9,6 @@ msgstr "Ein anderer Vorgang läuft noch. Versuche es erneut, wenn er fertig ist.
 msgid "Busy"
 msgstr "Beschäftigt"
 
-msgid "Confirm"
-msgstr "Bestätigen"
-
 msgid "Failed to install app"
 msgstr "App konnte nicht installiert werden"
 
@@ -21,20 +18,11 @@ msgstr "App konnte nicht deinstalliert werden"
 msgid "Failed to update app"
 msgstr "App konnte nicht aktualisiert werden"
 
-msgid "Install {}?"
-msgstr "{} installieren?"
-
 msgid "This app has no description yet."
 msgstr "Diese App hat noch keine Beschreibung."
 
-msgid "Uninstall {}?"
-msgstr "{} deinstallieren?"
-
 msgid "Update available!"
 msgstr "Update verfügbar!"
-
-msgid "Update {}?"
-msgstr "{} aktualisieren?"
 
 msgid "Version {}"
 msgstr "Version {}"

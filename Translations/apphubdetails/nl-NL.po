@@ -9,9 +9,6 @@ msgstr "Er is nog een andere bewerking bezig. Probeer het opnieuw als die klaar 
 msgid "Busy"
 msgstr "Bezig"
 
-msgid "Confirm"
-msgstr "Bevestigen"
-
 msgid "Failed to install app"
 msgstr "App installeren mislukt"
 
@@ -21,20 +18,11 @@ msgstr "App verwijderen mislukt"
 msgid "Failed to update app"
 msgstr "App bijwerken mislukt"
 
-msgid "Install {}?"
-msgstr "{} installeren?"
-
 msgid "This app has no description yet."
 msgstr "Deze app heeft nog geen beschrijving."
 
-msgid "Uninstall {}?"
-msgstr "{} verwijderen?"
-
 msgid "Update available!"
 msgstr "Update beschikbaar!"
-
-msgid "Update {}?"
-msgstr "{} bijwerken?"
 
 msgid "Version {}"
 msgstr "Versie {}"
