@@ -36,6 +36,7 @@ namespace {
 
 constexpr auto* TAG = "app_hub";
 constexpr auto* CATALOG_FILE_NAME = "index.txt";
+constexpr auto* REPOSITORIES_FILE_NAME = "repositories.txt";
 constexpr auto* CATALOG_TEMP_FILE_NAME = "index.txt.tmp";
 constexpr auto* CATALOG_DOWNLOAD_FILE_NAME = "index.json.tmp";
 constexpr auto* ICONS_DIRECTORY_NAME = "icons";
@@ -75,6 +76,8 @@ struct State {
     Operation runningOperation {};
     bool operationRunning = false;
     uint32_t nextOperationId = 1;
+    /** Changes with the list of repositories, so a refresh that started before a change is redone */
+    uint32_t repositoriesGeneration = 0;
     AppHubEventSubscription* subscriptions = nullptr;
 
     bool serviceRunning = false;
@@ -295,15 +298,16 @@ bool lessIgnoringCase(const AppHubApp& left, const AppHubApp& right) {
 // region Operations
 
 /**
+ * @param[in] certificate the PEM text that verifies the server, or an empty string for the trusted roots of the platform
  * @param[in] events the event group to wait on
  * @param[in] stopBit a bit of @a events that cancels the download, or 0
  */
-error_t download(const char* url, const char* targetPath, TaskEventGroup* events, uint32_t stopBit) {
+error_t download(const char* url, const char* certificate, const char* targetPath, TaskEventGroup* events, uint32_t stopBit) {
     HttpDownloadSubscription sub {};
     if (http_download_subscribe(&sub, events) != ERROR_NONE) {
         return ERROR_RESOURCE;
     }
-    if (http_download_start(url, app_hub_catalog_get_certificate(), targetPath, &sub) != ERROR_NONE) {
+    if (http_download_start(url, certificate, targetPath, &sub) != ERROR_NONE) {
         http_download_unsubscribe(&sub);
         return ERROR_RESOURCE;
     }
@@ -333,6 +337,205 @@ error_t ensureDirectory(const char* path) {
     return (error == ERROR_ALREADY_EXISTS) ? ERROR_NONE : error;
 }
 
+// region Repositories
+
+struct Repository {
+    tt::std::string url;
+    bool enabled = true;
+    bool official = false;
+};
+
+using RepositoryList = tt::std::vector<Repository>;
+
+/** Where a catalog app is downloaded from */
+struct Source {
+    tt::std::string url;
+    bool official = false;
+};
+
+const char* getCertificate(bool official) {
+    return official ? app_hub_catalog_get_certificate() : "";
+}
+
+/**
+ * Requires the global lock. The official repository is first, followed by the others in the order of the file.
+ * A line of the file is "<1 or 0 for enabled>\t<url>", the official repository has an empty url.
+ */
+RepositoryList loadRepositories() {
+    RepositoryList repositories;
+    repositories.push_back({ tt::std::string(app_hub_catalog_get_official_url()), true, true });
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (!getCatalogPath(REPOSITORIES_FILE_NAME, path, sizeof(path))) {
+        return repositories;
+    }
+    FILE* file = fopen(path, "rb");
+    if (file == nullptr) {
+        return repositories;
+    }
+    char line[APP_HUB_REPOSITORY_URL_MAX_LENGTH + 8];
+    while (fgets(line, sizeof(line), file) != nullptr) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if ((line[0] != '0' && line[0] != '1') || line[1] != '\t') {
+            continue;
+        }
+        const bool enabled = line[0] == '1';
+        const char* url = line + 2;
+        if (url[0] == '\0') {
+            repositories[0].enabled = enabled;
+        } else if (repositories.size() < APP_HUB_REPOSITORY_MAX_COUNT) {
+            repositories.push_back({ tt::std::string(url), enabled, false });
+        }
+    }
+    fclose(file);
+    return repositories;
+}
+
+/** Requires the global lock */
+bool saveRepositories(const RepositoryList& repositories) {
+    char directory[FILE_MAX_PATH_STRING_LENGTH];
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (service_paths_get_user_data_directory(APP_HUB_SERVICE_ID, directory, sizeof(directory)) != ERROR_NONE ||
+        !getCatalogPath(REPOSITORIES_FILE_NAME, path, sizeof(path)) ||
+        ensureDirectory(directory) != ERROR_NONE) {
+        return false;
+    }
+    FILE* file = fopen(path, "wb");
+    if (file == nullptr) {
+        return false;
+    }
+    bool success = true;
+    for (const auto& repository : repositories) {
+        success &= fprintf(file, "%c\t%s\n", repository.enabled ? '1' : '0', repository.official ? "" : repository.url.c_str()) > 0;
+    }
+    return (fclose(file) == 0) && success;
+}
+
+/**
+ * The entries of the catalog have the index of their repository, so the catalog is discarded when the repositories change.
+ * Requires the global lock.
+ */
+void discardCatalog() {
+    char path[FILE_MAX_PATH_STRING_LENGTH];
+    if (getCatalogFile(path, sizeof(path))) {
+        file_remove(path);
+    }
+    state->repositoriesGeneration++;
+}
+
+/** @return false when the app's repository doesn't exist anymore */
+bool getSource(int32_t repositoryIndex, Source& source) {
+    lock();
+    const RepositoryList repositories = loadRepositories();
+    unlock();
+    if (repositoryIndex < 0 || static_cast<size_t>(repositoryIndex) >= repositories.size()) {
+        return false;
+    }
+    source.url = repositories[repositoryIndex].url;
+    source.official = repositories[repositoryIndex].official;
+    return true;
+}
+
+/** @return false when the text is not an HTTPS URL that can be stored */
+bool normalizeUrl(const char* input, tt::std::string& url) {
+    std::string_view text(input);
+    while (!text.empty() && (text.front() == ' ' || text.back() == ' ' || text.back() == '/')) {
+        if (text.front() == ' ') {
+            text.remove_prefix(1);
+        } else {
+            text.remove_suffix(1);
+        }
+    }
+    constexpr std::string_view SCHEME = "https://";
+    if (text.size() <= SCHEME.size() || text.size() > APP_HUB_REPOSITORY_URL_MAX_LENGTH || !text.starts_with(SCHEME)) {
+        return false;
+    }
+    for (const char character : text) {
+        if (static_cast<unsigned char>(character) <= ' ' || character == 0x7f) {
+            return false;
+        }
+    }
+    url = tt::std::string(std::string(text).c_str());
+    return true;
+}
+
+/**
+ * Applies a change to the list, saves it and refreshes the catalog.
+ * @param[in] change changes the list and sets its second parameter when there is something to save
+ */
+template <typename Change>
+error_t changeRepositories(Change change) {
+    if (!lockState()) {
+        return ERROR_INVALID_STATE;
+    }
+    RepositoryList repositories = loadRepositories();
+    bool changed = false;
+    error_t error = change(repositories, changed);
+    if (error == ERROR_NONE && changed) {
+        if (saveRepositories(repositories)) {
+            discardCatalog();
+        } else {
+            error = ERROR_RESOURCE;
+        }
+    }
+    unlock();
+    if (error == ERROR_NONE && changed) {
+        app_hub_refresh(nullptr);
+    }
+    return error;
+}
+
+Repository* findRepository(RepositoryList& repositories, const char* url) {
+    tt::std::string normalized;
+    if (!normalizeUrl(url, normalized)) {
+        return nullptr;
+    }
+    for (auto& repository : repositories) {
+        if (repository.url == normalized) {
+            return &repository;
+        }
+    }
+    return nullptr;
+}
+
+// endregion
+
+/**
+ * Downloads the list of a repository and appends its apps to the catalog file, except the ones of earlier repositories
+ * @param[in,out] knownIds the ids of the apps of the earlier repositories, which get the ids of this repository
+ */
+error_t refreshRepository(const Repository& repository, int32_t index, tt::std::vector<tt::std::string>& knownIds, const char* downloadPath, const char* tempCatalogPath) {
+    struct Filter {
+        const tt::std::vector<tt::std::string>& known;
+        tt::std::vector<tt::std::string> added;
+    } filter { knownIds, {} };
+    int32_t pageCount = 1;
+    for (int32_t page = 1; page <= pageCount; page++) {
+        const std::string url = app_hub_catalog_get_page_url(repository.url.c_str(), page);
+        const error_t error = download(url.c_str(), getCertificate(repository.official), downloadPath, &state->workerEvents, state->stopBit);
+        if (error != ERROR_NONE) {
+            return error;
+        }
+        const bool appended = app_hub_catalog_append_page(downloadPath, tempCatalogPath, pageCount, index, [](const AppHubCatalogEntry& entry, void* context) {
+            auto* filter = static_cast<Filter*>(context);
+            for (const auto& id : filter->known) {
+                if (strcmp(id.c_str(), entry.id.c_str()) == 0) {
+                    return false;
+                }
+            }
+            filter->added.emplace_back(entry.id.c_str());
+            return true;
+        }, &filter);
+        file_remove(downloadPath);
+        if (!appended || pageCount > CATALOG_MAX_PAGES) {
+            return ERROR_INVALID_ARGUMENT;
+        }
+    }
+    for (auto& id : filter.added) {
+        knownIds.push_back(std::move(id));
+    }
+    return ERROR_NONE;
+}
+
 error_t executeRefresh() {
     char directory[FILE_MAX_PATH_STRING_LENGTH];
     char downloadPath[FILE_MAX_PATH_STRING_LENGTH];
@@ -349,32 +552,50 @@ error_t executeRefresh() {
         return error;
     }
 
-    // The catalog file is only replaced by a complete download of all pages
-    file_remove(tempCatalogPath);
-    int32_t pageCount = 1;
-    for (int32_t page = 1; page <= pageCount; page++) {
-        const std::string url = app_hub_catalog_get_page_url(page);
-        error = download(url.c_str(), downloadPath, &state->workerEvents, state->stopBit);
-        if (error != ERROR_NONE) {
-            file_remove(downloadPath);
-            file_remove(tempCatalogPath);
-            return error;
+    while (true) {
+        lock();
+        const uint32_t generation = state->repositoriesGeneration;
+        const RepositoryList repositories = loadRepositories();
+        unlock();
+
+        // The catalog file is only replaced by a complete download of the lists of all enabled repositories
+        file_remove(tempCatalogPath);
+        tt::std::vector<tt::std::string> knownIds;
+        for (size_t index = 0; index < repositories.size(); index++) {
+            if (!repositories[index].enabled) {
+                continue;
+            }
+            error = refreshRepository(repositories[index], static_cast<int32_t>(index), knownIds, downloadPath, tempCatalogPath);
+            if (error != ERROR_NONE) {
+                file_remove(downloadPath);
+                file_remove(tempCatalogPath);
+                return error;
+            }
         }
-        const bool appended = app_hub_catalog_append_page(downloadPath, tempCatalogPath, pageCount);
-        file_remove(downloadPath);
-        if (!appended || pageCount > CATALOG_MAX_PAGES) {
-            file_remove(tempCatalogPath);
-            return ERROR_INVALID_ARGUMENT;
+        // Without enabled repositories the catalog is empty, but it exists
+        if (FILE* file = fopen(tempCatalogPath, "ab")) {
+            fclose(file);
         }
+
+        lock();
+        if (state->stopping) {
+            unlock();
+            file_remove(tempCatalogPath);
+            return ERROR_INVALID_STATE;
+        }
+        // The repositories changed during the refresh, so the lists are downloaded again
+        if (generation != state->repositoriesGeneration) {
+            unlock();
+            continue;
+        }
+        error = file_move(tempCatalogPath, catalogPath, true);
+        unlock();
+        return error;
     }
-    lock();
-    error = file_move(tempCatalogPath, catalogPath, true);
-    unlock();
-    return error;
 }
 
-/** Downloads and reads the details file of an app, see download() for the event group */
-error_t fetchDetails(const char* id, AppHubCatalogDetails& details, TaskEventGroup* events, uint32_t stopBit) {
+/** Downloads and reads the details file of an app from its repository, see download() for the event group */
+error_t fetchDetails(const char* id, const Source& source, AppHubCatalogDetails& details, TaskEventGroup* events, uint32_t stopBit) {
     char tempDirectory[FILE_MAX_PATH_STRING_LENGTH];
     error_t error = paths_get_temp_path(tempDirectory, sizeof(tempDirectory));
     if (error != ERROR_NONE) {
@@ -388,7 +609,7 @@ error_t fetchDetails(const char* id, AppHubCatalogDetails& details, TaskEventGro
     static std::atomic<uint32_t> nextRequest { 0 };
     const std::string fileName = app_hub_catalog_get_details_file(id);
     const std::string path = std::string(tempDirectory) + "/" + std::to_string(nextRequest++) + "-" + fileName;
-    error = download(app_hub_catalog_get_download_url(fileName).c_str(), path.c_str(), events, stopBit);
+    error = download(app_hub_catalog_get_download_url(source.url.c_str(), fileName).c_str(), getCertificate(source.official), path.c_str(), events, stopBit);
     if (error == ERROR_NONE && !app_hub_catalog_read_details(path.c_str(), details)) {
         error = ERROR_INVALID_ARGUMENT;
     }
@@ -406,8 +627,12 @@ error_t executeInstall(const char* id) {
     if (!found) {
         return ERROR_NOT_FOUND;
     }
+    Source source;
+    if (!getSource(entry.repository, source)) {
+        return ERROR_NOT_FOUND;
+    }
     AppHubCatalogDetails details;
-    error_t detailsError = fetchDetails(id, details, &state->workerEvents, state->stopBit);
+    error_t detailsError = fetchDetails(id, source, details, &state->workerEvents, state->stopBit);
     if (detailsError != ERROR_NONE) {
         return detailsError;
     }
@@ -429,7 +654,7 @@ error_t executeInstall(const char* id) {
     const tt::std::string fileName = (separator == std::string::npos) ? tt::std::string(file.c_str()) : tt::std::string(file.c_str() + separator + 1);
     const tt::std::string tempPath = tt::std::string(tempDirectory) + "/" + fileName;
 
-    error = download(app_hub_catalog_get_download_url(file).c_str(), tempPath.c_str(), &state->workerEvents, state->stopBit);
+    error = download(app_hub_catalog_get_download_url(source.url.c_str(), file).c_str(), getCertificate(source.official), tempPath.c_str(), &state->workerEvents, state->stopBit);
     if (error == ERROR_NONE) {
         error = app_install(tempPath.c_str());
         if (error != ERROR_NONE) {
@@ -743,10 +968,14 @@ error_t app_hub_get_details(const char* id, char* description, size_t descriptio
     if (!found) {
         return ERROR_NOT_FOUND;
     }
+    Source source;
+    if (!getSource(entry.repository, source)) {
+        return ERROR_NOT_FOUND;
+    }
     TaskEventGroup events {};
     task_event_group_construct(&events);
     AppHubCatalogDetails details;
-    const error_t error = fetchDetails(id, details, &events, 0);
+    const error_t error = fetchDetails(id, source, details, &events, 0);
     task_event_group_destruct(&events);
     if (error != ERROR_NONE) {
         return error;
@@ -772,6 +1001,10 @@ error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size
     if (!getCatalogPath(ICONS_DIRECTORY_NAME, directory, sizeof(directory))) {
         return ERROR_NOT_FOUND;
     }
+    Source source;
+    if (!getSource(entry.repository, source)) {
+        return ERROR_NOT_FOUND;
+    }
     error_t error = ensureDirectory(directory);
     if (error != ERROR_NONE) {
         return error;
@@ -785,7 +1018,7 @@ error_t app_hub_get_icon(const char* id, bool mono, char* path, size_t path_size
     if (!path_exists(cachePath.c_str())) {
         TaskEventGroup events {};
         task_event_group_construct(&events);
-        error = download(app_hub_catalog_get_download_url(iconFile).c_str(), cachePath.c_str(), &events, 0);
+        error = download(app_hub_catalog_get_download_url(source.url.c_str(), iconFile).c_str(), getCertificate(source.official), cachePath.c_str(), &events, 0);
         task_event_group_destruct(&events);
         if (error != ERROR_NONE) {
             file_remove(cachePath.c_str());
@@ -823,6 +1056,75 @@ error_t app_hub_update_all(uint32_t* operation_id) {
 
 error_t app_hub_remove(const char* id, uint32_t* operation_id) {
     return enqueue(APP_HUB_OPERATION_REMOVE, id, operation_id);
+}
+
+// endregion
+
+// region Repositories
+
+error_t app_hub_repository_for_each(AppHubRepositoryVisitorFn visitor, void* context) {
+    if (!lockState()) {
+        return ERROR_INVALID_STATE;
+    }
+    const RepositoryList repositories = loadRepositories();
+    unlock();
+    for (const auto& repository : repositories) {
+        AppHubRepository result {};
+        copyString(result.url, sizeof(result.url), repository.url.c_str());
+        result.enabled = repository.enabled;
+        result.official = repository.official;
+        if (!visitor(&result, context)) {
+            break;
+        }
+    }
+    return ERROR_NONE;
+}
+
+error_t app_hub_repository_add(const char* url) {
+    tt::std::string normalized;
+    if (!normalizeUrl(url, normalized)) {
+        return ERROR_INVALID_ARGUMENT;
+    }
+    return changeRepositories([&normalized](RepositoryList& repositories, bool& changed) {
+        for (const auto& repository : repositories) {
+            if (repository.url == normalized) {
+                return ERROR_ALREADY_EXISTS;
+            }
+        }
+        if (repositories.size() >= APP_HUB_REPOSITORY_MAX_COUNT) {
+            return ERROR_OUT_OF_RANGE;
+        }
+        repositories.push_back({ normalized, true, false });
+        changed = true;
+        return ERROR_NONE;
+    });
+}
+
+error_t app_hub_repository_remove(const char* url) {
+    return changeRepositories([url](RepositoryList& repositories, bool& changed) {
+        auto* repository = findRepository(repositories, url);
+        if (repository == nullptr) {
+            return ERROR_NOT_FOUND;
+        }
+        if (repository->official) {
+            return ERROR_NOT_ALLOWED;
+        }
+        repositories.erase(repositories.begin() + (repository - repositories.data()));
+        changed = true;
+        return ERROR_NONE;
+    });
+}
+
+error_t app_hub_repository_set_enabled(const char* url, bool enabled) {
+    return changeRepositories([url, enabled](RepositoryList& repositories, bool& changed) {
+        auto* repository = findRepository(repositories, url);
+        if (repository == nullptr) {
+            return ERROR_NOT_FOUND;
+        }
+        changed = repository->enabled != enabled;
+        repository->enabled = enabled;
+        return ERROR_NONE;
+    });
 }
 
 // endregion

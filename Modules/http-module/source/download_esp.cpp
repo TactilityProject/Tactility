@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <http/private/download.h>
 
+#include <esp_crt_bundle.h>
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
 
@@ -60,8 +61,12 @@ HttpDownloadEvent http_download_run(const std::string& url, const std::string& c
     esp_http_client_config_t config {};
     config.url = url.c_str();
     config.auth_type = HTTP_AUTH_TYPE_NONE;
-    config.cert_pem = certPem.c_str();
-    config.cert_len = certPem.size() + 1;
+    if (certPem.empty()) {
+        config.crt_bundle_attach = esp_crt_bundle_attach;
+    } else {
+        config.cert_pem = certPem.c_str();
+        config.cert_len = certPem.size() + 1;
+    }
     config.tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_2;
     config.method = HTTP_METHOD_GET;
     config.timeout_ms = 5000;
