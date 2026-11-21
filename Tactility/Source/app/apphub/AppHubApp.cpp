@@ -136,6 +136,8 @@ struct Context {
     lv_draw_buf_t* defaultIcon = nullptr;
     uint32_t iconRequestedBit = 0;
     ::std::atomic<bool> iconRequested {false};
+    /** App events cancel icon downloads, so the app closes without waiting for one */
+    AppHubInterrupt interrupt {};
 
     AppHubEventSubscription appHubSub {};
     /** The id of the queued catalog refresh, 0 when none is pending */
@@ -214,7 +216,12 @@ bool loadNextIcon(Context* ctx) {
     }
 
     bool recolor = false;
-    auto* image = loadIcon(appId.c_str(), getIconSize(), &recolor);
+    bool interrupted = false;
+    auto* image = loadIcon(appId.c_str(), getIconSize(), &recolor, &ctx->interrupt, &interrupted);
+    if (interrupted) {
+        // Tried again when the app doesn't close
+        return true;
+    }
 
     lvgl_lock();
     ctx->mutex.lock();
@@ -967,6 +974,7 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
     check(app_hub_event_subscribe(&ctx.appHubSub, &event_group) == ERROR_NONE);
+    ctx.interrupt = { &event_group, sub.bit };
 
     if (areIconsShown()) {
         ctx.defaultIcon = loadDefaultIcon(getIconSize());

@@ -176,7 +176,7 @@ static int command_info(int argc, char* argv[]) {
 
     auto description = std::make_unique<char[]>(DESCRIPTION_MAX_SIZE);
     AppHubAppDetails details {};
-    if (app.in_catalog && app_hub_get_details(app.id, description.get(), DESCRIPTION_MAX_SIZE, &details) == ERROR_NONE) {
+    if (app.in_catalog && app_hub_get_details(app.id, description.get(), DESCRIPTION_MAX_SIZE, &details, nullptr) == ERROR_NONE) {
         printf("version: %s\n", details.version_name);
         if (!details.compatible) {
             printf("compatible: no\n");

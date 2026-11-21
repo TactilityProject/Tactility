@@ -100,6 +100,8 @@ struct Context {
     /** Set when the window resurfaces: the catalog can change while a dialog covers it */
     ::std::atomic<bool> reloadRequested { false };
     AppHubEventSubscription appHubSub {};
+    /** App events cancel the downloads, so the app closes without waiting for one */
+    AppHubInterrupt interrupt {};
 };
 
 AppHubApp readApp(Context* ctx) {
@@ -112,20 +114,21 @@ AppHubApp readApp(Context* ctx) {
 }
 
 /** Downloads the details. Runs on this app's own thread. */
-bool readDetails(Context* ctx, tt::std::string& description, AppHubAppDetails& details) {
+error_t readDetails(Context* ctx, tt::std::string& description, AppHubAppDetails& details) {
     tt::std::vector<char> buffer(DESCRIPTION_MAX_SIZE);
-    if (app_hub_get_details(ctx->appId.c_str(), buffer.data(), buffer.size(), &details) != ERROR_NONE) {
-        return false;
+    const error_t error = app_hub_get_details(ctx->appId.c_str(), buffer.data(), buffer.size(), &details, &ctx->interrupt);
+    if (error != ERROR_NONE) {
+        return error;
     }
     if (buffer[0] == '\0') {
         description = tr("This app has no description yet.");
-        return true;
+        return ERROR_NONE;
     }
     description = buffer.data();
     for (size_t pos = 0; (pos = description.find("\\n", pos)) != tt::std::string::npos;) {
         description.replace(pos, 2, "\n");
     }
-    return true;
+    return ERROR_NONE;
 }
 
 /** The icon only shows with enough room and memory */
@@ -140,8 +143,9 @@ uint32_t getIconSize() {
 /**
  * Reads the state from App Hub. Doesn't touch widgets, so it runs without the LVGL lock.
  * The details and the icon are downloaded when they weren't yet.
+ * @return false when an app event interrupted a download, so the state is incomplete
  */
-void loadState(Context* ctx) {
+bool loadState(Context* ctx) {
     const auto app = readApp(ctx);
     tt::std::string description;
     AppHubAppDetails details {};
@@ -150,7 +154,11 @@ void loadState(Context* ctx) {
     bool detailsRead = false;
     if (loadDetails) {
         if (app.in_catalog) {
-            detailsRead = readDetails(ctx, description, details);
+            const error_t error = readDetails(ctx, description, details);
+            if (error == ERROR_INVALID_STATE) {
+                return false;
+            }
+            detailsRead = error == ERROR_NONE;
             if (!detailsRead) {
                 description = tr("Failed to load the details");
             }
@@ -162,10 +170,12 @@ void loadState(Context* ctx) {
 
     lv_draw_buf_t* icon = nullptr;
     bool iconRecolor = false;
+    bool iconInterrupted = false;
     // A new version of the app has a new icon
-    const bool loadIconNow = app.in_catalog && app.has_icon && (!ctx->iconLoaded || ctx->iconVersion != app.version_code) && isIconShown();
+    bool loadIconNow = app.in_catalog && app.has_icon && (!ctx->iconLoaded || ctx->iconVersion != app.version_code) && isIconShown();
     if (loadIconNow) {
-        icon = apphub::loadIcon(ctx->appId.c_str(), getIconSize(), &iconRecolor);
+        icon = apphub::loadIcon(ctx->appId.c_str(), getIconSize(), &iconRecolor, &ctx->interrupt, &iconInterrupted);
+        loadIconNow = !iconInterrupted;
     }
 
     lvgl_lock();
@@ -203,13 +213,17 @@ void loadState(Context* ctx) {
         ctx->iconLoaded = true;
         ctx->iconVersion = app.version_code;
     }
+    return !iconInterrupted;
 }
 
 void updateViews(Context* ctx);
 
 /** Loads the state and shows it. Runs on this app's own thread. */
 void refreshViews(Context* ctx) {
-    loadState(ctx);
+    if (!loadState(ctx)) {
+        // Loaded again after the app's event loop handled the event, unless it closes
+        ctx->reloadRequested = true;
+    }
     lvgl_lock();
     updateViews(ctx);
     lvgl_unlock();
@@ -428,6 +442,7 @@ int32_t appMain(int argc, char* argv[]) {
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
     check(task_event_group_claim_bit(&event_group, &ctx.reloadBit) == ERROR_NONE);
     check(app_hub_event_subscribe(&ctx.appHubSub, &event_group) == ERROR_NONE);
+    ctx.interrupt = { &event_group, sub.bit };
 
     ctx.app = readApp(&ctx);
     if (isIconShown()) {
