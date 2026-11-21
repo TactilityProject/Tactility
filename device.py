@@ -262,6 +262,13 @@ def write_spiram_variables(output_file, device_properties: dict):
     output_file.write("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16\n")
     # TLS sessions (handshakes, record buffers) otherwise take internal RAM
     output_file.write("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y\n")
+    # Record buffers stay allocated per connection instead of being allocated per read/write
+    output_file.write("CONFIG_MBEDTLS_DYNAMIC_BUFFER=n\n")
+    output_file.write("CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=16384\n")
+    # Larger TCP window for download throughput. The pbufs are allocated in SPIRAM.
+    output_file.write("CONFIG_LWIP_TCP_WND_DEFAULT=65535\n")
+    output_file.write("CONFIG_LWIP_TCP_RECVMBOX_SIZE=64\n")
+    output_file.write("CONFIG_LWIP_TCP_SND_BUF_DEFAULT=32768\n")
     # Performance improvements
     if idf_target == "esp32s3":
         output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:\n")

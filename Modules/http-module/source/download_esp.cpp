@@ -4,9 +4,13 @@
 #include <esp_crt_bundle.h>
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
+#include <sdkconfig.h>
 
 #include <tactility/freertos/task.h>
 #include <tactility/log.h>
+#include <tactility/memory.h>
+
+#include <memory>
 
 namespace {
 
@@ -67,9 +71,9 @@ HttpDownloadEvent http_download_run(const std::string& url, const std::string& c
         config.cert_pem = certPem.c_str();
         config.cert_len = certPem.size() + 1;
     }
-    config.tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_2;
+    config.tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_3;
     config.method = HTTP_METHOD_GET;
-    config.timeout_ms = 5000;
+    config.timeout_ms = 10000;
     config.transport_type = HTTP_TRANSPORT_OVER_SSL;
     config.addr_type = HTTP_ADDR_TYPE_INET;
 
@@ -112,14 +116,26 @@ HttpDownloadEvent http_download_run(const std::string& url, const std::string& c
     auto content_length = client.getContentLength();
     bool length_known = content_length >= 0;
     auto bytes_left = content_length;
-    char buffer[512];
+#ifdef CONFIG_SPIRAM
+    constexpr size_t buffer_size = 16384;
+#else
+    constexpr size_t buffer_size = 512;
+#endif
+    constexpr MemoryPolicy buffer_policy = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
+    std::unique_ptr<char, decltype(&memory_free)> buffer_holder(static_cast<char*>(memory_alloc_with_policy(buffer_size, &buffer_policy)), &memory_free);
+    if (buffer_holder == nullptr) {
+        fclose(file);
+        remove(tempPath.c_str());
+        return http_download_make_error_event("Failed to allocate download buffer", status_code);
+    }
+    auto* buffer = buffer_holder.get();
     while (!length_known || bytes_left > 0) {
         if (http_download_is_cancelled(link)) {
             fclose(file);
             remove(tempPath.c_str());
             return http_download_make_cancelled_event(status_code);
         }
-        int data_read = client.read(buffer, sizeof(buffer));
+        int data_read = client.read(buffer, buffer_size);
         if (data_read < 0) {
             fclose(file);
             remove(tempPath.c_str());
