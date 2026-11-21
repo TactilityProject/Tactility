@@ -16,6 +16,14 @@ else:
 
 DEVICES_DIRECTORY = "Devices"
 
+# Memory placement with SPIRAM. Tests/Python/device_memory_test.py pins these values and explains them.
+# malloc() puts allocations up to this size in internal RAM, larger ones in SPIRAM. Classic ESP32 keeps the IDF default.
+SPIRAM_MALLOC_ALWAYSINTERNAL = 8192
+# The stdio buffer of an open FAT file (the IDF default is 128 bytes). Larger than the threshold above, so it's in SPIRAM.
+FATFS_FILE_BUFFER_SIZE = 16384
+# Classic ESP32 has the IDF default threshold of 16384, so this buffer takes internal RAM
+FATFS_FILE_BUFFER_SIZE_ESP32 = 4096
+
 def print_warning(message):
     print(f"{SHELL_COLOR_ORANGE}WARNING: {message}{SHELL_COLOR_RESET}")
 
@@ -269,6 +277,12 @@ def write_spiram_variables(output_file, device_properties: dict):
     output_file.write("CONFIG_LWIP_TCP_WND_DEFAULT=65535\n")
     output_file.write("CONFIG_LWIP_TCP_RECVMBOX_SIZE=64\n")
     output_file.write("CONFIG_LWIP_TCP_SND_BUF_DEFAULT=32768\n")
+    # stdio buffer per open file, so small reads and writes are combined into whole sectors
+    if idf_target == "esp32":
+        output_file.write(f"CONFIG_FATFS_VFS_FSTAT_BLKSIZE={FATFS_FILE_BUFFER_SIZE_ESP32}\n")
+    else:
+        output_file.write(f"CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL={SPIRAM_MALLOC_ALWAYSINTERNAL}\n")
+        output_file.write(f"CONFIG_FATFS_VFS_FSTAT_BLKSIZE={FATFS_FILE_BUFFER_SIZE}\n")
     # Performance improvements
     if idf_target == "esp32s3":
         output_file.write("# Fix error \"PSRAM space not enough for the Flash instructions\" on boot:\n")
