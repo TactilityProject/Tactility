@@ -109,7 +109,8 @@ error_t http_download_poll(struct HttpDownloadSubscription* sub, struct HttpDown
  * server against the PEM certificate @a cert_pem, and writes the response body to
  * @a target_path.
  * @param[in] url the URL to download
- * @param[in] cert_pem PEM certificate text used to verify the server, copied before this returns
+ * @param[in] cert_pem PEM certificate text used to verify the server, copied before this returns.
+ * Empty uses the trusted root certificates of the platform: the certificate bundle on ESP32, the system certificates on the simulator.
  * @param[in] target_path path to write the downloaded file to
  * @param[in] sub subscription to notify on completion, already registered via
  * http_download_subscribe(); must stay alive (and stationary) at least until

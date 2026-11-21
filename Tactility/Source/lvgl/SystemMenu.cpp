@@ -296,6 +296,8 @@ struct MenuState {
     lv_obj_t* topRow = nullptr;
     /** Removes all notifications, which is hidden while there are none */
     lv_obj_t* clearButton = nullptr;
+    /** Pushes the clear button to the right, which is hidden when the card is a single row */
+    lv_obj_t* clearGap = nullptr;
     /** The quick settings, which are null while the notifications are shown */
     lv_obj_t* quickPanel = nullptr;
     /** The standby, suspend and power off options, which are hidden until the power button is checked. Null without options. */
@@ -317,6 +319,7 @@ struct MenuState {
     lv_obj_t* volumeSlider = nullptr;
     lv_obj_t* volumeLabel = nullptr;
     NotificationPanel* notifications = nullptr;
+    size_t notificationTotal = 0;
 };
 
 static MenuState* menu = nullptr;
@@ -385,8 +388,11 @@ static void updateGauge(const MenuState::MemoryGauge& gauge, size_t freeBytes, s
         // No colors, so a critical gauge inverts: a solid disc with the value in the background color
         const bool critical = level == MemoryLevel::Critical;
         lv_obj_set_style_arc_color(gauge.arc, text_color, LV_PART_INDICATOR);
+        // Only the ring marks the unfilled part, as a gray can't be shown
+        lv_obj_set_style_arc_color(gauge.arc, lv_obj_get_style_bg_color(menu->card, LV_PART_MAIN), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(gauge.inner, critical ? LV_OPA_COVER : LV_OPA_TRANSP, LV_STATE_DEFAULT);
         lv_obj_set_style_bg_color(gauge.inner, text_color, LV_STATE_DEFAULT);
+        lv_obj_set_style_border_color(gauge.arc, text_color, LV_PART_MAIN);
         lv_obj_set_style_text_color(gauge.value, critical ? lv_obj_get_style_bg_color(menu->card, LV_PART_MAIN) : text_color, LV_STATE_DEFAULT);
     } else {
         lv_obj_set_style_arc_color(gauge.arc, color, LV_PART_INDICATOR);
@@ -477,6 +483,14 @@ static MenuState::MemoryGauge createGauge(lv_obj_t* parent, const char* name, bo
     lv_obj_set_style_arc_width(gauge.arc, LV_DPX(5), LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(gauge.arc, false, LV_PART_INDICATOR);
     lv_obj_set_style_pad_all(gauge.arc, 0, LV_STATE_DEFAULT);
+    if (lvgl_theme_is_mono()) {
+        // A thin ring over the outer edge of the arc, drawn after it
+        lv_obj_set_style_bg_opa(gauge.arc, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_radius(gauge.arc, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        lv_obj_set_style_border_width(gauge.arc, LV_DPX(1), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(gauge.arc, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_post(gauge.arc, true, LV_PART_MAIN);
+    }
     lv_obj_set_clickable(gauge.arc, false);
 
     gauge.inner = lv_obj_create(gauge.arc);
@@ -653,11 +667,42 @@ static void createVolumeRow(lv_obj_t* parent) {
     lvgl_grid_navigation_add(row);
 }
 
+/**
+ * The card is as high as the notifications need. With at most one, it is a single row of the buttons and the
+ * notification or the empty text. Otherwise the list is below the buttons.
+ */
+static void layoutNotifications(int32_t maxCardHeight) {
+    if (menu->notifications == nullptr) {
+        return;
+    }
+    const bool single = menu->notificationTotal <= 1;
+    auto* root = notificationPanelGetRoot(menu->notifications);
+    lv_obj_set_flex_flow(menu->card, single ? LV_FLEX_FLOW_ROW : LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_column(menu->card, 0, LV_STATE_DEFAULT);
+    lv_obj_set_hidden(menu->clearGap, single);
+    lv_obj_set_width(menu->topRow, single ? LV_SIZE_CONTENT : LV_PCT(100));
+    lv_obj_set_width(root, single ? 0 : LV_PCT(100));
+    lv_obj_set_flex_grow(root, single ? 1 : 0);
+    lv_obj_update_layout(menu->card);
+    int32_t available = maxCardHeight - lv_obj_get_style_pad_top(menu->card, LV_PART_MAIN) - lv_obj_get_style_pad_bottom(menu->card, LV_PART_MAIN);
+    if (!single) {
+        available -= lv_obj_get_height(menu->topRow) + lv_obj_get_style_pad_row(menu->card, LV_PART_MAIN);
+    }
+    notificationPanelFit(menu->notifications, available);
+}
+
 /** The card fills most of a narrow display, and is narrower on a wide one where the content would stretch */
 static void applyCardSize() {
     const int32_t width = lv_display_get_horizontal_resolution(menu->display);
     const int32_t height = lv_display_get_vertical_resolution(menu->display);
     const bool wide = width > height && width >= WIDE_DISPLAY_MIN_WIDTH;
+    if (menu->kind == Kind::Notifications) {
+        const int32_t maxHeight = height * (wide ? 80 : 90) / 100;
+        lv_obj_set_size(menu->card, lv_pct(wide ? 60 : 90), LV_SIZE_CONTENT);
+        lv_obj_set_style_max_height(menu->card, maxHeight, LV_STATE_DEFAULT);
+        layoutNotifications(maxHeight);
+        return;
+    }
     lv_obj_set_size(menu->card, lv_pct(wide ? 60 : 90), lv_pct(wide ? 80 : 90));
     if (menu->quickPanel != nullptr) {
         lv_obj_update_layout(menu->card);
@@ -736,9 +781,14 @@ static lv_obj_t* createQuickSettingsPanel(lv_obj_t* parent) {
     return panel;
 }
 
-static void onNotificationCount(void* /*userData*/, size_t count) {
+static void onNotificationCount(void* /*userData*/, size_t total, size_t clearable) {
     // Nothing that can be cleared. A hidden button also leaves the focus order.
-    lv_obj_set_hidden(menu->clearButton, count == 0);
+    lv_obj_set_hidden(menu->clearButton, clearable == 0);
+    menu->notificationTotal = total;
+    // The list is rebuilt while the menu is created and the card isn't sized yet. It is laid out when it is.
+    if (menu->notifications != nullptr) {
+        applyCardSize();
+    }
 }
 
 /** Removes the notifications that aren't sticky, as the sender decides when a sticky one goes */
@@ -801,6 +851,7 @@ static lv_obj_t* createTopRow(lv_obj_t* parent) {
     if (menu->kind == Kind::Notifications) {
         // A growing gap pushes the button to the right
         auto* gap = lv_obj_create(topRow);
+        menu->clearGap = gap;
         lv_obj_remove_style_all(gap);
         lv_obj_set_size(gap, 0, 1);
         lv_obj_set_flex_grow(gap, 1);
@@ -868,9 +919,6 @@ static void createWidgets(lv_obj_t* parent, void* userData) {
             LOG_E(TAG, "Failed to create the notification panel");
             return;
         }
-        auto* root = notificationPanelGetRoot(menu->notifications);
-        lv_obj_set_size(root, LV_PCT(100), 0);
-        lv_obj_set_flex_grow(root, 1);
         // The user is looking at them now, which is only true once the list exists
         setNotificationsOpen(true);
         system_bars_set_notification_unread(false);

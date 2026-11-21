@@ -158,6 +158,66 @@ error_t app_hub_remove(const char* id, uint32_t* operation_id);
 
 // endregion
 
+// region Repositories
+
+#define APP_HUB_REPOSITORY_URL_MAX_LENGTH 255
+/** The most repositories there can be, including the official one */
+#define APP_HUB_REPOSITORY_MAX_COUNT 8
+
+/**
+ * A repository is a catalog of apps on a server. The catalog is the apps of the enabled repositories.
+ * When more than one has the same app, the app of the repository that is first in the list is used.
+ * The official repository is always first.
+ */
+struct AppHubRepository {
+    /** The base URL: the address of the folder that has a folder per Tactility version, without a trailing slash */
+    char url[APP_HUB_REPOSITORY_URL_MAX_LENGTH + 1];
+    bool enabled;
+    /** The repository of the Tactility project. It can be disabled, but not removed. */
+    bool official;
+};
+
+/**
+ * @param[in] repository the repository, only valid during the call
+ * @return true to continue, false to stop
+ */
+typedef bool (*AppHubRepositoryVisitorFn)(const struct AppHubRepository* repository, void* context);
+
+/**
+ * Visit the repositories in order. The official one is first.
+ * Reads storage, so it must not be called on the LVGL thread.
+ */
+error_t app_hub_repository_for_each(AppHubRepositoryVisitorFn visitor, void* context);
+
+/**
+ * Add a repository to the end of the list, enabled.
+ * A change of the repositories discards the catalog and queues a refresh.
+ * Reads and writes storage, so it must not be called on the LVGL thread.
+ * @param[in] url the base URL, which must start with https://. A trailing slash is removed.
+ * @retval ERROR_INVALID_ARGUMENT @a url is not a valid HTTPS URL
+ * @retval ERROR_ALREADY_EXISTS the repository is in the list already
+ * @retval ERROR_OUT_OF_RANGE the list has APP_HUB_REPOSITORY_MAX_COUNT repositories
+ */
+error_t app_hub_repository_add(const char* url);
+
+/**
+ * Remove a repository. A change of the repositories discards the catalog and queues a refresh.
+ * Reads and writes storage, so it must not be called on the LVGL thread.
+ * @retval ERROR_NOT_FOUND the repository isn't in the list
+ * @retval ERROR_NOT_ALLOWED the repository is the official one
+ */
+error_t app_hub_repository_remove(const char* url);
+
+/**
+ * Enable or disable a repository, which includes the official one.
+ * A change of the repositories discards the catalog and queues a refresh.
+ * Reads and writes storage, so it must not be called on the LVGL thread.
+ * @retval ERROR_NOT_FOUND the repository isn't in the list
+ */
+error_t app_hub_repository_set_enabled(const char* url, bool enabled);
+
+// endregion
+
 // region Events
 
 enum AppHubEventType {

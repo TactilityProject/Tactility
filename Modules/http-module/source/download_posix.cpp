@@ -21,6 +21,11 @@ namespace {
 constexpr auto* TAG = "http-download";
 constexpr int TIMEOUT_SECONDS = 5;
 constexpr size_t BUFFER_SIZE = 512;
+constexpr const char* SYSTEM_CERTIFICATE_FILES[] = {
+    "/etc/ssl/certs/ca-certificates.crt",
+    "/etc/pki/tls/certs/ca-bundle.crt",
+    "/etc/ssl/cert.pem",
+};
 
 // A write to a closed connection must fail instead of raising SIGPIPE. macOS has no MSG_NOSIGNAL, but SO_NOSIGPIPE on the socket.
 #ifdef MSG_NOSIGNAL
@@ -84,8 +89,22 @@ public:
     }
 
     bool loadCertificate(const std::string& certPem) {
+        if (certPem.empty()) {
+            return loadSystemCertificates();
+        }
         // A PEM certificate is parsed as a NUL-terminated string
         return mbedtls_x509_crt_parse(&ca, reinterpret_cast<const unsigned char*>(certPem.c_str()), certPem.size() + 1) == 0;
+    }
+
+    /** The certificates of the operating system, for servers that don't have a certificate of their own */
+    bool loadSystemCertificates() {
+        for (const char* path : SYSTEM_CERTIFICATE_FILES) {
+            if (mbedtls_x509_crt_parse_file(&ca, path) >= 0) {
+                return true;
+            }
+        }
+        LOG_E(TAG, "No system certificates found");
+        return false;
     }
 
     bool connectSocket(const HttpUrl& url) {

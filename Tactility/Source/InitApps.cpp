@@ -80,6 +80,7 @@ namespace app {
     }
     namespace meshsettings { extern const ::AppManifest manifest; }
     namespace notificationsettings { extern const ::AppManifest manifest; }
+    namespace softwaresettings { extern const ::AppManifest manifest; }
     namespace standbysettings { extern const ::AppManifest manifest; }
 #ifdef CONFIG_TT_TOUCH_CALIBRATION_SUPPORTED
     namespace touchcalibration { extern const ::AppManifest manifest; }
@@ -184,6 +185,7 @@ static void registerInternalApps() {
 
     // Notifications also come from apps and services on devices without a radio
     app_manager_add(&app::notificationsettings::manifest);
+    app_manager_add(&app::softwaresettings::manifest);
     app_manager_add(&app::standbysettings::manifest);
 
 #if defined(CONFIG_TINYUSB_MSC_ENABLED) && CONFIG_TINYUSB_MSC_ENABLED

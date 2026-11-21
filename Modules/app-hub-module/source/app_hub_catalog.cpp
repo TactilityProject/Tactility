@@ -42,13 +42,16 @@ const char* app_hub_catalog_get_certificate() {
     return certificate_pem;
 }
 
-std::string app_hub_catalog_get_page_url(int32_t page) {
-    return std::format("{}/{}/list-{}-{}.json", BASE_URL, get_version_without_postfix(), app_hub_catalog_get_platform(), page);
+const char* app_hub_catalog_get_official_url() {
+    return BASE_URL;
 }
 
+std::string app_hub_catalog_get_page_url(const std::string& base_url, int32_t page) {
+    return std::format("{}/{}/list-{}-{}.json", base_url, get_version_without_postfix(), app_hub_catalog_get_platform(), page);
+}
 
-std::string app_hub_catalog_get_download_url(const std::string& file) {
-    return std::format("{}/{}/{}", BASE_URL, get_version_without_postfix(), file);
+std::string app_hub_catalog_get_download_url(const std::string& base_url, const std::string& file) {
+    return std::format("{}/{}/{}", base_url, get_version_without_postfix(), file);
 }
 
 std::string app_hub_catalog_get_details_file(const std::string& id) {
@@ -153,7 +156,9 @@ static std::unique_ptr<char[]> read_file(const char* path) {
 namespace {
 
 constexpr char FIELD_SEPARATOR = '\t';
-constexpr size_t FIELD_COUNT = 5;
+// Catalogs from before the repositories have no repository field
+constexpr size_t FIELD_COUNT_WITHOUT_REPOSITORY = 5;
+constexpr size_t FIELD_COUNT = 6;
 // Bounds the stack buffer of a reader. A longer entry makes the conversion fail.
 constexpr size_t LINE_MAX_SIZE = 512;
 
@@ -172,6 +177,8 @@ bool format_entry(const AppHubCatalogEntry& entry, std::string& line) {
     append_text(line, entry.name);
     append_text(line, entry.short_description);
     line += entry.has_icon ? '1' : '0';
+    line += FIELD_SEPARATOR;
+    line += std::to_string(entry.repository);
     line += '\n';
     return line.size() < LINE_MAX_SIZE;
 }
@@ -192,7 +199,7 @@ std::vector<std::string> split(std::string_view text, char separator) {
 
 bool parse_line(std::string_view line, AppHubCatalogEntry& entry) {
     const auto fields = split(line, FIELD_SEPARATOR);
-    if (fields.size() != FIELD_COUNT) {
+    if (fields.size() != FIELD_COUNT && fields.size() != FIELD_COUNT_WITHOUT_REPOSITORY) {
         return false;
     }
     char* end = nullptr;
@@ -205,6 +212,14 @@ bool parse_line(std::string_view line, AppHubCatalogEntry& entry) {
     entry.name = fields[2];
     entry.short_description = fields[3];
     entry.has_icon = fields[4] != "0";
+    entry.repository = 0;
+    if (fields.size() == FIELD_COUNT) {
+        const long repository = strtol(fields[5].c_str(), &end, 10);
+        if (fields[5].empty() || *end != '\0' || repository < 0) {
+            return false;
+        }
+        entry.repository = static_cast<int32_t>(repository);
+    }
     return true;
 }
 
@@ -223,7 +238,7 @@ cJSON* parse_file(const char* path) {
 
 } // namespace
 
-bool app_hub_catalog_append_page(const char* json_path, const char* catalog_path, int32_t& page_count) {
+bool app_hub_catalog_append_page(const char* json_path, const char* catalog_path, int32_t& page_count, int32_t repository, AppHubCatalogAccept accept, void* context) {
     cJSON* json = parse_file(json_path);
     if (json == nullptr) {
         return false;
@@ -255,6 +270,10 @@ bool app_hub_catalog_append_page(const char* json_path, const char* catalog_path
             LOG_E(TAG, "Failed to read entry");
             success = false;
             break;
+        }
+        entry.repository = repository;
+        if (accept != nullptr && !accept(entry, context)) {
+            continue;
         }
         if (!format_entry(entry, line)) {
             LOG_E(TAG, "%s can't be stored", entry.id.c_str());

@@ -1,0 +1,45 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: nl-NL\n"
+
+msgid "Add repository"
+msgstr "Repository toevoegen"
+
+
+msgid "App repositories"
+msgstr "App-repositories"
+
+msgid "Apps from a third party repository are not checked by the Tactility project. They can contain harmful software that steals your data or damages your device. Only add a repository that you trust."
+msgstr "Apps van een repository van een derde partij worden niet gecontroleerd door het Tactility-project. Ze kunnen schadelijke software bevatten die je gegevens steelt of je apparaat beschadigt. Voeg alleen een repository toe die je vertrouwt."
+
+msgid "Cancel"
+msgstr "Annuleren"
+
+msgid "Continue"
+msgstr "Doorgaan"
+
+msgid "Error"
+msgstr "Fout"
+
+
+msgid "Software"
+msgstr "Software"
+
+msgid "The address must start with https://"
+msgstr "Het adres moet met https:// beginnen"
+
+msgid "The address of the repository, starting with https://"
+msgstr "Het adres van de repository, beginnend met https://"
+
+msgid "The change could not be saved."
+msgstr "De wijziging kon niet worden opgeslagen."
+
+msgid "There is no room for more repositories."
+msgstr "Er is geen ruimte voor meer repositories."
+
+msgid "Third party apps"
+msgstr "Apps van derden"
+
+msgid "This repository is in the list already."
+msgstr "Deze repository staat al in de lijst."
