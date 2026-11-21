@@ -266,8 +266,10 @@ def write_spiram_variables(output_file, device_properties: dict):
     # Reduce IRAM usage
     output_file.write("CONFIG_SPIRAM_USE_MALLOC=y\n")
     output_file.write("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y\n")
-    # With 5 buffers, HTTPS downloads stall for seconds on some access points. These buffers are allocated in SPIRAM.
-    output_file.write("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16\n")
+    # lwIP holds a received packet in its Wi-Fi RX buffer until the app reads it. With fewer buffers than the TCP window
+    # (below) has packets, a slow reader (e.g. writing to an SD card) uses all of them, downloads stall and beacons are
+    # missed until the connection drops. These buffers are allocated in SPIRAM.
+    output_file.write("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=64\n")
     # TLS sessions (handshakes, record buffers) otherwise take internal RAM
     output_file.write("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y\n")
     # Record buffers stay allocated per connection instead of being allocated per read/write
