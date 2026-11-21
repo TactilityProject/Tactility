@@ -9,8 +9,7 @@
 #include <tactility/bindings/esp32_grove.h>
 #include <tactility/bindings/esp32_i2c_master.h>
 #include <tactility/bindings/esp32_i2s.h>
-#include <tactility/bindings/esp32_pwm_ledc.h>
-#include <tactility/bindings/pwm_backlight.h>
+#include <tactility/bindings/pulse_count_backlight.h>
 #include <tactility/bindings/esp32_sdspi.h>
 #include <tactility/bindings/esp32_spi.h>
 #include <tactility/bindings/esp32_wifi_pinned.h>
@@ -138,22 +137,13 @@
 		};
 	};
 
-	display_backlight_pwm {
-		compatible = "espressif,esp32-pwm-ledc";
-		pin = <&gpio0 42 GPIO_FLAG_NONE>;
-		// 32 KHz and higher causes the screen to start dimming again above 80% brightness
-		// when moving the brightness slider rapidly from a lower setting to 100% (debug-traced, not a slider bug).
-		period-ns = <33333>;
-		ledc-timer = <0>;
-		ledc-channel = <0>;
-	};
-
+	// AW9364 backlight driver IC with 16 levels of pulse dimming (U9 in the schematic)
 	display_backlight {
-		compatible = "pwm-backlight";
+		compatible = "pulse-count-backlight";
 		// Off by default so dispaly power-on won't show the screen from before the last power loss.
 		// The display backlight is turned on during the boot process.
 		status = "disabled";
-		pwm = <&display_backlight_pwm>;
+		pin = <&gpio0 42 GPIO_FLAG_NONE>;
 	};
 
 	spi0 {
