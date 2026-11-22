@@ -403,3 +403,25 @@ TEST_CASE("MeshStore deletes a conversation without reading its messages") {
         store.close();
     }
 }
+
+TEST_CASE("MeshStore deletes only the conversation of the backend that was asked") {
+    // These backend ids have the same 32-bit FNV-1a hash
+    const std::string directory = makeTempDirectory();
+    for (int round = 0; round < 2; round++) {
+        MeshStore store;
+        REQUIRE_EQ(store.open(directory.c_str()), ERROR_NONE);
+        if (round == 0) {
+            for (const char* backend : { "costarring", "liquid" }) {
+                auto message = makeMessage("channel", false, MESH_DELIVERY_RECEIVED);
+                strcpy(message.backend, backend);
+                message.peer = MeshAddress {};
+                REQUIRE_EQ(store.add(&message), ERROR_NONE);
+            }
+            REQUIRE_EQ(store.removeConversation("costarring", nullptr, 2), ERROR_NONE);
+        }
+        MeshMessage messages[4];
+        CHECK_EQ(store.getConversation("costarring", nullptr, 2, 0, messages, 4), 0);
+        CHECK_EQ(store.getConversation("liquid", nullptr, 2, 0, messages, 4), 1);
+        store.close();
+    }
+}

@@ -37,11 +37,13 @@ private:
         uint8_t channel;
         /** Hash of the peer address, 0 for channel messages */
         uint64_t peerHash;
-        /** Hash of the backend id, which the index can't tell otherwise without reading the message */
-        uint32_t backendHash;
+        /** Position of the backend id in backends, which the index can't tell otherwise without reading the message */
+        uint8_t backend;
     };
 
     static constexpr uint32_t PENDING = UINT32_MAX;
+    /** An id that is in no entry: the backend is unknown, or the table is full */
+    static constexpr uint8_t NO_BACKEND = UINT8_MAX;
 
     Limits limits;
     tt::std::string directory;
@@ -49,6 +51,8 @@ private:
     bool opened = false;
     size_t bufferUsed = 0;
     tt::std::vector<IndexEntry> index;
+    /** The distinct backend ids in the index, so conversations are told apart exactly without reading messages */
+    tt::std::vector<tt::std::string> backends;
     tt::std::vector<uint32_t> segments;
     uint32_t currentSegmentSize = 0;
     uint32_t nextSeq = 1;
@@ -59,14 +63,16 @@ private:
     uint32_t scanSegment(uint32_t segment);
     /** Same as scanSegment(), record by record, for when there is no memory to read the segment at once */
     uint32_t scanSegmentStreaming(uint32_t segment);
-    static IndexEntry makeIndexEntry(const MeshMessage& message, uint32_t segment, uint32_t offset);
+    uint8_t internBackend(const char* backend);
+    uint8_t findBackend(const char* backend) const;
+    IndexEntry makeIndexEntry(const MeshMessage& message, uint32_t segment, uint32_t offset);
     void applyRecord(uint8_t type, const uint8_t* payload, size_t length, uint32_t segment, uint32_t offset);
     error_t appendRecord(uint8_t type, const uint8_t* payload, size_t length, uint32_t seq);
     IndexEntry* findEntry(uint32_t seq);
     const IndexEntry* findEntry(uint32_t seq) const;
     error_t readEntry(const IndexEntry& entry, MeshMessage* message) const;
     void enforceBudget();
-    /** Removes the messages of the conversation from the index. The hashes decide, so no message is read. */
+    /** Removes the messages of the conversation from the index. The index decides, so no message is read. */
     void eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq);
 
 public:

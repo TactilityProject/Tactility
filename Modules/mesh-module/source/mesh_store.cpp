@@ -54,14 +54,6 @@ uint64_t hashPeer(const MeshAddress& address) {
     return hash | 1;
 }
 
-uint32_t hashBackend(const char* backend) {
-    uint32_t hash = 2166136261u;
-    for (size_t i = 0; i < MESH_BACKEND_ID_MAX_LENGTH && backend[i] != '\0'; i++) {
-        hash = (hash ^ static_cast<uint8_t>(backend[i])) * 16777619u;
-    }
-    return hash;
-}
-
 uint8_t* allocateBuffer(size_t size) {
     constexpr MemoryPolicy policy = { .required = 0, .desired = MEMORY_CAPABILITY_EXTERNAL, .alignment = 0 };
     return static_cast<uint8_t*>(memory_alloc_with_policy(size, &policy));
@@ -288,6 +280,7 @@ void MeshStore::close() {
     }
     opened = false;
     index.clear();
+    backends.clear();
     segments.clear();
     bufferUsed = 0;
     currentSegmentSize = 0;
@@ -372,6 +365,24 @@ uint32_t MeshStore::scanSegmentStreaming(uint32_t segment) {
     return offset;
 }
 
+uint8_t MeshStore::findBackend(const char* backend) const {
+    for (size_t i = 0; i < backends.size(); i++) {
+        if (strncmp(backends[i].c_str(), backend, MESH_BACKEND_ID_MAX_LENGTH) == 0) {
+            return (uint8_t)i;
+        }
+    }
+    return NO_BACKEND;
+}
+
+uint8_t MeshStore::internBackend(const char* backend) {
+    const uint8_t existing = findBackend(backend);
+    if (existing != NO_BACKEND || backends.size() >= NO_BACKEND) {
+        return existing;
+    }
+    backends.push_back(tt::std::string(backend, strnlen(backend, MESH_BACKEND_ID_MAX_LENGTH)));
+    return (uint8_t)(backends.size() - 1);
+}
+
 MeshStore::IndexEntry MeshStore::makeIndexEntry(const MeshMessage& message, uint32_t segment, uint32_t offset) {
     return {
         .seq = message.seq,
@@ -380,7 +391,7 @@ MeshStore::IndexEntry MeshStore::makeIndexEntry(const MeshMessage& message, uint
         .delivery = message.delivery,
         .channel = message.channel,
         .peerHash = hashPeer(message.peer),
-        .backendHash = hashBackend(message.backend),
+        .backend = internBackend(message.backend),
     };
 }
 
@@ -424,9 +435,12 @@ void MeshStore::applyRecord(uint8_t type, const uint8_t* payload, size_t length,
 
 void MeshStore::eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) {
     const uint64_t peerHash = hashPeerAddress(peer);
-    const uint32_t backendHash = hashBackend(backend);
+    const uint8_t backendId = findBackend(backend);
+    if (backendId == NO_BACKEND) {
+        return;
+    }
     std::erase_if(index, [&](const IndexEntry& entry) {
-        return entry.seq <= lastSeq && entry.backendHash == backendHash && entry.peerHash == peerHash && (peer != nullptr || entry.channel == channel);
+        return entry.seq <= lastSeq && entry.backend == backendId && entry.peerHash == peerHash && (peer != nullptr || entry.channel == channel);
     });
 }
 
