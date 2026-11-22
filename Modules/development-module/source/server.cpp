@@ -345,6 +345,7 @@ int32_t listenerMain(void* context) {
         socklen_t addressLength = sizeof(address);
         const int socket = accept(data->listenFd, reinterpret_cast<sockaddr*>(&address), &addressLength);
         if (socket >= 0) {
+            fcntl(socket, F_SETFD, fcntl(socket, F_GETFD) | FD_CLOEXEC);
             handleConnection(data, socket, address);
         }
     }
@@ -400,6 +401,8 @@ error_t startListening(ServerData* data) {
     if (fd < 0) {
         return ERROR_RESOURCE;
     }
+    // The simulator restarts by replacing its process image, which would keep this socket open and the port taken
+    fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
     int reuse = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
     sockaddr_in address {};
