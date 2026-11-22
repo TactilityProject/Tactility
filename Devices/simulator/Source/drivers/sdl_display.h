@@ -3,6 +3,8 @@
 
 #include <SDL2/SDL.h>
 
+struct Device;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,6 +49,25 @@ void sdl_display_view_to_native(int32_t* x, int32_t* y);
  *     first frame yet.
  */
 void sdl_display_present_now(void);
+
+/**
+ * @brief Presents the frame again when the brightness or the on/off state changed since the last present.
+ * Only call it from the main thread.
+ */
+void sdl_display_present_if_requested(void);
+
+/**
+ * @brief Sets the simulated backlight: the frame is shown mixed with black, but never fully black.
+ * Turning the display off is what makes it black. The main thread presents the change.
+ * @param[in] brightness 0 is the dimmest and 255 is the frame as it was drawn
+ */
+void sdl_display_set_brightness(uint8_t brightness);
+
+/** Tells the display which device is its backlight, or NULL when it has none */
+void sdl_display_set_backlight_device(struct Device* device);
+
+/** @return the simulated backlight brightness */
+uint8_t sdl_display_get_brightness(void);
 
 #ifdef __cplusplus
 }
