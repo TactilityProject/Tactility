@@ -210,10 +210,16 @@ def write_core_variables(output_file, device_properties: dict):
         # EspNowBackendHosted.cpp's esp_hosted_send_custom_data()/esp_hosted_register_custom_callback()
         # need esp_hosted's peer-data feature enabled to exist at all.
         output_file.write("CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA=y\n")
+        # The SDIO receive buffers (25 KB or more) are allocated from DMA-capable PSRAM first. Allocating them in
+        # internal RAM can fail, which drops Wi-Fi data and the link never recovers.
+        output_file.write("CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y\n")
         # ESP-IDF 6.1 defaults to requiring chip rev >=v3.1; boards in this repo (e.g. m5stack-tab5)
         # ship v1.0 silicon, which that bootloader refuses to boot.
         output_file.write("CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y\n")
         output_file.write("CONFIG_ESP32P4_REV_MIN_100=y\n")
+        # The ECDSA peripheral doesn't exist on that silicon. Without this, every TLS handshake logs an error before
+        # falling back to software verification.
+        output_file.write("CONFIG_MBEDTLS_HARDWARE_ECDSA_VERIFY=n\n")
 def write_flash_variables(output_file, device_properties: dict):
     flash_size = get_property_or_exit(device_properties, "hardware.flashSize")
     if not flash_size.endswith("MB"):

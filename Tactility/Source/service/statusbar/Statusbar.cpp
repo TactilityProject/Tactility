@@ -272,8 +272,7 @@ class StatusbarService final : public Service {
         }
     }
 
-    void updateWifiIcon() {
-        const char* desired_icon = getWifiStatusIcon();
+    void updateWifiIcon(const char* desired_icon) {
         if (wifi_last_icon != desired_icon) {
             if (desired_icon != nullptr) {
                 lvgl_statusbar_icon_set_image(wifi_icon_id, desired_icon);
@@ -361,11 +360,13 @@ class StatusbarService final : public Service {
     void updateIcons() {
         // The mesh service can read its settings, which must not happen with the LVGL lock held. The icon doesn't need the lock.
         updateMeshIcon();
+        // Reading the RSSI can block for seconds when the Wi-Fi coprocessor doesn't respond
+        const char* wifi_icon = getWifiStatusIcon();
         if (lvgl_try_lock(200)) {
             updateGpsIcon();
             updateNotificationButton();
             updateBluetoothIcon();
-            updateWifiIcon();
+            updateWifiIcon(wifi_icon);
             updatePowerStatusIcon();
             updateUsbIcon();
             updateInstallIcon();

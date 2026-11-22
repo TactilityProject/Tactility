@@ -116,7 +116,7 @@ struct Context {
     // list, contentWrapper is still an empty spinner; scrollY must come from here instead of a
     // live read off it.
     bool restoreScrollOnNextShow = false;
-    // Only the first createWidgets() call triggers a network refresh. The rest uses the cached catalog.
+    // Only the first createWidgets() call triggers a network refresh, also when it fails. The rest uses the cached catalog.
     bool needsInitialRefresh = true;
 
     TaskEventGroup* eventGroup = nullptr;
@@ -734,7 +734,6 @@ void onOperationEvent(Context* ctx, const AppHubEvent& event) {
     const bool isRefresh = event.operation_id == ctx->refreshOperationId;
     if (isRefresh) {
         ctx->refreshOperationId = 0;
-        ctx->needsInitialRefresh = event.result != ERROR_NONE;
         if (event.result != ERROR_NONE) {
             LOG_E(TAG, "Catalog refresh failed: %s", error_to_string(event.result));
         }
@@ -806,7 +805,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_style_pad_top(ctx->header, lv_obj_get_style_pad_top(ctx->contentWrapper, LV_PART_MAIN), LV_STATE_DEFAULT);
 
     ctx->restoreScrollOnNextShow = true;
-    if (ctx->needsInitialRefresh && ctx->refreshOperationId == 0) {
+    if (ctx->needsInitialRefresh) {
+        ctx->needsInitialRefresh = false;
         requestRefresh(ctx);
     } else {
         // Resurfacing (e.g. returning from AppHubDetailsApp): redisplay the cached catalog
