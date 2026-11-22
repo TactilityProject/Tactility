@@ -346,13 +346,13 @@ constexpr int PSRAM_CRITICAL_PERCENT = 10;
 
 enum class MemoryLevel { Normal, Warning, Critical };
 
-/** Formats the size with at most 3 digits, in the unit that makes that possible: kB, MB or GB in steps of 1000 */
+/** Formats the size with at most 3 digits, in the unit that makes that possible: kB, MB or GB, counted in steps of 1024 */
 static void formatMemory(size_t bytes, char* text, size_t textSize, const char*& unit) {
     static constexpr const char* UNITS[] = { "kB", "MB", "GB" };
-    double value = static_cast<double>(bytes) / 1000.0;
+    double value = static_cast<double>(bytes) / 1024.0;
     int unitIndex = 0;
     while (value >= 999.5 && unitIndex < 2) {
-        value /= 1000.0;
+        value /= 1024.0;
         unitIndex++;
     }
     if (value < 9.95) {

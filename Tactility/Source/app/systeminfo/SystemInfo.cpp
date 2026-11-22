@@ -452,8 +452,6 @@ void onTabChanged(lv_event_t* event) {
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
-    // The widgets of an earlier build were deleted with the window
-    ctx->sdcardStorageCard = UsageCardWidgets {};
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
@@ -567,6 +565,21 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     updateTasks(ctx);
 }
 
+/** The widgets are deleted when the window is buried, and the timers keep running */
+void destroyWidgets(void* userData) {
+    auto* ctx = static_cast<Context*>(userData);
+    ctx->internalMemCard = UsageCardWidgets {};
+    ctx->externalMemCard = UsageCardWidgets {};
+    ctx->dataStorageCard = UsageCardWidgets {};
+    ctx->sdcardStorageCard = UsageCardWidgets {};
+    ctx->tasksContainer = nullptr;
+    ctx->taskNames.clear();
+    ctx->tabs = nullptr;
+    for (auto*& pane : ctx->panes) {
+        pane = nullptr;
+    }
+}
+
 int32_t appMain(int argc, char* argv[]) {
     uint32_t appInstanceId = app_scheduler_current_app_id();
     Context ctx {};
@@ -592,7 +605,7 @@ int32_t appMain(int argc, char* argv[]) {
     AppEventSubscription sub {};
     check(app_event_subscribe(&sub, &event_group) == ERROR_NONE);
 
-    WindowId window = window_manager_create(appInstanceId, createWidgets, &ctx);
+    WindowId window = window_manager_create_ext(appInstanceId, createWidgets, destroyWidgets, &ctx);
     ctx.memoryTimer->start();   // Memory: every 10s
     ctx.tasksTimer->start();    // Tasks/CPU: every 15s
 

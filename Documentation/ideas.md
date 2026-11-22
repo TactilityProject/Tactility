@@ -8,6 +8,7 @@
  
 ## Medium Priority
 
+- Add reboot option in system overlay power menu
 - Remove devices:
   - Heltec Wifi Lora32 v3
   - LilyGO T-Dongle S3
