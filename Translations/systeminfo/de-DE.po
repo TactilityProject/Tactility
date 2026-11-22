@@ -3,11 +3,14 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: de-DE\n"
 
+msgid " · largest block {}"
+msgstr " · größter Block {}"
+
 msgid "(unnamed)"
 msgstr "(unbenannt)"
 
-msgid "External"
-msgstr "Extern"
+msgid "About"
+msgstr "Info"
 
 msgid "Failed to allocate memory for task list"
 msgstr "Speicher für die Task-Liste konnte nicht reserviert werden"
@@ -18,11 +21,26 @@ msgstr "Hardware-Modell: {}"
 msgid "Hardware vendor: {}"
 msgstr "Hardware-Hersteller: {}"
 
-msgid "Internal"
-msgstr "Intern"
+msgid "Internal RAM"
+msgstr "Interner RAM"
 
-msgid "System Info"
-msgstr "Systeminfo"
+msgid "Internal storage"
+msgstr "Interner Speicher"
+
+msgid "Memory"
+msgstr "Speicher"
+
+msgid "PSRAM"
+msgstr "PSRAM"
+
+msgid "SD card"
+msgstr "SD-Karte"
+
+msgid "Storage"
+msgstr "Speicherplatz"
+
+msgid "Tasks"
+msgstr "Aufgaben"
 
 msgid "blocked"
 msgstr "blockiert"
@@ -42,5 +60,5 @@ msgstr "läuft"
 msgid "suspended"
 msgstr "angehalten"
 
-msgid "{} / {} {} free ({} / {} bytes)"
-msgstr "{} / {} {} frei ({} / {} Bytes)"
+msgid "{} free of {}"
+msgstr "{} von {} frei"

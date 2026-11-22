@@ -219,8 +219,11 @@ class StatusbarService final : public Service {
         }
     }
 
+    /** Shows while mesh is starting or on. Stopping turns mesh off first, so the icon hides right away. */
     void updateMeshIcon() {
-        const bool active = mesh_get_state() == MESH_STATE_ON;
+        const MeshState state = mesh_get_state();
+        // The service is OFF while it starts, e.g. while it reads the stored messages
+        const bool active = mesh_is_enabled() && (state == MESH_STATE_ON || state == MESH_STATE_OFF);
         if (active != mesh_last_state) {
             lvgl_statusbar_icon_set_visibility(mesh_icon_id, active);
             mesh_last_state = active;
@@ -356,10 +359,11 @@ class StatusbarService final : public Service {
     }
 
     void updateIcons() {
+        // The mesh service can read its settings, which must not happen with the LVGL lock held. The icon doesn't need the lock.
+        updateMeshIcon();
         if (lvgl_try_lock(200)) {
             updateGpsIcon();
             updateNotificationButton();
-            updateMeshIcon();
             updateBluetoothIcon();
             updateWifiIcon();
             updatePowerStatusIcon();

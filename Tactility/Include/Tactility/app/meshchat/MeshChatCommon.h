@@ -39,10 +39,7 @@ struct NetworkInfo {
 /** Queries the service thread, so it's called without the LVGL lock */
 NetworkInfo loadNetworkInfo();
 
-/**
- * A text line under the toolbar with the values in the secondary theme colour:
- * "Using [network] via [modulation]" while mesh is running, and "Mesh is OFF" when it isn't
- */
+/** A statusline under the toolbar: "[network] · [modulation]" while mesh is running, and a warning when it isn't */
 lv_obj_t* createNetworkHeader(lv_obj_t* parent);
 
 /** Requires the LVGL lock. Hides the header while mesh is running without a known network. */

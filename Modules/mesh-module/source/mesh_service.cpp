@@ -97,7 +97,7 @@ struct Globals {
         char backend[MESH_BACKEND_ID_MAX_LENGTH + 1];
         MeshAddress peer;
         uint8_t channel;
-        uint32_t peerHash;
+        uint64_t peerHash;
         uint32_t count;
     };
     tt::std::vector<UnreadEntry> unread;

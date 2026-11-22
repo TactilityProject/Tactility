@@ -25,10 +25,11 @@
 #include <lvgl/lvgl.h>
 #include <lvgl/theme.h>
 #include <lvgl/widgets/card.h>
-#include <lvgl/widgets/chip.h>
 #include <lvgl/widgets/icon_button.h>
 #include <lvgl/widgets/list.h>
 #include <lvgl/widgets/spinner.h>
+#include <lvgl/widgets/statusline.h>
+#include <lvgl/widgets/tabs.h>
 
 #include <algorithm>
 #include <array>
@@ -88,16 +89,12 @@ struct Context {
     lv_obj_t* updateAllButton = nullptr;
     lv_obj_t* updateAllSpinner = nullptr;
     lv_obj_t* header = nullptr;
-    /** Flexible space on both sides of the tabs, which centers them between the close button and the actions */
-    lv_obj_t* spacerLeft = nullptr;
-    lv_obj_t* spacerRight = nullptr;
-    int32_t headerWidth = -1;
     /** The filter tabs, by Filter */
-    lv_obj_t* chips[3] = {};
-    lv_obj_t* errorCard = nullptr;
-    lv_obj_t* errorLabel = nullptr;
+    lv_obj_t* tabs = nullptr;
+    lv_obj_t* errorStatusline = nullptr;
     /** The refresh error that shows above the list, empty when there is none. Only used with the LVGL lock held. */
     tt::std::string errorMessage;
+    LvglStatuslineLevel errorLevel = LVGL_STATUSLINE_LEVEL_ERROR;
     lv_obj_t* searchRow = nullptr;
     lv_obj_t* searchTextarea = nullptr;
     /** Whether the search field shows, survives across a bury/resurface cycle. Only used with the LVGL lock held. */
@@ -301,87 +298,11 @@ const char* getEmptyFilterText(Filter filter) {
     return (filter == Filter::Updates) ? tr("No updates available") : tr("No installed apps");
 }
 
-void updateFilterChips(Context* ctx) {
-    for (uint32_t i = 0; i < ::std::size(ctx->chips); i++) {
-        lv_obj_set_state(ctx->chips[i], LV_STATE_CHECKED, i == static_cast<uint32_t>(ctx->filter));
-    }
-}
-
 /** One line of text that ends in an ellipsis. The label needs a fixed height, as it would wrap otherwise. */
 void setSingleLineEllipsis(lv_obj_t* label) {
     lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_DOTS);
     lv_obj_set_width(label, LV_PCT(100));
     lv_obj_set_height(label, lv_font_get_line_height(lv_obj_get_style_text_font(label, LV_PART_MAIN)));
-}
-
-/**
- * The tabs wrap their content. When they don't fit, they share the width instead and their text ends in an ellipsis.
- */
-void setChipsShared(Context* ctx, bool shared) {
-    for (auto* chip : ctx->chips) {
-        auto* label = lv_obj_get_child(chip, 0);
-        lv_obj_set_flex_grow(chip, shared ? 1 : 0);
-        lv_obj_set_width(chip, shared ? 0 : LV_SIZE_CONTENT);
-        if (shared) {
-            setSingleLineEllipsis(label);
-        } else {
-            lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
-            lv_obj_set_size(label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        }
-    }
-}
-
-/**
- * The spacers on both sides of the tabs take the space that is left, so the tabs are centered between the close button
- * and the actions. When the tabs don't fit, the spacers go and the tabs share the width. Requires the LVGL lock.
- */
-void layoutHeader(Context* ctx) {
-    if (ctx->header == nullptr) {
-        return;
-    }
-    setChipsShared(ctx, false);
-    for (auto* spacer : { ctx->spacerLeft, ctx->spacerRight }) {
-        lv_obj_set_hidden(spacer, false);
-    }
-    lv_obj_update_layout(ctx->header);
-    if (lv_obj_get_width(ctx->spacerLeft) <= 0) {
-        for (auto* spacer : { ctx->spacerLeft, ctx->spacerRight }) {
-            lv_obj_set_hidden(spacer, true);
-        }
-        setChipsShared(ctx, true);
-        // Flex grow can't shrink the chips below their content, so they get an explicit width
-        int32_t fixedWidth = 0;
-        int32_t visibleCount = 0;
-        for (uint32_t i = 0; i < lv_obj_get_child_count(ctx->header); i++) {
-            auto* child = lv_obj_get_child(ctx->header, i);
-            if (lv_obj_is_hidden(child)) {
-                continue;
-            }
-            visibleCount++;
-            if (::std::find(::std::begin(ctx->chips), ::std::end(ctx->chips), child) == ::std::end(ctx->chips)) {
-                fixedWidth += lv_obj_get_width(child) + lv_obj_get_style_margin_left(child, LV_PART_MAIN) + lv_obj_get_style_margin_right(child, LV_PART_MAIN);
-            }
-        }
-        const int32_t gaps = (visibleCount - 1) * lv_obj_get_style_pad_column(ctx->header, LV_PART_MAIN);
-        // The margin of a chip, for its focus ring, takes room too
-        const int32_t chipMargins = lv_obj_get_style_margin_left(ctx->chips[0], LV_PART_MAIN) + lv_obj_get_style_margin_right(ctx->chips[0], LV_PART_MAIN);
-        const int32_t chipWidth = ::std::max<int32_t>(0, (lv_obj_get_content_width(ctx->header) - fixedWidth - gaps) / static_cast<int32_t>(::std::size(ctx->chips)) - chipMargins);
-        for (auto* chip : ctx->chips) {
-            lv_obj_set_flex_grow(chip, 0);
-            lv_obj_set_width(chip, chipWidth);
-        }
-        lv_obj_update_layout(ctx->header);
-    }
-}
-
-void onHeaderSizeChanged(lv_event_t* event) {
-    auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    // Setting the widths changes the header's height, which would trigger this again
-    const int32_t width = lv_obj_get_width(ctx->header);
-    if (width != ctx->headerWidth) {
-        ctx->headerWidth = width;
-        layoutHeader(ctx);
-    }
 }
 
 /**
@@ -395,7 +316,6 @@ void updateToolbarActions(Context* ctx, bool hasUpdates) {
     const bool busy = app_hub_is_busy();
     lv_obj_set_hidden(ctx->updateAllSpinner, !busy);
     lv_obj_set_hidden(ctx->updateAllButton, busy || !hasUpdates);
-    layoutHeader(ctx);
 }
 
 void onUpdateAllPressed(lv_event_t* event) {
@@ -409,10 +329,9 @@ void onUpdateAllPressed(lv_event_t* event) {
     showApps(ctx);
 }
 
-void updateUpdatesChipText(Context* ctx, size_t updateCount) {
-    auto* chip = ctx->chips[static_cast<size_t>(Filter::Updates)];
+void updateUpdatesTabText(Context* ctx, size_t updateCount) {
     const auto text = i18n::format(updateCount == 1 ? tr("{} update") : tr("{} updates"), { ::std::to_string(updateCount) });
-    lv_label_set_text(lv_obj_get_child(chip, 0), text.c_str());
+    lvgl_tabs_set_tab_text(ctx->tabs, static_cast<uint32_t>(Filter::Updates), text.c_str());
 }
 
 void onQueryChanged(lv_event_t* event) {
@@ -470,15 +389,9 @@ lv_obj_t* createSearchRow(lv_obj_t* parent, Context* ctx) {
     return row;
 }
 
-void onFilterPressed(lv_event_t* event) {
+void onFilterChanged(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    auto* chip = lv_event_get_target_obj(event);
-    const auto filter = static_cast<Filter>(::std::find(::std::begin(ctx->chips), ::std::end(ctx->chips), chip) - ::std::begin(ctx->chips));
-    if (filter == ctx->filter) {
-        return;
-    }
-    ctx->filter = filter;
-    updateFilterChips(ctx);
+    ctx->filter = static_cast<Filter>(lvgl_tabs_get_selected(ctx->tabs));
     // A different filter shows a different list, which starts at the top
     ctx->scrollY = 0;
     ctx->restoreScrollOnNextShow = true;
@@ -507,16 +420,15 @@ lv_obj_t* createHeaderSpacer(lv_obj_t* parent) {
     return spacer;
 }
 
-/** Creates the filter tabs as children of the header. They wrap their text, see layoutHeader() for when they don't fit. */
-void createFilterChips(lv_obj_t* parent, Context* ctx) {
-    for (size_t i = 0; i < ::std::size(FILTER_LABELS); i++) {
-        auto* chip = lvgl_chip_create(parent);
-        ctx->chips[i] = chip;
-        lv_obj_add_event_cb(chip, onFilterPressed, LV_EVENT_SHORT_CLICKED, ctx);
-        auto* chipLabel = lv_label_create(chip);
-        lv_label_set_text(chipLabel, tr(FILTER_LABELS[i]));
-        lv_obj_set_style_text_align(chipLabel, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+/** The filter tabs are as wide as their label, and the longest labels are shortened when the header has no room for them */
+void createFilterTabs(lv_obj_t* parent, Context* ctx) {
+    ctx->tabs = lvgl_tabs_create(parent);
+    lvgl_tabs_set_mode(ctx->tabs, LVGL_TABS_MODE_WRAP);
+    for (const auto* label : FILTER_LABELS) {
+        lvgl_tabs_add_tab(ctx->tabs, tr(label));
     }
+    lvgl_tabs_set_selected(ctx->tabs, static_cast<uint32_t>(ctx->filter));
+    lv_obj_add_event_cb(ctx->tabs, onFilterChanged, LV_EVENT_VALUE_CHANGED, ctx);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -571,30 +483,32 @@ void showStatusLabel(Context* ctx, const char* text) {
 }
 
 /** Shows the error between the search field and the list, or hides it for nullptr. Requires the LVGL lock. */
-void setError(Context* ctx, const char* message) {
+void setError(Context* ctx, const char* message, LvglStatuslineLevel level = LVGL_STATUSLINE_LEVEL_ERROR) {
     ctx->errorMessage = (message != nullptr) ? message : "";
-    if (ctx->errorCard == nullptr) {
+    ctx->errorLevel = level;
+    if (ctx->errorStatusline == nullptr) {
         return;
     }
-    lv_label_set_text(ctx->errorLabel, ctx->errorMessage.c_str());
-    lv_obj_set_hidden(ctx->errorCard, ctx->errorMessage.empty());
+    lvgl_statusline_set_text(ctx->errorStatusline, ctx->errorMessage.c_str());
+    lvgl_statusline_set_level(ctx->errorStatusline, ctx->errorLevel);
+    lv_obj_set_hidden(ctx->errorStatusline, ctx->errorMessage.empty());
     lv_obj_set_hidden(ctx->refreshButton, ctx->errorMessage.empty());
-    layoutHeader(ctx);
 }
 
 void showApps(Context* ctx);
 
 /** The apps that were already loaded stay in the list */
-void showRefreshFailedError(Context* ctx, const char* message) {
+void showRefreshFailedError(Context* ctx, const char* message, LvglStatuslineLevel level = LVGL_STATUSLINE_LEVEL_ERROR) {
     // The message is kept for when the window is shown again. The list is only rebuilt while it exists.
-    setError(ctx, message);
+    setError(ctx, message, level);
     if (ctx->contentWrapper != nullptr) {
         showApps(ctx);
     }
 }
 
 void showNoInternet(Context* ctx) {
-    showRefreshFailedError(ctx, tr("No Internet Connection"));
+    // Not a failure of App Hub, so it's a warning
+    showRefreshFailedError(ctx, tr("No Internet Connection"), LVGL_STATUSLINE_LEVEL_WARNING);
 }
 
 bool isInContentWrapper(Context* ctx, lv_obj_t* obj) {
@@ -637,8 +551,13 @@ void showApps(Context* ctx) {
     const uint32_t iconSize = getIconSize();
     tt::std::vector<AppHubApp> apps = ctx->apps;
     const bool hasApps = !apps.empty();
-    updateUpdatesChipText(ctx, ::std::ranges::count_if(apps, [](const AppHubApp& app) { return app.update_available; }));
-    layoutHeader(ctx);
+    const auto updateCount = ::std::ranges::count_if(apps, [](const AppHubApp& app) { return app.update_available; });
+    updateUpdatesTabText(ctx, updateCount);
+    // The updates tab only shows while there are updates. Hiding it while it's selected selects the first tab.
+    if (updateCount == 0 && ctx->filter == Filter::Updates) {
+        ctx->filter = Filter::All;
+    }
+    lvgl_tabs_set_tab_hidden(ctx->tabs, static_cast<uint32_t>(Filter::Updates), updateCount == 0);
     updateToolbarActions(ctx, ::std::ranges::any_of(apps, [](const AppHubApp& app) { return app.update_available; }));
     ::std::erase_if(apps, [ctx](const AppHubApp& app) {
         return !matchesFilter(app, ctx->filter) || !matchesQuery(app, ctx->query);
@@ -842,8 +761,8 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);
 
-    // Replaces the toolbar: the close button, the tabs in the middle and the actions. All focusable widgets are
-    // direct children of the header, so they're one grid navigation group.
+    // Replaces the toolbar: the close button, the tabs next to it and the actions.
+    // The tabs and the actions are grid navigation groups of their own, as grid navigation can't be nested.
     ctx->header = lv_obj_create(parent);
     lv_obj_remove_style_all(ctx->header);
     lv_obj_set_size(ctx->header, LV_PCT(100), LV_SIZE_CONTENT);
@@ -852,48 +771,32 @@ void createWidgets(lv_obj_t* parent, void* userData) {
     const auto spacing = lvgl_theme_lerp(LV_DPX(2), LV_DPX(8), lvgl_theme_get_spacing());
     lv_obj_set_style_pad_hor(ctx->header, spacing, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_column(ctx->header, spacing, LV_STATE_DEFAULT);
-    ctx->headerWidth = -1;
-    lv_obj_add_event_cb(ctx->header, onHeaderSizeChanged, LV_EVENT_SIZE_CHANGED, ctx);
 
     createHeaderButton(ctx->header, LVGL_ICON_SHARED_CLOSE, true, onBackPressed, ctx);
-    ctx->spacerLeft = createHeaderSpacer(ctx->header);
-    createFilterChips(ctx->header, ctx);
-    updateFilterChips(ctx);
-    ctx->spacerRight = createHeaderSpacer(ctx->header);
-    ctx->refreshButton = createHeaderButton(ctx->header, LVGL_ICON_SHARED_REFRESH, true, onRefreshPressed, ctx);
+    createFilterTabs(ctx->header, ctx);
+    // Pushes the actions to the right
+    createHeaderSpacer(ctx->header);
+
+    auto* actions = lv_obj_create(ctx->header);
+    lv_obj_remove_style_all(actions);
+    lv_obj_set_size(actions, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(actions, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(actions, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(actions, spacing, LV_STATE_DEFAULT);
+    ctx->refreshButton = createHeaderButton(actions, LVGL_ICON_SHARED_REFRESH, true, onRefreshPressed, ctx);
     lv_obj_set_hidden(ctx->refreshButton, true);
-    createHeaderButton(ctx->header, LVGL_ICON_SHARED_SEARCH, true, onSearchTogglePressed, ctx);
-    ctx->updateAllButton = createHeaderButton(ctx->header, LVGL_ICON_SHARED_DOWNLOAD, true, onUpdateAllPressed, ctx);
+    createHeaderButton(actions, LVGL_ICON_SHARED_SEARCH, true, onSearchTogglePressed, ctx);
+    ctx->updateAllButton = createHeaderButton(actions, LVGL_ICON_SHARED_DOWNLOAD, true, onUpdateAllPressed, ctx);
     lv_obj_set_hidden(ctx->updateAllButton, true);
-    ctx->updateAllSpinner = lvgl_spinner_create(ctx->header);
+    ctx->updateAllSpinner = lvgl_spinner_create(actions);
     lv_obj_set_clickable(ctx->updateAllSpinner, false);
     lv_obj_set_hidden(ctx->updateAllSpinner, true);
-    lvgl_grid_navigation_add(ctx->header);
+    lvgl_grid_navigation_add(actions);
 
     createSearchRow(parent, ctx);
 
-    LvglThemeSettings theme {};
-    lvgl_theme_get_settings(&theme);
-    // The wrapper centers the card, which is only as wide as its text
-    auto* errorWrapper = lv_obj_create(parent);
-    lv_obj_remove_style_all(errorWrapper);
-    lv_obj_set_size(errorWrapper, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(errorWrapper, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(errorWrapper, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-    ctx->errorCard = createCard(errorWrapper);
-    lv_obj_set_width(ctx->errorCard, LV_SIZE_CONTENT);
-    lv_obj_set_style_max_width(ctx->errorCard, LV_PCT(100), LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ctx->errorCard, LV_OPA_TRANSP, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(ctx->errorCard, theme.color_error, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ctx->errorCard, 2, LV_STATE_DEFAULT);
-    lv_obj_set_style_border_opa(ctx->errorCard, LV_OPA_COVER, LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_all(ctx->errorCard, lvgl_theme_lerp(LV_DPX(1), LV_DPX(4), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
-    // Space above the card scales with the theme's spacing. A hidden card takes no space.
-    lv_obj_set_style_margin_top(ctx->errorCard, lvgl_theme_lerp(LV_DPX(2), LV_DPX(8), lvgl_theme_get_spacing()), LV_STATE_DEFAULT);
-    lv_obj_set_style_text_align(ctx->errorCard, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
-    ctx->errorLabel = lv_label_create(ctx->errorCard);
-    lv_label_set_long_mode(ctx->errorLabel, LV_LABEL_LONG_MODE_WRAP);
-    setError(ctx, ctx->errorMessage.c_str());
+    ctx->errorStatusline = lvgl_statusline_create(parent);
+    setError(ctx, ctx->errorMessage.c_str(), ctx->errorLevel);
 
     ctx->contentWrapper = lv_obj_create(parent);
     lv_obj_set_style_border_width(ctx->contentWrapper, 0, LV_STATE_DEFAULT);
@@ -923,14 +826,11 @@ void destroyWidgets(void* userData) {
     ctx->refreshButton = nullptr;
     ctx->updateAllButton = nullptr;
     ctx->updateAllSpinner = nullptr;
-    ::std::fill(::std::begin(ctx->chips), ::std::end(ctx->chips), nullptr);
+    ctx->tabs = nullptr;
     ctx->header = nullptr;
-    ctx->spacerLeft = nullptr;
-    ctx->spacerRight = nullptr;
     ctx->searchRow = nullptr;
     ctx->searchTextarea = nullptr;
-    ctx->errorCard = nullptr;
-    ctx->errorLabel = nullptr;
+    ctx->errorStatusline = nullptr;
 }
 
 /** Tracks the update of all apps, and shows which apps failed when it's done */

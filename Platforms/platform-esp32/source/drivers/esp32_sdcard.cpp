@@ -5,7 +5,11 @@
 #include <tactility/drivers/esp32_sdspi.h>
 #include <tactility/drivers/spi_controller.h>
 
+#include <sd_protocol_defs.h>
 #include <sdmmc_cmd.h>
+
+#include <esp_timer.h>
+#include <tactility/log.h>
 
 #include <soc/soc_caps.h>
 #if SOC_SDMMC_HOST_SUPPORTED
@@ -48,13 +52,64 @@ static SdcardBusLock* find_by_slot(int slot) {
     return nullptr;
 }
 
+#define TAG "esp32_sdcard"
+
+/** Totals of the SD commands, logged at debug level every 2 seconds while the card is in use. Guarded by the bus lock. */
+struct CommandStatistics {
+    uint32_t commands = 0;
+    uint32_t single_reads = 0;
+    uint32_t multi_reads = 0;
+    uint32_t bytes = 0;
+    uint32_t opcodes[64] = {};
+    int64_t wait_us = 0;
+    int64_t transfer_us = 0;
+    int64_t max_wait_us = 0;
+    int64_t since_us = 0;
+};
+
+static CommandStatistics statistics;
+
+static void record_command(const sdmmc_command_t* cmd, int64_t wait_us, int64_t transfer_us) {
+    const int64_t now = esp_timer_get_time();
+    if (statistics.commands == 0) {
+        statistics.since_us = now;
+    }
+    statistics.commands++;
+    statistics.single_reads += (cmd->opcode == MMC_READ_BLOCK_SINGLE) ? 1 : 0;
+    statistics.multi_reads += (cmd->opcode == MMC_READ_BLOCK_MULTIPLE) ? 1 : 0;
+    statistics.bytes += cmd->datalen;
+    statistics.opcodes[cmd->opcode & 63]++;
+    statistics.wait_us += wait_us;
+    statistics.transfer_us += transfer_us;
+    statistics.max_wait_us = (wait_us > statistics.max_wait_us) ? wait_us : statistics.max_wait_us;
+    if (now - statistics.since_us < 2000000) {
+        return;
+    }
+    LOG_D(TAG, "%u commands (%u single reads, %u multi reads, %u KB) in %u ms: waited %u ms for the bus (max %u ms), transfers %u ms",
+        (unsigned)statistics.commands, (unsigned)statistics.single_reads, (unsigned)statistics.multi_reads, (unsigned)(statistics.bytes / 1024),
+        (unsigned)((now - statistics.since_us) / 1000), (unsigned)(statistics.wait_us / 1000), (unsigned)(statistics.max_wait_us / 1000),
+        (unsigned)(statistics.transfer_us / 1000));
+    char histogram[160] = {};
+    size_t used = 0;
+    for (uint32_t opcode = 0; opcode < 64 && used < sizeof(histogram); opcode++) {
+        if (statistics.opcodes[opcode] != 0) {
+            used += (size_t)snprintf(histogram + used, sizeof(histogram) - used, " cmd%u=%u", (unsigned)opcode, (unsigned)statistics.opcodes[opcode]);
+        }
+    }
+    LOG_D(TAG, "Commands by opcode:%s", histogram);
+    statistics = CommandStatistics {};
+}
+
 static esp_err_t locked_do_transaction(int slot, sdmmc_command_t* cmd) {
     const SdcardBusLock* entry = find_by_slot(slot);
     if (entry == nullptr) {
         return ESP_ERR_INVALID_STATE;
     }
+    const int64_t start = esp_timer_get_time();
     spi_controller_lock(entry->controller);
+    const int64_t locked = esp_timer_get_time();
     esp_err_t result = entry->inner(slot, cmd);
+    record_command(cmd, locked - start, esp_timer_get_time() - locked);
     spi_controller_unlock(entry->controller);
     return result;
 }

@@ -43,6 +43,10 @@
 @widget flex_list_button: lvgl_list_button_class;
 @widget text_button: lvgl_text_button_class;
 @widget pathbar_button: lvgl_pathbar_button_class;
+@widget tab_bar: lvgl_tabs_class;
+@widget tab_bar_tab: lvgl_tabs_tab_class;
+@widget statusline: lvgl_statusline_class;
+@widget statusline_dot: lvgl_statusline_dot_class;
 
 // ============================================================
 // 1. Base tokens
@@ -417,6 +421,26 @@
 @tab-selected-color: @color-secondary-container;
 @tab-selected-label-color: @color-on-secondary-container;
 @tab-page-pad: @density-container-pad;
+
+// Statusline (lvgl_statusline_create): one line of small text with a dot that shows the level of the status
+@statusline-text-color: @color-on-surface-variant;
+@statusline-ok-color: if($isDark, lighten(green, 2), darken(green, 1));
+@statusline-warning-color: if($isDark, lighten(orange, 2), darken(orange, 1));
+@statusline-error-color: @color-error;
+@statusline-dot-size: ((5) + ((7dp) - (5)) * $size / 100);
+@statusline-pad-hor: ((4) + ((@space-3) - (4)) * $spacing / 100);
+@statusline-pad-ver: 4dp + ((1) + ((@space-1) - (1)) * $spacing / 100);
+@statusline-gap: ((3) + ((6dp) - (3)) * $spacing / 100);
+
+// Tab bar (lvgl_tabs_create): Material 3 primary tabs, the selected tab has an indicator above the divider
+@tab-bar-divider-color: @color-outline-variant;
+@tab-bar-label-color: @color-on-surface-variant;
+@tab-bar-selected-label-color: @color-primary;
+@tab-bar-indicator-color: @color-primary;
+@tab-bar-indicator-width: 3dp;
+@tab-bar-pad-hor: ((3) + ((@space-4) - (3)) * $spacing / 100);
+@tab-bar-pad-ver: ((4) + ((@space-3) - (4)) * $spacing / 100);
+@tab-bar-icon-gap: ((2) + ((@space-1) - (2)) * $spacing / 100);
 
 // Dialog (message box)
 @dialog-color: @color-surface-container-high;
@@ -1139,6 +1163,61 @@ tab_page {
     padAll: @tab-page-pad;
 }
 
+statusline {
+    bgOpa: transp;
+    textColor: @statusline-text-color;
+    padHor: @statusline-pad-hor;
+    padVer: @statusline-pad-ver;
+    padGap: @statusline-gap;
+}
+
+statusline_dot {
+    width: @statusline-dot-size;
+    height: @statusline-dot-size;
+    radius: circle;
+    bgColor: @statusline-ok-color;
+    bgOpa: cover;
+    borderWidth: 0;
+}
+
+statusline_dot_warning {
+    bgColor: @statusline-warning-color;
+}
+
+statusline_dot_error {
+    bgColor: @statusline-error-color;
+}
+
+tab_bar {
+    bgOpa: transp;
+    borderSide: bottom;
+    borderWidth: @density-border;
+    borderColor: @tab-bar-divider-color;
+    radius: 0;
+    padAll: 0;
+    padGap: 0;
+}
+
+// Every tab has the indicator's border, so the label doesn't move when the tab is selected
+tab_bar_tab {
+    bgOpa: transp;
+    textColor: @tab-bar-label-color;
+    radius: 0;
+    padHor: @tab-bar-pad-hor;
+    padVer: @tab-bar-pad-ver;
+    // Between the icon and the label
+    padGap: @tab-bar-icon-gap;
+    borderSide: bottom;
+    borderWidth: @tab-bar-indicator-width;
+    borderOpa: transp;
+}
+
+tab_bar_tab_selected {
+    textColor: @tab-bar-selected-label-color;
+    borderColor: @tab-bar-indicator-color;
+    borderOpa: cover;
+}
+
 dialog {
     bgColor: @dialog-color;
     bgOpa: cover;
@@ -1596,6 +1675,31 @@ apply(badge) {
 // Focusable images, e.g. the statusbar icons
 apply(image) {
     focus_ring_inset: state.focusKey;
+}
+
+apply(statusline) {
+    statusline: default;
+}
+
+apply(statusline_dot) {
+    statusline_dot: default;
+    statusline_dot_warning: state.user1;
+    statusline_dot_error: state.user2;
+}
+
+apply(tab_bar) {
+    tab_bar: default;
+}
+
+apply(tab_bar_tab) {
+    tab_bar_tab: default;
+    transition_exit: default;
+    state_pressed: state.pressed;
+    transition_enter: state.pressed;
+    tab_bar_tab_selected: state.checked;
+    focus_ring_inset: state.focusKey;
+    edit_ring_inset: state.edited;
+    disabled: state.disabled;
 }
 
 apply(chip) {

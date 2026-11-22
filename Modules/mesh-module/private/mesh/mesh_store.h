@@ -36,7 +36,7 @@ private:
         /** Channel index, meaningful for messages without a peer */
         uint8_t channel;
         /** Hash of the peer address, 0 for channel messages */
-        uint32_t peerHash;
+        uint64_t peerHash;
         /** Hash of the backend id, which the index can't tell otherwise without reading the message */
         uint32_t backendHash;
     };
@@ -47,8 +47,6 @@ private:
     tt::std::string directory;
     uint8_t* buffer = nullptr;
     bool opened = false;
-    /** Set while opening when a deletion couldn't be applied completely because a message couldn't be read */
-    bool replayIncomplete = false;
     size_t bufferUsed = 0;
     tt::std::vector<IndexEntry> index;
     tt::std::vector<uint32_t> segments;
@@ -59,6 +57,8 @@ private:
     tt::std::string getSegmentPath(uint32_t segment) const;
     /** @return the end offset of the last valid record */
     uint32_t scanSegment(uint32_t segment);
+    /** Same as scanSegment(), record by record, for when there is no memory to read the segment at once */
+    uint32_t scanSegmentStreaming(uint32_t segment);
     static IndexEntry makeIndexEntry(const MeshMessage& message, uint32_t segment, uint32_t offset);
     void applyRecord(uint8_t type, const uint8_t* payload, size_t length, uint32_t segment, uint32_t offset);
     error_t appendRecord(uint8_t type, const uint8_t* payload, size_t length, uint32_t seq);
@@ -66,10 +66,8 @@ private:
     const IndexEntry* findEntry(uint32_t seq) const;
     error_t readEntry(const IndexEntry& entry, MeshMessage* message) const;
     void enforceBudget();
-    /** @return false when a message that may belong to the conversation can't be read, which a deletion must not be stored for */
-    bool canEraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq) const;
-    /** @return false when a message couldn't be read, which is then kept as it can't be told whether it belongs to the conversation */
-    bool eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq);
+    /** Removes the messages of the conversation from the index. The hashes decide, so no message is read. */
+    void eraseConversation(const char* backend, const MeshAddress* peer, uint8_t channel, uint32_t lastSeq);
 
 public:
     explicit MeshStore(const Limits& limits = DEFAULT_LIMITS);
@@ -127,7 +125,7 @@ public:
     uint32_t getLastSeq() const { return nextSeq - 1; }
 
     /** Hash of a peer address, 0 for none, as the index keeps it */
-    static uint32_t hashPeerAddress(const MeshAddress* peer);
+    static uint64_t hashPeerAddress(const MeshAddress* peer);
 
     size_t countDelivery(enum MeshDeliveryState delivery) const {
         size_t count = 0;

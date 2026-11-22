@@ -26,6 +26,10 @@ extern const lv_obj_class_t lvgl_list_text_class;
 extern const lv_obj_class_t lvgl_list_button_class;
 extern const lv_obj_class_t lvgl_text_button_class;
 extern const lv_obj_class_t lvgl_pathbar_button_class;
+extern const lv_obj_class_t lvgl_tabs_class;
+extern const lv_obj_class_t lvgl_tabs_tab_class;
+extern const lv_obj_class_t lvgl_statusline_class;
+extern const lv_obj_class_t lvgl_statusline_dot_class;
 
 #define BLACK lv_color_black()
 #define WHITE lv_color_white()
@@ -200,6 +204,14 @@ extern const lv_obj_class_t lvgl_pathbar_button_class;
 #define TAB_PAD (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
 #define TAB_SHAPE SHAPE_CONTROL
 #define TAB_PAGE_PAD DENSITY_CONTAINER_PAD
+#define STATUSLINE_DOT_SIZE (5 + (((LV_DPX_CALC(theme->disp_dpi, 7) - 5) * theme->config.size) / 100))
+#define STATUSLINE_PAD_HOR (4 + (((SPACE_3 - 4) * theme->config.spacing) / 100))
+#define STATUSLINE_PAD_VER (LV_DPX_CALC(theme->disp_dpi, 4) + (1 + (((SPACE_1 - 1) * theme->config.spacing) / 100)))
+#define STATUSLINE_GAP (3 + (((LV_DPX_CALC(theme->disp_dpi, 6) - 3) * theme->config.spacing) / 100))
+#define TAB_BAR_INDICATOR_WIDTH LINE_THICK
+#define TAB_BAR_PAD_HOR (3 + (((SPACE_4 - 3) * theme->config.spacing) / 100))
+#define TAB_BAR_PAD_VER (2 + (((SPACE_3 - 2) * theme->config.spacing) / 100))
+#define TAB_BAR_ICON_GAP (2 + (((SPACE_1 - 2) * theme->config.spacing) / 100))
 #define DIALOG_COLOR COLOR_SURFACE
 #define DIALOG_BORDER_COLOR COLOR_OUTLINE
 #define DIALOG_BORDER_WIDTH LINE_MEDIUM
@@ -347,6 +359,13 @@ typedef struct {
 #if LV_USE_TABVIEW
     lv_style_t tab_page;
 #endif
+    lv_style_t statusline;
+    lv_style_t statusline_dot;
+    lv_style_t statusline_dot_warning;
+    lv_style_t statusline_dot_error;
+    lv_style_t tab_bar;
+    lv_style_t tab_bar_tab;
+    lv_style_t tab_bar_tab_selected;
 #if LV_USE_MSGBOX
     lv_style_t dialog;
 #endif
@@ -982,6 +1001,54 @@ static void style_init(my_theme_t * theme)
     lv_style_set_pad_all(&theme->styles.tab_page, TAB_PAGE_PAD);
 #endif
 
+    style_init_reset(&theme->styles.statusline);
+    lv_style_set_bg_opa(&theme->styles.statusline, LV_OPA_TRANSP);
+    lv_style_set_text_color(&theme->styles.statusline, COLOR_ON_SURFACE);
+    lv_style_set_pad_hor(&theme->styles.statusline, STATUSLINE_PAD_HOR);
+    lv_style_set_pad_ver(&theme->styles.statusline, STATUSLINE_PAD_VER);
+    lv_style_set_pad_gap(&theme->styles.statusline, STATUSLINE_GAP);
+
+    style_init_reset(&theme->styles.statusline_dot);
+    lv_style_set_width(&theme->styles.statusline_dot, STATUSLINE_DOT_SIZE);
+    lv_style_set_height(&theme->styles.statusline_dot, STATUSLINE_DOT_SIZE);
+    lv_style_set_radius(&theme->styles.statusline_dot, LV_RADIUS_CIRCLE);
+    lv_style_set_bg_color(&theme->styles.statusline_dot, COLOR_ON_SURFACE);
+    lv_style_set_bg_opa(&theme->styles.statusline_dot, LV_OPA_COVER);
+    lv_style_set_border_color(&theme->styles.statusline_dot, COLOR_ON_SURFACE);
+    lv_style_set_border_width(&theme->styles.statusline_dot, 0);
+    lv_style_set_border_opa(&theme->styles.statusline_dot, LV_OPA_COVER);
+
+    style_init_reset(&theme->styles.statusline_dot_warning);
+    lv_style_set_bg_opa(&theme->styles.statusline_dot_warning, LV_OPA_TRANSP);
+    lv_style_set_border_width(&theme->styles.statusline_dot_warning, BORDER);
+
+    style_init_reset(&theme->styles.statusline_dot_error);
+    lv_style_set_radius(&theme->styles.statusline_dot_error, 0);
+
+    style_init_reset(&theme->styles.tab_bar);
+    lv_style_set_bg_opa(&theme->styles.tab_bar, LV_OPA_TRANSP);
+    lv_style_set_border_side(&theme->styles.tab_bar, LV_BORDER_SIDE_BOTTOM);
+    lv_style_set_border_width(&theme->styles.tab_bar, BORDER);
+    lv_style_set_border_color(&theme->styles.tab_bar, COLOR_OUTLINE);
+    lv_style_set_radius(&theme->styles.tab_bar, 0);
+    lv_style_set_pad_all(&theme->styles.tab_bar, 0);
+    lv_style_set_pad_gap(&theme->styles.tab_bar, 0);
+
+    style_init_reset(&theme->styles.tab_bar_tab);
+    lv_style_set_bg_opa(&theme->styles.tab_bar_tab, LV_OPA_TRANSP);
+    lv_style_set_text_color(&theme->styles.tab_bar_tab, COLOR_ON_SURFACE);
+    lv_style_set_radius(&theme->styles.tab_bar_tab, 0);
+    lv_style_set_pad_hor(&theme->styles.tab_bar_tab, TAB_BAR_PAD_HOR);
+    lv_style_set_pad_ver(&theme->styles.tab_bar_tab, TAB_BAR_PAD_VER);
+    lv_style_set_pad_gap(&theme->styles.tab_bar_tab, TAB_BAR_ICON_GAP);
+    lv_style_set_border_side(&theme->styles.tab_bar_tab, LV_BORDER_SIDE_BOTTOM);
+    lv_style_set_border_width(&theme->styles.tab_bar_tab, TAB_BAR_INDICATOR_WIDTH);
+    lv_style_set_border_opa(&theme->styles.tab_bar_tab, LV_OPA_TRANSP);
+
+    style_init_reset(&theme->styles.tab_bar_tab_selected);
+    lv_style_set_border_color(&theme->styles.tab_bar_tab_selected, COLOR_PRIMARY);
+    lv_style_set_border_opa(&theme->styles.tab_bar_tab_selected, LV_OPA_COVER);
+
 #if LV_USE_MSGBOX
     style_init_reset(&theme->styles.dialog);
     lv_style_set_bg_color(&theme->styles.dialog, DIALOG_COLOR);
@@ -1589,6 +1656,33 @@ static void theme_apply(lv_theme_t * th, lv_obj_t * obj)
     if(lv_obj_check_type(obj, &lvgl_badge_class)) {
         /* badge */
         lv_obj_add_style(obj, &theme->styles.badge, 0);
+        return;
+    }
+    if(lv_obj_check_type(obj, &lvgl_statusline_class)) {
+        /* statusline */
+        lv_obj_add_style(obj, &theme->styles.statusline, 0);
+        return;
+    }
+    if(lv_obj_check_type(obj, &lvgl_statusline_dot_class)) {
+        /* statusline_dot */
+        lv_obj_add_style(obj, &theme->styles.statusline_dot, 0);
+        lv_obj_add_style(obj, &theme->styles.statusline_dot_warning, LV_STATE_USER_1);
+        lv_obj_add_style(obj, &theme->styles.statusline_dot_error, LV_STATE_USER_2);
+        return;
+    }
+    if(lv_obj_check_type(obj, &lvgl_tabs_class)) {
+        /* tab_bar */
+        lv_obj_add_style(obj, &theme->styles.tab_bar, 0);
+        return;
+    }
+    if(lv_obj_check_type(obj, &lvgl_tabs_tab_class)) {
+        /* tab_bar_tab */
+        lv_obj_add_style(obj, &theme->styles.tab_bar_tab, 0);
+        lv_obj_add_style(obj, &theme->styles.tab_bar_tab_selected, LV_STATE_CHECKED);
+        lv_obj_add_style(obj, &theme->styles.inverted, LV_STATE_PRESSED);
+        lv_obj_add_style(obj, &theme->styles.focus_ring_inset, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(obj, &theme->styles.edit_ring_inset, LV_STATE_EDITED);
+        lv_obj_add_style(obj, &theme->styles.disabled, LV_STATE_DISABLED);
         return;
     }
     if(lv_obj_check_type(obj, &lvgl_chip_class)) {

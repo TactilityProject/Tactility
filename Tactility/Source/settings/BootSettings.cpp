@@ -1,6 +1,4 @@
 #include <tactility/filesystem/fs.h>
-#include <Tactility/MountPoints.h>
-#include <Tactility/file/File.h>
 #include <Tactility/file/PropertiesFile.h>
 #include <Tactility/settings/BootSettings.h>
 

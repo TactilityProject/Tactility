@@ -3,11 +3,14 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: es-ES\n"
 
+msgid " · largest block {}"
+msgstr " · bloque más grande {}"
+
 msgid "(unnamed)"
 msgstr "(sin nombre)"
 
-msgid "External"
-msgstr "Externa"
+msgid "About"
+msgstr "Acerca de"
 
 msgid "Failed to allocate memory for task list"
 msgstr "Error al reservar memoria para la lista de tareas"
@@ -18,11 +21,26 @@ msgstr "Modelo del hardware: {}"
 msgid "Hardware vendor: {}"
 msgstr "Fabricante del hardware: {}"
 
-msgid "Internal"
-msgstr "Interna"
+msgid "Internal RAM"
+msgstr "RAM interna"
 
-msgid "System Info"
-msgstr "Información del sistema"
+msgid "Internal storage"
+msgstr "Almacenamiento interno"
+
+msgid "Memory"
+msgstr "Memoria"
+
+msgid "PSRAM"
+msgstr "PSRAM"
+
+msgid "SD card"
+msgstr "Tarjeta SD"
+
+msgid "Storage"
+msgstr "Almacenamiento"
+
+msgid "Tasks"
+msgstr "Tareas"
 
 msgid "blocked"
 msgstr "bloqueada"
@@ -42,5 +60,5 @@ msgstr "en ejecución"
 msgid "suspended"
 msgstr "suspendida"
 
-msgid "{} / {} {} free ({} / {} bytes)"
-msgstr "{} / {} {} libres ({} / {} bytes)"
+msgid "{} free of {}"
+msgstr "{} libres de {}"
