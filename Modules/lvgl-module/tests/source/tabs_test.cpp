@@ -41,9 +41,13 @@ TEST_CASE("lvgl_tabs in wrap mode is as wide as its tabs when they fit") {
 }
 
 TEST_CASE("lvgl_tabs in wrap mode shortens the long tabs to fit in its parent") {
-    Fixture wide(320, LVGL_TABS_MODE_WRAP);
-    const int32_t shortWidth = wide.tabWidth(0);
-    const int32_t longWidth = wide.tabWidth(1);
+    int32_t shortWidth;
+    int32_t longWidth;
+    {
+        Fixture wide(320, LVGL_TABS_MODE_WRAP);
+        shortWidth = wide.tabWidth(0);
+        longWidth = wide.tabWidth(1);
+    }
 
     Fixture narrow(80, LVGL_TABS_MODE_WRAP);
     CHECK_LE(lv_obj_get_width(narrow.tabs), 80);

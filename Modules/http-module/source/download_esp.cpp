@@ -71,7 +71,7 @@ HttpDownloadEvent http_download_run(const std::string& url, const std::string& c
         config.cert_pem = certPem.c_str();
         config.cert_len = certPem.size() + 1;
     }
-    config.tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_3;
+    config.tls_version = ESP_HTTP_CLIENT_TLS_VER_ANY;
     config.method = HTTP_METHOD_GET;
     config.timeout_ms = 10000;
     config.transport_type = HTTP_TRANSPORT_OVER_SSL;
@@ -129,28 +129,41 @@ HttpDownloadEvent http_download_run(const std::string& url, const std::string& c
         return http_download_make_error_event("Failed to allocate download buffer", status_code);
     }
     auto* buffer = buffer_holder.get();
-    while (!length_known || bytes_left > 0) {
+    // Reads are small so cancellation is seen quickly, and written to the file in batches
+    constexpr size_t read_size = 1024;
+    size_t buffered = 0;
+    bool body_done = false;
+    while (!body_done) {
         if (http_download_is_cancelled(link)) {
             fclose(file);
             remove(tempPath.c_str());
             return http_download_make_cancelled_event(status_code);
         }
-        int data_read = client.read(buffer, buffer_size);
-        if (data_read < 0) {
-            fclose(file);
-            remove(tempPath.c_str());
-            return http_download_make_error_event("Failed to read response data", status_code);
+        if (length_known && bytes_left <= 0) {
+            body_done = true;
+        } else {
+            int data_read = client.read(buffer + buffered, read_size < buffer_size - buffered ? read_size : buffer_size - buffered);
+            if (data_read < 0) {
+                fclose(file);
+                remove(tempPath.c_str());
+                return http_download_make_error_event("Failed to read response data", status_code);
+            }
+            if (data_read == 0) {
+                body_done = true;
+            } else {
+                buffered += static_cast<size_t>(data_read);
+                if (length_known) {
+                    bytes_left -= data_read;
+                }
+            }
         }
-        if (data_read == 0) {
-            break;
-        }
-        if (length_known) {
-            bytes_left -= data_read;
-        }
-        if (fwrite(buffer, 1, static_cast<size_t>(data_read), file) != static_cast<size_t>(data_read)) {
-            fclose(file);
-            remove(tempPath.c_str());
-            return http_download_make_error_event("Failed to write downloaded data", status_code);
+        if (buffered > 0 && (body_done || buffered >= buffer_size)) {
+            if (fwrite(buffer, 1, buffered, file) != buffered) {
+                fclose(file);
+                remove(tempPath.c_str());
+                return http_download_make_error_event("Failed to write downloaded data", status_code);
+            }
+            buffered = 0;
         }
         taskYIELD();
     }

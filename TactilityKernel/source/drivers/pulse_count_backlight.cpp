@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <tactility/drivers/pulse_count_backlight.h>
 
+#include <tactility/concurrent/mutex.h>
 #include <tactility/delay.h>
 #include <tactility/device.h>
 #include <tactility/driver.h>
@@ -22,14 +23,16 @@ constexpr uint32_t PULSE_MICROS = 1;
 constexpr uint32_t OFF_MICROS = 3000;
 constexpr uint32_t ON_MICROS = 30;
 /** The level of the IC is not known, e.g. after a failed GPIO write */
-constexpr uint8_t LEVEL_UNKNOWN = 0xFF;
+constexpr uint16_t LEVEL_UNKNOWN = 0x100;
 
 extern "C" {
 
 struct PulseCountBacklightInternal {
     GpioDescriptor* descriptor;
+    /** Serializes brightness changes so the level matches the state of the IC */
+    Mutex mutex;
     /** 0 when off, LEVEL_UNKNOWN when not known */
-    uint8_t level;
+    uint16_t level;
 };
 
 // region BacklightApi
@@ -62,7 +65,7 @@ static error_t send_pulses(PulseCountBacklightInternal* internal, uint32_t count
     return error;
 }
 
-static error_t pulse_count_backlight_set_brightness(Device* device, uint8_t brightness) {
+static error_t set_brightness_locked(Device* device, uint8_t brightness) {
     const auto* config = GET_CONFIG(device);
     auto* internal = GET_INTERNAL(device);
     // Values of a wider range, e.g. from settings that were saved for another backlight driver
@@ -93,13 +96,24 @@ static error_t pulse_count_backlight_set_brightness(Device* device, uint8_t brig
     return error;
 }
 
+static error_t pulse_count_backlight_set_brightness(Device* device, uint8_t brightness) {
+    auto* internal = GET_INTERNAL(device);
+    mutex_lock(&internal->mutex);
+    const error_t error = set_brightness_locked(device, brightness);
+    mutex_unlock(&internal->mutex);
+    return error;
+}
+
 static error_t pulse_count_backlight_set_brightness_default(Device* device) {
     return pulse_count_backlight_set_brightness(device, GET_CONFIG(device)->brightness_default);
 }
 
 static error_t pulse_count_backlight_get_brightness(Device* device, uint8_t* out_brightness) {
-    const uint8_t level = GET_INTERNAL(device)->level;
-    *out_brightness = (level == LEVEL_UNKNOWN) ? 0 : level;
+    auto* internal = GET_INTERNAL(device);
+    mutex_lock(&internal->mutex);
+    const uint16_t level = internal->level;
+    mutex_unlock(&internal->mutex);
+    *out_brightness = (level == LEVEL_UNKNOWN) ? 0 : static_cast<uint8_t>(level);
     return ERROR_NONE;
 }
 
@@ -132,11 +146,12 @@ static error_t start(Device* device) {
         return ERROR_RESOURCE;
     }
 
-    auto* internal = new(std::nothrow) PulseCountBacklightInternal { .descriptor = descriptor, .level = LEVEL_UNKNOWN };
+    auto* internal = new(std::nothrow) PulseCountBacklightInternal { .descriptor = descriptor, .mutex = {}, .level = LEVEL_UNKNOWN };
     if (internal == nullptr) {
         gpio_descriptor_release(descriptor);
         return ERROR_OUT_OF_MEMORY;
     }
+    mutex_construct(&internal->mutex);
 
     device_set_driver_data(device, internal);
     return ERROR_NONE;
@@ -144,9 +159,12 @@ static error_t start(Device* device) {
 
 static error_t stop(Device* device) {
     auto* internal = GET_INTERNAL(device);
+    mutex_lock(&internal->mutex);
     turn_off(internal); // Allowed to fail, we don't care about the result
+    mutex_unlock(&internal->mutex);
     gpio_descriptor_release(internal->descriptor);
     device_set_driver_data(device, nullptr);
+    mutex_destruct(&internal->mutex);
     delete internal;
     return ERROR_NONE;
 }

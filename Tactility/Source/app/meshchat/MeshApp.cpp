@@ -64,8 +64,9 @@ struct Context {
     uint32_t menuBit = 0;
     uint32_t settingsBit = 0;
     uint32_t addBit = 0;
-    uint32_t showChannelsBit = 0;
-    uint32_t showContactsBit = 0;
+    uint32_t tabBit = 0;
+    /** The tab that was selected last, as a ViewMode */
+    ::std::atomic<uint32_t> selectedTab { static_cast<uint32_t>(ViewMode::Contacts) };
     ViewMode mode = ViewMode::Channels;
     /** The tab that Inspect returns to */
     ViewMode lastTab = ViewMode::Channels;
@@ -223,8 +224,8 @@ void onSettingsPressed(lv_event_t* event) { signalBit(event, &Context::settingsB
 /** Switching tabs rebuilds the widgets, which can't happen in an event of the tab bar, so the app's task does it */
 void onTabChanged(lv_event_t* event) {
     auto* ctx = static_cast<Context*>(lv_event_get_user_data(event));
-    const bool contacts = lvgl_tabs_get_selected(lv_event_get_current_target_obj(event)) == static_cast<uint32_t>(ViewMode::Contacts);
-    task_event_group_signal(ctx->eventGroup, contacts ? ctx->showContactsBit : ctx->showChannelsBit);
+    ctx->selectedTab = lvgl_tabs_get_selected(lv_event_get_current_target_obj(event));
+    task_event_group_signal(ctx->eventGroup, ctx->tabBit);
 }
 
 void onBackPressed(lv_event_t* event) {
@@ -964,8 +965,7 @@ int32_t appMain(int argc, char* argv[]) {
     check(task_event_group_claim_bit(&eventGroup, &ctx.menuBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.settingsBit) == ERROR_NONE);
     check(task_event_group_claim_bit(&eventGroup, &ctx.addBit) == ERROR_NONE);
-    check(task_event_group_claim_bit(&eventGroup, &ctx.showChannelsBit) == ERROR_NONE);
-    check(task_event_group_claim_bit(&eventGroup, &ctx.showContactsBit) == ERROR_NONE);
+    check(task_event_group_claim_bit(&eventGroup, &ctx.tabBit) == ERROR_NONE);
 
     AppEventSubscription appEvents {};
     check(app_event_subscribe(&appEvents, &eventGroup) == ERROR_NONE);
@@ -994,18 +994,18 @@ int32_t appMain(int argc, char* argv[]) {
         if (flags & ctx.settingsBit) {
             startApp(MESH_SETTINGS_APP_ID, 0, nullptr);
         }
+        if (flags & ctx.tabBit) {
+            const auto tab = static_cast<ViewMode>(ctx.selectedTab.load());
+            if (tab != ctx.mode) {
+                setMode(&ctx, tab);
+            }
+        }
         if (flags & ctx.addBit) {
             if (ctx.mode == ViewMode::Contacts) {
                 startAddContactMenu(&ctx);
             } else {
                 startAddChannel(&ctx);
             }
-        }
-        if ((flags & ctx.showChannelsBit) && ctx.mode != ViewMode::Channels) {
-            setMode(&ctx, ViewMode::Channels);
-        }
-        if ((flags & ctx.showContactsBit) && ctx.mode != ViewMode::Contacts) {
-            setMode(&ctx, ViewMode::Contacts);
         }
 
         bool changed = false;

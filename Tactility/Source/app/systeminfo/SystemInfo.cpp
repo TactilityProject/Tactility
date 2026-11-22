@@ -440,6 +440,8 @@ void onTabChanged(lv_event_t* event) {
 
 void createWidgets(lv_obj_t* parent, void* userData) {
     auto* ctx = static_cast<Context*>(userData);
+    // The widgets of an earlier build were deleted with the window
+    ctx->sdcardStorageCard = UsageCardWidgets {};
 
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 0, LV_STATE_DEFAULT);

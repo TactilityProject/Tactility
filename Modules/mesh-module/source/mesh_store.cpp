@@ -425,6 +425,10 @@ void MeshStore::eraseConversation(const char* backend, const MeshAddress* peer, 
 }
 
 error_t MeshStore::removeConversation(const char* backend, const MeshAddress* peer, uint8_t channel) {
+    // A zero-length address means a channel conversation
+    if (peer != nullptr && peer->length == 0) {
+        peer = nullptr;
+    }
     const uint32_t lastSeq = nextSeq - 1;
     uint8_t payload[1 + MESH_BACKEND_ID_MAX_LENGTH + 1 + MESH_ADDRESS_MAX_LENGTH + 1 + 4];
     Writer writer(payload, sizeof(payload));
@@ -630,6 +634,13 @@ error_t MeshStore::flush() {
     if (file == nullptr) {
         LOG_E(TAG, "Failed to open segment %u", (unsigned)segment);
         return ERROR_RESOURCE;
+    }
+    // A missing segment is recreated empty, so the pending offsets start at the real end of the file
+    if (fseek(file, 0, SEEK_END) == 0) {
+        const long end = ftell(file);
+        if (end >= 0) {
+            currentSegmentSize = (uint32_t)end;
+        }
     }
     const size_t written = fwrite(buffer, 1, bufferUsed, file);
     fclose(file);

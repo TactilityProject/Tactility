@@ -396,6 +396,7 @@ void lvgl_tabs_set_tab_text(lv_obj_t* tabs, uint32_t index, const char* text) {
         return;
     }
     set_tab_text(tab, text);
+    fit_label(tab);
     layout_tabs(tabs);
 }
 
@@ -436,6 +437,19 @@ void lvgl_tabs_set_tab_hidden(lv_obj_t* tabs, uint32_t index, bool hidden) {
                 select_tab(tabs, candidate);
                 break;
             }
+        }
+    } else if (!hidden) {
+        // Hiding the last visible tab leaves a hidden tab selected
+        const uint32_t count = lv_obj_get_child_count(tabs);
+        bool visible_selection = false;
+        for (uint32_t i = 0; i < count; i++) {
+            auto* candidate = lv_obj_get_child(tabs, static_cast<int32_t>(i));
+            if (candidate != tab && !lv_obj_is_hidden(candidate) && lv_obj_has_state(candidate, LV_STATE_CHECKED)) {
+                visible_selection = true;
+            }
+        }
+        if (!visible_selection) {
+            select_tab(tabs, tab);
         }
     }
     layout_tabs(tabs);
